@@ -55,8 +55,9 @@ public:
     CPowerManager();
     bool Init();
     bool CheckCompleteDBLoadStatueInfo();
-    static void LoadPowerWarInfo();
-    static void LoadRankerInfo();
+    // ORIG 0x0829b011/0x0829b01e 调用点压 this（s_power_manager）⇒ 非 static 成员。
+    void LoadPowerWarInfo();
+    void LoadRankerInfo();
     bool IsPowerWarEventOn();
     float GetPowerWarResponPenalty(CUser* user);
     int GetPowerWarGhostTime(CUser* user, float f);

@@ -528,7 +528,7 @@ bool CLevelRewardTable::GetJobAffection()
 }
 
 // ORIG W 0x08697792 sz 0xc：movzbl (this) —— 读 m_flag。
-unsigned char CLevelRewardTableMgr::IsOn()
+bool CLevelRewardTableMgr::IsOn()
 {
     return m_flag;
 }

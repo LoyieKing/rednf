@@ -59,6 +59,10 @@ public:
 private:
     bool _isFPItem(const Inven_Item& item) const;
 
+public:
+    // 2026-09-04 CUserMain（已广播）：CUser::_deleteSpecificRedeemItem
+    // @0x0867d69c ORIG 直访成员形态（this+8）。访问级别 private→public，
+    // 声明位置/类型/偏移/sizeof 均不变，消除消费方裸偏移。
     std::list<Inven_Item_Expand_RedeemInfo> m_redeemList;  // +0x08
 };
 

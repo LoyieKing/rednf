@@ -10,7 +10,10 @@
 #include "SIG_BEST_CLEAR_TIME_DATA.h"  // SIG_BEST_CLEAR_TIME::m_data[1000] 元素
 #include "SIG_BREAK_AWAY_PREVENT_REWARD_MANAGER.h"  // SYSTEM_MANAGER::m_rewards[30] 元素
 
-struct stAvatarEmblemInfo_t;  // GamePODTypes.h 完整定义（SIG_AVATAR_INSERT::setJewelSocket 引用）
+// SIG_AVATAR_INSERT::m_jewelSocket 字段需完整类型（GamePODTypes.h 为纯 POD 头、
+// 无 include 依赖，无循环；原前向声明升级为定义 include）。
+#include "GamePODTypes.h"
+#include <cstddef>  // offsetof（SIG_AVATAR_INSERT 偏移断言）
 struct InformNoticeFlagData
 {
     char m_pad[0x14];
@@ -18,19 +21,67 @@ struct InformNoticeFlagData
 
 // ORIG sizeof = 0x3f84（MSG_CHECK_MAIL_RECEIVER::set<1, MSG_BUY_CERASHOP_ITEM> @0x82378ee
 // `movl $0x3f84,0x8(%esp); call memcpy`；交叉验证 Dispatcher_BuyAutomatItem / ARAD db_dispatch）。
-// 条目区：0x36 itemCount，0x39 起逐条目步长 0x1cf（+0x37 槽位 uchar、+0x38 标签 uchar、
-//  +0x39 productNo、+0x3d subCount、+0x3e 子项数组、+0xed optCount、+0xee 选项数组）。
-// 保持 m_pad 形态（避免与 Dispatcher_BuyCeraShopItem_impl body[offset] 裸访问冲突），
-// 仅修正缓冲尺寸以匹配 ORIG。
+// 字段化（2026-09-04 裸偏移清理，GlobalData 批次；m_pad 保留兼容既有 body[offset] 消费方）。
+// 宽度证据：docs/class_func_reports/ItemVendingMachine/ProcessBuyRequestEx.md（ORIG 0x081769f6）
+//  movzwl 0xd(%eax)=buytype / movzbl 0xf=buyFlag / mov 0x2e=accId / mov 0x32=characNo /
+//  movzbl 0x36=itemCount；条目区基址 +0x30、步长 imul $0x1cf（entry+0x07/0x08 movzbl 槽位/
+//  标签、entry+0x09 mov productNo、entry+0x0d movzbl subCount、entry+0x0e 子项 stride5
+//  {int idx; uchar val}、entry+0xbd movzbl optCount、entry+0xbe 选项 stride8
+//  {mov 0xe / movzwl 0x12 / movzwl 0x14 形如 u32,u16,u16}）。
+#pragma pack(push, 1)
+struct MSG_CERA_SHOP_BUY_SCALARS
+{
+    char m_pad0[0x0d];         // +0x00..0x0c
+    unsigned short m_buytype;  // +0x0d（movzwl 实证）
+    unsigned char m_buyFlag;   // +0x0f（movzbl+movsbl 实证，char 语义）
+    char m_pad10[0x1e];        // +0x10..0x2d
+    unsigned int m_accId;      // +0x2e（movl 实证）
+    int m_characNo;            // +0x32（movl 实证）
+    unsigned char m_itemCount; // +0x36（movzbl 实证，≤0x23 clamp）
+};
+struct MSG_CERA_SHOP_BUY_ENTRY   // 条目（相对条目基址偏移；stride 0x1cf）
+{
+    char m_pad0[0x07];           // +0x00..0x06
+    unsigned char m_avatarType0; // +0x07（movzbl %al 直用）
+    unsigned char m_avatarType1; // +0x08（movzbl; cbtw; movzwl → ushort 形参）
+    int m_productNo;             // +0x09（mov 实证）
+    unsigned char m_subCount;    // +0x0d（movzbl 实证）
+    struct SubItem { int m_itemIdx; unsigned char m_value; };   // stride 5
+    SubItem m_subEntries[0x16];  // +0x0e（ORIG subCount>0x16 时越入 optCount 区，线格式遗留）
+    char m_pad7c[0x41];          // +0x7c..0xbc
+    unsigned char m_optCount;    // +0xbd（movzbl 实证）
+    struct OptItem { unsigned long m_itemUid; unsigned short m_a; unsigned short m_b; };
+    OptItem m_optEntries[0x22];  // +0xbe（ORIG k 达 0x22 时越入邻条目尾，线格式遗留 P156）
+    char m_pad1ce;               // +0x1ce（补齐 stride 0x1cf）
+};
+struct MSG_CERA_SHOP_BUY_ENTRIES  // 条目区组件视图（基址 +0x30，P161 两步寻址）
+{
+    char m_pad0[0x30];
+    MSG_CERA_SHOP_BUY_ENTRY m_arr[0x23];   // 0x30+0x23*0x1cf=0x3f4b ≤ 0x3f84
+};
 struct MSG_BUY_CERASHOP_ITEM
 {
-    char m_pad[0x3f84];
+    union
+    {
+        char m_pad[0x3f84];               // 线格式缓冲（既有消费方 body[offset] 兼容）
+        MSG_CERA_SHOP_BUY_SCALARS m_scalars;
+        MSG_CERA_SHOP_BUY_ENTRIES m_entrySection;
+    };
 };
+#pragma pack(pop)
+static_assert(sizeof(MSG_CERA_SHOP_BUY_ENTRY::SubItem) == 5, "sub item stride drift");
+static_assert(sizeof(MSG_CERA_SHOP_BUY_ENTRY::OptItem) == 8, "opt item stride drift");
+static_assert(sizeof(MSG_CERA_SHOP_BUY_ENTRY) == 0x1cf, "entry stride drift");
+static_assert(offsetof(MSG_CERA_SHOP_BUY_ENTRY, m_optCount) == 0xbd, "optCount drift");
+static_assert(offsetof(MSG_CERA_SHOP_BUY_ENTRY, m_optEntries) == 0xbe, "optEntries drift");
+static_assert(offsetof(MSG_CERA_SHOP_BUY_ENTRY, m_subEntries) == 0x0e, "subEntries drift");
+static_assert(offsetof(MSG_CERA_SHOP_BUY_SCALARS, m_itemCount) == 0x36, "itemCount drift");
 static_assert(sizeof(MSG_BUY_CERASHOP_ITEM) == 0x3f84, "MSG_BUY_CERASHOP_ITEM ABI drift");
 
 struct Packet_Tcp_Server_Connect
 {
-    char m_pad[0xb];
+    char m_pad[0xa];       // ORIG +0x00..0x09（未初始化读区）
+    char m_serverFlag;     // +0x0a（ORIG 0x0863814c mov %dl,0xa(%eax) 单字节写）
 };
 
 struct SIG_ACCOUNT_CARGO_DATA
@@ -38,10 +89,18 @@ struct SIG_ACCOUNT_CARGO_DATA
     char m_pad[0xd60];
 };
 
+// 字段化（W8DB，ORIG 0x0842ad30 makeRequest 实证：+0 uint accId、+4 byte
+// flag（写侧 `flag?1:0`）、+8 uint uid；dispatch 0x0842acf4 读 +4 byte==1
+// → expireLoginTime(*(uint*)sig)）：
 struct SIG_ARRANGE_USER_LOGIN_INFO
 {
-    char m_pad[0xc];
+    unsigned int m_accId;    // +0x00
+    char m_flag;             // +0x04
+    char m_pad5[3];          // +0x05..0x07
+    unsigned int m_uid;      // +0x08
 };
+static_assert(sizeof(SIG_ARRANGE_USER_LOGIN_INFO) == 0xc,
+              "SIG_ARRANGE_USER_LOGIN_INFO ABI drift");
 
 #pragma pack(push, 1)
 
@@ -126,7 +185,10 @@ static_assert(sizeof(SIG_AUCTION_RESULT_REGIST_CANCEL) == 0x0a,
 struct SIG_AUCTION_LOG_MESSAGE_AG
 {
     unsigned char m_type;      // +0x00（0=reg_s 1=reg_f 2=bid_s 3=bid_f）
-    unsigned long long m_key;  // +0x01 【推断：日志主键/characNo】←包+0x17:+0x1b（两条 4B 写拼 8B）
+    union {
+        unsigned long long m_key;   // +0x01 日志主键（消费者按 8B 读）
+        unsigned int m_keyWords[2]; // ORIG 生产方为两条 plain 4B 写（dispatch*Packet asm）
+    };                             // sizeof 不变（8B），偏移/布局零改动
     unsigned int m_arg09;      // +0x09 ←包+0x1f
     int m_arg0d;               // +0x0d ←包+0x23（bid 路径日志打印）
     unsigned int m_arg11;      // +0x11 ←包+0x27
@@ -144,7 +206,10 @@ static_assert(sizeof(SIG_AUCTION_LOG_MESSAGE_AG) == 0x21,
 struct SIG_AUCTION_LOG_MESSAGE_PG
 {
     unsigned char m_type;      // +0x00
-    unsigned long long m_key;  // +0x01 【推断】←包+0x17:+0x1b
+    union {
+        unsigned long long m_key;   // +0x01
+        unsigned int m_keyWords[2]; // ORIG 生产方两条 plain 4B 写
+    };
     unsigned int m_arg09;      // +0x09 ←包+0x1f
     int m_arg0d;               // +0x0d ←包+0x23
     unsigned int m_arg11;      // +0x11 ←包+0x27
@@ -200,10 +265,51 @@ static_assert(sizeof(SIG_AUCTION_RESULT_BUY_ITEM_APIECE) == 0x12,
 
 #pragma pack(pop)
 
+// 字段化（SecuLink 批次 2026-09-05，裸偏移清理；union 叠加保留 m_pad 基名）。
+// 布局/宽度证据：写侧 DB_LoadAutoMarketConditionsControl::dispatch
+// （W8LT_DBTask.cpp DB_AutoMarketConditionView/DB_AutoMarketDailyRow，SQL 列名
+// optimum_gold_supply/over_gold/total_gold/auction_gold/gold_phase/item_phase/
+// durability_phase）；读侧 CAutoMarketConditionsControl::LoadDatabase ORIG
+// 0x082f8684（docs/class_func_reports/CAutoMarketConditionsControl/LoadDatabase.md
+// 汇编逐条 disp 实证：+0x00/+0x08 qword、+0x10..+0x67 daily 两行（row stride
+// 0x2c，pack(1) 非对齐 qword）、+0x30/+0x34/+0x38 int 相位、+0x68 movzbl flag）。
+// sizeof 0x6c 不变。
+#pragma pack(push, 1)
 struct SIG_AUTO_MARKET_CONDITIONS_CONTROL
 {
-    char m_pad[0x6c];
+    union
+    {
+        char m_pad[0x6c];
+        struct
+        {
+            unsigned long long m_overGold;      // +0x00（单行 over_gold）
+            union
+            {
+                unsigned long long m_optimumGold;   // +0x08（单行 optimum_gold_supply）
+                unsigned int m_optimumGoldWords[2]; // ORIG trace 按两条 4B 读 +0x08/+0x0c
+            };
+            struct
+            {
+                unsigned long long m_totalGold;     // row +0x00 total_gold
+                unsigned long long m_auctionGold;   // row +0x08 auction_gold
+                unsigned long long m_overGold;      // row +0x10 over_gold
+                unsigned long long m_optimumGold;   // row +0x18 optimum_gold_supply
+                int m_goldPhase;                    // row +0x20 gold_phase
+                int m_itemPhase;                    // row +0x24 item_phase
+                int m_durabilityPhase;              // row +0x28 durability_phase
+            } m_rows[2];                            // +0x10 / +0x3c（daily 两行）
+            unsigned char m_flag;                   // +0x68（LoadDatabase movzbl 判定）
+            char m_pad69[3];                        // +0x69..0x6b
+        } m_view;
+    };
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_AUTO_MARKET_CONDITIONS_CONTROL) == 0x6c,
+              "SIG_AUTO_MARKET_CONDITIONS_CONTROL ABI drift");
+static_assert(offsetof(SIG_AUTO_MARKET_CONDITIONS_CONTROL, m_view.m_rows[1]) == 0x3c,
+              "SIG_AUTO_MARKET_CONDITIONS_CONTROL m_rows[1] offset drift");
+static_assert(offsetof(SIG_AUTO_MARKET_CONDITIONS_CONTROL, m_view.m_flag) == 0x68,
+              "SIG_AUTO_MARKET_CONDITIONS_CONTROL m_flag offset drift");
 
 struct SIG_AUTO_PUNISH_RULE_BLACK_IP
 {
@@ -230,10 +336,24 @@ struct SIG_AVATAR_CHANGE_OWNER
 static_assert(sizeof(SIG_AVATAR_CHANGE_OWNER) == 0xd,
               "SIG_AVATAR_CHANGE_OWNER ABI drift");
 
+// 字段化（CInv 批次 2026-09-04，裸偏移清理）。宽度/偏移证据：
+// SendAvatarEvent 0x36 分支（docs/class_func_reports/CInventory/SendAvatarEvent.md
+// 汇编 0x8508eee-0x8508f0a）：movl(param_2)@+0x00、movl(param_3)@+0x04、
+// movb(param_4 低字节)@+0x08、movl(charac_no)@+0x09（非对齐 4 字节写）。
+// 消费侧语义（W8LT_DBTask.cpp DB_AvatarChangeStat 视图注释实证）：+0x00=ui_id、
+// +0x04=it_id、+0x08=slot byte、+0x09 起 4 字节 charac_no。
+#pragma pack(push, 1)
 struct SIG_AVATAR_CHANGE_STAT
 {
-    char m_pad[0x51];
+    int m_uiId;              // +0x00
+    int m_itId;              // +0x04
+    unsigned char m_slot;    // +0x08
+    int m_characNo;          // +0x09（ORIG 非对齐 movl）
+    char m_pad0d[0x44];      // +0x0d..0x50
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_AVATAR_CHANGE_STAT) == 0x51,
+              "SIG_AVATAR_CHANGE_STAT ABI drift");
 
 // ORIG GetInBuffer 实例化（SendAvatarEvent 0x8508ed2 分支）sizeof 0x51；
 // 前 10 字节载荷：+0x00 b、+0x04 c、+0x08 (char)d、+0x09 (char)e。
@@ -247,18 +367,47 @@ struct SIG_AVATAR_COLOR_CHANGE
     char m_pad[0xc];
 };
 
+// 字段化（CInv 批次 2026-09-04，裸偏移清理）。写侧证据 = SIG_AVATAR_INSERT::set
+// （ORIG 0x850d3c8，objdump：movl a1@+0x00 / movl a2@+0x04 / movb a3低字节@+0x08 /
+//  movb c@+0x09 / movl expire@+0x0a / movb bSet@+0x0e / strncpy 0x18@+0x0f /
+//  movl a7@+0x28（单 4B 写；DB 消费侧 0x83ffe0e 按 +0x28/+0x2a 两 word 读，
+//  同函数 int-vs-word 粒度先例由 DB_LoadInventory 侦察交叉确认）/ movb a8低字节@+0x2c）；
+// setJewelSocket（ORIG 0x850d44c）块拷 emblem 0x1e 字节 → +0x2d；
+// _SaveAvatarItem（0x8509fbf）movl expansion 前 4 字节 → +0x4f；
+// +0x4b = DB_AvatarItemInsert::_SendResult（0x84001fe）写 GetIdentity（W8LT 视图实证）。
+#pragma pack(push, 1)
 struct SIG_AVATAR_INSERT
 {
-    // ORIG 布局（set 0x850d3c8 / setJewelSocket 0x850d44c）：
-    //  +0x00 int(a1) / +0x04 uint(a2) / +0x08 uchar(a3) / +0x09 uchar(c)
-    //  +0x0a int(expire) / +0x0e uchar(bSet) / +0x0f agency[0x18]
-    //  +0x28 int(a7) / +0x2c uchar(a8) / +0x2d stAvatarEmblemInfo_t(0x1e)
-    unsigned char m_data[0x53];   // ORIG GetInBuffer 实例化 sizeof=0x53（0x850d3c8 布局尾 +0x2d+0x1e=0x4b 对齐补足）
+    int m_characNo;               // +0x00（_SaveAvatarItem 传 get_charac_no(-1)）
+    unsigned int m_itId;          // +0x04（DB 侧读 it_id）
+    unsigned char m_slot;         // +0x08（槽位+10 低 8 位）
+    unsigned char m_abilityNo;    // +0x09（set 形参 c；DB 侧 ability_no）
+    int m_period;                 // +0x0a（到期/周期，DB expire_date 分支）
+    unsigned char m_obtainFrom;   // +0x0e（set 形参 bSet；DB obtain_from）
+    char m_agency[0x18];          // +0x0f（strncpy 0x18；DB ipg_agency_no）
+    char m_pad27;                 // +0x27（agency 尾 NUL 槽，set  strncpy 到 +0x26
+                                  //      为止；ORIG a7 movl 在 +0x28）
+    int m_a7;                     // +0x28（set 单 movl；DB 分读 +0x28 hidden_option /
+                                  //      +0x2a emblem_endurance 两 word）
+    unsigned char m_a8;           // +0x2c（set 形参 a8 低字节；DB stat）
+    stAvatarEmblemInfo_t m_jewelSocket;  // +0x2d..0x4a（setJewelSocket 块拷 emblem）
+    int m_identity;               // +0x4b（_SendResult 0x84001fe 写 GetIdentity(db)）
+    int m_expansion;              // +0x4f（_SaveAvatarItem 0x8509fbf movl =
+                                  //      stAvatarExpansionInfo_t 前 4 字节 m_color[0..1]）
     // 非静态成员（ORIG mangled _ZN17SIG_AVATAR_INSERT3setEijiibcPKcim，this=ins）：
     void set(int a1, unsigned int a2, int a3, int expire, bool bSet, char c,
              const char* agency, int a7, unsigned long a8);
     void setJewelSocket(const stAvatarEmblemInfo_t& emblem);  // 非静态：ORIG 0x850d44c this=ins
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_AVATAR_INSERT) == 0x53,
+              "SIG_AVATAR_INSERT ABI drift");
+static_assert(offsetof(SIG_AVATAR_INSERT, m_jewelSocket) == 0x2d,
+              "SIG_AVATAR_INSERT m_jewelSocket offset drift");
+static_assert(offsetof(SIG_AVATAR_INSERT, m_identity) == 0x4b,
+              "SIG_AVATAR_INSERT m_identity offset drift");
+static_assert(offsetof(SIG_AVATAR_INSERT, m_expansion) == 0x4f,
+              "SIG_AVATAR_INSERT m_expansion offset drift");
 struct SIG_AVATAR_OPTION_CHANGE
 {
     char m_pad[0xc];
@@ -352,13 +501,28 @@ static_assert(sizeof(SIG_CHANGE_CHARAC_NAME) == 0x30, "SIG_CHANGE_CHARAC_NAME AB
 
 struct SIG_CHARACTER_OPTION
 {
-    char m_pad[0x204];
+    // 字段化（W8DB，ORIG 0x08430144 DB_SaveCharacterOption::dispatch 实证：
+    // +0 uint characNo、+4 options blob 0x200（blob_to_str）；写侧
+    // CUserOnlyOrig.cpp:0x08652dde SIG_CHARACTER_OPTION_VIEW 同布局）：
+    unsigned int m_characNo;  // +0x000
+    char m_options[0x200];    // +0x004（charac_option.options 存档区）
 };
+static_assert(sizeof(SIG_CHARACTER_OPTION) == 0x204,
+              "SIG_CHARACTER_OPTION ABI drift");
 
+// 具名化（DisPatcherCore 批次 2026-09-04；证据
+// docs/class_func_reports/DisPatcher_AddFriend/process_packet_jpn.md
+// ORIG T 0x081cb30a：+0x04 单字节写 `mov %al,0x4(%edx)`（!isGM(acc_id) 标志）、
+// +0x05 起 `strncpy(sig+5, msg+0x11, 0x1e)`（0x081cb476/0x081cb487）。
+// +0x00..0x03 与 +0x23 无 ORIG 出线证据，保留同尺寸字节域（sizeof 0x24 不变）。）
 struct SIG_CHECK_ADD_FRIEND
 {
-    char m_pad[0x24];
+    char m_pad0[4];            // +0x00..0x03（未建模）
+    char m_notGmFlag;          // +0x04（非 GM 账号标志，1B）
+    char m_characName[0x1e];   // +0x05..0x22（申请方角色名）
+    char m_pad23[1];           // +0x23（保持 sizeof 0x24）
 };
+static_assert(sizeof(SIG_CHECK_ADD_FRIEND) == 0x24, "SIG_CHECK_ADD_FRIEND ABI drift");
 
 struct SIG_CHECK_CHARAC_NAME
 {
@@ -389,7 +553,14 @@ struct SIG_CHECK_JOIN_GUILD
 {
     char m_guildName[0x16];          // +0x00（strncpy 目标 0x16，← MSG_BASE+0x11 名区）【推断：待查公会名】
     unsigned short m_serverGroup;    // +0x16（IsIntegratedPvPBaseChannel ? GetServerGroup : CEnvironment+0x378）
-    char m_pad18[4];                 // +0x18（无字段级证据）
+    // m_serverId 字段化（SecuLink 批次）：DB_CheckJoinGuild::dispatch ORIG
+    // 0x0843c98e +0x59 `mov 0x18(%eax),%eax` → SQL `server_id=%d`（4B 有符号）
+    // （docs/class_func_reports/DB_CheckJoinGuild/dispatch.md）；m_pad18 基名保留。
+    union
+    {
+        char m_pad18[4];             // +0x18
+        int m_serverId;              // +0x18（guild_info.server_id 查询键）
+    };
 };
 static_assert(sizeof(SIG_CHECK_JOIN_GUILD) == 0x1c, "SIG_CHECK_JOIN_GUILD ABI drift");
 

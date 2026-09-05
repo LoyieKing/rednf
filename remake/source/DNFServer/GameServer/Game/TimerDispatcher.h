@@ -147,8 +147,8 @@ public:
     TimerAvatarExpire();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerAvatarExpire();
-    void RegistTimer(CUser* user);                // ORIG 0x08632b32 非静态（this 未用）
-    static int CheckExpiredAvatar(CUser* user);   // ORIG T 0x08632a82
+    bool RegistTimer(CUser* user);                // ORIG 0x08632b32 非静态（this 未用），单出口 return true
+    int CheckExpiredAvatar(CUser* user);          // ORIG T 0x08632a82 非静态（user=0xc(%ebp)）
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -524,7 +524,7 @@ public:
     TimerStatisticsDetailChannelInfo();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerStatisticsDetailChannelInfo();
-    static void RegistNextTimer();
+    void RegistNextTimer();   // ORIG 0x08635782（Ev 非 static；调用点传 this）
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -583,7 +583,7 @@ public:
     TimerNatType();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerNatType();
-    static int RegistNextTimer();
+    int RegistNextTimer();   // ORIG 0x08635c5a（Ev 非 static；dispatch_sig 传 this）
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -673,7 +673,7 @@ public:
     TimerQueueSizeLog();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerQueueSizeLog();
-    static bool RegistNextTimer();
+    bool RegistNextTimer();   // ORIG 调用点 0x08636322 传 this（0x8(%ebp)）⇒ 非 static
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -863,7 +863,7 @@ public:
     TimerInsertUserPlayTime();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerInsertUserPlayTime();
-    static bool RegistNextTimer();            // ORIG T 0x08636d44（恒返 1，al）
+    bool RegistNextTimer();            // ORIG T 0x08636d44；调用点 0x08636d23 传 this ⇒ 非 static
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -875,7 +875,7 @@ public:
     TimerCheckForcedDisconnect();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerCheckForcedDisconnect();
-    static bool RegistNextTimer(CUser* user);
+    bool RegistNextTimer(CUser* user);   // ORIG 0x08636f26：体内取 0xc(%ebp)=user ⇒ 带 this 成员
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。

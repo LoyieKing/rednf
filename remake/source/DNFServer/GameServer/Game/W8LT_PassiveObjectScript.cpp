@@ -279,6 +279,12 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     if (!file)
         return 0;
 
+    // ORIG -0x338：函数级默认对象，仅用于收尾 [warning] 六字段对照（ORIG
+    // 比较脚本对象 +0x1d4/+0x1d8/+0x1dc 与 -0x338+0x1d4、+0x1e0 组与
+    // -0x338+0x1e0，见报告 08a2c394-08a2c404）。构造于 fopen 成功后、
+    // 返回前析构（正常 + unwind 两路 D1，08a2c4e9/08a2c4fd）。
+    STPassiveObjectScript defaultScript;
+
     if (script->m_name != "")
     {
         const wchar_t* layer = 0;
@@ -303,8 +309,10 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
         fwrite("[is hp by difficulty] 1\n", 1, 0x18, file);
     if (script->m_b159 != 0)
         fwrite("[hp gage] 1\n", 1, 0xc, file);
-    if (getPassageTypeName((ENUM_PASSAGETYPE)script->m_i1c) != 0 && script->m_i1c != 0)
-        fprintf(file, "[pass type] `%s`\n", getPassageTypeName((ENUM_PASSAGETYPE)script->m_i1c));
+    // ORIG：getPassageTypeName 单次调用，结果存 -0x54(%ebp) 后复用（08a2a1df）。
+    const char* passName = getPassageTypeName((ENUM_PASSAGETYPE)script->m_i1c);
+    if (passName != 0 && script->m_i1c != 0)
+        fprintf(file, "[pass type] `%s`\n", passName);
     if (script->m_i20 != 0)
         fprintf(file, "[piercing power] %d\n", script->m_i20);
     if (script->m_i24 != 0)
@@ -321,9 +329,9 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     if (!script->m_basicActions.empty())
     {
         fwrite("[etc motion]\n", 1, 0xd, file);
-        for (std::vector<std::string>::const_iterator it = script->m_basicActions.begin();
-             it != script->m_basicActions.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+        for (std::vector<std::string>::iterator it = script->m_basicActions.begin();
+             it != script->m_basicActions.end(); it++)
+            fprintf(file, "`%s`\n", (*it).c_str());
         fwrite("[/etc motion]\n", 1, 0xe, file);
     }
     if (script->m_s44 != "")
@@ -333,9 +341,9 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     if (!script->m_etcActions.empty())
     {
         fwrite("[etc action]\n", 1, 0xd, file);
-        for (std::vector<std::string>::const_iterator it = script->m_etcActions.begin();
-             it != script->m_etcActions.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+        for (std::vector<std::string>::iterator it = script->m_etcActions.begin();
+             it != script->m_etcActions.end(); it++)
+            fprintf(file, "`%s`\n", (*it).c_str());
         fwrite("[/etc action]\n", 1, 0xe, file);
     }
     if (script->m_b58 != 0)
@@ -356,24 +364,27 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     if (!script->m_attackInfos.empty())
     {
         fwrite("[etc attack info]\n", 1, 0x12, file);
-        for (std::vector<std::string>::const_iterator it = script->m_attackInfos.begin();
-             it != script->m_attackInfos.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+        for (std::vector<std::string>::iterator it = script->m_attackInfos.begin();
+             it != script->m_attackInfos.end(); it++)
+            fprintf(file, "`%s`\n", (*it).c_str());
         fwrite("[/etc attack info]\n", 1, 0x13, file);
     }
     if (!script->m_intData.empty())
     {
         fwrite("[int data]\n", 1, 0xb, file);
-        for (std::vector<int>::const_iterator it = script->m_intData.begin();
-             it != script->m_intData.end(); ++it)
+        for (std::vector<int>::iterator it = script->m_intData.begin();
+             it != script->m_intData.end(); it++)
             fprintf(file, "%d\n", *it);
         fwrite("[/int data]\n", 1, 0xc, file);
     }
     if (!script->m_stringData.empty())
     {
         fwrite("[string data]\n", 1, 0xe, file);
-        for (std::vector<std::string>::const_iterator it = script->m_stringData.begin();
-             it != script->m_stringData.end(); ++it)
+        // ORIG 08a2a9db 用 it->（__normal_iterator::operator->）取 c_str；指令流
+        // 随后 movzbl (%eax) 把首字符当 %s 实参（疑似 ORIG 原生缺陷，call 多重集
+        // 不受影响，此处保留正确指针传参并标注差异）。
+        for (std::vector<std::string>::iterator it = script->m_stringData.begin();
+             it != script->m_stringData.end(); it++)
             fprintf(file, "`%s`\n", it->c_str());
         fwrite("[/string data]\n", 1, 0xf, file);
     }
@@ -430,26 +441,25 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
             {
                 fprintf(file, "`[add object index]`\n%d\n",
                         (int)script->m_destroy.m_ints08.size());
-                for (std::vector<int>::const_iterator it = script->m_destroy.m_ints08.begin();
-                     it != script->m_destroy.m_ints08.end(); ++it)
-                    fprintf(file, "%d\n", *it);
+                for (std::vector<int>::size_type i = 0;
+                     i < script->m_destroy.m_ints08.size(); ++i)
+                    fprintf(file, "%d\n", script->m_destroy.m_ints08[i]);
             }
             if (!script->m_destroy.m_strs14.empty())
             {
                 fprintf(file, "`[add object particle file]`\n%d\n",
                         (int)script->m_destroy.m_strs14.size());
-                for (std::vector<std::string>::const_iterator it =
-                         script->m_destroy.m_strs14.begin();
-                     it != script->m_destroy.m_strs14.end(); ++it)
-                    fprintf(file, "`%s`\n", it->c_str());
+                for (std::vector<std::string>::size_type i = 0;
+                     i < script->m_destroy.m_strs14.size(); ++i)
+                    fprintf(file, "`%s`\n", script->m_destroy.m_strs14[i].c_str());
             }
             if (!script->m_destroy.m_ints44.empty())
             {
                 fprintf(file, "`[add object index on attack]`\n%d\n",
                         (int)script->m_destroy.m_ints44.size());
-                for (std::vector<int>::const_iterator it = script->m_destroy.m_ints44.begin();
-                     it != script->m_destroy.m_ints44.end(); ++it)
-                    fprintf(file, "%d\n", *it);
+                for (std::vector<int>::size_type i = 0;
+                     i < script->m_destroy.m_ints44.size(); ++i)
+                    fprintf(file, "%d\n", script->m_destroy.m_ints44[i]);
             }
             fwrite("[/object destroy condition]\n", 1, 0x1c, file);
         }
@@ -460,8 +470,13 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
         for (std::vector<std::string>::size_type i = 0;
              i < script->m_destroy.m_strs20.size(); ++i)
         {
+            // ORIG 08a2afaf-08a2afe8：empty() 先行短路，再逐访问重索引比较 ""。
+            if (script->m_destroy.m_strs20[i].empty())
+                continue;
             if (script->m_destroy.m_strs20[i] == "")
                 continue;
+            // ORIG 08a2b0e5：先取音量入 ebx，后取名字 c_str。
+            int soundVol = script->m_destroy.m_ints2c[i];
             switch (i)
             {
             case 0:
@@ -481,8 +496,7 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
                 break;
             }
             fprintf(file, " `%s` %d\n",
-                    script->m_destroy.m_strs20[i].c_str(),
-                    script->m_destroy.m_ints2c[i]);
+                    script->m_destroy.m_strs20[i].c_str(), soundVol);
         }
         fwrite("[/sound category]\n", 1, 0x12, file);
     }
@@ -491,9 +505,12 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
         fwrite("[add object effect]\n", 1, 0x14, file);
         for (std::vector<std::string>::size_type i = 0;
              i < script->m_addEffect.m_strs00.size(); ++i)
+        {
+            // ORIG 08a2b1c9：先取 int 入 ebx，再取 string c_str。
+            int effectCnt = script->m_addEffect.m_ints0c[i];
             fprintf(file, "%s %d\n",
-                    script->m_addEffect.m_strs00[i].c_str(),
-                    script->m_addEffect.m_ints0c[i]);
+                    script->m_addEffect.m_strs00[i].c_str(), effectCnt);
+        }
         fwrite("[/add object effect]\n", 1, 0x15, file);
     }
     if (!script->m_particles.empty())
@@ -503,19 +520,27 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
              i < script->m_particles.size(); ++i)
         {
             fwrite("\t[particle]\n", 1, 0xc, file);
-            STPassiveObjectAdditionalParticleInfo* p = script->m_particles[i];
-            if (!p->m_s00.empty())
-                fprintf(file, "\t\t[file] `%s`\n", p->m_s00.c_str());
-            if (p->m_i0c > 0)
-                fprintf(file, "\t\t[create delay] %d\n", p->m_i0c);
-            if (!p->m_s04.empty())
-                fprintf(file, "\t\t[create sound] `%s`\n", p->m_s04.c_str());
-            if (p->m_i10 != 0)
+            // P38：ORIG 08a2b2cc-08a2b4a2 每个字段访问均重新调用
+            // vector::operator[]（检查+输出各一次），勿缓存元素指针。
+            if (!script->m_particles[i]->m_s00.empty())
+                fprintf(file, "\t\t[file] `%s`\n",
+                        script->m_particles[i]->m_s00.c_str());
+            if (script->m_particles[i]->m_i0c > 0)
+                fprintf(file, "\t\t[create delay] %d\n",
+                        script->m_particles[i]->m_i0c);
+            if (!script->m_particles[i]->m_s04.empty())
+                fprintf(file, "\t\t[create sound] `%s`\n",
+                        script->m_particles[i]->m_s04.c_str());
+            if (script->m_particles[i]->m_i10 != 0)
             {
+                const int* follow = &script->m_particles[i]->m_i10;
                 fwrite("\t\t[follow parent]", 1, 0x11, file);
-                fprintf(file, "%d %d %d\n", p->m_i10, p->m_i14, p->m_i18);
+                // ORIG 08a2b446-08a2b48a：k=0..2 逐个 "%d " 后 fputc('\n')。
+                for (int k = 0; k <= 2; ++k)
+                    fprintf(file, "%d ", follow[k]);
+                fputc(10, file);
             }
-            if (p->m_b1c != 0)
+            if (script->m_particles[i]->m_b1c != 0)
                 fwrite("\t\t[loop] 1\n", 1, 0xb, file);
             fwrite("\t[/particle]\n", 1, 0xd, file);
         }
@@ -575,7 +600,8 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     if (!script->m_onAttackData.empty())
     {
         fwrite("[can beat index]\n", 1, 0x11, file);
-        for (std::vector<int>::const_iterator it = script->m_onAttackData.begin();
+        // ORIG 08a2baa9：本循环用前置 ++it（operator++()），与 int data 循环的后置异。
+        for (std::vector<int>::iterator it = script->m_onAttackData.begin();
              it != script->m_onAttackData.end(); ++it)
             fprintf(file, "%d\n", *it);
         fwrite("[/can beat index]\n", 1, 0x12, file);
@@ -586,19 +612,30 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
         fprintf(file, "[apply physics] %f\n", script->m_f170);
     if (script->m_i174 != 0)
         fwrite("[following immortal] 1\n", 1, 0x17, file);
-    if (getFollowTypeName((ENUM_MAP_FOLLOW_TYPE)script->m_i178) != 0)
-        fprintf(file, "[follow parent] `%s`\n", getFollowTypeName((ENUM_MAP_FOLLOW_TYPE)script->m_i178));
-    if ((int)script->m_speedCtrls.size() > 0)
+    // ORIG：getFollowTypeName 单次调用存 -0x54(%ebp) 复用（08a2bbaf）。
+    const char* followName = getFollowTypeName((ENUM_MAP_FOLLOW_TYPE)script->m_i178);
+    if (followName != 0)
+        fprintf(file, "[follow parent] `%s`\n", followName);
+    // ORIG 08a2bbdd：size 缓存 -0x4c(%ebp)，仅测一次 >0；循环用缓存值。
+    int speedCount = (int)script->m_speedCtrls.size();
+    if (speedCount > 0)
     {
+        // ORIG 块内先构造 string(-0xa0) 与 SpeedCtrlPassiveObjInfo 暂存(-0xa8)：
+        // 逐元素 `info = vec[i]`（trivial 拷贝赋值 → memcpy 自校验形态 08a2bc58），
+        // 速度名经 string::operator=(const char*) 赋 "[up]"/"[down]"。
         fwrite("[speed control passive objects]\n", 1, 0x20, file);
-        for (std::vector<SpeedCtrlPassiveObjInfo>::const_iterator it =
-                 script->m_speedCtrls.begin();
-             it != script->m_speedCtrls.end(); ++it)
+        std::string speedName;
+        SpeedCtrlPassiveObjInfo info;
+        for (int i = 0; i < speedCount; ++i)
         {
+            info = script->m_speedCtrls[i];
             fwrite("[passive object]\n", 1, 0x11, file);
-            fprintf(file, "\t[index] %d\n", it->m_field0);
-            fprintf(file, "\t[speed] `%s`\n",
-                    it->m_b4 == 0 ? "[down]" : "[up]");
+            fprintf(file, "\t[index] %d\n", info.m_field0);
+            if (info.m_b4 == 0)
+                speedName = "[down]";
+            else
+                speedName = "[up]";
+            fprintf(file, "\t[speed] `%s`\n", speedName.c_str());
             fwrite("[/passive object]\n", 1, 0x12, file);
         }
         fwrite("[/speed control passive objects]\n", 1, 0x21, file);
@@ -606,14 +643,14 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     if (!script->m_genObjects.empty())
     {
         fwrite("[objects]\n", 1, 10, file);
-        for (std::vector<PassiveObjGeneratorObject>::const_iterator it =
-                 script->m_genObjects.begin();
-             it != script->m_genObjects.end(); ++it)
+        // ORIG 08a2be1a/08a2be4b/08a2be7d：index/probability/warning 逐访问重索引。
+        for (std::vector<PassiveObjGeneratorObject>::size_type i = 0;
+             i < script->m_genObjects.size(); ++i)
         {
             fwrite("\t[object]\n", 1, 10, file);
-            fprintf(file, "\t\t[index] %d\n", it->m_i00);
-            fprintf(file, "\t\t[probability] %f\n", it->m_f04);
-            fprintf(file, "\t\t[warning] `%s`\n", it->m_s08.c_str());
+            fprintf(file, "\t\t[index] %d\n", script->m_genObjects[i].m_i00);
+            fprintf(file, "\t\t[probability] %f\n", script->m_genObjects[i].m_f04);
+            fprintf(file, "\t\t[warning] `%s`\n", script->m_genObjects[i].m_s08.c_str());
             fwrite("\t[/object]\n", 1, 0xb, file);
         }
         fwrite("[/objects]\n", 1, 0xb, file);
@@ -621,26 +658,32 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     if (!script->m_genPatterns.empty())
     {
         fwrite("[patterns]\n", 1, 0xb, file);
-        for (std::vector<PassiveObjGeneratorPattern>::const_iterator it =
-                 script->m_genPatterns.begin();
-             it != script->m_genPatterns.end(); ++it)
+        // ORIG 08a2bf8c-08a2c1ad：每字段（name/interval/columns/data 判定、列数、
+        // 数据元素、data size）均重新调用 vector<Pattern>::operator[]。
+        for (std::vector<PassiveObjGeneratorPattern>::size_type i = 0;
+             i < script->m_genPatterns.size(); ++i)
         {
             fwrite("\t[pattern]\n", 1, 0xb, file);
-            fprintf(file, "\t\t[name] `%s`\n", it->m_s04.c_str());
-            fprintf(file, "\t\t[interval] %d\n", it->m_i0c);
-            fprintf(file, "\t\t[columns] %d\n", it->m_i08);
-            if (!it->m_v10.empty())
+            fprintf(file, "\t\t[name] `%s`\n", script->m_genPatterns[i].m_s04.c_str());
+            fprintf(file, "\t\t[interval] %d\n", script->m_genPatterns[i].m_i0c);
+            fprintf(file, "\t\t[columns] %d\n", script->m_genPatterns[i].m_i08);
+            if (!script->m_genPatterns[i].m_v10.empty())
             {
                 fwrite("\t\t[data]\n", 1, 9, file);
                 for (std::vector<unsigned char>::size_type d = 0;
-                     d < it->m_v10.size(); ++d)
+                     d < script->m_genPatterns[i].m_v10.size(); ++d)
                 {
-                    if (d % it->m_i08 == 0)
-                        fprintf(file, "\t\t\t%d", (int)it->m_v10[d]);
-                    else if (d % it->m_i08 == (unsigned int)it->m_i08 - 1)
-                        fprintf(file, " %d\n", (int)it->m_v10[d]);
+                    // 每轮先重取列数（ORIG 08a2c087 → -0x10 缓存）
+                    unsigned int cols = (unsigned int)script->m_genPatterns[i].m_i08;
+                    if (d % cols == 0)
+                        fprintf(file, "\t\t\t%d",
+                                (int)script->m_genPatterns[i].m_v10[d]);
+                    else if (d % cols == cols - 1)
+                        fprintf(file, " %d\n",
+                                (int)script->m_genPatterns[i].m_v10[d]);
                     else
-                        fprintf(file, " %d", (int)it->m_v10[d]);
+                        fprintf(file, " %d",
+                                (int)script->m_genPatterns[i].m_v10[d]);
                 }
                 fwrite("\t\t[/data]\n", 1, 10, file);
             }
@@ -651,20 +694,23 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
     if (!script->m_genSequences.empty())
     {
         fwrite("[sequences]\n", 1, 0xc, file);
-        for (std::vector<PassiveObjGeneratorSequence>::const_iterator it =
-                 script->m_genSequences.begin();
-             it != script->m_genSequences.end(); ++it)
+        // ORIG 08a2c2d6/08a2c30d：两段各一次重索引，且为两条 fprintf。
+        for (std::vector<PassiveObjGeneratorSequence>::size_type i = 0;
+             i < script->m_genSequences.size(); ++i)
         {
             fwrite("\t[pattern]", 1, 10, file);
-            fprintf(file, " `%s` %d", it->m_s00.c_str(), it->m_i04);
+            fprintf(file, " `%s`", script->m_genSequences[i].m_s00.c_str());
+            fprintf(file, " %d", script->m_genSequences[i].m_i04);
             fwrite(" [/pattern]\n", 1, 0xc, file);
         }
         fwrite("[/sequences]\n", 1, 0xd, file);
     }
-    if (script->m_warnDanger.m_a != 0 || script->m_warnDanger.m_b != 0 ||
-        script->m_warnDanger.m_c != 0 ||
-        script->m_warnRecovery.m_a != 0 || script->m_warnRecovery.m_b != 0 ||
-        script->m_warnRecovery.m_c != 0)
+    if (script->m_warnDanger.m_a != defaultScript.m_warnDanger.m_a ||
+        script->m_warnDanger.m_b != defaultScript.m_warnDanger.m_b ||
+        script->m_warnDanger.m_c != defaultScript.m_warnDanger.m_c ||
+        script->m_warnRecovery.m_a != defaultScript.m_warnRecovery.m_a ||
+        script->m_warnRecovery.m_b != defaultScript.m_warnRecovery.m_b ||
+        script->m_warnRecovery.m_c != defaultScript.m_warnRecovery.m_c)
     {
         fwrite("[warning]\n", 1, 10, file);
         fprintf(file, "[min distance] %d %d %d\n",

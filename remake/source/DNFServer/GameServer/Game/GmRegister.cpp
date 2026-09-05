@@ -1,7 +1,9 @@
 // GmRegister.cpp — game_master::CGameMasterMgr 构造注册链完整还原。
 // 对照 ORIG CGameMasterMgr::CGameMasterMgr() @0x082a8a28（size 0x18fb）：
 //   senior = new CSeniorGameMaster(0)；junior = new CJuniorGameMaster(senior)；
-//   随后按 ORIG 顺序 80 条 add(int,CCommand*) + 7 条 add(std::string,CCommand*)。
+//   随后按 ORIG 顺序注册：数字段 0x01..0x80（79 条 add(int,CCommand*)）结束后，
+//   交错区实证为 "bongfail"(CSetMultiboxFailCnt) → 0x82(CBingoGmTest) → "lv"…
+//   即 0x82 的 add 夹在名字注册中间，共 80 条 int + 7 条 string。
 #include "GameMasterCmd.h"
 #include <string>
 
@@ -93,10 +95,10 @@ CGameMasterMgr::CGameMasterMgr()                        // 0x082a8a28
     m_cmdMap.add(0x7e, new CTestTradeRestrict);
     m_cmdMap.add(0x7f, new CGrowhWeaponEvent);
     m_cmdMap.add(0x80, new CClearRewardTest);
-    m_cmdMap.add(0x82, new CBingoGmTest);
 
-    // ---- 名字注册（ORIG 字符串字面量地址实证）----
+    // ---- 名字/混合注册（ORIG 顺序：bongfail 先于 0x82，汇编 0x1469 区实证）----
     m_cmdMap.add(std::string("bongfail"), new CSetMultiboxFailCnt);        // 0x8c1621f
+    m_cmdMap.add(0x82, new CBingoGmTest);
     m_cmdMap.add(std::string("lv"), new CLevelUp);                          // 0x8c16228
     m_cmdMap.add(std::string("recipeprob"), new CRecipeSuccess);            // 0x8c1622b
     m_cmdMap.add(std::string("cash"), new CBillingRechargeCommand);         // 0x8c16236

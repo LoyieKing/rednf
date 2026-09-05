@@ -10,8 +10,9 @@
 //   6. DB_ReqQueryCharacInfoMailbox::dispatch          0x0843bd46
 //   7. DB_ReqQueryCharacInfoMailbox::_sendResult       0x0843c224
 // 报告均已全文阅读后转写；SIG 布局：SIG_MAILBOX_DEL_MAIL / SIG_MAILBOX_LIST /
-//   SIG_MAILBOX_CHECK_RECEIVER / SIG_QUERY_CHARAC_INFO 均为 SigTypes_D.h 的
-//   pad/具名结构，本 TU 按 ORIG 偏移访问（跨字段区用裸偏移，语义照报告）。
+//   SIG_MAILBOX_CHECK_RECEIVER / SIG_QUERY_CHARAC_INFO（2026-09-05 §4.3 已字段化，
+//   本 TU 全部具名字段访问；唯一例外：m_payload 透传区内 +0xaa 标题串，该区无
+//   字段化证据，保留数组下标并注明报告偏移）。
 // 依赖：DB_MailBox_Req_Send::InsertLetter（DB_MailBox_Req_Send.h，已实现）；
 //   NumberToString 定义归 LinkFinalDeps.cpp；DBDispatcher::dispatch 归 DB_Login.cpp。
 // ============================================================================
@@ -65,21 +66,23 @@ bool DB_MailBox_Req_Delete::dispatch(int userIdx, int slot, Stream* stream)
     SIG_MAILBOX_DEL_MAIL* sig = stream->GetOutBuffer<SIG_MAILBOX_DEL_MAIL>();
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx, (ENUM_SERVER_GROUP)0);
 
-    if (*(int*)&sig->m_data[0] == 0)
+    // 具名字段绑定（0x0841f084 报告：+0x00 count movl、+0x04 首 idx、+0x54 SQL
+    // delete_flag 实参；SIG_MAILBOX_DEL_MAIL union 视图见 SigTypes_D.h）。
+    if (sig->m_count == 0)
         return 0;
 
-    if (*(int*)&sig->m_data[0] == 1)
+    if (sig->m_count == 1)
     {
         db->set_query(
             "upDate postal set delete_flag=%d,receive_time=now() where postal_id=%d",
-            *(int*)&sig->m_data[0x54], *(int*)&sig->m_data[0x04]);
+            sig->m_type, sig->m_postalIds[0]);
     }
     else
     {
         static char strQuery[0x100];
         db->set_query(
             "upDate postal set delete_flag=%d,receive_time=now() where postal_id %s",
-            *(int*)&sig->m_data[0x54], getList2inQuery((unsigned int*)sig->m_data, strQuery));
+            sig->m_type, getList2inQuery(&sig->m_count, strQuery));
     }
 
     if (!db->exec(true))
@@ -132,21 +135,21 @@ bool DB_MailBox_Req_CheckReceiver::dispatch(int userIdx, int slot, Stream* strea
     guard.operator*()->operator<<(slot);
 
     SIG_MAILBOX_CHECK_RECEIVER* out = guard->GetInBuffer<SIG_MAILBOX_CHECK_RECEIVER>();
-    *(unsigned int*)((char*)out + 0x1d) = (unsigned int)characNo;
-    *(unsigned int*)((char*)out + 0x21) = (unsigned int)lev;
-    *(unsigned int*)((char*)out + 0x25) = (unsigned int)deleteFlag;
-    *(unsigned int*)((char*)out + 0x29) = mId;
-    memcpy((char*)out + 0x31, (char*)sig + 0x31, 0x3f88);
+    out->m_receiverCharacNo = (unsigned int)characNo;
+    out->m_receiverLevel = (unsigned int)lev;
+    out->m_receiverDeleteFlag = (unsigned int)deleteFlag;
+    out->m_receiverAccId = mId;
+    memcpy(out->m_payload, sig->m_payload, 0x3f88);
 
     char* mIdStr = NumberToString(mId, 0);
     if (db3->set_query(
             "seLect count(*) from charac_black_list where m_id = %s and charac_no = %d",
-            mIdStr, *(int*)((char*)sig + 0x2d)))
+            mIdStr, (int)sig->m_senderCharacNo))
     {
         int blackCnt = 0;
-        *(unsigned int*)((char*)out + 0x3fb9) = 0;
+        out->m_resultFlag = 0;
         if (db3->exec(true) && db3->fetch() && db3->get_int(0, blackCnt) && blackCnt > 0)
-            *(unsigned int*)((char*)out + 0x3fb9) = 0x4d;
+            out->m_resultFlag = 0x4d;
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
@@ -178,8 +181,10 @@ bool DB_Multi_MailBox_Req_Send::dispatch(int userIdx, int slot, Stream* stream)
 
     if (!DB_MailBox_Req_Send::InsertLetter(
             db, (int)sig->m_receiverCharacNo, (int)sig->m_senderCharacNo,
-            (const char*)sig + 0x3fc1, (const char*)sig + 0xdb,
-            *(int*)((char*)sig + 0x3fbd), t, LETTER_STAT_NONE))
+            sig->m_senderName,                 // +0x3fc1（0843bb6e lea）
+            sig->m_payload + 0xaa,             // 报告 +0xdb：透传区内标题串（区无字段化证据）
+            sig->m_letterId,                   // +0x3fbd int&（0843bb65 lea；InsertLetter Ri）
+            t, LETTER_STAT_NONE))
     {
         LogManager::logFormat(1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x8e53,
                               "InsertLetter() error");
@@ -230,7 +235,7 @@ bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* strea
     SIG_QUERY_CHARAC_INFO* sig = stream->GetOutBuffer<SIG_QUERY_CHARAC_INFO>();
 
     char name[0x3c] = { '\0' };
-    db->escape_string(name, (const char*)sig);
+    db->escape_string(name, sig->m_name);
     db->set_query(
         "seLect delete_flag,m_id,charac_no,job,lev,grow_type,sex from charac_info where charac_name='%s'",
         name);
@@ -245,38 +250,45 @@ bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* strea
         _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0);
         return 1;
     }
-    if (db->get_n_rows() == 0)
+    // P48 双调用：ORIG（0x0843bec3 `setne %al; je 0843c0dd`）第二次判定是
+    // `!= 0` 正向跳成功链、`== 0` 落入尾部 0x15 块（fallthrough）→ 按该形态
+    // 转写（行为与两连 `==0` 块等价；块形状影响 verdict 序列）。
+    if (db->get_n_rows() != 0)
     {
-        _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0);
+        int deleteFlag = 0;
+        if (!db->fetch() || !db->get_int(0, deleteFlag))
+        {
+            _sendResult(2, slot, 0, 0, 0, 0, 0, 0);
+            return 1;
+        }
+        if (deleteFlag != 0)
+        {
+            _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0);
+            return 1;
+        }
+
+        // 宽度对齐 ORIG（报告 0x0843c02a..0x0843c092）：列 2..6 callee =
+        // MySQL::get_int(int, int&)@0x0811692c → 局部须为 int（原 unsigned int
+        // 会绑 0x080e22ae 转发重载，callee 不符）；列 1 m_id callee @0x080e22ae
+        // = get_int(int, unsigned int&) → mId 保持 unsigned int。
+        int characNo = 0;
+        int job = 0;
+        int lev = 0;
+        int growType = 0;
+        int sex = 0;
+        unsigned int mId = 0;
+        db->get_int(1, mId);
+        db->get_int(2, characNo);
+        db->get_int(3, job);
+        db->get_int(4, lev);
+        db->get_int(5, growType);
+        db->get_int(6, sex);
+
+        _sendResult(0, slot, name, characNo, job, lev, growType, sex);
         return 1;
     }
 
-    int deleteFlag = 0;
-    if (!db->fetch() || !db->get_int(0, deleteFlag))
-    {
-        _sendResult(2, slot, 0, 0, 0, 0, 0, 0);
-        return 1;
-    }
-    if (deleteFlag != 0)
-    {
-        _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0);
-        return 1;
-    }
-
-    unsigned int characNo = 0;
-    unsigned int job = 0;
-    unsigned int lev = 0;
-    unsigned int growType = 0;
-    unsigned int sex = 0;
-    unsigned int mId = 0;
-    db->get_int(1, mId);
-    db->get_int(2, characNo);
-    db->get_int(3, job);
-    db->get_int(4, lev);
-    db->get_int(5, growType);
-    db->get_int(6, sex);
-
-    _sendResult(0, slot, name, characNo, job, lev, growType, sex);
+    _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0);
     return 1;
 }
 
@@ -297,15 +309,15 @@ int DB_ReqQueryCharacInfoMailbox::_sendResult(int errCode, int slot, const char*
     guard.operator*()->operator<<(slot);
 
     SIG_QUERY_CHARAC_INFO* out = guard->GetInBuffer<SIG_QUERY_CHARAC_INFO>();
-    *(int*)((char*)out + 0x20) = errCode;
+    out->m_errCode = errCode;
     if (errCode == 0)
     {
-        strncpy((char*)out, name, 0x1d);
-        *(int*)((char*)out + 0x24) = characNo;
-        *((char*)out + 0x28) = (char)job;
-        *(short*)((char*)out + 0x2a) = (short)lev;
-        *((char*)out + 0x2c) = (char)growType;
-        *((char*)out + 0x2d) = (char)sex;
+        strncpy(out->m_name, name, 0x1d);
+        out->m_characNo = characNo;
+        out->m_job = (char)job;
+        out->m_lev = (short)lev;
+        out->m_growType = (char)growType;
+        out->m_sex = (char)sex;
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);

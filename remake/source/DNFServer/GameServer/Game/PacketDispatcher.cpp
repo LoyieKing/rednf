@@ -215,6 +215,8 @@ PacketDispatcher::PacketDispatcher()
     m_dispatchers[429] = new Dispatcher_FatigueAttendance();  // slot +0x6b4
     m_dispatchers[427] = new Dispatcher_RefundSkill();  // slot +0x6ac
     m_dispatchers[416] = new Dispatcher_ExpertExtraction();  // slot +0x680
+    // ORIG 0x8590a2e ctor 第 17 个注册：MonstercardBind(new(8), C1 0x8595348 可抛带 cleanup)
+    m_dispatchers[414] = new Dispatcher_MonstercardBind();  // slot +0x678
     m_dispatchers[0] = new DisPatcher_CheckConn();  // slot +0x000
     m_dispatchers[1] = new DisPatcher_Login();  // slot +0x004
     m_dispatchers[2] = new DisPatcher_SetIP();  // slot +0x008
@@ -416,13 +418,14 @@ PacketDispatcher::PacketDispatcher()
     m_dispatchers[213] = new DIspatcher_OneDayLetheTicket();  // slot +0x354
     m_dispatchers[214] = new Dispatcher_DisguiseRequest();  // slot +0x358
     m_dispatchers[215] = new Dispatcher_DisguiseCancel();  // slot +0x35c
+    // ORIG 0x8590a2e：UseVendingMachine(new(8), C1 0x821c25c 可抛带 cleanup)紧随 215
+    m_dispatchers[218] = new Dispatcher_UseVendingMachine();  // slot +0x368
     m_dispatchers[486] = new Dispatcher_UseCraneStart();  // slot +0x798
     m_dispatchers[487] = new Dispatcher_CranePickUp();  // slot +0x79c
     m_dispatchers[216] = new Dispatcher_RequestPCRoomPlayerList();  // slot +0x360
     m_dispatchers[217] = new Dispatcher_RequestPCRoomPlayerCount();  // slot +0x364
     m_dispatchers[221] = new Dispatcher_UpdateServerMessage();  // slot +0x374
     m_dispatchers[222] = new Dispatcher_CheckEnableServerMessage();  // slot +0x378
-    m_dispatchers[218] = new Dispatcher_UseVendingMachine();  // slot +0x368
     m_dispatchers[219] = new Dispatcher_AssertManager();  // slot +0x36c
     m_dispatchers[225] = new Dispatcher_GiveGiftToNPC();  // slot +0x384
     m_dispatchers[220] = new Dispatcher_Overflow_Info();  // slot +0x370
@@ -552,7 +555,6 @@ PacketDispatcher::PacketDispatcher()
     m_dispatchers[413] = new Dispatcher_TitleBookGet();  // slot +0x674
     m_dispatchers[424] = new Dispatcher_TitleBookOtherUser();  // slot +0x6a0
     m_dispatchers[417] = new Dispatcher_AchievementTrigger();  // slot +0x684
-    m_dispatchers[414] = new Dispatcher_MonstercardBind();  // slot +0x678
     m_dispatchers[415] = new Dispatcher_CharacSlotExtendEffect();  // slot +0x67c
     m_dispatchers[425] = new Dispatcher_ItemHyperLinkMessage();  // slot +0x6a4
     m_dispatchers[426] = new Dispatcher_UserHistoryLog();  // slot +0x6a8

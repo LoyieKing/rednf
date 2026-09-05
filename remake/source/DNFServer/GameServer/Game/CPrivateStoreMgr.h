@@ -134,7 +134,7 @@ template <typename T>
 class COperator
 {
 public:
-    static char Product(T a, T b, T& out);   // 返回 1=成功（%al）
+    static bool Product(T a, T b, T& out);   // 返回 1=成功；ORIG 调用点 0x085c77a8 xor $0x1 ⇒ bool
 };
 
 
@@ -227,7 +227,7 @@ public:
     bool isDollCreated();                                 // ORIG W 0x82345e4：movzbl +0x08 直返（定义于 .cpp）
     CUser* GetSeller() { return m_pSeller; }              // ORIG W 0x85cb87c：返回 +0x2c
     std::string* GetSubject() { return &m_name; }         // ORIG W 0x85cb888：返回 &+0x48
-    int GetSellerIndex();                                 // ORIG W 0x85cb894：GetSeller()->get_unique_id()
+    unsigned short GetSellerIndex();                      // ORIG W 0x85cb894：直返 get_unique_id()（short，无再扩展）
     void SetSeller(CUser* user) { m_pSeller = user; }     // ORIG W 0x85cb8aa：写 +0x2c
     void SetBuyer(CUser* user) { m_pBuyer = user; }       // ORIG W 0x85cb8b8：写 +0x30
     void SetParent(CPrivateStoreMgr* parent) { m_pParent = parent; }  // ORIG W 0x85cb8c6：写 +0x20

@@ -95,7 +95,7 @@ void AdvanceAltarData::getBuyItem(const std::map<int,_BuyItem>& m, _BuyItem* out
 void AdvanceAltarData::get(_AdvanceAltarDbData& out) const
 {
     out.m_update = m_update;                          // +0x517 = this[0xcc]
-    std::memcpy(&out, this, 0x21);                    // 前 0x21（RidableBase）
+    std::memcpy(out.m_ridable, this, 0x21);           // 前 0x21（_RidableBase 扁平区）
 
     int local_10 = 0;
     for (std::map<int,_Stage>::const_iterator it = m_stages.begin();
@@ -108,17 +108,19 @@ void AdvanceAltarData::get(_AdvanceAltarDbData& out) const
         }
         else
         {
-            std::memcpy(reinterpret_cast<char*>(&out) + (local_10 + 4) * 8 + 1, &st, 8);
+            // ORIG 目标地址 = &out + 0x21 + local_10*8 → m_stages[local_10]
+            std::memcpy(&out.m_stages[local_10], &st, sizeof(_Stage));
             ++it;
             ++local_10;
         }
     }
 
-    getSlot(m_slots1, reinterpret_cast<_Slot*>(reinterpret_cast<char*>(&out) + 0x1b1), 0xc);
-    getSlot(m_slots2, reinterpret_cast<_Slot*>(reinterpret_cast<char*>(&out) + 0x1b1), 0xc);
-    getBuyItem(m_buyItems1, reinterpret_cast<_BuyItem*>(reinterpret_cast<char*>(&out) + 0x229), 0x32);
-    getBuyItem(m_buyItems2, reinterpret_cast<_BuyItem*>(reinterpret_cast<char*>(&out) + 0x229), 0x32);
-    getBuyItem(m_buyItems3, reinterpret_cast<_BuyItem*>(reinterpret_cast<char*>(&out) + 0x229), 0x32);
+    // ORIG 目标基址 +0x1b1 / +0x229 → 具名数组成员（元素宽 10 / 12 与 pack(1) 布局一致）。
+    getSlot(m_slots1, out.m_slots, 0xc);
+    getSlot(m_slots2, out.m_slots, 0xc);
+    getBuyItem(m_buyItems1, out.m_buyItems, 0x32);
+    getBuyItem(m_buyItems2, out.m_buyItems, 0x32);
+    getBuyItem(m_buyItems3, out.m_buyItems, 0x32);
 
     local_10 = 0;
     for (std::map<int,_Reward>::const_iterator it = m_rewards.begin();
@@ -131,7 +133,8 @@ void AdvanceAltarData::get(_AdvanceAltarDbData& out) const
         }
         else
         {
-            std::memcpy(reinterpret_cast<char*>(&out) + local_10 * 5 + 0x481, &rw, 5);
+            // ORIG 目标地址 = &out + 0x481 + local_10*5 → m_rewards[local_10]
+            std::memcpy(&out.m_rewards[local_10], &rw, sizeof(_Reward));
             ++it;
             ++local_10;
         }
@@ -145,8 +148,10 @@ void CharacAdvanceAltarManager::getCharacAdvanceAltarDbData(_CharacAdvanceAltarD
     // ORIG 循环 local_10 <= 0（一次）
     for (int local_10 = 0; local_10 < 1; ++local_10)
     {
+        // ORIG 基址 = &out + 4 + local_10*0x518 → m_db 起、行距 sizeof(_AdvanceAltarDbData)。
         m_data[0].get(*reinterpret_cast<_AdvanceAltarDbData*>(
-            reinterpret_cast<char*>(&out) + local_10 * 0x518 + 4));
+            reinterpret_cast<char*>(&out.m_db) +
+            static_cast<unsigned>(local_10) * sizeof(_AdvanceAltarDbData)));
     }
 }
 
@@ -173,7 +178,9 @@ bool CharacAdvanceAltarManager::isUpdated() const
     {
         if (0 < local_8)
             return false;
-        if (reinterpret_cast<const unsigned char*>(this)[local_8 * 0xd0 + 0xd0] != 0)
+        // ORIG 读 +0xd0*(local_8+1) 字节 == m_data[local_8].m_update
+        //（m_data@+0x04、AdvanceAltarData::m_update@+0xcc、stride 0xd0）。
+        if (m_data[local_8].m_update != 0)
             return true;
         ++local_8;
     }
@@ -194,31 +201,29 @@ void CharacAdvanceAltarManager::refillTicketFree()
 }
 
 // ORIG T 0x08131660（docs/class_func_reports/advancealtar__CharacAdvanceAltarManager/
-// reset.md 全文）：m_field0=0；循环 local_10<=0 一次 reset +i*0xd0+4 处 AdvanceAltarData。
+// reset.md 全文）：current(+0x00)=0；循环 local_10<=0 一次 reset +i*0xd0+4 处 AdvanceAltarData。
 void CharacAdvanceAltarManager::reset()
 {
-    m_field0 = 0;
+    m_currentAdvanceAltarData = 0;
     for (int local_c = 0; local_c <= 0; ++local_c)
     {
-        // 单实例布局：this+local_c*0xd0+4 即 m_data
-        (*reinterpret_cast<AdvanceAltarData*>(
-             reinterpret_cast<char*>(this) + local_c * 0xd0 + 4))
-            .reset();
+        // 单实例布局：m_data@+0x04、stride 0xd0 == ORIG `this + local_c*0xd0 + 4`。
+        m_data[local_c].reset();
     }
 }
 
 // ----------------------------------------------------------------------------
 // +0x00 承载 AdvanceAltarData* current（setCurrentAdvanceAltarData 0x08131254
-// 实证：命中槽位写 this+4+i*0xd0，无匹配置 0；reset 置 0）。权威头以 int
-// m_field0 承载，以下三个 const 访问器按 ORIG 语义经指针读取。
+// 实证：命中槽位写 this+4+i*0xd0，无匹配置 0；reset 置 0）。权威头 advancealtar.h
+// 以 union（int m_field0 ∪ AdvanceAltarData* m_currentAdvanceAltarData）承载，
+// 以下 const 访问器直接取具名指针成员。
 // ----------------------------------------------------------------------------
 
 // ORIG T 0x081312d0（getCurrentRidableId.md 全文）：current 空 → 0；
 // 否则 *current（AdvanceAltarData::m_ridableId，_RidableBase+0x00）。
 int CharacAdvanceAltarManager::getCurrentRidableId() const
 {
-    const AdvanceAltarData* cur =
-        reinterpret_cast<const AdvanceAltarData*>(static_cast<unsigned long>(m_field0));
+    const AdvanceAltarData* cur = m_currentAdvanceAltarData;
     if (cur == 0)
     {
         return 0;
@@ -230,16 +235,16 @@ int CharacAdvanceAltarManager::getCurrentRidableId() const
 // 否则 *(int*)(cur+4) + *(int*)(cur+8) > 0（免费票 + 现持票）。
 bool CharacAdvanceAltarManager::isAvailableTciket() const
 {
-    const AdvanceAltarData* cur =
-        reinterpret_cast<const AdvanceAltarData*>(static_cast<unsigned long>(m_field0));
+    const AdvanceAltarData* cur = m_currentAdvanceAltarData;
     if (cur == 0)
     {
         return false;
     }
-    const int freeTickets =
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(cur) + 4);
-    const int heldTickets =
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(cur) + 8);
+    // ORIG 4 字节读 +0x04 / +0x08 两票池（DB 列对照：+0x04=ticket_free、
+    // +0x08=ticket_cera，见 _RidableDbHead；_RidableBase 现有成员名与该列名
+    // 相反，属命名口径问题，本批只去裸偏移不改共享成员名）。
+    const int freeTickets = cur->m_ticket;
+    const int heldTickets = cur->m_freeTicket;
     return (freeTickets + heldTickets) > 0;
 }
 
@@ -247,8 +252,7 @@ bool CharacAdvanceAltarManager::isAvailableTciket() const
 // current->m_stages(+0x24, map<int,_Stage>) find(stageId) 命中 → 1。
 bool CharacAdvanceAltarManager::isEnterStage(int stageId) const
 {
-    const AdvanceAltarData* cur =
-        reinterpret_cast<const AdvanceAltarData*>(static_cast<unsigned long>(m_field0));
+    const AdvanceAltarData* cur = m_currentAdvanceAltarData;
     if (cur == 0)
     {
         return false;
@@ -265,8 +269,7 @@ bool CharacAdvanceAltarManager::isEnterStage(int stageId) const
 bool CharacAdvanceAltarManager::getTowerInfo(int towerIdx, int& outValue,
                                              int& outCount) const
 {
-    const AdvanceAltarData* cur =
-        reinterpret_cast<const AdvanceAltarData*>(static_cast<unsigned long>(m_field0));
+    const AdvanceAltarData* cur = m_currentAdvanceAltarData;
     if (cur == 0)
     {
         return false;
@@ -456,22 +459,11 @@ __attribute__((unused)) static void instantiateAdvanceAltarDbPOD()
     (void)u;
 }
 
-// ---- charac_advance_altar 行头字段视图（db 区前 0x14 字节 + isUnlock@+0x20；
-//      Select/update 按报告偏移读写 m_ridable 扁平区，不再给共享头加重复字段）----
-namespace
-{
-struct DbHeadView
-{
-    unsigned int ridableId;       // db+0x00（select ridable_id）
-    short ticketFree;             // db+0x04
-    short ticketCera;             // db+0x08
-    int starGame;                 // db+0x0c
-    int starCera;                 // db+0x10
-    int starUsable;               // db+0x14
-    short survivalBest;           // db+0x18
-    short starResetCount;         // db+0x1a
-};
-}  // namespace
+// charac_advance_altar 行头字段视图：改用共享头 advancealtar.h 的 _RidableDbHead
+// （union 叠加在 _AdvanceAltarDbData::m_ridable 上，字段偏移/宽度按 ORIG
+//  Select.md/update.md 指令实证）。原 TU 本地视图 DbHeadView 因自然对齐与
+// ORIG 指令宽度不符（+0x04/+0x08 ORIG 为 get_short(int,int&) 的 4 字节槽，
+// 且 +0x0c 起三列 ORIG 间隔 4 字节）而删除。
 
 // ---- DB_Load ----
 class DB_Load : public DBDispatcher
@@ -523,9 +515,12 @@ bool DB_Load::Select(_CharacAdvanceAltarDbData& data)
         if (!mysql->fetch())
             return false;
 
-        unsigned char* base = reinterpret_cast<unsigned char*>(&data) + static_cast<unsigned>(row) * 0x518;
-        unsigned char* db = base + 0x04;
-        DbHeadView& view = *reinterpret_cast<DbHeadView*>(db);
+        // ORIG 行基址 local_14 = &data + row*0x518 + 4 → m_db 起
+        //（行距 = sizeof(_AdvanceAltarDbData) = 0x518）。
+        _AdvanceAltarDbData* dbRow = reinterpret_cast<_AdvanceAltarDbData*>(
+            reinterpret_cast<char*>(&data.m_db) +
+            static_cast<unsigned>(row) * sizeof(_AdvanceAltarDbData));
+        _RidableDbHead& view = dbRow->m_head;
         int col = 0;
 
         int ridableId = 0;
@@ -538,26 +533,29 @@ bool DB_Load::Select(_CharacAdvanceAltarDbData& data)
                                   0xb1, "invalid RidableId=%d", ridableId);
             return false;
         }
-        view.ridableId = ridableId;
+        view.m_ridableId = ridableId;
 
-        if (!mysql->get_short(col++, view.ticketFree))                // [0x0814201c get_short(int,int&)]
+        if (!mysql->get_short(col++, view.m_ticketFree))              // [0x0814201c get_short(int,int&)]
             return false;
-        if (!mysql->get_short(col++, view.ticketCera))
+        if (!mysql->get_short(col++, view.m_ticketCera))
             return false;
-        if (!mysql->get_int(col++, view.starGame))                    // [0x0811692c]
+        if (!mysql->get_int(col++, view.m_starGame))                  // [0x0811692c]
             return false;
-        if (!mysql->get_int(col++, view.starCera))
+        if (!mysql->get_int(col++, view.m_starCera))
             return false;
-        if (!mysql->get_int(col++, view.starUsable))
+        if (!mysql->get_int(col++, view.m_starUsable))
             return false;
-        if (!mysql->get_short(col++, view.survivalBest))              // [0x080fddec get_short(int,short&)]
+        if (!mysql->get_short(col++, view.m_survivalBest))            // [0x080fddec get_short(int,short&)]
             return false;
-        if (!mysql->get_short(col++, view.starResetCount))
+        if (!mysql->get_short(col++, view.m_starResetCount))
             return false;
         short unlockFlag = 0;
         if (!mysql->get_short(col++, unlockFlag))                     // [0x080fddec get_short(int,short&)]
             return false;
-        *(db + 0x20) = (unlockFlag >= 1) ? 1 : 0;
+        // ORIG：`movzwl` 零扩展 unlockFlag → `test/jle` → `movb $0x1/$0x0, 0x20(%eax)`
+        //（故负值也判真；原 `>= 1` 判定与 ORIG 不等价）。
+        view.m_isUnlockStageEffect =
+            (static_cast<unsigned short>(unlockFlag) > 0) ? 1 : 0;
 
         std::memset(g_StrStageBuffer, 0, kMaxStrBuffer);
         std::memset(g_StrSlotBuffer, 0, kMaxStrBuffer);
@@ -573,13 +571,13 @@ bool DB_Load::Select(_CharacAdvanceAltarDbData& data)
         if (!convertZipToString(mysql, col++, g_ZipRewardBuffer, kMaxZipBuffer, g_StrRewardBuffer, kMaxStrBuffer))
             return false;
 
-        if (!parseStage(g_StrStageBuffer, reinterpret_cast<_Stage*>(base + 0x25), kMaxStageCount))
+        if (!parseStage(g_StrStageBuffer, dbRow->m_stages, kMaxStageCount))
             return false;
-        if (!parseSlot(g_StrSlotBuffer, reinterpret_cast<_Slot*>(base + 0x1b5), kMaxSlotCount))
+        if (!parseSlot(g_StrSlotBuffer, dbRow->m_slots, kMaxSlotCount))
             return false;
-        if (!parseBuyItem(g_StrBuyItemBuffer, reinterpret_cast<_BuyItem*>(base + 0x22d), kMaxBuyItemCount))
+        if (!parseBuyItem(g_StrBuyItemBuffer, dbRow->m_buyItems, kMaxBuyItemCount))
             return false;
-        if (!parseReward(g_StrRewardBuffer, reinterpret_cast<_Reward*>(base + 0x485), kMaxRewardCount))
+        if (!parseReward(g_StrRewardBuffer, dbRow->m_rewards, kMaxRewardCount))
             return false;
     }
     return true;
@@ -792,15 +790,18 @@ bool DB_Update::update(const _CharacAdvanceAltarDbData& data)
         if (row > 0)
             return result;
 
-        const unsigned char* base = reinterpret_cast<const unsigned char*>(&data);
-        DbHeadView& view =
-            *reinterpret_cast<DbHeadView*>(const_cast<unsigned char*>(base + 0x04));
-        const _Stage* stages = reinterpret_cast<const _Stage*>(base + 0x04 + 0x21);
-        const _Slot* slots = reinterpret_cast<const _Slot*>(base + 0x04 + 0x1b1);
-        const _BuyItem* buyItems = reinterpret_cast<const _BuyItem*>(base + 0x04 + 0x229);
-        const _Reward* rewards = reinterpret_cast<const _Reward*>(base + 0x04 + 0x481);
+        // ORIG 基址 local_20 = &data + 4（= m_db）；各列以 m_db 内具名成员寻址
+        //（update.md 0x0813ec5e：`movzbl 0x517` 取 m_update、`mov 0x4/0x8/0xc/0x10/0x14`
+        //  取 m_head 前 5 列、`movswl 0x18`、`movzwl 0x1a`、`movzbl 0x20`、
+        //  数组指针 `add $0x21/0x1b1/0x229/0x481`）。
+        const _AdvanceAltarDbData& db = data.m_db;
+        const _RidableDbHead& view = db.m_head;
+        const _Stage* stages = db.m_stages;
+        const _Slot* slots = db.m_slots;
+        const _BuyItem* buyItems = db.m_buyItems;
+        const _Reward* rewards = db.m_rewards;
 
-        if (base[0x51b] == 1 && isValidRidableId(static_cast<RidableId::T>(view.ridableId)))
+        if (db.m_update == 1 && isValidRidableId(static_cast<RidableId::T>(view.m_ridableId)))
         {
             std::string stageStr;
             std::string slotStr;
@@ -841,12 +842,12 @@ bool DB_Update::update(const _CharacAdvanceAltarDbData& data)
                              "\t\t\t\t  stage_list = '%s', \t\t\t\t  slot_list = '%s', \t\t\t\t  "
                              "buy_item_list = '%s', \t\t\t\t  reward_list = '%s' \t\t\t\t  where "
                              "charac_no = %u and ridable_id = %d",
-                             view.ticketFree, view.ticketCera, view.starGame, view.starCera,
-                             view.starUsable, static_cast<int>(view.survivalBest),
-                             static_cast<int>(view.starResetCount),
-                             static_cast<int>(*(base + 0x24)),          // db+0x20（is_unlock_stage_effect）
+                             view.m_ticketFree, view.m_ticketCera, view.m_starGame, view.m_starCera,
+                             view.m_starUsable, static_cast<int>(view.m_survivalBest),
+                             static_cast<int>(static_cast<unsigned short>(view.m_starResetCount)),
+                             static_cast<int>(view.m_isUnlockStageEffect),
                              qStage, qSlot, qBuyItem, qReward,
-                             data.m_characNo, view.ridableId);
+                             data.m_characNo, view.m_ridableId);
             result = mysql->exec(true);
             if (!(result && mysql->getAffectedRowCount() != 0))
             {
@@ -863,10 +864,12 @@ bool DB_Update::update(const _CharacAdvanceAltarDbData& data)
                                  "\t\t\t\t\t\t  values \t\t\t\t\t\t  (%u, %d, \t\t\t\t\t\t  %d, %d, "
                                  "\t\t\t\t\t\t  %d, %d, %d,\t\t\t\t\t\t  %d, %d, %d, \t\t\t\t\t\t  '%s', "
                                  "\t\t\t\t\t\t  '%s', \t\t\t\t\t\t  '%s', \t\t\t\t\t\t  '%s')",
-                                 data.m_characNo, view.ridableId, view.ticketFree, view.ticketCera,
-                                 view.starGame, view.starCera, view.starUsable,
-                                 static_cast<int>(view.survivalBest), static_cast<int>(view.starResetCount),
-                                 static_cast<int>(*(base + 0x24)), qStage, qSlot, qBuyItem, qReward);
+                                 data.m_characNo, view.m_ridableId, view.m_ticketFree, view.m_ticketCera,
+                                 view.m_starGame, view.m_starCera, view.m_starUsable,
+                                 static_cast<int>(view.m_survivalBest),
+                                 static_cast<int>(static_cast<unsigned short>(view.m_starResetCount)),
+                                 static_cast<int>(view.m_isUnlockStageEffect),
+                                 qStage, qSlot, qBuyItem, qReward);
                 result = mysql->exec(true);
             }
             result = true;   // ORIG movl $1（处理完成位）

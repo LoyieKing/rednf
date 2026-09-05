@@ -31,7 +31,11 @@
 class ThreadInterface
 {
 public:
-    ThreadInterface() {}                   // 0x08630b38 仅 vptr；m_tid/m_tidCopy 未初始化
+    // 0x08630b38 仅 vptr；m_tid/m_tidCopy 未初始化。ORIG 为独立 T 符号（非头内联）：
+    // 外联定义使派生 ctor 体产生真实 `call ThreadInterfaceC1`（ORIG 0x0847e268 实证），
+    // 且 new 表达式按 potentially-throw 生成 cleanup（ORIG Init 各线程 new 均有
+    // delete+Unwind pad，如 0x0829a4f3）。定义落 GlobalData.cpp（Main 批准属主）。
+    ThreadInterface();
     virtual ~ThreadInterface() {}          // 0x08630b46 / 0x08630b6c
     virtual void stop() {}                 // 0x08630c14（槽0，空体）
     // 槽3 线程体。ORIG 纯虚（nm 无 ThreadInterface::dispatch 符号）；六个派生

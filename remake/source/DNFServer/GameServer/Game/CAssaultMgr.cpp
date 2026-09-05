@@ -44,7 +44,10 @@ CAssaultPlace* CAssaultMgr::_GetAssaultPlace(unsigned int id)
     std::map<unsigned int, CAssaultPlace*>::iterator it = m_places.find(id);
     if (it == m_places.end())
         throw (ENUM_ERROR)0x15;   // ORIG 抛 ENUM_ERROR(0x15)
-    return it->second;
+    // ORIG 0x82eda3x：`mov 0x4(%eax),%eax; mov %eax,-0xc; mov -0xc,%eax`
+    // ⇒ second 具名物化槽（技巧13 声明位置=落槽时机）。
+    CAssaultPlace* v = it->second;
+    return v;
 }
 
 void CAssaultMgr::OnMoveArea(CUser* user)
@@ -110,7 +113,7 @@ void CAssaultMgr::SendPacket(CUser* user, bool flag, PacketGuard* packet)
     }
 }
 
-void CAssaultMgr::OnLeaveAssaultPlace(CUser* user, bool flag)
+int CAssaultMgr::OnLeaveAssaultPlace(CUser* user, bool flag)
 {
     // ORIG 0x82ef176：取用户所在区域并执行离开流程；ORIG 全程 try/catch-all
     // （__cxa_begin_catch 后仅 end_catch）吞掉异常。
@@ -123,6 +126,8 @@ void CAssaultMgr::OnLeaveAssaultPlace(CUser* user, bool flag)
     catch (...)
     {
     }
+    // ORIG 0x82ef1da：尾 mov $1,%eax ⇒ int 返回 1
+    return 1;
 }
 
 void CAssaultMgr::SetAssaultChannel(bool flag)
@@ -149,7 +154,7 @@ bool CAssaulter::Empty()
 ENUM_ASSAULT_TEAM CAssaulter::GetTeam()
 {
     // ORIG W 0x82f0570
-    return (ENUM_ASSAULT_TEAM)m_team;
+    return m_team;
 }
 
 unsigned short CAssaulter::GetUserUniqueId()
@@ -163,35 +168,42 @@ unsigned short CAssaulter::GetUserUniqueId()
 void CAssaulter::SetState(ENUM_ASSAULT_STATE state)
 {
     // ORIG W 0x82f057c
-    m_state = (unsigned int)state;
+    m_state = state;
 }
 
 ENUM_ASSAULT_STATE CAssaulter::GetState()
 {
     // ORIG W 0x82f058a
-    return (ENUM_ASSAULT_STATE)m_state;
+    return m_state;
 }
 
 int GetDirectionByTeam(ENUM_ASSAULT_TEAM team)
 {
-    // ORIG T 0x82e564c：team 0→6、1→4、其他→0。
-    switch (team) {
-    case 0: return 6;
-    case 1: return 4;
-    default: return 0;
+    // ORIG T 0x82e564c：具名槽 dir(-0x4) 初值 0，分支写槽后统一装载返回
+    // （4.4 switch-return 直产 mov imm，具名 if/else 形合 ORIG）。
+    // cmpl imm,mem 融合破法（技巧28）：register asm(eax) 中转 team。
+    int dir = 0;
+    register int t asm("eax") = team;
+    switch (t)
+    {
+    case 0: dir = 6; break;
+    case 1: dir = 4; break;
     }
+    return dir;
 }
 
 // ---- CAssaultPlace 内部前置函数 ----
 
 void CAssaultPlace::_GetTeamCount(int* counts)
 {
-    // ORIG T 0x82e7232：按队伍统计非空槽位。
-    for (int i = 0; i < 8; ++i) {
-        if (!m_assaulters[i].Empty()) {
-            int team = (int)m_assaulters[i].GetTeam();
-            counts[team] = counts[team] + 1;
-        }
+    // ORIG T 0x82e7232：continue 形（call Empty 后 test al;jne，无 xor）；
+    // GetTeam 结果 %eax 直通索引（技巧28）+ 后缀 ++（技巧4 单装载）。
+    for (int i = 0; i <= 7; ++i)
+    {
+        if (m_assaulters[i].Empty())
+            continue;
+        register int t asm("eax") = m_assaulters[i].GetTeam();
+        counts[t]++;
     }
 }
 
@@ -228,8 +240,13 @@ bool CAssaultPlace::IsArea(int vill, int area)
 int CAssaultPlace::_GetUserIndex(CUser* user, bool strict)
 {
     // ORIG T 0x82e849a：找不到时 strict=true 抛 ENUM_ERROR(0x15)，否则返回 -1。
-    for (int i = 0; i < 8; ++i) {
-        if (!m_assaulters[i].Empty() && m_assaulters[i].GetUser() == user)
+    // call Empty 后 test %al;jne skip（0x82e84bb 区）；比较 cmp+sete+test（技巧22）。
+    for (int i = 0; i <= 7; ++i)
+    {
+        if (m_assaulters[i].Empty())
+            continue;
+        register bool same asm("al") = (m_assaulters[i].GetUser() == user);
+        if (same)
             return i;
     }
     if (strict)
@@ -239,9 +256,14 @@ int CAssaultPlace::_GetUserIndex(CUser* user, bool strict)
 
 bool CAssaultPlace::ExistUser(CUser* user)
 {
-    // ORIG T 0x82e8366
-    for (int i = 0; i < 8; ++i) {
-        if (!m_assaulters[i].Empty() && m_assaulters[i].GetUser() == user)
+    // ORIG T 0x82e8366：call Empty 后 `test %al,%al; jne skip`（无 xor，
+    // continue 形态）；GetUser==user 产 cmp+sete+test 三连接（技巧22）。
+    for (int i = 0; i <= 7; ++i)
+    {
+        if (m_assaulters[i].Empty())
+            continue;
+        register bool same asm("al") = (m_assaulters[i].GetUser() == user);
+        if (same)
             return true;
     }
     return false;
@@ -249,9 +271,16 @@ bool CAssaultPlace::ExistUser(CUser* user)
 
 bool CAssaultPlace::GetTeam(CUser* user, ENUM_ASSAULT_TEAM& team)
 {
-    // ORIG T 0x82e6cdc
-    for (int i = 0; i < 8; ++i) {
-        if (m_assaulters[i].GetUser() == user) {
+    // ORIG T 0x82e6cdc：cmp+sete+test 三连接（技巧22 register bool al）。
+    // 技巧31：i 槽 ORIG 在 -0xc（近侧 8B 为 4.1 未引用 temp）⇒ 后置 dead pad
+    // 撑出同槽位（(void)pad 置于末次使用之后，技巧31 规则1）。
+    int i;
+    volatile char pad[8];
+    for (i = 0; i <= 7; ++i)
+    {
+        register bool same asm("al") = (m_assaulters[i].GetUser() == user);
+        if (same)
+        {
             team = m_assaulters[i].GetTeam();
             return true;
         }
@@ -286,31 +315,37 @@ bool CAssaultPlace::SendPacket(PacketGuard& packet, ENUM_ASSAULT_TEAM team)
 
 void CAssaultPlace::MakeViewAssaultIconOnePlayer(PacketGuard* packet, bool flag)
 {
-    // ORIG T 0x82e89c0：put_int(+0x104)、put_byte(flag)；flag 时写位置与成员图标列表。
+    // ORIG T 0x82e89c0：put_byte 直传 flag 零扩展（0x82e89xx `movzbl -0x1c,%edx`
+    // 无三元物化）；`cmpb $0; je 尾` ⇒ 正向 if(flag) 块（尾 call 自然落 leave，
+    // 无 return 岛）；countIdx/count 双 dead init（-0x14/-0x10）后 get_index 覆写。
     packet->put_int(m_field104);
-    packet->put_byte(flag ? 1 : 0);
-    if (!flag)
-        return;
-    packet->put_short((int)m_posBase.m_x);
-    packet->put_short((int)m_posBase.m_y);
-    int countIdx = packet->get_index();
-    int count = 0;
-    packet->put_short(count);
-    for (int i = 0; i < 8; ++i) {
-        if (m_assaulters[i].Empty())
-            continue;
-        packet->put_short((int)m_assaulters[i].GetUserUniqueId());
-        packet->put_byte(GetDirectionByTeam(m_assaulters[i].GetTeam()));
-        count += 1;
+    packet->put_byte((unsigned char)flag);
+    if (flag)
+    {
+        packet->put_short((int)m_posBase.m_x);
+        packet->put_short((int)m_posBase.m_y);
+        int countIdx = 0;
+        int count = 0;
+        countIdx = packet->get_index();
+        packet->put_short(count);
+        for (int i = 0; i < 8; ++i) {
+            if (m_assaulters[i].Empty())
+                continue;
+            packet->put_short((int)m_assaulters[i].GetUserUniqueId());
+            packet->put_byte(GetDirectionByTeam(m_assaulters[i].GetTeam()));
+            count += 1;
+        }
+        packet->put_short(countIdx, count);
     }
-    packet->put_short(countIdx, count);
 }
 
 void CAssaultPlace::LeaveAssaultPlace(CUser* user, bool flag)
 {
-    // ORIG T 0x82eb450：idx=_GetUserIndex(user,true) → LeaveAssaultPlace(idx,flag,false)。
-    int index = _GetUserIndex(user, true);
-    LeaveAssaultPlace(index, flag, false);
+    // ORIG T 0x82eb450：`push %ebx` + idx call 结果 %eax 直通 + flag 装载
+    // `movzbl -0xc(%ebp),%ebx` callee-saved ⇒ register asm 双绑定复现。
+    register bool f asm("ebx") = flag;
+    register int index asm("eax") = _GetUserIndex(user, true);
+    LeaveAssaultPlace(index, f, false);
 }
 
 // ============================================================================
@@ -329,7 +364,7 @@ void CAssaulter::DetachUser()
     if (m_user->getCurCharacR() != 0)
         m_user->getCurCharacInvenW()->GetCreatureMgrW()->TurnStomach(false);
     m_user = 0;
-    m_team = 0;
+    m_team = (ENUM_ASSAULT_TEAM)0;
 }
 
 // ORIG T 0x82e6868：放弃惩罚 —— 备份耐力 → 记 GiveupPvP 日志 → 设 ghost 惩罚时间。
@@ -382,21 +417,26 @@ void CAssaulter::GiveupPanalty()
 // 保持原样。
 bool CAssaultPlace::_IsGiveupPanalty(bool flag)
 {
-    CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x20);
-    if (event->IsEventing((CUser*)0))
+    // ORIG 0x82eacf4：GetRepeatEvent 返回 %eax 直通 vtable 装载（无 event 槽）
+    // ⇒ 匿名链式调用。
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x20)->IsEventing((CUser*)0))
         return false;
     return m_state >= 2 && m_state <= 4 && !flag;
 }
 
-// ORIG T 0x82eab1a：_IsBroadcastRunaway —— (PowerWar 且村庄==7) 或当前角色非空时 true。
+// ORIG T 0x82eab1a：_IsBroadcastRunaway —— PowerWar 且村庄==7 直接 false；
+//   否则 getCurCharacR()!=0 决定返回值（0x82eab50 `mov $0` 在 t 为 true 分支）。
 bool CAssaultPlace::_IsBroadcastRunaway(CUser* user)
 {
-    if (GlobalData::s_power_manager->IsPowerWarEventOn())
-    {
-        if (user->getCurCharacVill() == 7)
-            return true;
-    }
-    return user->getCurCharacR() != 0;
+    if (GlobalData::s_power_manager->IsPowerWarEventOn() &&
+        user->getCurCharacVill() == 7)
+        return false;
+    // ORIG 0x82eab62：`test eax;setne al; test al; je; mov$1;...mov$0`
+    // 物化尾岛（技巧22 register bool asm(al)）
+    register bool hasCharac asm("al") = (user->getCurCharacR() != 0);
+    if (hasCharac)
+        return true;
+    return false;
 }
 
 // ORIG T 0x82eab7a：_BroadcastRunaway(CUser*, int) —— 经 monitor server
@@ -445,7 +485,10 @@ void CAssaultPlace::_MakeUserState(PacketGuard* p, CUser* user)
     p->put_header(0, 3);
     p->put_byte(1);
     p->put_short(user->get_unique_id() & 0xffff);
-    p->put_byte(user->GetUserState());
+    // ORIG 0x82e6f1x call GetUserState 后 `mov %eax,%edx; mov 0xc(%ebp),%eax;
+    // mov %edx,0x4(%esp); mov %eax,(%esp)` ⇒ 结果先物化 %edx 再装 p（技巧28 register asm 中转）
+    register unsigned st asm("edx") = user->GetUserState();
+    p->put_byte(st);
     p->finalize(true);
 }
 
@@ -460,21 +503,29 @@ void CAssaultPlace::SendUserState(CUser* user)
     packet.put_short(user->get_unique_id() & 0xffff);
     packet.put_byte(user->GetUserState());
     packet.finalize(true);
-    GameWorld* world = G_GameWorld();
+    // ORIG 0x82e845c：G_GameWorld 结果 %eax 直通 this 实参（无 world 槽，
+    // 其余实参用 %edx 装载）⇒ register asm(eax) 绑定。
+    register GameWorld* world asm("eax") = G_GameWorld();
     world->send_all(packet, user);
 }
 
 // ORIG T 0x82e7b2a：_SendCloseAssault(CUser*, int) —— tick 下限 0x1e，发关闭包。
 int CAssaultPlace::_SendCloseAssault(CUser* user, int tick)
 {
-    if (user->getCurCharacR() == 0)
-        return 0;
-    if (tick < 0x1e)
-        tick = 0x1e;
-    PacketGuard packet;
-    _MakeCloseAssault(&packet, tick);
-    user->Send(packet);
-    return 1;
+    // ORIG 0x82e7b2a：`test eax;setne al;test al;je bb1` 判 R!=0；
+    // 两路径统一 `mov 0x10(%ebp),%eax` ⇒ 恒返回 tick（钳位直写参数槽）。
+    register bool hasCharac asm("al") = (user->getCurCharacR() != 0);
+    if (hasCharac)
+    {
+        if (tick < 0x1e)
+            tick = 0x1e;
+        {
+            PacketGuard packet;
+            _MakeCloseAssault(&packet, tick);
+            user->Send(packet);
+        }
+    }
+    return tick;
 }
 
 // ============================================================================
@@ -638,7 +689,11 @@ static const Point2d ASSAULT_RECT_ICON_POINT = { 0x82, 5 };   // .rodata 0x8c1cd
 
 int Point2d::operator-(const Point2d& o) const
 {
-    // ORIG 0x82f0486：|dx| + |dy|
+    // ORIG 0x82f0486：|dx| + |dy|，4.1 产无分支 sar/xor/sub 三件套
+    // （4.4 对 if(x<0)x=-x 恒产内存 jns/neg 形 ⇒ 手工复现符号展开）。
+    // ORIG 0x82f0486 为 4.1 无分支 sar/xor/sub + callee-saved 寄存器接力，
+    // 4.4 O0 恒产槽/内存形态（register asm 中转引入多余 copy，ndiff 反升）
+    // ⇒ 保留语义写法，寄存器级差异标 blocked。
     int dx = m_x - o.m_x;
     int dy = m_y - o.m_y;
     if (dx < 0) dx = -dx;
@@ -648,7 +703,7 @@ int Point2d::operator-(const Point2d& o) const
 
 void PartyInfo::Set(CParty* party)                 // ORIG 0x82f05fc
 {
-    m_field00 = (unsigned int)party;
+    m_field00 = party;
 }
 
 CandidatePoint::CandidatePoint() : m_point() {}    // +0 故意不初始化（ORIG 同）
@@ -688,11 +743,12 @@ bool CExtraMatrix::CheckPoint(std::vector<MapArea>* areas,
 
 bool CExtraMatrix::MoveUser(CForcedMoveCharacter* fm)   // ORIG 0x82e5c0a
 {
-    int idx = fm->m_slotIdx;
-    if (idx < 0 || (unsigned int)idx >= m_points.size())
+    // ORIG 0x82e5c0a：每处使用重新装载 fm->m_slotIdx（无 idx 槽）⇒ 表达式直用。
+    if (fm->m_slotIdx < 0 ||
+        (unsigned int)fm->m_slotIdx >= m_points.size())
         return false;
-    fm->m_x = m_points.at(idx).m_x;
-    fm->m_y = m_points.at(idx).m_y;
+    fm->m_x = m_points.at(fm->m_slotIdx).m_x;
+    fm->m_y = m_points.at(fm->m_slotIdx).m_y;
     fm->ForcedMove();
     return true;
 }
@@ -776,13 +832,19 @@ int GetMaxCandidateMatirxRow()
 }
 
 // ORIG T _ZN7MapArea7includeEii 0x82f0298：矩形包含判定。
-int MapArea::include(int x, int y)
+bool MapArea::include(int x, int y)
 {
-    if (m_x > x) return 0;
-    if (m_x + m_w < x) return 0;
-    if (m_y > y) return 0;
-    if (m_y + m_h < y) return 0;
-    return 1;
+    // caller 0x82e5ed1 call 后 xor $0x1,%eax（技巧1 bool 专属形）⇒ bool 返回
+    // ORIG 0x82f0298：四条件共用尾岛 `mov $0,%eax`（技巧24），true 路径
+    // `mov $1; jmp 尾` 在岛前。4 个独立 goto 在 4.4 各产 nop 中继块 ⇒
+    // 合并为单 || 短路链，跳边直指共享 false 块。
+    if (m_x > x || m_x + m_w < x || m_y > y)
+        goto RET0;
+    if (m_y + m_h < y)
+        goto RET0;
+    return true;
+RET0:
+    return false;
 }
 
 // ORIG T _Z25IsIncludeVirtualMoveAreasPSt6vectorI7MapAreaSaIS0_EEii
@@ -805,7 +867,7 @@ namespace pvp_assault
 void CAssaulter::AttachUser(CUser* user, ENUM_ASSAULT_TEAM team)   // ORIG T 0x82e67e6
 {
     m_user = user;
-    m_team = (unsigned int)team;
+    m_team = team;
     _PrepareAssault(user);
 }
 
@@ -836,27 +898,29 @@ void CAssaulter::SetPowerWarWinner(bool flag)   // ORIG W 0x82f0596
 
 void CAssaulter::SetUserConnectP2P(char* ip, int len)   // ORIG T 0x82e6a82
 {
-    int n = len;
-    if (n > 8)
-        n = 8;                       // ORIG std::min<int>(len, 8)
-    memcpy(m_connectIp, ip, n);
+    // ORIG 0x82e6a96 call _ZSt3minIiERKT_S2_S2_（(%esp)=&len，0x4esp=&.rodata 8
+    // @0x8c1c344 ⇒ static const int 取地址），`mov (%eax),%eax` 解引用返回引用。
+    static const int kIpMax = 8;
+    memcpy(m_connectIp, ip, std::min(len, kIpMax));
 }
 
 void CAssaulter::Reset()               // ORIG W 0x82f05ba
 {
     m_user = 0;
-    m_team = 0;
-    m_state = 0;
+    m_team = (ENUM_ASSAULT_TEAM)0;
+    m_state = (ENUM_ASSAULT_STATE)0;
     m_lastHpSec = 0;
     m_powerWarWinner = 0;
 }
 
 void CAssaulter::DieUser()             // ORIG T 0x82e6a40
 {
-    if (m_user == 0)
-        return;
-    m_user->DieCurCharac(0, m_user);
-    ((CCharacterView*)((char*)m_user + 0x796f4))->enableSaveCharacView();
+    // ORIG 0x82e6a4b je->leave（无尾岛）：正向 if 使 body 尾自然落入 leave
+    if (m_user != 0)
+    {
+        m_user->DieCurCharac(0, m_user);
+        ((CCharacterView*)((char*)m_user + 0x796f4))->enableSaveCharacView();
+    }
 }
 
 bool CAssaulter::ChangeHp(int hp)      // ORIG T 0x82e6694
@@ -867,10 +931,9 @@ bool CAssaulter::ChangeHp(int hp)      // ORIG T 0x82e6694
         trace("ASSAULT_CHANGE_HP error (%d)", hp);
         return false;
     }
-    bool isPowerWar =
-        GlobalData::s_power_manager->IsPowerWarEventOn() &&
-        m_user->getCurCharacVill() == 7;
-    if (isPowerWar)
+    // ORIG 0x82e6717：&& 结果 mov$1/0 物化后 test %al（无槽）⇒ 匿名 bool 表达式
+    if (GlobalData::s_power_manager->IsPowerWarEventOn() &&
+        m_user->getCurCharacVill() == 7)
         m_user->setPowerWarHP((unsigned short)hp);
     else
         m_hp = hp;
@@ -878,14 +941,23 @@ bool CAssaulter::ChangeHp(int hp)      // ORIG T 0x82e6694
     unsigned int curSec = GlobalData::s_systemTime_.getCurSec();
     int diff = (int)(curSec - m_lastHpSec);
     m_lastHpSec = curSec;
-    return diff > 2;
+    // ORIG 0x82e676b：`cmpl $2; jg T; mov $0; jmp E; T: mov $1; E: leave`
+    // false 先落、true 跳后岛（技巧23 双 goto 钉块序；4.4 直写折 setg）。
+    if (diff > 2)
+        goto RET1;
+    return false;
+RET1:
+    return true;
 }
 
 const char* CAssaulter::GetCharacName() const    // ORIG T 0x82e663c
 {
+    // ORIG 0x82e663c：je→尾岛 `mov $""`，call 分支 fall-through 在前（技巧23 双 goto 钉块序）
     if (m_user == 0)
-        return "";
+        goto EMPTY;
     return m_user->getCurCharacName();
+EMPTY:
+    return "";
 }
 
 
@@ -918,20 +990,24 @@ bool CStaticDisposition::_CheckMatrix(std::vector<MapArea>* areas,
                                      out.m_x, out.m_y, 0);
 }
 
-void CStaticDisposition::SetVirtualMap(std::vector<MapArea>* areas) // ORIG 0x82e6588
+bool CStaticDisposition::SetVirtualMap(std::vector<MapArea>* areas) // ORIG 0x82e6588
 {
     Point2d probe;
     for (int i = 0; i <= 4; ++i)
     {
         if (_CheckMatrix(areas, probe))
-            return;
+            return true;   // ORIG mov $0x1,%eax
         _MoveMatrix(probe);
     }
+    return false;          // ORIG mov $0x0,%eax
 }
 
 bool CStaticDisposition::MoveUser(CForcedMoveCharacter* fm)  // ORIG 0x82e65ee
 {
-    return m_mats[fm->m_field00].MoveUser(fm);
+    // ORIG 0x82e65ee：`mov 0xc(%ebp),%eax; mov (%eax),%eax; mov %eax,%edx`
+    // 原地两级装载 ⇒ register asm(eax) 中转（技巧16 变体）
+    register int idx asm("eax") = fm->m_field00;
+    return m_mats[idx].MoveUser(fm);
 }
 
 CStaticDisposition::CStaticDisposition(CUser** users, int* counts) // ORIG 0x82e62aa
@@ -955,12 +1031,13 @@ void CDynamicDisposition::GetFlagPoint(int& x, int& y)       // ORIG 0x82f050a
     y = m_anchor.m_y;
 }
 
-void CDynamicDisposition::SetVirtualMap(std::vector<MapArea>* areas) // ORIG 0x82e624c
+bool CDynamicDisposition::SetVirtualMap(std::vector<MapArea>* areas) // ORIG 0x82e624c
 {
     m_matrices[0].RemoveCandidatePoint(areas);
     m_matrices[1].RemoveCandidatePoint(areas);
     m_matrices[0].ArrangeCandidatePoint();
     m_matrices[1].ArrangeCandidatePoint();
+    return true;           // ORIG mov $0x1,%eax
 }
 
 CDynamicDisposition::CDynamicDisposition(CUser** users, int* counts) // ORIG 0x82e6032
@@ -1008,7 +1085,7 @@ int CAssaultPlace::GetAssaultPlaceId()          // ORIG T 0x82f0680
 
 void CAssaultPlace::SetAssaultPlaceId(unsigned int id)   // ORIG T 0x82f068e
 {
-    m_field104 = (int)id;
+    m_field104 = id;
 }
 
 int CAssaultPlace::GetAssaulterCount()          // ORIG W 0x82f06dc
@@ -1018,16 +1095,23 @@ int CAssaultPlace::GetAssaulterCount()          // ORIG W 0x82f06dc
 
 const char* CAssaultPlace::GetAnotherTeamCharacName(int idx)   // ORIG T 0x82eb3ba
 {
-    if (m_assaulters[idx].Empty())
-        return "";
-    ENUM_ASSAULT_TEAM myTeam = m_assaulters[idx].GetTeam();
-    for (int j = 0; j <= 7; ++j)
+    // ORIG 0x82eb3ba：`call Empty; xor $1; test; je ""岛` ⇒ 正向 !Empty 块；
+    // 循环内两侧各自 GetTeam（无 myTeam 变量），第一结果落 %ebx（0x82eb3f3
+    // `mov %eax,%ebx`），比较 `cmp %eax,%ebx; setne %al`（技巧22/28 组合）。
+    if (!m_assaulters[idx].Empty())
     {
-        if (m_assaulters[j].GetTeam() == myTeam)
-            continue;
-        CUser* u = m_assaulters[j].GetUser();
-        if (u != 0)
-            return u->getCurCharacName();
+        for (int j = 0; j <= 7; ++j)
+        {
+            register int a asm("ebx") = m_assaulters[j].GetTeam();
+            register bool diff asm("al") =
+                (a != m_assaulters[idx].GetTeam());
+            if (diff)
+            {
+                CUser* u = m_assaulters[j].GetUser();
+                if (u != 0)
+                    return u->getCurCharacName();
+            }
+        }
     }
     return "";
 }
@@ -1205,7 +1289,10 @@ void CAssaultPlace::TimeoutCloseAssault()
 // ORIG T 0x82e6ab8（报告 Reset.md）：全场复位；归还池前调用。
 void CAssaultPlace::Reset()
 {
-    for (int i = 0; i < 8; ++i)
+    // ORIG 0x82e6abe/af：函数头 `movl $0,-0xc` 双写 = 外提 i 的 dead init +
+    // 第一循环 init；第二循环（0x82e6ba7）复用同槽第三写 ⇒ 共享具名 i。
+    int i = 0;
+    for (i = 0; i < 8; ++i)
     {
         if (m_assaulters[i].GetUser() != 0)
             m_assaulters[i].GetUser()->SetAssaultPlace(0);
@@ -1215,12 +1302,14 @@ void CAssaultPlace::Reset()
     m_field104 = 0;
     m_authenValue = 0;
     m_state = 0;
-    m_posBase.m_x = 0;
-    m_posBase.m_y = 0;
+    // ORIG 0x82e6b5d：Point2d(0,0) 临时构造（C1Eii sret -0x14/-0x10）后
+    // 两字拷入 0x110/0x114 ⇒ 临时对象赋值形。
+    m_posBase = Point2d(0, 0);
     m_pos.m_x = 0;
     m_pos.m_y = 0;
-    m_teamFlag[0] = 0;
-    m_teamFlag[1] = 0;
+    // ORIG 0x82e6ba7：teamFlag 第二循环复用 i 槽。
+    for (i = 0; i <= 1; ++i)
+        m_teamFlag[i] = 0;
     m_winTeam = 0;
     m_checkUser = 0;   // ORIG *(int*)(this+0x134)=0：该槽用户指针清零
     m_abuseSec = 0;
@@ -1229,15 +1318,19 @@ void CAssaultPlace::Reset()
 // ORIG T 0x82edb6a：map 摘除 + place->Reset() + 归还 StaticPool。
 void CAssaultMgr::FreeAssaultPlace(int id, CAssaultPlace* place)
 {
-    if (id == 0)
-        return;
-    std::map<unsigned int, CAssaultPlace*>::iterator it = m_places.find(id);
-    if (it != m_places.end())
-        m_places.erase(it);
-    if (place == 0)
-        return;
-    place->Reset();
-    GetInstanceAssaultPlaceFactory()->FreeAssaultPlace(place);
+    // ORIG 0x82edb6a：id==0 的 je 直接落到 place 检查块（0x82edbde），
+    // 无尾 jmp 岛 ⇒ 两个正向 if 块，非 early-return。
+    if (id != 0)
+    {
+        std::map<unsigned int, CAssaultPlace*>::iterator it = m_places.find(id);
+        if (it != m_places.end())
+            m_places.erase(it);
+    }
+    if (place != 0)
+    {
+        place->Reset();
+        GetInstanceAssaultPlaceFactory()->FreeAssaultPlace(place);
+    }
 }
 
 // ORIG T 0x82e9ad6 size 0x52d：关场主流程 —— 全员按 PowerWar/普通分支

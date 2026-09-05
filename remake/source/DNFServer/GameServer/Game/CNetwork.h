@@ -30,9 +30,9 @@
 class CDispatchServerPacket
 {
 public:
-    static int dispatchPacket(char* p);   // ORIG 0x8473660：末尾 mov $1,%ebx → 恒返 1（调用侧 test %al）
-    static int dispatchAuctionPacket(char* p);   // ORIG 0847ac3c（恒返 1）
-    static int dispatchPointPacket(char* p);     // ORIG 0847c1fe（恒返 1）
+    static bool dispatchPacket(char* p);   // ORIG 0x8473660：末尾 mov $1,%ebx → 恒返 true（调用侧 test %al；bool 由 ORIG __PRETTY_FUNCTION__ "static bool ..." 实证）
+    static bool dispatchAuctionPacket(char* p);  // ORIG 0847ac3c（恒返 1；__PRETTY_FUNCTION__ 实证 static bool）
+    static bool dispatchPointPacket(char* p);    // ORIG 0847c1fe（恒返 1；__PRETTY_FUNCTION__ 实证 static bool）
 };
 
 template <int N1, int N2>

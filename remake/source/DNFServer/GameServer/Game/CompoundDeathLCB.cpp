@@ -16,7 +16,8 @@
 //     _makeRecordPacket            T 0x08468cb6（前两者共用的序列化 helper）
 // 同 TU 附加直接依赖 producer（报告完整、当前全源无定义）：
 //   getItemIndex(const std::vector<std::pair<int,int>>&, int) T 0x08332e4e
-//   Packet_Avater_Disjoint_Statistic C1 W 0x08110bae（内嵌 PacketHeader W 0x08110b70）
+//   Packet_Avater_Disjoint_Statistic C1 W 0x08110bae（内嵌 PacketHeader W 0x08110b70；
+//     权威布局已归口 Packet_Avater_Disjoint_Statistic.h，本 TU 仅 include）
 //   DB_UpdateAvatarHistory::makeRequest(unsigned int,int,char*) T 0x0844536a
 // ============================================================================
 
@@ -26,6 +27,7 @@
 #include "PacketGuard.h"        // PacketGuard 完整类型（CDeathTowerRanking.h 仅前向）
 #include "CAvatarItemMgr.h"      // IsTempKey/GetRemainDate/GetExpireDate/UnRegistItem
 #include "CUser.h"               // CUserCharacInfo getter/getCurCharacInven*
+#include "CEnvironment.h"        // G_CEnvironment()/m_serverEnvir（_generateIPGNo 通道号）
 #include "GlobalData.h"          // s_systemTime_/s_statistic_proxy_mgr/s_stream_pool/s_msgq_mgr
 #include "CSystemTime.h"
 #include "MsgQueueMgr.h"        // MsgQueueMgr::put / QUEUE_IDX
@@ -37,6 +39,7 @@
 #include "PvPTypes.h"            // CMTRand（m_rand 完整类型）
 #include "GameRand.h"            // get_rand_int
 #include "DB_UpdateAvatarHistory.h"
+#include "Packet_Avater_Disjoint_Statistic.h"  // 统计包权威布局（本 TU 原重复定义已迁除）
 #include <cstring>
 #include <ctime>
 #include <utility>
@@ -69,38 +72,6 @@ void DB_UpdateAvatarHistory::makeRequest(unsigned int characNo, int avatarUid,
     guard.operator*()->put_binary(ipgNo, 0x18);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
-
-// ---------------------------------------------------------------------------
-// Packet_Avater_Disjoint_Statistic —— 统计包（本 TU 唯一定义；body 字段偏移按
-// ORIG _SendDisjointAvatarStatistic 写入序建模，sizeof==0x28）。
-// PacketHeader ctor W 0x08110b70：(u16 type@+0,u16 size@+2,u16 0@+4,dword 0@+6)。
-// 权威 class PacketHeader 见 source/shared/packet/include/PacketHeader.h
-// （0xa 头部布局与 ctor(type,size) 一致，经既有 include 链可见）。
-// ---------------------------------------------------------------------------
-#pragma pack(push, 1)
-
-class Packet_Avater_Disjoint_Statistic : public PacketHeader
-{
-public:
-    // ORIG W 0x08110bae：PacketHeader(0x17a2, 0x28) 后仅清零 dword @+0xa。
-    Packet_Avater_Disjoint_Statistic()
-        : PacketHeader(static_cast<unsigned short>(0x17a2),
-                       static_cast<unsigned short>(0x28))
-    {
-        m_field0a = 0;
-    }
-
-    unsigned int m_field0a;       // +0x0a（调用方写 2）
-    int m_gradeIdxA;              // +0x0e rarity==2?2:grade-1
-    int m_subTypeA;               // +0x12 scriptA vtbl+0xc 结果
-    unsigned char m_flagA;        // +0x16 置 0
-    unsigned int m_pad17;         // +0x17..+0x1a 未初始化（与 ORIG 一致）
-    int m_gradeIdxB;              // +0x1b 同 A 组算法但取 scriptB grade
-    int m_subTypeB;               // +0x1f【ORIG 怪癖】也读 scriptA vtbl+0xc
-    unsigned char m_flagB;        // +0x23 置 0
-    unsigned int m_pad24;         // +0x24..+0x27 未初始化（ORIG SendPacket 传 0x28）
-};                                // sizeof == 0x28（pack(1) 下需显式尾填充）
-#pragma pack(pop)
 
 namespace WongWork {
 
@@ -136,7 +107,7 @@ static bool CI_UsableType1(const void* item)
 
 // ORIG 0x08331efe。步骤：
 //   1. 构造临时 tagCompoundInfo 并 clear()（ctor/clear 定义于 WongWorkMiscB_A.cpp）；
-//   2. 回填 msg 定长字段（msg 结构未建模，按 ORIG 偏移读取）；
+//   2. 回填 msg 定长字段（MSG_COMPOUND_AVATAR.h 权威布局，具名字段读取）；
 //   3. GetInvenSlot 三次取物品拷贝（slot1→m_avatar、slot2→材料A/B）；
 //   4. find_item 两脚本指针；
 //   5. 双脚本有效且 itemId 与槽内 addInfo 一致时，按 msg->type 在 rec 的
@@ -145,41 +116,47 @@ static bool CI_UsableType1(const void* item)
 CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
     const CUser* user, const MSG_COMPOUND_AVATAR* msg) const
 {
-    // msg 为未建模包结构（头内仅前置声明），字段按 ORIG 偏移读取：
-    //   +0x0d slotA(u16→field90) / +0x0f slotB(u16→field08/materialA) /
-    //   +0x11 itemIdA(i32) / +0x15 slotC(u16→field48/materialB) / +0x17 itemIdB(i32)
-    //   +0x1b fieldD0(i32) / +0x1f slot(u16,d4) / +0x21 atkOptFlag(u8:==1→d6) /
-    //   +0x22 type(u8,e8)
-    const char* raw = reinterpret_cast<const char*>(msg);
-
     tagCompoundInfo info;                        // ORIG C1 0x08334344
     info.clear();                                // ORIG clear 0x0833424a
 
-    info.m_fieldD6 = (*reinterpret_cast<const unsigned char*>(raw + 0x21) == 1);
-    info.m_fieldD0 = *reinterpret_cast<const int*>(raw + 0x1b);
-    info.m_slot = *reinterpret_cast<const unsigned short*>(raw + 0x1f);
-    info.m_field90 = *reinterpret_cast<const unsigned short*>(raw + 0x0d);
+    // msg 字段读取（MSG_COMPOUND_AVATAR.h；偏移/宽度与 ORIG movzwl/mov/movzbl 一致）：
+    //   m_optionCheckFlag→+0xd6 / m_optionIdx→+0xd0 / m_slot→+0xd4 /
+    //   m_avatarSlot→+0x90 / m_materialSlotA→+0x08 / m_materialSlotB→+0x48 /
+    //   m_materialItemIdA/B→find_item / m_type→+0xe8
+    info.m_fieldD6 = (msg->m_optionCheckFlag == 1);
+    info.m_fieldD0 = msg->m_optionIdx;
+    info.m_slot = msg->m_slot;
+    info.m_field90 = msg->m_avatarSlot;
 
     const CInventory* inv = user->getCurCharacInvenR();
     info.m_avatar = inv->GetInvenSlot(
-        1, static_cast<int>(*reinterpret_cast<const short*>(raw + 0x0d)));
-    info.m_field08 =
-        *reinterpret_cast<const unsigned short*>(raw + 0x0f);
+        1, static_cast<int>(static_cast<short>(msg->m_avatarSlot)));
+    info.m_field08 = msg->m_materialSlotA;
     info.m_materialA = inv->GetInvenSlot(
-        2, static_cast<int>(*reinterpret_cast<const short*>(raw + 0x0f)));
-    info.m_field48 =
-        *reinterpret_cast<const unsigned short*>(raw + 0x15);
+        2, static_cast<int>(static_cast<short>(msg->m_materialSlotA)));
+    info.m_field48 = msg->m_materialSlotB;
     info.m_materialB = inv->GetInvenSlot(
-        2, static_cast<int>(*reinterpret_cast<const short*>(raw + 0x15)));
+        2, static_cast<int>(static_cast<short>(msg->m_materialSlotB)));
 
     info.m_scriptA = G_CDataManager()->find_item(
-        *reinterpret_cast<const int*>(raw + 0x11));
+        static_cast<int>(msg->m_materialItemIdA));
     info.m_scriptB = G_CDataManager()->find_item(
-        *reinterpret_cast<const int*>(raw + 0x17));
+        static_cast<int>(msg->m_materialItemIdB));
 
     if (info.m_scriptA == 0 || info.m_scriptB == 0)
     {
         info.m_errorFlag = true;                 // ORIG +0x2ef
+        return info;
+    }
+    // ORIG 0x306/0x315：msg 两 itemIdx 必须与槽内物品 addInfo（Inven_Item+0x02，
+    // 即 info+0x0c / info+0x4c）一致，任一不符 → 置 errorFlag(+0xd7) 并返回
+    //（ORIG 0x319 movb $0x1,0xd7 / 0x322 jmp 出口）。
+    if (static_cast<int>(msg->m_materialItemIdA) !=
+            static_cast<int>(info.m_materialA.m_addInfo) ||
+        static_cast<int>(msg->m_materialItemIdB) !=
+            static_cast<int>(info.m_materialB.m_addInfo))
+    {
+        info.m_errorFlag = true;
         return info;
     }
     // ORIG 0x327：双脚本 job 匹配循环（0..10）——两脚本同 job 且均可用时
@@ -211,7 +188,7 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
             continue;
 
         const std::vector<std::pair<int, int> >* opts = 0;
-        switch (raw[0x22])
+        switch (msg->m_type)
         {
             case 0:
                 opts = &rec->m_tailA;            // +0x2b8
@@ -242,7 +219,7 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
             break;
     }
     info.m_field04 = static_cast<int>(found);    // ORIG +0x6cd
-    info.m_type = *reinterpret_cast<const unsigned char*>(raw + 0x22);  // +0x6d9
+    info.m_type = msg->m_type;                   // ORIG +0x6d9
     return info;
 }
 
@@ -441,15 +418,16 @@ int CCompoundAvatar::_ProcCompoundCore(CUser* user, tagCompoundInfo& info,
             // CDataManager 域具名化后改为成员访问）。
             if (info.m_type == 1)
             {
-                weight += *reinterpret_cast<const int*>(
-                    reinterpret_cast<const char*>(G_CDataManager()) + 0x4a54);
+                // datamgr+0x4a54 = m_serverParameter(+0x68)+0x49ec
+                //（importServerParameterScript "[upper bind cube rate bonus]" 写点）；
+                // ORIG 0x08333170 `mov 0x4a54(%eax),%eax` = 4 字节读 → int 成员。
+                weight += G_CDataManager()->m_serverParameter.m_49ec;
             }
             if (info.m_type == 3)
             {
-                weight -= (*reinterpret_cast<const int*>(
-                               reinterpret_cast<const char*>(G_CDataManager()) +
-                               0x4a58) *
-                           weight) /
+                // datamgr+0x4a58 = m_serverParameter+0x49f0
+                //（"[lower bind cube rate bonus]"；ORIG 0x0833318c `mov 0x4a58(%eax),%eax`）。
+                weight -= (G_CDataManager()->m_serverParameter.m_49f0 * weight) /
                           10000;
             }
             if (m_rand->randInt(static_cast<unsigned long>(10000)) < weight)
@@ -620,10 +598,10 @@ char* CCompoundAvatar::_generateIPGNo(const CUser* user, long curSec,
     struct tm lt;
     localtime_r(&t, &lt);
     const int characNo = user->getCurCharacNo();
-    // CEnvironment 服务器标识 +0x1b0（该域具名化后改为成员访问）。
-    const int serverId =
-        *reinterpret_cast<const volatile int*>(
-            reinterpret_cast<const char*>(G_CEnvironment()) + 0x1b0);
+    // ORIG 0x08333e63 `mov 0x1b0(%eax),%eax`（4 字节读）= CEnvironment+0x198
+    //（m_serverEnvir）+0x18 → Server_Envir::m_channelNo（通道号；同
+    // CDataManager.cpp:1461 具名口径）。
+    const int serverId = G_CEnvironment()->m_serverEnvir.m_channelNo;
     OS_API::snprintf(buf, 0x14, "C%02d%02d%02d%02d%010d",
                      serverId,
                      (lt.tm_year + 1900) % 2000,

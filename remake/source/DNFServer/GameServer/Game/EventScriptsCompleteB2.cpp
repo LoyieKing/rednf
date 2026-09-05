@@ -723,25 +723,43 @@ bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* pat
 }
 
 // ---- importLevelUpRewardScript T 0x08980261（4824B）----
-// [objdump·报告缺失]。前置：默认 dbTableName=""、flag08=0。[recv check db table]
-// 读表名并置 flag08=1。[level up] 节内逐 job 标签解析：job 键字节（filter[0]）
-// 由标签决定 0..0xa，filter[1]=(char)首 ScanInt；随后 (level,itemIdx,count,
-// title,content) 三 int + 两 string 循环直至 ScanInt 失败，整块 insert 进
-// m_conditions（键=int(filter[0])）；[/level up] 结束节；节内 ScanType 失败
-// 直接返回假。[level up reward end] → 返回真。
-
+// 报告 docs/class_func_reports/_lt_global_gt_/importLevelUpRewardScript.md
+// （ORIG 汇编 + Ghidra 反编译 C 两段已完整阅读）。标签主循环 4 个：
+// [recv check db table]/[level up]/[send mail]/[level up reward end]。
+// ORIG 反汇编（报告 /tmp/LevelUpReward.md，已完整读 ## 汇编 + ## 反编译 C）：
+// [level up] 节内是 11 个职业标签的线性 operator== 比较链，GCC 对每个分支
+// 复制一整块解析代码（ScanType 子标签 + ScanInt×4 + ScanStr×2 + push_back +
+// pair(char&,cond&) 构造 + map::insert + pair 析构），故 ORIG 函数体达 4824B、
+// 调用 164 个。本文件按同构形态逐分支展开转写。
+// 控制流要点（全部经汇编实证）：
+//   - 节顶 ScanType 失败（EOF）→ 直接回主循环头（不建局部对象）；
+//   - 职业分支内子标签 ScanType 失败 → ebx=0 → 销毁局部、退出本节回主循环
+//     （不是返回假！此前重建误写 return false，已修正）；
+//   - [/level up] → ebx=0 退出本节；未知 token → ebx=1 继续节内；
+//   - 职业命中后子 token 不比较、直接丢弃；cond.m_filter[0]=立即数职业号，
+//     filter[1]=(char)ScanInt(&ok)；reward 循环三 ScanInt 短路检查（任一失败
+//     即跳出到 insert），随后两 ScanStr + push_back；
+//   - insert 键经 pair<char&,Condition_LevelUp&> 模板推导（ORIG 符号
+//     _ZNSt4pairIKi17Condition_LevelUpEC2IRcRS1_EEOT_OT0_），故键实参必须是
+//     char 左值（本地 char 变量持有 filter[0] 值）；
+//   - ok(=result) 为跨全部分支共享的局部 bool，ScanInt 全写它，且
+//     [level up reward end] 置真后作为返回值。
 bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
 {
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
+    std::string token;
+    bool result = false;
     script->m_dbTableName = "";
     script->m_flag08 = 0;
 
-    bool result = false;
-    std::string token;
-    while (ScanType(token, true))
+    // for(;;)+头侧 break 形态：令首 ScanType 调用停在循环体前（ORIG 主循环
+    // test 位于 +0x67 循环头；while(cond) 形式会被 GCC 4.4 旋转至环尾）。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[recv check db table]")
         {
             ScanStr(&script->m_dbTableName);
@@ -749,66 +767,295 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
         }
         else if (token == "[level up]")
         {
-            bool inSection = true;
-            while (inSection)
+            bool next = true;
+            while (next)
             {
                 if (!ScanType(token, true))
-                    break;                    // ORIG 回主循环头（EOF 再失败即返回）
+                    break;                    // ORIG 节顶 EOF：回主循环头
 
                 Condition_LevelUp cond;
                 Condition_LevelUp::Reward_Item item;
 
-                // 职业标签链（顺序与 ORIG 比较树一致；键=职业序号 0..0xa）
-                int job;
-                if      (token == "[swordman]")         job = 0;
-                else if (token == "[fighter]")          job = 1;
-                else if (token == "[gunner]")           job = 2;
-                else if (token == "[mage]")             job = 3;
-                else if (token == "[priest]")           job = 4;
-                else if (token == "[at gunner]")        job = 5;
-                else if (token == "[thief]")            job = 6;
-                else if (token == "[at fighter]")       job = 7;
-                else if (token == "[at mage]")          job = 8;
-                else if (token == "[demonic swordman]") job = 9;
-                else if (token == "[creator mage]")     job = 0xa;
-                else job = -1;
-
-                if (job >= 0)
+                if (token == "[swordman]")
                 {
-                    // 命中职业标签：再消费一个子标签（ORIG 不比较、直接丢弃；
-                    // 失败直接返回假）。
-                    if (!ScanType(token, true))
-                        return false;
-                    cond.m_filter[0] = static_cast<unsigned char>(job);
-                    cond.m_filter[1] =
-                        static_cast<unsigned char>(ScanInt(&result));
-                    for (;;)
+                    if (ScanType(token, true))
                     {
-                        item.m_level     = ScanInt(&result);
-                        if (!result)
-                            break;
-                        item.m_itemIndex = ScanInt(&result);
-                        if (!result)
-                            break;
-                        item.m_itemCount = ScanInt(&result);
-                        if (!result)
-                            break;
-                        ScanStr(&item.m_title);
-                        ScanStr(&item.m_content);
-                        cond.m_items.push_back(item);
+                        cond.m_filter[0] = 0;
+                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        for (;;)
+                        {
+                            item.m_level = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemIndex = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemCount = ScanInt(&result);
+                            if (!result) break;
+                            ScanStr(&item.m_title);
+                            ScanStr(&item.m_content);
+                            cond.m_items.push_back(item);
+                        }
+                        char key = static_cast<char>(cond.m_filter[0]);
+                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                        script->m_conditions.insert(entry);
                     }
-                    // 键=filter[0]（char&→int），值=cond 拷贝；插入后继续本节
-                    //（ORIG 跳过 [/level up] 比较直接回节内扫描）。
-                    std::map<int, Condition_LevelUp>::value_type entry(
-                        static_cast<int>(static_cast<char>(cond.m_filter[0])),
-                        cond);
-                    script->m_conditions.insert(entry);
+                    else
+                        next = false;         // ORIG ebx=0：退出本节回主循环
+                }
+                else if (token == "[fighter]")
+                {
+                    if (ScanType(token, true))
+                    {
+                        cond.m_filter[0] = 1;
+                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        for (;;)
+                        {
+                            item.m_level = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemIndex = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemCount = ScanInt(&result);
+                            if (!result) break;
+                            ScanStr(&item.m_title);
+                            ScanStr(&item.m_content);
+                            cond.m_items.push_back(item);
+                        }
+                        char key = static_cast<char>(cond.m_filter[0]);
+                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                        script->m_conditions.insert(entry);
+                    }
+                    else
+                        next = false;
+                }
+                else if (token == "[gunner]")
+                {
+                    if (ScanType(token, true))
+                    {
+                        cond.m_filter[0] = 2;
+                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        for (;;)
+                        {
+                            item.m_level = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemIndex = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemCount = ScanInt(&result);
+                            if (!result) break;
+                            ScanStr(&item.m_title);
+                            ScanStr(&item.m_content);
+                            cond.m_items.push_back(item);
+                        }
+                        char key = static_cast<char>(cond.m_filter[0]);
+                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                        script->m_conditions.insert(entry);
+                    }
+                    else
+                        next = false;
+                }
+                else if (token == "[mage]")
+                {
+                    if (ScanType(token, true))
+                    {
+                        cond.m_filter[0] = 3;
+                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        for (;;)
+                        {
+                            item.m_level = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemIndex = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemCount = ScanInt(&result);
+                            if (!result) break;
+                            ScanStr(&item.m_title);
+                            ScanStr(&item.m_content);
+                            cond.m_items.push_back(item);
+                        }
+                        char key = static_cast<char>(cond.m_filter[0]);
+                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                        script->m_conditions.insert(entry);
+                    }
+                    else
+                        next = false;
+                }
+                else if (token == "[priest]")
+                {
+                    if (ScanType(token, true))
+                    {
+                        cond.m_filter[0] = 4;
+                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        for (;;)
+                        {
+                            item.m_level = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemIndex = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemCount = ScanInt(&result);
+                            if (!result) break;
+                            ScanStr(&item.m_title);
+                            ScanStr(&item.m_content);
+                            cond.m_items.push_back(item);
+                        }
+                        char key = static_cast<char>(cond.m_filter[0]);
+                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                        script->m_conditions.insert(entry);
+                    }
+                    else
+                        next = false;
+                }
+                else if (token == "[at gunner]")
+                {
+                    if (ScanType(token, true))
+                    {
+                        cond.m_filter[0] = 5;
+                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        for (;;)
+                        {
+                            item.m_level = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemIndex = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemCount = ScanInt(&result);
+                            if (!result) break;
+                            ScanStr(&item.m_title);
+                            ScanStr(&item.m_content);
+                            cond.m_items.push_back(item);
+                        }
+                        char key = static_cast<char>(cond.m_filter[0]);
+                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                        script->m_conditions.insert(entry);
+                    }
+                    else
+                        next = false;
+                }
+                else if (token == "[thief]")
+                {
+                    if (ScanType(token, true))
+                    {
+                        cond.m_filter[0] = 6;
+                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        for (;;)
+                        {
+                            item.m_level = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemIndex = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemCount = ScanInt(&result);
+                            if (!result) break;
+                            ScanStr(&item.m_title);
+                            ScanStr(&item.m_content);
+                            cond.m_items.push_back(item);
+                        }
+                        char key = static_cast<char>(cond.m_filter[0]);
+                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                        script->m_conditions.insert(entry);
+                    }
+                    else
+                        next = false;
+                }
+                else if (token == "[at fighter]")
+                {
+                    if (ScanType(token, true))
+                    {
+                        cond.m_filter[0] = 7;
+                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        for (;;)
+                        {
+                            item.m_level = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemIndex = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemCount = ScanInt(&result);
+                            if (!result) break;
+                            ScanStr(&item.m_title);
+                            ScanStr(&item.m_content);
+                            cond.m_items.push_back(item);
+                        }
+                        char key = static_cast<char>(cond.m_filter[0]);
+                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                        script->m_conditions.insert(entry);
+                    }
+                    else
+                        next = false;
+                }
+                else if (token == "[at mage]")
+                {
+                    if (ScanType(token, true))
+                    {
+                        cond.m_filter[0] = 8;
+                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        for (;;)
+                        {
+                            item.m_level = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemIndex = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemCount = ScanInt(&result);
+                            if (!result) break;
+                            ScanStr(&item.m_title);
+                            ScanStr(&item.m_content);
+                            cond.m_items.push_back(item);
+                        }
+                        char key = static_cast<char>(cond.m_filter[0]);
+                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                        script->m_conditions.insert(entry);
+                    }
+                    else
+                        next = false;
+                }
+                else if (token == "[demonic swordman]")
+                {
+                    if (ScanType(token, true))
+                    {
+                        cond.m_filter[0] = 9;
+                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        for (;;)
+                        {
+                            item.m_level = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemIndex = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemCount = ScanInt(&result);
+                            if (!result) break;
+                            ScanStr(&item.m_title);
+                            ScanStr(&item.m_content);
+                            cond.m_items.push_back(item);
+                        }
+                        char key = static_cast<char>(cond.m_filter[0]);
+                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                        script->m_conditions.insert(entry);
+                    }
+                    else
+                        next = false;
+                }
+                else if (token == "[creator mage]")
+                {
+                    if (ScanType(token, true))
+                    {
+                        cond.m_filter[0] = 0xa;
+                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        for (;;)
+                        {
+                            item.m_level = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemIndex = ScanInt(&result);
+                            if (!result) break;
+                            item.m_itemCount = ScanInt(&result);
+                            if (!result) break;
+                            ScanStr(&item.m_title);
+                            ScanStr(&item.m_content);
+                            cond.m_items.push_back(item);
+                        }
+                        char key = static_cast<char>(cond.m_filter[0]);
+                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                        script->m_conditions.insert(entry);
+                    }
+                    else
+                        next = false;
                 }
                 else if (token == "[/level up]")
                 {
-                    inSection = false;
+                    next = false;
                 }
-                // 其余未知 token：销毁局部并继续本节（ORIG 同）
+                // 其余未知 token：next 保持真 → 销毁局部并继续本节（ORIG 同）
             }
         }
         else if (token == "[send mail]")

@@ -156,8 +156,10 @@ public:
     int get_creature_minimum_level() const;
     // ORIG W 0x0833eebe：返回 m_randomTable.m_field14（+0x15c）。
     int get_creature_species() const;
-    // ORIG CEquipItem::get_hatch_item_id()（CEgg::Hatch @ 0x833912a 内联展开）：
-    // 返回 +0x164（m_randomTable.m_field1c，蛋孵化出的物品 id；set_item case 1 写入）。
+    // ORIG _ZNK10CEquipItem17get_hatch_item_idEv W 0x0833eeda size 0xe（nm -S 核验），
+    // 体内仅 mov 0x164(%eax),%eax → m_randomTable.m_field1c（蛋孵化物品 id；
+    // set_item case 1 写入）。调用方 CEgg::Hatch @0x833912a 是外联 call（0x8339181），
+    // 并非头内联展开。
     int get_hatch_item_id() const;
     // ORIG _ZNK10CEquipItem20getEnchantSystemDataEv W 0x0854b544：返回 +0x1b0（m_enchantVec）
     const std::vector<STEnchantSystemData>& getEnchantSystemData() const;

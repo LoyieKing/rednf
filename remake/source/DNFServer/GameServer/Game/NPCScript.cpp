@@ -10,6 +10,8 @@
 #include "CItem.h"            // CItem::get_index/getItemGroupName
 #include "DNFLexWrapper.h"    // ScanType/ScanInt/ScanStr
 #include "DNFFunctionLib.h"   // get_rand_int(int)
+// class SpinLock / struct less_TCHAR（[random message balloon] 静态查找表用）。
+#include "CEnvironment.h"
 
 // ============================================================================
 // CNPCScript / NpcScript / importNpcScript
@@ -200,18 +202,6 @@ namespace {
 const int IMPORT_OK    = 1;
 const int IMPORT_FAIL  = 0;
 
-// [1st favor dialog]：取 '>' 之后的子串（strchr(s,'>')+1）。
-bool takeAfterGt(const std::string& s, std::string& out)
-{
-    std::string::size_type pos = s.find('>');
-    if (pos == std::string::npos)
-    {
-        return false;
-    }
-    out = s.substr(pos + 1);
-    return true;
-}
-
 }  // namespace
 
 // ----------------------------------------------------------------------------
@@ -317,14 +307,19 @@ int importNpcScript(NpcScript* npc, char const* path)
         {
             int slot = 0xb;  // [common]
             ScanStr(&sub);
-            if (sub != "[common]")
+            if (sub == "[common]")
+            {
+                slot = 0xb;
+            }
+            else
             {
                 slot = getCharacterJob(sub.c_str());
             }
             std::vector<int>& list = npc->m_skills[slot];
             list.clear();
             bool ok = false;
-            for (int v = ScanInt(&ok); ok; v = ScanInt(&ok))
+            int v = 0;
+            while ((v = ScanInt(&ok), ok))
             {
                 list.push_back(v);
             }
@@ -386,7 +381,8 @@ int importNpcScript(NpcScript* npc, char const* path)
         if (token == "[click mark]")
         {
             bool ok = false;
-            for (int type = ScanInt(&ok); ok; type = ScanInt(&ok))
+            int type = 0;
+            while ((type = ScanInt(&ok), ok))
             {
                 ClickMarkInfo info;
                 info.m_type = type;
@@ -413,7 +409,8 @@ int importNpcScript(NpcScript* npc, char const* path)
             dlg.m_flag = ScanInt(static_cast<bool*>(0)) != 0;
             ScanStr(&dlg.m_str);
             bool ok = false;
-            for (int v = ScanInt(&ok); ok; v = ScanInt(&ok))
+            int v = 0;
+            while ((v = ScanInt(&ok), ok))
             {
                 dlg.m_list2.push_back(v);
             }
@@ -426,12 +423,14 @@ int importNpcScript(NpcScript* npc, char const* path)
         }
         if (token == "[favor_dialog]")
         {
-            PresentResponceScript pr;
-            pr.m_a = ScanInt(static_cast<bool*>(0));
-            pr.m_b = ScanInt(static_cast<bool*>(0));
-            pr.m_c = ScanInt(static_cast<bool*>(0));
-            ScanStr(&pr.m_str);
-            npc->m_presentResponces.push_back(pr);
+            // ORIG 0x089fcb8e：PresentResponce 是函数局部静态（__cxa_guard + atexit，
+            // 无每次调用析构）。逐字段 ScanInt/ScanStr 写入静态对象后 push_back。
+            static PresentResponceScript PresentResponce;
+            PresentResponce.m_a = ScanInt(static_cast<bool*>(0));
+            PresentResponce.m_b = ScanInt(static_cast<bool*>(0));
+            PresentResponce.m_c = ScanInt(static_cast<bool*>(0));
+            ScanStr(&PresentResponce.m_str);
+            npc->m_presentResponces.push_back(PresentResponce);
             continue;
         }
         if (token == "[/favor_dialog]")
@@ -464,12 +463,21 @@ int importNpcScript(NpcScript* npc, char const* path)
         }
         if (token == "[1st favor dialog]")
         {
-            while (ScanStr(&sub))
+            // ORIG 0x089fce08：声明局部 string + 一块清零缓冲（rep stos 0x100 dword），
+            // 循环 ScanStr 到同一 string，取 c_str→strchr('>')，命中则 p+1 strcpy 进缓冲、
+            // 再对该 string 赋 const char*（operator=(char const*)），最后 push_back。
+            std::string one;
+            char gtbuf[0x400] = { '\0' };
+            while (ScanStr(&one))
             {
-                std::string after;
-                if (takeAfterGt(sub, after))
+                char* pc = const_cast<char*>(one.c_str());
+                char* pg = strchr(pc, '>');
+                if (pg != 0)
                 {
-                    npc->m_firstFavorDialogs.push_back(after);
+                    pg = pg + 1;
+                    strcpy(gtbuf, pg);
+                    one = pg;
+                    npc->m_firstFavorDialogs.push_back(one);
                 }
             }
             continue;
@@ -497,7 +505,8 @@ int importNpcScript(NpcScript* npc, char const* path)
         {
             npc->m_intData.clear();
             bool ok = false;
-            for (int v = ScanInt(&ok); ok; v = ScanInt(&ok))
+            int v = 0;
+            while ((v = ScanInt(&ok), ok))
             {
                 npc->m_intData.push_back(v);
             }
@@ -510,7 +519,9 @@ int importNpcScript(NpcScript* npc, char const* path)
             while (ScanStr(&sub))
             {
                 npc->m_balloonMessages.push_back(sub);
-                npc->m_balloonTicks.push_back(ScanInt(static_cast<bool*>(0)));
+                // ORIG 0x089fd096：ScanInt 结果先存命名 int，再 push_back(ERKi)。
+                int tick = ScanInt(static_cast<bool*>(0));
+                npc->m_balloonTicks.push_back(tick);
             }
             continue;
         }
@@ -561,30 +572,33 @@ int importNpcScript(NpcScript* npc, char const* path)
                         {
                             for (;;)
                             {
-                                int mood = 3;
+                                // ORIG make_pair<ENUM_NPC_MOOD&, unsigned int>：首参为
+                                // ENUM_NPC_MOOD 具名左值，次参 unsigned int 右值临时。
+                                ENUM_NPC_MOOD mood = static_cast<ENUM_NPC_MOOD>(3);
                                 if (!ScanStr(&sub)) { break; }
-                                mood = getNpcMoodFromString(sub.c_str());
+                                mood = static_cast<ENUM_NPC_MOOD>(getNpcMoodFromString(sub.c_str()));
                                 if (mood == 3) { return IMPORT_FAIL; }
                                 bool ok = false;
                                 int value = ScanInt(&ok);
                                 if (!ok) { return IMPORT_FAIL; }
                                 fav.m_fav.m_moodChanges.push_back(
-                                    std::make_pair(static_cast<ENUM_NPC_MOOD>(mood),
+                                    std::make_pair(mood,
                                                    static_cast<unsigned int>(value)));
                             }
                         }
                         else if (token == "[key item]")
                         {
-                            bool ok = false;
-                            for (int key = ScanInt(&ok); ok; key = ScanInt(&ok))
+                            // ORIG make_pair<unsigned long&, unsigned int&>：两参均具名左值。
+                            for (;;)
                             {
-                                unsigned int id = ScanInt(&ok);
+                                bool ok = false;
+                                unsigned long key = 0xffffffff;
+                                unsigned int id = 0;
+                                key = ScanInt(&ok);
+                                if (!ok) { break; }
+                                id = ScanInt(&ok);
                                 if (!ok) { return IMPORT_FAIL; }
-                                fav.m_fav.m_keyItems.push_back(
-                                    std::make_pair(
-                                        static_cast<unsigned long>(
-                                            static_cast<unsigned int>(key)),
-                                        id));
+                                fav.m_fav.m_keyItems.push_back(std::make_pair(key, id));
                             }
                         }
                     }
@@ -612,74 +626,88 @@ int importNpcScript(NpcScript* npc, char const* path)
                             if (!ok) { return IMPORT_FAIL; }
                             continue;
                         }
-                        if (token == "[prefer item]" || token == "[unprefer item]")
+                        // ORIG 四个独立 gift 块（各自 make_pair<unsigned long&, GiftInfo&>
+                        // + map::insert，键 = info.m_a 首字），勿合并（合并=少一半调用符号）。
+                        // 组名块按 P48 各自调 getItemGroupNameTable()（find/end 各一次，不缓存）。
+                        if (token == "[prefer item]")
                         {
-                            stFavorableRelationShip_t::stGiftTable_t& table = (token == "[prefer item]")
-                                                       ? fav.m_preferItems
-                                                       : fav.m_unpreferItems;
-                            const bool unprefer = (token == "[unprefer item]");
                             bool ok = false;
-                            for (int slot = ScanInt(&ok); ok; slot = ScanInt(&ok))
+                            int slot = 0;
+                            while ((slot = ScanInt(&ok), ok))
                             {
                                 if (slot > 4) { return IMPORT_FAIL; }
                                 stFavorableRelationShip_t::stGiftItemInfo_t info;
                                 info.m_a = ScanInt(&ok);
                                 if (!ok) { return IMPORT_FAIL; }
-                                info.m_b = ScanInt(&ok);
+                                info.m_b = static_cast<short>(ScanInt(&ok));
                                 if (!ok) { return IMPORT_FAIL; }
                                 info.m_c = static_cast<short>(ScanInt(&ok));
                                 if (!ok) { return IMPORT_FAIL; }
-                                if (unprefer)
-                                {
-                                    info.m_b = -info.m_b;   // ORIG: 取负
-                                    info.m_c = 1;
-                                    // 推断：unprefer 分支第三值固定 1（ORIG
-                                    // local_1f4=1），info.m_c 存放该标志位。
-                                }
-                                // 键构造：ORIG make_pair(ulong, GiftInfo)，ulong 键
-                                // 组合方式未完全还原 —「推断」：(slot<<32)|itemId。
-                                unsigned long key =
-                                    (static_cast<unsigned long>(slot) << 32) |
-                                    static_cast<unsigned long>(info.m_a);
-                                table.m_maps[slot].insert(
-                                    std::make_pair(key, info));
+                                fav.m_preferItems.m_maps[slot].insert(
+                                    std::make_pair(info.m_a, info));
                             }
                             continue;
                         }
-                        if (token == "[prefer item group]" ||
-                            token == "[unprefer item group]")
+                        if (token == "[prefer item group]")
                         {
-                            stFavorableRelationShip_t::stGiftTable_t& table = (token == "[prefer item group]")
-                                                       ? fav.m_preferItemGroups
-                                                       : fav.m_unpreferItemGroups;
-                            const bool unprefer =
-                                (token == "[unprefer item group]");
                             bool ok = false;
-                            for (int slot = ScanInt(&ok); ok; slot = ScanInt(&ok))
+                            int slot = 0;
+                            while ((slot = ScanInt(&ok), ok))
                             {
                                 if (slot > 4) { return IMPORT_FAIL; }
                                 if (!ScanStr(&sub)) { return IMPORT_FAIL; }
-                                std::map<std::string, int>& names =
-                                    getItemGroupNameTable();
                                 std::map<std::string, int>::const_iterator it =
-                                    names.find(sub);
-                                if (it == names.end()) { return IMPORT_FAIL; }
-                                int groupIdx = it->second;
+                                    getItemGroupNameTable().find(sub);
+                                if (it == getItemGroupNameTable().end()) { return IMPORT_FAIL; }
                                 stFavorableRelationShip_t::stGiftItemInfo_t info;
-                                info.m_a = groupIdx;
-                                info.m_b = ScanInt(&ok);
+                                info.m_a = static_cast<unsigned long>(it->second);
+                                info.m_b = static_cast<short>(ScanInt(&ok));
                                 if (!ok) { return IMPORT_FAIL; }
                                 info.m_c = static_cast<short>(ScanInt(&ok));
                                 if (!ok) { return IMPORT_FAIL; }
-                                if (unprefer)
-                                {
-                                    info.m_b = -info.m_b;
-                                    info.m_c = 1;  // 推断：同 unprefer item
-                                }
-                                unsigned long key =
-                                    (static_cast<unsigned long>(slot) << 32) |
-                                    static_cast<unsigned long>(groupIdx);
-                                table.m_maps[slot].insert(std::make_pair(key, info));
+                                fav.m_preferItemGroups.m_maps[slot].insert(
+                                    std::make_pair(info.m_a, info));
+                            }
+                            continue;
+                        }
+                        if (token == "[unprefer item]")
+                        {
+                            bool ok = false;
+                            int slot = 0;
+                            while ((slot = ScanInt(&ok), ok))
+                            {
+                                if (slot > 4) { return IMPORT_FAIL; }
+                                stFavorableRelationShip_t::stGiftItemInfo_t info;
+                                info.m_a = ScanInt(&ok);
+                                if (!ok) { return IMPORT_FAIL; }
+                                info.m_c = static_cast<short>(ScanInt(&ok));
+                                if (!ok) { return IMPORT_FAIL; }
+                                info.m_b = 1;
+                                info.m_c = -info.m_c;
+                                fav.m_unpreferItems.m_maps[slot].insert(
+                                    std::make_pair(info.m_a, info));
+                            }
+                            continue;
+                        }
+                        if (token == "[unprefer item group]")
+                        {
+                            bool ok = false;
+                            int slot = 0;
+                            while ((slot = ScanInt(&ok), ok))
+                            {
+                                if (slot > 4) { return IMPORT_FAIL; }
+                                if (!ScanStr(&sub)) { return IMPORT_FAIL; }
+                                std::map<std::string, int>::const_iterator it =
+                                    getItemGroupNameTable().find(sub);
+                                if (it == getItemGroupNameTable().end()) { return IMPORT_FAIL; }
+                                stFavorableRelationShip_t::stGiftItemInfo_t info;
+                                info.m_a = static_cast<unsigned long>(it->second);
+                                info.m_c = static_cast<short>(ScanInt(&ok));
+                                if (!ok) { return IMPORT_FAIL; }
+                                info.m_b = 1;
+                                info.m_c = -info.m_c;
+                                fav.m_unpreferItemGroups.m_maps[slot].insert(
+                                    std::make_pair(info.m_a, info));
                             }
                             continue;
                         }
@@ -689,83 +717,79 @@ int importNpcScript(NpcScript* npc, char const* path)
                 }
                 if (token == "[reward item]")
                 {
-                    // ORIG 嵌套：[reward item]{ [item info]{ [favor level]/[mood]{
-                    //   [favor] ... } } } ；[/item info]/[/reward item] 逐层退出。
-                    int level = 0;
-                    int mood = 3;
-                    bool inItemInfo = false;
-                    for (;;)
+                    // ORIG 三层嵌套 ScanType 循环（0x89fdc81 外层 [reward item]、
+                    // 0x89fdcf0 中层 [item info]、0x89fddeb 内层 [mood]），逐层退出。
+                    for (;;)                       // 外层
                     {
-                        if (!ScanType(token, true))
+                        if (!ScanType(token, true) || token == "[/reward item]")
                         {
-                            break;  // 推断：ORIG 以 ScanType 失败逐层退出
-                        }
-                        if (token == "[/reward item]")
-                        {
-                            break;
+                            break;                  // → 回 favorable 子块
                         }
                         if (token == "[item info]")
                         {
-                            level = 0;
-                            mood = 3;
-                            inItemInfo = true;
-                            continue;
-                        }
-                        if (token == "[/item info]")
-                        {
-                            inItemInfo = false;
-                            continue;
-                        }
-                        if (!inItemInfo)
-                        {
-                            continue;  // 推断：[item info] 外的 token 跳过
-                        }
-                        if (token == "[favor level]")
-                        {
-                            bool ok = false;
-                            level = ScanInt(&ok);
-                            if (!ok) { return IMPORT_FAIL; }
-                            continue;
-                        }
-                        if (token == "[mood]")
-                        {
-                            if (!ScanStr(&sub)) { return IMPORT_FAIL; }
-                            mood = getNpcMoodFromString(sub.c_str());
-                            if (mood == 3) { return IMPORT_FAIL; }
-                            if (level == 0) { return IMPORT_FAIL; }
-                            for (;;)
+                            int level = 0;
+                            int mood = 3;
+                            for (;;)                 // 中层 [item info]
                             {
-                                if (!ScanType(token, true) || token == "[/mood]")
+                                if (!ScanType(token, true) || token == "[/item info]")
                                 {
-                                    break;
+                                    break;          // → 回外层
                                 }
-                                if (token != "[favor]")
+                                if (token == "[favor level]")
                                 {
-                                    continue;  // 推断：[/mood] 外未知 token 跳过
+                                    bool ok = false;
+                                    level = ScanInt(&ok);
+                                    if (!ok) { return IMPORT_FAIL; }
                                 }
-                                if (!ScanStr(&sub)) { break; }
-                                int dir = 3;
-                                if (sub == "up")        { dir = 1; }
-                                else if (sub == "down") { dir = 2; }
-                                else if (sub == "keep") { dir = 0; }
-                                if (dir == 3) { return IMPORT_FAIL; }
-                                bool ok = false;
-                                for (int a = ScanInt(&ok); ok; a = ScanInt(&ok))
+                                if (token == "[mood]")
                                 {
-                                    stFavorableRelationShip_t::stRewardItemElement_t elem;
-                                    elem.m_a = a;
-                                    elem.m_b = ScanInt(&ok);
-                                    if (!ok) { return IMPORT_FAIL; }
-                                    elem.m_w = ScanInt(&ok);
-                                    if (!ok) { return IMPORT_FAIL; }
-                                    stFavorableRelationShip_t::stRewardItemInfo_t& rs =
-                                        fav.m_rewardItems.m_slots[level][mood];
-                                    elem.m_w += rs.m_weight[dir];  // ORIG: 第三字段=旧计数+delta
-                                    rs.m_byDir[dir].push_back(elem);
-                                    rs.m_weight[dir] = elem.m_w;
+                                    if (!ScanStr(&sub)) { return IMPORT_FAIL; }
+                                    mood = getNpcMoodFromString(sub.c_str());
+                                    if (mood == 3) { return IMPORT_FAIL; }
+                                    if (level == 0) { return IMPORT_FAIL; }
+                                    bool stop = false;
+                                    while (!stop)   // 内层 [mood]
+                                    {
+                                        bool haveFavor = false;
+                                        for (;;)
+                                        {
+                                            if (!ScanType(token, true) || token == "[/mood]")
+                                            {
+                                                stop = true;   // → 回中层
+                                                break;
+                                            }
+                                            if (token == "[favor]")
+                                            {
+                                                haveFavor = true;
+                                                break;
+                                            }
+                                        }
+                                        if (stop || !haveFavor) { break; }
+                                        if (!ScanStr(&sub)) { break; }
+                                        int dir = 3;
+                                        if (sub == "up")        { dir = 1; }
+                                        else if (sub == "down") { dir = 2; }
+                                        else if (sub == "keep") { dir = 0; }
+                                        if (dir == 3) { return IMPORT_FAIL; }
+                                        bool ok = false;
+                                        int a = 0;
+                                        while ((a = ScanInt(&ok), ok))
+                                        {
+                                            stFavorableRelationShip_t::stRewardItemElement_t elem;
+                                            elem.m_a = a;
+                                            elem.m_b = ScanInt(&ok);
+                                            if (!ok) { return IMPORT_FAIL; }
+                                            elem.m_w = ScanInt(&ok);
+                                            if (!ok) { return IMPORT_FAIL; }
+                                            stFavorableRelationShip_t::stRewardItemInfo_t& rs =
+                                                fav.m_rewardItems.m_slots[level][mood];
+                                            elem.m_w += rs.m_weight[dir];
+                                            rs.m_byDir[dir].push_back(elem);
+                                            rs.m_weight[dir] = elem.m_w;
+                                        }
+                                    }
                                 }
                             }
-                            continue;
                         }
                     }
                     continue;
@@ -790,6 +814,33 @@ int importNpcScript(NpcScript* npc, char const* path)
                         info.m_desc = desc;
                         fav.m_levelRewards.push_back(info);
                     }
+                    continue;
+                }
+                if (token == "[favor_duration_reward]")
+                {
+                    // ORIG 0x089fe277：周期奖励直接写入内嵌 stPeriodRewardInfo
+                    // （param+0x66c..0x680）：m_type(ushort)/m_name/m_a(int)/m_b(int)/
+                    // m_desc/m_param。三临时 string（C1Ev×3，含异常清理 D1Ev），
+                    // 成功后 aSERKSs×3 拷入。任一 scan 失败 → 退出 favorable 子块回主循环。
+                    bool ok = false;
+                    unsigned short type = static_cast<unsigned short>(ScanInt(&ok));
+                    if (!ok) { break; }
+                    std::string name;
+                    if (!ScanStr(&name)) { break; }
+                    unsigned int a = ScanInt(&ok);
+                    if (!ok) { break; }
+                    unsigned int b = ScanInt(&ok);
+                    if (!ok) { break; }
+                    std::string desc;
+                    std::string param;
+                    if (!ScanStr(&desc)) { break; }
+                    if (!ScanStr(&param)) { break; }
+                    fav.m_durationReward.m_type = type;
+                    fav.m_durationReward.m_name = name;
+                    fav.m_durationReward.m_a = a;
+                    fav.m_durationReward.m_b = b;
+                    fav.m_durationReward.m_desc = desc;
+                    fav.m_durationReward.m_param = param;
                     continue;
                 }
                 if (token == "[favor_duration_reward_buff]")
@@ -829,34 +880,101 @@ int importNpcScript(NpcScript* npc, char const* path)
         }
         if (token == "[random message balloon]")
         {
-            // ORIG 经静态 __lookup map 分发到三个子 keyword；此处直接顺序解析，
-            // 语义等价 —「推断」。
-            std::string anim;
-            if (ScanStr(&anim) && !anim.empty())
+            // ORIG 0x089fe66f：子 keyword 分发用函数局部静态查找表 __lookup
+            // (map<char const*,int,less_TCHAR>) + SpinLock __init_lock + bool __inited
+            // 双检锁惰性注册（三键 0x6ac/0x6b7/0x6c2）。注册链一次性插入全部三键后置位，
+            // 再重查同一 token 走真实解析。
+            typedef std::map<char const*, int, less_TCHAR> LookupMap;
+            static LookupMap __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
+            enum
             {
-                npc->m_balloonInfo.m_randomMessageAnimation = anim;
-            }
-            int prob = 0;
-            if (ScanInt(&prob) && prob != 0)
+                TAG_ANIMATION   = 0x6ac,
+                TAG_PROBABILITY = 0x6b7,
+                TAG_LIST        = 0x6c2
+            };
+
+            randomMessageBalloonInfo info;
+            std::string sub;
+            bool ok = true;
+            while (ScanStr(&sub))
             {
-                npc->m_balloonInfo.m_randomMessageProbability = prob;
-            }
-            bool ok = false;
-            int count = ScanInt(&ok);
-            if (ok)
-            {
-                std::vector<std::string> list;
-                list.reserve(count);
-                std::string msg;
-                for (int i = 0; i < count && ScanStr(&msg); ++i)
+                int id;
+            recheck:
+                if (!__inited)
                 {
-                    list.push_back(msg);
+                    __init_lock.enter();
+                    if (__inited)
+                    {
+                        __init_lock.leave();
+                        goto recheck;
+                    }
+                    id = 0;   // 未就绪 → 走注册链
                 }
-                if (!list.empty())
+                else
                 {
-                    npc->m_balloonInfo.m_randomMessageList = list;
+                    LookupMap::const_iterator it = __lookup.find(sub.c_str());
+                    if (it != __lookup.end())
+                        id = it->second;
+                    else
+                        id = -1;
+                }
+
+                switch (id)
+                {
+                case 0:
+                case TAG_ANIMATION:
+                    if (__inited)
+                    {
+                        if (!ScanStr(&info.m_randomMessageAnimation)) { ok = false; break; }
+                        if (!info.m_randomMessageAnimation.empty())
+                            npc->m_balloonInfo.m_randomMessageAnimation =
+                                info.m_randomMessageAnimation;
+                    }
+                    else
+                    {
+                        __lookup.insert(
+                            LookupMap::value_type("[random message animation]",
+                                                  static_cast<int>(TAG_ANIMATION)));
+                        __lookup.insert(
+                            LookupMap::value_type("[random message probability]",
+                                                  static_cast<int>(TAG_PROBABILITY)));
+                        __lookup.insert(
+                            LookupMap::value_type("[random message list]",
+                                                  static_cast<int>(TAG_LIST)));
+                        __init_lock.leave();
+                        __inited = true;
+                        goto recheck;
+                    }
+                    break;
+                case TAG_PROBABILITY:
+                    if (!ScanInt(&info.m_randomMessageProbability)) { ok = false; break; }
+                    if (info.m_randomMessageProbability != 0)
+                        npc->m_balloonInfo.m_randomMessageProbability =
+                            info.m_randomMessageProbability;
+                    break;
+                case TAG_LIST:
+                {
+                    if (!ScanInt(&id)) { ok = false; break; }   // id 复用为 count
+                    info.m_randomMessageList.reserve(id);
+                    std::string msg;
+                    bool bad = false;
+                    for (int i = 0; i < id; ++i)
+                    {
+                        if (!ScanStr(&msg)) { bad = true; break; }
+                        info.m_randomMessageList.push_back(msg);
+                    }
+                    if (bad) { ok = false; break; }
+                    if (!info.m_randomMessageList.empty())
+                        npc->m_balloonInfo.m_randomMessageList = info.m_randomMessageList;
+                    break;
+                }
+                default:
+                    break;
                 }
             }
+            if (!ok) { return IMPORT_FAIL; }
             continue;
         }
         if (token == "[hide]")

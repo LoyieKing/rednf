@@ -161,10 +161,10 @@ public:
     int AddEvent(int type, CEventBase* event);            // 0x08115982
     void dailyresetData();                                 // 0x0811630e
     bool LoadEventFromDB();                                // 0x081159b6
-    int TriggerEventEnd(int idx);                          // 0x08115d60
+    bool TriggerEventEnd(int idx);                         // 0x08115d60（ORIG 调用点 test %al/je 直折；P9/P22）
     bool InitEventManager();                               // 0x08114dcc
     void MakeNotiEventInfo(PacketGuard& packet, CUser* user); // 0x08115de2
-    int TriggerEventStart(int idx, Word_Param param);      // 0x08115cc6
+    bool TriggerEventStart(int idx, Word_Param param);     // 0x08115cc6（ORIG 调用点 test %al/je 直折；P9/P22）
     void BroadcastEventInfo();                             // 0x08116108
     void eventDeliveryNotify(int type, DeliveryMsg& msg);  // 0x08116874
 
@@ -202,7 +202,7 @@ public:
     CGMAccounts();                         // 0x082a73a4 W（独立 TU）
     ~CGMAccounts();                        // 0x082a73b8 W（独立 TU）
     bool isGM(unsigned int mid);           // 0x08109346
-    void removeGM(unsigned int mid, unsigned int param);  // 0x081093fc
+    int removeGM(unsigned int mid, unsigned int param);   // 0x081093fc（mov $0,%eax 返 0）
     // ORIG 0x082a7388 W：mov this→eax 直返 ⇒ 返回 m_gmList（+0x00）引用，非拷贝
     const std::list<stGMInfo_t>& GetGMList() const { return m_gmList; }
     void LoadGmList(unsigned int mid, int level);   // ORIG 0x081094ea T（Gm_List.cpp）

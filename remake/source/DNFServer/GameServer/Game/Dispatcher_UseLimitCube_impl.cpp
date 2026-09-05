@@ -108,19 +108,23 @@ int Dispatcher_UseLimitCube::check_error(int slotA, unsigned int itemIdx, int sl
 // ============================================================================
 int Dispatcher_UseLimitCube::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    if (!packet.get_short(*(short*)((char*)&msg + 0x0d)))
+    // 具名字段（MSG_USE_LIMIT_CUBE 布局见 PacketTypes.h + read.md 汇编：
+    // get_short@msg+0xd / get_int@msg+0xf / get_short@msg+0x13）。
+    // 调用点直接 cast 表达式：ORIG 为 `mov msg; add $N` 传址（无栈溢出），
+    // O0 下引用局部变量会多 store/load 破坏 identical，故不引入具名引用。
+    if (!packet.get_short(reinterpret_cast<MSG_USE_LIMIT_CUBE*>(&msg)->m_slotA))
     {
         return LineFunc(0x337d,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_int(*(unsigned int*)((char*)&msg + 0x0f)))
+    if (!packet.get_int(reinterpret_cast<MSG_USE_LIMIT_CUBE*>(&msg)->m_itemIdx))
     {
         return LineFunc(0x3381,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(*(short*)((char*)&msg + 0x13)))
+    if (!packet.get_short(reinterpret_cast<MSG_USE_LIMIT_CUBE*>(&msg)->m_slotB))
     {
         return LineFunc(0x3385,
                         __PRETTY_FUNCTION__,
@@ -137,14 +141,15 @@ int Dispatcher_UseLimitCube::read(PacketBuf& packet, MSG_BASE& msg)
 // ============================================================================
 void Dispatcher_UseLimitCube::send(CUser* user, ParamBase& param)
 {
-    unsigned char error = *(unsigned char*)((char*)&param + 0x04);
+    stUseLimitCube& st = *reinterpret_cast<stUseLimitCube*>(&param);
+    unsigned char error = st.m_4;        // +0x04（ORIG movzbl，send.md 0x11）
     if (error != 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x153, error);
         return;
     }
-    int resultIdx = *(int*)((char*)&param + 0x08);
-    int resultCount = *(int*)((char*)&param + 0x0c);
+    int resultIdx = st.m_8;              // +0x08 movl → put_int
+    int resultCount = st.m_c;            // +0x0c movl → put_short（截断 cwtl）
     PacketGuard packet;
     packet.put_header(1, 0x153);
     packet.put_byte(1);
@@ -165,11 +170,12 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
     }
 
     stUseLimitCube& st = *reinterpret_cast<stUseLimitCube*>(&param);
-    char* pMsg = (char*)&msg;
+    MSG_USE_LIMIT_CUBE& m = *reinterpret_cast<MSG_USE_LIMIT_CUBE*>(&msg);
 
-    int slotA = *(short*)(pMsg + 0x0d);
-    unsigned int itemIdx = *(unsigned int*)(pMsg + 0x0f);
-    int slotB = *(short*)(pMsg + 0x13);
+    // ORIG movzwl+cwtl（process.md 0x39/0x53）＝ short 读后符号扩展入 int。
+    int slotA = m.m_slotA;
+    unsigned int itemIdx = m.m_itemIdx;
+    int slotB = m.m_slotB;
 
     // ---- 槽物品读取（INVEN_TYPE_EQUIP=1）----
     Inven_Item invA = user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)1, slotA);
@@ -183,7 +189,7 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
     int lockSpace = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)0);
     if (user->CheckItemLock(lockSpace, slotA))
     {
-        *(unsigned char*)((char*)&st + 0x04) = 0x1;
+        st.m_4 = 0x1;
         return 0;
     }
 
@@ -191,7 +197,7 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
     int err = check_error(slotA, itemIdx, slotB, invA, invB, cube);
     if (err != 0)
     {
-        *(unsigned char*)((char*)&st + 0x04) = (unsigned char)err;
+        st.m_4 = (unsigned char)err;
         return 0;
     }
 
@@ -200,11 +206,11 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
     ((CStackableItem*)cube)->get_limit_cube_item(limitPair);
     if (limitPair.first == 0 && limitPair.second == 0)
     {
-        *(unsigned char*)((char*)&st + 0x04) = 0x11;
+        st.m_4 = 0x11;
         return 0;
     }
-    *(int*)((char*)&st + 0x08) = limitPair.first;
-    *(int*)((char*)&st + 0x0c) = limitPair.second;
+    st.m_8 = limitPair.first;
+    st.m_c = limitPair.second;
 
     // ---- 材料计数 ----
     int count1 = ((CStackableItem*)cube)->get_1st_material_count(itemIdx);
@@ -219,7 +225,7 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
 
     if (user->getCurCharacInvenR()->CheckNeedItemList(materials) == 0)
     {
-        *(unsigned char*)((char*)&st + 0x04) = 0x11;
+        st.m_4 = 0x11;
         return 0;
     }
 
@@ -231,7 +237,7 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
         tempInv.setCopy(*user->getCurCharacInvenR());
         if (tempInv.tryDeleteEventItems(materials) == 0)
         {
-            *(unsigned char*)((char*)&st + 0x04) = 0x11;
+            st.m_4 = 0x11;
             return 0;
         }
     }
@@ -273,7 +279,7 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
     int mat2Slot = user->getCurCharacInvenR()->check_item_exist(mat2Idx);
     if (mat2Slot < 0)
     {
-        *(unsigned char*)((char*)&st + 0x04) = 0x11;
+        st.m_4 = 0x11;
         return 0;
     }
     if (user->getCurCharacInvenW()->delete_item((INVEN_TYPE)1, mat2Slot, mat2Count,
@@ -297,7 +303,7 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
     CItem* resultDef = G_CDataManager()->find_item(limitPair.first);  // 结果对象索引
     if (resultDef == 0)
     {
-        *(unsigned char*)((char*)&st + 0x04) = 0x11;
+        st.m_4 = 0x11;
         return 0;
     }
     resultDef->make_item(resultItem);
@@ -317,10 +323,10 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
         resultItem, (eItemAddReason)9, true, true);
     if (newSlot < 0)
     {
-        *(unsigned char*)((char*)&st + 0x04) = 0x11;
+        st.m_4 = 0x11;
         return 0;
     }
-    *(unsigned char*)((char*)&st + 0x04) = 0x0;
+    st.m_4 = 0x0;
 
     // ---- wrong-result 日志 ----
     int cubeIdx = invB.m_addInfo;

@@ -18,6 +18,7 @@
 #include "CUser.h"          // 权威 CUser/CUserCharacInfo/cUserHistoryLog（G1-3 统一）
 #include "SigTypes.h"       // SIG_COMBO_SKILL/comoboSkillData 权威定义（FixMissingSigTypes 迁移）
 #include "MasteredSkill.h"  // _Mastered_skill（原本头定义，抽出供 SigTypes_C.h 共用）
+#include "STGuildSkill.h"   // STGuildSkill 5 字节技能条目
 
 class CSkill;
 class PacketGuard;
@@ -26,6 +27,35 @@ class CDataManager;
 
 extern CDataManager* G_CDataManager();
 extern GameWorld* G_GameWorld();
+
+// ---- send_skill_info 使用的具名公会技能区域视图 ----
+// ORIG 以公会对象 +0x40 为区域基址,技能数组从区域 +0x05 开始；pack(1)
+// 保持 m_skillLearnCnt@+0x44、m_skills[i]@+0x45+i*5 的真实布局。
+#pragma pack(push, 1)
+struct STGuildSkillSectionView
+{
+    char m_subMasterDataTail[2];       // 公会数据 +0x40..+0x41
+    unsigned short m_guildSkillPoint;   // +0x42
+    unsigned char m_skillLearnCnt;      // +0x44
+    STGuildSkill m_skills[16];          // +0x45, 5 字节/项
+};
+
+struct STGuildDBInfoPacketView
+{
+    char m_guildName[0x17];             // +0x00
+    int m_masterNo;                      // +0x17
+    unsigned char m_fundLevel;           // +0x1b
+    unsigned short m_ability;            // +0x1c
+    int m_field1E;                       // +0x1e
+    unsigned short m_memberCount;       // +0x22
+    int m_guildPoint;                    // +0x24
+    unsigned char m_guildRank;           // +0x28
+    unsigned int m_fundExp;              // +0x29
+    unsigned char m_subMasterCnt;        // +0x2d
+    char m_subMasterData[0x12];          // +0x2e..+0x3f
+    STGuildSkillSectionView m_skillSection; // +0x40
+};
+#pragma pack(pop)
 
 // ---- 技能树枚举（mangling 20ENUM_SKILL_TREE_KIND；与 GameEnums.h 同值同 guard）----
 #ifndef DNF_ENUM_SKILL_TREE_KIND_DEFINED
@@ -59,8 +89,8 @@ public:
     ~ComboSkill();
     ComboSkill& operator=(const ComboSkill& other);
 
-    char saveData(SIG_COMBO_SKILL* data) const;
-    char loadData(SIG_COMBO_SKILL* data);
+    bool saveData(SIG_COMBO_SKILL* data) const;
+    bool loadData(SIG_COMBO_SKILL* data);
     void resetTree(ENUM_SKILL_TREE_KIND kind);
     void setComboSkill(ENUM_SKILL_TREE_KIND kind, ComboSkillMap& map);
     void getComboSkillSendList(PacketGuard& packet) const;
@@ -134,6 +164,13 @@ public:
     void _CountQuestSPBook(const CUser* user, int& a, int& b, int& c, int& d);  // ORIG T 0x0860a680 _ZN8WongWork13CSkillChanger17_CountQuestSPBookEPK5CUserRiS4_S4_S4_
     void _addSPRelatedItem(int* a, int* b, int itemIdx, int count);    // ORIG T 0x0860a868 _ZN8WongWork13CSkillChanger17_addSPRelatedItemEPiS1_ii
     void _addSFPRelatedItem(int* a, int* b, int itemIdx, int count);   // ORIG T 0x0860a918 _ZN8WongWork13CSkillChanger18_addSFPRelatedItemEPiS1_ii
+    // GetCurCharacTotalSP 0x0860a1e6/SkillInitialize 0x08609e90 以 4 段独立
+    // memset(&sec,0,0x24) 清零 kind 状态区 ⇒ 每节为独立 0x24 子对象。
+    struct STKindSection
+    {
+        int m_kindState;
+        char m_pad04[0x20];
+    };
     union
     {
         char m_pad[0x92];
@@ -151,15 +188,11 @@ public:
         } m_data;
         struct
         {
-            int m_kindState0;
-            char m_pad04[0x20];
-            int m_kindState1;
-            char m_pad28[0x20];
-            int m_kindState2;
-            char m_pad4c[0x20];
-            int m_kindState3;
-            char m_pad70[0x20];
-            unsigned char m_initialized;
+            STKindSection m_sec0;                  // +0x00
+            STKindSection m_sec1;                  // +0x24
+            STKindSection m_sec2;                  // +0x48
+            STKindSection m_sec3;                  // +0x6c
+            bool m_initialized;    // +0x90（ORIG SkillInitialize 0x08609e90 保存序 截断→载 this→回读→store，P33）
             unsigned char m_reserved91;
         } m_state;
     };
@@ -288,14 +321,14 @@ public:
     void verifyComboSkillTree(ENUM_SKILL_TREE_KIND kind);
     void eraseDuplicationComboSKill();
     void eraseDuplicationComboSKillTree(ENUM_SKILL_TREE_KIND kind);
-    int moveComboSkillExtensionQuickSlot(int skillIdx, int level,
+    bool moveComboSkillExtensionQuickSlot(int skillIdx, int level,
                                          ENUM_SKILL_TREE_KIND kind);
     void pullComboSkillExtensionQuickSlot(ENUM_SKILL_TREE_KIND kind);
 
     // ---- 布局 ----
     CUser* m_parent;                       // +0x00
     int m_remainSP1;                       // +0x04
-    char m_isLoadStrikerSkill;             // +0x08
+    bool m_isLoadStrikerSkill;             // +0x08（ORIG SetLoadStrikerSkill 0x086086b6 保存序：截断→载 this→回读→store，P33）
     int m_remainSP2;                       // +0x0c
     int m_field10;                         // +0x10
     int m_remainSFP1;                      // +0x14

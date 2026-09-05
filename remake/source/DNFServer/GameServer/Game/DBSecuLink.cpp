@@ -94,59 +94,12 @@ enum ENUM_SECURITYCARD_MOD_TYPE
     ENUM_SECURITYCARD_MOD_TYPE_ACTIVATE = 1,
 };
 
-// SIG_SECURITY_CARD_ACTIVATE 载荷视图（ORIG dispatch @0x842b86c 偏移实证）：
-// +0x00 m_id | +0x04 cert_key[6] | +0x0a 激活结果回写 | +0x0b 卡状态标志。
-struct SecuActivateView
-{
-    unsigned int m_id;        // +0x00
-    char m_certKey[6];        // +0x04（strncpy 6）
-    unsigned char m_field0a;  // +0x0a（dispatch 回写 ok）
-    unsigned char m_field0b;  // +0x0b（history 模式选择）
-};
-static_assert(sizeof(SecuActivateView) == 0xc, "SecuActivateView ABI drift");
-
-// SIG_SECURITY_CARD_ISSUE 载荷视图（ORIG dispatch @0x842af94 偏移实证）：
-// +0x00 m_id | +0x04 server_key[0x21] | +0x25 serial[0xc] | +0x31 cert_key[6] |
-// +0x37 card[0x27] | +0x5e q_pos[5] | +0x63 phone[0x29] | +0x8c error。
-struct SecuIssueView
-{
-    unsigned int m_id;        // +0x00
-    char m_serverKey[0x21];   // +0x04
-    char m_serial[0xc];       // +0x25
-    char m_certKey[6];        // +0x31
-    char m_card[0x27];        // +0x37
-    char m_qPos[5];           // +0x5e
-    char m_phone[0x29];       // +0x63
-    ENUM_ERROR m_error;       // +0x8c
-};
-static_assert(sizeof(SecuIssueView) == 0x90, "SecuIssueView ABI drift");
-
-struct GuildJoinListEntry
-{
-    unsigned int m_characNo;   // +0x00（get_uint col0）
-    char m_name[0x1e];         // +0x04（get_str col0）
-    char m_job;                // +0x22（get_byte col2）
-    char m_growType;           // +0x23（get_byte col3）
-    char m_sex;                // +0x24（get_byte col4）
-    char m_lev;                // +0x25（get_byte col1）
-    char m_memo[0x1a];         // +0x26（get_str col1）
-    int m_remainTime;          // +0x40（now - occ_time）
-};
-static_assert(sizeof(GuildJoinListEntry) == 0x44, "GuildJoinListEntry ABI drift");
-
-struct GuildJoinListView
-{
-    int m_count;                       // +0x00
-    GuildJoinListEntry m_entry[0x32];  // +0x04
-};
-static_assert(sizeof(GuildJoinListView) == 0xd4c, "GuildJoinListView ABI drift");
-// SIG_CHECK_JOIN_GUILD +0x18 server_id 字段视图（ORIG dispatch @0x843c98e
-// 单 disp 读 `mov 0x18(%eax),%eax` 实证；P1 组件视图折叠）。
-struct CheckJoinGuildView
-{
-    char m_pad[0x18];
-    int m_serverId;   // +0x18
-};
+// 载荷视图已上收共享头（SecuLink 批次 2026-09-05 裸偏移清理，§4.4 唯一声明点）：
+//   SIG_SECURITY_CARD_ACTIVATE / SIG_SECURITY_CARD_ISSUE → SigTypes_E.h
+//   （makeRequest 0x0842bb5c/0x0842b57a + dispatch 0x0842b86c/0x0842af94 偏移
+//    实证）；SIG_GUILD_JOIN_LIST 列表视图 → SigTypes_B.h（dispatch 0x0843d87c）；
+//   SIG_CHECK_JOIN_GUILD::m_serverId（+0x18）→ SigTypes_A.h（dispatch
+//   0x0843c98e `mov 0x18(%eax),%eax` → SQL server_id=%d）。
 
 // ---- 跨 TU 引用（定义在其它权威 TU；本 TU 仅声明，U 合规）----
 
@@ -255,14 +208,17 @@ void DB_SecurityCardIssue::makeRequest(int uid, unsigned int accId,
     **guard << uid;                     // op<<(int)
 
     {
-        unsigned char* p = reinterpret_cast<unsigned char*>(
-            guard->GetInBuffer<SIG_SECURITY_CARD_ISSUE>());
-        *reinterpret_cast<unsigned int*>(p + 0x00) = accId;
-        strncpy(reinterpret_cast<char*>(p + 0x31), certKey, 6);
-        strncpy(reinterpret_cast<char*>(p + 0x04), serverKey, 0x21);
-        strncpy(reinterpret_cast<char*>(p + 0x25), phone, 0xc);
-        strncpy(reinterpret_cast<char*>(p + 0x37), cardData, 0x27);
-        strncpy(reinterpret_cast<char*>(p + 0x63), sha1Hex, 0x29);
+        SIG_SECURITY_CARD_ISSUE* p =
+            guard->GetInBuffer<SIG_SECURITY_CARD_ISSUE>();
+        p->m_mId = accId;                          // +0x00（4B mov）
+        // &x[0] 显式取首元素：union 包裹成员的数组衰减在 gcc4.4 生成
+        // `addl $off,%eax`（原地破坏寄存器存活），ORIG（gcc4.1，plain 视图）
+        // 为 `lea off(%eax),%edx`；&x[0] 形态恢复同形（/tmp/leatest2 实证）。
+        strncpy(&p->m_certKey[0], certKey, 6);         // +0x31
+        strncpy(&p->m_serverKey[0], serverKey, 0x21);  // +0x04
+        strncpy(&p->m_serial[0], phone, 0xc);          // +0x25
+        strncpy(&p->m_card[0], cardData, 0x27);        // +0x37
+        strncpy(&p->m_phone[0], sha1Hex, 0x29);        // +0x63
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -284,11 +240,11 @@ void DB_SecurityCardActivate::makeRequest(int uid, unsigned int accId,
     **guard << 0xff;                    // op<<(int)
     **guard << uid;                     // op<<(int)
     {
-        unsigned char* p = reinterpret_cast<unsigned char*>(
-            guard->GetInBuffer<SIG_SECURITY_CARD_ACTIVATE>());
-        *reinterpret_cast<unsigned int*>(p + 0x00) = accId;
-        strncpy(reinterpret_cast<char*>(p + 0x04), certKey, 6);
-        *reinterpret_cast<char*>(p + 0x0b) = activated;   // ORIG 直接存 bool（movzbl/mov %dl）
+        SIG_SECURITY_CARD_ACTIVATE* p =
+            guard->GetInBuffer<SIG_SECURITY_CARD_ACTIVATE>();
+        p->m_mId = accId;                        // +0x00（4B mov）
+        strncpy(&p->m_certKey[0], certKey, 6);   // +0x04（&x[0] 同上，保 ORIG lea 形）
+        p->m_historyFlag = activated;            // +0x0b 1B（ORIG 直接存 bool，movzbl/mov %dl）
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -505,7 +461,7 @@ bool DB_CheckJoinGuild::dispatch(int userIdx, int slot, Stream* stream)
     db->set_query(
         "seLect guild_name,master_name,lev,member_count from guild_info "
         "where server_id=%d and expire_flag=0 and guild_name='%s'",
-        reinterpret_cast<CheckJoinGuildView*>(sig)->m_serverId, nameBuf);
+        sig->m_serverId, nameBuf);
     if (!db->exec(true))
         return 0;
 
@@ -551,30 +507,30 @@ bool DB_CheckJoinGuild::dispatch(int userIdx, int slot, Stream* stream)
 // ============================================================================
 bool DB_SecurityCardActivate::dispatch(int userIdx, int slot, Stream* stream)
 {
-    SecuActivateView* sig = reinterpret_cast<SecuActivateView*>(
-        stream->GetOutBuffer<SIG_SECURITY_CARD_ACTIVATE>());
+    SIG_SECURITY_CARD_ACTIVATE* sig =
+        stream->GetOutBuffer<SIG_SECURITY_CARD_ACTIVATE>();
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   E_SERVER_GROUP_NONE);
     db->set_query(
         "upDate member_security_card set apply_flag=1, cert_flag=1, "
         "cert_cnt = 0 where m_id=%s and cert_key='%s'",
-        NumberToString(sig->m_id, 0), sig->m_certKey);
+        NumberToString(sig->m_mId, 0), &sig->m_certKey[0]);
     db->exec(true);
 
     bool ok = false;   // -0x21（回写 +0x0a）
     if (db->getAffectedRowCount() == 1)
     {
         ok = true;
-        turnOnSecurityFlag(db, sig->m_id);
+        turnOnSecurityFlag(db, sig->m_mId);
     }
 
-    DB_CancelRestingUserRestrict::makeRequest(sig->m_id, slot);
+    DB_CancelRestingUserRestrict::makeRequest(sig->m_mId, slot);
 
-    if (sig->m_field0b != 0)
-        saveSecurityCardHistory(db, sig->m_id,
+    if (sig->m_historyFlag != 0)
+        saveSecurityCardHistory(db, sig->m_mId,
                                 ENUM_SECURITYCARD_MOD_TYPE_ACTIVATE);
     else
-        saveSecurityCardHistory(db, sig->m_id, ENUM_SECURITYCARD_MOD_TYPE_NONE);
+        saveSecurityCardHistory(db, sig->m_mId, ENUM_SECURITYCARD_MOD_TYPE_NONE);
 
     MySQL* db2 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
                                                    E_SERVER_GROUP_NONE);
@@ -583,27 +539,29 @@ bool DB_SecurityCardActivate::dispatch(int userIdx, int slot, Stream* stream)
         db2->set_query(
             "upDate member_security_grade set security_card_reg=now() "
             "where m_id=%s",
-            NumberToString(sig->m_id, 0));
+            NumberToString(sig->m_mId, 0));
         if (!db2->exec(true) || db2->getAffectedRowCount() == 0)
         {
             db2->set_query(
                 "inSert into member_security_grade(m_id, security_card_reg) "
                 "values(%s, now())",
-                NumberToString(sig->m_id, 0));
+                NumberToString(sig->m_mId, 0));
             if (!db2->exec(true))
                 return 0;
         }
+        // ORIG @0x0842ba64：CheckSecuReward 仅在 ok 分支调用（ok==0 时
+        // +0x13b `je 0842ba80` 直达回包段；docs/class_func_reports/
+        // DB_SecurityCardActivate/dispatch.md 汇编实证）——原实现误置于块外。
+        DB_CheckSecuReward::makeRequest(slot, sig->m_mId, 0);
     }
-
-    DB_CheckSecuReward::makeRequest(slot, sig->m_id, 0);
 
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6e89), true);
     guard.operator*()->operator<<(0xff);
     guard.operator*()->operator<<(slot);
-    SecuActivateView* reply = reinterpret_cast<SecuActivateView*>(
-        guard->GetInBuffer<SIG_SECURITY_CARD_ACTIVATE>());
-    reply->m_field0a = ok;
+    SIG_SECURITY_CARD_ACTIVATE* reply =
+        guard->GetInBuffer<SIG_SECURITY_CARD_ACTIVATE>();
+    reply->m_activateResult = ok;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
 }
@@ -628,8 +586,8 @@ bool DB_SecurityCardIssue::dispatch(int userIdx, int slot, Stream* stream)
     if (!DBDispatcher::dispatch(userIdx, slot, stream))
         return 0;
 
-    SecuIssueView* sig = reinterpret_cast<SecuIssueView*>(
-        stream->GetOutBuffer<SIG_SECURITY_CARD_ISSUE>());
+    SIG_SECURITY_CARD_ISSUE* sig =
+        stream->GetOutBuffer<SIG_SECURITY_CARD_ISSUE>();
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   E_SERVER_GROUP_NONE);
     try
@@ -637,20 +595,20 @@ bool DB_SecurityCardIssue::dispatch(int userIdx, int slot, Stream* stream)
         db->set_query(
             "seLect apply_flag from member_security_card where phone='%s' "
             "and apply_flag=1",
-            sig->m_phone);
+            &sig->m_phone[0]);
         if (!db->exec(true) || (unsigned int)db->get_n_rows() > 4)
             throw static_cast<ENUM_ERROR>(0x77);
 
         db->set_query(
             "seLect re_issue_cnt,unix_timestamp(last_issue_time) from "
             "member_security_card where m_id=%s",
-            NumberToString(sig->m_id, 0));
+            NumberToString(sig->m_mId, 0));
         if (!db->exec(true))
             throw static_cast<ENUM_ERROR>(1);
 
         char q[5] = { '\0' };
         generateSecurityCardQuestion(q);
-        strncpy(sig->m_qPos, q, 5);
+        strncpy(&sig->m_qPos[0], q, 5);
 
         if (db->get_n_rows() == 0)
         {
@@ -659,8 +617,8 @@ bool DB_SecurityCardIssue::dispatch(int userIdx, int slot, Stream* stream)
                 "cert_key,server_key,card,fail_cnt,re_issue_cnt,"
                 "last_issue_time,validity_time,apply_flag,q_pos) "
                 "values(%s,now(),'%s','%s','%s','%s',0,0,now(),0,0,'%s')",
-                NumberToString(sig->m_id, 0), sig->m_phone, sig->m_certKey,
-                sig->m_serverKey, sig->m_card, q);
+                NumberToString(sig->m_mId, 0), &sig->m_phone[0],
+                &sig->m_certKey[0], &sig->m_serverKey[0], &sig->m_card[0], q);
             db->exec(true);   // ORIG 无检查（结果丢弃）
         }
         else
@@ -696,14 +654,15 @@ bool DB_SecurityCardIssue::dispatch(int userIdx, int slot, Stream* stream)
                 "server_key='%s',card='%s',fail_cnt=0,re_issue_cnt=%d,"
                 "last_issue_time=now(),validity_time=0,apply_flag=0,"
                 "q_pos='%s' where m_id=%s",
-                sig->m_phone, sig->m_certKey, sig->m_serverKey, sig->m_card,
-                nIssue, q, NumberToString(sig->m_id, 0));
+                &sig->m_phone[0], &sig->m_certKey[0], &sig->m_serverKey[0],
+                &sig->m_card[0],
+                nIssue, q, NumberToString(sig->m_mId, 0));
             db->exec(true);
         }
 
-        turnOffSecurityFlag(db, sig->m_id);
-        _sendResult(slot, sig->m_serial, sig->m_serverKey, sig->m_card,
-                    sig->m_qPos, ENUM_ERROR_NONE);
+        turnOffSecurityFlag(db, sig->m_mId);
+        _sendResult(slot, &sig->m_serial[0], &sig->m_serverKey[0],
+                    &sig->m_card[0], &sig->m_qPos[0], ENUM_ERROR_NONE);
     }
     catch (ENUM_ERROR& e)
     {
@@ -749,27 +708,27 @@ bool DB_GuildJoinList::dispatch(int userIdx, int slot, Stream* stream)
     if (!db1->exec(true))
         return 0;
 
-    GuildJoinListView* reply = reinterpret_cast<GuildJoinListView*>(
-        guard->GetInBuffer<SIG_GUILD_JOIN_LIST>());
+    SIG_GUILD_JOIN_LIST* reply =
+        guard->GetInBuffer<SIG_GUILD_JOIN_LIST>();
     int occ = 0;                 // ORIG -0x38（声明于 time 前）
     unsigned int now = static_cast<unsigned int>(time(0));
     int nRows;
     nRows = (unsigned int)db1->get_n_rows() > 0x32
                 ? 0x32
                 : db1->get_n_rows();
-    reply->m_count = nRows;
+    reply->m_list.m_count = nRows;
 
     for (int i = 0; i < nRows; ++i)
     {
         if (!db1->fetch())
             return 0;
-        if (!db1->get_uint(0, reply->m_entry[i].m_characNo))
+        if (!db1->get_uint(0, reply->m_list.m_entry[i].m_characNo))
             return 0;
-        if (!db1->get_str(1, reply->m_entry[i].m_memo, 0x1a))
+        if (!db1->get_str(1, &reply->m_list.m_entry[i].m_memo[0], 0x1a))
             return 0;
         if (!db1->get_int(2, occ))
             return 0;
-        reply->m_entry[i].m_remainTime = static_cast<int>(now) - occ;
+        reply->m_list.m_entry[i].m_remainTime = static_cast<int>(now) - occ;
     }
 
     for (int j = 0; j < nRows; ++j)
@@ -777,7 +736,7 @@ bool DB_GuildJoinList::dispatch(int userIdx, int slot, Stream* stream)
         db2->set_query(
             "seLect charac_name,lev,job,grow_type,sex from charac_info "
             "where charac_no=%d",
-            reply->m_entry[j].m_characNo);
+            reply->m_list.m_entry[j].m_characNo);
         if (!db2->exec(true))
             return 0;
         if (db2->get_n_rows() == 0)
@@ -788,15 +747,15 @@ bool DB_GuildJoinList::dispatch(int userIdx, int slot, Stream* stream)
         {
             if (!db2->fetch())
                 return 0;
-            if (!db2->get_str(0, reply->m_entry[j].m_name, 0x1e))
+            if (!db2->get_str(0, &reply->m_list.m_entry[j].m_name[0], 0x1e))
                 return 0;
-            if (!db2->get_byte(1, reply->m_entry[j].m_lev))
+            if (!db2->get_byte(1, reply->m_list.m_entry[j].m_lev))
                 return 0;
-            if (!db2->get_byte(2, reply->m_entry[j].m_job))
+            if (!db2->get_byte(2, reply->m_list.m_entry[j].m_job))
                 return 0;
-            if (!db2->get_byte(3, reply->m_entry[j].m_growType))
+            if (!db2->get_byte(3, reply->m_list.m_entry[j].m_growType))
                 return 0;
-            if (!db2->get_byte(4, reply->m_entry[j].m_sex))
+            if (!db2->get_byte(4, reply->m_list.m_entry[j].m_sex))
                 return 0;
         }
     }

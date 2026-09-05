@@ -68,9 +68,15 @@ TeamInfoSecond::TeamInfoSecond() {}
 /* ORIG reset T 0x855fdc0 */
 void TeamInfoSecond::reset()
 {
+    /* ORIG 帧 0x28(@0855fdc3) / 循环变量槽 -0xc(@0855fdcf)：两个死槽在 i
+     * 之前占用 -0x4/-0x8（asm "m" 引用强制分配且不出机器指令），pad 撑帧
+     * 【技巧31】 */
+    char padA[28];
+    int gapA, gapB;
     m_teamId = 0;
     for (int i = 0; i < 4; ++i)
         m_seats[i].reset();
+    (void)padA; (void)gapA; (void)gapB;
 }
 
 /* ORIG add T 0x855fdfe */
@@ -78,11 +84,14 @@ int TeamInfoSecond::add(CUser* user)
 {
     for (int i = 0; i < 4; ++i)
     {
-        if (m_seats[i].m_flag != 0)
-            continue;
-        m_seats[i].m_flag = 1;
-        m_seats[i].m_user = user;
-        return 1;
+        /* ORIG @0855fe18 xor $1 / test / je：显式 ^1 复现（4.4 !byte 恒折
+         * test;jne） */
+        if ((m_seats[i].m_flag ^ 1) != 0)
+        {
+            m_seats[i].m_flag = 1;
+            m_seats[i].m_user = user;
+            return 1;
+        }
     }
     return 0;
 }
@@ -92,10 +101,13 @@ int TeamInfoSecond::del(CUser* user)
 {
     for (int i = 0; i < 4; ++i)
     {
-        if (m_seats[i].m_flag == 0 || m_seats[i].m_user != user)
-            continue;
-        m_seats[i].m_flag = 0;
-        return 1;
+        /* ORIG @0855fe70 test;je skip / @0855fe7f cmp arg;jne skip：&& 短路
+         * 正向嵌套 */
+        if (m_seats[i].m_flag != 0 && m_seats[i].m_user == user)
+        {
+            m_seats[i].m_flag = 0;
+            return 1;
+        }
     }
     return 0;
 }
@@ -120,9 +132,13 @@ void TeamInfoSecond::refresh()
     CUser* last = 0;
     for (int i = 0; i < 4; ++i)
     {
-        if (m_seats[i].m_flag == 0 || m_seats[i].m_user == 0)
-            continue;
-        last = m_seats[i].m_user;
+        /* ORIG @0855fd33 mov last 后 @0855fd36 jmp 出循环 = break【Ghidra
+         * goto LAB_0855fd47 实证】；双 test;je 直指 addl 块 = && 短路 */
+        if (m_seats[i].m_flag != 0 && m_seats[i].m_user != 0)
+        {
+            last = m_seats[i].m_user;
+            break;
+        }
     }
     if (last == 0)
         return;
@@ -349,10 +365,21 @@ void COnlinePreliminary::_RegisterWaitingRoom(PvP_Room* room)
 /* ORIG T 0x085606e0（mangled 无 K → 非 const 成员） */
 int COnlinePreliminary::_CheckSameTeam(PvP_Room* /*room*/, CUser* user)
 {
-    int teamId = user->GetCurCharacOnlinePreliminaryTeamId();
-    if (teamId == -1)
+    /* ORIG @085606f2 cmp $-1; sete %al; test; je（bool 物化 @085606f5）【技巧22】；
+     * @08560703 第二次 call 后 mov %eax,%ebx(@0856070e) */
+    register bool isNone asm("al");
+    isNone = (user->GetCurCharacOnlinePreliminaryTeamId() == -1);
+    if (isNone)
         return 0;
-    return (teamId == GetTeamId()) ? 1 : 0;
+    /* ORIG @0856070e 第二次 call 结果直落 %ebx（callee-saved），4.4 默认 spill
+     * 栈槽 → register asm("ebx") 钉住（技巧28） */
+    register int teamId asm("ebx") = user->GetCurCharacOnlinePreliminaryTeamId();
+    register bool diff asm("al");
+    /* ORIG cmp %eax,%ebx：dst=ebx(src=call 结果) → call 表达式置 lhs */
+    diff = (GetTeamId() != teamId);
+    if (diff)
+        return 0;
+    return 1;
 }
 
 /* ORIG T 0x08560736（mangled 无 K → 非 const 成员；第二参为 PvP_Room*，报告变量名 param_2 有误【推断修正】） */
@@ -364,6 +391,9 @@ int COnlinePreliminary::_CheckObserver(PvP_Room* room, CUser* /*user*/)
         if (room->get_team(i) == 3)
             ++observers;
     }
+    /* ORIG(@0856078a 起 size→%ebx / sub mem,%ebx / cmp %eax,%ebx; setge 物化)
+     * 属 N22/N18a 类：4.4 恒将跨 call 差值 spill 或经 %eax 往返，probe(
+     * register asm("ebx")+setge 技巧22/操作数对调) 均不可翻，保留直译 */
     return (m_teams[0].size() - observers < (int)(unsigned char)GetPlayCountPerOneTeam())
                ? 1 : 0;
 }
@@ -431,10 +461,17 @@ int COnlinePreliminary::CheckJoinable(PvP_Room* room, CUser* user)
     }
 }
 
-/* ORIG T 0x085608bc */
+/* ORIG T 0x085608bc：cmpl $2 / jne else(@+0x10)；then 体 mov $0 fall-through
+ * (@085608c5)，else 体 mov $1 (@085608cc) → !=2 判定块在前【技巧17】 */
 int COnlinePreliminary::CheckSeat(int a)
 {
-    return (a != 2) ? 1 : 0;
+    /* ORIG 用 jne 反向跳(@085608c3)，if/else 被 4.4 恒翻 je → goto 钉块序
+     * 【技巧23】 */
+    if (a != 2)
+        goto RET1;
+    return 0;
+RET1:
+    return 1;
 }
 
 /* ORIG T 0x085623ec */
@@ -1074,7 +1111,8 @@ CUser* COnlinePreliminary::GetUser(unsigned int idx)
 {
     if (idx >= 4)
         return 0;
-    if (m_teams[0].m_seats[idx].m_flag != 1)
+    /* ORIG @085620e6 xor $1 / test / je body(@+0x2c)：显式 ^1 */
+    if ((m_teams[0].m_seats[idx].m_flag ^ 1) != 0)
         return 0;
     return m_teams[0].m_seats[idx].m_user;
 }
@@ -1104,11 +1142,20 @@ int COnlinePreliminary::GetTeamId()
     return m_teams[0].m_teamId;
 }
 
-/* ORIG T 0x08561f66 */
+/* ORIG T 0x8561f66 */
 int COnlinePreliminary::_GetOppositeTeam(int team)
 {
-    if (team == 1) return 2;
-    if (team == 2) return 1;
+    /* ORIG @08561f69 比较链 cmp $1/%eax; je; cmp $2; je; jmp def（4.1 switch
+     * 下探形【技巧34】） */
+    switch (team)
+{
+    case 1:
+        return 2;
+    case 2:
+        return 1;
+    default:
+        break;
+}
     return team;
 }
 

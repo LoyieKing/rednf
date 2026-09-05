@@ -38,7 +38,11 @@ struct _APCInfo
                                            //   调 get_intEiRj=unsigned&；末项读 info+0xa0）
     char m_creatureName[0x10];             // +0xa4
     int m_creatureId;                      // +0xb4
-    char m_padB8[4];                       // +0xb8..+0xbb（set_data/memcpy 0xbc 尾部）
+    unsigned int m_guildId;                // +0xb8（ORIG 0x08440cb6 区域
+                                           //   DB_LoadTODUserState 写侧：get_uint(4)
+                                           //   ← guild_info.guild_id，W8LT_DBTask.cpp
+                                           //   GetAPCUserInfo 消费后查 guild_name；
+                                           //   原 m_padB8）
 };                                          // sizeof 0xbc
 
 class CUser;

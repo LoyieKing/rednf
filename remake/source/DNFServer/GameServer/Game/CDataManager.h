@@ -57,7 +57,7 @@ struct PvPMapInfo
 {
     PvPMapInfo();
     int m_mapIdx;    // +0x00
-    char m_playable; // +0x04
+    bool m_playable;  // +0x04 ORIG 0x085d46b8 movzbl+%dl 直拷 bool 字节
 };
 
 enum ENUM_QUEST_GRADE
@@ -81,7 +81,7 @@ public:
                    std::vector<PVPMAP_DATA>& pvpData);
     CMap* find_map(int idx);
     static void LoadPvPSinglePlayableMap(char* path);   // ORIG _ZN8CMapList24LoadPvPSinglePlayableMapEPc（调用点无 this → 静态）
-    static int GetPvpMapInfo(int idx, PvPMapInfo& info);
+    static bool GetPvpMapInfo(int idx, PvPMapInfo& info);
     CMapList* GetMapList();
     int GetPVPMapCount() const;
 
@@ -283,7 +283,9 @@ struct stMercenaryCompetitionArea
 };
 struct STBreakAwaySection         // ORIG C1 0x822afb0（清零）；get_break_away_section_data
 {                                 //   sret memmove 3 字节实证 → sizeof 0x3
-    STBreakAwaySection() { m_field0 = m_field1 = m_field2 = 0; }  // ORIG 链式清零形态
+    // ORIG 0x822afb0：movb $0,+0x2 → 重读 movzbl +0x2,%dl 落 +0x1 →
+    // 再重读 movzbl +0x1,%dl 落 +0x0（逐跳复制形，非链式 =0）。
+    STBreakAwaySection() { m_field2 = 0; m_field1 = m_field2; m_field0 = m_field1; }
     char m_field0;                // +0x00
     unsigned char m_field1;       // +0x01（ORIG get_break_away_section_data/low_level
                                   //  对 m_field1 的 movzbl 零扩展实证 ⇒ 无符号比较）
@@ -1573,12 +1575,14 @@ public:
     CActionPointEtcParameter();
     ~CActionPointEtcParameter();
     void ClearData();
-    bool IsValidTodayRewardItem(_SIG_LOAD_ACTION_POINT::_TodayRewardItem item);
+    static bool IsValidTodayRewardItem(_SIG_LOAD_ACTION_POINT::_TodayRewardItem item);   // ORIG 0x08894976 体仅读 0x8(%ebp)=形参、无 this ⇒ 静态成员（importActionPointSystemEtcScript 亦 static，无 this 可传）
     static bool IsValidActionGroupIndex(_ActionGroupIndex group);   // ORIG T 0x08894956（静态成员实证：体仅 [ebp+8]=组值范围判定 [1,0x2d]，两处调用方均只压一个实参；实现 APSystemLeafC3.cpp）
     // ORIG _ZN8APSystem24CActionPointEtcParameter32importActionPointSystemEtcScriptEPKcRS0_
     // （CDataManager::init 对 m_actionPoint1/m_actionPoint2 各调一次）
-    bool importActionPointSystemEtcScript(const char* path,
-                                          CActionPointEtcParameter& param);
+    // 静态成员实证：ORIG 调用点 0x08359d4b（init.md +0x1a12..+0x1a19）仅压
+    // 2 个实参（(%esp)=path、0x4(%esp)=ref），无 this ⇒ 非虚静态成员函数。
+    static bool importActionPointSystemEtcScript(const char* path,
+                                                 CActionPointEtcParameter& param);
     // 重建辅助访问器（ORIG 调用方内联直读 +0x18；实现见 SyncScriptDeps.cpp）。
     const std::map<unsigned short, const CActionPointEx*>& getActionPointRefs() const;
 private:
@@ -2205,8 +2209,9 @@ public:
     int m_rankingBonusDecreasePoint;                        // +0x88（[ranking bonus decrease point]）
     int m_decreasePointPerDay;                              // +0x8c（[decrease powerwar point per day]）
     int m_requiredUserPoint4Dungeon;                        // +0x90（[required user powerwar point 4 dungeon]）
-    int m_powerWarDungeonInfo0;                             // +0x94（[power war dungeon info] 第 1 值）
-    int m_powerWarDungeonInfo1;                             // +0x98（[power war dungeon info] 第 2 值）
+    // ORIG ctor 0x8371a58-0x8371a63：add $0x94,%eax; call _ZNSt4pairIiiEC1Ev
+    // ⇒ 子对象为 pair<int,int>（两 int 裸字段不会产该 call）。
+    std::pair<int, int> m_powerWarDungeonInfo;              // +0x94（[power war dungeon info]）
     std::vector< std::pair<int, int> > m_powerWarServerList; // +0x9c（checkPowerWarServer 读 +0xa6c4）
     int m_powerUpPointMod;                                  // +0xa8（[power up point mod]，import +0x79a 写入）
     std::vector<int> m_vecAC;                               // +0xac
@@ -2398,7 +2403,9 @@ public:
              FAIR_PVP_SKILL_TREE_SKILL_PER_POINT> m_map30;                // +0x30
     int m_field48;                                                        // +0x48
     int m_field4c;                                                        // +0x4c
-    char m_field50;                                                       // +0x50
+    // 2026-09-04 CUserMain：CUser::UpdateData 0x0865360e / GetSkill 0x0864de1e
+    // `movzbl 0xa850(%eax)` 零扩展实证 → unsigned char（宽 1B 不变）。
+    unsigned char m_field50;                                              // +0x50
     char m_pad51[3];                                                      // +0x51
     std::map<int, int> m_map54;                                           // +0x54
 };
@@ -2699,7 +2706,9 @@ class CLottery_NeedMoney
 public:
     CLottery_NeedMoney();
     ~CLottery_NeedMoney();
-    bool isNeedMoney(unsigned int money) const;
+    // ORIG 0x8365162 命中块 `mov 0x4(%eax),%eax` 值直返（无 bool 收窄）；
+    // 转发方 find_lottery_use_cost@0x835fb5a 尾 `call; leave` %eax 透传 ⇒ int。
+    int isNeedMoney(unsigned int money) const;
     void add_lottery_needMoney(unsigned int money, unsigned int cost);
 private:
     std::map<unsigned int, unsigned int> m_needMoneyMap;  // +0x00（ORIG 0x8365162；GCC4.4 map sizeof 0x18）
@@ -3294,6 +3303,25 @@ class CLevelRewardTableMgr;
 enum ENUM_BLOOD_TYPE { ENUM_BLOOD_TYPE_0 = 0, ENUM_BLOOD_TYPE_1 = 1, ENUM_BLOOD_TYPE_2 = 2 };
 #endif
 
+// ORIG ImportSecurityReward 宿主（CDataManager +0x50d8，大小 0x30）。
+// 三组奖励各含 4 个 int；这是协议/脚本真实字段，不再以 char 区占位。
+struct SecurityReward
+{
+    int m_goblinPad[4];
+    int m_securityCard[4];
+    int m_otp[4];
+};
+
+// CDataManager::set_reward_sp / GetSpAtLevelUp 共同访问的 ORIG 等级→SP 表。
+// ORIG GetSpAtLevelUp 0x08360cb8 的首项为 this+0xda94，set_reward_sp
+// 0x08360bde 清零并填充连续 0x60 项；表前区域尚未完成字段化，访问本身
+// 使用具名成员，禁止在调用点重新拼接裸偏移。
+struct CDataManagerRewardSpView
+{
+    char m_unmodeledBeforeSp[0xda94];
+    unsigned int m_spAtLevelUp[0x60];
+};
+
 class CDataManager
 {
 public:
@@ -3318,7 +3346,7 @@ public:
     void* find_monster(int idx) const;
     void* find_mission(int idx) const;
     int find_npc(unsigned int idx) const;
-    bool find_lottery_use_cost(unsigned int money) const;
+    int find_lottery_use_cost(unsigned int money) const;   // ORIG 0x835fb5a：call 后 %eax 直落（int 透传）
     int* find_hellparty_group(int idx);
 
     // ---- 等级/经验 ----
@@ -3445,7 +3473,7 @@ public:
     void* getBlueMarbleScript();
     void* get_event_script_mng();
     char get_dimensionInout(int idx);   // ORIG 0x0822b612 返回 char：movzbl 单条读取（无 32 位扩展指令）
-    int get_limit_inout_count(ENUM_BLOOD_TYPE type);
+    char get_limit_inout_count(ENUM_BLOOD_TYPE type);   // ORIG caller 0x08431e71 `movsbl %al,%eax` ⇒ 返回 char（signed）
     void GetPvPChannelGrade();               // ORIG _ZN12CDataManager18GetPvPChannelGradeEv
     std::vector<stResetItemInfo::ResetItem>* GetResetItemInfo() const;  // ORIG W 0x8693f24
     std::vector<stRefillItemInfo::RefillItem>* GetRefillItemInfo() const;  // ORIG W 0x8693f32
@@ -3514,7 +3542,7 @@ public:
     stSeriaBlessingScript m_seriaBlessing;        // +0x5094
     stLevelUpRewardItemScript m_levelUpReward;    // +0x50ac
     stGrowthCapsuleScript m_growthCapsule;        // +0x50c4
-    char m_securityReward[0x30];                   // +0x50d8（SecurityReward 0x30 字节，ImportSecurityReward 写入）
+    SecurityReward m_securityReward;               // +0x50d8（ImportSecurityReward 写入）
     stRankSystemInfo m_rankSystem;                // +0x5108
     std::map<unsigned int, stDeathTower_t> m_deathTowerMap;  // +0x5180
     stDeathTower_t m_deathTower;                  // +0x5198

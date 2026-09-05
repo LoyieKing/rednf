@@ -115,7 +115,7 @@ public:
     int get_code() const { return m_code; }                        // 0x0819a3c6
 
 protected:
-    int m_code;                                                    // +0x04
+    ENUM_INTERNALPACKET_JPN m_code;                              // +0x04 ORIG ctor 直存形（技巧5）
 };
 
 // ---------------------------------------------------------------------------
@@ -133,7 +133,7 @@ public:
     int get_code() const { return m_code; }                           // 0x08186800
 
 protected:
-    int m_code;                                                       // +0x04
+    ENUM_INTERNALPACKET_JPN m_code;                                   // +0x04 ORIG ctor 直存形（技巧5）
 };
 
 // ---------------------------------------------------------------------------
@@ -359,7 +359,7 @@ void make_noti_packetheader_jpn(PacketGuard& guard, ENUM_NOTIPACKET code, bool f
 class Dispatcher_AvartarRoulette : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
-    Dispatcher_AvartarRoulette();
+    Dispatcher_AvartarRoulette() throw();   // ORIG PacketDispatcher ctor 槽586 new 无 EH cleanup
     virtual ~Dispatcher_AvartarRoulette();
     int dispatch_sig(CUser* user, PacketBuf& packet);                        // 0x0819ef54
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -370,7 +370,7 @@ public:
 class Dispatcher_AradAvatarConvert : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
-    Dispatcher_AradAvatarConvert();
+    Dispatcher_AradAvatarConvert() throw();   // ORIG 槽591 new 无 EH cleanup
     virtual ~Dispatcher_AradAvatarConvert();
     int dispatch_sig(CUser* user, PacketBuf& packet);                        // 0x081a00be
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -381,7 +381,7 @@ public:
 class Dispatcher_AradEmblemCompound : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
-    Dispatcher_AradEmblemCompound();
+    Dispatcher_AradEmblemCompound() throw();   // ORIG 槽590 new 无 EH cleanup
     virtual ~Dispatcher_AradEmblemCompound();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -392,7 +392,7 @@ public:
 class Dispatcher_AradJumpingCharacter : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
-    Dispatcher_AradJumpingCharacter();
+    Dispatcher_AradJumpingCharacter() throw();   // ORIG 槽585 new 无 EH cleanup
     virtual ~Dispatcher_AradJumpingCharacter();
     int dispatch_sig(CUser* user, PacketBuf& packet);                        // 0x0819f1ec
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -403,7 +403,7 @@ public:
 class Dispatcher_AradUseAvatarRecharge : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
-    Dispatcher_AradUseAvatarRecharge();
+    Dispatcher_AradUseAvatarRecharge() throw();   // ORIG 槽589 new 无 EH cleanup
     virtual ~Dispatcher_AradUseAvatarRecharge();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -414,7 +414,7 @@ public:
 class Dispatcher_AvartarHiddenOptionChange : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
-    Dispatcher_AvartarHiddenOptionChange();
+    Dispatcher_AvartarHiddenOptionChange() throw();   // ORIG 槽588 new 无 EH cleanup
     virtual ~Dispatcher_AvartarHiddenOptionChange();
     int dispatch_sig(CUser* user, PacketBuf& packet);                        // 0x0819f6f8
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);

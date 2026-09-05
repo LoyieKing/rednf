@@ -37,12 +37,12 @@ extern std::map<std::string, STEquipmentAniScript>* g_mapEquipmentAniScript;  //
 
 extern STScriptFileList g_stEquipmentScriptFileList;        // ORIG B 0x94fac00
 
-int GetEquipmentType(const char* name);                     // T 0x08990f1f
-int getAvatarEmblemType(const char* name);                  // T 0x08990f66
 int scanModuleType();                                       // T 0x088c0b9a
 int getModuleType(const char* name);                        // T 0x088c0bfc
 int getCalculationType(const char* name);                   // T 0x088c227b
 int scanWorldType();                                        // T 0x088c1430
+int GetEquipmentType(const char* name);                     // T 0x08990f1f
+int getAvatarEmblemType(const char* name);                  // T 0x08990f66
 bool importEffect(effect::STEffect& effect);                // T 0x088c1a0d
 bool importCommand(STKeyCommand* command);                  // T 0x088c167a
 static bool GetItemCategory(STItemScript* item);                   // t 0x089bfdc5
@@ -73,21 +73,6 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* param,
 namespace
 {
 const char* kEquipmentScriptBaseDir = "Script/EquipmentScript";
-
-// motion 类标签公共体（[waiting motion]..[back motion]，ORIG 各 case 同构）：
-// ScanStr 读格式串，按动画上下文取路径参数做 snprintf。产物（asStack_12xx/13xx
-// 暂存）在本函数内无任何消费点——服务器侧解析后即弃，仅保留 token 消费与格式化。
-void ScanMotionString(char* buf, unsigned int size, bool aniMode, int levelAniIdx,
-                      const std::string& normalPath, const std::string& levelPath,
-                      const std::string& jobPath)
-{
-    std::string fmt;
-    ScanStr(&fmt);
-    const char* arg = aniMode ? jobPath.c_str()
-                        : (levelAniIdx == -1 ? normalPath.c_str()
-                                             : levelPath.c_str());
-    snprintf(buf, size, fmt.c_str(), arg);
-}
 
 }  // namespace
 
@@ -438,47 +423,48 @@ bool STEquipmentScript::artifact_info::isUsable() const  // 0x0898f0fe
 bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                            bool flag, int a, int idx)
 {
-    std::string token;             // local_1074
-    std::string tmp;               // local_1070
-    std::string fullPath;          // local_1078
-    std::string scanBuf;           // local_107c（各 case 的第二读取暂存）
-    bool okFlag = false;           // 各 case 的 ScanInt(bool*) 成功标志
-    char printBuf[0x200];          // local_1554
-
-    // 动画三视图暂存（local_125c/local_12d8/local_1354；首成员非 0 视为待提交）
-    STEquipmentAniScript normalLayer;
-    STEquipmentAniScript jobLayer;
-    STEquipmentAniScript levelLayer;
-    GrowthEquipmentInfo growth;         // local_10b4
-    std::string normalPath;             // local_1088（""）
-    std::string jobPath;                // local_109c（""）
-    std::string levelPath;              // local_10bc（""）
-
-    bool stopFlag = false;              // local_9a
-    int curJob = 0xb;                   // local_b0（0xb = 全职业缺省）
-    bool aniMode = false;               // local_a9（[expand ani]..[/expand ani] 区）
-    int levelAniIdx = -1;               // local_10a0（level section 状态）
-    int normalLayerId = 0;              // local_b4
-    int levelLayerId = 0;               // local_a4
-    int jobLayerId = 0;                 // local_a8
-    int upgMin = -1;                    // local_1164
-    int upgMax = -1;                    // local_1168
-    int upgType = 5;                    // local_116c
-    int cnt[4];                         // local_1098（参数解析器计数输出）
+    // 声明顺序 = ORIG prologue 构造/初始化执行顺序（帧槽位由声明序决定，
+    // 注释内为 ORIG %ebp 槽位，报告 0x08991b00-0x08991d8b）：
+    std::string tmp;                       // ORIG -0x106c（各 case 第一读取暂存）
+    std::string token;                     // ORIG -0x1070（ScanType 目标）
+    std::string unusedStr;                 // ORIG -0x1074（ORIG 死变量：仅 ctor/dtor）
+    std::string scanBuf;                   // ORIG -0x1078（getDirectoryPath 输出与 motion 共用）
+    STEquipmentAniScript normalLayer;      // ORIG -0x1258
+    int intScratch = 0;                    // ORIG -0x107c（ScanInt(int*)/值暂存）
+    bool boolScratch = false;              // ORIG -0x107d（ScanInt(bool*) 出参）
+    int normalLayerId = 0;                 // ORIG -0xb0
+    std::string normalPath("");            // ORIG -0x1084（string("") 带 allocator 形参）
+    int curJob = 0xb;                      // ORIG -0xac（0xb = 全职业缺省）
+    int cnt[4];                            // ORIG -0x1088..-0x1094（参数解析器计数输出）
     cnt[0] = 0;
     cnt[1] = 0;
     cnt[2] = 0;
     cnt[3] = 0;
-    EquipmentParameterInfo* curParam = &script->m_param1c0;  // local_a0
-    std::vector<std::pair<int, int> > setAbilityBackup;      // local_10c8
+    bool aniMode = false;                  // ORIG -0xa5（[expand ani]..[/expand ani] 区）
+    STEquipmentAniScript jobLayer;         // ORIG -0x12d4
+    int jobLayerId = 0;                    // ORIG -0xa4
+    std::string jobPath("");               // ORIG -0x1098
+    int levelAniIdx = -1;                  // ORIG -0x109c（level section 状态）
+    STEquipmentAniScript levelLayer;       // ORIG -0x1350
+    GrowthEquipmentInfo growth;            // ORIG -0x10b4
+    int levelLayerId = 0;                  // ORIG -0xa0
+    std::string levelPath("");             // ORIG -0x10b8
+    bool okFlag = false;                   // 各 case 的 ScanInt(bool*) 成功标志
+    bool stopFlag = false;                 // ORIG -0x96
+    EquipmentParameterInfo* curParam = &script->m_param1c0;  // ORIG -0x9c
+    std::vector<std::pair<int, int> > setAbilityBackup;      // ORIG -0x10c8
+    int upgMin = -1;                       // ORIG -0x1164
+    int upgMax = -1;                       // ORIG -0x1168
+    int upgType = 5;                       // ORIG -0x116c
+    char printBuf[0x200];                  // ORIG -0x1550
 
     if (!loadRDARScriptFile(kEquipmentScriptBaseDir, path))
     {
         return false;
     }
     script->Clear();
-    getDirectoryPath(fullPath, "%s%s", kEquipmentScriptBaseDir, path);
-    script->m_str664 = fullPath;
+    getDirectoryPath(scanBuf, "%s%s", kEquipmentScriptBaseDir, path);
+    script->m_str664 = scanBuf;
 
     for (;;)
     {
@@ -487,73 +473,221 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             break;                       // EOF → 收尾（ORIG jne 0x0899c9f1）
         }
 
-        // ---------------- 第一段分派（主属性区，switch(local_98)） ----------------
-        bool matched = true;
-        if (token == "[name]")                                   // 0x67d
+        // ---------------- 第一段分派（主属性区，ORIG switch(local_98)） ----------
+        // ORIG 0x08991daa-0x08994d8b：静态关键字表（std::map<char const*,int,
+        // less_TCHAR>）+ SpinLock 双检锁；case 值为整数 switch（GCC 二分降形态），
+        // 每个 case 体首查 __inited：首轮（!__inited）idA=0 命中 case 0/0x67d 别名，
+        // 沿 case 布局逐例 __lookup.insert 惰性建表（74 项，ORIG 0x08992431 起），
+        // 链尾填完置 __inited 并回循环头对本 token 重新 find + 真实分派。
+        bool matched = true;                        // ORIG local_99（+0x2b8 置 1）
+        static std::map<char const*, int, less_TCHAR> __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+        int idA;
+        for (;;)
+        {
+            if (!__inited)
+            {
+                __init_lock.enter();
+                if (__inited)
+                {
+                    __init_lock.leave();
+                    continue;
+                }
+                idA = 0;
+            }
+            else
+            {
+                char const* key = token.c_str();
+                std::map<char const*, int, less_TCHAR>::const_iterator it =
+                    __lookup.find(key);
+                if (it != __lookup.end())
+                {
+                    idA = it->second;
+                }
+                else
+                {
+                    idA = -1;
+                }
+            }
+            switch (idA)
+            {
+        case 0:
+        case 0x67d:                              // [name]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[name]", 0x67d));
+        }
+        else
         {
             ScanStr(&script->m_strac);
             if (flag)
             {
                 stopFlag = true;
             }
+            goto stage1_switch_end;
         }
-        else if (token == "[name2]")                             // 0x682
+            /*FALLTHRU*/
+        case 0x682:                              // [name2]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[name2]", 0x682));
+        }
+        else
         {
             ScanStr(&script->m_strb0);
+            goto stage1_switch_end;
         }
-        else if (token == "[explain]")                           // 0x685
+            /*FALLTHRU*/
+        case 0x685:                              // [explain]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[explain]", 0x685));
+        }
+        else
         {
             ScanStr(&script->m_strb4);
+            goto stage1_switch_end;
         }
-        else if (token == "[explain2]")                          // 0x689
+            /*FALLTHRU*/
+        case 0x689:                              // [explain2]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[explain2]", 0x689));
+        }
+        else
         {
             ScanStr(&script->m_strb4);
+            goto stage1_switch_end;
         }
-        else if (token == "[basic explain]")                     // 0x68d
+            /*FALLTHRU*/
+        case 0x68d:                              // [basic explain]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[basic explain]", 0x68d));
+        }
+        else
         {
             ScanStr(&script->m_str6a4);
+            goto stage1_switch_end;
         }
-        else if (token == "[detail explain]")                    // 0x690
+            /*FALLTHRU*/
+        case 0x690:                              // [detail explain]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[detail explain]", 0x690));
+        }
+        else
         {
             ScanStr(&script->m_str6a8);
+            goto stage1_switch_end;
         }
-        else if (token == "[parameter basic explain]")           // 0x693
+            /*FALLTHRU*/
+        case 0x693:                              // [parameter basic explain]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[parameter basic explain]", 0x693));
+        }
+        else
         {
             ScanStr(&curParam->m_str278);
+            goto stage1_switch_end;
         }
-        else if (token == "[parameter detail explain]")          // 0x696
+            /*FALLTHRU*/
+        case 0x696:                              // [parameter detail explain]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[parameter detail explain]", 0x696));
+        }
+        else
         {
             ScanStr(&curParam->m_str27c);
+            goto stage1_switch_end;
         }
-        else if (token == "[flavor text]")                       // 0x699
+            /*FALLTHRU*/
+        case 0x699:                              // [flavor text]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[flavor text]", 0x699));
+        }
+        else
         {
             ScanStr(&script->m_strb8);
+            goto stage1_switch_end;
         }
-        else if (token == "[attack info]")                       // 0x69c
+            /*FALLTHRU*/
+        case 0x69c:                              // [attack info]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[attack info]", 0x69c));
+        }
+        else
         {
             ScanStr(&script->m_str6b8);
+            goto stage1_switch_end;
         }
-        else if (token == "[fullset explain]")                   // 0x69f
+            /*FALLTHRU*/
+        case 0x69f:                              // [fullset explain]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[fullset explain]", 0x69f));
+        }
+        else
         {
             ScanStr(&script->m_str6ac);
+            goto stage1_switch_end;
         }
-        else if (token == "[fullset basic explain]")             // 0x6a2
+            /*FALLTHRU*/
+        case 0x6a2:                              // [fullset basic explain]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[fullset basic explain]", 0x6a2));
+        }
+        else
         {
             ScanStr(&script->m_str6b0);
+            goto stage1_switch_end;
         }
-        else if (token == "[fullset detail explain]")            // 0x6a5
+            /*FALLTHRU*/
+        case 0x6a5:                              // [fullset detail explain]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[fullset detail explain]", 0x6a5));
+        }
+        else
         {
             ScanStr(&script->m_str6b4);
+            goto stage1_switch_end;
         }
-        else if (token == "[set name]")                          // 0x6a8
+            /*FALLTHRU*/
+        case 0x6a8:                              // [set name]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[set name]", 0x6a8));
+        }
+        else
         {
             ScanStr(&script->m_str668);
+            goto stage1_switch_end;
         }
-        else if (token == "[grade]")                             // 0x6ab
+            /*FALLTHRU*/
+        case 0x6ab:                              // [grade]
+        if (!__inited)
         {
-            ScanInt(&script->m_field4);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[grade]", 0x6ab));
         }
-        else if (token == "[spectrum]")                          // 0x6ae
+        else
+        {
+            script->m_field4 = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x6ae:                              // [spectrum]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[spectrum]", 0x6ae));
+        }
+        else
         {
             unsigned int v1 = (unsigned int)ScanInt((bool*)0);
             unsigned int v2 = (unsigned int)ScanInt((bool*)0);
@@ -562,15 +696,29 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             script->m_790 = (int)((v3 & 0xff) << 0x10 | v1 & 0xff |
                                   (v2 & 0xff) << 8 | v4 << 0x18);
             script->m_794 = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[clear avatar]")                      // 0x6b6
+            /*FALLTHRU*/
+        case 0x6b6:                              // [clear avatar]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[clear avatar]", 0x6b6));
+        }
+        else
         {
             if (ScanInt((bool*)0) == 1)
             {
                 script->m_7ac = 1;
             }
+            goto stage1_switch_end;
         }
-        else if (token == "[attach type]")                       // 0x6bb
+            /*FALLTHRU*/
+        case 0x6bb:                              // [attach type]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[attach type]", 0x6bb));
+        }
+        else
         {
             ScanStr(&tmp);
             if (tmp == "[free]")               script->m_field8 = 0;
@@ -579,57 +727,134 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             else if (tmp == "[sealing]")       script->m_field8 = 3;
             else if (tmp == "[sealing trade]") script->m_field8 = 4;
             else if (tmp == "[account]")       script->m_field8 = 5;
+            goto stage1_switch_end;
         }
-        else if (token == "[creation rate]")                     // 0x6cc
+            /*FALLTHRU*/
+        case 0x6cc:                              // [creation rate]
+        if (!__inited)
         {
-            ScanInt(&script->m_fieldc);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[creation rate]", 0x6cc));
         }
-        else if (token == "[rarity]")                            // 0x6cf
+        else
         {
-            ScanInt(&script->m_field10);
+            script->m_fieldc = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[weight]")                            // 0x6d2
+            /*FALLTHRU*/
+        case 0x6cf:                              // [rarity]
+        if (!__inited)
         {
-            ScanInt(&script->m_field34);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[rarity]", 0x6cf));
         }
-        else if (token == "[icon]")                              // 0x6d5
+        else
+        {
+            script->m_field10 = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x6d2:                              // [weight]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[weight]", 0x6d2));
+        }
+        else
+        {
+            script->m_field34 = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x6d5:                              // [icon]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[icon]", 0x6d5));
+        }
+        else
         {
             ScanStr(&script->m_str6c);
-            ScanInt(&script->m_field70);
+            script->m_field70 = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[aura hud icon]")                     // 0x6da
+            /*FALLTHRU*/
+        case 0x6da:                              // [aura hud icon]
+        if (!__inited)
         {
-            ScanInt(&script->m_188);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[aura hud icon]", 0x6da));
         }
-        else if (token == "[tarotcard view]")                    // 0x6df
+        else
+        {
+            script->m_188 = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x6df:                              // [tarotcard view]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[tarotcard view]", 0x6df));
+        }
+        else
         {
             ScanStr(&script->m_str7c);
-            ScanInt(&script->m_field80);
+            script->m_field80 = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[extra icon]")                        // 0x6e5
+            /*FALLTHRU*/
+        case 0x6e5:                              // [extra icon]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[extra icon]", 0x6e5));
+        }
+        else
         {
             ScanStr(&tmp);
             script->m_vec18c.push_back(tmp);
             script->m_vec198.push_back(ScanInt((bool*)0));
+            goto stage1_switch_end;
         }
-        else if (token == "[field image]")                       // 0x6ea
+            /*FALLTHRU*/
+        case 0x6ea:                              // [field image]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[field image]", 0x6ea));
+        }
+        else
         {
             ScanStr(&script->m_str74);
-            ScanInt(&script->m_field78);
+            script->m_field78 = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[field animation]")                   // 0x6ee
+            /*FALLTHRU*/
+        case 0x6ee:                              // [field animation]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[field animation]", 0x6ee));
+        }
+        else
         {
             ScanStr(&script->m_str1a4);
+            goto stage1_switch_end;
         }
-        else if (token == "[custom animation]")                  // 0x6f1
+            /*FALLTHRU*/
+        case 0x6f1:                              // [custom animation]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[custom animation]", 0x6f1));
+        }
+        else
         {
             script->m_vec1a8.clear();
             while (ScanStr(&tmp))
             {
                 script->m_vec1a8.push_back(tmp);
             }
+            goto stage1_switch_end;
         }
-        else if (token == "[usable job]")                        // 0x71c
+            /*FALLTHRU*/
+        case 0x71c:                              // [usable job]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[usable job]", 0x71c));
+        }
+        else
         {
             while (ScanStr(&tmp))
             {
@@ -647,8 +872,15 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     script->m_usable[job] = 1;
                 }
             }
+            goto stage1_switch_end;
         }
-        else if (token == "[suitable job]")                      // 0x72a
+            /*FALLTHRU*/
+        case 0x72a:                              // [suitable job]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[suitable job]", 0x72a));
+        }
+        else
         {
             script->m_set44.clear();
             while (ScanStr(&tmp))
@@ -666,51 +898,128 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     script->m_set44.insert(job);
                 }
             }
+            goto stage1_switch_end;
         }
-        else if (token == "[max having count]")                  // 0x739
+            /*FALLTHRU*/
+        case 0x739:                              // [max having count]
+        if (!__inited)
         {
-            ScanInt(&script->m_field60);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[max having count]", 0x739));
         }
-        else if (token == "[minimum level]")                     // 0x73e
+        else
         {
-            ScanInt(&script->m_field5c);
+            script->m_field60 = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[maximum level]")                     // 0x741
+            /*FALLTHRU*/
+        case 0x73e:                              // [minimum level]
+        if (!__inited)
         {
-            ScanInt(&script->m_17c);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[minimum level]", 0x73e));
         }
-        else if (token == "[minimum rank]")                      // 0x744
+        else
         {
-            ScanInt(&script->m_field64);
+            script->m_field5c = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[control index]")                     // 0x747
+            /*FALLTHRU*/
+        case 0x741:                              // [maximum level]
+        if (!__inited)
         {
-            ScanInt(&script->m_180);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[maximum level]", 0x741));
         }
-        else if (token == "[required skill]")                    // 0x74a
+        else
         {
-            ScanInt(&script->m_184);
+            script->m_17c = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[cool time]")                         // 0x74d
+            /*FALLTHRU*/
+        case 0x744:                              // [minimum rank]
+        if (!__inited)
         {
-            ScanInt(&script->m_field68);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[minimum rank]", 0x744));
         }
-        else if (token == "[equipment type]")                    // 0x750
+        else
+        {
+            script->m_field64 = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x747:                              // [control index]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[control index]", 0x747));
+        }
+        else
+        {
+            script->m_180 = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x74a:                              // [required skill]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[required skill]", 0x74a));
+        }
+        else
+        {
+            script->m_184 = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x74d:                              // [cool time]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[cool time]", 0x74d));
+        }
+        else
+        {
+            script->m_field68 = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x750:                              // [equipment type]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[equipment type]", 0x750));
+        }
+        else
         {
             ScanStr(&tmp);
             script->m_strbc = tmp;
             script->m_field1b4 = GetEquipmentType(tmp.c_str());
-            ScanInt(&script->m_fielda4);
+            script->m_fielda4 = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[avatar task num]")                   // 0x75a
+            /*FALLTHRU*/
+        case 0x75a:                              // [avatar task num]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[avatar task num]", 0x75a));
+        }
+        else
         {
             ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[weapon full avatar]")                // 0x762
+            /*FALLTHRU*/
+        case 0x762:                              // [weapon full avatar]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[weapon full avatar]", 0x762));
+        }
+        else
         {
             script->m_72d = 1;
+            goto stage1_switch_end;
         }
-        else if (token == "[hide equipment]")                    // 0x766
+            /*FALLTHRU*/
+        case 0x766:                              // [hide equipment]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[hide equipment]", 0x766));
+        }
+        else
         {
             script->m_equipTypes768.clear();
             while (ScanStr(&tmp))
@@ -719,26 +1028,33 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 {
                     break;
                 }
-                int eqType = 0x16;
-                if (tmp == "[hat avatar]")          eqType = 0;
-                else if (tmp == "[hair avatar]")    eqType = 1;
-                else if (tmp == "[face avatar]")    eqType = 2;
-                else if (tmp == "[coat avatar]")    eqType = 3;
-                else if (tmp == "[pants avatar]")   eqType = 4;
-                else if (tmp == "[shoes avatar]")   eqType = 5;
-                else if (tmp == "[breast avatar]")  eqType = 6;
-                else if (tmp == "[waist avatar]")   eqType = 7;
-                else if (tmp == "[skin avatar]")    eqType = 8;
-                else if (tmp == "[aurora avatar]")  eqType = 9;
-                else if (tmp == "[weapon]")         eqType = 10;
-                else if (tmp == "[title name]")     eqType = 0xb;
-                if (eqType != 0x16)
+                ENUM_EQUIPMENTTYPE eqType = (ENUM_EQUIPMENTTYPE)0x16;
+                if (tmp == "[hat avatar]")          eqType = (ENUM_EQUIPMENTTYPE)0;
+                else if (tmp == "[hair avatar]")    eqType = (ENUM_EQUIPMENTTYPE)1;
+                else if (tmp == "[face avatar]")    eqType = (ENUM_EQUIPMENTTYPE)2;
+                else if (tmp == "[coat avatar]")    eqType = (ENUM_EQUIPMENTTYPE)3;
+                else if (tmp == "[pants avatar]")   eqType = (ENUM_EQUIPMENTTYPE)4;
+                else if (tmp == "[shoes avatar]")   eqType = (ENUM_EQUIPMENTTYPE)5;
+                else if (tmp == "[breast avatar]")  eqType = (ENUM_EQUIPMENTTYPE)6;
+                else if (tmp == "[waist avatar]")   eqType = (ENUM_EQUIPMENTTYPE)7;
+                else if (tmp == "[skin avatar]")    eqType = (ENUM_EQUIPMENTTYPE)8;
+                else if (tmp == "[aurora avatar]")  eqType = (ENUM_EQUIPMENTTYPE)9;
+                else if (tmp == "[weapon]")         eqType = (ENUM_EQUIPMENTTYPE)10;
+                else if (tmp == "[title name]")     eqType = (ENUM_EQUIPMENTTYPE)0xb;
+                if ((int)eqType != 0x16)
                 {
-                    script->m_equipTypes768.push_back((ENUM_EQUIPMENTTYPE)eqType);
+                    script->m_equipTypes768.push_back(eqType);
                 }
             }
+            goto stage1_switch_end;
         }
-        else if (token == "[hide layer]")                        // 0x792
+            /*FALLTHRU*/
+        case 0x792:                              // [hide layer]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[hide layer]", 0x792));
+        }
+        else
         {
             script->m_vec774.clear();
             for (;;)
@@ -751,8 +1067,15 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 script->m_vec774.push_back(v);
             }
+            goto stage1_switch_end;
         }
-        else if (token == "[hide growtype avatar]")              // 0x79e
+            /*FALLTHRU*/
+        case 0x79e:                              // [hide growtype avatar]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[hide growtype avatar]", 0x79e));
+        }
+        else
         {
             script->m_vec780.clear();
             for (;;)
@@ -765,133 +1088,326 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 script->m_vec780.push_back(v);
             }
+            goto stage1_switch_end;
         }
-        else if (token == "[usable period]")                     // 0x7aa
+            /*FALLTHRU*/
+        case 0x7aa:                              // [usable period]
+        if (!__inited)
         {
-            ScanInt(&script->m_fieldf4);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[usable period]", 0x7aa));
         }
-        else if (token == "[expiration date]")                   // 0x7ad
+        else
         {
-            ScanInt(&script->m_fieldf8);
+            script->m_fieldf4 = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[usable even peace]")                 // 0x7bf
+            /*FALLTHRU*/
+        case 0x7ad:                              // [expiration date]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[expiration date]", 0x7ad));
+        }
+        else
+        {
+            script->m_fieldf8 = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x7bf:                              // [usable even peace]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[usable even peace]", 0x7bf));
+        }
+        else
         {
             script->m_78c = (char)(ScanInt((bool*)0) == 1);
+            goto stage1_switch_end;
         }
-        else if (token == "[sub type]")                          // 0x7c3
+            /*FALLTHRU*/
+        case 0x7c3:                              // [sub type]
+        if (!__inited)
         {
-            if (!aniMode)
-            {
-                if (levelAniIdx == -1)
-                {
-                    ScanInt(&script->m_1b8);
-                }
-                else
-                {
-                    jobLayerId = ScanInt((bool*)0);
-                }
-            }
-            else
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[sub type]", 0x7c3));
+        }
+        else
+        {
+            if (aniMode)
             {
                 EquipmentAniInfoScript& info =
                     script->addAniInfo((ENUM_CHARACTERJOB)curJob);
                 info.m_3c = ScanInt((bool*)0);
             }
+            else if (levelAniIdx != -1)
+            {
+                ScanInt((bool*)0);
+            }
+            else
+            {
+                script->m_1b8 = ScanInt((bool*)0);
+            }
+            goto stage1_switch_end;
         }
-        else if (token == "[durability]")                        // 0x7d3
+            /*FALLTHRU*/
+        case 0x7d3:                              // [durability]
+        if (!__inited)
         {
-            ScanInt(&script->m_1bc);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[durability]", 0x7d3));
         }
-        else if (token == "[creature species]")                  // 0x7d6
+        else
         {
-            ScanInt(&script->m_6bc);
+            script->m_1bc = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[creature minimum level]")            // 0x7d9
+            /*FALLTHRU*/
+        case 0x7d6:                              // [creature species]
+        if (!__inited)
         {
-            ScanInt(&script->m_artifact738.m_minLevel);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[creature species]", 0x7d6));
         }
-        else if (token == "[creature physical attack]")          // 0x7dc
+        else
         {
-            ScanInt(&script->m_artifact738.m_physAttack);
+            script->m_6bc = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[creature magical attack]")           // 0x7df
+            /*FALLTHRU*/
+        case 0x7d9:                              // [creature minimum level]
+        if (!__inited)
         {
-            ScanInt(&script->m_artifact738.m_magAttack);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[creature minimum level]", 0x7d9));
         }
-        else if (token == "[creature skill consume mp rate]")    // 0x7e2
+        else
+        {
+            script->m_artifact738.m_minLevel = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x7dc:                              // [creature physical attack]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[creature physical attack]", 0x7dc));
+        }
+        else
+        {
+            script->m_artifact738.m_physAttack = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x7df:                              // [creature magical attack]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[creature magical attack]", 0x7df));
+        }
+        else
+        {
+            script->m_artifact738.m_magAttack = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x7e2:                              // [creature skill consume mp rate]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[creature skill consume mp rate]", 0x7e2));
+        }
+        else
         {
             script->m_artifact738.m_mpRate = ScanFloat(2, (bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[creature skill charge time rate]")   // 0x7e5
+            /*FALLTHRU*/
+        case 0x7e5:                              // [creature skill charge time rate]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[creature skill charge time rate]", 0x7e5));
+        }
+        else
         {
             script->m_artifact738.m_chargeRate = ScanFloat(2, (bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[creature skill over charge time rate]")  // 0x7e8
+            /*FALLTHRU*/
+        case 0x7e8:                              // [creature skill over charge time rate]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[creature skill over charge time rate]", 0x7e8));
+        }
+        else
         {
             script->m_artifact738.m_overChargeRate = ScanFloat(2, (bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[creature experience amount rate]")   // 0x7eb
+            /*FALLTHRU*/
+        case 0x7eb:                              // [creature experience amount rate]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[creature experience amount rate]", 0x7eb));
+        }
+        else
         {
             script->m_artifact738.m_expRate = ScanFloat(2, (bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[creature physical critical hit]")    // 0x7ee
+            /*FALLTHRU*/
+        case 0x7ee:                              // [creature physical critical hit]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[creature physical critical hit]", 0x7ee));
+        }
+        else
         {
             script->m_artifact738.m_physCrit = ScanFloat(1, (bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[creature magical critical hit]")     // 0x7f1
+            /*FALLTHRU*/
+        case 0x7f1:                              // [creature magical critical hit]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[creature magical critical hit]", 0x7f1));
+        }
+        else
         {
             script->m_artifact738.m_magCrit = ScanFloat(1, (bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[creature stuck]")                    // 0x7f4
+            /*FALLTHRU*/
+        case 0x7f4:                              // [creature stuck]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[creature stuck]", 0x7f4));
+        }
+        else
         {
             script->m_artifact738.m_stuck = ScanFloat(1, (bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[creature piercing]")                 // 0x7f7
+            /*FALLTHRU*/
+        case 0x7f7:                              // [creature piercing]
+        if (!__inited)
         {
-            ScanInt(&script->m_artifact738.m_piercing);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[creature piercing]", 0x7f7));
         }
-        else if (token == "[output index]")                      // 0x7ff
+        else
         {
-            ScanInt(&script->m_764);
+            script->m_artifact738.m_piercing = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[price]")                             // 0x802
+            /*FALLTHRU*/
+        case 0x7ff:                              // [output index]
+        if (!__inited)
         {
-            ScanInt(&script->m_field14);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[output index]", 0x7ff));
         }
-        else if (token == "[value]")                             // 0x805
+        else
         {
-            ScanInt(&script->m_field24);
+            script->m_764 = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[repair price]")                      // 0x808
+            /*FALLTHRU*/
+        case 0x802:                              // [price]
+        if (!__inited)
         {
-            ScanInt(&script->m_178);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[price]", 0x802));
         }
-        else if (token == "[finish point price]")                // 0x80b
+        else
         {
-            ScanInt(&script->m_field20);
+            script->m_field14 = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[cash]")                              // 0x80e
+            /*FALLTHRU*/
+        case 0x805:                              // [value]
+        if (!__inited)
         {
-            ScanInt(&script->m_field18);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[value]", 0x805));
         }
-        else if (token == "[medal]")                             // 0x811
+        else
         {
-            ScanInt(&script->m_field1c);
+            script->m_field24 = ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[usable upgrade chracter level]")     // 0x81a
+            /*FALLTHRU*/
+        case 0x808:                              // [repair price]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[repair price]", 0x808));
+        }
+        else
+        {
+            script->m_178 = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x80b:                              // [finish point price]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[finish point price]", 0x80b));
+        }
+        else
+        {
+            script->m_field20 = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x80e:                              // [cash]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[cash]", 0x80e));
+        }
+        else
+        {
+            script->m_field18 = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x811:                              // [medal]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[medal]", 0x811));
+        }
+        else
+        {
+            script->m_field1c = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x81a:                              // [usable upgrade chracter level]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[usable upgrade chracter level]", 0x81a));
+        }
+        else
         {
             script->m_field134 = (unsigned short)ScanInt((bool*)0);
+            goto stage1_switch_end;
         }
-        else if (token == "[need material]")                     // 0x81e
+            /*FALLTHRU*/
+        case 0x81e:                              // [need material]
+        if (!__inited)
         {
-            ScanInt(&script->m_pair28.first);
-            ScanInt(&script->m_pair28.second);
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[need material]", 0x81e));
         }
-        else if (token == "[recieve postal message]")            // 0x823
+        else
+        {
+            script->m_pair28.first = ScanInt((bool*)0);
+            script->m_pair28.second = ScanInt((bool*)0);
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x823:                              // [recieve postal message]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[recieve postal message]", 0x823));
+        }
+        else
         {
             ScanStr(&script->m_str174);
+            goto stage1_switch_end;
         }
-        else if (token == "[Uncompoundable]")                    // 0x828
+            /*FALLTHRU*/
+        case 0x828:                              // [Uncompoundable]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[Uncompoundable]", 0x828));
+        }
+        else
         {
             okFlag = false;
             int v = ScanInt(&okFlag);
@@ -899,29 +1415,60 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             {
                 script->m_82c = 1;
             }
+            goto stage1_switch_end;
         }
-        else if (token == "[remove avatar]")                     // 0x83d
+            /*FALLTHRU*/
+        case 0x83d:                              // [remove avatar]
+        if (!__inited)
         {
-            for (;;)
-            {
-                if (!ScanStr(&scanBuf))
-                {
-                    break;
-                }
-                script->m_vec830.push_back(getModuleType(scanBuf.c_str()));
-            }
-        }
-        else if (token == "[auction free]")                      // 0x845
-        {
-            script->m_field30 = 1;
-        }
-        else if (token == "[hidden option]")                     // 0x849
-        {
-            script->m_field31 = 1;
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[remove avatar]", 0x83d));
         }
         else
         {
-            matched = false;
+            // ORIG LAB_08994bb2：块作用域临时 string（ctor/dtor 各 1 次）。
+            std::string moduleName;
+            while (ScanStr(&moduleName))
+            {
+                // ORIG 08994c54：实参为 prvalue → push_back(int&&)。
+                script->m_vec830.push_back(getModuleType(moduleName.c_str()));
+            }
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x845:                              // [auction free]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[auction free]", 0x845));
+        }
+        else
+        {
+            script->m_field30 = 1;
+            goto stage1_switch_end;
+        }
+            /*FALLTHRU*/
+        case 0x849:                              // [hidden option]
+        if (!__inited)
+        {
+            __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[hidden option]", 0x849));
+        }
+        else
+        {
+            script->m_field31 = 1;
+            goto stage1_switch_end;
+        }
+        default:
+            if (__inited)
+            {
+                matched = false;
+            }
+            }
+        stage1_switch_end:
+            if (__inited)
+            {
+                break;                 // ORIG LAB_08994d8b → code_r0x08994db2
+            }
+            __init_lock.leave();       // ORIG 首轮沿 case 链填完表后置位并重新分派
+            __inited = true;
         }
 
         if (!matched)
@@ -944,17 +1491,54 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             }
             if (!consumed)
             {
-                // ---------------- 第二段分派（动画/扩展区，switch(local_70)） ---
+                // ---------------- 第二段分派（动画/扩展区，ORIG switch(local_70)） --
                 matched = true;
+                // ORIG 0x08994e85-0x0899c9bb：第二级静态表 __lookup_0 + __inited_0
+                // 双检锁（独立于第一段）；整数 switch 二分降形态，每个 case 体首查
+                // __inited_0：首轮 idB=0 命中 case 0/0x867 别名，沿 case 布局逐例
+                // 惰性 insert（109 项，ORIG 0x089956c4 起），填完置位重新分派。
+                static std::map<char const*, int, less_TCHAR> __lookup_0;
+                static SpinLock __init_lock_0;
+                static bool __inited_0 = false;
+                int idB;
+                for (;;)
+                {
+                    if (!__inited_0)
+                    {
+                        __init_lock_0.enter();
+                        if (__inited_0)
+                        {
+                            __init_lock_0.leave();
+                            continue;
+                        }
+                        idB = 0;
+                    }
+                    else
+                    {
+                        char const* keyB = token.c_str();
+                        std::map<char const*, int, less_TCHAR>::const_iterator itB =
+                            __lookup_0.find(keyB);
+                        if (itB != __lookup_0.end())
+                        {
+                            idB = itB->second;
+                        }
+                        else
+                        {
+                            idB = -1;
+                        }
+                    }
+                    switch (idB)
+                    {
 
-            // ---- 动画区骨架 ----
-            if (false) {}
-            #define EQUIP_MOTION_BRANCH(tag) else if (token == tag) { \
-                ScanMotionString(printBuf, sizeof(printBuf), aniMode, levelAniIdx, \
-                                 normalPath, levelPath, jobPath); }
-
-            if (token == "[expand ani]")                             // 0x867
-            {
+                case 0:
+                    /*FALLTHRU*/
+                case 0x867:                          // [expand ani]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[expand ani]", 0x867));
+                }
+                else
+                {
                 EquipmentAniInfoScript& info =
                     script->addAniInfo((ENUM_CHARACTERJOB)curJob);
                 aniMode = true;
@@ -963,19 +1547,40 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 info.m_2c = ScanInt((bool*)0);
                 info.m_38 = ScanInt((bool*)0);
                 info.m_expand14 = 1;
-            }
-            else if (token == "[/expand ani]")                       // 0x870
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x870:                          // [/expand ani]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/expand ani]", 0x870));
+                }
+                else
+                {
                 aniMode = false;
-            }
-            else if (token == "[expand path]")                       // 0x873
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x873:                          // [expand path]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[expand path]", 0x873));
+                }
+                else
+                {
                 EquipmentAniInfoScript& info =
                     script->addAniInfo((ENUM_CHARACTERJOB)curJob);
                 ScanStr(&info.m_path4c);
-            }
-            else if (token == "[level section ani]")                 // 0x877
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x877:                          // [level section ani]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[level section ani]", 0x877));
+                }
+                else
+                {
                 okFlag = false;
                 if (ScanInt(&levelAniIdx) && ScanStr(&scanBuf))
                 {
@@ -988,134 +1593,124 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                         script->addAniInfo((ENUM_CHARACTERJOB)curJob);
                     info.m_level5c.push_back(std::vector<STEquipmentAniScript>());
                 }
-            }
-            else if (token == "[/level section ani]")                // 0x886
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x886:                          // [/level section ani]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/level section ani]", 0x886));
+                }
+                else
+                {
                 EquipmentAniInfoScript& info =
                     script->addAniInfo((ENUM_CHARACTERJOB)curJob);
                 if (levelLayer.m_field0 != 0)
                 {
                     if (!info.m_level5c.empty())
                     {
-                        info.m_level5c.back().push_back(levelLayer);
+                        info.m_level5c.rbegin()->push_back(levelLayer);
                     }
                     levelLayer.clear();
                 }
                 info.m_growth50.push_back(growth);
                 growth.clear();
                 levelAniIdx = -1;
-            }
-            else if (token == "[level section path]")                // 0x897
-            {
-                ScanStr(&levelPath);
-            }
-            else if (token == "[layer variation]")                   // 0x89e
-            {
-                if (!aniMode)
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x897:                          // [level section path]
+                if (!__inited_0)
                 {
-                    if (levelAniIdx == -1)
-                    {
-                        normalLayerId = ScanInt((bool*)0);
-                        ScanStr(&normalPath);
-                    }
-                    else
-                    {
-                        okFlag = false;
-                        if (ScanInt(&okFlag) && okFlag)
-                        {
-                            ScanStr(&scanBuf);
-                            levelPath = scanBuf;
-                        }
-                        else
-                        {
-                            stopFlag = true;
-                        }
-                    }
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[level section path]", 0x897));
                 }
                 else
+                {
+                // ORIG LAB_08995ae3：读入暂存串后赋 growth.m_str14（非 levelPath）。
+                ScanStr(&scanBuf);
+                growth.m_str14 = scanBuf;
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x89e:                          // [layer variation]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[layer variation]", 0x89e));
+                }
+                else
+                {
+                // ORIG 08995b6e 区：aniMode 分支在前；层变体走 ScanInt(int*)，
+                // 0 是合法层编号（失败标志才置 stopFlag）；先赋 levelLayerId 再 levelPath。
+                if (aniMode)
                 {
                     jobLayerId = ScanInt((bool*)0);
                     ScanStr(&jobPath);
                 }
-            }
-            else if (token == "[equipment ani script]")              // 0x8bb
-            {
-                ScanStr(&scanBuf);
-                std::map<std::string, STEquipmentAniScript>* table =
-                    getMapEquipmentAniScript();
-                if (!aniMode)
+                else if (levelAniIdx != -1)
                 {
-                    if (levelAniIdx == -1)
+                    int layerVariation = 0;
+                    if (ScanInt(&layerVariation))
                     {
-                        setEquipmentAniScriptLay(table, &normalLayer, &scanBuf,
-                                                 normalLayerId, &normalPath,
-                                                 script,
-                                                 (ENUM_CHARACTERJOB)curJob,
-                                                 equipmentAniType::T_normal);
+                        stopFlag = true;
                     }
                     else
                     {
-                        setEquipmentAniScriptLay(table, &levelLayer, &scanBuf,
-                                                 levelLayerId, &levelPath, script,
-                                                 (ENUM_CHARACTERJOB)curJob,
-                                                 (equipmentAniType::T)2);
+                        ScanStr(&scanBuf);
+                        levelLayerId = layerVariation;
+                        levelPath = scanBuf;
                     }
                 }
                 else
+                {
+                    normalLayerId = ScanInt((bool*)0);
+                    ScanStr(&normalPath);
+                }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x8bb:                          // [equipment ani script]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[equipment ani script]", 0x8bb));
+                }
+                else
+                {
+                ScanStr(&scanBuf);
+                std::map<std::string, STEquipmentAniScript>* table =
+                    getMapEquipmentAniScript();
+                if (aniMode)
                 {
                     setEquipmentAniScriptLay(table, &jobLayer, &scanBuf, jobLayerId,
                                              &jobPath, script,
                                              (ENUM_CHARACTERJOB)curJob,
                                              (equipmentAniType::T)1);
                 }
-            }
-            else if (token == "[LAYER]")                             // 0x8da
-            {
-                if (!aniMode)
+                else if (levelAniIdx != -1)
                 {
-                    if (levelAniIdx == -1)
-                    {
-                        if (normalLayer.m_field0 != 0)
-                        {
-                            script->addAniInfo((ENUM_CHARACTERJOB)curJob)
-                                .m_ani0.push_back(normalLayer);
-                        }
-                        normalLayer.clear();
-                        if (normalLayerId == 0)
-                        {
-                            normalLayer.m_field0 = ScanInt((bool*)0);
-                        }
-                        else
-                        {
-                            ScanInt((bool*)0);
-                            normalLayer.m_field0 = normalLayerId;
-                        }
-                    }
-                    else
-                    {
-                        if (levelLayer.m_field0 != 0)
-                        {
-                            EquipmentAniInfoScript& info =
-                                script->addAniInfo((ENUM_CHARACTERJOB)curJob);
-                            if (!info.m_level5c.empty())
-                            {
-                                info.m_level5c.back().push_back(levelLayer);
-                            }
-                        }
-                        levelLayer.clear();
-                        okFlag = false;
-                        int scanned = ScanInt(&okFlag);
-                        if (levelLayerId == 0)
-                        {
-                            levelLayer.m_field0 = scanned;
-                        }
-                        else
-                        {
-                            levelLayer.m_field0 = levelLayerId;
-                        }
-                    }
+                    setEquipmentAniScriptLay(table, &levelLayer, &scanBuf,
+                                             levelLayerId, &levelPath, script,
+                                             (ENUM_CHARACTERJOB)curJob,
+                                             (equipmentAniType::T)2);
                 }
                 else
+                {
+                    setEquipmentAniScriptLay(table, &normalLayer, &scanBuf,
+                                             normalLayerId, &normalPath,
+                                             script,
+                                             (ENUM_CHARACTERJOB)curJob,
+                                             equipmentAniType::T_normal);
+                }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x8da:                          // [LAYER]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[LAYER]", 0x8da));
+                }
+                else
+                {
+                if (aniMode)
                 {
                     if (jobLayer.m_field0 != 0)
                     {
@@ -1126,67 +1721,762 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     if (jobLayerId == 0)
                     {
                         jobLayer.m_field0 = ScanInt((bool*)0);
+                        jobLayer.m_str60 = jobPath;
                     }
                     else
                     {
                         ScanInt((bool*)0);
                         jobLayer.m_field0 = jobLayerId;
+                        jobLayer.m_str60 = jobPath;
                     }
                 }
-            }
-            // ---- motion 族（单值格式化后即弃，见 ScanMotionString 注释） ----
-            EQUIP_MOTION_BRANCH("[waiting motion]")                  // 0x925
-            EQUIP_MOTION_BRANCH("[move motion]")                     // 0x939
-            EQUIP_MOTION_BRANCH("[sit motion]")                      // 0x94d
-            EQUIP_MOTION_BRANCH("[damage motion 1]")                 // 0x961
-            EQUIP_MOTION_BRANCH("[damage motion 2]")                 // 0x975
-            EQUIP_MOTION_BRANCH("[down motion]")                     // 0x989
-            EQUIP_MOTION_BRANCH("[overturn motion]")                 // 0x99d
-            EQUIP_MOTION_BRANCH("[jump motion]")                     // 0x9b1
-            EQUIP_MOTION_BRANCH("[jumpattack motion]")               // 0x9c5
-            EQUIP_MOTION_BRANCH("[rest motion]")                     // 0x9d9
-            EQUIP_MOTION_BRANCH("[throw motion 1-1]")                // 0x9ed
-            EQUIP_MOTION_BRANCH("[throw motion 1-2]")                // 0xa01
-            EQUIP_MOTION_BRANCH("[throw motion 2-1]")                // 0xa15
-            EQUIP_MOTION_BRANCH("[throw motion 2-2]")                // 0xa29
-            EQUIP_MOTION_BRANCH("[throw motion 3-1]")                // 0xa3d
-            EQUIP_MOTION_BRANCH("[throw motion 3-2]")                // 0xa51
-            EQUIP_MOTION_BRANCH("[throw motion 4-1]")                // 0xa65
-            EQUIP_MOTION_BRANCH("[throw motion 4-2]")                // 0xa79
-            EQUIP_MOTION_BRANCH("[dash motion]")                     // 0xa8d
-            EQUIP_MOTION_BRANCH("[dashattack motion]")               // 0xaa1
-            EQUIP_MOTION_BRANCH("[getitem motion]")                  // 0xab5
-            EQUIP_MOTION_BRANCH("[buff motion]")                     // 0xac9
-            EQUIP_MOTION_BRANCH("[back motion]")                     // 0xadd
-            else if (token == "[attack motion]" ||                   // 0xaf1/0xb16
-                     token == "[etc motion]")
-            {
-                // 列表版 motion：循环格式化进局部容器（ORIG avStack，无消费点）。
-                std::vector<std::string> sink;
-                const char* arg = aniMode ? jobPath.c_str()
-                                    : (levelAniIdx == -1 ? normalPath.c_str()
-                                                         : levelPath.c_str());
-                while (ScanStr(&scanBuf))
+                else if (levelAniIdx != -1)
                 {
-                    snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), arg);
-                    sink.push_back(std::string(printBuf));
-                }
-            }
-            else if (token == "[move wav]")                          // 0xb3d
-            {
-                ScanStr(&script->m_str84);
-            }
-            else if (token == "[custom wav]")                        // 0xb40
-            {
-                if (!aniMode)
-                {
-                    script->m_vec658.clear();
-                    while (ScanStr(&tmp))
+                    if (levelLayer.m_field0 != 0)
                     {
-                        script->m_vec658.push_back(tmp);
+                        EquipmentAniInfoScript& info =
+                            script->addAniInfo((ENUM_CHARACTERJOB)curJob);
+                        if (!info.m_level5c.empty())
+                        {
+                            info.m_level5c.rbegin()->push_back(levelLayer);
+                        }
+                    }
+                    levelLayer.clear();
+                    // ORIG 08995fb2：层号走 ScanInt(int*) 形式。
+                    int scanned = 0;
+                    ScanInt(&scanned);
+                    if (levelLayerId == 0)
+                    {
+                        levelLayer.m_field0 = scanned;
+                        levelLayer.m_str60 = levelPath;
+                    }
+                    else
+                    {
+                        levelLayer.m_field0 = levelLayerId;
+                        levelLayer.m_str60 = levelPath;
                     }
                 }
                 else
+                {
+                    if (normalLayer.m_field0 != 0)
+                    {
+                        script->addAniInfo((ENUM_CHARACTERJOB)curJob)
+                            .m_ani0.push_back(normalLayer);
+                    }
+                    normalLayer.clear();
+                    // ORIG LAB_08995e01：两分支各自求值一次 m_str60 = path。
+                    if (normalLayerId == 0)
+                    {
+                        normalLayer.m_field0 = ScanInt((bool*)0);
+                        normalLayer.m_str60 = normalPath;
+                    }
+                    else
+                    {
+                        ScanInt((bool*)0);
+                        normalLayer.m_field0 = normalLayerId;
+                        normalLayer.m_str60 = normalPath;
+                    }
+                }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x925:                          // [waiting motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[waiting motion]", 0x925));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str04 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str04 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str04 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x939:                          // [move motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[move motion]", 0x939));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str08 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str08 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str08 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x94d:                          // [sit motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[sit motion]", 0x94d));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str0c = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str0c = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str0c = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x961:                          // [damage motion 1]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[damage motion 1]", 0x961));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str10 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str10 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str10 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x975:                          // [damage motion 2]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[damage motion 2]", 0x975));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str14 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str14 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str14 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x989:                          // [down motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[down motion]", 0x989));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str18 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str18 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str18 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x99d:                          // [overturn motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[overturn motion]", 0x99d));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str1c = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str1c = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str1c = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x9b1:                          // [jump motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[jump motion]", 0x9b1));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str20 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str20 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str20 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x9c5:                          // [jumpattack motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[jumpattack motion]", 0x9c5));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str24 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str24 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str24 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x9d9:                          // [rest motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[rest motion]", 0x9d9));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str28 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str28 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str28 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0x9ed:                          // [throw motion 1-1]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 1-1]", 0x9ed));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str2c = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str2c = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str2c = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xa01:                          // [throw motion 1-2]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 1-2]", 0xa01));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str3c = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str3c = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str3c = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xa15:                          // [throw motion 2-1]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 2-1]", 0xa15));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str30 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str30 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str30 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xa29:                          // [throw motion 2-2]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 2-2]", 0xa29));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str40 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str40 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str40 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xa3d:                          // [throw motion 3-1]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 3-1]", 0xa3d));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str34 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str34 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str34 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xa51:                          // [throw motion 3-2]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 3-2]", 0xa51));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str44 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str44 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str44 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xa65:                          // [throw motion 4-1]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 4-1]", 0xa65));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str38 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str38 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str38 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xa79:                          // [throw motion 4-2]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[throw motion 4-2]", 0xa79));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str48 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str48 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str48 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xa8d:                          // [dash motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[dash motion]", 0xa8d));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str4c = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str4c = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str4c = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xaa1:                          // [dashattack motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[dashattack motion]", 0xaa1));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str50 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str50 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str50 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xab5:                          // [getitem motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[getitem motion]", 0xab5));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str54 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str54 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str54 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xac9:                          // [buff motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[buff motion]", 0xac9));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str58 = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str58 = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str58 = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xadd:                          // [back motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[back motion]", 0xadd));
+                }
+                else
+                {
+                    ScanStr(&scanBuf);
+                    if (aniMode)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                        jobLayer.m_str5c = printBuf;
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                        levelLayer.m_str5c = printBuf;
+                    }
+                    else
+                    {
+                        snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                        normalLayer.m_str5c = printBuf;
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xaf1:                          // [attack motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[attack motion]", 0xaf1));
+                }
+                else
+                {
+                    if (aniMode)
+                    {
+                        jobLayer.m_vec64.clear();
+                        while (ScanStr(&scanBuf))
+                        {
+                            snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                            tmp = printBuf;
+                            jobLayer.m_vec64.push_back(tmp);
+                        }
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        levelLayer.m_vec64.clear();
+                        while (ScanStr(&scanBuf))
+                        {
+                            snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                            tmp = printBuf;
+                            levelLayer.m_vec64.push_back(tmp);
+                        }
+                    }
+                    else
+                    {
+                        normalLayer.m_vec64.clear();
+                        while (ScanStr(&scanBuf))
+                        {
+                            snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                            tmp = printBuf;
+                            normalLayer.m_vec64.push_back(tmp);
+                        }
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xb16:                          // [etc motion]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[etc motion]", 0xb16));
+                }
+                else
+                {
+                    if (aniMode)
+                    {
+                        jobLayer.m_vec70.clear();
+                        while (ScanStr(&scanBuf))
+                        {
+                            snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
+                            tmp = printBuf;
+                            jobLayer.m_vec70.push_back(tmp);
+                        }
+                    }
+                    else if (levelAniIdx != -1)
+                    {
+                        levelLayer.m_vec70.clear();
+                        while (ScanStr(&scanBuf))
+                        {
+                            snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
+                            tmp = printBuf;
+                            levelLayer.m_vec70.push_back(tmp);
+                        }
+                    }
+                    else
+                    {
+                        normalLayer.m_vec70.clear();
+                        while (ScanStr(&scanBuf))
+                        {
+                            snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
+                            tmp = printBuf;
+                            normalLayer.m_vec70.push_back(tmp);
+                        }
+                    }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xb3d:                          // [move wav]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[move wav]", 0xb3d));
+                }
+                else
+                {
+                ScanStr(&script->m_str84);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xb40:                          // [custom wav]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[custom wav]", 0xb40));
+                }
+                else
+                {
+                if (aniMode)
                 {
                     EquipmentAniInfoScript& info =
                         script->addAniInfo((ENUM_CHARACTERJOB)curJob);
@@ -1196,21 +2486,37 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                         info.m_wav40.push_back(tmp);
                     }
                 }
-            }
-            else if (token == "[animation job]")                     // 0xb51
-            {
+                else
+                {
+                    script->m_vec658.clear();
+                    while (ScanStr(&tmp))
+                    {
+                        script->m_vec658.push_back(tmp);
+                    }
+                }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xb51:                          // [animation job]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[animation job]", 0xb51));
+                }
+                else
+                {
                 ScanStr(&scanBuf);
+                // ORIG LAB_08998b69：提交后仅复位 m_field0（不调 clear()）。
                 if (normalLayer.m_field0 != 0)
                 {
                     script->addAniInfo((ENUM_CHARACTERJOB)curJob)
                         .m_ani0.push_back(normalLayer);
-                    normalLayer.clear();
+                    normalLayer.m_field0 = 0;
                 }
                 if (jobLayer.m_field0 != 0)
                 {
                     script->addAniInfo((ENUM_CHARACTERJOB)curJob)
                         .m_ani18.push_back(jobLayer);
-                    jobLayer.clear();
+                    jobLayer.m_field0 = 0;
                 }
                 if (levelLayer.m_field0 != 0)
                 {
@@ -1218,14 +2524,21 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                         script->addAniInfo((ENUM_CHARACTERJOB)curJob);
                     if (!info.m_level5c.empty())
                     {
-                        info.m_level5c.back().push_back(levelLayer);
+                        info.m_level5c.rbegin()->push_back(levelLayer);
                     }
-                    levelLayer.clear();
+                    levelLayer.m_field0 = 0;
                 }
                 curJob = getCharacterJob(scanBuf.c_str());
-            }
-            else if (token == "[variation]")                         // 0xb6d
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xb6d:                          // [variation]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[variation]", 0xb6d));
+                }
+                else
+                {
                 EquipmentAniInfoScript& info =
                     script->addAniInfo((ENUM_CHARACTERJOB)curJob);
                 if (!aniMode)
@@ -1246,9 +2559,16 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     info.m_30 = ScanInt((bool*)0);
                     info.m_34 = ScanInt((bool*)0);
                 }
-            }
-            else if (token == "[setback img]")                       // 0xb82
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xb82:                          // [setback img]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[setback img]", 0xb82));
+                }
+                else
+                {
                 ScanStr(&script->m_str83c);
                 for (;;)
                 {
@@ -1274,13 +2594,27 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     }
                     script->m_setItem840.push_back(info);
                 }
-            }
-            else if (token == "[/setback img]")                      // 0xb98
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xb98:                          // [/setback img]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/setback img]", 0xb98));
+                }
+                else
+                {
                 // 空 case（ORIG 仅建表项，无 body）
-            }
-            else if (token == "[set item]")                          // 0xb9b
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xb9b:                          // [set item]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[set item]", 0xb9b));
+                }
+                else
+                {
                 script->m_vec66c.clear();
                 for (;;)
                 {
@@ -1292,9 +2626,19 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     }
                     script->m_vec66c.push_back(v);
                 }
-            }
-            else if (token == "[piece set ability]")                 // 0xba8
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xba8:                          // [piece set ability]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[piece set ability]", 0xba8));
+                }
+                else
+                {
+                // ORIG LAB_08999014：分档号由 ScanInt 读出（bool* 出参形式）；
+                // find==end 时先 [key].clear()，else 分支仍走一次 operator[]（保证
+                // 存在默认元素），最后再取 &table[key] 作为当前参数区。
                 okFlag = false;
                 int key = ScanInt(&okFlag);
                 std::map<int, EquipmentParameterInfo>& table = script->m_paramMap678;
@@ -1302,38 +2646,90 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 {
                     table[key].clear();
                 }
+                else
+                {
+                    table[key];
+                }
                 curParam = &table[key];
                 curParam->m_414 = 1;
                 cnt[1] = 0;
                 cnt[0] = 0;
-            }
-            else if (token == "[set ability]")                       // 0xbb5
-            {
-                std::map<int, EquipmentParameterInfo>& table = script->m_paramMap678;
-                if (table.find(0) == table.end())
-                {
-                    table[0].clear();
+                    goto stage2_switch_end;
                 }
-                curParam = &table[0];
+                    /*FALLTHRU*/
+                case 0xbb5:                          // [set ability]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[set ability]", 0xbb5));
+                }
+                else
+                {
+                // ORIG LAB_08999174：进入“分档 0”参数区。find(0)==end() 时先
+                // table[0].clear()，否则仍求值一次 table[0]（保证默认元素存在），
+                // 最后再取 &table[0] 作为当前参数区并置 m_414 = 1、清计数。
+                std::map<int, EquipmentParameterInfo>& table = script->m_paramMap678;
+                int probeKey = 0;
+                if (table.find(probeKey) == table.end())
+                {
+                    int clearKey = 0;
+                    table[clearKey].clear();
+                }
+                else
+                {
+                    int existKey = 0;
+                    table[existKey];
+                }
+                int layKey = 0;
+                curParam = &table[layKey];
                 curParam->m_414 = 1;
                 cnt[1] = 0;
                 cnt[0] = 0;
-            }
-            else if (token == "[/set ability]")                      // 0xbc1
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xbc1:                          // [/set ability]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/set ability]", 0xbc1));
+                }
+                else
+                {
+                // ORIG LAB_089992e8：保存当前分档的 [set ability] 向量，
+                // 然后切回主参数区继续解析。
                 setAbilityBackup = curParam->m_vec468;
                 curParam = &script->m_param1c0;
-            }
-            else if (token == "[/piece set ability]")                // 0xbc8
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xbc8:                          // [/piece set ability]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/piece set ability]", 0xbc8));
+                }
+                else
+                {
                 curParam = &script->m_param1c0;
-            }
-            else if (token == "[set item master]")                   // 0xbcb
-            {
-                ScanInt(&script->m_6a0);
-            }
-            else if (token == "[int data]")                          // 0xbce
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xbcb:                          // [set item master]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[set item master]", 0xbcb));
+                }
+                else
+                {
+                script->m_6a0 = ScanInt((bool*)0);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xbce:                          // [int data]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[int data]", 0xbce));
+                }
+                else
+                {
                 script->m_vec88.clear();
                 for (;;)
                 {
@@ -1345,50 +2741,142 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     }
                     script->m_vec88.push_back(v);
                 }
-            }
-            else if (token == "[string data]")                       // 0xbd9
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xbd9:                          // [string data]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[string data]", 0xbd9));
+                }
+                else
+                {
                 script->m_vec94.clear();
                 while (ScanStr(&tmp))
                 {
                     script->m_vec94.push_back(tmp);
                 }
-            }
-            else if (token == "[packagable]")                        // 0xbe0
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xbe0:                          // [packagable]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[packagable]", 0xbe0));
+                }
+                else
+                {
                 script->m_fieldfc = (char)(ScanInt((bool*)0) != 0);
-            }
-            else if (token == "[icon mark]")                         // 0xbe3
-            {
-                ScanStr(&script->m_strc0);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xbe3:                          // [icon mark]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[icon mark]", 0xbe3));
+                }
+                else
+                {
+                // ORIG LAB_0899962b 系：先读暂存再赋 string（operator=(const string&)）。
+                ScanStr(&scanBuf);
+                script->m_strc0 = scanBuf;
                 ScanInt(&script->m_fieldc4);
-            }
-            else if (token == "[part set index]")                    // 0xbf0
-            {
-                ScanInt(&script->m_798);
-            }
-            else if (token == "[effect part set index]")             // 0xbf4
-            {
-                ScanInt(&script->m_79c);
-            }
-            else if (token == "[reference effect part set index]")   // 0xbf7
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xbf0:                          // [part set index]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[part set index]", 0xbf0));
+                }
+                else
+                {
+                script->m_798 = ScanInt((bool*)0);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xbf4:                          // [effect part set index]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[effect part set index]", 0xbf4));
+                }
+                else
+                {
+                script->m_79c = ScanInt((bool*)0);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xbf7:                          // [reference effect part set index]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[reference effect part set index]", 0xbf7));
+                }
+                else
+                {
                 script->m_vec7a0.push_back(ScanInt((bool*)0));
-            }
-            else if (token == "[image packs]")                       // 0xbfb
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xbfb:                          // [image packs]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[image packs]", 0xbfb));
+                }
+                else
+                {
                 while (ScanStr(&tmp))
                 {
                     script->m_vec7b0.push_back(tmp);
                 }
-            }
-            else if (token == "[fixed select type]")                 // 0xc04
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xc04:                          // [fixed select type]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[fixed select type]", 0xc04));
+                }
+                else
+                {
                 okFlag = false;
                 script->m_6e0 = ScanInt(&okFlag);
-            }
-            else if (token == "[emblem socket default]")             // 0xc08
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xc08:                          // [emblem socket default]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[emblem socket default]", 0xc08));
+                }
+                else
+                {
+                for (;;)
+                {
+                    if (!ScanStr(&scanBuf))
+                    {
+                        break;
+                    }
+                    int emblemType = getAvatarEmblemType(scanBuf.c_str());
+                    if (emblemType == 0)
+                    {
+                        return false;
+                    }
+                    script->m_vec6cc.push_back((unsigned short)emblemType);
+                }
+                if (5 < (int)script->m_vec6cc.size())
+                {
+                    return false;
+                }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xc16:                          // [avatar type select]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[avatar type select]", 0xc16));
+                }
+                else
+                {
                 stAvatarTypeSelect_t head;
                 head.init();
                 head.m_field0 = 7;
@@ -1446,23 +2934,32 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     }
                     script->m_avatar6c0.push_back(sel);
                 }
-            }
-            else if (token == "[avatar type select]")                // 0xc16
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xc55:                          // [avatar func filter]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[avatar func filter]", 0xc55));
+                }
+                else
+                {
                 okFlag = false;
                 script->m_6d8 = ScanInt(&okFlag);
                 if (!okFlag)
                 {
                     return false;
                 }
-            }
-            else if (token == "[avatar func filter]")                // 0xc55
-            {
-                okFlag = false;
-                script->m_6d8 = ScanInt(&okFlag);
-            }
-            else if (token == "[emancipate]")                        // 0xc5a
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xc5a:                          // [emancipate]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[emancipate]", 0xc5a));
+                }
+                else
+                {
                 for (;;)
                 {
                     std::string key;
@@ -1485,7 +2982,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                                 break;
                             }
                             script->m_vec7d8.push_back(
-                                std::make_pair(first, second));
+                                std::pair<int, int>(first, second));
                         }
                         cont = true;
                     }
@@ -1505,7 +3002,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                                 break;
                             }
                             script->m_vec7e4.push_back(
-                                std::make_pair(first, second));
+                                std::pair<int, int>(first, second));
                         }
                         cont = true;
                     }
@@ -1523,31 +3020,51 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                         break;
                     }
                 }
-            }
-            else if (token == "[hardcoding cooltime]")               // 0xc8f
-            {
-                okFlag = false;
-                script->m_6e4 = ScanInt(&okFlag);
-            }
-            else if (token == "[item group name]")                   // 0xc93
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xc8f:                          // [hardcoding cooltime]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[hardcoding cooltime]", 0xc8f));
+                }
+                else
+                {
+                script->m_6e4 = ScanInt((bool*)0);
+                    goto stage2_switch_end;
+                }
+            // ORIG 0xc93（汇编 LAB_0899a04f __inited==1 分支）：ScanStr/表查找失败
+            // 均直接 return 0——失败路径不调 unloadRDARScriptFile（全函数唯一
+            // unloadRDARScriptFile 在成功收尾 0xb084）。
+                    /*FALLTHRU*/
+                case 0xc93:                          // [item group name]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[item group name]", 0xc93));
+                }
+                else
+                {
                 if (!ScanStr(&scanBuf))
                 {
-                    unloadRDARScriptFile();
                     return false;
                 }
-                std::map<std::string, int>& groupTable = getItemGroupNameTable();
-                std::map<std::string, int>::iterator git =
-                    groupTable.find(scanBuf);
-                if (git == groupTable.end())
+                std::map<std::string, int>::const_iterator git =
+                    getItemGroupNameTable().find(scanBuf);
+                if (git == getItemGroupNameTable().end())
                 {
-                    unloadRDARScriptFile();
                     return false;
                 }
                 script->m_field100 = git->second;
-            }
-            else if (token == "[npc gift disallowance]")             // 0xc9d
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xc9d:                          // [npc gift disallowance]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[npc gift disallowance]", 0xc9d));
+                }
+                else
+                {
                 okFlag = false;
                 int v = ScanInt(&okFlag);
                 script->m_field104 = (char)(v != 1);
@@ -1555,43 +3072,63 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 {
                     return false;
                 }
-            }
-            else if (token == "[change status on change hp]")        // 0xca2
-            {
-                for (;;)
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xca2:                          // [change status on change hp]
+                if (!__inited_0)
                 {
-                    std::string appendageName;
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[change status on change hp]", 0xca2));
+                }
+                else
+                {
+                // ORIG 结构：块作用域 string（ctor/dtor 各 1）+ do-while 标志位；
+                // 循环体内还有一个未被消费的 std::vector<float> 临时（ORIG 0899a24b
+                // 构造、两条退出路径各析构一次），照其形态保留。
+                std::string appendageName;
+                bool cont;
+                do
+                {
                     if (!ScanStr(&appendageName))
                     {
                         break;
                     }
+                    std::vector<float> rateBuf;
+                    (void)rateBuf;
                     if (appendageName == "[/change status on change hp]")
                     {
-                        break;
+                        cont = false;
                     }
-                    int appendage = loadAppendageType(appendageName);
-                    if (appendage != -1)
+                    else
                     {
-                        okFlag = true;
-                        float r1 = (float)ScanInt(&okFlag);
-                        float r2 = (float)ScanInt(&okFlag);
-                        float r3 = (float)ScanInt(&okFlag);
-                        float r4 = (float)ScanInt(&okFlag);
-                        if (okFlag)
+                        int appendage = loadAppendageType(appendageName);
+                        if (appendage != -1)
                         {
                             STChangeStatusRate rate;
                             rate.m_appendage = appendage;
-                            rate.m_rate1 = r1;
-                            rate.m_rate2 = r2;
-                            rate.m_rate3 = r3;
-                            rate.m_rate4 = r4;
-                            script->m_rate6e8.push_back(rate);
+                            okFlag = true;
+                            rate.m_rate1 = (float)ScanInt(&okFlag);
+                            rate.m_rate3 = (float)ScanInt(&okFlag);
+                            rate.m_rate2 = (float)ScanInt(&okFlag);
+                            rate.m_rate4 = (float)ScanInt(&okFlag);
+                            if (okFlag)
+                            {
+                                script->m_rate6e8.push_back(rate);
+                            }
                         }
+                        cont = true;
                     }
+                } while (cont);
+                    goto stage2_switch_end;
                 }
-            }
-            else if (token == "[epic routing]")                      // 0xcc1
-            {
+                    /*FALLTHRU*/
+                case 0xcc1:                          // [epic routing]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[epic routing]", 0xcc1));
+                }
+                else
+                {
                 okFlag = false;
                 int v = ScanInt(&okFlag);
                 script->m_7bc = (char)(v == 1);
@@ -1599,58 +3136,118 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 {
                     return false;
                 }
-            }
-            else if (token == "[special ability]")                   // 0xcc6
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xcc6:                          // [special ability]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[special ability]", 0xcc6));
+                }
+                else
+                {
                 okFlag = false;
                 script->m_7c0 = ScanInt(&okFlag);
-                if (!okFlag)
-                {
-                    return false;
+                    goto stage2_switch_end;
                 }
-            }
-            else if (token == "[chat emoticon index]")               // 0xcc9
-            {
+                    /*FALLTHRU*/
+                case 0xcc9:                          // [chat emoticon index]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[chat emoticon index]", 0xcc9));
+                }
+                else
+                {
                 okFlag = false;
                 script->m_7c4 = ScanInt(&okFlag);
-                if (!okFlag)
-                {
-                    return false;
+                    goto stage2_switch_end;
                 }
-            }
-            else if (token == "[required full set for chatting emoticon]")  // 0xccc
-            {
+                    /*FALLTHRU*/
+                case 0xccc:                          // [required full set for chatting emoticon]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[required full set for chatting emoticon]", 0xccc));
+                }
+                else
+                {
                 okFlag = false;
                 int v = ScanInt(&okFlag);
                 script->m_7c8 = (char)(v != 0);
-                if (!okFlag)
-                {
-                    return false;
+                    goto stage2_switch_end;
                 }
-            }
-            else if (token == "[guild power war point]")             // 0xccf
-            {
-                ScanInt(&script->m_fieldc8);
-            }
-            else if (token == "[user power war point]")              // 0xcd2
-            {
-                ScanInt(&script->m_fieldcc);
-            }
-            else if (token == "[special monster drop]" ||            // 0xcd5/0xcd6
-                     token == "[difficulty for extra drop]")
-            {
-                // 空 case（仅建表项）
-            }
-            else if (token == "[dungeon type for extra drop]")       // 0xcd7
-            {
+                    /*FALLTHRU*/
+                case 0xccf:                          // [guild power war point]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[guild power war point]", 0xccf));
+                }
+                else
+                {
+                script->m_fieldc8 = ScanInt((bool*)0);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xcd2:                          // [user power war point]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[user power war point]", 0xcd2));
+                }
+                else
+                {
+                script->m_fieldcc = ScanInt((bool*)0);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xcd5:                          // [special monster drop]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[special monster drop]", 0xcd5));
+                }
+                else
+                {
                 if (!EquipmentScriptSpecialMonsterDrop(script,
                                                        std::string(token), path))
                 {
                     return false;
                 }
-            }
-            else if (token == "[character item check]")              // 0xcdd
-            {
+                    goto stage2_switch_end;
+                }
+                case 0xcd6:                          // [difficulty for extra drop]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[difficulty for extra drop]", 0xcd6));
+                }
+                else
+                {
+                if (!EquipmentScriptSpecialMonsterDrop(script,
+                                                       std::string(token), path))
+                {
+                    return false;
+                }
+                    goto stage2_switch_end;
+                }
+                case 0xcd7:                          // [dungeon type for extra drop]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[dungeon type for extra drop]", 0xcd7));
+                }
+                else
+                {
+                if (!EquipmentScriptSpecialMonsterDrop(script,
+                                                       std::string(token), path))
+                {
+                    return false;
+                }
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xcdd:                          // [character item check]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[character item check]", 0xcdd));
+                }
+                else
+                {
                 for (;;)
                 {
                     STEnchantSystemData entry;
@@ -1676,61 +3273,96 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     entry.m_c = getEquipmentTypeToEnumValue(equipTypeName);
                     script->m_enchant7cc.push_back(entry);
                 }
-            }
-            else if (token == "[hp recovery add rate]")              // 0xcf4
-            {
-                okFlag = false;
-                ScanInt(&script->m_730);
-            }
-            else if (token == "[mp recovery add rate]")              // 0xcfc
-            {
-                okFlag = false;
-                ScanInt(&script->m_734);
-            }
-            else if (token == "[impossible contents]")               // 0xd04
-            {
-                while (ScanStr(&scanBuf))
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xcf4:                          // [hp recovery add rate]
+                if (!__inited_0)
                 {
-                    if (scanBuf == "upgrade")
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[hp recovery add rate]", 0xcf4));
+                }
+                else
+                {
+                ScanInt(&script->m_730);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xcfc:                          // [mp recovery add rate]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[mp recovery add rate]", 0xcfc));
+                }
+                else
+                {
+                ScanInt(&script->m_734);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xd04:                          // [impossible contents]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[impossible contents]", 0xd04));
+                }
+                else
+                {
+                // ORIG LAB_0899ab13：块作用域 string（ctor 1 / dtor 2 路径）。
+                std::string contentsName;
+                while (ScanStr(&contentsName))
+                {
+                    if (contentsName == "upgrade")
                     {
                         script->m_6f4 = 1;
                     }
-                    else if (scanBuf == "amplify upgrade")
+                    else if (contentsName == "amplify upgrade")
                     {
                         script->m_6f5 = 1;
                     }
-                    else if (scanBuf == "disjoint")
+                    else if (contentsName == "disjoint")
                     {
                         script->m_6f6 = 1;
                     }
-                    else if (scanBuf == "gift")
+                    else if (contentsName == "gift")
                     {
                         script->m_fieldd0 = 1;
                     }
-                    else if (scanBuf == "trade")
+                    else if (contentsName == "trade")
                     {
                         script->m_fieldd1 = 1;
                     }
-                    else if (scanBuf == "separate upgrade")
+                    else if (contentsName == "separate upgrade")
                     {
                         script->m_fieldd4 = 1;
                     }
-                    else if (scanBuf == "charac cargo")
+                    else if (contentsName == "charac cargo")
                     {
                         script->m_fieldda = 1;
                     }
-                    else if (scanBuf == "ban redeemitem")
+                    else if (contentsName == "ban redeemitem")
                     {
                         script->m_fieldd8 = 1;
                     }
                 }
-            }
-            else if (token == "[possible kiri protect]")             // 0xd2d
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xd2d:                          // [possible kiri protect]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[possible kiri protect]", 0xd2d));
+                }
+                else
+                {
                 script->m_fieldd9 = 1;
-            }
-            else if (token == "[limit upgradable level]")            // 0xd31
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xd31:                          // [limit upgradable level]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[limit upgradable level]", 0xd31));
+                }
+                else
+                {
                 while (ScanStr(&scanBuf))
                 {
                     upgMin = -1;
@@ -1738,11 +3370,108 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     ScanInt(&upgMin);
                     ScanInt(&upgMax);
                     upgType = 5;
-                    if (scanBuf == "all upgrade")              upgType = 0;
-                    else if (scanBuf == "normal upgrade")      upgType = 1;
-                    else if (scanBuf == "amplify upgrade")     upgType = 2;
-                    else if (scanBuf == "separate upgrade")    upgType = 3;
-                    else if (scanBuf == "3rd chronicle upgrade") upgType = 4;
+                     // ORIG 0x0899ae13-0x0899b289：第三级独立静态表 __lookup_1 + __inited_1
+                     // 双检锁；整数 switch 五路降形态，case 体首查 __inited_1，首轮 idC=0 命中
+                     // case 0/0xd3d 别名进入逐例惰性 insert 链（5 项）。
+                     static std::map<char const*, int, less_TCHAR> __lookup_1;
+                     static SpinLock __init_lock_1;
+                     static bool __inited_1 = false;
+                     int idC;
+                     for (;;)
+                     {
+                         if (!__inited_1)
+                         {
+                             __init_lock_1.enter();
+                             if (__inited_1)
+                             {
+                                 __init_lock_1.leave();
+                                 continue;
+                             }
+                             idC = 0;
+                         }
+                         else
+                         {
+                             char const* key = scanBuf.c_str();
+                             std::map<char const*, int, less_TCHAR>::const_iterator it =
+                                 __lookup_1.find(key);
+                             if (it != __lookup_1.end())
+                             {
+                                 idC = it->second;
+                             }
+                             else
+                             {
+                                 idC = -1;
+                             }
+                         }
+                         switch (idC)
+                         {
+                         case 0:
+                         case 0xd3d:                          // all upgrade
+                         if (!__inited_1)
+                         {
+                             __lookup_1.insert(std::map<char const*, int, less_TCHAR>::value_type("all upgrade", 0xd3d));
+                         }
+                         else
+                         {
+                             upgType = 0;
+                             goto stage3_switch_end;
+                         }
+                             /*FALLTHRU*/
+                         case 0xd40:                          // normal upgrade
+                         if (!__inited_1)
+                         {
+                             __lookup_1.insert(std::map<char const*, int, less_TCHAR>::value_type("normal upgrade", 0xd40));
+                         }
+                         else
+                         {
+                             upgType = 1;
+                             goto stage3_switch_end;
+                         }
+                             /*FALLTHRU*/
+                         case 0xd43:                          // amplify upgrade
+                         if (!__inited_1)
+                         {
+                             __lookup_1.insert(std::map<char const*, int, less_TCHAR>::value_type("amplify upgrade", 0xd43));
+                         }
+                         else
+                         {
+                             upgType = 2;
+                             goto stage3_switch_end;
+                         }
+                             /*FALLTHRU*/
+                         case 0xd46:                          // separate upgrade
+                         if (!__inited_1)
+                         {
+                             __lookup_1.insert(std::map<char const*, int, less_TCHAR>::value_type("separate upgrade", 0xd46));
+                         }
+                         else
+                         {
+                             upgType = 3;
+                             goto stage3_switch_end;
+                         }
+                             /*FALLTHRU*/
+                         case 0xd49:                          // 3rd chronicle upgrade
+                         if (!__inited_1)
+                         {
+                             __lookup_1.insert(std::map<char const*, int, less_TCHAR>::value_type("3rd chronicle upgrade", 0xd49));
+                         }
+                         else
+                         {
+                             upgType = 4;
+                             goto stage3_switch_end;
+                         }
+                             /*FALLTHRU*/
+                         default:
+                             break;
+                         }
+                     stage3_switch_end:
+                         if (__inited_1)
+                         {
+                             break;                     // ORIG LAB_0899b262 → code_r0x0899b289
+                         }
+                         __init_lock_1.leave();     // ORIG 首轮沿链填表后置位重新分派
+                         __inited_1 = true;
+                     }
                     if (upgType != 5 && (upgMin != -1 || upgMax != -1))
                     {
                         if (upgMin == -1)
@@ -1757,16 +3486,15 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                         {
                             for (int t = 1; t < 5; ++t)
                             {
-                                std::pair<ItemUpgradeType::T,
-                                          std::pair<int, int> > probe;
-                                (void)probe;
                                 if (script->m_upgrade6fc.find(
                                         (ItemUpgradeType::T)t) ==
                                     script->m_upgrade6fc.end())
                                 {
-                                    script->m_upgrade6fc.insert(std::make_pair(
-                                        (ItemUpgradeType::T)t,
-                                        std::make_pair(upgMin, upgMax)));
+                                    std::pair<ItemUpgradeType::T,
+                                              std::pair<int, int> > kv;
+                                    kv.first = (ItemUpgradeType::T)t;
+                                    kv.second = std::pair<int, int>(upgMin, upgMax);
+                                    script->m_upgrade6fc.insert(kv);
                                 }
                             }
                         }
@@ -1774,37 +3502,67 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                                      (ItemUpgradeType::T)upgType) ==
                                  script->m_upgrade6fc.end())
                         {
-                            script->m_upgrade6fc.insert(std::make_pair(
-                                (ItemUpgradeType::T)upgType,
-                                std::make_pair(upgMin, upgMax)));
+                        std::pair<ItemUpgradeType::T,
+                                  std::pair<int, int> > kv;
+                        kv.first = (ItemUpgradeType::T)upgType;
+                        kv.second = std::pair<int, int>(upgMin, upgMax);
+                        script->m_upgrade6fc.insert(kv);
                         }
                     }
                 }
-            }
-            else if (token == "[particle]")                          // 0xd7d
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xd7d:                          // [particle same position]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[particle same position]", 0xd7d));
+                }
+                else
+                {
                 ScanStr(&scanBuf);
                 if (scanBuf == "same position")
                 {
                     ScanStr(&script->m_str7f4);
-                    ScanInt(&script->m_particle7f8.m_x);
-                    ScanInt(&script->m_particle7f8.m_y);
-                    ScanInt(&script->m_particle7f8.m_z);
+                    script->m_particle7f8.m_x = ScanInt((bool*)0);
+                    script->m_particle7f8.m_y = ScanInt((bool*)0);
+                    script->m_particle7f8.m_z = ScanInt((bool*)0);
                     ScanType(scanBuf, true);
                 }
-            }
-            else if (token == "[command]")                           // 0xd89
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xd89:                          // [command script]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[command script]", 0xd89));
+                }
+                else
+                {
                 script->m_keyCommand = new STKeyCommand();
                 importCommand(script->m_keyCommand);
-            }
-            else if (token == "[character name y revision]")         // 0xd8d
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xd8d:                          // [character name y revision]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[character name y revision]", 0xd8d));
+                }
+                else
+                {
                 script->m_80e = (unsigned short)ScanInt((bool*)0);
                 script->m_80c = (unsigned short)ScanInt((bool*)0);
-            }
-            else if (token == "[routing priority]")                  // 0xd91
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xd91:                          // [routing priority]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[routing priority]", 0xd91));
+                }
+                else
+                {
                 script->m_field10f = 1;
                 std::string jobName;
                 for (;;)
@@ -1834,44 +3592,89 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     }
                     script->m_vec110.push_back(std::make_pair(jobId, pri));
                 }
-            }
-            else if (token == "[quest item drop rate bonus]")        // 0xdac
-            {
-                ScanInt(&script->m_810);
-            }
-            else if (token == "[level section ability]")             // 0xdb0
-            {
-                okFlag = false;
-                if (ScanInt(&okFlag) && okFlag)
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xdac:                          // [quest item drop rate bonus]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[quest item drop rate bonus]", 0xdac));
+                }
+                else
+                {
+                script->m_810 = ScanInt((bool*)0);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xdb0:                          // [level section ability]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[level section ability]", 0xdb0));
+                }
+                else
+                {
+                int sectionMarker = 0;
+                // ORIG 0899b9c0 传 int*：合法值 0 也必须创建新段；
+                // 不能用 ScanInt(bool*) 的“数值非零”结果代替成功标志。
+                if (ScanInt(&sectionMarker))
                 {
                     EquipmentParameterInfo section;
                     script->m_paramVec690.push_back(section);
-                    curParam = &script->m_paramVec690.back();
+                    curParam = &script->m_paramVec690[
+                        script->m_paramVec690.size() - 1];
                 }
                 else
                 {
                     stopFlag = true;
                 }
-            }
-            else if (token == "[/level section ability]")            // 0xdbf
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xdbf:                          // [/level section ability]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/level section ability]", 0xdbf));
+                }
+                else
+                {
                 curParam = &script->m_param1c0;
-            }
-            else if (token == "[Force Result Item Rule]")            // 0xdc3
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xdc3:                          // [Force Result Item Rule]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[Force Result Item Rule]", 0xdc3));
+                }
+                else
+                {
                 script->m_814 = (char)ScanInt((bool*)0);
-                ScanInt(&script->m_818);
-            }
-            else if (token == "[effect]")                            // 0xdc7
-            {
+                script->m_818 = ScanInt((bool*)0);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xdc7:                          // [effect]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[effect]", 0xdc7));
+                }
+                else
+                {
                 effect::STEffect effectData;
                 if (importEffect(effectData))
                 {
                     script->m_effect84c.push_back(effectData);
                 }
-            }
-            else if (token == "[usable module]")                     // 0xdcc
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xdcc:                          // [usable module]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[usable module]", 0xdcc));
+                }
+                else
+                {
                 script->m_set714.clear();
                 int module = scanModuleType();
                 while (module != 0x11)
@@ -1879,9 +3682,16 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     script->m_set714.insert(module);
                     module = scanModuleType();
                 }
-            }
-            else if (token == "[usable world]")                      // 0xdd5
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xdd5:                          // [usable world]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[usable world]", 0xdd5));
+                }
+                else
+                {
                 script->m_setdc.clear();
                 int world = scanWorldType();
                 while (world != 2)
@@ -1889,17 +3699,38 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     script->m_setdc.insert(world);
                     world = scanWorldType();
                 }
-            }
-            else if (token == "[no random]")                         // 0xdde
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xdde:                          // [no random]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[no random]", 0xdde));
+                }
+                else
+                {
                 script->m_72c = 1;
-            }
-            else if (token == "[usable period after unsealing]")     // 0xde1
-            {
-                ScanInt(&script->m_6f8);
-            }
-            else if (token == "[aurora graphic effects]")            // 0xdeb
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xde1:                          // [usable period after unsealing]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[usable period after unsealing]", 0xde1));
+                }
+                else
+                {
+                script->m_6f8 = ScanInt((bool*)0);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xdeb:                          // [aurora graphic effects]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[aurora graphic effects]", 0xdeb));
+                }
+                else
+                {
                 int total = ScanInt((bool*)0);
                 for (int i = 0; i < total; ++i)
                 {
@@ -1908,73 +3739,150 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     ScanStr(&scanBuf);
                     script->m_vec858.push_back(scanBuf);
                 }
-            }
-            else if (token == "[msg balloon on mucu skill]")         // 0xdf5
-            {
-                ScanInt(&script->m_87c);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xdf5:                          // [msg balloon on mucu skill]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[msg balloon on mucu skill]", 0xdf5));
+                }
+                else
+                {
+                script->m_87c = ScanInt((bool*)0);
                 ScanStr(&script->m_str878);
-            }
-            else if (token == "[random option]")                     // 0xdf9
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xdf9:                          // [random option]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[random option]", 0xdf9));
+                }
+                else
+                {
                 script->m_888 = 1;
                 script->m_889 = (char)ScanInt((bool*)0);
-            }
-            else if (token == "[enable dye]")                        // 0xdfe
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xdfe:                          // [enable dye]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[enable dye]", 0xdfe));
+                }
+                else
+                {
                 script->m_88a = (char)(ScanInt((bool*)0) != 0);
                 script->m_88b = (char)(ScanInt((bool*)0) != 0);
-            }
-            else if (token == "[expertjob only]")                    // 0xe0a
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xe0a:                          // [expertjob only]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[expertjob only]", 0xe0a));
+                }
+                else
+                {
                 if (!GetExpertJobTypeList(script))
                 {
                     return false;
                 }
-            }
-            else if (token == "[prof material variation]")           // 0xe0e
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xe0e:                          // [prof material variation]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof material variation]", 0xe0e));
+                }
+                else
+                {
                 if (!GetExpertJobValueMaterialVariation(script))
                 {
                     return false;
                 }
-            }
-            else if (token == "[prof compound rate]")                // 0xe12
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xe12:                          // [prof compound rate]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof compound rate]", 0xe12));
+                }
+                else
+                {
                 if (!GetExpertJobValueCompoundRate(script))
                 {
                     return false;
                 }
-            }
-            else if (token == "[prof result variation]")             // 0xe16
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xe16:                          // [prof result variation]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof result variation]", 0xe16));
+                }
+                else
+                {
                 if (!GetExpertJobResultVariation(script))
                 {
                     return false;
                 }
-            }
-            else if (token == "[prof disjoint big win rate]")        // 0xe1a
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xe1a:                          // [prof disjoint big win rate]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof disjoint big win rate]", 0xe1a));
+                }
+                else
+                {
                 if (!GetExpertJobDisjointBigWinRate(script))
                 {
                     return false;
                 }
-            }
-            else if (token == "[prof disjoint result variation]")    // 0xe1e
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xe1e:                          // [prof disjoint result variation]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof disjoint result variation]", 0xe1e));
+                }
+                else
+                {
                 if (!GetExpertJobDisjointResultVariation(script))
                 {
                     return false;
                 }
-            }
-            else if (token == "[prof additional gain exp]")          // 0xe22
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xe22:                          // [prof additional gain exp]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[prof additional gain exp]", 0xe22));
+                }
+                else
+                {
                 if (!GetExpertJobAdditionalGainExp(script))
                 {
                     return false;
                 }
-            }
-            else if (token == "[war room point bonus]")              // 0xe28
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xe28:                          // [war room point bonus]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[war room point bonus]", 0xe28));
+                }
+                else
+                {
                 okFlag = false;
                 if (ScanStr(&scanBuf))
                 {
@@ -1989,9 +3897,16 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                         return false;
                     }
                 }
-            }
-            else if (token == "[war room monster exp bonus]")        // 0xe37
-            {
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xe37:                          // [war room monster exp bonus]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[war room monster exp bonus]", 0xe37));
+                }
+                else
+                {
                 okFlag = false;
                 if (ScanStr(&scanBuf))
                 {
@@ -2007,41 +3922,86 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                         return false;
                     }
                 }
-            }
-            else if (token == "[not amplify]")                       // 0xe48
-            {
-                ScanInt(&script->m_890);
-            }
-            else if (token == "[change type ultimateSkillCurScene]")  // 0xe4d
-            {
-                ScanInt(&script->m_6dc);
-            }
-            else if (token == "[item category]")                     // 0xe54
-            {
-                GetItemCategory(script);
-            }
-            else if (token == "[aura ability]")                      // 0xe57
-            {
-                GetAuraAvatarOption(script);
-            }
-            else if (token == "[/aura ability]")                     // 0xe5c
-            {
-                // 空 case
-            }
-            else
-            {
-                // 未命中第二段：模块标签处理（ORIG default LAB_0899c902）。
-                int modOut[2];
-                modOut[0] = -1;
-                modOut[1] = -1;
-                bool okMod = processModuleTagSet(modOut[1], modOut[0], &token,
-                                                 a, true);
-                if (modOut[0] != -1 && okMod)
-                {
-                    script->m_808 = modOut[0];
+                    goto stage2_switch_end;
                 }
-            }
-#undef EQUIP_MOTION_BRANCH
+                    /*FALLTHRU*/
+                case 0xe48:                          // [not amplify]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[not amplify]", 0xe48));
+                }
+                else
+                {
+                script->m_890 = ScanInt((bool*)0);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xe4d:                          // [change type ultimateSkillCurScene]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[change type ultimateSkillCurScene]", 0xe4d));
+                }
+                else
+                {
+                script->m_6dc = ScanInt((bool*)0);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xe54:                          // [item category]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[item category]", 0xe54));
+                }
+                else
+                {
+                GetItemCategory(script);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xe57:                          // [aura ability]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[aura ability]", 0xe57));
+                }
+                else
+                {
+                GetAuraAvatarOption(script);
+                    goto stage2_switch_end;
+                }
+                    /*FALLTHRU*/
+                case 0xe5c:                          // [/aura ability]
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[/aura ability]", 0xe5c));
+                }
+                else
+                {
+                // 空 case
+                    goto stage2_switch_end;
+                }
+                default:
+                if (__inited_0)
+                {
+                    // 未命中第二段：模块标签处理（ORIG default LAB_0899c902）。
+                    int modOut[2];
+                    modOut[0] = -1;
+                    modOut[1] = -1;
+                    bool okMod = processModuleTagSet(modOut[1], modOut[0], &token,
+                                                     a, true);
+                    if (modOut[0] != -1 && okMod)
+                    {
+                        script->m_808 = modOut[0];
+                    }
+                }
+                    }
+                stage2_switch_end:
+                    if (__inited_0)
+                    {
+                        break;              // ORIG LAB_0899c9bb → 退出分派循环
+                    }
+                    __init_lock_0.leave();  // ORIG 首轮沿链填表后置位重新分派
+                    __inited_0 = true;
+                }
             }
         }
         if (stopFlag)
@@ -2052,9 +4012,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
 
     // ---------------- 收尾（ORIG LAB_0899c9f2） ----------------
     if (!setAbilityBackup.empty())
-    {
-        curParam->m_vec468 = setAbilityBackup;
-    }
+        script->m_param1c0.m_vec468 = setAbilityBackup;
     if (normalLayer.m_field0 != 0)
     {
         script->addAniInfo((ENUM_CHARACTERJOB)curJob).m_ani0.push_back(normalLayer);
@@ -2069,7 +4027,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             script->addAniInfo((ENUM_CHARACTERJOB)curJob);
         if (!info.m_level5c.empty())
         {
-            info.m_level5c.back().push_back(levelLayer);
+            info.m_level5c.rbegin()->push_back(levelLayer);
         }
     }
     if (script->m_178 == -1)
@@ -2192,17 +4150,17 @@ bool importArtifactInfo(STEquipmentScript::artifact_info& info,
         __init_lock.enter();
         if (!__inited)
         {
-            __lookup.insert(std::make_pair("[creature minimum level]", 0x2ee9));
-            __lookup.insert(std::make_pair("[creature physical attack]", 0x2eec));
-            __lookup.insert(std::make_pair("[creature magical attack]", 0x2eef));
-            __lookup.insert(std::make_pair("[creature skill consume mp rate]", 0x2ef2));
-            __lookup.insert(std::make_pair("[creature skill charge time rate]", 0x2ef5));
-            __lookup.insert(std::make_pair("[creature skill over charge time rate]", 0x2ef8));
-            __lookup.insert(std::make_pair("[creature experience amount rate]", 0x2efb));
-            __lookup.insert(std::make_pair("[creature physical critical hit]", 0x2efe));
-            __lookup.insert(std::make_pair("[creature magical critical hit]", 0x2f01));
-            __lookup.insert(std::make_pair("[creature stuck]", 0x2f04));
-            __lookup.insert(std::make_pair("[creature piercing]", 0x2f07));
+            __lookup.insert(std::pair<char const* const, int>("[creature minimum level]", 0x2ee9));
+            __lookup.insert(std::pair<char const* const, int>("[creature physical attack]", 0x2eec));
+            __lookup.insert(std::pair<char const* const, int>("[creature magical attack]", 0x2eef));
+            __lookup.insert(std::pair<char const* const, int>("[creature skill consume mp rate]", 0x2ef2));
+            __lookup.insert(std::pair<char const* const, int>("[creature skill charge time rate]", 0x2ef5));
+            __lookup.insert(std::pair<char const* const, int>("[creature skill over charge time rate]", 0x2ef8));
+            __lookup.insert(std::pair<char const* const, int>("[creature experience amount rate]", 0x2efb));
+            __lookup.insert(std::pair<char const* const, int>("[creature physical critical hit]", 0x2efe));
+            __lookup.insert(std::pair<char const* const, int>("[creature magical critical hit]", 0x2f01));
+            __lookup.insert(std::pair<char const* const, int>("[creature stuck]", 0x2f04));
+            __lookup.insert(std::pair<char const* const, int>("[creature piercing]", 0x2f07));
             __inited = true;
         }
         __init_lock.leave();
@@ -2299,9 +4257,9 @@ static bool GetItemCategory(STItemScript* item)
             {
                 // ORIG 首轮 case 链依次插入三项（字面量 .rodata 0x8e19dcd 起），
                 // 随后重查当前 token；此处建表后直接落入同一 find，行为一致。
-                __lookup.insert(std::make_pair("monster card", 0x30ae));
-                __lookup.insert(std::make_pair("cannot bind", 0x30b1));
-                __lookup.insert(std::make_pair("boss drop", 0x30b4));
+                __lookup.insert(std::pair<char const* const, int>("monster card", 0x30ae));
+                __lookup.insert(std::pair<char const* const, int>("cannot bind", 0x30b1));
+                __lookup.insert(std::pair<char const* const, int>("boss drop", 0x30b4));
                 __inited = true;
             }
             __init_lock.leave();
@@ -2353,8 +4311,8 @@ static bool GetAuraAvatarOption(STEquipmentScript* script)
         {
             __lookup.insert(
                 std::make_pair("[party teleport]", 0x30d0));
-            __lookup.insert(std::make_pair("[none]", 0x30d5));
-            __lookup.insert(std::make_pair("[solo teleport]", 0x30db));
+            __lookup.insert(std::pair<char const* const, int>("[none]", 0x30d5));
+            __lookup.insert(std::pair<char const* const, int>("[solo teleport]", 0x30db));
             __inited = true;
         }
         __init_lock.leave();
@@ -2696,11 +4654,11 @@ static bool GetExpertJobTypeList(STItemScript* item)
             __init_lock.enter();
             if (!__inited)
             {
-                __lookup.insert(std::make_pair("enchanter", 0x303a));
-                __lookup.insert(std::make_pair("alchemist", 0x303d));
-                __lookup.insert(std::make_pair("disjointer", 0x3040));
-                __lookup.insert(std::make_pair("doll_controller", 0x3043));
-                __lookup.insert(std::make_pair("all", 0x3046));
+                __lookup.insert(std::pair<char const* const, int>("enchanter", 0x303a));
+                __lookup.insert(std::pair<char const* const, int>("alchemist", 0x303d));
+                __lookup.insert(std::pair<char const* const, int>("disjointer", 0x3040));
+                __lookup.insert(std::pair<char const* const, int>("doll_controller", 0x3043));
+                __lookup.insert(std::pair<char const* const, int>("all", 0x3046));
                 __inited = true;
             }
             __init_lock.leave();

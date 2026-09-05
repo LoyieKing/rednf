@@ -23,22 +23,15 @@
 #include "CPrivateStoreMgr.h"     // private_store::GetInstancePrivateStoreMgr/IsBusyPrivateStore（§9）
 #include "RDARScriptStringManager.h"  // g_scriptStringManager_/findString（§9）
 #include "CGameManager.h"         // WongWork::CMailBoxHelper::ReqDBSendNewSystemMail + G_CGameManager（§9）
+#include "PacketTypes.h"          // 权威 MSG_MAILBOX_SEND（+0x11/+0x39/+0x3d 具名字段）
 
-
-// ---- BlueMarbleScriptManager +0x30 起字段布局（成员访问还原 ORIG 直接位移寻址） ----
-struct BM_ScriptFields
-{
-    int m_field0[12];   // +0x00..+0x2c
-    int m_maxUser;      // +0x30
-    int m_minLevel;     // +0x34
-    int m_maxLevel;     // +0x38
-    int m_enterLimit;   // +0x3c
-    int m_field40;      // +0x40
-    int m_diceMin;      // +0x44
-    int m_diceRange;    // +0x48
-    int m_field4c;      // +0x4c
-};
-
+// 2026-09-05 裸偏移收尾：原本地 shadow struct BM_ScriptFields（把 m_pScript 当
+// 未建模字节区直读 +0x30..+0x4c）删除 —— 该区间即权威
+// BlueMarbleScriptManager::m_info（+0x30，BlueMarbleInfoScript），逐槽改用
+// m_pScript->m_info.<字段>（证据：getRandomItem 0x080d7690 `mov 0x4c(%eax)`、
+// setDiceNumber 0x080d6f88 `mov 0x48/0x44(%eax)`、checkUserConditionEnterBlueMarble
+// 0x080d8d02 `mov 0x30/0x34/0x38/0x3c(%eax)`，均 4 字节读）；private 槽位经
+// BlueMarbleInfoScript 的 `friend class BlueMarble` 授权（ORIG 无 getter 符号）。
 
 // ---- CGameManager / G_CGameManager：经 #include "CGameManager.h"（§9） ----
 
@@ -47,8 +40,8 @@ struct BM_ScriptFields
 // ============================================================================
 
 BlueMarble::BlueMarble()
-    : m_memoryPoolIndex(-1), m_curUserCount(0), m_field18(0), m_field1c(0),
-      m_pScript(0), m_field3c(0)
+    : m_memoryPoolIndex(-1), m_state(0), m_diceNumber(0), m_blueMarbleMap(0),
+      m_pScript(0), m_maxBoardSize(0)
 {
     m_pRands = new CMTRand[4];
     unsigned long seedValue = (unsigned long)time((time_t*)0);
@@ -81,17 +74,17 @@ void BlueMarble::setMemoryPoolIndex(int idx)
 
 int BlueMarble::getState() const
 {
-    return m_curUserCount;
+    return m_state;
 }
 
 int BlueMarble::changeState(BlueMarbleState::T state)
 {
-    m_curUserCount = state;
+    m_state = state;
 }
 
 int BlueMarble::getWinner() const
 {
-    for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
+    for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
     {
         if (m_users[i].getUser() == 0)
         {
@@ -108,7 +101,7 @@ int BlueMarble::getWinner() const
 int BlueMarble::getWaitUserCount() const
 {
     int count = 0;
-    for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
+    for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
     {
         if (m_users[i].getUser() != 0)
         {
@@ -124,7 +117,7 @@ int BlueMarble::getUserSlot(CUser* user) const
     {
         return -1;
     }
-    for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
+    for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
     {
         if (m_users[i].getUser() == user)
         {
@@ -148,7 +141,7 @@ int BlueMarble::setUserGrade(int grade)
 {
     std::multimap<int, int, std::greater<int> > mm;
     m_users[grade].setGrade(BlueMarbleUserGrade::T_0);
-    for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
+    for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
     {
         if (m_users[i].getUser() != 0)
         {
@@ -193,7 +186,7 @@ void BlueMarble::setUserDeadCount(int count)
 
 int BlueMarble::getMaxBoardSize() const
 {
-    return m_field3c;
+    return m_maxBoardSize;
 }
 
 int BlueMarble::setMaxBoardSize()
@@ -201,30 +194,32 @@ int BlueMarble::setMaxBoardSize()
     BlueMarbleMapScript* map = m_pScript->getMap(getBlueMarbleMap());
     if (map != 0)
     {
-        m_field3c = (int)((std::vector<BlueMarbleTileScript*>*)map)->size();
+        // ORIG 0x080d6e88：以 getMap() 返回值为 this 直调 vector::size（m_tiles 在
+        // BlueMarbleMapScript +0x00，地址等价）⇒ 具名 map->m_tiles.size()。
+        m_maxBoardSize = (int)map->m_tiles.size();
     }
 }
 
 int BlueMarble::getDiceNumber() const
 {
-    return m_field18;
+    return m_diceNumber;
 }
 
 int BlueMarble::setDiceNumber()
 {
-    m_field18 = (unsigned int)m_pRands[0].randInt() %
-                    (unsigned int)((BM_ScriptFields*)m_pScript)->m_diceRange +
-                ((BM_ScriptFields*)m_pScript)->m_diceMin;
+    m_diceNumber = (unsigned int)m_pRands[0].randInt() %
+                    (unsigned int)m_pScript->m_info.m_diceMax +
+                m_pScript->m_info.m_diceMin;
 }
 
 int BlueMarble::getBlueMarbleMap() const
 {
-    return m_field1c;
+    return m_blueMarbleMap;
 }
 
 int BlueMarble::setBlueMarbleMap()
 {
-    m_field1c = (unsigned int)m_pRands[1].randInt() %
+    m_blueMarbleMap = (unsigned int)m_pRands[1].randInt() %
                     (unsigned int)m_pScript->getMapTotalCount() +
                 1;
 }
@@ -341,10 +336,10 @@ int BlueMarble::getBuff(CUser* user, BlueMarbleBuffType::T type)
 
 int BlueMarble::getRandomItem() const
 {
-    unsigned long range = (unsigned long)((BM_ScriptFields*)m_pScript)->m_field4c;
+    unsigned long range = (unsigned long)m_pScript->m_info.m_itemWeightTotal;
     int r = m_pRands[3].randInt(range);
     std::vector<BlueMarbleRandomItemInfo>* items =
-        (std::vector<BlueMarbleRandomItemInfo>*)((char*)m_pScript + 0x98);
+        &m_pScript->m_info.m_randomItemList;
     int count = (int)items->size();
     int acc = 0;
     unsigned int i = 0;
@@ -369,13 +364,13 @@ int BlueMarble::getRandomDungeon(int seat, BlueMarbleTileScript::Type type) cons
     {
         return 0;
     }
-    int tile = (int)m_pScript->getMap(getBlueMarbleMap())->getTile(
+    BlueMarbleTileScript* tile = m_pScript->getMap(getBlueMarbleMap())->getTile(
         (unsigned int)m_users[seat].getBoardZone());
     if (tile == 0)
     {
         return 0;
     }
-    if (*(char*)(tile + 4) != 1)
+    if (tile->m_char4 != 1)   // ORIG 0x080d74a5 `movzbl 0x4(%eax),%eax`（char 读）
     {
         return 0;
     }
@@ -383,16 +378,16 @@ int BlueMarble::getRandomDungeon(int seat, BlueMarbleTileScript::Type type) cons
         std::vector<int> tmp;
         if (type == (BlueMarbleTileScript::Type)7)
         {
-            tmp = ((BlueMarbleInfoScript*)((char*)m_pScript + 0x30))->getUniqueDungeonIndex(level);
+            tmp = m_pScript->m_info.getUniqueDungeonIndex(level);
         }
         else if (type == (BlueMarbleTileScript::Type)8 ||
                  type == (BlueMarbleTileScript::Type)2)
         {
-            tmp = ((BlueMarbleInfoScript*)((char*)m_pScript + 0x30))->getBossDungeonIndex(level);
+            tmp = m_pScript->m_info.getBossDungeonIndex(level);
         }
         else
         {
-            tmp = ((BlueMarbleInfoScript*)((char*)m_pScript + 0x30))->getRandomDungeonIndex(level);
+            tmp = m_pScript->m_info.getRandomDungeonIndex(level);
         }
         local = std::move(tmp);
     }
@@ -415,7 +410,7 @@ bool BlueMarble::checkJoin()
     {
         return 0;
     }
-    if (getWaitUserCount() >= ((BM_ScriptFields*)m_pScript)->m_maxUser)
+    if (getWaitUserCount() >= m_pScript->m_info.m_playerMax)
     {
         return 0;
     }
@@ -428,7 +423,7 @@ int BlueMarble::join(CUser* user)
     {
         return 0x17;
     }
-    for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
+    for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
     {
         if (m_users[i].getUser() == 0)
         {
@@ -482,10 +477,10 @@ int BlueMarble::setUserInfo(BlueMarbleScriptManager* script)
 
 int BlueMarble::resetBlueMarble()
 {
-    m_field18 = 0;
-    m_field1c = 0;
+    m_diceNumber = 0;
+    m_blueMarbleMap = 0;
     m_set.clear();
-    m_field3c = 0;
+    m_maxBoardSize = 0;
 }
 
 int BlueMarble::resetBuffInfo(int seat)
@@ -505,7 +500,7 @@ int BlueMarble::checkUserConditionEnterBlueMarble(CUser* user)
         return 0x17;
     }
     int count = 0;
-    for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
+    for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
     {
         if (m_users[i].getUser() == user)
         {
@@ -526,13 +521,13 @@ int BlueMarble::checkUserConditionEnterBlueMarble(CUser* user)
         if (user->getMoveSpace() != (UserSpace::T)1)
         {
             int level = user->get_charac_level();
-            if (level < ((BM_ScriptFields*)m_pScript)->m_minLevel ||
-                level > ((BM_ScriptFields*)m_pScript)->m_maxLevel)
+            if (level < m_pScript->m_info.m_enterLevel ||
+                level > m_pScript->m_info.m_enterMaxLevel)
             {
                 return 0x17;
             }
             if ((int)user->getBlueMarbleEnterCount() >=
-                ((BM_ScriptFields*)m_pScript)->m_enterLimit)
+                m_pScript->m_info.m_enterCount)
             {
                 return 0x17;
             }
@@ -587,7 +582,7 @@ void BlueMarble::checkBlueMarbleUserConfirm(CUser* user)
     {
         sprintf(local_428, "./log/%s/BlueMarbleConfirmInfo",
                 G_CEnvironment()->get_file_name());
-        for (i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
+        for (i = 0; i < m_pScript->m_info.m_playerMax; ++i)
         {
             if (m_users[i].getUser() == user)
             {
@@ -629,7 +624,7 @@ int BlueMarble::enterBlueMarble(CUser* user)
     {
         return result;
     }
-    if (getWaitUserCount() == ((BM_ScriptFields*)m_pScript)->m_maxUser)
+    if (getWaitUserCount() == m_pScript->m_info.m_playerMax)
     {
         changeState((BlueMarbleState::T)1);
     }
@@ -642,7 +637,7 @@ bool BlueMarble::checkStartBlueMarble()
     {
         return 0;
     }
-    if (getWaitUserCount() < ((BM_ScriptFields*)m_pScript)->m_maxUser)
+    if (getWaitUserCount() < m_pScript->m_info.m_playerMax)
     {
         changeState(BlueMarbleState::T_0);
         return 0;
@@ -658,7 +653,7 @@ int BlueMarble::startBlueMarble()
         changeState((BlueMarbleState::T)2);
         setBlueMarbleMap();
         setMaxBoardSize();
-        for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
+        for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
         {
             if (m_users[i].getUser() == 0)
             {
@@ -768,11 +763,11 @@ int BlueMarble::tileType(int seat)
     BlueMarbleMapScript* map = m_pScript->getMap(getBlueMarbleMap());
     if (map != 0)
     {
-        int* tile = (int*)m_pScript->getMap(getBlueMarbleMap())->getTile(
+        BlueMarbleTileScript* tile = m_pScript->getMap(getBlueMarbleMap())->getTile(
             (unsigned int)zone);
         if (tile != 0)
         {
-            switch (tile[0])
+            switch (tile->m_type)   // ORIG 0x080d713b `mov (%eax),%eax`（int 读）
             {
             case 2:
             case 8:
@@ -780,13 +775,13 @@ int BlueMarble::tileType(int seat)
                                 getRandomDungeon(seat, (BlueMarbleTileScript::Type)2));
                 break;
             case 3:
-                setGoldBuff(seat, tile[2]);
+                setGoldBuff(seat, tile->m_value);
                 break;
             case 4:
-                setExpBuff(seat, tile[2]);
+                setExpBuff(seat, tile->m_value);
                 break;
             case 5:
-                setDropBuff(seat, tile[2]);
+                setDropBuff(seat, tile->m_value);
                 break;
             case 6:
                 setItemIndex(seat, getRandomItem());
@@ -801,7 +796,7 @@ int BlueMarble::tileType(int seat)
                 break;
             case 9:
                 setVisitZone(zone);
-                setMovePosition(seat, tile[2]);
+                setMovePosition(seat, tile->m_value);
                 if (checkMoveFirstZone(seat, (BlueMarbleTileScript::Type)9))
                 {
                     resetBuffInfo(seat);
@@ -810,7 +805,7 @@ int BlueMarble::tileType(int seat)
                 break;
             case 10:
                 setVisitZone(zone);
-                setMovePosition(seat, tile[2] - getMovePosition(seat));
+                setMovePosition(seat, tile->m_value - getMovePosition(seat));
                 if (checkMoveFirstZone(seat, (BlueMarbleTileScript::Type)10))
                 {
                     resetBuffInfo(seat);
@@ -820,7 +815,7 @@ int BlueMarble::tileType(int seat)
             case 11:
             case 12:
             case 13:
-                setDungeonIndex(seat, tile[2]);
+                setDungeonIndex(seat, tile->m_value);
                 break;
             default:
                 break;
@@ -920,12 +915,12 @@ int BlueMarble::giveupDungeon(CUser* user)
         {
             if (m_pScript->getMap(getBlueMarbleMap()) != 0)
             {
-                int* tile = (int*)m_pScript->getMap(getBlueMarbleMap())->getTile(
+                BlueMarbleTileScript* tile = m_pScript->getMap(getBlueMarbleMap())->getTile(
                     (unsigned int)m_users[seat].getBoardZone());
                 if (tile != 0)
                 {
                     if (checkMoveFirstZone(seat,
-                                           (BlueMarbleTileScript::Type)tile[0]))
+                                           (BlueMarbleTileScript::Type)tile->m_type))
                     {
                         setMovePosition(seat, 1 - getMovePosition(seat));
                         resetBuffInfo(seat);
@@ -967,7 +962,7 @@ done:
 int BlueMarble::resultReward()
 {
     Inven_Item item;
-    for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
+    for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
     {
         if (m_users[i].getUser() == 0)
         {
@@ -993,7 +988,7 @@ int BlueMarble::setResultItem(int seat, Inven_Item& item)
 {
     int grade = m_users[seat].getGrade();
     std::vector<BlueMarbleRewardInfo>* rewards =
-        (std::vector<BlueMarbleRewardInfo>*)((char*)m_pScript + 0xa4);
+        &m_pScript->m_info.m_rewardList;
     if (grade == 1)
     {
         item.m_addInfo = (*rewards)[1].m_a;
@@ -1024,7 +1019,8 @@ int BlueMarble::setResultItem(int seat, Inven_Item& item)
 
 int BlueMarble::insertItem(int seat, Inven_Item& item, eItemAddReason reason)
 {
-    int addInfo = *(int*)((char*)&item + 7);
+    // ORIG 0x080d800e：`mov 0x7(%eax),%ebx`（4 字节读）= Inven_Item::m_addInfo2。
+    int addInfo = item.m_addInfo2;
     G_CDataManager()->m_itemList->create_item(ENUM_ITEM_CREATE_TYPE_0, item,
                                               addInfo);
     CInventory* inven =
@@ -1048,12 +1044,22 @@ int BlueMarble::insertItem(int seat, Inven_Item& item, eItemAddReason reason)
             serverGroup, false, false);
         if (mailRet == 0)
         {
+            // ORIG 栈槽 local_273（0x145）= MSG_MAILBOX_SEND 载荷（权威布局
+            // PacketTypes.h：m_name11@+0x11 / m_itemId39@+0x39 / m_extra3d@+0x3d；
+            // 写指令 `mov %eax,-0x236/-0x232(%ebp)` 均 4 字节 ⇒ 字段宽一致）。
+            // 保留 char 数组载体（ORIG 该槽未 4 字节对齐：-0x273(%ebp)），且
+            // 不引入额外局部指针变量（O0 下会多占栈槽、改变指令数）：逐处
+            // reinterpret_cast 直读；不新增对象（MSG_BASE ctor 会多出 call）。
             char local_273[0x145];
             memset(local_273, 0, 0x145);
-            strncpy(local_273 + 0x11, local_2e, 0x1d);
-            *(int*)(local_273 + 0x39) = *(int*)((char*)&item + 2);
-            *(int*)(local_273 + 0x3d) = *(int*)((char*)&item + 7);
-            m_users[seat].getUser()->m_historyLog.SendMail((MSG_MAILBOX_SEND*)local_273, 0);
+            strncpy(reinterpret_cast<MSG_MAILBOX_SEND*>(local_273)->m_name11,
+                    local_2e, 0x1d);                   // +0x11 收件人角色名
+            reinterpret_cast<MSG_MAILBOX_SEND*>(local_273)->m_itemId39 =
+                static_cast<unsigned long>(item.m_addInfo);   // +0x39 附件物品 id
+            reinterpret_cast<MSG_MAILBOX_SEND*>(local_273)->m_extra3d =
+                item.m_addInfo2;                       // +0x3d 附件 add_info
+            m_users[seat].getUser()->m_historyLog.SendMail(
+                reinterpret_cast<MSG_MAILBOX_SEND*>(local_273), 0);
         }
     }
     else
@@ -1066,7 +1072,7 @@ int BlueMarble::setLeaveUserBlueMarbleState()
 {
     if (getWaitUserCount() == 0)
     {
-        for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
+        for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
         {
             m_users[i].resetBlueMarbleUserInfo();
         }
@@ -1115,7 +1121,7 @@ int BlueMarble::sendBlueMarbleRoomInfo() const
     packet.put_header(0, 0x1ae);
     packet.put_short(getMemoryPoolIndex());
     packet.put_byte(getWaitUserCount());
-    for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
+    for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
     {
         if (m_users[i].getUser() == 0)
         {
@@ -1185,7 +1191,7 @@ int BlueMarble::sendUpdateItemInfo(int seat, int idx) const
 
 void BlueMarble::sendToBlueMarble(PacketGuard& guard) const
 {
-    for (int i = 0; i < ((BM_ScriptFields*)m_pScript)->m_maxUser; ++i)
+    for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
     {
         if (m_users[i].getUser() == 0)
         {

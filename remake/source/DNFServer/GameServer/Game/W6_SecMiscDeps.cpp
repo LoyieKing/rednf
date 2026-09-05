@@ -295,7 +295,7 @@ std::vector<WongWork::SUserPremiumInfo> WongWork::CUserPremium::GetPremiumInfoLi
     //（stride 0x14），m_type != 0 且 filter==0x270f 或等于 m_type 时 push_back。
     std::vector<SUserPremiumInfo> list;
     const SUserPremiumInfo* entries =
-        reinterpret_cast<const SUserPremiumInfo*>(m_pad);
+        m_entries;   // CUserPremium::m_pad[0x848] 已字段化为 SUserPremiumInfo m_entries[0x6a]
     for (int i = 1; i <= 0x69; ++i)
     {
         const SUserPremiumInfo& entry = entries[i];

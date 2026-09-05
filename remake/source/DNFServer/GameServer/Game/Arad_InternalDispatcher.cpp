@@ -213,61 +213,45 @@ void Arad_InternalDispatcher::DeleteDispatcher::operator()(
 // ============================================================================
 bool Arad_DatabaseDispatcher::Init()
 {
-    {
-        // ORIG new@08184d55 + ctor 0x8186836（code=K_ARAD_EVENT_ITEM_LOG）
-        Arad_DB_kAradEventItemLog* d = new Arad_DB_kAradEventItemLog();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x81868a8（code=K_SET_CHARAC_CREATE_TIME）
-        Arad_DB_kSetCharacCreateTime* d = new Arad_DB_kSetCharacCreateTime();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x818691a（code=K_LOAD_REWARD_EVENT_ITEM）
-        Arad_DB_kLoadRewardEventItem* d = new Arad_DB_kLoadRewardEventItem();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x818698c（code=K_SAVE_REWARD_EVENT_ITEM）
-        Arad_DB_kSaveRewardEventItem* d = new Arad_DB_kSaveRewardEventItem();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x81869fe（code=K_SAVE_SERVER_STATE）
-        Arad_DB_kSaveServerState* d = new Arad_DB_kSaveServerState();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x8186a70（code=K_LOAD_SERVER_STATE）
-        Arad_DB_kLoadServerState* d = new Arad_DB_kLoadServerState();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x8186ae2（code=K_DB_AVATAR_HIDDEN_OPTION_SAVE）
-        Arad_DB_kAvatarHiddenOptionSave* d = new Arad_DB_kAvatarHiddenOptionSave();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x8186b54（code=K_DB_AVATAR_ENDURANCE_SAVE）
-        Arad_DB_kAvatarEnduranceSave* d = new Arad_DB_kAvatarEnduranceSave();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x8186bc6（code=K_RESET_LIMITED_CREATE_CHARAC_PER_MID）
-        Arad_DB_kResetLimitedCreateCharacPerMid* d =
-            new Arad_DB_kResetLimitedCreateCharacPerMid();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
+    // ORIG 0x08184d40：单槽 `Arad_IDatabaseDispatcher* d`(-0xc) 跨块复用、
+    //   每块头 movl$0,-0xc 重新置空；d==0（0x08184d6b je）跳 regist 继续下块。
+    Arad_IDatabaseDispatcher* d = 0;
+    // ORIG new@08184d55 + ctor 0x8186836（code=K_ARAD_EVENT_ITEM_LOG）
+    d = new Arad_DB_kAradEventItemLog();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x81868a8（code=K_SET_CHARAC_CREATE_TIME）
+    d = new Arad_DB_kSetCharacCreateTime();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x818691a（code=K_LOAD_REWARD_EVENT_ITEM）
+    d = new Arad_DB_kLoadRewardEventItem();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x818698c（code=K_SAVE_REWARD_EVENT_ITEM）
+    d = new Arad_DB_kSaveRewardEventItem();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x81869fe（code=K_SAVE_SERVER_STATE）
+    d = new Arad_DB_kSaveServerState();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x8186a70（code=K_LOAD_SERVER_STATE）
+    d = new Arad_DB_kLoadServerState();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x8186ae2（code=K_DB_AVATAR_HIDDEN_OPTION_SAVE）
+    d = new Arad_DB_kAvatarHiddenOptionSave();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x8186b54（code=K_DB_AVATAR_ENDURANCE_SAVE）
+    d = new Arad_DB_kAvatarEnduranceSave();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x8186bc6（code=K_RESET_LIMITED_CREATE_CHARAC_PER_MID）
+    d = new Arad_DB_kResetLimitedCreateCharacPerMid();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
     return true;
 }
 
@@ -277,67 +261,48 @@ bool Arad_DatabaseDispatcher::Init()
 // ============================================================================
 bool Arad_InternalDispatcher::Init()
 {
-    {
-        // ORIG new@081985ad + ctor 0x819a46e（code=K_LOAD_REWARD_EVENT_ITEM）
-        Arad_INTER_kLoadRewardEventItem* d = new Arad_INTER_kLoadRewardEventItem();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x819a4e0（code=K_SAVE_SERVER_STATE）
-        Arad_INTER_kSaveServerState* d = new Arad_INTER_kSaveServerState();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x819a552（code=K_LOAD_SERVER_STATE）
-        Arad_INTER_kLoadServerState* d = new Arad_INTER_kLoadServerState();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x819a5c4（code=K_DELETE_SERVER_STATE）
-        Arad_INTER_kDeleteServerState* d = new Arad_INTER_kDeleteServerState();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x819a3fc（code=K_AVATAR_ROULETTE）
-        Arad_INTER_kAvatarRoulette* d = new Arad_INTER_kAvatarRoulette();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x819a636（code=K_ARAD_JUMPING_CHARACTER）
-        Arad_INTER_kAradJumpingCharacter* d = new Arad_INTER_kAradJumpingCharacter();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x819a6a8（code=K_AVATAR_HIDDEN_OPTION_CHANGE）
-        Arad_INTER_kAvatarHiddenOptionChange* d =
-            new Arad_INTER_kAvatarHiddenOptionChange();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x819a71a（code=K_USE_AVATAR_RECHARGE）
-        Arad_INTER_kUseAvatarRecharge* d = new Arad_INTER_kUseAvatarRecharge();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x819a78c（code=K_EMBLEM_COMPOUND）
-        Arad_INTER_kEmblemCompound* d = new Arad_INTER_kEmblemCompound();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
-    {
-        // ORIG ctor 0x819a7fe（code=K_AVATAR_CONVERT）
-        Arad_INTER_kAvatarConvert* d = new Arad_INTER_kAvatarConvert();
-        if (d == 0 || !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
-            return false;
-    }
+    // ORIG 0x08198598：同构，单槽 d 复用（-0xc）。
+    Arad_IInterDispatcher* d = 0;
+    // ORIG new@081985ad + ctor 0x819a46e（code=K_LOAD_REWARD_EVENT_ITEM）
+    d = new Arad_INTER_kLoadRewardEventItem();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x819a4e0（code=K_SAVE_SERVER_STATE）
+    d = new Arad_INTER_kSaveServerState();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x819a552（code=K_LOAD_SERVER_STATE）
+    d = new Arad_INTER_kLoadServerState();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x819a5c4（code=K_DELETE_SERVER_STATE）
+    d = new Arad_INTER_kDeleteServerState();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x819a3fc（code=K_AVATAR_ROULETTE）
+    d = new Arad_INTER_kAvatarRoulette();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x819a636（code=K_ARAD_JUMPING_CHARACTER）
+    d = new Arad_INTER_kAradJumpingCharacter();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x819a6a8（code=K_AVATAR_HIDDEN_OPTION_CHANGE）
+    d = new Arad_INTER_kAvatarHiddenOptionChange();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x819a71a（code=K_USE_AVATAR_RECHARGE）
+    d = new Arad_INTER_kUseAvatarRecharge();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x819a78c（code=K_EMBLEM_COMPOUND）
+    d = new Arad_INTER_kEmblemCompound();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
+    // ORIG ctor 0x819a7fe（code=K_AVATAR_CONVERT）
+    d = new Arad_INTER_kAvatarConvert();
+    if (d != 0 && !_registDispatcher((ENUM_INTERNALPACKET_JPN)d->get_code(), d))
+        return false;   // ORIG 4.1 短路与物化 flag-island（0x08184d92-0x08184da7）
     return true;
 }
 
@@ -346,9 +311,12 @@ bool Arad_InternalDispatcher::Init()
 // 具体 DB 流派发器 —— ctor 形态（ORIG 各 ctor 0x24 字节反汇编）：
 //   调基类 Arad_IDatabaseDispatcher(enum 立即数) 后由编译器写自身 vptr；
 //   析构隐式（ORIG W D1/D0，仅置基类 vptr + 调基类析构）。
+//   ORIG 各派生 ctor 帧为 sub $0x18（例 kAradEventItemLog@0x08186836、
+//   kAvatarRoulette@0x0819a3fc），call outgoing 仅占 0x8 ⇒ 需 0x10 dead pad 撑帧。
 // ============================================================================
 #define ARAD_DB_DISPATCHER_CTOR(IMPL, CODE) \
-    IMPL::IMPL() : Arad_IDatabaseDispatcher((ENUM_INTERNALPACKET_JPN)(CODE)) {}
+    IMPL::IMPL() : Arad_IDatabaseDispatcher((ENUM_INTERNALPACKET_JPN)(CODE)) \
+    { char pad[0x10]; (void)pad; }
 
 ARAD_DB_DISPATCHER_CTOR(Arad_DB_kAradEventItemLog, 0x20)
 Arad_DB_kAradEventItemLog::~Arad_DB_kAradEventItemLog() {}
@@ -381,12 +349,16 @@ Arad_DB_kResetLimitedCreateCharacPerMid::~Arad_DB_kResetLimitedCreateCharacPerMi
 bool Arad_DB_kAradEventItemLog::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x081851dc：inSert into log_arad_event_stat (...) values (now(), %u, %u, %u, %d)。
+    //   返回值经 %ebx 缓存（4.1 EH 形）：早退 0x08185224 mov$0,%ebx、
+    //   成功 0x0818535e? mov$1,%ebx、catch 0x08185343 mov$0,%ebx。
+    register bool ret asm("ebx");
     arad::SigAradEventItemLog* sig = stream->GetOutBuffer<arad::SigAradEventItemLog>();
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x643, "EVENT ITEM LOG, SigAradEventItemLog is null.");
-        return false;
+        ret = false;
+        goto done;
     }
     try
     {
@@ -400,7 +372,6 @@ bool Arad_DB_kAradEventItemLog::dispatch(int code, int uid, Stream* stream)
             throw "set_query";
         if (!db->exec(true))
             throw "exec";
-        return true;
     }
     catch (const char* e)
     {
@@ -408,18 +379,25 @@ bool Arad_DB_kAradEventItemLog::dispatch(int code, int uid, Stream* stream)
                               0x661,
                               "[EVENT_LOG] DB_DSP Error, insert log to log_arad_event_stat. (error:%s)",
                               e);
+        ret = false;
+        return ret;
     }
-    return false;
+    ret = true;
+done:
+    return ret;
 }
 bool Arad_DB_kSetCharacCreateTime::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x081853b2：upDate charac_info set create_time=from_unixtime(%u) where charac_no=%u。
+    //   %ebx 缓存返回（catch 0x08185544 / 成功 0x08185565 / merge 0x0818556a）。
+    register bool ret asm("ebx");
     arad::SigSetCharacCreateTime* sig = stream->GetOutBuffer<arad::SigSetCharacCreateTime>();
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x773, "SigSetCharacCreateTime is null.");
-        return false;
+        ret = false;
+        goto done;   // ORIG 0x08185346：`mov$0,%ebx; jmp merge`（共享 merge，勿复制）
     }
     try
     {
@@ -432,14 +410,17 @@ bool Arad_DB_kSetCharacCreateTime::dispatch(int code, int uid, Stream* stream)
             throw "set_query";
         if (!db->exec(true))
             throw "exec";
-        return true;
     }
     catch (const char* e)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x788, "[SetCharacCreateTime] DB_DSP Error,  (error:%s)", e);
+        ret = false;
+        return ret;
     }
-    return false;
+    ret = true;
+done:
+    return ret;
 }
 // ORIG 0x08185574：select event_id, charac_no ... limit 10 →
 //   SigLoadRewardEventItem(count + eventId[10] + characNo[10]) →
@@ -448,12 +429,16 @@ bool Arad_DB_kSetCharacCreateTime::dispatch(int code, int uid, Stream* stream)
 bool Arad_DB_kLoadRewardEventItem::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x08186f7c：GetOutBuffer<arad::SigLoadRewardEventItem> 模板实例。
+    //   %ebx 缓存返回（4.1 EH 形）：put 结果 0x0818583e `mov %eax,%ebx`，
+    //   catch 0x081858b0 `mov$0,%ebx`，merge 0x081858d1 `mov%ebx,%eax`。
+    register bool ret asm("ebx");
     arad::SigLoadRewardEventItem* sig = stream->GetOutBuffer<arad::SigLoadRewardEventItem>();
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x796, "SigRewardEventItem is null.");
-        return false;
+        ret = false;
+        goto done;
     }
     try
     {
@@ -475,48 +460,52 @@ bool Arad_DB_kLoadRewardEventItem::dispatch(int code, int uid, Stream* stream)
 
         // 行循环：col0=event_id(int) → m_eventCodes[i]；
         //         col1=charac_no(uint) → m_characNos[i]；每行 m_count++。
+        // ORIG 0x081856e0/0x08185738：get_int/get_uint 目标 = lea out+4*i(+0x28)+6/0xe
+        //   直填字段（技巧37 无具名中间槽）；m_count++ 0x08185794（movzwl+add+mov%ax）。
         int i = 0;
         arad::SigLoadRewardEventItem out;
         while (db->fetch())
         {
-            int eventId = 0;
-            if (!db->get_int(0, eventId))
+            if (!db->get_int(0, *(int*)&(out.m_eventCodes[i])))
                 throw "EventCode";
-            unsigned int characNo = 0;
-            if (!db->get_uint(1, characNo))
+            // ORIG 0x08185746：i++ 发生在 get_uint 地址算好后、call 前
+            //   ⇒ 源形为 get_uint(1, m_characNos[i++])（技巧4 后缀 ++）。
+            if (!db->get_uint(1, *(unsigned int*)&(out.m_characNos[i++])))
                 throw "Character";
-            out.m_eventCodes[i] = eventId;
-            out.m_characNos[i] = characNo;
-            ++i;
             ++out.m_count;
         }
 
-        Stream* acquired = GlobalData::s_stream_pool->Acquire(
-            "localjapan/Arad_DatabaseDispatcher.cpp", 0x7b8);
-        CStreamGuard guard(acquired, true);
+        // ORIG 0x081857ca：Acquire 结果直落 ctor 实参（无 acquired 槽）。
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "localjapan/Arad_DatabaseDispatcher.cpp", 0x7b8), true);
         make_internal_stream_jpn(guard, (ENUM_INTERNALPACKET_JPN)0x26, uid);
-        guard.put_binary(&out, 0x56);
+        // ORIG 0x08185806/0x0818581d：两级 operator* → put_binary（技巧35）。
+        guard.operator*()->put_binary(&out, 0x56);
 
-        bool putRet = GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-        return putRet;
+        ret = GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
     catch (const char* e)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x7c0,
                               "[SigRewardEventItem] DB_DSP Error,  (error:%s)", e);
+        ret = false;
     }
-    return false;
+done:
+    return ret;
 }
 bool Arad_DB_kSaveRewardEventItem::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x081858de：inSert into event_reward_item_arad values (%d,%u,%u,%u,from_unixtime(%u),now())。
+    //   %ebx 缓存返回（4.1 EH 形）。
+    register bool ret asm("ebx");
     arad::SigSaveRewardEventItem* sig = stream->GetOutBuffer<arad::SigSaveRewardEventItem>();
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x7cc, "SigRewardEventItem is null.");
-        return false;
+        ret = false;
+        goto done;
     }
     try
     {
@@ -526,18 +515,21 @@ bool Arad_DB_kSaveRewardEventItem::dispatch(int code, int uid, Stream* stream)
         if (!db->set_query(
                 " inSert into event_reward_item_arad values (%d, %u, %u, %u, from_unixtime(%u), now())",
                 sig->m_field00, sig->m_field04, sig->m_field08,
-                sig->m_field10, (unsigned short)sig->m_field14))
+                sig->m_field10, sig->m_field0c))   // ORIG 0x08185985：第5实参 = +0x0c dword 直存
             throw "set_query";
         if (!db->exec(true))
             throw "exec";
-        return true;
     }
     catch (const char* e2)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x7e1, "[SigRewardEventItem] DB_DSP Error,  (error:%s)", e2);
+        ret = false;
+        return ret;
     }
-    return false;
+    ret = true;
+done:
+    return ret;
 }
 // ORIG 0x08185d20：select category, code, state where end_time >= now() →
 //   SigServerState（m_flag/m_count + tagData[20]，逐行填 m_category/m_code/
@@ -546,12 +538,15 @@ bool Arad_DB_kSaveRewardEventItem::dispatch(int code, int uid, Stream* stream)
 bool Arad_DB_kLoadServerState::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x08187024：GetOutBuffer<arad::SigServerState> 模板实例。
+    //   %ebx 缓存返回（4.1 EH 形）。
+    register bool ret asm("ebx");
     arad::SigServerState* sig = stream->GetOutBuffer<arad::SigServerState>();
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x81e, "SigServerState is null.");
-        return false;
+        ret = false;
+        goto done;
     }
     (void)sig;   // 取出仅作非空校验（ORIG 同样不再读该缓冲字段）
 
@@ -568,92 +563,111 @@ bool Arad_DB_kLoadServerState::dispatch(int code, int uid, Stream* stream)
         if (!db->exec(true))
             throw "exec";
 
-        int i = 0;
+        // ORIG 0x08185e53：out 在 exec 后构造；循环索引 = out.m_count 本身
+        //   （0x08185e66 `mov -0x1b0(%ebp),%edx` = out+1 dword，无独立 i 槽）；
+        //   m_count++ 尾置 0x08185fa0。
         arad::SigServerState out;
         while (db->fetch())
         {
-            int category = 0;
-            if (!db->get_int(0, category))
+            // ORIG 0x08185e6c/0x08185ee2：get_int 目标 = lea out+idx*0x14(+4) 直填
+            //   字段（无具名中间槽，技巧37）。
+            if (!db->get_int(0, *(int*)&(out.m_data[out.m_count].m_category)))
                 throw "category";
-            int stateCode = 0;
-            if (!db->get_int(1, stateCode))
+            if (!db->get_int(1, *(int*)&(out.m_data[out.m_count].m_code)))
                 throw "category";
-            out.m_data[i].m_category = category;
-            out.m_data[i].m_code = stateCode;
-            if (!db->get_binary(2, &out.m_data[i].m_msg, 0xc))
+            if (!db->get_binary(2, &out.m_data[out.m_count].m_msg, 0xc))
                 throw "state";
-            i = i + 1;
+            ++out.m_count;
         }
 
-        Stream* acquired = GlobalData::s_stream_pool->Acquire(
-            "localjapan/Arad_DatabaseDispatcher.cpp", 0x83f);
-        CStreamGuard guard(acquired, true);
+        // ORIG 0x08185fda：Acquire 结果 %eax 直落 guard ctor 实参（无 acquired 槽）。
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "localjapan/Arad_DatabaseDispatcher.cpp", 0x83f), true);
 
         make_internal_stream_jpn(guard, (ENUM_INTERNALPACKET_JPN)0x29, -1);
-        guard.put_binary(&out, 0x195);
+        // ORIG 0x08186017/0x08186031：两级 `call operator*; call put_binary`（技巧35）。
+        guard.operator*()->put_binary(&out, 0x195);
 
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-        return true;
     }
     catch (const char* e)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x846,
                               "[SigRewardEventItem] DB_DSP Error,  (error:%s)", e);
+        ret = false;
+        return ret;
     }
-    return false;
+    // ORIG 0x08186069/0x08186074：guard dtor 后 fall 入 `mov$1,%ebx` → merge
+    //   ⇒ 成功赋值在 try-catch 之后（E 形，技巧23 系）。
+    ret = true;
+done:
+    return ret;
 }
 bool Arad_DB_kSaveServerState::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x08185abe：flag==0 → deLete by category/code；否则 inSert(msg blob→str)。
+    //   %ebx 缓存返回（4.1 EH 形）。
+    register bool ret asm("ebx");
     arad::SigServerState* sig = stream->GetOutBuffer<arad::SigServerState>();
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x7ef, "SigServerState is null.");
-        return false;
+        ret = false;
+        goto done;
     }
     try
     {
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2, (ENUM_SERVER_GROUP)0);
         if (db == 0)
             throw "handle null";
-        if (sig->m_flag == 0)
+        // ORIG 0x08185b65 `movzbl (%eax),%eax; test; je →delete 岛`：flag 真值测试、
+        //   fall-through = inSert 分支在前（技巧17）；blob_to_str/endSec 内联实参
+        //   （技巧37，ORIG 0x08185b73 endSec→%ebx 先载、0x08185b96 结果 %eax 直存
+        //   0x10(%esp)，无具名槽）。
+        if (sig->m_flag)
+        {
+            if (!db->set_query(
+                    " inSert into server_state_info values (%d, %d, '%s', now(), from_unixtime(%u)) ",
+                    sig->m_data[0].m_category, sig->m_data[0].m_code,
+                    db->blob_to_str(0, &sig->m_data[0].m_msg, 0xc),
+                    sig->m_data[0].m_msg.m_endSec))
+                throw "set_query";
+        }
+        else
         {
             if (!db->set_query(" deLete from server_state_info where category=%d and code=%d ",
                                sig->m_data[0].m_category, sig->m_data[0].m_code))
                 throw "set_query";
         }
-        else
-        {
-            unsigned int endSec = sig->m_data[0].m_msg.m_endSec;
-            char* msgStr = db->blob_to_str(0, &sig->m_data[0].m_msg, 0xc);
-            if (!db->set_query(
-                    " inSert into server_state_info values (%d, %d, '%s', now(), from_unixtime(%u)) ",
-                    sig->m_data[0].m_category, sig->m_data[0].m_code, msgStr, endSec))
-                throw "set_query";
-        }
         if (!db->exec(true))
             throw "exec";
-        return true;
     }
     catch (const char* e)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x812, "[SigRewardEventItem] DB_DSP Error,  (error:%s)", e);
+        ret = false;
+        return ret;
     }
-    return false;
+    ret = true;
+done:
+    return ret;
 }
 bool Arad_DB_kAvatarHiddenOptionSave::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x081860f4：upDate user_items set hidden_option where charac_no/slot/it_id。
+    //   %ebx 缓存返回（4.1 EH 形）。
+    register bool ret asm("ebx");
     arad::SigAradAvatarHiddenOptionSave* sig =
         stream->GetOutBuffer<arad::SigAradAvatarHiddenOptionSave>();
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x854, "SigAradAvatarHiddenOptionSave is null.");
-        return false;
+        ret = false;
+        goto done;
     }
     try
     {
@@ -666,19 +680,24 @@ bool Arad_DB_kAvatarHiddenOptionSave::dispatch(int code, int uid, Stream* stream
             throw "set_query";
         if (!db->exec(true))
             throw "exec";
-        return true;
     }
     catch (const char* e)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x868, "[SigRewardEventItem] DB_DSP Error,  (error:%s)", e);
+        ret = false;
+        return ret;
     }
-    return false;
+    ret = true;
+done:
+    return ret;
 }
 bool Arad_DB_kAvatarEnduranceSave::dispatch(int code, int uid, Stream* stream)
 {
     (void)code;
     (void)uid;
+    // %ebx 缓存返回（4.1 EH 形，ORIG 0x081862d0 同族）。
+    register bool ret asm("ebx");
     arad::SigAradAvatarEnduranceSave* sig =
         stream->GetOutBuffer<arad::SigAradAvatarEnduranceSave>();
     if (sig == 0)
@@ -686,7 +705,8 @@ bool Arad_DB_kAvatarEnduranceSave::dispatch(int code, int uid, Stream* stream)
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp",
                               __PRETTY_FUNCTION__, 0x876,
                               "SigAradAvatarEnduranceSave is null.");
-        return false;
+        ret = false;
+        goto done;
     }
     try
     {
@@ -701,20 +721,26 @@ bool Arad_DB_kAvatarEnduranceSave::dispatch(int code, int uid, Stream* stream)
             throw "set_query";
         if (!db->exec(true))
             throw "exec";
-        return true;
     }
     catch (const char* e)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp",
                               __PRETTY_FUNCTION__, 0x88a,
                               "[SigAradAvatarEnduranceSave] DB_DSP Error,  (error:%s)", e);
+        ret = false;
+        return ret;
     }
-    return false;
+    ret = true;
+done:
+    return ret;
 }
 
 bool Arad_DB_kResetLimitedCreateCharacPerMid::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x08186492：truncate limit_create_character。
+    // ORIG 4.1 EH 函数 bool 返回值经 %ebx 缓存、尾部 `mov %ebx,%eax` 出栈
+    //   （成功 0x081865e8 `mov $0x1,%ebx`；catch 0x081865c7 `mov $0,%ebx`）。
+    register bool ret asm("ebx");
     try
     {
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1, (ENUM_SERVER_GROUP)0);
@@ -724,21 +750,26 @@ bool Arad_DB_kResetLimitedCreateCharacPerMid::dispatch(int code, int uid, Stream
             throw "set_query";
         if (!db->exec(true))
             throw "exec";
-        return true;
+        // ORIG 0x08186492 布局：成功块 `mov$1,%ebx` 落在 cleanup 之后 fall 入
+        //   merge（0x081865e8）⇒ 成功赋值须在 try-catch 之后（E 形，技巧23 系）。
     }
     catch (const char* e)
     {
         LogManager::logFormat(1, "localjapan/Arad_DatabaseDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x8e1, "[ResetLimitedCreateCharacPerMid] DB_DSP Error,  (error:%s)", e);
+        ret = false;
+        return ret;
     }
-    return false;
+    ret = true;
+    return ret;   // ORIG 0x081865ed 直存 `mov %ebx,%eax`（技巧22 同族：bool 绑 ebx 免归一）
 }
 
 // ============================================================================
 // 具体 INTER 流派发器
 // ============================================================================
 #define ARAD_INTER_DISPATCHER_CTOR(IMPL, CODE) \
-    IMPL::IMPL() : Arad_IInterDispatcher((ENUM_INTERNALPACKET_JPN)(CODE)) {}
+    IMPL::IMPL() : Arad_IInterDispatcher((ENUM_INTERNALPACKET_JPN)(CODE)) \
+    { char pad[0x10]; (void)pad; }   // ORIG 派生 ctor 帧 0x18（见 DB 宏注释）
 
 ARAD_INTER_DISPATCHER_CTOR(Arad_INTER_kAvatarRoulette, 0x2c)
 Arad_INTER_kAvatarRoulette::~Arad_INTER_kAvatarRoulette() {}
@@ -786,7 +817,8 @@ Arad_INTER_kAvatarConvert::~Arad_INTER_kAvatarConvert() {}
 
 // ORIG Dispatcher_AradAvatarConvert::checkWorkState 0x081a003e W：
 //   Secu Check(user,0x2a) 非 0 → SendCmdErrorPacket(0x24f,err) 返回 false；
-//   否则 Singleton<AvatarConvertServer>::Get()->CheckCondition(user,&sig)。
+//   否则 Singleton<AvatarConvertServer>::Get()->CheckCondition(user,&sig)；
+//   尾部 ORIG 0x081a00a8 形 `call; xor $0x1,%eax; test; je →mov$1 岛` = !boolcall()（技巧1）。
 bool Dispatcher_AradAvatarConvert::checkWorkState(CUser* user,
                                                   ::arad::SigAradAvatarConvert& sig)
 {
@@ -797,7 +829,9 @@ bool Dispatcher_AradAvatarConvert::checkWorkState(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24f, (unsigned char)secuErr);
         return false;
     }
-    return Singleton<AvatarConvertServer>::Get()->CheckCondition(user, &sig);
+    if (!Singleton<AvatarConvertServer>::Get()->CheckCondition(user, &sig))
+        return false;
+    return true;
 }
 
 // ORIG Dispatcher_AradEmblemCompound::checkWorkState 0x0819fcb4 W：
@@ -819,7 +853,10 @@ bool Dispatcher_AradEmblemCompound::checkWorkState(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, (unsigned char)secuErr);
         return false;
     }
-    return Singleton<EmblemCompoundServer>::Get()->CheckCondition(user, &sig);
+    // ORIG 0x0819fd68 !boolcall 尾形（技巧1）。
+    if (!Singleton<EmblemCompoundServer>::Get()->CheckCondition(user, &sig))
+        return false;
+    return true;
 }
 
 // ORIG Dispatcher_AradUseAvatarRecharge::checkWorkState 0x0819f9d6 W。
@@ -833,7 +870,10 @@ bool Dispatcher_AradUseAvatarRecharge::checkWorkState(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, (unsigned char)secuErr);
         return false;
     }
-    return Singleton<AvatarRechargeServer>::Get()->CheckConditionUseRecharge(user, &sig);
+    // ORIG 0x0819fa40 !boolcall 尾形（技巧1）。
+    if (!Singleton<AvatarRechargeServer>::Get()->CheckConditionUseRecharge(user, &sig))
+        return false;
+    return true;
 }
 
 // ORIG Dispatcher_AvartarHiddenOptionChange::checkWorkState 0x0819f956 W。
@@ -847,7 +887,10 @@ bool Dispatcher_AvartarHiddenOptionChange::checkWorkState(CUser* user,
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, (unsigned char)secuErr);
         return false;
     }
-    return Singleton<AvatarFixedHiddenOptionServer>::Get()->CheckCondition(user, &sig);
+    // ORIG 0x0819f956 族同尾形（技巧1）。
+    if (!Singleton<AvatarFixedHiddenOptionServer>::Get()->CheckCondition(user, &sig))
+        return false;
+    return true;
 }
 
 // ORIG Dispatcher_AvartarRoulette::checkWorkState 0x0819ee6c W：
@@ -866,10 +909,9 @@ bool Dispatcher_AvartarRoulette::checkWorkState(CUser* user,
     }
     // AvatarCoin 位于 Inven 数组尾部固定偏移 +0x658【ABI 镜像】（同
     // Arad_InternalDispatcher_INTER.cpp kAvatarRoulette 段惯例）。
-    // 注意：ORIG add $0x658 为字节偏移，须经 char* 强转（CInventory* 元素偏移会差 0x7b8 倍）。
-    const AvatarCoin* coin =
-        (const AvatarCoin*)((char*)user->getCurCharacInvenR() + 0x658);
-    if (!coin->IsUsable())
+    // 注意：ORIG 0x0819eec9 `add $0x658,%eax`（char* 字节偏移、无具名 this 槽，
+    //   技巧37）；0x0819eed6 `xor$1;test;je` = !boolcall 直出（技巧1）。
+    if (!((const AvatarCoin*)((char*)user->getCurCharacInvenR() + 0x658))->IsUsable())
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24a, 0x16);
         return false;

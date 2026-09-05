@@ -165,7 +165,7 @@ void ComboSkill::convertComboSkillArray(unsigned char& count,
     }
 }
 
-char ComboSkill::loadData(SIG_COMBO_SKILL* data)
+bool ComboSkill::loadData(SIG_COMBO_SKILL* data)
 {
     if (data == 0)
     {
@@ -184,7 +184,7 @@ char ComboSkill::loadData(SIG_COMBO_SKILL* data)
     return 1;
 }
 
-char ComboSkill::saveData(SIG_COMBO_SKILL* data) const
+bool ComboSkill::saveData(SIG_COMBO_SKILL* data) const
 {
     if (data == 0)
     {

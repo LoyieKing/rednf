@@ -16,6 +16,7 @@ class Stream;
 class DB_InsertAccountFirstLoginFlag : public DBDispatcher
 {
 public:
+    DB_InsertAccountFirstLoginFlag() {}   // ORIG W C1/C2 0x844f5e2（try 区直调无 pad）
     // ORIG 0x0843e79a：向 DB 队列发一条请求（表头 0x25e + 5 参数）。
     static void makeRequest(int p1, unsigned int p2, int p3,
                             unsigned int p4, int p5);

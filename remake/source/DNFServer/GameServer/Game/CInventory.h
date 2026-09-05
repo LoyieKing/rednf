@@ -1,36 +1,9 @@
 #ifndef GAME_CINVENTORY_H_
 #define GAME_CINVENTORY_H_
 #include <cstddef>
-// SIG_CREATURE_ITEM_DETAIL_INFO 唯一权威定义（pack(1)，0x38；布局证据=CCreature.cpp
-// 局部镜像/CreatureOnlyMgrRest.cpp 镜像交叉锁定，两处局部副本应删除）。
-#ifndef DNF_GAME_SIG_CREATURE_ITEM_DETAIL_INFO_DEFINED
-#define DNF_GAME_SIG_CREATURE_ITEM_DETAIL_INFO_DEFINED
-#pragma pack(push, 1)
-struct SIG_CREATURE_ITEM_DETAIL_INFO
-{
-    int           m_slotNo;           // +0x00（0xee=装备中槽标记）
-    int           m_uid;              // +0x04（RegisterCreatureItem 的 map key）
-    char          m_name[0xc];        // +0x08（memcpy 12 字节，无终止符）
-    unsigned char m_pad14[4];         // +0x14..0x17
-    int           m_stomachValue;     // +0x18
-    unsigned char m_pad1c[4];         // +0x1c..0x1f
-    int           m_exp;              // +0x20
-    unsigned char m_creatureItemType; // +0x24（低字节；Load 以 (signed char) 还原）
-    unsigned char m_pad25;            // +0x25
-    unsigned char m_noCharge;         // +0x26
-    unsigned char m_stat;             // +0x27（兼作删除标记）
-    int           m_expireTime;       // +0x28
-    unsigned char m_pad2c[4];         // +0x2c..0x2f
-    unsigned char m_growExpFlag;      // +0x30
-    unsigned char m_isMaxLevel;       // +0x31
-    unsigned char m_pad32[6];         // +0x32..0x37
-};
-#pragma pack(pop)
-static_assert(sizeof(SIG_CREATURE_ITEM_DETAIL_INFO) == 0x38,
-              "SIG_CREATURE_ITEM_DETAIL_INFO ABI drift");
-static_assert(offsetof(SIG_CREATURE_ITEM_DETAIL_INFO, m_stomachValue) == 0x18,
-              "SIG_CREATURE_ITEM_DETAIL_INFO m_stomachValue offset drift");
-#endif
+// SIG_CREATURE_ITEM_DETAIL_INFO 权威定义已纯移动至 GamePODTypes.h（2026-09-04
+// DBLoad，叶子 POD 头免拉本头重量级链；guard 宏随迁保持幂等）。
+#include "GamePODTypes.h"
 struct SIG_POSTAL_CREATURE_TEMP_PERIOD;    // ORIG 全局域；仅证 +0 uid/+4 tempPeriod(-1 空)；指针传递即可
 
 // ============================================================================
@@ -458,7 +431,8 @@ public:
     //   GetSellItemPrice(Inven_Item&, CItem const*, short, bool, int&) 0x08618ea0
     //   GetSellItemPrice(CUser*, char, short, short, bool, int&, int&)  0x08619008
     //   user_buy_item(CUser*, int, int)                                 0x08618a44
-    Store() : m_field0(0), m_field4(0) {}   // ORIG create 内联构造：movl $0,(%eax); movb $0,0x4(%eax)
+    // 无用户 ctor（ORIG GlobalInstance<Store>::create@0x082711xx 不 call C1，
+    // 直接 `movl $0,(%eax); movb $0,0x4(%eax)` = trivial 类 value-init 清零）。
     int GetSellItemPrice(Inven_Item& item, const CItem* pItem, short count,
                          bool flag, int& outPrice);
     int GetSellItemPrice(CUser* user, char invenType, short slot, short count,
@@ -506,7 +480,18 @@ struct stEquipCondition
     unsigned char m_pad7;           // +0x07（ctor 清零）
     unsigned int m_field8;          // +0x08
 
-    stEquipCondition() { memset(this, 0, 8); m_flag6 = 1; }
+    // ORIG C1 0x86937d6: per-field stores (+0..+3 movb, +4 movw, +6=1, +7 movb),
+    // not memset; +6=1 precedes +7=0 (ORIG 0x086937f3 -> 0x086937fb order).
+    stEquipCondition()
+    {
+        m_upgrade = 0;         // ORIG +0x00 movb $0x0,(%eax)
+        m_tableIdx = 0;        // ORIG +0x01
+        m_amplifySelect = 0;   // ORIG +0x02
+        m_pad3 = 0;            // ORIG +0x03
+        m_field4 = 0;          // ORIG +0x04 movw $0x0,0x4(%eax)
+        m_flag6 = 1;           // ORIG +0x06 movb $0x1 (before +7)
+        m_pad7 = 0;            // ORIG +0x07 movb $0x0
+    }
 };
 
 // stEquipConditionForChronicle —— ORIG 输出布局（0xc 字节）。
@@ -602,6 +587,8 @@ public:
     int QuickEmptyCount() const;
     int GetRemainCapacity(INVEN_TYPE invenType, Inven_Item::ITEM_TYPE type) const;
     int check_slot_empty(int slot) const;
+    // ORIG 0x08505019 `mov $0x1,%eax` / 0x08505031 `mov $0x0,%eax`（dword 直写）
+    // 且 0x08271062 尾 `call;leave;ret` 无 movzbl ⇒ 返回 int（技巧33）。
     int check_empty_count(Inven_Item::ITEM_TYPE type, int count) const;
     int check_item_exist(int itemIdx) const;
     int possible_to_insert(int itemIdx) const;
@@ -711,7 +698,8 @@ public:
     int RemoveFPItem();
     static int RemoveFPItem(Inven_Item* a, Inven_Item* b);
     bool IsExistStackable(int itemIdx, Inven_Item::ITEM_TYPE type) const;
-    bool IsOverStackableItem(int itemIdx, unsigned char count);
+    // ORIG 0x850a082 只读 0xc(%ebp)、caller 0x85098fb 无 this outgoing → static。
+    static bool IsOverStackableItem(int itemIdx, unsigned char count);
 
     // ---- 事件物品 ----
     int insert_event_items(const std::vector<std::pair<int, int> >& items,
@@ -770,11 +758,11 @@ public:
     // ---- 成员布局 ----
     CUser* m_pParent;             // +0x00
     int m_money;                  // +0x04
-    int m_coin;                   // +0x08
-    int m_payCoin;                // +0x0c
-    int m_eventCoin;              // +0x10
+    unsigned int m_coin;          // +0x08（ORIG SetCoin 装载序=同 signedness 直存 ⇒ unsigned）
+    unsigned int m_payCoin;       // +0x0c
+    unsigned int m_eventCoin;     // +0x10
     int m_field14;                // +0x14
-    int m_inventoryCapacity;      // +0x18
+    unsigned int m_inventoryCapacity; // +0x18（ORIG set_inventory_capacity arg先 ⇒ int形参存unsigned成员）
     Inven_Item m_invenItem[26];   // +0x1c
     Inven_Item* m_pEquipSlot;     // +0x650
     Inven_Item* m_pAvatarSlot;    // +0x654

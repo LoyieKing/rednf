@@ -3,9 +3,13 @@
 // 权威报告：docs/class_func_reports/DB_Login/*.md（汇编 + Ghidra 反编译 C），
 // 全部 52 个 ORIG 符号逐符号转写；SQL 字符串原样保留（大小写亦原样）。
 //
-// SIG_LOGIN_DATA 权威结构当前为 SigTypes.h 的 char m_pad[0x4358] 镜像；
-// 本 TU 不改共享头，字段一律以 SGF<T>(sig, off) 按本函数报告标注的 ORIG
-// 偏移访问（每处附语义注释，宿主后续字段化时逐条落点）。
+// 字段化状态（本轮）：SIG_LOGIN_DATA 权威布局已在共享头 SigTypes_D.h 具名
+// （Inter_LoginInfo/dispatch_sig 批），本 TU 已把偏移一致且语义同名的访问
+// 全部切换为具名字段（errCode/accId/时间/奖励/punish 数组/角色槽/徽章/
+// 疲劳/安全区/geo 等）；仅保留共享头为 pad 或命名与 ORIG 写入语义错位的
+// 少数区域（0xa1 login_ip、0x39b0/0x39dc/0x3a3a、0x2184/0x2204、0x394c、
+// premium 行容量超共享头声明、0x3fac 历史表、0x4140/0x4154/0x4338 事件块等）
+// 以 SGF<T>(sig, off) 裸偏移访问并逐处注释，宿主后续对齐共享头后落点。
 // ============================================================================
 
 #include "DB_Login.h"
@@ -192,83 +196,26 @@ inline __attribute__((always_inline)) char* SGB(SIG_LOGIN_DATA* sig, unsigned in
 #define SGFC(type, sig, off) (*reinterpret_cast<type*>(reinterpret_cast<char*>(sig) + (off)))
 #define SGBC(sig, off) (reinterpret_cast<char*>(sig) + (off))
 
-namespace   // 槽位偏移速查（均出自对应报告 ORIG 指令）
+namespace   // 残留裸偏移速查（已字段化区域不再需要；均出自对应报告 ORIG 指令）
 {
-const unsigned int OFF_USER_ID        = 0x0000;   // member_info.user_id（%s 直读起始）
-const unsigned int OFF_CLIENT_IP      = 0x0018;   // checkValidPassword clientHash
-const unsigned int OVERLAP_REG_DATE   = 0x00c8;   // +200 reg_date(yyyy)
-const unsigned int OFF_REG_DATE       = 0x00cc;   // member_info DATE_FORMAT
-const unsigned int OFF_BIRTH_DATE     = 0x00d0;   // first_ssn 生日
-const unsigned int OFF_SSN_TIME       = 0x00d4;   // second_ssn mktime
-const unsigned int OFF_CHARAC_CNT     = 0x00dc;   // charac_view 槽计数
-const unsigned int OFF_CHARAC_VIEW    = 0x00e0;   // 0x24×0x94 角色视图数组首
-const unsigned int OFF_SSO_LASTPLAY   = 0x3950;   // stOutputData_t accountFail 起始簇
-const unsigned int OFF_SSO_TRADEGOLD  = 0x3958;
-const unsigned int OFF_SSO_REPORTCNT  = 0x3960;
-const unsigned int OFF_SSO_RELIABLE   = 0x3964;
-const unsigned int OFF_SSO_TRADEGOLD_DAILY = 0x3968;
-const unsigned int OFF_SSO_CLEAR28    = 0x3974;   // memset 0x28
-const unsigned int OFF_SCHOOL_ID      = 0x396c;
-const unsigned int OFF_SSO_RATING     = 0x3970;
-const unsigned int OFF_TUTORIAL_SKIP  = 0x39a2;
-const unsigned int OFF_BADGE_GREEN    = 0x399c;   // short×3 green/red/blue
-const unsigned int OFF_DUNGEON_GAIN   = 0x395c;
-const unsigned int OFF_SECURITY_VALID = 0x39dc;   // security_card apply_flag 行存在
-const unsigned int OFF_SSO_LOGINIP    = 0x3a3a;   // login_ip[0x10]（convertPassPadInfo buf）
-const unsigned int OFF_TOKEN_TIME     = 0x3a30;   // Garena token time（SaveLoginTime logintime）
-const unsigned int OFF_PASPPAD_ENABLE = 0x38e0;
-const unsigned int OFF_MOUSEPASS      = 0x38e1;   // char[0x24]
-const unsigned int OFF_MPASS_FAILCNT  = 0x390c;
-const unsigned int OFF_MPASS_CANCEL   = 0x390e;
-const unsigned int OFF_MPASS_PAD_OK   = 0x390d;
-const unsigned int OFF_MPASS_TIME     = 0x3910;   // long
-const unsigned int OFF_MPASS_FAILCNT2 = 0x3914;
-const unsigned int OFF_MPASS_CANCEL2  = 0x3918;
-const unsigned int OFF_PREMIUM_CNT    = 0x2294;   // member_premium 行数
-const unsigned int OFF_PREMIUM_TABLE  = 0x229c;   // (i+0x229)*0x10 序列
-const unsigned int OFF_EVENTLIST_CNT  = 0x293a;   // ushort 事件 id 计数
-const unsigned int OFF_EVENTLIST_ARR  = 0x293c;   // (u+0xa4c)*4+0xc（u=计数，cnt*4 偏移）
-const unsigned int OFF_BREAKAWAY_A    = 0x39ac;
-const unsigned int OFF_BREAKAWAY_B    = 0x39a8;
-const unsigned int OFF_PVP_MODE_MASK  = 0x39d8;
-const unsigned int OFF_SEC_CARD_FLAG  = 0x39e0;
-const unsigned int OFF_SEC_CARD_LIFE  = 0x39e1;
-const unsigned int OFF_SEC_FAILCNT    = 0x39e4;
-const unsigned int OFF_SEC_CERTFLAG   = 0x39e8;
-const unsigned int OFF_SEC_CERTCNT    = 0x39ec;
-const unsigned int OFF_SEC_CARD_NO    = 0x39ed;   // char[0x27]
-const unsigned int OFF_SEC_QPOS       = 0x3a14;
-const unsigned int OFF_SEC_QPOS_STR   = 0x3a18;   // char[5]
-const unsigned int OFF_CLEANPAD_POINT = 0x3a4c;
-const unsigned int OFF_SCHOOL_JOINED  = 0x3a4a;
-const unsigned int OFF_BREAKAWAY_REC  = 0x3f18;   // STBreakAwayMemberData（0x41 字节）
-const unsigned int OFF_BREAKAWAY_RET  = 0x3f58;
-const unsigned int OFF_LINK_MSG_FLAG  = 0x3f5c;
-const unsigned int OFF_COMMON_FATIGUE = 0x3f60;
-const unsigned int OFF_COMMON_SHORT   = 0x3f5e;
-const unsigned int OFF_RETURN_EXPIRE  = 0x3f08;
-const unsigned int OFF_RETURN_FIRST   = 0x3f05;
-const unsigned int OFF_RETURN_ENABLED = 0x3f04;
-const unsigned int OFF_ONTIME_IDX     = 0x3fa4;
-const unsigned int OFF_PICKUP_CHECK   = 0x3fa8;
-const unsigned int OFF_FATIGUE_VAL    = 0x3faa;   // short
-const unsigned int OFF_FATIGUE_DAY    = 0x3fa9;   // uchar
-const unsigned int OFF_HISTORY_TBL    = 0x3fac;   // 0x168 = 60×{int type,h1,h2}
-const unsigned int OFF_COMMONSLOT_EFF = 0x3fa0;   // slot_effect_count（uchar）
-const unsigned int OFF_SLOT_LIMIT     = 0x3fa1;   // charac_slot_limit（uchar）
-const unsigned int OFF_GROWTH_WEAPON  = 0x4140;   // 事件块 A（0x14）
-const unsigned int OFF_GROWTH_CREATURE= 0x4154;   // 0x2c×11
-const unsigned int OFF_ONCE_GIFT      = 0x4338;   // 0x20
-const unsigned int OFF_BINGO_EVT      = 0x4138;   // SIG_BINGO_EVENT
-const unsigned int OFF_QUICK_SLOT     = 0x15b0;   // mercenary 计数
-const unsigned int OFF_MERC_TBL       = 0x15b4;   // 0x54×CHARAC_LOAD_MERCENARY
-const unsigned int OFF_MEMBER_M_ID    = 0x00c0;   // m_id（uint）
-const unsigned int OFF_HANGAME_FLAG   = 0x00a0;
-const unsigned int OFF_LOGIN_IP       = 0x00a1;   // 登录 ip 字符串
-const unsigned int OFF_ERR_CODE       = 0x00b5;
-const unsigned int OFF_IS_WHITE       = 0x03dd;   // hangame_flag==…(byte)
-const unsigned int OFF_PUNISH_CNT     = 0x3a50;   // member_punish_info 行数
-const unsigned int OFF_PUNISH_TBL     = 0x3a54;   // 0x18×行：type/occ/value/apply/start/end
+// 共享头 SigTypes_D.h 已具名覆盖的访问一律用具名字段；仅下列 SigTypes_D 为
+// pad/隐式区或命名错位的区域保留常量访问（每处带语义注释）。
+const unsigned int OFF_CLIENT_IP      = 0x0018;   // checkValidPassword clientHash 输入缓冲
+const unsigned int OFF_LOGIN_IP       = 0x00a1;   // 登录 ip 字符串（SigTypes_D 名 m_blackIpCheckBuf）
+const unsigned int OFF_BIRTH_DATE     = 0x00d0;   // reg_date DATE_FORMAT uint（SigTypes_D pad）
+const unsigned int OFF_CHARAC_VIEW    = 0x00e0;   // 0x24×0x94 角色视图数组首（m_characData）
+const unsigned int OFF_SECURITY_VALID = 0x39dc;   // security card 有效标志（SigTypes_D pad）
+const unsigned int OFF_SSO_LOGINIP    = 0x3a3a;   // login_ip[0x10]（共享头名 m_webAddress）
+const unsigned int OFF_SEC_FAILCNT    = 0x39e4;   // 安全卡 fail_cnt（共享头名 m_secCardCertCnt）
+const unsigned int OFF_SEC_CERTFLAG   = 0x39e8;   // cert_flag uint（SigTypes_D pad）
+const unsigned int OFF_SEC_CERTCNT    = 0x39ec;   // cert_cnt byte（共享头名 m_secCardCertFlag）
+const unsigned int OFF_SEC_QPOS       = 0x3a14;   // q_pos int（共享头名 m_secCardCancelCnt）
+const unsigned int OFF_SEC_QPOS_STR   = 0x3a18;   // q_pos 串槽 char[5]（共享头名 m_secCardAnswers）
+const unsigned int OFF_HISTORY_TBL    = 0x3fac;   // 0x168 = 30×{int type,h1,h2}（m_ingameEventHistory）
+const unsigned int OFF_GROWTH_WEAPON  = 0x4140;   // 事件块 A（0x14，共享头 raw）
+const unsigned int OFF_GROWTH_CREATURE= 0x4154;   // 0x2c×11（m_growthCreatureEvent 具名条目可用）
+const unsigned int OFF_ONCE_GIFT      = 0x4338;   // 0x20（共享头 raw）
+const unsigned int OFF_BINGO_EVT      = 0x4138;   // SIG_BINGO_EVENT 起点
 }
 
 // ============================================================================
@@ -291,14 +238,13 @@ DB_Login::~DB_Login()
 bool DBDispatcher::dispatch(int userIdx, int slot, Stream* stream)
 {
     (void)stream;
-    if (slot == -1)
+    if (slot != -1)
     {
-        return true;
-    }
-    CGameManager* mgr = G_CGameManager();
-    if (mgr->getUser(slot, userIdx + 0x7d0) == 0)
-    {
-        return false;
+        CUser* user = G_CGameManager()->getUser(slot, userIdx + 0x7d0);
+        if (user == 0)
+        {
+            return false;
+        }
     }
     return true;
 }
@@ -328,7 +274,8 @@ MySQL* DB_Login::_getGameDB(ENUM_DB_HANDLE_IDX idx)
 
 MySQL* DB_Login::_GetDNFAccountDB()
 {
-    return GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
+    return db;
 }
 
 // ============================================================================
@@ -600,7 +547,7 @@ bool DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
     {
         if (db->fetch())
         {
-            bool got = db->get_byte(0, SGF<char>(sig, OFF_LINK_MSG_FLAG));
+            bool got = db->get_byte(0, reinterpret_cast<char&>(sig->m_characLinkMessageFlag)); // +0x3f5c
             return !got;   // ORIG bVar2 = get ^ 1
         }
         cMyTrace trace(__PRETTY_FUNCTION__, 0x2f65, 5);
@@ -627,8 +574,8 @@ int DB_Login::GetLoginCommonData(SIG_LOGIN_DATA* sig)
     }
     if (db->get_n_rows() == 0)
     {
-        SGF<unsigned short>(sig, OFF_COMMON_SHORT) = 0;
-        memset(SGB(sig, 0x4114), 0, 0x10);      // login_ip
+        sig->m_memberBonusFatigueInc = 0;       // +0x3f5e
+        memset(SGB(sig, 0x4114), 0, 0x10);      // login_ip（SigTypes_D 隐式区）
         memset(SGB(sig, 0x4125), 0, 0x10);      // inform_notice
         return 1;
     }
@@ -646,8 +593,8 @@ int DB_Login::GetLoginCommonData(SIG_LOGIN_DATA* sig)
     {
         return 0;
     }
-    SGF<int>(sig, OFF_COMMON_FATIGUE) = updateTime;     // ORIG：local_20[0]→+0x3f60
-    SGF<short>(sig, OFF_COMMON_SHORT) = (short)bonusFatigue;
+    sig->m_memberBonusSaveTime = (unsigned int)updateTime;  // +0x3f60 ORIG local_20[0]
+    sig->m_memberBonusFatigueInc = (short)bonusFatigue;     // +0x3f5e
     if (!db->get_str(2, SGB(sig, 0x4114), 0x10))        // 第 3 列续接索引读取 login_ip
     {
         return 0;
@@ -669,16 +616,17 @@ int DB_Login::GetReturnUserInfo(SIG_LOGIN_DATA* sig)
     {
         return 0;
     }
-    if (db->get_n_rows() == 0)
+    int rows = db->get_n_rows();
+    if (rows == 0)
     {
-        SGF<char>(sig, OFF_RETURN_ENABLED) = 0;
+        sig->m_returnUserDbFlag = false;        // +0x3f04
         return 1;
     }
     if (!db->fetch())
     {
         return 0;
     }
-    if (!db->get_int(0, SGF<int>(sig, OFF_RETURN_EXPIRE)))
+    if (!db->get_int(0, reinterpret_cast<int&>(sig->m_returnUserExpireTime)))  // +0x3f08
     {
         return 0;
     }
@@ -687,8 +635,8 @@ int DB_Login::GetReturnUserInfo(SIG_LOGIN_DATA* sig)
     {
         return 0;
     }
-    SGF<char>(sig, OFF_RETURN_FIRST) = (firstLogin == 0) ? 1 : 0;
-    SGF<char>(sig, OFF_RETURN_ENABLED) = 1;
+    sig->m_returnUserFirstLogin = (firstLogin == 0);  // +0x3f05
+    sig->m_returnUserDbFlag = true;                   // +0x3f04
     return 1;
 }
 
@@ -701,11 +649,7 @@ int DB_Login::GetDailyCleanPadPoint(SIG_LOGIN_DATA* sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
     db->set_query("seLect cleanpad_point from member_login where m_id=%s",
                   NumberToString(sig->m_accId, 0));
-    if (!db->exec(true))
-    {
-        return 0;
-    }
-    if (db->get_n_rows() == 0)
+    if (!db->exec(true) || db->get_n_rows() == 0)
     {
         return 0;
     }
@@ -713,7 +657,7 @@ int DB_Login::GetDailyCleanPadPoint(SIG_LOGIN_DATA* sig)
     {
         return 0;
     }
-    if (!db->get_uint(0, SGF<unsigned int>(sig, OFF_CLEANPAD_POINT)))
+    if (!db->get_uint(0, reinterpret_cast<unsigned int&>(sig->m_cleanPadDecreaseCnt)))  // +0x3a4c
     {
         return 0;
     }
@@ -739,17 +683,17 @@ bool DB_Login::GetPunishUserInfo(SIG_LOGIN_DATA* sig)
     {
         return true;
     }
-    SGF<unsigned int>(sig, OFF_PUNISH_CNT) = nRows;
+    sig->m_punishInfoCount = nRows;              // +0x3a50
     for (unsigned int i = 0; i < nRows; ++i)
     {
-        const unsigned int rowOff = i * 0x18 + OFF_PUNISH_TBL;
+        SIG_LOGIN_PUNISH_INFO& e = sig->m_punishInfos[i];   // stride 0x18 @0x3a54
         if (!db->fetch()) return false;
-        if (!db->get_int(0, SGF<int>(sig, rowOff))) return false;             // punish_type
-        if (!db->get_uint(1, SGF<unsigned int>(sig, rowOff + 4))) return false; // occ_time
-        if (!db->get_int(2, SGF<int>(sig, rowOff + 8))) return false;         // punish_value
-        if (!db->get_int(3, SGF<int>(sig, rowOff + 0xc))) return false;       // apply_flag
-        if (!db->get_uint(4, SGF<unsigned int>(sig, rowOff + 0x10))) return false; // start_time
-        if (!db->get_uint(5, SGF<unsigned int>(sig, rowOff + 0x14))) return false; // end_time
+        if (!db->get_int(0, e.m_type)) return false;                // punish_type
+        if (!db->get_uint(1, reinterpret_cast<unsigned int&>(e.m_field04))) return false; // occ_time
+        if (!db->get_int(2, e.m_stdDropRate)) return false;         // punish_value
+        if (!db->get_int(3, e.m_field0c)) return false;             // apply_flag
+        if (!db->get_uint(4, reinterpret_cast<unsigned int&>(e.m_field10))) return false; // start_time
+        if (!db->get_uint(5, reinterpret_cast<unsigned int&>(e.m_endTime))) return false; // end_time
     }
     return true;
 }
@@ -760,16 +704,18 @@ bool DB_Login::GetPunishUserInfo(SIG_LOGIN_DATA* sig)
 
 bool DB_Login::_isJoinedSchoolPointEvent(unsigned int mid)
 {
-    if (GlobalData::s_systemTime_.getCurSec() < 0x4834a971)
+    if ((bool)(GlobalData::s_systemTime_.getCurSec() > 0x4834a970))
     {
-        MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
-        db->set_query("seLect school_id from event_school_point where m_id=%s",
-                      NumberToString(mid, 0));
-        bool execOk = db->exec(true);
-        bool hasRows = (execOk && db->get_n_rows() != 0);
-        return hasRows;
+        return false;
     }
-    return false;
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
+    db->set_query("seLect school_id from event_school_point where m_id=%s",
+                  NumberToString(mid, 0));
+    if (!db->exec(true) || db->get_n_rows() == 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 // ============================================================================
@@ -781,9 +727,12 @@ bool DB_Login::_isAutoPunishedFirstUser(unsigned int mid)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
     db->set_query("seLect punish_flag from auto_punish_first_user where m_id=%s and punish_flag=1",
                   NumberToString(mid, 0));
-    bool execOk = db->exec(true);
-    // ORIG 0x8411091：exec 失败或 rows==0 时返回 true（取反语义）
-    return (!execOk || db->get_n_rows() == 0);
+    // ORIG 0x8411085：exec 失败或 rows==0 → 聚合 bad → return false
+    if (!db->exec(true) || db->get_n_rows() == 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 // ============================================================================
@@ -793,22 +742,18 @@ bool DB_Login::_isAutoPunishedFirstUser(unsigned int mid)
 bool DB_Login::_getAutoPunishedSecondUserData(unsigned int mid, unsigned int& tradeCnt,
                                               unsigned long long& tradeGold)
 {
+    char punishFlag = 0;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect trade_cnt,trade_gold,punish_flag,unix_timestamp(occ_time) from auto_punish_second_user where m_id=%s",
         NumberToString(mid, 0));
-    if (!db->exec(true))
-    {
-        return false;
-    }
-    if (db->get_n_rows() == 0)
+    if (!db->exec(true) || db->get_n_rows() == 0)
     {
         return false;
     }
     db->fetch();
     db->get_uint(0, tradeCnt);
     db->get_ulonglong(1, tradeGold);
-    char punishFlag = 0;
     db->get_byte(2, punishFlag);
     int occTime = 0;
     db->get_int(3, occTime);    // ORIG：读入后未使用（死存储，保留语义注释）
@@ -838,11 +783,11 @@ unsigned int DB_Login::_IsPunishedUser(unsigned int mid)
         return 0;
     }
     int cnt = 0;
-    if (!db->get_int(0, cnt))
+    if (!db->get_int(0, cnt) || cnt == 0)
     {
         return 0;
     }
-    return (cnt != 0) ? 1 : 0;
+    return 1;
 }
 
 unsigned int DB_Login::_isPunishedHackUser(unsigned int mid)
@@ -885,9 +830,14 @@ unsigned int DB_Login::_isPunishedHackUser(unsigned int mid)
 
 void DB_Login::_getSecurityCardInfo(SIG_LOGIN_DATA* sig)
 {
-    if (SGFC(char, sig, OFF_SECURITY_VALID) == 0)
+    // P1 组件视图：ORIG 单指令 disp 读/写点（get_* 传引用处保持 SGFC add 两步形态）
+    struct VSecValid { char m_pad[0x39dc]; unsigned char m_valid; };        // +0x39dc
+    struct VCertFlag { char m_pad[0x39e8]; unsigned int m_certFlag; };      // +0x39e8
+    struct VOccTime  { char m_pad[0x3958]; long m_occTime; };               // +0x3958（card 有效期基准）
+    struct VEnvSched { char m_pad[0x37c]; int m_dailyResetHour; };          // CEnvironment +0x37c
+    if (((VSecValid*)sig)->m_valid == 0)             // +0x39dc（SigTypes_D pad 区保留）
     {
-        SGFC(char, sig, OFF_SEC_CARD_FLAG) = 0;
+        sig->m_secCardActivate = false;             // +0x39e0
         return;
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
@@ -897,12 +847,12 @@ void DB_Login::_getSecurityCardInfo(SIG_LOGIN_DATA* sig)
     db->exec(true);
     if (db->get_n_rows() == 0)
     {
-        SGFC(char, sig, OFF_SEC_CARD_FLAG) = 0;
+        sig->m_secCardActivate = false;             // +0x39e0
         return;
     }
     unsigned int validity = 0;
     db->fetch();
-    db->get_str(0, SGBC(sig, OFF_SEC_CARD_NO), 0x27);              // card
+    db->get_str(0, sig->m_secCardSerial, 0x27);                    // card → serial(+0x39ed)
     db->get_int(1, SGFC(int, sig, OFF_SEC_FAILCNT));               // fail_cnt
     db->get_uint(2, validity);                                    // validity_time>now()
     db->get_uint(3, SGFC(unsigned int, sig, OFF_SEC_CERTFLAG));    // cert_flag
@@ -911,20 +861,22 @@ void DB_Login::_getSecurityCardInfo(SIG_LOGIN_DATA* sig)
     db->get_str(5, SGBC(sig, OFF_SEC_QPOS_STR), 5);                // ORIG：列 5 再读 str 到 +0x3a18（长 5）
     if (validity == 1)
     {
-        SGFC(char, sig, OFF_SEC_CARD_LIFE) = 1;
+        sig->m_secCardCertified = true;             // +0x39e1
     }
-    SGFC(char, sig, OFF_SEC_CARD_FLAG) = 1;
+    sig->m_secCardActivate = true;                  // +0x39e0
 
     // cert_flag != 0 且当日已过疲劳重置点 → 清零 cancel 计数
-    if (SGFC(int, sig, OFF_SEC_CERTFLAG) != 0)
+    if (((VCertFlag*)sig)->m_certFlag != 0)
     {
-        long curSec = GlobalData::s_systemTime_.getCurSec();
-        // ORIG bVar2 仅在 CheckDailyScheduleTime 非零时为真（单次调用）
-        if (CheckDailyScheduleTime(
-                *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x37c),
-                SGFC(long, sig, 0x3958), curSec) != 0)
+        // ORIG：curSec→%ebx、occTime→%esi 跨 G_CEnvironment 调用缓存（P52/P87）
+        register long curSec = GlobalData::s_systemTime_.getCurSec();
+        register long occTime = ((VOccTime*)sig)->m_occTime;
+        // ORIG bVar2 仅在 CheckDailyScheduleTime 非零时为真（choose 物化后再分支）
+        register bool hit = CheckDailyScheduleTime(
+            ((VEnvSched*)G_CEnvironment())->m_dailyResetHour, occTime, curSec);
+        if (hit)
         {
-            SGFC(unsigned int, sig, OFF_SEC_CERTFLAG) = 0;
+            ((VCertFlag*)sig)->m_certFlag = 0;
             db->set_query("upDate member_security_card set cancel_cnt=0 where m_id=%s",
                           NumberToString(sig->m_accId, 0));
             db->exec(true);
@@ -940,9 +892,9 @@ int DB_Login::_getPassPadInfo(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
     sig->m_passPadEnable = 0;
-    SGF<unsigned int>(sig, OFF_MPASS_CANCEL2) = 0;
-    SGF<unsigned int>(sig, OFF_MPASS_FAILCNT2) = 0;
-    memset(SGB(sig, OFF_MOUSEPASS), 0, 0x24);
+    sig->m_passPadCancelCnt = 0;                    // +0x3918
+    sig->m_passPadFailCnt = 0;                      // +0x3914
+    memset(sig->m_passPadPassword, 0, 0x24);        // +0x38e1（仅清 0x24 缓冲）
     db->set_query("seLect mousepass,fail_cnt,cancel_cnt from member_mousepass where m_id=%s and enable_flag = '1'",
                   NumberToString(sig->m_accId, 0));
     if (!db->exec(true))
@@ -957,24 +909,24 @@ int DB_Login::_getPassPadInfo(SIG_LOGIN_DATA* sig)
     {
         return 1;
     }
-    if (!db->get_str(0, SGB(sig, OFF_MOUSEPASS), 0x24))
+    if (!db->get_str(0, sig->m_passPadPassword, 0x24))
     {
         return 1;
     }
-    if (!db->get_int(1, SGF<int>(sig, OFF_MPASS_FAILCNT2)))
+    if (!db->get_int(1, sig->m_passPadFailCnt))
     {
         return 1;
     }
-    if (!db->get_int(2, SGF<int>(sig, OFF_MPASS_CANCEL2)))
+    if (!db->get_int(2, sig->m_passPadCancelCnt))
     {
         return 1;
     }
     sig->m_passPadEnable = 1;
-    if (SGF<int>(sig, OFF_MPASS_FAILCNT2) < 3)
+    if (sig->m_passPadFailCnt > 2)
     {
-        return 0;
+        return 0x49;    // fail_cnt>=3 触发二次认证错误码
     }
-    return 0x49;    // fail_cnt>=3 触发二次认证错误码
+    return 0;
 }
 
 // ============================================================================
@@ -1009,13 +961,13 @@ int DB_Login::_convertPassPadInfo(SIG_LOGIN_DATA* sig)
 
 int DB_Login::_getRewardInfo(SIG_LOGIN_DATA* sig)
 {
-    SGF<char>(sig, 0x3f0d) = 0;
-    SGF<char>(sig, 0x3f0e) = 0;
-    SGF<char>(sig, 0x3f0f) = 0;
+    sig->m_secuType = 0;          // +0x3f0d 注册位图
+    sig->m_secuReward = false;    // +0x3f0e 重新校验标记
+    sig->m_rewardType = 0;        // +0x3f0f 最新注册类型位
     sig->m_passPadEnable = 0;
     sig->m_passPadCertified = 0;
-    SGF<char>(sig, OFF_SEC_CARD_FLAG) = 0;
-    SGF<char>(sig, OFF_SEC_CARD_LIFE) = 0;
+    sig->m_secCardActivate = false;     // +0x39e0
+    sig->m_secCardCertified = false;    // +0x39e1
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     db->set_query(
@@ -1075,11 +1027,11 @@ int DB_Login::_getRewardInfo(SIG_LOGIN_DATA* sig)
     }
     if (col[3] != 0)
     {
-        SGF<char>(sig, OFF_SEC_CARD_FLAG) = 1;      // security_card_reg 行存在
+        sig->m_secCardActivate = true;              // +0x39e0 security_card_reg 行存在
     }
     if ((col[8] != 0) && (ipMatch != '\0'))
     {
-        SGF<char>(sig, OFF_SEC_CARD_LIFE) = 1;      // +0x39e1 有效期内
+        sig->m_secCardCertified = true;             // +0x39e1 有效期内
     }
 
     char flags = 0;                                  // +0x3f0d 注册位图
@@ -1090,7 +1042,7 @@ int DB_Login::_getRewardInfo(SIG_LOGIN_DATA* sig)
     if (col[4] != 0) flags |= 0x10;                  // goblin_pass
     if (col[5] != 0) flags |= 4;                     // member_pc
     if (col[6] != 0) flags |= 0x20;                  // gatekeeper_otp
-    SGF<char>(sig, 0x3f0d) = flags;
+    sig->m_secuType = (unsigned char)flags;
 
     if (col[1] != 0) latest |= 1;
     else if (col[2] != 0) latest |= 2;
@@ -1098,11 +1050,11 @@ int DB_Login::_getRewardInfo(SIG_LOGIN_DATA* sig)
     else if (col[6] != 0) latest |= 0x20;
     if (col[3] != 0) latest |= 8;
     else if (col[4] != 0) latest |= 0x10;
-    SGF<char>(sig, 0x3f0f) |= latest;
+    sig->m_rewardType = (unsigned char)(sig->m_rewardType | (unsigned char)latest);
 
-    if (SGF<char>(sig, 0x3f0d) != 0 && (int)col[0] < base)
+    if (sig->m_secuType != 0 && (int)col[0] < base)
     {
-        SGF<char>(sig, 0x3f0e) = 1;                  // 需要重新校验标记
+        sig->m_secuReward = true;                    // 需要重新校验标记
     }
     return 0;                                        // ORIG 恒返 0（布尔由 sig 字段承载）
 }
@@ -1277,8 +1229,11 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
             {
                 if (G_GameWorld()->GetChannelType() == 7 || G_GameWorld()->GetChannelType() == 0xe)
                 {
+                    // ORIG 汇编 0x8412236-0x841224c：addUserDBInfo 第 1 参 =
+                    // 本函数第 2 参（SIG_LOGIN_DATA* sig）指针值（0xc(%ebp)→0x4(%esp)），
+                    // 非 m_accId；32 位指针→int 原样直传。
                     GlobalData::s_db_mgr->addUserDBInfo(
-                        sig->m_accId /*userIdx 占位见下*/,
+                        reinterpret_cast<int>(sig),
                         info);
                 }
                 if (eventId == 0xa02a)
@@ -1421,15 +1376,11 @@ bool DB_Login::IsPCRoomIP(char* ip)
     }
     std::string prefix(ip);     // 去掉最后一段 ".x"：a.b.c → a.b
     std::string suffix(ip);     // 取最后一段数字：x（start_ip/end_ip 比较值）
-    std::string::size_type pos = prefix.find_last_of(".");
-    prefix.erase(pos, std::string::npos);
-    pos = suffix.find_last_of(".");
-    suffix.erase(0, pos + 1);
-    int lastOctet = atoi(suffix.c_str());
+    prefix.erase(prefix.find_last_of("."), std::string::npos);
+    int lastOctet = atoi(suffix.erase(0, suffix.find_last_of(".") + 1).c_str());
     db->set_query("seLect count(*) from dnf_pcroom where ip='%s' and start_ip <= %d and end_ip >= %d",
                   prefix.c_str(), lastOctet, lastOctet);
-    bool execOk = db->exec(true);
-    if (!(execOk && db->get_n_rows() != 0))
+    if (!db->exec(true) || db->get_n_rows() == 0)
     {
         return false;
     }
@@ -1438,11 +1389,11 @@ bool DB_Login::IsPCRoomIP(char* ip)
         return false;
     }
     int cnt = 0;
-    if (!db->get_int(0, cnt))
+    if (!db->get_int(0, cnt) || cnt == 0)
     {
         return false;
     }
-    return (cnt != 0);
+    return true;
 }
 
 // ============================================================================
@@ -1457,26 +1408,26 @@ bool DB_Login::CreateAccount(SIG_LOGIN_DATA* sig, MySQL* db)
     {
         return false;
     }
-    const char* userId = reinterpret_cast<const char*>(sig);
-    db->set_query("call usp_create_account('%s')", userId);
+    db->set_query("call usp_create_account('%s')", sig);
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__,
-                              0x37e6, "[Taiwan, Account] Fail create account. id=%s", userId);
+                              0x37e6, "[Taiwan, Account] Fail create account. id=%s", sig);
         return false;
     }
+    register const char* logId = reinterpret_cast<const char*>(sig);   // P87：ORIG ctor 前载 %ebx 跨调用
     cMyTrace trace(__PRETTY_FUNCTION__, 0x37ea, 0);
-    trace("[Taiwan, Account] Success create account. id=%s", userId);
+    trace("[Taiwan, Account] Success create account. id=%s", logId);
 
     db->set_query(
         "seLect m_id, passwd,first_ssn, second_ssn,DATE_FORMAT(from_unixtime(reg_date),'%%Y%%m%%d%%H'),user_name,email,hangame_flag,reg_date from member_info where user_id='%s' and hangame_flag=%d",
-        userId, (unsigned int)(unsigned char)SGF<char>(sig, OFF_HANGAME_FLAG));
+        sig, (unsigned int)(unsigned char)sig->m_loginType);
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__,
-                              0x3804, "[Taiwan, Account] Fail select member_info m_id=%s", userId);
+                              0x3804, "[Taiwan, Account] Fail select member_info m_id=%s", sig);
         return false;
     }
     return true;
@@ -1602,48 +1553,51 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
             sig->m_accId, serverPwd,
             SGBC(sig, OFF_CLIENT_IP), ssoOut))
     {
-        // ORIG 0x84136c0-0x841370e：失败记日志（行号 0x39da）并返回 false。
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x39da, 0);
-        trace("DB_Login::GetAccountInfo, checkValidPassword() ERROR m_id=%s",
-              NumberToString(sig->m_accId, 0));
+        // ORIG 0x84136c0-0x841370e：LogManager::logFormat（1,"DBThread.cpp",
+        // __PRETTY_FUNCTION__,0x39da,"[Taiwan, Auth] Fail query member_login. (mid:%s)"）
+        // 后返回 false（汇编 0x4a6 call LogManager::logFormat，非 cMyTrace）。
+        LogManager::logFormat(
+            1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x39da,
+            "[Taiwan, Auth] Fail query member_login. (mid:%s)",
+            NumberToString(sig->m_accId, 0));
         return false;
     }
 
     // stOutputData_t → sig 布局映射（逐字段，见 CSimpleSSO.h 与报告 0x84131xx 区指令）。
-    // ORIG 0x8413713-0x8413790：+0x3950=accountFail、+0x3954=totalAccountFail、
-    // +0x3958=lastPlayTime、+0x3960=reportCnt、+0x3964=reliableFlag、
-    // +0x3968=tradeGoldDaily、+0x396c=schoolId、+0x3970=rating。
-    SGFC(int, sig, OFF_SSO_LASTPLAY) = ssoOut.m_accountFail;              // +0x3950
-    SGFC(int, sig, OFF_SSO_LASTPLAY + 4) = ssoOut.m_totalAccountFail;     // +0x3954
-    SGFC(long long, sig, OFF_SSO_TRADEGOLD) =                           // +0x3958 lastPlayTime
-        ssoOut.m_lastPlayTime;   // 【ORIG】sig+0x3958 = stOut+0x00（lastPlayTime）
-    SGFC(int, sig, OFF_SSO_REPORTCNT) = ssoOut.m_reportCnt;               // +0x3960
-    SGFC(char, sig, OFF_SSO_RELIABLE) = ssoOut.m_reliableFlag;            // +0x3964
-    SGFC(unsigned int, sig, OFF_SSO_TRADEGOLD_DAILY) = ssoOut.m_tradeGoldDaily; // +0x3968
-    SGFC(unsigned int, sig, OFF_SCHOOL_ID) = ssoOut.m_schoolId;           // +0x396c
-    SGFC(float, sig, OFF_SSO_RATING) = ssoOut.m_rating;                   // +0x3970
-    memset(SGBC(sig, OFF_SSO_CLEAR28), 0, 0x28);                          // +0x3974..0x39bb 清零
+    // ORIG 0x8413713-0x8413790：+0x3958=lastPlayTime(4B!)、+0x3950=accountFail、
+    // +0x3954=totalAccountFail、+0x3960=reportCnt、+0x3964=reliableFlag、
+    // +0x3968=tradeGoldDaily、+0x396c=schoolId、+0x3970=rating、
+    // +0x395c=dungeonGainGold、+0x3974..0x39bb schoolName 区清零。
+    sig->m_lastPlayTime = ssoOut.m_lastPlayTime;                // +0x3958 ORIG mov %edx 4B 写
+    sig->m_accountFail = ssoOut.m_accountFail;                  // +0x3950
+    sig->m_totalAccountFail = ssoOut.m_totalAccountFail;        // +0x3954
+    sig->m_reportMannerlessUserCount = ssoOut.m_reportCnt;      // +0x3960
+    sig->m_reliablePersonFlag = ssoOut.m_reliableFlag;          // +0x3964
+    sig->m_overTradeGoldCount = ssoOut.m_tradeGoldDaily;        // +0x3968
+    sig->m_schoolNo = ssoOut.m_schoolId;                        // +0x396c
+    sig->m_rating = ssoOut.m_rating;                            // +0x3970
+    memset(sig->m_schoolName, 0, sizeof(sig->m_schoolName));    // +0x3974..0x39bb 清零
 
     GameWorld* world = G_GameWorld();
-    if (world->IsSchoolPvPChannel() && SGFC(int, sig, OFF_SCHOOL_ID) != 0)
+    if (world->IsSchoolPvPChannel() && sig->m_schoolNo != 0)
     {
-        GetSchoolName(SGFC(int, sig, OFF_SCHOOL_ID), SGBC(sig, OFF_SSO_CLEAR28));
+        GetSchoolName(sig->m_schoolNo, sig->m_schoolName);
         GetBadgeCount(sig);
     }
 
-    SGFC(char, sig, OFF_TUTORIAL_SKIP) = ssoOut.m_tutorialSkipable;       // +0x39a2
-    SGFC(char, sig, OFF_SECURITY_VALID) = ssoOut.m_securityFlag;          // +0x39dc
-    strncpy(SGBC(sig, OFF_SSO_LOGINIP), ssoOut.m_loginIp, 0x10);          // +0x3a3a
-    SGFC(unsigned int, sig, OFF_DUNGEON_GAIN) = ssoOut.m_dungeonGainGold; // +0x395c
+    sig->m_tutorialSkipable = ssoOut.m_tutorialSkipable;        // +0x39a2
+    SGFC(char, sig, OFF_SECURITY_VALID) = ssoOut.m_securityFlag; // +0x39dc（SigTypes_D 该区 pad，ORIG 写入保留）
+    strncpy(SGBC(sig, OFF_SSO_LOGINIP), ssoOut.m_loginIp, 0x10); // +0x3a3a（共享头名 m_webAddress，语义错位保留）
+    sig->m_dungeonGainedGold = ssoOut.m_dungeonGainGold;        // +0x395c
 
     long long curSec = GlobalData::s_systemTime_.getCurSec();
     if (CheckDailyScheduleTime(*reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x37c),
                                ssoOut.m_lastPlayTime, curSec))
     {
-        SGFC(unsigned int, sig, OFF_DUNGEON_GAIN) = 0;
+        sig->m_dungeonGainedGold = 0;
     }
 
-    SGFC(char, sig, 0x3f10) = static_cast<char>(ssoOut.m_eventCharacFlag); // +0x3f10
+    sig->m_userEventCharacterFlag = ssoOut.m_eventCharacFlag;   // +0x3f10
 
     // ---- first_ssn / second_ssn 解密 ----
     char firstSsn[33];
@@ -1723,7 +1677,9 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     {
         return false;
     }
-    OS_API::snprintf(SGBC(sig, 0x2204), 0x7f, "%s", decEmail);   // ORIG snprintf 直传串
+    // ORIG 汇编 0x8413e91-0x8413eac：lea 0x2204 / snprintf(dst,0x7f,decEmail)
+    // —— 直传解密串为格式参（3 参，无 "%s" 包装），原样复刻。
+    OS_API::snprintf(SGBC(sig, 0x2204), 0x7f, decEmail);
 
     unsigned int hangameFlag = 0;
     if (!db->get_uint(7, hangameFlag))
@@ -1732,7 +1688,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
         trace("DB_Login::GetAccountInfo, get(7) ERROR m_id=%s", userId);
         return false;
     }
-    SGFC(char, sig, 0x38dd) = (hangameFlag != 0) ? 1 : 0;
+    sig->m_hangameUser = (hangameFlag != 0);            // +0x38dd
 
     unsigned int regRaw = 0;
     if (!db->get_uint(8, regRaw))
@@ -1741,14 +1697,15 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
         trace("DB_Login::GetAccountInfo, get(9) ERROR m_id=%s", userId);
         // 注意：ORIG 此分支记日志后不返回，继续走时间换算
     }
-    SGFC(unsigned int, sig, OFF_BIRTH_DATE) = regRaw;
-    OS_API::snprintf(SGBC(sig, 0x2284), 0x10, "%d%d", (int)firstVal, (int)secondVal);
+    SGFC(unsigned int, sig, OFF_BIRTH_DATE) = regRaw;   // +0xd0（SigTypes_D 该区 pad，ORIG 写保留）
+    OS_API::snprintf(sig->m_birth, sizeof(sig->m_birth), "%d%d",   // +0x2284
+                     (int)firstVal, (int)secondVal);
 
     firstVal = firstVal / 10000;
     secondVal = secondVal / 1000000;
-    SGFC(unsigned int, sig, OVERLAP_REG_DATE) =
-        (secondVal < 3) ? (firstVal + 0x76c) : (firstVal + 2000);
-    SGFC(unsigned int, sig, OFF_REG_DATE) = regDate / 100;
+    sig->m_birthYear =                                    // +0xc8
+        (secondVal < 3) ? (int)(firstVal + 0x76c) : (int)(firstVal + 2000);
+    sig->m_regDate = regDate / 100;                       // +0xcc
 
     struct tm birthTm;
     memset(&birthTm, 0, sizeof(birthTm));
@@ -1760,13 +1717,13 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     birthTm.tm_hour = hourField % 100;
     birthTm.tm_min = 0;
     birthTm.tm_sec = 0;
-    SGFC(time_t, sig, OFF_SSN_TIME) = mktime(&birthTm);
+    sig->m_regTime = (unsigned int)mktime(&birthTm);      // +0xd4
 
     // ---- Garena token 复用检查 ----
     unsigned int nowSec = GlobalData::s_systemTime_.getCurSec();
     unsigned int loginTime = ssoOut.m_loginTime;
     unsigned int lastPlay = ssoOut.m_lastPlayTime;
-    if (!Taiwan::GarenaCheckTimeStamp(SGFC(unsigned int, sig, OFF_TOKEN_TIME), nowSec,
+    if (!Taiwan::GarenaCheckTimeStamp(sig->m_timeStamp, nowSec,   // +0x3a30
                                       loginTime, lastPlay))
     {
         if (!GetWhiteAccount(sig))
@@ -1775,21 +1732,21 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
                 1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x3b14,
                 "[Taiwan, Auth] Fail Token reuse login. (mid:%s, token_time:%u, current_time:%u, login_time:%u, last_play_time:%u)",
                 NumberToString(sig->m_accId, 0),
-                SGFC(unsigned int, sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
+                sig->m_timeStamp, nowSec, loginTime, lastPlay);
             return false;
         }
         LogManager::logFormat(
             1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x3b0f,
             "[Taiwan, Auth] White Account Success Token reuse login. (mid:%s, token_time:%u, current_time:%u, login_time:%u, last_play_time:%u)",
             NumberToString(sig->m_accId, 0),
-            SGFC(unsigned int, sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
+            sig->m_timeStamp, nowSec, loginTime, lastPlay);
     }
     else
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x3b1b, 0);
         trace("[Taiwan, Auth] Success Token reuse login. (mid:%s, token_time:%u, current_current:%u, login_time:%u, last_play_time:%u)",
               NumberToString(sig->m_accId, 0),
-              SGFC(unsigned int, sig, OFF_TOKEN_TIME), nowSec, loginTime, lastPlay);
+              sig->m_timeStamp, nowSec, loginTime, lastPlay);
     }
     return true;
 }
@@ -1803,8 +1760,15 @@ bool DB_Login::GetWhiteAccount(SIG_LOGIN_DATA* sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     db->set_query("seLect m_id from member_white_account where m_id=%s",
                   NumberToString(sig->m_accId, 0));
-    bool execOk = db->exec(true);
-    return (execOk && db->get_n_rows() != 0);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    if ((bool)(db->get_n_rows() != 0))
+    {
+        return true;
+    }
+    return false;
 }
 
 // ============================================================================
@@ -1827,7 +1791,11 @@ int DB_Login::GetSchoolName(int schoolId, char* name)
     {
         return 0;
     }
-    return db->get_str(0, name, 0x28) ? 1 : 0;
+    if (!db->get_str(0, name, 0x28))
+    {
+        return 0;
+    }
+    return 1;
 }
 
 // ============================================================================
@@ -1839,12 +1807,12 @@ int DB_Login::GetBadgeCount(SIG_LOGIN_DATA* sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_10, E_SERVER_GROUP_NONE);
     for (int i = 0; i < 3; ++i)
     {
-        SGF<unsigned short>(sig, OFF_BADGE_GREEN + i * 2) = 0;   // green/red/blue 清零
+        sig->m_dailyBadge[i] = 0;                  // +0x399c green/red/blue 清零
     }
     int initTime = getDailyInitializeTime(6, 0, 0);
     db->set_query(
         "seLect daily_green_badge, daily_red_badge, daily_blue_badge from school_member where school_id=%d and m_id = %s and  last_play_time >= from_unixtime(%d)",
-        SGF<unsigned int>(sig, OFF_SCHOOL_ID),
+        sig->m_schoolNo,
         NumberToString(sig->m_accId, 0), initTime);
     if (!db->exec(true))
     {
@@ -1883,9 +1851,9 @@ int DB_Login::GetBadgeCount(SIG_LOGIN_DATA* sig)
               reinterpret_cast<const char*>(sig));
         return 0;
     }
-    SGF<short>(sig, OFF_BADGE_GREEN) = green;
-    SGF<short>(sig, OFF_BADGE_GREEN + 2) = red;
-    SGF<short>(sig, OFF_BADGE_GREEN + 4) = blue;
+    sig->m_dailyBadge[0] = green;
+    sig->m_dailyBadge[1] = red;
+    sig->m_dailyBadge[2] = blue;
     return 1;
 }
 
@@ -1909,20 +1877,20 @@ int DB_Login::GetGameDBInfo(SIG_LOGIN_DATA* sig)
     {
         return 0;
     }
-    int count = SGF<int>(sig, OFF_CHARAC_CNT);          // +0xdc 槽计数
+    int count = sig->m_characCount;          // +0xdc 槽计数
     int i = 0;
     for (; i < count; ++i)
     {
-        if (SGF<int>(sig, i * 0x94 + OFF_CHARAC_VIEW) ==
-            sig->m_tournamentAccountFlag)             // server_id 匹配
+        if (*reinterpret_cast<int*>(sig->m_characData + i * 0x94) ==
+            (int)sig->m_tournamentAccountFlag)      // server_id 匹配
         {
-            memmove(SGB(sig, OFF_CHARAC_VIEW),
-                    SGB(sig, i * 0x94 + OFF_CHARAC_VIEW), 0x94);
-            if (SGF<char>(sig, 0x39b0) != 0)            // charac_name 非空才覆写
+            memmove(sig->m_characData,
+                    sig->m_characData + i * 0x94, 0x94);
+            if (SGF<char>(sig, 0x39b0) != 0)        // charac_name 非空才覆写（SigTypes_D 隐式区）
             {
-                strncpy(SGB(sig, OFF_CHARAC_VIEW + 4), SGB(sig, 0x39b0), 0x1e);
+                strncpy(sig->m_characData + 4, SGB(sig, 0x39b0), 0x1e);
             }
-            SGF<unsigned int>(sig, OFF_CHARAC_CNT) = 1;
+            sig->m_characCount = 1;
             break;
         }
     }
@@ -1939,21 +1907,21 @@ int DB_Login::GetGameDBInfo(SIG_LOGIN_DATA* sig)
 
 void DB_Login::SaveLoginTime(unsigned int mid, int loginTime, char* ip)
 {
+    char table[20];                          // ORIG 槽序：table 深于 db/trace（声明先行、赋值在后）
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
-    char table[20];
     memset(table, 0, sizeof(table));
     memcpy(table, "member_login", 0xd);      // ORIG 原样拷贝（含终结符）
-    char* midStr = NumberToString(mid, 0);
     db->set_query(
         "inSert into %s(m_id, login_time, login_ip) values(%s, %d, '%s') on duplicate key upDate login_time=%d, login_ip='%s'",
-        table, midStr, loginTime, ip, loginTime, ip);
+        table, NumberToString(mid, 0), loginTime, ip, loginTime, ip);
     if (!db->exec(true))
     {
+        register char* errId = NumberToString(mid, 0);   // P87：ORIG ctor 前载 %ebx 跨调用
         cMyTrace trace(
             __PRETTY_FUNCTION__,
             0x3bd1, 0);
         trace("DB_Login::SaveLoginTime, inSert ERROR m_id=%s, logintime=%d, ip=%s",
-              NumberToString(mid, 0), loginTime, ip);
+              errId, loginTime, ip);
     }
 }
 
@@ -2037,22 +2005,22 @@ int DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* sig)
     {
         return -1;
     }
-    if (!db->get_ubyte(3, SGF<unsigned char>(sig, OFF_COMMONSLOT_EFF)))
+    if (!db->get_ubyte(3, sig->m_characSlotCurCount))    // +0x3fa0
     {
         return -1;
     }
-    if (!db->get_ubyte(4, SGF<unsigned char>(sig, OFF_SLOT_LIMIT)))
+    if (!db->get_ubyte(4, sig->m_characSlotMaxCount))    // +0x3fa1
     {
         return -1;
     }
 
-    SGF<unsigned int>(sig, OFF_CHARAC_CNT) = 0;
+    sig->m_characCount = 0;                              // +0xdc
     // ORIG：36 个槽位（i<=0x23；blob 解压 0x14d0 = 36×0x94），非 37
     for (int i = 0; i <= 0x23; ++i)
     {
-        if (SGF<int>(sig, i * 0x94 + OFF_CHARAC_VIEW) != 0)
+        if (*reinterpret_cast<int*>(sig->m_characData + i * 0x94) != 0)
         {
-            SGF<unsigned int>(sig, OFF_CHARAC_CNT) += 1;
+            sig->m_characCount += 1;
         }
     }
     return 0;
@@ -2064,8 +2032,7 @@ int DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* sig)
 
 int DB_Login::SendResult(int userDbIdx, int code, SIG_LOGIN_DATA* sig)
 {
-    Stream* stream = GlobalData::s_big_stream_pool->Acquire("DBThread.cpp", 0x3c49);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_big_stream_pool->Acquire("DBThread.cpp", 0x3c49), true);
     guard.operator*()->operator<<(userDbIdx);
     guard.operator*()->operator<<(code);
     guard.operator->()->put_binary(sig, 0x4358);  // SIG_LOGIN_DATA 全量回传
@@ -2083,9 +2050,9 @@ int DB_Login::UpdateLoginStat(int userDbIdx, SIG_LOGIN_DATA* sig)
         guard.operator->()->GetInBuffer<SIG_UPDATE_LOGIN>();
     *reinterpret_cast<unsigned int*>(pkt) = sig->m_accId;
     *reinterpret_cast<int*>(reinterpret_cast<char*>(pkt) + 8) =
-        (int)SGF<short>(sig, 0x3a38);           // serverGroup(short→int)
+        (int)sig->m_channelRestrictField;       // +0x3a38 serverGroup(short→int)
     *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(pkt) + 4) =
-        SGF<unsigned int>(sig, 0x9c);
+        sig->m_gcNo;                            // +0x9c
     strncpy(reinterpret_cast<char*>(pkt) + 0xc, SGB(sig, OFF_LOGIN_IP), 0x14);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return 1;
@@ -2097,7 +2064,7 @@ int DB_Login::UpdateLoginStat(int userDbIdx, SIG_LOGIN_DATA* sig)
 
 int DB_Login::GetCheckPickUpRandomOptionItem(SIG_LOGIN_DATA* sig)
 {
-    SGF<unsigned char>(sig, OFF_PICKUP_CHECK) = 0;
+    sig->m_checkPickUpRandomOptionItemFlag = false;      // +0x3fa8
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     db->set_query("seLect check_count from check_pick_up_random_option_item where m_id = %s",
                   NumberToString(sig->m_accId, 0));
@@ -2105,13 +2072,14 @@ int DB_Login::GetCheckPickUpRandomOptionItem(SIG_LOGIN_DATA* sig)
     {
         return 0;
     }
-    if (db->get_n_rows() != 0)
+    int rows = db->get_n_rows();
+    if (rows != 0)
     {
         if (!db->fetch())
         {
             return 0;
         }
-        if (!db->get_ubyte(0, SGF<unsigned char>(sig, OFF_PICKUP_CHECK)))
+        if (!db->get_ubyte(0, reinterpret_cast<unsigned char&>(sig->m_checkPickUpRandomOptionItemFlag)))
         {
             return 0;
         }
@@ -2128,7 +2096,7 @@ int DB_Login::GetOntimeUserRecvIdx(SIG_LOGIN_DATA* sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)DB_HANDLE_D,
                                                   E_SERVER_GROUP_NONE);
     unsigned int mid = sig->m_accId;
-    SGF<unsigned int>(sig, OFF_ONTIME_IDX) = 0;
+    sig->m_ontimeLastRecvIdx = 0;                        // +0x3fa4
     db->set_query("seLect last_no from event_1112_ontime_user_%u where m_id=%s",
                   mid % 10, NumberToString(mid, 0));
     if (!db->exec(true))
@@ -2137,10 +2105,10 @@ int DB_Login::GetOntimeUserRecvIdx(SIG_LOGIN_DATA* sig)
     }
     if (db->get_n_rows() == 0)
     {
-        SGF<unsigned int>(sig, OFF_ONTIME_IDX) = 1;
+        sig->m_ontimeLastRecvIdx = 1;
         db->set_query("inSert into event_1112_ontime_user_%u(m_id,last_no) values (%s,%u )",
                       mid % 10, NumberToString(mid, 0),
-                      SGF<unsigned int>(sig, OFF_ONTIME_IDX));
+                      sig->m_ontimeLastRecvIdx);
         if (!db->exec(true))
         {
             return 0;
@@ -2152,7 +2120,7 @@ int DB_Login::GetOntimeUserRecvIdx(SIG_LOGIN_DATA* sig)
         {
             return 0;
         }
-        if (!db->get_int(0, SGF<int>(sig, OFF_ONTIME_IDX)))
+        if (!db->get_int(0, sig->m_ontimeLastRecvIdx))
         {
             return 0;
         }
@@ -2166,52 +2134,56 @@ int DB_Login::GetOntimeUserRecvIdx(SIG_LOGIN_DATA* sig)
 
 int DB_Login::GetUserFatigueCount(SIG_LOGIN_DATA* sig)
 {
-    EventClassify::CEventScriptMng* mng =
-        static_cast<EventClassify::CEventScriptMng*>(G_CDataManager()->get_event_script_mng());
-    if (mng == 0 || !mng->is_eventing(0x56))
+    // ORIG：无 mng 具名局部，每处重新求值链式表达式（P48 无 CSE）
+    if (!(static_cast<EventClassify::CEventScriptMng*>(
+              G_CDataManager()->get_event_script_mng()))->is_eventing(0x56))
     {
         return 0;
     }
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
-    SGF<unsigned short>(sig, OFF_FATIGUE_VAL) = 0;
-    SGF<char>(sig, OFF_FATIGUE_DAY) = 0;
+    sig->m_fatigueValue = 0;                             // +0x3faa
+    sig->m_fatigueKind = 0;                              // +0x3fa9
 
-    EventClassify::CEventEntity* entity =
-        static_cast<EventClassify::CEventEntity*>(mng->get_event_entity(0x56));
+    EventClassify::CEventEntity* entity = 0;
+    entity = static_cast<EventClassify::CEventEntity*>(
+        static_cast<EventClassify::CEventScriptMng*>(
+            G_CDataManager()->get_event_script_mng())->get_event_entity(0x56));
     if (entity == 0)
     {
         return 0;
     }
-    unsigned char occDay = mng->get_today_time_day();
+    unsigned char occDay = static_cast<EventClassify::CEventScriptMng*>(
+        G_CDataManager()->get_event_script_mng())->get_today_time_day();
+    register char* idStr = NumberToString(sig->m_accId, 0);   // P87：ORIG →%ebx 跨虚调用缓存
 
-    // ORIG vtable+0x20 槽：取事件表名（std::string），经 toTString 恒等转 const char*
+    // ORIG vtable+0x20 槽：取事件表名（std::string），经 toTString 恒等转 const char*；
+    // 结果不落槽，直接进实参位（ORIG +0x0f4 `mov %eax,0x8(%esp)`）。
     typedef std::string* (*GetTableFn)(void*);
-    GetTableFn getTable = *reinterpret_cast<GetTableFn*>(
-        *reinterpret_cast<void**>(entity) + 0x20);
-    std::string* tableName = getTable(entity);
-    const char* table = toTString(*tableName);
-
-    db->set_query("seLect fatigue from %s where m_id=%s and occ_day = %d", table,
-                  NumberToString(sig->m_accId, 0),
-                  (unsigned int)occDay);
+    db->set_query("seLect fatigue from %s where m_id=%s and occ_day = %d",
+                  toTString(*((*reinterpret_cast<GetTableFn*>(
+                      *reinterpret_cast<void**>(entity) + 0x20))(entity))),
+                  idStr, (unsigned int)occDay);
     if (!db->exec(true))
     {
         return 0;
     }
-    if (db->get_n_rows() > 0)
+    int rows = db->get_n_rows();
+    if (rows > 0)
     {
-        if (!db->fetch())
-        {
-            return 0;
-        }
         short fatigue = 0;
-        if (!db->get_short(0, fatigue))
+        bool ok = db->fetch();
+        if (!ok)
         {
             return 0;
         }
-        SGF<short>(sig, OFF_FATIGUE_VAL) = fatigue;
-        SGF<char>(sig, OFF_FATIGUE_DAY) = (char)occDay;
+        ok = db->get_short(0, fatigue);
+        if (!ok)
+        {
+            return 0;
+        }
+        sig->m_fatigueValue = fatigue;
+        sig->m_fatigueKind = occDay;                     // ORIG param[0x3fa9] = local_15(day)
     }
     return 1;
 }
@@ -2223,7 +2195,7 @@ int DB_Login::GetUserFatigueCount(SIG_LOGIN_DATA* sig)
 int DB_Login::GetUserInGameEventHistory(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
-    memset(SGB(sig, OFF_HISTORY_TBL), 0, 0x168);     // 60 行 × {type,h1,h2}
+    memset(SGBC(sig, OFF_HISTORY_TBL), 0, 0x168);    // 30 行 × {type,h1,h2}
     db->set_query(
         "seLect type , history_1 ,history_2 from event_ingame_history where m_id=%s order by type desc",
         NumberToString(sig->m_accId, 0));
@@ -2232,16 +2204,29 @@ int DB_Login::GetUserInGameEventHistory(SIG_LOGIN_DATA* sig)
         return 0;
     }
     int nRows = db->get_n_rows();
+    bool ok;
     for (int i = 0; i < nRows; ++i)
     {
         if (nRows > 0x1d)
         {
             return 1;                    // ORIG 上限即断（>29 行不再读取）
         }
-        bool ok = db->fetch();
-        if (ok) ok = db->get_int(0, SGF<int>(sig, i * 0xc + OFF_HISTORY_TBL));
-        if (ok) ok = db->get_int(1, SGF<int>(sig, i * 0xc + OFF_HISTORY_TBL + 4));
-        if (ok) ok = db->get_int(2, SGF<int>(sig, i * 0xc + OFF_HISTORY_TBL + 8));
+        ok = db->fetch();
+        if (!ok)
+        {
+            break;
+        }
+        ok = db->get_int(0, *(reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + (0x3fa0 + i * 0xc)) + 3));
+        if (!ok)
+        {
+            break;
+        }
+        ok = db->get_int(1, *(reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + (0x3fa0 + i * 0xc)) + 4));
+        if (!ok)
+        {
+            break;
+        }
+        ok = db->get_int(2, *(reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + (0x3fa0 + i * 0xc)) + 5));
         if (!ok)
         {
             break;
@@ -2260,7 +2245,7 @@ int DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
     {
         return 0;
     }
-    SGF<char>(sig, 0x4124) = 0;                  // ip 变更标志清零
+    sig->m_ingameHackItemFlag = false;           // +0x4124 ip 变更标志清零
 
     char curIp[16] = {0};
     char oldIp[16] = {0};
@@ -2282,7 +2267,7 @@ int DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
     {
         if (SGB(sig, 0x4114)[0] != 0)
         {
-            SGF<char>(sig, 0x4124) = 1;
+            sig->m_ingameHackItemFlag = true;
         }
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
         db->set_query("upDate login_common set login_ip='%s' where m_id=%u",
@@ -2340,7 +2325,10 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
                 characNo);
             if (!dbItems->exec(true))
             {
-                return 1;    // ORIG：exec 失败仍继续外层循环结束返回 1 的路径按 return 1 收敛
+                // ORIG（反编译 C）：exec 失败即跳过本角色的物品装载与
+                // charac_link_bonus 处理，继续下一角色（最终仍 return 1），
+                // 非提前 return 1 终结全函数。
+                continue;
             }
             int nRows = dbItems->get_n_rows();
             int itemId = 0;
@@ -2425,16 +2413,35 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
 
 int DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
 {
-    CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(100);
-    if (!vtableCall34(evt))
+    // P1 组件视图：ORIG 清块/写块单指令 disp（movb/movw/movl $imm,0x414x(%eax)）
+    struct __attribute__((packed)) GWView {
+        char m_pad[0x4140];
+        char m_has;                            // +0x4140
+        char m_pad1[3];
+        unsigned int m_characNo;               // +0x4144
+        unsigned int m_weaponId;               // +0x4148
+        unsigned int m_infWeaponId;            // +0x414c
+        unsigned short m_timepiece;            // +0x4150
+        unsigned short m_serverId;             // +0x4152
+    };
+    typedef bool (*IsEventingFn)(CEventBase*, int);
+    // 4.4 槽序与 4.1 相反（P28/P112）：先声明者槽更深，按 ORIG 槽位（db -0xc、ok -0xd）
+    // 逆序声明 evt/ok/db。
+    CEventBase* evt;
+    bool ok;
+    MySQL* db;
+    // ORIG +0x1b：GetRepeatEvent 结果裸跨 vtable+0x34 手动调用（无判空）。
+    evt = GlobalData::s_event_manager->GetRepeatEvent(100);
+    if (!(*reinterpret_cast<IsEventingFn*>(*reinterpret_cast<void**>(evt) + 0x34))(evt, 0))
     {
         return 1;
     }
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
+    db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect server_id, charac_no, growthweapon_id, timepiece, infinityweapon_id from event_1207_growthweapon where m_id = %d",
         sig->m_accId);
-    if (!db->exec(true))
+    ok = db->exec(true);                       // ORIG %al→-0xd 槽回读
+    if (!ok)
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__, 0xb487,
@@ -2442,27 +2449,28 @@ int DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
                               sig->m_accId);
         return 0;
     }
-    if (db->get_n_rows() == 0)
-    {
-        SGFC(char, sig, OFF_GROWTH_WEAPON) = 0;              // has flag
-        SGFC(unsigned short, sig, OFF_GROWTH_WEAPON + 0x12) = 0;  // server_id
-        SGFC(unsigned int, sig, OFF_GROWTH_WEAPON + 4) = 0;  // charac_no
-        SGFC(unsigned int, sig, OFF_GROWTH_WEAPON + 8) = 0;  // growthweapon_id
-        SGFC(unsigned short, sig, OFF_GROWTH_WEAPON + 0x10) = 0; // timepiece
-        SGFC(unsigned int, sig, OFF_GROWTH_WEAPON + 0xc) = 0;    // infinityweapon_id
-    }
-    else
+    if ((bool)(db->get_n_rows() != 0))
     {
         if (!db->fetch())
         {
             return 0;
         }
-        SGFC(char, sig, OFF_GROWTH_WEAPON) = 1;
+        ((GWView*)sig)->m_has = 1;
         if (!db->get_short(0, SGFC(short, sig, OFF_GROWTH_WEAPON + 0x12))) return 0;   // server_id
         if (!db->get_int(1, SGFC(int, sig, OFF_GROWTH_WEAPON + 4))) return 0;          // charac_no
         if (!db->get_int(2, SGFC(int, sig, OFF_GROWTH_WEAPON + 8))) return 0;          // growthweapon_id
         if (!db->get_short(3, SGFC(short, sig, OFF_GROWTH_WEAPON + 0x10))) return 0;   // timepiece
         if (!db->get_int(4, SGFC(int, sig, OFF_GROWTH_WEAPON + 0xc))) return 0;        // infinityweapon_id
+    }
+    else
+    {
+        // ORIG 清块写入序：每 store 重读 sig（无跨 store 缓存）
+        ((GWView*)sig)->m_has = 0;                           // +0x20f movb
+        ((GWView*)sig)->m_serverId = 0;                      // +0x219 movw
+        ((GWView*)sig)->m_characNo = 0;                      // +0x225 movl
+        ((GWView*)sig)->m_weaponId = 0;                      // +0x232 movl
+        ((GWView*)sig)->m_timepiece = 0;                     // +0x23f movw
+        ((GWView*)sig)->m_infWeaponId = 0;                   // +0x24b movl
     }
     return 1;
 }
@@ -2625,8 +2633,8 @@ int DB_Login::GetBingoEvent(SIG_LOGIN_DATA* sig)
               NumberToString(sig->m_accId, 0));
         return 0;
     }
-    SGF<int>(sig, OFF_BINGO_EVT + 4) = reward;
-    SGF<char>(sig, OFF_BINGO_EVT) = board;
+    sig->m_bingoEventId = (unsigned int)reward;      // +0x413c
+    sig->m_bingoWinFlag = board;                     // +0x4138
     return 1;
 }
 
@@ -2638,7 +2646,7 @@ int DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     unsigned int allowCnt = 0;
-    SGF<char>(sig, OFF_ERR_CODE) = 0;
+    sig->m_geoAllowSkipFlag = false;                 // +0xb5
     db->set_query("seLect count(*) from geo_allow where allow_ip = '%s'",
                   SGB(sig, OFF_LOGIN_IP));
     if (!db->exec(true))
@@ -2661,7 +2669,7 @@ int DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
     }
     if (allowCnt != 0)
     {
-        SGF<char>(sig, OFF_ERR_CODE) = 1;
+        sig->m_geoAllowSkipFlag = true;              // +0xb5 geo_allow 命中
     }
     db->set_query("insert into member_join_info(m_id, reg_date, ip) values(%d, now(), '%s')",
                   sig->m_accId,

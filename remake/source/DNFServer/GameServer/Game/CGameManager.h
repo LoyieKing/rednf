@@ -138,7 +138,10 @@ class CEgg : public CCreatureItem    // ORIG 继承 CCreatureItem（ctor 基区�
 {
 public:
     CEgg();        // ORIG T 0x08338f4c：基类 ctor → vptr←&_ZTV CEgg+0x8(0x08c2f4a8) → Reset
-    ~CEgg() {}     // ORIG D1 0x08338f74 仅写 vptr
+    ~CEgg()        // ORIG D1 0x08338f74 仅写 vptr（0x8338f7a movl $0x8c2f4a8,(%eax)）
+    {
+        m_vptr = 0x08c2f4a8;
+    }
     void Reset();  // ORIG T 0x08338f82：基类字段清零
     bool IsSave(); // ORIG W 0x0833f102：字面返回 0
     bool Hatch(int* out);   // ORIG T 0x0833912a（定义 CCreatureMgr.cpp）
@@ -215,7 +218,7 @@ public:
         if (m_stream == 0)
             return 0;
         CStreamGuard guard(m_stream, false);
-        return guard.GetInBuffer<T>();
+        return guard->GetInBuffer<T>();
     }
 
     Stream* m_stream;   // +0x00
@@ -565,6 +568,9 @@ public:
     int userPoolRemain() { return m_userPool.Remain(); }  // MainLoop 心跳条件用
     int userPoolSize() { return m_userPool.Size(); }      // MainLoop 心跳条件用（ORIG 实例调用）
     friend void ProcessServerStatusLog();  // ORIG 0x80ede91 访问私有池（GameMain.cpp 定义）
+    // ORIG _Z7getUserj @0x084bb9cf 直访 m_userByAccId2（反汇编 `call G_CGameManager;
+    // lea 0x244(%eax),%edx` 无 getter call，证明成员直读）——广播 2026-09-05 无异议。
+    friend CUser* getUser(unsigned int uid);
 
 private:
     Mutex m_mutex;                       // +0x000（0x18）

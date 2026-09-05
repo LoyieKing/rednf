@@ -59,14 +59,29 @@ public:
     void setDropRatio(float ratio);  // 定义于 CDataManagerScripts.cpp（逐生成器虚调用）
     // ORIG T 0x08534322 _ZN8WongWork17CItemGeneratorMgr12onTimerEventEi
     //   timer==0x6b 时：以 G_CEnvironment()+0x1b0 为首参对三组统计区
-    //   (+0x18/+0x30/+0x48/+0x60)、(+0x90/+0xa8/+0xc0/+0xd8)、
-    //   (+0x108/+0x120/+0x138/+0x150) 各调一次
+    //   (dropStat[g][1..4]，g=0/1/2；即 +0x18/+0x30/+0x48/+0x60、
+    //    +0x90/+0xa8/+0xc0/+0xd8、+0x108/+0x120/+0x138/+0x150) 各调一次
     //   DB_UpdateItemDropStatistics::makeRequest(int,int,uint*,uint*,uint*,uint*)，
-    //   然后 memset(this,0,0x3c0)（m_head 区整体清零）。定义 W6_ItemGenDeps.cpp。
+    //   然后 memset(this,0,0x3c0)（计数区整体清零）。定义 W6_ItemGenDeps.cpp。
     void onTimerEvent(int timer);
     bool initialize();               // ORIG T 0x08533bc8（init 调用；定义 CtorProducers_2C.cpp）
 
-    char m_head[0x3c0];              // +0x000（头部区域未建模）
+    // 掉落生成尝试计数区（ORIG 证据，2026-09-05 BossMission 批次字段化）：
+    //   · onTryGenerateRandomItem T 0x085342c6 索引式
+    //     (rarity + 30*genType + 6*dropType)*4 ⇒ 行主序 [genType][dropType][rarity]，
+    //     genType 步长 30 int = 0x78、dropType 步长 6 int = 0x18；
+    //   · onTimerEvent T 0x08534322 对 genType 0/1/2 各取 dropType 1..4 四行
+    //     （this+0x18/0x30/0x48/0x60、+0x90/0xa8/0xc0/0xd8、+0x108/0x120/0x138/0x150）
+    //     送 makeRequest，每行 6 uint（makeRequest 逐指针写 6 个 uint）；
+    //   · eGenerateType_t 共 8 值 ⇒ 8*5*6*4 = 0x3c0，恰等于原 m_head 区尺寸，
+    //     与 initialize/ctor 的 memset(…,0,0x3c0) 整体清零口径一致。
+    // union 保留旧基名 m_head（CtorProducers_2C.cpp `memset(m_head,0,0x3c0)`
+    // 消费者零破坏；dropType 第 5 行与 rarity 第 6 列为 ORIG 计数表预留槽）。
+    union
+    {
+        char m_head[0x3c0];                    // +0x000（旧基名，整体清零口径）
+        unsigned int m_dropStat[8][5][6];      // +0x000 [genType][dropType][rarity]
+    };
     CItemGenerator* m_generators[8]; // +0x3c0
     CGeneratorCommonData m_common;   // +0x3e0（ctor 仅构造它；D1 仅析构它）
 };

@@ -67,6 +67,19 @@ public:
     std::vector<int> getUniqueDungeonIndex(int level);
     int getDungeonDifficulty(int dungeon);
 
+    // BlueMarble（T 0x080d7xxx 一组方法）按 ORIG 直接位移读以下 private 成员
+    // （BlueMarbleScriptManager::m_info == manager+0x30）：
+    //   +0x30 m_playerMax / +0x34 m_enterLevel / +0x38 m_enterMaxLevel /
+    //     +0x3c m_enterCount（checkUserConditionEnterBlueMarble 0x080d8d02：
+    //     `mov 0x30/0x34/0x38/0x3c(%edx)` 四处 4 字节读）
+    //   +0x44 m_diceMin / +0x48 m_diceMax（setDiceNumber 0x080d6f88 取骰点）
+    //   +0x4c m_itemWeightTotal（getRandomItem 0x080d7690 `mov 0x4c(%eax)`）
+    //   +0x98 m_randomItemList（getRandomItem `add $0x98`）
+    //   +0xa4 m_rewardList（setResultItem 0x080d7e8e `add $0xa4`）
+    // ORIG 对上述槽位均无 getter/setter 符号 ⇒ friend 授权具名访问，
+    // sizeof/成员偏移零变动（0x8c）。
+    friend class BlueMarble;
+
 public:  // m_playerMax：CGameManager::allocBlueMarble / findJoinableBlueMarble 按
          // ORIG *(managerScript+0x30) 直读（ORIG 无 getter 符号；公开字段避免
          // 新增 inline 弱符号污染 compare）。

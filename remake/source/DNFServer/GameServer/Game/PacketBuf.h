@@ -43,6 +43,33 @@ CDataManager* G_CDataManager();
 //   sizeof    = 0x17334 = 95028
 // ---------------------------------------------------------------------------
 
+// 包线格式头部字段偏移：m_ptr（构造后指向 m_buf；bind_packet 后指向外部
+// packet）所指的字节缓冲区内布局。依据 ORIG df_game_r 反汇编
+// （docs/class_func_reports/PacketBuf/{put_header,finalize,encFinalize,
+//   encrypt_packet,compress_packet}.md 与 function_reports/game/
+//   _Z20_NS_PI_MakeHash_NOTIP9PacketBuf.md）逐处实证：
+//   [0]       byte   : 包 id      （put_header 写 *m_ptr；encrypt_packet 读）
+//   [1..2]    ushort : 声明大小   （put_header 写；encrypt_packet /
+//                     isCompressRequired / _NS_PI_MakeHash_NOTI 读）
+//   [3..6]    int    : 包总长     （finalize/encFinalize 逐字节按端序写；
+//                     compress_packet 以 int 写）
+//   [7..10]   int    : crc32N(payload) 第一次
+//   [11..14]  int    : crc32N(payload) 第二次
+//   [15..]          : payload（加密/压缩区，即写入游标起始）
+// 纯命名替换：各常量取值为原裸偏移字面量，编译期折叠，codegen 中性。
+enum PACKET_HEADER_FIELD
+{
+    PKT_ID_OFF        = 0,
+    PKT_SIZE_OFF      = 1,
+    PKT_LEN_OFF       = 3,
+    PKT_CRC1_OFF      = 7,
+    PKT_CRC2_OFF      = 11,
+    PKT_BODY_OFF      = 15,
+    // is_ptr_end 的可写末端上界（ORIG 直接立即数 0x172b4；等于
+    // MAX_PACKET_SIZE(0x17318) - 100，为缓冲区预留余量 [推断]）。
+    PKT_PTR_END_LIMIT = 0x172b4
+};
+
 class PacketBuf
 {
 public:

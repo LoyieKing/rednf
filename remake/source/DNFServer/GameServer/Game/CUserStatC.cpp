@@ -175,8 +175,12 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
 
             if (item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
             {
-                if (!cargoResolveSlot(getCurCharacCargoR(), toSlot))
-                    return 4;
+                if (getCurCharacCargoR()->check_slot_empty(toSlot) != 1)
+                {
+                    toSlot = getCurCharacCargoR()->get_empty_slot();
+                    if (toSlot < 0)
+                        return 4;
+                }
             }
             else
             {
@@ -188,8 +192,15 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 int exist = getCurCharacCargoR()->check_item_exist(item.m_addInfo);
                 if (exist >= 0)
                     toSlot = exist;
-                else if (!cargoResolveSlot(getCurCharacCargoR(), toSlot))
-                    return 4;
+                else
+                {
+                    if (getCurCharacCargoR()->check_slot_empty(toSlot) != 1)
+                    {
+                        toSlot = getCurCharacCargoR()->get_empty_slot();
+                        if (toSlot < 0)
+                            return 4;
+                    }
+                }
             }
 
             toSlot = getCurCharacCargoR()->tryInsertItemSpecialSlot(item, toSlot);
@@ -299,8 +310,12 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
 
             if (item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
             {
-                if (!accountCargoResolveSlot(cargo, toSlot))
-                    return 4;
+                if (cargo->CheckSlotEmpty(toSlot) != 1)
+                {
+                    toSlot = cargo->GetEmptySlot();
+                    if (toSlot < 0)
+                        return 4;
+                }
             }
             else
             {
@@ -315,9 +330,14 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                         return 4;
                     toSlot = specific;
                 }
-                else if (!accountCargoResolveSlot(cargo, toSlot))
+                else
                 {
-                    return 4;
+                    if (cargo->CheckSlotEmpty(toSlot) != 1)
+                    {
+                        toSlot = cargo->GetEmptySlot();
+                        if (toSlot < 0)
+                            return 4;
+                    }
                 }
             }
 
@@ -348,24 +368,25 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
         // ORIG 在分支入口构造两个临时项并按目的域选择性填充。
         Inven_Item itemA;
         Inven_Item itemB;  // toSpace==4 时仅保持构造初值（ORIG 同）
-        if (toSpace == 3 || toSpace == 1)
+        if (toSpace == 3)
         {
             itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
-            // ORIG：toSpace==3 读装备槽(INVEN_TYPE 0)，toSpace==1 读时装槽(2)，均取目的槽位。
-            itemB = getCurCharacInvenR()->GetInvenSlot(
-                (INVEN_TYPE)(toSpace == 1 ? INVEN_TYPE_AVATAR : INVEN_TYPE_INVEN),
-                toSlot);
+            // ORIG：toSpace==3 各子分支独立读两个槽（itemA/itemB 不合并条件）。
+            itemB = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_INVEN, toSlot);
+        }
+        else if (toSpace == 1)
+        {
+            itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
+            itemB = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, toSlot);
         }
         else if (toSpace == 4)
         {
             itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
         }
 
-        // ORIG 以 IsTempKey(m_addInfo2) 判临时键；IsTempKey ORIG 非 const，改 W 访问器。
-        WongWork::CAvatarItemMgr* avatarMgr =
-            getCurCharacInvenW()->GetAvatarItemMgrW();
-        if (avatarMgr->IsTempKey((int)itemA.m_addInfo2)
-            || avatarMgr->IsTempKey((int)itemB.m_addInfo2))
+        // ORIG:IsTempKey 为静态语义（值符号位判定），直接静态调用，不经 mgr 访问器。
+        if (WongWork::CAvatarItemMgr::IsTempKey((int)itemA.m_addInfo2)
+            || WongWork::CAvatarItemMgr::IsTempKey((int)itemB.m_addInfo2))
             return 0x13;
 
         if (toSpace == 3)
@@ -493,8 +514,12 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
 
             if (item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
             {
-                if (!accountCargoResolveSlot(cargo, toSlot))
-                    return 4;
+                if (cargo->CheckSlotEmpty(toSlot) != 1)
+                {
+                    toSlot = cargo->GetEmptySlot();
+                    if (toSlot < 0)
+                        return 4;
+                }
             }
             else
             {
@@ -509,9 +534,14 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                         return 4;
                     toSlot = specific;
                 }
-                else if (!accountCargoResolveSlot(cargo, toSlot))
+                else
                 {
-                    return 4;
+                    if (cargo->CheckSlotEmpty(toSlot) != 1)
+                    {
+                        toSlot = cargo->GetEmptySlot();
+                        if (toSlot < 0)
+                            return 4;
+                    }
                 }
             }
 
@@ -560,10 +590,8 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_INVEN, fromSlot);
             Inven_Item avatarSlot =
                 getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, toSlot);
-            WongWork::CAvatarItemMgr* avatarMgr =
-                getCurCharacInvenW()->GetAvatarItemMgrW();
-            if (avatarMgr->IsTempKey((int)equipSlot.m_addInfo2)
-                || avatarMgr->IsTempKey((int)avatarSlot.m_addInfo2))
+            if (WongWork::CAvatarItemMgr::IsTempKey((int)equipSlot.m_addInfo2)
+                || WongWork::CAvatarItemMgr::IsTempKey((int)avatarSlot.m_addInfo2))
                 return 0x13;
             int ret = change_equip(fromSpace, (short)fromSlot, toSlot);
             if (ret < 1)
@@ -808,8 +836,12 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
 
             if (item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
             {
-                if (!cargoResolveSlot(getCurCharacCargoR(), toSlot))
-                    return 4;
+                if (getCurCharacCargoR()->check_slot_empty(toSlot) != 1)
+                {
+                    toSlot = getCurCharacCargoR()->get_empty_slot();
+                    if (toSlot < 0)
+                        return 4;
+                }
             }
             else
             {
@@ -819,8 +851,15 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 int exist = getCurCharacCargoR()->check_item_exist(item.m_addInfo);
                 if (exist >= 0)
                     toSlot = exist;
-                else if (!cargoResolveSlot(getCurCharacCargoR(), toSlot))
-                    return 4;
+                else
+                {
+                    if (getCurCharacCargoR()->check_slot_empty(toSlot) != 1)
+                    {
+                        toSlot = getCurCharacCargoR()->get_empty_slot();
+                        if (toSlot < 0)
+                            return 4;
+                    }
+                }
             }
 
             toSlot = getCurCharacCargoR()->tryInsertItemSpecialSlot(item, toSlot);

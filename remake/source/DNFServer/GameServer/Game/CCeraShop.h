@@ -93,7 +93,8 @@ public:
                             std::vector<Inven_Item>& items,
                             stCeraShopItemParam_t& param,
                             char c1, char c2, bool flag2, int extra);            // 0x0832587e
-    void SaveFeaturedIdx(CUser* user, int restrictCode, int curSec, int d);      // 0x08325a30
+    // ORIG 0x08325a30：体仅用 user(arg1)+DB 请求，无 this/成员；调用点 4 参槽无 this。
+    static void SaveFeaturedIdx(CUser* user, int restrictCode, int curSec, int d);
     void _ClosePremium(CUser* user, int type);                                   // 0x08327bb6
     void _sendPremiumPacket(CUser* user, int a, int type, int remainSec);        // 0x083277dc
     void ProcessError(CUser* user, unsigned short a, int b, unsigned int c,

@@ -45,7 +45,7 @@ public:
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
     // Wave5 三分解方法（非虚 const，不影响 IPacketDispatcher 虚表）。
-    bool check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x08140b32
+    int  check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x08140b32（调用方无 movzbl，返回 int）
     int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x08140b04
     int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
                        CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x08140b3c
@@ -59,7 +59,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
-    bool check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x0813fbe6
+    int  check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x0813fbe6（调用方无 movzbl，返回 int）
     int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x0813fbb8
     int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
                        CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x0813fc06
@@ -74,7 +74,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
-    bool check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x0814004e
+    int  check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x0814004e（调用方无 movzbl，返回 int）
     int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x08140020
     int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
                        CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x0814006e
@@ -89,7 +89,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
-    bool check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x0814108a
+    int  check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x0814108a（调用方无 movzbl，返回 int）
     int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x0814105c
     int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
                        CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x081410aa
@@ -146,7 +146,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
-    bool check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x08140884
+    int  check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x08140884（调用方无 movzbl，返回 int）
     int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x08140856
     int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
                        CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x081408a4
@@ -161,7 +161,7 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send_packet(CUser* user, CMDPacketStruct::STBaseResponse& resp);
-    bool check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x08140d80
+    int  check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const;        // ORIG T 0x08140d80（调用方无 movzbl，返回 int）
     int read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const;   // ORIG T 0x08140d52
     int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
                        CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x08140da0（ORIG 空体）
@@ -385,7 +385,7 @@ public:
     int read(PacketBuf& packet, MSG_BASE& msg);                  // ORIG T 0x08218b94
     // ORIG T 0x082194b6：净化类型处理。type 0 → 鉴定强化选项（未鉴定清 bit7 返 1）；
     // type 1 → reset 后返 1；其它 → 0。
-    int processPurifyType(int purifyType, Inven_Item& item);
+    bool processPurifyType(int purifyType, Inven_Item& item);
 };
 
 class Dispatcher_RedeemList : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -3506,7 +3506,7 @@ public:
 class Dispatcher_SDC_ActiveStatus_Damage_Check : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
-    Dispatcher_SDC_ActiveStatus_Damage_Check();
+    Dispatcher_SDC_ActiveStatus_Damage_Check() throw();   // ORIG PacketDispatcher ctor 槽184 new 无 EH cleanup
     virtual ~Dispatcher_SDC_ActiveStatus_Damage_Check();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);

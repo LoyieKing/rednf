@@ -375,13 +375,15 @@ public:
         guard.operator*()->operator<<(-1);
         SIG_UPDATE_AUTO_MARKET_CONDITIONS_CONTROL* sig =
             guard->GetInBuffer<SIG_UPDATE_AUTO_MARKET_CONDITIONS_CONTROL>();
-        *(unsigned long long*)((char*)sig + 0x00) = a;
-        *(unsigned long long*)((char*)sig + 0x08) = b;
-        *(unsigned long long*)((char*)sig + 0x10) = c;
-        *(unsigned long long*)((char*)sig + 0x18) = d;
-        *(int*)((char*)sig + 0x20) = e;
-        *(int*)((char*)sig + 0x24) = f;
-        *(int*)((char*)sig + 0x28) = g;
+        // 具名字段（SecuLink 批次裸偏移清理；SigTypes_E.h m_values0/m_values20
+        // 布局，写侧 ORIG 0x08433d70 宽度：4×8B + 3×4B）。
+        sig->m_values0[0] = a;
+        sig->m_values0[1] = b;
+        sig->m_values0[2] = c;
+        sig->m_values0[3] = d;
+        sig->m_values20[0] = e;
+        sig->m_values20[1] = f;
+        sig->m_values20[2] = g;
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
 };
@@ -420,29 +422,29 @@ int CAutoMarketConditionsControl::LoadDatabase(
     SIG_AUTO_MARKET_CONDITIONS_CONTROL* msg)
 {
     unsigned long long base = 0;
-    if (msg->m_pad[0x68] != 0)
+    if (msg->m_view.m_flag != 0)
     {
-        base = *(unsigned long long*)(msg->m_pad + 0x00);
+        base = msg->m_view.m_overGold;
     }
     else
     {
         unsigned long long v1 =
-            *(unsigned long long*)(msg->m_pad + 0x3c) +
-            *(unsigned long long*)(msg->m_pad + 0x44);
+            msg->m_view.m_rows[1].m_totalGold +
+            msg->m_view.m_rows[1].m_auctionGold;
         unsigned long long v2 =
-            *(unsigned long long*)(msg->m_pad + 0x10) +
-            *(unsigned long long*)(msg->m_pad + 0x18);
-        base = v1 - v2 + *(unsigned long long*)(msg->m_pad + 0x20);
+            msg->m_view.m_rows[0].m_totalGold +
+            msg->m_view.m_rows[0].m_auctionGold;
+        base = v1 - v2 + msg->m_view.m_rows[0].m_overGold;
     }
 
     double amount = static_cast<double>(
-        *(long long*)(msg->m_pad + 0x08));
+        static_cast<long long>(msg->m_view.m_optimumGold));
     if (amount < 0)
         amount += 2.0;   // ORIG fldt 0x8c1fc60 校正值（-2^63 回卷路径）【推断】
 
-    int field30 = *(int*)(msg->m_pad + 0x30);
-    int field34 = *(int*)(msg->m_pad + 0x34);
-    int field38 = *(int*)(msg->m_pad + 0x38);
+    int field30 = msg->m_view.m_rows[0].m_goldPhase;
+    int field34 = msg->m_view.m_rows[0].m_itemPhase;
+    int field38 = msg->m_view.m_rows[0].m_durabilityPhase;
 
     GetMarketConditionRate(amount, static_cast<double>(base), m_goldRate,
                            field30, m_field00, m_goldBaseRate);
@@ -459,8 +461,9 @@ int CAutoMarketConditionsControl::LoadDatabase(
         0xae, 0);
     trace("LoadDatabase() %qd %u %d %d %d",
           static_cast<long long>(static_cast<unsigned long long>(base)),
-          static_cast<unsigned int>(*(int*)(msg->m_pad + 0x08)),
-          *(int*)(msg->m_pad + 0x0c), m_field00, m_field380, m_field3e8);
+          msg->m_view.m_optimumGoldWords[0],
+          static_cast<int>(msg->m_view.m_optimumGoldWords[1]),
+          m_field00, m_field380, m_field3e8);
 
     long long diff = static_cast<long long>(base) -
                      static_cast<long long>(amount);
@@ -470,10 +473,10 @@ int CAutoMarketConditionsControl::LoadDatabase(
     if (G_CEnvironment()->get_channel_no() == 1)
     {
         DB_UpdateAutoMarketConditionsControl::makeRequest(
-            *(unsigned long long*)(msg->m_pad + 0x3c),
-            *(unsigned long long*)(msg->m_pad + 0x44),
+            msg->m_view.m_rows[1].m_totalGold,
+            msg->m_view.m_rows[1].m_auctionGold,
             static_cast<unsigned long long>(diff),
-            *(unsigned long long*)(msg->m_pad + 0x08),
+            msg->m_view.m_optimumGold,
             m_field00, m_field380, m_field3e8);
     }
     return 0;

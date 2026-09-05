@@ -1217,7 +1217,7 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
 // isExistAiPattern —— ORIG T 0x08a2232f
 // 报告 _lt_global_gt_/isExistAiPattern.md 完整转写。
 // bucket==-1 遍历 5 个难度桶；否则只查指定桶；任一非空返 1，否则 0。
-int isExistAiPattern(STAIInfoScript* info, int bucket)
+bool isExistAiPattern(STAIInfoScript* info, int bucket)   // ORIG 调用侧 test %al 直判（P9/P22）
 {
     if (info != 0)
     {
@@ -1335,8 +1335,8 @@ void PowerParameterScript::clear()
     m_rankingBonusDecreasePoint = 0;   // +0x88
     m_decreasePointPerDay = 0;         // +0x8c
     m_requiredUserPoint4Dungeon = 0;   // +0x90
-    m_powerWarDungeonInfo0 = 0;        // +0x94
-    m_powerWarDungeonInfo1 = 0;        // +0x98
+    m_powerWarDungeonInfo.first = 0;   // +0x94（ORIG pair 子对象）
+    m_powerWarDungeonInfo.second = 0; // +0x98
     m_vec38.clear();                    // +0x38
     m_pcRoomBonus = 0;                 // +0x44
     m_minEnterLevel = 0;               // +0x64

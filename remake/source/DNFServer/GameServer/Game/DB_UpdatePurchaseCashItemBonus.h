@@ -15,6 +15,7 @@ class Stream;
 class DB_UpdatePurchaseCashItemBonus : public DBDispatcher
 {
 public:
+    DB_UpdatePurchaseCashItemBonus() {}   // ORIG W C1/C2 0x844f61a（try 区直调无 pad）
     // ORIG 0x0843e560：向 DB 队列发一条请求（表头 0x23c + m_id + acc_id）。
     static void makeRequest(int p1, unsigned int p2);
     // ORIG 0x0843e252：DBThread 侧读流并执行 update/insert/select，

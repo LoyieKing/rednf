@@ -292,7 +292,8 @@ char CSkill::isCommandCustomizing() const
 }
 
 // ---- 主逻辑（ORIG strong）----
-int CSkill::IsStealable(int firstGrowType, int secondGrowType) const
+// ORIG 0x83504ec _ZNK6CSkill11IsStealableEii：体内 `xor $0x1,%eax; test %al,%al` bool 物化形
+bool CSkill::IsStealable(int firstGrowType, int secondGrowType) const
 {
     if (m_stealable == 0)
     {

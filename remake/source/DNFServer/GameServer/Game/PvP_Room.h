@@ -9,7 +9,8 @@
 //     （+0x09 名字缓冲 / +0x0c CUser* m_seats[8]；+0x28 = seats[7]）
 //   +0x02c int m_managerSeat
 //   +0x030 CUser* m_users[8]      +0x050 int m_teams[8]
-//   +0x070 char m_seatState[8]    +0x0b8 int m_state
+//   +0x070 char m_seatState[8]    +0x078 int[8] +0x098 int[8]
+//   +0x0b8 int m_state
 //   +0x0bc int（胜负积分）         +0x0c0 char
 //   +0x0c4 PvP_GuildWar_Log(0x68) +0x12c cElection<int,8,8>(0x100)
 //   +0x22c int[15]                +0x268 PvpUserTable(0x34c)
@@ -78,7 +79,7 @@ public:
     int leave_room(CUser* user, bool& flag);
     int destroy_room(int idx);
     int Disconnect(CUser* user);
-    int WalkOut(CUser* user, int seat, ENUM_SEAT_STATE state,
+    bool WalkOut(CUser* user, int seat, ENUM_SEAT_STATE state,
                 ENUM_WALKOUT_TYPE walkoutType);
     int SendWalkOut(int seat, ENUM_WALKOUT_TYPE walkoutType);
     int ClearPvPRoom(CUser* user);
@@ -90,22 +91,24 @@ public:
     int check_authority(CUser* user, int seat);
     int set_seat_state(CUser* user, int seat, ENUM_SEAT_STATE state,
                        CUser** out, bool& a, bool& b, bool& c);
-    int OnSetPVPSeatState(CUser* user, int seat, ENUM_SEAT_STATE state,
+    // ORIG caller 0x081f5eba call 后 `xor $0x1,%eax; test %al,%al; je`（技1 bool 专属）
+    // ⇒ 原声明 bool（mangled 不含返回类型，零 ABI 风险；body 仅返 0/1）。
+    bool OnSetPVPSeatState(CUser* user, int seat, ENUM_SEAT_STATE state,
                           ENUM_WALKOUT_TYPE walkoutType);
     int set_ready_state(CUser* user, bool ready);
     bool check_start_state();
     int start_pvp();
     int end_pvp();
-    int end_pvp_result();
+    void end_pvp_result();
     int send_pvp_end();
     bool CheckPassword(const char* password, int len);
     unsigned char IsExistPassword();
-    unsigned char IsEndPvpBattle();
+    bool IsEndPvpBattle();
     unsigned char IsInsertTimerRecvPvpRank();
     int is_closeable_seat_state();
     bool IsAllMoreThanGrade(int grade);
     bool is_last_win(int seat);
-    int IsPvpObserver(int seat);
+    bool IsPvpObserver(int seat);
     int check_winner();
     int check_recv_pvp_rank();
     int check_team_pvp();
@@ -118,7 +121,7 @@ public:
     int GiveOuterPenalty(CUser* user);
     int VoteLackUser(CUser* user, int vote);
     int OnConnectP2PPvPTimeout();
-    int OnTimerWalkOutLackUser();
+    bool OnTimerWalkOutLackUser();   // ORIG 0x85dce28（调用点 0x08633eef xor $0x1,%eax 实证 bool）
     int HandleTimerUserRevive(int seat);
     int SkipLastRankResultTimer();
     int pvp_request_pvp_rank();
@@ -126,8 +129,8 @@ public:
     int recv_pvp_end_result_all() const;
     int recv_pvp_end_result_team(CUser* user) const;
     int SetPVPResult(int seat, const PvpResultType& result);
-    int request_fight(CUser* user);
-    int revengeMission(bool flag);
+    bool request_fight(CUser* user);
+    void revengeMission(bool flag);
     int change_team(int seat, int team);
     int change_manager_to_winner();
     int select_new_manager();
@@ -173,8 +176,13 @@ private:
     int m_managerSeat;                  // +0x02c
     CUser* m_users[8];                  // +0x030
     int m_teams[8];                     // +0x050
-    char m_seatState[8];                // +0x070
-    char m_pad78[0x40];                 // +0x078
+    unsigned char m_seatState[8];       // +0x070（ORIG make_ready_info 双 movzbl 零扩展实证 unsigned）
+    // +0x078 区（原 char m_pad78[0x40]，按 SetPVPResult ORIG 0x085dc060 /
+    // GetAce 0x085dc654 / GetRanking 0x085dc58e / pvp_reward 汇编证据拆为两个
+    // per-seat int 数组，sizeof 不变）：
+    int m_field78[8];                   // +0x078（SetPVPResult 写 result.GetTotalScore()；
+                                        //        GetRanking 降序排位 / pvp_reward 序列化）
+    int m_field98[8];                   // +0x098（SetPVPResult 写 result+0x18；GetAce 取最大）
     int m_state;                        // +0x0b8
     int m_fieldBc;                      // +0x0bc
     char m_fieldC0;                     // +0x0c0
@@ -199,7 +207,7 @@ private:
     unsigned char m_battleEndFlag;      // +0x614（request_fight 入口非 0 即拒；time_out 置 1）
     char m_rankRequested;               // +0x615（pvp_request_pvp_rank 一次性置 1 发 0x31 包）
     unsigned char m_isInsertTimerRecvPvpRank;  // +0x616（ORIG IsInsertTimerRecvPvpRank 读）
-    unsigned char m_isEndPvpBattle;     // +0x617（ORIG IsEndPvpBattle 读）
+    bool m_isEndPvpBattle;              // +0x617（ORIG IsEndPvpBattle 0x082a4338 movzx 直返=uchar/bool；调用点 xor$1=bool）
     int m_battleStartSec;               // +0x618（request_fight 记 getCurSec；time_out 算耗时）
     bool m_field61c;                    // +0x61c（ORIG setReamtchable 0x8568d62 P33 形态）
     char m_pad61d[3];                   // +0x61d

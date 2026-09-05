@@ -20,11 +20,11 @@
 
 #include <cstddef>
 #include "Inven_Item.h"   // G7 miscB 追加：tagCompoundInfo 按值 Inven_Item 成员（0x3d，pack(1)）
+#include "MSG_COMPOUND_AVATAR.h"  // 合成头像请求包权威布局（唯一声明点；原仅前向声明）
 
 class CItem;              // find_item 结果指针（tagCompoundInfo +0x88/+0x8c）
 class CUser;
 class CMTRand;            // PvPTypes.h（0x9c8 MT19937）
-struct MSG_COMPOUND_AVATAR;  // 合成头像请求包（源码未建模，仅指针传参）
 
 // G7 miscB 追加：SendCmdErrorPacket/PacketGuard 头内声明所需枚举（guard 与权威头一致）。
 #ifndef DNF_GAME_ENUM_ERROR_DEFINED

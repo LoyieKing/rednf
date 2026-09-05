@@ -388,7 +388,7 @@ bool user_creature::CDBMsgSender::EventEvoluteCreature(int uid, int itemIdx, int
     buf->m_hdr |= 0x248;
     buf->m_addInfo2 = uid;                            // +0x30（先写，ORIG 序）
     ((Inven_Item_Compatible*)(void*)buf->m_item)->m_itemIdx = itemIdx;  // +0x08
-    *(int*)(void*)buf->m_pad4c = exp;                 // +0x4c（SigTypes 待更名 m_eventExp）
+    buf->m_exp = exp;                                 // +0x4c（SigTypes 已具名 m_exp）
     CItem* item = G_CDataManager()->find_item(itemIdx);
     buf->m_days = item->getUsablePeriod();            // +0x54
     buf->m_expireTick = item->getExpirationDate();    // +0x58

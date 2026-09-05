@@ -16,6 +16,15 @@
 
 #include <cstring>
 
+// setBreakAwayRewardOrder(ORIG W 0x0831d4de) 透传写 m_breakAwayRewardOrder（+0x654）；
+// ORIG 产 `mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx; mov %edx,0x654(%eax)` this 先载
+// ⇒ 成员须与形参同型（gcc4.4 装载序定律）。定义与 CUser.h:88 同 guard 块（CUser.h
+// 经 #include "CGameOption.h"@68 晚于此，互不重复）。
+#ifndef DNF_ENUM_BREAK_AWAY_REWARD_ORDER_DEFINED
+#define DNF_ENUM_BREAK_AWAY_REWARD_ORDER_DEFINED
+enum ENUM_BREAK_AWAY_REWARD_ORDER { ENUM_BREAK_AWAY_REWARD_ORDER_0 = 0 };
+#endif
+
 enum ENUM_OPTION_ETC
 {
     ENUM_OPTION_ETC_0 = 0,
@@ -139,8 +148,12 @@ public:
 
     void clear()
     {
-        // ORIG 0x80e5f12：cmp $0x17; setbe ⇒ 循环变量无符号
-        for (unsigned int i = 0; i <= 0x17; ++i)
+        // ORIG 0x80e5f12：头部 jmp→cond `mov -0xc,%eax; cmp $0x17,%eax;
+        // setbe %al; test; jne` —— 4.1 无 cmpl mem 融合；4.4 对 unsigned
+        // 槽比较恒折 `cmpl $0x17,-0xc(%ebp)` ⇒ 技巧28 register asm(eax)
+        // 中转（for-cond 逗号表达式），产 `mov -0xc,%eax; cmp $0x17,%eax`。
+        register unsigned int v asm("eax");
+        for (unsigned int i = 0; (v = i, v <= 0x17u); ++i)
             m_Row[i].clear();
     }
 
@@ -197,8 +210,8 @@ private:
 
 public:
     // ---- ORIG 直访尾部字段（CUser 方法经 this+0x62c.. 访问；ORIG 为 public）----
-    char m_gmQuestFlag;                              // +0x62c
-    char m_forceDropFlag;                            // +0x62d
+    bool m_gmQuestFlag;                              // +0x62c（ORIG setGmQuestFlag 0x0822fc8e this-先 bool=bool 直落形）
+    bool m_forceDropFlag;                            // +0x62d（ORIG setForceDropFlag 0x0868f6fa 同形；getForceDropFlag 0x0868f716 movzbl 直返兼容）
     char m_webAddress[0x12];                         // +0x62e（getWebAddress）
     int m_playExpAdd;                                // +0x640
     bool m_breakAwayDungeonClear;                    // +0x644（CUser+0x703a8；ORIG movzbl 直返，bool 实证
@@ -207,9 +220,9 @@ public:
     char m_pad645[3];                                // +0x645..0x647（ORIG 无具名访问）
     int m_breakAwayDungeonClearCnt;                  // +0x648
     int m_breakAwayAccureCera;                       // +0x64c（get/setBreakAwayAccureCera 实证，原 m_pad64c[4]；§8.3 字段化，证据 CUser.cpp:4500/4684）
-    int m_breakAwayQuestTime;                        // +0x650
+    unsigned int m_breakAwayQuestTime;               // +0x650（ORIG setBreakAwayQuestTime 0x0822fc7c this-先 uint 直写；getBreakAwayQuestTime 32 位 mov 直读）
     // +0x654 区按 ORIG setter 实证具名（CGameOption 止于 +0x657，sizeof 0x658）：
-    int m_breakAwayRewardOrder;                      // +0x654（setBreakAwayRewardOrder W 0x0831d4de 直写）
+    ENUM_BREAK_AWAY_REWARD_ORDER m_breakAwayRewardOrder;  // +0x654（setBreakAwayRewardOrder W 0x0831d4de 直写；同型装载序实证）
     // 注意：+0x658..+0x65f 8 字节为 CUser 字段（m_multiboxLotteryFailCnt @ CUser+0x703bc、
     // m_breakAwayRewardData @ CUser+0x703c0、m_usedBreakAwayLuckPoint @ CUser+0x703c1），
     // 原误入 CGameOption 尾部（Main 批准 2026-08-29 收敛）。

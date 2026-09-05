@@ -92,8 +92,9 @@ void CBossPlay::reset()
         {
             m_memberReward[i].m_count = 0;
             m_memberReward[i].m_items[j].reset();
-            // ORIG：*(int*)(block + j*0x3d + 0x06) = 0xffffffff（Inven_Item+0x02 槽位标记）
-            *(int*)((char*)&m_memberReward[i].m_items[j] + 2) = 0xffffffff;
+            // ORIG 0x08149202 `movl $0xffffffff,0xe(%eax)`（eax=block+j*0x3d+0x20，
+            // 即 &m_items[j]+0x02）⇒ 整字写 Inven_Item::m_addInfo(item idx) = -1。
+            m_memberReward[i].m_items[j].m_addInfo = -1;
         }
     }
     memset(m_useItemCount, 0, sizeof(m_useItemCount));
@@ -117,10 +118,13 @@ void CBossPlay::InitPlayUser(int questCond, int towerIdx)
         {
             CUser* u = m_party->get_user(i);
             u->setBossTowerIndex((short)towerIdx);
-            UserQuest* quest = u->getCurCharacQuestW();
-            _Quest_Authen_Data* auth = (_Quest_Authen_Data*)((char*)quest + 0x75d8);
-            auth->reset();
-            quest->set_authen_data((QUEST_CONDITION)0, questCond, 0xffffffff);
+            // ORIG 连续两次 call CUser::getCurCharacQuestW（0x081492f1 与
+            // 0x0814930d），结果不入局部变量：第一次 `add $0x75d8,%eax`
+            // + call _Quest_Authen_Data::reset ⇒ 具名成员 UserQuest::m_authenData
+            //（CUser.h 权威布局 +0x75d8）；第二次直接 set_authen_data。
+            u->getCurCharacQuestW()->m_authenData.reset();
+            u->getCurCharacQuestW()->set_authen_data(
+                (QUEST_CONDITION)0, questCond, 0xffffffff);
             u->set_state((ch_state)0xc);
             setMemberAlive(i, true);
         }
@@ -351,15 +355,18 @@ int CBossPlay::generateRewardItem(int memberIdx, int itemCount, unsigned int a,
     unsigned int dungeonIdx = dungeon->get_index();
     CDataManager* dm = G_CDataManager();
     stDeathTower_t* tower = dm->GetTowerScript(dungeonIdx);
-    rare = *(int*)((char*)tower + 0xc88);
+    // 掉宝概率三档累计表 / 金币费率（ORIG 0x08149971/0x08149992/0x081499b9
+    // 分别 `mov 0xc88(%eax)`、`mov 0xc8c(%eax)`、`mov 0xc94(%eax)`，
+    // 全为 4 字节读 ⇒ m_rewardItemProb[0]/[1]（int）、m_rewardGoldWeight（float））。
+    rare = tower->m_rewardItemProb[0];
     dungeonIdx = dungeon->get_index();
     dm = G_CDataManager();
     tower = dm->GetTowerScript(dungeonIdx);
-    rare2 = *(int*)((char*)tower + 0xc8c);
+    rare2 = tower->m_rewardItemProb[1];
     dungeonIdx = dungeon->get_index();
     dm = G_CDataManager();
     tower = dm->GetTowerScript(dungeonIdx);
-    rare3 = *(float*)((char*)tower + 0xc94);
+    rare3 = tower->m_rewardGoldWeight;
     CItemGeneratorMgr* genMgr = G_CDataManager()->getItemGenerator();
     CItemGenerator* gen = genMgr->getGenerator(CItemGeneratorMgr::eGenerateType_2);
 
@@ -374,14 +381,17 @@ int CBossPlay::generateRewardItem(int memberIdx, int itemCount, unsigned int a,
         {
             if (randVal <= (unsigned int)(rare2 * b) && (unsigned int)(rare2 * b - randVal) != 0)
             {
-                // 特定掉落分支（ORIG +0x2a0）：ref blob
-                //   +0x30=difficulty、+0x31=a、+0x34=float 1.0f、+0x38=0、
-                //   +0x3c=dungeon；虚槽 +0xc = generateSpecificItem。
-                *(char*)((char*)&ref + 0x30) = (char)(unsigned char)diff;
-                *(char*)((char*)&ref + 0x31) = (char)a;
-                *(float*)((char*)&ref + 0x34) = 1.0f;
-                *(int*)((char*)&ref + 0x38) = 0;
-                *(CDungeon**)((char*)&ref + 0x3c) = const_cast<CDungeon*>(dungeon);
+                // 特定掉落分支（ORIG +0x2a0 起，ref 基址 = 本帧 -0x124，
+                // ctor `lea -0x124(%ebp),%eax` 实证）：
+                //   movb -0xef ⇒ +0x35=difficulty；movb -0xf0 ⇒ +0x34=a；
+                //   mov $0x3f800000/movl -0xec ⇒ +0x38=float 1.0f；
+                //   movl -0xe4 ⇒ +0x40=dungeon；movl $0x0 -0xe8 ⇒ +0x3c=0；
+                // 虚槽 +0xc = generateSpecificItem。
+                ref.m_field35 = (char)(unsigned char)diff;
+                ref.m_field34 = (char)a;
+                ref.m_rankBonusRate = 1.0f;
+                ref.m_dungeon = const_cast<CDungeon*>(dungeon);
+                ref.m_field3c = 0;
                 gen->generateSpecificItem(ref, result);
                 if (!result.m_dropItems.empty())
                 {
@@ -401,16 +411,21 @@ int CBossPlay::generateRewardItem(int memberIdx, int itemCount, unsigned int a,
         }
         else
         {
-            // 随机掉落分支（ORIG +0x0f2）：ref blob
-            //   +0x30=difficulty、+0x31=a、+0x32=member_count、+0x34=1、
-            //   +0x38/+0x3c=0x10001；虚槽 +0x8 = generateRandomItem。
-            *(char*)((char*)&ref + 0x30) = (char)(unsigned char)diff;
-            *(char*)((char*)&ref + 0x31) = (char)a;
-            *(char*)((char*)&ref + 0x32) =
+            // 随机掉落分支（ORIG +0x0f2 起，ref 基址同上 -0x124）：
+            //   movb -0xef ⇒ +0x35=difficulty；movb -0xf0 ⇒ +0x34=a；
+            //   movb -0xee ⇒ +0x36=member_count；movl $0x1 -0xec ⇒ +0x38=1；
+            //   4×movw $0x1 ⇒ +0x3c/+0x3e/+0x40/+0x42 各 =1
+            //   （+0x40/+0x42 合成指针位型 0x10001，随机路径不解引用）；
+            // 虚槽 +0x8 = generateRandomItem。
+            ref.m_field35 = (char)(unsigned char)diff;
+            ref.m_field34 = (char)a;
+            ref.m_rateSlot =
                 (char)((m_party != 0) ? m_party->get_member_count() : 0);
-            *(int*)((char*)&ref + 0x34) = 1;
-            *(int*)((char*)&ref + 0x38) = 0x10001;
-            *(int*)((char*)&ref + 0x3c) = 0x10001;
+            ref.m_rankBonusIndex = 1;
+            ref.m_goldBase = 1;
+            ref.m_goldFactor = 1;
+            ref.m_field40 = 1;
+            ref.m_field42 = 1;
             gen->generateRandomItem(ref, result);
             Inven_Item& dst = m_memberReward[memberIdx].m_items[i];
             dst.setCopy(result.m_dropItems.front());

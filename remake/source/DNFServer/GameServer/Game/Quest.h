@@ -254,6 +254,17 @@ struct stSelectQuestParam
     int m_questCount;     // +0x24
 };
 
+// [auto display] 的协议槽（importQuestScript.md 汇编 0x08a64c64--0x08a64cb1）。
+// ORIG 以 (i + 0x8c) * 4 访问 QuestScript，即对象偏移 +0x230..+0x23b；
+// 这三项不是 m_jobConditions 指针，必须与其独立建模。
+struct QuestAutoDisplayData
+{
+    int m_values[3];                    // +0x00..+0x08（QuestScript +0x230）
+};
+
+static_assert(sizeof(QuestAutoDisplayData) == 0x0c,
+              "QuestScript auto display layout drift");
+
 // ---- 任务脚本（QuestScript，set_quest 读取偏移推导） ----
 class QuestScript
 {
@@ -326,7 +337,7 @@ public:
     char m_field22c;                              // +0x22c
     char m_field22d;                              // +0x22d
     char m_field22e;                              // +0x22e（+0x22f 为对齐空洞，ORIG 拷贝跳过）
-    int m_field230[3];                            // +0x230..+0x23b（ORIG clear 循环置 -1）
+    QuestAutoDisplayData m_autoDisplay;           // +0x230..+0x23b（[auto display]）
     char m_field23c;                              // +0x23c
     char m_field23d;                              // +0x23d（后随对齐空洞）
     int m_field240;                               // +0x240
@@ -366,6 +377,8 @@ public:
     std::vector<int> m_vec2fc;                    // +0x2fc
     char m_308;                                   // +0x308
 };
+static_assert(sizeof(QuestScript) == 0x30c,
+              "QuestScript ABI layout drift");
 
 // ---- Quest 任务模板（sizeof 0x150） ----
 class Quest

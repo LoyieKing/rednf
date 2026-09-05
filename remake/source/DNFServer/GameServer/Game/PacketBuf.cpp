@@ -248,7 +248,7 @@ bool PacketBuf::put_str(int& index, const char* str, int len)
 
 bool PacketBuf::is_ptr_end(int index, int len)
 {
-    if (index + len > 0x172b4)
+    if (index + len > PKT_PTR_END_LIMIT)
     {
         setLastError(PACKETBUF_ERROR_PTR_END);
         return true;
@@ -452,20 +452,20 @@ void PacketBuf::finalize(bool isEncryptRequired)
     _NS_PI_MakeHash_NOTI(this);
     m_size = m_use_size;
 
-    unsigned int crc1 = Encryption::crc32N(m_ptr + 15, m_size - 15);
+    unsigned int crc1 = Encryption::crc32N(m_ptr + PKT_BODY_OFF, m_size - PKT_BODY_OFF);
     switch (m_byte_encoding)
     {
     case 0:
-        *(char*)(m_ptr + 3) = (char)m_size;
-        *(char*)(m_ptr + 4) = (char)((m_size & 0xff00) >> 8);
-        *(char*)(m_ptr + 5) = (char)((m_size & 0xff0000) >> 16);
-        *(char*)(m_ptr + 6) = (char)((unsigned int)m_size >> 24);
+        *(char*)(m_ptr + PKT_LEN_OFF) = (char)m_size;
+        *(char*)(m_ptr + PKT_LEN_OFF + 1) = (char)((m_size & 0xff00) >> 8);
+        *(char*)(m_ptr + PKT_LEN_OFF + 2) = (char)((m_size & 0xff0000) >> 16);
+        *(char*)(m_ptr + PKT_LEN_OFF + 3) = (char)((unsigned int)m_size >> 24);
         break;
     case 1:
-        *(char*)(m_ptr + 3) = (char)((unsigned int)m_size >> 24);
-        *(char*)(m_ptr + 4) = (char)((m_size & 0xff0000) >> 16);
-        *(char*)(m_ptr + 5) = (char)((m_size & 0xff00) >> 8);
-        *(char*)(m_ptr + 6) = (char)m_size;
+        *(char*)(m_ptr + PKT_LEN_OFF) = (char)((unsigned int)m_size >> 24);
+        *(char*)(m_ptr + PKT_LEN_OFF + 1) = (char)((m_size & 0xff0000) >> 16);
+        *(char*)(m_ptr + PKT_LEN_OFF + 2) = (char)((m_size & 0xff00) >> 8);
+        *(char*)(m_ptr + PKT_LEN_OFF + 3) = (char)m_size;
         break;
     default:
         LogManager::logFormat(1, "packet_buf.cpp",
@@ -474,7 +474,7 @@ void PacketBuf::finalize(bool isEncryptRequired)
         return;
     }
 
-    if (isCompressRequired(m_ptr + 1))
+    if (isCompressRequired(m_ptr + PKT_SIZE_OFF))
     {
         if (compress_packet() != true)
         {
@@ -482,28 +482,28 @@ void PacketBuf::finalize(bool isEncryptRequired)
         }
     }
 
-    unsigned int crc2 = Encryption::crc32N(m_ptr + 15, m_size - 15);
+    unsigned int crc2 = Encryption::crc32N(m_ptr + PKT_BODY_OFF, m_size - PKT_BODY_OFF);
     switch (m_byte_encoding)
     {
     case 0:
-        *(char*)(m_ptr + 7) = (char)crc1;
-        *(char*)(m_ptr + 8) = (char)((crc1 & 0xff00) >> 8);
-        *(char*)(m_ptr + 9) = (char)((crc1 & 0xff0000) >> 16);
-        *(char*)(m_ptr + 10) = (char)(crc1 >> 24);
-        *(char*)(m_ptr + 11) = (char)crc2;
-        *(char*)(m_ptr + 12) = (char)((crc2 & 0xff00) >> 8);
-        *(char*)(m_ptr + 13) = (char)((crc2 & 0xff0000) >> 16);
-        *(char*)(m_ptr + 14) = (char)(crc2 >> 24);
+        *(char*)(m_ptr + PKT_CRC1_OFF) = (char)crc1;
+        *(char*)(m_ptr + PKT_CRC1_OFF + 1) = (char)((crc1 & 0xff00) >> 8);
+        *(char*)(m_ptr + PKT_CRC1_OFF + 2) = (char)((crc1 & 0xff0000) >> 16);
+        *(char*)(m_ptr + PKT_CRC1_OFF + 3) = (char)(crc1 >> 24);
+        *(char*)(m_ptr + PKT_CRC2_OFF) = (char)crc2;
+        *(char*)(m_ptr + PKT_CRC2_OFF + 1) = (char)((crc2 & 0xff00) >> 8);
+        *(char*)(m_ptr + PKT_CRC2_OFF + 2) = (char)((crc2 & 0xff0000) >> 16);
+        *(char*)(m_ptr + PKT_CRC2_OFF + 3) = (char)(crc2 >> 24);
         break;
     case 1:
-        *(char*)(m_ptr + 7) = (char)(crc1 >> 24);
-        *(char*)(m_ptr + 8) = (char)((crc1 & 0xff0000) >> 16);
-        *(char*)(m_ptr + 9) = (char)((crc1 & 0xff00) >> 8);
-        *(char*)(m_ptr + 10) = (char)crc1;
-        *(char*)(m_ptr + 11) = 0;
-        *(char*)(m_ptr + 12) = 0;
-        *(char*)(m_ptr + 13) = (char)((crc2 & 0xff0000) >> 8);
-        *(char*)(m_ptr + 14) = 0;
+        *(char*)(m_ptr + PKT_CRC1_OFF) = (char)(crc1 >> 24);
+        *(char*)(m_ptr + PKT_CRC1_OFF + 1) = (char)((crc1 & 0xff0000) >> 16);
+        *(char*)(m_ptr + PKT_CRC1_OFF + 2) = (char)((crc1 & 0xff00) >> 8);
+        *(char*)(m_ptr + PKT_CRC1_OFF + 3) = (char)crc1;
+        *(char*)(m_ptr + PKT_CRC2_OFF) = 0;
+        *(char*)(m_ptr + PKT_CRC2_OFF + 1) = 0;
+        *(char*)(m_ptr + PKT_CRC2_OFF + 2) = (char)((crc2 & 0xff0000) >> 8);
+        *(char*)(m_ptr + PKT_CRC2_OFF + 3) = 0;
         break;
     default:
         LogManager::logFormat(1, "packet_buf.cpp",
@@ -517,20 +517,20 @@ void PacketBuf::finalize(bool isEncryptRequired)
 
 void PacketBuf::encFinalize()
 {
-    unsigned int crc1 = Encryption::crc32N(m_ptr + 15, m_size - 15);
+    unsigned int crc1 = Encryption::crc32N(m_ptr + PKT_BODY_OFF, m_size - PKT_BODY_OFF);
     switch (m_byte_encoding)
     {
     case 0:
-        *(char*)(m_ptr + 3) = (char)m_size;
-        *(char*)(m_ptr + 4) = (char)((m_size & 0xff00) >> 8);
-        *(char*)(m_ptr + 5) = (char)((m_size & 0xff0000) >> 16);
-        *(char*)(m_ptr + 6) = (char)((unsigned int)m_size >> 24);
+        *(char*)(m_ptr + PKT_LEN_OFF) = (char)m_size;
+        *(char*)(m_ptr + PKT_LEN_OFF + 1) = (char)((m_size & 0xff00) >> 8);
+        *(char*)(m_ptr + PKT_LEN_OFF + 2) = (char)((m_size & 0xff0000) >> 16);
+        *(char*)(m_ptr + PKT_LEN_OFF + 3) = (char)((unsigned int)m_size >> 24);
         break;
     case 1:
-        *(char*)(m_ptr + 3) = (char)((unsigned int)m_size >> 24);
-        *(char*)(m_ptr + 4) = (char)((m_size & 0xff0000) >> 16);
-        *(char*)(m_ptr + 5) = (char)((m_size & 0xff00) >> 8);
-        *(char*)(m_ptr + 6) = (char)m_size;
+        *(char*)(m_ptr + PKT_LEN_OFF) = (char)((unsigned int)m_size >> 24);
+        *(char*)(m_ptr + PKT_LEN_OFF + 1) = (char)((m_size & 0xff0000) >> 16);
+        *(char*)(m_ptr + PKT_LEN_OFF + 2) = (char)((m_size & 0xff00) >> 8);
+        *(char*)(m_ptr + PKT_LEN_OFF + 3) = (char)m_size;
         break;
     default:
         LogManager::logFormat(1, "packet_buf.cpp",
@@ -539,28 +539,28 @@ void PacketBuf::encFinalize()
         return;
     }
 
-    unsigned int crc2 = Encryption::crc32N(m_ptr + 15, m_size - 15);
+    unsigned int crc2 = Encryption::crc32N(m_ptr + PKT_BODY_OFF, m_size - PKT_BODY_OFF);
     switch (m_byte_encoding)
     {
     case 0:
-        *(char*)(m_ptr + 7) = (char)crc1;
-        *(char*)(m_ptr + 8) = (char)((crc1 & 0xff00) >> 8);
-        *(char*)(m_ptr + 9) = (char)((crc1 & 0xff0000) >> 16);
-        *(char*)(m_ptr + 10) = (char)(crc1 >> 24);
-        *(char*)(m_ptr + 11) = (char)crc2;
-        *(char*)(m_ptr + 12) = (char)((crc2 & 0xff00) >> 8);
-        *(char*)(m_ptr + 13) = (char)((crc2 & 0xff0000) >> 16);
-        *(char*)(m_ptr + 14) = (char)(crc2 >> 24);
+        *(char*)(m_ptr + PKT_CRC1_OFF) = (char)crc1;
+        *(char*)(m_ptr + PKT_CRC1_OFF + 1) = (char)((crc1 & 0xff00) >> 8);
+        *(char*)(m_ptr + PKT_CRC1_OFF + 2) = (char)((crc1 & 0xff0000) >> 16);
+        *(char*)(m_ptr + PKT_CRC1_OFF + 3) = (char)(crc1 >> 24);
+        *(char*)(m_ptr + PKT_CRC2_OFF) = (char)crc2;
+        *(char*)(m_ptr + PKT_CRC2_OFF + 1) = (char)((crc2 & 0xff00) >> 8);
+        *(char*)(m_ptr + PKT_CRC2_OFF + 2) = (char)((crc2 & 0xff0000) >> 16);
+        *(char*)(m_ptr + PKT_CRC2_OFF + 3) = (char)(crc2 >> 24);
         break;
     case 1:
-        *(char*)(m_ptr + 7) = (char)(crc1 >> 24);
-        *(char*)(m_ptr + 8) = (char)((crc1 & 0xff0000) >> 16);
-        *(char*)(m_ptr + 9) = (char)((crc1 & 0xff00) >> 8);
-        *(char*)(m_ptr + 10) = (char)crc1;
-        *(char*)(m_ptr + 11) = 0;
-        *(char*)(m_ptr + 12) = 0;
-        *(char*)(m_ptr + 13) = (char)((crc2 & 0xff0000) >> 8);
-        *(char*)(m_ptr + 14) = 0;
+        *(char*)(m_ptr + PKT_CRC1_OFF) = (char)(crc1 >> 24);
+        *(char*)(m_ptr + PKT_CRC1_OFF + 1) = (char)((crc1 & 0xff0000) >> 16);
+        *(char*)(m_ptr + PKT_CRC1_OFF + 2) = (char)((crc1 & 0xff00) >> 8);
+        *(char*)(m_ptr + PKT_CRC1_OFF + 3) = (char)crc1;
+        *(char*)(m_ptr + PKT_CRC2_OFF) = 0;
+        *(char*)(m_ptr + PKT_CRC2_OFF + 1) = 0;
+        *(char*)(m_ptr + PKT_CRC2_OFF + 2) = (char)((crc2 & 0xff0000) >> 8);
+        *(char*)(m_ptr + PKT_CRC2_OFF + 3) = 0;
         break;
     default:
         LogManager::logFormat(1, "packet_buf.cpp",
@@ -572,7 +572,7 @@ void PacketBuf::encFinalize()
 
 void PacketBuf::encrypt_packet()
 {
-    if (*m_ptr != 0 || *(unsigned short*)(m_ptr + 1) != 1)
+    if (*m_ptr != 0 || *(unsigned short*)(m_ptr + PKT_SIZE_OFF) != 1)
     {
         char localBuffer[MAX_PACKET_SIZE];
         unsigned int bufferSize;
@@ -583,9 +583,9 @@ void PacketBuf::encrypt_packet()
         allocated = 0;
         buffer = localBuffer;
         bufferSize = MAX_PACKET_SIZE;
-        dataSize = m_size - 15;
+        dataSize = m_size - PKT_BODY_OFF;
 
-        G_Cipher()->AdjustDataSize(*(unsigned short*)(m_ptr + 1), &dataSize);
+        G_Cipher()->AdjustDataSize(*(unsigned short*)(m_ptr + PKT_SIZE_OFF), &dataSize);
 
         if (dataSize > MAX_PACKET_SIZE)
         {
@@ -597,14 +597,14 @@ void PacketBuf::encrypt_packet()
             allocated = 1;
         }
 
-        G_Cipher()->Encrypt(*(unsigned short*)(m_ptr + 1),
-                            (unsigned char*)(m_ptr + 15), m_size - 15,
+        G_Cipher()->Encrypt(*(unsigned short*)(m_ptr + PKT_SIZE_OFF),
+                            (unsigned char*)(m_ptr + PKT_BODY_OFF), m_size - PKT_BODY_OFF,
                             (unsigned char*)buffer, (int*)&bufferSize);
-        m_size = m_size + (15 - m_size) + bufferSize;
+        m_size = m_size + (PKT_BODY_OFF - m_size) + bufferSize;
 
         if (bufferSize > 0)
         {
-            memcpy(m_ptr + 15, buffer, bufferSize);
+            memcpy(m_ptr + PKT_BODY_OFF, buffer, bufferSize);
         }
 
         if (allocated && buffer != NULL)
@@ -615,7 +615,7 @@ void PacketBuf::encrypt_packet()
     else
     {
         unsigned int size = 0;
-        Encryption::Encrypt(m_ptr + 15, m_size - 15, size);
+        Encryption::Encrypt(m_ptr + PKT_BODY_OFF, m_size - PKT_BODY_OFF, size);
     }
 }
 
@@ -626,7 +626,7 @@ bool PacketBuf::compress_packet()
 
     int ret;
     unsigned long compressedSize;
-    int uncompressedSize = m_size - 15;
+    int uncompressedSize = m_size - PKT_BODY_OFF;
     if (uncompressedSize <= 0)
     {
         LogManager::logFormat(1, "packet_buf.cpp",
@@ -638,9 +638,9 @@ bool PacketBuf::compress_packet()
     compressedSize = uncompressedSize + 13;
     compressed_buffer_mutex.lock();
     ret = compress((unsigned char*)compressed_buffer, &compressedSize,
-                   (unsigned char*)(m_ptr + 15), uncompressedSize);
+                   (unsigned char*)(m_ptr + PKT_BODY_OFF), uncompressedSize);
 
-    if (ret != 0 || compressedSize > MAX_PACKET_SIZE - 15)
+    if (ret != 0 || compressedSize > MAX_PACKET_SIZE - PKT_BODY_OFF)
     {
         LogManager::logFormat(1, "packet_buf.cpp",
                               __PRETTY_FUNCTION__, 0x380,
@@ -649,10 +649,10 @@ bool PacketBuf::compress_packet()
         return false;
     }
 
-    memcpy(m_ptr + 15, compressed_buffer, compressedSize);
+    memcpy(m_ptr + PKT_BODY_OFF, compressed_buffer, compressedSize);
     compressed_buffer_mutex.unlock();
-    m_size = (int)(compressedSize + 15);
-    *(int*)(m_ptr + 3) = m_size;
+    m_size = (int)(compressedSize + PKT_BODY_OFF);
+    *(int*)(m_ptr + PKT_LEN_OFF) = m_size;
     return true;
 }
 
@@ -784,7 +784,7 @@ bool PacketBuf::put_short(int value)
 
 void PacketBuf::put_packet(const Inven_Item& item)
 {
-    ((const RandomOption*)((const char*)&item + 0x25))->put_packet_random_option(*this);
+    item.m_random.m_random.put_packet_random_option(*this);
 
     if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
         G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
@@ -793,10 +793,10 @@ void PacketBuf::put_packet(const Inven_Item& item)
     }
     else
     {
-        put_byte(((const UpgradeSeparateInfo*)((const char*)&item + 0x33))->GetUpgradeSeparate());
+        put_byte(item.m_upgradeSep.GetUpgradeSeparate());
     }
 
-    put_byte(((const UpgradeSeparateInfo*)((const char*)&item + 0x33))->IsTradeRestriction());
+    put_byte(item.m_upgradeSep.IsTradeRestriction());
 }
 
 // ===========================================================================
@@ -822,10 +822,10 @@ void _NS_PI_MakeHash_NOTI(PacketBuf* packet)
     }
     char* base = packet->get_packet(0);
     // ORIG：读取包首 +1 处的 ushort 字段（本函数内不使用，仅为对齐 ORIG 读取行为）
-    unsigned short headerField = *(unsigned short*)(base + 1);
+    unsigned short headerField = *(unsigned short*)(base + PKT_SIZE_OFF);
     (void)headerField;
-    const char* region = base + 0xf;
-    int idx = packet->get_index() - 0xf;
+    const char* region = base + PKT_BODY_OFF;
+    int idx = packet->get_index() - PKT_BODY_OFF;
     int hash = 0;
     if (ns_make_hash_pcs(region, (short)idx, hash))
     {

@@ -13,6 +13,7 @@
 #include "CCirculationStatistic.h"
 #include "CDataManager.h"
 #include "CMap.h"
+#include "CBattle_Field.h"    // handleStartGame 读取内嵌 BF 随机 buff 类型
 #include "GameWorld.h"
 #include "CBossStage.h"
 #include "CDungeonEntranceLog.h"
@@ -26,6 +27,15 @@
 #include "GlobalData.h"               // s_monitor_proxy_mgr
 #include "CServerProxyMgr.h"          // GetServerProxy 完整定义
 #include "MonsterIndependentDrop.h"        // CAICharacter 完整镜像（destroy 需 delete）
+
+// CParty +0xb24 内嵌 CBattle_Field 子对象局部视图（CParty.h 以
+// m_padBattleField1[0x158] 等 pad 占位、未引入 CBattle_Field 类型；
+// 与 QuickParty.cpp/CParty.cpp 口径一致）。布局：pad 0xb24 + BF 0xcd0。
+struct CPartyBattleFieldView
+{
+    char m_pad[0xb24];
+    CBattle_Field m_battleField;   // +0xb24
+};
 
 // ---- 死亡塔统计/记录接口（定义见 Store.cpp / OnlyOrigBatch14.cpp / W8LT_DBTask.cpp）----
 enum DEATHTOWER_VALUE_STATISTIC_FIELD
@@ -170,25 +180,23 @@ TimerQueue* G_TimerQueue();
 
 namespace WongWork {
 
-// CBossTower 布局位于 CGameManager.h 的 `WongWork::CBossTower`（未命名 m_pad[0xb18]），
-// 且派生于不透明 CBossStage（经 CBossStage::reset 调用，CBossStage.h 权威声明）。
-// 以下各偏移均为 CBossStage 基类/内嵌子对象字段，尚无具名成员【推断】，因此保留地址形式并按 ORIG
-// （0x81429b4 ctor / 0x8142a74 附近 dtor）逐条注明：
-//   +0xb00  CBossDungeonEntranceLog 子对象（ORIG ctor 调其 ctor；此处按 0x18 零填）
-//   +0xaf0  CBossStage 基类字段（ctor 置 0）
-//   +0x9f0  CBossStage 基类字段（reset 之外 ctor 额外置 0）
-//   +0xd    4 字节 CBossStage 字段（ctor memset 0）
-//   +8 / +4 CBossPlay 基类首部字段（vtable 之后）；+0xaf0 = CBossTower::m_idx；
-//   +0xb00 = CBossTower::m_dungeonLog（CBossDungeonEntranceLog，0x18）。
+// 具名字段访问依据（ORIG 报告 WongWork__CBossTower/CBossTower.md @0x81429b4 /
+// ~CBossTower.md @0x8142a74）：
+//   +0xaf0 = CBossTower::m_idx（movl 清 0）
+//   +8     = CBossPlay::m_field8（movl 清 0）
+//   +0xd   = CBossPlay::m_memberAlive[4]（ORIG memset(0xd,0,4) → 保持 memset 形态）
+//   +0x9f0 = CBossStage::m_dungeon（ORIG memset(0x9f0,0,4) → 保持 memset 形态）
+//   +4     = CBossPlay::m_party（movl 清 0）
+//   +0xb00 = CBossTower::m_dungeonLog（CBossDungeonEntranceLog，0x18，编译器构造/析构）
 // 继承：CBossTower : CBossStage : CBossPlay（隐式基类构造/析构，编译器处理 vptr）。
 CBossTower::CBossTower()
 {
     CBossStage::reset();
     m_idx = 0;
-    *(int*)((char*)this + 8) = 0;
-    memset((char*)this + 0xd, 0, 4);
-    memset((char*)this + 0x9f0, 0, 4);
-    *(int*)((char*)this + 4) = 0;
+    m_field8 = 0;
+    memset(m_memberAlive, 0, 4);
+    m_dungeon = 0;   // ORIG 0x081429b4 证据 movl $0x0,0x9f0(%eax)：单条 dword 直存，非 memset call
+    m_party = 0;
     // m_dungeonLog（CBossDungeonEntranceLog）由编译器在进入函数体前按权威
     // ctor（ORIG 0x081456c2：map C1 + reset）构造，此处不再 memset。
 }
@@ -197,26 +205,29 @@ CBossTower::~CBossTower()
 {
     CBossStage::reset();
     m_idx = 0;
-    *(int*)((char*)this + 8) = 0;
-    memset((char*)this + 0xd, 0, 4);
-    memset((char*)this + 0x9f0, 0, 4);
-    *(int*)((char*)this + 4) = 0;
+    m_field8 = 0;
+    memset(m_memberAlive, 0, 4);
+    m_dungeon = 0;   // ORIG 0x08142a74 证据 movl $0x0,0x9f0(%eax)：单条 dword 直存
+    m_party = 0;
     // m_dungeonLog 由编译器在函数体结束后按权威 dtor（ORIG 0x08145704：
     // reset + map D1）析构，此处不再 memset。
 }
 
 
 // CDeathTowerRanking 方法实现（权威声明见 CDeathTowerRanking.h；本 TU 为唯一定义点，
-// CUser.cpp 的本地同名类/桩已删除）。rankTable 为 getRankTable 返回的外部数据区
-// （每塔 0x390 记录）；以下 +0x98/+0x128/+0x7058/+0x70ec 等均为该外部记录字段偏移，
-// 非本类成员，保留地址形式。
+// CUser.cpp 的本地同名类/桩已删除）。表对象即本类布局（m_towers[5] 每塔 0x390、
+// 槽 0 起点 +0x98、m_tableBest@+0x7058、m_tableType@+0x70f0），一律具名字段访问。
 
 unsigned int CDeathTowerRanking::makeDungeonIdx2TowerIdx(unsigned int dungeonIdx)
 {
     // ORIG 08469d69 W：dungeonIdx∈[0x2af8,0x2afd] → idx-0x2af8（塔序号 0..5），其余 -1。
+    // ORIG 0x8469d6c..0x8469d88：cmp1 jbe→NEG@8469d7e；cmp2 jbe→POS@8469d85；
+    // NEG 为 cmp2 fall-through，POS 殿后 —— && 条件 goto POS，-1 顺落（范式24 落点岛）。
     if (dungeonIdx > 0x2af7 && dungeonIdx <= 0x2afd)
-        return dungeonIdx - 0x2af8;
+        goto POS;
     return 0xffffffff;
+POS:
+    return dungeonIdx - 0x2af8;
 }
 
 void* CDeathTowerRanking::getRankTable(unsigned int type)
@@ -252,25 +263,18 @@ int CDeathTowerRanking::checkRenewTopRecord(unsigned int towerIdx,
                                             unsigned int clearTime,
                                             unsigned int playTime)
 {
-    char* base = (char*)this + towerIdx * 0x390;
-    if (base[0x128] != 1)
-    {
+    // ORIG 0x08468290：塔块 +0x128（= m_towers[i].m_slots[0] 起点 +0x98 内
+    // flag +0x90）movzbl 读取，!=1 直接返回 0；否则构造默认 stBestRecord_t，
+    // 将 param_2（clearTime）写 m_stage(+0x88)、param_3（playTime）写
+    // m_playTime(+0x8c)（0x3f/0x45 两条 movl），调 stBestRecord_t::operator>
+    // (tmp, m_towers[towerIdx].m_slots[0])（ORIG call 0x08469ce4）。
+    stBestRecord_t& topSlot = m_towers[towerIdx].m_slots[0];
+    if (topSlot.m_flag90 != 1)
         return 0;
-    }
-
-    unsigned int* existingRecord = (unsigned int*)(base + 0x98);
-    unsigned int existingClearTime = existingRecord[0];
-    unsigned int existingPlayTime = existingRecord[1];
-
-    if (clearTime < existingClearTime)
-    {
-        return 1;
-    }
-    else if (clearTime == existingClearTime && playTime < existingPlayTime)
-    {
-        return 1;
-    }
-    return 0;
+    stBestRecord_t tmp;
+    tmp.m_playTime = playTime;
+    tmp.m_stage = clearTime;
+    return tmp > topSlot;
 }
 
 // 与 ORIG fistpll（默认 round-to-nearest，ties-to-even）一致的 32→64 取整。
@@ -437,41 +441,45 @@ void CDeathTowerRanking::unregistBestRecord(unsigned int characNo)
 void CDeathTowerRanking::unregistRanking(unsigned int characNo)
 {
     // ORIG 08468552 T：for i in 0..4: _getRankingTable(i).erase(characNo)。
-    for (unsigned int i = 0; i < 5; ++i)
-        m_rankingTables[i].erase(characNo);
+    // ORIG 0x8468561：体内 call _getRankingTable@0x8469d90（跨 TU W 符号）；
+    // 循环变量 int（0x8468583 cmpl $0x4 + setle 有符号实证）。
+    for (int i = 0; i <= 4; ++i)
+        _getRankingTable(i)->erase(characNo);
 }
 
 // ORIG _ZN8WongWork18CDeathTowerRanking4initEj @ 0x084680a4（0x1ec 字节）。
-// this = getRankTable(type) 表；对 5 座塔 × 5 槽位重置 stBestRecord_t：
-//   +0x90 清字节；槽 1..5 的 +0x04 memcpy 默认名 "AAAAAA"/"BBBBBB"/"CCCCCC"/
-//   "DDDDDD"/"EEEEEE"（ORIG 0x8c63370..0x8c6338d，7 字节含 NUL）；
-//   +0x94=槽序号、+0x8c=0、+0x88=200-槽序号；
-// 最后表尾 +0x70e0=200、+0x70f0=type。
+// this = getRankTable(type) 表；对 5 座塔 × 槽位 1..5 重置 stBestRecord_t：
+//   m_flag90(+0x90) 清字节（ORIG movb）；m_memberData[0](+0x04) memcpy 默认名
+//   "AAAAAA"/.../"EEEEEE"（ORIG 0x8c63370..0x8c6338d，7 字节含 NUL）；
+//   m_field94(+0x94)=槽序号、m_playTime(+0x8c)=0、m_stage(+0x88)=200-槽序号
+//   （ORIG 三条 dword 写，顺序 0x94→0x8c→0x88）；
+// （this=表对象，ORIG Init 0x082a1f69..0x082a1f75 实证 getRankTable 结果作
+// this 传入；体内不调 getRankTable）最后按 ORIG 顺序 m_tableType(+0x70f0)=type、
+// m_tableBest.m_stage(+0x70e0)=200（ORIG 0x1d3 先写 type、0x1dc 再写 200）。
 void CDeathTowerRanking::init(unsigned int type)
 {
-    void* table = getRankTable(type);
-    // ORIG 0x8c63370 实证每名 6 字符 + NUL（"AAAAAA\0" 等，7 字节；
-    // memcpy 7 字节 = 6 字母 + NUL，与 ORIG 逐字节一致）
-    char* base = reinterpret_cast<char*>(table);
     for (unsigned int tower = 0; tower <= 4; ++tower)
     {
         for (unsigned int slot = 1; slot <= 5; ++slot)
-            base[tower * 0x390 + slot * 0x98 + 0x90] = 0;
-        std::memcpy(base + tower * 0x390 + 0x9c, "AAAAAA", 7);
-        std::memcpy(base + tower * 0x390 + 0x134, "BBBBBB", 7);
-        std::memcpy(base + tower * 0x390 + 0x1cc, "CCCCCC", 7);
-        std::memcpy(base + tower * 0x390 + 0x264, "DDDDDD", 7);
-        std::memcpy(base + tower * 0x390 + 0x2fc, "EEEEEE", 7);
+            m_towers[tower].m_slots[slot].m_flag90 = 0;
+        // ORIG 0x8c63370 实证每名 6 字符 + NUL（"AAAAAA\0" 等，7 字节；
+        // memcpy 7 字节 = 6 字母 + NUL，与 ORIG 逐字节一致）。槽起点 +0x04 =
+        // m_memberData[0]（ORIG 五次独立 memcpy 调用）。
+        std::memcpy(m_towers[tower].m_slots[1].m_memberData[0], "AAAAAA", 7);
+        std::memcpy(m_towers[tower].m_slots[2].m_memberData[0], "BBBBBB", 7);
+        std::memcpy(m_towers[tower].m_slots[3].m_memberData[0], "CCCCCC", 7);
+        std::memcpy(m_towers[tower].m_slots[4].m_memberData[0], "DDDDDD", 7);
+        std::memcpy(m_towers[tower].m_slots[5].m_memberData[0], "EEEEEE", 7);
         for (unsigned int slot = 1; slot <= 5; ++slot)
         {
-            unsigned int off = tower * 0x390 + slot * 0x98;
-            *reinterpret_cast<int*>(base + off + 0x94) = static_cast<int>(slot);
-            *reinterpret_cast<unsigned int*>(base + off + 0x8c) = 0;
-            *reinterpret_cast<unsigned int*>(base + off + 0x88) = 200 - slot;
+            stBestRecord_t& rec = m_towers[tower].m_slots[slot];
+            rec.m_field94 = static_cast<int>(slot);
+            rec.m_playTime = 0;
+            rec.m_stage = 200 - slot;
         }
     }
-    *reinterpret_cast<unsigned int*>(base + 0x70e0) = 200;
-    *reinterpret_cast<unsigned int*>(base + 0x70f0) = type;
+    m_tableType = type;
+    m_tableBest.m_stage = 200;
 }
 
 CDeathTower::CDeathTower()
@@ -505,7 +513,7 @@ int CDeathTower::setTowerState(ENUM_TOWER_STATE state)
     {
         return 0;
     }
-    m_towerState = state;
+    m_towerState = state;  // ORIG 0x8469c4b：同型直落 → 先载 this(%eax) 再载 state(%edx)
     return 1;
 }
 
@@ -515,7 +523,7 @@ void CDeathTower::reset()
     m_stage.reset();
     m_playData.reset();
     m_party = 0;
-    m_towerState = 0;
+    m_towerState = TOWER_STATE_NONE;
 }
 
 void CDeathTower::_destroy()
@@ -611,8 +619,8 @@ int CDeathTower::onLeaveUser(CUser* user)
 
     if (m_party)
     {
-        // ORIG 0x084636f2：m_party 存在时记 LeaveDungeon 历史（state=m_party+0xcd8 字节）。
-        char state = *(const char*)((const char*)m_party + 0xcd8);
+        // ORIG 0x084636f2：m_party 存在时记 LeaveDungeon 历史（state=m_party+0xcd8 低字节）
+        char state = (char)m_party->get_party_type();
         m_party->getMemberNames(memberNames);   // char* 返回（ORIG W 转发 _getMemberNames）
         const char* dungeonName = m_dungeonMgr.getDungeon()->GetDungeonName();
         user->m_historyLog.LeaveDungeon(dungeonName, 0, memberNames, state);
@@ -754,13 +762,16 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
             virtualRank);
         user->Send(handler);
 
-        // 奖励数量：ORIG 0x08466f5 两套表（limitOfStackableItemInTower 决定）
-        // G_CDataManager + ((0x152c + curStage)*4 + 0xc) / ((0x16bc + curStage)*4 + 0xc)
+        // 奖励数量：ORIG _beginTowerClearProcess 0x0846791f..0x08467948 两套
+        // int 表（limitOfStackableItemInTower 决定）：`mov 0xc(dm+(tier+stage)*4)`
+        // = m_deathTower.m_rewardCardNum[stage]（+0x324 基）/
+        //   m_illusionRewardCardNum[stage]（+0x964 基）。
         int rewardNumBase;
         if (m_dungeonMgr.getDungeon()->limitOfStackableItemInTower())
-            rewardNumBase = *(int*)((char*)G_CDataManager() + ((0x152c + curStage) * 4 + 0xc));
+            rewardNumBase = G_CDataManager()->m_deathTower.m_rewardCardNum[curStage];
         else
-            rewardNumBase = *(int*)((char*)G_CDataManager() + ((0x16bc + curStage) * 4 + 0xc));
+            rewardNumBase =
+                G_CDataManager()->m_deathTower.m_illusionRewardCardNum[curStage];
         int rewardItemNum = rewardNumBase + isNewRecord;
         int maxReward = m_dungeonMgr.getDungeon()->getTowerMaxClearRewardItemNum();
         rewardItemNum = std::min(rewardItemNum, maxReward);
@@ -851,6 +862,13 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
         return 0;
     }
 
+    // ORIG 0x08464aed：killMonster 成功后把怪物 mobIndex 写回 a5（if (a5)）
+    if (a5)
+    {
+        *a5 = monster.m_mobIndex;
+    }
+
+    // ORIG 0x08464ab4：调用 getMemberLevelGap()，返回值 ORIG 亦弃用（汇编仅存栈）
     int memberLevelGap = m_party->getMemberLevelGap();
     int winPoint = 0;
     std::vector<unsigned long> dropItemIds;
@@ -939,14 +957,14 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
 
             if (monster.m_roleType == 5)
             {
-                // ORIG 0x08464f2c：G_CDataManager+0x5198 float 倍率（魔王怪 EXP）
-                float* ratePtr = (float*)((char*)G_CDataManager() + 0x5198);
-                mobExp = (unsigned int)(*ratePtr * (float)mobExp);
+                // ORIG 0x08464f2c：+0x5198 = CDataManager::m_deathTower.m_apcExpWeight
+                mobExp = (unsigned int)(G_CDataManager()->m_deathTower.m_apcExpWeight *
+                                        (float)mobExp);
             }
 
-            // ORIG 0x08464f80：G_CDataManager+0x5e1c float 倍率（无条件）
-            float* ratePtr2 = (float*)((char*)G_CDataManager() + 0x5e1c);
-            mobExp = (unsigned int)(*ratePtr2 * (float)mobExp);
+            // ORIG 0x08464f80：+0x5e1c = m_deathTower.m_monsterExpWeight（无条件）
+            mobExp = (unsigned int)(G_CDataManager()->m_deathTower.m_monsterExpWeight *
+                                    (float)mobExp);
 
             // ORIG 0x08465000：STGainedEachExpData(m_exp=mobExp) 后
             // sumGainedEachExp 取回
@@ -986,18 +1004,15 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
                 partyUser->SendNotiPacket((CUser::eSendTarget)2, (ENUM_NOTIPACKET)2, 1);
             }
 
-            // ORIG 0x0846515f：cUserHistoryLog（user+0x79700）KillMonster 日志；
-            // killValue1=msg+0xa1e / killValue2=msg+0xa1a / a=+0xa24 / b=+0xa26；
-            // curExp=getCurCharacExp()
-            cUserHistoryLog* historyLog =
-                (cUserHistoryLog*)((char*)partyUser + 0x79700);
-            historyLog->KillMonster(monster.m_mobIndex, msg.m_killValue1,
-                                    msg.m_killValue2, msg.m_killPairA24,
-                                    msg.m_killPairA26, msg,
-                                    static_cast<char>(monster.m_roleType),
-                                    monster.m_roleType == 5,
-                                    partyUser->getCurCharacExp(),
-                                    (int)mobExp, (CUser::eExpAddReason)notiType);
+            // ORIG 0x0846515f：cUserHistoryLog（CUser 嵌套成员 m_historyLog，+0x79700）
+            // KillMonster 日志；killValue1=msg+0xa1e / killValue2=msg+0xa1a /
+            // a=+0xa24 / b=+0xa26；curExp=getCurCharacExp()
+            partyUser->m_historyLog.KillMonster(
+                monster.m_mobIndex, msg.m_killValue1, msg.m_killValue2,
+                msg.m_killPairA24, msg.m_killPairA26, msg,
+                static_cast<char>(monster.m_roleType), monster.m_roleType == 5,
+                partyUser->getCurCharacExp(), (int)mobExp,
+                (CUser::eExpAddReason)notiType);
 
             // ORIG 0x08465244：CheckQuestMonster(dungeonIndex, mobIndex, type)
             // type：roleType 5..8 → 2，否则 1
@@ -1056,8 +1071,10 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
             }
             else
             {
-                // Avatar period: getAvatarPeriod not yet implemented, use add_info
-                packet.put_int(item.m_item.get_add_info());
+                // ORIG 0x08465554：天数(m_fieldb 低字节) * 0x15180(86400s)；同 WarField 发包
+                packet.put_int(equipItem->getAvatarPeriod(
+                                   (unsigned char)item.m_item.m_fieldb) *
+                               0x15180);
                 stAvatarEmblemInfo_t emblemInfo;
                 emblemInfo.init();
                 equipItem->getAvatarSocket(item.m_item.m_fieldb, emblemInfo);
@@ -1127,9 +1144,8 @@ void CDeathTower::_onClear(bool isLast)
         {
             CUser* user = m_party->get_user(i);
             user->setChattingMessageCount(0);
-            // CUser +0x79700：cUserHistoryLog 子对象（未建模，CUser.h 无具名成员）【推断】
-            cUserHistoryLog* log = (cUserHistoryLog*)((char*)user + 0x79700);
-            log->DungeonClearInfo((int)isLast, playTime / 1000);
+            // CUser +0x79700：cUserHistoryLog（public 成员 m_historyLog，CUser.h 2197）
+            user->m_historyLog.DungeonClearInfo((int)isLast, playTime / 1000);
 
         }
     }
@@ -1197,15 +1213,14 @@ void CDeathTower::_onStartDeathTower()
             continue;
         CDungeon* dungeon = m_dungeonMgr.getDungeon();
         const char* dungeonName = dungeon->GetDungeonName();
-        // CUser +0x79700：cUserHistoryLog 子对象（同 _onClear）【推断】
-        cUserHistoryLog* log = (cUserHistoryLog*)((char*)user + 0x79700);
+        // CUser +0x79700：cUserHistoryLog（public 成员 m_historyLog）
         // ORIG：EnterDungeon(dungeonName, 0, memberNames, m_party->m_partyType)
-        log->EnterDungeon(dungeonName, 0, memberNames, m_party->get_party_type());
+        user->m_historyLog.EnterDungeon(dungeonName, 0, memberNames,
+                                        m_party->get_party_type());
 
         UserQuest* quest = user->getCurCharacQuestW();
-        // UserQuest +0x75d8：_Quest_Authen_Data 内嵌子对象（UserQuest 未建模）【推断】
-        _Quest_Authen_Data* authData = (_Quest_Authen_Data*)((char*)quest + 0x75d8);
-        authData->reset();
+        // UserQuest +0x75d8：_Quest_Authen_Data 内嵌子对象（public m_authenData）
+        quest->m_authenData.reset();
 
         int dungeonIdx = dungeon->get_index();
         quest->set_authen_data((QUEST_CONDITION)0, dungeonIdx, -1);
@@ -1527,8 +1542,9 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
         }
         if (invenItem.isEquipableItemType())
         {
-            int itemType = *(int*)((char*)citem + 0x234);   // ORIG 直读数据 +0x234
-            if (itemType == 0xb || itemType < 10)
+            // ORIG 0x84666fa：CEquipItem+0x234 = m_itemType（见 CBossStage.cpp 同款）
+            const CEquipItem* equip = static_cast<const CEquipItem*>(citem);
+            if (equip->m_itemType == 0xb || equip->m_itemType < 10)
             {
                 return false;
             }
@@ -1706,11 +1722,17 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
 
     m_party->gen_timer_key((TIMER_MESSAGE)0x2d);
     m_party->SetSelectedEPLPCmd(-1);
-    PacketGuard packet;
+    // ORIG 0x08463d09：party 内嵌 BF（+0xb24）选随机 buff 类型后抽取
+    int buffDungeon = reinterpret_cast<CPartyBattleFieldView*>(m_party)
+                          ->m_battleField.getRandomBuffDungeonType(0);
+    m_party->choose_random_buff((QuickParty::RandomBuffDungeon)buffDungeon);
+
+    CPacketHandler packet;
     packet.put_header(0, 0x8e);
 
     packet.put_int(dungeonIdx);
     packet.put_short(m_dungeonMgr.getEndStage());
+    packet.put_byte((int)m_party->get_party_type());    // ORIG party+0xcd8
     if (m_party == NULL)
     {
         packet.put_byte(0xb);
@@ -1749,7 +1771,11 @@ bool CDeathTower::CDungeonMgr::initDungeonMgr(int dungeonIdx)
     m_pDungeon = G_CDataManager()->find_dungeon(dungeonIdx);
     if (m_pDungeon == 0)
         return false;
-    m_endStage = m_pDungeon->getDeathTowerMaxStage();
+    // ORIG 0x084605e0 证据：call 后 mov %eax,%edx; mov 0x8(%ebp),%eax; mov %edx,0x4(%eax)
+    // —— call 结果先钉 %edx（范式28），this 后载入 %eax。
+    register int maxStage asm("edx") = m_pDungeon->getDeathTowerMaxStage();
+    register CDungeonMgr* self asm("eax") = this;
+    self->m_endStage = maxStage;
     return true;
 }
 
@@ -2204,12 +2230,14 @@ bool CDeathTower::CStage::moveNextStage(unsigned int endStage)
 {
     // ORIG 0x84617da：checkClearStage() 且 m_currentStage < endStage 时
     // ++m_currentStage 返回 true，否则 false。
-    if (checkClearStage() && (unsigned int)m_currentStage < endStage)
-    {
-        ++m_currentStage;
-        return true;
-    }
-    return false;
+    // ORIG 0x84617eb xor $0x1 + 0x84617fc/0x8461803 mov$1/$0 两段物化 +
+    // 0x8461808 test/je：t = (!clear) || (stage>=end) 物化后反判（范式1+40）。
+    register bool t asm("eax");
+    t = ((int)checkClearStage() ^ 1) || (unsigned int)m_currentStage >= endStage;
+    if (t)
+        return false;
+    ++m_currentStage;
+    return true;
 }
 
 bool CDeathTower::CStage::pickupItem(int idx, map_item& item)
@@ -2240,7 +2268,7 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
 {
     // ORIG 0x8460634：mobIdVec + apMap（拷贝自 aiList->getAPCount()）+
     // map_monster mob 局部，随后按三段填充：AI 布点 → AP 随机怪 → 脚本怪列表
-    // → 特殊被动物品生成。tower 参数 ORIG 未使用。
+    // → 特殊被动物品生成。tower 参数供第四段判 partyType（ORIG 0x8461371）。
     std::vector<unsigned int> mobIdVec;
     CAICharacterList* aiList = G_CDataManager()->m_aiCharacterList;
     std::map<int, int> apMap(aiList->getAPCount());
@@ -2285,12 +2313,18 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
     }
 
     // ---- 第二段：AP 随机怪（剩余点数预算扣减；ORIG 0x8460940..0x8460d28）----
+    // ORIG 结构：do { while(1){ [a]剩余<minAP→结束; [b]随机取怪;
+    // [c]find→已在 mobIdVec(本段或首段已布)→break; [d]新怪:入 vec/扣点/建怪 }
+    // [e]统计 ≤剩余点数的可用 AP 总量; } while(total != 0);
     int apRandomPoint = map->getAPCRandomPoint();
     if (apRandomPoint != 0)
     {
         mobIdx = 0x40;
         for (;;)
         {
+            if (aiList->getMinAP() > apRandomPoint)
+                break;                      // [a]
+
             CAICharacter* aiChar = aiList->getByAP(
                 static_cast<unsigned int>(get_rand_int(apRandomPoint) + 1));
             if (!aiChar)
@@ -2298,38 +2332,36 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
 
             std::vector<unsigned int>::iterator fi = std::find(
                 mobIdVec.begin(), mobIdVec.end(), aiChar->getIdx());
-            if (fi == mobIdVec.end())
+            if (fi != mobIdVec.end())
             {
-                // 未用过：统计 ≤ 剩余点数的可用 AP 总量，为 0 则跳出
+                // [e] 抽中已布过的怪：统计可用 AP 总量，为 0 才结束
                 int total = 0;
                 for (std::map<int, int>::const_iterator ci = apMap.begin();
                      ci != apMap.upper_bound(apRandomPoint); ++ci)
                     total += ci->second;
                 if (total == 0)
                     break;
+                continue;
             }
-            else
-            {
-                mobIdVec.push_back(aiChar->getIdx());
-                int ap = aiChar->getAppearancePoint();
-                std::map<int, int>::iterator it2 = apMap.find(ap);
-                if (it2 != apMap.end())
-                    it2->second = std::max(it2->second - 1, 0);
-                apRandomPoint -= ap;
 
-                memset(&mob, 0, sizeof(mob));
-                mob.m_mobId = mobIdx;
-                mob.m_mobIndex = aiChar->getIdx();
-                mob.m_instId = m_mapInfo.m_assignItemIdx;
-                m_mapInfo.m_assignItemIdx++;
-                mob.m_roleType = 5;
-                mob.m_level = aiChar->getLevel();
-                mob.m_dropCnt = 100;   // ORIG 立即数
-                m_mapInfo.Add_Mob(mob);
-                mobIdx++;
-            }
-            if (aiList->getMinAP() > apRandomPoint)
-                break;
+            // [d] 新怪：入已用表、扣减出现点数、建怪（m_dropCnt=100 ORIG 立即数）
+            mobIdVec.push_back(aiChar->getIdx());
+            int ap = aiChar->getAppearancePoint();
+            std::map<int, int>::iterator it2 = apMap.find(ap);
+            if (it2 != apMap.end())
+                it2->second = std::max(it2->second - 1, 0);
+            apRandomPoint -= ap;
+
+            memset(&mob, 0, sizeof(mob));
+            mob.m_mobId = mobIdx;
+            mob.m_mobIndex = aiChar->getIdx();
+            mob.m_instId = m_mapInfo.m_assignItemIdx;
+            m_mapInfo.m_assignItemIdx++;
+            mob.m_roleType = 5;
+            mob.m_level = aiChar->getLevel();
+            mob.m_dropCnt = 100;
+            m_mapInfo.Add_Mob(mob);
+            mobIdx++;
         }
     }
 
@@ -2344,13 +2376,16 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
         memset(&mob, 0, sizeof(mob));
         mob.m_mobId = mobIdx;
 
+        // ORIG 0x8460dc5：flag04==0 → 直用 m_field08 低字节；
+        // 否则全宽 int 加法后截断 uchar：0→1，>200→200，1..200 原样
         if (src.m_flag04 != 0)
         {
-            int lv = dungeonMgr.getStandardLevel() + src.m_field08;
-            if (lv > 0xc7)
-                lv = 0xc8;
-            else if (lv <= 0)
+            unsigned int lv = (unsigned char)(dungeonMgr.getStandardLevel() +
+                                              src.m_field08);
+            if (lv == 0)
                 lv = 1;
+            else if (lv > 200)
+                lv = 200;
             mob.m_level = static_cast<unsigned char>(lv);
         }
         else
@@ -2397,13 +2432,20 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
     for (std::list<_mapItem>::const_iterator it = items.begin();
          it != items.end(); ++it)
     {
+        // ORIG 0x8461371：tower->m_party->m_partyType==1（单人）→ 跳过本图
+        // 特殊被动物品生成（tower 参数即外层死亡塔实例）
+        if (tower->m_party->get_party_type() == 1)
+        {
+            break;
+        }
+
         const _mapItem& src = *it;
         const stDungeonAssignItem_t& assign =
             specialItems->at(static_cast<unsigned int>(src.m_objectIdx));
 
         if (assign.m_assignItemIdx != -1)
         {
-            *(char*)((char*)&refData1 + 0x38) =
+            *reinterpret_cast<char*>(&refData1.m_rankBonusIndex) =
                 static_cast<char>(assign.m_assignItemIdx);
         }
         else
@@ -2411,12 +2453,13 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
             int stdLevel = dungeonMgr.getStandardLevel();
             if (stdLevel <= 0 || stdLevel > 0xc8)
                 continue;
-            *(char*)((char*)&refData1 + 0x38) =
+            *reinterpret_cast<char*>(&refData1.m_rankBonusIndex) =
                 static_cast<char>(stdLevel);
         }
         // ORIG 0x84610fb..0x846111b：refData1+0x39 = src.m_field04 低字节
-        //（+0x38/+0x39 即 m_rankBonusIndex 的低两字节）
-        *(char*)((char*)&refData1 + 0x39) =
+        //（+0x38/+0x39 即 m_rankBonusIndex 的低两字节，ORIG 均为 movb 单字节写：
+        //  084610ad/084610f5 写 +0x38、0846110f 写 +0x39）
+        *(reinterpret_cast<char*>(&refData1.m_rankBonusIndex) + 1) =
             static_cast<char>(src.m_field04);
 
         stGenerateResult_t result;
@@ -2508,7 +2551,9 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
                 CUser* user = m_party->get_user(i);
                 if (!m_playData.isMemberReady(i))
                 {
-                    PacketGuard packet;
+                    // ORIG 0x08462bca：makeFinishLoading 包后单发该用户再请离
+                    CPacketHandler packet;
+                    packet.makeFinishLoading();
                     user->Send(packet);
                     handleLeaveUser(user);
                     someoneLeft = true;
@@ -2530,7 +2575,9 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
             {
                 m_playData.setMemberReady(i, true);
             }
-            PacketGuard packet;
+            // ORIG 0x08462ca0：全员置 ready 后广播 makeFinishLoading
+            CPacketHandler packet;
+            packet.makeFinishLoading();
             m_party->send_to_party(packet);
         }
         break;
@@ -2546,7 +2593,7 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
             if (m_party->checkValidUser(i))
             {
                 CUser* user = m_party->get_user(i);
-                PacketGuard packet;
+                CPacketHandler packet;
                 Inven_Item* item3 = m_playData.getRewardItem(3);
                 int cnt3 = m_playData.getRewardItemCount(3);
                 Inven_Item* item2 = m_playData.getRewardItem(2);
@@ -2556,6 +2603,9 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
                 Inven_Item* item0 = m_playData.getRewardItem(0);
                 int cnt0 = m_playData.getRewardItemCount(0);
                 int exp = m_playData.getRewardExp(i);
+                // ORIG 0x08462ede：makeDisplayReward(exp, 槽0..3 的 cnt/items)
+                packet.makeDisplayReward(exp, cnt0, item0, cnt1, item1, cnt2,
+                                         item2, cnt3, item3);
                 Inven_Item* myItem = m_playData.getRewardItem(i);
                 int myCnt = m_playData.getRewardItemCount(i);
                 deathTowerCardStatistic(myCnt, user, myItem);
@@ -2590,7 +2640,9 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
             }
         }
 
-        PacketGuard packet;
+        // ORIG 0x084630da：makeDisplayEPLP(allHaveItem) 后广播
+        CPacketHandler packet;
+        packet.makeDisplayEPLP(allHaveItem);
         m_party->send_to_party(packet);
 
         for (int i = 0; i < 4; ++i)
@@ -2599,52 +2651,56 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
             {
                 CUser* user = m_party->get_user(i);
                 int rewardCnt = m_playData.getRewardItemCount(i);
+                Inven_Item* rewardBase = m_playData.getRewardItem(i);
                 for (int j = 0; j < rewardCnt; ++j)
                 {
-                    Inven_Item* rewardItem = m_playData.getRewardItem(i);
-                    // ORIG：rewardItem 为成员奖励 Inven_Item 数组；`+ j*0x3d + 2` = rewardItem[j].
-                    // m_addInfo（Inven_Item +0x02，打包 0x3d 字节）。
-                    int itemId = rewardItem[j].m_addInfo;
-                    if (itemId != -1)
+                    // ORIG：rewardBase 为成员奖励数组，逐 j 项发放（m_addInfo +0x02）
+                    if (rewardBase[j].m_addInfo == -1)
                     {
-                        int slot = -1;
-                        if (itemId == 0)
+                        continue;
+                    }
+                    int slot = -1;
+                    if (rewardBase[j].m_addInfo == 0)
+                    {
+                        // 金钱奖励：金额 = rewardBase[j].get_add_info()
+                        int addInfo = rewardBase[j].get_add_info();
+                        CInventory* inven = (CInventory*)user->getCurCharacInvenW();
+                        int gained = inven->gain_money(addInfo, (eMoneyAddReason)5, true, 0);
+                        if (gained < addInfo)
                         {
-                            int addInfo = rewardItem->get_add_info();
-                            CInventory* inven = (CInventory*)user->getCurCharacInvenW();
-                            int gained = inven->gain_money(addInfo, (eMoneyAddReason)5, true, 0);
-                            if (gained < addInfo)
-                            {
-                                user->SendMoneyFullReason((ENUM_MONEY_FULL_REASON)0, addInfo, gained);
-                            }
-                            slot = 0;
-                            CDungeon* dungeon = m_dungeonMgr.getDungeon();
-                            int dungeonIdx = dungeon->get_index();
-                            if (dungeonIdx == 11000)
-                            {
-                                GetInstanceCirculationStatistic()->AddCirculationStatistic((CIRCULATION_STATISTIC_FIELD)4, user, (unsigned int)gained);
-                            }
-                            else
-                            {
-                                GetInstanceCirculationStatistic()->AddCirculationStatistic((CIRCULATION_STATISTIC_FIELD)5, user, (unsigned int)gained);
-                            }
+                            user->SendMoneyFullReason((ENUM_MONEY_FULL_REASON)0, addInfo, gained);
+                        }
+                        slot = 0;
+                        CDungeon* dungeon = m_dungeonMgr.getDungeon();
+                        int dungeonIdx = dungeon->get_index();
+                        if (dungeonIdx == 11000)
+                        {
+                            GetInstanceCirculationStatistic()->AddCirculationStatistic((CIRCULATION_STATISTIC_FIELD)4, user, (unsigned int)gained);
                         }
                         else
                         {
-                            CInventory* inven = (CInventory*)user->getCurCharacInvenW();
-                            slot = inven->insertItemIntoInventory(*rewardItem, (eItemAddReason)0xb, true, true);
+                            GetInstanceCirculationStatistic()->AddCirculationStatistic((CIRCULATION_STATISTIC_FIELD)5, user, (unsigned int)gained);
                         }
+                    }
+                    else
+                    {
+                        CInventory* inven = (CInventory*)user->getCurCharacInvenW();
+                        slot = inven->insertItemIntoInventory(rewardBase[j], (eItemAddReason)0xb, true, true);
+                    }
 
-                        if (slot >= 0)
-                        {
-                            PacketGuard updatePacket;
-                            user->Send(updatePacket);
-                        }
+                    if (slot >= 0)
+                    {
+                        // ORIG 0x08463394：GetItemSpace + makeUpdateItemList 单发
+                        ENUM_ITEMSPACE space = (ENUM_ITEMSPACE)rewardBase[j].GetItemSpace();
+                        CPacketHandler updatePacket;
+                        updatePacket.makeUpdateItemList(user, space, slot);
+                        user->Send(updatePacket);
                     }
                 }
 
                 int exp = m_playData.getRewardExp(i);
-                user->calcHelpAbuseRatio(exp, false);
+                // ORIG 0x084635b3：flag = (bool)exp
+                user->calcHelpAbuseRatio(exp, exp != 0);
                 int a = 0, b = 0;
                 if (user->gain_exp_sp(exp, a, b, (CUser::eExpAddReason)2, 0, false))
                 {

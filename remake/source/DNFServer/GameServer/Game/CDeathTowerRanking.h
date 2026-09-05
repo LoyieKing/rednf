@@ -44,8 +44,10 @@ public:
     // 返回 3 张排行榜表（0x941f8c0 起，每表 0x70f4）中 type 对应表指针；
     // type==0 返回首表，否则 0x941f8c0 + (type-1)*0x70f4。
     static void* getRankTable(unsigned int type);
-    // ORIG _ZN8WongWork18CDeathTowerRanking4initEj（W）：按 type 初始化排行榜表。
-    static void init(unsigned int type);
+    // ORIG _ZN8WongWork18CDeathTowerRanking4initEj（T 0x084680a4）：非静态成员
+    // （this=表对象）。ORIG Init 0x082a1f60..0x082a1f75 实证：先
+    // call getRankTable(i) 返回表指针入 esp[0]、i 入 esp[4]，再 call init。
+    void init(unsigned int type);
     // ORIG 0x08469d69 W（_ZN8WongWork18CDeathTowerRanking23makeDungeonIdx2TowerIdxEj）：
     // 死亡之塔副本 idx（0x2af8..0x2afd）→ 塔序号（0..5），其余返回 0xffffffff。
     static unsigned int makeDungeonIdx2TowerIdx(unsigned int dungeonIdx);
@@ -113,16 +115,37 @@ public:
         // ORIG 两运算符均为非 const 成员（mangled 无 K：_ZN...teq/gtERKS1_）
         bool operator>(const stBestRecord_t& other)
         {
+            // ORIG 0x08469ce4：cmp 0x88 jne→GT岛@8469d16（seta）；
+            // fall-through 比 0x8c setb@8469d11（范式23 goto 钉块序）。
             if (m_stage != other.m_stage)
-                return m_stage > other.m_stage;
+                goto STAGE_GT;
             return m_playTime < other.m_playTime;
+        STAGE_GT:
+            return m_stage > other.m_stage;
         }
         bool operator==(const stBestRecord_t& other)
         {
-            return m_stage == other.m_stage && m_playTime == other.m_playTime;
+            // ORIG 0x08469d30：首比较 jne→mov$0 岛@8469d62；次比较 sete %al 直出@8469d5d
+            // （范式22：register bool 绑 al 免物化分支；范式23 goto 钉岛序）。
+            if (m_stage != other.m_stage)
+                goto RET0;
+            {
+                register bool eq asm("al") = (m_playTime == other.m_playTime);
+                return eq;
+            }
+        RET0:
+            return false;
         }
 
-        char m_pad0[4];              // +0x00（registBestRecord 用作 key dword）
+        // m_key 字段化（SecuLink 批次 2026-09-05 裸偏移清理；union 保基名）。
+        // 证据：registBestRecord ORIG 0x08468914 +0x01d `mov %eax,-0x220(%ebp)`
+        // （4B key dword 写，docs/class_func_reports/
+        // WongWork__CDeathTowerRanking/registBestRecord.md）。
+        union
+        {
+            char m_pad0[4];          // +0x00（基名保留）
+            unsigned int m_key;      // +0x00（characNo key 槽）
+        };
         char m_memberData[4][30];    // +0x04（ctor 循环清零）
         char m_pad7c[3][4];          // +0x7c（+0x7c/80/84 三条 byte lane）
         unsigned int m_stage;        // +0x88
@@ -145,7 +168,16 @@ public:
     // 见 checkRenewTopRecord）。
     struct stTowerBlock
     {
-        char m_pad0[0x98];           // +0x00 前缀
+        // 注意（SecuLink 批次 2026-09-05 取证）：registRanker ORIG 0x08468614
+        // asm +0x021..+0x032 `imul $0x98,%ecx(slotIdx); imul $0x390,%edx
+        // (towerIdx); lea; add; add $0x90`（docs/class_func_reports/
+        // WongWork__CDeathTowerRanking/registRanker.md）实证塔块为 6×0x98 连续
+        // 纪录槽（slotIdx 0..5），本“前缀”即 slotIdx==0 槽；m_slots[0]（+0x98）
+        // 为 checkRenewTopRecord 榜首。stBestRecord_t 有用户 ctor，不可入 union
+        // （C++98），故前缀槽在 W6_RankMailDeps.cpp 以
+        // `reinterpret_cast<stBestRecord_t*>(&m_towers[i]) + slotIdx` 的具类型
+        // stride 寻址访问（非裸字节偏移；ORIG 双 imul 形态保持）。
+        char m_pad0[0x98];           // +0x00 前缀（= registRanker slotIdx 0 槽区）
         stBestRecord_t m_slots[5];   // +0x98..+0x390
     };
     // ORIG T 0x08468cb6（_ZN8WongWork18CDeathTowerRanking17_makeRecordPacketERKNS0_14stBestRecord_tER11PacketGuard，

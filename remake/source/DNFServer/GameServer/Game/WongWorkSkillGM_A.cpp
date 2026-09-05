@@ -51,10 +51,10 @@ void CSkillChanger::CountElixer(CUser* user)
     memset(m_data.m_skillBookCount, 0, 0x24);
     memset(m_data.m_needElixerCount, 0, 0x24);
     memset(m_data.m_needElixerAbility, 0, 0x24);
-    m_state.m_kindState0 = 8;
-    m_state.m_kindState1 = 8;
-    m_state.m_kindState2 = 8;
-    m_state.m_kindState3 = 8;
+    m_state.m_sec0.m_kindState = 8;   // 组首 +0x00/0x24/0x48/0x6c（SkillB 将 CSkillChanger 4 节结构化为 STKindSection）
+    m_state.m_sec1.m_kindState = 8;
+    m_state.m_sec2.m_kindState = 8;
+    m_state.m_sec3.m_kindState = 8;
     m_state.m_reserved91 = 1;                      // ORIG 0x08609e41 movb $0x1,0x91(%eax)
     _GetUserItemCount(user);
     _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)0);

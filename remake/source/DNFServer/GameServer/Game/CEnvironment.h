@@ -159,7 +159,10 @@ public:
     int m_acceptUnlockDBQueueCount;    // +0x15c
     std::string m_baseScriptDirectory; // +0x160
     std::vector<std::string> m_priorityScriptDir;  // +0x164
-    char m_scriptpacks;                // +0x170
+    // bool 实证（§8.3 字段化）：ORIG init.md +0x007d 区 `movzbl 0x308(%eax),%eax;
+    // movzbl %al,%esi` 传 InitRDARScript 的 bool 形参，无 test/setne 规范化 ⇒ 字段
+    // 本身即 bool（char 会多 2 条，P9/P22/P32）；消费者仅 =0/=1 赋值，指令同形。
+    bool m_scriptpacks;                // +0x170
     int m_channelType;                 // +0x174
     bool m_validateScript;             // +0x178（bool：ORIG movzbl 0x310(%eax)+test+je 形态）
     std::string m_garenaPublickey;     // +0x17c
@@ -255,9 +258,22 @@ private:
     friend bool Init(int, char**);              // GameMain.cpp（ORIG 直访 +0x50）
     CTEA m_cipher;                              // +0x04（0x48 字节）
     eStartArgumentType_t m_operationType;       // +0x4c
+    // 偏移清理（2026-09-04 GlobalData 批次）：ORIG GlobalData::initTournamentDB
+    // 直访本表（G_CEnvironment()+0x50，见 GlobalData.cpp 站点注释），置 public
+    // 以具名直访替代裸偏移；声明位置不变（+0x50），仅访问级别调整（先例 m_dbConnInfo）。
+public:
     std::map<ENUM_SERVER_GROUP, std::map<std::string, std::string> > m_serverGroupMap;   // +0x50
+public:
+    // ORIG GlobalData::Init 经 G_CEnvironment()+0x68 逐站点直访该表（每 operator[]
+    // 站点独立取全局，非缓存引用），故置 public 以具名直访 m_dbConnInfo，忠实匹配调用序。
+    // 声明位置不变（+0x68），仅访问级别调整。
     std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> m_dbConnInfo;                             // +0x68
+private:
+public:
+    // 同上：ORIG initTournamentDB 直访 +0x80（GroupDBMap operator[] 写站点），
+    // 声明位置不变（+0x80），仅访问级别调整。
     std::map<ENUM_SERVER_GROUP, std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> > m_dbConnInfoByGroup;  // +0x80
+private:
     char m_dbTblFile[0x100];                    // +0x98
 public:
     // 服务器环境布局由 ORIG +0x198 固定；必须声明在 m_dbTblFile 之后（声明于
@@ -293,7 +309,9 @@ public:
         {
             if (m_p == NULL)
             {
-                m_p = new T;
+                // ORIG（Store 实证 0x082711xx）：trivial T 时 value-init 清零、
+                // 非 trivial T 与 new T 同形。
+                m_p = new T();
             }
         }
         else

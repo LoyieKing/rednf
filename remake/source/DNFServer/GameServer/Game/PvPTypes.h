@@ -79,7 +79,7 @@ struct PVP_ROOM_INFO
     std::string title;   // +0x00
     char byte4;          // +0x04
     short short6;        // +0x06
-    char byte8;          // +0x08
+    unsigned char byte8;  // +0x08（ORIG get_room_info 0x085d92d2 movzbl 单级装载=uchar）
     std::string passwd;  // +0x0c
 };
 
@@ -273,31 +273,21 @@ static_assert(sizeof(BlueMarbleScriptManager) == 0xec, "BlueMarbleScriptManager 
 static_assert(offsetof(BlueMarbleScriptManager, m_tiles) == 0xbc, "BlueMarbleScriptManager tiles offset drift");
 static_assert(offsetof(BlueMarbleScriptManager, m_maps) == 0xd4, "BlueMarbleScriptManager maps offset drift");
 
+// 数据对象 ABI 自检（类型定义点：BlueMarbleInfoScript.h）。
 static_assert(sizeof(BlueMarbleRandomItemInfo) == 0x8, "BlueMarbleRandomItemInfo ABI drift");
 static_assert(sizeof(BlueMarbleRewardInfo) == 0x8, "BlueMarbleRewardInfo ABI drift");
 static_assert(sizeof(BlueMarbleRandomDungeonInfo) == 0xc, "BlueMarbleRandomDungeonInfo ABI drift");
-struct BlueMarbleScriptConfig
-{
-    int m_maxUser;
-    int m_minLevel;
-    int m_maxLevel;
-    int m_enterLimit;
-    int m_field10;
-    int m_diceMin;
-    int m_diceRange;
-    int m_field1c;
-};
 
-struct BlueMarbleHistoryMailData
-{
-    char m_reserved0[0x11];
-    char m_title[0x28];
-    int m_addInfo;
-    int m_addInfo2;
-    char m_reserved45[0x104];
-};
-
-static_assert(sizeof(BlueMarbleScriptConfig) == 0x20, "BlueMarbleScriptConfig ABI drift");
+// 2026-09-05 裸偏移收尾（§4.4 单声明点）删除两个无消费者的重复视图类型：
+//   · BlueMarbleScriptConfig —— 与 BlueMarbleInfoScript 前 0x20 字节
+//     （m_playerMax/m_enterLevel/m_enterMaxLevel/m_enterCount/m_dieCount/
+//      m_diceMin/m_diceMax/m_itemWeightTotal，+0x30..+0x4c 相对 manager）重复；
+//     消费点（BlueMarble.cpp）已改走 m_pScript->m_info.<字段>。
+//   · BlueMarbleHistoryMailData —— 与权威 MSG_MAILBOX_SEND（PacketTypes.h，
+//     pack(1)/sizeof 0x145：m_name11@+0x11、m_itemId39@+0x39、m_extra3d@+0x3d）
+//     重复，且本头无 #pragma pack，其自然对齐会把 m_addInfo 推到 +0x3c，
+//     与 ORIG `mov %eax,-0x236(%ebp)`（=+0x39）矛盾 ⇒ 直接删除，
+//     消费点 BlueMarble::insertItem 已改读权威 MSG_MAILBOX_SEND 字段。
 
 // 2026-08-24 布局重构后断言（旧 m_mapTotalCount/m_randomItems/m_rewardItems
 // 扁平字段已由 m_mapFileList/m_tileFileList/m_info 取代，见类内注释）。

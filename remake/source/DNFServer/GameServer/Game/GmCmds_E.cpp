@@ -753,6 +753,11 @@ void CMonsterDropTest::execute()
     sprintf(cnt, "%d번 통계입니다", m_count);
     game_master_CBoosterTest_SendChatMsg_Orig(user, cnt);
 
+    // ORIG +0x11f：落盘文件名缓冲进入循环前一次性清 255 字节
+    //（后续仅由 sprintf 覆盖；非法 mode 无分支写它时仍是空串）。
+    char fname[256];
+    memset(fname, 0, 0xff);
+
     char fileBuf[95000];
     memset(fileBuf, 0, sizeof(fileBuf));
     std::map<int, int> drop;
@@ -761,34 +766,28 @@ void CMonsterDropTest::execute()
     CMonsterDropTest_processDungeonDrop_Orig(this, party, &drop, &grade);
 
     bool loop = true;
-    int mode = m_mode;
-    if (mode != 2)
+    // ORIG 表头：mode∈{0,2} 走同一段通用表头；mode==3 金币表头；其余无表头。
+    if (m_mode != 2)
     {
-        if (mode == 3)
+        if (m_mode == 3)
         {
             memcpy(fileBuf, "item_name\tgold_quantity\t drop_cnt\n", 0x23);
+            goto header_done;
         }
-        else if (mode != 0)
+        if (m_mode != 0)
         {
-            // ORIG：其余 mode 不写表头
-        }
-        else
-        {
-            memcpy(fileBuf,
-                   "item_id\t item_name\t rarity\t drop_cnt\t price\t sell_price\t usable_lv\n",
-                   0x44);
+            goto header_done;
         }
     }
-    else
-    {
-        memcpy(fileBuf,
-               "item_id\t item_name\t rarity\t drop_cnt\t price\t sell_price\t usable_lv\n",
-               0x44);
-    }
+    memcpy(fileBuf,
+           "item_id\t item_name\t rarity\t drop_cnt\t price\t sell_price\t usable_lv\n",
+           0x44);
+header_done:
 
     while (loop)
     {
-        char fname[256];
+        // ORIG while 体首部每轮重读 this+0x08（mode）。
+        int mode = m_mode;
         if (mode == 2)
         {
             sprintf(fname, "passed_dungeon_drop_%d.txt", m_count);

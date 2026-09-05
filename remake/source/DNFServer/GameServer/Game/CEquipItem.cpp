@@ -493,14 +493,14 @@ void CEquipItem::set_item(STEquipmentScript& script)
     m_additionalExp120.m_field0 = script.m_expertJob.m_additionalExp.m_field0;
     m_additionalExp120.m_field4 = script.m_expertJob.m_additionalExp.m_field4;
     m_set128 = script.m_set11c;
-    {
-        // ORIG 依字节偏移读 STEquipmentScript +0x604/+0x608/+0x60c
-        //（位于 m_param1c0 对象内，权威头未单独建模）。
-        const char* base = (const char*)&script.m_param1c0;
-        m_field1cc = *(const float*)(base + 0x444);
-        m_field1d0 = (int)*(const float*)(base + 0x448);
-        m_field1d4 = *(const int*)(base + 0x44c);
-    }
+    // ORIG set_item @ 0x850fd84 +0x8a1..+0x8f9 reads STEquipmentScript
+    // +0x604/+0x608/+0x60c, i.e. EquipmentParameterInfo
+    // +0x444/+0x448/+0x44c.  The middle field is rounded by the x87
+    // fistp sequence; the final field is copied as one dword by ORIG.
+    m_field1cc = script.m_param1c0.m_upgradeCostDiscount;
+    m_field1d0 = static_cast<int>(script.m_param1c0.m_upgradeProbIncrease);
+    m_field1d4 = *reinterpret_cast<const int*>(
+        &script.m_param1c0.m_assaultCostDiscount);
     m_auraOptionType = script.m_880;
     m_auraOptionValue = script.m_884;
     {
@@ -523,17 +523,16 @@ void CEquipItem::set_item(STEquipmentScript& script)
     m_upgradeLevel = script.m_upgrade6fc;
     m_avatarColor[0] = script.m_88a;
     m_avatarColor[1] = script.m_88b;
+    // ORIG set_item @ 0x850fd84 +0x9fc..+0xa62 copies the
+    // [level linear ability] values in this order: level bounds, grade
+    // bounds, then repair bounds.  These names preserve the nested layout.
     m_growthFlag = script.m_69c;
-    {
-        // ORIG 依字节偏移读 STEquipmentScript 的成长区（m_param1c0 内）。
-        const char* base = (const char*)&script.m_param1c0;
-        m_growthA = *(const int*)(base + 0x28);
-        m_growthB = *(const int*)(base + 0x2c);
-        m_growthC = *(const int*)(base + 0x3e0);
-        m_growthD = *(const int*)(base + 0x3e4);
-        m_growthE = *(const int*)(base + 0x408);
-        m_growthF = *(const int*)(base + 0x40c);
-    }
+    m_growthA = script.m_param1c0.m_growthLevelBegin;
+    m_growthB = script.m_param1c0.m_growthLevelEnd;
+    m_growthC = script.m_param1c0.m_growthGradeBegin;
+    m_growthD = script.m_param1c0.m_growthGradeEnd;
+    m_growthE = script.m_param1c0.m_growthRepairBegin;
+    m_growthF = script.m_param1c0.m_growthRepairEnd;
     m_char144 = script.m_fieldd8;
     m_parentBoosterItemId = 0;
 }
@@ -745,9 +744,11 @@ int CEquipItem::get_creature_species() const
     return m_randomTable.m_field14;
 }
 
-// ORIG CEquipItem::get_hatch_item_id()：CEgg::Hatch（0x833912a）调用处内联展开为
-// mov 0x164(%eax),%eax —— 即 m_randomTable.m_field1c（蛋孵化物品 id，set_item case 1
-// 由脚本 m_764 写入）。ORIG 无独立符号（头内联），本定义提供真实强符号供调用方链接。
+// ORIG _ZNK10CEquipItem17get_hatch_item_idEv W 0x0833eeda size 0xe（nm -S + objdump
+// 实证：push ebp/mov esp,ebp/mov 0x8(%ebp),%eax/mov 0x164(%eax),%eax/pop ebp/ret），
+// 即 m_randomTable.m_field1c（蛋孵化物品 id，set_item case 1 由脚本 m_764 写入）。
+// 本 TU 提供该 W 符号的强定义；调用方 user_creature::CEgg::Hatch（0x833912a）
+// 按 ORIG 形态外联调用它（非内联）。
 int CEquipItem::get_hatch_item_id() const
 {
     return m_randomTable.m_field1c;

@@ -328,7 +328,7 @@ int CDataManager::find_npc(unsigned int idx) const
     return (int)(unsigned long)m_npcScriptList->find(idx);
 }
 
-bool CDataManager::find_lottery_use_cost(unsigned int money) const
+int CDataManager::find_lottery_use_cost(unsigned int money) const   // ORIG 0x835fb5a：bool→int（%eax 透传）
 {
     return m_lotteryNeedMoney.isNeedMoney(money);
 }
@@ -410,10 +410,9 @@ unsigned int CDataManager::GetSpAtLevelUp(int level) const
     {
         return 0;
     }
-    // ORIG 0x8360cb8：`*(int*)(this + (level+0x36a2)*4 + 8)` = SP-at-level-up 表
-    // （位于本类尾部未建模区 this+0xda94+4*(level-1)）。无对应具名成员，保留
-    // 地址形式，用 ORIG 偏移直译（原写法错误地借 &m_monsterManager(+0x08) 伪装）。
-    return *(int*)((char*)this + (level + 0x36a2) * 4 + 8);
+    // ORIG 0x8360cb8：SP-at-level-up 表首项位于 +0xda94；与
+    // set_reward_sp 共用同一具名 ABI 视图，按 level-1 取表项。
+    return ((const CDataManagerRewardSpView*)this)->m_spAtLevelUp[level - 1];
 }
 
 unsigned int CDataManager::GetMoneyLimitPerLevel(int level, const char* serverGroup) const
@@ -1361,9 +1360,9 @@ CDataManager* G_CDataManager()
 // CListTables.cpp（G2 第七批）；CChattingEmoticonList 由各自 TU 提供。
 CChattingEmoticonList::~CChattingEmoticonList() {}
 
-int CDataManager::get_limit_inout_count(ENUM_BLOOD_TYPE type)
+char CDataManager::get_limit_inout_count(ENUM_BLOOD_TYPE type)
 {
-    return (unsigned char)m_limitInoutCount[type];
+    return m_limitInoutCount[type];
 }
 
 // ============================================================================
@@ -1525,150 +1524,161 @@ const char* CDataManager::SuddenShopFileName3()
 
 int CDataManager::VerifyMap(const CMap& map, int idx) const
 {
-    // ORIG 0x083620ee T。主分支：
-    //  1) AI 角色校验：map.getAICharacters() 中的每个 APC type 须能经
-    //     CAICharacterList::get 查到（否则 log "Unknown APC Type"）。
-    //  2) 收集目标 dungeon：idx==-1 用 getDungeonLists，否则单元素{vlan}。
-    //  3) 遍历 map item list：每个 item 的 assign 索引对 dungeon 的
-    //     getSpecialPassiveObjectItems() 做范围/取值校验（1..200）。
-    //  4) dungeon list 非空 → 逐 dungeon 校验 eventMonster/rival/maze。
-    //  5) hash_map 遍历 m_dungeonList：PvP 地图 idx 越界(>=0xc351 && <=51000 为
-    //     合法)时；dungeonKind==1 → m_vec674 匹配 map index；m_mazeList 网格 →
-    //     地图 index 出现在 GridScript mapCandidates/secondCandidates 中则过。
-    //  6) map.get_map_type() 校验 + map.get_index() 结果。返回 bool。
-    // 校验 APC type（主分支）。
-    const std::vector<STAICharacterMapArrangeData>* aiList = map.getAICharacters();
-    if (aiList && !aiList->empty())
+    // ORIG 0x083620ee：map type 与 monster list 只被读取，结果不参与返回。
+    (void)map.get_map_type();
+    const std::list<_mapMonster> monsterList = map.get_monster_list();
+    for (std::list<_mapMonster>::const_iterator it = monsterList.begin();
+         it != monsterList.end(); it++)
+    {
+        // ORIG 仅读取这两个字段后前进迭代器，无校验或状态写入。
+        const _mapMonster& mon = *it;
+        char flag = mon.m_flag04;
+        int field = mon.m_field08;
+        (void)flag;
+        (void)field;
+    }
+
+    const std::vector<STAICharacterMapArrangeData>* aiList =
+        map.getAICharacters();
+    if (!aiList->empty())
     {
         for (std::vector<STAICharacterMapArrangeData>::const_iterator it =
-                 aiList->begin();
-             it != aiList->end(); ++it)
+                 aiList->begin(); it != aiList->end(); ++it)
         {
-            unsigned int apcType = (unsigned int)it->m_type;
-            if (m_aiCharacterList->get(apcType) == 0)
+            const STAICharacterMapArrangeData& ai = *it;
+            unsigned int apcType = (unsigned int)ai.m_type;
+            // ORIG 0x08362..：经 G_CDataManager() 全局取 m_aiCharacterList（+0x869c）。
+            if (G_CDataManager()->m_aiCharacterList->get(apcType) == 0)
             {
                 LogManager::logFormat(
-                    1, "data_manager.cpp",
-                    __PRETTY_FUNCTION__, 0x2847,
-                    "Unknown APC Type(%d). Map(%d)", apcType, map.get_index());
+                    1, "data_manager.cpp", __PRETTY_FUNCTION__, 0x2847,
+                    "Unknown APC Type(%d). Map(%d)", apcType,
+                    map.get_index());
             }
         }
     }
-    // 收集 dungeon list。
+
     std::list<int> dungeonList;
     if (idx == -1)
-    {
-        std::list<int>* dl = map.getDungeonLists();
-        if (dl)
-            dungeonList = *dl;
-    }
+        dungeonList = *map.getDungeonLists();
     else
-    {
         dungeonList.push_back(idx);
-    }
-    // 遍历 map item list，校验 passive object assign 项。
-    std::list<_mapItem> itemList = map.get_item_list();
-    for (std::list<_mapItem>::const_iterator it = itemList.begin();
-         it != itemList.end(); ++it)
+
+    const std::list<_mapItem> itemList = map.get_item_list();
+    for (std::list<_mapItem>::const_iterator itemIt = itemList.begin();
+         itemIt != itemList.end(); itemIt++)
     {
-        const _mapItem& item = *it;
-        for (std::list<int>::iterator dit = dungeonList.begin();
-             dit != dungeonList.end(); ++dit)
+        const _mapItem& item = *itemIt;
+        for (std::list<int>::const_iterator dungeonIt = dungeonList.begin();
+             dungeonIt != dungeonList.end(); ++dungeonIt)
         {
-            CDungeon* dungeon = find_dungeon(*dit);
-            std::vector<stDungeonAssignItem_t>* passive =
-                dungeon ? dungeon->getSpecialPassiveObjectItems() : 0;
-            if (item.m_objectIdx == 0xffffffff || !passive || passive->empty())
-            {
+            CDungeon* dungeon = find_dungeon(*dungeonIt);
+            const std::vector<stDungeonAssignItem_t>* passive =
+                dungeon->getSpecialPassiveObjectItems();
+            passive->size();
+            if (item.m_objectIdx == -1 || passive->empty())
                 continue;
-            }
-            if ((unsigned int)item.m_objectIdx < passive->size())
+            // ORIG 0x083629..：逐次 const at() 重取（P38 SAVE_EXPR 拆分），共 3 次。
+            if (passive->at(item.m_objectIdx).m_assignItemIdx < 1 ||
+                passive->at(item.m_objectIdx).m_assignItemIdx > 200)
             {
-                int assignIdx = passive->at(item.m_objectIdx).m_assignItemIdx;
-                if (assignIdx < 1 || assignIdx > 200)
-                {
-                    // [推断] ORIG 在此仅遍历/校验，不作为 fail 条件（report 未显示
-                    // 命中时改写行为）；保持遍历语义。
-                }
+                passive->at(item.m_objectIdx);
             }
         }
     }
-    // 逐 dungeon 校验 eventMonster / rival / maze（map index 匹配）。
-    bool verified = true;
-    for (std::list<int>::iterator dit = dungeonList.begin();
-         dit != dungeonList.end(); ++dit)
-    {
-        CDungeon* dungeon = find_dungeon(*dit);
-        if (dungeon == 0)
-        {
-            verified = false;
-        }
-    }
+
     if (!dungeonList.empty())
     {
-        // hash_map 遍历 PvP 地图（ORIG 遍历 m_dungeonList->m_dungeonMap）。
-        if (m_dungeonList)
+        bool missingDungeon = false;
+        for (std::list<int>::const_iterator dungeonIt = dungeonList.begin();
+             dungeonIt != dungeonList.end(); ++dungeonIt)
         {
-            for (__gnu_cxx::hash_map<int, CDungeon*>::const_iterator hit =
-                     m_dungeonList->m_dungeonMap.begin();
-                 hit != m_dungeonList->m_dungeonMap.end(); ++hit)
+            CDungeon* dungeon = find_dungeon(*dungeonIt);
+            if (dungeon == 0)
+                missingDungeon = true;
+            // ORIG 0x083629c2：直读 m_eventMonsters(+0x690) 成员（内联 getEventMonsters）。
+            if (!dungeon->m_eventMonsters.empty())
+                map.m_rivalData2.empty();
+        }
+
+        if (missingDungeon)
+            return 0;
+
+        // ORIG reads each entrance pair and performs comparisons whose result
+        // is discarded; retain the reads without inventing a validity rule.
+        for (std::vector<std::pair<int, int> >::const_iterator it =
+                 map.m_entranceVec.begin(); it != map.m_entranceVec.end(); it++)
+        {
+            const std::pair<int, int>& e = *it;
+            int x = e.first;
+            int y = e.second;
+            (void)x;
+            (void)y;
+        }
+        return 1;
+    }
+
+    // With no selected dungeon, ORIG scans the global dungeon map.  The
+    // comparisons only short-circuit this scan; the final return remains 1.
+    bool found = false;
+    for (__gnu_cxx::hash_map<int, CDungeon*>::const_iterator it =
+             m_dungeonList->m_dungeonMap.begin();
+         it != m_dungeonList->m_dungeonMap.end() && !found; ++it)
+    {
+        PvPMapInfo pvpInfo;
+        (void)pvpInfo;
+        // ORIG 0x08362592/0x083625a4：范围判定两次独立 get_index（P44 实参即时求值）。
+        if (map.get_index() > 0xc350 && map.get_index() <= 0xc738)
+        {
+            found = true;
+            break;
+        }
+
+        CDungeon* dungeon = it->second;
+        if (dungeon->getDungeonKind() == 1)
+        {
+            // ORIG 0x083625e3..：直读 m_deathTowerMaxStage 字段 + m_deathTowerMapIndexes[]
+            // 索引（operator[]），非 getter 方法。
+            for (int stage = 1;
+                 stage <= dungeon->m_deathTowerMaxStage && !found;
+                 ++stage)
             {
-                CDungeon* dungeon = hit->second;
-                if (!dungeon)
-                    continue;
-                int mapIndex = map.get_index();
-                // PvP 地图 index 区间非法则校验失败。
-                if (mapIndex >= 0xc351 && mapIndex <= 51000)
+                if (dungeon->m_deathTowerMapIndexes[stage] == map.get_index())
+                    found = true;
+            }
+        }
+
+        // ORIG 0x08362657..：m_mazeList.size() + operator[] 索引，非迭代器遍历。
+        for (int mi = 0; mi < (int)dungeon->m_mazeList.size() && !found; ++mi)
+        {
+            const MazeScript& maze = dungeon->m_mazeList[mi];
+            if (maze.m_2c == map.get_index())
+            {
+                found = true;
+                break;
+            }
+            for (int y = 0; y < maze.m_height && !found; ++y)
+            {
+                for (int x = 0; x < maze.m_width && !found; ++x)
                 {
-                    // [推断] ORIG：PvPMapInfo 判定区间，越界(FALSE)才继续；此处
-                    // 命中合法区间即不触发失败。
-                }
-                int dungeonKind = dungeon->getDungeonKind();
-                if (dungeonKind == 1)
-                {
-                    // [推断] m_vec674 匹配 map index。
-                    std::vector<int>& v674 = *(std::vector<int>*)((char*)dungeon + 0x674);
-                    for (unsigned int k = 0; k < v674.size(); ++k)
-                    {
-                        if (v674[k] == mapIndex)
-                            break;
-                    }
-                }
-                // MazeScript 网格：m_mazeList（+0x62c）每网格 getGridR 与候选区。
-                std::vector<MazeScript>* mazes =
-                    (std::vector<MazeScript>*)((char*)dungeon + 0x62c);
-                for (unsigned int m = 0; m < mazes->size(); ++m)
-                {
-                    MazeScript& maze = (*mazes)[m];
-                    if (maze.m_2c == mapIndex)
+                    const GridScript& grid = maze.getGridR(x, y);
+                    if (grid.m_gridValue == 0)
                         continue;
-                    for (int row = 0; row < maze.m_height; ++row)
-                    {
-                        for (int col = 0; col < maze.m_width; ++col)
-                        {
-                            const GridScript& grid = maze.getGridR(col, row);
-                            if (grid.m_gridValue != 0)
-                            {
-                                // [推断] map index 落在候选容器则命中。
-                                std::vector<int>& idxVals =
-                                    (std::vector<int>&)grid.m_mapCandidates;
-                                for (unsigned int g = 0; g < idxVals.size(); ++g)
-                                {
-                                    if (idxVals[g] == mapIndex)
-                                        continue;
-                                }
-                            }
-                        }
-                    }
+                    // ORIG 0x0836276a/0x08362803：std::find(candidates, map.get_index())
+                    // != end()，命中即 found；两级候选 else-if 串联。
+                    if (std::find(grid.m_mapCandidates.begin(),
+                                  grid.m_mapCandidates.end(),
+                                  map.get_index()) != grid.m_mapCandidates.end())
+                        found = true;
+                    else if (std::find(grid.m_secondCandidates.begin(),
+                                       grid.m_secondCandidates.end(),
+                                       map.get_index()) != grid.m_secondCandidates.end())
+                        found = true;
                 }
             }
         }
     }
-    // [推断] ORIG 末尾：get_map_type()/entranceVec 校验为主分支尾，未测出命中时
-    // verified 保持 true；返回 verified。
-    int mapType = map.get_map_type();
-    (void)mapType;
-    return verified ? 1 : 0;
+    return 1;
 }
 
 void* CDataManager::get_dungeon(int idx)
@@ -2013,14 +2023,24 @@ bool CDataManager::InitLoginState(ENUM_SERVER_GROUP serverGroup, int channelNo)
 // ---------------------------------------------------------------------------
 int CDataManager::init()
 {
-    CEnvironment* env = G_CEnvironment();
+    // ORIG 版本五元组落在具名区最浅端（槽 -0xf1c/-0xf18/-0xf14/-0xf10/
+    // -0xf0c，紧邻临时 arena 基址 -0xf08）；标量局部在本 GCC 下会进顶部
+    // 表达式临时槽（实测 -0x5c..-0x6c），只有聚合体（数组）才拿到具名帧槽
+    // ⇒ 原函数以 int[5] 形式声明，常数下标折叠后访存形态与标量完全一致。
+    int ver[5];
+    // ORIG 的 5 个函数体作用域 int（按声明序取深→浅槽 -0x3c/-0x38/-0x34/-0x30/
+    // -0x2c；两个循环计数器在子块里，故槽号更浅 -0x28/-0x24）。err 为多站点复用
+    // 的工作变量（ORIG 在 12+ 处 `movl $0x0,-0x38` 后 `if ((err = f()) != 0)`）。
+    int errDT, err, errPrem, errRO, errMerc;
+
+    // ORIG:每站点独立调用 G_CEnvironment()(无 env 缓存)。
 
     // [ORIG +0x000c..+0x005d] 遍历 m_serverEnvir.m_priorityScriptDir(+0x2fc)
     // 逐个 SetPriorityBaseDirectory。
-    for (unsigned int i = 0; i < env->m_serverEnvir.m_priorityScriptDir.size(); ++i)
+    for (unsigned int i = 0; i < G_CEnvironment()->m_serverEnvir.m_priorityScriptDir.size(); ++i)
     {
         SetPriorityBaseDirectory(
-            env->m_serverEnvir.m_priorityScriptDir[i].c_str());
+            G_CEnvironment()->m_serverEnvir.m_priorityScriptDir[i].c_str());
     }
 
     // [ORIG +0x005f] m_characNameFilterPass(+0xa8d8) = 0。
@@ -2028,67 +2048,70 @@ int CDataManager::init()
 
     // [+0x0069..+0x00b1] InitRDARScript(基目录 c_str(), m_scriptpacks 字节,
     // GetScriptPacks(), NULL)。
-    InitRDARScript(env->m_serverEnvir.m_baseScriptDirectory.c_str(),
-                   env->m_serverEnvir.m_scriptpacks != 0,
-                   GetScriptPacks(), (int*)0);
+    InitRDARScript(G_CEnvironment()->m_serverEnvir.m_baseScriptDirectory.c_str(),
+                   G_CEnvironment()->m_serverEnvir.m_scriptpacks,
+                   G_CDataManager()->GetScriptPacks(), (int*)0);
 
     // [+0x00b3..+0x0176] InitRDARScriptStringManager("n_String.lst", NULL, NULL)
     // —— 失败是唯一的前导致命错误（TRACE 0x1972 / 0x1975）。
+    // 两处 TRACE 均为匿名临时对象（ORIG 槽 -0xf08/-0xef8 随站点递增 ⇒ 临时
+    // arena 形态，具名对象则反向递增，探针 probe3 实证），故用链式临时写法。
     if (!InitRDARScriptStringManager("n_String.lst", (const char*)0,
                                      (std::vector<ErrorLog>*)0))
     {
-        cMyTrace trace("int CDataManager::init()", 0x1972, 9, true, true);
-        trace("\t- InitRDARScriptStringManager Fail");
+        cMyTrace("bool CDataManager::init()", 0x1972, 9, true, true)(
+            "\t- InitRDARScriptStringManager Fail");
         return 0;
     }
-    {
-        cMyTrace trace("int CDataManager::init()", 0x1975, 9, true, true);
-        trace("\t- InitRDARScriptStringManager Success");
-    }
+    cMyTrace("bool CDataManager::init()", 0x1975, 9, true, true)(
+        "\t- InitRDARScriptStringManager Success");
 
     // [+0x0176] InitMapEquipmentAniScript()。
     InitMapEquipmentAniScript();
 
     // [+0x017b..+0x02a8] ItemInfoMaster：失败/DB 步骤失败均只 TRACE 继续
     // （0x1982/0x1986/0x1989）。
-    sync_script::CSyncScript* sync = sync_script::GetInstanceSyncScript();
-    if (sync->LoadItemInfoMasterScript("Etc/ItemTypeMaster.etc"))
+    // ORIG:每站点独立 GetInstanceSyncScript()；分支布局为「失败 TRACE 在前
+    // （fall-through）、成功链在后（+0x01e8 起）」——故源码用 if(!ok){TRACE}
+    // else{…} 形式，站点顺序才是 0x1982 → 0x1986 → 0x1989（报告 +0x0195 je）。
+    if (!sync_script::GetInstanceSyncScript()->LoadItemInfoMasterScript("Etc/ItemTypeMaster.etc"))
     {
-        if (!sync->truncate_item_info_master_table())
+        cMyTrace("bool CDataManager::init()", 0x1982, 9, true, true)(
+            "\t- Failed to load < ITEM INFO MASTER SCRIPT >");
+    }
+    else
+    {
+        if (!sync_script::GetInstanceSyncScript()->truncate_item_info_master_table())
         {
-            cMyTrace("int CDataManager::init()", 0x1986, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1986, 9, true, true)(
                 "\t- Failed to < TRUNCATE ITEM INFO MASTER TABLE >");
         }
-        if (!sync->insert_item_info_master_to_db())
+        if (!sync_script::GetInstanceSyncScript()->insert_item_info_master_to_db())
         {
-            cMyTrace("int CDataManager::init()", 0x1989, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1989, 9, true, true)(
                 "\t- Failed to < INSERT ITEM INFO MASTER TO DB >");
         }
     }
-    else
-    {
-        cMyTrace("int CDataManager::init()", 0x1982, 9, true, true)(
-            "\t- Failed to load < ITEM INFO MASTER SCRIPT >");
-    }
 
     // [+0x02a8..+0x03xx] OldEquipmentStatInfo：同上 log-only（0x198f/93/96）。
-    if (importOldEquipmentStatInfo(""))
+    // 同上：失败 TRACE fall-through 在前（报告 +0x02b9 je）。
+    if (!importOldEquipmentStatInfo(""))
     {
-        if (!sync->truncate_old_equip_info_table())
-        {
-            cMyTrace("int CDataManager::init()", 0x1993, 9, true, true)(
-                "\t- Failed to < TRUNCATE OLD EQUIP INFO TABLE >");
-        }
-        if (!sync->insert_old_equip_info_to_db())
-        {
-            cMyTrace("int CDataManager::init()", 0x1996, 9, true, true)(
-                "\t- Failed to < INSERT OLD EQUIP INFO TO DB >");
-        }
+        cMyTrace("bool CDataManager::init()", 0x198f, 9, true, true)(
+            "\t- Failed to import < OldEquipmentStatInfo.dat >");
     }
     else
     {
-        cMyTrace("int CDataManager::init()", 0x198f, 9, true, true)(
-            "\t- Failed to import < OldEquipmentStatInfo.dat >");
+        if (!sync_script::GetInstanceSyncScript()->truncate_old_equip_info_table())
+        {
+            cMyTrace("bool CDataManager::init()", 0x1993, 9, true, true)(
+                "\t- Failed to < TRUNCATE OLD EQUIP INFO TABLE >");
+        }
+        if (!sync_script::GetInstanceSyncScript()->insert_old_equip_info_to_db())
+        {
+            cMyTrace("bool CDataManager::init()", 0x1996, 9, true, true)(
+                "\t- Failed to < INSERT OLD EQUIP INFO TO DB >");
+        }
     }
 
     // ---- 主成功续链开始：任一 FAIL 分支 TRACE 后 return 0 ----
@@ -2097,13 +2120,13 @@ int CDataManager::init()
     if (!importServerParameterScript(&m_serverParameter,
                                      "Etc/ServerParameter.etc"))
     {
-        cMyTrace("int CDataManager::init()", 0x1a35, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1a35, 9, true, true)(
             "\t- importServerParameterScript Fail");
         return 0;
     }
 
     // serverType==2 时把 expGroup378 拷入 expGroup368（+0x368/+0x378 各 0x10）。
-    if (env->m_serverEnvir.m_serverType == 2)
+    if (G_CEnvironment()->m_serverEnvir.m_serverType == 2)
     {
         memcpy(m_serverParameter.m_expGroup368,
                m_serverParameter.m_expGroup378, 0x10);
@@ -2113,7 +2136,7 @@ int CDataManager::init()
     if (!importInGameAdvertisementEtcScript(&m_inGameAd,
                                             "Etc/IngameAdvertisementParameter.etc"))
     {
-        cMyTrace("int CDataManager::init()", 0x1a4a, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1a4a, 9, true, true)(
             "\t- importInGameAdvertisementEtcScript Fail");
         return 0;
     }
@@ -2122,7 +2145,7 @@ int CDataManager::init()
     if (!importSeriaRoomDecoEvent(&m_seriaRoomDeco,
                                   "Event/SeriaRoomDecoEvent.evt"))
     {
-        cMyTrace("int CDataManager::init()", 0x1a53, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1a53, 9, true, true)(
             "\t- SeriaRoomDecoEventScript Fail!");
         return 0;
     }
@@ -2130,7 +2153,7 @@ int CDataManager::init()
     // GrowthWeapon.evt（fail "GrownEquipmentScript Fail!"）。
     if (!importGrowthEquipmentScript(&m_growthWeapon, "Event/GrowthWeapon.evt"))
     {
-        cMyTrace("int CDataManager::init()", 0x1a5c, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1a5b, 9, true, true)(
             "\t- GrownEquipmentScript Fail!");
         return 0;
     }
@@ -2139,16 +2162,16 @@ int CDataManager::init()
     if (!importCharacterCreateGiftScript(&m_createChrac,
                                          "Event/CreateCharacterGift.evt"))
     {
-        cMyTrace("int CDataManager::init()", 0x1a65, 9, true, true)(
-            "\t- importCharacterCreateGiftScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1a63, 9, true, true)(
+            "\t- CharacterCreateGiftScript Fail!");
         return 0;
     }
 
     // JobFatigue.evt。
     if (!importUseJobFatigueGiftScript(&m_useJobFatigue, "Event/JobFatigue.evt"))
     {
-        cMyTrace("int CDataManager::init()", 0x1a6e, 9, true, true)(
-            "\t- importUseJobFatigueGiftScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1a6b, 9, true, true)(
+            "\t- UseJobFatigueGiftScript Fail!");
         return 0;
     }
 
@@ -2156,8 +2179,8 @@ int CDataManager::init()
     if (!importCharacterCreateCreatureGiftScript(
             &m_createCreatureGift, "Event/CreateCharacterGiftCreature.evt"))
     {
-        cMyTrace("int CDataManager::init()", 0x1a77, 9, true, true)(
-            "\t- importCharacterCreateCreatureGiftScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1a73, 9, true, true)(
+            "\t- CharacterCreateCreatureGiftScript Fail!");
         return 0;
     }
 
@@ -2165,50 +2188,52 @@ int CDataManager::init()
     if (!importSeriaRoomAnimationDecoEvent(&m_seriaAniDeco,
                                            "Event/SeriaRoomDecoAnimation.evt"))
     {
-        cMyTrace("int CDataManager::init()", 0x1a80, 9, true, true)(
-            "\t- importSeriaRoomAnimationDecoEvent Fail!");
+        cMyTrace("bool CDataManager::init()", 0x1a7b, 9, true, true)(
+            "\t- SeriaRoomAnimationDecoEventScript Fail!");
         return 0;
     }
 
     // EventReward/reward.evt（返回 0=成功）。
     if (m_eventReward.importRewardTable("Event/EventReward/", "reward.evt") != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1a92, 9, true, true)(
-            "\t- importRewardTable Fail");
+        cMyTrace("bool CDataManager::init()", 0x1a83, 9, true, true)(
+            "\t- JumpingCharacterEventScript Fail!");
         return 0;
     }
 
-    // antibot 版本号：读 m_versionBytes 四字节计算后写 m_antibotVersion
-    //（ORIG +0x1aa0 区：ver=b0*1e7+b1*1e5+(b2-hi*100)*100+hi*1e4+b3，
-    //  hi=(byte)((ushort)(b2*0x29)>>12)；TRACE 0x1aa7）。
-    {
-        const unsigned char b0 = m_serverParameter.m_versionBytes[0];
-        const unsigned char b1 = m_serverParameter.m_versionBytes[1];
-        const unsigned char b2 = m_serverParameter.m_versionBytes[2];
-        const unsigned char b3 = m_serverParameter.m_versionBytes[3];
-        const unsigned int hi =
-            (unsigned int)(unsigned char)((unsigned short)(b2 * 0x29) >> 12);
-        const unsigned int b2adj = (unsigned int)(b2 - hi * 100);
-        m_serverParameter.m_antibotVersion =
-            b0 * 10000000u + b1 * 100000u + b2adj * 100u + hi * 10000u + b3;
-        cMyTrace("int CDataManager::init()", 0x1aa7, 9, true, true)(
-            "\t- Server version for antibot : %d",
-            m_serverParameter.m_antibotVersion);
-    }
+    // antibot 版本号：读 m_versionBytes 四字节计算后写 m_antibotVersion。
+    // ORIG +0x082b..+0x08f2（报告 init.md）逐条转写：5 个 int 局部
+    //（ORIG 槽 -0xf1c/-0xf18/-0xf14/-0xf10/-0xf0c，按声明序自深向浅），
+    // 每字节读取各自独立调 G_CDataManager()（6 次 call 实证）；
+    // hi = byte/100（QI 模式 magic 41：mov $0x29/mul/shr 8/shr 4/movzbl）、
+    // lo = byte - hi*100（ORIG `imul $0xffffff9c` + `lea` 实证，非 %100）。
+    // 求值序：表达式第 2 组按 (hi*1e4, lo*100) 书写 ⇒ 汇编先 lo→ecx 后
+    // hi→edx（右操作数先求值，P23/P24 口径）。
+    ver[0] = G_CDataManager()->m_serverParameter.m_versionBytes[0];
+    ver[1] = G_CDataManager()->m_serverParameter.m_versionBytes[1];
+    ver[2] = G_CDataManager()->m_serverParameter.m_versionBytes[2] / 100;
+    ver[3] = G_CDataManager()->m_serverParameter.m_versionBytes[2] - ver[2] * 100;
+    ver[4] = G_CDataManager()->m_serverParameter.m_versionBytes[3];
+    G_CDataManager()->m_serverParameter.m_antibotVersion =
+        ver[0] * 10000000 + ver[1] * 100000 + ver[2] * 10000 + ver[3] * 100 +
+        ver[4];
+    cMyTrace("bool CDataManager::init()", 0x1aa7, 9, true, true)(
+        "\t- Server version for antibot : %d",
+        G_CDataManager()->m_serverParameter.m_antibotVersion);
 
     // ImageCommunication.etc。
     if (!importImageCommunicationInfo("Etc/ImageCommunication.etc",
                                       &m_imageCommData))
     {
-        cMyTrace("int CDataManager::init()", 0x1ab0, 9, true, true)(
-            "\t- importImageCommunicationInfo Fail");
+        cMyTrace("bool CDataManager::init()", 0x1aad, 9, true, true)(
+            "\t- Import ImageCommunicationInfo Failed\n");
         return 0;
     }
 
     // CheckTraningFirstGive 为假 → TRACE 0x1ab7 后 return 0。
-    if (!m_serverParameter.CheckTraningFirstGive())
+    if (!G_CDataManager()->m_serverParameter.CheckTraningFirstGive())
     {
-        cMyTrace("int CDataManager::init()", 0x1ab7, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1ab7, 9, true, true)(
             "\t- [training first give] error");
         return 0;
     }
@@ -2216,7 +2241,7 @@ int CDataManager::init()
     // expertjob.lst（失败 TRACE 0x1abf）。
     if (!initExpertJobScript((char*)"Character/", (char*)"expertjob.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1abf, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1abf, 9, true, true)(
             "\t- Load expertjob.lst fail");
         return 0;
     }
@@ -2225,7 +2250,7 @@ int CDataManager::init()
     m_regeneration.m_expertJobList = new CExpertJobList;
     if (!m_regeneration.m_expertJobList->init())
     {
-        cMyTrace("int CDataManager::init()", 0x1ac5, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1ac5, 9, true, true)(
             "\t- Load expertjob fail");
         return 0;
     }
@@ -2233,23 +2258,27 @@ int CDataManager::init()
     // TowerList.lst（返回 0=成功）。
     if (importTowerInfo("Etc/", "TowerList.lst", m_deathTowerMap) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1ad0, 9, true, true)(
-            "\t- importTowerInfo Fail(%d)");
+        // ORIG +0x0b7a：puts("importTowerInfo Faile")（PLT 0x0807e570 → puts，
+        // GOT 0x0936cf34 实证；原文案拼写即少一个 d），非 cMyTrace。
+        puts("importTowerInfo Faile");
         return 0;
     }
 
     // DeathTower.etc（返回 0=成功）。
-    if (importDeathTowerScript("Etc/DeathTower.etc", m_deathTower) != 0)
+    // ORIG +0x0b90：errDT 置 0 → `if ((errDT = importDeathTowerScript(..)) != 0)`
+    // （store+cmpl+setne），TRACE 带 errDT。
+    errDT = 0;
+    if ((errDT = importDeathTowerScript("Etc/DeathTower.etc", m_deathTower)) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1ada, 9, true, true)(
-            "\t- importDeathTowerScript Fail(%d)");
+        cMyTrace("bool CDataManager::init()", 0x1ad4, 9, true, true)(
+            "\t- importDeathTowerScript Fail(%d)", errDT);
         return 0;
     }
 
     // RankSystemInfo.etc。
     if (!importRankSystemScript("Etc/RankSystemInfo.etc", &m_rankSystem))
     {
-        cMyTrace("int CDataManager::init()", 0x1ae3, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1ada, 9, true, true)(
             "\t- importRankSystemScript Fail");
         return 0;
     }
@@ -2257,7 +2286,7 @@ int CDataManager::init()
     // BloodClearReward.etc（返回 0=成功）。
     if (importBloodDungeonScript("Etc/BloodClearReward.etc", m_bloodDungeon) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1aec, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1ae1, 9, true, true)(
             "\t- importBloodDungeonScript Fail(%d)");
         return 0;
     }
@@ -2267,7 +2296,7 @@ int CDataManager::init()
             "Etc/HellParty.etc",
             *reinterpret_cast<stHellParty_t*>(Get_instance_stHellParty_t())) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1af6, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1ae8, 9, true, true)(
             "\t- importHellPartyScript Fail(%d)");
         return 0;
     }
@@ -2276,7 +2305,7 @@ int CDataManager::init()
     if (importCharacLinkSystemScript("Etc/LinkSystem/CharacLinkSystem.etc",
                                      m_characLink) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1aff, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1af3, 9, true, true)(
             "\t- importCharacLinkSystemScript Fail(%d)");
         return 0;
     }
@@ -2285,8 +2314,8 @@ int CDataManager::init()
     m_altarConfig.m_strikerScript = StrikerScript::getInsance();
     if (!m_altarConfig.m_strikerScript->importScript("Etc/LinkSystem/striker.etc"))
     {
-        cMyTrace("int CDataManager::init()", 0x1b13, 9, true, true)(
-            "\t- StrikerScript importScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1afb, 9, true, true)(
+            "\t- importStrikerScript Fail");
         return 0;
     }
 
@@ -2295,8 +2324,8 @@ int CDataManager::init()
     if (!m_altarConfig.m_characManageScript->importScript(
             "Etc/LinkSystem/CharacterManage.etc"))
     {
-        cMyTrace("int CDataManager::init()", 0x1b22, 9, true, true)(
-            "\t- CharacManageScript importScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1b02, 9, true, true)(
+            "\t- importCharacterManageScript Fail");
         return 0;
     }
 
@@ -2305,54 +2334,53 @@ int CDataManager::init()
     if (!m_choiceItem.m_blueMarbleScriptMgr->initTileList(
             "Event/BlueMarble/", "BlueMarbleTile.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1b38, 9, true, true)(
-            "\t- BlueMarbleScriptManager initTileList Fail");
+        cMyTrace("bool CDataManager::init()", 0x1b14, 9, true, true)(
+            "\t- BlueMarble initTileList Fail\n");
         return 0;
     }
     if (!m_choiceItem.m_blueMarbleScriptMgr->initMapList(
             "Event/BlueMarble/", "BlueMarbleMap.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1b41, 9, true, true)(
-            "\t- BlueMarbleScriptManager initMapList Fail");
+        cMyTrace("bool CDataManager::init()", 0x1b1a, 9, true, true)(
+            "\t- BlueMarble initMapList Fail\n");
         return 0;
     }
     if (!m_choiceItem.m_blueMarbleScriptMgr->initBlueMarbleInfo(
             "Event/BlueMarble/", "BlueMarble.blu"))
     {
-        cMyTrace("int CDataManager::init()", 0x1b4a, 9, true, true)(
-            "\t- BlueMarbleScriptManager initBlueMarbleInfo Fail");
+        cMyTrace("bool CDataManager::init()", 0x1b20, 9, true, true)(
+            "\t- BlueMarble initBlueMarbleInfo Fail\n");
         return 0;
     }
 
-    // questshop.etc（返回 0=成功；fail TRACE 带 %d 行号 0x1b45 区）。
+    // questshop.etc（ORIG +0x10ba：`movl $0x0,-0x38` 后 `if ((err = call) != 0)`，
+    // TRACE 带 err 实参）。err 为函数体作用域变量，此处仅复位。
+    err = 0;
+    if ((err = importQuestShopScript("Etc/questshop.etc", m_questShop)) != 0)
     {
-        int err = importQuestShopScript("Etc/questshop.etc", m_questShop);
-        if (err != 0)
-        {
-            cMyTrace("int CDataManager::init()", 0x1b48, 9, true, true)(
-                "\t- importQuestShopScript Fail(%d)", err);
-            return 0;
-        }
+        cMyTrace("bool CDataManager::init()", 0x1b4f, 9, true, true)(
+            "\t- importQuestShopScript Fail(%d)", err);
+        return 0;
     }
 
     // IndependentDrop 三连（lst 加载 bool / 列表加载 / 数据导入返回 0=成功；
     // 后两步 fail 均 TRACE "Load IndependentDrop.lst fail" 0x1b56/0x1b5c）。
     if (!initIndependentDropScript((char*)"Etc/", (char*)"IndependentDrop.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1b50, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1b56, 9, true, true)(
             "\t- Load IndependentDrop.lst fail");
         return 0;
     }
     if (!m_independentDrop.load_independent_drop_list())
     {
-        cMyTrace("int CDataManager::init()", 0x1b5c, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1b5c, 9, true, true)(
             "\t- Load IndependentDrop.lst fail");
         return 0;
     }
     if (m_independentDrop.ImportIndependentDrop("Etc/Independent_Drop.etc") != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1b62, 9, true, true)(
-            "\t- Import Independent_Drop.etc fail");
+        cMyTrace("bool CDataManager::init()", 0x1b63, 9, true, true)(
+            "\t- importIndependent_DropScript Fail(%d)");
         return 0;
     }
 
@@ -2360,54 +2388,58 @@ int CDataManager::init()
     // ReturnUserReward/Bingo/BroadCastItem，全部返回 0=成功）。
     if (ImportSeriaBlessingScript("Event/SeriaBlessing.evt", m_seriaBlessing) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1b6e, 9, true, true)(
-            "\t- ImportSeriaBlessingScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1b83, 9, true, true)(
+            "\t- ImportSeriaBlessingScript Fail(%d)");
         return 0;
     }
     if (ImportLevelUpRewardItemScript("Event/LevelUpRewardItem.evt",
                                       m_levelUpReward) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1b78, 9, true, true)(
-            "\t- ImportLevelUpRewardItemScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1b8a, 9, true, true)(
+            "\t- ImportLevelUpRewardItemScript Fail(%d)");
         return 0;
     }
-    if (ImportGrowthCapsuleScript("Event/GrowthCapsule.evt", m_growthCapsule) != 0)
+    // ORIG +0x13c0..+0x1405：int err = 0；err 由条件内赋值（+0x13df `mov
+    // %eax,-0x38` + `setne` 形态，probe7 v7_c 实证），失败走
+    // printf("ImportGrowthCapsuleScript Fail(%d)\n", err)（PLT 0x0807db60）。
+    err = 0;
+    if ((err = ImportGrowthCapsuleScript("Event/GrowthCapsule.evt",
+                                        m_growthCapsule)) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1b82, 9, true, true)(
-            "\t- ImportGrowthCapsuleScript Fail");
+        printf("ImportGrowthCapsuleScript Fail(%d)\n", err);
         return 0;
     }
     if (ImportNewAccountLeventUpToJobScript("Event/NewAccountLevelUpToJob.evt",
                                             m_newAccountLevelUp) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1b8c, 9, true, true)(
-            "\t- ImportNewAccountLeventUpToJobScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1ba7, 9, true, true)(
+            "\t- NewAccountLevelUpToJob StackableReward Fail(%d)");
         return 0;
     }
     if (ImportReturnUserRewardScript("Event/ReturnUserReward.evt",
                                      m_returnUserReward) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1b96, 9, true, true)(
-            "\t- ImportReturnUserRewardScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1bb0, 9, true, true)(
+            "\t- ReturnUserReward Fail(%d)");
         return 0;
     }
     if (ImportBingoScript("Event/BingoEvent.evt", m_bingo) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1ba0, 9, true, true)(
-            "\t- ImportBingoScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1bbb, 9, true, true)(
+            "\t- ImportBingoScript Fail(%d)");
         return 0;
     }
     if (ImportBroadCastItemScript("Etc/BroadCastItem.etc", m_broadCastItem) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1baa, 9, true, true)(
-            "\t- ImportBroadCastItemScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1bcf, 9, true, true)(
+            "\t- ImportBroadCastItemScript Fail(%d)");
         return 0;
     }
 
     // SecurityReward（bool 语义）。
-    if (!ImportSecurityReward(reinterpret_cast<SecurityReward*>(&m_securityReward)))
+    if (!ImportSecurityReward(&m_securityReward))
     {
-        cMyTrace("int CDataManager::init()", 0x1bb4, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1bd7, 9, true, true)(
             "\t- ImportSecurityReward Fail");
         return 0;
     }
@@ -2415,8 +2447,8 @@ int CDataManager::init()
     // ItemMakingSkill.etc（返回 0=成功）。
     if (ImportItemMakingSkill("Etc/ItemMakingSkill.etc", m_itemMakingSkill) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1bbe, 9, true, true)(
-            "\t- ImportItemMakingSkill Fail");
+        cMyTrace("bool CDataManager::init()", 0x1be0, 9, true, true)(
+            "\t- importItemMakingSkillScript Fail(%d)");
         return 0;
     }
 
@@ -2424,35 +2456,40 @@ int CDataManager::init()
     if (!importUltimateDungeonList("Etc/UltimateDungeonList.etc",
                                    m_ultimateDungeonList))
     {
-        cMyTrace("int CDataManager::init()", 0x1bc8, 9, true, true)(
-            "\t- importUltimateDungeonList Fail");
+        cMyTrace("bool CDataManager::init()", 0x1be8, 9, true, true)(
+            "\t- import UltimateDungeonList Script Fail(%d)");
         return 0;
     }
 
     // mapping equip info：truncate 成功才继续（失败无 TRACE ret0）；
     // 两张表 false/true 导入（fail TRACE "Equipment Script mapping table
     // load fail" 0x1c0c/0x1c12）；insert 用第二张表（ORIG +0x18f6 取 +0xa940）。
-    if (!sync->truncate_mapping_equip_info_table())
+    // 帧差备忘（P31 类）：ORIG 站点 0x1be8→0x1c06 之间槽号跨 0x20（-0xc38 在
+    // 全函数无任何引用 ⇒ 原码此处有一个未引用 16 字节局部）。实测：无论以
+    // {} 子作用域还是函数体作用域补一个 POD dummy，都只使帧 +0x10 而不产生
+    // arena 内 gap ⇒ 该槽来自带非平凡析构的对象（本 TU 无法以合法 C++ 复现），
+    // 归入结构性差异，不强凑。
+    if (!sync_script::GetInstanceSyncScript()->truncate_mapping_equip_info_table())
     {
-        cMyTrace("int CDataManager::init()", 0x1c06, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1c06, 9, true, true)(
             "\t- Fail truncate_mapping_equip_info_table");
         return 0;
     }
     if (!importExperienceItemMapInfo(m_mapA928, false))
     {
-        cMyTrace("int CDataManager::init()", 0x1c0c, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1c0c, 9, true, true)(
             "\t- Equipment Script mapping table load fail");
         return 0;
     }
     if (!importExperienceItemMapInfo(m_mapA940, true))
     {
-        cMyTrace("int CDataManager::init()", 0x1c12, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1c12, 9, true, true)(
             "\t- Equipment Script mapping table load fail");
         return 0;
     }
-    if (!sync->insert_mapping_equip_info_to_db(m_mapA940))
+    if (!sync_script::GetInstanceSyncScript()->insert_mapping_equip_info_to_db(m_mapA940))
     {
-        cMyTrace("int CDataManager::init()", 0x1c18, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1c18, 9, true, true)(
             "\t- Fail insert_mapping_equip_info_table");
         return 0;
     }
@@ -2461,26 +2498,35 @@ int CDataManager::init()
     if (importVillageAttackedScript("Etc/VillageAttacked.etc",
                                     m_villageAttacked) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1c1c, 9, true, true)(
-            "\t- importVillageAttackedScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1c20, 9, true, true)(
+            "\t- importVillageAttackedScript Fail(%d)");
         return 0;
     }
 
-    // ActionPoint 两份（普通/GM；GetActionPointEctParameter(bool) W 0x08122ace）。
-    APSystem::CActionPointEtcParameter* ap = GetActionPointEtcParameter(false);
-    if (!ap->importActionPointSystemEtcScript("Etc/Chn_ActionPointSystem.etc",
-                                              *ap))
+    // ActionPoint 两份（普通/GM；GetActionPointEtcParameter(bool) W 0x08122ace）。
+    // ORIG +0x19f4..+0x1a2a：每份各起一个 int err = 0（复用同一临时槽），
+    // 判定式 `if ((err = import(...)) != 0)`（store+cmpl+setne 形态），
+    // 访问器结果不经局部变量、直接由 %eax 落到实参槽（不留具名指针）。
+    err = 0;
+    if ((err = APSystem::CActionPointEtcParameter::importActionPointSystemEtcScript(
+             "Etc/Chn_ActionPointSystem.etc",
+             *GetActionPointEtcParameter(false))
+         ) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1c26, 9, true, true)(
-            "\t- importActionPointSystemEtcScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1c3a, 9, true, true)(
+            "\t- importActionPointSystemEtcScript Chn_ActionPointSystem.etc Fail(%d)",
+            err);
         return 0;
     }
-    ap = GetActionPointEtcParameter(true);
-    if (!ap->importActionPointSystemEtcScript("Etc/Chn_ActionPointSystem_GM.etc",
-                                              *ap))
+    err = 0;
+    if ((err = APSystem::CActionPointEtcParameter::importActionPointSystemEtcScript(
+             "Etc/Chn_ActionPointSystem_GM.etc",
+             *GetActionPointEtcParameter(true))
+         ) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x1c30, 9, true, true)(
-            "\t- importActionPointSystemEtcScript(GM) Fail");
+        cMyTrace("bool CDataManager::init()", 0x1c41, 9, true, true)(
+            "\t- importActionPointSystemEtcScript Chn_ActionPointSystemGM.etc Fail(%d)",
+            err);
         return 0;
     }
 
@@ -2489,46 +2535,53 @@ int CDataManager::init()
     sync_script::GetInstanceSyncScript()->insert_charac_action_point_desc();
 
     // Chn_ServerCheckSchedule.etc → vector<_DailySchedule> → AddDailSchedule。
+    // ORIG 清理梯 +0x6e88：schedules 为函数体作用域对象，析构在函数末尾统一
+    // 执行（此后所有 return 0 都经其 dtor），故此处不加嵌套块。
+    // err 复位（ORIG +0x1b38 `movl $0x0,-0x38(%ebp)` 先于 vector 构造，
+    // AdvanceAltar 四段复用同一变量）。
+    err = 0;
+    std::vector<_DailySchedule> schedules;
+    if (importDailyScheduleEtcScript("Etc/Chn_ServerCheckSchedule.etc",
+                                     schedules) != 0)
     {
-        std::vector<_DailySchedule> schedules;
-        if (importDailyScheduleEtcScript("Etc/Chn_ServerCheckSchedule.etc",
-                                         schedules) != 0)
-        {
-            return 0;   // ORIG 清理链经 vector dtor 后 ret0（+0x6e88 区）
-        }
-        if (!schedules.empty())
-        {
-            GlobalData::s_DailyScheduleManager->AddDailSchedule(schedules);
-        }
+        return 0;   // ORIG 清理链经 vector dtor 后 ret0（+0x6e88 区）
+    }
+    if (!schedules.empty())
+    {
+        GlobalData::s_DailyScheduleManager->AddDailSchedule(schedules);
+    }
 
-        // AdvanceAltar 三件套 + TimeLine。
-        if (loadAdvanceAltarTimeLineParameter(m_stageTimeLine) != 0)
-        {
-            return 0;
-        }
-        // ORIG init.md +0x1c11：返回值非零=Fail（打印 Fail(%d) 后 ret0）。
-        if (m_altarShop.importAdvanceAltarShopParameter(
-                "Etc/AdvanceAltar/AdvanceAltarShop.etc") != 0)
-        {
-            cMyTrace("int CDataManager::init()", 0x1c66, 9, true, true)(
-                "\t- importAdvanceAltarShopParameter Fail");
-            return 0;
-        }
-        if (m_altarReward.importAchievementRewardParameter(
-                "Etc/AdvanceAltar/AdvanceAltarAchievementReward.etc") != 0)
-        {
-            cMyTrace("int CDataManager::init()", 0x1c70, 9, true, true)(
-                "\t- importAchievementRewardParameter Fail");
-            return 0;
-        }
-        if (m_altarConfig.importConfigParameter(
-                "Etc/AdvanceAltar/AdvanceAltarConfig.etc") != 0)
-        {
-            cMyTrace("int CDataManager::init()", 0x1c7a, 9, true, true)(
-                "\t- importConfigParameter Fail");
-            return 0;
-        }
-    }   // schedules 析构（ORIG 清理块 -0xf28 vector<_DailySchedule> D2）
+    // AdvanceAltar 三件套 + TimeLine：ORIG +0x1bc7..+0x1ca7 四处共用一个
+    // int err（-0x38 槽，`cmpl $0,-0x38` 直接分支、无 setne ⇒ 形如
+    // `err = f(); if (err != 0)`），失败均 printf("<fn> Fail(%d)\n", err) 后
+    // ret0（PLT 0x0807db60 = printf）。
+    err = loadAdvanceAltarTimeLineParameter(m_stageTimeLine);
+    if (err != 0)
+    {
+        printf("loadAdvanceAltarTimeLineParameter Fail(%d)\n", err);
+        return 0;
+    }
+    err = m_altarShop.importAdvanceAltarShopParameter(
+        "Etc/AdvanceAltar/AdvanceAltarShop.etc");
+    if (err != 0)
+    {
+        printf("importAdvanceAltarShopParameter Fail(%d)\n", err);
+        return 0;
+    }
+    err = m_altarReward.importAchievementRewardParameter(
+        "Etc/AdvanceAltar/AdvanceAltarAchievementReward.etc");
+    if (err != 0)
+    {
+        printf("importAchievementRewardParameter Fail(%d)\n", err);
+        return 0;
+    }
+    err = m_altarConfig.importConfigParameter(
+        "Etc/AdvanceAltar/AdvanceAltarConfig.etc");
+    if (err != 0)
+    {
+        printf("importConfigParameter Fail(%d)\n", err);
+        return 0;
+    }
 
     sync_script::GetInstanceSyncScript()->truncate_charac_advance_altar_item_desc();
     sync_script::GetInstanceSyncScript()->insert_charac_advance_altar_item_desc();
@@ -2537,39 +2590,39 @@ int CDataManager::init()
     if (!importPVPChannelList((char*)"Etc/pvpChannelList.etc",
                               &m_liveServerInfo, 0))
     {
-        cMyTrace("int CDataManager::init()", 0x1c90, 9, true, true)(
-            "\t- importPVPChannelList Fail");
+        cMyTrace("bool CDataManager::init()", 0x1cd5, 9, true, true)(
+            "\t- importPVPChannelList Fail()");
         return 0;
     }
 
     // Guild/Power/SecretShop/AccountCargo/TitleBook 参数链。
     if (!importGuildParameterScript(&m_guildParameter, "Etc/Guild.etc"))
     {
-        cMyTrace("int CDataManager::init()", 0x1ca0, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1ce2, 9, true, true)(
             "\t- importGuildParameterScript Fail");
         return 0;
     }
     if (!importPowerParameterScript(&m_powerParameter, "Etc/Power.etc"))
     {
-        cMyTrace("int CDataManager::init()", 0x1caa, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1ce9, 9, true, true)(
             "\t- importPowerParameterScript Fail");
         return 0;
     }
     if (!importSecretShopScript(&m_secretShop, "Etc/SecretShop.etc"))
     {
-        cMyTrace("int CDataManager::init()", 0x1cb4, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1d0f, 9, true, true)(
             "\t- importSecretShopScript Fail");
         return 0;
     }
     if (!importAccountCargoScript(&m_accountCargo, "Etc/AccountCargo.etc"))
     {
-        cMyTrace("int CDataManager::init()", 0x1cbe, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1d16, 9, true, true)(
             "\t- importAccountCargoScript Fail");
         return 0;
     }
     if (!importTitleBookEtcScript("Etc/TitleBook.etc", &m_titleBook))
     {
-        cMyTrace("int CDataManager::init()", 0x1cc8, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1d1e, 9, true, true)(
             "\t- importTitleBookEtcScript Fail");
         return 0;
     }
@@ -2578,14 +2631,14 @@ int CDataManager::init()
     if (!initEventCharacterScript((char*)"Event/EventCharacter/",
                                   (char*)"EventCharacter.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1cd4, 9, true, true)(
-            "\t- initEventCharacterScript Fail");
+        cMyTrace("bool CDataManager::init()", 0x1d38, 9, true, true)(
+            "\t- Load EventCharacter.lst fail");
         return 0;
     }
     if (!m_eventCharacter.load_event_character_list())
     {
-        cMyTrace("int CDataManager::init()", 0x1cdd, 9, true, true)(
-            "\t- load_event_character_list Fail");
+        cMyTrace("bool CDataManager::init()", 0x1d3e, 9, true, true)(
+            "\t- Load EventCharacter.lst fail");
         return 0;
     }
 
@@ -2593,24 +2646,24 @@ int CDataManager::init()
     if (!importQuestParameterScript(&m_questParameter,
                                     "n_Quest/questParameter.etc"))
     {
-        cMyTrace("int CDataManager::init()", 0x1ce9, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1d57, 9, true, true)(
             "\t- importQuestParameterScript Fail");
         return 0;
     }
     if (!importTrainingQuestScript(&m_trainingQuest,
                                    "n_Quest/TrainingQuest.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1cf3, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1d61, 9, true, true)(
             "\t- importTrainingQuestScript Fail");
         return 0;
     }
 
     // Collect Dungeon Statistic 开关（非 0 才开；log-only TRACE 0x1d84）。
     if (m_serverParameter.CheckCollectDungeonStatisticServer(
-            env->m_serverEnvir.m_serverGroup, env->m_serverEnvir.m_channelNo))
+            G_CEnvironment()->m_serverEnvir.m_serverGroup, G_CEnvironment()->m_serverEnvir.m_channelNo))
     {
         SetCollectDungeonStatistic(true);
-        cMyTrace("int CDataManager::init()", 0x1d84, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1d84, 9, true, true)(
             "\t- Collect Dungeon Data Statistic start!");
     }
 
@@ -2620,14 +2673,14 @@ int CDataManager::init()
     // 名字过滤两件套。
     if (!importSlangName((char*)"Etc/slangname.etc", &m_slangName))
     {
-        cMyTrace("int CDataManager::init()", 0x1d95, 9, true, true)(
-            "\t- importSlangName Fail");
+        cMyTrace("bool CDataManager::init()", 0x1d8b, 9, true, true)(
+            "\t- slangname.etc file load failed");
         return 0;
     }
     if (!importInvalidName((char*)"Etc/invalidName.etc", &m_invalidChar))
     {
-        cMyTrace("int CDataManager::init()", 0x1d9f, 9, true, true)(
-            "\t- importInvalidName Fail");
+        cMyTrace("bool CDataManager::init()", 0x1d90, 9, true, true)(
+            "\t- invalidName.etc file load failed");
         return 0;
     }
 
@@ -2638,8 +2691,8 @@ int CDataManager::init()
     if (!importFairPVPEquipment((char*)"Etc/FairPVPEquipment.etc",
                                 &m_stackableMap))
     {
-        cMyTrace("int CDataManager::init()", 0x1db4, 9, true, true)(
-            "\t- importFairPVPEquipment Fail");
+        cMyTrace("bool CDataManager::init()", 0x1d99, 9, true, true)(
+            "\t- FairPVPEquipment.etc file load failed");
         return 0;
     }
 
@@ -2647,36 +2700,36 @@ int CDataManager::init()
     if (!importGrowthPower((char*)"Etc/GrowthPowerRewardBuff.etc",
                            &m_growthPower))
     {
-        cMyTrace("int CDataManager::init()", 0x1dbe, 9, true, true)(
-            "\t- importGrowthPower Fail");
+        cMyTrace("bool CDataManager::init()", 0x1da1, 9, true, true)(
+            "\t- GrowthPowerRewardBuff.etc file load failed");
         return 0;
     }
     if (!importBoosterGage((char*)"Etc/BoosterGage.etc", &m_boosterGage))
     {
-        cMyTrace("int CDataManager::init()", 0x1dc8, 9, true, true)(
-            "\t- importBoosterGage Fail");
+        cMyTrace("bool CDataManager::init()", 0x1dac, 9, true, true)(
+            "\t- BoosterGage.etc file load failed");
         return 0;
     }
 
     // AICharacter。
     if (!initAICharacterScript("AICharacter/", "AICharacter.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1dd4, 9, true, true)(
-            "\t- Load AI Character fail");
+        cMyTrace("bool CDataManager::init()", 0x1db9, 9, true, true)(
+            "\t- Load AICharacter.lst fail");
         return 0;
     }
     m_aiCharacterList = new CAICharacterList;
     if (!m_aiCharacterList->init())
     {
-        cMyTrace("int CDataManager::init()", 0x1dde, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1dbf, 9, true, true)(
             "\t- Load AI Character fail");
         return 0;
     }
 
     // Light Server 提示（log-only TRACE 0x1dc5 区）。
-    if (m_serverParameter.CheckLightServer(env->m_serverEnvir.m_serverGroup))
+    if (m_serverParameter.CheckLightServer(G_CEnvironment()->m_serverEnvir.m_serverGroup))
     {
-        cMyTrace("int CDataManager::init()", 0x1dc5, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1dc5, 9, true, true)(
             "\t- Light Server Mode start!");
     }
 
@@ -2684,23 +2737,21 @@ int CDataManager::init()
     ImportWorldDrop(m_worldDrop1, (char*)"Etc/WorldDrop.etc");
     ImportWorldDrop(m_worldDrop2, (char*)"Etc/WorldDropWarArea.etc");
 
-    // PremiumList_New.etc（+0x2638 区回查）：err=LoadPremiumInfo(...)，
-    // 非 0 → TRACE "LoadPremiumInfo Fail(Line: %d)" ret0。
+    // PremiumList_New.etc（ORIG +0x2629 区：errPrem 置 0 → `if ((errPrem = ...) != 0)`，
+    // 槽 -0x34；TRACE 带行码）。
+    errPrem = 0;
+    if ((errPrem = WongWork::CUserPremium::LoadPremiumInfo(
+             "Etc/PremiumList_New.etc")) != 0)
     {
-        const int premiumErr =
-            WongWork::CUserPremium::LoadPremiumInfo("Etc/PremiumList_New.etc");
-        if (premiumErr != 0)
-        {
-            cMyTrace("int CDataManager::init()", 0x1e0f, 9, true, true)(
-                "\t- LoadPremiumInfo Fail(Line: %d)", premiumErr);
-            return 0;
-        }
+        cMyTrace("bool CDataManager::init()", 0x1e0f, 9, true, true)(
+            "\t- LoadPremiumInfo Fail(Line: %d)", errPrem);
+        return 0;
     }
 
     // 非 light server 必须成功加载 WarArea.etc（fail TRACE 0x1e18 ret0）。
     if (!IsLightServer() && !ImportWarAreaCounter(&m_warAreaCounter))
     {
-        cMyTrace("int CDataManager::init()", 0x1e18, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1e18, 9, true, true)(
             "\t- WarArea.etc file load failed");
         return 0;
     }
@@ -2710,67 +2761,66 @@ int CDataManager::init()
     if (!InitCharacterScript("Character/", "Character.lst", "ExpTable.tbl",
                              (const char*)0))
     {
-        cMyTrace("int CDataManager::init()", 0x1e23, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1e23, 9, true, true)(
             "\t- Load Character.lst fail");
         return 0;
     }
     if (!InitMonsterScript("Monster/", "Monster.lst",
                            "MonsterApcDifficultyBonus.tbl"))
     {
-        cMyTrace("int CDataManager::init()", 0x1e2d, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1e28, 9, true, true)(
             "\t- Load Monster.lst fail");
         return 0;
     }
     if (!InitPassiveObjectScript("PassiveObject/", "PassiveObject.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1e37, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1e2d, 9, true, true)(
             "\t- Load PassiveObject.lst fail");
         return 0;
     }
     if (!InitEquipmentScript("equipment/", "equipment.lst", "pricetable.tbl"))
     {
-        cMyTrace("int CDataManager::init()", 0x1e41, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1e33, 9, true, true)(
             "\t- Load equipment.lst fail");
         return 0;
     }
     if (!InitStackableScript("stackable/", "stackable.lst", "pricetable.tbl"))
     {
-        cMyTrace("int CDataManager::init()", 0x1e4b, 9, true, true)(
-            "\t- Load stackable.lst fail");
+        // ORIG +0x2928：puts("Load stackable.lst fail")，非 cMyTrace。
+        puts("Load stackable.lst fail");
         return 0;
     }
     if (!InitMapScript("Map/", "Map.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1e55, 9, true, true)(
-            "\t- Load Map.lst fail");
+        cMyTrace("bool CDataManager::init()", 0x1e48, 9, true, true)(
+            "\t- Load Map.lst fail\n");
         return 0;
     }
     if (!InitDungeonScript((char*)"Dungeon/", (char*)"Dungeon.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1e5f, 9, true, true)(
-            "\t- Load Dungeon.lst fail");
+        cMyTrace("bool CDataManager::init()", 0x1e4d, 9, true, true)(
+            "\t- Load Dungeon.lst fail\n");
         return 0;
     }
 
     // QuickParty 奖励管理器 init。
+    // ORIG +0x2a35..+0x2a41：失败无 TRACE，直接 ret0。
     if (!G_CGameManager()->GetQuickPartyRewardManager()->init())
     {
-        cMyTrace("int CDataManager::init()", 0x1e6e, 9, true, true)(
-            "\t- QuickPartyRewardManager init Fail");
         return 0;
     }
 
     // Quest/Skill。
     if (!initQuestScript("n_Quest/", "Quest.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1e77, 9, true, true)(
-            "\t- Load Quest.lst fail");
+        cMyTrace("bool CDataManager::init()", 0x1e5c, 9, true, true)(
+            "\t- Load Quest.lst fail\n");
         return 0;
     }
     if (!InitSkillScript("Skill/", "SkillList.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1e81, 9, true, true)(
-            "\t- Load SkillList.lst fail");
+        cMyTrace("bool CDataManager::init()", 0x1e61, 9, true, true)(
+            "\t- Load SkillList.lst fail\n");
         return 0;
     }
 
@@ -2778,35 +2828,34 @@ int CDataManager::init()
     m_itemShop = new CItemShop;
     if (!initItemShopScript((char*)"ItemShop/", (char*)"ItemShop.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1e94, 9, true, true)(
-            "\t- Load ItemShop.lst fail");
+        cMyTrace("bool CDataManager::init()", 0x1e68, 9, true, true)(
+            "\t- Load ItemShop.lst fail\n");
         return 0;
     }
     if (!m_itemShop->loadItemShopFiles())
     {
-        cMyTrace("int CDataManager::init()", 0x1e9d, 9, true, true)(
-            "\t- loadItemShopFiles Fail");
+        cMyTrace("bool CDataManager::init()", 0x1e6d, 9, true, true)(
+            "\t- Load ItemShop file fail\n");
         return 0;
     }
 
     // PvP Mission：initPvpMissionSystem + new(0x54) + Load_list + Load_EtcParameter。
+    // ORIG +0x2c55..+0x2c61：失败无 TRACE，直接 ret0。
     if (!initPvpMissionSystem((char*)"PVP_Mission/", (char*)"Mission.lst"))
     {
-        cMyTrace("int CDataManager::init()", 0x1eab, 9, true, true)(
-            "\t- Load PVP_Mission.lst fail");
         return 0;
     }
     m_pvpMissionSystem = new PvP_MissionSystem;
     if (!m_pvpMissionSystem->Load_list())
     {
-        cMyTrace("int CDataManager::init()", 0x1eb8, 9, true, true)(
-            "\t- PvP_MissionSystem Load_list Fail");
+        cMyTrace("bool CDataManager::init()", 0x1e79, 9, true, true)(
+            "\t- Mission Script file fail\n");
         return 0;
     }
     if (!m_pvpMissionSystem->Load_EtcParameter())
     {
-        cMyTrace("int CDataManager::init()", 0x1ec1, 9, true, true)(
-            "\t- PvP_MissionSystem Load_EtcParameter Fail");
+        cMyTrace("bool CDataManager::init()", 0x1e7e, 9, true, true)(
+            "\t- Mission Parameter Script file fail\n");
         return 0;
     }
 
@@ -2819,62 +2868,70 @@ int CDataManager::init()
 
     // Money Limit per Level（fail 仅 TRACE 0x1eb7 继续）。
     {
-        cMyTrace("int CDataManager::init()", 0x1eb4, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x1eb4, 9, true, false)(
             "\t- Loading Money Limit per Level ");
         if (!importGoldLimitByLevel(
                 reinterpret_cast<unsigned int*>(m_moneyLimit)))
         {
-            cMyTrace("int CDataManager::init()", 0x1eb7, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1eb7, 9, true, true)(
                 "\t- Loading Money Limit per Level Fail");
         }
     }
 
     // Compound Item（bindsphere.etc；失败 TRACE 0x1ebf 后 ret0）。
-    cMyTrace("int CDataManager::init()", 0x1eb9, 9, false, true)("");
+    cMyTrace("bool CDataManager::init()", 0x1eb9, 9, false, true)("Success");
     {
-        cMyTrace("int CDataManager::init()", 0x1ebb, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x1ebb, 9, true, false)(
             "\t- Loading Compound Item ");
-        ExtreamDungeon::CCompound_ExtreamDun_Item* bindsphere =
+        // ORIG +0x2f6a..+0x2f95：new 结果直写全局后再读回作 this，
+        // 不留具名局部（不留额外栈槽）。
+        GlobalData::s_pCompoundBindCube =
             new ExtreamDungeon::CCompound_ExtreamDun_Item;
-        GlobalData::s_pCompoundBindCube = bindsphere;
-        if (bindsphere->LoadScript("Etc/", "bindsphere.etc") != 0)
+        if ((reinterpret_cast<ExtreamDungeon::CCompound_ExtreamDun_Item*>(
+                 GlobalData::s_pCompoundBindCube)
+                 ->LoadScript("Etc/", "bindsphere.etc")) != 0)
         {
-            cMyTrace("int CDataManager::init()", 0x1ebf, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1ebf, 9, true, true)(
                 "\t- Fail load Compound Item Bind Cube Script File");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x1ec2, 9, false, true)("");
+        cMyTrace("bool CDataManager::init()", 0x1ec2, 9, false, true)("Success");
     }
 
     // ARAD Event Upgrade Jar（失败 TRACE 0x1ec9 ret0）。
     {
-        cMyTrace("int CDataManager::init()", 0x1ec5, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x1ec5, 9, true, false)(
             "\t- Loading ARAD - Event Upgrade Jar ");
-        Event_Upgrade_Jar* jar = new Event_Upgrade_Jar;
-        GlobalData::s_pEvent_UpGrade_Jar = jar;
-        if (jar->LoadScript("", "Etc/EventUpgradeJar.etc") != 0)
+        // ORIG +0x30b4..+0x30df：`test %eax,%eax; sete %al` ⇒ 判定为
+        // `== 0`（LoadScript 返回真=成功），非 `!= 0`。
+        GlobalData::s_pEvent_UpGrade_Jar = new Event_Upgrade_Jar;
+        if (GlobalData::s_pEvent_UpGrade_Jar->LoadScript(
+                "", "Etc/EventUpgradeJar.etc") == 0)
         {
-            cMyTrace("int CDataManager::init()", 0x1ec9, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1ec9, 9, true, true)(
                 "\t- Fail load Event.Upgrad.Jar Script File");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x1ecc, 9, false, true)("");
+        cMyTrace("bool CDataManager::init()", 0x1ecc, 9, false, true)("Success");
     }
 
     // Compound Avatar（nothrow new(0x88)；失败 ret0）。
     {
-        cMyTrace("int CDataManager::init()", 0x1ed9, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x1ed9, 9, true, false)(
             "\t- Loading Compound Avatar ");
-        WongWork::CCompoundAvatar* avatar =
+        // ORIG +0x321a..+0x3241：同样先写全局再读回。
+        GlobalData::s_pCompoundAvatar =
             new (std::nothrow) WongWork::CCompoundAvatar;
-        GlobalData::s_pCompoundAvatar = avatar;
-        if (avatar == 0 || !avatar->LoadScript("Etc/", "CompoundAvatar.etc"))
+        if (GlobalData::s_pCompoundAvatar == 0 ||
+            !(reinterpret_cast<WongWork::CCompoundAvatar*>(
+                  GlobalData::s_pCompoundAvatar)
+                  ->LoadScript("Etc/", "CompoundAvatar.etc")))
         {
-            cMyTrace("int CDataManager::init()", 0x1ee2, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1ee2, 9, true, true)(
                 "\t- Loading Compound Avatar Fail\n");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x1ee5, 9, false, true)("");
+        cMyTrace("bool CDataManager::init()", 0x1ee5, 9, false, true)("Success");
     }
 
     // VendingMachine.lst（无条件）。
@@ -2889,7 +2946,7 @@ int CDataManager::init()
 
     // Dungeons：new CDungeonList(0x14) + dimension 区清零 + load_list。
     {
-        cMyTrace("int CDataManager::init()", 0x1ef3, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x1ef3, 9, true, false)(
             "\t- Loading Dungeons ");
         m_dungeonList = new CDungeonList;
         memset(m_dimensionInout, 0, 6);
@@ -2897,7 +2954,7 @@ int CDataManager::init()
         memset(m_limitInoutCount, 0, 3);
         if (!m_dungeonList->load_list())
         {
-            cMyTrace("int CDataManager::init()", 0x1f05, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1f05, 9, true, true)(
                 "\t- Loading Dungeons Fail");
             return 0;
         }
@@ -2905,212 +2962,219 @@ int CDataManager::init()
 
     // Tower Of Despair（失败 TRACE 0x1f0f 后 ret0）。
     {
-        cMyTrace("int CDataManager::init()", 0x1f08, 9, false, true)("");
-        cMyTrace("int CDataManager::init()", 0x1f0b, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x1f08, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x1f0b, 9, true, false)(
             "\t- Loading Tower Of Despair System ");
-        TowerOfDespairMgr* tower = new TowerOfDespairMgr;
-        GlobalData::s_pTowerOfDespairMgr = tower;
-        if (tower->LoadScript("Etc/", "TowerOfDespair.etc") != 0)
+        // ORIG +0x355d..+0x3588：写全局→读回→`!= 0` 判定。
+        GlobalData::s_pTowerOfDespairMgr = new TowerOfDespairMgr;
+        if ((reinterpret_cast<TowerOfDespairMgr*>(
+                 GlobalData::s_pTowerOfDespairMgr)
+                 ->LoadScript("Etc/", "TowerOfDespair.etc")) != 0)
         {
-            cMyTrace("int CDataManager::init()", 0x1f0f, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1f0f, 9, true, true)(
                 "\t- Fail load TowerOfDespair System Script");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x1f12, 9, false, true)("");
+        cMyTrace("bool CDataManager::init()", 0x1f12, 9, false, true)("Success");
     }
 
     // Chatting Emoticon：new(0x48) + lst + Load_list。
     {
-        cMyTrace("int CDataManager::init()", 0x1f16, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x1f16, 9, true, false)(
             "\t- Loading Chatting Emoticon ");
         m_emoticonList = new CChattingEmoticonList;
         if (!initChattingEmoticonScriptList((char*)"ChatEmoticon/",
                                             (char*)"ChatEmoticon.lst"))
         {
-            cMyTrace("int CDataManager::init()", 0x1f1b, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1f1b, 9, true, true)(
                 "\t- Emoticon List file error");
             return 0;
         }
         if (!m_emoticonList->Load_list())
         {
-            cMyTrace("int CDataManager::init()", 0x1f20, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1f20, 9, true, true)(
                 "\t- Emoticon Script file fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x1f23, 9, false, true)("");
+        cMyTrace("bool CDataManager::init()", 0x1f23, 9, false, true)("Success");
     }
 
     // PvP 地图基础数据 + Maps。
+    // pvpMaps 亦为函数体作用域对象（ORIG 清理梯 +0x6e5a：先 pvpMaps 后
+    // schedules），不套嵌套块。
+    std::vector<PVPMAP_DATA> pvpMaps;
+    if (!loadPvpMapBasicDataScript("Etc/pvpmapbasicdata.etc", &pvpMaps))
     {
-        std::vector<PVPMAP_DATA> pvpMaps;
-        if (!loadPvpMapBasicDataScript("Etc/pvpmapbasicdata.etc", &pvpMaps))
-        {
-            cMyTrace("int CDataManager::init()", 0x1f29, 9, true, true)(
-                "Load Etc/pvpmapbasicdata.etc fail");
-            return 0;
-        }
-        cMyTrace("int CDataManager::init()", 0x1f2d, 9, true, false)(
-            "\t- Loading Maps ");
-        m_mapList = new CMapList;
-        if (!load_map_files(pvpMaps))
-        {
-            cMyTrace("int CDataManager::init()", 0x1f33, 9, true, true)(
-                "\t- Loading Maps Fail");
-            return 0;
-        }
+        cMyTrace("bool CDataManager::init()", 0x1f29, 9, true, true)(
+            "Load Etc/pvpmapbasicdata.etc fail");
+        return 0;
+    }
+    cMyTrace("bool CDataManager::init()", 0x1f2d, 9, true, false)(
+        "\t- Loading Maps ");
+    m_mapList = new CMapList;
+    if (!load_map_files(pvpMaps))
+    {
+        cMyTrace("bool CDataManager::init()", 0x1f33, 9, true, true)(
+            "\t- Loading Maps Fail");
+        return 0;
+    }
 
-        // Monsters。
-        cMyTrace("int CDataManager::init()", 0x1f36, 9, false, true)("");
-        cMyTrace("int CDataManager::init()", 0x1f38, 9, true, false)(
-            "\t- Loading Monsters ");
-        m_monsterManager = new CMonsterManager;
-        if (!m_monsterManager->load_monsters())
-        {
-            cMyTrace("int CDataManager::init()", 0x1f3e, 9, true, true)(
-                "\t- Loading Monsters Fail");
-            return 0;
-        }
-    }   // pvpMaps 析构（ORIG 清理块 -0xf34 vector<PVPMAP_DATA> D2）
+    // Monsters。
+    cMyTrace("bool CDataManager::init()", 0x1f36, 9, false, true)("Success");
+    cMyTrace("bool CDataManager::init()", 0x1f38, 9, true, false)(
+        "\t- Loading Monsters ");
+    m_monsterManager = new CMonsterManager;
+    if (!m_monsterManager->load_monsters())
+    {
+        cMyTrace("bool CDataManager::init()", 0x1f3e, 9, true, true)(
+            "\t- Loading Monsters Fail");
+        return 0;
+    }
 
     // IndependentDrop 缓存清理（无条件）+ Skills。
-    cMyTrace("int CDataManager::init()", 0x1f41, 9, false, true)("");
+    cMyTrace("bool CDataManager::init()", 0x1f41, 9, false, true)("Success");
     m_independentDrop.clear();
     {
-        cMyTrace("int CDataManager::init()", 0x1f47, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x1f47, 9, true, false)(
             "\t- Loading Skills ");
         m_skillList = new CSkillList;
         if (!m_skillList->init())
         {
-            cMyTrace("int CDataManager::init()", 0x1f4d, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1f4d, 9, true, true)(
                 "\t- Loading Skills Fail");
             return 0;
         }
     }
 
     // Creature Damage + ActiveStatus（SDCActiveStatusSyncServer 栈局部）。
+    cMyTrace("bool CDataManager::init()", 0x1f50, 9, false, true)("Success");
+    cMyTrace("bool CDataManager::init()", 0x1f52, 9, true, false)(
+        "\t- Loading Creatrue Damage ");
+    if (!prepareServerDelayCheckDamage())
     {
-        cMyTrace("int CDataManager::init()", 0x1f50, 9, false, true)("");
-        cMyTrace("int CDataManager::init()", 0x1f52, 9, true, false)(
-            "\t- Loading Creatrue Damage ");
-        if (!prepareServerDelayCheckDamage())
-        {
-            cMyTrace("int CDataManager::init()", 0x1f55, 9, true, true)(
-                "\t- Loading Creatrue Damage Fail");
-            return 0;
-        }
-        cMyTrace("int CDataManager::init()", 0x1f58, 9, true, false)("Success");
-
-        SDCActiveStatusSyncServer activeStatus;
-        cMyTrace("int CDataManager::init()", 0x1f5c, 9, true, false)(
-            "\t- Loading ActiveStatus Damage ");
-        if (!activeStatus.loadActiveStatusScript())
-        {
-            cMyTrace("int CDataManager::init()", 0x1f5f, 9, true, true)(
-                "\t- Loading ActiveStatus Damage Fail");
-            return 0;
-        }
-        cMyTrace("int CDataManager::init()", 0x1f62, 9, true, false)("Success");
+        cMyTrace("bool CDataManager::init()", 0x1f55, 9, true, true)(
+            "\t- Loading Creatrue Damage Fail");
+        return 0;
     }
+    cMyTrace("bool CDataManager::init()", 0x1f58, 9, false, true)("Success");
+
+    // activeStatus 同样是函数体作用域对象（ORIG 清理梯 +0x6e32 段；槽
+    // -0xf35 仅 1 字节 ⇒ 空类）。
+    SDCActiveStatusSyncServer activeStatus;
+    cMyTrace("bool CDataManager::init()", 0x1f5c, 9, true, false)(
+        "\t- Loading ActiveStatus Damage ");
+    if (!activeStatus.loadActiveStatusScript())
+    {
+        cMyTrace("bool CDataManager::init()", 0x1f5f, 9, true, true)(
+            "\t- Loading ActiveStatus Damage Fail");
+        return 0;
+    }
+    cMyTrace("bool CDataManager::init()", 0x1f62, 9, false, true)("Success");
 
     // ItemGroupName.tbl（返回非 0 = 失败 ret0）+ Items。
-    if (importItmeGroupTable("Etc/", "ItemGroupName.tbl",
-                             getItemGroupNameTable()) != 0)
+    // —— 以下局部按 ORIG 槽序声明（-0xf54 数组 → -0xf58/-0xf5c/-0xf60 三个
+    // 迭代器 → -0x107c roulette → -0x1910 STEquipmentScript）：ORIG 清理梯
+    // 证明 roulette 是函数体作用域对象，而数组/迭代器槽位比 roulette 更浅
+    // ⇒ 源码在 roulette 之前声明、之后才赋值（老式「顶部声明」风格）。
+    const char* randomOptionFiles[7];
+    // ORIG +0x3100：结果落 errDT 槽（-0x3c，与 DeathTower 同一变量，本处不再
+    // 置 0）→ `cmpl $0,-0x3c; setne %al; test %al,%al`。
+    if ((errDT = importItmeGroupTable("Etc/", "ItemGroupName.tbl",
+                                      getItemGroupNameTable())) != 0)
     {
         return 0;
     }
     {
-        cMyTrace("int CDataManager::init()", 0x1f69, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x1f69, 9, true, false)(
             "\t- Loading Items ");
         m_itemList = new CItemList;
         if (!m_itemList->init())
         {
-            cMyTrace("int CDataManager::init()", 0x1f6f, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1f6f, 9, true, true)(
                 "\t- Loading items Fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x1f72, 9, true, false)("Success");
+        cMyTrace("bool CDataManager::init()", 0x1f72, 9, false, true)("Success");
     }
 
     // Avatar Roulette（栈局部 roulette → import → new Server → Init →
     // InitAddCharacSkill，失败 LogManager ret0）。
+    // roulette 为函数体作用域对象（ORIG 清理梯顶段 +0x6e0a），不套嵌套块。
+    cMyTrace("bool CDataManager::init()", 0x1f8a, 9, true, false)(
+        "\t- Loading Avatar Roulette ");
+    AvatarRoulette roulette;
+    if (!importAvatarRouletteList((char*)"Etc/avatar_roulette_jar.etc",
+                                  roulette))
     {
-        cMyTrace("int CDataManager::init()", 0x1f8a, 9, true, false)(
-            "\t- Loading Avatar Roulette ");
-        AvatarRoulette roulette;
-        if (!importAvatarRouletteList((char*)"Etc/avatar_roulette_jar.etc",
-                                      roulette))
-        {
-            cMyTrace("int CDataManager::init()", 0x1f90, 9, true, true)(
-                "\t- Loading Avatar Roulette Fail");
-            return 0;
-        }
-        AvatarRouletteServer* server = new AvatarRouletteServer;
-        GlobalData::s_pAvatarRoulette = server;
-        if (server == 0)
-        {
-            return 0;
-        }
-        if (!server->Init(&roulette))
-        {
-            cMyTrace("int CDataManager::init()", 0x1f9a, 9, true, true)(
-                "\t- Initalizing Avatar Roulette Fail");
-            return 0;
-        }
-        if (!server->InitAddCharacSkill())
-        {
-            LogManager::logFormat(
-                1, "data_manager.cpp", "int CDataManager::init()", 0x1fa1,
-                "[AVATAR ROULETTE] initalizing(InitAddCharacSkill) failed.");
-            return 0;
-        }
-        cMyTrace("int CDataManager::init()", 0x1fa6, 9, true, false)("Success");
-    }   // roulette 析构（ORIG 清理块 -0x107c AvatarRoulette D2）
+        cMyTrace("bool CDataManager::init()", 0x1f90, 9, true, true)(
+            "\t- Loading Avatar Roulette Fail");
+        return 0;
+    }
+    GlobalData::s_pAvatarRoulette = new AvatarRouletteServer;
+    if (GlobalData::s_pAvatarRoulette == 0)
+    {
+        return 0;
+    }
+    if (!(reinterpret_cast<AvatarRouletteServer*>(GlobalData::s_pAvatarRoulette)
+              ->Init(&roulette)))
+    {
+        cMyTrace("bool CDataManager::init()", 0x1f9a, 9, true, true)(
+            "\t- Initalizing Avatar Roulette Fail");
+        return 0;
+    }
+    if (!(reinterpret_cast<AvatarRouletteServer*>(GlobalData::s_pAvatarRoulette)
+              ->InitAddCharacSkill()))
+    {
+        LogManager::logFormat(
+            1, "data_manager.cpp", "int CDataManager::init()", 0x1fa1,
+            "[AVATAR ROULETTE] initalizing(InitAddCharacSkill) failed.");
+        return 0;
+    }
+    cMyTrace("bool CDataManager::init()", 0x1fa6, 9, false, true)("Success");
 
     // RandomOption 七文件循环（任一 err!=0 → TRACE ret0）。
+    // ORIG +0x3254..+0x3261：err 先置 0，再 7 条字符串指针存入局部数组
+    //（槽 -0xf54..-0xf3c），然后才打 “Loading RandomOption”。
+    errRO = 0;
+    randomOptionFiles[0] = "Etc/RandomOption/OptionGrouping.etc";
+    randomOptionFiles[1] = "Etc/RandomOption/OptionGroupSelection.etc";
+    randomOptionFiles[2] = "Etc/RandomOption/OptionNumbering.etc";
+    randomOptionFiles[3] = "Etc/RandomOption/OptionQuantity.etc";
+    randomOptionFiles[4] = "Etc/RandomOption/PartSelection.etc";
+    randomOptionFiles[5] = "Etc/RandomOption/RandomizedOptionOverall1.etc";
+    randomOptionFiles[6] = "Etc/RandomOption/RandomizedOptionOverall2.etc";
+    cMyTrace("bool CDataManager::init()", 0x1fb6, 9, true, false)(
+        "\t- Loading RandomOption ");
+    for (unsigned int i = 0; i < 7; ++i)
     {
-        static const char* const randomOptionFiles[7] = {
-            "Etc/RandomOption/OptionGrouping.etc",
-            "Etc/RandomOption/OptionGroupSelection.etc",
-            "Etc/RandomOption/OptionNumbering.etc",
-            "Etc/RandomOption/OptionQuantity.etc",
-            "Etc/RandomOption/PartSelection.etc",
-            "Etc/RandomOption/RandomizedOptionOverall1.etc",
-            "Etc/RandomOption/RandomizedOptionOverall2.etc",
-        };
-        cMyTrace("int CDataManager::init()", 0x1fb6, 9, true, false)(
-            "\t- Loading RandomOption ");
-        for (unsigned int i = 0; i < 7; ++i)
+        errRO = importRandomOptionScript(m_randomOption, randomOptionFiles[i]);
+        if (errRO != 0)
         {
-            const int err = importRandomOptionScript(m_randomOption,
-                                                     randomOptionFiles[i]);
-            if (err != 0)
-            {
-                cMyTrace("int CDataManager::init()", 0x1fbb, 9, true, true)(
-                    "\t- Fail load RandomOption Script File name(%s), "
-                    "error_line(%d)\n", randomOptionFiles[i], err);
-                return 0;
-            }
+            cMyTrace("bool CDataManager::init()", 0x1fbb, 9, true, true)(
+                "\t- Fail load RandomOption Script File name(%s), "
+                "error_line(%d)\n", randomOptionFiles[i], errRO);
+            return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x1fbf, 9, true, false)("Success");
     }
+    cMyTrace("bool CDataManager::init()", 0x1fbf, 9, false, true)("Success");
 
     // initRandomOptionItem + random_option_ref DB 同步。
     if (!initRandomOptionItem())
     {
-        cMyTrace("int CDataManager::init()", 0x1fc3, 9, true, true)(
-            "\t- Fail load initRandomOptionItem");
+        cMyTrace("bool CDataManager::init()", 0x1fc3, 9, true, true)(
+            "Fail load initRandomOptionItem");
         return 0;
     }
     if (!sync_script::GetInstanceSyncScript()->truncate_random_option_ref())
     {
-        cMyTrace("int CDataManager::init()", 0x1fc9, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1fc9, 9, true, true)(
             "\t- Fail truncate_random_option_ref");
         return 0;
     }
     if (!sync_script::GetInstanceSyncScript()->insert_random_option_ref())
     {
-        cMyTrace("int CDataManager::init()", 0x1fcf, 9, true, true)(
-            "\t- Fail insert_random_option_ref");
+        cMyTrace("bool CDataManager::init()", 0x1fcf, 9, true, true)(
+            "\t- Fail truncate_random_option_ref");
         return 0;
     }
     if (m_regeneration._0_Load_RegenerationRandomOptionItem() != 0)
@@ -3121,58 +3185,58 @@ int CDataManager::init()
     // WorldMapList + Quests + Characters + Disjoints。
     if (!m_worldMapList.load_list())
     {
-        cMyTrace("int CDataManager::init()", 0x1fe1, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x1fe1, 9, true, true)(
             "\t- Loading World Map List Fail");
         return 0;
     }
     {
-        cMyTrace("int CDataManager::init()", 0x1fe5, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x1fe5, 9, true, false)(
             "\t- Loading Quests ");
         m_questList = new QuestList;
         if (!m_questList->load_list())
         {
-            cMyTrace("int CDataManager::init()", 0x1fe9, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1fe9, 9, true, true)(
                 "\t- Loading Quests Fail");
             return 0;
         }
     }
     {
-        cMyTrace("int CDataManager::init()", 0x1fec, 9, false, true)("");
-        cMyTrace("int CDataManager::init()", 0x1fee, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x1fec, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x1fee, 9, true, false)(
             "\t- Loading Characters ");
         m_characList = new CCharacList;
         if (!m_characList->init())
         {
-            cMyTrace("int CDataManager::init()", 0x1ff2, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1ff2, 9, true, true)(
                 "\t- Loading Characters Fail");
             return 0;
         }
     }
     {
-        cMyTrace("int CDataManager::init()", 0x1ff5, 9, false, true)("");
-        cMyTrace("int CDataManager::init()", 0x1ff7, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x1ff5, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x1ff7, 9, true, false)(
             "\t- Loading Disjoints ");
         m_disJoint = new DisJoint;
         if (!m_disJoint->LoadDisJoint())
         {
-            cMyTrace("int CDataManager::init()", 0x1ffb, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x1ffb, 9, true, true)(
                 "\t- Loading Disjoints Fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x1ffe, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x1ffe, 9, false, true)("Success");
     }
 
     // Advance Altar：StageMapList::loadList。
     {
-        cMyTrace("int CDataManager::init()", 0x2001, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x2001, 9, true, false)(
             "\t- Loading Advance Altar ");
         if (!m_stageMapList.loadList())
         {
-            cMyTrace("int CDataManager::init()", 0x2004, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2004, 9, true, true)(
                 "\t- Loading Advance Altar Fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x2007, 9, false, true)("");
+        cMyTrace("bool CDataManager::init()", 0x2007, 9, false, true)("Success");
     }
 
     // ItemGeneratorMgr / AutoMarket。
@@ -3182,50 +3246,65 @@ int CDataManager::init()
     }
     if (!m_itemGeneratorMgr->initialize())
     {
-        cMyTrace("int CDataManager::init()", 0x2012, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x2012, 9, true, true)(
             "\t- Loading Item Generator Manager Fail\n");
         return 0;
     }
+    // autoMarket：ORIG 复用 errRO（槽 -0x30，本处不再置 0）。
+    if (m_autoMarket == 0)
     {
-        int err = 0;
-        if (m_autoMarket == 0)
-        {
-            m_autoMarket = new CAutoMarketConditionsControl;
-        }
-        err = m_autoMarket->LoadScript("Etc/ItemDropInfo_Control.etc");
-        if (err != 0)
-        {
-            cMyTrace("int CDataManager::init()", 0x201a, 9, true, true)(
-                "\t- LoadScript() error Etc/ItemDropInfo_Control.etc line(%d)",
-                err);
-            return 0;
-        }
+        m_autoMarket = new CAutoMarketConditionsControl;
+    }
+    errRO = m_autoMarket->LoadScript("Etc/ItemDropInfo_Control.etc");
+    if (errRO != 0)
+    {
+        cMyTrace("bool CDataManager::init()", 0x201a, 9, true, true)(
+            "\t- LoadScript() error Etc/ItemDropInfo_Control.etc line(%d)",
+            errRO);
+        return 0;
     }
 
     // LevelExp / MobReward / PvpGrade / RewardSP。
     {
-        cMyTrace("int CDataManager::init()", 0x2022, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x2022, 9, true, false)(
             "\t- Init Level Exp ");
-        set_level_exp();
-        cMyTrace("int CDataManager::init()", 0x2028, 9, false, true)("");
-        cMyTrace("int CDataManager::init()", 0x202a, 9, true, false)(
+        // ORIG +0x4b8f..+0x4b99：`call set_level_exp / xor $1 / test %al / jmp
+        // <success>`——出厂二进制此处被单字节改写（0x0835cecb 机器码 `eb 56`，
+        // 而 `je` 应为 `74 56`，位移完全一致），使 “Init Level Exp Fail” 块成为
+        // 不可达死代码。此处按源码原意还原该判定（唯一能生成同型块的合法 C++
+        // 写法）；与 ORIG 仅剩 je↔jmp 一条指令之差，见交付说明。
+        if (!set_level_exp())
+        {
+        cMyTrace("bool CDataManager::init()", 0x2025, 9, true, true)(
+            "\t- Init Level Exp Fail");
+        return 0;
+        }
+        cMyTrace("bool CDataManager::init()", 0x2028, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x202a, 9, true, false)(
             "\t- Init Mob Reward ");
-        set_mob_reward();
-        cMyTrace("int CDataManager::init()", 0x2030, 9, false, true)("");
-        cMyTrace("int CDataManager::init()", 0x2032, 9, true, false)(
+        // 同上：ORIG 0x0835cfcb 机器码 `eb 56`（应为 `74 56` je），失败块被改写
+        // 屏蔽；文案沿用 ORIG 的复制粘贴痕迹 “Init Level Exp Fail”（+0x4cd1）。
+        if (!set_mob_reward())
+        {
+        cMyTrace("bool CDataManager::init()", 0x202d, 9, true, true)(
+            "\t- Init Level Exp Fail");
+        return 0;
+        }
+        cMyTrace("bool CDataManager::init()", 0x2030, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x2032, 9, true, false)(
             "\t- Init PVP Grade ");
         if (!set_pvp_grade())
         {
-            cMyTrace("int CDataManager::init()", 0x2035, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2035, 9, true, true)(
                 "\t- Init PVP Grade Fail\n");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x2038, 9, false, true)("");
-        cMyTrace("int CDataManager::init()", 0x203a, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x2038, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x203a, 9, true, false)(
             "\t- Init Reward SP ");
         if (!set_reward_sp())
         {
-            cMyTrace("int CDataManager::init()", 0x203d, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x203d, 9, true, true)(
                 "\t- Init Reward SP Fail\n");
             return 0;
         }
@@ -3233,21 +3312,21 @@ int CDataManager::init()
 
     // Channel 数据/脚本。
     {
-        cMyTrace("int CDataManager::init()", 0x2040, 9, false, true)("");
-        cMyTrace("int CDataManager::init()", 0x2044, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x2040, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x2044, 9, true, false)(
             "\t- Init Get Channel Data(channel_info.etc) ");
         if (!GlobalData::s_channel_proxy->SendCheckChannelScript())
         {
-            cMyTrace("int CDataManager::init()", 0x2047, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2047, 9, true, true)(
                 "\t- Init Get Channel Data(channel_info.etc) Fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x204a, 9, false, true)("");
-        cMyTrace("int CDataManager::init()", 0x204e, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x204a, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x204e, 9, true, false)(
             "\t- Init Channel Script ");
         if (!importChannelScript(&m_channelScript))
         {
-            cMyTrace("int CDataManager::init()", 0x2058, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2058, 9, true, true)(
                 "\t- Init Channel Script Fail");
             return 0;
         }
@@ -3255,27 +3334,27 @@ int CDataManager::init()
 
     // ItemUpgrade / Separate / 3rdChronicle / Amplifier / Reseal。
     {
-        cMyTrace("int CDataManager::init()", 0x205b, 9, false, true)("");
+        cMyTrace("bool CDataManager::init()", 0x205b, 9, false, true)("Success");
         m_itemUpgrade = new WongWork::CItemUpgrade;
-        cMyTrace("int CDataManager::init()", 0x205e, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x205e, 9, true, false)(
             "\t- Init Item Upgrade Info ");
         if (!m_itemUpgrade->LoadUpgradeScript("Etc/Upgrade.etc"))
         {
-            cMyTrace("int CDataManager::init()", 0x2061, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2061, 9, true, true)(
                 "\t- Init Item Upgrade Info Fail\n");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x2064, 9, false, true)("");
+        cMyTrace("bool CDataManager::init()", 0x2064, 9, false, true)("Success");
         m_itemUpgradeSeparate = new WongWork::CItemUpgrade_Separate;
         if (!m_itemUpgradeSeparate->LoadUpgradeScript("Etc/Upgrade_Separate.etc"))
         {
-            cMyTrace("int CDataManager::init()", 0x206a, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x206a, 9, true, true)(
                 "\t- Item Upgrade Separate Fail");
             return 0;
         }
         if (!m_itemUpgrade->Load3rdChronicleUpgradeScript("Etc/chronicle.etc"))
         {
-            cMyTrace("int CDataManager::init()", 0x2072, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2072, 9, true, true)(
                 "\t- Loading 3rd Chronice Upgrade Script Fail");
             return 0;
         }
@@ -3285,129 +3364,129 @@ int CDataManager::init()
 
     // Reseal / UnlimitChallenge / LevelRewardTable / LimitItemUsage。
     {
-        cMyTrace("int CDataManager::init()", 0x2084, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x2084, 9, true, false)(
             "\t- Init Reseal table ");
         if (!importResealTable("Etc/Reseal.etc", &m_resealTable))
         {
-            cMyTrace("int CDataManager::init()", 0x208c, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x208c, 9, true, true)(
                 "\t- Init Reseal table Fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x208f, 9, false, true)("");
-        cMyTrace("int CDataManager::init()", 0x2092, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x208f, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x2092, 9, true, false)(
             "\t- Init Unlimit Challenge Info ");
         if (!importUnlimitChallengeScript("Etc/UnlimitChallenge.etc",
                                           &m_unlimitChallenge))
         {
-            cMyTrace("int CDataManager::init()", 0x2095, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2095, 9, true, true)(
                 "\t- Init Unlimit Challenge Info Fail");
             return 0;
         }
         m_levelRewardTableMgr = CLevelRewardTableMgr::GetInstance();
         m_levelRewardTableMgr->SetChallengeInfo(m_unlimitChallenge);
-        cMyTrace("int CDataManager::init()", 0x209e, 9, false, true)("");
+        cMyTrace("bool CDataManager::init()", 0x209e, 9, false, true)("Success");
         if (!importLimitItemUsageInfo(
                 (char*)"Etc/Chn_Server_LimititemUsageinfo.etc",
                 &m_limitItemUsage))
         {
-            cMyTrace("int CDataManager::init()", 0x20a5, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x20a5, 9, true, true)(
                 "\t- importLimitItemUsageInfo Fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x20a8, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x20a8, 9, true, true)(
             "\t- Import Limit Item Usage Info Success");
     }
 
     // DB Log Item。
     {
-        cMyTrace("int CDataManager::init()", 0x20b7, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x20b7, 9, true, true)(
             "\t- Import DB Log Item - ");
         if (!importDBLogItem((char*)"Etc/Chn_DBLogItem.etc", &m_dbLogItems))
         {
-            cMyTrace("int CDataManager::init()", 0x20be, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x20be, 9, true, true)(
                 "\t- Import DB Log Item  Fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x20c1, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x20c1, 9, true, true)(
             "\t- Import DB Log Item Success");
     }
 
     // Condition Event 两件套。
     {
-        cMyTrace("int CDataManager::init()", 0x20db, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x20db, 9, true, false)(
             "\t- Import Condition Event Info ");
         if (!importConditionEventScript("Event/ConditionEvent.evt",
                                         &m_conditionEvent))
         {
-            cMyTrace("int CDataManager::init()", 0x20e2, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x20e2, 9, true, true)(
                 "\t- Import Condition Event Info Fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x20e5, 9, false, true)("");
-        cMyTrace("int CDataManager::init()", 0x2102, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x20e5, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x2102, 9, true, false)(
             "\t- Import Condition Event Script Dungeon ");
         if (!importConditionEventChkDungeonScript(
                 "Event/ConditionEventChkDungeon.evt", &m_conditionDungeon))
         {
-            cMyTrace("int CDataManager::init()", 0x2109, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2109, 9, true, true)(
                 "\t- Import Condition Event Script Dungeon Fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x210c, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x210c, 9, false, true)("Success");
     }
 
     // NPCRelation / EmotionTags / EquipGrade。
     {
-        cMyTrace("int CDataManager::init()", 0x2111, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x2111, 9, true, false)(
             "\t- Import NPC Relation Event Info Success");
         if (!importNPCRelationEventScript("Event/NPCRelationEvent.evt",
                                           &m_npcRelation))
         {
-            cMyTrace("int CDataManager::init()", 0x2118, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2118, 9, true, true)(
                 "\t- Import NPC Relation Event Info Fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x211b, 9, false, true)("Success");
-        cMyTrace("int CDataManager::init()", 0x211e, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x211b, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x211e, 9, true, false)(
             "\t- Import Emotion Type Tags Info ");
         if (!importEmotionTypeTagsScript("Etc/EmotionExpressionData.etc",
                                          &m_emotionTags))
         {
-            cMyTrace("int CDataManager::init()", 0x2121, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2121, 9, true, true)(
                 "\t- Import Emotion Type Tags Info Fail\n");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x2124, 9, false, true)("Success");
-        cMyTrace("int CDataManager::init()", 0x2126, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x2124, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x2126, 9, true, false)(
             "\t- Import Equipment Grade Sample Info ");
         if (!importEquipmentGradeSampleInfo("Etc/EquipmentGradeSample.etc",
                                             &m_equipGrade))
         {
-            cMyTrace("int CDataManager::init()", 0x2129, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2129, 9, true, true)(
                 "\t- Import Equipment Grade Sample Info Fail\n");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x212c, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x212c, 9, false, true)("Success");
     }
 
     // Creature 脚本两步。
     {
-        cMyTrace("int CDataManager::init()", 0x215c, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x215c, 9, true, false)(
             "\t- Import Creature Script");
         if (!initCreatureScript("Creature/", "Creature.lst", "ExpTable.tbl"))
         {
-            cMyTrace("int CDataManager::init()", 0x215f, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x215f, 9, true, true)(
                 "\t- Import Creature Creature.lst fail");
             return 0;
         }
         if (!user_creature::GetInstanceCreatureScriptMgr()
                   ->LoadCreatureScriptFile())
         {
-            cMyTrace("int CDataManager::init()", 0x2165, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2165, 9, true, true)(
                 "\t- Import Creature Script Fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x2168, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x2168, 9, false, true)("Success");
     }
 
     // PvP single playable map（静态，无条件）+ NPC Script。
@@ -3415,16 +3494,16 @@ int CDataManager::init()
     m_npcScriptList = new CNPCScriptList;
     m_npcDynamicInfo = new CNPCDynamicInfoManager;
     {
-        cMyTrace("int CDataManager::init()", 0x217a, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x217a, 9, true, false)(
             "\t- Import Npc Script ");
         if (m_npcScriptList->initScript((char*)"Npc/", (char*)"Npc.lst",
                                         (char*)"common.dat") != 0)
         {
-            cMyTrace("int CDataManager::init()", 0x217d, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x217d, 9, true, true)(
                 "\t- Import Npc.lst Fail\n");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x2180, 9, false, true)("");
+        cMyTrace("bool CDataManager::init()", 0x2180, 9, false, true)("Success");
     }
 
     // ItemLimitEditionMgr（m_npcRelation.m_itemLimitEditionMgr）+ MCAP init。
@@ -3434,17 +3513,19 @@ int CDataManager::init()
     // Equipment Part Set：trancate + import + g_equipmentPartSetMap_ 双层回灌。
     sync_script::GetInstanceSyncScript()->trancate_item_parts_set();
     {
-        cMyTrace("int CDataManager::init()", 0x21ac, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x21ac, 9, true, false)(
             "\t- Import Equipment Part Set Info ");
         if (!importEquipmentPartSetInfo("Etc/EquipmentPartSet.etc",
                                         static_cast<ENUM_MODULE_TYPE>(3)))
         {
-            cMyTrace("int CDataManager::init()", 0x21af, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x21af, 9, true, true)(
                 "\t- Import Equipment Part Set Info Fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x21b3, 9, true, false)("Success");
+        cMyTrace("bool CDataManager::init()", 0x21b3, 9, false, true)("Success");
 
+        // 迭代器在 for-init 内声明并直接初始化（ORIG `begin` 的 sret 目标即
+        // 迭代器槽 -0xf58/-0xf5c/-0xf60，无「临时+拷贝」⇒ 必须是声明初始化）。
         for (std::map<int, STEquipmentPartSetData>::iterator it =
                  g_equipmentPartSetMap_.begin();
              it != g_equipmentPartSetMap_.end(); ++it)
@@ -3466,8 +3547,8 @@ int CDataManager::init()
                     es.m_strac = it->second.m_script->m_str668;
                     es.m_param1c0 = eit->second;
                     sync_script::GetInstanceSyncScript()
-                        ->insert_equiptment_item_to_db(&es, (unsigned int)eit->first,
-                                                       2, it->first);
+                        ->insert_equiptment_item_to_db(
+                            &es, (unsigned int)eit->first, 2, it->first);
                 }
             }
         }
@@ -3475,37 +3556,37 @@ int CDataManager::init()
 
     // FairPvPStat + PvP SkillTree 四步 + initFairPVPSkillPoint。
     {
-        cMyTrace("int CDataManager::init()", 0x21ca, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x21ca, 9, true, false)(
             "\t- Import FairPvPStat ");
         if (!importPairPvPStatScript(m_fairPvPStat, "Etc/FairPvPStat.etc"))
         {
-            cMyTrace("int CDataManager::init()", 0x21cd, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x21cd, 9, true, true)(
                 "\t- Fail load FairPvPStat Script File");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x21d1, 9, true, false)("Success");
+        cMyTrace("bool CDataManager::init()", 0x21d1, 9, false, true)("Success");
         if (!initPvPSkillTreeScript((char*)"Etc/", (char*)"PvPSkillTree.lst"))
         {
-            cMyTrace("int CDataManager::init()", 0x21d7, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x21d7, 9, true, true)(
                 "\t- Load PvPSkillTree.lst fail");
             return 0;
         }
         if (!m_pvpSkillTree.load_pvp_skill_tree_list())
         {
-            cMyTrace("int CDataManager::init()", 0x21dd, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x21dd, 9, true, true)(
                 "\t- Load load_pvp_skill_tree_list fail");
             return 0;
         }
         if (!m_pvpSkillTree.importPairPvPSkillPointScript(
                 "Etc/PvPSkillPoint.etc"))
         {
-            cMyTrace("int CDataManager::init()", 0x21e3, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x21e3, 9, true, true)(
                 "\t- Load PairPvPSkillPointScript fail");
             return 0;
         }
         if (!initFairPVPSkillPoint())
         {
-            cMyTrace("int CDataManager::init()", 0x21eb, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x21eb, 9, true, true)(
                 "\t- initFairPVPSkillPoint fail");
             return 0;
         }
@@ -3514,17 +3595,17 @@ int CDataManager::init()
     // Ingame Event：new(0x5c) CEventScriptMng → m_eventScriptMng；导入 + init。
     m_liveServerInfo.m_eventScriptMng = new EventClassify::CEventScriptMng;
     {
-        cMyTrace("int CDataManager::init()", 0x221d, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x221d, 9, true, false)(
             "\t- Loading Ingame Event Script List ");
         EventClassify::CEventScriptMng* mng = m_liveServerInfo.m_eventScriptMng;
         if (!importInGameEventInfoList(static_cast<InGameEventInfoList*>(mng),
                                        "Event/InGameEventList.evt"))
         {
-            cMyTrace("int CDataManager::init()", 0x2224, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2224, 9, true, true)(
                 "\t- Fail load ingame_event_script_list");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x2228, 9, true, false)("Success");
+        cMyTrace("bool CDataManager::init()", 0x2228, 9, false, true)("Success");
         if (!mng->initScriptlist(*mng))
         {
             return 0;
@@ -3533,49 +3614,48 @@ int CDataManager::init()
 
     // Event Avatar List / Event Etc。
     {
-        cMyTrace("int CDataManager::init()", 0x2231, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x2231, 9, true, false)(
             "\t- Loading Event Avatar List ");
         if (!importEventAvatarListScript(&m_eventAvatarList,
                                          "Event/EventAvatarList.evt"))
         {
-            cMyTrace("int CDataManager::init()", 0x223d, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x223d, 9, true, true)(
                 "\t- Fail Loading Event Avatar List");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x2240, 9, true, false)("Success");
-        cMyTrace("int CDataManager::init()", 0x2244, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x2240, 9, false, true)("Success");
+        cMyTrace("bool CDataManager::init()", 0x2244, 9, true, false)(
             "\t- Loading Event Etc Info ");
         if (!importEventEtcScript(&m_eventEtc, "Event/EventEtc.evt"))
         {
-            cMyTrace("int CDataManager::init()", 0x224e, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x224e, 9, true, true)(
                 "\t- Fail Loading Event Etc Info");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x2252, 9, true, false)("Success");
+        cMyTrace("bool CDataManager::init()", 0x2252, 9, false, true)("Success");
     }
 
     // AvatarColorVariation。
     if (!AvatarVariation::importAvatarColorVariation(&m_avatarColor))
     {
-        cMyTrace("int CDataManager::init()", 0x227b, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x227b, 9, true, true)(
             "\t- Loading importAvatarColorVariation  Fail");
         return 0;
     }
 
-    // Mercenary System（err=出错行）。
+    // Mercenary System（ORIG +0x2c00 区：errMerc = 0 → `if ((errMerc = ...) != 0)`，
+    // 槽 -0x2c；err=出错行）。
+    cMyTrace("bool CDataManager::init()", 0x229b, 9, true, false)(
+        "\t- Loading Mercenary System ");
+    errMerc = 0;
+    if ((errMerc = importMercenarySystemEtcScript("Etc/mercenary.etc",
+                                                  &m_mercenarySystem)) != 0)
     {
-        cMyTrace("int CDataManager::init()", 0x229b, 9, true, false)(
-            "\t- Loading Mercenary System ");
-        const int err = importMercenarySystemEtcScript("Etc/mercenary.etc",
-                                                       &m_mercenarySystem);
-        if (err != 0)
-        {
-            cMyTrace("int CDataManager::init()", 0x22a0, 9, true, true)(
-                "\t- Loading Mercenary System Fail - %d line \n", err);
-            return 0;
-        }
-        cMyTrace("int CDataManager::init()", 0x22a3, 9, true, false)("Success");
+        cMyTrace("bool CDataManager::init()", 0x22a0, 9, true, true)(
+            "\t- Loading Mercenary System Fail - %d line \n", errMerc);
+        return 0;
     }
+    cMyTrace("bool CDataManager::init()", 0x22a3, 9, false, true)("Success");
 
     NeedMaterialDataManager::getInstance();
 
@@ -3583,14 +3663,14 @@ int CDataManager::init()
     if (!importPcBangEquipmentRendar("Etc/PcBangRentalService.etc",
                                      &m_pcBangRentar))
     {
-        cMyTrace("int CDataManager::init()", 0x2304, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x2304, 9, true, true)(
             "\t- PcBangRentalService Fail!\n");
         return 0;
     }
     if (!importDimensionActivationData("Event/DimensionActivationEvent.evt",
                                        &m_dimensionAct))
     {
-        cMyTrace("int CDataManager::init()", 0x230b, 9, true, true)(
+        cMyTrace("bool CDataManager::init()", 0x230b, 9, true, true)(
             "\t- DimensionActivationEvent Fail!\n");
         return 0;
     }
@@ -3606,15 +3686,15 @@ int CDataManager::init()
 
     // Delete Invalid Item Script（最后一步）。
     {
-        cMyTrace("int CDataManager::init()", 0x2331, 9, true, false)(
+        cMyTrace("bool CDataManager::init()", 0x2331, 9, true, false)(
             "\t- Load Delete Invalid Item Script");
         if (!m_deleteInvalidItem.loadScript())
         {
-            cMyTrace("int CDataManager::init()", 0x2334, 9, true, true)(
+            cMyTrace("bool CDataManager::init()", 0x2334, 9, true, true)(
                 "\t- Load Delete Invalid Item Script Fail");
             return 0;
         }
-        cMyTrace("int CDataManager::init()", 0x2337, 9, true, false)("Success");
+        cMyTrace("bool CDataManager::init()", 0x2337, 9, false, true)("Success");
     }
 
     return 1;

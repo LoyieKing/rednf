@@ -185,7 +185,7 @@ char Global::CBossTowerFunc::DieCharacInDungeon(CUser* user)
 // state==10 → CDeathTower::handleFinishLoading；state==12 →
 // CBossTower::handleFinishLoading（直调）；其它返回 0。前两分支返回 1。
 // ----------------------------------------------------------------------------
-char Global::CBossTowerFunc::FinishLoad(CUser* user)
+bool Global::CBossTowerFunc::FinishLoad(CUser* user)  // ORIG T 0x08146916
 {
     const int state = user->get_state();
     if (state == 0xa)
@@ -248,7 +248,7 @@ void Global::CBossTowerFunc::GiveUpGame(CUser* user)
 // state==10 → CDeathTower::handleMoveMap()；state==12 → 虚槽[6] handleMoveMap(
 // mapIndex)（CBossStage 新增虚）；其它返回 0。前两分支返回 1。
 // ----------------------------------------------------------------------------
-char Global::CBossTowerFunc::MoveMap(CUser* user, unsigned short* mapIndex)
+bool Global::CBossTowerFunc::MoveMap(CUser* user, unsigned short* mapIndex)  // ORIG T 0x08146ba2
 {
     const int state = user->get_state();
     if (state == 0xa)

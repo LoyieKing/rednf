@@ -35,7 +35,8 @@ public:
     int GetIndex();
     void SetIndex(int idx);
     int GetState();
-    void SetState(WARROOM_STATE state);
+    // ORIG W weak（0x082a5a56）：in-class 定义产生 weak 且调用方保守 outgoing 帧 0x18
+    void SetState(WARROOM_STATE state) { m_state = state; }
     void CheckState();
     void ChangeState(WARROOM_STATE state);
     int GetLiveCount() const;
@@ -48,11 +49,13 @@ public:
     void setLevelBand(char band) { m_levelBand = band; }
     void setRoomSeq(char seq) { m_roomSeq = seq; }
     int IsJoinable(CUser* user);
-    int IsBanUser(CUser* user);
+    // ORIG 0x86bad7c：调用点 `test %al,%al` 单字节判定 ⇒ bool 返回（InterB 实证口径）。
+    bool IsBanUser(CUser* user);
     void CheckFatuigue();
     void CheckHostChange();
     void InvalidUserCheck();
-    unsigned int GenTimerKey(TIMER_MESSAGE msg);
+    // ORIG W weak（0x086c0b24）：in-class 定义→调用方保守 outgoing 帧
+    unsigned int GenTimerKey(TIMER_MESSAGE msg) { return ++m_timerKey[msg - 0x3f]; }
     bool CheckTimerKey(TIMER_MESSAGE msg, int key);
 
     // ---- 房间流程 ----
@@ -129,8 +132,8 @@ private:
     char m_field30;                     // +0x030
     char m_pad31[3];                    // +0x031
     WarField m_field;                   // +0x034（0xf8）
-    int m_slots[6];                     // +0x12c
-    int m_state;                        // +0x144
+    void* m_slots[6];                   // +0x12c（ORIG Create 0x086bac7b this-先行直存指针=void* 元素探针实证）
+    WARROOM_STATE m_state;              // +0x144（ORIG SetState 0x082a5a56 this-先行装载=成员与形参同类型探针实证）
     int m_slotState[6];                 // +0x148
     int m_timerKey[9];                  // +0x160（GenTimerKey 数组，msg 0x40..0x47 → 下标 1..8）
     char m_liveFlag[6];                 // +0x184（槽存活标志：非 0=在场且存活）

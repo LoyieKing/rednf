@@ -339,11 +339,18 @@ public:
     {
         Data() : winPoint(0), itemIndex(0), itemCount(0) {}
         // ORIG W 0x084ed148 _ZN29Arad_VillageAttackRewardItem4DataC1Eimi（InterWave1 W5 批）
+        // ORIG 0x084ed153-159 `mov 0x8(%ebp),%eax; mov 0x10(%ebp),%edx; mov %edx,0x4(%eax)`
+        // —— LHS(this 重读) 先于 RHS ⇒ 同 signedness 直落（probe ctor6/7：int 成员
+        // × unsigned long 参恒 RHS-先）。成员须 unsigned。
         Data(int wp, unsigned long idx, int cnt)
-            : winPoint(wp), itemIndex(static_cast<int>(idx)), itemCount(cnt) {}
+        {   // ORIG 0x084ed148 逐字段体赋值形态（this 重读先于 arg 装载）。
+            winPoint = wp;
+            itemIndex = (unsigned int)idx;
+            itemCount = cnt;
+        }
         bool operator==(const Data& rhs) { return winPoint == rhs.winPoint; }
         int winPoint;     // +0x00
-        int itemIndex;    // +0x04
+        unsigned int itemIndex;    // +0x04
         int itemCount;    // +0x08
     };
 

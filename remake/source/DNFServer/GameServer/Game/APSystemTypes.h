@@ -107,10 +107,33 @@ struct CActionPointEx
 {
     CActionPointEx();
 
-    unsigned short m_field00;        // +0x00（首个 ScanInt 截断 word）
-    unsigned char m_bytes02[0x12];   // +0x02..+0x13 混合区（栈槽实证：int 组索引@+0x02、
-                                     //   days 五字节@+0x06、map 键 word@+0x0c、byte@+0x10；
-                                     //   标量成员边界未定——「推断」按偏移直访）
+    // ORIG 的 _ActionPoint 基类子对象，+0x00..+0x0a；保留旧名供脚本导入代码使用。
+    union
+    {
+        unsigned short m_field00;   // +0x00（首个 ScanInt 截断 word）
+        unsigned short m_actionNo;  // +0x00（行动点编号，同一存储）
+    };
+
+    // +0x02..+0x13 是 _ActionPoint 尾部/扩展记录。命名视图与
+    // m_bytes02 完全重叠：现有脚本解析仍可按字节访问，管理器逻辑使用
+    // 经过报告偏移证实的语义字段。
+    struct __attribute__((packed)) ActionPointRecord
+    {
+        int m_groupIndex;            // +0x02（IsValidActionGroupIndex 实参）
+        unsigned char m_days[5];     // +0x06..+0x0a（日期/槽位）
+        unsigned char m_field0b;     // +0x0b（报告未读取）
+        unsigned short m_mapKey;     // +0x0c（action-point map 键）
+        unsigned char m_field0e;     // +0x0e（报告未读取）
+        unsigned char m_levelMin;    // +0x0f（等级下限）
+        unsigned char m_levelMax;    // +0x10（等级上限）
+        unsigned char m_field11[3];  // +0x11..+0x13（报告未读取）
+    };
+    union
+    {
+        ActionPointRecord m_record;
+        unsigned char m_bytes02[0x12];
+    };
+
     std::vector<int> m_itemList;     // +0x14（"," 分割 atoi）
     int m_weekday;                   // +0x20（ConvertWeekdayStringToInt 失败置 7）
     std::string m_str24;             // +0x24
@@ -118,6 +141,10 @@ struct CActionPointEx
     unsigned char m_field2c;         // +0x2c
     char m_pad2d[3];                 // +0x2d
 };                                   // sizeof 0x30
+typedef char _assert_action_point_record_size[
+    (sizeof(CActionPointEx::ActionPointRecord) == 0x12) ? 1 : -1];
+typedef char _assert_action_point_ex_size[
+    (sizeof(CActionPointEx) == 0x30) ? 1 : -1];
 
 // 布局（importActionPointSystemEtcScript [action point medal reward] 实证，
 // 栈对象 -0x116..-0x109：ushort/ushort/int/ushort，sizeof 0xc；

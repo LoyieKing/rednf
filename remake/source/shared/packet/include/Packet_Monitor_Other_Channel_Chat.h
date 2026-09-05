@@ -28,8 +28,11 @@ public:
     Packet_Monitor_Other_Channel_Chat() : PacketHeader(0x3f3, 0x13b),
         m_id(0), server_id(0), m_characNo(0), m_recverCharId(0), m_buddyNameLen(0), m_msgLen(0)
     {
-    memset(buddy_n_user_id_what, 0, sizeof(buddy_n_user_id_what));
+    // ORIG ctor 0x0822b8e6 反汇编实证（df_game_r nm+objdump）：先
+    // memset(this+0x3b,0,0x100)（m_msg），后 memset(this+0x1c,0,0x1e)
+    // （buddy 名区）；顺序即 weak inline 发射序，全局统一。
     memset(m_msg, 0, sizeof(m_msg));
+    memset(buddy_n_user_id_what, 0, sizeof(buddy_n_user_id_what));
     };
 } __attribute__((packed));
 #pragma pack(pop)

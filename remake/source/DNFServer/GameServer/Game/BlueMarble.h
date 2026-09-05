@@ -5,10 +5,17 @@
 // df_game_r BlueMarble（G2-3 PvP 链，大富翁房间，池化 300）
 // 布局依据 ORIG 构造（0x080d8a5c）/析构（0x080d8bae）推导：
 //   +0x000 int m_memoryPoolIndex（-1）+0x004 std::vector<BlueMarbleUserInfo>
-//   +0x010 int m_curUserCount        +0x014 CMTRand* m_pRands（new[4]）
-//   +0x018 int m_field18             +0x01c int m_field1c
+//   +0x010 int m_state              （getState 0x080d6dc8 `mov 0x10(%eax)` /
+//                                     changeState 0x080d9202
+//                                     `mov %edx,0x10(%eax)` 实证同一槽；ORIG 无
+//                                     m_curUserCount 语义）
+//                                    +0x014 CMTRand* m_pRands（new[4]）
+//   +0x018 int m_diceNumber         （getDiceNumber 0x080d6fc4 `mov 0x18(%eax)`）
+//   +0x01c int m_blueMarbleMap      （getBlueMarbleMap 0x080d6e7c `mov 0x1c(%eax)`）
 //   +0x020 std::set<int>（0x18）     +0x038 BlueMarbleScriptManager* m_pScript
-//   +0x03c int m_field3c             （总尺寸 0x40）
+//   +0x03c int m_maxBoardSize       （getMaxBoardSize 0x080d6ecc/setMaxBoardSize
+//                                     0x080d6e88 `mov %edx,0x3c(%eax)`）
+//                                    （总尺寸 0x40）
 // 方法签名以 ORIG mangled 名为准（/tmp/bluemarble_syms.txt 与报告）。
 // ============================================================================
 
@@ -106,13 +113,19 @@ public:
 private:
     int m_memoryPoolIndex;                     // +0x000
     std::vector<BlueMarbleUserInfo> m_users;   // +0x004
-    int m_curUserCount;                        // +0x010
+    int m_state;                               // +0x010（getState/changeState 权威）
     CMTRand* m_pRands;                         // +0x014
-    int m_field18;                             // +0x018
-    int m_field1c;                             // +0x01c
+    int m_diceNumber;                          // +0x018（getDiceNumber/setDiceNumber）
+    int m_blueMarbleMap;                       // +0x01c（getBlueMarbleMap/setBlueMarbleMap）
     std::set<int> m_set;                       // +0x020
     BlueMarbleScriptManager* m_pScript;        // +0x038
-    int m_field3c;                             // +0x03c
+    int m_maxBoardSize;                        // +0x03c（getMaxBoardSize/setMaxBoardSize）
 };
+
+// 布局自检（字段重命名仅改标识符；ORIG 偏移实证见上方类注释）。
+// 注：成员为 private，GCC 4.4.7 下 offsetof 私有成员是硬错误（非警告），
+// 故仅断言总尺寸；逐槽偏移由上方注释的 ORIG 读/写指令实证 + 本 TU 编译产物
+// 与 ORIG 反汇编比对口径保证。
+static_assert(sizeof(BlueMarble) == 0x40, "BlueMarble size drift");
 
 #endif  // GAME_BLUEMARBLE_H_

@@ -35,6 +35,7 @@ public:
     void setColor(short color1, short color2);  // _ZN8WongWork11Avatar_Item8setColorEss W 0x082fa2fa（语义同 setColorEss）
     int updateEmblemSocket(unsigned int grade, unsigned int itemId);
     //   _ZN8WongWork11Avatar_Item18updateEmblemSocketEjj W 0x082fa2a6
+    Avatar_Item() throw();                      // C1/C2 W 0x082fa34e（ORIG 空体，nm 实证重建遗漏，GmPool 探针）
     ~Avatar_Item();                             // D1/D2 W 0x082fa354（ORIG 空体）
 
     int m_expireDate;                          // +0x00

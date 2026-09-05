@@ -82,6 +82,9 @@ int Avatar_Item::updateEmblemSocket(unsigned int grade, unsigned int itemId)
     return 1;
 }
 
+// _ZN8WongWork11Avatar_ItemC1Ev/C2Ev W 0x082fa34e：ORIG 空体（nm 实证重建遗漏）。
+Avatar_Item::Avatar_Item() throw() {}
+
 // _ZN8WongWork11Avatar_ItemD1Ev/D2Ev W 0x082fa354：ORIG 空体。
 Avatar_Item::~Avatar_Item() {}
 

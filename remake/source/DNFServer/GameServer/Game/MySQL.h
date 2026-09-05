@@ -174,7 +174,9 @@ inline bool MySQL::get_uint(int col, unsigned int& out)
     {
         return false;
     }
-    out = (unsigned int)strtoul(m_row[col], 0, 10);
+    // ORIG 0x080e235a：strtoul 结果先落 -0xc(%ebp) 槽再写入引用（局部物化）。
+    unsigned int v = (unsigned int)strtoul(m_row[col], 0, 10);
+    out = v;
     return true;
 }
 
@@ -194,7 +196,10 @@ inline bool MySQL::get_short(int col, int& out)
     {
         return false;
     }
-    out = (short)atoi(m_row[col]);   // ORIG mov %ax + movswl：截断为 short 再符号扩展
+    // ORIG 0x08142074：`mov %ax,-0xa(%ebp); movswl -0xa(%ebp),%edx` —— short
+    // 临时须经栈槽物化再符号扩展。
+    short tmp = (short)atoi(m_row[col]);
+    out = tmp;
     return true;
 }
 
@@ -276,7 +281,8 @@ inline bool MySQL::get_ulong(int col, unsigned long& out)
     {
         return false;
     }
-    out = strtoul(m_row[col], 0, 10);
+    // ORIG 0x0844d6bd 调 atoi@plt（非 strtoul）：4 字节 unsigned long 直存。
+    out = (unsigned long)atoi(m_row[col]);
     return true;
 }
 

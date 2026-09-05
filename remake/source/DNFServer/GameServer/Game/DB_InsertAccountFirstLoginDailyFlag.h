@@ -14,6 +14,7 @@ class Stream;
 class DB_InsertAccountFirstLoginDailyFlag : public DBDispatcher
 {
 public:
+    DB_InsertAccountFirstLoginDailyFlag() {}   // ORIG W C1/C2 0x844ff9e（try 区直调无 pad）
     // ORIG 0x0843ea64：向 DB 队列发一条请求（表头 0x342 + 4 参数）。
     static void makeRequest(int p1, unsigned int p2, unsigned int p3, int p4);
     // ORIG 0x0843e8be：DBThread 侧读流并执行 UPDATE/INSERT（虚重写）。

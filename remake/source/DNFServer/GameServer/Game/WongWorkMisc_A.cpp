@@ -18,6 +18,7 @@
 #include "CCharacter.h"        // _Additioal_info（全局 ns，0x52 pack(1)）/ CCharacter
 #include "CMCAPManager.h"      // WongWork::CMCAPManager
 #include "CDataManager.h"      // G_CDataManager() / m_characList（+0x14）
+#include "CCharacList.h"       // CCharacList::m_characs[11]（+0x000，步长 0x7dc）
 
 namespace WongWork
 {
@@ -110,32 +111,34 @@ void CCalcCharacStat::InitializeStat(_Additioal_info* out, int job)
 // ORIG T 0x0831e85c _ZN8WongWork15CCalcCharacStat15ApplyElixerItemEP15_Additioal_infoii
 // 报告：ApplyElixerItem.md。灵药道具按 statIdx 选择属性槽做加法（u16 回绕）；
 // statIdx>9 静默忽略；case9 对 m_field10[0..3] 各加 value*10。
+// ORIG 汇编不物化 (short)value：逐 case 以 32 位 value 乘 50 后 movw 截断
+// （mod 2^16 与 s16 乘加等价）；case 物理布局序 = 4,6,5,7,2,3,8,9
+// （ORIG 块序 +0x1f/+0x4c/+0x79/+0xa6/+0xd3/+0xea/+0x103/+0x120）。
 void CCalcCharacStat::ApplyElixerItem(_Additioal_info* out, int statIdx, int value)
 {
-    const short v16 = static_cast<short>(value);
     switch (statIdx)
     {
+    case 4:
+        out->m_field08 = static_cast<unsigned short>(
+            out->m_field08 + value * 0x32);
+        break;
+    case 6:
+        out->m_field0c = static_cast<unsigned short>(
+            out->m_field0c + value * 0x32);
+        break;
+    case 5:
+        out->m_field0a = static_cast<unsigned short>(
+            out->m_field0a + value * 0x32);
+        break;
+    case 7:
+        out->m_field0e = static_cast<unsigned short>(
+            out->m_field0e + value * 0x32);
+        break;
     case 2:
         out->m_field00 += value * 250;                       // imul $0xfa
         break;
     case 3:
         out->m_field04 += value * 250;
-        break;
-    case 4:
-        out->m_field08 = static_cast<unsigned short>(
-            out->m_field08 + v16 * 0x32);
-        break;
-    case 5:
-        out->m_field0a = static_cast<unsigned short>(
-            out->m_field0a + v16 * 0x32);
-        break;
-    case 6:
-        out->m_field0c = static_cast<unsigned short>(
-            out->m_field0c + v16 * 0x32);
-        break;
-    case 7:
-        out->m_field0e = static_cast<unsigned short>(
-            out->m_field0e + v16 * 0x32);
         break;
     case 8:
         out->m_field42 += value * 10;
@@ -143,7 +146,7 @@ void CCalcCharacStat::ApplyElixerItem(_Additioal_info* out, int statIdx, int val
     case 9:
         for (int i = 0; i < 4; ++i)                          // 循环上界 cmp $0x3,setle
             out->m_field10[i] = static_cast<unsigned short>(
-                out->m_field10[i] + v16 * 10);
+                out->m_field10[i] + value * 10);
         break;
     default:
         break;
@@ -159,20 +162,19 @@ _Additioal_info* CCalcCharacStat::CalcStat(_Additioal_info* out, int job,
                                            int level)
 {
     out->clear();
-    CCharacter* characTable =
-        reinterpret_cast<CCharacter*>(G_CDataManager()->m_characList);
-    CCharacter& row = characTable[job];
+    // ORIG 四次独立 call G_CDataManager + mov +0x14 + imul $0x7dc 重算行地址
+    // （CalcStat.md +0x011/+0x034/+0x063/+0x090），故逐处表达式访问、不缓存行引用。
+    out->add(G_CDataManager()->m_characList->m_characs[job].m_baseInfo[0]);
 
-    out->add(*reinterpret_cast<const _Additioal_info*>(&row));
-
-    const _Additioal_info* pFirst =
-        static_cast<const _Additioal_info*>(row.get_growtype_stat(0, 0));
-    const _Additioal_info* pSecond =
-        static_cast<const _Additioal_info*>(row.get_growtype_stat(firstGrow, 0));
-    const _Additioal_info* pThird =
-        static_cast<const _Additioal_info*>(
-            row.get_growtype_stat(firstGrow, secondGrow));
-
+    const _Additioal_info* pFirst = G_CDataManager()->m_characList
+                                        ->m_characs[job]
+                                        .get_growtype_stat(0, 0);
+    const _Additioal_info* pSecond = G_CDataManager()->m_characList
+                                         ->m_characs[job]
+                                         .get_growtype_stat(firstGrow, 0);
+    const _Additioal_info* pThird = G_CDataManager()->m_characList
+                                        ->m_characs[job]
+                                        .get_growtype_stat(firstGrow, secondGrow);
     for (int lv = 1; lv < level; ++lv)
     {
         if (lv <= 0xe)                     // cmpl $0xe,jg→else-if（即 lv<15）
@@ -545,22 +547,23 @@ _Additioal_info* CCalcCharacStat::_CalcGunner(_Additioal_info* out,
 // ============================================================================
 
 // ORIG W 0x0822eea4 _ZN8WongWork12CMCAPManager8getPointEv（非 const）
-// ORIG W 0x0822eea4：max(0u, min(10000u, m_point))——ORIG 以 this 直作 min 引用实参。
+// ORIG（objdump 0x0822eea4）：(%esp)=this、0x4=&-0x10(0x2710) → min(m_point, cap)，
+// 再 max(0u, _)；以 this 直作 min 引用实参，无中间值槽。
 unsigned int CMCAPManager::getPoint()
 {
     return std::max<unsigned int>(
-        0u, std::min<unsigned int>(0x2710u, m_point));
+        0u, std::min<unsigned int>(m_point, 0x2710u));
 }
 
 // ORIG W 0x082870de _ZN8WongWork12CMCAPManager8setPointEt
-// u16 域 min(point,10000)→max(_,0)，零扩展整字写 +0x00，并置 +0x14=1。
+// ORIG（objdump 0x082870de）：min(point(&-0x1c), cap(&-0xc)) 的返回引用直接作
+// max 第二实参（mov %eax,0x4(%esp)，无 u16 中间量槽），max(0(&-0xa), _) →
+// movzwl 零扩展整字写 +0x00（4B），并置 +0x14=1。
 void CMCAPManager::setPoint(unsigned short point)
 {
-    const unsigned short cap = 0x2710;
-    unsigned short clamped = std::min(cap, point);
-    clamped = std::max<unsigned short>(0, clamped);
-    m_point = static_cast<unsigned int>(clamped);   // movzwl %ax,%edx → mov %edx,(%eax)
-    m_saveCleanPadPoint = true;                     // movb $0x1,+0x14
+    m_point = static_cast<unsigned int>(std::max<unsigned short>(
+        0, std::min<unsigned short>(point, 0x2710)));   // 0x2710 落 u16 常量槽
+    m_saveCleanPadPoint = true;                          // movb $0x1,+0x14
 }
 
 // ORIG W 0x084eb53e _ZN8WongWork12CMCAPManager8incPointEi

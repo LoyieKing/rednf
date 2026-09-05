@@ -545,8 +545,8 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
         if (token == "[required user powerwar point 4 dungeon]") { script->m_requiredUserPoint4Dungeon = ScanInt((bool*)0); continue; }
         if (token == "[power war dungeon info]")
         {
-            script->m_powerWarDungeonInfo0 = ScanInt((bool*)0);
-            script->m_powerWarDungeonInfo1 = ScanInt((bool*)0);
+            script->m_powerWarDungeonInfo.first = ScanInt((bool*)0);   // ORIG +0x94
+            script->m_powerWarDungeonInfo.second = ScanInt((bool*)0); // ORIG +0x98
             continue;
         }
         if (token == "[pc room bonus]")

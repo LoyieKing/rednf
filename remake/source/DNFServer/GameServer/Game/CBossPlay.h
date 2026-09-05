@@ -69,7 +69,7 @@ public:
     void reset();
 
     // ---- 弱（inline）helper（ORIG W）----
-    int isMemberAlive(int idx) { return m_memberAlive[idx]; }   // 0x08145682（movzbl 直返）
+    unsigned char isMemberAlive(int idx) { return m_memberAlive[idx]; }   // 0x08145682：单 movzbl 直返（ORIG 非 int，避免 bool/int 归一化双扩展）
     void setMemberAlive(int idx, bool alive) { m_memberAlive[idx] = alive ; } // 0x0814a7e4
     void setMemberReady(int idx, bool ready) { m_memberReady[idx] = ready ; } // 0x08145692
 

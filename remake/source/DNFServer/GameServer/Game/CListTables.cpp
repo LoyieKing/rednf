@@ -530,7 +530,7 @@ void CMapList::LoadPvPSinglePlayableMap(char* path)
     }
 }
 
-int CMapList::GetPvpMapInfo(int idx, PvPMapInfo& info)
+bool CMapList::GetPvpMapInfo(int idx, PvPMapInfo& info)
 {
     std::map<int, PvPMapInfo>::iterator it;
     it = mapPvpMapInfo_.find(idx);

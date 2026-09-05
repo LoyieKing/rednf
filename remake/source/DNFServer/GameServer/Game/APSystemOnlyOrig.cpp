@@ -42,11 +42,11 @@
 #include "Inven_Item.h"
 #include "LogManager.h"               // compress_zip 错误分支
 #include "CDataManager.h"             // G_CDataManager/find_item/GetActionPointEtcParameter
+#include "DNFFunctionLib.h"         // DNFFLib::get_rand_int（ORIG 0x08108b06）
 
 // ---- 本 TU 局部原型（定义分属 GameUtils.cpp/CItemList 域，签名以 ORIG 为准）----
 int getDailyInitializeTime(int hour, int min, int sec);   // ORIG T 0x86b1f5a
 void __GetCurrentDNFDate(tm& out);                        // ORIG T 0x86b1fc0
-int get_rand_int(int range);                              // CItemList 域全局
 
 namespace APSystem
 {
@@ -600,18 +600,18 @@ DB_UpdateRewardMedal::~DB_UpdateRewardMedal() {}
 // CActionPointManager
 // ============================================================================
 
-// Set —— ORIG T 0x08121b0c objdump：prev ← m_sig.m_apSum 后 memcpy(this+8,sig,0xcf1)
+// Set —— ORIG T 0x08121b0c objdump：prev ← m_sig.m_apSum 后复制完整 packed 包。
 void CActionPointManager::Set(_SIG_LOAD_ACTION_POINT& sig)
 {
     m_prevApSum = m_sig.m_apSum;
-    memcpy(&m_sig, &sig, 0xcf1);
+    memcpy(&m_sig, &sig, sizeof(m_sig));
 }
 
 // GM_Reset —— 报告汇编+反编译全文转写。ORIG T 0x08121d12。
 void CActionPointManager::GM_Reset()
 {
     m_flag00 = 1;                             // *(this)=1
-    memset(&m_sig.m_isRewardItem[0], 0, 4);   // memset(this+0x11,0,4)
+    memset(&m_sig.m_isRewardItem[0], 0, sizeof(m_sig.m_isRewardItem));   // ORIG 4 字节
     m_sig.m_isRewardMedal = 0;                // this+0x10 = sig+8
     m_sig.m_apSum = 0;                        // *(uint*)(this+0xc)
     m_prevApSum = 0;                          // *(uint*)(this+4)
@@ -619,11 +619,12 @@ void CActionPointManager::GM_Reset()
     {
         for (int slot = 0; slot <= 4; ++slot)
         {
-            signed char& day =
-                *reinterpret_cast<signed char*>(&m_sig.m_actionPoints[row].m_days[slot]);
+            const signed char day = static_cast<signed char>(
+                m_sig.m_actionPoints[row].m_days[slot]);
             if (day > 0)
             {
-                day = static_cast<signed char>(-day);
+                m_sig.m_actionPoints[row].m_days[slot] =
+                    static_cast<unsigned char>(-day);
             }
         }
     }
@@ -664,28 +665,30 @@ bool CActionPointManager::ClearActionOne(_ActionPoint& action, int itemIdx)
     }
     for (int slot = 0; slot <= 4; ++slot)
     {
-        signed char& day = *reinterpret_cast<signed char*>(&action.m_days[slot]);
-        if (day == 0)
+        const unsigned char raw = action.m_days[slot];
+        if (raw == 0)
         {
-            continue;
+            break;              // ORIG 零槽即结束，不扫描后续槽
         }
-        if (day > 0)
+        const signed char day = static_cast<signed char>(raw);
+        if (day < 0)
         {
-            return false;   // 正值日：跳过（反编译在 day!=0 且非负时继续下一槽）
+            // ORIG 先按字节取负，再以有符号 char 累加（含 0x80 情形）。
+            m_prevApSum = m_sig.m_apSum;
+            const unsigned char restored =
+                static_cast<unsigned char>(-static_cast<int>(day));
+            action.m_days[slot] = restored;
+            m_sig.m_apSum += static_cast<signed char>(restored);
+            m_flag00 = 1;
+            return true;
         }
-        // day < 0：恢复一天行动点并置完成标志
-        m_prevApSum = m_sig.m_apSum;
-        day = static_cast<signed char>(-day);
-        m_sig.m_apSum += day;
-        m_flag00 = 1;
-        return true;
     }
     return false;
 }
 
 // ClearAction —— 报告全文转写。ORIG T 0x08121dcc。
-void CActionPointManager::ClearAction(CUser& user, _ActionGroupIndex group, int itemIdx,
-                                      ENUM_PACKETCLASS packetClass)
+bool CActionPointManager::ClearAction(CUser& user, _ActionGroupIndex group,
+                                      int itemIdx, ENUM_PACKETCLASS packetClass)
 {
     for (int row = 0; row <= 299; ++row)
     {
@@ -703,7 +706,7 @@ void CActionPointManager::ClearAction(CUser& user, _ActionGroupIndex group, int 
         {
             CUserProc::SendActionClear(user, m_sig.m_actionPoints[row].m_actionNo,
                                        groupOut, true, packetClass);
-            return;
+            return true;
         }
         if (packetClass == 1)
         {
@@ -712,6 +715,7 @@ void CActionPointManager::ClearAction(CUser& user, _ActionGroupIndex group, int 
                                        static_cast<ENUM_PACKETCLASS>(1));
         }
     }
+    return false;
 }
 
 // SetTodayAction —— 报告汇编+反编译全文转写。ORIG T 0x0812161c。
@@ -742,7 +746,7 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
         if (total != 0)
         {
             bool useWeekday = (list[0].m_weekday != 7);
-            bool useLevelBand = (list[0].m_bytes02[0x0d] != 0);   // B+0x0f 单字节判定
+            bool useLevelBand = (list[0].m_record.m_levelMin != 0);
 
             std::vector<const CActionPointEx*> candidates(
                 total, static_cast<const CActionPointEx*>(0));
@@ -763,16 +767,15 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
                 }
                 if (useLevelBand)
                 {
-                    unsigned char lo = data->m_bytes02[0x0d];   // B+0x0f
-                    unsigned char hi = data->m_bytes02[0x0e];   // B+0x10
+                    unsigned char lo = data->m_record.m_levelMin;   // +0x0f
+                    unsigned char hi = data->m_record.m_levelMax;   // +0x10
                     if (level < static_cast<int>(lo) ||
                         static_cast<int>(hi) < level)
                     {
                         continue;
                     }
                 }
-                int group =
-                    *reinterpret_cast<const int*>(&data->m_bytes02[0]);  // B+0x02
+                const int group = data->m_record.m_groupIndex;      // +0x02
                 if (group == 0x1d || group == 0x1e || group == 0x1f ||
                     group == 0x20 || group == 0x2d)
                 {
@@ -801,7 +804,7 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
             }
             else
             {
-                int pick = get_rand_int(remain);
+                int pick = DNFFLib::get_rand_int(remain);
                 const CActionPointEx* chosen = 0;
                 int seen = 0;
                 for (int i = 0; i < total; ++i)
@@ -823,7 +826,8 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
                 else
                 {
                     memcpy(&m_sig.m_actionPoints[row],
-                           reinterpret_cast<const void*>(chosen), 0xb);
+                           reinterpret_cast<const void*>(chosen),
+                           sizeof(m_sig.m_actionPoints[row]));
                 }
             }
         }
@@ -834,7 +838,7 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
 }
 
 // GetTodayRewardAndSendMail —— 报告全文转写。ORIG T 0x08122104。
-void CActionPointManager::GetTodayRewardAndSendMail(
+bool CActionPointManager::GetTodayRewardAndSendMail(
     CUser& user, _SIG_LOAD_ACTION_POINT::_TodayRewardItem reward)
 {
     const std::vector<APSystem::_TodayRewardItem>& todays =
@@ -863,37 +867,35 @@ void CActionPointManager::GetTodayRewardAndSendMail(
         Inven_Item item;
         if (itemDef == 0)
         {
-            return;
+            return false;
         }
         itemDef->make_item(item);
-        // asm：count word → Inven_Item+0x07；elem+4 双字 → Inven_Item+0x02
-        *reinterpret_cast<unsigned short*>(&item.m_addInfo2) =
-            entry.m_count;
+        // ORIG：count ushort 先零扩展，再完整写入 packed Inven_Item +0x07。
+        item.m_addInfo2 = static_cast<int>(entry.m_count);
         item.m_addInfo = entry.m_rewardItemIdx;
 
         const char* title =
             g_scriptStringManager_.findString(4, "chn_game_server_msg_82", 0);
         char titleBuf[30];
         strncpy(titleBuf, title, 0x1d);
-        titleBuf[sizeof(titleBuf) - 1] = '\0';
         const char* msg =
             g_scriptStringManager_.findString(4, "chn_game_server_msg_83", 0);
         char msgBuf[256];
         strncpy(msgBuf, msg, 0xff);
-        msgBuf[sizeof(msgBuf) - 1] = '\0';
 
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
             titleBuf, item, 0, user.get_charac_no(-1), msgBuf, strlen(msgBuf),
             8, user.GetServerGroup(), false, false);
-        return;
+        return true;
     }
+    return false;
 }
 
 // ============================================================================
 // Inter_LoadRewardMedal::SendMail —— 报告全文转写。ORIG T 0x08124ea0。
 // 声明位于 InterDispatcher.h（类内 public）。
 // ============================================================================
-void Inter_LoadRewardMedal::SendMail(CUser& user, unsigned int medalCount)
+bool Inter_LoadRewardMedal::SendMail(CUser& user, unsigned int medalCount)
 {
     const std::vector<_MedalRewardItem>& medals =
         G_CDataManager()->GetActionPointEtcParameter(CActionPointManager::_IsGMOn != 0)->m_medalRewards;
@@ -915,34 +917,33 @@ void Inter_LoadRewardMedal::SendMail(CUser& user, unsigned int medalCount)
     }
     if (hit == 0)
     {
-        return;
+        return false;
     }
 
     CItem* itemDef = G_CDataManager()->find_item(hit->m_field04);
     Inven_Item item;
     if (itemDef == 0)
     {
-        return;
+        return false;
     }
     itemDef->make_item(item);
-    *reinterpret_cast<unsigned short*>(&item.m_addInfo2) =
-        hit->m_field08;
+    // ORIG：count ushort 先零扩展，再完整写入 packed Inven_Item +0x07。
+    item.m_addInfo2 = static_cast<int>(hit->m_field08);
     item.m_addInfo = hit->m_field04;
 
     const char* title =
         g_scriptStringManager_.findString(4, "chn_game_server_msg_82", 0);
     char titleBuf[30];
     strncpy(titleBuf, title, 0x1d);
-    titleBuf[sizeof(titleBuf) - 1] = '\0';
     const char* msg =
         g_scriptStringManager_.findString(4, "chn_game_server_msg_83", 0);
     char msgBuf[256];
     strncpy(msgBuf, msg, 0xff);
-    msgBuf[sizeof(msgBuf) - 1] = '\0';
 
     WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
         titleBuf, item, 0, user.get_charac_no(-1), msgBuf, strlen(msgBuf), 8,
         user.GetServerGroup(), false, false);
+    return true;
 }
 
 }  // namespace APSystem

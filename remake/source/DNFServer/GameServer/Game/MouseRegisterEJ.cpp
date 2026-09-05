@@ -74,7 +74,7 @@ void DB_CancelRestingUserRestrict::makeRequest(unsigned int uid, int param2)
     **guard << param2;
     SIG_RESTING_USER_RESTRICT* sig =
         guard->GetInBuffer<SIG_RESTING_USER_RESTRICT>();
-    *reinterpret_cast<unsigned int*>(sig) = uid;
+    sig->m_uid = uid;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 

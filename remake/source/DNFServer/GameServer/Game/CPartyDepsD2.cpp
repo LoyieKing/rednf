@@ -35,10 +35,9 @@
 //   CParty::OnDungeonClear(CUser*,bool)   —— 报告 OnDungeonClear.md 已就绪
 //   CParty::do_after_dungeon_start(...)   —— 报告 do_after_dungeon_start.md 已就绪
 //
-// 头文件类型分歧注记（已同步 Main/战场域批次）：
-//   CBattle_Field+0x1e8/+0x1ec：ORIG reset_hell_party_value(0x0830a57c) 以整数 mov
-//     写入、send/sub_hellparty_value 以 int/fildl 消费，实为 int；现头声明 float。
-//   本 TU 以 reinterpret 访问并注释，待权威头修正后改具名字段。
+// 头文件类型注记（2026-09-03 已修正）：
+//   CBattle_Field+0x1e8/+0x1ec/+0x1f4 = m_hellPartyRatio0/1/3 现为 int
+//   （reset_hell_party_value 整数 mov + send/sub/cal/clear_reward fildl 实证）。
 //   （原 +0x94 注记经 ORIG 反汇编复核为误标：check_allmember_loading 比较的是
 //     CParty+0xcb8 = CBattle_Field+0x194（m_dungeonIndex），已改 cbfField94。）
 // ============================================================================
@@ -99,18 +98,6 @@ namespace
 #define bf(p)         (*reinterpret_cast<CBattle_Field*>(&(p)->m_padBattleField1))
 #define traceHack(p)  (*reinterpret_cast<CTraceMobDieHack*>(&(p)->m_pad210))
 #define memberUser(p,i) ((p)->m_member[(i)].m_pUser)
-
-// CBattle_Field+0x1ec（ORIG int 最小地狱值）：见文件头注记。
-inline int cbfHellPartyMinValue(CBattle_Field& field)
-{
-    return *reinterpret_cast<int*>(reinterpret_cast<char*>(&field) + 0x1ec);
-}
-
-// CBattle_Field+0x1e8（ORIG int 分母）：见文件头注记。
-inline int cbfHellPartyDenom(CBattle_Field& field)
-{
-    return *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&field) + 0x1e8);
-}
 
 // FISTP 取整惯例：ORIG 汇编为 fldcw 0xC（RC=11，truncate 向零截断）后 fistpl，
 // 无 +0.5f 的 fadd（实测 checkHackAverageHitCount/sub_hellparty_value/
@@ -406,7 +393,7 @@ bool CParty::OnStartMapFinishLoading(CUser* user)
 // 匹配成员槽累计 BattleData.m_arr7d0[slot]（this+(i+0x2bc)*4+0xc）技能使用
 // 次数；isCheckUseSkill(job, skillIdx) 通过再累加 m_field1aa4[slot]。
 // ---------------------------------------------------------------------------
-void CParty::OnUsedSkill(CUser* user, int skillIdx, int param)
+bool CParty::OnUsedSkill(CUser* user, int skillIdx, int param)   // ORIG 0x085b5f8e 单出口 mov $0x1,%eax
 {
     IsCollectDungeonStatistic();                         // 结果未消费（ORIG 形态）
 
@@ -421,6 +408,7 @@ void CParty::OnUsedSkill(CUser* user, int skillIdx, int param)
                 ++m_field1aa4[i];                        // this+(i+0x6a8)*4+4
         }
     }
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1032,9 +1020,9 @@ void CParty::sub_hellparty_value()
 {
     BattleData& d = bd(this);
     float value = bf(this).m_hellPartyRatio4 * d.m_hellPartyValueTotal;  // flds×2 fmulp
-    if (D2_ROUND(value) < cbfHellPartyMinValue(bf(this)))                // fistpl/jge
+    if (D2_ROUND(value) < bf(this).m_hellPartyRatio1)                    // fistpl/jge
     {
-        value = static_cast<float>(cbfHellPartyMinValue(bf(this)));      // fildl
+        value = static_cast<float>(bf(this).m_hellPartyRatio1);          // fildl
     }
     d.m_hellPartyValueTotal = value;                     // fstps 0xb0c
     send_hellParty_value();                              // T 0x085b697c
@@ -1052,11 +1040,12 @@ void CParty::send_hellParty_value()
     packet.put_header(0, 0xcf);
 
     const float kScale = 100.0f;                         // flds 0x08cbbbcc
-    // ORIG：flds 0xb0c（hellValue）* 100.0f / fildl *(int*)(this+0xd0c)。
+    // ORIG：flds 0xb0c（hellValue=bd.m_hellPartyValueTotal）* 100.0f /
+    // fildl int m_hellPartyRatio0（=BF+0x1e8 = CParty+0xd0c）。
     const float denom =
-        static_cast<float>(*(int*)((char*)this + 0xd0c));
+        static_cast<float>(bf(this).m_hellPartyRatio0);
     const int out =
-        D2_ROUND((kScale * *(float*)((char*)this + 0xb0c)) / denom);
+        D2_ROUND((kScale * bd(this).m_hellPartyValueTotal) / denom);
     packet.put_int(out);
     packet.finalize(true);
     send_to_party(packet);
@@ -1188,7 +1177,7 @@ int CParty::VoteLackUser(CUser* user, int victimIdx)
 // CParty::OnTimerWalkOutLackUser —— ORIG T 0x085b3e12（报告
 //   OnTimerWalkOutLackUser.md）：按选举结果循环踢出缺人成员。
 // ---------------------------------------------------------------------------
-int CParty::OnTimerWalkOutLackUser()
+bool CParty::OnTimerWalkOutLackUser()   // CParty.h:657 bool（PSM 落，定义同步）
 {
     int victimIdx = m_election.GetElected();
     while (victimIdx >= 0)
@@ -1483,18 +1472,28 @@ void CParty::cal_hellparty_value(int dungeonDiff, int rateLevelDiff, int memberC
 {
     if (rateLevelDiff == 0 || memberCount < 0 || dungeonDiff >= 5)
         return;
-    char* base = reinterpret_cast<char*>(this);
-    float baseValue = *(float*)(base + 0xd58);
-    if (m_dungeon == 0 || m_dungeon->m_89c != 1)
+    // ORIG 偏移映射（报告 cal_hellparty_value.md，BF = this+0xb24）：
+    //   +0xd58 = BF+0x234 m_hellPartyScriptRate（float）
+    //   +0xd34+d*4 = BF+0x210 m_hellPartyMapRate[d]
+    //   +0xd48+m*4 = BF+0x224 m_hellPartyItemRate[m]
+    //   +0xd18 = BF+0x1f4 m_hellPartyRatio3（int）
+    //   +0xd24+r*4 = BF+0x200 m_hellPartyDungeonRate[r]
+    //   +0xd0c = BF+0x1e8 m_hellPartyRatio0（int 上限）
+    //   +0xb0c = bd.m_hellPartyValueTotal
+    CBattle_Field& field = bf(this);
+    float baseValue = field.m_hellPartyScriptRate;
+    if (m_dungeon->m_89c != 1)
         baseValue = 0.0f;
-    float value = (*(float*)(base + 0xd34 + dungeonDiff * 4) + 1.0f +
-                   baseValue + *(float*)(base + 0xd48 + memberCount * 4)) *
-                  (float)*(int*)(base + 0xd18) *
-                  *(float*)(base + 0xd24 + rateLevelDiff * 4) +
-                  *(float*)(base + 0xb0c);
-    *(float*)(base + 0xb0c) = value;
-    if (*(int*)(base + 0xd0c) < (int)value)
-        *(float*)(base + 0xb0c) = (float)*(int*)(base + 0xd0c);
+    // ORIG 乘序（cal_hellparty_value.md +0x0a0..+0x0b3）：ratio3(fildl) 先乘
+    // dungeonRate（fmuls -0x18），再乘 (mapRate+1+base+itemRate) 和，最后 +old。
+    float value = (float)field.m_hellPartyRatio3 *
+                  field.m_hellPartyDungeonRate[rateLevelDiff] *
+                  (field.m_hellPartyMapRate[dungeonDiff] + 1.0f + baseValue +
+                   field.m_hellPartyItemRate[memberCount]) +
+                  bd(this).m_hellPartyValueTotal;
+    bd(this).m_hellPartyValueTotal = value;
+    if (field.m_hellPartyRatio0 < (int)value)
+        bd(this).m_hellPartyValueTotal = (float)field.m_hellPartyRatio0;
     send_hellParty_value();
 }
 
@@ -1790,10 +1789,18 @@ void CParty::ClearDungeon()
             if (!_checkValidUser(slot))
                 continue;
             CUser* user = m_member[slot].m_pUser;
-            UserQuest* quest = user->getCurCharacQuestW();
-            quest->set_authen_data((QUEST_CONDITION)4, memberCount, 0);
-            quest->set_authen_data((QUEST_CONDITION)2,
-                                   (int)(bd(this).m_field0 / 1000), 0);
+            user->getCurCharacQuestW()->set_authen_data((QUEST_CONDITION)4,
+                                                        memberCount, 0);
+            // ORIG 0x85aa027..0x85aa057：64 位 elapsed（m_field0 低/ m_field4 高，
+            // 即 this+0x32c/+0x330）经 __divdi3 除以 1000 后取低 32 位入第二个
+            // set_authen_data（QUEST_CONDITION)2；ORIG 每个 set 前各调一次
+            // getCurCharacQuestW（两次 call，互不复用）。
+            user->getCurCharacQuestW()->set_authen_data(
+                (QUEST_CONDITION)2,
+                (int)(((long long)bd(this).m_field4 << 32 |
+                       (unsigned int)bd(this).m_field0) /
+                      1000),
+                0);
             if (m_dungeon->m_bloodDungeonType == 0 &&
                 !m_dungeon->isTowerOfDespairDungeon() &&
                 !m_dungeon->isTournamentDungeon())
@@ -1804,11 +1811,12 @@ void CParty::ClearDungeon()
             {
                 int level = m_dungeon->get_standard_level();
                 int dungeonIdx = m_dungeon->get_index();
-                std::vector<secretshop::SALE_INFO>* shopItems =
-                    reinterpret_cast<std::vector<secretshop::SALE_INFO>*>(
-                        (char*)this + 0x2a8 + slot * 0x1c);
+                // +0x2a8+slot*0x1c = SECRET_SHOP_DATA.m_info[slot].m_retailer.m_sales
+                //（+0x2a4 SECRET_SHOP_DATA；m_info +0x04，SECRET_SHOP_INFO 0x1c）。
+                std::vector<secretshop::SALE_INFO>& shopItems =
+                    shopData->m_info[slot].m_retailer.m_sales;
                 GlobalData::s_secret_shop->LotteryItems(
-                    *shopItems,
+                    shopItems,
                     shopData->m_openCode, dungeonIdx, level);
                 SendSecretShopItemList(user);
                 APSystem::CUserProc::ClearActionAndSendtoUser(
@@ -1824,8 +1832,12 @@ void CParty::ClearDungeon()
                 G_CDataManager()->get_hellparty_script_values());
             bd(this).SetHellPartyValueTotal((int)*(int*)((char*)hellValues + 8));
         }
-        if (memberCount != 1 && m_sealDoorFlag != 1 && m_fieldCC4 != 1 &&
-            m_padcdc[0] != 1)
+        // ORIG 0x85aa27e..0x85aa2b0 比较 CParty+0xcee/0xcef/0xcdc（= CBattle_Field
+        // +0x1ca m_killedAllHellGroups / +0x1cb m_field1cb / +0x1b8
+        // m_hellPartyActive）三个字节均非 1 时 cal_hellparty_value；
+        // 报告 ClearDungeon.md 反编译 C 末尾条件块。
+        if (memberCount != 1 && bf(this).m_killedAllHellGroups != 1 &&
+            bf(this).m_field1cb != 1 && bf(this).m_hellPartyActive != 1)
         {
             cal_hellparty_value(bf(this).get_dungeon_diff(),
                                 get_rate_level_difference(), memberCount - 1);

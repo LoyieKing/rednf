@@ -17,11 +17,13 @@ public:
     char m_msg[0x100];              // +0x148
     Packet_Monitor_Member_Chat_Hyper_Link() : PacketHeader(0x271a, 0x248)
     {
-    *(int*)((char*)this + 0xa) = 0;
-    *(char*)((char*)this + 0xe) = 0;
-    *(char*)((char*)this + 0x147) = 0;
-    memset((char*)this + 0xf, 0, 0x138);
-    memset((char*)this + 0x148, 0, 0x100);
+    // ORIG 0x086d1cc0：具名字段直存 `movl $0x0,0xa(%eax)`（裸偏移写反产 add+存）；
+    // 0x086d1cdb memset(this+0x148,0x100) 先、0x086d1cfb memset(this+0xf,0x138) 后
+    m_memberId = 0;
+    m_itemCount = 0;
+    m_msgLen = 0;
+    memset(m_msg, 0, sizeof(m_msg));
+    memset(m_items, 0, sizeof(m_items));
     };
 } __attribute__((packed));
 

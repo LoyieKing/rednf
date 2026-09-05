@@ -83,8 +83,8 @@ public:
     // ---- 查询 ----
     bool isClearMission(int index) const;
     short getIndex_byKind(int kind) const;
-    int getIssue_mode(bool isDaily) const;
-    int getIssue_all() const;
+    unsigned short getIssue_mode(bool isDaily) const;   // ORIG 单 movzwl 0x148/0x14a（返回 unsigned short）
+    unsigned short getIssue_all() const;   // ORIG 单 movzwl（读 m_field14c unsigned short）
     int getWinningRate() const;
     bool empty_progress() const;
     bool isUserNewbie() const;
@@ -98,10 +98,32 @@ public:
     unsigned short m_field14a;           // +0x14a
     unsigned short m_field14c;           // +0x14c
     bool m_field14e;                     // +0x14e
-    char m_pad14f[5];                    // +0x14f..0x153
+    // +0x150 计数字段化（2026-09-05 BossMission 批次，ORIG 证据：
+    //   getData T 0x085e4aee `mov 0x150(%eax),%edx` + `mov %edx,(%eax)` ——
+    //   本对象 +0x150 的 int 整体导出到 SIG_REQUEST_PVP_MISSION_LIST::m_characNo
+    //   （+0x00，_saveData 侧同槽已具名为 charac no），故本槽建模为 m_characNo；
+    //   本类不写该槽（ORIG ctor 0x832af90 仅隐式构造，槽位 new 后 memset(0,0x158)
+    //   清零 → 恒 0，属 ORIG 未还原写入点【推断】）。
+    // union 保留旧基名 m_pad14f（唯一消费者 CMissionList_Charac::getData 已同步迁移）。
+    union
+    {
+        char m_pad14f[5];                // +0x14f..0x153（旧基名保留）
+        struct
+        {
+            char m_pad14f0;              // +0x14f（ORIG 未访问）
+            int  m_characNo;             // +0x150
+        } m_tail14f;
+    };
     CUser* m_user;                       // +0x154
 };
 
 #pragma pack(pop)
+
+// 布局自检：字段化仅拆 pad，sizeof 与既有成员偏移零漂移。
+static_assert(sizeof(CMissionList_Charac) == 0x158, "CMissionList_Charac size drift");
+static_assert(offsetof(CMissionList_Charac, m_missionList) == 0x05, "missionList offset drift");
+static_assert(offsetof(CMissionList_Charac, m_clearedFlags) == 0x128, "clearedFlags offset drift");
+static_assert(offsetof(CMissionList_Charac, m_tail14f.m_characNo) == 0x150, "characNo offset drift");
+static_assert(offsetof(CMissionList_Charac, m_user) == 0x154, "user offset drift");
 
 #endif  // GAME_CMISSIONLIST_CHARAC_H_

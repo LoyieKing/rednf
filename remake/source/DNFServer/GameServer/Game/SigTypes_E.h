@@ -13,10 +13,16 @@
 #include "PvpResultType.h"  // SIG_SAVE_PVP 前段 PvpResultType 镜像（无依赖叶子头）
 #include "Packet_PvPResult.h"  // 权威定义（shared/packet/include；原占位 char m_pad[0x80] 移除）
 
+// 字段化（W8DB，ORIG 0x0842ff4e DB_SaveGameOption_1::dispatch 证据：
+// NumberToString(*(uint*)sig)=m_id、compress(sig+4,0x48)；写侧
+// Dispatchers.cpp:10054 `*(unsigned int*)save = get_acc_id()` 同槽）：
 struct SIG_SAVE_GAME_OPTION_1
 {
-    char m_pad[0x4c];
+    unsigned int m_mId;      // +0x00（member_key_option.m_id ← accId）
+    char m_option[0x48];     // +0x04（压缩存档区 0x48）
 };
+static_assert(sizeof(SIG_SAVE_GAME_OPTION_1) == 0x4c,
+              "SIG_SAVE_GAME_OPTION_1 ABI drift");
 struct SIG_SAVE_GAME_OPTION_QUICKCHAT
 {
     char m_pad[0x25c];
@@ -243,50 +249,132 @@ struct SIG_SECOND_USER_DATA_SET
     char m_pad[0x18];
 };
 
+// 字段化（SecuLink 批次 2026-09-05，裸偏移清理；union 叠加保留 m_pad 基名）。
+// 证据：makeRequest ORIG 0x0842bb5c（docs/class_func_reports/
+// DB_SecurityCardActivate/makeRequest.md：`mov %edx,(%eax)` accId 4B、
+// strncpy(sig+4,certKey,6)、`mov %dl,0xb(%eax)` 1B）；dispatch ORIG 0x0842b86c
+// （同目录 dispatch.md：SQL cert_key='%s' ← sig+4、`movzbl 0xb` history 模式、
+// `mov %dl,0xa` 激活结果回写，均 1B）。成员名沿用同族
+// SIG_SECURITY_CARD_ADD_CERT_CNT 的 m_mId 约定。sizeof 0xc 不变。
 struct SIG_SECURITY_CARD_ACTIVATE
 {
-    char m_pad[0xc];
+    union
+    {
+        char m_pad[0xc];
+        struct
+        {
+            unsigned int m_mId;               // +0x00（member_security_card.m_id ← accId）
+            char m_certKey[6];                // +0x04（strncpy 6；SQL cert_key）
+            unsigned char m_activateResult;   // +0x0a（dispatch 回写 ok，1B）
+            unsigned char m_historyFlag;      // +0x0b（history modify_type 选择，1B）
+        };
+    };
 };
+static_assert(sizeof(SIG_SECURITY_CARD_ACTIVATE) == 0xc,
+              "SIG_SECURITY_CARD_ACTIVATE ABI drift");
 
+// 字段化（W8DB，ORIG 0x08436388 makeRequest 写 +0 accId；dispatch
+// NumberToString(m_id,0)——成员名沿用消费视图
+// OrigDBInter20.cpp SecurityCardAddCertCntView::m_mId）：
 struct SIG_SECURITY_CARD_ADD_CERT_CNT
 {
-    char m_pad[0x4];
+    unsigned int m_mId;      // +0x00（member_security_card.m_id ← accId）
 };
+static_assert(sizeof(SIG_SECURITY_CARD_ADD_CERT_CNT) == 0x4,
+              "SIG_SECURITY_CARD_ADD_CERT_CNT ABI drift");
 
 struct SIG_SECURITY_CARD_DISUSE
 {
-    char m_pad[0x4];
+    // 字段化（W8DB，ORIG 0x0842b790 makeRequest 写 +0 accId；dispatch
+    // 0x842b6e6 `*(uint*)sig` = m_id，见 W8LT_DBTask.cpp SecuDisuseView）：
+    unsigned int m_mId;      // +0x00（member_security_card.m_id ← accId）
 };
+static_assert(sizeof(SIG_SECURITY_CARD_DISUSE) == 0x4,
+              "SIG_SECURITY_CARD_DISUSE ABI drift");
 
+// 字段化（SecuLink 批次 2026-09-05，裸偏移清理；union 叠加保留 m_pad 基名）。
+// 证据：makeRequest ORIG 0x0842b57a（docs/class_func_reports/DB_SecurityCardIssue/
+// makeRequest.md：`mov %edx,(%eax)` 4B、strncpy +0x31(6)/+0x04(0x21)/+0x25(0xc)/
+// +0x37(0x27)/+0x63(0x29)）；dispatch ORIG 0x0842af94（同目录 dispatch.md 汇编
+// SQL 列对应实证：phone='%s' ← +0x63、cert_key ← +0x31、server_key ← +0x04、
+// card ← +0x37、q_pos strncpy ← +0x5e(5)、m_id ← +0x00）；_sendResult 回写
+// +0x8c ENUM_ERROR（OrigDBInter19.cpp SecuIssueView 同布局实证）。sizeof 0x90
+// 不变；仅 +0x00/+0x8c 为 4B 成员且偏移自然对齐，无需 pack。
 struct SIG_SECURITY_CARD_ISSUE
 {
-    char m_pad[0x90];
+    union
+    {
+        char m_pad[0x90];
+        struct
+        {
+            unsigned int m_mId;         // +0x00（member_security_card.m_id ← accId）
+            char m_serverKey[0x21];     // +0x04（SQL server_key）
+            char m_serial[0xc];         // +0x25（makeRequest 侧为 phone 入参；_sendResult 回传）
+            char m_certKey[6];          // +0x31（SQL cert_key）
+            char m_card[0x27];          // +0x37（SQL card）
+            char m_qPos[5];             // +0x5e（问题位置；dispatch strncpy 回写）
+            char m_phone[0x29];         // +0x63（SQL phone）
+            int m_error;                // +0x8c（_sendResult 回写 ENUM_ERROR，4B；
+                                        //      本头不引 CUser.h，按 int 落宽）
+        };
+    };
 };
+static_assert(sizeof(SIG_SECURITY_CARD_ISSUE) == 0x90,
+              "SIG_SECURITY_CARD_ISSUE ABI drift");
 
 struct SIG_SECURITY_CARD_RETRANSFER
 {
     char m_pad[0x8c];
 };
 
+// 字段化（W8DB，ORIG makeRequest 0x0843a34e：+0 uint accId、+4 uint type、
+// +8 ushort flag、+0xa strncpy 0x10 uid；dispatch 0x0843a11e 双义读：
+// +8 flag==8/0x10 分支、+4 既作 %d（时效秒差）又作 '%s'（validity_ip，
+// ORIG 缓冲区复用，消费点以 (char*)&m_type 表达）：
 struct SIG_SECURITY_CARD_SERVICE_VALIDITYTIME
 {
-    char m_pad[0x1c];
+    unsigned int m_mId;       // +0x00（m_id ← accId）
+    unsigned int m_type;      // +0x04（服务类型/时效；dispatch 兼作 validity_ip 串首）
+    unsigned short m_flag;    // +0x08（8=security_card / 0x10=goblin）
+    char m_uid[0x12];         // +0x0a（strncpy 0x10）
 };
+static_assert(sizeof(SIG_SECURITY_CARD_SERVICE_VALIDITYTIME) == 0x1c,
+              "SIG_SECURITY_CARD_SERVICE_VALIDITYTIME ABI drift");
 
+// 字段化（W8DB，ORIG 0x0842bfaa makeRequest 写 +0 accId / +4 failCnt；
+// DB_AccountCargoSync.cpp 0x08423eb4/0x0842403a 同型写 +0 m_id / +4
+// fail|cancelCnt / +8 strncpy(webAddr,0x10)；消费视图
+// OrigDBInter20.cpp SecurityCardFail/CancelCntView 同布局）：
 struct SIG_SECURITY_CARD_UPDATE_FAIL_CNT
 {
-    char m_pad[0x18];
+    unsigned int m_mId;      // +0x00（member_security_card.m_id ← accId）
+    unsigned int m_cnt;      // +0x04（fail_cnt / cancel_cnt，opcode 0xa4/0xa5 区分）
+    char m_webAddr[0x10];    // +0x08（ip_info / web 地址，strncpy 0x10）
 };
+static_assert(sizeof(SIG_SECURITY_CARD_UPDATE_FAIL_CNT) == 0x18,
+              "SIG_SECURITY_CARD_UPDATE_FAIL_CNT ABI drift");
 
+// 字段化（W8DB，ORIG 0x0842bce8 makeRequest：+0 uint accId、+4 uint flag；
+// dispatch 区域 NumberToString(m_id)/+%d flag，同
+// OrigDBInter20.cpp SecurityCardValidityTimeView）：
 struct SIG_SECURITY_CARD_UPDATE_VALIDITYTIME
 {
-    char m_pad[0x8];
+    unsigned int m_mId;      // +0x00（member_security_card.m_id ← accId）
+    unsigned int m_flag;     // +0x04（validity_time 秒差）
 };
+static_assert(sizeof(SIG_SECURITY_CARD_UPDATE_VALIDITYTIME) == 0x8,
+              "SIG_SECURITY_CARD_UPDATE_VALIDITYTIME ABI drift");
 
+// 字段化（W8DB，ORIG makeRequest 0x08437844：+0 uint accId、+4 char flag；
+// dispatch 区域 NumberToString(+0)=member_security_grade.m_id）：
 struct SIG_SECU_SERVICE_REWARD
 {
-    char m_pad[0x8];
+    unsigned int m_mId;      // +0x00（member_security_grade.m_id ← accId）
+    char m_flag;             // +0x04
+    char m_pad5[3];          // +0x05..0x07
 };
+static_assert(sizeof(SIG_SECU_SERVICE_REWARD) == 0x8,
+              "SIG_SECU_SERVICE_REWARD ABI drift");
 
 struct SIG_SEND_USER_REWARD
 {
@@ -402,25 +490,77 @@ struct SIG_UPDATE_LOGIN
 #pragma pack(push, 1)
 struct SIG_UPDATE_LOGOUT
 {
-    char m_pad[0x22];            // +0x00..0x21（头部字段区，见上）
+    // 头部 0x22 字段化：CUser::UpdateLogout @0x086554aa（ORIG store 宽度逐条
+    // 实证，报告 docs/class_func_reports/CUser/UpdateLogout.md）；m_pad 保留兼容。
+    union
+    {
+        char m_pad[0x22];
+        struct
+        {
+            int            m_accId;             // +0x00（movl ←this+0x704ac）
+            unsigned int   m_characNo;          // +0x04（movl；getCurCharacNo）
+            unsigned int   m_gcNo;              // +0x08（movl；get_gc_no[_hardcode]）
+            unsigned short m_fatigue;           // +0x0c（mov %dx；GetFatigue）
+            char           m_pad0e[4];          // +0x0e..0x11（无写点）
+            unsigned char  m_stateFlag;         // +0x12（movb $0/$1；get_state()>1）
+            int            m_playTime;          // +0x13（movl；now-m_loginTime，this+0x71ba4）
+            unsigned int   m_field17;           // +0x17（movl ←this+0x8d10c）
+            unsigned int   m_playExpAdd;        // +0x1b（movl ←this+0x703a4=gameOption.m_playExpAdd）
+            unsigned short m_totalFatigueUsed;  // +0x1f（movzwl ←this+0x79642）
+            unsigned char  m_puUser;            // +0x21（movzbl ←this+0x8d0df 直存 movb）
+        };
+    };
     unsigned char m_pcbangFlag;  // +0x22 pcbang/会员管理工具标志（SetUserManagerToolIP 置位）
     unsigned int m_ipDword;      // +0x23 ip 相关 dword（SetUserManagerToolIP 写）
     char m_ipBuf[0x10];          // +0x27 peer IP 串（GetPeerIP2 实参）
     char m_ipPrefix[0xc];        // +0x37 IP 前段（'.' 拆分；≤0xc 字节实证）
     char m_ipSuffix[4];          // +0x43 IP 后段（≤4 字节实证）
-    char m_pad47[0x8b - 0x47];   // +0x47..0x8a 保留
+    // 尾区字段化：UpdateLogout 0x08655735 `lea 0x47(%eax)` strncpy mac 0x41；
+    // 0x88 `mov %al`（IsEnableSaveMemberBonusFatigue 返字节直存）；
+    // 0x89 `mov %ax`（getAccountMemberBonusFatigue 2B）。
+    union
+    {
+        char m_pad47[0x8b - 0x47];
+        struct
+        {
+            char            m_mac[0x41];              // +0x47..0x87（mac 串）
+            unsigned char   m_saveMemberBonusFlag;    // +0x88
+            unsigned short  m_memberBonusFatigue;     // +0x89
+        };
+    };
 };
 #pragma pack(pop)
 
+// 字段化（CUserMain 2026-09-04）：CUser::UpdateData @0x08652xxx quest 脏块
+// （报告 docs/class_func_reports/CUser/UpdateData.md）：+0 movl characNo、
+// +0x04/+0x54 两组 0x14 dword（m_quest/m_trigger）、+0xa4 memcpy 30000 完成位图、
+// +0x75d4 movb $1、+0x75d5 movl urgentQuest、+0x75d9 memcpy authen 0x28、
+// memset 全块 0x7601。非对齐 dword ⇒ pack(1)。
+#pragma pack(push, 1)
 struct SIG_UPDATE_QUEST
 {
-    char m_pad[0x7601];
+    unsigned int   m_characNo;       // +0x0000
+    unsigned int   m_quest[0x14];    // +0x0004
+    unsigned int   m_trigger[0x14];  // +0x0054
+    char           m_clearedQuest[30000]; // +0x00a4..0x75d3
+    unsigned char  m_clearedFlag;    // +0x75d4
+    unsigned int   m_urgentQuest;    // +0x75d5
+    char           m_authen[0x28];   // +0x75d9..0x7600
 };
+static_assert(sizeof(SIG_UPDATE_QUEST) == 0x7601, "SIG_UPDATE_QUEST ABI drift");
+static_assert(offsetof(SIG_UPDATE_QUEST, m_urgentQuest) == 0x75d5, "quest urgent drift");
+static_assert(offsetof(SIG_UPDATE_QUEST, m_clearedFlag) == 0x75d4, "quest flag drift");
+#pragma pack(pop)
 
+// 字段化（W8DB，ORIG dispatch 0x0842f05e 实证：+0 m_id（NumberToString）
+// / +4 point（%d 增量），见 W8LT_DBTask.cpp 注释；makeRequest 写侧同款）：
 struct SIG_UPDATE_SCHOOL_POINT
 {
-    char m_pad[0x8];
+    unsigned int m_mId;      // +0x00（event_school_point.m_id）
+    int m_point;             // +0x04（point 增量）
 };
+static_assert(sizeof(SIG_UPDATE_SCHOOL_POINT) == 0x8,
+              "SIG_UPDATE_SCHOOL_POINT ABI drift");
 
 // 真实布局（GameWorld::UpdateStatistic4LEV ORIG memset 0x124；原 0x100 pad 已替换）
 struct SIG_UPDATE_STATISTIC4LEV
@@ -587,7 +727,49 @@ struct __attribute__((packed)) Packet_Mannerless_User_Accusation
 
 };
 struct SIG_AVATAR_MOVE { char m_pad[0x16]; };
-struct SIG_BILLING_RECORD { char m_pad[0x10e]; };
+// SIG_BILLING_RECORD —— 0x10e 字节计费记录（DB_BillingRecord 消费）。
+// 字段化证据（写侧 ItemVendingMachine::BillingRecord ORIG 0x0817991e 逐条栈槽，
+// docs/class_func_reports/ItemVendingMachine/BillingRecord.md；读侧
+// DB_BillingRecord::InsertBuyUser 0x08424602 / InsertSaleEntry 0x084247e0，
+// W8LT_DBTask.cpp DB_BillingRecordSigView 同布局）：全 int 字段 movl 实证、
+// m_userId[0x19]/m_birthday[0xb]/m_resultMessage[0x64]/m_userIp[0x10] strcpy/
+// sprintf/GetPeerIP2 实证、m_buyType 单字节写（ORIG movb %al,-0x2e(%ebp)）。
+#pragma pack(push, 1)
+struct SIG_BILLING_RECORD
+{
+    char m_agencyNo[0x15];      // +0x00（写 strcpy(rec,itemName)，读 '%s'=(char*)sig：agency_no 列）
+    int m_sealFlag;             // +0x15
+    int m_saleTime;             // +0x19
+    int m_price;                // +0x1d
+    int m_slotPartType;         // +0x21
+    int m_slotPartCode;         // +0x25
+    int m_ipgNo;                // +0x29
+    unsigned int m_mId;         // +0x2d（get_acc_id）
+    int m_characNo;             // +0x31
+    char m_userId[0x19];        // +0x35（get_acc_name strcpy）
+    int m_job;                  // +0x4e
+    int m_sex;                  // +0x52（世纪类型 1/2）
+    char m_birthday[0xb];       // +0x56（sprintf "19yy-mm-dd"）
+    int m_prizeFlag;            // +0x61
+    int m_resultCode;           // +0x65
+    char m_resultMessage[0x64]; // +0x69（accName strcpy）
+    int m_serverId;             // +0xcd
+    int m_growType;             // +0xd1
+    int m_level;                // +0xd5
+    int m_giftServerInfo;       // +0xd9（= m_serverId 复制）
+    int m_giftGetCharacNo;      // +0xdd
+    int m_chargePrice;          // +0xe1（= m_saleTime 复制）
+    int m_freePrice;            // +0xe5
+    int m_countNo;              // +0xe9
+    int m_eachPrice;            // +0xed（= m_saleTime 复制）
+    int m_priceType;            // +0xf1（mileage=2/cera=3/其他=1）
+    char m_userIp[0x10];        // +0xf5（GetPeerIP2；失败 "NONE"）
+    int m_tranNoLow;            // +0x105（uid 低 32 位）
+    int m_tranNoHigh;           // +0x109（uid 高 32 位）
+    char m_buyType;             // +0x10d（payFlag）
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_BILLING_RECORD) == 0x10e, "SIG_BILLING_RECORD ABI drift");
 // SIG_BOOSTER_GAGE_DATA（ORIG W ctor 0x0848fb4c：2×movl 清零；sizeof 0x8）。
 // 与 CBoosterGage.cpp 本地定义同名同布局（跨 TU 视图一致）。
 struct SIG_BOOSTER_GAGE_DATA
@@ -684,7 +866,24 @@ struct SIG_UPDATE_DETAIL_CHANNEL { char m_pad[0x10]; };
 struct SIG_UPDATE_GROWTYPE { char m_pad[0x5]; };
 struct SIG_UPDATE_NPC_RELATIONSHIP { char m_pad[0x260]; };
 struct SIG_UPDATE_SERVER_MESSAGE { char m_pad[0x60]; };
-struct SIG_VALUE_STATISTIC { char m_pad[0x80]; };
+// 字段化（W8DB，ORIG 0x0842945e DB_InsertValueStatistic::dispatch 实证：
+// +0x00..+0x68 共 28 个 uint，log_value_stat 列序 occ_time(from_unixtime
+// [0])/level[1]/uv[2]/drop_gold[3]/drop_item[4]/result_card_gold[5]/
+// result_card_item[6]/gold_card_item[7]/store_item_buy[8]/jar_item[9]/
+// disjoint_create[10]/upgrade_faild_forced_disjoint[11]/quest_reward[12]/
+// deathtower_card_gold[13]/deathtower_card_item[14]/consume_store_item_buy
+// [15]/consume_upgrade_attempt[16]/consume_upgrade_faild[17]/
+// consume_stamina_recovery[18]/consume_quest_consume[19]/
+// consume_auction_commision[20]/consume_item_disjoint[21]/
+// consume_item_repair[22]/consume_item_use[23]/consume_item_drop[24]/
+// consume_gold_drop[25]/consume_gold_card_price[26]... 末列 [27]）：
+struct SIG_VALUE_STATISTIC
+{
+    unsigned int m_stats[28];  // +0x00..+0x6c（log_value_stat 统计列，序见上）
+    char m_pad70[0x10];        // +0x70..0x7f
+};
+static_assert(sizeof(SIG_VALUE_STATISTIC) == 0x80,
+              "SIG_VALUE_STATISTIC ABI drift");
 // stAchievement_DBSaveData 权威定义见 CAchievement.h（此处不重复）
 struct stTitleBook_Save { char m_pad[0x6b3e]; };
 

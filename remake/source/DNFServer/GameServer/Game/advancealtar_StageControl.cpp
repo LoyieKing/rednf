@@ -400,8 +400,8 @@ void StageControl::sendMapInfo()
     body.m_stageType = procStage->getStageType();
     body.m_currentSurvivalRoundNo = procStage->getCurrentSurvivalRoundNo();
     body.m_mapIndex = map->get_index();
-    body.m_currentPhaseIndex = *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(timeLine) + 0xc);   // TimeLineSummary.m_field0
+    // TimeLine+0x0c = m_summary（TimeLineSummary）+0x00 = m_field0（int，`mov 0xc(%eax)`）。
+    body.m_currentPhaseIndex = timeLine->m_summary.m_field0;
     body.m_mapBasisLevel = procStage->getMapBasisLevel();
 
     PacketGuard guard;

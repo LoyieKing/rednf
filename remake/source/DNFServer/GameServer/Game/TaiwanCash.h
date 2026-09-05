@@ -240,13 +240,181 @@ public:
 // ---- WongWork::IPG::SIPGData —— IPG 请求数据（0x2dc）----
 // 尺寸实证：DynamicPool<SIPGData>::MoreAlloc 节点步长 imul $0x2e4
 // （0x081019c2），CNode = SIPGData + m_type(4) + m_inUse(1) → sizeof=0x2dc。
+//
+// 字段化（§8.3）：m_pad[0x2dc] 已按 ORIG 汇编逐偏移拆为具名字段；宽度/偏移证据
+// 来自 docs/class_func_reports/WongWork__IPG__{CIPGHelper,CIPGMgr,
+// CIPGMgr__CIPGWorker}/ 各报告 ## 汇编段（关键指令地址见字段行注）。
+// +0x69 之后的载荷区在 ORIG 中按 IPG 命令族复用同一字节区：Input / InputCancel /
+// Output(+Simulation) / OutputCancel+Confirm / Point / Query 应答六个视图的字段
+// 边界互不兼容（同族内字段首尾严格相接，跨族互相覆盖），故以 union 表达；
+// 每个视图 sizeof 均为 0x26f（+0x69..+0x2d7）。视图内 ORIG 拷贝长度常大于字段
+// 长度（不安全 strncpy/sprintf，属 ORIG 原样行为），消费侧保持原长度不做“修正”。
+#pragma pack(push, 1)
+
+// +0x69..：IPGInput / IPGInput(charge) 族视图
+// 证据 IPGInput.md：080ffb38 `lea 0xdd`+0xb / 080ffb58 `lea 0xe8`+0xc /
+// 080ffb78 `lea 0xf4`+0x14 / 080ffb9e `lea 0x108`+0x64 / 080ffbc4 `lea 0x16c`+0x64 /
+// 080ffbef `add $0x1d0`+0x32 / 080ffc17 `add $0x202`+0xe / 080ffc3f `add $0x210`+0x3c /
+// 080ffc5c `add $0x24c` memset 7；IPGInput_080ffca4.md：080ffe76
+// `mov %edx,0x98(%eax)`（4B 价格）、080ffe6a `mov %dl,0x26d(%eax)`（1B）。
+struct SIPGDataInputView
+{
+    char m_pad69[0x2f];          // +0x69（本族未访问）
+    unsigned int m_price;        // +0x98（IPGInput 9 参 price）
+    char m_pad9C[0x41];          // +0x9c
+    char m_argDD[0xb];           // +0xdd（strncpy n=0xb）
+    char m_argE8[0xc];           // +0xe8（strncpy n=0xc）
+    char m_argF4[0x14];          // +0xf4（strncpy n=0x14）
+    char m_arg108[0x64];         // +0x108（strncpy n=0x64，实参判空才写）
+    char m_arg16C[0x64];         // +0x16c（strncpy n=0x64，实参判空才写）
+    char m_userName[0x32];       // +0x1d0（GetUserName，strncpy n=0x32）
+    char m_ssn[0xe];             // +0x202（GetSsnString，strncpy n=0xe）
+    char m_email[0x3c];          // +0x210（GetUserEMail，strncpy n=0x3c）
+    char m_zero24C[7];           // +0x24c（ORIG memset(d+0x24c,0,7)）
+    char m_pad253[0x1a];         // +0x253
+    unsigned char m_serviceType; // +0x26d（`mov %dl,0x26d` 1B；charge 第 2 参）
+    char m_pad26E[0x6a];         // +0x26e
+};
+
+// +0x69..：IPGInputCancel 视图
+// 证据 IPGInputCancel.md：080ffed6 `add $0x69`+0x15 / 080ffef3 `add $0x7e`+0xb /
+// 080fff10 `add $0x89`+0xc / 080fff2f `add $0x95`+0x14 / 080fff54 `add $0xa9`+0x64 /
+// 080fff79 `add $0x10d`+0x64。
+struct SIPGDataInputCancelView
+{
+    char m_arg69[0x15];          // +0x69
+    char m_arg7E[0xb];           // +0x7e
+    char m_arg89[0xc];           // +0x89
+    char m_arg95[0x14];          // +0x95
+    char m_argA9[0x64];          // +0xa9
+    char m_arg10D[0x64];         // +0x10d
+    char m_pad171[0x167];        // +0x171
+};
+
+// +0x69..：IPGOutput / IPGOutputSimulation / ProcIPGSyncForTaiwan case2 视图
+// 证据 IPGOutput.md：0810025c `add $0x69`+8 / 08100279 `add $0x71`+0xc /
+// 08100296 `add $0x7d`+0x14 / 081002b9 `add $0x91`+0x64 / 081002de `add $0xf5`+0x64 /
+// 08100308 `add $0x1e8`+0x3a；ProcIPGSyncForTaiwan.md case2：08104ae6 atoi(d+0x71)、
+// 08104af6 atoi(d+0x69)、08104cf4/08104cfd/08104d06 三条 `mov %edx,0x1dc/0x1e0/0x1e4`、
+// 08104d0f `add $0x173` sprintf、08104d2e `add $0x177` memcpy n=1。
+struct SIPGDataOutputView
+{
+    char m_price[8];             // +0x69（IPGOutput p2 n=8；case2 atoi 入参）
+    char m_pay[0xc];             // +0x71（p3 n=0xc；case2 atoi 入参）
+    char m_arg7D[0x14];          // +0x7d（p4 n=0x14）
+    char m_desc91[0x64];         // +0x91（p5 n=0x64，判空才写）
+    char m_descF5[0x64];         // +0xf5（p6 n=0x64，判空才写）
+    char m_pad159[0x1a];         // +0x159
+    char m_resultCode[4];        // +0x173（case2/case6 sprintf "%d"；Sim memcpy "0",2）
+    char m_message[0x65];        // +0x177（case2 memcpy n=1；case6 strncpy "cera point",100）
+    unsigned int m_tranField0;   // +0x1dc（← 局部 BillTransaction.m_field0）
+    unsigned long long m_tranNo; // +0x1e0（← 局部 tran.m_tranNo；0x1e0/0x1e4 两 dword）
+    char m_recvCharac[0x3a];     // +0x1e8（getCurCharacName n=0x3a；case2 purchase 末串）
+    char m_pad222[0xb6];         // +0x222
+};
+
+// +0x69..：IPGOutputCancel / IPGOutputConfirm 族视图（9 参写入 + SIPGData 重载搬运）
+// 证据 IPGOutputCancel.md：0810050c `add $0x69`+0x15 / 08100529 `add $0x7e`+8 /
+// 08100543 `add $0x86`+0xc / 08100565 `add $0x92`+0x14 / 0810058a `add $0xa6`+0x64 /
+// 081005af `add $0x10a`+0x64 / 081005df/081005e8/081005f1（tran → 0x1f0/0x1f4/0x1f8）；
+// IPGOutputCancel_08100616.md：08100650 `add $0x16e`（响应块源串 n=0x15）、
+// 08100745/08100751/0810075d（响应块 tran 三 dword）。
+struct SIPGDataCancelView
+{
+    char m_arg69[0x15];          // +0x69
+    char m_arg7E[8];             // +0x7e
+    char m_arg86[0xc];           // +0x86
+    char m_arg92[0x14];          // +0x92
+    char m_argA6[0x64];          // +0xa6
+    char m_arg10A[0x64];         // +0x10a
+    char m_srcMsg16E[0x15];      // +0x16e（响应块被读侧：strncpy n=0x15 的源）
+    char m_pad183[0x59];         // +0x183
+    unsigned int m_resTranField0;   // +0x1dc（响应块 tran.m_field0）
+    unsigned long long m_resTranNo; // +0x1e0（响应块 tran.m_tranNo，0x1e0/0x1e4）
+    char m_pad1E8[8];            // +0x1e8
+    unsigned int m_tranField0;   // +0x1f0（`mov %ecx,0x1f0(%eax)`）
+    unsigned long long m_tranNo; // +0x1f4（0x1f4/0x1f8；case3/case5 读回 BillTransaction）
+    char m_pad1FC[0xdc];         // +0x1fc
+};
+
+// +0x69..：Point 族视图（IPGInputPoint / IPGOutputPoint / case6 ceraPoint）
+// 证据 IPGInputPoint.md：08100069 `add $0x8c`+8 / 08100089 `add $0x94`+0x15 /
+// 081000ac `mov %edx,0xac(%eax)` 4B / 081000b5 `movb $0x41,0xb0` / 081000c3
+// `mov %dl,0xb1` / 081000d0 `mov %dl,0xb2`；ProcIPGSyncForTaiwan.md case6：
+// 08104f55 `mov 0xac(%eax)`、08104f60 `movzbl 0xb2`、08104f6d `movzbl 0xb1`、
+// 08104f93 `movzbl 0xb0`（08105061 `cmp $0x41,%al`）、08104ff6 `add $0xb3` sprintf。
+struct SIPGDataPointView
+{
+    char m_pad69[0x23];          // +0x69（+0x64 处 n=0x28 的 strncpy 覆盖本区前部【ORIG 越界】）
+    char m_itemNo[8];            // +0x8c（strncpy n=8；ceraPoint p4）
+    char m_arg94[0x18];          // +0x94（strncpy n=0x15；ceraPoint p5；扩到 0x18 以衔接 +0xac）
+    unsigned int m_point;        // +0xac（`mov %edx,0xac(%eax)` 4B）
+    unsigned char m_command;     // +0xb0（`movb $0x41`/`$0x55`；case6 `movzbl 0xb0` 比 'A'）
+    unsigned char m_cmdA;        // +0xb1（`mov %dl,0xb1`；ceraPoint p6）
+    unsigned char m_cmdB;        // +0xb2（`mov %dl,0xb2`；ceraPoint p7）
+    char m_reasonB3[4];          // +0xb3（case6 失败 sprintf "%d" rc）
+    char m_padB7[0xbc];          // +0xb7
+    char m_resultCode[4];        // +0x173（case6 sprintf "%d" rc）
+    char m_message[0x65];        // +0x177（case6 strncpy "cera point",100）
+    char m_pad1DC[0xfc];         // +0x1dc
+};
+
+// +0x69..：Query 应答视图（case4 写侧 / ItemVendingMachine::ProcessIPG_ResultQuery 读侧）
+// 证据 ProcIPGSyncForTaiwan.md case4：08104a65 `add $0x69` sprintf point、
+// 08104a9e `add $0xb1` sprintf rc、08104a82 `add $0xb5` sprintf bal；
+// 消费侧 docs/class_func_reports/ItemVendingMachine/ProcessIPG_ResultQuery.md
+// （ORIG 0x081784d4）以 +0x69/0x75/0x81/0x8d/0x99/0xa5 六个 0xc 步进槽 atoi 求和。
+struct SIPGDataQueryView
+{
+    char m_ceraValues[6][0xc];   // +0x69..+0xb4（六项 cera 数值，0xc 步进）
+    char m_retCode[4];           // +0xb1（atoi 返回码 / sprintf rc）
+    char m_ceraPoint[0xc];       // +0xb5（atoi cera point / sprintf bal）
+    char m_padC1[0x217];         // +0xc1
+};
+
+// 载荷命令族 union（+0x69 起，0x26f 字节）
+union SIPGDataCmdView
+{
+    SIPGDataInputView m_input;
+    SIPGDataInputCancelView m_inputCancel;
+    SIPGDataOutputView m_output;
+    SIPGDataCancelView m_cancel;
+    SIPGDataPointView m_point;
+    SIPGDataQueryView m_query;
+    char m_raw[0x26f];           // 未建模偏移兜底（整区搬运/清零）
+};
+
 struct SIPGData
 {
     // ORIG DynamicPool<SIPGData>::CNode::C1（0x081019xx）以 rep stos 清零
-    // 整个 0x2dc 节点体——SIPGData 为 POD 无构造，由 CNode 构造补 memset。
+    // 整个 0x2dc 节点体；SIPGData 无字段级默认值，由该 memset 统一清零。
     SIPGData() { memset(this, 0, sizeof(*this)); }
-    char m_pad[0x2dc];
+
+    unsigned int m_recordLen;    // +0x00（_SetIPGData 08100ada `mov %edx,(%eax)` ← m_dataTableA[type]；Sim 用作 memcpy 长度）
+    char m_envCode[0x14];        // +0x04（strncpy 自 CIPGHelper+0x24，n=0x14；语义=环境/站点码【推断】）
+    unsigned short m_productCode; // +0x18（08100b0e `mov %dx,0x18(%eax)` ← m_dataTableB[type]，2B）
+    char m_pad1A[2];             // +0x1a（ORIG 无访问；m_type 实证在 +0x1c）
+    int m_type;                  // +0x1c（IPG_DATA_TYPE；081048dc `mov 0x1c(%eax),%eax` switch 键）
+    unsigned int m_uid;          // +0x20（08100b22 `mov %edx,0x20(%eax)` = CUser::GetUID；Confirm 重载写 0xffffffff）
+    unsigned char m_notifyFlag;  // +0x24（`mov %dl,0x24(%eax)` 直存 flag；IPGResult 081009c5 `movzbl 0x24` 决定入队/回收）
+    char m_pad25[3];             // +0x25（ORIG 无访问）
+    char m_account[0x14];        // +0x28（snprintf/sprintf 账号；case2 strcpy / case6 strncpy ""）
+    char m_accName[0x14];        // +0x3c（get_acc_name strncpy n=0x28【ORIG 越界】；getBalance/purchase/ceraPoint 入参）
+    char m_characName[0x14];     // +0x50（getCurCharacName strncpy n=0x1e；charge 的 charac 入参）
+    char m_gameCode[5];          // +0x64（_SetIPGData memcpy "DUNF",5；case4 strncpy n=5；Point 族以 n=0x28 覆写【ORIG 越界】）
+    SIPGDataCmdView m_cmd;       // +0x69（命令族复用区，见上六个视图）
+    void* m_callback;            // +0x2d8（`mov %edx,0x2d8(%eax)` 存调用方 callback；IPGQuery 081007be `movl $0x0,0x2d8`）
 };
+
+#pragma pack(pop)
+
+static_assert(sizeof(SIPGDataInputView) == 0x26f, "SIPGData input view drift");
+static_assert(sizeof(SIPGDataInputCancelView) == 0x26f, "SIPGData input-cancel view drift");
+static_assert(sizeof(SIPGDataOutputView) == 0x26f, "SIPGData output view drift");
+static_assert(sizeof(SIPGDataCancelView) == 0x26f, "SIPGData cancel view drift");
+static_assert(sizeof(SIPGDataPointView) == 0x26f, "SIPGData point view drift");
+static_assert(sizeof(SIPGDataQueryView) == 0x26f, "SIPGData query view drift");
+static_assert(sizeof(SIPGDataCmdView) == 0x26f, "SIPGData cmd union drift");
 
 
 class CIPGMgr;   // 前置：CIPGHelper 成员/返回类型引用（完整定义见下）

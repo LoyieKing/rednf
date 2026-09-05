@@ -35,22 +35,44 @@ struct _Additioal_info
 
     // u16 字段在 add/subtract 中为零扩展后 mod 2^16 运算，
     // 用 unsigned short 保证无符号回绕良构、与 movzwl 指令语义一致。
-    int            m_field00;      // +0x00（InitializeStat 基础值，随职业变化）
-    int            m_field04;      // +0x04
+    // 2026-09-05 §4.3（DBCharac 批次）：charac_info DB 列绑定别名——get_* 引用
+    // 形参类型即 ORIG 源字段类型实证（DB_LoadCharac::_getCharacInfo/_GetTagCharacInfo
+    // 报告 callee：get_uint@0x080e22f2 / get_short@0x080fddec）；旧名旧类型保留，
+    // add/subtract/InitializeStat 消费者零改动，union 两侧同宽 sizeof 不变。
+    union { int            m_field00;      // +0x00（InitializeStat 基础值，随职业变化）
+                   unsigned int    m_maxHP;   // +0x00 = charac_info.maxHP（get_uint）
+    };
+    union { int            m_field04;      // +0x04
+                   unsigned int    m_maxMP;   // +0x04 = charac_info.maxMP（get_uint）
+    };
     unsigned short m_field08;      // +0x08
     unsigned short m_field0a;      // +0x0a
     unsigned short m_field0c;      // +0x0c
     unsigned short m_field0e;      // +0x0e
-    unsigned short m_field10[4];   // +0x10..+0x16（add/subtract 循环 i=0..3）
-    unsigned short m_field18[17];  // +0x18..+0x38（循环 j=0..16）
+    union { unsigned short m_field10[4];   // +0x10..+0x16（add/subtract 循环 i=0..3）
+                   char            m_elementResist[8]; // +0x10 element_resist（get_binary 8）
+    };
+    union { unsigned short m_field18[17];  // +0x18..+0x38（循环 j=0..16）
+                   char            m_specProperty[0x22]; // +0x18 spec_property（get_binary 0x22）
+    };
     int            m_field3a;      // +0x3a
-    unsigned short m_field3e;      // +0x3e
-    unsigned short m_field40;      // +0x40
-    int            m_field42;      // +0x42
+    union { unsigned short m_field3e;      // +0x3e
+                   short            m_hpRegen;  // +0x3e hp_regen（get_short short&）
+    };
+    union { unsigned short m_field40;      // +0x40
+                   short            m_mpRegen;  // +0x40 mp_regen（get_short short&）
+    };
+    union { int            m_field42;      // +0x42
+                   unsigned int     m_moveSpeed; // +0x42 move_speed（get_uint）
+    };
     unsigned short m_field46;      // +0x46
     unsigned short m_field48;      // +0x48
-    unsigned short m_field4a;      // +0x4a
-    unsigned short m_field4c;      // +0x4c（subtract 中 ORIG 仍执行加法）
+    union { unsigned short m_field4a;      // +0x4a
+                   short            m_hitRecovery; // +0x4a hit_recovery（get_short short&）
+    };
+    union { unsigned short m_field4c;      // +0x4c（subtract 中 ORIG 仍执行加法）
+                   short            m_jump;      // +0x4c jump（get_short short&）
+    };
     int            m_field4e;      // +0x4e（subtract 中 ORIG 仍执行加法）
 };
 #pragma pack(pop)
@@ -94,8 +116,11 @@ public:
     // secondGrow 1..2 → m_secondGrowTypes[grow+1].m_skills[secondGrow-1]。
     char get_give_skill_secondGrowtype(int grow, int secondGrow,
                                        std::vector<std::pair<int, int> >& out) const;
-    // ORIG T 0x0834883e：按 (firstGrow,secondGrow) 返回成长属性块指针（+0x000 区内）
-    const void* get_growtype_stat(int firstGrow, int secondGrow) const;
+    // ORIG T 0x0834883e：按 (firstGrow,secondGrow) 返回成长属性块指针。
+    // 返回块地址恒为 0x52 步长的 _Additioal_info（CalcStat.md 调用点直接以
+    // _Additioal_info::add 消费；ORIG asm call 08146300 add 实参即此返回值），
+    // 故原型具型为 const _Additioal_info*（mangled 不含返回类型，ABI 不变）。
+    const _Additioal_info* get_growtype_stat(int firstGrow, int secondGrow) const;
 
 public:  // ORIG SetSkillTree 0x84ef8cd 直访 m_characs[job]+0x240（m_giveSkillList[0]）
     _Additioal_info m_baseInfo[7];                 // +0x000..+0x23f

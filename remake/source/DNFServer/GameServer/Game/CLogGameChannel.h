@@ -19,7 +19,9 @@ namespace WongWork
 class CLogGameChannel
 {
 public:
-    CLogGameChannel();                                  // 0x082a71c4 W
+    // ORIG GlobalData::Init 0x0829b512 new (nothrow) CLogGameChannel 块**无**
+    // delete/Unwind cleanup（对照相邻 CCeraShop@0x0829b569 有）⇒ 编译期可见 nothrow。
+    CLogGameChannel() __attribute__((nothrow));         // 0x082a71c4 W
     void StartLogTimer();                               // 0x085503ea
     void SetNextLogTimer();                             // 0x085503fe
     void IncInUser();                                   // 0x085506de

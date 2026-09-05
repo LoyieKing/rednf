@@ -307,7 +307,7 @@ public:
     int GetHellPartyEventType(char diff);                     // 082ffb06
     int GetTotalSkillMaterial();                              // 0830de1c
     int GetTournamentCurRound();                              // 082fe6ae
-    int SetRidableObjectState(int idx, eRidableObjectState state);  // 085bf228（转发 m_ridable 返回值）
+    bool SetRidableObjectState(int idx, eRidableObjectState state);  // 085bf228（转发 m_ridable 返回值）
     void SetTournamentCurRound(int round);                    // 082fe69c
     int getLayeredMapKeyValue(int idx);                       // 0830df56
     char getUltimateDifficylty();                             // 0822d02e
@@ -462,10 +462,15 @@ public:
     char m_hellPartyRandom;                // +0x1ce
     char m_hellPartyDropFlag;              // +0x1cf
     int m_hellItemStatistic[6];            // +0x1d0
-    float m_hellPartyRatio0;               // +0x1e8
-    float m_hellPartyRatio1;               // +0x1ec
-    float m_hellPartyRatio2;               // +0x1f0
-    float m_hellPartyRatio3;               // +0x1f4
+    // +0x1e8/+0x1ec/+0x1f4 实为 int dword：reset_hell_party_value.md 0x0830a595/
+    // 0x0830a5ae/0x0830a5c7 以整数 mov 拷贝 script[0]/[+4]/[+0xc]；消费方均
+    // fildl/int 运算（send_hellParty_value +0xd0c 分母、sub_hellparty_value
+    // +0xd10 下限、cal_hellparty_value +0xd18 系数与 +0xd0c 上限、clear_reward
+    // +0x2ab3）。+0x1f0 无 ORIG 读写证据，保留 float（2026-09-03 修正）。
+    int m_hellPartyRatio0;                 // +0x1e8（int：script[0] 分母/上限）
+    int m_hellPartyRatio1;                 // +0x1ec（int：script[1] 最小下限）
+    float m_hellPartyRatio2;               // +0x1f0（无证据，保留 float）
+    int m_hellPartyRatio3;                 // +0x1f4（int：script[3] 乘法系数）
     float m_hellPartyRatio4;               // +0x1f8
     float m_hellPartyRatio5;               // +0x1fc
     float m_hellPartyDungeonRate[4];       // +0x200

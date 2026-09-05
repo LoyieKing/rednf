@@ -197,20 +197,55 @@ struct stGenerateRefData_t
     int m_field28;                  // +0x28（ctor=11）
     int m_field2c;                  // +0x2c
     int m_field30;                  // +0x30
-    // +0x34..+0x47：调用方上下文区。独立掉落路径（generateIndependentItem
-    // 0x834989a / independentItemRateControl 0x834972f）按字节读取以下字段；
-    // 其余仍由调用方按原始偏移写入（保持字节布局不变）。
-	char m_field34;                 // +0x34（基准值；与 +0x3f 组成等级差【推断】）
-	char m_field35;                 // +0x35
+    // ---- +0x34..+0x47：调用方上下文区（全部具名，2026-09-05 BossMission 批次）----
+    // 独立掉落路径（generateIndependentItem 0x834989a /
+    // independentItemRateControl 0x834972f）按字节读取本区；
+    // 调用方（CBossPlay::generateRewardItem 0x08149914、WarField、CBossStage、
+    // BattleMonsterDepsC2 等）写入宽度不一，故下列成员以 union 叠加
+    // “整字 / 半字 / float” 视图，逐一对齐 ORIG 指令宽度
+    // （movl / movw / float 位型）；旧基名全部保留 → 消费者零破坏。
+	char m_field34;                 // +0x34（基准值；与 +0x3f 组成等级差【推断】；
+	                                //   CBossPlay 写掉落等级参数 a，WongWorkDrop 侧按 type 读）
+	char m_field35;                 // +0x35（CBossPlay 写难度 diff，WarField 写 mob level）
 	char m_rateSlot;                // +0x36（m_rate[] 掉率档位下标【推断】；WarField 写 mob level）
 	char m_pad37;                   // +0x37
-	int m_rankBonusIndex;           // +0x38（eRankBonusIndex；_generateRandomItem 按 float 位型读）
-	unsigned short m_goldBase;      // +0x3c（金币公式基数分量）
-	unsigned short m_goldFactor;    // +0x3e（金币公式加倍分量）
-	CDungeon* m_dungeon;            // +0x40（_generateSpecificItem 取 clear_item 的目标副本）
+	union
+	{
+		int   m_rankBonusIndex;     // +0x38（eRankBonusIndex；_generateRandomItem 按 float 位型读）
+		float m_rankBonusRate;      // +0x38（float 视图：ORIG CBossPlay::generateRewardItem
+		                            //   特定分支 `mov $0x3f800000,%eax; mov %eax,-0xec(%ebp)`
+		                            //   即写 1.0f；随机分支同槽写整型 1）
+	};
+	union
+	{
+		int m_field3c;              // +0x3c（整字视图：ORIG 特定分支 `movl $0x0,-0xe8(%ebp)`）
+		struct
+		{
+			unsigned short m_goldBase;    // +0x3c（金币公式基数分量；随机分支 movw $1）
+			unsigned short m_goldFactor;  // +0x3e（金币公式加倍分量；随机分支 movw $1）
+		};
+	};
+	union
+	{
+		CDungeon* m_dungeon;        // +0x40（_generateSpecificItem 取 clear_item 的目标副本；
+		                            //   ORIG 特定分支 `mov %eax,-0xe4(%ebp)` 整字写）
+		struct
+		{
+			unsigned short m_field40;     // +0x40（半字视图：ORIG 随机分支 movw $1）
+			unsigned short m_field42;     // +0x42（半字视图：ORIG 随机分支 movw $1，
+			                            //   两半合成指针位型 0x10001，随机路径不解引用）
+		};
+	};
 	unsigned short m_field44;       // +0x44
 	char m_pad46[2];                // +0x46..+0x47
 };
+// 布局自检（union 仅叠加视图，sizeof/成员偏移零漂移）。
+static_assert(sizeof(stGenerateRefData_t) == 0x48, "stGenerateRefData_t size drift");
+static_assert(offsetof(stGenerateRefData_t, m_field34) == 0x34, "ref m_field34 drift");
+static_assert(offsetof(stGenerateRefData_t, m_rankBonusIndex) == 0x38, "ref +0x38 drift");
+static_assert(offsetof(stGenerateRefData_t, m_field3c) == 0x3c, "ref +0x3c drift");
+static_assert(offsetof(stGenerateRefData_t, m_dungeon) == 0x40, "ref +0x40 drift");
+static_assert(offsetof(stGenerateRefData_t, m_field44) == 0x44, "ref +0x44 drift");
 
 // ---- stGenerateResult_t（掉落生成结果；sizeof 0x30） ----
 // 注意：ORIG 无 +0x0f「幸运」成员。+0x00 vector(0xc) + +0x0c CLuckPoint(0x24)

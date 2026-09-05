@@ -119,11 +119,18 @@ struct SIG_CREATURE_ITEM
     int m_slot;                 // +0x2c
     int m_addInfo2;             // +0x30（RecvMail/SendMail ← item+0x07；
                                 //        UseFeedCreature 承载宠物 uid）
-    unsigned char m_pad34[0x10];
+    // 具名化（W8DB：ORIG 0x833fc1a RenameCreatureItem strncpy(+0x34,0xc)、
+    // DB_UpdateCreatureItem::GetField escape_string(+0x34)、dispatch
+    // get_str(2,+0x34,0xd)、insertCreatureItem SQL '%s'(+0x34)——+0x34 区
+    // 为物品名字段；原 m_pad34）：
+    char m_name[0x10];          // +0x34（名字区，ORIG 写 ≤0xd）
     int m_stomachValue;         // +0x44（UseFeedCreature=喂食后饱食度；
                                 //        InsertCreatureItem 固定写 100）
     int m_characNo;             // +0x48
-    unsigned char m_pad4c[4];
+    int m_exp;                  // +0x4c（ORIG insertCreatureItem/GetField
+                                //   SQL exp=%d 实参 = *(int*)(sig+0x4c)；
+                                //   dispatch get_int(4) 回填同槽；
+                                //   CCreature.cpp:391 写侧，原 m_pad4c）
     unsigned char m_flag50;     // +0x50（InsertCreatureItem：get_sub_type()==0→1）
     unsigned char m_reason;     // +0x51
     unsigned char m_keepRight;  // +0x52（UseKeepRight W 0x083401ec：flag 低字节）
@@ -174,10 +181,17 @@ static_assert(offsetof(SIG_CREATURE_ITEM_LAYOUT_MIRROR, m_ceraOrderNo) == 0x60, 
 static_assert(offsetof(SIG_CREATURE_ITEM_LAYOUT_MIRROR, m_field64) == 0x64, "SIG_CREATURE_ITEM m_field64 offset");
 static_assert(offsetof(SIG_CREATURE_ITEM_LAYOUT_MIRROR, m_mapSize) == 0x68, "SIG_CREATURE_ITEM m_mapSize offset");
 
+// 字段化（W8DB，ORIG 0x0841fd12 DB_UpdateCreatureItemList::dispatch 实证：
+// 首 int=条目数；+0x21a4 起行数组（步长 0x38，见 W8LT_DBTask.cpp
+// DB_CreatureItemListEntry），行区基址为运行期布局常量，非成员类型可
+// 内嵌（行类型定义于消费 TU），故仅具名 count 头）：
 struct SIG_CREATURE_ITEM_LIST
 {
-    char m_pad[0x4078];
+    int m_count;              // +0x0000（条目数）
+    char m_blob[0x4074];      // +0x0004（头 + 行数组，行区 @+0x21a4）
 };
+static_assert(sizeof(SIG_CREATURE_ITEM_LIST) == 0x4078,
+              "SIG_CREATURE_ITEM_LIST ABI drift");
 
 struct SIG_DEATH_TOWER_GET_BEST_RECORD
 {
@@ -311,28 +325,85 @@ struct SIG_EXTEND_CHARAC_SLOT
 // SIG_FAIR_PVP_SCORE（总 0x688）。+0x00 characNo、+0x2c job_score 压缩 blob
 // 源（0x650）、+0x67c dailyPlayCount；尾部字段按 W8LT_DBTask.cpp
 // DB_FairPvPScoreView 实证补具名。
+// 2026-09-04 m_pad[0x680] 拆具名（WarField 批）：逐字段宽度/偏移由 ORIG
+// fair_pvp::CFairPvPScore::getData 0x084a55a8 与 loadData 0x084a48f8 反汇编
+// 实证（docs/class_func_reports/fair_pvp__CFairPvPScore/getData.md、
+// loadData.md）：
+//   +0x00 movl ← _saveData 0x084a57fe `*(int*)sig = get_charac_no(-1)`；
+//   +0x04..+0x18 movl ×6（getData +0x1a4 循环 i*0xc：modeA/B 三统计）；
+//   +0x1c/0x20/0x24/0x28 movl（field40/field44/winStreak/bestWinStreak）；
+//   +0x2c movzbl+incb（jobScoreCount，getData 每 entry ++）；
+//   +0x30.. 100 × entry（getData entry 基址 = (idx+2)*0x10+0x10 = idx*0x10+0x30；
+//        movb job / movb sub / movl cnt0..cnt2@+4/+8/+0xc）；
+//   +0x670..0x679 movb/movzbl（recentResults ≤10 条）；
+//   +0x67c/0x680 movl（dailyPlayCount / lastPlayTime）；+0x684 movb（giveItem）。
+// 命名与 fair_pvp::CFairPvPScore 成员一一对应（线格式镜像）。
+struct SIG_FAIR_PVP_SCORE_ENTRY   // 职业计分条目（stride 0x10）
+{
+    unsigned char m_job;      // +0x00（movb 写 / movzbl 读）
+    unsigned char m_sub;      // +0x01
+    char m_pad02[2];          // +0x02
+    int m_cnt0;               // +0x04
+    int m_cnt1;               // +0x08
+    int m_cnt2;               // +0x0c
+};
+static_assert(sizeof(SIG_FAIR_PVP_SCORE_ENTRY) == 0x10,
+              "SIG_FAIR_PVP_SCORE_ENTRY size");
+
 struct SIG_FAIR_PVP_SCORE
 {
-    char m_pad[0x680];
-    unsigned int m_lastPlayTime;   // +0x680（from_unixtime 时间戳；CFairPvPScore 写 getCurSec）
-    unsigned char m_giveItem;      // +0x684
-    char m_pad685[3];              // +0x685..0x687
+    int m_characNo;                            // +0x00
+    int m_modeStats[2][3];                     // +0x04..+0x18（modeA0..2 / modeB0..2）
+    int m_field1c;                             // +0x1c（↔ CFairPvPScore::m_field40）
+    int m_field20;                             // +0x20（↔ m_field44）
+    int m_winStreak;                           // +0x24
+    int m_bestWinStreak;                       // +0x28
+    unsigned char m_jobScoreCount;             // +0x2c
+    char m_pad2d[3];                           // +0x2d..0x2f
+    SIG_FAIR_PVP_SCORE_ENTRY m_jobScore[100];  // +0x30..+0x66f
+    unsigned char m_recentResults[10];         // +0x670..0x679
+    char m_pad67a[2];                          // +0x67a..0x67b
+    int m_dailyPlayCount;                      // +0x67c
+    unsigned int m_lastPlayTime;               // +0x680（from_unixtime 时间戳；CFairPvPScore 写 getCurSec）
+    unsigned char m_giveItem;                  // +0x684
+    char m_pad685[3];                          // +0x685..0x687
 };
+static_assert(sizeof(SIG_FAIR_PVP_SCORE) == 0x688, "SIG_FAIR_PVP_SCORE size");
 
+// 字段化（W8DB，ORIG 0x08436ba0 DB_FindFactoryHub::dispatch 实证：+0 uint
+// m_id（与 charac_info 查得 m_id 比对）、+4 角色名（escape_string/strncpy
+// 0x1d）、+0x21 byte（转发 FATIGUE_CHECK+4）；尾 2 字节为对齐驻留）：
 struct SIG_FIND_FACTORY_HUB
 {
-    char m_pad[0x24];
+    unsigned int m_mId;         // +0x00
+    char m_characName[0x1d];    // +0x04
+    char m_field21;             // +0x21
+    char m_pad22[2];            // +0x22..0x23
 };
+static_assert(sizeof(SIG_FIND_FACTORY_HUB) == 0x24,
+              "SIG_FIND_FACTORY_HUB ABI drift");
 
+// 字段化（W8DB，ORIG 0x08436ba0 出站组包实证：+0 uint mId、+4 byte
+// （← SIG_FIND_FACTORY_HUB+0x21）、+5 strncpy(name,0x1d)；尾 2 对齐驻留）：
 struct SIG_FIND_FACTORY_HUB_FATIGUE_CHECK
 {
-    char m_pad[0x24];
+    unsigned int m_mId;         // +0x00
+    char m_flag;                // +0x04
+    char m_characName[0x1d];    // +0x05
+    char m_pad22[2];            // +0x22..0x23
 };
+static_assert(sizeof(SIG_FIND_FACTORY_HUB_FATIGUE_CHECK) == 0x24,
+              "SIG_FIND_FACTORY_HUB_FATIGUE_CHECK ABI drift");
 
+// 字段化（W8DB，ORIG 0x08437c50 makeRequest 实证：strncpy(+0,name,0x1d)、
+// +0x1e ushort flag）：
 struct SIG_FIND_FACTORY_HUB_USER
 {
-    char m_pad[0x20];
+    char m_characName[0x1e];    // +0x00（strncpy 0x1d + 尾 0）
+    unsigned short m_flag;      // +0x1e
 };
+static_assert(sizeof(SIG_FIND_FACTORY_HUB_USER) == 0x20,
+              "SIG_FIND_FACTORY_HUB_USER ABI drift");
 
 struct SIG_FIND_FACTORY_HUB_USER_NO_CONN
 {
@@ -350,17 +421,26 @@ struct SIG_GET_PREMIUM_SELECTED_CUBE_INFO
                                // 写 getCurCharacR() 首字段整型（characNo）
 };
 
+// 字段化（W8DB，ORIG 0x0844c4e2 dispatch 实证：+0 uint characNo、
+// +4 ubyte（get_ubyte(0)←cube_premium.selected）、+5 ubyte
+// （get_ubyte(1)←cube_type）；+6..7 驻留）：
 struct SIG_GET_PREMIUM_SELECTED_CUBE_INFO_RES
 {
-    char m_pad[0x8];
+    unsigned int m_characNo;      // +0x00
+    unsigned char m_selected;     // +0x04
+    unsigned char m_cubeType;     // +0x05
+    char m_pad6[2];               // +0x06..0x07
 };
+static_assert(sizeof(SIG_GET_PREMIUM_SELECTED_CUBE_INFO_RES) == 0x8,
+              "SIG_GET_PREMIUM_SELECTED_CUBE_INFO_RES ABI drift");
 
 struct SIG_GET_USER_REGDATE
 {
     // ORIG makeRequest(0x8442fae) 写 +0x00=acc_id；dispatch(0x8442e68) 写
     // +0x04=DATE_FORMAT 列/100、+0x08=reg_date 原始值（member_info 查询）。
     unsigned int m_id;        // +0x00（SQL where m_id=%d）
-    int m_regDay;             // +0x04（yyyymmdd，列 0 /100）
+    unsigned int m_regDay;    // +0x04（yyyymmdd，列 0 /100；ORIG 0x8442f72
+                              // 商原地 shr $0x5,%edx ⇒ 与无符号商同号）
     unsigned int m_regDate;   // +0x08（member_info.reg_date 原始 epoch）
     // ORIG GetInBuffer 实例化 sizeof=0xc：仅 3 个 dword，无尾部 pad
 };
@@ -383,20 +463,56 @@ struct SIG_GOBLIN_UPDATE_REWARD
     char m_pad[0x18];
 };
 
+// 字段化（W8DB，ORIG makeRequest 0x0842f2ae：+0 uint accId、+4 uint flag；
+// dispatch 0x0842f22a：member_mousepass.m_id=%s(+0)、+%d(+4)）：
 struct SIG_GOBLIN_UPDATE_VALIDITYTIME
 {
-    char m_pad[0x8];
+    unsigned int m_mId;      // +0x00（member_mousepass.m_id ← accId）
+    unsigned int m_flag;     // +0x04（validity_time 秒差）
 };
+static_assert(sizeof(SIG_GOBLIN_UPDATE_VALIDITYTIME) == 0x8,
+              "SIG_GOBLIN_UPDATE_VALIDITYTIME ABI drift");
 
 struct SIG_GOLD_CONTROL_EXCEPTION_MID
 {
     char m_pad[0x2];
 };
 
+// 字段化（SecuLink 批次 2026-09-05，裸偏移清理；union 叠加保留 m_pad 基名）。
+// 布局证据：DB_GuildJoinList::dispatch ORIG 0x0843d87c（本类型唯一 producer；
+// GetInBuffer 后 MySQL 逐列填充，偏移/宽度按 get_uint/get_str/get_int/get_byte
+// 实参 disp 实证：entry stride 0x44：+0x00 charac_no、+0x04 charac_name(0x1e)、
+// +0x22..0x25 四列 get_byte(1..4)（SQL 序 charac_name,lev,job,grow_type,sex）、
+// +0x26 memo(0x1a)、+0x40 now-occ_time；count@+0x00，条目区 +0x04 起 0x32 项）。
+// sizeof 0xd4c 不变；自然对齐即可（各 int 成员偏移均为 4 的倍数）。
 struct SIG_GUILD_JOIN_LIST
 {
-    char m_pad[0xd4c];
+    union
+    {
+        char m_pad[0xd4c];
+        struct
+        {
+            int m_count;                             // +0x00
+            struct
+            {
+                unsigned int m_characNo;             // e+0x00（get_uint col0）
+                char m_name[0x1e];                   // e+0x04（get_str col0）
+                char m_job;                          // e+0x22（get_byte col2）【推断：SQL 列序】
+                char m_growType;                     // e+0x23（get_byte col3）【推断】
+                char m_sex;                          // e+0x24（get_byte col4）【推断】
+                char m_lev;                          // e+0x25（get_byte col1）【推断】
+                char m_memo[0x1a];                   // e+0x26（get_str col1）
+                int m_remainTime;                    // e+0x40（now - occ_time）
+            } m_entry[0x32];                         // +0x04 起
+        } m_list;
+    };
 };
+static_assert(sizeof(SIG_GUILD_JOIN_LIST) == 0xd4c,
+              "SIG_GUILD_JOIN_LIST ABI drift");
+static_assert(offsetof(SIG_GUILD_JOIN_LIST, m_list.m_entry[1]) == 0x48,
+              "SIG_GUILD_JOIN_LIST entry stride drift");
+static_assert(offsetof(SIG_GUILD_JOIN_LIST, m_list.m_entry[0].m_remainTime) == 0x44,
+              "SIG_GUILD_JOIN_LIST remainTime offset drift");
 
 struct SIG_HACK_IP_SAVE
 {
@@ -537,10 +653,18 @@ struct SIG_LETTER_STAT
 static_assert(sizeof(SIG_LETTER_STAT) == 0xc, "SIG_LETTER_STAT ABI drift");
 
 
+// 字段化（W8DB，ORIG 0x0843199a DB_LoadBloodBestRecord::dispatch 实证：
+// +0 uint characNo、+4 uint best_time(get_uint)、+8 int best_round、
+// +0xc int dungeon_index；组包注释 14047-14052 同款）：
 struct SIG_LOAD_BLOOD_DUNGEON_BEST_RECORD
 {
-    char m_pad[0x10];
+    unsigned int m_characNo;     // +0x00
+    unsigned int m_bestTime;     // +0x04
+    int m_bestRound;             // +0x08
+    int m_dungeonIndex;          // +0x0c
 };
+static_assert(sizeof(SIG_LOAD_BLOOD_DUNGEON_BEST_RECORD) == 0x10,
+              "SIG_LOAD_BLOOD_DUNGEON_BEST_RECORD ABI drift");
 
 struct SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE
 {

@@ -8,8 +8,9 @@
 //   +0x00 Mutex（0x18）          +0x18 int m_index
 //   +0x1c char m_bTrading        +0x1d char m_bLocked
 //   +0x20 CUser* m_pTraders[2]   +0x28 int m_nState[2]
-//   +0x30 TradeSlot m_slots[2][26]（每槽 0x48，每行 0x798）
-//   +0xf60 int m_nMoney[2]       （总尺寸 0xf70）
+//   +0x30 TradeSlot m_slots[2][27]（每槽 0x48，每行 0x798）
+//   +0xf60 int m_nMoney[2]        +0xf68 int m_fieldF68[2]（proceed_trade 生物计数）
+//   （总尺寸 0xf70）
 
 #include "CUser.h"       // CUser（CUser.h 已含 GameTypes.h/Inven_Item.h）
 #include "Inven_Item.h"  // Inven_Item（0x3d 字节）
@@ -49,7 +50,7 @@ public:
     int checkCancelTrade();
     int checkTrade();
     int check_item_exist(int traderIdx, int itemId);
-    int check_trade_possibility();
+    bool check_trade_possibility();  // ORIG 0x852994a 体 xor$1+test al = bool 物化
     int get_empty_itemslot(int traderIdx);
     int proceed_trade();
     int regist_item(CUser* user, int type, int a, int b);
@@ -63,7 +64,7 @@ public:
     void unlock();
     char IsLocked();
     void _SetLock(bool flag);
-    char is_empty();
+    bool is_empty();  // ORIG 0x82343a0 movzbl 0x1c + xor$1 = bool 返回
     int get_index();
 
 private:
@@ -75,7 +76,9 @@ private:
     int m_nState[2];          // +0x28
     TradeSlot m_slotsData[2][27];  // +0x30（每行 27 槽 × 0x48 = 0x798；二维数组隐式构造循环同 ORIG 双层形态）
     int m_nMoney[2];          // +0xf60
-    char m_pad[0xf70 - 0xf68];
+    int m_fieldF68[2];        // +0xf68（ORIG proceed_trade 0x853087a 生物转移计数：
+                              //   ChangeOwner 末参 = CreatureItemSize+m_fieldF68[trader]；
+                              //   转移成功 m_fieldF68[1-trader] += 1。原 m_pad 占位拆出）
 };
 
 #endif  // GAME_CTRADESPACE_H_

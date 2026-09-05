@@ -32,7 +32,9 @@ public:
         {
             if (m_p == NULL)
             {
-                m_p = new T;
+                // ORIG（Store 实证）：trivial T 时 value-init 清零、
+                // 非 trivial T 与 new T 同形。
+                m_p = new T();
             }
         }
         else

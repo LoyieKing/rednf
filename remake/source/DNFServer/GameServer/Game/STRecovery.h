@@ -13,7 +13,10 @@ public:
     STRecovery();   // ORIG W 0x089c3098（C1/C2 同址）：仅调用 clear()
     void clear();   // ORIG W 0x089c30ac
 
-private:
+    // ORIG 无访问控制；ImportStackableScript 依报告直接写五个字段
+    // （"[hp recovery]"/"[mp recovery]"：m_bAddMode="+" 0/1、m_nValue1/2=ScanInt、
+    //  m_nTarget="myself" 0/1、m_bEnable=1），故按 ORIG 用法公开。
+public:
     unsigned char m_bAddMode;  // +0x00（ORIG movb $0；Import："+" 判断 → 0/1）
     int m_nValue1;             // +0x04（ORIG movl $0；Import：ScanInt）
     int m_nValue2;             // +0x08（ORIG movl $0；Import：ScanInt）

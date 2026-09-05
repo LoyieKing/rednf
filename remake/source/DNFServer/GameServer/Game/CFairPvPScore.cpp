@@ -27,6 +27,7 @@
 #include "CInventory.h"               // insert_event_items/MakeItemPacket/getCurCharacInven*
 #include "CUser.h"                    // Send/GetUID/get_charac_no/get_pvp_grade/GetServerGroup/...
 #include "CUserCharacInfo.h"          // getPVPResultRefR/getCurCharFirstGrowType/get_charac_job/getCurCharacNo
+#include "PvpResultType.h"            // 权威 PvpResultType（m_pvpGrade=+0x14，ORIG 084a4b94 mov 0x14(%eax)）
 #include "RDARScriptStringManager.h"  // g_scriptStringManager_/findString
 #include "CMailBoxHelper.h"           // WongWork::CMailBoxHelper::ReqDBSendNewSystemMail
 #include "ServerParameterScript.h"    // GetTraningSealGive/GetTraningFirstGive/get_pvp_item_give
@@ -106,7 +107,7 @@ bool CFairPvPScore::_saveData(CUser* pUser)
     SIG_FAIR_PVP_SCORE* sig =
         guard.operator->()->GetInBuffer<SIG_FAIR_PVP_SCORE>();
     memset(sig, 0, sizeof(SIG_FAIR_PVP_SCORE));          // 0x688
-    *(int*)sig = pUser->get_charac_no(-1);               // ORIG *(int*)local_10
+    sig->m_characNo = pUser->get_charac_no(-1);          // ORIG *(int*)local_10 = m_characNo(+0x00)
     this->getData(reinterpret_cast<char*>(sig));         // ORIG vtable+8 (getData)；线格式序列化
     sig->m_lastPlayTime = GlobalData::s_systemTime_.getCurSec();   // +0x680
 
@@ -117,18 +118,22 @@ bool CFairPvPScore::_saveData(CUser* pUser)
 // ---- ORIG 0x84a55a8 getData(char*) const -----------------------------------
 void CFairPvPScore::getData(char* pData) const
 {
+    SIG_FAIR_PVP_SCORE* sig = reinterpret_cast<SIG_FAIR_PVP_SCORE*>(pData);
     int idx = 0;
     for (std::map<JobKey, FAIR_PVP_SCORE_MODE_COUNT>::const_iterator it =
              m_jobScore_.begin();
          it != m_jobScore_.end() && idx <= 99; ++it, ++idx)
     {
-        const int base = (idx + 2) * 0x10;
-        pData[base + 0x10] = (char)it->first.m_job;
-        pData[base + 0x11] = (char)it->first.m_sub;
-        *(int*)(pData + base + 0x14) = it->second.m_cnt0;
-        *(int*)(pData + base + 0x18) = it->second.m_cnt1;
-        *(int*)(pData + base + 0x1c) = it->second.m_cnt2;
-        ++pData[0x2c];
+        // ORIG 基址形态 (idx+2)*0x10 + 0x10（084a55e1 `lea 0x2;shl 4; movb 0x10(%ecx,%eax)`），
+        // 经具名条目视图写入，宽度逐字段与反汇编一致。
+        SIG_FAIR_PVP_SCORE_ENTRY* entry =
+            reinterpret_cast<SIG_FAIR_PVP_SCORE_ENTRY*>(pData + (idx + 2) * 0x10);
+        entry[1].m_job = (char)it->first.m_job;
+        entry[1].m_sub = (char)it->first.m_sub;
+        entry[1].m_cnt0 = it->second.m_cnt0;
+        entry[1].m_cnt1 = it->second.m_cnt1;
+        entry[1].m_cnt2 = it->second.m_cnt2;
+        ++sig->m_jobScoreCount;                          // 字节自增（ORIG movzbl/lea/movb）
     }
 
     {
@@ -136,23 +141,22 @@ void CFairPvPScore::getData(char* pData) const
         for (std::list<unsigned char>::const_iterator it =
                  m_recentResults_.begin();
              it != m_recentResults_.end() && i <= 9; ++it, ++i)
-            pData[i + 0x670] = (char)*it;
+            sig->m_recentResults[i] = *it;
     }
 
     for (int i = 0; i < 2; ++i)
     {
-        const int off = i * 0xc;
-        *(int*)(pData + off + 0x04) = (&m_modeA0)[i * 3 + 0];
-        *(int*)(pData + off + 0x08) = (&m_modeA0)[i * 3 + 1];
-        *(int*)(pData + off + 0x0c) = (&m_modeA0)[i * 3 + 2];
+        sig->m_modeStats[i][0] = (&m_modeA0)[i * 3 + 0];
+        sig->m_modeStats[i][1] = (&m_modeA0)[i * 3 + 1];
+        sig->m_modeStats[i][2] = (&m_modeA0)[i * 3 + 2];
     }
-    *(int*)(pData + 0x1c) = m_field40;
-    *(int*)(pData + 0x20) = m_field44;
-    *(int*)(pData + 0x24) = m_winStreak;
-    *(int*)(pData + 0x28) = m_bestWinStreak;
-    *(int*)(pData + 0x67c) = m_dailyPlayCount;
-    *(int*)(pData + 0x680) = m_field54;
-    pData[0x684] = (char)m_giveItem;
+    sig->m_field1c = m_field40;
+    sig->m_field20 = m_field44;
+    sig->m_winStreak = m_winStreak;
+    sig->m_bestWinStreak = m_bestWinStreak;
+    sig->m_dailyPlayCount = m_dailyPlayCount;
+    sig->m_lastPlayTime = (unsigned int)m_field54;
+    sig->m_giveItem = m_giveItem;
 }
 
 // ---- ORIG 0x84a5a28 UpdateScore(int,int,int,int,int,int,int) ---------------
@@ -334,18 +338,23 @@ inline bool IsFairPvpTrainingChannel()                 // ORIG 双调用模式 0
 bool CFairPvPScore::loadData(CUser* pUser, char* pData)
 {
     bool ok = true;
+    SIG_FAIR_PVP_SCORE* sig = reinterpret_cast<SIG_FAIR_PVP_SCORE*>(pData);
 
     // 区块 1：职业计分表（entry stride 0x10，起于 (i+2)*0x10）
-    int count = (int)(unsigned char)pData[0x2c];
+    int count = (int)sig->m_jobScoreCount;
     for (int i = 0; (i < count) && (i <= 99); ++i)
     {
-        const int entry = (i + 2) * 0x10;
-        const JobKey key((ENUM_CHARACTERJOB)(unsigned char)pData[entry + 0x10],
-                         (unsigned char)pData[entry + 0x11]);
+        // ORIG 基址形态 (i+2)*0x10 + 0x10（084a491d `lea 0x2;shl 4` + movzbl
+        // 0x10/0x11、lea 0x14 传指针），经具名条目视图读取，宽度逐字段实证。
+        const int base = (i + 2) * 0x10;
+        SIG_FAIR_PVP_SCORE_ENTRY* entry =
+            reinterpret_cast<SIG_FAIR_PVP_SCORE_ENTRY*>(pData + base) + 1;
+        const JobKey key((ENUM_CHARACTERJOB)(unsigned char)entry->m_job,
+                         entry->m_sub);
         FAIR_PVP_SCORE_MODE_COUNT value;
-        value.m_cnt0 = *(int*)(pData + entry + 0x14);
-        value.m_cnt1 = *(int*)(pData + entry + 0x18);
-        value.m_cnt2 = *(int*)(pData + entry + 0x1c);
+        value.m_cnt0 = entry->m_cnt0;
+        value.m_cnt1 = entry->m_cnt1;
+        value.m_cnt2 = entry->m_cnt2;
         std::pair<std::map<JobKey, FAIR_PVP_SCORE_MODE_COUNT>::iterator, bool>
             ret = m_jobScore_.insert(
                 std::pair<const JobKey, FAIR_PVP_SCORE_MODE_COUNT>(key, value));
@@ -355,31 +364,31 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
                 1, "FairPvPScore.cpp",
                 __PRETTY_FUNCTION__,
                 0x20, "job_score_.insert error(%d,%d)",
-                (int)(unsigned char)pData[entry + 0x10],
-                (int)(unsigned char)pData[entry + 0x11]);
+                (int)(unsigned char)entry->m_job,
+                (int)(unsigned char)entry->m_sub);
         }
     }
 
     // 区块 2：最近对局结果列表（最多 10 条，遇 0 截断）
-    for (int i = 0; (i <= 9) && (pData[i + 0x670] != '\0'); ++i)
-        m_recentResults_.push_back((unsigned char)pData[i + 0x670]);
+    for (int i = 0; (i <= 9) && (sig->m_recentResults[i] != '\0'); ++i)
+        m_recentResults_.push_back(sig->m_recentResults[i]);
 
     // 区块 3：两份模式统计记录
     for (int i = 0; i < 2; ++i)
     {
-        (&m_modeA0)[i * 3 + 0] = *(int*)(pData + i * 0xc + 0x04);
-        (&m_modeA0)[i * 3 + 1] = *(int*)(pData + i * 0xc + 0x08);
-        (&m_modeA0)[i * 3 + 2] = *(int*)(pData + i * 0xc + 0x0c);
+        (&m_modeA0)[i * 3 + 0] = sig->m_modeStats[i][0];
+        (&m_modeA0)[i * 3 + 1] = sig->m_modeStats[i][1];
+        (&m_modeA0)[i * 3 + 2] = sig->m_modeStats[i][2];
     }
-    m_field40 = *(int*)(pData + 0x1c);
-    m_field44 = *(int*)(pData + 0x20);
-    m_winStreak = *(int*)(pData + 0x24);
-    m_bestWinStreak = *(int*)(pData + 0x28);
-    m_dailyPlayCount = *(int*)(pData + 0x67c);
-    m_field54 = *(int*)(pData + 0x680);
+    m_field40 = sig->m_field1c;
+    m_field44 = sig->m_field20;
+    m_winStreak = sig->m_winStreak;
+    m_bestWinStreak = sig->m_bestWinStreak;
+    m_dailyPlayCount = sig->m_dailyPlayCount;
+    m_field54 = (int)sig->m_lastPlayTime;
 
     // 训练特训渠道（0xf/0x10）且无上次结算时间 → 补发入场奖励
-    if (IsFairPvpTrainingChannel() && *(int*)(pData + 0x680) == 0)
+    if (IsFairPvpTrainingChannel() && (int)sig->m_lastPlayTime == 0)
     {
         std::vector<std::pair<int, int> > items;
         // ORIG 0x084a4b86 call getPVPResultRefR(CUser)——返回值未使用【死调用，
@@ -388,7 +397,7 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
         ServerParameterScript* sps =
             &G_CDataManager()->m_serverParameter;
         const int sealGive = sps->GetTraningSealGive(
-            *(const int*)((const char*)pvp + 0x14));       // ORIG r+0x14
+            pvp->m_pvpGrade);                              // +0x14（084a4b94 mov 0x14(%eax)）
         if (sealGive > 0)
             items.push_back(std::make_pair(0xcf0, sealGive));
         sps->GetTraningFirstGive(pUser->get_charac_job(),
@@ -446,7 +455,7 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
         pUser->Send(pkt);
     }
 
-    m_giveItem = (unsigned char)pData[0x684];
+    m_giveItem = sig->m_giveItem;
 
     // 特训渠道：可领但尚未领取的道具（发 0x161 提示包）
     if (IsFairPvpTrainingChannel())

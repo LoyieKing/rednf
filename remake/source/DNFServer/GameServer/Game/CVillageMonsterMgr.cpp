@@ -71,7 +71,7 @@ int GetDistance(pvp_assault::Point2d a, pvp_assault::Point2d b);
 namespace pvp_assault
 {
 
-int IsIncludeVirtualMoveAreas(std::vector<MapArea>* areas, int x, int y,
+bool IsIncludeVirtualMoveAreas(std::vector<MapArea>* areas, int x, int y,
                               int& outX, int& outY, int margin)
 {
     int minDist = 0x7fffffff;

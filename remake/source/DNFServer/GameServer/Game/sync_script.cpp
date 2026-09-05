@@ -18,6 +18,7 @@
 #include "STSkillScript.h"
 #include "DNFLexWrapper.h"
 #include "DNFFunctionLib.h"
+#include "CStreamBuffer.h"   // 权威 CStreamBuffer（ORIG 0x086269be 域，全局 W 符号）
 
 // ---- ORIG 编码转换 / 脚本解析辅助（真实符号） ----
 // toMbcs/getCharacterJob 声明唯一出处：SyncScriptDeps.h（sync_script.h 尾部已 include）。
@@ -88,61 +89,6 @@ const char* GetAttackElementString(int element)
     default:
         return "";
     }
-}
-
-
-// ORIG CStreamBuffer（ctor 0x086269be memset(buf,0,0xa000) / c_str 0x086269e2 /
-// operator<<(const char*) 0x08626a4a "%s" / <<(int) 0x08626a70 "%d" /
-// <<(unsigned) 0x08626a96 "%u" / <<(float) 0x08626abc "%f"）：
-// 0xa000 定长缓冲，operator<< 返回 *this 链式追加（Insert<T> → snprintf → strncat）。
-class CStreamBuffer
-{
-public:
-    CStreamBuffer() { memset(m_buf, 0, sizeof(m_buf)); }
-    CStreamBuffer& operator<<(const char* v)
-    {
-        append(v);
-        return *this;
-    }
-    CStreamBuffer& operator<<(int v)
-    {
-        char num[0x100] = {0};
-        sprintf(num, "%d", v);
-        append(num);
-        return *this;
-    }
-    CStreamBuffer& operator<<(unsigned int v)
-    {
-        char num[0x100] = {0};
-        sprintf(num, "%u", v);
-        append(num);
-        return *this;
-    }
-    CStreamBuffer& operator<<(float v)
-    {
-        char num[0x100] = {0};
-        sprintf(num, "%f", v);
-        append(num);
-        return *this;
-    }
-    const char* c_str() const { return m_buf; }
-
-private:
-    void append(const char* s)
-    {
-        size_t used = strlen(m_buf);
-        strncat(m_buf, s, sizeof(m_buf) - 1 - used);
-    }
-
-    char m_buf[0xa000];   // ORIG 对象尺寸 0xa000
-};
-
-// for_each 累加：std::for_each 按值收 functor，必须取返回副本再读结果
-// （ORIG 反编译同样消费 for_each 返回值）。
-template <class It>
-sync_script::CStringMaker makeString(It first, It last)
-{
-    return std::for_each(first, last, sync_script::CStringMaker());
 }
 
 
@@ -703,73 +649,72 @@ bool CSyncScript::insert_skill_info(STSkillScript* script, int job, int type)
     sb << ", '" << escSkillExplain << "'";
     // 8)m_vec18
     {
-        CStringMaker mk = makeString(script->m_vec18.begin(), script->m_vec18.end());
-        sb << ", '" << mk.c_str() << "'";
+        // ORIG 站点形态：for_each 返回临时 + 实参临时同在一个 full-expression
+        // 内，两个 D1 均在 << 链之后（0862330c→0862332f/08623351）。
+        sb << ", '"
+           << std::for_each(script->m_vec18.begin(), script->m_vec18.end(),
+                            CStringMaker()).c_str()
+           << "'";
     }
     // 9)+0x5c 10)+0x60
     sb << ", " << script->m_5c;
     sb << ", " << script->m_60;
     // 11)m_arr7c[6]
     {
-        CStringMaker mk =
-            makeString((int*)script->m_arr7c, (int*)script->m_arr7c + 6);
-        sb << ", '" << mk.c_str() << "'";
+        sb << ", '" << std::for_each((int*)script->m_arr7c, (int*)script->m_arr7c + 6, CStringMaker()).c_str() << "'";
     }
     // 12)growType[0..4].m_8 五段分号连接（单引号包裹）
     {
-        CStringMaker mk0 = makeString(script->m_growType[0].m_8,
-                                      script->m_growType[0].m_8 + 2);
-        CStringMaker mk1 = makeString(script->m_growType[1].m_8,
-                                      script->m_growType[1].m_8 + 2);
-        CStringMaker mk2 = makeString(script->m_growType[2].m_8,
-                                      script->m_growType[2].m_8 + 2);
-        CStringMaker mk3 = makeString(script->m_growType[3].m_8,
-                                      script->m_growType[3].m_8 + 2);
-        CStringMaker mk4 = makeString(script->m_growType[4].m_8,
-                                      script->m_growType[4].m_8 + 2);
-        sb << ", '" << mk0.c_str() << ";" << mk1.c_str() << ";"
-           << mk2.c_str() << ";" << mk3.c_str() << ";" << mk4.c_str() << "'";
+        // ORIG：五段临时对象同在一个 full-expression（0xa0..0xc8 栈槽），
+        // GCC 右到左求值 ⇒ for_each 构造序 +0xdc(growType[4])→+0x9c([0])
+        // （0862347f..08623645），每段 for_each 后立即 c_str；10 个临时
+        // 在 << 链全部完成后成对（res_i, arg_i，i=0..4）析构（086236e8+）。
+        sb << ", '"
+           << std::for_each(script->m_growType[0].m_8,
+                            script->m_growType[0].m_8 + 2, CStringMaker()).c_str()
+           << ";"
+           << std::for_each(script->m_growType[1].m_8,
+                            script->m_growType[1].m_8 + 2, CStringMaker()).c_str()
+           << ";"
+           << std::for_each(script->m_growType[2].m_8,
+                            script->m_growType[2].m_8 + 2, CStringMaker()).c_str()
+           << ";"
+           << std::for_each(script->m_growType[3].m_8,
+                            script->m_growType[3].m_8 + 2, CStringMaker()).c_str()
+           << ";"
+           << std::for_each(script->m_growType[4].m_8,
+                            script->m_growType[4].m_8 + 2, CStringMaker()).c_str()
+           << "'";
     }
     // 13)m_vec1dc（lea 0x1dc@08623889）14)m_vecf4（lea 0xf4@0862399a）
     {
-        CStringMaker mk = makeString(script->m_vec1dc.begin(), script->m_vec1dc.end());
-        sb << ", '" << mk.c_str() << "'";
+        sb << ", '" << std::for_each(script->m_vec1dc.begin(), script->m_vec1dc.end(), CStringMaker()).c_str() << "'";
     }
     {
-        CStringMaker mk = makeString(script->m_vecf4.begin(), script->m_vecf4.end());
-        sb << ", '" << mk.c_str() << "'";
+        sb << ", '" << std::for_each(script->m_vecf4.begin(), script->m_vecf4.end(), CStringMaker()).c_str() << "'";
     }
     // 15)m_useItems11c（"%d,%d,%d"）
     {
-        CStringMaker mk = makeString(script->m_useItems11c.begin(),
-                                     script->m_useItems11c.end());
-        sb << ", '" << mk.c_str() << "'";
+        sb << ", '" << std::for_each(script->m_useItems11c.begin(), script->m_useItems11c.end(), CStringMaker()).c_str() << "'";
     }
     // 16)+0x30 17)+0x34
     sb << ", " << script->m_30;
     sb << ", " << script->m_34;
     // 18)localVec（pre_required_skill）
     {
-        CStringMaker mk = makeString(localVec.begin(), localVec.end());
-        sb << ", '" << mk.c_str() << "'";
+        sb << ", '" << std::for_each(localVec.begin(), localVec.end(), CStringMaker()).c_str() << "'";
     }
     // 19)m_f100[2]（for_each<float*> +0x100..+0x108，"%f"）
     {
-        CStringMaker mk = makeString((float*)script->m_f100,
-                                     (float*)script->m_f100 + 2);
-        sb << ", '" << mk.c_str() << "'";
+        sb << ", '" << std::for_each((float*)script->m_f100, (float*)script->m_f100 + 2, CStringMaker()).c_str() << "'";
     }
     // 20)m_arr138[2]
     {
-        CStringMaker mk = makeString((int*)script->m_arr138,
-                                     (int*)script->m_arr138 + 2);
-        sb << ", '" << mk.c_str() << "'";
+        sb << ", '" << std::for_each((int*)script->m_arr138, (int*)script->m_arr138 + 2, CStringMaker()).c_str() << "'";
     }
     // 21)m_i108[2..3]（for_each<int*> +0x110..+0x118）
     {
-        CStringMaker mk = makeString((int*)script->m_i108 + 2,
-                                     (int*)script->m_i108 + 4);
-        sb << ", '" << mk.c_str() << "'";
+        sb << ", '" << std::for_each((int*)script->m_i108 + 2, (int*)script->m_i108 + 4, CStringMaker()).c_str() << "'";
     }
     // 22)icon：esc(str160[0]),arr168[0],esc(str160[1]),arr168[1]
     char* icon1 = SKILL_ESC_SLOT;
@@ -786,13 +731,11 @@ bool CSyncScript::insert_skill_info(STSkillScript* script, int job, int type)
     sb << ", '" << script->m_240 << "," << script->m_244 << "'";
     // 25)static_data：m_vec198（lea 0x198@086240e4）
     {
-        CStringMaker mk = makeString(script->m_vec198.begin(), script->m_vec198.end());
-        sb << ", '" << mk.c_str() << "'";
+        sb << ", '" << std::for_each(script->m_vec198.begin(), script->m_vec198.end(), CStringMaker()).c_str() << "'";
     }
     // 26)level_info：m_vec1a8（外层 for_each<vector<float>*> → operator()(vector<float>&)）
     {
-        CStringMaker mk = makeString(script->m_vec1a8.begin(), script->m_vec1a8.end());
-        sb << ", '" << mk.c_str() << "'";
+        sb << ", '" << std::for_each(script->m_vec1a8.begin(), script->m_vec1a8.end(), CStringMaker()).c_str() << "'";
     }
     // 27)start_cool_time：m_21c,m_220
     sb << ", '" << script->m_21c << "," << script->m_220 << "'";

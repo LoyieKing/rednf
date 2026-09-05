@@ -196,32 +196,35 @@ bool CCharacBloodDungeon::_saveData(CUser* pUser)  // ORIG 0x832a330
 
 bool CCharacBloodDungeon::loadData(CUser*, char* pData)  // ORIG 0x832a4c6
 {
-    // DB 记录镜像读入（sig+0x04.. ↔ this 字段映射与 _saveData 一致；
-    // sig+0 处 characNo 不读取、m_flag20 从 sig+0x10 前一字段无关位置跳过
-    // —— 按 ORIG 汇编只复制列出的 7 个 int，this+0x20 byte 保持原值）。
-    m_point             = *reinterpret_cast<int*>(pData + 0x04);
-    m_weeklyEnterCount  = *reinterpret_cast<int*>(pData + 0x08);
-    m_useGold           = *reinterpret_cast<int*>(pData + 0x0c);
-    m_field14           = *reinterpret_cast<int*>(pData + 0x10);
-    m_enterCount        = *reinterpret_cast<int*>(pData + 0x14);
-    m_field1c           = *reinterpret_cast<int*>(pData + 0x18);
-    m_field24           = *reinterpret_cast<int*>(pData + 0x20);
-    m_field28           = *reinterpret_cast<int*>(pData + 0x24);
+    // pData 即 _saveData 落库的 SIG_BLOOD_DUNGEON 记录（ORIG 0x832a4c6 汇编：
+    // 8 条 movl，逐条 sig+0x04/08/0c/10/14/18/20/24 → this+08/0c/10/14/18/1c/24/28）。
+    // sig+0x00 characNo 不读取；sig+0x1c（m_flag1c byte）不读取，故 this+0x20
+    // m_flag20 保持原值 —— 与 getData 非严格互逆，ORIG 本身即如此。
+    const SIG_BLOOD_DUNGEON* sig = reinterpret_cast<const SIG_BLOOD_DUNGEON*>(pData);
+    m_point             = sig->m_point;              // sig+0x04（int）
+    m_weeklyEnterCount  = sig->m_weeklyEnterCount;   // sig+0x08（int）
+    m_useGold           = sig->m_useGold;            // sig+0x0c（int）
+    m_field14           = sig->m_dailyInitTime;      // sig+0x10（int）
+    m_enterCount        = sig->m_field14;            // sig+0x14（int）
+    m_field1c           = sig->m_enterCount;         // sig+0x18（int）
+    m_field24           = sig->m_field20;            // sig+0x20（int）
+    m_field28           = sig->m_field24;            // sig+0x24（int）
     return true;
 }
 
 void CCharacBloodDungeon::getData(char* pData) const  // ORIG 0x832a53a
 {
-    // 与 loadData 完全镜像的反向写出。
-    *reinterpret_cast<int*>(pData + 0x04) = m_point;
-    *reinterpret_cast<int*>(pData + 0x08) = m_weeklyEnterCount;
-    *reinterpret_cast<int*>(pData + 0x0c) = m_useGold;
-    *reinterpret_cast<int*>(pData + 0x10) = m_field14;
-    *reinterpret_cast<int*>(pData + 0x14) = m_enterCount;
-    *reinterpret_cast<int*>(pData + 0x18) = m_field1c;
-    pData[0x1c] = static_cast<char>(m_flag20);   // byte 写出
-    *reinterpret_cast<int*>(pData + 0x20) = m_field24;
-    *reinterpret_cast<int*>(pData + 0x24) = m_field28;
+    // loadData 的反向写出（ORIG 0x832a53a：8 条 movl + 1 条 movzbl/movb）。
+    SIG_BLOOD_DUNGEON* sig = reinterpret_cast<SIG_BLOOD_DUNGEON*>(pData);
+    sig->m_point             = m_point;                      // this+0x08 → sig+0x04
+    sig->m_weeklyEnterCount  = m_weeklyEnterCount;           // this+0x0c → sig+0x08
+    sig->m_useGold           = m_useGold;                    // this+0x10 → sig+0x0c
+    sig->m_dailyInitTime     = m_field14;                    // this+0x14 → sig+0x10
+    sig->m_field14           = m_enterCount;                 // this+0x18 → sig+0x14
+    sig->m_enterCount        = m_field1c;                    // this+0x1c → sig+0x18
+    sig->m_flag1c            = m_flag20;                     // this+0x20 → sig+0x1c（byte）
+    sig->m_field20           = m_field24;                    // this+0x24 → sig+0x20
+    sig->m_field24           = m_field28;                    // this+0x28 → sig+0x24
 }
 
 void CCharacBloodDungeon::ResetDaily()       // ORIG 0x832a5b6

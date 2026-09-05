@@ -153,7 +153,7 @@ void Manager::dieCharac(CUser* user)
 // 否则 setState(1) 并回包 put_header(0,0x1e)/put_int(0)/finalize(true) → Send；
 // 恒返回 1。
 // ----------------------------------------------------------------------------
-int Manager::finishLoad(CUser* user)
+bool Manager::finishLoad(CUser* user)  // ORIG T 0x08130eb2（返回值域仅 0/1，bool 化安全）
 {
     StageControl* control = user->getAdvanceAltar();
     if (control == 0)

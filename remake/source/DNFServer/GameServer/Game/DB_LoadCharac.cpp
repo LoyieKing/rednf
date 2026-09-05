@@ -3,8 +3,9 @@
 // 目标：清零 /tmp/only_orig/DB_LoadCharac.txt 全部 13 个 ORIG 符号。
 // 每函数按 docs/class_func_reports/DB_LoadCharac/<fn>.md（汇编为准）忠实转写。
 // SIG_LOAD_CHARAC 权威定义见 SigTypes_C.h（+0xc CHARAC_DATA / +0x686 tag
-// charac no / +0x68b TAG_CHARAC_DATA）。SIG 内其余字段（village/exp/…）按
-// ORIG 报告各 get_* 写点以文档化偏移直访（同 CUser::GetCharacInfo 约定）。
+// charac no / +0x68b TAG_CHARAC_DATA）。SIG 内 CHARAC_DATA/TAG_CHARAC_DATA
+// 各区（village/exp/…）按 ORIG 报告 get_* callee 重载实证类型具名字段访问
+// （2026-09-05 §4.3 字段化，绑定别名见 SigTypes_C.h/CCharacter.h 注释）。
 // ============================================================================
 
 #include <string.h>
@@ -27,10 +28,6 @@
 
 // ORIG T _Z14NumberToStringji @0x0810904b（C++ linkage；定义归既有批次）。
 extern char* NumberToString(unsigned int value, int radix);
-
-// SIG_LOAD_CHARAC 文档化偏移访问宏（ORIG 无 _ZN12_GLOBAL__N_13SLC 符号，
-// 编译产物为直接偏移寻址 → 原实现为宏而非 inline 函数）
-#define SLC(sig, off) (reinterpret_cast<char*>(sig) + (off))
 
 // ============================================================================
 // DB_LoadCharac::DB_LoadCharac @0x844d8c6（C1/C2 同址）
@@ -83,77 +80,80 @@ bool DB_LoadCharac::_getCharacInfo(SIG_LOAD_CHARAC* sig)
     if (db->get_n_rows() != 1)
         return false;
 
-    if (!db->get_int(0, *(int*)SLC(sig, 0x0c)))              // charac_no
+    // 逐列 get_* 引用绑定具名字段（SigTypes_C.h union 别名类型 = 下列
+    // ORIG callee 重载形参类型，_getCharacInfo.md 汇编逐条实证）。
+    if (!db->get_int(0, sig->m_characData.m_characNo))       // charac_no（0811692c int&）
         return false;
-    if (!db->get_str(1, SLC(sig, 0x10), 0x1d))               // charac_name
+    if (!db->get_str(1, sig->m_characData.m_name, 0x1d))     // charac_name
         return false;
-    if (!db->get_byte(2, *(char*)SLC(sig, 0x30)))            // job
+    if (!db->get_byte(2, sig->m_characData.m_job))           // job（080fde54 char&）
         return false;
-    if (!db->get_short(3, *(short*)SLC(sig, 0x31)))          // lev
+    if (!db->get_short(3, sig->m_characData.m_lev))          // lev（080fddec short&）
         return false;
-    if (!db->get_byte(4, *(char*)SLC(sig, 0x33)))            // grow_type
+    if (!db->get_byte(4, sig->m_characData.m_growType))      // grow_type（char&）
         return false;
-    if (!db->get_uint(5, *(unsigned int*)SLC(sig, 0x6c)))    // maxHP
+    if (!db->get_uint(5, sig->m_characData.m_add.m_maxHP))   // maxHP（080e22f2 uint&）
         return false;
-    if (!db->get_uint(6, *(unsigned int*)SLC(sig, 0x70)))    // maxMP
+    if (!db->get_uint(6, sig->m_characData.m_add.m_maxMP))   // maxMP
         return false;
-    if (!db->get_ushort(7, *(unsigned short*)SLC(sig, 0x74)))    // phy_attack
+    if (!db->get_ushort(7, sig->m_characData.m_add.m_field08))   // phy_attack（ushort&）
         return false;
-    if (!db->get_ushort(8, *(unsigned short*)SLC(sig, 0x76)))    // phy_defense
+    if (!db->get_ushort(8, sig->m_characData.m_add.m_field0a))   // phy_defense
         return false;
-    if (!db->get_ushort(9, *(unsigned short*)SLC(sig, 0x78)))    // mag_attack
+    if (!db->get_ushort(9, sig->m_characData.m_add.m_field0c))   // mag_attack
         return false;
-    if (!db->get_ushort(10, *(unsigned short*)SLC(sig, 0x7a)))   // mag_defense
+    if (!db->get_ushort(10, sig->m_characData.m_add.m_field0e))  // mag_defense
         return false;
-    if (!db->get_int(11, *(int*)SLC(sig, 0xa6)))             // inven_weight
+    if (!db->get_int(11, sig->m_characData.m_add.m_field3a))     // inven_weight（int&）
         return false;
-    if (!db->get_short(12, *(short*)SLC(sig, 0xaa)))         // hp_regen
+    if (!db->get_short(12, sig->m_characData.m_add.m_hpRegen))   // hp_regen（short&）
         return false;
-    if (!db->get_short(13, *(short*)SLC(sig, 0xac)))         // mp_regen
+    if (!db->get_short(13, sig->m_characData.m_add.m_mpRegen))   // mp_regen（short&）
         return false;
-    if (!db->get_uint(14, *(unsigned int*)SLC(sig, 0xae)))   // move_speed
+    if (!db->get_uint(14, sig->m_characData.m_add.m_moveSpeed))  // move_speed（uint&）
         return false;
-    if (!db->get_ushort(15, *(unsigned short*)SLC(sig, 0xb2)))   // attack_speed
+    if (!db->get_ushort(15, sig->m_characData.m_add.m_field46))  // attack_speed
         return false;
-    if (!db->get_ushort(16, *(unsigned short*)SLC(sig, 0xb4)))   // cast_speed
+    if (!db->get_ushort(16, sig->m_characData.m_add.m_field48))  // cast_speed
         return false;
-    if (!db->get_short(17, *(short*)SLC(sig, 0xb6)))         // hit_recovery
+    if (!db->get_short(17, sig->m_characData.m_add.m_hitRecovery)) // hit_recovery（short&）
         return false;
-    if (!db->get_short(18, *(short*)SLC(sig, 0xb8)))         // jump
+    if (!db->get_short(18, sig->m_characData.m_add.m_jump))  // jump（short&）
         return false;
-    if (!db->get_int(19, *(int*)SLC(sig, 0xba)))             // charac_weight
+    if (!db->get_int(19, sig->m_characData.m_add.m_field4e)) // charac_weight（int&）
         return false;
-    if (!db->get_ushort(20, *(unsigned short*)SLC(sig, 0x3a)))   // max_fatigue
+    if (!db->get_ushort(20, sig->m_characData.m_field2e))    // max_fatigue（ushort&）
         return false;
-    if (!db->get_str(21, SLC(sig, 0x40), 0x18))              // create_time
+    if (!db->get_str(21, sig->m_characData.m_field34, 0x18)) // create_time
         return false;
-    if (!db->get_uint(22, *(unsigned int*)SLC(sig, 0x62)))   // guild_id
+    if (!db->get_uint(22, sig->m_characData.m_guildIdUint))  // guild_id（uint&）
         return false;
-    if (!db->get_ubyte(23, *(unsigned char*)SLC(sig, 0x66))) // guild_right
+    if (!db->get_ubyte(23, sig->m_characData.m_field5a))     // guild_right（uchar&）
         return false;
-    if (!db->get_ushort(24, *(unsigned short*)SLC(sig, 0x69)))   // max_premium_fatigue
+    if (!db->get_ushort(24, sig->m_characData.m_field5d))    // max_premium_fatigue
         return false;
-    if (!db->get_ubyte(25, *(unsigned char*)SLC(sig, 0x6b))) // member_flag
+    if (!db->get_ubyte(25, sig->m_characData.m_field5f))     // member_flag
         return false;
-    if (!db->get_binary(26, SLC(sig, 0x7c), 8))              // element_resist
+    if (!db->get_binary(26, sig->m_characData.m_add.m_elementResist, 8)) // element_resist
         return false;
-    if (!db->get_binary(27, SLC(sig, 0x84), 0x22))           // spec_property
+    if (!db->get_binary(27, sig->m_characData.m_add.m_specProperty, 0x22)) // spec_property
         return false;
-    if (!db->get_uint(28, *(unsigned int*)SLC(sig, 0x140)))  // m_id
+    if (!db->get_uint(28, sig->m_characData.m_unkB2.m_mId))  // m_id（uint&）
         return false;
-    if (!db->get_byte(29, *(char*)SLC(sig, 0x112)))          // expert_job
+    // expert_job：ORIG @0x0844d73a = MySQL::get_byte(int, int&)（非 char& 重载）
+    // ——宽度修正：绑定 int m_field106（原 *(char*) 绑到 0x080fde54，callee 不符）。
+    if (!db->get_byte(29, sig->m_characData.m_unkB2.m_field106)) // expert_job（int&）
         return false;
-    if (!db->get_byte(30, *(char*)SLC(sig, 0x12a)))          // skill_tree_index
+    if (!db->get_byte(30, sig->m_characData.m_unkB2.m_skillTreeIndex)) // skill_tree_index（char&）
         return false;
-    if (!db->get_byte(31, *(char*)SLC(sig, 0x12c)))          // event_charac_level
+    if (!db->get_byte(31, sig->m_characData.m_unkB2.m_eventCharacLevel)) // event_charac_level（char&）
         return false;
-    if (!db->get_byte(32, *(char*)SLC(sig, 0x130)))          // guild_secede
+    if (!db->get_byte(32, sig->m_characData.m_unkB2.m_b124)) // guild_secede（char&）
         return false;
 
-    if (*(int*)SLC(sig, 0x686) != 0)   // m_tagCharacNo
+    if (sig->m_tagCharacNo != 0)
     {
-        if (!_GetTagCharacInfo(*(unsigned int*)SLC(sig, 0x686),
-                               (TAG_CHARAC_DATA*)SLC(sig, 0x68b)))
+        if (!_GetTagCharacInfo(sig->m_tagCharacNo, &sig->m_tagCharacData))
             return false;
     }
     return true;
@@ -186,92 +186,95 @@ bool DB_LoadCharac::_getCharacStat(SIG_LOAD_CHARAC* sig)
     if (!db->exec(true) || !db->fetch())
         return false;
 
-    if (!db->get_byte(0, *(char*)SLC(sig, 0x2e)))            // village
+    // 绑定字段类型 = _getCharacStat.md 汇编各 callee 重载形参（get_byte@080fde54
+    // char& / get_ubyte@080fdeba uchar& / get_short@080fddec short& /
+    // get_ushort@08116990 ushort& / get_int@0811692c int& / get_uint@080e22f2 uint&）。
+    if (!db->get_byte(0, sig->m_characData.m_village))       // village（char&）
         return false;
-    if (!db->get_uint(1, *(unsigned int*)SLC(sig, 0x34)))    // exp
+    if (!db->get_uint(1, sig->m_characData.m_exp))           // exp（uint&）
         return false;
-    if (!db->get_ubyte(2, *(unsigned char*)SLC(sig, 0xbe)))  // HP
+    if (!db->get_ubyte(2, sig->m_characData.m_unkB2.m_fieldb2)) // HP（uchar&）
         return false;
-    if (!db->get_ushort(3, *(unsigned short*)SLC(sig, 0x38)))    // fatigue
+    if (!db->get_ushort(3, sig->m_characData.m_field2c))     // fatigue（ushort&）
         return false;
-    if (!db->get_ushort(4, *(unsigned short*)SLC(sig, 0x67)))    // premium_fatigue
+    if (!db->get_ushort(4, sig->m_characData.m_field5b))     // premium_fatigue（ushort&）
         return false;
-    if (!db->get_uint(5, *(unsigned int*)SLC(sig, 0x59)))    // last_play_time
+    if (!db->get_uint(5, sig->m_characData.m_lastPlayTime))  // last_play_time（uint&）
         return false;
-    if (!db->get_ushort(6, *(unsigned short*)SLC(sig, 0xbf)))    // used_fatigue
+    if (!db->get_ushort(6, sig->m_characData.m_unkB2.m_fieldb3)) // used_fatigue（ushort&）
         return false;
-    if (!db->get_uint(7, *(unsigned int*)SLC(sig, 0xc1)))    // tutorial_flag
+    if (!db->get_uint(7, sig->m_characData.m_unkB2.m_tutorialFlag)) // tutorial_flag（uint&）
         return false;
-    if (!db->get_uint(8, *(unsigned int*)SLC(sig, 0xd5)))    // trade_gold_total
+    if (!db->get_uint(8, sig->m_characData.m_unkB2.m_tradeGoldTotal)) // trade_gold_total（uint&）
         return false;
-    if (!db->get_uint(9, *(unsigned int*)SLC(sig, 0xdd)))    // trade_gold_daily
+    if (!db->get_uint(9, sig->m_characData.m_unkB2.m_tradeGoldDaily)) // trade_gold_daily（uint&）
         return false;
-    *(int*)SLC(sig, 0xd9) = 0;
-    if (!db->get_byte(10, *(char*)SLC(sig, 0x101)))          // open_flag
+    sig->m_characData.m_unkB2.m_fieldcd = 0;
+    if (!db->get_byte(10, sig->m_characData.m_unkB2.m_openFlag)) // open_flag（char&）
         return false;
-    if (!db->get_int(11, *(int*)SLC(sig, 0xe1)))             // chaos_point
+    if (!db->get_int(11, sig->m_characData.m_unkB2.m_fieldd5)) // chaos_point（int&）
         return false;
-    if (!db->get_int(12, *(int*)SLC(sig, 0xe5)))             // chaos_exp
+    if (!db->get_int(12, sig->m_characData.m_unkB2.m_fieldd9)) // chaos_exp（int&）
         return false;
-    if (!db->get_int(13, *(int*)SLC(sig, 0xe9)))             // chaos_mode_count
+    if (!db->get_int(13, sig->m_characData.m_unkB2.m_fielddd)) // chaos_mode_count（int&）
         return false;
-    if (!db->get_int(14, *(int*)SLC(sig, 0xed)))             // chaos_kill_count
+    if (!db->get_int(14, sig->m_characData.m_unkB2.m_fielde1)) // chaos_kill_count（int&）
         return false;
-    if (!db->get_int(15, *(int*)SLC(sig, 0xf1)))             // chaos_die_count
+    if (!db->get_int(15, sig->m_characData.m_unkB2.m_fielde5)) // chaos_die_count（int&）
         return false;
-    if (!db->get_int(16, *(int*)SLC(sig, 0xf5)))             // chaos_die_time
+    if (!db->get_int(16, sig->m_characData.m_unkB2.m_fielde9)) // chaos_die_time（int&）
         return false;
-    if (!db->get_int(17, *(int*)SLC(sig, 0xf9)))             // assault_count
+    if (!db->get_int(17, sig->m_characData.m_unkB2.m_fielded)) // assault_count（int&）
         return false;
-    if (!db->get_int(18, *(int*)SLC(sig, 0x102)))            // luck_point
+    if (!db->get_int(18, sig->m_characData.m_unkB2.m_fieldf6)) // luck_point（int&）
         return false;
-    if (!db->get_int(19, *(int*)SLC(sig, 0x106)))            // dungeon_play_count
+    if (!db->get_int(19, sig->m_characData.m_unkB2.m_fieldfa)) // dungeon_play_count（int&）
         return false;
-    if (!db->get_int(20, *(int*)SLC(sig, 0xfd)))             // chaos_kill_time
+    if (!db->get_int(20, sig->m_characData.m_unkB2.m_fieldf1)) // chaos_kill_time（int&）
         return false;
-    if (!db->get_uint(21, *(unsigned int*)SLC(sig, 0x10a)))  // help_abuse_ratio
+    if (!db->get_uint(21, sig->m_characData.m_unkB2.m_helpAbuseRatio)) // help_abuse_ratio（uint&）
         return false;
-    if (!db->get_uint(22, *(unsigned int*)SLC(sig, 0x10e)))  // help_abuse_exp
+    if (!db->get_uint(22, sig->m_characData.m_unkB2.m_helpAbuseExp)) // help_abuse_exp（uint&）
         return false;
-    if (!db->get_int(23, *(int*)SLC(sig, 0x116)))            // expert_job_exp
+    if (!db->get_int(23, sig->m_characData.m_unkB2.m_field10a)) // expert_job_exp（int&）
         return false;
-    if (!db->get_short(24, *(short*)SLC(sig, 0x3e)))         // fatigue_battery_charging
+    if (!db->get_short(24, sig->m_characData.m_fatigueBattery)) // fatigue_battery_charging（short&）
         return false;
-    if (!db->get_binary(25, SLC(sig, 0xc5), 0x10))           // escalade_tutorial_flag
+    if (!db->get_binary(25, sig->m_characData.m_unkB2.m_fieldb9, 0x10)) // escalade_tutorial_flag
         return false;
-    if (!db->get_short(26, *(short*)SLC(sig, 0x11a)))        // power_war_point
+    if (!db->get_short(26, sig->m_characData.m_unkB2.m_powerWarPoint)) // power_war_point（short&）
         return false;
-    if (!db->get_byte(27, *(char*)SLC(sig, 0x2f)))           // village_prev
+    if (!db->get_byte(27, sig->m_characData.m_villagePrev))  // village_prev（char&）
         return false;
-    if (!db->get_uint(28, *(unsigned int*)SLC(sig, 0x11c)))  // power_war_assault_count
+    if (!db->get_uint(28, sig->m_characData.m_unkB2.m_pwAssaultCount)) // power_war_assault_count（uint&）
         return false;
-    if (!db->get_uint(29, *(unsigned int*)SLC(sig, 0x120)))  // power_war_assault_victory_count
+    if (!db->get_uint(29, sig->m_characData.m_unkB2.m_pwAssaultVicCount)) // …victory_count（uint&）
         return false;
-    if (!db->get_uint(30, *(unsigned int*)SLC(sig, 0x124)))  // last_play_time_powerwar
+    if (!db->get_uint(30, sig->m_characData.m_unkB2.m_lastPlayTimePW)) // last_play_time_powerwar（uint&）
         return false;
-    if (!db->get_ushort(31, *(unsigned short*)SLC(sig, 0x3c))) // fatigue_grownup_buff
+    if (!db->get_ushort(31, sig->m_characData.m_field30))    // fatigue_grownup_buff（ushort&）
         return false;
-    if (!db->get_short(32, *(short*)SLC(sig, 0x128)))        // emotion
+    if (!db->get_short(32, sig->m_characData.m_unkB2.m_emotion)) // emotion（short&）
         return false;
-    if (!db->get_byte(33, *(char*)SLC(sig, 0x12b)))          // add_slot_flag
+    if (!db->get_byte(33, sig->m_characData.m_unkB2.m_addSlotFlag)) // add_slot_flag（char&）
         return false;
-    if (!db->get_byte(34, *(char*)SLC(sig, 0x12d)))          // member_dungeon_flag
+    if (!db->get_byte(34, sig->m_characData.m_unkB2.m_memberDungeonFlag)) // …flag（char&）
         return false;
-    if (!db->get_short(35, *(short*)SLC(sig, 0x12e)))        // member_bonus_fatigue
+    if (!db->get_short(35, sig->m_characData.m_unkB2.m_memberBonusFatigue)) // …fatigue（short&）
         return false;
-    if (!db->get_uint(36, *(unsigned int*)SLC(sig, 0x131)))  // last_play_dungeon_index
+    if (!db->get_uint(36, sig->m_characData.m_unkB2.m_lastPlayDungeonIndex)) // …index（uint&）
         return false;
-    if (!db->get_byte(37, *(char*)SLC(sig, 0x135)))          // add_equipslot_flag
+    if (!db->get_byte(37, sig->m_characData.m_unkB2.m_b129)) // add_equipslot_flag（char&）
         return false;
-    if (!db->get_byte(38, *(char*)SLC(sig, 0x136)))          // channel_equipslot_switch
+    if (!db->get_byte(38, sig->m_characData.m_unkB2.m_b12a)) // channel_equipslot_switch（char&）
         return false;
-    if (!db->get_byte(39, *(char*)SLC(sig, 0x137)))          // expand_equipslot_switch
+    if (!db->get_byte(39, sig->m_characData.m_unkB2.m_b12b)) // expand_equipslot_switch（char&）
         return false;
-    if (!db->get_byte(40, *(char*)SLC(sig, 0x13a)))          // visible_flags
+    if (!db->get_byte(40, sig->m_characData.m_unkB2.m_b12e)) // visible_flags（char&）
         return false;
-    if (!db->get_ubyte(41, *(unsigned char*)SLC(sig, 0x13b))) // growth_power_reward
+    if (!db->get_ubyte(41, sig->m_characData.m_unkB2.m_growthPowerReward)) // …reward（uchar&）
         return false;
-    if (!db->get_int(42, *(int*)SLC(sig, 0x13c)))            // chaos_respon_time
+    if (!db->get_int(42, sig->m_characData.m_unkB2.m_i130))  // chaos_respon_time（int&）
         return false;
 
     return true;
@@ -298,52 +301,53 @@ bool DB_LoadCharac::_GetTagCharacInfo(unsigned int characNo, TAG_CHARAC_DATA* ou
     if (db->getAffectedRowCount() == 0)
         return false;
 
-    char* p = out->m_data;
-    if (!db->get_int(0, *(int*)(p + 0x00)))       // charac_no
+    // 绑定字段类型 = _GetTagCharacInfo.md 汇编各 callee 重载形参（同
+    // _getCharacInfo 口径；m_add 区共用 CCharacter.h _Additioal_info 别名）。
+    if (!db->get_int(0, out->m_characNo))         // charac_no（0811692c int&）
         return false;
-    if (!db->get_str(1, p + 0x04, 0x1d))          // charac_name
+    if (!db->get_str(1, out->m_name, 0x1d))       // charac_name
         return false;
-    if (!db->get_byte(2, *(char*)(p + 0x21)))     // job
+    if (!db->get_byte(2, out->m_job))             // job（080fde54 char&）
         return false;
-    if (!db->get_short(3, *(short*)(p + 0x22)))   // lev
+    if (!db->get_short(3, out->m_lev))            // lev（080fddec short&）
         return false;
-    if (!db->get_byte(4, *(char*)(p + 0x24)))     // grow_type
+    if (!db->get_byte(4, out->m_growType))        // grow_type（char&）
         return false;
-    if (!db->get_byte(5, *(char*)(p + 0x25)))     // skill_tree_index
+    if (!db->get_byte(5, out->m_skillTreeIndex))  // skill_tree_index（char&）
         return false;
-    if (!db->get_uint(6, *(unsigned int*)(p + 0x26)))    // maxHP
+    if (!db->get_uint(6, out->m_add.m_maxHP))     // maxHP（080e22f2 uint&）
         return false;
-    if (!db->get_uint(7, *(unsigned int*)(p + 0x2a)))    // maxMP
+    if (!db->get_uint(7, out->m_add.m_maxMP))     // maxMP
         return false;
-    if (!db->get_ushort(8, *(unsigned short*)(p + 0x2e)))    // phy_attack
+    if (!db->get_ushort(8, out->m_add.m_field08)) // phy_attack（ushort&）
         return false;
-    if (!db->get_ushort(9, *(unsigned short*)(p + 0x30)))    // phy_defense
+    if (!db->get_ushort(9, out->m_add.m_field0a)) // phy_defense
         return false;
-    if (!db->get_ushort(10, *(unsigned short*)(p + 0x32)))   // mag_attack
+    if (!db->get_ushort(10, out->m_add.m_field0c)) // mag_attack
         return false;
-    if (!db->get_ushort(11, *(unsigned short*)(p + 0x34)))   // mag_defense
+    if (!db->get_ushort(11, out->m_add.m_field0e)) // mag_defense
         return false;
-    if (!db->get_binary(12, p + 0x36, 8))         // element_resist
+    if (!db->get_binary(12, out->m_add.m_elementResist, 8)) // element_resist
         return false;
-    if (!db->get_binary(13, p + 0x3e, 0x22))      // spec_property
+    if (!db->get_binary(13, out->m_add.m_specProperty, 0x22)) // spec_property
         return false;
-    if (!db->get_int(14, *(int*)(p + 0x60)))      // inven_weight
+    if (!db->get_int(14, out->m_add.m_field3a))   // inven_weight（int&）
         return false;
-    if (!db->get_short(15, *(short*)(p + 0x64)))  // hp_regen
+    if (!db->get_short(15, out->m_add.m_hpRegen)) // hp_regen（short&）
         return false;
-    if (!db->get_short(16, *(short*)(p + 0x66)))  // mp_regen
+    if (!db->get_short(16, out->m_add.m_mpRegen)) // mp_regen（short&）
         return false;
-    if (!db->get_uint(17, *(unsigned int*)(p + 0x68)))    // move_speed
+    if (!db->get_uint(17, out->m_add.m_moveSpeed)) // move_speed（uint&）
         return false;
-    if (!db->get_ushort(18, *(unsigned short*)(p + 0x6c)))   // attack_speed
+    if (!db->get_ushort(18, out->m_add.m_field46)) // attack_speed
         return false;
-    if (!db->get_ushort(19, *(unsigned short*)(p + 0x6e)))   // cast_speed
+    if (!db->get_ushort(19, out->m_add.m_field48)) // cast_speed
         return false;
-    if (!db->get_short(20, *(short*)(p + 0x70)))  // hit_recovery
+    if (!db->get_short(20, out->m_add.m_hitRecovery)) // hit_recovery（short&）
         return false;
-    if (!db->get_short(21, *(short*)(p + 0x72)))  // jump
+    if (!db->get_short(21, out->m_add.m_jump))    // jump（short&）
         return false;
-    if (!db->get_int(22, *(int*)(p + 0x74)))      // charac_weight
+    if (!db->get_int(22, out->m_add.m_field4e))   // charac_weight（int&）
         return false;
     return true;
 }
@@ -353,6 +357,9 @@ bool DB_LoadCharac::_GetTagCharacInfo(unsigned int characNo, TAG_CHARAC_DATA* ou
 // school_member 更新：job(+0x30)/grow_type(+0x33)/lev(+0x31)，
 // where school_id=+0x682 and m_id=NumberToString(accId,0) and charac_no=+0x4。
 // 返回 exec(true) 结果。
+// 报告 08408c6f..08408c98 实证读取形态：movzbl+movsbl（unsigned char lvalue 经
+// (char) 转换）与 movzwl+movswl（unsigned short lvalue 经 (short) 转换）→ 绑定
+// **旧类型占位字段**（非 char/short 别名，别名绑 char& 供 _getCharacInfo 用）。
 // ============================================================================
 bool DB_LoadCharac::_UpdateSchoolCharac(SIG_LOAD_CHARAC* sig)
 {
@@ -361,10 +368,10 @@ bool DB_LoadCharac::_UpdateSchoolCharac(SIG_LOAD_CHARAC* sig)
     db->set_query(
         "upDate school_member set job=%d,grow_type=%d,lev=%d where "
         "school_id=%d and m_id=%s and charac_no=%d",
-        (int)(char)*(char*)SLC(sig, 0x30),        // job
-        (int)(char)*(char*)SLC(sig, 0x33),        // grow_type
-        (int)*(short*)SLC(sig, 0x31),             // lev
-        *(int*)SLC(sig, 0x682),                   // school_id（m_schoolNo）
+        (int)(char)sig->m_characData.m_field24,   // job（uchar→(char) 双扩展）
+        (int)(char)sig->m_characData.m_field27,   // grow_type（uchar→(char)）
+        (int)(short)sig->m_characData.m_field25,  // lev（ushort→(short) 双扩展）
+        (int)sig->m_characData.m_schoolNo,        // school_id
         NumberToString(sig->m_accId, 0),          // m_id
         sig->m_characNo);                         // charac_no
     return db->exec(true);
@@ -421,8 +428,8 @@ bool DB_LoadCharac::_LoadEventBringUpInfo(SIG_LOAD_CHARAC* sig)
               "charac_no=%u", sig->m_characNo);
         return false;
     }
-    *(unsigned char*)SLC(sig, 0x139) = useMaterialCnt;
-    *(unsigned char*)SLC(sig, 0x138) = (giveRewardFlag != 0) ? 1 : 0;
+    sig->m_characData.m_unkB2.m_useMaterialCnt = useMaterialCnt;
+    sig->m_characData.m_unkB2.m_giveRewardFlag = (giveRewardFlag != 0) ? 1 : 0;
     return true;
 }
 
@@ -447,8 +454,8 @@ void DB_LoadCharac::_sendResult(int userIdx, int slot, SIG_LOAD_CHARAC* sig)
 
     cMyTrace trace(__PRETTY_FUNCTION__,
                    0x2347, 0);
-    trace("CharLastPlayTick char(%d) t(%d)", *(int*)SLC(sig, 0x04),
-          *(int*)SLC(sig, 0x59));
+    trace("CharLastPlayTick char(%d) t(%d)", sig->m_characNo,
+          sig->m_characData.m_field4d);
 }
 
 // ============================================================================
@@ -467,7 +474,7 @@ bool DB_LoadCharac::dispatch(int userIdx, int slot, Stream* stream)
     }
 
     SIG_LOAD_CHARAC* sig = stream->GetOutBuffer<SIG_LOAD_CHARAC>();
-    *(int*)SLC(sig, 0x08) = 0;                     // m_result
+    sig->m_result = 0;
 
     try
     {
@@ -491,12 +498,12 @@ bool DB_LoadCharac::dispatch(int userIdx, int slot, Stream* stream)
     }
     catch (int line)
     {
-        *(int*)SLC(sig, 0x08) = line;              // m_result
+        sig->m_result = line;
     }
 
     _sendResult(userIdx, slot, sig);
 
-    if (G_GameWorld()->IsSchoolPvPChannel() && *(int*)SLC(sig, 0x682) != 0)
+    if (G_GameWorld()->IsSchoolPvPChannel() && sig->m_characData.m_schoolNo != 0)
     {
         _UpdateSchoolCharac(sig);
     }

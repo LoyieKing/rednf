@@ -19,7 +19,7 @@ struct SIG_SAVE_INVENTORY;
 class DB_SaveInven : public DBDispatcher
 {
 public:
-    DB_SaveInven();                                    // C1/C2 T @0x08416a42
+    DB_SaveInven() __attribute__((nothrow));           // C1/C2 T @0x08416a42；try 区无 pad ⇒ nothrow
     ~DB_SaveInven();                                   // D1 T @0x08416a5e / D0 T @0x08416a8e
                                                        // （D2 由 GCC 随非内联析构发射）
 

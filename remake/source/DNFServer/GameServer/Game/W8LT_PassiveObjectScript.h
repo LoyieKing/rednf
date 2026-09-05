@@ -43,10 +43,13 @@ public:
 
     int m_field0;         // +0x00（ctor 初始化 -1）
     unsigned char m_b4;   // +0x04（ctor 初始化 0）
-
-private:
-    char m_tail_[3];      // [实证] ORIG _Vector_base D1 `(end-start) sar $3` → stride 8
+    // 无显式尾填充：尾部为编译器隐式 padding（ORIG _Vector_base D1
+    // `(end-start) sar $3` → stride 8 = sizeof 实证；export 08a2bc5c 以
+    // `memcpy(&info, &vec[i], 5)` 拷贝 41-bit 类对象，声明显式 m_tail_ 会使
+    // GCC 改发 8 字节逐字段 mov，故留隐式）。
 };
+static_assert(sizeof(SpeedCtrlPassiveObjInfo) == 8,
+              "SpeedCtrlPassiveObjInfo ABI drift (ORIG stride 8)");
 
 // ---- PassiveIObjSniperInfo（ORIG ctor 0x08a3af0c / clear 0x08a3afc0，
 //      docs/class_func_reports/PassiveIObjSniperInfo/：4 × vector<int> +
@@ -253,7 +256,8 @@ class RandomItemFairy
 public:
     RandomItemFairy();             // ORIG W 0x8a3db5e（cpp 定义；P69：ctor 内 call clear）
     void clear();                  // ORIG W 0x8a3db72（cpp 定义）
-    ~RandomItemFairy() {}          // ORIG W 0x8a4f436 空体
+    // ORIG 0x8a4f436 D1Ev 存在但 ImportPassiveObjectScript 内 0 调用点
+    // → 隐式平凡析构（勿声明用户析构，否则 O0 在作用域出口生成 D1 调用）。
 
     int m_i00;                     // +0x00（clear movl $0 直写）
     int m_ints04[3];               // +0x04..+0x0c（clear 循环 i=0..2 清零）
@@ -348,7 +352,9 @@ public:
     std::vector<class RandomItemFairy> m_itemFairies;               // +0x274
     unsigned char m_b280;                       // +0x280
     std::string m_s284;                         // +0x284
-    int m_i288;                                 // +0x288（结构末 int；ORIG 0x8a35725 写入实证）
-};
+    int m_i288;                                 // +0x288（ORIG import 0x8a35715 ScanInt 写入实证）
+    int m_i28c;                                 // +0x28c（ORIG import 0x8a35725 ScanInt 写入实证；
+                                                //   主类末 int；clear/ctor 均不清，POD 尾区）
+};  // sizeof == 0x290（ORIG m_i28c 之后无更多成员证据）
 
 #endif  // W8LT_PASSIVE_OBJECT_SCRIPT_H_

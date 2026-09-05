@@ -233,7 +233,9 @@ public:
 
         CUser* m_pUser;   // +0x00
         char m_field4;    // +0x04
-        int m_field8;     // +0x08
+        unsigned int m_field8;  // +0x08（create_party 0x0859b1d8 this 先载 =
+                                // 与 CUser::GetUID() 同 unsigned 直存，CInvC
+                                // signedness 行序探针实证）
         char m_fieldc;    // +0x0c
         char m_fieldd;    // +0x0d
         char m_fielde[4]; // +0x0e
@@ -400,7 +402,7 @@ public:
     void useItem(CUser* user, Inven_Item const& item);
     void use_skill(CUser* user, int skillIdx, int param);
     bool isCheckUseSkill(int skillIdx, int param);
-    void OnUsedSkill(CUser* user, int skillIdx, int param);
+    bool OnUsedSkill(CUser* user, int skillIdx, int param);   // ORIG 0x085b5f8e 尾 mov $0x1,%eax;ret ⇒ 返回 bool（非 void）
     void die_user(CUser* user);
     void set_charac_live(CUser* user, ENUM_USER_DUNGEON_STATE state);
     void finish_loading(CUser* user);
@@ -432,7 +434,7 @@ public:
     void send_to_alive_member(PacketGuard& packet);
     void send_to_party_cmd_error(ENUM_CMDPACKET cmd, unsigned char error);
     void send_host_info();
-    int get_party_realtime_info(PacketGuard& packet);
+    bool get_party_realtime_info(PacketGuard& packet);  // ORIG 调用点 test %al 直判（bool 透传）
     void send_party_realtime_info();   // 0x859cd24
 
     void send_invite_pvp(int mapIdx);
@@ -482,7 +484,7 @@ public:
     bool CheckHaveHellPartyPassItem(CDungeon const* dungeon, ENUM_DUNGEON_TYPE type);
     bool CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool flag);
     int CheckHellCoinLimint(int param);   // ORIG eax=0/1（checkLimitUsedCoinCondition 消费）
-    int checkDugeonInoutTime(int param);
+    bool checkDugeonInoutTime(int param);  // ORIG 尾部 isDungeonOpen 直落透传（无 movzbl）
     int checkInoutConditionDungeon(CDungeon const* dungeon, ENUM_DUNGEON_MODE mode,
                                    ENUM_CMDPACKET cmd);   // ORIG 返回错误码（0x85abc80）
     int checkInoutConditionDungeon();
@@ -556,7 +558,7 @@ public:
     void BloodHandleDieUser(CUser* user);
     void beginBloodClearProcess(bool flag);
     void onBloodClear(bool flag, int param);
-    int onBloodRewardTimer(TIMER_MESSAGE msg);   // ORIG 返回 0/1（0x85b6a48）
+    bool onBloodRewardTimer(TIMER_MESSAGE msg);  // ORIG 返回 0/1（0x85b6a48；caller 0x08638d17 xor$1 取反形⇒bool）
     void finishBloodDungeon();
     void generateBloodRewardExp(int a, int b, unsigned int c, short d);
     void generateBloodRewardItem(int a, int b, unsigned int c, unsigned int d,
@@ -587,7 +589,7 @@ public:
     void insert_time_dungeon_score_scroll_msg(int param);
 
     // ---- 锦标赛 / TOD ----
-    int OnTODRewardTimer(TIMER_MESSAGE msg);   // ORIG 恒返回 eax=1（0x85ba906）
+    bool OnTODRewardTimer(TIMER_MESSAGE msg);   // ORIG 0x85ba906；调用点 0x0863a901 xor $0x1 ⇒ bool（GData 同步定义体）
     int OnTimeoutBossDie(int a, unsigned int b);   // ORIG 0x85aa5d4 返回 0/1
     int _Send_TOD_APCInfo(int a);   // ORIG 恒返回 eax=1（0x85bac26）
     int _Send_TOD_ClearReward();   // ORIG 恒返回 eax=1（0x85bac00）
@@ -602,7 +604,7 @@ public:
     // ---- 技能 / 任务 ----
     void SetProperDungeonEvent(CUser* user, int param);
     void SetProperLevelDungeon(CUser* user);
-    int SetRidableObjectState(int state, eRidableObjectState type);   // ORIG 0x085b9f28（转发战场层返回）
+    bool SetRidableObjectState(int state, eRidableObjectState type);   // ORIG 0x085b9f28（纯转发 call;leave;ret = bool 链）
     unsigned char DestroyPassiveObject(int param);   // ORIG 返回 al（0x85b6540）
     void check_passive_skill();
     bool HasNoQuestGoWithApcInParty(Quest const* quest);
@@ -652,7 +654,7 @@ public:
     // ---- 其它 ----
     int ReviveUser(CUser* user, unsigned short a);   // ORIG 返回错误码（0x85b27c8）
     int VoteLackUser(CUser* user, int param);   // ORIG 0x85b3c90 返回 0/1
-    int OnTimerWalkOutLackUser();   // ORIG 0x85b3e12 返回 0/1
+    bool OnTimerWalkOutLackUser();   // ORIG 0x85b3e12；调用点 xor $0x1,%eax 实证 bool（GData 同步定义体）
     void SaveCoin(eCoinSubReason reason);
     int GetCoinCount(CUser* user);
     // ORIG T 0x085bdd2a 返回 int（0 普通/1 脚本 boss/2 维度/3 血轮普通/
@@ -809,7 +811,7 @@ public:
     bool m_isQuickParty;             // +0x1ae4
     unsigned char m_pad1ae5[3];      // +0x1ae5
     int m_field1ae8;                 // +0x1ae8
-    int m_randomBuffType;            // +0x1aec
+    QuickParty::RandomBuffType m_randomBuffType;  // +0x1aec（ORIG set_gm 赋值为同型无转换：eax 先取址）
     bool m_weekendEvent;             // +0x1af0
     bool m_dungeonMapSaving;         // +0x1af1
     unsigned char m_pad1af2[0x2];    // +0x1af2

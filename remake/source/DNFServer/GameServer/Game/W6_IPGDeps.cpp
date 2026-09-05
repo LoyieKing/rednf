@@ -11,7 +11,10 @@
 //   CIPGMgr__CIPGWorker,CIPGMgr__CIPGWorker__CIPGNetwork}/。
 // 无独立报告者（GetIPGMgr/CIPGMgr::getIPGStatus/stIPGStatus_t ctor）以
 // df_game_r objdump 转写，地址见各函数注释。
-// SIPGData 域内字段在权威头保持 m_pad 视图，实现按汇编偏移直访并注释偏移。
+// SIPGData 域内字段已在权威头 TaiwanCash.h 具名字段化（m_pad[0x2dc] 拆解 +
+//   六个命令族 union 视图，逐字段附 ORIG 汇编宽度/偏移证据）；本 TU 一律
+//   成员访问，无裸偏移访存。仅保留两处已注明豁免：put_binary(req/res, 0x2dc)
+//   的整块线格式序列化、dispatch 里按 ORIG 原样行为的指针类型强转实参。
 // ============================================================================
 
 #include "CUser.h"
@@ -83,7 +86,7 @@ SIPGData* CIPGMgr::AllocIPGData()
     SIPGData* data = m_pool.Acquire();
     if (data != 0)
     {
-        memset(data, 0, 0x2dc);
+        memset(data, 0, sizeof(SIPGData));   // ORIG movl $0x2dc（整块清零，非字段访存）
     }
     return data;
 }
@@ -187,36 +190,37 @@ void CIPGMgr::CIPGWorker::dispatch(void* /*arg*/)
 }
 
 // ---------------------------------------------------------------------------
-// ProcIPGSyncForTaiwan —— ORIG T 0x081048c6 (0x992)。switch(d->type@0x1c)：
+// ProcIPGSyncForTaiwan —— ORIG T 0x081048c6 (0x992)。switch(data->m_type)：
 // 0=charge、2=purchase、3=cancel、4=getBalance、5=confirm、6=ceraPoint、
-// 其余（含 1）记日志。cash 取 *(m_mgr->getBillingCash())。
+// 其余（含 1）记日志。cash 取 *(m_mgr->getBillingCash())。载荷按命令族视图访问
+// （m_cmd.m_input / m_output / m_cancel / m_point / m_query，见 TaiwanCash.h）。
 // ---------------------------------------------------------------------------
 SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
 {
-    char* d = (char*)data;
     SIPGData* result = 0;
 
-    switch (*(int*)(d + 0x1c))
+    switch (data->m_type)
     {
     case 0:  // IPG_TYPE_INPUT：charge → confirm
     {
         Taiwan::BillTransaction tran;   // -0x68..-0x5c
+        SIPGDataInputView* in = &data->m_cmd.m_input;
         Taiwan::TaiwanCash* cash = m_mgr->getBillingCash();
-        int rc = cash->charge((char*)(d + 0x28),
-                              (unsigned char)d[0x26d],
+        int rc = cash->charge(data->m_account,
+                              in->m_serviceType,
                               0,
-                              *(unsigned int*)(d + 0x98),
+                              in->m_price,
                               "",
                               "",
                               "",
-                              (char*)(d + 0x50),
+                              data->m_characName,
                               0ULL,
                               tran);
         if (rc != 0)
         {
             LogManager::logFormat(1, "IPGMgr.cpp", __PRETTY_FUNCTION__, 0x2a7,
                                   "IPG_INPUT charge user: %s, charac: %s reason: %d",
-                                  (char*)(d + 0x28), (char*)(d + 0x50), rc);
+                                  data->m_account, data->m_characName, rc);
             break;
         }
         rc = cash->confirm(tran);
@@ -225,56 +229,60 @@ SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
             char* tranStr = NumberToString(tran.m_tranNo, 0);   // tran+0x04..0x0b
             LogManager::logFormat(1, "IPGMgr.cpp", __PRETTY_FUNCTION__, 0x2af,
                                   "IPG_INPUT confirm user: %s, charac: %s reason: %d tran :%s",
-                                  (char*)(d + 0x28), (char*)(d + 0x50), rc, tranStr);
+                                  data->m_account, data->m_characName, rc, tranStr);
         }
         break;
     }
 
-    case 2:  // IPG_TYPE_OUTPUT：purchase（注意：account=d+0x3c、第二字符串=d+0x1e8，均照 asm）
+    case 2:  // IPG_TYPE_OUTPUT：purchase（ORIG 实参：account=data->m_accName(+0x3c)、
+             // 第二字符串=m_output.m_recvCharac(+0x1e8)，均照 asm）
     {
         Taiwan::BillTransaction tran;          // -0x40..-0x38（本栈帧局部）
-        int pay = atoi(d + 0x71);              // ebx
-        int price = atoi(d + 0x69);            // eax
+        SIPGDataOutputView* out = &data->m_cmd.m_output;
+        int pay = atoi(out->m_pay);            // ebx
+        int price = atoi(out->m_price);        // eax
         Taiwan::TaiwanCash* cash = m_mgr->getBillingCash();
         int rc = cash->purchase(0ULL, price, pay,
-                                (const char*)(d + 0x3c),
-                                (const char*)(d + 0x1e8),
+                                data->m_accName,
+                                out->m_recvCharac,
                                 tran);
         if (rc != 0)
         {
             LogManager::logFormat(1, "IPGMgr.cpp", __PRETTY_FUNCTION__, 0x269,
                                   "IPG_OUTPUT user: %s, charac: %s reason: %d",
-                                  (char*)(d + 0x28), (char*)(d + 0x1e8), rc);
+                                  data->m_account, out->m_recvCharac, rc);
             break;
         }
         result = m_mgr->AllocIPGData();
-        char* r = (char*)result;
-        *(unsigned int*)r = *(unsigned int*)d;                       // r+0
-        strncpy(r + 0x04, d + 0x04, 0x14);                           // r+4
-        *(unsigned short*)(r + 0x18) = *(unsigned short*)(d + 0x18); // r+0x18
-        *(int*)(r + 0x1c) = 2;                                       // 响应类型
-        r[0x24] = d[0x24];
-        memset(r + 0x28, 0, 0x1fc);
-        strcpy(r + 0x28, d + 0x28);   // user（strncpy 语义按 asm strcpy）
-        strcpy(r + 0x3c, d + 0x3c);
-        strcpy(r + 0x64, d + 0x64);   // charac
-        strcpy(r + 0x69, d + 0x69);
-        strcpy(r + 0x71, d + 0x71);
-        strcpy(r + 0x7d, d + 0x7d);
-        strcpy(r + 0x91, d + 0x91);
-        strcpy(r + 0xf5, d + 0xf5);
-        memcpy(r + 0x1dc, &tran, 0xc);                               // +0x1dc/+0x1e0/+0x1e4 ← local tran 三 dword
-        sprintf((char*)(r + 0x173), "%d", rc);
-        r[0x177] = '\0';                                             // DAT_08b421df = "\0"（1 字节拷贝）
-        *(unsigned int*)(r + 0x2d8) = *(unsigned int*)(d + 0x2d8);
+        SIPGDataOutputView* ro = &result->m_cmd.m_output;
+        result->m_recordLen = data->m_recordLen;
+        strncpy(result->m_envCode, data->m_envCode, 0x14);
+        result->m_productCode = data->m_productCode;
+        result->m_type = 2;                                          // 响应类型
+        result->m_notifyFlag = data->m_notifyFlag;
+        memset(&result->m_account, 0, 0x1fc);                        // 载荷前 0x1fc 字节
+        strcpy(result->m_account, data->m_account);
+        strcpy(result->m_accName, data->m_accName);
+        strcpy(result->m_gameCode, data->m_gameCode);
+        strcpy(ro->m_price, out->m_price);
+        strcpy(ro->m_pay, out->m_pay);
+        strcpy(ro->m_arg7D, out->m_arg7D);
+        strcpy(ro->m_desc91, out->m_desc91);
+        strcpy(ro->m_descF5, out->m_descF5);
+        ro->m_tranField0 = tran.m_field0;                            // 08104cf4 `mov %edx,0x1dc(%eax)`
+        ro->m_tranNo = tran.m_tranNo;                                // 08104cfd/08104d06 两 dword
+        sprintf(ro->m_resultCode, "%d", rc);
+        memcpy(ro->m_message, "", 1);                                // 08104d46 DAT_08b421df = "\0"（n=1）
+        result->m_callback = data->m_callback;
         break;
     }
 
     case 3:  // IPG_TYPE_OUTPUT_CANCEL：BillTransaction@0x1f0 → cancel
     {
         Taiwan::BillTransaction tran;
-        tran.m_field0 = *(int*)(d + 0x1f0);
-        tran.m_tranNo = *(unsigned long long*)(d + 0x1f4);
+        const SIPGDataCancelView* cv = &data->m_cmd.m_cancel;
+        tran.m_field0 = cv->m_tranField0;
+        tran.m_tranNo = cv->m_tranNo;
         m_mgr->getBillingCash()->cancel(tran);
         break;
     }
@@ -283,37 +291,38 @@ SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
     {
         int bal = 0;    // -0x34
         int point = 0;  // -0x30
-        int rc = m_mgr->getBillingCash()->getBalance((const char*)(d + 0x3c), bal, point);
+        int rc = m_mgr->getBillingCash()->getBalance(data->m_accName, bal, point);
         if (rc != 0)
         {
             LogManager::logFormat(1, "IPGMgr.cpp", __PRETTY_FUNCTION__, 0x243,
                                   "IPG_QUERY user: %s reason: %d",
-                                  (char*)(d + 0x28), rc);
+                                  data->m_account, rc);
             break;
         }
         result = m_mgr->AllocIPGData();
-        char* r = (char*)result;
-        *(unsigned int*)r = *(unsigned int*)d;
-        strncpy(r + 0x04, d + 0x04, 0x14);
-        *(unsigned short*)(r + 0x18) = *(unsigned short*)(d + 0x18);
-        *(int*)(r + 0x1c) = 4;
-        r[0x24] = d[0x24];
-        memset(r + 0x28, 0, 0x99);
-        strncpy(r + 0x28, d + 0x28, 0x14);
-        strncpy(r + 0x3c, d + 0x3c, 0x28);
-        strncpy(r + 0x64, d + 0x64, 5);
-        sprintf(r + 0x69, "%d", point);   // asm 写序：+0x69←-0x30(point)、+0xb5←-0x34(bal)、+0xb1←rc
-        sprintf(r + 0xb5, "%d", bal);
-        sprintf(r + 0xb1, "%d", rc);
-        *(unsigned int*)(r + 0x2d8) = *(unsigned int*)(d + 0x2d8);
+        SIPGDataQueryView* rq = &result->m_cmd.m_query;
+        result->m_recordLen = data->m_recordLen;
+        strncpy(result->m_envCode, data->m_envCode, 0x14);
+        result->m_productCode = data->m_productCode;
+        result->m_type = 4;
+        result->m_notifyFlag = data->m_notifyFlag;
+        memset(&result->m_account, 0, 0x99);
+        strncpy(result->m_account, data->m_account, 0x14);
+        strncpy(result->m_accName, data->m_accName, 0x28);
+        strncpy(result->m_gameCode, data->m_gameCode, 5);
+        sprintf(rq->m_ceraValues[0], "%d", point);  // asm 写序：+0x69←-0x30(point)、+0xb5←-0x34(bal)、+0xb1←rc
+        sprintf(rq->m_ceraPoint, "%d", bal);
+        sprintf(rq->m_retCode, "%d", rc);
+        result->m_callback = data->m_callback;
         break;
     }
 
     case 5:  // IPG_TYPE_OUTPUT_CONFIRM：BillTransaction@0x1f0 → confirm
     {
         Taiwan::BillTransaction tran;
-        tran.m_field0 = *(int*)(d + 0x1f0);
-        tran.m_tranNo = *(unsigned long long*)(d + 0x1f4);
+        const SIPGDataCancelView* cv = &data->m_cmd.m_cancel;
+        tran.m_field0 = cv->m_tranField0;
+        tran.m_tranNo = cv->m_tranNo;
         m_mgr->getBillingCash()->confirm(tran);
         break;
     }
@@ -321,50 +330,51 @@ SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
     case 6:  // IPG_TYPE_POINT：ceraPoint；A 型命令位不回包
     {
         Taiwan::TaiwanCash* cash = m_mgr->getBillingCash();
-        int rc = cash->ceraPoint((char*)(d + 0x3c),
-                                 (char*)(d + 0x64),
-                                 (char)d[0xb0],
-                                 (char*)(d + 0x8c),
-                                 (char*)(d + 0x94),
-                                 (char)d[0xb1],
-                                 (char)d[0xb2],
-                                 *(int*)(d + 0xac));
+        SIPGDataPointView* pt = &data->m_cmd.m_point;
+        int rc = cash->ceraPoint(data->m_accName,
+                                 data->m_gameCode,
+                                 (char)pt->m_command,
+                                 pt->m_itemNo,
+                                 pt->m_arg94,
+                                 (char)pt->m_cmdA,
+                                 (char)pt->m_cmdB,
+                                 (int)pt->m_point);
         if (rc != 0)
         {
-            sprintf(d + 0xb3, "%d", rc);
+            sprintf(pt->m_reasonB3, "%d", rc);
             LogManager::logFormat(1, "IPGMgr.cpp", __PRETTY_FUNCTION__, 0x2c4,
                                   "IPG_CERA_POINT user: %s reason: %d",
-                                  (char*)(d + 0x3c), rc);
+                                  data->m_accName, rc);
             break;
         }
-        if ((unsigned char)d[0xb0] == 0x41)
+        if (pt->m_command == 0x41)
         {
             break;   // 'A' 命令位：无响应数据
         }
         result = m_mgr->AllocIPGData();
-        char* r = (char*)result;
-        *(unsigned int*)r = *(unsigned int*)d;
-        strncpy(r + 0x04, d + 0x04, 0x14);
-        *(unsigned short*)(r + 0x18) = *(unsigned short*)(d + 0x18);
-        *(int*)(d + 0x1c) = 2;          // ORIG 081050b9：请求数据 type 同步改 2
-        *(int*)(r + 0x1c) = 2;
-        r[0x24] = d[0x24];
-        memset(r + 0x28, 0, 0x1fc);
-        strncpy(r + 0x28, "", 0x14);
-        strncpy(r + 0x64, "", 5);
-        strncpy(r + 0x177, "cera point", 100);
-        strncpy(r + 0x3c, d + 0x3c, 0x28);
-        strncpy(r + 0x69, d + 0x8c, 8);
-        strncpy(r + 0x7d, d + 0x94, 0x14);
-        sprintf(r + 0x173, "%d", rc);
-        sprintf(r + 0x71, "%d", *(unsigned int*)(d + 0xac));
-        *(unsigned int*)(r + 0x2d8) = *(unsigned int*)(d + 0x2d8);
+        SIPGDataOutputView* rv = &result->m_cmd.m_output;
+        result->m_recordLen = data->m_recordLen;
+        strncpy(result->m_envCode, data->m_envCode, 0x14);
+        result->m_productCode = data->m_productCode;
+        data->m_type = 2;               // ORIG 081050b9：请求数据 type 同步改 2
+        result->m_type = 2;
+        result->m_notifyFlag = data->m_notifyFlag;
+        memset(&result->m_account, 0, 0x1fc);
+        strncpy(result->m_account, "", 0x14);
+        strncpy(result->m_gameCode, "", 5);
+        strncpy(rv->m_message, "cera point", 100);
+        strncpy(result->m_accName, data->m_accName, 0x28);
+        strncpy(rv->m_price, pt->m_itemNo, 8);
+        strncpy(rv->m_arg7D, pt->m_arg94, 0x14);
+        sprintf(rv->m_resultCode, "%d", rc);
+        sprintf(rv->m_pay, "%d", pt->m_point);
+        result->m_callback = data->m_callback;
         break;
     }
 
     default:
         LogManager::logFormat(1, "IPGMgr.cpp", __PRETTY_FUNCTION__, 0x2e9,
-                              "IPGDataType : %d", *(int*)(d + 0x1c));
+                              "IPGDataType : %d", data->m_type);
         break;
     }
 
@@ -423,11 +433,13 @@ int CIPGHelper::Initialize(unsigned int param1, unsigned int param2)
     m_dataTableA[5] = 0x1d4;
     m_dataTableA[6] = 0x90;
 
-    if (*((char*)G_CEnvironment() + 0x2b8) == '\0')   // env+0x2b8（未建模字段，偏移实证；ORIG 未缓存 env，两次独立调用）
+    // ORIG 未缓存 G_CEnvironment() 返回值，条件与拷贝各调一次（P48）；
+    // env+0x2b8 = Server_Envir::m_ipgIP（CEnvironment.h 权威布局 +0x198+0x120）。
+    if (G_CEnvironment()->m_serverEnvir.m_ipgIP[0] == '\0')
     {
         return -1;
     }
-    strncpy(m_str24, (char*)G_CEnvironment() + 0x2b8, 0x14);
+    strncpy(m_str24, G_CEnvironment()->m_serverEnvir.m_ipgIP, 0x14);   // ORIG n=0x14 > m_ipgIP[0x10]【越界读】
     m_dataTableB[0] = 0x5a3c;
     m_dataTableB[1] = 0x5aa0;
     m_dataTableB[2] = 0x5b04;
@@ -469,29 +481,26 @@ CIPGMgr* CIPGHelper::GetIPGMgr()
 SIPGData* CIPGHelper::_SetIPGData(CUser* user, IPG_DATA_TYPE type, bool flag)
 {
     SIPGData* data = m_mgr->AllocIPGData();
-    char* d = (char*)data;
-
     char* accStr = NumberToString(user->get_acc_id(), 0);      // _Z14NumberToStringji
-    OS_API::snprintf(d + 0x28, 0x14, "%s", accStr);
-    strncpy(d + 0x3c, user->get_acc_name(), 0x28);
-    memcpy(d + 0x64, "DUNF", 5);                               // DAT_08b41459 = "DUNF\0"
-    *(unsigned int*)d = m_dataTableA[type];
-    strncpy(d + 0x04, m_str24, 0x14);
-    *(unsigned short*)(d + 0x18) = (unsigned short)m_dataTableB[type];
-    *(unsigned int*)(d + 0x20) = user->GetUID();
-    *(unsigned int*)(d + 0x1c) = (unsigned int)type;
-    d[0x24] = flag;   // ORIG mov %dl,0x24 直存参数字节
+    OS_API::snprintf(data->m_account, 0x14, "%s", accStr);
+    strncpy(data->m_accName, user->get_acc_name(), 0x28);      // ORIG n=0x28 > m_accName[0x14]【越界写】
+    memcpy(data->m_gameCode, "DUNF", 5);                       // DAT_08b41459 = "DUNF\0"
+    data->m_recordLen = m_dataTableA[type];
+    strncpy(data->m_envCode, m_str24, 0x14);
+    data->m_productCode = (unsigned short)m_dataTableB[type];
+    data->m_uid = user->GetUID();
+    data->m_type = (int)type;
+    data->m_notifyFlag = flag;   // ORIG mov %dl,0x24 直存参数字节
     return data;
 }
 
 // ORIG T 0x081007e8 (0x76)。
 void CIPGHelper::IPGRequest(SIPGData* data)
 {
-    char* d = (char*)data;
-    *(unsigned int*)d = m_dataTableA[*(int*)(d + 0x1c)];
-    strncpy(d + 0x04, m_str24, 0x14);
-    *(unsigned short*)(d + 0x18) =
-        (unsigned short)m_dataTableB[*(int*)(d + 0x1c)];
+    data->m_recordLen = m_dataTableA[data->m_type];
+    strncpy(data->m_envCode, m_str24, 0x14);
+    data->m_productCode =
+        (unsigned short)m_dataTableB[data->m_type];
     m_mgr->PutIPGRequest(data, true);
 }
 
@@ -499,7 +508,7 @@ void CIPGHelper::IPGRequest(SIPGData* data)
 void CIPGHelper::IPGQuery(CUser* user)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_QUERY, true);
-    *(char**)((char*)data + 0x2d8) = 0;
+    data->m_callback = 0;
     m_mgr->PutIPGRequest(data, true);
 }
 
@@ -509,23 +518,23 @@ void CIPGHelper::IPGInput(CUser* user,
                           const char* p5, const char* p6, void* callback)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_INPUT, true);
-    char* d = (char*)data;
-    strncpy(d + 0xdd, p2, 0xb);
-    strncpy(d + 0xe8, p3, 0xc);
-    strncpy(d + 0xf4, p4, 0x14);
+    SIPGDataInputView* in = &data->m_cmd.m_input;
+    strncpy(in->m_argDD, p2, 0xb);
+    strncpy(in->m_argE8, p3, 0xc);
+    strncpy(in->m_argF4, p4, 0x14);
     if (p5 != 0)
     {
-        strncpy(d + 0x108, p5, 100);
+        strncpy(in->m_arg108, p5, 100);
     }
     if (p6 != 0)
     {
-        strncpy(d + 0x16c, p6, 100);
+        strncpy(in->m_arg16C, p6, 100);
     }
-    strncpy(d + 0x1d0, user->GetUserName(), 0x32);
-    strncpy(d + 0x202, user->GetSsnString(), 0xe);
-    strncpy(d + 0x210, user->GetUserEMail(), 0x3c);
-    memset(d + 0x24c, 0, 7);
-    *(void**)(d + 0x2d8) = callback;
+    strncpy(in->m_userName, user->GetUserName(), 0x32);
+    strncpy(in->m_ssn, user->GetSsnString(), 0xe);
+    strncpy(in->m_email, user->GetUserEMail(), 0x3c);
+    memset(in->m_zero24C, 0, 7);
+    data->m_callback = callback;
     m_mgr->PutIPGRequest(data, true);
 }
 
@@ -535,27 +544,27 @@ void CIPGHelper::IPGInput(CUser* user, unsigned char serviceType, unsigned int p
                           const char* p7, const char* p8, void* callback)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_INPUT, true);
-    char* d = (char*)data;
-    strncpy(d + 0xdd, p4, 0xb);
-    strncpy(d + 0xe8, p5, 0xc);
-    strncpy(d + 0xf4, p6, 0x14);
+    SIPGDataInputView* in = &data->m_cmd.m_input;
+    strncpy(in->m_argDD, p4, 0xb);
+    strncpy(in->m_argE8, p5, 0xc);
+    strncpy(in->m_argF4, p6, 0x14);
     if (p7 != 0)
     {
-        strncpy(d + 0x108, p7, 100);
+        strncpy(in->m_arg108, p7, 100);
     }
     if (p8 != 0)
     {
-        strncpy(d + 0x16c, p8, 100);
+        strncpy(in->m_arg16C, p8, 100);
     }
-    strncpy(d + 0x1d0, user->GetUserName(), 0x32);
-    strncpy(d + 0x202, user->GetSsnString(), 0xe);
-    strncpy(d + 0x210, user->GetUserEMail(), 0x3c);
-    memset(d + 0x24c, 0, 7);
-    strncpy(d + 0x28, user->get_acc_name(), 0x20);
-    strncpy(d + 0x50, user->getCurCharacName(), 0x1e);
-    d[0x26d] = serviceType;
-    *(unsigned int*)(d + 0x98) = price;
-    *(void**)(d + 0x2d8) = callback;
+    strncpy(in->m_userName, user->GetUserName(), 0x32);
+    strncpy(in->m_ssn, user->GetSsnString(), 0xe);
+    strncpy(in->m_email, user->GetUserEMail(), 0x3c);
+    memset(in->m_zero24C, 0, 7);
+    strncpy(data->m_account, user->get_acc_name(), 0x20);     // ORIG n=0x20 > m_account[0x14]【越界写】
+    strncpy(data->m_characName, user->getCurCharacName(), 0x1e); // ORIG n=0x1e > m_characName[0x14]【越界写】
+    in->m_serviceType = serviceType;
+    in->m_price = price;
+    data->m_callback = callback;
     m_mgr->PutIPGRequest(data, true);
 }
 
@@ -566,20 +575,20 @@ void CIPGHelper::IPGInputCancel(CUser* user,
                                 void* callback)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_INPUT_CANCEL, false);
-    char* d = (char*)data;
-    strncpy(d + 0x69, p2, 0x15);
-    strncpy(d + 0x7e, p3, 0xb);
-    strncpy(d + 0x89, p4, 0xc);
-    strncpy(d + 0x95, p5, 0x14);
+    SIPGDataInputCancelView* ic = &data->m_cmd.m_inputCancel;
+    strncpy(ic->m_arg69, p2, 0x15);
+    strncpy(ic->m_arg7E, p3, 0xb);
+    strncpy(ic->m_arg89, p4, 0xc);
+    strncpy(ic->m_arg95, p5, 0x14);
     if (p6 != 0)
     {
-        strncpy(d + 0xa9, p6, 100);
+        strncpy(ic->m_argA9, p6, 100);
     }
     if (p7 != 0)
     {
-        strncpy(d + 0x10d, p7, 100);
+        strncpy(ic->m_arg10D, p7, 100);
     }
-    *(void**)(d + 0x2d8) = callback;
+    data->m_callback = callback;
     m_mgr->PutIPGRequest(data, true);
 }
 
@@ -588,17 +597,17 @@ void CIPGHelper::IPGInputPoint(CUser* user, unsigned int point, char a, char b,
                                void* callback)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_POINT, true);
-    char* d = (char*)data;
-    sprintf(d + 0x28, "%d", user->get_acc_id());
-    strncpy(d + 0x3c, user->get_acc_name(), 0x28);
-    strncpy(d + 0x64, user->getCurCharacName(), 0x28);
-    strncpy(d + 0x8c, "", 8);
-    strncpy(d + 0x94, "", 0x15);
-    *(unsigned int*)(d + 0xac) = point;
-    d[0xb0] = 0x41;                  // 'A'：输入点模式
-    d[0xb1] = a;
-    d[0xb2] = b;
-    *(void**)(d + 0x2d8) = callback;
+    SIPGDataPointView* pt = &data->m_cmd.m_point;
+    sprintf(data->m_account, "%d", user->get_acc_id());
+    strncpy(data->m_accName, user->get_acc_name(), 0x28);        // ORIG n=0x28【越界写】
+    strncpy(data->m_gameCode, user->getCurCharacName(), 0x28);   // ORIG n=0x28 > m_gameCode[5]【越界写】
+    strncpy(pt->m_itemNo, "", 8);
+    strncpy(pt->m_arg94, "", 0x15);
+    pt->m_point = point;
+    pt->m_command = 0x41;              // 'A'：输入点模式
+    pt->m_cmdA = (unsigned char)a;
+    pt->m_cmdB = (unsigned char)b;
+    data->m_callback = callback;
     m_mgr->PutIPGRequest(data, true);
 }
 
@@ -608,40 +617,40 @@ void CIPGHelper::IPGOutput(CUser* user,
                            const char* p5, const char* p6, void* callback)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_OUTPUT, true);
-    char* d = (char*)data;
-    strncpy(d + 0x69, p2, 8);
-    strncpy(d + 0x71, p3, 0xc);
-    strncpy(d + 0x7d, p4, 0x14);
+    SIPGDataOutputView* out = &data->m_cmd.m_output;
+    strncpy(out->m_price, p2, 8);
+    strncpy(out->m_pay, p3, 0xc);
+    strncpy(out->m_arg7D, p4, 0x14);
     if (p5 != 0)
     {
-        strncpy(d + 0x91, p5, 100);
+        strncpy(out->m_desc91, p5, 100);
     }
     if (p6 != 0)
     {
-        strncpy(d + 0xf5, p6, 100);
+        strncpy(out->m_descF5, p6, 100);
     }
-    strncpy(d + 0x1e8, user->getCurCharacName(), 0x3a);
-    *(void**)(d + 0x2d8) = callback;
+    strncpy(out->m_recvCharac, user->getCurCharacName(), 0x3a);
+    data->m_callback = callback;
     m_mgr->PutIPGRequest(data, true);
 }
 
 // ORIG T 0x081000f6 (0x137)。
 void CIPGHelper::IPGOutputPoint(CUser* user,
                                 const char* p2, const char* p3, const char* p4,
-                                const char* /*p5*/, const char* p6, void* callback)
+                                const char* p5, const char* p6, void* callback)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_POINT, true);
-    char* d = (char*)data;
-    sprintf(d + 0x28, "%d", user->get_acc_id());
-    strncpy(d + 0x3c, user->get_acc_name(), 0x28);
-    strncpy(d + 0x64, user->getCurCharacName(), 0x28);
-    strncpy(d + 0x8c, p2, 8);
-    strncpy(d + 0x94, p4, 0x15);   // asm 只写 p4，p5 不落盘
-    *(unsigned int*)(d + 0xac) = (unsigned int)atoi(p3);
-    d[0xb0] = 0x55;                  // 'U'：输出点模式
-    d[0xb1] = 0;
-    d[0xb2] = 0;
-    *(void**)(d + 0x2d8) = callback;
+    SIPGDataPointView* pt = &data->m_cmd.m_point;
+    sprintf(data->m_account, "%d", user->get_acc_id());
+    strncpy(data->m_accName, user->get_acc_name(), 0x28);        // ORIG n=0x28【越界写】
+    strncpy(data->m_gameCode, user->getCurCharacName(), 0x28);   // ORIG n=0x28 > m_gameCode[5]【越界写】
+    strncpy(pt->m_itemNo, p2, 8);
+    strncpy(pt->m_arg94, p4, 0x15);  // asm 只写 p4，p5 不落盘
+    pt->m_point = (unsigned int)atoi(p3);
+    pt->m_command = 0x55;            // 'U'：输出点模式
+    pt->m_cmdA = 0;
+    pt->m_cmdB = 0;
+    data->m_callback = callback;
     m_mgr->PutIPGRequest(data, true);
 }
 
@@ -652,26 +661,26 @@ SIPGData* CIPGHelper::IPGOutputSimulation(CUser* user,
                                           const char* p6, void* callback)
 {
     SIPGData* req = _SetIPGData(user, IPG_TYPE_OUTPUT, true);
-    char* s = (char*)req;
-    strncpy(s + 0x69, p2, 8);
-    strncpy(s + 0x71, p3, 0xc);
-    strncpy(s + 0x7d, p4, 0x14);
+    SIPGDataOutputView* out = &req->m_cmd.m_output;
+    strncpy(out->m_price, p2, 8);
+    strncpy(out->m_pay, p3, 0xc);
+    strncpy(out->m_arg7D, p4, 0x14);
     if (p5 != 0)
     {
-        strncpy(s + 0x91, p5, 100);
+        strncpy(out->m_desc91, p5, 100);
     }
     if (p6 != 0)
     {
-        strncpy(s + 0xf5, p6, 100);
+        strncpy(out->m_descF5, p6, 100);
     }
-    *(void**)(s + 0x2d8) = callback;
+    req->m_callback = callback;
 
     SIPGData* res = m_mgr->AllocIPGData();
-    char* r = (char*)res;
-    memcpy(r + 0x28, s + 0x28, *(size_t*)s);       // 长度取 req+0 类型键（ORIG mov (%eax)）
-    memcpy(r + 0x173, "0", 2);                      // DAT_08b41446
-    *(unsigned int*)r = *(unsigned int*)s;
-    *(unsigned int*)(r + 0x1c) = *(unsigned int*)(s + 0x1c);
+    SIPGDataOutputView* rv = &res->m_cmd.m_output;
+    memcpy(&res->m_account, &req->m_account, req->m_recordLen);  // 长度取 req+0 记录长（ORIG mov (%eax)）
+    memcpy(rv->m_resultCode, "0", 2);                            // DAT_08b41446
+    res->m_recordLen = req->m_recordLen;
+    res->m_type = req->m_type;
 
     // ORIG: vptr+0x34 槽调用（IIPGHelperInterface slot11）= IPGResult(req,res)。
     this->IPGResult(req, res);
@@ -688,23 +697,22 @@ void CIPGHelper::IPGOutputCancel(CUser* user,
                                  void* callback, Taiwan::BillTransaction* tran)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_OUTPUT_CANCEL, false);
-    char* d = (char*)data;
-    strncpy(d + 0x69, p2, 0x15);
-    strncpy(d + 0x7e, p3, 8);
-    strncpy(d + 0x86, p4, 0xc);
-    strncpy(d + 0x92, p5, 0x14);
+    SIPGDataCancelView* cv = &data->m_cmd.m_cancel;
+    strncpy(cv->m_arg69, p2, 0x15);
+    strncpy(cv->m_arg7E, p3, 8);
+    strncpy(cv->m_arg86, p4, 0xc);
+    strncpy(cv->m_arg92, p5, 0x14);
     if (p6 != 0)
     {
-        strncpy(d + 0xa6, p6, 100);
+        strncpy(cv->m_argA6, p6, 100);
     }
     if (p7 != 0)
     {
-        strncpy(d + 0x10a, p7, 100);
+        strncpy(cv->m_arg10A, p7, 100);
     }
-    *(void**)(d + 0x2d8) = callback;
-    *(unsigned int*)(d + 0x1f0) = tran->m_field0;
-    *(unsigned int*)(d + 0x1f4) = (unsigned int)(tran->m_tranNo & 0xffffffffULL);
-    *(unsigned int*)(d + 0x1f8) = (unsigned int)((tran->m_tranNo >> 32) & 0xffffffffULL);
+    data->m_callback = callback;
+    cv->m_tranField0 = tran->m_field0;
+    cv->m_tranNo = tran->m_tranNo;
     m_mgr->PutIPGRequest(data, true);
 }
 
@@ -712,23 +720,26 @@ void CIPGHelper::IPGOutputCancel(CUser* user,
 void CIPGHelper::IPGOutputCancel(SIPGData* req, SIPGData* res)
 {
     SIPGData* d = m_mgr->AllocIPGData();
-    memcpy((char*)d + 0x28, (char*)req + 0x28, 0x41);
-    strncpy((char*)d + 0x69, (char*)res + 0x16e, 0x15);
-    strncpy((char*)d + 0x7e, (char*)req + 0x69, 8);
-    strncpy((char*)d + 0x92, (char*)req + 0x7d, 0x14);
-    strncpy((char*)d + 0x86, (char*)req + 0x71, 0xc);
-    if ((char*)req + 0x91 != 0)   // ORIG add/test 形态照写（指针非空判断）
+    SIPGDataCancelView* dv = &d->m_cmd.m_cancel;
+    const SIPGDataOutputView* rv = &req->m_cmd.m_output;
+    const SIPGDataOutputView* sv = &res->m_cmd.m_output;
+    memcpy(&d->m_account, &req->m_account, 0x41);
+    // 响应块 +0x16e 文本槽（ORIG 08100650 `add $0x16e` 作 strncpy 源，n=0x15）。
+    strncpy(dv->m_arg69, res->m_cmd.m_cancel.m_srcMsg16E, 0x15);
+    strncpy(dv->m_arg7E, rv->m_price, 8);
+    strncpy(dv->m_arg92, rv->m_arg7D, 0x14);
+    strncpy(dv->m_arg86, rv->m_pay, 0xc);
+    if (&rv->m_desc91[0] != 0)   // ORIG 081006e3 `add $0x91,%eax; test %eax,%eax`：恒真遗留
     {
-        strncpy((char*)d + 0xa6, (char*)req + 0x91, 100);
+        strncpy(dv->m_argA6, rv->m_desc91, 100);
     }
-    if ((char*)req + 0xf5 != 0)   // 同上
+    if (&rv->m_descF5[0] != 0)   // 同上（ORIG 08100715）
     {
-        strncpy((char*)d + 0x10a, (char*)req + 0xf5, 100);
+        strncpy(dv->m_arg10A, rv->m_descF5, 100);
     }
-    *(unsigned int*)((char*)d + 0x1f0) = *(unsigned int*)((char*)res + 0x1dc);
-    *(unsigned int*)((char*)d + 0x1f4) = *(unsigned int*)((char*)res + 0x1e0);
-    *(unsigned int*)((char*)d + 0x1f8) = *(unsigned int*)((char*)res + 0x1e4);
-    ((char*)d)[0x24] = 0;
+    dv->m_tranField0 = sv->m_tranField0;
+    dv->m_tranNo = sv->m_tranNo;
+    d->m_notifyFlag = 0;
     m_mgr->PutIPGRequest(d, true);
 }
 
@@ -739,23 +750,22 @@ void CIPGHelper::IPGOutputConfirm(CUser* user,
                                   void* callback, Taiwan::BillTransaction* tran)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_OUTPUT_CONFIRM, false);
-    char* d = (char*)data;
-    strncpy(d + 0x69, p2, 0x15);
-    strncpy(d + 0x7e, p3, 8);
-    strncpy(d + 0x86, p4, 0xc);
-    strncpy(d + 0x92, p5, 0x14);
+    SIPGDataCancelView* cv = &data->m_cmd.m_cancel;
+    strncpy(cv->m_arg69, p2, 0x15);
+    strncpy(cv->m_arg7E, p3, 8);
+    strncpy(cv->m_arg86, p4, 0xc);
+    strncpy(cv->m_arg92, p5, 0x14);
     if (p6 != 0)
     {
-        strncpy(d + 0xa6, p6, 100);
+        strncpy(cv->m_argA6, p6, 100);
     }
     if (p7 != 0)
     {
-        strncpy(d + 0x10a, p7, 100);
+        strncpy(cv->m_arg10A, p7, 100);
     }
-    *(void**)(d + 0x2d8) = callback;
-    *(unsigned int*)(d + 0x1f0) = tran->m_field0;
-    *(unsigned int*)(d + 0x1f4) = (unsigned int)(tran->m_tranNo & 0xffffffffULL);
-    *(unsigned int*)(d + 0x1f8) = (unsigned int)((tran->m_tranNo >> 32) & 0xffffffffULL);
+    data->m_callback = callback;
+    cv->m_tranField0 = tran->m_field0;
+    cv->m_tranNo = tran->m_tranNo;
     m_mgr->PutIPGRequest(data, true);
 }
 
@@ -763,26 +773,29 @@ void CIPGHelper::IPGOutputConfirm(CUser* user,
 void CIPGHelper::IPGOutputConfirm(SIPGData* req, SIPGData* res)
 {
     SIPGData* d = m_mgr->AllocIPGData();
-    ((unsigned int*)d)[0x20 / 4] = 0xffffffff;   // ORIG 08100e24
-    ((int*)d)[0x1c / 4] = 5;
-    ((char*)d)[0x24] = 0;
-    memcpy((char*)d + 0x28, (char*)req + 0x28, 0x41);
-    strncpy((char*)d + 0x69, (char*)res + 0x16e, 0x15);
-    strncpy((char*)d + 0x7e, (char*)req + 0x69, 8);
-    strncpy((char*)d + 0x92, (char*)req + 0x7d, 0x14);
-    strncpy((char*)d + 0x86, (char*)req + 0x71, 0xc);
-    if ((char*)req + 0x91 != 0)   // ORIG add/test 形态照写（指针非空判断）
+    SIPGDataCancelView* dv = &d->m_cmd.m_cancel;
+    const SIPGDataOutputView* rv = &req->m_cmd.m_output;
+    const SIPGDataOutputView* sv = &res->m_cmd.m_output;
+    d->m_uid = 0xffffffff;                       // ORIG 08100e24 `movl $0xffffffff,0x20`
+    d->m_type = 5;                               // ORIG 08100e2e `movl $0x5,0x1c`
+    d->m_notifyFlag = 0;
+    memcpy(&d->m_account, &req->m_account, 0x41);
+    // 响应块 +0x16e 文本槽（ORIG 08100e5f `add $0x16e`）。
+    strncpy(dv->m_arg69, res->m_cmd.m_cancel.m_srcMsg16E, 0x15);
+    strncpy(dv->m_arg7E, rv->m_price, 8);
+    strncpy(dv->m_arg92, rv->m_arg7D, 0x14);
+    strncpy(dv->m_arg86, rv->m_pay, 0xc);
+    if (&rv->m_desc91[0] != 0)   // ORIG 081006e3 `add $0x91,%eax; test %eax,%eax`：恒真遗留
     {
-        strncpy((char*)d + 0xa6, (char*)req + 0x91, 100);
+        strncpy(dv->m_argA6, rv->m_desc91, 100);
     }
-    if ((char*)req + 0xf5 != 0)   // 同上
+    if (&rv->m_descF5[0] != 0)   // 同上（ORIG 08100715）
     {
-        strncpy((char*)d + 0x10a, (char*)req + 0xf5, 100);
+        strncpy(dv->m_arg10A, rv->m_descF5, 100);
     }
-    *(unsigned int*)((char*)d + 0x1f0) = *(unsigned int*)((char*)res + 0x1dc);
-    *(unsigned int*)((char*)d + 0x1f4) = *(unsigned int*)((char*)res + 0x1e0);
-    *(unsigned int*)((char*)d + 0x1f8) = *(unsigned int*)((char*)res + 0x1e4);
-    ((char*)d)[0x24] = 0;
+    dv->m_tranField0 = sv->m_tranField0;
+    dv->m_tranNo = sv->m_tranNo;
+    d->m_notifyFlag = 0;
     m_mgr->PutIPGRequest(d, true);
 }
 
@@ -798,22 +811,22 @@ void CIPGHelper::IPGResult(SIPGData* req, SIPGData* res)
     if (res == 0)
     {
         guard.operator*()->operator<<('\0');
-        guard->put_binary(req, 0x2dc);
+        guard->put_binary(req, 0x2dc);   // 整块线格式序列化（P156 豁免：协议字节流 n=sizeof(SIPGData)）
     }
     else
     {
-        char* r = (char*)res;
-        char* q = (char*)req;
-        memcpy(r + 0x28, q + 0x28, 0x41);
-        *(unsigned int*)(r + 0x20) = *(unsigned int*)(q + 0x20);
-        *(unsigned int*)(r + 0x2d8) = *(unsigned int*)(q + 0x2d8);
-        *(unsigned int*)(r + 0x1c) = *(unsigned int*)(q + 0x1c);
+        // ORIG 081008f5：载荷前 0x41 字节整段搬运（跨 m_account/m_accName/
+        // m_characName/m_gameCode 与 m_cmd 首部），非单字段写。
+        memcpy(&res->m_account, &req->m_account, 0x41);
+        res->m_uid = req->m_uid;
+        res->m_callback = req->m_callback;
+        res->m_type = req->m_type;
         guard.operator*()->operator<<('\x01');
-        guard->put_binary(res, 0x2dc);
-        guard->put_binary(req, 0x2dc);
+        guard->put_binary(res, 0x2dc);   // 同上（线格式整块）
+        guard->put_binary(req, 0x2dc);   // 同上
     }
 
-    if (((char*)req)[0x24] == 0)
+    if (req->m_notifyFlag == 0)
     {
         GlobalData::s_stream_pool->Free(guard);
     }

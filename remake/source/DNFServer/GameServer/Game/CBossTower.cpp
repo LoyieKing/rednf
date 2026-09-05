@@ -954,9 +954,10 @@ int CBossTower::generateRewardItem()
 
         stDeathTower_t* towerScript = G_CDataManager()->GetTowerScript(
             static_cast<unsigned int>(m_dungeon->get_index()));
-        const int scriptLimit = *reinterpret_cast<const int*>(
-            reinterpret_cast<const char*>(towerScript) + 4 +
-            (m_stageCur + 200) * 4);
+        // ORIG 0x08144e36 +0x09d..+0x0a3：`add $0xc8,%edx`（0xc8*4=0x320）后
+        // `mov 0x4(%eax,%edx,4),%eax` ⇒ 绝对槽 = towerScript + 4 + 0x320 + 4*stage
+        // = stDeathTower_t::m_rewardCardNum[stage]（该数组 +0x324，int 读宽一致）。
+        const int scriptLimit = towerScript->m_rewardCardNum[m_stageCur];
 
         int itemCount = std::min(m_dungeon->getTowerMaxClearRewardItemNum(),
                                  scriptLimit);

@@ -72,14 +72,14 @@ int CFairMatch::nextAuthValue_ = 0;                       // B 0x0943e150
 // ===================================================================== //
 
 // _CheckSameTeam ORIG T 0x085629e8 报告 _CheckSameTeam.md —— 恒返 1
-int CFairMatch::_CheckSameTeam(PvP_Room* /*room*/, CUser* /*user*/)
+bool CFairMatch::_CheckSameTeam(PvP_Room* /*room*/, CUser* /*user*/)
 {
     return 1;
 }
 
 // CheckUnusableEquipmentInUser ORIG T 0x08562cfe 报告同名 md —— 恒返 1（bool 返回：
 // CheckJoinable +0x12/OnCreateRoom +0x11 均以 xor $1 取反，P22 实证）
-bool CFairMatch::CheckUnusableEquipmentInUser(CUser* /*user*/)
+bool CFairMatch::CheckUnusableEquipmentInUser(CUser* /*user*/)  // static（声明侧 CFairMatch.h）
 {
     return true;
 }
@@ -127,7 +127,7 @@ float CFairMatch::_GetRating(ENUM_SCHOOL_MATCH_TEAM team)
 
 // ORIG：while 形循环 seat<=7（cmpl $0x7/setle）统计 room->get_team(seat)==3 观战者；
 // 末尾 size() 返回值以 ebx 缓存跨 call，cmp/setge 两分支：size-count >= playCount → 0，否则 1。
-int CFairMatch::_CheckObserver(PvP_Room* room, CUser* /*user*/)
+bool CFairMatch::_CheckObserver(PvP_Room* room, CUser* /*user*/)
 {
     int observerCnt = 0;
     for (int seat = 0; seat <= 7; ++seat) {
@@ -147,25 +147,35 @@ int CFairMatch::CheckJoinable(PvP_Room* room, CUser* user)
 {
     if (!CheckUnusableEquipmentInUser(user))
         return 1;
-    if (!(room->get_player_count() <
-          static_cast<int>((GetPlayCountPerOneTeam() & 0xff) * 2)))
+    // ORIG +0x2e：pc 直落 callee-saved %ebx 跨 GetPlayCountPerOneTeam 调用。
+    register const int pc = room->get_player_count();
+    if ((bool)(static_cast<int>(
+            static_cast<unsigned char>(GetPlayCountPerOneTeam())) * 2
+            <= pc))
         return 4;
-    const int total = static_cast<int>(
-        static_cast<unsigned>(m_teams[0].size()) +
-        static_cast<unsigned>(m_teams[1].size()));
-    if (total > static_cast<int>((GetPlayCountPerOneTeam() & 0xff) * 2))
+    register const int total = m_teams[0].size() + m_teams[1].size();
+    if ((bool)(static_cast<int>(
+            static_cast<unsigned char>(GetPlayCountPerOneTeam())) * 2
+            < total))
         return 4;
-
+    // ORIG +0x8d..0x99 跳表（cmp $5/ja/jmp *table）⇒ switch（P17）；
+    // 叶块排布序 = case 书写序（P46）：0 → 3 → 1/4/5 与 default。
     switch (m_field04) {
     case 0:
-        if (_CheckSameTeam(room, user) != 1)
+        if (!_CheckSameTeam(room, user))
             return 4;
-        if (_CheckObserver(room, user) != 1)
-            return 4;
-        return 0;
+        if (_CheckObserver(room, user))
+            return 0;
+        return 4;   // ORIG +0xe2（obs false）
     case 3:
         return 0;
-    default:   // 1/2/4/5 及越界跳表 default 全部拒绝
+    case 1:
+    case 4:
+    case 5:
+        return 4;
+    case 2:
+    default:
+        // ORIG 跳表 case2/越界共用 +0xfe 块（P46 叶块排布）。
         return 4;
     }
 }
@@ -192,10 +202,15 @@ int CFairMatch::_CheckMatchable(PvP_Room* room) const
                 return 0xd;
         }
     }
-    const int cnt =
-        static_cast<int>(static_cast<unsigned>(m_teams[0].size()) - observerCnt);
-    return cnt > static_cast<int>(const_cast<CFairMatch*>(this)->GetPlayCountPerOneTeam() & 0xff)
-        ? 0x16 : 0;
+    // ORIG +0x99..0xb4：差值留 %ebx 跨 call（P52），(bool)(a > b) 复现 setg 物化
+    // （t23/f3 实测；!=0 特例会被 4.4 折叠，> 不会）。
+    if ((bool)(static_cast<int>(m_teams[0].size()) - observerCnt >
+               static_cast<int>(static_cast<unsigned char>(
+                   const_cast<CFairMatch*>(this)->GetPlayCountPerOneTeam()))))
+    {
+        return 0x16;
+    }
+    return 0;
 }
 
 // _CheckRematchable(const) ORIG T 0x08563b16 报告 _CheckRematchable.md
@@ -207,9 +222,11 @@ bool CFairMatch::_CheckRematchable(PvP_Room* room) const
         if (team == 1 || team == 2)
             ++counts[team];
     }
-    if (counts[1] != static_cast<int>(const_cast<CFairMatch*>(this)->GetPlayCountPerOneTeam() & 0xff))
+    if (counts[1] != static_cast<int>(static_cast<unsigned char>(
+            const_cast<CFairMatch*>(this)->GetPlayCountPerOneTeam())))
         return false;
-    if (counts[2] != static_cast<int>(const_cast<CFairMatch*>(this)->GetPlayCountPerOneTeam() & 0xff))
+    if (counts[2] != static_cast<int>(static_cast<unsigned char>(
+            const_cast<CFairMatch*>(this)->GetPlayCountPerOneTeam())))
         return false;
     return true;
 }
@@ -232,14 +249,14 @@ bool CFairMatch::CheckMatchable(IMatch* other)
     return myUser != 0;
 }
 
-// GetGap ORIG T 0x0856491c 报告 GetGap.md —— fabs(_GetRating(0) 差值)
+// GetGap ORIG T 0x856491c 报告 GetGap.md —— 双 call 内联差：4.4 实测
+// `__builtin_fabsf(f() - g())` 直出 `call; fstps -0xc; call; fsubrs -0xc; fabs`。
 float CFairMatch::GetGap(IMatch* other)
 {
-    const float mine  = _GetRating(static_cast<ENUM_SCHOOL_MATCH_TEAM>(0));
-    const float theirs = static_cast<CFairMatch*>(other)->_GetRating(
-        static_cast<ENUM_SCHOOL_MATCH_TEAM>(0));
-    const float diff = mine - theirs;
-    return diff < 0.0f ? -diff : diff;
+    return __builtin_fabsf(
+        _GetRating(static_cast<ENUM_SCHOOL_MATCH_TEAM>(0)) -
+        static_cast<CFairMatch*>(other)->_GetRating(
+            static_cast<ENUM_SCHOOL_MATCH_TEAM>(0)));
 }
 
 // idx∈[0,4)：ORIG 反汇编 0x856515c/0x856517d 实证槽基址 = this + 0x24 + idx*0x10
@@ -248,9 +265,8 @@ float CFairMatch::GetGap(IMatch* other)
 CUser* CFairMatch::GetUser(unsigned int idx)
 {
     if (idx > 3u) return 0;
-    PlayerInfoThird& slot = m_teams[0].m_players[idx];
-    if (slot.m_flag == 0) return 0;
-    return slot.m_user;
+    if (!m_teams[0].m_players[idx].m_flag) return 0;
+    return m_teams[0].m_players[idx].m_user;
 }
 
 // GetPlayerCount ORIG T 0x8566d3e 报告 GetPlayerCount.md
@@ -258,8 +274,8 @@ int CFairMatch::GetPlayerCount()
 {
     int count = 0;
     for (int i = 0; i < 4; ++i) {
-        if (m_teams[1].m_players[i].m_flag != 0) ++count;
         if (m_teams[0].m_players[i].m_flag != 0) ++count;
+        if (m_teams[1].m_players[i].m_flag != 0) ++count;
     }
     return count;
 }
@@ -294,7 +310,6 @@ int CFairMatch::OnCreateRoom(CUser* user)
     m_teams[1].reset();          // ORIG 先 reset +0x64 队再 reset +0x1c 队
     m_teams[0].reset();
     m_teams[0].add(user);
-    m_fieldAC = 0;
     m_fieldB0 = 0;
     m_fieldB4 = 0;
     m_fieldB8 = 0;
@@ -326,10 +341,12 @@ void CFairMatch::_SendMatchStatePacket(int state, int teamSpan)
     pkt.put_byte(state);
     pkt.finalize(true);
     for (int t = 0; t < teamSpan; ++t) {
-        for (int i = 0; i < 4; ++i) {
-            PlayerInfoThird& s = m_teams[t].m_players[i];
-            if (s.m_flag != 0 && s.m_user != 0)
-                s.m_user->Send(pkt);
+        for (int i = 0; i <= 3; ++i) {
+            // ORIG +0x68..0x8b：先取 m_user 落槽（无论 flag），后独立重算地址读
+            // m_flag（P48 双独立访问），再判 u!=0。
+            CUser* u = m_teams[t].m_players[i].m_user;
+            if (m_teams[t].m_players[i].m_flag != 0 && u != 0)
+                u->Send(pkt);
         }
     }
 }
@@ -400,7 +417,8 @@ void CFairMatch::OnLeaveRoom(CUser* user, PvP_Room* room,
                 0xb12, "error _GetOtherTeam");
             return;
         }
-        if (FM_TeamByte0(m_teams[other]) != 0) {
+        // ORIG +0x44..：(this+other*0x48)+0x10/disp0xc = m_field00（P1 组件视图等价具名字段）
+        if (m_teams[other].m_field00) {
             PacketGuard pkt;
             pkt.put_header(0, 0x13a);
             pkt.finalize(true);
@@ -418,7 +436,8 @@ void CFairMatch::OnLeaveRoom(CUser* user, PvP_Room* room,
         m_teams[1].del(user);
         _ChangeTeamLeader(room, static_cast<ENUM_SCHOOL_MATCH_TEAM>(1), flag);
     }
-    if (pWaitingRoomList_) pWaitingRoomList_->DelRoom(this);
+    // ORIG 无判空直调（0x08563cc6 同族形态，P148 忠实模拟）。
+    pWaitingRoomList_->DelRoom(this);
     _SendMatchStatePacket(5, 1);
 }
 
@@ -428,7 +447,8 @@ int CFairMatch::OnUnregisterMatch(CUser* /*user*/, PvP_Room* /*room*/)
 {
     if (m_field04 == 1 || m_field04 == 2) {
         m_field04 = 0;
-        if (pWaitingRoomList_) pWaitingRoomList_->DelRoom(this);
+        // ORIG +0x2d..0x48 无判空直调 vtable[+0x04]（忠实模拟 ORIG 未定义行为，P148）。
+        pWaitingRoomList_->DelRoom(this);
         _SendMatchStatePacket(5, 1);
         return 1;
     }
@@ -445,8 +465,8 @@ int CFairMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(199), 0x13);
         return 0;
     }
-    const int err = _CheckMatchable(room);
-    if (err != 0) {
+    int err = 0;
+    if ((err = _CheckMatchable(room)) != 0) {
         user->SendCmdErrorPacket(
             static_cast<ENUM_CMDPACKET>(199),
             static_cast<unsigned char>(err & 0xff));
@@ -623,22 +643,26 @@ PvP_Room* CFairMatch::_MakeRoom(CUser* user)
 // 遍历 from 房 8 座逐个换到 to；观战队（team==3）换入后重设观战态
 void CFairMatch::_MoveRoom(PvP_Room* to, PvP_Room* from, bool observerFlag)
 {
-    for (int seat = 0; seat <= 7; ++seat) {
-        CUser* mover =
-            reinterpret_cast<CUser*>(from->get_user_seat(seat));
+    // ORIG 0x08563d32 +0x0e..+0x23 初始化序 = 声明序槽：
+    // team→-0x18、mover→-0x14、newSeat→-0x10、seat(unsigned)→-0xc（setbe 实证）。
+    int teamOf = 0;
+    CUser* mover = 0;
+    int newSeat = 0;
+    for (unsigned seat = 0; seat < 8; ++seat) {
+        mover = reinterpret_cast<CUser*>(from->get_user_seat(seat));
         if (mover == 0) continue;
-        const int teamOf = from->get_team(seat);
+        teamOf = from->get_team(seat);
 
         PacketGuard pkt;
         pkt.put_header(0, 0x29);
         pkt.put_short(1);
-        from->make_room_info(reinterpret_cast<char*>(&pkt));  // 同 _PutInRoom 注释
+        to->make_room_info(reinterpret_cast<char*>(&pkt));  // ORIG +0xa3 0xc(%ebp)=to
         pkt.finalize(true);
         from->send_to_pvp(pkt);
 
         _PullOutRoom(mover, from, seat);
         _SetEnterCharacNo(mover->getCurCharacNo());
-        const int newSeat = _PutInRoom(mover, to, observerFlag);
+        newSeat = _PutInRoom(mover, to, observerFlag);
         if (teamOf == 3) {
             to->OnSetPVPSeatState(mover, newSeat,
                                   static_cast<ENUM_SEAT_STATE>(3),
@@ -867,11 +891,12 @@ int CFairMatch::OnWalkOut(PvP_Room* room, int seat)
 // CheckRematch ORIG T 0x85665d04 报告 CheckRematch.md
 int CFairMatch::CheckRematch(PvP_Room* room)
 {
-    if (m_fieldB0 >= fair_pvp::maxRematchCount_) return 0;
+    if (m_fieldB0 >= 3) return 0;  // ORIG +0x0f cmp $0x2 立即数实证（P97）
     if (!_CheckRematchable(room)) return 0;
-    // this[t*0x48+0x1c] 首字节须为 1（两队“可重赛”标记，TeamInfoThird 头）
+    // ORIG +0x44..0x63：(this+t*0x48)+0x10 / disp 0xc = 全局 0x1c+0x48t
+    // ⇒ m_teams[t].m_field00（“可重赛”标记；bool 取反 xor $1 实证，P22）。
     for (int t = 0; t < 2; ++t) {
-        if (FM_TeamByte0(m_teams[t]) != 1) return 0;
+        if (!m_teams[t].m_field00) return 0;
     }
     return 1;
 }
@@ -1292,10 +1317,11 @@ void CFairMatch::OnCompleteLoad(CUser* user)
     pkt.put_short(static_cast<unsigned short>(user->get_unique_id() & 0xffff));
     pkt.finalize(true);
     for (int t = 0; t < 2; ++t) {
-        for (int i = 0; i < 4; ++i) {
-            PlayerInfoThird& s = m_teams[t].m_players[i];
-            if (s.m_flag != 0 && s.m_user != 0)
-                s.m_user->Send(pkt);
+        for (int i = 0; i <= 3; ++i) {
+            // ORIG 循环体：先独立取 m_user 落槽，再重算地址读 m_flag（P48）。
+            CUser* u = m_teams[t].m_players[i].m_user;
+            if (m_teams[t].m_players[i].m_flag != 0 && u != 0)
+                u->Send(pkt);
         }
     }
 }

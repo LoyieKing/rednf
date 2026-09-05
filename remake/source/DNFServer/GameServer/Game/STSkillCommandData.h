@@ -1,6 +1,8 @@
 #ifndef DNF_GAME_ST_SKILL_COMMAND_DATA_H_
 #define DNF_GAME_ST_SKILL_COMMAND_DATA_H_
 
+#include <string.h>   // memset（ctor 体内使用）
+
 // ============================================================================
 // STSkillCommandData —— 技能命令数据（自 CUser.h 抽出）
 // SigTypes_C.h 的 SIG_LOAD_SKILL 数组成员 STCommand[0x31] 构造需完整类型，
@@ -31,16 +33,30 @@ struct STSkillCommandData
     } __attribute__((packed));  // ORIG 数组基址 +0x703db 非对齐 → align=1
                                //   （CUser ctor 0x864e410 循环步长 4 实证）
 
-    STSkillCommandData() : m_command(0), m_count(0), m_key0(0), m_key1(0),
-                           m_key2(0), m_key3(0), m_key4(0), m_commandPacked() {}
+    // ORIG W 0x0822db66：先自动构造成员 m_commandPacked（declaration order，
+    // 调 STCommand ctor 0x0822da04），随后函数体写 m_command(movw)/m_count(movb)/
+    // memset(&m_key0, 0, 5)。字段初始化若走 init-list 会变成逐字节 movb，不符。
+    STSkillCommandData()
+    {
+        m_command = 0;
+        m_count = 0;
+        memset(&m_key0, 0, 5);
+    }
 
     unsigned short m_command;       // +0x00
-    unsigned char  m_count;         // +0x02
-    unsigned char  m_key0;          // +0x03
-    unsigned char  m_key1;          // +0x04
-    unsigned char  m_key2;          // +0x05
-    unsigned char  m_key3;          // +0x06
-    unsigned char  m_key4;          // +0x07
+    unsigned char m_count;          // +0x02
+    union
+    {
+        struct
+        {
+            unsigned char m_key0;
+            unsigned char m_key1;
+            unsigned char m_key2;
+            unsigned char m_key3;
+            unsigned char m_key4;
+        };
+        unsigned char m_keyBytes[5];
+    };
     STCommand      m_commandPacked; // +0x08
 };
 #pragma pack(pop)

@@ -50,7 +50,9 @@ public:
     inline void SetSocketState(ENUM_SOCKET_STATE state) { m_udpPort = state; }
 
 private:
-    int m_udpPort;             // +0x30df8
+    // ORIG SetSocketState 0x0857f467：this 先载 + 全字直存 ⇒ 字段与 enum
+    // 形参类型全等（技巧5）。GetSocketState 仍按 int 直返，全字 mov 不变形。
+    ENUM_SOCKET_STATE m_udpPort;  // +0x30df8
     std::string m_ip;          // +0x30dfc
     int m_tcpPort;             // +0x30e00
 };

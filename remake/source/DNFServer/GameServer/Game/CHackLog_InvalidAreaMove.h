@@ -16,7 +16,7 @@ public:
     static char IsMovingInGuildAgit(int a, int b);
     static char IsExceptionMove(int a, int b, int c, int d);
     static char IsMovingBetweenSeriaRoomAndGuildAgit(int a, int b, int c, int d);
-    static char checkSeriaRoom(int a, int b);
+    static bool checkSeriaRoom(int a, int b);   // ORIG 0x08284250 调用处 test %al;je 无 setne ⇒ bool（char/int 必物化 setne）
     static char IsInvalidMovableArea(int a, int b, int c, int d);
     static char isMovableRoute(int a, int b, int c, int d, int e, int f);
 
@@ -25,7 +25,7 @@ private:
     static char IsHendonMyre(int a);
     static char IsWarfare(int a);
     static char IsGuildAgit(int a);
-    static char IsSeriaRoom(int a, int b);
+    static bool IsSeriaRoom(int a, int b);   // ORIG 0x08285e14 %eax 透传 bool→bool、体内 mov $0x1/$0x0,%eax ⇒ bool
 };
 
 // ORIG 0x086c4568：商业交易限制区域判定（自由函数；定义见 CHackLog_InvalidAreaMove.cpp）

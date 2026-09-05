@@ -116,7 +116,7 @@ public:
 
     // ORIG T 0x081911b6 _ZN...17GmReduceEnduranceEP5CUserss：
     // GM 直改装备区(0)槽位耐久：clamp 到 [0, 充值上限×socket 数]，上报 + 保存 + 系统提示。
-    void GmReduceEndurance(CUser* user, short slot, short delta);
+    static void GmReduceEndurance(CUser* user, short slot, short delta);   // ORIG 0x081911b6 callee 读 0xc=slot(无 this)⇒static；非 static 致 caller 多 1 次 Get()（MonsterBig 实证）
 
     // ORIG T 0x08191318 / 0x08191364：GM 开关耐久减免率模式。
     // GmSet：enable 写 +0x58；rate<0→0 / ≤100→×10 / >100→1000 写 +0x54。

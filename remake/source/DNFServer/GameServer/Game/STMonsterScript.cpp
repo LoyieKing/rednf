@@ -10,6 +10,7 @@
 // ============================================================================
 
 #include "STMonsterScript.h"
+#include "NpcScript.h"        // STScriptFileList::FindIndexByFullScan
 
 #include <stdio.h>
 #include <string.h>
@@ -21,9 +22,16 @@
 #include "RDARScriptStringManager.h"  // g_scriptStringManager_/getTagByName
 #include "SyncScriptDeps.h"           // toTString
 #include "CreatureScript.h"           // getElementName(ENUM_ELEMENT)
+#include "GameScriptEnumHelpers.h"    // getCategoryToEnumValue（warp [category of target]）
+
+#include "CEnvironment.h"             // class SpinLock / struct less_TCHAR（ImportMonsterScript 18 张函数局部静态查找表）
+
+int ScanStrOrInt(bool& isStr, std::string& value, bool& isInt,
+                 bool consume);                                      // T 0x088bd0d5
 
 // ---- 跨 TU 符号（ORIG 地址随注；定义在各自所属批次 TU）----
 extern char g_szMonsterScriptBaseDirectory[0x100];              // B 0x094ff160
+extern std::map<int, std::string> g_stMonsterScriptFileList;    // B 0x094ff260
 extern std::vector<std::vector<MonsterBaseParameter> >
     g_monsterBaseParameters;                                    // B 0x094ff278
 int GetLinearDataForMonsterAbility(int low, int high, int diff,
@@ -32,10 +40,14 @@ bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
                          int type, bool flag);                  // T 0x08a97637
 void getScriptFileFullPath(char* out, unsigned int size,
                            const char* dir, const char* name);  // T 0x088bba4e
+bool isValidExtension(const std::string& str, const std::string& ext);  // T 0x08a3c67d（OnlyOrigBatch12.cpp）
 std::string getObjectCategoryString(ENUM_CATEGORY cat);         // T 0x08a3ca81（ScriptDepsA.cpp）
+int getObjectCategory(std::string name);                        // T 0x08a3ca1b（ScriptDepsA.cpp）
 void convertBinaryToText(const char* path);                     // T 0x088be04c（STMapScript.cpp）
-int isExistAiPattern(STAIInfoScript* info, int bucket);         // T 0x08a2232f（CharacterAIA2.cpp）
-void exportAIPatternPath(FILE* f, STAIInfoScript* info, int bucket);  // T 0x08a223b0（CharacterAIA2.cpp）
+bool isExistAiPattern(STAIInfoScript* info, int bucket);        // T 0x08a2232f（CharacterAIA2.cpp）
+void exportAIPatternPath(FILE* f, STAIInfoScript* info, int bucket);  // T 0x08a223b0 (CharacterAIA2.cpp)
+bool importAIInfoScript(STAIInfoScript* info, std::string* tag,
+                        bool byLevel);                              // T 0x08a390db
 extern "C" const char* ACTIVEOBJECT_STATE_STRING[16];           // D 0x093f4d80（CharacterAIA2.cpp）
 extern "C" const char* ACTIVESTATUS_ATTACK_TAG[20];             // D 0x093f54e0（CharacterAIA2.cpp）
 
@@ -536,6 +548,15 @@ bool scanTag(std::string& tag)
     return ScanType(tag, true);
 }
 
+static const char* const kMonsterActiveStatusTags[17] = {
+    "[slow resistance]", "[freeze resistance]", "[poison resistance]",
+    "[stun resistance]", "[curse resistance]", "[blind resistance]",
+    "[lightning resistance]", "[stone resistance]", "[sleep resistance]",
+    "[burn resistance]", "[weapon break resistance]",
+    "[bleeding resistance]", "[piercing resistance]", "[stuck resistance]",
+    "[confuse resistance]", "[hold resistance]", "[armor break resistance]"
+};
+
 int scanValue()
 {
     return ScanInt(static_cast<bool*>(0));     // ORIG movl $0 占位 ok 指针
@@ -543,246 +564,10 @@ int scanValue()
 
 }  // namespace
 
-namespace {
-static int MonsterTagLookup(const std::string& tag)
-{
-    if (tag == "[name]") return 2580;
-    if (tag == "[width]") return 2590;
-    if (tag == "[floating height]") return 2593;
-    if (tag == "[layer]") return 2597;
-    if (tag == "[ambient sound]") return 2620;
-    if (tag == "[attack sound]") return 2630;
-    if (tag == "[appear sound]") return 2635;
-    if (tag == "[damage sound]") return 2640;
-    if (tag == "[die sound]") return 2645;
-    if (tag == "+") return 2672;
-    if (tag == "[ability table]") return 2675;
-    if (tag == "[summon skill status up rate]") return 2679;
-    if (tag == "[level]") return 2683;
-    if (tag == "[fire resistance]") return 2687;
-    if (tag == "[water resistance]") return 2691;
-    if (tag == "[dark resistance]") return 2695;
-    if (tag == "[light resistance]") return 2699;
-    if (tag == "[HP regen speed]") return 2703;
-    if (tag == "[MP regen speed]") return 2707;
-    if (tag == "[move speed]") return 2711;
-    if (tag == "[attack speed]") return 2723;
-    if (tag == "[cast speed]") return 2727;
-    if (tag == "[hit recovery]") return 2731;
-    if (tag == "[jump power]") return 2735;
-    if (tag == "[jump speed]") return 2740;
-    if (tag == "[normal dash speed]") return 2745;
-    if (tag == "[slant dash speed]") return 2751;
-    if (tag == "[weight]") return 2755;
-    if (tag == "[superarmor on attack]") return 2759;
-    if (tag == "[sight]") return 2762;
-    if (tag == "[come in action]") return 2767;
-    if (tag == "[come in action ex]") return 2774;
-    if (tag == "[diving sight]") return 2778;
-    if (tag == "[targeting time term]") return 2784;
-    if (tag == "[targeting on damage]") return 2787;
-    if (tag == "[targeting high level]") return 2791;
-    if (tag == "[targeting low level]") return 2795;
-    if (tag == "[targeting high HP]") return 2799;
-    if (tag == "[targeting low HP]") return 2803;
-    if (tag == "[targeting nearest]") return 2806;
-    if (tag == "[targeting attacker]") return 2809;
-    if (tag == "[targeting from direction]") return 2812;
-    if (tag == "[targeting low physical attack]") return 2815;
-    if (tag == "[targeting low physical defense]") return 2818;
-    if (tag == "[targeting low magical attack]") return 2821;
-    if (tag == "[targeting low magical defense]") return 2824;
-    if (tag == "[targeting downed]") return 2827;
-    if (tag == "[warlike]") return 2837;
-    if (tag == "[stuckbonus on damage]") return 2843;
-    if (tag == "[item]") return 2853;
-    if (tag == "[common champion drop item]") return 2865;
-    if (tag == "[hell monster]") return 2870;
-    if (tag == "[boss drop item]") return 2880;
-    if (tag == "[death tower item]") return 2987;
-    if (tag == "[super champion drop item]") return 3016;
-    if (tag == "[keep distance]") return 3030;
-    if (tag == "[is on the object]") return 3036;
-    if (tag == "[out of targetting]") return 3040;
-    if (tag == "[die effect]") return 3066;
-    if (tag == "[face image]") return 3075;
-    if (tag == "[move motion]") return 3087;
-    if (tag == "[sit motion]") return 3099;
-    if (tag == "[damage motion 1]") return 3111;
-    if (tag == "[damage motion 2]") return 3123;
-    if (tag == "[down motion]") return 3135;
-    if (tag == "[overturn motion]") return 3147;
-    if (tag == "[jump motion]") return 3159;
-    if (tag == "[jumpattack motion]") return 3171;
-    if (tag == "[attack motion]") return 3183;
-    if (tag == "[etc motion]") return 3209;
-    if (tag == "[waiting action]") return 3235;
-    if (tag == "[move action]") return 3244;
-    if (tag == "[sit action]") return 3247;
-    if (tag == "[damage action 1]") return 3250;
-    if (tag == "[damage action 2]") return 3253;
-    if (tag == "[down action]") return 3256;
-    if (tag == "[overturn action]") return 3259;
-    if (tag == "[jump action]") return 3262;
-    if (tag == "[jumpattack action]") return 3265;
-    if (tag == "[basic action]") return 3266;
-    if (tag == "[action list]") return 3272;
-    if (tag == "[etc action]") return 3277;
-    if (tag == "[last action]") return 3280;
-    if (tag == "[attack info]") return 3289;
-    if (tag == "[etc attack info]") return 3295;
-    if (tag == "[int data]") return 3306;
-    if (tag == "[on attack]") return 3321;
-    if (tag == "[on damage]") return 3330;
-    if (tag == "[on die]") return 3333;
-    if (tag == "[on revenge]") return 3336;
-    if (tag == "[on etc]") return 3339;
-    if (tag == "[on appear]") return 3342;
-    if (tag == "[on disappear]") return 3345;
-    if (tag == "[on go to help]") return 3348;
-    if (tag == "[fix move direction]") return 3357;
-    if (tag == "[passive object filename]") return 3370;
-    if (tag == "[passive object number]") return 3380;
-    if (tag == "[passive object index]") return 3386;
-    if (tag == "[power]") return 3389;
-    if (tag == "[passive object start x cood]") return 3396;
-    if (tag == "[passive object start y cood]") return 3403;
-    if (tag == "[passive object start z cood]") return 3410;
-    if (tag == "[direction]") return 3417;
-    if (tag == "[attack number]") return 3420;
-    if (tag == "[attack index]") return 3426;
-    if (tag == "[throw sound]") return 3429;
-    if (tag == "[equipment]") return 3438;
-    if (tag == "[ready action]") return 3451;
-    if (tag == "[counter attack]") return 3478;
-    if (tag == "[probability]") return 3489;
-    if (tag == "[approach attack]") return 3511;
-    if (tag == "[need hp]") return 3520;
-    if (tag == "[start frame index]") return 3535;
-    if (tag == "[end frame index]") return 3538;
-    if (tag == "[jump height]") return 3541;
-    if (tag == "[on collision custom animation index]") return 3547;
-    if (tag == "[ememy distance rate]") return 3550;
-    if (tag == "[limited x cood]") return 3553;
-    if (tag == "[limited y cood]") return 3556;
-    if (tag == "[jump direction]") return 3564;
-    if (tag == "[function index]") return 3572;
-    if (tag == "[summon term]") return 3593;
-    if (tag == "[enterance effect]") return 3605;
-    if (tag == "[dash attack]") return 3613;
-    if (tag == "[shakeable]") return 3631;
-    if (tag == "[first speed]") return 3634;
-    if (tag == "[last speed]") return 3640;
-    if (tag == "[dash time]") return 3643;
-    if (tag == "[animation first index]") return 3651;
-    if (tag == "[offset]") return 3676;
-    if (tag == "[animation index]") return 3679;
-    if (tag == "[max hold]") return 3687;
-    if (tag == "[warp style]") return 3706;
-    if (tag == "[after attack]") return 3709;
-    if (tag == "[after appear time]") return 3712;
-    if (tag == "[cool time]") return 3715;
-    if (tag == "[target offset]") return 3718;
-    if (tag == "[event super on scr]") return 3742;
-    if (tag == "[on time]") return 3749;
-    if (tag == "[on hp]") return 3761;
-    if (tag == "[always]") return 3767;
-    if (tag == "[counter]") return 3773;
-    if (tag == "[breakable]") return 3780;
-    if (tag == "[half]") return 3787;
-    if (tag == "[unbreakable]") return 3794;
-    if (tag == "[with blast]") return 3802;
-    if (tag == "[/cooltime]") return 3875;
-    if (tag == "[spawn prob]") return 3879;
-    if (tag == "[drop item offset]") return 3883;
-    if (tag == "[is grabable]") return 3886;
-    if (tag == "[ai pattern]") return 3888;
-    if (tag == "[think term]") return 3889;
-    if (tag == "[destination change term]") return 3890;
-    if (tag == "[targeting bonus]") return 3891;
-    if (tag == "[keep distance with target]") return 3892;
-    if (tag == "[vision]") return 3894;
-    if (tag == "[intelligence]") return 3895;
-    if (tag == "[keep range distance with target]") return 3896;
-    if (tag == "[back vision]") return 3897;
-    if (tag == "[no change target]") return 3898;
-    if (tag == "[keep range distance with target 1]") return 3900;
-    if (tag == "[keep range distance with target 2]") return 3901;
-    if (tag == "[keep range distance with target 3]") return 3902;
-    if (tag == "[keep range distance with target 4]") return 3910;
-    if (tag == "[reflection object]") return 3927;
-    if (tag == "[set damage check]") return 3932;
-    if (tag == "[change direction by target]") return 3938;
-    if (tag == "[is direction to move]") return 3943;
-    if (tag == "[hp regen rate]") return 3954;
-    if (tag == "[absolute defense ignore rate]") return 3958;
-    if (tag == "[lie frame]") return 3963;
-    if (tag == "[forced knockback]") return 3968;
-    if (tag == "[No Combo Rate Monster]") return 3975;
-    if (tag == "[proc action]") return 3978;
-    if (tag == "[monster title]") return 3981;
-    if (tag == "[destroy count]") return 3993;
-    if (tag == "[destroy count damage]") return 3997;
-    if (tag == "[overhead gauge pos]") return 4002;
-    if (tag == "[flying mark]") return 4007;
-    if (tag == "[moveback action]") return 4010;
-    if (tag == "[dash action]") return 4016;
-    if (tag == "[dashattack action]") return 4019;
-    if (tag == "[level of difficulty]") return 4062;
-    if (tag == "[hero]") return 4128;
-    if (tag == "[fire attack]") return 4132;
-    if (tag == "[water attack]") return 4136;
-    if (tag == "[dark attack]") return 4140;
-    if (tag == "[light attack]") return 4144;
-    if (tag == "[rigidity]") return 4149;
-    if (tag == "[pattern]") return 4192;
-    if (tag == "[fix direction]") return 4205;
-    if (tag == "[left]") return 4219;
-    if (tag == "[right]") return 4235;
-    if (tag == "[/ridableskill definition]") return 4254;
-    if (tag == "normal") return 4282;
-    if (tag == "defaultcancel") return 4297;
-    if (tag == "movable") return 4302;
-    if (tag == "charge") return 4307;
-    if (tag == "[limit slowdown atkspeed]") return 4422;
-    if (tag == "[non targeted]") return 4500;
-    if (tag == "[damage time balance]") return 4512;
-    if (tag == "[stun time balance]") return 4519;
-    if (tag == "[add gravity in aerial]") return 4526;
-    if (tag == "[summon skill status up type]") return 4529;
-    if (tag == "[attack down prob]") return 4550;
-    if (tag == "[strong]") return 4554;
-    if (tag == "[weak]") return 4559;
-    if (tag == "[explain]") return 4564;
-    if (tag == "[consume mp]") return 4582;
-    if (tag == "[catch item]") return 4607;
-    if (tag == "[fixed height]") return 4627;
-    if (tag == "[etc sound]") return 4640;
-    if (tag == "[/can beat index]") return 4665;
-    if (tag == "[mounting action]") return 4671;
-    if (tag == "[mounted action]") return 4677;
-    if (tag == "[unmounting action]") return 4683;
-    if (tag == "[index]") return 4696;
-    if (tag == "[x pos]") return 4712;
-    if (tag == "[y pos]") return 4720;
-    if (tag == "[height]") return 4736;
-    if (tag == "[velocity x]") return 4744;
-    if (tag == "[velocity y]") return 4752;
-    if (tag == "convert y to z") return 4760;
-    if (tag == "[transparency]") return 4771;
-    if (tag == "[master]") return 4784;
-    if (tag == "[others]") return 4800;
-    if (tag == "inherit") return 4807;
-    if (tag == "[/control passive object]") return 4855;
-    if (tag == "[life max]") return 4859;
-    return -1;
-}
-}  // namespace
 
 int ImportMonsterScript(STMonsterScript* script, int type, const char* path,
                         bool flag)
 {
-    bool ok_flag = false;
     if (!loadRDARScriptFile(g_szMonsterScriptBaseDirectory, path))
         return 0;
     script->Clear();
@@ -793,7 +578,7 @@ int ImportMonsterScript(STMonsterScript* script, int type, const char* path,
     script->m_throwAttacks.clear();
     script->m_counterAttacks.clear();
     script->m_jumpAttacks.clear();
-    script->m_equipment.m_items.clear();
+    script->m_equipment.clear();
     script->m_attackReadies.clear();
 
     std::string tag;
@@ -802,1156 +587,3899 @@ int ImportMonsterScript(STMonsterScript* script, int type, const char* path,
     bool ok = false;
     int moduleId = -1;
     int subId = -1;
-    while (processModuleTagSet(moduleId, subId, &tag, type, flag))
+    bool nameSeen = false;
+    while (scanTag(tag))
     {
+        moduleId = -1;
+        subId = -1;
+        const bool dispatch = processModuleTagSet(
+            moduleId, subId, &tag, type, false);
         if (subId != -1)
             script->m_field1c9c = subId;
+        if (!dispatch)
+            continue;
 
-        while (scanTag(tag))
+        nameSeen = false;
+        int monsterTagId = -1;
+        for (;;)
         {
-            switch (MonsterTagLookup(tag))
+            static std::map<const char*, int, less_TCHAR> __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
+            if (!__inited)
             {
+                __init_lock.enter();
+                if (__inited)
+                {
+                    __init_lock.leave();
+                    continue;
+                }
+                monsterTagId = 0;
+            }
+            else
+            {
+                std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                    __lookup.find(tag.c_str());
+                if (__it != __lookup.end())
+                    monsterTagId = __it->second;
+            }
+        switch (monsterTagId)
+        {
+case 0:
 case 0xa14:  // "[name]"
-        ScanStr(&script->m_name);  // +0x4
-    break;
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[name]", 2580));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_name);  // +0x4
+            script->m_altName = script->m_name;
+            nameSeen = true;
+            break;
+        }
 
-case 0xa1a:  // "[name]"
-        script->m_width = ScanInt(&ok);  // +0xc
-        script->m_height = ScanInt(&ok);  // +0x10
-    break;
+case 0xa1a:  // "[width]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[width]", 2586));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_width = ScanInt(&ok);  // +0xc
+            script->m_height = ScanInt(&ok);  // +0x10
+            break;
+        }
 
-case 0xa1e:  // "[width]"
-        script->m_floatingHeight = ScanInt(&ok);  // +0x14
-    break;
+case 0xa1e:  // "[floating height]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[floating height]", 2590));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_floatingHeight = ScanInt(&ok);  // +0x14
+            break;
+        }
 
-case 0xa21:  // "[floating height]"
-        ScanStr(&local_str);  // 局部 string @8a13905
-    break;
+case 0xa21:  // "[layer]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[layer]", 2593));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&local_str);  // C LAB_08a1389f：ScanStr→getDrawLayer→+0x18
+            script->m_layer = getDrawLayer(local_str.c_str());  // +0x18
+            break;
+        }
+
+case 0xa25:  // "[category]" → ScanTypeOrStr + getObjectCategory → m_field01c
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[category]", 2597));
+            /* FALLTHRU */
+        }
+        else
+        {
+        {
+            script->m_field01c.clear();
+            bool ended = false;
+            bool isType = false;
+            while (ScanTypeOrStr(isType, token, true))
+            {
+                if (isType)
+                {
+                    if (token == "[/category]")
+                    {
+                        ended = true;
+                        break;
+                    }
+                    return 0;
+                }
+                const int category = getObjectCategory(token);
+                if (category != 0x2c)
+                {
+                    script->m_field01c.push_back(category);
+                }
+            }
+            if (!ended)
+            {
+                return 0;
+            }
+        }
+            break;
+        }
 
 case 0xa3c:  // "[ambient sound]"
-        ScanStr(&local_str);  // 局部 string @8a13b4d
-    break;
-
-case 0xa41:  // "[ambient sound]"
-        ScanStr(&local_str);  // 局部 string @8a13be9
-    break;
-
-case 0xa46:  // "[attack sound]"
-        ScanStr(&local_str);  // 局部 string @8a13c85
-    break;
-
-case 0xa4b:  // "[appear sound]"
-        ScanStr(&local_str);  // 局部 string @8a13d21
-    break;
-
-case 0xa50:  // "[damage sound]"
-        ScanStr(&local_str);  // 局部 string @8a13dbd
-    break;
-
-case 0xa55:  // "[die sound]"
-        ScanStr(&local_str);  // 局部 string @8a13ebb
-        ScanInt(&ok);  // 局部用途 @8a13f11
-        ScanStr(&local_str);  // 局部 string @8a13f58
-    break;
-
-case 0xa70:  // "+"
-        script->m_abilityTable = ScanInt(&ok);  // +0x3bc
-    break;
-
-case 0xa73:  // "[ability table]"
-        ScanFloat(&ok);  // @8a14057
-    break;
-
-case 0xa77:  // "[summon skill status up rate]"
-        *(int*)((char*)script+0x3ec) = ScanInt(&ok);  // +0x3ec
-        *(int*)((char*)script+0x3f0) = ScanInt(&ok);  // +0x3f0
-    break;
-
-case 0xa7b:  // "[level]"
-        *(int*)((char*)script+0x3f4) = ScanInt(&ok);  // +0x3f4
-        *(int*)((char*)script+0x3f8) = ScanInt(&ok);  // +0x3f8
-    break;
-
-case 0xa7f:  // "[fire resistance]"
-        *(int*)((char*)script+0x3fc) = ScanInt(&ok);  // +0x3fc
-        *(int*)((char*)script+0x400) = ScanInt(&ok);  // +0x400
-    break;
-
-case 0xa83:  // "[water resistance]"
-        *(int*)((char*)script+0x404) = ScanInt(&ok);  // +0x404
-        *(int*)((char*)script+0x408) = ScanInt(&ok);  // +0x408
-    break;
-
-case 0xa87:  // "[dark resistance]"
-        *(int*)((char*)script+0x40c) = ScanInt(&ok);  // +0x40c
-        *(int*)((char*)script+0x410) = ScanInt(&ok);  // +0x410
-    break;
-
-case 0xa8b:  // "[light resistance]"
-        *(int*)((char*)script+0x49c) = ScanInt(&ok);  // +0x49c
-        *(int*)((char*)script+0x4a0) = ScanInt(&ok);  // +0x4a0
-    break;
-
-case 0xa8f:  // "[HP regen speed]"
-        *(int*)((char*)script+0x4a4) = ScanInt(&ok);  // +0x4a4
-        *(int*)((char*)script+0x4a8) = ScanInt(&ok);  // +0x4a8
-    break;
-
-case 0xa93:  // "[MP regen speed]"
-        *(int*)((char*)script+0x4ac) = ScanInt(&ok);  // +0x4ac
-        *(int*)((char*)script+0x4b0) = ScanInt(&ok);  // +0x4b0
-    break;
-
-case 0xa97:  // "[move speed]"
-        *(int*)((char*)script+0x4b4) = ScanInt(&ok);  // +0x4b4
-        *(int*)((char*)script+0x4b8) = ScanInt(&ok);  // +0x4b8
-    break;
-
-case 0xaa3:  // "[attack speed]"
-        *(int*)((char*)script+0x4bc) = ScanInt(&ok);  // +0x4bc
-        *(int*)((char*)script+0x4c0) = ScanInt(&ok);  // +0x4c0
-    break;
-
-case 0xaa7:  // "[cast speed]"
-        *(int*)((char*)script+0x4c4) = ScanInt(&ok);  // +0x4c4
-        *(int*)((char*)script+0x4c8) = ScanInt(&ok);  // +0x4c8
-    break;
-
-case 0xaab:  // "[hit recovery]"
-        *(int*)((char*)script+0x4cc) = ScanInt(&ok);  // +0x4cc
-        *(int*)((char*)script+0x4d0) = ScanInt(&ok);  // +0x4d0
-    break;
-
-case 0xaaf:  // "[jump power]"
-        *(int*)((char*)script+0x4d4) = ScanInt(&ok);  // +0x4d4
-        *(int*)((char*)script+0x4d8) = ScanInt(&ok);  // +0x4d8
-    break;
-
-case 0xab4:  // "[jump speed]"
-        *(int*)((char*)script+0x4dc) = ScanInt(&ok);  // +0x4dc
-        *(int*)((char*)script+0x4e0) = ScanInt(&ok);  // +0x4e0
-    break;
-
-case 0xab9:  // "[normal dash speed]"
-        *(int*)((char*)script+0x4e4) = ScanInt(&ok);  // +0x4e4
-        *(int*)((char*)script+0x4e8) = ScanInt(&ok);  // +0x4e8
-    break;
-
-case 0xabf:  // "[slant dash speed]"
-        *(int*)((char*)script+0x4ec) = ScanInt(&ok);  // +0x4ec
-        *(int*)((char*)script+0x4f0) = ScanInt(&ok);  // +0x4f0
-    break;
-
-case 0xac3:  // "[weight]"
-        script->m_superarmorOnAttack = ScanInt(&ok) != 0;  // +0x5a5
-        script->m_field5a8 = ScanInt(&ok);  // +0x5a8
-    break;
-
-case 0xac7:  // "[superarmor on attack]"
-        script->m_sight = ScanInt(&ok);  // +0x504
-    break;
-
-case 0xaca:  // "[sight]"
-        ScanStr(&script->m_comeInAction);  // +0x530
-        script->m_field538 = ScanInt(&ok);  // +0x538
-        script->m_field53c = ScanInt(&ok);  // +0x53c
-    break;
-
-case 0xacf:  // "[come in action]"
-        ScanStr(&script->m_comeInAction);  // +0x530
-        ScanStr(&script->m_comeInActionEx);  // +0x534
-        script->m_field538 = ScanInt(&ok);  // +0x538
-        script->m_field53c = ScanInt(&ok);  // +0x53c
-    break;
-
-case 0xad6:  // "[come in action ex]"
-        ScanInt(&ok);  // 局部用途 @8a14bf7
-        ScanInt(&ok);  // 局部用途 @8a14c09
-    break;
-
-case 0xada:  // "[diving sight]"
-        script->m_targetingTimeTerm = ScanInt(&ok);  // +0x574
-    break;
-
-case 0xadd:  // "[diving sight]"
-        script->m_targetingOnAttack = ScanInt(&ok) != 0;  // +0x580
-    break;
-
-case 0xae0:  // "[targeting time term]"
-        script->m_targetingOnDamage = ScanInt(&ok) != 0;  // +0x581
-    break;
-
-case 0xae3:  // "[targeting on damage]"
-        ScanInt(&ok);  // 局部用途 @8a14dec
-        script->m_targetingLevel = 0x2;  // +0x584 [literal]
-    break;
-    break;
-
-case 0xae7:  // "[targeting high level]"
-        ScanInt(&ok);  // 局部用途 @8a14e74
-        script->m_targetingLevel = 0x1;  // +0x584 [literal]
-    break;
-    break;
-
-case 0xaeb:  // "[targeting low level]"
-        ScanInt(&ok);  // 局部用途 @8a14efc
-        script->m_targetingHp = 0x2;  // +0x588 [literal]
-    break;
-    break;
-
-case 0xaef:  // "[targeting high HP]"
-        ScanInt(&ok);  // 局部用途 @8a14f84
-        script->m_targetingHp = 0x1;  // +0x588 [literal]
-    break;
-    break;
-
-case 0xaf3:  // "[targeting low HP]"
-        script->m_targetingNearest = ScanInt(&ok) != 0;  // +0x590
-    break;
-    break;
-
-case 0xaf6:  // "[targeting nearest]"
-        script->m_targetingAttacker = ScanInt(&ok) != 0;  // +0x591
-    break;
-    break;
-
-case 0xaf9:  // "[targeting attacker]"
-        script->m_targetingFromDirection = ScanInt(&ok) != 0;  // +0x592
-    break;
-    break;
-
-case 0xafc:  // "[targeting from direction]"
-        ScanInt(&ok);  // 局部用途 @8a15180
-    break;
-
-case 0xaff:  // "[targeting low physical attack]"
-        ScanInt(&ok);  // 局部用途 @8a151ff
-    break;
-
-case 0xb02:  // "[targeting low physical defense]"
-        ScanInt(&ok);  // 局部用途 @8a1527e
-    break;
-
-case 0xb05:  // "[targeting low magical attack]"
-        ScanInt(&ok);  // 局部用途 @8a152fd
-    break;
-
-case 0xb08:  // "[targeting low magical defense]"
-        script->m_targetingDowned = ScanInt(&ok) != 0;  // +0x5a4
-    break;
-    break;
-
-case 0xb0b:  // "[targeting downed]"
-        script->m_warlike = ScanInt(&ok);  // +0x578
-    break;
-
-case 0xb12:  // "[targeting downed]"
-        script->m_attackDelay = ScanInt(&ok);  // +0x57c
-    break;
-
-case 0xb15:  // "[warlike]"
-        *(int*)((char*)script+0x4f4) = ScanInt(&ok);  // +0x4f4
-        *(int*)((char*)script+0x4f8) = ScanInt(&ok);  // +0x4f8
-        *(int*)((char*)script+0x4fc) = ScanInt(&ok);  // +0x4fc
-        *(int*)((char*)script+0x500) = ScanInt(&ok);  // +0x500
-    break;
-
-case 0xb1b:  // "[stuckbonus on damage]"
-        script->m_field028[0].clear();  // vector<pair<int,int>> @+0x28
-        while (true) {
-            int v1 = ScanInt(&ok);
-            if (!ok) break;
-            int v2 = ScanInt(&ok);
-            script->m_field028[0].push_back(std::make_pair(v1, v2));
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[ambient sound]", 2620));
+            /* FALLTHRU */
         }
-    break;
-
-case 0xb25:  // "[item]"
-        script->m_field028[1].clear();  // vector<pair<int,int>> @+0x34
-        while (true) {
-            int v1 = ScanInt(&ok);
-            if (!ok) break;
-            int v2 = ScanInt(&ok);
-            script->m_field028[1].push_back(std::make_pair(v1, v2));
+        else
+        {
+            ScanStr(&script->m_ambientSound);  // +0x6ac（C operator= @LAB_08a13ae7）
+            break;
         }
-    break;
 
-case 0xb31:  // "[common champion drop item]"
-        script->m_flag3a8 = ScanInt(&ok) != 0;  // +0x3a8
-    break;
-
-case 0xb36:  // "[hell monster]"
-        script->m_field028[3].clear();  // vector<pair<int,int>> @+0x4c
-        while (true) {
-            int v1 = ScanInt(&ok);
-            if (!ok) break;
-            int v2 = ScanInt(&ok);
-            script->m_field028[3].push_back(std::make_pair(v1, v2));
+case 0xa41:  // "[attack sound]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack sound]", 2625));
+            /* FALLTHRU */
         }
-    break;
+        else
+        {
+            ScanStr(&script->m_attackSound);  // +0x6a8（C @LAB_08a13b83）
+            break;
+        }
 
-case 0xb40:  // "[boss drop item]"
+case 0xa46:  // "[appear sound]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[appear sound]", 2630));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_appearSound);  // +0x6a4（C @LAB_08a13c1f）
+            break;
+        }
+
+case 0xa4b:  // "[damage sound]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[damage sound]", 2635));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_damageSound);  // +0x69c
+            break;
+        }
+
+case 0xa50:  // "[die sound]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[die sound]", 2640));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_dieSound);  // +0x6a0
+            break;
+        }
+
+case 0xa55:  // "[ability category]"（C @LAB_08a13df3 权威：clear+0x7c → while ScanStr 行 →
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[ability category]", 2645));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //   14 类名匹配 PARAMETER_CATEGORY_NAME 表 → 元素 push_back 到 m_parameterCategories）
+            {
+                static const char* const s_catName[14] = {
+                    "[ATTACK_SPEED]", "[MOVE_SPEED]", "[PHYSICAL_ATTACK]",
+                    "[PHYSICAL_DEFENSE]", "[MAGICAL_ATTACK]", "[MAGICAL_DEFENSE]",
+                    "[EQUIPMENT_PHYSICAL_ATTACK]", "[EQUIPMENT_PHYSICAL_DEFENSE]",
+                    "[EQUIPMENT_MAGICAL_ATTACK]", "[EQUIPMENT_MAGICAL_DEFENSE]",
+                    "[HP MAX]", "[HIT_RECOVERY]", "[STUCK]", "[HP MAX BOSS]"
+                };
+                script->m_parameterCategories.clear();
+                STMonsterParameterCategory item;
+                while (ScanStr(&token))
+                {
+                    for (int i = 0; i <= 13; ++i)
+                    {
+                        if (token == s_catName[i])
+                        {
+                            item.m_field0 = i;
+                            ScanStr(&token);
+                            if (token == "+")
+                                item.m_field4 = 0;
+                            else if (token == "*")
+                                item.m_field4 = 1;
+                            item.m_field8 = ScanInt(&ok);
+                            break;
+                        }
+                    }
+                    script->m_parameterCategories.push_back(item);
+                }
+            }
+            break;
+        }
+
+case 0xa70:  // "[ability table]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[ability table]", 2672));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_abilityTable = ScanInt(&ok);  // +0x3bc
+            break;
+        }
+
+case 0xa73:  // "[summon skill status up rate]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[summon skill status up rate]", 2675));
+            /* FALLTHRU */
+        }
+        else
+        {
+            for (int i = 0; i < 10; ++i)  // C for(i<10) ScanFloat→+0x3c4+4i（m_field3c4）
+                script->m_field3c4[i] = ScanFloat(&ok);
+            break;
+        }
+
+case 0xa77:  // "[level]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[level]", 2679));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_levelByDiff[0] = ScanInt(&ok);  // +0x3ec
+            script->m_levelByDiff[1] = ScanInt(&ok);  // +0x3f0
+            break;
+        }
+
+case 0xa7b:  // "[fire resistance]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[fire resistance]", 2683));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_resistTable[0][0] = ScanInt(&ok);  // +0x3f4
+            script->m_resistTable[0][1] = ScanInt(&ok);  // +0x3f8
+            break;
+        }
+
+case 0xa7f:  // "[water resistance]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[water resistance]", 2687));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_resistTable[1][0] = ScanInt(&ok);  // +0x3fc
+            script->m_resistTable[1][1] = ScanInt(&ok);  // +0x400
+            break;
+        }
+
+case 0xa83:  // "[dark resistance]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[dark resistance]", 2691));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_resistTable[2][0] = ScanInt(&ok);  // +0x404
+            script->m_resistTable[2][1] = ScanInt(&ok);  // +0x408
+            break;
+        }
+
+case 0xa87:  // "[light resistance]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[light resistance]", 2695));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_resistTable[3][0] = ScanInt(&ok);  // +0x40c
+            script->m_resistTable[3][1] = ScanInt(&ok);  // +0x410
+            break;
+        }
+
+case 0xa8b:  // "[HP regen speed]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[HP regen speed]", 2699));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_hpRegenSpeed[0] = ScanInt(&ok);  // +0x49c
+            script->m_hpRegenSpeed[1] = ScanInt(&ok);  // +0x4a0
+            break;
+        }
+
+case 0xa8f:  // "[MP regen speed]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[MP regen speed]", 2703));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_mpRegenSpeed[0] = ScanInt(&ok);  // +0x4a4
+            script->m_mpRegenSpeed[1] = ScanInt(&ok);  // +0x4a8
+            break;
+        }
+
+case 0xa93:  // "[move speed]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[move speed]", 2707));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_moveSpeed[0] = ScanInt(&ok);  // +0x4ac
+            script->m_moveSpeed[1] = ScanInt(&ok);  // +0x4b0
+            break;
+        }
+
+case 0xa97:  // "[attack speed]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack speed]", 2711));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_attackSpeed[0] = ScanInt(&ok);  // +0x4b4
+            script->m_attackSpeed[1] = ScanInt(&ok);  // +0x4b8
+            break;
+        }
+
+case 0xaa3:  // "[cast speed]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[cast speed]", 2723));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_castSpeed[0] = ScanInt(&ok);  // +0x4bc
+            script->m_castSpeed[1] = ScanInt(&ok);  // +0x4c0
+            break;
+        }
+
+case 0xaa7:  // "[hit recovery]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[hit recovery]", 2727));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_hitRecovery[0] = ScanInt(&ok);  // +0x4c4
+            script->m_hitRecovery[1] = ScanInt(&ok);  // +0x4c8
+            break;
+        }
+
+case 0xaab:  // "[jump power]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump power]", 2731));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_jumpPower[0] = ScanInt(&ok);  // +0x4cc
+            script->m_jumpPower[1] = ScanInt(&ok);  // +0x4d0
+            break;
+        }
+
+case 0xaaf:  // "[jump speed]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump speed]", 2735));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_jumpSpeed[0] = ScanInt(&ok);  // +0x4d4
+            script->m_jumpSpeed[1] = ScanInt(&ok);  // +0x4d8
+            break;
+        }
+
+case 0xab4:  // "[normal dash speed]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal dash speed]", 2740));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_normalDashSpeed[0] = ScanInt(&ok);  // +0x4dc
+            script->m_normalDashSpeed[1] = ScanInt(&ok);  // +0x4e0
+            break;
+        }
+
+case 0xab9:  // "[slant dash speed]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[slant dash speed]", 2745));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_slantDashSpeed[0] = ScanInt(&ok);  // +0x4e4
+            script->m_slantDashSpeed[1] = ScanInt(&ok);  // +0x4e8
+            break;
+        }
+
+case 0xabf:  // "[weight]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[weight]", 2751));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_weight[0] = ScanInt(&ok);  // +0x4ec
+            script->m_weight[1] = ScanInt(&ok);  // +0x4f0
+            break;
+        }
+
+case 0xac3:  // "[superarmor on attack]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[superarmor on attack]", 2755));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_superarmorOnAttack = ScanInt(&ok) != 0;  // +0x5a5
+            script->m_field5a8 = ScanInt(&ok);  // +0x5a8
+            break;
+        }
+
+case 0xac7:  // "[sight]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[sight]", 2759));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_sight = ScanInt(&ok);  // +0x504
+            break;
+        }
+
+case 0xaca:  // "[come in action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[come in action]", 2762));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_comeInAction);  // +0x530
+            script->m_field538 = ScanInt(&ok);  // +0x538
+            script->m_field53c = ScanInt(&ok);  // +0x53c
+            break;
+        }
+
+case 0xacf:  // "[come in action ex]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[come in action ex]", 2767));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_comeInAction);  // +0x530
+            ScanStr(&script->m_comeInActionEx);  // +0x534
+            script->m_field538 = ScanInt(&ok);  // +0x538
+            script->m_field53c = ScanInt(&ok);  // +0x53c
+            break;
+        }
+
+case 0xad6:  // "[diving sight]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[diving sight]", 2774));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanInt(&ok);  // 局部用途 @8a14bf7
+            ScanInt(&ok);  // 局部用途 @8a14c09
+            break;
+        }
+
+case 0xada:  // "[targeting time term]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting time term]", 2778));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_targetingTimeTerm = ScanInt(&ok);  // +0x574
+            break;
+        }
+
+case 0xadd:  // "[targeting on attack]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting on attack]", 2781));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_targetingOnAttack = ScanInt(&ok) != 0;  // +0x580
+            break;
+        }
+
+case 0xae0:  // "[targeting on damage]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting on damage]", 2784));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_targetingOnDamage = ScanInt(&ok) != 0;  // +0x581
+            break;
+        }
+
+case 0xae3:  // "[targeting high level]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting high level]", 2787));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (ScanInt(&ok) != 0)
+                script->m_targetingLevel = 0x2;  // +0x584 [literal]
+        break;
+            break;
+        }
+
+case 0xae7:  // "[targeting low level]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting low level]", 2791));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (ScanInt(&ok) != 0)
+                script->m_targetingLevel = 0x1;  // +0x584 [literal]
+        break;
+            break;
+        }
+
+case 0xaeb:  // "[targeting high HP]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting high HP]", 2795));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (ScanInt(&ok) != 0)
+                script->m_targetingHp = 0x2;  // +0x588 [literal]
+        break;
+            break;
+        }
+
+case 0xaef:  // "[targeting low HP]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting low HP]", 2799));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (ScanInt(&ok) != 0)
+                script->m_targetingHp = 0x1;  // +0x588 [literal]
+        break;
+            break;
+        }
+
+case 0xaf3:  // "[targeting nearest]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting nearest]", 2803));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_targetingNearest = ScanInt(&ok) != 0;  // +0x590
+        break;
+            break;
+        }
+
+case 0xaf6:  // "[targeting attacker]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting attacker]", 2806));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_targetingAttacker = ScanInt(&ok) != 0;  // +0x591
+        break;
+            break;
+        }
+
+case 0xaf9:  // "[targeting from direction]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting from direction]", 2809));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_targetingFromDirection = ScanInt(&ok) != 0;  // +0x592
+        break;
+            break;
+        }
+
+case 0xafc:  // "[targeting low physical attack]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting low physical attack]", 2812));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_targetingLowPhysAttack = ScanInt(&ok) != 0;
+            break;
+        }
+
+case 0xaff:  // "[targeting low physical defense]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting low physical defense]", 2815));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_targetingLowPhysDefense = ScanInt(&ok) != 0;
+            break;
+        }
+
+case 0xb02:  // "[targeting low magical attack]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting low magical attack]", 2818));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_targetingLowMagAttack = ScanInt(&ok) != 0;
+            break;
+        }
+
+case 0xb05:  // "[targeting low magical defense]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting low magical defense]", 2821));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_targetingLowMagDefense = ScanInt(&ok) != 0;
+            break;
+        }
+
+case 0xb08:  // "[targeting downed]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting downed]", 2824));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_targetingDowned = ScanInt(&ok) != 0;  // +0x5a4
+        break;
+            break;
+        }
+
+case 0xb0b:  // "[warlike]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[warlike]", 2827));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_warlike = ScanInt(&ok);  // +0x578
+            break;
+        }
+
+case 0xb12:  // "[attack delay]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack delay]", 2834));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_attackDelay = ScanInt(&ok);  // +0x57c
+            break;
+        }
+
+case 0xb15:  // "[stuckbonus on damage]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[stuckbonus on damage]", 2837));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_stuckBonusOnDamage[0][0] = ScanInt(&ok);  // +0x4f4
+            script->m_stuckBonusOnDamage[0][1] = ScanInt(&ok);  // +0x4f8
+            script->m_stuckBonusOnDamage[1][0] = ScanInt(&ok);  // +0x4fc
+            script->m_stuckBonusOnDamage[1][1] = ScanInt(&ok);  // +0x500
+            break;
+        }
+
+case 0xb1b:  // "[item]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[item]", 2843));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field028[0].clear();  // vector<pair<int,int>> @+0x28
+            while (true) {
+                int v1 = ScanInt(&ok);
+                if (!ok) break;
+                int v2 = ScanInt(static_cast<bool*>(0));
+                script->m_field028[0].push_back(std::make_pair(v1, v2));
+            }
+            break;
+        }
+
+case 0xb25:  // "[common champion drop item]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[common champion drop item]", 2853));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field028[1].clear();  // vector<pair<int,int>> @+0x34
+            while (true) {
+                int v1 = ScanInt(&ok);
+                if (!ok) break;
+                int v2 = ScanInt(static_cast<bool*>(0));
+                script->m_field028[1].push_back(std::make_pair(v1, v2));
+            }
+            break;
+        }
+
+case 0xb31:  // "[hell monster]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[hell monster]", 2865));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_flag3a8 = ScanInt(&ok) != 0;  // +0x3a8
+            break;
+        }
+
+case 0xb36:  // "[boss drop item]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss drop item]", 2870));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field028[3].clear();  // vector<pair<int,int>> @+0x4c
+            while (true) {
+                int v1 = ScanInt(&ok);
+                if (!ok) break;
+                int v2 = ScanInt(static_cast<bool*>(0));
+                script->m_field028[3].push_back(std::make_pair(v1, v2));
+            }
+            break;
+        }
+
+case 0xb40:  // "[specific gen rate item]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[specific gen rate item]", 2880));
+            /* FALLTHRU */
+        }
+        else
+        {
         script->m_field08c.clear();  // vector<pair<int,int>> @+0x8c
+        script->m_field088 = ScanInt(&ok);
+        if (!ok)
+            return 0;
         while (true) {
             int v1 = ScanInt(&ok);
             if (!ok) break;
+            ok = false;
             int v2 = ScanInt(&ok);
+            if (!ok) break;
             script->m_field08c.push_back(std::make_pair(v1, v2));
         }
-    break;
-
-case 0xbab:  // "[death tower item]"
-        script->m_field058.clear();  // vector<pair<int,int>> @+0x58
-        while (true) {
-            int v1 = ScanInt(&ok);
-            if (!ok) break;
-            int v2 = ScanInt(&ok);
-            script->m_field058.push_back(std::make_pair(v1, v2));
+            break;
         }
-    break;
 
-case 0xbb5:  // "[death tower item]"
-        // ORIG：m_championElements.clear() → while(ScanStr) 匹配 0..4 元素名
-        // getElementName(ENUM_ELEMENT) 声明于 CreatureScript.h（外部函数）
+case 0xbb5:  // "[common champion elemental property]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[common champion elemental property]", 2997));
+            /* FALLTHRU */
+        }
+        else
+        {
         script->m_championElements.clear();
         while (ScanStr(&token)) {
-            static const char* const s_elemNames[5] = { "fire", "water", "dark", "light", "none" };  // 【推断】
-            for (int i = 0; i <= 4; ++i) {
-                if (token == s_elemNames[i]) {
+            for (int i = 0; i < 5; ++i) {
+                if (token == getElementName(static_cast<ENUM_ELEMENT>(i))) {
                     script->m_championElements.push_back(i);
                     break;
                 }
             }
         }
-    break;
+            break;
+        }
 
 case 0xbc8:  // "[super champion drop item]"
-        script->m_field028[2].clear();  // vector<pair<int,int>> @+0x40
-        while (true) {
-            int v1 = ScanInt(&ok);
-            if (!ok) break;
-            int v2 = ScanInt(&ok);
-            script->m_field028[2].push_back(std::make_pair(v1, v2));
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[super champion drop item]", 3016));
+            /* FALLTHRU */
         }
-    break;
+        else
+        {
+            script->m_field028[2].clear();  // vector<pair<int,int>> @+0x40
+            while (true) {
+                int v1 = ScanInt(&ok);
+                if (!ok) break;
+                int v2 = ScanInt(static_cast<bool*>(0));
+                script->m_field028[2].push_back(std::make_pair(v1, v2));
+            }
+            break;
+        }
 
-case 0xbd3:  // "[super champion drop item]"
-        script->m_keepDistance = ScanInt(&ok);  // +0x6e0
-    break;
+case 0xbab:  // "[death tower item]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[death tower item]", 2987));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field058.clear();  // vector<pair<int,int>> @+0x58
+            while (true) {
+                int v1 = ScanInt(&ok);
+                if (!ok) break;
+                int v2 = ScanInt(static_cast<bool*>(0));
+                script->m_field058.push_back(std::make_pair(v1, v2));
+            }
+            break;
+        }
 
-case 0xbd6:  // "[keep distance]"
-        script->m_flag374 = ScanInt(&ok) != 0;  // +0x374
-        script->m_field378 = ScanInt(&ok);  // +0x378
-    break;
+case 0xbd3:  // "[keep distance]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep distance]", 3027));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_keepDistance = ScanInt(&ok);  // +0x6e0
+            break;
+        }
 
-case 0xbdc:  // "[is on the object]"
-        script->m_isOnTheObject = ScanInt(&ok) != 0;  // +0x6e4
-    break;
+case 0xbd6:  // "[is on the object]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[is on the object]", 3030));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_flag374 = ScanInt(&ok) != 0;  // +0x374
+            script->m_field378 = ScanInt(&ok);  // +0x378
+            break;
+        }
 
-case 0xbe0:  // "[out of targetting]"
-        ScanFloat(&ok);  // @8a15e91
-        ScanFloat(&ok);  // @8a15eb7
-        ScanFloat(&ok);  // @8a15ec9
-        ScanInt(&ok);  // 局部用途 @8a15edb
-        ScanInt(&ok);  // 局部用途 @8a15ef5
-        ScanInt(&ok);  // 局部用途 @8a15f07
-        ScanInt(&ok);  // 局部用途 @8a15f19
-        ScanInt(&ok);  // 局部用途 @8a15f2b
-        ScanInt(&ok);  // 局部用途 @8a15f3d
-        ScanInt(&ok);  // 局部用途 @8a15f4f
-        ScanInt(&ok);  // 局部用途 @8a15f61
-        ScanInt(&ok);  // 局部用途 @8a15f73
-    break;
+case 0xbdc:  // "[out of targetting]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[out of targetting]", 3036));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_isOnTheObject = ScanInt(&ok) != 0;  // +0x6e4
+            break;
+        }
+
+case 0xbe0:  // "[attack kind]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack kind]", 3040));
+            /* FALLTHRU */
+        }
+        else
+        {
+        {
+            script->m_attackMethods.clear();
+            for (;;)
+            {
+                STAttackMethod method;
+                float value = ScanFloat(&ok);
+                if (!ok)
+                    break;
+                memcpy(&method.m_field08, &value, sizeof(value));
+                value = ScanFloat(static_cast<bool*>(0));
+                memcpy(&method.m_field0c, &value, sizeof(value));
+                value = ScanFloat(static_cast<bool*>(0));
+                memcpy(&method.m_field10, &value, sizeof(value));
+                method.m_field00 = ScanInt(static_cast<bool*>(0)) != 0;
+                method.m_field18 = ScanInt(static_cast<bool*>(0));
+                method.m_field14 = ScanInt(static_cast<bool*>(0));
+                method.m_field20 = ScanInt(static_cast<bool*>(0));
+                method.m_field1c = ScanInt(static_cast<bool*>(0));
+                method.m_field28 = ScanInt(static_cast<bool*>(0));
+                method.m_field24 = ScanInt(static_cast<bool*>(0));
+                method.m_field30 = ScanInt(static_cast<bool*>(0));
+                method.m_field2c = ScanInt(static_cast<bool*>(0));
+                script->m_attackMethods.push_back(method);
+            }
+        }
+            break;
+        }
 
 case 0xbfa:  // "[die effect]"
-        *(int*)((char*)script+0x6fc) = ScanInt(&ok);  // +0x6fc
-        *(int*)((char*)script+0x700) = ScanInt(&ok);  // +0x700
-        *(int*)((char*)script+0x704) = ScanInt(&ok);  // +0x704
-    break;
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[die effect]", 3066));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_dieEffect[0] = ScanInt(&ok);  // +0x6fc
+            script->m_dieEffect[1] = ScanInt(&ok);  // +0x700
+            script->m_dieEffect[2] = ScanInt(&ok);  // +0x704
+            break;
+        }
 
-case 0xbff:  // "[die effect]"
-        ScanStr(&script->m_faceImage);  // +0x5ac
-        script->m_field5b0 = ScanInt(&ok);  // +0x5b0
-    break;
+case 0xbff:  // "[face image]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[face image]", 3071));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_faceImage);  // +0x5ac
+            script->m_field5b0 = ScanInt(&ok);  // +0x5b0
+            break;
+        }
 
-case 0xc03:  // "[face image]"
-        ScanStr(&local_str);  // 局部 string @8a1613d
-    break;
+case 0xc03:  // "[waiting motion]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[waiting motion]", 3075));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+                return 0;
+            script->m_waitingMotion = token;  // +0x5b4
+            break;
+        }
 
 case 0xc0f:  // "[move motion]"
-        ScanStr(&local_str);  // 局部 string @8a162d4
-    break;
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[move motion]", 3087));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+                return 0;
+            script->m_moveMotion = token;  // +0x5b8
+            break;
+        }
 
 case 0xc1b:  // "[sit motion]"
-        ScanStr(&local_str);  // 局部 string @8a1646b
-    break;
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[sit motion]", 3099));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+                return 0;
+            script->m_sitMotion = token;  // +0x5c8
+            break;
+        }
 
 case 0xc27:  // "[damage motion 1]"
-        ScanStr(&local_str);  // 局部 string @8a16602
-    break;
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[damage motion 1]", 3111));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+                return 0;
+            script->m_damageMotion[0] = token;  // +0x5cc
+            break;
+        }
 
 case 0xc33:  // "[damage motion 2]"
-        ScanStr(&local_str);  // 局部 string @8a16799
-    break;
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[damage motion 2]", 3123));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+                return 0;
+            script->m_damageMotion[1] = token;  // +0x5d0
+            break;
+        }
 
 case 0xc3f:  // "[down motion]"
-        ScanStr(&local_str);  // 局部 string @8a16930
-    break;
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[down motion]", 3135));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+                return 0;
+            script->m_downMotion = token;  // +0x5d4
+            break;
+        }
 
 case 0xc4b:  // "[overturn motion]"
-        ScanStr(&local_str);  // 局部 string @8a16ac7
-    break;
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[overturn motion]", 3147));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+                return 0;
+            script->m_overturnMotion = token;  // +0x5d8
+            break;
+        }
 
 case 0xc57:  // "[jump motion]"
-        ScanStr(&local_str);  // 局部 string @8a16c5e
-    break;
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump motion]", 3159));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+                return 0;
+            script->m_jumpMotion = token;  // +0x5dc
+            break;
+        }
 
 case 0xc63:  // "[jumpattack motion]"
-        ScanStr(&local_str);  // 局部 string @8a16df5
-    break;
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jumpattack motion]", 3171));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (!ScanStr(&token) || !isValidExtension(token, ".ani"))
+                return 0;
+            script->m_jumpAttackMotion = token;  // +0x5e0
+            break;
+        }
+
+case 0xc6f:  // "[attack motion]" → .ani 字符串列表
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack motion]", 3183));
+            /* FALLTHRU */
+        }
+        else
+        {
+        {
+            script->m_attackMotions.clear();
+            bool isType = false;
+            bool ended = false;
+            while (ScanTypeOrStr(isType, token, true))
+            {
+                if (isType)
+                {
+                    if (token == "[/attack motion]")
+                    {
+                        ended = true;
+                        break;
+                    }
+                    return 0;
+                }
+                if (!isValidExtension(token, ".ani"))
+                    return 0;
+                script->m_attackMotions.push_back(token);
+            }
+            if (!ended)
+                return 0;
+        }
+            break;
+        }
+
+case 0xc89:  // "[etc motion]" → .ani 字符串列表
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[etc motion]", 3209));
+            /* FALLTHRU */
+        }
+        else
+        {
+        {
+            script->m_etcMotions.clear();
+            bool isType = false;
+            bool ended = false;
+            while (ScanTypeOrStr(isType, token, true))
+            {
+                if (isType)
+                {
+                    if (token == "[/etc motion]")
+                    {
+                        ended = true;
+                        break;
+                    }
+                    return 0;
+                }
+                if (!isValidExtension(token, ".ani"))
+                    return 0;
+                script->m_etcMotions.push_back(token);
+            }
+            if (!ended)
+                return 0;
+        }
+            break;
+        }
 
 case 0xca3:  // "[waiting action]"
-        ScanStr(&script->m_waitingAction);  // +0x5fc
-    break;
-
-case 0xca6:  // "[waiting action]"
-        ScanStr(&script->m_moveAction);  // +0x600
-    break;
-
-case 0xca9:  // "[waiting action]"
-        ScanStr(&script->m_sitAction);  // +0x610
-    break;
-
-case 0xcac:  // "[move action]"
-        ScanStr((std::string*)((char*)script+0x614));  // +0x614
-    break;
-
-case 0xcaf:  // "[sit action]"
-        ScanStr((std::string*)((char*)script+0x618));  // +0x618
-    break;
-
-case 0xcb2:  // "[damage action 1]"
-        ScanStr(&script->m_downAction);  // +0x61c
-    break;
-
-case 0xcb5:  // "[damage action 2]"
-        ScanStr(&script->m_overturnAction);  // +0x620
-    break;
-
-case 0xcb8:  // "[down action]"
-        ScanStr(&script->m_jumpAction);  // +0x624
-    break;
-
-case 0xcbb:  // "[overturn action]"
-        ScanStr(&script->m_jumpAttackAction);  // +0x628
-    break;
-
-case 0xcbe:  // "[jump action]"
-        ScanStr(&script->m_basicAction);  // +0x698
-    break;
-
-case 0xcc1:  // "[jumpattack action]"
-        ScanStr(&local_str);  // 局部 string @8a17873
-    break;
-
-case 0xcc2:  // "[basic action]"
-        ScanStr(&local_str);  // 局部 string @8a17873
-    break;
-
-case 0xcc8:  // "[action list]"
-        ScanStr(&local_str);  // 局部 string @8a17914
-    break;
-
-case 0xccd:  // "[etc action]"
-        ScanStr(&script->m_lastAction);  // +0x644
-    break;
-
-case 0xcd0:  // "[last action]"
-        ScanStr(&script->m_jumpAttackInfo);  // +0x6b4
-    break;
-
-case 0xcd3:  // "[last action]"
-        ScanStr(&local_str);  // 局部 string @8a17a99
-    break;
-
-case 0xcd9:  // "[attack info]"
-        ScanStr(&local_str);  // 局部 string @8a17b3a
-    break;
-
-case 0xcdf:  // "[etc attack info]"
-        ScanInt(&ok);  // 局部用途 @8a17bbe
-    break;
-
-case 0xd14:  // "[on go to help]"
-        ScanStr(&local_str);  // 局部 string @8a183fb
-    break;
-
-case 0xd1d:  // "[fix move direction]"
-        ScanInt(&ok);  // 局部用途 @8a1849c
-    break;
-
-case 0xd2a:  // "[passive object filename]"
-        ScanStr(&local_str);  // 局部 string @8a1887d
-    break;
-
-case 0xd31:  // "[passive object filename]"
-        ScanInt(&ok);  // 局部用途 @8a1891d
-    break;
-
-case 0xd34:  // "[passive object number]"
-        ScanInt(&ok);  // 局部用途 @8a18991
-    break;
-
-case 0xd37:  // "[passive object number]"
-        ScanInt(&ok);  // 局部用途 @8a18a05
-    break;
-
-case 0xd3a:  // "[passive object index]"
-        ScanInt(&ok);  // 局部用途 @8a18a79
-    break;
-
-case 0xd3d:  // "[power]"
-        ScanInt(&ok);  // 局部用途 @8a18b39
-    break;
-
-case 0xd44:  // "[passive object start x cood]"
-        ScanInt(&ok);  // 局部用途 @8a18c0f
-    break;
-
-case 0xd4b:  // "[passive object start y cood]"
-        ScanInt(&ok);  // 局部用途 @8a18ce5
-    break;
-
-case 0xd52:  // "[passive object start z cood]"
-        ScanInt(&ok);  // 局部用途 @8a18dbb
-    break;
-
-case 0xd59:  // "[direction]"
-        ScanInt(&ok);  // 局部用途 @8a18e45
-    break;
-
-case 0xd5c:  // "[attack number]"
-        ScanInt(&ok);  // 局部用途 @8a18eb9
-    break;
-
-case 0xd5f:  // "[attack number]"
-        ScanStr(&local_str);  // 局部 string @8a18f32
-    break;
-
-case 0xd62:  // "[attack index]"
-        ScanInt(&ok);  // 局部用途 @8a18fa0
-    break;
-
-case 0xd65:  // "[throw sound]"
-        ScanInt(&ok);  // 局部用途 @8a19011
-        ScanStr(&local_str);  // 局部 string @8a1904c
-    break;
-
-case 0xd6e:  // "[equipment]"
-        ScanInt(&ok);  // 局部用途 @8a19151
-        ScanStr(&local_str);  // 局部 string @8a19171
-        ScanStr(&local_str);  // 局部 string @8a191c2
-    break;
-
-case 0xd7b:  // "[ready action]"
-        ScanInt(&ok);  // 局部用途 @8a192c1
-        ScanInt(&ok);  // 局部用途 @8a192f6
-        ScanStr(&local_str);  // 局部 string @8a19349
-        ScanInt(&ok);  // 局部用途 @8a19370
-        ScanStr(&local_str);  // 局部 string @8a193b6
-    break;
-
-case 0xda1:  // "[probability]"
-        ScanInt(&ok);  // 局部用途 @8a1977d
-    break;
-
-case 0xda4:  // "[probability]"
-        ScanInt(&ok);  // 局部用途 @8a197f1
-    break;
-
-case 0xda7:  // "[probability]"
-        ScanStr(&local_str);  // 局部 string @8a19878
-    break;
-
-case 0xdb7:  // "[approach attack]"
-        ScanInt(&ok);  // 局部用途 @8a1997e
-        ScanStr(&local_str);  // 局部 string @8a199b9
-    break;
-
-case 0xdc6:  // "[attack index]"
-        ScanInt(&ok);  // 局部用途 @8a19d75
-    break;
-
-case 0xdc9:  // "[attack index]"
-        ScanInt(&ok);  // 局部用途 @8a19de9
-    break;
-
-case 0xdcc:  // "[attack index]"
-        ScanInt(&ok);  // 局部用途 @8a19e5d
-    break;
-
-case 0xdcf:  // "[start frame index]"
-        ScanInt(&ok);  // 局部用途 @8a19ed1
-    break;
-
-case 0xdd2:  // "[end frame index]"
-        ScanInt(&ok);  // 局部用途 @8a19f45
-    break;
-
-case 0xdd5:  // "[jump height]"
-        ScanInt(&ok);  // 局部用途 @8a19fb9
-    break;
-
-case 0xdd8:  // "[jump speed]"
-        ScanFloat(&ok);  // @8a1a02d
-    break;
-
-case 0xddb:  // "[on collision custom animation index]"
-        ScanInt(&ok);  // 局部用途 @8a1a0a1
-    break;
-
-case 0xdde:  // "[ememy distance rate]"
-        ScanInt(&ok);  // 局部用途 @8a1a115
-    break;
-
-case 0xde1:  // "[limited x cood]"
-        ScanInt(&ok);  // 局部用途 @8a1a189
-    break;
-
-case 0xde4:  // "[limited y cood]"
-        ScanInt(&ok);  // 局部用途 @8a1a1fa
-        ScanStr(&local_str);  // 局部 string @8a1a235
-    break;
-
-case 0xdf4:  // "[function index]"
-        ScanInt(&ok);  // 局部用途 @8a1a5cf
-    break;
-
-case 0xdf7:  // "[function index]"
-        ScanInt(&ok);  // 局部用途 @8a1a643
-    break;
-
-case 0xdfa:  // "[function index]"
-        ScanInt(&ok);  // 局部用途 @8a1a6b7
-    break;
-
-case 0xdfd:  // "[attack index]"
-        ScanInt(&ok);  // 局部用途 @8a1a72e
-        ScanInt(&ok);  // 局部用途 @8a1a767
-        ScanInt(&ok);  // 局部用途 @8a1a779
-        ScanInt(&ok);  // 局部用途 @8a1a78b
-        ScanInt(&ok);  // 局部用途 @8a1a79d
-    break;
-
-case 0xe09:  // "[summon term]"
-        ScanInt(&ok);  // 局部用途 @8a1a846
-    break;
-
-case 0xe0c:  // "[summon term]"
-        ScanInt(&ok);  // 局部用途 @8a1a8ba
-    break;
-
-case 0xe0f:  // "[summon term]"
-        ScanInt(&ok);  // 局部用途 @8a1a92e
-    break;
-
-case 0xe12:  // "[probability]"
-        ScanInt(&ok);  // 局部用途 @8a1a9a2
-    break;
-
-case 0xe15:  // "[enterance effect]"
-        ScanInt(&ok);  // 局部用途 @8a1aa13
-        ScanStr(&local_str);  // 局部 string @8a1aa4e
-    break;
-
-case 0xe24:  // "[function index]"
-        ScanInt(&ok);  // 局部用途 @8a1adfa
-    break;
-
-case 0xe27:  // "[function index]"
-        ScanInt(&ok);  // 局部用途 @8a1ae6e
-    break;
-
-case 0xe2a:  // "[function index]"
-        ScanInt(&ok);  // 局部用途 @8a1aee2
-        ScanInt(&ok);  // 局部用途 @8a1aef4
-        ScanInt(&ok);  // 局部用途 @8a1af06
-    break;
-
-case 0xe2f:  // "[shakeable]"
-        ScanInt(&ok);  // 局部用途 @8a1af7a
-    break;
-
-case 0xe32:  // "[first speed]"
-        ScanInt(&ok);  // 局部用途 @8a1afee
-    break;
-
-case 0xe35:  // "[first speed]"
-        ScanInt(&ok);  // 局部用途 @8a1b062
-    break;
-
-case 0xe38:  // "[last speed]"
-        ScanInt(&ok);  // 局部用途 @8a1b0d6
-    break;
-
-case 0xe3b:  // "[dash time]"
-        ScanInt(&ok);  // 局部用途 @8a1b147
-        ScanStr(&local_str);  // 局部 string @8a1b182
-    break;
-
-case 0xe4a:  // "[function index]"
-        ScanInt(&ok);  // 局部用途 @8a1b4d5
-        ScanInt(&ok);  // 局部用途 @8a1b4f6
-        ScanInt(&ok);  // 局部用途 @8a1b508
-    break;
-
-case 0xe52:  // "[function index]"
-        ScanInt(&ok);  // 局部用途 @8a1b57c
-    break;
-
-case 0xe55:  // "[attack index]"
-        ScanInt(&ok);  // 局部用途 @8a1b5f0
-        ScanInt(&ok);  // 局部用途 @8a1b602
-    break;
-
-case 0xe59:  // "[attack index]"
-        ScanInt(&ok);  // 局部用途 @8a1b676
-    break;
-
-case 0xe5c:  // "[offset]"
-        ScanInt(&ok);  // 局部用途 @8a1b6ea
-    break;
-
-case 0xe5f:  // "[animation index]"
-        ScanInt(&ok);  // 局部用途 @8a1b75b
-        ScanStr(&local_str);  // 局部 string @8a1b799
-    break;
-
-case 0xe6e:  // "[function index]"
-        ScanInt(&ok);  // 局部用途 @8a1bb25
-    break;
-
-case 0xe71:  // "[function index]"
-        ScanInt(&ok);  // 局部用途 @8a1bb99
-    break;
-
-case 0xe74:  // "[function index]"
-        ScanInt(&ok);  // 局部用途 @8a1bc0d
-    break;
-
-case 0xe77:  // "[attack index]"
-        ScanInt(&ok);  // 局部用途 @8a1bc81
-    break;
-
-case 0xe7a:  // "[warp style]"
-        ScanInt(&ok);  // 局部用途 @8a1bcf5
-    break;
-
-case 0xe7d:  // "[after attack]"
-        ScanInt(&ok);  // 局部用途 @8a1bd69
-    break;
-
-case 0xe80:  // "[after appear time]"
-        ScanInt(&ok);  // 局部用途 @8a1bddd
-    break;
-
-case 0xe83:  // "[cool time]"
-        ScanInt(&ok);  // 局部用途 @8a1be51
-    break;
-
-case 0xe86:  // "[target offset]"
-        ScanStr(&local_str);  // 局部 string @8a1bed8
-        ScanStr(&local_str);  // 局部 string @8a1bfa2
-    break;
-
-case 0xea5:  // "[on time]"
-        ScanInt(&ok);  // 局部用途 @8a1c32d
-        ScanInt(&ok);  // 局部用途 @8a1c33f
-        ScanInt(&ok);  // 局部用途 @8a1c351
-    break;
-
-case 0xeab:  // "[on time]"
-        ScanInt(&ok);  // 局部用途 @8a1c3d4
-        ScanInt(&ok);  // 局部用途 @8a1c3e6
-        ScanInt(&ok);  // 局部用途 @8a1c3f8
-    break;
-
-case 0xeb1:  // "[on hp]"
-        ScanInt(&ok);  // 局部用途 @8a1c47b
-        ScanInt(&ok);  // 局部用途 @8a1c48d
-    break;
-
-case 0xeb7:  // "[always]"
-        ScanInt(&ok);  // 局部用途 @8a1c510
-        ScanInt(&ok);  // 局部用途 @8a1c522
-        ScanInt(&ok);  // 局部用途 @8a1c534
-    break;
-
-case 0xebd:  // "[counter]"
-        ScanInt(&ok);  // 局部用途 @8a1c5b7
-        ScanInt(&ok);  // 局部用途 @8a1c5c9
-        ScanInt(&ok);  // 局部用途 @8a1c5db
-        ScanInt(&ok);  // 局部用途 @8a1c5ed
-    break;
-
-case 0xec4:  // "[breakable]"
-        ScanInt(&ok);  // 局部用途 @8a1c66b
-        ScanInt(&ok);  // 局部用途 @8a1c67d
-        ScanInt(&ok);  // 局部用途 @8a1c68f
-        ScanInt(&ok);  // 局部用途 @8a1c6a1
-    break;
-
-case 0xecb:  // "[half]"
-        ScanInt(&ok);  // 局部用途 @8a1c71f
-        ScanInt(&ok);  // 局部用途 @8a1c731
-        ScanInt(&ok);  // 局部用途 @8a1c743
-        ScanInt(&ok);  // 局部用途 @8a1c755
-    break;
-
-case 0xed2:  // "[unbreakable]"
-        ScanStr(&local_str);  // 局部 string @8a1c7f6
-    break;
-
-case 0xeda:  // "[with blast]"
-        ScanInt(&ok);  // 局部用途 @8a1c89a
-        ScanStr(&local_str);  // 局部 string @8a1c8c2
-        ScanInt(&ok);  // 局部用途 @8a1c93e
-        ScanInt(&ok);  // 局部用途 @8a1c950
-        ScanInt(&ok);  // 局部用途 @8a1c962
-        ScanInt(&ok);  // 局部用途 @8a1c974
-    break;
-
-case 0xefb:  // "[breakable]"
-        ScanInt(&ok);  // 局部用途 @8a1cab2
-    break;
-
-case 0xf23:  // "[/cooltime]"
-        script->m_fieldc4c = ScanInt(&ok);  // +0xc4c
-    break;
-
-case 0xf27:  // "[spawn prob]"
-        script->m_field36c = ScanInt(&ok);  // +0x36c
-        script->m_field370 = ScanInt(&ok);  // +0x370
-    break;
-
-case 0xf2b:  // "[drop item offset]"
-        script->m_flag368 = ScanInt(&ok) != 0;  // +0x368
-    break;
-
-case 0xf46:  // "[keep range distance with target 4]"
-        ScanInt(&ok);  // 局部用途 @8a1d391
-        ScanInt(&ok);  // 局部用途 @8a1d3b7
-    break;
-
-case 0xf57:  // "[reflection object]"
-        ScanInt(&ok);  // 局部用途 @8a1d45e
-    break;
-
-case 0xf5c:  // "[set damage check]"
-        *(int*)((char*)script+0x33c) = ScanInt(&ok) != 0;  // +0x33c
-    break;
-
-case 0xf62:  // "[change direction by target]"
-        ScanInt(&ok);  // 局部用途 @8a1d56a
-    break;
-
-case 0xf67:  // "[is direction to move]"
-        ScanFloat(&ok);  // @8a1d5ed
-    break;
-
-case 0xf6c:  // "[is direction to move]"
-        ScanFloat(&ok);  // @8a1d664
-        ScanFloat(&ok);  // @8a1d679
-    break;
-
-case 0xf72:  // "[hp regen rate]"
-        ScanFloat(&ok);  // @8a1d6f0
-    break;
-
-case 0xf76:  // "[absolute defense ignore rate]"
-        ScanInt(&ok);  // 局部用途 @8a1d779
-    break;
-
-case 0xf7b:  // "[lie frame]"
-        script->m_field1cac = ScanInt(&ok);  // +0x1cac
-    break;
-
-case 0xf84:  // "[forced knockback]"
-        ScanStr(&script->m_procAction);  // +0x648
-    break;
-
-case 0xf87:  // "[No Combo Rate Monster]"
-        ScanStr(&script->m_monsterTitle);  // +0x694
-    break;
-
-case 0xf8a:  // "[proc action]"
-        script->m_field6f4 = ScanInt(&ok);  // +0x6f4
-    break;
-
-case 0xf8d:  // "[monster title]"
-        script->m_field6f8 = ScanInt(&ok);  // +0x6f8
-    break;
-
-case 0xf99:  // "[destroy count]"
-        script->m_fieldc74 = ScanInt(&ok);  // +0xc74
-    break;
-
-case 0xf9d:  // "[destroy count damage]"
-        script->m_fieldc78 = ScanInt(&ok);  // +0xc78
-        script->m_fieldc7c = ScanInt(&ok);  // +0xc7c
-    break;
-
-case 0xfa2:  // "[overhead gauge pos]"
-        ScanInt(&ok);  // 局部用途 @8a1dbc1
-    break;
-
-case 0xfa7:  // "[flying mark]"
-        ScanStr(&script->m_movebackAction);  // +0x604
-    break;
-
-case 0xfaa:  // "[moveback action]"
-        ScanStr(&script->m_dashAction);  // +0x608
-    break;
-
-case 0xfad:  // "[moveback action]"
-        ScanStr(&script->m_dashattackAction);  // +0x60c
-    break;
-
-case 0xfb0:  // "[dash action]"
-        ScanStr(&script->m_field098);  // +0x98
-    break;
-
-case 0xfb3:  // "[dashattack action]"
-        ScanInt(&ok);  // 局部用途 @8a1dea4
-        ScanInt(&ok);  // 局部用途 @8a1dee3
-    break;
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[waiting action]", 3235));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_waitingAction);  // +0x5fc
+            break;
+        }
+
+case 0xca6:  // "[move action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[move action]", 3238));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_moveAction);  // +0x600
+            break;
+        }
+
+case 0xca9:  // "[sit action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[sit action]", 3241));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_sitAction);  // +0x610
+            break;
+        }
+
+case 0xcac:  // "[damage action 1]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[damage action 1]", 3244));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_damageAction[0]);  // +0x614
+            break;
+        }
+
+case 0xcaf:  // "[damage action 2]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[damage action 2]", 3247));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_damageAction[1]);  // +0x618
+            break;
+        }
+
+case 0xcb2:  // "[down action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[down action]", 3250));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_downAction);  // +0x61c
+            break;
+        }
+
+case 0xcb5:  // "[overturn action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[overturn action]", 3253));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_overturnAction);  // +0x620
+            break;
+        }
+
+case 0xcb8:  // "[jump action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump action]", 3256));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_jumpAction);  // +0x624
+            break;
+        }
+
+case 0xcbb:  // "[jumpattack action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jumpattack action]", 3259));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_jumpAttackAction);  // +0x628
+            break;
+        }
+
+case 0xcbe:  // "[basic action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[basic action]", 3262));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_basicAction);  // +0x698
+            break;
+        }
+
+case 0xcc1:  // "[attack action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack action]", 3265));
+            /* FALLTHRU */
+        }
+        else
+        {
+        script->m_attackActions.clear();
+        while (ScanStr(&token))
+            script->m_attackActions.push_back(token);
+            break;
+        }
+
+case 0xcc2:  // "[action list]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[action list]", 3266));
+            /* FALLTHRU */
+        }
+        else
+        {
+        // ORIG 与 [attack action] 共用 +0x62c。
+        script->m_attackActions.clear();
+        while (ScanStr(&token))
+            script->m_attackActions.push_back(token);
+            break;
+        }
+
+case 0xcc8:  // "[etc action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[etc action]", 3272));
+            /* FALLTHRU */
+        }
+        else
+        {
+        script->m_etcActions.clear();
+        while (ScanStr(&token))
+            script->m_etcActions.push_back(token);
+            break;
+        }
+
+case 0xccd:  // "[last action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[last action]", 3277));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_lastAction);  // +0x644
+            break;
+        }
+
+case 0xcd0:  // "[jumpattack info]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jumpattack info]", 3280));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_jumpAttackInfo);  // +0x6b4
+            break;
+        }
+
+case 0xcd3:  // "[attack info]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack info]", 3283));
+            /* FALLTHRU */
+        }
+        else
+        {
+        script->m_attackInfos.clear();
+        while (ScanStr(&token))
+            script->m_attackInfos.push_back(token);
+            break;
+        }
+
+case 0xcd9:  // "[etc attack info]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[etc attack info]", 3289));
+            /* FALLTHRU */
+        }
+        else
+        {
+        script->m_etcAttackInfos.clear();
+        while (ScanStr(&token))
+            script->m_etcAttackInfos.push_back(token);
+            break;
+        }
+
+case 0xcdf:  // "[int data]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[int data]", 3295));
+            /* FALLTHRU */
+        }
+        else
+        {
+        script->m_intData.clear();
+        for (;;)
+        {
+            int value = ScanInt(&ok);
+            if (!ok)
+                break;
+            script->m_intData.push_back(value);
+        }
+            break;
+        }
+
+case 0xcea:  // "[speech on situation]" → 111 个情境字符串桶
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[speech on situation]", 3306));
+            /* FALLTHRU */
+        }
+        else
+        {
+        {
+            for (int i = 0; i < 0x6f; ++i)
+                script->m_field70c[i].clear();
+
+            while (ScanStr(&token))
+            {
+                ScanStr(&local_str);
+                const int index = ScanInt(static_cast<bool*>(0));
+                int bucket = 0;
+                int subId1 = -1;
+                for (;;)
+                {
+                    static std::map<const char*, int, less_TCHAR> __lookup;
+                    static SpinLock __init_lock;
+                    static bool __inited = false;
+                    if (!__inited)
+                    {
+                        __init_lock.enter();
+                        if (__inited)
+                        {
+                            __init_lock.leave();
+                            continue;
+                        }
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on attack]", 3321));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on damage]", 3324));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on die]", 3327));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on revenge]", 3330));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on etc]", 3333));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on appear]", 3336));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on disappear]", 3339));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on go to help]", 3342));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on stand]", 3345));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on village]", 3348));
+                            __init_lock.leave();
+                            __inited = true;
+                            continue;
+                        }
+                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
+                        if (__it != __lookup.end())
+                            subId1 = __it->second;
+                        break;
+                    }
+                    // ORIG 08a17ed0..08a183c5：speech 子表 if-else 链（bucket 选择）
+                    if (subId1 == 3321)              // [on attack] → 当前行号桶（ORIG 08a17fca：-0xf8=-0x100）
+                        bucket = index;
+                    else if (subId1 == 3324)         // [on damage]
+                        bucket = 0x65;
+                    else if (subId1 == 3327)         // [on die]
+                        bucket = 0x66;
+                    else if (subId1 == 3330)         // [on revenge]
+                        bucket = 0x67;
+                    else if (subId1 == 3333)         // [on etc]
+                        bucket = 0x68;
+                    else if (subId1 == 3336)         // [on appear]
+                        bucket = 0x69;
+                    else if (subId1 == 3339)         // [on disappear]
+                        bucket = 0x6a;
+                    else if (subId1 == 3342)         // [on go to help]
+                        bucket = 0x6b;
+                    else if (subId1 == 3345)         // [on stand]
+                        bucket = 0x6c;
+                    else if (subId1 == 3348)         // [on village]
+                        bucket = 0x6e;
+                    // ORIG 08a183c6：m_field70c[bucket]（stride 0xc）.push_back(local_str)
+                    script->m_field70c[bucket].push_back(local_str);
+                }
+            }
+            break;
+        }
+
+case 0xd1d:  // "[fix move direction]"（ORIG 08a18438：ScanInt 非 0 → +0xc50 置 1）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[fix move direction]", 3357));
+            /* FALLTHRU */
+        }
+        else
+        {
+            if (ScanInt(static_cast<bool*>(0)) != 0)
+                script->m_flagc50 = true;
+            break;
+        }
+
+case 0xd22:  // "[throw attack]"（收集父 case；ORIG C LAB_08a184c3：
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[throw attack]", 3362));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  STThrowAttack 局部 + while(ScanStr 子标签行) __lookup_1(14 键 passive 字段表)
+            //  分派 → 收尾 push_back m_throwAttacks +0x9c；字段槽映射 local_1d24+t 直证）
+            {
+                STThrowAttack elem;          // C1（ORIG -0x1d24）
+                std::string fname;           // -0x1a88（filename 循环暂存）
+                while (ScanStr(&token))
+                {
+                    int subId2 = -1;
+                    for (;;)
+                    {
+                        static std::map<const char*, int, less_TCHAR> __lookup;
+                        static SpinLock __init_lock;
+                        static bool __inited = false;
+                        if (!__inited)
+                        {
+                            __init_lock.enter();
+                            if (__inited)
+                            {
+                                __init_lock.leave();
+                                continue;
+                            }
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object filename]", 3370));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object number]", 3377));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object index]", 3380));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[power]", 3383));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[throw frame]", 3386));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start x cood]", 3389));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start y cood]", 3396));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object start z cood]", 3403));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[direction]", 3410));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack number]", 3417));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3420));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[throw sound]", 3423));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[object type]", 3426));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[start kind]", 3429));
+                            __init_lock.leave();
+                            __inited = true;
+                            continue;
+                        }
+                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
+                        if (__it != __lookup.end())
+                            subId2 = __it->second;
+                        break;
+                    }
+                    if (subId2 == 3370)       // [passive object filename]：count(=m_field50) 条
+                    {
+                        for (int i = 0; i < elem.m_field50; ++i)
+                        {
+                            ScanStr(&fname);
+                            elem.m_field00.push_back(fname);
+                        }
+                    }
+                    else if (subId2 == 3377)  // [passive object number] → +0x50
+                        elem.m_field50 = ScanInt(static_cast<bool*>(0));
+                    else if (subId2 == 3380)  // [passive object index] → +0xc
+                        elem.m_field0c = ScanInt(static_cast<bool*>(0));
+                    else if (subId2 == 3383)  // [power] → +0x10
+                        elem.m_field10 = ScanInt(static_cast<bool*>(0));
+                    else if (subId2 == 3386)  // [throw frame] → +0x14
+                        elem.m_field14 = ScanInt(static_cast<bool*>(0));
+                    else if (subId2 == 3389)  // [start x cood] → resize +0x18 后逐项 ScanInt
+                    {
+                        elem.m_field18.resize(elem.m_field50);
+                        for (int i = 0; i < elem.m_field50; ++i)
+                            elem.m_field18[i] = ScanInt(static_cast<bool*>(0));
+                    }
+                    else if (subId2 == 3396)  // [start y cood] → +0x24
+                    {
+                        elem.m_field24.resize(elem.m_field50);
+                        for (int i = 0; i < elem.m_field50; ++i)
+                            elem.m_field24[i] = ScanInt(static_cast<bool*>(0));
+                    }
+                    else if (subId2 == 3403)  // [start z cood] → +0x30
+                    {
+                        elem.m_field30.resize(elem.m_field50);
+                        for (int i = 0; i < elem.m_field50; ++i)
+                            elem.m_field30[i] = ScanInt(static_cast<bool*>(0));
+                    }
+                    else if (subId2 == 3410)  // [direction] → resize +0x58（ORIG avStack_1ccc 直证）
+                    {
+                        elem.m_field58.resize(elem.m_field50);
+                        for (int i = 0; i < elem.m_field50; ++i)
+                            elem.m_field58[i] = ScanInt(static_cast<bool*>(0));
+                    }
+                    else if (subId2 == 3417)  // [attack number] → +0x3c
+                        elem.m_field3c = ScanInt(static_cast<bool*>(0));
+                    else if (subId2 == 3420)  // [attack index] → +0x44
+                        elem.m_field44 = ScanInt(static_cast<bool*>(0));
+                    else if (subId2 == 3423)  // [throw sound] → ScanStr 直读 +0x40
+                        ScanStr(&elem.m_field40);
+                    else if (subId2 == 3426)  // [object type] → +0x4c
+                        elem.m_field4c = ScanInt(static_cast<bool*>(0));
+                    else if (subId2 == 3429)  // [start kind] → +0x54
+                        elem.m_field54 = ScanInt(static_cast<bool*>(0));
+                    // ORIG：未命中键无字段分支，循环继续
+                }
+                script->m_throwAttacks.push_back(elem);   // +0x9c
+            }
+            break;
+        }
+
+case 0xd6e:  // "[equipment]"（收集；ORIG C LAB_08a190cc：clear +0x390 → ScanInt 数量 →
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[equipment]", 3438));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  count 次 ScanStr push m_items；末尾一次 ScanStr 丢弃）
+            {
+                script->m_equipment.clear();
+                std::string item;
+                const int count = ScanInt(static_cast<bool*>(0));
+                for (int i = 0; i < count; ++i)
+                {
+                    ScanStr(&item);
+                    script->m_equipment.m_items.push_back(item);
+                }
+                std::string tail;        // ORIG -0x1a94：读后即弃
+                ScanStr(&tail);
+            }
+            break;
+        }
+
+case 0xd7b:  // "[ready action]"（收集父 case；ORIG C LAB_08a1921f：STMosterAttackReady 局部
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[ready action]", 3451));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  + while(ScanStr) 子标签 operator== 直判（无子表）→ push +0x39c）
+            {
+                STMosterAttackReady elem;
+                std::string tmp;                         // -0x1ab4
+                while (ScanStr(&token))
+                {
+                    if (token == "[motion index]")       // ORIG +0xc
+                        elem.m_field0c = ScanInt(static_cast<bool*>(0));
+                    else if (token == "[effect ani file & layer index]")
+                    {
+                        const int n = ScanInt(static_cast<bool*>(0));
+                        elem.m_field10.reserve(n);       // 先 string 向量（C 顺序）
+                        elem.m_field00.reserve(n);
+                        for (int i = 0; i < n; ++i)
+                        {
+                            ScanStr(&tmp);
+                            elem.m_field10.push_back(tmp);
+                            const int v = ScanInt(static_cast<bool*>(0));
+                            elem.m_field00.push_back(v);
+                        }
+                    }
+                }
+                script->m_attackReadies.push_back(elem);   // +0x39c
+            }
+            break;
+        }
+
+case 0xd96:  // "[counter attack]"（收集父 case；ORIG asm 08a19436 / C 直译：
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[counter attack]", 3478));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  块首 ScanInt 元素数 → reserve → for(count){ while(ScanStr) 内 __lookup_3(4 键)
+            //  字段分派 } → push +0xa8）
+            {
+                STCounterAttack elem;                    // -0x1acc
+                const int count = ScanInt(static_cast<bool*>(0));
+                script->m_counterAttacks.reserve(count);
+                for (int k = 0; k < count; ++k)
+                {
+                    while (ScanStr(&token))
+                    {
+                        int subId3 = -1;
+                        for (;;)
+                        {
+                            static std::map<const char*, int, less_TCHAR> __lookup;
+                            static SpinLock __init_lock;
+                            static bool __inited = false;
+                            if (!__inited)
+                            {
+                                __init_lock.enter();
+                                if (__inited)
+                                {
+                                    __init_lock.leave();
+                                    continue;
+                                }
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[probability]", 3489));
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3492));
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[damage type]", 3495));
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[need hp]", 3511));
+                                __init_lock.leave();
+                                __inited = true;
+                                continue;
+                            }
+                            std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
+                            if (__it != __lookup.end())
+                                subId3 = __it->second;
+                            break;
+                        }
+                        if (subId3 == 3489)              // [probability] → +0x00
+                            elem.m_field00 = ScanInt(static_cast<bool*>(0));
+                        else if (subId3 == 3492)         // [attack index] → +0x04
+                            elem.m_field04 = ScanInt(static_cast<bool*>(0));
+                        else if (subId3 == 3495)         // [damage type] → 三串比较映射 0/1/2 → +0x08
+                        {
+                            std::string kind;            // -0x1ad4（块内构造/析构）
+                            ScanStr(&kind);
+                            if (kind == "[approach attack]")
+                                elem.m_field08 = 0;
+                            else if (kind == "[range attack]")
+                                elem.m_field08 = 1;
+                            else if (kind == "[all attack]")
+                                elem.m_field08 = 2;
+                        }
+                        else if (subId3 == 3511)         // [need hp] → +0x10
+                            elem.m_field10 = ScanInt(static_cast<bool*>(0));
+                    }
+                    script->m_counterAttacks.push_back(elem);   // +0xa8
+                }
+            }
+            break;
+        }
+
+case 0xdc0:  // "[jump attack]"（收集父 case；ORIG asm 08a19a00：STJumpAttack C1(-0x1d24) +
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump attack]", 3520));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  while(ScanStr 子标签行) __lookup_4(11 键) 字段分派 → push +0xb4）
+            {
+                STJumpAttack elem;                       // -0x1d24
+                while (ScanStr(&token))
+                {
+                    int subId4 = -1;
+                    for (;;)
+                    {
+                        static std::map<const char*, int, less_TCHAR> __lookup;
+                        static SpinLock __init_lock;
+                        static bool __inited = false;
+                        if (!__inited)
+                        {
+                            __init_lock.enter();
+                            if (__inited)
+                            {
+                                __init_lock.leave();
+                                continue;
+                            }
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3526));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[start frame index]", 3529));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[end frame index]", 3532));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump height]", 3535));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump speed]", 3538));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on collision custom animation index]", 3541));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[ememy distance rate]", 3544));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[limited x cood]", 3547));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[limited y cood]", 3550));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump type]", 3553));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump direction]", 3556));
+                            __init_lock.leave();
+                            __inited = true;
+                            continue;
+                        }
+                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
+                        if (__it != __lookup.end())
+                            subId4 = __it->second;
+                        break;
+                    }
+                    if (subId4 == 3526)          // [attack index] → +0x00
+                        elem.m_field00 = ScanInt(static_cast<bool*>(0));
+                    else if (subId4 == 3529)     // [start frame index] → +0x1c
+                        elem.m_field1c = ScanInt(static_cast<bool*>(0));
+                    else if (subId4 == 3532)     // [end frame index] → +0x20
+                        elem.m_field20 = ScanInt(static_cast<bool*>(0));
+                    else if (subId4 == 3535)     // [jump height] → +0x04
+                        elem.m_field04 = ScanInt(static_cast<bool*>(0));
+                    else if (subId4 == 3538)     // [jump speed] → +0x08
+                        elem.m_field08 = ScanInt(static_cast<bool*>(0));
+                    else if (subId4 == 3541)     // [on collision custom animation index] → +0x0c
+                        elem.m_field0c = ScanInt(static_cast<bool*>(0));
+                    else if (subId4 == 3544)     // [ememy distance rate] → +0x10（ScanFloat，P79 float 域）
+                        elem.m_field10 = ScanFloat(static_cast<bool*>(0));
+                    else if (subId4 == 3547)     // [limited x cood] → +0x24
+                        elem.m_field24 = ScanInt(static_cast<bool*>(0));
+                    else if (subId4 == 3550)     // [limited y cood] → +0x28
+                        elem.m_field28 = ScanInt(static_cast<bool*>(0));
+                    else if (subId4 == 3553)     // [jump type] → +0x14
+                        elem.m_field14 = ScanInt(static_cast<bool*>(0));
+                    else if (subId4 == 3556)     // [jump direction] → +0x18
+                        elem.m_field18 = ScanInt(static_cast<bool*>(0));
+                }
+                script->m_jumpAttacks.push_back(elem);   // +0xb4
+            }
+            break;
+        }
+
+case 0xdec:  // "[summon]"（收集父 case；ORIG asm 08a1a262：STSummon C1(-0x1d24) +
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[summon]", 3564));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  STSummonInfo 复用槽(-0x1ae8) + while(ScanStr) __lookup_5(9 键) 分派 → push +0xc0）
+            {
+                STSummon elem;                           // -0x1d24
+                STSummonInfo info;                       // -0x1ae8（每轮四 int 覆写后 push）
+                while (ScanStr(&token))
+                {
+                    int subId5 = -1;
+                    for (;;)
+                    {
+                        static std::map<const char*, int, less_TCHAR> __lookup;
+                        static SpinLock __init_lock;
+                        static bool __inited = false;
+                        if (!__inited)
+                        {
+                            __init_lock.enter();
+                            if (__inited)
+                            {
+                                __init_lock.leave();
+                                continue;
+                            }
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[function index]", 3572));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3575));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[pos random]", 3578));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[monster kind]", 3581));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[summon term]", 3593));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[probability]", 3596));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[enterance effect]", 3599));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[max number]", 3602));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[max frequency]", 3605));
+                            __init_lock.leave();
+                            __inited = true;
+                            continue;
+                        }
+                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
+                        if (__it != __lookup.end())
+                            subId5 = __it->second;
+                        break;
+                    }
+                    if (subId5 == 3572)          // [function index] → +0x00
+                        elem.m_field00 = ScanInt(static_cast<bool*>(0));
+                    else if (subId5 == 3575)     // [attack index] → +0x04
+                        elem.m_field04 = ScanInt(static_cast<bool*>(0));
+                    else if (subId5 == 3578)     // [pos random] → +0x08
+                        elem.m_field08 = ScanInt(static_cast<bool*>(0));
+                    else if (subId5 == 3581)     // [monster kind] → +0x0c 数量 + infos reserve/loop
+                    {
+                        elem.m_field0c = ScanInt(static_cast<bool*>(0));
+                        elem.m_infos.reserve(elem.m_field0c);
+                        for (int i = 0; i < elem.m_field0c; ++i)
+                        {
+                            info.m_field00 = ScanInt(static_cast<bool*>(0));
+                            info.m_field04 = ScanInt(static_cast<bool*>(0));
+                            info.m_field08 = ScanInt(static_cast<bool*>(0));
+                            info.m_field0c = ScanInt(static_cast<bool*>(0));
+                            elem.m_infos.push_back(info);
+                        }
+                    }
+                    else if (subId5 == 3593)     // [summon term] → +0x1c
+                        elem.m_field1c = ScanInt(static_cast<bool*>(0));
+                    else if (subId5 == 3596)     // [probability] → +0x20
+                        elem.m_field20 = ScanInt(static_cast<bool*>(0));
+                    else if (subId5 == 3599)     // [enterance effect] → +0x24
+                        elem.m_field24 = ScanInt(static_cast<bool*>(0));
+                    else if (subId5 == 3602)     // [max number] → +0x28
+                        elem.m_field28 = ScanInt(static_cast<bool*>(0));
+                    else if (subId5 == 3605)     // [max frequency] → +0x2c
+                        elem.m_field2c = ScanInt(static_cast<bool*>(0));
+                }
+                script->m_summons.push_back(elem);   // +0xc0
+            }
+            break;
+        }
+
+case 0xe1d:  // "[dash attack]"（收集父 case；ORIG asm 08a1aaa6：STDash C1(-0x1d24) +
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[dash attack]", 3613));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  while(ScanStr) __lookup_6(8 键) 分派 → push +0xcc）
+            {
+                STDash elem;                             // -0x1d24
+                while (ScanStr(&token))
+                {
+                    int subId6 = -1;
+                    for (;;)
+                    {
+                        static std::map<const char*, int, less_TCHAR> __lookup;
+                        static SpinLock __init_lock;
+                        static bool __inited = false;
+                        if (!__inited)
+                        {
+                            __init_lock.enter();
+                            if (__inited)
+                            {
+                                __init_lock.leave();
+                                continue;
+                            }
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[function index]", 3620));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3623));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[shakeable]", 3626));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[first speed]", 3631));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[last speed]", 3634));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[dash time]", 3637));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[dash ready time]", 3640));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[animation first index]", 3643));
+                            __init_lock.leave();
+                            __inited = true;
+                            continue;
+                        }
+                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
+                        if (__it != __lookup.end())
+                            subId6 = __it->second;
+                        break;
+                    }
+                    if (subId6 == 3620)          // [function index] → +0x00
+                        elem.m_field00 = ScanInt(static_cast<bool*>(0));
+                    else if (subId6 == 3623)     // [attack index] → +0x04
+                        elem.m_field04 = ScanInt(static_cast<bool*>(0));
+                    else if (subId6 == 3626)     // [shakeable] → 连续三 int +0x08/+0x0c/+0x10
+                    {
+                        elem.m_field08 = ScanInt(static_cast<bool*>(0));
+                        elem.m_field0c = ScanInt(static_cast<bool*>(0));
+                        elem.m_field10 = ScanInt(static_cast<bool*>(0));
+                    }
+                    else if (subId6 == 3631)     // [first speed] → +0x14
+                        elem.m_field14 = ScanInt(static_cast<bool*>(0));
+                    else if (subId6 == 3634)     // [last speed] → +0x18
+                        elem.m_field18 = ScanInt(static_cast<bool*>(0));
+                    else if (subId6 == 3637)     // [dash time] → +0x1c
+                        elem.m_field1c = ScanInt(static_cast<bool*>(0));
+                    else if (subId6 == 3640)     // [dash ready time] → +0x20
+                        elem.m_field20 = ScanInt(static_cast<bool*>(0));
+                    else if (subId6 == 3643)     // [animation first index] → +0x24
+                        elem.m_field24 = ScanInt(static_cast<bool*>(0));
+                }
+                script->m_dashes.push_back(elem);   // +0xcc
+            }
+            break;
+        }
+
+case 0xe43:  // "[hold attack]"（收集父 case；ORIG asm 08a1b1af：STHold C1(-0x1d24) +
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[hold attack]", 3651));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  while(ScanStr) __lookup_7(6 键) 分派 → push +0xd8）
+            {
+                STHold elem;                             // -0x1d24
+                while (ScanStr(&token))
+                {
+                    int subId7 = -1;
+                    for (;;)
+                    {
+                        static std::map<const char*, int, less_TCHAR> __lookup;
+                        static SpinLock __init_lock;
+                        static bool __inited = false;
+                        if (!__inited)
+                        {
+                            __init_lock.enter();
+                            if (__inited)
+                            {
+                                __init_lock.leave();
+                                continue;
+                            }
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[function index]", 3658));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3666));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[offset]", 3669));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[animation index]", 3673));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[min hold]", 3676));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[max hold]", 3679));
+                            __init_lock.leave();
+                            __inited = true;
+                            continue;
+                        }
+                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
+                        if (__it != __lookup.end())
+                            subId7 = __it->second;
+                        break;
+                    }
+                    if (subId7 == 3658)          // [function index] → +0x00；==1 时连读 +0x04/+0x08
+                    {
+                        elem.m_field00 = ScanInt(static_cast<bool*>(0));
+                        if (elem.m_field00 == 1)
+                        {
+                            elem.m_field04 = ScanInt(static_cast<bool*>(0));
+                            elem.m_field08 = ScanInt(static_cast<bool*>(0));
+                        }
+                    }
+                    else if (subId7 == 3666)     // [attack index] → +0x0c
+                        elem.m_field0c = ScanInt(static_cast<bool*>(0));
+                    else if (subId7 == 3669)     // [offset] → +0x10
+                        elem.m_field10 = ScanInt(static_cast<bool*>(0));
+                    else if (subId7 == 3673)     // [animation index] → +0x18
+                        elem.m_field18 = ScanInt(static_cast<bool*>(0));
+                    else if (subId7 == 3676)     // [min hold] → +0x1c
+                        elem.m_field1c = ScanInt(static_cast<bool*>(0));
+                    else if (subId7 == 3679)     // [max hold] → +0x20
+                        elem.m_field20 = ScanInt(static_cast<bool*>(0));
+                }
+                script->m_holds.push_back(elem);   // +0xd8
+            }
+            break;
+        }
+
+case 0xe67:  // "[warp attack]"（收集父 case；ORIG asm 08a1b7c6：STWarp C1(-0x1d24) +
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[warp attack]", 3687));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  while(ScanStr) __lookup_8(9 键) 分派 → push +0xe4；
+            //  [category of target]：null→-2 / all→-1 / 其余 getCategoryToEnumValue）
+            {
+                STWarp elem;                             // -0x1d24
+                while (ScanStr(&token))
+                {
+                    int subId8 = -1;
+                    for (;;)
+                    {
+                        static std::map<const char*, int, less_TCHAR> __lookup;
+                        static SpinLock __init_lock;
+                        static bool __inited = false;
+                        if (!__inited)
+                        {
+                            __init_lock.enter();
+                            if (__inited)
+                            {
+                                __init_lock.leave();
+                                continue;
+                            }
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[function index]", 3694));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3697));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[warp style]", 3700));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[after attack]", 3703));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[after appear time]", 3706));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[cool time]", 3709));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[target offset]", 3712));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object index]", 3715));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[category of target]", 3718));
+                            __init_lock.leave();
+                            __inited = true;
+                            continue;
+                        }
+                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
+                        if (__it != __lookup.end())
+                            subId8 = __it->second;
+                        break;
+                    }
+                    if (subId8 == 3694)          // [function index] → +0x00
+                        elem.m_field00 = ScanInt(static_cast<bool*>(0));
+                    else if (subId8 == 3697)     // [attack index] → +0x04
+                        elem.m_field04 = ScanInt(static_cast<bool*>(0));
+                    else if (subId8 == 3700)     // [warp style] → +0x08
+                        elem.m_field08 = ScanInt(static_cast<bool*>(0));
+                    else if (subId8 == 3703)     // [after attack] → +0x0c
+                        elem.m_field0c = ScanInt(static_cast<bool*>(0));
+                    else if (subId8 == 3706)     // [after appear time] → +0x10
+                        elem.m_field10 = ScanInt(static_cast<bool*>(0));
+                    else if (subId8 == 3709)     // [cool time] → +0x14
+                        elem.m_field14 = ScanInt(static_cast<bool*>(0));
+                    else if (subId8 == 3712)     // [target offset] → +0x18
+                        elem.m_field18 = ScanInt(static_cast<bool*>(0));
+                    else if (subId8 == 3715)     // [passive object index] → +0x1c
+                        elem.m_field1c = ScanInt(static_cast<bool*>(0));
+                    else if (subId8 == 3718)     // [category of target] → +0x20
+                    {
+                        std::string cat;         // -0x1afc（块内构造/析构）
+                        ScanStr(&cat);
+                        if (cat == "null")
+                            elem.m_field20 = -2;
+                        else if (cat == "all")
+                            elem.m_field20 = -1;
+                        else
+                            elem.m_field20 = getCategoryToEnumValue(cat);
+                    }
+                }
+                script->m_warps.push_back(elem);   // +0xe4
+            }
+            break;
+        }
+
+case 0xe9e:  // "[event super on scr]"（收集父 case；ORIG asm 08a1bfcf：STEventSuper C1 +
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[event super on scr]", 3742));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  while(ScanStr) __lookup_9(8 键触发模式表) 分派 → push +0xfc）
+            {
+                STEventSuper elem;                       // -0x1d24（每元素复用槽）
+                while (ScanStr(&token))
+                {
+                    int subId9 = -1;
+                    for (;;)
+                    {
+                        static std::map<const char*, int, less_TCHAR> __lookup;
+                        static SpinLock __init_lock;
+                        static bool __inited = false;
+                        if (!__inited)
+                        {
+                            __init_lock.enter();
+                            if (__inited)
+                            {
+                                __init_lock.leave();
+                                continue;
+                            }
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on time]", 3749));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on hp]", 3755));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[always]", 3761));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[counter]", 3767));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[breakable]", 3773));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[half]", 3780));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[unbreakable]", 3787));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[with blast]", 3794));
+                            __init_lock.leave();
+                            __inited = true;
+                            continue;
+                        }
+                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
+                        if (__it != __lookup.end())
+                            subId9 = __it->second;
+                        break;
+                    }
+                    // 条件/触发模式（元素基 -0x1d24 实证：mode 于 +0）
+                    if (subId9 == 3749)
+                    {
+                        elem.m_field00 = 0;
+                        elem.m_field08 = ScanInt(&ok);   // +8
+                        elem.m_field0c = ScanInt(&ok);   // +0xc
+                        elem.m_field10 = ScanInt(&ok) != 0;   // +0x10 byte（CONCAT 低位）
+                    }
+                    else if (subId9 == 3755)
+                    {
+                        elem.m_field00 = 1;
+                        elem.m_field08 = ScanInt(&ok);
+                        elem.m_field0c = ScanInt(&ok);
+                        elem.m_field10 = ScanInt(&ok) != 0;
+                    }
+                    else if (subId9 == 3761)
+                    {
+                        elem.m_field00 = 2;
+                        elem.m_field08 = ScanInt(&ok);
+                        elem.m_field10 = ScanInt(&ok) != 0;
+                    }
+                    else if (subId9 == 3767)
+                    {
+                        elem.m_field00 = 3;
+                        elem.m_field08 = ScanInt(&ok);
+                        elem.m_field0c = ScanInt(&ok);
+                        elem.m_field10 = ScanInt(&ok) != 0;
+                    }
+                    else if (subId9 == 3773)
+                    {
+                        elem.m_field04 = 0;
+                        elem.m_field14 = ScanInt(&ok);   // +0x14（local_1d10）
+                        elem.m_field18 = ScanInt(&ok);   // +0x18
+                        elem.m_field1c = ScanInt(&ok);   // +0x1c
+                        elem.m_field20 = ScanInt(&ok);   // +0x20
+                    }
+                    else if (subId9 == 3780)
+                    {
+                        elem.m_field04 = 1;
+                        elem.m_field14 = ScanInt(&ok);
+                        elem.m_field18 = ScanInt(&ok);
+                        elem.m_field1c = ScanInt(&ok);
+                        elem.m_field20 = ScanInt(&ok);
+                    }
+                    else if (subId9 == 3787)
+                    {
+                        elem.m_field04 = 2;
+                        elem.m_field14 = ScanInt(&ok);
+                        elem.m_field18 = ScanInt(&ok);
+                        elem.m_field1c = ScanInt(&ok);
+                        elem.m_field20 = ScanInt(&ok);
+                    }
+                    else if (subId9 == 3794)
+                        elem.m_field24 = 1;   // +0x24 byte（CONCAT 置 1）
+                    // ORIG：未识别引导无字段分支，循环继续
+                }
+                script->m_eventSupers.push_back(elem);   // +0xfc
+            }
+            break;
+        }
+
+case 0xeda:  // "[atk super on scr]"（收集父 case；ORIG asm 08a1c823 / C 段：
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[atk super on scr]", 3802));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  每元素行 = <m_field04值> `[breakable|half|unbreakable]` 4×int → push +0x108）
+            {
+                STAtkSuper elem;   // C1（asm 08a1c883 每元素复用槽）
+                while (true)
+                {
+                    int v = ScanInt(&ok);
+                    if (!ok)
+                        break;   // asm 08a1c8b1：首 ScanInt 失败退出收集
+                    elem.m_field04 = v;   // 存 +4（asm mov -0x1b10）
+                    if (ScanStr(&token))
+                    {
+                        if (token == "[breakable]")
+                            elem.m_field00 = 0xd;
+                        else if (token == "[half]")
+                            elem.m_field00 = 0xe;
+                        else if (token == "[unbreakable]")
+                            elem.m_field00 = 0xf;
+                    }
+                    elem.m_field08 = ScanInt(&ok);
+                    elem.m_field0c = ScanInt(&ok);
+                    elem.m_field10 = ScanInt(&ok);
+                    elem.m_field14 = ScanInt(&ok);
+                    script->m_atkSupers.push_back(elem);   // +0x108
+                }
+            }
+            break;
+        }
+
+case 0xefb:  // "[cooltime]"（收集父 case；ORIG asm 08a1c99f / C 5530：
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[cooltime]", 3835));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  ScanTypeOrInt 循环：数字→m_field04；"[Pattern]"→m_field00=ScanInt；
+            //  "[/cooltime]" 结束 → push +0x114）
+            {
+                STCoolTime elem;   // C1
+                for (;;)
+                {
+                    bool isType = false;
+                    bool isInt = false;
+                    int v = ScanTypeOrInt(isType, token, isInt, true);
+                    if (!isInt)
+                        break;   // 读尽/EOF
+                    if (isType)
+                    {
+                        if (token == "[Pattern]")
+                            elem.m_field00 = ScanInt(&ok);
+                        else if (token == "[/cooltime]")
+                            break;
+                    }
+                    else
+                        elem.m_field04.push_back(v);
+                }
+                script->m_coolTimes.push_back(elem);   // +0x114
+            }
+            break;
+        }
+
+case 0xf23:  // "[spawn prob]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[spawn prob]", 3875));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_fieldc4c = ScanInt(&ok);  // +0xc4c
+            break;
+        }
+
+case 0xf27:  // "[drop item offset]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[drop item offset]", 3879));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field36c = ScanInt(&ok);  // +0x36c
+            script->m_field370 = ScanInt(&ok);  // +0x370
+            break;
+        }
+
+case 0xf2b:  // "[is grabable]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[is grabable]", 3883));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_flag368 = ScanInt(&ok) != 0;  // +0x368
+            break;
+        }
+
+case 0xf2e:  // "[ai pattern]" → importAIInfoScript
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[ai pattern]", 3886));
+            /* FALLTHRU */
+        }
+        else
+        {
+            importAIInfoScript(&script->m_aiInfo, &tag, true);
+            break;
+        }
+
+case 0xf2f:  // "[think term]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[think term]", 3887));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf30:  // "[destination change term]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[destination change term]", 3888));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf31:  // "[targeting bonus]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting bonus]", 3889));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf32:  // "[keep distance with target]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep distance with target]", 3890));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf33:  // "[warlike]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[warlike]", 3891));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf34:  // "[vision]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[vision]", 3892));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf35:  // "[intelligence]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[intelligence]", 3893));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf36:  // "[keep range distance with target]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target]", 3894));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf37:  // "[back vision]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[back vision]", 3895));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf38:  // "[no change target]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[no change target]", 3896));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf39:  // duplicate unnumbered keep-range key in ORIG map
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target]", 3897));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf3a:  // "[keep range distance with target 1]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target 1]", 3898));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf3b:  // "[keep range distance with target 2]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target 2]", 3899));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf3c:  // "[keep range distance with target 3]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target 3]", 3900));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf3d:  // "[keep range distance with target 4]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target 4]", 3901));
+            /* FALLTHRU */
+        }
+        else
+        {
+            break;
+        }
+case 0xf3e:  // "[keep range distance with target 5]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target 5]", 3902));
+            /* FALLTHRU */
+        }
+        else
+        {
+            importAIInfoScript(&script->m_aiInfo, &tag, true);
+            break;
+        }
+
+case 0xf46:  // "[reflection object]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[reflection object]", 3910));
+            /* FALLTHRU */
+        }
+        else
+        {
+        script->m_fieldc8c.clear();
+        script->m_fieldc80.clear();
+        for (;;)
+        {
+            int first = ScanInt(&ok);
+            if (!ok)
+                break;
+            int second = ScanInt(static_cast<bool*>(0));
+            script->m_fieldc8c.push_back(first);
+            script->m_fieldc80.push_back(second);
+        }
+            break;
+        }
+
+case 0xf57:  // "[set damage check]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[set damage check]", 3927));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field380 = ScanInt(static_cast<bool*>(0));
+            break;
+        }
+
+case 0xf5c:  // "[change direction by target]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[change direction by target]", 3932));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_aiInfo.m_flag204 = ScanInt(&ok) != 0;  // m_aiInfo+0x204 @+0x33c（asm movb %dl 实证）
+            break;
+        }
+
+case 0xf62:  // "[is direction to move]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[is direction to move]", 3938));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field37c = ScanInt(static_cast<bool*>(0));
+            break;
+        }
+
+case 0xf67:  // "[absolute damage resistance rate]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[absolute damage resistance rate]", 3943));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_fieldc54 = ScanFloat(static_cast<bool*>(0));
+            break;
+        }
+
+case 0xf6c:  // "[hp regen rate]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[hp regen rate]", 3948));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field540 = ScanFloat(static_cast<bool*>(0));
+            script->m_field544 = ScanFloat(static_cast<bool*>(0));
+            break;
+        }
+
+case 0xf72:  // "[absolute defense ignore rate]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[absolute defense ignore rate]", 3954));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_fieldc58 = ScanFloat(static_cast<bool*>(0));
+            break;
+        }
+
+case 0xf76:  // "[lie frame]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[lie frame]", 3958));
+            /* FALLTHRU */
+        }
+        else
+        {
+        for (int i = 0; i < 5; ++i)
+            script->m_fieldc5c[i] = ScanInt(static_cast<bool*>(0));
+            break;
+        }
+
+case 0xf7b:  // "[forced knockback]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[forced knockback]", 3963));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field1cac = ScanInt(&ok);  // +0x1cac
+            break;
+        }
+
+case 0xf80:  // "[No Combo Rate Monster]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[No Combo Rate Monster]", 3968));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field1ca8 = true;
+            break;
+        }
+
+case 0xf84:  // "[proc action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[proc action]", 3972));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_procAction);  // +0x648
+            break;
+        }
+
+case 0xf87:  // "[monster title]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[monster title]", 3975));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_monsterTitle);  // +0x694
+            break;
+        }
+
+case 0xf8a:  // "[destroy count]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[destroy count]", 3978));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field6f4 = ScanInt(&ok);  // +0x6f4
+            break;
+        }
+
+case 0xf8d:  // "[destroy count damage]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[destroy count damage]", 3981));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field6f8 = ScanInt(&ok);  // +0x6f8
+            break;
+        }
+
+case 0xf99:  // "[overhead gauge type]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[overhead gauge type]", 3993));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_fieldc74 = ScanInt(&ok);  // +0xc74
+            break;
+        }
+
+case 0xf9d:  // "[overhead gauge pos]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[overhead gauge pos]", 3997));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_fieldc78 = ScanInt(&ok);  // +0xc78
+            script->m_fieldc7c = ScanInt(&ok);  // +0xc7c
+            break;
+        }
+
+case 0xfa2:  // "[flying mark]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[flying mark]", 4002));
+            /* FALLTHRU */
+        }
+        else
+        {
+        {
+            const int value = ScanInt(static_cast<bool*>(0));
+            script->m_flagc70 = true;
+            script->m_flagc71 = (value == 1);
+        }
+            break;
+        }
+
+case 0xfa7:  // "[moveback action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[moveback action]", 4007));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_movebackAction);  // +0x604
+            break;
+        }
+
+case 0xfaa:  // "[dash action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[dash action]", 4010));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_dashAction);  // +0x608
+            break;
+        }
+
+case 0xfad:  // "[dashattack action]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[dashattack action]", 4013));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_dashattackAction);  // +0x60c
+            break;
+        }
+
+case 0xfb0:  // "[burning death path]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[burning death path]", 4016));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_field098);  // +0x98
+            break;
+        }
+
+case 0xfb3:  // "[initial target]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[initial target]", 4019));
+            /* FALLTHRU */
+        }
+        else
+        {
+        {
+            STInitialTarget target;
+            for (;;)
+            {
+                std::string sub;
+                if (!ScanType(sub, true))
+                    break;
+                if (sub == "[/initial target]")
+                    break;
+                if (sub == "[initial target Permanent]")
+                {
+                    target.m_field0c =
+                        (ScanInt(static_cast<bool*>(0)) == 1);
+                }
+                else
+                {
+                    target.m_field04 = sub;
+                    target.m_field00 = ScanInt(static_cast<bool*>(0));
+                }
+            }
+            script->m_initialTargets.push_back(target);
+        }
+            break;
+        }
 
 case 0xfde:  // "[level of difficulty]"
-        ScanInt(&ok);  // 局部用途 @8a1e062
-        ScanInt(&ok);  // 局部用途 @8a1e074
-        ScanInt(&ok);  // 局部用途 @8a1e0a5
-        ScanInt(&ok);  // 局部用途 @8a1e0b7
-        ScanInt(&ok);  // 局部用途 @8a1e0e8
-        ScanInt(&ok);  // 局部用途 @8a1e0fa
-        ScanInt(&ok);  // 局部用途 @8a1e128
-        ScanInt(&ok);  // 局部用途 @8a1e13a
-        ScanInt(&ok);  // 局部用途 @8a1e168
-        ScanInt(&ok);  // 局部用途 @8a1e17a
-    break;
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[level of difficulty]", 4062));
+            /* FALLTHRU */
+        }
+        else
+        {
+        {
+            STDifficulty difficulty;
+            bool isType = false;
+            while (ScanTypeOrStr(isType, token, true))
+            {
+                if (!isType)
+                    continue;
+                if (token == "[/level of difficulty]")
+                    break;
+                if (token == "[easy]" || token == "[medium]" ||
+                    token == "[hard]" || token == "[ultimate]" ||
+                    token == "[hero]")
+                {
+                    difficulty.m_field00 = ScanInt(static_cast<bool*>(0));
+                    difficulty.m_field04 = ScanInt(static_cast<bool*>(0));
+                }
+                script->m_difficulties.push_back(difficulty);
+            }
+        }
+            break;
+        }
 
-case 0x1020:  // "[hero]"
-        *(int*)((char*)script+0x508) = ScanInt(&ok);  // +0x508
-        *(int*)((char*)script+0x50c) = ScanInt(&ok);  // +0x50c
-    break;
+case 0x1020:  // "[fire attack]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[fire attack]", 4128));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_paramTable[0][0] = ScanInt(&ok);  // +0x508
+            script->m_paramTable[0][1] = ScanInt(&ok);  // +0x50c
+            break;
+        }
 
-case 0x1024:  // "[fire attack]"
-        *(int*)((char*)script+0x510) = ScanInt(&ok);  // +0x510
-        *(int*)((char*)script+0x514) = ScanInt(&ok);  // +0x514
-    break;
+case 0x1024:  // "[water attack]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[water attack]", 4132));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_paramTable[1][0] = ScanInt(&ok);  // +0x510
+            script->m_paramTable[1][1] = ScanInt(&ok);  // +0x514
+            break;
+        }
 
-case 0x1028:  // "[water attack]"
-        *(int*)((char*)script+0x518) = ScanInt(&ok);  // +0x518
-        *(int*)((char*)script+0x51c) = ScanInt(&ok);  // +0x51c
-    break;
+case 0x1028:  // "[dark attack]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[dark attack]", 4136));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_paramTable[2][0] = ScanInt(&ok);  // +0x518
+            script->m_paramTable[2][1] = ScanInt(&ok);  // +0x51c
+            break;
+        }
 
-case 0x102c:  // "[dark attack]"
-        *(int*)((char*)script+0x520) = ScanInt(&ok);  // +0x520
-        *(int*)((char*)script+0x524) = ScanInt(&ok);  // +0x524
-    break;
+case 0x102c:  // "[light attack]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[light attack]", 4140));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_paramTable[3][0] = ScanInt(&ok);  // +0x520
+            script->m_paramTable[3][1] = ScanInt(&ok);  // +0x524
+            break;
+        }
 
-case 0x1030:  // "[light attack]"
-        *(int*)((char*)script+0x528) = ScanInt(&ok);  // +0x528
-        *(int*)((char*)script+0x52c) = ScanInt(&ok);  // +0x52c
-    break;
+case 0x1030:  // "[rigidity]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[rigidity]", 4144));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field528[0] = ScanInt(&ok);  // +0x528
+            script->m_field528[1] = ScanInt(&ok);  // +0x52c
+            break;
+        }
 
-case 0x1035:  // "[rigidity]"
-        ScanFloat(&ok);  // @8a1e50e
-        ScanFloat(&ok);  // @8a1e562
-        ScanInt(&ok);  // 局部用途 @8a1e5a4
-        ScanInt(&ok);  // 局部用途 @8a1e5d5
-        ScanInt(&ok);  // 局部用途 @8a1e606
-        ScanInt(&ok);  // 局部用途 @8a1e62e
-        ScanInt(&ok);  // 局部用途 @8a1e65a
-    break;
+case 0x1035:  // "[drop avatar item]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[drop avatar item]", 4149));
+            /* FALLTHRU */
+        }
+        else
+        {
+        {
+            for (int i = 0; i < 4; ++i)
+            {
+                float rate = ScanFloat(&ok);
+                if (!ok)
+                    return 0;
+                memcpy(&script->m_dropAvatarInfo.m_field08[i],
+                       &rate, sizeof(rate));
+            }
+            for (int i = 4; i < 9; ++i)
+            {
+                float rate = ScanFloat(&ok);
+                if (!ok)
+                    return 0;
+                memcpy(&script->m_dropAvatarInfo.m_field08[i],
+                       &rate, sizeof(rate));
+            }
+            script->m_dropAvatarInfo.m_field00 = ScanInt(&ok);
+            if (!ok)
+                return 0;
+            script->m_dropAvatarInfo.m_field04 = ScanInt(&ok);
+            if (!ok)
+                return 0;
+            for (;;)
+            {
+                stEnamyDropAvatarElement_t element;
+                element.m_field0 = ScanInt(&ok);
+                if (!ok)
+                    break;
+                element.m_field4 = ScanInt(&ok);
+                if (!ok)
+                    return 0;
+                element.m_field8 = ScanInt(&ok);
+                if (!ok)
+                    return 0;
+                script->m_dropAvatarInfo.m_field2c += element.m_field4;
+                element.m_field4 = script->m_dropAvatarInfo.m_field2c;
+                script->m_dropAvatarInfo.m_elements.push_back(element);
+            }
+        }
+            break;
+        }
 
 case 0x1060:  // "[pattern]"
-        ScanInt(&ok);  // 局部用途 @8a1e73d
-    break;
-
-case 0x107b:  // "[left]"
-        script->m_fieldcd8 = 0x0;  // +0xcd8 [literal]
-    break;
-
-case 0x107e:  // "[left]"
-        script->m_fieldcd8 = 0x1;  // +0xcd8 [literal]
-    break;
-
-case 0x10a4:  // "[/ridableskill definition]"
-        ScanInt(&ok);  // 局部用途 @8a1efb3
-    break;
-
-case 0x10a7:  // "[/ridableskill definition]"
-        ScanStr(&local_str);  // 局部 string @8a1f02c
-    break;
-
-case 0x10d3:  // "charge"
-        ScanInt(&ok);  // 局部用途 @8a1f662
-        ScanInt(&ok);  // 局部用途 @8a1f67a
-        ScanInt(&ok);  // 局部用途 @8a1f6cf
-        ScanInt(&ok);  // 局部用途 @8a1f6e8
-    break;
-
-case 0x1146:  // "[limit slowdown atkspeed]"
-        script->m_field1c94 = ScanInt(&ok);  // +0x1c94
-    break;
-
-case 0x1149:  // "[limit slowdown atkspeed]"
-        script->m_field1c98 = ScanInt(&ok);  // +0x1c98
-    break;
-
-case 0x114c:  // "[limit slowdown atkspeed]"
-        ScanStr(&local_str);  // 局部 string @8a1f9b1
-        ScanStr(&local_str);  // 局部 string @8a1f9de
-        ScanStr(&local_str);  // 局部 string @8a1fa0e
-        ScanStr(&local_str);  // 局部 string @8a1fa3e
-        ScanInt(&ok);  // 局部用途 @8a1fa6d
-    break;
-
-case 0x1177:  // "[pattern]"
-        ScanInt(&ok);  // 局部用途 @8a1fb7b
-        ScanFloat(&ok);  // @8a1fbb2
-    break;
-
-case 0x1194:  // "[non targeted]"
-        script->m_field56c = ScanInt(&ok) != 0;  // +0x56c
-    break;
-
-case 0x1197:  // "[non targeted]"
-        ScanStr(&script->m_field570);  // +0x570
-    break;
-
-case 0x119a:  // "[non targeted]"
-        ScanInt(&ok);  // 局部用途 @8a1fd99
-    break;
-
-case 0x11a0:  // "[damage time balance]"
-        ScanInt(&ok);  // 局部用途 @8a1fe42
-    break;
-
-case 0x11a7:  // "[stun time balance]"
-        script->m_field548 = ScanInt(&ok) != 0;  // +0x548
-        ScanFloat(&ok);  // @8a1fefa
-        ScanFloat(&ok);  // @8a1ff0f
-    break;
-
-case 0x11ae:  // "[add gravity in aerial]"
-        script->m_field3c0 = ScanInt(&ok);  // +0x3c0
-    break;
-
-case 0x11b1:  // "[summon skill status up type]"
-        ScanFloat(&ok);  // @8a2000e
-    break;
-
-case 0x11c6:  // "[attack down prob]"
-        script->m_field1ca0 = ScanInt(&ok);  // +0x1ca0
-        ScanFloat(&ok);  // @8a200c7
-    break;
-
-case 0x11ca:  // "[strong]"
-        ScanInt(&ok);  // 局部用途 @8a2013e
-        ScanFloat(&ok);  // @8a20157
-    break;
-
-case 0x11cf:  // "[weak]"
-        ScanStr(&script->m_explain);  // +0x6d0
-    break;
-
-case 0x11d4:  // "[explain]"
-        ScanInt(&ok);  // 局部用途 @8a20242
-    break;
-
-case 0x11e6:  // "[consume mp]"
-        ScanStr(&local_str);  // 局部 string @8a202fd
-    break;
-
-case 0x11ff:  // "[catch item]"
-        script->m_field064 = ScanInt(&ok);  // +0x64
-        script->m_field068 = ScanInt(&ok);  // +0x68
-        ScanFloat(&ok);  // @8a20453
-    break;
-
-case 0x1213:  // "[fixed height]"
-        script->m_field1cb0 = ScanInt(&ok);  // +0x1cb0
-    break;
-
-case 0x1218:  // "[fixed height]"
-        ScanStr(&local_str);  // 局部 string @8a205b5
-    break;
-
-case 0x1239:  // "[/can beat index]"
-        ScanStr(&script->m_mountingAction);  // +0x64c [间接赋值]
-    break;
-
-case 0x123f:  // "[mounting action]"
-        ScanStr(&script->m_mountedAction);  // +0x650 [间接赋值]
-    break;
-
-case 0x1245:  // "[mounted action]"
-        ScanStr(&script->m_unmountingAction);  // +0x654 [间接赋值]
-    break;
-
-case 0x1258:  // "[index]"
-        ScanInt(&ok);  // 局部用途 @8a20ca4
-    break;
-
-case 0x1260:  // "[index]"
-        ScanInt(&ok);  // 局部用途 @8a20d46
-    break;
-
-case 0x1268:  // "[x pos]"
-        ScanInt(&ok);  // 局部用途 @8a20de8
-    break;
-
-case 0x1270:  // "[y pos]"
-        ScanInt(&ok);  // 局部用途 @8a20e8a
-    break;
-
-case 0x1278:  // "[width]"
-        ScanInt(&ok);  // 局部用途 @8a20f2c
-    break;
-
-case 0x1280:  // "[height]"
-        ScanFloat(&ok);  // @8a20fce
-    break;
-
-case 0x1288:  // "[velocity x]"
-        ScanFloat(&ok);  // @8a2106a
-    break;
-
-case 0x12e0:  // "[left]"
-        script->m_field684 = 0x0;  // +0x684 [literal]
-    break;
-
-case 0x12e4:  // "[left]"
-        script->m_field684 = 0x1;  // +0x684 [literal]
-    break;
-
-case 0x12f7:  // "[/control passive object]"
-        ScanInt(&ok);  // 局部用途 @8a22132
-    break;
-
-case 0x12fb:  // "[life max]"
-        ScanInt(&ok);  // 局部用途 @8a221ad
-        ScanInt(&ok);  // 局部用途 @8a22222
-        ScanInt(&ok);  // 局部用途 @8a2223e
-    break;
-            default:
-                break;
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[pattern]", 4192));
+            /* FALLTHRU */
+        }
+        else
+        {
+        {
+            std::vector<int> pattern;
+            for (;;)
+            {
+                int value = ScanInt(&ok);
+                if (!ok)
+                    break;
+                pattern.push_back(value);
             }
-            if (!ok_flag && !ScanType(tag, false))
+            if (!pattern.empty())
+                script->m_patterns.push_back(pattern);
+        }
+            break;
+        }
+
+case 0x106d:  // "[fix direction]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[fix direction]", 4205));
+            /* FALLTHRU */
+        }
+        else
+        {
+        {
+            bool isString = false;
+            bool isInt = false;
+            std::string direction;
+            const int value = ScanStrOrInt(isString, direction, isInt, true);
+            if (!isString)
+            {
+                script->m_flagcd4 = (value != 0);
+            }
+            else
+            {
+                script->m_flagcd4 = true;
+                int fixDirKind = -1;
+                for (;;)
+                {
+                    static std::map<const char*, int, less_TCHAR> __lookup;
+                    static SpinLock __init_lock;
+                    static bool __inited = false;
+                    if (!__inited)
+                    {
+                        __init_lock.enter();
+                        if (__inited)
+                        {
+                            __init_lock.leave();
+                            continue;
+                        }
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[left]", 4219));
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[right]", 4222));
+                        __init_lock.leave();
+                        __inited = true;
+                        continue;
+                    }
+                    std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(direction.c_str());
+                    if (__it != __lookup.end())
+                        fixDirKind = __it->second;
+                    break;
+                }
+                // 好 .o f349/f366：left→+0xcd8=0；right→+0xcd8=1；无 else 分支
+                if (fixDirKind == 4219)
+                    script->m_fieldcd8 = 0;
+                else if (fixDirKind == 4222)
+                    script->m_fieldcd8 = 1;
+            }
+        }
+            break;
+        }
+
+case 0x108b:  // "[ridableskill definition]"（收集父 case；ORIG asm 08a1ebdb：
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[ridableskill definition]", 4235));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  STRidableSkill sk(-0x1d24) + do{ do{ScanTypeOrStr}while(!isStr)
+            //    __lookup_10(4 键) 分派；[skill]→string+__lookup_11(6 键 type 表) }while(!closed)
+            //    push m_ridableSkills(+0x6f4)）
+            {
+                std::string token2;                    // local_1b90
+                int closed = 0;                        // local_78
+                STRidableSkill sk;                     // -0x1d24
+                do
+                {
+                    bool isStr = false;
+                    while (true)
+                    {
+                        if (!ScanTypeOrStr(isStr, token2, true))
+                            goto rid_def_exit;         // 读失败 → 收尾 push
+                        if (isStr)
+                            break;
+                    }
+                    bool doneLine = false;             // local_71
+                    int subId10 = -1;
+                    for (;;)
+                    {
+                        static std::map<const char*, int, less_TCHAR> __lookup;
+                        static SpinLock __init_lock;
+                        static bool __inited = false;
+                        if (!__inited)
+                        {
+                            __init_lock.enter();
+                            if (__inited)
+                            {
+                                __init_lock.leave();
+                                continue;
+                            }
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/ridableskill definition]", 4254));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[pattern]", 4260));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[image path]", 4263));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[skill]", 4266));
+                            __init_lock.leave();
+                            __inited = true;
+                            continue;
+                        }
+                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token2.c_str());
+                        if (__it != __lookup.end())
+                            subId10 = __it->second;
+                        break;
+                    }
+                    if (subId10 == 4254)               // [/ridableskill definition]
+                        doneLine = true;
+                    else if (subId10 == 4260)          // [pattern] → sk +0x00
+                        sk.m_field00 = ScanInt(static_cast<bool*>(0));
+                    else if (subId10 == 4263)          // [image path] → sk +0x04
+                        ScanStr(&sk.m_name);
+                    else if (subId10 == 4266)          // [skill]：8 组（2×int + type 词）
+                    {
+                        for (int i = 0; i < 8; ++i)
+                        {
+                            sk.m_field08[i] = ScanInt(static_cast<bool*>(0));
+                            sk.m_fielda8[i] = ScanInt(static_cast<bool*>(0));
+                            std::string ty;            // local_1b9c：clear 后读
+                            ty.clear();
+                            ScanStr(&ty);
+                            sk.m_field88[i] = 6;
+                            int subId11 = -1;
+                            for (;;)
+                            {
+                                static std::map<const char*, int, less_TCHAR> __lookup;
+                                static SpinLock __init_lock;
+                                static bool __inited = false;
+                                if (!__inited)
+                                {
+                                    __init_lock.enter();
+                                    if (__inited)
+                                    {
+                                        __init_lock.leave();
+                                        continue;
+                                    }
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("normal", 4282));
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("defaultcancel", 4287));
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("movable", 4292));
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("charge", 4297));
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("evasion", 4302));
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("super", 4307));
+                                    __init_lock.leave();
+                                    __inited = true;
+                                    continue;
+                                }
+                                std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(ty.c_str());
+                                if (__it != __lookup.end())
+                                    subId11 = __it->second;
+                                break;
+                            }
+                            if (subId11 == 4282) sk.m_field88[i] = 0;         // normal
+                            else if (subId11 == 4287) sk.m_field88[i] = 1;         // defaultcancel
+                            else if (subId11 == 4292) sk.m_field88[i] = 2;         // movable
+                            else if (subId11 == 4297) sk.m_field88[i] = 3;         // charge
+                            else if (subId11 == 4302) sk.m_field88[i] = 4;         // evasion
+                            else if (subId11 == 4307) sk.m_field88[i] = 5;         // super
+                        }
+                    }
+                    if (doneLine)
+                        closed = 1;
+                } while (closed == 0);
+            rid_def_exit:;
+                script->m_ridableSkills.push_back(sk);
+            }
+            break;
+        }
+
+case 0x1146:  // "[limit slowdown atkspeed]"（ORIG 08a1f7bc：ScanFloat → m_fieldcc0）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[limit slowdown atkspeed]", 4422));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field1c94 = ScanInt(static_cast<bool*>(0));
+            break;
+        }
+
+case 0x1149:  // "[limit slowdown movespeed]"（ScanFloat → m_fieldcc4）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[limit slowdown movespeed]", 4425));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field1c98 = ScanInt(static_cast<bool*>(0));
+            break;
+        }
+
+case 0x114c:  // "[ridableskill explanation]"（ORIG 08a1f8aa：STDifficulty 未用局部 +
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[ridableskill explanation]", 4428));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  STRidableSkillExplain exp + ScanTypeOrStr 串词分派 → push +0xce8）
+            {
+                STDifficulty unused;                   // local_1ba8：ORIG 构造不使用
+                (void)unused;
+                std::string word;                      // local_1bac
+                STRidableSkillExplain exp;             // -0x1bc0
+                while (true)
+                {
+                    bool isStr = false;
+                    if (!ScanTypeOrStr(isStr, word, true))
+                        break;
+                    if (!isStr)
+                        continue;
+                    if (word == "[/ridableskill explanation]")
+                        break;
+                    if (word == "[title]")
+                        ScanStr(&exp.m_field00);
+                    else if (word == "[subtitle]")
+                        ScanStr(&exp.m_field04);
+                    else if (word == "[category]")
+                        ScanStr(&exp.m_field08);
+                    else if (word == "[detail]")
+                        ScanStr(&exp.m_field0c);
+                    else if (word == "[pattern]")
+                        exp.m_field10 = ScanInt(static_cast<bool*>(0));
+                }
+                script->m_ridableSkillExplains.push_back(exp);
+            }
+            break;
+        }
+
+case 0x1177:  // "[physical attack besed on diff]"（ORIG 08a1faf4：200×5 float 表 +0xcf4，
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[physical attack besed on diff]", 4471));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  diff-1 定行、ScanFloat 失败或表满置 ended）
+            {
+                std::string unused;                    // local_1bc8：ORIG 构造不使用
+                (void)unused;
+                bool ended = false;
+                for (int i = 0; i < 200 && !ended; ++i)
+                {
+                    const int diff = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        ended = true;
+                        break;
+                    }
+                    for (int j = 0; j < 5; ++j)
+                    {
+                        const float v = ScanFloat(&ok);
+                        script->m_difficultyScales[diff - 1][j] = v;
+                        if (!ok)
+                        {
+                            ended = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            break;
+        }
+
+case 0x1194:  // "[non targeted]"（ScanInt 非 0 → m_field56c byte 1/0）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[non targeted]", 4500));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field56c = (ScanInt(static_cast<bool*>(0)) != 0);
+            break;
+        }
+
+case 0x1197:  // "[target appendage]"（ScanStr 直读 string +0x570）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[target appendage]", 4503));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_field570);
+            break;
+        }
+
+case 0x119a:  // "[damage time balance]"（4×ScanInt(&ok) push vector +0x554）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[damage time balance]", 4506));
+            /* FALLTHRU */
+        }
+        else
+        {
+            for (int i = 0; i < 4; ++i)
+                script->m_field554.push_back(ScanInt(&ok));
+            break;
+        }
+
+case 0x11a0:  // "[stun time balance]"（4× push +0x560）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[stun time balance]", 4512));
+            /* FALLTHRU */
+        }
+        else
+        {
+            for (int i = 0; i < 4; ++i)
+                script->m_field560.push_back(ScanInt(&ok));
+            break;
+        }
+
+case 0x11a7:  // "[add gravity in aerial]"（ORIG 08a1fe7c：bool +0x548 + float×2 +0x54c/550）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[add gravity in aerial]", 4519));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field548 = (ScanInt(static_cast<bool*>(0)) != 0);
+            script->m_field54c = ScanFloat(static_cast<bool*>(0));
+            script->m_field550 = ScanFloat(static_cast<bool*>(0));
+            break;
+        }
+
+case 0x11ae:  // "[summon skill status up type]"（ScanInt(0) → m_field3c0）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[summon skill status up type]", 4526));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field3c0 = ScanInt(static_cast<bool*>(0));
+            break;
+        }
+
+case 0x11b1:  // "[attack down prob]"（ScanFloat(&ok) 循环写 m_attackMethods[i].+4）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack down prob]", 4529));
+            /* FALLTHRU */
+        }
+        else
+        {
+            {
+                int i = 0;
+                while (true)
+                {
+                    const float v = ScanFloat(&ok);
+                    if (!ok)
+                        break;
+                    script->m_attackMethods[i].m_field04 = v;
+                    ++i;
+                }
+            }
+            break;
+        }
+
+case 0x11c6:  // "[strong]"（ScanInt(0)→m_field1ca0；ScanFloat(0)→m_field1ca4）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[strong]", 4550));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field1ca0 = ScanInt(static_cast<bool*>(0));
+            script->m_field1ca4 = ScanFloat(static_cast<bool*>(0));
+            break;
+        }
+
+case 0x11ca:  // "[weak]"（取负写同槽 + float）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[weak]", 4554));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field1ca0 = -ScanInt(static_cast<bool*>(0));
+            script->m_field1ca4 = ScanFloat(static_cast<bool*>(0));
+            break;
+        }
+
+case 0x11cf:  // "[explain]"（ScanStr 直读 string +0x6d0）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[explain]", 4559));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&script->m_explain);
+            break;
+        }
+
+case 0x11d4:  // "[consume mp]"（ORIG 08a201dc：ScanInt(&ok) 循环 push vector +0x120）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[consume mp]", 4564));
+            /* FALLTHRU */
+        }
+        else
+        {
+            {
+                int v = 0;
+                while ((v = ScanInt(&ok), ok == true))
+                    script->m_field120.push_back(v);
+            }
+            break;
+        }
+
+case 0x11e6:  // "[base table]"（ORIG 08a2027e：ScanStr 路径 → clear +0x12c →
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[base table]", 4582));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  ImportMonsterBaseTable(script,c_str)；成功且 size()==0 → return 0）
+            {
+                std::string path2;                     // local_1bd8
+                if (ScanStr(&path2) == true)
+                {
+                    script->m_baseParameters.clear();  // +0x12c
+                    if (ImportMonsterBaseTable(script, path2.c_str()))
+                    {
+                        if (script->m_baseParameters.size() == 0)
+                            return 0;
+                    }
+                    else
+                        return 0;
+                }
+            }
+            break;
+        }
+
+case 0x11ff:  // "[catch item]"（ORIG 08a203c8：+0x64 三字段暂存后按 CatchItemInfo
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[catch item]", 4607));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  push 至 +0x70 vector；随后一次 ScanType 消耗尾词）
+            {
+                CatchItemInfo ci;
+                ci.m_field0 = ScanInt(static_cast<bool*>(0));
+                ci.m_field4 = ScanInt(static_cast<bool*>(0));
+                ci.m_field8 = ScanFloat(static_cast<bool*>(0));
+                std::string tail;                      // local_1bdc：ScanType 消耗
+                ScanType(tail, true);
+                script->m_catchItems.push_back(ci);
+            }
+            break;
+        }
+
+case 0x1213:  // "[fixed height]"（ScanInt(0) → m_field1cb0）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[fixed height]", 4627));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field1cb0 = ScanInt(static_cast<bool*>(0));
+            break;
+        }
+
+case 0x1218:  // "[etc sound]"（ScanStr 成功则 m_field6b0 = 词）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[etc sound]", 4632));
+            /* FALLTHRU */
+        }
+        else
+        {
+            {
+                std::string snd;                       // local_1be0
+                if (ScanStr(&snd))
+                    script->m_etcSound = snd;
+            }
+            break;
+        }
+
+case 0x1220:  // "[can beat index]"（ORIG 08a20609：ScanTypeOrInt 循环 push +0x1cb4；
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[can beat index]", 4640));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  非 int 词：仅 "[/can beat index]" 继续，否则整体 return 0）
+            {
+                bool isInt = false;
+                bool isStr = false;
+                std::string word;                      // local_1be8
+                bool ended = false;
+                while (true)
+                {
+                    const int v = ScanTypeOrInt(isStr, word, isInt, true);
+                    if (!isInt)
+                        break;
+                    if (isStr)
+                    {
+                        if (word == "[/can beat index]")
+                            ended = true;
+                        break;
+                    }
+                    script->m_field1cb4.push_back(v);
+                }
+                if (!ended)
+                    return 0;
+            }
+            break;
+        }
+
+case 0x1239:  // "[mounting action]"（ScanStr→token，赋 +0x64c）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[mounting action]", 4665));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&token);
+            script->m_mountingAction = token;
+            break;
+        }
+
+case 0x123f:  // "[mounted action]"（赋 +0x650）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[mounted action]", 4671));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&token);
+            script->m_mountedAction = token;
+            break;
+        }
+
+case 0x1245:  // "[unmounting action]"（赋 +0x654）
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[unmounting action]", 4677));
+            /* FALLTHRU */
+        }
+        else
+        {
+            ScanStr(&token);
+            script->m_unmountingAction = token;
+            break;
+        }
+
+case 0x124b:  // "[control passive object]"（ORIG 08a208ff：do{ScanType→__lookup_12
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[control passive object]", 4683));
+            /* FALLTHRU */
+        }
+        else
+        {
+            //  11 键；[option]→ScanStr+__lookup_13；[transparency]→词循环 __lookup_14/15；
+            //  [fix direction]→ScanStr+__lookup_16；[/control passive object]→退出}
+            //  while(ScanType 成功)）
+            {
+                std::string tag2;                      // local_1bf0
+                bool ended = false;                    // local_1bf5
+                do
+                {
+                    ended = ScanType(tag2, true);
+                    if (ended != true)
+                        return 0;
+                    int subId12 = -1;
+                    for (;;)
+                    {
+                        static std::map<const char*, int, less_TCHAR> __lookup;
+                        static SpinLock __init_lock;
+                        static bool __inited = false;
+                        if (!__inited)
+                        {
+                            __init_lock.enter();
+                            if (__inited)
+                            {
+                                __init_lock.leave();
+                                continue;
+                            }
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[index]", 4696));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[x pos]", 4704));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[y pos]", 4712));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[width]", 4720));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[height]", 4728));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[velocity x]", 4736));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[velocity y]", 4744));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[option]", 4752));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[transparency]", 4771));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[fix direction]", 4823));
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/control passive object]", 4844));
+                            __init_lock.leave();
+                            __inited = true;
+                            continue;
+                        }
+                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(tag2.c_str());
+                        if (__it != __lookup.end())
+                            subId12 = __it->second;
+                        break;
+                    }
+                    if (subId12 == 4696)               // [index] → +0x658
+                    {
+                        const int v = ScanInt(&ok);
+                        if (!ok) return 0;
+                        script->m_field658 = v;
+                    }
+                    else if (subId12 == 4704)          // [x pos] → +0x65c
+                    {
+                        const int v = ScanInt(&ok);
+                        if (!ok) return 0;
+                        script->m_field65c = v;
+                    }
+                    else if (subId12 == 4712)          // [y pos] → +0x660
+                    {
+                        const int v = ScanInt(&ok);
+                        if (!ok) return 0;
+                        script->m_field660 = v;
+                    }
+                    else if (subId12 == 4720)          // [width] → +0x664
+                    {
+                        const int v = ScanInt(&ok);
+                        if (!ok) return 0;
+                        script->m_field664 = v;
+                    }
+                    else if (subId12 == 4728)          // [height] → +0x668
+                    {
+                        const int v = ScanInt(&ok);
+                        if (!ok) return 0;
+                        script->m_field668 = v;
+                    }
+                    else if (subId12 == 4736)          // [velocity x] → float +0x66c
+                    {
+                        const float f = ScanFloat(&ok);
+                        if (!ok) return 0;
+                        script->m_field66c = f;
+                    }
+                    else if (subId12 == 4744)          // [velocity y] → float +0x670
+                    {
+                        const float f = ScanFloat(&ok);
+                        if (!ok) return 0;
+                        script->m_field670 = f;
+                    }
+                    else if (subId12 == 4752)          // [option] → ScanStr + convert y to z
+                    {
+                        std::string opt;               // local_1c00
+                        bool okflag = false;
+                        if (ScanStr(&opt))
+                        {
+                            int subId13 = -1;
+                            for (;;)
+                            {
+                                static std::map<const char*, int, less_TCHAR> __lookup;
+                                static SpinLock __init_lock;
+                                static bool __inited = false;
+                                if (!__inited)
+                                {
+                                    __init_lock.enter();
+                                    if (__inited)
+                                    {
+                                        __init_lock.leave();
+                                        continue;
+                                    }
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("convert y to z", 4760));
+                                    __init_lock.leave();
+                                    __inited = true;
+                                    continue;
+                                }
+                                std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(opt.c_str());
+                                if (__it != __lookup.end())
+                                    subId13 = __it->second;
+                                break;
+                            }
+                            if (subId13 == 4760)       // convert y to z → +0x674 = 1
+                            {
+                                script->m_field674 = 1;
+                                okflag = true;
+                            }
+                        }
+                        if (!okflag)
+                            return 0;
+                    }
+                    else if (subId12 == 4771)          // [transparency] → 词循环
+                    {
+                        std::string word;              // local_1c08
+                        bool done = false;
+                        while (ScanType(word, true))
+                        {
+                            if (word == "[/transparency]")
+                            {
+                                done = true;
+                                break;
+                            }
+                            int subId14 = -1;
+                            for (;;)
+                            {
+                                static std::map<const char*, int, less_TCHAR> __lookup;
+                                static SpinLock __init_lock;
+                                static bool __inited = false;
+                                if (!__inited)
+                                {
+                                    __init_lock.enter();
+                                    if (__inited)
+                                    {
+                                        __init_lock.leave();
+                                        continue;
+                                    }
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[master]", 4784));
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[others]", 4792));
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[option]", 4800));
+                                    __init_lock.leave();
+                                    __inited = true;
+                                    continue;
+                                }
+                                std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(word.c_str());
+                                if (__it != __lookup.end())
+                                    subId14 = __it->second;
+                                break;
+                            }
+                            if (subId14 == 4784)       // [master] → int +0x678
+                            {
+                                const int v = ScanInt(&ok);
+                                if (!ok) return 0;
+                                script->m_field678 = v;
+                            }
+                            else if (subId14 == 4792)  // [others] → int +0x67c
+                            {
+                                const int v = ScanInt(&ok);
+                                if (!ok) return 0;
+                                script->m_field67c = v;
+                            }
+                            else if (subId14 == 4800)  // [option] → ScanStr + inherit → +0x680
+                            {
+                                std::string opt2;      // local_1c10
+                                bool okflag = false;
+                                if (ScanStr(&opt2))
+                                {
+                                    int subId15 = -1;
+                                    for (;;)
+                                    {
+                                        static std::map<const char*, int, less_TCHAR> __lookup;
+                                        static SpinLock __init_lock;
+                                        static bool __inited = false;
+                                        if (!__inited)
+                                        {
+                                            __init_lock.enter();
+                                            if (__inited)
+                                            {
+                                                __init_lock.leave();
+                                                continue;
+                                            }
+                                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("inherit", 4807));
+                                            __init_lock.leave();
+                                            __inited = true;
+                                            continue;
+                                        }
+                                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(opt2.c_str());
+                                        if (__it != __lookup.end())
+                                            subId15 = __it->second;
+                                        break;
+                                    }
+                                    if (subId15 == 4807)
+                                    {
+                                        script->m_field680 = 1;
+                                        okflag = true;
+                                    }
+                                }
+                                if (!okflag)
+                                    return 0;
+                            }
+                            else
+                                return 0;
+                        }
+                        if (!done)
+                            return 0;
+                    }
+                    else if (subId12 == 4823)          // [fix direction] → ScanStr + left/right
+                    {
+                        std::string dir;               // local_1c18
+                        bool okflag = false;
+                        if (ScanStr(&dir))
+                        {
+                            int subId16 = -1;
+                            for (;;)
+                            {
+                                static std::map<const char*, int, less_TCHAR> __lookup;
+                                static SpinLock __init_lock;
+                                static bool __inited = false;
+                                if (!__inited)
+                                {
+                                    __init_lock.enter();
+                                    if (__inited)
+                                    {
+                                        __init_lock.leave();
+                                        continue;
+                                    }
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[left]", 4832));
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[right]", 4836));
+                                    __init_lock.leave();
+                                    __inited = true;
+                                    continue;
+                                }
+                                std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(dir.c_str());
+                                if (__it != __lookup.end())
+                                    subId16 = __it->second;
+                                break;
+                            }
+                            if (subId16 == 4832)       // [left] → +0x684=0
+                            {
+                                script->m_field684 = 0;
+                                okflag = true;
+                            }
+                            else if (subId16 == 4836)  // [right] → +0x684=1
+                            {
+                                script->m_field684 = 1;
+                                okflag = true;
+                            }
+                        }
+                        if (!okflag)
+                            return 0;
+                    }
+                    else if (subId12 == 4844)          // [/control passive object] → 结束本 case
+                        ended = false;
+                    // ORIG：未命中键（含 -1）无动作，继续外层 do-while 读下一词
+                } while (ended == true);
+            }
+            break;
+        }
+
+case 0x12f7:  // "[life max]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[life max]", 4855));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_flag3b8 = ScanInt(&ok) != 0;
+            break;
+        }
+
+case 0x12fb:  // "[start immune time]"
+        if (!__inited)
+        {
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[start immune time]", 4859));
+            /* FALLTHRU */
+        }
+        else
+        {
+            script->m_field1cc0 = ScanInt(&ok);
+            if (!ok)
+                return 0;
+            break;
+        }
+
+            default:
+                // ORIG fallback for the 17 ACTIVESTATUS_TAG entries:
+                // each tag writes the low/high difficulty pair in
+                // m_linearAbilities[0..16].
+                for (int i = 0; i < 17; ++i)
+                {
+                    if (tag == kMonsterActiveStatusTags[i])
+                    {
+                        script->m_linearAbilities[i][0] =
+                            ScanInt(static_cast<bool*>(0));
+                        script->m_linearAbilities[i][1] =
+                            ScanInt(static_cast<bool*>(0));
+                        break;
+                    }
+                }
                 break;
         }
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = true;
+            continue;
+        }
+        break;
     }
+        if (flag && nameSeen)
+            break;
+    }
+    script->m_index = reinterpret_cast<STScriptFileList*>(
+        &g_stMonsterScriptFileList)->FindIndexByFullScan(path);
     return 1;
 }
 
@@ -1971,13 +4499,13 @@ bool exportMonsterScript(
     // ---- [name] +0x110：m_name != "" 时经 getTagByName(7,..) 导出 ----
     if (script->m_name != "")
     {
-        const char* tag = 0;
+        const wchar_t* tag = 0;
         if (!script->m_altName.empty())
-            tag = script->m_altName.c_str();
+            tag = (const wchar_t*)script->m_altName.c_str();
         fprintf(file, "[name] %s\n",
                 toTString(g_scriptStringManager_.getTagByName(
                     7, (const wchar_t*)script->m_name.c_str(),
-                    (const wchar_t*)tag, false)));
+                    tag, false)));
     }
     // ---- [face image] +0x5ac 非空 ----
     if (!script->m_faceImage.empty())
@@ -2009,9 +4537,9 @@ bool exportMonsterScript(
         fwrite("[category]\n", 1, 0xb, file);
         for (unsigned int i = 0; i < script->m_field01c.size(); ++i)
         {
-            std::string cat(getObjectCategoryString(
-                (ENUM_CATEGORY)script->m_field01c[i]));
-            fprintf(file, "`%s`\n", cat.c_str());
+            ENUM_CATEGORY cat = (ENUM_CATEGORY)script->m_field01c[i];
+            std::string str(getObjectCategoryString(cat));
+            fprintf(file, "`%s`\n", str.c_str());
         }
         fwrite("[/category]\n\n", 1, 0xd, file);
     }
@@ -2075,16 +4603,17 @@ bool exportMonsterScript(
     fprintf(file, "[level] %d %d\n",
             script->m_levelByDiff[0], script->m_levelByDiff[1]);
     // ---- 四系 resistance（任一非零）----
-    if (script->m_resistTable[0][0] || script->m_resistTable[0][1])
+    // ORIG 08a22c9f 实证：条件两项均读 [k][0]（原源码笔误，忠实复现）
+    if (script->m_resistTable[0][0] != 0 || script->m_resistTable[0][0] != 0)
         fprintf(file, "[fire resistance] %d %d\n",
                 script->m_resistTable[0][0], script->m_resistTable[0][1]);
-    if (script->m_resistTable[1][0] || script->m_resistTable[1][1])
+    if (script->m_resistTable[1][0] != 0 || script->m_resistTable[1][0] != 0)
         fprintf(file, "[water resistance] %d %d\n",
                 script->m_resistTable[1][0], script->m_resistTable[1][1]);
-    if (script->m_resistTable[2][0] || script->m_resistTable[2][1])
+    if (script->m_resistTable[2][0] != 0 || script->m_resistTable[2][0] != 0)
         fprintf(file, "[dark resistance] %d %d\n",
                 script->m_resistTable[2][0], script->m_resistTable[2][1]);
-    if (script->m_resistTable[3][0] || script->m_resistTable[3][1])
+    if (script->m_resistTable[3][0] != 0 || script->m_resistTable[3][0] != 0)
         fprintf(file, "[light resistance] %d %d\n",
                 script->m_resistTable[3][0], script->m_resistTable[3][1]);
     // ---- 线性 ability 17 项（任一非零；名称表 0x93f5480）----
@@ -2139,8 +4668,9 @@ bool exportMonsterScript(
                 script->m_normalDashSpeed[0], script->m_normalDashSpeed[1]);
     if (script->m_slantDashSpeed[0] != defaultScript.m_slantDashSpeed[0] ||
         script->m_slantDashSpeed[1] != defaultScript.m_slantDashSpeed[1])
+        // ORIG 08a2312f 实证：条件判 slant，**打印却是 normalDash 两字段**（原笔误忠实）
         fprintf(file, "[slant dash speed] %d %d\n",
-                script->m_slantDashSpeed[0], script->m_slantDashSpeed[1]);
+                script->m_normalDashSpeed[0], script->m_normalDashSpeed[1]);
     if (script->m_weight[0] != defaultScript.m_weight[0] ||
         script->m_weight[1] != defaultScript.m_weight[1])
         fprintf(file, "[weight] %d %d\n",
@@ -2149,7 +4679,7 @@ bool exportMonsterScript(
     // ---- [superarmor on attack] ----
     if (script->m_superarmorOnAttack != defaultScript.m_superarmorOnAttack)
         fprintf(file, "[superarmor on attack] %d %d\n",
-                script->m_superarmorOnAttack ? 1 : 0, script->m_field5a8);
+                (int)script->m_superarmorOnAttack, script->m_field5a8);
     // ---- [sight] ----
     if (script->m_sight != defaultScript.m_sight)
         fprintf(file, "[sight] %d\n", script->m_sight);
@@ -2285,16 +4815,22 @@ bool exportMonsterScript(
         fwrite("[attack kind]\n", 1, 0xe, file);
         for (unsigned int i = 0; i < script->m_attackMethods.size(); ++i)
         {
-            const STAttackMethod* am = &script->m_attackMethods[i];
-            // %f 三值经 flds→fstpl 双精度传参（ORIG 实证）
+            // ORIG 逐字段重做下标（0x2c,0x30,0x24,0x28,0x1c,0x20,0x14,0x18,
+            // 0x00(三目),0x10,0x0c,0x08 求值序）；%f 三值经 flds→fstpl 双精度。
             fprintf(file,
                     "%f\t%f\t%f\t%d %d %d %d %d %d %d %d %d",
-                    (double)*(const float*)&am->m_field08,
-                    (double)*(const float*)&am->m_field0c,
-                    (double)*(const float*)&am->m_field10,
-                    am->m_field00, am->m_field18, am->m_field14,
-                    am->m_field20, am->m_field1c, am->m_field28,
-                    am->m_field24, am->m_field30, am->m_field2c);
+                    (double)script->m_attackMethods[i].m_field08,
+                    (double)script->m_attackMethods[i].m_field0c,
+                    (double)script->m_attackMethods[i].m_field10,
+                    script->m_attackMethods[i].m_field00 ? 1 : 0,
+                    script->m_attackMethods[i].m_field18,
+                    script->m_attackMethods[i].m_field14,
+                    script->m_attackMethods[i].m_field20,
+                    script->m_attackMethods[i].m_field1c,
+                    script->m_attackMethods[i].m_field28,
+                    script->m_attackMethods[i].m_field24,
+                    script->m_attackMethods[i].m_field30,
+                    script->m_attackMethods[i].m_field2c);
             fwrite("\t\n", 1, 2, file);
         }
         fwrite("[/attack kind]\n\n", 1, 0x10, file);
@@ -2327,20 +4863,20 @@ bool exportMonsterScript(
     if (!script->m_attackMotions.empty())
     {
         fwrite("[attack motion]\n", 1, 0x10, file);
-        for (std::vector<std::string>::const_iterator it =
+        for (std::vector<std::string>::iterator it =
                  script->m_attackMotions.begin();
-             it != script->m_attackMotions.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+             it != script->m_attackMotions.end(); it++)
+            fprintf(file, "`%s`\n", (*it).c_str());
         fwrite("[/attack motion]\n", 1, 0x11, file);
     }
     // ---- [etc motion] +0x5f0 ----
     if (!script->m_etcMotions.empty())
     {
         fwrite("[etc motion]\n", 1, 0xd, file);
-        for (std::vector<std::string>::const_iterator it =
+        for (std::vector<std::string>::iterator it =
                  script->m_etcMotions.begin();
-             it != script->m_etcMotions.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+             it != script->m_etcMotions.end(); it++)
+            fprintf(file, "`%s`\n", (*it).c_str());
         fwrite("[/etc motion]\n", 1, 0xe, file);
     }
     fputc('\n', file);
@@ -2390,6 +4926,7 @@ bool exportMonsterScript(
         for (unsigned int i = 0; i < script->m_attackActions.size(); ++i)
         {
             std::string s;
+            s.clear();
             if (i < extraActions.size())
                 s = extraActions[i];
             fprintf(file, "`%s`\t%s\n", script->m_attackActions[i].c_str(),
@@ -2401,10 +4938,10 @@ bool exportMonsterScript(
     if (!script->m_etcActions.empty())
     {
         fwrite("[etc action]\n", 1, 0xd, file);
-        for (std::vector<std::string>::const_iterator it =
+        for (std::vector<std::string>::iterator it =
                  script->m_etcActions.begin();
-             it != script->m_etcActions.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+             it != script->m_etcActions.end(); it++)
+            fprintf(file, "`%s`\n", (*it).c_str());
         fwrite("[/etc action]\n", 1, 0xe, file);
     }
     if (script->m_lastAction != "")
@@ -2418,147 +4955,154 @@ bool exportMonsterScript(
     if (!script->m_attackInfos.empty())
     {
         fwrite("[attack info]\n", 1, 0xe, file);
-        for (std::vector<std::string>::const_iterator it =
+        for (std::vector<std::string>::iterator it =
                  script->m_attackInfos.begin();
-             it != script->m_attackInfos.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+             it != script->m_attackInfos.end(); it++)
+            fprintf(file, "`%s`\n", (*it).c_str());
         fwrite("[/attack info]\n", 1, 0xf, file);
     }
     if (!script->m_etcAttackInfos.empty())
     {
         fwrite("[etc attack info]\n", 1, 0x12, file);
-        for (std::vector<std::string>::const_iterator it =
+        for (std::vector<std::string>::iterator it =
                  script->m_etcAttackInfos.begin();
-             it != script->m_etcAttackInfos.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+             it != script->m_etcAttackInfos.end(); it++)
+            fprintf(file, "`%s`\n", (*it).c_str());
         fwrite("[/etc attack info]\n", 1, 0x13, file);
     }
     fputc('\n', file);
     // ---- [int data] +0x6d4（extra map "[int data]" 配对）----
     if (!script->m_intData.empty())
     {
-        std::map<std::string, std::vector<std::string> >::iterator it =
-            extra.find("[int data]");
         fwrite("[int data]\n", 1, 0xb, file);
+        std::string s;
         for (unsigned int i = 0; i < script->m_intData.size(); ++i)
         {
-            std::string s;
-            if (it != extra.end() && i < it->second.size())
-                s = it->second[i];
+            // ORIG 每轮：clear → 临时 key find → 命中则拷贝整个 vector 再取元素
+            s.clear();
+            std::map<std::string, std::vector<std::string> >::iterator it =
+                extra.find("[int data]");
+            if (it != extra.end())
+            {
+                std::vector<std::string> tmp(it->second);
+                if (i < tmp.size())
+                    s = tmp[i];
+            }
             fprintf(file, "%d\t%s\n", script->m_intData[i], s.c_str());
         }
         fwrite("[/int data]\n", 1, 0xc, file);
     }
     // ---- [speech on situation] +0x70c[111]（0..0x64 用 [on attack]:+序号；0x65..0x6e switch）----
+    // ORIG speechTag(-0x19c) 为**函数作用域**：ctor 在此处、dtor 在函数尾
+    // （08a29e4c），故不得用 {} 包裹（否则块尾 dtor + 独立 landing pad）。
+    bool anySpeech = false;
+    std::string speechTag;
+    int speechIndex = 0;
+    for (int si = 0; si <= 0x6e; ++si)
     {
-        bool anySpeech = false;
-        for (int i = 0; i <= 0x6e; ++i)
+        if (!script->m_field70c[si].empty())
         {
-            if (!script->m_field70c[i].empty())
-            {
-                fwrite("[speech on situation]\n", 1, 0x16, file);
-                anySpeech = true;
-                break;
-            }
+            fwrite("[speech on situation]\n", 1, 0x16, file);
+            anySpeech = true;
+            break;
         }
-        std::string speechTag;
-        for (int i = 0; i <= 0x6e; ++i)
+    }
+    for (int si = 0; si <= 0x6e; ++si)
+    {
+        if (script->m_field70c[si].size() != 0)
         {
-            if (script->m_field70c[i].size() == 0)
-                continue;
-            int tagIndex = 0;
-            if (i <= 0x64)
+            if (0 <= si && si <= 100)       // ORIG 08a25313：js/jg → 后段 switch 块
             {
-                speechTag = "[on attack]:";
-                tagIndex = i;
-                for (unsigned int j = 0; j < script->m_field70c[i].size(); ++j)
+                speechTag = "`[on attack]:`";
+                speechIndex = si;
+                for (unsigned int j = 0; j < script->m_field70c[si].size(); ++j)
                 {
                     fprintf(file, "%s %s %d\n", speechTag.c_str(),
                             toTString(g_scriptStringManager_.getTagByName(
                                 7,
-                                (const wchar_t*)script->m_field70c[i][j].c_str(),
+                                (const wchar_t*)script->m_field70c[si][j].c_str(),
                                 0, false)),
-                            tagIndex);
+                            speechIndex);
                 }
             }
             else
             {
-                switch (i - 0x65)
+                switch (si - 0x65)
                 {
-                case 0: speechTag = "[on damage]"; break;
-                case 1: speechTag = "[on die]"; break;
-                case 2: speechTag = "[on revenge]"; break;
-                case 3: speechTag = "[on etc]"; break;
-                case 4: speechTag = "[on appear]"; break;
-                case 5: speechTag = "[on disappear]"; break;
-                case 6: speechTag = "[on go to help]"; break;
-                case 7: speechTag = "[on stand]"; break;
-                // case 8（i==0x6d）：ORIG 不重设 tag（保留上一轮值）
-                case 9: speechTag = "[on village]"; break;
-                default: break;
+                case 0: speechTag = "`[on damage]`"; break;
+                case 1: speechTag = "`[on die]`"; break;
+                case 2: speechTag = "`[on revenge]`"; break;
+                case 3: speechTag = "`[on etc]`"; break;
+                case 4: speechTag = "`[on appear]`"; break;
+                case 5: speechTag = "`[on disappear]`"; break;
+                case 6: speechTag = "`[on go to help]`"; break;
+                case 7: speechTag = "`[on stand]`"; break;
+                // case 8（si==0x6d）：ORIG 表项直指 merge（保留上一轮 tag）
+                case 9: speechTag = "`[on village]`"; break;
                 }
-                for (unsigned int j = 0; j < script->m_field70c[i].size(); ++j)
+                speechIndex = 0;            // ORIG 08a25533：switch merge 后
+                for (unsigned int j = 0; j < script->m_field70c[si].size(); ++j)
                 {
                     fprintf(file, "%s %s %d\n", speechTag.c_str(),
                             toTString(g_scriptStringManager_.getTagByName(
                                 7,
-                                (const wchar_t*)script->m_field70c[i][j].c_str(),
+                                (const wchar_t*)script->m_field70c[si][j].c_str(),
                                 0, false)),
-                            tagIndex);
+                            speechIndex);
                 }
             }
         }
-        if (anySpeech)
-            fwrite("[/speech on situation]\n", 1, 0x17, file);
     }
+    if (anySpeech)
+        fwrite("[/speech on situation]\n", 1, 0x17, file);
     // ---- [fix move direction] ----
     if (script->m_flagc50)
         fwrite("[fix move direction] 1\n", 1, 0x17, file);
     // ---- [throw attack] +0x9c ----
     for (unsigned int i = 0; i < script->m_throwAttacks.size(); ++i)
     {
-        const STThrowAttack* ta = &script->m_throwAttacks[i];
         fwrite("[throw attack]\n", 1, 0xf, file);
         fwrite("`[attack index]`", 1, 0x10, file);
-        fprintf(file, " %d\n", ta->m_field44);
+        fprintf(file, " %d\n", script->m_throwAttacks[i].m_field44);
         fwrite("`[passive object number]`", 1, 0x19, file);
-        fprintf(file, " %d\n", ta->m_field50);
+        fprintf(file, " %d\n", script->m_throwAttacks[i].m_field50);
         fwrite("`[passive object filename]`", 1, 0x1b, file);
-        for (int j = 0; j < ta->m_field50; ++j)
-            fprintf(file, "`%s`\n", ta->m_field00[j].c_str());
+        for (int j = 0; j < script->m_throwAttacks[i].m_field50; ++j)
+            fprintf(file, "`%s`\n",
+                    script->m_throwAttacks[i].m_field00[j].c_str());
         fwrite("`[object type]`", 1, 0xf, file);
-        fprintf(file, " %d\n", ta->m_field4c);
+        fprintf(file, " %d\n", script->m_throwAttacks[i].m_field4c);
         fwrite("`[passive object index]`", 1, 0x18, file);
-        fprintf(file, " %d\n", ta->m_field0c);
+        fprintf(file, " %d\n", script->m_throwAttacks[i].m_field0c);
         fwrite("`[power]`", 1, 9, file);
-        fprintf(file, " %d\n", ta->m_field10);
+        fprintf(file, " %d\n", script->m_throwAttacks[i].m_field10);
         fwrite("`[throw frame]`", 1, 0xf, file);
-        fprintf(file, " %d\n", ta->m_field14);
-        if (!ta->m_field18.empty())
+        fprintf(file, " %d\n", script->m_throwAttacks[i].m_field14);
+        if (!script->m_throwAttacks[i].m_field18.empty())
         {
             fwrite("`[passive object start x cood]` ", 1, 0x20, file);
-            for (int j = 0; j < ta->m_field50; ++j)
-                fprintf(file, "%d ", ta->m_field18[j]);
+            for (int j = 0; j < script->m_throwAttacks[i].m_field50; ++j)
+                fprintf(file, "%d ", script->m_throwAttacks[i].m_field18[j]);
             fputc('\n', file);
         }
-        if (!ta->m_field24.empty())
+        if (!script->m_throwAttacks[i].m_field24.empty())
         {
             fwrite("`[passive object start y cood]` ", 1, 0x20, file);
-            for (int j = 0; j < ta->m_field50; ++j)
-                fprintf(file, "%d ", ta->m_field24[j]);
+            for (int j = 0; j < script->m_throwAttacks[i].m_field50; ++j)
+                fprintf(file, "%d ", script->m_throwAttacks[i].m_field24[j]);
             fputc('\n', file);
         }
-        if (!ta->m_field30.empty())
+        if (!script->m_throwAttacks[i].m_field30.empty())
         {
             fwrite("`[passive object start z cood]` ", 1, 0x20, file);
-            for (int j = 0; j < ta->m_field50; ++j)
-                fprintf(file, "%d ", ta->m_field30[j]);
+            for (int j = 0; j < script->m_throwAttacks[i].m_field50; ++j)
+                fprintf(file, "%d ", script->m_throwAttacks[i].m_field30[j]);
             fputc('\n', file);
         }
         fwrite("`[attack number]`", 1, 0x11, file);
-        fprintf(file, " %d\n", ta->m_field3c);
+        fprintf(file, " %d\n", script->m_throwAttacks[i].m_field3c);
         fwrite("`[throw sound]`", 1, 0xf, file);
-        fprintf(file, "`%s`\n", ta->m_field40.c_str());
+        fprintf(file, "`%s`\n", script->m_throwAttacks[i].m_field40.c_str());
         fwrite("[/throw attack]\n", 1, 0x10, file);
     }
     // ---- [equipment] +0x390 ----
@@ -2566,132 +5110,151 @@ bool exportMonsterScript(
     {
         fwrite("[equipment]\n", 1, 0xc, file);
         fprintf(file, "%d\n", (int)script->m_equipment.m_items.size());
-        for (std::vector<std::string>::const_iterator it =
-                 script->m_equipment.m_items.begin();
-             it != script->m_equipment.m_items.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+        for (unsigned int i = 0; i < script->m_equipment.m_items.size(); ++i)
+            fprintf(file, "`%s`\n", script->m_equipment.m_items[i].c_str());
         fwrite("[/equipment]\n", 1, 0xd, file);
     }
     // ---- [ready action] +0x39c ----
     for (unsigned int i = 0; i < script->m_attackReadies.size(); ++i)
     {
-        const STMosterAttackReady* ar = &script->m_attackReadies[i];
         fwrite("[ready action]\n", 1, 0xf, file);
-        fprintf(file, "`[motion index]` %d\n", ar->m_field0c);
+        fprintf(file, "`[motion index]` %d\n",
+                script->m_attackReadies[i].m_field0c);
         fwrite("`[effect ani file & layer index]`\n", 1, 0x22, file);
-        fprintf(file, "%d\n", (int)ar->m_field10.size());
-        for (unsigned int j = 0; j < ar->m_field10.size(); ++j)
+        fprintf(file, "%d\n", (int)script->m_attackReadies[i].m_field10.size());
+        for (unsigned int j = 0; j < script->m_attackReadies[i].m_field10.size(); ++j)
         {
-            fprintf(file, "`%s` ", ar->m_field10[j].c_str());
-            fprintf(file, "%d\n", ar->m_field00[j]);
+            fprintf(file, "`%s` ",
+                    script->m_attackReadies[i].m_field10[j].c_str());
+            fprintf(file, "%d\n", script->m_attackReadies[i].m_field00[j]);
         }
         fwrite("[/ready action]\n", 1, 0x10, file);
     }
     // ---- [counter attack] +0xa8 ----
     for (unsigned int i = 0; i < script->m_counterAttacks.size(); ++i)
     {
-        const STCounterAttack* ca = &script->m_counterAttacks[i];
         fwrite("[counter attack]\n", 1, 0x11, file);
+        // ORIG 08a26107：结构体值拷贝进局部（10 条 mov/mov 对）
+        const STCounterAttack ca = script->m_counterAttacks[i];
         fprintf(file, "%d\n", (int)script->m_counterAttacks.size());
-        fprintf(file, "`[probability]` %d\n", ca->m_field00);
-        fprintf(file, "`[attack index]` %d\n", ca->m_field04);
+        fprintf(file, "`[probability]` %d\n", ca.m_field00);
+        fprintf(file, "`[attack index]` %d\n", ca.m_field04);
         fwrite("`[damage type]`", 1, 0xf, file);
-        if (ca->m_field08 == 1)
+        // ORIG 08a261c8 switch 线性决策（cmp1 je; cmp2 je; test jne; 0-body fall）
+        switch (ca.m_field08)
+        {
+        case 0:
             fwrite("`[approach attack]`\n", 1, 0x14, file);
-        else if (ca->m_field08 == 2)
+            break;
+        case 1:
             fwrite("`[range attack]`\n", 1, 0x11, file);
-        else if (ca->m_field08 == 0)
+            break;
+        case 2:
             fwrite("`[all attack]`\n", 1, 0xf, file);
-        if (ca->m_field10 != 0)
-            fprintf(file, "`[need hp]` %d\n", ca->m_field10);
+            break;
+        }
+        if (ca.m_field10 != 0)
+            fprintf(file, "`[need hp]` %d\n", ca.m_field10);
         fwrite("[/counter attack]\n", 1, 0x12, file);
     }
     // ---- [jump attack] +0xb4 ----
     for (unsigned int i = 0; i < script->m_jumpAttacks.size(); ++i)
     {
-        const STJumpAttack* ja = &script->m_jumpAttacks[i];
+        // ORIG 08a262ef：值拷贝（11 槽 -0x28c..-0x264）
+        const STJumpAttack ja = script->m_jumpAttacks[i];
         fwrite("[jump attack]\n", 1, 0xe, file);
-        fprintf(file, "`[attack index]` %d\n", ja->m_field00);
-        fprintf(file, "`[start frame index]` %d\n", ja->m_field1c);
-        fprintf(file, "`[end frame index]` %d\n", ja->m_field20);
-        fprintf(file, "`[jump height]` %d\n", ja->m_field04);
-        fprintf(file, "`[jump speed]` %d\n", ja->m_field08);
+        fprintf(file, "`[attack index]` %d\n", ja.m_field00);
+        fprintf(file, "`[start frame index]` %d\n", ja.m_field1c);
+        fprintf(file, "`[end frame index]` %d\n", ja.m_field20);
+        fprintf(file, "`[jump height]` %d\n", ja.m_field04);
+        fprintf(file, "`[jump speed]` %d\n", ja.m_field08);
         fprintf(file, "`[on collision custom animation index]` %d\n",
-                ja->m_field0c);
+                ja.m_field0c);
         fprintf(file, "`[ememy distance rate]` %f\n",
-                (double)ja->m_field10);
-        fprintf(file, "`[limited x cood]` %d\n", ja->m_field24);
-        fprintf(file, "`[limited y cood]` %d\n", ja->m_field28);
-        fprintf(file, "`[jump type]` %d\n", ja->m_field18);
-        fprintf(file, "`[jump direction]` %d\n", ja->m_field14);
+                (double)ja.m_field10);
+        fprintf(file, "`[limited x cood]` %d\n", ja.m_field24);
+        fprintf(file, "`[limited y cood]` %d\n", ja.m_field28);
+        fprintf(file, "`[jump type]` %d\n", ja.m_field18);
+        fprintf(file, "`[jump direction]` %d\n", ja.m_field14);
         fwrite("[/jump attack]\n", 1, 0xf, file);
     }
     // ---- [dash attack] +0xcc ----
     for (unsigned int i = 0; i < script->m_dashes.size(); ++i)
     {
-        const STDash* d = &script->m_dashes[i];
         fwrite("[dash attack]\n", 1, 0xe, file);
-        fprintf(file, "`[function index]` %d\n", d->m_field00);
-        fprintf(file, "`[attack index]` %d\n", d->m_field04);
+        // ORIG 08a2657a：值拷贝（10 槽）
+        const STDash d = script->m_dashes[i];
+        fprintf(file, "`[function index]` %d\n", d.m_field00);
+        fprintf(file, "`[attack index]` %d\n", d.m_field04);
         fprintf(file, "`[shakeable]` %d %d %d\n",
-                d->m_field08, d->m_field0c, d->m_field10);
-        fprintf(file, "`[first speed]` %d\n", d->m_field14);
-        fprintf(file, "`[last speed]` %d\n", d->m_field18);
-        fprintf(file, "`[dash time]` %d\n", d->m_field1c);
-        fprintf(file, "`[dash ready time]` %d\n", d->m_field20);
-        fprintf(file, "`[animation first index]` %d\n", d->m_field24);
+                d.m_field08, d.m_field0c, d.m_field10);
+        fprintf(file, "`[first speed]` %d\n", d.m_field14);
+        fprintf(file, "`[last speed]` %d\n", d.m_field18);
+        fprintf(file, "`[dash time]` %d\n", d.m_field1c);
+        fprintf(file, "`[dash ready time]` %d\n", d.m_field20);
+        fprintf(file, "`[animation first index]` %d\n", d.m_field24);
         fwrite("[/dash attack]\n", 1, 0xf, file);
     }
     // ---- [hold attack] +0xd8 ----
     for (unsigned int i = 0; i < script->m_holds.size(); ++i)
     {
-        const STHold* h = &script->m_holds[i];
         fwrite("[hold attack]\n", 1, 0xe, file);
-        fprintf(file, "`[function index]` %d", h->m_field00);
-        if (h->m_field00 == 1)
-            fprintf(file, " %d %d", h->m_field04, h->m_field08);
+        // ORIG 08a26785：值拷贝（9 槽）
+        const STHold h = script->m_holds[i];
+        fprintf(file, "`[function index]` %d", h.m_field00);
+        if (h.m_field00 == 1)
+            fprintf(file, " %d %d", h.m_field08, h.m_field04);   // ORIG 08a267e6：先 +0x8 后 +0x4
         fputc('\n', file);
-        fprintf(file, "`[attack index]` %d\n", h->m_field0c);
-        fprintf(file, "`[offset]` %d %d\n", h->m_field10, h->m_field14);
-        fprintf(file, "`[animation index]` %d\n", h->m_field18);
-        fprintf(file, "`[min hold]` %d\n", h->m_field1c);
-        fprintf(file, "`[max hold]` %d\n", h->m_field20);
+        fprintf(file, "`[attack index]` %d\n", h.m_field0c);
+        fprintf(file, "`[offset]` %d %d\n", h.m_field10, h.m_field14);
+        fprintf(file, "`[animation index]` %d\n", h.m_field18);
+        fprintf(file, "`[min hold]` %d\n", h.m_field1c);
+        fprintf(file, "`[max hold]` %d\n", h.m_field20);
         fwrite("[/hold attack]\n", 1, 0xf, file);
     }
     // ---- [warp attack] +0xe4（逐字段与默认对象比较）----
     for (unsigned int i = 0; i < script->m_warps.size(); ++i)
     {
-        const STWarp* w = &script->m_warps[i];
-        STWarp defaultWarp;                      // ORIG 循环体内 C1
         fwrite("[warp attack]\n", 1, 0xe, file);
-        if (w->m_field00 != defaultWarp.m_field00)
-            fprintf(file, "`[function index]` %d\n", w->m_field00);
-        if (w->m_field04 != defaultWarp.m_field04)
-            fprintf(file, "`[attack index]` %d\n", w->m_field04);
-        if (w->m_field08 != defaultWarp.m_field08)
-            fprintf(file, "`[warp style]` %d\n", w->m_field08);
-        if (w->m_field14 != defaultWarp.m_field14)
-            fprintf(file, "`[target offset]` %d\n", w->m_field14);
-        if (w->m_field10 != defaultWarp.m_field10)
-            fprintf(file, "`[after attack]` %d\n", w->m_field10);
-        if (w->m_field0c != defaultWarp.m_field0c)
-            fprintf(file, "`[after appear time]` %d\n", w->m_field0c);
-        if (w->m_field18 != defaultWarp.m_field18)
-            fprintf(file, "`[cool time]` %d\n", w->m_field18);
-        if (w->m_field1c != defaultWarp.m_field1c)
-            fprintf(file, "`[passive object index]` %d\n", w->m_field1c);
-        if (w->m_field20 != defaultWarp.m_field20)
+        STWarp defaultWarp;                      // ORIG 循环体内 C1 → 后 ix
+        const STWarp w = script->m_warps[i];     // ORIG 08a26996：值拷贝（9 槽）
+        if (w.m_field00 != defaultWarp.m_field00)
+            fprintf(file, "`[function index]` %d\n", w.m_field00);
+        if (w.m_field04 != defaultWarp.m_field04)
+            fprintf(file, "`[attack index]` %d\n", w.m_field04);
+        if (w.m_field08 != defaultWarp.m_field08)
+            fprintf(file, "`[warp style]` %d\n", w.m_field08);
+        // ORIG 08a26xxx 实证字段映射：target offset=+0x18、after attack=+0x0c、
+        // after appear time=+0x10、cool time=+0x14（按此输出序）
+        if (w.m_field18 != defaultWarp.m_field18)
+            fprintf(file, "`[target offset]` %d\n", w.m_field18);
+        if (w.m_field0c != defaultWarp.m_field0c)
+            fprintf(file, "`[after attack]` %d\n", w.m_field0c);
+        if (w.m_field10 != defaultWarp.m_field10)
+            fprintf(file, "`[after appear time]` %d\n", w.m_field10);
+        if (w.m_field14 != defaultWarp.m_field14)
+            fprintf(file, "`[cool time]` %d\n", w.m_field14);
+        if (w.m_field1c != defaultWarp.m_field1c)
+            fprintf(file, "`[passive object index]` %d\n", w.m_field1c);
+        if (w.m_field20 != defaultWarp.m_field20)
         {
             fwrite("`[category of target]`", 1, 0x16, file);
-            if (w->m_field20 == -2)
+            // ORIG 08a26ba0 switch(-2,null; -1,all; default,string)
+            switch (w.m_field20)
+            {
+            case -2:
                 fwrite(" `null`\n", 1, 8, file);
-            else if (w->m_field20 == -1)
+                break;
+            case -1:
                 fwrite(" `all`\n", 1, 7, file);
-            else
+                break;
+            default:
             {
                 std::string cat(getObjectCategoryString(
-                    (ENUM_CATEGORY)w->m_field20));
+                    (ENUM_CATEGORY)w.m_field20));
                 fprintf(file, " `%s`\n", cat.c_str());
+            }
+            break;
             }
         }
         fwrite("[/warp attack]\n", 1, 0xf, file);
@@ -2701,30 +5264,47 @@ bool exportMonsterScript(
     {
         for (unsigned int i = 0; i < script->m_eventSupers.size(); ++i)
         {
-            const STEventSuper* es = &script->m_eventSupers[i];
             fwrite("[event super on scr]\n", 1, 0x15, file);
-            if (es->m_field00 == 0)
-                fprintf(file, "`[on time]` %d %d %d\n", es->m_field08,
-                        es->m_field0c, es->m_field10 ? 1 : 0);
-            else if (es->m_field00 == 1)
-                fprintf(file, "`[on hp]` %d %d %d\n", es->m_field08,
-                        es->m_field0c, es->m_field10 ? 1 : 0);
-            else if (es->m_field00 == 2)
-                fprintf(file, "`[always]` %d %d\n", es->m_field08,
-                        es->m_field10 ? 1 : 0);
-            else if (es->m_field00 == 3)
-                fprintf(file, "`[counter]` %d %d %d\n", es->m_field08,
-                        es->m_field0c, es->m_field10 ? 1 : 0);
-            if (es->m_field04 == 0)
-                fprintf(file, "`[breakable]` %d %d %d %d\n", es->m_field18,
-                        es->m_field1c, es->m_field20, es->m_field24 ? 1 : 0);
-            else if (es->m_field04 == 1)
-                fprintf(file, "`[half]` %d %d %d %d\n", es->m_field18,
-                        es->m_field1c, es->m_field20, es->m_field24 ? 1 : 0);
-            else if (es->m_field04 == 2)
-                fprintf(file, "`[unbreakable]` %d %d %d %d\n", es->m_field18,
-                        es->m_field1c, es->m_field20, es->m_field24 ? 1 : 0);
-            if (es->m_field24)
+            const STEventSuper es = script->m_eventSupers[i];  // ORIG 08a26d2e：值拷贝
+            // ORIG 08a26d88：switch 二分决策树（根=1，je HP / jg{2,3} / else 0）
+            switch (es.m_field00)
+            {
+            case 0:
+                fprintf(file, "`[on time]` %d %d %d\n", es.m_field08,
+                        es.m_field0c, es.m_field10);
+                break;
+            case 1:
+                fprintf(file, "`[on hp]` %d %d %d\n", es.m_field08,
+                        es.m_field0c, es.m_field10);
+                break;
+            case 2:
+                fprintf(file, "`[always]` %d %d\n", es.m_field08,
+                        es.m_field10);
+                break;
+            case 3:
+                fprintf(file, "`[counter]` %d %d %d\n", es.m_field08,
+                        es.m_field0c, es.m_field10);
+                break;
+            }
+            // ORIG 08a26eb3 实证：%d×4 = f14、f18、f1c、f20（非 f24）
+            // ORIG 08a26e97 switch 线性决策（cmp1 je; cmp2 je; test 0 fall）
+            switch (es.m_field04)
+            {
+            case 0:
+                fprintf(file, "`[breakable]` %d %d %d %d\n", es.m_field14,
+                        es.m_field18, es.m_field1c, es.m_field20);
+                break;
+            case 1:
+                fprintf(file, "`[half]` %d %d %d %d\n", es.m_field14,
+                        es.m_field18, es.m_field1c, es.m_field20);
+                break;
+            case 2:
+                fprintf(file, "`[unbreakable]` %d %d %d %d\n", es.m_field14,
+                        es.m_field18, es.m_field1c, es.m_field20);
+                break;
+            }
+            // ORIG 此处重做下标读取 +0x24（不复用拷贝缓存）
+            if (script->m_eventSupers[i].m_field24)
                 fwrite("`[with blast]`\n", 1, 0xf, file);
             fwrite("[/event super on scr]\n", 1, 0x16, file);
         }
@@ -2735,16 +5315,23 @@ bool exportMonsterScript(
         fwrite("[atk super on scr]\n", 1, 0x13, file);
         for (unsigned int i = 0; i < script->m_atkSupers.size(); ++i)
         {
-            const STAtkSuper* as = &script->m_atkSupers[i];
-            fprintf(file, "%d", as->m_field04);
-            if (as->m_field00 == 0xd)
+            const STAtkSuper as = script->m_atkSupers[i];  // ORIG 08a27073：值拷贝（6 槽）
+            fprintf(file, "%d", as.m_field04);
+            // ORIG 08a270c8 switch 二分（cmp 0xe je; cmp 0xf je; cmp 0xd jne）
+            switch (as.m_field00)
+            {
+            case 0xd:
                 fwrite(" `[breakable]`", 1, 0xe, file);
-            else if (as->m_field00 == 0xe)
+                break;
+            case 0xe:
                 fwrite(" `[half]`", 1, 9, file);
-            else if (as->m_field00 == 0xf)
+                break;
+            case 0xf:
                 fwrite(" `[unbreakable]`", 1, 0x10, file);
-            fprintf(file, " %d %d %d %d\n", as->m_field08, as->m_field0c,
-                    as->m_field10, as->m_field14);
+                break;
+            }
+            fprintf(file, " %d %d %d %d\n", as.m_field08, as.m_field0c,
+                    as.m_field10, as.m_field14);
         }
         fwrite("[/atk super on scr]\n", 1, 0x14, file);
     }
@@ -2752,9 +5339,9 @@ bool exportMonsterScript(
     if (!script->m_coolTimes.empty())
     {
         fwrite("[cooltime]\n", 1, 0xb, file);
-        const STCoolTime& ct = script->m_coolTimes.front();
-        for (unsigned int i = 0; i < ct.m_field04.size(); ++i)
-            fprintf(file, "%d\n", ct.m_field04[i]);
+        // ORIG 条件与体内各自重新求值 front()（P38）
+        for (unsigned int i = 0; i < script->m_coolTimes.front().m_field04.size(); ++i)
+            fprintf(file, "%d\n", script->m_coolTimes.front().m_field04[i]);
         fwrite("[/cooltime]\n", 1, 0xc, file);
     }
     // ---- [spawn prob] ----
@@ -2769,44 +5356,50 @@ bool exportMonsterScript(
     if (!script->m_flag368)
         fwrite("[is grabable] 0\n", 1, 0x10, file);
     // ---- [think term]/[destination change term]（m_aiInfo）----
-    if (script->m_aiInfo.m_thinkTerm != defaultScript.m_aiInfo.m_thinkTerm)
-        fprintf(file, "[think term] %d\n", script->m_aiInfo.m_thinkTerm);
-    if (script->m_aiInfo.m_destinationChangeTerm !=
+    STAIInfoScript* aiInfo = &script->m_aiInfo;   // ORIG -0x128 命名指针槽
+    if (aiInfo->m_thinkTerm != defaultScript.m_aiInfo.m_thinkTerm)
+        fprintf(file, "[think term] %d\n", aiInfo->m_thinkTerm);
+    if (aiInfo->m_destinationChangeTerm !=
         defaultScript.m_aiInfo.m_destinationChangeTerm)
         fprintf(file, "[destination change term] %d\n",
-                script->m_aiInfo.m_destinationChangeTerm);
+                aiInfo->m_destinationChangeTerm);
     // ---- [ai pattern]：5 难度 ----
-    if (isExistAiPattern(&script->m_aiInfo, -1))
+    if (isExistAiPattern(aiInfo, -1))
     {
         fwrite("[ai pattern]\n", 1, 0xd, file);
-        if (isExistAiPattern(&script->m_aiInfo, 0))
+        int patternIdx = 0;                        // ORIG -0x80 命名槽
+        if (isExistAiPattern(aiInfo, patternIdx))
         {
             fwrite("[easy]\n", 1, 7, file);
-            exportAIPatternPath(file, &script->m_aiInfo, 0);
+            exportAIPatternPath(file, aiInfo, patternIdx);
             fwrite("[/easy]\n", 1, 8, file);
         }
-        if (isExistAiPattern(&script->m_aiInfo, 1))
+        patternIdx = 1;
+        if (isExistAiPattern(aiInfo, patternIdx))
         {
             fwrite("[medium]\n", 1, 9, file);
-            exportAIPatternPath(file, &script->m_aiInfo, 1);
+            exportAIPatternPath(file, aiInfo, patternIdx);
             fwrite("[/medium]\n", 1, 0xa, file);
         }
-        if (isExistAiPattern(&script->m_aiInfo, 2))
+        patternIdx = 2;
+        if (isExistAiPattern(aiInfo, patternIdx))
         {
             fwrite("[hard]\n", 1, 7, file);
-            exportAIPatternPath(file, &script->m_aiInfo, 2);
+            exportAIPatternPath(file, aiInfo, patternIdx);
             fwrite("[/hard]\n", 1, 8, file);
         }
-        if (isExistAiPattern(&script->m_aiInfo, 3))
+        patternIdx = 3;
+        if (isExistAiPattern(aiInfo, patternIdx))
         {
             fwrite("[ultimate]\n", 1, 0xb, file);
-            exportAIPatternPath(file, &script->m_aiInfo, 3);
+            exportAIPatternPath(file, aiInfo, patternIdx);
             fwrite("[/ultimate]\n", 1, 0xc, file);
         }
-        if (isExistAiPattern(&script->m_aiInfo, 4))
+        patternIdx = 4;
+        if (isExistAiPattern(aiInfo, patternIdx))
         {
             fwrite("[hero]\n", 1, 7, file);
-            exportAIPatternPath(file, &script->m_aiInfo, 4);
+            exportAIPatternPath(file, aiInfo, patternIdx);
             fwrite("[/hero]\n", 1, 8, file);
         }
         fwrite("[/ai pattern]\n\n", 1, 0xf, file);
@@ -2816,76 +5409,87 @@ bool exportMonsterScript(
         bool anyBonus = false;
         for (int i = 0; i <= 0x15; ++i)
         {
+            // ORIG 08a27756：无 break——置位后仍跑完 22 轮（je 跳过置位直落增量）
             if (!script->m_aiInfo.m_targetingBonusStr[i].empty())
-            {
                 anyBonus = true;
-                break;
-            }
         }
         if (anyBonus)
         {
             fwrite("[targeting bonus]\n", 1, 0x12, file);
             for (int i = 0; i <= 0x15; ++i)
             {
-                fprintf(file, "%d ", script->m_aiInfo.m_targetingBonus[i]);
+                // ORIG 08a277b0：此两处走 **this 基址**（script->m_aiInfo.x），非 aiInfo 指针
+                int bonus = script->m_aiInfo.m_targetingBonus[i];   // ORIG -0x74
+                fprintf(file, "%d ", bonus);
                 for (unsigned int j = 0;
                      j < script->m_aiInfo.m_targetingBonusStr[i].size(); ++j)
                 {
-                    int v = script->m_aiInfo.m_targetingBonusStr[i][j];
-                    if (i == 0x14)
+                    int v = script->m_aiInfo.m_targetingBonusStr[i][j];   // ORIG -0x6c
+                    // ORIG 08a277e6：switch 双 case（单 load i + 双 je 前跳）
+                    switch (i)
+                    {
+                    case 0x14:
                         fprintf(file, "`%s` ", ACTIVEOBJECT_STATE_STRING[v]);
-                    else if (i == 0x15)
+                        break;
+                    case 0x15:
                         fprintf(file, "`%s` ", ACTIVESTATUS_ATTACK_TAG[v]);
+                        break;
+                    }
                 }
-                if (i == 0x14 || i == 0x15)
-                    fputc(' ', file);
+                if ((unsigned int)(i - 0x14) < 2)   // ORIG 08a2789b：sub/cmp/ja
+                    fputc('0', file);   // ORIG 08a278b0：字面量 0x30（'0'）
                 fputc('\n', file);
             }
             fwrite("[/targeting bonus]\n", 1, 0x13, file);
         }
     }
     // ---- [keep distance with target] ----
-    if (script->m_aiInfo.m_keepDistance !=
+    if (aiInfo->m_keepDistance !=
         defaultScript.m_aiInfo.m_keepDistance)
         fprintf(file, "[keep distance with target] %d\n",
-                script->m_aiInfo.m_keepDistance);
+                aiInfo->m_keepDistance);
     // ---- [keep range distance with target]（4 组 vector，i==0 带序号）----
-    for (unsigned int i = 0; i < script->m_aiInfo.m_keepRange[0].size(); ++i)
+    for (unsigned int i = 0; i < aiInfo->m_keepRange[0].size(); ++i)
     {
-        int v0 = script->m_aiInfo.m_keepRange[0][i];
-        int v1 = script->m_aiInfo.m_keepRange[1][i];
-        int v2 = script->m_aiInfo.m_keepRange[2][i];
-        int v3 = script->m_aiInfo.m_keepRange[3][i];
-        if (i == 0)
+        // ORIG 08a27953：主路径 i!=0（带 %d] 序号）；i==0 走 je 无序号块。
+        // 两分支各 4 次 operator[]（共 8 静态调用点，P38）；求值序 0x1d4→0x1b0。
+        if (i != 0)
             fprintf(file, "[keep range distance with target %d] %d %d %d %d\n",
-                    i, v0, v1, v2, v3);
+                    i,
+                    aiInfo->m_keepRange[0][i],
+                    aiInfo->m_keepRange[1][i],
+                    aiInfo->m_keepRange[2][i],
+                    aiInfo->m_keepRange[3][i]);
         else
             fprintf(file, "[keep range distance with target] %d %d %d %d\n",
-                    v0, v1, v2, v3);
+                    aiInfo->m_keepRange[0][i],
+                    aiInfo->m_keepRange[1][i],
+                    aiInfo->m_keepRange[2][i],
+                    aiInfo->m_keepRange[3][i]);
     }
     // ---- [warlike]（ORIG 用 m_aiInfo.m_intelligence 二次导出）----
-    if (script->m_aiInfo.m_intelligence !=
+    if (aiInfo->m_intelligence !=
         defaultScript.m_aiInfo.m_intelligence)
-        fprintf(file, "[warlike] %d\n", script->m_aiInfo.m_intelligence);
+        fprintf(file, "[warlike] %d\n", aiInfo->m_intelligence);
     // ---- [intelligence]/[vision]/[back vision] ----
-    if (script->m_aiInfo.m_intelligence !=
-            defaultScript.m_aiInfo.m_intelligence ||
-        script->m_aiInfo.m_field1f0 != defaultScript.m_aiInfo.m_field1f0 ||
-        script->m_aiInfo.m_field1f4 != defaultScript.m_aiInfo.m_field1f4)
+    // ORIG 08a27afe：条件仅比较 +0x1f0/+0x1f4（不含 intelligence）
+    if (aiInfo->m_field1f0 != defaultScript.m_aiInfo.m_field1f0 ||
+        aiInfo->m_field1f4 != defaultScript.m_aiInfo.m_field1f4)
         fprintf(file, "[intelligence] %d %d %d\n",
-                script->m_aiInfo.m_intelligence,
-                script->m_aiInfo.m_field1f0, script->m_aiInfo.m_field1f4);
-    if (script->m_aiInfo.m_vision != defaultScript.m_aiInfo.m_vision)
-        fprintf(file, "[vision] %d\n", script->m_aiInfo.m_vision);
-    if (script->m_aiInfo.m_backVision != defaultScript.m_aiInfo.m_backVision)
-        fprintf(file, "[back vision] %d\n", script->m_aiInfo.m_backVision);
+                aiInfo->m_intelligence,
+                aiInfo->m_field1f0, aiInfo->m_field1f4);
+    if (aiInfo->m_vision != defaultScript.m_aiInfo.m_vision)
+        fprintf(file, "[vision] %d\n", aiInfo->m_vision);
+    if (aiInfo->m_backVision != defaultScript.m_aiInfo.m_backVision)
+        fprintf(file, "[back vision] %d\n", aiInfo->m_backVision);
     // ---- [reflection object] +0xc80/+0xc8c ----
     if (!script->m_fieldc8c.empty())
     {
         fwrite("[reflection object]\n", 1, 0x14, file);
         for (unsigned int i = 0; i < script->m_fieldc8c.size(); ++i)
-            fprintf(file, "%d %d\n", script->m_fieldc80[i],
-                    script->m_fieldc8c[i]);
+            // ORIG 08a27c66：先 c8c[i] 后 c80[i]（先求值 c80→ebx）
+            fprintf(file, "%d %d\n", script->m_fieldc8c[i],
+                    script->m_fieldc80[i]);
         fwrite("[/reflection object]\n", 1, 0x15, file);
     }
     // ---- [set damage check] / [is direction to move] ----
@@ -2909,11 +5513,9 @@ bool exportMonsterScript(
         bool anyLie = false;
         for (int i = 0; i <= 4; ++i)
         {
+            // ORIG 08a27e27：无 break，全 5 轮跑完（仅置位）
             if (script->m_fieldc5c[i] != defaultScript.m_fieldc5c[i])
-            {
                 anyLie = true;
-                break;
-            }
         }
         if (anyLie)
         {
@@ -2938,8 +5540,8 @@ bool exportMonsterScript(
     // ---- [overhead gauge type]/[overhead gauge pos]/[flying mark] ----
     if (script->m_fieldc74 != defaultScript.m_fieldc74)
         fprintf(file, "[overhead gauge type] %d\n", script->m_fieldc74);
-    if (script->m_fieldc78 != defaultScript.m_fieldc78 ||
-        script->m_fieldc7c != defaultScript.m_fieldc7c)
+    if (script->m_fieldc78 != defaultScript.m_fieldc78 &&
+        script->m_fieldc7c != defaultScript.m_fieldc7c)   // ORIG 08a2803b：&&
         fprintf(file, "[overhead gauge pos] %d %d\n",
                 script->m_fieldc78, script->m_fieldc7c);
     if (script->m_flagc70 != defaultScript.m_flagc70)
@@ -2952,10 +5554,11 @@ bool exportMonsterScript(
     if (!script->m_initialTargets.empty())
     {
         fwrite("[initial target]\n", 1, 0x11, file);
-        for (std::deque<STInitialTarget>::const_iterator it =
+        // ORIG：非 const iterator；两字段各解引用一次（P38）
+        for (std::deque<STInitialTarget>::iterator it =
                  script->m_initialTargets.begin();
              it != script->m_initialTargets.end(); ++it)
-            fprintf(file, "%s %d\n", it->m_field04.c_str(), it->m_field00);
+            fprintf(file, "%s %d\n", (*it).m_field04.c_str(), (*it).m_field00);
         fwrite("[/initial target]\n", 1, 0x12, file);
     }
     // ---- [level of difficulty] +0xf0（5 项）----
@@ -2999,9 +5602,9 @@ bool exportMonsterScript(
     if (!script->m_patterns.empty())
     {
         fwrite("[pattern]\n", 1, 0xa, file);
-        const std::vector<int>& first = script->m_patterns.front();
-        for (unsigned int i = 0; i < first.size(); ++i)
-            fprintf(file, "%d\n", first[i]);
+        // ORIG 条件与体内各自重新求值 front()（P38）
+        for (unsigned int i = 0; i < script->m_patterns.front().size(); ++i)
+            fprintf(file, "%d\n", script->m_patterns.front()[i]);
         fwrite("[/pattern]\n", 1, 0xb, file);
     }
     // ---- [fix direction] +0xcd4/+0xcd8 ----
@@ -3010,10 +5613,16 @@ bool exportMonsterScript(
         std::string dir = "";
         if (script->m_fieldcd8 != defaultScript.m_fieldcd8)
         {
-            if (script->m_fieldcd8 == 0)
+            // ORIG 08a286e2 switch：单 load 入 eax + test je / cmp 1 je 前跳
+            switch (script->m_fieldcd8)
+            {
+            case 0:
                 dir = "[left]";
-            else if (script->m_fieldcd8 == 1)
+                break;
+            case 1:
                 dir = "[right]";
+                break;
+            }
         }
         if (dir == "")
             fwrite("[fix direction] 1\n", 1, 0x12, file);
@@ -3057,18 +5666,16 @@ bool exportMonsterScript(
         bool anyProb = false;
         for (unsigned int i = 0; i < script->m_attackMethods.size(); ++i)
         {
-            if (*(const float*)&script->m_attackMethods[i].m_field04 != 0.0f)
-            {
+            // ORIG 08a28a6b：无 break，逐轮置位（flds+cmp0 经 or 物化）
+            if (script->m_attackMethods[i].m_field04 != 0.0f)
                 anyProb = true;
-                break;
-            }
         }
         if (anyProb)
         {
             fwrite("[attack down prob]\n", 1, 0x13, file);
             for (unsigned int i = 0; i < script->m_attackMethods.size(); ++i)
                 fprintf(file, "%f\n",
-                        (double)*(const float*)&script->m_attackMethods[i].m_field04);
+                        (double)script->m_attackMethods[i].m_field04);
             fwrite("[/attack down prob]\n", 1, 0x14, file);
         }
     }
@@ -3091,15 +5698,11 @@ bool exportMonsterScript(
         fwrite("[catch item]\n", 1, 0xd, file);
         for (unsigned int i = 0; i < script->m_catchItems.size(); ++i)
         {
-            const CatchItemInfo* ci = &script->m_catchItems[i];
-            union
-            {
-                double d;
-                int low;
-            } f8;
-            f8.d = *(const float*)&ci->m_field8;   // flds→fstpl 双精度
-            fprintf(file, "%d %d %d\n", ci->m_field0, ci->m_field4,
-                    f8.low);                       // %d 读低 4 字节
+            // ORIG 逐字段重做下标（f8→f4→f0 求值序）；f8 flds→fstpl 双精度
+            // 槽（-0x2f60），传参时 fldl/fstpl 二次物化 ⇒ 实参为 double 值。
+            fprintf(file, "%d %d %d\n", script->m_catchItems[i].m_field0,
+                    script->m_catchItems[i].m_field4,
+                    (double)script->m_catchItems[i].m_field8);
         }
         fwrite("[/catch item]\n", 1, 0xe, file);
     }
@@ -3109,12 +5712,28 @@ bool exportMonsterScript(
     if (!script->m_field1cb4.empty())
     {
         fwrite("[can beat index]\n", 1, 0x11, file);
-        for (std::vector<int>::const_iterator it =
+        // ORIG：非 const iterator + 前置 ++（ppEv 实证）
+        for (std::vector<int>::iterator it =
                  script->m_field1cb4.begin();
              it != script->m_field1cb4.end(); ++it)
             fprintf(file, "%d\n", *it);
         fwrite("[/can beat index]\n", 1, 0x12, file);
     }
+    // ---- [control passive object] 判定（ORIG 08a28e64：bool 组在 mounting 之前算，
+    //      函数级无块作用域，槽 -0x120..-0x115）----
+    bool cpoIndex   = script->m_field658 != defaultScript.m_field658;
+    bool cpoX       = script->m_field65c != defaultScript.m_field65c;
+    bool cpoY       = script->m_field660 != defaultScript.m_field660;
+    bool cpoW       = script->m_field664 != defaultScript.m_field664;
+    bool cpoH       = script->m_field668 != defaultScript.m_field668;
+    bool cpoVelX    = script->m_field66c != defaultScript.m_field66c;
+    bool cpoVelY    = script->m_field670 != defaultScript.m_field670;
+    bool cpoMaster  = script->m_field678 != defaultScript.m_field678;
+    bool cpoOthers  = script->m_field67c != defaultScript.m_field67c;
+    bool cpoInherit = script->m_field680 != defaultScript.m_field680;
+    // ORIG 08a28f7a：transp 以短路 || 物化（mov $1/$0）先于 fix 计算（槽序 -0x116/-0x115）
+    bool cpoTransp  = cpoMaster || cpoOthers || cpoInherit;
+    bool cpoFix     = script->m_field684 != defaultScript.m_field684;
     // ---- [mounting action]/[mounted action]/[unmounting action]（size!=0）----
     if (script->m_mountingAction.size() != 0)
         fprintf(file, "[mounting action] `%s`\n",
@@ -3125,20 +5744,8 @@ bool exportMonsterScript(
     if (script->m_unmountingAction.size() != 0)
         fprintf(file, "[unmounting action] `%s`\n",
                 script->m_unmountingAction.c_str());
-    // ---- [control passive object]（0x658..0x684 逐字段与默认比较）----
     {
-        bool cpoIndex   = script->m_field658 != defaultScript.m_field658;
-        bool cpoX       = script->m_field65c != defaultScript.m_field65c;
-        bool cpoY       = script->m_field660 != defaultScript.m_field660;
-        bool cpoW       = script->m_field664 != defaultScript.m_field664;
-        bool cpoH       = script->m_field668 != defaultScript.m_field668;
-        bool cpoVelX    = script->m_field66c != defaultScript.m_field66c;
-        bool cpoVelY    = script->m_field670 != defaultScript.m_field670;
-        bool cpoMaster  = script->m_field678 != defaultScript.m_field678;
-        bool cpoOthers  = script->m_field67c != defaultScript.m_field67c;
-        bool cpoInherit = script->m_field680 != defaultScript.m_field680;
-        bool cpoFix     = script->m_field684 != defaultScript.m_field684;
-        bool cpoTransp  = cpoMaster || cpoOthers || cpoInherit;
+        // ORIG 08a290c0：主 OR 链 …,vely(-0x11a) → fix(-0x115) → transp(-0x116)
         if (cpoIndex || cpoX || cpoY || cpoW || cpoH || cpoVelX || cpoVelY ||
             cpoFix || cpoTransp)
         {
@@ -3173,10 +5780,16 @@ bool exportMonsterScript(
             if (cpoFix)
             {
                 std::string dir;
-                if (script->m_field684 == 0)
+                // ORIG 08a29334 switch：单 load + test je / cmp1 je 前跳
+                switch (script->m_field684)
+                {
+                case 0:
                     dir = "[left]";
-                else if (script->m_field684 == 1)
+                    break;
+                case 1:
                     dir = "[right]";
+                    break;
+                }
                 fprintf(file, "\t[fix direction] `%s`\n", dir.c_str());
             }
             if (script->m_field674)
@@ -3187,38 +5800,47 @@ bool exportMonsterScript(
     // ---- [ridableskill definition] +0xcdc（8 技能槽）----
     for (unsigned int i = 0; i < script->m_ridableSkills.size(); ++i)
     {
-        const STRidableSkill* rs = &script->m_ridableSkills[i];
-        static const char* const s_skillType[6] = {
-            "`normal`", "`defaultcancel`", "`movable`",
-            "`charge`", "`evasion`", "`super`"
-        };
         fwrite("[ridableskill definition]\n", 1, 0x1a, file);
-        fprintf(file, "\t[pattern] %d\n", rs->m_field00);
+        fprintf(file, "\t[pattern] %d\n", script->m_ridableSkills[i].m_field00);
         fwrite("\t[image path] ", 1, 0xe, file);
-        std::string img = "``";
-        if (!rs->m_name.empty())
-            img = rs->m_name;
+        std::string img("``");
+        if (!script->m_ridableSkills[i].m_name.empty())
+            img = script->m_ridableSkills[i].m_name.c_str();
         fprintf(file, "`%s`\n", img.c_str());
         fwrite("\t[skill]\n", 1, 9, file);
         for (int j = 0; j <= 7; ++j)
         {
+            // ORIG 每轮一次 operator[] 拷指针，随后字段经该指针访问
+            STRidableSkill* rs = &script->m_ridableSkills[i];
             fprintf(file, "\t\t%d", rs->m_field08[j]);
             fprintf(file, " %d", rs->m_fielda8[j]);
-            const char* typeName = "normal";
-            if (rs->m_field88[j] <= 5)
-                typeName = s_skillType[rs->m_field88[j]];
-            fprintf(file, " %s", typeName);
-            if (rs->m_field88[j] <= 5)
+            std::string typeName = "normal";
+            switch (rs->m_field88[j])
             {
-                int type = rs->m_field88[j];
-                if (type == 0 || type == 1 || type == 2 || type == 4 ||
-                    type == 5)
+            case 0: typeName = "`normal`"; break;
+            case 1: typeName = "`defaultcancel`"; break;
+            case 2: typeName = "`movable`"; break;
+            case 3: typeName = "`charge`"; break;
+            case 4: typeName = "`evasion`"; break;
+            case 5: typeName = "`super`"; break;
+            default: break;
+            }
+            fprintf(file, " %s", typeName.c_str());
+            // ORIG 08a29735：switch 用表达式（load#1）；此处 register type 重新
+            // load（load#2 入 eax），随后 cmp $5 与 shl 复用同一寄存器值。
+            register unsigned int type = (unsigned int)rs->m_field88[j];
+            if (type < 6)
+            {
+                // ORIG 08a2974b-08a29766：bits 常驻 ebx（register 局部，不落栈槽）
+                register unsigned int bit = 1u << type;
+                if ((bit & 0x37u) != 0)
                 {
-                    fprintf(file, " %d", (int)rs->m_levels[j].size());
-                    for (unsigned int k = 0; k < rs->m_levels[j].size(); ++k)
+                    int cnt = (int)rs->m_levels[j].size();
+                    fprintf(file, " %d", cnt);
+                    for (int k = 0; k < cnt; ++k)
                         fprintf(file, " %d", rs->m_levels[j][k]);
                 }
-                else if (type == 3)
+                else if ((bit & 8u) != 0)
                     fprintf(file, " %d %d", rs->m_fieldc8[j],
                             rs->m_fielde8[j]);
             }
@@ -3229,48 +5851,73 @@ bool exportMonsterScript(
     // ---- [ridableskill explanation] +0xce8 ----
     for (unsigned int i = 0; i < script->m_ridableSkillExplains.size(); ++i)
     {
-        const STRidableSkillExplain* se = &script->m_ridableSkillExplains[i];
         fwrite("[ridableskill explanation]\n", 1, 0x1b, file);
-        fprintf(file, "\t[pattern] %d\n", se->m_field10);
-        if (!se->m_field00.empty())
+        fprintf(file, "\t[pattern] %d\n",
+                script->m_ridableSkillExplains[i].m_field10);
+        // ORIG 每字段：key=0 在 if 外初始化（08a298xx），命中后 key=c_str()，
+        // getTagByName 第2参重做 c_str()、第3参用 key 槽（P38+P15）
+        // ORIG 四段共用**同一** key 槽（-0x28 复用）：单声明 + 每段前手动置 0
+        const wchar_t* key = 0;
+        if (!script->m_ridableSkillExplains[i].m_field00.empty())
+        {
+            key = (const wchar_t*)script->m_ridableSkillExplains[i].m_field00.c_str();
             fprintf(file, "\t[title] %s\n",
                     toTString(g_scriptStringManager_.getTagByName(
-                        7, (const wchar_t*)se->m_field00.c_str(),
-                        (const wchar_t*)se->m_field00.c_str(), false)));
-        if (!se->m_field04.empty())
+                        7,
+                        (const wchar_t*)script->m_ridableSkillExplains[i].m_field00.c_str(),
+                        key, false)));
+        }
+        if (!script->m_ridableSkillExplains[i].m_field04.empty())
+        {
+            key = (const wchar_t*)script->m_ridableSkillExplains[i].m_field04.c_str();
             fprintf(file, "\t[subtitle] %s\n",
                     toTString(g_scriptStringManager_.getTagByName(
-                        7, (const wchar_t*)se->m_field04.c_str(),
-                        (const wchar_t*)se->m_field04.c_str(), false)));
-        if (!se->m_field08.empty())
+                        7,
+                        (const wchar_t*)script->m_ridableSkillExplains[i].m_field04.c_str(),
+                        key, false)));
+        }
+        if (!script->m_ridableSkillExplains[i].m_field08.empty())
+        {
+            key = (const wchar_t*)script->m_ridableSkillExplains[i].m_field08.c_str();
             fprintf(file, "\t[category] %s\n",
                     toTString(g_scriptStringManager_.getTagByName(
-                        7, (const wchar_t*)se->m_field08.c_str(),
-                        (const wchar_t*)se->m_field08.c_str(), false)));
-        if (!se->m_field0c.empty())
+                        7,
+                        (const wchar_t*)script->m_ridableSkillExplains[i].m_field08.c_str(),
+                        key, false)));
+        }
+        if (!script->m_ridableSkillExplains[i].m_field0c.empty())
+        {
+            key = (const wchar_t*)script->m_ridableSkillExplains[i].m_field0c.c_str();
             fprintf(file, "\t[detail] %s\n",
                     toTString(g_scriptStringManager_.getTagByName(
-                        7, (const wchar_t*)se->m_field0c.c_str(),
-                        (const wchar_t*)se->m_field0c.c_str(), false)));
+                        7,
+                        (const wchar_t*)script->m_ridableSkillExplains[i].m_field0c.c_str(),
+                        key, false)));
+        }
         fwrite("[/ridableskill explanation]\n\n", 1, 0x1d, file);
     }
     // ---- [physical attack besed on diff]（0xcf4 != -1.0f；200 行 ×5）----
     if (script->m_difficultyScales[0][0] != -1.0f)
     {
         fwrite("[physical attack besed on diff]\n", 1, 0x20, file);
-        for (int i = 0; i <= 0xc7; ++i)
+        // ORIG 08a29d21/08a29df2：while (i < 200 && 0.0 <= scales[i][0])，
+        // cond1 在 ++i 后（loop 尾 setle 物化），cond2 在 body 头（fucompp+sete）
+        int diffRow = 0;
+        while (diffRow < 200)
         {
-            if (script->m_difficultyScales[i][1] != 0.0f)
+            if (!(0.0f <= script->m_difficultyScales[diffRow][0]))
+                break;
+            fprintf(file, "%d", diffRow + 1);
+            for (int col = 0; col <= 4; ++col)
             {
-                fprintf(file, "%d", i + 1);
-                for (int j = 0; j <= 4; ++j)
-                {
-                    fputc('\t', file);
-                    fprintf(file, "%.2f",
-                            (double)script->m_difficultyScales[i][j]);
-                }
-                fputc('\n', file);
+                fputc('\t', file);
+                // ORIG 08a29d8e：rate 命名 float 槽（mov %eax,-0x1c; flds -0x1c）
+                float rate = script->m_difficultyScales[diffRow][col];
+                fprintf(file, "%.2f",
+                        (double)rate);
             }
+            fputc('\n', file);
+            ++diffRow;
         }
         fwrite("[/physical attack besed on diff]\n", 1, 0x21, file);
     }

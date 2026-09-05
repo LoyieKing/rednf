@@ -16,9 +16,9 @@ static const int GUILD_ADDRESS_DOUBLE_CHECK = 4;
 // find(uid)；end → 0，否则 it->second。
 CUser* getUser(unsigned int uid)
 {
-    std::map<unsigned int, CUser*>& m = G_CGameManager()->getUserByAccId2Map();
-    std::map<unsigned int, CUser*>::const_iterator it = m.find(uid);
-    if (it == m.end())
+    // ORIG 0x084bb9cf：无 m 引用槽，find/end 各自 call G_CGameManager + lea 0x244(%eax)（P48 双臂独立求值）
+    std::map<unsigned int, CUser*>::const_iterator it = G_CGameManager()->m_userByAccId2.find(uid);
+    if (it == G_CGameManager()->m_userByAccId2.end())
         return 0;
     return it->second;
 }
@@ -98,6 +98,7 @@ public:
 #include "CLeagueMatch.h"            // CLeagueMatch::GetPlayCountPerOneTeam/GetBattleMode
 #include "COnTimeEvent.h"            // COnTimeEvent（OnTimeEventReward*）
 #include "CQuestShop.h"              // CQuestShop/CHARAC_QUEST_SHOP_DATA（RequestTagCharacInfo）
+#include "SkillSlot.h"               // STGuildDBInfoPacketView（GetGuildDBInfo 视图字段化）
 #include "TowerOfDespairMgr.h"       // TowerOfDespairMgr/_APCInfo（TOD_Reload_APC）
 #include "CHackAnalyzer.h"           // ENUM_HACKTYPE（SetARSInfo）
 #include "CCirculationStatistic.h"   // GetInstanceCirculationStatistic/CIRCULATION_STATISTIC_FIELD
@@ -603,9 +604,19 @@ int Inter_Disconnect::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_SessionClose::~Inter_SessionClose() {}
 // ORIG 0x084c7af0 T dispatch_sig —— 监控侧会话强制关闭。
 // 报告 docs/class_func_reports/Inter_SessionClose/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SessionClosePktView —— Inter_SessionClose::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_SessionClosePktView
+{
+    unsigned int m_0;         // +0x00
+};
+#pragma pack(pop)
+
 int Inter_SessionClose::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    const unsigned int accId = *reinterpret_cast<unsigned int*>(data);
+    Inter_SessionClosePktView* pPkt = reinterpret_cast<Inter_SessionClosePktView*>(data);
+    const unsigned int accId = pPkt->m_0;
     CUser* target = G_CGameManager()->GetUserByAccId(accId);
     if (target != 0)
     {
@@ -832,8 +843,8 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         Stream* stream = GlobalData::s_stream_pool->Acquire(
             "InterDispatcher.cpp", 0x1c7e);
         CStreamGuard streamGuard(stream, true);
-        streamGuard << 0x12e;
-        streamGuard << static_cast<int>(user->GetUID());
+        streamGuard.operator*()->operator<<(0x12e);
+        streamGuard.operator*()->operator<<(static_cast<int>(user->GetUID()));
         SIG_REQ_LOAD_GAME_OPTION* gameOption =
             streamGuard->GetInBuffer<SIG_REQ_LOAD_GAME_OPTION>();
         gameOption->m_accId = user->get_acc_id();
@@ -913,14 +924,15 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 
         user->GetGoldControl()->SetInfo(pInfo->m_goldInfo);
 
-        // 处罚信息回放 A：有效期内的道具掉率提升（type==0x65）
-        long curSec = GlobalData::s_systemTime_.getCurSec();
+        // 处罚信息回放 A：有效期内的道具掉率提升（type==0x65）。
+        // ORIG:每处使用重新调用 getCurSec()（无缓存）。
         for (int i = 0; i < pInfo->m_punishInfoCount; ++i)
         {
             SIG_LOGIN_PUNISH_INFO& entry = pInfo->m_punishInfos[i];
             if (99 < entry.m_type && entry.m_type < 200)
             {
-                bool active = !(entry.m_endTime < curSec && entry.m_endTime != 0);
+                bool active = !(entry.m_endTime < GlobalData::s_systemTime_.getCurSec() &&
+                                entry.m_endTime != 0);
                 if (active && entry.m_type == 0x65)
                 {
                     user->setStdDropRate(entry.m_stdDropRate);
@@ -931,7 +943,8 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         for (int i = 0; i < pInfo->m_punishInfoCount; ++i)
         {
             SIG_LOGIN_PUNISH_INFO& entry = pInfo->m_punishInfos[i];
-            bool active = !(entry.m_endTime < curSec && entry.m_endTime != 0);
+            bool active = !(entry.m_endTime < GlobalData::s_systemTime_.getCurSec() &&
+                                entry.m_endTime != 0);
             if (!active)
             {
                 continue;
@@ -1025,35 +1038,34 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 
         if (pInfo->m_passPadEnable != false)             // GoblinPad 主流程
         {
-            Sanicova::CPad* pad = user->getPad();
-            pad->setActivate(true);
-            pad->setCancelCnt(pInfo->m_passPadCancelCnt);
-            pad->setVersionInfo(pInfo->m_passPadVersion);
-            pad->setCertified(pInfo->m_passPadCertified != false);
-            pad->setCheckTime(pInfo->m_passPadCheckTime);
+            // ORIG:每处使用重新调用 getPad()（无缓存）。
+            user->getPad()->setActivate(true);
+            user->getPad()->setCancelCnt(pInfo->m_passPadCancelCnt);
+            user->getPad()->setVersionInfo(pInfo->m_passPadVersion);
+            user->getPad()->setCertified(pInfo->m_passPadCertified != false);
+            user->getPad()->setCheckTime(pInfo->m_passPadCheckTime);
             bool inWindow = CheckDailyScheduleTime(
                 G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-                pInfo->m_lastPlayTime, curSec);
+                pInfo->m_lastPlayTime,
+                GlobalData::s_systemTime_.getCurSec());
             if (!inWindow)
             {
-                pad->setFailCnt(pInfo->m_passPadFailCnt);
+                user->getPad()->setFailCnt(pInfo->m_passPadFailCnt);
             }
             else if (0 < pInfo->m_passPadFailCnt)
             {
-                pad->setFailCnt(0);
-                pad->setCancelCnt(0);
-                Sanicova::CPad* padReset = user->getPad();
+                user->getPad()->setFailCnt(0);
+                user->getPad()->setCancelCnt(0);
                 DB_PassPadUpdateFailCnt::makeRequest(user->get_acc_id(),
-                                              static_cast<unsigned int>(padReset->getFailCnt()),
+                                              static_cast<unsigned int>(user->getPad()->getFailCnt()),
                                               const_cast<char*>(user->getWebAddress()));
                 cMyTrace resetTrace(g_interLoginInfoSig, 0x1df5, 0);
                 resetTrace("GOBLIN PAD RESET OK!!!");
             }
             user->getPad()->setPassword(pInfo->m_passPadPassword);
-            XNuclear::CHades* hades = static_cast<XNuclear::CHades*>(
-                user->getHades());
-            hades->Send_Login();
-            hades->StdCateUpdate(3, 0);
+            // ORIG:每次使用重新调用 getHades()。
+            static_cast<XNuclear::CHades*>(user->getHades())->Send_Login();
+            static_cast<XNuclear::CHades*>(user->getHades())->StdCateUpdate(3, 0);
             user->getPad()->setAdvideChangePwd(
                 pInfo->m_passPadAdvideChangePwd != false);
         }
@@ -1085,8 +1097,8 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             Stream* monStream = GlobalData::s_stream_pool->Acquire(
                 "InterDispatcher.cpp", 0x1e3b);
             CStreamGuard monGuard(monStream, true);
-            monGuard << 0x41;
-            monGuard << static_cast<int>(user->GetUID());
+            monGuard.operator*()->operator<<(0x41);
+            monGuard.operator*()->operator<<(static_cast<int>(user->GetUID()));
             pkt.m_channelId = user->GetUID();
             pkt.m_dbid = user->get_acc_id();
             pkt.m_channel =
@@ -1127,7 +1139,8 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         int cleanPadBase = pInfo->m_cleanPadDecreaseCnt;
         if (!CheckDailyScheduleTime(
                 G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-                pInfo->m_lastPlayTime, curSec))
+                pInfo->m_lastPlayTime,
+                GlobalData::s_systemTime_.getCurSec()))
         {
             --pInfo->m_cleanPadDecreaseCnt;
         }
@@ -1223,8 +1236,15 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         }
         if (0 < pInfo->m_breakAwayDungeonClearCnt)
         {
-            user->setBreakAwayRewardOrder(static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(
-                pInfo->m_breakAwayRewardBoundA < pInfo->m_breakAwayRewardBoundB ? 1 : 3));
+            // ORIG:if/else 两分支各一次调用（静态双站点）。
+            if (pInfo->m_breakAwayRewardBoundA < pInfo->m_breakAwayRewardBoundB)
+            {
+                user->setBreakAwayRewardOrder(static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(1));
+            }
+            else
+            {
+                user->setBreakAwayRewardOrder(static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(3));
+            }
             user->setBreakAwayDungeonClearCnt(pInfo->m_breakAwayDungeonClearCnt);
             user->setBreakAwayQuestTime(pInfo->m_breakAwayQuestTime);
         }
@@ -1486,8 +1506,22 @@ Inter_DeleteCharac::~Inter_DeleteCharac() {}
 // 其余构造 Packet_Monitor_Charac_Delete 上报 monitor/guild 后本地删角色并刷基础信息。
 // 报告 docs/class_func_reports/Inter_DeleteCharac/dispatch_sig.md 全文转写。
 // msg 布局：+4 charNo(int) +8 result(int) +0xc guildKey(int) +0x10 eventCharacFlag(char)。
+#pragma pack(push, 1)
+// Inter_DeleteCharacPktView —— Inter_DeleteCharac::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_DeleteCharacPktView
+{
+    char m_pad0[0x4];  // +0x0..未消费
+    unsigned int m_4;               // +0x04
+    int m_8;                        // +0x08
+    unsigned int m_guildKey;        // +0x0c 语义名←函数头注释
+    unsigned char m_eventCharacFlag;// +0x10 语义名←函数头注释
+};
+#pragma pack(pop)
+
 int Inter_DeleteCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_DeleteCharacPktView* pPkt = reinterpret_cast<Inter_DeleteCharacPktView*>(data);
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0x812;
     if (!user->unlockDeleteCharac())                   // xor $1；!=1 → 拒绝
@@ -1496,7 +1530,7 @@ int Inter_DeleteCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     PacketGuard packet;
     packet.put_header(1, 6);
 
-    if (*reinterpret_cast<int*>(data + 8) == 1)
+    if (pPkt->m_8 == 1)
     {   // 正在删除保护期
         packet.put_byte(0);
         packet.put_byte(2);
@@ -1504,7 +1538,7 @@ int Inter_DeleteCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
         user->Send(packet);
         return 0x825;
     }
-    else if (*reinterpret_cast<int*>(data + 8) == 2)
+    else if (pPkt->m_8 == 2)
     {
         packet.put_byte(0);
         packet.put_byte(0x24);
@@ -1512,7 +1546,7 @@ int Inter_DeleteCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
         user->Send(packet);
         return 0;
     }
-    else if (*reinterpret_cast<int*>(data + 8) == 3)
+    else if (pPkt->m_8 == 3)
     {
         packet.put_byte(0);
         packet.put_byte(0xd5);
@@ -1523,8 +1557,8 @@ int Inter_DeleteCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     Packet_Monitor_Charac_Delete delMsg;               // ORIG C1 0x084e9318 W
     delMsg.m_accId = (unsigned int)user->get_acc_id();
-    delMsg.m_charNo = *reinterpret_cast<unsigned int*>(data + 4);
-    delMsg.m_guildKey = *reinterpret_cast<unsigned int*>(data + 0xc);
+    delMsg.m_charNo = pPkt->m_4;
+    delMsg.m_guildKey = pPkt->m_guildKey;
 
     CMonitorServerProxy* monitor =
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
@@ -1536,9 +1570,9 @@ int Inter_DeleteCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
         guild->SendTcpPacket((char*)&delMsg, 0x16);
     }
 
-    user->DeleteCharac(*reinterpret_cast<unsigned int*>(data + 4));
+    user->DeleteCharac(pPkt->m_4);
     packet.put_byte(1);
-    if (*reinterpret_cast<unsigned char*>(data + 0x10) == 0)
+    if (pPkt->m_eventCharacFlag == 0)
     {
         packet.put_byte(0);
     }
@@ -1564,16 +1598,44 @@ Inter_LoadCharac::~Inter_LoadCharac() {}
 // ORIG 0x084c3398 T dispatch_sig —— 登录加载角色。
 // 报告 docs/class_func_reports/Inter_LoadCharac/dispatch_sig.md 全文转写
 // （## 汇编 + ## 反编译 C）。
+#pragma pack(push, 1)
+// Inter_LoadCharacPktView —— Inter_LoadCharac::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_LoadCharacPktView
+{
+    char m_pad0[0x4];  // +0x0..未消费
+    unsigned int m_4;               // +0x04
+    int m_8;                        // +0x08
+    unsigned int m_c;               // +0x0c
+    char m_pad10[0x1e];  // +0x10..未消费
+    char m_2e;                      // +0x2e
+    char m_pad2f[0xf9];  // +0x2f..未消费
+    short m_128;                    // +0x128
+    char m_pad12a[0x1];
+    signed char m_12b;              // +0x12b
+    char m_pad12c[0xc];  // +0x12c..未消费
+    bool m_138;                     // +0x138
+    unsigned char m_139;            // +0x139
+    char m_13a;                     // +0x13a
+    char m_pad13b[0x5];  // +0x13b..未消费
+    unsigned int m_140;             // +0x140
+    char m_pad144[0x542];  // +0x144..未消费
+    unsigned int m_686;             // +0x686
+    unsigned char m_68a;            // +0x68a
+};
+#pragma pack(pop)
+
 int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_LoadCharacPktView* pPkt = reinterpret_cast<Inter_LoadCharacPktView*>(data);
     if (user->get_state() == 0)                        // state==0 → 0x13dd
         return 0x13dd;
-    if (*reinterpret_cast<int*>(data + 8) != 0)        // req field @+0x8 → 0x13e3
+    if (pPkt->m_8 != 0)        // req field @+0x8 → 0x13e3
         return 0x13e3;
 
     const unsigned int curAccId = (unsigned int)user->get_acc_id();
     const unsigned int reqAccId =                      // msg+0x140
-        *reinterpret_cast<unsigned int*>(data + 0x140);
+        pPkt->m_140;
     if (curAccId != reqAccId)
     {   // 异号 MID 记账：SIG_SAVE_SAME_MID_OTHER_CHAR_LOGIN_HACK
         Stream* stream =
@@ -1585,17 +1647,17 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
             guard.GetInBuffer<SIG_SAVE_SAME_MID_OTHER_CHAR_LOGIN_HACK>();
         sig->m_curAccId = curAccId;
         sig->m_reqAccId = reqAccId;
-        sig->m_characNo = *reinterpret_cast<unsigned int*>(data + 0xc);
+        sig->m_characNo = pPkt->m_c;
         user->m_network.GetPeerIP2(sig->m_peerIp, 0x14);   // +0x0c
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)4, guard);
         return 0x1405;
     }
 
-    if (*reinterpret_cast<char*>(data + 0x2e) == '\0')  // charac list 空检查
+    if (pPkt->m_2e == '\0')  // charac list 空检查
         return 0x140b;
 
     const unsigned int reqCharacNo =                   // msg+0x04
-        *reinterpret_cast<unsigned int*>(data + 4);
+        pPkt->m_4;
     const int slotIdx = user->get_charac_idx(reqCharacNo);
     if (slotIdx < 0 ||
         !user->setCharacInfoDetail(slotIdx, reqCharacNo,
@@ -1603,7 +1665,7 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
         return 0x1415;
 
     unsigned int tagCharacNo =                         // msg+0x686
-        *reinterpret_cast<unsigned int*>(data + 0x686);
+        pPkt->m_686;
     int tagIdx = user->get_charac_idx(tagCharacNo);
     if (tagCharacNo != 0 && tagIdx != -1)
     {
@@ -1613,7 +1675,7 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
             return 0x141f;
         // +0x14b7 strikerSkillIndex（_Charac_info 无此具名成员，沿 CUserOnlyOrig.cpp:5180 先例）
         *(unsigned char*)(&user->m_characList[slotIdx]) =
-            *reinterpret_cast<unsigned char*>(data + 0x68a);
+            pPkt->m_68a;
         // 修正：写实际目标地址 +0x14b7
     }
     user->SelectCharac(slotIdx, tagIdx);
@@ -1632,9 +1694,9 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (user->isCharacLinkBonusSetting((char)slotIdx))
         user->setCharacLinkBonusSetting(slotIdx, false);
     user->SetCurCharacEmotion(
-        *reinterpret_cast<short*>(data + 0x128));
+        pPkt->m_128);
     {   // 扩展槽状态域 msg+0x12b：<0 或 >3 归零
-        const signed char exSlot = *reinterpret_cast<signed char*>(data + 0x12b);
+        const signed char exSlot = pPkt->m_12b;
         user->SetCurExpEquipSlotStat((exSlot < 0 || exSlot > 3) ? 0 : exSlot);
     }
     {   // 公会代理信息拉取
@@ -1776,11 +1838,11 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
         G_CDataManager()->get_event_script_mng());
     if (eventMng->is_eventing(0x19b))
     {
-        user->setCurUseBringUpMaterialTotal(*reinterpret_cast<unsigned char*>(data + 0x139));
-        user->setBringUpRewardFlag(*reinterpret_cast<bool*>(data + 0x138) ? true : false);
+        user->setCurUseBringUpMaterialTotal(pPkt->m_139);
+        user->setBringUpRewardFlag(pPkt->m_138 ? true : false);
         user->SendEventBringUpInfo();
     }
-    user->select_charac_set_visible_values(*reinterpret_cast<char*>(data + 0x13a));
+    user->select_charac_set_visible_values(pPkt->m_13a);
     user->decide_growth_power_reward_system();
     return 0;
 }
@@ -1793,18 +1855,42 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
 int GetItemIdByAddInfo(Inven_Item* pool, int poolCount, int itemIdx);   // 定义 LC_Misc.cpp（ORIG _Z18GetItemIdByAddInfoP10Inven_Itemii：非 const 形参）
 // 报告 docs/class_func_reports/Inter_LoadInven/dispatch_sig.md 两段全读。
 // 错误码：0x1835/0x183c/0x1841/0x1872/0x1892。
+#pragma pack(push, 1)
+// Inter_LoadInvenPktView —— Inter_LoadInven::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_LoadInvenPktView
+{
+    char m_pad0[0x8];  // +0x0..未消费
+    unsigned int m_8;               // +0x08
+    char m_padc[0x4024];  // +0xc..未消费
+    int m_4030;                     // +0x4030
+    char m_pad4034[0x8ce8];  // +0x4034..未消费
+    int m_cd1c;                     // +0xcd1c
+    char m_padcd20[0x5b5c];  // +0xcd20..未消费
+    int m_1287c;                    // +0x1287c
+    char m_pad12880[0x1ed8];  // +0x12880..未消费
+    unsigned long m_14758;          // +0x14758
+    char m_pad1475c[0xbe0];  // +0x1475c..未消费
+    int m_1533c;                    // +0x1533c
+    int m_15340;                    // +0x15340
+    char m_pad15344[0x104];  // +0x15344..未消费
+    int m_15448;                    // +0x15448
+};
+#pragma pack(pop)
+
 int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_LoadInvenPktView* pPkt = reinterpret_cast<Inter_LoadInvenPktView*>(data);
     if (user->get_state() == 0)
         return 0x1835;
-    if (*reinterpret_cast<int*>(data + 0x4030) == 1)          // 重复加载保护位
+    if (pPkt->m_4030 == 1)          // 重复加载保护位
         return 0x183c;
     if (user->getCurCharacR() == 0)
         return 0x1841;
 
     CInventory* invenW = user->getCurCharacInvenW();
     invenW->set_inventory_capacity(
-        *reinterpret_cast<int*>(data + 0x1533c));
+        pPkt->m_1533c);
     {   // 背包校验：失败断连（ORIG _Z16_verifyInventory W 0x084f0145）
         CExpandEquipslot* expandData =
             user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)2);
@@ -1821,7 +1907,7 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
     creatureMgr->Reset();
     invenW->GetCreatureMgrW()->SetUser(user);
     {
-        const int creatureCount = *reinterpret_cast<int*>(data + 0x1287c);
+        const int creatureCount = pPkt->m_1287c;
         for (int i = 0; i < creatureCount; ++i)
         {
             const int itemOffset = *reinterpret_cast<int*>(data + 0x12880 + i * 0x38);
@@ -1832,12 +1918,13 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
                     data + 0x12880 + i * 0x38);
             invenW->GetCreatureMgrW()->LoadCreatureItem(item, detail);
         }
-        const int tempPeriodCount = *reinterpret_cast<int*>(data + 0x15340);
+        const int tempPeriodCount = pPkt->m_15340;
         for (int i = 0; i < tempPeriodCount; ++i)
         {
             SIG_POSTAL_CREATURE_TEMP_PERIOD* period =
-                reinterpret_cast<SIG_POSTAL_CREATURE_TEMP_PERIOD*>(
-                    data + (i + 0x2a68) * 8 + 4);
+                // 权威槽：SIG_LOAD_INVENTORY::m_tempPeriods[0x14] @+0x15344
+                //（= (0x2a68*8+4)，元素 8 字节 = sizeof(SIG_POSTAL_CREATURE_TEMP_PERIOD)）。
+                &reinterpret_cast<SIG_LOAD_INVENTORY*>(data)->m_tempPeriods[i];
             invenW->GetCreatureMgrW()->LoadCreatureTempPeriod(period);
         }
     }
@@ -1845,7 +1932,7 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
         return 0x1872;
 
     const unsigned int tagCharacNo =
-        *reinterpret_cast<unsigned int*>(data + 8);
+        pPkt->m_8;
     const int tagIdx = user->get_charac_idx(tagCharacNo);
     if (tagCharacNo != 0 && tagIdx != -1 &&
         !user->setTagCharacInven(reinterpret_cast<TAG_CHARAC_INVEN_DATA*>(data + 0xc)))
@@ -1854,7 +1941,7 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
     invenW->SetClearAvatar(reinterpret_cast<unsigned long*>(data + 0x14758));
     (void)tagIdx;
     {
-        const int avatarCount = *reinterpret_cast<int*>(data + 0xcd1c);
+        const int avatarCount = pPkt->m_cd1c;
         for (int i = 0; i < avatarCount; ++i)
         {
             const int avatarItemIdx =
@@ -1879,7 +1966,7 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
         }
     }
     {   // maxEquipLevel msg+0x15448 非 0 时设置
-        const int maxEquipLevel = *reinterpret_cast<int*>(data + 0x15448);
+        const int maxEquipLevel = pPkt->m_15448;
         if (maxEquipLevel != 0)
             user->SetCurCharacMaxEquipLevel(maxEquipLevel);
     }
@@ -2173,11 +2260,22 @@ int Inter_LoadSkill::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 Inter_LoadQuest::~Inter_LoadQuest() {}
 // ORIG 0x084c5054 T dispatch_sig —— DB 任务数据装载。
 // 报告 docs/class_func_reports/Inter_LoadQuest/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadQuestPktView —— Inter_LoadQuest::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_LoadQuestPktView
+{
+    char m_pad0[0x4];  // +0x0..未消费
+    int m_4;                        // +0x04
+};
+#pragma pack(pop)
+
 int Inter_LoadQuest::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_LoadQuestPktView* pPkt = reinterpret_cast<Inter_LoadQuestPktView*>(data);
     if (user->get_state() == 0)
         return 0x1a13;
-    if (*reinterpret_cast<int*>(data + 4) == 1)
+    if (pPkt->m_4 == 1)
         return 0x1a1a;
     if (user->getCurCharacR() == 0)
         return 0x1a1d;
@@ -2198,19 +2296,33 @@ int Inter_LoadQuest::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_LoadTicket::~Inter_LoadTicket() {}
 // ORIG 0x084c515c T dispatch_sig —— 点券 DB 加载。
 // 报告 docs/class_func_reports/Inter_LoadTicket/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadTicketPktView —— Inter_LoadTicket::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_LoadTicketPktView
+{
+    char m_pad0[0x4];  // +0x0..未消费
+    int m_4;                        // +0x04
+    int m_8;                        // +0x08
+    int m_ids[1];                   // +0x0c 线格式数组区（ORIG 0x084c51c3 mov 0xc(%eax,%edx,4) 下标 i 循环消费）
+};
+#pragma pack(pop)
+
 int Inter_LoadTicket::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user == 0)
         return 0x1a70;
     if (user->get_state() == 0)
         return 0x1a72;
-    if (*reinterpret_cast<int*>(data + 0x4) == 1)
+    // ORIG 0x084c515a：pPkt 在 state 检查后才物化 -0x10；count 无槽（每次重载 +0x8）
+    Inter_LoadTicketPktView* pPkt = reinterpret_cast<Inter_LoadTicketPktView*>(data);
+    if (pPkt->m_4 == 1)
         return 0x1a79;
-    const int count = *reinterpret_cast<int*>(data + 0x8);
-    if (count > 99)
+    if (pPkt->m_8 > 99)
         return 0x1a7e;
-    for (int i = 0; i < count; ++i)
-        user->AddTicket(*reinterpret_cast<int*>(data + 0xc + i * 4), false);
+    // ORIG cond 重载 n 且方向 n>i（cmp MEM,%eax; setg）；体走数组视图折叠寻址
+    for (int i = 0; pPkt->m_8 > i; ++i)
+        user->AddTicket(pPkt->m_ids[i], false);
     user->EnableCharacInfo((CACHE_SECTION)4);
     return 0;
 }
@@ -2218,13 +2330,25 @@ int Inter_LoadTicket::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_LoadDungeonClear::~Inter_LoadDungeonClear() {}
 // ORIG 0x084c7c42 T dispatch_sig —— 副本通关记录 DB 加载。
 // 报告 docs/class_func_reports/Inter_LoadDungeonClear/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadDungeonClearPktView —— Inter_LoadDungeonClear::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_LoadDungeonClearPktView
+{
+    char m_pad0[0x8];  // +0x0..未消费
+    bool m_8;                       // +0x08（ORIG `xor $0x1` 判非 ⇒ bool，非 unsigned char）
+    char m_pad9[0x3];  // +0x9..未消费
+    int m_c;                        // +0x0c
+};
+#pragma pack(pop)
+
 int Inter_LoadDungeonClear::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user == 0)
         return 0x200e;
     if (user->get_state() == 0)
         return 0x2012;
-    if (user->IsProgLogout() != 0)
+    if (user->IsProgLogout())
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -2233,10 +2357,13 @@ int Inter_LoadDungeonClear::dispatch_sig(CUser* user, char* data, int /*len*/)
             "[Inter_LoadDungeonClear::dispatch_sig] State(PROG_LOGOUT)\n");
         return 0;
     }
-    if (*reinterpret_cast<int*>(data + 0xc) == 1)
+    // ORIG：包基址槽在 PROG_LOGOUT 门之后才物化。
+    Inter_LoadDungeonClearPktView* pPkt = reinterpret_cast<Inter_LoadDungeonClearPktView*>(data);
+    if (pPkt->m_c == 1)
         return 0x2020;
-    user->getDungeonClearRefW()->fromString(user, data + 0x10);
-    if (*reinterpret_cast<unsigned char*>(data + 0x8) != 1)
+    user->getDungeonClearRefW()->fromString(user, reinterpret_cast<char*>(pPkt) + 0x10);
+    // ORIG +0x5a：`movzbl 0x8(%eax),%eax`+`xor $0x1,%eax`+`test %al,%al` ⇒ bool 字段取反。
+    if (!pPkt->m_8)
         user->disableSaveDungeonClear();
     user->EnableCharacInfo((CACHE_SECTION)5);
     return 0;
@@ -2249,9 +2376,14 @@ int APSystem::Inter_LoadActionPoint::dispatch_sig(CUser* user, char* data, int /
 {
     if (user == 0 || user->get_state() == 0 || user->getCurCharacR() == 0)
         return 0x203;
-    if (data == 0)
+    // ORIG 0x08124d6e：包基址落 -0xc 具名槽后判空；08124d7e-87 段 `mov 形参,%eax;
+    // lea 0x8d264(%eax),%edx; mov -0xc(%ebp),%eax` —— this-lea 先于实参装载仅在
+    // 实参为「同型结构指针局部解引用 lvalue」时出现（probe lea1 f7；char*+cast
+    // 实参会反序且退化 add）。
+    _SIG_LOAD_ACTION_POINT* pPkt = reinterpret_cast<_SIG_LOAD_ACTION_POINT*>(data);
+    if (pPkt == 0)
         return 0x208;
-    user->m_actionPoint.Set(*reinterpret_cast<_SIG_LOAD_ACTION_POINT*>(data));
+    user->m_actionPoint.Set(*pPkt);
     user->EnableCharacInfo((CACHE_SECTION)8);
     return 0;
 }
@@ -2263,7 +2395,10 @@ int APSystem::Inter_EmptyActionPoint::dispatch_sig(CUser* user, char* data, int 
 {
     if (user == 0 || user->get_state() == 0 || user->getCurCharacR() == 0)
         return 0x214;
-    if (data == 0)
+    // ORIG +0x3f：`mov 0x10(%ebp),%eax`+`mov %eax,-0xc(%ebp)`+`cmpl $0x0,-0xc(%ebp)`
+    // ⇒ 包基址先落具名局部再判空（直接比 `data` 会退化为 cmp 参数槽）。
+    char* pPkt = data;
+    if (pPkt == 0)
         return 0x219;
     APSystem::CUserProc::SetTodayActionAndCheckMedalReward(user);
     user->EnableCharacInfo((CACHE_SECTION)8);
@@ -2277,11 +2412,15 @@ int APSystem::Inter_LoadRewardMedal::dispatch_sig(CUser* user, char* data, int /
 {
     if (user == 0 || user->get_state() == 0 || user->getCurCharacR() == 0)
         return 0x226;
-    if (data == 0)
+    // ORIG 0x08124exx：包基址先落具名局部（-0xc）再判空；makeRequest 第 2 实参
+    // `mov -0xc(%ebp),%edx; mov %edx,0x4(%esp)` 晚装填 ⇒ 需同型指针局部解引用
+    // （char*+cast 形 gcc 提前缓存 %ebx，probe lea1 f1/f7 实证）。
+    _SIG_LOAD_REWARD_MEDAL* pPkt = reinterpret_cast<_SIG_LOAD_REWARD_MEDAL*>(data);
+    if (pPkt == 0)
         return 0x22b;
     DB_UpdateRewardMedal::makeRequest(
         (int)user->GetUID(),
-        *reinterpret_cast<_SIG_LOAD_REWARD_MEDAL*>(data));
+        *pPkt);
     return 0;
 }
 
@@ -2291,20 +2430,35 @@ advancealtar::Inter_Load::~Inter_Load() {}
 int advancealtar::Inter_Load::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user == 0 || user->get_state() == 0 || user->getCurCharacR() == 0)
-        return 0x2de;
-    if (data == 0)
+        return 0x2de;  // ORIG 0x0813f764 `mov $0x2de,%eax`
+    // ORIG 0x0813f76b-0813f78e：包基址落 -0xc 判空后 `mov 0xc,%eax; lea 0x8df60(%eax),%edx;
+    // mov -0xc(%ebp),%eax` —— this-lea 先于实参装载需实参为同型结构指针局部解引用
+    // （probe lea1 f7；const 版本 set(const T&) 亦兼容）。
+    const _CharacAdvanceAltarDbData* pPkt =
+        reinterpret_cast<const _CharacAdvanceAltarDbData*>(data);
+    if (pPkt == 0)
         return 0x2e3;
-    user->m_advanceAltar.set(
-        *reinterpret_cast<_CharacAdvanceAltarDbData*>(data));
+    user->m_advanceAltar.set(*pPkt);
     user->EnableCharacInfo((CACHE_SECTION)10);
     return 0;
 }
 
 Inter_DeleteChannel::~Inter_DeleteChannel() {}
+#pragma pack(push, 1)
+// Inter_DeleteChannelPktView —— Inter_DeleteChannel::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_DeleteChannelPktView
+{
+    char m_pad0[0x8];  // 未消费
+    int m_8;                  // +0x08
+};
+#pragma pack(pop)
+
 int Inter_DeleteChannel::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    int* packet = reinterpret_cast<int*>(data);
-    if (packet[2] == 1)
+    const Inter_DeleteChannelPktView* pPkt = reinterpret_cast<const Inter_DeleteChannelPktView*>(data);
+    // ORIG +0x0b：单级带偏移读（无中间 int* 槽）。
+    if (pPkt->m_8 == 1)
     {
         return 0x806;
     }
@@ -2340,9 +2494,10 @@ Inter_ReadyToTerminate::~Inter_ReadyToTerminate() {}
 // 报告 docs/class_func_reports/Inter_ReadyToTerminate/dispatch_sig.md 全文转写。
 int Inter_ReadyToTerminate::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "InterDispatcher.cpp", 0x2055);
-    CStreamGuard guard(stream, true);
+    // ORIG +0x1c：Acquire 的返回值（%eax）直接作 CStreamGuard 实参，无具名 stream 槽
+    // —— 具名局部会多 `mov %eax,-0xc`+`mov -0xc,%eax` 两行并把 guard 槽推到 -0x14。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("InterDispatcher.cpp", 0x2055), true);
     guard.operator*()->operator<<(0x3f);
     guard.operator*()->operator<<(-1);
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
@@ -2352,29 +2507,47 @@ int Inter_ReadyToTerminate::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*
 Inter_MonitorBuddyInOut::~Inter_MonitorBuddyInOut() {}
 // ORIG 0x084c8ec0 T dispatch_sig —— 好友上下线通知（0x36/0x37 包），上线且当前角色存在时补发系统邮件。
 // 报告 docs/class_func_reports/Inter_MonitorBuddyInOut/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorBuddyInOutPktView —— Inter_MonitorBuddyInOut::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorBuddyInOutPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x4];  // 未消费
+    unsigned char m_12;       // +0x12
+    unsigned char m_13;       // +0x13
+    char m_14;                // +0x14
+    char m_15[1];             // +0x15 串/字节区首元素（容量未建模）
+    char m_pad16[0x1d];  // 未消费
+    char m_33;                // +0x33
+};
+#pragma pack(pop)
+
 int Inter_MonitorBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorBuddyInOutPktView* pPkt = reinterpret_cast<Inter_MonitorBuddyInOutPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
     PacketGuard packet;
-    if (*reinterpret_cast<char*>(data + 0x14) == '\x01')
+    if (pPkt->m_14 == '\x01')
         packet.put_header(0, 0x36);
     else
         packet.put_header(0, 0x37);
     packet.put_byte(
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0x12));
-    packet.put_int(*reinterpret_cast<int*>(data + 0xa));
-    const size_t local_20 = strlen(data + 0x15);
+        (unsigned int)pPkt->m_12);
+    packet.put_int(pPkt->m_a);
+    const size_t local_20 = strlen(pPkt->m_15);
     packet.put_int(local_20);
-    packet.put_str(data + 0x15, local_20);
+    packet.put_str(pPkt->m_15, local_20);
     packet.put_byte(
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0x13));
+        (unsigned int)pPkt->m_13);
     packet.finalize(true);
     user->Send(packet);
 
     bool mailFlag = false;
-    if (*reinterpret_cast<char*>(data + 0x33) == '\x01' &&
+    if (pPkt->m_33 == '\x01' &&
         user->getCurCharacR() != 0)
     {
         mailFlag = true;
@@ -2445,15 +2618,30 @@ void DB_LoadDnfHackLog::makeRequest(int uid, unsigned int accId)
 
 // ORIG 0x084c7e0c T dispatch_sig —— 监控服登录应答处理。
 // 报告 docs/class_func_reports/Inter_MonitorLoginOK/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorLoginOKPktView —— Inter_MonitorLoginOK::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorLoginOKPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned int m_e;               // +0x0e
+    char m_pad12[0x11];  // +0x12..未消费
+    unsigned char m_23;             // +0x23
+    unsigned int m_24;              // +0x24
+    unsigned int m_28;              // +0x28
+};
+#pragma pack(pop)
+
 int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorLoginOKPktView* pPkt = reinterpret_cast<Inter_MonitorLoginOKPktView*>(data);
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0x206a;
 
     const unsigned int characNoMsg =                   // msg+0x24
-        *reinterpret_cast<unsigned int*>(data + 0x24);
+        pPkt->m_24;
     const unsigned int channelNoMsg =                  // msg+0x28
-        *reinterpret_cast<unsigned int*>(data + 0x28);
+        pPkt->m_28;
 
     user->SetLastLoginCharacNo(0);                     // 上一角色/频道重置
     user->SetLastLoginChannelNo(0);
@@ -2465,7 +2653,7 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         cMyTrace trace(
             __PRETTY_FUNCTION__, 0x2075, 0);
         trace("Inter_MonitorLoginOK() mid(%s), charac_no(%d), channel_no(%d)",
-              NumberToString(*reinterpret_cast<unsigned int*>(data + 0xe), 0),
+              NumberToString(pPkt->m_e, 0),
               (int)characNoMsg, (int)channelNoMsg);
         return 0x2076;
     }
@@ -2473,13 +2661,13 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
     cMyTrace trace(
         __PRETTY_FUNCTION__, 0x207a, 0);
     trace("Inter_MonitorLoginOK() mid(%s), charac_no(%d), channel_no(%d)",
-          NumberToString(*reinterpret_cast<unsigned int*>(data + 0xe), 0),
+          NumberToString(pPkt->m_e, 0),
           (int)characNoMsg, (int)channelNoMsg);
 
     PacketGuard packet;
     packet.put_header(1, 1);
 
-    switch (*reinterpret_cast<unsigned char*>(data + 0x23))            // errCode
+    switch (pPkt->m_23)            // errCode
     {
     case '\x02':                                       // 重复登录断开
         packet.put_byte(0);
@@ -2640,22 +2828,44 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_MonitorCallUserInfo::~Inter_MonitorCallUserInfo() {}
 // ORIG 0x084c89b2 T dispatch_sig —— 监控服索取用户信息上报。
 // 报告 docs/class_func_reports/Inter_MonitorCallUserInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorCallUserInfoPktView —— Inter_MonitorCallUserInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorCallUserInfoPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned char m_a;              // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_MonitorCallUserInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     if (G_CGameManager() == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x2220, 5);
-        trace("Inter_MonitorCallUserInfo::dispatch_sig()  G_CGameManager() is null");
-        return 0;
+        // ORIG 族 0x084c89ff：null 支 trace 槽 -0x2c（深）、主支 -0x1c（浅）。
+        // 技巧3：null 支临时链式形占深槽（同 CutOffCallUserInfo 闭合形）。
+        cMyTrace(__PRETTY_FUNCTION__,
+                 0x2220, 5)(
+            "Inter_MonitorCallUserInfo::dispatch_sig()  G_CGameManager() is null");
     }
-    const unsigned char group = *reinterpret_cast<unsigned char*>(data + 0xa);
-    G_CGameManager()->Send_userinfos_to_upper_server(group);
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x2230, 0);
-    trace("%d Server Call UserInfo Arrived\n", (unsigned int)group);
+    else
+    {
+        // ORIG 0x084c89ff：pkt 物化在主路径；group 两次独立读（P48 无 CSE），
+        // ORIG 0x084c8a2a/0x084c8a58：`movzbl 0xa(%eax),%eax; movzbl %al,%ebx`
+        // 两步零扩展（unsigned int 槽 = char→int 宽度转换先落 %eax 再转 %ebx）。
+        Inter_MonitorCallUserInfoPktView* pPkt = reinterpret_cast<Inter_MonitorCallUserInfoPktView*>(data);
+        // ORIG 0x084c8a2a：`movzbl 0xa(%eax),%eax`（uchar 源→%eax 技巧16 形）
+        // + `movzbl %al,%ebx`（uchar→uint 具名转换直落 %ebx）。
+        // ORIG 4.1 装载两段（先 %eax 后 %al→%ebx）；4.4 uchar register 恒融合
+        // 直落目标寄存（N18a 变体）→ 余 4 行 NEAR 形 register 差。
+        register unsigned char group1 = (unsigned int)pPkt->m_a;
+        G_CGameManager()->Send_userinfos_to_upper_server(group1);
+        // ORIG 0x084c8a58：重读无 CSE（P48 两次独立装载）。
+        group1 = (unsigned int)pPkt->m_a;
+        cMyTrace(__PRETTY_FUNCTION__,
+                 0x2230, 0)(
+            "%d Server Call UserInfo Arrived\n", group1);
+    }
     return 0;
 }
 
@@ -2666,27 +2876,38 @@ int Inter_CutOffCallUserInfo::dispatch_sig(CUser* /*user*/, char* data, int /*le
 {
     if (G_CGameManager() == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x2249, 5);
-        trace("Inter_MonitorCallUserInfo::dispatch_sig()  G_CGameManager() is null");
-        return 0;
+        // ORIG 0x084c8a84-084c8aa2：null 支 trace 槽=-0x2c（深）、send 支=-0x1c（浅）
+        // ⇒ 临时对象注册逆序分配（技巧3；probe cutoff w3：具名局部则正序、反 ORIG）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x2249, 5)(
+            "Inter_MonitorCallUserInfo::dispatch_sig()  G_CGameManager() is null");
     }
-    char* p = data;
-    G_CGameManager()->send_userinfos_to_cutoff_server();
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x2252, 0);
-    trace("Cut Off Server Call UserInfo Arrived\n");
+    else
+    {
+        char* p = data;
+        G_CGameManager()->send_userinfos_to_cutoff_server();
+        cMyTrace(__PRETTY_FUNCTION__, 0x2252, 0)(
+            "Cut Off Server Call UserInfo Arrived\n");
+    }
     return 0;
 }
 
 Inter_MonitorUserGetout::~Inter_MonitorUserGetout() {}
 // ORIG 0x084c8b0c T dispatch_sig —— 监控侧用户强制退出。
 // 报告 docs/class_func_reports/Inter_MonitorUserGetout/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorUserGetoutPktView —— Inter_MonitorUserGetout::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorUserGetoutPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_MonitorUserGetout::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    const unsigned int accId = *reinterpret_cast<unsigned int*>(data + 0xa);
+    Inter_MonitorUserGetoutPktView* pPkt = reinterpret_cast<Inter_MonitorUserGetoutPktView*>(data);
+    const unsigned int accId = pPkt->m_a;
     CUser* target = G_CGameManager()->GetUserByAccId(accId);
     if (target != 0)
     {
@@ -2709,9 +2930,9 @@ Inter_WebNoticeIngameAdvertisement::~Inter_WebNoticeIngameAdvertisement() {}
 // 报告 docs/class_func_reports/Inter_WebNoticeIngameAdvertisement/dispatch_sig.md 全文转写。
 int Inter_WebNoticeIngameAdvertisement::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "InterDispatcher.cpp", 0x2277);
-    CStreamGuard guard(stream, true);
+    // ORIG 同形：Acquire 返回值直接进 guard 实参。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("InterDispatcher.cpp", 0x2277), true);
     guard.operator*()->operator<<(0x2f8);
     guard.operator*()->operator<<(-1);
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
@@ -2743,9 +2964,20 @@ int Inter_ReloadIngameAdvertisement::dispatch_sig(CUser* /*user*/, char* data, i
 Inter_TcpServerConnect::~Inter_TcpServerConnect() {}
 // ORIG 0x084c8dca T dispatch_sig —— 公会/监控服代理 TCP 重连。
 // 报告 docs/class_func_reports/Inter_TcpServerConnect/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_TcpServerConnectPktView —— Inter_TcpServerConnect::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_TcpServerConnectPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    char m_a;                       // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<char*>(data + 0xa) == '\xcb')
+    Inter_TcpServerConnectPktView* pPkt = reinterpret_cast<Inter_TcpServerConnectPktView*>(data);
+    if (pPkt->m_a == '\xcb')
     {
         int idx = 0;
         for (idx = GlobalData::s_guild_proxy_mgr->GetStartIndex();
@@ -2757,7 +2989,7 @@ int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*
             idx = GlobalData::s_guild_proxy_mgr->GetNextIndex(idx);
         }
     }
-    else if (*reinterpret_cast<char*>(data + 0xa) == '\xc9')
+    else if (pPkt->m_a == '\xc9')
     {
         int idx = 0;
         for (idx = GlobalData::s_monitor_proxy_mgr->GetStartIndex();
@@ -2775,29 +3007,50 @@ int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*
 Inter_MonitorReplyBuddyList::~Inter_MonitorReplyBuddyList() {}
 // ORIG 0x084c9148 T dispatch_sig —— 监控服好友在线列表应答广播。
 // 报告 docs/class_func_reports/Inter_MonitorReplyBuddyList/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorReplyBuddyListPktView —— Inter_MonitorReplyBuddyList::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorReplyBuddyListPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+    unsigned char m_e;              // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_MonitorReplyBuddyList::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_MonitorReplyBuddyListPktView* pPkt = reinterpret_cast<Inter_MonitorReplyBuddyListPktView*>(data);
     G_GameWorld()->send_buddy_conn_list(
-        *reinterpret_cast<unsigned int*>(data + 0xa),
-        reinterpret_cast<BuddyList*>(data + 0xf),
-        (int)(unsigned char)*reinterpret_cast<unsigned char*>(data + 0xe));
+        pPkt->m_a,
+        reinterpret_cast<BuddyList*>((char*)pPkt + 0xf),
+        (int)(unsigned char)pPkt->m_e);
     return 0;
 }
 
 Inter_MonitorCeraUpdate::~Inter_MonitorCeraUpdate() {}
 // ORIG 0x084cea92 T dispatch_sig —— IPG 塞拉更新：按 accId 定位用户并触发 IPG 查询。
 // 报告 docs/class_func_reports/Inter_MonitorCeraUpdate/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorCeraUpdatePktView —— Inter_MonitorCeraUpdate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorCeraUpdatePktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_MonitorCeraUpdate::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    CUser* target = G_CGameManager()->GetUserByAccId(
-        *reinterpret_cast<unsigned int*>(data + 0xa));
-    if (target != 0)
-    {   // ORIG vtable+0x2c 两参槽：真身类未建模（同 Inter_MonitorLoginOK 先例按槽指针调用）
-        typedef void (*QueryFn)(void*, CUser*);
-        void* helper = GlobalData::s_pIPGHelper;
-        QueryFn query = *(QueryFn*)((*(void***)helper)[0x2c / 4]);
-        query(helper, target);
-    }
+    Inter_MonitorCeraUpdatePktView* pPkt = reinterpret_cast<Inter_MonitorCeraUpdatePktView*>(data);
+    register unsigned int accId = pPkt->m_a;   // ORIG 0x084ceaa2 mov 0xa(%eax),%ebx（callee-saved 跨 call 缓存）
+    CUser* target = G_CGameManager()->GetUserByAccId(accId);   // ORIG 0x084ceab6 结果落 -0xc 具名槽
+    if (target == 0)                           // ORIG 0x084ceabd cmpl $0; jne body —— null 岛 fall-through 在前（技巧17）
+        return 0;                              // ORIG 0x084ceabf mov $0; jmp end
+    // ORIG 0x084ceae1 call *%ecx：vptr+0x2c = IIPGHelperInterface slot11 = IPGQuery(CUser*)
+    // （TaiwanCash.h 声明序 slot11 注释 +0x34 基表偏移 = vptr+0x2c 同槽）
+    GlobalData::s_pIPGHelper->IPGQuery(target);
     return 0;
 }
 
@@ -2806,14 +3059,31 @@ Inter_IPGResult::~Inter_IPGResult() {}
 // 与查询结果分支（SendCashData / 点数查询 / CERA 查询 / 错误状态包）。
 // 报告 docs/class_func_reports/Inter_IPGResult/dispatch_sig.md 全文转写。
 // msg 布局：+0 isData(char)；数据分支 data+1 req / data+0x2dd res；查询分支 data+1 起。
+#pragma pack(push, 1)
+// Inter_IPGResultPktView —— Inter_IPGResult::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_IPGResultPktView
+{
+    char m_0;                 // +0x00
+    char m_pad1[0x1c];  // 未消费
+    int m_1d;                 // +0x1d
+    int m_21;                 // +0x21
+    char m_pad25[0x8d];  // 未消费
+    char m_b2;                // +0xb2
+    char m_padb3[0x1bb];  // 未消费
+    unsigned char m_26e;      // +0x26e
+};
+#pragma pack(pop)
+
 int Inter_IPGResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<char*>(data) != 0)
+    Inter_IPGResultPktView* pPkt = reinterpret_cast<Inter_IPGResultPktView*>(data);
+    if (pPkt->m_0 != 0)
     {   // IPG 数据流结果：转 ItemVendingMachine 处理后归还 Stream
         char* reqData = data + 1;
         char* resData = data + 0x2dd;
         CUser* target =
-            G_CGameManager()->getUser(*reinterpret_cast<int*>(reqData + 0x20), 11);
+            G_CGameManager()->getUser(pPkt->m_21, 11);
         Stream* stream = *reinterpret_cast<Stream**>(reqData + 0x2d8);
         if (target != 0)
         {
@@ -2829,16 +3099,16 @@ int Inter_IPGResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 
     char* msg = data + 1;
     CUser* user =
-        G_CGameManager()->getUser(*reinterpret_cast<int*>(msg + 0x20), 10);
+        G_CGameManager()->getUser(pPkt->m_21, 10);
     if (user == 0)
         return 0;
 
     PacketGuard packet;
-    if (*reinterpret_cast<int*>(msg + 0x1c) == 4)
+    if (pPkt->m_1d == 4)
     {   // 余额变更 → 重发现金数据
         user->SendCashData(true);
     }
-    else if (*reinterpret_cast<int*>(msg + 0x1c) == 6)
+    else if (pPkt->m_1d == 6)
     {   // 点数查询结果：经 CIPGHelper 虚槽 +0x2c 回填
         typedef void (*QueryFn)(void*, CUser*, int);
         void* helper = GlobalData::s_pIPGHelper;
@@ -2847,16 +3117,16 @@ int Inter_IPGResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
         cMyTrace trace(
             __PRETTY_FUNCTION__, 0x2b65, 0);
         trace("[Taiwan, Billing] ChargePointQuery Result:%s, %s, %d, %s",
-              msg + 0x3c, msg + 0x64, (int)(char)msg[0xb1], msg + 0xb3);
+              msg + 0x3c, msg + 0x64, (int)(char)pPkt->m_b2, msg + 0xb3);
         return 0;
     }
-    else if (*reinterpret_cast<int*>(msg + 0x1c) == 0)
+    else if (pPkt->m_1d == 0)
     {   // CERA 查询结果日志
         cMyTrace trace(
             __PRETTY_FUNCTION__, 0x2b6e, 0);
         trace("[Taiwan, Billing] ChargeCeraQuery Result:%s, %s, %s, %d",
               msg + 0x28, msg + 0x50, msg + 0x26e,
-              (int)*reinterpret_cast<unsigned char*>(msg + 0x26d));
+              (int)pPkt->m_26e);
         return 0;
     }
     else
@@ -2894,6 +3164,8 @@ int Inter_GenCeraTicket::dispatch_sig(CUser* user, char* data, int /*len*/)
     int mid;
     memcpy(&mid, data, 4);
     char name[32];
+    // 窗口指针形态保留（具名视图会使 strncpy 实参经 pPkt 局部多一代指令，
+    // 破坏本函数 AE 对齐；ORIG 084ceea2 直接 disp(%reg) 传址）。
     strncpy(name, data + 4, 0x20);
 
     PacketGuard packet;
@@ -2910,10 +3182,22 @@ int Inter_GenCeraTicket::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_LoadEventItem::~Inter_LoadEventItem() {}
 // ORIG 0x084cf0c4 T dispatch_sig —— Web 活动物品入库：RecvInfoFromDB 逐项校验后入 DB 队列。
 // 报告 docs/class_func_reports/Inter_LoadEventItem/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadEventItemPktView —— Inter_LoadEventItem::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_LoadEventItemPktView
+{
+    unsigned int m_0;         // +0x00
+    int m_4;                  // +0x04
+    int m_8;                  // +0x08
+};
+#pragma pack(pop)
+
 int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_LoadEventItemPktView* pPkt = reinterpret_cast<Inter_LoadEventItemPktView*>(data);
     CUser* target = G_CGameManager()->GetUserByAccId(
-        *reinterpret_cast<unsigned int*>(data));        // msg+0x0 accId
+        pPkt->m_0);        // msg+0x0 accId
     if (target == 0)
         return 0;
 
@@ -2921,7 +3205,7 @@ int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     memset(eventItems, 0, 0x18);
     int count = 0;
     for (int i = 0;
-         i < *reinterpret_cast<int*>(data + 0x8); ++i)  // msg+0x8 条数
+         i < pPkt->m_8; ++i)  // msg+0x8 条数
     {
         bool skip = false;
         if (*reinterpret_cast<int*>(data + i * 0x10 + 0x10) == 999)
@@ -2930,7 +3214,7 @@ int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
         }
         else if (target->get_state() <= 2 ||
                  target->getCurCharacNo() !=
-                     *reinterpret_cast<int*>(data + 0x4))
+                     pPkt->m_4)
         {
             skip = true;
         }
@@ -2966,51 +3250,86 @@ int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 Inter_MonitorEventItemUpdate::~Inter_MonitorEventItemUpdate() {}
 // ORIG 0x084cefd2 T dispatch_sig —— 网页活动道具更新（CWebEvent::RecvInfoFromWeb）。
 // 报告 docs/class_func_reports/Inter_MonitorEventItemUpdate/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorEventItemUpdatePktView —— Inter_MonitorEventItemUpdate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorEventItemUpdatePktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+    unsigned int m_e;               // +0x0e
+    unsigned int m_12;              // +0x12
+    unsigned int m_16;              // +0x16
+    unsigned int m_1a;              // +0x1a
+    unsigned int m_1e;              // +0x1e
+};
+#pragma pack(pop)
+
 int Inter_MonitorEventItemUpdate::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_MonitorEventItemUpdatePktView* pPkt = reinterpret_cast<Inter_MonitorEventItemUpdatePktView*>(data);
+    // ORIG 0x84cefd2：m_1a/m_16 落槽（-0x40/-0x3c），m_e/m_12/NumberToString
+    // 经 block-scope register 直落 %edi/%esi/%ebx 跨 cMyTrace ctor 缓存（P36）。
+    unsigned int v1a = pPkt->m_1a;
+    unsigned int v16 = pPkt->m_16;
+    register unsigned int v0e = pPkt->m_e;
+    register unsigned int v12 = pPkt->m_12;
+    register char* mid = NumberToString(pPkt->m_a, 0);
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0x2bff, 0);
     trace("[%s][%d],이벤트 유저 DB ID : %s [EventType: %d][CharacNo: %d][ItemID: %d][Stack: %d]\n",
           __PRETTY_FUNCTION__,
           0x2bff,
-          NumberToString(*reinterpret_cast<unsigned int*>(data + 0xa), 0),
-          (int)*reinterpret_cast<unsigned int*>(data + 0x12),
-          (int)*reinterpret_cast<unsigned int*>(data + 0xe),
-          (int)*reinterpret_cast<unsigned int*>(data + 0x16),
-          (int)*reinterpret_cast<unsigned int*>(data + 0x1a));
+          mid,
+          v12,
+          v0e,
+          v16,
+          v1a);
     WongWork::CWebEvent::RecvInfoFromWeb(
-        *reinterpret_cast<unsigned int*>(data + 0xa),
-        *reinterpret_cast<unsigned int*>(data + 0xe),
-        *reinterpret_cast<unsigned int*>(data + 0x16),
-        *reinterpret_cast<unsigned int*>(data + 0x1a),
-        *reinterpret_cast<unsigned int*>(data + 0x12),
-        *reinterpret_cast<unsigned int*>(data + 0x1e));
+        pPkt->m_a,
+        pPkt->m_e,
+        pPkt->m_16,
+        pPkt->m_1a,
+        pPkt->m_12,
+        pPkt->m_1e);
     return 0;
 }
 
 Inter_MonitorServerEventStart::~Inter_MonitorServerEventStart() {}
 // ORIG 0x084cf3ca T dispatch_sig —— 服务端事件启动：圣诞事件开启、广播与定时器注册。
 // 报告 docs/class_func_reports/Inter_MonitorServerEventStart/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorServerEventStartPktView —— Inter_MonitorServerEventStart::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorServerEventStartPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    unsigned short m_e;       // +0x0e
+    short m_10;               // +0x10
+};
+#pragma pack(pop)
+
 int Inter_MonitorServerEventStart::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    char* recv = data;                                 // -0x1c(%ebp) 缓存消息指针
+    Inter_MonitorServerEventStartPktView* pPkt = reinterpret_cast<Inter_MonitorServerEventStartPktView*>(data);
 
     PacketGuard packet;                                // ORIG 构造后未使用，分支外统一析构
 
-    if (*reinterpret_cast<int*>(recv + 0xa) == 1)
+    if (pPkt->m_a == 1)
     {
         SendEventNotiPacket(true,
-                            (short)*reinterpret_cast<int*>(recv + 0xa),
-                            (short)*reinterpret_cast<short*>(recv + 0x10),
+                            (short)pPkt->m_a,
+                            (short)pPkt->m_10,
                             reinterpret_cast<CUser*>(0));
-        CServerEvent().AddExpRate((int)*reinterpret_cast<unsigned short*>(recv + 0xe));
-        CServerEvent().TurnOnEvent(*reinterpret_cast<int*>(recv + 0xa),
-                                   (int)*reinterpret_cast<unsigned short*>(recv + 0x10));
+        CServerEvent().AddExpRate((int)pPkt->m_e);
+        CServerEvent().TurnOnEvent(pPkt->m_a,
+                                   (int)pPkt->m_10);
         G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x53,
-                                    (int)*reinterpret_cast<unsigned short*>(recv + 0x10),
-                                    (int)*reinterpret_cast<unsigned short*>(recv + 0xe),
-                                    (unsigned int)*reinterpret_cast<int*>(recv + 0xa));
+                                    (int)pPkt->m_10,
+                                    (int)pPkt->m_e,
+                                    (unsigned int)pPkt->m_a);
         cMyTrace trace(
             __PRETTY_FUNCTION__,
             0x2c48, 0);
@@ -3021,7 +3340,7 @@ int Inter_MonitorServerEventStart::dispatch_sig(CUser* /*user*/, char* data, int
         cMyTrace unknown(
             __PRETTY_FUNCTION__,
             0x2c4b, 5);
-        unknown("Unknown ServerEvent (%d)", *reinterpret_cast<int*>(recv + 0xa));
+        unknown("Unknown ServerEvent (%d)", pPkt->m_a);
     }
     return 0;
 }
@@ -3045,12 +3364,33 @@ int Inter_SuicideWhenQueueIsEmpty::dispatch_sig(CUser* /*user*/, char* /*data*/,
 Inter_MonitorNoticeGuildEnter::~Inter_MonitorNoticeGuildEnter() {}
 // ORIG 0x084c9194 T dispatch_sig —— 公会加入通知（0x3a 包 + GuildJoin 历史日志）。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildEnter/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeGuildEnterPktView —— Inter_MonitorNoticeGuildEnter::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeGuildEnterPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    unsigned short m_12;      // +0x12
+    int m_14;                 // +0x14
+    char m_pad18[0x4];  // 未消费
+    unsigned int m_1c;        // +0x1c
+    char m_20[1];             // +0x20 串/字节区首元素（容量未建模）
+    char m_pad21[0x16];  // 未消费
+    char m_37[1];             // +0x37 串/字节区首元素（容量未建模）
+    char m_pad38[0x1d];  // 未消费
+    int m_55;                 // +0x55
+    unsigned char m_59;       // +0x59
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeGuildEnter::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorNoticeGuildEnterPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildEnterPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0xe))
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3058,18 +3398,18 @@ int Inter_MonitorNoticeGuildEnter::dispatch_sig(CUser* user, char* data, int /*l
             0x2305,
             "Inter_MonitorNoticeGuildEnter::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<unsigned int*>(data + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
-    if (*reinterpret_cast<int*>(data + 0x55) == user->getCurCharacNo())
+    if (pPkt->m_55 == user->getCurCharacNo())
     {
         const unsigned char cVar1 =
-            *reinterpret_cast<unsigned char*>(data + 0x59);
+            pPkt->m_59;
         const unsigned short uVar2 =
-            *reinterpret_cast<unsigned short*>(data + 0x12);
+            pPkt->m_12;
         const unsigned int uVar4 =
-            *reinterpret_cast<unsigned int*>(data + 0x1c);
+            pPkt->m_1c;
         char* pcVar8 = data + 0x20;
         user->m_historyLog.GuildJoin(
             user->get_charac_guildkey(), pcVar8, uVar4, uVar2,
@@ -3078,14 +3418,14 @@ int Inter_MonitorNoticeGuildEnter::dispatch_sig(CUser* user, char* data, int /*l
 
     PacketGuard packet;
     packet.put_header(0, 0x3a);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x14));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x1c));
-    const size_t local_24 = strlen(data + 0x20);
+    packet.put_int(pPkt->m_14);
+    packet.put_int(pPkt->m_1c);
+    const size_t local_24 = strlen(pPkt->m_20);
     packet.put_int(local_24);
-    packet.put_str(data + 0x20, local_24);
-    const size_t local_20 = strlen(data + 0x37);
+    packet.put_str(pPkt->m_20, local_24);
+    const size_t local_20 = strlen(pPkt->m_37);
     packet.put_int(local_20);
-    packet.put_str(data + 0x37, local_20);
+    packet.put_str(pPkt->m_37, local_20);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3094,13 +3434,32 @@ int Inter_MonitorNoticeGuildEnter::dispatch_sig(CUser* user, char* data, int /*l
 Inter_MonitorNoticeGuildSecede::~Inter_MonitorNoticeGuildSecede() {}
 // ORIG 0x084c957e T dispatch_sig —— 公会退出通知：校验角色号后组 0x3b 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildSecede/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeGuildSecedePktView —— Inter_MonitorNoticeGuildSecede::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeGuildSecedePktView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned int m_e;         // +0x0e（ORIG 比较处两步 spill＝unsigned 字段→get_charac_no(int) 失配）
+    int m_12;                 // +0x12
+    char m_pad16[0x4];  // 未消费
+    int m_1a;                 // +0x1a
+    unsigned short m_1e;      // +0x1e
+    char m_20[1];             // +0x20 串/字节区首元素（容量未建模）
+    char m_pad21[0x16];  // 未消费
+    char m_37[1];             // +0x37 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeGuildSecede::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
 
+    // ORIG：包基址在 get_state 检查后物化入 -0x14(%ebp)
+    Inter_MonitorNoticeGuildSecedePktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildSecedePktView*>(data);
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0xe))         // msg+0x0e 角色号不符 → 日志
+        pPkt->m_e)         // msg+0x0e 角色号不符 → 日志
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3108,24 +3467,24 @@ int Inter_MonitorNoticeGuildSecede::dispatch_sig(CUser* user, char* data, int /*
             0x2348,
             "Inter_MonitorNoticeGuildSecede::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(data + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(0, 0x3b);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x12));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x1a));
+    packet.put_int(pPkt->m_12);
+    packet.put_int(pPkt->m_1a);
     packet.put_byte(                                 // msg+0x1e ushort（movzwl 零扩展）
-        static_cast<int>(*reinterpret_cast<unsigned short*>(data + 0x1e)));
+        static_cast<int>(pPkt->m_1e));
     const int secedeNameLen =                        // msg+0x20 退会角色名
-        static_cast<int>(strlen(data + 0x20));
+        static_cast<int>(strlen(pPkt->m_20));
     packet.put_int(secedeNameLen);
-    packet.put_str(data + 0x20, secedeNameLen);
+    packet.put_str(pPkt->m_20, secedeNameLen);
     const int guildNameLen =                         // msg+0x37 公会名
-        static_cast<int>(strlen(data + 0x37));
+        static_cast<int>(strlen(pPkt->m_37));
     packet.put_int(guildNameLen);
-    packet.put_str(data + 0x37, guildNameLen);
+    packet.put_str(pPkt->m_37, guildNameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3134,14 +3493,26 @@ int Inter_MonitorNoticeGuildSecede::dispatch_sig(CUser* user, char* data, int /*
 Inter_MonitorNoticeGuildMarkChange::~Inter_MonitorNoticeGuildMarkChange() {}
 // ORIG 0x084ca1e6 T dispatch_sig —— 公会徽标变更：校验 charac_no 后转发公会 key。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildMarkChange/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeGuildMarkChangePktView —— Inter_MonitorNoticeGuildMarkChange::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeGuildMarkChangePktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    int m_e;                  // +0x0e
+    unsigned int m_12;        // +0x12
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeGuildMarkChange::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorNoticeGuildMarkChangePktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildMarkChangePktView*>(data);
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
-    char* recv = data;                                 // -0x1c(%ebp) 缓存消息指针
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(recv + 0xe))
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {   // m_uCharID 不匹配 → 日志后退出
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3149,7 +3520,7 @@ int Inter_MonitorNoticeGuildMarkChange::dispatch_sig(CUser* user, char* data, in
             0x244a,
             "Inter_MonitorNoticeGuildMarkChange::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(recv + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
@@ -3157,13 +3528,13 @@ int Inter_MonitorNoticeGuildMarkChange::dispatch_sig(CUser* user, char* data, in
         __PRETTY_FUNCTION__,
         0x244f, 0);
     trace("[GUILD MARK CHANGE] Send to client. (channel:%d, character:%u, guildkey:%u)",
-          *reinterpret_cast<int*>(recv + 0xa),
-          *reinterpret_cast<unsigned int*>(recv + 0xe),
-          *reinterpret_cast<unsigned int*>(recv + 0x12));
+          pPkt->m_a,
+          pPkt->m_e,
+          pPkt->m_12);
 
     PacketGuard packet;
     packet.put_header(0, 0x3c);
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x12));
+    packet.put_int(pPkt->m_12);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3172,13 +3543,25 @@ int Inter_MonitorNoticeGuildMarkChange::dispatch_sig(CUser* user, char* data, in
 Inter_MonitorNoticeGuildDismiss::~Inter_MonitorNoticeGuildDismiss() {}
 // ORIG 0x084ca00c T dispatch_sig —— 公会解散通知：清公会标记并组 0x3d 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildDismiss/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeGuildDismissPktView —— Inter_MonitorNoticeGuildDismiss::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorNoticeGuildDismissPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    int m_e;                        // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeGuildDismiss::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
 
+    // ORIG 0x084ca02f：包基址在 get_state 检查之后物化入 -0xc(%ebp)
+    Inter_MonitorNoticeGuildDismissPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildDismissPktView*>(data);
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0xe))         // msg+0x0e 角色号校验
+        pPkt->m_e)         // msg+0x0e 角色号校验
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3186,7 +3569,7 @@ int Inter_MonitorNoticeGuildDismiss::dispatch_sig(CUser* user, char* data, int /
             0x2429,
             "Inter_MonitorNoticeGuildDismiss::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(data + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
@@ -3195,11 +3578,10 @@ int Inter_MonitorNoticeGuildDismiss::dispatch_sig(CUser* user, char* data, int /
         0x242d, 0);
     trace("Guild Create Right Init! Char id : %d, Master Id : %d",
           user->get_charac_no(-1),
-          *reinterpret_cast<int*>(reinterpret_cast<char*>(user->GetGuildDBInfo()) + 0x17));
+          reinterpret_cast<STGuildDBInfoPacketView*>(user->GetGuildDBInfo())->m_masterNo);
 
     // 会长本人额外清创建权（GmCmds_C.cpp 同型先例）
-    if (*reinterpret_cast<int*>(
-            reinterpret_cast<char*>(user->GetGuildDBInfo()) + 0x17) ==
+    if (reinterpret_cast<STGuildDBInfoPacketView*>(user->GetGuildDBInfo())->m_masterNo ==
         user->get_charac_no(-1))
     {
         user->set_guild_create_right(0);
@@ -3216,13 +3598,28 @@ int Inter_MonitorNoticeGuildDismiss::dispatch_sig(CUser* user, char* data, int /
 Inter_MonitorNoticeGuildChatMsg::~Inter_MonitorNoticeGuildChatMsg() {}
 // ORIG 0x084c9e30 T dispatch_sig —— 公会聊天消息转发：校验角色号后组 0x41 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildChatMsg/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeGuildChatMsgPktView —— Inter_MonitorNoticeGuildChatMsg::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeGuildChatMsgPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
+    char m_pad13[0x1d];  // 未消费
+    unsigned char m_30;       // +0x30
+    char m_31[1];             // +0x31 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeGuildChatMsg::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorNoticeGuildChatMsgPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildChatMsgPktView*>(data);
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
 
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0xe))         // msg+0x0e 角色号校验
+        pPkt->m_e)         // msg+0x0e 角色号校验
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3230,7 +3627,7 @@ int Inter_MonitorNoticeGuildChatMsg::dispatch_sig(CUser* user, char* data, int /
             0x23f1,
             "Inter_MonitorNoticeGuildChatMsg::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(data + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
@@ -3239,14 +3636,14 @@ int Inter_MonitorNoticeGuildChatMsg::dispatch_sig(CUser* user, char* data, int /
     packet.put_byte(6);
     packet.put_byte(0);
     const int msgLen =                               // msg+0x12 聊天文本
-        static_cast<int>(strlen(data + 0x12));
+        static_cast<int>(strlen(pPkt->m_12));
     packet.put_int(msgLen);
-    packet.put_str(data + 0x12, msgLen);
+    packet.put_str(pPkt->m_12, msgLen);
     packet.put_byte(0);
     const unsigned int nameLen =                     // msg+0x30 发言者名长
-        static_cast<unsigned int>(*reinterpret_cast<unsigned char*>(data + 0x30));
+        static_cast<unsigned int>(pPkt->m_30);
     packet.put_int(static_cast<int>(nameLen));
-    packet.put_str(data + 0x31, static_cast<int>(nameLen));
+    packet.put_str(pPkt->m_31, static_cast<int>(nameLen));
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3255,26 +3652,43 @@ int Inter_MonitorNoticeGuildChatMsg::dispatch_sig(CUser* user, char* data, int /
 Inter_MonitorCallGuildMembers::~Inter_MonitorCallGuildMembers() {}
 // ORIG 0x084ca7e6 T dispatch_sig —— 公会成员列表下发（0x46 包 + MakePacketGuildMembersInfo）。
 // 报告 docs/class_func_reports/Inter_MonitorCallGuildMembers/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorCallGuildMembersPktView —— Inter_MonitorCallGuildMembers::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorCallGuildMembersPktView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned int m_e;         // +0x0e（unsigned→int 返回失配的 4 行 spill 形态）
+    int m_12;                 // +0x12
+    char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
+    char m_pad17[0x16];  // 未消费
+    unsigned char m_2d;       // +0x2d
+    int m_2e;                 // +0x2e
+    unsigned short m_32;      // +0x32
+};
+#pragma pack(pop)
+
 int Inter_MonitorCallGuildMembers::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
+    // ORIG：包基址槽在门 1 之后物化。
+    Inter_MonitorCallGuildMembersPktView* pPkt = reinterpret_cast<Inter_MonitorCallGuildMembersPktView*>(data);
 
-    const int characNo =                               // msg+0xe
-        *reinterpret_cast<int*>(data + 0xe);
-    if (user->get_charac_no(-1) != characNo)
+    // ORIG：unsigned 字段失配 4 行 spill（同 ReplyGuildLetter）。
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x24b9,
             "Inter_MonitorCallGuildMembers::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), characNo);
+            user->get_charac_no(-1), pPkt->m_e);
         return 0;
     }
 
     if (user->get_charac_guildkey() !=
-        *reinterpret_cast<int*>(data + 0x12))
+        pPkt->m_12)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3287,17 +3701,18 @@ int Inter_MonitorCallGuildMembers::dispatch_sig(CUser* user, char* data, int /*l
     PacketGuard packet;
     packet.put_header(1, 0x46);
     packet.put_byte(1);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x12));
-    const size_t msgLen = strlen(data + 0x16);
-    packet.put_int((int)msgLen);
-    packet.put_str(data + 0x16, (int)msgLen);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x2e));
+    packet.put_int(pPkt->m_12);
+    // ORIG：strlen 结果 int 槽复用；put_str 的指针实参（`lea 0x16(%eax),%edx`）先求值。
+    const int msgLen = (int)strlen(pPkt->m_16);
+    packet.put_int(msgLen);
+    packet.put_str(pPkt->m_16, msgLen);
+    packet.put_int(pPkt->m_2e);
     packet.put_short(
-        (int)(unsigned short)*reinterpret_cast<unsigned short*>(data + 0x32));
+        (int)(unsigned short)pPkt->m_32);
     FunctionGuildMember::MakePacketGuildMembersInfo(
         packet,
-        (int)*reinterpret_cast<unsigned char*>(data + 0x2d),
-        reinterpret_cast<ST_Guild_Mem_Info*>(data + 0x34));
+        (int)pPkt->m_2d,
+        reinterpret_cast<ST_Guild_Mem_Info*>(reinterpret_cast<char*>(pPkt) + 0x34));
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3306,13 +3721,27 @@ int Inter_MonitorCallGuildMembers::dispatch_sig(CUser* user, char* data, int /*l
 Inter_MonitorCallGuildMembersNext::~Inter_MonitorCallGuildMembersNext() {}
 // ORIG 0x084caa16 T dispatch_sig —— 公会成员信息续查：双校验后组 0x8e 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorCallGuildMembersNext/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorCallGuildMembersNextPktView —— Inter_MonitorCallGuildMembersNext::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorCallGuildMembersNextPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned int m_e;               // +0x0e（同上 unsigned→int 失配两步 spill 形态）
+    int m_12;                       // +0x12
+    unsigned char m_16;             // +0x16
+};
+#pragma pack(pop)
+
 int Inter_MonitorCallGuildMembersNext::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
 
+    // ORIG：包基址在 get_state 检查后物化入 -0xc(%ebp)
+    Inter_MonitorCallGuildMembersNextPktView* pPkt = reinterpret_cast<Inter_MonitorCallGuildMembersNextPktView*>(data);
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0xe))         // msg+0x0e 角色号校验
+        pPkt->m_e)         // msg+0x0e 角色号校验
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3320,12 +3749,12 @@ int Inter_MonitorCallGuildMembersNext::dispatch_sig(CUser* user, char* data, int
             0x24e7,
             "Inter_MonitorCallGuildMembersNext::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(data + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
     if (user->get_charac_guildkey() !=
-        *reinterpret_cast<int*>(data + 0x12))        // msg+0x12 公会 key 校验
+        pPkt->m_12)        // msg+0x12 公会 key 校验
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3338,11 +3767,12 @@ int Inter_MonitorCallGuildMembersNext::dispatch_sig(CUser* user, char* data, int
     PacketGuard packet;
     packet.put_header(1, 0x8e);
     packet.put_byte(1);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x12));
+    packet.put_int(pPkt->m_12);
     FunctionGuildMember::MakePacketGuildMembersInfo( // ORIG 0x084ca37a T
         packet,
-        static_cast<int>(*reinterpret_cast<unsigned char*>(data + 0x16)),
-        reinterpret_cast<ST_Guild_Mem_Info*>(data + 0x17));
+        static_cast<int>(pPkt->m_16),
+        reinterpret_cast<ST_Guild_Mem_Info*>(
+            reinterpret_cast<char*>(pPkt) + 0x17));   // ORIG 经 -0xc 槽
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3351,26 +3781,43 @@ int Inter_MonitorCallGuildMembersNext::dispatch_sig(CUser* user, char* data, int
 Inter_MonitorCallGuildAllMembers::~Inter_MonitorCallGuildAllMembers() {}
 // ORIG 0x084cabda T dispatch_sig —— 公会全成员列表下发（0x8f 包 + MakePacketGuildMembersInfo）。
 // 报告 docs/class_func_reports/Inter_MonitorCallGuildAllMembers/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorCallGuildAllMembersPktView —— Inter_MonitorCallGuildAllMembers::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorCallGuildAllMembersPktView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned int m_e;         // +0x0e（同上）
+    int m_12;                 // +0x12
+    char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
+    char m_pad17[0x16];  // 未消费
+    int m_2d;                 // +0x2d
+    unsigned short m_31;      // +0x31
+    unsigned char m_33;       // +0x33
+};
+#pragma pack(pop)
+
 int Inter_MonitorCallGuildAllMembers::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
+    // ORIG：包基址槽在门 1 之后物化。
+    Inter_MonitorCallGuildAllMembersPktView* pPkt = reinterpret_cast<Inter_MonitorCallGuildAllMembersPktView*>(data);
 
-    const int characNo =                               // msg+0xe
-        *reinterpret_cast<int*>(data + 0xe);
-    if (user->get_charac_no(-1) != characNo)
+    // ORIG：同 MonitorCallGuildMembers。
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x250c,
             "Inter_MonitorCallGuildAllMembers::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), characNo);
+            user->get_charac_no(-1), pPkt->m_e);
         return 0;
     }
 
     if (user->get_charac_guildkey() !=
-        *reinterpret_cast<int*>(data + 0x12))
+        pPkt->m_12)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3383,17 +3830,21 @@ int Inter_MonitorCallGuildAllMembers::dispatch_sig(CUser* user, char* data, int 
     PacketGuard packet;
     packet.put_header(1, 0x8f);
     packet.put_byte(1);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x12));
-    const size_t msgLen = strlen(data + 0x16);
-    packet.put_int((int)msgLen);
-    packet.put_str(data + 0x16, (int)msgLen);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x2d));
+    packet.put_int(pPkt->m_12);
+    // ORIG 0x084cacxx `mov -0x10(%ebp),%eax; lea 0x16(%eax),%edx` 先于 `mov -0xc(%ebp),%eax`
+    // ⇒ put_str 实参1（串址）先求值；strlen 结果 int 槽直传（size_t+(int)cast 形反序退化 add）。
+    const int msgLen = strlen(pPkt->m_16);
+    packet.put_int(msgLen);
+    packet.put_str(pPkt->m_16, msgLen);
+    packet.put_int(pPkt->m_2d);
     packet.put_short(
-        (int)(unsigned short)*reinterpret_cast<unsigned short*>(data + 0x31));
+        (int)(unsigned short)pPkt->m_31);
     FunctionGuildMember::MakePacketGuildMembersInfo(
         packet,
-        (int)*reinterpret_cast<unsigned char*>(data + 0x33),
-        reinterpret_cast<ST_Guild_Mem_Info*>(data + 0x34));
+        // ORIG 0x084cadxx：arg3 `mov -0x10(%ebp),%eax; lea 0x34(%eax),%edx`（槽寻址、先于
+        // arg2 的 movzbl 0x33）⇒ 基址改用 pPkt 槽而非 data 形参。
+        (int)pPkt->m_33,
+        reinterpret_cast<ST_Guild_Mem_Info*>(reinterpret_cast<char*>(pPkt) + 0x34));
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3402,13 +3853,27 @@ int Inter_MonitorCallGuildAllMembers::dispatch_sig(CUser* user, char* data, int 
 Inter_MonitorCallGuildAllMembersNext::~Inter_MonitorCallGuildAllMembersNext() {}
 // ORIG 0x084cae0a T dispatch_sig —— 公会全体成员信息续查：双校验后组 0x90 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorCallGuildAllMembersNext/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorCallGuildAllMembersNextPktView —— Inter_MonitorCallGuildAllMembersNext::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorCallGuildAllMembersNextPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned int m_e;               // +0x0e（同上 unsigned→int 失配两步 spill 形态）
+    int m_12;                       // +0x12
+    unsigned char m_16;             // +0x16
+};
+#pragma pack(pop)
+
 int Inter_MonitorCallGuildAllMembersNext::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
 
+    // ORIG：包基址在 get_state 检查后物化
+    Inter_MonitorCallGuildAllMembersNextPktView* pPkt = reinterpret_cast<Inter_MonitorCallGuildAllMembersNextPktView*>(data);
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0xe))         // msg+0x0e 角色号校验
+        pPkt->m_e)         // msg+0x0e 角色号校验
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3416,12 +3881,12 @@ int Inter_MonitorCallGuildAllMembersNext::dispatch_sig(CUser* user, char* data, 
             0x2539,
             "Inter_MonitorCallGuildAllMembersNext::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(data + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
     if (user->get_charac_guildkey() !=
-        *reinterpret_cast<int*>(data + 0x12))        // msg+0x12 公会 key 校验
+        pPkt->m_12)        // msg+0x12 公会 key 校验
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3434,11 +3899,12 @@ int Inter_MonitorCallGuildAllMembersNext::dispatch_sig(CUser* user, char* data, 
     PacketGuard packet;
     packet.put_header(1, 0x90);
     packet.put_byte(1);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x12));
+    packet.put_int(pPkt->m_12);
     FunctionGuildMember::MakePacketGuildMembersInfo( // ORIG 0x084ca37a T
         packet,
-        static_cast<int>(*reinterpret_cast<unsigned char*>(data + 0x16)),
-        reinterpret_cast<ST_Guild_Mem_Info*>(data + 0x17));
+        static_cast<int>(pPkt->m_16),
+        reinterpret_cast<ST_Guild_Mem_Info*>(
+            reinterpret_cast<char*>(pPkt) + 0x17));   // ORIG 经包基址槽
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3447,13 +3913,36 @@ int Inter_MonitorCallGuildAllMembersNext::dispatch_sig(CUser* user, char* data, 
 Inter_MonitorNoticeGuildNames::~Inter_MonitorNoticeGuildNames() {}
 // ORIG 0x084cafce T dispatch_sig —— 公会成员名列表通知：双重校验后组 0x3f 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildNames/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeGuildNamesPktView —— Inter_MonitorNoticeGuildNames::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+#pragma pack(push, 1)
+// MonitorNoticeGuildNames 名区元素视图（stride 0x1e；ORIG 0x084cb11f/0x084cb125
+// 两步位移 `lea 0x10(%edx)` + `add $0x7`：名绝对基 = union@0x12 + 元素内 +5 =
+// 0x17，4.4 按 (0x10 | 余量) 切分常量）。
+struct MonitorGuildNameElemView { char m_pad0[5]; char m_name[0x17]; char m_padt[2]; };
+#pragma pack(pop)
+struct Inter_MonitorNoticeGuildNamesPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned int m_e;               // +0x0e（ORIG 0x084cb012 mov 0xe(%eax)）
+    union
+    {
+        struct { int m_12; unsigned char m_16; };  // +0x12 / +0x16
+        MonitorGuildNameElemView m_names[1];       // union@0x12（容量未建模）
+    };
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeGuildNames::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
 
+    // ORIG：包基址在 get_state 检查后物化入 -0x14(%ebp)
+    Inter_MonitorNoticeGuildNamesPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildNamesPktView*>(data);
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0xe))         // msg+0x0e 角色号校验
+        pPkt->m_e)         // msg+0x0e 角色号校验
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3461,12 +3950,12 @@ int Inter_MonitorNoticeGuildNames::dispatch_sig(CUser* user, char* data, int /*l
             0x255f,
             "Packet_Monitor_Notice_Guild_Char_Names::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(data + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
     if (user->get_charac_guildkey() !=
-        *reinterpret_cast<int*>(data + 0x12))        // msg+0x12 公会 key 校验
+        pPkt->m_12)        // msg+0x12 公会 key 校验（ORIG 0x084cb083 mov 0x12(%edx)）
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3478,11 +3967,13 @@ int Inter_MonitorNoticeGuildNames::dispatch_sig(CUser* user, char* data, int /*l
 
     PacketGuard packet;
     packet.put_header(0, 0x3f);
-    const unsigned int count =                       // msg+0x16 名字数
-        static_cast<unsigned int>(*reinterpret_cast<unsigned char*>(data + 0x16));
-    packet.put_byte(static_cast<int>(count));
-    for (int i = 0; i < static_cast<int>(count); ++i)
-        packet.put_str(data + 0x17 + i * 0x1e, 0x1e); // 每名 0x1e 定长
+    // ORIG：count 缓存槽 -0x10(%ebp) int；循环 i<count 有符号 setl 尾测
+    const int count =
+        static_cast<int>(static_cast<unsigned int>(pPkt->m_16));
+    packet.put_byte(count);
+    for (int i = 0; i < count; ++i)
+        // ORIG：数组寻址两步位移（每名 0x1e 定长，名起于元素 +7）。
+        packet.put_str(pPkt->m_names[i].m_name, 0x1e);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3491,14 +3982,29 @@ int Inter_MonitorNoticeGuildNames::dispatch_sig(CUser* user, char* data, int /*l
 Inter_MonitorNoticeGuildLoginOut::~Inter_MonitorNoticeGuildLoginOut() {}
 // ORIG 0x084c93e4 T dispatch_sig —— 公会成员登录/登出广播：校验 charac_no 后转发登出包。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildLoginOut/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeGuildLoginOutPktView —— Inter_MonitorNoticeGuildLoginOut::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeGuildLoginOutPktView
+{
+    char m_pad0[0xa];  // 未消费
+    signed char m_a;          // +0x0a
+    char m_padb[0x4];  // 未消费
+    unsigned int m_f;         // +0x0f（同上 unsigned→int 失配两步 spill 形态）
+    unsigned char m_13;       // +0x13
+    char m_14[1];             // +0x14 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeGuildLoginOut::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax,eax; sete → 门
         return 0;
+    // ORIG：包基址槽在 get_state 守卫之后才物化（声明位置决定落栈时机）。
+    Inter_MonitorNoticeGuildLoginOutPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildLoginOutPktView*>(data);
 
-    char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(recv + 0xf))
+    if (user->get_charac_no(-1) != pPkt->m_f)
     {   // m_uCharID 不匹配 → 日志后退出
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3506,17 +4012,17 @@ int Inter_MonitorNoticeGuildLoginOut::dispatch_sig(CUser* user, char* data, int 
             0x232c,
             "Inter_MonitorNoticeGuildLoginOut::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(recv + 0xf));
+            pPkt->m_f);
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(0, 0x40);
-    packet.put_byte((int)*reinterpret_cast<signed char*>(recv + 0xa));   // movzbl+movsbl
-    packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0x13));
-    const int nameLen = strlen(recv + 0x14);
+    packet.put_byte((int)pPkt->m_a);   // movzbl+movsbl
+    packet.put_byte((unsigned int)pPkt->m_13);
+    const int nameLen = strlen(pPkt->m_14);
     packet.put_int(nameLen);
-    packet.put_str(recv + 0x14, nameLen);
+    packet.put_str(pPkt->m_14, nameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3526,22 +4032,41 @@ Inter_MonitorNoticeOtherChannelChat::~Inter_MonitorNoticeOtherChannelChat() {}
 // ORIG 0x084cb1ac T dispatch_sig —— 其它频道聊天通知：按消息类型（1/2/3/私聊回执）
 // 构造 0x41 聊天包转发给目标用户。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeOtherChannelChat/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeOtherChannelChatPktView —— Inter_MonitorNoticeOtherChannelChat::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeOtherChannelChatPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    signed char m_e;          // +0x0e
+    char m_padf[0x4];  // 未消费
+    int m_13;                 // +0x13
+    char m_17[1];             // +0x17 串/字节区首元素（容量未建模）
+    char m_pad18[0x1d];  // 未消费
+    unsigned char m_35;       // +0x35
+    unsigned char m_36;       // +0x36
+    char m_37[1];             // +0x37 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorNoticeOtherChannelChatPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeOtherChannelChatPktView*>(data);
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
     char* msg = data;                                 // -0x1c
 
-    if (*reinterpret_cast<const unsigned char*>(msg + 0x35) == 1)
+    if (pPkt->m_35 == 1)
     {
         PacketGuard packet;                            // -0x34
         packet.put_header(0, 0x41);
-        packet.put_byte(*reinterpret_cast<const int*>(msg + 0x0a));
+        packet.put_byte(pPkt->m_a);
         packet.put_byte(0x15);
-        const size_t len = strlen(msg + 0x17);         // -0x14
+        const size_t len = strlen(pPkt->m_17);         // -0x14
         packet.put_int((int)len);
-        packet.put_str(msg + 0x17, (int)len);
+        packet.put_str(pPkt->m_17, (int)len);
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
@@ -3549,15 +4074,15 @@ int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, i
         user->Send(packet);
         return 0;
     }
-    else if (*reinterpret_cast<const unsigned char*>(msg + 0x35) == 2)
+    else if (pPkt->m_35 == 2)
     {
         PacketGuard packet;                            // -0x40
         packet.put_header(0, 0x41);
-        packet.put_byte(*reinterpret_cast<const int*>(msg + 0x0a));
+        packet.put_byte(pPkt->m_a);
         packet.put_byte(0x4d);
-        const size_t len = strlen(msg + 0x17);         // -0x10
+        const size_t len = strlen(pPkt->m_17);         // -0x10
         packet.put_int((int)len);
-        packet.put_str(msg + 0x17, (int)len);
+        packet.put_str(pPkt->m_17, (int)len);
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
@@ -3565,15 +4090,15 @@ int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, i
         user->Send(packet);
         return 0;
     }
-    else if (*reinterpret_cast<const unsigned char*>(msg + 0x35) == 3)
+    else if (pPkt->m_35 == 3)
     {
         PacketGuard packet;                            // -0x4c
         packet.put_header(0, 0x41);
-        packet.put_byte(*reinterpret_cast<const int*>(msg + 0x0a));
+        packet.put_byte(pPkt->m_a);
         packet.put_byte(0x5a);
-        const size_t len = strlen(msg + 0x17);         // -0xc
+        const size_t len = strlen(pPkt->m_17);         // -0xc
         packet.put_int((int)len);
-        packet.put_str(msg + 0x17, (int)len);
+        packet.put_str(pPkt->m_17, (int)len);
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
@@ -3584,7 +4109,7 @@ int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, i
     else
     {
         if (user->get_charac_no(-1) !=
-            *reinterpret_cast<const int*>(msg + 0x13))
+            pPkt->m_13)
         {
             LogManager::logFormat(
                 1, "InterDispatcher.cpp",
@@ -3592,21 +4117,21 @@ int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, i
                 0x25ee,
                 "Inter_MonitorNoticeBuddyChat::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
                 user->get_charac_no(-1),
-                *reinterpret_cast<const int*>(msg + 0x13));
+                pPkt->m_13);
             return 0;
         }
 
         PacketGuard packet;                            // -0x28
         packet.put_header(0, 0x41);
-        packet.put_byte(*reinterpret_cast<const int*>(msg + 0x0a));
+        packet.put_byte(pPkt->m_a);
         packet.put_byte(0);
-        const size_t len = strlen(msg + 0x17);         // -0x18
+        const size_t len = strlen(pPkt->m_17);         // -0x18
         packet.put_int((int)len);
-        packet.put_str(msg + 0x17, (int)len);
-        packet.put_byte((int)*reinterpret_cast<const signed char*>(msg + 0x0e));
-        packet.put_int((int)(unsigned int)*reinterpret_cast<const unsigned char*>(msg + 0x36));
-        packet.put_str(msg + 0x37,
-                       (int)(unsigned int)*reinterpret_cast<const unsigned char*>(msg + 0x36));
+        packet.put_str(pPkt->m_17, (int)len);
+        packet.put_byte((int)pPkt->m_e);
+        packet.put_int((int)(unsigned int)pPkt->m_36);
+        packet.put_str(pPkt->m_37,
+                       (int)(unsigned int)pPkt->m_36);
         packet.finalize(true);
         user->Send(packet);
     }
@@ -3616,21 +4141,33 @@ int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, i
 Inter_MonitorCallGuildInfo::~Inter_MonitorCallGuildInfo() {}
 // ORIG 0x084cc006 T dispatch_sig —— 公会信息查询结果下发（0x4d 包，0x1d 步长成员数组）。
 // 报告 docs/class_func_reports/Inter_MonitorCallGuildInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorCallGuildInfoPktView —— Inter_MonitorCallGuildInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorCallGuildInfoPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned int m_e;               // +0x0e（同上）
+    unsigned char m_12;             // +0x12
+};
+#pragma pack(pop)
+
 int Inter_MonitorCallGuildInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
+    // ORIG：包基址槽在门 1 之后物化。
+    Inter_MonitorCallGuildInfoPktView* pPkt = reinterpret_cast<Inter_MonitorCallGuildInfoPktView*>(data);
 
-    const int characNo =                               // msg+0xe
-        *reinterpret_cast<int*>(data + 0xe);
-    if (user->get_charac_no(-1) != characNo)
+    // ORIG：同 MonitorCallGuildMembers。
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x26e4,
             "Inter_MonitorCallGuildInfo::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), characNo);
+            user->get_charac_no(-1), pPkt->m_e);
         return 0;
     }
 
@@ -3638,9 +4175,9 @@ int Inter_MonitorCallGuildInfo::dispatch_sig(CUser* user, char* data, int /*len*
     packet.put_header(1, 0x4d);
     packet.put_byte(1);
     packet.put_byte(
-        (int)*reinterpret_cast<unsigned char*>(data + 0x12));
+        (int)pPkt->m_12);
     for (int i = 0;
-         i < (int)(unsigned int)*reinterpret_cast<unsigned char*>(data + 0x12);
+         i < (int)(unsigned int)pPkt->m_12;
          ++i)
     {
         packet.put_int(*reinterpret_cast<int*>(data + i * 0x1d + 0x13));
@@ -3661,13 +4198,46 @@ Inter_MonitorNoticeGuildInfo::~Inter_MonitorNoticeGuildInfo() {}
 // ORIG 0x084cb726 T dispatch_sig —— 监控服公会信息通知：落 SetGuildDBInfo 后组
 // 0x46 公会信息包（成员等级过滤、公告/说明串）回发用户。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeGuildInfoPktView —— Inter_MonitorNoticeGuildInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeGuildInfoPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    char m_pad12[0x4];  // 未消费
+    char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
+    char m_pad17[0x16];  // 未消费
+    int m_2d;                 // +0x2d
+    unsigned char m_31;       // +0x31
+    unsigned char m_32;       // +0x32
+    char m_pad33[0x5];  // 未消费
+    unsigned short m_38;      // +0x38
+    int m_3a;                 // +0x3a
+    unsigned char m_3e;       // +0x3e
+    int m_3f;                 // +0x3f
+    char m_pad43[0x15];  // 未消费
+    unsigned short m_58;      // +0x58
+    unsigned char m_5a;       // +0x5a
+    char m_pad5b[0x50];  // 未消费
+    unsigned char m_ab;       // +0xab
+    char m_padac[0x9];  // 未消费
+    unsigned char m_b5;       // +0xb5
+    int m_b6;                 // +0xb6
+    char m_ba[1];             // +0xba 串/字节区首元素（容量未建模）
+    char m_padbb[0x19];  // 未消费
+    char m_d4[1];             // +0xd4 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeGuildInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorNoticeGuildInfoPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildInfoPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0x0e))
+        pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3675,7 +4245,7 @@ int Inter_MonitorNoticeGuildInfo::dispatch_sig(CUser* user, char* data, int /*le
             0x2613,
             "Inter_MonitorNoticeGuildInfo::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(data + 0x0e));
+            pPkt->m_e);
         return 0;
     }
 
@@ -3685,30 +4255,30 @@ int Inter_MonitorNoticeGuildInfo::dispatch_sig(CUser* user, char* data, int /*le
     PacketGuard packet;                                // -0x28
     packet.put_header(0, 0x46);
 
-    const size_t guildNameLen = strlen(data + 0x16);   // -0x18
+    const size_t guildNameLen = strlen(pPkt->m_16);   // -0x18
     packet.put_int((int)guildNameLen);
-    packet.put_str(data + 0x16, (int)guildNameLen);
+    packet.put_str(pPkt->m_16, (int)guildNameLen);
 
     if (user->get_charac_no(-1) ==
-        *reinterpret_cast<int*>(data + 0x2d))          // 会长标记
+        pPkt->m_2d)          // 会长标记
         packet.put_byte(1);
     else
         packet.put_byte(0);
 
-    packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 0x31));
-    packet.put_byte((int)((*reinterpret_cast<unsigned char*>(data + 0x32) >> 1) & 1));
-    packet.put_short((int)*reinterpret_cast<unsigned short*>(data + 0x38));
+    packet.put_byte((int)pPkt->m_31);
+    packet.put_byte((int)((pPkt->m_32 >> 1) & 1));
+    packet.put_short((int)pPkt->m_38);
     packet.put_byte((int)(user->get_guild_create_right() & 0xff));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x3a));
-    packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 0x3e));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x3f));
-    packet.put_short((int)*reinterpret_cast<unsigned short*>(data + 0x58));
+    packet.put_int(pPkt->m_3a);
+    packet.put_byte((int)pPkt->m_3e);
+    packet.put_int(pPkt->m_3f);
+    packet.put_short((int)pPkt->m_58);
 
     int memberCountPos = packet.get_index();           // -0x2c（put_byte(int&,int) 回填需左值）
     int memberCount = 0;                               // -0x14
     packet.put_byte(0);
     for (int i = 0;                                    // -0x10
-         i < (int)(unsigned int)*reinterpret_cast<unsigned char*>(data + 0x5a);
+         i < (int)(unsigned int)pPkt->m_5a;
          ++i)
     {
         if (user->getGuildMemberGrade() == 0 ||        // ORIG 双调用短路原样
@@ -3726,15 +4296,15 @@ int Inter_MonitorNoticeGuildInfo::dispatch_sig(CUser* user, char* data, int /*le
     }
     packet.put_byte(memberCountPos, memberCount);      // ORIG put_byte(int&,int) 回填
 
-    const size_t noticeLen = strlen(data + 0xd4);      // 公告
+    const size_t noticeLen = strlen(pPkt->m_d4);      // 公告
     packet.put_int((int)noticeLen);
-    packet.put_str(data + 0xd4, (int)noticeLen);
-    packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 0xab));
-    packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 0xb5));
-    packet.put_int(*reinterpret_cast<int*>(data + 0xb6));
-    const size_t introLen = strlen(data + 0xba);       // 说明
+    packet.put_str(pPkt->m_d4, (int)noticeLen);
+    packet.put_byte((int)pPkt->m_ab);
+    packet.put_byte((int)pPkt->m_b5);
+    packet.put_int(pPkt->m_b6);
+    const size_t introLen = strlen(pPkt->m_ba);       // 说明
     packet.put_int((int)introLen);
-    packet.put_str(data + 0xba, (int)introLen);
+    packet.put_str(pPkt->m_ba, (int)introLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3743,22 +4313,34 @@ int Inter_MonitorNoticeGuildInfo::dispatch_sig(CUser* user, char* data, int /*le
 Inter_MonitorSetGuildKey::~Inter_MonitorSetGuildKey() {}
 // ORIG 0x084cbd26 T dispatch_sig —— 设置公会 key：state==2 登录期直写，state>2 校验角色号后发包。
 // 报告 docs/class_func_reports/Inter_MonitorSetGuildKey/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorSetGuildKeyPktView —— Inter_MonitorSetGuildKey::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorSetGuildKeyPktView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned int m_e;         // +0x0e
+    unsigned int m_12;        // +0x12
+};
+#pragma pack(pop)
+
 int Inter_MonitorSetGuildKey::dispatch_sig(CUser* user, char* data, int len)
 {
+    Inter_MonitorSetGuildKeyPktView* pPkt = reinterpret_cast<Inter_MonitorSetGuildKeyPktView*>(data);
     const int local_10 = len;
 
     if (user->get_state() == 2)                        // test eax,eax; sete
     {
         user->set_charac_guildkey_in_login(            // msg+0x12, msg+0xe
-            *reinterpret_cast<unsigned int*>(data + 0x12),
-            *reinterpret_cast<unsigned int*>(data + 0xe));
+            pPkt->m_12,
+            pPkt->m_e);
         return 0;
     }
 
     if (user->get_state() <= 2)                        // cmp $2; setg → !(state>2)
         return 0x26d4;
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0xe))
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3766,11 +4348,11 @@ int Inter_MonitorSetGuildKey::dispatch_sig(CUser* user, char* data, int len)
             0x26a7,
             "Inter_MonitorSetGuildKey::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<unsigned int*>(data + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
-    if (*reinterpret_cast<int*>(data + 0x12) == 0)
+    if (pPkt->m_12 == 0)
     {
         user->resetGuildDBInfo();
         PacketGuard packet;
@@ -3791,7 +4373,7 @@ int Inter_MonitorSetGuildKey::dispatch_sig(CUser* user, char* data, int len)
     else
     {
         user->set_charac_guildkey(                     // CUserCharacInfo::set_charac_guildkey
-            *reinterpret_cast<unsigned int*>(data + 0x12));
+            pPkt->m_12);
     }
 
     {
@@ -3809,14 +4391,27 @@ int Inter_MonitorSetGuildKey::dispatch_sig(CUser* user, char* data, int len)
 Inter_MonitorNoticeGuildCreate::~Inter_MonitorNoticeGuildCreate() {}
 // ORIG 0x084cbb94 T dispatch_sig —— 公会创建通知：写 guildkey 后转发公会名。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildCreate/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeGuildCreatePktView —— Inter_MonitorNoticeGuildCreate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeGuildCreatePktView
+{
+    char m_pad0[0xa];  // 未消费
+    unsigned int m_a;         // +0x0a
+    unsigned int m_e;         // +0x0e（同上 unsigned→int 失配两步 spill 形态）
+    char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeGuildCreate::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0x267c;                                 // 门失败返回 0x267c
+    // ORIG：包基址槽在守卫之后物化。
+    Inter_MonitorNoticeGuildCreatePktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildCreatePktView*>(data);
 
-    char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(recv + 0xe))
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {   // m_uCharID 不匹配 → 日志后返回 0
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -3824,18 +4419,18 @@ int Inter_MonitorNoticeGuildCreate::dispatch_sig(CUser* user, char* data, int /*
             0x2682,
             "Packet_Monitor_Notice_Guild_Create_ToUser::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(recv + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
-    user->set_charac_guildkey(*reinterpret_cast<unsigned int*>(recv + 0xa));
+    user->set_charac_guildkey(pPkt->m_a);
 
     PacketGuard packet;
     packet.put_header(0, 0x47);
-    packet.put_int(*reinterpret_cast<int*>(recv + 0xa));
-    const int nameLen = strlen(recv + 0x12);
+    packet.put_int(pPkt->m_a);
+    const int nameLen = strlen(pPkt->m_12);
     packet.put_int(nameLen);
-    packet.put_str(recv + 0x12, nameLen);
+    packet.put_str(pPkt->m_12, nameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3844,25 +4439,39 @@ int Inter_MonitorNoticeGuildCreate::dispatch_sig(CUser* user, char* data, int /*
 Inter_MonitorGuildMemberNamingReply::~Inter_MonitorGuildMemberNamingReply() {}
 // ORIG 0x084cc23c T dispatch_sig —— 公会成员命名应答。
 // 报告 docs/class_func_reports/Inter_MonitorGuildMemberNamingReply/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorGuildMemberNamingReplyPktView —— Inter_MonitorGuildMemberNamingReply::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorGuildMemberNamingReplyPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+    char m_pade[0x4];  // +0xe..未消费
+    unsigned int m_12;              // +0x12
+};
+#pragma pack(pop)
+
 int Inter_MonitorGuildMemberNamingReply::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
         return 0;
 
-    const unsigned int charIdMsg =                     // recv charId @ msg+0x12
-        *reinterpret_cast<unsigned int*>(data + 0x12);
-    if (charIdMsg != (unsigned int)user->get_charac_no(-1))
+    // ORIG 0x084cc262：pPkt 物化在 null 岛之后（技巧13：声明位置=落栈时机）。
+    Inter_MonitorGuildMemberNamingReplyPktView* pPkt = reinterpret_cast<Inter_MonitorGuildMemberNamingReplyPktView*>(data);
+    // ORIG 0x084cc26b `mov 0x12(%eax),%ebx` + 0x084cc281 `cmp %eax,%ebx`（dst=reg，
+    // N22 不可翻；asm("ebx") 钉形反产两段+edx 中转，实测劣化）。
+    register unsigned int charIdMsg = pPkt->m_12;
+    if (user->get_charac_no(-1) != charIdMsg)
         return 0;
 
-    const int errCode = *reinterpret_cast<int*>(data + 0xa);
-
+    // ORIG 0x084cc2ba/0x084cc2ec：m_a 两处独立 reload，无具名槽（技巧37）。
     PacketGuard packet;
     packet.put_header(1, 0x80);
-    if (errCode == 0)
+    if (pPkt->m_a == 0)
         packet.put_byte(1);
     else
         packet.put_byte(0);
-    packet.put_byte(errCode);
+    packet.put_byte(pPkt->m_a);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3871,35 +4480,53 @@ int Inter_MonitorGuildMemberNamingReply::dispatch_sig(CUser* user, char* data, i
 Inter_MonitorSetSubGuildMasterReply::~Inter_MonitorSetSubGuildMasterReply() {}
 // ORIG 0x084cc35c T dispatch_sig —— 副会长设置应答（0x81 包 + GuildChangeGrade 日志）。
 // 报告 docs/class_func_reports/Inter_MonitorSetSubGuildMasterReply/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorSetSubGuildMasterReplyPktView —— Inter_MonitorSetSubGuildMasterReply::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorSetSubGuildMasterReplyPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x4];  // 未消费
+    int m_12;                 // +0x12
+    unsigned char m_16;       // +0x16
+    char m_17[1];             // +0x17 串/字节区首元素（容量未建模）
+    char m_pad18[0x1d];  // 未消费
+    unsigned char m_35;       // +0x35
+    unsigned int m_36;        // +0x36
+};
+#pragma pack(pop)
+
 int Inter_MonitorSetSubGuildMasterReply::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorSetSubGuildMasterReplyPktView* pPkt = reinterpret_cast<Inter_MonitorSetSubGuildMasterReplyPktView*>(data);
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
 
-    if (*reinterpret_cast<int*>(data + 0x12) !=        // msg+0x12 characNo
+    if (pPkt->m_12 !=        // msg+0x12 characNo
         user->get_charac_no(-1))
         return 0;
 
     PacketGuard packet;
     packet.put_header(1, 0x81);
-    if (*reinterpret_cast<int*>(data + 0xa) == 0)
+    if (pPkt->m_a == 0)
     {
         packet.put_byte(1);
-        packet.put_byte(*reinterpret_cast<int*>(data + 0xa));
-        const size_t msgLen = strlen(data + 0x17);
+        packet.put_byte(pPkt->m_a);
+        const size_t msgLen = strlen(pPkt->m_17);
         packet.put_int((int)msgLen);
-        packet.put_str(data + 0x17, (int)msgLen);
+        packet.put_str(pPkt->m_17, (int)msgLen);
         packet.put_byte(
-            (int)*reinterpret_cast<unsigned char*>(data + 0x16));
+            (int)pPkt->m_16);
 
         const unsigned char newGrade =                 // msg+0x16
-            *reinterpret_cast<unsigned char*>(data + 0x16);
+            pPkt->m_16;
         const unsigned char oldGrade =                 // msg+0x35
-            *reinterpret_cast<unsigned char*>(data + 0x35);
+            pPkt->m_35;
         const unsigned int grade =                     // msg+0x36
-            *reinterpret_cast<unsigned int*>(data + 0x36);
+            pPkt->m_36;
         const unsigned int characNo =                  // msg+0x12
-            *reinterpret_cast<unsigned int*>(data + 0x12);
+            pPkt->m_12;
         cUserHistoryLog* hist = &user->m_historyLog;
         hist->GuildChangeGrade(
             (unsigned int)user->get_charac_guildkey(),
@@ -3909,7 +4536,7 @@ int Inter_MonitorSetSubGuildMasterReply::dispatch_sig(CUser* user, char* data, i
     else
     {
         packet.put_byte(0);
-        packet.put_byte(*reinterpret_cast<int*>(data + 0xa));
+        packet.put_byte(pPkt->m_a);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -3919,22 +4546,36 @@ int Inter_MonitorSetSubGuildMasterReply::dispatch_sig(CUser* user, char* data, i
 Inter_MonitorNoticeGuildMemberInfo::~Inter_MonitorNoticeGuildMemberInfo() {}
 // ORIG 0x084cc768 T dispatch_sig —— 公会成员信息通知：设成员等级并发 0x7f/0x02 包。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildMemberInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeGuildMemberInfoPktView —— Inter_MonitorNoticeGuildMemberInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorNoticeGuildMemberInfoPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    int m_e;                        // +0x0e
+    char m_pad12[0x15];  // +0x12..未消费
+    unsigned char m_27;             // +0x27
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeGuildMemberInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)                      // asm cmp $0x2; setle
         return 0;
 
-    if (*reinterpret_cast<int*>(data + 0xe) !=       // msg+0x0e 角色号校验
+    // ORIG 0x084cc78f：包基址在 get_state 检查之后才物化入栈槽 -0xc(%ebp)
+    Inter_MonitorNoticeGuildMemberInfoPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildMemberInfoPktView*>(data);
+    if (pPkt->m_e !=       // msg+0x0e 角色号校验
         user->get_charac_no(-1))
         return 0;
 
     user->setGuildMemberGrade(                       // msg+0x27 成员等级
-        *reinterpret_cast<unsigned char*>(data + 0x27));
+        pPkt->m_27);
 
     PacketGuard packet;
     packet.put_header(0, 0x7f);
     packet.put_byte(                                 // movzbl 零扩展
-        static_cast<int>(*reinterpret_cast<unsigned char*>(data + 0x27)));
+        static_cast<int>(pPkt->m_27));
     packet.finalize(true);
     user->Send(packet);
 
@@ -3953,15 +4594,28 @@ int Inter_MonitorNoticeGuildMemberInfo::dispatch_sig(CUser* user, char* data, in
 Inter_MonitorNoticeChangeGuildMemberGrade::~Inter_MonitorNoticeChangeGuildMemberGrade() {}
 // ORIG 0x084cc55e T dispatch_sig —— 监控服公会成员等级变更通知。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeChangeGuildMemberGrade/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeChangeGuildMemberGradePktView —— Inter_MonitorNoticeChangeGuildMemberGrade::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorNoticeChangeGuildMemberGradePktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    int m_e;                        // +0x0e
+    unsigned char m_12;             // +0x12
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeChangeGuildMemberGrade::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
         return 0;
-    if (*reinterpret_cast<int*>(data + 0xe) != user->get_charac_no(-1))
+    // ORIG +0x4c：包基址槽 -0xc 的写入点在 get_state 守卫之后（声明随之下移）。
+    Inter_MonitorNoticeChangeGuildMemberGradePktView* pPkt = reinterpret_cast<Inter_MonitorNoticeChangeGuildMemberGradePktView*>(data);
+    if (pPkt->m_e != user->get_charac_no(-1))
         return 0;
     PacketGuard packet;
     packet.put_header(0, 0x8c);
-    packet.put_byte(*reinterpret_cast<unsigned char*>(data + 0x12));
+    packet.put_byte(pPkt->m_12);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3970,20 +4624,37 @@ int Inter_MonitorNoticeChangeGuildMemberGrade::dispatch_sig(CUser* user, char* d
 Inter_GuildNoticeGuildMessage::~Inter_GuildNoticeGuildMessage() {}
 // ORIG 0x084cc650 T dispatch_sig —— 公会公告消息转发。
 // 报告 docs/class_func_reports/Inter_GuildNoticeGuildMessage/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GuildNoticeGuildMessagePktView —— Inter_GuildNoticeGuildMessage::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_GuildNoticeGuildMessagePktView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned int m_e;         // +0x0e
+    char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_GuildNoticeGuildMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
         return 0;
-
-    const unsigned int charIdMsg =                     // recv charId @ msg+0xe
-        *reinterpret_cast<unsigned int*>(data + 0xe);
-    if (charIdMsg != (unsigned int)user->get_charac_no(-1))
+    // ORIG：包基址槽在守卫之后物化。
+    Inter_GuildNoticeGuildMessagePktView* pPkt = reinterpret_cast<Inter_GuildNoticeGuildMessagePktView*>(data);
+    // ORIG +0x2f 一步 `mov 0xe(%eax),%ebx` ⇒ register 局部（普通局部会先落 -0xc 再比较）。
+    register unsigned int charIdMsg =                  // recv charId @ msg+0xe
+        pPkt->m_e;
+    // ORIG `cmp %eax,%ebx`（ebx=charIdMsg 为 dst）⇒ register 变量作左操作数、
+    // 且不套 cast（cast 会让 gcc 把 call 结果当左操作数）。
+    if (charIdMsg != user->get_charac_no(-1))
         return 0;
 
     PacketGuard packet;
     packet.put_header(0, 0x8d);
-    packet.put_int(strlen(data + 0x12));
-    packet.put_str(data + 0x12, strlen(data + 0x12));
+    // ORIG：strlen 只调一次，结果落 -0xc 供 put_int/put_str 复用。
+    const int msgLen = strlen(pPkt->m_12);
+    packet.put_int(msgLen);
+    packet.put_str(pPkt->m_12, msgLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -3992,6 +4663,24 @@ int Inter_GuildNoticeGuildMessage::dispatch_sig(CUser* user, char* data, int /*l
 Inter_MonitorNoticeMemberLoginOut::~Inter_MonitorNoticeMemberLoginOut() {}
 // ORIG 0x084cc90a T dispatch_sig —— 公会员登录/登出通知（0x48 包 + 上线成员连接字段设置）。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberLoginOut/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeMemberLoginOutPktView —— Inter_MonitorNoticeMemberLoginOut::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeMemberLoginOutPktView
+{
+    char m_pad0[0xa];  // 未消费
+    unsigned char m_a;        // +0x0a（ORIG 0x084cc8xx put_byte 处 movzbl %al,%eax 零扩展 ⇒ unsigned）
+    char m_padb[0x4];  // 未消费
+    unsigned int m_f;         // +0x0f（同上 unsigned→int 失配两步 spill 形态）
+    unsigned char m_13;       // +0x13
+    unsigned char m_14;       // +0x14（同上 movzbl %al）
+    char m_15[1];             // +0x15 串/字节区首元素（容量未建模）
+    char m_pad16[0x1d];  // 未消费
+    unsigned char m_33;       // +0x33
+    unsigned int m_34;        // +0x34
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeMemberLoginOut::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -4008,7 +4697,9 @@ int Inter_MonitorNoticeMemberLoginOut::dispatch_sig(CUser* user, char* data, int
         return 0;
     }
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0xf))
+    // ORIG：包基址在两道 guard 之后物化入 -0x10(%ebp)
+    Inter_MonitorNoticeMemberLoginOutPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberLoginOutPktView*>(data);
+    if (user->get_charac_no(-1) != pPkt->m_f)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -4016,20 +4707,20 @@ int Inter_MonitorNoticeMemberLoginOut::dispatch_sig(CUser* user, char* data, int
             0x27bc,
             "MEMBER : Inter_MonitorNoticeMemberLoginOut::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<unsigned int*>(data + 0xf));
+            pPkt->m_f);
         return 0;
     }
 
-    if (*reinterpret_cast<char*>(data + 0xa) == '\x01' &&
-        *reinterpret_cast<char*>(data + 0x14) == '\x01')
+    if (pPkt->m_a == '\x01' &&
+        pPkt->m_14 == '\x01')
     {
         user->set_connect_upper_member(
-            *reinterpret_cast<unsigned int*>(data + 0x34));
+            pPkt->m_34);
         user->set_uppermember_exp_level(
-            *reinterpret_cast<unsigned char*>(data + 0x33));
+            pPkt->m_33);
     }
-    else if (*reinterpret_cast<char*>(data + 0xa) == '\0' &&
-             *reinterpret_cast<char*>(data + 0x14) == '\x01')
+    else if (pPkt->m_a == '\0' &&
+             pPkt->m_14 == '\x01')
     {
         user->set_connect_upper_member(0);
         user->set_uppermember_exp_level('\0');
@@ -4038,14 +4729,15 @@ int Inter_MonitorNoticeMemberLoginOut::dispatch_sig(CUser* user, char* data, int
     PacketGuard packet;
     packet.put_header(0, 0x48);
     packet.put_byte(
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0xa));
+        (unsigned int)pPkt->m_a);
     packet.put_byte(
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0x13));
+        (unsigned int)pPkt->m_13);
     packet.put_byte(
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0x14));
-    const size_t local_10 = strlen(data + 0x15);
+        (unsigned int)pPkt->m_14);
+    // len 槽 int 精确匹配 put_str(char*,int)（size_t 致 decay 参数降级 add+反序）
+    const int local_10 = (int)strlen(pPkt->m_15);
     packet.put_int(local_10);
-    packet.put_str(data + 0x15, local_10);
+    packet.put_str(pPkt->m_15, local_10);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -4054,14 +4746,28 @@ int Inter_MonitorNoticeMemberLoginOut::dispatch_sig(CUser* user, char* data, int
 Inter_MonitorNoticeRequestMemberEnterToRequester::~Inter_MonitorNoticeRequestMemberEnterToRequester() {}
 // ORIG 0x084ccba0 T dispatch_sig —— 会员入会申请通知（发给申请者）：组 0x4f 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeRequestMemberEnterToRequester/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeRequestMemberEnterToRequesterPktView —— Inter_MonitorNoticeRequestMemberEnterToRequester::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeRequestMemberEnterToRequesterPktView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned int m_e;         // +0x0e（unsigned 字段→get_charac_no(int) 失配两步 spill 形态）
+    unsigned char m_12;       // +0x12（ORIG 0x084cc9xx movzbl %al,%eax 零扩展 ⇒ unsigned）
+    char m_13[1];             // +0x13 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeRequestMemberEnterToRequester::dispatch_sig(
     CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
 
+    // ORIG：包基址在 get_state 检查后物化
+    Inter_MonitorNoticeRequestMemberEnterToRequesterPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeRequestMemberEnterToRequesterPktView*>(data);
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0xe))         // msg+0x0e 角色号校验
+        pPkt->m_e)         // msg+0x0e 角色号校验
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -4069,13 +4775,13 @@ int Inter_MonitorNoticeRequestMemberEnterToRequester::dispatch_sig(
             0x27e8,
             "MEMBER : Inter_MonitorNoticeRequestMemberEnterToRequester::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(data + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(1, 0x4f);
-    if (*reinterpret_cast<signed char*>(data + 0x12) == 0)   // msg+0x12 结果码
+    if (pPkt->m_12 == 0)   // msg+0x12 结果码
     {
         packet.put_byte(1);
     }
@@ -4083,12 +4789,12 @@ int Inter_MonitorNoticeRequestMemberEnterToRequester::dispatch_sig(
     {
         packet.put_byte(0);
         packet.put_byte(                             // movzbl 零扩展
-            static_cast<int>(*reinterpret_cast<unsigned char*>(data + 0x12)));
+            static_cast<int>(pPkt->m_12));
     }
     const int guildNameLen =                         // msg+0x13 公会名
-        static_cast<int>(strlen(data + 0x13));
+        static_cast<int>(strlen(pPkt->m_13));
     packet.put_int(guildNameLen);
-    packet.put_str(data + 0x13, guildNameLen);
+    packet.put_str(pPkt->m_13, guildNameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -4097,12 +4803,25 @@ int Inter_MonitorNoticeRequestMemberEnterToRequester::dispatch_sig(
 Inter_MonitorNoticeRequestMemberEnterToResponser::~Inter_MonitorNoticeRequestMemberEnterToResponser() {}
 // ORIG 0x084ccd54 T dispatch_sig —— 公会员进入请求应答：单人模式/游戏选项→monitor 0x4b9 包，否则 0x49 拒绝包。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeRequestMemberEnterToResponser/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeRequestMemberEnterToResponserPktView —— Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeRequestMemberEnterToResponserPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    short m_12;               // +0x12
+    char m_14[1];             // +0x14 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorNoticeRequestMemberEnterToResponserPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeRequestMemberEnterToResponserPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0xe))
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -4110,7 +4829,7 @@ int Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig(CUser* user, 
             0x280c,
             "MEMBER : Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<unsigned int*>(data + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
@@ -4142,10 +4861,10 @@ int Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig(CUser* user, 
 
     PacketGuard packet;
     packet.put_header(0, 0x49);
-    packet.put_short((int)*reinterpret_cast<short*>(data + 0x12));
-    const size_t local_10 = strlen(data + 0x14);
+    packet.put_short((int)pPkt->m_12);
+    const size_t local_10 = strlen(pPkt->m_14);
     packet.put_int(local_10);
-    packet.put_str(data + 0x14, local_10);
+    packet.put_str(pPkt->m_14, local_10);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -4156,71 +4875,94 @@ Inter_MonitorNoticeMemberEnterOk::~Inter_MonitorNoticeMemberEnterOk() {}
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberEnterOk/dispatch_sig.md 全文转写。
 // msg 布局：+0xa result(byte) +0xb sub(byte) +0xc flag(byte) +0x11 charID(int)
 //           +0x15 u8 +0x16 字符串 +0x34 u8 +0x35 uint。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeMemberEnterOkPktView —— Inter_MonitorNoticeMemberEnterOk::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeMemberEnterOkPktView
+{
+    char m_pad0[0xa];  // 未消费
+    unsigned char m_result;   // +0x0a
+    unsigned char m_sub;      // +0x0b
+    unsigned char m_flag;     // +0x0c
+    char m_padd[0x4];  // 未消费
+    unsigned int m_11;        // +0x11（同上 unsigned→int 失配两步 spill 形态）
+    unsigned char m_15;       // +0x15
+    char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
+    char m_pad17[0x1d];  // 未消费
+    unsigned char m_34;       // +0x34
+    unsigned int m_uint;      // +0x35
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeMemberEnterOk::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0x11))
+    // ORIG：包基址在 get_state 检查后物化入 -0x18(%ebp)
+    Inter_MonitorNoticeMemberEnterOkPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberEnterOkPktView*>(data);
+    if (user->get_charac_no(-1) != pPkt->m_11)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x288b,
             "MEMBER : Inter_MonitorNoticeMemberEnterOk::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), *reinterpret_cast<int*>(data + 0x11));
+            user->get_charac_no(-1), pPkt->m_11);
         return 0;
     }
 
-    if (*reinterpret_cast<unsigned char*>(data + 0xa) == 2)
+    if (pPkt->m_result == 2)
     {   // 进入确认 → 0x4a 状态包
         PacketGuard packet;
         packet.put_header(0, 0x4a);
-        packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 0xa));
-        packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 0xb));
-        packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 0x15));
-        const int nameLen = strlen(data + 0x16);
+        packet.put_byte((int)pPkt->m_result);
+        packet.put_byte((int)pPkt->m_sub);
+        packet.put_byte((int)pPkt->m_15);
+        const int nameLen = strlen(pPkt->m_16);
         packet.put_int(nameLen);
-        packet.put_str(data + 0x16, nameLen);
+        packet.put_str(pPkt->m_16, nameLen);
         packet.finalize(true);
         user->Send(packet);
         return 0;
     }
-    else if (*reinterpret_cast<unsigned char*>(data + 0xa) == 3)
+    else if (pPkt->m_result == 3)
     {
         user->Send_SoloPlay_Reject_NotiPack(
-            data + 0x16, static_cast<ENUM_SOLO_PLAY_REJECT_MODE>(1),
+            reinterpret_cast<char*>(pPkt) + 0x16,      // ORIG 经 -0x18 槽
+            static_cast<ENUM_SOLO_PLAY_REJECT_MODE>(1),
             static_cast<ENUM_SOLO_PLAY_REJECT_MSG>(6));
         return 0;
     }
-    else if (*reinterpret_cast<unsigned char*>(data + 0xa) == 4)
+    else if (pPkt->m_result == 4)
     {
         user->Send_SoloPlay_Reject_NotiPack(
-            data + 0x16, static_cast<ENUM_SOLO_PLAY_REJECT_MODE>(0),
+            reinterpret_cast<char*>(pPkt) + 0x16,      // ORIG 经 -0x18 槽
+            static_cast<ENUM_SOLO_PLAY_REJECT_MODE>(0),
             static_cast<ENUM_SOLO_PLAY_REJECT_MSG>(6));
         return 0;
     }
 
-    if (*reinterpret_cast<unsigned char*>(data + 0xb) == 1 &&
-        *reinterpret_cast<unsigned char*>(data + 0xc) == 1)
+    if (pPkt->m_sub == 1 &&
+        pPkt->m_flag == 1)
     {   // 上线会员标记：设置连接会员/经验等级并刷新队伍信息
-        user->set_connect_upper_member(*reinterpret_cast<unsigned int*>(data + 0x35));
+        user->set_connect_upper_member(pPkt->m_uint);
         user->set_uppermember_exp_level(
-            *reinterpret_cast<unsigned char*>(data + 0x34));
+            pPkt->m_34);
         CParty* party = (CParty*)user->GetParty();   // CUser.h 冻结：GetParty 返回 void*
         if (party != 0)
             party->send_party_realtime_info();
     }
-    user->set_charac_memberkey(*reinterpret_cast<unsigned int*>(data + 0x11));
+    user->set_charac_memberkey(pPkt->m_11);
 
     PacketGuard packet;
     packet.put_header(0, 0x4a);
-    packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 0xa));
-    packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 0xb));
-    packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 0x15));
-    const int nameLen = strlen(data + 0x16);
+    packet.put_byte((int)pPkt->m_result);
+    packet.put_byte((int)pPkt->m_sub);
+    packet.put_byte((int)pPkt->m_15);
+    const int nameLen = strlen(pPkt->m_16);
     packet.put_int(nameLen);
-    packet.put_str(data + 0x16, nameLen);
+    packet.put_str(pPkt->m_16, nameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -4229,12 +4971,32 @@ int Inter_MonitorNoticeMemberEnterOk::dispatch_sig(CUser* user, char* data, int 
 Inter_MonitorNoticeMemberEnterReply::~Inter_MonitorNoticeMemberEnterReply() {}
 // ORIG 0x084cd5ca T dispatch_sig —— 公会员进入应答（0x50 包 + 上线成员字段设置）。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberEnterReply/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeMemberEnterReplyPktView —— Inter_MonitorNoticeMemberEnterReply::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeMemberEnterReplyPktView
+{
+    char m_pad0[0xa];  // 未消费
+    unsigned char m_a;        // +0x0a
+    char m_b;                 // +0x0b
+    char m_c;                 // +0x0c
+    char m_padd[0x4];  // 未消费
+    int m_11;                 // +0x11
+    unsigned char m_15;       // +0x15
+    char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
+    char m_pad17[0x1d];  // 未消费
+    unsigned char m_34;       // +0x34
+    unsigned int m_35;        // +0x35
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeMemberEnterReply::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorNoticeMemberEnterReplyPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberEnterReplyPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0x11))
+    if (user->get_charac_no(-1) != pPkt->m_11)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -4242,43 +5004,43 @@ int Inter_MonitorNoticeMemberEnterReply::dispatch_sig(CUser* user, char* data, i
             0x28d9,
             "MEMBER : Inter_MonitorNoticeMemberEnterReply::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<unsigned int*>(data + 0x11));
+            pPkt->m_11);
         return 0;
     }
 
     const unsigned char type =
-        *reinterpret_cast<unsigned char*>(data + 0xa);
+        pPkt->m_a;
     if (type == '\x02' || type == '\x03' || type == '\x04')
         return 0;
 
-    if (*reinterpret_cast<char*>(data + 0xb) == '\x01' ||
-        *reinterpret_cast<char*>(data + 0xb) == '\x02')
+    if (pPkt->m_b == '\x01' ||
+        pPkt->m_b == '\x02')
     {
-        if (*reinterpret_cast<char*>(data + 0xb) == '\x01' &&
-            *reinterpret_cast<char*>(data + 0xc) == '\x01')
+        if (pPkt->m_b == '\x01' &&
+            pPkt->m_c == '\x01')
         {
             user->set_uppermember_exp_level(
-                *reinterpret_cast<unsigned char*>(data + 0x34));
+                pPkt->m_34);
             user->set_connect_upper_member(
-                *reinterpret_cast<unsigned int*>(data + 0x35));
+                pPkt->m_35);
             CParty* local_10 = (CParty*)user->GetParty();
             if (local_10 != 0)
                 local_10->send_party_realtime_info();
         }
         user->set_charac_memberkey(
-            *reinterpret_cast<unsigned int*>(data + 0x11));
+            pPkt->m_11);
     }
 
     PacketGuard packet;
     packet.put_header(1, 0x50);
     packet.put_byte(1);
     packet.put_byte(
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0xb));
+        (unsigned int)pPkt->m_b);
     packet.put_byte(
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0x15));
-    const size_t local_14 = strlen(data + 0x16);
+        (unsigned int)pPkt->m_15);
+    const size_t local_14 = strlen(pPkt->m_16);
     packet.put_int(local_14);
-    packet.put_str(data + 0x16, local_14);
+    packet.put_str(pPkt->m_16, local_14);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -4287,26 +5049,39 @@ int Inter_MonitorNoticeMemberEnterReply::dispatch_sig(CUser* user, char* data, i
 Inter_MonitorNoticeMemberSecede::~Inter_MonitorNoticeMemberSecede() {}
 // ORIG 0x084cd83a T dispatch_sig —— 会员退订通知（重置上位会员状态 + 0x51 包）。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberSecede/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeMemberSecedePktView —— Inter_MonitorNoticeMemberSecede::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeMemberSecedePktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    unsigned char m_12;       // +0x12
+    char m_13[1];             // +0x13 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeMemberSecede::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
+    // ORIG：包基址槽在门 1 之后物化。
+    Inter_MonitorNoticeMemberSecedePktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberSecedePktView*>(data);
 
-    const int characNo =                               // msg+0xe
-        *reinterpret_cast<int*>(data + 0xe);
-    if (user->get_charac_no(-1) != characNo)
+    // ORIG：unsigned 字段失配 4 行 spill（同 ReplyGuildLetter）。
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x2914,
             "MEMBER : Inter_MonitorNoticeMemberSecede::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCallerCharID(%d)",
-            user->get_charac_no(-1), characNo);
+            user->get_charac_no(-1), pPkt->m_e);
         return 0;
     }
 
     const unsigned char type =                         // msg+0x12
-        *reinterpret_cast<unsigned char*>(data + 0x12);
+        pPkt->m_12;
     if (type == 1)
     {
         user->set_connect_upper_member(0);
@@ -4322,9 +5097,9 @@ int Inter_MonitorNoticeMemberSecede::dispatch_sig(CUser* user, char* data, int /
         packet.put_byte(1);
     else
         packet.put_byte(0);
-    const size_t msgLen = strlen(data + 0x13);
+    const size_t msgLen = strlen(pPkt->m_13);
     packet.put_int((int)msgLen);
-    packet.put_str(data + 0x13, (int)msgLen);
+    packet.put_str(pPkt->m_13, (int)msgLen);
     if (type == 1 || type == 2)
         packet.put_byte(1);
     else
@@ -4337,13 +5112,29 @@ int Inter_MonitorNoticeMemberSecede::dispatch_sig(CUser* user, char* data, int /
 Inter_MonitorNoticeMemberSecedeToSeceder::~Inter_MonitorNoticeMemberSecedeToSeceder() {}
 // ORIG 0x084cda74 T dispatch_sig —— 会员退会通知（发给退会者）：清标记并组 0x4d 包。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberSecedeToSeceder/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeMemberSecedeToSecederPktView —— Inter_MonitorNoticeMemberSecedeToSeceder::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeMemberSecedeToSecederPktView
+{
+    char m_pad0[0xe];  // 未消费
+    // ORIG +0x5c 两步 spill（`mov %eax,%edx`+`mov -0x14(%ebp),%eax`）＝本字段 unsigned 与
+    // get_charac_no(int) 返回类型 signedness 失配形态（探针 t1/g1 实证）。
+    unsigned int m_e;         // +0x0e
+    unsigned char m_12;       // +0x12
+    char m_13[1];             // +0x13 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeMemberSecedeToSeceder::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
 
+    // ORIG：包基址在 get_state 检查后物化
+    Inter_MonitorNoticeMemberSecedeToSecederPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberSecedeToSecederPktView*>(data);
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0xe))         // msg+0x0e 退会角色号校验
+        pPkt->m_e)         // msg+0x0e 退会角色号校验
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -4351,11 +5142,11 @@ int Inter_MonitorNoticeMemberSecedeToSeceder::dispatch_sig(CUser* user, char* da
             0x2947,
             "MEMBER : Inter_MonitorNoticeMemberSecede::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uSecededCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(data + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
-    if (*reinterpret_cast<unsigned char*>(data + 0x12) == 1)   // msg+0x12 标志
+    if (pPkt->m_12 == 1)   // msg+0x12 标志
     {
         user->set_connect_upper_member(0);
         user->set_uppermember_exp_level(0);
@@ -4367,9 +5158,9 @@ int Inter_MonitorNoticeMemberSecedeToSeceder::dispatch_sig(CUser* user, char* da
     PacketGuard packet;
     packet.put_header(0, 0x4d);
     const int guildNameLen =                         // msg+0x13 公会名
-        static_cast<int>(strlen(data + 0x13));
+        static_cast<int>(strlen(pPkt->m_13));
     packet.put_int(guildNameLen);
-    packet.put_str(data + 0x13, guildNameLen);
+    packet.put_str(pPkt->m_13, guildNameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -4378,14 +5169,24 @@ int Inter_MonitorNoticeMemberSecedeToSeceder::dispatch_sig(CUser* user, char* da
 Inter_MonitorNoticeDeleteMemberId::~Inter_MonitorNoticeDeleteMemberId() {}
 // ORIG 0x084cdc2c T dispatch_sig —— 删除公会成员通知：清成员字段并刷新队伍信息。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeDeleteMemberId/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeDeleteMemberIdPktView —— Inter_MonitorNoticeDeleteMemberId::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorNoticeDeleteMemberIdPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned int m_e;               // +0x0e（同上 unsigned→int 失配两步 spill 形态）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeDeleteMemberId::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
-    char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
-
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(recv + 0xe))
+    // ORIG：包基址唯一槽 -0x10(%ebp)（get_state 检查后物化）
+    Inter_MonitorNoticeDeleteMemberIdPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeDeleteMemberIdPktView*>(data);
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {   // m_uCharID 不匹配 → 日志后退出
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -4393,7 +5194,7 @@ int Inter_MonitorNoticeDeleteMemberId::dispatch_sig(CUser* user, char* data, int
             0x296d,
             "MEMBER : Inter_MonitorNoticeDeleteMemberId::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(recv + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
@@ -4415,8 +5216,23 @@ int Inter_MonitorNoticeDeleteMemberId::dispatch_sig(CUser* user, char* data, int
 Inter_MonitorNoticeMemberChatMsg::~Inter_MonitorNoticeMemberChatMsg() {}
 // ORIG 0x084ccfda T dispatch_sig —— 会员聊天消息下发（memberkey 门 + 0x41 包）。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberChatMsg/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeMemberChatMsgPktView —— Inter_MonitorNoticeMemberChatMsg::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeMemberChatMsgPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
+    char m_pad13[0x1d];  // 未消费
+    unsigned char m_30;       // +0x30
+    char m_31[1];             // +0x31 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeMemberChatMsg::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorNoticeMemberChatMsgPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberChatMsgPktView*>(data);
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
 
@@ -4432,7 +5248,7 @@ int Inter_MonitorNoticeMemberChatMsg::dispatch_sig(CUser* user, char* data, int 
     }
 
     const int characNo =                               // msg+0xe
-        *reinterpret_cast<int*>(data + 0xe);
+        pPkt->m_e;
     if (user->get_charac_no(-1) != characNo)
     {
         LogManager::logFormat(
@@ -4448,14 +5264,14 @@ int Inter_MonitorNoticeMemberChatMsg::dispatch_sig(CUser* user, char* data, int 
     packet.put_header(0, 0x41);
     packet.put_byte(8);
     packet.put_byte(0);
-    const size_t msgLen = strlen(data + 0x12);
+    const size_t msgLen = strlen(pPkt->m_12);
     packet.put_int((int)msgLen);
-    packet.put_str(data + 0x12, (int)msgLen);
+    packet.put_str(pPkt->m_12, (int)msgLen);
     packet.put_byte(0);
     const unsigned int nameLen =
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0x30);
+        (unsigned int)pPkt->m_30;
     packet.put_int((int)nameLen);
-    packet.put_str(data + 0x31, (int)nameLen);
+    packet.put_str(pPkt->m_31, (int)nameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -4465,8 +5281,57 @@ Inter_MonitorCallMemberList::~Inter_MonitorCallMemberList() {}
 // ORIG 0x084cddac T dispatch_sig —— 公会成员列表下发：头条目 + 0x2a 字节 stride 成员循环。
 // 报告 docs/class_func_reports/Inter_MonitorCallMemberList/dispatch_sig.md 全文转写。
 // msg 布局：+0xe charID(int)；+0x12 起条目区。
+#pragma pack(push, 1)
+// Inter_MonitorCallMemberListPktView —— Inter_MonitorCallMemberList::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorCallMemberListPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    int m_charID;                   // +0x0e 语义名←函数头注释
+    unsigned char m_12;             // +0x12
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+// Inter_MonitorCallMemberListMemberWinView —— 同环成员记录（entry+0x2b 起，stride 0x2a；
+//   字段宽度按 ORIG 084d0f30 段 disp 指令核实）。
+struct Inter_MonitorCallMemberListMemberWinView
+{
+    unsigned char m_flags0;   // +0x00
+    unsigned char m_flags1;   // +0x01
+    char m_name[1];           // +0x02 名字串区首元素
+    char m_pad3[0x1d];
+    unsigned char m_grade20;  // +0x20
+    unsigned char m_grade21;  // +0x21
+    int m_22;                 // +0x22
+    int m_26;                 // +0x26
+};
+static_assert(sizeof(Inter_MonitorCallMemberListMemberWinView) == 0x2a,
+              "member record stride");
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+// Inter_MonitorCallMemberListEntryWinView —— Inter_MonitorCallMemberList::dispatch_sig 窗口 entry 元素视图
+//   （entry 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
+struct Inter_MonitorCallMemberListEntryWinView
+{
+    unsigned char m_flags0;   // +0x00（ORIG entry[0] 直读）
+    unsigned char m_flags1;   // +0x01（ORIG entry[1] 直读）
+    char m_name[1];           // +0x02 成员名字符串区首元素（strlen/put_str 实参）
+    char m_pad3[0x1d];  // 未消费
+    unsigned char m_grade20;  // +0x20（ORIG entry[0x20]）
+    unsigned char m_grade21;  // +0x21（ORIG entry[0x21]）
+    int m_22;                 // +0x22
+    int m_26;                 // +0x26
+    unsigned char m_memberCnt;// +0x2a 同环成员数
+    Inter_MonitorCallMemberListMemberWinView
+        m_members[1];         // +0x2b 成员记录区（动态长度；[1]=首元素）
+};
+#pragma pack(pop)
+
 int Inter_MonitorCallMemberList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorCallMemberListPktView* pPkt = reinterpret_cast<Inter_MonitorCallMemberListPktView*>(data);
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
@@ -4481,44 +5346,44 @@ int Inter_MonitorCallMemberList::dispatch_sig(CUser* user, char* data, int /*len
         return 0;
     }
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0xe))
+    if (user->get_charac_no(-1) != pPkt->m_charID)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x2993,
             "MEMBER : Inter_MonitorCallMemberList::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), *reinterpret_cast<int*>(data + 0xe));
+            user->get_charac_no(-1), pPkt->m_charID);
         return 0;
     }
 
     unsigned char* entry = reinterpret_cast<unsigned char*>(data + 0x12);
+    Inter_MonitorCallMemberListEntryWinView* pWin_entry = reinterpret_cast<Inter_MonitorCallMemberListEntryWinView*>(entry);
     PacketGuard packet;
     packet.put_header(1, 0x52);
     packet.put_byte(1);
-    packet.put_byte((int)entry[0]);
-    packet.put_byte((int)entry[1]);
-    const int nameLen = strlen(reinterpret_cast<char*>(entry) + 2);
+    packet.put_byte((int)pWin_entry->m_flags0);
+    packet.put_byte((int)pWin_entry->m_flags1);
+    const int nameLen = strlen(pWin_entry->m_name);
     packet.put_int(nameLen);
-    packet.put_str(reinterpret_cast<char*>(entry) + 2, nameLen);
-    packet.put_byte((int)(char)entry[0x20]);
-    packet.put_byte((int)entry[0x21]);
-    packet.put_int(*reinterpret_cast<int*>(entry + 0x22));
-    packet.put_int(*reinterpret_cast<int*>(entry + 0x26));
+    packet.put_str(pWin_entry->m_name, nameLen);
+    packet.put_byte((int)(char)pWin_entry->m_grade20);
+    packet.put_byte((int)pWin_entry->m_grade21);
+    packet.put_int(pWin_entry->m_22);
+    packet.put_int(pWin_entry->m_26);
 
-    unsigned char* memberBase = entry + 0x2b;
-    packet.put_byte((int)entry[0x2a]);
-    for (int i = 0; i < (int)entry[0x2a]; ++i)
+    packet.put_byte((int)pWin_entry->m_memberCnt);
+    for (int i = 0; i < (int)pWin_entry->m_memberCnt; ++i)
     {
-        packet.put_byte((int)memberBase[i * 0x2a]);
-        packet.put_byte((int)memberBase[i * 0x2a + 1]);
-        const int memberNameLen = strlen(reinterpret_cast<char*>(memberBase) + i * 0x2a + 2);
+        packet.put_byte((int)pWin_entry->m_members[i].m_flags0);
+        packet.put_byte((int)pWin_entry->m_members[i].m_flags1);
+        const int memberNameLen = strlen(pWin_entry->m_members[i].m_name);
         packet.put_int(memberNameLen);
-        packet.put_str(reinterpret_cast<char*>(memberBase) + i * 0x2a + 2, memberNameLen);
-        packet.put_byte((int)(char)memberBase[i * 0x2a + 0x20]);
-        packet.put_byte((int)memberBase[i * 0x2a + 0x21]);
-        packet.put_int(*reinterpret_cast<int*>(memberBase + i * 0x2a + 0x22));
-        packet.put_int(*reinterpret_cast<int*>(memberBase + i * 0x2a + 0x26));
+        packet.put_str(pWin_entry->m_members[i].m_name, memberNameLen);
+        packet.put_byte((int)(char)pWin_entry->m_members[i].m_grade20);
+        packet.put_byte((int)pWin_entry->m_members[i].m_grade21);
+        packet.put_int(pWin_entry->m_members[i].m_22);
+        packet.put_int(pWin_entry->m_members[i].m_26);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -4529,8 +5394,22 @@ Inter_MonitorPayTaxToUpper::~Inter_MonitorPayTaxToUpper() {}
 // ORIG 0x084ce164 T dispatch_sig —— 会员税额金币入账 + 会员奖励疲劳发放（上限钳制）。
 // 报告 docs/class_func_reports/Inter_MonitorPayTaxToUpper/dispatch_sig.md 全文转写。
 // msg 布局：+0xe charID(int) +0x12 税额金币(int) +0x16 奖励疲劳(uint) +0x1a 字符串。
+#pragma pack(push, 1)
+// Inter_MonitorPayTaxToUpperPktView —— Inter_MonitorPayTaxToUpper::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorPayTaxToUpperPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_charID;             // +0x0e
+    int m_12;                 // +0x12
+    unsigned int m_16;        // +0x16
+    char m_1a[1];             // +0x1a 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorPayTaxToUpper::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorPayTaxToUpperPktView* pPkt = reinterpret_cast<Inter_MonitorPayTaxToUpperPktView*>(data);
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
@@ -4545,26 +5424,26 @@ int Inter_MonitorPayTaxToUpper::dispatch_sig(CUser* user, char* data, int /*len*
         return 0;
     }
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0xe))
+    if (user->get_charac_no(-1) != pPkt->m_charID)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x29ed,
             "MEMBER : Inter_MonitorCallMemberList::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), *reinterpret_cast<int*>(data + 0xe));
+            user->get_charac_no(-1), pPkt->m_charID);
         return 0;
     }
 
-    if (*reinterpret_cast<int*>(data + 0x12) != 0)     // 税额金币直接入账
+    if (pPkt->m_12 != 0)     // 税额金币直接入账
     {
         user->getCurCharacInvenW()->gain_money(
-            *reinterpret_cast<int*>(data + 0x12), (eMoneyAddReason)0xa, true, 0);
+            pPkt->m_12, (eMoneyAddReason)0xa, true, 0);
     }
 
     unsigned int fatigue = 0;
     bool capped = false;                               // 是否触达疲劳上限（回执 0x128 包）
-    if (*reinterpret_cast<unsigned int*>(data + 0x16) != 0)
+    if (pPkt->m_16 != 0)
     {
         short memberBonus = user->getCurCharacMemberBonusFatigue();
         short accountBonus = user->getAccountMemberBonusFatigue();
@@ -4578,9 +5457,9 @@ int Inter_MonitorPayTaxToUpper::dispatch_sig(CUser* user, char* data, int /*len*
         {
             fatigue = 0;
         }
-        else if (*reinterpret_cast<unsigned int*>(data + 0x16) < (unsigned int)n)
+        else if (pPkt->m_16 < (unsigned int)n)
         {
-            fatigue = *reinterpret_cast<unsigned int*>(data + 0x16);
+            fatigue = pPkt->m_16;
         }
         else
         {
@@ -4597,15 +5476,15 @@ int Inter_MonitorPayTaxToUpper::dispatch_sig(CUser* user, char* data, int /*len*
         }
     }
 
-    if (*reinterpret_cast<int*>(data + 0x12) != 0 || fatigue != 0)
+    if (pPkt->m_12 != 0 || fatigue != 0)
     {
         PacketGuard packet;
         packet.put_header(0, 0x4c);
-        packet.put_int(*reinterpret_cast<int*>(data + 0x12));
+        packet.put_int(pPkt->m_12);
         packet.put_short((int)fatigue);
-        const int strLen = strlen(data + 0x1a);
+        const int strLen = strlen(pPkt->m_1a);
         packet.put_int(strLen);
-        packet.put_str(data + 0x1a, strLen);
+        packet.put_str(pPkt->m_1a, strLen);
         packet.finalize(true);
         user->Send(packet);
 
@@ -4627,25 +5506,41 @@ int Inter_LoadPrivateStore::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)
         return 0;
-    private_store::GetInstancePrivateStoreMgr()->LoadPrivateStoreResponse(
-        user, reinterpret_cast<private_store::SIG_PRIVATE_STORE*>(data));
+    // ORIG +0x27：包指针先落具名局部（-0xc），call 之后再 `mov -0xc(%ebp),%edx` 填槽
+    // （直接把 reinterpret_cast 作实参会让 gcc 提前放进 %ebx 并省掉栈槽）。
+    private_store::SIG_PRIVATE_STORE* pPkt =
+        reinterpret_cast<private_store::SIG_PRIVATE_STORE*>(data);
+    private_store::GetInstancePrivateStoreMgr()->LoadPrivateStoreResponse(user, pPkt);
     return 0;
 }
 
 Inter_UpdateLogout::~Inter_UpdateLogout() {}
 // ORIG 0x084ce548 T dispatch_sig —— 用户登出完成通知监控服。
 // 报告 docs/class_func_reports/Inter_UpdateLogout/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_UpdateLogoutPktView —— Inter_UpdateLogout::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_UpdateLogoutPktView
+{
+    int m_0;                  // +0x00
+    char m_pad4[0xa];  // 未消费
+    unsigned int m_e;         // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_UpdateLogout::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<int*>(data + 0x0) == 0)
+    Inter_UpdateLogoutPktView* pPkt = reinterpret_cast<Inter_UpdateLogoutPktView*>(data);
+    if (pPkt->m_0 == 0)
         return 0;
     Packet_Monitor_UDP_Logout_Complete packet;
-    packet.m_dbid = *reinterpret_cast<unsigned int*>(data + 0x0);
+    packet.m_dbid = pPkt->m_0;
     packet.m_channel = (unsigned char)G_CEnvironment()->get_channel_no();
-    CMonitorServerProxy* proxy =
-        GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-            (ENUM_SERVER_GROUP)*reinterpret_cast<unsigned int*>(data + 0xe));
-    proxy->SendTcpPacket(reinterpret_cast<char*>(&packet), 0xf);
+    // ORIG 0x084ce588：&packet 先物化 %ebx（lea -0x1b 跨 GetServerProxy 存活）；
+    // proxy 结果免槽直链（技巧37，+0x68 mov %eax,(%esp)）
+    GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+        (ENUM_SERVER_GROUP)pPkt->m_e)->SendTcpPacket(
+            reinterpret_cast<char*>(&packet), 0xf);
     return 0;
 }
 
@@ -4659,13 +5554,26 @@ int Inter_UserRepel::dispatch_sig(CUser* user, char* /*data*/, int /*len*/)
 Inter_AvatarInsert::~Inter_AvatarInsert() {}
 // ORIG 0x084cf5a4 T dispatch_sig —— 跨服插入时装：槽位寻位+赋 key+回写槽。
 // 报告 docs/class_func_reports/Inter_AvatarInsert/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_AvatarInsertPktView —— Inter_AvatarInsert::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_AvatarInsertPktView
+{
+    char m_pad0[0x8];  // +0x0..未消费
+    unsigned char m_8;              // +0x08
+    char m_pad9[0x42];  // +0x9..未消费
+    unsigned int m_4b;              // +0x4b
+};
+#pragma pack(pop)
+
 int Inter_AvatarInsert::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_AvatarInsertPktView* pPkt = reinterpret_cast<Inter_AvatarInsertPktView*>(data);
     if (user->get_state() <= 2)
         return 0;
 
-    const int slot = (int)*reinterpret_cast<unsigned char*>(data + 8) - 10;
-    const unsigned int addInfoKey = *reinterpret_cast<unsigned int*>(data + 0x4b);
+    const int slot = (int)pPkt->m_8 - 10;
+    const unsigned int addInfoKey = pPkt->m_4b;
 
     const CInventory* invenR = user->getCurCharacInvenR();
     Inven_Item item = invenR->GetInvenSlot(2, slot);
@@ -4682,18 +5590,33 @@ int Inter_AvatarInsert::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_AvatarChangeStat::~Inter_AvatarChangeStat() {}
 // ORIG 0x084cf6ec T dispatch_sig —— 跨服时装属性变更登记。
 // 报告 docs/class_func_reports/Inter_AvatarChangeStat/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_AvatarChangeStatPktView —— Inter_AvatarChangeStat::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_AvatarChangeStatPktView
+{
+    int m_0;                  // +0x00
+    char m_pad4[0x4];  // 未消费
+    unsigned char m_8;        // +0x08
+    char m_pad9[0x1];  // 未消费
+    int m_a;                  // +0x0a
+    int m_e;                  // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_AvatarChangeStat::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_AvatarChangeStatPktView* pPkt = reinterpret_cast<Inter_AvatarChangeStatPktView*>(data);
     if (user->get_state() <= 2)
         return 0;
 
-    const int key = *reinterpret_cast<int*>(data);
+    const int key = pPkt->m_0;
     const WongWork::CAvatarItemMgr* mgrR =
         user->getCurCharacInvenW()->GetAvatarItemMgrR();
     if (mgrR->GetExpireDate(key) == -1)
     {
-        const int itemIdx = *reinterpret_cast<int*>(data + 0xe);
-        const int charId = *reinterpret_cast<int*>(data + 0xa);
+        const int itemIdx = pPkt->m_e;
+        const int charId = pPkt->m_a;
         WongWork::CAvatarItemMgr* mgrW =
             user->getCurCharacInvenW()->GetAvatarItemMgrW();
         mgrW->RegistItem(
@@ -4705,37 +5628,70 @@ int Inter_AvatarChangeStat::dispatch_sig(CUser* user, char* data, int /*len*/)
     }
     user->SendUpdateItemList(
         (CUser::eSendTarget)1, (ENUM_ITEMSPACE)1,
-        (int)*reinterpret_cast<unsigned char*>(data + 8) - 10);
+        (int)pPkt->m_8 - 10);
     return 0;
 }
 
 Inter_TriggerEventStart::~Inter_TriggerEventStart() {}
 // ORIG 0x084ce5f4 T dispatch_sig —— 事件开始触发。
 // 报告 docs/class_func_reports/Inter_TriggerEventStart/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_TriggerEventStartPktView —— Inter_TriggerEventStart::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_TriggerEventStartPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    // ORIG +0x15 两步装载（Ghidra `*(undefined4 *)(param_3 + 10)` → TriggerEventStart(int,...)）
+    // ＝unsigned 字段→int 形参的 signedness 失配形态（探针 t1 实证）。
+    unsigned int m_a;               // +0x0a
+    Word_Param m_wp;                // +0x0e（ORIG `mov 0xe(%ecx),%ecx` 单指令折叠，P1）
+};
+#pragma pack(pop)
+
 int Inter_TriggerEventStart::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    if (GlobalData::s_event_manager == 0)
-        return 0;
-    const int ret = GlobalData::s_event_manager->TriggerEventStart(
-        *reinterpret_cast<int*>(data + 0xa),
-        *reinterpret_cast<Word_Param*>(data + 0xe));
-    return (ret & 0xff) ? 0 : 0x2a8b;
+    Inter_TriggerEventStartPktView* pPkt = reinterpret_cast<Inter_TriggerEventStartPktView*>(data);
+    if (GlobalData::s_event_manager != 0)
+    {
+        if (GlobalData::s_event_manager->TriggerEventStart(
+                pPkt->m_a,
+                pPkt->m_wp))
+            return 0;
+        return 0x2a8b;
+    }
+    return 0;
 }
 
 Inter_TriggerEventEnd::~Inter_TriggerEventEnd() {}
 // ORIG 0x084ce646 T dispatch_sig —— 事件结束触发。
 // 报告 docs/class_func_reports/Inter_TriggerEventEnd/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_TriggerEventEndPktView —— Inter_TriggerEventEnd::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_TriggerEventEndPktView
+{
+    char m_pad0[0xa];  // 未消费
+    unsigned int m_a;         // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_TriggerEventEnd::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_TriggerEventEndPktView* pPkt = reinterpret_cast<Inter_TriggerEventEndPktView*>(data);
+    // ORIG 0x084ce656：字段读入 %ebx 跨 cMyTrace ctor 缓存（block-scope register）。
+    register unsigned int evCode = pPkt->m_a;
     cMyTrace trace(
         __PRETTY_FUNCTION__, 0x2a96, 0);
     trace("Inter_TriggerEventEnd::dispatch_sig\tevent code(%d), parameter(%d)",
-          (int)*reinterpret_cast<unsigned int*>(data + 0xa));
-    if (GlobalData::s_event_manager == 0)
-        return 0;
-    const int ret = GlobalData::s_event_manager->TriggerEventEnd(
-        *reinterpret_cast<int*>(data + 0xa));
-    return (ret & 0xff) ? 0 : 0x2a9a;
+          evCode);
+    if (GlobalData::s_event_manager != 0)
+    {
+        if (GlobalData::s_event_manager->TriggerEventEnd(
+                (int)pPkt->m_a))
+            return 0;
+        return 0x2a9a;
+    }
+    return 0;
 }
 
 Inter_MailBox_Req_List::~Inter_MailBox_Req_List() {}
@@ -4944,18 +5900,22 @@ int Inter_MailBox_Req_CheckReceiver::dispatch_sig(CUser* user, char* data, int /
 void Inter_MailBox_Req_CheckReceiver::SendErrorPacket(
     CUser* user, ENUM_CMDPACKET cmd, unsigned short err)
 {
-    const unsigned int characNo =
-        static_cast<unsigned int>(user->get_charac_no(-1));
+    // ORIG 0x084d008a：err 先 2B spill（+0x09 mov %ax,-0xc）供两支 reload，再
+    // movzwl -0xc → %ebx 跨 logFormat 缓存（+0x0f，push ebx/sub 0x34）；
+    // get_charac_no 结果免槽直用（技巧37）。
+    register unsigned int regCode = err;
     LogManager::logFormat(
         1, "InterDispatcher.cpp",
         __PRETTY_FUNCTION__,
         0x2e12,
         "[ITEM_GIFT] Fail Command[%d] charac_no[%u] error_code[%d]",
-        static_cast<int>(cmd), characNo, static_cast<int>(err));
+        cmd,
+        static_cast<unsigned int>(user->get_charac_no(-1)),
+        regCode);
     if (cmd == 0x43)
         user->SendCmdErrorPacket2Byte(cmd, err);
     else
-        user->SendCmdErrorPacket(cmd, static_cast<unsigned char>(err & 0xff));
+        user->SendCmdErrorPacket(cmd, static_cast<unsigned char>(err));
 }
 
 // ORIG 0x084cff18 T _ZN31Inter_MailBox_Req_CheckReceiver21SendDBThread_forchinaEP5CUserP26SIG_MAILBOX_CHECK_RECEIVER
@@ -4988,14 +5948,29 @@ int Inter_MailBox_Req_CheckReceiver::SendDBThread_forchina(
 Inter_MailBox_Req_Send::~Inter_MailBox_Req_Send() {}
 // ORIG 0x084d0130 T dispatch_sig —— 邮箱新邮件通知转发监控服。
 // 报告 docs/class_func_reports/Inter_MailBox_Req_Send/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MailBox_Req_SendPktView —— Inter_MailBox_Req_Send::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MailBox_Req_SendPktView
+{
+    int m_0;                        // +0x00
+    unsigned int m_4;               // +0x04
+    unsigned int m_8;               // +0x08
+};
+#pragma pack(pop)
+
 int Inter_MailBox_Req_Send::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<int*>(data + 0x0) == 0)
+    Inter_MailBox_Req_SendPktView* pPkt = reinterpret_cast<Inter_MailBox_Req_SendPktView*>(data);
+    if (pPkt->m_0 == 0)
     {
-        CMonitorServerProxy* proxy =
-            GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-                (ENUM_SERVER_GROUP)*reinterpret_cast<unsigned int*>(data + 0x8));
-        proxy->SendNotifyNewMail(*reinterpret_cast<unsigned int*>(data + 0x4));
+        // ORIG 0x084d017c：m_4 先物化 %ebx（跨 call 缓存），GetServerProxy 结果免槽直链
+        register unsigned int mailNo = pPkt->m_4;   // ORIG +0x1a mov 0x4(%eax),%ebx
+        // ORIG 中段三段 `mov 0x8(%eax),%eax; mov %eax,%edx; mov mgr,%eax`（4.1 先占
+        // %eax 再挤 edx）；4.4 恒折单段 mem→edx（N18a 镜像），register asm 变体
+        // 引 mgr 覆盖序错乱，blocked。
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+            (ENUM_SERVER_GROUP)pPkt->m_8)->SendNotifyNewMail(mailNo);
     }
     return 0;
 }
@@ -5003,10 +5978,21 @@ int Inter_MailBox_Req_Send::dispatch_sig(CUser* /*user*/, char* data, int /*len*
 Inter_Monitor_Notify_New_Mail::~Inter_Monitor_Notify_New_Mail() {}
 // ORIG 0x084d017c T dispatch_sig —— 监控侧新邮件到达通知。
 // 报告 docs/class_func_reports/Inter_Monitor_Notify_New_Mail/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_Monitor_Notify_New_MailPktView —— Inter_Monitor_Notify_New_Mail::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_Monitor_Notify_New_MailPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_Monitor_Notify_New_Mail::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_Monitor_Notify_New_MailPktView* pPkt = reinterpret_cast<Inter_Monitor_Notify_New_MailPktView*>(data);
     if (user->getCurCharacR() == 0 ||
-        user->getCurCharacNo() != *reinterpret_cast<int*>(data + 0xa))
+        user->getCurCharacNo() != pPkt->m_a)
         return 0;
 
     reinterpret_cast<WongWork::CMailBox*>(user->GetMailBox())
@@ -5024,13 +6010,19 @@ int Inter_Monitor_Notify_New_Mail::dispatch_sig(CUser* user, char* data, int /*l
 Inter_InsertCreatureItemResult::~Inter_InsertCreatureItemResult() {}
 // ORIG 0x084d027e T dispatch_sig —— 生物蛋孵化结果插入（校验当前角色后透传）。
 // 报告 docs/class_func_reports/Inter_InsertCreatureItemResult/dispatch_sig.md 全文转写。
+// 包视图直接用 SIG_CREATURE_ITEM（m_characNo@+0x48 单级带偏移读，ORIG 0x084d02a4）。
+
 int Inter_InsertCreatureItemResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // ORIG 0x084d02xx：包基址先落具名局部（-0xc），+0x48 用 `mov 0x48(%edx),%edx` 单级
+    // 带偏移读；第二次调用实参为 `mov -0xc(%ebp),%edx; mov %edx,0x4(%esp)` 晚装填
+    // （同型 lvalue 实参 ⇒ 不提前缓存；异型 cast 实参 gcc 提前入 %ebx 跨 call，probe 实证）。
+    SIG_CREATURE_ITEM* pPkt = reinterpret_cast<SIG_CREATURE_ITEM*>(data);
     if (user->getCurCharacR() == 0 ||
-        user->getCurCharacNo() != *(int*)(data + 0x48))
+        user->getCurCharacNo() != pPkt->m_characNo)
         return 0x2e45;
     user->getCurCharacInvenW()->GetCreatureMgrW()->InsertCreatureItemResult(
-        reinterpret_cast<SIG_CREATURE_ITEM*>(data));
+        pPkt);
     return 0;
 }
 
@@ -5039,29 +6031,43 @@ Inter_UpdateCreatureItemResult::~Inter_UpdateCreatureItemResult() {}
 // 报告 docs/class_func_reports/Inter_UpdateCreatureItemResult/dispatch_sig.md 全文转写。
 int Inter_UpdateCreatureItemResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // ORIG 0x084d02xx：同 InsertCreatureItemResult —— 同型 lvalue 实参晚装填（见彼处注释）。
+    SIG_CREATURE_ITEM* pPkt = reinterpret_cast<SIG_CREATURE_ITEM*>(data);
     if (user->getCurCharacR() == 0 ||
-        user->getCurCharacNo() != *(int*)(data + 0x48))
+        user->getCurCharacNo() != pPkt->m_characNo)
         return 0x2e5d;
     user->getCurCharacInvenW()->GetCreatureMgrW()->UpdateCreatureItemResult(
-        reinterpret_cast<SIG_CREATURE_ITEM*>(data));
+        pPkt);
     return 0;
 }
 
 Inter_MonitorNoticeMessage::~Inter_MonitorNoticeMessage() {}
 // ORIG 0x084d035e T dispatch_sig —— 监控侧公告全员播发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMessage/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeMessagePktView —— Inter_MonitorNoticeMessage::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeMessagePktView
+{
+    char m_pad0[0xa];  // 未消费
+    char m_a;                 // +0x0a
+    char m_b[1];              // +0xb 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeMessage::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_MonitorNoticeMessagePktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMessagePktView*>(data);
     PacketGuard packet;
     packet.put_header(1, 0x6e);
     packet.put_byte(1);
     packet.put_byte(1);
-    if (*reinterpret_cast<char*>(data + 0xa) == '\0')
+    if (pPkt->m_a == '\0')
         return 0x2e82;                                 // 无公告内容，包废弃
 
-    packet.put_int((unsigned int)*reinterpret_cast<unsigned char*>(data + 0xa));
-    packet.put_str(data + 0xb,
-                   (unsigned int)*reinterpret_cast<unsigned char*>(data + 0xa));
+    packet.put_int((unsigned int)(unsigned char)pPkt->m_a);
+    packet.put_str(pPkt->m_b,
+                   (unsigned int)(unsigned char)pPkt->m_a);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     return 0;
@@ -5072,15 +6078,17 @@ Inter_LastMsgResponse::~Inter_LastMsgResponse() {}
 // 报告 docs/class_func_reports/Inter_LastMsgResponse/dispatch_sig.md 全文转写。
 int Inter_LastMsgResponse::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
-    CShutdowManager* mgr = GetInstanceShutdowManager();
-    mgr->IncrementLastMsgResponseCount();
-    const unsigned int responseCnt =
+    // ORIG 0x084d0598：mgr 结果免槽直用（+0x08 mov %eax,(%esp)）；两计数跨 trace 调用缓存
+    // %esi/%ebx（push esi/ebx，技巧2/24）；末比较 setle 物化（+0x8f）。
+    GetInstanceShutdowManager()->IncrementLastMsgResponseCount();
+    register unsigned int responseCnt =
         GetInstanceShutdowManager()->GetLastMsgResponseCount();
-    const unsigned int msgCnt = GetInstanceShutdowManager()->GetLastMsgCount();
+    register unsigned int msgCnt = GetInstanceShutdowManager()->GetLastMsgCount();
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0x2eb2, 0);
     trace("last msg (%d) response(%d)\n", msgCnt, responseCnt);
+    // ORIG +0x7e 第 4 次 call 结果复用 %ebx，+0x8d cmp %eax,%ebx; setle %al; test; je（bool 物化）
     if ((int)GetInstanceShutdowManager()->GetLastMsgCount() <=
         (int)GetInstanceShutdowManager()->GetLastMsgResponseCount())
     {
@@ -5121,8 +6129,19 @@ int Inter_MonitorGuildPointDel::dispatch_sig(CUser* /*user*/, char* /*data*/, in
 Inter_MonitorGuildWarInfo::~Inter_MonitorGuildWarInfo() {}
 // ORIG 0x084ce7f6 T dispatch_sig —— 公会战信息包（0x70，频道 6 专用）。
 // 报告 docs/class_func_reports/Inter_MonitorGuildWarInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorGuildWarInfoPktView —— Inter_MonitorGuildWarInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorGuildWarInfoPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_MonitorGuildWarInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorGuildWarInfoPktView* pPkt = reinterpret_cast<Inter_MonitorGuildWarInfoPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
@@ -5131,7 +6150,7 @@ int Inter_MonitorGuildWarInfo::dispatch_sig(CUser* user, char* data, int /*len*/
 
     const int local_20 = 0;
     (void)local_20;
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0xe))
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -5139,7 +6158,7 @@ int Inter_MonitorGuildWarInfo::dispatch_sig(CUser* user, char* data, int /*len*/
             0x2ad4,
             "GuildWarInfo : Inter_MonitorGuildWarInfo::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<unsigned int*>(data + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
@@ -5204,21 +6223,34 @@ int Inter_CodeChecksumRange::dispatch_sig(CUser* /*user*/, char* data, int /*len
 Inter_MonitorForbidChat::~Inter_MonitorForbidChat() {}
 // ORIG 0x084d0466 T dispatch_sig —— 监控侧禁言指令落地。
 // 报告 docs/class_func_reports/Inter_MonitorForbidChat/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorForbidChatPktView —— Inter_MonitorForbidChat::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorForbidChatPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    size_t m_e;               // +0x0e
+    char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorForbidChat::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_MonitorForbidChatPktView* pPkt = reinterpret_cast<Inter_MonitorForbidChatPktView*>(data);
     cMyTrace trace(
         __PRETTY_FUNCTION__, 0x2e96, 0);
     trace("Inter_MonitorForbidChat::dispatch_sig recv\n");
 
-    const size_t nameLen = *reinterpret_cast<size_t*>(data + 0xe);
+    const size_t nameLen = pPkt->m_e;
     char name[30];                                              // ORIG call memset 清零
     memset(name, 0, sizeof(name));
-    strncpy(name, data + 0x12, nameLen);
+    strncpy(name, pPkt->m_12, nameLen);
 
     if (!G_GameWorld()->IsForbiddenChat(name))
     {
         G_GameWorld()->InsertUserToIDMap(name, 0);
-        const int secs = *reinterpret_cast<int*>(data + 0xa);
+        const int secs = pPkt->m_a;
         G_GameWorld()->DisableChat(name, secs);
         cMyTrace done(
             __PRETTY_FUNCTION__, 0x2ea2, 0);
@@ -5230,17 +6262,33 @@ int Inter_MonitorForbidChat::dispatch_sig(CUser* /*user*/, char* data, int /*len
 Inter_MouseRegister::~Inter_MouseRegister() {}
 // ORIG 0x084d07d2 T dispatch_sig —— 密保鼠标注册/注销结果处理，回发 0x74 应答。
 // 报告 docs/class_func_reports/Inter_MouseRegister/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MouseRegisterPktView —— Inter_MouseRegister::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MouseRegisterPktView
+{
+    char m_pad0[0x4];  // 未消费
+    int m_4;                  // +0x04
+    char m_pad8[0xe];  // 未消费
+    int m_16;                 // +0x16
+    char m_pad1a[0x1];  // 未消费
+    int m_1b;                 // +0x1b
+    int m_1f;                 // +0x1f
+};
+#pragma pack(pop)
+
 int Inter_MouseRegister::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<int*>(data + 0x16) != 0)   // msg+0x16 错误码
+    Inter_MouseRegisterPktView* pPkt = reinterpret_cast<Inter_MouseRegisterPktView*>(data);
+    if (pPkt->m_16 != 0)   // msg+0x16 错误码
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x74,
                                  static_cast<unsigned char>(
-                                     *reinterpret_cast<unsigned int*>(data + 0x16)));
+                                     pPkt->m_16));
         return 0;
     }
 
-    const int action = *reinterpret_cast<int*>(data + 4);   // msg+0x04 动作码
+    const int action = pPkt->m_4;   // msg+0x04 动作码
     if (action == 1 || action == 2)
     {
         Sanicova::CPad* pad = user->getPad();
@@ -5250,9 +6298,9 @@ int Inter_MouseRegister::dispatch_sig(CUser* user, char* data, int /*len*/)
         Sanicova::CPad* pad3 = user->getPad();
         pad3->setPassword(data + 0x23);              // msg+0x23 密码
         Sanicova::CPad* pad4 = user->getPad();
-        pad4->setCancelCnt(*reinterpret_cast<int*>(data + 0x1b));
+        pad4->setCancelCnt(pPkt->m_1b);
         Sanicova::CPad* pad5 = user->getPad();
-        pad5->setFailCnt(*reinterpret_cast<int*>(data + 0x1f));
+        pad5->setFailCnt(pPkt->m_1f);
     }
     else if (action == 3)
     {
@@ -5275,20 +6323,37 @@ int Inter_MouseRegister::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_Monitor_MegaphoneMsg::~Inter_Monitor_MegaphoneMsg() {}
 // ORIG 0x084d09aa T dispatch_sig —— 大喇叭广播：构造广播包后按频道类型全服/分组发送。
 // 报告 docs/class_func_reports/Inter_Monitor_MegaphoneMsg/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_Monitor_MegaphoneMsgPktView —— Inter_Monitor_MegaphoneMsg::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_Monitor_MegaphoneMsgPktView
+{
+    char m_pad0[0xb];  // 未消费
+    unsigned char m_b;        // +0x0b
+    unsigned short m_c;       // +0x0c
+    unsigned char m_e;        // +0x0e
+    char m_f[1];              // +0xf 串/字节区首元素（容量未建模）
+    char m_pad10[0x1d];  // 未消费
+    unsigned char m_2d;       // +0x2d
+    char m_2e[1];             // +0x2e 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_Monitor_MegaphoneMsg::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_Monitor_MegaphoneMsgPktView* pPkt = reinterpret_cast<Inter_Monitor_MegaphoneMsgPktView*>(data);
     char* recv = data;                                 // -0xc(%ebp) 缓存消息指针
 
     PacketGuard packet;
     packet.put_header(0, 0x76);
-    packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0xe));
-    packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0xb));
-    packet.put_short((unsigned int)*reinterpret_cast<unsigned short*>(recv + 0xc));
-    packet.put_int(strlen(recv + 0xf));
-    packet.put_str(recv + 0xf, strlen(recv + 0xf));    // ORIG 两次独立 strlen（P48）
-    packet.put_int((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0x2d));
-    packet.put_str(recv + 0x2e,
-                   (unsigned int)*reinterpret_cast<unsigned char*>(recv + 0x2d));
+    packet.put_byte((unsigned int)pPkt->m_e);
+    packet.put_byte((unsigned int)pPkt->m_b);
+    packet.put_short((unsigned int)pPkt->m_c);
+    packet.put_int(strlen(pPkt->m_f));
+    packet.put_str(pPkt->m_f, strlen(pPkt->m_f));    // ORIG 两次独立 strlen（P48）
+    packet.put_int((unsigned int)pPkt->m_2d);
+    packet.put_str(pPkt->m_2e,
+                   (unsigned int)pPkt->m_2d);
     packet.finalize(true);
 
     // ORIG：group = IsIntegratedPvPBaseChannel() 返回值（非 recv+0xa）；
@@ -5308,8 +6373,22 @@ int Inter_Monitor_MegaphoneMsg::dispatch_sig(CUser* /*user*/, char* data, int /*
 Inter_Monitor_RegisterBlackListResult::~Inter_Monitor_RegisterBlackListResult() {}
 // ORIG 0x084d0de0 T dispatch_sig —— 黑名单登记结果通知（0x79 包，按结果码填错误值）。
 // 报告 docs/class_func_reports/Inter_Monitor_RegisterBlackListResult/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_Monitor_RegisterBlackListResultPktView —— Inter_Monitor_RegisterBlackListResult::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_Monitor_RegisterBlackListResultPktView
+{
+    char m_pad0[0xe];  // 未消费
+    char m_e[1];              // +0xe 串/字节区首元素（容量未建模）
+    char m_padf[0x1d];  // 未消费
+    unsigned int m_2c;        // +0x2c
+    unsigned char m_30;       // +0x30
+};
+#pragma pack(pop)
+
 int Inter_Monitor_RegisterBlackListResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_Monitor_RegisterBlackListResultPktView* pPkt = reinterpret_cast<Inter_Monitor_RegisterBlackListResultPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
@@ -5317,11 +6396,11 @@ int Inter_Monitor_RegisterBlackListResult::dispatch_sig(CUser* user, char* data,
     packet.put_header(1, 0x79);
 
     const unsigned char result =
-        *reinterpret_cast<unsigned char*>(data + 0x30);
+        pPkt->m_30;
     if (result == '\x01')
     {
         if (!user->registerToBlackList(
-                *reinterpret_cast<unsigned int*>(data + 0x2c)))
+                pPkt->m_2c))
         {
             LogManager::logFormat(
                 1, "InterDispatcher.cpp",
@@ -5357,9 +6436,9 @@ int Inter_Monitor_RegisterBlackListResult::dispatch_sig(CUser* user, char* data,
         packet.put_int(0x5a);
     }
 
-    const size_t local_10 = strlen(data + 0xe);
+    const size_t local_10 = strlen(pPkt->m_e);
     packet.put_int(local_10);
-    packet.put_str(data + 0xe, local_10);
+    packet.put_str(pPkt->m_e, local_10);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -5368,20 +6447,34 @@ int Inter_Monitor_RegisterBlackListResult::dispatch_sig(CUser* user, char* data,
 Inter_Monitor_DeleteBlackListResult::~Inter_Monitor_DeleteBlackListResult() {}
 // ORIG 0x084d1034 T dispatch_sig —— 黑名单删除结果应答：按结果码组 0x7a 包回发。
 // 报告 docs/class_func_reports/Inter_Monitor_DeleteBlackListResult/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_Monitor_DeleteBlackListResultPktView —— Inter_Monitor_DeleteBlackListResult::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_Monitor_DeleteBlackListResultPktView
+{
+    char m_pad0[0xe];  // 未消费
+    char m_e[1];              // +0xe 串/字节区首元素（容量未建模）
+    char m_padf[0x1d];  // 未消费
+    unsigned int m_2c;        // +0x2c
+    unsigned char m_30;       // +0x30
+};
+#pragma pack(pop)
+
 int Inter_Monitor_DeleteBlackListResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_Monitor_DeleteBlackListResultPktView* pPkt = reinterpret_cast<Inter_Monitor_DeleteBlackListResultPktView*>(data);
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
 
     const unsigned char result =
-        *reinterpret_cast<unsigned char*>(data + 0x30);   // msg+0x30 结果码
+        pPkt->m_30;   // msg+0x30 结果码
     PacketGuard packet;
     packet.put_header(1, 0x7a);
     if (result == 1)
     {
         // deleteToBlackList 返回 bool：ORIG xor $0x1,%eax; test %al 取反检验
         if (!user->deleteToBlackList(
-                *reinterpret_cast<unsigned int*>(data + 0x2c)))
+                pPkt->m_2c))
         {
             LogManager::logFormat(
                 1, "InterDispatcher.cpp",
@@ -5408,9 +6501,9 @@ int Inter_Monitor_DeleteBlackListResult::dispatch_sig(CUser* user, char* data, i
     }
 
     const int nameLen =                              // msg+0x0e 目标名
-        static_cast<int>(strlen(data + 0xe));
+        static_cast<int>(strlen(pPkt->m_e));
     packet.put_int(nameLen);
-    packet.put_str(data + 0xe, nameLen);
+    packet.put_str(pPkt->m_e, nameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -5419,20 +6512,31 @@ int Inter_Monitor_DeleteBlackListResult::dispatch_sig(CUser* user, char* data, i
 Inter_Monitor_RequestBlackListResult::~Inter_Monitor_RequestBlackListResult() {}
 // ORIG 0x084d0ba6 T dispatch_sig —— 黑名单查询结果下发（名字+时间+注册黑名单）。
 // 报告 docs/class_func_reports/Inter_Monitor_RequestBlackListResult/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_Monitor_RequestBlackListResultPktView —— Inter_Monitor_RequestBlackListResult::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_Monitor_RequestBlackListResultPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned char m_e;              // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_Monitor_RequestBlackListResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_Monitor_RequestBlackListResultPktView* pPkt = reinterpret_cast<Inter_Monitor_RequestBlackListResultPktView*>(data);
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
 
     PacketGuard packet;
     packet.put_header(1, 0x7b);
     packet.put_byte(1);
-    if (*reinterpret_cast<unsigned char*>(data + 0xe) <= 0xa)
+    if (pPkt->m_e <= 0xa)
     {
         packet.put_byte(
-            (int)*reinterpret_cast<unsigned char*>(data + 0xe));
+            (int)pPkt->m_e);
         for (int i = 0;
-             i < (int)(unsigned int)*reinterpret_cast<unsigned char*>(data + 0xe);
+             i < (int)(unsigned int)pPkt->m_e;
              ++i)
         {
             const size_t nameLen = strlen(data + i * 0x28 + 0x13);
@@ -5464,23 +6568,37 @@ int Inter_Monitor_RequestBlackListResult::dispatch_sig(CUser* user, char* data, 
 Inter_DB_RequestBlackCount::~Inter_DB_RequestBlackCount() {}
 // ORIG 0x084d1218 T dispatch_sig —— DB 黑名单计数应答。
 // 报告 docs/class_func_reports/Inter_DB_RequestBlackCount/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_DB_RequestBlackCountPktView —— Inter_DB_RequestBlackCount::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_DB_RequestBlackCountPktView
+{
+    char m_pad0[0x4];  // 未消费
+    int m_4;                  // +0x04
+    int m_8;                  // +0x08（ORIG +0x2f 两步 spill＝signed 字段→setCurrCharacBlackCount(unsigned) 失配）
+    int m_c;                  // +0x0c
+};
+#pragma pack(pop)
+
 int Inter_DB_RequestBlackCount::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
         return 0;
+    // ORIG：包基址槽在守卫之后物化。
+    Inter_DB_RequestBlackCountPktView* pPkt = reinterpret_cast<Inter_DB_RequestBlackCountPktView*>(data);
 
-    if (*reinterpret_cast<int*>(data + 4) == 0)
-        user->setCurrCharacBlackCount(*reinterpret_cast<unsigned int*>(data + 8));
+    if (pPkt->m_4 == 0)
+        user->setCurrCharacBlackCount(pPkt->m_8);
     else
         user->setCurrCharacBlackCount(0);
     user->EnableCharacInfo((CACHE_SECTION)7);
 
-    if (*reinterpret_cast<int*>(data + 0xc) != 0)
+    if (pPkt->m_c != 0)
     {
         PacketGuard packet;
         packet.put_header(0, 0xec);
-        packet.put_int(*reinterpret_cast<int*>(data + 0xc));
-        packet.put_int(*reinterpret_cast<int*>(data + 8));
+        packet.put_int(pPkt->m_c);
+        packet.put_int(pPkt->m_8);
         packet.finalize(true);
         user->Send(packet);
     }
@@ -5490,15 +6608,38 @@ int Inter_DB_RequestBlackCount::dispatch_sig(CUser* user, char* data, int /*len*
 Inter_MonitorNoticeBlackList::~Inter_MonitorNoticeBlackList() {}
 // ORIG 0x084d0b3a T dispatch_sig —— 监控服黑名单列表登记。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeBlackList/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeBlackListPktView —— Inter_MonitorNoticeBlackList::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorNoticeBlackListPktView
+{
+    char m_pad0[0x12];  // +0x0..未消费
+    unsigned char m_12;             // +0x12
+};
+#pragma pack(pop)
+
+// Inter_MonitorNoticeBlackListIdView —— 同 dispatch_sig 的 id 数组区视图（ORIG 0x084d0b73
+//   `mov 0x3(%eax,%edx,4),%eax`：元素 k 在 +0x3+4k，源码写 m_ids[i+4] 保折叠寻址形）。
+#pragma pack(push, 1)
+struct Inter_MonitorNoticeBlackListIdView
+{
+    char m_pad0[3];               // +0x0
+    unsigned int m_ids[260];      // +0x3（容量上界 len/4，越界声明仅表达线格式，不建模边界）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeBlackList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
         return 0;
-    const int count = (int)(unsigned char)*reinterpret_cast<unsigned char*>(data + 0x12);
-    for (int i = 0; i < count; ++i)
-    {
+    // ORIG 0x084d0b5b：recv 在 state 检查后才物化 -0x10；count 每轮 cond 重读（movzbl 双扩展 + cmp/setg）
+    char* recv = data;
+    for (int i = 0; i < (int)(unsigned char)reinterpret_cast<Inter_MonitorNoticeBlackListPktView*>(recv)->m_12; ++i)
+    {   // ORIG 0x084d0b73 mov 0x3(%eax,%edx,4),%eax：具名数组视图 [i+4] 保 add $4+disp3 折叠形
+        // ORIG 体首两装载 `mov -0xc(%ebp),%edx; mov -0x10(%ebp),%eax`（index 先载）；
+        // 4.4 恒 base 先载且具名 idx 破坏折叠（实测 +4 行），N76 类 blocked。
         user->registerToBlackList(
-            *reinterpret_cast<unsigned int*>(data + 0x13 + i * 4));
+            reinterpret_cast<Inter_MonitorNoticeBlackListIdView*>(recv)->m_ids[i + 4]);
     }
     return 0;
 }
@@ -5506,16 +6647,28 @@ int Inter_MonitorNoticeBlackList::dispatch_sig(CUser* user, char* data, int /*le
 Inter_WebNoticeSingle::~Inter_WebNoticeSingle() {}
 // ORIG 0x084d1344 T dispatch_sig —— 网页单条公告全员播发。
 // 报告 docs/class_func_reports/Inter_WebNoticeSingle/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_WebNoticeSinglePktView —— Inter_WebNoticeSingle::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_WebNoticeSinglePktView
+{
+    char m_pad0[0xa];  // 未消费
+    unsigned char m_a;        // +0x0a
+    char m_b[1];              // +0xb 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_WebNoticeSingle::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_WebNoticeSinglePktView* pPkt = reinterpret_cast<Inter_WebNoticeSinglePktView*>(data);
     PacketGuard packet;
     packet.put_header(0, 0xc);
     packet.put_byte(0);
     packet.put_short(0);
     packet.put_byte(0);
-    packet.put_int((unsigned int)*reinterpret_cast<unsigned char*>(data + 0xa));
-    packet.put_str(data + 0xb,
-                   (unsigned int)*reinterpret_cast<unsigned char*>(data + 0xa));
+    packet.put_int((unsigned int)pPkt->m_a);
+    packet.put_str(pPkt->m_b,
+                   (unsigned int)pPkt->m_a);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     return 0;
@@ -5524,44 +6677,83 @@ int Inter_WebNoticeSingle::dispatch_sig(CUser* /*user*/, char* data, int /*len*/
 Inter_MemberExpLevelUp::~Inter_MemberExpLevelUp() {}
 // ORIG 0x084d1448 T dispatch_sig —— 会员经验等级上限同步。
 // 报告 docs/class_func_reports/Inter_MemberExpLevelUp/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MemberExpLevelUpPktView —— Inter_MemberExpLevelUp::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MemberExpLevelUpPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    int m_e;                        // +0x0e
+    unsigned char m_12;             // +0x12
+};
+#pragma pack(pop)
+
 int Inter_MemberExpLevelUp::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    if (user->get_state() != 0 &&
-        user->getCurCharacNo() == *reinterpret_cast<int*>(data + 0xe))
-    {
-        user->set_uppermember_exp_level(
-            *reinterpret_cast<unsigned char*>(data + 0x12));
-    }
+    // ORIG：门1 = get_state()==0 早退（`test %eax,%eax`+`je`，无 sete 物化）；
+    // 包基址槽在门1 之后才落 -0xc；门2 用 (bool) 显式物化（`setne`+`test`）。
+    if (user->get_state() == 0)
+        return 0;
+    Inter_MemberExpLevelUpPktView* pPkt = reinterpret_cast<Inter_MemberExpLevelUpPktView*>(data);
+    if ((bool)(user->getCurCharacNo() != pPkt->m_e))
+        return 0;
+    user->set_uppermember_exp_level(
+        pPkt->m_12);
     return 0;
 }
 
 Inter_MonitorAddBuddy::~Inter_MonitorAddBuddy() {}
 // ORIG 0x084d14b0 T dispatch_sig —— 好友添加结果通知（0x3f 包，成功带好友信息/失败带错误码）。
 // 报告 docs/class_func_reports/Inter_MonitorAddBuddy/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorAddBuddyPktView —— Inter_MonitorAddBuddy::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorAddBuddyPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x4];  // 未消费
+    char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
+    char m_pad13[0x1d];  // 未消费
+    short m_30;               // +0x30
+    signed char m_32;         // +0x32
+    signed char m_33;         // +0x33
+    int m_34;                 // +0x34
+    signed char m_38;         // +0x38
+    unsigned char m_39;       // +0x39
+    char m_3a;                // +0x3a
+};
+#pragma pack(pop)
+
 int Inter_MonitorAddBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
         return 0;
 
-    if (user->getCurCharacNo() != *reinterpret_cast<int*>(data + 0xa))
+    // ORIG：包基址在 get_state 检查后物化入 -0x10(%ebp)
+    Inter_MonitorAddBuddyPktView* pPkt = reinterpret_cast<Inter_MonitorAddBuddyPktView*>(data);
+    if (user->getCurCharacNo() != pPkt->m_a)
         return 0;
 
     PacketGuard packet;
-    if (*reinterpret_cast<char*>(data + 0x3a) == '\0')
+    if (pPkt->m_3a == '\0')
     {   // 成功
         packet.clear();
         packet.put_header(1, 0x3f);
         packet.put_byte(1);
-        const size_t local_10 = strlen(data + 0x12);
+        // ORIG 0x084d15xx：strlen 参走指针算术（add），put_str 参走数组 decay（lea）；
+        // len 槽 int 精确匹配 put_str(char*,int)，避免隐式转换重排求值序。
+        const int local_10 =
+            (int)strlen(reinterpret_cast<char*>(pPkt) + 0x12);
         packet.put_int(local_10);
-        packet.put_str(data + 0x12, local_10);
-        packet.put_byte((int)*reinterpret_cast<short*>(data + 0x30));
-        packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x32));
-        packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x33));
-        packet.put_int(*reinterpret_cast<int*>(data + 0x34));
-        packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x38));
+        packet.put_str(pPkt->m_12, local_10);
+        packet.put_byte((int)pPkt->m_30);
+        packet.put_byte((int)pPkt->m_32);
+        packet.put_byte((int)pPkt->m_33);
+        packet.put_int(pPkt->m_34);
+        packet.put_byte((int)pPkt->m_38);
         packet.put_byte(
-            (unsigned int)*reinterpret_cast<unsigned char*>(data + 0x39));
+            (unsigned int)pPkt->m_39);
         packet.finalize(true);
         user->Send(packet);
     }
@@ -5570,7 +6762,7 @@ int Inter_MonitorAddBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
         packet.clear();
         packet.put_header(1, 0x3f);
         packet.put_byte(0);
-        packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x3a));
+        packet.put_byte((int)pPkt->m_3a);
         packet.finalize(true);
         user->Send(packet);
     }
@@ -5580,25 +6772,41 @@ int Inter_MonitorAddBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_MonitorDelBuddy::~Inter_MonitorDelBuddy() {}
 // ORIG 0x084d16f6 T dispatch_sig —— 好友删除结果应答：按错误码组 0x40 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorDelBuddy/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorDelBuddyPktView —— Inter_MonitorDelBuddy::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorDelBuddyPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x4];  // 未消费
+    char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
+    char m_pad13[0x1d];  // 未消费
+    signed char m_30;         // +0x30
+};
+#pragma pack(pop)
+
 int Inter_MonitorDelBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                      // asm test eax,eax; sete
         return 0;
 
+    // ORIG 0x084d13xx：包基址在 get_state 检查之后物化入 -0x10(%ebp)
+    Inter_MonitorDelBuddyPktView* pPkt = reinterpret_cast<Inter_MonitorDelBuddyPktView*>(data);
     if (user->getCurCharacNo() !=
-        *reinterpret_cast<int*>(data + 0xa))         // msg+0x0a 角色号校验
+        pPkt->m_a)         // msg+0x0a 角色号校验
         return 0;
 
     PacketGuard packet;
-    if (*reinterpret_cast<signed char*>(data + 0x30) == 0)   // msg+0x30 成功
+    if (pPkt->m_30 == 0)   // msg+0x30 成功
     {
         packet.clear();
         packet.put_header(1, 0x40);
         packet.put_byte(1);
         const int nameLen =                          // msg+0x12 被删好友名
-            static_cast<int>(strlen(data + 0x12));
+            static_cast<int>(strlen(pPkt->m_12));
         packet.put_int(nameLen);
-        packet.put_str(data + 0x12, nameLen);
+        packet.put_str(pPkt->m_12, nameLen);
         packet.finalize(true);
         user->Send(packet);
     }
@@ -5608,7 +6816,7 @@ int Inter_MonitorDelBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
         packet.put_header(1, 0x40);
         packet.put_byte(0);
         packet.put_byte(                             // msg+0x30 char（movsbl）
-            static_cast<int>(*reinterpret_cast<signed char*>(data + 0x30)));
+            static_cast<int>(pPkt->m_30));
         packet.finalize(true);
         user->Send(packet);
     }
@@ -5618,25 +6826,37 @@ int Inter_MonitorDelBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_ChangeLetterStat::~Inter_ChangeLetterStat() {}
 // ORIG 0x084d18ac T dispatch_sig —— 信件状态变更（keep 计数增删 + 0x89 回包）。
 // 报告 docs/class_func_reports/Inter_ChangeLetterStat/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ChangeLetterStatPktView —— Inter_ChangeLetterStat::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_ChangeLetterStatPktView
+{
+    int m_0;                  // +0x00
+    int m_4;                  // +0x04
+    unsigned short m_8;       // +0x08
+};
+#pragma pack(pop)
+
 int Inter_ChangeLetterStat::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_ChangeLetterStatPktView* pPkt = reinterpret_cast<Inter_ChangeLetterStatPktView*>(data);
     if (user->get_state() <= 2)                        // cmp $2; setle
         return 0;
 
-    const int characNoMsg = *reinterpret_cast<int*>(data);      // msg+0x0
+    const int characNoMsg = pPkt->m_0;      // msg+0x0
     if (user->getCurCharacR() == 0 ||
         user->getCurCharacNo() != characNoMsg)
         return 0x30a2;
 
     const short stat =                                 // msg+0x8
-        (short)*reinterpret_cast<unsigned short*>(data + 0x8);
+        (short)pPkt->m_8;
     if (stat == 3)
     {
         if (static_cast<WongWork::CMailBox*>(user->GetMailBox()) != 0)
         {
             static_cast<WongWork::CMailBox*>(user->GetMailBox())
                 ->InsertLetterKeepCount(
-                    (unsigned int)*reinterpret_cast<int*>(data + 0x4));
+                    (unsigned int)pPkt->m_4);
             static_cast<WongWork::CMailBox*>(user->GetMailBox())
                 ->DecLoadedLetterCount();
         }
@@ -5647,7 +6867,7 @@ int Inter_ChangeLetterStat::dispatch_sig(CUser* user, char* data, int /*len*/)
         {
             if (static_cast<WongWork::CMailBox*>(user->GetMailBox())
                     ->DeleteLetterKeepCount(
-                        (unsigned int)*reinterpret_cast<int*>(data + 0x4)) != 1)
+                        (unsigned int)pPkt->m_4) != 1)
                 static_cast<WongWork::CMailBox*>(user->GetMailBox())
                     ->DecLoadedLetterCount();
         }
@@ -5655,7 +6875,7 @@ int Inter_ChangeLetterStat::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     PacketGuard packet;
     packet.put_header(1, 0x89);
-    if (*reinterpret_cast<int*>(data + 0x4) == 0)
+    if (pPkt->m_4 == 0)
     {
         packet.put_byte(0);
         packet.put_byte(2);
@@ -5663,8 +6883,8 @@ int Inter_ChangeLetterStat::dispatch_sig(CUser* user, char* data, int /*len*/)
     else
     {
         packet.put_byte(1);
-        packet.put_int(*reinterpret_cast<int*>(data + 0x4));
-        packet.put_short((int)(short)*reinterpret_cast<unsigned short*>(data + 0x8));
+        packet.put_int(pPkt->m_4);
+        packet.put_short((int)(short)pPkt->m_8);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -5674,9 +6894,23 @@ int Inter_ChangeLetterStat::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_SaveClientHackLog::~Inter_SaveClientHackLog() {}
 // ORIG 0x084d1ab6 T dispatch_sig —— 客户端外挂日志：按类型表计算掉率惩罚并入库。
 // 报告 docs/class_func_reports/Inter_SaveClientHackLog/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SaveClientHackLogPktView —— Inter_SaveClientHackLog::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_SaveClientHackLogPktView
+{
+    unsigned int m_0;         // +0x00
+    char m_pad4[0x4];  // 未消费
+    unsigned short m_8;       // +0x08
+    char m_pada[0x4];  // 未消费
+    int m_e;                  // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_SaveClientHackLog::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    const unsigned int accId = *reinterpret_cast<unsigned int*>(data);
+    Inter_SaveClientHackLogPktView* pPkt = reinterpret_cast<Inter_SaveClientHackLogPktView*>(data);
+    const unsigned int accId = pPkt->m_0;
     CUser* target = G_CGameManager()->getUser(
         static_cast<int>(G_GameWorld()->find_session(accId)), 0x30cd);
     if (target == 0)
@@ -5688,8 +6922,8 @@ int Inter_SaveClientHackLog::dispatch_sig(CUser* /*user*/, char* data, int /*len
 
     int penalty = 0;                                 // local_20[0]/asm -0x1c(%ebp)
     const unsigned short type =                      // msg+0x08 日志类型
-        *reinterpret_cast<unsigned short*>(data + 8);
-    const int value = *reinterpret_cast<int*>(data + 0xe);
+        pPkt->m_8;
+    const int value = pPkt->m_e;
     if (type == 0x1f7)
     {
         if (value > 0x32)
@@ -5725,20 +6959,34 @@ int Inter_SaveClientHackLog::dispatch_sig(CUser* /*user*/, char* data, int /*len
 }
 
 Inter_ReqChangeCharacName::~Inter_ReqChangeCharacName() {}
+#pragma pack(push, 1)
+// Inter_ReqChangeCharacNamePktView —— Inter_ReqChangeCharacName::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_ReqChangeCharacNamePktView
+{
+    int m_0;                  // +0x00
+    char m_pad4[0x20];  // 未消费
+    int m_24;                 // +0x24
+    int m_28;                 // +0x28
+    int m_2c;                 // +0x2c
+};
+#pragma pack(pop)
+
 int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_ReqChangeCharacNamePktView* pPkt = reinterpret_cast<Inter_ReqChangeCharacNamePktView*>(data);
     // ORIG 0x084d1c8a 报告 docs/class_func_reports/Inter_ReqChangeCharacName/dispatch_sig.md
     // 两段全读。msg：+0 characNo / +4 newName / +0x24 errFlag / +0x28 rewardFlag /
     // +0x2c guildKey。
     if (user->get_state() <= 1)
         return 0;
 
-    const int characNo = *reinterpret_cast<int*>(data);
-    if (*reinterpret_cast<int*>(data + 0x24) != 0)
+    const int characNo = pPkt->m_0;
+    if (pPkt->m_24 != 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x8a,
                                  static_cast<unsigned char>(
-                                     *reinterpret_cast<unsigned int*>(data + 0x24) & 0xff));
+                                     pPkt->m_24 & 0xff));
         user->SetCharacViewStateByCharacNo(characNo, 0xff);
         user->UpdateCharacView();
         return 0;
@@ -5765,13 +7013,13 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
     // ORIG 0x0840b96b 两段：第一段 if(guildKey) guild 1 次 else monitor 1 次；
     // 第二段 if(guildKey) { guild 1 次 + monitor 1 次 }。NEW 原实现把第一段
     // guild 重复两次且缺第二段，属转写错误。
-    if (*reinterpret_cast<int*>(data + 0x2c) != 0)
+    if (pPkt->m_2c != 0)
     {
         CGuildServerProxy* proxy =
             GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
         proxy->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
                                   static_cast<unsigned int>(characNo),
-                                  static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0x2c)),
+                                  static_cast<unsigned int>(pPkt->m_2c),
                                   data + 4);
     }
     else
@@ -5780,26 +7028,26 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
         monitor->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
                                     static_cast<unsigned int>(characNo),
-                                    static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0x2c)),
+                                    static_cast<unsigned int>(pPkt->m_2c),
                                     data + 4);
     }
-    if (*reinterpret_cast<int*>(data + 0x2c) != 0)
+    if (pPkt->m_2c != 0)
     {
         CGuildServerProxy* proxyG =
             GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
         proxyG->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
                                    static_cast<unsigned int>(characNo),
-                                   static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0x2c)),
+                                   static_cast<unsigned int>(pPkt->m_2c),
                                    data + 4);
         CMonitorServerProxy* monitorM =
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
         monitorM->SendChangeCharName(static_cast<unsigned int>(user->get_acc_id()),
                                      static_cast<unsigned int>(characNo),
-                                     static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0x2c)),
+                                     static_cast<unsigned int>(pPkt->m_2c),
                                      data + 4);
     }
 
-    if (*reinterpret_cast<int*>(data + 0x28) == 0)
+    if (pPkt->m_28 == 0)
     {   // 改名活动奖励期（ORIG 2007-05 活动阈值 0x464a1f50）
         const long curSec = GlobalData::s_systemTime_.getCurSec();
         if (curSec > 0x464a1f50)
@@ -5856,24 +7104,42 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
 
     GlobalData::s_event_manager->changeCharacName(
         user, characNo, data + 4,
-        *reinterpret_cast<int*>(data + 0x28));
+        pPkt->m_28);
     return 0;
 }
 
 Inter_ReqQueryCharacInfo::~Inter_ReqQueryCharacInfo() {}
 // ORIG 0x084d22fc T dispatch_sig —— 角色信息查询应答：组 0x8b 包回发。
 // 报告 docs/class_func_reports/Inter_ReqQueryCharacInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ReqQueryCharacInfoPktView —— Inter_ReqQueryCharacInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_ReqQueryCharacInfoPktView
+{
+    char m_pad0[0x20];  // 未消费
+    int m_20;                 // +0x20
+    char m_pad24[0x4];  // 未消费
+    signed char m_28;         // +0x28
+    char m_pad29[0x1];  // 未消费
+    short m_2a;               // +0x2a
+    signed char m_2c;         // +0x2c
+    signed char m_2d;         // +0x2d
+    signed char m_2e;         // +0x2e
+};
+#pragma pack(pop)
+
 int Inter_ReqQueryCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_ReqQueryCharacInfoPktView* pPkt = reinterpret_cast<Inter_ReqQueryCharacInfoPktView*>(data);
     if (user->get_state() <= 2)                      // asm cmp $0x2; setle
         return 0;
 
-    if (*reinterpret_cast<int*>(data + 0x20) != 0)   // msg+0x20 错误码
+    if (pPkt->m_20 != 0)   // msg+0x20 错误码
     {
         user->SendCmdErrorPacket(
             (ENUM_CMDPACKET)0x8b,
             static_cast<unsigned char>(
-                *reinterpret_cast<unsigned int*>(data + 0x20) & 0xff));
+                pPkt->m_20 & 0xff));
         return 0;
     }
 
@@ -5884,15 +7150,15 @@ int Inter_ReqQueryCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_int(nameLen);
     packet.put_str(data, nameLen);
     packet.put_short(                                // msg+0x2a short（cwtl 符号扩展）
-        static_cast<int>(*reinterpret_cast<short*>(data + 0x2a)));
+        static_cast<int>(pPkt->m_2a));
     packet.put_byte(                                 // msg+0x28（movsbl）
-        static_cast<int>(*reinterpret_cast<signed char*>(data + 0x28)));
+        static_cast<int>(pPkt->m_28));
     packet.put_byte(                                 // msg+0x2c（movsbl）
-        static_cast<int>(*reinterpret_cast<signed char*>(data + 0x2c)));
+        static_cast<int>(pPkt->m_2c));
     packet.put_byte(                                 // msg+0x2d（movsbl）
-        static_cast<int>(*reinterpret_cast<signed char*>(data + 0x2d)));
+        static_cast<int>(pPkt->m_2d));
     packet.put_byte(                                 // msg+0x2e（movsbl）
-        static_cast<int>(*reinterpret_cast<signed char*>(data + 0x2e)));
+        static_cast<int>(pPkt->m_2e));
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -5901,17 +7167,32 @@ int Inter_ReqQueryCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_ReportMannerless::~Inter_ReportMannerless() {}
 // ORIG 0x084d24a2 T dispatch_sig —— 无礼行为举报：按类型回错误码或转发 LOGDB 队列 + 确认包。
 // 报告 docs/class_func_reports/Inter_ReportMannerless/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ReportMannerlessPktView —— Inter_ReportMannerless::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_ReportMannerlessPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    int m_e;                        // +0x0e
+    char m_pad12[0xc];  // +0x12..未消费
+    unsigned int m_1e;              // +0x1e
+    char m_pad22[0x13c];  // +0x22..未消费
+    unsigned char m_15e;            // +0x15e
+};
+#pragma pack(pop)
+
 int Inter_ReportMannerless::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_ReportMannerlessPktView* pPkt = reinterpret_cast<Inter_ReportMannerlessPktView*>(data);
     if (data == 0)
         return 0;
 
     CUser* local_10 = 0;
     if (user == 0 ||
-        *reinterpret_cast<int*>(data + 0xe) != user->get_charac_no(-1))
+        pPkt->m_e != user->get_charac_no(-1))
     {
         local_10 = G_CGameManager()->GetUserByAccId(
-            *reinterpret_cast<unsigned int*>(data + 0x1e));
+            pPkt->m_1e);
     }
     else
     {
@@ -5919,7 +7200,7 @@ int Inter_ReportMannerless::dispatch_sig(CUser* user, char* data, int /*len*/)
     }
 
     const unsigned char type =
-        *reinterpret_cast<unsigned char*>(data + 0x15e);
+        pPkt->m_15e;
     if (type == 'o')
     {
         if (local_10 != 0)
@@ -5958,14 +7239,35 @@ int Inter_ReportMannerless::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_ChagneUserHandicap::~Inter_ChagneUserHandicap() {}
 // ORIG 0x084d271e T dispatch_sig —— 用户掉落率调整（handicap）。
 // 报告 docs/class_func_reports/Inter_ChagneUserHandicap/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ChagneUserHandicapPktView —— Inter_ChagneUserHandicap::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_ChagneUserHandicapPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+    int m_e;                        // +0x0e
+    int m_12;                       // +0x12
+};
+#pragma pack(pop)
+
 int Inter_ChagneUserHandicap::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_ChagneUserHandicapPktView* pPkt = reinterpret_cast<Inter_ChagneUserHandicapPktView*>(data);
     CUser* target = G_CGameManager()->GetUserByAccId(
-        *reinterpret_cast<unsigned int*>(data + 0xa));
-    if (target != 0 && target->get_state() > 1 &&
-        *reinterpret_cast<int*>(data + 0xe) == 1)
+        pPkt->m_a);
+    // ORIG 0x084d2745-084d276b：守卫是「(target==0 || state<=1) 物化 bool →
+    // test %al → 真则 mov $0 早退岛」形（`cmpl $0,-0xc; je →mov$1` 短路 + `cmp $1;
+    // jg →mov$0`），而非 && 正判直跳形。字段校验在汇合后独立 cmp/jne。
+    // 技巧22：register bool asm("al") 免槽（ORIG `test %al,%al` 直判、无 -0x9 spill，
+    // 且消除本函数 -0xc→-0x10 整体槽偏移）。
+    register bool guardFail asm("al");
+    guardFail = (target == 0 || target->get_state() <= 1);
+    if (guardFail)
+        return 0;
+    if (pPkt->m_e == 1)
     {
-        target->setStdDropRate(*reinterpret_cast<int*>(data + 0x12));
+        target->setStdDropRate(pPkt->m_12);
     }
     return 0;
 }
@@ -5973,18 +7275,31 @@ int Inter_ChagneUserHandicap::dispatch_sig(CUser* /*user*/, char* data, int /*le
 Inter_GMRequestMid::~Inter_GMRequestMid() {}
 // ORIG 0x084d279e T dispatch_sig —— GM mid 请求转发。
 // 报告 docs/class_func_reports/Inter_GMRequestMid/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GMRequestMidPktView —— Inter_GMRequestMid::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_GMRequestMidPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    int m_12;                 // +0x12
+    char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_GMRequestMid::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_GMRequestMidPktView* pPkt = reinterpret_cast<Inter_GMRequestMidPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
     PacketGuard packet;
     packet.clear();
     packet.put_header(0, 0x7e);
-    packet.put_int(*reinterpret_cast<int*>(data + 0xe));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x12));
-    packet.put_int(strlen(data + 0x16));
-    packet.put_str(data + 0x16, strlen(data + 0x16));
+    packet.put_int(pPkt->m_e);
+    packet.put_int(pPkt->m_12);
+    packet.put_int(strlen(pPkt->m_16));
+    packet.put_str(pPkt->m_16, strlen(pPkt->m_16));
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -6010,28 +7325,41 @@ int Inter_Add_Slang::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 Inter_ReplyGuildLetter::~Inter_ReplyGuildLetter() {}
 // ORIG 0x084d28ca T dispatch_sig —— 公会信件回复应答转发。
 // 报告 docs/class_func_reports/Inter_ReplyGuildLetter/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ReplyGuildLetterPktView —— Inter_ReplyGuildLetter::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_ReplyGuildLetterPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+    char m_pade[0x4];  // +0xe..未消费
+    char m_12;                      // +0x12
+};
+#pragma pack(pop)
+
 int Inter_ReplyGuildLetter::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
         return 0;
+    // ORIG：包基址槽在门 1 之后物化。
+    Inter_ReplyGuildLetterPktView* pPkt = reinterpret_cast<Inter_ReplyGuildLetterPktView*>(data);
 
-    const unsigned int charIdMsg =                     // recv->m_uCharID @ msg+0xa
-        *reinterpret_cast<unsigned int*>(data + 0xa);
-
-    if (user->get_charac_no(-1) != (int)charIdMsg)
+    // ORIG：比较处 4 行 spill（`mov %eax,%edx`+`mov -0xc(%ebp),%eax`+`mov 0xa(%eax),%eax`
+    // +`cmp %eax,%edx`）＝unsigned 字段→int 返回失配；log 处再独立装载（`mov 0xa(%eax),%ebx`）。
+    if (user->get_charac_no(-1) != pPkt->m_a)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x3340,
             "MEMBER : Inter_ReplyGuildLetter::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), (int)charIdMsg);
+            user->get_charac_no(-1), pPkt->m_a);   // ORIG 一步 `mov 0xa(%eax),%ebx`（无 cast 免双级）
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(1, 0x61);
-    if (*reinterpret_cast<char*>(data + 0x12) == '\0')
+    if (pPkt->m_12 == '\0')
         packet.put_byte(1);
     else
         packet.put_byte(0);
@@ -6043,14 +7371,27 @@ int Inter_ReplyGuildLetter::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_CallGuildInviteToCaller::~Inter_CallGuildInviteToCaller() {}
 // ORIG 0x084d2a26 T dispatch_sig —— 公会邀请回执：按结果码回执发起者。
 // 报告 docs/class_func_reports/Inter_CallGuildInviteToCaller/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_CallGuildInviteToCallerPktView —— Inter_CallGuildInviteToCaller::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_CallGuildInviteToCallerPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a（同上 unsigned→int 失配两步 spill 形态）
+    char m_pade[0x4];  // +0xe..未消费
+    int m_12;                       // +0x12
+};
+#pragma pack(pop)
+
 int Inter_CallGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
+    // ORIG：包基址槽在守卫之后物化。
+    Inter_CallGuildInviteToCallerPktView* pPkt = reinterpret_cast<Inter_CallGuildInviteToCallerPktView*>(data);
 
-    char* recv = data;                                 // -0xc(%ebp) 缓存消息指针
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(recv + 0xa))
+    if (user->get_charac_no(-1) != pPkt->m_a)
     {   // m_uCharID 不匹配 → 日志后退出
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -6058,20 +7399,20 @@ int Inter_CallGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*l
             0x335c,
             "MEMBER : Inter_CallGuildInviteToCaller::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(recv + 0xa));
+            pPkt->m_a);
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(1, 0x9a);
-    if (*reinterpret_cast<int*>(recv + 0x12) == 0)
+    if (pPkt->m_12 == 0)
     {   // 结果码为零 → 成功
         packet.put_byte(1);
     }
     else
     {
         packet.put_byte(0);
-        packet.put_byte(*reinterpret_cast<int*>(recv + 0x12));
+        packet.put_byte(pPkt->m_12);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -6081,12 +7422,27 @@ int Inter_CallGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*l
 Inter_CallGuildInviteToInvited::~Inter_CallGuildInviteToInvited() {}
 // ORIG 0x084d2b96 T dispatch_sig —— 被邀请方公会邀请应答转发（0x93 包 + 拒绝码上报）。
 // 报告 docs/class_func_reports/Inter_CallGuildInviteToInvited/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_CallGuildInviteToInvitedPktView —— Inter_CallGuildInviteToInvited::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_CallGuildInviteToInvitedPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x4];  // 未消费
+    char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
+    char m_pad13[0x1d];  // 未消费
+    char m_30[1];             // +0x30 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_CallGuildInviteToInvitedPktView* pPkt = reinterpret_cast<Inter_CallGuildInviteToInvitedPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0xa))
+    if (user->get_charac_no(-1) != pPkt->m_a)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -6094,7 +7450,7 @@ int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*
             0x337b,
             "MEMBER : Inter_CallGuildInviteToInvited::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<unsigned int*>(data + 0xa));
+            pPkt->m_a);
         return 0;
     }
 
@@ -6119,12 +7475,12 @@ int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*
 
     PacketGuard packet;
     packet.put_header(0, 0x93);
-    const size_t local_14 = strlen(data + 0x30);
+    const size_t local_14 = strlen(pPkt->m_30);
     packet.put_int(local_14);
-    packet.put_str(data + 0x30, local_14);
-    const size_t local_10 = strlen(data + 0x12);
+    packet.put_str(pPkt->m_30, local_14);
+    const size_t local_10 = strlen(pPkt->m_12);
     packet.put_int(local_10);
-    packet.put_str(data + 0x12, local_10);
+    packet.put_str(pPkt->m_12, local_10);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -6133,14 +7489,27 @@ int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*
 Inter_ReplyGuildInviteToInvited::~Inter_ReplyGuildInviteToInvited() {}
 // ORIG 0x084d2dfe T dispatch_sig —— 公会邀请回应：被邀者按结果码回执。
 // 报告 docs/class_func_reports/Inter_ReplyGuildInviteToInvited/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ReplyGuildInviteToInvitedPktView —— Inter_ReplyGuildInviteToInvited::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_ReplyGuildInviteToInvitedPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a（同上 unsigned→int 失配两步 spill 形态）
+    char m_pade[0x4];  // +0xe..未消费
+    int m_12;                       // +0x12
+};
+#pragma pack(pop)
+
 int Inter_ReplyGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
+    // ORIG：包基址槽在守卫之后物化。
+    Inter_ReplyGuildInviteToInvitedPktView* pPkt = reinterpret_cast<Inter_ReplyGuildInviteToInvitedPktView*>(data);
 
-    char* recv = data;                                 // -0xc(%ebp) 缓存消息指针
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(recv + 0xa))
+    if (user->get_charac_no(-1) != pPkt->m_a)
     {   // m_uCharID 不匹配 → 日志后退出
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -6148,20 +7517,20 @@ int Inter_ReplyGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /
             0x33ae,
             "MEMBER : Inter_CallGuildInviteToInvited::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(recv + 0xa));
+            pPkt->m_a);
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(1, 0x9b);
-    if (*reinterpret_cast<int*>(recv + 0x12) == 0)
+    if (pPkt->m_12 == 0)
     {   // 结果码为零 → 成功
         packet.put_byte(1);
     }
     else
     {
         packet.put_byte(0);
-        packet.put_int(*reinterpret_cast<int*>(recv + 0x12));
+        packet.put_int(pPkt->m_12);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -6171,13 +7540,27 @@ int Inter_ReplyGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /
 Inter_ReplyGuildInviteToCaller::~Inter_ReplyGuildInviteToCaller() {}
 // ORIG 0x084d2f6e T dispatch_sig —— 公会邀请应答转发（SoloPlay 拒绝包 / 0x94 通知包）。
 // 报告 docs/class_func_reports/Inter_ReplyGuildInviteToCaller/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ReplyGuildInviteToCallerPktView —— Inter_ReplyGuildInviteToCaller::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_ReplyGuildInviteToCallerPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x4];  // 未消费
+    int m_12;                 // +0x12
+    char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_ReplyGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_ReplyGuildInviteToCallerPktView* pPkt = reinterpret_cast<Inter_ReplyGuildInviteToCallerPktView*>(data);
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
 
     const int characNo =                               // msg+0xa
-        *reinterpret_cast<int*>(data + 0xa);
+        pPkt->m_a;
     if (user->get_charac_no(-1) != characNo)
     {
         LogManager::logFormat(
@@ -6190,7 +7573,7 @@ int Inter_ReplyGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*
     }
 
     const int replyCode =                              // msg+0x12
-        *reinterpret_cast<int*>(data + 0x12);
+        pPkt->m_12;
     if (replyCode == 2)
     {
         user->Send_SoloPlay_Reject_NotiPack(
@@ -6211,9 +7594,9 @@ int Inter_ReplyGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*
     packet.put_byte(replyCode);
     if (replyCode < 2)
     {
-        const size_t msgLen = strlen(data + 0x16);
+        const size_t msgLen = strlen(pPkt->m_16);
         packet.put_int((int)msgLen);
-        packet.put_str(data + 0x16, (int)msgLen);
+        packet.put_str(pPkt->m_16, (int)msgLen);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -6223,18 +7606,41 @@ int Inter_ReplyGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*
 Inter_LoadDeathTowerBestRecord::~Inter_LoadDeathTowerBestRecord() {}
 // ORIG 0x084d316a T dispatch_sig —— 死亡之塔个人最优纪录批量登记。
 // 报告 docs/class_func_reports/Inter_LoadDeathTowerBestRecord/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadDeathTowerBestRecordPktView —— Inter_LoadDeathTowerBestRecord::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_LoadDeathTowerBestRecordPktView
+{
+    unsigned int m_0;         // +0x00
+    unsigned int m_4;         // +0x04
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+// Inter_LoadDeathTowerBestRecordRecWinView —— Inter_LoadDeathTowerBestRecord::dispatch_sig 窗口 rec 元素视图
+//   （rec 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
+struct Inter_LoadDeathTowerBestRecordRecWinView
+{
+    char m_pad0[0x6c];  // 未消费
+    int m_6c;                 // +0x6c
+    unsigned int m_70;        // +0x70
+};
+#pragma pack(pop)
+
 int Inter_LoadDeathTowerBestRecord::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    for (unsigned int i = 0; i < *reinterpret_cast<unsigned int*>(data); ++i)
+    Inter_LoadDeathTowerBestRecordPktView* pPkt = reinterpret_cast<Inter_LoadDeathTowerBestRecordPktView*>(data);
+    for (unsigned int i = 0; i < pPkt->m_0; ++i)
     {
         for (int j = 0; j <= 3; ++j)
         {
             char* rec = data + i * 0x1b0 + j * 0x6c;   // 记录块 stride 0x1b0/成员 0x6c
-            if (*reinterpret_cast<int*>(rec + 0x6c) != 0)
+    Inter_LoadDeathTowerBestRecordRecWinView* pWin_rec = reinterpret_cast<Inter_LoadDeathTowerBestRecordRecWinView*>(rec);
+            if (pWin_rec->m_6c != 0)
             {
-                const unsigned int best = *reinterpret_cast<unsigned int*>(rec + 0x70);
-                const unsigned int count = *reinterpret_cast<unsigned int*>(rec + 0x6c);
-                const unsigned int accId = *reinterpret_cast<unsigned int*>(data + 4);
+                const unsigned int best = pWin_rec->m_70;
+                const unsigned int count = pWin_rec->m_6c;
+                const unsigned int accId = pPkt->m_4;
                 const stDeathTowerRecordMemberInfo_t* members =
                     reinterpret_cast<const stDeathTowerRecordMemberInfo_t*>(rec + 0x10);
                 WongWork::CDeathTowerRanking* table =
@@ -6253,9 +7659,34 @@ int Inter_LoadDeathTowerBestRecord::dispatch_sig(CUser* /*user*/, char* data, in
 Inter_DeathTowerLoadTopRanker::~Inter_DeathTowerLoadTopRanker() {}
 // ORIG 0x084d3364 T dispatch_sig —— 死亡之塔榜首记录批量装载。
 // 报告 docs/class_func_reports/Inter_DeathTowerLoadTopRanker/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_DeathTowerLoadTopRankerPktView —— Inter_DeathTowerLoadTopRanker::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_DeathTowerLoadTopRankerPktView
+{
+    unsigned int m_0;         // +0x00
+    char m_4;                 // +0x04
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+// Inter_DeathTowerLoadTopRankerRecWinView —— Inter_DeathTowerLoadTopRanker::dispatch_sig 窗口 rec 元素视图
+//   （rec 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
+struct Inter_DeathTowerLoadTopRankerRecWinView
+{
+    char m_pad0[0xfac];  // 未消费
+    unsigned short m_fac;     // +0xfac
+    unsigned short m_fae;     // +0xfae
+    char m_padfb0[0x5c];  // 未消费
+    unsigned int m_100c;      // +0x100c
+    unsigned int m_1010;      // +0x1010
+};
+#pragma pack(pop)
+
 int Inter_DeathTowerLoadTopRanker::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<char*>(data + 4) == '\0')
+    Inter_DeathTowerLoadTopRankerPktView* pPkt = reinterpret_cast<Inter_DeathTowerLoadTopRankerPktView*>(data);
+    if (pPkt->m_4 == '\0')
     {
         for (unsigned int t = 1; t <= 4; ++t)
         {
@@ -6265,15 +7696,16 @@ int Inter_DeathTowerLoadTopRanker::dispatch_sig(CUser* /*user*/, char* data, int
         }
     }
 
-    for (unsigned int i = 0; i < *reinterpret_cast<unsigned int*>(data); ++i)
+    for (unsigned int i = 0; i < pPkt->m_0; ++i)
     {
         char* rec = data + i * 0x6c;                   // 记录 stride 0x6c
-        const unsigned int stage = *reinterpret_cast<unsigned int*>(rec + 0x1010);
-        const unsigned int playTime = *reinterpret_cast<unsigned int*>(rec + 0x100c);
+    Inter_DeathTowerLoadTopRankerRecWinView* pWin_rec = reinterpret_cast<Inter_DeathTowerLoadTopRankerRecWinView*>(rec);
+        const unsigned int stage = pWin_rec->m_1010;
+        const unsigned int playTime = pWin_rec->m_100c;
         const unsigned int key =
             *reinterpret_cast<unsigned short*>(data + 6 + i * 2);
-        const unsigned int towerIdx = *reinterpret_cast<unsigned short*>(rec + 0xfac);
-        const unsigned int tableIdx = *reinterpret_cast<unsigned short*>(rec + 0xfae);
+        const unsigned int towerIdx = pWin_rec->m_fac;
+        const unsigned int tableIdx = pWin_rec->m_fae;
         WongWork::CDeathTowerRanking* table =
             (WongWork::CDeathTowerRanking*)WongWork::CDeathTowerRanking::getRankTable(tableIdx);
         table->registRanker(
@@ -6319,14 +7751,33 @@ int Inter_MonitorTowerReloadTopRanker::dispatch_sig(CUser* /*user*/, char* /*dat
 Inter_ReplyGuildSecede::~Inter_ReplyGuildSecede() {}
 // ORIG 0x084c9768 T dispatch_sig —— 退出公会应答：校验角色号后发 0x9c 包并刷 item lock 列表。
 // 报告 docs/class_func_reports/Inter_ReplyGuildSecede/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ReplyGuildSecedePktView —— Inter_ReplyGuildSecede::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_ReplyGuildSecedePktView
+{
+    char m_pad0[0xa];  // 未消费
+    unsigned int m_a;         // +0x0a
+    short m_e;                // +0x0e
+    int m_10;                 // +0x10
+    char m_pad14[0x4];  // 未消费
+    int m_18;                 // +0x18
+    signed char m_1c;         // +0x1c
+    char m_1d[1];             // +0x1d 串/字节区首元素（容量未建模）
+    char m_pad1e[0x1d];  // 未消费
+    char m_3b[1];             // +0x3b 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_ReplyGuildSecede::dispatch_sig(CUser* user, char* data, int len)
 {
+    Inter_ReplyGuildSecedePktView* pPkt = reinterpret_cast<Inter_ReplyGuildSecedePktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
     const int local_28 = len;
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0x10))
+    if (user->get_charac_no(-1) != pPkt->m_10)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -6334,38 +7785,38 @@ int Inter_ReplyGuildSecede::dispatch_sig(CUser* user, char* data, int len)
             0x236b,
             "Inter_ReplyGuildSecede::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<unsigned int*>(data + 0x10));
+            pPkt->m_10);
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(1, 0x9c);
-    if (*reinterpret_cast<int*>(data + 0x18) != 0)
+    if (pPkt->m_18 != 0)
     {   // 退会失败（原因码）
         packet.put_byte(0);
-        packet.put_byte(*reinterpret_cast<int*>(data + 0x18));
+        packet.put_byte(pPkt->m_18);
         packet.finalize(true);
         user->Send(packet);
     }
     else
     {   // 退会成功
         packet.put_byte(1);
-        packet.put_byte(*reinterpret_cast<signed char*>(data + 0x1c));
-        const size_t local_24 = strlen(data + 0x3b);
+        packet.put_byte(pPkt->m_1c);
+        const size_t local_24 = strlen(pPkt->m_3b);
         packet.put_int(local_24);
-        packet.put_str(data + 0x3b, local_24);
-        const size_t local_20 = strlen(data + 0x1d);
+        packet.put_str(pPkt->m_3b, local_24);
+        const size_t local_20 = strlen(pPkt->m_1d);
         packet.put_int(local_20);
-        packet.put_str(data + 0x1d, local_20);
+        packet.put_str(pPkt->m_1d, local_20);
         packet.finalize(true);
         user->Send(packet);
         user->m_historyLog.GuildOut(
-            *reinterpret_cast<unsigned int*>(data + 0xa),
+            pPkt->m_a,
             data + 0x3b,
-            *reinterpret_cast<unsigned int*>(data + 0x10),
-            *reinterpret_cast<signed char*>(data + 0x1c),
+            pPkt->m_10,
+            pPkt->m_1c,
             static_cast<unsigned short>(
-                *reinterpret_cast<short*>(data + 0xe) - 1));
+                pPkt->m_e - 1));
     }
 
     user->getCurCharacInvenR()->SendItemLockListInven();
@@ -6378,14 +7829,27 @@ int Inter_ReplyGuildSecede::dispatch_sig(CUser* user, char* data, int len)
 Inter_NoticeGuildMasterDelegate::~Inter_NoticeGuildMasterDelegate() {}
 // ORIG 0x084c9a32 T dispatch_sig —— 会长委任通知：转发新会长名字。
 // 报告 docs/class_func_reports/Inter_NoticeGuildMasterDelegate/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticeGuildMasterDelegatePktView —— Inter_NoticeGuildMasterDelegate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_NoticeGuildMasterDelegatePktView
+{
+    char m_pad0[0xa];  // 未消费
+    unsigned int m_a;       // +0x0a（同上 unsigned→int 失配两步 spill 形态）
+    char m_pade[0x4];  // 未消费
+    char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_NoticeGuildMasterDelegate::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
+    // ORIG：包基址槽在守卫之后物化。
+    Inter_NoticeGuildMasterDelegatePktView* pPkt = reinterpret_cast<Inter_NoticeGuildMasterDelegatePktView*>(data);
 
-    char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(recv + 0xa))
+    if (user->get_charac_no(-1) != pPkt->m_a)
     {   // m_uCharID 不匹配 → 日志后退出
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -6393,15 +7857,15 @@ int Inter_NoticeGuildMasterDelegate::dispatch_sig(CUser* user, char* data, int /
             0x23a0,
             "Inter_NoticeGuildMasterDelegate::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(recv + 0xa));
+            pPkt->m_a);
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(0, 0x95);
-    const int nameLen = strlen(recv + 0x12);
+    const int nameLen = strlen(pPkt->m_12);
     packet.put_int(nameLen);
-    packet.put_str(recv + 0x12, nameLen);
+    packet.put_str(pPkt->m_12, nameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -6410,14 +7874,27 @@ int Inter_NoticeGuildMasterDelegate::dispatch_sig(CUser* user, char* data, int /
 Inter_GuildReplyGuildMasterDelegate::~Inter_GuildReplyGuildMasterDelegate() {}
 // ORIG 0x084c9b9a T dispatch_sig —— 会长委任回应：按结果码回执。
 // 报告 docs/class_func_reports/Inter_GuildReplyGuildMasterDelegate/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GuildReplyGuildMasterDelegatePktView —— Inter_GuildReplyGuildMasterDelegate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_GuildReplyGuildMasterDelegatePktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a（同上 unsigned→int 失配两步 spill 形态）
+    char m_pade[0x4];  // +0xe..未消费
+    int m_12;                       // +0x12
+};
+#pragma pack(pop)
+
 int Inter_GuildReplyGuildMasterDelegate::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
+    // ORIG：包基址槽在守卫之后物化。
+    Inter_GuildReplyGuildMasterDelegatePktView* pPkt = reinterpret_cast<Inter_GuildReplyGuildMasterDelegatePktView*>(data);
 
-    char* recv = data;                                 // -0xc(%ebp) 缓存消息指针
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(recv + 0xa))
+    if (user->get_charac_no(-1) != pPkt->m_a)
     {   // m_uCharID 不匹配 → 日志后退出
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -6425,20 +7902,20 @@ int Inter_GuildReplyGuildMasterDelegate::dispatch_sig(CUser* user, char* data, i
             0x23ba,
             "Inter_NoticeGuildMasterDelegate::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(recv + 0xa));
+            pPkt->m_a);
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(1, 0x9e);
-    if (*reinterpret_cast<int*>(recv + 0x12) == 0)
+    if (pPkt->m_12 == 0)
     {   // 结果码为零 → 成功
         packet.put_byte(1);
     }
     else
     {
         packet.put_byte(0);
-        packet.put_byte(*reinterpret_cast<int*>(recv + 0x12));
+        packet.put_byte(pPkt->m_12);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -6448,21 +7925,32 @@ int Inter_GuildReplyGuildMasterDelegate::dispatch_sig(CUser* user, char* data, i
 Inter_NoticeHasBeenGuildMaster::~Inter_NoticeHasBeenGuildMaster() {}
 // ORIG 0x084c9d0a T dispatch_sig —— 已成为公会会长通知。
 // 报告 docs/class_func_reports/Inter_NoticeHasBeenGuildMaster/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticeHasBeenGuildMasterPktView —— Inter_NoticeHasBeenGuildMaster::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NoticeHasBeenGuildMasterPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_NoticeHasBeenGuildMaster::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
         return 0;
+    // ORIG：包基址槽在门 1 之后物化。
+    Inter_NoticeHasBeenGuildMasterPktView* pPkt = reinterpret_cast<Inter_NoticeHasBeenGuildMasterPktView*>(data);
 
-    const unsigned int charIdMsg =                     // recv->m_uCharID @ msg+0xa
-        *reinterpret_cast<unsigned int*>(data + 0xa);
-    if (user->get_charac_no(-1) != (int)charIdMsg)
+    // ORIG：同 ReplyGuildLetter（unsigned 字段失配 4 行 spill + log 独立装载）。
+    if (user->get_charac_no(-1) != pPkt->m_a)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x23da,
             "Inter_NoticeHasBeenGuildMaster::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), (int)charIdMsg);
+            user->get_charac_no(-1), pPkt->m_a);   // ORIG 一步装载，同上
         return 0;
     }
 
@@ -6476,47 +7964,76 @@ int Inter_NoticeHasBeenGuildMaster::dispatch_sig(CUser* user, char* data, int /*
 Inter_DBCheckDoubleGuildName::~Inter_DBCheckDoubleGuildName() {}
 // ORIG 0x084d347e T dispatch_sig —— 公会名重复检查应答。
 // 报告 docs/class_func_reports/Inter_DBCheckDoubleGuildName/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_DBCheckDoubleGuildNamePktView —— Inter_DBCheckDoubleGuildName::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_DBCheckDoubleGuildNamePktView
+{
+    char m_0;                 // +0x00
+};
+#pragma pack(pop)
+
 int Inter_DBCheckDoubleGuildName::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)
         return 0;
+    // ORIG：包基址槽在守卫之后物化。
+    Inter_DBCheckDoubleGuildNamePktView* pPkt = reinterpret_cast<Inter_DBCheckDoubleGuildNamePktView*>(data);
 
-    if (*reinterpret_cast<char*>(data) == '\x02')
+    // ORIG 0x084d3546：err 支尾无 `mov $0x0,%eax`（直接 jmp 汇合尾 0x084d3581）
+    // ⇒ err 支不带 return；正常支 dtor 内联块尾（0x084d355f lea/mov/call D1Ev，
+    // 0x084d3564 jmp 汇合）⇒ PacketGuard 直接声明于 else 块（无额外 {}，
+    // 额外作用域会使 gcc 把 dtor hoist 到汇合点共享尾块，产生行序差）。
+    if (pPkt->m_0 == '\x02')
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x9f, 0x6b);
-        return 0;
     }
-
-    user->setGuildCreateFlag(2);
-    PacketGuard packet;
-    packet.put_header(1, 0x9f);
-    packet.put_byte(1);
-    packet.finalize(true);
-    user->Send(packet);
-    user->setGuildCreateFlag(GUILD_ADDRESS_DOUBLE_CHECK);
+    else
+    {
+        user->setGuildCreateFlag(2);
+        PacketGuard packet;
+        packet.put_header(1, 0x9f);
+        packet.put_byte(1);
+        packet.finalize(true);
+        user->Send(packet);
+        user->setGuildCreateFlag(GUILD_ADDRESS_DOUBLE_CHECK);
+    }
     return 0;
 }
 
 Inter_DBCheckDoubleGuildAddress::~Inter_DBCheckDoubleGuildAddress() {}
 // ORIG 0x084d358e T dispatch_sig —— 公会地址重复检查应答。
 // 报告 docs/class_func_reports/Inter_DBCheckDoubleGuildAddress/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_DBCheckDoubleGuildAddressPktView —— Inter_DBCheckDoubleGuildAddress::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_DBCheckDoubleGuildAddressPktView
+{
+    char m_0;                 // +0x00
+};
+#pragma pack(pop)
+
 int Inter_DBCheckDoubleGuildAddress::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)
         return 0;
+    // ORIG：包基址槽在守卫之后物化。
+    Inter_DBCheckDoubleGuildAddressPktView* pPkt = reinterpret_cast<Inter_DBCheckDoubleGuildAddressPktView*>(data);
 
-    if (*reinterpret_cast<char*>(data) == '\x02')
+    if (pPkt->m_0 == '\x02')
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa0, 0x6f);
-        return 0;
     }
-
-    user->setGuildCreateFlag(GUILD_ADDRESS_DOUBLE_CHECK);
-    PacketGuard packet;
-    packet.put_header(1, 0xa0);
-    packet.put_byte(1);
-    packet.finalize(true);
-    user->Send(packet);
+    // ORIG：同 DBCheckDoubleGuildName 形态（else 支内 PacketGuard，汇合后统一 return）。
+    else
+    {
+        user->setGuildCreateFlag(GUILD_ADDRESS_DOUBLE_CHECK);
+        PacketGuard packet;
+        packet.put_header(1, 0xa0);
+        packet.put_byte(1);
+        packet.finalize(true);
+        user->Send(packet);
+    }
     return 0;
 }
 
@@ -6525,8 +8042,21 @@ Inter_ReplyGuildCreate::~Inter_ReplyGuildCreate() {}
 // 全服基础信息广播；失败 → 退还建会费用并刷新物品列表。
 // 报告 docs/class_func_reports/Inter_ReplyGuildCreate/dispatch_sig.md 全文转写。
 // msg 布局：+0xa charID(int) +0x12 result(int) +0x16 公会名(0x16)。
+#pragma pack(push, 1)
+// Inter_ReplyGuildCreatePktView —— Inter_ReplyGuildCreate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_ReplyGuildCreatePktView
+{
+    char m_pad0[0xa];  // 未消费
+    unsigned int m_a;       // +0x0a（同上 unsigned→int 失配两步 spill 形态）
+    char m_pade[0x4];  // 未消费
+    int m_result;             // +0x12
+};
+#pragma pack(pop)
+
 int Inter_ReplyGuildCreate::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_ReplyGuildCreatePktView* pPkt = reinterpret_cast<Inter_ReplyGuildCreatePktView*>(data);
     if (user->get_state() <= 2)                        // cmp $2; setle
     {
         LogManager::logFormat(
@@ -6534,34 +8064,35 @@ int Inter_ReplyGuildCreate::dispatch_sig(CUser* user, char* data, int /*len*/)
             __PRETTY_FUNCTION__,
             0x3464,
             "GUILD : Inter_ReplyGuildCreate:: recv->m_uCharID(%d)",
-            *reinterpret_cast<int*>(data + 0xa));
+            pPkt->m_a);
         return 0;
     }
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0xa))
+    if (user->get_charac_no(-1) != pPkt->m_a)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x346a,
             "GUILD : Inter_ReplyGuildCreate:: : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), *reinterpret_cast<int*>(data + 0xa));
+            user->get_charac_no(-1), pPkt->m_a);
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(1, 0x47);
-    if (*reinterpret_cast<int*>(data + 0x12) == 0)
+    if (pPkt->m_result == 0)
     {   // 建会成功
         packet.put_byte(1);
         user->m_historyLog.GuildCreate(
-            (unsigned int)user->get_charac_guildkey(), data + 0x16,
-            *reinterpret_cast<unsigned int*>(data + 0xa));
+            (unsigned int)user->get_charac_guildkey(),
+            reinterpret_cast<char*>(pPkt) + 0x16,   // ORIG 经 -0x10 槽
+            pPkt->m_a);
     }
     else
     {   // 建会失败：退还建会费用
         packet.put_byte(0);
-        packet.put_byte(*reinterpret_cast<int*>(data + 0x12));
+        packet.put_byte(pPkt->m_result);
         int createCost = G_CDataManager()->m_guildParameter.m_field0;   // +0xa50c（建会费用）
         user->getCurCharacInvenW()->gain_money(createCost,
                                                (eMoneyAddReason)0x19, true, 0);
@@ -6570,11 +8101,11 @@ int Inter_ReplyGuildCreate::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.finalize(true);
     user->Send(packet);
 
-    if (*reinterpret_cast<int*>(data + 0x12) == 0)
+    if (pPkt->m_result == 0)
     {   // 公会代理缓存 + 全服广播
         STGuildProxy proxy;
         proxy.m_level = 0;
-        memcpy(proxy.m_guildName, data + 0x16, 0x16);
+        memcpy(proxy.m_guildName, reinterpret_cast<char*>(pPkt) + 0x16, 0x16);  // ORIG 经 -0x10 槽
         proxy.m_powerSide = 0;
         user->SetGuildInfoProxy(proxy);
 
@@ -6592,14 +8123,27 @@ int Inter_ReplyGuildCreate::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_NoticeGuildNameOnGuildCreate::~Inter_NoticeGuildNameOnGuildCreate() {}
 // ORIG 0x084d39ae T dispatch_sig —— 公会创建时公会名登记到代理。
 // 报告 docs/class_func_reports/Inter_NoticeGuildNameOnGuildCreate/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticeGuildNameOnGuildCreatePktView —— Inter_NoticeGuildNameOnGuildCreate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NoticeGuildNameOnGuildCreatePktView
+{
+    char m_pad0[0x12];  // +0x0..未消费
+    unsigned int m_12;              // +0x12
+    char m_pad16[0x17];  // +0x16..未消费
+    unsigned char m_2d;             // +0x2d
+};
+#pragma pack(pop)
+
 int Inter_NoticeGuildNameOnGuildCreate::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_NoticeGuildNameOnGuildCreatePktView* pPkt = reinterpret_cast<Inter_NoticeGuildNameOnGuildCreatePktView*>(data);
     STGuildProxy proxy;
-    memcpy(&proxy, data + 0x16, 0x16);
+    memcpy(&proxy, (char*)pPkt + 0x16, 0x16);
     GlobalData::s_guild_proxy_mgr->GetServerProxy(
-        (ENUM_SERVER_GROUP)*reinterpret_cast<unsigned char*>(data + 0x2d)
+        (ENUM_SERVER_GROUP)pPkt->m_2d
         )->InsertGuildInfoProxy(
-            *reinterpret_cast<unsigned int*>(data + 0x12), proxy);
+            pPkt->m_12, proxy);
     return 0;
 }
 
@@ -6608,12 +8152,24 @@ Inter_SecurityCardIssue::~Inter_SecurityCardIssue() {}
 // 本地初始化 CSecurityCard。msg 布局：+4 serial +0x25 answers +0x37 serial 原文
 // +0x5e answers 原文 +0x8c 错误码(int)。
 // 报告 docs/class_func_reports/Inter_SecurityCardIssue/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SecurityCardIssuePktView —— Inter_SecurityCardIssue::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_SecurityCardIssuePktView
+{
+    char m_pad0[0x8c];  // 未消费
+    int m_8c;                 // +0x8c
+};
+#pragma pack(pop)
+
 int Inter_SecurityCardIssue::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)                        // cmp $2; setle
         return 0;
 
-    if (*reinterpret_cast<int*>(data + 0x8c) == 0)
+    // ORIG：包基址在 get_state 检查后物化入 -0x1c(%ebp)
+    Inter_SecurityCardIssuePktView* pPkt = reinterpret_cast<Inter_SecurityCardIssuePktView*>(data);
+    if (pPkt->m_8c == 0)
     {
         char encSerial[0x42] = { '\0' };               // 密文 serial
         char idStr[0x30] = { '\0' };                   // 账号串
@@ -6621,10 +8177,12 @@ int Inter_SecurityCardIssue::dispatch_sig(CUser* user, char* data, int /*len*/)
 
         OS_API::snprintf(idStr, 0x30, "%s",
                          NumberToString((unsigned int)user->get_acc_id(), 0));
-        GlobalData::s_securityCardCenter->encryptString(data + 4, encSerial);
+        GlobalData::s_securityCardCenter->encryptString(
+            reinterpret_cast<char*>(pPkt) + 4, encSerial);   // ORIG 经 -0x1c 槽
         GlobalData::s_securityCardCenter->encryptString(idStr, idStr);
         memset(encAnswers, 0, 0x42);
-        GlobalData::s_securityCardCenter->encryptString(data + 0x25, encAnswers);
+        GlobalData::s_securityCardCenter->encryptString(
+            reinterpret_cast<char*>(pPkt) + 0x25, encAnswers);  // ORIG 经 -0x1c 槽
 
         PacketGuard packet;
         packet.put_header(1, 0xa4);
@@ -6640,12 +8198,13 @@ int Inter_SecurityCardIssue::dispatch_sig(CUser* user, char* data, int /*len*/)
 
         user->getSecurityCard()->init();
         user->getSecurityCard()->setSecurityCardInfo(
-            data + 0x37, false, false, 0, 0, 0, data + 0x5e);
+            reinterpret_cast<char*>(pPkt) + 0x37, false, false, 0, 0, 0,
+            reinterpret_cast<char*>(pPkt) + 0x5e);    // ORIG 经 -0x1c 槽
     }
     else
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa4,
-                                 (unsigned char)*reinterpret_cast<unsigned int*>(data + 0x8c));
+                                 (unsigned char)pPkt->m_8c);
     }
     return 0;
 }
@@ -6653,12 +8212,23 @@ int Inter_SecurityCardIssue::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_SecurityCardActivate::~Inter_SecurityCardActivate() {}
 // ORIG 0x084d3d56 T dispatch_sig —— 安全卡激活应答。
 // 报告 docs/class_func_reports/Inter_SecurityCardActivate/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SecurityCardActivatePktView —— Inter_SecurityCardActivate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_SecurityCardActivatePktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    char m_a;                       // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_SecurityCardActivate::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_SecurityCardActivatePktView* pPkt = reinterpret_cast<Inter_SecurityCardActivatePktView*>(data);
     if (user->get_state() <= 2)
         return 0;
 
-    if (*reinterpret_cast<char*>(data + 0xa) == '\0')
+    if (pPkt->m_a == '\0')
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa8, 1);
         return 0;
@@ -6679,12 +8249,24 @@ Inter_SecurityCardRetransfer::~Inter_SecurityCardRetransfer() {}
 // ORIG 0x084d3e78 T dispatch_sig —— 安全卡补发：加密串下发 0xca 包并重置 CSecurityCard。
 // msg 布局：+4 serial +0x2b serial 原文 +0x52 answers +0x88 错误码(int)。
 // 报告 docs/class_func_reports/Inter_SecurityCardRetransfer/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SecurityCardRetransferPktView —— Inter_SecurityCardRetransfer::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_SecurityCardRetransferPktView
+{
+    char m_pad0[0x88];  // 未消费
+    int m_88;                 // +0x88
+};
+#pragma pack(pop)
+
 int Inter_SecurityCardRetransfer::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)                        // cmp $2; setle
         return 0;
 
-    if (*reinterpret_cast<int*>(data + 0x88) == 0)
+    // ORIG 0x084d44xx：包基址在 get_state 检查后物化入 -0x1c(%ebp)
+    Inter_SecurityCardRetransferPktView* pPkt = reinterpret_cast<Inter_SecurityCardRetransferPktView*>(data);
+    if (pPkt->m_88 == 0)
     {
         char encSerial[0x42] = { '\0' };               // 密文 serial
         char idStr[0x30] = { '\0' };                   // 账号串
@@ -6692,10 +8274,12 @@ int Inter_SecurityCardRetransfer::dispatch_sig(CUser* user, char* data, int /*le
 
         OS_API::snprintf(idStr, 0x30, "%s",
                          NumberToString((unsigned int)user->get_acc_id(), 0));
-        GlobalData::s_securityCardCenter->encryptString(data + 4, encSerial);
+        GlobalData::s_securityCardCenter->encryptString(
+            reinterpret_cast<char*>(pPkt) + 4, encSerial);   // ORIG 经 -0x1c 槽
         GlobalData::s_securityCardCenter->encryptString(idStr, idStr);
         memset(encAnswers, 0, 0x42);
-        GlobalData::s_securityCardCenter->encryptString(data + 0x52, encAnswers);
+        GlobalData::s_securityCardCenter->encryptString(
+            reinterpret_cast<char*>(pPkt) + 0x52, encAnswers);  // ORIG 经 -0x1c 槽
 
         PacketGuard packet;
         packet.put_header(1, 0xca);
@@ -6711,12 +8295,13 @@ int Inter_SecurityCardRetransfer::dispatch_sig(CUser* user, char* data, int /*le
 
         user->getSecurityCard()->init();
         user->getSecurityCard()->setSecurityCardInfo(
-            data + 0x2b, true, false, 0, 0, 0, (char*)0);
+            reinterpret_cast<char*>(pPkt) + 0x2b, true, false, 0, 0, 0,
+            (char*)0);                                   // ORIG 经 -0x1c 槽
     }
     else
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xca,
-                                 (unsigned char)*reinterpret_cast<unsigned int*>(data + 0x88));
+                                 (unsigned char)pPkt->m_88);
     }
     return 0;
 }
@@ -6724,16 +8309,27 @@ int Inter_SecurityCardRetransfer::dispatch_sig(CUser* user, char* data, int /*le
 Inter_LoadDnfHackLog::~Inter_LoadDnfHackLog() {}
 // ORIG 0x084d41aa T dispatch_sig —— DNF hack 日志累计计数同步。
 // 报告 docs/class_func_reports/Inter_LoadDnfHackLog/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadDnfHackLogPktView —— Inter_LoadDnfHackLog::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_LoadDnfHackLogPktView
+{
+    int m_0;                        // +0x00
+    unsigned int m_4[1];            // +0x04 累计计数表（ORIG `mov 0x4(%eax,%edx,4)` scaled-index）
+};
+#pragma pack(pop)
+
 int Inter_LoadDnfHackLog::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    if (user->get_acc_id() == *reinterpret_cast<int*>(data + 0x0))
+    Inter_LoadDnfHackLogPktView* pPkt = reinterpret_cast<Inter_LoadDnfHackLogPktView*>(data);
+    // ORIG +0x27：`setne`+`mov $0x0,%eax`+`jmp` ⇒ 不等时早退（== 写法会翻转条件码）。
+    if (user->get_acc_id() != pPkt->m_0)
+        return 0;
+    for (int i = 0x65; i <= 0xfa0; ++i)
     {
-        for (int i = 0x65; i <= 0xfa0; ++i)
-        {
-            user->getHackAnalyzer()->setServerHackAccumulatedCnt(
-                (WongWork::ENUM_HACKTYPE)i,
-                *reinterpret_cast<unsigned int*>(data + 4 + (i - 0x65) * 4));
-        }
+        user->getHackAnalyzer()->setServerHackAccumulatedCnt(
+            (WongWork::ENUM_HACKTYPE)i,
+            pPkt->m_4[i - 0x65]);
     }
     return 0;
 }
@@ -6741,12 +8337,22 @@ int Inter_LoadDnfHackLog::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_AutoPunishRuleBlackIP::~Inter_AutoPunishRuleBlackIP() {}
 // ORIG 0x084d422a T dispatch_sig —— 黑名单 IP 表载入（htonl/inet_ntoa + addBlackIP）。
 // 报告 docs/class_func_reports/Inter_AutoPunishRuleBlackIP/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_AutoPunishRuleBlackIPPktView —— Inter_AutoPunishRuleBlackIP::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_AutoPunishRuleBlackIPPktView
+{
+    unsigned short m_0;       // +0x00
+};
+#pragma pack(pop)
+
 int Inter_AutoPunishRuleBlackIP::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_AutoPunishRuleBlackIPPktView* pPkt = reinterpret_cast<Inter_AutoPunishRuleBlackIPPktView*>(data);
     GlobalData::g_autoPunishRuleBlackIPMgr->reset();
 
     const unsigned short totalCount =                 // msg+0x0
-        (unsigned short)*reinterpret_cast<unsigned short*>(data);
+        (unsigned short)pPkt->m_0;
     cMyTrace startTrace(
         __PRETTY_FUNCTION__,
         0x3561, 0);
@@ -6796,44 +8402,74 @@ int Inter_AutoPunishRuleBlackIP::dispatch_sig(CUser* /*user*/, char* data, int /
 Inter_AutoPunishRuleHackType::~Inter_AutoPunishRuleHackType() {}
 // ORIG 0x084d4440 T dispatch_sig —— 从 monitor 消息装载外挂自动惩罚规则表（HackType 规则）。
 // 报告 docs/class_func_reports/Inter_AutoPunishRuleHackType/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_AutoPunishRuleHackTypePktView —— Inter_AutoPunishRuleHackType::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_AutoPunishRuleHackTypePktView
+{
+    unsigned int m_0;         // +0x00
+    unsigned long long m_4;   // +0x04
+    unsigned short m_c;       // +0x0c
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+// Inter_AutoPunishRuleHackTypeEntryWinView —— Inter_AutoPunishRuleHackType::dispatch_sig 窗口 entry 元素视图
+//   （entry 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
+struct Inter_AutoPunishRuleHackTypeEntryWinView
+{
+    char m_pad0[0x10];  // 未消费
+    unsigned short m_10;      // +0x10
+    unsigned short m_12;      // +0x12
+    unsigned short m_14;      // +0x14
+    unsigned short m_16;      // +0x16
+    unsigned short m_18;      // +0x18
+    char m_pad1a[0x2];  // 未消费
+    unsigned int m_1c;        // +0x1c
+    unsigned int m_20;        // +0x20
+};
+#pragma pack(pop)
+
 int Inter_AutoPunishRuleHackType::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    unsigned int* const local_24 = reinterpret_cast<unsigned int*>(data);
+    Inter_AutoPunishRuleHackTypePktView* pPkt = reinterpret_cast<Inter_AutoPunishRuleHackTypePktView*>(data);
+    unsigned int* const local_24 =&pPkt->m_0;
 
     WongWork::CAutoPunishRuleHackTypeMgr* mgr =
         GlobalData::g_autoPunishRuleHackTypeMgr;
     mgr->reset();
     mgr->setTotalTrade(*local_24,
-                       *reinterpret_cast<unsigned long long*>(data + 4));
+                       pPkt->m_4);
 
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0x3585, 0);
     trace("HackType Load Start. (TotalGold: %llu)(TotalCount: %d)",
-          *reinterpret_cast<unsigned long long*>(data + 4),
+          pPkt->m_4,
           *local_24);
 
     for (int local_20 = 0;
-         local_20 < (int)(unsigned int)(unsigned short)*reinterpret_cast<unsigned short*>(data + 0xc);
+         local_20 < (int)(unsigned int)(unsigned short)pPkt->m_c;
          ++local_20)
     {
         char* const entry = data + local_20 * 0x14;
+    Inter_AutoPunishRuleHackTypeEntryWinView* pWin_entry = reinterpret_cast<Inter_AutoPunishRuleHackTypeEntryWinView*>(entry);
         mgr->setHackCnt(
-            (WongWork::ENUM_HACKTYPE)*reinterpret_cast<unsigned short*>(entry + 0x10),
-            *reinterpret_cast<unsigned short*>(entry + 0x12),
-            (WongWork::ENUM_HACKTYPE)*reinterpret_cast<unsigned short*>(entry + 0x14),
-            *reinterpret_cast<unsigned short*>(entry + 0x16),
-            *reinterpret_cast<unsigned short*>(entry + 0x18),
-            *reinterpret_cast<unsigned int*>(entry + 0x1c),
-            *reinterpret_cast<unsigned int*>(entry + 0x20));
+            (WongWork::ENUM_HACKTYPE)pWin_entry->m_10,
+            pWin_entry->m_12,
+            (WongWork::ENUM_HACKTYPE)pWin_entry->m_14,
+            pWin_entry->m_16,
+            pWin_entry->m_18,
+            pWin_entry->m_1c,
+            pWin_entry->m_20);
         cMyTrace load(
             __PRETTY_FUNCTION__,
             0x3596, 0);
         load("HackType Load (Type: %d -> %d)(SubType: %d -> %d)",
-             (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x10),
-             (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x12),
-             (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x14),
-             (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x16));
+             (unsigned int)pWin_entry->m_10,
+             (unsigned int)pWin_entry->m_12,
+             (unsigned int)pWin_entry->m_14,
+             (unsigned int)pWin_entry->m_16);
     }
 
     cMyTrace end(
@@ -6846,30 +8482,56 @@ int Inter_AutoPunishRuleHackType::dispatch_sig(CUser* /*user*/, char* data, int 
 Inter_ReplyPowerWarScore::~Inter_ReplyPowerWarScore() {}
 // ORIG 0x084d46fa T dispatch_sig —— 力量战争得分全网广播。
 // 报告 docs/class_func_reports/Inter_ReplyPowerWarScore/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ReplyPowerWarScorePktView —— Inter_ReplyPowerWarScore::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_ReplyPowerWarScorePktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+    int m_e;                        // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_ReplyPowerWarScore::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_ReplyPowerWarScorePktView* pPkt = reinterpret_cast<Inter_ReplyPowerWarScorePktView*>(data);
     PacketGuard packet;
     packet.put_header(0, 0x9b);
-    packet.put_int(*reinterpret_cast<int*>(data + 0xa));
-    packet.put_int(*reinterpret_cast<int*>(data + 0xe));
+    packet.put_int(pPkt->m_a);
+    packet.put_int(pPkt->m_e);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     GlobalData::s_power_manager->SetPowerWarPoint(
-        *reinterpret_cast<int*>(data + 0xa),
-        *reinterpret_cast<int*>(data + 0xe));
+        pPkt->m_a,
+        pPkt->m_e);
     return 0;
 }
 
 Inter_ReplyJoinPower::~Inter_ReplyJoinPower() {}
 // ORIG 0x084d47d4 T dispatch_sig —— 加入势力应答（0xb4 包 + 公会代理刷新）。
 // 报告 docs/class_func_reports/Inter_ReplyJoinPower/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ReplyJoinPowerPktView —— Inter_ReplyJoinPower::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_ReplyJoinPowerPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+    char m_pade[0x4];  // +0xe..未消费
+    int m_12;                       // +0x12
+    unsigned char m_16;             // +0x16
+};
+#pragma pack(pop)
+
 int Inter_ReplyJoinPower::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_ReplyJoinPowerPktView* pPkt = reinterpret_cast<Inter_ReplyJoinPowerPktView*>(data);
     if (user->get_state() <= 2)                        // cmp $2; setle
         return 0;
 
     const int characNo =                               // msg+0x12
-        *reinterpret_cast<int*>(data + 0x12);
+        pPkt->m_12;
     if (user->get_charac_no(-1) != characNo)
     {
         LogManager::logFormat(
@@ -6883,16 +8545,16 @@ int Inter_ReplyJoinPower::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     PacketGuard packet;
     packet.put_header(1, 0xb4);
-    if (*reinterpret_cast<int*>(data + 0xa) == 0)
+    if (pPkt->m_a == 0)
     {
         packet.put_byte(1);
         packet.put_byte(
-            (int)*reinterpret_cast<unsigned char*>(data + 0x16));
+            (int)pPkt->m_16);
     }
     else
     {
         packet.put_byte(0);
-        packet.put_byte(*reinterpret_cast<int*>(data + 0xa));
+        packet.put_byte(pPkt->m_a);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -6903,7 +8565,7 @@ int Inter_ReplyJoinPower::dispatch_sig(CUser* user, char* data, int /*len*/)
         STGuildProxy proxy(
             guildDbInfo,
             *(reinterpret_cast<const unsigned char*>(guildDbInfo) + 0x1b),
-            *reinterpret_cast<unsigned char*>(data + 0x16));
+            pPkt->m_16);
         CGuildServerProxy* proxySrv =
             GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
         proxySrv->ModifyGuildInfoProxy(
@@ -6915,13 +8577,27 @@ int Inter_ReplyJoinPower::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_SecedePower::~Inter_SecedePower() {}
 // ORIG 0x084d49d6 T dispatch_sig —— 退出势力应答（0xb5 包 + 公会代理刷新，name 置空）。
 // 报告 docs/class_func_reports/Inter_SecedePower/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SecedePowerPktView —— Inter_SecedePower::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_SecedePowerPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+    char m_pade[0x4];  // +0xe..未消费
+    int m_12;                       // +0x12
+    unsigned char m_16;             // +0x16
+};
+#pragma pack(pop)
+
 int Inter_SecedePower::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_SecedePowerPktView* pPkt = reinterpret_cast<Inter_SecedePowerPktView*>(data);
     if (user->get_state() <= 2)                        // cmp $2; setle
         return 0;
 
     const int characNo =                               // msg+0x12
-        *reinterpret_cast<int*>(data + 0x12);
+        pPkt->m_12;
     if (user->get_charac_no(-1) != characNo)
     {
         LogManager::logFormat(
@@ -6935,16 +8611,16 @@ int Inter_SecedePower::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     PacketGuard packet;
     packet.put_header(1, 0xb5);
-    if (*reinterpret_cast<int*>(data + 0xa) == 0)
+    if (pPkt->m_a == 0)
     {
         packet.put_byte(1);
         packet.put_byte(
-            (int)*reinterpret_cast<unsigned char*>(data + 0x16));
+            (int)pPkt->m_16);
     }
     else
     {
         packet.put_byte(0);
-        packet.put_byte(*reinterpret_cast<int*>(data + 0xa));
+        packet.put_byte(pPkt->m_a);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -6965,9 +8641,22 @@ int Inter_SecedePower::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_NoticePowerWarStartTime::~Inter_NoticePowerWarStartTime() {}
 // ORIG 0x084d4bd2 T dispatch_sig —— 权力战开始时间：设置时间并全员广播。
 // 报告 docs/class_func_reports/Inter_NoticePowerWarStartTime/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticePowerWarStartTimePktView —— Inter_NoticePowerWarStartTime::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NoticePowerWarStartTimePktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned char m_a;              // +0x0a
+    unsigned char m_b;              // +0x0b
+    unsigned char m_c;              // +0x0c
+    unsigned char m_d;              // +0x0d
+};
+#pragma pack(pop)
+
 int Inter_NoticePowerWarStartTime::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    char* recv = data;                                 // -0xc(%ebp) 缓存消息指针
+    Inter_NoticePowerWarStartTimePktView* pPkt = reinterpret_cast<Inter_NoticePowerWarStartTimePktView*>(data);
 
     // CEnvironment+0x1a8 环境槽未在权威头建模（沿 CUserOnlyOrig.cpp:9027 先例，
     // §4.3 例外保留地址形式；ORIG 两次独立 G_CEnvironment 调用，P48）
@@ -6976,17 +8665,17 @@ int Inter_NoticePowerWarStartTime::dispatch_sig(CUser* /*user*/, char* data, int
         return 0;
 
     GlobalData::s_power_manager->SetPowerWarStartTime(
-        (unsigned char)*reinterpret_cast<unsigned char*>(recv + 0xa),
-        (unsigned char)*reinterpret_cast<unsigned char*>(recv + 0xb),
-        (unsigned char)*reinterpret_cast<unsigned char*>(recv + 0xc),
-        (unsigned char)*reinterpret_cast<unsigned char*>(recv + 0xd));
+        (unsigned char)pPkt->m_a,
+        (unsigned char)pPkt->m_b,
+        (unsigned char)pPkt->m_c,
+        (unsigned char)pPkt->m_d);
 
     PacketGuard packet;
     packet.put_header(0, 0xa1);
-    packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0xa));
-    packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0xb));
-    packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0xc));
-    packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0xd));
+    packet.put_byte((unsigned int)pPkt->m_a);
+    packet.put_byte((unsigned int)pPkt->m_b);
+    packet.put_byte((unsigned int)pPkt->m_c);
+    packet.put_byte((unsigned int)pPkt->m_d);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     return 0;
@@ -6995,13 +8684,26 @@ int Inter_NoticePowerWarStartTime::dispatch_sig(CUser* /*user*/, char* data, int
 Inter_NoticePowerWarEndTime::~Inter_NoticePowerWarEndTime() {}
 // ORIG 0x084d4d46 T dispatch_sig —— 力量战争结束时间全网广播。
 // 报告 docs/class_func_reports/Inter_NoticePowerWarEndTime/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticePowerWarEndTimePktView —— Inter_NoticePowerWarEndTime::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NoticePowerWarEndTimePktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned char m_a;              // +0x0a
+    int m_b;                        // +0x0b
+    int m_f;                        // +0x0f
+};
+#pragma pack(pop)
+
 int Inter_NoticePowerWarEndTime::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_NoticePowerWarEndTimePktView* pPkt = reinterpret_cast<Inter_NoticePowerWarEndTimePktView*>(data);
     PacketGuard packet;
     packet.put_header(0, 0xa2);
-    packet.put_byte(*reinterpret_cast<unsigned char*>(data + 0xa));
-    packet.put_int(*reinterpret_cast<int*>(data + 0xb));
-    packet.put_int(*reinterpret_cast<int*>(data + 0xf));
+    packet.put_byte(pPkt->m_a);
+    packet.put_int(pPkt->m_b);
+    packet.put_int(pPkt->m_f);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     return 0;
@@ -7010,12 +8712,25 @@ int Inter_NoticePowerWarEndTime::dispatch_sig(CUser* /*user*/, char* data, int /
 Inter_NoticePowerWarInfo::~Inter_NoticePowerWarInfo() {}
 // ORIG 0x084d4e18 T dispatch_sig —— 权力战信息通知全员广播。
 // 报告 docs/class_func_reports/Inter_NoticePowerWarInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticePowerWarInfoPktView —— Inter_NoticePowerWarInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NoticePowerWarInfoPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+    int m_e;                        // +0x0e
+    signed char m_12;               // +0x12
+};
+#pragma pack(pop)
+
 int Inter_NoticePowerWarInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_NoticePowerWarInfoPktView* pPkt = reinterpret_cast<Inter_NoticePowerWarInfoPktView*>(data);
     GlobalData::s_power_manager->SetPowerInfo(
-        (char)*reinterpret_cast<signed char*>(data + 0x12),
-        *reinterpret_cast<int*>(data + 0xa),
-        *reinterpret_cast<int*>(data + 0xe));
+        (char)pPkt->m_12,
+        pPkt->m_a,
+        pPkt->m_e);
 
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
@@ -7025,7 +8740,7 @@ int Inter_NoticePowerWarInfo::dispatch_sig(CUser* /*user*/, char* data, int /*le
         {
             PacketGuard packet;
             packet.put_header(0, 0xbc);
-            packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x12));
+            packet.put_byte((int)pPkt->m_12);
             packet.finalize(true);
             G_GameWorld()->send_all(packet);
         }
@@ -7036,11 +8751,22 @@ int Inter_NoticePowerWarInfo::dispatch_sig(CUser* /*user*/, char* data, int /*le
 Inter_NoticePowerWarProlong::~Inter_NoticePowerWarProlong() {}
 // ORIG 0x084d4fce T dispatch_sig —— 力量战争延长公告广播。
 // 报告 docs/class_func_reports/Inter_NoticePowerWarProlong/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticePowerWarProlongPktView —— Inter_NoticePowerWarProlong::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NoticePowerWarProlongPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_NoticePowerWarProlong::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_NoticePowerWarProlongPktView* pPkt = reinterpret_cast<Inter_NoticePowerWarProlongPktView*>(data);
     PacketGuard packet;
     packet.put_header(0, 0xa3);
-    packet.put_int(*reinterpret_cast<int*>(data + 0xa));
+    packet.put_int(pPkt->m_a);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     return 0;
@@ -7049,28 +8775,42 @@ int Inter_NoticePowerWarProlong::dispatch_sig(CUser* /*user*/, char* data, int /
 Inter_ChangeGuildName::~Inter_ChangeGuildName() {}
 // ORIG 0x084d5072 T dispatch_sig —— 公会改名：成功改本地与 proxy 或回执错误码。
 // 报告 docs/class_func_reports/Inter_ChangeGuildName/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ChangeGuildNamePktView —— Inter_ChangeGuildName::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_ChangeGuildNamePktView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned int m_e;         // +0x0e
+    char m_pad12[0x4];  // 未消费
+    unsigned char m_16;       // +0x16
+    char m_17[1];             // +0x17 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_ChangeGuildName::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_ChangeGuildNamePktView* pPkt = reinterpret_cast<Inter_ChangeGuildNamePktView*>(data);
     char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
 
     PacketGuard packet;
     packet.put_header(1, 0xb6);
-    if (*reinterpret_cast<unsigned char*>(recv + 0x16) == 0)
+    if (pPkt->m_16 == 0)
     {   // 成功 → 本地改名并同步 proxy
         packet.put_byte(1);
-        const int nameLen = strlen(recv + 0x17);
+        const int nameLen = strlen(pPkt->m_17);
         packet.put_int(nameLen);
-        packet.put_str(recv + 0x17, nameLen);
+        packet.put_str(pPkt->m_17, nameLen);
         user->ChangeGuildName(recv + 0x17);
         CGuildServerProxy* proxy = GlobalData::s_guild_proxy_mgr->GetServerProxy(
             user->GetServerGroup());
-        proxy->ChangeGuildNameInProxy(*reinterpret_cast<unsigned int*>(recv + 0xe),
+        proxy->ChangeGuildNameInProxy(pPkt->m_e,
                                       recv + 0x17);
     }
     else
     {
         packet.put_byte(0);
-        packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0x16));
+        packet.put_byte((unsigned int)pPkt->m_16);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -7080,11 +8820,24 @@ int Inter_ChangeGuildName::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_NoticeChangeGuildNameToMembers::~Inter_NoticeChangeGuildNameToMembers() {}
 // ORIG 0x084d51dc T dispatch_sig —— 公会改名成员通知：校验 charac_no 后转发新名并改名。
 // 报告 docs/class_func_reports/Inter_NoticeChangeGuildNameToMembers/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticeChangeGuildNameToMembersPktView —— Inter_NoticeChangeGuildNameToMembers::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_NoticeChangeGuildNameToMembersPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    char m_pad12[0x4];  // 未消费
+    char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_NoticeChangeGuildNameToMembers::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
+    char* recv = data;                                 // ORIG 0x084d51e4 入口单槽 -0x10（技巧36）
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(recv + 0xe))
+    if (user->get_charac_no(-1)
+        != reinterpret_cast<Inter_NoticeChangeGuildNameToMembersPktView*>(recv)->m_e)
     {   // m_uCharId 不匹配 → 日志后退出
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -7092,15 +8845,18 @@ int Inter_NoticeChangeGuildNameToMembers::dispatch_sig(CUser* user, char* data, 
             0x36ca,
             "Inter_NoticeChangeGuildNameToMembers::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharId(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(recv + 0xe));
+            reinterpret_cast<Inter_NoticeChangeGuildNameToMembersPktView*>(recv)->m_e);
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(0, 0xda);
-    const int nameLen = strlen(recv + 0x16);
+    int nameLen = strlen(
+        reinterpret_cast<Inter_NoticeChangeGuildNameToMembersPktView*>(recv)->m_16);
     packet.put_int(nameLen);
-    packet.put_str(recv + 0x16, nameLen);
+    packet.put_str(
+        reinterpret_cast<Inter_NoticeChangeGuildNameToMembersPktView*>(recv)->m_16,
+        nameLen);
     packet.finalize(true);
     user->Send(packet);
     user->ChangeGuildName(recv + 0x16);
@@ -7110,19 +8866,28 @@ int Inter_NoticeChangeGuildNameToMembers::dispatch_sig(CUser* user, char* data, 
 Inter_SendAllUserInfoMiniumForGuildSystem::~Inter_SendAllUserInfoMiniumForGuildSystem() {}
 // ORIG 0x084d533a T dispatch_sig —— 公会系统最小用户信息全员广播。
 // 报告 docs/class_func_reports/Inter_SendAllUserInfoMiniumForGuildSystem/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SendAllUserInfoMiniumForGuildSystemPktView —— Inter_SendAllUserInfoMiniumForGuildSystem::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_SendAllUserInfoMiniumForGuildSystemPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned int m_e;               // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_SendAllUserInfoMiniumForGuildSystem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    const unsigned int charIdMsg =                     // recv->m_uCharId @ msg+0xe
-        *reinterpret_cast<unsigned int*>(data + 0xe);
-
-    if (user->get_charac_no(-1) != (int)charIdMsg)
+    Inter_SendAllUserInfoMiniumForGuildSystemPktView* pPkt = reinterpret_cast<Inter_SendAllUserInfoMiniumForGuildSystemPktView*>(data);
+    // ORIG：同 ReplyGuildLetter。
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x36e3,
             "Inter_SendAllUserInfoMiniumForGuildSystem::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharId(%d)",
-            user->get_charac_no(-1), (int)charIdMsg);
+            user->get_charac_no(-1), pPkt->m_e);   // ORIG 一步装载，同上
         return 0;
     }
 
@@ -7151,7 +8916,7 @@ int Inter_LoadCleanPadPointReq::dispatch_sig(CUser* /*user*/, char* /*data*/, in
 Inter_LoadCleanPadPoint::~Inter_LoadCleanPadPoint() {}
 int Inter_LoadCleanPadPoint::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    int* point = reinterpret_cast<int*>(data);
+    int* point = reinterpret_cast<int*>(data);       // 整包首槽指针视图（非成员访问）
     WongWork::CMCAPManager::setPointPerHackType(point);
     return 0;
 }
@@ -7159,11 +8924,26 @@ int Inter_LoadCleanPadPoint::dispatch_sig(CUser* /*user*/, char* data, int /*len
 Inter_NotifyAuctionMail::~Inter_NotifyAuctionMail() {}
 // ORIG 0x084d55a4 T dispatch_sig —— 拍卖邮件通知：未读邮件计数 +1 并组 0xa9 包回发。
 // 报告 docs/class_func_reports/Inter_NotifyAuctionMail/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NotifyAuctionMailPktView —— Inter_NotifyAuctionMail::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NotifyAuctionMailPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+    char m_pade[0x4];  // +0xe..未消费
+    unsigned char m_12;             // +0x12
+    int m_13;                       // +0x13
+    unsigned char m_17;             // +0x17
+};
+#pragma pack(pop)
+
 int Inter_NotifyAuctionMail::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_NotifyAuctionMailPktView* pPkt = reinterpret_cast<Inter_NotifyAuctionMailPktView*>(data);
     if (user->getCurCharacR() == 0 ||                // asm 双失败归并 true
         user->getCurCharacNo() !=
-            *reinterpret_cast<int*>(data + 0xa))     // msg+0x0a 角色号
+            pPkt->m_a)     // msg+0x0a 角色号
         return 0x3748;
 
     // 频道门：GetChannelType()==7 或 IsIntegratedPvPBaseChannel() 时跳过发包
@@ -7177,14 +8957,17 @@ int Inter_NotifyAuctionMail::dispatch_sig(CUser* user, char* data, int /*len*/)
     PacketGuard packet;
     packet.put_header(0, 0xa9);
     packet.put_byte(                                 // msg+0x17（movzbl）
-        static_cast<int>(*reinterpret_cast<unsigned char*>(data + 0x17)));
+        static_cast<int>(pPkt->m_17));
     packet.put_byte(                                 // msg+0x12（movzbl）
-        static_cast<int>(*reinterpret_cast<unsigned char*>(data + 0x12)));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x13));
+        static_cast<int>(pPkt->m_12));
+    packet.put_int(pPkt->m_13);
+    // ORIG 0x084d56e2：call 后 `cwtl` → 实参以 short 形态再提升 int（探针 s1 实证）。
     packet.put_short(                                // 未读邮件计数
-        reinterpret_cast<WongWork::CMailBox*>(user->GetMailBox())
+        (int)(short)reinterpret_cast<WongWork::CMailBox*>(user->GetMailBox())
             ->GetNotLoadedMailCount());
-    reinterpret_cast<const RandomOption*>(data + 0x18)
+    // ORIG 0x084d56f5：经 -0xc(%ebp) 包基址槽取随机选项区
+    reinterpret_cast<const RandomOption*>(
+        reinterpret_cast<char*>(pPkt) + 0x18)
         ->put_packet_random_option(packet);          // msg+0x18 随机选项
     packet.finalize(true);
     user->Send(packet);
@@ -7198,12 +8981,22 @@ Inter_AuctionResultAskPrice::~Inter_AuctionResultAskPrice() {}
 static const int g_auctionResultGmList[5] =
     { 0x4c2dc8, 0x5cf723, 0xa9c742, 0xa2ad85, 0x9ae1ae };
 
+#pragma pack(push, 1)
+// Inter_AuctionResultAskPricePktView —— Inter_AuctionResultAskPrice::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_AuctionResultAskPricePktView
+{
+    int m_0;                  // +0x00
+};
+#pragma pack(pop)
+
 int Inter_AuctionResultAskPrice::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_AuctionResultAskPricePktView* pPkt = reinterpret_cast<Inter_AuctionResultAskPricePktView*>(data);
     if (user == 0)                                   // asm cmpl $0x0,0xc(%ebp); jne
         return 0;
 
-    const int* msg = reinterpret_cast<const int*>(data);
+    const int* msg =&pPkt->m_0;
     if (msg[1] != user->getCurCharacNo())            // msg+0x04 vs 当前角色号
         return 0;
 
@@ -7351,13 +9144,32 @@ struct PCK_AUCTION_REGIST_ITEM_GA : public nsl::PACKET_HEADER
 
 
 
+#pragma pack(push, 1)
+// Inter_AuctionResultAskRegistedItemNumPktView —— Inter_AuctionResultAskRegistedItemNum::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_AuctionResultAskRegistedItemNumPktView
+{
+    unsigned int m_0;         // +0x00
+    int m_4;                  // +0x04
+    short m_8;                // +0x08
+    char m_pada[0x1];  // 未消费
+    unsigned short m_b;       // +0x0b
+    unsigned int m_d;         // +0x0d
+    int m_11;                 // +0x11
+    int m_15;                 // +0x15
+    int m_19;                 // +0x19
+    int m_1d;                 // +0x1d
+};
+#pragma pack(pop)
+
 int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_AuctionResultAskRegistedItemNumPktView* pPkt = reinterpret_cast<Inter_AuctionResultAskRegistedItemNumPktView*>(data);
     if (user == 0)                                   // asm cmpl $0,user
         return 0;
 
-    const int reqCharacNo = *reinterpret_cast<int*>(data + 4);       // msg+0x04
-    if (*reinterpret_cast<int*>(data + 4) != user->getCurCharacNo()) // 差值即 ORIG setne 判定
+    const int reqCharacNo = pPkt->m_4;       // msg+0x04
+    if (pPkt->m_4 != user->getCurCharacNo()) // 差值即 ORIG setne 判定
         return 0;
 
     // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
@@ -7375,9 +9187,9 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     }
 
     const unsigned int payType =
-        *reinterpret_cast<unsigned int*>(data);                      // msg+0x00
+        pPkt->m_0;                      // msg+0x00
     const short nowRegisted =
-        *reinterpret_cast<short*>(data + 8);                         // msg+0x08
+        pPkt->m_8;                         // msg+0x08
     if (nowRegisted == -1)
     {   // 上限查询失败应答 err=0x9e
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x9e, (PAY_TYPE)payType);
@@ -7393,7 +9205,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     const bool premiumAffected = user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x1d);
     if (!premiumAffected)
     {
-        const int maxCount = (*reinterpret_cast<int*>(data) == 1) ? 3 : 10;
+        const int maxCount = (pPkt->m_0 == 1) ? 3 : 10;
         if (maxCount <= nowRegisted)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x97, (PAY_TYPE)payType);
@@ -7402,7 +9214,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     }
     else
     {
-        const int maxCount = (*reinterpret_cast<int*>(data) == 1) ? 10 : 30;
+        const int maxCount = (pPkt->m_0 == 1) ? 10 : 30;
         if (maxCount <= nowRegisted)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x97, (PAY_TYPE)payType);
@@ -7411,7 +9223,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     }
 
     // 手续费门槛（gold 登记 10000 / cera 0），不足 err=0x90
-    int registMoney = (*reinterpret_cast<int*>(data) == 1) ? 0 : 10000;
+    int registMoney = (pPkt->m_0 == 1) ? 0 : 10000;
     if (user->getCurCharacMoney() < registMoney)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x90, (PAY_TYPE)payType);
@@ -7419,11 +9231,11 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     }
 
     const unsigned int itemId =                                       // msg+0x0d
-        *reinterpret_cast<const unsigned int*>(data + 0xd);
+        pPkt->m_d;
     // cera 礼包手续费基数（ORIG 仅当 pay==1 且 itemId∈礼包区间时换算登记费）
     long bonusSec = 0;
     if ((0x28d287 < itemId && itemId < 0x28d29a) &&
-        *reinterpret_cast<int*>(data) == 1)
+        pPkt->m_0 == 1)
     {
         if (itemId < 0x28d292)
             bonusSec = static_cast<long>(itemId) * 1000000 + 0x199b9040;
@@ -7433,10 +9245,10 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
 
     const char invenKind = *(data + 0xa);                             // msg+0x0a
     const unsigned short slotNo =                                     // msg+0x0b
-        *reinterpret_cast<const unsigned short*>(data + 0xb);
-    const int price = *reinterpret_cast<const int*>(data + 0x15);     // msg+0x15
-    const int instantPrice = *reinterpret_cast<const int*>(data + 0x19);  // msg+0x19
-    const int restrictAmount = *reinterpret_cast<const int*>(data + 0x11);  // msg+0x11
+        pPkt->m_b;
+    const int price = pPkt->m_15;     // msg+0x15
+    const int instantPrice = pPkt->m_19;  // msg+0x19
+    const int restrictAmount = pPkt->m_11;  // msg+0x11
 
     PCK_AUCTION_REGIST_ITEM_GA pck;
 
@@ -7449,7 +9261,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     pck.price = price;
     pck.instant_price = instantPrice;
     pck.black_point = user->getCurrCharacBlackCount();
-    pck.unit_price = *reinterpret_cast<const int*>(data + 0x1d);      // msg+0x1d
+    pck.unit_price = pPkt->m_1d;      // msg+0x1d
     memcpy(&pck._reg_roi_category_key, data + 0x21,                   // ROI 三组原始分类
            sizeof(pck._reg_roi_category_key));
     pck._reg_roi_category_key._sort();
@@ -7474,7 +9286,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         // cera 礼包专区（itemId∈礼包区间 & pay==1）：直接扣登记费 + 转发cera代理
         if ((0x28d287 < itemId && itemId < 0x28d29a))
         {
-            if (*reinterpret_cast<int*>(data) != 1)
+            if (pPkt->m_0 != 1)
             {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x93, (PAY_TYPE)payType);
                 return 0;
@@ -7652,7 +9464,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     }
 
     // ---- END 收尾段（LA_084d67be 起）----
-    const int fee = (*reinterpret_cast<int*>(data) == 1) ? 0 : 10000;
+    const int fee = (pPkt->m_0 == 1) ? 0 : 10000;
     if (!inven->use_money(fee, (eMoneySubReason)0x19, true))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x93, (PAY_TYPE)payType);
@@ -7705,12 +9517,25 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
 Inter_AuctionResultRegist::~Inter_AuctionResultRegist() {}
 // ORIG 0x084d6ad6 T dispatch_sig —— 拍卖登记结果应答：GM 延迟追踪 + 0xba 包 + AP 清理。
 // 报告 docs/class_func_reports/Inter_AuctionResultRegist/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_AuctionResultRegistPktView —— Inter_AuctionResultRegist::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_AuctionResultRegistPktView
+{
+    int m_0;                  // +0x00
+    char m_pad4[0x4];  // 未消费
+    unsigned char m_8;        // +0x08
+    unsigned char m_9;        // +0x09
+};
+#pragma pack(pop)
+
 int Inter_AuctionResultRegist::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_AuctionResultRegistPktView* pPkt = reinterpret_cast<Inter_AuctionResultRegistPktView*>(data);
     if (user == 0)                                   // asm cmpl $0x0,0xc(%ebp)
         return 0;
 
-    const int* msg = reinterpret_cast<const int*>(data);
+    const int* msg =&pPkt->m_0;
     if (msg[1] != user->getCurCharacNo())            // msg+0x04 角色号校验
         return 0;
 
@@ -7731,11 +9556,11 @@ int Inter_AuctionResultRegist::dispatch_sig(CUser* user, char* data, int /*len*/
     PacketGuard packet;
     packet.put_header(1, 0xba);
     const unsigned char result =                     // msg+0x08 结果码
-        *reinterpret_cast<unsigned char*>(data + 8);
+        pPkt->m_8;
     packet.put_byte(static_cast<int>(result));
     if (static_cast<char>(msg[2]) == '\0')           // 低字节为 0 时补错误码
         packet.put_byte(
-            static_cast<int>(*reinterpret_cast<unsigned char*>(data + 9)));
+            static_cast<int>(pPkt->m_9));
     packet.put_byte(msg[0]);                         // msg+0x00 pay 类型
     packet.finalize(true);
     user->Send(packet);
@@ -7762,10 +9587,23 @@ int Inter_AuctionResultBidding::dispatch_sig(CUser* user, char* data, int len)
 // 报告 docs/class_func_reports/Inter_AuctionResultBidding/dispatch_sig_taiwan.md：
 // 角色号校验→GM 延迟追踪→组 0xbc 包→按 pay 结果写确认/退款/金返还→
 // IPG cancel/confirm 双段计费→发包→IPGQuery。
+#pragma pack(push, 1)
+// Inter_AuctionResultBiddingPktView —— Inter_AuctionResultBidding::dispatch_sig_taiwan 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_AuctionResultBiddingPktView
+{
+    int m_0;                  // +0x00
+    char m_pad4[0x8];  // 未消费
+    unsigned char m_c;        // +0x0c
+    unsigned char m_d;        // +0x0d
+};
+#pragma pack(pop)
+
 int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int len)
 {
+    Inter_AuctionResultBiddingPktView* pPkt = reinterpret_cast<Inter_AuctionResultBiddingPktView*>(data);
     (void)len;                                         // ORIG 未用 param_3 长度
-    const int* msg = reinterpret_cast<const int*>(data);
+    const int* msg =&pPkt->m_0;
     if (msg[1] != static_cast<int>(user->getCurCharacNo()))   // msg+0x04 角色号
         return 0;
 
@@ -7787,10 +9625,10 @@ int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int
     PacketGuard packet;
     packet.put_header(1, 0xbc);
     packet.put_byte(static_cast<int>(
-        *reinterpret_cast<unsigned char*>(data + 0xc)));      // msg byte @0xc
+        pPkt->m_c));      // msg byte @0xc
     if (static_cast<char>(msg[3]) == '\0')                    // 低字节为 0 补错误码
         packet.put_byte(static_cast<int>(
-            *reinterpret_cast<unsigned char*>(data + 0xd)));  // byte @0xd
+            pPkt->m_d));  // byte @0xd
     packet.put_byte(msg[0]);                                  // msg+0x00 pay 类型
 
     PrePayInfo* prePay = 0;                            // local_2c（FindPrePayInfo 返回 &PrePayInfo）
@@ -7946,12 +9784,25 @@ int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int
 Inter_AuctionResultRegistCancel::~Inter_AuctionResultRegistCancel() {}
 // ORIG 0x084d741c T dispatch_sig —— 拍卖登记取消结果：GM 延迟追踪后组 0xbb 包回发。
 // 报告 docs/class_func_reports/Inter_AuctionResultRegistCancel/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_AuctionResultRegistCancelPktView —— Inter_AuctionResultRegistCancel::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_AuctionResultRegistCancelPktView
+{
+    int m_0;                  // +0x00
+    char m_pad4[0x4];  // 未消费
+    unsigned char m_8;        // +0x08
+    unsigned char m_9;        // +0x09
+};
+#pragma pack(pop)
+
 int Inter_AuctionResultRegistCancel::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_AuctionResultRegistCancelPktView* pPkt = reinterpret_cast<Inter_AuctionResultRegistCancelPktView*>(data);
     if (user == 0)                                   // asm cmpl $0x0,0xc(%ebp)
         return 0;
 
-    const int* msg = reinterpret_cast<const int*>(data);
+    const int* msg =&pPkt->m_0;
     if (msg[1] != user->getCurCharacNo())            // msg+0x04 角色号校验
         return 0;
 
@@ -7972,11 +9823,11 @@ int Inter_AuctionResultRegistCancel::dispatch_sig(CUser* user, char* data, int /
     PacketGuard packet;
     packet.put_header(1, 0xbb);
     const unsigned char result =                     // msg+0x08 结果码
-        *reinterpret_cast<unsigned char*>(data + 8);
+        pPkt->m_8;
     packet.put_byte(static_cast<int>(result));
     if (static_cast<char>(msg[2]) == '\0')           // 低字节为 0 时补错误码
         packet.put_byte(
-            static_cast<int>(*reinterpret_cast<unsigned char*>(data + 9)));
+            static_cast<int>(pPkt->m_9));
     packet.put_byte(msg[0]);                         // msg+0x00 pay 类型
     packet.finalize(true);
     user->Send(packet);
@@ -8182,12 +10033,25 @@ Inter_AuctionResultBuyItemApiece::~Inter_AuctionResultBuyItemApiece() {}
 // 报告 docs/class_func_reports/Inter_AuctionResultBuyItemApiece/dispatch_sig.md 全文转写。
 // g_auctionResultGmList（ORIG _ZL6gmList d @0x093701d8）定义已存在于
 // InterDispatcher.cpp:6527（五值 GM characNo 延迟追踪表），本函数直接引用。
+#pragma pack(push, 1)
+// Inter_AuctionResultBuyItemApiecePktView —— Inter_AuctionResultBuyItemApiece::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_AuctionResultBuyItemApiecePktView
+{
+    int m_0;                  // +0x00
+    int m_4;                  // +0x04
+    unsigned char m_8;        // +0x08
+    unsigned char m_9;        // +0x09
+};
+#pragma pack(pop)
+
 int Inter_AuctionResultBuyItemApiece::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_AuctionResultBuyItemApiecePktView* pPkt = reinterpret_cast<Inter_AuctionResultBuyItemApiecePktView*>(data);
     if (user == 0)
         return 0;
 
-    if (*reinterpret_cast<int*>(data) !=               // msg+0x0 characNo
+    if (pPkt->m_0 !=               // msg+0x0 characNo
         user->getCurCharacNo())
         return 0;
 
@@ -8208,10 +10072,10 @@ int Inter_AuctionResultBuyItemApiece::dispatch_sig(CUser* user, char* data, int 
     PacketGuard packet;
     packet.put_header(1, 0x14f);
     packet.put_byte(
-        (int)*reinterpret_cast<unsigned char*>(data + 0x8));
-    if (*reinterpret_cast<signed char*>(data + 0x8) == 0)
+        (int)pPkt->m_8);
+    if (pPkt->m_8 == 0)
     {
-        const int money = *reinterpret_cast<int*>(data + 0x4);  // msg+0x4
+        const int money = pPkt->m_4;  // msg+0x4
         CInventory* inven =
             static_cast<CInventory*>(user->getCurCharacInvenW());
         const int gained =
@@ -8223,7 +10087,7 @@ int Inter_AuctionResultBuyItemApiece::dispatch_sig(CUser* user, char* data, int 
                 (unsigned long)money, (unsigned long)gained);
         }
         packet.put_byte(
-            (int)*reinterpret_cast<unsigned char*>(data + 0x9));
+            (int)pPkt->m_9);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -8238,31 +10102,39 @@ int Inter_LoadGameOption::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (user->get_state() <= 1)                        // cmp $1; setle
         return 0;
 
-    CETCOption* etcOpt = reinterpret_cast<CETCOption*>(data);
-    etcOpt->setETCOption((ENUM_OPTION_ETC)1, 1);
+    // ORIG 0x084d7ea6 起 4 处 `mov -0x10(%ebp),%eax` 先于参数 `movl $…,(,4|8)(%esp)`
+    // —— this 装载提前 = 「struct 成员指针作调用对象」形（probe this1 e25：裸指针局部
+    // 在 4.4/4.1 均产常量先、load 后形；struct 成员形产 ORIG 序）。
+    struct { CETCOption* etcOpt; } etcWrap;
+    etcWrap.etcOpt = reinterpret_cast<CETCOption*>(data);
+    etcWrap.etcOpt->setETCOption((ENUM_OPTION_ETC)1, 1);
 
     CGameOption* opt = user->GetGameOptionRef();
-    opt->SetEtcOption(*etcOpt);
+    opt->SetEtcOption(*etcWrap.etcOpt);
     opt->SetQuickChatOption(
-        *reinterpret_cast<CQuickChattingOption*>(data + 0x48), 0);
+        *reinterpret_cast<CQuickChattingOption*>(
+            reinterpret_cast<char*>(etcWrap.etcOpt) + 0x48), 0);   // ORIG 经 -0x10 槽
     opt->SetQuickChatOption(
-        *reinterpret_cast<CQuickChattingOption*>(data + 0x174), 1);
+        *reinterpret_cast<CQuickChattingOption*>(
+            reinterpret_cast<char*>(etcWrap.etcOpt) + 0x174), 1);  // ORIG 经 -0x10 槽
     opt->SetEmoticonInfo(
-        *reinterpret_cast<CChattingEmoticonConfig*>(data + 0x2a0));
+        *reinterpret_cast<CChattingEmoticonConfig*>(
+            reinterpret_cast<char*>(etcWrap.etcOpt) + 0x2a0));     // ORIG 经 -0x10 槽
 
     PacketGuard packet;
     packet.put_header(0, 0xad);
     packet.put_int(0x48);
     if (G_GameWorld()->IsSchoolPvPChannel())
     {
-        etcOpt->setETCOption((ENUM_OPTION_ETC)0xa, 1);
-        etcOpt->setETCOption((ENUM_OPTION_ETC)0xb, 0);
+        etcWrap.etcOpt->setETCOption((ENUM_OPTION_ETC)0xa, 1);
+        etcWrap.etcOpt->setETCOption((ENUM_OPTION_ETC)0xb, 0);
     }
-    packet.put_binary(data, 0x48);
+    // ORIG 0x084d7f4x：基址取 etcOpt 槽 -0x10(%ebp)（非 data 形参 0x10）。
+    packet.put_binary(reinterpret_cast<char*>(etcWrap.etcOpt), 0x48);
     packet.put_int(300);
-    packet.put_binary(data + 0x48, 300);
+    packet.put_binary(reinterpret_cast<char*>(etcWrap.etcOpt) + 0x48, 300);
     packet.put_int(300);
-    packet.put_binary(data + 0x174, 300);
+    packet.put_binary(reinterpret_cast<char*>(etcWrap.etcOpt) + 0x174, 300);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -8271,23 +10143,39 @@ int Inter_LoadGameOption::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_PvPChannelInfo::~Inter_PvPChannelInfo() {}
 // ORIG 0x084d8096 T dispatch_sig —— PvP 频道信息同步：组 0xc6 包逐频道回发。
 // 报告 docs/class_func_reports/Inter_PvPChannelInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_PvPChannelInfoPktView —— Inter_PvPChannelInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_PvPChannelInfoPktView
+{
+    int m_0;                  // +0x00
+    char m_pad4[0x6];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x4];  // 未消费
+    int m_12;                 // +0x12
+    char m_pad16[0x1];  // 未消费
+    unsigned char m_17;       // +0x17
+};
+#pragma pack(pop)
+
 int Inter_PvPChannelInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_PvPChannelInfoPktView* pPkt = reinterpret_cast<Inter_PvPChannelInfoPktView*>(data);
     if (user == 0)                                   // asm cmpl $0x0,0xc(%ebp)
         return 0;
 
-    int* msg = reinterpret_cast<int*>(data);   // ORIG 写回 msg+(i+1)*0x10+0x10，须非 const
+    int* msg =&pPkt->m_0;   // ORIG 写回 msg+(i+1)*0x10+0x10，须非 const
     if (user->getCurCharacR() == 0 ||                // asm 双失败归并 true
         user->getCurCharacNo() !=
-            *reinterpret_cast<int*>(data + 0xa))     // msg+0x0a 角色号
+            pPkt->m_a)     // msg+0x0a 角色号
         return 0;
 
     PacketGuard packet;
     packet.put_header(1, 0xc6);
     packet.put_byte(1);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x12));  // msg+0x12
+    packet.put_int(pPkt->m_12);  // msg+0x12
     const unsigned int channelCnt =                  // msg+0x17 频道数
-        static_cast<unsigned int>(*reinterpret_cast<unsigned char*>(data + 0x17));
+        static_cast<unsigned int>(pPkt->m_17);
     packet.put_byte(static_cast<int>(channelCnt));
     for (int i = 0; i < static_cast<int>(channelCnt); ++i)
     {
@@ -8305,42 +10193,78 @@ int Inter_PvPChannelInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_PvPChannelUserCount::~Inter_PvPChannelUserCount() {}
 // ORIG 0x084d8262 T dispatch_sig —— PvP 频道用户数统计回填并转发监控服。
 // 报告 docs/class_func_reports/Inter_PvPChannelUserCount/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_PvPChannelUserCountPktView —— Inter_PvPChannelUserCount::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_PvPChannelUserCountPktView
+{
+    char m_pad0[0x12];  // +0x0..未消费
+    unsigned int m_12;              // +0x12
+    unsigned int m_16;              // +0x16
+    unsigned int m_1a;              // +0x1a
+    unsigned int m_1e;              // +0x1e
+    unsigned int m_22;              // +0x22
+    unsigned int m_26;              // +0x26
+};
+#pragma pack(pop)
+
 int Inter_PvPChannelUserCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    *reinterpret_cast<unsigned int*>(data + 0x1a) =
-        g_schoolMgr->GetUserCount(
-            *reinterpret_cast<unsigned int*>(data + 0x12));  // ORIG mov 0x12(%eax)→GetUserCount
-    *reinterpret_cast<unsigned int*>(data + 0x16) =
+    Inter_PvPChannelUserCountPktView* pPkt = reinterpret_cast<Inter_PvPChannelUserCountPktView*>(data);
+    pPkt->m_1a =
+        g_schoolMgr.GetUserCount(
+            pPkt->m_12);  // ORIG mov 0x12(%eax)→GetUserCount
+    pPkt->m_16 =
         G_CEnvironment()->get_channel_no();
-    *reinterpret_cast<unsigned int*>(data + 0x22) =
+    pPkt->m_22 =
         (unsigned int)CLeagueMatch::GetPlayCountPerOneTeam() & 0xff;
-    *reinterpret_cast<unsigned int*>(data + 0x26) =
+    pPkt->m_26 =
         (unsigned int)CLeagueMatch::GetBattleMode() & 0xff;
+    // ORIG 0x084d82bc `mov -0xc(%ebp),%ebx`：缓存形 %ebx 跨 call 传参
+    // （0x084d82de `mov %ebx,0x4(%esp)`），帧 push %ebx/sub 0x24。
+    // RHS 经 pPkt 局部槽装载（ORIG -0xc(%ebp) 即 pPkt 槽）在 4.4 恒两段
+    // `mov -0xc(%ebp),%eax; mov %eax,%ebx`（N18a），取 data 直读单段形。
+    register char* pCached asm("ebx") = data;
     GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-        (ENUM_SERVER_GROUP)*reinterpret_cast<unsigned int*>(data + 0x1e)
-        )->SendTcpPacket(data, 0x2a);
+        (ENUM_SERVER_GROUP)pPkt->m_1e
+        )->SendTcpPacket(pCached, 0x2a);
     return 0;
 }
 
 Inter_LoadBloodDungeonBestRecord::~Inter_LoadBloodDungeonBestRecord() {}
 // ORIG 0x084d82f6 T dispatch_sig —— 血轮副本个人最佳记录 DB 加载。
 // 报告 docs/class_func_reports/Inter_LoadBloodDungeonBestRecord/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadBloodDungeonBestRecordPktView —— Inter_LoadBloodDungeonBestRecord::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_LoadBloodDungeonBestRecordPktView
+{
+    unsigned int m_0;         // +0x00
+    unsigned int m_4;         // +0x04
+    int m_8;                  // +0x08
+    int m_c;                  // +0x0c
+};
+#pragma pack(pop)
+
 int Inter_LoadBloodDungeonBestRecord::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
         return 0x3edd;
-    const int idx = user->get_charac_idx(*reinterpret_cast<unsigned int*>(data + 0x0));
+    // ORIG：包基址槽在 get_state 守卫之后物化。
+    Inter_LoadBloodDungeonBestRecordPktView* pPkt = reinterpret_cast<Inter_LoadBloodDungeonBestRecordPktView*>(data);
+    const int idx = user->get_charac_idx(pPkt->m_0);
     if (idx < 0)
         return 0x3ee3;
+    // ORIG +0x3e 一步 `mov (%eax),%edx`（同 signedness 折叠）⇒ 不加显式转换。
     if (user->m_characList[idx].m_characNo !=
-        (unsigned int)*reinterpret_cast<int*>(data + 0x0))
+        pPkt->m_0)
         return 0x3ee5;
     user->m_characList[idx].m_characNo =
-        *reinterpret_cast<unsigned int*>(data + 0x0);
+        pPkt->m_0;
     user->setBloodBestRecord(
-        *reinterpret_cast<unsigned int*>(data + 0x4),
-        *reinterpret_cast<int*>(data + 0x8),
-        *reinterpret_cast<int*>(data + 0xc), true);
+        pPkt->m_4,
+        pPkt->m_8,
+        pPkt->m_c, true);
     return 0;
 }
 
@@ -8356,14 +10280,26 @@ int Inter_LoadBreakAwayPreventSystem::dispatch_sig(CUser* /*user*/, char* data, 
 Inter_LoadBreakAwayPreventMessage::~Inter_LoadBreakAwayPreventMessage() {}
 // ORIG 0x084d92b4 T dispatch_sig —— 防流失活动状态通知（0x111 状态门 + 0x136 活动开启包）。
 // 报告 docs/class_func_reports/Inter_LoadBreakAwayPreventMessage/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadBreakAwayPreventMessagePktView —— Inter_LoadBreakAwayPreventMessage::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_LoadBreakAwayPreventMessagePktView
+{
+    unsigned int m_0;         // +0x00
+    int m_4;                  // +0x04
+};
+#pragma pack(pop)
+
 int Inter_LoadBreakAwayPreventMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user == 0)
         return 0;
 
-    const int state = *reinterpret_cast<int*>(data + 0x4);      // msg+0x4
+    // ORIG：包基址在 user 判空后物化入 -0x14(%ebp)
+    Inter_LoadBreakAwayPreventMessagePktView* pPkt = reinterpret_cast<Inter_LoadBreakAwayPreventMessagePktView*>(data);
+    const int state = pPkt->m_4;      // msg+0x4
     const unsigned int questTime =                             // msg+0x0
-        *reinterpret_cast<unsigned int*>(data);
+        pPkt->m_0;
     if (state == 0 || state == 2)
     {   // 活动开启
         PacketGuard packet;
@@ -8396,15 +10332,27 @@ int Inter_LoadBreakAwayPreventMessage::dispatch_sig(CUser* user, char* data, int
 Inter_LoadDimensionInout::~Inter_LoadDimensionInout() {}
 // ORIG 0x084d83d2 T dispatch_sig —— 维度进出标志载入（更新角色数组并回传差异）。
 // 报告 docs/class_func_reports/Inter_LoadDimensionInout/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadDimensionInoutPktView —— Inter_LoadDimensionInout::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_LoadDimensionInoutPktView
+{
+    unsigned int m_0;         // +0x00
+    char m_pad4[0x8];  // 未消费
+    unsigned char m_c;        // +0x0c
+};
+#pragma pack(pop)
+
 int Inter_LoadDimensionInout::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_LoadDimensionInoutPktView* pPkt = reinterpret_cast<Inter_LoadDimensionInoutPktView*>(data);
     bool changed = false;
 
     if (user->get_state() == 0)                        // test eax; sete
         return 0x3ef3;
 
     const unsigned int characNo =
-        *reinterpret_cast<unsigned int*>(data);        // msg+0x0
+        pPkt->m_0;        // msg+0x0
     const int idx = user->get_charac_idx(characNo);
     if (idx < 0)                                       // jns
         return 0x3ef9;
@@ -8426,7 +10374,7 @@ int Inter_LoadDimensionInout::dispatch_sig(CUser* user, char* data, int /*len*/)
     }
 
     *(unsigned char*)(recBase + 0xec2) =                  // +0xec2 m_ultimateInout[2]
-        *reinterpret_cast<unsigned char*>(data + 0xc);
+        pPkt->m_c;
     const char ultimate = (char)*(unsigned char*)(recBase + 0xec2);
     const char limit =
         (char)G_CDataManager()->get_limit_inout_count(ENUM_BLOOD_TYPE_2);
@@ -8456,20 +10404,46 @@ int Inter_BlackIPMonitorReq::dispatch_sig(CUser* /*user*/, char* /*data*/, int /
 Inter_BlackIPMonitor::~Inter_BlackIPMonitor() {}
 // ORIG 0x084d8650 T dispatch_sig —— 黑名单 IP 惩罚表全量装载。
 // 报告 docs/class_func_reports/Inter_BlackIPMonitor/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_BlackIPMonitorPktView —— Inter_BlackIPMonitor::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_BlackIPMonitorPktView
+{
+    int m_0;                  // +0x00
+    char m_pad4[0xc80];  // 未消费
+    char m_c84;               // +0xc84
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+// Inter_BlackIPMonitorRecWinView —— Inter_BlackIPMonitor::dispatch_sig 窗口 rec 元素视图
+//   （rec 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
+struct Inter_BlackIPMonitorRecWinView
+{
+    char m_pad0[0x14];  // 未消费
+    unsigned int m_14;        // +0x14
+    unsigned int m_18;        // +0x18
+    long m_1c;                // +0x1c
+    long m_20;                // +0x20
+};
+#pragma pack(pop)
+
 int Inter_BlackIPMonitor::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    const int count = *reinterpret_cast<int*>(data);
-    if (*reinterpret_cast<char*>(data + 0xc84) != '\0')
+    Inter_BlackIPMonitorPktView* pPkt = reinterpret_cast<Inter_BlackIPMonitorPktView*>(data);
+    const int count = pPkt->m_0;
+    if (pPkt->m_c84 != '\0')
         GlobalData::g_blackIPMonitor->reset();
 
     for (int i = 0; i < count; ++i)
     {
         char* rec = data + (i << 5);                   // 记录 stride 0x20
+    Inter_BlackIPMonitorRecWinView* pWin_rec = reinterpret_cast<Inter_BlackIPMonitorRecWinView*>(rec);
         const unsigned int ip = inet_addr(rec + 4);
-        const long endTime = *reinterpret_cast<long*>(rec + 0x20);
-        const long startTime = *reinterpret_cast<long*>(rec + 0x1c);
-        const unsigned int idCnt = *reinterpret_cast<unsigned int*>(rec + 0x18);
-        const unsigned int punishType = *reinterpret_cast<unsigned int*>(rec + 0x14);
+        const long endTime = pWin_rec->m_20;
+        const long startTime = pWin_rec->m_1c;
+        const unsigned int idCnt = pWin_rec->m_18;
+        const unsigned int punishType = pWin_rec->m_14;
         GlobalData::g_blackIPMonitor->insertNewIP(
             ip, (WongWork::ENUM_BLACKIPMONITOR_PUNISH_TYPE)punishType, idCnt,
             startTime, endTime);
@@ -8499,9 +10473,30 @@ int Inter_BlackIPMonitorPartLoadReq::dispatch_sig(CUser* /*user*/, char* /*data*
 Inter_BlackIPMonitorDeleteIP::~Inter_BlackIPMonitorDeleteIP() {}
 // ORIG 0x084d87e8 T dispatch_sig —— 黑名单 IP 表批量删除。
 // 报告 docs/class_func_reports/Inter_BlackIPMonitorDeleteIP/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_BlackIPMonitorDeleteIPPktView —— Inter_BlackIPMonitorDeleteIP::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_BlackIPMonitorDeleteIPPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+// Inter_BlackIPMonitorDeleteIPRecWinView —— Inter_BlackIPMonitorDeleteIP::dispatch_sig 窗口 rec 元素视图
+//   （rec 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
+struct Inter_BlackIPMonitorDeleteIPRecWinView
+{
+    char m_pad0[0x1e];  // 未消费
+    unsigned int m_1e;        // +0x1e
+};
+#pragma pack(pop)
+
 int Inter_BlackIPMonitorDeleteIP::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    const unsigned int count = *reinterpret_cast<unsigned int*>(data + 0xa);
+    Inter_BlackIPMonitorDeleteIPPktView* pPkt = reinterpret_cast<Inter_BlackIPMonitorDeleteIPPktView*>(data);
+    const unsigned int count = pPkt->m_a;
     cMyTrace trace(
         __PRETTY_FUNCTION__, 0x3f6d, 0);
     trace("Delete IP Cnt : %d", count);
@@ -8509,14 +10504,15 @@ int Inter_BlackIPMonitorDeleteIP::dispatch_sig(CUser* /*user*/, char* data, int 
     for (unsigned int i = 0; i < count; ++i)
     {
         char* rec = data + i * 0x14;                   // 记录 stride 0x14
+    Inter_BlackIPMonitorDeleteIPRecWinView* pWin_rec = reinterpret_cast<Inter_BlackIPMonitorDeleteIPRecWinView*>(rec);
         if (GlobalData::g_blackIPMonitor->deleteIP(rec + 0xe,
-                                                   *reinterpret_cast<unsigned int*>(rec + 0x1e)) != '\0')
+                                                   pWin_rec->m_1e) != '\0')
         {
             cMyTrace deleted(
                 __PRETTY_FUNCTION__,
                 0x3f76, 0);
             deleted("Delete IP: %s, Type: %d", rec + 0xe,
-                    *reinterpret_cast<unsigned int*>(rec + 0x1e));
+                    pWin_rec->m_1e);
         }
     }
     return 0;
@@ -8528,9 +10524,7 @@ int Inter_LoadAutoMarketConditionsControl::dispatch_sig(
 {
     SIG_AUTO_MARKET_CONDITIONS_CONTROL* packet =
         reinterpret_cast<SIG_AUTO_MARKET_CONDITIONS_CONTROL*>(data);
-    CAutoMarketConditionsControl* control =
-        G_CDataManager()->GetAutoMarketContitionsControl();
-    control->LoadDatabase(packet);
+    G_CDataManager()->GetAutoMarketContitionsControl()->LoadDatabase(packet);
     return 0;
 }
 
@@ -8538,12 +10532,26 @@ Inter_UpdateOneDayLethe::~Inter_UpdateOneDayLethe() {}
 // ORIG 0x084d894c T dispatch_sig —— 一日忘却（OneDayLethe）状态更新：按
 // SIG+0x4 的状态机字节切换 USE/SKILL_CONFIRM/INIT/NOT_USE 四分支。
 // 报告 docs/class_func_reports/Inter_UpdateOneDayLethe/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_UpdateOneDayLethePktView —— Inter_UpdateOneDayLethe::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_UpdateOneDayLethePktView
+{
+    int m_0;                  // +0x00
+    unsigned char m_4;        // +0x04
+    char m_pad5[0x198];  // 未消费
+    signed char m_19d;        // +0x19d
+    signed char m_19e;        // +0x19e
+};
+#pragma pack(pop)
+
 int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<unsigned char*>(data + 4) ==
+    Inter_UpdateOneDayLethePktView* pPkt = reinterpret_cast<Inter_UpdateOneDayLethePktView*>(data);
+    if (pPkt->m_4 ==
         CPremiumLetheManager::USE_LETHE_STATE)
     {
-        if (*reinterpret_cast<int*>(data) != 0)        // sig+0x0 characNo
+        if (pPkt->m_0 != 0)        // sig+0x0 characNo
         {
             cMyTrace trace(
                 __PRETTY_FUNCTION__,
@@ -8551,8 +10559,8 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
             trace("ONE_DAY_LETHE : INTER_USE_LETHE, char(%s)",
                   user->getCurCharacName());
 
-            if (*reinterpret_cast<signed char*>(data + 0x19e) == -1 ||
-                *reinterpret_cast<signed char*>(data + 0x19e) == 0)
+            if (pPkt->m_19e == -1 ||
+                pPkt->m_19e == 0)
             {
                 user->SetOneDayLetheFlag(
                     CPremiumLetheManager::USE_LETHE_STATE);
@@ -8572,7 +10580,7 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
             PacketGuard packet;                        // -0x3c
             if (user->GetCurCharacSkillTreeIndex() == -1)
             {
-                if (*reinterpret_cast<signed char*>(data + 0x19e) == 0)
+                if (pPkt->m_19e == 0)
                 {
                     packet.put_header(0, 0xb4);
                     packet.put_byte(2);
@@ -8584,8 +10592,8 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
             else
             {
                 char state;                            // -0x9
-                if (*reinterpret_cast<signed char*>(data + 0x19e) == -1 ||
-                    *reinterpret_cast<signed char*>(data + 0x19e) == 0)
+                if (pPkt->m_19e == -1 ||
+                    pPkt->m_19e == 0)
                     state = 1;
                 else
                     state = 2;
@@ -8597,10 +10605,10 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
             }
         }
     }
-    else if (*reinterpret_cast<signed char*>(data + 4) ==
+    else if (pPkt->m_4 ==
              (signed char)CPremiumLetheManager::SKILL_CONFIRM_STATE)
     {
-        if (*reinterpret_cast<int*>(data) != 0)
+        if (pPkt->m_0 != 0)
         {
             cMyTrace trace(
                 __PRETTY_FUNCTION__,
@@ -8610,12 +10618,12 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
 
             WongWork::CHandlePremium::handleRemoveOneDayLethePremium(user);
 
-            if (*reinterpret_cast<signed char*>(data + 0x19e) == -1 ||
-                *reinterpret_cast<signed char*>(data + 0x19e) == 0)
+            if (pPkt->m_19e == -1 ||
+                pPkt->m_19e == 0)
             {
                 user->SetOneDayLetheFlag(
                     CPremiumLetheManager::NOT_USE_LETHE_STATE);
-                *reinterpret_cast<signed char*>(data + 0x19d) =
+                pPkt->m_19d =
                     (signed char)CPremiumLetheManager::SKILL_CONFIRM_STATE;
                 user->SaveBackupSkillInfo(
                     reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
@@ -8625,7 +10633,7 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
             {
                 user->SetOneDayLetheFlag2ND(
                     CPremiumLetheManager::NOT_USE_LETHE_STATE);
-                *reinterpret_cast<signed char*>(data + 0x19d) =
+                pPkt->m_19d =
                     (signed char)CPremiumLetheManager::SKILL_CONFIRM_STATE;
                 user->SaveBackupSkillInfo(
                     reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
@@ -8633,15 +10641,15 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
             }
         }
     }
-    else if (*reinterpret_cast<unsigned char*>(data + 4) ==
+    else if (pPkt->m_4 ==
              CPremiumLetheManager::INIT_LETHE_SKILL)
     {
-        if (*reinterpret_cast<signed char*>(data + 0x19e) == -1 ||
-            *reinterpret_cast<signed char*>(data + 0x19e) == 0)
+        if (pPkt->m_19e == -1 ||
+            pPkt->m_19e == 0)
         {
             user->SetOneDayLetheFlag(
                 CPremiumLetheManager::USE_LETHE_STATE);
-            *reinterpret_cast<unsigned char*>(data + 0x19d) =
+            pPkt->m_19d =
                 CPremiumLetheManager::USE_LETHE_STATE;
             user->SaveBackupSkillInfo(
                 reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
@@ -8651,22 +10659,22 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
         {
             user->SetOneDayLetheFlag2ND(
                 CPremiumLetheManager::USE_LETHE_STATE);
-            *reinterpret_cast<unsigned char*>(data + 0x19d) =
+            pPkt->m_19d =
                 CPremiumLetheManager::USE_LETHE_STATE;
             user->SaveBackupSkillInfo(
                 reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
                 (ENUM_SKILL_TREE_KIND)1);
         }
     }
-    else if (*reinterpret_cast<unsigned char*>(data + 4) ==
+    else if (pPkt->m_4 ==
              CPremiumLetheManager::NOT_USE_LETHE_STATE)
     {
-        if (*reinterpret_cast<signed char*>(data + 0x19e) == -1 ||
-            *reinterpret_cast<signed char*>(data + 0x19e) == 0)
+        if (pPkt->m_19e == -1 ||
+            pPkt->m_19e == 0)
         {
             user->SetOneDayLetheFlag(
                 CPremiumLetheManager::NOT_USE_LETHE_STATE);
-            *reinterpret_cast<unsigned char*>(data + 0x19d) =
+            pPkt->m_19d =
                 CPremiumLetheManager::NOT_USE_LETHE_STATE;
             user->SaveBackupSkillInfo(
                 reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
@@ -8676,7 +10684,7 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
         {
             user->SetOneDayLetheFlag2ND(
                 CPremiumLetheManager::NOT_USE_LETHE_STATE);
-            *reinterpret_cast<unsigned char*>(data + 0x19d) =
+            pPkt->m_19d =
                 CPremiumLetheManager::NOT_USE_LETHE_STATE;
             user->SaveBackupSkillInfo(
                 reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(data + 5),
@@ -8687,12 +10695,22 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
 }
 
 Inter_DisconnectMonitorServer::~Inter_DisconnectMonitorServer() {}
+#pragma pack(push, 1)
+// Inter_DisconnectMonitorServerPktView —— Inter_DisconnectMonitorServer::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_DisconnectMonitorServerPktView
+{
+    int m_0;                  // +0x00
+};
+#pragma pack(pop)
+
 int Inter_DisconnectMonitorServer::dispatch_sig(
     CUser* /*user*/, char* data, int /*len*/)
 {
+    // ORIG +0x06..+0x11：仅一个 int* 局部槽（-0xc），`*packet` 直接作实参
+    // （再具名 int 局部会多两级落栈）。
     int* packet = reinterpret_cast<int*>(data);
-    int monitor_id = *packet;
-    TimerConnectMonitorServer::registNextTimer(30L, 0, monitor_id);
+    TimerConnectMonitorServer::registNextTimer(30L, 0, *packet);
     return 0;
 }
 
@@ -8700,8 +10718,30 @@ Inter_ResposncePCRoomPlyerList::~Inter_ResposncePCRoomPlyerList() {}
 // ORIG 0x084d9cbe T dispatch_sig —— 网吧在线玩家列表下发：角色号校验 + 0x25 字节
 // stride 条目（名字/短值/属性字节）打包。
 // 报告 docs/class_func_reports/Inter_ResposncePCRoomPlyerList/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ResposncePCRoomPlyerListPktView —— Inter_ResposncePCRoomPlyerList::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_ResposncePCRoomPlyerListPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    int m_e;                        // +0x0e
+    unsigned char m_12;             // +0x12
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+// Inter_ResposncePCRoomPlyerListEntryWinView —— Inter_ResposncePCRoomPlyerList::dispatch_sig 窗口 entry 元素视图
+//   （entry 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
+struct Inter_ResposncePCRoomPlyerListEntryWinView
+{
+    char m_pad0[0x25];  // 未消费
+    unsigned char m_25;       // +0x25
+};
+#pragma pack(pop)
+
 int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_ResposncePCRoomPlyerListPktView* pPkt = reinterpret_cast<Inter_ResposncePCRoomPlyerListPktView*>(data);
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
@@ -8716,18 +10756,18 @@ int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*
         return 0;
     }
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0xe))
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x4192,
             "Inter_ResposncePCRoomPlyerList::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), *reinterpret_cast<int*>(data + 0xe));
+            user->get_charac_no(-1), pPkt->m_e);
         return 0;
     }
 
-    if (*reinterpret_cast<unsigned char*>(data + 0x12) > 0x28)   // 条目数越界
+    if (pPkt->m_12 > 0x28)   // 条目数越界
     {
         packet.put_header(1, 0xd8);
         packet.put_byte(0);
@@ -8739,18 +10779,19 @@ int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*
 
     packet.put_header(1, 0xd8);
     packet.put_byte(1);
-    packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 0x12));
+    packet.put_byte((int)pPkt->m_12);
 
-    for (int i = 0; i < (int)*reinterpret_cast<unsigned char*>(data + 0x12); ++i)
+    for (int i = 0; i < (int)pPkt->m_12; ++i)
     {
         char* entry = data + i * 0x25 + 0x10;
+    Inter_ResposncePCRoomPlyerListEntryWinView* pWin_entry = reinterpret_cast<Inter_ResposncePCRoomPlyerListEntryWinView*>(entry);
         const int nameLen = strlen(entry + 0x7);
         packet.put_int(nameLen);
         packet.put_str(entry + 0x7, nameLen);
         packet.put_short((int)*(short*)(entry + 0x5));
         packet.put_byte((int)*(signed char*)(entry + 0x3));
         packet.put_byte((int)*(signed char*)(entry + 0x4));
-        packet.put_byte((int)*reinterpret_cast<unsigned char*>(entry + 0x25));
+        packet.put_byte((int)pWin_entry->m_25);
         packet.put_byte((int)*(signed char*)(entry + 0x26));
         packet.put_byte((int)*(signed char*)(entry + 0x27));
     }
@@ -8762,29 +10803,40 @@ int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*
 Inter_ResposncePCRoomPlyerCount::~Inter_ResposncePCRoomPlyerCount() {}
 // ORIG 0x084da0aa T dispatch_sig —— 网吧玩家数应答转发。
 // 报告 docs/class_func_reports/Inter_ResposncePCRoomPlyerCount/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ResposncePCRoomPlyerCountPktView —— Inter_ResposncePCRoomPlyerCount::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_ResposncePCRoomPlyerCountPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned int m_e;               // +0x0e
+    int m_12;                       // +0x12
+};
+#pragma pack(pop)
+
 int Inter_ResposncePCRoomPlyerCount::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
         return 0;
+    // ORIG：包基址槽在门 1 之后物化。
+    Inter_ResposncePCRoomPlyerCountPktView* pPkt = reinterpret_cast<Inter_ResposncePCRoomPlyerCountPktView*>(data);
 
-    const unsigned int charIdMsg =                     // recv->m_uCharID @ msg+0xe
-        *reinterpret_cast<unsigned int*>(data + 0xe);
-
-    if (user->get_charac_no(-1) != (int)charIdMsg)
+    // ORIG：同 ReplyGuildLetter。
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x41cc,
             "Inter_ResponsePCRoomPlayerCount::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), (int)charIdMsg);
+            user->get_charac_no(-1), pPkt->m_e);   // ORIG 一步装载，同上
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(1, 0xd9);
     packet.put_byte(1);
-    packet.put_byte(*reinterpret_cast<int*>(data + 0x12));
+    packet.put_byte(pPkt->m_12);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -8793,13 +10845,29 @@ int Inter_ResposncePCRoomPlyerCount::dispatch_sig(CUser* user, char* data, int /
 Inter_NoticePCRoomPlayerLoginOut::~Inter_NoticePCRoomPlayerLoginOut() {}
 // ORIG 0x084da1fa T dispatch_sig —— PC 房玩家登出通知：校验后组 0xba 包回发。
 // 报告 docs/class_func_reports/Inter_NoticePCRoomPlayerLoginOut/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticePCRoomPlayerLoginOutPktView —— Inter_NoticePCRoomPlayerLoginOut::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_NoticePCRoomPlayerLoginOutPktView
+{
+    char m_pad0[0xa];  // 未消费
+    signed char m_a;          // +0x0a
+    char m_padb[0x4];  // 未消费
+    unsigned int m_f;         // +0x0f（同上 unsigned→int 失配两步 spill 形态）
+    unsigned char m_13;       // +0x13
+    char m_14[1];             // +0x14 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_NoticePCRoomPlayerLoginOut::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)                      // asm cmp $0x2; setle
         return 0;
 
+    // ORIG：包基址在 get_state 检查后物化入 -0x10(%ebp)
+    Inter_NoticePCRoomPlayerLoginOutPktView* pPkt = reinterpret_cast<Inter_NoticePCRoomPlayerLoginOutPktView*>(data);
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0xf))         // msg+0x0f 角色号校验
+        pPkt->m_f)         // msg+0x0f 角色号校验
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -8807,20 +10875,20 @@ int Inter_NoticePCRoomPlayerLoginOut::dispatch_sig(CUser* user, char* data, int 
             0x41eb,
             "PCRoom : Inter_NoticePCRoomPlayerLoginOut::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<int*>(data + 0xf));
+            pPkt->m_f);
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(0, 0xba);
     packet.put_byte(                                 // msg+0x0a（movsbl 符号扩展）
-        static_cast<int>(*reinterpret_cast<signed char*>(data + 0xa)));
+        static_cast<int>(pPkt->m_a));
     packet.put_byte(                                 // msg+0x13（movzbl 零扩展）
-        static_cast<int>(*reinterpret_cast<unsigned char*>(data + 0x13)));
+        static_cast<int>(pPkt->m_13));
     const int playerNameLen =                        // msg+0x14 玩家名
-        static_cast<int>(strlen(data + 0x14));
+        static_cast<int>(strlen(pPkt->m_14));
     packet.put_int(playerNameLen);
-    packet.put_str(data + 0x14, playerNameLen);
+    packet.put_str(pPkt->m_14, playerNameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -8829,25 +10897,51 @@ int Inter_NoticePCRoomPlayerLoginOut::dispatch_sig(CUser* user, char* data, int 
 Inter_NoticePowerWarRank::~Inter_NoticePowerWarRank() {}
 // ORIG 0x084d4f46 T dispatch_sig —— 力量战争前三名排行加载。
 // 报告 docs/class_func_reports/Inter_NoticePowerWarRank/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticePowerWarRankPktView —— Inter_NoticePowerWarRank::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NoticePowerWarRankPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+    unsigned int m_e;               // +0x0e
+    unsigned int m_12;              // +0x12
+};
+#pragma pack(pop)
+
 int Inter_NoticePowerWarRank::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_NoticePowerWarRankPktView* pPkt = reinterpret_cast<Inter_NoticePowerWarRankPktView*>(data);
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0x368e, 0);
     trace("RECV Packet_Notice_Power_War_Rank ranker 1:%d, 2:%d, 3:%d",
-          (int)*reinterpret_cast<unsigned int*>(data + 0xa),
-          (int)*reinterpret_cast<unsigned int*>(data + 0xe),
-          (int)*reinterpret_cast<unsigned int*>(data + 0x12));
+          (int)pPkt->m_a,
+          (int)pPkt->m_e,
+          (int)pPkt->m_12);
     GlobalData::s_power_manager->SetPowerWarUserRankingInfo(
         reinterpret_cast<unsigned int*>(data + 0xa));
     return 0;
 }
 
 Inter_LoadPowerWarStatueRanker::~Inter_LoadPowerWarStatueRanker() {}
+#pragma pack(push, 1)
+// Inter_LoadPowerWarStatueRankerPktView —— Inter_LoadPowerWarStatueRanker::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_LoadPowerWarStatueRankerPktView
+{
+    // ORIG +0x0f/+0x11 两步装载且求值先于 this：signedness 失配的数组 decay 实参
+    // （`int[N]` → `unsigned int*` 形参，偏移 0）形态，探针 g1 实证。
+    int m_charNos[1];       // +0x00 排行角色号表
+};
+#pragma pack(pop)
+
 int Inter_LoadPowerWarStatueRanker::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    unsigned int* packet = reinterpret_cast<unsigned int*>(data);
-    GlobalData::s_power_manager->SetPowerWarUserRankingInfo(packet);
+    Inter_LoadPowerWarStatueRankerPktView* pPkt =
+        reinterpret_cast<Inter_LoadPowerWarStatueRankerPktView*>(data);
+    GlobalData::s_power_manager->SetPowerWarUserRankingInfo(
+        reinterpret_cast<unsigned int*>(pPkt->m_charNos));
     return 0;
 }
 
@@ -8866,33 +10960,54 @@ Inter_UpdateServerMessage::~Inter_UpdateServerMessage() {}
 // 报告 docs/class_func_reports/Inter_UpdateServerMessage/dispatch_sig.md 全文转写。
 // msg 布局：+4 sourceChannel(int) +8 kind(u8) +9 index(u8) +0xc msgLen(int) +0x10 msg
 //           +0x44 nameLen(int) +0x48 name +0x5c time(int)。
+#pragma pack(push, 1)
+// Inter_UpdateServerMessagePktView —— Inter_UpdateServerMessage::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_UpdateServerMessagePktView
+{
+    char m_pad0[0x4];  // 未消费
+    int m_4;                  // +0x04
+    unsigned char m_8;        // +0x08
+    unsigned char m_9;        // +0x09
+    char m_pada[0x2];  // 未消费
+    int m_msgLen;             // +0x0c
+    char m_10[1];             // +0x10 串/字节区首元素（容量未建模）
+    char m_pad11[0x33];  // 未消费
+    int m_nameLen;            // +0x44
+    char m_48[1];             // +0x48 串/字节区首元素（容量未建模）
+    char m_pad49[0x13];  // 未消费
+    int m_time;               // +0x5c
+};
+#pragma pack(pop)
+
 int Inter_UpdateServerMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_UpdateServerMessagePktView* pPkt = reinterpret_cast<Inter_UpdateServerMessagePktView*>(data);
     PacketGuard packet;
-    if (*reinterpret_cast<unsigned char*>(data + 8) == 0)
+    if (pPkt->m_8 == 0)
     {   // 本服广播：0xc0 包
         packet.put_header(0, 0xc0);
         packet.put_byte(1);
         packet.put_byte(1);
-        packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 9));
-        packet.put_int(*reinterpret_cast<int*>(data + 0xc));
-        packet.put_str(data + 0x10, *reinterpret_cast<int*>(data + 0xc));
-        packet.put_int(*reinterpret_cast<int*>(data + 0x44));
-        packet.put_str(data + 0x48, *reinterpret_cast<int*>(data + 0x44));
+        packet.put_byte((int)pPkt->m_9);
+        packet.put_int(pPkt->m_msgLen);
+        packet.put_str(pPkt->m_10, pPkt->m_msgLen);
+        packet.put_int(pPkt->m_nameLen);
+        packet.put_str(pPkt->m_48, pPkt->m_nameLen);
         packet.finalize(true);
         G_GameWorld()->send_all_with_state(packet, 3);
     }
-    else if (*reinterpret_cast<unsigned char*>(data + 8) == 1)
+    else if (pPkt->m_8 == 1)
     {   // 跨服转发：组 monitor 包
         Packet_Monitor_Server_Message_Info info;
         info.m_channel = (char)G_CEnvironment()->get_channel_no();
-        info.m_kind = (char)*reinterpret_cast<unsigned char*>(data + 8);
-        info.m_index = (char)*reinterpret_cast<unsigned char*>(data + 9);
-        info.m_msgLen = *reinterpret_cast<int*>(data + 0xc);
-        info.m_nameLen = *reinterpret_cast<int*>(data + 0x44);
-        info.m_time = *reinterpret_cast<int*>(data + 0x5c);
-        strncpy(info.m_msg, data + 0x10, 0x32);
-        strncpy(info.m_name, data + 0x48, 0x14);
+        info.m_kind = (char)pPkt->m_8;
+        info.m_index = (char)pPkt->m_9;
+        info.m_msgLen = pPkt->m_msgLen;
+        info.m_nameLen = pPkt->m_nameLen;
+        info.m_time = pPkt->m_time;
+        strncpy(info.m_msg, pPkt->m_10, 0x32);
+        strncpy(info.m_name, pPkt->m_48, 0x14);
 
         CMonitorServerProxy* proxy =
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
@@ -8902,12 +11017,12 @@ int Inter_UpdateServerMessage::dispatch_sig(CUser* user, char* data, int /*len*/
             __PRETTY_FUNCTION__,
             0x42a0, 0);
         trace("SERVER_MESSAGE : Send ServerMessage to monitor server(source_channel:%d, kind:%d, index:%d, msg_len:%d, msg:%s, name_len:%d, name:%s, time:%d",
-              *reinterpret_cast<int*>(data + 4),
-              (int)*reinterpret_cast<unsigned char*>(data + 8),
-              (int)*reinterpret_cast<unsigned char*>(data + 9),
-              *reinterpret_cast<int*>(data + 0xc), data + 0x10,
-              *reinterpret_cast<int*>(data + 0x44), data + 0x48,
-              *reinterpret_cast<int*>(data + 0x5c));
+              pPkt->m_4,
+              (int)pPkt->m_8,
+              (int)pPkt->m_9,
+              pPkt->m_msgLen, data + 0x10,
+              pPkt->m_nameLen, data + 0x48,
+              pPkt->m_time);
     }
     else
     {
@@ -8924,44 +11039,68 @@ Inter_LoadServerMessage::~Inter_LoadServerMessage() {}
 // 报告 docs/class_func_reports/Inter_LoadServerMessage/dispatch_sig.md 全文转写。
 int Inter_LoadServerMessage::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    // ORIG +0x06：包基址先落 -0x10 具名局部（在 G_CGameManager 调用之前）。
+    SIG_EVENT_SERVER_MESSAGE* pPkt = reinterpret_cast<SIG_EVENT_SERVER_MESSAGE*>(data);
     CSharedServerMessageManager* mgr = G_CGameManager()->GetSharedServerMessageManager();
-    if (mgr != 0)
-        mgr->SetServerMessage(reinterpret_cast<SIG_EVENT_SERVER_MESSAGE*>(data));
+    // ORIG +0x15：`cmpl $0x0,-0xc(%ebp)`+`jne body`+早退在 fall-through ⇒ == 0 写法。
+    if (mgr == 0)
+        return 0;
+    mgr->SetServerMessage(pPkt);
     return 0;
 }
 
 Inter_NoticeServerMessageInfo::~Inter_NoticeServerMessageInfo() {}
 // ORIG 0x084da726 T dispatch_sig —— 共享服务器公告下发（0xc0 包，全网 state3 广播）。
 // 报告 docs/class_func_reports/Inter_NoticeServerMessageInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticeServerMessageInfoPktView —— Inter_NoticeServerMessageInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_NoticeServerMessageInfoPktView
+{
+    char m_pad0[0xa];  // 未消费
+    unsigned char m_a;        // +0x0a
+    unsigned char m_b;        // +0x0b
+    unsigned char m_c;        // +0x0c
+    int m_d;                  // +0x0d
+    char m_11[1];             // +0x11 串/字节区首元素（容量未建模）
+    char m_pad12[0x31];  // 未消费
+    unsigned int m_43;        // +0x43
+    char m_47[1];             // +0x47 串/字节区首元素（容量未建模）
+    char m_pad48[0x13];  // 未消费
+    int m_5b;                 // +0x5b
+};
+#pragma pack(pop)
+
 int Inter_NoticeServerMessageInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_NoticeServerMessageInfoPktView* pPkt = reinterpret_cast<Inter_NoticeServerMessageInfoPktView*>(data);
     const char* const local_24 = data;
     CSharedServerMessageManager* local_20 =
         G_CGameManager()->GetSharedServerMessageManager();
     if (local_20 != 0)
     {
         const unsigned char sourceChannel =
-            *reinterpret_cast<unsigned char*>(data + 0xa);
+            pPkt->m_a;
         if (sourceChannel != G_CEnvironment()->get_channel_no())
         {
             local_20->UpdateServerMessageByBroadcast(
-                (int)*reinterpret_cast<unsigned char*>(data + 0xc),
+                (int)pPkt->m_c,
                 const_cast<char*>(data + 0x11),
                 const_cast<char*>(data + 0x47),
-                *reinterpret_cast<int*>(data + 0x5b));
+                pPkt->m_5b);
         }
         cMyTrace trace(
             __PRETTY_FUNCTION__,
             0x42be, 0);
         trace("SERVER_MESSAGE : Recv ServerMessage from monitor server(source_channel:%d, kind:%d, index:%d, msg_len:%d, msg:%s, name_len:%d, name:%s, time:%d",
-              (unsigned int)*reinterpret_cast<unsigned char*>(data + 0xa),
-              (unsigned int)*reinterpret_cast<unsigned char*>(data + 0xb),
-              (unsigned int)*reinterpret_cast<unsigned char*>(data + 0xc),
-              *reinterpret_cast<int*>(data + 0xd),
+              (unsigned int)pPkt->m_a,
+              (unsigned int)pPkt->m_b,
+              (unsigned int)pPkt->m_c,
+              pPkt->m_d,
               data + 0x11,
-              *reinterpret_cast<unsigned int*>(data + 0x43),
+              pPkt->m_43,
               data + 0x47,
-              *reinterpret_cast<unsigned int*>(data + 0x5b));
+              pPkt->m_5b);
     }
 
     PacketGuard packet;
@@ -8969,11 +11108,11 @@ int Inter_NoticeServerMessageInfo::dispatch_sig(CUser* /*user*/, char* data, int
     packet.put_byte(1);
     packet.put_byte(1);
     packet.put_byte(
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0xc));
-    packet.put_int(*reinterpret_cast<int*>(data + 0xd));
-    packet.put_str(data + 0x11, *reinterpret_cast<int*>(data + 0xd));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x43));
-    packet.put_str(data + 0x47, *reinterpret_cast<int*>(data + 0x43));
+        (unsigned int)pPkt->m_c);
+    packet.put_int(pPkt->m_d);
+    packet.put_str(pPkt->m_11, pPkt->m_d);
+    packet.put_int(pPkt->m_43);
+    packet.put_str(pPkt->m_47, pPkt->m_43);
     packet.finalize(true);
     G_GameWorld()->send_all_with_state(packet, 3);
     return 0;
@@ -8982,24 +11121,38 @@ int Inter_NoticeServerMessageInfo::dispatch_sig(CUser* /*user*/, char* data, int
 Inter_NoticeGuildMemo::~Inter_NoticeGuildMemo() {}
 // ORIG 0x084dad96 T dispatch_sig —— 公会 memo 通知双字符串转发。
 // 报告 docs/class_func_reports/Inter_NoticeGuildMemo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticeGuildMemoPktView —— Inter_NoticeGuildMemo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_NoticeGuildMemoPktView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned int m_e;         // +0x0e
+    char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
+    char m_pad13[0x1d];  // 未消费
+    char m_30[1];             // +0x30 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_NoticeGuildMemo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_NoticeGuildMemoPktView* pPkt = reinterpret_cast<Inter_NoticeGuildMemoPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
-    const unsigned int charIdMsg =                     // recv charId @ msg+0xe
-        *reinterpret_cast<unsigned int*>(data + 0xe);
-    if (charIdMsg != (unsigned int)user->get_charac_no(-1))
+    // ORIG：register 形态（`mov 0xe(%eax),%ebx`+`cmp %eax,%ebx`）。
+    register unsigned int charIdMsg = pPkt->m_e;
+    if (user->get_charac_no(-1) != charIdMsg)
         return 0;
 
     PacketGuard packet;
     packet.put_header(0, 0xc5);
-    const size_t memo1Len = strlen(data + 0x12);       // memo 串 1
+    const size_t memo1Len = strlen(pPkt->m_12);       // memo 串 1
     packet.put_int(memo1Len);
-    packet.put_str(data + 0x12, memo1Len);
-    const size_t memo2Len = strlen(data + 0x30);       // memo 串 2
+    packet.put_str(pPkt->m_12, memo1Len);
+    const size_t memo2Len = strlen(pPkt->m_30);       // memo 串 2
     packet.put_int(memo2Len);
-    packet.put_str(data + 0x30, memo2Len);
+    packet.put_str(pPkt->m_30, memo2Len);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -9008,11 +11161,29 @@ int Inter_NoticeGuildMemo::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_PowerWarProcessInfo::~Inter_PowerWarProcessInfo() {}
 // ORIG 0x084daf30 T dispatch_sig —— 权力战进行信息下发。
 // 报告 docs/class_func_reports/Inter_PowerWarProcessInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_PowerWarProcessInfoPktView —— Inter_PowerWarProcessInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_PowerWarProcessInfoPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned int m_e;               // +0x0e
+    int m_12;                       // +0x12
+    int m_16;                       // +0x16
+    int m_1a;                       // +0x1a
+    int m_1e;                       // +0x1e
+    int m_22;                       // +0x22
+};
+#pragma pack(pop)
+
 int Inter_PowerWarProcessInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    const unsigned int charIdMsg =                     // recv charId @ msg+0xe
-        *reinterpret_cast<unsigned int*>(data + 0xe);
-    if (charIdMsg != (unsigned int)user->get_charac_no(-1))
+    Inter_PowerWarProcessInfoPktView* pPkt = reinterpret_cast<Inter_PowerWarProcessInfoPktView*>(data);
+    // ORIG：unsigned 字段失配 4 行 spill（同 ReplyGuildLetter）。
+    // 实测本函数 ORIG 为 register 形态（`mov 0xe(%eax),%ebx`+`cmp %eax,%ebx`，
+    // dst 是 %ebx）⇒ 用 register 局部且 call 作左操作数。
+    register unsigned int charIdMsg = pPkt->m_e;
+    if (user->get_charac_no(-1) != charIdMsg)
         return 0;
 
     user->SetPowerWarProcessInfoLastUpdateTime(
@@ -9020,11 +11191,11 @@ int Inter_PowerWarProcessInfo::dispatch_sig(CUser* user, char* data, int /*len*/
 
     PacketGuard packet;
     packet.put_header(0, 0xc9);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x12));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x16));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x1a));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x1e));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x22));
+    packet.put_int(pPkt->m_12);
+    packet.put_int(pPkt->m_16);
+    packet.put_int(pPkt->m_1a);
+    packet.put_int(pPkt->m_1e);
+    packet.put_int(pPkt->m_22);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -9033,21 +11204,37 @@ int Inter_PowerWarProcessInfo::dispatch_sig(CUser* user, char* data, int /*len*/
 Inter_PowerWarEndInfo::~Inter_PowerWarEndInfo() {}
 // ORIG 0x084db070 T dispatch_sig —— 权力战结束信息：胜方判定后转发战果统计。
 // 报告 docs/class_func_reports/Inter_PowerWarEndInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_PowerWarEndInfoPktView —— Inter_PowerWarEndInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_PowerWarEndInfoPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    int m_e;                        // +0x0e
+    unsigned char m_12;             // +0x12
+    int m_13;                       // +0x13
+    int m_17;                       // +0x17
+    int m_1b;                       // +0x1b
+    int m_1f;                       // +0x1f
+    int m_23;                       // +0x23
+};
+#pragma pack(pop)
+
 int Inter_PowerWarEndInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    char* recv = data;                                 // -0xc(%ebp) 缓存消息指针
+    Inter_PowerWarEndInfoPktView* pPkt = reinterpret_cast<Inter_PowerWarEndInfoPktView*>(data);
 
-    if (*reinterpret_cast<int*>(recv + 0xe) != user->get_charac_no(-1))
+    if (pPkt->m_e != user->get_charac_no(-1))
         return 0;
 
     PacketGuard packet;
     packet.put_header(0, 0xdf);
-    packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0x12));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x13));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x17));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x1b));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x1f));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x23));
+    packet.put_byte((unsigned int)pPkt->m_12);
+    packet.put_int(pPkt->m_13);
+    packet.put_int(pPkt->m_17);
+    packet.put_int(pPkt->m_1b);
+    packet.put_int(pPkt->m_1f);
+    packet.put_int(pPkt->m_23);
 
     if (GlobalData::s_power_manager->GetWinnerSide() == user->getPowerSide())
     {   // 与 ORIG +0xa6a4 对应（CDataManager 胜方附加字段，暂无具名成员）
@@ -9065,13 +11252,23 @@ int Inter_PowerWarEndInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_NoticeCreateGuildAgit::~Inter_NoticeCreateGuildAgit() {}
 // ORIG 0x084da98e T dispatch_sig —— 公会聚点创建通知：置标记后按匹配关系回执/同步 proxy。
 // 报告 docs/class_func_reports/Inter_NoticeCreateGuildAgit/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticeCreateGuildAgitPktView —— Inter_NoticeCreateGuildAgit::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NoticeCreateGuildAgitPktView
+{
+    char m_pad0[0x12];  // +0x0..未消费
+    int m_12;                       // +0x12
+};
+#pragma pack(pop)
+
 int Inter_NoticeCreateGuildAgit::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    char* recv = data;                                 // -0xc(%ebp) 缓存消息指针
+    Inter_NoticeCreateGuildAgitPktView* pPkt = reinterpret_cast<Inter_NoticeCreateGuildAgitPktView*>(data);
 
     user->SetGuildAgitFlag(true);
 
-    if (*reinterpret_cast<int*>(recv + 0x12) == user->get_charac_no(-1))
+    if (pPkt->m_12 == user->get_charac_no(-1))
     {   // 目标即本人 → 成功回执
         PacketGuard packet;
         packet.put_header(1, 0xe7);
@@ -9095,18 +11292,30 @@ int Inter_NoticeCreateGuildAgit::dispatch_sig(CUser* user, char* data, int /*len
 Inter_NoticeDeleteGuildAgit::~Inter_NoticeDeleteGuildAgit() {}
 // ORIG 0x084dab18 T dispatch_sig —— 公会驻地删除通知：清标记并发 0xe8/0xbe 包。
 // 报告 docs/class_func_reports/Inter_NoticeDeleteGuildAgit/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticeDeleteGuildAgitPktView —— Inter_NoticeDeleteGuildAgit::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NoticeDeleteGuildAgitPktView
+{
+    char m_pad0[0x12];  // +0x0..未消费
+    int m_12;                       // +0x12
+    unsigned char m_16;             // +0x16
+};
+#pragma pack(pop)
+
 int Inter_NoticeDeleteGuildAgit::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<unsigned char*>(data + 0x16) != 0)   // msg+0x16 错误码
+    Inter_NoticeDeleteGuildAgitPktView* pPkt = reinterpret_cast<Inter_NoticeDeleteGuildAgitPktView*>(data);
+    if (pPkt->m_16 != 0)   // msg+0x16 错误码
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xe8,
-                                 *reinterpret_cast<unsigned char*>(data + 0x16));
+                                 pPkt->m_16);
         return 0;
     }
 
     user->SetGuildAgitFlag(false);
 
-    if (*reinterpret_cast<int*>(data + 0x12) ==               // msg+0x12 == 本人
+    if (pPkt->m_12 ==               // msg+0x12 == 本人
         user->get_charac_no(-1))
     {
         PacketGuard packet;                                   // asm local_28
@@ -9131,13 +11340,24 @@ int Inter_NoticeDeleteGuildAgit::dispatch_sig(CUser* user, char* data, int /*len
 Inter_NoticeLoadGuildAgit::~Inter_NoticeLoadGuildAgit() {}
 // ORIG 0x084dacda T dispatch_sig —— 公会行会据点加载通知。
 // 报告 docs/class_func_reports/Inter_NoticeLoadGuildAgit/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticeLoadGuildAgitPktView —— Inter_NoticeLoadGuildAgit::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NoticeLoadGuildAgitPktView
+{
+    char m_pad0[0x16];  // +0x0..未消费
+    unsigned char m_16;             // +0x16
+};
+#pragma pack(pop)
+
 int Inter_NoticeLoadGuildAgit::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_NoticeLoadGuildAgitPktView* pPkt = reinterpret_cast<Inter_NoticeLoadGuildAgitPktView*>(data);
     user->SetGuildAgitDBInfo(
-        *reinterpret_cast<STGuildAgitDBInfo*>(data + 0x16));
+        *reinterpret_cast<STGuildAgitDBInfo*>((char*)pPkt + 0x16));
     PacketGuard packet;
     packet.put_header(0, 0xbf);
-    packet.put_byte(*reinterpret_cast<unsigned char*>(data + 0x16));
+    packet.put_byte(pPkt->m_16);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -9152,26 +11372,38 @@ int Inter_LoadExpertJob::dispatch_sig(CUser* user, char* data, int /*len*/)
         return 0;
     if (user->getCurCharacR() == 0)
         return 0;
-    // GetCharacExpandData(0) 实际对象为 expert_job::CCharacExpertJob（CData 派生，
-    // vptr+4 loadData 虚槽同 CExpandEquipslot::loadData 槽位，ORIG 裸槽直调忠实转写）
-    expert_job::CCharacExpertJob* job = reinterpret_cast<expert_job::CCharacExpertJob*>(
-        user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0));
-    job->loadData(user, data);
-    expert_job::CCharacExpertJob* job2 = reinterpret_cast<expert_job::CCharacExpertJob*>(
-        user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0));
-    job2->SendExpertJobInfo(user);
+    // GetCharacExpandData(0) 实际对象为 expert_job::CCharacExpertJob（CData 派生，vptr+4
+    // loadData 虚槽，ORIG 0x084db250 mov (%eax),%edx; add $0x4 两参虚调）；第二次独立
+    // call（P48，ORIG 0x084db26a），SendExpertJobInfo 为非虚直调（ORIG 0x0832b454）——
+    // 结果免槽直用（技巧37），cast 无代码。
+    reinterpret_cast<expert_job::CCharacExpertJob*>(
+        user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0))->loadData(user, data);
+    reinterpret_cast<expert_job::CCharacExpertJob*>(
+        user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0))->SendExpertJobInfo(user);
     return 0;
 }
 
 Inter_MonitorPunishUserReq::~Inter_MonitorPunishUserReq() {}
 // ORIG 0x084db294 T dispatch_sig —— 监控踢人：按账号表逐一断线。
 // 报告 docs/class_func_reports/Inter_MonitorPunishUserReq/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorPunishUserReqPktView —— Inter_MonitorPunishUserReq::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorPunishUserReqPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    signed char m_a;                // +0x0a
+    unsigned short m_b;             // +0x0b
+};
+#pragma pack(pop)
+
 int Inter_MonitorPunishUserReq::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_MonitorPunishUserReqPktView* pPkt = reinterpret_cast<Inter_MonitorPunishUserReqPktView*>(data);
     char* recv = data;                                 // -0x14(%ebp) 缓存消息指针
     const int userCount =
-        (int)*reinterpret_cast<unsigned short*>(recv + 0xb);
-    const int flag = (int)*reinterpret_cast<signed char*>(recv + 0xa);
+        (int)pPkt->m_b;
+    const int flag = (int)pPkt->m_a;
 
     cMyTrace trace(
         __PRETTY_FUNCTION__,
@@ -9219,18 +11451,35 @@ bool Inter_PcroomResponse::IsShutdonTimeOverLogin()
 }
 // ORIG 0x084db452 T dispatch_sig —— PC 房响应：鉴权/封禁/公告与 PC 房计费链。
 // 报告 docs/class_func_reports/Inter_PcroomResponse/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_PcroomResponsePktView —— Inter_PcroomResponse::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_PcroomResponsePktView
+{
+    char m_pad0[0x12];  // 未消费
+    unsigned int m_12;        // +0x12
+    long m_16;                // +0x16（ORIG 084db82c `mov 0x16(%eax),%eax` 4 字节读；
+                              //   原 char 槽为转写宽度误，已按 handleSetUserPCRoom 形参 long 修正）
+    signed char m_1a;         // +0x1a
+    signed char m_1b;         // +0x1b
+    signed char m_1c;         // +0x1c
+    signed char m_1d;         // +0x1d
+};
+#pragma pack(pop)
+
 int Inter_PcroomResponse::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_PcroomResponsePktView* pPkt = reinterpret_cast<Inter_PcroomResponsePktView*>(data);
     if (user->get_state() == 0)
         return 0x4404;
 
     if (user->getCurCharacR() != 0)
         user->setPcRoomAuth(true);
-    user->SetPCRoomNo(*reinterpret_cast<unsigned int*>(data + 0x12));
+    user->SetPCRoomNo(pPkt->m_12);
 
-    if (*reinterpret_cast<signed char*>(data + 0x1c) == 7 &&
-        *reinterpret_cast<signed char*>(data + 0x1a) != 3 &&
-        *reinterpret_cast<signed char*>(data + 0x1d) == 1)
+    if (pPkt->m_1c == 7 &&
+        pPkt->m_1a != 3 &&
+        pPkt->m_1d == 1)
     {   // 封禁登录
         user->DisConnSig((DISCONN_SIG)0x3c, true, 0);
         cMyTrace trace(
@@ -9242,16 +11491,16 @@ int Inter_PcroomResponse::dispatch_sig(CUser* user, char* data, int /*len*/)
     bool forbidden = false;                            // -0x2a
     bool showMsg = true;                               // -0x29
     const unsigned int kind =                          // msg+0x1a
-        *reinterpret_cast<unsigned char*>(data + 0x1a);
+        pPkt->m_1a;
     if (kind != 1)
     {
         if (kind < 2)
         {
-            if (kind == 0 && *reinterpret_cast<signed char*>(data + 0x1b) == 2)
+            if (kind == 0 && pPkt->m_1b == 2)
                 forbidden = true;
         }
         else if (kind != 2 && kind == 3 &&
-                 *reinterpret_cast<signed char*>(data + 0x1b) == 1)
+                 pPkt->m_1b == 1)
         {
             forbidden = true;
             showMsg = false;
@@ -9263,15 +11512,15 @@ int Inter_PcroomResponse::dispatch_sig(CUser* user, char* data, int /*len*/)
         cMyTrace trace(
             __PRETTY_FUNCTION__, 0x44ec, 0);
         trace("Inter_PcroomResponse::dispatch_sig() forbidden ip (%d), %d)",
-              (int)*reinterpret_cast<unsigned char*>(data + 0x1a),
-              (int)*reinterpret_cast<unsigned char*>(data + 0x1b));
+              (int)pPkt->m_1a,
+              (int)pPkt->m_1b);
 
         PacketGuard packet;
         packet.put_header(0, 0xe9);
         packet.put_byte(1);
         packet.put_byte(5);
         const char* msgStr = g_nexonMsgTable.GetMessageString(
-            (int)*reinterpret_cast<unsigned char*>(data + 0x1b));
+            (int)pPkt->m_1b);
         char msg[0x401] = { '\0' };                    // -0x45d（ORIG 内联清零）
         const char* str = g_scriptStringManager_.findString(4, msgStr, 0);
         strncpy(msg, str, 0x400);
@@ -9286,11 +11535,11 @@ int Inter_PcroomResponse::dispatch_sig(CUser* user, char* data, int /*len*/)
                                     (int)user->getCurCharacNo(), 0);
     }
 
-    if (*reinterpret_cast<unsigned int*>(data + 0x12) != 0)
+    if (pPkt->m_12 != 0)
     {
         WongWork::CHandlePremium::handleSetUserPCRoom(
             user, GlobalData::s_systemTime_.getCurSec(),
-            *(long*)reinterpret_cast<const char*>(data + 0x16));
+            pPkt->m_16);
     }
     EventClassify::CEventScriptMng* eventMng =
         reinterpret_cast<EventClassify::CEventScriptMng*>(
@@ -9303,9 +11552,21 @@ Inter_ItemLimitEdition_Sell_Start::~Inter_ItemLimitEdition_Sell_Start() {}
 // ORIG 0x084db878 T dispatch_sig —— 限购版道具开卖：清旧登记（广播移除包）、逐条目
 // 注册、广播信息包。msg 布局：+0xa flag(u8) +0xb count(u32) +0xf 起条目 stride 0x48。
 // 报告 docs/class_func_reports/Inter_ItemLimitEdition_Sell_Start/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ItemLimitEdition_Sell_StartPktView —— Inter_ItemLimitEdition_Sell_Start::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_ItemLimitEdition_Sell_StartPktView
+{
+    char m_pad0[0xa];  // 未消费
+    unsigned char m_flag;     // +0x0a
+    unsigned int m_b;         // +0x0b
+};
+#pragma pack(pop)
+
 int Inter_ItemLimitEdition_Sell_Start::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<unsigned char*>(data + 0xa) != 0)
+    Inter_ItemLimitEdition_Sell_StartPktView* pPkt = reinterpret_cast<Inter_ItemLimitEdition_Sell_StartPktView*>(data);
+    if (pPkt->m_flag != 0)
     {
         if (!G_CDataManager()->getItemLimitEditionMgr()->empty())
         {   // 广播移除旧限购信息
@@ -9322,9 +11583,9 @@ int Inter_ItemLimitEdition_Sell_Start::dispatch_sig(CUser* /*user*/, char* data,
     unsigned int i = 0;
     do
     {
-        if (*reinterpret_cast<unsigned int*>(data + 0xb) <= i)
+        if (pPkt->m_b <= i)
         {
-            if (*reinterpret_cast<int*>(data + 0xb) != 0)
+            if (pPkt->m_b != 0)
             {   // 广播新限购信息
                 PacketGuard packet;
                 packet.put_header(0, 0xe1);
@@ -9362,22 +11623,34 @@ regist:
                   *reinterpret_cast<unsigned int*>(data + i * 0x48 + 0x37));
         }
         ++i;
-    } while (i < *reinterpret_cast<unsigned int*>(data + 0xb));
+    } while (i < pPkt->m_b);
     return 0;
 }
 
 Inter_ItemLimitEdition_Sell_End::~Inter_ItemLimitEdition_Sell_End() {}
 // ORIG 0x084dbbb2 T dispatch_sig —— 限量版道具销售结束：逐项移除并广播 IPG 列表。
 // 报告 docs/class_func_reports/Inter_ItemLimitEdition_Sell_End/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ItemLimitEdition_Sell_EndPktView —— Inter_ItemLimitEdition_Sell_End::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_ItemLimitEdition_Sell_EndPktView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned int m_e;         // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_ItemLimitEdition_Sell_End::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_ItemLimitEdition_Sell_EndPktView* pPkt = reinterpret_cast<Inter_ItemLimitEdition_Sell_EndPktView*>(data);
     char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
-    const unsigned int count = *reinterpret_cast<unsigned int*>(recv + 0xe);
+    const unsigned int count = pPkt->m_e;
 
     PacketGuard packet;
     packet.put_header(0, 0xe1);
     packet.put_byte(1);
-    packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0xe));
+    // ORIG 084dbbfc：0xe 按 32 位读（mov 0xe(%eax),%eax）直传 put_byte 形参。
+    packet.put_byte(pPkt->m_e);
 
     unsigned int i = 0;
     while (i < count)                                  // cmp/seta 无符号
@@ -9400,10 +11673,21 @@ int Inter_ItemLimitEdition_Sell_End::dispatch_sig(CUser* /*user*/, char* data, i
 Inter_ItemLimitEdition_Update::~Inter_ItemLimitEdition_Update() {}
 // ORIG 0x084dbd16 T dispatch_sig —— 限售物品数量更新：逐条 updateItem 后广播 0xe1 包。
 // 报告 docs/class_func_reports/Inter_ItemLimitEdition_Update/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ItemLimitEdition_UpdatePktView —— Inter_ItemLimitEdition_Update::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_ItemLimitEdition_UpdatePktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned int m_e;               // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_ItemLimitEdition_Update::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_ItemLimitEdition_UpdatePktView* pPkt = reinterpret_cast<Inter_ItemLimitEdition_UpdatePktView*>(data);
     const unsigned int entryCount =                  // msg+0x0e 条目数
-        *reinterpret_cast<unsigned int*>(data + 0xe);
+        pPkt->m_e;
 
     PacketGuard packet;
     packet.put_header(0, 0xe1);
@@ -9447,15 +11731,32 @@ Inter_ItemLimitEdition_Reply::~Inter_ItemLimitEdition_Reply() {}
 // ORIG 0x084dbef0 T —— 限时道具购买应答。
 // 报告 docs/class_func_reports/Inter_ItemLimitEdition_Reply/dispatch_sig.md 全文转写
 // （## 汇编 + ## 反编译 C）。
+#pragma pack(push, 1)
+// Inter_ItemLimitEdition_ReplyPktView —— Inter_ItemLimitEdition_Reply::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_ItemLimitEdition_ReplyPktView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned int m_e;         // +0x0e
+    unsigned int m_12;        // +0x12
+    unsigned char m_16;       // +0x16
+    unsigned char m_17;       // +0x17
+    unsigned char m_18;       // +0x18
+    char m_pad19[0xaf];  // 未消费
+    unsigned char m_c8;       // +0xc8
+};
+#pragma pack(pop)
+
 int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_ItemLimitEdition_ReplyPktView* pPkt = reinterpret_cast<Inter_ItemLimitEdition_ReplyPktView*>(data);
     if (user->get_state() < (ch_state)3)              // setle 界：state<3 → return 0
         return 0;
 
     const unsigned int reqItemId =                    // msg+0x0e
-        *reinterpret_cast<unsigned int*>(data + 0xe);
+        pPkt->m_e;
     const unsigned int reqCount =                     // msg+0x12
-        *reinterpret_cast<unsigned int*>(data + 0x12);
+        pPkt->m_12;
 
     int specialRestrictCode = 0;
     try
@@ -9463,7 +11764,7 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
         CDataManager* dm = G_CDataManager();
         if (!dm->getItemLimitEditionMgr()->updateItem(reqItemId, reqCount))
             throw static_cast<ENUM_ERROR>(0x16);
-        const unsigned char buyType = *reinterpret_cast<unsigned char*>(data + 0x16);
+        const unsigned char buyType = pPkt->m_16;
         if (buyType == '\x01')
             throw static_cast<ENUM_ERROR>(0x16);
         if (buyType == '\x02')
@@ -9527,7 +11828,7 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
         stCeraShopIPGRequest_t* reqBuf = guard.GetInBuffer<stCeraShopIPGRequest_t>();
         stCeraShopIPGRequest_t& rq = *reqBuf;
 
-        rq.m_productNo = static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0xe));
+        rq.m_productNo = static_cast<unsigned int>(pPkt->m_e);
         rq.m_groupIdx = 10;                                            // IPG 请求类型
         rq.m_itemIdx = edition->getRelateditem();
         rq.m_stackCount = edition->getRelatedItemCnt();
@@ -9538,14 +11839,14 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
         rq.m_itemCount = 1;
         rq.m_seq = 1;
         rq.m_featuredIdx = specialRestrictCode;
-        rq.m_avatarType0 = *reinterpret_cast<unsigned char*>(data + 0x17);
+        rq.m_avatarType0 = pPkt->m_17;
         rq.m_avatarType1 = edition->getAvatarTypeSelect();
         rq.m_curSec = static_cast<unsigned int>(GlobalData::s_systemTime_.getCurSec());
         rq.m_buyFlag = 0;
         rq.m_characNo = user->getCurCharacNo();
         rq.m_accId = static_cast<unsigned int>(user->get_acc_id());
         const unsigned int optionCnt =                                 // msg+0x18
-            *reinterpret_cast<unsigned char*>(data + 0x18);
+            pPkt->m_18;
         rq.m_subCount = static_cast<unsigned char>(optionCnt);
         for (unsigned int i = 0; i < optionCnt; ++i)                   // stride 8 子项@0x48
         {
@@ -9554,7 +11855,7 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
             rq.m_subEntries[i][4] = *(data + 0x1d + i * 5);     // val 槽 +0x04
         }
         const unsigned int avatarCnt =                                 // msg+200(0xc8)
-            *reinterpret_cast<unsigned char*>(data + 200);
+            pPkt->m_c8;
         rq.m_optCount = static_cast<unsigned char>(avatarCnt);
         for (unsigned int j = 0; j < avatarCnt; ++j)                   // stride 8 选项@0x164
         {
@@ -9624,18 +11925,29 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
 Inter_FindFactoryHub::~Inter_FindFactoryHub() {}
 // ORIG 0x084dc97a T dispatch_sig —— 工厂枢纽查找：计 hack 键并上报监视服。
 // 报告 docs/class_func_reports/Inter_FindFactoryHub/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_FindFactoryHubPktView —— Inter_FindFactoryHub::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_FindFactoryHubPktView
+{
+    int m_0;                  // +0x00
+    unsigned char m_4;        // +0x04
+    char m_5[1];              // +0x5 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_FindFactoryHub::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
+    Inter_FindFactoryHubPktView* pPkt = reinterpret_cast<Inter_FindFactoryHubPktView*>(data);
 
     if (user != 0)
     {
-        const int ret1 = user->SetETC(0x2c0, *reinterpret_cast<int*>(recv));
+        const int ret1 = user->SetETC(0x2c0, pPkt->m_0);
         user->getHackAnalyzer()->addServerHackCnt(
             user, (WongWork::ENUM_HACKTYPE)0x2c0, 1, (unsigned int)ret1, 0);
-        if (*reinterpret_cast<unsigned char*>(recv + 4) != 0)
+        if (pPkt->m_4 != 0)
         {
-            const int ret2 = user->SetETC(0x2bd, *reinterpret_cast<int*>(recv));
+            const int ret2 = user->SetETC(0x2bd, pPkt->m_0);
             user->getHackAnalyzer()->addServerHackCnt(
                 user, (WongWork::ENUM_HACKTYPE)0x2bd, 1, (unsigned int)ret2, 0);
         }
@@ -9643,8 +11955,8 @@ int Inter_FindFactoryHub::dispatch_sig(CUser* user, char* data, int /*len*/)
         Packet_Monitor_Find_Factory_Hub_User packet;
         packet.m_charNo = user->getCurCharacNo();      // +0x0a
         packet.m_nameLen =
-            (unsigned char)strlen(recv + 5);           // +0x0e 截断到字节
-        strncpy(packet.m_name, recv + 5, 0x1e);        // +0x0f
+            (unsigned char)strlen(pPkt->m_5);           // +0x0e 截断到字节
+        strncpy(packet.m_name, pPkt->m_5, 0x1e);        // +0x0f
         packet.m_field2e = 0x2c1;                      // +0x2d（ORIG 恒写 0x2c1）
         packet.m_accId = user->get_acc_id();           // +0x2f
         packet.packetSize = 0x33;                      // ORIG 发送长度恒 0x33
@@ -9660,22 +11972,32 @@ int Inter_FindFactoryHub::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_GuildExpLimit::~Inter_GuildExpLimit() {}
 int Inter_GuildExpLimit::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(
-            static_cast<ENUM_SERVER_GROUP>(0));
-    proxy->SendGuildExpLimit();
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(
+        static_cast<ENUM_SERVER_GROUP>(0))->SendGuildExpLimit();
     return 0;
 }
 
 Inter_SetIPCount::~Inter_SetIPCount() {}
 // ORIG 0x084dcb18 T dispatch_sig —— 同 IP 连接计数表同步。
 // 报告 docs/class_func_reports/Inter_SetIPCount/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SetIPCountPktView —— Inter_SetIPCount::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_SetIPCountPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned char m_a;              // +0x0a
+    unsigned char m_b;              // +0x0b
+};
+#pragma pack(pop)
+
 int Inter_SetIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<unsigned char*>(data + 0xa) == 0)
+    Inter_SetIPCountPktView* pPkt = reinterpret_cast<Inter_SetIPCountPktView*>(data);
+    if (pPkt->m_a == 0)
         GlobalData::g_autoPunishRuleHackTypeMgr->ResetIpCounterData();
     const int count =
-        (int)(unsigned char)*reinterpret_cast<unsigned char*>(data + 0xb);
+        (int)(unsigned char)pPkt->m_b;
     for (int i = 0; i < count; ++i)
     {
         GlobalData::g_autoPunishRuleHackTypeMgr->setIPCounterData(
@@ -9690,12 +12012,24 @@ int Inter_SetIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 Inter_SetFullIPCount::~Inter_SetFullIPCount() {}
 // ORIG 0x084dcbea T dispatch_sig —— 全 IP 连接计数表同步。
 // 报告 docs/class_func_reports/Inter_SetFullIPCount/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SetFullIPCountPktView —— Inter_SetFullIPCount::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_SetFullIPCountPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned char m_a;              // +0x0a
+    unsigned char m_b;              // +0x0b
+};
+#pragma pack(pop)
+
 int Inter_SetFullIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<unsigned char*>(data + 0xa) == 0)
+    Inter_SetFullIPCountPktView* pPkt = reinterpret_cast<Inter_SetFullIPCountPktView*>(data);
+    if (pPkt->m_a == 0)
         GlobalData::g_autoPunishRuleHackTypeMgr->ResetFullIpCounterData();
     const int count =
-        (int)(unsigned char)*reinterpret_cast<unsigned char*>(data + 0xb);
+        (int)(unsigned char)pPkt->m_b;
     for (int i = 0; i < count; ++i)
     {
         GlobalData::g_autoPunishRuleHackTypeMgr->setFullIPCounterData(
@@ -9720,18 +12054,30 @@ int Inter_CancelRestingUser::dispatch_sig(CUser* user, char* /*data*/, int /*len
 Inter_ApplyTempPowerSide::~Inter_ApplyTempPowerSide() {}
 // ORIG 0x084dccde T dispatch_sig —— 临时势力侧应用（公会代理修改 + 全服广播 basic_info）。
 // 报告 docs/class_func_reports/Inter_ApplyTempPowerSide/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ApplyTempPowerSidePktView —— Inter_ApplyTempPowerSide::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_ApplyTempPowerSidePktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned int m_e;               // +0x0e（同上）
+    char m_pad12[0x4];  // +0x12..未消费
+    unsigned char m_16;             // +0x16
+};
+#pragma pack(pop)
+
 int Inter_ApplyTempPowerSide::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    const int characNo =                               // msg+0xe
-        *reinterpret_cast<int*>(data + 0xe);
-    if (user->get_charac_no(-1) != characNo)
+    Inter_ApplyTempPowerSidePktView* pPkt = reinterpret_cast<Inter_ApplyTempPowerSidePktView*>(data);
+    // ORIG：msg+0xe 为 unsigned 字段 → int 返回失配的 4 行 spill 形态。
+    if (user->get_charac_no(-1) != pPkt->m_e)
         return 0;
 
     {   // STGuildProxy(GetGuildDBInfo(), 名随写字节+0x1b, msg+0x16)
         STGuildProxy proxy(
             static_cast<const char*>(user->GetGuildDBInfo()),
             *(reinterpret_cast<const unsigned char*>(user->GetGuildDBInfo()) + 0x1b),
-            *reinterpret_cast<unsigned char*>(data + 0x16));
+            pPkt->m_16);
         CGuildServerProxy* proxySrv =
             GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
         proxySrv->ModifyGuildInfoProxy(
@@ -9772,43 +12118,70 @@ int Inter_ReloadPowerWarRanker::dispatch_sig(CUser* /*user*/, char* /*data*/, in
 Inter_LoadPowerWarInfo::~Inter_LoadPowerWarInfo() {}
 // ORIG 0x084dcf4a T dispatch_sig —— 力量战争胜负信息加载。
 // 报告 docs/class_func_reports/Inter_LoadPowerWarInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadPowerWarInfoPktView —— Inter_LoadPowerWarInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_LoadPowerWarInfoPktView
+{
+    unsigned int m_0;         // +0x00
+    unsigned int m_4;         // +0x04
+    unsigned char m_8;        // +0x08
+};
+#pragma pack(pop)
+
 int Inter_LoadPowerWarInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_LoadPowerWarInfoPktView* pPkt = reinterpret_cast<Inter_LoadPowerWarInfoPktView*>(data);
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0x483a, 0);
     trace("Receive SIG_LOAD_POWER_WAR_INFO(Winner:%d, A:%d, B:%d)",
-          (int)(signed char)*reinterpret_cast<unsigned char*>(data + 0x8),
-          (int)*reinterpret_cast<unsigned int*>(data + 0x0),
-          (int)*reinterpret_cast<unsigned int*>(data + 0x4));
+          (int)(signed char)pPkt->m_8,
+          (int)pPkt->m_0,
+          (int)pPkt->m_4);
     GlobalData::s_power_manager->SetPowerInfo(
-        (char)*reinterpret_cast<unsigned char*>(data + 0x8),
-        *reinterpret_cast<int*>(data + 0x0),
-        *reinterpret_cast<int*>(data + 0x4));
+        (char)pPkt->m_8,
+        pPkt->m_0,
+        pPkt->m_4);
     return 0;
 }
 
 Inter_SetFactoryHubUser::~Inter_SetFactoryHubUser() {}
 // ORIG 0x084dcfec T dispatch_sig —— 工厂中枢用户登记/查询。
 // 报告 docs/class_func_reports/Inter_SetFactoryHubUser/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SetFactoryHubUserPktView —— Inter_SetFactoryHubUser::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_SetFactoryHubUserPktView
+{
+    char m_pad0[0xf];  // 未消费
+    char m_f[1];              // +0xf 串/字节区首元素（容量未建模）
+    char m_pad10[0x1d];  // 未消费
+    unsigned char m_2d;       // +0x2d
+    unsigned short m_2e;      // +0x2e
+    int m_30;                 // +0x30
+};
+#pragma pack(pop)
+
 int Inter_SetFactoryHubUser::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_SetFactoryHubUserPktView* pPkt = reinterpret_cast<Inter_SetFactoryHubUserPktView*>(data);
     if (user == 0)
         return 0;
-    if (*reinterpret_cast<unsigned char*>(data + 0x2d) == 0)
+    if (pPkt->m_2d == 0)
     {
         char name[29];
-        strncpy(name, data + 0xf, 0x1d);
+        strncpy(name, pPkt->m_f, 0x1d);
         DB_Find_Factory_Hub_User::makeRequest(
             user->GetUID(), name,
-            *reinterpret_cast<unsigned short*>(data + 0x2e));
+            pPkt->m_2e);
         return 0;
     }
-    const int etc = user->SetETC((short)*reinterpret_cast<unsigned short*>(data + 0x2e),
-                                 *reinterpret_cast<int*>(data + 0x30));
+    const int etc = user->SetETC((short)pPkt->m_2e,
+                                 pPkt->m_30);
     user->getHackAnalyzer()->addServerHackCnt(
         user,
-        (WongWork::ENUM_HACKTYPE)(unsigned int)*reinterpret_cast<unsigned short*>(data + 0x2e),
+        (WongWork::ENUM_HACKTYPE)(unsigned int)pPkt->m_2e,
         1, (unsigned int)etc, 0);
     return 0;
 }
@@ -9816,14 +12189,27 @@ int Inter_SetFactoryHubUser::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_SetFactoryHubUserNotConn::~Inter_SetFactoryHubUserNotConn() {}
 // ORIG 0x084dd0c4 T dispatch_sig —— 工厂中枢用户未连接记录 DB 保存。
 // 报告 docs/class_func_reports/Inter_SetFactoryHubUserNotConn/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SetFactoryHubUserNotConnPktView —— Inter_SetFactoryHubUserNotConn::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_SetFactoryHubUserNotConnPktView
+{
+    unsigned int m_0;               // +0x00
+    int m_4;                        // +0x04（ORIG +0x3f 两步 spill＝signed 字段→unsigned 形参失配）
+    unsigned short m_8;             // +0x08
+};
+#pragma pack(pop)
+
 int Inter_SetFactoryHubUserNotConn::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user != 0)
     {
+    // ORIG：包基址槽在 user 非空门之后物化。
+    Inter_SetFactoryHubUserNotConnPktView* pPkt = reinterpret_cast<Inter_SetFactoryHubUserNotConnPktView*>(data);
         user->getHackAnalyzer()->ReqDBSaveHackInfo(
-            *reinterpret_cast<unsigned int*>(data + 0x0),
-            *reinterpret_cast<unsigned int*>(data + 0x4),
-            *reinterpret_cast<unsigned short*>(data + 0x8),
+            pPkt->m_0,
+            pPkt->m_4,
+            pPkt->m_8,
             (int)user->get_acc_id(), 1);
     }
     return 0;
@@ -9832,14 +12218,25 @@ int Inter_SetFactoryHubUserNotConn::dispatch_sig(CUser* user, char* data, int /*
 Inter_Set_CleanPad_Point::~Inter_Set_CleanPad_Point() {}
 // ORIG 0x084dd12e T dispatch_sig —— CleanPad 点数设置（CMCAPManager）。
 // 报告 docs/class_func_reports/Inter_Set_CleanPad_Point/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_Set_CleanPad_PointPktView —— Inter_Set_CleanPad_Point::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_Set_CleanPad_PointPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned short m_e;             // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_Set_CleanPad_Point::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_Set_CleanPad_PointPktView* pPkt = reinterpret_cast<Inter_Set_CleanPad_PointPktView*>(data);
     if (user == 0)
         return 0;
-    user->m_mcap.setPoint(*reinterpret_cast<unsigned short*>(data + 0xe));
+    user->m_mcap.setPoint(pPkt->m_e);
     const unsigned short point = user->m_mcap.getPoint();
     const unsigned short msgPoint =
-        *reinterpret_cast<unsigned short*>(data + 0xe);
+        pPkt->m_e;
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0x4886, 0);
@@ -9852,14 +12249,34 @@ int Inter_Set_CleanPad_Point::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_LoadNoCacheData::~Inter_LoadNoCacheData() {}
 // ORIG 0x084dd1ee T dispatch_sig —— 无缓存角色数据加载（扩展数据 loadData 虚调用）。
 // 报告 docs/class_func_reports/Inter_LoadNoCacheData/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadNoCacheDataPktView —— Inter_LoadNoCacheData::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_LoadNoCacheDataPktView
+{
+    int m_0;                        // +0x00
+};
+#pragma pack(pop)
+
 int Inter_LoadNoCacheData::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    if (user != 0 &&
-        user->getCurCharacR() != 0 &&
-        user->get_charac_no(-1) == *reinterpret_cast<int*>(data + 0x0))
+    // ORIG 0x084dd1ee：正向嵌套合并假路径（P11/P133）+ setne/sete 布尔物化（技巧22 al）
+    if (user != 0)                                   // ORIG +0x06 cmpl $0x0,0xc; je tail
     {
-        CExpandEquipslot* expand = user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)1);
-        expand->loadData(user, data + 4);   // ORIG vptr+0x4 槽 = CExpandEquipslot::loadData
+        register bool hasCharac asm("al");
+        hasCharac = (user->getCurCharacR() != 0);    // ORIG +0x17 test %eax; setne %al
+        if (hasCharac)                               // ORIG +0x1e je tail
+        {
+            Inter_LoadNoCacheDataPktView* pPkt =    // ORIG +0x23 物化 -0xc（声明位=落槽位，技巧13）
+                reinterpret_cast<Inter_LoadNoCacheDataPktView*>(data);
+            register bool same asm("al");
+            same = (user->get_charac_no(-1) == pPkt->m_0);  // ORIG +0x39~ cmp %edx,%eax; sete %al
+            if (same)                                // ORIG +0x45 je tail
+            {   // ORIG +0x5a~：结果免槽直链，vptr+0x4 = CExpandEquipslot::loadData(user, recv+4)
+                user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)1)->loadData(
+                    user, reinterpret_cast<char*>(pPkt) + 4);
+            }
+        }
     }
     return 0;
 }
@@ -9867,14 +12284,27 @@ int Inter_LoadNoCacheData::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_GuildCargo::~Inter_GuildCargo() {}
 // ORIG 0x084dd26c T dispatch_sig —— 公会仓库结果下发（状态门→历史日志→错误包/回填计数包）。
 // 报告 docs/class_func_reports/Inter_GuildCargo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GuildCargoPktView —— Inter_GuildCargo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_GuildCargoPktView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned int m_e;         // +0x0e（同上）
+    char m_pad12[0x18d8];  // 未消费
+    unsigned int m_18ea;      // +0x18ea
+    unsigned char m_18ee;     // +0x18ee
+};
+#pragma pack(pop)
+
 int Inter_GuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_GuildCargoPktView* pPkt = reinterpret_cast<Inter_GuildCargoPktView*>(data);
     if (user->get_state() <= 2)                        // cmp $2; setle
         return 0;
 
-    const int characNo =                               // msg+0xe
-        *reinterpret_cast<int*>(data + 0xe);
-    if (user->get_charac_no(-1) != characNo)
+    // ORIG：同 ApplyTempPowerSide。
+    if (user->get_charac_no(-1) != pPkt->m_e)
         return 0;
 
     {   // ORIG 0x084dd2df：GuildCargoResult(reason=1, a=msg+0x18ee, b=capacity=msg+0x18ea)
@@ -9882,27 +12312,27 @@ int Inter_GuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
         cUserHistoryLog* hist = &user->m_historyLog;
         hist->GuildCargoResult(
             (ENUM_GUILD_CARGO_HISTORY_REASON)1,
-            (int)*reinterpret_cast<unsigned char*>(data + 0x18ee),
-            (int)*reinterpret_cast<unsigned int*>(data + 0x18ea));
+            (int)pPkt->m_18ee,
+            (int)pPkt->m_18ea);
     }
 
-    if (*reinterpret_cast<char*>(data + 0x18ee) != (char)0xc1)
+    if (pPkt->m_18ee != (char)0xc1)
     {   // 失败：SendCmdErrorPacket(0x109, errCode)
         user->SendCmdErrorPacket(
             (ENUM_CMDPACKET)0x109,
-            *reinterpret_cast<unsigned char*>(data + 0x18ee));
+            pPkt->m_18ee);
         return 0;
     }
 
     user->SetGuildCargoCapacity(
-        *reinterpret_cast<unsigned int*>(data + 0x18ea));
+        pPkt->m_18ea);
 
     int index = 0;                                     // local_1c
     int count = 0;                                     // local_14
     PacketGuard packet;
     packet.put_header(1, 0x109);
     packet.put_byte(1);
-    packet.put_int((int)*reinterpret_cast<unsigned int*>(data + 0x18ea));
+    packet.put_int((int)pPkt->m_18ea);
     index = packet.get_index();
     packet.put_short(count);
     for (int i = 0; i <= 0x77; ++i)                    // cmpl $0x77; setle
@@ -9923,25 +12353,38 @@ int Inter_GuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_NoticeGuildCargo::~Inter_NoticeGuildCargo() {}
 // ORIG 0x084dd4b2 T dispatch_sig —— 公会仓库容量应答：记历史、设容量、组 0xed 包回发。
 // 报告 docs/class_func_reports/Inter_NoticeGuildCargo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticeGuildCargoPktView —— Inter_NoticeGuildCargo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_NoticeGuildCargoPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    char m_pad12[0x18d8];  // 未消费
+    unsigned int m_18ea;      // +0x18ea
+};
+#pragma pack(pop)
+
 int Inter_NoticeGuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_NoticeGuildCargoPktView* pPkt = reinterpret_cast<Inter_NoticeGuildCargoPktView*>(data);
     if (user->get_state() <= 2)                      // asm cmp $0x2; setle; je 返回
         return 0;
 
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0xe))         // msg+0x0e 角色号校验
+        pPkt->m_e)         // msg+0x0e 角色号校验
         return 0;
 
     user->m_historyLog.GuildCargoResult(
         (ENUM_GUILD_CARGO_HISTORY_REASON)2, 0,
-                           *reinterpret_cast<unsigned int*>(data + 0x18ea));
+                           pPkt->m_18ea);
     user->SetGuildCargoCapacity(                     // msg+0x18ea 容量
-        *reinterpret_cast<unsigned int*>(data + 0x18ea));
+        pPkt->m_18ea);
 
     int putCount = 0;                                // local_14/asm -0x10(%ebp)
     PacketGuard packet;
     packet.put_header(0, 0xed);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x18ea));
+    packet.put_int(pPkt->m_18ea);
     int countIdx = packet.get_index();         // 回填位
     packet.put_short(putCount);
     for (int i = 0; i <= 0x77; ++i)                  // asm cmpl $0x77, setle
@@ -9962,13 +12405,24 @@ int Inter_NoticeGuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_GuildCargoHistory::~Inter_GuildCargoHistory() {}
 // ORIG 0x084dd69e T dispatch_sig —— 公会仓库历史查询：组 0x10a 包回发并记历史。
 // 报告 docs/class_func_reports/Inter_GuildCargoHistory/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GuildCargoHistoryPktView —— Inter_GuildCargoHistory::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_GuildCargoHistoryPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    int m_e;                        // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_GuildCargoHistory::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_GuildCargoHistoryPktView* pPkt = reinterpret_cast<Inter_GuildCargoHistoryPktView*>(data);
     if (user->get_state() <= 2)                      // asm cmp $0x2; setle
         return 0;
 
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0xe))         // msg+0x0e 角色号校验
+        pPkt->m_e)         // msg+0x0e 角色号校验
         return 0;
 
     int putCount = 0;                                // local_14/asm -0x10(%ebp)
@@ -10026,37 +12480,56 @@ Packet_Guild_Guild_Cargo_Push_Item::Packet_Guild_Guild_Cargo_Push_Item()
     m_f = 0;
 }
 
+#pragma pack(push, 1)
+// Inter_GuildCargoCheckPushItemPktView —— Inter_GuildCargoCheckPushItem::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_GuildCargoCheckPushItemPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    unsigned char m_12;       // +0x12
+    int m_13;                 // +0x13
+    int m_17;                 // +0x17
+    int m_1b;                 // +0x1b
+    unsigned int m_1f;        // +0x1f
+    char m_pad23[0x1];  // 未消费
+    unsigned char m_24;       // +0x24
+    unsigned short m_25;      // +0x25
+};
+#pragma pack(pop)
+
 int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_GuildCargoCheckPushItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoCheckPushItemPktView*>(data);
     if (user->get_state() <= 2)                        // cmp $0x2,setle → state>2 才放行
         return 0;
 
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0x0e))          // msg+0x0e characNo
+        pPkt->m_e)          // msg+0x0e characNo
         return 0;
 
-    if (*reinterpret_cast<unsigned char*>(data + 0x12) != 0xc1)   // 失败结果上报分支
+    if (pPkt->m_12 != 0xc1)   // 失败结果上报分支
     {
         user->m_historyLog.GuildCargoCheckPushItemResult(
             (ENUM_GUILD_CARGO_HISTORY_REASON)6,
-            *reinterpret_cast<unsigned char*>(data + 0x12),
-            *reinterpret_cast<int*>(data + 0x13),
-            *reinterpret_cast<int*>(data + 0x17),
-            *reinterpret_cast<int*>(data + 0x1b),
-            *reinterpret_cast<unsigned char*>(data + 0x24),
-            *reinterpret_cast<unsigned short*>(data + 0x25));
+            pPkt->m_12,
+            pPkt->m_13,
+            pPkt->m_17,
+            pPkt->m_1b,
+            pPkt->m_24,
+            pPkt->m_25);
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfb,
-                                 *reinterpret_cast<unsigned char*>(data + 0x12));
+                                 pPkt->m_12);
         return 0;
     }
 
     Inven_Item item = user->getCurCharacInvenR()->GetInvenSlot(   // -0x71 栈槽
         (int)GetInvenTypeFromItemSpace(
-            (ENUM_ITEMSPACE)*reinterpret_cast<unsigned char*>(data + 0x24)),  // msg+0x24 itemSpace
-        (int)*reinterpret_cast<unsigned short*>(data + 0x25));    // msg+0x25 slot
+            (ENUM_ITEMSPACE)pPkt->m_24),  // msg+0x24 itemSpace
+        (int)pPkt->m_25);    // msg+0x25 slot
 
-    if (*reinterpret_cast<int*>(data + 0x17) == 0 ||
-        item.m_addInfo != *reinterpret_cast<int*>(data + 0x17))   // 客户端槽位核对
+    if (pPkt->m_17 == 0 ||
+        item.m_addInfo != pPkt->m_17)   // 客户端槽位核对
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfb, 0xc5);
         return 0;
@@ -10092,7 +12565,7 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
     }
 
     if (ci->is_stackable() != 0 &&
-        *reinterpret_cast<int*>(data + 0x1b) > item.m_addInfo2)   // 堆叠数不足
+        pPkt->m_1b > item.m_addInfo2)   // 堆叠数不足
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfb, 0xc6);
         return 0;
@@ -10109,8 +12582,8 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
 
     if (user->getCurCharacInvenW()->delete_item(
             (INVEN_TYPE)item.GetInventoryType(),
-            *reinterpret_cast<int*>(data + 0x25),
-            *reinterpret_cast<int*>(data + 0x1b),
+            pPkt->m_25,
+            pPkt->m_1b,
             (eItemDelReason)0x22, true) != 1)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfb, 0xc5);
@@ -10123,8 +12596,8 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
     DnfItemInfoView& pckItem = *reinterpret_cast<DnfItemInfoView*>(&pck.m_item);  // +0x1b DnfItemInfo 视图（头内 m_item 为字节区）
     pck.m_guildKey = (unsigned int)user->get_charac_guildkey();   // +0x0a
     pck.m_charNo   = (unsigned int)user->getCurCharacNo();        // +0x0e
-    pck.m_b        = (int)*reinterpret_cast<unsigned int*>(data + 0x13);   // +0x12
-    pck.m_d        = *reinterpret_cast<unsigned int*>(data + 0x1f);   // +0x16
+    pck.m_b        = (int)pPkt->m_13;   // +0x12
+    pck.m_d        = pPkt->m_1f;   // +0x16
     pckItem.m_itemId     = (unsigned int)item.m_addInfo;       // +0x1c
     pckItem.m_attr       = item.GetItemAttr();                 // +0x20
     pckItem.m_addInfo    = (unsigned int)item.m_addInfo2;      // +0x21
@@ -10135,10 +12608,10 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
            reinterpret_cast<const unsigned char*>(&item) + 0x25,
            sizeof(RandomOption));
     pckItem.m_up.SetUpgradeSeparate(item.m_upgradeSep.GetUpgradeSeparate());
-    pck.m_e = *reinterpret_cast<unsigned char*>(data + 0x24);     // +0x50
-    pck.m_f = *reinterpret_cast<unsigned short*>(data + 0x25);    // +0x51
+    pck.m_e = pPkt->m_24;     // +0x50
+    pck.m_f = pPkt->m_25;    // +0x51
     if (ci->is_stackable() != 0)                                  // 堆叠件记录申请数
-        pck.m_d     = (unsigned int)*reinterpret_cast<int*>(data + 0x1b);  // +0x16 覆写
+        pck.m_d     = (unsigned int)pPkt->m_1b;  // +0x16 覆写
     else
         pck.m_d     = (unsigned int)item.m_addInfo2;
 
@@ -10158,54 +12631,78 @@ Inter_GuildCargoPushItem::~Inter_GuildCargoPushItem() {}
 // ORIG 0x084ddea2 T dispatch_sig —— 公会仓库上架结果：成功回 0xfb 确认包；
 // 失败则把物品从 msg 载荷重建入背包（失败再走系统邮件回收）。
 // 报告 docs/class_func_reports/Inter_GuildCargoPushItem/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GuildCargoPushItemPktView —— Inter_GuildCargoPushItem::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_GuildCargoPushItemPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    unsigned char m_12;       // +0x12
+    int m_13;                 // +0x13
+    char m_pad17[0x1];  // 未消费
+    int m_18;                 // +0x18
+    unsigned char m_1c;       // +0x1c
+    int m_1d;                 // +0x1d
+    unsigned short m_21;      // +0x21
+    int m_23;                 // +0x23
+    unsigned char m_27;       // +0x27
+    unsigned short m_28;      // +0x28
+    char m_pad2a[0x22];  // 未消费
+    unsigned char m_4c;       // +0x4c
+    unsigned short m_4d;      // +0x4d
+};
+#pragma pack(pop)
+
 int Inter_GuildCargoPushItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_GuildCargoPushItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPushItemPktView*>(data);
     if (user->get_state() <= 2)                        // cmp $0x2,setle
         return 0;
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0x0e))
+        pPkt->m_e)
         return 0;
 
     user->m_historyLog.GuildCargoPushItemResult(
         (ENUM_GUILD_CARGO_HISTORY_REASON)8,
-        *reinterpret_cast<unsigned char*>(data + 0x12),
-        *reinterpret_cast<int*>(data + 0x13),
-        *reinterpret_cast<int*>(data + 0x18),
-        *reinterpret_cast<int*>(data + 0x1d),
-        *reinterpret_cast<unsigned short*>(data + 0x21),
-        *reinterpret_cast<int*>(data + 0x23));
+        pPkt->m_12,
+        pPkt->m_13,
+        pPkt->m_18,
+        pPkt->m_1d,
+        pPkt->m_21,
+        pPkt->m_23);
 
-    if (*reinterpret_cast<unsigned char*>(data + 0x12) == 0xc1)
+    if (pPkt->m_12 == 0xc1)
     {   // 公会服务器确认成功
         PacketGuard packet;                            // -0x30
         packet.put_header(1, 0xfb);
         packet.put_byte(1);
-        packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 0x4c));
-        packet.put_short((int)*reinterpret_cast<unsigned short*>(data + 0x4d));
-        packet.put_int(*reinterpret_cast<int*>(data + 0x1d));
-        packet.put_short(*reinterpret_cast<int*>(data + 0x13));
+        packet.put_byte((int)pPkt->m_4c);
+        packet.put_short((int)pPkt->m_4d);
+        packet.put_int(pPkt->m_1d);
+        packet.put_short(pPkt->m_13);
         packet.finalize(true);
         user->Send(packet);
         return 0;
     }
 
     user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfb,
-                             *reinterpret_cast<unsigned char*>(data + 0x12));
+                             pPkt->m_12);
 
     CInventory* inven = user->getCurCharacInvenW();    // -0x20
     CItem* ci = G_CDataManager()->find_item(           // -0x1c
-        *reinterpret_cast<int*>(data + 0x18));
+        pPkt->m_18);
 
     Inven_Item item;                                   // -0x6d（默认构造）
     ci->make_item(item);                               // ORIG vtable+0x08 槽直调
 
-    item.m_addInfo = *reinterpret_cast<int*>(data + 0x18);
-    item.m_addInfo2 = *reinterpret_cast<int*>(data + 0x1d);
-    item.m_fieldb = *reinterpret_cast<unsigned short*>(data + 0x21);   // endurance
-    item.m_fieldd = *reinterpret_cast<int*>(data + 0x23);
-    item.SetItemAttr(*reinterpret_cast<unsigned char*>(data + 0x1c));
-    item.m_amp.assign(*reinterpret_cast<unsigned char*>(data + 0x27),
-                      *reinterpret_cast<unsigned short*>(data + 0x28));
+    item.m_addInfo = pPkt->m_18;
+    item.m_addInfo2 = pPkt->m_1d;
+    item.m_fieldb = pPkt->m_21;   // endurance
+    item.m_fieldd = pPkt->m_23;
+    item.SetItemAttr(pPkt->m_1c);
+    item.m_amp.assign(pPkt->m_27,
+                      pPkt->m_28);
     // RandomOption ← msg+0x34（+0x25 = m_random.m_random 连续区）
     memcpy(&item.m_random.m_random, data + 0x34, sizeof(RandomOption));
     item.m_upgradeSep.SetUpgradeSeparate(
@@ -10220,16 +12717,16 @@ int Inter_GuildCargoPushItem::dispatch_sig(CUser* user, char* data, int /*len*/)
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
             g_scriptStringManager_.findString(4, "game_server_msg_114", 0),
             item, 0,
-            *reinterpret_cast<unsigned int*>(data + 0x0e),
+            pPkt->m_e,
             reinterpret_cast<const char*>(0), 0, 0,
             (ENUM_SERVER_GROUP)user->GetServerGroup(), false, false);
         user->m_historyLog.GuildCargoItemRecovery(
             (ENUM_GUILD_CARGO_HISTORY_REASON)9,
-            *reinterpret_cast<int*>(data + 0x18),
-            *reinterpret_cast<int*>(data + 0x1d),
-            (int)*reinterpret_cast<unsigned short*>(data + 0x21),
-            *reinterpret_cast<int*>(data + 0x23),
-            (int)*reinterpret_cast<unsigned char*>(data + 0x1c),
+            pPkt->m_18,
+            pPkt->m_1d,
+            (int)pPkt->m_21,
+            pPkt->m_23,
+            (int)pPkt->m_1c,
             (*reinterpret_cast<UpgradeSeparateInfo*>(data + 0x42))
                 .GetUpgradeSeparate());
     }
@@ -10237,8 +12734,37 @@ int Inter_GuildCargoPushItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 }
 
 Inter_GuildCargoPopItem::~Inter_GuildCargoPopItem() {}
+#pragma pack(push, 1)
+// Inter_GuildCargoPopItemPktView —— Inter_GuildCargoPopItem::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_GuildCargoPopItemPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    int m_e;                        // +0x0e
+    int m_12;                       // +0x12
+    char m_pad16[0x1];
+    int m_17;                       // +0x17
+    unsigned char m_1b;             // +0x1b
+    int m_1c;                       // +0x1c
+    unsigned short m_20;            // +0x20
+    int m_22;                       // +0x22
+    unsigned char m_26;             // +0x26
+    unsigned short m_27;            // +0x27
+    char m_pad29[0xa];  // +0x29..未消费
+    unsigned int m_33;              // +0x33
+    unsigned int m_37;              // +0x37
+    unsigned int m_3b;              // +0x3b
+    unsigned short m_3f;            // +0x3f
+    unsigned char m_41;             // +0x41
+    char m_pad42[0x9];  // +0x42..未消费
+    unsigned char m_4b;             // +0x4b
+    int m_4c;                       // +0x4c
+};
+#pragma pack(pop)
+
 int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemPktView*>(data);
     // ORIG 0x084de330 报告 docs/class_func_reports/Inter_GuildCargoPopItem/dispatch_sig.md
     // 两段全读。msg 布局：+0x0e characNo / +0x12 resultByte / +0x17 itemIdx /
     // +0x1c addInfo2 / +0x20 endurance(u16) / +0x22 fieldd / +0x1b SetItemAttr /
@@ -10246,61 +12772,61 @@ int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
     // +0x4c logIdx。
     if (user->get_state() <= 2)
         return 0;
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0xe))
+    if (user->get_charac_no(-1) != pPkt->m_e)
         return 0;
 
     user->m_historyLog.GuildCargoPopItemResult(
         (ENUM_GUILD_CARGO_HISTORY_REASON)0xb,
-        *reinterpret_cast<unsigned char*>(data + 0x4b),
-        *reinterpret_cast<int*>(data + 0x4c),
-        *reinterpret_cast<int*>(data + 0x17),
-        *reinterpret_cast<int*>(data + 0x1c),
-        *reinterpret_cast<unsigned short*>(data + 0x20),
-        *reinterpret_cast<int*>(data + 0x22));
+        pPkt->m_4b,
+        pPkt->m_4c,
+        pPkt->m_17,
+        pPkt->m_1c,
+        pPkt->m_20,
+        pPkt->m_22);
 
-    if (*reinterpret_cast<unsigned char*>(data + 0x4b) != 0xc1)
+    if (pPkt->m_4b != 0xc1)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfc,
-                                 *reinterpret_cast<unsigned char*>(data + 0x4b));
+                                 pPkt->m_4b);
         return 0;
     }
 
     CInventory* inven = user->getCurCharacInvenW();
     CDataManager* dm = G_CDataManager();
     Inven_Item item;                       // ORIG 局部 Inven_Item C1 @ebp-0x85
-    CItem* ci = dm->find_item(*reinterpret_cast<int*>(data + 0x17));
+    CItem* ci = dm->find_item(pPkt->m_17);
     if (ci == 0)
     {
         cMyTrace trace(
             __PRETTY_FUNCTION__,
             0x4a6e, 0);
         trace("ERROR OCCURRED! GUILD CARGO POP ITEM - fail find item(%d), User(%d)",
-              *reinterpret_cast<int*>(data + 0x17), user->getCurCharacNo());
+              pPkt->m_17, user->getCurCharacNo());
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfc, 0xc5);
         return 0;
     }
 
     ci->make_item(item);                   // vtable 槽 +0x08（make_item 出参）
-    item.m_addInfo = *reinterpret_cast<int*>(data + 0x17);
-    item.m_addInfo2 = *reinterpret_cast<int*>(data + 0x1c);
-    item.m_fieldb = *reinterpret_cast<unsigned short*>(data + 0x20);
-    item.m_fieldd = *reinterpret_cast<int*>(data + 0x22);
-    item.SetItemAttr(*reinterpret_cast<unsigned char*>(data + 0x1b));
-    item.m_amp.assign(*reinterpret_cast<unsigned char*>(data + 0x26),
-                      *reinterpret_cast<unsigned short*>(data + 0x27));
+    item.m_addInfo = pPkt->m_17;
+    item.m_addInfo2 = pPkt->m_1c;
+    item.m_fieldb = pPkt->m_20;
+    item.m_fieldd = pPkt->m_22;
+    item.SetItemAttr(pPkt->m_1b);
+    item.m_amp.assign(pPkt->m_26,
+                      pPkt->m_27);
     // RandomOption 连续块（item+0x25..0x32）与升级分离位（item+0x33）：
     // 网络消息到跨字段连续区的按块拷贝（ORIG 五段 disp 存储指令；
     // 同款按块视图先例 CMailBoxHelper.cpp:514 sig_at(&item,0x25)）。
     // +0x25..+0x32 = m_random.m_random（ChronicleRandomOptionInfo+0x06）连续区块写
     *(unsigned int*)&item.m_random.m_random.m_field0 =
-        *reinterpret_cast<unsigned int*>(data + 0x33);
+        pPkt->m_33;
     *(unsigned int*)&item.m_random.m_random.m_field3 =
-        *reinterpret_cast<unsigned int*>(data + 0x37);
+        pPkt->m_37;
     *(unsigned int*)&item.m_random.m_random.m_field6 =
-        *reinterpret_cast<unsigned int*>(data + 0x3b);
+        pPkt->m_3b;
     *(unsigned short*)&item.m_random.m_random.m_seed9 =
-        *reinterpret_cast<unsigned short*>(data + 0x3f);
-    item.m_upgradeSep.m_field = *reinterpret_cast<unsigned char*>(data + 0x41);
+        pPkt->m_3f;
+    item.m_upgradeSep.m_field = pPkt->m_41;
 
     int firstResult = 0;                   // 试占位结果（包内回发槽号）
     if (ci->IsCreatureItem())              // vtable 槽 +0x14
@@ -10316,16 +12842,16 @@ int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
             g_scriptStringManager_.findString(4, "game_server_msg_114",
                                               reinterpret_cast<bool*>(0));
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-            title, item, 0u, static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0xe)),
+            title, item, 0u, static_cast<unsigned int>(pPkt->m_e),
             reinterpret_cast<const char*>(0), 0, 0u, user->GetServerGroup(),
             false, false);
         user->m_historyLog.GuildCargoItemRecovery(
             (ENUM_GUILD_CARGO_HISTORY_REASON)0xc,
-            *reinterpret_cast<int*>(data + 0x17),
-            *reinterpret_cast<int*>(data + 0x1c),
-            *reinterpret_cast<unsigned short*>(data + 0x20),
-            *reinterpret_cast<int*>(data + 0x22),
-            *reinterpret_cast<unsigned char*>(data + 0x1b),
+            pPkt->m_17,
+            pPkt->m_1c,
+            pPkt->m_20,
+            pPkt->m_22,
+            pPkt->m_1b,
             (*reinterpret_cast<UpgradeSeparateInfo*>(data + 0x41))
                 .GetUpgradeSeparate());
     }
@@ -10351,16 +12877,16 @@ int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
                                                   reinterpret_cast<bool*>(0));
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 title, item, 0u,
-                static_cast<unsigned int>(*reinterpret_cast<int*>(data + 0xe)),
+                static_cast<unsigned int>(pPkt->m_e),
                 reinterpret_cast<const char*>(0), 0, 0u, user->GetServerGroup(),
                 false, false);
             user->m_historyLog.GuildCargoItemRecovery(
                 (ENUM_GUILD_CARGO_HISTORY_REASON)0xc,
-                *reinterpret_cast<int*>(data + 0x17),
-                *reinterpret_cast<int*>(data + 0x1c),
-                *reinterpret_cast<unsigned short*>(data + 0x20),
-                *reinterpret_cast<int*>(data + 0x22),
-                *reinterpret_cast<unsigned char*>(data + 0x1b),
+                pPkt->m_17,
+                pPkt->m_1c,
+                pPkt->m_20,
+                pPkt->m_22,
+                pPkt->m_1b,
                 (*reinterpret_cast<UpgradeSeparateInfo*>(data + 0x41))
                     .GetUpgradeSeparate());
         }
@@ -10369,10 +12895,10 @@ int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
     PacketGuard packet;
     packet.put_header(1, 0xfc);
     packet.put_byte(1);
-    packet.put_short(*reinterpret_cast<int*>(data + 0x4c));
-    packet.put_byte(*reinterpret_cast<int*>(data + 0x12));
+    packet.put_short(pPkt->m_4c);
+    packet.put_byte(pPkt->m_12);
     packet.put_short(firstResult);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x1c));
+    packet.put_int(pPkt->m_1c);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -10381,34 +12907,47 @@ int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_GuildCargoMoveItem::~Inter_GuildCargoMoveItem() {}
 // ORIG 0x084debb4 T dispatch_sig —— 公会仓库移动结果：记历史日志并回执客户端。
 // 报告 docs/class_func_reports/Inter_GuildCargoMoveItem/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GuildCargoMoveItemPktView —— Inter_GuildCargoMoveItem::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_GuildCargoMoveItemPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    unsigned char m_12;       // +0x12
+    int m_13;                 // +0x13
+    int m_17;                 // +0x17
+};
+#pragma pack(pop)
+
 int Inter_GuildCargoMoveItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_GuildCargoMoveItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoMoveItemPktView*>(data);
     if (user->get_state() <= 2)                        // setle：signed <= 2
         return 0;
 
-    char* recv = data;                                 // -0xc(%ebp) 缓存消息指针
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(recv + 0xe))
+    if (user->get_charac_no(-1) != pPkt->m_e)
         return 0;
 
     user->m_historyLog.GuildCargoMoveItemResult(       // +0x79700
         (ENUM_GUILD_CARGO_HISTORY_REASON)0xe,
-        *reinterpret_cast<unsigned char*>(recv + 0x12),
-        *reinterpret_cast<int*>(recv + 0x13),
-        *reinterpret_cast<int*>(recv + 0x17));
+        pPkt->m_12,
+        pPkt->m_13,
+        pPkt->m_17);
 
     PacketGuard packet;
     packet.put_header(1, 0xfd);
-    if (*reinterpret_cast<signed char*>(recv + 0x12) == (signed char)0xc1)
+    if (pPkt->m_12 == (signed char)0xc1)
     {   // 结果码 0xc1 → 成功标记
         packet.put_byte(1);
     }
     else
     {
         packet.put_byte(0);
-        packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0x12));
+        packet.put_byte((unsigned int)pPkt->m_12);
     }
-    packet.put_short(*reinterpret_cast<int*>(recv + 0x13));
-    packet.put_short(*reinterpret_cast<int*>(recv + 0x17));
+    packet.put_short(pPkt->m_13);
+    packet.put_short(pPkt->m_17);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -10417,24 +12956,36 @@ int Inter_GuildCargoMoveItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_GuildCargoUpgrade::~Inter_GuildCargoUpgrade() {}
 // ORIG 0x084ded42 T dispatch_sig —— 公会仓库升级应答。
 // 报告 docs/class_func_reports/Inter_GuildCargoUpgrade/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GuildCargoUpgradePktView —— Inter_GuildCargoUpgrade::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_GuildCargoUpgradePktView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned int m_e;         // +0x0e
+    char m_12;                // +0x12
+};
+#pragma pack(pop)
+
 int Inter_GuildCargoUpgrade::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_GuildCargoUpgradePktView* pPkt = reinterpret_cast<Inter_GuildCargoUpgradePktView*>(data);
     if (user->get_state() <= 2)
         return 0;
 
     const unsigned int charIdMsg =                     // recv charId @ msg+0xe
-        *reinterpret_cast<unsigned int*>(data + 0xe);
+        pPkt->m_e;
     if (charIdMsg != (unsigned int)user->get_charac_no(-1))
         return 0;
 
     PacketGuard packet;
     packet.put_header(1, 0x10d);
-    if (*reinterpret_cast<char*>(data + 0x12) == '\xc1')
+    if (pPkt->m_12 == '\xc1')
         packet.put_byte(1);
     else
     {
         packet.put_byte(0);
-        packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(data + 0x12));
+        packet.put_byte((unsigned int)pPkt->m_12);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -10445,30 +12996,46 @@ Inter_GuildBoardData::~Inter_GuildBoardData() {}
 // ORIG 0x084dee6a T dispatch_sig —— 公会留言板数据下发：按请求码 0x232a/0x232e
 // 组 0x155/0x156 回包，逐条 0xa5 记录转写。
 // 报告 docs/class_func_reports/Inter_GuildBoardData/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GuildBoardDataPktView —— Inter_GuildBoardData::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_GuildBoardDataPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned short m_a;             // +0x0a
+    unsigned short m_c;             // +0x0c
+    unsigned char m_e;              // +0x0e
+    char m_padf[0x4];  // +0xf..未消费
+    int m_13;                       // +0x13
+    signed char m_17;               // +0x17
+};
+#pragma pack(pop)
+
 int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_GuildBoardDataPktView* pPkt = reinterpret_cast<Inter_GuildBoardDataPktView*>(data);
     if (user->get_state() <= 2)                        // cmp $0x2,setle
         return 0;
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0x13))
+        pPkt->m_13)
         return 0;
 
     PacketGuard packet;                                // -0x44
 
     const unsigned short code =                        // msg+0xc
-        (unsigned short)*reinterpret_cast<unsigned short*>(data + 0xc);
+        (unsigned short)pPkt->m_c;
     if (code == 0x232a)
         packet.put_header(1, 0x155);
     else if (code == 0x232e)
         packet.put_header(1, 0x156);
 
-    if (*reinterpret_cast<unsigned short*>(data + 0x0a) == 0)
+    if (pPkt->m_a == 0)
     {   // 正常数据分支
         packet.put_byte(1);
-        packet.put_byte((int)*reinterpret_cast<unsigned char*>(data + 0x0e));
-        packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x17));
+        packet.put_byte((int)pPkt->m_e);
+        packet.put_byte((int)pPkt->m_17);
         for (int i = 0;                                // -0x24
-             i < (int)*reinterpret_cast<signed char*>(data + 0x17); ++i)
+             i < (int)pPkt->m_17; ++i)
         {
             char flag = 0;                             // -0x1d
             if (*reinterpret_cast<unsigned char*>(data + i * 0xa5 + 0x9e) == 1)
@@ -10503,14 +13070,14 @@ int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
             0x4b51, 0);
         trace("GUILD_BOARD : CHARAC NO : %u, CODE : %u, TOTAL CNT : %u, CNT : %u : BOARD DATA SEND!!",
               user->get_charac_no(-1), (unsigned int)code,
-              (unsigned int)*reinterpret_cast<unsigned char*>(data + 0x0e),
-              (int)*reinterpret_cast<signed char*>(data + 0x17));
+              (unsigned int)pPkt->m_e,
+              (int)pPkt->m_17);
     }
     else
     {   // 错误码分支
         packet.put_byte(0);
         packet.put_short((int)(unsigned int)
-                         *reinterpret_cast<unsigned short*>(data + 0x0a));
+                         pPkt->m_a);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -10520,24 +13087,38 @@ int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_GuildBoardDelete::~Inter_GuildBoardDelete() {}
 // ORIG 0x084df2ac T dispatch_sig —— 公会留言板删除应答。
 // 报告 docs/class_func_reports/Inter_GuildBoardDelete/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GuildBoardDeletePktView —— Inter_GuildBoardDelete::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_GuildBoardDeletePktView
+{
+    char m_pad0[0xa];  // 未消费
+    short m_a;                // +0x0a
+    char m_padc[0x7];  // 未消费
+    unsigned int m_13;        // +0x13
+};
+#pragma pack(pop)
+
 int Inter_GuildBoardDelete::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_GuildBoardDeletePktView* pPkt = reinterpret_cast<Inter_GuildBoardDeletePktView*>(data);
     if (user->get_state() <= 2)
         return 0;
 
-    const unsigned int charIdMsg =                     // recv charId @ msg+0x13
-        *reinterpret_cast<unsigned int*>(data + 0x13);
-    if (charIdMsg != (unsigned int)user->get_charac_no(-1))
+    // ORIG +0x53：`mov %eax,%edx`+`mov -0xc(%ebp),%eax`+`mov 0x13(%eax),%eax` 两步 spill
+    // ＝unsigned 字段与 get_charac_no(int) 失配；显式 `(int)` 会把失配折平 ⇒ 去掉转换。
+    if (user->get_charac_no(-1) != pPkt->m_13)        // recv charId @ msg+0x13
         return 0;
 
     PacketGuard packet;
     packet.put_header(1, 0x157);
-    if (*reinterpret_cast<short*>(data + 0xa) == 0)
+    if (pPkt->m_a == 0)
         packet.put_byte(1);
     else
     {
         packet.put_byte(0);
-        packet.put_short(*reinterpret_cast<unsigned short*>(data + 0xa));
+        packet.put_short(
+            static_cast<int>(static_cast<unsigned short>(pPkt->m_a)));
     }
     packet.finalize(true);
     user->Send(packet);
@@ -10547,11 +13128,22 @@ int Inter_GuildBoardDelete::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_TakeScreenShot::~Inter_TakeScreenShot() {}
 // ORIG 0x084df3d6 T dispatch_sig —— 客户端截屏请求全网广播。
 // 报告 docs/class_func_reports/Inter_TakeScreenShot/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_TakeScreenShotPktView —— Inter_TakeScreenShot::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_TakeScreenShotPktView
+{
+    char m_pad0[0xb];  // +0x0..未消费
+    int m_b;                        // +0x0b
+};
+#pragma pack(pop)
+
 int Inter_TakeScreenShot::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_TakeScreenShotPktView* pPkt = reinterpret_cast<Inter_TakeScreenShotPktView*>(data);
     PacketGuard packet;
     packet.put_header(0, 0xf4);
-    packet.put_int(*reinterpret_cast<int*>(data + 0xb));
+    packet.put_int(pPkt->m_b);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     return 0;
@@ -10560,8 +13152,21 @@ int Inter_TakeScreenShot::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 Inter_VillageAttackedStart::~Inter_VillageAttackedStart() {}
 // ORIG 0x084df47a T dispatch_sig —— 村庄袭击开始：关闭极限地下城 + 全服广播 0xf1 包。
 // 报告 docs/class_func_reports/Inter_VillageAttackedStart/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_VillageAttackedStartPktView —— Inter_VillageAttackedStart::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_VillageAttackedStartPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+    int m_e;                        // +0x0e
+    int m_12;                       // +0x12
+};
+#pragma pack(pop)
+
 int Inter_VillageAttackedStart::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_VillageAttackedStartPktView* pPkt = reinterpret_cast<Inter_VillageAttackedStartPktView*>(data);
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
         return 0;
 
@@ -10590,9 +13195,9 @@ int Inter_VillageAttackedStart::dispatch_sig(CUser* /*user*/, char* data, int /*
     packet.clear();
     packet.put_header(0, 0xf1);
     packet.put_int(0);
-    packet.put_int(*reinterpret_cast<int*>(data + 0xa));
-    packet.put_int(*reinterpret_cast<int*>(data + 0xe));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x12));
+    packet.put_int(pPkt->m_a);
+    packet.put_int(pPkt->m_e);
+    packet.put_int(pPkt->m_12);
     packet.put_int(0);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
@@ -10604,21 +13209,34 @@ Inter_VillageAttackedEnd::~Inter_VillageAttackedEnd() {}
 // ORIG 0x084df6a4 T dispatch_sig —— 村庄攻防结束：开/关复仇副本、遍历在线用户
 // 发 0x1ec 结束包（疲劳结算、复仇次数落库），最后广播奖励类型。
 // 报告 docs/class_func_reports/Inter_VillageAttackedEnd/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_VillageAttackedEndPktView —— Inter_VillageAttackedEnd::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_VillageAttackedEndPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+    unsigned int m_e;               // +0x0e
+    unsigned int m_12;              // +0x12
+};
+#pragma pack(pop)
+
 int Inter_VillageAttackedEnd::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_VillageAttackedEndPktView* pPkt = reinterpret_cast<Inter_VillageAttackedEndPktView*>(data);
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())   // test al → false 才继续
         return 0;
 
     const unsigned int curSec =                        // -0x38
         GlobalData::s_systemTime_.getCurSec();
     const unsigned int closeTime =                     // -0x34（msg+0x0a）
-        *reinterpret_cast<unsigned int*>(data + 0x0a);
+        pPkt->m_a;
     const int remainSec =                              // -0x34 复用（Ghidra local_34）
         (closeTime < curSec) ? 0 : (int)(closeTime - curSec);
     int state;                                         // -0x30
 
-    if (*reinterpret_cast<unsigned int*>(data + 0x0e) <
-        *reinterpret_cast<unsigned int*>(data + 0x12))
+    if (pPkt->m_e <
+        pPkt->m_12)
     {
         GlobalData::s_revengeDungeonMgr->CloseRevengeDungeon();
         GlobalData::s_revengeDungeonMgr->SetCloseTime(closeTime);
@@ -10719,8 +13337,19 @@ int Inter_VillageAttackedEnd::dispatch_sig(CUser* /*user*/, char* data, int /*le
 Inter_VillageAttackedCountdown::~Inter_VillageAttackedCountdown() {}
 // ORIG 0x084dfae0 T dispatch_sig —— 村庄攻击倒计时广播。
 // 报告 docs/class_func_reports/Inter_VillageAttackedCountdown/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_VillageAttackedCountdownPktView —— Inter_VillageAttackedCountdown::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_VillageAttackedCountdownPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_VillageAttackedCountdown::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_VillageAttackedCountdownPktView* pPkt = reinterpret_cast<Inter_VillageAttackedCountdownPktView*>(data);
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
         CEnvironment* env = G_CEnvironment();
@@ -10730,7 +13359,7 @@ int Inter_VillageAttackedCountdown::dispatch_sig(CUser* /*user*/, char* data, in
             PacketGuard packet;
             packet.clear();
             packet.put_header(0, 0xf1);
-            packet.put_int(*reinterpret_cast<int*>(data + 0xa));
+            packet.put_int(pPkt->m_a);
             packet.finalize(true);
             G_GameWorld()->send_all(packet);
         }
@@ -10741,8 +13370,21 @@ int Inter_VillageAttackedCountdown::dispatch_sig(CUser* /*user*/, char* data, in
 Inter_VillageAttackedUpdate::~Inter_VillageAttackedUpdate() {}
 // ORIG 0x084dfbe6 T dispatch_sig —— 村庄攻击状态全员更新广播。
 // 报告 docs/class_func_reports/Inter_VillageAttackedUpdate/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_VillageAttackedUpdatePktView —— Inter_VillageAttackedUpdate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_VillageAttackedUpdatePktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+    int m_e;                        // +0x0e
+    int m_12;                       // +0x12
+};
+#pragma pack(pop)
+
 int Inter_VillageAttackedUpdate::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_VillageAttackedUpdatePktView* pPkt = reinterpret_cast<Inter_VillageAttackedUpdatePktView*>(data);
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
         CEnvironment* env = G_CEnvironment();
@@ -10752,9 +13394,9 @@ int Inter_VillageAttackedUpdate::dispatch_sig(CUser* /*user*/, char* data, int /
             PacketGuard packet;
             packet.clear();
             packet.put_header(0, 0xf7);
-            packet.put_int(*reinterpret_cast<int*>(data + 0xa));
-            packet.put_int(*reinterpret_cast<int*>(data + 0xe));
-            packet.put_int(*reinterpret_cast<int*>(data + 0x12));
+            packet.put_int(pPkt->m_a);
+            packet.put_int(pPkt->m_e);
+            packet.put_int(pPkt->m_12);
             packet.finalize(true);
             G_GameWorld()->send_all(packet);
         }
@@ -10765,6 +13407,20 @@ int Inter_VillageAttackedUpdate::dispatch_sig(CUser* /*user*/, char* data, int /
 Inter_VillageAttackedScore::~Inter_VillageAttackedScore() {}
 // ORIG 0x084dfd16 T dispatch_sig —— 村庄袭击比分：多门校验后转发四方比分。
 // 报告 docs/class_func_reports/Inter_VillageAttackedScore/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_VillageAttackedScorePktView —— Inter_VillageAttackedScore::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_VillageAttackedScorePktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    unsigned int m_e;               // +0x0e（同上 unsigned→int 失配两步 spill 形态）
+    int m_12;                       // +0x12
+    int m_16;                       // +0x16
+    int m_1a;                       // +0x1a
+    int m_1e;                       // +0x1e
+};
+#pragma pack(pop)
+
 int Inter_VillageAttackedScore::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (G_GameWorld()->IsIntegratedPvPBaseChannel() != '\0')   // 门1：整合频道拒绝
@@ -10775,21 +13431,21 @@ int Inter_VillageAttackedScore::dispatch_sig(CUser* user, char* data, int /*len*
     if (G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
         G_CEnvironment()->m_serverEnvir.m_serverType == 2)
         return 0;
-
     if (user->getCurCharacR() == 0)                            // 门3：当前角色必须存在
         return 0;
+    // ORIG：包基址槽在门 3（getCurCharacR）之后才物化。
+    Inter_VillageAttackedScorePktView* pPkt = reinterpret_cast<Inter_VillageAttackedScorePktView*>(data);
 
-    char* recv = data;                                 // -0xc(%ebp) 缓存消息指针
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(recv + 0xe))
+    if (user->get_charac_no(-1) != pPkt->m_e)
         return 0;
 
     PacketGuard packet;
     packet.clear();
     packet.put_header(0, 0xf8);
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x12));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x16));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x1a));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x1e));
+    packet.put_int(pPkt->m_12);
+    packet.put_int(pPkt->m_16);
+    packet.put_int(pPkt->m_1a);
+    packet.put_int(pPkt->m_1e);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -10799,8 +13455,21 @@ Inter_VillageAttackedReward::~Inter_VillageAttackedReward() {}
 // ORIG 0x084dfea6 T dispatch_sig —— 村庄攻防奖励发放：按奖励类型（win point /
 // 排名 / 参战）检索 Arad_VillageAttackRewardItem 脚本并发奖。
 // 报告 docs/class_func_reports/Inter_VillageAttackedReward/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_VillageAttackedRewardPktView —— Inter_VillageAttackedReward::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_VillageAttackedRewardPktView
+{
+    char m_pad0[0xe];  // +0x0..未消费
+    int m_e;                        // +0x0e
+    int m_12;                       // +0x12
+    int m_16;                       // +0x16
+};
+#pragma pack(pop)
+
 int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_VillageAttackedRewardPktView* pPkt = reinterpret_cast<Inter_VillageAttackedRewardPktView*>(data);
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())   // test al → false 才继续
         return 0;
     if (G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||   // +0x1a8
@@ -10812,17 +13481,17 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
         return 0;
 
     if (user->get_charac_no(-1) !=
-        *reinterpret_cast<int*>(data + 0x0e))          // msg+0x0e characNo
+        pPkt->m_e)          // msg+0x0e characNo
         return 0;
 
-    const int rewardType = *reinterpret_cast<int*>(data + 0x16);
+    const int rewardType = pPkt->m_16;
     // ORIG 0x084dfea6：cmp 链 5→6→3（jne 尾），reward3 代码在比较链后 fallthrough，
     // reward5/6 代码跳转在后。保持 if 顺序 5→6→3 以匹配。
     if (rewardType == 5)
     {   // 胜利点数奖励
         Arad_VillageAttackRewardItem::Data rewardData(   // -0x64
-            *reinterpret_cast<int*>(data + 0x12), 0, 0);
-        const int winPoint = *reinterpret_cast<int*>(data + 0x12);
+            pPkt->m_12, 0, 0);
+        const int winPoint = pPkt->m_12;
         ARAD::Arad_DataManager* adm = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
         Arad_VillageAttackRewardItem* reward =
             adm->getAradVillageAttackReward();
@@ -10844,7 +13513,7 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
     {   // 排名奖励
         Arad_VillageAttackRewardItem::RankData rankData;   // -0x74（memset 0x10）
         const short rank =
-            (short)*reinterpret_cast<int*>(data + 0x12);   // movswl
+            (short)pPkt->m_12;   // movswl
         ARAD::Arad_DataManager* adm = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
         Arad_VillageAttackRewardItem* reward =
             adm->getAradVillageAttackReward();
@@ -10859,14 +13528,14 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
                 {
                     _send_reward_item(user, (unsigned long)fields[i],
                                       fields[2 + i],
-                                      *reinterpret_cast<int*>(data + 0x12));
+                                      pPkt->m_12);
                     cMyTrace trace(
                         __PRETTY_FUNCTION__,
                         0x4d8c, 0);
                     trace("VillageAttacked Reward Ranker Item Index. "
                           "[charac:%u][rank:%d][item:%u][count:%d]",
                           user->get_charac_no(-1),
-                          *reinterpret_cast<int*>(data + 0x12),
+                          pPkt->m_12,
                           fields[i], fields[2 + i]);
                 }
             }
@@ -10877,7 +13546,7 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
                 1, "InterDispatcher.cpp",
                 __PRETTY_FUNCTION__,
                 0x4d92, "VillageAttackedReward Invalid Rank. [rank:%d]",
-                *reinterpret_cast<int*>(data + 0x12));
+                pPkt->m_12);
             return 0;
         }
     }
@@ -10969,13 +13638,24 @@ int Inter_VillageAttackedRewardServer::dispatch_sig(CUser* /*user*/, char* /*dat
 Inter_FullLevelBroadCast::~Inter_FullLevelBroadCast() {}
 // ORIG 0x084e0816 T dispatch_sig —— 全服广播字符串（满级公告等）。
 // 报告 docs/class_func_reports/Inter_FullLevelBroadCast/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_FullLevelBroadCastPktView —— Inter_FullLevelBroadCast::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_FullLevelBroadCastPktView
+{
+    char m_pad0[0xa];  // 未消费
+    char m_a[1];              // +0xa 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_FullLevelBroadCast::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_FullLevelBroadCastPktView* pPkt = reinterpret_cast<Inter_FullLevelBroadCastPktView*>(data);
     PacketGuard packet;
     packet.put_header(0, 0x56);
     packet.put_byte(6);
-    packet.put_int((int)strlen(data + 0xa));
-    packet.put_str(data + 0xa, (int)strlen(data + 0xa));
+    packet.put_int((int)strlen(pPkt->m_a));
+    packet.put_str(pPkt->m_a, (int)strlen(pPkt->m_a));
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     return 0;
@@ -10984,11 +13664,25 @@ int Inter_FullLevelBroadCast::dispatch_sig(CUser* /*user*/, char* data, int /*le
 Inter_Hack_CheckMyAccount::~Inter_Hack_CheckMyAccount() {}
 // ORIG 0x084e08fc T dispatch_sig —— 账号自查异常登记 hack 计数。
 // 报告 docs/class_func_reports/Inter_Hack_CheckMyAccount/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_Hack_CheckMyAccountPktView —— Inter_Hack_CheckMyAccount::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_Hack_CheckMyAccountPktView
+{
+    int m_0;                        // +0x00
+    char m_pad4[0x4];  // +0x4..未消费
+    int m_8;                        // +0x08
+};
+#pragma pack(pop)
+
 int Inter_Hack_CheckMyAccount::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<int*>(data + 0x0) == 0)
+    Inter_Hack_CheckMyAccountPktView* pPkt = reinterpret_cast<Inter_Hack_CheckMyAccountPktView*>(data);
+    if (pPkt->m_0 == 0)
     {
-        const int etc = user->SetETC(0x2c5, *reinterpret_cast<int*>(data + 0x8));
+        // ORIG +0x3c 一步 `mov %eax,%ebx`（call 结果直落 callee-saved）＝register 变量形态；
+        // const 普通局部会先落栈再取（多两行）。
+        register int etc = user->SetETC(0x2c5, pPkt->m_8);
         user->getHackAnalyzer()->addServerHackCnt(
             user, (WongWork::ENUM_HACKTYPE)0x2c5, 1, (unsigned int)etc, 0);
     }
@@ -10998,13 +13692,26 @@ int Inter_Hack_CheckMyAccount::dispatch_sig(CUser* user, char* data, int /*len*/
 Inter_SetSecounUserData::~Inter_SetSecounUserData() {}
 // ORIG 0x084e0972 T dispatch_sig —— 记录黑金没收用户的钱款入账。
 // 报告 docs/class_func_reports/Inter_SetSecounUserData/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SetSecounUserDataPktView —— Inter_SetSecounUserData::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_SetSecounUserDataPktView
+{
+    unsigned long long m_0;   // +0x00
+    unsigned long long m_8;   // +0x08
+    unsigned int m_10;        // +0x10
+    unsigned int m_14;        // +0x14
+};
+#pragma pack(pop)
+
 int Inter_SetSecounUserData::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_SetSecounUserDataPktView* pPkt = reinterpret_cast<Inter_SetSecounUserDataPktView*>(data);
     user->gainMoneyFromHackUser(
-        *reinterpret_cast<unsigned int*>(data + 0x14),
-        *reinterpret_cast<unsigned long long*>(data + 0x0),
-        *reinterpret_cast<unsigned int*>(data + 0x10),
-        *reinterpret_cast<unsigned long long*>(data + 0x8));
+        pPkt->m_14,
+        pPkt->m_0,
+        pPkt->m_10,
+        pPkt->m_8);
     return 0;
 }
 
@@ -11012,9 +13719,37 @@ Inter_SetARSInfo::~Inter_SetARSInfo() {}
 // ORIG 0x084e09ce T dispatch_sig —— 网吧自动惩罚规则(ARS)批量下发：reset 门 + 每条目
 // setTotalTrade/setHackCnt 分发与 trace，条目 stride 0xc。
 // 报告 docs/class_func_reports/Inter_SetARSInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SetARSInfoPktView —— Inter_SetARSInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_SetARSInfoPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+    unsigned char m_e;              // +0x0e
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+// Inter_SetARSInfoEntryWinView —— Inter_SetARSInfo::dispatch_sig 窗口 entry 元素视图
+//   （entry 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
+struct Inter_SetARSInfoEntryWinView
+{
+    char m_pad0[0xf];  // 未消费
+    unsigned short m_f;       // +0x0f
+    unsigned short m_11;      // +0x11
+    unsigned short m_13;      // +0x13
+    unsigned short m_15;      // +0x15
+    unsigned char m_17;       // +0x17
+    unsigned char m_18;       // +0x18
+    unsigned short m_19;      // +0x19
+};
+#pragma pack(pop)
+
 int Inter_SetARSInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<unsigned char*>(data + 0xe) == 0)
+    Inter_SetARSInfoPktView* pPkt = reinterpret_cast<Inter_SetARSInfoPktView*>(data);
+    if (pPkt->m_e == 0)
     {
         GlobalData::g_autoPunishRuleHackTypeMgr->reset();
         cMyTrace trace(
@@ -11022,8 +13757,8 @@ int Inter_SetARSInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
         trace("[ARS_INFO] Reset");
     }
 
-    const unsigned int cnt = *reinterpret_cast<unsigned int*>(data + 0xa);
-    const signed char state = (signed char)*reinterpret_cast<unsigned char*>(data + 0xe);
+    const unsigned int cnt = pPkt->m_a;
+    const signed char state = (signed char)pPkt->m_e;
     cMyTrace trace(
         __PRETTY_FUNCTION__, 0x4f64, 0);
     trace("[ARS_INFO] Cnt : %d, State : %d", (int)cnt, (int)state);
@@ -11039,36 +13774,37 @@ int Inter_SetARSInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     for (int i = 0; i < (int)cnt; ++i)
     {
         char* entry = data + i * 0xc;
-        if (*reinterpret_cast<unsigned short*>(entry + 0xf) == 0)
+    Inter_SetARSInfoEntryWinView* pWin_entry = reinterpret_cast<Inter_SetARSInfoEntryWinView*>(entry);
+        if (pWin_entry->m_f == 0)
         {   // 交易总量条目：type=+0x11，total(u64)=+0x19
             GlobalData::g_autoPunishRuleHackTypeMgr->setTotalTrade(
-                (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x11),
-                (unsigned long long)*reinterpret_cast<unsigned short*>(entry + 0x19));
+                (unsigned int)pWin_entry->m_11,
+                (unsigned long long)pWin_entry->m_19);
             cMyTrace t(
                 __PRETTY_FUNCTION__, 0x4f82, 0);
             t("[ARS_INFO] TotalGold: %llu, TotalCount: %d",
-              (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x19),
-              (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x11));
+              (unsigned int)pWin_entry->m_19,
+              (unsigned int)pWin_entry->m_11);
         }
         else
         {   // hack 计数条目：main=+0xf val=+0x11 sub=+0x13 val=+0x15 flag=+0x17 ipCnt=+0x18 arg=+0x19
             GlobalData::g_autoPunishRuleHackTypeMgr->setHackCnt(
-                (WongWork::ENUM_HACKTYPE)(unsigned int)*reinterpret_cast<unsigned short*>(entry + 0xf),
-                (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x11),
-                (WongWork::ENUM_HACKTYPE)(unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x13),
-                (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x15),
-                (unsigned int)*reinterpret_cast<unsigned char*>(entry + 0x17),
-                (unsigned int)*reinterpret_cast<unsigned char*>(entry + 0x18),
-                (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x19));
+                (WongWork::ENUM_HACKTYPE)(unsigned int)pWin_entry->m_f,
+                (unsigned int)pWin_entry->m_11,
+                (WongWork::ENUM_HACKTYPE)(unsigned int)pWin_entry->m_13,
+                (unsigned int)pWin_entry->m_15,
+                (unsigned int)pWin_entry->m_17,
+                (unsigned int)pWin_entry->m_18,
+                (unsigned int)pWin_entry->m_19);
             cMyTrace t(
                 __PRETTY_FUNCTION__, 0x4f8e, 0);
             t("[ARS_INFO] MainType : %d (%d), SubType : %d(%d), ApplyFlag %d, IpCnt : %d",
-              (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0xf),
-              (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x11),
-              (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x13),
-              (unsigned int)*reinterpret_cast<unsigned short*>(entry + 0x15),
-              (unsigned int)*reinterpret_cast<unsigned char*>(entry + 0x17),
-              (unsigned int)*reinterpret_cast<unsigned char*>(entry + 0x18));
+              (unsigned int)pWin_entry->m_f,
+              (unsigned int)pWin_entry->m_11,
+              (unsigned int)pWin_entry->m_13,
+              (unsigned int)pWin_entry->m_15,
+              (unsigned int)pWin_entry->m_17,
+              (unsigned int)pWin_entry->m_18);
         }
     }
     return 0;
@@ -11077,13 +13813,27 @@ int Inter_SetARSInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 Inter_OnTimeEventRewardStart::~Inter_OnTimeEventRewardStart() {}
 // ORIG 0x084e0dc6 T dispatch_sig —— 定时活动奖励开始：0x33 号 repeat 事件广播 0x105 包。
 // 报告 docs/class_func_reports/Inter_OnTimeEventRewardStart/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_OnTimeEventRewardStartPktView —— Inter_OnTimeEventRewardStart::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_OnTimeEventRewardStartPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    unsigned int m_e;         // +0x0e
+    int m_12;                 // +0x12
+    int m_16;                 // +0x16
+};
+#pragma pack(pop)
+
 int Inter_OnTimeEventRewardStart::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_OnTimeEventRewardStartPktView* pPkt = reinterpret_cast<Inter_OnTimeEventRewardStartPktView*>(data);
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0x4fba, 0);
     trace("[ON_TIME_EVENT] Reward Start(remain time : %u)",
-          *reinterpret_cast<unsigned int*>(data + 0xe));
+          pPkt->m_e);
 
     COnTimeEvent* event =
         reinterpret_cast<COnTimeEvent*>(
@@ -11096,13 +13846,13 @@ int Inter_OnTimeEventRewardStart::dispatch_sig(CUser* /*user*/, char* data, int 
     if (eventing)
     {
         event->process_set_reward_start(             // ORIG 0x081bbce0（见 NEEDS_DECL）
-            *reinterpret_cast<int*>(data + 0xa),     // msg+0x0a ontimeId
-            *reinterpret_cast<int*>(data + 0x12),    // msg+0x12 itemNo
-            *reinterpret_cast<int*>(data + 0x16),    // msg+0x16 itemCount
-            *reinterpret_cast<int*>(data + 0xe));    // msg+0x0e endSpan
+            pPkt->m_a,     // msg+0x0a ontimeId
+            pPkt->m_12,    // msg+0x12 itemNo
+            pPkt->m_16,    // msg+0x16 itemCount
+            pPkt->m_e);    // msg+0x0e endSpan
         PacketGuard packet;
         packet.put_header(0, 0x105);
-        packet.put_int(*reinterpret_cast<int*>(data + 0xe));
+        packet.put_int(pPkt->m_e);
         packet.finalize(true);
         G_GameWorld()->send_all_with_state(packet, 3);
     }
@@ -11112,7 +13862,7 @@ int Inter_OnTimeEventRewardStart::dispatch_sig(CUser* /*user*/, char* data, int 
             __PRETTY_FUNCTION__,
             0x4fc5, 5);
         notEventing("[ON_TIME_EVENT] isEventing = not, event_no(%u)",
-                    *reinterpret_cast<unsigned int*>(data + 0xa));
+                    pPkt->m_a);
     }
     return 0;
 }
@@ -11167,17 +13917,30 @@ int Inter_LoadPvPBuddy::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*
 Inter_PvPBuddyConnList::~Inter_PvPBuddyConnList() {}
 // ORIG 0x084e16fe T dispatch_sig —— PvP 伙伴连接列表下发。
 // 报告 docs/class_func_reports/Inter_PvPBuddyConnList/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_PvPBuddyConnListPktView —— Inter_PvPBuddyConnList::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_PvPBuddyConnListPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+    char m_pade[0x4];  // +0xe..未消费
+    int m_12;                       // +0x12
+};
+#pragma pack(pop)
+
 int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_PvPBuddyConnListPktView* pPkt = reinterpret_cast<Inter_PvPBuddyConnListPktView*>(data);
     if (user->get_state() <= 2)
         return 0;
 
     const unsigned int charIdMsg =                     // recv charId @ msg+0xa
-        *reinterpret_cast<unsigned int*>(data + 0xa);
+        pPkt->m_a;
     if (charIdMsg != (unsigned int)user->getCurCharacNo())
         return 0;
 
-    const int count = *reinterpret_cast<int*>(data + 0x12);
+    const int count = pPkt->m_12;
 
     PacketGuard packet;
     packet.put_header(0, 0x10f);
@@ -11192,21 +13955,38 @@ int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_ReqAddPvPBuddy::~Inter_ReqAddPvPBuddy() {}
 // ORIG 0x084e1832 T dispatch_sig —— PvP 伙伴添加请求应答。
 // 报告 docs/class_func_reports/Inter_ReqAddPvPBuddy/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ReqAddPvPBuddyPktView —— Inter_ReqAddPvPBuddy::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_ReqAddPvPBuddyPktView
+{
+    char m_pad0[0xa];  // 未消费
+    unsigned int m_a;         // +0x0a
+    char m_pade[0x4];  // 未消费
+    char m_12;                // +0x12
+    char m_13[1];             // +0x13 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_ReqAddPvPBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // ORIG +0x10：包基址槽在首条 call 之前即物化（-0x10）。
+    Inter_ReqAddPvPBuddyPktView* pPkt = reinterpret_cast<Inter_ReqAddPvPBuddyPktView*>(data);
     if (user->get_state() <= 2 || user->get_state() == 7)
         return 0;
-
-    const unsigned int charIdMsg =                     // recv charId @ msg+0xa
-        *reinterpret_cast<unsigned int*>(data + 0xa);
-    if (charIdMsg != (unsigned int)user->getCurCharacNo())
+    // ORIG +0x27 一步 `mov 0xa(%eax),%ebx` ⇒ register 局部。
+    register unsigned int charIdMsg =                  // recv charId @ msg+0xa
+        pPkt->m_a;
+    if (charIdMsg != user->getCurCharacNo())   // ORIG `cmp %eax,%ebx` 同上
         return 0;
 
     PacketGuard packet;
     packet.put_header(0, 0x10c);
-    packet.put_byte((int)*reinterpret_cast<char*>(data + 0x12));   // movsbl
-    packet.put_int(strlen(data + 0x13));
-    packet.put_str(data + 0x13, strlen(data + 0x13));
+    packet.put_byte((int)pPkt->m_12);   // movsbl
+    // ORIG：strlen 单次调用，结果落 -0xc 复用。
+    const int nameLen = strlen(pPkt->m_13);
+    packet.put_int(nameLen);
+    packet.put_str(pPkt->m_13, nameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -11215,25 +13995,42 @@ int Inter_ReqAddPvPBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_AddPvPBuddyResult::~Inter_AddPvPBuddyResult() {}
 // ORIG 0x084e1978 T dispatch_sig —— PvP 好友添加结果通知（0x121/0x122 两包 + 错误码分支）。
 // 报告 docs/class_func_reports/Inter_AddPvPBuddyResult/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_AddPvPBuddyResultPktView —— Inter_AddPvPBuddyResult::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_AddPvPBuddyResultPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x4];  // 未消费
+    char m_12;                // +0x12
+    signed char m_13;         // +0x13
+    char m_14[1];             // +0x14 串/字节区首元素（容量未建模）
+    char m_pad15[0x1d];  // 未消费
+    char m_32;                // +0x32
+};
+#pragma pack(pop)
+
 int Inter_AddPvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_AddPvPBuddyResultPktView* pPkt = reinterpret_cast<Inter_AddPvPBuddyResultPktView*>(data);
     if (user->get_state() <= 2)
         return 0;
-    if (*reinterpret_cast<int*>(data + 0xa) != user->getCurCharacNo())
+    if (pPkt->m_a != user->getCurCharacNo())
         return 0;
 
-    if (*reinterpret_cast<char*>(data + 0x12) == '\0')
+    if (pPkt->m_12 == '\0')
     {   // 拒绝分支（0x121）
-        if (*reinterpret_cast<char*>(data + 0x32) == '\0')
+        if (pPkt->m_32 == '\0')
         {
             PacketGuard packet;
             packet.clear();
             packet.put_header(1, 0x121);
             packet.put_byte(1);
-            packet.put_byte(*reinterpret_cast<signed char*>(data + 0x13));
-            const size_t local_14 = strlen(data + 0x14);
+            packet.put_byte(pPkt->m_13);
+            const size_t local_14 = strlen(pPkt->m_14);
             packet.put_int(local_14);
-            packet.put_str(data + 0x14, local_14);
+            packet.put_str(pPkt->m_14, local_14);
             packet.finalize(true);
             user->Send(packet);
         }
@@ -11241,19 +14038,19 @@ int Inter_AddPvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*/)
         {
             user->SendCmdErrorPacket(
                 (ENUM_CMDPACKET)0x121,
-                *reinterpret_cast<unsigned char*>(data + 0x32));
+                pPkt->m_32);
         }
     }
-    else if (*reinterpret_cast<char*>(data + 0x32) == '\0')
+    else if (pPkt->m_32 == '\0')
     {   // 同意分支（0x122）
         PacketGuard packet;
         packet.clear();
         packet.put_header(1, 0x122);
         packet.put_byte(1);
-        packet.put_byte(*reinterpret_cast<signed char*>(data + 0x13));
-        const size_t local_10 = strlen(data + 0x14);
+        packet.put_byte(pPkt->m_13);
+        const size_t local_10 = strlen(pPkt->m_14);
         packet.put_int(local_10);
-        packet.put_str(data + 0x14, local_10);
+        packet.put_str(pPkt->m_14, local_10);
         packet.finalize(true);
         user->Send(packet);
     }
@@ -11261,7 +14058,7 @@ int Inter_AddPvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*/)
     {
         user->SendCmdErrorPacket(
             (ENUM_CMDPACKET)0x122,
-            *reinterpret_cast<unsigned char*>(data + 0x32));
+            pPkt->m_32);
     }
     return 0;
 }
@@ -11269,62 +14066,94 @@ int Inter_AddPvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_RemovePvPBuddyResult::~Inter_RemovePvPBuddyResult() {}
 // ORIG 0x084e1c1e T dispatch_sig —— PVP 好友删除结果：成功转发名字或错误码。
 // 报告 docs/class_func_reports/Inter_RemovePvPBuddyResult/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_RemovePvPBuddyResultPktView —— Inter_RemovePvPBuddyResult::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_RemovePvPBuddyResultPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x4];  // 未消费
+    signed char m_12;         // +0x12
+    char m_13[1];             // +0x13 串/字节区首元素（容量未建模）
+    char m_pad14[0x1d];  // 未消费
+    signed char m_31;         // +0x31
+};
+#pragma pack(pop)
+
 int Inter_RemovePvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_RemovePvPBuddyResultPktView* pPkt = reinterpret_cast<Inter_RemovePvPBuddyResultPktView*>(data);
     if (user->get_state() <= 2)                        // setle：signed <= 2
         return 0;
 
-    char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
-    if (*reinterpret_cast<int*>(recv + 0xa) != user->getCurCharacNo())
+    if (pPkt->m_a != user->getCurCharacNo())
         return 0;
 
-    if (*reinterpret_cast<signed char*>(recv + 0x31) != '\0')
+    if (pPkt->m_31 != '\0')
     {   // 结果码非零 → 错误包
         user->SendCmdErrorPacket(
             (ENUM_CMDPACKET)0x123,
-            (unsigned int)*reinterpret_cast<unsigned char*>(recv + 0x31));
-        return 0;
+            (unsigned int)pPkt->m_31);
     }
-
-    PacketGuard packet;
-    packet.clear();
-    packet.put_header(1, 0x123);
-    packet.put_byte(1);
-    packet.put_byte((int)*reinterpret_cast<signed char*>(recv + 0x12));
-    const int nameLen = strlen(recv + 0x13);
-    packet.put_int(nameLen);
-    packet.put_str(recv + 0x13, nameLen);
-    packet.finalize(true);
-    user->Send(packet);
+    // ORIG：PacketGuard 只在 else 支，两支汇合后统一 `mov $0x0,%eax`。
+    else
+    {
+        PacketGuard packet;
+        packet.clear();
+        packet.put_header(1, 0x123);
+        packet.put_byte(1);
+        packet.put_byte((int)pPkt->m_12);
+        const int nameLen = strlen(pPkt->m_13);
+        packet.put_int(nameLen);
+        packet.put_str(pPkt->m_13, nameLen);
+        packet.finalize(true);
+        user->Send(packet);
+    }
     return 0;
 }
 
 Inter_NoticePvPBuddyInOut::~Inter_NoticePvPBuddyInOut() {}
 // ORIG 0x084e1d96 T dispatch_sig —— PVP 好友进出通知：登录/登出两种包头转发名字。
 // 报告 docs/class_func_reports/Inter_NoticePvPBuddyInOut/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NoticePvPBuddyInOutPktView —— Inter_NoticePvPBuddyInOut::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_NoticePvPBuddyInOutPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x4];  // 未消费
+    unsigned char m_12;       // +0x12
+    unsigned char m_13;       // +0x13
+    signed char m_14;         // +0x14
+    char m_15[1];             // +0x15 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_NoticePvPBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_NoticePvPBuddyInOutPktView* pPkt = reinterpret_cast<Inter_NoticePvPBuddyInOutPktView*>(data);
     if (user->get_state() <= 2)                        // setle：signed <= 2
         return 0;
 
-    char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
-    if (*reinterpret_cast<int*>(recv + 0xa) != user->getCurCharacNo())
+    if (pPkt->m_a != user->getCurCharacNo())
         return 0;
 
     PacketGuard packet;
-    if (*reinterpret_cast<unsigned char*>(recv + 0x12) == 0)
+    if (pPkt->m_12 == 0)
     {   // 登出（0x10d）附结果码
         packet.put_header(0, 0x10d);
-        packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0x13));
+        packet.put_byte((unsigned int)pPkt->m_13);
     }
     else
     {   // 登入（0x10e）
         packet.put_header(0, 0x10e);
     }
-    packet.put_byte((int)*reinterpret_cast<signed char*>(recv + 0x14));
-    const int nameLen = strlen(recv + 0x15);
+    packet.put_byte((int)pPkt->m_14);
+    const int nameLen = strlen(pPkt->m_15);
     packet.put_int(nameLen);
-    packet.put_str(recv + 0x15, nameLen);
+    packet.put_str(pPkt->m_15, nameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -11349,23 +14178,35 @@ Inter_Antibot_SendBufferClient::~Inter_Antibot_SendBufferClient() {}
 // 异常计数日志、0x230/0x231 包发送与历史记录。
 // 报告 docs/class_func_reports/Inter_Antibot_SendBufferClient/dispatch_sig.md 全文转写。
 // msg 布局：+0 kind(int,0=ANTIBOT/1=DPROTO) +4 qqID(uint) +8 size(u16) +0xc payload。
+#pragma pack(push, 1)
+// Inter_Antibot_SendBufferClientPktView —— Inter_Antibot_SendBufferClient::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_Antibot_SendBufferClientPktView
+{
+    int m_0;                  // +0x00
+    unsigned int m_4;         // +0x04
+    unsigned short m_8;       // +0x08
+};
+#pragma pack(pop)
+
 int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_Antibot_SendBufferClientPktView* pPkt = reinterpret_cast<Inter_Antibot_SendBufferClientPktView*>(data);
     char buffer[95000];                                // ORIG 栈缓冲 0x17338
     memset(buffer, 0, 95000);
-    memcpy(buffer, data + 0xc, (int)(short)*reinterpret_cast<unsigned short*>(data + 8));
+    memcpy(buffer, data + 0xc, (int)(short)pPkt->m_8);
 
-    CUser* target = getUser(*reinterpret_cast<unsigned int*>(data + 4));
+    CUser* target = getUser(pPkt->m_4);
     if (target == 0 || target->get_state() == 0)
     {   // 用户缺失/未登录：记录忽略日志并累计异常计数
-        NumberToString(*reinterpret_cast<unsigned int*>(data + 4), 0);
+        NumberToString(pPkt->m_4, 0);
         const char* reason;
         if (target == 0)
             reason = "NULL User";
         else
             reason = "NONE state";
         const char* kind;
-        if (*reinterpret_cast<int*>(data) == 0)
+        if (pPkt->m_0 == 0)
             kind = "ANTIBOT";
         else
             kind = "DPROTO";
@@ -11374,8 +14215,8 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
             __PRETTY_FUNCTION__,
             0x5e56,
             "Ignore SendBuffertoClient [%s][size:%d]; reason:%s, QQID:%s",
-            kind, (int)(short)*reinterpret_cast<unsigned short*>(data + 8),
-            reason, NumberToString(*reinterpret_cast<unsigned int*>(data + 4), 0));
+            kind, (int)(short)pPkt->m_8,
+            reason, NumberToString(pPkt->m_4, 0));
         if (target != 0 && (unsigned char)target->m_field4 < 5)
         {
             const unsigned char old = (unsigned char)target->m_field4;
@@ -11387,7 +14228,7 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
     }
 
     int packetType;                                    // 0x230=ANTIBOT / 0x231=DPROTO
-    if (*reinterpret_cast<int*>(data) == 0)
+    if (pPkt->m_0 == 0)
         packetType = 0x230;
     else
         packetType = 0x231;
@@ -11403,7 +14244,7 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
         {
             target->m_historyLog.AbnormalUser(
                 (ENUM_ABNORMAL_USER_LOG_TYPE)4, 0x25b,
-                (int)(short)*reinterpret_cast<unsigned short*>(data + 8),
+                (int)(short)pPkt->m_8,
                 target->m_field8cf00);
         }
     }
@@ -11411,7 +14252,7 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
     PacketGuard packet;
     packet.put_header(0, packetType);
     packet.put_binary(
-        buffer, (int)(short)*reinterpret_cast<unsigned short*>(data + 8));
+        buffer, (int)(short)pPkt->m_8);
     packet.finalize(false);
     char sendRet = (char)target->Send(packet);
 
@@ -11426,7 +14267,7 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
         {
             target->m_historyLog.AbnormalUser(
                 (ENUM_ABNORMAL_USER_LOG_TYPE)4, 0x25b,
-                (int)(short)*reinterpret_cast<unsigned short*>(data + 8),
+                (int)(short)pPkt->m_8,
                 target->m_field8cf00);
         }
     }
@@ -11436,8 +14277,8 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
         const unsigned char old = (unsigned char)target->m_field4;
         target->m_field4 = (char)(old + 1);
         target->m_historyLog.SendBuffertoClientLog(
-            *reinterpret_cast<int*>(data),
-            (short)*reinterpret_cast<unsigned short*>(data + 8),
+            pPkt->m_0,
+            (short)pPkt->m_8,
             old, sendRet != 0);
     }
     return 0;
@@ -11446,10 +14287,23 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
 Inter_Antibot_PunishClient::~Inter_Antibot_PunishClient() {}
 // ORIG 0x084e4774 T dispatch_sig —— antibot 惩罚客户端指令。
 // 报告 docs/class_func_reports/Inter_Antibot_PunishClient/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_Antibot_PunishClientPktView —— Inter_Antibot_PunishClient::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_Antibot_PunishClientPktView
+{
+    unsigned int m_0;         // +0x00
+    unsigned char m_4;        // +0x04
+    char m_pad5[0x7];  // 未消费
+    int m_c;                  // +0x0c
+};
+#pragma pack(pop)
+
 int Inter_Antibot_PunishClient::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    const unsigned int uid = *reinterpret_cast<unsigned int*>(data);
-    const unsigned char punishMode = *reinterpret_cast<unsigned char*>(data + 4);
+    Inter_Antibot_PunishClientPktView* pPkt = reinterpret_cast<Inter_Antibot_PunishClientPktView*>(data);
+    const unsigned int uid = pPkt->m_0;
+    const unsigned char punishMode = pPkt->m_4;
     CUser* target = getUser(uid);
 
     // ORIG：NumberToString 先求值（存寄存器）再构造 cMyTrace
@@ -11467,7 +14321,7 @@ int Inter_Antibot_PunishClient::dispatch_sig(CUser* /*user*/, char* data, int /*
     else if (punishMode == 3)
     {
         if (target != 0 && target->get_state() != 0 &&
-            0 < *reinterpret_cast<int*>(data + 0xc))
+            0 < pPkt->m_c)
         {
             target->DisConnSig((DISCONN_SIG)0x23, true, 0);
         }
@@ -11478,30 +14332,45 @@ int Inter_Antibot_PunishClient::dispatch_sig(CUser* /*user*/, char* data, int /*
 Inter_Antibot_ProcessProtectMsg::~Inter_Antibot_ProcessProtectMsg() {}
 // ORIG 0x084e48c2 T dispatch_sig —— 反外挂保护消息：按事件类型回 SAFEMODE 通知包。
 // 报告 docs/class_func_reports/Inter_Antibot_ProcessProtectMsg/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_Antibot_ProcessProtectMsgPktView —— Inter_Antibot_ProcessProtectMsg::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_Antibot_ProcessProtectMsgPktView
+{
+    short m_0;                // +0x00
+    unsigned int m_2;         // +0x02
+    short m_6;                // +0x06
+    unsigned char m_8;        // +0x08
+    char m_pad9[0x1];  // 未消费
+    short m_a;                // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_Antibot_ProcessProtectMsg::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_Antibot_ProcessProtectMsgPktView* pPkt = reinterpret_cast<Inter_Antibot_ProcessProtectMsgPktView*>(data);
     CUser* target =
-        getUser(*reinterpret_cast<unsigned int*>(data + 0x2));   // msg+0x2 uid
+        getUser(pPkt->m_2);   // msg+0x2 uid
     if (target == 0 || target->get_state() == 0)
         return 0;
 
-    short eventType = *reinterpret_cast<short*>(data);           // msg+0x0
+    short eventType = pPkt->m_0;           // msg+0x0
     char protstatLevel;
     short extra;
     if (eventType == 0x13)
     {
         protstatLevel = 0;
-        extra = *reinterpret_cast<short*>(data + 0x6);           // short@0x6
+        extra = pPkt->m_6;           // short@0x6
     }
     else if (eventType == 0x14)
     {
-        protstatLevel = (char)*reinterpret_cast<unsigned char*>(data + 0x8);
-        extra = *reinterpret_cast<short*>(data + 0xa);
+        protstatLevel = (char)pPkt->m_8;
+        extra = pPkt->m_a;
     }
     else if (eventType == 0x12)
     {
-        protstatLevel = (char)*reinterpret_cast<unsigned char*>(data + 0x8);
-        extra = *reinterpret_cast<short*>(data + 0xa);
+        protstatLevel = (char)pPkt->m_8;
+        extra = pPkt->m_a;
     }
     else
     {
@@ -11513,7 +14382,7 @@ int Inter_Antibot_ProcessProtectMsg::dispatch_sig(CUser* /*user*/, char* data, i
         __PRETTY_FUNCTION__,
         0x5f3b, 0);
     trace("[SAFEMODE]uid : %d    protstatLevel : %d    eventType : %d\n",
-          (int)*reinterpret_cast<unsigned int*>(data + 0x2),
+          (int)pPkt->m_2,
           (int)protstatLevel, (int)(unsigned short)extra);
 
     if (protstatLevel == 1 || protstatLevel == 8)
@@ -11589,11 +14458,22 @@ Inter_LoadCharacLinkBonus::~Inter_LoadCharacLinkBonus() {}
 // ORIG 0x084e1f02 T dispatch_sig —— 角色联动奖励领取：经验直加、金币走系统邮件，
 // 更新联动状态并广播 0x123 通知包。
 // 报告 docs/class_func_reports/Inter_LoadCharacLinkBonus/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadCharacLinkBonusPktView —— Inter_LoadCharacLinkBonus::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_LoadCharacLinkBonusPktView
+{
+    unsigned int m_0;         // +0x00
+    int m_4;                  // +0x04
+};
+#pragma pack(pop)
+
 int Inter_LoadCharacLinkBonus::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_LoadCharacLinkBonusPktView* pPkt = reinterpret_cast<Inter_LoadCharacLinkBonusPktView*>(data);
     const unsigned int bonusExp =                      // -0x28（msg+0x0）
-        *reinterpret_cast<unsigned int*>(data);
-    const int bonusGold = *reinterpret_cast<int*>(data + 4);   // -0x24（msg+0x4）
+        pPkt->m_0;
+    const int bonusGold = pPkt->m_4;   // -0x24（msg+0x4）
 
     char title[0x15] = { '\0' };                       // -0x3d（gcc 内联清零展开）
     char body[0x100] = { '\0' };                       // -0x1a5
@@ -11682,20 +14562,35 @@ int Inter_CreateAccountCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_UpgradeAccountCargo::~Inter_UpgradeAccountCargo() {}
 // ORIG 0x084e243a T dispatch_sig —— 账号仓库扩容应答。
 // 报告 docs/class_func_reports/Inter_UpgradeAccountCargo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_UpgradeAccountCargoPktView —— Inter_UpgradeAccountCargo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_UpgradeAccountCargoPktView
+{
+    unsigned char m_0;              // +0x00
+    char m_pad1[0x3];  // +0x1..未消费
+    unsigned int m_4;               // +0x04
+};
+#pragma pack(pop)
+
 int Inter_UpgradeAccountCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_UpgradeAccountCargoPktView* pPkt = reinterpret_cast<Inter_UpgradeAccountCargoPktView*>(data);
     if (user->get_state() <= 2)
         return 0;
-    if (*reinterpret_cast<unsigned char*>(data + 0x0) != 0)
+    if (pPkt->m_0 != 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133,
-                                 *reinterpret_cast<unsigned char*>(data + 0x0));
+                                 pPkt->m_0);
         return 0;
     }
     if ((unsigned char)user->IsExistAccountCargo() != 1)
         return 0;
-    user->GetAccountCargo()->SetCapacity(
-        *reinterpret_cast<unsigned int*>(data + 0x4));
+    // ORIG：GetAccountCargo 结果物化槽 -0xc(%ebp)（pPkt 因此被挤到 -0x10），
+    // 之后 pPkt->m_4 装载 → cargo 槽回读 → SetCapacity。链式调用形反产
+    // 4.4 %ebx 缓存 + push ebx 帧。
+    CAccountCargo* pCargo = user->GetAccountCargo();
+    pCargo->SetCapacity(pPkt->m_4);
     user->SendCmdOkPacket((ENUM_CMDPACKET)0x133);
     return 0;
 }
@@ -11703,8 +14598,19 @@ int Inter_UpgradeAccountCargo::dispatch_sig(CUser* user, char* data, int /*len*/
 Inter_LoadAccountCargo::~Inter_LoadAccountCargo() {}
 // ORIG 0x084e24ec T dispatch_sig —— 账号仓库 DB 加载。
 // 报告 docs/class_func_reports/Inter_LoadAccountCargo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadAccountCargoPktView —— Inter_LoadAccountCargo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_LoadAccountCargoPktView
+{
+    unsigned int m_0;               // +0x00
+    unsigned int m_4;               // +0x04
+};
+#pragma pack(pop)
+
 int Inter_LoadAccountCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_LoadAccountCargoPktView* pPkt = reinterpret_cast<Inter_LoadAccountCargoPktView*>(data);
     if (user->get_state() <= 1)
         return 0;
     if (user->IsExistAccountCargo())
@@ -11719,50 +14625,90 @@ int Inter_LoadAccountCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
     }
     user->SetAccountCargoDBData(
         reinterpret_cast<Inven_Item*>(data + 0x8),
-        *reinterpret_cast<unsigned int*>(data + 0x4),
-        *reinterpret_cast<unsigned int*>(data + 0x0));
+        pPkt->m_4,
+        pPkt->m_0);
     return 0;
 }
 
 Inter_MultiMailBoxReqSend::~Inter_MultiMailBoxReqSend() {}
 // ORIG 0x084e27b8 T dispatch_sig —— 多邮件批量发送：逐收件人构造 MSG_MAILBOX_SEND 请求 DB 发信。
 // 报告 docs/class_func_reports/Inter_MultiMailBoxReqSend/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// MailBufSendView —— 本函数栈上 MSG_MAILBOX_SEND 组包缓冲视图（0x145B；
+//   权威类 MSG_MAILBOX_SEND 头尚为前向声明，字段宽度按 ORIG 084e27b8 写指令
+//   （movl/movb/movw + strncpy 0x1d@+0x0d）逐条核实；只建模本函数写入槽）。
+struct MailBufSendView
+{
+    char m_pad0[0xd];               // +0x00..0x0c memset 清零区
+    char m_name0d[0x1d];            // +0x0d strncpy(local_15c) 收件人名区
+    char m_pad2a[0x4];  // 未消费
+    unsigned int m_2e;              // +0x2e = pPkt m_64（时间戳/序号）
+    char m_pad32[0x4];  // 未消费
+    unsigned char m_36;             // +0x36 收件人项 uchar
+    unsigned short m_37;            // +0x37 收件人项 ushort
+    unsigned int m_39;              // +0x39 收件人项 uint
+    unsigned int m_3d;              // +0x3d 收件人项 uint
+    char m_pad41[0x104];  // 未消费（memset 区；总缓冲 0x145）
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+// Inter_MultiMailBoxReqSendPktView —— Inter_MultiMailBoxReqSend::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MultiMailBoxReqSendPktView
+{
+    char m_pad0[0x1d];  // 未消费
+    unsigned int m_1d;        // +0x1d
+    char m_pad21[0x8];  // 未消费
+    unsigned int m_29;        // +0x29
+    char m_pad2d[0x15];  // 未消费
+    unsigned int m_42;        // +0x42
+    char m_46[1];             // +0x46 串/字节区首元素（容量未建模）
+    char m_pad47[0x1d];  // 未消费
+    unsigned int m_64;        // +0x64
+    unsigned char m_68;       // +0x68
+    char m_pad69[0x3f54];  // 未消费
+    int m_3fbd;               // +0x3fbd
+};
+#pragma pack(pop)
+
 int Inter_MultiMailBoxReqSend::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MultiMailBoxReqSendPktView* pPkt = reinterpret_cast<Inter_MultiMailBoxReqSendPktView*>(data);
     if (user->get_state() <= 2)
         return 0;
 
     for (int local_10 = 0;
-         local_10 < (int)(unsigned int)*reinterpret_cast<unsigned char*>(data + 0x68);
+         local_10 < (int)(unsigned int)pPkt->m_68;
          ++local_10)
     {
         // ORIG 局部 MSG_MAILBOX_SEND 0x145 字节清零（权威头尚为 pad 占位，
-        // 以栈缓冲承载避免依赖 sizeof）。
         char mailBuf[0x145];
         memset(mailBuf, 0, 0x145);
+        MailBufSendView* pMail = reinterpret_cast<MailBufSendView*>(mailBuf);
         const unsigned int local_15c =
-            *reinterpret_cast<unsigned int*>(data + 0x42);
-        strncpy(mailBuf + 0x0d, data + 0x46, local_15c);
-        *reinterpret_cast<unsigned int*>(mailBuf + 0x2e) =
-            *reinterpret_cast<unsigned int*>(data + 0x64);
-        *reinterpret_cast<unsigned int*>(data + 0x64) = 0;
-        *reinterpret_cast<unsigned char*>(mailBuf + 0x36) =
+            pPkt->m_42;
+        strncpy(pMail->m_name0d, pPkt->m_46, local_15c);
+        pMail->m_2e =
+            pPkt->m_64;
+        pPkt->m_64 = 0;
+        pMail->m_36 =
             *reinterpret_cast<unsigned char*>(data + local_10 * 0xb + 0x69);
-        *reinterpret_cast<unsigned short*>(mailBuf + 0x37) =
+        pMail->m_37 =
             *reinterpret_cast<unsigned short*>(data + local_10 * 0xb + 0x6a);
-        *reinterpret_cast<unsigned int*>(mailBuf + 0x39) =
+        pMail->m_39 =
             *reinterpret_cast<unsigned int*>(data + local_10 * 0xb + 0x6c);
-        *reinterpret_cast<unsigned int*>(mailBuf + 0x3d) =
+        pMail->m_3d =
             *reinterpret_cast<unsigned int*>(data + local_10 * 0xb + 0x70);
 
         const unsigned int local_14 =
             WongWork::CMailBoxHelper::ReqDBSendNewMail(
                 user,
                 reinterpret_cast<MSG_MAILBOX_SEND*>(mailBuf),
-                *reinterpret_cast<unsigned int*>(data + 0x1d),
+                pPkt->m_1d,
                 false,
-                *reinterpret_cast<unsigned int*>(data + 0x29),
-                *reinterpret_cast<int*>(data + 0x3fbd));
+                pPkt->m_29,
+                pPkt->m_3fbd);
         if (local_14 != 0)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x13c,
@@ -11782,18 +14728,35 @@ int Inter_MultiMailBoxReqSend::dispatch_sig(CUser* user, char* data, int /*len*/
 Inter_ReqQueryCharacInfoMailbox::~Inter_ReqQueryCharacInfoMailbox() {}
 // ORIG 0x084e2a06 T dispatch_sig —— 邮箱查询角色信息：转发角色名与等级/职业等摘要。
 // 报告 docs/class_func_reports/Inter_ReqQueryCharacInfoMailbox/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ReqQueryCharacInfoMailboxPktView —— Inter_ReqQueryCharacInfoMailbox::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_ReqQueryCharacInfoMailboxPktView
+{
+    char m_pad0[0x20];  // 未消费
+    int m_20;                 // +0x20
+    char m_pad24[0x4];  // 未消费
+    signed char m_28;         // +0x28
+    char m_pad29[0x1];  // 未消费
+    short m_2a;               // +0x2a
+    signed char m_2c;         // +0x2c
+    signed char m_2d;         // +0x2d
+};
+#pragma pack(pop)
+
 int Inter_ReqQueryCharacInfoMailbox::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_ReqQueryCharacInfoMailboxPktView* pPkt = reinterpret_cast<Inter_ReqQueryCharacInfoMailboxPktView*>(data);
     if (user->get_state() <= 2)                        // setle：signed <= 2
         return 0;
 
     char* recv = data;                                 // -0xc(%ebp) 缓存消息指针
 
-    if (*reinterpret_cast<int*>(recv + 0x20) != 0)
+    if (pPkt->m_20 != 0)
     {   // 结果码非零 → 错误包
         user->SendCmdErrorPacket(
             (ENUM_CMDPACKET)0x145,
-            (unsigned char)*reinterpret_cast<unsigned int*>(recv + 0x20));
+            (unsigned char)pPkt->m_20);
         return 0;
     }
 
@@ -11802,10 +14765,10 @@ int Inter_ReqQueryCharacInfoMailbox::dispatch_sig(CUser* user, char* data, int /
     packet.put_byte(1);
     packet.put_int(strlen(recv));
     packet.put_str(recv, strlen(recv));                // ORIG 两次独立 strlen（P48）
-    packet.put_short((int)*reinterpret_cast<short*>(recv + 0x2a));  // movzwl+cwtl
-    packet.put_byte((int)*reinterpret_cast<signed char*>(recv + 0x28));
-    packet.put_byte((int)*reinterpret_cast<signed char*>(recv + 0x2c));
-    packet.put_byte((int)*reinterpret_cast<signed char*>(recv + 0x2d));
+    packet.put_short((int)pPkt->m_2a);  // movzwl+cwtl
+    packet.put_byte((int)pPkt->m_28);
+    packet.put_byte((int)pPkt->m_2c);
+    packet.put_byte((int)pPkt->m_2d);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -11814,14 +14777,26 @@ int Inter_ReqQueryCharacInfoMailbox::dispatch_sig(CUser* user, char* data, int /
 Inter_ReqGameServerInfo::~Inter_ReqGameServerInfo() {}
 // ORIG 0x084e2b94 T dispatch_sig —— 应答服务器信息查询（monitor/guild 代理 SendGameServerInfo）。
 // 报告 docs/class_func_reports/Inter_ReqGameServerInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ReqGameServerInfoPktView —— Inter_ReqGameServerInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_ReqGameServerInfoPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    char m_a;                       // +0x0a
+    unsigned char m_b;              // +0x0b
+};
+#pragma pack(pop)
+
 int Inter_ReqGameServerInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_ReqGameServerInfoPktView* pPkt = reinterpret_cast<Inter_ReqGameServerInfoPktView*>(data);
     if (G_GameWorld()->GetChannelType() == 7)
         return 0;
 
-    const char reqType = *reinterpret_cast<char*>(data + 0xa);
+    const char reqType = pPkt->m_a;
     const unsigned char groupSel =
-        *reinterpret_cast<unsigned char*>(data + 0xb);
+        pPkt->m_b;
 
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
@@ -11878,11 +14853,23 @@ int Inter_ReqGameServerInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len
 Inter_MonitorRegistGameServerAck::~Inter_MonitorRegistGameServerAck() {}
 // ORIG 0x084e2dee T dispatch_sig —— 监控服注册应答处理。
 // 报告 docs/class_func_reports/Inter_MonitorRegistGameServerAck/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorRegistGameServerAckPktView —— Inter_MonitorRegistGameServerAck::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_MonitorRegistGameServerAckPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    char m_a;                       // +0x0a
+    char m_b;                       // +0x0b
+};
+#pragma pack(pop)
+
 int Inter_MonitorRegistGameServerAck::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    const char serverKind = *reinterpret_cast<char*>(data + 0xa);
+    Inter_MonitorRegistGameServerAckPktView* pPkt = reinterpret_cast<Inter_MonitorRegistGameServerAckPktView*>(data);
+    const char serverKind = pPkt->m_a;
 
-    if (*reinterpret_cast<char*>(data + 0xb) == '\x01')
+    if (pPkt->m_b == '\x01')
     {
         const int channelNo = G_CEnvironment()->m_serverEnvir.m_channelNo;
         cMyTrace trace(
@@ -11910,10 +14897,21 @@ int Inter_MonitorRegistGameServerAck::dispatch_sig(CUser* /*user*/, char* data, 
 }
 
 Inter_LoadMileage::~Inter_LoadMileage() {}
+#pragma pack(push, 1)
+// Inter_LoadMileagePktView —— Inter_LoadMileage::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_LoadMileagePktView
+{
+    char m_pad0[0x8];  // 未消费
+    int m_8;                  // +0x08
+};
+#pragma pack(pop)
+
 int Inter_LoadMileage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    int* packet = reinterpret_cast<int*>(data);
-    int mileage = packet[2];
+    Inter_LoadMileagePktView* pPkt = reinterpret_cast<Inter_LoadMileagePktView*>(data);
+    // ORIG +0x0b：`mov -0x10(%ebp),%eax`+`mov 0x8(%eax),%eax` 单级带偏移读 ⇒ 无中间 int* 槽。
+    int mileage = pPkt->m_8;
     user->SetMileage(mileage);
     user->SendCashData(false);
     return 0;
@@ -11922,43 +14920,56 @@ int Inter_LoadMileage::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_GuildExpBookDelete::~Inter_GuildExpBookDelete() {}
 // ORIG 0x084e2f1e T dispatch_sig —— 公会经验书删除：目标在线现场删除，离线走 DB+NoCache 包。
 // 报告 docs/class_func_reports/Inter_GuildExpBookDelete/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GuildExpBookDeletePktView —— Inter_GuildExpBookDelete::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_GuildExpBookDeletePktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    unsigned int m_e;         // +0x0e
+    unsigned int m_12;        // +0x12
+    int m_16;                 // +0x16
+};
+#pragma pack(pop)
+
 int Inter_GuildExpBookDelete::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
+    Inter_GuildExpBookDeletePktView* pPkt = reinterpret_cast<Inter_GuildExpBookDeletePktView*>(data);
 
     CUser* target = G_CGameManager()->getUser(
-        *reinterpret_cast<int*>(recv + 0xa), 2);
+        pPkt->m_a, 2);
     if (target == 0)
     {   // 目标离线 → DB 删除 + monitor NoCache 广播
         DB_GuildExpBookDelete::makeRequest(
-            *reinterpret_cast<unsigned int*>(recv + 0xe), 1,
-            (ENUM_SERVER_GROUP)*reinterpret_cast<int*>(recv + 0x16));
+            pPkt->m_e, 1,
+            (ENUM_SERVER_GROUP)pPkt->m_16);
         Packet_No_Cache packet;
-        packet.m_dbid = *reinterpret_cast<unsigned int*>(recv + 0x16);        // +0x0a
-        packet.m_serverGroup = *reinterpret_cast<unsigned int*>(recv + 0x12); // +0x0e
+        packet.m_dbid = pPkt->m_16;        // +0x0a
+        packet.m_serverGroup = pPkt->m_12; // +0x0e
         CMonitorServerProxy* proxy =
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-                (ENUM_SERVER_GROUP)*reinterpret_cast<int*>(recv + 0x16));
+                (ENUM_SERVER_GROUP)pPkt->m_16);
         proxy->SendPacket(reinterpret_cast<char*>(&packet), packet.packetSize);
     }
     else if (target->getCurCharacR() == 0)
     {   // 在线但未选角色 → 同上
         DB_GuildExpBookDelete::makeRequest(
-            *reinterpret_cast<unsigned int*>(recv + 0xe), 1,
-            (ENUM_SERVER_GROUP)*reinterpret_cast<int*>(recv + 0x16));
+            pPkt->m_e, 1,
+            (ENUM_SERVER_GROUP)pPkt->m_16);
         Packet_No_Cache packet;
-        packet.m_dbid = *reinterpret_cast<unsigned int*>(recv + 0x16);        // +0x0a
-        packet.m_serverGroup = *reinterpret_cast<unsigned int*>(recv + 0x12); // +0x0e
+        packet.m_dbid = pPkt->m_16;        // +0x0a
+        packet.m_serverGroup = pPkt->m_12; // +0x0e
         CMonitorServerProxy* proxy =
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-                (ENUM_SERVER_GROUP)*reinterpret_cast<int*>(recv + 0x16));
+                (ENUM_SERVER_GROUP)pPkt->m_16);
         proxy->SendPacket(reinterpret_cast<char*>(&packet), packet.packetSize);
     }
     else
     {   // 目标可用 → DB 记录后现场删除
         DB_GuildExpBookDelete::makeRequest(
-            *reinterpret_cast<unsigned int*>(recv + 0xe), 0,
-            (ENUM_SERVER_GROUP)*reinterpret_cast<int*>(recv + 0x16));
+            pPkt->m_e, 0,
+            (ENUM_SERVER_GROUP)pPkt->m_16);
         target->deleteGuildExpBook();
     }
     return 0;
@@ -11996,18 +15007,31 @@ int Inter_NoCache::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 Inter_Send_Charac_no_from_monitor::~Inter_Send_Charac_no_from_monitor() {}
 // ORIG 0x084e312a T dispatch_sig —— 监控侧角色号下发。
 // 报告 docs/class_func_reports/Inter_Send_Charac_no_from_monitor/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_Send_Charac_no_from_monitorPktView —— Inter_Send_Charac_no_from_monitor::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_Send_Charac_no_from_monitorPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    int m_12;                 // +0x12
+    char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_Send_Charac_no_from_monitor::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_Send_Charac_no_from_monitorPktView* pPkt = reinterpret_cast<Inter_Send_Charac_no_from_monitorPktView*>(data);
     PacketGuard packet;
     packet.put_header(1, 0x14b);
-    if (*reinterpret_cast<int*>(data + 0x12) == 0)
+    if (pPkt->m_12 == 0)
         packet.put_byte(0);
     else
     {
         packet.put_byte(1);
-        packet.put_int(*reinterpret_cast<int*>(data + 0xe));
-        packet.put_int(*reinterpret_cast<int*>(data + 0x12));
-        packet.put_str(data + 0x16, *reinterpret_cast<int*>(data + 0x12));
+        packet.put_int(pPkt->m_e);
+        packet.put_int(pPkt->m_12);
+        packet.put_str(pPkt->m_16, pPkt->m_12);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -12017,29 +15041,64 @@ int Inter_Send_Charac_no_from_monitor::dispatch_sig(CUser* user, char* data, int
 Inter_SendPeriodicMessage::~Inter_SendPeriodicMessage() {}
 // ORIG 0x084e3232 T dispatch_sig —— 周期性公告按状态播发。
 // 报告 docs/class_func_reports/Inter_SendPeriodicMessage/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SendPeriodicMessagePktView —— Inter_SendPeriodicMessage::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_SendPeriodicMessagePktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    char m_a;                       // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_SendPeriodicMessage::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<char*>(data + 0xa) != '\0')
+    // ORIG 0x084e3232：recv 槽 -0xc 处处 reload（(unsigned long) 往返破 4.4 SSA 传播，技巧26）；
+    // 返回经 %ebx 物化（EH 函数 4.1 尾置 mov$0,%ebx + end mov%ebx,%eax）。
+    // 正常路径 dtor：ORIG 4.1 inline epilogue（send 后 mov$0,%ebx + dtor + jmp），
+    // 4.4 恒合并尾岛共享 dtor call（N 类：4.1 EH 双份 dtor epilogue vs 4.4 merge）。
+    register int ret asm("ebx");
+    char* recv = reinterpret_cast<char*>((unsigned long)data);   // ORIG +0x0a 物化 -0xc
+    if (*(recv + 0xa) == '\0')   // ORIG +0x10 add $0xa; movzbl 两步装载；false-branch 先写（技巧17：ORIG fall=island，body 为 jne taken）
     {
-        PacketGuard packet;
-        packet.put_header(0, 299);
-        packet.put_int(strlen(data + 0xa));
-        packet.put_str(data + 0xa, strlen(data + 0xa));
-        packet.finalize(true);
-        G_GameWorld()->send_all_with_state(packet, 3);
+        ret = 0;
     }
-    return 0;
+    else
+    {
+        {
+            PacketGuard packet;
+            packet.put_header(0, 299);
+            packet.put_int(strlen(recv + 0xa));
+            packet.put_str(recv + 0xa, strlen(recv + 0xa));
+            packet.finalize(true);
+            G_GameWorld()->send_all_with_state(packet, 3);
+        }
+        ret = 0;
+    }
+    return ret;
 }
 
 Inter_SendTimeSync::~Inter_SendTimeSync() {}
 // ORIG 0x084e3326 T dispatch_sig —— 时间同步按状态广播。
 // 报告 docs/class_func_reports/Inter_SendTimeSync/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SendTimeSyncPktView —— Inter_SendTimeSync::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_SendTimeSyncPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned short m_a;             // +0x0a
+    unsigned short m_c;             // +0x0c
+};
+#pragma pack(pop)
+
 int Inter_SendTimeSync::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_SendTimeSyncPktView* pPkt = reinterpret_cast<Inter_SendTimeSyncPktView*>(data);
     PacketGuard packet;
     packet.put_header(0, 0x12c);
-    packet.put_short((short)*reinterpret_cast<unsigned short*>(data + 0xa));
-    packet.put_short((short)*reinterpret_cast<unsigned short*>(data + 0xc));
+    packet.put_short((short)pPkt->m_a);
+    packet.put_short((short)pPkt->m_c);
     packet.finalize(true);
     G_GameWorld()->send_all_with_state(packet, 3);
     return 0;
@@ -12048,14 +15107,26 @@ int Inter_SendTimeSync::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 Inter_SendTimeSyncLogin::~Inter_SendTimeSyncLogin() {}
 // ORIG 0x084e33ec T dispatch_sig —— 登录时时间同步下发。
 // 报告 docs/class_func_reports/Inter_SendTimeSyncLogin/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SendTimeSyncLoginPktView —— Inter_SendTimeSyncLogin::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_SendTimeSyncLoginPktView
+{
+    char m_pad0[0x12];  // +0x0..未消费
+    unsigned short m_12;            // +0x12
+    unsigned short m_14;            // +0x14
+};
+#pragma pack(pop)
+
 int Inter_SendTimeSyncLogin::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user == 0)
         return 0x53d4;
+    Inter_SendTimeSyncLoginPktView* pPkt = reinterpret_cast<Inter_SendTimeSyncLoginPktView*>(data);
     PacketGuard packet;
     packet.put_header(0, 0x12c);
-    packet.put_short((short)*reinterpret_cast<unsigned short*>(data + 0x12));
-    packet.put_short((short)*reinterpret_cast<unsigned short*>(data + 0x14));
+    packet.put_short((short)pPkt->m_12);
+    packet.put_short((short)pPkt->m_14);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -12073,7 +15144,9 @@ int Inter_AddGuildFundResult::dispatch_sig(CUser* user, char* data, int /*len*/)
         unsigned char m_bSuccess;   // +0xa
         int m_characNo;             // +0xb
         char m_pad2[0x4];
-        int m_money;                // +0x13
+        // ORIG +0x58 两步装载（`mov 0x13(%eax),%eax`+`mov %eax,%ebx`）＝unsigned 字段
+        // → gain_money(int) 形参的 signedness 失配形态（Ghidra uVar1；探针 t1 实证）。
+        unsigned int m_money;       // +0x13
     };
 #pragma pack(pop)
     AddGuildFundResultView* p = reinterpret_cast<AddGuildFundResultView*>(data);
@@ -12097,34 +15170,55 @@ int Inter_AddGuildFundResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_TodayGuildMember::~Inter_TodayGuildMember() {}
 // ORIG 0x084e358a T dispatch_sig —— 今日公会成员登记（SetTodayGuildMember + 0x130 包）。
 // 报告 docs/class_func_reports/Inter_TodayGuildMember/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_TodayGuildMemberPktView —— Inter_TodayGuildMember::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_TodayGuildMemberPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    char m_pad12[0x4];  // 未消费
+    int m_16;                 // +0x16
+    char m_1a[1];             // +0x1a 串/字节区首元素（容量未建模）
+    char m_pad1b[0x1d];  // 未消费
+    signed char m_38;         // +0x38
+    signed char m_39;         // +0x39
+    signed char m_3a;         // +0x3a
+    signed char m_3b;         // +0x3b
+    signed char m_3c;         // +0x3c
+};
+#pragma pack(pop)
+
 int Inter_TodayGuildMember::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_TodayGuildMemberPktView* pPkt = reinterpret_cast<Inter_TodayGuildMemberPktView*>(data);
     if (user->get_state() <= 2)                        // cmp $2; setle
         return 0;
 
-    if (*reinterpret_cast<int*>(data + 0xe) !=
+    if (pPkt->m_e !=
         user->getCurCharacNo())
         return 0;
 
-    if (*reinterpret_cast<int*>(data + 0x16) != 0 &&
-        *reinterpret_cast<int*>(data + 0x16) == user->getCurCharacNo())
+    if (pPkt->m_16 != 0 &&
+        pPkt->m_16 == user->getCurCharacNo())
     {
         user->SetTodayGuildMember(true);
     }
 
     PacketGuard packet;
     packet.put_header(0, 0x130);
-    if (*reinterpret_cast<int*>(data + 0x16) != 0)
+    if (pPkt->m_16 != 0)
     {
         packet.put_byte(1);
-        const size_t msgLen = strlen(data + 0x1a);
-        packet.put_int((int)msgLen);
-        packet.put_str(data + 0x1a, (int)msgLen);
-        packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x38));
-        packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x39));
-        packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x3a));
-        packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x3c));
-        packet.put_byte((int)*reinterpret_cast<signed char*>(data + 0x3b));
+        // len 槽 int 精确匹配 put_str(char*,int)（size_t 会致 decay 参数降级 add+反序）
+        const int msgLen = (int)strlen(pPkt->m_1a);
+        packet.put_int(msgLen);
+        packet.put_str(pPkt->m_1a, msgLen);
+        packet.put_byte((int)pPkt->m_38);
+        packet.put_byte((int)pPkt->m_39);
+        packet.put_byte((int)pPkt->m_3a);
+        packet.put_byte((int)pPkt->m_3c);
+        packet.put_byte((int)pPkt->m_3b);
     }
     else
     {
@@ -12138,68 +15232,103 @@ int Inter_TodayGuildMember::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_CheckJoinGuild::~Inter_CheckJoinGuild() {}
 // ORIG 0x084e3790 T dispatch_sig —— 公会加入检查：错误码转发或公会信息包。
 // 报告 docs/class_func_reports/Inter_CheckJoinGuild/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_CheckJoinGuildPktView —— Inter_CheckJoinGuild::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_CheckJoinGuildPktView
+{
+    int m_0;                  // +0x00
+    char m_4[1];              // +0x4 串/字节区首元素（容量未建模）
+    char m_pad5[0x1d];  // 未消费
+    char m_22[1];             // +0x22 串/字节区首元素（容量未建模）
+    char m_pad23[0x19];  // 未消费
+    int m_3c;                 // +0x3c
+    int m_40;                 // +0x40
+};
+#pragma pack(pop)
+
 int Inter_CheckJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)                        // setle：signed <= 2
         return 0;
+    // ORIG：包基址槽在守卫之后物化。
+    Inter_CheckJoinGuildPktView* pPkt = reinterpret_cast<Inter_CheckJoinGuildPktView*>(data);
 
-    char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
 
-    if (*reinterpret_cast<int*>(recv) != 0)
+    if (pPkt->m_0 != 0)
     {   // 结果码非零 → 错误包
         user->SendCmdErrorPacket(
             (ENUM_CMDPACKET)0x15c,
-            (unsigned char)*reinterpret_cast<unsigned int*>(recv));
-        return 0;
+            (unsigned char)pPkt->m_0);
     }
-
-    PacketGuard packet;
-    packet.put_header(1, 0x15c);
-    packet.put_byte(1);
-    int strLen = strlen(recv + 0x22);
-    packet.put_int(strLen);
-    packet.put_str(recv + 0x22, strLen);
-    strLen = strlen(recv + 0x4);
-    packet.put_int(strLen);
-    packet.put_str(recv + 0x4, strLen);
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x3c));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x40));
-    packet.finalize(true);
-    user->Send(packet);
+    // ORIG：PacketGuard 只在 else 支（两支汇合后 `mov $0x0,%eax`）。
+    else
+    {
+        PacketGuard packet;
+        packet.put_header(1, 0x15c);
+        packet.put_byte(1);
+        int strLen = strlen(pPkt->m_22);
+        packet.put_int(strLen);
+        packet.put_str(pPkt->m_22, strLen);
+        strLen = strlen(pPkt->m_4);
+        packet.put_int(strLen);
+        packet.put_str(pPkt->m_4, strLen);
+        packet.put_int(pPkt->m_3c);
+        packet.put_int(pPkt->m_40);
+        packet.finalize(true);
+        user->Send(packet);
+    }
     return 0;
 }
 
 Inter_RequestJoinGuild::~Inter_RequestJoinGuild() {}
 // ORIG 0x084e3924 T dispatch_sig —— 入会申请结果通知：成功组 0x15d 信息包，失败发错误包。
 // 报告 docs/class_func_reports/Inter_RequestJoinGuild/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_RequestJoinGuildPktView —— Inter_RequestJoinGuild::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_RequestJoinGuildPktView
+{
+    int m_0;                  // +0x00
+    int m_4;                  // +0x04
+    char m_8[1];              // +0x8 串/字节区首元素（容量未建模）
+    char m_pad9[0x1d];  // 未消费
+    char m_26[1];             // +0x26 串/字节区首元素（容量未建模）
+    char m_pad27[0x19];  // 未消费
+    int m_40;                 // +0x40
+    int m_44;                 // +0x44
+};
+#pragma pack(pop)
+
 int Inter_RequestJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_RequestJoinGuildPktView* pPkt = reinterpret_cast<Inter_RequestJoinGuildPktView*>(data);
     if (user->get_state() <= 2)                      // asm cmp $0x2; setle
         return 0;
 
-    if (*reinterpret_cast<int*>(data) != 0)          // msg+0x00 错误码
+    if (pPkt->m_0 != 0)          // msg+0x00 错误码
     {
         user->SendCmdErrorPacket(
             (ENUM_CMDPACKET)0x15d,
             static_cast<unsigned char>(
-                *reinterpret_cast<unsigned int*>(data) & 0xff));
+                pPkt->m_0 & 0xff));
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(1, 0x15d);
     packet.put_byte(1);
-    packet.put_int(*reinterpret_cast<int*>(data + 4));
+    packet.put_int(pPkt->m_4);
     const int guildNameLen =                         // msg+0x26 公会名
-        static_cast<int>(strlen(data + 0x26));
+        static_cast<int>(strlen(pPkt->m_26));
     packet.put_int(guildNameLen);
-    packet.put_str(data + 0x26, guildNameLen);
+    packet.put_str(pPkt->m_26, guildNameLen);
     const int requesterLen =                         // msg+0x08 申请者名
-        static_cast<int>(strlen(data + 8));
+        static_cast<int>(strlen(pPkt->m_8));
     packet.put_int(requesterLen);
-    packet.put_str(data + 8, requesterLen);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x40));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x44));
+    packet.put_str(pPkt->m_8, requesterLen);
+    packet.put_int(pPkt->m_40);
+    packet.put_int(pPkt->m_44);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -12208,27 +15337,53 @@ int Inter_RequestJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_JoinGuildInfo::~Inter_JoinGuildInfo() {}
 // ORIG 0x084e3ace T dispatch_sig —— 公会加入信息：按结果码选择字段转发。
 // 报告 docs/class_func_reports/Inter_JoinGuildInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_JoinGuildInfoPktView —— Inter_JoinGuildInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_JoinGuildInfoPktView
+{
+    signed char m_0;          // +0x00
+    char m_pad1[0x3];  // 未消费
+    int m_4;                  // +0x04
+    char m_8[1];              // +0x8 串/字节区首元素（容量未建模）
+    char m_pad9[0x1d];  // 未消费
+    char m_26[1];             // +0x26 串/字节区首元素（容量未建模）
+    char m_pad27[0x19];  // 未消费
+    int m_40;                 // +0x40
+    int m_44;                 // +0x44
+};
+#pragma pack(pop)
+
 int Inter_JoinGuildInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)                        // setle：signed <= 2
         return 0;
 
+    // ORIG 0x084e3af5：null 岛后单槽 -0x10=recv（pPkt 经 cast 内联复用同槽，技巧36）。
     char* recv = data;                                 // -0x10(%ebp) 缓存消息指针
 
     PacketGuard packet;
     packet.put_header(0, 0x131);
-    packet.put_byte((int)*reinterpret_cast<signed char*>(recv));   // movzbl+movsbl
+    packet.put_byte(
+        (int)reinterpret_cast<Inter_JoinGuildInfoPktView*>(recv)->m_0);   // movzbl+movsbl
     if (*recv != '\0')
     {
-        packet.put_int(*reinterpret_cast<int*>(recv + 4));
-        int strLen = strlen(recv + 0x26);
+        packet.put_int(
+            reinterpret_cast<Inter_JoinGuildInfoPktView*>(recv)->m_4);
+        int strLen = strlen(
+            reinterpret_cast<Inter_JoinGuildInfoPktView*>(recv)->m_26);
         packet.put_int(strLen);
-        packet.put_str(recv + 0x26, strLen);
-        strLen = strlen(recv + 8);
+        packet.put_str(
+            reinterpret_cast<Inter_JoinGuildInfoPktView*>(recv)->m_26, strLen);
+        strLen = strlen(
+            reinterpret_cast<Inter_JoinGuildInfoPktView*>(recv)->m_8);
         packet.put_int(strLen);
-        packet.put_str(recv + 8, strLen);
-        packet.put_int(*reinterpret_cast<int*>(recv + 0x40));
-        packet.put_int(*reinterpret_cast<int*>(recv + 0x44));
+        packet.put_str(
+            reinterpret_cast<Inter_JoinGuildInfoPktView*>(recv)->m_8, strLen);
+        packet.put_int(
+            reinterpret_cast<Inter_JoinGuildInfoPktView*>(recv)->m_40);
+        packet.put_int(
+            reinterpret_cast<Inter_JoinGuildInfoPktView*>(recv)->m_44);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -12238,17 +15393,31 @@ int Inter_JoinGuildInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_ApproveJoinGuild::~Inter_ApproveJoinGuild() {}
 // ORIG 0x084e3f0e T dispatch_sig —— 公会入会审批应答。
 // 报告 docs/class_func_reports/Inter_ApproveJoinGuild/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_ApproveJoinGuildPktView —— Inter_ApproveJoinGuild::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_ApproveJoinGuildPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+    unsigned int m_e;               // +0x0e
+    char m_pad12[0x4];  // +0x12..未消费
+    int m_16;                       // +0x16
+};
+#pragma pack(pop)
+
 int Inter_ApproveJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_ApproveJoinGuildPktView* pPkt = reinterpret_cast<Inter_ApproveJoinGuildPktView*>(data);
     if (user->get_state() <= 2)
         return 0;
 
     const unsigned int charIdMsg =                     // recv charId @ msg+0xe
-        *reinterpret_cast<unsigned int*>(data + 0xe);
+        pPkt->m_e;
     if (charIdMsg != (unsigned int)user->getCurCharacNo())
         return 0;
 
-    const unsigned int errCode = *reinterpret_cast<unsigned int*>(data + 0xa);
+    const unsigned int errCode = pPkt->m_a;
 
     PacketGuard packet;
     packet.put_header(1, 0x15f);
@@ -12256,12 +15425,12 @@ int Inter_ApproveJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
     {
         packet.put_byte(0);
         packet.put_byte((int)errCode);
-        packet.put_int(*reinterpret_cast<int*>(data + 0x16));
+        packet.put_int(pPkt->m_16);
     }
     else
     {
         packet.put_byte(1);
-        packet.put_int(*reinterpret_cast<int*>(data + 0x16));
+        packet.put_int(pPkt->m_16);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -12271,6 +15440,23 @@ int Inter_ApproveJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_GuildJoinList::~Inter_GuildJoinList() {}
 // ORIG 0x084e3c60 T dispatch_sig —— 公会加入申请列表下发（0x161 包，逐申请项序列化）。
 // 报告 docs/class_func_reports/Inter_GuildJoinList/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GuildJoinListEntryWinView —— Inter_GuildJoinList::dispatch_sig 窗口 entry 元素视图
+//   （entry 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
+struct Inter_GuildJoinListEntryWinView
+{
+    char m_pad0[0x4];  // 未消费
+    int m_4;                  // +0x04
+    char m_pad8[0x1e];  // 未消费
+    signed char m_26;         // +0x26
+    signed char m_27;         // +0x27
+    signed char m_28;         // +0x28
+    signed char m_29;         // +0x29
+    char m_pad2a[0x1a];  // 未消费
+    int m_44;                 // +0x44
+};
+#pragma pack(pop)
+
 int Inter_GuildJoinList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)
@@ -12287,18 +15473,19 @@ int Inter_GuildJoinList::dispatch_sig(CUser* user, char* data, int /*len*/)
     for (int local_18 = 0; local_18 < count; ++local_18)
     {
         char* const entry = local_1c + local_18 * 0x44;
-        packet.put_int(*reinterpret_cast<int*>(entry + 0x04));
+    Inter_GuildJoinListEntryWinView* pWin_entry = reinterpret_cast<Inter_GuildJoinListEntryWinView*>(entry);
+        packet.put_int(pWin_entry->m_4);
         const size_t local_14 = strlen(entry + 0x08);
         packet.put_int(local_14);
         packet.put_str(entry + 0x08, local_14);
-        packet.put_byte(*reinterpret_cast<signed char*>(entry + 0x26));
-        packet.put_byte(*reinterpret_cast<signed char*>(entry + 0x27));
-        packet.put_byte(*reinterpret_cast<signed char*>(entry + 0x29));
-        packet.put_byte(*reinterpret_cast<signed char*>(entry + 0x28));
+        packet.put_byte(pWin_entry->m_26);
+        packet.put_byte(pWin_entry->m_27);
+        packet.put_byte(pWin_entry->m_29);
+        packet.put_byte(pWin_entry->m_28);
         const size_t local_10 = strlen(entry + 0x2a);
         packet.put_int(local_10);
         packet.put_str(entry + 0x2a, local_10);
-        packet.put_int(*reinterpret_cast<int*>(entry + 0x44));
+        packet.put_int(pWin_entry->m_44);
     }
 
     packet.finalize(true);
@@ -12309,26 +15496,45 @@ int Inter_GuildJoinList::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_GuildAttendanceInfo::~Inter_GuildAttendanceInfo() {}
 // ORIG 0x084e4052 T dispatch_sig —— 公会签到信息：校验当前角色号后转发签到统计字段。
 // 报告 docs/class_func_reports/Inter_GuildAttendanceInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GuildAttendanceInfoPktView —— Inter_GuildAttendanceInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_GuildAttendanceInfoPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+    char m_pade[0x4];  // +0xe..未消费
+    signed char m_12;               // +0x12
+    int m_13;                       // +0x13
+    int m_17;                       // +0x17
+    int m_1b;                       // +0x1b
+    int m_1f;                       // +0x1f
+    int m_23;                       // +0x23
+    int m_27;                       // +0x27
+    int m_2b;                       // +0x2b
+};
+#pragma pack(pop)
+
 int Inter_GuildAttendanceInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_GuildAttendanceInfoPktView* pPkt = reinterpret_cast<Inter_GuildAttendanceInfoPktView*>(data);
     if (user->get_state() <= 2)                        // setle：signed <= 2
         return 0;
 
-    char* recv = data;                                 // -0xc(%ebp) 缓存消息指针
-    if (*reinterpret_cast<int*>(recv + 0xa) != user->getCurCharacNo())
+    if (pPkt->m_a != user->getCurCharacNo())
         return 0;
 
     PacketGuard packet;
     packet.put_header(1, 0x164);
     packet.put_byte(1);
-    packet.put_byte((int)*reinterpret_cast<signed char*>(recv + 0x12));  // movzbl+movsbl
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x13));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x17));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x2b));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x23));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x27));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x1b));
-    packet.put_int(*reinterpret_cast<int*>(recv + 0x1f));
+    packet.put_byte((int)pPkt->m_12);  // movzbl+movsbl
+    packet.put_int(pPkt->m_13);
+    packet.put_int(pPkt->m_17);
+    packet.put_int(pPkt->m_2b);
+    packet.put_int(pPkt->m_23);
+    packet.put_int(pPkt->m_27);
+    packet.put_int(pPkt->m_1b);
+    packet.put_int(pPkt->m_1f);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -12337,20 +15543,34 @@ int Inter_GuildAttendanceInfo::dispatch_sig(CUser* user, char* data, int /*len*/
 Inter_AchieveGuildAttendance::~Inter_AchieveGuildAttendance() {}
 // ORIG 0x084e41e4 T dispatch_sig —— 公会签到达成应答。
 // 报告 docs/class_func_reports/Inter_AchieveGuildAttendance/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_AchieveGuildAttendancePktView —— Inter_AchieveGuildAttendance::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_AchieveGuildAttendancePktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned int m_a;               // +0x0a
+    char m_pade[0x4];  // +0xe..未消费
+    int m_12;                       // +0x12
+    int m_16;                       // +0x16
+};
+#pragma pack(pop)
+
 int Inter_AchieveGuildAttendance::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_AchieveGuildAttendancePktView* pPkt = reinterpret_cast<Inter_AchieveGuildAttendancePktView*>(data);
     if (user->get_state() <= 2)
         return 0;
 
     const unsigned int charIdMsg =                     // recv charId @ msg+0xa
-        *reinterpret_cast<unsigned int*>(data + 0xa);
+        pPkt->m_a;
     if (charIdMsg != (unsigned int)user->getCurCharacNo())
         return 0;
 
     PacketGuard packet;
     packet.put_header(0, 0x134);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x12));
-    packet.put_int(*reinterpret_cast<int*>(data + 0x16));
+    packet.put_int(pPkt->m_12);
+    packet.put_int(pPkt->m_16);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -12359,15 +15579,29 @@ int Inter_AchieveGuildAttendance::dispatch_sig(CUser* user, char* data, int /*le
 Inter_UpdatePurchaseCashItemBonus::~Inter_UpdatePurchaseCashItemBonus() {}
 // ORIG 0x084e42e0 T dispatch_sig —— 商城消费奖励邮件触发。
 // 报告 docs/class_func_reports/Inter_UpdatePurchaseCashItemBonus/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_UpdatePurchaseCashItemBonusPktView —— Inter_UpdatePurchaseCashItemBonus::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_UpdatePurchaseCashItemBonusPktView
+{
+    unsigned int m_0;               // +0x00
+};
+#pragma pack(pop)
+
 int Inter_UpdatePurchaseCashItemBonus::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    if (user->get_state() > 2 &&
-        *reinterpret_cast<unsigned int*>(data + 0x0) != 0)
+    // ORIG 0x084e42e0：state 检查 setle 布尔物化（技巧22 al）；pPkt 检查后才落槽 -0xc；
+    // *recv 实参先于链式 call（R2L，ORIG +0x35 mov (%eax),%ebx 跨双 call）。
+    register bool lowState asm("al");
+    lowState = (user->get_state() <= 2);         // ORIG +0x15 setle %al; test %al,%al
+    if (lowState)
+        return 0;                                // ORIG +0x1c mov $0; jmp end
+    Inter_UpdatePurchaseCashItemBonusPktView* pPkt =   // ORIG +0x26 物化 -0xc
+        reinterpret_cast<Inter_UpdatePurchaseCashItemBonusPktView*>(data);
+    if (pPkt->m_0 != 0)                          // ORIG +0x30 test %eax,%eax; je 尾岛（body fall-through 在前，技巧17）
     {
-        EventClassify::CEventScriptMng* mng = static_cast<EventClassify::CEventScriptMng*>(
-            G_CDataManager()->get_event_script_mng());
-        mng->send_purchase_bonus_mail(
-            user, *reinterpret_cast<unsigned int*>(data + 0x0));
+        static_cast<EventClassify::CEventScriptMng*>(
+            G_CDataManager()->get_event_script_mng())->send_purchase_bonus_mail(user, pPkt->m_0);
     }
     return 0;
 }
@@ -12386,8 +15620,7 @@ int Inter_GoblinPadChagePwdReward::dispatch_sig(
     char* packet = data;
     if (user != 0)
     {
-        Sanicova::CPad* pad = user->getPad();
-        pad->SendChagePwdReward(user);
+        user->getPad()->SendChagePwdReward(user);
     }
     return 0;
 }
@@ -12408,20 +15641,32 @@ int Inter_GoblinPadSamePwdCheck::dispatch_sig(
 Inter_PunishCancel::~Inter_PunishCancel() {}
 // ORIG 0x084e4b02 T dispatch_sig —— 交易惩罚撤销。
 // 报告 docs/class_func_reports/Inter_PunishCancel/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_PunishCancelPktView —— Inter_PunishCancel::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_PunishCancelPktView
+{
+    char m_pad0[0xe];  // 未消费
+    short m_e;                // +0x0e
+    short m_10;               // +0x10
+};
+#pragma pack(pop)
+
 int Inter_PunishCancel::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_PunishCancelPktView* pPkt = reinterpret_cast<Inter_PunishCancelPktView*>(data);
     if (user != 0 &&
-        *reinterpret_cast<short*>(data + 0xe) == 2 &&
-        *reinterpret_cast<short*>(data + 0x10) == 0x20 &&
+        pPkt->m_e == 2 &&
+        pPkt->m_10 == 0x20 &&
         user->isTradePunishType(0x20))
     {
         user->DelTradePunishType(
-            (int)*reinterpret_cast<unsigned short*>(data + 0x10));
+            (int)(unsigned short)pPkt->m_10);
 
         PacketGuard packet;
         packet.put_header(0, 0x13f);
-        packet.put_short(*reinterpret_cast<unsigned short*>(data + 0xe));
-        packet.put_short(*reinterpret_cast<unsigned short*>(data + 0x10));
+        packet.put_short((unsigned short)pPkt->m_e);
+        packet.put_short((unsigned short)pPkt->m_10);
         packet.finalize(true);
         user->Send(packet);
     }
@@ -12452,18 +15697,37 @@ public:
 CUserTeen::CUserTeen() {}
 
 // ORIG CUserTeen::IsRight(CUser*) W 0x084f078c：
-//   CheckLimitMiniumAge(0xf, local) 结果取反（xor $1），非零 → 1，零 → 0。
+//   CheckLimitMiniumAge(0xf, local) 结果取反（xor $1）后 if/else 物化 0/1：
+//   ORIG 0x084f07ac `xor $0x1,%eax`; 07af `test`; 07b1 `je`; 07b3 fall
+//   `mov $0x0,%eax`+`jmp`; je 目标 07ba `mov $0x1,%eax`。直接 return !call()
+//   缺这四行物化（技巧10 形）。
 char CUserTeen::IsRight(CUser* user)
 {
-    int dummy = 0;
-    return static_cast<char>(!user->CheckLimitMiniumAge(0xf, dummy));
+    // ORIG +0x06：无 `movl $0x0,-0xc(%ebp)` ⇒ 局部不初始化（仅取址传引用）；
+    int dummy;
+    if (!user->CheckLimitMiniumAge(0xf, dummy))
+        return 0;
+    return 1;
 }
+
+#pragma pack(push, 1)
+// Inter_BroadcastMsgPktView —— Inter_BroadcastMsg::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_BroadcastMsgPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    unsigned char m_e;        // +0x0e
+    char m_f[1];              // +0xf 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
 
 int Inter_BroadcastMsg::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    if (*reinterpret_cast<int*>(data + 0xa) == 0)
+    Inter_BroadcastMsgPktView* pPkt = reinterpret_cast<Inter_BroadcastMsgPktView*>(data);
+    if (pPkt->m_a == 0)
     {
-        const unsigned char msgLen = *reinterpret_cast<unsigned char*>(data + 0xe);
+        const unsigned char msgLen = pPkt->m_e;
 
         PacketGuard packet;
         packet.put_header(0, 0xc);
@@ -12471,7 +15735,7 @@ int Inter_BroadcastMsg::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
         packet.put_short(0);
         packet.put_byte(0);
         packet.put_int(msgLen);
-        packet.put_str(data + 0xf, msgLen);
+        packet.put_str(pPkt->m_f, msgLen);
         packet.finalize(true);
 
         CUserTeen teen;
@@ -12487,14 +15751,21 @@ Inter_TOD_ReturnToMonitor_APCSettingComplete::~Inter_TOD_ReturnToMonitor_APCSett
 int Inter_TOD_ReturnToMonitor_APCSettingComplete::dispatch_sig(
     CUser* /*user*/, char* /*data*/, int /*len*/)
 {
-    const int group = G_CEnvironment()->get_server_group();
+    // ORIG +0x11 装参序 `mov <mgr>,%eax` 先于 `mov -0xc(%ebp),%edx` ⇒ 实参为 enum 同型 lvalue
+    // （call 处 (ENUM)x cast 会反转成 edx 先载；probe use1/use2 实证）。
+    const ENUM_SERVER_GROUP group =
+        (ENUM_SERVER_GROUP)G_CEnvironment()->get_server_group();
+    // ORIG +0x11：值先落 -0xc(%ebp)（普通 const 局部），再 `mov -0xc(%ebp),%ebx` 取别名
+    // 跨 cMyTrace ctor 缓存 ⇒ 两级写法（register 别名；后续 GetServerProxy 仍读 -0xc 原槽）。
+    register int tracedGroup = group;
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0x61f7, 5);
-    trace("TOD Random Select Complete. send->monitor group(%d)", group);
+    trace("TOD Random Select Complete. send->monitor group(%d)", tracedGroup);
     Packet_TOD_DoRandomSelect packet;
+    // ORIG 0x084e4df2/df7：this 先载 eax、group 后载 edx（enum 同型直传）。
     GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-        (ENUM_SERVER_GROUP)group)->SendTcpPacket(reinterpret_cast<char*>(&packet), 10);
+        group)->SendTcpPacket(reinterpret_cast<char*>(&packet), 10);
     return 0;
 }
 
@@ -12503,14 +15774,13 @@ Inter_TOD_Reload_APC::~Inter_TOD_Reload_APC() {}
 // 报告 docs/class_func_reports/Inter_TOD_Reload_APC/dispatch_sig.md 全文转写。
 int Inter_TOD_Reload_APC::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    TowerOfDespairMgr* mgr =
-        static_cast<TowerOfDespairMgr*>(GlobalData::s_pTowerOfDespairMgr);
-    mgr->ResetAPCInfo();
+    _APCInfo* infos = reinterpret_cast<_APCInfo*>(data);
+    static_cast<TowerOfDespairMgr*>(GlobalData::s_pTowerOfDespairMgr)->ResetAPCInfo();
     for (int i = 0; i <= 9; ++i)
     {
-        mgr->SetAPCInfo(
+        static_cast<TowerOfDespairMgr*>(GlobalData::s_pTowerOfDespairMgr)->SetAPCInfo(
             (unsigned int)i,
-            *reinterpret_cast<_APCInfo*>(data + i * 0xbc));
+            infos[i]);
     }
     return 0;
 }
@@ -12518,17 +15788,33 @@ int Inter_TOD_Reload_APC::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 Inter_UpdateSecuServiceState::~Inter_UpdateSecuServiceState() {}
 // ORIG 0x084e4e84 T dispatch_sig —— 安全服务状态更新：msg[0x14]=0 后转 Secu_DataControl。
 // 报告 docs/class_func_reports/Inter_UpdateSecuServiceState/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_UpdateSecuServiceStateMsgWinView —— Inter_UpdateSecuServiceState::dispatch_sig 窗口 msg 元素视图
+//   （msg 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
+struct Inter_UpdateSecuServiceStateMsgWinView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned char m_e;        // +0x0e
+    unsigned char m_f;        // +0x0f
+    char m_pad10[0x4];  // 未消费
+    unsigned char m_14;       // +0x14
+};
+#pragma pack(pop)
+
 int Inter_UpdateSecuServiceState::dispatch_sig(CUser* user, char* data, int len)
 {
-    if (data != 0)                                     // cmpl $0,0xc(%ebp)
+    // ORIG +0x06：包基址先无条件落 -0xc，其后才是 user 判空门。
+    Inter_UpdateSecuServiceStateMsgWinView* pWin_msg =
+        reinterpret_cast<Inter_UpdateSecuServiceStateMsgWinView*>(data);
+    // ORIG +0x0c 判的是 0xc(%ebp)＝user 形参（非 data）。
+    if (user != 0)
     {
-        char* msg = reinterpret_cast<char*>(len);      // ORIG 0x10(%ebp) 按指针使用（Ghidra 同口径）
-        *reinterpret_cast<unsigned char*>(msg + 0x14) = 0;
+        pWin_msg->m_14 = 0;
         GlobalData::s_pSecuDataControl->UpdateSecurityServiceState(
             user,                                      // 0xc(%ebp)
-            (unsigned char)*reinterpret_cast<unsigned char*>(msg + 0xe),
-            (unsigned char)*reinterpret_cast<unsigned char*>(msg + 0xf),
-            msg + 0x10);
+            (unsigned char)pWin_msg->m_e,
+            (unsigned char)pWin_msg->m_f,
+            reinterpret_cast<char*>(pWin_msg) + 0x10);
     }
     return 0;
 }
@@ -12563,26 +15849,50 @@ int Inter_LevelUpReward::dispatch_sig(CUser* user, char* data, int /*len*/)
 }
 
 Inter_GetUserRegdate::~Inter_GetUserRegdate() {}
+#pragma pack(push, 1)
+// Inter_GetUserRegdatePktView —— Inter_GetUserRegdate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_GetUserRegdatePktView
+{
+    unsigned int m_0;         // +0x00
+    unsigned int m_4;         // +0x04
+    unsigned int m_8;         // +0x08
+};
+#pragma pack(pop)
+
 int Inter_GetUserRegdate::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    unsigned int* packet = reinterpret_cast<unsigned int*>(data);
-    checkNewMemberHacklog(packet[1], user, packet[2]);
+    Inter_GetUserRegdatePktView* pPkt = reinterpret_cast<Inter_GetUserRegdatePktView*>(data);
+    // ORIG +0x11/+0x17：`mov 0x8(%eax),%edx`/`mov 0x4(%eax),%eax` 单级带偏移读 ⇒ 字段直取
+    // （int* 中间槽会退化成 add+mov 两级）。
+    checkNewMemberHacklog(pPkt->m_4, user, pPkt->m_8);
     return 0;
 }
 
 Inter_GoldControlMoneyActionCancel::~Inter_GoldControlMoneyActionCancel() {}
 // ORIG 0x084e4fe8 T dispatch_sig —— 金币控制邮件操作取消/完成应答。
 // 报告 docs/class_func_reports/Inter_GoldControlMoneyActionCancel/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GoldControlMoneyActionCancelPktView —— Inter_GoldControlMoneyActionCancel::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_GoldControlMoneyActionCancelPktView
+{
+    unsigned char m_0;              // +0x00
+    bool m_1;                       // +0x01
+};
+#pragma pack(pop)
+
 int Inter_GoldControlMoneyActionCancel::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_GoldControlMoneyActionCancelPktView* pPkt = reinterpret_cast<Inter_GoldControlMoneyActionCancelPktView*>(data);
     if (user != 0)
     {
         // ORIG 直接 user+0x8e980 成员访问（无 GetGoldControl() 调用）。
-        if (*reinterpret_cast<unsigned char*>(data + 0x0) != 0)
+        if (pPkt->m_0 != 0)
             user->m_goldControl.MailSameMid();
         else
             user->m_goldControl.MailComplete(
-                *reinterpret_cast<bool*>(data + 0x1));
+                pPkt->m_1);
     }
     return 0;
 }
@@ -12590,13 +15900,30 @@ int Inter_GoldControlMoneyActionCancel::dispatch_sig(CUser* user, char* data, in
 Inter_MonitorNoticeGuildChatMsgHyperLink::~Inter_MonitorNoticeGuildChatMsgHyperLink() {}
 // ORIG 0x084e503c T dispatch_sig —— 监控公会聊天超链接广播（字符串+超链接数组）。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeGuildChatMsgHyperLink/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeGuildChatMsgHyperLinkPktView —— Inter_MonitorNoticeGuildChatMsgHyperLink::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeGuildChatMsgHyperLinkPktView
+{
+    char m_pad0[0xe];  // 未消费
+    int m_e;                  // +0x0e
+    char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
+    char m_pad13[0x1d];  // 未消费
+    unsigned char m_30;       // +0x30
+    char m_pad31[0x138];  // 未消费
+    unsigned char m_169;      // +0x169
+    char m_16a[1];            // +0x16a 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeGuildChatMsgHyperLink::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorNoticeGuildChatMsgHyperLinkPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildChatMsgHyperLinkPktView*>(data);
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
 
     const int characNo =                               // msg+0xe
-        *reinterpret_cast<int*>(data + 0xe);
+        pPkt->m_e;
     if (user->get_charac_no(-1) != characNo)
     {
         LogManager::logFormat(
@@ -12612,18 +15939,18 @@ int Inter_MonitorNoticeGuildChatMsgHyperLink::dispatch_sig(CUser* user, char* da
     packet.put_header(0, 0x173);
     packet.put_byte(6);
     packet.put_byte(0);
-    const size_t msgLen = strlen(data + 0x12);
+    const size_t msgLen = strlen(pPkt->m_12);
     packet.put_int((int)msgLen);
-    packet.put_str(data + 0x12, (int)msgLen);
+    packet.put_str(pPkt->m_12, (int)msgLen);
     packet.put_byte(0);
     const unsigned int linkLen =
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0x169);
+        (unsigned int)pPkt->m_169;
     packet.put_int((int)linkLen);
-    packet.put_str(data + 0x16a, (int)linkLen);
+    packet.put_str(pPkt->m_16a, (int)linkLen);
     packet.put_byte(
-        (int)*reinterpret_cast<unsigned char*>(data + 0x30));
+        (int)pPkt->m_30);
     for (int i = 0;
-         i < (int)(unsigned int)*reinterpret_cast<unsigned char*>(data + 0x30);
+         i < (int)(unsigned int)pPkt->m_30;
          ++i)
     {
         packet.put_binary(data + i * 0x68 + 0x31, 0x68);
@@ -12636,6 +15963,25 @@ int Inter_MonitorNoticeGuildChatMsgHyperLink::dispatch_sig(CUser* user, char* da
 Inter_MonitorNoticeMemberChatMsgHyperLink::~Inter_MonitorNoticeMemberChatMsgHyperLink() {}
 // ORIG 0x084e5282 T dispatch_sig —— 公会员聊天超链接公告包（0x173）下发。
 // 报告 docs/class_func_reports/Inter_MonitorNoticeMemberChatMsgHyperLink/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorNoticeMemberChatMsgHyperLinkPktView —— Inter_MonitorNoticeMemberChatMsgHyperLink::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeMemberChatMsgHyperLinkPktView
+{
+    char m_pad0[0xe];  // 未消费
+    unsigned int m_e;         // +0x0e（同上 unsigned→int 失配两步 spill 形态）
+    char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
+    char m_pad13[0x1d];  // 未消费
+    unsigned char m_30;       // +0x30
+    // ORIG 0x084e56xx 循环体走数组寻址 `imul $0x68 → add $0x30 → add 基址槽 → add $0x1`；
+    // gcc 把数组基 0x31 折成 0x30(结构位移)+0x1(元素首字段)两步（probe addr4 t18 实证）。
+    struct ItemView { char m_0[1]; char m_pad[0x67]; };  // stride 0x68
+    ItemView m_items[1];        // +0x31 链接项区（实际个数=m_30；容量未建模）
+    char m_pad99[0xd0];    // 未消费
+    unsigned char m_169;      // +0x169
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeMemberChatMsgHyperLink::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -12652,7 +15998,9 @@ int Inter_MonitorNoticeMemberChatMsgHyperLink::dispatch_sig(CUser* user, char* d
         return 0;
     }
 
-    if (user->get_charac_no(-1) != *reinterpret_cast<int*>(data + 0xe))
+    // ORIG：包基址在两道 guard 后物化入 -0x14(%ebp)
+    Inter_MonitorNoticeMemberChatMsgHyperLinkPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberChatMsgHyperLinkPktView*>(data);
+    if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -12660,7 +16008,7 @@ int Inter_MonitorNoticeMemberChatMsgHyperLink::dispatch_sig(CUser* user, char* d
             0x6411,
             "MEMBER : Inter_MonitorNoticeMemberChatMsgHyperLink::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            *reinterpret_cast<unsigned int*>(data + 0xe));
+            pPkt->m_e);
         return 0;
     }
 
@@ -12668,22 +16016,24 @@ int Inter_MonitorNoticeMemberChatMsgHyperLink::dispatch_sig(CUser* user, char* d
     packet.put_header(0, 0x173);
     packet.put_byte(8);
     packet.put_byte(0);
-    const size_t local_14 = strlen(data + 0x12);
+    // len 槽 int 精确匹配（size_t 致 decay 降级 add+反序）
+    const int local_14 = (int)strlen(pPkt->m_12);
     packet.put_int(local_14);
-    packet.put_str(data + 0x12, local_14);
+    packet.put_str(pPkt->m_12, local_14);
     packet.put_byte(0);
     packet.put_int(
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0x169));
+        (unsigned int)pPkt->m_169);
     packet.put_str(
-        data + 0x16a,
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0x169));
+        reinterpret_cast<char*>(pPkt) + 0x16a,        // ORIG 经 -0x14 槽
+        (unsigned int)pPkt->m_169);
     packet.put_byte(
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0x30));
+        (unsigned int)pPkt->m_30);
     for (int local_10 = 0;
-         local_10 < (int)(unsigned int)*reinterpret_cast<unsigned char*>(data + 0x30);
+         local_10 < (int)(unsigned int)pPkt->m_30;
          ++local_10)
     {
-        packet.put_binary(data + local_10 * 0x68 + 0x31, 0x68);
+        // ORIG 0x084e5xxx：数组寻址两步位移形态（见 PktView ItemView 注释）。
+        packet.put_binary(pPkt->m_items[local_10].m_0, 0x68);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -12691,25 +16041,45 @@ int Inter_MonitorNoticeMemberChatMsgHyperLink::dispatch_sig(CUser* user, char* d
 }
 
 Inter_MonitorNoticeOtherChannelChatHyperLink::~Inter_MonitorNoticeOtherChannelChatHyperLink() {}
+#pragma pack(push, 1)
+// Inter_MonitorNoticeOtherChannelChatHyperLinkPktView —— Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorNoticeOtherChannelChatHyperLinkPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x5];  // 未消费
+    int m_13;                 // +0x13
+    char m_17[1];             // +0x17 串/字节区首元素（容量未建模）
+    char m_pad18[0x1d];  // 未消费
+    unsigned char m_35;       // +0x35
+    unsigned char m_36;       // +0x36
+    char m_pad37[0x138];  // 未消费
+    unsigned char m_16f;      // +0x16f
+    char m_170[1];            // +0x170 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
     CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorNoticeOtherChannelChatHyperLinkPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeOtherChannelChatHyperLinkPktView*>(data);
     // ORIG 0x084e5528 报告 Inter_MonitorNoticeOtherChannelChatHyperLink/dispatch_sig.md
     // 两段全读。四分支按 msg[0x35]（1/2/3/其余）各组成 0x173 通知包。
     if (user->get_state() == 0)
         return 0;
 
-    const unsigned char linkType = *reinterpret_cast<unsigned char*>(data + 0x35);
-    const unsigned char itemCount = *reinterpret_cast<unsigned char*>(data + 0x36);
+    const unsigned char linkType = pPkt->m_35;
+    const unsigned char itemCount = pPkt->m_36;
     const int count = (int)itemCount;
     if (linkType == 1)
     {
         PacketGuard packet;
         packet.put_header(0, 0x173);
-        packet.put_byte(*reinterpret_cast<int*>(data + 0xa));
+        packet.put_byte(pPkt->m_a);
         packet.put_byte(0x15);
-        packet.put_int(static_cast<int>(strlen(data + 0x17)));
-        packet.put_str(data + 0x17, static_cast<int>(strlen(data + 0x17)));
+        packet.put_int(static_cast<int>(strlen(pPkt->m_17)));
+        packet.put_str(pPkt->m_17, static_cast<int>(strlen(pPkt->m_17)));
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
@@ -12723,10 +16093,10 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
     {
         PacketGuard packet;
         packet.put_header(0, 0x173);
-        packet.put_byte(*reinterpret_cast<int*>(data + 0xa));
+        packet.put_byte(pPkt->m_a);
         packet.put_byte(0x4d);
-        packet.put_int(static_cast<int>(strlen(data + 0x17)));
-        packet.put_str(data + 0x17, static_cast<int>(strlen(data + 0x17)));
+        packet.put_int(static_cast<int>(strlen(pPkt->m_17)));
+        packet.put_str(pPkt->m_17, static_cast<int>(strlen(pPkt->m_17)));
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
@@ -12740,10 +16110,10 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
     {
         PacketGuard packet;
         packet.put_header(0, 0x173);
-        packet.put_byte(*reinterpret_cast<int*>(data + 0xa));
+        packet.put_byte(pPkt->m_a);
         packet.put_byte(0x5a);
-        packet.put_int(static_cast<int>(strlen(data + 0x17)));
-        packet.put_str(data + 0x17, static_cast<int>(strlen(data + 0x17)));
+        packet.put_int(static_cast<int>(strlen(pPkt->m_17)));
+        packet.put_str(pPkt->m_17, static_cast<int>(strlen(pPkt->m_17)));
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
@@ -12756,7 +16126,7 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
     else
     {
         const int myCharacNo = user->get_charac_no(-1);
-        if (myCharacNo != *reinterpret_cast<int*>(data + 0x13))
+        if (myCharacNo != pPkt->m_13)
         {
             LogManager::logFormat(
                 1, "InterDispatcher.cpp",
@@ -12764,20 +16134,21 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
                 "dispatch_sig(CUser*, char*, int)", 0x6497,
                 "Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig() : "
                 "pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-                myCharacNo, *reinterpret_cast<int*>(data + 0x13));
+                myCharacNo, pPkt->m_13);
             return 0;
         }
 
         PacketGuard packet;
         packet.put_header(0, 0x173);
-        packet.put_byte(*reinterpret_cast<int*>(data + 0xa));
+        packet.put_byte(pPkt->m_a);
         packet.put_byte(0);
-        packet.put_int(static_cast<int>(strlen(data + 0x17)));
-        packet.put_str(data + 0x17, static_cast<int>(strlen(data + 0x17)));
+        packet.put_int(static_cast<int>(strlen(pPkt->m_17)));
+        packet.put_str(pPkt->m_17, static_cast<int>(strlen(pPkt->m_17)));
         packet.put_byte(0);
-        packet.put_int(*reinterpret_cast<int*>(data + 0x16f));
-        packet.put_str(data + 0x170,
-                       *reinterpret_cast<unsigned char*>(data + 0x16f));
+        // ORIG 084e5b28/084e5b44：0x16f 按 1 字节读（movzbl），零扩展传值。
+        packet.put_int(pPkt->m_16f);
+        packet.put_str(pPkt->m_170,
+                       pPkt->m_16f);
         packet.put_byte(itemCount);
         for (int i = 0; i < count; ++i)
             packet.put_binary(data + i * 0x68 + 0x37, 0x68);
@@ -12790,27 +16161,47 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
 Inter_Monitor_MegaphoneMsgHyperLink::~Inter_Monitor_MegaphoneMsgHyperLink() {}
 // ORIG 0x084e5c26 T dispatch_sig —— 大喇叭超链接广播（0x174 包，按频道整合判定分发）。
 // 报告 docs/class_func_reports/Inter_Monitor_MegaphoneMsgHyperLink/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_Monitor_MegaphoneMsgHyperLinkPktView —— Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_Monitor_MegaphoneMsgHyperLinkPktView
+{
+    char m_pad0[0xa];  // 未消费
+    signed char m_a;          // +0x0a
+    unsigned char m_b;        // +0x0b
+    unsigned short m_c;       // +0x0c
+    unsigned char m_e;        // +0x0e
+    char m_f[1];              // +0xf 串/字节区首元素（容量未建模）
+    char m_pad10[0x1d];  // 未消费
+    unsigned char m_2d;       // +0x2d
+    char m_pad2e[0x138];  // 未消费
+    unsigned char m_166;      // +0x166
+    char m_167[1];            // +0x167 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_Monitor_MegaphoneMsgHyperLinkPktView* pPkt = reinterpret_cast<Inter_Monitor_MegaphoneMsgHyperLinkPktView*>(data);
     PacketGuard packet;
     packet.put_header(0, 0x174);
     packet.put_byte(
-        (int)*reinterpret_cast<unsigned char*>(data + 0xe));
+        (int)pPkt->m_e);
     packet.put_byte(
-        (int)*reinterpret_cast<unsigned char*>(data + 0xb));
+        (int)pPkt->m_b);
     packet.put_short(
-        (int)(unsigned short)*reinterpret_cast<unsigned short*>(data + 0xc));
-    const size_t msgLen = strlen(data + 0xf);
+        (int)(unsigned short)pPkt->m_c);
+    const size_t msgLen = strlen(pPkt->m_f);
     packet.put_int((int)msgLen);
-    packet.put_str(data + 0xf, (int)msgLen);
+    packet.put_str(pPkt->m_f, (int)msgLen);
     const unsigned int linkLen =
-        (unsigned int)*reinterpret_cast<unsigned char*>(data + 0x166);
+        (unsigned int)pPkt->m_166;
     packet.put_int((int)linkLen);
-    packet.put_str(data + 0x167, (int)linkLen);
+    packet.put_str(pPkt->m_167, (int)linkLen);
     packet.put_byte(
-        (int)*reinterpret_cast<unsigned char*>(data + 0x2d));
+        (int)pPkt->m_2d);
     for (int i = 0;
-         i < (int)(unsigned int)*reinterpret_cast<unsigned char*>(data + 0x2d);
+         i < (int)(unsigned int)pPkt->m_2d;
          ++i)
     {
         packet.put_binary(data + i * 0x68 + 0x2e, 0x68);
@@ -12824,7 +16215,7 @@ int Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig(CUser* /*user*/, char* dat
     else
     {
         const char group =
-            *reinterpret_cast<signed char*>(data + 0xa);
+            pPkt->m_a;
         G_GameWorld()->send_server_group(packet, group);
     }
     return 0;
@@ -12833,7 +16224,7 @@ int Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig(CUser* /*user*/, char* dat
 Inter_SendSecuReward::~Inter_SendSecuReward() {}
 int Inter_SendSecuReward::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    int* packet = reinterpret_cast<int*>(data);
+    int* packet = reinterpret_cast<int*>(data);      // 整包首槽指针视图（非成员访问）
     if (*packet == 0)
     {
         user->AddSecuRewardItem(static_cast<unsigned char>(8));
@@ -12861,41 +16252,56 @@ void Inter_HadesAction::send_alert(CUser* user, unsigned int code)
 Inter_HadesAction::~Inter_HadesAction() {}
 // ORIG 0x084e5f02 T dispatch_sig —— Hades 行为处理：登录用户现场执行，未登录用户落惩罚 DB。
 // 报告 docs/class_func_reports/Inter_HadesAction/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_HadesActionPktView —— Inter_HadesAction::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_HadesActionPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x4];  // 未消费
+    unsigned int m_12;        // +0x12
+    unsigned int m_16;        // +0x16
+    unsigned int m_1a;        // +0x1a
+    unsigned int m_1e;        // +0x1e
+};
+#pragma pack(pop)
+
 int Inter_HadesAction::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    char* recv = data;                                 // -0x1c(%ebp) 缓存消息指针
+    Inter_HadesActionPktView* pPkt = reinterpret_cast<Inter_HadesActionPktView*>(data);
 
-    if (user != 0 && user->get_acc_id() == *reinterpret_cast<int*>(recv + 0xa))
+    if (user != 0 && user->get_acc_id() == pPkt->m_a)
     {
         char ipBuf[16] = { '\0' };                     // 16 字节内联清零
         static_cast<XNuclear::CHades*>(user->getHades())
             ->GetIP(ipBuf);                            // 两次 getHades 各取一次（P48）
         static_cast<XNuclear::CHades*>(user->getHades())
-            ->RunHadesAction(*reinterpret_cast<unsigned int*>(recv + 0x12),
-                             *reinterpret_cast<unsigned int*>(recv + 0x16),
-                             *reinterpret_cast<unsigned int*>(recv + 0x1a),
-                             *reinterpret_cast<unsigned int*>(recv + 0x1e),
+            ->RunHadesAction(pPkt->m_12,
+                             pPkt->m_16,
+                             pPkt->m_1a,
+                             pPkt->m_1e,
                              ipBuf);
-        send_alert(user, *reinterpret_cast<unsigned int*>(recv + 0x12));
+        send_alert(user, pPkt->m_12);
     }
-    else if (user == 0 && *reinterpret_cast<int*>(recv + 0xa) != 0)
+    else if (user == 0 && pPkt->m_a != 0)
     {
-        if ((*reinterpret_cast<unsigned int*>(recv + 0x12) & 2) != 0)
+        if ((pPkt->m_12 & 2) != 0)
         {   // 双端惩罚（type=2）
             DB_HadesPunish::makeRequest(
-                *reinterpret_cast<unsigned int*>(recv + 0xa), 2,
-                *reinterpret_cast<unsigned int*>(recv + 0x16),
-                *reinterpret_cast<unsigned int*>(recv + 0x1a),
-                *reinterpret_cast<unsigned int*>(recv + 0x1e),
+                pPkt->m_a, 2,
+                pPkt->m_16,
+                pPkt->m_1a,
+                pPkt->m_1e,
                 reinterpret_cast<char*>(0));
         }
-        if ((*reinterpret_cast<unsigned int*>(recv + 0x12) & 1) != 0)
+        if ((pPkt->m_12 & 1) != 0)
         {   // 单端惩罚（type=1）
             DB_HadesPunish::makeRequest(
-                *reinterpret_cast<unsigned int*>(recv + 0xa), 1,
-                *reinterpret_cast<unsigned int*>(recv + 0x16),
-                *reinterpret_cast<unsigned int*>(recv + 0x1a),
-                *reinterpret_cast<unsigned int*>(recv + 0x1e),
+                pPkt->m_a, 1,
+                pPkt->m_16,
+                pPkt->m_1a,
+                pPkt->m_1e,
                 reinterpret_cast<char*>(0));
         }
     }
@@ -12909,10 +16315,12 @@ int Inter_Check3rdPartyConcent::dispatch_sig(CUser* user, char* data, int /*len*
 {
     if (user->get_state() <= 2)
         return 0;
+    // ORIG +0x26：包基址落 -0xc 具名局部（PacketGuard 因此被推到 -0x18）。
+    char* pPkt = data;
     PacketGuard packet;
     packet.put_header(1, 0x1c3);
     packet.put_byte(1);
-    packet.put_byte((int)(signed char)*data);   // ORIG movsbl 符号扩展
+    packet.put_byte((int)(signed char)*pPkt);   // ORIG movzbl+movsbl 两级
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -12921,24 +16329,43 @@ int Inter_Check3rdPartyConcent::dispatch_sig(CUser* user, char* data, int /*len*
 Inter_SelectCharacMid::~Inter_SelectCharacMid() {}
 // ORIG 0x084e6170 T dispatch_sig —— 角色选择中间校验/hack 计数与金币追踪。
 // 报告 docs/class_func_reports/Inter_SelectCharacMid/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_SelectCharacMidPktView —— Inter_SelectCharacMid::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_SelectCharacMidPktView
+{
+    int m_0;                  // +0x00
+    unsigned int m_4;         // +0x04
+    unsigned int m_8;         // +0x08
+    char m_padc[0x4];  // 未消费
+    unsigned int m_10;        // +0x10
+};
+#pragma pack(pop)
+
 int Inter_SelectCharacMid::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    if (user != 0 && user->getCurCharacR() != 0 &&
-        *reinterpret_cast<int*>(data + 0x0) == 0)
+    Inter_SelectCharacMidPktView* pPkt = reinterpret_cast<Inter_SelectCharacMidPktView*>(data);
+    // ORIG 0x084e6170：user&&characR 以 al 物化（mov$1/mov$0/test al je tail，技巧22）；
+    // m_0 检查独立正向（jne tail）；fatigue 实参免槽（call→movzwl %ax,%edi 跨双 call，R2L）。
+    register bool ok asm("al");
+    ok = (user != 0 && user->getCurCharacR() != 0);
+    if (ok)
     {
-        user->getHackAnalyzer()->addServerHackCnt(
-            user,
-            (WongWork::ENUM_HACKTYPE)*reinterpret_cast<unsigned int*>(data + 0x4), 1,
-            *reinterpret_cast<unsigned int*>(data + 0x10),
-            *reinterpret_cast<unsigned int*>(data + 0x8));
-        if (*reinterpret_cast<int*>(data + 0x4) == 0x2ce)
+        if (pPkt->m_0 == 0)
         {
-            const unsigned int fatigue = user->getCurCharacUsedFatigue();
-            reinterpret_cast<XNuclear::CHades*>(user->getHades())->GoldTracking(
-                2,
-                *reinterpret_cast<unsigned int*>(data + 0x10), "",
-                *reinterpret_cast<unsigned int*>(data + 0x8),
-                fatigue & 0xffff);
+            user->getHackAnalyzer()->addServerHackCnt(
+                user,
+                (WongWork::ENUM_HACKTYPE)pPkt->m_4, 1,
+                pPkt->m_10,
+                pPkt->m_8);
+            if (pPkt->m_4 == 0x2ce)
+            {
+                reinterpret_cast<XNuclear::CHades*>(user->getHades())->GoldTracking(
+                    2,
+                    pPkt->m_10, "",
+                    pPkt->m_8,
+                    user->getCurCharacUsedFatigue() & 0xffff);
+            }
         }
     }
     return 0;
@@ -12947,16 +16374,27 @@ int Inter_SelectCharacMid::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_NpcLimitBuyItemInfoAll::~Inter_NpcLimitBuyItemInfoAll() {}
 // ORIG 0x084e6258 T dispatch_sig —— NPC 限购全部条目信息下发（0x193 包）。
 // 报告 docs/class_func_reports/Inter_NpcLimitBuyItemInfoAll/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NpcLimitBuyItemInfoAllPktView —— Inter_NpcLimitBuyItemInfoAll::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NpcLimitBuyItemInfoAllPktView
+{
+    char m_pad0[0x16];  // +0x0..未消费
+    int m_16;                       // +0x16
+};
+#pragma pack(pop)
+
 int Inter_NpcLimitBuyItemInfoAll::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_NpcLimitBuyItemInfoAllPktView* pPkt = reinterpret_cast<Inter_NpcLimitBuyItemInfoAllPktView*>(data);
     if (user == 0 || user->get_state() == 0)
         return 0;
 
     PacketGuard packet;
     packet.put_header(0, 0x193);
-    packet.put_int(*reinterpret_cast<int*>(data + 0x16));   // msg+0x16 count
+    packet.put_int(pPkt->m_16);   // msg+0x16 count
     for (int i = 0;
-         i < *reinterpret_cast<int*>(data + 0x16) && i < 0x1e; ++i)
+         i < pPkt->m_16 && i < 0x1e; ++i)
     {
         packet.put_int(
             *reinterpret_cast<int*>(data + i * 0xc + 0x1a));
@@ -12984,12 +16422,24 @@ int Inter_NpcLimitBuyItemInfoAll::dispatch_sig(CUser* user, char* data, int /*le
 Inter_NpcLimitBuyItemChangeInfo::~Inter_NpcLimitBuyItemChangeInfo() {}
 // ORIG 0x084e6448 T dispatch_sig —— NPC 限购道具变更全网广播。
 // 报告 docs/class_func_reports/Inter_NpcLimitBuyItemChangeInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NpcLimitBuyItemChangeInfoPktView —— Inter_NpcLimitBuyItemChangeInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NpcLimitBuyItemChangeInfoPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+    int m_e;                        // +0x0e
+};
+#pragma pack(pop)
+
 int Inter_NpcLimitBuyItemChangeInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    Inter_NpcLimitBuyItemChangeInfoPktView* pPkt = reinterpret_cast<Inter_NpcLimitBuyItemChangeInfoPktView*>(data);
     PacketGuard packet;
     packet.put_header(0, 0x191);
-    packet.put_int(*reinterpret_cast<int*>(data + 0xa));
-    packet.put_int(*reinterpret_cast<int*>(data + 0xe));
+    packet.put_int(pPkt->m_a);
+    packet.put_int(pPkt->m_e);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     return 0;
@@ -12998,9 +16448,20 @@ int Inter_NpcLimitBuyItemChangeInfo::dispatch_sig(CUser* /*user*/, char* data, i
 Inter_NpcLimitBuyItemInfoRenew::~Inter_NpcLimitBuyItemInfoRenew() {}
 // ORIG 0x084e6e82 T dispatch_sig —— NPC 限购物品余量刷新：组 0x193 包全服广播。
 // 报告 docs/class_func_reports/Inter_NpcLimitBuyItemInfoRenew/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_NpcLimitBuyItemInfoRenewPktView —— Inter_NpcLimitBuyItemInfoRenew::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NpcLimitBuyItemInfoRenewPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_NpcLimitBuyItemInfoRenew::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    const int itemCount = *reinterpret_cast<int*>(data + 0xa);   // msg+0x0a 条目数
+    Inter_NpcLimitBuyItemInfoRenewPktView* pPkt = reinterpret_cast<Inter_NpcLimitBuyItemInfoRenewPktView*>(data);
+    const int itemCount = pPkt->m_a;   // msg+0x0a 条目数
 
     PacketGuard packet;
     packet.put_header(0, 0x193);
@@ -13032,37 +16493,56 @@ int Inter_NpcLimitBuyItemInfoRenew::dispatch_sig(CUser* /*user*/, char* data, in
 Inter_MonitorReplyCharacInfo::~Inter_MonitorReplyCharacInfo() {}
 // ORIG 0x084e7024 T dispatch_sig —— 监控服角色信息查询应答：组 0x1d6 包回发。
 // 报告 docs/class_func_reports/Inter_MonitorReplyCharacInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_MonitorReplyCharacInfoPktView —— Inter_MonitorReplyCharacInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_MonitorReplyCharacInfoPktView
+{
+    char m_pad0[0xa];  // 未消费
+    int m_a;                  // +0x0a
+    char m_pade[0x4];  // 未消费
+    int m_12;                 // +0x12
+    unsigned char m_16;       // +0x16
+    char m_17[1];             // +0x17 串/字节区首元素（容量未建模）
+    char m_pad18[0x1d];  // 未消费
+    short m_35;               // +0x35
+    signed char m_37;         // +0x37
+    signed char m_38;         // +0x38
+};
+#pragma pack(pop)
+
 int Inter_MonitorReplyCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_MonitorReplyCharacInfoPktView* pPkt = reinterpret_cast<Inter_MonitorReplyCharacInfoPktView*>(data);
     unsigned short uniqueId = 0;                     // asm -0x12(%ebp) movw $0
     CUser* target = G_CGameManager()->getUser(
-        *reinterpret_cast<int*>(data + 0x12), 0xa);  // msg+0x12 characNo
+        pPkt->m_12, 0xa);  // msg+0x12 characNo
     if (target != 0)
         uniqueId = target->get_unique_id();          // 返回值取 ax
 
     PacketGuard packet;
     packet.put_header(1, 0x1d6);
-    if (*reinterpret_cast<int*>(data + 0xa) == 0)    // msg+0x0a 成功分支
+    if (pPkt->m_a == 0)    // msg+0x0a 成功分支
     {
         packet.put_byte(1);
         packet.put_byte(                             // msg+0x16（movzbl 零扩展）
-            static_cast<int>(*reinterpret_cast<unsigned char*>(data + 0x16)));
+            static_cast<int>(pPkt->m_16));
         packet.put_int(static_cast<unsigned int>(uniqueId));
         const int nameLen =                          // msg+0x17 角色名
-            static_cast<int>(strlen(data + 0x17));
+            static_cast<int>(strlen(pPkt->m_17));
         packet.put_int(nameLen);
-        packet.put_str(data + 0x17, nameLen);
+        packet.put_str(pPkt->m_17, nameLen);
         packet.put_byte(                             // msg+0x35 short（cwtl 符号扩展）
-            static_cast<int>(*reinterpret_cast<short*>(data + 0x35)));
+            static_cast<int>(pPkt->m_35));
         packet.put_byte(                             // msg+0x37 char（movsbl）
-            static_cast<int>(*reinterpret_cast<signed char*>(data + 0x37)));
+            static_cast<int>(pPkt->m_37));
         packet.put_byte(                             // msg+0x38 char（movsbl）
-            static_cast<int>(*reinterpret_cast<signed char*>(data + 0x38)));
+            static_cast<int>(pPkt->m_38));
     }
     else
     {
         packet.put_byte(0);
-        packet.put_byte(*reinterpret_cast<int*>(data + 0xa));
+        packet.put_byte(pPkt->m_a);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -13072,9 +16552,23 @@ int Inter_MonitorReplyCharacInfo::dispatch_sig(CUser* user, char* data, int /*le
 Inter_CeraShopPurchaseCount::~Inter_CeraShopPurchaseCount() {}
 // ORIG 0x084e7bfe T dispatch_sig —— 塞拉商城购买加成道具处理。
 // 报告 docs/class_func_reports/Inter_CeraShopPurchaseCount/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_CeraShopPurchaseCountPktView —— Inter_CeraShopPurchaseCount::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_CeraShopPurchaseCountPktView
+{
+    char m_pad0[0x4];  // +0x0..未消费
+    unsigned long m_4;              // +0x04
+    unsigned short m_8;             // +0x08
+    char m_pada[0x2];  // +0xa..未消费
+    int m_c;                        // +0x0c
+};
+#pragma pack(pop)
+
 int Inter_CeraShopPurchaseCount::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    if (data == 0)
+    Inter_CeraShopPurchaseCountPktView* pPkt = reinterpret_cast<Inter_CeraShopPurchaseCountPktView*>(data);
+    if (pPkt == 0)
     {
         cMyTrace trace(
             __PRETTY_FUNCTION__,
@@ -13084,9 +16578,9 @@ int Inter_CeraShopPurchaseCount::dispatch_sig(CUser* user, char* data, int /*len
     }
     GlobalData::s_pItemVendingMachine->ProcessPurcahseBonusItem(
         user,
-        *reinterpret_cast<unsigned long*>(data + 0x4),
-        *reinterpret_cast<int*>(data + 0xc),
-        *reinterpret_cast<unsigned short*>(data + 0x8));
+        pPkt->m_4,
+        pPkt->m_c,
+        pPkt->m_8);
     return 0;
 }
 
@@ -13103,9 +16597,37 @@ struct PCK_AUCTION_BIDDING_GP : public nsl::PACKET_HEADER
     PCK_AUCTION_BIDDING_GP() { PACKET_CTOR_BODY(0x12, 5, 0x33); }
 };
 
+#pragma pack(push, 1)
+// Inter_OwnerisVIPPktView —— Inter_OwnerisVIP::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_OwnerisVIPPktView
+{
+    char m_pad0[0x4];  // +0x0..未消费
+    unsigned int m_4;               // +0x04
+    unsigned int m_8;               // +0x08
+    bool m_c;                       // +0x0c
+    int m_d;                        // +0x0d
+    char m_pad11[0x11];  // +0x11..未消费
+    unsigned int m_22;              // +0x22
+    int m_26;                       // +0x26
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+// Inter_OwnerisVIPMsgWinView —— Inter_OwnerisVIP::dispatch_sig 窗口 msg 元素视图
+//   （msg 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
+struct Inter_OwnerisVIPMsgWinView
+{
+    char m_pad0[0x4];  // 未消费
+    unsigned long long m_4;   // +0x04
+};
+#pragma pack(pop)
+
 int Inter_OwnerisVIP::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_OwnerisVIPPktView* pPkt = reinterpret_cast<Inter_OwnerisVIPPktView*>(data);
     char* msg = data;                                      // -0x14（ORIG cmpl $0,-0x14 检查 data）
+    Inter_OwnerisVIPMsgWinView* pWin_msg = reinterpret_cast<Inter_OwnerisVIPMsgWinView*>(msg);
     if (msg == 0)
     {
         cMyTrace trace(
@@ -13116,16 +16638,16 @@ int Inter_OwnerisVIP::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     CUser* target = user;                                  // -0x10
     const int price =                                      // -0xc（ORIG 先物化 price 再填 needInfo）
-        *reinterpret_cast<unsigned int*>(msg + 0x22);
+        pPkt->m_22;
     ItemVendingMachine::AuctionNeedInfo needInfo;          // -0x4c（0x28）
     needInfo.m_price = static_cast<unsigned int>(price);
-    needInfo.m_itemUid = *reinterpret_cast<unsigned long long*>(msg + 0x04);   // lo/hi
+    needInfo.m_itemUid = pWin_msg->m_4;   // lo/hi
 
     if (!GlobalData::s_pItemVendingMachine->BuyAuctionItem(
             target, needInfo,
-            *reinterpret_cast<int*>(msg + 0x26),           // +0x26
-            *reinterpret_cast<bool*>(msg + 0x0c),          // +0x0c
-            *reinterpret_cast<int*>(msg + 0x0d)))          // +0x0d
+            pPkt->m_26,           // +0x26
+            pPkt->m_c,          // +0x0c
+            pPkt->m_d))          // +0x0d
     {
         target->SetBuyingGold(false);
         target->SendCmdErrorPacket((ENUM_CMDPACKET)0xbc, 0x93, (PAY_TYPE)1);
@@ -13142,9 +16664,9 @@ int Inter_OwnerisVIP::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     PrePayInfo prePay;                                     // -0x74（0x28 按值）
     *reinterpret_cast<unsigned int*>(prePay.m_data + 0x00) =
-        *reinterpret_cast<unsigned int*>(msg + 0x04);
+        pPkt->m_4;
     *reinterpret_cast<unsigned int*>(prePay.m_data + 0x04) =
-        *reinterpret_cast<unsigned int*>(msg + 0x08);
+        pPkt->m_8;
     *reinterpret_cast<unsigned int*>(prePay.m_data + 0x08) =
         static_cast<unsigned int>(price);
     memcpy(prePay.m_data + 0x0c,
@@ -13162,6 +16684,7 @@ Inter_LoadPuUserCheck::~Inter_LoadPuUserCheck() {}
 int Inter_LoadPuUserCheck::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     char* packet = data;
+    // ORIG 0x084e7ff1 单步 `movzbl (%eax),%edx`；4.4 装载目标恒 %eax 中转（N18a 镜像），register 变体反产 push ebx，blocked。
     user->m_field796d8 = *packet;
     return 0;
 }
@@ -13205,8 +16728,19 @@ Inter_CollectItemsReward::~Inter_CollectItemsReward() {}
 // ORIG 0x084e71ee T dispatch_sig —— 收集品奖励邮件：result 分支选道具 + 脚本文案 +
 // CItem::make_item 生成物品经系统邮件发放。
 // 报告 docs/class_func_reports/Inter_CollectItemsReward/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_CollectItemsRewardPktView —— Inter_CollectItemsReward::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_CollectItemsRewardPktView
+{
+    char m_pad0[0x12];  // +0x0..未消费
+    unsigned char m_12;             // +0x12
+};
+#pragma pack(pop)
+
 int Inter_CollectItemsReward::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_CollectItemsRewardPktView* pPkt = reinterpret_cast<Inter_CollectItemsRewardPktView*>(data);
     if (user->getCurCharacR() == 0)
         return 0;
 
@@ -13214,7 +16748,7 @@ int Inter_CollectItemsReward::dispatch_sig(CUser* user, char* data, int /*len*/)
     char msgBuf[0x100] = { '\0' };                     // P4 内联清零
     char titleBuf[0x1e] = { '\0' };
 
-    switch (*reinterpret_cast<unsigned char*>(data + 0x12))
+    switch (pPkt->m_12)
     {
     case 1:                                            // 收集完成
         item.m_addInfo = 0x21d7;
@@ -13294,23 +16828,41 @@ void CUserResetTimeGateQuest::Modify(CUser* user)
 {
     if (user->get_state() > 2 && user->getCurCharacR() != 0)
     {
-        const int questIndex = GlobalData::s_timeGate_->getQuestIndex();
+        register int questIndex = GlobalData::s_timeGate_->getQuestIndex();  // ORIG 0x084f082f: mov %eax,%ebx（callee-saved 跨调用缓存）
         if (user->getCurCharacQuestR()->IsDoingQuest(questIndex))
         {
-            user->getCurCharacQuestW()->giveup_quest(questIndex);
+            register int questIndex2 = GlobalData::s_timeGate_->getQuestIndex();  // ORIG 0x084f0859: 第二次独立 call，同落 %ebx
+            user->getCurCharacQuestW()->giveup_quest(questIndex2);
         }
     }
 }
 
+#pragma pack(push, 1)
+// Inter_CollectItemsRewardBroadcastPktView —— Inter_CollectItemsRewardBroadcast::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_CollectItemsRewardBroadcastPktView
+{
+    char m_pad0[0x12];  // 未消费
+    unsigned char m_12;       // +0x12
+    char m_pad13[0x1];  // 未消费
+    char m_14[1];             // +0x14 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_CollectItemsRewardBroadcast::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    char* recv = data;                                 // -0xc(%ebp) 缓存消息指针
+    Inter_CollectItemsRewardBroadcastPktView* pPkt = reinterpret_cast<Inter_CollectItemsRewardBroadcastPktView*>(data);
 
     PacketGuard packet;
     packet.put_header(0, 0x56);
     packet.put_byte(0xb);
-    packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(recv + 0x12));
-    if (*reinterpret_cast<signed char*>(recv + 0x12) == 2)
+    packet.put_byte((unsigned int)pPkt->m_12);
+    // ORIG +0x60..+0x67：`movzbl 0x12(%eax),%eax`+`movzbl %al,%eax`+`cmp $0x2,%eax`
+    // —— 块作用域 register 绑定 %eax 保留二次零扩展（探针 r7 实证；
+    //    非 register 或 asm("ebx") 均退化为单条 movzbl/cmp %al）。
+    {
+    register int rewardType asm("eax") = pPkt->m_12;
+    if (rewardType == 2)
     {
         GlobalData::s_timeGate_->SetLevel(100);
         CUserResetTimeGateQuest modifier;              // ORIG C1 0x084f0886，仅 vptr
@@ -13321,8 +16873,9 @@ int Inter_CollectItemsRewardBroadcast::dispatch_sig(CUser* /*user*/, char* data,
     {
         packet.put_short(0);
     }
-    packet.put_int(strlen(recv + 0x14));
-    packet.put_str(recv + 0x14, strlen(recv + 0x14));  // ORIG 两次独立 strlen（P48）
+    }
+    packet.put_int(strlen(pPkt->m_14));
+    packet.put_str(pPkt->m_14, strlen(pPkt->m_14));  // ORIG 两次独立 strlen（P48）
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     return 0;
@@ -13331,8 +16884,20 @@ int Inter_CollectItemsRewardBroadcast::dispatch_sig(CUser* /*user*/, char* data,
 Inter_RequestCharacSkillInfo::~Inter_RequestCharacSkillInfo() {}
 // ORIG 0x084e7884 T dispatch_sig —— 请求 tag 角色技能：写入技能树编号并重发技能信息。
 // 报告 docs/class_func_reports/Inter_RequestCharacSkillInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_RequestCharacSkillInfoPktView —— Inter_RequestCharacSkillInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_RequestCharacSkillInfoPktView
+{
+    unsigned int m_0;         // +0x00
+    char m_pad4[0x198];  // 未消费
+    unsigned char m_19c;      // +0x19c
+};
+#pragma pack(pop)
+
 int Inter_RequestCharacSkillInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_RequestCharacSkillInfoPktView* pPkt = reinterpret_cast<Inter_RequestCharacSkillInfoPktView*>(data);
     char* recv = data;                                 // -0x14(%ebp) 缓存消息指针
     if (user == 0)
         return 0;
@@ -13340,13 +16905,13 @@ int Inter_RequestCharacSkillInfo::dispatch_sig(CUser* user, char* data, int /*le
         return 0;
 
     const int tagIdx =
-        user->get_charac_idx(*reinterpret_cast<unsigned int*>(recv));
+        user->get_charac_idx(pPkt->m_0);
     if (tagIdx == -1)                                  // cmpl $0xffffffff
         return 0;
 
     // ORIG：*(byte*)(m_characList[tagIdx] + 0x1239) = recv[0x19c]
     user->m_characList[tagIdx].m_field1239 =
-        *reinterpret_cast<unsigned char*>(recv + 0x19c);
+        pPkt->m_19c;
     // +0x1239 按 signed char 读取（ORIG movsbl 口径）
     const char skillTreeKind =
         *reinterpret_cast<signed char*>(&user->m_characList[tagIdx].m_field1239);
@@ -13368,8 +16933,19 @@ int Inter_RequestCharacSkillInfo::dispatch_sig(CUser* user, char* data, int /*le
 Inter_RequestTagCharacInfo::~Inter_RequestTagCharacInfo() {}
 // ORIG 0x084e79f2 T dispatch_sig —— 切换 tag 角色：设置 tag 状态与全部子对象 parent 后广播。
 // 报告 docs/class_func_reports/Inter_RequestTagCharacInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_RequestTagCharacInfoPktView —— Inter_RequestTagCharacInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_RequestTagCharacInfoPktView
+{
+    unsigned int m_0;         // +0x00
+    unsigned char m_4;        // +0x04
+};
+#pragma pack(pop)
+
 int Inter_RequestTagCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // ORIG 0x084e79f8 入口仅单槽 -0x14=recv（pPkt 经 cast 内联复用同槽，技巧36）。
     char* recv = data;                                 // -0x14(%ebp) 缓存消息指针
     if (user == 0)
         return 0;
@@ -13377,17 +16953,19 @@ int Inter_RequestTagCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*
         return 0;
 
     const int tagIdx =
-        user->get_charac_idx(*reinterpret_cast<unsigned int*>(recv));
+        user->get_charac_idx(
+            reinterpret_cast<Inter_RequestTagCharacInfoPktView*>(recv)->m_0);
     if (tagIdx == -1)                                  // cmpl $0xffffffff
         return 0;
 
-    _Charac_info* info = &user->m_characList[tagIdx];  // vector @ +0x796e8
-    user->setTagCharac(info);
+    // ORIG 0x084e7a67/0x084e7a76：operator[] 结果免槽直传（技巧37）
+    user->setTagCharac(&user->m_characList[tagIdx]);   // vector @ +0x796e8
 
     user->getTagCharacInvenR()->set_parent(user);      // CInventory::set_parent
     user->getTagCharacSkillR()->set_parent(user);      // SkillSlot::set_parent
 
-    user->setTagCharacInfo(tagIdx, *reinterpret_cast<unsigned int*>(recv),
+    user->setTagCharacInfo(tagIdx,
+                           reinterpret_cast<Inter_RequestTagCharacInfoPktView*>(recv)->m_0,
                            reinterpret_cast<TAG_CHARAC_DATA*>(recv + 5));
     user->setTagCharacInven(reinterpret_cast<TAG_CHARAC_INVEN_DATA*>(recv + 0x7d));
 
@@ -13396,14 +16974,15 @@ int Inter_RequestTagCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*
     questShop->SetTagCharacQuestShopData(
         reinterpret_cast<CHARAC_QUEST_SHOP_DATA*>(recv + 0x40a1));
 
-    user->setCurCharacTagCharacNo(*reinterpret_cast<unsigned int*>(recv));
-    user->setCurCharacStrikerSkillIndex(*reinterpret_cast<unsigned char*>(recv + 4));
+    user->setCurCharacTagCharacNo(
+        reinterpret_cast<Inter_RequestTagCharacInfoPktView*>(recv)->m_0);
+    user->setCurCharacStrikerSkillIndex(
+        reinterpret_cast<Inter_RequestTagCharacInfoPktView*>(recv)->m_4);
 
     user->m_characterView.enableSaveCharacView();      // +0x796f4
 
-    // ORIG：*(byte*)(m_characList[tagIdx] + 0x14bc) = 1（_Charac_info 无具名成员，
-    // 沿 CUserOnlyOrig.cpp:5183 先例）
-    *(unsigned char*)(reinterpret_cast<char*>(&user->m_characList[tagIdx]) + 0x14bc) = 1;
+    // ORIG 0x084e7b6b `movb $0x1,0x14bc(%eax)`：operator[] 重调结果具名字段直折 disp。
+    user->m_characList[tagIdx].m_field14BC = 1;
 
     user->SendTagCharacInfo();
     return 0;
@@ -13412,13 +16991,26 @@ int Inter_RequestTagCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*
 Inter_EmergencyPatchMessage::~Inter_EmergencyPatchMessage() {}
 // ORIG 0x084e7b84 T dispatch_sig —— 紧急补丁公告（禁止新连接+广播 10 分钟关服）。
 // 报告 docs/class_func_reports/Inter_EmergencyPatchMessage/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_EmergencyPatchMessagePktView —— Inter_EmergencyPatchMessage::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_EmergencyPatchMessagePktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    unsigned char m_a;              // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_EmergencyPatchMessage::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    if (GameserverDemonManagerInstance()->IsProhibitConnectState() != 0)
+    Inter_EmergencyPatchMessagePktView* pPkt = reinterpret_cast<Inter_EmergencyPatchMessagePktView*>(data);
+    // ORIG +0x1b：`test %al,%al`+`je` 无 setne 物化 ⇒ 直接真值测试（`!= 0` 会插入物化两行）。
+    if (GameserverDemonManagerInstance()->IsProhibitConnectState())
         return 0;
     GameserverDemonManagerInstance()->SetUserProhibitFlag(true);
+    // ORIG +0x3b：串基址取包基址槽 -0xc(%ebp)（经具名 pPkt，不回落参数槽 0x10）。
     GameserverDemonManagerInstance()->SetNoticeMessage(
-        *reinterpret_cast<unsigned char*>(data + 0xa), data + 0xb);
+        pPkt->m_a, reinterpret_cast<char*>(pPkt) + 0xb);
     GameserverDemonManagerInstance()->Notice10MinShutDownMessage();
     return 0;
 }
@@ -13426,14 +17018,27 @@ int Inter_EmergencyPatchMessage::dispatch_sig(CUser* /*user*/, char* data, int /
 Inter_AuctionSubMoney::~Inter_AuctionSubMoney() {}
 // ORIG 0x084e8004 T dispatch_sig —— 拍卖扣款异常登记服务器 hack 计数。
 // 报告 docs/class_func_reports/Inter_AuctionSubMoney/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_AuctionSubMoneyPktView —— Inter_AuctionSubMoney::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_AuctionSubMoneyPktView
+{
+    unsigned int m_0;               // +0x00
+    // ORIG +0x14/+0x17 两步装载（`mov 0x4(%eax),%eax`+`mov %eax,%esi`）而 +0x1f 的 m_0
+    // 一步直落 %ebx ⇒ 本字段为 signed int（→addServerHackCnt(unsigned) 形参失配）。
+    int m_4;                        // +0x04
+};
+#pragma pack(pop)
+
 int Inter_AuctionSubMoney::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_AuctionSubMoneyPktView* pPkt = reinterpret_cast<Inter_AuctionSubMoneyPktView*>(data);
     if (user != 0)
     {
         user->getHackAnalyzer()->addServerHackCnt(
             user, (WongWork::ENUM_HACKTYPE)0x2d3, 1,
-            *reinterpret_cast<unsigned int*>(data + 0x0),
-            *reinterpret_cast<unsigned int*>(data + 0x4));
+            pPkt->m_0,
+            pPkt->m_4);
     }
     return 0;
 }
@@ -13448,12 +17053,23 @@ int Inter_UpdateServerSnapShot::dispatch_sig(CUser* /*user*/, char* /*data*/, in
 Inter_LoadCharacTypeHotKey::~Inter_LoadCharacTypeHotKey() {}
 // ORIG 0x084e87de T dispatch_sig —— DB 热键配置装载。
 // 报告 docs/class_func_reports/Inter_LoadCharacTypeHotKey/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadCharacTypeHotKeyPktView —— Inter_LoadCharacTypeHotKey::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_LoadCharacTypeHotKeyPktView
+{
+    char m_pad0[0x4];  // +0x0..未消费
+    unsigned char m_4;              // +0x04
+};
+#pragma pack(pop)
+
 int Inter_LoadCharacTypeHotKey::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_LoadCharacTypeHotKeyPktView* pPkt = reinterpret_cast<Inter_LoadCharacTypeHotKeyPktView*>(data);
     if (user->get_state() <= 1)
         return 0;
 
-    const unsigned char slot = *reinterpret_cast<unsigned char*>(data + 4);
+    const unsigned char slot = pPkt->m_4;
     user->GetGameOptionRef()->SetHotKeyOption(
         slot, *reinterpret_cast<CHotkeyOption*>(data + 5));
 
@@ -13468,10 +17084,22 @@ int Inter_LoadCharacTypeHotKey::dispatch_sig(CUser* user, char* data, int /*len*
 }
 
 Inter_UpdateMiniCraneSeed::~Inter_UpdateMiniCraneSeed() {}
+#pragma pack(push, 1)
+// Inter_UpdateMiniCraneSeedPktView —— Inter_UpdateMiniCraneSeed::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_UpdateMiniCraneSeedPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+};
+#pragma pack(pop)
+
 int Inter_UpdateMiniCraneSeed::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    char* packet = data;
-    int seed = *reinterpret_cast<int*>(packet + 0x0a);
+    Inter_UpdateMiniCraneSeedPktView* pPkt = reinterpret_cast<Inter_UpdateMiniCraneSeedPktView*>(data);
+    // ORIG +0x11 一步 `mov 0xa(%eax),%ebx`（同 signedness 直落 callee-saved）⇒ register 局部；
+    // 且无多余 char* 局部（否则 pPkt 槽被挤到 -0x14/-0x10 两级）。
+    register int seed = pPkt->m_a;
     G_GameWorld()->ResetCraneItemNeedMaterial(seed);
     return 0;
 }
@@ -13479,19 +17107,31 @@ int Inter_UpdateMiniCraneSeed::dispatch_sig(CUser* /*user*/, char* data, int /*l
 Inter_GetPremiumSelectedCubeInfo::~Inter_GetPremiumSelectedCubeInfo() {}
 // ORIG 0x084e8936 T dispatch_sig —— 高级方块合约信息初始化。
 // 报告 docs/class_func_reports/Inter_GetPremiumSelectedCubeInfo/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_GetPremiumSelectedCubeInfoPktView —— Inter_GetPremiumSelectedCubeInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_GetPremiumSelectedCubeInfoPktView
+{
+    char m_pad0[0x4];  // 未消费
+    char m_4;                 // +0x04
+    unsigned char m_5;        // +0x05
+};
+#pragma pack(pop)
+
 int Inter_GetPremiumSelectedCubeInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_GetPremiumSelectedCubeInfoPktView* pPkt = reinterpret_cast<Inter_GetPremiumSelectedCubeInfoPktView*>(data);
     if (user->getCurCharacR() == 0)
         return 0;
 
     user->initContractOfCubePremiumInfo(
-        *reinterpret_cast<char*>(data + 4) != '\0',
-        *reinterpret_cast<unsigned char*>(data + 5));
+        pPkt->m_4 != '\0',
+        pPkt->m_5);
 
     PacketGuard packet;
     packet.put_header(0, 0x217);
-    packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(data + 4));
-    packet.put_byte((unsigned int)*reinterpret_cast<unsigned char*>(data + 5));
+    packet.put_byte((unsigned int)(unsigned char)pPkt->m_4);
+    packet.put_byte((unsigned int)pPkt->m_5);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -13500,8 +17140,20 @@ int Inter_GetPremiumSelectedCubeInfo::dispatch_sig(CUser* user, char* data, int 
 Inter_CheckAddFriend::~Inter_CheckAddFriend() {}
 // ORIG 0x084e8a42 T dispatch_sig —— 添加好友检查：空指针告警或转发监视服添加请求。
 // 报告 docs/class_func_reports/Inter_CheckAddFriend/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_CheckAddFriendPktView —— Inter_CheckAddFriend::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_CheckAddFriendPktView
+{
+    int m_0;                  // +0x00
+    char m_pad4[0x1];  // 未消费
+    char m_5[1];              // +0x5 串/字节区首元素（容量未建模）
+};
+#pragma pack(pop)
+
 int Inter_CheckAddFriend::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_CheckAddFriendPktView* pPkt = reinterpret_cast<Inter_CheckAddFriendPktView*>(data);
     if (user == 0 || data == 0)
     {
         cMyTrace trace(
@@ -13523,12 +17175,12 @@ int Inter_CheckAddFriend::dispatch_sig(CUser* user, char* data, int /*len*/)
         return 0x6d83;
     }
 
-    if (*reinterpret_cast<int*>(recv) == 0)
+    if (pPkt->m_0 == 0)
     {
         Packet_Monitor_Add_Buddy packet;
         packet.m_charNo = user->getCurCharacNo();      // +0x0a
         packet.m_idByChannel = user->GetUID();         // +0x0e
-        memcpy(packet.m_name, recv + 5, strlen(recv + 5));
+        memcpy(packet.m_name, pPkt->m_5, strlen(pPkt->m_5));
         CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy(
             user->GetServerGroup());
         proxy->SendPacket(reinterpret_cast<char*>(&packet),
@@ -13538,7 +17190,7 @@ int Inter_CheckAddFriend::dispatch_sig(CUser* user, char* data, int /*len*/)
     {
         user->SendCmdErrorPacket(
             (ENUM_CMDPACKET)0x3f,
-            (unsigned char)*reinterpret_cast<unsigned int*>(recv));
+            (unsigned char)pPkt->m_0);
     }
     return 0;
 }
@@ -13546,8 +17198,19 @@ int Inter_CheckAddFriend::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_LoadCerashopAddRestrictType::~Inter_LoadCerashopAddRestrictType() {}
 // ORIG 0x080e2104 T dispatch_sig —— DB 限购类型数据装载。
 // 报告 docs/class_func_reports/Inter_LoadCerashopAddRestrictType/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadCerashopAddRestrictTypePktView —— Inter_LoadCerashopAddRestrictType::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_LoadCerashopAddRestrictTypePktView
+{
+    char m_pad0[0x4];  // +0x0..未消费
+    int m_4;                        // +0x04
+};
+#pragma pack(pop)
+
 int Inter_LoadCerashopAddRestrictType::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_LoadCerashopAddRestrictTypePktView* pPkt = reinterpret_cast<Inter_LoadCerashopAddRestrictTypePktView*>(data);
     if (user == 0 || data == 0)
     {
         cMyTrace trace(
@@ -13569,7 +17232,7 @@ int Inter_LoadCerashopAddRestrictType::dispatch_sig(CUser* user, char* data, int
     }
 
     CerashopAddRestrict::UserInfo& info = user->m_ceraUserInfo;
-    const int type = *reinterpret_cast<int*>(data + 4);
+    const int type = pPkt->m_4;
     if (type == 0)
     {
         CerashopAddRestrict::Manager::LoadProcess(
@@ -13588,8 +17251,18 @@ int Inter_LoadCerashopAddRestrictType::dispatch_sig(CUser* user, char* data, int
 
 // ORIG 0x084e8ce4 T dispatch_sig —— 从 monitor 装载角色升级支援事件状态（m_levelupEvents 同步 + DB 上报）。
 // 报告 docs/class_func_reports/Inter_LoadEventLevelupSupport/dispatch_sig.md 全文转写。
+#pragma pack(push, 1)
+// Inter_LoadEventLevelupSupportPktView —— Inter_LoadEventLevelupSupport::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+struct Inter_LoadEventLevelupSupportPktView
+{
+    int m_0;                  // +0x00
+};
+#pragma pack(pop)
+
 int Inter_LoadEventLevelupSupport::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_LoadEventLevelupSupportPktView* pPkt = reinterpret_cast<Inter_LoadEventLevelupSupportPktView*>(data);
     if (user == 0 || data == 0)
     {
         cMyTrace trace(
@@ -13600,7 +17273,7 @@ int Inter_LoadEventLevelupSupport::dispatch_sig(CUser* user, char* data, int /*l
         return 0x6def;
     }
 
-    int* const local_2c = reinterpret_cast<int*>(data);
+    int* const local_2c =&pPkt->m_0;
 
     user->m_levelupEvents.clear();
     user->m_levelupEvents =
@@ -13742,8 +17415,41 @@ int Inter_NpcLimitBuyItemInfo::checkError(CUser* user, LimitNpcBuyItemInfo* info
 // 入背包（失败走系统邮件兜底），扣减源物品并回执 monitor。
 // 报告 docs/class_func_reports/Inter_NpcLimitBuyItemInfo/dispatch_sig.md 全文转写。
 // LimitNpcBuyItemUpdate NEEDS_DECL（PacketHeader(0x27dd,0x1a) 派生，见 meta）。
+#pragma pack(push, 1)
+// NpcLimitMailView —— Inter_NpcLimitBuyItemInfo 栈上 MSG_MAILBOX_SEND(0x145)
+// 组包缓冲视图。字段宽度按本函数 ORIG 写指令核实：strncpy @+0x01(0x14B)、
+// movl @+0x35/@+0x3d。（与 Inter_MultiMailBoxReqSend::MailBufSendView 槽位不同：
+// 两处 ORIG 各写不同偏移；MSG_MAILBOX_SEND 权威布局属主落定后再统一。）
+struct NpcLimitMailView
+{
+    char m_pad0[0x1];           // 未消费
+    char m_name01[0x14];        // +0x01 收件人名（strncpy 0x14）
+    char m_pad15[0x20];  // 未消费
+    int m_35;                   // +0x35 = m_addInfo
+    char m_pad39[0x4];  // 未消费
+    int m_3d;                   // +0x3d = m_addInfo2
+    char m_pad41[0x104];        // 未消费
+};
+#pragma pack(pop)
+#pragma pack(push, 1)
+// Inter_NpcLimitBuyItemInfoPktView —— Inter_NpcLimitBuyItemInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
+//   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+struct Inter_NpcLimitBuyItemInfoPktView
+{
+    char m_pad0[0xa];  // +0x0..未消费
+    int m_a;                        // +0x0a
+    char m_pade[0x4];  // +0xe..未消费
+    unsigned int m_12;              // +0x12
+    unsigned int m_16;              // +0x16
+    unsigned int m_1a;              // +0x1a
+    char m_pad1e[0x4];  // +0x1e..未消费
+    int m_22;                       // +0x22
+};
+#pragma pack(pop)
+
 int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    Inter_NpcLimitBuyItemInfoPktView* pPkt = reinterpret_cast<Inter_NpcLimitBuyItemInfoPktView*>(data);
     reset();                                           // ORIG 0x084e6e1a（已实现）
 
     LimitNpcBuyItemInfo* msg =                         // -0xc（LimitNpcBuyItemInfo*）
@@ -13752,24 +17458,26 @@ int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/
 
     CUser* target =                                    // +0xc
         G_CGameManager()->getUser(
-            *reinterpret_cast<int*>(data + 0x0a), 10);
+            pPkt->m_a, 10);
 
     if (target == 0)
     {   // 用户不在线：按本类缓存字段回 monitor（ORIG GetServerGroup(NULL) 原样保留）
         update.m_error = 3;
-        update.m_characNo = *reinterpret_cast<unsigned int*>(data + 0x16);  // +0x0a
-        update.m_itemIdx  = *reinterpret_cast<unsigned int*>(data + 0x12);  // +0x0e
-        update.m_count    = *reinterpret_cast<unsigned int*>(data + 0x1a);  // +0x12
+        update.m_characNo = pPkt->m_16;  // +0x0a
+        update.m_itemIdx  = pPkt->m_12;  // +0x0e
+        update.m_count    = pPkt->m_1a;  // +0x12
         CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr
             ->GetServerProxy(user->GetServerGroup());
         proxy->SendPacket(reinterpret_cast<char*>(&update), 0x1a);
         return 0;
     }
 
-    if (*reinterpret_cast<unsigned char*>(data + 0x22) != 0)   // 请求自带错误码
+    // ORIG 084e6654/084e665e：0x22 按 32 位读（mov 0x22(%eax)），
+    // test 判全字；实参仅取低字节（movzbl %al）传 SendCmdErrorPacket。
+    if (pPkt->m_22 != 0)   // 请求自带错误码
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1d1,
-                                 *reinterpret_cast<unsigned char*>(data + 0x22));
+                                 (unsigned char)pPkt->m_22);
         return 0;
     }
 
@@ -13778,7 +17486,7 @@ int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/
     {
         update.m_error    = m_error;                   // +0x04
         update.m_characNo = (unsigned int)user->get_charac_no(-1);
-        update.m_itemIdx  = *reinterpret_cast<unsigned int*>(data + 0x1a);
+        update.m_itemIdx  = pPkt->m_1a;
         CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr
             ->GetServerProxy(user->GetServerGroup());
         proxy->SendPacket(reinterpret_cast<char*>(&update), 0x1a);
@@ -13813,9 +17521,10 @@ int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/
         {
             char mail[0x145];                          // -0x288（MSG_MAILBOX_SEND 0x145 视图）
             memset(mail, 0, 0x145);
-            strncpy(mail + 1, title, 0x14);            // 收件人名 @+0x01
-            *reinterpret_cast<int*>(mail + 0x35) = m_invenItem1.m_addInfo;
-            *reinterpret_cast<int*>(mail + 0x3d) = m_invenItem1.m_addInfo2;
+            NpcLimitMailView* pMail = reinterpret_cast<NpcLimitMailView*>(mail);
+            strncpy(pMail->m_name01, title, 0x14);     // 收件人名 @+0x01
+            pMail->m_35 = m_invenItem1.m_addInfo;
+            pMail->m_3d = m_invenItem1.m_addInfo2;
             user->m_historyLog.SendMail(               // ORIG (user+0x79700)
                 reinterpret_cast<MSG_MAILBOX_SEND*>(mail), 0);
         }
@@ -13828,7 +17537,7 @@ int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/
 
     update.m_error    = 0;
     update.m_characNo = (unsigned int)user->get_charac_no(-1);
-    update.m_itemIdx  = *reinterpret_cast<unsigned int*>(data + 0x1a);
+    update.m_itemIdx  = pPkt->m_1a;
     {
         CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr
             ->GetServerProxy(user->GetServerGroup());

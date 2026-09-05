@@ -10,9 +10,15 @@
 #include <string.h>
 
 #include "CDungeon.h"
+#include "CEnvironment.h"             // less_TCHAR：ORIG map 按字符串内容比较
 #include "DNFLexWrapper.h"
 #include "DataManagerInitDepends.h"   // getCharacterJobToEnumValue 声明（[impossible skills]）
+#include "LogManager.h"               // ORIG clear-condition 错误日志
 #include "NpcScript.h"                // STScriptFileList（[schedule] 双视图）
+#include "STWorldmapPattern.h"        // STWorldmapPattern（[worldmap pattern info] 局部）
+
+// ORIG _Z25GetWorldMapCoordFromTableiiR17STWorldmapPattern 0x088e5ef8 T（WorldMapScript.h 权威声明）
+void GetWorldMapCoordFromTable(int a, int b, STWorldmapPattern& out);
 
 extern std::map<int, std::string> g_stDungeonScriptFileList;   // 定义 InitScriptProducers_4.cpp（双视图 STScriptFileList）
 
@@ -22,6 +28,9 @@ static const char* const g_gridSymbols[16] = {
     "AA", "BB", "CC", "DD", "EE", "FF", "GG", "HH",
     "II", "JJ", "KK", "LL", "MM", "NN", "OO", "PP",
 };
+
+// ORIG B 0x94f6da0（权威定义 InitScriptProducers_4.cpp；目录前缀，import 传 loadRDARScriptFile）
+extern char g_szDungeonScriptBaseDirectory[0x100];
 
 // [schedule] 时间串转换器（权威定义 InitScriptProducers_6.cpp，签名须与定义一致）
 bool ConvertStringToTime(std::string s, long& out);
@@ -79,7 +88,7 @@ void STDungeonScript::Clear()
     m_b4[3] = 0;
     m_b4[4] = 0;
     m_vecc8.clear();
-    memset(m_padF8, 0xff, sizeof(m_padF8));   // ORIG 嵌套循环置 12 int = -1
+    memset(&m_pathgate, 0xff, sizeof(m_pathgate));   // ORIG 未消费槽同样置 -1
     m_13c = 0;
     m_140 = 0;
     m_141 = 0;
@@ -168,10 +177,10 @@ void STDungeonScript::Clear()
     m_424[2] = 0;
     m_424[3] = 0;
     m_424[4] = 0;
-    m_438 = 0;
-    m_43c = 0x40000000;   // 2.0f
-    m_440 = 0;
-    m_444 = 0x3fc00000;   // 1.5f
+    m_438 = 0.0f;
+    m_43c = 2.0f;
+    m_440 = 0.0f;
+    m_444 = 1.5f;
     m_str448.clear();
     m_44c = 1;   // ORIG movb $0x1,0x44c
     m_450 = -1;  // ORIG mov 0x454→0x450（先置 0x454=-1）
@@ -189,7 +198,7 @@ void STDungeonScript::Clear()
     m_498 = 1;   // ORIG movl $0x1,0x498
     m_map49c.clear();
     m_itemRate4b4.Clear();
-    m_4c4 = 0x3f800000;   // 1.0f
+    m_4c4Value = 1.0f;
     m_map4c8.clear();
     m_4e0 = 0;
     m_map4e4.clear();
@@ -198,1307 +207,2083 @@ void STDungeonScript::Clear()
     m_504 = 0;
     m_505 = 0;
     m_508 = 0;
-    m_509 = 0;
-    m_50a = 0;
-    m_50b = 0;
     m_50c = 0;
     // ORIG 未清：m_4/m_8、m_str58、m_vec15c、m_dimension308（按 ORIG 实证保留不清）
 }
 bool ImportDungeonScript(STDungeonScript* script, const char* path)
 {
-    if (!loadRDARScriptFile("Script/DungeonScript", path))
+    // ORIG 0x88e5fbd：loadRDARScriptFile(g_szDungeonScriptBaseDirectory, path)
+    if (!loadRDARScriptFile(g_szDungeonScriptBaseDirectory, path))
     {
         return false;
     }
     script->Clear();
     script->m_vec384.clear();
+    // ORIG 0x88e6027：getDirectoryPath(&script->m_str17c, "%s%s", 基目录, path)
+    // → m_str17c 为脚本完整路径（目录 + 文件名）。
+    getDirectoryPath(script->m_str17c, "%s%s", g_szDungeonScriptBaseDirectory, path);
     std::string line;
-    int value = 0;
-    if (!ScanType(line, true))
-    {
-        return false;
-    }
-    if (!ScanInt(&value))
-    {
-        return false;
-    }
-    script->m_0 = value;
-    if (!ScanInt(&value))
-    {
-        return false;
-    }
-    script->m_4 = value;
-
-    // ORIG 函数级局部（-0x1324 MazeScript / -0x121 flag / ok 标志）
+    std::string token;
+    int iv0 = 0;      // ORIG -0x109c：子表 ScanInt(int*) 共用实参槽（Ghidra local_10a0）
+    bool ok = false;  // ORIG -0x109d：ScanInt(bool*) 实参槽（Ghidra local_10a1）
+    // ORIG 函数级局部（-0x1324 MazeScript / -0x121 flag）
     MazeScript mazeLocal;
     bool mazeInited = false;
-    bool ok = false;
-    std::string token;
-    int v1 = 0;
-    int v2 = 0;
+    int v1;
+    int v2;
 
-    // ORIG 惰性初始化：函数级静态 __lookup + __inited + SpinLock（首次调用构建 tag→case 值映射）。
-    static std::map<const char*, int> __lookup;
-    static bool __inited = false;
-    static SpinLock __init_lock;
-    if (!__inited)
+    // ORIG 惰性初始化：五组静态（主表 + 4 张嵌套子表），每组带独立
+    // __cxa_guard 初始化的 map/SpinLock 与 bool __inited_N。ORIG 的声明位于
+    // 各自的使用循环内（LAB_088e608f / LAB_088e9bee / LAB_088ea0d8 /
+    // LAB_088ebe77 / LAB_088f0202 处每轮 __cxa_guard 测试），因此下方把声明
+    // 放进对应 while 循环体首；首过以 typeId=0 进入该表 case 链逐例 insert，
+    // 链尾 leave + 置位 + goto 循环头重试当前 tag。
+    typedef std::map<const char*, int, less_TCHAR> DungeonTagMap;
+    int tagId;
+
+    // 标签分派：主循环每轮 ScanType → __lookup 表查找 → switch。
+    while (true)
     {
-        __init_lock.enter();
-        if (!__inited)
+        // ORIG 0x88e606e：ScanType 线性置于循环头（4.4 对 while(cond) 会把
+        // 检查挪到循环尾并加前置 jmp；改写成 if-break 恢复线性形态）。
+        if (!ScanType(line, true))
+            break;
+    retry_dispatch:
+        static DungeonTagMap __lookup;
+        static bool __inited = false;
+        static SpinLock __init_lock;
+    tag_dispatch:
+        if (__inited)
         {
-            __lookup["[name]"] = 117;
-            __lookup["[explain]"] = 121;
-            __lookup["[tower of despair]"] = 2170;
-            __lookup["[minimap image]"] = 4096;
-            __lookup["[ancient dungeon]"] = 4097;
-            __lookup["[boss exp const]"] = 4098;
-            __lookup["[experience increasing point]"] = 4099;
-            __lookup["[hard]"] = 4100;
-            __lookup["[ultimate]"] = 4101;
-            __lookup["[entering title]"] = 4102;
-            __lookup["[player kc]"] = 4103;
-            __lookup["[worldmap pattern info]"] = 4104;
-            __lookup["[entering title next]"] = 4105;
-            __lookup["[herosmode enable]"] = 215;
-            __lookup["[ai character appear rate]"] = 4106;
-            __lookup["[limit inout count]"] = 4107;
-            __lookup["[escape hell]"] = 4108;
-            __lookup["[dungeon type]"] = 4109;
-            __lookup["[room move keep state]"] = 4110;
-            __lookup["[monster type spawn prob]"] = 4111;
-            __lookup["[result exp bonus per user decrease]"] = 4112;
-            __lookup["[tower recovery]"] = 4113;
-            __lookup["[tower stage]"] = 4114;
-            __lookup["[tournament clear reward exp]"] = 4115;
-            __lookup["[road necessary party]"] = 4116;
-            __lookup["[impossible skills]"] = 4117;
-            __lookup["[special passive object item]"] = 4118;
-            __lookup["[evil rate]"] = 4119;
-            __lookup["[result card]"] = 4120;
-            __lookup["[advance altar type]"] = 4121;
-            __lookup["[revision table]"] = 4122;
-            __lookup["[character respawn posetion]"] = 4123;
-            __lookup["[boss room entrance condition]"] = 4124;
-            __lookup["[clear reward item]"] = 4125;
-            __lookup["[absolute change stat]"] = 4126;
-            __lookup["[event monster2]"] = 4127;
-            __lookup["[magical attack add]"] = 4128;
-            __lookup["[magical defense add]"] = 4129;
-            __lookup["[coin info]"] = 4130;
-            __lookup["[clear condition]"] = 4131;
-            __lookup["[greed]"] = 4132;
-            __lookup["[randomized object creation]"] = 4133;
-            __lookup["[schedule]"] = 4134;
-            __lookup["[team]"] = 4144;
-            __lookup["[pos]"] = 4145;
-            __lookup["[object]"] = 4146;
-            __lookup["[realdungeon checkup]"] = 4147;
-            __lookup["[limit item stat]"] = 4148;
-            __lookup["[advance altar survival clear reward]"] = 4149;
-            __lookup["[physical attack add]"] = 4150;
-            __lookup["[physical defense add]"] = 4151;
-            __lookup["ByDifficulty"] = 152;
-            __lookup["[cutscene image]"] = 185;
-            __lookup["[dungeon loading image path]"] = 190;
-            __lookup["[worldmap info]"] = 202;
-            __lookup["[herosmode required quest]"] = 207;
-            __lookup["[background pos]"] = 221;
-            __lookup["[monsterapc diff table]"] = 255;
-            __lookup["[minimum required level]"] = 269;
-            __lookup["[required item]"] = 276;
-            __lookup["[event dungeon]"] = 280;
-            __lookup["[event required item]"] = 286;
-            __lookup["[recommended level]"] = 396;
-            __lookup["[coin limit]"] = 405;
-            __lookup["[character coin limit]"] = 413;
-            __lookup["[basis level]"] = 417;
-            __lookup["[champion]"] = 422;
-            __lookup["[item]"] = 435;
-            __lookup["[dungeon drop]"] = 489;
-            __lookup["[dungeon object drop]"] = 511;
-            __lookup["[pathgate object]"] = 541;
-            __lookup["[maze info]"] = 552;
-            __lookup["[quest connection]"] = 650;
-            __lookup["../RDARScriptDungeon.cpp"] = 702;
-            __lookup["[party num check]"] = 708;
-            __lookup["[size]"] = 720;
-            __lookup["[map specification]"] = 782;
-            __lookup["[boss map specification]"] = 798;
-            __lookup["[layered map specification]"] = 814;
-            __lookup["[start map]"] = 830;
-            __lookup["[boss map]"] = 842;
-            __lookup["[hell dungeon]"] = 859;
-            __lookup["[prohibit practice]"] = 866;
-            __lookup["[disable skill]"] = 871;
-            __lookup["[/impossible skills]"] = 883;
-            __lookup["[use countdown]"] = 897;
-            __lookup["[use zoom rate]"] = 902;
-            __lookup["[usable item]"] = 906;
-            __lookup["[seal door map index]"] = 914;
-            __lookup["[seal door pos]"] = 919;
-            __lookup["[hell coin limit]"] = 923;
-            __lookup["[dead tower map index]"] = 933;
-            __lookup["[select]"] = 947;
-            __lookup["[regenerate]"] = 957;
-            __lookup["[minimap icon]"] = 962;
-            __lookup["[map]"] = 981;
-            __lookup["[index]"] = 995;
-            __lookup["[neutral]"] = 1006;
-            __lookup["[point by type]"] = 1057;
-            __lookup["[phase fatigue]"] = 1068;
-            __lookup["[warroom map index]"] = 1075;
-            __lookup["[monster exp bonus per user decrease]"] = 1078;
-            __lookup["[monster type spawn cost]"] = 1110;
-            __lookup["[monster type spawn interval rate]"] = 1119;
-            __lookup["[monster spawn base interval]"] = 1122;
-            __lookup["[monster spawn random interval]"] = 1128;
-            __lookup["[fatigue]"] = 1131;
-            __lookup["[fatigue result]"] = 1134;
-            __lookup["[max monster]"] = 1138;
-            __lookup["[spawn common monster index]"] = 1151;
-            __lookup["[spawn common champion index]"] = 1164;
-            __lookup["[spawn super champion index]"] = 1177;
-            __lookup["[spawn boss index]"] = 1190;
-            __lookup["[spawn step max]"] = 1195;
-            __lookup["[spawn step resource pool]"] = 1209;
-            __lookup["[kill count const]"] = 1214;
-            __lookup["[join cost gold]"] = 1224;
-            __lookup["[gold drop prob]"] = 1229;
-            __lookup["[common monster item drop prob]"] = 1234;
-            __lookup["[common champion item drop prob]"] = 1239;
-            __lookup["[super champion item drop prob]"] = 1244;
-            __lookup["[boss item drop prob]"] = 1252;
-            __lookup["[common monster exp const]"] = 1260;
-            __lookup["[common champion exp const]"] = 1268;
-            __lookup["[super champion exp const]"] = 1276;
-            __lookup["[common monster item drop list]"] = 1288;
-            __lookup["[common champion item drop list]"] = 1300;
-            __lookup["[super champion item drop list]"] = 1312;
-            __lookup["[boss item drop list]"] = 1324;
-            __lookup["[battle spawn time]"] = 1332;
-            __lookup["[powerwar dungeon]"] = 1341;
-            __lookup["[blood dungeon]"] = 1359;
-            __lookup["[move speed]"] = 1369;
-            __lookup["[limit escape character]"] = 1398;
-            __lookup["[defense dungeon]"] = 1408;
-            __lookup["[advance altar map]"] = 1422;
-            __lookup["[advance altar clear reward]"] = 1442;
-            __lookup["[advance altar survival map]"] = 1497;
-            __lookup["[dimension dungeon]"] = 1570;
-            __lookup["[necessary party]"] = 1584;
-            __lookup["[village attack revenge dungeon]"] = 1621;
-            __lookup["[limit party count]"] = 1687;
-            __lookup["[hit count]"] = 1701;
-            __lookup["[seal door appear rate]"] = 1704;
-            __lookup["[dummy appear count]"] = 1738;
-            __lookup["advance altar"] = 1781;
-            __lookup["[tower random map indexes]"] = 1784;
-            __lookup["[death tower map indexes]"] = 1822;
-            __lookup["[named monster map pos]"] = 1836;
-            __lookup["[blood max round]"] = 1860;
-            __lookup["[event monster]"] = 1894;
-            __lookup["[tower high skill initial cool time]"] = 1961;
-            __lookup["[tower high skill initial cool time rate]"] = 1969;
-            __lookup["[tower fp cubepiece]"] = 1972;
-            __lookup["[tower limit of stackable item]"] = 1975;
-            __lookup["[tower dialog]"] = 1998;
-            __lookup["[tower item drop]"] = 2078;
-            __lookup["[tower max clear item num]"] = 2084;
-            __lookup["[evil]"] = 2089;
-            __lookup["[evil high level]"] = 2100;
-            __lookup["[monster difficulty bonus]"] = 2108;
-            __lookup["[/monster difficulty bonus]"] = 2141;
-            __lookup["[gold card use]"] = 2158;
-            __lookup["[SWAY EFFECT]"] = 2164;
-            __lookup["[no fatigue]"] = 2170;
-            __lookup["[quest npc dungeon]"] = 2185;
-            __lookup["[designate dungeon difficulty]"] = 2190;
-            __lookup["[tournament dungeon]"] = 2195;
-            __lookup["[tournament round fatigue]"] = 2200;
-            __lookup["[tournament clear reward gold rate]"] = 2285;
-            __lookup["[risk dungeon]"] = 2316;
-            __lookup["[easy]"] = 2333;
-            __lookup["[medium]"] = 2348;
-            __lookup["[party member coin limit]"] = 2370;
-            __lookup["[individual map movement]"] = 2388;
-            __lookup["[open door even enemy]"] = 2396;
-            __lookup["[disable exit]"] = 2402;
-            __inited = true;
+            DungeonTagMap::const_iterator it =
+                __lookup.find(line.c_str());
+            tagId = (it != __lookup.end()) ? it->second : -1;
         }
-        __init_lock.leave();
-    }
-
-    // 标签分派：DungeonTagLookup 返回 ORIG case 值，switch 分派。
-    // 复杂容器/子标签 case 按 ORIG 反汇编转写，无法完全确认处标注【推断】。
-    while (ScanType(line, true))
-    {
-        // ORIG 标签分派：__lookup map 查找（惰性构建于首次调用）
-        std::map<const char*, int>::const_iterator it = __lookup.find(line.c_str());
-        int tagId = (it != __lookup.end()) ? it->second : -1;
+        else
+        {
+            __init_lock.enter();
+            if (__inited)
+            {
+                __init_lock.leave();
+                goto retry_dispatch;
+            }
+            tagId = 0;   // ORIG：首过以 typeId=0 进入主表填充链（case 0）
+        }
         switch (tagId)
         {
+case 0:
 case 0x75:  // "[name]"
-    ScanStr(&script->m_str1c);  // +0x1c
-    break;
-
-case 0x79:  // "[name]"
-    ScanStr(&script->m_str20);  // +0x20
-    break;
-
-case 0x7d:  // "[name]"
-    ScanStr(&token);  // @88e6d96
-    if (token == "ByDifficulty") {  // 0x8e0d55a
-        script->m_34 = 1;  // +0x34
-        ScanStr(&token);
-        script->m_str28 = token;  // @88e6e18 SsaSERKSs 【推断：ByDifficulty 分支第二个串存 m_str28】
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[name]", 0x75));
     }
-    break;
-
-case 0x98:  // "ByDifficulty"
-    ScanStr(&token);  // @88e6ec4
-    if (token == "ByDifficulty") {  // 0x8e0d55a
-        script->m_44 = 1;  // +0x44
-        ScanStr(&token);
-        script->m_str28 = token;  // @88e6f46 【推断】
+    else
+    {
+        ScanStr(&script->m_str1c);  // +0x1c
+        break;
     }
-    break;
 
-case 0xb3:  // "ByDifficulty"
-    ScanStr(&script->m_str28);  // +0x28
-    script->m_2c = ScanInt(&ok);  // +0x2c
-    break;
+case 0x79:  // "[explain]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[explain]", 0x79));
+    }
+    else
+    {
+        ScanStr(&script->m_str20);  // +0x20
+        break;
+    }
 
-case 0xb9:  // "[cutscene image]"
-    ScanStr(&script->m_str58);  // +0x58
-    break;
+case 0x7d:  // "[entering title]"（ORIG LAB_088e6d1f/88e6dcd：ByDifficulty→m_34=1
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[entering title]", 0x7d));
+    }
+    else
+    {
+        // 且循环收集到 m_vec38；否则首串直接赋 m_str24）
+        {
+            std::string title;
+            if (!ScanStr(&title))
+                break;
+            if (title == "ByDifficulty") {  // 0x8e0d55a
+                script->m_34 = 1;  // +0x34
+                while (ScanStr(&title))  // @88e6dcd 循环 push 到 +0x38
+                    script->m_vec38.push_back(title);  // @88e6dfb push_back(+0x38)
+            }
+            else
+            {
+                script->m_str24 = title;  // @88e6e18 SsaSERKSs（非 ByDifficulty 时单标题串）
+            }
+        }
+        break;
+    }
 
-case 0xbe:  // "[dungeon loading image path]"
-    ScanStr(&script->m_str30);  // +0x30
-    break;
+case 0x98:  // "[entering title next]"（ORIG LAB_088e6ead/88e6efb：同构 [entering title]，
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[entering title next]", 0x98));
+    }
+    else
+    {
+        // 目标 +0x44/+0x48 vector/+0x54）
+        {
+            std::string title;
+            if (!ScanStr(&title))
+                break;
+            if (title == "ByDifficulty") {  // 0x8e0d55a
+                script->m_44 = 1;  // +0x44
+                while (ScanStr(&title))  // @88e6efb 循环 push 到 +0x48
+                    script->m_vec48.push_back(title);  // @88e6f29 push_back(+0x48)
+            }
+            else
+            {
+                script->m_str54 = title;  // @88e6f46 SsaSERKSs（+0x54）
+            }
+        }
+        break;
+    }
 
-case 0xc3:  // "[dungeon loading image path]"
-    ScanInt(&ok);  // 丢弃 @88e7174
-    ScanStr(&script->m_str74);  // +0x74
-    break;
+case 0xb3:  // "[cutscene image]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[cutscene image]", 0xb3));
+    }
+    else
+    {
+        ScanStr(&script->m_str28);  // +0x28
+        script->m_2c = ScanInt(&ok);  // +0x2c
+        break;
+    }
 
-case 0xca:  // "[worldmap info]"
-    script->m_14 = ScanInt(&ok);  // +0x14
-    break;
+case 0xb9:  // "[dungeon loading image path]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[dungeon loading image path]", 0xb9));
+    }
+    else
+    {
+        ScanStr(&script->m_str58);  // +0x58
+        break;
+    }
 
-case 0xcf:  // "[herosmode required quest]"
-    script->m_488 = ScanInt(&ok);  // +0x488
-    break;
+case 0xbe:  // "[minimap image]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[minimap image]", 0xbe));
+    }
+    else
+    {
+        ScanStr(&script->m_str30);  // +0x30
+        break;
+    }
 
-case 0xd7:  // "[herosmode required quest]"
-    script->m_c = ScanInt(&ok) != 0;  // +0xc
-    break;
+case 0xc3:  // "[worldmap info]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[worldmap info]", 0xc3));
+    }
+    else
+    {
+        // ORIG LAB_088e70e9（Ghidra C 实证）：2x2 循环 4 个 int → m_5c[4]
+        // （偏移 (2i+j+0x14)*4+0xc = +0x5c..+0x68），随后 ScanStr → m_str74(+0x74)。
+        for (int rr = 0; rr < 2; ++rr)
+        {
+            for (int cc = 0; cc < 2; ++cc)
+            {
+                script->m_5c[rr * 2 + cc] = ScanInt(&ok);
+            }
+        }
+        ScanStr(&script->m_str74);
+        break;
+    }
 
-case 0xdd:  // "[background pos]"
-    // @88e73e7 调用 GetWorldMapCoordFromTable(x,y,&STWorldmapPattern)（外部函数，
-    // 本 TU 不引入头依赖，转写为参数读取）【推断】
-    ScanInt(&ok);  // x @88e73ad
-    ScanInt(&ok);  // y @88e73bf
-    ScanStr(&script->m_str74);  // +0x74（地图名）
-    ScanInt(&ok);  // @88e747c 后续
-    break;
+case 0xca:  // "[herosmode required quest]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[herosmode required quest]", 0xca));
+    }
+    else
+    {
+        script->m_14 = ScanInt(&ok);  // +0x14
+        break;
+    }
+
+case 0xcf:  // "[background pos]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[background pos]", 0xcf));
+    }
+    else
+    {
+        script->m_488 = ScanInt(&ok);  // +0x488
+        break;
+    }
+
+case 0xd7:  // "[herosmode enable]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[herosmode enable]", 0xd7));
+    }
+    else
+    {
+        script->m_c = ScanInt(&ok) != 0;  // +0xc
+        break;
+    }
+
+case 0xdd:  // "[worldmap pattern info]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[worldmap pattern info]", 0xdd));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088e7338（Ghidra C + STWorldmapPattern.h）：ScanInt x/y →
+        // GetWorldMapCoordFromTable(x,y,pat) 取表格图案；把 pat.m_coord（+0x08 6 int）平铺拷贝到
+        // m_5c[0..5]；ScanStr → m_str74；ScanInt → m_0；m_4 = x-1；m_8 = y-1。
+        int wx = ScanInt(&ok);
+        int wy = ScanInt(&ok);
+        STWorldmapPattern pat;
+        GetWorldMapCoordFromTable(wx, wy, pat);
+        for (int i = 0; i < 3; ++i)
+        {
+            for (int j = 0; j < 2; ++j)
+            {
+                script->m_5c[i * 2 + j] = pat.m_coord.m_coord[i][j];
+            }
+        }
+        ScanStr(&script->m_str74);
+        script->m_0 = ScanInt(&ok);
+        script->m_4 = wx - 1;
+        script->m_8 = wy - 1;
+        break;
+    }
+    }
 
 case 0xff:  // "[monsterapc diff table]"
-    // ScanStr 到局部后 SsaSERKSs → m_str17c 【推断】
-    ScanStr(&token);
-    script->m_str17c = token;
-    break;
-
-case 0x109:  // "[monsterapc diff table]"
-    script->m_78 = ScanInt(&ok);  // +0x78
-    break;
-
-case 0x10d:  // "[minimum required level]"
-    script->m_requiredItem7c.m_itemIdx = ScanInt(&ok);  // +0x7c
-    script->m_requiredItem7c.m_itemCount = ScanInt(&ok);  // +0x80
-    script->m_requiredItem7c.m_enableFlag = ScanInt(&ok) != 0;  // +0x84
-    break;
-
-case 0x114:  // "[required item]"
-    script->m_88 = ScanInt(&ok) != 0;  // +0x88
-    break;
-
-case 0x118:  // "[event dungeon]"
-    script->m_requiredItem8c.m_itemIdx = ScanInt(&ok);  // +0x8c
-    script->m_requiredItem8c.m_itemCount = ScanInt(&ok);  // +0x90
-    script->m_requiredItem8c.m_enableFlag = ScanInt(&ok) != 0;  // +0x94
-    break;
-
-case 0x11e:  // "[event required item]"
-    script->m_vec98.clear();  // vector<pair<int,int>> @+0x98
-    while (true) {
-    int v1 = ScanInt(&ok);
-    if (!ok) break;
-    int v2 = ScanInt(&ok);
-    script->m_vec98.push_back(std::make_pair(v1, v2));
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[monsterapc diff table]", 0xff));
     }
-    break;
+    else
+    {
+        // ORIG 0x88e7538：块级临时 string ctor→ScanStr→operator= m_str10→dtor；
+        // +0x17c 已由函数入口保存脚本完整路径，不能在此覆盖。
+        {
+            std::string diffName;
+            ScanStr(&diffName);
+            script->m_str10 = diffName;
+        }
+        break;
+    }
+
+case 0x109:  // "[minimum required level]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[minimum required level]", 0x109));
+    }
+    else
+    {
+        script->m_78 = ScanInt(&ok);  // +0x78
+        break;
+    }
+
+case 0x10d:  // "[required item]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[required item]", 0x10d));
+    }
+    else
+    {
+        script->m_requiredItem7c.m_itemIdx = ScanInt(&ok);  // +0x7c
+        script->m_requiredItem7c.m_itemCount = ScanInt(&ok);  // +0x80
+        script->m_requiredItem7c.m_enableFlag = ScanInt(&ok) != 0;  // +0x84
+        break;
+    }
+
+case 0x114:  // "[event dungeon]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[event dungeon]", 0x114));
+    }
+    else
+    {
+        script->m_88 = ScanInt(&ok) != 0;  // +0x88
+        break;
+    }
+
+case 0x118:  // "[event required item]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[event required item]", 0x118));
+    }
+    else
+    {
+        script->m_requiredItem8c.m_itemIdx = ScanInt(&ok);  // +0x8c
+        script->m_requiredItem8c.m_itemCount = ScanInt(&ok);  // +0x90
+        script->m_requiredItem8c.m_enableFlag = ScanInt(&ok) != 0;  // +0x94
+        break;
+    }
+
+case 0x11e:  // "[clear reward item]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[clear reward item]", 0x11e));
+    }
+    else
+    {
+        script->m_vec98.clear();  // vector<pair<int,int>> @+0x98
+        while (true) {
+        int v1 = ScanInt(&ok);
+        if (!ok) break;
+        int v2 = ScanInt(&ok);
+        if (!ok) break;
+        script->m_vec98.push_back(std::pair<int, int>(v1, v2));
+        }
+        break;
+    }
 
 case 0x18c:  // "[recommended level]"
-    script->m_450 = ScanInt(&ok);  // +0x450
-    script->m_454 = ScanInt(&ok);  // +0x454
-    break;
-
-case 0x191:  // "[recommended level]"
-    script->m_a4 = ScanInt(&ok);  // +0xa4
-    break;
-
-case 0x195:  // "[coin limit]"
-    script->m_a8 = ScanInt(&ok);  // +0xa8
-    break;
-
-case 0x199:  // "[coin limit]"
-    script->m_ac = ScanInt(&ok);  // +0xac
-    break;
-
-case 0x19d:  // "[character coin limit]"
-    ScanFloat(&ok);  // @88e7b59
-    break;
-
-case 0x1a1:  // "[basis level]"
-    ScanInt(&ok);  // 局部用途 @88e7be5
-    break;
-
-case 0x1a6:  // "[champion]"
-    script->m_vecc8.clear();  // vector<pair<int,int>> @+0xc8
-    while (true) {
-    int v1 = ScanInt(&ok);
-    if (!ok) break;
-    int v2 = ScanInt(&ok);
-    script->m_vecc8.push_back(std::make_pair(v1, v2));
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[recommended level]", 0x18c));
     }
-    break;
-
-case 0x1b3:  // "[item]"
-    // [item] 复杂子标签：3 个 vector<int> reserve(0x64) 后按子标签填充
-    // 【推断】子标签为 item type 分类；此处仅消费 token，保留结构
-    script->m_vec458.reserve(0x64);
-    script->m_vec464.reserve(0x64);
-    script->m_vec470.reserve(0x64);
-    ScanStr(&token);  // 子标签
-    while (ScanInt(&ok)) {
-        // 【推断】按子标签分派 push_back 到三个 vector 之一
+    else
+    {
+        script->m_450 = ScanInt(&ok);  // +0x450
+        script->m_454 = ScanInt(&ok);  // +0x454
+        break;
     }
-    break;
+
+case 0x191:  // "[coin limit]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[coin limit]", 0x191));
+    }
+    else
+    {
+        script->m_a4 = ScanInt(&ok);  // +0xa4
+        break;
+    }
+
+case 0x195:  // "[character coin limit]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[character coin limit]", 0x195));
+    }
+    else
+    {
+        script->m_a8 = ScanInt(&ok);  // +0xa8
+        break;
+    }
+
+case 0x199:  // "[basis level]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[basis level]", 0x199));
+    }
+    else
+    {
+        script->m_ac = ScanInt(&ok);  // +0xac
+        break;
+    }
+
+case 0x19d:  // "[experience increasing point]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[experience increasing point]", 0x19d));
+    }
+    else
+    {
+        script->m_b0 = ScanFloat(&ok);   // +0xb0（float；export 对称 %.3f）
+        break;
+    }
+
+case 0x1a1:  // "[champion]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[champion]", 0x1a1));
+    }
+    else
+    {
+        // ORIG LAB_088e7b6f（Ghidra C）：循环 5×ScanInt → m_b4[i]（偏移 (i+0x2c)*4+4=+0xb4）。
+        for (int ci = 0; ci < 5; ++ci)
+        {
+            script->m_b4[ci] = ScanInt(&ok);
+        }
+        break;
+    }
+
+case 0x1a6:  // "[item]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[item]", 0x1a6));
+    }
+    else
+    {
+        script->m_vecc8.clear();  // vector<pair<int,int>> @+0xc8
+        while (true) {
+        // ORIG pair<int,int>::pair(int,int)（080dd93a@088e7cdb）：v1 具名 +
+        // 第二值 ScanInt(NULL)（忽略 ok），4.4.7 形参 const _U& 推导值类型。
+        int v1 = ScanInt(&ok);
+        if (!ok) break;
+        script->m_vecc8.push_back(std::pair<int, int>(v1, ScanInt((bool*)0)));
+        }
+        break;
+    }
+
+case 0x1b3:  // "[realdungeon checkup]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[realdungeon checkup]", 0x1b3));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088e7d00（Ghidra C）：3 个 vector reserve(100)；循环 ScanStr 子标签，
+        // [monster]→m_vec458、[passive]→m_vec464、[apc]→m_vec470：先 ScanInt 读数量，
+        // 再循环 ScanInt push（单项失败退出子循环）；遇到 "[/realdungeon checkup]" 或 EOF 结束。
+        script->m_vec458.reserve(100);
+        script->m_vec464.reserve(100);
+        script->m_vec470.reserve(100);
+        std::string subtok;
+        while (true)
+        {
+            if (!ScanStr(&subtok)) break;
+            if (subtok == "[/realdungeon checkup]") break;
+            if (subtok == "[monster]")
+            {
+                int n = ScanInt(&ok);
+                for (int i = 0; i < n; ++i)
+                {
+                    int v = ScanInt(&ok);
+                    if (!ok) break;
+                    script->m_vec458.push_back(v);
+                }
+            }
+            else if (subtok == "[passive]")
+            {
+                int n = ScanInt(&ok);
+                for (int i = 0; i < n; ++i)
+                {
+                    int v = ScanInt(&ok);
+                    if (!ok) break;
+                    script->m_vec464.push_back(v);
+                }
+            }
+            else if (subtok == "[apc]")
+            {
+                int n = ScanInt(&ok);
+                for (int i = 0; i < n; ++i)
+                {
+                    int v = ScanInt(&ok);
+                    if (!ok) break;
+                    script->m_vec470.push_back(v);
+                }
+            }
+        }
+        break;
+    }
+    }
+
 
 case 0x1e9:  // "[dungeon drop]"
-    script->m_vecd4.clear();  // vector<pair<int,int>> @+0xd4
-    while (true) {
-    int v1 = ScanInt(&ok);
-    if (!ok) break;
-    int v2 = ScanInt(&ok);
-    script->m_vecd4.push_back(std::make_pair(v1, v2));
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[dungeon drop]", 0x1e9));
     }
-    break;
-
-case 0x1f4:  // "[dungeon drop]"
-    script->m_vece0.clear();  // vector<pair<int,int>> @+0xe0
-    while (true) {
-    int v1 = ScanInt(&ok);
-    if (!ok) break;
-    int v2 = ScanInt(&ok);
-    script->m_vece0.push_back(std::make_pair(v1, v2));
-    }
-    break;
-
-case 0x1ff:  // "[dungeon object drop]"
-    // [dungeon object drop]：stDungeonAssignItem_t 循环 @88e82e0
-    // 【推断】主循环：itemIdx + pair 列表
-    while (ScanInt(&ok)) {
-        stDungeonAssignItem_t item;
-        item.m_assignItemIdx = v1;
-        while (ScanInt(&ok)) {
-            int a = v1, b = v2;
-            item.m_list.push_back(std::make_pair(a, b));
+    else
+    {
+        script->m_vecd4.clear();  // vector<pair<int,int>> @+0xd4
+        while (true) {
+        int v1 = ScanInt(&ok);
+        if (!ok) break;
+        script->m_vecd4.push_back(std::pair<int, int>(v1, ScanInt((bool*)0)));
         }
-        script->m_vecec.push_back(item);
+        break;
     }
-    break;
+
+case 0x1f4:  // "[dungeon object drop]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[dungeon object drop]", 0x1f4));
+    }
+    else
+    {
+        script->m_vece0.clear();  // vector<pair<int,int>> @+0xe0
+        while (true) {
+        int v1 = ScanInt(&ok);
+        if (!ok) break;
+        script->m_vece0.push_back(std::pair<int, int>(v1, ScanInt((bool*)0)));
+        }
+        break;
+    }
+
+case 0x1ff:  // "[special passive object item]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[special passive object item]", 0x1ff));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088e81e4：清 m_vecec，循环读（itemIdx 消费 / assignItemIdx / pairCount + pair 列表）
+        script->m_vecec.clear();
+        while (true) {
+            int v0 = ScanInt(&ok);       // itemIdx（消费）
+            if (!ok) break;
+            int assignItemIdx = ScanInt(&ok);
+            if (!ok) return false;
+            int pairCount = ScanInt(&ok);
+            if (!ok) return false;
+            stDungeonAssignItem_t item;
+            item.m_assignItemIdx = assignItemIdx;
+            for (int i = 0; i < pairCount; ++i) {
+                int a = ScanInt(&ok);
+                if (!ok) return false;
+                int b = ScanInt(&ok);
+                if (!ok) return false;
+                item.m_list.push_back(std::pair<int, int>(a, b));
+            }
+            script->m_vecec.push_back(item);
+        }
+        break;
+    }
+    }
 
 case 0x21d:  // "[pathgate object]"
-    // [pathgate object]：4 个 ScanInt 逐项读取（丢弃/存局部）
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[pathgate object]", 0x21d));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088e8418：4 组 ScanInt 写入 +0xf8 起 POD 区共 10 个 int
+        // （3+3+2+2：偏移 (0x3c+i)*4+8=+0xf8、+0x104、+0x110、+0x11c；与 export 对称）。
+        for (int i = 0; i < 3; ++i) script->m_pathgate.m_group0[i] = ScanInt(&ok);
+        for (int i = 0; i < 3; ++i) script->m_pathgate.m_group1[i] = ScanInt(&ok);
+        for (int i = 0; i < 2; ++i) script->m_pathgate.m_group2[i] = ScanInt(&ok);
+        for (int i = 0; i < 2; ++i) script->m_pathgate.m_group3[i] = ScanInt(&ok);
+        break;
+    }
+    }
 
 case 0x228:  // "[maze info]"
-    // [maze info]：mazeLocal 累积到 m_mazeList170
-    if (mazeInited) {
-        script->m_mazeList170.push_back(mazeLocal);
-        mazeLocal.clear();
-    } else {
-        mazeInited = true;
-    }
-    break;
-
-case 0x27d:  // "[maze info]"
-    // [maze info]（尺寸标签）：mazeLocal 宽高
-    v1 = ScanInt(&ok);
-    v2 = ScanInt(&ok);
-    mazeLocal.m_width = v1;
-    mazeLocal.m_height = v2;
-    break;
-
-case 0x28a:  // "[quest connection]"
-    ScanInt(&ok);  // 局部用途 @88e8924
-    ScanInt(&ok);  // 局部用途 @88e8981
-    break;
-
-case 0x2be:  // "../RDARScriptDungeon.cpp"
-    ScanInt(&ok);  // 局部用途 @88e8aac
-    ScanInt(&ok);  // 局部用途 @88e8abe
-    break;
-
-case 0x2c4:  // "[party num check]"
-    ScanInt(&ok);  // 局部用途 @88e8b32
-    break;
-
-case 0x2c8:  // "[party num check]"
-    // [party num check]：maze 尺寸 → grids.resize
-    v1 = ScanInt(&ok);
-    v2 = ScanInt(&ok);
-    mazeLocal.m_width = v1;
-    mazeLocal.m_height = v2;
-    mazeLocal.m_grids.resize(mazeLocal.m_width * mazeLocal.m_height, GridScript());
-    break;
-
-case 0x2d0:  // "[size]"
-    // [size]：解析 "WxH" 串设置 maze 尺寸
-    ScanStr(&token);
+    if (!__inited)
     {
-        // 解析 size 串（形如 "12x8"）：分隔符 'x'；数字逐字符累加
-        std::string::size_type p = token.find('x');
-        if (p != std::string::npos) {
-            mazeLocal.m_width = atoi(token.substr(0, p).c_str());
-            mazeLocal.m_height = atoi(token.substr(p + 1).c_str());
-        }
+        __lookup.insert(DungeonTagMap::value_type("[maze info]", 0x228));
     }
-    break;
+    else
+    {
+        // ORIG LAB_088e8587：首轮置 -0x121 标志；后续轮先取 m_mazeList170.size()
+        // （结果仅落槽不使用，ORIG 088e85fb 实证）再 push_back + mazeLocal.clear()。
+        if (mazeInited) {
+            script->m_mazeList170.size();
+            script->m_mazeList170.push_back(mazeLocal);
+            mazeLocal.clear();
+        } else {
+            mazeInited = true;
+        }
+        break;
+    }
+
+case 0x27d:  // "[quest connection]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[quest connection]", 0x27d));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088e8643：questType ∈ {-1,0,1}；type==0 时再读 1 int（quest index）。
+        // 越界 → logFormat("error! maze quest type(%d)") 后 import 失败。
+        int questType = ScanInt(&ok);
+        ScanInt(&ok);   // 第 2 值（未用）
+        if (questType >= -1 && questType <= 1)
+        {
+            if (questType == 0)
+            {
+                ScanInt(&ok);
+            }
+        }
+        else
+        {
+            LogManager::logFormat(0, "../RDARScriptDungeon.cpp",
+                                  __FUNCTION__, 0x282,
+                                  "error! maze quest type(%d)", questType);
+            return false;
+        }
+        break;
+    }
+    }
+
+case 0x28a:  // "[clear condition]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[clear condition]", 0x28a));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088e8742：ScanTypeOrStr 读取条件标签；未知标签、左/右变量
+        // 缺失均记录 RDARScriptDungeon.cpp 日志并使整个导入失败。
+        DungeonClearCondition cond;
+        bool isType = false;
+        while (true) {
+            std::string sub;
+            if (!ScanTypeOrStr(isType, sub, true)) break;
+            if (sub == "[/clear condition]") break;
+            int type = -1;
+            if (sub == "[destroy object]") type = 0;
+            else if (sub == "[clear map]") type = 1;
+            else if (sub == "[hunt monster]") type = 2;
+            else if (sub == "[hunt apc]") type = 3;
+            else if (sub == "[hunt boss]") type = 4;
+            else
+            {
+                LogManager::logFormat(0, "../RDARScriptDungeon.cpp",
+                                      __FUNCTION__, 0x2a1,
+                                      "error! dungeon clear condition(%s)",
+                                      sub.c_str());
+                return false;
+            }
+            cond.m_0 = type;
+            cond.m_4 = ScanInt(&ok);
+            if (!ok)
+            {
+                LogManager::logFormat(0, "../RDARScriptDungeon.cpp",
+                                      __FUNCTION__, 0x2a8,
+                                      "error! dungeon clear condition left variable");
+                return false;
+            }
+            cond.m_8 = ScanInt(&ok);
+            if (!ok)
+            {
+                LogManager::logFormat(0, "../RDARScriptDungeon.cpp",
+                                      __FUNCTION__, 0x2ae,
+                                      "error! dungeon clear condition right variable");
+                return false;
+            }
+            if (type == 1) cond.m_8 = 1;   // ORIG：clear map → 右变量恒 1
+            mazeLocal.m_clearCondition.push_back(cond);
+        }
+        break;
+    }
+    }
+
+case 0x2be:  // "[party num check]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[party num check]", 0x2be));
+    }
+    else
+    {
+        ScanInt(&ok);  // 局部用途 @88e8aac
+        ScanInt(&ok);  // 局部用途 @88e8abe
+        break;
+    }
+
+case 0x2c4:  // "[escape hell]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[escape hell]", 0x2c4));
+    }
+    else
+    {
+        ScanInt(&ok);  // 局部用途 @88e8b32
+        break;
+    }
+
+case 0x2c8:  // "[size]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[size]", 0x2c8));
+    }
+    else
+    {
+        // [party num check]：maze 尺寸 → grids.resize
+        v1 = ScanInt(&ok);
+        v2 = ScanInt(&ok);
+        mazeLocal.m_width = v1;
+        mazeLocal.m_height = v2;
+        mazeLocal.m_grids.resize(mazeLocal.m_width * mazeLocal.m_height, GridScript());
+        break;
+    }
+
+case 0x2d0:  // "[greed]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[greed]", 0x2d0));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088e8c37：每轮 substr(pos,2) 临时串 + 多次 .c_str() 重读比较
+        // 分隔符/符号表（O0 无 CSE，P48）；未命中符号 pos+=1 并 bad++；命中直接
+        // 写 m_grids[gridIdx]（ORIG 无越界检查）。bad 非零时导入失败。
+        // ORIG ScanStr 复用函数级路径串槽（-0x1098，无独立 ctor/dtor）→ 用 token。
+        ScanStr(&token);
+        int len = (int)token.size();
+        int pos = 0;
+        int gridIdx = 0;
+        int bad = 0;
+        while (pos < len - 1)
+        {
+            std::string two = token.substr(pos, 2);
+            if (two.c_str()[0] == '\r' || two.c_str()[0] == '\n' ||
+                two.c_str()[0] == ' ')
+            {
+                pos += 1;
+            }
+            else
+            {
+                int cc = 0;
+                for (; cc < 0x10; ++cc)
+                {
+                    if (two.c_str()[0] == g_gridSymbols[cc][0] &&
+                        two.c_str()[1] == g_gridSymbols[cc][1])
+                        break;
+                }
+                if (cc == 0x10)
+                {
+                    pos += 1;
+                    bad += 1;
+                }
+                else
+                {
+                    mazeLocal.m_grids[gridIdx].m_gridValue = cc;
+                    gridIdx += 1;
+                    pos += 2;
+                }
+            }
+        }
+        if (bad != 0)
+            return false;
+        break;
+    }
+    }
 
 case 0x30e:  // "[map specification]"
-    // [map specification]：填充 maze grid
-    v1 = ScanInt(&ok);  // x
-    v2 = ScanInt(&ok);  // y
+    if (!__inited)
     {
-        GridScript* g = mazeLocal.getGrid(v1, v2);
-        g->m_mapCandidates.clear();
-        while (true) {
-            v1 = ScanInt(&ok);
-            if (!ok) break;
-            g->m_mapCandidates.push_back(v1);
-        }
+        __lookup.insert(DungeonTagMap::value_type("[map specification]", 0x30e));
     }
-    break;
+    else
+    {
+        // [map specification]：填充 maze grid
+        v1 = ScanInt(&ok);  // x
+        v2 = ScanInt(&ok);  // y
+        {
+            GridScript* g = mazeLocal.getGrid(v1, v2);
+            g->m_mapCandidates.clear();
+            while (true) {
+                v1 = ScanInt(&ok);
+                if (!ok) break;
+                g->m_mapCandidates.push_back(v1);
+            }
+        }
+        break;
+    }
 
 case 0x31e:  // "[boss map specification]"
-    // [boss map specification]：同 [map specification]
-    v1 = ScanInt(&ok);
-    v2 = ScanInt(&ok);
+    if (!__inited)
     {
-        GridScript* g = mazeLocal.getGrid(v1, v2);
-        g->m_secondCandidates.clear();
-        while (true) {
-            v1 = ScanInt(&ok);
-            if (!ok) break;
-            g->m_secondCandidates.push_back(v1);
-        }
+        __lookup.insert(DungeonTagMap::value_type("[boss map specification]", 0x31e));
     }
-    break;
+    else
+    {
+        // [boss map specification]：同 [map specification]
+        v1 = ScanInt(&ok);
+        v2 = ScanInt(&ok);
+        {
+            GridScript* g = mazeLocal.getGrid(v1, v2);
+            g->m_secondCandidates.clear();
+            while (true) {
+                v1 = ScanInt(&ok);
+                if (!ok) break;
+                g->m_secondCandidates.push_back(v1);
+            }
+        }
+        break;
+    }
 
 case 0x32e:  // "[layered map specification]"
-    // [layered map specification]：同 [map specification]
-    v1 = ScanInt(&ok);
-    v2 = ScanInt(&ok);
+    if (!__inited)
     {
-        GridScript* g = mazeLocal.getGrid(v1, v2);
-        g->m_layeredMapIndexes.clear();
+        __lookup.insert(DungeonTagMap::value_type("[layered map specification]", 0x32e));
+    }
+    else
+    {
+        // [layered map specification]：同 [map specification]
+        v1 = ScanInt(&ok);
+        v2 = ScanInt(&ok);
+        {
+            GridScript* g = mazeLocal.getGrid(v1, v2);
+            g->m_layeredMapIndexes.clear();
+            while (true) {
+                v1 = ScanInt(&ok);
+                if (!ok) break;
+                g->m_layeredMapIndexes.push_back(v1);
+            }
+        }
+        break;
+    }
+
+case 0x33e:  // "[start map]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[start map]", 0x33e));
+    }
+    else
+    {
+        // [start map]：读 (x,y) 坐标对入 mazeLocal.m_vec14（ORIG LAB_088e919e）
+        mazeLocal.m_vec14.clear();
+        while (true) {
+            int mx = ScanInt(&ok);
+            if (!ok) break;
+            mazeLocal.m_vec14.push_back(std::pair<int, int>(mx, ScanInt((bool*)0)));
+        }
+        break;
+    }
+
+case 0x34a:  // "[boss map]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[boss map]", 0x34a));
+    }
+    else
+    {
+        // [boss map]：读 (x,y) 坐标对入 mazeLocal.m_vec20（ORIG LAB_088e9288）
+        mazeLocal.m_vec20.clear();
+        while (true) {
+            int mx = ScanInt(&ok);
+            if (!ok) break;
+            mazeLocal.m_vec20.push_back(std::pair<int, int>(mx, ScanInt((bool*)0)));
+        }
+        break;
+    }
+
+case 0x355:  // "[hell dungeon]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[hell dungeon]", 0x355));
+    }
+    else
+    {
+        script->m_140 = ScanInt(&ok) != 0;  // +0x140
+        break;
+    }
+
+case 0x35b:  // "[prohibit practice]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[prohibit practice]", 0x35b));
+    }
+    else
+    {
+        script->m_141 = ScanInt(&ok) != 0;  // +0x141
+        break;
+    }
+
+case 0x362:  // "[disable skill]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[disable skill]", 0x362));
+    }
+    else
+    {
+        // ORIG LAB_088e947c：ScanInt → m_142 = (值 == 0)（disable skill 段标记）
+        script->m_142 = ScanInt(&ok) == 0;  // +0x142
+        break;
+    }
+
+case 0x367:  // "[impossible skills]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[impossible skills]", 0x367));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088e94fb：循环 ScanStr job 名 → getCharacterJobToEnumValue + ScanInt → m_vec144
+        while (true) {
+            std::string token;
+            if (!ScanStr(&token)) break;
+            if (token == "[/impossible skills]") break;
+            int job = getCharacterJobToEnumValue(token);
+            int val = ScanInt(&ok);
+            script->m_vec144.push_back(std::make_pair(job, val));
+        }
+        break;
+    }
+    }
+
+case 0x373:  // "[/impossible skills]"（ORIG 88e9648：__inited==1 时直接落到 default，
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[/impossible skills]", 0x373));
+    }
+    else
+    {
+        // 无字段操作——结束 token 由 [impossible skills] 的 while 内部自行消费）
+        break;
+    }
+
+case 0x377:  // "[use countdown]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[use countdown]", 0x377));
+    }
+    else
+    {
+        // ORIG LAB_088e969b：仅当值等于 1 时置位 m_150。
+        script->m_150 = ScanInt(&ok) == 1;
+        break;
+    }
+
+case 0x37c:  // "[use zoom rate]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[use zoom rate]", 0x37c));
+    }
+    else
+    {
+        script->m_154 = ScanFloat(&ok);
+        break;
+    }
+
+case 0x381:  // "[room move keep state]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[room move keep state]", 0x381));
+    }
+    else
+    {
+        script->m_158 = ScanInt(&ok) == 1;  // cmp $1,sete
+        break;
+    }
+
+case 0x386:  // "[usable item]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[usable item]", 0x386));
+    }
+    else
+    {
+        script->m_159 = ScanInt(&ok) == 1;  // cmp $1,sete
+        break;
+    }
+
+case 0x38a:  // "[seal door map index]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[seal door map index]", 0x38a));
+    }
+    else
+    {
+        ScanInt(&ok);  // 丢弃 @88e98f9
+        break;
+    }
+
+case 0x38d:  // "[seal door pos]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[seal door pos]", 0x38d));
+    }
+    else
+    {
+        // [usable item]：两值
+        ScanInt(&ok);
+        ScanInt(&ok);
+        break;
+    }
+
+case 0x392:  // "[hell coin limit]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[hell coin limit]", 0x392));
+    }
+    else
+    {
+        script->m_168 = ScanInt(&ok);  // +0x168
+        break;
+    }
+
+case 0x397:  // "[ai character appear rate]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[ai character appear rate]", 0x397));
+    }
+    else
+    {
+        script->m_338 = ScanInt(&ok);  // +0x338
+        break;
+    }
+
+case 0x39b:  // "[dead tower map index]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[dead tower map index]", 0x39b));
+    }
+    else
+    {
+        // [hell coin limit]：push_back 到 m_deadTower180.m_vec
         while (true) {
             v1 = ScanInt(&ok);
             if (!ok) break;
-            g->m_layeredMapIndexes.push_back(v1);
+            script->m_deadTower180.m_vec.push_back(v1);
+        }
+        break;
+    }
+
+case 0x3a5:  // "[randomized object creation]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[randomized object creation]", 0x3a5));
+    }
+    else
+    {
+        std::string rsub;
+        RidableObject ridable;
+        int t0 = 0;
+        while (true)
+        {
+            // ORIG 088e9bb5：ScanType 失败 → import 返回 false（非静默块结束）。
+            if (!ScanType(rsub, true))
+                return false;
+            if (rsub == "[/randomized object creation]")
+                break;
+        retry_0_head:
+            static DungeonTagMap __lookup_0;
+            static bool __inited_0 = false;
+            static SpinLock __init_lock_0;
+        retry_0:
+            if (__inited_0)
+            {
+                DungeonTagMap::const_iterator it0 = __lookup_0.find(rsub.c_str());
+                t0 = (it0 != __lookup_0.end()) ? it0->second : -1;
+            }
+            else
+            {
+                __init_lock_0.enter();
+                if (__inited_0)
+                {
+                    __init_lock_0.leave();
+                    goto retry_0_head;
+                }
+                t0 = 0;   // ORIG：首过 subId=0 进子表 0 填充链
+            }
+            switch (t0)
+            {
+            case 0:
+            case 0x3b3:  // "[select]" → mazeLocal.m_ridable.m_0
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(DungeonTagMap::value_type("[select]", 0x3b3));
+                }
+                else
+                {
+                    if (!ScanInt(&iv0)) return false;
+                    mazeLocal.m_ridable.m_0 = iv0;
+                    break;
+                }
+            case 0x3b8:  // "[regenerate]" → mazeLocal.m_ridable.m_4
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(DungeonTagMap::value_type("[regenerate]", 0x3b8));
+                }
+                else
+                {
+                    if (!ScanInt(&iv0)) return false;
+                    mazeLocal.m_ridable.m_4 = (iv0 != 0);
+                    break;
+                }
+            case 0x3bd:  // "[minimap icon]" → script+0x500
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(DungeonTagMap::value_type("[minimap icon]", 0x3bd));
+                }
+                else
+                {
+                    if (!ScanInt(&iv0)) return false;
+                    script->m_500 = iv0;
+                    break;
+                }
+            case 0x3c2:  // "[object]" → 内层 __lookup_1 表分派收集 RidableObject
+                if (!__inited_0)
+                {
+                    __lookup_0.insert(DungeonTagMap::value_type("[object]", 0x3c2));
+                }
+                else
+                {
+                    std::string ss;
+                    int t1 = 0;
+                    ridable.clear();   // ORIG 088ea072：每轮 [object] 前 clear
+                    while (true)
+                    {
+                        // ORIG 088ea083：ScanType 失败 → import false。
+                        if (!ScanType(ss, true))
+                            return false;
+                        if (ss == "[/object]")
+                        {
+                            mazeLocal.m_ridable.m_objects.push_back(ridable);
+                            break;
+                        }
+                    retry_1_head:
+                        static DungeonTagMap __lookup_1;
+                        static bool __inited_1 = false;
+                        static SpinLock __init_lock_1;
+                    retry_1:
+                        if (__inited_1)
+                        {
+                            DungeonTagMap::const_iterator it1 = __lookup_1.find(ss.c_str());
+                            t1 = (it1 != __lookup_1.end()) ? it1->second : -1;
+                        }
+                        else
+                        {
+                            __init_lock_1.enter();
+                            if (__inited_1)
+                            {
+                                __init_lock_1.leave();
+                                goto retry_1_head;
+                            }
+                            t1 = 0;
+                        }
+                        switch (t1)
+                        {
+                        case 0:
+                        case 0x3d5:  // "[map]" → m_x/m_y
+                            if (!__inited_1)
+                            {
+                                __lookup_1.insert(DungeonTagMap::value_type("[map]", 0x3d5));
+                            }
+                            else
+                            {
+                                if (!ScanInt(&ridable.m_x)) return false;
+                                if (!ScanInt(&ridable.m_y)) return false;
+                                break;
+                            }
+                        case 0x3de:  // "[index]" → m_field0c
+                            if (!__inited_1)
+                            {
+                                __lookup_1.insert(DungeonTagMap::value_type("[index]", 0x3de));
+                            }
+                            else
+                            {
+                                if (!ScanInt(&ridable.m_field0c)) return false;
+                                break;
+                            }
+                        case 0x3e3:  // "[team]" → m_field18；未识别串静默越过
+                            if (!__inited_1)
+                            {
+                                __lookup_1.insert(DungeonTagMap::value_type("[team]", 0x3e3));
+                            }
+                            else
+                            {
+                                std::string team;
+                                if (!ScanType(team, true)) return false;
+                                if (team == "[neutral]") ridable.m_field18 = 200;
+                                else if (team == "[monster]") ridable.m_field18 = 100;
+                                else if (team == "[character]") ridable.m_field18 = 0;
+                                break;
+                            }
+                        case 0x3ee:  // "[pos]" → m_field10/m_field14
+                            if (!__inited_1)
+                            {
+                                __lookup_1.insert(DungeonTagMap::value_type("[pos]", 0x3ee));
+                            }
+                            else
+                            {
+                                if (!ScanInt(&ridable.m_field10)) return false;
+                                if (!ScanInt(&ridable.m_field14)) return false;
+                                break;
+                            }
+                        default:
+                            return false;   // ORIG LAB_088ea62c：未知子 tag → 失败
+                        }
+                        if (!__inited_1)
+                        {
+                            __init_lock_1.leave();
+                            __inited_1 = true;
+                            goto retry_1_head;   // ORIG LAB_088ea665
+                        }
+                    }
+                    break;
+                }
+            default:
+                return false;   // ORIG LAB_088ea6e0：未知子 tag → 失败
+            }
+            if (!__inited_0)
+            {
+                __init_lock_0.leave();
+                __inited_0 = true;
+                goto retry_0_head;   // ORIG LAB_088ea711
+            }
         }
     }
-    break;
-
-case 0x33e:  // "[start map]"
-    // [start map]：读 (x,y) 坐标对入 mazeLocal.m_vec14（ORIG LAB_088e919e）
-    mazeLocal.m_vec14.clear();
-    while (true) {
-        v1 = ScanInt(&ok);
-        if (!ok) break;
-        v2 = ScanInt(&ok);
-        mazeLocal.m_vec14.push_back(std::make_pair(v1, v2));
-    }
-    break;
-
-case 0x34a:  // "[boss map]"
-    // [boss map]：读 (x,y) 坐标对入 mazeLocal.m_vec20（ORIG LAB_088e9288）
-    mazeLocal.m_vec20.clear();
-    while (true) {
-        v1 = ScanInt(&ok);
-        if (!ok) break;
-        v2 = ScanInt(&ok);
-        mazeLocal.m_vec20.push_back(std::make_pair(v1, v2));
-    }
-    break;
-
-case 0x355:  // "[boss map]"
-    script->m_140 = ScanInt(&ok) != 0;  // +0x140
-    break;
-
-case 0x35b:  // "[hell dungeon]"
-    script->m_141 = ScanInt(&ok) != 0;  // +0x141
-    break;
-
-case 0x362:  // "[prohibit practice]"
-    script->m_142 = ScanInt(&ok) != 0;  // +0x142
-    break;
-
-case 0x367:  // "[disable skill]"
-    // [disable skill]：job → 技能禁表
-    ScanInt(&ok);  // 丢弃（版本）
-    ScanStr(&token);  // job 名
-    {
-        // 【推断】getCharacterJobToEnumValue(token) 后 make_pair 入 m_vec35c（外部函数未声明）
-        int job = 0;
-        script->m_vec35c.push_back(std::make_pair(job, 1));
-    }
-    break;
-
-case 0x377:  // "[/impossible skills]"
-    // [/impossible skills]：ScanInt 丢弃
-    ScanInt(&ok);
-    break;
-
-case 0x37c:  // "[/impossible skills]"
-    ScanFloat(&ok);  // @88e977f
-    break;
-
-case 0x381:  // "[use countdown]"
-    script->m_158 = ScanInt(&ok) == 1;  // cmp $1,sete
-    break;
-
-case 0x386:  // "[use zoom rate]"
-    script->m_159 = ScanInt(&ok) == 1;  // cmp $1,sete
-    break;
-
-case 0x38a:  // "[usable item]"
-    ScanInt(&ok);  // 丢弃 @88e98f9
-    break;
-
-case 0x38d:  // "[usable item]"
-    // [usable item]：两值
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x392:  // "[seal door map index]"
-    script->m_168 = ScanInt(&ok);  // +0x168
-    break;
-
-case 0x397:  // "[seal door pos]"
-    script->m_338 = ScanInt(&ok);  // +0x338
-    break;
-
-case 0x39b:  // "[hell coin limit]"
-    // [hell coin limit]：push_back 到 m_deadTower180.m_vec
-    while (true) {
-        v1 = ScanInt(&ok);
-        if (!ok) break;
-        script->m_deadTower180.m_vec.push_back(v1);
-    }
-    break;
 
 case 0x421:  // "[point by type]"
-    ScanInt(&ok);  // 丢弃
-    break;
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[point by type]", 0x421));
+    }
+    else
+    {
+        script->m_warRoom18c.m_0 = ScanInt(&ok);
+        script->m_warRoom18c.m_4 = ScanInt(&ok);
+        script->m_warRoom18c.m_8 = ScanInt(&ok);
+        break;
+    }
 
-case 0x426:  // "[point by type]"
-    script->m_warRoom18c.m_c = ScanInt(&ok);  // +0x198
-    break;
+case 0x426:  // "[phase fatigue]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[phase fatigue]", 0x426));
+    }
+    else
+    {
+        script->m_warRoom18c.m_c = ScanInt(&ok);  // +0x198
+        break;
+    }
 
-case 0x42c:  // "[phase fatigue]"
-    script->m_warRoom18c.m_10 = ScanInt(&ok);  // +0x19c
-    break;
+case 0x42c:  // "[warroom map index]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[warroom map index]", 0x42c));
+    }
+    else
+    {
+        script->m_warRoom18c.m_10 = ScanInt(&ok);  // +0x19c
+        break;
+    }
 
-case 0x430:  // "[phase fatigue]"
-    // [phase fatigue]（float）
-    ScanFloat(&ok);  // 丢弃
-    break;
+case 0x430:  // "[monster exp bonus per user decrease]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[monster exp bonus per user decrease]", 0x430));
+    }
+    else
+    {
+        script->m_warRoom18c.m_bc = ScanFloat(&ok);
+        break;
+    }
 
-case 0x433:  // "[warroom map index]"
-    // [warroom map index]（float）
-    ScanFloat(&ok);  // 丢弃
-    break;
+case 0x433:  // "[result exp bonus per user decrease]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[result exp bonus per user decrease]", 0x433));
+    }
+    else
+    {
+        script->m_warRoom18c.m_c0 = ScanFloat(&ok);
+        break;
+    }
 
-case 0x436:  // "[monster exp bonus per user decrease]"
-    // [monster exp bonus per user decrease]：4 个值到 STMonsterTypeSpawnProb
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
+case 0x436:  // "[monster type spawn prob]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[monster type spawn prob]", 0x436));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088ea9eb：逐条读 4 int（怪物类型 + 3 概率）push 入 m_warRoom18c.m_spawnProb
+        while (true) {
+            STMonsterTypeSpawnProb sp;
+            sp.m_probability[0] = ScanInt(&ok);
+            if (!ok) break;
+            sp.m_probability[1] = ScanInt(&ok);
+            if (!ok) return false;
+            sp.m_probability[2] = ScanInt(&ok);
+            if (!ok) return false;
+            sp.m_probability[3] = ScanInt(&ok);
+            if (!ok) return false;
+            script->m_warRoom18c.m_spawnProb.push_back(sp);
+        }
+        break;
+    }
+    }
 
 case 0x456:  // "[monster type spawn cost]"
-    ScanInt(&ok);
-    break;
-
-case 0x45b:  // "[monster type spawn cost]"
-    ScanFloat(&ok);
-    break;
-
-case 0x45f:  // "[monster type spawn interval rate]"
-    script->m_warRoom18c.m_ec = ScanInt(&ok);  // +0x278
-    break;
-
-case 0x462:  // "[monster spawn base interval]"
-    script->m_warRoom18c.m_f0 = ScanInt(&ok);  // +0x27c
-    break;
-
-case 0x465:  // "[monster spawn base interval]"
-    script->m_warRoom18c.m_f4 = ScanInt(&ok);  // +0x280
-    break;
-
-case 0x468:  // "[monster spawn random interval]"
-    script->m_warRoom18c.m_f8 = ScanInt(&ok);  // +0x284
-    break;
-
-case 0x46b:  // "[fatigue]"
-    script->m_warRoom18c.m_d8 = ScanInt(&ok);  // +0x264
-    break;
-
-case 0x46e:  // "[fatigue result]"
-    script->m_warRoom18c.m_d4 = ScanInt(&ok);  // +0x260
-    break;
-
-case 0x472:  // "[max monster]"
-    // [max monster]：vector<int> 循环
-    while (true) {
-        v1 = ScanInt(&ok);
-        if (!ok) break;
-        script->m_warRoom18c.m_vec6c[0].push_back(v1);  // 【推断】目标 vector 待核
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[monster type spawn cost]", 0x456));
     }
-    break;
-
-case 0x47f:  // "[spawn common monster index]"
-    while (true) {
-        v1 = ScanInt(&ok);
-        if (!ok) break;
-        script->m_warRoom18c.m_vec6c[1].push_back(v1);
+    else
+    {
+        for (int i = 0; i < 4; ++i)
+            script->m_warRoom18c.m_c4[i] = ScanInt(&ok);
+        break;
     }
-    break;
 
-case 0x48c:  // "[spawn common champion index]"
-    while (true) {
-        v1 = ScanInt(&ok);
-        if (!ok) break;
-        script->m_warRoom18c.m_vec6c[2].push_back(v1);
+case 0x45b:  // "[monster type spawn interval rate]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[monster type spawn interval rate]", 0x45b));
     }
-    break;
-
-case 0x499:  // "[spawn super champion index]"
-    while (true) {
-        v1 = ScanInt(&ok);
-        if (!ok) break;
-        script->m_warRoom18c.m_vec6c[3].push_back(v1);
+    else
+    {
+        for (int i = 0; i < 4; ++i)
+            script->m_warRoom18c.m_dc[i] = ScanFloat(&ok);
+        break;
     }
-    break;
 
-case 0x4a6:  // "[spawn boss index]"
-    script->m_warRoom18c.m_50 = ScanInt(&ok);  // +0x1dc
-    break;
-
-case 0x4ab:  // "[spawn step max]"
-    while (true) {
-        v1 = ScanInt(&ok);
-        if (!ok) break;
-        script->m_warRoom18c.m_vec14[0].push_back(v1);  // 【推断】
+case 0x45f:  // "[monster spawn base interval]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[monster spawn base interval]", 0x45f));
     }
-    break;
-
-case 0x4b9:  // "[spawn step resource pool]"
-    ScanFloat(&ok);
-    break;
-
-case 0x4be:  // "[kill count const]"
-    script->m_warRoom18c.m_54 = ScanInt(&ok);  // +0x1e0
-    break;
-
-case 0x4c3:  // "[kill count const]"
-    script->m_warRoom18c.m_58 = ScanInt(&ok);  // +0x1e4
-    break;
-
-case 0x4c8:  // "[join cost gold]"
-    script->m_warRoom18c.m_5c[0] = ScanInt(&ok);  // +0x1e8
-    break;
-
-case 0x4cd:  // "[gold drop prob]"
-    script->m_warRoom18c.m_5c[1] = ScanInt(&ok);  // +0x1ec
-    break;
-
-case 0x4d2:  // "[common monster item drop prob]"
-    script->m_warRoom18c.m_5c[2] = ScanInt(&ok);  // +0x1f0
-    break;
-
-case 0x4d7:  // "[common champion item drop prob]"
-    script->m_warRoom18c.m_5c[3] = ScanInt(&ok);  // +0x1f4
-    break;
-
-case 0x4dc:  // "[super champion item drop prob]"
-    script->m_warRoom18c.m_9c[0] = ScanInt(&ok);  // +0x228
-    break;
-
-case 0x4e4:  // "[boss item drop prob]"
-    script->m_warRoom18c.m_9c[1] = ScanInt(&ok);  // +0x22c
-    break;
-
-case 0x4ec:  // "[common monster exp const]"
-    script->m_warRoom18c.m_9c[2] = ScanInt(&ok);  // +0x230
-    break;
-
-case 0x4f4:  // "[common champion exp const]"
-    script->m_warRoom18c.m_9c[3] = ScanInt(&ok);  // +0x234
-    break;
-
-case 0x4fc:  // "[super champion exp const]"
-    while (true) {
-        v1 = ScanInt(&ok);
-        if (!ok) break;
-        script->m_warRoom18c.m_vec44.push_back(v1);  // 【推断】
+    else
+    {
+        script->m_warRoom18c.m_ec = ScanInt(&ok);  // +0x278
+        break;
     }
-    break;
 
-case 0x508:  // "[common monster item drop list]"
-    while (true) {
-        v1 = ScanInt(&ok);
-        if (!ok) break;
-        script->m_warRoom18c.m_vec14[1].push_back(v1);  // 【推断】
+case 0x462:  // "[monster spawn random interval]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[monster spawn random interval]", 0x462));
     }
-    break;
-
-case 0x514:  // "[common champion item drop list]"
-    while (true) {
-        v1 = ScanInt(&ok);
-        if (!ok) break;
-        script->m_warRoom18c.m_vec14[2].push_back(v1);  // 【推断】
+    else
+    {
+        script->m_warRoom18c.m_f0 = ScanInt(&ok);  // +0x27c
+        break;
     }
-    break;
 
-case 0x520:  // "[super champion item drop list]"
-    while (true) {
-        v1 = ScanInt(&ok);
-        if (!ok) break;
-        script->m_warRoom18c.m_vec14[3].push_back(v1);  // 【推断】
+case 0x465:  // "[fatigue]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[fatigue]", 0x465));
     }
-    break;
+    else
+    {
+        script->m_warRoom18c.m_f4 = ScanInt(&ok);  // +0x280
+        break;
+    }
 
-case 0x52c:  // "[boss item drop list]"
-    script->m_warRoom18c.m_fc = ScanInt(&ok);  // +0x288
-    break;
+case 0x468:  // "[fatigue result]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[fatigue result]", 0x468));
+    }
+    else
+    {
+        script->m_warRoom18c.m_f8 = ScanInt(&ok);  // +0x284
+        break;
+    }
 
-case 0x534:  // "[battle spawn time]"
-    script->m_28c = ScanInt(&ok) != 0;  // +0x28c
-    break;
+case 0x46b:  // "[max monster]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[max monster]", 0x46b));
+    }
+    else
+    {
+        script->m_warRoom18c.m_d8 = ScanInt(&ok);  // +0x264
+        break;
+    }
 
-case 0x539:  // "[battle spawn time]"
-    script->m_28d = ScanInt(&ok) != 0;  // +0x28d
-    break;
+case 0x46e:  // "[player kc]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[player kc]", 0x46e));
+    }
+    else
+    {
+        script->m_warRoom18c.m_d4 = ScanInt(&ok);  // +0x260
+        break;
+    }
 
-case 0x53d:  // "[powerwar dungeon]"
-    script->m_28e = (char)ScanInt(&ok);  // mov %dl,0x28e
-    break;
+case 0x472:  // "[spawn common monster index]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[spawn common monster index]", 0x472));
+    }
+    else
+    {
+        // ORIG LAB_088eafab：clear(+0x1a0) 后循环 push（写 STWarRoomData+0x14，
+        // 不是 item-drop vector +0x6c）。
+        script->m_warRoom18c.m_vec14[0].clear();
+        while (true) {
+            v1 = ScanInt(&ok);
+            if (!ok) break;
+            // ORIG 0x088eafbe：写 STWarRoomData+0x14（不是 item-drop
+            // vector +0x6c）。
+            script->m_warRoom18c.m_vec14[0].push_back(v1);
+        }
+        break;
+    }
 
-case 0x549:  // "[powerwar dungeon]"
-    script->m_28f = ScanInt(&ok) != 0;  // +0x28f
-    break;
+case 0x47f:  // "[spawn common champion index]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[spawn common champion index]", 0x47f));
+    }
+    else
+    {
+        script->m_warRoom18c.m_vec14[1].clear();   // ORIG clear(+0x1ac)
+        while (true) {
+            v1 = ScanInt(&ok);
+            if (!ok) break;
+            script->m_warRoom18c.m_vec14[1].push_back(v1);
+        }
+        break;
+    }
+
+case 0x48c:  // "[spawn super champion index]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[spawn super champion index]", 0x48c));
+    }
+    else
+    {
+        script->m_warRoom18c.m_vec14[2].clear();   // ORIG clear(+0x1b8)
+        while (true) {
+            v1 = ScanInt(&ok);
+            if (!ok) break;
+            script->m_warRoom18c.m_vec14[2].push_back(v1);
+        }
+        break;
+    }
+
+case 0x499:  // "[spawn boss index]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[spawn boss index]", 0x499));
+    }
+    else
+    {
+        script->m_warRoom18c.m_vec14[3].clear();   // ORIG clear(+0x1c4)
+        while (true) {
+            v1 = ScanInt(&ok);
+            if (!ok) break;
+            script->m_warRoom18c.m_vec14[3].push_back(v1);
+        }
+        break;
+    }
+
+case 0x4a6:  // "[spawn step max]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[spawn step max]", 0x4a6));
+    }
+    else
+    {
+        script->m_warRoom18c.m_50 = ScanInt(&ok);  // +0x1dc
+        break;
+    }
+
+case 0x4ab:  // "[spawn step resource pool]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[spawn step resource pool]", 0x4ab));
+    }
+    else
+    {
+        // ORIG LAB_088eb2a8（Ghidra C 实证）：clear(+0x1d0) 后循环 ScanInt push；
+        // +0x1d0 = STWarRoomData+0x44 = m_vec44。
+        script->m_warRoom18c.m_vec44.clear();
+        while (true) {
+            int poolVal = ScanInt(&ok);
+            if (!ok) break;
+            script->m_warRoom18c.m_vec44.push_back(poolVal);
+        }
+        break;
+    }
+
+case 0x4b9:  // "[kill count const]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[kill count const]", 0x4b9));
+    }
+    else
+    {
+        script->m_warRoom18c.m_ac = ScanFloat(&ok);
+        break;
+    }
+
+case 0x4be:  // "[join cost gold]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[join cost gold]", 0x4be));
+    }
+    else
+    {
+        script->m_warRoom18c.m_54 = ScanInt(&ok);  // +0x1e0
+        break;
+    }
+
+case 0x4c3:  // "[gold drop prob]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[gold drop prob]", 0x4c3));
+    }
+    else
+    {
+        script->m_warRoom18c.m_58 = ScanInt(&ok);  // +0x1e4
+        break;
+    }
+
+case 0x4c8:  // "[common monster item drop prob]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[common monster item drop prob]", 0x4c8));
+    }
+    else
+    {
+        script->m_warRoom18c.m_5c[0] = ScanInt(&ok);  // +0x1e8
+        break;
+    }
+
+case 0x4cd:  // "[common champion item drop prob]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[common champion item drop prob]", 0x4cd));
+    }
+    else
+    {
+        script->m_warRoom18c.m_5c[1] = ScanInt(&ok);  // +0x1ec
+        break;
+    }
+
+case 0x4d2:  // "[super champion item drop prob]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[super champion item drop prob]", 0x4d2));
+    }
+    else
+    {
+        script->m_warRoom18c.m_5c[2] = ScanInt(&ok);  // +0x1f0
+        break;
+    }
+
+case 0x4d7:  // "[boss item drop prob]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[boss item drop prob]", 0x4d7));
+    }
+    else
+    {
+        script->m_warRoom18c.m_5c[3] = ScanInt(&ok);  // +0x1f4
+        break;
+    }
+
+case 0x4dc:  // "[common monster exp const]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[common monster exp const]", 0x4dc));
+    }
+    else
+    {
+        script->m_warRoom18c.m_9c[0] = ScanInt(&ok);  // +0x228
+        break;
+    }
+
+case 0x4e4:  // "[common champion exp const]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[common champion exp const]", 0x4e4));
+    }
+    else
+    {
+        script->m_warRoom18c.m_9c[1] = ScanInt(&ok);  // +0x22c
+        break;
+    }
+
+case 0x4ec:  // "[super champion exp const]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[super champion exp const]", 0x4ec));
+    }
+    else
+    {
+        script->m_warRoom18c.m_9c[2] = ScanInt(&ok);  // +0x230
+        break;
+    }
+
+case 0x4f4:  // "[boss exp const]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[boss exp const]", 0x4f4));
+    }
+    else
+    {
+        script->m_warRoom18c.m_9c[3] = ScanInt(&ok);  // +0x234
+        break;
+    }
+
+case 0x4fc:  // "[common monster item drop list]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[common monster item drop list]", 0x4fc));
+    }
+    else
+    {
+        script->m_warRoom18c.m_vec6c[0].clear();   // ORIG clear(+0x1f8)
+        while (true) {
+            v1 = ScanInt(&ok);
+            if (!ok) break;
+            script->m_warRoom18c.m_vec6c[0].push_back(v1);
+        }
+        break;
+    }
+
+case 0x508:  // "[common champion item drop list]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[common champion item drop list]", 0x508));
+    }
+    else
+    {
+        script->m_warRoom18c.m_vec6c[1].clear();   // ORIG clear(+0x204)
+        while (true) {
+            v1 = ScanInt(&ok);
+            if (!ok) break;
+            script->m_warRoom18c.m_vec6c[1].push_back(v1);
+        }
+        break;
+    }
+
+case 0x514:  // "[super champion item drop list]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[super champion item drop list]", 0x514));
+    }
+    else
+    {
+        // ORIG 088eba6b：clear 的是 +0x204（前一 vector），push 目标 +0x210 —— 忠实保留。
+        script->m_warRoom18c.m_vec6c[1].clear();
+        while (true) {
+            v1 = ScanInt(&ok);
+            if (!ok) break;
+            script->m_warRoom18c.m_vec6c[2].push_back(v1);
+        }
+        break;
+    }
+
+case 0x520:  // "[boss item drop list]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[boss item drop list]", 0x520));
+    }
+    else
+    {
+        script->m_warRoom18c.m_vec6c[3].clear();   // ORIG clear(+0x21c)
+        while (true) {
+            v1 = ScanInt(&ok);
+            if (!ok) break;
+            script->m_warRoom18c.m_vec6c[3].push_back(v1);
+        }
+        break;
+    }
+
+case 0x52c:  // "[battle spawn time]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[battle spawn time]", 0x52c));
+    }
+    else
+    {
+        script->m_warRoom18c.m_fc = ScanInt(&ok);  // +0x288
+        break;
+    }
+
+case 0x534:  // "[ancient dungeon]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[ancient dungeon]", 0x534));
+    }
+    else
+    {
+        script->m_28c = ScanInt(&ok) != 0;  // +0x28c
+        break;
+    }
+
+case 0x539:  // "[powerwar dungeon]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[powerwar dungeon]", 0x539));
+    }
+    else
+    {
+        script->m_28d = ScanInt(&ok) != 0;  // +0x28d
+        break;
+    }
+
+case 0x53d:  // "[blood dungeon]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[blood dungeon]", 0x53d));
+    }
+    else
+    {
+        script->m_28e = (char)ScanInt(&ok);  // mov %dl,0x28e
+        break;
+    }
+
+case 0x549:  // "[limit item stat]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[limit item stat]", 0x549));
+    }
+    else
+    {
+        script->m_28f = ScanInt(&ok) != 0;  // +0x28f
+        break;
+    }
+
+case 0x54f:  // "[absolute change stat]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[absolute change stat]", 0x54f));
+    }
+    else
+    {
+        // ORIG LAB_088ebe52：每轮 statKind=5 → ScanStr 名 → __lookup_2 表惰性链
+        // （[move speed]/[physical attack add]/[physical defense add]/
+        //   [magical attack add]/[magical defense add] = 0x559..0x565 → 0..4，
+        //   子表条目在 088ec0bb..088ec2c5 的 per-case !__inited 分支中逐例 insert）；
+        // 未知名保持 5。收尾 ScanFloat(float*)（088bc58e）忽略返回值，statKind!=5
+        // 时以本地左值 key/val 构造 value_type 写 m_statMap290（重复 key 不覆盖）。
+        int statKind = 5;
+        int t2 = 0;
+        while (true)
+        {
+            statKind = 5;   // ORIG 088ebe52：每轮初值 5（不写 map）
+            // ORIG 088ebe62：复用函数级串槽（-0x1098），无独立 string ctor/dtor。
+            if (!ScanStr(&token))
+                break;
+        retry_2_head:
+            static DungeonTagMap __lookup_2;
+            static bool __inited_2 = false;
+            static SpinLock __init_lock_2;
+        retry_2:
+            if (__inited_2)
+            {
+                DungeonTagMap::const_iterator it2 = __lookup_2.find(token.c_str());
+                t2 = (it2 != __lookup_2.end()) ? it2->second : -1;
+            }
+            else
+            {
+                __init_lock_2.enter();
+                if (__inited_2)
+                {
+                    __init_lock_2.leave();
+                    goto retry_2_head;
+                }
+                t2 = 0;   // ORIG：首过 subId=0 并入 [move speed] case
+            }
+            switch (t2)
+            {
+            case 0:
+            case 0x559:  // "[move speed]"
+                if (!__inited_2)
+                {
+                    __lookup_2.insert(DungeonTagMap::value_type("[move speed]", 0x559));
+                }
+                else
+                {
+                    statKind = 0;
+                    break;
+                }
+            case 0x55c:  // "[physical attack add]"
+                if (!__inited_2)
+                {
+                    __lookup_2.insert(DungeonTagMap::value_type("[physical attack add]", 0x55c));
+                }
+                else
+                {
+                    statKind = 1;
+                    break;
+                }
+            case 0x55f:  // "[physical defense add]"
+                if (!__inited_2)
+                {
+                    __lookup_2.insert(DungeonTagMap::value_type("[physical defense add]", 0x55f));
+                }
+                else
+                {
+                    statKind = 2;
+                    break;
+                }
+            case 0x562:  // "[magical attack add]"
+                if (!__inited_2)
+                {
+                    __lookup_2.insert(DungeonTagMap::value_type("[magical attack add]", 0x562));
+                }
+                else
+                {
+                    statKind = 3;
+                    break;
+                }
+            case 0x565:  // "[magical defense add]"
+                if (!__inited_2)
+                {
+                    __lookup_2.insert(DungeonTagMap::value_type("[magical defense add]", 0x565));
+                }
+                else
+                {
+                    statKind = 4;
+                    break;
+                }
+            default:
+                break;
+            }
+            if (!__inited_2)
+            {
+                __init_lock_2.leave();
+                __inited_2 = true;
+                goto retry_2_head;   // ORIG LAB_088ec2e9
+            }
+            float v = 0.0f;
+            ScanFloat(&v);   // ORIG 088ec301：调用后忽略返回值
+            if (statKind == 5)
+                continue;    // ORIG 088ec36e：未知名只消费浮点值
+            AbsoluteChangeStat::T key = static_cast<AbsoluteChangeStat::T>(statKind);
+            script->m_statMap290.insert(
+                std::map<AbsoluteChangeStat::T, float>::value_type(key, v));
+        }
+    }
+
 
 case 0x576:  // "[limit escape character]"
-    script->m_2a8 = ScanInt(&ok) != 0;  // +0x2a8
-    break;
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[limit escape character]", 0x576));
+    }
+    else
+    {
+        script->m_2a8 = ScanInt(&ok) != 0;  // +0x2a8
+        break;
+    }
 
-case 0x57d:  // "[limit escape character]"
-    script->m_2ab = ScanInt(&ok) != 0;  // +0x2ab
-    break;
+case 0x57d:  // "[defense dungeon]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[defense dungeon]", 0x57d));
+    }
+    else
+    {
+        script->m_2ab = ScanInt(&ok) != 0;  // +0x2ab
+        break;
+    }
 
-case 0x580:  // "[defense dungeon]"
-    // [defense dungeon]：StageType
-    ScanStr(&token);
-    advancealtar::StageType::T st;
-    advancealtar::StageType::getStageType(token, st);
-    script->m_2ac = st;
-    break;
+case 0x580:  // "[advance altar type]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[advance altar type]", 0x580));
+    }
+    else
+    {
+        // ORIG 088ec4d7：独立 string 槽（-0x1144），失败按 ebx=1 出口返回 true。
+    {
+        std::string typeName;
+        if (!ScanStr(&typeName))
+            return true;  // ORIG 0x088ec4ea 失败时直接以 true 结束，不写字段
+        advancealtar::StageType::T st;
+        if (!advancealtar::StageType::getStageType(typeName, st))
+            return true;
+        script->m_2ac = st;
+    }
+        break;
+    }
 
 case 0x58e:  // "[advance altar map]"
-    // [advance altar map]：StageDifficulty
-    ScanStr(&token);
-    advancealtar::StageDifficulty::T sd;
-    advancealtar::StageDifficulty::getDifficulty(token, sd);
-    script->m_2ac = sd;
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[advance altar map]", 0x58e));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088ec56a：循环 ScanStr 难度名 → getDifficulty（easy/medium/hard），
+        // 命中则读 2 int → m_2b0[diff]/m_2bc[diff]；任意失败/不可识别 token 结束。
+        while (true)
+        {
+            std::string dtok;
+            if (!ScanStr(&dtok)) break;
+            advancealtar::StageDifficulty::T sd;
+            if (!advancealtar::StageDifficulty::getDifficulty(dtok, sd)) break;
+            int a = ScanInt(&ok);
+            script->m_2b0[(int)sd] = a;
+            if (!ok) break;
+            int b = ScanInt(&ok);
+            script->m_2bc[(int)sd] = b;
+            if (!ok) break;
+        }
+        break;
+    }
+    }
 
 case 0x5a2:  // "[advance altar clear reward]"
-    // [advance altar clear reward]：按 reward type 子标签填充 m_clearReward2d4
-    ScanStr(&token);  // reward type
+    if (!__inited)
     {
-        advancealtar::_RewardItem ri;
-        advancealtar::RewardItemType::T rt;
-        if (advancealtar::RewardItemType::getRewardItemType(token, rt)) {
-            ri.m_type = rt;
-        }
-        ri.m_value1 = ScanInt(&ok);
-        ri.m_value2 = ScanInt(&ok);
-        script->m_clearReward2d4.m_vec[rt].push_back(ri);
+        __lookup.insert(DungeonTagMap::value_type("[advance altar clear reward]", 0x5a2));
     }
-    break;
+    else
+    {
+    {
+        // ORIG LAB_088ec6dc（同 ImportAdvanceAltarDungeonTag）：ScanType 子 tag 选
+        // [easy]/[medium]/[hard]→vec 槽 0..2，然后逐项 importAltarRewardItem push；
+        // "[/advance altar clear reward]" 显式比对后结束（ORIG 088ec803 eq 实证），
+        // 其余子 tag 同样结束本 case。
+        while (true)
+        {
+            std::string dsub;
+            if (!ScanType(dsub, true)) break;
+            int idx = -1;
+            if (dsub == "[easy]") idx = 0;
+            else if (dsub == "[medium]") idx = 1;
+            else if (dsub == "[hard]") idx = 2;
+            else if (dsub == "[/advance altar clear reward]") break;
+            else break;
+            std::vector<advancealtar::_RewardItem>& vec =
+                script->m_clearReward2d4.m_vec[idx];
+            while (true)
+            {
+                advancealtar::_RewardItem item;
+                std::string rewardType;
+                if (!ScanStr(&rewardType)) break;
+                advancealtar::RewardItemType::T rewardItemType;
+                if (!advancealtar::RewardItemType::getRewardItemType(
+                        rewardType, rewardItemType))
+                    break;
+                item.m_type = static_cast<int>(rewardItemType);
+                item.m_value1 = ScanInt(&ok);
+                if (!ok) break;
+                item.m_value2 = ScanInt(&ok);
+                if (!ok) break;
+                vec.push_back(item);
+            }
+        }
+        break;
+    }
+    }
 
 case 0x5d9:  // "[advance altar survival map]"
-    ScanInt(&ok);
-    break;
-
-case 0x5e5:  // "[advance altar survival map]"
-    // [advance altar survival map]：round reward 解析
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanStr(&token);
+    if (!__inited)
     {
-        advancealtar::RoundRewardData rrd;
-        rrd.m_0 = v1;
-        rrd.m_4 = v2;
-        ScanInt(&ok);
-        ScanInt(&ok);
-        advancealtar::_RewardItem ri;
-        ri.m_value1 = v1;
-        ri.m_value2 = v2;
-        rrd.m_vec8.push_back(ri);
-        script->m_survival2f8.m_vec.push_back(rrd);
+        __lookup.insert(DungeonTagMap::value_type("[advance altar survival map]", 0x5d9));
     }
-    break;
+    else
+    {
+    {
+        // ORIG LAB_088ec99f：循环 ScanInt → push m_vec2c8 直到失败
+        while (true)
+        {
+            int mapId = ScanInt(&ok);
+            if (!ok) break;
+            script->m_vec2c8.push_back(mapId);
+        }
+        break;
+    }
+    }
+
+case 0x5e5:  // "[advance altar survival clear reward]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[advance altar survival clear reward]", 0x5e5));
+    }
+    else
+    {
+    {
+        // ORIG（Ghidra C，同 ImportAdvanceAltarDungeonTag 语义）：多个 [type]…[/type] 块 →
+        // SurvivalRewardData::m_vec；[round] 两项、[list] 逐项 importAltarRewardItem（type 0/1）。
+        while (true)
+        {
+            std::string token;
+            if (!ScanType(token, true)) break;
+            if (token != "[type]") break;
+            advancealtar::RoundRewardData rrd;
+            rrd.m_0 = 0;
+            rrd.m_4 = 0;
+            while (true)
+            {
+                std::string sub;
+                if (!ScanType(sub, true)) break;
+                if (sub == "[/type]")
+                {
+                    script->m_survival2f8.m_vec.push_back(rrd);
+                    break;
+                }
+                bool ok = false;
+                if (sub == "[round]")
+                {
+                    rrd.m_0 = ScanInt(&ok);
+                    if (!ok) break;
+                    rrd.m_4 = ScanInt(&ok);
+                    if (!ok) break;
+                }
+                else if (sub == "[list]")
+                {
+                    while (true)
+                    {
+                        advancealtar::_RewardItem item;
+                        std::string rewardType;
+                        if (!ScanStr(&rewardType)) break;
+                        advancealtar::RewardItemType::T rewardItemType;
+                        if (!advancealtar::RewardItemType::getRewardItemType(
+                                rewardType, rewardItemType))
+                            break;
+                        item.m_type = static_cast<int>(rewardItemType);
+                        bool itemOk = false;
+                        item.m_value1 = ScanInt(&itemOk);
+                        if (!itemOk) break;
+                        item.m_value2 = ScanInt(&itemOk);
+                        if (!itemOk) break;
+                        // ORIG 088ecd14/088ecd36：type==0 与 ==1 分别为独立 push_back
+                        // 调用点（两条实例化调用），非合并条件。
+                        if (item.m_type == 0)
+                        {
+                            rrd.m_vec8.push_back(item);
+                        }
+                        else if (item.m_type == 1)
+                        {
+                            rrd.m_vec8.push_back(item);
+                        }
+                    }
+                }
+            }
+        }
+        break;
+    }
+    }
 
 case 0x622:  // "[dimension dungeon]"
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x62c:  // "[dimension dungeon]"
-    ScanInt(&ok);
-    break;
-
-case 0x630:  // "[necessary party]"
-    // [necessary party]：DimensionPartyCount
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x655:  // "[village attack revenge dungeon]"
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x65d:  // "[village attack revenge dungeon]"
-    // [village attack revenge dungeon]：5 串 + 时间/星期转换
-    ScanInt(&ok);
-    ScanStr(&token);
-    ScanStr(&token);
-    ScanStr(&token);
-    ScanStr(&token);
-    ScanStr(&token);
-    break;
-
-case 0x697:  // "[limit party count]"
-    ScanInt(&ok);
-    break;
-
-case 0x69a:  // "[limit party count]"
-    ScanInt(&ok);
-    break;
-
-case 0x69d:  // "[limit party count]"
-    ScanInt(&ok);
-    break;
-
-case 0x6a5:  // "[hit count]"
-    script->m_13c = ScanInt(&ok);  // +0x13c
-    break;
-
-case 0x6a8:  // "[seal door appear rate]"
-    // [seal door appear rate]：两个分支（m_bossRoom328 子字段）
-    ScanStr(&token);
-    ScanInt(&ok);
-    script->m_bossRoom328.m_0 = 1;
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    script->m_bossRoom328.m_0 = 2;
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x6ca:  // "[dummy appear count]"
-    script->m_16c = ScanInt(&ok);  // +0x16c
-    break;
-
-case 0x6cd:  // "[dummy appear count]"
-    // [dummy appear count]：GridScript resize
-    ScanStr(&token);
-    script->m_358 = 1;
-    script->m_358 = 3;
-    script->m_358 = 4;
-    script->m_358 = 2;
-    script->m_358 = 0;
-    break;
-
-case 0x6f5:  // "advance altar"
-    script->m_33c = ScanInt(&ok);  // +0x33c
-    break;
-
-case 0x6f8:  // "[tower random map indexes]"
-    // [tower random map indexes]：map<int,vector<RandomList>> 填充
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x71e:  // "[death tower map indexes]"
-    // [death tower map indexes]
-    script->m_368 = ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x72c:  // "[named monster map pos]"
-    // [named monster map pos]
-    ScanInt(&ok);
-    ScanInt(&ok);
+    if (!__inited)
     {
-        STNamedMonsterMapPos nm;
-        nm.m_x = v1;
-        nm.m_y = v2;
-        script->m_vec3c8.push_back(nm);
+        __lookup.insert(DungeonTagMap::value_type("[dimension dungeon]", 0x622));
     }
-    break;
-
-case 0x73f:  // "[named monster map pos]"
-    script->m_3c4 = ScanInt(&ok);  // +0x3c4
-    break;
-
-case 0x744:  // "[blood max round]"
-    // [blood max round]：stSecondEventMonster_t
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x766:  // "[event monster]"
-    // [event monster]：stEventMonster_t
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x7a9:  // "[tower high skill initial cool time]"
-    // [tower high skill initial cool time]：float 对
-    ScanFloat(&ok);
-    ScanFloat(&ok);
-    break;
-
-case 0x7ad:  // "[tower high skill initial cool time]"
-    ScanFloat(&ok);
-    ScanFloat(&ok);
-    break;
-
-case 0x7b1:  // "[tower high skill initial cool time rate]"
-    ScanFloat(&ok);
-    break;
-
-case 0x7b4:  // "[tower fp cubepiece]"
-    ScanFloat(&ok);
-    break;
-
-case 0x7b7:  // "[tower limit of stackable item]"
-    // [tower limit of stackable item]：RecoveryStairInfo（=现有 [tower recovery] 逻辑）
+    else
     {
-        RecoveryStairInfo rsi;
-        rsi.m_0 = static_cast<int>(ScanFloat(&ok));
-        rsi.m_4 = static_cast<int>(ScanFloat(&ok));
-        rsi.m_8 = ScanFloat(&ok);
-        while (true) {
-            RecoveryInfo ri;
-            ri.m_data[0] = ScanFloat(&ok);
-            if (!ok) break;
-            ri.m_data[1] = ScanFloat(&ok);
-            ri.m_data[2] = ScanFloat(&ok);
-            rsi.m_vec.push_back(ri);
-        }
-        script->m_vec384.push_back(rsi);
+        // ORIG LAB_088ece04：2×ScanInt → m_304/m_305（byte）
+        script->m_304 = (char)ScanInt(&ok);
+        script->m_305 = (char)ScanInt(&ok);
+        break;
     }
-    break;
-
-case 0x7ce:  // "[tower dialog]"
-    // [tower dialog]：STTowerDialog
-    ScanInt(&ok);
-    ScanStr(&token);
-    ScanStr(&token);
-    break;
-
-case 0x819:  // "../RDARScriptDungeon.cpp"
-    script->m_3b4 = ScanInt(&ok);  // +0x3b4
-    break;
-
-case 0x81e:  // "[tower item drop]"
-    script->m_3b8 = ScanInt(&ok);  // +0x3b8
-    break;
-
-case 0x824:  // "[tower max clear item num]"
-    ScanInt(&ok);
-    break;
-
-case 0x829:  // "[evil]"
-    ScanInt(&ok);
-    break;
-
-case 0x834:  // "[evil high level]"
-    // [evil high level]
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x83c:  // "[monster difficulty bonus]"
-    // [monster difficulty bonus]：float 列表
-    ScanFloat(&ok);
-    break;
-
-case 0x85d:  // "[/monster difficulty bonus]"
-    ScanStr(&script->m_str448);  // +0x448
-    break;
-
-case 0x862:  // "[/monster difficulty bonus]"
-    ScanInt(&ok);
-    break;
-
-case 0x86e:  // "[gold card use]"
-    script->m_484 = ScanInt(&ok);  // +0x484
-    script->m_480 = ScanInt(&ok);  // +0x480
-    break;
-
-case 0x880:  // "[no fatigue]"
-    ScanInt(&ok);
-    break;
-
-case 0x889:  // "[quest npc dungeon]"
-    script->m_490 = ScanInt(&ok);  // +0x490
-    break;
-
-case 0x88e:  // "[designate dungeon difficulty]"
-    ScanInt(&ok);
-    break;
-
-case 0x893:  // "[tournament dungeon]"
-    ScanInt(&ok);
-    break;
-
-case 0x898:  // "[tournament round fatigue]"
-    // [tournament round fatigue]：map<int,TournamentRewardRate>
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x8ed:  // "[tournament clear reward gold rate]"
-    ScanFloat(&ok);  // @88eff8a
-    break;
-
-case 0x8f2:  // "[tournament clear reward gold rate]"
-    // [tournament clear reward gold rate]
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x90c:  // "[risk dungeon]"
-    script->m_4e0 = ScanInt(&ok) != 0;  // +0x4e0
-    break;
-
-case 0x92c:  // "[medium]"
-    // [medium]：UseCoinDungeonDiff map
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x91d:  // "[easy]"（ORIG 0x91d；同构于 [medium]，消费难度数据 token）
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x1000:  // "[minimap image]"
-    ScanStr(&script->m_str30);   // +0x30（export 对称）
-    break;
-
-case 0x1001:  // "[ancient dungeon]"
-    script->m_28c = ScanInt(&ok) != 0;   // +0x28c（export 对称：%d 字节）
-    break;
-
-case 0x1002:  // "[boss exp const]"
-    script->m_warRoom18c.m_9c[3] = ScanInt(&ok);   // +0x234（export 对称）
-    break;
-
-case 0x1003:  // "[experience increasing point]"
-    script->m_b0 = ScanFloat(&ok);   // +0xb0（float；export 对称 %.3f）
-    break;
-
-case 0x1004:  // "[hard]"
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x1005:  // "[ultimate]"
-    ScanInt(&ok);
-    ScanInt(&ok);
-    break;
-
-case 0x1006:  // "[entering title]"
-    ScanStr(&script->m_str24);   // +0x24（export 对称）
-    break;
-
-case 0x1007:  // "[player kc]"
-    script->m_warRoom18c.m_d4 = ScanInt(&ok);   // +0x260（export 对称）
-    break;
-
-case 0x1008:  // "[worldmap pattern info]"
-    ScanStr(&script->m_str74);   // +0x74（worldmap pattern 名）
-    break;
-
-case 0x1009:  // "[entering title next]"
-    ScanStr(&script->m_str28);   // 下一个进场标题（存 m_str28）
-    break;
-
-case 0x100a:  // "[ai character appear rate]"
-    script->m_338 = ScanInt(&ok);   // +0x338（report LAB_088e9a09 实证）
-    break;
-
-case 0x100b:  // "[limit inout count]"
-    script->m_325 = (char)ScanInt(&ok);   // +0x325（report LAB_088ed81e 实证）
-    break;
-
-case 0x100c:  // "[escape hell]"
-    ScanInt(&ok);   // ORIG LAB_088e8ace：读 1 int 设局部标志（无脚本字段，消费 token 防错位）
-    break;
-
-case 0x100d:  // "[dungeon type]"
-    ScanInt(&ok);   // 【推断】单标量 type；消费防错位
-    break;
-
-case 0x100e:  // "[room move keep state]"
-    ScanInt(&ok);   // 【推断】单标量 keep-state 枚举；消费防错位
-    break;
-
-case 0x100f:  // "[monster type spawn prob]"
-{
-    // ORIG LAB_088ea9eb：逐条读 4 int（怪物类型 + 3 概率）push 入 m_warRoom18c.m_spawnProb
-    while (true) {
-        STMonsterTypeSpawnProb sp;
-        int* el = (int*)sp.m_pad;
-        el[0] = ScanInt(&ok);
-        if (!ok) break;
-        el[1] = ScanInt(&ok);
-        if (!ok) break;
-        el[2] = ScanInt(&ok);
-        if (!ok) break;
-        el[3] = ScanInt(&ok);
-        if (!ok) break;
-        script->m_warRoom18c.m_spawnProb.push_back(sp);
+case 0x62c:  // "[necessary party]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[necessary party]", 0x62c));
     }
-    break;
-}
-
-case 0x1010:  // "[result exp bonus per user decrease]"
-    *(float*)&script->m_warRoom18c.m_c0 = ScanFloat(&ok);   // +0x24c（report LAB_088ea971 实证）
-    break;
-
-case 0x1011:  // "[tower recovery]"
-{
-    // ORIG LAB_088eecc1：RecoveryStairInfo（int ROUND + int ROUND + float + vector<RecoveryInfo>）
-    RecoveryStairInfo rsi;
-    rsi.m_0 = (int)(ScanFloat(&ok) + 0.5f);            // ROUND
-    rsi.m_4 = (int)(ScanFloat(&ok) + 0.5f);
-    rsi.m_8 = ScanFloat(&ok);
-    while (true) {
-        float a = ScanFloat(&ok);
-        if (!ok) break;
-        RecoveryInfo ri;
-        ri.m_data[0] = a;
-        ri.m_data[1] = ScanFloat(&ok);
-        ri.m_data[2] = ScanFloat(&ok);
-        rsi.m_vec.push_back(ri);
+    else
+    {
+        // ORIG LAB_088ece9a：ScanInt → m_306（byte）
+        script->m_306 = (char)ScanInt(&ok);
+        break;
     }
-    script->m_vec384.push_back(rsi);
-    break;
-}
-
-case 0x1012:  // "[tower stage]"
-{
-    // ORIG LAB_088ee05d：读 maxStage，循环读 (mapIdx,weight) → m_map340[maxStage]
-    int maxStage = ScanInt(&ok);
-    if (ok) {
-        std::vector<RandomList> vec;
-        while (true) {
-            RandomList rl;
-            rl.m_mapIndex = ScanInt(&ok);
-            if (!ok) break;
-            rl.m_weight = ScanInt(&ok);
-            if (!ok) break;
-            vec.push_back(rl);
-        }
-        script->m_map340[maxStage] = vec;
+case 0x630:  // "[road necessary party]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[road necessary party]", 0x630));
     }
-    break;
-}
-
-case 0x1013:  // "[tournament clear reward exp]"
-{
-    // ORIG LAB_088effb9：读 (key uchar, val uint) 对 insert 入 m_map4c8（重复 key 告警）
-    while (true) {
-        int key = ScanInt(&ok);
-        if (!ok) break;
-        int val = ScanInt(&ok);
-        if (!ok) break;
-        std::pair<std::map<unsigned char, unsigned int>::iterator, bool> res =
-            script->m_map4c8.insert(std::make_pair((unsigned char)key, (unsigned int)val));
-        if (!res.second)
-            puts("TournamentClearRewardExpMap Key is Duplicated!!!");
-    }
-    break;
-}
-
-case 0x1014:  // "[road necessary party]"
-{
-    // ORIG LAB_088ecf16：读 count，循环读 DimensionPartyCount(3 char)，去重后 push 入 m_dimension308
-    int count = ScanInt(&ok);
-    if (ok) {
+    else
+    {
+    {
+        // ORIG LAB_088ecf16：读 count，循环读 DimensionPartyCount(3 char)，去重后 push 入 m_dimension308
+        int count = ScanInt(&ok);
         for (int i = 0; i < count; ++i) {
             DimensionPartyCount dpc;
             dpc.m_0 = (char)ScanInt(&ok);
@@ -1506,384 +2291,1126 @@ case 0x1014:  // "[road necessary party]"
             dpc.m_2 = (char)ScanInt(&ok);
             std::vector<DimensionPartyCount>::iterator it =
                 std::find(script->m_dimension308.begin(), script->m_dimension308.end(), dpc);
-            if (it == script->m_dimension308.end())
-                script->m_dimension308.push_back(dpc);
-        }
-    }
-    break;
-}
-
-case 0x1015:  // "[impossible skills]"
-{
-    // ORIG LAB_088e94fb：循环 ScanStr job 名 → getCharacterJobToEnumValue + ScanInt → m_vec144
-    while (true) {
-        std::string token;
-        if (!ScanStr(&token)) break;
-        if (token == "[/impossible skills]") break;
-        int job = getCharacterJobToEnumValue(token);
-        int val = ScanInt(&ok);
-        script->m_vec144.push_back(std::make_pair(job, val));
-    }
-    break;
-}
-
-case 0x1016:  // "[special passive object item]"
-{
-    // ORIG LAB_088e81e4：清 m_vecec，循环读（itemIdx 消费 / assignItemIdx / pairCount + pair 列表）
-    script->m_vecec.clear();
-    while (true) {
-        int v0 = ScanInt(&ok);       // itemIdx（消费）
-        if (!ok) break;
-        int assignItemIdx = ScanInt(&ok);
-        int pairCount = ScanInt(&ok);
-        stDungeonAssignItem_t item;
-        item.m_assignItemIdx = assignItemIdx;
-        for (int i = 0; i < pairCount; ++i) {
-            int a = ScanInt(&ok);
-            if (!ok) break;
-            int b = ScanInt(&ok);
-            if (!ok) break;
-            item.m_list.push_back(std::make_pair(a, b));
-        }
-        script->m_vecec.push_back(item);
-    }
-    break;
-}
-
-case 0x1017:  // "[evil rate]"
-{
-    // ORIG LAB_088ef474：13 行 × 5 float → m_vec404
-    script->m_vec404.clear();
-    for (int i = 0; i < 0xd; ++i) {
-        std::vector<float> row;
-        row.reserve(5);
-        for (int j = 0; j < 5; ++j) {
-            float f = ScanFloat(&ok);
-            if (!ok) break;   // ORIG 在此 logFormat 告警后 break（省略日志，不影响数据）
-            row.push_back(f);
-        }
-        script->m_vec404.push_back(row);
-    }
-    break;
-}
-
-case 0x1018:  // "[result card]"
-{
-    // ORIG LAB_088efba8：子 token 分发 [reward item rate]→m_itemRate4b4、[reward rate]→m_map49c
-    while (true) {
-        std::string sub;
-        if (!ScanType(sub, true)) break;
-        if (sub == "[reward item rate]") {
-            script->m_itemRate4b4.Clear();
-            while (true) {
-                int a = ScanInt(&ok); if (!ok) break;
-                int b = ScanInt(&ok); if (!ok) break;
-                script->m_itemRate4b4.m_c += b;
-                int c = ScanInt(&ok); if (!ok) break;
-                TournamentRewardItem it;
-                it.m_data[0] = a; it.m_data[1] = b; it.m_data[2] = c;
-                script->m_itemRate4b4.m_items.push_back(it);
+            // ORIG 088ed08e：operator== 后取反判失败（__gnu_cxx::operator== 而非 !=）。
+            if (!(it == script->m_dimension308.end()))
+            {
+                // 重复值不是幂等去重，而是错误并
+                // 立即失败（日志参数为 dungeon/type/difficulty/count）。
+                printf("road necessary party invalid value (dungeon:%d,type:%d,difficulty:%d,count:%d)\n",
+                       script->m_18, (int)dpc.m_0, (int)dpc.m_1, (int)dpc.m_2);
+                return false;
             }
+            script->m_dimension308.push_back(dpc);
         }
-        else if (sub == "[reward rate]") {
-            while (true) {
-                int key = ScanInt(&ok); if (!ok) break;
-                TournamentRewardRate rate;
-                rate.m_0 = ScanInt(&ok); if (!ok) break;
-                rate.m_4 = ScanInt(&ok); if (!ok) break;
-                rate.m_8 = ScanInt(&ok); if (!ok) break;
-                int sum = rate.m_0 + rate.m_4 + rate.m_8;
-                if (sum == 0) break;   // ORIG：sum==0 → 错误退出
-                script->m_map49c[key] = rate;
-            }
-        }
-        else break;   // 未知子 token 结束
+        // ORIG 0x088ed12a：列表结束后无条件消费一个 type token。
+        ScanType(token, true);
+        break;
     }
-    break;
-}
-
-case 0x1019:  // "[advance altar type]"
-{
-    // ORIG LAB_088ec46e：ScanStr → advancealtar::StageType::getStageType → m_2ac
-    std::string s;
-    if (ScanStr(&s)) {
-        advancealtar::StageType::T t;
-        if (advancealtar::StageType::getStageType(s, t))
-            script->m_2ac = (int)t;
     }
-    break;
-}
 
-case 0x101a:  // "[revision table]"
-    ScanStr(&script->m_str448);   // +0x448（report LAB_088ef6c4 实证）
-    break;
-
-case 0x101b:  // "[character respawn posetion]"
-    script->m_50c = ScanInt(&ok) != 0;   // +0x50c（report LAB_088f08d4 实证，char）
-    break;
-
-case 0x101c:  // "[boss room entrance condition]"
-    script->m_16c = ScanInt(&ok);   // 【推断】LAB_088edcca __inited==1 读 +0x16c（与 dummy appear count 共享块）
-    break;
-
-case 0x101d:  // "[clear reward item]"
-    script->m_450 = ScanInt(&ok);   // +0x450（report LAB_088e78f5 实证）
-    script->m_454 = ScanInt(&ok);   // +0x454
-    break;
-
-case 0x101e:  // "[absolute change stat]"
-{
-    // ORIG 0x088ebdf1（objdump 解码）：ScanStr(stat 名) → __lookup_0 映射到
-    // 0x55c/0x55f/0x562/0x565/0x559（[physical|magical attack|defense add]/[move speed]）
-    // → local_113c(1/2/3/4/0) → 共享块读 float 写 m_statMap290[(T)local_113c]；
-    // 未知名 / 无法解析时 local_113c=5 不写 map。
-    while (true) {
-        std::string statName;
-        if (!ScanStr(&statName)) break;
-        int idx = -1;
-        if (statName == "[physical attack add]") idx = 0x55c;
-        else if (statName == "[physical defense add]") idx = 0x55f;
-        else if (statName == "[magical attack add]") idx = 0x562;
-        else if (statName == "[magical defense add]") idx = 0x565;
-        else if (statName == "[move speed]") idx = 0x559;
-        int statKey;
-        if (idx == 0x55c) statKey = 1;
-        else if (idx == 0x55f) statKey = 2;
-        else if (idx == 0x562) statKey = 3;
-        else if (idx == 0x565) statKey = 4;
-        else if (idx == 0x559) statKey = 0;
-        else statKey = 5;   // 未知名 → 不写 map
-        float v = ScanFloat(&ok);
-        if (!ok) break;
-        if (statKey != 5)
-            script->m_statMap290[static_cast<AbsoluteChangeStat::T>(statKey)] = v;
-    }
-    break;
-}
-
-case 0x101f:  // "[event monster2]"
-{
-    // ORIG LAB_088ee594 __inited==1：读 m_3ec/m_3f0 + 循环 5 int 的 stSecondEventMonster_t 入 m_vec3f8
-    script->m_3ec = ScanInt(&ok);
-    script->m_3f0 = ScanInt(&ok);
-    while (true) {
-        stSecondEventMonster_t em;
-        em.m_eventIdx = ScanInt(&ok); if (!ok) break;
-        em.m_monsterIdx = ScanInt(&ok); if (!ok) break;
-        em.m_prob = ScanInt(&ok); if (!ok) break;
-        em.m_field0c = ScanInt(&ok); if (!ok) break;
-        em.m_field10 = ScanInt(&ok); if (!ok) break;
-        script->m_3f4 += em.m_prob;   // ORIG 累加 local_11f0(prob) 到 +0x3f4
-        script->m_vec3f8.push_back(em);
-    }
-    break;
-}
-
-case 0x1020:  // "[magical attack add]"
-    // ORIG LAB_088ec1ff：设 local_113c=3（AbsoluteChangeStat::T）→ 共享块读 float 入 m_statMap290[(T)3]
-    script->m_statMap290[static_cast<AbsoluteChangeStat::T>(3)] = ScanFloat(&ok);
-    break;
-
-case 0x1021:  // "[magical defense add]"
-    // ORIG：设 local_113c=4 → 共享块读 float 入 m_statMap290[(T)4]
-    script->m_statMap290[static_cast<AbsoluteChangeStat::T>(4)] = ScanFloat(&ok);
-    break;
-
-case 0x1022:  // "[coin info]"
-    script->m_4fc = ScanInt(&ok);   // +0x4fc（report LAB_088f06bb __inited==1 实证）
-    break;
-
-case 0x1023:  // "[clear condition]"
-{
-    // ORIG LAB_088e8643：子 token（[destroy object]/[clear map]/[hunt monster|apc|boss]→类型）
-    // + 左/右变量 → mazeLocal.m_clearCondition；子 token 用 ScanStr 近似 ScanTypeOrStr【推断】。
-    while (true) {
-        std::string sub;
-        if (!ScanStr(&sub)) break;
-        if (sub == "[/clear condition]") break;
-        int type = -1;
-        if (sub == "[destroy object]") type = 0;
-        else if (sub == "[clear map]") type = 1;
-        else if (sub == "[hunt monster]") type = 2;
-        else if (sub == "[hunt apc]") type = 3;
-        else if (sub == "[hunt boss]") type = 4;
-        DungeonClearCondition cond;
-        cond.m_0 = type;
-        cond.m_4 = ScanInt(&ok);
-        cond.m_8 = ScanInt(&ok);
-        if (type == 1) cond.m_8 = 1;   // ORIG：clear map → 右变量恒 1
-        mazeLocal.m_clearCondition.push_back(cond);
-    }
-    break;
-}
-
-case 0x1024:  // "[greed]"
-{
-    // ORIG LAB_088e8c37：ScanStr 读 greed 串 → 逐 2 字符匹配 g_gridSymbols 填 mazeLocal.m_grids。
-    // \r / \n / 空格作分隔；未知 2 字符符号记行推进（近似）。
-    std::string greed;
-    ScanStr(&greed);
-    int pos = 0;
-    int gridIdx = 0;
-    int len = (int)greed.size();
-    while (pos < len - 1)
+case 0x655:  // "[village attack revenge dungeon]"
+    if (!__inited)
     {
-        char c0 = greed[pos];
-        if (c0 == '\r' || c0 == '\n' || c0 == ' ')
-        {
-            pos += 1;
-            continue;
+        __lookup.insert(DungeonTagMap::value_type("[village attack revenge dungeon]", 0x655));
+    }
+    else
+    {
+        // ORIG LAB_088ed12f：4×ScanInt → m_316/m_317/m_314/m_315（按 C 顺序 byte）
+        script->m_316 = (char)ScanInt(&ok);
+        script->m_317 = (char)ScanInt(&ok);
+        script->m_314 = (char)ScanInt(&ok);
+        script->m_315 = (char)ScanInt(&ok);
+        break;
+    }
+case 0x65d:  // "[schedule]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[schedule]", 0x65d));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088ed1f9：scheduleId + 5 个时间串 → _DailySchedule（字段映射同 I6 参考实现）。
+        // FindIndexByFullScan 在 ORIG 中于记录循环外只计算一次。
+        const int scheduleFileIdx = reinterpret_cast<STScriptFileList*>(
+            &g_stDungeonScriptFileList)->FindIndexByFullScan(path);
+        while (true) {
+            int id = ScanInt(&ok);
+            if (!ok) break;
+            std::string strStart, strEnd, strWeekday, strStartTime, strEndTime;
+            // ORIG：首个 id 扫描失败表示记录列表结束；id 成功后任一
+            // ScanStr/时间转换失败都走函数失败出口，而不是静默结束本块。
+            if (!ScanStr(&strStart)) return false;
+            if (!ScanStr(&strEnd)) return false;
+            if (!ScanStr(&strWeekday)) return false;
+            if (!ScanStr(&strStartTime)) return false;
+            if (!ScanStr(&strEndTime)) return false;
+            _DailySchedule ds;
+            // ORIG 0x88ed2d3：每条记录先 memset 0x24 字节；m_type、m_state
+            // 及未显式写入的填充区必须保持零。
+            memset(&ds, 0, sizeof(ds));
+            ds.m_eventId = id;
+            ds.m_idx = scheduleFileIdx;
+            // ORIG 各时间转换仅 1 次拷贝构造（std::string 值形参在调用点就地构造，
+            // 088ed3ce 实证）——直接传实参，不得再引入命名临时量（否则拷贝/析构翻倍）。
+            { long seconds = 0; if (!ConvertStringToTime(strStart, seconds)) return false; ds.m_startSec = (int)seconds; }
+            { long seconds = 0; if (!ConvertStringToTime(strEnd, seconds)) return false; ds.m_endSec = (int)seconds; }
+            { unsigned int wday = 0; if (!ConvertWeekdayStringToInt(strWeekday, wday)) return false; ds.m_wday = (int)wday; }
+            { unsigned char h = 0, m = 0, sec = 0; if (!ConvertHHMMSSStringToInt(strStartTime, h, m, sec)) return false; ds.m_startHour = h; ds.m_startMin = m; ds.m_startSec2 = sec; }
+            { unsigned char h = 0, m = 0, sec = 0; if (!ConvertHHMMSSStringToInt(strEndTime, h, m, sec)) return false; ds.m_endHour = h; ds.m_endMin = m; ds.m_endSec2 = sec; }
+            script->m_dailySchedule.push_back(ds);
         }
-        int cc = 0;
-        for (; cc < 16; ++cc)
+        break;
+    }
+    }
+
+case 0x697:  // "[limit party count]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[limit party count]", 0x697));
+    }
+    else
+    {
+        // ORIG LAB_088ed7a2：写入 +0x324，默认值为 4。
+        script->m_324 = (unsigned char)ScanInt(&ok);
+        break;
+    }
+
+case 0x69a:  // "[limit inout count]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[limit inout count]", 0x69a));
+    }
+    else
+    {
+        script->m_325 = (char)ScanInt(&ok);   // +0x325（report LAB_088ed81e 实证）
+        break;
+    }
+
+case 0x69d:  // "[hit count]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[hit count]", 0x69d));
+    }
+    else
+    {
+        // ORIG LAB_088ed89a：连续五个整数写入 +0x128 的数组。
+        for (int i = 0; i < 5; ++i)
         {
-            if (greed[pos] == g_gridSymbols[cc][0] && greed[pos + 1] == g_gridSymbols[cc][1])
+            script->m_128[i] = ScanInt(&ok);
+            if (!ok)
                 break;
         }
-        if (cc == 16)
+        break;
+    }
+
+case 0x6a5:  // "[seal door appear rate]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[seal door appear rate]", 0x6a5));
+    }
+    else
+    {
+        script->m_13c = ScanInt(&ok);  // +0x13c
+        break;
+    }
+
+case 0x6a8:  // "[boss room entrance condition]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[boss room entrance condition]", 0x6a8));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088ed9c0（Ghidra C 实证）：token∈{[hunt monster]→m_0=1 且每组 3 int /
+        // [seeking]→m_0=2 且每组 2 int}，先 reserve(count*n)，再逐组循环 ScanInt push 到
+        // m_vec4(+0x32c)；任一 ScanStr/ScanInt 失败 → import 返回 false。
+        if (!ScanStr(&token))
         {
-            pos += 1;   // 未知 2 字符 → 行推进（近似）
+            return false;
+        }
+        int condCount = ScanInt(&ok);
+        if (!ok)
+        {
+            return false;
+        }
+        if (token == "[hunt monster]")
+        {
+            script->m_bossRoom328.m_0 = 1;
+            script->m_bossRoom328.m_vec4.reserve(condCount * 3);
+            for (int i = 0; i < condCount; ++i)
+            {
+                script->m_bossRoom328.m_vec4.push_back(ScanInt(&ok));
+                if (!ok) return false;
+                script->m_bossRoom328.m_vec4.push_back(ScanInt(&ok));
+                if (!ok) return false;
+                script->m_bossRoom328.m_vec4.push_back(ScanInt(&ok));
+                if (!ok) return false;
+            }
+        }
+        else if (token == "[seeking]")
+        {
+            script->m_bossRoom328.m_0 = 2;
+            script->m_bossRoom328.m_vec4.reserve(condCount * 2);
+            for (int i = 0; i < condCount; ++i)
+            {
+                script->m_bossRoom328.m_vec4.push_back(ScanInt(&ok));
+                if (!ok) return false;
+                script->m_bossRoom328.m_vec4.push_back(ScanInt(&ok));
+                if (!ok) return false;
+            }
         }
         else
         {
-            if (gridIdx < (int)mazeLocal.m_grids.size())
-                mazeLocal.m_grids[gridIdx].m_gridValue = cc;
-            gridIdx += 1;
-            pos += 2;
+            return false;
         }
+        break;
     }
-    break;
-}
+    }
 
-case 0x1025:  // "[randomized object creation]"
-{
-    // ORIG objdump 解明：子标签为 [select]/[regenerate]/[minimap icon]/[object]
-    // （经子 map 0x94f7060 分发到 0x3b3/0x3b8/0x3bd/0x3c2）。
-    // [select]/[regenerate]/[minimap icon] 各读 1 int；[object] 是嵌套 RidableObject 容器（深）。
-    while (true) {
-        std::string sub;
-        if (!ScanType(sub, true)) break;
-        if (sub == "[/randomized object creation]") break;
-        if (sub == "[select]" || sub == "[regenerate]" || sub == "[minimap icon]")
-            ScanInt(&ok);
-        else if (sub == "[object]")
+case 0x6ca:  // "[dummy appear count]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[dummy appear count]", 0x6ca));
+    }
+    else
+    {
+        script->m_16c = ScanInt(&ok);  // +0x16c
+        break;
+    }
+
+case 0x6cd:  // "[dungeon type]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[dungeon type]", 0x6cd));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088edd44（Ghidra C 实证）：ScanStr 读 dungeon 类型名 → m_358(+0x358)；
+        // "tower of death"/"tower of boss" 额外把 maze 置 2x2 并 resize grids(4)；
+        // "advance altar" 额外置 m_2ab=1；未知名 → m_358=0。ScanStr 失败 → import false。
+        if (!ScanStr(&token))
         {
-            // 嵌套 RidableObject 容器；objdump 解明其子子标签为 [map]/[index]/[team]/[pos]
-            // （经子 map 分发到 0x3d5/0x3de/0x3e3/0x3ee），各读 int 进 RidableObject 字段。
+            return false;
+        }
+        if (token == "tower of death")
+        {
+            script->m_358 = 1;
+            mazeLocal.m_width = 2;
+            mazeLocal.m_height = 2;
+            mazeLocal.m_grids.resize(4, GridScript());
+        }
+        else if (token == "tower of boss")
+        {
+            script->m_358 = 3;
+            mazeLocal.m_width = 2;
+            mazeLocal.m_height = 2;
+            mazeLocal.m_grids.resize(4, GridScript());
+        }
+        else if (token == "advance altar")
+        {
+            script->m_358 = 4;
+            script->m_2ab = 1;
+        }
+        else if (token == "power dungeon")
+        {
+            script->m_358 = 2;
+        }
+        else
+        {
+            script->m_358 = 0;
+        }
+        break;
+    }
+    }
+
+case 0x6f5:  // "[tower random map indexes]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tower random map indexes]", 0x6f5));
+    }
+    else
+    {
+        script->m_33c = ScanInt(&ok);  // +0x33c
+        break;
+    }
+
+case 0x6f8:  // "[tower stage]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tower stage]", 0x6f8));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088ee05d：vector 构造后显式 clear()（088ee0de）；每项先
+        // memset(8B 临时 RandomList) 再落两个 ScanInt 值槽；weight==0（含读失败）
+        // 直接导入失败。完成后 printf 并以 make_pair(具名左值) insert（重复 key 不覆盖）。
+        int maxStage = ScanInt(&ok);
+        if (!ok)
+            return false;
+        std::vector<RandomList> vec;
+        vec.clear();
+        while (true) {
+            RandomList rl;
+            memset(&rl, 0, sizeof(rl));
+            const int mapIdx = ScanInt(&ok);
+            if (!ok)
+                break;
+            rl.m_mapIndex = mapIdx;
+            rl.m_weight = ScanInt(&ok);
+            if (rl.m_weight == 0)
+                return false;
+            vec.push_back(rl);
+        }
+        printf("\n[max stage] : %d, [stage] : %d\n",
+               script->m_33c, maxStage);
+        for (unsigned int i = 0; i < vec.size(); ++i)
+            printf("[map] : %d, [rate] : %d\n",
+                   vec[i].m_mapIndex, vec[i].m_weight);
+        script->m_map340.insert(std::make_pair(maxStage, vec));
+        break;
+    }
+    }
+
+case 0x71e:  // "[death tower map indexes]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[death tower map indexes]", 0x71e));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088ee328：m_368=ScanInt；随后循环 (index,index) 对 push m_vec35c
+        // （第二值读取失败 → import false）。
+        script->m_368 = ScanInt(&ok);
+        while (true)
+        {
+            int a = ScanInt(&ok);
+            if (!ok) break;
+            int b = ScanInt(&ok);
+            if (!ok) return false;
+            // ORIG 088ee413 调用 make_pair<int&,int&>（非 pair 直构）
+            script->m_vec35c.push_back(std::make_pair(a, b));
+        }
+        break;
+    }
+    }
+
+case 0x72c:  // "[named monster map pos]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[named monster map pos]", 0x72c));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088ee43e：循环 (x,y) → STNamedMonsterMapPos push m_vec3c8，直到 x 读取失败。
+        while (true)
+        {
+            int x = ScanInt(&ok);
+            if (!ok) break;
+            int y = ScanInt(&ok);
+            STNamedMonsterMapPos nm;
+            nm.m_x = x;
+            nm.m_y = y;
+            script->m_vec3c8.push_back(nm);
+        }
+        break;
+    }
+    }
+
+case 0x73f:  // "[blood max round]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[blood max round]", 0x73f));
+    }
+    else
+    {
+        script->m_3c4 = ScanInt(&ok);  // +0x3c4
+        break;
+    }
+
+case 0x744:  // "[event monster2]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[event monster2]", 0x744));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088ee594 __inited==1：读 m_3ec/m_3f0 + 循环 5 int 的 stSecondEventMonster_t 入 m_vec3f8
+        script->m_3ec = ScanInt(&ok);
+        if (!ok) return false;
+        script->m_3f0 = ScanInt(&ok);
+        if (!ok) return false;
+        while (true) {
+            stSecondEventMonster_t em;
+            em.m_eventIdx = ScanInt(&ok); if (!ok) break;
+            em.m_monsterIdx = ScanInt(&ok); if (!ok) break;
+            em.m_prob = ScanInt(&ok); if (!ok) break;
+            em.m_field0c = ScanInt(&ok); if (!ok) break;
+            em.m_field10 = ScanInt(&ok); if (!ok) break;
+            script->m_3f4 += em.m_prob;   // ORIG 累加 local_11f0(prob) 到 +0x3f4
+            script->m_vec3f8.push_back(em);
+        }
+        // ORIG：非零 m_3ec 必须伴随至少一个事件条目。
+        if (script->m_3ec != 0 && script->m_vec3f8.empty())
+            return false;
+        break;
+    }
+    }
+
+case 0x766:  // "[event monster]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[event monster]", 0x766));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088ee7bb（Ghidra C）：m_3d4/m_3d8=ScanInt；随后循环 stEventMonster_t
+        // （eventIdx/monsterIdx/prob/field0c/field10）push m_vec3e0 且 m_3dc 累加 prob；
+        // 任一组内 ScanInt 失败 → import false。收尾校验：非零 m_3d4 必须有至少
+        // 一个事件条目，否则 import false。
+        script->m_3d4 = ScanInt(&ok);
+        if (!ok) return false;
+        script->m_3d8 = ScanInt(&ok);
+        if (!ok) return false;
+        while (true)
+        {
+            stEventMonster_t em;
+            em.m_eventIdx = ScanInt(&ok);
+            if (!ok) break;
+            em.m_monsterIdx = ScanInt(&ok);
+            if (!ok) return false;
+            em.m_prob = ScanInt(&ok);
+            if (!ok) return false;
+            em.m_field0c = ScanInt(&ok);
+            if (!ok) return false;
+            em.m_field10 = ScanInt(&ok);
+            if (!ok) return false;
+            script->m_3dc += em.m_prob;
+            script->m_vec3e0.push_back(em);
+        }
+        if (script->m_3d4 != 0 && script->m_vec3e0.empty())
+            return false;
+        break;
+    }
+    }
+
+case 0x7a9:  // "[tower high skill initial cool time]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tower high skill initial cool time]", 0x7a9));
+    }
+    else
+    {
+        // ORIG LAB_088ee9e2：2×ScanFloat 经 ROUND → m_36c/m_370（int）
+        script->m_36c = (int)(ScanFloat(&ok) + 0.5f);
+        script->m_370 = (int)(ScanFloat(&ok) + 0.5f);
+        break;
+    }
+case 0x7ad:  // "[tower high skill initial cool time rate]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tower high skill initial cool time rate]", 0x7ad));
+    }
+    else
+    {
+        // ORIG LAB_088eead7：2×ScanFloat → +0x374/+0x378（float 位）
+        script->m_374 = ScanFloat(&ok);
+        script->m_378 = ScanFloat(&ok);
+        break;
+    }
+case 0x7b1:  // "[tower fp cubepiece]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tower fp cubepiece]", 0x7b1));
+    }
+    else
+    {
+        // ORIG LAB_088eeb6d：ScanFloat 经 ROUND(fldcw+fistpl) → +0x37c（int）
+        script->m_37c = (int)(ScanFloat(&ok) + 0.5f);
+        break;
+    }
+case 0x7b4:  // "[tower limit of stackable item]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tower limit of stackable item]", 0x7b4));
+    }
+    else
+    {
+        // ORIG LAB_088eec17：ScanFloat 经 ROUND → +0x380（int）
+        script->m_380 = (int)(ScanFloat(&ok) + 0.5f);
+        break;
+    }
+case 0x7b7:  // "[tower recovery]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tower recovery]", 0x7b7));
+    }
+    else
+    {
+        // [tower limit of stackable item]：RecoveryStairInfo（=现有 [tower recovery] 逻辑）
+        {
+            RecoveryStairInfo rsi;
+            // ORIG 0x88eed3d/0x88eed7f：fistpl 使用 ROUND，脚本值为正时
+            // 等价于加 0.5 后转 int；不能直接采用 C++ 截断。
+            rsi.m_0 = static_cast<int>(ScanFloat(&ok) + 0.5f);
+            rsi.m_4 = static_cast<int>(ScanFloat(&ok) + 0.5f);
+            rsi.m_8 = ScanFloat(&ok);
             while (true) {
-                std::string ss;
-                if (!ScanType(ss, true)) break;
-                if (ss == "[/object]") break;
-                if (ss == "[map]") { ScanInt(&ok); ScanInt(&ok); }        // objdump：map 读 x/y
-                else if (ss == "[index]" || ss == "[pos]")
-                    ScanInt(&ok);
-                else if (ss == "[team]")
-                    ScanInt(&ok);   // 【推断】约 1 int（objdump 子分派未直接扫，近似）
-                else
-                    break;   // 未知子子标签
+                RecoveryInfo ri;
+                ri.m_data[0] = ScanFloat(&ok);
+                if (!ok) break;
+                ri.m_data[1] = ScanFloat(&ok);
+                ri.m_data[2] = ScanFloat(&ok);
+                rsi.m_vec.push_back(ri);
+            }
+            script->m_vec384.push_back(rsi);
+        }
+        break;
+    }
+
+case 0x7ce:  // "[tower dialog]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tower dialog]", 0x7ce));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088eee7d（Ghidra C）：STTowerDialog{index,name,flag8/9/A}。
+        // ScanInt index → ScanStr name → ScanStr 事件串；"on start"/"on complete"/"on die"
+        // 置对应 flag 并 push 到 m_towerDialog390 三个 vector（+0x390/+0x39c/+0x3a8）；
+        // 未匹配串 logFormat（省略日志）；任一 Scan 失败仅终止本条。
+        STTowerDialog dlg;
+        dlg.m_index = ScanInt(&ok);
+        if (!ok) return false;
+        if (!ScanStr(&dlg.m_name)) return false;
+        std::string eventStr;
+        if (!ScanStr(&eventStr)) return false;
+        if (eventStr == "on start")
+        {
+            dlg.m_flag8 = 1;
+            script->m_towerDialog390.m_vec0.push_back(dlg);
+        }
+        else if (eventStr == "on complete")
+        {
+            dlg.m_flag9 = 1;
+            script->m_towerDialog390.m_vecc.push_back(dlg);
+        }
+        else if (eventStr == "on die")
+        {
+            dlg.m_flagA = 1;
+            script->m_towerDialog390.m_vec18.push_back(dlg);
+        }
+        else
+        {
+            LogManager::logFormat(
+                0, "../RDARScriptDungeon.cpp", __FUNCTION__, 0x7ee,
+                "Error on scanning tower dialog. There is no match string %s",
+                eventStr.c_str());
+        }
+        break;
+    }
+    }
+
+case 0x819:  // "[tower item drop]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tower item drop]", 0x819));
+    }
+    else
+    {
+        script->m_3b4 = ScanInt(&ok);  // +0x3b4
+        if (!ok)
+            return false;
+        break;
+    }
+
+case 0x81e:  // "[tower max clear item num]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tower max clear item num]", 0x81e));
+    }
+    else
+    {
+        script->m_3b8 = ScanInt(&ok);  // +0x3b8
+        if (!ok)
+            return false;
+        break;
+    }
+
+case 0x824:  // "[evil]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[evil]", 0x824));
+    }
+    else
+    {
+        // ORIG LAB_088ef22e：循环 5×ScanInt → m_410[i]（偏移 (i+0x104)*4=+0x410）
+        for (int ei = 0; ei < 5; ++ei)
+        {
+            script->m_410[ei] = ScanInt(&ok);
+        }
+        break;
+    }
+case 0x829:  // "[evil high level]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[evil high level]", 0x829));
+    }
+    else
+    {
+        // ORIG LAB_088ef2c6：循环 5×ScanInt → m_424[i]（偏移 (i+0x108)*4+4=+0x424）
+        for (int ei = 0; ei < 5; ++ei)
+        {
+            script->m_424[ei] = ScanInt(&ok);
+        }
+        break;
+    }
+case 0x834:  // "[evil rate]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[evil rate]", 0x834));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088ef35f：四个整数百分比写 m_438/m_440/m_43c/m_444。
+        script->m_438 = static_cast<float>(ScanInt(&ok)) / 100.0f;
+        script->m_440 = static_cast<float>(ScanInt(&ok)) / 100.0f;
+        script->m_43c = static_cast<float>(ScanInt(&ok)) / 100.0f;
+        script->m_444 = static_cast<float>(ScanInt(&ok)) / 100.0f;
+        break;
+    }
+    }
+
+case 0x83c:  // "[monster difficulty bonus]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[monster difficulty bonus]", 0x83c));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088ef474：13 行 × 5 float → m_vec404；每个元素即使
+        // ScanFloat 失败也先 push 该值，随后记录日志并终止本段，不提交不完整行。
+        for (int i = 0; i < 0xd; ++i) {
+            std::vector<float> row;
+            row.clear();   // ORIG 088ef4f7：ctor 后显式 clear()
+            row.reserve(5);
+            bool rowOk = true;
+            for (int j = 0; j < 5; ++j) {
+                float f = ScanFloat(&ok);
+                row.push_back(f);
+                if (!ok) {
+                    rowOk = false;
+                    LogManager::logFormat(
+                        0, "../RDARScriptDungeon.cpp", __FUNCTION__, 0x848,
+                        "[%s] : Error - DungeonScript MonsterDifficultyBouns Number",
+                        __FUNCTION__);
+                    break;
+                }
+            }
+            if (!rowOk)
+                break;
+            script->m_vec404.push_back(row);
+        }
+        if (!ok)
+        {
+            LogManager::logFormat(
+                0, "../RDARScriptDungeon.cpp", __FUNCTION__, 0x84e,
+                "[%s] : Error - DungeonScript MonsterDifficultyBouns Number",
+                __FUNCTION__);
+        }
+        else
+        {
+            std::string endTag;
+            ScanType(endTag, true);
+            if (endTag != "[/monster difficulty bonus]")
+            {
+                LogManager::logFormat(
+                    0, "../RDARScriptDungeon.cpp", __FUNCTION__, 0x858,
+                    "[%s] : Error - DungeonScript [/monster difficulty bonus]",
+                    __FUNCTION__);
             }
         }
-        else break;   // 未知子标签结束
+        break;
     }
-    break;
-}
-
-case 0x1026:  // "[schedule]"
-{
-    // ORIG LAB_088ed1f9：scheduleId + 5 个时间串 → _DailySchedule（字段映射同 I6 参考实现）。
-    // FileIdx（FindIndexByFullScan / g_stDungeonScriptFileList 双视图）为次要字段，暂略。
-    while (true) {
-        int id = ScanInt(&ok);
-        if (!ok) break;
-        std::string strStart, strEnd, strWeekday, strStartTime, strEndTime;
-        if (!ScanStr(&strStart)) break;
-        if (!ScanStr(&strEnd)) break;
-        if (!ScanStr(&strWeekday)) break;
-        if (!ScanStr(&strStartTime)) break;
-        if (!ScanStr(&strEndTime)) break;
-        _DailySchedule ds;
-        ds.m_eventId = id;
-        ds.m_idx = reinterpret_cast<STScriptFileList*>(&g_stDungeonScriptFileList)
-                       ->FindIndexByFullScan(path);   // ORIG FindIndexByFullScan(g_stDungeonScriptFileList, path)
-        { std::string tmp(strStart); ConvertStringToTime(tmp, *(long*)&ds.m_startSec); }
-        { std::string tmp(strEnd); ConvertStringToTime(tmp, *(long*)&ds.m_endSec); }
-        { unsigned int wday = 0; std::string tmp(strWeekday); ConvertWeekdayStringToInt(tmp, wday); ds.m_wday = (int)wday; }
-        { unsigned char h = 0, m = 0, sec = 0; std::string tmp(strStartTime); ConvertHHMMSSStringToInt(tmp, h, m, sec); ds.m_startHour = h; ds.m_startMin = m; ds.m_startSec2 = sec; }
-        { unsigned char h = 0, m = 0, sec = 0; std::string tmp(strEndTime); ConvertHHMMSSStringToInt(tmp, h, m, sec); ds.m_endHour = h; ds.m_endMin = m; ds.m_endSec2 = sec; }
-        script->m_dailySchedule.push_back(ds);
     }
-    break;
-}
 
-case 0x1030:  // "[team]"（rand obj 子标签兜底）
-    ScanInt(&ok); ScanInt(&ok);
-    break;
+case 0x85d:  // "[revision table]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[revision table]", 0x85d));
+    }
+    else
+    {
+        ScanStr(&script->m_str448);  // +0x448
+        break;
+    }
 
-case 0x1031:  // "[pos]"（rand obj 子标签兜底）
-    ScanInt(&ok); ScanInt(&ok);
-    break;
+case 0x862:  // "[gold card use]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[gold card use]", 0x862));
+    }
+    else
+    {
+        ok = false;
+        script->m_44c = static_cast<unsigned char>(ScanInt(&ok) != 0);
+        if (!ok)
+            return false;
+        break;
+    }
 
-case 0x1032:  // "[object]"（rand obj 子标签兜底）
-    ScanInt(&ok); ScanInt(&ok); ScanInt(&ok);
-    break;
+case 0x86e:  // "[SWAY EFFECT]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[SWAY EFFECT]", 0x86e));
+    }
+    else
+    {
+        // ORIG LAB_088ef7e5（Ghidra C 实证）：先置 m_47c=1，再读 0x484/0x480。
+        script->m_47c = 1;
+        script->m_484 = ScanInt(&ok);  // +0x484
+        script->m_480 = ScanInt(&ok);  // +0x480
+        break;
+    }
 
-case 0x1033:  // "[realdungeon checkup]"
-    ScanInt(&ok);   // 【推断】消费，防错位
-    break;
-
-case 0x1034:  // "[limit item stat]"
-    ScanInt(&ok);   // 【推断】消费，防错位
-    break;
-
-case 0x1035:  // "[advance altar survival clear reward]"
-    ScanInt(&ok);   // 【推断】消费，防错位
-    break;
-
-case 0x1036:  // "[physical attack add]"
-    script->m_statMap290[static_cast<AbsoluteChangeStat::T>(1)] = ScanFloat(&ok);   // (T)1
-    break;
-
-case 0x1037:  // "[physical defense add]"
-    script->m_statMap290[static_cast<AbsoluteChangeStat::T>(2)] = ScanFloat(&ok);   // (T)2
-    break;
-
-case 0x942:  // "[party member coin limit]"
-    script->m_4fc = ScanInt(&ok);  // +0x4fc
-    break;
-
-case 0x94d:  // "[party member coin limit]"
-    ScanInt(&ok);
-    break;
-
-case 0x954:  // "[individual map movement]"
-    ScanInt(&ok);
-    break;
-
-case 0x95c:  // "[open door even enemy]"
-    ScanInt(&ok);
-    break;
-
-case 0x962:  // "[disable exit]"
-    ScanInt(&ok);
-    break;
+case 0x874:  // "[no fatigue]"（ORIG LAB_088ef884/Ghidra C：置 +0x48c 标志）
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[no fatigue]", 0x874));
+    }
+    else
+    {
+        script->m_48c = 1;
+        break;
+    }
 
 case 0x87a:  // "[tower of despair]"
-    script->m_2a9 = 1;   // ORIG LAB_088ef8f3：local_12c[0x2a9]=1
-    break;
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tower of despair]", 0x87a));
+    }
+    else
+    {
+        script->m_2a9 = 1;   // ORIG LAB_088ef8f3：local_12c[0x2a9]=1
+        break;
+    }
+
+case 0x880:  // "[quest npc dungeon]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[quest npc dungeon]", 0x880));
+    }
+    else
+    {
+        // ORIG LAB_088ef962：ScanInt 非零 → m_2aa(+0x2aa)；失败 → import false
+        {
+            int value = ScanInt(&ok);
+            if (!ok) return false;
+            script->m_2aa = value != 0;
+        }
+        break;
+    }
+case 0x889:  // "[designate dungeon difficulty]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[designate dungeon difficulty]", 0x889));
+    }
+    else
+    {
+        script->m_490 = ScanInt(&ok);  // +0x490
+        break;
+    }
+
+case 0x88e:  // "[tournament dungeon]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tournament dungeon]", 0x88e));
+    }
+    else
+    {
+        // ORIG LAB_088efa7a：ScanInt → m_494(+0x494 byte)；失败 → import false
+        script->m_494 = (char)ScanInt(&ok);
+        if (!ok) return false;
+        break;
+    }
+case 0x893:  // "[tournament round fatigue]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tournament round fatigue]", 0x893));
+    }
+    else
+    {
+        // ORIG LAB_088efb11：ScanInt → m_498(+0x498)；失败 → import false
+        script->m_498 = ScanInt(&ok);
+        if (!ok) return false;
+        break;
+    }
+case 0x898:  // "[result card]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[result card]", 0x898));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088efba8：先 ScanType 一次；仅 [reward item rate] 触发
+        // 奖励物品表，随后无论该首标签内容都直接读取奖励卡三元组。
+        // 原始格式没有 [reward rate] 子标签。
+        std::string sub;
+        if (!ScanType(sub, true))
+            return false;
+        if (sub == "[reward item rate]")
+        {
+            script->m_itemRate4b4.Clear();
+            for (;;)
+            {
+                TournamentRewardItem item;
+                item.m_data[0] = ScanInt(&ok);
+                if (!ok)
+                    break;
+                item.m_data[1] = ScanInt(&ok);
+                if (!ok)
+                    return false;
+                script->m_itemRate4b4.m_c += item.m_data[1];
+                item.m_data[2] = ScanInt(&ok);
+                if (!ok)
+                    return false;
+                script->m_itemRate4b4.m_items.push_back(item);
+            }
+        }
+
+        for (;;)
+        {
+            TournamentRewardRate rate;
+            int key = ScanInt(&ok);   // ORIG make_pair<int&,…>：非 const 左值
+            if (!ok)
+                break;                  // ORIG：卡片条目正常结束
+            rate.m_0 = ScanInt(&ok);
+            if (!ok)
+                return false;
+            rate.m_4 = ScanInt(&ok);
+            if (!ok)
+                return false;
+            rate.m_8 = ScanInt(&ok);
+            if (!ok)
+                return false;
+            if (rate.m_0 + rate.m_4 + rate.m_8 == 0)
+                return false;
+            std::pair<std::map<int, TournamentRewardRate>::iterator, bool> res =
+                script->m_map49c.insert(std::make_pair(key, rate));
+            if (!res.second)
+            {
+                puts("TournamentRewardRateMap Key is Duplicated!!!");
+                return false;
+            }
+        }
+        break;
+    }
+    }
+
+case 0x8ed:  // "[tournament clear reward gold rate]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tournament clear reward gold rate]", 0x8ed));
+    }
+    else
+    {
+        // ORIG LAB_088eff24：ScanFloat → +0x4c4（float 语义，m_4c4 初值 1.0f）
+        script->m_4c4Value = ScanFloat(&ok);
+        break;
+    }
+case 0x8f2:  // "[tournament clear reward exp]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[tournament clear reward exp]", 0x8f2));
+    }
+    else
+    {
+    {
+        // ORIG LAB_088effb9：循环 (key uchar, val uint)；m_map4c8 insert，重复 key →
+        // puts("TournamentClearRewardExpMap Key is Duplicated!!!") 后 import 返回 false。
+        while (true)
+        {
+            int key = ScanInt(&ok);
+            if (!ok) break;
+            int val = ScanInt(&ok);
+            if (!ok) return false;
+            // ORIG make_pair<unsigned_char&,unsigned_int&>：实参为具名左值槽
+            // （-0x1275 uchar / -0x127c uint），非 cast 临时。
+            unsigned char kSlot = static_cast<unsigned char>(key);
+            unsigned int vSlot = static_cast<unsigned int>(val);
+            std::pair<std::map<unsigned char, unsigned int>::iterator, bool> res =
+                script->m_map4c8.insert(std::make_pair(kSlot, vSlot));
+            if (!res.second)
+            {
+                puts("TournamentClearRewardExpMap Key is Duplicated!!!");
+                return false;
+            }
+        }
+        break;
+    }
+    }
+
+case 0x90c:  // "[risk dungeon]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[risk dungeon]", 0x90c));
+    }
+    else
+    {
+        script->m_4e0 = ScanInt(&ok) != 0;  // +0x4e0
+        break;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+case 0x912:  // "[coin info]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[coin info]", 0x912));
+    }
+    else
+    {
+        // ORIG LAB_088f01dd：循环 ScanStr 难度子 tag → __lookup_3 表惰性链
+        // （[easy]/[medium]/[hard]/[ultimate] = 0x91d/0x922/0x927/0x92c → 0..3，
+        //   条目在 088f0432..088f05ce 的 per-case !__inited 分支逐例 insert）；
+        // 未识别串（含 -1）同样走收尾：2×ScanInt(bool)（值写槽、不检查失败）→
+        // UseCoinDungeonDiff{m_0=v1, m_4=(v2!=0)} → map+0x4e4 以 make_pair
+        // 插入（重复 key 不覆盖）。
+        int diff = -1;
+        int t3 = 0;
+        while (true)
+        {
+            // ORIG 088f01e3：复用函数级串槽，无独立 string ctor/dtor。
+            if (!ScanStr(&token))
+                break;   // ORIG ScanStr false → 结束本 case
+            diff = -1;   // ORIG 088f01f8：每轮先置 -1
+        retry_3_head:
+            static DungeonTagMap __lookup_3;
+            static bool __inited_3 = false;
+            static SpinLock __init_lock_3;
+        retry_3:
+            if (__inited_3)
+            {
+                DungeonTagMap::const_iterator it3 = __lookup_3.find(token.c_str());
+                t3 = (it3 != __lookup_3.end()) ? it3->second : -1;
+            }
+            else
+            {
+                __init_lock_3.enter();
+                if (__inited_3)
+                {
+                    __init_lock_3.leave();
+                    goto retry_3_head;
+                }
+                t3 = 0;   // ORIG：首过 subId=0 并入 [easy] case
+            }
+            switch (t3)
+            {
+            case 0:
+            case 0x91d:  // "[easy]"
+                if (!__inited_3)
+                {
+                    __lookup_3.insert(DungeonTagMap::value_type("[easy]", 0x91d));
+                }
+                else
+                {
+                    diff = 0;
+                    break;
+                }
+            case 0x922:  // "[medium]"
+                if (!__inited_3)
+                {
+                    __lookup_3.insert(DungeonTagMap::value_type("[medium]", 0x922));
+                }
+                else
+                {
+                    diff = 1;
+                    break;
+                }
+            case 0x927:  // "[hard]"
+                if (!__inited_3)
+                {
+                    __lookup_3.insert(DungeonTagMap::value_type("[hard]", 0x927));
+                }
+                else
+                {
+                    diff = 2;
+                    break;
+                }
+            case 0x92c:  // "[ultimate]"
+                if (!__inited_3)
+                {
+                    __lookup_3.insert(DungeonTagMap::value_type("[ultimate]", 0x92c));
+                }
+                else
+                {
+                    diff = 3;
+                    break;
+                }
+            default:
+                break;
+            }
+            if (!__inited_3)
+            {
+                __init_lock_3.leave();
+                __inited_3 = true;
+                goto retry_3_head;   // ORIG LAB_088f05f4
+            }
+            UseCoinDungeonDiff d;
+            d.m_0 = ScanInt(&ok);
+            d.m_4 = (ScanInt(&ok) != 0);
+            // ORIG 088f0670：make_pair<int,UseCoinDungeonDiff>（两实参均 prvalue
+            // 推导）+ pair<const int,U>(pair&&) 转换 + ~pair×2。
+            script->m_map4e4.insert(std::make_pair(static_cast<int>(diff),
+                                                   static_cast<UseCoinDungeonDiff>(d)));
+        }
+    }
+
+
+case 0x942:  // "[party member coin limit]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[party member coin limit]", 0x942));
+    }
+    else
+    {
+        script->m_4fc = ScanInt(&ok);  // +0x4fc
+        if (!ok)
+            return false;
+        break;
+    }
+
+case 0x94d:  // "[individual map movement]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[individual map movement]", 0x94d));
+    }
+    else
+    {
+        // ORIG LAB_088f074e：ScanInt 与 1 比较 → m_504(+0x504 byte)
+        script->m_504 = ScanInt(&ok) == 1;
+        break;
+    }
+case 0x954:  // "[open door even enemy]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[open door even enemy]", 0x954));
+    }
+    else
+    {
+        // ORIG LAB_088f07d0：ScanInt 与 1 比较 → m_505(+0x505 byte)
+        script->m_505 = ScanInt(&ok) == 1;
+        break;
+    }
+case 0x95c:  // "[disable exit]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[disable exit]", 0x95c));
+    }
+    else
+    {
+        // ORIG LAB_088f0852：ScanInt → +0x508 dword（char m_508 起 4 字节按 int 写入）
+        script->m_508 = ScanInt(&ok);
+        break;
+    }
+case 0x962:  // "[character respawn posetion]"
+    if (!__inited)
+    {
+        __lookup.insert(DungeonTagMap::value_type("[character respawn posetion]", 0x962));
+    }
+    else
+    {
+        script->m_50c = ScanInt(&ok) != 0;   // +0x50c（report LAB_088f08d4 实证，char）
+        break;
+
+    }
 
         default:
             break;
         }
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = true;
+            goto retry_dispatch;   // ORIG LAB_088f09a9
+        }
     }
+    // ORIG 0x88f09c8..0x88f09ff：主循环结束后无条件提交最后一份
+    // MazeScript，并把当前脚本在 g_stDungeonScriptFileList 中的索引写入
+    // STDungeonScript+0x18。
+    // ORIG LAB_088f09bb：收尾 push_back 前先取一次 size()（结果不使用）。
+    script->m_mazeList170.size();
+    script->m_mazeList170.push_back(mazeLocal);
+    script->m_18 = reinterpret_cast<STScriptFileList*>(
+        &g_stDungeonScriptFileList)->FindIndexByFullScan(path);
     return true;
 }
+
+
 
 // exportDungeonScript 依赖的脚本域符号（权威定义在 STMapScript.cpp /
 // LinkMiscSecuTimerSolo.cpp / InitScriptProducers_4.cpp）。
 void getScriptFileFullPath(char* out, unsigned int size, const char* dir,
                            const char* name);
 void convertBinaryToText(const char* path);
-extern char g_szDungeonScriptBaseDirectory[0x100];
 
 bool exportDungeonScript(STDungeonScript* script, const char* path)
 {
@@ -1933,10 +3460,13 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
         fwrite("[/item]\n", 1, 8, file);
     }
 
-    // [pathgate object]：m_padF8（+0xf8）POD 区 10 个 int
-    int* pg = (int*)script->m_padF8;
+    // [pathgate object]：+0xf8 POD 区 10 个具名 int
     fprintf(file, "[pathgate object]\n%d %d %d\n%d %d %d\n%d %d\n%d %d\n",
-            pg[0], pg[1], pg[2], pg[3], pg[4], pg[5], pg[6], pg[7], pg[9], pg[10]);
+            script->m_pathgate.m_group0[0], script->m_pathgate.m_group0[1],
+            script->m_pathgate.m_group0[2], script->m_pathgate.m_group1[0],
+            script->m_pathgate.m_group1[1], script->m_pathgate.m_group1[2],
+            script->m_pathgate.m_group2[0], script->m_pathgate.m_group2[1],
+            script->m_pathgate.m_group3[0], script->m_pathgate.m_group3[1]);
 
     // ---- maze 循环 ----
     for (unsigned int mi = 0; mi < script->m_mazeList170.size(); ++mi)
@@ -2008,9 +3538,8 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
     fwrite("[monster type spawn prob]", 1, 25, file);
     for (unsigned int i = 0; i < script->m_warRoom18c.m_spawnProb.size(); ++i)
     {
-        int* el = (int*)script->m_warRoom18c.m_spawnProb[i].m_pad;
         for (int j = 0; j < 4; ++j)
-            fprintf(file, "%d ", el[j]);
+            fprintf(file, "%d ", script->m_warRoom18c.m_spawnProb[i].m_probability[j]);
         fputc(10, file);
     }
     fwrite("[monster type spawn cost]", 1, 25, file);
@@ -2061,7 +3590,7 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
             fprintf(file, "%d\n", script->m_warRoom18c.m_vec44[i]);
         fwrite("[/spawn step resource pool]\n", 1, 28, file);
     }
-    fprintf(file, "[kill count const] %d\n", (double)*(float*)&script->m_warRoom18c.m_ac);
+    fprintf(file, "[kill count const] %d\n", (double)script->m_warRoom18c.m_ac);
     fprintf(file, "[join cost gold] %d\n", script->m_warRoom18c.m_54);
     fprintf(file, "[gold drop prob] %d\n", script->m_warRoom18c.m_58);
     fprintf(file, "[common monster item drop prob] %d\n", script->m_warRoom18c.m_5c[0]);
@@ -2177,30 +3706,6 @@ bool advancealtar::RewardItemType::getRewardItemType(const std::string& name,
     return true;
 }
 
-static bool importAltarRewardItem(advancealtar::_RewardItem& item)
-{
-    // ORIG 内联段：ScanStr→getRewardItemType→ScanInt(+0x04)→ScanInt(+0x08)
-    bool ok = false;
-    std::string token;
-    if (!ScanStr(&token))
-    {
-        return false;
-    }
-    advancealtar::RewardItemType::T type;
-    if (!advancealtar::RewardItemType::getRewardItemType(token, type))
-    {
-        return false;
-    }
-    item.m_type = static_cast<int>(type);
-    item.m_value1 = ScanInt(&ok);
-    if (!ok)
-    {
-        return false;
-    }
-    item.m_value2 = ScanInt(&ok);
-    return ok;
-}
-
 // ImportAdvanceAltarDungeonTag ORIG 0x088f20a4（536 insn）：
 // 按 str 给出的 tag 分派解析；脚本流已由调用方 loadRDARScriptFile 打开
 // （path 参数在 ORIG 中未使用）。返回 false=解析失败，true=成功/结束。
@@ -2289,10 +3794,21 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
             while (true)
             {
                 advancealtar::_RewardItem item;
-                if (!importAltarRewardItem(item))
-                {
+                std::string rewardType;
+                if (!ScanStr(&rewardType))
                     break;
-                }
+                advancealtar::RewardItemType::T rewardItemType;
+                if (!advancealtar::RewardItemType::getRewardItemType(
+                        rewardType, rewardItemType))
+                    break;
+                item.m_type = static_cast<int>(rewardItemType);
+                bool itemOk = false;
+                item.m_value1 = ScanInt(&itemOk);
+                if (!itemOk)
+                    break;
+                item.m_value2 = ScanInt(&itemOk);
+                if (!itemOk)
+                    break;
                 vec.push_back(item);
             }
         }
@@ -2360,10 +3876,21 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
                     while (true)
                     {
                         advancealtar::_RewardItem item;
-                        if (!importAltarRewardItem(item))
-                        {
+                        std::string rewardType;
+                        if (!ScanStr(&rewardType))
                             break;
-                        }
+                        advancealtar::RewardItemType::T rewardItemType;
+                        if (!advancealtar::RewardItemType::getRewardItemType(
+                                rewardType, rewardItemType))
+                            break;
+                        item.m_type = static_cast<int>(rewardItemType);
+                        bool itemOk = false;
+                        item.m_value1 = ScanInt(&itemOk);
+                        if (!itemOk)
+                            break;
+                        item.m_value2 = ScanInt(&itemOk);
+                        if (!itemOk)
+                            break;
                         if (item.m_type == 0 || item.m_type == 1)
                         {
                             rrd.m_vec8.push_back(item);
@@ -2374,6 +3901,11 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
             }
         }
     }
-    // 未识别 tag：ORIG 88f27ec ebx=0 → 返回 false（识别分支均返回 true）
-    return false;
+    else
+    {
+        // ORIG 0x088f27ec：未识别 tag 才返回 0；上述识别分支即使
+        // 在内部遇到结束/解析失败，也统一返回 1。
+        return false;
+    }
+    return true;
 }

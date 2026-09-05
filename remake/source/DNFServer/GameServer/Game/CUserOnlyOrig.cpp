@@ -160,8 +160,12 @@ static unsigned char& SkillCmdKey(STSkillCommandData& d, int i)
 // ---------------------------------------------------------------------------
 void CUser::_CalcItemVectorMultiply(std::vector<std::pair<int, int> >& items, int mult)
 {
-    for (std::vector<std::pair<int, int> >::iterator it = items.begin();
-         it != items.end(); ++it)
+    // ORIG 0x08672049-0x08672080：三前置调用 = begin()→-0x10、end() 临时→-0xc、
+    // __normal_iterator 转换 ctor→cend(-0x14)（P13 缓存 end + const_iterator 转换，
+    // 技巧28 槽序 it 先声明）；循环条件 `it != cend` 走 mixed operator!=@0x0869b2d3。
+    std::vector<std::pair<int, int> >::iterator it = items.begin();
+    const std::vector<std::pair<int, int> >::const_iterator cend = items.end();
+    for (; it != cend; ++it)
     {
         it->second = it->second * mult;
     }
@@ -191,7 +195,7 @@ bool CUser::_CheckCompoundSkill(const CStackableItem* item, bool checkRecipe)
     if (item->m_recipe174.m_field25 != 0)
     {
         std::vector<std::pair<int, int> > list(item->m_recipe174.m_vec18);
-        bool ok = ((SkillSlot*)((char*)getCurCharacSkillR()))->check_skill_list(
+        bool ok = reinterpret_cast<const SkillSlot*>(getCurCharacSkillR())->check_skill_list(
             get_charac_job(), list, 2);
         if (ok)
         {
@@ -206,7 +210,7 @@ bool CUser::_CheckCompoundSkill(const CStackableItem* item, bool checkRecipe)
     if (!checkRecipe)
     {
         std::vector<std::pair<int, int> > list(item->m_recipe174.m_vec18);
-        bool ok = ((SkillSlot*)((char*)getCurCharacSkillR()))->check_skill_list(
+        bool ok = reinterpret_cast<const SkillSlot*>(getCurCharacSkillR())->check_skill_list(
             get_charac_job(), list, 2);
         if (!ok)
             return false;
@@ -751,10 +755,12 @@ void CUser::_processFatigueBuffEvent(unsigned int oldFatigue, unsigned int addFa
     if (!(oldFatigue != 0 && total != 0 && oldFatigue < 0x9du))
         return;
     static const float DIV = 50.0f;  // ORIG .rodata 常量（0x08cf3968 处值 50.0，已验证）
+    int itemId = 0;      // ORIG 顶部清零（movl $0x0,-0x1c）
+    int addCount = 0;    // ORIG 顶部清零（movl $0x0,-0x18）
     int zoneA = (int)(oldFatigue / DIV);
     int zoneB = (int)(total / DIV);
     if (zoneA == zoneB) return;
-    int itemId = 0x1d95, addCount;
+    itemId = 0x1d95;
     const char* key = 0;
     if (zoneA == 1 && zoneB == 2)      { addCount = 10; key = "game_server_msg_84"; }
     else if (zoneA == 2 && zoneB == 3) { addCount = 20; key = "game_server_msg_85"; }
@@ -781,7 +787,9 @@ void CUser::_processUnlimitChallenge(unsigned int level, char kind)
 {
     CLevelRewardTableMgr* mgr = CLevelRewardTableMgr::GetInstance();
     if (mgr == 0) return;
-    if (mgr->IsOn() == false) return;
+    // ORIG 0x0864a5c8：`xor $0x1,%eax; test %al,%al; jne`。IsOn() 返 uchar(ORIG 0x08697792 movzbl 全字)，
+    // 写法 (IsOn() ^ 1) 被 4.4 fold 成 cmp $1；具名掩码槽阻断 fold-const 保 xor。
+    if (!mgr->IsOn()) return;   // 声明已 bool（广播2，DCoreC6/DispC6 无异议）：技巧1 !boolcall ⇒ xor$1;test
     if (mgr->IsOnServer(G_CEnvironment()->m_serverEnvir.m_serverGroup)
         == false) return;
     if (mgr->IsHaveStartLevelReward() == false) return;
@@ -815,8 +823,10 @@ void CUser::_saveConditionEventInfo(unsigned int value, short a2, short a3)
 // ---------------------------------------------------------------------------
 void CUser::_saveProperDungeonClearCount(unsigned int dungeonIdx, short subNo)
 {
-    Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x85cd);
-    CStreamGuard guard(s, true);
+    // ORIG 0x08681b66：`call Acquire; movl $1,0x8(%esp); mov %eax,0x4(%esp);
+    // lea -0x14(%ebp)` = Acquire 结果免槽直落 ctor 实参（技巧37）；具名 s 多 spill+
+    // reload 两行并把 guard 槽挤到 -0x18。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x85cd), true);
     guard.operator*()->operator<<(0x1d4);
     guard.operator*()->operator<<((int)GetUID());
     SIG_SAVE_BLOOD_CLEAR_COUNT* bloodBody =
@@ -901,7 +911,8 @@ void CUser::AddCurCharacMercenaryInfo()
 // ---------------------------------------------------------------------------
 void CUser::AddDailyBadge(ENUM_BADGE_TYPE badge)
 {
-    m_dailyBadge[(int)badge] = (short)(m_dailyBadge[(int)badge] + 1);   // ushort 计数自增（ORIG movzwl+lea1 同型）
+    // ORIG 0x08568e5e：单装载 movzwl + lea 0x1(%edx) + 单 store —— 后缀 ++（技巧4）
+    m_dailyBadge[(int)badge]++;
 }
 
 // ---------------------------------------------------------------------------
@@ -943,8 +954,17 @@ void CUser::AddTicket(int ticketIdx, bool notify)
 // ---------------------------------------------------------------------------
 bool CUser::alonePlay_Mode()
 {
+    // ORIG 0x0868dc7a：opt→4B 槽 -0x10（先声明远槽 技巧21）；get_etc_option 结果
+    // `mov %ax,-0xa(%ebp); movswl -0xa(%ebp),%eax; cmp $0x1,%eax; jne 岛` ⇒ short 具名槽 +
+    // return-true/false 具名物化岛
     CGameOption* opt = GetGameOptionRef();
-    return opt->get_etc_option((ENUM_OPTION_ETC)0x1b) == 1;
+    const short etc = opt->get_etc_option((ENUM_OPTION_ETC)0x1b);
+    // ORIG 0x0868dc9x：`movswl -0xa(%ebp),%eax; cmp $0x1,%eax` 显式装载+寄存器比较——
+    // 4.4 对槽直比恒融 `cmpw $1,mem`（N18 家族）；register asm(eax) 中转破融合（技巧28 变体）
+    register int v asm("eax") = etc;
+    if (v == 1)
+        return true;
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -953,12 +973,27 @@ bool CUser::alonePlay_Mode()
 // ---------------------------------------------------------------------------
 bool CUser::alonePlay_Mode(const MSG_REQ_TO_PEER& req)
 {
+    // ORIG 0x0868dcbc 序列：opt(-0x10)→get_etc_option→short 结果存 -0xa（mov %ax）
+    // →再读 req+0xf（movzbl 0xf(%eax);movsbl 双扩展，MSG_REQ_TO_PEER 无布局符号，
+    // §4.3 例外视图，同 get_SoloPlay_msgType 模板）→`(unsigned)>3 return false`
+    // →`movswl -0xa; cmp $1` 具名装载比较（P77，直用恒融 cmpw mem）。
+    // const 标量被 4.4 单点使用内联下移（call 落入尾块）；非 const 才保 ORIG
+    // 0x0868dcd0-0x0868dce3 前置声明序物化槽 -0x10/-0xa。
     CGameOption* opt = GetGameOptionRef();
-    // ORIG 0x0868dcbc：movzbl+movsbl 符号扩展后 jbe（无符号）——0x80+ 字节按
-    // 大数处理即恒 >3 → 拒绝。等价无符号判定（unsigned char 比较）。
-    if ((unsigned char)*(const unsigned char*)((const char*)&req + 0xf) > 3)
+    short etc = opt->get_etc_option((ENUM_OPTION_ETC)0x1b);
+    // P1 组件视图把 `add $0xf; movzbl (%eax)` 折叠为 ORIG 0x0868dcea 单条
+    // `movzbl 0xf(%eax),%eax`（MSG_REQ_TO_PEER 无布局符号，§4.3 例外具名视图）。
+    // 免具名 reqType 槽（ORIG `add $0,%eax` 即 4.1 无槽物化；槽版挤占 opt/-0xa）。
+    struct PeerTypeView { char m_pad[0xf]; unsigned char m_reqType; };
+    if (static_cast<unsigned int>(static_cast<signed char>(
+            (reinterpret_cast<const PeerTypeView*>(&req))->m_reqType)) > 3u)
         return false;
-    return opt->get_etc_option((ENUM_OPTION_ETC)0x1b) == 1;
+    // ORIG 0x0868dd01 `movswl -0xa(%ebp),%eax; cmp $1,%eax`：register asm(eax) 破
+    // cmpw 融合（同 alonePlay_Mode() Ev 版实证）。
+    register int v asm("eax") = etc;
+    if (v == 1)
+        return true;
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -970,21 +1005,20 @@ bool CUser::alonePlay_Mode(const MSG_REQ_TO_PEER& req)
 // ---------------------------------------------------------------------------
 void CUser::apply_elixir_item(_Additioal_info& ai, std::pair<int, int>& pr)
 {
-    int amount = pr.second;
     switch (pr.first)
     {
-    case 0x40f: ai.m_field08 += (short)(amount * 50); break;   // +0x08
-    case 0x410: ai.m_field0c += (short)(amount * 50); break;   // +0x0c
-    case 0x411: ai.m_field0a += (short)(amount * 50); break;   // +0x0a
-    case 0x412: ai.m_field0e += (short)(amount * 50); break;   // +0x0e
-    case 0x413: ai.m_field00 += amount * 250; break;           // +0x00
-    case 0x414: ai.m_field04 += amount * 250; break;           // +0x04
-    case 0x415: ai.m_field42 += amount * 10;  break;           // +0x42
+    case 0x40f: ai.m_field08 += (short)(pr.second * 50); break;   // +0x08
+    case 0x410: ai.m_field0c += (short)(pr.second * 50); break;   // +0x0c
+    case 0x411: ai.m_field0a += (short)(pr.second * 50); break;   // +0x0a
+    case 0x412: ai.m_field0e += (short)(pr.second * 50); break;   // +0x0e
+    case 0x413: ai.m_field00 += pr.second * 250; break;           // +0x00
+    case 0x414: ai.m_field04 += pr.second * 250; break;           // +0x04
+    case 0x415: ai.m_field42 += pr.second * 10;  break;           // +0x42
     case 0x416:
         for (int i = 0; i < 4; ++i)
         {
-            /* +0x10, +0x12, +0x14, +0x16 */
-            ai.m_field18[i] += (short)(amount * 10);
+            /* +0x10, +0x12, +0x14, +0x16（ORIG (i+8)*2 索引形态） */
+            ai.m_field10[i] += (short)(pr.second * 10);
         }
         break;
     default:
@@ -1025,10 +1059,27 @@ void CUser::apply_elixir_item(_Additioal_info& ai, std::pair<int, int>& pr)
 bool CUser::CalLevelUpItemCheck(unsigned long itemId)
 {
     int lvl = get_charac_level();
-    if (itemId == 0x28d2bc || itemId == 0x989a13u || itemId == 0x292090e1u)
-        return (lvl > 0 && lvl < 0x55);
-    if (itemId == 0x1f71ul)
-        return (lvl >= 0x13 && lvl <= 0x3b);
+    // ORIG 0x08689d06：4.1 switch 二分树 `cmp 0x28d2bc je 体岛1/ja 右支；cmp 1f71 je 体岛2；
+    // 右支 cmp 989a13 je 体岛1、cmp 292090e1 jne ret0-fall 体岛1`。体岛1（三 case 共享，书写
+    // 在前）内层假路落 +0x62 `nop;jmp`/+0x65 `nop` 岛、体岛2 假路直落 +0x66 `mov$0`——
+    // probe p9.sw3 实证 4.4 嵌套 if+break 逐条同形（技巧24/34；&& 合并形反产双直落）。
+    switch (itemId)
+    {
+        case 0x28d2bc:
+        case 0x989a13:
+        case 0x292090e1:
+            if (lvl > 0) {
+                if (lvl < 0x55) return true;
+            }
+            break;
+        case 0x1f71:
+            if (lvl >= 0x13) {
+                if (lvl <= 0x3b) return true;
+            }
+            break;
+        default:
+            break;
+    }
     return false;
 }
 
@@ -1273,12 +1324,19 @@ int CUser::check_unlocked_multibox_error(const CItem* stack, int addInfo)
 // ---------------------------------------------------------------------------
 bool CUser::checkCodeChecksum(const CodeHackChecksum& ck, char* dumpOut)
 {
-    bool ok = m_codeHackCheck.IsRightChecksum(&ck);
-    if (ok)
+    // ORIG 0x0867ebba：`call IsRightChecksum; test %al,%al; je ELSE`（无 bool 局部槽，
+    // 帧 sub $0x18）；then 尾 `call PopData(); mov $1,%eax; jmp END`（技巧7 return 岛）；
+    // else `call PopData(dump); mov $0,%eax` fall leave。显式 true/false 直返。
+    if (m_codeHackCheck.IsRightChecksum(&ck))
+    {
         m_codeHackCheck.PopData();
+        return true;
+    }
     else
+    {
         m_codeHackCheck.PopData(dumpOut);
-    return ok;
+        return false;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1329,10 +1387,11 @@ bool CUser::CheckDeleteCharacTime(int slot)
 // 37) CUser::CheckDungeonClear(int questId)
 //     报告：docs/class_func_reports/CUser/CheckDungeonClear.md。ORIG 0x0866d934。
 // ---------------------------------------------------------------------------
-bool CUser::CheckDungeonClear(int questId)
+// CUser.h:3620 已改 int（Main 落，ORIG 0x0866d96a 尾 call item_reward_quest; leave 直返 int）
+int CUser::CheckDungeonClear(int questId)
 {
     if (getCurCharacR() == 0)
-        return false;
+        return false;   // = 0；bool→int 透传（CUser.h:1265 item_reward_quest 返 int）
     return getCurCharacQuestR()->item_reward_quest(questId);
 }
 
@@ -1342,25 +1401,26 @@ bool CUser::CheckDungeonClear(int questId)
 // ---------------------------------------------------------------------------
 unsigned int CUser::CheckGuildLevelUp(unsigned int& priceOut)
 {
-    static const char* PRETTY = "unsigned int CUser::CheckGuildLevelUp(unsigned int&)";
     if (get_charac_guildkey() == 0)
         return 0x22;
     if (!(IsGuildMaster() || IsSubGuildMaster()))
         return 0x53;
-    unsigned char lev = m_guildDB.m_fundLevel;               // +0x8d03b
-    if ((int)lev + 1 > 16)
+    // ORIG 无 lev 局部：每使用点重新 movzbl 0x8d03b（P48/P157 逐点重读）。
+    if ((int)m_guildDB.m_fundLevel + 1 > 16)                 // +0x8d03b
         return 0x25;
-    GuildParameterScript* gps =
-        (GuildParameterScript*)((char*)G_CDataManager() + 0xa50c);
-    int param = gps->getGuildLevelUpParam((int)lev + 1);
+    // ORIG 无 gps 槽：每个调用点重新 G_CDataManager()+0xa50c（P48）。
+    int param = ((GuildParameterScript*)((char*)G_CDataManager() + 0xa50c))
+                    ->getGuildLevelUpParam((int)m_guildDB.m_fundLevel + 1);
     if (param == 0)
     {
-        cMyTrace trace(PRETTY, 0x53c2, 5);
-        trace("CUser::CheckGuildLevelUp Guild Param Err(g lev : %d)", (int)lev);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x53c2, 5);   // P139 局部静态符号
+        trace("CUser::CheckGuildLevelUp Guild Param Err(g lev : %d)",
+              (int)m_guildDB.m_fundLevel);
         return 0x22;
     }
     unsigned short memberCnt = (*reinterpret_cast<const unsigned short*>(reinterpret_cast<const char*>(&m_guildDB) + 0x26)) /*+0x26 pad 区*/;    // +0x8d042（fields_A 建议名）
-    unsigned int price = gps->getLevelupPrice((int)lev + 1, (int)memberCnt);
+    unsigned int price = ((GuildParameterScript*)((char*)G_CDataManager() + 0xa50c))
+                            ->getLevelupPrice((int)m_guildDB.m_fundLevel + 1, (int)memberCnt);
     if (m_guildDB.m_fundMoney < price)                       // +0x8d0c0
         return 0x16;
     priceOut = price;
@@ -1419,7 +1479,14 @@ bool CUser::checkInformNoticeFlag(unsigned int bitIdx, unsigned int byteIdx)
 {
     if (bitIdx > 7) return false;
     if (byteIdx > 15) return false;
-    return !((m_informNoticeFlags[byteIdx] >> bitIdx) & 1);
+    // ORIG 0x0868f9e8：表值经 1B 槽 `mov %al,-0x5(%ebp); movzbl -0x5(%ebp),%edx`（具名 uchar 变量）
+    // 尾 `test %al,%al; je; mov $1; jmp; mov $0` bool 物化岛（bool 值无槽：绑 %eax 直落）
+    const unsigned char byte = m_informNoticeFlags[byteIdx];
+    register bool off asm("eax");
+    off = !((byte >> bitIdx) & 1);
+    if (off)
+        return true;
+    return false;
 }
 
 bool CUser::CheckItemLockSlotSpace(int spaceType, int spaceIdx) const
@@ -1436,9 +1503,14 @@ bool CUser::CheckItemLockSlotSpace(int spaceType, int spaceIdx) const
     unsigned char lockNo = slot->m_amp.GetLock();
     if (lockNo == 0)
         return false;
-    item_lock::CItemLock* lock =
-        (item_lock::CItemLock*)GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)2);
-    return lock->CheckItemLock(lockNo);
+    // ORIG 0x08646a62 `movzbl -0x9(%ebp),%ebx`：lockNo 于声明点直落 callee-saved
+    // ebx 跨 GetCharacExpandDataR 存活（技巧22）；0x08646a79-0x08646a80
+    // `mov %ebx,0x4(%esp); mov %eax,(%esp)` = expand 结果免槽直用（技巧37，具名
+    // lock 指针槽 -0xc 反产双 spill）；尾 `test;je;mov$1;jmp;mov$0` = if-return 岛。
+    if (((item_lock::CItemLock*)GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)2))
+            ->CheckItemLock(lockNo))
+        return true;
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -1447,13 +1519,16 @@ bool CUser::CheckItemLockSlotSpace(int spaceType, int spaceIdx) const
 // ---------------------------------------------------------------------------
 bool CUser::CheckLimitMiniumAge(int ageLimit, int& outUnique)
 {
-    int age = GetAge();
-    if ((unsigned int)(age - 1) < (unsigned int)ageLimit)
+    // ORIG 0x0864fc4a/0x0864fc7e：两处独立 `call GetAge` 直落 `lea -0x1(%eax),%edx`
+    // 免槽（P48 双读 + 技巧37）；具名 age 占 -0xc 且省掉第二次 call。
+    // probe p15.a4：`(unsigned)call - 1u`（cast 先于减）才产 `lea -0x1(%eax),%edx`
+    // 单段；`(unsigned)(call - 1)` 恒 sub+mov 两段（a1/a2）。
+    if (((unsigned int)GetAge()) - 1u < (unsigned int)ageLimit)
     {
         outUnique = (int)(get_unique_id() & 0xffff);
         return false;
     }
-    if (age - 1 == ageLimit)
+    if (((unsigned int)GetAge()) - 1u == (unsigned int)ageLimit)
     {
         if (!IsOverBirthDay())
         {
@@ -1472,9 +1547,12 @@ bool CUser::CheckLimitMiniumAge(int ageLimit, int& outUnique)
 // ---------------------------------------------------------------------------
 bool CUser::CheckPossibleRequestRenameState(int slot) const
 {
-    if (slot < 0)
-        return false;
-    if ((unsigned int)m_characList.size() <= (unsigned int)slot)
+    // ORIG 0x0822ff68：`cmpl $0,0xc; js 83 / call size; cmp 0xc,%eax; jg 8a /
+    // 83: mov $1; jmp / 8a: mov $0 / 8f: test %al,%al; je 9a / 93: mov $0; jmp c0`
+    // ⇒ \|\| 短路物化到 %al（无槽，技巧22 register bool asm(eax)），有界判定用 int 比较
+    register bool bad asm("eax");
+    bad = (slot < 0 || static_cast<int>(m_characList.size()) <= slot);
+    if (bad)
         return false;
     return m_characList[slot].m_viewState == 0xff;
 }
@@ -1513,8 +1591,12 @@ bool CUser::CheckTicket(int ticketIdx)
         return true;
     if (G_GameWorld()->IsPVPChannel())
         return true;
-    for (std::list<int>::const_iterator it = m_list8cf80.begin();
-         it != m_list8cf80.end(); ++it)
+    // ORIG 0x086785f4：begin sret=-0x14 直构、end sret=-0x10、++it 走 _List_iterator
+    // 前缀（无返回槽；const_iterator 转换会多 -0x18 拷贝 ctor@0x384e，P96 保持
+    // 非 const iterator；postfix ppEi 另占 -0xc 槽，ORIG 该槽是 ++ 的 sret@0x8391bd2?
+    // 实为 `it++` 返 still 见 -0xc：postfix 形）。
+    for (std::list<int>::iterator it = m_list8cf80.begin();
+         it != m_list8cf80.end(); it++)
     {
         if (*it == ticketIdx)
             return true;
@@ -1545,7 +1627,9 @@ void CUser::ClearChildrensDayEvent()
 // ---------------------------------------------------------------------------
 void CUser::ClearMission(short missionId)
 {
-    if (isGMUser())
+    // ORIG 0x08662606：`call isGMUser; xor $0x1,%eax; test %al,%al; jne <ret岛>` ⇒ !bool 早退形
+    if (!isGMUser())
+        return;
     {
         CMissionList_Charac* ml = (CMissionList_Charac*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
         ml->ClearMission(*this, missionId);
@@ -1571,21 +1655,26 @@ void CUser::ClearMissionKind(short kind)
 // ---------------------------------------------------------------------------
 bool CUser::ClearSkills()
 {
-    bool block = (m_clientSpec.m_gmUserFlag != 0) && (getCurCharacR() != 0);   // Client_Spec+0xbfc → CUser+0x711d8
-    if (!block)
-    {
-        ((SkillSlot*)getCurCharacSkillW())->debugCommandResetSkill();
-        return true;
-    }
-    return false;
+    // ORIG 0x0867b4ca：`movzbl 0x711d8; xor $0x1,%eax; test al; jne ea / call getCurCharacR;
+    // test eax; jne f1 / ea: mov $1; jmp f6 / f1: mov $0 / f6: test al; je <reset>`
+    // ⇒ A=(flag==0)||(ptr==0) 具名物化（技巧22 绑 eax 无槽）；A==0 ⇒ reset+true。
+    // 首项写 (flag^1)!=0 复现 xor 物化（4.4 对 ==0 恒 test;je 无 xor）
+    register bool a asm("eax");
+    a = ((m_clientSpec.m_gmUserFlag ^ 1) != 0) || (getCurCharacR() == 0);
+    if (a)
+        return false;
+    ((SkillSlot*)getCurCharacSkillW())->debugCommandResetSkill();
+    return true;
 }
 
 void CUser::collectPcRoomPlayTime()
 {
     // 报告：docs/class_func_reports/CUser/collectPcRoomPlayTime.md。ORIG 0x0868f7ba。
-    int now = GlobalData::s_systemTime_.getCurSec();
-    m_totalPcRoomPlayTime += now - (int)m_pcRoomPlayStartTime;   // +0x8eba0 / +0x8eb9c
-    m_pcRoomPlayStartTime = (unsigned int)now;
+    // ORIG 0x0868f7cd 槽 -0xc(%ebp)；0x0868f7f6 尾赋值 this 先载（uint=uint 同型，技巧5延伸）
+    unsigned int now = GlobalData::s_systemTime_.getCurSec();
+    // ORIG 0x0868f7d0-0x0868f7ed：total→edx、start→eax、now→ecx（全 uint 同型，无转换）
+    m_totalPcRoomPlayTime += now - m_pcRoomPlayStartTime;             // +0x8eba0 / +0x8eb9c
+    m_pcRoomPlayStartTime = now;
 }
 //
 //
@@ -2112,8 +2201,17 @@ void CUser::decideCharacLinkMessage()
 // 15. CUser::decideLinkCharacSlotIndexes(char, int) T 0x08652b06
 void CUser::decideLinkCharacSlotIndexes(char idx, int maxIdx)
 {
-    char linkType = getCharacLinkType();
-    if ((idx < maxIdx) && (-1 < idx)) {
+    // ORIG 0x08652b06+0x??：`call getCharacLinkType; movsbl %al,%eax; mov %eax,-0xc(%ebp)`
+    // ⇒ 4B int 槽（char 返回值符号扩展物化），比较恒 cmpl
+    const int linkType = static_cast<int>(getCharacLinkType());
+    // ORIG 0x08652b2a/0x08652b30：两比较各有独立落岛 `jge +0x83(nop;jmp+0x87)`、
+    // `js +0x86(nop)`——单 label 合并被 4.4 threading 折叠（实测只剩 -2 jmp）。
+    // 技巧23/24 双 goto 钉两岛，末 else call 保 `jmp END`（技巧7 尾置 return）。
+    if (!(idx < maxIdx))
+        goto SKIP_LINK_A;
+    if (!(-1 < idx))
+        goto SKIP_LINK_B;
+    {
         if (linkType == 2) {
             setLinkCharacSlotIndex(idx + 1);
         }
@@ -2124,6 +2222,9 @@ void CUser::decideLinkCharacSlotIndexes(char idx, int maxIdx)
             setLinkCharacSlotIndex(-1);
         }
     }
+    return;
+SKIP_LINK_A:;
+SKIP_LINK_B:;
 }
 
 // >>> W7-BLOCKED CUser::defaultSkillCommand —— 命令表 getter 未建模
@@ -2207,8 +2308,12 @@ void CUser::DeleteCurrentCharacRentalItemInfo(int key)
 // 19. CUser::deleteToBlackList(unsigned int) T 0x0867f040
 int CUser::deleteToBlackList(unsigned int id)
 {
-    if (!m_vec8cef4.empty()) {
-        // ORIG 0x0867f040：begin() 拷贝初始化 iterator，无默认构造（无 C1 符号）
+    // ORIG 0x0867f056：`test %al,%al; je +0x12` ⇒ 正向 empty() 早退岛：
+    //   867f05a: mov $0x0,%eax; 867f05f: jmp 867f102（技巧6 早退尾岛）
+    if (m_vec8cef4.empty())
+        return 0;
+    // ORIG 0x0867f040：begin() 拷贝初始化 iterator，无默认构造（无 C1 符号）
+    {
         std::vector<unsigned int>::iterator it = m_vec8cef4.begin();
         for (; it != m_vec8cef4.end(); ++it) {
             if (*it == id) {
@@ -2225,7 +2330,9 @@ int CUser::deleteToBlackList(unsigned int id)
 void CUser::DelTradePunishType(int mask)
 {
     printf("DelTradePunishType : (%d) // Prev TradePunishType:  %d\n", mask, m_postChecksumData.m_tradePunishType);
-    m_postChecksumData.m_tradePunishType = m_postChecksumData.m_tradePunishType & ~mask;
+    // ORIG 0x086898e8-0x086898fb：member→%edx、%eax=~mask、and %eax,%edx。
+    // probe8 d2 实证仅 unsigned 成员复现此寄存器分配（int 成员 dest=~mask 形）。
+    m_postChecksumData.m_tradePunishType &= ~mask;
     printf("After TradePunishType:  %d\n", m_postChecksumData.m_tradePunishType);
 }
 
@@ -2233,8 +2340,9 @@ void CUser::DelTradePunishType(int mask)
 // 21. CUser::discard_mouse_register() T 0x08680bd2
 void CUser::discard_mouse_register()
 {
-    Sanicova::CPad* pad = getPad();
-    char ver = pad->getVersionInfo();
+    // ORIG 0x08680bd2：getPad 结果免槽直用（`call; mov %eax,(%esp); call
+    // getVersionInfo`，技巧37）；具名 pad 占 -0x10 使 pkt 落 -0x1c（ORIG -0x18）。
+    char ver = getPad()->getVersionInfo();
     if (ver == 1) {
         PacketGuard pkt;
         pkt.put_header( 0, 0xab);
@@ -2242,31 +2350,34 @@ void CUser::discard_mouse_register()
         pkt.finalize( true);
         Send(pkt);
     }
+    // ORIG 0x08680bd2 尾：true 域末 dtor call 后 `jmp epilogue` 岛（技巧7 尾置 return
+    // 保 dtor 块与 add-esp 汇合点分离）。
+    return;
 }
 
 // ---------------------------------------------------------------------------
 // 22. CUser::DoItemLock(int, int) T 0x08646d4a
 void CUser::DoItemLock(int paramA, int paramB)
 {
-    item_lock::CItemLock* lock =
-        (item_lock::CItemLock*)GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE(2));
-    lock->DoItemLock(this, paramA, paramB);
+    // ORIG 0x08646d4a：无 lock 槽（帧 0x18），首 call 结果 %eax 跨实参构造直落 (%esp)
+    ((item_lock::CItemLock*)GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE(2)))
+        ->DoItemLock(this, paramA, paramB);
 }
 
 // 23. CUser::DoItemUnlock(int, int) T 0x08646d82
 void CUser::DoItemUnlock(int paramA, int paramB)
 {
-    item_lock::CItemLock* lock =
-        (item_lock::CItemLock*)GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE(2));
-    lock->DoItemUnlock(this, paramA, paramB);
+    // ORIG 0x08646d82：同 DoItemLock 内联无槽形
+    ((item_lock::CItemLock*)GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE(2)))
+        ->DoItemUnlock(this, paramA, paramB);
 }
 
 // 24. CUser::DoItemUnlockCancel(int, int) T 0x08646dba
 void CUser::DoItemUnlockCancel(int paramA, int paramB)
 {
-    item_lock::CItemLock* lock =
-        (item_lock::CItemLock*)GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE(2));
-    lock->DoItemUnlockCancel(this, paramA, paramB);
+    // ORIG 0x08646dba：同 DoItemLock 内联无槽形
+    ((item_lock::CItemLock*)GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE(2)))
+        ->DoItemUnlockCancel(this, paramA, paramB);
 }
 
 // >>> W7-BLOCKED CUser::EnableCharacInfo —— 残余混合依赖，详见 /tmp/w7_blocked.tsv 汇总
@@ -3181,8 +3292,10 @@ bool CUser::isSuccessCompound(int chance)
         return false;
     if (chance != 0)
     {
-        int r = get_rand_int(100);
-        if (chance <= r)
+        // ORIG 0x0867202e `cmp 0xc(%ebp),%eax; jge 203a(mov$0 尾块无 jmp)`；
+        // gcc4.4 各类具名/register/unsigned/goto 写法均产 setXX 物化或 jne 反形，
+        // 块布局 [mov$1 mid][mov$0 tail] 不可达——N（probe26-35 + 本轮 goto/双 return 复验）。
+        if (chance <= get_rand_int(100))
             return false;
     }
     return true;
@@ -3413,8 +3526,9 @@ void CUser::IncrementTradeGold(unsigned int gold, int mode)
 // SIG_MILEAGE_STRUCT{accId, characNo, mileage=0}; msgq put(QUEUE_IDX=2)
 void CUser::LoadMileage()
 {
-    Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x18f2);
-    CStreamGuard guard(s, true);
+    // ORIG 0x08650722+0x??：Acquire 结果 %eax 直落 guard ctor 0x4(%esp)，无 s 槽
+    // （技巧36/37：删中转变量整帧平移，guard 槽 -0x18→-0x14 对齐 ORIG）
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x18f2), true);
     guard.operator*()->operator<<((int)0x1fd); // 流类型
     guard.operator*()->operator<<((int)GetUID());
     char* sig = (char*)guard.operator->()->GetInBuffer<SIG_MILEAGE_STRUCT>();
@@ -3983,28 +4097,41 @@ unsigned char CUser::lost_ext(int percent, int& actualLost, bool hardMode)
 // uint，实义返回 !CItemLock::OnItemUnlockWaitTimeout
 unsigned int CUser::OnItemUnlockWaitTimeout(int expandIdx, int unused)
 {
-    item_lock::CItemLock* lock = (item_lock::CItemLock*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)(expandIdx));
-    return (unsigned int)(lock->OnItemUnlockWaitTimeout(this) ^ 1);
+    // ORIG 0x08646912：`movl $0x2,0x4(%esp)` 立即数 ⇒ 硬编常量 2（非 expandIdx 变量）；
+    // 首 call 结果 %eax 跨步直落第二 call 首参槽（无具名 lock 槽，帧 0x18）
+    return (unsigned int)(((item_lock::CItemLock*)
+        GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)2))
+        ->OnItemUnlockWaitTimeout(this) ^ 1);
 }
 
 // ----------------------------------------------------------------------------
 // ORIG 0x08681368 CUser::OnPunishUser() void  (circulation field 0x1c)
 void CUser::OnPunishUser()
 {
-    if (getCurCharacR() == 0) return;
-    unsigned int money = getCurCharacInvenR()->get_money();
-    GetInstanceCirculationStatistic()->AddCirculationStatistic(
-        (CIRCULATION_STATISTIC_FIELD)0x1c, this, money);
+    // ORIG 0x0868137a `test %eax,%eax; setne %al; test %al,%al; je +0x50(epilogue)`：
+    // !=0 物化形 + body fall-through，尾无 jmp 岛（==0 return 形反产 sete/jne/jmp+nop）。
+    if (getCurCharacR() != 0)
+    {
+        // ORIG 0x08681396 `mov %eax,%ebx`：get_money 结果跨
+        // GetInstanceCirculationStatistic 调用存活于 callee-saved ebx（技巧2/P52），
+        // 具名局部恒 spill -0xc 槽并收紧帧 sub $0x28（ORIG 宽松帧 push ebx+sub $0x14）。
+        register unsigned int money asm("ebx") = getCurCharacInvenR()->get_money();
+        GetInstanceCirculationStatistic()->AddCirculationStatistic(
+            (CIRCULATION_STATISTIC_FIELD)0x1c, this, money);
+    }
 }
 
 // ----------------------------------------------------------------------------
 // ORIG 0x08681312 CUser::OnRestrictTrade() void  (circulation field 0x1d)
 void CUser::OnRestrictTrade()
 {
-    if (getCurCharacR() == 0) return;
-    unsigned int money = getCurCharacInvenR()->get_money();
-    GetInstanceCirculationStatistic()->AddCirculationStatistic(
-        (CIRCULATION_STATISTIC_FIELD)0x1d, this, money);
+    // ORIG 0x08681312：与 OnPunishUser 同形（field 0x1d）。
+    if (getCurCharacR() != 0)
+    {
+        register unsigned int money asm("ebx") = getCurCharacInvenR()->get_money();
+        GetInstanceCirculationStatistic()->AddCirculationStatistic(
+            (CIRCULATION_STATISTIC_FIELD)0x1d, this, money);
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -4019,21 +4146,21 @@ void CUser::onSelectCharacter()
 
     int richCount = 0;                                     // -0x20
     int rareCount = 0;                                     // -0x1c
+    int spareCount;                                        // -0x18（ORIG 声明在前、中部赋值）
     int i = 0;                                             // -0x14
-    do {
-        if (i > 9) break;
-        // ORIG 0x086800c6：GetInvenSlot 按值返回，拷贝初始化（sret 直写），无默认构造
+    for (; i <= 9; ++i)   // ORIG cmpl $9; setle; test; jne 尾条件
+    {
+        // ORIG：GetInvenSlot 按值返回（sret 直写 -0x5d），m_addInfo@+2
         Inven_Item tmp = getCurCharacInvenR()->GetInvenSlot(0, i);
-            CItem* def = G_CDataManager()->find_item(tmp.m_addInfo);
-            bool isRare = false;
-            if (def == 0) {
-                isRare = false;
-            } else {
-                isRare = (def->get_rarity() == 2);
-            }
-            if (isRare) ++rareCount;
-        ++i;
-    } while (true);
+        if (tmp.m_addInfo != 0)
+        {
+            ++richCount;
+            register int addInfo = tmp.m_addInfo;   // W8A 范式：register+同型 → mov slot,%eax; mov %eax,%ebx
+            CItem* def = G_CDataManager()->find_item(addInfo);
+            if (def != 0 && def->get_rarity() == 2)
+                ++rareCount;
+        }
+    }
 
     if (richCount > 0) {
         m_mcap.m_field1c -= 0x28;
@@ -4041,11 +4168,15 @@ void CUser::onSelectCharacter()
     }
     m_mcap.decIncRate(rareCount * 100);
 
-    int spareCount = 0;                                    // -0x1c(second loop)
+    spareCount = 0;
     for (int j = 10; j <= 0x15; ++j) {                     // P2 有符号
         if (j != 0xb) {
             Inven_Item t2 = getCurCharacInvenR()->GetInvenSlot(0, j);   // ORIG sret 直写
-            if (t2.m_addInfo != 0) ++spareCount;
+            // ORIG 0x08680230: addl $1,-0x18 后 `jmp +0x3` 到 8680237（inc 前有 nop 8680236）——技巧24 goto 落点岛
+            if (t2.m_addInfo == 0)
+                goto SKIP_INC;
+            ++spareCount;
+SKIP_INC:;
         }
     }
     if (spareCount > 8) m_mcap.m_field1c -= 0x14;
@@ -4350,7 +4481,8 @@ int CUser::process_use_locked_multibox(int boxSlot, int keySlot,
     err = check_insert_lottery_reward(boxDef, lottery, dest);
     if (err != 0) return err;
 
-    int keyCount = *(int*)((char*)boxDef + 0x1f0);                 // 所需钥匙数
+    int keyCount = *reinterpret_cast<int*>(   // 所需钥匙数；CStackableItem m_multiBox(+0x1e4) 内条目布局未建模
+            reinterpret_cast<char*>(boxDef) + 0x1f0);
     getCurCharacInvenW()->delete_item((INVEN_TYPE)1, boxSlot, 1,
                                       (eItemDelReason)3, true);
     getCurCharacInvenW()->delete_item((INVEN_TYPE)1, keySlot, keyCount,
@@ -4360,14 +4492,17 @@ int CUser::process_use_locked_multibox(int boxSlot, int keySlot,
 
 // ----------------------------------------------------------------------------
 // ORIG 0x08675d0c CUser::process_use_unlocked_multibox(
-//   int boxSlot, int keySlot, vector<pair<Inven_Item,bool>>& dest) int
-int CUser::process_use_unlocked_multibox(int boxSlot, int keySlot,
+//   int keySlot, int boxSlot, vector<pair<Inven_Item,bool>>& dest) int
+//   （参数名以 ORIG 装载序为准：GetInvenSlot(1,0xc)/check(.,0x10)/delete(1,0xc)）
+int CUser::process_use_unlocked_multibox(int keySlot, int boxSlot,
                                          std::vector<std::pair<Inven_Item, bool> >& dest)
 {
     Inven_Item key;
     key = getCurCharacInvenR()->GetInvenSlot(1, keySlot);
-    G_CDataManager();
-    CItem* boxDef = G_CDataManager()->find_item(key.m_addInfo);   // -0x10
+    register int addInfo = key.m_addInfo;   // W8A 范式：先物化到 callee-saved
+    // ORIG 0x08675dd0-0x08675de6：单条 `mov -0x57,%eax; mov %eax,%ebx; call G_CDataManager;
+    // mov %ebx,0x4(%esp); mov %eax,(%esp); call find_item` —— 仅 1 次 G_CDataManager 调用
+    CItem* boxDef = G_CDataManager()->find_item(addInfo);   // -0x10
     int err = check_unlocked_multibox_error(boxDef, boxSlot);
     if (err != 0) return err;
 
@@ -4378,7 +4513,7 @@ int CUser::process_use_unlocked_multibox(int boxSlot, int keySlot,
     err = check_insert_lottery_reward(boxDef, lottery, dest);
     if (err != 0) return err;
 
-    getCurCharacInvenW()->delete_item((INVEN_TYPE)1, boxSlot, 1,
+    getCurCharacInvenW()->delete_item((INVEN_TYPE)1, keySlot, 1,
                                       (eItemDelReason)3, true);
     return 0;
 }
@@ -4510,7 +4645,8 @@ int CUser::process_use_unlocked_multibox(int boxSlot, int keySlot,
 // ORIG 0x08691ec4 CUser::processReturnUser() void
 void CUser::processReturnUser()
 {
-    if (!IsReturnUser()) return;
+    // ORIG 0x086??：`test %al,%al; je <T>` 无 xor ⇒ 正向直落形
+    if (IsReturnUser()) {
     PacketGuard packet;
     packet.clear();
     packet.put_header(0, 0x12d);
@@ -4522,10 +4658,19 @@ void CUser::processReturnUser()
     if (IsReturnUserFirstLogin()) {
         GiveItemsReturnUser();
         GiveEquipItemsReturnUser();
+        // ORIG 0x08691f88-0x08691fb9：右→左实参求值——IsReturnUserFirstLogin→`movzbl %al,%esi`、
+        // GetReturnUserExpireTime→`mov %eax,%ebx`、get_acc_id 最后；三栈槽 mov %esi/%ebx/%eax。
+        // bool 型绑 %esi（全等直落单条装载），int 绑 %ebx，保跨 call 无槽。
+        // ORIG 0x08691f93 `movzbl %al,%esi`：4.4 恒物化两段（movzbl %al,%eax; mov %eax,%esi，
+        // probe p6.h2 实证），单段直落 callee-saved 为 N18a 变体；bool 绑定少一条残差。
+        register bool flg asm("esi") = IsReturnUserFirstLogin();
+        register int expTime asm("ebx");
+        expTime = GetReturnUserExpireTime();
         DB_UpdateReturnUserFirstLogin::makeRequest(get_acc_id(),
-            GetReturnUserExpireTime(),
-            IsReturnUserFirstLogin() & 0xff);
+            expTime,
+            flg);
         SetReturnUserFirstUserLogin(false);
+    }
     }
 }
 
@@ -4701,15 +4846,13 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
     if (!getCurCharacQuestR()->check_cond_clear(questId)) {
         return 0x16;
     }
-    G_CDataManager();
     Quest* q = ((QuestList*)(*(int*)((char*)G_CDataManager() + 0x18)))
                ->find_quest(questId);
     if (q == 0) return 0x15;
 
     bool gm = IsGameMasterMode();
     if (!gm && !q->isRepeatableQuest()) {
-        if (((WongWork::CQuestClear*)((char*)getCurCharacQuestR() + 4))
-                ->isClearedQuest(questId))
+        if (getCurCharacQuestR()->m_cleared.isClearedQuest(questId))
             return 0x16;
     }
     if (!(q->m_type == 4 || repeatN == 1)) return 0x16;
@@ -4725,8 +4868,9 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
         // 调用点：迭代器在 for-init 内由 begin() 直接构造（非 const 重载）。
         for (std::vector<std::pair<int,int> >::iterator di = q->m_triggerDataPairs.begin();
              di != q->m_triggerDataPairs.end(); ++di) {
-            pairTmp.first  = di->first;
-            pairTmp.second = di->second * repeatN;
+            // ORIG:经 operator*() 解引用读字段（de 站点），非 operator->()。
+            pairTmp.first  = (*di).first;
+            pairTmp.second = (*di).second * repeatN;
             delCond.push_back(pairTmp);
         }
         if (!getCurCharacInvenR()->CheckNeedItemList(delCond))
@@ -4766,15 +4910,15 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
                 return 4;
 
             selectIdx = q->ConvertRewardSelectIndex(this, selectIdx);
-            if ((int)q->m_rewardSelectList.size() <= selectIdx)
+            if ((int)q->m_selectReward.size() <= selectIdx)
                 return 0x15;
             if (selectIdx >= 0 && selectIdx != 0xffff) {
                 Inven_Item selItem;                            // -0x205..-0x1c5
-                std::pair<int, int>* sel = &q->m_rewardSelectList[selectIdx];   // ORIG pair 视图（makeRewardItemInfo pair 重载）
-                selItem.m_addInfo = sel->first;                // item idx @+0x02（ORIG -0x1ff ← pair.first）
-                G_CDataManager()->getItemList()->create_item(   // ORIG 0x866f069：接收者 = CDataManager+0xc 的 CItemList
+                // ORIG:两次 operator[] 分别读 itemIdx/m_count（ix 站点 ×2）。
+                selItem.m_addInfo = q->m_selectReward[selectIdx].m_itemIdx;
+                G_CDataManager()->m_itemList->create_item(   // ORIG 0x866f069：接收者 = CDataManager+0xc 的 CItemList
                     (ENUM_ITEM_CREATE_TYPE)4, selItem,
-                    sel->second * repeatN);                    // count = pair.second×repeatN
+                    q->m_selectReward[selectIdx].m_count * repeatN);
                 if (shadow.tryInsertItemIntoInventory(selItem) == -1)
                     return 4;
             }
@@ -4794,12 +4938,14 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
         if (leveledUp) {
             if (getCurCharacStamina() < 100)
                 setCurCharacStamina((unsigned char)'d');
-            int st = get_state();
-            if (st == 3) {
+            // ORIG:else 分支重新调用 get_state()（两站点）。
+            if (get_state() == 3) {
                 SendNotiPacket((eSendTarget)0, (ENUM_NOTIPACKET)2, 0);
                 SendNotiPacket((eSendTarget)1, (ENUM_NOTIPACKET)2, 1);
-            } else if (st > 4) {
-                SendNotiPacket((eSendTarget)2, (ENUM_NOTIPACKET)2, 1);
+            } else {
+                if (get_state() > 4) {
+                    SendNotiPacket((eSendTarget)2, (ENUM_NOTIPACKET)2, 1);
+                }
             }
         }
         if (m_chState == 3)
@@ -4854,10 +5000,9 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
                 gains.push_back(pairTmp);
             }
         }
-        if (selectIdx >= 0 && selectIdx < (int)q->m_rewardSelectList.size()) {
-            std::pair<int, int>* sel = &q->m_rewardSelectList[selectIdx];   // ORIG pair 视图
-            pairTmp.first  = sel->first;
-            pairTmp.second = sel->second * repeatN;
+        if (selectIdx >= 0 && selectIdx < (int)q->m_selectReward.size()) {
+            pairTmp.first  = q->m_selectReward[selectIdx].m_itemIdx;
+            pairTmp.second = q->m_selectReward[selectIdx].m_count * repeatN;
             gains.push_back(pairTmp);
         }
         for (std::vector<std::pair<int,int> >::iterator gi = gains.begin();
@@ -4919,35 +5064,44 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
     ack.put_byte(q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ & 0xff);
     if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 0 && delAddObjCnt >= 0) {
         ack.put_byte(delAddObjCnt);
-        for (size_t k = 0; k < updAddQuad.size();) {           // idx/cnt 摊平四元组
-            ack.put_short(updAddQuad[k]);
-            ack.put_int(updAddQuad[k+1]);
-            ack.put_int(updAddQuad[k+2]);
-            ack.put_int(updAddQuad[k+3]);
-            G_CDataManager();
-            CItem* addedDef = G_CDataManager()->find_item(updAddQuad[k]);
-            unsigned char ampFlag = 1;
-            if (addedDef != 0 &&
-                addedDef->IsAvatarItem())                // vtable+0x10 无参 bool 虚调用（ORIG 0x866fd47）
-                ampFlag = 2;
-            // ORIG 0x0866ea92 区内 _ZN10Inven_ItemC1Ev 仅 1 次（下方 selItem），
-            // 本处 GetInvenSlot 按值返回直接 sret 拷贝初始化，无默认构造。
-            Inven_Item chkItem = getCurCharacInvenR()->GetInvenSlot(1, updAddQuad[k+1]);
-            stAmplifyOption_t& amp =
-                *&chkItem.m_amp;
-            ack.put_byte(amp.getAbilityType() & 0xff);
-            ack.put_short(amp.getAbilityValue() & 0xffff);
-            if (addedDef == 0 || !addedDef->is_stackable())
-                ack.put_short(0);
-            else
-                ack.put_short(chkItem.m_addInfo2 & 0xffff);
-            k += 4;
+        // ORIG 0x866fbf2-0x866fda3:updAddQuad 实为 [INVEN_TYPE, slot, addInfo2]
+        // 三元组(delete_event_items.md:814-871 push [X, slot, item+0x07])。
+        // 消费:put_short(e0)/put_int(e1)/put_int(e2) + find_item(e1) +
+        // GetInvenSlot(ampFlag, e0) + amp 段,共享迭代器 de×6/pp×3。
+        if (delAddObjCnt > 0) {
+            std::vector<int>::iterator quadIt = updAddQuad.begin();
+            while (quadIt != updAddQuad.end()) {
+                // ORIG:put_short 实参内联 de;GetInvenSlot 复用 de 结果槽 -0x68。
+                ack.put_short(*quadIt);
+                int slotE0 = *quadIt;
+                quadIt++;
+                // ORIG:e1 先 de 入局部(-0x64),put_int 再次 de,pp 后 de 第三元素。
+                int itemE1 = *quadIt;
+                ack.put_int(*quadIt);
+                quadIt++;
+                ack.put_int(*quadIt);
+                quadIt++;
+                CItem* addedDef = G_CDataManager()->find_item(itemE1);
+                unsigned char ampFlag = 1;
+                if (addedDef != 0 &&
+                    addedDef->IsAvatarItem())                // vtable+0x10 无参 bool 虚调用（ORIG 0x866fd47）
+                    ampFlag = 2;
+                Inven_Item chkItem =
+                    getCurCharacInvenRefR()->GetInvenSlot(ampFlag, slotE0);
+                stAmplifyOption_t& amp = *&chkItem.m_amp;
+                ack.put_byte(amp.getAbilityType() & 0xff);
+                ack.put_short(amp.getAbilityValue() & 0xffff);
+                if (addedDef == 0 || !addedDef->is_stackable())
+                    ack.put_short(0);
+                else
+                    ack.put_short(chkItem.m_addInfo2 & 0xffff);
+            }
         }
     }
 
     if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 1) {                                  // 二转
         unsigned char secondType =
-            (unsigned char)*(unsigned int*)((char*)q + 0xc0);
+            (unsigned char)q->m_fieldC0;
         ack.put_byte(secondType);
         set_grow_type(secondType, getCurCharSecondGrowType(), (char*)&ack, (eChangeGrowTypeReason)0);
         PacketGuard bp;
@@ -4960,19 +5114,21 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
 
         Stream* ss = GlobalData::s_stream_pool->Acquire("user.cpp", 0x5aed);
         CStreamGuard sig(ss, true);
-        sig << (int)0x24;
-        sig << (int)GetUID();
+        // ORIG:经 operator*()/operator->() 链（de/pt 站点）。
+        sig.operator*()->operator<<((int)0x24);
+        sig.operator*()->operator<<((int)GetUID());
         SIG_LOAD_SKILL* sk =
-            (SIG_LOAD_SKILL*)sig.GetInBuffer<SIG_LOAD_SKILL>();
+            (SIG_LOAD_SKILL*)sig.operator->()->GetInBuffer<SIG_LOAD_SKILL>();
         memset(sk, 0, 0x414);
-        *reinterpret_cast<unsigned int*>(sk) = getCurCharacNo();   // +0x00 characNo（ORIG 0x867003b）
+        sk->m_characNo = static_cast<unsigned int>(getCurCharacNo());  // +0x00（ORIG 0x867003b）
         sk->m_flag410 = 1;
-        *((char*)sk + 0x411) = *((char*)G_CDataManager() + 0xa850);
+        sk->m_field411 = *reinterpret_cast<unsigned char*>(   // CDataManager+0xa850 表区未建模（CDataManager 域）
+            reinterpret_cast<char*>(G_CDataManager()) + 0xa850);
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, sig);
     }
     else if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 2) {                             // 一转
         unsigned char firstType =
-            (unsigned char)*(unsigned int*)((char*)q + 0xc0);
+            (unsigned char)q->m_fieldC0;
         ack.put_byte(firstType);
         set_grow_type(getCurCharFirstGrowType(), firstType, (char*)&ack, (eChangeGrowTypeReason)0);
         PacketGuard bp;
@@ -4984,9 +5140,9 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
         G_GameWorld()->send_all(bp, this);
     }
 
-    if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 10 && *(int*)((char*)q + 0xc0) > 0) {
-        int evoInto  = *(int*)((char*)q + 0xfc);
-        int evoFrom  = *(int*)((char*)q + 0xc0);
+    if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 10 && q->m_fieldC0 > 0) {
+        int evoInto  = q->m_fieldFC;
+        int evoFrom  = q->m_fieldC0;
         user_creature::CCreatureMgr* cm =
             getCurCharacInvenW()->GetCreatureMgrW();
         if (!cm->Evolute(evoFrom, evoInto, false))
@@ -4994,8 +5150,8 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
     }
 
     if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 0x14) {                               // 专家职业
-        if (get_charac_level() < *(int*)((char*)q + 0x20)) return 0x16;
-        int expertType = *(int*)((char*)q + 0xc0);             // -0x4c
+        if (get_charac_level() < q->m_levelMin) return 0x16;
+        int expertType = q->m_fieldC0;             // -0x4c
         SetCurCharacExpertJobType(expertType);
         ack.put_byte(expertType);
         APSystem::CUserProc::ClearActionAndSendtoUser(
@@ -5008,41 +5164,40 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
         if (script != 0) {
             for (size_t s = 0; s < script->m_growSkillVec.size(); ++s) {
                 if (getCurCharacR() != 0) {
-                    int subIdx = script->m_growSkillVec[s].first;
-                    int lvlReq = script->m_growSkillVec[s].second;
-                    SkillSlot* skill = (SkillSlot*)getCurCharacSkillW();
-                    int gained = skill->growtype_skill(get_charac_job(),
-                                   subIdx, lvlReq, (ENUM_SKILL_TREE_KIND)0);
+                    // ORIG:两字段读各自 operator[](ix 站点 ×2)。
+                    int gained = ((SkillSlot*)getCurCharacSkillW())->growtype_skill(
+                        get_charac_job(),
+                        script->m_growSkillVec[s].first,
+                        script->m_growSkillVec[s].second,
+                        (ENUM_SKILL_TREE_KIND)0);
                     if (gained > 0) {
                         ack.put_byte(gained);
-                        ack.put_byte(subIdx);
-                        ack.put_byte(lvlReq);
+                        ack.put_byte(script->m_growSkillVec[s].first);
+                        ack.put_byte(script->m_growSkillVec[s].second);
                         ++cnt;
                     }
                 }
             }
-            ack.set_index(posMarker);
-            ack.put_byte(cnt);   // 回填计数
+            ack.put_byte(posMarker, cnt);   // 回填计数（ORIG put_byteERii 写位重载）
             posMarker = ack.get_index();                       // 回填点二
             cnt = 0;
             ack.put_byte(0);
             for (size_t s = 0; s < script->m_growSkillVec.size(); ++s) {
                 if (getCurCharacR() != 0) {
-                    int subIdx = script->m_growSkillVec[s].first;
-                    int lvlReq = script->m_growSkillVec[s].second;
-                    SkillSlot* skill = (SkillSlot*)getCurCharacSkillW();
-                    int gained = skill->growtype_skill(get_charac_job(),
-                                   subIdx, lvlReq, (ENUM_SKILL_TREE_KIND)1);
+                    int gained = ((SkillSlot*)getCurCharacSkillW())->growtype_skill(
+                        get_charac_job(),
+                        script->m_growSkillVec[s].first,
+                        script->m_growSkillVec[s].second,
+                        (ENUM_SKILL_TREE_KIND)1);
                     if (gained > 0) {
                         ack.put_byte(gained);
-                        ack.put_byte(subIdx);
-                        ack.put_byte(lvlReq);
+                        ack.put_byte(script->m_growSkillVec[s].first);
+                        ack.put_byte(script->m_growSkillVec[s].second);
                         ++cnt;
                     }
                 }
             }
-            ack.set_index(posMarker);
-            ack.put_byte(cnt);   // 回填计数
+            ack.put_byte(posMarker, cnt);   // 回填计数（ORIG put_byteERii 写位重载）
             expert_job::CCharacExpertJob* ej =
                 (expert_job::CCharacExpertJob*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)(0));
             ej->InitScript(script);
@@ -5058,7 +5213,7 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
     }
 
     if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 0x15) {                               // 副本次数++
-        int dungeonId = *(int*)((char*)q + 0xc0);
+        int dungeonId = q->m_fieldC0;
         ack.put_short(dungeonId);
         AddDungeonClear(dungeonId, 3);
         PacketGuard dp;
@@ -5071,7 +5226,7 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
     }
 
     if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 0x16) {                               // 扩充栏位
-        int slotMode = *(int*)((char*)q + 0xc0);
+        int slotMode = q->m_fieldC0;
         char curStat = GetCurExEquipSlotStat();
         if (slotMode == 0x14) {
             if (curStat == 0 || curStat == 2)
@@ -5099,23 +5254,21 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
                 evoList.push_back(pairTmp);
             }
         }
-        if (selectIdx >= 0 && selectIdx < (int)q->m_rewardSelectList.size()) {
-            std::pair<int, int>* sel = &q->m_rewardSelectList[selectIdx];   // ORIG pair 视图
-            pairTmp.first  = sel->first;
-            pairTmp.second = sel->second * repeatN;
+        if (selectIdx >= 0 && selectIdx < (int)q->m_selectReward.size()) {
+            pairTmp.first  = q->m_selectReward[selectIdx].m_itemIdx;
+            pairTmp.second = q->m_selectReward[selectIdx].m_count * repeatN;
             evoList.push_back(pairTmp);
         }
         if (evoList.size() == 1) {
             for (std::vector<std::pair<int,int> >::iterator ei = evoList.begin();
                  ei != evoList.end(); ++ei) {
-                G_CDataManager();
-                CItem* tgt = G_CDataManager()->find_item(ei->first);
+                    CItem* tgt = G_CDataManager()->find_item(ei->first);
                 if (tgt == 0) return 0x16;
                 if (tgt->GetItemType() == 0x16) {              // vtable+0xc==22
                     user_creature::CCreatureMgr* cm =
                         getCurCharacInvenW()->GetCreatureMgrW();
                     if (!cm->EventEvoluteCreature(ei->first,
-                            *(int*)((char*)q + 0xfc), ei->second))
+                            q->m_fieldFC, ei->second))
                         return 0x16;
                     break;
                 }
@@ -5232,9 +5385,13 @@ unsigned int CUser::registerToBlackList(unsigned int accId)
             "vt_black_list_.size() >= BLACKLIST_CNT_LIMIT");
         return 0;
     }
-    if (isBlackUser(accId)) return 0;
-    m_vec8cef4.push_back(accId);
-    return 1;
+    // ORIG 0x0867f00e：`call isBlackUser; xor $0x1,%eax; test %al,%al; je <push>` ⇒ 4.1 具名取反物化形；
+    // return0 岛在 push 体之后（867f039: mov $0,%eax）
+    if (!isBlackUser(accId)) {
+        m_vec8cef4.push_back(accId);
+        return 1;
+    }
+    return 0;
 }
 
 // >>> W7-BLOCKED CUser::reqSendMailCertify —— TimerEntry::OBJ_TYPE/TIMER_MESSAGE 枚举实参序列与 capcha 队列契约未核
@@ -5303,23 +5460,32 @@ void CUser::reset_tag_info_to_me(unsigned int tagAccId)
     std::vector<_Charac_info>& chars = m_characList;           // +0x796e8
     std::vector<_Charac_info>::iterator it;
     for (it = chars.begin(); it != chars.end(); ++it) {
-        if (*(unsigned int*)((const char*)&(*it) + 0x14b8) == tagAccId) {                        // +0x14b8
-            *(unsigned int*)((char*)&(*it) + 0x14b8) = 0;
-            (*(unsigned char*)((char*)&(*it) + 0x14b7)) = 0;                              // +0x14b7
-            (*(unsigned char*)((char*)&(*it) + 0x14bc)) = 0; /*viewDirty 未具名*/                              // +0x14bc
+        if ((*it).m_field14b8 == tagAccId) {                                   // +0x14b8
+            (*it).m_field14b8 = 0;
+            (*it).m_field14b7 = 0;                                    // +0x14b7
+            (*it).m_field14BC = 0;                                    // +0x14bc viewDirty（2026-09-04 已具名）
             touched = true;
         }
     }
     if (touched)
-        ((CCharacterView*)((char*)this + 0x796f4))->enableSaveCharacView();
+        m_characterView.enableSaveCharacView();                          // +0x796f4
 }
 
 // ----------------------------------------------------------------------------
 // ORIG 0x0867f1a4 CUser::resetBlackList() void
 void CUser::resetBlackList()
 {
-    if (!m_vec8cef4.empty())
+    // ORIG 0x0867f1ba：`test %al,%al; jne` 直落形——空 then + else + 尾 return
+    // （probe16 r4 实证：if(b){}else{X;}return; → call;test;jne skip;call X;jmp;nop;，
+    //   规避技巧1 的 xor 物化；ORIG 0x0867f1d0 nop + 0x0867f1ce jmp 尾岛同步复现）
+    if (m_vec8cef4.empty())
+    {
+    }
+    else
+    {
         m_vec8cef4.clear();
+    }
+    return;
 }
 
 // ----------------------------------------------------------------------------
@@ -5349,7 +5515,10 @@ void CUser::resetHumanCertifyData()
 // ORIG 0x0866265a CUser::ResetMissionList() void
 void CUser::ResetMissionList()
 {
-    if (isGMUser()) {
+    // ORIG 0x0866265a：`xor $0x1,%eax; test %al,%al; jne <ret岛>` ⇒ !bool 早退形
+    if (!isGMUser())
+        return;
+    {
         CMissionList_Charac* ml =
             (CMissionList_Charac*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)(8));
         ml->ResetMissionList(*this);
@@ -5374,13 +5543,20 @@ void CUser::ResetMissionList()
 void CUser::SaveBackupSkillInfo(SIG_LOAD_PREMIUM_LETHE* src,
                                 ENUM_SKILL_TREE_KIND kind)
 {
-    if (getCurCharacR() == 0) return;
-    if (kind == (ENUM_SKILL_TREE_KIND)-1 || kind == (ENUM_SKILL_TREE_KIND)0) {
-        const char* dst = GetCurCharacBackupSkill();
-        if (dst != 0) memcpy((void*)dst, src, 0x199);
-    } else {
-        const char* dst = GetCurCharacBackupSkill2ND();
-        if (dst != 0) memcpy((void*)dst, src, 0x199);
+    // ORIG 0x0868148c：三段 `test %eax; sete/setne %al; test %al; jcc 岛` = bool 显式
+    // 物化形（直接指针判缺 sete/setne 段）；dst 双 call（P48：条件一次、memcpy 实参
+    // 再一次，call 结果 %eax 免槽直落 (%esp)，技巧37）；尾 `jmp+nop` 岛×2（技巧24）。
+    if (!(static_cast<bool>(getCurCharacR())))
+        return;
+    if (kind == (ENUM_SKILL_TREE_KIND)-1 || kind == (ENUM_SKILL_TREE_KIND)0)
+    {
+        if (static_cast<bool>(GetCurCharacBackupSkill()))
+            memcpy((void*)GetCurCharacBackupSkill(), src, 0x199);
+    }
+    else
+    {
+        if (static_cast<bool>(GetCurCharacBackupSkill2ND()))
+            memcpy((void*)GetCurCharacBackupSkill2ND(), src, 0x199);
     }
 }
 
@@ -5389,8 +5565,9 @@ void CUser::SaveBackupSkillInfo(SIG_LOAD_PREMIUM_LETHE* src,
 void CUser::saveCharacLinkMessageFlag(bool flag)
 {
     setCharacLinkMessageFlag(flag);
-    Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1c66);
-    CStreamGuard guard(s, true);
+    // ORIG 0x086528f2：`call Acquire; movl $1,0x8(%esp); mov %eax,0.4→0x4(%esp);
+    // lea -0x10(%ebp)` Acquire 结果免槽直落（技巧37）；具名 s 槽致 guard 位移。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1c66), true);
     guard.operator*()->operator<<((int)0x1e4);
     guard.operator*()->operator<<((int)-1);
     guard.operator*()->operator<<(get_acc_id());
@@ -5474,10 +5651,13 @@ void CUser::SaveMileage()
 {
     if (G_GameWorld()->GetChannelType() == 7) return;
 
-    Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x18e4);
-    CStreamGuard guard(s, true);
+    // ORIG 0x08650636：Acquire 结果 %eax 直落 guard ctor 0x4(%esp)，无 s 槽；
+    // guard 槽 -0x14（技巧36 删中转整帧平移）
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x18e4), true);
     guard.operator*()->operator<<(0x1fc);          // ORIG 0x086505f6：deEv→lsEi 链
     guard.operator*()->operator<<((int)GetUID());  // ORIG 同型
+    // ORIG 0x08650636/0x08650642：Acquire 结果免槽直落 ctor 实参、guard -0x14、
+    // sig -0xc（删 s 中转后 4.4 帧对齐 ORIG）；store 段 LHS 地址预载差 = N76
     char* sig = (char*)guard.operator->()->GetInBuffer<SIG_MILEAGE_STRUCT>();  // ORIG ptEv 链
     *(unsigned int*)(sig + 0) = get_acc_id();
     *(unsigned int*)(sig + 4) = getCurCharacNo();
@@ -5573,8 +5753,9 @@ void CUser::send_broadcast_lottery_gold_message(unsigned long itemIdx, int count
     CItem* def = G_CDataManager()->find_item((int)itemIdx);
     if (def == 0) return;
     if (!def->is_stackable()) return;
-    if (*(int*)((char*)def + 0x340) <= 0) return;
-    if (*(int*)((char*)def + 0x340) > count) return;
+    // def 已过 is_stackable 守卫，动态类型 CStackableItem；+0x340 m_int340
+    if (((CStackableItem*)def)->m_int340 <= 0) return;
+    if (((CStackableItem*)def)->m_int340 > count) return;
 
     PacketGuard packet;
     packet.put_header(0, 0x56);
@@ -5606,15 +5787,21 @@ void CUser::send_charac_visible_data()
         Send(packet);
         return;
     }
-    int st = get_state();
-    if (st == 5 || (st - 8 < 3U)) {                            // 组队共享可见性
+    switch (get_state()) {                                     // ORIG 决策树：5/8..10/3/default
+    case 5:
+    case 8:
+    case 9:
+    case 10: {
         CParty* party = (CParty*)GetParty();
         if (party != 0) party->send_to_party(packet);
-    } else if (st == 3) {
+    } break;
+    case 3: {
         int area = get_area(false);
         G_GameWorld()->send_to_area((int)getCurCharacVill(), area, packet);
-    } else {
+    } break;
+    default:
         G_GameWorld()->send_all(packet);
+        break;
     }
 }
 
@@ -5627,11 +5814,12 @@ void CUser::Send_SoloPlay_Reject_NotiPack(const char* msg, ENUM_SOLO_PLAY_REJECT
     PacketGuard packet;
     packet.clear();
     packet.put_header(0, 0x17d);
-    if (msg == 0) {
-        packet.put_int(0);
-    } else {
+    // ORIG 0x0868e0ee：`cmpl $0,0xc; je <put0 岛>` ⇒ strlen 体 fall-through 在前（技巧17）
+    if (msg != 0) {
         packet.put_int(strlen(msg));
         packet.put_str(msg, strlen(msg));
+    } else {
+        packet.put_int(0);
     }
     packet.put_int(mode);
     packet.put_int(code);
@@ -5699,7 +5887,7 @@ void CUser::sendCharacOption()
     PacketGuard packet;
     packet.put_header(0, 0x186);
     packet.put_int(0x200);
-    packet.put_binary((char*)getCurCharacR() + 0x12b7, 0x200); // 角色选项块
+    packet.put_binary(reinterpret_cast<char*>(const_cast<_Charac_info*>(getCurCharacR())->m_data12B7), 0x200);  // +0x12b7 CharacterOption 视图区 // 角色选项块
     packet.finalize(true);
     Send(packet);
 }
@@ -6275,12 +6463,13 @@ void CUser::sendCharacOption()
 // ---------------------------------------------------------------------------
 void CUser::SetMissionParameter(int kind, int value)
 {
-    if (!isGMUser())
-        return;
+    // ORIG 0x08662558：`test %al,%al; je <T>` 无 xor ⇒ 正向 if(isGMUser()) 直落形
+    if (isGMUser()) {
     CMissionList_Charac* missions =
         reinterpret_cast<CMissionList_Charac*>(
             GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8));
     missions->GM_SetMissionValue(kind, value);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -6299,7 +6488,10 @@ void CUser::setPcRoomPlayTimeData(unsigned int startTime, unsigned int total,
 // ---------------------------------------------------------------------------
 void CUser::SetPuUser(bool flag)
 {
-    m_field796d8 = (char)(flag ? 1 : 0);
+    // ORIG 0x08692b58：`mov %al,-0x4; mov 0x8,%eax; movzbl -0x4,%edx; mov %dl,0x796d8(%eax)`
+    // bool=bool 直落形（probe7 B 实证；成员已 bool）
+    register CUser* self asm("eax") = this;   // ORIG 0x08692b58：this 载(0x8→%eax)先于 rhs movzbl
+    self->m_field796d8 = flag;
 }
 
 // ---------------------------------------------------------------------------
@@ -6417,8 +6609,9 @@ void CUser::setRecipeEqiupmentOption(Inven_Item& outItem, stEquipCondition cond,
 // ---------------------------------------------------------------------------
 void CUser::SetServerGroup(ENUM_SERVER_GROUP group)
 {
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x79630) =
-        static_cast<int>(group);
+    // 2026-09-04 §4.3：this+0x79630 → PostChecksumUserInfoBlock 具名字段
+    // ORIG 0x082300ac：enum=enum 同型赋值 this 先载（技巧5延伸·装载序定律）
+    m_postChecksumData.m_serverGroup = group;  // +0x79630（块+0xc）
 }
 
 // ---- body_F.cpp 续篇 A(与主文件按序拼接后编译)----
@@ -6430,13 +6623,12 @@ void CUser::SetServerGroup(ENUM_SERVER_GROUP group)
 // ---------------------------------------------------------------------------
 bool CUser::SetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo)
 {
-    char* base = reinterpret_cast<char*>(skill);
-    int   sp1   = *reinterpret_cast<int*>(base + 0x8);
-    char* bufA  = base + 0xc;
-    int   sp2   = *reinterpret_cast<int*>(base + 0x1a4);
-    char* bufB  = base + 0x1a8;
-    int   tail1 = *reinterpret_cast<int*>(base + 0x340);
-    int   tail2 = *reinterpret_cast<int*>(base + 0x344);   // ORIG 实参第 4（sfp2）
+    int   sp1   = skill->m_remainSpTree1;                   // +0x8
+    char* bufA  = reinterpret_cast<char*>(&skill->m_skillSlotTree1[0]);   // +0xc
+    int   sp2   = skill->m_remainSpTree2;                   // +0x1a4
+    char* bufB  = reinterpret_cast<char*>(&skill->m_skillSlotTree2[0]);   // +0x1a8
+    int   tail1 = skill->m_remainSfpTree1;                  // +0x340
+    int   tail2 = skill->m_remainSfpTree2;                  // +0x344（ORIG 实参第 4 = sfp2）
 
     if (getCurCharacR() == 0)
     {
@@ -6452,7 +6644,7 @@ bool CUser::SetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo)
     slot = (SkillSlot*)getCurCharacSkillW();
     slot->set_skill_slot(bufA, bufB, 0x198);
 
-    setSkillCommandData(base + 0x348);
+    setSkillCommandData(reinterpret_cast<char*>(&skill->m_commands[0]));  // +0x348
 
     slot = (SkillSlot*)getCurCharacSkillW();
     slot->SetLoadStrikerSkill(false);
@@ -6577,18 +6769,17 @@ int CUser::setTagCharacInfo(int idx, unsigned int characNo, TAG_CHARAC_DATA* dat
     if (m_characList[idx].m_characNo != characNo)
         return 0;
 
-    char* dst = reinterpret_cast<char*>(&m_characList[idx]);
-    char* src = reinterpret_cast<char*>(data);
+    // 2026-09-04 §4.3：dst 视图→_Charac_info 具名字段；src 侧→TAG_CHARAC_DATA
+    // 具名 wire 字段（SigTypes_C.h union 字段 by CUserMain）。
+    _Charac_info& ci = m_characList[idx];
 
-    *reinterpret_cast<unsigned int*>(dst) =
-        *reinterpret_cast<unsigned int*>(src);                       // no
-    strncpy(dst + 4, src + 4, 0x1d);                                 // name
-    dst[0x26]    = src[0x21];
-    *reinterpret_cast<unsigned short*>(dst + 0x27) =
-        *reinterpret_cast<unsigned short*>(src + 0x22);
-    dst[0x29]    = src[0x24];
-    dst[0x1239]  = src[0x25];
-    memcpy(dst + 0x88, src + 0x26, 0x52);
+    ci.m_characNo = data->m_characNo;                                 // wire +0x00
+    strncpy(ci.m_name, data->m_name, 0x1d);                           // wire +0x04
+    ci.m_field26 = data->m_field21;                                   // wire +0x21 → +0x26 job
+    ci.m_level = static_cast<short>(data->m_field22);                 // wire +0x22 → +0x27
+    ci.m_field29 = data->m_field24;                                   // wire +0x24 → +0x29
+    ci.m_field1239 = data->m_field25;                                 // wire +0x25 -> +0x1239
+    memcpy(&ci.m_field88, &data->m_add, 0x52);                          // _Additioal_info
     return 1;
 }
 
@@ -6708,12 +6899,15 @@ void CUser::StartRecvEventWaiting()
 {
     m_mcap.m_recvEventWaiting = false;                // CMCAPManager +0x18（CUser+0x8e408）
 
+    // ORIG 0x0867f1fe：`movl $0x1e,-0xc(%ebp)` 顶部落槽；uid/uidw 跨 call 直落 %esi/%ebx
+    // 为 4.1 regmove 专属（4.4 asm 绑定恒先归一 %eax 再 copy，实测+2 行）→ 具名槽形。
+    int delay = 0x1e;
     unsigned short uid  = static_cast<unsigned short>(get_unique_id());
     unsigned int   uidw = GetUID();
     G_TimerQueue()->InsertTimer(static_cast<TimerEntry::OBJ_TYPE>(2),
                                 uidw,
                                 static_cast<TIMER_MESSAGE>(0x67),
-                                0x1e, static_cast<int>(uid), 0u);
+                                delay, static_cast<int>(uid), 0u);
 }
 
 // ---------------------------------------------------------------------------
@@ -6807,9 +7001,11 @@ int CUser::update_record(GameResultType& result)
 // ---------------------------------------------------------------------------
 void CUser::updateBlueMarbleEnterCount()
 {
-    unsigned char count = getBlueMarbleEnterCount();     // CUserCharacInfo
-    unsigned int characNo = get_charac_no(-1);
-    DB_UpdateBlueMarbleEnterCount::makeRequest(characNo, count);
+    // ORIG 0x0869107e `movzbl %al,%ebx` 单段零扩展直落 callee-saved：4.4 恒两段
+    // （probe p6.h2/p7.h5），N18a 变体；uchar asm(ebx) 反产原地双截断（p7.h4），
+    // 保持具名局部最短残差形。
+    const unsigned char count = getBlueMarbleEnterCount();
+    DB_UpdateBlueMarbleEnterCount::makeRequest(get_charac_no(-1), count);
 }
 
 // ---------------------------------------------------------------------------
@@ -6819,8 +7015,9 @@ void CUser::UpdateBreakAwayDungeonClearCnt()
 {
     setBreakAwayDungeonClear(false);
 
-    Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1c01);
-    CStreamGuard guard(stream, true);
+    // ORIG 0x08652322：Acquire 结果免槽直落 ctor 实参（技巧37，同 _saveProper 案）；
+    // 具名 stream 槽 -0xc 使 guard 落 -0x14（ORIG -0x10）全域漂移。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1c01), true);
     guard.operator*()->operator<<(0x145);
     guard.operator*()->operator<<(GetUID());
     guard.operator*()->operator<<(get_acc_id());
@@ -6835,8 +7032,9 @@ void CUser::UpdateBreakAwayLuckPoint()
 {
     setUsedBreakAwayLuckPoint(false);
 
-    Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1bf2);
-    CStreamGuard guard(stream, true);
+    // ORIG 0x086521ec：Acquire 结果 %eax 跨步直落 guard ctor 实参（无 stream 槽，
+    // guard 独享 -0x10；具名 stream 反产 spill+槽号全体偏移）
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1bf2), true);
     guard.operator*()->operator<<(0x149);
     guard.operator*()->operator<<(GetUID());
     guard.operator*()->operator<<(get_acc_id());
@@ -6994,22 +7192,27 @@ void CUser::UpdateDimensionInout()
 // ---------------------------------------------------------------------------
 int CUser::UpdateEquipslotFlag(char flag)
 {
-    if (get_charac_level() <= 0x2c)
-        return 0;
-
-    if (flag == 0)
-    {
-        if (getCurEquipslotFlag() == 2)
-            return 2;
-        setCurEquipslotFlag(1);
-        return getCurEquipslotFlag();
+    // ORIG 0x0868aa6b：`cmp $0x2c,%eax; setg %al; test %al,%al; je ae3(mov$0尾岛)`
+    // ⇒ 技巧22 bool 绑 al 具名物化正向形
+    register bool hi asm("al");
+    hi = (get_charac_level() > 0x2c);
+    if (hi) {
+        if (flag == 0)
+        {
+            // ORIG 0x0868aa86：`cmp $0x2,%al` 字节宽比较 ⇒ 截断操作数
+            if ((unsigned char)getCurEquipslotFlag() == 2)
+                return 2;
+            setCurEquipslotFlag(1);
+            return getCurEquipslotFlag();
+        }
+        if (flag == 2)
+        {
+            setCurEquipslotFlag(2);
+            return getCurEquipslotFlag();
+        }
+        return 0x13;
     }
-    if (flag == 2)
-    {
-        setCurEquipslotFlag(2);
-        return getCurEquipslotFlag();
-    }
-    return 0x13;
+    return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -7052,15 +7255,17 @@ void CUser::use_equipment(int slot)
 
     PacketGuard packet;
     packet.put_header(1, 0x33);
-    if (result < 1)
-    {
-        packet.put_byte(1);
-        packet.put_byte(slot);
-    }
-    else
+    // ORIG 0x08?? cmpl $0,-0xc; jle <else> —— fall-through=「(0,result)」块在前（技巧17），
+    // 条件正向写 result>=1（<=0 跳 else 岛）
+    if (result >= 1)
     {
         packet.put_byte(0);
         packet.put_byte(result);
+    }
+    else
+    {
+        packet.put_byte(1);
+        packet.put_byte(slot);
     }
     packet.finalize(true);
     Send(packet);
@@ -7071,13 +7276,17 @@ void CUser::use_equipment(int slot)
 // ---------------------------------------------------------------------------
 void CUser::use_multibox_statistic(unsigned int itemIdx)
 {
+    // ORIG 0x086767d2：switch 线性下探 `mov param,%eax; cmp $K,%eax; je 体岛`×3，
+    // 体岛按 0x25($0 fall)/0x2e($1)/0x37($2) 排布 = case 升序书写（技巧34/P46，
+    // probe p5.g3 实证 4.4 逐条同形；此前 if-else-if 判 N18b 系误判）。
     int kind = 0;
-    if (itemIdx == 0x289749)
-        kind = 2;
-    else if (itemIdx == 0x28982d)
-        kind = 1;
-    else if (itemIdx != 0x380)
-        kind = 0;                                   // ORIG 默认亦 0(asm 语义)
+    switch (itemIdx)
+    {
+        case 0x380:    kind = 0; break;
+        case 0x28982d: kind = 1; break;
+        case 0x289749: kind = 2; break;
+        default: break;
+    }
 
     SendRandomBoxStatistic(kind, (ENUM_RANDOMBOX_ACTION_KIND)1);                // ORIG 第二参恒 1
 }
@@ -7251,10 +7460,16 @@ void CUser::use_multibox_statistic(unsigned int itemIdx)
 // ---------------------------------------------------------------------------
 unsigned int CUser::UseCeraPoint(unsigned int amount)
 {
-    if (m_ceraPoint < amount)
-        m_ceraPoint = 0;
-    else
+    // ORIG 0x08692b25：`cmp 0xc(%ebp),%eax; jb 8692b40` —— fall-through=减法块在前，
+    // 置零块为 jb 跳入的 else 岛（技巧17：源码首分支=fall 块）
+    if (m_ceraPoint >= amount)
+    {
         m_ceraPoint = m_ceraPoint - amount;
+    }
+    else
+    {
+        m_ceraPoint = 0;
+    }
     return m_ceraPoint;
 }
 
@@ -7580,15 +7795,17 @@ void CUser::verifyDoingQuest()
 {
     for (int i = 0; i <= 0x13; ++i)
     {
-        UserQuest* qr = getCurCharacQuestR();
-        int doingIdx = qr->m_quest[i];               // 类内 +0x7538
+        // ORIG 0x0868d156：doingIdx 槽 -0xc 先死初始化 0（4.1 具名局部）；
+        // 0x0868d163/0x0868d184：getCurCharacQuestR 每使用点各调一次（免 spill 槽，
+        // 技巧37）；0x0868d1a2/0x0868d1be：getCurCharacQuestW 同样两次独立调用。
+        int doingIdx = 0;
+        doingIdx = getCurCharacQuestR()->m_quest[i];         // 类内 +0x7538
         if (doingIdx == 0)
             continue;
-        if (qr->isClearQuest(doingIdx))
+        if (getCurCharacQuestR()->isClearQuest(doingIdx))
         {
-            UserQuest* qw = getCurCharacQuestW();
-            qw->m_quest[i]   = 0;
-            qw->m_trigger[i] = 0;                    // 类内 +0x7588
+            getCurCharacQuestW()->m_quest[i]   = 0;
+            getCurCharacQuestW()->m_trigger[i] = 0;          // 类内 +0x7588
         }
     }
 }
@@ -7728,12 +7945,12 @@ void CUser::init_skill_tree(ENUM_SKILL_TREE_KIND kind)
     // 反编译为两分支各 addSkillOnCreateCharacter((_Mastered_skill*)(skillW+{0x46|0x1de}), job)。
     if ((int)kind == -1 || (int)kind == 0)
     {
-        addSkillOnCreateCharacter((_Mastered_skill*)(getCurCharacSkillW() + 0x46),
+        addSkillOnCreateCharacter(reinterpret_cast<SkillSlot*>(getCurCharacSkillW())->m_skillSlot,
                                   get_charac_job());
     }
     else
     {
-        addSkillOnCreateCharacter((_Mastered_skill*)(getCurCharacSkillW() + 0x1de),
+        addSkillOnCreateCharacter(reinterpret_cast<SkillSlot*>(getCurCharacSkillW())->m_skillSlot2,
                                   get_charac_job());
     }
 
@@ -7827,7 +8044,7 @@ bool cSecuUserAction::IsSecurityStateOff()
 int CUser::InitOnAccept(int socketFd)
 {
     m_network.set_socket(socketFd, false);
-    m_chState = 1;
+    m_chState = (ch_state)1;   // 头侧 m_chState 已枚举化（ch_state），显式 cast
     m_winPointBuffer = 0;
     m_packetVerifier.Init();
     m_network.initNetworkBuffer();
@@ -7841,7 +8058,7 @@ int CUser::InitOnAccept(int socketFd)
     m_gameOption.m_breakAwayDungeonClearCnt = 0;       // +0x703ac
     m_gameOption.m_breakAwayAccureCera = 0;                             // +0x703b0（§8.3 字段化 m_pad64c→int）
     m_gameOption.m_breakAwayQuestTime = 0;             // +0x703b4
-    m_gameOption.m_breakAwayRewardOrder = 0;           // +0x703b8（int 宽写；CGameOption+0x654 具名化 by CU_D）
+    m_gameOption.m_breakAwayRewardOrder = ENUM_BREAK_AWAY_REWARD_ORDER_0;  // +0x703b8（movl $0 宽写）
 
     m_multiboxLotteryFailCnt = 0;                      // +0x703bc
     m_breakAway.clear();                               // STBreakAwayRewards::clear W 0x0831d454
@@ -7939,7 +8156,7 @@ int CUser::InitOnAccept(int socketFd)
     m_hackLogCheck.Init(this);                         // Secu_HackLogCheck::Init T 0x0827a7d0
     m_mcap.m_field546 = 0;                             // +0x8e936（short）
     m_mcap.m_lastLotteryTime = 0;                      // +0x8e938
-    m_mcap.m_pad554[0] = 0;                            // +0x8e944
+    m_mcap.m_loadingHackGold = false;                  // +0x8e944（bool 字段，ORIG movb $0x0 直写）
     m_piSender.m_nonClientFlag = 0;                    // +0x8eaf4
     m_piSender.m_nonClientRandInt = 0;                 // +0x8eaf8
     m_debugCommand = 0;                                // +0x8e090
@@ -8352,12 +8569,13 @@ L0866662f:
     }
 
 L08666751:
-    // 默认路径：查 CDataManager::m_field50cc 命中或 GetIncreaseStatus 描述
+    // 默认路径：查 CDataManager::m_field50cc 命中或 GetIncreaseStatus 描述。
+    // ORIG:每次使用都重新调用 G_CDataManager()（无缓存，4 个静态站点）。
     {
-        CDataManager* mgr = G_CDataManager();
-        if (itemIdx == (unsigned int)mgr->m_growthCapsule.m_capsuleId)
+        if (itemIdx == (unsigned int)G_CDataManager()->m_growthCapsule.m_capsuleId)
         {
-            CItem* itemA = mgr->find_item(mgr->m_growthCapsule.m_capsuleId);
+            CItem* itemA = G_CDataManager()->find_item(
+                G_CDataManager()->m_growthCapsule.m_capsuleId);
             if (itemA == 0)
             {
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x11, packet);
@@ -8389,7 +8607,7 @@ L08666751:
         }
         else
         {
-            CItem* itemB = mgr->find_item(itemIdx);
+            CItem* itemB = G_CDataManager()->find_item(itemIdx);
             if ((itemB != 0) && (itemB->GetIncreaseStatusType() != 0) &&
                 (itemB->GetIncreaseStatusType() == 1))
             {
@@ -8489,44 +8707,44 @@ L08666990:
     }
     case 2:                                                  // AddInfoRef +0x00（int）
     {
-        *(int*)((char*)getCurCharacAddInfoRefW()) += value;
+        reinterpret_cast<_Additioal_info*>(getCurCharacAddInfoRefW())->m_field00 += value;
         break;
     }
     case 3:                                                  // +0x04（int）
     {
-        *(int*)((char*)getCurCharacAddInfoRefW() + 4) += value;
+        reinterpret_cast<_Additioal_info*>(getCurCharacAddInfoRefW())->m_field04 += value;
         break;
     }
     case 4:                                                  // +0x08（short）
     {
-        *(short*)((char*)getCurCharacAddInfoRefW() + 8) += (short)value;
+        reinterpret_cast<_Additioal_info*>(getCurCharacAddInfoRefW())->m_field08 = static_cast<unsigned short>(reinterpret_cast<_Additioal_info*>(getCurCharacAddInfoRefW())->m_field08 + static_cast<short>(value));
         break;
     }
     case 5:                                                  // +0x0a
     {
-        *(short*)((char*)getCurCharacAddInfoRefW() + 10) += (short)value;
+        reinterpret_cast<_Additioal_info*>(getCurCharacAddInfoRefW())->m_field0a = static_cast<unsigned short>(reinterpret_cast<_Additioal_info*>(getCurCharacAddInfoRefW())->m_field0a + static_cast<short>(value));
         break;
     }
     case 6:                                                  // +0x0c
     {
-        *(short*)((char*)getCurCharacAddInfoRefW() + 12) += (short)value;
+        reinterpret_cast<_Additioal_info*>(getCurCharacAddInfoRefW())->m_field0c = static_cast<unsigned short>(reinterpret_cast<_Additioal_info*>(getCurCharacAddInfoRefW())->m_field0c + static_cast<short>(value));
         break;
     }
     case 7:                                                  // +0x0e
     {
-        *(short*)((char*)getCurCharacAddInfoRefW() + 14) += (short)value;
+        reinterpret_cast<_Additioal_info*>(getCurCharacAddInfoRefW())->m_field0e = static_cast<unsigned short>(reinterpret_cast<_Additioal_info*>(getCurCharacAddInfoRefW())->m_field0e + static_cast<short>(value));
         break;
     }
     case 8:                                                  // +0x42（int）
     {
-        *(int*)((char*)getCurCharacAddInfoRefW() + 0x42) += value;
+        reinterpret_cast<_Additioal_info*>(getCurCharacAddInfoRefW())->m_field42 += value;
         break;
     }
     case 9:                                                  // 四属性循环 (+8)*2
     {
         for (int i = 0; i < 4; ++i)
         {
-            *(short*)((char*)getCurCharacAddInfoRefW() + (i + 8) * 2) += (short)value;
+            reinterpret_cast<_Additioal_info*>(getCurCharacAddInfoRefW())->m_field10[i] = static_cast<unsigned short>(reinterpret_cast<_Additioal_info*>(getCurCharacAddInfoRefW())->m_field10[i] + static_cast<short>(value));
         }
         break;
     }
@@ -8534,17 +8752,18 @@ L08666990:
     case 0x18:                                               // 转职/成长洗点重建技能树
     {
         bool ok = false;
-        std::vector<std::pair<int,int> > giveVec;
         if (value == 1)
         {
             SkillSlot* skillSlot = (SkillSlot*)getCurCharacSkillW();
             skillSlot->clear_all_skills_both();
             skillSlot = (SkillSlot*)getCurCharacSkillW();
             skillSlot->set_parent(this);
-            addSkillOnCreateCharacter((_Mastered_skill*)(getCurCharacSkillW() + 0x46),
+            addSkillOnCreateCharacter(reinterpret_cast<SkillSlot*>(getCurCharacSkillW())->m_skillSlot,
                                       get_charac_job());
-            addSkillOnCreateCharacter((_Mastered_skill*)(getCurCharacSkillW() + 0x1de),
+            addSkillOnCreateCharacter(reinterpret_cast<SkillSlot*>(getCurCharacSkillW())->m_skillSlot2,
                                       get_charac_job());
+            std::vector<std::pair<int,int> > giveVec;
+            std::pair<int,int> pr;
             char secondGrow = getCurCharSecondGrowType();
             char firstGrow = getCurCharFirstGrowType();
             int job2 = get_charac_job();
@@ -8555,11 +8774,10 @@ L08666990:
                 for (unsigned int i = 0; i < giveVec.size(); ++i)
                 {
                     int j = get_charac_job();
-                    std::pair<int,int>& pr = giveVec[i];
+                    pr = giveVec[i];
                     ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, pr.second,
                                                                        (ENUM_SKILL_TREE_KIND)0);
                     j = get_charac_job();
-                    pr = giveVec[i];
                     ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, pr.second,
                                                                        (ENUM_SKILL_TREE_KIND)1);
                 }
@@ -8618,14 +8836,16 @@ L08666990:
                               (GetCurCharacSkillTreeIndex() == 0));
             if (firstTree)
             {
-                addSkillOnCreateCharacter((_Mastered_skill*)(getCurCharacSkillW() + 0x46),
+                addSkillOnCreateCharacter(reinterpret_cast<SkillSlot*>(getCurCharacSkillW())->m_skillSlot,
                                           get_charac_job());
             }
             else
             {
-                addSkillOnCreateCharacter((_Mastered_skill*)(getCurCharacSkillW() + 0x1de),
+                addSkillOnCreateCharacter(reinterpret_cast<SkillSlot*>(getCurCharacSkillW())->m_skillSlot2,
                                           get_charac_job());
             }
+            std::vector<std::pair<int,int> > giveVec;
+            std::pair<int,int> pr;
             char secondGrow = getCurCharSecondGrowType();
             char firstGrow = getCurCharFirstGrowType();
             int job2 = get_charac_job();
@@ -8638,7 +8858,7 @@ L08666990:
                     ENUM_SKILL_TREE_KIND kindI =
                         (ENUM_SKILL_TREE_KIND)GetCurCharacSkillTreeIndex();
                     int j = get_charac_job();
-                    std::pair<int,int>& pr = giveVec[i];
+                    pr = giveVec[i];
                     ((SkillSlot*)getCurCharacSkillW())->growtype_skill(j, pr.first, pr.second, kindI);
                 }
                 STExpertJobScript* expert = (STExpertJobScript*)
@@ -8719,7 +8939,8 @@ L08666990:
     case 0x0f:                                               // fatigue 扣减（+0xd55）
     {
         int remain = (int)(getCurCharacFatigue() & 0xffff) - (int)value;
-        if (remain < 0) remain = 0;                          // ORIG max(int) 内联形态
+        // ORIG:显式 std::max<int>(remain, 0) 调用（_ZSt3maxIiERKT_S2_S2_ 0x8668143）。
+        remain = std::max(remain, 0);
         setCurCharacFatigue(remain);
         SendFatigue();
         break;
@@ -8754,11 +8975,16 @@ L08666990:
     }
     case 0x12:                                               // SFP 技能树重建（+0xf12 区）
     {
-        int initKind = ((GetCurCharacSkillTreeIndex() == -1) ||
-                        (GetCurCharacSkillTreeIndex() == 0)) ? 3 : 4;
         ((SkillSlot*)getCurCharacSkillW())->clear_sfp_skills(
             (char)get_charac_job(),
-            (ENUM_SKILL_TREE_KIND)((GetCurCharacSkillTreeIndex() == -1) ? 0 : 0));
+            (ENUM_SKILL_TREE_KIND)GetCurCharacSkillTreeIndex());
+        ((SkillSlot*)getCurCharacSkillW())->set_parent(this);
+        // ORIG:initKind 判定重新调用两次（不缓存 treeKind）。
+        int initKind =
+            ((GetCurCharacSkillTreeIndex() == (ENUM_SKILL_TREE_KIND)-1) ||
+             (GetCurCharacSkillTreeIndex() == (ENUM_SKILL_TREE_KIND)0))
+                ? 3
+                : 4;
         WongWork::CSkillChanger changer;
         changer.SkillInitialize(this, initKind, false);
         send_skill_info();
@@ -8860,11 +9086,15 @@ L08666990:
     }
     case 0x17:                                               // one day lethe（+0x1800）
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x4c0a, 0);
-        trace("ONE_DAY_LETHE : BUY_SKILL_CONFIRM_TICKET, char(%s), char_no(%d), style(%d)",
-              getCurCharacName(), getCurCharacNo(), GetCurCharacSkillTreeIndex());
         CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
-        if (lethe != 0) lethe->ConfirmSkillReq(this);
+        // ORIG:单表达式链(实参 treeIdx/charNo/name 先于 cMyTrace 构造求值)。
+        cMyTrace(__PRETTY_FUNCTION__, 0x4c0a, 0)(
+            "ONE_DAY_LETHE : BUY_SKILL_CONFIRM_TICKET, char(%s), char_no(%d), style(%d)",
+            getCurCharacName(), getCurCharacNo(), GetCurCharacSkillTreeIndex());
+        if (lethe != 0)
+        {
+            lethe->ConfirmSkillReq(this);
+        }
         break;
     }
     default:
@@ -8872,7 +9102,7 @@ L08666990:
     case 0x19:                                               // avatar coin（+0x13e1）
     {
         AvatarCoin* avatarCoin =
-            (AvatarCoin*)((char*)getCurCharacInvenW() + 0x658);   // CInventory::m_avatarCoin
+            &reinterpret_cast<CInventory*>(getCurCharacInvenW())->m_avatarCoin;  // +0x658
         avatarCoin->Add(value);
         AvatarCoin::SaveToDB(this);
         AvatarCoin::SendSyncPacket(this);
@@ -8942,9 +9172,11 @@ bool CUser::IsWaitingStateCharac(unsigned int mercSlot)
 void* CUser::GetUserSecretShop()
 {
     CParty* party = static_cast<CParty*>(GetParty());
-    if (party == 0)
-        return 0;
-    return party->GetUserSecretShop(this);
+    // ORIG 0x086885e8-0x08688607：`cmpl $0; je 8602(mov$0 尾岛)`；body call 后 `jmp 8607`。
+    // = 正向 `if (p) return f();` + 尾 `return 0;`（fall-through=then 在前，技巧17）
+    if (party != 0)
+        return party->GetUserSecretShop(this);
+    return 0;
 }
 
 int CUser::getQuestPoint()
@@ -8958,7 +9190,11 @@ int CUser::getQuestPoint()
 
 bool CUser::IsState(ch_state state) const
 {
-    return m_chState == state;
+    // ORIG 0x08?? IsState：`mov 0x8cfc4(%eax),%eax; mov %eax,%edx; mov 0xc(%ebp),%eax;
+    // cmp %eax,%edx; sete %al` 双 mov+固定寄存器形（probe15 f1 实证复现；直比恒折 N18b/N18a）
+    register int cur asm("edx") = m_chState;
+    register int v asm("eax") = (int)state;
+    return cur == v;
 }
 
 unsigned char CUser::GetChangedGiftFatigueQuantity() const
@@ -8971,7 +9207,7 @@ unsigned char CUser::GetReceivedRequestType() const
     return m_receivedRequestType;
 }
 
-unsigned char CUser::getPcRoomAuth() const
+bool CUser::getPcRoomAuth() const   // 0x0863be54 W；调用点 xor $0x1 ⇒ bool（Main 代落 CUser.h 同步）
 {
     return m_pcRoomAuth;
 }
@@ -8988,7 +9224,10 @@ unsigned short CUser::GetSlotIDX() const
 
 void CUser::SetAge(unsigned int age)
 {
-    m_clientSpec.m_age = static_cast<int>(age);
+    // ORIG 0x0823xxxx: mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx; mov %edx,0x711e0(%eax)
+    // ORIG SetAge：`mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx; mov %edx,0x711e0(%eax)` this 先。
+    // 直接赋值（uint=uint 同型）由 Main 落 CUser.h m_age→unsigned int 后复现（勿加 cast）
+    m_clientSpec.m_age = age;
 }
 
 void CUser::SetCurCharacUsedGiftFatigueQuantity(unsigned int quantity)
@@ -8998,6 +9237,8 @@ void CUser::SetCurCharacUsedGiftFatigueQuantity(unsigned int quantity)
         m_field8ebac = static_cast<int>(quantity);
         SetChangedGiftFatigueQuantity(true);
     }
+    // ORIG 0x084ed081 call 后 jmp merge + 0x084ed083 nop 尾岛（技巧7：return 置 if 块后、函数尾）
+    return;
 }
 
 int CUser::getAddQuestItemDropRateFromPremium(ENUM_PREMIUM_TYPE type)
@@ -9007,23 +9248,32 @@ int CUser::getAddQuestItemDropRateFromPremium(ENUM_PREMIUM_TYPE type)
 
 void CUser::setCharacLinkBonusSetting(int slot, bool flag)
 {
-    if (slot >= 0 && slot < static_cast<int>(m_characList.size()))
-    {
-        m_characList[slot].m_linkBonusSetting = flag;
-        m_characterView.enableSaveCharacView();
-    }
+    // ORIG 0x084ecdc8 call get_charac_count；0x084ecdd0 `jle mov$1岛`、0x084ecdd6 `jns mov$0岛`
+    // = 短路 `count <= slot || slot < 0` 物化 bool；0x084ecde6 `test %al,%al; jne END`
+    // = 技巧24 goto 落点岛（END=nop;leave，body 末 call 后 `jmp`）。
+    if ((get_charac_count() <= slot) || (slot < 0))
+        goto SKIP_SET;
+    m_characList[slot].m_linkBonusSetting = flag;
+    m_characterView.enableSaveCharacView();
+SKIP_SET:;
 }
 
-bool CUser::isCharacLinkBonusSetting(char slot)
+int CUser::isCharacLinkBonusSetting(char slot)   // CUser.h 已落 int（ORIG movzbl 直返）
 {
-    if (slot < 0 || slot >= static_cast<char>(m_characList.size()))
-        return false;
+    // ORIG 0x084ecd52（getLinkCharacNo 同族）：`movsbl -0xc,%ebx` 跨 get_charac_count
+    // 存活 + `cmp %eax,%ebx; jge`/`cmpb $0,-0xc; jns` → mov$1/$0 物化 + `test%al;
+    // je body`；尾 `movzbl 0x124f(%eax),%eax; ret` 直返无 setne ⇒ 原返回 int
+    // （CUser.h 已 Main 落 bool→int，技巧33/P9）。
+    register int idx asm("ebx") = static_cast<int>(slot);
+    if ((idx >= get_charac_count()) || (slot < 0))
+        return 0;
     return m_characList[static_cast<int>(slot)].m_linkBonusSetting;
 }
 
 void CUser::setBreakAwayRewardData(bool flag)
 {
-    m_breakAwayRewardData = flag ? 1 : 0;
+    // ORIG 0x0831d50c：与 SetPuUser 同形 bool=bool 直落（成员已 bool）
+    m_breakAwayRewardData = flag;
 }
 
 void CUser::setAdvanceAltarIndex(short index)
@@ -9033,7 +9283,12 @@ void CUser::setAdvanceAltarIndex(short index)
 
 int CUser::getLinkCharacNo(char index)
 {
-    if (index < 0 || index >= static_cast<char>(m_characList.size()))
+    // ORIG 0x0869736e：`movsbl -0xc,%ebx` idx 跨 get_charac_count 存活（技巧22），
+    // `cmp %eax,%ebx; jge`/`cmpb $0,-0xc; jns` → mov$1/$0 物化 `test%al; je body`
+    // （bad = count<=idx || idx<0，setCharacLinkBonusSetting 同族实证形）；body 内
+    // `movsbl -0xc(%ebp),%eax` 从槽重读 index（P48，不用 ebx）。
+    register int idx asm("ebx") = static_cast<int>(index);
+    if ((idx >= get_charac_count()) || (index < 0))
         return 0;
     return m_characList[static_cast<int>(index)].m_characNo;
 }
@@ -9060,11 +9315,9 @@ public:
 
 int CBingo::initUserData(BingoData& data)
 {
-    // initUserData.md：calBoradMatchLine(*((int*)&data)) 结果写 data+0x04（char 截断），
-    // 返回 1。
-    *reinterpret_cast<char*>(reinterpret_cast<char*>(&data) + 0x04) =
-        static_cast<char>(calBoradMatchLine(
-            *reinterpret_cast<int*>(reinterpret_cast<void*>(&data))));
+    // ORIG 0x080cadd4：实参 `mov (%eax),%eax`（m_eventId 4B）；call 结果 `mov %eax,%edx;
+    // mov 0xc(%ebp),%eax; mov %dl,0x4(%eax)` 重载 &data 字节直落 m_pad4；返回 1
+    data.m_pad4 = static_cast<char>(calBoradMatchLine(data.m_eventId));
     return 1;
 }
 
@@ -9088,14 +9341,19 @@ void CUser::SetBirth(const char* birth)
     // SetBirth.md @0x0867ecf0：strncpy 局部 2 字节缓冲后 atoi；
     // 低字节写 m_clientSpec.m_birthMonth(+0x8ebe→全址0x711d5)、
     // m_clientSpec.m_birthDay(全址 0x711d4)。
-    char digits[3];
-    digits[0] = '\0';
-    memcpy(digits, birth + 2, 2);
-    digits[2] = '\0';
-    m_clientSpec.m_birthMonth = static_cast<char>(atoi(digits));
-    memcpy(digits, birth + 4, 2);
-    digits[2] = '\0';
-    m_clientSpec.m_birthDay = static_cast<char>(atoi(digits));
+    // ORIG 0x0867ecf0：入口 `movw $0x0,-0xb(%ebp); movb $0x0,-0x9(%ebp)` 2B+1B 拆分零写
+    // （4.1 对 3B 零初始化做 subword store，奇址 -0xb 直落）；memcpy 只覆 [0..1]，尾 0 保持
+    // ⇒ 显式 digits[2]='\0' 不存在于 ORIG。4.4 packed struct 复现奇址 HImode store。
+    struct __attribute__((packed)) Digits3 {
+        short w;
+        char b2;
+    } digits;
+    digits.w = 0;
+    digits.b2 = 0;
+    memcpy(&digits, birth + 2, 2);
+    m_clientSpec.m_birthMonth = static_cast<char>(atoi(reinterpret_cast<char*>(&digits)));
+    memcpy(&digits, birth + 4, 2);
+    m_clientSpec.m_birthDay = static_cast<char>(atoi(reinterpret_cast<char*>(&digits)));
 }
 
 void CUser::SetCharacMercenaryInfo(int count, CHARAC_LOAD_MERCENARY* infos)
@@ -9113,9 +9371,11 @@ void CUser::setCharacSlotCountInfo(unsigned char effectCnt, unsigned char limit)
     // setCharacSlotCountInfo.md @0x0868b480：零参回退默认值分支。
     if (effectCnt == 0 || limit == 0)
     {
-        const int def = getCharacSlotCountDefaultInfo();
-        setSlotEffectCount(static_cast<unsigned char>(def));
-        setCharacSlotLimit(static_cast<unsigned char>(def));
+        // ORIG 0x0868b480+0x??：call 后 `mov %al,-0x9(%ebp)`（1B 槽=uchar 型截断直存）、
+        // 两处实参 `movzbl -0x9(%ebp),%eax` ⇒ def 声明 uchar 非 int
+        const unsigned char def = static_cast<unsigned char>(getCharacSlotCountDefaultInfo());
+        setSlotEffectCount(def);
+        setCharacSlotLimit(def);
     }
     else
     {
@@ -9126,20 +9386,30 @@ void CUser::setCharacSlotCountInfo(unsigned char effectCnt, unsigned char limit)
 
 int CUser::getCharacSlotCountDefaultInfo()
 {
-    // getCharacSlotCountDefaultInfo.md @0x0868b4fc：
-    //   G_CEnvironment()+0x1a8 ==1→1 / ==2→3；
-    //   否则 G_CEnvironment()+0x378 ==5||==0xb→0x18，其余→0x11。
-    // 【推断字段注记】CEnvironment 两处环境槽位未在权威头建模（0x1a8/0x378），
-    // 按 §4.3 例外保留地址形式访问。
-    char* env = reinterpret_cast<char*>(G_CEnvironment());
-    int v = *reinterpret_cast<int*>(env + 0x1a8);
-    if (v == 1)
-        return 1;
-    if (v == 2)
-        return 3;
-    v = *reinterpret_cast<int*>(env + 0x378);
-    if (v == 5 || v == 0xb)
-        return 0x18;
+    // getCharacSlotCountDefaultInfo.md @0x0868b4fc：+0x1a8=env.m_serverEnvir.m_serverType
+    // （1→1 / 2→3），else 区 P48 重新 call G_CEnvironment() 读 +0x378=m_serverGroup
+    // （5/0xb→0x18，其余→0x11）。ORIG `mov 0x1a8(%eax),%eax` 单 disp 直读+免 env 槽
+    // ⇒ 真实成员视图表达式（技巧37/P1）；4.1 switch 下探 `cmp $1 je; cmp $2 je; jmp`
+    // （技巧34）；第二 switch 体岛序 0xb@+0x40 fall 在前、5@+0x47 → case 11 书写在前
+    // （P46 叶块序=case 序）。
+    switch (G_CEnvironment()->m_serverEnvir.m_serverType)
+    {
+        case 1:
+            return 1;
+        case 2:
+            return 3;
+        default:
+            break;
+    }
+    switch (G_CEnvironment()->m_serverEnvir.m_serverGroup)
+    {
+        case 11:
+            return 0x18;
+        case 5:
+            return 0x18;
+        default:
+            break;
+    }
     return 0x11;
 }
 
@@ -9237,12 +9507,16 @@ void CUser::sendReturnUserFirstLogin()
 {
     // sendReturnUserFirstLogin.md @0x0868a9a4：IsReturnUser && IsReturnUserFirstLogin
     // 双门槛后发 noti 0x1bc 空载荷包。
-    if (!IsReturnUser() || !IsReturnUserFirstLogin())
-        return;
+    // ORIG 0x0868a9b7：`test;je 9d1 / test;je 9d1 / mov $1;jmp;9d1:mov $0; 9d6:test %al,%al;je`
+    // ⇒ && 短路物化到 %al（无栈槽），再判定；register asm(eax) 防槽
+    register bool ok asm("eax");
+    ok = IsReturnUser() && IsReturnUserFirstLogin();
+    if (ok) {
     PacketGuard packet;
     packet.put_header(0, 0x1bc);
     packet.finalize(true);
     Send(packet);
+    }
 }
 
 void CUser::set_acc_info(unsigned int accId, const char* accName)
@@ -9250,11 +9524,15 @@ void CUser::set_acc_info(unsigned int accId, const char* accName)
     // set_acc_info.md @0x8649bfc：m_accId(+0x704ac)=accId；
     // strncpy(m_accName(+0x704b0), name, 0x14)；min(strlen,0x14) 处补 '\0'。
     m_accId = accId;
+    // ORIG 0x08649c0e-0x08649c37：`movl $0x14,-0x14`（先于 strlen 写）+ len 占更近槽
+    // -0x10、std::min<int> call + `mov (%eax),%eax` 解引用落 -0xc、strncpy 在 min 之后。
+    // 4.4 槽按声明序（len 先声明占近槽）而写值序按语句位置（技巧13），故分离声明。
+    int len;
+    int maxLen = 0x14;
+    len = strlen(accName);
+    int term = std::min<int>(len, maxLen);
     strncpy(m_accName, accName, 0x14);
-    size_t len = strlen(accName);
-    if (len > 0x14)
-        len = 0x14;
-    m_accName[len] = '\0';
+    m_accName[term] = '\0';
 }
 
 void CUser::set_fatigue_count_db(int type, int value)
@@ -9357,8 +9635,8 @@ void CUser::initBingoData()
 // ---------------------------------------------------------------------------
 void CUser::setBreakAwayRewardOrder(ENUM_BREAK_AWAY_REWARD_ORDER order)
 {
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x703b8) =
-        static_cast<int>(order);
+    // ORIG 0x0831d4de：enum=enum 同型赋值 this 先载（CGameOption.h 字段已具型）
+    m_gameOption.m_breakAwayRewardOrder = order;
 }
 
 // ============================================================================
@@ -9412,6 +9690,7 @@ void CUser::SendItemMakingSkillInfo()
     if (skill != 0) {
         skill->Send_ItemMakingSkillList(this);
     }
+    return;
 }
 
 // ---------------------------------------------------------------------------
@@ -9422,10 +9701,11 @@ void CUser::SendItemMakingSkillInfo()
 // ---------------------------------------------------------------------------
 void CUser::sendBingoAddData()
 {
-    CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x6a);
-    if (event->IsEventing(0)) {
-        BingoData* data = static_cast<BingoData*>(getBingoData());
-        if (data->m_isWin) {
+    // ORIG 0x0869148b/0x086914ae：GetRepeatEvent 与 getBingoData 结果均免槽直用
+    // （`mov (%eax),%edx;...; mov %eax,(%esp); call *%edx` / `movzbl 0x5(%eax),%eax`，
+    // 技巧37）；具名 event/data 指针各 spill 一槽收紧帧 0x18→0x28。
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x6a)->IsEventing(0)) {
+        if (static_cast<BingoData*>(getBingoData())->m_isWin) {
             sendDecorationObjectCnt(1);
         }
     }
@@ -9441,8 +9721,13 @@ void CUser::sendBingoAddData()
 void CUser::SetGuildInfoProxy(STGuildProxy& proxy)
 {
     m_guildDB.m_fundLevel = proxy.m_level;
+    // ORIG 0x0865cd20：4.1 右→左实参求值（src 先算）+ dst `add` 覆写形——4.4 恒左→右+lea 折叠，
+    // register asm 反产拷贝链（本轮实证）；残差 N18 类。
     memcpy(&m_guildDB, &proxy, 0x16);
-    m_guildDB.m_field95 = static_cast<char>(proxy.m_powerSide);
+    // ORIG 0x0865cd43：`mov 0xc(%ebp),%eax; movzbl 0x18(%eax),%edx; mov 0x8(%ebp),%eax;
+    // mov %dl,0x8d0b5(%eax)`——uchar=uchar 同型单步零扩展直落（技巧5；Main 已落
+    // CUser.h:1307 m_field95 char→uchar，同宽 sizeof/偏移不变）。
+    m_guildDB.m_field95 = proxy.m_powerSide;
 }
 
 // ---------------------------------------------------------------------------
@@ -9462,7 +9747,8 @@ bool CUser::checkCharacLinkType(char linkPos, int slot)
         if (static_cast<int>(linkPos) + 1 >= slot) {
             return false;
         }
-        if ((linkPos & 1) != 0) {
+        // ORIG 0x08??：movzbl -0x1c(%ebp)（无符号读槽）+ test %al → 须 uchar 化操作数
+        if ((static_cast<unsigned char>(linkPos) & 1) != 0) {
             return false;
         }
         if (m_characList[linkPos + 1].m_characLinkType != 3) {
@@ -9473,7 +9759,7 @@ bool CUser::checkCharacLinkType(char linkPos, int slot)
         if (static_cast<int>(linkPos) - 1 < 0) {
             return false;
         }
-        if ((linkPos & 1) == 0) {
+        if ((static_cast<unsigned char>(linkPos) & 1) == 0) {
             return false;
         }
         if (m_characList[linkPos - 1].m_characLinkType != 2) {
@@ -9497,9 +9783,10 @@ void CUser::SendDungeonClearList()
 {
     PacketGuard packet;
     packet.put_header(0, 5);
-    const WongWork::CDungeonClear* clear = getDungeonClearRefR();
-    packet.put_short(static_cast<int>(clear->getDungeonClearSize()));
-    clear->enumDungeonClear(this, ::fnEnumDungeonClear, &packet);
+    // ORIG 0x086781e2/0x0867820a：getDungeonClearRefR 调 2 次、结果 %eax 免槽直用
+    // （技巧37；具名指针中转变量会给 4.4 多 1 个 spill 槽并平移 packet 槽）
+    packet.put_short(static_cast<int>(getDungeonClearRefR()->getDungeonClearSize()));
+    getDungeonClearRefR()->enumDungeonClear(this, ::fnEnumDungeonClear, &packet);
     packet.finalize(true);
     Send(packet);
 }
@@ -9512,13 +9799,20 @@ void CUser::SendDungeonClearList()
 // ---------------------------------------------------------------------------
 void CUser::SendEventBringUpInfo()
 {
-    if (getCurCharacNo() != 0) {
+    // ORIG 0x0868997b-0x08689982：`test %eax,%eax; sete %al; test %al,%al; jne END`——
+    // ==0 物化形（技巧9 (bool)(intcall()==K)）；body 尾 Send 后 `jmp dtor`（EH pad 占 fall，
+    // 技巧12 PacketGuard 显式块）
+    if (static_cast<bool>(getCurCharacNo() == 0)) {
+        return;
+    }
+    {
         PacketGuard packet;
         packet.put_header(0, 0x196);
         packet.put_byte(static_cast<int>(getCurUseBringUpMaterialTotal()));
         packet.finalize(true);
         Send(packet);
     }
+    return;
 }
 
 // ---------------------------------------------------------------------------
@@ -9531,9 +9825,9 @@ void CUser::SendTagCharacInfo()
 {
     const _Charac_info* tagR = getTagCharacR();
     if (tagR != 0) {
-        if (static_cast<unsigned char>(tagR->m_pad14bc[0]) != 1) {
+        if (static_cast<unsigned char>(tagR->m_field14BC) != 1) {
             _Charac_info* tagW = getTagCharacW();
-            tagW->m_pad14bc[0] = 1;
+            tagW->m_field14BC = 1;
         }
         PacketGuard packet;
         packet.clear();
@@ -9552,8 +9846,8 @@ void CUser::requestCubePremiumInfoIfContracted()
 {
     if (getCurCharacR() == 0)
         return;
-    if (!isAffectedPremium((ENUM_PREMIUM_TYPE)0x5c))
-        return;
+    // ORIG 0x086467ee：`test %al,%al; je <T>` 无 xor ⇒ 正向 bool 直落形
+    if (isAffectedPremium((ENUM_PREMIUM_TYPE)0x5c)) {
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("user.cpp", 0x475), true);
     guard.operator*()->operator<<(0x332);
@@ -9562,6 +9856,7 @@ void CUser::requestCubePremiumInfoIfContracted()
         guard->GetInBuffer<SIG_GET_PREMIUM_SELECTED_CUBE_INFO>();
     sig->m_characNo = static_cast<unsigned int>(getCurCharacR()->m_characNo);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    }
 }
  // ---------------------------------------------------------------------------
 // CUser::setCharacSlotLimit(unsigned char limit) W 0x0869755c sz0x1b
@@ -9648,22 +9943,22 @@ int CUser::setTagCharacInven(TAG_CHARAC_INVEN_DATA* data)
     Inven_Item* invenRaw = getTagCharacInvenW();
     memcpy(reinterpret_cast<char*>(invenRaw) + 0x1c, data, 0x53e);
     CInventory* inven = reinterpret_cast<CInventory*>(invenRaw);
-    inven->SetClearAvatar(reinterpret_cast<unsigned long*>((char*)data + 0x3ff8));
-    for (int i = 0; i < *reinterpret_cast<int*>((char*)data + 0x1e43); ++i) {
+    inven->SetClearAvatar(reinterpret_cast<unsigned long*>(data->m_pad1e43 + 0x21b5));  // +0x3ff8（布局未建模区）
+    for (int i = 0; i < *reinterpret_cast<int*>(data->m_pad1e43); ++i) {  // +0x1e43 count（未建模）
         int invenSlot = 0;
-        if (*reinterpret_cast<int*>((char*)data + i * 0x4b + 0x1e6c) != 0) {
+        if (*reinterpret_cast<int*>(data->m_pad1e43 + 0x29 + i * 0x4b) != 0) {  // +0x1e6c（未建模）
             invenSlot = GetItemIdByAddInfo(
-                reinterpret_cast<Inven_Item*>((char*)data + 0x53e), 0x69,
-                *reinterpret_cast<int*>((char*)data + i * 0x4b + 0x1e6c));
+                &data->m_items2[0], 0x69,
+                *reinterpret_cast<int*>(data->m_pad1e43 + 0x29 + i * 0x4b));
             for (int j = 0; j < 10; ++j) {
-                if (*reinterpret_cast<int*>((char*)data + j * 0x3d + 7) ==
-                    *reinterpret_cast<int*>((char*)data + i * 0x4b + 0x1e47)) {
+                if (data->m_items[j].m_addInfo2 ==
+                    *reinterpret_cast<int*>(data->m_pad1e43 + 4 + i * 0x4b)) {  // +0x1e47（未建模）
                     inven->SetClearAvatar(j, invenSlot);
                 }
             }
         }
     }
-    int capacity = *reinterpret_cast<int*>((char*)data + 0x4020);
+    int capacity = *reinterpret_cast<int*>(data->m_pad1e43 + 0x21dd);  // +0x4020（未建模）
     if (capacity == 0) {
         getTagCharacCargoW()->SetCapacity(8);
     }
@@ -9933,13 +10228,13 @@ void CUser::SendMail(bool certified)
                 SIG_FIND_FACTORY_HUB* sig =
                     guard->GetInBuffer<SIG_FIND_FACTORY_HUB>();
                 memset(sig, 0, 0x24);
-                *reinterpret_cast<unsigned int*>(sig->m_pad) = get_acc_id();
-                strncpy(sig->m_pad + 4, m_pad8e101 + 0x11,
+                sig->m_mId = get_acc_id();
+                strncpy(sig->m_characName, m_pad8e101 + 0x11,
                         *reinterpret_cast<unsigned int*>(m_pad8e101 + 0xd));  // +0x8e10e
-                sig->m_pad[0x21] = 0;
+                sig->m_field21 = 0;
                 int r = get_rand_int(0x14);
                 if (r + 0x78 <= static_cast<int>(usedFatigue)) {
-                    sig->m_pad[0x21] = 1;
+                    sig->m_field21 = 1;
                 }
                 GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
             }
@@ -9994,15 +10289,15 @@ int CUser::CreateCharac(SIG_CREATE_CHARAC* sig)
     info.m_field35 = static_cast<unsigned short>(DEFAULT_MAX_FATIGUE);
     info.m_field37 = 0;
     info.m_field4f = 0;
-    info.m_pad83[0] = 0;                                       // +0x83
-    *reinterpret_cast<int*>(&info.m_pad83[1]) = 0;             // +0x84（随后被 0x52 覆盖）
+    info.m_pad83 = 0;                                       // +0x83
+    info.m_field84 = 0;             // +0x84（随后被 0x52 覆盖）
     char job = static_cast<char>(sig->m_slot);
     memcpy(reinterpret_cast<char*>(&info) + 0x84,
            *reinterpret_cast<char**>(reinterpret_cast<char*>(G_CDataManager()) + 0x14)
                + job * 0x7dc, 0x52);
     info.m_resetDwordDf4 = 0;
     info.m_resetDwordDf8 = 0;
-    info.m_pade85[0xa] = 0;                                    // +0xe8f
+    info.m_dataE8D[2] = 0;                                    // +0xe8f
     info.m_field1239 = 0xff;
     info.m_pad1240 = static_cast<char>(sig->m_eventCharacFlag != 0);
     char invenBuf[0xcd0];
@@ -10222,155 +10517,153 @@ bool CUser::setCharacInfoDetail(int slot, unsigned int characNo, CHARAC_DATA* sr
     if (m_characList[slot].m_characNo != static_cast<int>(characNo)) {
         return false;
     }
-    const char* s = reinterpret_cast<const char*>(src);
-    char* dst = reinterpret_cast<char*>(&m_characList[slot]);
-    *reinterpret_cast<int*>(dst) = *reinterpret_cast<const int*>(s);   // characNo
+    // 2026-09-04 §4.3：s 字节视图→CHARAC_DATA 具名字段（SigTypes_C.h union 字段 by CUserMain）
+    m_characList[slot].m_characNo = src->m_characNo;
     if (G_GameWorld()->GetChannelType() != 7) {
-        strncpy(m_characList[slot].m_name, s + 4, 0x1e);
+        strncpy(m_characList[slot].m_name, src->m_name, 0x1e);
     }
-    m_characList[slot].m_field22 = s[0x22];                // growType
-    if (s[0x22] == 7) {                                    // 学徒 → 固定节点
+    m_characList[slot].m_field22 = src->m_field22;                        // growType
+    if (src->m_field22 == 7) {                                    // 学徒 → 固定节点
         m_characList[slot].m_field22 = 2;
         m_characList[slot].m_field24 = 7;
     }
-    if (s[0x22] == 8) {                                    // 二段成长互换
-        char tmp = s[0x22];
-        m_characList[slot].m_field22 = s[0x23];
-        m_characList[slot].m_field25 = tmp;
+    if (src->m_field22 == 8) {                                    // 二段成长互换
+        unsigned char tmp = src->m_field22;
+        m_characList[slot].m_field22 = src->m_field23;
+        m_characList[slot].m_field25 = static_cast<unsigned char>(tmp);
     }
-    if (s[0x22] == 0xc || s[0x22] == 0xd) {
+    if (src->m_field22 == 0xc || src->m_field22 == 0xd) {
         m_characList[slot].m_field22 = 0xb;
     }
     m_characList[slot].m_field23 = 2;
-    m_characList[slot].m_field26 = s[0x24];                // job
-    *reinterpret_cast<short*>(dst + 0x27) = *reinterpret_cast<const short*>(s + 0x25);
-    *reinterpret_cast<int*>(dst + 0x2b) = *reinterpret_cast<const int*>(s + 0x28);
-    dst[0x29] = s[0x27];
-    dst[0x75] = s[0xb2];                                   // stamina
-    *reinterpret_cast<unsigned int*>(dst + 0x88) = *reinterpret_cast<const unsigned int*>(s + 0x60);
-    *reinterpret_cast<unsigned int*>(dst + 0x8c) = *reinterpret_cast<const unsigned int*>(s + 100);
-    *reinterpret_cast<unsigned short*>(dst + 0x90) = *reinterpret_cast<const unsigned short*>(s + 0x68);
-    *reinterpret_cast<unsigned short*>(dst + 0x92) = *reinterpret_cast<const unsigned short*>(s + 0x6a);
-    *reinterpret_cast<unsigned short*>(dst + 0x94) = *reinterpret_cast<const unsigned short*>(s + 0x6c);
-    *reinterpret_cast<unsigned short*>(dst + 0x96) = *reinterpret_cast<const unsigned short*>(s + 0x6e);
-    memcpy(dst + 0x98, s + 0x70, 8);
-    memcpy(dst + 0xa0, s + 0x78, 0x22);
-    *reinterpret_cast<unsigned int*>(dst + 0xc2) = *reinterpret_cast<const unsigned int*>(s + 0x9a);
-    *reinterpret_cast<unsigned short*>(dst + 0xc6) = *reinterpret_cast<const unsigned short*>(s + 0x9e);
-    *reinterpret_cast<unsigned short*>(dst + 200) = *reinterpret_cast<const unsigned short*>(s + 0xa0);
-    *reinterpret_cast<unsigned int*>(dst + 0xca) = *reinterpret_cast<const unsigned int*>(s + 0xa2);
-    *reinterpret_cast<unsigned short*>(dst + 0xce) = *reinterpret_cast<const unsigned short*>(s + 0xa6);
-    *reinterpret_cast<unsigned short*>(dst + 0xd0) = *reinterpret_cast<const unsigned short*>(s + 0xa8);
-    *reinterpret_cast<unsigned short*>(dst + 0xd2) = *reinterpret_cast<const unsigned short*>(s + 0xaa);
-    *reinterpret_cast<unsigned short*>(dst + 0xd4) = *reinterpret_cast<const unsigned short*>(s + 0xac);
-    *reinterpret_cast<unsigned int*>(dst + 0xd6) = *reinterpret_cast<const unsigned int*>(s + 0xae);
-    char job = dst[0x26];
-    char sub = dst[0x29];
-    short level = *reinterpret_cast<short*>(dst + 0x27);
-    unsigned int no = static_cast<unsigned int>(m_characList[slot].m_characNo);
+    m_characList[slot].m_field26 = src->m_field24;         // job
+    m_characList[slot].m_level = static_cast<short>(src->m_field25);
+    m_characList[slot].m_field2b = src->m_field28;
+    m_characList[slot].m_field29 = src->m_field27;
+    m_characList[slot].m_stamina = src->m_unkB2.m_fieldb2;
+    m_characList[slot].m_field88 = src->m_add.m_field00;
+    m_characList[slot].m_field8c = src->m_add.m_field04;
+    m_characList[slot].m_field90 = src->m_add.m_field08;
+    m_characList[slot].m_field92 = src->m_add.m_field0a;
+    m_characList[slot].m_field94 = src->m_add.m_field0c;
+    m_characList[slot].m_field96 = src->m_add.m_field0e;
+    memcpy(m_characList[slot].m_data98, &src->m_add.m_field10[0], 8);
+    memcpy(m_characList[slot].m_dataA0, &src->m_add.m_field18[0], 0x22);
+    m_characList[slot].m_fieldc2 = src->m_add.m_field3a;
+    m_characList[slot].m_fieldc6 = src->m_add.m_field3e;
+    m_characList[slot].m_fieldc8 = src->m_add.m_field40;
+    m_characList[slot].m_fieldca = src->m_add.m_field42;
+    m_characList[slot].m_fieldce = src->m_add.m_field46;
+    m_characList[slot].m_fieldd0 = src->m_add.m_field48;
+    m_characList[slot].m_fieldd2 = src->m_add.m_field4a;
+    m_characList[slot].m_fieldd4 = src->m_add.m_field4c;
+    m_characList[slot].m_fieldd6 = src->m_add.m_field4e;
     global::tools::InitializeCharacStat::initCharacStat(
-        *reinterpret_cast<_Additioal_info*>(dst + 0x88), no,
-        static_cast<int>(job), static_cast<int>(level),
-        static_cast<int>(static_cast<signed char>(sub << 4) >> 4),
-        static_cast<int>(static_cast<signed char>(sub * 2) >> 5));
-    *reinterpret_cast<unsigned short*>(dst + 0x33) = *reinterpret_cast<const unsigned short*>(s + 0x2c);
-    *reinterpret_cast<unsigned short*>(dst + 0x35) = *reinterpret_cast<const unsigned short*>(s + 0x2e);
-    *reinterpret_cast<unsigned short*>(dst + 0x37) = *reinterpret_cast<const unsigned short*>(s + 0x30);
+        *reinterpret_cast<_Additioal_info*>(&m_characList[slot].m_field88),
+        static_cast<unsigned int>(m_characList[slot].m_characNo),
+        static_cast<int>(m_characList[slot].m_field26), static_cast<int>(m_characList[slot].m_level),
+        static_cast<int>(static_cast<signed char>(m_characList[slot].m_field29 << 4) >> 4),
+        static_cast<int>(static_cast<signed char>(m_characList[slot].m_field29 * 2) >> 5));
+    m_characList[slot].m_field33 = src->m_field2c;
+    m_characList[slot].m_field35 = src->m_field2e;
+    m_characList[slot].m_field37 = src->m_field30;
     {
         CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(2);
         if (ev != 0) {
             if (!ev->IsEventing(0)) {
-                *reinterpret_cast<short*>(dst + 0x35) = static_cast<short>(DEFAULT_MAX_FATIGUE);
+                m_characList[slot].m_field35 = static_cast<unsigned short>(DEFAULT_MAX_FATIGUE);
             }
             else {
                 int factor = reinterpret_cast<CMaxFatigueFactorEvent*>(ev)->GetMaxFatigueFactor();
-                *reinterpret_cast<short*>(dst + 0x35) =
-                    static_cast<short>(factor * DEFAULT_MAX_FATIGUE / 100);
+                m_characList[slot].m_field35 =
+                    static_cast<unsigned short>(factor * DEFAULT_MAX_FATIGUE / 100);
             }
         }
     }
     {
+        // ORIG 事件 0x57 无空检查直调（本域多函数同款）；+0x51c 为
+        // CDataManager 疲劳附加脚本参数（CUser.cpp 2399-2416 同型，尚未具名化）
         CEventBase* ev57 = GlobalData::s_event_manager->GetRepeatEvent(0x57);
         if (ev57->IsEventing(0)) {
-            short base = *reinterpret_cast<short*>(dst + 0x35);
-            *reinterpret_cast<short*>(dst + 0x35) = static_cast<short>(
-                base + *reinterpret_cast<short*>(reinterpret_cast<char*>(G_CDataManager()) + 0x51c));
+            unsigned short base = m_characList[slot].m_field35;
+            m_characList[slot].m_field35 = static_cast<unsigned short>(
+                base + *reinterpret_cast<const unsigned short*>(
+                           reinterpret_cast<const char*>(G_CDataManager()) + 0x51c));
         }
     }
-    if (*reinterpret_cast<const short*>(s + 0x32) < 0) {   // 疲劳电池错误分支
-        *reinterpret_cast<unsigned short*>(dst + 0x4f) = 0;
-        short badVal = *reinterpret_cast<const short*>(s + 0x32);
+    if (static_cast<short>(src->m_field32) < 0) {          // 疲劳电池错误分支
+        m_characList[slot].m_field4f = 0;
+        short badVal = static_cast<short>(src->m_field32);
         cMyTrace t(__PRETTY_FUNCTION__,
                    0xf99, 0);
         t("FATIGUE BATTERY Error : Char No(%d) %d",
-          *reinterpret_cast<const int*>(s), static_cast<int>(badVal));
+          src->m_characNo, static_cast<int>(badVal));
     }
     else {
-        *reinterpret_cast<unsigned short*>(dst + 0x4f) =
-            *reinterpret_cast<const unsigned short*>(s + 0x32);
+        m_characList[slot].m_field4f = src->m_field32;
     }
-    *reinterpret_cast<unsigned int*>(dst + 0xdf4) = 0;
-    *reinterpret_cast<unsigned int*>(dst + 0xdf8) = 0;
-    *reinterpret_cast<unsigned int*>(dst + 0x7b) = *reinterpret_cast<const unsigned int*>(s + 0x4d);
+    m_characList[slot].m_resetDwordDf4 = 0;
+    m_characList[slot].m_resetDwordDf8 = 0;
+    m_characList[slot].m_field7b = src->m_field4d;
     {
-        unsigned int lastTick = *reinterpret_cast<unsigned int*>(dst + 0x7b);
+        unsigned int lastTick = m_characList[slot].m_field7b;
         cMyTrace t(__PRETTY_FUNCTION__,
                    0xfb0, 0);
         t("CharLastPlayTick char(%d) t(%d)", characNo, lastTick);
     }
-    *reinterpret_cast<unsigned int*>(dst + 0x7f) = *reinterpret_cast<const unsigned int*>(s + 0x118);
-    *reinterpret_cast<unsigned int*>(dst + 0xdbe) = *reinterpret_cast<const unsigned int*>(s + 0x56);
-    dst[0xdc2] = s[0x5a];
-    *reinterpret_cast<unsigned short*>(dst + 0x77) = *reinterpret_cast<const unsigned short*>(s + 0x5b);
-    *reinterpret_cast<unsigned short*>(dst + 0x79) = *reinterpret_cast<const unsigned short*>(s + 0x5d);
-    if (s[0x5f] != 0) {
-        *reinterpret_cast<unsigned int*>(dst + 0xe22) = *reinterpret_cast<const unsigned int*>(s);
+    m_characList[slot].m_field7f = src->m_unkB2.m_field118;
+    m_characList[slot].m_guildId = src->m_guildId;
+    m_characList[slot].m_fielddc2 = src->m_field5a;
+    m_characList[slot].m_field77 = src->m_field5b;
+    m_characList[slot].m_field79 = src->m_field5d;
+    if (src->m_field5f != 0) {
+        m_characList[slot].m_fielde22 = src->m_characNo;
     }
-    reinterpret_cast<CommonTime*>(dst + 0x39)->SetCreateTime(
-        const_cast<char*>(s + 0x34));
-    *reinterpret_cast<unsigned short*>(dst + 0x4d) = *reinterpret_cast<const unsigned short*>(s + 0xb3);
-    *reinterpret_cast<unsigned int*>(dst + 0x51) = *reinterpret_cast<const unsigned int*>(s + 0xb5);
-    memcpy(dst + 0x55, s + 0xb9, 0x10);
-    reinterpret_cast<CReliablePerson*>(dst + 0x65)->InitTradeGold(
-        *reinterpret_cast<const unsigned int*>(s + 0xc9),
-        *reinterpret_cast<const unsigned int*>(s + 0xcd),
-        *reinterpret_cast<const unsigned int*>(s + 0xd1));
+    reinterpret_cast<CommonTime*>(m_characList[slot].m_delReqTime)->SetCreateTime(
+        src->m_field34);
+    m_characList[slot].m_field4d = src->m_unkB2.m_fieldb3;
+    m_characList[slot].m_field51 = src->m_unkB2.m_fieldb5;
+    memcpy(m_characList[slot].m_tradeRestrictData, src->m_unkB2.m_fieldb9, 0x10);
+    reinterpret_cast<CReliablePerson*>(m_characList[slot].m_reliablePerson)->InitTradeGold(
+        src->m_unkB2.m_fieldc9,
+        src->m_unkB2.m_fieldcd,
+        src->m_unkB2.m_fieldd1);
     {
-        unsigned int useGold = *reinterpret_cast<const unsigned int*>(s + 0xd1);
+        unsigned int useGold = src->m_unkB2.m_fieldd1;
         cMyTrace t(__PRETTY_FUNCTION__,
                    0xfd7, 0);
         t("TRADE_RESTIRCTION charac_name(%s), use_gold(%u)", m_characList[slot].m_name, useGold);
     }
-    *reinterpret_cast<unsigned int*>(dst + 0xe49) = *reinterpret_cast<const unsigned int*>(s + 0xd5);
-    *reinterpret_cast<unsigned int*>(dst + 0xe4d) = *reinterpret_cast<const unsigned int*>(s + 0xd9);
-    *reinterpret_cast<unsigned int*>(dst + 0xe51) = *reinterpret_cast<const unsigned int*>(s + 0xdd);
-    *reinterpret_cast<unsigned int*>(dst + 0xe55) = *reinterpret_cast<const unsigned int*>(s + 0xe1);
-    *reinterpret_cast<unsigned int*>(dst + 0xe59) = *reinterpret_cast<const unsigned int*>(s + 0xe5);
-    *reinterpret_cast<unsigned int*>(dst + 0xe5d) = *reinterpret_cast<const unsigned int*>(s + 0xe9);
-    *reinterpret_cast<unsigned int*>(dst + 0xe45) = *reinterpret_cast<const unsigned int*>(s + 0xed);
-    *reinterpret_cast<unsigned int*>(dst + 0xe68) = *reinterpret_cast<const unsigned int*>(s + 0xf1);
-    dst[0xe70] = s[0xf5];
-    *reinterpret_cast<unsigned int*>(dst + 0xe71) = *reinterpret_cast<const unsigned int*>(s + 0xf6);
-    *reinterpret_cast<unsigned int*>(dst + 0xe79) = *reinterpret_cast<const unsigned int*>(s + 0xfa);
-    *reinterpret_cast<unsigned int*>(dst + 0xe81) = *reinterpret_cast<const unsigned int*>(s + 0x10a);
-    *reinterpret_cast<unsigned int*>(dst + 0xe7d) = *reinterpret_cast<const unsigned int*>(s + 0x106);
-    *reinterpret_cast<unsigned short*>(dst + 0x121f) = *reinterpret_cast<const unsigned short*>(s + 0x10e);
-    *reinterpret_cast<unsigned int*>(dst + 0x1221) = *reinterpret_cast<const unsigned int*>(s + 0x110);
-    *reinterpret_cast<unsigned int*>(dst + 0x1225) = *reinterpret_cast<const unsigned int*>(s + 0x114);
-    dst[0x1239] = s[0x11e];
-    dst[0x123e] = s[0x11f];
-    dst[0x123f] = s[0x120];
-    *reinterpret_cast<bool*>(dst + 0x1241) = (s[0x121] != 0);
-    *reinterpret_cast<unsigned short*>(dst + 0x126c) = *reinterpret_cast<const unsigned short*>(s + 0x122);
-    dst[0x126e] = s[0x124];
-    *reinterpret_cast<unsigned int*>(dst + 0x126f) = *reinterpret_cast<const unsigned int*>(s + 0x125);
-    dst[0x1275] = s[0x129];
-    dst[0x1276] = s[0x12a];
-    dst[0x1277] = s[299];
-    dst[0x127a] = s[0x12d];
-    dst[0x1278] = s[300];
-    dst[0x1280] = s[0x12f];
-    *reinterpret_cast<unsigned int*>(dst + 0x12ad) = *reinterpret_cast<const unsigned int*>(s + 0x130);
+    m_characList[slot].m_fielde49 = src->m_unkB2.m_fieldd5;
+    m_characList[slot].m_fielde4d = src->m_unkB2.m_fieldd9;
+    m_characList[slot].m_fielde51 = src->m_unkB2.m_fielddd;
+    m_characList[slot].m_fielde55 = src->m_unkB2.m_fielde1;
+    m_characList[slot].m_fielde59 = src->m_unkB2.m_fielde5;
+    m_characList[slot].m_fielde5d = src->m_unkB2.m_fielde9;
+    m_characList[slot].m_fielde45 = src->m_unkB2.m_fielded;
+    m_characList[slot].m_fielde68 = src->m_unkB2.m_fieldf1;
+    m_characList[slot].m_fielde70 = static_cast<unsigned char>(src->m_unkB2.m_fieldf5);
+    m_characList[slot].m_fielde71 = src->m_unkB2.m_fieldf6;
+    m_characList[slot].m_fielde79 = src->m_unkB2.m_fieldfa;
+    m_characList[slot].m_fielde81 = src->m_unkB2.m_field10a;
+    m_characList[slot].m_fielde7d = src->m_unkB2.m_field106;
+    m_characList[slot].m_field121f = src->m_unkB2.m_field10e;
+    m_characList[slot].m_field1221 = src->m_unkB2.m_field110;
+    m_characList[slot].m_field1225 = src->m_unkB2.m_field114;
+    m_characList[slot].m_field1239 = static_cast<unsigned char>(src->m_unkB2.m_field11e);
+    m_characList[slot].m_field123e = static_cast<unsigned char>(src->m_unkB2.m_field11f);
+    m_characList[slot].m_field123f = static_cast<unsigned char>(src->m_unkB2.m_field120);
+    m_characList[slot].m_field1241 = (src->m_unkB2.m_field121 != 0);
+    m_characList[slot].m_field126c = src->m_unkB2.m_field122;
+    m_characList[slot].m_field126e = static_cast<unsigned char>(src->m_unkB2.m_b124);
+    m_characList[slot].m_field126f = src->m_unkB2.m_i125;
+    m_characList[slot].m_field1275 = static_cast<unsigned char>(src->m_unkB2.m_b129);
+    m_characList[slot].m_field1276 = static_cast<unsigned char>(src->m_unkB2.m_b12a);
+    m_characList[slot].m_field1277 = static_cast<unsigned char>(src->m_unkB2.m_b12b);
+    m_characList[slot].m_field127a = static_cast<unsigned char>(src->m_unkB2.m_b12d);
+    m_characList[slot].m_field1278 = static_cast<unsigned char>(src->m_unkB2.m_b12c);
+    m_characList[slot].m_field1280 = static_cast<unsigned char>(src->m_unkB2.m_b12f);
+    m_characList[slot].m_field12ad = src->m_unkB2.m_i130;
     return true;
 }
 
@@ -10383,160 +10676,167 @@ bool CUser::setCharacInfoDetail(int slot, unsigned int characNo, CHARAC_DATA* sr
 // ---------------------------------------------------------------------------
 void _Charac_info::Reset()
 {
-    char* p = reinterpret_cast<char*>(this);
-    *reinterpret_cast<int*>(p) = 0;                          // m_characNo
-    memset(p + 4, 0, 0x1e);                                  // m_name
-    p[0x22] = 0; p[0x23] = 0; p[0x26] = 0;
-    *reinterpret_cast<short*>(p + 0x27) = 0;
-    p[0x29] = 0; p[0x2a] = 0;
-    *reinterpret_cast<int*>(p + 0x2b) = 0;
-    *reinterpret_cast<int*>(p + 0x2f) = 0;
-    *reinterpret_cast<short*>(p + 0x33) = 0;
-    *reinterpret_cast<short*>(p + 0x35) = 0;
-    *reinterpret_cast<short*>(p + 0x37) = 0;
-    reinterpret_cast<CommonTime*>(p + 0x39)->clear();
-    *reinterpret_cast<short*>(p + 0x77) = 0;
-    *reinterpret_cast<short*>(p + 0x79) = 0;
-    *reinterpret_cast<int*>(p + 0x7b) = 0;
-    *reinterpret_cast<int*>(p + 0x7f) = 0;
-    reinterpret_cast<_Additioal_info*>(p + 0x88)->clear();
-    reinterpret_cast<CInventory*>(p + 0xda)->reset();
-    reinterpret_cast<SkillSlot*>(p + 0x892)->clear_all_skills_both();
-    reinterpret_cast<CCargo*>(p + 0xdaa)->reset();
-    *reinterpret_cast<int*>(p + 0xdbe) = 0;
-    p[0xdc2] = 0;
-    *reinterpret_cast<int*>(p + 0xe02) = 0;
-    *reinterpret_cast<int*>(p + 0xdf4) = 0;
-    *reinterpret_cast<int*>(p + 0xdf8) = 0;
-    *reinterpret_cast<int*>(p + 0xdfe) = 0;
-    *reinterpret_cast<int*>(p + 0xe06) = 0;
-    *reinterpret_cast<int*>(p + 0xe0a) = 0;
-    memset(p + 0xe0e, 0, 0x14);
-    *reinterpret_cast<int*>(p + 0xe22) = 0;
-    *reinterpret_cast<int*>(p + 0xe26) = 0;
-    *reinterpret_cast<int*>(p + 0xe2a) = 0;
-    *reinterpret_cast<int*>(p + 0xe33) = 0;
-    *reinterpret_cast<int*>(p + 0xe37) = 0;
-    *reinterpret_cast<int*>(p + 0xe2e) = 0;
-    p[0xe32] = 0;
-    p[0xe3b] = 0;
-    p[0x83] = 0;
-    *reinterpret_cast<int*>(p + 0x84) = 0;
-    *reinterpret_cast<int*>(p + 0xe3c) = 0;
-    *reinterpret_cast<int*>(p + 0xde9) = 0;
-    *reinterpret_cast<short*>(p + 0xded) = 0;
-    *reinterpret_cast<int*>(p + 0xdef) = 0;
-    p[0xdf3] = 0;
-    *reinterpret_cast<short*>(p + 0xdfc) = 0;
-    *reinterpret_cast<int*>(p + 0xe41) = 0;
-    *reinterpret_cast<int*>(p + 0xe49) = 0;
-    *reinterpret_cast<int*>(p + 0xe4d) = 0;
-    *reinterpret_cast<int*>(p + 0xe45) = 0;
-    *reinterpret_cast<int*>(p + 0xe51) = 0;
-    *reinterpret_cast<int*>(p + 0xe55) = 0;
-    *reinterpret_cast<int*>(p + 0xe59) = 0;
-    *reinterpret_cast<int*>(p + 0xe61) = 0;
-    memset(p + 0xe8d, 0, 0xc);
-    p[0xe90] = 1;
-    p[0x24] = 0;
-    p[0xe65] = 0;
-    *reinterpret_cast<int*>(p + 0xe5d) = 0;
-    p[0xe66] = 0;
-    p[0xe67] = 0;
-    *reinterpret_cast<int*>(p + 0xe68) = 0;
-    *reinterpret_cast<int*>(p + 0xe6c) = 0;
-    *reinterpret_cast<int*>(p + 0xe71) = 0;
-    *reinterpret_cast<int*>(p + 0xe75) = 0;
-    *reinterpret_cast<int*>(p + 0xe79) = 0;
-    *reinterpret_cast<int*>(p + 0xe7d) = 0;
-    *reinterpret_cast<int*>(p + 0xe81) = 0;
-    *reinterpret_cast<int*>(p + 0xe85) = 0;
-    *reinterpret_cast<int*>(p + 0xe89) = 0;
-    p[0xe99] = 0;
-    *reinterpret_cast<int*>(p + 0x71) = 0;
-    p[0xeb2] = 0;
-    p[0xeb4] = 0;
-    p[0xeb8] = 0;
-    p[0xeb7] = 0;
-    memset(p + 0xeb9, 0, 6);
-    p[0xebf] = 0;
-    memset(p + 0xec0, 0, 3);
-    p[0xec3] = 0;
-    *reinterpret_cast<int*>(p + 0xec4) = -1;
-    *reinterpret_cast<int*>(p + 0xec8) = 400000000;
-    m_bloodBestRecords.clear();                              // +0xecc
-    p[0xee4] = 0;
-    *reinterpret_cast<int*>(p + 0xee5) = 0;
-    *reinterpret_cast<short*>(p + 0x4f) = 0;
-    p[0xee9] = 0;
-    p[0xeea] = 0;
-    *reinterpret_cast<short*>(p + 0xeeb) = 0;
-    memset(p + 0xeed, 0, 0x199);
-    memset(p + 0x55, 0, 0x10);                               // m_reliablePerson
-    *reinterpret_cast<short*>(p + 0x121f) = 0;
-    *reinterpret_cast<int*>(p + 0x1221) = 0;
-    *reinterpret_cast<int*>(p + 0x1225) = 0;
-    *reinterpret_cast<short*>(p + 0x1229) = 0;
-    p[0x122b] = 0;
-    *reinterpret_cast<short*>(p + 0x122c) = 0;
-    *reinterpret_cast<int*>(p + 0x122e) = 0;
-    *reinterpret_cast<short*>(p + 0x1232) = 0;
-    *reinterpret_cast<short*>(p + 0x1234) = 0;
-    *reinterpret_cast<short*>(p + 0x1236) = 0;
-    p[0x1238] = 0;
-    p[0x1239] = 0xff;
-    *reinterpret_cast<short*>(p + 0x123a) = 0;
-    *reinterpret_cast<short*>(p + 0x123c) = 0;
-    p[0x123e] = 0;
-    p[0x1241] = 1;
-    p[0x1242] = 0;
-    p[0x1243] = 0;
-    p[0x1244] = 0;
-    p[0x1245] = 0xff;
-    p[0x1246] = 0;                                           // m_characLinkType
-    *reinterpret_cast<int*>(p + 0x1247) = 0;
-    *reinterpret_cast<int*>(p + 0x124b) = 0;
-    p[0x124f] = 0;                                           // m_linkBonusSetting
-    *reinterpret_cast<int*>(p + 0x1250) = 0;
-    m_skillCommandsMap.clear();                              // +0x1254
-    *reinterpret_cast<short*>(p + 0x126c) = 0;               // m_field126c
-    p[0x126e] = 0;
-    *reinterpret_cast<int*>(p + 0x126f) = 0;
-    p[0x1273] = 0;
-    p[0x1274] = 0;
-    p[0x1275] = 0;
-    p[0x1276] = 0;
-    p[0x1277] = 0;
-    p[0x1278] = 0;
-    p[0x1279] = 0;
-    p[0x127a] = 0;
-    reinterpret_cast<tagCharacVisibleFlag*>(p + 0xe40)->reset();
-    p[0x127b] = 0;
-    *reinterpret_cast<int*>(p + 0x127c) = 0;
-    p[0x1280] = 0;
-    reinterpret_cast<stAuraAvatarOption*>(p + 0x1281)->reset();
-    *reinterpret_cast<int*>(p + 0x1291) = 0;
-    *reinterpret_cast<int*>(p + 0x128d) = 0;
-    *reinterpret_cast<int*>(p + 0x1295) = 0;
-    *reinterpret_cast<int*>(p + 0x1299) = 0;
-    memset(p + 0x129d, 0, 8);
-    memset(p + 0x12a5, 0, 8);
-    *reinterpret_cast<int*>(p + 0x12ad) = 0;
-    *reinterpret_cast<int*>(p + 0x12b1) = 0;
-    *reinterpret_cast<short*>(p + 0x12b5) = 0;
-    memset(p + 0x12b7, 0, 0x200);
-    p[0x14b7] = 0;                                           // m_field14b7
-    *reinterpret_cast<int*>(p + 0x14b8) = 0;                 // m_field14b8
-    p[0x14bc] = 0;                                           // m_pad14bc[0]
-    p[0x14bd] = 0;
-    *reinterpret_cast<int*>(p + 0x14be) = 0;
-    *reinterpret_cast<int*>(p + 0x14c2) = 0;
-    *reinterpret_cast<int*>(p + 0x14c6) = 0;                 // m_viewState
-    *reinterpret_cast<short*>(p + 0x14ca) = 0;
-    *reinterpret_cast<short*>(p + 0x14cc) = 0;
-    p[0x14ce] = 0;
-    p[0x14cf] = 0;
-    p[0x14d0] = 0;
+    // 2026-09-04 §4.3 转换：删除 char* p 基址视图（ORIG 0x086822b8 全程
+    // mov 0x8(%ebp),%eax; movx $imm,off(%eax) 直读 this，无局部 spill）。
+    // 具名字段按 CUser.h 布局；pad 区写保留「布局未建模」裸视图（待 Main 代落）。
+    m_characNo = 0;                                   // +0x00 movl
+    memset(m_name, 0, 0x1e);                          // +0x04..0x21
+    m_field22 = 0;                                    // +0x22 movb
+    m_field23 = 0;                                    // +0x23 movb
+    m_field26 = 0;                                    // +0x26 movb
+    m_level = 0;                                      // +0x27 movw
+    m_field29 = 0;                                    // +0x29 movb
+    m_pad2a = 0;                                      // +0x2a movb
+    m_field2b = 0;                                    // +0x2b movl
+    m_field2f = 0;             // +0x2f movl（pad 未建模）
+    m_field33 = 0;                                    // +0x33 movw
+    m_field35 = 0;                                    // +0x35 movw
+    m_field37 = 0;                                    // +0x37 movw
+    reinterpret_cast<CommonTime*>(m_delReqTime)->clear();   // +0x39 call
+    m_field77 = 0;                                    // +0x77 movw
+    m_field79 = 0;                                    // +0x79 movw
+    m_field7b = 0;                                    // +0x7b movl
+    m_field7f = 0;                                    // +0x7f movl
+    reinterpret_cast<_Additioal_info*>(&m_field88)->clear();  // +0x88 call（子对象首字）
+    reinterpret_cast<CInventory*>(reinterpret_cast<char*>(this) + 0xda)->reset();       // +0xda 子对象视图
+    reinterpret_cast<SkillSlot*>(reinterpret_cast<char*>(this) + 0x892)->clear_all_skills_both();  // +0x892 子对象视图
+    reinterpret_cast<CCargo*>(reinterpret_cast<char*>(this) + 0xdaa)->reset();          // +0xdaa 子对象视图
+    m_guildId = 0;                                    // +0xdbe movl
+    m_fielddc2 = 0;                                   // +0xdc2 movb
+    m_fieldE02 = 0;  // +0xe02 movl（pad 未建模）
+    m_resetDwordDf4 = 0;                              // +0xdf4 movl
+    m_resetDwordDf8 = 0;                              // +0xdf8 movl
+    m_fieldDFE = 0;  // +0xdfe movl（pad）
+    m_fieldE06 = 0;  // +0xe06 movl（pad）
+    m_fieldE0A = 0;  // +0xe0a movl（pad）
+    memset(m_dataE0E, 0, 0x14);      // +0xe0e memset(0x14)（pad）
+    m_fielde22 = 0;                                   // +0xe22 movl
+    m_fieldE26 = 0;  // +0xe26 movl（pad）
+    m_fieldE2A = 0;  // +0xe2a movl（pad）
+    m_fieldE33 = 0;  // +0xe33 movl（pad）
+    m_fieldE37 = 0;  // +0xe37 movl（pad）
+    m_fieldE2E = 0;  // +0xe2e movl（pad）
+    m_fieldE32 = 0; // movb（pad）（Reset.md 证据）
+    m_needCheckOverEquipItem = 0;                     // +0xe3b movb
+    m_pad83 = 0;                                   // +0x83 movb
+    m_field84 = 0;           // +0x84 movl（pad83 后继，未建模）
+    m_fieldE3C = 0;            // +0xe3c movl（pad）
+    m_fieldDE9 = 0;  // +0xde9 movl（pad）
+    m_fieldDED = 0; // +0xded movw（pad）
+    m_fieldDEF = 0;  // +0xdef movl（pad）
+    m_fieldDF3 = 0; // movb（pad）（Reset.md 证据）
+    m_fieldDFC = 0;          // +0xdfc movw（pad）
+    m_fieldE41 = 0;  // +0xe41 movl（pad）
+    m_fielde49 = 0;                                   // +0xe49 movl
+    m_fielde4d = 0;                                   // +0xe4d movl
+    m_fielde45 = 0;                                   // +0xe45 movl
+    m_fielde51 = 0;                                   // +0xe51 movl
+    m_fielde55 = 0;                                   // +0xe55 movl
+    m_fielde59 = 0;                                   // +0xe59 movl
+    m_fieldE61 = 0;            // +0xe61 movl（pad）
+    memset(m_dataE8D, 0, 0xc);       // +0xe8d memset(0xc)（pad；STPowerWarCharacData 子对象区，见 STPowerWarCharacData.h 注记）
+    m_dataE8D[3] = 1; // movb $1（pad）（Reset.md 证据）
+    m_field24 = 0;                                    // +0x24 movb
+    m_fieldE65 = 0; // movb（pad）（Reset.md 证据）
+    m_fielde5d = 0;                                   // +0xe5d movl
+    m_fieldE66 = 0; // movb（pad）（Reset.md 证据）
+    m_fieldE67 = 0; // movb（pad）（Reset.md 证据）
+    m_fielde68 = 0;                                   // +0xe68 movl
+    m_fieldE6C = 0;            // +0xe6c movl（pad）
+    m_fielde71 = 0;                                   // +0xe71 movl
+    m_fieldE75 = 0;            // +0xe75 movl（pad）
+    m_fielde79 = 0;                                   // +0xe79 movl
+    m_fielde7d = 0;                                   // +0xe7d movl
+    m_fielde81 = 0;                                   // +0xe81 movl
+    m_fieldE85 = 0;            // +0xe85 movl（pad）
+    m_fieldE89 = 0;  // +0xe89 movl（pad）
+    m_fieldE99 = 0; // movb（pad）（Reset.md 证据）
+    m_schoolPoint = 0;  // +0x71 movl（CReliablePerson 16B 视图内）
+    m_fieldEB2 = 0; // movb（pad）（Reset.md 证据）
+    m_fieldEB4 = 0; // movb（pad）（Reset.md 证据）
+    m_fieldEB8 = 0; // movb（pad）（Reset.md 证据）
+    m_fieldEB7 = 0; // movb（pad）（Reset.md 证据）
+    memset(m_demensionInout, 0, 6);  // +0xeb9 memset(6)
+    m_fieldEBF = 0; // movb（pad）（Reset.md 证据）
+    memset(m_ultimateInout, 0, 3);   // +0xec0 memset(3)
+    m_fieldEC3 = 0; // movb（pad）（Reset.md 证据）
+    m_fieldEC4 = -1;   // +0xec4 movl $-1（pad）
+    m_fieldEC8 = 400000000;  // +0xec8 movl（pad）
+    m_bloodBestRecords.clear();                       // +0xecc map::clear（内联）
+    m_fieldEE4 = 0;                                  // +0xee4 movb（pad）
+    // ORIG 0x086822b8+0x443 `mov $0x0,%edx; mov %edx,0xee5(%eax)`：float 成员 0.0f
+    // 物化两段形（probe p14.w1；Main 已落 CUser.h:637 int→float，同宽）。
+    m_fieldEE5 = 0.0f;     // +0xee5（Reset.md 证据）
+    m_field4f = 0;                                    // +0x4f movw
+    m_fieldEE9 = 0; // movb（pad）（Reset.md 证据）
+    m_fieldEEA = 0; // movb（pad）（Reset.md 证据）
+    m_fieldEEB = 0;  // +0xeeb movw（pad）
+    memset(m_dataEED, 0, 0x199);     // +0xeed memset(0x199)（pad）
+    memset(m_tradeRestrictData, 0, 0x10);             // +0x55 memset(0x10)
+    m_field121f = 0;                                  // +0x121f movw
+    m_field1221 = 0;                                  // +0x1221 movl
+    m_field1225 = 0;                                  // +0x1225 movl
+    m_field1229 = 0;         // +0x1229 movw（pad）
+    m_field122B = 0;                                 // +0x122b movb（pad）
+    m_field122C = 0;     // +0x122c movw（pad）
+    m_field122E = 0;       // +0x122e movl（pad）
+    m_field1232 = 0;     // +0x1232 movw（pad）
+    m_field1234 = 0;   // +0x1234 movw（pad）
+    m_field1236 = 0;   // +0x1236 movw（pad）
+    m_field1238 = 0;                               // +0x1238 movb（pad）
+    m_field1239 = 0xff;                               // +0x1239 movb $0xff
+    m_field123A = 0;         // +0x123a movw（pad）
+    m_field123C = 0;     // +0x123c movw（pad）
+    m_field123e = 0;                                  // +0x123e movb
+    m_field1241 = 1;                                  // +0x1241 movb $1
+    m_field1242 = 0;                                 // +0x1242 movb（pad）
+    m_field1243 = 0;                                 // +0x1243 movb（pad）
+    m_field1244 = 0;                                 // +0x1244 movb（pad）
+    m_field1245 = 0xff;                              // +0x1245 movb $0xff（pad）
+    m_characLinkType = 0;                             // +0x1246 movb
+    m_field1247 = 0;           // +0x1247 movl（pad）
+    m_field124B = 0;       // +0x124b movl（pad）
+    m_linkBonusSetting = 0;                           // +0x124f movb
+    m_field1250 = 0;           // +0x1250 movl（pad）
+    m_skillCommandsMap.clear();                       // +0x1254 map::clear（内联）
+    m_field126c = 0;                                  // +0x126c movw
+    m_field126e = 0;                                  // +0x126e movb
+    m_field126f = 0;                                  // +0x126f movl
+    m_field1273 = 0;                                 // +0x1273 movb（pad）
+    m_field1274 = 0;                                 // +0x1274 movb（pad）
+    m_field1275 = 0;                                  // +0x1275 movb
+    m_field1276 = 0;                                  // +0x1276 movb
+    m_field1277 = 0;                                  // +0x1277 movb
+    m_field1278 = 0;                                  // +0x1278 movb
+    m_pad1279 = 0;                                    // +0x1279 movb
+    m_field127a = 0;                                  // +0x127a movb
+    reinterpret_cast<tagCharacVisibleFlag*>(reinterpret_cast<char*>(this) + 0xe40)->reset();  // +0xe40 子对象视图
+    m_field127B = 0;                                 // +0x127b movb（pad）
+    m_field127C = 0;       // +0x127c movl（pad）
+    m_field1280 = 0;                                  // +0x1280 movb
+    reinterpret_cast<stAuraAvatarOption*>(reinterpret_cast<char*>(this) + 0x1281)->reset();   // +0x1281 子对象视图
+    m_field1291 = 0;  // +0x1291 movl（pad）
+    m_field128D = 0;  // +0x128d movl（pad）
+    m_field1295 = 0;  // +0x1295 movl（pad）
+    m_field1299 = 0;  // +0x1299 movl（pad）
+    memset(m_data129D, 0, 8);      // +0x129d memset(8)（pad）
+    memset(m_data12A5, 0, 8);      // +0x12a5 memset(8)（pad）
+    m_field12ad = 0;                                  // +0x12ad movl
+    m_field12B1 = 0;           // +0x12b1 movl（pad）
+    m_field12B5 = 0;     // +0x12b5 movw（pad）
+    memset(m_data12B7, 0, 0x200);                  // +0x12b7 memset(0x200)（pad）
+    m_field14b7 = 0;                                  // +0x14b7 movb
+    m_field14b8 = 0;                                  // +0x14b8 movl
+    m_field14BC = 0;                                 // +0x14bc movb（pad）
+    m_field14BD = 0;                                 // +0x14bd movb（pad）
+    m_field14BE = 0;       // +0x14be movl（pad）
+    m_field14C2 = 0;       // +0x14c2 movl（pad）
+    m_viewState = 0;                                  // +0x14c6 movl
+    m_field14CA = 0;         // +0x14ca movw（pad）
+    m_field14CC = 0;     // +0x14cc movw（pad）
+    m_field14CE = 0;                                 // +0x14ce movb（pad）
+    m_field14CF = 0;                                 // +0x14cf movb（pad）
+    m_field14D0 = 0;                                 // +0x14d0 movb（pad）
 }
 
 // ---------------------------------------------------------------------------
@@ -10647,31 +10947,30 @@ void CUser::_onCreateCharacter(unsigned int characNo, char* name, char job)
 //      m_attendanceEvent 由编译器自动构造）----
 SIG_LOAD_ETC::SIG_LOAD_ETC()
 {
-    char* p = reinterpret_cast<char*>(this);
-    new (p + 0x2308) SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO();  // 0x848f8c8
-    new (p + 0x24a0) SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO();  // 0x848f8c8
-    new (p + 0x29fd) SIG_LOAD_PREMIUM_LETHE();                  // 0x848ff7c
-    new (p + 0x2b97) SIG_LOAD_PREMIUM_LETHE();                  // 0x848ff7c
+    new (reinterpret_cast<char*>(this) + 0x2308) SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO();  // 0x848f8c8
+    new (reinterpret_cast<char*>(this) + 0x24a0) SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO();  // 0x848f8c8
+    new (reinterpret_cast<char*>(this) + 0x29fd) SIG_LOAD_PREMIUM_LETHE();                  // 0x848ff7c
+    new (reinterpret_cast<char*>(this) + 0x2b97) SIG_LOAD_PREMIUM_LETHE();                  // 0x848ff7c
     for (int i = 0; i < 0x31; ++i)
-        new (p + 0x3e70 + i * 0xc) stNPCRelationship_t();       // 0x848fa50
-    new (p + 0x40ce) SIG_REDEEMINFO_LIST_TO_DB();               // 0x848f894
-    new (p + 0x466a) stTitleBook();                             // 0x848f62a
-    new (p + 0xb1a4) stAchievement_DBData();                    // 0x828d8d8
-    new (p + 0xc9af) SIG_SAVE_PC_ROOM_PLAY_TIME();              // 0x848fb64
+        new (reinterpret_cast<char*>(this) + 0x3e70 + i * 0xc) stNPCRelationship_t();       // 0x848fa50
+    new (reinterpret_cast<char*>(this) + 0x40ce) SIG_REDEEMINFO_LIST_TO_DB();               // 0x848f894
+    new (reinterpret_cast<char*>(this) + 0x466a) stTitleBook();                             // 0x848f62a
+    new (reinterpret_cast<char*>(this) + 0xb1a4) stAchievement_DBData();                    // 0x828d8d8
+    new (reinterpret_cast<char*>(this) + 0xc9af) SIG_SAVE_PC_ROOM_PLAY_TIME();              // 0x848fb64
     // +0xc9bc 的 std::bitset<32> 是 SIG_LOAD_ETC 的具名成员，编译器已在成员
     // 初始化阶段构造（对应 ORIG 0x84920c7 的唯一一次 bitset ctor 调用点）；
     // 此处再 placement new 会产生第二个 ctor 调用点，ORIG 无 → 删除。
-    new (p + 0xc9c0) SIG_LOAD_SKILL();                          // 0x8491ee0
-    new (p + 0xcdd5) SIG_REQUEST_PVP_MISSION_LIST();            // 0x848f8d4
-    new (p + 0xd5a7) SIG_QUEST_SHOP_DATA();                     // 0x848f92e
-    new (p + 0xd6fc) SIG_ITEM_MAKING_SKILL();                   // 0x848fa82
-    new (p + 0xd718) SIG_REQUEST_TOD_USER_STATE();              // 0x8491f68
-    new (p + 0xd73c) SIG_ITEM_DICTIONARY_FLAG();                // 0x848fab2
-    new (p + 0xeac8) CharacterOption();                         // 0x822abec
-    new (p + 0xecc8) SIG_BOOSTER_GAGE_DATA();                   // 0x848fb4c
-    new (p + 0xecd0) SIG_BEST_CLEAR_TIME();                     // 0x848fb02
-    new (p + 0x14aaa) SIG_COMBO_SKILL();                        // 0x848fbbe
-    new (p + 0x14b5c) seriaRoom_AniDeco();                      // 0x822ee18
+    new (reinterpret_cast<char*>(this) + 0xc9c0) SIG_LOAD_SKILL();                          // 0x8491ee0
+    new (reinterpret_cast<char*>(this) + 0xcdd5) SIG_REQUEST_PVP_MISSION_LIST();            // 0x848f8d4
+    new (reinterpret_cast<char*>(this) + 0xd5a7) SIG_QUEST_SHOP_DATA();                     // 0x848f92e
+    new (reinterpret_cast<char*>(this) + 0xd6fc) SIG_ITEM_MAKING_SKILL();                   // 0x848fa82
+    new (reinterpret_cast<char*>(this) + 0xd718) SIG_REQUEST_TOD_USER_STATE();              // 0x8491f68
+    new (reinterpret_cast<char*>(this) + 0xd73c) SIG_ITEM_DICTIONARY_FLAG();                // 0x848fab2
+    new (reinterpret_cast<char*>(this) + 0xeac8) CharacterOption();                         // 0x822abec
+    new (reinterpret_cast<char*>(this) + 0xecc8) SIG_BOOSTER_GAGE_DATA();                   // 0x848fb4c
+    new (reinterpret_cast<char*>(this) + 0xecd0) SIG_BEST_CLEAR_TIME();                     // 0x848fb02
+    new (reinterpret_cast<char*>(this) + 0x14aaa) SIG_COMBO_SKILL();                        // 0x848fbbe
+    new (reinterpret_cast<char*>(this) + 0x14b5c) seriaRoom_AniDeco();                      // 0x822ee18
 }
 
 CharacterOption::CharacterOption()
@@ -10701,6 +11000,22 @@ void tagCharacVisibleFlag::reset()
 {
     *reinterpret_cast<unsigned char*>(this) = 0;   // ORIG 0x08695c6c：movb $0,(%eax)
 }
+
+
+// ---------------------------------------------------------------------------
+// _Charac_info 拷贝构造/赋值 —— ORIG 0x08699863（C1ERKS_）/0x0869da62（aS=）
+// 均为编译器生成版（标量+字符数组按 dword 逐字段拷贝，map/vector 子对象按
+// 成员声明序调拷贝构造/赋值；ORIG 汇编头部 7×int+movzwl 的 m_name 形态即
+// GCC 数组成员隐式拷贝）。手写 memcpy 块版本与编译器 codegen 结构不同，
+// 已删除，改为隐式定义；下列 helper 强制本 TU 落出两个弱符号。
+// ---------------------------------------------------------------------------
+static void _cuoo_emit_charac_info_ops(const _Charac_info& a, _Charac_info* b)
+{
+    _Charac_info t(a);   // 引用 C1ERKS_
+    *b = t;              // 引用 aSERKS_
+}
+void (*volatile g_cuoo_charac_info_emit)(const _Charac_info&, _Charac_info*) =
+    _cuoo_emit_charac_info_ops;   // volatile 指针防 DCE
 
 // ---- _Charac_info ctor/dtor（LinkE2）----
 _Charac_info::_Charac_info()
@@ -10742,56 +11057,9 @@ _Charac_info::~_Charac_info()
 }
 // ORIG 0x08699863：编译器生成的拷贝构造。平凡区（含 _Additioal_info@0x88、
 // CCargo@0xdaa 等无堆成员子对象）逐字段拷贝；非平凡子对象调用拷贝构造。
-_Charac_info::_Charac_info(const _Charac_info& other)
-{
-    typedef std::map<int, stBloodBestRecord> BloodBestMap;
-    typedef std::map<int, STSkillCommandData> SkillCommandMap;
-    char* p = reinterpret_cast<char*>(this);
-    const char* o = reinterpret_cast<const char*>(&other);
-    memcpy(p, o, 0xda);                                                // +0x00..+0xd9 平凡区
-    new (p + 0xda) CInventory(*reinterpret_cast<const CInventory*>(o + 0xda));    // call 0x8699476
-    new (p + 0x892) SkillSlot(*reinterpret_cast<const SkillSlot*>(o + 0x892));    // call 0x86996f6
-    memcpy(p + 0xdaa, o + 0xdaa, 0xe9a - 0xdaa);                       // CCargo 等平凡区
-    new (p + 0xe9a) std::vector<ContinuousItemInfo>(
-        *reinterpret_cast<const std::vector<ContinuousItemInfo>*>(o + 0xe9a));    // call 0x869f61c
-    new (p + 0xea6) std::vector<ContinuousItemInfo>(
-        *reinterpret_cast<const std::vector<ContinuousItemInfo>*>(o + 0xea6));    // call 0x869f61c
-    new (reinterpret_cast<BloodBestMap*>(p + 0xecc))
-        BloodBestMap(*reinterpret_cast<const BloodBestMap*>(o + 0xecc));          // call 0x869f6d0
-    memcpy(p + 0xeed, o + 0xeed, 0x1254 - 0xeed);                       // +0xeed..+0x1253 平凡区
-    new (reinterpret_cast<SkillCommandMap*>(p + 0x1254))
-        SkillCommandMap(*reinterpret_cast<const SkillCommandMap*>(o + 0x1254));   // call 0x869f6ea
-    memcpy(p + 0x129d, o + 0x129d, 0x14d1 - 0x129d);                    // 尾部平凡区
-}
 
 // ORIG 0x0869da62：编译器生成的赋值。顺序：平凡区（+0x88 区 0x52 memcpy）→
 // CInventory/SkillSlot 赋值 → +0xdaa 区 0x11 memcpy → 双 vector/双 map 赋值。
-_Charac_info& _Charac_info::operator=(const _Charac_info& other)
-{
-    typedef std::map<int, stBloodBestRecord> BloodBestMap;
-    typedef std::map<int, STSkillCommandData> SkillCommandMap;
-    char* p = reinterpret_cast<char*>(this);
-    const char* o = reinterpret_cast<const char*>(&other);
-    if (p == o)
-        return *this;
-    memcpy(p, o, 0x88);                                                // +0x00..+0x87 平凡区
-    memcpy(p + 0x88, o + 0x88, 0x52);                                  // _Additioal_info
-    *reinterpret_cast<CInventory*>(p + 0xda) =
-        *reinterpret_cast<const CInventory*>(o + 0xda);                // call 0x869d73c
-    *reinterpret_cast<SkillSlot*>(p + 0x892) =
-        *reinterpret_cast<const SkillSlot*>(o + 0x892);                // call 0x869d91e
-    memcpy(p + 0xdaa, o + 0xdaa, 0x11);                                // CCargo 平凡区
-    *reinterpret_cast<std::vector<ContinuousItemInfo>*>(p + 0xe9a) =
-        *reinterpret_cast<const std::vector<ContinuousItemInfo>*>(o + 0xe9a);     // call 0x86a32b0
-    *reinterpret_cast<std::vector<ContinuousItemInfo>*>(p + 0xea6) =
-        *reinterpret_cast<const std::vector<ContinuousItemInfo>*>(o + 0xea6);     // call 0x86a32b0
-    *reinterpret_cast<BloodBestMap*>(p + 0xecc) =
-        *reinterpret_cast<const BloodBestMap*>(o + 0xecc);             // call 0x86a34fe
-    *reinterpret_cast<SkillCommandMap*>(p + 0x1254) =
-        *reinterpret_cast<const SkillCommandMap*>(o + 0x1254);         // call 0x86a351c
-    memcpy(p + 0x129d, o + 0x129d, 0x14d1 - 0x129d);                   // 尾部平凡区
-    return *this;
-}
 
 // ============================================================================
 // CUser::giveCharacLinkBonusExp(unsigned int bonusExp)
@@ -10873,30 +11141,40 @@ void CUser::quest_action(int cmd, int questId, int triggerVal, int opt)
 
     if (cmd == 0x22)                                            // giveup
     {
-        getCurCharacQuestW()->giveup_quest(questId);
-        packet.put_byte(1);
-        packet.put_short(questId);
-        Quest* q2 = G_CDataManager()->find_quest(questId);
-        if (q2 != 0)
+        // ORIG：giveup_quest 返回值 local_38 <1（0 成功）→ 成功包；
+        // ≥1（0x12/0x13/0x14 失败码）→ put_byte(0)+失败码。
+        const int gResult = getCurCharacQuestW()->giveup_quest(questId);
+        if (gResult < 1)
         {
-            if (!q2->m_triggerDataPairs.empty())
+            packet.put_byte(1);
+            packet.put_short(questId);
+            Quest* q2 = G_CDataManager()->find_quest(questId);
+            if (q2 != 0)
             {
-                bool touched = false;
-                std::vector<int> updates;
-                updates.reserve(q2->m_triggerDataPairs.size() * 3);
-                getCurCharacInvenW()->delete_event_items(
-                    q2->m_triggerDataPairs, updates, touched,
-                    (eMoneySubReason)4, (eItemDelReason)4, false);
-                std::vector<int>::const_iterator ui = updates.begin();
-                while (ui != updates.end())
+                if (!q2->m_triggerDataPairs.empty())
                 {
-                    const int spId = *ui; ++ui;
-                    const int cntS = *ui; ++ui;
-                    SendUpdateItem((eSendTarget)1, (ENUM_ITEMSPACE)spId, cntS);
-                    ++ui;                                       // 第三元素只读丢弃
+                    bool touched = false;
+                    std::vector<int> updates;
+                    updates.reserve(q2->m_triggerDataPairs.size() * 3);
+                    getCurCharacInvenW()->delete_event_items(
+                        q2->m_triggerDataPairs, updates, touched,
+                        (eMoneySubReason)4, (eItemDelReason)4, false);
+                    std::vector<int>::const_iterator ui = updates.begin();
+                    while (ui != updates.end())
+                    {
+                        const int spId = *ui; ++ui;
+                        const int cntS = *ui; ++ui;
+                        SendUpdateItem((eSendTarget)1, (ENUM_ITEMSPACE)spId, cntS);
+                        ++ui;                                   // 第三元素只读丢弃
+                    }
                 }
+                SendHasNoGoWithApcQuestInParty(q2);
             }
-            SendHasNoGoWithApcQuestInParty(q2);
+        }
+        else
+        {
+            packet.put_byte(0);
+            packet.put_byte(gResult);
         }
         packet.finalize(true);
         Send(packet);
@@ -11047,8 +11325,8 @@ void CUser::SetCharacInfo(int count, char* data)
         char* rec = data + i * 0x94;
         info.Reset();                                  // _Charac_info::Reset
         char* p = reinterpret_cast<char*>(&info);
-        *reinterpret_cast<int*>(p) = *reinterpret_cast<int*>(rec);      // characNo
-        strncpy(reinterpret_cast<char*>(p + 4), rec + 4, 0x1e);         // m_name
+        info.m_characNo = *reinterpret_cast<int*>(rec);                  // characNo
+        strncpy(info.m_name, rec + 4, 0x1e);                             // m_name
         p[0x18] = rec[0x18];
         p[0x19] = rec[0x19];
         *reinterpret_cast<short*>(p + 0x1a) =
@@ -11072,23 +11350,23 @@ void CUser::SetCharacInfo(int count, char* data)
         // growType：==1 或 ==0xff 原样，否则 0（→ info+0x14c6）
         const unsigned char grow =
             static_cast<unsigned char>(rec[0x22]);
-        *reinterpret_cast<int*>(p + 0x14c6) =
+        info.m_viewState =
             (grow == 1 || grow == static_cast<unsigned char>(-1))
                 ? static_cast<int>(grow) : 0;
 
-        reinterpret_cast<CommonTime*>(p + 0x39)
+        reinterpret_cast<CommonTime*>(info.m_delReqTime)
             ->SetCreateTime(*reinterpret_cast<long*>(rec + 0x88));
 
         const char expireFlag = (char)(curSec <
             *reinterpret_cast<int*>(rec + 0x90));
-        p[0xe66] = expireFlag;                                        // local_db3
-        *reinterpret_cast<int*>(p + 0x12ad) =
+        info.m_fieldE66 = static_cast<unsigned char>(expireFlag);       // local_db3
+        info.m_field12ad =
             *reinterpret_cast<int*>(rec + 0x90);                      // 删除截止
-        *reinterpret_cast<int*>(p + 0xe5d) =
+        info.m_fielde5d =
             *reinterpret_cast<int*>(rec + 0x8c);                      // local_dbc
-        p[0x1240] = static_cast<char>((rec[0x1c] & 1) != 0);          // 禁玩标记
-        p[0x14b7] = rec[0x1d];                                        // powerSide
-        *reinterpret_cast<int*>(p + 0x14b8) =
+        info.m_pad1240 = static_cast<char>((rec[0x1c] & 1) != 0);      // 禁玩标记
+        info.m_field14b7 = static_cast<unsigned char>(rec[0x1d]);      // powerSide
+        info.m_field14b8 =
             *reinterpret_cast<int*>(rec + 0x1e);                      // wpBonus
 
         {   // local_dd9：&0xfd | 1 | bit*2（rec[0x1c] bit4）
@@ -11096,7 +11374,7 @@ void CUser::SetCharacInfo(int count, char* data)
                 static_cast<unsigned char>(
                     ((static_cast<unsigned char>(rec[0x1c]) >> 4) << 7) >> 7);
             unsigned char& dst =
-                *reinterpret_cast<unsigned char*>(p + 0xe40);
+                info.m_tagVisibleFlags;   // +0xe40 tagCharacVisibleFlag 首字节
             dst = static_cast<unsigned char>((dst & 0xfd) | 1 | (bit * 2));
         }
         p[0x1c04] = expireFlag;                                       // local_15
@@ -11160,32 +11438,35 @@ void CUser::UseQuestItem(int itemIdx)
     int  keepSkill = 0;               // local_50：保留技能包标志
     char doChangeGrow = 0;            // local_45
 
-    struct MapEntry { unsigned int lo, hi; int g, s, k; };
+    // ORIG 二叉判定树叶子（+0x49a..+0xad6）归纳表，逐 id 精确。字段：
+    // (lo,hi, grow档位, subType, keepSkill, elixir标记)。汇编叶子中
+    // -0x4d=grow/-0x48=subType/-0x4c=keep、-0x41=elixir 两组互相独立；
+    // 0xff6/0xff3..0xff6、0x1044 等无叶子 → ORIG 走 0x20/0x11 错误包。
+    struct MapEntry { unsigned int lo, hi; int g, s, k, e; };
     static const MapEntry kUseQuestItemMap[] = {
-        {0xfc9,0xfc9,0,1,0},{0xfca,0xfca,0,2,0},{0xfcb,0xfcb,0,3,0},{0xfcc,0xfcc,0,4,0},
-        {0xfcd,0xfcd,1,2,0},{0xfce,0xfce,1,1,0},{0xfcf,0xfcf,1,3,0},{0xfd0,0xfd0,1,4,0},
-        {0xfd1,0xfd1,2,1,0},{0xfd2,0xfd2,2,3,0},{0xfd3,0xfd3,2,2,0},{0xfd4,0xfd4,2,4,0},
-        {0xfef,0xfef,3,1,0},{0xff0,0xff0,3,3,0},{0xff1,0xff1,3,2,0},{0xff2,0xff2,3,4,0},
-        {0xff6,0xff6,0,4,1},{0xff7,0xff7,0,1,1},{0xff8,0xff8,0,2,1},
-        {0xffb,0xffb,1,2,1},{0xffc,0xffc,1,1,1},{0xffd,0xffd,1,3,1},{0xffe,0xffe,1,4,1},
-        {0xfff,0xfff,2,1,1},{0x1000,0x1000,2,3,1},{0x1001,0x1001,2,2,1},{0x1002,0x1002,2,4,1},
-        {0x1003,0x1003,3,1,1},{0x1004,0x1004,3,3,1},{0x1005,0x1005,3,2,1},{0x1006,0x1006,3,4,1},
-        {0x1044,0x1044,4,2,0},{0x1045,0x1045,4,1,0},{0x1046,0x1046,4,3,0},
-        {0x1047,0x1047,4,3,0},{0x1048,0x1048,4,4,0},
-        {0x105b,0x105b,1,4,1},{0x105c,0x105c,1,1,1},{0x105d,0x105d,1,2,1},{0x105e,0x105e,1,3,1},
-        {0x105f,0x105f,1,4,1},{0x1060,0x1060,2,1,1},{0x1061,0x1061,2,2,1},{0x1062,0x1062,2,3,1},
-        {0x1063,0x1063,2,4,1},{0x1064,0x1064,3,1,1},{0x1065,0x1065,3,2,1},
-        {0x1079,0x1079,3,3,1},{0x107a,0x107a,3,4,1},{0x107b,0x107b,0,1,1},{0x107c,0x107c,0,2,1},
-        {0x107d,0x107d,0,3,1},
-        {0x1f1c,0x1f1c,3,4,1},{0x1f1d,0x1f1d,4,1,1},{0x1f1e,0x1f1e,4,2,1},{0x1f1f,0x1f1f,4,3,1},
-        {0x1f20,0x1f20,5,1,0},{0x1f21,0x1f21,5,3,1},
-        {0x1f22,0x1f22,5,2,0},{0x1f23,0x1f23,5,4,0},{0x1f24,0x1f24,5,1,1},
-        {0x1f25,0x1f25,5,3,1},{0x1f26,0x1f26,5,2,1},{0x1f27,0x1f27,5,4,1},
-        {0x1f28,0x1f28,6,1,0},{0x1f29,0x1f29,6,2,0},
-        {0x1f2a,0x1f2a,6,1,1},{0x1f2b,0x1f2b,6,2,1},
-        {0x1f50,0x1f50,7,1,0},{0x1f51,0x1f51,7,3,0},{0x1f52,0x1f52,7,2,0},
-        {0x1f53,0x1f53,7,4,0},{0x1f54,0x1f54,7,1,1},{0x1f55,0x1f55,7,3,1},
-        {0x1f56,0x1f56,7,2,1},{0x1f57,0x1f57,7,4,1},
+        {0xfc9,0xfc9,0,1,0,0},{0xfca,0xfca,0,2,0,0},{0xfcb,0xfcb,0,3,0,0},{0xfcc,0xfcc,0,4,0,0},
+        {0xfcd,0xfcd,1,2,0,0},{0xfce,0xfce,1,1,0,0},{0xfcf,0xfcf,1,3,0,0},{0xfd0,0xfd0,1,4,0,0},
+        {0xfd1,0xfd1,2,1,0,0},{0xfd2,0xfd2,2,3,0,0},{0xfd3,0xfd3,2,2,0,0},{0xfd4,0xfd4,2,4,0,0},
+        {0xfef,0xfef,3,1,0,0},{0xff0,0xff0,3,3,0,0},{0xff1,0xff1,3,2,0,0},{0xff2,0xff2,3,4,0,0},
+        {0xff7,0xff7,0,1,0,1},{0xff8,0xff8,0,2,0,1},{0xff9,0xff9,0,3,0,1},{0xffa,0xffa,0,4,0,1},
+        {0xffb,0xffb,1,2,0,1},{0xffc,0xffc,1,1,0,1},{0xffd,0xffd,1,3,0,1},{0xffe,0xffe,1,4,0,1},
+        {0xfff,0xfff,2,1,0,1},{0x1000,0x1000,2,3,0,1},{0x1001,0x1001,2,2,0,1},{0x1002,0x1002,2,4,0,1},
+        {0x1003,0x1003,3,1,0,1},{0x1004,0x1004,3,3,0,1},{0x1005,0x1005,3,2,0,1},{0x1006,0x1006,3,4,0,1},
+        {0x1045,0x1045,4,1,0,0},{0x1046,0x1046,4,2,0,0},{0x1047,0x1047,4,3,0,0},
+        {0x1048,0x1048,4,4,0,0},
+        {0x105c,0x105c,1,1,1,1},{0x105d,0x105d,1,2,1,1},{0x105e,0x105e,1,3,1,1},
+        {0x105f,0x105f,1,4,1,1},{0x1060,0x1060,2,1,1,1},{0x1061,0x1061,2,2,1,1},{0x1062,0x1062,2,3,1,1},
+        {0x1063,0x1063,2,4,1,1},{0x1064,0x1064,3,1,1,1},{0x1065,0x1065,3,2,1,1},
+        {0x1079,0x1079,3,3,1,1},{0x107a,0x107a,0,1,1,1},{0x107b,0x107b,0,2,1,1},
+        {0x107c,0x107c,0,3,1,1},{0x107d,0x107d,0,4,1,1},
+        {0x1f1c,0x1f1c,3,4,1,1},{0x1f1d,0x1f1d,4,1,1,1},{0x1f1e,0x1f1e,4,2,1,1},{0x1f1f,0x1f1f,4,3,1,1},
+        {0x1f20,0x1f20,5,1,0,1},{0x1f21,0x1f21,5,3,0,1},{0x1f22,0x1f22,5,2,0,1},{0x1f23,0x1f23,5,4,0,1},
+        {0x1f24,0x1f24,5,1,1,1},{0x1f25,0x1f25,5,3,1,1},{0x1f26,0x1f26,5,2,1,1},{0x1f27,0x1f27,5,4,1,1},
+        {0x1f28,0x1f28,6,1,0,1},{0x1f29,0x1f29,6,2,0,1},
+        {0x1f2a,0x1f2a,6,1,1,1},{0x1f2b,0x1f2b,6,2,1,1},
+        {0x1f50,0x1f50,7,1,0,1},{0x1f51,0x1f51,7,3,0,1},{0x1f52,0x1f52,7,2,0,1},
+        {0x1f53,0x1f53,7,4,0,1},{0x1f54,0x1f54,7,1,1,1},{0x1f55,0x1f55,7,3,1,1},
+        {0x1f56,0x1f56,7,2,1,1},{0x1f57,0x1f57,7,4,1,1},
     };
     const MapEntry* hit = 0;
     for (unsigned int mi = 0; mi < sizeof(kUseQuestItemMap) / sizeof(kUseQuestItemMap[0]);
@@ -11198,11 +11479,20 @@ void CUser::UseQuestItem(int itemIdx)
         }
     }
     if (hit == 0)
-        return;                                        // ORIG 未知道具 → 静默返回
+    {                                                       // LAB_08669808：未知道具
+        packet.clear();                                     // → 0x20/0x11 错误包
+        packet.put_header(1, 0x20);
+        packet.put_byte(0);
+        packet.put_byte(0x11);
+        packet.finalize(true);
+        Send(packet);
+        return;
+    }
 
     grow = static_cast<char>(hit->g);
+    subType = hit->s;
     keepSkill = hit->k;
-    doChangeGrow = 1;
+    doChangeGrow = hit->e;
 
     const bool outsideAll =
         (curIdx < 0x105c || 0x1065 < curIdx) &&
@@ -11328,10 +11618,10 @@ void CUser::UseQuestItem(int itemIdx)
             skillW->clear_all_skills_both();
             skillW->set_parent(this);
             addSkillOnCreateCharacter(
-                reinterpret_cast<_Mastered_skill*>(reinterpret_cast<char*>(skillW) + 0x46),
+                skillW->m_skillSlot,
                 get_charac_job());
             addSkillOnCreateCharacter(
-                reinterpret_cast<_Mastered_skill*>(reinterpret_cast<char*>(skillW) + 0x1de),
+                skillW->m_skillSlot2,
                 get_charac_job());
             changer.SkillInitialize(this, 0, true);
         }
@@ -11649,11 +11939,20 @@ void CUser::AddMileage(int amount, eCoinAddReason reason)
 bool CUser::is_recipe_items_avatar_type(
     const std::vector<std::pair<int, int> >& items)
 {
-    for (std::vector<std::pair<int, int> >::size_type i = 0; i < items.size(); ++i)
+    // ORIG 0x0868c45e：双槽物化 -0x10 item（初 0）/-0xc idx，while 尾条件
+    // `cmp -0xc,%eax; setg`（技巧18：两遍同形共享→gcc 合槽；ORIG 双槽=两独立
+    // 具名变量；signed setg ⇒ idx 为 int、size 经 int 化比较）。
+    CItem* item = 0;
+    int idx = 0;
+    while (idx < static_cast<int>(items.size()))
     {
-        CItem* item = G_CDataManager()->find_item(items[i].first);
-        if (item != 0 && item->IsAvatarItem())
+        // ORIG 0x0868c49d-0x0868c4c7：&& 物化 bool（双 je 落 mov$0 块、真路 mov$1、
+        // merge `test %al; je ++`），短路嵌套形缺 mov$1/jmp/mov$0 段（P84/技巧8）。
+        item = G_CDataManager()->find_item(items[idx].first);
+        register bool avatar asm("al") = (item != 0 && item->IsAvatarItem());
+        if (avatar)
             return true;
+        ++idx;
     }
     return false;
 }
@@ -11668,13 +11967,14 @@ void CUser::SendHasNoGoWithApcQuestInParty(Quest const* quest)
         CParty* party = reinterpret_cast<CParty*>(GetParty());
         if (party == 0)
             return;
-        if (!party->HasNoQuestGoWithApcInParty(quest))
-            return;
+        // ORIG 0x086??：`test %al,%al; je <T>` 无 xor ⇒ 正向 bool 直落形
+        if (party->HasNoQuestGoWithApcInParty(quest)) {
         PacketGuard packet;
         packet.put_header(0, 0xa8);
         packet.put_int(quest->m_index);
         packet.finalize(true);
         party->send_to_party(packet);
+        }
     }
 }
 
@@ -11966,13 +12266,8 @@ int deleteSpecificItems(CUser* user,
     user->deleteSpecificItem(*list, delList);
 
     PacketGuard guards[0x1d];
-    int index[0x1d];
-    int count[0x1d];
-    for (int i = 0; i < 0x1d; ++i)
-    {
-        index[i] = 0;
-        count[i] = 0;
-    }
+    int index[0x1d] = { 0 };
+    int count[0x1d] = { 0 };
 
     for (int i = 0; i < 0x1d; ++i)
     {
@@ -12004,12 +12299,13 @@ int deleteSpecificItems(CUser* user,
         else
         {
             int invenType = 1;
-            if (space == 3)
-                invenType = 0;
-            else if (space == 7)
-                invenType = 3;
-            else if (space == 1)
-                invenType = 2;
+            switch (space)
+            {
+            case 3: invenType = 0; break;
+            case 7: invenType = 3; break;
+            case 1: invenType = 2; break;
+            default: break;
+            }
 
             Inven_Item item =
                 user->getCurCharacInvenR()->GetInvenSlot(invenType, slot);

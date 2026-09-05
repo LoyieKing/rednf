@@ -14,6 +14,8 @@
 #include "LogManager.h"       // logFormat（LinkE2 Inter_VillageAttackedReward::_send_reward_item）
 #include <string>
 
+#include "TaiwanQueries.h"   // ODR 探针
+#include "DBSelectMobileAuthRewardTw.h"  // Garena 手机认证奖励请求（ORIG T 0x0815c586）
 #include "InterDispatcher.h"
 #include "CAradRyosikaEvent.h"   // LinkClosureB-2 权威声明（DoEvent 定义在本 TU）
 #include "SigTypes.h"
@@ -1230,27 +1232,35 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
         }
 
         // ---- 登录历史（CNetwork 视图位于 CUser+0xe0）----
+        // ORIG:get_ip()==0 与否则两分支（仅 peerIp 缓冲写法不同，实参序一致），
+        // 每分支独立调用 GetServerGroup/GetLogInOutState/G_CEnvironment/get_port/
+        // GetPeerIP2/getWebAddress + Login（无缓存局部）。
         {
-            bool zeroIp = false;
-            {
-                CNetwork<4096, 450000>* net = &user->m_network;
-                zeroIp = (net->get_ip() == 0);
-            }
+            CNetwork<4096, 450000>* net = &user->m_network;
             char peerIp[16];
             memset(peerIp, 0, sizeof(peerIp));
-            unsigned short port;
-            const char* webAddr;
-            int serverGroup = (int)user->GetServerGroup();
-            unsigned char logState = user->GetLogInOutState();
-            int channelNo = G_CEnvironment()->m_serverEnvir.m_channelNo;
+            if (net->get_ip() == 0)
             {
-                CNetwork<4096, 450000>* net = &user->m_network;
-                port = net->get_port();
-                net->GetPeerIP2(zeroIp ? peerIp : peerIp, 0x10);
-                webAddr = const_cast<const char*>(const_cast<CUser*>(user)->getWebAddress());
+                int serverGroup = (int)user->GetServerGroup();
+                unsigned char logState = user->GetLogInOutState();
+                int channelNo = G_CEnvironment()->m_serverEnvir.m_channelNo;
+                unsigned short port = net->get_port();
+                net->GetPeerIP2(peerIp + 0x10, 0x10);
+                user->m_historyLog.Login(user->getWebAddress(), peerIp,
+                                         (int)(port & 0xffff), channelNo, logState,
+                                         serverGroup);
             }
-            user->m_historyLog.Login(webAddr, peerIp, (int)(port & 0xffff),
-                                     channelNo, logState, serverGroup);
+            else
+            {
+                int serverGroup = (int)user->GetServerGroup();
+                unsigned char logState = user->GetLogInOutState();
+                int channelNo = G_CEnvironment()->m_serverEnvir.m_channelNo;
+                unsigned short port = net->get_port();
+                net->GetPeerIP2(peerIp, 0x10);
+                user->m_historyLog.Login(user->getWebAddress(), peerIp,
+                                         (int)(port & 0xffff), channelNo, logState,
+                                         serverGroup);
+            }
         }
 
         long nowSec = GlobalData::s_systemTime_.getCurSec();
@@ -1272,6 +1282,9 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 if (flagByte != refByte)
                 {
                     int myGrade = user->get_pvp_grade();
+                    // ORIG:基线读取与 getInitSkillTreeGrade 调用各自重取 G_CDataManager()。
+                    unsigned char initBase =
+                        (unsigned char)G_CDataManager()->m_pvpSkillTree.m_field50;
                     int initGrade =
                         G_CDataManager()->m_pvpSkillTree.getInitSkillTreeGrade(myGrade);
                     if (myGrade < initGrade)
@@ -1462,7 +1475,9 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 }
                 user->sendBlueMarbleEnterCount();
                 user->SendOpenflag();
-                RewardItem(user, lastPlay, 0x4b4515f0, 0x4b578af0, 0x27addd,
+                // ORIG:RewardItem 实参与后续判定各自调用 getCurCharacR()。
+                RewardItem(user, user->getCurCharacR()->m_field7b,
+                           0x4b4515f0, 0x4b578af0, 0x27addd,
                            "game_server_msg_53", "game_server_msg_131", 0);
                 if (user->getCurCharacR()->m_field7b != 0)
                     user->initAllSkill();
@@ -1519,17 +1534,19 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 user->setRewardType(0);
             }
 
-            Sanicova::CPad* pad = user->getPad();
-            if (pad != 0 && pad->m_changedPwd != 0)
-                pad->SendChagePwdRewardMail(user);
+            // ORIG:检查与发信各调一次 getPad();判定用 getChangedPwd() 访问器。
+            if (user->getPad()->getChangedPwd() != 0)
+            {
+                user->getPad()->SendChagePwdRewardMail(user);
+            }
 
             user->discard_mouse_register();
 
-            int levelNow = user->get_charac_level();
-            if (levelNow > 0x27)
+            // ORIG:两个判定各自调用 get_charac_level()。
+            if (user->get_charac_level() > 0x27)
                 DB_LoadBloodBestRecord::makeRequest((int)user->GetUID(),
                                                     user->getCurCharacNo());
-            if (levelNow > 0x3b)
+            if (user->get_charac_level() > 0x3b)
                 DB_LoadDimension::makeRequest((int)user->GetUID(),
                                               user->getCurCharacNo());
 
@@ -1557,16 +1574,27 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             }
 
             {
-                bool dungeonNotice = false;
+                // ORIG:判定与双 send 分支各自调用 G_GameWorld()。
                 int lvlNow = user->get_charac_level();
-                GameWorld* gw = G_GameWorld();
-                if (lvlNow >= gw->getDungeonMinimumRequiredLevel(-1) &&
-                    !gw->IsPVPChannel())
-                    dungeonNotice = true;
+                int minLvl = G_GameWorld()->getDungeonMinimumRequiredLevel(-1);
+                bool dungeonNotice = false;
+                if (lvlNow >= minLvl)
+                {
+                    if (!G_GameWorld()->IsPVPChannel())
+                        dungeonNotice = true;
+                }
                 if (dungeonNotice)
                 {
-                    bool open = G_CDataManager()->m_serverParameter.isDungeonOpen(-1);
-                    gw->send_user_dungeon_inout_message(user, 0x2aff, open);
+                    if (!G_CDataManager()->m_serverParameter.isDungeonOpen(-1))
+                    {
+                        G_GameWorld()->send_user_dungeon_inout_message(
+                            user, 0x2aff, false);
+                    }
+                    else
+                    {
+                        G_GameWorld()->send_user_dungeon_inout_message(
+                            user, 0x2aff, true);
+                    }
                 }
             }
 
@@ -1592,7 +1620,7 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 if (sharedMsg != 0)
                 {
                     if (!sharedMsg->IsSetServerMessage())
-                        sig->m_pad2d38[0] = 0;
+                        sig->m_eventMessageCount = 0;
                     else
                     {
                         EVENT_SERVER_MESSAGE* msg =
@@ -1600,19 +1628,38 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                                 sharedMsg->GetCurServerMessage());
                         if (msg != 0)
                         {
-                            // ORIG：把向量逐条拷入 sig+0x2d38 起的嵌入 SIG_EVENT_SERVER_MESSAGE
+                            // ORIG:const_iterator 循环,7 个字段逐一经 operator*() 拷贝
+                            // (de 站点 ×6/字节域 ×1;m_count 先整体拷贝)。
                             SIG_EVENT_SERVER_MESSAGE* dstMsg =
-                                reinterpret_cast<SIG_EVENT_SERVER_MESSAGE*>(sig->m_pad2d38);
+                                reinterpret_cast<SIG_EVENT_SERVER_MESSAGE*>(&sig->m_eventMessageCount);
+                            dstMsg->m_count = msg->m_count;
                             if (msg->m_count == msg->m_vecMsg.size())
                             {
-                                dstMsg->m_count = msg->m_count;
-                                for (size_t k = 0; k < msg->m_vecMsg.size() && k < 0x64; ++k)
-                                    dstMsg->m_msg[k] = msg->m_vecMsg[k];
+                            std::vector<stSERVER_MESSAGE>::const_iterator smi =
+                                msg->m_vecMsg.begin();
+                            std::vector<stSERVER_MESSAGE>::const_iterator smiEnd =
+                                msg->m_vecMsg.end();
+                            int idx = 0;
+                            while (smi != smiEnd)
+                            {
+                                // ORIG:7 个字段读各自经 operator*()（de 站点 ×6）。
+                                dstMsg->m_msg[idx].m_lenMsg = (*smi).m_lenMsg;
+                                dstMsg->m_msg[idx].m_kind = (*smi).m_kind;
+                                dstMsg->m_msg[idx].m_endTime = (*smi).m_endTime;
+                                memcpy(dstMsg->m_msg[idx].m_msg2, (*smi).m_msg2,
+                                       sizeof((*smi).m_msg2));
+                                dstMsg->m_msg[idx].m_index = (*smi).m_index;
+                                memcpy(dstMsg->m_msg[idx].m_msg, (*smi).m_msg,
+                                       sizeof((*smi).m_msg));
+                                dstMsg->m_msg[idx].m_lenMsg2 = (*smi).m_lenMsg2;
+                                idx = idx + 1;
+                                smi++;
+                            }
                             }
                         }
                     }
                     sharedMsg->SendServerMessageInfo(
-                        user, reinterpret_cast<SIG_EVENT_SERVER_MESSAGE*>(sig->m_pad2d38), 0);
+                        user, reinterpret_cast<SIG_EVENT_SERVER_MESSAGE*>(&sig->m_eventMessageCount), 0);
                 }
             }
 
@@ -1635,21 +1682,22 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                     Stream* stream = GlobalData::s_stream_pool->Acquire(
                         "InterDispatcher.cpp", 0xed7);
                     CStreamGuard guard(stream, true);
-                    guard << 0x180;
-                    guard << (int)user->GetUID();
-                    guard << user->getCurCharacNo();
+                    guard.operator*()->operator<<(0x180);
+                    guard.operator*()->operator<<((int)user->GetUID());
+                    guard.operator*()->operator<<((unsigned int)user->getCurCharacNo());
                     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
                 }
             }
 
             {
-                CItemLimitEditionMgr* limitMgr = G_CDataManager()->getItemLimitEditionMgr();
-                if (limitMgr != 0 && !limitMgr->empty())
+                // ORIG:empty 判定与 makeItemLimitEditionInfo 各自重新调用 getter。
+                // ORIG:无 null 判定,empty 与 makeInfo 各调一次 getter。
+                if (!G_CDataManager()->getItemLimitEditionMgr()->empty())
                 {
                     packet.clear();
                     packet.put_header(0, 0xe1);
                     packet.put_byte(0);
-                    limitMgr->makeItemLimitEditionInfo(packet);
+                    G_CDataManager()->getItemLimitEditionMgr()->makeItemLimitEditionInfo(packet);
                     packet.finalize(true);
                     user->Send(packet);
                 }
@@ -1659,30 +1707,33 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 Stream* stream = GlobalData::s_stream_pool->Acquire(
                     "InterDispatcher.cpp", 0xf20);
                 CStreamGuard guard(stream, true);
-                guard << 0x1a7;
-                guard << (int)user->GetUID();
-                guard << user->getCurCharacNo();
+                guard.operator*()->operator<<(0x1a7);
+                guard.operator*()->operator<<((int)user->GetUID());
+                guard.operator*()->operator<<((unsigned int)user->getCurCharacNo());
                 GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
             }
 
+            // ORIG:两个独立 if,各自重调 G_GameWorld()->IsIntegratedPvPBaseChannel()。
             if (G_GameWorld()->IsIntegratedPvPBaseChannel())
             {
                 Stream* stream = GlobalData::s_stream_pool->Acquire(
                     "InterDispatcher.cpp", 0xf2a);
                 CStreamGuard guard(stream, true);
-                guard << 0x1d5;
-                guard << (int)user->GetUID();
-                guard << (char)user->GetServerGroup();
-                guard << user->getCurCharacNo();
+                guard.operator*()->operator<<(0x1d5);
+                guard.operator*()->operator<<((int)user->GetUID());
+                guard.operator*()->operator<<((char)user->GetServerGroup());
+                guard.operator*()->operator<<((unsigned int)user->getCurCharacNo());
                 GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-
+            }
+            if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+            {
                 Stream* stream2 = GlobalData::s_stream_pool->Acquire(
                     "InterDispatcher.cpp", 0xf36);
                 CStreamGuard guard2(stream2, true);
-                guard2 << 0x1e0;
-                guard2 << (int)user->GetUID();
-                guard2 << (char)user->GetServerGroup();
-                guard2 << user->getCurCharacNo();
+                guard2.operator*()->operator<<(0x1e0);
+                guard2.operator*()->operator<<((int)user->GetUID());
+                guard2.operator*()->operator<<((char)user->GetServerGroup());
+                guard2.operator*()->operator<<((unsigned int)user->getCurCharacNo());
                 GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard2);
             }
 
@@ -1690,15 +1741,28 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             {
                 unsigned int playCount =
                     online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam();
-                int code = (playCount == 1) ? 0x1e6 : 0x1e8;
-                Stream* stream = GlobalData::s_stream_pool->Acquire(
-                    "InterDispatcher.cpp", (code == 0x1e6) ? 0xf44 : 0xf4d);
-                CStreamGuard guard(stream, true);
-                guard << code;
-                guard << (int)user->GetUID();
-                guard << (char)user->GetServerGroup();
-                guard << user->getCurCharacNo();
-                GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+                if (playCount == 1)
+                {
+                    Stream* stream = GlobalData::s_stream_pool->Acquire(
+                        "InterDispatcher.cpp", 0xf44);
+                    CStreamGuard guard(stream, true);
+                    guard.operator*()->operator<<(0x1e6);
+                    guard.operator*()->operator<<((int)user->GetUID());
+                    guard.operator*()->operator<<((char)user->GetServerGroup());
+                    guard.operator*()->operator<<((unsigned int)user->getCurCharacNo());
+                    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+                }
+                else
+                {
+                    Stream* stream = GlobalData::s_stream_pool->Acquire(
+                        "InterDispatcher.cpp", 0xf4d);
+                    CStreamGuard guard(stream, true);
+                    guard.operator*()->operator<<(0x1e8);
+                    guard.operator*()->operator<<((int)user->GetUID());
+                    guard.operator*()->operator<<((char)user->GetServerGroup());
+                    guard.operator*()->operator<<((unsigned int)user->getCurCharacNo());
+                    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+                }
             }
 
             user->send_RedeemInfo();
@@ -1726,13 +1790,17 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             RequestDBEventArad(user);
 
             {
-                EventClassify::CEventScriptMng* eventMng =
-                    static_cast<EventClassify::CEventScriptMng*>(
-                        G_CDataManager()->get_event_script_mng());
                 std::bitset<32> flags(sig->m_bitset);
-                eventMng->process_account_first_login(0x191, user, flags);
-                eventMng->process_account_first_login(0x192, user, flags);
-                eventMng->process_account_first_login(0x19c, user, flags);
+                // ORIG:每次 process_account_first_login 前重调 get_event_script_mng()。
+                static_cast<EventClassify::CEventScriptMng*>(
+                    G_CDataManager()->get_event_script_mng())
+                    ->process_account_first_login(0x191, user, flags);
+                static_cast<EventClassify::CEventScriptMng*>(
+                    G_CDataManager()->get_event_script_mng())
+                    ->process_account_first_login(0x192, user, flags);
+                static_cast<EventClassify::CEventScriptMng*>(
+                    G_CDataManager()->get_event_script_mng())
+                    ->process_account_first_login(0x19c, user, flags);
             }
 
             {
@@ -1743,11 +1811,13 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             user->reset_is_end_lethe_at_login();
 
             {
-                EventClassify::CEventScriptMng* eventMng =
-                    static_cast<EventClassify::CEventScriptMng*>(
-                        G_CDataManager()->get_event_script_mng());
-                eventMng->send_event_init_data(user, false);
-                eventMng->send_event_init_record_data(user);
+                // ORIG:两次调用各自重取 get_event_script_mng()。
+                static_cast<EventClassify::CEventScriptMng*>(
+                    G_CDataManager()->get_event_script_mng())
+                    ->send_event_init_data(user, false);
+                static_cast<EventClassify::CEventScriptMng*>(
+                    G_CDataManager()->get_event_script_mng())
+                    ->send_event_init_record_data(user);
             }
 
             {
@@ -1768,7 +1838,7 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             if (sig->m_fieldC != 0)
                 user->SendTagCharacInfo();
 
-            const_cast<_Charac_info*>(user->getCurCharacR())->m_pad14bc[0] = 0;
+            const_cast<_Charac_info*>(user->getCurCharacR())->m_field14BC = 0;   // _Charac_info pad 拆分后 +0x14bc 具名字段
 
             {
                 CraneMinigameManager* crane = G_CGameManager()->GetCraneMinigameManager();
@@ -1793,6 +1863,22 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 HeroMissionEvent* hero = ARAD::Singleton<HeroMissionEvent>::Get();
                 if (hero != 0)
                     hero->loadEventData(user);
+            }
+
+            // ORIG:Garena 段(双 getGarenaAuthData + Taiwan::GarenaAuthData 访问器)。
+            // CUser::getGarenaAuthData 返回 char*(GarenaAuthData 视图首址)。
+            Taiwan::GarenaAuthData* garenaData =
+                reinterpret_cast<Taiwan::GarenaAuthData*>(user->getGarenaAuthData());
+            if (Taiwan::GarenaCyberCafe(garenaData->getGcaType()) != 0)
+            {
+                Taiwan::GarenaAuthPCRoom(user);
+            }
+            if (reinterpret_cast<Taiwan::GarenaAuthData*>(
+                    user->getGarenaAuthData())->getMobileAuth() != 0)
+            {
+                // ORIG 0x815c586:makeRequest 不消费 this(m_field8ec31 经栈参 user 读,
+                // 无 C1 构造站点)——静态语义调用。
+                DBSelectMobileAuthRewardTw::makeRequest(user);
             }
 
             result = user->unlock4DataLoad() ? 0 : 0x1139;

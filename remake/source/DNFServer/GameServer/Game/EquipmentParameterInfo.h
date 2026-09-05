@@ -161,8 +161,15 @@ public:
     struct EquipmentAuraAppendageData
     {
         // ORIG W 0x089d2cf2（D2 同址）：空体用户析构（6 字节 push/mov/pop/ret）。
+        // sizeof = 0x14（5×int）：ORIG push_back 0x089c6e76 `lea 0x14(%eax),%edx`
+        // （end = begin + 元素尺寸 0x14）。[ice appendage] 写 {0,i1,i2,i3}（第 5 个
+        // int ORIG 不写，push_back 仍拷 0x14），[curse appendage] 写满 5 个（type=1）。
         ~EquipmentAuraAppendageData() {}
-        int m_field0;   // +0x00
+        int m_field0;    // +0x00 类型：[ice appendage]=0 / [curse appendage]=1
+        int m_field4;    // +0x04 第 1 个 ScanInt
+        int m_field8;    // +0x08 第 2 个 ScanInt
+        int m_fieldc;    // +0x0c 第 3 个 ScanInt
+        int m_field10;   // +0x10 第 4 个 ScanInt（[ice appendage] 不写）
     };
 
     struct SASPROPERTY
@@ -188,13 +195,17 @@ public:
     int m_magicalAttack;                               // +0x1c [magical attack]
     int m_20;                                          // +0x20（标量，clear 清零；语义未在 import/export 出现）
     int m_magicalDefense;                              // +0x24 [magical defense]
-    int m_28;                                          // +0x28（import 写 int；语义未确认）
-    int m_2c;                                          // +0x2c（import 写 int；语义未确认）
-    // +0x30..0x4f：ORIG 隐式 op=（0x8366361）按 4 个 8 字节对拷贝 → 4 个 long long。
-    long long m_pad30_0;                                  // +0x30
-    long long m_pad30_1;                                  // +0x38
-    long long m_pad30_2;                                  // +0x40
-    long long m_pad30_3;                                  // +0x48
+    // [level linear ability] 起始槽（set_item 拷作 growth A/B）：
+    int m_growthLevelBegin;                            // +0x28（[level linear ability] 首 ScanInt；set_item growthA）
+    int m_growthLevelEnd;                              // +0x2c（[level linear ability] 次 ScanInt；set_item growthB）
+    // +0x30..0x4f：[level linear ability] 基础四组各 2 int（ORIG 内层子标签
+    // [physical attack]/[physical defense]/[magical attack]/[magical defense]，
+    // (i+0xc/0xe/0x10/0x12)*4 序列）。ORIG 隐式 op=（0x8366361）按 4 个 8 字节对
+    // 拷贝；clear（0x89193c0）按 (int*)this[i+12/14/16/18] 循环清零。
+    int m_linPhyAtk[2];                                // +0x30
+    int m_linPhyDef[2];                                // +0x38
+    int m_linMagAtk[2];                                // +0x40
+    int m_linMagDef[2];                                // +0x48
     int m_50;                                          // +0x50（clear 清零；语义未知）
     int m_phyAtt[2];                                   // +0x54（getEquipmentPhysicalAttack 0x89c2e48：this+(level+0x14)*4+4）
     int m_phyDef[2];                                   // +0x5c（getEquipmentPhysicalDefense 0x89c2e5c：this+(level+0x14)*4+0xc）
@@ -280,7 +291,7 @@ public:
     std::vector<std::string> m_vec1f4;                 // +0x1f4
     std::vector<EquipmentAuraAppendageData> m_aura200; // +0x200（[curse appendage]/[ice appendage]）
     float m_decreaseCriticalDamage;                    // +0x20c [decrease critical damage]（local/10，float）
-    int m_210;                                         // +0x210（float 写入；clear 清零；语义未确认）
+    float m_210;                                       // +0x210（ORIG 0x89aca58 mov 32 位浮点位模式写入；clear 清零）
     std::vector<int> m_vec214;                         // +0x214（[hardcoding parameter] push_back）
     int m_pushAside;                                   // +0x220 [push aside]
     int m_liftUp;                                      // +0x224 [lift up]
@@ -307,10 +318,26 @@ public:
     int m_darkAttack;                                  // +0x290 [dark attack]
     int m_lightAttack;                                 // +0x294 [light attack]
     int m_allElementalAttack;                          // +0x298 [all elemental attack]
-    char m_pad29c[0xd8];                               // +0x29c..0x373（标量，语义未知）
-    int m_activeStatusControlInfo[5];                  // +0x374..0x384 [active status control info]
-    int m_388[5];                                      // +0x388（[separate attack] 0x388/0x38c + [separate rate] float 0x390/0x394）
-    char m_pad39c[0x74];                               // +0x39c..0x40f（标量，语义未知）
+    // +0x29c..0x373：状态概率/等级 18 槽表（export/import [active status
+    // probability]/[active status level]，base (i+0xa4)*4+0xc / (i+0xb8)*4+4）。
+    int m_activeStatusProbability[18];                 // +0x29c..0x2e3
+    int m_activeStatusLevelTable[18];                       // +0x2e4..0x32b
+    int m_activeStatusCtrl[18];                        // +0x32c..0x373（control info 第三表，(i+0xc8)*4+0xc）
+    int m_activeStatusControlInfo[5];                  // +0x374..0x384 [active status control info]（control info 特判列）
+    int m_separateAttack[2];                         // +0x388/+0x38c
+    float m_separateRate[2];                          // +0x390/+0x394
+    int m_398;                                        // +0x398
+    int m_39c;                                        // +0x39c（clear 清零；未知语义）
+    int m_linEqPhyAtk[4];                             // +0x3a0（[equipment physical attack]，4 档）
+    int m_linEqPhyDef[4];                             // +0x3b0（[equipment physical defense]）
+    int m_linEqMagAtk[4];                             // +0x3c0（[equipment magical attack]）
+    int m_linEqMagDef[4];                             // +0x3d0（[equipment magical defense]）
+    int m_growthGradeBegin;                           // +0x3e0（[grade] 首值；set_item growthC）
+    int m_growthGradeEnd;                             // +0x3e4（[grade] 次值；set_item growthD）
+    int m_linSepAtk[4];                               // +0x3e8（[separate attack]，4 档）
+    float m_linSepRate[4];                            // +0x3f8（[separate rate]，4 档 float）
+    int m_growthRepairBegin;                           // +0x408（[repair price] 首值；set_item growthE）
+    int m_growthRepairEnd;                             // +0x40c（[repair price] 次值；set_item growthF）
     int m_410;                                         // +0x410
     int m_414;                                         // +0x414
     // +0x418..0x434 = ORIG `._119` 匿名结构（importAllSkillItem/importItemOverpowerDesc
@@ -331,7 +358,7 @@ public:
     char m_440;                                        // +0x440（clear 置 0）
     char m_pad441[3];                                  // +0x441..0x443
     float m_upgradeCostDiscount;                       // +0x444 [upgrade cost discount]
-    float m_448;                                       // +0x448 [upgrade cost discount] 第二值
+    float m_upgradeProbIncrease;                       // +0x448 [upgrade prob increase]
     float m_assaultCostDiscount;                       // +0x44c [assault cost discount]
     // +0x450..0x464 = RebirthAppendageinfo（ORIG clear 0x8919cb7 调其 clear；
     //   import 写 +0x450/+0x454/+0x458/+0x45c/+0x464/+0x460）
@@ -355,12 +382,12 @@ struct EquipmentParameterInfoLayoutMirror
     int m_magicalAttack;
     int m_20;
     int m_magicalDefense;
-    int m_28;
-    int m_2c;
-    long long m_pad30_0;
-    long long m_pad30_1;
-    long long m_pad30_2;
-    long long m_pad30_3;
+    int m_growthLevelBegin;
+    int m_growthLevelEnd;
+    int m_linPhyAtk[2];
+    int m_linPhyDef[2];
+    int m_linMagAtk[2];
+    int m_linMagDef[2];
     int m_50;
     int m_phyAtt[2];
     int m_phyDef[2];
@@ -446,7 +473,7 @@ struct EquipmentParameterInfoLayoutMirror
     char m_vec1f4[sizeof(std::vector<std::string>)];
     char m_aura200[sizeof(std::vector<EquipmentParameterInfo::EquipmentAuraAppendageData>)];
     float m_decreaseCriticalDamage;
-    int m_210;
+    float m_210;
     char m_vec214[sizeof(std::vector<int>)];
     int m_pushAside;
     int m_liftUp;
@@ -471,10 +498,24 @@ struct EquipmentParameterInfoLayoutMirror
     int m_darkAttack;
     int m_lightAttack;
     int m_allElementalAttack;
-    char m_pad29c[0xd8];
+    int m_activeStatusProbability[18];
+    int m_activeStatusLevelTable[18];
+    int m_activeStatusCtrl[18];
     int m_activeStatusControlInfo[5];
-    int m_388[5];
-    char m_pad39c[0x74];
+    int m_separateAttack[2];
+    float m_separateRate[2];
+    int m_398;
+    int m_39c;
+    int m_linEqPhyAtk[4];
+    int m_linEqPhyDef[4];
+    int m_linEqMagAtk[4];
+    int m_linEqMagDef[4];
+    int m_growthGradeBegin;
+    int m_growthGradeEnd;
+    int m_linSepAtk[4];
+    float m_linSepRate[4];
+    int m_growthRepairBegin;
+    int m_growthRepairEnd;
     int m_410;
     int m_414;
     char m_pad418[sizeof(std::vector<EquipmentParameterInfo::SASPROPERTY>)];
@@ -488,7 +529,7 @@ struct EquipmentParameterInfoLayoutMirror
     char m_440;
     char m_pad441[3];
     float m_upgradeCostDiscount;
-    float m_448;
+    float m_upgradeProbIncrease;
     float m_assaultCostDiscount;
     char m_rebirth450[sizeof(EquipmentParameterInfo::RebirthAppendageinfo)];
     char m_vec468[sizeof(std::vector<std::pair<int, int> >)];
@@ -524,6 +565,8 @@ static_assert(offsetof(EquipmentParameterInfoLayoutMirror, m_425) == 0x425,
               "m_425 +0x425 (importItemOverpowerDesc 置 1)");
 static_assert(offsetof(EquipmentParameterInfoLayoutMirror, m_428) == 0x428,
               "m_428 (vector<vector<float>>) +0x428 (importItemOverpowerDesc push_back)");
+static_assert(sizeof(EquipmentParameterInfo::EquipmentAuraAppendageData) == 0x14,
+              "EquipmentAuraAppendageData sizeof 0x14 (ORIG push_back 0x089c6e76 lea 0x14)");
 
 // ---- 解析/导出函数（ORIG 符号） ----
 bool importEquipmentParameterInfo(EquipmentParameterInfo* info,

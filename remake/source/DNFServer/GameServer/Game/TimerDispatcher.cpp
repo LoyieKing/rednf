@@ -279,11 +279,12 @@ TimerDispatcher::~TimerDispatcher()
 // ORIG 0x86329f6：空槽返回 0。
 TimerSig* TimerDispatcher::get_dispatcher(int msg)
 {
-    if (m_dispatchers[msg] == 0)
+    // ORIG 0x086329f6：非空分支为 fall-through（先 reload 再 jmp），空走 mov $0。
+    if (m_dispatchers[msg] != 0)
     {
-        return 0;
+        return m_dispatchers[msg];
     }
-    return m_dispatchers[msg];
+    return 0;
 }
 
 // ORIG 0x8632a18 逐指令转写：entry.msg 选槽 → dispatch_sig(param1,param2,param3)。
@@ -298,6 +299,13 @@ int TimerDispatcher::dispatch(TimerEntry& entry)
 }
 
 // ======== 具体分发器生命周期 + dispatch_sig stub ========
+// CParty +0xb24 内嵌 CBattle_Field 子对象局部视图（与 GmCmds_D.cpp/
+// DisPatcherCore.cpp 同款；CParty.h 以 pad 占位，Main 裁定 TU 局部视图）。
+struct CPartyBattleFieldView
+{
+    char m_pad[0xb24];
+    CBattle_Field m_battleField;   // +0xb24
+};
 // stub 体待后续批次按 docs/class_func_reports 还原；地址=该函数 ORIG 起点。
 
 TimerCheckConn::TimerCheckConn() {}
@@ -656,7 +664,7 @@ int TimerFatigueReset::RegistNextTimer()
 // ORIG T 0x08632b32 (_ZN17TimerAvatarExpire11RegistTimerEP5CUser)
 // 求值序（右→左）：getCurCharacNo → get_unique_id → env+0x380*0x3c → GetSlotIDX →
 // G_TimerQueue；InsertTimer(0, slot, 0x51, env380*60, unique_id, characNo)；返回 1（void 化）。
-void TimerAvatarExpire::RegistTimer(CUser* user)
+bool TimerAvatarExpire::RegistTimer(CUser* user)   // ORIG 单出口 mov $0x1,%eax（恒 true）
 {
 	// env+0x380（每日过期时长分钟数）即 m_serverEnvir.m_avatarTime；
     // 内联实参保持 ORIG 求值序（getCurCharacNo → get_unique_id → env → GetSlotIDX → G_TimerQueue）。
@@ -668,6 +676,7 @@ void TimerAvatarExpire::RegistTimer(CUser* user)
         G_CEnvironment()->m_serverEnvir.m_avatarTime * 0x3c,
         static_cast<unsigned short>(user->get_unique_id()),   // ORIG movzwl %ax
         static_cast<unsigned int>(user->getCurCharacNo()));
+    return true;
 }
 
 // TimerAvatarExpire ctor W 0x0863bb3e / ~D1 W 0x0863bb8a / ~D0 W 0x0863bb5a
@@ -744,12 +753,10 @@ int TimerCardSelect::dispatch_sig(int p1, int p2, unsigned int p3)
     {
         return 0;
     }
-    // ORIG：两次独立 get_dungeon_clear_state 调用（==0 / ==5 均提前返回）。
-    if (party->get_dungeon_clear_state() == 0)
-    {
-        return 1;
-    }
-    if (party->get_dungeon_clear_state() == 5)
+    // ORIG 0x08634412..+0x84：|| 合并条件 —— gcc4.4 对 || 生成短路跳转 +
+    // 汇合点 mov$1/jmp/mov$0 物化（探针 x4 p1 实证）；独立两 if 各自 sete，不合 ORIG。
+    if (party->get_dungeon_clear_state() == 0 ||
+        party->get_dungeon_clear_state() == 5)
     {
         return 1;
     }
@@ -831,10 +838,12 @@ int TimerClearDungeonCardSelectRight::dispatch_sig(int p1, int p2, unsigned int 
 {
     // ORIG 0x086347e2：GetParty(p1) + check_timer_key(0x13, p2)。
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x13, p2))
-    {
+    // 拆分独立早退（ORIG 0x086347e3：null 段 cmpl;jne 7f0+mov0 岛；
+    // check 段 xor$1;test;je 818 前跳 + 811 mov0 岛）。
+    if (party == 0)
         return 0;
-    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x13, p2))
+        return 0;
     if (party->get_dungeon_clear_state() == 4)
     {
         party->set_dungeon_clear_state(5);
@@ -848,11 +857,13 @@ TimerPremiumServiceOver::~TimerPremiumServiceOver() {}
 int TimerPremiumServiceOver::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 5);   // ORIG 第二实参为常量 5
-    if (user == 0 || static_cast<unsigned int>(user->get_acc_id()) != p3 ||
-        !user->IsPremiumUser())
-    {
+    // ORIG 0x0863485a：三段独立早退（jne 岛 + setne 物化 + xor$1），非 || 链。
+    if (user == 0)
         return 0;
-    }
+    if (static_cast<unsigned int>(user->get_acc_id()) != p3)
+        return 0;
+    if (!user->IsPremiumUser())
+        return 0;
     WongWork::CHandlePremium::handlePremiumTimeout(user);   // ORIG 0x863485a
     return 1;
 }
@@ -862,14 +873,15 @@ TimerPremiumServiceUpdate::~TimerPremiumServiceUpdate() {}
 int TimerPremiumServiceUpdate::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 6);   // ORIG 第二实参为常量 6
-    if (user == 0 || static_cast<unsigned int>(user->get_acc_id()) != p3 ||
-        !user->IsPremiumUser())
-    {
+    // ORIG 0x086348d4：三段独立早退。
+    if (user == 0)
         return 0;
-    }
-    WongWork::CUserPremium* premium = user->GetPremiumInfoW();
-    premium->ReCalcAdvantage();
-    premium->RecalcAdditionalInfo(user);
+    if (static_cast<unsigned int>(user->get_acc_id()) != p3)
+        return 0;
+    if (!user->IsPremiumUser())
+        return 0;
+    user->GetPremiumInfoW()->ReCalcAdvantage();
+    user->GetPremiumInfoW()->RecalcAdditionalInfo(user);
     if (user->get_state() > 3)
     {
         user->SendFatigue();
@@ -880,7 +892,10 @@ int TimerPremiumServiceUpdate::dispatch_sig(int p1, int p2, unsigned int p3)
     midnight.tm_hour = 0;
     midnight.tm_min = 0;
     midnight.tm_sec = 0;
-    const int delay = static_cast<int>(mktime(&midnight) + 0x15180 - now);
+    int nextAt = static_cast<int>(mktime(&midnight));   // ORIG mov %eax,-0xc(%ebp)
+    if (midnight.tm_hour >= 0)                          // ORIG mov -0x38(%ebp) test js
+        nextAt += 0x15180;
+    register int delay = nextAt - static_cast<int>(now);   // ORIG %ebx 直落 0x10(%esp)
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, p1, (TIMER_MESSAGE)5,
                                 delay, p2, p3);
     return 1;
@@ -904,16 +919,15 @@ int TimerPremiumServiceStart::dispatch_sig(int p1, int p2, unsigned int p3)
         // ORIG 通过 CUser::GetPremiumInfo()（const）取 CUserPremium*，再查指定类型信息。
         WongWork::SUserPremiumInfo* info =
             user->GetPremiumInfo()->GetPremiumInfo(p2);
-        if (info->m_type != 0)
-        {
-            WongWork::CHandlePremium::handleNotifyPremiumInfo(
-                user, info->m_type, info->m_end - info->m_start);
-            if (g_SPremiumInfo[info->m_type].m_kind != 2)
-            {
-                WongWork::CHandlePremium::handlePremiumEffect(
-                    user, static_cast<ENUM_PREMIUM_TYPE>(info->m_type));
-            }
-        }
+        // ORIG 0x08634af4/0x08634b3b：两处正向早退 return 1（mov $1 岛内联）。
+        if (info->m_type == 0)
+            return 1;
+        WongWork::CHandlePremium::handleNotifyPremiumInfo(
+            user, info->m_type, info->m_end - info->m_start);
+        if (g_SPremiumInfo[info->m_type].m_kind == 2)
+            return 1;
+        WongWork::CHandlePremium::handlePremiumEffect(
+            user, static_cast<ENUM_PREMIUM_TYPE>(info->m_type));
     }
     return 1;
 }
@@ -923,19 +937,21 @@ TimerCheckPaidPCRoomTerm::~TimerCheckPaidPCRoomTerm() {}
 int TimerCheckPaidPCRoomTerm::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 6);   // ORIG 第二实参为常量 6
-    if (user == 0 || static_cast<unsigned int>(user->get_acc_id()) != p3)
+    // ORIG 报告 TimerCheckPaidPCRoomTerm/dispatch_sig.md：两段独立早退；
+    // !isAffectedPremium()（bool 声明 ⇒ xor $0x1）先走 notify/return 0，
+    // logout/login/return 1 位于尾部 je 目标块。
+    if (user == 0)
+        return 0;
+    if (static_cast<unsigned int>(user->get_acc_id()) != p3)
+        return 0;
+    if (!user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(p2)))
     {
+        WongWork::CHandlePremium::handleNotifyPremiumInfo(user, p2, 0);
         return 0;
     }
-    // ORIG isAffectedPremium(ENUM_PREMIUM_TYPE) const 单参数（_ZNK5CUser17isAffectedPremiumE17ENUM_PREMIUM_TYPE）。
-    if (user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(p2)))
-    {
-        user->SendLogoutToPCRoomServer();
-        user->SendLoginToPCRoomServer();
-        return 1;
-    }
-    WongWork::CHandlePremium::handleNotifyPremiumInfo(user, p2, 0);
-    return 0;
+    user->SendLogoutToPCRoomServer();
+    user->SendLoginToPCRoomServer();
+    return 1;
 }
 
 TimerEPLPReturnVillage::TimerEPLPReturnVillage() {}
@@ -1001,13 +1017,15 @@ TimerWarRoomReadyLockCount::~TimerWarRoomReadyLockCount() {}
 int TimerWarRoomReadyLockCount::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08634d86：GetWarRoom(p1) + CheckTimerKey(0x42, p2)。
+    // 拆分早退（ORIG 0x08634da5：cmpl;jne 前跳+mov0 岛；0x08634dc7 xor$1;test;je
+    // 前跳 STATE + mov0 岛；ChangeState 后 mov$1 直落 EXIT）。
     WarRoom* room = G_CGameManager()->GetWarRoom(p1);
-    if (room != 0 && room->CheckTimerKey((TIMER_MESSAGE)0x42, p2))
-    {
-        room->ChangeState(WARROOM_STATE_3);
-        return 1;
-    }
-    return 0;
+    if (room == 0)
+        return 0;
+    if (!room->CheckTimerKey((TIMER_MESSAGE)0x42, p2))
+        return 0;
+    room->ChangeState(WARROOM_STATE_3);
+    return 1;
 }
 
 TimerWarRoomBattlePauseCount::TimerWarRoomBattlePauseCount() {}
@@ -1015,13 +1033,14 @@ TimerWarRoomBattlePauseCount::~TimerWarRoomBattlePauseCount() {}
 int TimerWarRoomBattlePauseCount::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08634df6：GetWarRoom(p1) + CheckTimerKey(0x43, p2)。
+    // 拆分早退（同 ReadyLockCount，ORIG 0x08634e15/0x08634e37）。
     WarRoom* room = G_CGameManager()->GetWarRoom(p1);
-    if (room != 0 && room->CheckTimerKey((TIMER_MESSAGE)0x43, p2))
-    {
-        room->ChangeState(WARROOM_STATE_3);
-        return 1;
-    }
-    return 0;
+    if (room == 0)
+        return 0;
+    if (!room->CheckTimerKey((TIMER_MESSAGE)0x43, p2))
+        return 0;
+    room->ChangeState(WARROOM_STATE_3);
+    return 1;
 }
 
 TimerWarRoomResultCount::TimerWarRoomResultCount() {}
@@ -1098,10 +1117,11 @@ int TimerBloodSmallRoundRegister::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08634fee：GetParty(p1) + check_timer_key(0x16, p2)。
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x16, p2))
-    {
+    // 拆分独立早退（ORIG 0x08634ffx：null 段 jne 前跳岛 + check 段 xor$1;test;je 岛）。
+    if (party == 0)
         return 0;
-    }
+    if (!party->check_timer_key((TIMER_MESSAGE)0x16, p2))
+        return 0;
     reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24)
         ->BloodSpawnTimerManager(false, true);   // ORIG：party+0xb24 即 CBattle_Field 子对象
     return 1;
@@ -1116,9 +1136,12 @@ int TimerBloodPhaseRegister0::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if (!party->check_timer_key((TIMER_MESSAGE)0x17, p2))
         return 0;
-    CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[0]);
-    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[0], 0x17, 0);
+    short nextRound =
+        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnCnt[0];
+    short* spawnTime =
+        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnTime;
+    reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.BloodPhaseSpawn(
+        nextRound, *spawnTime, 0x17, 0);
     return 1;
 }
 
@@ -1131,9 +1154,12 @@ int TimerBloodPhaseRegister1::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if (!party->check_timer_key((TIMER_MESSAGE)0x18, p2))
         return 0;
-    CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[1]);
-    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[1], 0x18, 1);
+    short nextRound =
+        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnCnt[1];
+    short* spawnTime =
+        &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnTime[1];
+    reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.BloodPhaseSpawn(
+        nextRound, *spawnTime, 0x18, 1);
     return 1;
 }
 
@@ -1146,9 +1172,12 @@ int TimerBloodPhaseRegister2::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if (!party->check_timer_key((TIMER_MESSAGE)0x19, p2))
         return 0;
-    CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[2]);
-    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[2], 0x19, 2);
+    short nextRound =
+        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnCnt[2];
+    short* spawnTime =
+        &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnTime[2];
+    reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.BloodPhaseSpawn(
+        nextRound, *spawnTime, 0x19, 2);
     return 1;
 }
 
@@ -1161,9 +1190,12 @@ int TimerBloodPhaseRegister3::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if (!party->check_timer_key((TIMER_MESSAGE)0x1a, p2))
         return 0;
-    CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[3]);
-    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[3], 0x1a, 3);
+    short nextRound =
+        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnCnt[3];
+    short* spawnTime =
+        &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnTime[3];
+    reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.BloodPhaseSpawn(
+        nextRound, *spawnTime, 0x1a, 3);
     return 1;
 }
 
@@ -1176,9 +1208,12 @@ int TimerBloodPhaseRegister4::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if (!party->check_timer_key((TIMER_MESSAGE)0x1b, p2))
         return 0;
-    CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[4]);
-    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[4], 0x1b, 4);
+    short nextRound =
+        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnCnt[4];
+    short* spawnTime =
+        &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnTime[4];
+    reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.BloodPhaseSpawn(
+        nextRound, *spawnTime, 0x1b, 4);
     return 1;
 }
 
@@ -1191,9 +1226,12 @@ int TimerBloodPhaseRegister5::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if (!party->check_timer_key((TIMER_MESSAGE)0x1c, p2))
         return 0;
-    CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[5]);
-    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[5], 0x1c, 5);
+    short nextRound =
+        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnCnt[5];
+    short* spawnTime =
+        &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnTime[5];
+    reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.BloodPhaseSpawn(
+        nextRound, *spawnTime, 0x1c, 5);
     return 1;
 }
 
@@ -1206,9 +1244,12 @@ int TimerBloodPhaseRegister6::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if (!party->check_timer_key((TIMER_MESSAGE)0x1d, p2))
         return 0;
-    CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[6]);
-    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[6], 0x1d, 6);
+    short nextRound =
+        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnCnt[6];
+    short* spawnTime =
+        &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnTime[6];
+    reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.BloodPhaseSpawn(
+        nextRound, *spawnTime, 0x1d, 6);
     return 1;
 }
 
@@ -1221,9 +1262,12 @@ int TimerBloodPhaseRegister7::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if (!party->check_timer_key((TIMER_MESSAGE)0x1e, p2))
         return 0;
-    CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[7]);
-    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[7], 0x1e, 7);
+    short nextRound =
+        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnCnt[7];
+    short* spawnTime =
+        &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnTime[7];
+    reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.BloodPhaseSpawn(
+        nextRound, *spawnTime, 0x1e, 7);
     return 1;
 }
 
@@ -1236,9 +1280,12 @@ int TimerBloodPhaseRegister8::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if (!party->check_timer_key((TIMER_MESSAGE)0x1f, p2))
         return 0;
-    CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[8]);
-    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[8], 0x1f, 8);
+    short nextRound =
+        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnCnt[8];
+    short* spawnTime =
+        &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnTime[8];
+    reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.BloodPhaseSpawn(
+        nextRound, *spawnTime, 0x1f, 8);
     return 1;
 }
 
@@ -1251,9 +1298,12 @@ int TimerBloodPhaseRegister9::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if (!party->check_timer_key((TIMER_MESSAGE)0x20, p2))
         return 0;
-    CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
-    short nextRound = static_cast<short>(field->m_bloodSpawnCnt[9]);
-    field->BloodPhaseSpawn(nextRound, field->m_bloodSpawnTime[9], 0x20, 9);
+    short nextRound =
+        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnCnt[9];
+    short* spawnTime =
+        &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnTime[9];
+    reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.BloodPhaseSpawn(
+        nextRound, *spawnTime, 0x20, 9);
     return 1;
 }
 
@@ -1281,11 +1331,15 @@ int TimerBloodDungeonClearReward::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08638cd0：GetParty(p1)；check_timer_key 以 p3 为 msg、p2 为 param。
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)p3, p2))
-    {
+    // 拆分三段独立早退（ORIG 0x08638cd5 jne 岛 / 0x08638cf7 xor$1;test;je /
+    // 0x08638d17 同形，je→8d25 mov$1 尾岛）。
+    if (party == 0)
         return 0;
-    }
-    return party->onBloodRewardTimer((TIMER_MESSAGE)p3) ? 1 : 0;
+    if (!party->check_timer_key((TIMER_MESSAGE)p3, p2))
+        return 0;
+    if (!party->onBloodRewardTimer((TIMER_MESSAGE)p3))
+        return 0;
+    return 1;
 }
 
 TimerUltimateNextRoundStart::TimerUltimateNextRoundStart() {}
@@ -1322,14 +1376,13 @@ TimerEventChristmas::~TimerEventChristmas() {}
 int TimerEventChristmas::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 三方法为静态语义（调用点无 this 压栈，直接操作全局 0x943c138），
-    // CServerEvent.h 当前声明为非静态成员（static 标注缺口记报告）；
-    // 经临时对象调用，非虚成员 ABI 不受影响。
-    CServerEvent().SubExpRate(p2);
-    CServerEvent().TurnOffEvent(p3);
-    const short interval = static_cast<short>(CServerEvent().GetEventInterval(p3));
+    // 静态成员直调（ORIG 8635710/863571b/8635726 无 temp 对象槽，帧 0x18）。
+    CServerEvent::SubExpRate(p2);
+    CServerEvent::TurnOffEvent(p3);
+    // ORIG：结果不落实名槽，直接 movswl %ax,%edx 寄存器扩展后入参。
     Inter_MonitorServerEventStart::SendEventNotiPacket(false,
                                                         static_cast<short>(p3),
-                                                        interval, 0);
+                                                        static_cast<short>(CServerEvent::GetEventInterval(p3)), 0);
     return 1;
 }
 
@@ -1369,8 +1422,14 @@ TimerStatisticLevel::~TimerStatisticLevel() {}
 int TimerStatisticLevel::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     G_GameWorld()->UpdateStatistic4ChannelUserLev();
-    // ORIG：InsertTimer(OBJ_TYPE_2, 0, 0x55, CalcNextTime()-getCurSec(), 0, 0)。
-    const int delay = CalcNextTime() - GlobalData::s_systemTime_.getCurSec();
+    // ORIG 0x086358c0：CalcNextTime 结果 `mov %eax,%ebx` 驻寄存器，
+    // 0x086358d3 `sub %eax,%ebx` 原地减、0x086358ea `mov %ebx,0x10(%esp)` 直传
+    // （register asm("ebx") 复现，无槽 → 帧 0x24）。
+    // ORIG 0x086358c5/0x086358d3：`mov %eax,%ebx` + `sub %eax,%ebx` 原地。
+    // 4.4 对 asm 寄存器赋值恒产拷贝链，用显式 asm 落 sub 形。
+    register int delay asm("ebx") = CalcNextTime();
+    asm volatile("sub %%eax, %%ebx" : "+b"(delay)
+                 : "a"(GlobalData::s_systemTime_.getCurSec()) : "cc");
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                 (TIMER_MESSAGE)0x55, delay, 0, 0);
     return 1;
@@ -1422,8 +1481,10 @@ int TimerQueryCounter::dispatch_sig(int p1, int p2, unsigned int p3)
 // ORIG T 0x08635bdc：InsertTimer(2,0,0x59,0x708,0,0)；返回 1。
 int TimerQueryCounter::RegistNextTimer()
 {
+    // ORIG：delay 先物化到局部槽 -0xc(%ebp)（movl $0x708,-0xc），再两步入栈。
+    int delay = 0x708;
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0x59,
-                                0x708, 0, 0);
+                                delay, 0, 0);
     return 1;
 }
 
@@ -1474,43 +1535,74 @@ TimerCheckMailTimeOut::TimerCheckMailTimeOut() {}
 TimerCheckMailTimeOut::~TimerCheckMailTimeOut() {}
 int TimerCheckMailTimeOut::dispatch_sig(int p1, int p2, unsigned int p3)
 {
+    // ORIG 0x08635d0f：单出口 result(%ebx) + 四段判错，各 setXX %al 物化
+    // （0x08635d9x `cmp $0x1,%eax; setle` / `cmp 0x10,%eax; setne` / `cmp 0x14,%eax; setne`）
+    // → `test %al,%al; je` 前跳；result=1 在 PacketGuard dtor(0x08635e64) 之前。
+    register int result asm("ebx");
+    register bool bad asm("al");
     CUser* user = G_CGameManager()->getUser(p1, 7);   // ORIG 第二实参为常量 7
-    if (user == 0 || user->get_state() < 2 || user->GetLoginTick() != p2 ||
-        static_cast<unsigned int>(user->getCurCharacNo()) != p3)
-    {
-        return 0;
+    if (user == 0) {
+        result = 0;
+    } else {
+        bad = user->get_state() <= 1;
+        if (bad) {
+            result = 0;
+        } else {
+            bad = user->GetLoginTick() != p2;
+            if (bad) {
+                result = 0;
+            } else {
+                bad = static_cast<unsigned int>(user->getCurCharacNo()) != p3;
+                if (bad) {
+                    result = 0;
+                } else {
+                    PacketGuard packet;
+                    packet.put_header(0, 0x62);
+                    int countIndex = packet.get_index();
+                    packet.put_int(0);
+                    int expired = static_cast<int>(WongWork::CMailBoxHelper::CheckMailTimeout(user, &packet));
+                    if (expired != 0)
+                    {
+                        packet.put_int(countIndex, expired);
+                        packet.finalize(true);
+                        user->Send(packet);
+                    }
+                    WongWork::CMailBoxHelper::SetPeriodCheckTimer(user);
+                    result = 1;
+                }
+            }
+        }
     }
-    PacketGuard packet;
-    packet.put_header(0, 0x62);
-    int countIndex = packet.get_index();
-    packet.put_int(0);
-    const int expired = static_cast<int>(WongWork::CMailBoxHelper::CheckMailTimeout(user, &packet));
-    if (expired != 0)
-    {
-        packet.put_int(countIndex, expired);
-        packet.finalize(true);
-        user->Send(packet);
-    }
-    WongWork::CMailBoxHelper::SetPeriodCheckTimer(user);
-    return 1;
+    return result;
 }
 
 TimerCreature::TimerCreature() {}
 TimerCreature::~TimerCreature() {}
 int TimerCreature::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    CUser* user = G_CGameManager()->getUser(p1, p2);
-    if (user == 0 || (static_cast<unsigned int>(user->get_unique_id()) & 0xffffU) !=
-                      static_cast<unsigned int>(p2) ||
-        static_cast<unsigned int>(user->getCurCharacNo()) != p3)
-    {
+    // ORIG 0x08635e96：getUser 第二实参为常量 1（movl $0x1,0x8(%esp)）；
+    // 三段独立早退（jne 岛 + 两条 cmp/setne 物化，ORIG +0x29/+0x46/+0x62）。
+    CUser* user = G_CGameManager()->getUser(p1, 1);
+    if (user == 0)
         return 0;
-    }
+    if (user->get_unique_id() != p2)
+        return 0;
+    if (user->getCurCharacNo() != p3)
+        return 0;
     // CheckDiedCreature 是 user_creature::CCreatureMgr 成员（ORIG 0x08339acc）：
     // user->getCurCharacInvenW()->GetCreatureMgrW() 取管理器实例。
+    // ORIG +0x99：CheckDiedCreature 结果物化 -0x11(%ebp)（4.1 无死码消除，具名复现）。
+    // 技巧21：died 先声明占远槽 -0x11、saveInventory 后声明占近槽 -0x9（ORIG
+    // 8635f11/8635f2f 槽号）；`x ^ 1` 具名 char 槽条件出 movzbl+xor$1+test+je
+    // （ORIG 8635f32，cmpb 融合形被 ^ 表达式阻断）。
+    bool died;
     const char saveInventory = user->isSaveInven();
-    user->getCurCharacInvenW()->GetCreatureMgrW()->CheckDiedCreature();
-    if (!saveInventory)
+    died = user->getCurCharacInvenW()->GetCreatureMgrW()->CheckDiedCreature();
+    (void)died;
+    // ORIG 8635f32 `movzbl -0x9,%eax; xor $1,%eax; test %al; je`：
+    // register asm("eax") 承载 x^1（in-place 原地 xor，阻 fold-const 吸收）。
+    register unsigned char invR asm("eax") = saveInventory ^ 1;
+    if (invR)
     {
         user->disableSaveInven();
     }
@@ -1524,20 +1616,21 @@ int TimerForbidChat::dispatch_sig(int p1, int p2, unsigned int p3)
     CUser* user = G_CGameManager()->getUser(p1, 0xa);   // ORIG 第二实参常量 0xa
     if (user == 0)
         return 0;
-    const char* name = user->get_charac_name_by_charac_no(p3);
+    // ORIG 0x08635f50：name 临时跨调用驻留 %ebx（register），且每个使用点
+    // 各自重新调用 get_charac_name_by_charac_no（真/假分支+首 trace 共 3 次）。
+    register const char* name = user->get_charac_name_by_charac_no(p3);
+    cMyTrace(__PRETTY_FUNCTION__, 0xa52, 0)("TimerForbidChat %s", name);
+    name = user->get_charac_name_by_charac_no(p3);
+    // ORIG：`!EnableChat` 前置（xor$1/test），Failed 块 fall-through、Enabled 后置。
+    if (!G_GameWorld()->EnableChat(name))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xa52, 0);
-        trace("TimerForbidChat %s", name);
-    }
-    if (G_GameWorld()->EnableChat(user->get_charac_name_by_charac_no(p3)))
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xa56, 0);
-        trace("Enabled to chat for: %s", user->get_charac_name_by_charac_no(p3));
+        name = user->get_charac_name_by_charac_no(p3);
+        cMyTrace(__PRETTY_FUNCTION__, 0xa54, 0)("Failed to enable to chat for: %s", name);
     }
     else
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xa54, 0);
-        trace("Failed to enable to chat for: %s", user->get_charac_name_by_charac_no(p3));
+        name = user->get_charac_name_by_charac_no(p3);
+        cMyTrace(__PRETTY_FUNCTION__, 0xa56, 0)("Enabled to chat for: %s", name);
     }
     return 1;
 }
@@ -1549,20 +1642,20 @@ int TimerForbidMove::dispatch_sig(int p1, int p2, unsigned int p3)
     CUser* user = G_CGameManager()->getUser(p1, 0xb);   // ORIG 第二实参常量 0xb
     if (user == 0)
         return 0;
-    const char* name = user->get_charac_name_by_charac_no(p3);
+    // 与 TimerForbidChat 同构（ORIG 0x086360a8）：register name→%ebx、
+    // 各点重新调用、!EnableMove 前置、Failed fall-through。
+    register const char* name = user->get_charac_name_by_charac_no(p3);
+    cMyTrace(__PRETTY_FUNCTION__, 0xa64, 0)("TimerForbidMove %s", name);
+    name = user->get_charac_name_by_charac_no(p3);
+    if (!G_GameWorld()->EnableMove(name))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xa64, 0);
-        trace("TimerForbidMove %s", name);
-    }
-    if (G_GameWorld()->EnableMove(user->get_charac_name_by_charac_no(p3)))
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xa68, 0);
-        trace("Enabled to move for: %s", user->get_charac_name_by_charac_no(p3));
+        name = user->get_charac_name_by_charac_no(p3);
+        cMyTrace(__PRETTY_FUNCTION__, 0xa66, 0)("Failed to enable to move for: %s", name);
     }
     else
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xa66, 0);
-        trace("Failed to enable to move for: %s", user->get_charac_name_by_charac_no(p3));
+        name = user->get_charac_name_by_charac_no(p3);
+        cMyTrace(__PRETTY_FUNCTION__, 0xa68, 0)("Enabled to move for: %s", name);
     }
     return 1;
 }
@@ -1572,16 +1665,21 @@ TimerScheduleFiveMinPerUser::~TimerScheduleFiveMinPerUser() {}
 int TimerScheduleFiveMinPerUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 3);   // ORIG 第二实参为常量 3
-    if (user == 0 || user->GetLoginTick() != p2 ||
-        (p3 != 0 && static_cast<unsigned int>(user->getCurCharacNo()) != p3))
-    {
+    // ORIG 0x086341d2：三段独立早退；第三段 && 经 (bool) 物化（+0x57..+0x7b 岛形）。
+    if (user == 0)
         return 0;
-    }
+    if (user->GetLoginTick() != p2)
+        return 0;
+    if ((bool)(p3 != 0 && static_cast<unsigned int>(user->getCurCharacNo()) != p3))
+        return 0;
     user->WorkPerFiveMin();
-    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, user->GetUID(),
-                                (TIMER_MESSAGE)0x5f, 300,
-                                user->GetLoginTick(),
-                                static_cast<unsigned int>(user->getCurCharacNo()));
+    // ORIG 0x0863425f..：右到左求值，RCR 依次落 %edi(no)/%esi(tick)/%ebx(uid)
+    // （4.4 自由分配先选 %ebx，asm 绑名复现）。
+    register unsigned int characNo = user->getCurCharacNo();
+    register unsigned int tick = user->GetLoginTick();
+    register int uid = user->GetUID();
+    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, uid,
+                                (TIMER_MESSAGE)0x5f, 300, tick, characNo);
     return 1;
 }
 
@@ -1590,16 +1688,20 @@ TimerScheduleTenMinPerUser::~TimerScheduleTenMinPerUser() {}
 int TimerScheduleTenMinPerUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 3);   // ORIG 第二实参为常量 3
-    if (user == 0 || user->GetLoginTick() != p2 ||
-        (p3 != 0 && static_cast<unsigned int>(user->getCurCharacNo()) != p3))
-    {
+    // ORIG 0x08634106（报告 TimerScheduleTenMinPerUser/dispatch_sig.md）：同 Twin 形。
+    if (user == 0)
         return 0;
-    }
+    if (user->GetLoginTick() != p2)
+        return 0;
+    if ((bool)(p3 != 0 && static_cast<unsigned int>(user->getCurCharacNo()) != p3))
+        return 0;
     user->WorkPerTenMin();
-    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, user->GetUID(),
-                                (TIMER_MESSAGE)0x60, 600,
-                                user->GetLoginTick(),
-                                static_cast<unsigned int>(user->getCurCharacNo()));
+    // 同 FiveMin 孪生（ORIG 0x08634106）。
+    register unsigned int characNo = user->getCurCharacNo();
+    register unsigned int tick = user->GetLoginTick();
+    register int uid = user->GetUID();
+    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, uid,
+                                (TIMER_MESSAGE)0x60, 600, tick, characNo);
     return 1;
 }
 
@@ -1611,13 +1713,22 @@ int TimerQueueSizeLog::dispatch_sig(int p1, int p2, unsigned int p3)
     const int remaining = static_cast<int>(GlobalData::s_msgq_mgr->remain(MsgQueueMgr::DB_Q));
     if (remaining > 10)
     {
-        Stream* stream = GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp",
-                                                             0xa7f);
-        CStreamGuard guard(stream, true);
-        guard << 0x9b << -1 << remaining << G_CEnvironment()->get_channel_no();
+        // ORIG 0x08636246：Acquire 结果 %eax 直落 guard ctor 0x4(%esp)（无 stream 槽）。
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp",
+                                                              0xa7f), true);
+        // ORIG 0x08636262..：每项 `*guard`（operator* deEv 0x080c8c46）后 lsEi
+        // （0x0863626d/288/29e/2c7 各一次 lea+call deEv），非链式折叠。
+        (*guard)->operator<<(0x9b);
+        (*guard)->operator<<(-1);
+        (*guard)->operator<<(remaining);
+        (*guard)->operator<<(G_CEnvironment()->get_channel_no());
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
     }
-    RegistNextTimer();
+    // ORIG 0x0863631c：`if(!RegistNextTimer()) return 0; return 1;`
+    // bool 结果落槽 -0x9(%ebp)（0x08636327 mov %al,-0x9），movzbl+xor$1 尾岛。
+    const bool ok = RegistNextTimer();
+    if (!ok)
+        return 0;
     return 1;
 }
 
@@ -1625,8 +1736,10 @@ int TimerQueueSizeLog::dispatch_sig(int p1, int p2, unsigned int p3)
 // G_TimerQueue()->InsertTimer(2, 0, 0x61, 0x3c, 0, 0)；返回 1。
 bool TimerQueueSizeLog::RegistNextTimer()
 {
+    // ORIG：delay 物化到局部槽 -0xc(%ebp) 再两步入栈。
+    int delay = 0x3c;
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
-                                (TIMER_MESSAGE)0x61, 0x3c, 0, 0);
+                                (TIMER_MESSAGE)0x61, delay, 0, 0);
     return 1;
 }
 
@@ -1986,26 +2099,32 @@ int TimerInsertUserPlayTime::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /
 {
     // ORIG 0x08636d0a：统计单例落盘 → 重排当日 04:30 定时器。
     GetInstanceUserPlayTimeStatisticMgr()->InsertUserPlayTime();
-    // ORIG 0x08636d2a：xor $0x1 取反——RegistNextTimer()==1 返回 0，==0 返回 1
-    return RegistNextTimer() != 1;
+    // ORIG +0x1e..：bool 结果落 -0x9 槽，reload+xor$1（Midnight 同形，探针 t5）。
+    const bool registered = RegistNextTimer();
+    if (!registered)
+        return 0;
+    return 1;
 }
 
 // ORIG T 0x08636d44（_ZN23TimerInsertUserPlayTime15RegistNextTimerEv）
 bool TimerInsertUserPlayTime::RegistNextTimer()
 {
-    int curSec = GlobalData::s_systemTime_.getCurSec();
+    // ORIG 0x08636：curSec 落槽 -0x1c（time_t 直传 &）；localtime_r 返回值具名 pt
+    // 槽 -0x18；prevHour -0x14 / next -0x10；全部字段读写经 pt 指针
+    // （`mov -0x18,%eax; movl $0x4,0x8(%eax)` 形，ORIG 0x08636xxx），非 cur 折叠。
+    time_t curSec = static_cast<time_t>(GlobalData::s_systemTime_.getCurSec());
     tm cur;
-    localtime_r(reinterpret_cast<time_t*>(&curSec), &cur);
-    int prevHour = cur.tm_hour;
-    cur.tm_hour = 4;
-    cur.tm_min = 0x1e;
-    cur.tm_sec = 0;
-    int next = static_cast<int>(mktime(&cur));
-    if (cur.tm_hour <= prevHour)
+    tm* pt = localtime_r(&curSec, &cur);
+    int prevHour = pt->tm_hour;
+    pt->tm_hour = 4;
+    pt->tm_min = 0x1e;
+    pt->tm_sec = 0;
+    int next = static_cast<int>(mktime(pt));
+    if (pt->tm_hour <= prevHour)
     {
         next += 0x15180;
     }
-    int delay = next - curSec;
+    int delay = static_cast<int>(next - curSec);
     G_TimerQueue()->InsertTimer(static_cast<TimerEntry::OBJ_TYPE>(2), 0,
                                 static_cast<TIMER_MESSAGE>(0x69), delay, 0, 0);
     return 1;
@@ -2021,18 +2140,35 @@ TimerCheckForcedDisconnect::~TimerCheckForcedDisconnect() {}
 // NEW 曾误用 p2/p3，已修正。
 int TimerCheckForcedDisconnect::dispatch_sig(int p1, int p2, unsigned int p3)
 {
+    // ORIG 0x08636e06：结果驻留 %ebx；四段 else-if 链（jne 岛 mov$0/%1）；
+    // RegistNextTimer 为成员调用（+0xca mov 0x8(%ebp)=this；+0xd5 bool 落 -0x9）。
+    register int result;
     CUser* user = G_CGameManager()->getUser(p1, 0x2);
-    if (user == NULL)
-        return 0;
-    if ((unsigned short)user->get_unique_id() != p2)
-        return 0;
-    if (user->get_state() != 7)
-        return 1;
-    PacketGuard packet;
-    packet.put_header(0, 0x7b);
-    packet.finalize(true);
-    user->Send(packet);
-    return RegistNextTimer(user) == 1;
+    if (user == 0)
+    {
+        result = 0;
+    }
+    else if (user->get_unique_id() != p2)
+    {
+        result = 0;
+    }
+    else if (user->get_state() != 7)
+    {
+        result = 1;
+    }
+    else
+    {
+        PacketGuard packet;
+        packet.put_header(0, 0x7b);
+        packet.finalize(true);
+        user->Send(packet);
+        const bool registered = RegistNextTimer(user);
+        if (!registered)
+            result = 0;
+        else
+            result = 1;
+    }
+    return result;
 }
 
 // ORIG T 0x08636f26 (_ZN26TimerCheckForcedDisconnect15RegistNextTimerEP5CUser)
@@ -2040,11 +2176,13 @@ int TimerCheckForcedDisconnect::dispatch_sig(int p1, int p2, unsigned int p3)
 // TimerDispatcher.h 现签名 `static bool RegistNextTimer(CUser*)` 即可，无需改动。
 bool TimerCheckForcedDisconnect::RegistNextTimer(CUser* user)
 {
-    const unsigned short uid16 =
-        static_cast<unsigned short>(user->get_unique_id());
-    const unsigned int uid = static_cast<unsigned int>(user->GetUID());
+    // ORIG 0x08636f26：delay 先落 -0xc 槽（movl $0xa,-0xc）；两次 call 结果
+    // 直落 %esi/%ebx（register 形态，探针 x10 r1）。
+    int delay = 10;
+    register int uid16 = static_cast<unsigned short>(user->get_unique_id());   // ORIG movzwl %ax,%esi 定义处零扩展
+    register unsigned int uid = user->GetUID();
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, uid,
-                                (TIMER_MESSAGE)0x6a, 10, uid16, 0);
+                                (TIMER_MESSAGE)0x6a, delay, uid16, 0);
     return 1;
 }
 
@@ -2070,8 +2208,8 @@ int TimerCheckPvPRoomUser::dispatch_sig(int p1, int p2, unsigned int /*p3*/)
     }
     // ORIG +0x80: check_recv_pvp_rank()
     room->check_recv_pvp_rank();
-    // ORIG +0x90: IsEndPvpBattle(); xor $1; 为真（即返回非 1）时 send_pvp_end
-    if ((unsigned char)(room->IsEndPvpBattle() ^ 1) != 0)
+    // ORIG +0x90: !IsEndPvpBattle()（bool 声明 ⇒ xor $0x1,%eax；PvPR 同步 .h/.cpp）
+    if (!room->IsEndPvpBattle())
     {
         room->send_pvp_end();
     }
@@ -2086,10 +2224,12 @@ TimerCheckRecvPvpEndResult::~TimerCheckRecvPvpEndResult() {}
 // ORIG T 0x0863703a (_ZN26TimerCheckRecvPvpEndResult12dispatch_sigEiij)
 int TimerCheckRecvPvpEndResult::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    PvP_Room* room = G_CGameManager()->GetPvp(p2, NULL, 0x3d);
+    // ORIG 0x0863703a：GetPvp 首参=0xc(%ebp)=p1；timer key 比较=0x10(%ebp)=p2
+    // （旧版误用 p2/p3，Ghidra 参数标注偏移不可信，以 asm 为准）。
+    PvP_Room* room = G_CGameManager()->GetPvp(p1, NULL, 0x3d);
     if (room == NULL)
         return 0;
-    if (room->get_timer_key((TIMER_MESSAGE)0x3d) != p3)
+    if (room->get_timer_key((TIMER_MESSAGE)0x3d) != p2)
         return 0;
     if (room->get_recv_pvp_end_result_count() != 0)
     {
@@ -2155,10 +2295,10 @@ TimerUpdateItemGenerateStatistics::TimerUpdateItemGenerateStatistics() {}
 TimerUpdateItemGenerateStatistics::~TimerUpdateItemGenerateStatistics() {}
 int TimerUpdateItemGenerateStatistics::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    WongWork::CItemGeneratorMgr* mgr = G_CDataManager()->getItemGenerator();
-    mgr->onTimerEvent(0x6b);
-    const int curSec = GlobalData::s_systemTime_.getCurSec();
-    registNextTimer(curSec + 0x15180);
+    // ORIG 0x08637170：两级链式（%eax 直落 (%esp)，无具名槽），帧 0x18；
+    // getCurSec 结果寄存器内 add $0x15180 后直传 registNextTimer。
+    G_CDataManager()->getItemGenerator()->onTimerEvent(0x6b);
+    registNextTimer(GlobalData::s_systemTime_.getCurSec() + 0x15180);
     return 1;
 }
 
@@ -2185,8 +2325,7 @@ int TimerUpdatePvPGrade::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p3*
 {
     // ORIG 0x86373c6：makeRequest() → getCurSec() → registNextTimer(sec+0x15180)。
     DB_UpdatePvPGrade::makeRequest();
-    const int sec = GlobalData::s_systemTime_.getCurSec();
-    registNextTimer(static_cast<long>(sec) + 0x15180);
+    registNextTimer(GlobalData::s_systemTime_.getCurSec() + 0x15180);
     return 1;
 }
 
@@ -2218,9 +2357,7 @@ TimerDetectDisconnect::~TimerDetectDisconnect() {}
 int TimerDetectDisconnect::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x86374bc: GetInstanceDisconnectDetecter()->DoDetectingDisconnect() 为真时 registNextTimer(); return 1
-    disconnect_detecter::CDisconnectDetecter* detecter =
-        disconnect_detecter::GetInstanceDisconnectDetecter();
-    if (detecter->DoDetectingDisconnect()) {
+    if (disconnect_detecter::GetInstanceDisconnectDetecter()->DoDetectingDisconnect()) {
         registNextTimer();
     }
     return 1;
@@ -2231,8 +2368,10 @@ TimerCompleteLoadAssaultTimeout::~TimerCompleteLoadAssaultTimeout() {}
 int TimerCompleteLoadAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863752c: GetInstanceAssaultMgr() -> OnTimeoutCompleteLoad(p1,p2), return 1
-    pvp_assault::CAssaultMgr* mgr = (pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr();
-    mgr->OnTimeoutCompleteLoad((unsigned int)p1, p2);
+    // ORIG：p1 先物化到 callee-saved %ebx（跨 GetInstance 调用存活），mgr 不落槽。
+    register unsigned int partyIdx = (unsigned int)p1;
+    ((pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr())
+        ->OnTimeoutCompleteLoad(partyIdx, p2);
     return 1;
 }
 
@@ -2241,8 +2380,9 @@ TimerConnectP2PAssaultTimeout::~TimerConnectP2PAssaultTimeout() {}
 int TimerConnectP2PAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863759c: GetInstanceAssaultMgr() -> OnTimeoutConnectP2P(p1,p2), return 1
-    pvp_assault::CAssaultMgr* mgr = (pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr();
-    mgr->OnTimeoutConnectP2P((unsigned int)p1, p2);
+    register unsigned int partyIdx = (unsigned int)p1;
+    ((pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr())
+        ->OnTimeoutConnectP2P(partyIdx, p2);
     return 1;
 }
 
@@ -2251,8 +2391,9 @@ TimerEndAssault::~TimerEndAssault() {}
 int TimerEndAssault::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863760c: GetInstanceAssaultMgr() -> OnTimeoutEndAssault(p1,p2), return 1
-    pvp_assault::CAssaultMgr* mgr = (pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr();
-    mgr->OnTimeoutEndAssault((unsigned int)p1, p2);
+    register unsigned int partyIdx = (unsigned int)p1;
+    ((pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr())
+        ->OnTimeoutEndAssault(partyIdx, p2);
     return 1;
 }
 
@@ -2261,8 +2402,9 @@ TimerCloseAssault::~TimerCloseAssault() {}
 int TimerCloseAssault::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863767c: GetInstanceAssaultMgr() -> OnTimeoutCloseAssault(p1,p2), return 1
-    pvp_assault::CAssaultMgr* mgr = (pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr();
-    mgr->OnTimeoutCloseAssault((unsigned int)p1, p2);
+    register unsigned int partyIdx = (unsigned int)p1;
+    ((pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr())
+        ->OnTimeoutCloseAssault(partyIdx, p2);
     return 1;
 }
 
@@ -2302,8 +2444,9 @@ TimerCompleteLoadAfterAssaultTimeout::~TimerCompleteLoadAfterAssaultTimeout() {}
 int TimerCompleteLoadAfterAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x86376ec: GetInstanceAssaultMgr() -> OnTimeoutCompleteLoadAfterAssault(p1,p2), return 1
-    pvp_assault::CAssaultMgr* mgr = (pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr();
-    mgr->OnTimeoutCompleteLoadAfterAssault((unsigned int)p1, p2);
+    register unsigned int partyIdx = (unsigned int)p1;
+    ((pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr())
+        ->OnTimeoutCompleteLoadAfterAssault(partyIdx, p2);
     return 1;
 }
 
@@ -2312,8 +2455,9 @@ TimerConnectP2PAfterAssaultTimeout::~TimerConnectP2PAfterAssaultTimeout() {}
 int TimerConnectP2PAfterAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863775c: GetInstanceAssaultMgr() -> OnTimeoutConnectP2PAfterAssault(p1,p2), return 1
-    pvp_assault::CAssaultMgr* mgr = (pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr();
-    mgr->OnTimeoutConnectP2PAfterAssault((unsigned int)p1, p2);
+    register unsigned int partyIdx = (unsigned int)p1;
+    ((pvp_assault::CAssaultMgr*)pvp_assault::GetInstanceAssaultMgr())
+        ->OnTimeoutConnectP2PAfterAssault(partyIdx, p2);
     return 1;
 }
 
@@ -2452,9 +2596,10 @@ int TimerFinishItemEffect::dispatch_sig(int p1, int p2, unsigned int p3)
 void TimerFinishItemEffect::_processSepecialEffectContinuousItem(CUser* user,
                                                                  unsigned int itemIdx)
 {
-    if (itemIdx != 0x1cd1)
-        return;
-    user->SetExpAffectItemEffect(false, 0.0f);
+    // ORIG 0x08637d6b：mov 0x10(%ebp),%eax; cmp $0x1cd1,%eax; jne 尾（技巧28 破融合 + 正向块 fall-through）
+    register unsigned int idxR asm("eax") = itemIdx;
+    if (idxR == 0x1cd1)
+        user->SetExpAffectItemEffect(false, 0.0f);
 }
 
 TimerStartMatching::TimerStartMatching() {}
@@ -2474,11 +2619,12 @@ int TimerStartMatching::dispatch_sig(int p1, int p2, unsigned int p3)
     if (room == NULL) {
         return 0;
     }
-    IMatch* matcher = ((TimerStartMatchingMatcherSlot*)room)->m_matcher;
-    if (matcher == NULL) {
+    // ORIG 0x08638xxx：room 单槽 -0xc，matcher 每次从 room+0x6e4 直读（三次
+    // `mov -0xc,%eax; mov 0x6e4(%eax),%eax`，无具名槽）；虚表槽 +0x38，
+    // 实参为 p2（0x10(%ebp)）非 p3。
+    if (((TimerStartMatchingMatcherSlot*)room)->m_matcher == 0)
         return 0;
-    }
-    matcher->OnMatchRoom(room, (int)p3);   // ORIG 虚表 +0x38
+    ((TimerStartMatchingMatcherSlot*)room)->m_matcher->OnMatchRoom(room, p2);
     return 1;
 }
 
@@ -2493,7 +2639,8 @@ TimerGlobalEffectItemBegin::TimerGlobalEffectItemBegin() {}
 TimerGlobalEffectItemBegin::~TimerGlobalEffectItemBegin() {}
 int TimerGlobalEffectItemBegin::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    GlobalData::s_globalEffectManager_->beginReservedEffect(p3);
+    // ORIG 0x08637e56：实参为 0x10(%ebp)=p2（先前误用 p3，已修正）。
+    GlobalData::s_globalEffectManager_->beginReservedEffect(p2);
     return 1;
 }
 
@@ -2501,8 +2648,10 @@ TimerGlobalEffectItemTimeout::TimerGlobalEffectItemTimeout() {}
 TimerGlobalEffectItemTimeout::~TimerGlobalEffectItemTimeout() {}
 int TimerGlobalEffectItemTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    const unsigned int curSec = GlobalData::s_systemTime_.getCurSec();
-    GlobalData::s_globalEffectManager_->checkTimeout(p3, curSec);
+    // ORIG 0x08637ec2：getCurSec 结果直落 %ecx 跨后续求值（无名变量槽）。
+    // 且第一实参为 0x10(%ebp)=p2（Ghidra 标 param_3 不准，asm 实证）。
+    GlobalData::s_globalEffectManager_->checkTimeout(
+        p2, GlobalData::s_systemTime_.getCurSec());
     return 1;
 }
 
@@ -2520,7 +2669,16 @@ TimerVendingMachineItemNotify::~TimerVendingMachineItemNotify() {}
 int TimerVendingMachineItemNotify::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
-    if (user != 0)
+    // ORIG 0x08637f40：结果驻留 %ebx；true 块 `result=1` 先于 dtor，
+    // false 块 mov $0 紧跟 cmp（无提前初始化）。
+    // 4.4 布局：`if (user == 0)` 写守卫（jne 跳过 inline mov$0 岛）复现 ORIG；
+    // `if (user != 0)` 则 je 跳后置岛。
+    register int result;
+    if (user == 0)
+    {
+        result = 0;
+    }
+    else
     {
         PacketGuard packet;
         packet.put_header(0, 0x56);
@@ -2532,9 +2690,9 @@ int TimerVendingMachineItemNotify::dispatch_sig(int p1, int p2, unsigned int p3)
         packet.put_int(p3);
         packet.finalize(true);
         G_GameWorld()->send_all(packet);
-        return 1;
+        result = 1;
     }
-    return 0;
+    return result;
 }
 
 TimerConnectMonitorServer::TimerConnectMonitorServer() {}
@@ -2543,20 +2701,21 @@ TimerConnectMonitorServer::~TimerConnectMonitorServer() {}
 // dispatch_sig ORIG _ZN25TimerConnectMonitorServer12dispatch_sigEiij @0x086380bc (0xe3B)
 // registNextTimer ORIG _ZN25TimerConnectMonitorServer15registNextTimerElii @0x086381a0 (0x41B)
 
-int TimerConnectMonitorServer::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int p3)
+int TimerConnectMonitorServer::dispatch_sig(int /*p1*/, int p2, unsigned int /*p3*/)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0xeaa);
-    CStreamGuard guard(stream, true);
+    // ORIG 0x086380dc：Acquire 结果 %eax 直落 guard ctor 0x4(%esp)（无 stream 槽）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp",
+                                                          0xeaa), true);
 
-    // ORIG +0x42: CStreamGuard::operator<<(0x121)
-    guard << 0x121;
-    // ORIG +0x6d: CStreamGuard::operator<<(-1)
-    guard << -1;
+    // ORIG 0x086380f8/0x08638113：`*guard`（deEv 0x080c8c46）+ lsEi 两级。
+    (*guard)->operator<<(0x121);
+    (*guard)->operator<<(-1);
 
-    // ORIG +0x78/+0x80: CStreamGuard::GetInBuffer<Packet_Tcp_Server_Connect>
-    Packet_Tcp_Server_Connect* pkt = guard.GetInBuffer<Packet_Tcp_Server_Connect>();
-    // ORIG +0x90: mov %dl,0xa(%eax) —— 尾参低字节写至缓冲 +0xa
-    ((unsigned char*)pkt)[0xa] = (unsigned char)p3;
+    // ORIG 0x0863812e/0x08638139：`guard->`（ptcEv 0x080c8c4e）+ GetInBuffer。
+    Packet_Tcp_Server_Connect* pkt = guard->GetInBuffer<Packet_Tcp_Server_Connect>();
+    // ORIG 0x08638144：值源为 p2（0x10(%ebp)），具名 char 字段恢复
+    // `mov %dl,0xa(%eax)` disp 直存（0x0863814c）。
+    pkt->m_serverFlag = static_cast<char>(p2);
 
     // ORIG +0xaa: MsgQueueMgr::put(s_msgq_mgr, 1, guard)
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
@@ -2580,18 +2739,17 @@ int TimerAssaultSuperPowerState::dispatch_sig(int p1, int p2, unsigned int p3)
     if (user == NULL) {
         return 0;
     }
-    // asm：p3==0 或 getCurCharacNo()==p3 时 al=0 → 执行下方调用并返回 1；
-    // 否则 al=1 → 返回 0。
-    bool mismatch = false;
-    if (p3 != 0 && (unsigned int)user->getCurCharacNo() != p3) {
-        mismatch = true;
-    }
-    if (!mismatch) {
-        user->SetCurCharacSuperState(false);
-        pvp_assault::CAssaultPlace::SendUserState(user);
-        return 1;
-    }
-    return 0;
+    // ORIG 0x08634180：短路 && 表达式物化于 %al（8634196 mov$1 / 863419d mov$0
+    // 双岛 merge → 86341a2 `test %al,%al; je`），无 bool 具名槽。
+    // 技巧22：register bool asm("al") 承载。
+    register bool mismatch asm("al");
+    mismatch = (p3 != 0 &&
+                static_cast<unsigned int>(user->getCurCharacNo()) != p3);
+    if (mismatch)
+        return 0;
+    user->SetCurCharacSuperState(false);
+    pvp_assault::CAssaultPlace::SendUserState(user);
+    return 1;
 }
 
 TimerNPCMoodChange::TimerNPCMoodChange() {}
@@ -2626,12 +2784,13 @@ TimerRefreshPowerWarProcessInfo::~TimerRefreshPowerWarProcessInfo() {}
 int TimerRefreshPowerWarProcessInfo::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
-        GameWorld* world = G_GameWorld();
-        world->OnRefreshPowerWarProcessInfo();
+        // ORIG 0x086382xx：G_GameWorld 结果 %eax 直落 (%esp) 实参（无槽）。
+        G_GameWorld()->OnRefreshPowerWarProcessInfo();
         // dm+0xa658 = m_powerParameter.m_refreshProcessInfo(+0x30)；ORIG 按 8 字节
         // long 读取（覆盖 +0x30..+0x37 连续两 int），保持块读语义。
-        registNextTimer(*reinterpret_cast<long*>(
-            &G_CDataManager()->m_powerParameter.m_refreshProcessInfo));
+        // ORIG 0x086382f0：`mov 0xa658(%eax),%eax` 单级字段读（int 值语义，
+        // 4B 等宽；reinterpret long* 取址形会反产 add+mov 两级）。
+        registNextTimer(G_CDataManager()->m_powerParameter.m_refreshProcessInfo);
     }
     return 1;
 }
@@ -2826,8 +2985,7 @@ TimerCheckPowerWarAbuser::~TimerCheckPowerWarAbuser() {}
 int TimerCheckPowerWarAbuser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
-        GameWorld* world = G_GameWorld();
-        world->OnBanAbuserFromPowerWar();
+        G_GameWorld()->OnBanAbuserFromPowerWar();
         registNextTimer(0x3c);
     }
     return 1;
@@ -2845,10 +3003,12 @@ TimerSetPunishUser::~TimerSetPunishUser() {}
 int TimerSetPunishUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
-    if (user == 0 || (static_cast<unsigned int>(user->get_unique_id()) & 0xffffU) != p3)
-    {
+    // ORIG 0x08638ba0：独立早退（jne 岛）；比较对象 p2（0x10(%ebp)）；
+    // get_unique_id unsigned short ⇒ movzwl %ax 直比，无 &0xffff。
+    if (user == 0)
         return 0;
-    }
+    if (user->get_unique_id() != p2)
+        return 0;
     user->setHackUserFlag();
     user->SetTradePunishType(0x40);   // ORIG T _ZN5CUser17SetTradePunishTypeEi
     if (user->isARSUserKick())
@@ -2863,10 +3023,12 @@ TimerSetTradePunishUser::~TimerSetTradePunishUser() {}
 int TimerSetTradePunishUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
-    if (user == 0 || (static_cast<unsigned int>(user->get_unique_id()) & 0xffffU) != p3)
-    {
+    // ORIG 0x08638c48：两段独立早退；比较对象是 p2（0x10(%ebp)）非 p3；
+    // get_unique_id 返回 unsigned short ⇒ movzwl %ax 后直比，无 &0xffff。
+    if (user == 0)
         return 0;
-    }
+    if (user->get_unique_id() != p2)
+        return 0;
     user->SetTradePunishType(4);
     return 1;
 }
@@ -2875,17 +3037,28 @@ TimerRevivalCharac::TimerRevivalCharac() {}
 TimerRevivalCharac::~TimerRevivalCharac() {}
 int TimerRevivalCharac::dispatch_sig(int p1, int p2, unsigned int p3)
 {
+    // ORIG 0x08638e78：单出口 result(%ebx) 链，三段 if/else-if；
+    // 0x08638ed8 GetRevivalTime 比较对象为 p2（0x10(%ebp)），非 p3；
+    // PacketGuard 于 else 块内构造+dtor（0x08638f39 call D1）后 result=1。
+    // 技巧2：result 驻 %ebx（ORIG 0x08638ea5 `mov $0x0,%ebx`×3 / 0x08638f61
+    // `mov %ebx,%eax` 单出口），PacketGuard 回 -0x18、帧 0x20。
+    register int result asm("ebx");
     CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
-    if (user == 0 || user->getCurCharacR() == 0 ||
-        static_cast<unsigned int>(user->GetRevivalTime()) != p3)
-    {
-        return 0;
+    if (user == 0) {
+        result = 0;
+    } else if (user->getCurCharacR() == 0) {
+        result = 0;
+    } else if (user->GetRevivalTime() != p2) {
+        result = 0;
+    } else {
+        // ORIG 0x08638f34：result=1 在 PacketGuard dtor(0x08638f39) 之前（else 块内）。
+        PacketGuard packet;
+        packet.put_header(0, 0xe4);
+        packet.finalize(true);
+        user->Send(packet);
+        result = 1;
     }
-    PacketGuard packet;
-    packet.put_header(0, 0xe4);
-    packet.finalize(true);
-    user->Send(packet);
-    return 1;
+    return result;
 }
 
 TimerRequestExit::TimerRequestExit() {}
@@ -2893,11 +3066,16 @@ TimerRequestExit::~TimerRequestExit() {}
 int TimerRequestExit::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
-    if (user == 0 || user->getCurCharacR() == 0 ||
-        static_cast<unsigned int>(user->getCurCharacNo()) != p3)
-    {
+    // ORIG 0x08638f6a：三段独立早退；characR 判空 sete 物化（c1 探针形）；
+    // characNo 比较对象 p2（0x10(%ebp)），混型走 mov edx;cmp 形态（c3 探针形）。
+    if (user == 0)
         return 0;
-    }
+    if (user->getCurCharacR() == 0)
+        return 0;
+    // ORIG 0x08638f3b：`mov 0x10(%ebp),%edx; cmp %edx,%eax`（call 结果 vs arg 两步形，
+    // 4.4 恒折 cmp MEM,%eax —— N18b 候选天花板，保留最近写法）。
+    if (user->getCurCharacNo() != p2)
+        return 0;
     user->DisConnSig(static_cast<DISCONN_SIG>(0x2f), 1, 0);   // ORIG 0x8638f6a
     return 1;
 }
@@ -2939,9 +3117,11 @@ int TimerVillageAttackedPlayTimeout::dispatch_sig(int p1, int p2, unsigned int p
     if (!party->check_timer_key((TIMER_MESSAGE)0x27, p2)) {
         return 0;
     }
-    // ORIG：party+0xc4c == CBattle_Field 起点偏移 0x128 = m_villageMonsterId。
-    CBattle_Field* field = reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1);
-    if ((unsigned short)field->m_villageMonsterId != p3) {
+    // ORIG 0x086391a3：`mov -0xc,%eax; movzwl 0xc4c(%eax),%eax; movzwl %ax,%eax;
+    // cmp 0x14(%ebp),%eax` 单级折叠（view 嵌套成员链式，无 field 具名槽）。
+    if (static_cast<unsigned short>(
+            reinterpret_cast<CPartyBattleFieldView*>(party)
+                ->m_battleField.m_villageMonsterId) != p3) {
         return 0;
     }
     party->OnFinishVillageMonsterFighting((CUser*)0, true);
@@ -3045,8 +3225,7 @@ Timer_Midnight::Timer_Midnight() {}
 Timer_Midnight::~Timer_Midnight() {}
 int Timer_Midnight::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    GameWorld* world = G_GameWorld();
-    world->ResetMidnight();
+    G_GameWorld()->ResetMidnight();
     GlobalData::s_onlinePreliminaryTeamMgr->ResetDailyMidnight();
     const bool registered = RegistNextTimer();
     if (!registered) {
@@ -3092,21 +3271,22 @@ int Timer_TenMinuteSchedule::dispatch_sig(int /*p1*/, int p2, unsigned int /*p3*
 {
     // ORIG 0x8639668：检查第二参数（0x10(%ebp)）：==0 → InsertValueStatistic +
     // RegistNextTimer(1)；==1 → InsertCirculationStatistic + RegistNextTimer(0)；
-    // 其他值两分支都不执行。RegistNextTimer 恒返回 1，ORIG 返回 !regResult，
-    // 即执行分支返回 1、未执行返回 0。
+    // 其他值两分支都不执行。ORIG 形：bool ok=false（movb $0,-0x9）先行初始化，
+    // 分支内 ok = RegistNextTimer(n)（mov %al,-0x9），尾部 reload+xor$1 物化返回。
+    bool ok = false;
     if (p2 == 0)
     {
         GetInstanceValueStatistic()->InsertValueStatistic();
-        RegistNextTimer(1);
-        return 1;
+        ok = RegistNextTimer(1);
     }
-    if (p2 == 1)
+    else if (p2 == 1)
     {
         GetInstanceCirculationStatistic()->InsertCirculationStatistic();
-        RegistNextTimer(0);
-        return 1;
+        ok = RegistNextTimer(0);
     }
-    return 0;
+    if (!ok)
+        return 0;
+    return 1;
 }
 
 Timer_UpdateOnlinePreliminaryTeam::Timer_UpdateOnlinePreliminaryTeam() {}
@@ -3118,22 +3298,36 @@ int Timer_UpdateOnlinePreliminaryTeam::dispatch_sig(int p1, int p2, unsigned int
     (void)p3;
     online_preliminary::COnlinePreliminaryTeam* team =
         GlobalData::s_onlinePreliminaryTeamMgr->FindTeam(p2);
-    if (team == NULL) {
-        return 0;
+    // ORIG 0x08639722：if/else 双分支各赋 result（三处 mov $N,%eax 汇聚单出口）。
+    // 修正：ORIG 实为三段早退（team 空块置于函数尾），char 中间量落槽 -0x9，
+    // `c == 1` 于 0/1 值取 xor $1/test/je 形态。
+    // ORIG 块序：registered-false 岛(8639769) → team-null 岛(8639770) →
+    // return-1 尾岛(8639777 fall-through leave)。
+    // 技巧23 三 goto 钉岛序：rFalse → null → return1 尾岛 fall-through。
+    if (team != 0)
+    {
+        team->saveData();
+        const bool registered = RegistNextTimer(p2);
+        if (!registered)
+            goto RET0A;
+        goto RET1;
     }
-    team->saveData();
-    const bool registered = RegistNextTimer(p2);
-    if (!registered) {
-        return 0;
-    }
+    goto RET0B;
+RET0A:
+    return 0;
+RET0B:
+    return 0;
+RET1:
     return 1;
 }
 
 // ORIG T 0x0863977e _ZN33Timer_UpdateOnlinePreliminaryTeam15RegistNextTimerEi
 bool Timer_UpdateOnlinePreliminaryTeam::RegistNextTimer(int team)
 {
+    // ORIG 0x0863977e：movl $0x258,-0xc(%ebp) 具名槽（帧 0x38），0x10(%esp) 二级装载。
+    int nSec = 0x258;
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
-                                (TIMER_MESSAGE)0x8f, 600, team, 0);
+                                (TIMER_MESSAGE)0x8f, nSec, team, 0);
     return true;
 }
 
@@ -3184,12 +3378,15 @@ Timer_RoutingItemWait::Timer_RoutingItemWait() {}
 Timer_RoutingItemWait::~Timer_RoutingItemWait() {}
 int Timer_RoutingItemWait::dispatch_sig(int p1, int p2, unsigned int /*p3*/)
 {
-    // ORIG 0x86398a8：GetParty(p1) → check_timer_key(0x2b,p2) 判真 → ProcessTimeOut。
+    // ORIG 0x086398a8：null 早退（jne 岛）+ `!check` 早退（xor$1;test;je，
+    // 0x086398c9）；mgr 具名槽 -0xc（party=-0x10 后使用，0x086398d8 mov %eax,-0xc）。
     CParty* party = G_CGameManager()->GetParty(p1);
     if (party == 0)
         return 0;
-    if (party->check_timer_key((TIMER_MESSAGE)0x2b, p2))
-        G_CGameManager()->GetSpecialItemRoutingManager()->ProcessTimeOut(party);
+    if (!party->check_timer_key((TIMER_MESSAGE)0x2b, p2))
+        return 0;
+    CSpecialItemRoutingManager* mgr = G_CGameManager()->GetSpecialItemRoutingManager();
+    mgr->ProcessTimeOut(party);
     // GetSpecialItemRoutingManager 返回值域：CGameManager.h 仅前向，见 TimerBatch.md
     return 1;
 }
@@ -3222,8 +3419,8 @@ int Timer_PcRoomAuthRetry::dispatch_sig(int p1, int p2, unsigned int p3)
     {
         return 0;
     }
-    // ORIG +0x8e..+0xa5: getPcRoomAuth(); xor $1; 为真即 !=1 时重发登录包
-    if ((unsigned char)(user->getPcRoomAuth() ^ 1) != 0)
+    // ORIG +0x8e..+0xa5: !getPcRoomAuth()（bool 声明 ⇒ xor $0x1,%eax 形态）
+    if (!user->getPcRoomAuth())
     {
         user->SendLoginToPCRoomServer();
     }
@@ -3406,14 +3603,12 @@ int Timer_FairPvPRematch::dispatch_sig(int p1, int p2, unsigned int /*p3*/)
         return 0;
     }
     // ORIG +0x61: matcher = *(void**)(room + 0x6e4)（匹配系统指针，ORIG 布局该槽为带虚表对象）
-    void* matcher = *(void**)((char*)room + 0x6e4);
-    if (matcher != 0)
-    {
-        // ORIG +0x8e: vtable[0x64/4=slot25](matcher, room)
-        typedef void (*RematchSlotFn)(void* self, PvP_Room* room);
-        RematchSlotFn fn = ((RematchSlotFn*)*(void***)matcher)[0x64 / 4];
-        fn(matcher, room);
-    }
+    // ORIG 0x0863cxxx：room 单槽 -0xc，matcher 三次从 +0x6e4 直读（view 链式，
+    // 无具名槽）；虚表 +0x64 = IMatch::OnRematchTimeout(room)。
+    // ORIG 0x0863a499：正向 `if (matcher != 0){call}`（je 863a4c0 跳 mov$1，
+    // null 与 call 后都汇聚 return 1）。
+    if (((TimerStartMatchingMatcherSlot*)room)->m_matcher != 0)
+        ((TimerStartMatchingMatcherSlot*)room)->m_matcher->OnRematchTimeout(room);
     return 1;
 }
 
@@ -3448,10 +3643,11 @@ int Timer_ReturnUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (user->get_state() == 5)
     {
-        if (party == 0)
-            user->Send(packet);
-        else
+        // ORIG 0x0863a631：party!=0 走 fall-through（send_to_party），==0 je 跳尾部 Send 岛。
+        if (party != 0)
             party->send_to_party(packet);
+        else
+            user->Send(packet);
     }
     else
     {
@@ -3474,9 +3670,16 @@ int Timer_ReturnUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 //                               (int)(p3 - now), p2, 0)
 void Timer_ReturnUserTimeout::registNextTimer(int p1, int p2, unsigned int p3)
 {
-    const int now = GlobalData::s_systemTime_.getCurSec();
+    // ORIG 0x0863ae10：getCurSec 结果驻 %eax（无 now 槽），call 后再装载 p3
+    // `mov 0x10(%ebp),%edx; mov %edx,%ecx; sub %eax,%ecx; mov %ecx,%eax` 三步拷贝链，
+    // delta 落具名槽
+    // -0xc(%ebp)，0x10(%esp) 装载走 `mov -0xc(%ebp),%edx` 两步。
+    register unsigned int cur asm("eax");
+    cur = GlobalData::s_systemTime_.getCurSec();
+    int delta;
+    delta = static_cast<int>(p3) - static_cast<int>(cur);
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, p1,
-                                (TIMER_MESSAGE)0x95, static_cast<int>(p3 - now),
+                                (TIMER_MESSAGE)0x95, delta,
                                 p2, 0);
 }
 
@@ -3485,10 +3688,11 @@ Timer_HadesHeartBeat::~Timer_HadesHeartBeat() {}
 int Timer_HadesHeartBeat::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     if (GlobalData::s_hades_proxy->GetSocketState() == 0) {
-        int channelNo = G_CEnvironment()->get_channel_no();
-        unsigned short udpPort =
-            static_cast<unsigned short>(G_CEnvironment()->get_udp_port());
-        GlobalData::s_hades_proxy->SendHeartBeatPacket(udpPort, channelNo);
+        // ORIG 0x0863a760：channelNo 直落 %ebx（push %ebx 帧）、udp_port 参数位
+        // movzwl %ax 免槽（探针 x7 实证 register + 实参内联 cast 形态）。
+        register int channelNo = G_CEnvironment()->get_channel_no();
+        GlobalData::s_hades_proxy->SendHeartBeatPacket(
+            (unsigned short)G_CEnvironment()->get_udp_port(), channelNo);
         registNextTimer();
     }
     return 1;
@@ -3523,8 +3727,7 @@ Timer_OneADayItemShop::~Timer_OneADayItemShop() {}
 int Timer_OneADayItemShop::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863a916: G_CDataManager()->m_itemShop->updateOneADayItemList(); RegistNextTimer(); return 1
-    CItemShop* itemShop = G_CDataManager()->m_itemShop;   // +0x8cbc
-    itemShop->updateOneADayItemList();
+    G_CDataManager()->m_itemShop->updateOneADayItemList();   // m_itemShop @+0x8cbc
     RegistNextTimer();
     return 1;
 }
@@ -3588,10 +3791,11 @@ Timer_EventManagement::~Timer_EventManagement() {}
 int Timer_EventManagement::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 读 CEnvironment +0x37c int（字段未具名，仓库既有 reinterpret_cast 风格同 APSystemOnlyOrig.cpp:237）
-    const int dayValue = G_CEnvironment()->m_serverEnvir.m_fatigueTime;
-    EventClassify::CEventScriptMng* mng =
-        static_cast<EventClassify::CEventScriptMng*>(G_CDataManager()->get_event_script_mng());
-    mng->update_time_values(dayValue);
+    // ORIG 0x0863ab92：mov 0x37c(%eax),%ebx（register 直落 %ebx）；
+    // mng 无具名槽（链式）。
+    register int dayValue = G_CEnvironment()->m_serverEnvir.m_fatigueTime;
+    static_cast<EventClassify::CEventScriptMng*>(G_CDataManager()->get_event_script_mng())
+        ->update_time_values(dayValue);
     RegistNextTimer(0x3c);
     return 1;
 }
@@ -3731,7 +3935,9 @@ int Timer_AssaultGhostTimer::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     }
 
-    if (user->getCurCharacNo() != (int)p3)
+    // ORIG 0x0863a??（报告 Timer_AssaultGhostTimer/dispatch_sig.md）：
+    // getCurCharacNo(unsigned) != p3 同型 ⇒ cmp 0x14(%ebp),%eax 直比。
+    if (user->getCurCharacNo() != p3)
     {
         return 0;
     }
@@ -3833,7 +4039,8 @@ int Timer_TournametDungeonClearStateSelect::dispatch_sig(int p1, int p2, unsigne
         packet.put_header(1, 0x1cb);
         packet.put_byte(1);
         CTournamentDungeonReward& reward =
-            reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1)->m_tournamentReward;  // ORIG party+0x17bc
+            *static_cast<CTournamentDungeonReward*>(   // ORIG 0x0863b71b：mov party; add $0x17bc,%eax 单级
+                (void*)((unsigned long)party + 0x17bcUL));
         std::vector<int> members;
         party->GetValidPartyMember(members);
         const bool victory = party->isTournamentVictory();
@@ -3978,8 +4185,7 @@ Timer_DungeonStatisticEntrance_Hour::~Timer_DungeonStatisticEntrance_Hour() {}
 int Timer_DungeonStatisticEntrance_Hour::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863b9da: GetInstanceDungeonEntranceLog()->InsertDungeonEntrance_Hour(); RegistNextTimer(); return 1
-    CDungeonEntranceLog* log = (CDungeonEntranceLog*)GetInstanceDungeonEntranceLog();
-    log->InsertDungeonEntrance_Hour();
+    ((CDungeonEntranceLog*)GetInstanceDungeonEntranceLog())->InsertDungeonEntrance_Hour();
     RegistNextTimer();
     return 1;
 }
@@ -4051,12 +4257,9 @@ void DBSelectCreateDnfEventInfo::makeRequest()
 {
     CEventCreateDnf* event =
         static_cast<CEventCreateDnf*>(GlobalData::s_event_manager->GetRepeatEvent(0xa0));
-    bool skip = true;
-    if (event != 0)
-    {
-        skip = event->IsEventing(0);
-    }
-    if (!skip)
+    // ORIG 0x084293xx：无 skip 槽 —— `event != 0`（cmpl;je merge/xor）+ `!IsEventing`
+    // （虚表 +0x34 调用后 xor$1;test;je 直落 guard 块）。
+    if (event != 0 && !event->IsEventing(0))
     {
         CStreamGuard guard(
             GlobalData::s_stream_pool->Acquire(
@@ -4084,8 +4287,10 @@ const unsigned int advancealtar::Timer_StageControl::kEPLPReturnVillageMs; // OR
 // G_TimerQueue()->InsertTimer(OBJ_TYPE_2, 0, 0x52, 0x708, 0, 0)；返回 1。
 bool TimerStatisticsLog::RegistNextTimer()
 {
+    // ORIG：delay 物化到局部槽 -0xc(%ebp) 再两步入栈。
+    int delay = 0x708;
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0x52,
-                                0x708, 0, 0);
+                                delay, 0, 0);
     return 1;
 }
 
@@ -4098,8 +4303,9 @@ bool TimerStatisticsLog::RegistNextTimer()
 void Timer_Schedule_MidNight::RegistNextTimer()
 {
     struct tm v;
-    time_t sec = (time_t)GlobalData::s_systemTime_.getCurSec();
-    sec += 0x15180;
+    // ORIG 0x0863a9b4：getCurSec 结果寄存器内 add 后单落槽 -0x28(%ebp)。
+    // 4.4 scalar 恒先占近槽（-0x18..），ORIG(4.1) scalar/aggregate 交错分配 —— 槽号差记 N。
+    time_t sec = (time_t)(GlobalData::s_systemTime_.getCurSec() + 0x15180);
     struct tm* pt = localtime_r(&sec, &v);
     pt->tm_hour = 0;
     pt->tm_min = 0;
@@ -4117,8 +4323,11 @@ void Timer_Schedule_MidNight::RegistNextTimer()
 // G_TimerQueue()->InsertTimer(OBJ_TYPE_2, 0, 0x8e, 600, param_1, 0)；返回 1。
 bool Timer_TenMinuteSchedule::RegistNextTimer(int type)
 {
+    // ORIG 0x086396db：movl $0x258,-0xc(%ebp) 具名槽（帧 0x38），非 const 防常量传播，
+    // 0x10(%esp)=mov -0xc(%ebp),%edx 装载。
+    int nSec = 0x258;
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0x8e,
-                                0x258, type, 0);
+                                nSec, type, 0);
     return 1;
 }
 

@@ -108,7 +108,7 @@ bool Village::set_village(TownScript& script)
             pArea = (Area*)((char*)pArea + 0x98);
         }
         m_pAreas = (Area*)(raw + 1);
-        g_schoolMgr->SetSchoolArea(m_areaCount, m_areaCount + 600);
+        g_schoolMgr.SetSchoolArea(m_areaCount, m_areaCount + 600);
     }
     else if (script.m_field0 == 8)
     {

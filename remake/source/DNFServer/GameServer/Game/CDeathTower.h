@@ -24,6 +24,10 @@ namespace WongWork
     {
     public:
 
+        // CStage::consistMap（ORIG 0x8460634）读取外层塔 m_party 类型（tower 参数，
+        // 汇编 0x8461371 实证 +0xcd8==1 时跳过被动物品生成）
+        friend class CStage;
+
         // ORIG 嵌套枚举（mangled NS0_16ENUM_TOWER_STATEE / NS0_16ENUM_STAGE_STATEE）
         enum ENUM_TOWER_STATE
         {
@@ -243,7 +247,7 @@ namespace WongWork
 private:
     CParty* m_party;        // +0x00
     int m_idx;              // +0x04
-    int m_towerState;       // +0x08
+    ENUM_TOWER_STATE m_towerState;  // +0x08（原 int；ORIG 0x8469c4b store 序证据 → 同型直落）
     CDungeonMgr m_dungeonMgr;  // +0x0c
     CStage m_stage;         // +0x14
     CPlayData m_playData;   // +0x110（尺寸 0xa2c，至 +0xb3c）

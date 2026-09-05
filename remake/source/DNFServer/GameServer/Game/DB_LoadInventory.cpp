@@ -29,6 +29,8 @@
 #include "LogManager.h"         // logFormat
 #include "AdvanceAltarZip.h"    // uncompress_zip 权威声明
 #include "Inven_Item.h"
+#include "GamePODTypes.h"      // SIG_CREATURE_ITEM_DETAIL_INFO/AvatarDetailInfo 权威
+                              // 轻量叶子头（ORIG 本 TU 无 ios_base static-init）
 #include "CItemAmplifier.h"     // stAmplifyOption_t::SetLock/GetLock
 #include "W8LT_DBTask.h"        // DB_SwapCreatureItem 权威声明（makeRequest）
 
@@ -40,10 +42,6 @@ bool get_compressed_blob_data(MySQL* db, int col, char* out, int outCap,
                               int recordSize);
 
 extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
-
-// SIG_LOAD_INVENTORY 文档化偏移访问宏（ORIG 无 MIX 符号：反汇编为直接
-// lea 偏移寻址；inline 函数在 O0 下生成 call，2026-08-30 Fix8_E 改宏）。
-#define MIX(sig, off) (reinterpret_cast<char*>(sig) + (off))
 
 // ============================================================================
 // DB_LoadInventory::DB_LoadInventory @0x0840a604（C1/C2 同址）
@@ -105,9 +103,9 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
         // 140 个 creature 槽 + 1 个尾槽 reset（Inven_Item::reset W 0x080cb7d8）。
         for (int i = 0; i < 0x8c; ++i)
         {
-            reinterpret_cast<Inven_Item*>(MIX(sig, 0xeed1 + i * 0x3d))->reset();
+            sig->m_invenType3[i].reset();
         }
-        reinterpret_cast<Inven_Item*>(MIX(sig, 0x12787))->reset();
+        sig->m_invenType3[0xee].reset();   // 尾槽 0x12787 = 0xeed1+0xee×0x3d
 
         if (sig->m_creatureCount != 0)
         {
@@ -130,7 +128,7 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
             throw 4;
         }
         err = GetItemLock(sig->m_characNo,
-                          reinterpret_cast<stItemLockInfo*>(MIX(sig, 0x14784)));
+                          &sig->m_locks[0]);
         if (err != 0)
         {
             cMyTrace t(__PRETTY_FUNCTION__,
@@ -235,7 +233,7 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
           " charac_no=%u", sig->m_characNo);
         return 0;
     }
-    if (!db->get_uint(1, *(unsigned int*)&sig->m_coin))
+    if (!db->get_uint(1, sig->m_coin))             // +0x4038（unsigned int 直引）
     {
         cMyTrace t(__PRETTY_FUNCTION__,
                    0x24e0, 5);
@@ -261,7 +259,7 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
           sig->m_characNo);
         return 0;
     }
-    if (!db->get_uint(4, *(unsigned int*)&sig->m_payCoin))
+    if (!db->get_uint(4, sig->m_payCoin))          // +0x403c
     {
         cMyTrace t(__PRETTY_FUNCTION__,
                    0x24f7, 5);
@@ -269,7 +267,7 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
           sig->m_characNo);
         return 0;
     }
-    if (!db->get_uint(5, *(unsigned int*)&sig->m_eventCoin))
+    if (!db->get_uint(5, sig->m_eventCoin))        // +0x4040
     {
         cMyTrace t(__PRETTY_FUNCTION__,
                    0x24ff, 5);
@@ -285,7 +283,7 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
         t("DB_LoadCreature, get_binary(8) ERROR charac_no=%u", sig->m_characNo);
         return 0;
     }
-    if (!db->get_int(7, *(int*)&sig->m_creatureCount))
+    if (!db->get_int(7, sig->m_creatureCount))     // +0x1287c（int 直引）
     {
         cMyTrace t(__PRETTY_FUNCTION__,
                    0x2522, 5);
@@ -316,17 +314,25 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
         {
             throw static_cast<unsigned int>(0x2563);
         }
-        if (!uncompress_zip(MIX(sig, 0xa603), equipLen, equipBuf,
+        // equipslot 解压目标 = equip 镜像区第 10 槽起（GetUserInven.md ORIG
+        // `add $0xa603` = 0xa3a1+10×0x3d）；inventory blob → m_invenType1 首
+        // （ORIG +0x5949）；creature blob → +0x1102d = 0xeed1+72×0x3d+0x34 =
+        // m_invenType3[72].m_reserved（ORIG `add $…+0x6b01` 换算）。
+        if (!uncompress_zip(reinterpret_cast<char*>(&sig->m_equipMirror[10]),
+                            equipLen, equipBuf,
                             static_cast<unsigned int>(equipBinLen)))
         {
             throw static_cast<unsigned int>(0x2565);
         }
-        if (!uncompress_zip(MIX(sig, 0x5949), invenLen, invenBuf,
+        if (!uncompress_zip(reinterpret_cast<char*>(sig->m_invenType1), invenLen,
+                            invenBuf,
                             static_cast<unsigned int>(invenBinLen)))
         {
             throw static_cast<unsigned int>(0x2567);
         }
-        if (!uncompress_zip(MIX(sig, 0x1102d), creatureLen, creatureBuf,
+        if (!uncompress_zip(
+                reinterpret_cast<char*>(&sig->m_invenType3[72].m_reserved),
+                creatureLen, creatureBuf,
                             static_cast<unsigned int>(creatureBinLen)))
         {
             throw static_cast<unsigned int>(0x256e);
@@ -354,7 +360,7 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
                 {
                     if (db->fetch())
                     {
-                        if (db->get_uint(0, *(unsigned int*)&sig->m_avatarCoin))
+                        if (db->get_uint(0, sig->m_avatarCoin))   // +0x14780
                         {
                             if (sig->m_field8 != 0)
                             {
@@ -413,19 +419,20 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
 bool DB_LoadInventory::GetUserAvatar(SIG_LOAD_INVENTORY* sig)
 {
     bool ok = _GetUserAvatar(sig->m_characNo,
-                             reinterpret_cast<AvatarDetailInfo*>(MIX(sig, 0xcd20)),
-                             reinterpret_cast<Inven_Item*>(MIX(sig, 0x4044)),
-                             reinterpret_cast<Inven_Item*>(MIX(sig, 0xa3a1)),
-                             *reinterpret_cast<int*>(MIX(sig, 0xcd1c)));
+                             reinterpret_cast<AvatarDetailInfo*>(sig->m_avatarDetail),
+                             sig->m_invenType2,
+                             sig->m_equipMirror,
+                             sig->m_avatarCount);
     if (ok)
     {
         if (sig->m_field8 != 0)
         {
             ok = _GetUserAvatar(sig->m_field8,
-                                reinterpret_cast<AvatarDetailInfo*>(MIX(sig, 0x1e53)),
-                                reinterpret_cast<Inven_Item*>(MIX(sig, 0x54a)),
-                                reinterpret_cast<Inven_Item*>(MIX(sig, 0xc)),
-                                *reinterpret_cast<int*>(MIX(sig, 0x1e4f)));
+                                reinterpret_cast<AvatarDetailInfo*>(
+                                    sig->m_tagInven.m_avatarDetail),      // +0x1e53
+                                sig->m_tagInven.m_items2,                 // +0x54a
+                                sig->m_tagInven.m_items,                  // +0xc
+                                sig->m_tagInven.m_avatarCount);           // +0x1e4f
             if (!ok)
             {
                 cMyTrace t("bool DB_LoadInventory::GetUserAvatar("
@@ -642,16 +649,18 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
             return 0;
         }
 
-        // ---- AvatarDetailInfo 条目（步长 0x4b，按 ORIG 写点）----
-        char* entry = reinterpret_cast<char*>(out) + row * 0x4b;
-        *(short*)(entry + 0x47) = color1;
-        *(short*)(entry + 0x49) = color2;
-        *(unsigned int*)(entry + 0x04) = expireDate;
-        *(int*)(entry + 0x00) = uiId;
-        *(int*)(entry + 0x08) = regDate;
-        strncpy(entry + 0x0c, ipgAgencyNo, 0x18);
-        *(int*)(entry + 0x25) = clearAvatarId;
-        memcpy(entry + 0x29, &jewel, 0x1e);
+        // ---- AvatarDetailInfo 条目（步长 0x4b，ORIG _GetUserAvatar.md 写点：
+        // +0x47/+0x49 movw short、+0x04/+0x00/+0x08 movl、+0x0c strncpy 0x18、
+        // +0x25 movl、+0x29 起 7×movl+1×movw 共 0x1e 字节）----
+        AvatarDetailInfo& e = out[row];
+        e.m_expansionInfo.m_color[0] = color1;         // +0x47（movw）
+        e.m_expansionInfo.m_color[1] = color2;         // +0x49（movw）
+        e.m_expireDate = expireDate;                   // +0x04（movl）
+        e.m_key = uiId;                                // +0x00（movl）
+        e.m_registTime = regDate;                      // +0x08（movl）
+        strncpy(e.m_ipgAgencyNo, ipgAgencyNo, 0x18);   // +0x0c
+        e.m_clearAvatarId = clearAvatarId;             // +0x25（movl）
+        memcpy(&e.m_jewelSocket, &jewel, 0x1e);        // +0x29（ORIG 逐字段 8 写）
 
         // ---- Inven_Item 槽位（avatar 主区 / equip 镜像区）----
         if (slot < 0x73)
@@ -717,7 +726,9 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
 // 0x8c 槽；槽位占用标记 used[0x8d]；重复槽 → Inven_Item 进 overflow vector，
 // 遍历后填首个空槽并调 DB_SwapCreatureItem::makeRequest(ui_id, slot)。
 // 主槽位（m_invenType3，步长 0x3d）：m_field1=5、m_fieldb=endurance、
-// it_id 8 字节 @+2、m_addInfo2=ui_id、m_amp lock。详情条目
+// m_addInfo(+0x02) 单条 movl 4B ← it_id（Ghidra 的 8B ulong 表达为伪影，
+// GetUserCreature.md 实证 +0x02/+0x07 两条独立 movl）、m_addInfo2=ui_id、
+// m_amp lock。详情条目
 // （+0x12880，步长 0x38）按 SIG_CREATURE_ITEM_DETAIL_INFO 写点填充。
 // 错误行号 0x27f0..0x28e9。
 // ============================================================================
@@ -899,14 +910,15 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
 
             if (!dupSlot)
             {
-                // 主槽位（m_invenType3，步长 0x3d）
-                char* slotBase = MIX(sig, 0xeed1 + slot * 0x3d);
-                slotBase[1] = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;   // 0x5
-                *(unsigned short*)(slotBase + 0x0b) = endurance;      // m_fieldb
-                *(unsigned long long*)(slotBase + 0x02) = itId;       // it_id 8B
-                *(int*)(slotBase + 0x07) = uiId;                      // m_addInfo2
-                reinterpret_cast<stAmplifyOption_t*>(slotBase + 0x11)
-                    ->SetLock(lockKey);
+                // 主槽位（m_invenType3，步长 0x3d）。GetUserCreature.md 实证
+                // +0x02/+0x07 为两条独立 movl（4B），Ghidra 的 *(ulong*) 8B
+                // 表达为伪影 —— 原 (unsigned long long*) 写为宽度错误，修正。
+                Inven_Item& item = sig->m_invenType3[slot];
+                item.m_field1 = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;  // +0x01 movb 5
+                item.m_fieldb = endurance;                              // +0x0b movw
+                item.m_addInfo = static_cast<int>(itId);                // +0x02 movl
+                item.m_addInfo2 = uiId;                                 // +0x07 movl
+                item.m_amp.SetLock(lockKey);                            // +0x11 r/w
             }
             else
             {
@@ -914,25 +926,33 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
                 memset(&item, 0, sizeof(item));
                 item.m_field1 = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;
                 item.m_fieldb = endurance;
-                *(unsigned long long*)&item.m_addInfo = itId;
+                item.m_addInfo = static_cast<int>(itId);   // +0x02 movl 4B（ORIG 栈副本同构）
                 item.m_addInfo2 = uiId;
                 item.m_amp.SetLock(lockKey);
                 dupSlot = false;
                 overflow.push_back(item);
             }
-            // 详情条目（+0x12880，步长 0x38）
-            char* d = MIX(sig, 0x12880 + row * 0x38);
-            *(int*)(d + 0x00) = slot;
-            *(int*)(d + 0x04) = uiId;
-            memcpy(d + 0x08, name, 16);      // ORIG 4 dword 写（name[16]）
-            *(int*)(d + 0x18) = stomach;
-            *(int*)(d + 0x1c) = 0;
-            *(int*)(d + 0x20) = exp;
-            *(int*)(d + 0x24) = detailWord;
-            *(int*)(d + 0x28) = expire;
-            *(int*)(d + 0x2c) = 0;
-            *(int*)(d + 0x30) = 0;
-            *(int*)(d + 0x34) = 0;
+            // 详情条目（基址 +0x12880 = m_creature，步长 0x38；ORIG 全 14 条
+            // movl 升序写：+0x08..0x18 为 name 16B 四 dword，其中后 4B 落
+            // m_pad14；+0x1c/+0x2c/+0x30/+0x34 为清 0 字段）。
+            SIG_CREATURE_ITEM_DETAIL_INFO* d =
+                reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(sig->m_creature)
+                + row;
+            d->m_slotNo = slot;                              // +0x00
+            d->m_uid = uiId;                                 // +0x04
+            *reinterpret_cast<int*>(&d->m_name[0])  = *reinterpret_cast<int*>(&name[0]);
+            *reinterpret_cast<int*>(&d->m_name[4])  = *reinterpret_cast<int*>(&name[4]);
+            *reinterpret_cast<int*>(&d->m_name[8])  = *reinterpret_cast<int*>(&name[8]);
+            *reinterpret_cast<int*>(&d->m_pad14[0]) = *reinterpret_cast<int*>(&name[12]);
+            d->m_stomachValue = stomach;                     // +0x18
+            *reinterpret_cast<int*>(&d->m_pad1c[0]) = 0;     // +0x1c
+            d->m_exp = exp;                                  // +0x20
+            *reinterpret_cast<int*>(&d->m_creatureItemType) =
+                detailWord;                                  // +0x24..0x27 四字节
+            d->m_expireTime = expire;                        // +0x28
+            *reinterpret_cast<int*>(&d->m_pad2c[0]) = 0;     // +0x2c
+            *reinterpret_cast<int*>(&d->m_growExpFlag) = 0;  // +0x30
+            *reinterpret_cast<int*>(&d->m_pad32[2]) = 0;     // +0x34
         }
         else
         {
@@ -969,14 +989,13 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
               sig->m_characNo);
             break;
         }
-        char* slotBase = MIX(sig, 0xeed1 + cur * 0x3d);
-        slotBase[1] = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;
-        *(unsigned short*)(slotBase + 0x0b) = it->m_fieldb;
-        *(int*)(slotBase + 0x02) = it->m_addInfo;          // 4 字节（ORIG）
-        *(int*)(slotBase + 0x07) = it->m_addInfo2;
-        reinterpret_cast<stAmplifyOption_t*>(slotBase + 0x11)
-            ->SetLock(it->m_amp.GetLock());
-        DB_SwapCreatureItem::makeRequest(*(int*)(slotBase + 0x07), cur);
+        Inven_Item& dst = sig->m_invenType3[cur];
+        dst.m_field1 = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;
+        dst.m_fieldb = it->m_fieldb;                       // +0x0b movw
+        dst.m_addInfo = it->m_addInfo;                     // +0x02 movl（4B，ORIG）
+        dst.m_addInfo2 = it->m_addInfo2;                   // +0x07 movl
+        dst.m_amp.SetLock(it->m_amp.GetLock());            // +0x11
+        DB_SwapCreatureItem::makeRequest(dst.m_addInfo2, cur);
     }
     return 1;
 }
@@ -1028,7 +1047,7 @@ int DB_LoadInventory::_getCharacInvenExpand(SIG_LOAD_INVENTORY* sig) const
     {
         return 0x2453;
     }
-    if (!uncompress_zip(MIX(sig, 0xa8e4), cargoLen, cargoBuf,
+    if (!uncompress_zip(reinterpret_cast<char*>(sig->m_cargo), cargoLen, cargoBuf,
                         static_cast<unsigned int>(cargoBinLen)))
     {
         return 0x2457;
@@ -1037,7 +1056,9 @@ int DB_LoadInventory::_getCharacInvenExpand(SIG_LOAD_INVENTORY* sig) const
     {
         return 0x2458;
     }
-    if (!uncompress_zip(MIX(sig, 0x949e), jewelLen, jewelBuf,
+    // jewel 区 ORIG `add $0x949e` = 0x5949+249×0x3d（与 invenType1 重叠序列化区）。
+    if (!uncompress_zip(reinterpret_cast<char*>(&sig->m_invenType1[249]),
+                        jewelLen, jewelBuf,
                         static_cast<unsigned int>(jewelBinLen)))
     {
         return 0x245c;
@@ -1046,7 +1067,8 @@ int DB_LoadInventory::_getCharacInvenExpand(SIG_LOAD_INVENTORY* sig) const
     {
         return 0x245d;
     }
-    if (!uncompress_zip(MIX(sig, 0x14aa4), equipLen, equipBuf,
+    if (!uncompress_zip(reinterpret_cast<char*>(&sig->m_expandEquip), equipLen,
+                        equipBuf,
                         static_cast<unsigned int>(equipBinLen)))
     {
         return 0x2462;
@@ -1087,7 +1109,10 @@ bool DB_LoadInventory::_GetTagCharacInven(unsigned int characNo,
           characNo);
         return 0;
     }
-    if (!get_compressed_blob_data(db, 0, MIX(out, 0x262), 0x2dc, 0x3d))
+    // TAG_CHARAC_INVEN_DATA equipslot 区：ORIG `add $0x262` = 第 10 槽起。
+    if (!get_compressed_blob_data(db, 0,
+                                  reinterpret_cast<char*>(&out->m_items[10]),
+                                  0x2dc, 0x3d))
     {
         cMyTrace t("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
                    " TAG_CHARAC_INVEN_DATA*)", 0x23f1, 5);

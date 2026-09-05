@@ -19,7 +19,7 @@ void CData::alter()
     m_bIsSave = 1;
 }
 
-char CData::isSave()
+bool CData::isSave()
 {
     return m_bIsSave;
 }

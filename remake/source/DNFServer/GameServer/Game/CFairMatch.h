@@ -47,7 +47,7 @@ struct PlayerInfoThird
     void reset();                                   // ORIG 经 TeamInfoThird::reset 调用
 
     CUser*        m_user;      // +0x00
-    unsigned char m_flag;      // +0x04（!=0 表示已占用）
+    bool          m_flag;      // +0x04（ORIG CheckRematch 0x08565d04 +0x5e `xor $0x1,%eax` 取反实证 bool，P22/P73）
     unsigned char m_job;       // +0x05
     unsigned char m_growType;  // +0x06
     int           m_pvpGrade;  // +0x08
@@ -67,7 +67,7 @@ public:
     float GetTeamRating();                           // 0x85627b2（平均 rating，全 0 返 0）
     void SendToTeam(PacketGuard& pkt);               // 0x856274c：CUser::Send 全员
 
-    char             m_field00;    // +0x00（reset 清 0；ORIG movb 单字节清）
+    bool             m_field00;    // +0x00（reset 清 0；ORIG movb 单字节清；CheckRematch 0x08565d04 +0x5e xor $1 取反实证 bool，P22）
     int              m_field04;    // +0x04（reset 置 2）
     PlayerInfoThird  m_players[4]; // +0x08（0x40）
 };  // sizeof 0x48
@@ -119,7 +119,8 @@ public:
                      ENUM_SCHOOL_MATCH_TEAM team, int a, int b, int c);  // 0x8565700
     int  CheckRematch(PvP_Room* room);                       // 0x8565d04
     int  CheckUnusableEquipment(const Inven_Item* item);      // 0x8562bdc
-    bool CheckUnusableEquipmentInUser(CUser* user);           // 0x8562cfe（恒返 1；CheckJoinable/OnCreateRoom 以 ! 取反 xor $1 实证）
+    // ORIG 调用点 0x08562d14 仅压 user 无 this（P88）⇒ static。
+    static bool CheckUnusableEquipmentInUser(CUser* user);    // 0x8562cfe（恒返 1；CheckJoinable/OnCreateRoom 以 ! 取反 xor $1 实证）
     void GiveTrainingSeal(CUser* user, bool bonus);           // 0x85652c8
     static int GetPlayCountPerOneTeam();                      // 0x8562834（ORIG 恒返 1；调用点不传 this 实证 static；
                                                               // 定义在 MatchRoomLCB.cpp，勿重定义）
@@ -131,8 +132,8 @@ public:
     void _BackupRoomInfo(PvP_Room* room);                    // 0x8563674
     int  _CheckMatchable(PvP_Room* room) const;               // 0x8563a54
     bool _CheckRematchable(PvP_Room* room) const;              // 0x8563b16（ORIG 返 bool：CheckRematch 以 ! 取反 xor $1）
-    int  _CheckObserver(PvP_Room* room, CUser* user);        // 0x85629f2
-    int  _CheckSameTeam(PvP_Room* room, CUser* user);        // 0x85629e8
+    bool _CheckObserver(PvP_Room* room, CUser* user);        // 0x85629f2（CheckJoinable 0x08562a6e +0xdb `xor $0x1,%eax` bool 实证，P22）
+    bool _CheckSameTeam(PvP_Room* room, CUser* user);        // 0x85629e8（同上 +0xb4 xor $0x1 实证）
     int  _CheckMovableRoom(IMatch* other, PvP_Room* room, PvP_Room** out);  // 0x8563ed8
     void _ChangeTeamLeader(PvP_Room* room, ENUM_SCHOOL_MATCH_TEAM team, int idx);  // 0x8563272
     void _SendMatchStatePacket(int a, int b);                  // 0x856（报告为准）

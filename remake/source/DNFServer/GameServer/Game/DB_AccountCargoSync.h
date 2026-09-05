@@ -131,7 +131,7 @@ public:
     // CUser.cpp 同模式静态调用），定义为静态成员
     static void makeRequest(int a, const _SIG_LOAD_ACTION_POINT& sig, bool flag);
 
-    DB_UpdateActionPoint();          // ORIG W 0x0844dd96 C1/C2 同体
+    DB_UpdateActionPoint() __attribute__((nothrow));   // ORIG W 0x0844dd96 C1/C2 同体；try 区无 pad ⇒ nothrow
     virtual ~DB_UpdateActionPoint(); // D1 0x0812549a / D0 0x081254ca
     virtual bool dispatch(int a, int b, Stream* stream);   // ORIG T 0x0812432a
     bool Update(bool bExpireDate, const _SIG_LOAD_ACTION_POINT& sig);     // ORIG T 0x08124386

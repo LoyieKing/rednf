@@ -19,7 +19,7 @@ struct SIG_SAVE_CHARAC;
 class DB_SaveCharac : public DBDispatcher
 {
 public:
-    DB_SaveCharac();                                    // C1/C2 T @0x08415c2e
+    DB_SaveCharac() __attribute__((nothrow));           // C1/C2 T @0x08415c2e；try 区无 pad ⇒ nothrow
     ~DB_SaveCharac();                                   // D1 T @0x08415c4a / D0 T @0x08415c7a
                                                         // （D2 由 GCC 随非内联析构发射）
 

@@ -114,9 +114,7 @@ tyIPCounters::tyIPCounters(unsigned int a, unsigned int b) : m_a(a), m_b(b) {}
 // ===========================================================================
 long long CUser::getTotalHackUserTradeGold() const
 {
-    return static_cast<long long>(
-        static_cast<unsigned long long>(static_cast<unsigned int>(m_379.m_hackTradeGoldLo)) |
-        (static_cast<unsigned long long>(static_cast<unsigned int>(m_379.m_hackTradeGoldHi)) << 32));
+    return m_379.m_hackTradeGold;
 }
 
 int CUser::getTotalHackUserTradeCnt() const
@@ -131,9 +129,7 @@ void CUser::incTotalHackUserTradeCnt(unsigned int n)
 
 void CUser::incTotalHackUserTradeGold(unsigned long long gold)
 {
-    unsigned long long total = getTotalHackUserTradeGold() + gold;
-    m_379.m_hackTradeGoldLo = static_cast<int>(static_cast<unsigned int>(total));
-    m_379.m_hackTradeGoldHi = static_cast<int>(static_cast<unsigned int>(total >> 32));
+    m_379.m_hackTradeGold = getTotalHackUserTradeGold() + gold;
 }
 
 int CUser::getCharacAntibotSerialNum() const
@@ -712,9 +708,9 @@ bool CUser::gain_exp_sp(int exp, int& sp, int& sfp,
 // ===========================================================================
 // Inform notice flag 族（m_informNoticeFlags 16 字节 × 8 bit 标志板）
 // ===========================================================================
-int CUser::getInformNoticeFlag(int idx)
+unsigned char CUser::getInformNoticeFlag(int idx)
 {
-    return static_cast<int>(m_informNoticeFlags[idx]);
+    return m_informNoticeFlags[idx];   // ORIG 0x0868fa76 单 movzbl 0x8ebb1(%edx,%eax,1)
 }
 
 void CUser::handleInformNoticeFlag(unsigned int bitIndex)

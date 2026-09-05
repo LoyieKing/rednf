@@ -323,7 +323,7 @@ void AvatarRechargeServer::GmReduceEndurance(CUser* user, short slot,
         newEndur = maxEndurance;
     item->m_fieldSplit.m_avatarEndur = (unsigned short)newEndur;
 
-    this->UpdateAvatarEndurance((CUser::eSendTarget)1, user, slot);
+    ARAD::Singleton<AvatarRechargeServer>::Get()->UpdateAvatarEndurance((CUser::eSendTarget)1, user, slot);   // static 化后无 this，经单例调成员
     SaveAvatarEnduranceUnit(item->m_addInfo2,
                             (int)(unsigned short)item->m_fieldSplit.m_avatarEndur);
 

@@ -91,7 +91,7 @@ public:
     char isCommandCustomizing() const;
 
     // ---- 主逻辑（ORIG strong）----
-    int IsStealable(int firstGrowType, int secondGrowType) const;
+    bool IsStealable(int firstGrowType, int secondGrowType) const;  // ORIG 0x83504fc xor$1+test al 唯 bool 形
     bool can_learn(int level, int firstGrowType, int secondGrowType,
                    int targetLevel) const;
     int getMaxSkillLevel(int level, int firstGrowType,

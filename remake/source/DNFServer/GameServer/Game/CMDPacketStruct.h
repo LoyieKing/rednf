@@ -55,7 +55,9 @@ struct ResetStarType { enum T { RS_N0 = 0 }; };
 // ---- advancealtar::Dispatcher_Pause（0xe / 0xc，包号 0x242）----------------
 struct _ReqAdvanceAltarPause : public STBaseRequest
 {
-    char m_pad1[1];               // +0x0d（pause 标志回显位，req+0x0d）
+    bool m_bPause;                // +0x0d（pause 标志；process_packet objdump 0x08140b90/
+                                  //  0x08140b94 双 movzbl = bool 成员 load→arg 形态；
+                                  //  uchar 会生成 test/setne，ORIG 无 → 判 bool）
 
     _ReqAdvanceAltarPause();
 };
@@ -63,7 +65,8 @@ struct _ReqAdvanceAltarPause : public STBaseRequest
 struct _ResAdvanceAltarPause : public STBaseResponse
 {
     int m_nErrorCode;             // +0x04 check_error 结果
-    unsigned char m_bPause;       // +0x08（req+0x0d 回显）
+    bool m_bPause;                // +0x08（req+0x0d 回显；objdump 0x08140b8a mov %dl,0x8
+                                  //  字节写 = bool←bool）
     unsigned char m_pad9[3];
 
     _ResAdvanceAltarPause();
@@ -101,7 +104,8 @@ struct _ReqAdvanceAltarSetSlot : public STBaseRequest
 {
     char m_pad10[3];
     int m_field10;                // +0x10
-    unsigned char m_bSet;         // +0x14
+    bool m_bSet;                  // +0x14（setSlot 调用 objdump 0x0814011b movzbl+
+                                  //  movzbl %al 双零扩展 = bool 成员 load→arg 形态）
     char m_pad15[3];
     unsigned char m_slot[12];     // +0x18（_SetSlotData）
 
@@ -112,7 +116,8 @@ struct _ResAdvanceAltarSetSlot : public STBaseResponse
 {
     int m_nErrorCode;             // +0x04
     int m_field08;                // +0x08（req+0x10 回显）
-    unsigned char m_bSet;         // +0x0c（req+0x14）
+    bool m_bSet;                  // +0x0c（req+0x14 回显；objdump 0x0814008a mov %dl,0xc
+                                  //  字节写 = bool←bool）
     unsigned char m_pad0d[3];
     unsigned char m_slot[12];     // +0x10（req+0x18）
 
@@ -122,7 +127,9 @@ struct _ResAdvanceAltarSetSlot : public STBaseResponse
 // ---- advancealtar::Dispatcher_ResetStar（0x14 / 0xc，包号 0x244）-----------
 struct _ReqAdvanceAltarResetStar : public STBaseRequest
 {
-    char m_pad0d[7];              // 无已知负载
+    char m_pad0d[3];
+    int m_field10;                // +0x10（ResetStar/GetAch dispatch_sig 复制到 res+0x08；
+                                  //  证据 objdump 0x08140fe4 `mov -0x10(%ebp),%eax`）
 
     _ReqAdvanceAltarResetStar();  // memset K=0x14 == sizeof
 };
@@ -130,7 +137,7 @@ struct _ReqAdvanceAltarResetStar : public STBaseRequest
 struct _ResAdvanceAltarResetStar : public STBaseResponse
 {
     int m_nErrorCode;             // +0x04
-    char m_pad08[4];              // 序列化 0xc，vptr 后 8 字节负载
+    int m_field08;                // +0x08（req+0x10 回显；objdump 0x08140fe7 `mov %eax,-0x24(%ebp)`）
 
     _ResAdvanceAltarResetStar();  // memset K=0xc == sizeof
 };
@@ -141,7 +148,8 @@ struct _ReqAdvanceAltarSummonUnit : public STBaseRequest
     unsigned char m_bySlotType;   // +0x0d
     char m_pad0e[2];              // 对齐使 int 字段落于 +0x10
     int m_nUnitId;                // +0x10
-    char m_pad14[4];              // 尾部负载（sizeof 凑 0x18；语义未知）
+    int m_nGageLevel;             // +0x14（process_packet objdump 0x08140650 区：与
+                                  //  CharacData::getGageLevel() 比较的期望等级，int 宽度）
 
     _ReqAdvanceAltarSummonUnit(); // memset K=0x18 == sizeof
 };
@@ -200,7 +208,8 @@ struct _ResAdvanceAltarExchangeSlot : public STBaseResponse
 // ---- advancealtar::Dispatcher_GetAchievementReward（0x14 / 0xc，0x243）-----
 struct _ReqAdvanceAltarGetAchievementReward : public STBaseRequest
 {
-    char m_pad0d[7];
+    char m_pad0d[3];
+    int m_field10;                // +0x10（dispatch_sig 0x08140cda 复制到 res+0x08）
 
     _ReqAdvanceAltarGetAchievementReward();  // memset K=0x14 == sizeof
 };

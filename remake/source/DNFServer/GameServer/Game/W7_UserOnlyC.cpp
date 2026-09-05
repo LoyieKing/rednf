@@ -571,10 +571,10 @@ void CUser::GiveEquipItemsReturnUser()
                                                      7u, group, false, false);
 }
 
-// ORIG W 0x084ece20：单字节写 this+0x703d8（m_breakAway 尾 pad 字节）。
+// ORIG W 0x084ece20：单字节写 this+0x703d8（m_breakAway.m_field14 bool 直写）。
 void CUser::setCharacLinkMessageFlag(bool flag)
 {
-    m_breakAway.m_pad14[0] = flag ? 1 : 0;
+    m_breakAway.m_field14 = flag;
 }
 
 // ORIG T 0x08688f02，报告 SendLimitItemUsageNotiInfo.md。

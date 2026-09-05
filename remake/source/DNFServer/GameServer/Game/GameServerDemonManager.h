@@ -31,7 +31,8 @@ public:
     char const* GetNoticeMessage();        // ORIG W 0x0863bff6
     void SetNoticeMessage(unsigned char, char*);   // ORIG T 0x080f6280
     void SetUserProhibitFlag(bool);        // ORIG T 0x080f6222
-    unsigned char IsProhibitConnectState();        // ORIG W 0x084ed404
+    bool IsProhibitConnectState();        // ORIG W 0x084ed404（调用点 0x084e7b9a
+                                          // test %al,je 无 setne = bool ABI）
     void Notice10MinShutDownMessage();     // ORIG T 0x080f623a
 };
 

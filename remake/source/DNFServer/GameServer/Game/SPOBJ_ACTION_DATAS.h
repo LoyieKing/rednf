@@ -14,6 +14,6 @@ struct SPOBJ_ACTION_DATAS
     int m_14;      // +0x14
 
     SPOBJ_ACTION_DATAS();       // ORIG C1Ev W 0x089e86e4（memset 0xff 全字段 -1）
-    ~SPOBJ_ACTION_DATAS();      // ORIG D1Ev W 0x089f0b92（空体）
+    ~SPOBJ_ACTION_DATAS();      // ORIG D1Ev W 0x089f0b92（空体；ImportMapScript 外 2 处调用，非平凡，勿删）
     int getActionType();        // ORIG 0x089e8708（直返 m_type）
 };

@@ -87,6 +87,7 @@ enum UsableServerType
 // 字符串→枚举映射，调用方 ImportStackableScript 0x89aeec8）。
 int getStackableActionType(std::string& type);
 int getStackableActionUsablePlace(std::string& place);
+int getStackableActionUsableServerType(std::string& type);
 class STStackableScript;
 
 // ---- STStackablePackageData（ORIG C1/C2 W 0x08919346：2×movl 0 逐字段清零）----
@@ -357,7 +358,10 @@ public:
     bool IsExpAffect();
     // ORIG 0x086946d2 (W 非 const，按值返回)：读 +0x2d8(+0x2da) —— cooltime 时长(秒)/标志
     // 反汇编为 sret 写入（ushort@+0,uchar@+2），证明按值返回 3 字节小 struct。
-    struct CoolTimeOption { unsigned short sec; char flag; };
+    // packed 实证：ORIG _ZN5CUser22_processContinuousItemEjP14CStackableItem
+    // 0x865ea7d/0x865eab5 sret 临时槽基址 -0xf/-0x12（步长 3、非 4B 对齐），
+    // 默认对齐版 sizeof=4 恒反产 -0x10/-0x14（probe 实证）。sizeof 4→3。
+    struct CoolTimeOption { unsigned short sec; char flag; } __attribute__((packed));
     CoolTimeOption GetCoolTimeOption();
     // ORIG 0x086946f4 (W 非 const)：读 +0x2e4(+0x2e6) —— effect 时长(秒)/标志
     CoolTimeOption GetEffectItemOption();

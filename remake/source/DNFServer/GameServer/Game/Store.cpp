@@ -476,6 +476,23 @@ struct tagRepairItemInfo
 extern int getEquipmentRepairPrice(int baseCost, int curEndurance, int maxEndurance,
                                    int growthGrade, bool flag, float rate);
 
+// ---------------------------------------------------------------------------
+// repair_equip(CUser*, char invenType, short slot, ushort count, ushort& out) ——
+// ORIG 0x08619cec（docs/class_func_reports/Store/repair_equip.md 汇编+反编译 C）。
+// slot==-1：全修 —— 装备栏 3..8（invenType 1）+ 背包 10..0x15（invenType 0）扫描，
+//   收集需修装备（maxEnd!=0 且 curEnd!=maxEnd，objdump +0xc00/+0xe90），累计价格后
+//   use_money(totalCost, reason 1, log 1)；成功先统计(0x14)+死亡之塔(仅 state==10、
+//   dungeon idx!=11000) 上报，再逐件重取槽写满耐久 update_item，最后对背包
+//   10..0x15 发 SendUpdateItem(1, space 3)；失败返 10。返回 0x13=交易中。
+// 单件：msg invenType 0→装备栏(type 1)/2→cargo/3→背包(type 0)，其余返 0x11；
+//   空槽或非 ITEM_TYPE_EQUIP 返 0x11；*out=当前耐久；查表空/满耐久返 0x11；
+//   count!=0xffff 时从 GetInvenSlot(1,count) 取工具（须 ITEM_TYPE_2 且
+//   m_addInfo==0x1f77/0x201f，否则 0x15）→ use_item(count,1,0) 成功扣 1 并把
+//   修理费置 0（失败 0x16）；use_money 失败返 10；耐久写满后按 msg 空间
+//   update_item + SendUpdateItem(1, space 0/2/3)。
+// 字段口径：判空/查表/工具 id 全程直读 +0x02 m_addInfo（item idx）；耐久为
+//   +0x0b m_fieldb。m_addInfo2(+0x07, get_add_info) 是 stackable 数量域，勿混。
+// ---------------------------------------------------------------------------
 int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short count,
                         unsigned short& outEndurance)
 {
@@ -491,12 +508,11 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
 
         for (int i = 3; i < 9; i++)
         {
-            CInventory* inven = user->getCurCharacInvenW();
-            Inven_Item slotItem;
-            inven->GetInvenSlotByRef(1, i, slotItem);
-            if (slotItem.get_add_info() != 0 && slotItem.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+            // ORIG _ZNK10CInventory12GetInvenSlotEii（const 值返回）
+            Inven_Item slotItem = user->getCurCharacInvenR()->GetInvenSlot(1, i);
+            if (slotItem.m_addInfo != 0 && slotItem.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
             {
-                CEquipItem* pEquip = (CEquipItem*)G_CDataManager()->find_item(slotItem.get_add_info());
+                CEquipItem* pEquip = (CEquipItem*)G_CDataManager()->find_item(slotItem.m_addInfo);
                 if (pEquip)
                 {
                     int level = user->get_charac_level();
@@ -511,7 +527,9 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
                     totalCost += cost;
 
                     int curEnd = slotItem.m_fieldb;
-                    bool needRepair = (curEnd != 0 && curEnd != maxEnd);
+                    // ORIG 判定：maxEnd==0 → 不入列；否则 curEnd!=maxEnd 即需修
+                    // （curEnd==0 的损坏装备同样入列）。objdump +0xc00..+0xc2f。
+                    bool needRepair = (maxEnd != 0 && curEnd != maxEnd);
                     if (needRepair)
                         repairList.push_back(tagRepairItemInfo(INVEN_TYPE_EQUIP, i, pEquip));
                 }
@@ -520,12 +538,10 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
 
         for (int i = 10; i < 0x16; i++)
         {
-            CInventory* inven = user->getCurCharacInvenW();
-            Inven_Item slotItem;
-            inven->GetInvenSlotByRef(0, i, slotItem);
-            if (slotItem.get_add_info() != 0 && slotItem.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+            Inven_Item slotItem = user->getCurCharacInvenR()->GetInvenSlot(0, i);
+            if (slotItem.m_addInfo != 0 && slotItem.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
             {
-                CEquipItem* pEquip = (CEquipItem*)G_CDataManager()->find_item(slotItem.get_add_info());
+                CEquipItem* pEquip = (CEquipItem*)G_CDataManager()->find_item(slotItem.m_addInfo);
                 if (pEquip)
                 {
                     int level = user->get_charac_level();
@@ -540,7 +556,8 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
                     totalCost += cost;
 
                     int curEnd = slotItem.m_fieldb;
-                    bool needRepair = (curEnd != 0 && curEnd != maxEnd);
+                    // ORIG 判定同第一循环（objdump +0xe90..+0xebe）。
+                    bool needRepair = (maxEnd != 0 && curEnd != maxEnd);
                     if (needRepair)
                         repairList.push_back(tagRepairItemInfo(INVEN_TYPE_INVEN, i, pEquip));
                 }
@@ -577,14 +594,14 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
                 int slotIdx = info.m_slot;
                 CEquipItem* pEquip = const_cast<CEquipItem*>(info.m_item);
 
-                CInventory* inven2 = user->getCurCharacInvenW();
-                Inven_Item curItem;
-                inven2->GetInvenSlotByRef(invenType2, slotIdx, curItem);
-                if (curItem.get_add_info() != 0 && curItem.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+                // ORIG 迭代内重取：GetInvenSlot(type, slot) 值版；update 走 W。
+                Inven_Item curItem =
+                    user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)invenType2, slotIdx);
+                if (curItem.m_addInfo != 0 && curItem.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
                 {
                     int maxEnd = pEquip->get_endurance();
                     curItem.m_fieldb = (unsigned short)maxEnd;
-                    inven2->update_item((INVEN_TYPE)invenType2, slotIdx, curItem);
+                    user->getCurCharacInvenW()->update_item((INVEN_TYPE)invenType2, slotIdx, curItem);
                 }
             }
 
@@ -607,23 +624,23 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
         }
         else if (invenType == 3)
         {
-            CInventory* inven = user->getCurCharacInvenW();
-            inven->GetInvenSlotByRef(0, slot, item);
+            item = user->getCurCharacInvenR()->GetInvenSlot(0, slot);
         }
         else
         {
             if (invenType != 0)
                 return 0x11;
-            CInventory* inven = user->getCurCharacInvenW();
-            inven->GetInvenSlotByRef(1, slot, item);
+            item = user->getCurCharacInvenR()->GetInvenSlot(1, slot);
         }
 
-        if (item.get_add_info() == 0 || item.m_field1 != Inven_Item::ITEM_TYPE_EQUIP)
+        // ORIG 全程直读 item+0x02 的 m_addInfo（item idx）；get_add_info() 对应
+        // +0x07 m_addInfo2（stackable 数量域），普通装备为 0，不得用于判空/查表。
+        if (item.m_addInfo == 0 || item.m_field1 != Inven_Item::ITEM_TYPE_EQUIP)
             return 0x11;
 
         outEndurance = item.m_fieldb;
 
-        CEquipItem* pEquip = (CEquipItem*)G_CDataManager()->find_item(item.get_add_info());
+        CEquipItem* pEquip = (CEquipItem*)G_CDataManager()->find_item(item.m_addInfo);
         if (!pEquip)
             return 0x11;
 
@@ -633,12 +650,11 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
         Inven_Item item2;
         if (count != 0xffff)
         {
-            CInventory* inven = user->getCurCharacInvenW();
-            inven->GetInvenSlotByRef(0, count, item2);
-            if (item2.get_add_info() == 0 || item2.m_field1 != 2)
+            item2 = user->getCurCharacInvenR()->GetInvenSlot(1, count);   // ORIG GetInvenSlot(1, count)
+            if (item2.m_addInfo == 0 || item2.m_field1 != Inven_Item::ITEM_TYPE_2)
                 return 0x15;
-            int addInfo = item2.get_add_info();
-            if (addInfo != 0x1f77 && addInfo != 0x201f)
+            int toolIdx = item2.m_addInfo;
+            if (toolIdx != 0x1f77 && toolIdx != 0x201f)
                 return 0x15;
         }
 
@@ -652,7 +668,7 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
         int cost = getEquipmentRepairPrice(growthCost, item.m_fieldb, maxEnd,
                                             growthGrade, false, rate);
 
-        if (count != 0xffff && (item2.get_add_info() == 0x1f77 || item2.get_add_info() == 0x201f))
+        if (count != 0xffff && (item2.m_addInfo == 0x1f77 || item2.m_addInfo == 0x201f))
         {
             CInventory* invenW = user->getCurCharacInvenW();
             int ret = invenW->use_item(count, 1, 0);

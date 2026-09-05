@@ -60,6 +60,14 @@ case "$(basename "$src" .cpp)" in
                 # CExpandEquipslot：loadData 虚调用寄存器形态需 4.4.6
                 # （c6 NEAR / c6446r AE；G1-3 refine agent 验证）
                 exec "$C6446R" "$@" ;;
+            # ---- 脚本 Import/Export 族 + 相关：ORIG GameServer 为 GCC 4.4.6（DWARF producer 实证），
+            # 切 4.4.6 后端使寄存器/栈槽分配逐操作数对齐，翻 NEAR→IDENTICAL。 ----
+            *Game/STMonsterScript.cpp | *Game/STEquipmentScript.cpp | *Game/STStackableScript.cpp | \
+            *Game/STMapScript.cpp | *Game/OnlyOrigBatch14.cpp | *Game/CreatureScript.cpp | \
+            *Game/NPCScript.cpp | *Game/GameScriptEnumHelpers.cpp | *Game/EventScriptsCompleteB2.cpp | \
+            *Game/W8LT_PassiveObjectScript.cpp | *Game/InitScriptProducers_6.cpp | *Game/sync_script.cpp | \
+            *Game/EquipmentParameterInfo.cpp | *Game/DispLinkA2.cpp | *Game/CAuction.cpp)
+                exec "$C6446R" "$@" ;;
             *Game/FlexLexerEngine.cpp)
                 # flex 2.5.35 生成 TU：ORIG 与 4.4.6 虚调用/寄存器分配一致
                 exec "$C6446R" "$@" ;;

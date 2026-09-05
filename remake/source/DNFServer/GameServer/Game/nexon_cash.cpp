@@ -138,34 +138,38 @@ int TCPSocket::send(char* buffer, unsigned int length)
     if (buffer == 0 || length == 0)
         return -1;
 
-    int n = static_cast<int>(::write(m_socket, buffer, length));
-    int savedErrno = errno;
+    int n = static_cast<int>(::write(m_socket, buffer, length));  // 0x081af6e0 write@plt
+    int savedErrno = errno;                                       // 0x081af6e8-0x081af6f1
 
+    // ORIG 0x081af6f6 `jg +0xb1`：n>0 块位于函数尾 leave 前岛（技巧23/24 goto 钉块序）
     if (n > 0)
-    {
-        m_sendRetryCount = 0;
-        return n;
-    }
+        goto positive;
     if (savedErrno == EAGAIN || savedErrno == EINTR || savedErrno == EAGAIN)
     {
-        ++m_sendRetryCount;
-        if (static_cast<int>(m_sendRetryCount) > static_cast<int>(TCPSocket::MAX_SEND_RETRY))  // MAX_SEND_RETRY
+        ++m_sendRetryCount;                                       // 0x081af70a-0x081af716
+        register bool over asm("al") =
+            (m_sendRetryCount > static_cast<int>(TCPSocket::MAX_SEND_RETRY));
+        if (over)   // ORIG 0x081af722 setg %al; test; je（寄存器 bool，无槽）
         {
-            m_sendRetryCount = 0;
-            return -100;
+            m_sendRetryCount = 0;                                 // 0x081af72c
+            return -100;                                          // 0x081af733
         }
-        return 0;
+        return 0;                                                 // 0x081af73a
     }
-    if (savedErrno == 0)
-        return 0;
-    m_sendRetryCount = 0;
-    return -1;
+    if (savedErrno == 0)                                          // 0x081af741
+        return 0;                                                 // 0x081af747
+    m_sendRetryCount = 0;                                         // 0x081af74e
+    return -1;                                                    // 0x081af758
+positive:
+    m_sendRetryCount = 0;                                         // 0x081af75f-0x081af762
+    return n;                                                     // 0x081af769
 }
 
 // ORIG 0x081af76e：
 //   if (!buffer || !length) return -1;
-//   n = read(...); if (n < 0) { e=errno; e==EAGAIN→0; e==EINTR→0;
-//       e==EAGAIN→0; e!=0→-1; /*e==0*/ →0; }
+//   n = read(...); if (n < 0) { (errno==EAGAIN||errno==EINTR||errno==EAGAIN||
+//       errno==0) → return 0（0x081af7b5/7c1/7cd je 共岛 +0x6c；test jne→+0x80）；
+//       其余 → return n（原负值，0x081af7ee mov -0xc,%eax） }
 //   else if (n == 0) return -1;   // 对端关闭
 //   return n;
 int TCPSocket::recv(char* buffer, unsigned int length)
@@ -176,19 +180,15 @@ int TCPSocket::recv(char* buffer, unsigned int length)
     int n = static_cast<int>(::read(m_socket, buffer, length));
     if (n < 0)
     {
-        if (errno == EAGAIN)
-            return 0;
-        if (errno == EINTR)
-            return 0;
-        if (errno == EAGAIN)
-            return 0;
-        if (errno != 0)
-            return -1;
-        return 0;  // 0x81af7da 路径：errno==0 时仍走 ret 0
+        if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
+            return 0;   // 0x081af7da 共岛 mov $0
     }
-    if (n == 0)
-        return -1;
-    return n;
+    else
+    {
+        if (n == 0)
+            return -1;   // ORIG 0x081af7e7 n>=0 岛（jns +0x73）
+    }
+    return n;            // ORIG 0x081af7ee 三路共享尾块（6a/77 jne 同标）
 }
 
 int TCPSocket::getHandle() const
@@ -196,13 +196,13 @@ int TCPSocket::getHandle() const
     return m_socket;
 }
 
-// ORIG 0x081af7fe (sz 0xd)：读 m_socket 与 -1 比较，结果丢弃，直接返回。
+// ORIG 0x081af7fe (sz 0xd)：mov 0x8(%ebp),%eax; mov (%eax),%eax;
+// cmp $0xffffffff,%eax; pop; ret —— 尾置 return 的 if 被折叠成裸 cmp（技巧6变体）。
 void TCPSocket::shutdown(int how)
 {
     // 忠实转写：ORIG 本函数未发起 shutdown 系统调用（内联裁剪后的残体）。
-    // ORIG：mov m_socket; cmp $0xffffffff; 裸比较无 sete（结果丢弃）。
-    (void)how;
-    (void)(m_socket == INVALID_SOCKET);
+    if (m_socket == INVALID_SOCKET)
+        return;
 }
 
 // ORIG 0x081af80c：
@@ -214,7 +214,7 @@ void TCPSocket::close()
         return;
     ::close(m_socket);
     m_socket = -1;
-    m_peerAdrs = 0;
+    memset(&m_peerAdrs, 0, 4);   // ORIG 0x081af832-0x081af84b：真实 memset@plt 调用
     m_peerPort = 0;
 }
 
@@ -230,9 +230,15 @@ bool TCPSocket::setOptNonBlock()
 }
 
 // ORIG 0x081af8bc：setsockopt(SOL_SOCKET, SO_REUSEADDR=2, &flag(0/1), 4)。
+// flag 两语句式：死预置 0（0x081af8c8 movl $0,-0xc）+ 显式 if/else 各支内存存储
+// （0x081af8d5 movl $1 / 0x081af8de movl $0），三元写法会被折成寄存器选择形。
 bool TCPSocket::setOptReuseAdrs(bool on)
 {
-    int flag = on ? 1 : 0;
+    int flag = 0;
+    if (on)
+        flag = 1;
+    else
+        flag = 0;
     if (::setsockopt(m_socket, 1, 2, &flag, sizeof(flag)) < 0)
         return false;
     return true;
@@ -345,11 +351,12 @@ bool TCPSocket::accept(TCPSocket& peer)
     if (peer.m_socket < 0 || peer.m_socket == INVALID_SOCKET)
         return false;
 
-    // ORIG: memcpy(dst=this+0x14(视图字段), src=adrs+0x08(sin_addr), 4)
-    memcpy(&peer.m_peerAdrs, peer.m_pad04 + 8, 4);
-    unsigned short rawPort;
-    memcpy(&rawPort, peer.m_pad04 + 6, 2);
-    peer.m_peerPort = rawPort;
+    // ORIG 0x081aff78：memcpy(dst=&peer.m_peerAdrs(+0x14), src=peer+0x08
+    // （lea 0x8 单步 = sin_addr 区），4)。
+    memcpy(&peer.m_peerAdrs, peer.m_pad04 + 4, 4);
+    // ORIG 0x081aff87：movzwl 0x6(%eax) 单步 disp 直读 sin_port（peer+0x06），
+    // 0x081aff91 mov %dx,0x18(%eax) 存 m_peerPort。
+    peer.m_peerPort = *reinterpret_cast<unsigned short*>(peer.m_pad04 + 2);
     peer.setOptNonBlock();
     return true;
 }
@@ -365,20 +372,31 @@ unsigned short TCPSocket::getPeerPort()
     return m_peerPort;
 }
 
+// ORIG 0x081affd0：具名 ret 槽（-0xc cmpl/jns）+ 两条 dead 数组写
+// （0x081affe4 movl $0,-0x10 / 0x081affeB movl $4,-0x14，技巧31 dead 槽撑帧）。
 bool TCPSocket::setOptResizeSendBuf(int size)
 {
     if (size <= 0)
         return false;
-    if (::setsockopt(m_socket, 1, 7 /*SO_SNDBUF*/, &size, sizeof(size)) < 0)
+    int dead_vals[2];
+    dead_vals[1] = 0;   // ORIG 0x081affe4
+    dead_vals[0] = 4;   // ORIG 0x081affeb
+    int ret = ::setsockopt(m_socket, 1, 7 /*SO_SNDBUF*/, &size, sizeof(size));
+    if (ret < 0)
         return false;
     return true;
 }
 
+// ORIG 0x081b0036：与 SendBuf 同形（dead_vals @0x081b004a/0x081b0051）。
 bool TCPSocket::setOptResizeRecvBuf(int size)
 {
     if (size <= 0)
         return false;
-    if (::setsockopt(m_socket, 1, 8 /*SO_RCVBUF*/, &size, sizeof(size)) < 0)
+    int dead_vals[2];
+    dead_vals[1] = 0;
+    dead_vals[0] = 4;
+    int ret = ::setsockopt(m_socket, 1, 8 /*SO_RCVBUF*/, &size, sizeof(size));
+    if (ret < 0)
         return false;
     return true;
 }
@@ -563,8 +581,8 @@ int UDPSocket::send(char* data, int length, unsigned short port,
 //   if (!buffer || length<=0) return -1;
 //   addrlen=16；n=recvfrom(m_socket,buffer,length,0,(sockaddr*)&m_from,&addrlen)
 //   —— ORIG 直接以 this+0x18 作为源地址存储（即成员 m_from）。
-//   n<0: errno==EAGAIN→0 / EINTR→0 / EAGAIN→0 / 否则（e!=0）→-1 / e==0 落到
-//        ret n；n>=0 原样返回。
+//   n<0: (errno==EAGAIN||errno==EINTR||errno==EAGAIN)→ return 0（0x081af162 共岛），
+//        否则 → return -1（0x081af169）；n>=0 原样返回（0x081af170）。
 int UDPSocket::recv(char* buffer, int length)
 {
     if (buffer == 0 || length <= 0)
@@ -578,7 +596,7 @@ int UDPSocket::recv(char* buffer, int length)
     {
         if (errno == EAGAIN || errno == EINTR || errno == EAGAIN)
             return 0;
-        if (errno != 0)
+        else
             return -1;
     }
     return n;
@@ -611,11 +629,13 @@ bool UDPSocket::setOptNonBlock()
 
 // ORIG 0x081af1b8 / 0x081af210：size<=0→false；
 // setsockopt(SOL_SOCKET, SO_SNDBUF/SO_RCVBUF, &size, 4)，负→false。
+// 结果为具名 ret 槽（0x081af250 mov %eax,-0xc; cmpl; jns），frame 0x38。
 bool UDPSocket::setOptResizeSendBuf(int size)
 {
     if (size <= 0)
         return false;
-    if (::setsockopt(m_socket, 1, 7, &size, sizeof(size)) < 0)
+    int ret = ::setsockopt(m_socket, 1, 7, &size, sizeof(size));
+    if (ret < 0)
         return false;
     return true;
 }
@@ -624,7 +644,8 @@ bool UDPSocket::setOptResizeRecvBuf(int size)
 {
     if (size <= 0)
         return false;
-    if (::setsockopt(m_socket, 1, 8, &size, sizeof(size)) < 0)
+    int ret = ::setsockopt(m_socket, 1, 8, &size, sizeof(size));
+    if (ret < 0)
         return false;
     return true;
 }
@@ -683,12 +704,6 @@ ByteBuffer& ByteBuffer::wrap(char* buffer, unsigned int len)
     return *this;
 }
 
-// ORIG 0x081acf60：length = m_writePtr - m_start。
-unsigned int ByteBuffer::length() const
-{
-    return static_cast<unsigned int>(m_writePtr - m_start);
-}
-
 // 内联通用形态：cap 校验通过则逐字节大端写入，推进 write 游标；
 // 空间不足时静默丢弃（游标不动），ORIG 无返回错误通道。
 
@@ -737,77 +752,79 @@ ByteBuffer& ByteBuffer::operator<<(unsigned char value)
     return *this;
 }
 
-namespace {
+// ORIG 各 lsEx W body 为手写字节反序拷贝（-O0 不展开循环，逐对 movzbl）：
+// 具名 src 指针槽 + m_writePtr[i] = src[n-1-i] 逐条赋值。
 
-// 大端逐字节模板化核心（对应 <<s/<<i/<<j 的展开形）。
-inline void write_be_n(char* dst, const char* src, unsigned int n)
-{
-    for (unsigned int i = 0; i < n; ++i)
-        dst[i] = src[n - 1 - i];
-}
-
-}  // namespace
-
-// ORIG 0x081ae65e：if(length()+2 <= cap) 写 2B 大端。
+// ORIG 0x081ae65e（W）：if(length()+2 <= cap) 写 2B 大端；src 槽 -0xc、value 副本 -0x1c。
 ByteBuffer& ByteBuffer::operator<<(short value)
 {
+    const char* src = reinterpret_cast<const char*>(&value);   // 槽位早于 length() 调用（ORIG lea 先于 call）
     if (static_cast<unsigned int>(length() + 2) <= m_capacity)
     {
-        char tmp[sizeof(short)];
-        memcpy(tmp, &value, sizeof(tmp));
-        write_be_n(m_writePtr, tmp, 2);
+        m_writePtr[0] = src[1];
+        m_writePtr[1] = src[0];
         m_writePtr += 2;
     }
     return *this;
 }
 
-// ORIG 0x081acefa：u16 版本。
+// ORIG 0x081acefa（W）：u16 版本，同形。
 ByteBuffer& ByteBuffer::operator<<(unsigned short value)
 {
+    const char* src = reinterpret_cast<const char*>(&value);   // 槽位早于 length() 调用（ORIG lea 先于 call）
     if (static_cast<unsigned int>(length() + 2) <= m_capacity)
     {
-        char tmp[sizeof(unsigned short)];
-        memcpy(tmp, &value, sizeof(tmp));
-        write_be_n(m_writePtr, tmp, 2);
+        m_writePtr[0] = src[1];
+        m_writePtr[1] = src[0];
         m_writePtr += 2;
     }
     return *this;
 }
 
-// ORIG 0x081ae6c4：int 大端 4B。
+// ORIG 0x081ae6c4（W）：int 大端 4B 逐条；incoming 地址直取（lea 0xc）。
 ByteBuffer& ByteBuffer::operator<<(int value)
 {
+    const char* src = reinterpret_cast<const char*>(&value);   // 槽位早于 length() 调用（ORIG lea 先于 call）
     if (static_cast<unsigned int>(length() + 4) <= m_capacity)
     {
-        char tmp[4];
-        memcpy(tmp, &value, 4);
-        write_be_n(m_writePtr, tmp, 4);
+        m_writePtr[0] = src[3];
+        m_writePtr[1] = src[2];
+        m_writePtr[2] = src[1];
+        m_writePtr[3] = src[0];
         m_writePtr += 4;
     }
     return *this;
 }
 
-// ORIG 0x081ae74c：u32 版本。
+// ORIG 0x081ae74c（W）：u32 版本，同形。
 ByteBuffer& ByteBuffer::operator<<(unsigned int value)
 {
+    const char* src = reinterpret_cast<const char*>(&value);   // 槽位早于 length() 调用（ORIG lea 先于 call）
     if (static_cast<unsigned int>(length() + 4) <= m_capacity)
     {
-        char tmp[4];
-        memcpy(tmp, &value, 4);
-        write_be_n(m_writePtr, tmp, 4);
+        m_writePtr[0] = src[3];
+        m_writePtr[1] = src[2];
+        m_writePtr[2] = src[1];
+        m_writePtr[3] = src[0];
         m_writePtr += 4;
     }
     return *this;
 }
 
-// ORIG 0x081ae7d4：u64 大端 8B。
+// ORIG 0x081ae7d4（W）：u64 大端 8B 逐条；value 副本槽 -0x20/-0x1c。
 ByteBuffer& ByteBuffer::operator<<(unsigned long long value)
 {
+    const char* src = reinterpret_cast<const char*>(&value);   // 槽位早于 length() 调用（ORIG lea 先于 call）
     if (static_cast<unsigned int>(length() + 8) <= m_capacity)
     {
-        char tmp[8];
-        memcpy(tmp, &value, 8);
-        write_be_n(m_writePtr, tmp, 8);
+        m_writePtr[0] = src[7];
+        m_writePtr[1] = src[6];
+        m_writePtr[2] = src[5];
+        m_writePtr[3] = src[4];
+        m_writePtr[4] = src[3];
+        m_writePtr[5] = src[2];
+        m_writePtr[6] = src[1];
+        m_writePtr[7] = src[0];
         m_writePtr += 8;
     }
     return *this;
@@ -821,34 +838,36 @@ ByteBuffer& ByteBuffer::operator>>(unsigned char& value)
     return *this;
 }
 
-namespace {
-
-inline void read_be_n(char* dst, const char* src, unsigned int n)
-{
-    for (unsigned int i = 0; i < n; ++i)
-        dst[i] = src[n - 1 - i];
-}
-
-}  // namespace
-
-// ORIG 0x081ae8e4：读 4B 大端组成 int。
+// ORIG 0x081ae8e4（W）：dst 指针槽 -0x4 + 逐字节 m_readPtr[3-i] 直读（无 tmp）。
 ByteBuffer& ByteBuffer::operator>>(int& value)
 {
-    char tmp[4];
-    read_be_n(tmp, m_readPtr, 4);
-    memcpy(&value, tmp, 4);
+    char* dst = reinterpret_cast<char*>(&value);
+    dst[0] = m_readPtr[3];
+    dst[1] = m_readPtr[2];
+    dst[2] = m_readPtr[1];
+    dst[3] = m_readPtr[0];
     m_readPtr += 4;
     return *this;
 }
 
-// ORIG 0x081ae94e：u32 版本。
+// ORIG 0x081ae94e（W）：u32 版本，同形。
 ByteBuffer& ByteBuffer::operator>>(unsigned int& value)
 {
-    char tmp[4];
-    read_be_n(tmp, m_readPtr, 4);
-    memcpy(&value, tmp, 4);
+    char* dst = reinterpret_cast<char*>(&value);
+    dst[0] = m_readPtr[3];
+    dst[1] = m_readPtr[2];
+    dst[2] = m_readPtr[1];
+    dst[3] = m_readPtr[0];
     m_readPtr += 4;
     return *this;
+}
+
+// ORIG 0x081acf60：length = m_writePtr - m_start。
+// 定义置于全部 <<x/>>x 消费者之后：ORIG 各 W body 内 call length 为宽松帧
+// （sub $0x18 + 具名 value 槽 -0xc），同 TU 定义前置会收紧 caller 帧（技巧31）。
+unsigned int ByteBuffer::length() const
+{
+    return static_cast<unsigned int>(m_writePtr - m_start);
 }
 
 // ===========================================================================
@@ -863,12 +882,12 @@ NCashMessage::NCashMessage()
 
 unsigned char* NCashMessage::data()
 {
-    return reinterpret_cast<unsigned char*>(&m_raw[0]);  // this+4
+    return &m_wireMagic;  // this+4
 }
 
 unsigned char* NCashMessage::body()
 {
-    return reinterpret_cast<unsigned char*>(&m_raw[3]);  // this+7
+    return &m_bodyBytes[0];  // this+7
 }
 
 unsigned short NCashMessage::body_length()
@@ -882,12 +901,12 @@ int NCashMessage::length() const
     return static_cast<int>(m_bodyLength) + 3;
 }
 
-// ORIG 0x081ae578：raw[0]='U'; u16@raw[1]=htons(bodyLength)；true。
+// ORIG 0x081ae578（W）：wireMagic='U'; *(u16*)netLen=htons(bodyLength) 指针直存
+// （dst 0x081ae585 add $5 单步 + 0x081ae588 mov %eax,%ebx 先载入，技巧27）。
 bool NCashMessage::encode_header()
 {
-    m_raw[0] = 'U';
-    unsigned short netLen = htons(m_bodyLength);
-    memcpy(&m_raw[1], &netLen, 2);
+    m_wireMagic = 'U';
+    *reinterpret_cast<unsigned short*>(m_netLenB) = htons(m_bodyLength);
     return true;
 }
 
@@ -898,14 +917,12 @@ void NCashMessage::encode_header(unsigned int bodyLength)
     encode_header();
 }
 
-// ORIG 0x081ae5ce：m_bodyLength=ntohs(u16(raw[1]))；
-// 若 >0x200 → 清零返 false，否则 true。
+// ORIG 0x081ae5ce（W）：m_bodyLength=ntohs(*(u16*)netLen)（0x081ae5d7 add $5
+// 单步后 movzwl 直读，无 copy 槽）；u16 无符号 cmp $0x200 超 → 清零返 false。
 bool NCashMessage::decode_header()
 {
-    unsigned short netLen;
-    memcpy(&netLen, &m_raw[1], 2);
-    m_bodyLength = ntohs(netLen);
-    if (static_cast<int>(m_bodyLength) > 0x200)
+    m_bodyLength = ntohs(*reinterpret_cast<unsigned short*>(m_netLenB));
+    if (m_bodyLength > 0x200)
     {
         m_bodyLength = 0;
         return false;
@@ -1054,25 +1071,28 @@ Transaction* TransactionManager::getTransaction(unsigned int id)
 }
 
 // ORIG 0x081b0244：tx 存在→tx->cancel()（退款+自移除）、user 表移除、delete tx。
+// 正向 if 包裹（0x081b0263 je 直达 leave +0x51，无尾 jmp/nop 岛）。
 void TransactionManager::cancel(unsigned int id)
 {
     Transaction* tx = getTransaction(id);
-    if (tx == 0)
-        return;
-    tx->cancel();
-    tx->getUser()->removeTransaction(tx);
-    delete tx;
+    if (tx != 0)
+    {
+        tx->cancel();
+        tx->getUser()->removeTransaction(tx);
+        delete tx;
+    }
 }
 
-// ORIG 0x081b0298：同 cancel 但不退款（tx->confirm() 仅自移除）。
+// ORIG 0x081b0298：同 cancel 但不退款（tx->confirm() 仅自移除）。正向 if 同形。
 void TransactionManager::confirm(unsigned int id)
 {
     Transaction* tx = getTransaction(id);
-    if (tx == 0)
-        return;
-    tx->confirm();
-    tx->getUser()->removeTransaction(tx);
-    delete tx;
+    if (tx != 0)
+    {
+        tx->confirm();
+        tx->getUser()->removeTransaction(tx);
+        delete tx;
+    }
 }
 
 // ORIG 0x081b04cc：前缀 ++ 后返回新值。
@@ -1105,16 +1125,6 @@ ChargeCashBuffers& ccBufs()
 }
 
 
-namespace {
-
-// NCashImpl 内嵌的出包消息子对象 @this+0x248（布局常量，见头注释）。
-inline NCashMessage& outMsgOf(NCashImpl* self)
-{
-    return *reinterpret_cast<NCashMessage*>(
-        reinterpret_cast<char*>(self) + 0x248);
-}
-
-}  // namespace
 
 inline void traceRecvError(int errCode, const char* plain)
 {
@@ -1129,7 +1139,14 @@ inline void traceRecvError(int errCode, const char* plain)
 // NCashImpl
 // ===========================================================================
 
-// ORIG 0x081acfdc：子对象构造顺序与字段初始化见头注释。
+void NCashImpl::_increaseRequestID()                 // ORIG 0x081aea32
+{
+    ++m_requestID;
+}
+
+// NCashImpl ctor 定义置于 NexonCash ctor 调用点之后：ORIG 中两者不同 TU，
+// new-expression 只见原型 → 保守生成 EH cleanup（delete+Unwind_Resume 岛，
+// ORIG 0x081ae21b-0x081ae232）。定义本体原文见 ORIG 0x081acfdc。
 NCashImpl::NCashImpl(const char* serverAdrs, short port, unsigned char paramB,
                      unsigned short fieldC, short fieldD)
     : m_socket(), m_inMsg(), m_outMsg()
@@ -1146,24 +1163,16 @@ NCashImpl::NCashImpl(const char* serverAdrs, short port, unsigned char paramB,
     m_port = port;
 }
 
-void NCashImpl::_increaseRequestID()                 // ORIG 0x081aea32
-{
-    ++m_requestID;
-}
+// NCashImpl 四个 coupon 定义在文件尾 NexonCash 调用点之后：
+// ORIG 编译单元内调用点仅见原型 → 宽松帧 sub $0x18（技巧31 扩展）。
 
-bool NCashImpl::checkCoupon()     { return false; }   // ORIG 0x081aea0a xor eax,eax
-bool NCashImpl::useCoupon()       { return false; }   // ORIG 0x081aea14
-bool NCashImpl::checkCafeCoupon() { return false; }   // ORIG 0x081aea1e
-bool NCashImpl::useCafeCoupon()   { return false; }   // ORIG 0x081aea28
-
-// ORIG 0x081aea46：MSG_WAITALL(0x100) 预读头并解码，随后转 recv_body；
-// 断线/错误时 printf + m_connected=false + close + 返回 2。
+// ORIG 0x081aea46（W）：MSG_WAITALL(0x100) 预读头并解码，随后转 recv_body。
+// buf → %ebx（0x081aea58 call data 后直落寄存器，技巧2），getHandle 结果免槽
+// 直填第1参（0x081aea66-0x081aea7b），n 槽 -0xc，frame 0x24 + pop ebx。
 int NCashImpl::recv_msg()
 {
-    unsigned char* buf = m_inMsg.data();
-    int fd = m_socket.getHandle();
-
-    ssize_t n = ::recv(fd, buf, 3, 0x100);   // ORIG: 预读 3 字节头
+    register unsigned char* buf asm("ebx") = m_inMsg.data();
+    int n = static_cast<int>(::recv(m_socket.getHandle(), buf, 3, 0x100));
     if (n == 0)
     {
         printf("[%s] connection lost: %s\n", __FUNCTION__,
@@ -1187,11 +1196,9 @@ int NCashImpl::recv_msg()
 // ORIG 0x081aeb3c：按 body_length 继续收 body 区（flags 同 0x100）。
 int NCashImpl::recv_body()
 {
-    unsigned short bodyLen = m_inMsg.body_length();
-    unsigned char* body = m_inMsg.body();
-    int fd = m_socket.getHandle();
-
-    ssize_t n = ::recv(fd, body, bodyLen, 0x100);
+    register unsigned int bodyLen asm("esi") = m_inMsg.body_length();
+    register unsigned char* body asm("ebx") = m_inMsg.body();
+    int n = static_cast<int>(::recv(m_socket.getHandle(), body, bodyLen, 0x100));
     if (n == 0)
     {
         printf("[%s] connection lost: %s\n", __FUNCTION__, strerror(errno));
@@ -1209,20 +1216,23 @@ int NCashImpl::recv_body()
     return 0;
 }
 
-// ORIG 0x081aec2c：encode(totalLen) → send(data, length()+3 视图全长, 0x100)；
-// 发送不全则 printf + close + 2。
+// ORIG 0x081aec2c（W）：encode(totalLen) → 缓存 length→%esi / data→%ebx
+// （0x081aec5c/0x081aec6e 直用寄存器，技巧2），getHandle 结果免槽直填第1参
+// （0x081aec79-0x081aec8e，技巧37）；n 槽 -0xc；比较对象是**重调用** length()
+// （0x081aeca4-0x081aeca9 cmp -0xc,%eax + setne/test，技巧9 bool 形）；
+// 错误分支 strerror 结果 → %ebx 后重 call length 填 printf（0x081aecc4-0x081aecd4）。
 int NCashImpl::send_msg(unsigned int totalLen)
 {
-    outMsgOf(this).encode_header(totalLen);
-    unsigned int len = outMsgOf(this).length();
-    unsigned char* buf = outMsgOf(this).data();
-    int fd = m_socket.getHandle();
+    m_outMsg.encode_header(totalLen);
+    register unsigned int len asm("esi") = m_outMsg.length();   // 0x081aec5c
+    register unsigned char* buf asm("ebx") = m_outMsg.data();   // 0x081aec6e
 
-    ssize_t n = ::send(fd, buf, len, 0x100);
-    if (static_cast<unsigned int>(n) != len)
+    int n = static_cast<int>(::send(m_socket.getHandle(), buf, len, 0x100));
+    if (n != static_cast<int>(m_outMsg.length()))   // 0x081aeca9 cmp -0xc,%eax
     {
+        register char* err asm("ebx") = strerror(errno);        // 0x081aecc2
         printf("send error: send bytes: %d, message length: %d, error: %s\n",
-               static_cast<int>(n), static_cast<int>(len), strerror(errno));
+               n, static_cast<int>(m_outMsg.length()), err);
         m_connected = false;
         m_socket.close();
         return 2;
@@ -1246,7 +1256,7 @@ bool NCashImpl::reconnect()
 // ORIG 0x081ad0e6（sret）：ByteBuffer(out.body(),0x200)<<pid<<flag<<requestID。
 ByteBuffer NCashImpl::set_data_header(unsigned char packetId, unsigned char flag)
 {
-    ByteBuffer out(reinterpret_cast<char*>(outMsgOf(this).body()), 0x200);
+    ByteBuffer out(reinterpret_cast<char*>(m_outMsg.body()), 0x200);
     out << packetId;
     out << flag;
     _increaseRequestID();
@@ -1305,21 +1315,24 @@ int NCashImpl::handle_cash_error(int err)
 }
 
 // ORIG 0x081ad2c0：0..3 静默；default 打印；恒返回 16。
+// case 0..3 → goto 共用出口标号（技巧23/24）：复现 ORIG 0x081ad2d0-0x081ad2ff
+// 二分树 dispatch（cmp$1 je / cmp$1 jg / test je / jmp / cmp$2 je / cmp$3 je）
+// + 每 case `nop; jmp merge` 岛；直接 break 会被 4.4 折成 jbe 范围形。
 int NCashImpl::handle_coupon_error(int err)
 {
     int result = 0x10;
     switch (err)
     {
-    case 0:
-    case 1:
-    case 2:
-    case 3:
-        break;
+    case 0: goto Lsilent;
+    case 1: goto Lsilent;
+    case 2: goto Lsilent;
+    case 3: goto Lsilent;
     default:
         printf("[%s] Invalid coupon packet_id: %u\n", __FUNCTION__,
                static_cast<unsigned>(err));
         break;
     }
+Lsilent:
     return result;
 }
 
@@ -1331,7 +1344,7 @@ int NCashImpl::checkEntrance(const char* userName, char& outStatus)
 
     unsigned char typeByte = static_cast<unsigned char>(m_fieldD);
 
-    ByteBuffer out(reinterpret_cast<char*>(outMsgOf(this).body()), 0x200);
+    ByteBuffer out(reinterpret_cast<char*>(m_outMsg.body()), 0x200);
     out << static_cast<unsigned char>(0x03);
     out << static_cast<unsigned char>(0x01);
     out << typeByte;
@@ -1687,10 +1700,15 @@ int NexonCash::confirm(const NXTransaction& tx)
 int NexonCash::cancel(const NXTransaction& tx)
 { return m_impl->cancel(tx.m_type, tx.m_id); }
 
-int NexonCash::checkCoupon()     { return m_impl->checkCoupon(); }
-int NexonCash::useCoupon()       { return m_impl->useCoupon(); }
-int NexonCash::checkCafeCoupon() { return m_impl->checkCafeCoupon(); }
-int NexonCash::useCafeCoupon()   { return m_impl->useCafeCoupon(); }
+bool NexonCash::checkCoupon()     { return m_impl->checkCoupon(); }
+bool NexonCash::useCoupon()       { return m_impl->useCoupon(); }
+bool NexonCash::checkCafeCoupon() { return m_impl->checkCafeCoupon(); }
+bool NexonCash::useCafeCoupon()   { return m_impl->useCafeCoupon(); }
+
+bool NCashImpl::checkCoupon()     { return false; }   // ORIG 0x081aea0a xor eax,eax
+bool NCashImpl::useCoupon()       { return false; }   // ORIG 0x081aea14
+bool NCashImpl::checkCafeCoupon() { return false; }   // ORIG 0x081aea1e
+bool NCashImpl::useCafeCoupon()   { return false; }   // ORIG 0x081aea28
 
 int NexonCash::charge(char* data, unsigned char a, unsigned char b,
                       int encLen, char* encData, char* sendBuf, char* wideBuf,

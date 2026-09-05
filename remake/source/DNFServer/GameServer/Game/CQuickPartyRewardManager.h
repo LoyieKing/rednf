@@ -91,8 +91,9 @@ struct RewardData_Result
 
     void clear()
     {
-        // ORIG 0x0846998e：memset(this,0,0x14) 清零 +0x00..+0x13，再置 +0x14=1.0f/+0x18=1。
-        memset(this, 0, 0x14);
+        // ORIG 0x0846998e：先 mov 0x8(%ebp),%eax（&m_value00 地址表达式前置），
+        // 再依次压常数 0x14/0x0 ⇒ 取成员数组首地址而非 this。
+        memset(&m_value00, 0, 0x14);
         m_rate14 = 1.0f;
         m_flag18 = 1;
     }

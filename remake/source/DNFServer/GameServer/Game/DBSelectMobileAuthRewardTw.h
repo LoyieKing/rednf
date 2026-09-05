@@ -19,7 +19,7 @@ public:
 
     DBSelectMobileAuthRewardTw() throw();
     virtual ~DBSelectMobileAuthRewardTw();
-    void makeRequest(CUser*);   // ORIG T 0x0815c586
+    static void makeRequest(CUser*);   // ORIG T 0x0815c586(不消费 this,静态语义)
     virtual bool dispatch(int, int, Stream*);   // ORIG T 0x0815c6a8
 };
 

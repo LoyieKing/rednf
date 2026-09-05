@@ -112,33 +112,37 @@ public:
     std::string m_basicMotion;      // +0x70
     std::string m_walkMotion;       // +0x74
     std::string m_runMotion;        // +0x78
-    std::string m_flyMotion;        // +0x7c
-    char m_pad80[4];                // +0x80（ORIG 布局空洞：无析构/clear/import 访问证据）
-    std::string m_getExpMotion;     // +0x84
-    std::string m_getExpOverMotion; // +0x88
-    std::string m_getExpUnderMotion;// +0x8c
-    std::string m_skillMotion;      // +0x90
-    std::string m_overSkillMotion;  // +0x94
-    std::string m_responseMotion;   // +0x98
-    std::string m_specialMotion;    // +0x9c
-    std::string m_equipMotion;      // +0xa0
-    std::string m_equipOverMotion;  // +0xa4
-    std::string m_equipUnderMotion; // +0xa8
-    std::string m_basicOverEffect;  // +0xac
-    std::string m_walkOverEffect;   // +0xb0
-    std::string m_runOverEffect;    // +0xb4
+    std::string m_flyMotion;        // +0x7c（ORIG clear 0x833dfac 不复位本槽）
+    std::string m_getExpMotion;     // +0x80（dtor 0x8340ca4/clear/import 三处
+                                    //  `sub $0xffffff80,%eax` 寻址实证为 string，
+                                    //  2026-09-04 修正原误判空洞 pad80）
+    std::string m_getExpOverMotion; // +0x84
+    std::string m_getExpUnderMotion;// +0x88
+    std::string m_skillMotion;      // +0x8c（import "[skill motion]"）
+    std::string m_overSkillMotion;  // +0x90
+    std::string m_responseMotion;   // +0x94
+    std::string m_specialMotion;    // +0x98
+    std::string m_equipMotion;      // +0x9c
+    std::string m_equipOverMotion;  // +0xa0
+    std::string m_equipUnderMotion; // +0xa4（import "[equip under motion]"）
+    std::string m_basicOverEffect;  // +0xa8（import "[basic over effect]"）
+    std::string m_walkOverEffect;   // +0xac
+    std::string m_runOverEffect;    // +0xb0
+    std::string m_defaultOverEffect;   // +0xb4（推断：仅 dtor 0x8340ca4 销毁，
+                                       //  clear/import 均不触碰，命名对齐 under 侧）
     std::string m_skillOverEffect;  // +0xb8
     std::string m_overSkillOverEffect;   // +0xbc
     std::string m_responseOverEffect;    // +0xc0
     std::string m_specialOverEffect;     // +0xc4
-    std::string m_basicUnderEffect;      // +0xc8
+    std::string m_basicUnderEffect;      // +0xc8（import "[basic under effect]"）
     std::string m_walkUnderEffect;       // +0xcc
     std::string m_runUnderEffect;        // +0xd0
-    std::string m_skillUnderEffect;      // +0xd4
-    std::string m_overSkillUnderEffect;  // +0xd8
-    std::string m_responseUnderEffect;   // +0xdc
-    std::string m_specialUnderEffect;    // +0xe0
-    std::string m_defaultUnderEffect;    // +0xe4
+    std::string m_defaultUnderEffect;    // +0xd4（推断：仅 dtor 销毁，
+                                         //  clear/import 不触碰）
+    std::string m_skillUnderEffect;      // +0xd8（import "[skill under effect]"）
+    std::string m_overSkillUnderEffect;  // +0xdc
+    std::string m_responseUnderEffect;   // +0xe0
+    std::string m_specialUnderEffect;    // +0xe4（import "[special under effect]"）
     std::vector<CreatureAdditionalAnimation> m_additionalAnimations;  // +0xe8
     std::string m_defaultParticle;  // +0xf4
     std::string m_responseSoundTag; // +0xf8

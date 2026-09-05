@@ -929,25 +929,27 @@ int SkillSlot::clear_sfp_skills(char job, ENUM_SKILL_TREE_KIND kind)
         if (kind == -1 || kind == 0)
         {
             skill = G_CDataManager()->find_skill(job, m_skillSlot[i].m_index);
-            if (skill != 0)
+            if (skill == 0)
             {
-                if (skill->IsSpecialSkill())
-                {
-                    m_skillSlot[i].m_index = 0;
-                    m_skillSlot[i].m_level = 0;
-                }
+                continue;
+            }
+            if (skill->IsSpecialSkill())
+            {
+                m_skillSlot[i].m_index = 0;
+                m_skillSlot[i].m_level = 0;
             }
         }
         else if (kind == 1)
         {
             skill = G_CDataManager()->find_skill(job, m_skillSlot2[i].m_index);
-            if (skill != 0)
+            if (skill == 0)
             {
-                if (skill->IsSpecialSkill())
-                {
-                    m_skillSlot2[i].m_index = 0;
-                    m_skillSlot2[i].m_level = 0;
-                }
+                continue;
+            }
+            if (skill->IsSpecialSkill())
+            {
+                m_skillSlot2[i].m_index = 0;
+                m_skillSlot2[i].m_level = 0;
             }
         }
         else
@@ -1025,12 +1027,13 @@ int SkillSlot::makeCheckSum(int key) const
     int sum = 0;
     for (int i = 0; i < 204; ++i)
     {
-        if (buf[i].m_index)
+        if (buf[i].m_index == 0)
         {
-            sum = getSkillChecksum(i, (unsigned char)buf[i].m_index,
-                                   buf[i].m_level) +
-                  sum;
+            continue;
         }
+        sum = getSkillChecksum(i, (unsigned char)buf[i].m_index,
+                               buf[i].m_level) +
+              sum;
     }
     return finishSkillChecksum(&sum, key);
 }
@@ -2321,11 +2324,11 @@ void SkillSlot::InitSkillHistoryLog(ENUM_SKILL_TREE_KIND kind, int reason)
         spKind = 1;
         sfpKind = 3;
     }
-    (&m_parent->m_historyLog)
-        ->InitSkill(spKind, ((CUserCharacInfo*)m_parent)->get_charac_level(),
-                    get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)spKind),
-                    get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)sfpKind),
-                    (eSkillInitReason)reason);
+    m_parent->m_historyLog.InitSkill(
+        spKind, ((CUserCharacInfo*)m_parent)->get_charac_level(),
+        get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)spKind),
+        get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)sfpKind),
+        (eSkillInitReason)reason);
 }
 
 void SkillSlot::SendSkillInfo(int characIdx, ENUM_SKILL_TREE_KIND kind)
@@ -2744,30 +2747,36 @@ void SkillSlot::debugCommandResetSkill()
 
 void SkillSlot::loadComboSkill(SIG_COMBO_SKILL* data)
 {
-    if (data != 0)
+    if (data == 0)
     {
-        if (!m_comboSkill.loadData(data))
-        {
-            LogManager::logFormat(
-                1, "skill_slot.cpp", __PRETTY_FUNCTION__,
-                0xc75, "SkillSlot::loadComboSkill error");
-        }
+        return;
+    }
+    if (!m_comboSkill.loadData(data))
+    {
+        LogManager::logFormat(
+            1, "skill_slot.cpp", __PRETTY_FUNCTION__,
+            0xc75, "SkillSlot::loadComboSkill error");
     }
 }
 
 void SkillSlot::getComboSkillSaveData(SIG_COMBO_SKILL* data) const
 {
-    if (m_parent != 0 && data != 0)
+    if (m_parent == 0)
     {
-        data->m_characNo = m_parent->get_charac_no(-1);
-        data->m_job = ((CUserCharacInfo*)m_parent)->get_charac_job();
-        if (!m_comboSkill.saveData(data))
-        {
-            LogManager::logFormat(
-                1, "skill_slot.cpp",
-                __PRETTY_FUNCTION__,
-                0xc84, "SkillSlot::getComboSkillSaveData error");
-        }
+        return;
+    }
+    if (data == 0)
+    {
+        return;
+    }
+    data->m_characNo = m_parent->get_charac_no(-1);
+    data->m_job = ((CUserCharacInfo*)m_parent)->get_charac_job();
+    if (!m_comboSkill.saveData(data))
+    {
+        LogManager::logFormat(
+            1, "skill_slot.cpp",
+            __PRETTY_FUNCTION__,
+            0xc84, "SkillSlot::getComboSkillSaveData error");
     }
 }
 
@@ -2831,12 +2840,10 @@ void SkillSlot::verifyComboSkillTree(ENUM_SKILL_TREE_KIND kind)
         {
             if ((*slotList)[i].first == 0)
             {
+                continue;
             }
-            else
-            {
-                m_comboSkill.eraseDuplicationComboSKill(
-                    kind, (*slotList)[i].first);
-            }
+            m_comboSkill.eraseDuplicationComboSKill(
+                kind, (*slotList)[i].first);
         }
     }
 }
@@ -2863,15 +2870,16 @@ void SkillSlot::eraseDuplicationComboSKillTree(ENUM_SKILL_TREE_KIND kind)
         for (int i = 0xc6; i < 0xcc; ++i)
         {
             skillIdx = getSkillSlotIndex(kind, i);
-            if (skillIdx != 0)
+            if (skillIdx == 0)
             {
-                m_comboSkill.eraseDuplicationComboSKill(kind, skillIdx);
+                continue;
             }
+            m_comboSkill.eraseDuplicationComboSKill(kind, skillIdx);
         }
     }
 }
 
-int SkillSlot::moveComboSkillExtensionQuickSlot(int skillIdx, int level,
+bool SkillSlot::moveComboSkillExtensionQuickSlot(int skillIdx, int level,
                                                 ENUM_SKILL_TREE_KIND kind)
 {
     if (m_parent == 0)
@@ -2891,7 +2899,14 @@ int SkillSlot::moveComboSkillExtensionQuickSlot(int skillIdx, int level,
     }
     int group = skill->get_group();
     int slot = get_skillslot_no(skillIdx, group, kind, 0);
-    if (slot == -1)
+    if (slot != -1)
+    {
+        if (buf[slot].m_level < level)
+        {
+            buf[slot].m_level = (char)level;
+        }
+    }
+    else
     {
         slot = insert_skill(skillIdx, group, 0, kind, 1);
         if (slot >= 6 && slot <= 0xc5)
@@ -2910,10 +2925,6 @@ int SkillSlot::moveComboSkillExtensionQuickSlot(int skillIdx, int level,
                 m_parent->get_charac_no(-1));
         }
     }
-    else if (buf[slot].m_level < level)
-    {
-        buf[slot].m_level = (char)level;
-    }
     return 1;
 }
 
@@ -2930,25 +2941,26 @@ void SkillSlot::pullComboSkillExtensionQuickSlot(ENUM_SKILL_TREE_KIND kind)
     }
     for (int i = 0xc6; i < 0xcc; ++i)
     {
-        if (buf[i].m_index)
+        if (buf[i].m_index == 0)
         {
-            if (moveComboSkillExtensionQuickSlot(
-                    buf[i].m_index, (int)(char)buf[i].m_level, kind))
-            {
-                buf[i].m_index = 0;
-                buf[i].m_level = 0;
-            }
-            else
-            {
-                LogManager::logFormat(
-                    1, "skill_slot.cpp",
-                    __PRETTY_FUNCTION__,
-                    0xcd7,
-                    "pullComboSkillExtensionQuickSlot Error slot(%d) index(%d) level(%d)kind(%d) characNo(%d)",
-                    i, (unsigned char)buf[i].m_index,
-                    (int)(char)buf[i].m_level, kind,
-                    m_parent->get_charac_no(-1));
-            }
+            continue;
+        }
+        if (moveComboSkillExtensionQuickSlot(
+                buf[i].m_index, (int)(char)buf[i].m_level, kind))
+        {
+            buf[i].m_index = 0;
+            buf[i].m_level = 0;
+        }
+        else
+        {
+            LogManager::logFormat(
+                1, "skill_slot.cpp",
+                __PRETTY_FUNCTION__,
+                0xcd7,
+                "pullComboSkillExtensionQuickSlot Error slot(%d) index(%d) level(%d)kind(%d) characNo(%d)",
+                i, (unsigned char)buf[i].m_index,
+                (int)(char)buf[i].m_level, kind,
+                m_parent->get_charac_no(-1));
         }
     }
 }
@@ -3083,12 +3095,17 @@ void CSkillChanger::_ResetSkillPoint(CUser* user, ENUM_SKILL_TREE_KIND kind)
 
 void CSkillChanger::_ResetSFPoint(CUser* user, ENUM_SKILL_TREE_KIND kind)
 {
-    int charLevel = user->get_charac_level();
-    if (charLevel > 0x31 && kind > 1)
+    if (user->get_charac_level() <= 0x31)
     {
-        SkillSlot* slotW = (SkillSlot*)user->getCurCharacSkillW();
-        slotW->set_remain_sfp_at_index(charLevel - 0x31, kind);
+        return;
     }
+    if (kind <= 1)
+    {
+        return;
+    }
+    register const int newPoint = user->get_charac_level() - 0x31;
+    ((SkillSlot*)user->getCurCharacSkillW())
+        ->set_remain_sfp_at_index(newPoint, kind);
 }
 
 int CSkillChanger::_GetUserItemCount(const CUser* user)
@@ -3115,7 +3132,7 @@ int CSkillChanger::_GetBaseSkillPoint(const CUser* user) const
     int sum = 0;
     for (int level = 1; level <= user->get_charac_level(); level++)
     {
-        sum += G_CDataManager()->GetSpAtLevelUp(level);
+        sum += (int)G_CDataManager()->GetSpAtLevelUp(level);
     }
     return sum;
 }
@@ -3129,12 +3146,15 @@ int CSkillChanger::_GetQuestSkillPoint(const CUser* user)
 // ORIG 0x0860a1e6：GetCurCharacTotalSP(CUser const*, bool)。
 int CSkillChanger::GetCurCharacTotalSP(const CUser* user, bool flag)
 {
-    memset(&m_state, 0, sizeof(m_state));
-    m_state.m_kindState0 = 8;
-    m_state.m_kindState1 = 8;
-    m_state.m_kindState2 = 8;
-    m_state.m_kindState3 = 8;
     m_state.m_initialized = flag;
+    memset(&m_state.m_sec0, 0, 0x24);
+    memset(&m_state.m_sec1, 0, 0x24);
+    memset(&m_state.m_sec2, 0, 0x24);
+    memset(&m_state.m_sec3, 0, 0x24);
+    m_state.m_sec0.m_kindState = 8;
+    m_state.m_sec1.m_kindState = 8;
+    m_state.m_sec2.m_kindState = 8;
+    m_state.m_sec3.m_kindState = 8;
     m_state.m_reserved91 = 0;
     int base = _GetBaseSkillPoint(user);
     _GetUserItemCount(user);
@@ -3149,13 +3169,11 @@ void CSkillChanger::_ApplyUserData(CUser* /*user*/, ENUM_SKILL_TREE_KIND /*kind*
 
 void CSkillChanger::_CountSkillBook(Inven_Item& item)
 {
-    int itemIdx = item.m_addInfo;
-    int count = item.m_addInfo2;
     for (int i = 1; i <= g_nStatUpItemIdx[0]; i++)
     {
-        if (itemIdx == g_nStatUpItemIdx[i])
+        if (item.m_addInfo == g_nStatUpItemIdx[i])
         {
-            m_data.m_elixerCount[i] = count;
+            m_data.m_elixerCount[i] = item.m_addInfo2;
             m_data.m_skillBookCount[i] = g_nElixerAbility[i];
         }
     }
@@ -3163,12 +3181,15 @@ void CSkillChanger::_CountSkillBook(Inven_Item& item)
 
 void CSkillChanger::SkillInitialize(CUser* user, int kind, bool flag)
 {
-    memset(&m_state, 0, sizeof(m_state));
-    m_state.m_kindState0 = 8;
-    m_state.m_kindState1 = 8;
-    m_state.m_kindState2 = 8;
-    m_state.m_kindState3 = 8;
     m_state.m_initialized = flag;
+    memset(&m_state.m_sec0, 0, 0x24);
+    memset(&m_state.m_sec1, 0, 0x24);
+    memset(&m_state.m_sec2, 0, 0x24);
+    memset(&m_state.m_sec3, 0, 0x24);
+    m_state.m_sec0.m_kindState = 8;
+    m_state.m_sec1.m_kindState = 8;
+    m_state.m_sec2.m_kindState = 8;
+    m_state.m_sec3.m_kindState = 8;
     m_state.m_reserved91 = 0;
     if (kind == 0)
     {

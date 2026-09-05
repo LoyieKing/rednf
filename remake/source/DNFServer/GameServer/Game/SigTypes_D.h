@@ -224,7 +224,11 @@ struct SIG_MAILBOX_CHECK_RECEIVER
     unsigned int m_senderCharacNo;    // +0x2d game 写 get_charac_no(-1)
     char m_payload[0x3f88];           // +0x31 MSG_CHECK_MAIL_RECEIVER 载荷透传
     unsigned int m_resultFlag;        // +0x3fb9 DB 结果（0 ok / 0x4d 名称非法）
-    unsigned int m_letterId;          // +0x3fbd DB_Multi_MailBox_Req_Send 读 letterId
+    // 2026-09-05 §4.3（DBCharac 批次）：类型 int——DB_Multi_MailBox_Req_Send::
+    // dispatch 0x0843bb89 `lea 0x3fbd` 绑 InsertLetter 形参 `int&`
+    // （mangled ...PKcS3_Ril...，DB_MailBox_Req_Send.h）；按名消费者仅该 TU，
+    // 同宽改型 sizeof/偏移全不变（下方 assert 锁定）。
+    int m_letterId;                   // +0x3fbd DB_Multi_MailBox_Req_Send 读 letterId
     char m_senderName[0x1d];          // +0x3fc1 SendDBThread_forchina 写发件人名（strncpy 0x1d）
 };
 #pragma pack(pop)
@@ -236,12 +240,37 @@ static_assert(offsetof(SIG_MAILBOX_CHECK_RECEIVER, m_senderName) == 0x3fc1,
               "SIG_MAILBOX_CHECK_RECEIVER senderName offset drift");
 static_assert(offsetof(SIG_MAILBOX_CHECK_RECEIVER, m_payload) == 0x31,
               "SIG_MAILBOX_CHECK_RECEIVER payload offset drift");
+static_assert(offsetof(SIG_MAILBOX_CHECK_RECEIVER, m_letterId) == 0x3fbd,
+              "SIG_MAILBOX_CHECK_RECEIVER letterId offset drift");
 
+// pack(1) 保持与旧版（纯 unsigned char 数组）一致 align==1 属性。
+#pragma pack(push, 1)
 struct SIG_MAILBOX_DEL_MAIL
 {
-    // ORIG 布局（ReqDBRemoveMail 0x8556772）：+0 count / +4*count 邮件 idx 表 / +0x54 type
-    unsigned char m_data[0x58];
+    // ORIG 布局（ReqDBRemoveMail 0x8556772 + DB_MailBox_Req_Delete::dispatch
+    // @0x0841f084 报告汇编实证）：+0x00 count（movl test/cmp $1，并作为
+    // getList2inQuery(uint*) 的 list[0] 读取 → unsigned int）；+0x04 起
+    // postal idx int 表（单条分支 `mov 0x4(%eax)` 送 %d）；+0x54 type
+    // （`mov 0x54(%eax)` 送 SQL delete_flag=%d 实参）。
+    // 2026-09-05 §4.3 字段化：m_data 基名保留（union 叠加），既有 blob
+    // 视图消费者（CMailBoxHelper.cpp MailBoxDelMailV 经同址 reinterpret）零破坏。
+    union
+    {
+        unsigned char m_data[0x58];
+        struct
+        {
+            unsigned int   m_count;       // +0x00 邮件条数（getList2inQuery list[0]）
+            unsigned int   m_postalIds[20]; // +0x04..+0x53 postal idx 表（20×4）
+            int            m_type;        // +0x54 SQL delete_flag 实参值
+        };
+    };
 };
+static_assert(sizeof(SIG_MAILBOX_DEL_MAIL) == 0x58, "SIG_MAILBOX_DEL_MAIL ABI drift");
+static_assert(offsetof(SIG_MAILBOX_DEL_MAIL, m_postalIds) == 0x04,
+              "SIG_MAILBOX_DEL_MAIL postalIds offset drift");
+static_assert(offsetof(SIG_MAILBOX_DEL_MAIL, m_type) == 0x54,
+              "SIG_MAILBOX_DEL_MAIL type offset drift");
+#pragma pack(pop)
 
 struct SIG_MAILBOX_LIST
 {
@@ -314,25 +343,98 @@ struct SIG_OBJECT_BRING_UP
     unsigned char  m_pad0e[2];        // +0x0e..+0x0f
 };                                 // sizeof = 0x10
 
+// SIG_ONLINE_PRELIMINARY_MEMBER（0x14）—— ORIG 权威布局（OnlinePvP 批次字段化）：
+// 证据 docs/class_func_reports/online_preliminary__COnlinePreliminaryMember/
+//   _saveData.md 0x08585fd6：movw %dx,(%buf) ←GetServerGroup（+0 2 字节）；
+//   movl characNo→0x4(%buf)；this+8/+0xc/+0x10 → buf+8/+0xc/+0x10 逐条 movl；
+//   loadData.md 0x08585f9e：buf+8/+0xc/+0x10 → this+8/+0xc/+0x10 同宽回读。
+// rating 为 float 成员 4B 直拷（Ghidra undefined4；成员侧 float 实证）。
+#pragma pack(push, 1)
 struct SIG_ONLINE_PRELIMINARY_MEMBER
 {
-    char m_pad[0x14];
+    unsigned short m_serverGroup;  // +0x00 movw @0x085860a1（CUser::GetServerGroup）
+    char           m_pad02[2];     // +0x02..0x03 无读写证据
+    unsigned int   m_characNo;     // +0x04 movl（CUserCharacInfo::getCurCharacNo）
+    float          m_rating;       // +0x08 4B 位拷贝（成员 m_rating float）
+    int            m_winCount;     // +0x0c movl
+    int            m_loseCount;    // +0x10 movl
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_ONLINE_PRELIMINARY_MEMBER) == 0x14,
+              "SIG_ONLINE_PRELIMINARY_MEMBER ABI drift");
 
+// SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST（0x4bc）—— ORIG 权威布局：
+// 证据 online_preliminary__COnlinePreliminaryMemberMatchList/_saveData.md
+//   0x08586510：buf+0 movw（group）/buf+4 movl（characNo）/buf+8 movl count=0；
+//   条目 stride 12B：movw %bx→0xc+idx*0xc（key.m_serverId 先 movzwl 读）、
+//   movl→0x10（key.m_uniqueId）、movl→0x14（PlayCountInfo::m_count）；
+//   loadData.md 0x08586466：count@+8（int）、sid movzwl@+0xc、uid@+0x10、
+//   playCount@+0x14。0xc + 12*100 = 0x4bc。
+#pragma pack(push, 1)
 struct SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST
 {
-    char m_pad[0x4bc];
+    struct Entry
+    {
+        unsigned short m_serverId;   // +0x00（角色键 serverId，16 位读写实证）
+        unsigned short m_pad02;      // +0x02..0x03 无读写证据（stride 12 填充）
+        unsigned int   m_uniqueId;   // +0x04（角色键 uniqueId，movl）
+        unsigned int   m_playCount;  // +0x08（PlayCountInfo::m_count，movl）
+    };
+    unsigned short m_serverGroup;    // +0x00 movw @0x085865b1
+    char           m_pad02[2];       // +0x02..0x03 无读写证据
+    unsigned int   m_characNo;       // +0x04 movl @0x085865c2
+    int            m_count;          // +0x08 条目计数（int，100 分批比较 @0x08586695）
+    Entry          m_entries[100];   // +0x0c stride 12B
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST) == 0x4bc,
+              "SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST ABI drift");
+static_assert(sizeof(SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST::Entry) == 0xc,
+              "SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST::Entry ABI drift");
 
+// SIG_ONLINE_PRELIMINARY_TEAM（0x20）—— ORIG 权威布局：
+// 证据 online_preliminary__COnlinePreliminaryTeam/_saveTeam.md 0x08587ee4：
+//   buf+0 ←this+4 movl（teamId）；buf+0x14 ←this+8 movl（rating 位模式，
+//   成员侧 int 容器）；buf+0x18 ←this+0xc（win）；buf+0x1c ←this+0x10（lose）。
+//   loadDataPreliminaryTeam.md 0x085882b8：+0 int、+4 strncpy(dst,data+4,0xf)
+//   即队名区 0x10 字节、+0x14/+0x18/+0x1c 同宽回读。
+#pragma pack(push, 1)
 struct SIG_ONLINE_PRELIMINARY_TEAM
 {
-    char m_pad[0x20];
+    int            m_teamId;         // +0x00（COnlinePreliminaryTeam::m_field04）
+    char           m_teamName[0x10]; // +0x04 队名（strncpy 0xf + 终止位）
+    unsigned int   m_rating;         // +0x14 rating float 位模式（成员 int 容器 4B 直拷）
+    int            m_winCount;       // +0x18 movl
+    int            m_loseCount;      // +0x1c movl
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_ONLINE_PRELIMINARY_TEAM) == 0x20,
+              "SIG_ONLINE_PRELIMINARY_TEAM ABI drift");
 
+// SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST（0x328）—— ORIG 权威布局：
+// 证据 _saveTeamMatchList.md 0x0858800c：buf+0 ←this+4 movl（teamId）、
+//   buf+4 movl count（0 初始化/自增/==100 比较 @0x08588149）；
+//   条目 stride 8B：movl key→0x8+idx*8（@0x0858811e）、
+//   movl PlayCountInfoEx::m_count→0xc+idx*8（@0x08588130）。
+//   loadDataPreliminaryTeamMatchList.md 0x0858831a：count@+4、key@+8+i*8、
+//   value@+0xc+i*8。8 + 8*100 = 0x328。
+#pragma pack(push, 1)
 struct SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST
 {
-    char m_pad[0x328];
+    struct Entry
+    {
+        int           m_otherTeamId;  // +0x00（map key，movl 读写实证）
+        unsigned int  m_playCount;    // +0x04（PlayCountInfoEx::m_count，movl）
+    };
+    int    m_teamId;       // +0x00（序列化键）
+    int    m_count;        // +0x04 条目计数
+    Entry  m_entries[100]; // +0x08 stride 8B
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST) == 0x328,
+              "SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST ABI drift");
+static_assert(sizeof(SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST::Entry) == 8,
+              "SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST::Entry ABI drift");
 
 // SIG_PARTY_STATUS（0x1c8）—— ORIG 权威布局（Dispatcher_GatheringPartyStatus::dispatch_sig @ 0x8203878）
 // byte-pack：m_field22@0x22 为 4 字节未对齐存储；m_pad 填补 0x154..0x15e。
@@ -390,10 +492,43 @@ struct SIG_PURCHASE_CASHITEM_BONUS
     char m_pad[0x4];
 };
 
+// 2026-09-05 §4.3（DBCharac 批次）字段化。证据：
+//   DB_ReqQueryCharacInfoMailbox::dispatch @0x0843bd46 报告：基址 char* 送
+//   escape_string（首字节即角色名）；_sendResult @0x0843c224 报告：+0x20/+0x24
+//   movl（errCode/characNo）、+0x28/+0x2c/+0x2d movb（job/growType/sex）、
+//   +0x2a movw（lev）、strncpy(base,…,0x1d)。OrigDBInter19.cpp QueryCharacInfoView
+//   （@0x08426e04 线，+0x2e 另有一 byte 写点）同址同布局。
+//   m_pad 基名保留（union 叠加）：W8LT_DBTask.cpp makeRequest strncpy(sig->m_pad,…)
+//   消费者零破坏。
+#pragma pack(push, 1)
 struct SIG_QUERY_CHARAC_INFO
 {
-    char m_pad[0x30];
+    union
+    {
+        char m_pad[0x30];
+        struct
+        {
+            char m_name[0x1d];    // +0x00 角色名（strncpy/escape_string 0x1d）
+            char m_pad1d[3];      // +0x1d..+0x1f
+            int  m_errCode;       // +0x20 结果码（0 成功）
+            int  m_characNo;      // +0x24 charac_no
+            char m_job;           // +0x28 job（byte 存）
+            char m_pad29;         // +0x29
+            short m_lev;          // +0x2a lev（word 存）
+            char m_growType;      // +0x2c grow_type（byte 存）
+            char m_sex;           // +0x2d sex（byte 存）
+            char m_pad2e[2];      // +0x2e..+0x2f（@0x08426e04 线 +0x2e 有写点，本线无）
+        };
+    };
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_QUERY_CHARAC_INFO) == 0x30, "SIG_QUERY_CHARAC_INFO ABI drift");
+static_assert(offsetof(SIG_QUERY_CHARAC_INFO, m_errCode) == 0x20,
+              "SIG_QUERY_CHARAC_INFO errCode offset drift");
+static_assert(offsetof(SIG_QUERY_CHARAC_INFO, m_lev) == 0x2a,
+              "SIG_QUERY_CHARAC_INFO lev offset drift");
+static_assert(offsetof(SIG_QUERY_CHARAC_INFO, m_sex) == 0x2d,
+              "SIG_QUERY_CHARAC_INFO sex offset drift");
 // ORIG 真实类型 = 双实例 + 尾随 flag（GetInBuffer<SIG_QUEST_SHOP_DATA> size
 // 0x155，CQuestShop.cpp 注释实证）。ORIG ctor 0x0848f92e：
 // CHARAC_QUEST_SHOP_DATA C1(this+0) → C1(this+0xaa) → clear(this+0) →
@@ -480,8 +615,14 @@ static_assert(sizeof(SIG_REQUEST_TOD_USER_STATE) == 0x18,
 
 struct SIG_REQ_LOAD_CHARAC_HOTKEY_OPTION
 {
-    char m_pad[0x8];
+    // 字段化（W8DB，ORIG 0x0842f3a0 dispatch 读 +0 accId(uint)/+4
+    // keyType(int)；写侧 CUserMissingA2.cpp makeRequest(0x749a) 区域
+    // View 同布局具名）：
+    unsigned int m_accId;    // +0x00（member_key_option.m_id）
+    int m_hotkeyType;        // +0x04（key_type）
 };
+static_assert(sizeof(SIG_REQ_LOAD_CHARAC_HOTKEY_OPTION) == 0x8,
+              "SIG_REQ_LOAD_CHARAC_HOTKEY_OPTION ABI drift");
 
 struct SIG_REQ_LOAD_GAME_OPTION
 {
@@ -490,15 +631,26 @@ struct SIG_REQ_LOAD_GAME_OPTION
 
 struct SIG_RESTING_USER_RESTRICT
 {
-    char m_pad[0x4];
+    // 字段化（W8DB，ORIG 写侧 MouseRegisterEJ.cpp 0x0843741e 区域
+    // `*reinterpret_cast<unsigned int*>(sig) = uid`；dispatch 0x0843712e
+    // NumberToString(+0)=member_punish_info.m_id，原 m_pad）：
+    unsigned int m_uid;      // +0x00（member_punish_info.m_id）
 };
+static_assert(sizeof(SIG_RESTING_USER_RESTRICT) == 0x4,
+              "SIG_RESTING_USER_RESTRICT ABI drift");
 
 // ORIG ctor 0x08491eca：仅构造 +0x4 的 CONTINUOUS_ITEM_INFO（0x194；count@+0 +
 // entries{int,uint}[0x32]，定义于 SigTypes_C.h）。
 #pragma pack(push, 1)
 struct SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO
 {
-    char m_pad0[4];                 // +0x000
+    union
+    {
+        char m_pad0[4];             // +0x000
+        // UpdateCoolTimeItemInfo 0x08658bfb / UpdateEffectItemInfo：
+        // `mov %eax,(sig)` 4B 写 getCurCharacNo（Ghidra `*(undefined4*)local_18`）。
+        unsigned int m_characNo;    // +0x000
+    };
     CONTINUOUS_ITEM_INFO m_info;    // +0x004（0x194）
 
     SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO()  // ORIG W 0x08491eca（C1/C2 同址）

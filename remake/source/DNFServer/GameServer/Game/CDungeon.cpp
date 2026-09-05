@@ -903,7 +903,8 @@ stSecondEventMonster_t::~stSecondEventMonster_t()
 
 void STMonsterTypeSpawnProb::clear()
 {
-    memset(m_pad, 0, sizeof(m_pad));
+    for (int i = 0; i < 4; ++i)
+        m_probability[i] = 0;
 }
 
 STMonsterTypeSpawnProb::STMonsterTypeSpawnProb()

@@ -68,7 +68,7 @@ void ServerParameterScript::clear()
     m_vec588.clear();
     m_598 = 0;
     m_59c = 0;
-    m_5a0 = 0;
+    m_assaultLevelPenalty = 0.0f;
     m_float5a4.clear();
     m_508[0] = 0;
     m_508[1] = 0;
@@ -164,7 +164,7 @@ void ServerParameterScript::clear()
     // ORIG 0x836f9cd：clear 末尾 memset(this+0x4bc, 0, 4)
     // （+0x3c0/+0x400/+0x468/+0x480/+0x498/+0x4a8/+0x4c0/+0x4d8/
     //  +0x3c/+0x18/+0x24 在 ORIG clear 中不处理，故不调用其 clear）
-    memset(reinterpret_cast<char*>(this) + 0x4bc, 0, 4);
+    memset(m_weekendBouns4b4.m_dropRoutineByParty, 0, 4);
 }
 
 float ServerParameterScript::GetExpBonusWeight(eRankBonusIndex idx) const
@@ -276,7 +276,7 @@ unsigned int ServerParameterScript::getAssaultGhostTime(int level,
     {
         time = g.m_t0;
     }
-    if (time > g.m_t1)
+    else if (time > g.m_t1)
     {
         time = g.m_t1;
     }
@@ -311,7 +311,7 @@ unsigned int ServerParameterScript::getAssaultGhostTime(int level,
     {
         rate = cp.m_r1;
     }
-    time = (unsigned int)((double)time * rate);
+    time = (unsigned int)((long double)time * rate);
     return time / 1000;
 }
 
@@ -340,17 +340,17 @@ float ServerParameterScript::getAssaultPriceChaospointWeight(int chaosPoint)
     {
         return 1.0f;
     }
-    float weight = 1.0f;
-    weight = ((w.m_w1 - w.m_w0) / (float)(w.m_max - w.m_min)) *
-                 (float)(chaosPoint - w.m_min) +
-             w.m_w0;
-    if (weight > w.m_w0)
+    float weight = ((w.m_w1 - w.m_w0) /
+                    (float)(w.m_max - w.m_min)) *
+                       (float)(chaosPoint - w.m_min) +
+                   w.m_w0;
+    if (weight < w.m_w0)
     {
-        return w.m_w0;
+        weight = w.m_w0;
     }
-    if (weight < w.m_w1)
+    if (weight > w.m_w1)
     {
-        return w.m_w1;
+        weight = w.m_w1;
     }
     return weight;
 }
@@ -372,8 +372,7 @@ int ServerParameterScript::getLuckPoint(int idx, int& out)
 // getLuckPointDeductionRate —— ORIG T 0x08a8c4fe 逐指令转写：
 //   外层遍历 m_luckDed54(+0x54)，跳过 m_field0 == level 的行；
 //   内层 j=0..2 在行内 m_levels(+0x04) 找 == grade 项，命中返回该项；
-//   未命中返回该行 m_levels[3]（ORIG 无条件 ix(3)；此处越界保护返回 0）；
-//   行耗尽返回 0。
+//   未命中返回该行 m_levels[3]（ORIG 无条件 ix(3)）；行耗尽返回 0。
 int ServerParameterScript::getLuckPointDeductionRate(int level, int grade)
 {
     unsigned int i = 0;
@@ -692,34 +691,25 @@ bool ServerParameterScript::isDungeonOpen(int dungeonIdx)
 {
     std::vector<int>::iterator it =
         std::find(m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(), dungeonIdx);
-    if (it != m_dungeonOpenE0.end())
-    {
-        return true;
-    }
-    return true;
+    return it != m_dungeonOpenE0.end();
 }
 
 void ServerParameterScript::setDungeonOpen(int dungeonIdx, bool open)
 {
-    if (open == 1)
+    std::vector<int>::iterator it =
+        std::find(m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(),
+                  dungeonIdx);
+    if (it != m_dungeonOpenE0.end())
     {
-        std::vector<int>::iterator it =
-            std::find(m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(),
-                      dungeonIdx);
-        if (it != m_dungeonOpenE0.end())
+        if (!open)
         {
             m_dungeonOpenE0.erase(it);
         }
+        return;
     }
-    else
+    if (open)
     {
-        std::vector<int>::iterator it =
-            std::find(m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(),
-                      dungeonIdx);
-        if (it == m_dungeonOpenE0.end())
-        {
-            m_dungeonOpenE0.push_back(dungeonIdx);
-        }
+        m_dungeonOpenE0.push_back(dungeonIdx);
     }
 }
 
@@ -808,8 +798,8 @@ void anchorServerParameterScriptWMembers()
 // [training first give] 三节错位，已按汇编 0x8a8af11/0x8a8b004/0x8a8b115 修正：
 // seal give→m_map4994 2-int 循环、grade penalty→m_map497c 2-int 循环、
 // first give→PvPPlayerKey 复杂结构 + m_map49c4 计数）。
-// 未命名偏移区（0x34c/0x350、0x5b0..0x5bc、0x5c0 疲劳电池表、0x764..0x768、
-// 0x4898/0x493c..0x4950 等）按 ORIG 裸偏移写入，注释标注对应节名。
+// 具名布局字段依据 ORIG 汇编的绝对成员偏移；所有普通成员访问均经脚本字段。
+// 仍保留的裸偏移仅存在于局部 stUpgradeItemTicketParam_t 字节视图。
 // ============================================================================
 unsigned int g_new_scriptVersion;   // ORIG B 0x0949b298（仅本函数写入）
 
@@ -818,7 +808,7 @@ int GetEquipmentTypeStringToEnum(std::string& type);   // CStackableItem.cpp
 bool importServerParameterScript(ServerParameterScript* script,
                                  const char* path)
 {
-    if (!loadRDARScriptFile("Script/ServerParameterScript", path))
+    if (!loadRDARScriptFile("", path))
     {
         return false;
     }
@@ -826,7 +816,6 @@ bool importServerParameterScript(ServerParameterScript* script,
     std::string line;
     bool ok = false;
     bool missed = false;
-    char* base = reinterpret_cast<char*>(script);
     while (ScanType(line, true))
     {
         missed = false;
@@ -891,7 +880,9 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[drop prob number]")
         {
-            script->m_genRefs0.resize((unsigned int)ScanInt((bool*)0));
+            sItemGenRef zero = {0, 0, 0, 0, 0};
+            script->m_genRefs0.resize(
+                (unsigned int)ScanInt((bool*)0), zero);
         }
         else if (line == "[drop prob]")
         {
@@ -930,7 +921,9 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[result reward prob number]")
         {
-            script->m_genRefs1.resize((unsigned int)ScanInt((bool*)0));
+            sItemGenRef zero = {0, 0, 0, 0, 0};
+            script->m_genRefs1.resize(
+                (unsigned int)ScanInt((bool*)0), zero);
         }
         else if (line == "[result reward prob]")
         {
@@ -994,19 +987,19 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[increase abuse point]")
         {
-            *(int*)(base + 0x5b0) = ScanInt(&ok);
+            script->m_increaseAbusePoint = ScanInt((bool*)0);
         }
         else if (line == "[decrease abuse point]")
         {
-            *(int*)(base + 0x5b4) = ScanInt(&ok);
+            script->m_decreaseAbusePoint = ScanInt((bool*)0);
         }
         else if (line == "[abuse point penalty]")
         {
-            *(int*)(base + 0x5b8) = ScanInt(&ok);
+            script->m_abusePointPenalty = ScanInt((bool*)0);
         }
         else if (line == "[decrease experience point]")
         {
-            *(int*)(base + 0x5bc) = ScanInt(&ok);
+            script->m_decreaseExperiencePoint = ScanInt((bool*)0);
         }
         else if (line == "[upgrade with legacy]")
         {
@@ -1037,12 +1030,12 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[notice legacy with type]")
         {
-            memset(base + 0x55c, 0, 0x1a);
+            memset(script->m_55c, 0, sizeof(script->m_55c));
             std::string s;
             while (ScanStr(&s))
             {
                 int idx = GetEquipmentTypeStringToEnum(s);
-                base[0x55c + idx] = 1;
+                script->m_55c[idx] = 1;
             }
         }
         else if (line == "[notice legacy with upgrade]")
@@ -1074,7 +1067,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                script->m_map0[key] = true;
+                script->m_map0.insert(std::make_pair(key, true));
             }
         }
         else if (line == "[light server no]")
@@ -1087,7 +1080,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     break;
                 }
-                script->m_map24[v] = true;
+                script->m_map24.insert(std::make_pair(v, true));
             }
         }
         else if (line == "[burning fatigue event param]")
@@ -1264,7 +1257,7 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[assault level panalty]")
         {
-            *(float*)(base + 0x5a0) = ScanFloat((bool*)0);
+            script->m_assaultLevelPenalty = ScanFloat((bool*)0);
         }
         else if (line == "[assault chaos point weight]")
         {
@@ -1339,7 +1332,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 p.m_field0 = ScanInt(&ok);
                 if (!ok)
                 {
-                    break;
+                    return 0;
                 }
                 p.m_levels.reserve(4);
                 for (int i = 0; i < 4; ++i)
@@ -1371,7 +1364,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 p.m_field0 = ScanInt(&ok);
                 if (!ok)
                 {
-                    break;
+                    return 0;
                 }
                 p.m_levels.reserve(4);
                 for (int i = 0; i < 4; ++i)
@@ -1438,8 +1431,8 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[black list help parameter]")
         {
-            *(int*)(base + 0x34c) = ScanInt((bool*)0);
-            *(int*)(base + 0x350) = ScanInt((bool*)0);
+            script->m_blackListHelpParameter0 = ScanInt((bool*)0);
+            script->m_blackListHelpParameter1 = ScanInt((bool*)0);
         }
         else if (line == "[unify server prefix]")
         {
@@ -1455,31 +1448,36 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[limit fatigue battery charging amount]")
         {
-            *(unsigned short*)(base + 0x5c0) = (unsigned short)ScanInt((bool*)0);
+            script->m_fatigueTable5c0.m_capLimit =
+                (unsigned short)ScanInt((bool*)0);
         }
         else if (line == "[end level fatigue battery weight]")
         {
-            *(float*)(base + 0x5c4) = ScanFloat((bool*)0);
+            script->m_fatigueTable5c0.m_chargeRate4 = ScanFloat((bool*)0);
         }
         else if (line == "[character level fatigue battery constance]")
         {
-            *(char*)(base + 0x5c8) = (char)ScanInt((bool*)0);
+            script->m_fatigueTable5c0.m_chargeDivisor8 =
+                (unsigned char)ScanInt((bool*)0);
         }
         else if (line == "[limit fatigue battery level]")
         {
-            *(char*)(base + 0x5c9) = (char)ScanInt((bool*)0);
+            script->m_fatigueTable5c0.m_minChargeLevel9 =
+                (unsigned char)ScanInt((bool*)0);
         }
         else if (line == "[fatigue battery money amount]")
         {
-            *(int*)(base + 0x5cc) = ScanInt((bool*)0);
+            script->m_fatigueTable5c0.m_fieldc = ScanInt((bool*)0);
         }
         else if (line == "[fatigue battery level for money active]")
         {
-            *(char*)(base + 0x5d0) = (char)ScanInt((bool*)0);
+            script->m_fatigueTable5c0.m_endLevel10 =
+                (unsigned char)ScanInt((bool*)0);
         }
         else if (line == "[min fatigue battery per buff active]")
         {
-            *(unsigned short*)(base + 0x768) = (unsigned short)ScanInt((bool*)0);
+            script->m_fatigueTable5c0.m_batteryThreshold1a8 =
+                (unsigned short)ScanInt((bool*)0);
         }
         else if (line == "[limit grownup buff cnt fatigue battery]")
         {
@@ -1492,17 +1490,21 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     break;
                 }
-                *(short*)(base + (i + 0x2e8) * 2 + 2) = (short)v;
+                *reinterpret_cast<short*>(
+                    script->m_fatigueTable5c0.m_data11 + 1 + i * 2) =
+                    (short)v;
                 ++i;
             }
         }
         else if (line == "[fatigue battery per grownup buff active]")
         {
-            *(unsigned short*)(base + 0x764) = (unsigned short)ScanInt((bool*)0);
+            script->m_fatigueTable5c0.m_activeSwitch1a4 =
+                (unsigned short)ScanInt((bool*)0);
         }
         else if (line == "[grownup buff per fatigue battery active]")
         {
-            *(unsigned short*)(base + 0x766) = (unsigned short)ScanInt((bool*)0);
+            script->m_fatigueTable5c0.m_bonusMultiplier1a6 =
+                (unsigned short)ScanInt((bool*)0);
         }
         else if (line == "[pc room party exp bonus rate]")
         {
@@ -1512,7 +1514,7 @@ bool importServerParameterScript(ServerParameterScript* script,
             {
                 return 0;
             }
-            *(float*)(base + 0x76c) = v;
+            script->m_76c = v;
         }
         else if (line == "[escalade tutorial reward]")
         {
@@ -1746,7 +1748,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 for (int j = 0; j < 0x20; ++j)
                 {
                     ok = false;
-                    *(int*)(base + (i * 0x20 + j + 0xa18) * 4 + 8) = ScanInt(&ok);
+                    script->m_arr2868[i][j] = ScanInt(&ok);
                     if (!ok)
                     {
                         break;
@@ -1765,7 +1767,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 for (int j = 0; j < 0x20; ++j)
                 {
                     ok = false;
-                    *(int*)(base + (i * 0x20 + j + 0xe18) * 4 + 8) = ScanInt(&ok);
+                    script->m_arr3868[i][j] = ScanInt(&ok);
                     if (!ok)
                     {
                         break;
@@ -1777,10 +1779,18 @@ bool importServerParameterScript(ServerParameterScript* script,
         else if (line == "[upper bind cube rate bonus]")
         {
             script->m_49ec = ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[lower bind cube rate bonus]")
         {
             script->m_49f0 = ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[full level reward]")
         {
@@ -1798,7 +1808,8 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                script->m_map4868[a] = (unsigned int)b;
+                script->m_map4868.insert(
+                    std::make_pair(a, (unsigned int)b));
             }
         }
         else if (line == "[ontime event reward]")
@@ -1823,6 +1834,10 @@ bool importServerParameterScript(ServerParameterScript* script,
         else if (line == "[pvp live event play count]")
         {
             script->m_ac = ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[pvp live event reward]")
         {
@@ -1859,7 +1874,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                script->m_mapb0[a] = b;
+                script->m_mapb0.insert(std::make_pair(a, b));
             }
         }
         else if (line == "[unusable equipment info]")
@@ -1937,6 +1952,10 @@ bool importServerParameterScript(ServerParameterScript* script,
         else if (line == "[daily match count]")
         {
             script->m_f8 = ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[unusable items]")
         {
@@ -1990,7 +2009,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                script->m_dungeonInoutc8[key] = t;
+                script->m_dungeonInoutc8.insert(std::make_pair(key, t));
             }
         }
         else if (line == "[member bonus fatigue limit]")
@@ -1999,13 +2018,17 @@ bool importServerParameterScript(ServerParameterScript* script,
             script->m_488c = ScanInt(&ok);
             if (!ok)
             {
-                break;
+                goto lab_finish;
             }
             script->m_4890 = ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[premiun card cost]")
         {
-            *(float*)(base + 0x4894) = ScanFloat((bool*)0);
+            script->m_premiumGoldCard4894.m_cost = ScanFloat((bool*)0);
         }
         else if (line == "[premium card drop]")
         {
@@ -2013,25 +2036,29 @@ bool importServerParameterScript(ServerParameterScript* script,
             while (true)
             {
                 ok = false;
-                *(int*)(base + (i + 0x489) * 0x10 + 0xc) = ScanInt(&ok);
+                script->m_premiumGoldCard4894.m_conds[i].m_field0 =
+                    ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
                 ok = false;
-                *(int*)(base + (i + 0x489) * 0x10 + 0x10) = ScanInt(&ok);
+                script->m_premiumGoldCard4894.m_conds[i].m_field4 =
+                    ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
                 ok = false;
-                *(int*)(base + (i + 0x489) * 0x10 + 0x14) = ScanInt(&ok);
+                script->m_premiumGoldCard4894.m_conds[i].m_field8 =
+                    ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
                 ok = false;
-                *(int*)(base + (i + 0x489) * 0x10 + 0x18) = ScanInt(&ok);
+                script->m_premiumGoldCard4894.m_conds[i].m_fieldc =
+                    ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -2042,41 +2069,55 @@ bool importServerParameterScript(ServerParameterScript* script,
                     break;
                 }
             }
-            *(short*)(base + 0x4898) = (short)i;
+            script->m_premiumGoldCard4894.m_conditionCount = (short)i;
         }
         else if (line == "[premium rarity dicision]")
         {
             ok = false;
-            *(int*)(base + 0x493c) = ScanInt(&ok);
+            script->m_premiumGoldCard4894.m_rarityDecision[0] =
+                ScanInt(&ok);
             if (!ok)
             {
-                break;
+                goto lab_finish;
             }
-            *(int*)(base + 0x4940) = ScanInt(&ok);
+            script->m_premiumGoldCard4894.m_rarityDecision[1] =
+                ScanInt(&ok);
             if (!ok)
             {
-                break;
+                goto lab_finish;
             }
-            *(int*)(base + 0x4944) = ScanInt(&ok);
+            script->m_premiumGoldCard4894.m_rarityDecision[2] =
+                ScanInt(&ok);
             if (!ok)
             {
-                break;
+                goto lab_finish;
             }
-            *(int*)(base + 0x4948) = ScanInt(&ok);
+            script->m_premiumGoldCard4894.m_rarityDecision[3] =
+                ScanInt(&ok);
             if (!ok)
             {
-                break;
+                goto lab_finish;
             }
-            *(int*)(base + 0x494c) = ScanInt(&ok);
+            script->m_premiumGoldCard4894.m_rarityDecision[4] =
+                ScanInt(&ok);
             if (!ok)
             {
-                break;
+                goto lab_finish;
             }
-            *(int*)(base + 0x4950) = ScanInt(&ok);
+            script->m_premiumGoldCard4894.m_rarityDecision[5] =
+                ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[max clean chatting count]")
         {
             script->m_4960 = ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[clean chatting count]")
         {
@@ -2107,14 +2148,26 @@ bool importServerParameterScript(ServerParameterScript* script,
         else if (line == "[clean chatting duplication]")
         {
             script->m_4964 = ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[max monster drop per map]")
         {
             script->m_4968 = ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[max monster count per map]")
         {
             script->m_496c = ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[private training seal gain count]")
         {
@@ -2122,19 +2175,23 @@ bool importServerParameterScript(ServerParameterScript* script,
             script->m_schoolMatchSeal[0] = (unsigned char)ScanInt(&ok);
             if (!ok)
             {
-                break;
+                goto lab_finish;
             }
             script->m_schoolMatchSeal[1] = (unsigned char)ScanInt(&ok);
             if (!ok)
             {
-                break;
+                goto lab_finish;
             }
             script->m_schoolMatchSeal[2] = (unsigned char)ScanInt(&ok);
             if (!ok)
             {
-                break;
+                goto lab_finish;
             }
             script->m_schoolMatchSeal[3] = (unsigned char)ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[relay battle training seal gain count]")
         {
@@ -2142,23 +2199,32 @@ bool importServerParameterScript(ServerParameterScript* script,
             script->m_schoolMatchSeal[4] = (unsigned char)ScanInt(&ok);
             if (!ok)
             {
-                break;
+                goto lab_finish;
             }
             script->m_schoolMatchSeal[5] = (unsigned char)ScanInt(&ok);
             if (!ok)
             {
-                break;
+                goto lab_finish;
             }
             script->m_schoolMatchSeal[6] = (unsigned char)ScanInt(&ok);
             if (!ok)
             {
-                break;
+                goto lab_finish;
             }
             script->m_schoolMatchSeal[7] = (unsigned char)ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[training seal bonus count]")
         {
-            *(unsigned short*)(base + 0x4978) = (unsigned short)ScanInt(&ok);
+            script->m_schoolMatchDailyPlayLimit =
+                (unsigned short)ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[training seal give]")
         {
@@ -2176,7 +2242,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                script->m_map4994[a] = b;
+                script->m_map4994.insert(std::make_pair(a, b));
             }
         }
         else if (line == "[pvp channel grade penalty]")
@@ -2195,7 +2261,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                script->m_map497c[a] = b;
+                script->m_map497c.insert(std::make_pair(a, b));
             }
         }
         else if (line == "[training first give]")
@@ -2246,7 +2312,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 ServerParameterScript::PvPPlayerKey key((unsigned char)a,
                                                        (unsigned char)b,
                                                        (unsigned char)c);
-                script->m_pvp49ac[key] = vec;
+                script->m_pvp49ac.insert(std::make_pair(key, vec));
                 std::map<int, int>::iterator it = script->m_map49c4.find(a);
                 if (it == script->m_map49c4.end())
                 {
@@ -2273,36 +2339,42 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[bring up event]")
         {
-            if (ScanType(line, true))
+            if (!ScanType(line, true))
             {
-                if (line == "[get eventitem fatigue]")
+                goto lab_finish;
+            }
+            if (line == "[get eventitem fatigue]")
+            {
+                while (true)
                 {
-                    while (true)
+                    ok = false;
+                    int v = ScanInt(&ok);
+                    if (!ok)
                     {
-                        ok = false;
-                        int v = ScanInt(&ok);
-                        if (!ok)
-                        {
-                            break;
-                        }
-                        script->m_eventIdolBringUp454.m_vec8.push_back(v);
+                        break;
                     }
-                }
-                if (ScanType(line, true))
-                {
-                    if (line == "[get reward count]")
-                    {
-                        ok = false;
-                        script->m_eventIdolBringUp454.m_field0 = ScanInt(&ok);
-                        if (ok)
-                        {
-                            script->m_eventIdolBringUp454.m_field4 =
-                                ScanInt(&ok);
-                        }
-                    }
+                    script->m_eventIdolBringUp454.m_vec8.push_back(v);
                 }
             }
-            break;
+            if (!ScanType(line, true))
+            {
+                goto lab_finish;
+            }
+            if (line != "[get reward count]")
+            {
+                continue;
+            }
+            ok = false;
+            script->m_eventIdolBringUp454.m_field0 = ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
+            script->m_eventIdolBringUp454.m_field4 = ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[protect of upgrade down jpn]")
         {
@@ -2344,7 +2416,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     pb[3] = 1;
                 }
-                script->m_ticket468[key] = p;
+                script->m_ticket468.insert(std::make_pair(key, p));
             }
         }
         else if (line == "[protect of upgrade down]")
@@ -2387,24 +2459,33 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     pb[3] = 1;
                 }
-                script->m_ticket468[key] = p;
+                script->m_ticket468.insert(std::make_pair(key, p));
             }
         }
         else if (line == "[weekend bonus fatigue]")
         {
             script->m_weekendBouns4b4.m_bonusFatiguePercent =
                 (unsigned short)ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[weekend bonus exp]")
         {
             script->m_weekendBouns4b4.m_bonusExpPercent = ScanInt(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[drop routin by party]")
         {
             for (int i = 0; i < 4; ++i)
             {
                 ok = false;
-                *(char*)(base + 0x4bc + i) = (char)ScanInt(&ok);
+                script->m_weekendBouns4b4.m_dropRoutineByParty[i] =
+                    (unsigned char)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -2464,7 +2545,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                     data.m_active += weight;
                     data.m_vecWeight.push_back(std::make_pair(itemId, weight));
                 }
-                script->m_farming4c0[rarity] = data;
+                script->m_farming4c0.insert(std::make_pair(rarity, data));
             }
         }
         else if (line == "[drop bonus of dungeon level increase]")
@@ -2617,6 +2698,7 @@ bool importServerParameterScript(ServerParameterScript* script,
             printf("MISSED SCRIPT TAG [%s] %s\n", path, line.c_str());
         }
     }
+lab_finish:
     return script->m_558 != -1;
 }
 

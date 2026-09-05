@@ -85,14 +85,21 @@ CServerProxyMgr<T>::~CServerProxyMgr()
 template <class T>
 int CServerProxyMgr<T>::GetStartIndex()
 {
-    if (m_count > 0)
+    // ORIG 0x82b44ba-0x82b44e4：`test; jle [mov$0;jmp 岛]` +
+    // `movzbl 0xc(%eax),%eax; xor $0x1,%eax; test; je load` ⇒ 两级 early-return，
+    // !m_allocated 用 bool 成员取反（xor$1 物化形，技巧1 同族）
+    if (0 < m_count)
     {
-        if (m_allocated)
+        if (!m_allocated)
         {
-            return m_pIndexArray[0];
+            goto RET0;
         }
+        goto LOAD;
     }
+RET0:
     return 0;
+LOAD:
+    return m_pIndexArray[0];
 }
 
 template <class T>
@@ -104,15 +111,19 @@ int CServerProxyMgr<T>::GetEndIndex()
 template <class T>
 int CServerProxyMgr<T>::GetNextIndex(int& idx)
 {
+    // ORIG 0x82b450x 族：`lea 0x1(%eax),%edx; mov %edx,(%eax)` 先自增落参；
+    // `movzbl 0xc; xor $0x1; test; je` + 假路 fall `mov$0;jmp`（!m_allocated）；
+    // `cmp %eax,%edx; jg BODY; mov$0;jmp` ⇒ !(m_count>idx) 早退，真体最后
     idx = idx + 1;
-    if (m_allocated)
+    if (!m_allocated)
     {
-        if (m_count > idx)
-        {
-            return m_pIndexArray[idx];
-        }
+        return 0;
     }
-    return 0;
+    if (!(m_count > idx))
+    {
+        return 0;
+    }
+    return m_pIndexArray[idx];
 }
 
 template <class T>

@@ -208,15 +208,14 @@ void COnlinePreliminaryTeam::_saveTeam()
     guard.operator*()->operator<<(0x1e9);
     guard.operator*()->operator<<(-1);
 
-    // SIG_ONLINE_PRELIMINARY_MEMBER/TEAM 结构为 pad 占位；手工偏移等价写法
-    //（+0 teamId / +0x14 rating / +0x18 win / +0x1c lose，见报告 _saveTeam.md）。
-    char* p = reinterpret_cast<char*>(guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_TEAM>());
-    *(reinterpret_cast<int*>(p + 0x00)) = m_field04;
-
-    unsigned int ratingBits = static_cast<unsigned int>(m_field08);
-    memcpy(p + 0x14, &ratingBits, sizeof(ratingBits));
-    *(reinterpret_cast<int*>(p + 0x18)) = m_winCount;
-    *(reinterpret_cast<int*>(p + 0x1c)) = m_loseCount;
+    // 具名字段写入（布局证据 SigTypes_D.h::SIG_ONLINE_PRELIMINARY_TEAM）：
+    // +0 teamId / +0x14 rating 位 / +0x18 win / +0x1c lose，ORIG 逐条 movl。
+    SIG_ONLINE_PRELIMINARY_TEAM* t =
+        guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_TEAM>();
+    t->m_teamId = m_field04;
+    t->m_rating = static_cast<unsigned int>(m_field08);
+    t->m_winCount = m_winCount;
+    t->m_loseCount = m_loseCount;
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     m_hasWinFlag = 0;
@@ -238,10 +237,10 @@ void COnlinePreliminaryTeam::_saveTeamMatchList()
     guard.operator*()->operator<<(0x1ed);
     guard.operator*()->operator<<(-1);
 
-    char* p = reinterpret_cast<char*>(
-        guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST>());
-    *(reinterpret_cast<int*>(p + 0)) = m_field04;
-    *(reinterpret_cast<int*>(p + 4)) = 0;
+    SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST* p =
+        guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST>();
+    p->m_teamId = m_field04;
+    p->m_count = 0;
 
     for (std::map<int, PlayCountInfoEx>::iterator it = m_playCountMap.begin();
          it != m_playCountMap.end(); ++it)
@@ -250,25 +249,23 @@ void COnlinePreliminaryTeam::_saveTeamMatchList()
             continue;
         it->second.m_flag = 0;
 
-        int idx = *(reinterpret_cast<int*>(p + 4));
-        *(reinterpret_cast<int*>(p + 8 + idx * 8)) = it->first;
-        *(reinterpret_cast<unsigned int*>(p + 0xc + idx * 8)) =
-            it->second.m_count;
-        *(reinterpret_cast<int*>(p + 4)) = idx + 1;
+        int idx = p->m_count;
+        p->m_entries[idx].m_otherTeamId = it->first;
+        p->m_entries[idx].m_playCount = it->second.m_count;
+        p->m_count = idx + 1;
 
-        if (*(reinterpret_cast<int*>(p + 4)) == 100)
+        if (p->m_count == 100)
         {
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
             guard.Set(GlobalData::s_stream_pool->Acquire(
                 "OnlinePreliminaryTeam.cpp", 0x66));
-            p = reinterpret_cast<char*>(
-                guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST>());
-            *(reinterpret_cast<int*>(p + 0)) = m_field04;
-            *(reinterpret_cast<int*>(p + 4)) = 0;
+            p = guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST>();
+            p->m_teamId = m_field04;
+            p->m_count = 0;
         }
     }
 
-    if (*(reinterpret_cast<int*>(p + 4)) == 0)
+    if (p->m_count == 0)
         GlobalData::s_stream_pool->Free(guard);
     else
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -279,22 +276,27 @@ void COnlinePreliminaryTeam::_saveTeamMatchList()
 // data[0x14]→rating(+0x8)、data[0x18]→win、data[0x1c]→lose；返回 1。
 void COnlinePreliminaryTeam::loadDataPreliminaryTeam(char* data)
 {
-    m_field04 = *(reinterpret_cast<int*>(data));
-    strncpy(m_field14, data + 4, 0xf);
-    m_field08 = *(reinterpret_cast<int*>(data + 0x14));
-    m_winCount = *(reinterpret_cast<int*>(data + 0x18));
-    m_loseCount = *(reinterpret_cast<int*>(data + 0x1c));
+    // 签名保持 char*（ORIG mangled …EPc）；data 即 TEAM 序列化缓冲布局。
+    SIG_ONLINE_PRELIMINARY_TEAM* d =
+        reinterpret_cast<SIG_ONLINE_PRELIMINARY_TEAM*>(data);
+    m_field04 = d->m_teamId;
+    strncpy(m_field14, d->m_teamName, 0xf);
+    m_field08 = static_cast<int>(d->m_rating);
+    m_winCount = d->m_winCount;
+    m_loseCount = d->m_loseCount;
 }
 
 // ORIG T 0x0858831a：data 布局 int matchCount@+4 + 每 8 字节记录
 // （key@0/value(count)@4）；逐条写入 m_playCountMap[key].m_count。
 int COnlinePreliminaryTeam::loadDataPreliminaryTeamMatchList(char* data)
 {
-    int count = *(reinterpret_cast<int*>(data + 4));
+    SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST* d =
+        reinterpret_cast<SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST*>(data);
+    int count = d->m_count;
     for (int i = 0; i < count; ++i)
     {
-        int key = *(reinterpret_cast<int*>(data + 8 + i * 8));
-        int value = *(reinterpret_cast<int*>(data + 8 + i * 8 + 4));
+        int key = d->m_entries[i].m_otherTeamId;
+        int value = static_cast<int>(d->m_entries[i].m_playCount);
         m_playCountMap[key].m_count = static_cast<unsigned int>(value);
     }
     return 1;
@@ -318,9 +320,12 @@ COnlinePreliminaryMember::~COnlinePreliminaryMember()
 // ORIG T 0x08585f9e：pData+8→rating(位)、+0xc→win、+0x10→lose；返回 true。
 bool COnlinePreliminaryMember::loadData(CUser* /*pUser*/, char* pData)
 {
-    memcpy(&m_rating, pData + 8, sizeof(m_rating));
-    m_winCount = *(reinterpret_cast<int*>(pData + 0xc));
-    m_loseCount = *(reinterpret_cast<int*>(pData + 0x10));
+    // 签名保持 char*（ORIG mangled …EP5CUserPc）；pData 即 MEMBER 缓冲布局。
+    SIG_ONLINE_PRELIMINARY_MEMBER* d =
+        reinterpret_cast<SIG_ONLINE_PRELIMINARY_MEMBER*>(pData);
+    m_rating = d->m_rating;   // ORIG movl 4B 直拷（0x08585fad..0x08585fd0）
+    m_winCount = d->m_winCount;
+    m_loseCount = d->m_loseCount;
     return true;
 }
 
@@ -335,15 +340,13 @@ bool COnlinePreliminaryMember::_saveData(CUser* pUser)
     guard.operator*()->operator<<(0x1e7);
     guard.operator*()->operator<<(static_cast<int>(pUser->GetUID()));
 
-    char* p = reinterpret_cast<char*>(
-        guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_MEMBER>());
-    *(reinterpret_cast<unsigned short*>(p + 0)) =
-        static_cast<unsigned short>(pUser->GetServerGroup());
-    *(reinterpret_cast<unsigned int*>(p + 4)) =
-        static_cast<unsigned int>(pUser->getCurCharacNo());
-    memcpy(p + 8, &m_rating, sizeof(m_rating));
-    *(reinterpret_cast<int*>(p + 0xc)) = m_winCount;
-    *(reinterpret_cast<int*>(p + 0x10)) = m_loseCount;
+    SIG_ONLINE_PRELIMINARY_MEMBER* p =
+        guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_MEMBER>();
+    p->m_serverGroup = static_cast<unsigned short>(pUser->GetServerGroup());
+    p->m_characNo = static_cast<unsigned int>(pUser->getCurCharacNo());
+    p->m_rating = m_rating;   // ORIG movl 4B 直拷
+    p->m_winCount = m_winCount;
+    p->m_loseCount = m_loseCount;
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;
@@ -394,16 +397,16 @@ COnlinePreliminaryMemberMatchList::~COnlinePreliminaryMemberMatchList()
 // u32 uniqueId@+0x10、u32 playCount@+0x14；写入 m_peerMap[key].m_count。
 bool COnlinePreliminaryMemberMatchList::loadData(CUser* /*pUser*/, char* pData)
 {
-    int count = *(reinterpret_cast<int*>(pData + 8));
+    // 签名保持 char*（ORIG mangled …EP5CUserPc）；pData 即 MEMBER_MATCH_LIST 布局。
+    SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST* d =
+        reinterpret_cast<SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST*>(pData);
+    int count = d->m_count;
     for (int i = 0; i < count; ++i)
     {
-        unsigned short serverId =
-            *(reinterpret_cast<unsigned short*>(pData + i * 0xc + 0xc));
-        unsigned int uniqueId =
-            *(reinterpret_cast<unsigned int*>(pData + i * 0xc + 0x10));
+        unsigned short serverId = d->m_entries[i].m_serverId;
+        unsigned int uniqueId = d->m_entries[i].m_uniqueId;
         CharacterInServer key(static_cast<int>(serverId), uniqueId);
-        m_peerMap[key].m_count =
-            *(reinterpret_cast<unsigned int*>(pData + i * 0xc + 0x14));
+        m_peerMap[key].m_count = d->m_entries[i].m_playCount;
     }
     return true;
 }
@@ -423,13 +426,11 @@ bool COnlinePreliminaryMemberMatchList::_saveData(CUser* pUser)
     guard.operator*()->operator<<(0x1eb);
     guard.operator*()->operator<<(static_cast<int>(pUser->GetUID()));
 
-    typedef SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST SigT;
-    char* p = reinterpret_cast<char*>(guard.GetInBuffer<SigT>());
-    *(reinterpret_cast<unsigned short*>(p + 0)) =
-        static_cast<unsigned short>(pUser->GetServerGroup());
-    *(reinterpret_cast<unsigned int*>(p + 4)) =
-        static_cast<unsigned int>(pUser->getCurCharacNo());
-    *(reinterpret_cast<int*>(p + 8)) = 0;
+    SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST* p =
+        guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST>();
+    p->m_serverGroup = static_cast<unsigned short>(pUser->GetServerGroup());
+    p->m_characNo = static_cast<unsigned int>(pUser->getCurCharacNo());
+    p->m_count = 0;
 
     for (std::map<CharacterInServer, PlayCountInfo>::iterator it =
              m_peerMap.begin();
@@ -439,16 +440,14 @@ bool COnlinePreliminaryMemberMatchList::_saveData(CUser* pUser)
             continue;
         it->second.m_flag = 0;
 
-        int idx = *(reinterpret_cast<int*>(p + 8));
-        *(reinterpret_cast<unsigned short*>(p + 0xc + idx * 0xc)) =
+        int idx = p->m_count;
+        p->m_entries[idx].m_serverId =
             static_cast<unsigned short>(it->first.m_serverId);
-        *(reinterpret_cast<unsigned int*>(p + 0x10 + idx * 0xc)) =
-            it->first.m_uniqueId;
-        *(reinterpret_cast<unsigned int*>(p + 0x14 + idx * 0xc)) =
-            it->second.m_count;
-        *(reinterpret_cast<int*>(p + 8)) = idx + 1;
+        p->m_entries[idx].m_uniqueId = it->first.m_uniqueId;
+        p->m_entries[idx].m_playCount = it->second.m_count;
+        p->m_count = idx + 1;
 
-        if (*(reinterpret_cast<int*>(p + 8)) == 100)
+        if (p->m_count == 100)
         {
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
             // 分批重建：新流临时守卫；写完 header 后指针切至其 InBuffer，
@@ -459,17 +458,16 @@ bool COnlinePreliminaryMemberMatchList::_saveData(CUser* pUser)
                 true);
             tmp.operator*()->operator<<(0x1e7);
             tmp.operator*()->operator<<(static_cast<int>(pUser->GetUID()));
-            p = reinterpret_cast<char*>(
-                tmp.GetInBuffer<SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST>());
-            *(reinterpret_cast<unsigned short*>(p + 0)) =
+            p = tmp.GetInBuffer<SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST>();
+            p->m_serverGroup =
                 static_cast<unsigned short>(pUser->GetServerGroup());
-            *(reinterpret_cast<unsigned int*>(p + 4)) =
+            p->m_characNo =
                 static_cast<unsigned int>(pUser->getCurCharacNo());
-            *(reinterpret_cast<int*>(p + 8)) = 0;
+            p->m_count = 0;
         }
     }
 
-    if (*(reinterpret_cast<int*>(p + 8)) == 0)
+    if (p->m_count == 0)
         GlobalData::s_stream_pool->Free(guard);
     else
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);

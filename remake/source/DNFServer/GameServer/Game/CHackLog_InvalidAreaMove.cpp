@@ -102,7 +102,7 @@ char CHackLog_InvalidAreaMove::IsMovingBetweenSeriaRoomAndGuildAgit(int a, int b
 // ORIG 0x08285e14
 //   _ZN24CHackLog_InvalidAreaMove14checkSeriaRoomEii
 //   直接返回 IsSeriaRoom(a, b) 的结果（eax 保留）。
-char CHackLog_InvalidAreaMove::checkSeriaRoom(int a, int b)
+bool CHackLog_InvalidAreaMove::checkSeriaRoom(int a, int b)
 {
     return IsSeriaRoom(a, b);
 }
@@ -188,7 +188,7 @@ char CHackLog_InvalidAreaMove::IsGuildAgit(int a)
 //   _ZN24CHackLog_InvalidAreaMove11IsSeriaRoomEii
 //   任一 (a,b) 匹配即返回 1：
 //   (1,1) (2,5) (3,2) (4,1) (5,1) (6,4) (9,2) (11,3)
-char CHackLog_InvalidAreaMove::IsSeriaRoom(int a, int b)
+bool CHackLog_InvalidAreaMove::IsSeriaRoom(int a, int b)
 {
     if ((a == 1 && b == 1) ||
         (a == 2 && b == 5) ||

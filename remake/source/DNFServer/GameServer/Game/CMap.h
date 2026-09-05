@@ -475,10 +475,11 @@ struct STAssignItem
     int m_openingBgmParam;             // +0x190（[opening bgm] 第二个 int）
     std::vector<std::string> m_vecSound;                 // +0x194（[sound]）
     std::string m_str1a0;              // +0x1a0（Clear 置 ""）
-    std::string m_str1a4;              // +0x1a4（copy 复制）
-    std::string m_str1a8;              // +0x1a8（copy 复制）
+    std::string m_str1a4;              // +0x1a4（[show dust] 第一个子串 append）
+    std::string m_str1a8;              // +0x1a8（[show dust] 第二个子串 append）
     char m_sortBottom;                 // +0x1ac（[sort bottom]==1）
-    std::string m_str1b0;              // +0x1b0（Clear 赋 "PVP놀이게임" 后又清空 → ""）
+    std::string m_str1b0;              // +0x1b0（Clear 赋 "PVP놀이게임" 后又清空 → ""；
+                                       //   Import [map name] ScanStr 直接赋值）
     int m_playerCountMin;              // +0x1b4（Clear=2；[player number] 第一个 int）
     int m_playerCountMax;              // +0x1b8（Clear=8；[player number] 第二个 int）
     MapArea m_pvpStartArea[5];         // +0x1bc..0x247（[pvp start area] 填 0..2、
@@ -488,7 +489,7 @@ struct STAssignItem
     char m_keepStateAxisX;             // +0x249（[map move keep state axis pos]）
     char m_keepStateAxisY;             // +0x24a
     char m_keepStateAxisZ;             // +0x24b
-    int m_24c;                         // +0x24c（Clear=0；Ghidra 视角 copy 未复制、无导入段）
+    int m_24c;                         // +0x24c（Clear=0；[shadow type]：[mirror]→1 / [more darker]→2）
     std::vector<STRivalMapData> m_vecMonsterSpawnPos;    // +0x250（[monster spawn pos]）
     std::vector<STAICharacterMapArrangeData> m_vecAICharacter; // +0x25c（[ai character]）
     int m_apcRandomPoint;              // +0x268（[apc random point]）
@@ -496,7 +497,7 @@ struct STAssignItem
     int m_270;                         // +0x270（Clear=0/copy 复制；用途未证）
     int m_274;                         // +0x274（Clear=0/copy 复制；用途未证）
     std::vector<STRivalMapData> m_vecEventMonsterPos;    // +0x278（[event monster position]）
-    int m_maxMonsterDropException;     // +0x284（[heroes mode map index]；命名沿用旧版待证）
+    int m_maxMonsterDropException;     // +0x284（[heroes mode map index] 与主链默认整数行；命名沿用旧版待证）
     std::vector<STAssignBloodSystem> m_vecBloodSystem;   // +0x288（[blood monster]/[ultimate monster]）
     std::vector<STAssignBloodPhaseTime> m_vecBloodPhaseTime; // +0x294（[blood phase time]/[ultimate phase time]）
     std::vector<STAssignDefenseSystem> m_vecDefenseSystem; // +0x2a0（[defense monster]）
@@ -508,11 +509,11 @@ struct STAssignItem
     std::vector<StaticStartPos> m_vecStaticStartPos2;    // +0x2f4（ctor 存在；无导入段）
     std::map<int, MapArea> m_limitPlayerMoveAreas;       // +0x300（[limit player move area]）
     std::vector<STAttackedMonster> m_vecAttackedMonster; // +0x318（[attacked monster info]）
-    int m_maxMonsterCountException;    // +0x324（[max monster count exception]）
-    int m_328;                         // +0x328（Clear=0/copy 复制；用途未证）
+    int m_maxMonsterCountException;    // +0x324（Import [max monster drop exception] 写；命名沿用旧版待证）
+    int m_328;                         // +0x328（Clear=0/copy 复制；Import [max monster count exception] 写）
     int m_32c;                         // +0x32c（Clear=0/copy 复制；用途未证）
     advancealtar::TimeLine m_timeLine; // +0x330（[time line] importPhase 目标）
-    std::string m_str34c;              // +0x34c（[map dialog]?copy 复制；用途未证）
+    std::string m_str34c;              // +0x34c（[map dialog] ScanStr；copy 复制）
     int m_moveLayeredType;             // +0x350（Clear=4；[move layered map] left/right/up/down 同 start path 编码）
     int m_zposUnder;                   // +0x354（Clear=-1；[zpos under]）
     char m_allDeadCasePassable;        // +0x358（[all dead case passable]）
@@ -524,7 +525,7 @@ struct STAssignItem
     char m_blockUseStackableItem;      // +0x36d（[block use stackable item]）
     char m_fixChampion;                // +0x36e（[fix champion]）
     char m_pad36f;                     // +0x36f
-    std::string m_str370;              // +0x370（Clear 清空；copy 复制）
+    std::string m_str370;              // +0x370（Clear 清空；[basic action] ScanStr；copy 复制）
     int m_visibleMinimap;              // +0x374（Clear=1；[visible minimap]）
     int m_visibleTownMinimap;          // +0x378（Clear=1；[visible town minimap]）
  };

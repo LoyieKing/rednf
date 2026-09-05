@@ -436,7 +436,7 @@ unsigned char CBattle_Field::IsKilledAllHellGruoups()
     return m_killedAllHellGroups;
 }
 
-int CBattle_Field::SetRidableObjectState(int idx, eRidableObjectState state)
+bool CBattle_Field::SetRidableObjectState(int idx, eRidableObjectState state)
 {
     return m_ridable.SetRidableObjectState(idx, state);
 }

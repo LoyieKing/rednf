@@ -59,7 +59,6 @@ class STPassiveFeatureData
 {
 public:
     STPassiveFeatureData();
-    ~STPassiveFeatureData();
     void clear();
 
     char m_enable;   // +0x00（1）
@@ -115,8 +114,9 @@ public:
         int m_8[2];   // +0x08
     } m_growType[6];                      // +0x94（16 字节/个）
     std::vector<int> m_vecf4;             // +0xf4
-    float m_f100[2];                      // +0x100（ORIG for_each<float*> 段，"%f"）
-    int m_i108[4];                        // +0x108（ORIG +0x110..+0x118 int 段取 [2..3]）
+    float m_f100[2];                      // +0x100（[consume MP] 逐级消耗，ScanFloat 写）
+    int m_i108[4];                        // +0x108（[maintain MP] ScanFloat 复用 [0..1] 位写；
+                                          //          [casting time] ScanInt 写 [2..3]，即 +0x110/+0x114）
     int m_118;                            // +0x118
     std::vector<SkillUseItem> m_useItems11c;  // +0x11c
     std::vector<int> m_vec128;            // +0x128

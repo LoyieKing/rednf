@@ -5,11 +5,11 @@
 // 依赖：
 //   - SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL（SigTypes_D.h，m_data[0x3a9] pad）——
 //     本 TU 以 pack(1) 镜像 SigSystemMultiMailView 按 ORIG 偏移访问。
-//   - _InsertPostal 的元素域（stride 0x3d）：ORIG 以三套寻址访问——
-//     +0x120 结构（item_id/add_info/endurance/extend）、+0x130 结构
-//     （amp@+0x7/blob0@+0xb/blob1@+0x1b/seperate@+0x29）、
-//     seal 用 `sigRaw+i*0x3d+0x126` 单段、Inven_Item 方法用
-//     `sigRaw+i*0x3d+0x120+0x6` 两段。逐指令形态见报告。
+//   - _InsertPostal 的元素域（stride 0x3d）：ORIG 以多套基址寻址同一元素——
+//     seal `add $0x126` 单段、item 域 `add $0x120`+成员 disp、amp/blob 域
+//     `add $0x130`+成员 disp、seperate `add $0x150; add $0x9`。元素基址
+//     = sig+0x126，本 TU 以 SigPostalItem 元素视图（union 叠加 m_items）
+//     统一具名访问；ORIG 各基址与元素视图字段换算见逐字段注释。
 //   - WongWork::DBCommon::GetIdentity 定义归 WongWorkEvents_A.cpp（TU 局部声明同款）。
 // ============================================================================
 
@@ -36,16 +36,52 @@ unsigned int GetIdentity(MySQL* db);   // _ZN8WongWork8DBCommon11GetIdentityEP5M
 }
 }
 
+// 元素内 amp 双视图（stAmplifyOption_t 0xe 字节与 guid blob 复用同一 0x14
+// 字节区；_InsertPostal 报告 `lea 0x7(%eax)`（getValues）/`add $0xb`（blob0））。
+#pragma pack(push, 1)
+union SigPostalItem130Amp
+{
+    stAmplifyOption_t m_amp;   // +0x07（0x137，0xe 字节）
+    struct
+    {
+        char m_ampHead[0x4];   // +0x07
+        char m_guidBlob[0x10]; // +0x0b（blob_to_str(0) 源，10 字节）
+    } m_g;
+};
+
+// 附件元素视图（stride 0x3d，元素基址 = sig + 0x126）。ORIG 基址换算（报告
+// _InsertPostal 0x0844372e 逐指令）：view A 基 = 元素-0x06（`add $0x120`）；
+// view B 基 = 元素+0x0a（`add $0x130`）；seperate `add $0x150; add $0x9` =
+// 元素+0x33；Inven_Item 方法 this = 元素基址（`add $0x120; add $0x6` = 元素
+// +0x00）；seal `add $0x126` 单段 = 元素+0x00。
+struct SigPostalItem
+{
+    unsigned char m_sealFlag;         // +0x00（sig 0x126）
+    char m_pad01;                     // +0x01
+    int m_itemId;                     // +0x02（sig 0x128 = view A +0x08）
+    char m_pad06;                     // +0x06
+    int m_addInfo;                    // +0x07（sig 0x12d = view A +0x0d）
+    unsigned short m_endurance;       // +0x0b（sig 0x131 = view A +0x11）
+    int m_extendInfo;                 // +0x0d（sig 0x133 = view A +0x13）
+    SigPostalItem130Amp m_ag;         // +0x11（sig 0x137 = view B +0x07）
+    char m_randomBlob[0xe];           // +0x25（sig 0x14b = view B +0x1b）
+    unsigned char m_seperateUpgrade;  // +0x33（sig 0x159 = view B +0x29）
+    char m_rest[0x3d - 0x34];         // +0x34..0x3d
+};
+
 // SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL 字段镜像（pack(1)，sizeof 0x3a9；偏移对照
 // dispatch/_InsertLetter/_InsertPostal 报告逐指令 + ReqDBSendNewSystemMultiMail）。
-#pragma pack(push, 1)
 struct SigSystemMultiMailView
 {
     char m_letterText[0x1e];       // +0x00 邮件正文（_InsertLetter escape 源）
     char m_sendCharacName[0x100];  // +0x1e 发送者名（_InsertLetter escape 源）
     int m_sendCharacNo;            // +0x11e
     int m_recvCharacNo;            // +0x122
-    char m_items[0x262];           // +0x126（m_count 个 0x3d 字节元素）
+    union
+    {
+        char m_items[0x262];                          // +0x126
+        SigPostalItem m_item[0x262 / sizeof(SigPostalItem)];  // m_count 个元素
+    };
     unsigned int m_count;          // +0x388 附件数量（_InsertPostal 循环上界）
     int m_gold;                    // +0x38c 附带金币
     unsigned int m_duration;       // +0x390 时段数（dispatch 折算到期）
@@ -57,42 +93,9 @@ struct SigSystemMultiMailView
     int m_stat;                    // +0x3a5 letter.stat
 };
 #pragma pack(pop)
-
-// 元素域视图 A（基址 sig+0x120）：item_id/add_info/endurance/extend
-#pragma pack(push, 1)
-struct SigPostalItem120
-{
-    char m_pad0[0x6];              // +0x00（0x120..0x126）
-    unsigned char m_sealFlag;      // +0x06（0x126）
-    char m_pad7;                   // +0x07
-    int m_itemId;                  // +0x08
-    char m_padC;                   // +0x0c
-    int m_addInfo;                 // +0x0d
-    unsigned short m_endurance;    // +0x11
-    int m_extendInfo;              // +0x13
-    char m_rest[0x3d - 0x17];      // +0x17..+0x3d
-};
-union SigPostalItem130Amp
-{
-    stAmplifyOption_t m_amp;   // +0x07（0x137，0xe 字节）
-    struct
-    {
-        char m_ampHead[0x4];   // +0x07
-        char m_guidBlob[0x10]; // +0x0b（blob_to_str(0) 源，10 字节）
-    } m_g;
-};
-
-// 元素域视图 B（基址 sig+0x130）：amp / blob 区 / seperate_upgrade
-#pragma pack(push, 1)
-struct SigPostalItem130
-{
-    char m_pad0[0x7];              // +0x00（0x130..0x137）
-    SigPostalItem130Amp m_ag;      // +0x07（0x137）
-    char m_randomBlob[0xe];        // +0x1b（blob_to_str(1) 源，0xe 字节）
-    unsigned char m_seperateUpgrade;  // +0x29（0x159）
-    char m_rest[0x3d - 0x2a];      // +0x2a..+0x3d
-};
-#pragma pack(pop)
+static_assert(sizeof(SigPostalItem) == 0x3d, "postal item stride drift (ORIG imul $0x3d)");
+static_assert(sizeof(SigSystemMultiMailView) == 0x3a9, "SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL mirror drift");
+static_assert(offsetof(SigSystemMultiMailView, m_items) == 0x126, "items zone base drift");
 
 // sendResult 回复包（SIG_MAILBOX_SEND_NEW_MAIL 前 3 个 int）
 struct SigMailboxSendReplyView
@@ -159,7 +162,7 @@ bool DB_MailBox_Req_System_Multi_Mail::_InsertPostal(
 
         ampType = 0;
         ampValue = 0;
-        ((SigPostalItem130*)((char*)sigRaw + 0x130))[i].m_ag.m_amp.getValues(
+        ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_ag.m_amp.getValues(
             ampType, ampValue);
 
         sprintf(buf,
@@ -167,22 +170,22 @@ bool DB_MailBox_Req_System_Multi_Mail::_InsertPostal(
             ((SigSystemMultiMailView*)sigRaw)->m_occTime,
             ((SigSystemMultiMailView*)sigRaw)->m_sendCharacNo,
             ((SigSystemMultiMailView*)sigRaw)->m_recvCharacNo,
-            *(unsigned char*)((char*)sigRaw + i * 0x3d + 0x126),
-            ((SigPostalItem120*)((char*)sigRaw + 0x120))[i].m_itemId,
-            ((SigPostalItem120*)((char*)sigRaw + 0x120))[i].m_addInfo,
-            ((SigPostalItem120*)((char*)sigRaw + 0x120))[i].m_endurance,
-            ((Inven_Item*)((char*)sigRaw + i * 0x3d + 0x120 + 0x6))->GetItemAttr(),
+            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_sealFlag,
+            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_itemId,
+            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_addInfo,
+            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_endurance,
+            ((Inven_Item*)&((SigSystemMultiMailView*)sigRaw)->m_item[i])->GetItemAttr(),
             ampType, ampValue,
             ((SigSystemMultiMailView*)sigRaw)->m_gold, (const char*)sigRaw,
-            ((Inven_Item*)((char*)sigRaw + i * 0x3d + 0x120 + 0x6))->IsCreatureItemType(),
-            ((Inven_Item*)((char*)sigRaw + i * 0x3d + 0x120 + 0x6))->isAvatarItemType(),
+            ((Inven_Item*)&((SigSystemMultiMailView*)sigRaw)->m_item[i])->IsCreatureItemType(),
+            ((Inven_Item*)&((SigSystemMultiMailView*)sigRaw)->m_item[i])->isAvatarItemType(),
             ((SigSystemMultiMailView*)sigRaw)->m_letterId,
-            ((SigPostalItem120*)((char*)sigRaw + 0x120))[i].m_extendInfo,
+            ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_extendInfo,
             db->blob_to_str(0,
-                (void*)&((SigPostalItem130*)((char*)sigRaw + 0x130))[i].m_ag.m_g.m_guidBlob[0], 10),
+                (void*)&((SigSystemMultiMailView*)sigRaw)->m_item[i].m_ag.m_g.m_guidBlob[0], 10),
             db->blob_to_str(1,
-                (void*)&((SigPostalItem130*)((char*)sigRaw + 0x130))[i].m_randomBlob[0], 0xe),
-            ((UpgradeSeparateInfo*)&((SigPostalItem130*)((char*)sigRaw + 0x130))[i].m_seperateUpgrade)->GetUpgradeSeparate(),
+                (void*)&((SigSystemMultiMailView*)sigRaw)->m_item[i].m_randomBlob[0], 0xe),
+            ((UpgradeSeparateInfo*)&((SigSystemMultiMailView*)sigRaw)->m_item[i].m_seperateUpgrade)->GetUpgradeSeparate(),
             ((SigSystemMultiMailView*)sigRaw)->m_unlimitFlag);
         str.append(buf);
 

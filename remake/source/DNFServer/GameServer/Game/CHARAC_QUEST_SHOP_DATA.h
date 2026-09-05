@@ -9,6 +9,47 @@
 // （ORIG W 0x0848f862，调 clear）。
 // ============================================================================
 
+// +0x0c..+0xa5 是数据库加载的连续 0x9a 字节区域；用具名嵌套类型保留
+// 所有协议空洞，使清理路径可以对 m_data 整体操作而不再使用裸偏移。
+struct CHARAC_QUEST_SHOP_DATA_FIELDS
+{
+    unsigned short m_psyAttack;              // +0x00
+    unsigned short m_magAttack;              // +0x02
+    unsigned short m_magDefence;             // +0x04
+    unsigned short m_psyDefense;             // +0x06
+    unsigned char  m_pad14[0x0c];             // parent +0x14..+0x1f
+    unsigned short m_attackSpeed;            // parent +0x20
+    unsigned short m_moveSpeed;              // parent +0x22
+    unsigned char  m_pad24[2];               // parent +0x24
+    unsigned short m_maxHp;                  // parent +0x26
+    unsigned short m_hpRegen;                // parent +0x28
+    unsigned short m_psyCritical;            // parent +0x2a
+    unsigned short m_magCritical;            // parent +0x2c
+    unsigned char  m_pad2e[6];               // parent +0x2e..+0x33
+    unsigned short m_fireElementResist;      // parent +0x34
+    unsigned short m_waterElementResist;     // parent +0x36
+    unsigned short m_darkElementResist;      // parent +0x38
+    unsigned short m_lightElementResist;     // parent +0x3a
+    unsigned short m_allElementResist;       // parent +0x3c
+    unsigned char  m_pad3e[4];               // parent +0x3e..+0x41
+    unsigned short m_evasion;                // parent +0x42
+    unsigned char  m_pad44[2];               // parent +0x44..+0x45
+    unsigned short m_mpRegen;                // parent +0x46
+    unsigned short m_hitRecovery;            // parent +0x48
+    unsigned char  m_pad4a[4];               // parent +0x4a..+0x4d
+    unsigned short m_goodHit;                // parent +0x4e
+    unsigned char  m_pad50[0x10];             // parent +0x50..+0x5f
+    unsigned short m_fireElementAttack;      // parent +0x60
+    unsigned short m_waterElementAttack;     // parent +0x62
+    unsigned short m_darkElementAttack;      // parent +0x64
+    unsigned short m_lightElementAttack;     // parent +0x66
+    unsigned short m_allElementAttack;       // parent +0x68
+    unsigned char  m_pad6a[2];               // parent +0x6a..+0x6b
+    unsigned short m_maxMp;                  // parent +0x6c
+    unsigned char  m_pad6e[8];               // parent +0x6e..+0x75
+    unsigned short m_separatePsyMagAttack;   // parent +0x76
+    unsigned char  m_pad78[0x2e];            // parent +0x78..+0xa5
+};
 #pragma pack(push, 1)
 struct CHARAC_QUEST_SHOP_DATA
 {
@@ -17,45 +58,12 @@ struct CHARAC_QUEST_SHOP_DATA
     unsigned int   m_field0;                 // +0x000（未访问；前导）
     unsigned int   m_qp;                     // +0x004
     unsigned int   m_initCount;              // +0x008
-    unsigned short m_psyAttack;              // +0x00c
-    unsigned short m_magAttack;              // +0x00e
-    unsigned short m_magDefence;             // +0x010
-    unsigned short m_psyDefense;             // +0x012
-    unsigned char  m_pad14[0x20 - 0x14];     // +0x014
-    unsigned short m_attackSpeed;            // +0x020
-    unsigned short m_moveSpeed;              // +0x022
-    unsigned char  m_pad24[2];               // +0x024
-    unsigned short m_maxHp;                  // +0x026
-    unsigned short m_hpRegen;                // +0x028
-    unsigned short m_psyCritical;            // +0x02a
-    unsigned short m_magCritical;            // +0x02c
-    unsigned char  m_pad2e[0x34 - 0x2e];     // +0x02e
-    unsigned short m_fireElementResist;      // +0x034
-    unsigned short m_waterElementResist;     // +0x036
-    unsigned short m_darkElementResist;      // +0x038
-    unsigned short m_lightElementResist;     // +0x03a
-    unsigned short m_allElementResist;       // +0x03c
-    unsigned char  m_pad3e[4];               // +0x03e
-    unsigned short m_evasion;                // +0x042
-    unsigned char  m_pad44[2];               // +0x044
-    unsigned short m_mpRegen;                // +0x046
-    unsigned short m_hitRecovery;            // +0x048
-    unsigned char  m_pad4a[4];               // +0x04a
-    unsigned short m_goodHit;                // +0x04e
-    unsigned char  m_pad50[0x60 - 0x50];     // +0x050
-    unsigned short m_fireElementAttack;      // +0x060
-    unsigned short m_waterElementAttack;     // +0x062
-    unsigned short m_darkElementAttack;      // +0x064
-    unsigned short m_lightElementAttack;     // +0x066
-    unsigned short m_allElementAttack;       // +0x068
-    unsigned char  m_pad6a[2];               // +0x06a
-    unsigned short m_maxMp;                  // +0x06c
-    unsigned char  m_pad6e[0x76 - 0x6e];     // +0x06e
-    unsigned short m_separatePsyMagAttack;   // +0x076
-    unsigned char  m_pad78[0xa6 - 0x78];     // +0x078
+    CHARAC_QUEST_SHOP_DATA_FIELDS m_data;    // +0x00c..+0xa5
     unsigned int   m_questPiece;             // +0x0a6
 };
 #pragma pack(pop)
+static_assert(sizeof(CHARAC_QUEST_SHOP_DATA_FIELDS) == 0x9a,
+              "CHARAC_QUEST_SHOP_DATA_FIELDS ABI drift");
 static_assert(sizeof(CHARAC_QUEST_SHOP_DATA) == 0xaa,
               "CHARAC_QUEST_SHOP_DATA ABI drift");
 

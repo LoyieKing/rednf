@@ -49,6 +49,7 @@
 #include "GlobalData.h"
 #include "CParty.h"
 #include "PvP_Room.h"
+#include "MatchRoomList.h"        // IMatch（m_matching +0x6e4 槽的虚表接口，OnAskRematch @+0x68）
 #include "CBattle_Field.h"
 #include "GlobalScriptTutorial.h"
 #include "CExpertJob.h"
@@ -483,6 +484,7 @@ int Dispatcher_Request_Seria_Buff::check_error(CUser* user, MSG_BASE& msg,
 #include "StatisticsGmCmdPacket.h"
 #include "Packet_CollectItemsGm.h"
 #include "Packet_Game_Monitor_GM_Village_Attacked.h"
+#include "Packet_Pcroom_Response.h"        // 全局 Packet_Pcroom_Response（ORIG pcroom 分支用无命名空间版）
 #include "DB_UpdateInventoryCapacity.h"
 #include "BreakAwayPreventSystem.h"
 
@@ -530,30 +532,32 @@ public:
 // AradServerStateMessage.h 声明（定义归 ARAD 域 TU）。
 
 
-// GM 文本消息包（ORIG show lp / max lp / ulti max / dimen max 内联展开序列）：
-// put_header(0,0xc) / put_byte(0) / put_short(0) / put_byte(0) / put_int(len) /
-// put_str(text,len) / finalize(true) / Send。
-static void A2_SendGmText(CUser* user, const char* text)
+// GM 消息缓冲（ORIG local_66c，栈上 0x100 字节，sprintf 前先内联清零）。
+// ORIG 反汇编里清零是编译器展开的 int 步长循环（非 memset 调用），故此处用
+// always_inline 循环复现，避免向 oldGmRoutine 引入额外 call。
+static inline __attribute__((always_inline)) void A2_ZERO(char* p)
 {
-    PacketGuard g;
-    g.put_header(0, 0xc);
-    g.put_byte(0);
-    g.put_short(0);
-    g.put_byte(0);
-    int len = static_cast<int>(std::strlen(text));
-    g.put_int(len);
-    g.put_str(text, len);
-    g.finalize(true);
-    user->Send(g);
+    unsigned int* q = reinterpret_cast<unsigned int*>(p);
+    for (int i = 0; i < 0x40; ++i)
+        q[i] = 0;
 }
 
-// GM 消息缓冲（ORIG local_66c，栈上 0x100 字节，先清零再 sprintf）。
-struct A2_GmBuf
-{
-    char buf[0x100];
-    A2_GmBuf() { std::memset(buf, 0, sizeof(buf)); }
-    operator char*() { return buf; }
-};
+// GM 文本消息包（ORIG show lp / max lp / ulti max / dimen max 内联展开序列）：
+// 局部 PacketGuard + put_header(0,0xc)/put_byte(0)/put_short(0)/put_byte(0) +
+// put_int(str.size())/put_str(str.c_str(), str.size())/finalize(true)/Send。
+// 用宏保证逐调用点内联展开（ORIG 无共享 helper 函数），len 走 std::string::size()。
+#define A2_SEND_STR(puser, sobj)                                              \
+    do {                                                                      \
+        PacketGuard _g;                                                       \
+        _g.put_header(0, 0xc);                                                \
+        _g.put_byte(0);                                                       \
+        _g.put_short(0);                                                      \
+        _g.put_byte(0);                                                       \
+        _g.put_int((sobj).size());                                           \
+        _g.put_str((sobj).c_str(), (sobj).size());                           \
+        _g.finalize(true);                                                    \
+        (puser)->Send(_g);                                                    \
+    } while (0)
 
 int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                                                  std::vector<std::string>& args)
@@ -563,18 +567,14 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     PacketGuard guard;                   // local_260（函数级持有，末尾析构）
     unsigned int ret = 0;
 
-    std::string cmd = args.size() > 0 ? args[0] : std::string();
-    std::string arg1 = args.size() > 1 ? args[1] : std::string();
-    std::string arg2 = args.size() > 2 ? args[2] : std::string();
-    std::string arg3 = args.size() > 3 ? args[3] : std::string();
 
     // ---- lawless：SetCurCharacChaosPoint（0 < v < 10000）----
-    if (cmd == "lawless")
+    if (args[0] == "lawless")
     {
-        int v = std::atoi(arg1.c_str());
+        int v = std::atoi(args[1].c_str());
         if (0 < v && v < 10000)
         {
-            user->SetCurCharacChaosPoint(v);
+            user->SetCurCharacChaosPoint(std::atoi(args[1].c_str()));
             user->SendNotiPacket(CUser::eSendTarget_0, (ENUM_NOTIPACKET)2, 0);
             guard.put_header(1, 0xb3);
             guard.put_byte(1);
@@ -585,12 +585,12 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
     }
     // ---- bal：help abuse ratio（0 < v < 10000，×100）----
-    else if (cmd == "bal")
+    else if (args[0] == "bal")
     {
-        int v = std::atoi(arg1.c_str());
+        int v = std::atoi(args[1].c_str());
         if (0 < v && v < 10000)
         {
-            user->setCurCharacHelpAbuseComputedRatio(v * 100);
+            user->setCurCharacHelpAbuseComputedRatio(std::atoi(args[1].c_str()) * 100);
             user->SendNotiPacket(CUser::eSendTarget_0, (ENUM_NOTIPACKET)2, 0);
             guard.put_header(1, 0xb3);
             guard.put_byte(1);
@@ -601,11 +601,11 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
     }
     // ---- questclear2 / q：GM 任务旗标开关/执行 ----
-    else if (cmd == "questclear2" || cmd == "q")
+    else if (args[0] == "questclear2" || args[0] == "q")
     {
-        if (arg1 != "on" && arg1 != "off")
+        if (!(args[1] == "on") && !(args[1] == "off"))
         {
-            int v = std::atoi(arg1.c_str());
+            int v = std::atoi(args[1].c_str());
             if (0 < v && v < 100000)
             {
                 user->setGmQuestFlag(true);
@@ -621,14 +621,14 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
     }
     // ---- guild exp ----
-    else if (cmd == "guild")
+    else if (args[0] == "guild")
     {
-        if (arg1 == "exp")
+        if (args[1] == "exp")
         {
-            int v = std::atoi(arg2.c_str());
+            int v = std::atoi(args[2].c_str());
             if (0 < v && v < 10000)
             {
-                user->set_guild_exp(v);
+                user->set_guild_exp(std::atoi(args[2].c_str()));
                 user->m_field796d9 = 1;                  // +0x796d9
                 user->WorkPerFiveMin();
                 guard.put_header(1, 0xb3);
@@ -642,11 +642,22 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
     }
     // ---- troublemaker on/off ----
-    else if (cmd == "troublemaker")
+    else if (args[0] == "troublemaker")
     {
-        if (arg1 == "on" || arg1 == "off")
+        if (args[1] == "on")
         {
-            user->setCurrCharacBlackCount(arg1 == "on" ? 100 : 0);
+            user->setCurrCharacBlackCount(100);
+            user->SendNotiPacket(CUser::eSendTarget_0, (ENUM_NOTIPACKET)2, 0);
+            guard.put_header(1, 0xb3);
+            guard.put_byte(1);
+            guard.put_byte(0x68);
+            guard.finalize(true);
+            user->Send(guard);
+            return 0;
+        }
+        if (args[1] == "off")
+        {
+            user->setCurrCharacBlackCount(0);
             user->SendNotiPacket(CUser::eSendTarget_0, (ENUM_NOTIPACKET)2, 0);
             guard.put_header(1, 0xb3);
             guard.put_byte(1);
@@ -657,11 +668,11 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
     }
     // ---- fatigue set / fatigue <v> ----
-    else if (cmd == "fatigue")
+    else if (args[0] == "fatigue")
     {
-        if (arg1 == "set")
+        if (args[1] == "set")
         {
-            int v = std::atoi(arg2.c_str());
+            int v = std::atoi(args[2].c_str());
             if (-1 < v && v < 10000)
             {
                 unsigned int maxFatigue = user->getCurCharacMaxFatigue();
@@ -678,7 +689,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
         else
         {
-            int v = std::atoi(arg1.c_str());
+            int v = std::atoi(args[1].c_str());
             if (-1 < v && v < 10000 && 0 < v)
             {
                 user->FatigueUp(v);
@@ -687,72 +698,71 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
     }
     // ---- show lp：查询幸运点 ----
-    else if (cmd == "show" && arg1 == "lp")
+    else if (args[0] == "show" && args[1] == "lp")
     {
         int luck = user->GetCurCharacLuckPoint();
-        A2_GmBuf b;
-        std::sprintf(b.buf, "(%d) ", luck);
-        {
-            std::string text = "remained luck point : ";
-            text += b.buf;
-            A2_SendGmText(user, text.c_str());
-        }
+        std::string text("remained luck point : ");
+        char b[0x100]; A2_ZERO(b);
+        std::sprintf(b, "(%d) ", luck);
+        text += b;
+        A2_SEND_STR(user, text);
         return 0;
     }
     // ---- max lp：+100000 幸运点 ----
-    else if (cmd == "max" && arg1 == "lp")
+    else if (args[0] == "max" && args[1] == "lp")
     {
         user->IncCurCharacLuckPoint(100000);
         user->enableSaveCharacStat();
         {
-            A2_SendGmText(user, "100000 luck point!!");
+            std::string s("100000 luck point!!");
+            A2_SEND_STR(user, s);
         }
         return 0;
     }
     // ---- item：GM 发物 ----
-    else if (cmd == "item")
+    else if (args[0] == "item")
     {
-        unsigned long v = static_cast<unsigned long>(std::atoi(arg1.c_str()));
+        unsigned long v = static_cast<unsigned long>(std::atoi(args[1].c_str()));
         dbgCmd._debugCommandAddItem(user, v, 100);
         return 0;
     }
     // ---- show / hide（顶级可见性）----
-    else if (cmd == "show")
+    else if (args[0] == "show")
     {
         MSG_DEBUG_COMMAND dbg;
         dbgCmd._debugCommandVisible(user, dbg);
         return 0;
     }
-    else if (cmd == "hide")
+    else if (args[0] == "hide")
     {
         MSG_DEBUG_COMMAND dbg;
         dbgCmd._debugCommandInvisible(user, dbg);
         return 0;
     }
     // ---- dirty ----
-    else if (cmd == "dirty")
+    else if (args[0] == "dirty")
     {
-        DoUserDefineCommand(user, 0x1f, arg1.c_str());
+        DoUserDefineCommand(user, 0x1f, args[1].c_str());
     }
     // ---- avatar：GM 发头像 ----
-    else if (cmd == "avatar")
+    else if (args[0] == "avatar")
     {
         MSG_DEBUG_COMMAND dbg;
-        dbg.m_arg = std::atoi(arg1.c_str());
-        dbg.payload.avatar.periodKind = static_cast<unsigned char>(std::atoi(arg2.c_str()));
-        dbg.payload.avatar.slotByte = static_cast<signed char>(std::atoi(arg3.c_str()));
+        dbg.m_arg = std::atoi(args[1].c_str());
+        dbg.payload.avatar.periodKind = static_cast<unsigned char>(std::atoi(args[2].c_str()));
+        dbg.payload.avatar.slotByte = static_cast<signed char>(std::atoi(args[3].c_str()));
         dbgCmd._debugCommandAddAvatar(user, dbg);
         return 0;
     }
     // ---- combo：无操作（ORIG 匹配后无动作）----
-    else if (cmd == "combo")
+    else if (args[0] == "combo")
     {
         // ORIG 空分支
     }
     // ---- coin：扣/清金币 ----
-    else if (cmd == "coin")
+    else if (args[0] == "coin")
     {
-        int v = std::atoi(arg1.c_str());
+        int v = std::atoi(args[1].c_str());
         unsigned int coin = user->getCurCharacInvenR()->GetCoin();
         unsigned int left = coin - v;
         if (static_cast<int>(left) < 0)
@@ -767,12 +777,12 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         user->SendCoin();
     }
     // ---- use item：重复 increase_status ----
-    else if (cmd == "use")
+    else if (args[0] == "use")
     {
-        if (arg1 == "item")
+        if (args[1] == "item")
         {
-            int kind = std::atoi(arg2.c_str());
-            int count = std::atoi(arg3.c_str());
+            int kind = std::atoi(args[2].c_str());
+            int count = std::atoi(args[3].c_str());
             if (kind < 1 || 6 < kind)
             {
                 ret = 0;
@@ -785,174 +795,174 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
     }
     // ---- npcfav / favterm / pickup / refund / durable / bluemarble：双参透传 ----
-    else if (cmd == "npcfav")
+    else if (args[0] == "npcfav")
     {
-        A2_GmBuf b;
-        std::sprintf(b.buf, "%s %s", arg1.c_str(), arg2.c_str());
-        DoUserDefineCommand(user, 0x24, b.buf);
+        char b[0x100]; A2_ZERO(b);
+        std::sprintf(b, "%s %s", args[1].c_str(), args[2].c_str());
+        DoUserDefineCommand(user, 0x24, b);
     }
-    else if (cmd == "favterm")
+    else if (args[0] == "favterm")
     {
-        A2_GmBuf b;
-        std::sprintf(b.buf, "%s %s", arg1.c_str(), arg2.c_str());
-        DoUserDefineCommand(user, 0x23, b.buf);
+        char b[0x100]; A2_ZERO(b);
+        std::sprintf(b, "%s %s", args[1].c_str(), args[2].c_str());
+        DoUserDefineCommand(user, 0x23, b);
     }
     // ---- sumhell / sdale ----
-    else if (cmd == "sumhell")
+    else if (args[0] == "sumhell")
     {
-        DoUserDefineCommand(user, 0x15, arg1.c_str());
+        DoUserDefineCommand(user, 0x15, args[1].c_str());
     }
-    else if (cmd == "sdale")
+    else if (args[0] == "sdale")
     {
-        DoUserDefineCommand(user, 0x1c, arg1.c_str());
+        DoUserDefineCommand(user, 0x1c, args[1].c_str());
     }
     // ---- mdt / monsterdroptest / startmdt / endmdt / goldmdt ----
-    else if (cmd == "mdt" || cmd == "monsterdroptest" || cmd == "startmdt" ||
-             cmd == "endmdt" || cmd == "goldmdt")
+    else if (args[0] == "mdt" || args[0] == "monsterdroptest" || args[0] == "startmdt" ||
+             args[0] == "endmdt" || args[0] == "goldmdt")
     {
-        A2_GmBuf b;
-        if (cmd == "startmdt")
-            std::sprintf(b.buf, "%d %s", 1, arg1.c_str());
-        else if (cmd == "endmdt")
-            std::sprintf(b.buf, "%d %s", 2, arg1.c_str());
-        else if (cmd == "goldmdt")
-            std::sprintf(b.buf, "%d %s", 3, arg1.c_str());
+        char b[0x100]; A2_ZERO(b);
+        if (args[0] == "startmdt")
+            std::sprintf(b, "%d %s", 1, args[1].c_str());
+        else if (args[0] == "endmdt")
+            std::sprintf(b, "%d %s", 2, args[1].c_str());
+        else if (args[0] == "goldmdt")
+            std::sprintf(b, "%d %s", 3, args[1].c_str());
         else
-            std::sprintf(b.buf, "%d %s", 0, arg1.c_str());
-        DoUserDefineCommand(user, 0x4b, b.buf);
+            std::sprintf(b, "%d %s", 0, args[1].c_str());
+        DoUserDefineCommand(user, 0x4b, b);
     }
     // ---- cli / checklottoitem ----
-    else if (cmd == "cli" || cmd == "checklottoitem")
+    else if (args[0] == "cli" || args[0] == "checklottoitem")
     {
-        A2_GmBuf b;
-        if (arg1 == "ven")
+        char b[0x100]; A2_ZERO(b);
+        if (args[1] == "ven")
         {
-            std::sprintf(b.buf, "%d %s", 1, arg2.c_str());
-            DoUserDefineCommand(user, 0x4d, b.buf);
+            std::sprintf(b, "%d %s", 1, args[2].c_str());
+            DoUserDefineCommand(user, 0x4d, b);
         }
         else
         {
-            std::sprintf(b.buf, "%s %s", arg1.c_str(), arg2.c_str());
-            DoUserDefineCommand(user, 0x4c, b.buf);
+            std::sprintf(b, "%s %s", args[1].c_str(), args[2].c_str());
+            DoUserDefineCommand(user, 0x4c, b);
         }
     }
     // ---- cbind / checkbind ----
-    else if (cmd == "cbind" || cmd == "checkbind")
+    else if (args[0] == "cbind" || args[0] == "checkbind")
     {
-        DoUserDefineCommand(user, 0x4e, arg1.c_str());
+        DoUserDefineCommand(user, 0x4e, args[1].c_str());
     }
     // ---- oneadayitem / craneDay / cinven ----
-    else if (cmd == "oneadayitem")
+    else if ("oneadayitem" == args[0])
     {
-        DoUserDefineCommand(user, 0x52, arg1.c_str());
+        DoUserDefineCommand(user, 0x52, args[1].c_str());
     }
-    else if (cmd == "craneDay")
+    else if ("craneDay" == args[0])
     {
-        DoUserDefineCommand(user, 0x79, arg1.c_str());
+        DoUserDefineCommand(user, 0x79, args[1].c_str());
     }
-    else if (cmd == "cinven")
+    else if (args[0] == "cinven")
     {
-        DoUserDefineCommand(user, 0x46, arg1.c_str());
+        DoUserDefineCommand(user, 0x46, args[1].c_str());
     }
     // ---- pickup / refund ----
-    else if (cmd == "pickup")
+    else if (args[0] == "pickup")
     {
-        A2_GmBuf b;
-        std::sprintf(b.buf, "%s %s", arg1.c_str(), arg2.c_str());
-        DoUserDefineCommand(user, 0x47, b.buf);
+        char b[0x100]; A2_ZERO(b);
+        std::sprintf(b, "%s %s", args[1].c_str(), args[2].c_str());
+        DoUserDefineCommand(user, 0x47, b);
     }
-    else if (cmd == "refund")
+    else if (args[0] == "refund")
     {
-        A2_GmBuf b;
-        std::sprintf(b.buf, "%s %s", arg1.c_str(), arg2.c_str());
-        DoUserDefineCommand(user, 0x48, b.buf);
+        char b[0x100]; A2_ZERO(b);
+        std::sprintf(b, "%s %s", args[1].c_str(), args[2].c_str());
+        DoUserDefineCommand(user, 0x48, b);
     }
     // ---- tb reset/adjust/no ----
-    else if (cmd == "tb")
+    else if (args[0] == "tb")
     {
-        if (arg1 == "reset")
-            DoUserDefineCommand(user, 0x5d, arg1.c_str());
-        else if (arg1 == "adjust")
-            DoUserDefineCommand(user, 0x5e, arg1.c_str());
-        else if (arg1 == "no")
-            DoUserDefineCommand(user, 0x5f, arg1.c_str());
+        if (args[1] == "reset")
+            DoUserDefineCommand(user, 0x5d, args[1].c_str());
+        else if (args[1] == "adjust")
+            DoUserDefineCommand(user, 0x5e, args[1].c_str());
+        else if (args[1] == "no")
+            DoUserDefineCommand(user, 0x5f, args[1].c_str());
     }
     // ---- achieve/ac reset/report/clear/all/no ----
-    else if (cmd == "achieve" || cmd == "ac")
+    else if (args[0] == "achieve" || args[0] == "ac")
     {
-        if (arg1 == "reset")
-            DoUserDefineCommand(user, 0x60, arg1.c_str());
-        else if (arg1 == "report")
-            DoUserDefineCommand(user, 0x61, arg1.c_str());
-        else if (arg1 == "clear")
-            DoUserDefineCommand(user, 0x62, arg2.c_str());
-        else if (arg1 == "all")
-            DoUserDefineCommand(user, 99, arg1.c_str());
-        else if (arg1 == "no")
-            DoUserDefineCommand(user, 100, arg1.c_str());
+        if (args[1] == "reset")
+            DoUserDefineCommand(user, 0x60, args[1].c_str());
+        else if (args[1] == "report")
+            DoUserDefineCommand(user, 0x61, args[1].c_str());
+        else if (args[1] == "clear")
+            DoUserDefineCommand(user, 0x62, args[2].c_str());
+        else if (args[1] == "all")
+            DoUserDefineCommand(user, 99, args[1].c_str());
+        else if (args[1] == "no")
+            DoUserDefineCommand(user, 100, args[1].c_str());
     }
     // ---- power userpoint/guildpoint/win ----
-    else if (cmd == "power")
+    else if (args[0] == "power")
     {
-        if (arg1 == "userpoint")
+        if (args[1] == "userpoint")
         {
             MSG_DEBUG_COMMAND dbg;
-            dbg.m_arg = std::atoi(arg2.c_str());
+            dbg.m_arg = std::atoi(args[2].c_str());
             dbgCmd._debugCommandUserPowerwarPointUp(user, dbg);
             return 0;
         }
-        else if (arg1 == "guildpoint")
+        else if (args[1] == "guildpoint")
         {
-            int v = std::atoi(arg2.c_str());
+            int v = std::atoi(args[2].c_str());
             unsigned int characNo = user->getCurCharacNo();
             unsigned int guildKey = user->get_charac_guildkey();
             CGuildServerProxy* proxy =
                 GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
             proxy->SendIncreaseDecreasePowerWarPoint(guildKey, characNo, v);
         }
-        else if (arg1 == "win")
+        else if (args[1] == "win")
         {
-            DoUserDefineCommand(user, 0x2b, arg2.c_str());
+            DoUserDefineCommand(user, 0x2b, args[2].c_str());
         }
     }
     // ---- townatk success/fail/end/其它 ----
-    else if (cmd == "townatk")
+    else if (args[0] == "townatk")
     {
-        if (arg1 == "success")
+        if (args[1] == "success")
             SendVillageAttackedGMCommand(user, 1);
-        else if (arg1 == "fail")
+        else if (args[1] == "fail")
             SendVillageAttackedGMCommand(user, 2);
-        else if (arg1 == "end")
+        else if (args[1] == "end")
             SendVillageAttackedGMCommand(user, 3);
         else
-            DoUserDefineCommand(user, 0x1e, arg1.c_str());
+            DoUserDefineCommand(user, 0x1e, args[1].c_str());
     }
     // ---- rec start/stop/run ----
-    else if (cmd == "rec")
+    else if (args[0] == "rec")
     {
-        if (arg1 == "start")
-            DoUserDefineCommand(user, 0x12, arg1.c_str());
-        else if (arg1 == "stop")
-            DoUserDefineCommand(user, 0x13, arg1.c_str());
-        else if (arg1 == "run")
-            DoUserDefineCommand(user, 0x14, arg1.c_str());
+        if (args[1] == "start")
+            DoUserDefineCommand(user, 0x12, args[1].c_str());
+        else if (args[1] == "stop")
+            DoUserDefineCommand(user, 0x13, args[1].c_str());
+        else if (args[1] == "run")
+            DoUserDefineCommand(user, 0x14, args[1].c_str());
     }
     // ---- spd / durable ----
-    else if (cmd == "spd")
+    else if (args[0] == "spd")
     {
-        DoUserDefineCommand(user, 9, arg1.c_str());
+        DoUserDefineCommand(user, 9, args[1].c_str());
     }
-    else if (cmd == "durable")
+    else if (args[0] == "durable")
     {
-        A2_GmBuf b;
-        std::sprintf(b.buf, "%s %s", arg1.c_str(), arg2.c_str());
-        DoUserDefineCommand(user, 0x29, b.buf);
+        char b[0x100]; A2_ZERO(b);
+        std::sprintf(b, "%s %s", args[1].c_str(), args[2].c_str());
+        DoUserDefineCommand(user, 0x29, b);
     }
     // ---- sep upgrade/up success|s|fail|f ----
-    else if (cmd == "sep" && (arg1 == "upgrade" || arg1 == "up"))
+    else if (args[0] == "sep" && (args[1] == "upgrade" || args[1] == "up"))
     {
-        A2_GmBuf b;
-        if (arg2 == "success" || arg2 == "s")
+        char b[0x100]; A2_ZERO(b);
+        if (args[2] == "success" || args[2] == "s")
         {
             if (user->getUpgradeSeparateTrueFlag() == 0)
             {
@@ -960,17 +970,17 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 ok[0] = 'o'; ok[1] = 'k'; ok[2] = '\0'; ok[3] = '\0';
                 user->setUpgradeSeparateTrueFlag(1);
                 user->setUpgradeSeparateFalseFlag(0);
-                std::sprintf(b.buf, "sep upgrade success - %s", ok);
+                std::sprintf(b, "sep upgrade success - %s", ok);
             }
             else
             {
                 char end[5];
                 end[0] = 'e'; end[1] = 'n'; end[2] = 'd'; end[3] = '\0'; end[4] = '\0';
                 user->setUpgradeSeparateTrueFlag(0);
-                std::sprintf(b.buf, "sep upgrade success - %s", end);
+                std::sprintf(b, "sep upgrade success - %s", end);
             }
         }
-        else if (arg2 == "fail" || arg2 == "f")
+        else if (args[2] == "fail" || args[2] == "f")
         {
             if (user->getUpgradeSeparateFlaseFlag() == 0)
             {
@@ -978,14 +988,14 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 ok[0] = 'o'; ok[1] = 'k'; ok[2] = '\0'; ok[3] = '\0';
                 user->setUpgradeSeparateTrueFlag(0);
                 user->setUpgradeSeparateFalseFlag(1);
-                std::sprintf(b.buf, "sep upgrade fail - %s", ok);
+                std::sprintf(b, "sep upgrade fail - %s", ok);
             }
             else
             {
                 char end[5];
                 end[0] = 'e'; end[1] = 'n'; end[2] = 'd'; end[3] = '\0'; end[4] = '\0';
                 user->setUpgradeSeparateFalseFlag(0);
-                std::sprintf(b.buf, "sep upgrade fail - %s", end);
+                std::sprintf(b, "sep upgrade fail - %s", end);
             }
         }
         {
@@ -994,110 +1004,110 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             g.put_byte(0);
             g.put_short(0);
             g.put_byte(0);
-            int len = static_cast<int>(std::strlen(b.buf));
-            g.put_int(len);
-            g.put_str(b.buf, len);
+            g.put_int(static_cast<int>(std::strlen(b)));
+            g.put_str(b, static_cast<int>(std::strlen(b)));
             g.finalize(true);
             user->Send(g);
         }
         return 0;
     }
     // ---- initstat / guilddebug / delguild / changename ----
-    else if (cmd == "initstat")
+    else if (args[0] == "initstat")
     {
-        DoUserDefineCommand(user, 0x3f, arg1.c_str());
+        DoUserDefineCommand(user, 0x3f, args[1].c_str());
     }
-    else if (cmd == "guilddebug")
+    else if (args[0] == "guilddebug")
     {
-        DoUserDefineCommand(user, 0x42, arg1.c_str());
+        DoUserDefineCommand(user, 0x42, args[1].c_str());
     }
-    else if (cmd == "delguild")
+    else if (args[0] == "delguild")
     {
-        DoUserDefineCommand(user, 0x2c, arg1.c_str());
+        DoUserDefineCommand(user, 0x2c, args[1].c_str());
     }
-    else if (cmd == "changename")
+    else if (args[0] == "changename")
     {
-        DoUserDefineCommand(user, 0x2d, arg1.c_str());
+        DoUserDefineCommand(user, 0x2d, args[1].c_str());
     }
     // ---- startevent（三参）/ endevent ----
-    else if (cmd == "startevent")
+    else if (args[0] == "startevent")
     {
-        A2_GmBuf b;
-        std::sprintf(b.buf, "%s %s %s", arg1.c_str(), arg2.c_str(), arg3.c_str());
-        DoUserDefineCommand(user, 0x2e, b.buf);
+        char b[0x100]; A2_ZERO(b);
+        std::sprintf(b, "%s %s %s", args[1].c_str(), args[2].c_str(), args[3].c_str());
+        DoUserDefineCommand(user, 0x2e, b);
     }
-    else if (cmd == "endevent")
+    else if (args[0] == "endevent")
     {
-        DoUserDefineCommand(user, 0x2f, arg1.c_str());
+        DoUserDefineCommand(user, 0x2f, args[1].c_str());
     }
     // ---- shopcheck / shopnpc ----
-    else if (cmd == "shopcheck")
+    else if (args[0] == "shopcheck")
     {
-        DoUserDefineCommand(user, 0x30, arg1.c_str());
+        DoUserDefineCommand(user, 0x30, args[1].c_str());
     }
-    else if (cmd == "shopnpc")
+    else if (args[0] == "shopnpc")
     {
-        DoUserDefineCommand(user, 0x31, arg1.c_str());
+        DoUserDefineCommand(user, 0x31, args[1].c_str());
     }
     // ---- cargo delete ----
-    else if (cmd == "cargo")
+    else if (args[0] == "cargo")
     {
-        if (arg1 == "delete")
-            DoUserDefineCommand(user, 0x36, arg1.c_str());
+        if (args[1] == "delete")
+            DoUserDefineCommand(user, 0x36, args[1].c_str());
     }
     // ---- guildfund / dropitem ----
-    else if (cmd == "guildfund")
+    else if (args[0] == "guildfund")
     {
-        DoUserDefineCommand(user, 0x41, arg1.c_str());
+        DoUserDefineCommand(user, 0x41, args[1].c_str());
     }
-    else if (cmd == "dropitem")
+    else if (args[0] == "dropitem")
     {
-        DoUserDefineCommand(user, 0x34, arg1.c_str());
+        DoUserDefineCommand(user, 0x34, args[1].c_str());
     }
     // ---- premiumdelete/pd / mailitem ----
-    else if (cmd == "premiumdelete" || cmd == "pd")
+    else if (args[0] == "premiumdelete" || args[0] == "pd")
     {
-        DoUserDefineCommand(user, 0x3c, arg1.c_str());
+        DoUserDefineCommand(user, 0x3c, args[1].c_str());
     }
-    else if (cmd == "mailitem")
+    else if (args[0] == "mailitem")
     {
-        DoUserDefineCommand(user, 0x3d, arg1.c_str());
+        DoUserDefineCommand(user, 0x3d, args[1].c_str());
     }
     // ---- ci true/false ----
-    else if (cmd == "ci")
+    else if (args[0] == "ci")
     {
-        if (arg1 == "true")
-            DoUserDefineCommand(user, 0x6d, arg2.c_str());
-        else if (arg1 == "false")
-            DoUserDefineCommand(user, 0x6d, arg1.c_str());
+        if (args[1] == "true")
+            DoUserDefineCommand(user, 0x6d, args[2].c_str());
+        else if (args[1] == "false")
+            DoUserDefineCommand(user, 0x6d, args[1].c_str());
     }
     // ---- ritemclear / difficulty ----
-    else if (cmd == "ritemclear")
+    else if (args[0] == "ritemclear")
     {
-        DoUserDefineCommand(user, 0x76, arg1.c_str());
+        DoUserDefineCommand(user, 0x76, args[1].c_str());
     }
-    else if (cmd == "difficulty")
+    else if (args[0] == "difficulty")
     {
-        DoUserDefineCommand(user, 0x78, arg1.c_str());
+        DoUserDefineCommand(user, 0x78, args[1].c_str());
     }
     // ---- bluemarble ----
-    else if (cmd == "bluemarble")
+    else if (args[0] == "bluemarble")
     {
-        A2_GmBuf b;
-        std::sprintf(b.buf, "%s %s", arg1.c_str(), arg2.c_str());
-        DoUserDefineCommand(user, 0x7d, b.buf);
+        char b[0x100]; A2_ZERO(b);
+        std::sprintf(b, "%s %s", args[1].c_str(), args[2].c_str());
+        DoUserDefineCommand(user, 0x7d, b);
     }
     // ---- ulti max ----
-    else if (cmd == "ulti" && arg1 == "max")
+    else if (args[0] == "ulti" && args[1] == "max")
     {
         int v = G_CDataManager()->get_limit_inout_count((ENUM_BLOOD_TYPE)2);
         user->setUltimateInoutValue(2, v);
         {
-            A2_SendGmText(user, "Add ultimate inout max count!!");
+            std::string s("Add ultimate inout max count!!");
+            A2_SEND_STR(user, s);
         }
     }
     // ---- dimen max ----
-    else if (cmd == "dimen" && arg1 == "max")
+    else if (args[0] == "dimen" && args[1] == "max")
     {
         for (int i = 0; i < 6; ++i)
         {
@@ -1105,39 +1115,38 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             user->setDemensionInoutValue(static_cast<char>(i), v);
         }
         {
-            A2_SendGmText(user, "Add dimension inout max count!!");
+            std::string s("Add dimension inout max count!!");
+            A2_SEND_STR(user, s);
         }
     }
     // ---- dontsend on/off ----
-    else if (cmd == "dontsend")
+    else if (args[0] == "dontsend")
     {
-        if (arg1 == "on")
+        if (args[1] == "on")
             user->SetDebugCommand(1);
-        else if (arg1 == "off")
+        else if (args[1] == "off")
             user->SetDebugCommand(0);
     }
     // ---- pvpskilllevel ----
-    else if (cmd == "pvpskilllevel")
+    else if (args[0] == "pvpskilllevel")
     {
-        int v = std::atoi(arg1.c_str());
+        int v = std::atoi(args[1].c_str());
         if (0x25 < v)
         {
             return 0;
         }
         int nextPoint = GlobalData::s_ref_pvp_grade->GetPvpNextRankPoint(v);
-        PvpResultType* pvpW = user->getPVPResultW();
-        pvpW->m_expPoint = nextPoint;                    // +0x08
-        pvpW->m_pvpGrade = v;                            // +0x14
+        user->getPVPResultW()->m_expPoint = nextPoint;   // +0x08
+        user->getPVPResultW()->m_pvpGrade = v;           // +0x14
         G_GameWorld()->send_AllBasicInfo(user);
         user->givePvPSkillTree(0, false, 3);
         user->send_skill_info();
     }
     // ---- lethe：清技能 ----
-    else if (cmd == "lethe")
+    else if (args[0] == "lethe")
     {
-        SkillSlot* skill = reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW());
-        skill->clear_all_skills_both();
-        skill->set_parent(user);
+        reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW())->clear_all_skills_both();
+        reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW())->set_parent(user);
         {
             WongWork::CSkillChanger changer;
             changer.SkillInitialize(user, 0, false);
@@ -1146,134 +1155,136 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
     }
     // ---- rematch ----
-    else if (cmd == "rematch")
+    else if (args[0] == "rematch")
     {
         PvP_Room* pvpRoom = static_cast<PvP_Room*>(user->GetPVPRoom());
         if (pvpRoom != 0)
         {
-            void* matchObj = reinterpret_cast<void*>(pvpRoom->m_matching);  // +0x6e4 IMatch* 槽
-            if (matchObj != 0)
-            {
-                typedef int (*RematchFn)(void*, CUser*, int);
-                RematchFn fn = *reinterpret_cast<RematchFn*>(
-                    *reinterpret_cast<void**>(matchObj) + 0x68);   // vptr+0x34 域
-                fn(matchObj, user, std::atoi(arg1.c_str()));
-            }
+            // IMatch 接口已权威声明（MatchRoomList.h）：OnAskRematch(CUser*,int)
+            // 位于虚表 +0x68。具名虚调用与原裸槽直调生成同一 vtable+0x68 派发，
+            // 语义/链接不变，仅消除 hardcode 偏移（§4.3；同 PvP_Room.cpp 的
+            // ((IMatch*)m_matching)->... 口径）。m_matching 以 int 存储。
+            IMatch* match = reinterpret_cast<IMatch*>(pvpRoom->m_matching);
+            if (match != 0)
+                match->OnAskRematch(user, std::atoi(args[1].c_str()));
         }
     }
     // ---- wjfakd / wjfakd2 ----
-    else if (cmd == "wjfakd")
+    else if ("wjfakd" == args[0])
     {
-        TOD_Layer layer(static_cast<unsigned short>(std::atoi(arg1.c_str())));
+        TOD_Layer layer(static_cast<unsigned short>(std::atoi(args[1].c_str())));
         TOD_UserState* state =
             reinterpret_cast<TOD_UserState*>(user->GetCharacExpandData(
                 static_cast<ENUM_CHARAC_EXPAND_TYPE>(0xd)));
         state->setEnterLayer(layer);
         TOD_Layer today = state->getTodayEnterLayer();
-        A2_GmBuf b;
-        std::sprintf(b.buf, "set Enter Layer : %d",
+        char b[0x100]; A2_ZERO(b);
+        std::sprintf(b, "set Enter Layer : %d",
                      static_cast<int>(today.GetLayer()) & 0xffff);
-        TowerOfDespairMgr::SendMessageToCUser(user, b.buf);
+        TowerOfDespairMgr::SendMessageToCUser(user, b);
     }
-    else if (cmd == "wjfakd2")
+    else if ("wjfakd2" == args[0])
     {
-        if (arg1 == "reload")
+        if ("reload" == args[1])
         {
             Stream* s = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0xb719);
             CStreamGuard g(s, true);
-            g << 0x277;
-            g << -1;
+            (*g)->operator<<(0x277);
+            (*g)->operator<<(-1);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(2), g);
         }
-        else if (arg1 == "randomselect")
+        else if ("randomselect" == args[1])
         {
             Stream* s = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0xb720);
             CStreamGuard g(s, true);
-            g << 0x275;
-            g << -1;
+            (*g)->operator<<(0x275);
+            (*g)->operator<<(-1);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(2), g);
         }
-        // layerinfo：ORIG 空分支（比较结果未用）
+        else
+        {
+            // ORIG：反序比较 "layerinfo" == args[1]，结果未使用（空分支）。
+            (void)("layerinfo" == args[1]);
+        }
     }
     // ---- mission 系列 ----
-    else if (cmd == "mission")
+    else if ("mission" == args[0])
     {
-        int v2 = std::atoi(arg2.c_str());
-        int v1 = std::atoi(arg1.c_str());
+        int v2 = std::atoi(args[2].c_str());
+        int v1 = std::atoi(args[1].c_str());
         user->SetMissionParameter(v1, v2);
         user->send_MissionList();
     }
-    else if (cmd == "newdailymission")
+    else if ("newdailymission" == args[0])
     {
         user->ResetDailyMission();
         user->send_MissionList();
     }
-    else if (cmd == "clearmission")
+    else if ("clearmission" == args[0])
     {
-        user->ClearMission(static_cast<short>(std::atoi(arg1.c_str())));
+        user->ClearMission(static_cast<short>(std::atoi(args[1].c_str())));
         user->send_MissionList();
         user->send_pvp_record();
     }
-    else if (cmd == "clearmissionkind")
+    else if ("clearmissionkind" == args[0])
     {
-        user->ClearMissionKind(static_cast<short>(std::atoi(arg1.c_str())));
+        user->ClearMissionKind(static_cast<short>(std::atoi(args[1].c_str())));
         user->send_MissionList();
         user->send_pvp_record();
     }
-    else if (cmd == "resetmissionlist")
+    else if ("resetmissionlist" == args[0])
     {
         user->ResetMissionList();
         user->send_MissionList();
     }
     // ---- resetdaily ----
-    else if (cmd == "resetdaily")
+    else if ("resetdaily" == args[0])
     {
         G_GameWorld()->ResetAllFatigue();
         G_GameWorld()->ReselectDailyQuest();
         G_GameWorld()->AddDailyItem();
     }
     // ---- combomission ----
-    else if (cmd == "combomission")
+    else if ("combomission" == args[0])
     {
-        short v = static_cast<short>(std::atoi(arg1.c_str()));
+        short v = static_cast<short>(std::atoi(args[1].c_str()));
         short kind = user->getCurCharacGrowType() == 0 ? 0x1f : 0x20;
         user->Update_ComboMission(kind, v);
     }
     // ---- roiregen：ORIG 空分支（args[0] 匹配后直接 return 0）----
-    else if (cmd == "roiregen")
+    else if ("roiregen" == args[0])
     {
         // ORIG 空分支
     }
     // ---- qp ----
-    else if (cmd == "qp")
+    else if (args[0] == "qp")
     {
-        user->setQuestPoint(std::atoi(arg1.c_str()));
+        user->setQuestPoint(std::atoi(args[1].c_str()));
     }
     // ---- registauction / burningstage ----
-    else if (cmd == "registauction")
+    else if (args[0] == "registauction")
     {
         random_option::CRandomOptionItemHandleTest test;
         test.test_regist_auction(user);
     }
-    else if (cmd == "burningstage")
+    else if (args[0] == "burningstage")
     {
-        int v = std::atoi(arg1.c_str());
-        fair_pvp::CFairPvPScore* score =
-            reinterpret_cast<fair_pvp::CFairPvPScore*>(user->GetCharacExpandData(
-                static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)));
-        score->SetRemainBonusCount(v);
+        int v = std::atoi(args[1].c_str());
+        reinterpret_cast<fair_pvp::CFairPvPScore*>(user->GetCharacExpandData(
+            static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))->SetRemainBonusCount(v);
         int daily = static_cast<int>(
             G_CDataManager()->m_serverParameter.m_schoolMatchDailyPlayLimit) - v;
-        score->SetDailyPlayCount(daily);
+        reinterpret_cast<fair_pvp::CFairPvPScore*>(user->GetCharacExpandData(
+            static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))->SetDailyPlayCount(daily);
     }
     // ---- randitem ----
-    else if (cmd == "randitem")
+    else if (args[0] == "randitem")
     {
-        if (arg1 == "")
+        if (args[1] == "")
         {
             return 0;
         }
-        int itemIdx = std::atoi(arg1.c_str());
+        int itemIdx = std::atoi(args[1].c_str());
         Inven_Item item;                       // local_4d5（0x3d 字节）
         item.m_addInfo = itemIdx;              // +0x02
         CItem* pItem = G_CDataManager()->find_item(itemIdx);
@@ -1282,22 +1293,23 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             return 0;
         }
         pItem->make_item(item);                // vtbl+0x08 槽 make_item
-        // +0x29 起 9 字节 3 槽选项区（ChronicleRandomOptionInfo::m_random(RandomOption)
-        // 的 m_field3.m_field1 起连续区）
-        unsigned char* raw = &item.m_random.m_random.m_field3.m_field1;
+        // ORIG +0x25 起连续写入 RandomOption 的三个 3-byte 字段
+        // （m_field0/m_field3/m_field6）；不得从 m_field3.m_field1（+0x29）
+        // 再叠加 +0x29，否则会越过 Inven_Item 的随机选项区。
+        unsigned char* raw = &item.m_random.m_random.m_field0.m_field0;
         int idx = 2;
         for (int i = 0; i < 3; ++i)
         {
-            if (args.size() <= static_cast<unsigned int>(idx) ||
-                args[idx] == "")
+            if (args[idx] == "")
                 break;
-            if (args.size() <= static_cast<unsigned int>(idx + 1) ||
-                args[idx + 1] == "")
+            if (args[idx + 1] == "")
                 break;
-            // ORIG 0x82100d0/0x821011d/0x8210166：三次 atoi 写 +1/+2/+3
-            raw[0x29 + i * 3 + 0] = static_cast<unsigned char>(std::atoi(args[idx].c_str()));
-            raw[0x29 + i * 3 + 1] = static_cast<unsigned char>(std::atoi(args[idx + 1].c_str()));
-            raw[0x29 + i * 3 + 2] = static_cast<unsigned char>(std::atoi(args[idx + 1].c_str()));
+            // ORIG 0x82100d0/0x821011d/0x8210166：相对 local_4b1 的
+            // +1/+2/+3 即 RandomOption 三字节字段的 +0/+1/+2；第三个
+            // 值复用第二个参数，保持 ORIG 行为。
+            raw[i * 3 + 0] = static_cast<unsigned char>(std::atoi(args[idx].c_str()));
+            raw[i * 3 + 1] = static_cast<unsigned char>(std::atoi(args[idx + 1].c_str()));
+            raw[i * 3 + 2] = static_cast<unsigned char>(std::atoi(args[idx + 1].c_str()));
             idx += 2;
         }
         int slot = user->getCurCharacInvenW()->insertItemIntoInventory(
@@ -1306,13 +1318,11 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, slot);
     }
     // ---- insertitem（拼串 find_item → AddItem）----
-    else if (cmd == "insertitem")
+    else if (args[0] == "insertitem")
     {
         std::string name;
         for (int i = 1; i < 10; ++i)
         {
-            if (args.size() <= static_cast<unsigned int>(i))
-                break;
             if (args[i].length() == 0)
                 break;
             if (name.length() != 0)
@@ -1322,41 +1332,38 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         CItem* pItem = G_CDataManager()->find_item(name.c_str());
         if (pItem == 0)
         {
-            A2_GmBuf b;
-            std::sprintf(b.buf, "cannot find item (%s) ", name.c_str());
+            char b[0x100]; A2_ZERO(b);
+            std::sprintf(b, "cannot find item (%s) ", name.c_str());
             PacketGuard g;
             g.put_header(0, 0xc);
             g.put_byte(0);
             g.put_short(0);
             g.put_byte(0);
-            int len = static_cast<int>(std::strlen(b.buf));
-            g.put_int(len);
-            g.put_str(b.buf, len);
+            g.put_int(static_cast<int>(std::strlen(b)));
+            g.put_str(b, static_cast<int>(std::strlen(b)));
             g.finalize(true);
             user->Send(g);
             return 0;
         }
         {
-            A2_GmBuf b;
-            std::sprintf(b.buf, "item_index(%d) ", pItem->get_index());
+            char b[0x100]; A2_ZERO(b);
+            std::sprintf(b, "item_index(%d) ", pItem->get_index());
             PacketGuard g;
             g.put_header(0, 0xc);
             g.put_byte(0);
             g.put_short(0);
             g.put_byte(0);
-            int len = static_cast<int>(std::strlen(b.buf));
-            g.put_int(len);
-            g.put_str(b.buf, len);
+            g.put_int(static_cast<int>(std::strlen(b)));
+            g.put_str(b, static_cast<int>(std::strlen(b)));
             g.finalize(true);
             user->Send(g);
         }
         int itemIdx = pItem->get_index();
         int count = 100;
-        if (pItem->is_stackable())
+        if (pItem->is_stackable() &&
+            static_cast<CStackableItem*>(pItem)->getStackableLimit() < count)
         {
-            int limit = static_cast<CStackableItem*>(pItem)->getStackableLimit();
-            if (limit < count)
-                count = limit;
+            count = static_cast<CStackableItem*>(pItem)->getStackableLimit();
         }
         ENUM_ITEMSPACE space = (ENUM_ITEMSPACE)0;
         int slot = user->AddItem(itemIdx, count, (eItemAddReason)6, space, 0);
@@ -1375,18 +1382,18 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, slot);
     }
     // ---- itemskill ----
-    else if (cmd == "itemskill")
+    else if (args[0] == "itemskill")
     {
-        int a = std::atoi(arg1.c_str());
-        int b = std::atoi(arg2.c_str());
+        int a = std::atoi(args[1].c_str());
+        int b = std::atoi(args[2].c_str());
         CItemMakingSkill* skill = reinterpret_cast<CItemMakingSkill*>(
             user->GetCharacExpandData(static_cast<ENUM_CHARAC_EXPAND_TYPE>(10)));
         skill->SetItemMakingSkillPoint(a, b, user);
     }
     // ---- multimail stack/equip ----
-    else if (cmd == "multimail")
+    else if (args[0] == "multimail")
     {
-        if (arg1 == "stack")
+        if (args[1] == "stack")
         {
             std::vector<std::pair<int, int> > items;
             items.clear();
@@ -1395,17 +1402,17 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             items.push_back(std::make_pair(3, 0xbd9));
             items.push_back(std::make_pair(2, 0xbdb));
             items.push_back(std::make_pair(1, 0xbdc));
-            Inven_Item base[10];
-            for (int i = 9; i >= 0; --i)
-                base[i] = Inven_Item();
+            Inven_Item base[10];   // ORIG 原地默认构造 10 元素（无临时/赋值）
             WongWork::CMailBoxHelper::MakeSystemMultiMailPostal(items, base, 10);
+            // ORIG 把消息串存入栈局部再 strlen(local_9c)，非折叠；用指针变量复现。
+            const char* pMsg = "stackable item test";
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMultiMail(
                 "multimail test", base, 5, 1000, user->getCurCharacNo(),
-                "stackable item test",
-                static_cast<int>(std::strlen("stackable item test")),
+                pMsg,
+                static_cast<int>(std::strlen(pMsg)),
                 0, (ENUM_SERVER_GROUP)99, false);
         }
-        else if (arg1 == "equip")
+        else if (args[1] == "equip")
         {
             std::vector<std::pair<int, int> > items;
             items.clear();
@@ -1419,37 +1426,37 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             items.push_back(std::make_pair(5, 0x2717));
             items.push_back(std::make_pair(5, 0x2718));
             items.push_back(std::make_pair(5, 0x2719));
-            Inven_Item base[10];
-            for (int i = 9; i >= 0; --i)
-                base[i] = Inven_Item();
+            Inven_Item base[10];   // ORIG 原地默认构造 10 元素（无临时/赋值）
             WongWork::CMailBoxHelper::MakeSystemMultiMailPostal(items, base, 10);
+            // ORIG 把消息串存入栈局部再 strlen(local_9c)，非折叠；用指针变量复现。
+            const char* pMsg = "equip item test";
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMultiMail(
                 "multimail test", base, 10, 9999, user->getCurCharacNo(),
-                "equip item test",
-                static_cast<int>(std::strlen("equip item test")),
+                pMsg,
+                static_cast<int>(std::strlen(pMsg)),
                 0, (ENUM_SERVER_GROUP)99, false);
         }
     }
     // ---- statistic gold ----
-    else if (cmd == "statistic")
+    else if (args[0] == "statistic")
     {
-        if (arg1 == "gold")
+        if (args[1] == "gold")
         {
             GetInstanceCirculationStatistic()->InsertCirculationStatistic();
         }
     }
     // ---- ingameday/day ----
-    else if (cmd == "ingameday" || cmd == "day")
+    else if ("ingameday" == args[0] || "day" == args[0])
     {
-        DoUserDefineCommand(user, 0x66, arg1.c_str());
+        DoUserDefineCommand(user, 0x66, args[1].c_str());
     }
     // ---- setinven ----
-    else if (cmd == "setinven")
+    else if (args[0] == "setinven")
     {
-        int cap = std::atoi(arg1.c_str());
+        int cap = std::atoi(args[1].c_str());
         int oldCap = user->getCurCharacInvenR()->get_inventory_capacity();
         user->m_historyLog.ExpandInventory(oldCap, cap, 2);
-        user->getCurCharacInvenW()->set_inventory_capacity(cap);
+        const_cast<CInventory*>(user->getCurCharacInvenR())->set_inventory_capacity(cap);
         int newCap = user->getCurCharacInvenR()->get_inventory_capacity();
         DB_UpdateInventoryCapacity::makeRequest(user->GetServerGroup(),
                                                 static_cast<int>(user->GetUID()),
@@ -1457,38 +1464,36 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         guard.clear();
         guard.put_header(0, 0x42);
         guard.put_short(0xb);
-        guard.put_short(newCap);
+        guard.put_short(user->getCurCharacInvenR()->get_inventory_capacity());
         guard.finalize(true);
         user->Send(guard);
     }
     // ---- itemseed ----
-    else if (cmd == "itemseed")
+    else if (args[0] == "itemseed")
     {
-        int itemIdx = std::atoi(arg1.c_str());
+        int itemIdx = std::atoi(args[1].c_str());
         CItem* pItem = G_CDataManager()->find_item(itemIdx);
         if (pItem == 0)
         {
-            A2_GmBuf b;
-            std::sprintf(b.buf, "cannot find item (%s) ", arg1.c_str());
+            char b[0x100]; A2_ZERO(b);
+            std::sprintf(b, "cannot find item (%s) ", args[1].c_str());
             PacketGuard g;
             g.put_header(0, 0xc);
             g.put_byte(0);
             g.put_short(0);
             g.put_byte(0);
-            int len = static_cast<int>(std::strlen(b.buf));
-            g.put_int(len);
-            g.put_str(b.buf, len);
+            g.put_int(static_cast<int>(std::strlen(b)));
+            g.put_str(b, static_cast<int>(std::strlen(b)));
             g.finalize(true);
             user->Send(g);
             return 0;
         }
         int idx = pItem->get_index();
         int count = 100;
-        if (pItem->is_stackable())
+        if (pItem->is_stackable() &&
+            static_cast<CStackableItem*>(pItem)->getStackableLimit() < count)
         {
-            int limit = static_cast<CStackableItem*>(pItem)->getStackableLimit();
-            if (limit < count)
-                count = limit;
+            count = static_cast<CStackableItem*>(pItem)->getStackableLimit();
         }
         ENUM_ITEMSPACE space = (ENUM_ITEMSPACE)0;
         int slot = user->AddItem(idx, count, (eItemAddReason)6, space, 0);
@@ -1496,9 +1501,9 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         {
             return 0;
         }
-        Inven_Item* ref = user->getCurCharacInvenW()->GetInvenRef(1, slot);
+        Inven_Item* ref = user->getCurCharacInvenRefW()->GetInvenRef(1, slot);
         if (ref != 0)
-            ref->m_addInfo2 = std::atoi(arg2.c_str());   // +0x07 add_info
+            ref->m_addInfo2 = std::atoi(args[2].c_str());   // +0x07 add_info
         {
             char* accIdStr = NumberToString(user->get_acc_id(), 0);
             cMyTrace trace(
@@ -1510,7 +1515,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, slot);
     }
     // ---- moveavatar/mva ----
-    else if (cmd == "moveavatar" || cmd == "mva")
+    else if (args[0] == "moveavatar" || args[0] == "mva")
     {
         PacketDispatcher* disp = G_PacketDispatcher();
         IDispatcher* d13 = disp->getDispatcher(0x13);
@@ -1539,7 +1544,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
     }
     // ---- quickon/qon ----
-    else if (cmd == "quickon" || cmd == "qon")
+    else if (args[0] == "quickon" || args[0] == "qon")
     {
         CParty* party = static_cast<CParty*>(user->GetParty());
         if (party != 0 && party->get_member_count() >= 2)
@@ -1550,7 +1555,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         return 0;
     }
     // ---- quickoff/qoff ----
-    else if (cmd == "quickoff" || cmd == "qoff")
+    else if (args[0] == "quickoff" || args[0] == "qoff")
     {
         CParty* party = static_cast<CParty*>(user->GetParty());
         if (party != 0 && party->get_member_count() >= 2)
@@ -1561,9 +1566,9 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         return 0;
     }
     // ---- quickreward/qr ----
-    else if (cmd == "quickreward" || cmd == "qr")
+    else if (args[0] == "quickreward" || args[0] == "qr")
     {
-        int v = std::atoi(arg1.c_str());
+        int v = std::atoi(args[1].c_str());
         if (v < 0 || 10 < v)
         {
             return 0;
@@ -1573,16 +1578,15 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             if (party != 0 && party->get_member_count() >= 2)
             {
                 party->set_gm_random_buff_type(static_cast<QuickParty::RandomBuffType>(v));
-                A2_GmBuf b;
-                std::sprintf(b.buf, "GM QUICK PARTY RANDOM BUFF (%d) TYPE!!", v);
+                char b[0x100]; A2_ZERO(b);
+                std::sprintf(b, "GM QUICK PARTY RANDOM BUFF (%d) TYPE!!", v);
                 PacketGuard g;
                 g.put_header(0, 0xc);
                 g.put_byte(0);
                 g.put_short(0);
                 g.put_byte(0);
-                int len = static_cast<int>(std::strlen(b.buf));
-                g.put_int(len);
-                g.put_str(b.buf, len);
+                g.put_int(static_cast<int>(std::strlen(b)));
+                g.put_str(b, static_cast<int>(std::strlen(b)));
                 g.finalize(true);
                 party->send_to_party(g);
             }
@@ -1590,9 +1594,9 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         return 0;
     }
     // ---- hellvalue/hv ----
-    else if (cmd == "hellvalue" || cmd == "hv")
+    else if (args[0] == "hellvalue" || args[0] == "hv")
     {
-        int v = std::atoi(arg1.c_str());
+        int v = std::atoi(args[1].c_str());
         if (v < 0 || 100 < v)
         {
             return 0;
@@ -1605,17 +1609,16 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                     reinterpret_cast<BattleData*>(party->m_padBattleData);  // +0x32c
                 bd->SetHellPartyValueTotal(v);
                 party->send_hellParty_value();
-                A2_GmBuf b;
-                std::sprintf(b.buf, "HELL PARTY VALUE (%d)",
+                char b[0x100]; A2_ZERO(b);
+                std::sprintf(b, "HELL PARTY VALUE (%d)",
                              bd->GetHellPartyValueTotal());
                 PacketGuard g;
                 g.put_header(0, 0xc);
                 g.put_byte(0);
                 g.put_short(0);
                 g.put_byte(0);
-                int len = static_cast<int>(std::strlen(b.buf));
-                g.put_int(len);
-                g.put_str(b.buf, len);
+                g.put_int(static_cast<int>(std::strlen(b)));
+                g.put_str(b, static_cast<int>(std::strlen(b)));
                 g.finalize(true);
                 party->send_to_party(g);
             }
@@ -1623,7 +1626,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         return 0;
     }
     // ---- statisticlog/sl ----
-    else if (cmd == "statisticlog" || cmd == "sl")
+    else if (args[0] == "statisticlog" || args[0] == "sl")
     {
         StatisticsGmCmdPacket pkt;
         pkt.m_characNo = user->getCurCharacNo();      // +0x0a（ORIG local_34c）
@@ -1632,45 +1635,48 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         proxy->SendPacket(reinterpret_cast<char*>(&pkt), 0xe);
     }
     // ---- itemdrop / upcard ----
-    else if (cmd == "itemdrop")
+    else if (args[0] == "itemdrop")
     {
-        DoUserDefineCommand(user, 0x6f, arg1.c_str());
+        DoUserDefineCommand(user, 0x6f, args[1].c_str());
     }
-    else if (cmd == "upcard")
+    else if (args[0] == "upcard")
     {
-        DoUserDefineCommand(user, 0x70, arg1.c_str());
+        DoUserDefineCommand(user, 0x70, args[1].c_str());
     }
     // ---- inde item drop ----
-    else if (cmd == "inde" && arg1 == "item" && arg2 == "drop")
+    else if (args[0] == "inde" && args[1] == "item" && args[2] == "drop")
     {
         std::string st;
-        st = (user->getForceDropFlag() == 1) ? "off" : "on";
+        if (user->getForceDropFlag() == 1)
+            st = "off";
+        else
+            st = "on";
         DoUserDefineCommand(user, 0x77, st.c_str());
     }
     // ---- timegate/tg ----
-    else if (cmd == "timegate" || cmd == "tg")
+    else if (args[0] == "timegate" || args[0] == "tg")
     {
         Packet_CollectItemsGm pkt;
-        pkt.m_a = std::atoi(arg1.c_str());            // +0x0b（ORIG local_368）
-        pkt.m_b = std::atoi(arg2.c_str());            // +0x0f（ORIG local_364）
+        pkt.m_a = std::atoi(args[1].c_str());            // +0x0b（ORIG local_368）
+        pkt.m_b = std::atoi(args[2].c_str());            // +0x0f（ORIG local_364）
         CMonitorServerProxy* proxy =
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
         proxy->SendTcpPacket(reinterpret_cast<char*>(&pkt), 0x17);
     }
     // ---- bossdifficult / bossmap ----
-    else if (cmd == "bossdifficult")
+    else if (args[0] == "bossdifficult")
     {
-        char v = static_cast<char>(StringToNumber(arg1.c_str()));
+        char v = static_cast<char>(StringToNumber(args[1].c_str()));
         if (v > '\0' && v < '\x05')
             user->m_gmBossDifficulty = v;              // +0x796cc
     }
-    else if (cmd == "bossmap")
+    else if (args[0] == "bossmap")
     {
-        unsigned int v = static_cast<unsigned int>(StringToNumber(arg1.c_str()));
+        unsigned int v = static_cast<unsigned int>(StringToNumber(args[1].c_str()));
         user->m_gmBossMapIndex = v;                    // +0x796d0
     }
     // ---- reset fatigue ----
-    else if (cmd == "reset" && arg1 == "fatigue")
+    else if (args[0] == "reset" && args[1] == "fatigue")
     {
         G_TimerQueue()->InsertTimer(
             static_cast<TimerEntry::OBJ_TYPE>(2), 0,
@@ -1678,10 +1684,10 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         return 0;
     }
     // ---- apply_effect ----
-    else if (cmd == "apply_effect")
+    else if (args[0] == "apply_effect")
     {
-        int code = StringToNumber(arg1.c_str());
-        int value = StringToNumber(arg2.c_str());
+        int code = StringToNumber(args[1].c_str());
+        int value = StringToNumber(args[2].c_str());
         if (code < 0)
         {
             ret = 0;
@@ -1700,48 +1706,48 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         return 0;
     }
     // ---- open sd/boss/aa ----
-    else if (cmd == "open")
+    else if (args[0] == "open")
     {
-        if (arg1 == "sd")
+        if (args[1] == "sd")
             GlobalData::s_DailyScheduleManager->GM_OpenSouthernDale();
-        else if (arg1 == "boss")
+        else if (args[1] == "boss")
             GlobalData::s_DailyScheduleManager->GM_OpenBossTower();
-        else if (arg1 == "aa")
+        else if (args[1] == "aa")
             GlobalData::s_DailyScheduleManager->GM_OpenAdvanceAltar();
     }
     // ---- close sd/boss/aa ----
-    else if (cmd == "close")
+    else if (args[0] == "close")
     {
-        if (arg1 == "sd")
+        if (args[1] == "sd")
             GlobalData::s_DailyScheduleManager->GM_CloseSouthernDale();
-        else if (arg1 == "boss")
+        else if (args[1] == "boss")
             GlobalData::s_DailyScheduleManager->GM_CloseBossTower();
-        else if (arg1 == "aa")
+        else if (args[1] == "aa")
             GlobalData::s_DailyScheduleManager->GM_CloseAdvanceAltar();
     }
     // ---- ap set/reset/gmmode/realmode/week ----
-    else if (cmd == "ap")
+    else if (args[0] == "ap")
     {
-        if (arg1 == "set")
+        if (args[1] == "set")
         {
-            APSystem::CUserProc::GM_Set(user, static_cast<unsigned int>(std::atoi(arg2.c_str())));
+            APSystem::CUserProc::GM_Set(user, static_cast<unsigned int>(std::atoi(args[2].c_str())));
         }
-        else if (arg1 == "reset")
+        else if (args[1] == "reset")
         {
             APSystem::CUserProc::GM_Reset(user);
         }
-        else if (arg1 == "gmmode")
+        else if (args[1] == "gmmode")
         {
             APSystem::CActionPointManager::_IsGMOn = 1;
         }
-        else if (arg1 == "realmode")
+        else if (args[1] == "realmode")
         {
             APSystem::CActionPointManager::_IsGMOn = 0;
             APSystem::CActionPointManager::_gmWeekday.m_weekday = 0;
         }
-        else if (arg1 == "week")
+        else if (args[1] == "week")
         {
-            int v = std::atoi(arg2.c_str());
+            int v = std::atoi(args[2].c_str());
             int weekday = 7;
             switch (v)
             {
@@ -1761,32 +1767,35 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
     }
     // ---- pcroom ----
-    else if (cmd == "pcroom")
+    else if (args[0] == "pcroom")
     {
-        Taiwan::Packet_Pcroom_Response pkt;
-        pkt.setResult(1);                             // +0x12（ORIG local_38c=1）
+        // ORIG pcroom：全局（非 Taiwan 命名空间）Packet_Pcroom_Response，
+        // setter 均内联写成员，无独立 call；长度走结构 +0x02 的 len 字段（=0x1f）。
+        Packet_Pcroom_Response pkt;
+        pkt.m_field12 = 1;                                        // +0x12 local_38c
+        pkt.m_field1a = 1;                                        // +0x1a local_384
+        pkt.m_field1b = 0xb;                                      // +0x1b local_383
         std::time_t now = std::time(0);
-        pkt.setPatchTime(static_cast<unsigned int>(now) + 0x93a80);  // +0x16（ORIG local_388）
-        pkt.setUid(user->GetUID());                   // +0x0a（ORIG local_394）
-        pkt.setAccId(user->get_acc_id());             // +0x0e（ORIG local_390）
-        pkt.setMobileAuth(1);                         // +0x1a（ORIG local_384=1）
-        pkt.setGcaType(0xb);                          // +0x1b（ORIG local_383=0xb）
+        pkt.m_expireTime = static_cast<int>(now) + 0x93a80;      // +0x16 local_388
+        pkt.m_uid = static_cast<int>(user->GetUID());            // +0x0a local_394
+        pkt.m_accId = user->get_acc_id();                        // +0x0e local_390
         {
             Stream* s = GlobalData::s_stream_pool->Acquire(
                 "PacketDispatcher_Impl_1.cpp", 0xbc0a);
             CStreamGuard g(s, true);
-            g << 0x17e;
-            g << static_cast<int>(user->GetUID());
+            (*g)->operator<<(0x17e);
+            (*g)->operator<<(pkt.m_uid);                                       // ORIG: local_394 (复用已存 GetUID)
             g->put_binary(reinterpret_cast<char*>(&pkt),
-                          static_cast<int>(pkt.getLen()));   // ORIG len=local_39c
+                          static_cast<int>(sizeof(pkt)));         // ORIG len=local_39c=0x1f
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), g);
         }
     }
     // ---- avatarcoin ----
-    else if (cmd == "avatarcoin")
+    else if (args[0] == "avatarcoin")
     {
-        unsigned int v = static_cast<unsigned int>(std::atoi(arg1.c_str()));
-        AvatarCoin* coinR = &user->getCurCharacInvenW()->m_avatarCoin;  // +0x658
+        unsigned int v = static_cast<unsigned int>(std::atoi(args[1].c_str()));
+        AvatarCoin* coinR = const_cast<AvatarCoin*>(
+            &user->getCurCharacInvenR()->m_avatarCoin);  // +0x658（ORIG 用 R 读）
         AvatarCoin* coinW = &user->getCurCharacInvenW()->m_avatarCoin;  // +0x658
         unsigned int total = v + coinR->Get();
         coinW->Set(total);
@@ -1794,51 +1803,54 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         AvatarCoin::SendSyncPacket(user);
     }
     // ---- avr sorneh/ghkrfbf ----
-    else if (cmd == "avr")
+    else if (args[0] == "avr")
     {
-        if (arg1 == "sorneh")
+        if (args[1] == "sorneh")
         {
-            short a = static_cast<short>(std::atoi(arg2.c_str()));
-            short b = static_cast<short>(std::atoi(arg3.c_str()));
-            ARAD::Singleton<AvatarRechargeServer>::Get()->GmReduceEndurance(user, a, b);
+            short a = static_cast<short>(std::atoi(args[2].c_str()));
+            short b = static_cast<short>(std::atoi(args[3].c_str()));
+            // ORIG 0x08212b42：GmReduceEndurance 为 static，直呼三参无 this
+            // （不引入 Singleton<>::Get() call，cmp_calls 实证 ORIG 侧无该 call）。
+            AvatarRechargeServer::GmReduceEndurance(user, a, b);
         }
-        else if (arg1 == "ghkrfbf")
+        else if (args[1] == "ghkrfbf")
         {
-            if (arg2 == "on")
-                ARAD::Singleton<AvatarRechargeServer>::Get()->GmChangeEnduranceReduceRate(
-                    user, true, std::atoi(arg3.c_str()));
-            else if (arg2 == "off")
-                ARAD::Singleton<AvatarRechargeServer>::Get()->GmChangeEnduranceReduceRate(user, false, 0);
+            if (args[2] == "on")
+                AvatarRechargeServer::GmChangeEnduranceReduceRate(
+                    user, true, std::atoi(args[3].c_str()));
+            else if (args[2] == "off")
+                AvatarRechargeServer::GmChangeEnduranceReduceRate(user, false, 0);
         }
     }
     // ---- startva ----
-    else if (cmd == "startva")
+    else if (args[0] == "startva")
     {
         if (user != 0)
         {
             Packet_Game_Monitor_GM_Village_Attacked pkt;
             pkt.m_flag = 1;                           // +0x0a（ORIG local_3b5）
-            pkt.m_a = std::atoi(arg1.c_str());        // +0x0c（ORIG local_3b4）
-            pkt.m_b = std::atoi(arg2.c_str());        // +0x10（ORIG local_3b0）
-            pkt.m_c = std::atoi(arg3.c_str());        // +0x14（ORIG local_3ac）
+            pkt.m_a = std::atoi(args[1].c_str());        // +0x0c（ORIG local_3b4）
+            pkt.m_b = std::atoi(args[2].c_str());        // +0x10（ORIG local_3b0）
+            pkt.m_c = std::atoi(args[3].c_str());        // +0x14（ORIG local_3ac）
             CMonitorServerProxy* proxy =
                 GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
             proxy->SendTcpPacket(reinterpret_cast<char*>(&pkt), 0x17);
         }
     }
     // ---- SetAvengerReady ----
-    else if (cmd == "SetAvengerReady")
+    else if (args[0] == "SetAvengerReady")
     {
-        int v = std::atoi(arg1.c_str());
-        std::string name = "Arad_EventPeriodDataManager";
+        int v = std::atoi(args[1].c_str());
         ARAD::Arad_DataManager* dm = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
         ARAD::Arad_EventPeriodDataManager* period =
             static_cast<ARAD::Arad_EventPeriodDataManager*>(
-                dm->findGameScript(name));
+                // ORIG：std::string 直接就地构造进 by-value 形参槽（无 copy ctor），
+                // 故内联临时，避免额外 _ZNSsC1ERKSs 与其析构。
+                dm->findGameScript(std::string("Arad_EventPeriodDataManager")));
         period->setCreatePeriod_GM(v);
     }
     // ---- SetCreateTime ----
-    else if (cmd == "SetCreateTime")
+    else if (args[0] == "SetCreateTime")
     {
         if (args.size() < 5)
         {
@@ -1866,49 +1878,49 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
     }
     // ---- aa time/star/ticket/reset ----
-    else if (cmd == "aa")
+    else if (args[0] == "aa")
     {
         advancealtar::CharacAdvanceAltarManager* mgr =
             &user->m_advanceAltar;                     // +0x8df60
-        if (arg1 == "time")
+        if (args[1] == "time")
         {
-            int v = std::atoi(arg2.c_str());
+            int v = std::atoi(args[2].c_str());
             if (0 < v && v < 0x33)
                 advancealtar::Manager::gmTimeSpeed_ = v;
         }
-        else if (arg1 == "star")
+        else if (args[1] == "star")
         {
-            int v = std::atoi(arg2.c_str());
+            int v = std::atoi(args[2].c_str());
             if (-1 < v && v < 1000)
                 mgr->gmSetStar(v);
         }
-        else if (arg1 == "ticket")
+        else if (args[1] == "ticket")
         {
-            int v = std::atoi(arg2.c_str());
+            int v = std::atoi(args[2].c_str());
             if (-1 < v && v < 100)
                 mgr->gmSetTicket(v);
         }
-        else if (arg1 == "reset" && arg2 == "star")
+        else if (args[1] == "reset" && args[2] == "star")
         {
-            int v = std::atoi(arg3.c_str());
+            int v = std::atoi(args[3].c_str());
             if (-1 < v && v < 2)
                 mgr->resetStar(user, static_cast<CMDPacketStruct::ResetStarType::T>(v));
         }
     }
     // ---- SetRewardLast / SetQuestLast / SetBreak ----
-    else if (cmd == "SetRewardLast")
+    else if (args[0] == "SetRewardLast")
     {
-        int v = StringToNumber(arg1.c_str());
+        int v = StringToNumber(args[1].c_str());
         CLocalChina_DB_LastDay_BreakAway::makeRequest(user->get_acc_id(), v, 1);
     }
-    else if (cmd == "SetQuestLast")
+    else if (args[0] == "SetQuestLast")
     {
-        int v = StringToNumber(arg1.c_str());
+        int v = StringToNumber(args[1].c_str());
         CLocalChina_DB_LastDay_BreakAway::makeRequest(user->get_acc_id(), v, 0);
     }
-    else if (cmd == "SetBreak")
+    else if (args[0] == "SetBreak")
     {
-        int v = StringToNumber(arg1.c_str());
+        int v = StringToNumber(args[1].c_str());
         GlobalData::s_BreakAwaySys->GM_UpdateUvList(
             user->get_acc_id(), static_cast<unsigned int>(v));
     }

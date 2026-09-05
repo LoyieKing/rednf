@@ -15,7 +15,16 @@ int getElementToEnumValue(std::string& s);            // 0x89bca42
 int getGradeToEnumValue(std::string& s);              // 0x89bcd5b
 int getObjectTypeToEnumValue(std::string& s);         // 0x89bbd99
 int getChangeStatusType(std::string& s);              // 0x8892b0d
+int getActivePropertyTypeToEnumValue(std::string& s); // ORIG 0x089bbe1e.
 int getNpcRoleByString(std::string name);             // 0x89fecee（按值传参，与 NpcScript.h 一致）
+int getCharacterJobToEnumValue(std::string& s);      // Existing ORIG symbol.
+int getAvatarEmblemType(const char* name);           // ORIG 0x08990f66.
+int GetEquipmentType(const char* name);              // ORIG 0x08990f1f.
+int getBuffToEnumValue(std::string& s);              // Existing ORIG symbol.
+int getEquipmentTypeToEnumValue(std::string& s);     // Existing ORIG symbol.
+int getStackableIncreaseStatusType(std::string& s);  // ORIG 0x089aee71.
+int getExcepttionStatusToEnumValue(std::string& s);  // ORIG 0x089bcde0.
+int scanWorldType();                                 // ORIG 0x088c1430.
 int getNpcMoodFromString(const char* name);           // 0x89faf46
 
 int scanModuleType();                                 // 0x88c0b9a（ORIG 返回 int）

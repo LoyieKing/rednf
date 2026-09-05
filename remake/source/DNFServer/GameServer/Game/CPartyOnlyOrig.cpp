@@ -1013,7 +1013,7 @@ unsigned char CParty::DestroyPassiveObject(int param)
 }
 
 // ORIG T 0x085b9f28（SetRidableObjectState.md）：坐骑状态转发战场层（返回值穿透）。
-int CParty::SetRidableObjectState(int state, eRidableObjectState type)
+bool CParty::SetRidableObjectState(int state, eRidableObjectState type)
 {
     return reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
         ->SetRidableObjectState(state, type);
@@ -1025,7 +1025,7 @@ int CParty::SetRidableObjectState(int state, eRidableObjectState type)
 
 // ORIG T 0x085ba906（OnTODRewardTimer.md）：0x2c 报文发送 TOD 结算奖励包，
 // EPLP 置 2、注册 0x15 层推进定时器后回到 state1，并注册 8 秒后的 0x2c 重投递。
-int CParty::OnTODRewardTimer(TIMER_MESSAGE msg)
+bool CParty::OnTODRewardTimer(TIMER_MESSAGE msg)   // CParty.h:592 bool（PSM 落，定义同步）
 {
     if (msg == 0x2c)
     {

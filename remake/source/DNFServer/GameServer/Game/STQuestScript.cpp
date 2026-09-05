@@ -135,7 +135,7 @@ QuestScript::QuestScript(const QuestScript& o)
       m_308(o.m_308)
 {
     for (int i = 0; i <= 2; ++i)
-        m_field230[i] = o.m_field230[i];
+        m_autoDisplay.m_values[i] = o.m_autoDisplay.m_values[i];
     for (int i = 0; i < 0xb; ++i)
     {
         m_jobNames[i] = o.m_jobNames[i];          // 指针浅拷贝（ORIG 同型）
@@ -217,7 +217,7 @@ void QuestScript::clear()
     m_field22d = 1;                  // +0x22d
     m_field22e = 0;                  // +0x22e
     for (int i = 0; i <= 2; ++i)
-        m_field230[i] = -1;          // +0x230..+0x23b
+        m_autoDisplay.m_values[i] = -1;          // +0x230..+0x23b
     m_field23c = 0;                  // +0x23c
     m_field270 = 0;                  // +0x270
     m_field271 = 1;                  // +0x271
@@ -544,7 +544,7 @@ int importQuestScript(QuestScript* script, const char* path)
     // 收尾时（IsLightServer）合并；[type]/[exception quest] 用 SpinLock+flag
     // 双检锁保护的静态 map 惰性填充（ORIG BSS 0x95004d8/0x95004f0/0x95004f4
     // 与 0x95004f8/0x9500510/0x9500514）。 ----
-    if (!loadRDARScriptFile("Script/QuestScript", path))
+    if (!loadRDARScriptFile(g_questScriptBaseDirectory, path))
     {
         return 0;
     }
@@ -717,7 +717,7 @@ int importQuestScript(QuestScript* script, const char* path)
                 std::string strStart;
                 if (!ScanStr(&strStart))
                 {
-                    return 0;
+                    break;                          // ORIG 首个时间串失败=本段结束，回主循环
                 }
                 std::string strEnd;
                 if (!ScanStr(&strEnd))
@@ -800,7 +800,7 @@ int importQuestScript(QuestScript* script, const char* path)
             {
                 printf("questScript->classChangeQuestType_(%d) > 0  and "
                        "questScript->growType_(%d) != -1",
-                       script->m_fieldF0, script->m_jobChangeQuest);
+                       script->m_jobChangeQuest, script->m_fieldF0);
                 return 0;
             }
             continue;
@@ -828,7 +828,7 @@ int importQuestScript(QuestScript* script, const char* path)
             {
                 printf("questScript->classChangeQuestType_(%d) > 0  and "
                        "questScript->growType_(%d) != -1",
-                       script->m_fieldF0, script->m_jobChangeQuest);
+                       script->m_jobChangeQuest, script->m_fieldF0);
                 return 0;
             }
             continue;
@@ -1048,7 +1048,8 @@ int importQuestScript(QuestScript* script, const char* path)
                     break;                           // 读完 → continue 主循环
                 }
                 int b = ScanInt((bool*)0);
-                script->m_rewardSelectList.push_back(std::make_pair(a, b));
+                std::pair<int, int> pair(a, b);
+                script->m_rewardSelectList.push_back(pair);
             }
             continue;
         }
@@ -1074,48 +1075,48 @@ int importQuestScript(QuestScript* script, const char* path)
             {
                 return 0;
             }
-            static std::map<const char*, int, less_TCHAR> s_questTriggerTypeMap;
-            static SpinLock s_questTriggerTypeLock;
-            static bool s_questTriggerTypeInit = false;
-            if (!s_questTriggerTypeInit)
+            static std::map<const char*, int, less_TCHAR> __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
+            if (!__inited)
             {
-                s_questTriggerTypeLock.enter();
-                if (!s_questTriggerTypeInit)
+                __init_lock.enter();
+                if (!__inited)
                 {
-                    s_questTriggerTypeMap["[seeking]"] = 0x32c;
-                    s_questTriggerTypeMap["[condition under clear]"] = 0x32f;
-                    s_questTriggerTypeMap["[hunt monster]"] = 0x332;
-                    s_questTriggerTypeMap["[clear map]"] = 0x335;
-                    s_questTriggerTypeMap["[meet npc]"] = 0x338;
-                    s_questTriggerTypeMap["[pvp rank]"] = 0x33b;
-                    s_questTriggerTypeMap["[hunt enemy]"] = 0x33e;
-                    s_questTriggerTypeMap["[powerwar win]"] = 0x342;
-                    s_questTriggerTypeMap["[powerwar point]"] = 0x345;
-                    s_questTriggerTypeMap["[mobile]"] = 0x34a;
-                    s_questTriggerTypeMap["[use item]"] = 0x34f;
-                    s_questTriggerTypeMap["[get score]"] = 0x352;
-                    s_questTriggerTypeMap["[clear quest]"] = 0x355;
-                    s_questTriggerTypeMap["[check time]"] = 0x358;
-                    s_questTriggerTypeMap["[check life]"] = 0x35b;
-                    s_questTriggerTypeMap["[amplify item]"] = 0x35e;
-                    s_questTriggerTypeMap["[disjoint item]"] = 0x361;
-                    s_questTriggerTypeMap["[equipped item]"] = 0x364;
-                    s_questTriggerTypeMap["[get item]"] = 0x367;
-                    s_questTriggerTypeMap["[custom quest]"] = 0x36a;
-                    s_questTriggerTypeMap["[send chatting]"] = 0x36f;
-                    s_questTriggerTypeMap["[turn gold card]"] = 0x372;
-                    s_questTriggerTypeMap["[use fortune coin]"] = 0x375;
-                    s_questTriggerTypeMap["[meet secret npc]"] = 0x378;
-                    s_questTriggerTypeMap["[ui click]"] = 0x37d;
-                    s_questTriggerTypeMap["[seek n meet npc]"] = 0x382;
-                    s_questTriggerTypeMap["[assault count]"] = 0x387;
-                    s_questTriggerTypeInit = true;
+                    __lookup.insert(std::pair<const char* const, int>("[seeking]", 0x32c));
+                    __lookup.insert(std::pair<const char* const, int>("[condition under clear]", 0x32f));
+                    __lookup.insert(std::pair<const char* const, int>("[hunt monster]", 0x332));
+                    __lookup.insert(std::pair<const char* const, int>("[clear map]", 0x335));
+                    __lookup.insert(std::pair<const char* const, int>("[meet npc]", 0x338));
+                    __lookup.insert(std::pair<const char* const, int>("[pvp rank]", 0x33b));
+                    __lookup.insert(std::pair<const char* const, int>("[hunt enemy]", 0x33e));
+                    __lookup.insert(std::pair<const char* const, int>("[powerwar win]", 0x342));
+                    __lookup.insert(std::pair<const char* const, int>("[powerwar point]", 0x345));
+                    __lookup.insert(std::pair<const char* const, int>("[mobile]", 0x34a));
+                    __lookup.insert(std::pair<const char* const, int>("[use item]", 0x34f));
+                    __lookup.insert(std::pair<const char* const, int>("[get score]", 0x352));
+                    __lookup.insert(std::pair<const char* const, int>("[clear quest]", 0x355));
+                    __lookup.insert(std::pair<const char* const, int>("[check time]", 0x358));
+                    __lookup.insert(std::pair<const char* const, int>("[check life]", 0x35b));
+                    __lookup.insert(std::pair<const char* const, int>("[amplify item]", 0x35e));
+                    __lookup.insert(std::pair<const char* const, int>("[disjoint item]", 0x361));
+                    __lookup.insert(std::pair<const char* const, int>("[equipped item]", 0x364));
+                    __lookup.insert(std::pair<const char* const, int>("[get item]", 0x367));
+                    __lookup.insert(std::pair<const char* const, int>("[custom quest]", 0x36a));
+                    __lookup.insert(std::pair<const char* const, int>("[send chatting]", 0x36f));
+                    __lookup.insert(std::pair<const char* const, int>("[turn gold card]", 0x372));
+                    __lookup.insert(std::pair<const char* const, int>("[use fortune coin]", 0x375));
+                    __lookup.insert(std::pair<const char* const, int>("[meet secret npc]", 0x378));
+                    __lookup.insert(std::pair<const char* const, int>("[ui click]", 0x37d));
+                    __lookup.insert(std::pair<const char* const, int>("[seek n meet npc]", 0x382));
+                    __lookup.insert(std::pair<const char* const, int>("[assault count]", 0x387));
+                    __inited = true;
                 }
-                s_questTriggerTypeLock.leave();
+                __init_lock.leave();
             }
             std::map<const char*, int, less_TCHAR>::const_iterator it =
-                s_questTriggerTypeMap.find(sub.c_str());
-            int type = (it != s_questTriggerTypeMap.end()) ? it->second : -1;
+                __lookup.find(sub.c_str());
+            int type = (it != __lookup.end()) ? it->second : -1;
             if (type == -1)
             {
                 return 0;                            // ORIG default → return 0
@@ -1215,6 +1216,7 @@ int importQuestScript(QuestScript* script, const char* path)
         if (line == "[condition data]")
         {
             script->m_field198.clear();
+            std::string s;
             for (;;)
             {
                 int key = ScanInt(&ok);
@@ -1222,7 +1224,6 @@ int importQuestScript(QuestScript* script, const char* path)
                 {
                     break;                           // 读完 → continue 主循环
                 }
-                std::string s;
                 ScanStr(&s);
                 std::pair<std::string, std::string> p;
                 p.first = s;
@@ -1345,8 +1346,8 @@ int importQuestScript(QuestScript* script, const char* path)
             script->m_titleReward.clear();
             // ORIG 8a6485a：rewardType<=0x19 且 (1<<rewardType)&0x3000001
             // （即 0/0x18/0x19）→ ScanRewardItems；否则仅读一 int + 跳行
-            if (script->m_rewardType <= 0x19 &&
-                ((1 << script->m_rewardType) & 0x3000001) != 0)
+            if (script->m_rewardType >= 0 && script->m_rewardType <= 0x19 &&
+                ((1u << static_cast<unsigned int>(script->m_rewardType)) & 0x3000001u) != 0)
             {
                 if (!ScanRewardItems(script->m_titleReward,
                                      "[/reward int data]"))
@@ -1414,26 +1415,22 @@ int importQuestScript(QuestScript* script, const char* path)
         }
         if (line == "[light exposed by npc]")
         {
-            if (ScanInt(&ok) == 1)
-            {
-                qd0.m_byte1c = 1;
-            }
+            qd0.m_byte18 = (ScanInt(&ok) == 1) ? 1 : 0;
             if (!ok)
             {
                 return 0;
             }
+            qd0.m_byte1c = 1;
             continue;
         }
         if (line == "[first exposed by npc]")
         {
-            if (ScanInt(&ok) == 1)
-            {
-                qd1.m_byte1c = 1;
-            }
+            qd1.m_byte18 = (ScanInt(&ok) == 1) ? 1 : 0;
             if (!ok)
             {
                 return 0;
             }
+            qd1.m_byte1c = 1;
             continue;
         }
         if (line == "[exposed by npc]")
@@ -1456,12 +1453,11 @@ int importQuestScript(QuestScript* script, const char* path)
         }
         if (line == "[auto display]")
         {
-            // ORIG 8a64c64..0x8a64cb1：3 个 int 直写 +0x8c/+0x90/+0x94
-            // （位于 m_jobConditions 指针数组槽位，ORIG 原样直写）
-            int* p = reinterpret_cast<int*>(&script->m_jobConditions[7]);
+            // ORIG 8a64c64..0x8a64cb1：3 个 int 写入 QuestScript +0x230/+0x234/+0x238。
+            // 这些字段由 QuestAutoDisplayData 具名建模，不能复用职业条件指针槽。
             for (int i = 0; i <= 2; ++i)
             {
-                p[i] = ScanInt(&ok);
+                script->m_autoDisplay.m_values[i] = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
@@ -1640,19 +1636,19 @@ int importQuestScript(QuestScript* script, const char* path)
         if (line == "[exception quest]")
         {
             // ORIG 0x8a652d7..0x8a65651：静态 map（BSS 0x95004f8）+ SpinLock
-            // （0x9500510）+ flag（0x9500514）；表仅 "urgent"→0x5c1。
-            static std::map<const char*, int, less_TCHAR> s_exceptionTypeMap;
-            static SpinLock s_exceptionTypeLock;
-            static bool s_exceptionTypeInit = false;
-            if (!s_exceptionTypeInit)
+            // （0x9500510）+ flag（0x9500514）；表仅 "[urgent]"→0x5c1。
+            static std::map<const char*, int, less_TCHAR> __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
+            if (!__inited)
             {
-                s_exceptionTypeLock.enter();
-                if (!s_exceptionTypeInit)
+                __init_lock.enter();
+                if (!__inited)
                 {
-                    s_exceptionTypeMap["urgent"] = 0x5c1;
-                    s_exceptionTypeInit = true;
+                    __lookup.insert(std::pair<const char* const, int>("[urgent]", 0x5c1));
+                    __inited = true;
                 }
-                s_exceptionTypeLock.leave();
+                __init_lock.leave();
             }
             for (;;)
             {
@@ -1670,8 +1666,8 @@ int importQuestScript(QuestScript* script, const char* path)
                     break;                           // 正常结束 → continue 主循环
                 }
                 std::map<const char*, int, less_TCHAR>::const_iterator it =
-                    s_exceptionTypeMap.find(sub.c_str());
-                int type = (it != s_exceptionTypeMap.end()) ? it->second : -1;
+                    __lookup.find(sub.c_str());
+                int type = (it != __lookup.end()) ? it->second : -1;
                 if (type == 0 || type == 0x5c1)
                 {
                     script->m_exceptionList.push_back(
@@ -1687,21 +1683,21 @@ int importQuestScript(QuestScript* script, const char* path)
         if (line == "[hide npc on clear]")
         {
             value = ScanInt(&ok);
+            script->m_vec2f0.push_back(value);
             if (!ok)
             {
                 return 0;
             }
-            script->m_vec2f0.push_back(value);
             continue;
         }
         if (line == "[show npc on clear]")
         {
             value = ScanInt(&ok);
+            script->m_vec2fc.push_back(value);
             if (!ok)
             {
                 return 0;
             }
-            script->m_vec2fc.push_back(value);
             continue;
         }
         if (line == "[show click on complete npc]")
@@ -1751,10 +1747,9 @@ int importQuestScript(QuestScript* script, const char* path)
     {
         script->m_fieldE8 = script->m_npcIdx;
     }
-    // ORIG 8a65902：无目标角色且 job==0xb（全职业）且 growType==-1 时补
-    // 默认目标角色（awakening 取 m_fieldE0），重复则跳过
-    if (!script->m_targetCharacters.empty() &&
-        script->m_fieldEC == 0xb && script->m_fieldF0 == -1)
+    // ORIG：仅当已有目标且 job==0xb 且 growType==-1 时跳过默认目标，其余情况补入。
+    if (script->m_targetCharacters.empty() ||
+        script->m_fieldEC != 0xb || script->m_fieldF0 != -1)
     {
         stQuestTargetCharacter_t t(
             static_cast<ENUM_CHARACTERJOB>(script->m_fieldEC),
@@ -1782,20 +1777,21 @@ int initTownScript(char* dir, char* list)
 
 bool importTownScript(TownScript* script, const char* path)
 {
-    // ORIG T 0x8aada90（382 条）：键值解析器。ScanType 失败=文件读完（break，
-    // 非错误）；ScanStr/ScanInt 返回值不检查（ORIG 无防御，Fix7_I 2026-08-30 修正）。
-    if (!loadRDARScriptFile("Script/TownScript", path))
+    // ORIG T 0x8aada90（382 条）：ScanType 失败=文件读完并成功收尾；各标签
+    // 的 ScanStr/ScanInt 按报告保留其原始检查边界。
+    if (!loadRDARScriptFile(g_townScriptBaseDirectory, path))
     {
         return false;
     }
     script->clear();
 
-    // ORIG：getDirectoryPath(script->m_str38, "%s%s", g_townScriptBaseDirectory)
-    getDirectoryPath(script->m_str38, "%s%s", g_townScriptBaseDirectory);
+    // ORIG：getDirectoryPath(script->m_str38, "%s%s", g_townScriptBaseDirectory, path)
+    getDirectoryPath(script->m_str38, "%s%s", g_townScriptBaseDirectory, path);
 
     std::string line;
     std::string sub;
     int value = 0;
+    bool flag = false;
     for (;;)
     {
         if (!ScanType(line, true))
@@ -1843,14 +1839,12 @@ bool importTownScript(TownScript* script, const char* path)
             ScanStr(&sub);                          // ORIG 8aadca4 ScanStr（非 ScanType）
             if (sub == "[minimap rect]")
             {
-                // ORIG 8aadcca..8aadd75：T_Rect 复用 + 多个 rect，
-                // 每个 rect 至多 4 值（m_00/m_08/m_04/m_0c），以 flag 失败终止。
+                // ORIG 8aadcca..8aadd75：T_Rect 复用 + 多个 rect；内层每次
+                // ScanInt 得到下一项，四项后的值直接作为下一矩形首项复用。
                 T_Rect r;
-                for (;;)
+                value = ScanInt(&flag);                 // 8aadcd5
+                while (flag)
                 {
-                    value = ScanInt(&flag);         // 8aadcd5
-                    if (!flag)
-                        break;                      // 8aadd63 flag 检查
                     int i = 0;
                     do
                     {
@@ -1862,12 +1856,10 @@ bool importTownScript(TownScript* script, const char* path)
                             r.m_04 = value;
                         else
                             r.m_0c = value;
-                        value = ScanInt(&flag);     // 8aadd1e
+                        value = ScanInt(&flag);         // 8aadd1e
                         ++i;
-                    } while (i <= 3 && flag);       // 8aadd30
-                    area.m_rects.push_back(r);      // 8aadd4e
-                    if (!flag)
-                        break;                      // 8aadd63：读到新值则继续新 rect
+                    } while (i <= 3 && flag);           // 8aadd30
+                    area.m_rects.push_back(r);           // 8aadd4e
                 }
                 ScanStr(&sub);                      // ORIG 8aadd6f ScanStr
             }
@@ -1908,12 +1900,22 @@ bool importTownScript(TownScript* script, const char* path)
         }
         if (line == "[limit level]")
         {
-            script->m_3c = ScanInt((bool*)0);
+            int level = ScanInt(&flag);
+            if (!flag)
+            {
+                return false;
+            }
+            script->m_3c = level;
             continue;
         }
         if (line == "[need quest]")
         {
-            script->m_40 = ScanInt((bool*)0);
+            int quest = ScanInt(&flag);
+            if (!flag)
+            {
+                return false;
+            }
+            script->m_40 = quest;
             continue;
         }
         // 未知键：忽略（回到循环读下一行）
@@ -1926,10 +1928,8 @@ bool importTownScript(TownScript* script, const char* path)
 
 int importTrainingQuestScript(TrainingQuestScript* script, const char* path)
 {
-    // ORIG T 0x8aaf542（258 条）逐指令转写：键值解析器。
-    // 键：[select prob] count+pairs；[rand value] dayProb[366]；
-    // [level] 递增序号段 → m_questProb[prev]，否则（含 -100）→ m_sameApplyQuest；
-    // [training quest end] 终止。
+    // ORIG T 0x8aaf542（258 条）：键值段只由 ScanInt 消费数值，外层 ScanType
+    // 负责进入下一个标签；遇到 [training quest end] 才以成功返回。
     if (!loadRDARScriptFile("", path))
     {
         return 0;
@@ -1937,8 +1937,9 @@ int importTrainingQuestScript(TrainingQuestScript* script, const char* path)
     script->clear();
 
     std::string line;
-    std::string sub;
+    std::string sub;       // ORIG 局部字符串槽（闭合标签比较不改变数值消费）
     int prev = 0;
+    bool ok = false;
     for (;;)
     {
         if (!ScanType(line, true))
@@ -1947,88 +1948,84 @@ int importTrainingQuestScript(TrainingQuestScript* script, const char* path)
         }
         if (line == "[select prob]")
         {
-            if (!ScanInt(&script->m_selectProb.m_count))
+            script->m_selectProb.m_count = ScanInt(&ok);
+            if (!ok)
+            {
                 return 0;
+            }
             for (;;)
             {
-                int a = 0, b = 0;
-                if (!ScanInt(&a))
+                int a = ScanInt(&ok);
+                if (!ok)
+                {
                     break;
-                if (!ScanInt(&b))
+                }
+                int b = ScanInt(&ok);
+                if (!ok)
+                {
                     break;
-                script->m_selectProb.m_pairs.push_back(std::make_pair(a, b));
-                if (!ScanType(sub, true))
-                    break;
-                if (sub == "[/select prob]")
-                    break;
+                }
+                std::pair<int, int> pair(a, b);
+                script->m_selectProb.m_pairs.push_back(pair);
             }
             continue;
         }
         if (line == "[rand value]")
         {
-            for (int i = 0; i <= 0x16d; ++i)
+            for (int day = 0; day <= 0x16d; ++day)
             {
-                int j = 0;
-                for (;;)
+                int count = 0;
+                while (count < script->m_selectProb.m_count)
                 {
-                    int v = 0;
-                    if (!ScanInt(&v))
+                    int v = ScanInt(&ok);
+                    if (!ok)
+                    {
                         break;
-                    script->m_selectProb.m_dayProb[i].push_back(v);
-                    ++j;
-                    if (j >= script->m_selectProb.m_count)
-                        break;
+                    }
+                    script->m_selectProb.m_dayProb[day].push_back(v);
+                    ++count;
                 }
-                if (!ScanType(sub, true))
-                    break;
-                if (sub == "[/rand value]")
-                    break;
             }
             continue;
         }
         if (line == "[level]")
         {
-            int v = 0;
-            if (!ScanInt(&v))
-                return 0;
-            if (v != -100 && v == prev + 1)
+            int level = ScanInt((bool*)0);
+            if (prev + 1 == level)
             {
-                // 递增序号：值进 m_questProb[prev]
+                // ORIG：递增序号段的数值进 m_questProb[prev]，行首失败仅结束该段。
                 for (;;)
                 {
-                    int x = 0;
-                    if (!ScanInt(&x))
+                    int value = ScanInt(&ok);
+                    if (!ok)
+                    {
                         break;
-                    script->m_questProb[prev].push_back(x);
-                    if (!ScanType(sub, true))
-                        break;
-                    if (sub == "[/level]")
-                        break;
+                    }
+                    script->m_questProb[prev].push_back(value);
                 }
-                prev = v;
+                prev = level;
             }
-            else
+            else if (level == -100)
             {
-                // 非递增（含 -100）：值进 m_sameApplyQuest
+                // ORIG：-100 段的数值进 m_sameApplyQuest。
                 for (;;)
                 {
-                    int x = 0;
-                    if (!ScanInt(&x))
+                    int value = ScanInt(&ok);
+                    if (!ok)
+                    {
                         break;
-                    script->m_sameApplyQuest.push_back(x);
-                    if (!ScanType(sub, true))
-                        break;
-                    if (sub == "[/level]")
-                        break;
+                    }
+                    script->m_sameApplyQuest.push_back(value);
                 }
             }
             continue;
         }
         if (line == "[training quest end]")
-            break;
+        {
+            return 1;
+        }
         // 未知键：忽略（回循环读下一行）
     }
-    return 1;
 }
 
 // ORIG B 0x09500380：脚本根目录（EpisodeScript 等 loadRDARScriptFile 首参）。

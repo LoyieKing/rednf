@@ -25,7 +25,7 @@ public:
 class DisPatcher_Login : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_Login();
+    DisPatcher_Login() throw();   // ORIG PacketDispatcher ctor 槽1 new 无 EH cleanup
     int m_field4;   // +0x04（ORIG C1 0x081e8b7e 域写 0；登录态标记占位）
     virtual ~DisPatcher_Login();
     int dispatch_sig(CUser* user, PacketBuf& packet);
@@ -109,7 +109,9 @@ public:
 class DisPatcher_ReturnToSelectCharacter : public IPacketDispatcher<MSG_BASE, ParamBase, (ch_state)0>
 {
 public:
-    DisPatcher_ReturnToSelectCharacter() {}
+    DisPatcher_ReturnToSelectCharacter() {}   // ORIG C1 0x085959e0 仅 28B（不初始化 +4）
+    int m_field4;   // +0x04 占位（ORIG PacketDispatcher ctor 槽7 new(8) 实证对象 8B；C1 不写、
+                    //  dispatch_sig 0x081fd25c 无 this+4 访问 → 纯数据成员，无名可依）
     virtual ~DisPatcher_ReturnToSelectCharacter();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
@@ -894,10 +896,11 @@ public:
     virtual ~DisPatcher_UdpCharacteristic();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    // wave1: ORIG W 三 ping（0x0821b098/0x0821afbc/0x0821b02a；报告在，定义待落地）
-    void partyPingStat(CUser* user, unsigned short& a, unsigned short& b);
-    void pvpPingStat(CUser* user, unsigned short& a, unsigned short& b);
-    void fairPvpPingStat(CUser* user, unsigned short& a, unsigned short& b);
+    // wave1: ORIG W 三 ping（0x0821b098/0x0821afbc/0x0821b02a）。ORIG 尾
+    // `mov $0x0,%eax; leave…ret` ⇒ int 返回尾 0（mangled 不含返回类型，零 ABI 风险）。
+    int partyPingStat(CUser* user, unsigned short& a, unsigned short& b);
+    int pvpPingStat(CUser* user, unsigned short& a, unsigned short& b);
+    int fairPvpPingStat(CUser* user, unsigned short& a, unsigned short& b);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
 

@@ -96,11 +96,16 @@ private:
 // ----------------------------------------------------------------------------
 struct stHacktypeExceptionInfo_t
 {
-    unsigned short m_cnt;    // +0x00（ctor 第一参）
-    unsigned short m_flag;   // +0x02（ctor 第二参）
+    // 类型取 short 与 ctor 形参全等：ORIG 0x080f983e store 前 this 先载
+    // （技巧5 定律：类型全等⇒this 先；unsigned short⇒arg 先）。两字段
+    // 除 ctor 外全工程无直接读写点（仅结构拷贝）。
+    short m_cnt;     // +0x00（ctor 第一参）
+    short m_flag;    // +0x02（ctor 第二参）
 
     stHacktypeExceptionInfo_t(short cnt, short flag)
-        : m_cnt((unsigned short)cnt), m_flag((unsigned short)flag)
+        // ORIG 0x080f983e/0x080f9848：store 前 this 先载 ⇒ 4.4 需成员与实参
+        // 类型全等直存形；显式 (unsigned short) 转换使 gcc 提前装载 temp。
+        : m_cnt(cnt), m_flag(flag)
     {
     }
 };

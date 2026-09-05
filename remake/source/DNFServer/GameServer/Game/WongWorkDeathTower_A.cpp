@@ -334,8 +334,10 @@ void CDeathTower::CPacketHandler::makeUpdateItemList(CUser* user, ENUM_ITEMSPACE
 // ==============================================================================
 // CPlayData::generateRewardExp（ORIG T 0x08462538）
 //
-// 权重表：DataManager 基址 +0xc+(stage+tier)*4 的 float 数组（tier 依
-// CDungeon::limitOfStackableItemInTower 取 0x1464 或 0x15f4）；所得 exp 与最终
+// 权重表：ORIG `flds 0xc(dm + (stage+tier)*4)` = m_deathTower.m_rewardExpWeight
+// （tier 0x1464）/ m_illusionRewardExpWeight（tier 0x15f4）——基址
+// 0x5198+0x4/0x644 与 0xc+0x1464*4/0xc+0x15f4*4 精确吻合（float 读取，ORIG
+// 报告 WongWork__CDeathTower__CPlayData/generateRewardExp.md）；所得 exp 与最终
 // 结算结果 >0x10c8e0(1100000) 时写 BLOOD_LOG 并截断。各加成系数仅进日志参数流。
 // ==============================================================================
 void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
@@ -350,21 +352,19 @@ void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
     {
         // ORIG 两分支重复代码：32 位乘积先物化、G_CDataManager 后取（求值序照 ORIG）
         reward = (unsigned int)(long long)((float)(long long)(stage * baseExp) *
-            *(float*)((char*)G_CDataManager() + 0xc +
-                      ((unsigned int)stage + 0x1464) * 4));
+            G_CDataManager()->m_deathTower.m_rewardExpWeight[stage]);
     }
     else
     {
         // ORIG 非有限堆叠档（+0x15f4）
         reward = (unsigned int)(long long)((float)(long long)(stage * baseExp) *
-            *(float*)((char*)G_CDataManager() + 0xc +
-                      ((unsigned int)stage + 0x15f4) * 4));
+            G_CDataManager()->m_deathTower.m_illusionRewardExpWeight[stage]);
     }
 
     if (1100000 < reward)
     {
-        const float logWeight = *(float*)((char*)G_CDataManager() + 0xc +
-                                          ((unsigned int)stage + 0x1464) * 4);
+        const float logWeight =
+            G_CDataManager()->m_deathTower.m_rewardExpWeight[stage];
         LogManager::logFormat(1, kFile_DeathTower, kFunc_generateRewardExp, 0x2ff,
             "BLOOD_LOG : EROOR DEATHTOWER REWARD EXP(%u), LAST STAGE(%d), BASE EXP(%u), EXP WEIGHT(%f)\n",
             reward, stage, baseExp, (double)logWeight);
@@ -442,11 +442,15 @@ void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
 //
 // 期望掉落条数写入 m_rewards[memberIdx].m_itemCnt；循环 count 次投掷
 // get_rand_int(1000)：rnd>rate 高阶掉落分支的概率锚点为 DataManager+0x5e20 /
-// +0x5e24（乘 param5 比较），计数率因子 +0x5e2c。随机分支经生成器虚槽 +0x08
+// +0x5e24（乘 param5 比较）= m_deathTower.m_rewardItemProb[0]/[1]（0x5198+0xc88
+// 起 int 数组，ORIG `mov 0x5e20(%eax),%eax` int 宽实证）；计数率因子
+// +0x5e2c = m_deathTower.m_rewardGoldWeight（ORIG `flds` float）。随机分支经生成器虚槽 +0x08
 // （generateRandomItem）；受控分支经虚槽 +0x0c（generateSpecificItem，ref 带
 // dungeon/m_rankBonusIndex/goldBase/Factor 上下文）。受控分支额外触发幸运点
 // 扣减（::CLuckPoint::UseLuckPoint）。ref 对象由其 ctor 初始化，上下文区按
-// ORIG 原始偏移写入。
+// 具名字段写入（宽度逐条对齐 ORIG：movb/movw/movl，见
+// WongWork__CDeathTower__CPlayData/generateRewardItem.md 0846205d..099 /
+// 084622bc..328）。
 // ==============================================================================
 void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
                                                 const CDungeonMgr& dungeonMgr,
@@ -466,19 +470,22 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
             party->GetLuckPoint(&luck, false);
 
         const int roll = get_rand_int(1000);
-        const unsigned int boundHigh = (unsigned int)(*(int*)((char*)G_CDataManager() + 0x5e20) * (int)param5);
+        const unsigned int boundHigh = (unsigned int)(
+            G_CDataManager()->m_deathTower.m_rewardItemProb[0] * (int)param5);
         if ((roll > (int)boundHigh || boundHigh - (unsigned int)roll == 0))
         {
             // ---- 受控特定掉落分支（ORIG +0x2df：vtable+0x0c specific）----
-            if ((unsigned int)roll <= (unsigned int)(*(int*)((char*)G_CDataManager() + 0x5e24) * (int)param5) &&
-                (unsigned int)(*(int*)((char*)G_CDataManager() + 0x5e24) * (int)param5) - (unsigned int)roll != 0)
+            if ((unsigned int)roll <= (unsigned int)(
+                    G_CDataManager()->m_deathTower.m_rewardItemProb[1] * (int)param5) &&
+                (unsigned int)(G_CDataManager()->m_deathTower.m_rewardItemProb[1] *
+                               (int)param5) - (unsigned int)roll != 0)
             {
-                // ref 上下文区按 ORIG 084622bc..308 原始偏移写入
-                *(char*)((char*)&ref + 0x35) = 0;
-                *(char*)((char*)&ref + 0x34) = (char)param4;
-                *(int*)((char*)&ref + 0x38) = 0x3f800000;      // float 1.0f 位型
-                *(CDungeon**)((char*)&ref + 0x40) = dungeonMgr.getDungeon();
-                *(int*)((char*)&ref + 0x3c) = 0;
+                // ref 上下文区（ORIG 084622bc..328：movb/movb/movl/movl/movl）
+                ref.m_field35 = 0;
+                ref.m_field34 = (char)param4;
+                ref.m_rankBonusIndex = 0x3f800000;             // float 1.0f 位型（ORIG movl）
+                ref.m_dungeon = dungeonMgr.getDungeon();       // ORIG movl（指针）
+                *reinterpret_cast<int*>(&ref.m_goldBase) = 0;  // ORIG movl $0 覆盖 +0x3c/+0x3e
 
                 CItemGeneratorMgr* genMgr = G_CDataManager()->getItemGenerator();
                 CItemGenerator* gen = genMgr->getGenerator(
@@ -509,15 +516,15 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
         else
         {
             // ---- 随机掉落分支（ORIG +0x0f2：vtable+0x08 random）----
-            // ref 上下文区按 ORIG 0846205d..099 原始偏移写入
-            *(char*)((char*)&ref + 0x35) = 0;
-            *(char*)((char*)&ref + 0x34) = (char)param4;
-            *(char*)((char*)&ref + 0x36) = 1;
-            *(int*)((char*)&ref + 0x38) = 1;                   // m_rankBonusIndex
-            *(unsigned short*)((char*)&ref + 0x3c) = 1;        // m_goldBase
-            *(unsigned short*)((char*)&ref + 0x3e) = 1;        // m_goldFactor
-            *(unsigned short*)((char*)&ref + 0x40) = 1;        // m_dungeon 低 16 位（ORIG 原样）
-            *(unsigned short*)((char*)&ref + 0x42) = 1;        // m_dungeon 高 16 位（ORIG 原样）
+            // ref 上下文区（ORIG 0846205d..099：movb/movb/movb/movl/movw×4）
+            ref.m_field35 = 0;
+            ref.m_field34 = (char)param4;
+            ref.m_rateSlot = 1;
+            ref.m_rankBonusIndex = 1;                          // ORIG movl
+            ref.m_goldBase = 1;                                // ORIG movw +0x3c
+            ref.m_goldFactor = 1;                              // ORIG movw +0x3e
+            *reinterpret_cast<unsigned short*>(&ref.m_dungeon) = 1;       // ORIG movw 低 16 位
+            *(reinterpret_cast<unsigned short*>(&ref.m_dungeon) + 1) = 1; // ORIG movw 高 16 位
 
             stGenerateResult_t randomResult;                   // ORIG -0xb8 独立结果区
             CItemGeneratorMgr* genMgr = G_CDataManager()->getItemGenerator();
@@ -541,8 +548,9 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
                 Inven_Item& dst = m_rewards[memberIdx].m_items[i];
                 dst.setCopy(randomResult.m_dropItems.front());
                 const int addInfo = dst.get_add_info();
-                // ORIG：fildl addInfo/flds 0x5e2c/fmuls/fistpl（默认控制字就近舍入）
-                dst.set_add_info((int)((float)addInfo * *(float*)((char*)G_CDataManager() + 0x5e2c)));
+                // ORIG：fildl addInfo/flds m_rewardGoldWeight/fmuls/fistpl（默认控制字就近舍入）
+                dst.set_add_info((int)((float)addInfo *
+                                       G_CDataManager()->m_deathTower.m_rewardGoldWeight));
             }
         }
     }

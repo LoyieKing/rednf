@@ -44,7 +44,7 @@ public:
     int GetObjectCnt();                                      // ORIG 0x830ea0a（W，非 const：_ZN8CRidable12GetObjectCntEv）
     void GetObjectPos(std::vector<std::pair<int, int> >& out);  // ORIG 0x82fec2c 非const
     void SetRidableObject(RidableScript& script);            // ORIG 0x82fe6d0
-    int SetRidableObjectState(int idx, eRidableObjectState state);   // ORIG 0x82feb5e（返回 0/1，Dispatcher_OperateRidableObject 0x08226eed 消费）
+    bool SetRidableObjectState(int idx, eRidableObjectState state);   // ORIG 0x82feb5e（0/1 直返 = bool ABI；CParty 0x085b9f28 纯转发 call;leave;ret 无转换实证）
     void CheckAppearRidableObject(CParty* party, int a, int b, PacketGuard* p);  // ORIG 0x82fe9c8
     void SendSpawnRidableObject(PacketGuard* p, int a, int b, int c, int d);     // ORIG 0x82fece2
 

@@ -31,6 +31,8 @@
 #include "QuickParty.h"       // 先于 CDataManager/CDungeon 链：QUICKPARTY_H 守卫去重
 #include "CDataManager.h"     // G_CDataManager/find_dungeon/find_map
 #include "CDungeon.h"         // CDungeon::get_index
+// CMap 完整类型（startStage/isEndStage 直取 m_map->m_timeLine@+0xf4 / m_110@+0x110）
+#include "CMap.h"
 #include "CSystemTime.h"      // CSystemTime::getCurSec
 #include "GlobalData.h"       // s_systemTime_
 #include "CGameManager.h"     // StageControl 完整声明（dungeonClearInfo 引用）
@@ -89,14 +91,19 @@ void CharacData::reset()
 // ----------------------------------------------------------------------------
 void CharacData::upGage()
 {
-    CDataManager* dm = G_CDataManager();
-    char* cfg = (char*)dm + 0x6364;  // CDataManager 配置区（CData 域偏移）
-    int base = **(int**)(cfg + 0x18);
-    int maxGage = base * *(int*)(cfg + 0x0c + (m_gageLevel + 4) * 4);
+    // CDataManager 配置区基址具名化：+0x6364 = CDataManager::m_altarConfig（ConfigParameter）。
+    // 证据 CDataManager.h:3550 + upGage.md 汇编 +0x0b `add $0x6364,%eax`。
+    ConfigParameter* cfg = &G_CDataManager()->m_altarConfig;
+    // +0x18 = m_strPtr（char*，ctor 指向 m_gageUpRate[0]）；ORIG 双解引 mov 0x18(%eax);mov(%eax)。
+    int base = *reinterpret_cast<int*>(cfg->m_strPtr);
+    // ORIG `mov 0xc(%eax,%edx,4)` edx=level+4 = cfg+0x1c+level*4 = m_gageUpAux[level]
+    //   （ConfigParameter+0x1c int[4]，[gage up rate] 第 3 列）。
+    int maxGage = base * cfg->m_gageUpAux[m_gageLevel];
     if (m_gage < maxGage)
     {
-        float inc = (float)*(int*)(cfg + 0x08) *
-                    ((float)*(int*)(cfg + 0x08 + m_gageLevel * 4) / (float)base);
+        // +0x08 = m_gageUpRate[0]；+0x08+level*4 = m_gageUpRate[level]（ORIG mov 0x8(%eax)/mov 0x8(%eax,%edx,4)）。
+        float inc = (float)cfg->m_gageUpRate[0] *
+                    ((float)cfg->m_gageUpRate[m_gageLevel] / (float)base);
         m_gage = m_gage + (int)(inc + 0.5f);
     }
     else
@@ -130,8 +137,8 @@ CUser* CharacData::getUser() const
 _SummonObjectMs::_SummonObjectMs()
 {
     // gcc 4.4 不支持显式 ctor 调用语法（Fix14_F 记录），用 placement new 复现
-    // ORIG 子对象构造序列（ctor 本身 memset 0x24）。
-    new (reinterpret_cast<void*>(reinterpret_cast<char*>(this) + 0x14)) _SummonObject;
+    // ORIG 子对象构造序列（ctor 本身 memset 0x24）。m_summon 字节槽即 _SummonObject@+0x14。
+    new (static_cast<void*>(m_summon)) _SummonObject;
     std::memset(this, 0, sizeof(*this));
 }
 
@@ -272,12 +279,13 @@ void ProcStage::ProcSummonObjectMs::debugLog() const
              it != m_summons.end(); ++it)
         {
             const _SummonObjectMs* so = *it;
+            const _SummonObject* sm = reinterpret_cast<const _SummonObject*>(so->m_summon);
             trace("\tVecotr Ms = %06d ActionDefineId=%d ObjectId=%d spawndId=%d isDead=%d ObjectType=%d ObjectIndex=%d\n",
                   so->m_ms, so->m_actionDefineId,
-                  *reinterpret_cast<const int*>(so->m_summon + 0x00),
+                  sm->m_id,
                   static_cast<int>(so->m_seq), static_cast<int>(so->m_deadFlag),
-                  *reinterpret_cast<const int*>(so->m_summon + 0x08),
-                  *reinterpret_cast<const int*>(so->m_summon + 0x0c));
+                  sm->m_type,
+                  sm->m_field0c);
         }
     }
     {
@@ -288,12 +296,13 @@ void ProcStage::ProcSummonObjectMs::debugLog() const
              it != m_summonMap.end(); ++it)
         {
             const _SummonObjectMs* so = it->second;
+            const _SummonObject* sm = reinterpret_cast<const _SummonObject*>(so->m_summon);
             trace("\tMap Ms = %06d ActionDefineId=%d ObjectId=%d spawndId=%d isDead=%d ObjectType=%d ObjectIndex=%d\n",
                   so->m_ms, so->m_actionDefineId,
-                  *reinterpret_cast<const int*>(so->m_summon + 0x00),
+                  sm->m_id,
                   static_cast<int>(so->m_seq), static_cast<int>(so->m_deadFlag),
-                  *reinterpret_cast<const int*>(so->m_summon + 0x08),
-                  *reinterpret_cast<const int*>(so->m_summon + 0x0c));
+                  sm->m_type,
+                  sm->m_field0c);
         }
     }
 }
@@ -322,7 +331,7 @@ int ProcStage::ProcSummonObjectMs::dieMob(unsigned short mobSeq, unsigned short 
         CUser* user = m_characData->getUser();
         if (user != 0)
         {
-            const int monsterId = *reinterpret_cast<const int*>(so->m_summon);
+            const int monsterId = reinterpret_cast<const _SummonObject*>(so->m_summon)->m_id;
             HistoryLog::killMonster(*user, monsterId, msg);
         }
         return 1;
@@ -536,9 +545,8 @@ int ProcStage::getStageType() const
     {
         return 0;
     }
-    // STDungeonScript 舞台类型字段（getStageType 报告偏移实证）
-    return *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(m_dungeon) + 0x804);
+    // CDungeon+0x804 = m_advanceAltarType（int；getStageType.md 汇编 `mov 0x804(%eax),%eax`）。
+    return m_dungeon->m_advanceAltarType;
 }
 
 // ORIG W 0x0813486c：return *(int*)(this+0x68)。
@@ -672,9 +680,8 @@ int ProcStage::startStage(int stageId, StageDifficulty::T diff)
         reset(StageType::STAGE_SURVIVAL);
         if (isSurvivalModeFirstRound())
         {
-            // ORIG: roundMaps = *(std::vector<int>*)(dungeon+0x814); random_shuffle。
-            const std::vector<int>& src = *reinterpret_cast<const std::vector<int>*>(
-                reinterpret_cast<const char*>(m_dungeon) + 0x814);
+            // ORIG: roundMaps = dungeon->m_vec814（CDungeon+0x814，startStage.md `lea 0x814(%eax)`）；random_shuffle。
+            const std::vector<int>& src = m_dungeon->m_vec814;
             m_roundMaps = src;
             std::random_shuffle(m_roundMaps.begin(), m_roundMaps.end());
             // ORIG: state=1、startStageTime=getCurSec、HistoryLog::enterDungeon。
@@ -700,13 +707,12 @@ int ProcStage::startStage(int stageId, StageDifficulty::T diff)
         reset(StageType::STAGE_NORMAL);
         m_difficulty = static_cast<int>(diff);
         m_state = 1;
-        // ORIG: mapIdx/mapBasisLevel 按 difficulty（非 stageId）索引 dungeon 表。
-        mapIdx = *reinterpret_cast<const int*>(
-            reinterpret_cast<const char*>(m_dungeon) +
-            static_cast<unsigned int>(diff + 0x200) * 4);
-        m_mapBasisLevel = *reinterpret_cast<const int*>(
-            reinterpret_cast<const char*>(m_dungeon) +
-            static_cast<unsigned int>(diff + 0x208) * 4);
+        // ORIG: mapIdx/mapBasisLevel 按 difficulty 索引 CDungeon 表——
+        //   mapIdx: `mov 0x8(%eax,%edx,4)` edx=diff+0x200 → dungeon+0x808+diff*4 = m_808[diff]
+        //     （原实现漏 +0x8 基址，此为偏移修正；CDungeon.h +0x808 int[3]）；
+        //   mapBasisLevel: `mov (%eax,%edx,4)` edx=diff+0x208 → dungeon+0x820+diff*4 = m_820[diff]。
+        mapIdx = m_dungeon->m_808[static_cast<unsigned int>(diff)];
+        m_mapBasisLevel = m_dungeon->m_820[static_cast<unsigned int>(diff)];
         m_startStageTime = GlobalData::s_systemTime_.getCurSec();
         HistoryLog::enterDungeon(*user, *this);
     }
@@ -716,7 +722,7 @@ int ProcStage::startStage(int stageId, StageDifficulty::T diff)
     {
         return 0x15;
     }
-    m_timeLine = reinterpret_cast<TimeLine*>(reinterpret_cast<char*>(m_map) + 0xf4);
+    m_timeLine = &m_map->m_timeLine;   // CMap+0xf4 TimeLine（startStage.md `lea 0xf4(%eax)`）
     return 0;
 }
 
@@ -849,15 +855,16 @@ int CharacData::getGageLevel() const
 // ----------------------------------------------------------------------------
 void CharacData::upgreadGage()
 {
-    char* cfg = reinterpret_cast<char*>(G_CDataManager()) + 0x6364;
+    ConfigParameter* cfg = &G_CDataManager()->m_altarConfig;  // CDataManager+0x6364（upgreadGage.md `add $0x6364`）
     if (m_gageLevel == 3)
     {
         return;   // ORIG eax=2：满级错误码 2 [返回值未使用，函数体忠实转写]
     }
-    const int base = **reinterpret_cast<int**>(cfg + 0x18);
-    const float ratio = *reinterpret_cast<const float*>(cfg + 4);
-    const int tableValue =
-        *reinterpret_cast<const int*>(cfg + 0x0c + (m_gageLevel + 4) * 4);
+    // +0x18 = m_strPtr 双解引（mov 0x18(%eax);mov(%eax)）；+0x04 = m_4（float，flds 0x4）。
+    const int base = *reinterpret_cast<int*>(cfg->m_strPtr);
+    const float ratio = cfg->m_4;
+    // ORIG 折叠寻址 mov 0xc(%eax,%edx,4) edx=level+4 = cfg+0x1c+level*4 = m_gageUpAux[level]。
+    const int tableValue = cfg->m_gageUpAux[m_gageLevel];
     const int cost = base *
                      static_cast<int>(ratio * static_cast<float>(tableValue) +
                                       0.5f);
@@ -888,13 +895,14 @@ void CharacData::upgreadGage()
 // ----------------------------------------------------------------------------
 int CharacData::summonSlotUnit(unsigned char slot, int need)
 {
-    char* cfg = reinterpret_cast<char*>(G_CDataManager()) + 0x6364;
+    ConfigParameter* cfg = &G_CDataManager()->m_altarConfig;  // CDataManager+0x6364（summonSlotUnit.md `add $0x6364`）
     std::map<unsigned char, _SlotItem>::const_iterator it = m_slotItems.find(slot);
     if (it == m_slotItems.end())
     {
         return 4;
     }
-    const int cost = **reinterpret_cast<int**>(cfg + 0x18) * it->second.m_field8;
+    // +0x18 = m_strPtr 双解引（mov 0x18(%eax);mov(%eax)）。
+    const int cost = *reinterpret_cast<int*>(cfg->m_strPtr) * it->second.m_field8;
     if (it->second.m_needGage == need && cost <= m_gage)
     {
         m_gage -= cost;
@@ -943,10 +951,10 @@ bool ProcStage::isEndStage(StageEndType::T& endType) const
          it != m_createdMapMonsters.end(); ++it)
     {
         if (m_map != 0 &&
-            static_cast<unsigned>(*reinterpret_cast<const unsigned short*>(
-                &it->second.m_towerRefA)) ==
-                *reinterpret_cast<const unsigned*>(
-                    reinterpret_cast<const char*>(m_map) + 0x110) &&
+            // ORIG `movzwl 0x8(...)` 读 _MapMonsterSummary+0x06 m_towerRefA（short）零扩 u16，
+            //   与 CMap+0x110 m_110（int，`mov 0x110(%eax)` 全 dword）比较。
+            static_cast<unsigned>(static_cast<unsigned short>(it->second.m_towerRefA)) ==
+                static_cast<unsigned>(m_map->m_110) &&
             it->second.m_padC != 1)
         {
             ++aliveOnMap;
@@ -1106,14 +1114,14 @@ void ProcStage::rewardClearStage(std::vector<_RewardItem>& out)
     std::vector<_RewardItem>* items = 0;
     if (getStageType() == 1)
     {
-        SurvivalRewardData* survival = reinterpret_cast<SurvivalRewardData*>(
-            reinterpret_cast<char*>(m_dungeon) + 0x850);
-        items = survival->getRoundRewardData(m_survivalRound);
+        // CDungeon+0x850 = m_survivalReward（SurvivalRewardData，rewardClearStage.md `add $0x850`）。
+        items = m_dungeon->m_survivalReward.getRoundRewardData(m_survivalRound);
     }
     else
     {
-        items = reinterpret_cast<std::vector<_RewardItem>*>(
-            reinterpret_cast<char*>(m_dungeon) + 0x82c + m_difficulty * 0xc);
+        // CDungeon+0x82c = m_clearReward（ClearRewardData），元素 stride 0xc = sizeof(vector<_RewardItem>)，
+        //   按 difficulty 索引 m_vec[diff]（rewardClearStage.md `add $0x820`/`add $0xc` 折叠 base）。
+        items = &m_dungeon->m_clearReward.m_vec[static_cast<unsigned int>(m_difficulty)];
     }
 
     std::vector<_RewardItem> mailNormal;   // local_28
@@ -1172,8 +1180,8 @@ void ProcStage::addAchievementReward(std::map<int, _Reward>& out)
     int summary[3];
     std::memset(summary, 0, sizeof(summary));      // memset(local,0,0xc)
     cam.getClearStageSummary(summary);
-    RewardParameter* rewardParam = reinterpret_cast<RewardParameter*>(
-        reinterpret_cast<char*>(G_CDataManager()) + 0x634c);  // 配置区裸偏移
+    // CDataManager+0x634c = m_altarReward（RewardParameter，addAchievementReward.md 配置区偏移）。
+    RewardParameter* rewardParam = &G_CDataManager()->m_altarReward;
     for (int i = 0; i < 3; ++i)
     {
         AchievementRewardData* data = rewardParam->getAchievementRewardData(
@@ -1254,9 +1262,8 @@ void ProcStage::sendClearStage(const std::vector<_RewardItem>& rewards,
     AdvanceAltarData* current = user->m_advanceAltar.getCurrentAdvanceAltarData();
     if (current != 0)
     {
-        std::memcpy(&ridableId,
-                    reinterpret_cast<const char*>(current) + 0x18,
-                    sizeof(short));          // [objdump 0x0812e728]
+        // AdvanceAltarData(=_RidableBase)+0x18 = m_maxClearRound（short；objdump 0x0812e728 `movzwl 0x18(%eax)`）。
+        ridableId = current->m_maxClearRound;
     }
 
     NOTIPacketStruct::_NotiAdvanceAltarClearStage body;

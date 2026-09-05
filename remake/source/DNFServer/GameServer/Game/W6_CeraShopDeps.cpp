@@ -378,6 +378,10 @@ void CCeraShop::_processCreatureGift(CUser* user, Inven_Item item, unsigned int 
 // ---------------------------------------------------------------------------
 int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 {
+    // MSG_BUY_CERASHOP_ITEM 为报文缓冲镜像（SigTypes_A.h m_pad[0x3f84]；
+    // 条目步长 0x1cf，由 Dispatcher_BuyCeraShopItem::read 填充）。槽位偏移
+    // 语义：+0xf 赠送区、+0x2e accId、+0x32 characNo、+0x36 条数；
+    // 条目 +0x37/+0x38 avatar 选择、+0x39 goodsNo、+0x3d 子项数、+0xed 选项数。
     const unsigned char* raw = reinterpret_cast<const unsigned char*>(&msg);
 
     const unsigned char itemCount = raw[0x36];
@@ -622,13 +626,17 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
     const unsigned int nowSec =
         static_cast<unsigned int>(GlobalData::s_systemTime_.getCurSec());
     unsigned int moneyLow = static_cast<unsigned int>(user->getCurCharacMoney());
-    int moneyHigh = static_cast<int>(moneyLow) >> 31;
     unsigned int wpLow = static_cast<unsigned int>(user->GetWinPoint());
-    unsigned int wpHigh = 0;
     unsigned int ceraPrice = 0;
-    unsigned int goldPrice = 0;
+    int goldPrice = 0;
     unsigned int wpPrice = 0;
     unsigned int avatarSelField = 0;
+    // ORIG 64 位剩余预算（ProcessBuyRequest 汇编 0x83213ed..0x83214b4）：
+    // money 高字为符号扩展，WP 高字恒 0；逐条目扣价后以 max(0,·) 夹紧。
+    long long remMoney =
+        (static_cast<long long>(static_cast<int>(moneyLow) >> 31) << 32) |
+        static_cast<long long>(moneyLow);
+    long long remWP = static_cast<long long>(wpLow);
 
     for (int i = 0; i < static_cast<int>(itemCount); ++i)
     {
@@ -644,14 +652,16 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
         {
             int groupSub = 0;
             CItem* related = reinterpret_cast<CItem*>(relatedItems[i]);
-            if (related != 0 && related->IsAvatarItem())
+            if (related->IsAvatarItem())
             {
                 std::vector<stAvatarTypeSelect_t>* selects =
                     static_cast<std::vector<stAvatarTypeSelect_t>*>(
                         reinterpret_cast<CEquipItem*>(related)->getAvatarTypeSelect());
+                // ORIG 0x8321030：empty()!=0 或 (char)entry[0x38] >= size → 错误 0x253
+                // （entry[0x38] 有符号 char 扩展后与 size 比较）。
                 const bool badRange = selects->empty() ||
-                                      (static_cast<int>(entry[0x38]) >=
-                                       static_cast<int>(selects->size()));
+                    (static_cast<int>(static_cast<signed char>(entry[0x38])) >=
+                     static_cast<int>(selects->size()));
                 if (badRange)
                 {
                     ProcessError(user, 0x17, groupSub, productNo,
@@ -666,16 +676,8 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                       0x253);
                     continue;
                 }
-                const unsigned char selIdx = entry[0x38];
-                if (selIdx < 100)
-                {
-                    const stAvatarTypeSelect_t& sel = (*selects)[selIdx];
-                    wpHigh = static_cast<unsigned int>(sel.m_fieldc);
-                    goldPrice = static_cast<unsigned int>(sel.m_field4);
-                    wpPrice = static_cast<unsigned int>(sel.m_field8);
-                    avatarSelField = static_cast<unsigned int>(sel.m_field0);
-                }
-                else
+                // ORIG 0x832111c：entry[0x37]（无符号）> 99 → 错误 0x25e。
+                if (entry[0x37] > 99)
                 {
                     ProcessError(user, 0x17, groupSub, productNo,
                                  static_cast<unsigned int>(i + 1),
@@ -689,6 +691,14 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                       0x25e);
                     continue;
                 }
+                // ORIG 0x83211e8：vector 下标 = (signed char)entry[0x38]；
+                // 价格映射：+0xc=cera、+0x4=gold、+0x8=wp、+0x0=avatarSelField。
+                const int selIdx = static_cast<signed char>(entry[0x38]);
+                const stAvatarTypeSelect_t& sel = (*selects)[selIdx];
+                ceraPrice = static_cast<unsigned int>(sel.m_fieldc);
+                goldPrice = sel.m_field4;
+                wpPrice = static_cast<unsigned int>(sel.m_field8);
+                avatarSelField = static_cast<unsigned int>(sel.m_field0);
             }
             else
             {
@@ -708,7 +718,7 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
         else
         {
             ceraPrice = static_cast<unsigned int>(goodsList[i]->GetCeraPrice());
-            goldPrice = static_cast<unsigned int>(goodsList[i]->GetGoldPrice());
+            goldPrice = goodsList[i]->GetGoldPrice();
             wpPrice = static_cast<unsigned int>(goodsList[i]->GetWinPoint());
         }
 
@@ -741,23 +751,25 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
             }
         }
 
-        // asm：64 位符号视图余额下限判定（ORB 的 max<long long> 语义）
+        // ORIG 0x83213ed..0x83214b4：64 位剩余预算复核（逐条目扣减并以
+        // max<long long>(0,·) 夹紧；error 条目同样扣减）。
+        if (remMoney < static_cast<long long>(goldPrice))
         {
-            const long long money64 =
-                (static_cast<long long>(moneyHigh) << 32) |
-                static_cast<long long>(moneyLow);
-            const long long wp64 =
-                (static_cast<long long>(wpHigh) << 32) |
-                static_cast<long long>(wpLow);
-            if (money64 - static_cast<long long>(goldPrice) < 0)
-            {
-                errorReason = 10;
-            }
-            if (wp64 - static_cast<long long>(wpPrice) < 0 &&
-                wpHigh == 0)
-            {
-                errorReason = 0xc;
-            }
+            errorReason = 10;
+        }
+        if (remWP < static_cast<long long>(wpPrice))
+        {
+            errorReason = 0xc;
+        }
+        remMoney -= static_cast<long long>(goldPrice);
+        if (remMoney < 0)
+        {
+            remMoney = 0;
+        }
+        remWP -= static_cast<long long>(wpPrice);
+        if (remWP < 0)
+        {
+            remWP = 0;
         }
 
         if (errorReason != 0)
@@ -819,41 +831,33 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
         req->m_itemIdx = goodsList[i]->GetItemIdx();
         req->m_stackCount = static_cast<unsigned short>(goodsList[i]->GetStackCount());
         req->m_ceraPrice = ceraPrice;
-        req->m_goldPrice = goldPrice;
+        req->m_goldPrice = static_cast<unsigned int>(goldPrice);
         req->m_winPoint = wpPrice;
-        *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(req) + 0x2c) = entry[0x37];
-        *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(req) + 0x2d) = entry[0x38];
+        req->m_avatarType0 = entry[0x37];
+        req->m_avatarType1 = entry[0x38];
         req->m_avatarField = avatarSelField;
         req->m_featuredIdx = featuredIdx;
         req->m_itemCount = itemCount;
         req->m_seq = i + 1;
         req->m_curSec = nowSec;
-        *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(req) + 0x34) = raw[0xf];
-        *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(req) + 0x40) =
-            *reinterpret_cast<const unsigned int*>(&raw[0x2e]);
-        *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(req) + 0x38) =
-            *reinterpret_cast<const unsigned int*>(&raw[0x32]);
-        *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(req) + 0x44) = entry[0x3d];
-        for (int s = 0; s < static_cast<int>(entry[0x3d]); ++s)
+        req->m_buyFlag = raw[0xf];
+        req->m_accId = *reinterpret_cast<const unsigned int*>(&raw[0x2e]);
+        req->m_characNo = *reinterpret_cast<const unsigned int*>(&raw[0x32]);
+        req->m_subCount = entry[0x3d];
+        for (int s = 0; s < static_cast<int>(req->m_subCount); ++s)
         {
-            *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(req) +
-                                             (s + 8) * 8 + 8) =
+            *reinterpret_cast<unsigned int*>(&req->m_subEntries[s][0]) =
                 *reinterpret_cast<const unsigned int*>(entry + 0x3e + s * 5);
-            *(reinterpret_cast<unsigned char*>(req) + (s + 8) * 8 + 0xc) =
-                entry[0x42 + s * 5];
+            req->m_subEntries[s][4] = entry[0x42 + s * 5];
         }
-        *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(req) + 0x160) =
-            entry[0xed];
-        for (int o = 0; o < static_cast<int>(entry[0xed]); ++o)
+        req->m_optCount = entry[0xed];
+        for (int o = 0; o < static_cast<int>(req->m_optCount); ++o)
         {
-            *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(req) +
-                                             (o + 0x2c) * 8 + 4) =
+            *reinterpret_cast<unsigned int*>(&req->m_optEntries[o][0]) =
                 *reinterpret_cast<const unsigned int*>(entry + 0x3e + (o + 0x16) * 8);
-            *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(req) +
-                                               (o + 0x2c) * 8 + 8) =
+            *reinterpret_cast<unsigned short*>(&req->m_optEntries[o][4]) =
                 *reinterpret_cast<const unsigned short*>(entry + 0x42 + (o + 0x16) * 8);
-            *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(req) +
-                                               (o + 0x2c) * 8 + 10) =
+            *reinterpret_cast<unsigned short*>(&req->m_optEntries[o][6]) =
                 *reinterpret_cast<const unsigned short*>(entry + 0x44 + (o + 0x16) * 8);
         }
 
@@ -921,6 +925,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                                    IPG::SIPGData* resData, Stream* stream)
 {
     PacketGuard outPkt;                                   // local_d8
+    bool bSend = false;   // ORIG 尾部统一 finalize+Send；仅析构路径不进
 
     if (ReadIntAt(resData, 0x1c) == 4)
     {
@@ -934,10 +939,9 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
             outPkt.put_header( 0, 0x35);
             outPkt.put_byte( 1);
             outPkt.put_int( user->GetCera());
+            bSend = true;
         }
-        outPkt.finalize( true);
-        user->Send(outPkt);
-        return;                                           // LAB_083237dc
+        // user==0：ORIG goto LAB_083237dc（仅析构，不发包）
     }
 
     if (ReadIntAt(resData, 0x1c) == 0)
@@ -957,6 +961,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
         outPkt.put_header( 0, 0x35);
         outPkt.put_byte( 0);
         outPkt.put_int( 0);
+        bSend = true;
     }
     else if (ReadIntAt(resData, 0x1c) == 2)
     {
@@ -966,60 +971,41 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
         }
 
         stCeraShopIPGRequest_t* q = stream->GetOutBuffer<stCeraShopIPGRequest_t>();
-        const int groupIdx =
-            *reinterpret_cast<const int*>(reinterpret_cast<const char*>(q) + 0x04);
-        const int seq =
-            *reinterpret_cast<const int*>(reinterpret_cast<char*>(q) + 0x24);
-        const int itemCountField =
-            *reinterpret_cast<const int*>(reinterpret_cast<char*>(q) + 0x20);
-        const int featuredIdxReq =
-            *reinterpret_cast<const int*>(reinterpret_cast<char*>(q) + 0x28);
-        const unsigned int productNo = *reinterpret_cast<const unsigned int*>(q);
+        const int groupIdx = q->m_groupIdx;              // +0x04
+        const int seq = q->m_seq;                        // +0x24
+        const int itemCountField = q->m_itemCount;       // +0x20
+        const int featuredIdxReq = q->m_featuredIdx;     // +0x28
+        const unsigned int productNo = q->m_productNo;   // +0x00
+        // +0x08 起 8 字节镜像装载：低 32 位 m_itemIdx，bit32..47 为 m_stackCount
+        // （ORIG C 整读 ulong；其后消费仅用低 32 位物品号）。
         const unsigned long long itemIdx64 =
-            *reinterpret_cast<const unsigned long long*>(
-                reinterpret_cast<const char*>(q) + 0x08);
-        const unsigned short stackCount = *reinterpret_cast<const unsigned short*>(
-            reinterpret_cast<const char*>(q) + 0x0c);
-        const unsigned char avatarSelB =
-            *(reinterpret_cast<const unsigned char*>(q) + 0x2c);
-        const unsigned char avatarSelA =
-            *(reinterpret_cast<const unsigned char*>(q) + 0x2d);
-        const unsigned int ceraPriceReq = *reinterpret_cast<const unsigned int*>(
-            reinterpret_cast<const char*>(q) + 0x10);
-        const unsigned int winPointReq = *reinterpret_cast<const unsigned int*>(
-            reinterpret_cast<const char*>(q) + 0x14);
-        const int goldSpend =
-            *reinterpret_cast<const int*>(reinterpret_cast<char*>(q) + 0x18);
-        const long curSec =
-            *reinterpret_cast<const long*>(reinterpret_cast<char*>(q) + 0x30);
+            static_cast<unsigned long long>(
+                static_cast<unsigned int>(q->m_itemIdx)) |
+            (static_cast<unsigned long long>(q->m_stackCount) << 32);
+        const unsigned short stackCount = q->m_stackCount;   // +0x0c
+        const unsigned char avatarSelB = q->m_avatarType0;   // +0x2c
+        const unsigned char avatarSelA = q->m_avatarType1;   // +0x2d
+        const unsigned int ceraPriceReq = q->m_ceraPrice;    // +0x10
+        const unsigned int winPointReq = q->m_winPoint;      // +0x14
+        const int goldSpend = static_cast<int>(q->m_goldPrice);  // +0x18
+        const long curSec = static_cast<long>(q->m_curSec);  // +0x30
         std::vector<Inven_Item> resultItems;              // local_ec（RAII）
-        const unsigned char buyFlag =
-            *(reinterpret_cast<const unsigned char*>(q) + 0x34);
-        const int characNoReq =
-            *reinterpret_cast<const int*>(reinterpret_cast<char*>(q) + 0x38);
-        const unsigned int accIdReq = *reinterpret_cast<const unsigned int*>(
-            reinterpret_cast<char*>(q) + 0x40);
+        const unsigned char buyFlag = q->m_buyFlag;       // +0x34
+        const int characNoReq = q->m_characNo;            // +0x38
+        const unsigned int accIdReq = q->m_accId;         // +0x40
 
         stCeraShopItemParam_t itemParam;                  // local_104（RAII）
-        for (int s = 0;
-             s < static_cast<int>(*(reinterpret_cast<const unsigned char*>(q) + 0x44));
-             ++s)
+        for (int s = 0; s < static_cast<int>(q->m_subCount); ++s)
         {
-            const unsigned char* sub =
-                reinterpret_cast<const unsigned char*>(q) + (s + 8) * 8 + 8;
             itemParam.m_pairs.push_back(std::make_pair(
-                static_cast<int>(*reinterpret_cast<const unsigned int*>(sub)),
-                static_cast<int>(sub[4])));
+                static_cast<int>(*reinterpret_cast<const unsigned int*>(
+                    &q->m_subEntries[s][0])),
+                static_cast<int>(q->m_subEntries[s][4])));
         }
-        for (int o = 0;
-             o < static_cast<int>(*(reinterpret_cast<const unsigned char*>(q) + 0x160));
-             ++o)
+        for (int o = 0; o < static_cast<int>(q->m_optCount); ++o)
         {
             tagPackageItemSelection selEntry;
-            std::memcpy(&selEntry,
-                        reinterpret_cast<const unsigned char*>(q) +
-                            (o + 0x2c) * 8 + 4,
-                        sizeof(selEntry));
+            std::memcpy(&selEntry, &q->m_optEntries[o][0], sizeof(selEntry));
             itemParam.m_sel.push_back(selEntry);
         }
 
@@ -1168,9 +1154,10 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                     const int usablePeriod = src->getUsablePeriod();
                     if (buyFlag == 1)
                     {
-                        _processCreatureGift(user, item, accIdReq, characNoReq, 0, 0);
-                        (void)expirationDate;
-                        (void)usablePeriod;
+                        // ORIG gift 分支同样先取 usablePeriod/expirationDate 传入
+                        // （_processCreatureGift 内 a5/a6 不消费，仅对齐调用形态）。
+                        _processCreatureGift(user, item, accIdReq, characNoReq,
+                                             usablePeriod, expirationDate);
                     }
                     else
                     {
@@ -1201,15 +1188,19 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                 {
                     throw ENUM_ERROR(0x11);   // ORIG __cxa_throw(int 0x11)
                 }
-                int restrictLocal = limit->getRelateditem();
-                int hitVal[2] = { 0, 0 };
-                bool isSpecialFlag = false;
-                const bool specialHit = (limit->getFeaturedIdx() != 0) ||
-                    IsSpecialItem(restrictLocal, hitVal[1], hitVal[0], isSpecialFlag);
-                if (specialHit)
+                // ORIG：restrictLocal 初值 = getFeaturedIdx()；仅当其==0 且
+                // IsSpecialItem(relateditem) 命中时才改取 GetRestrictCode。
+                int restrictLocal = limit->getFeaturedIdx();
+                if (restrictLocal == 0)
                 {
-                    restrictLocal = G_CDataManager()->getItemList()->GetRestrictCode(
-                        limit->getRelateditem());
+                    int hitVal[2] = { 0, 0 };
+                    bool isSpecialFlag = false;
+                    if (IsSpecialItem(limit->getRelateditem(), hitVal[1],
+                                      hitVal[0], isSpecialFlag))
+                    {
+                        restrictLocal = G_CDataManager()->getItemList()->GetRestrictCode(
+                            limit->getRelateditem());
+                    }
                 }
                 if (restrictLocal != 0)
                 {
@@ -1312,7 +1303,8 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
 
                     CEventManager* evMgr = GlobalData::s_event_manager;
                     CEventBase* bonusBase = evMgr->GetRepeatEvent(0x11);
-                    if (bonusBase != 0 && bonusBase->IsEventing(user))
+                    // ORIG vtable+0x34 调用仅压 0（null user，见汇编 0x832340f）。
+                    if (bonusBase != 0 && bonusBase->IsEventing(0))
                     {
                         CCeraShopBonusItemEvent* bonus =
                             static_cast<CCeraShopBonusItemEvent*>(bonusBase);
@@ -1374,6 +1366,11 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
         {
             return;
         }
+        bSend = true;
+    }
+
+    if (bSend)
+    {
         outPkt.finalize( true);
         user->Send(outPkt);
     }

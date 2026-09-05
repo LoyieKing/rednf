@@ -57,18 +57,26 @@ class CAssaultPlace;
 // =====================================================================
 // Point2d —— ORIG Point2d::C1 0x82f046a（默认空）/C1Eii 0x82f0472。
 // =====================================================================
+// POD 版点：CAssaultPlace::m_pos(+0x118) 专用 —— ORIG C1 0x82f1004 对 0x118
+// 无 Point2d::C1 调用（仅 0x110 m_posBase 构造），Reset 0x82e6b90 直写两
+// movl $0 ⇒ 原成员非 Point2d 类对象，为同布局 POD（用法仅 .m_x/.m_y）。
+struct Point2dRaw
+{
+    int m_x;
+    int m_y;
+};
+
 class Point2d
 {
 public:
     Point2d() {}
     Point2d(int x, int y) : m_x(x), m_y(y) {}
 
-    // ORIG operator+= 0x82f04c0：分量相加，返回 *this
-    Point2d& operator+=(const Point2d& o)
+    // ORIG operator+= 0x82f04c0：分量相加；尾部无返回值装载 ⇒ void 返回
+    void operator+=(const Point2d& o)
     {
         m_x += o.m_x;
         m_y += o.m_y;
-        return *this;
     }
     // ORIG const operator- 0x82f0486：|dx| + |dy|（曼哈顿距离）
     int operator-(const Point2d& o) const;
@@ -91,10 +99,10 @@ class PartyInfo
 public:
     PartyInfo() : m_field00(0) {}
 
-    unsigned int Get() { return m_field00; }               // ORIG 0x82f060a
+    unsigned int Get() { return (unsigned int)m_field00; } // ORIG 0x82f060a
     void Set(CParty* party);                               // ORIG 0x82f05fc
 
-    unsigned int m_field00;   // 存放 CParty*（ORIG 按 int 位型写入）
+    CParty* m_field00;   // ORIG Set 0x82f05fc this 先载直存 ⇒ 成员即 CParty*
 };
 
 // =====================================================================
@@ -168,7 +176,7 @@ public:
 class CDisposition
 {
 public:
-    virtual void SetVirtualMap(std::vector<MapArea>* areas) = 0;
+    virtual bool SetVirtualMap(std::vector<MapArea>* areas) = 0;  // ORIG 派生尾 mov $1/$0
     virtual void GetFlagPoint(int& x, int& y) = 0;
     virtual bool MoveUser(CForcedMoveCharacter* fm) = 0;
 };
@@ -186,7 +194,7 @@ public:
     CStaticDisposition(CUser** users, int* counts);   // ORIG 0x82e62aa
     ~CStaticDisposition();                             // ORIG 0x82f10b0
 
-    void SetVirtualMap(std::vector<MapArea>* areas);   // ORIG 0x82e6588
+    bool SetVirtualMap(std::vector<MapArea>* areas);   // ORIG 0x82e6588 尾 mov $1/$0 ⇒ bool
     void GetFlagPoint(int& x, int& y);                 // ORIG 0x82f0526（读 +0xc/+0x10）
     bool MoveUser(CForcedMoveCharacter* fm);           // ORIG 0x82e65ee
 
@@ -212,7 +220,7 @@ public:
     CDynamicDisposition(CUser** users, int* counts);   // ORIG 0x82e6032
     ~CDynamicDisposition() {}                          // ORIG 无独立 dtor 符号
 
-    void SetVirtualMap(std::vector<MapArea>* areas);   // ORIG 0x82e624c（恒返回 true）
+    bool SetVirtualMap(std::vector<MapArea>* areas);   // ORIG 0x82e624c（恒返回 true）
     void GetFlagPoint(int& x, int& y);                 // ORIG 0x82f050a（读 +0xc/+0x10）
     bool MoveUser(CForcedMoveCharacter*) { return true; } // ORIG 0x82e62a0：mov $1,%eax
 
@@ -224,9 +232,10 @@ private:
 
 // 6 参投影版（ORIG T 0x82e5a0b；定义 owner=CVillageMonsterMgr.cpp，
 // CExtraMatrix::CheckPoint 等以 pvp_assault:: 名调用）
-int IsIncludeVirtualMoveAreas(std::vector<MapArea>* areas,
+bool IsIncludeVirtualMoveAreas(std::vector<MapArea>* areas,
                               int x, int y, int& outX, int& outY,
-                              int flag);   // ORIG 0x82e5a0b T：尾 mov $0,%eax → int 返回
+                              int flag);   // ORIG 0x82e5a0b T；caller 0x82e5b4e call 后
+                                           //   直接 test %al,%al（无 setne）⇒ bool 返回
 
 }  // namespace pvp_assault
 
@@ -250,7 +259,7 @@ class CAssaulter
 public:
     // ORIG C1 0x82e661e：仅清 m_user(+0)/m_team(+4) 两字段（movl 0; movl 0x4）。
     CAssaulter()
-        : m_user(0), m_team(0)
+        : m_user(0), m_team((ENUM_ASSAULT_TEAM)0)
     {
     }
     ~CAssaulter() {}                                  // ORIG D1/D2 0x82e6636 空
@@ -276,8 +285,8 @@ public:
     const char* GetCharacName() const;                // ORIG T 0x82e663c
 
     CUser* m_user;                  // +0x00
-    unsigned int m_team;            // +0x04
-    unsigned int m_state;           // +0x08
+    ENUM_ASSAULT_TEAM m_team;       // +0x04（ORIG AttachUser 0x82e67e6 store 同型直落）
+    ENUM_ASSAULT_STATE m_state;     // +0x08（ORIG SetState 0x82f057c 同型直落）
     unsigned int m_lastHpSec;       // +0x0c（ChangeHp 刷新）
     int m_hp;                       // +0x10
     bool m_powerWarWinner;          // +0x14（ORIG IsPowerWarWinner movzbl 按 bool 读取）
@@ -301,12 +310,12 @@ public:
 
     CAssaulter m_assaulters[8];     // +0x000
     int m_field100;                 // +0x100（GetAssaulterCount 读）
-    int m_field104;                 // +0x104（图标包 put_int）
+    unsigned int m_field104;        // +0x104（ORIG SetAssaultPlaceId 0x82f068e 同型直落）
     int m_authenValue;              // +0x108（GetAuthenValue 读）
     int m_state;                    // +0x10c（GetState）
     Point2d m_posBase;              // +0x110（ORIG ctor 调 Point2d::C1 于 this+0x110；
                                     //   Reset 以 Point2d(0,0) 写回；图标包 put_short 分量）
-    Point2d m_pos;                  // +0x118（IsArea 比较 x/y；_SendPacketToArea 门槛）
+    Point2dRaw m_pos;               // +0x118（IsArea 比较 x/y；_SendPacketToArea 门槛）
     char m_teamFlag[2];             // +0x120..+0x121（_DelUser EndPvP flag 按 team 读）
     int m_winTeam;                  // +0x124（CloseAssault 获胜队比较）
     char m_chaosFlags[2];           // +0x128..+0x129（_SeparateTeam/_ProcessChaos 每队 chaos 标志）
@@ -442,7 +451,7 @@ public:
     CAssaultMgr() { m_bAssaultChannel = false; }   // ORIG 0x82f0fc6：map 自动构造(成员初始化)先于 m_bAssaultChannel(false)，故置 body
 
     void OnMoveArea(CUser* user);                        // ORIG 0x82ef610
-    void OnLeaveAssaultPlace(CUser* user, bool flag);    // ORIG 0x82ef176
+    int OnLeaveAssaultPlace(CUser* user, bool flag);    // ORIG 0x82ef176
     void SendPacket(CUser* user, bool flag, PacketGuard* packet);
                                                          // ORIG 0x82efb54
     CAssaultPlace* _GetAssaultPlace(unsigned int id);    // ORIG 0x82ed9fe
@@ -466,13 +475,13 @@ public:
     int OnRequestAssault(CUser* attacker, CUser* target, int* result); // ORIG T 0x82edfba
     void AvailableAssault(CUser* user, CUser const* source);
                                                          // ORIG T 0x82f0022（校验失败以 ENUM_ERROR 异常上抛）
-    int OnChangeHp(CUser* user, int hp);                 // ORIG T 0x82ef570
-    int OnAbuseUser(CUser* user);                        // ORIG T 0x82efc54
+    bool OnChangeHp(CUser* user, int hp);                // ORIG T 0x82ef570（batch-4 DispC bool 化，W6_AssaultMgrDeps.cpp 定义为 bool；git 事故回退修正）
+    bool OnAbuseUser(CUser* user);                       // ORIG T 0x82efc54 尾 mov $0x1,%eax；同上
     int OnConnectP2P(CUser* user, char* ip, int len);    // ORIG T 0x82ef27a
     int OnRevivalUser(CUser* user);                      // ORIG T 0x82ef464
-    int OnCompleteLoad(CUser* user);                     // ORIG T 0x82ef1e2
+    bool OnCompleteLoad(CUser* user);                    // ORIG T 0x82ef1e2；同上
     int OnDieUser(CUser* user, int index, MSG_DIE_ASSAULT_PLAYER& msg); // ORIG T 0x82ef3be
-    int OnEvadeAssaultPlace(CUser* user);                // ORIG T 0x82efbf6
+    bool OnEvadeAssaultPlace(CUser* user);               // ORIG T 0x82efbf6；同上
     void _SendVictoryInfo(CUser* userA, CUser* userB);   // ORIG T 0x82efcb2
     int OnConnectP2PAfterAssault(CUser* user, char* ip, int len);     // ORIG T 0x82ef320
     int check_party_teleport_user(char slotno, CUser* src,

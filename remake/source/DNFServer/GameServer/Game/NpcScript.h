@@ -160,7 +160,8 @@ public:
     // [prefer item] 等的礼物信息（int@0 / short@4 / short@6）。
     struct stGiftItemInfo_t
     {
-        int   m_a;   // +0x00
+        unsigned long m_a;   // +0x00（ORIG make_pair<unsigned long&, GiftInfo&> 键取此字，
+                             //  实证 importNpcScript 0x089fd6df `IRmRN...` 去重需 ulong 左值）
         short m_b;   // +0x04
         short m_c;   // +0x06
     };
@@ -226,7 +227,6 @@ public:
         unsigned short m_b;   // +0x02
         unsigned int   m_c;   // +0x04
         stBuffRewardInfo();
-        ~stBuffRewardInfo();
     };
 
     // 周期奖励条目，sizeof=0x18：

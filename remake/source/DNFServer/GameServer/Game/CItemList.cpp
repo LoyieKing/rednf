@@ -8,6 +8,10 @@
 #include "CItemList.h"
 #include "STEquipmentScript.h"   // EquipmentAniInfoScript / STEquipmentAniScript（insert ani 段真实类型）
 
+#include "CStreamBuffer.h"        // 权威 ::CStreamBuffer（ORIG 0x86269be 域）
+#include "STStackableScript.h"    // STStackableScript::m_module4bc（map<ENUM_MODULE_TYPE,
+                                  //   EquipmentParameterInfo*>，ORIG 0x8628bc6 operator[] 实证）
+
 #include "CUserCharacInfo.h"   // get_charac_level / get_charac_job（Arad_GiftItem_Set::level_check 依赖）
 
 #include <algorithm>
@@ -33,112 +37,13 @@
                                     // 及 GetAttackElement 实参类型
 
 // ============================================================================
-// sync_script 域辅助类型（TU 私有；ORIG 对应符号属后续批次，调用目标在 AE
-// 口径下归一，这里只保证尺寸/调用形态一致）。
+// 流缓冲/字符串拼接使用权威类：
+//   ::CStreamBuffer（CStreamBuffer.h，ORIG 0x86269be 域，外部 TU 提供实现）
+//   sync_script::CStringMaker（声明于下方 namespace sync_script 块；实现体在
+//   sync_script.cpp，ORIG 0x8375f6c/0x8626cd0 域）。ORIG 本二函数全部字段
+//   输出经 CStreamBuffer::operator<<(char const*/int/unsigned/float)，
+//   列表拼接经 std::for_each(..., CStringMaker)。
 // ============================================================================
-namespace
-{
-// ORIG CStreamBuffer：0xa000 字节（栈上对象），operator<< 返回流引用。
-class MyStream
-{
-public:
-    MyStream() {}
-    MyStream& operator<<(const char* s);
-    MyStream& operator<<(int v);
-    MyStream& operator<<(unsigned int v);
-    MyStream& operator<<(float v);
-    char* c_str() { return m_buf; }
-
-    char m_buf[0xa000];   // +0x00
-};
-
-MyStream& MyStream::operator<<(const char* s)
-{
-    strcat(m_buf, s);
-    return *this;
-}
-
-MyStream& MyStream::operator<<(int v)
-{
-    char tmp[32];
-    sprintf(tmp, "%d", v);
-    strcat(m_buf, tmp);
-    return *this;
-}
-
-MyStream& MyStream::operator<<(unsigned int v)
-{
-    char tmp[32];
-    sprintf(tmp, "%u", v);
-    strcat(m_buf, tmp);
-    return *this;
-}
-
-MyStream& MyStream::operator<<(float v)
-{
-    char tmp[32];
-    sprintf(tmp, "%f", v);
-    strcat(m_buf, tmp);
-    return *this;
-}
-
-
-// ORIG sync_script::CStringMaker 语义的 TU 局部镜像（匿名命名空间，符号不导出）：
-// for_each 累加器，int/float 项以 ',' 分隔，结构项以 ';' 分隔（与权威实现一致）。
-class StringMaker
-{
-public:
-    StringMaker() {}
-    void operator()(int v)
-    {
-        appendInt("%d", v);
-    }
-    void operator()(ItemAuraInfo v)
-    {
-        appendStruct("%d,%d,%d,%d", v.m_field0, (int)v.m_field4, v.m_float8,
-                     v.m_fieldc);
-    }
-    void operator()(LevelUpSkill v)
-    {
-        int job = (v.m_job == 0xb) ? 0x63 : v.m_job;
-        appendStruct("%d,%d,%d", job, v.m_field4, v.m_field8);
-    }
-    void operator()(EquipmentSkillDataUp v)
-    {
-        appendStruct("%d,%d,%d,%d,%d,%d,%d", v.m_job, v.m_v4, v.m_v8,
-                     v.m_percent, v.m_v10, v.m_key, v.m_module);
-    }
-    const char* c_str() const
-    {
-        return m_str.c_str();
-    }
-private:
-    void appendInt(const char* fmt, int v)
-    {
-        char num[0x100] = {0};
-        sprintf(num, fmt, v);
-        if (!m_str.empty())
-        {
-            m_str += ",";
-        }
-        m_str += num;
-    }
-    void appendStruct(const char* fmt, ...)
-    {
-        char num[0x100] = {0};
-        va_list ap;
-        va_start(ap, fmt);
-        vsprintf(num, fmt, ap);
-        va_end(ap);
-        if (!m_str.empty())
-        {
-            m_str += ";";
-        }
-        m_str += num;
-    }
-    std::string m_str;
-};
-}  // namespace（TU 私有辅助）
 // ORIG T 0x0861ca1b：socket 类型 → 字符。1→'1' 2→'2' 4→'3' 8→'4'
 // 0x10→'5' 0xffef→'6' 0xffff→'7'，其余 0（决策树见 ORIG 反汇编）。
 int GetSocketTypeCharacter(unsigned short type)
@@ -165,38 +70,9 @@ int GetSocketTypeCharacter(unsigned short type)
 }
 
 
-// ORIG STStackableScript 字段镜像（insert_stackable_item_to_db 访问位）。
-struct StackScriptFull
-{
-    int m_itNo;                     // +0x00
-    int m_class;                     // +0x04
-    int m_revertType;                     // +0x08
-    int m_createRatio;                     // +0x0c
-    int m_rarity;                    // +0x10
-    int m_price;                    // +0x14
-    int m_cash;                    // +0x18
-    int m_medal;                    // +0x1c
-    char m_pad20[0x14];               // +0x20
-    int m_weight;                    // +0x34
-    char m_pad38[0x24];               // +0x38
-    int m_level;                    // +0x5c
-    char m_pad60[8];                  // +0x60
-    int m_coolTime;                    // +0x68
-    std::string m_url;              // +0x6c
-    int m_urlLen;                    // +0x70
-    char m_pad74[0xac - 0x74];        // +0x74
-    std::string m_name;              // +0xac
-    std::string m_engName;              // +0xb0
-    std::string m_explain;              // +0xb4
-    std::string m_detailExplain;              // +0xb8
-    std::string m_flavorText;              // +0xbc
-    int m_fieldc0;                    // +0xc0
-    int m_iconMarkNumber;                    // +0xc4
-    char m_padc8[0x4bc - 0xc8];
-    std::map<int, void*> m_map4bc;    // +0x4bc（ORIG map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>）
-};
-
-// EquipmentParameterInfo 字段镜像（TU 私有）：真名取自 dnf_item_info 列名。
+// EquipmentParameterInfo 字段镜像（TU 私有）：真名取自 dnf_item_info 列名；
+// insert_stackable_item_to_db 的 m_module4bc[0x13] 值按本镜像偏移读取（ORIG 全为
+// 直接偏移 load，无调用差异）。
 struct EquipParamInfo
 {
     // dnf_item_info 列名即字段真名（insert_stackable_item_to_db 值序实证）。
@@ -293,69 +169,33 @@ struct EquipParamInfo
     char m_pad29c[0x560 - 0x29c];                      // 尾部未访问区段占位
 };
 
-struct stAvatarTypeSelectFull
-{
-    int m_field0; int m_field4; int m_field8; int m_fieldc;
-    int m_field10; unsigned short m_ushort14[8];
-};
-// ORIG STEquipmentAniScript 局部镜像；本 TU 仅 insert_equiptment_item_to_db 读取
-// 动画帧号（+0x0c/+0x10/+0x30/+0x34，格式化为 "%02d%02d"）。注意 setEquipmentAniScriptLay
-// （ORIG 0x89c1cb9）对同一区段（+0xc..+0x40）写入 std::string；两函数对该区的解读不同
-// 【推断】——此处镜像以 insert 函数读法具名，保持既有 int 读行为可审计。
-// ORIG STEquipmentScript 字段镜像（insert_equiptment_item_to_db 访问位）。
-struct EquipScriptFull
-{
-    int m_field0; int m_field4; int m_field8; int m_fieldc;
-    int m_field10; int m_field14; int m_field18; int m_field1c;
-    int m_field20; int m_field24; int m_field28; int m_field2c;
-    int m_field30; int m_field34;
-    char m_aniFlags[0xb]; char m_pad43[0x19];
-    int m_field5c; char m_pad60[8]; int m_field68;
-    char m_pad6c[0x118];
-    std::vector<int> m_vec198;
-    char m_pad1a4[0x18]; int m_field1b4; int m_field1b8;
-    int m_field1bc; int m_field1c4; int m_field1cc;
-    int m_field1d4; int m_field1d8; int m_field1dc;
-    std::string m_strb4; std::string m_strbc;
-    int m_field184;
-    char m_pad1e0[4]; int m_field1e4; char m_pad1e8[0x2c];
-    int m_field214; char m_pad218[4]; int m_field21c;
-    char m_pad220[4]; int m_field224;
-    char m_pad228[4]; int m_field22c;
-    char m_pad230[0x40]; int m_field270; int m_field274;
-    int m_field278; int m_field27c; int m_field280; int m_field284;
-    int m_field288; int m_field28c; int m_field290; int m_field294;
-    int m_field298; int m_field29c; int m_field2a0; int m_field2a4;
-    int m_field2a8; int m_field2ac; int m_field2b0; int m_field2b4;
-    int m_field2b8; int m_field2bc; int m_field2c0; int m_field2c4;
-    int m_field2c8; int m_field2cc; int m_field2d0;
-    int m_field2d4; char m_pad2d8[4]; int m_field2dc;
-    int m_field2f0; int m_field2f4; int m_field2f8; float m_field2fc;
-    int m_field304; float m_field308; int m_field30c;
-    char m_pad310[0xd0]; int m_field3e0; int m_field3e4;
-    float m_field3e8; unsigned char m_field3ec;
-    char m_pad3ed[0xf]; unsigned char m_field3fc; unsigned char m_field3fd;
-    float m_field434; int m_field440; int m_field444;
-    int m_field448; int m_field44c; int m_field450; int m_field454; int m_field458;
-    int m_field798; int m_field70; int m_fieldc4;
-    int m_field234; int m_field238; float m_field23c; int m_field240; int m_field244; float m_field248;
-    EquipParamInfo m_equipParam;
-    char m_pad640[0x18]; std::vector<std::string> m_vec658;
-    std::string m_str664; std::string m_str668; std::vector<int> m_vec66c;
-    char m_pad690[0x10]; int m_field6a0;
-    std::string m_str6a4; std::string m_str6a8; std::string m_str6ac;
-    std::string m_str6b0; std::string m_str6b4; std::string m_str6b8;
-    char m_pad6bc[4]; std::vector<stAvatarTypeSelectFull> m_vec6c0;
-    std::vector<unsigned short> m_vec6cc; char m_pad6d8[0x90];
-    std::vector<ENUM_EQUIPMENTTYPE> m_vec768;
-    std::map<int, EquipParamInfo> m_map678;
-};
 
  
 // ===================== 外部依赖（其它 TU 提供，仅声明） =====================
 
 namespace sync_script
 {
+// ---- CStringMaker（ORIG 0x8375f6c/0x8626cd0 域；实现体在 sync_script.cpp TU，
+// 声明与 sync_script.h 权威头逐项一致：ctor/copy/dtor/operator()(重载)/c_str）。
+// 本 TU 仅经 std::for_each<iterator<X*>, CStringMaker> 与 c_str() 使用。 ----
+class CStringMaker
+{
+public:
+    CStringMaker();
+    CStringMaker(const CStringMaker&);
+    ~CStringMaker();
+
+    void operator()(int v);
+    void operator()(float v);
+    void operator()(EquipmentSkillDataUp v);
+    void operator()(LevelUpSkill v);
+    void operator()(ItemAuraInfo v);
+
+    const char* c_str();
+
+    std::string m_str;   // ORIG +0x00 单 string 成员
+};
+
 // 布局依据 ORIG 构造（0x861cc6c）/ 析构（0x861cd7a）：
 //   +0x00 bool m_field0
 //   +0x04 vector<unsigned char>（12 字节）
@@ -374,7 +214,15 @@ public:
 
 struct SITEMTYPE
 {
-    SITEMTYPE() : m_field0(0), m_field1(0), m_field2(0), m_field4(0) {}
+    SITEMTYPE()
+    {
+        // ORIG 0x08626c08：string@+0x8 隐式默认构造 call 先行（POD 成员无 ctor），
+        // 标量清零在体（逐条 reload this + movb/movw store）。
+        m_field0 = 0;
+        m_field1 = 0;
+        m_field2 = 0;
+        m_field4 = 0;
+    }
     // ORIG C1 _ZN...SITEMTYPEC1EbhhtSs：第5参 std::string 按值。
     SITEMTYPE(bool usable, unsigned char f1, unsigned char f2,
               unsigned short f4, std::string name)
@@ -593,184 +441,166 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
                                               unsigned int idx, int mode,
                                               int key)
 {
+    // 依据 docs/class_func_reports/sync_script__CSyncScript/
+    // insert_equiptment_item_to_db.md（ORIG 0x861d87e）反编译 C 整函数转写：
+    // 全部字段以权威 STEquipmentScript/STItemScript/EquipmentParameterInfo
+    // 偏移直接访问，删除 EquipScriptFull 镜像布局（其声明序与权威偏移不符）。
     if (m_field0 != 1)
     {
         return true;
     }
-    EquipScriptFull* es = (EquipScriptFull*)script;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
-    unsigned int local_154 = 0;
+    // ORIG：先声明占浅槽 → local_154@-0x150（arg5&/比较/后输出），
+    // local_158@-0x154（arg4&/先输出）。
+    int local_154 = 0;
     int local_158 = 0;
-    int foundAni = 0;
-    for (int i = 0; i <= 0xa; ++i)
+    int foundAni;
+    for (int i = 0; i < 0xb; ++i)
     {
-        if (*(char*)&es->m_aniFlags[i] != 0)
+        if (script->m_usable[i] != 0)
         {
             foundAni = i;
             break;
         }
     }
     int local_74 = 0;
-    unsigned int param_2 = idx;
-    if (mode == 1)
+    switch (mode)
     {
-        local_74 = (int)param_2;
-        param_2 = (unsigned int)-1;
-    }
-    else if (mode == 2)
+    case 1:
+        local_74 = idx;
+        idx = (unsigned int)-1;
+        break;
+    case 2:
+        local_74 = idx;
+        idx = (unsigned int)-2;
+        break;
+    case 0:
     {
-        local_74 = (int)param_2;
-        param_2 = (unsigned int)-2;
-    }
-    else if (mode == 0)
-    {
-        std::string typeName = es->m_strbc;
-        if (!GetType(typeName, (ENUM_CHARACTERJOB)foundAni, es->m_field1b8,
-                              (int&)local_154, local_158, true))
+        if (!GetType(script->m_strbc, (ENUM_CHARACTERJOB)foundAni,
+                     script->m_1b8, local_158, local_154, true))
         {
             return false;
         }
-        param_2 = (unsigned int)es->m_field0;
-        std::map<int, EquipParamInfo>::iterator it = es->m_map678.begin();
-        while (it != es->m_map678.end())
+        idx = (unsigned int)script->m_field0;
+        // ORIG：map<int,EquipmentParameterInfo>（+0x678）逐档递归；
+        // 递归实参为整对象 STEquipmentScript temp（C1 构造，m_param1c0 = it->second）。
+        for (std::map<int, EquipmentParameterInfo>::iterator it =
+                 script->m_paramMap678.begin();
+             it != script->m_paramMap678.end(); ++it)
         {
-            EquipScriptFull temp;
-            temp.m_equipParam = it->second;
-            insert_equiptment_item_to_db((STEquipmentScript*)&temp, param_2, 1,
-                                        it->first);
-            ++it;
+            EquipmentParameterInfo& par = it->second;
+            STEquipmentScript temp;
+            temp.m_param1c0 = par;
+            insert_equiptment_item_to_db(&temp, idx, 1, it->first);
         }
+        break;
     }
-    char local_162[10];
-    local_162[0] = 0;
-    local_162[1] = 0;
-    local_162[2] = 0;
-    local_162[3] = 0;
-    local_162[4] = 0;
+    }
+    // ---- socket（local_162[5..9]）：0x6cc ushort 段 + 0x6c0 avatar 段 ----
+    char socketChars[5] = {0};
     int socketCount = 0;
-    if (!es->m_vec6cc.empty())
+    if (script->m_vec6cc.size() != 0)
     {
-        for (std::vector<unsigned short>::iterator vit = es->m_vec6cc.begin();
-             vit != es->m_vec6cc.end() && socketCount <= 4; ++vit)
+        std::vector<unsigned short>::iterator vit = script->m_vec6cc.begin();
+        while (vit != script->m_vec6cc.end())
         {
-            local_162[socketCount + 5] = GetSocketTypeCharacter(*vit);
+            if (socketCount > 4)
+            {
+                break;
+            }
+            unsigned short usVal = *vit;
+            socketChars[socketCount] = GetSocketTypeCharacter(usVal);
             ++socketCount;
+            vit++;
         }
     }
-    if (!es->m_vec6c0.empty())
+    if (script->m_avatar6c0.size() != 0)
     {
-        for (std::vector<stAvatarTypeSelectFull>::iterator ait =
-                 es->m_vec6c0.begin();
-             ait != es->m_vec6c0.end(); ++ait)
+        std::vector<stAvatarTypeSelect_t>::iterator ait =
+                 script->m_avatar6c0.begin();
+        while (ait != script->m_avatar6c0.end())
         {
-            if (ait->m_field10 > 0)
+            // ORIG：*it 整对象拷贝到局部（8 dword mov），再从副本读字段。
+            stAvatarTypeSelect_t av = *ait;
+            if (av.m_field10 > 0)
             {
-                for (int k = 0; k < ait->m_field10 && socketCount < 5;
-                     ++socketCount)
+                int k = 0;
+                while (k < av.m_field10)
                 {
-                    local_162[socketCount + 5] =
-                        GetSocketTypeCharacter(ait->m_ushort14[8 + k]);
+                    if (socketCount > 4)
+                    {
+                        break;
+                    }
+                    socketChars[socketCount] =
+                        GetSocketTypeCharacter(av.m_socketType[k]);
+                    ++socketCount;
                     ++k;
                 }
             }
+            ait++;
         }
     }
+    // ---- hide_equipment（local_1fc）：0x768 ENUM_EQUIPMENTTYPE 段 ----
     char local_1fc[64] = {0};
-    int equipCount = 0;
-    if (!es->m_vec768.empty())
+    if (script->m_equipTypes768.size() != 0)
     {
-        for (std::vector<ENUM_EQUIPMENTTYPE>::iterator eit =
-                 es->m_vec768.begin();
-             eit != es->m_vec768.end(); ++eit)
+        int equipCount = 0;
+        std::vector<ENUM_EQUIPMENTTYPE>::const_iterator eit =
+                 script->m_equipTypes768.begin();
+        while (eit != script->m_equipTypes768.end())
         {
+            // ORIG：先 *it 存局部（local_50），两分支共用一份实参。
+            int hideType = *eit;
             char tmp[8] = {0};
             if (equipCount == 0)
             {
-                sprintf(tmp, "%d", (int)*eit);
+                sprintf(tmp, "%d", hideType);
             }
             else
             {
-                sprintf(tmp, "*%d", (int)*eit);
+                sprintf(tmp, "*%d", hideType);
             }
             strcat(local_1fc, tmp);
+            eit++;
             ++equipCount;
         }
     }
+    // ---- ani（local_2fc/3fc/4fc/5fc）----
+    // ORIG：遍历 0..0xa 中 m_usable[i] 非 0 的职业，getAniInfo 为空即 break；
+    // 四帧号任一非 -1 才处理；expand!=0 → (m_30,m_34)+m_ani18 → 3fc/5fc；
+    // expand==0 → (m_c,m_10)+m_ani0 → 2fc/4fc（ORIG if 体为 expand，else 为普通层）。
     char local_2fc[256] = {0};
     char local_3fc[256] = {0};
     char local_4fc[256] = {0};
     char local_5fc[256] = {0};
-    char local_69 = 0;
-    for (int i = 0; i <= 0xa; ++i)
+    bool local_69 = 0;
+    for (int i = 0; i < 0xb; ++i)
     {
-        if (*(char*)&es->m_aniFlags[i] == 0)
+        if (script->m_usable[i] == 0)
         {
             continue;
         }
-        // ORIG 0x861df29：script->getAniInfo((ENUM_CHARACTERJOB)i) 返回
-        // EquipmentAniInfoScript*；读 m_30/m_34/m_c/m_10 帧号字段与 m_ani0/m_ani18
-        // 动画序列（逐指令转写，见 insert_equiptment_item_to_db 反汇编）。
         EquipmentAniInfoScript* aniInfo =
             script->getAniInfo((ENUM_CHARACTERJOB)i);
         if (aniInfo == 0)
         {
-            continue;
+            break;
         }
         if (aniInfo->m_30 == -1 && aniInfo->m_34 == -1 &&
             aniInfo->m_c == -1 && aniInfo->m_10 == -1)
         {
             continue;
         }
-        int f30 = aniInfo->m_30;
-        int f34 = aniInfo->m_34;
-        int fc_ = aniInfo->m_c;
-        int f10 = aniInfo->m_10;
-        if ((f30 != -1 || f34 != -1) && (fc_ == -1 && f10 == -1))
+        if (aniInfo->m_expand14 != 0)
         {
-            char tmp[256] = {0};
-            sprintf(tmp, "%02d%02d", f30, f34);
-            if (local_69 != 0)
+            // expand 层：帧 (m_30, m_34)，序列 m_ani18
+            if (aniInfo->m_30 == -1 && aniInfo->m_34 == -1)
             {
-                char t2[8] = {0};
-                sprintf(t2, "*%d", (int)aniInfo->m_ani0.size());
-                strcat(tmp, t2);
+                continue;
             }
-            char t3[8] = {0};
-            sprintf(t3, "*%d", (int)aniInfo->m_ani0.size());
-            strcat(tmp, t3);
-            for (std::vector<STEquipmentAniScript>::iterator ait =
-                     aniInfo->m_ani0.begin();
-                 ait != aniInfo->m_ani0.end(); ++ait)
-            {
-                strcat(tmp, "*");
-                char clean[256] = {0};
-                strcpy(clean, ait->m_str60.c_str());
-                int w = 0;
-                for (unsigned int r = 0; r < strlen(clean); ++r)
-                {
-                    if (clean[r] != '_')
-                    {
-                        clean[w++] = clean[r];
-                    }
-                }
-                clean[w] = 0;
-                strcat(tmp, clean);
-            }
-            if (local_69 == 1)
-            {
-                strcpy(local_4fc, tmp);
-            }
-            else
-            {
-                strcpy(local_2fc, tmp);
-                local_69 = 1;
-            }
-        }
-        else if (fc_ != -1 || f10 != -1)
-        {
-            char tmp[256] = {0};
-            sprintf(tmp, "%02d%02d", fc_, f10);
+            char tmp[0x100] = {0};
+            sprintf(tmp, "%02d%02d", aniInfo->m_30, aniInfo->m_34);
             if (local_69 != 0)
             {
                 char t2[8] = {0};
@@ -780,68 +610,133 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
             char t3[8] = {0};
             sprintf(t3, "*%d", (int)aniInfo->m_ani18.size());
             strcat(tmp, t3);
-            for (std::vector<STEquipmentAniScript>::iterator ait =
+            std::vector<STEquipmentAniScript>::const_iterator ait =
                      aniInfo->m_ani18.begin();
-                 ait != aniInfo->m_ani18.end(); ++ait)
+            while (ait != aniInfo->m_ani18.end())
             {
+                // ORIG：每轮先清 src/wb 两缓冲（deref 之前），去 '_' 为跨缓冲拷贝、
+                // 不写终止符（预零即终止）。
+                char src[0x100] = {0};
+                char wb[0x100] = {0};
+                const STEquipmentAniScript* entry = &*ait;
                 strcat(tmp, "*");
-                char clean[256] = {0};
-                strcpy(clean, ait->m_str60.c_str());
+                strcpy(src, entry->m_str60.c_str());
                 int w = 0;
-                for (unsigned int r = 0; r < strlen(clean); ++r)
+                unsigned int r = 0;
+                while (r < strlen(src))
                 {
-                    if (clean[r] != '_')
+                    if (src[r] != '_')
                     {
-                        clean[w++] = clean[r];
+                        wb[w] = src[r];
+                        ++w;
                     }
+                    ++r;
                 }
-                clean[w] = 0;
-                strcat(tmp, clean);
+                strcat(tmp, wb);
+                ait++;
             }
-            if (local_69 == 1)
-            {
-                strcpy(local_5fc, tmp);
-            }
-            else
+            if (!local_69)
             {
                 strcpy(local_3fc, tmp);
                 local_69 = 1;
             }
+            else
+            {
+                strcpy(local_5fc, tmp);
+            }
+        }
+        else
+        {
+            // 普通层：帧 (m_c, m_10)，序列 m_ani0
+            if (aniInfo->m_c == -1 && aniInfo->m_10 == -1)
+            {
+                continue;
+            }
+            char tmp[0x100] = {0};
+            sprintf(tmp, "%02d%02d", aniInfo->m_c, aniInfo->m_10);
+            if (local_69 != 0)
+            {
+                char t2[8] = {0};
+                sprintf(t2, "*%d", i);
+                strcat(tmp, t2);
+            }
+            char t3[8] = {0};
+            sprintf(t3, "*%d", (int)aniInfo->m_ani0.size());
+            strcat(tmp, t3);
+            std::vector<STEquipmentAniScript>::const_iterator ait =
+                     aniInfo->m_ani0.begin();
+            while (ait != aniInfo->m_ani0.end())
+            {
+                char src[0x100] = {0};
+                char wb[0x100] = {0};
+                const STEquipmentAniScript* entry = &*ait;
+                strcat(tmp, "*");
+                strcpy(src, entry->m_str60.c_str());
+                int w = 0;
+                unsigned int r = 0;
+                while (r < strlen(src))
+                {
+                    if (src[r] != '_')
+                    {
+                        wb[w] = src[r];
+                        ++w;
+                    }
+                    ++r;
+                }
+                strcat(tmp, wb);
+                ait++;
+            }
+            if (!local_69)
+            {
+                strcpy(local_2fc, tmp);
+                local_69 = 1;
+            }
+            else
+            {
+                strcpy(local_4fc, tmp);
+            }
         }
     }
-    local_162[0] = 0;
-    local_162[1] = 0;
-    local_162[2] = 0;
-    local_162[3] = 0;
-    local_162[4] = 0;
-    if (!es->m_vec198.empty())
+    // ---- hide_growtype_avatar（growtype[0..4]）：script+0x780 数值段 ----
+    char growtype[5] = {0};
+    // ORIG（+0xc80）：growtype 源是 script+0x780 的 vector<int>（非 +0x198
+    // extra_icon 列，后者只进 for_each 输出）。
+    if (!script->m_vec780.empty())
     {
         int cnt = 0;
-        for (std::vector<int>::iterator iit = es->m_vec198.begin();
-             iit != es->m_vec198.end() && cnt <= 4; ++iit)
+        std::vector<int>::const_iterator iit = script->m_vec780.begin();
+        while (iit != script->m_vec780.end())
         {
-            local_162[cnt] = (char)*iit + '0';
+            if (cnt > 4)
+            {
+            break;
+            }
+            int v = *iit;
+            growtype[cnt] = v + '0';
             ++cnt;
+            iit++;
         }
     }
     char local_3e90[0x2c00] = {0};
     int local_68 = 4;
+    // local_168：0xb4 空则取 0x6a4
     std::string local_168;
-    if (es->m_strb4.empty())
+    // ORIG（+0xdac）：string::length() != 0 判非空（setne 物化），先 b4 后 6a4。
+    if (script->m_strb4.length() != 0)
     {
-        local_168 = es->m_str6a4;
+        local_168 = script->m_strb4;
     }
     else
     {
-        local_168 = es->m_strb4;
+        local_168 = script->m_str6a4;
     }
     char local_9fc[1024] = {0};
-    if (!CodePage::script2Database((char*)es->m_str6ac.c_str(), local_9fc))
+    if (!CodePage::script2Database((char*)script->m_strac.c_str(), local_9fc))
     {
         cMyTrace(
             __PRETTY_FUNCTION__,
             0x398, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
-                      CodePage::database(), es->m_str6ac.c_str(),
+                      CodePage::database(), script->m_strac.c_str(),
                       "bool sync_script::CSyncScript::insert_equiptment_item_to_db(STEquipmentScript*, unsigned int, int, int)",
                       0x398);
         return false;
@@ -852,166 +747,198 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
         cMyTrace(
             __PRETTY_FUNCTION__,
             0x39f, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
-                      CodePage::database(), es->m_strb4.c_str(),
+                      // ORIG（+0xf09）：trace 实参取 script+0xb4 的 c_str()。
+                      CodePage::database(), script->m_strb4.c_str(),
                       "bool sync_script::CSyncScript::insert_equiptment_item_to_db(STEquipmentScript*, unsigned int, int, int)",
                       0x39f);
         return false;
     }
-    MyStream buf;
-    buf << param_2;
+    CStreamBuffer buf;
+    buf << idx;
     buf << ", '" << GetEscapeString(db, local_9fc, local_3e90) << "'";
     buf << ", '"
-        << GetEscapeString(db, (char*)es->m_str6b0.c_str(), local_3e90 + 0x400)
+        << GetEscapeString(db, (char*)script->m_strb0.c_str(), &local_3e90[0x400])
         << "'";
     buf << ", '" << GetEscapeString(db, local_1290, local_3e90 + 0x800) << "'";
     buf << ", " << local_158;
     buf << ", " << local_154;
     buf << ", '" << this->GetUsableCharacter(script) << "'";
-    buf << ", " << es->m_field4;
-    buf << ", " << es->m_field5c;
-    buf << ", " << es->m_field184;
-    buf << ", " << es->m_fieldc;
-    buf << ", " << es->m_field10;
-    buf << ", " << es->m_field34;
-    buf << ", " << es->m_field1c;
-    buf << ", " << es->m_field1bc;
-    buf << ", " << es->m_field68;
-    buf << ", " << es->m_field1c4;
-    buf << ", " << es->m_field1cc;
-    buf << ", " << es->m_field1d4;
-    buf << ", " << es->m_field1d8;
-    buf << ", " << es->m_field1dc;
-    buf << ", " << es->m_field1e4;
-    buf << ", " << es->m_field214;
-    buf << ", " << es->m_field21c;
-    buf << ", " << es->m_field224;
-    buf << ", " << es->m_field22c;
-    buf << ", " << es->m_field270;
-    buf << ", " << es->m_field274;
-    buf << ", " << es->m_field278;
-    buf << ", " << es->m_field27c;
-    buf << ", " << es->m_field280;
-    buf << ", " << es->m_field284;
-    buf << ", " << es->m_field288;
-    buf << ", " << es->m_field28c;
-    buf << ", " << es->m_field290;
-    buf << ", " << es->m_field294;
-    buf << ", " << es->m_field298;
-    buf << ", " << es->m_field29c;
-    buf << ", " << es->m_field2a0;
-    buf << ", " << es->m_field2a4;
-    buf << ", " << es->m_field2a8;
-    buf << ", " << es->m_field2ac;
-    buf << ", " << es->m_field2b0;
-    buf << ", " << es->m_field2b4;
-    buf << ", " << es->m_field2b8;
-    buf << ", " << es->m_field2bc;
-    buf << ", " << es->m_field2c0;
-    buf << ", " << es->m_field2c4;
-    buf << ", " << es->m_field2c8;
-    buf << ", " << es->m_field2f0;
-    buf << ", " << es->m_field2f4;
-    buf << ", " << es->m_field304;
-    buf << ", " << es->m_field308;
-    buf << ", " << es->m_field30c;
-    buf << ", " << es->m_field3e0;
-    buf << ", " << es->m_field3e4;
-    buf << ", " << (unsigned int)es->m_field3ec;
-    buf << ", " << (unsigned int)es->m_field3fc;
-    buf << ", " << (unsigned int)es->m_field3fd;
-    buf << ", " << es->m_field2f8;
-    buf << ", " << es->m_field3e8;
-    buf << ", " << (unsigned int)es->m_field3ec;
+    buf << ", " << script->m_field4;
+    buf << ", '" << this->GetAttachType(script->m_field8) << "'";
+    buf << ", " << script->m_field5c;
+    buf << ", " << script->m_184;
+    buf << ", " << script->m_fieldc;
+    buf << ", " << script->m_field10;
+    buf << ", " << script->m_field34;
+    buf << ", " << script->m_field14;
+    buf << ", " << script->m_field18;
+    buf << ", " << script->m_field1c;
+    buf << ", " << script->m_1bc;
+    buf << ", " << script->m_field68;
+    buf << ", " << script->m_param1c0.m_hpMax;
+    buf << ", " << script->m_param1c0.m_mpMax;
+    buf << ", " << script->m_param1c0.m_physicalAttack;
+    buf << ", " << script->m_param1c0.m_physicalDefense;
+    buf << ", " << script->m_param1c0.m_magicalAttack;
+    buf << ", " << script->m_param1c0.m_magicalDefense;
+    buf << ", " << script->m_param1c0.m_phyAtt[0];
+    buf << ", " << script->m_param1c0.m_phyDef[0];
+    buf << ", " << script->m_param1c0.m_magAtt[0];
+    buf << ", " << script->m_param1c0.m_magDef[0];
+    buf << ", " << script->m_param1c0.m_fireResistance;
+    buf << ", " << script->m_param1c0.m_waterResistance;
+    buf << ", " << script->m_param1c0.m_darkResistance;
+    buf << ", " << script->m_param1c0.m_lightResistance;
+    buf << ", " << script->m_param1c0.m_allElementalResistance;
+    buf << ", " << script->m_param1c0.m_slowResistance;
+    buf << ", " << script->m_param1c0.m_freezeResistance;
+    buf << ", " << script->m_param1c0.m_poisonResistance;
+    buf << ", " << script->m_param1c0.m_stunResistance;
+    buf << ", " << script->m_param1c0.m_curseResistance;
+    buf << ", " << script->m_param1c0.m_blindResistance;
+    buf << ", " << script->m_param1c0.m_lightningResistance;
+    buf << ", " << script->m_param1c0.m_stoneResistance;
+    buf << ", " << script->m_param1c0.m_sleepResistance;
+    buf << ", " << script->m_param1c0.m_burnResistance;
+    buf << ", " << script->m_param1c0.m_weaponBreakResistance;
+    buf << ", " << script->m_param1c0.m_bleedingResistance;
+    buf << ", " << script->m_param1c0.m_confuseResistance;
+    buf << ", " << script->m_param1c0.m_holdResistance;
+    buf << ", " << script->m_param1c0.m_allActiveStatusResistance;
+    buf << ", " << script->m_param1c0.m_piercingResistance;
+    buf << ", " << script->m_param1c0.m_stuckResistance;
+    buf << ", " << script->m_param1c0.m_inventoryLimit;
+    buf << ", " << script->m_param1c0.m_hpRegenSpeed;
+    buf << ", " << script->m_param1c0.m_mpRegenSpeed;
+    buf << ", " << script->m_param1c0.m_moveSpeed;
+    buf << ", " << script->m_param1c0.m_attackSpeed;
+    buf << ", " << script->m_param1c0.m_castSpeed;
+    buf << ", " << script->m_param1c0.m_hitRecovery;
+    buf << ", " << script->m_param1c0.m_jumpPower;
+    buf << ", '" << this->GetAttackElement(&script->m_param1c0) << "'";
+    buf << ", " << script->m_param1c0.m_activeStatusType;
+    buf << ", " << script->m_param1c0.m_activeStatusValue;
+    buf << ", " << script->m_param1c0.m_activeStatusLevel;
+    buf << ", " << script->m_param1c0.m_pushAside;
+    buf << ", " << script->m_param1c0.m_liftUp;
+    // ORIG（+0x1b37/+0x1b66）：movzbl 后走 operator<<(int)（byte→int 提升），
+    // 不是 uint 重载。
+    buf << ", " << script->m_param1c0.m_hpDrain;
+    buf << ", " << script->m_param1c0.m_mpDrain;
+    buf << ", " << script->m_param1c0.m_physicalCriticalHit;
+    buf << ", " << script->m_param1c0.m_stuck;
+    buf << ", " << script->m_param1c0.m_ignoreDefense;
     buf << ", '"
-        << std::for_each(es->m_equipParam.m_levelUpSkills.begin(), es->m_equipParam.m_levelUpSkills.end(),
-                         StringMaker()).c_str()
+        << std::for_each(script->m_param1c0.m_levelUpSkills[0].begin(),
+                         script->m_param1c0.m_levelUpSkills[0].end(),
+                         CStringMaker()).c_str()
         << "'";
-    const char* yn = "n";
-    if (es->m_str668.empty() && es->m_vec66c.empty() &&
-        es->m_field6a0 == -1 && es->m_field798 == -1)
-    {
-        yn = "n";
-    }
-    else
-    {
-        yn = "y";
-    }
-    buf << ", '" << yn << "'";
-    buf << ", '" << local_162 + 5 << "'";
-    int iVar = local_68 * 0x400;
+    // ORIG（+0x1d83）：三目直接物化到寄存器（mov $ptr,%eax），不占命名槽。
+    buf << ", '"
+        << ((script->m_str668.compare("") == 0 && script->m_vec66c.size() == 0 &&
+             script->m_6a0 == -1 && script->m_798 == -1)
+                ? "n"
+                : "y")
+        << "'";
+    buf << ", '" << socketChars << "'";
+    register char* escDst1 = local_3e90 + local_68 * 0x400;
     ++local_68;
     buf << ", '"
-        << GetEscapeString(db, (char*)es->m_str6ac.c_str(), local_3e90 + iVar)
+        << GetEscapeString(db, (char*)script->m_param1c0.m_str27c.c_str(), escDst1)
         << "'";
-    iVar = local_68 * 0x400;
+    register char* escDst2 = local_3e90 + local_68 * 0x400;
     ++local_68;
     buf << ", '"
-        << GetEscapeString(db, (char*)es->m_str6b8.c_str(), local_3e90 + iVar)
+        << GetEscapeString(db, (char*)script->m_strb8.c_str(), escDst2)
         << "'";
-    buf << ", " << es->m_field440;
-    buf << ", " << es->m_field24;
-    buf << ", " << es->m_field184;
-    buf << ", '" << es->m_field28 << "," << es->m_field2c << "'";
-    buf << ", " << es->m_field234;
-    buf << ", " << es->m_field238;
-    buf << ", " << es->m_field23c;
-    buf << ", " << es->m_field240;
-    buf << ", " << es->m_field244;
-    buf << ", " << es->m_field248;
-    buf << ", " << es->m_field448;
-    buf << ", " << es->m_field44c;
-    buf << ", " << es->m_field450;
-    buf << ", " << es->m_field454;
-    buf << ", " << es->m_field458;
-    buf << ", " << es->m_field2ac;
-    buf << ", " << es->m_field2c4;
-    buf << ", " << es->m_field2c8;
-    buf << ", " << es->m_field444;
+    buf << ", " << script->m_param1c0.m_antiEvil;
+    buf << ", " << script->m_field24;
+    buf << ", " << script->m_184;
+    buf << ", '" << script->m_pair28.first << "," << script->m_pair28.second << "'";
+    buf << ", " << script->m_param1c0.m_physicalAbsoluteDamage;
+    buf << ", " << script->m_param1c0.m_physicalDamageReduce;
+    buf << ", " << script->m_param1c0.m_physicalAbsoluteDefense;
+    buf << ", " << script->m_param1c0.m_magicalAbsoluteDamage;
+    buf << ", " << script->m_param1c0.m_magicalDamageReduce;
+    buf << ", " << script->m_param1c0.m_magicalAbsoluteDefense;
+    buf << ", " << script->m_param1c0.m_fireAttack;
+    buf << ", " << script->m_param1c0.m_waterAttack;
+    buf << ", " << script->m_param1c0.m_darkAttack;
+    buf << ", " << script->m_param1c0.m_lightAttack;
+    buf << ", " << script->m_param1c0.m_allElementalAttack;
+    buf << ", " << script->m_param1c0.m_weaponBreakResistance;
+    buf << ", " << script->m_param1c0.m_armorBreakResistance;
+    buf << ", " << script->m_param1c0.m_allActiveStatusResistance;
+    buf << ", " << script->m_param1c0.m_rigidity;
     buf << ", '"
-        << std::for_each(es->m_equipParam.m_vec188.begin(), es->m_equipParam.m_vec188.end(),
-                         StringMaker()).c_str()
+        << std::for_each(script->m_param1c0.m_aura188.begin(),
+                         script->m_param1c0.m_aura188.end(),
+                         CStringMaker()).c_str()
         << "'";
-    buf << ", " << es->m_field2fc;
-    iVar = local_68 * 0x400;
+    buf << ", " << script->m_param1c0.m_magicalCriticalHit;
+    register char* escDst3 = local_3e90 + local_68 * 0x400;
     ++local_68;
     buf << ", '"
-        << GetEscapeString(db, (char*)es->m_str668.c_str(), local_3e90 + iVar)
+        << GetEscapeString(db, (char*)script->m_str668.c_str(), escDst3)
         << "'";
     buf << ", '"
-        << std::for_each(es->m_vec66c.begin(), es->m_vec66c.end(),
-                         StringMaker()).c_str()
+        << std::for_each(script->m_vec66c.begin(), script->m_vec66c.end(),
+                         CStringMaker()).c_str()
         << "'";
-    iVar = local_68 * 0x400;
+    register char* escDst4 = local_3e90 + local_68 * 0x400;
     ++local_68;
     buf << ", '"
-        << GetEscapeString(db, (char*)es->m_str6b0.c_str(), local_3e90 + iVar)
+        << GetEscapeString(db, (char*)script->m_str6b0.c_str(), escDst4)
         << "'";
-    iVar = local_68 * 0x400;
+    register char* escDst5 = local_3e90 + local_68 * 0x400;
     ++local_68;
     buf << ", '"
-        << GetEscapeString(db, (char*)es->m_str6b4.c_str(), local_3e90 + iVar)
+        << GetEscapeString(db, (char*)script->m_str6b4.c_str(), escDst5)
         << "'";
-    iVar = local_68 * 0x400;
+    register char* escDst6 = local_3e90 + local_68 * 0x400;
     ++local_68;
     buf << ", '"
-        << GetEscapeString(db, (char*)es->m_str6ac.c_str(), local_3e90 + iVar)
+        << GetEscapeString(db, (char*)script->m_param1c0.m_str278.c_str(), escDst6)
         << "'";
-    buf << ", " << es->m_field798;
+    register char* escDst7 = local_3e90 + local_68 * 0x400;
+    ++local_68;
+    buf << ", '"
+        << GetEscapeString(db, (char*)script->m_param1c0.m_str27c.c_str(), escDst7)
+        << "'";
+    buf << ", " << script->m_798;
     buf << ", '" << local_1fc << "'";
     buf << ", '"
-        << std::for_each(es->m_equipParam.m_vec1b8.begin(), es->m_equipParam.m_vec1b8.end(),
-                         StringMaker()).c_str()
+        << std::for_each(script->m_param1c0.m_skill1b8.begin(),
+                         script->m_param1c0.m_skill1b8.end(),
+                         CStringMaker()).c_str()
         << "'";
+    buf << ", " << local_74;
+    buf << ", " << key;
+    buf << ", " << script->m_6a0;
+    buf << ", '" << local_2fc << "'";
+    buf << ", '" << local_3fc << "'";
+    buf << ", '" << local_4fc << "'";
+    buf << ", '" << local_5fc << "'";
+    buf << ", '" << growtype << "'";
+    buf << ", " << script->m_param1c0.m_roomListMoveSpeedRate;
+    // ORIG（+0x29c6）：dst = 公共转义缓冲 +0xc00 先物化进 callee-saved %edi
+    // 跨 GetURL 调用存活 ⇒ register 指针。
+    register char* urlDst = &local_3e90[0xc00];
     buf << ", '"
-        << std::for_each(es->m_vec198.begin(), es->m_vec198.end(),
-                         StringMaker()).c_str()
+        << GetEscapeString(
+               db, this->GetURL((char*)script->m_str6c.c_str(),
+                                (int)script->m_str6c.length(),
+                                script->m_field70),
+               urlDst)
         << "'";
-    buf << ", " << es->m_field434;
+    buf << ", " << script->m_fieldc4;
     buf << ", '"
-        << this->GetURL((char*)es->m_str6ac.c_str(),
-                     (int)es->m_str6ac.length(), es->m_field70)
+        << std::for_each(script->m_vec198.begin(),
+                         script->m_vec198.end(),
+                         CStringMaker()).c_str()
         << "'";
-    buf << ", " << es->m_fieldc4;
+    buf << ", " << script->m_param1c0.m_hpMaxRate;
+    buf << ", " << script->m_param1c0.m_mpMaxRate;
     db->set_query(
         "inSert into dnf_item_info(it_no, it_name, it_eng_name, it_explain, "
         "master_type, sub_type, job, class, revert, level, skill, "
@@ -1049,50 +976,40 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     {
         return false;
     }
-    if (es->m_equipParam.m_vec264.empty())
+    if (!script->m_param1c0.m_avatar264.empty())
     {
-        return true;
-    }
-    for (std::vector< ::STAvatarAbilityVariation>::iterator avit =
-             es->m_equipParam.m_vec264.begin();
-         avit != es->m_equipParam.m_vec264.end(); ++avit)
-    {
-        db->set_query(
-            "inSert into avatar_select_ability(it_no, ability_no, "
-            "ability_type, rate_change, value, job, skill_index, "
-            "skill_level) values(%d,%d,%d,%d,%f,%d,%d,%d)",
-            0, 0, 0, 0, 0.0f, 0, 0, 0);
-        if (!db->exec(true))
+        int abilityIdx = 0;
+        for (std::vector< ::STAvatarAbilityVariation>::iterator avit =
+                 script->m_param1c0.m_avatar264.begin();
+             avit != script->m_param1c0.m_avatar264.end(); ++avit)
         {
-            return false;
-        }
-    }
-    std::string artifactName = "artifact red";
-    bool isArtifact = false;
-    SITEMTYPE* st = &m_itemTypeMap[artifactName];
-    if (st->m_field4 == (unsigned short)key)
-    {
-        isArtifact = true;
-    }
-    else
-    {
-        artifactName = "artifact blue";
-        st = &m_itemTypeMap[artifactName];
-        if (st->m_field4 == (unsigned short)key)
-        {
-            isArtifact = true;
-        }
-        else
-        {
-            artifactName = "artifact green";
-            st = &m_itemTypeMap[artifactName];
-            if (st->m_field4 == (unsigned short)key)
+            // ORIG（+0x2ca4..+0x2d77）：*it 指针入槽后逐字段重读（-0x1c reload），
+            // 全部实参先行求值（skill+8→深槽、skill+4→edi、job 三目→edx、
+            // f8 flds、f4→esi、f0→ebx、idx++→ecx），再压参调 set_query。
+            ::STAvatarAbilityVariation* pAv = &*avit;
+            db->set_query(
+                "inSert into avatar_select_ability(it_no, ability_no, "
+                "ability_type, rate_change, value, job, skill_index, "
+                "skill_level) values(%d,%d,%d,%d,%f,%d,%d,%d)",
+                script->m_field0, abilityIdx++, pAv->m_field0, pAv->m_field4,
+                pAv->m_field8,
+                (pAv->m_skill.m_job == 0xb) ? 0x63 : pAv->m_skill.m_job,
+                pAv->m_skill.m_field4, pAv->m_skill.m_field8);
+            if (!db->exec(true))
             {
-                isArtifact = true;
+                return false;
             }
         }
     }
-    if (isArtifact)
+    // ORIG（+0x2db5..+0x2f07）：flags 全部预初始化（4×movb+edi）+ 末端统一
+    // dtor 链 ⇔ || 短路链内联临时（allocator ctor + string(char*,alloc)+D1），
+    // 比较 SITEMTYPE.m_field4(+0x4 ushort) 与 local_154（mode0 GetType sub_type
+    // 输出；其余 mode 为 0）。
+    // ORIG（+0x2e25）：movzwl 0x4(ushort) → 32 位扩展后与 uint local_154 比较
+    // （无 (unsigned short) 截断路径）。
+    if (m_itemTypeMap[std::string("artifact red")].m_field4 == local_154 ||
+        m_itemTypeMap[std::string("artifact blue")].m_field4 == local_154 ||
+        m_itemTypeMap[std::string("artifact green")].m_field4 == local_154)
     {
         this->insert_artifact_info_to_db(script);
     }
@@ -1101,108 +1018,155 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
 
 bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
 {
+    // 依据 docs/class_func_reports/sync_script__CSyncScript/
+    // insert_stackable_item_to_db.md（ORIG 0x8620968）：ORIG 汇编 + Ghidra C
+    // 逐调用转写。字段走权威 STItemScript/STStackableScript 偏移命名，map 走
+    // m_module4bc（ORIG operator[]@0x8628bc6，key 为局部 ENUM_MODULE_TYPE 0x13）；
+    // 流输出用权威 ::CStreamBuffer，列表用 std::for_each(..., CStringMaker)。
     if (m_field0 != 1)
     {
         return true;
     }
-    EquipParamInfo* ep;
-    EquipParamInfo* e2;
-    MySQL* db;
-    int key;
-    db = GlobalData::s_db_mgr->GetDBHandle(
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
-    int out2;
-    int out1;
-    if (!GetType(((StackScriptFull*)script)->m_flavorText, (ENUM_CHARACTERJOB)0, 0, out1, out2, false))
+    int out1 = 0;
+    int out2 = 0;
+    // ORIG（+0x43）：先按值拷贝 script+0xbc 构造临时 string 供 GetType。
+    std::string typeName = script->m_strbc;
+    if (!GetType(typeName, (ENUM_CHARACTERJOB)0, 0, out1, out2, false))
     {
         return false;
     }
-    MyStream buf;
+    CStreamBuffer buf;
     char local_1874[1024] = {0};
     char local_1474[1024];
     char acStack_1074[1024];
     char local_c74[1024];
     char local_874[1024] = {0};
     char local_474[1024] = {0};
-    if (!CodePage::script2Database(
-            (char*)((StackScriptFull*)script)->m_name.c_str(), local_474))
+    if (!CodePage::script2Database((char*)script->m_strac.c_str(), local_474))
     {
         cMyTrace(
             __PRETTY_FUNCTION__,
             0x523, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
-                      CodePage::database(),
-                      ((StackScriptFull*)script)->m_name.c_str(),
+                      CodePage::database(), script->m_strac.c_str(),
                       "bool sync_script::CSyncScript::insert_stackable_item_to_db(STStackableScript*)",
                       0x523);
         return false;
     }
-    if (!CodePage::script2Database(
-            (char*)((StackScriptFull*)script)->m_explain.c_str(), local_874))
+    if (!CodePage::script2Database((char*)script->m_strb4.c_str(), local_874))
     {
         cMyTrace(
             __PRETTY_FUNCTION__,
             0x52a, 5)("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
-                      CodePage::database(),
-                      ((StackScriptFull*)script)->m_explain.c_str(),
+                      CodePage::database(), script->m_strb4.c_str(),
                       "bool sync_script::CSyncScript::insert_stackable_item_to_db(STStackableScript*)",
                       0x52a);
         return false;
     }
-    buf << ((StackScriptFull*)script)->m_itNo;
+    buf << script->m_field0;
     buf << ", '" << GetEscapeString(db, local_474, local_1874) << "'";
     buf << ", '"
-        << GetEscapeString(db, (char*)((StackScriptFull*)script)->m_engName.c_str(),
-                    local_1474)
+        << GetEscapeString(db, (char*)script->m_strb0.c_str(), local_1474)
         << "'";
     buf << ", '" << GetEscapeString(db, local_874, acStack_1074) << "'";
     buf << ", " << out1;
     buf << ", " << out2;
     buf << ", '" << this->GetUsableCharacter(script) << "'";
-    buf << ", " << ((StackScriptFull*)script)->m_class;
-    buf << ", '"
-        << this->GetAttachType(((StackScriptFull*)script)->m_revertType)
-        << "'";
-    buf << ", " << ((StackScriptFull*)script)->m_level;
+    buf << ", " << script->m_field4;
+    buf << ", '" << this->GetAttachType(script->m_field8) << "'";
+    buf << ", " << script->m_field5c;
     buf << ", " << 0;
-    buf << ", " << ((StackScriptFull*)script)->m_createRatio;
-    buf << ", " << ((StackScriptFull*)script)->m_rarity;
-    buf << ", " << ((StackScriptFull*)script)->m_weight;
-    buf << ", " << ((StackScriptFull*)script)->m_price;
-    buf << ", " << ((StackScriptFull*)script)->m_cash;
-    buf << ", " << ((StackScriptFull*)script)->m_medal;
+    buf << ", " << script->m_fieldc;
+    buf << ", " << script->m_field10;
+    buf << ", " << script->m_field34;
+    buf << ", " << script->m_field14;
+    buf << ", " << script->m_field18;
+    buf << ", " << script->m_field1c;
     buf << ", " << 0;
-    buf << ", " << ((StackScriptFull*)script)->m_coolTime;
-    key = 0x13;
-    ep = (EquipParamInfo*)((StackScriptFull*)script)->m_map4bc[key];
+    buf << ", " << script->m_field68;
+    // ORIG（+0x61b）：局部 ENUM_MODULE_TYPE = 0x13 取引用查 m_module4bc。
+    ENUM_MODULE_TYPE moduleKey = (ENUM_MODULE_TYPE)0x13;
+    EquipParamInfo* ep = (EquipParamInfo*)script->m_module4bc[moduleKey];
     if (ep == 0)
     {
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
+        // ORIG 字面量序列（Ghidra ep==0 分支逐条）：40×", 0"、", ''"
+        // （att_element）、10×", 0"、3×", 0.0"、14×", 0"、", ''"
+        // （skill_levelup）。
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
         buf << ", ''";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";
-        buf << ", 0.0";  buf << ", 0.0";  buf << ", 0.0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";  buf << ", 0";
-        buf << ", 0";  buf << ", 0";  buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+        buf << ", 0.0";
+        buf << ", 0.0";
+        buf << ", 0.0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
+    buf << ", 0";
         buf << ", ''";
     }
     else
     {
-        buf << ", " << ep->m_hpMax;
-        e2 = ep;
+        EquipParamInfo* e2 = ep;
+        buf << ", " << e2->m_hpMax;
         buf << ", " << e2->m_mpMax;
         buf << ", " << e2->m_phyAtt;
         buf << ", " << e2->m_phyDef;
@@ -1219,7 +1183,6 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
         buf << ", " << e2->m_refAll;
         buf << ", " << e2->m_refSlow;
         buf << ", " << e2->m_refFreeze;
-        buf << ", " << e2->m_refPoison;
         buf << ", " << e2->m_refPoison;
         buf << ", " << e2->m_refStun;
         buf << ", " << e2->m_refCus;
@@ -1243,17 +1206,19 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
         buf << ", " << e2->m_quest;
         buf << ", " << e2->m_hitRecovery;
         buf << ", " << e2->m_jump;
-        buf << ", '" << this->GetAttackElement((EquipmentParameterInfo*)e2) << "'";
+        buf << ", '"
+            << this->GetAttackElement((EquipmentParameterInfo*)e2) << "'";
         buf << ", " << e2->m_attActiveStatus;
         buf << ", " << e2->m_attActiveStatusRatio;
         buf << ", " << e2->m_attActiveStatusPow;
         buf << ", " << e2->m_attBackforce;
         buf << ", " << e2->m_attUpforce;
-        buf << ", " << (unsigned int)(unsigned char)e2->m_attHpDrain;
-        buf << ", " << (unsigned int)(unsigned char)e2->m_attMpDrain;
+        // ORIG（+0xe08/+0xe37/+0xebc）：movzbl → operator<<(int)。
+        buf << ", " << e2->m_attHpDrain;
+        buf << ", " << e2->m_attMpDrain;
         buf << ", " << e2->m_criticalHitRate;
         buf << ", " << e2->m_stuckRate;
-        buf << ", " << (unsigned int)(unsigned char)e2->m_attDefenseIgnore;
+        buf << ", " << e2->m_attDefenseIgnore;
         buf << ", " << e2->m_roomListMoveSpeedRate;
         buf << ", " << e2->m_hpMaxRate;
         buf << ", " << e2->m_mpMaxRate;
@@ -1274,19 +1239,19 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
         buf << ", '"
             << std::for_each(e2->m_levelUpSkills.begin(),
                              e2->m_levelUpSkills.end(),
-                             StringMaker()).c_str()
+                             CStringMaker()).c_str()
             << "'";
     }
-    buf << ", 0";
+    // ORIG（+0x18ad）：两分支汇合后固定输出 set_type 空串（DAT_08ce36e4）。
+    buf << ", ''";
     buf << ", '"
-        << GetEscapeString(db,
-                    this->GetURL(
-                              (char*)((StackScriptFull*)script)->m_url.c_str(),
-                              (int)((StackScriptFull*)script)->m_url.length(),
-                              ((StackScriptFull*)script)->m_urlLen),
-                    local_c74)
+        << GetEscapeString(
+               db,
+               this->GetURL((char*)script->m_str6c.c_str(),
+                            (int)script->m_str6c.length(), script->m_field70),
+               local_c74)
         << "'";
-    buf << ", " << ((StackScriptFull*)script)->m_iconMarkNumber;
+    buf << ", " << script->m_fieldc4;
     CFieldLengthChecker fc;
     db->set_query(
         "inSert into dnf_item_info(it_no, it_name, it_eng_name, it_explain, "
@@ -1991,22 +1956,21 @@ Arad_GiftItem_Set::Data* Arad_GiftItem_Set::find(int kind, int job, int usableLe
 // ============================================================================
 int Arad_GiftItem_Set::level_check(CUser* user, const CStackableItem* item)
 {
-    if (user == 0 || item == 0)
-        return 1;
+    // ORIG 0x081a31c4：无空指针防御（P140）；usableLevel 值需跨
+    // get_charac_job call 存活 ⇒ 内联实参直落 %ebx（P52）；
+    // characLevel 在 < 比较与 log 实参各独立重调一次（P48）。
     int kind = str_to_enum(item->m_arad148.m_str8.c_str());
-    int job = user->get_charac_job();
-    int ulv = item->getUsableLevel();
-    Data* data = find(kind, job, ulv);
-    if (data == 0)
+    Data* idx = find(kind, user->get_charac_job(), item->getUsableLevel());
+    if (idx == 0)
     {
         return 1;
     }
-    int userLevel = user->get_charac_level();
-    if (userLevel < ulv)
+    if (user->get_charac_level() < item->getUsableLevel())
     {
         LogManager::logFormat(1, "localjapan/Arad_Script_Loader.cpp",
                               __PRETTY_FUNCTION__,
-                              0x14b, "[ERROR] user level limit charac_no(%d)", userLevel);
+                              0x14b, "[ERROR] user level limit charac_no(%d)",
+                              user->get_charac_level());
         return 0;
     }
     return 1;
@@ -2186,44 +2150,37 @@ void CCompound_ExtreamDun_Item::ForceResultItemRule_Setting(        // ORIG 0x83
 int CCompound_ExtreamDun_Item::_convertOutputItem(                  // ORIG 0x832c5ac
     ENUM_UNUSABLE_EQUIPMENT_TYPE eqType) const
 {
-    // docs/class_func_reports/ExtreamDungeon__CCompound_ExtreamDun_Item/_convertOutputItem.md
-    // ORIG 为二分 cmp 决策树（==2 先、>2 分支、<=2 只查 ==1），有符号 jg。
-    if ((int)eqType == 2)
+    // ORIG 0x832c5ac：switch 降形态（pivot=2 树，case9 独立体在右叶之后）。
+    switch ((int)eqType)
+    {
+    case 9:
+        return 0;
+    case 1:
+        return 1;
+    case 2:
         return 2;
-    if ((int)eqType > 2)
-    {
-        if ((int)eqType == 3)
-            return 3;
-        if ((int)eqType == 9)
-            return 0;
+    case 3:
+        return 3;
+    default:
+        return 4;
     }
-    else
-    {
-        if ((int)eqType == 1)
-            return 1;
-    }
-    return 4;
 }
-
 int CCompound_ExtreamDun_Item::_convertInputItem(                   // ORIG 0x832c620
     ENUM_UNUSABLE_EQUIPMENT_TYPE eqType) const
 {
-    // 同型决策树；映射：1→0, 2→1, 3→2, 9→0, 其余→3。
-    if ((int)eqType == 2)
+    // ORIG 0x832c620：switch 降形态；case1/9 共享 body（fall-through 空 case）。
+    switch ((int)eqType)
+    {
+    case 1:
+    case 9:
+        return 0;
+    case 2:
         return 1;
-    if ((int)eqType > 2)
-    {
-        if ((int)eqType == 3)
-            return 2;
-        if ((int)eqType == 9)
-            return 0;
+    case 3:
+        return 2;
+    default:
+        return 3;
     }
-    else
-    {
-        if ((int)eqType == 1)
-            return 0;
-    }
-    return 3;
 }
 
 int CCompound_ExtreamDun_Item::checkCompoundable(                   // ORIG T 0x832d7d6
@@ -2400,15 +2357,15 @@ int CCompound_ExtreamDun_Item::_get_base_level(                     // ORIG W 0x
 int CCompound_ExtreamDun_Item::_convertInput_To_Output(             // ORIG T 0x832c5f0
     ENUM_INPUTITEMS_RARITY inRarity) const
 {
+    // ORIG 0x832c5f0：switch 降形态；case0 体前置（test 判叶、jne 直落 default）。
     switch ((int)inRarity)
     {
+    case 0: return 0;
     case 1: return 2;
     case 2: return 3;
-    case 0: return 0;
     default: return 4;
     }
 }
-
 int CCompound_ExtreamDun_Item::_determine_rarity(                   // ORIG T 0x832c976
     unsigned int randVal, ENUM_INPUTITEMS_RARITY inRarity) const
 {
@@ -2416,16 +2373,17 @@ int CCompound_ExtreamDun_Item::_determine_rarity(                   // ORIG T 0x
     {
         return 0;
     }
-    for (int i = 0; i <= 3; ++i)
+    // ORIG 0x832c9b7：i 为函数作用域，耗尽路径 `mov -0x4(%ebp),%eax` 返回 i(=4)。
+    int i;
+    for (i = 0; i <= 3; ++i)
     {
         if ((unsigned int)m_data.m_rarityDicision[(int)inRarity][i] >= randVal)
         {
-            return i;   // 循环耗尽时返回 4（ORIG 如此）
+            break;
         }
     }
-    return 4;
+    return i;
 }
-
 std::pair<unsigned int, unsigned int>                              // ORIG T 0x832c9ca
 CCompound_ExtreamDun_Item::_determine_level_bonus(
     unsigned int baseLevel, ENUM_INPUTITEMS_RARITY inRarity,
@@ -2517,18 +2475,24 @@ int CCompound_ExtreamDun_Item::_exception_Rare(                     // ORIG T 0x
 bool BindTable_Predicate(                                           // ORIG T 0x832c3cc
     const OUTPUT_ITEM_STR& a, const OUTPUT_ITEM_STR& b)
 {
-    if (a.m_usableLevel != b.m_usableLevel)
+    if (a.m_usableLevel == b.m_usableLevel)
     {
-        return a.m_usableLevel < b.m_usableLevel;
+        return a.m_index < b.m_index;
     }
-    return a.m_index < b.m_index;
+    return a.m_usableLevel < b.m_usableLevel;
 }
 
 int CCompound_ExtreamDun_Item::_FindSelectItem(                     // ORIG T 0x832d15e
     unsigned int group, ENUM_OUTPUTITEMS_RARITY outRarity,
     const std::pair<unsigned int, unsigned int>& range) const
 {
-    if ((int)group <= 0 || group > 0x3a)
+    // ORIG 0x832d164：group 为无符号双查（==0 je / >0x3a jbe），outRarity 独立
+    // 有符号窗口（<0 js / >3 jle）——原合并写法被折成单 jle，且缺 outRarity 守卫。
+    if ((group == 0) || (group > 0x3a))
+    {
+        return 0;
+    }
+    if ((int)outRarity < 0 || (int)outRarity > 3)
     {
         return 0;
     }
@@ -2583,16 +2547,18 @@ int CCompound_ExtreamDun_Item::_FindItemAll_BindSphere(             // ORIG T 0x
     const CEquipItem** refs, char select, ENUM_OUTPUTITEMS_RARITY outRarity,
     std::pair<unsigned int, unsigned int> range) const
 {
-    if ((int)outRarity == 2)
+    // ORIG 0x832d438：比较对象是 char select（spill -0x1c，cmpb），
+    // 结果统一落 slot -0xc（int result = 0 初存 + 两支 call 后写回）。
+    int result = 0;
+    if (select == 2)
     {
-        return _FindRandomItem(outRarity, range);
+        result = _FindRandomItem(outRarity, range);
     }
-    if ((int)outRarity == 0 || (int)outRarity == 1)
+    else if (select == 0 || select == 1)
     {
-        int group = refs[(int)select]->getItemGroupName();
-        return _FindSelectItem((unsigned int)group, outRarity, range);
+        result = _FindSelectItem(refs[select]->getItemGroupName(), outRarity, range);
     }
-    return 0;
+    return result;
 }
 
 int CCompound_ExtreamDun_Item::_FindItemRelateCreationRate(         // ORIG T 0x832d4b4
@@ -2737,7 +2703,9 @@ int CItemList::GetRestrictCode(int itemIdx)
 int CItemList::GetQuestItemDropBouns(const unsigned long& key) const
 {
     std::map<unsigned long, int>::const_iterator it = m_lottoCount.find(key);
-    if (it == m_lottoCount.end())
-        return 0;
-    return it->second;
+    if (it != m_lottoCount.end())
+    {
+        return it->second;
+    }
+    return 0;
 }

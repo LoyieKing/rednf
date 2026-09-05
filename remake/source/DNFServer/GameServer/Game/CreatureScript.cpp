@@ -8,12 +8,20 @@
 
 #include <string.h>
 #include <cstdio>
+#include <utility>
 
 #include "DNFLexWrapper.h"
 #include "GameScriptEnumHelpers.h"
 #include "LogManager.h"
 #include "NpcScript.h"
 #include "STComputeDamageVariable.h"
+#include "CEnvironment.h"     // class SpinLock / struct less_TCHAR
+
+// processModuleTagSet ORIG T 0x08a97637（RDARScriptSkill.cpp 模块标签域；实现于
+// LinkMiscSecuTimerSolo.cpp）。ImportAttackInfoScript 每行先送其辨认 module 开/闭
+// 边界行（返回 0 表示已消费，跳过该行数据解析）。
+bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
+                         int type, bool flag);
 
 // ---- 全局（ORIG 属 RDARScriptObject.cpp/RDARScriptAttackInfo.cpp）----
 char g_creatureScriptBaseDirectory[0x104];
@@ -65,10 +73,11 @@ CreatureScript::CreatureScript()
       m_skillMotion(), m_overSkillMotion(), m_responseMotion(), m_specialMotion(),
       m_equipMotion(), m_equipOverMotion(), m_equipUnderMotion(),
       m_basicOverEffect(), m_walkOverEffect(), m_runOverEffect(),
+      m_defaultOverEffect(),
       m_skillOverEffect(), m_overSkillOverEffect(), m_responseOverEffect(),
       m_specialOverEffect(), m_basicUnderEffect(), m_walkUnderEffect(),
-      m_runUnderEffect(), m_skillUnderEffect(), m_overSkillUnderEffect(),
-      m_responseUnderEffect(), m_specialUnderEffect(), m_defaultUnderEffect(),
+      m_runUnderEffect(), m_defaultUnderEffect(), m_skillUnderEffect(),
+      m_overSkillUnderEffect(), m_responseUnderEffect(), m_specialUnderEffect(),
       m_additionalAnimations(), m_defaultParticle(), m_responseSoundTag(),
       m_wingSoundTag(), m_walkSoundTag(), m_runSoundTag(),
       m_etcMotion(), m_attackInfo(), m_skillString(), m_skillLevelValues(),
@@ -137,7 +146,8 @@ void CreatureScript::clear()
     m_equipUnderMotion = "";
     m_basicOverEffect = "";
     m_walkOverEffect = "";
-    // ORIG clear 不复位 m_runOverEffect（+0xb4）
+    m_runOverEffect = "";
+    // ORIG clear 不复位 m_defaultOverEffect（+0xb4）
     m_skillOverEffect = "";
     m_overSkillOverEffect = "";
     m_responseOverEffect = "";
@@ -145,11 +155,11 @@ void CreatureScript::clear()
     m_basicUnderEffect = "";
     m_walkUnderEffect = "";
     m_runUnderEffect = "";
-    // ORIG clear 不复位 m_skillUnderEffect（+0xd4）
+    // ORIG clear 不复位 m_defaultUnderEffect（+0xd4）
+    m_skillUnderEffect = "";
     m_overSkillUnderEffect = "";
     m_responseUnderEffect = "";
     m_specialUnderEffect = "";
-    m_defaultUnderEffect = "";
     m_additionalAnimations.clear();
     m_defaultParticle = "";
     m_responseSoundTag = "";
@@ -382,6 +392,27 @@ bool isValidAttackInfoElement(const void* sdc, int element)
 // 逐行 ScanType 分派；标签→字段写回。loadRDARScriptFile(g_creatureScriptBaseDirectory,
 // path) 装载；末尾以 STScriptFileList::FindIndexByFullScan 写回 m_id。
 // ============================================================================
+namespace
+{
+// [skill list] 子域查找表 tagId（ORIG 汇编 0x8a3776f 区 dispatch 树 +
+// 12 段 pair 注册的 movl $0xNNN 常量实证）。
+enum CreatureSkillTag
+{
+    CSTAG_NODE_END = 0x25f6,             // [/skill node]
+    CSTAG_SKILL_TYPE = 0x260c,           // [skill type]
+    CSTAG_SKILL_NAME = 0x2612,           // [skill name]
+    CSTAG_SKILL_EXPLAIN = 0x2617,        // [skill explain]
+    CSTAG_SKILL_RECOVERY = 0x261c,       // [skill recovery time]
+    CSTAG_LEARN_SKILL_LEVEL = 0x2623,    // [learn skill level]
+    CSTAG_SKILL_MP = 0x262a,             // [skill mp]
+    CSTAG_SKILL_MOTION = 0x2631,         // [skill motion]
+    CSTAG_SKILL_UNDER_EFFECT = 0x2636,   // [skill under effect]
+    CSTAG_SKILL_OVER_EFFECT = 0x263b,    // [skill over effect]
+    CSTAG_SKILL_INFO = 0x2640,           // [skill info]
+    CSTAG_ATTACK_INFO = 0x2645,          // [attack info]
+};
+}  // namespace
+
 bool importCreatureScript(CreatureScript* script, const char* path)
 {
     if (!loadRDARScriptFile(g_creatureScriptBaseDirectory, path))
@@ -431,10 +462,12 @@ bool importCreatureScript(CreatureScript* script, const char* path)
         }
         else if (tag == "[move speed]")
         {
-            for (int i = 0; i < 5; ++i)
-            {
-                script->m_moveSpeed[i] = ScanInt((bool*)0);
-            }
+            // ORIG 0x8a360d2..0x8a3611a：五段独立调用点（非线性循环）。
+            script->m_moveSpeed[0] = ScanInt((bool*)0);
+            script->m_moveSpeed[1] = ScanInt((bool*)0);
+            script->m_moveSpeed[2] = ScanInt((bool*)0);
+            script->m_moveSpeed[3] = ScanInt((bool*)0);
+            script->m_moveSpeed[4] = ScanInt((bool*)0);
         }
         else if (tag == "[gravity]")
         {
@@ -610,17 +643,18 @@ bool importCreatureScript(CreatureScript* script, const char* path)
         }
         else if (tag == "[additional animation]")
         {
-            // ORIG 0x08a36991：ScanStr(局部) → ScanInt → ScanStr(丢弃) →
-            // C1EiiPKc(局部, a, b, name) → push_back（m_additionalAnimations）。
-            std::string animName;
+            // ORIG 0x08a36991：-0x40 常量 -1（本 case 内无任何写回，cmp 恒
+            // 不等分支不可达——ORIG 死代码，照录）；两 string 均复用 token
+            // 槽（-0x228）。命中时临时对象 materialize（-0x220）→
+            // vector<CAA>::push_back(T&&)（EO 0x8a40a76）→ dtor。
             int animField0 = -1;
-            ScanStr(&animName);
+            ScanStr(&token);
             int animField4 = ScanInt((bool*)0);
             ScanStr(&token);
             if (animField0 != -1)
             {
-                CreatureAdditionalAnimation anim(animField4, animField0, animName.c_str());
-                script->m_additionalAnimations.push_back(anim);
+                script->m_additionalAnimations.push_back(
+                    CreatureAdditionalAnimation(animField4, animField0, token.c_str()));
             }
         }
         else if (tag == "[default particle]")
@@ -686,45 +720,53 @@ bool importCreatureScript(CreatureScript* script, const char* path)
         else if (tag == "[skill level values]")
         {
             script->m_skillLevelValues.clear();
-            bool ok = false;
-            int v = ScanInt(&ok);
-            while (ok)
+            bool ok = false;                       // ORIG 循环头单调用点
+            int v;
+            for (;;)
             {
-                script->m_skillLevelValues.push_back(v);
                 v = ScanInt(&ok);
+                if (ok != true)
+                    break;
+                script->m_skillLevelValues.push_back(v);
             }
         }
         else if (tag == "[over skill level values]")
         {
             script->m_overSkillLevelValues.clear();
-            bool ok = false;
-            int v = ScanInt(&ok);
-            while (ok)
+            bool ok = false;                       // ORIG 循环头单调用点
+            int v;
+            for (;;)
             {
-                script->m_overSkillLevelValues.push_back(v);
                 v = ScanInt(&ok);
+                if (ok != true)
+                    break;
+                script->m_overSkillLevelValues.push_back(v);
             }
         }
         else if (tag == "[piercing]")
         {
             script->m_piercing.clear();
-            bool ok = false;
-            int v = ScanInt(&ok);
-            while (ok)
+            bool ok = false;                       // ORIG 循环头单调用点
+            int v;
+            for (;;)
             {
-                script->m_piercing.push_back(v);
                 v = ScanInt(&ok);
+                if (ok != true)
+                    break;
+                script->m_piercing.push_back(v);
             }
         }
         else if (tag == "[int data]")
         {
             script->m_intData.clear();
-            bool ok = false;
-            int v = ScanInt(&ok);
-            while (ok)
+            bool ok = false;                       // ORIG 循环头单调用点
+            int v;
+            for (;;)
             {
-                script->m_intData.push_back(v);
                 v = ScanInt(&ok);
+                if (ok != true)
+                    break;
+                script->m_intData.push_back(v);
             }
         }
         else if (tag == "[string data]")
@@ -743,7 +785,9 @@ bool importCreatureScript(CreatureScript* script, const char* path)
                 int v = ScanInt(&ok);
                 if (!ok)
                     break;
-                script->m_evolutionMultyId.push_back(v);
+                // ORIG 0x8a37019：先 materialize prvalue 临时（-0x214）再
+                // push_back(int&&)（EO 0x0808e1ee）——写 int(v) 复现。
+                script->m_evolutionMultyId.push_back(int(v));
             }
         }
         else if (tag == "[evolution quest]")
@@ -760,40 +804,58 @@ bool importCreatureScript(CreatureScript* script, const char* path)
         }
         else if (tag == "[selective grow creature]")
         {
-            while (ScanType(tag, true) && tag != "[/selective grow creature]")
+            // ORIG 0x8a3710d：数据先写栈上 selectiveGrowCreatureInfo（-0x24c，
+            // ctor 0x0833df50），仅命中闭合标签时整体 7 字拷回 script+0x18c；
+            // 文件截断（ScanType 失败）直接回主循环、不落盘。
+            selectiveGrowCreatureInfo grow;
+            bool growActive = true;
+            while (growActive)
             {
-                if (tag == "[item count for levelup]")
-                    script->m_selectiveGrow.m_growItemCount = ScanInt((bool*)0);
+                if (ScanType(tag, true) != 1)
+                    break;
+                if (tag == "[/selective grow creature]")
+                {
+                    script->m_selectiveGrow = grow;
+                    growActive = false;
+                }
+                else if (tag == "[item count for levelup]")
+                    grow.m_growItemCount = ScanInt((bool*)0);
                 else if (tag == "[using exp item]")
-                    script->m_selectiveGrow.m_usingExpItem = (ScanInt((bool*)0) != 0) ? 1 : 0;
+                    grow.m_usingExpItem = (ScanInt((bool*)0) != 0) ? 1 : 0;
                 else if (tag == "[grow Atype item index]")
-                    script->m_selectiveGrow.m_growATypeItem = ScanInt((bool*)0);
+                    grow.m_growATypeItem = ScanInt((bool*)0);
                 else if (tag == "[grow Btype item index]")
-                    script->m_selectiveGrow.m_growBTypeItem = ScanInt((bool*)0);
+                    grow.m_growBTypeItem = ScanInt((bool*)0);
                 else if (tag == "[grow Atype creature id]")
-                    script->m_selectiveGrow.m_growATypeCreature = ScanInt((bool*)0);
+                    grow.m_growATypeCreature = ScanInt((bool*)0);
                 else if (tag == "[grow Btype creature id]")
-                    script->m_selectiveGrow.m_growBTypeCreature = ScanInt((bool*)0);
+                    grow.m_growBTypeCreature = ScanInt((bool*)0);
                 else if (tag == "[grow level]")
-                    script->m_selectiveGrow.m_growLevel = ScanInt((bool*)0);
+                    grow.m_growLevel = ScanInt((bool*)0);
             }
         }
         else if (tag == "[event evolute creature]")
         {
             script->m_eventEvlouteCreature.clear();
-            bool ok = false;
-            int v = ScanInt(&ok);
-            while (ok)
+            bool ok = false;                       // ORIG 循环头单调用点
+            int v;
+            for (;;)
             {
-                script->m_eventEvlouteCreature.push_back(v);
                 v = ScanInt(&ok);
+                if (ok != true)
+                    break;
+                script->m_eventEvlouteCreature.push_back(v);
             }
         }
         else if (tag == "[item evolution]")
         {
+            // ORIG 0x8a373a2：首 int 失败 → log 0x259e → return false；
+            // 循环内 first(-0x25c)/second(-0x258) 相邻 = st_crature_id_item_id
+            // 两字段直写栈；first 读尽 → log 0x25a9(size) 后走收尾；
+            // second 缺 → log 0x25af(size) → return false；first==-1 → 走收尾。
             bool ok = false;
             int itemId = ScanInt(&ok);
-            if (!ok)
+            if (ok != true)
             {
                 LogManager::logFormat(0, "../RDARScriptObject.cpp", __FUNCTION__,
                                       0x259e,
@@ -803,16 +865,38 @@ bool importCreatureScript(CreatureScript* script, const char* path)
             }
             script->m_itemEvolution = itemId;
             script->m_itemEvolCreatureIds.clear();
-            while (ScanInt(&ok))
+            st_crature_id_item_id entry;
+            for (;;)
             {
-                st_crature_id_item_id pair;
-                pair.m_creatureId = itemId;
-                pair.m_itemId = ScanInt(&ok);
-                if (!ok)
+                entry.m_creatureId = ScanInt(&ok);
+                if (ok != true)
+                {
+                    LogManager::logFormat(0, "../RDARScriptObject.cpp", __FUNCTION__,
+                                          0x25a9,
+                                          "creature script loading  %s, item_evolution_creature_id_ size : %d",
+                                          path, script->m_itemEvolCreatureIds.size());
+                    break;
+                }
+                entry.m_itemId = ScanInt(&ok);
+                if (ok != true)
+                {
+                    LogManager::logFormat(0, "../RDARScriptObject.cpp", __FUNCTION__,
+                                          0x25af,
+                                          "creature script loading  %s, item_evolution_creature_id_ size : %d",
+                                          path, script->m_itemEvolCreatureIds.size());
                     return false;
-                script->m_itemEvolCreatureIds.push_back(pair);
-                itemId = pair.m_creatureId;
+                }
+                if (entry.m_creatureId == -1)
+                    break;
+                script->m_itemEvolCreatureIds.push_back(entry);
             }
+            // ORIG 0x8a3754b：收尾多消费一行——EOF/闭合标签 → 函数收束；
+            // 否则回主循环头（该行被重扫覆盖，ORIG 固有 quirk，照录）。
+            if (ScanType(tag, true) != 1)
+                break;
+            if (tag == "[/item evolution]")
+                break;
+            continue;
         }
         else if (tag == "[skill info]")
         {
@@ -826,90 +910,213 @@ bool importCreatureScript(CreatureScript* script, const char* path)
         }
         else if (tag == "[skill list]")
         {
-            while (ScanType(tag, true) && tag != "[/skill list]")
+            // ORIG 0x8a3776f：函数局部静态三件套（_ZZ..importCreatureScript..
+            // __lookup/__init_lock 各带 __cxa_guard+__cxa_atexit；__inited 为
+            // 零初始化 plain bool 无 guard）。子标签经 map<const char*,int,
+            // less_TCHAR> 查找分派（非线性 string==）；!__inited 时首行进
+            // 注册链：case 0 起逐 case insert 后贯穿（0x8a37a6b→0x8a37d16→
+            // …→0x8a38219），公共尾 leave+__inited=1 再重查同一行。
+            typedef std::map<const char*, int, less_TCHAR> LookupMap;
+            static LookupMap __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
+
+            bool listActive = true;              // -0x25
+            while (listActive)
             {
-                if (tag == "[skill node]")
+                if (ScanType(tag, true) != 1)
+                    break;                       // 0x8a37664 → 主循环头
+                int key = -1;                    // -0x260
+                int typeFlag = -1;               // -0x24（0xffffffff 初值）
+                CreatureScriptSkillInfo info;    // -0x28c（0x8a3dd26 每轮构造）
+                if (tag == "[/skill list]")
                 {
-                    bool ok = false;
-                    int key = ScanInt(&ok);
-                    if (!ok)
-                        break;
-                    CreatureScriptSkillInfo info;
-                    info.clear();
-                    int type = 0;
-                    std::string sub;
-                    while (ScanType(sub, true))
+                    listActive = false;          // 0x8a376a2
+                    continue;                    // 0x8a3824d → info dtor → 尾检
+                }
+                if (tag == "[skill node]")      // 未知行 → 0x8a3824d 跳过（ORIG
+                {                               // 为两次 == 直链，非 !=）
+                key = -1;                        // 0x8a376c9
+                info.clear();                    // 0x8a3de50
+                bool ok = false;                 // -0x22d（ORIG 全函数共用槽）
+                key = ScanInt(&ok);
+                if (ok != true)
+                {
+                    LogManager::logFormat(0, "../RDARScriptObject.cpp", __FUNCTION__,
+                                          0x25ea,
+                                          "creature script loading  %s, evolution_item_id_",
+                                          path);
+                    return false;                // 0x8a37731
+                }
+                bool nodeActive = true;          // -0x1d
+                for (;;)
+                {
+                    if (ScanType(tag, true) != 1)
+                        break;                   // 0x8a37769：截断 → 本 node 不 insert
+                redo_lookup:
+                    int tagId;
+                    if (__inited)
                     {
-                        if (sub == "[/skill node]")
-                            break;
-                        if (sub == "[skill type]")
-                        {
-                            ScanStr(&token);
-                            type = (token == "over skill") ? 1 : 0;
-                        }
-                        else if (sub == "[skill name]")
-                        {
-                            ScanStr(&info.m_str0);
-                        }
-                        else if (sub == "[skill explain]")
-                        {
-                            ScanStr(&info.m_str4);
-                        }
-                        else if (sub == "[skill recovery time]")
-                        {
-                            info.m_field8 = ScanInt((bool*)0);
-                        }
-                        else if (sub == "[learn skill level]")
-                        {
-                            info.m_fieldc = ScanInt((bool*)0);
-                        }
-                        else if (sub == "[skill mp]")
-                        {
-                            info.m_field10 = 0;   // 新结构 +0x10 为 int（原 m_str10 字符串已改型）
-                            info.m_field8 = ScanInt((bool*)0);
-                        }
-                        else if (sub == "[skill motion]")
-                        {
-                            ScanStr(&info.m_str14);
-                        }
-                        else if (sub == "[skill under effect]")
-                        {
-                            ScanStr(&info.m_str18);
-                        }
-                        else if (sub == "[skill over effect]")
-                        {
-                            ScanStr(&info.m_str1c);
-                        }
-                        else if (sub == "[skill info]")
-                        {
-                            ScanStr(&info.m_str20);
-                        }
-                    }
-                    if (type == 0)
-                    {
-                        // ORIG 弱实例：map::find + insert(make_pair)（0x8a40b0c 等）。
-                        std::map<int, CreatureScriptSkillInfo>::iterator it =
-                            script->m_skillList.find(key);
-                        if (it == script->m_skillList.end())
-                            script->m_skillList.insert(std::make_pair<int, CreatureScriptSkillInfo>(
-                                static_cast<int>(key), CreatureScriptSkillInfo(info)));
+                        LookupMap::const_iterator it = __lookup.find(tag.c_str());
+                        if (it != __lookup.end())
+                            tagId = it->second;
+                        else
+                            tagId = -1;          // 0x8a37925 未命中
                     }
                     else
                     {
-                        std::map<int, CreatureScriptSkillInfo>::iterator it =
-                            script->m_overSkillList.find(key);
-                        if (it == script->m_overSkillList.end())
-                            script->m_overSkillList.insert(std::make_pair<int, CreatureScriptSkillInfo>(
-                                static_cast<int>(key), CreatureScriptSkillInfo(info)));
+                        __init_lock.enter();     // 0x8a3792f
+                        if (__inited)            // 竞争双检：释放后重查本行
+                        {
+                            __init_lock.leave(); // 0x8a3794d
+                            goto redo_lookup;    // 0x8a37953 → 0x8a3776f
+                        }
+                        tagId = 0;               // 0x8a37958 首行注册入口
                     }
+                    switch (tagId)
+                    {
+                    case 0:                      // 与 [/skill node] 共体
+                    case CSTAG_NODE_END:
+                        if (__inited)
+                        {
+                            nodeActive = false;  // 0x8a37a73
+                            if (key == -1 || typeFlag == -1)
+                            {
+                                LogManager::logFormat(0, "../RDARScriptObject.cpp",
+                                                      __FUNCTION__, 0x25fc,
+                                                      "creature script loading  %s, evolution_item_id_",
+                                                      path);
+                                return false;    // 0x8a37a88
+                            }
+                            if (typeFlag == 0)
+                            {
+                                // ORIG 0x8a37ad4：find==end 才 insert（弱实例
+                                // 0x8a40b38/b0c/b5e/b72/d2c/d66 序列）。
+                                if (script->m_skillList.find(key) == script->m_skillList.end())
+                                    script->m_skillList.insert(
+                                        std::make_pair<int, CreatureScriptSkillInfo>(key, info));
+                            }
+                            else
+                            {
+                                if (script->m_overSkillList.find(key) == script->m_overSkillList.end())
+                                    script->m_overSkillList.insert(
+                                        std::make_pair<int, CreatureScriptSkillInfo>(key, info));
+                            }
+                            break;
+                        }
+                        __lookup.insert(LookupMap::value_type("[/skill node]", static_cast<int>(CSTAG_NODE_END)));
+                        /* fall through（0x8a37a6b jmp 0x8a37d16） */
+                    case CSTAG_SKILL_TYPE:
+                        if (__inited)
+                        {
+                            ScanStr(&token);     // 0x8a37d73（无括号 "over skill"）
+                            typeFlag = (token == "over skill") ? 1 : 0;
+                            break;
+                        }
+                        __lookup.insert(LookupMap::value_type("[skill type]", static_cast<int>(CSTAG_SKILL_TYPE)));
+                        /* fall through */
+                    case CSTAG_SKILL_NAME:
+                        if (__inited)
+                        {
+                            ScanStr(&info.m_str0);
+                            break;
+                        }
+                        __lookup.insert(LookupMap::value_type("[skill name]", static_cast<int>(CSTAG_SKILL_NAME)));
+                        /* fall through */
+                    case CSTAG_SKILL_EXPLAIN:
+                        if (__inited)
+                        {
+                            ScanStr(&info.m_str4);
+                            break;
+                        }
+                        __lookup.insert(LookupMap::value_type("[skill explain]", static_cast<int>(CSTAG_SKILL_EXPLAIN)));
+                        /* fall through */
+                    case CSTAG_SKILL_RECOVERY:
+                        if (__inited)
+                        {
+                            info.m_field8 = ScanInt(&ok);   // 0x8a37eef（&-0x22d）
+                            break;
+                        }
+                        __lookup.insert(LookupMap::value_type("[skill recovery time]", static_cast<int>(CSTAG_SKILL_RECOVERY)));
+                        /* fall through */
+                    case CSTAG_LEARN_SKILL_LEVEL:
+                        if (__inited)
+                        {
+                            info.m_fieldc = ScanInt(&ok);   // 0x8a37f6e
+                            break;
+                        }
+                        __lookup.insert(LookupMap::value_type("[learn skill level]", static_cast<int>(CSTAG_LEARN_SKILL_LEVEL)));
+                        /* fall through */
+                    case CSTAG_SKILL_MP:
+                        if (__inited)
+                        {
+                            info.m_field10 = ScanInt(&ok);  // 0x8a37fed（+0x10 int）
+                            break;
+                        }
+                        __lookup.insert(LookupMap::value_type("[skill mp]", static_cast<int>(CSTAG_SKILL_MP)));
+                        /* fall through */
+                    case CSTAG_SKILL_MOTION:
+                        if (__inited)
+                        {
+                            ScanStr(&info.m_str14);
+                            break;
+                        }
+                        __lookup.insert(LookupMap::value_type("[skill motion]", static_cast<int>(CSTAG_SKILL_MOTION)));
+                        /* fall through */
+                    case CSTAG_SKILL_UNDER_EFFECT:
+                        if (__inited)
+                        {
+                            ScanStr(&info.m_str18);
+                            break;
+                        }
+                        __lookup.insert(LookupMap::value_type("[skill under effect]", static_cast<int>(CSTAG_SKILL_UNDER_EFFECT)));
+                        /* fall through */
+                    case CSTAG_SKILL_OVER_EFFECT:
+                        if (__inited)
+                        {
+                            ScanStr(&info.m_str1c);
+                            break;
+                        }
+                        __lookup.insert(LookupMap::value_type("[skill over effect]", static_cast<int>(CSTAG_SKILL_OVER_EFFECT)));
+                        /* fall through */
+                    case CSTAG_SKILL_INFO:
+                        if (__inited)
+                        {
+                            ScanStr(&info.m_str20);
+                            break;
+                        }
+                        __lookup.insert(LookupMap::value_type("[skill info]", static_cast<int>(CSTAG_SKILL_INFO)));
+                        /* fall through */
+                    case CSTAG_ATTACK_INFO:
+                        if (__inited)
+                        {
+                            ScanStr(&info.m_str24);         // 0x8a38202（漏项补全）
+                            break;
+                        }
+                        __lookup.insert(LookupMap::value_type("[attack info]", static_cast<int>(CSTAG_ATTACK_INFO)));
+                        break;                               // 注册链终点 → 公共尾
+                    default:
+                        // -1 未命中/未处理 → ORIG 无操作直落公共尾。
+                        break;
+                    }
+                    // 公共尾 0x8a38219。
+                    if (!__inited)
+                    {
+                        __init_lock.leave();     // 0x8a38227
+                        __inited = true;         // 0x8a38233
+                        goto redo_lookup;        // 0x8a3823a 重查同一行
+                    }
+                    if (!nodeActive)
+                        break;                   // 0x8a38240 → info dtor → 外层
                 }
+                }                                  // [skill node] 块结束
             }
         }
         else if (tag == "[using random skill]")
         {
             bool ok = false;
             int v = ScanInt(&ok);
-            if (!ok)
+            if (ok != true)
             {
                 LogManager::logFormat(0, "../RDARScriptObject.cpp", __FUNCTION__,
                                       0x266c,
@@ -923,286 +1130,663 @@ bool importCreatureScript(CreatureScript* script, const char* path)
         {
             LogManager::logFormat(0, "../RDARScriptObject.cpp", __FUNCTION__, 0x2674,
                                   "creature script loading error : %s : %s",
-                                  tag.c_str(), path);
+                                  tag.data(), path);   // 0x8a3832f = string::data
             return false;
         }
     }
 
-    // 末尾：以文件列表索引写回 m_id。
-    for (std::map<int, std::string>::const_iterator it = g_creatureScriptFileList.begin();
-         it != g_creatureScriptFileList.end(); ++it)
-    {
-        if (it->second == path)
-        {
-            script->m_id = it->first;
-            break;
-        }
-    }
+    // 末尾 0x8a38376：STScriptFileList::FindIndexByFullScan(this=&列表, path)
+    // 写回 m_id 后 return true（g_creatureScriptFileList 建模为 map，布局与
+    // STScriptFileList +0x00 一致 → 类型视图调用，同 InitScriptProducers_5 先例）。
+    script->m_id = reinterpret_cast<const STScriptFileList*>(&g_creatureScriptFileList)
+                       ->FindIndexByFullScan(path);
     return true;
 }
 
 // ============================================================================
 // ImportAttackInfoScript —— ORIG 0x88d145a（RDARScriptAttackInfo.cpp）
 // ============================================================================
+// 注意:此函数与 importCreatureScript 的逐行 if-else 直链不同,ORIG 汇编
+// (/tmp/ImportAttackInfoScript.md 汇编 0x1577 区 + Ghidra C)为:
+//   static map<const char*,int,less_TCHAR> __lookup(函数局部,guard 构造)
+//   + SpinLock __init_lock + bool __inited;
+//   注册在 switch 内逐 case 完成:!__inited 时每个 case 构造
+//   pair(key,tagId) 并 map::insert 后贯穿到下一 case(0x42→0x46→…→0x1d2 链,
+//   末 case insert 后跳公共尾 0x24bb),尾处 leave + __inited=1 并重查同一
+//   token 做真实解析;之后每行 find→switch。首行 tagId=0 与 case 0x42 共享
+//   入口。每行处理前先调 processModuleTagSet:返回 false 表示该行
+//   是 module 开/闭边界行(已被其内部 ScanType 消费),跳过本行数据解析;第二
+//   输出(subId)!= -1 时写 AttackInfo::m_moduleTag(+0x8c)。
+// module 化字段:[elemental property](+0xa4 set)与 [active status] 各自持有
+// module 名缓存 string(初值 MODULE_NAME_TAG+0x18 = g_moduleNameTag[6],与
+// clear() 的 m_moduleTag=3 对齐);遇 module 变化分别 clear m_elements / 清零
+// active status 的 int3 槽(0xec..0xf4)与 3 个 vector(0xf8/0x104/0x110)。
+// ORIG 0x88d1f95 的重置循环不清 type/value/int/int2 槽,也不重置 statusIdx。
+// [active status] 槽计数 statusIdx(ORIG -0x34)只在函数入口清零:每个文件至多
+// 3 个 status;超限 log 后 ORIG 0x88d20b9 跳 0x88d393d 重查同一 token(数据非法
+// 时会循环),此处以内层 continue 同构重建。
+// [human active status rate] 除以 _DAT_08e0ab18 = 100.0f(原 ELF 0x08e0ab18
+// 实测 4 字节 0x42c80000)。
+namespace
+{
+enum AttackInfoTag
+{
+    AITAG_DAMAGE = 0x42,                     // [damage]
+    AITAG_DAMAGE_INCREASE_RATE = 0x46,       // [damage increase rate]
+    AITAG_ABSOLUTE_DAMAGE = 0x4a,            // [absolute damage]
+    AITAG_DAMAGE_BONUS = 0x4e,               // [damage bonus]
+    AITAG_ATTACK_TYPE = 0x52,                // [attack type]
+    AITAG_WEAPON_DAMAGE_APPLY = 0x63,        // [weapon damage apply]（99）
+    AITAG_ATTACK_MYSELF = 0x67,              // [attack myself]
+    AITAG_ATTACK_FRIEND = 0x6b,              // [attack friend]
+    AITAG_ATTACK_ENEMY = 0x6f,               // [attack enemy]
+    AITAG_ELEMENTAL_PROPERTY = 0x73,         // [elemental property]
+    AITAG_ACTIVE_STATUS = 0x86,              // [active status]
+    AITAG_DAMAGE_REACTION = 0xe2,            // [damage reaction]
+    AITAG_PUSH_ASIDE = 0xf6,                 // [push aside]
+    AITAG_LIFT_UP = 0xfa,                    // [lift up]
+    AITAG_CRITICAL_HIT = 0xfe,               // [critical hit]
+    AITAG_STUCK = 0x102,                     // [stuck]
+    AITAG_STUCK_PROB_INCREASE = 0x106,       // [stuck prob increase]
+    AITAG_KNUCK_BACK = 0x10a,                // [knuck back]
+    AITAG_WEAKNESS = 0x11b,                  // [weakness]
+    AITAG_BOUNCE = 0x120,                    // [bounce]
+    AITAG_IGNORE_DEFENSE = 0x124,            // [ignore defense]
+    AITAG_HUMAN_DAMAGE_RATE = 0x128,         // [human damage rate]
+    AITAG_FORT_DAMAGE_RATE = 0x12c,          // [fort damage rate]（300）
+    AITAG_MONSTER_DAMAGE_RATE = 0x130,       // [monster damage rate]
+    AITAG_HP_DRAIN = 0x134,                  // [HP drain]
+    AITAG_MP_DRAIN = 0x13d,                  // [MP drain]
+    AITAG_HIT_WAV = 0x146,                   // [hit wav]
+    AITAG_ATTACK_DIRECTION = 0x14a,          // [attack direction]
+    AITAG_HIT_INFO = 0x15b,                  // [hit info]
+    AITAG_IS_USE_WEAPON_HIT_DELAY_RATE = 0x17d,  // [is use weapon hit delay rate]
+    AITAG_FORCE_HIT_STUN_TIME = 0x181,       // [force hit stun time]
+    AITAG_HIT_DIRECTION = 0x186,             // [hit direction]
+    AITAG_IGNORE_SUPER_ARMOR = 0x19b,        // [ignore super armor]
+    AITAG_IGNORE_WEIGHT = 0x19f,             // [ignore weight]
+    AITAG_HUMAN_ACTIVE_STATUS_RATE = 0x1a3,  // [human active status rate]
+    AITAG_IS_HIT_NUMBER_INCREASING = 0x1aa,  // [is hit number increasing]
+    AITAG_CATCH_OBJECT = 0x1af,              // [catch object]
+    AITAG_MAX_TARGET_HIT_NUMBER = 0x1c6,     // [max target hit number]
+    AITAG_IGNORE_DIEHARD = 0x1cd,            // [ignore diehard]
+    AITAG_HIT_CHECK_BY_SCREEN_POS = 0x1d2,   // [hit check by screen pos]
+};
+
+// ORIG 全局实证同 ImportSkillScript:map<const char*,int> 全部用 less_TCHAR
+//(strcmp 内容比较);find(tag.c_str()) 传动态指针,默认 less 会恒 miss。
+// 查找表本体为函数局部静态(__lookup/__init_lock/__inited),见下方函数。
+
+}  // namespace
+
+// ORIG 0x88d145a:ImportAttackInfoScript(AttackInfo*, char const*, int)
+// 注册链与解析共用同一 switch：ORIG 每个 case 头部 `if (!__inited)` 则
+// 构造 pair(key, tagId) 并 map::insert 后**贯穿(fall through)到下一 case**
+// 继续注册，形成 0x42→…→0x1d2 的 40 段直链（汇编各 insert 尾 `jmp <next
+// case>`）；已注册时执行真实解析并 break 至公共尾(0x24bb)。首行 tagId=0
+// 与 case 0x42 共享入口（dispatch 树 `test %eax,%eax; je 0x19ca`）。
 bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
 {
-    if (!loadRDARScriptFile("", path))
+    if (!loadRDARScriptFile("", path))        // 0x1a:失败 ebx=0 → return false
     {
         return false;
     }
     info->clear();
 
-    std::string tag;
-    std::string token;
-    bool isType = false;
-    int module = -1;
-    while (ScanType(tag, true))
+    std::string tag;                          // -0x3b4 主行标签(ScanType 读入)
+    std::string token;                        // -0x3b8 子 token(ScanTypeOrStr 读入)
+    int statusIdx = 0;                        // -0x34 文件级 active status 槽计数
+    // module 名缓存(元素集 / active status 各一):初值 MODULE_NAME_TAG+0x18 =
+    // g_moduleNameTag[6],与 clear() 的 m_moduleTag=3 对齐 → 首遇不误重置。
+    std::string elemModule(g_moduleNameTag[6]);     // -0x3bc
+    std::string statusModule(g_moduleNameTag[6]);   // -0x3c0
+
+    for (;;)                                  // 行循环:读行 → module 过滤 → 处理
     {
-        if (tag == "[damage]")
+        if (!ScanType(tag, true))             // 0x14e4;失败 → 0x3947 unload + ret 1
+            break;
+        int moduleA = -1;                     // 0x1505/-0x150f 两输出均初 -1
+        int moduleB = -1;
+        bool isModuleLine = processModuleTagSet(moduleA, moduleB, &tag, param3, false);
+        if (moduleB != -1)                    // 0x10d:仅第二输出写 +0x8c
+            info->m_moduleTag = moduleB;
+        if (isModuleLine)                     // 0x1572:false=已消费 → 读下一行
         {
-            info->m_damage = ScanFloat((bool*)0);
-        }
-        else if (tag == "[damage increase rate]")
-        {
-            info->m_damageIncreaseRate = ScanFloat((bool*)0);
-        }
-        else if (tag == "[absolute damage]")
-        {
-            info->m_absoluteDamage = ScanInt((bool*)0);
-        }
-        else if (tag == "[damage bonus]")
-        {
-            info->m_damageBonus = ScanInt((bool*)0);
-        }
-        else if (tag == "[attack type]")
-        {
-            ScanTypeOrStr(isType, token, true);
-            if (token == "[physic]")
-                info->m_attackType = 0;
-            else if (token == "[magic]")
-                info->m_attackType = 1;
-            else if (token == "[ignore defense]")
-                info->m_attackType = 2;
-        }
-        else if (tag == "[weapon damage apply]")
-        {
-            info->m_weaponDamageApply = (ScanInt((bool*)0) != 0) ? 1 : 0;
-        }
-        else if (tag == "[attack myself]")
-        {
-            info->m_attackFlags[0] = (ScanInt((bool*)0) != 0) ? 1 : 0;
-        }
-        else if (tag == "[attack friend]")
-        {
-            info->m_attackFlags[1] = (ScanInt((bool*)0) != 0) ? 1 : 0;
-        }
-        else if (tag == "[attack enemy]")
-        {
-            info->m_attackFlags[2] = (ScanInt((bool*)0) != 0) ? 1 : 0;
-        }
-        else if (tag == "[elemental property]")
-        {
-            ScanTypeOrStr(isType, token, true);
-            info->setElement((ENUM_ELEMENT)getElement(token.c_str()));
-        }
-        else if (tag == "[active status]")
-        {
-            int idx = 0;
-            while (ScanTypeOrStr(isType, token, true))
+            // ORIG 函数局部静态三件套(各带 __cxa_guard;位于 0x11d 重查点)。
+            // map<const char*,int> 键比较器用 less_TCHAR(大小写无关 strcmp 语义,
+            // 工程内既有类型);find(tag.c_str()) 传动态指针,默认 less 会恒 miss。
+            typedef std::map<const char*, int, less_TCHAR> LookupMap;
+            static LookupMap __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
+
+            for (;;)                          // 单行处理(0x1577 区;注册后同 tag 重入)
             {
-                if (idx >= 3)
+                int tagId;
+                if (__inited)
+                {
+                    LookupMap::const_iterator it = __lookup.find(tag.c_str());
+                    if (it != __lookup.end())
+                        tagId = it->second;
+                    else
+                        tagId = -1;
+                }
+                else
+                {
+                    __init_lock.enter();      // 0x2d9
+                    if (__inited)             // 竞争双检:已就绪 → 释放并重查本行
+                    {
+                        __init_lock.leave();
+                        continue;             // 0x2fc → 0x24e3 → 0x1577
+                    }
+                    tagId = 0;                // 0x301 首行 → 注册链入口
+                }
+
+                switch (tagId)
+                {
+                case 0:                       // 注册链入口(与 [damage] 共体)
+                case AITAG_DAMAGE:            // +0x00 float
+                    if (__inited)
+                    {
+                        info->m_damage = ScanFloat((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[damage]", static_cast<int>(AITAG_DAMAGE)));
+                    /* fall through（ORIG 0x5c8 jmp 0x5e3） */
+                case AITAG_DAMAGE_INCREASE_RATE:  // +0x04 float
+                    if (__inited)
+                    {
+                        info->m_damageIncreaseRate = ScanFloat((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[damage increase rate]",
+                                                          static_cast<int>(AITAG_DAMAGE_INCREASE_RATE)));
+                case AITAG_ABSOLUTE_DAMAGE:   // +0x08 int
+                    if (__inited)
+                    {
+                        info->m_absoluteDamage = ScanInt((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[absolute damage]",
+                                                          static_cast<int>(AITAG_ABSOLUTE_DAMAGE)));
+                case AITAG_DAMAGE_BONUS:      // +0x0c int
+                    if (__inited)
+                    {
+                        info->m_damageBonus = ScanInt((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[damage bonus]",
+                                                          static_cast<int>(AITAG_DAMAGE_BONUS)));
+                case AITAG_ATTACK_TYPE:       // +0x10 枚举
+                    if (__inited)
+                    {
+                        bool isType;          // -0x3cd
+                        ScanTypeOrStr(isType, token, true);
+                        if (token == "[physic]")
+                            info->m_attackType = 0;
+                        else if (token == "[magic]")
+                            info->m_attackType = 1;
+                        else if (token == "[ignore defense]")
+                            info->m_attackType = 2;
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[attack type]",
+                                                          static_cast<int>(AITAG_ATTACK_TYPE)));
+                case AITAG_WEAPON_DAMAGE_APPLY:  // +0x14 bool(int)
+                    if (__inited)
+                    {
+                        info->m_weaponDamageApply = (ScanInt((bool*)0) != 0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[weapon damage apply]",
+                                                          static_cast<int>(AITAG_WEAPON_DAMAGE_APPLY)));
+                case AITAG_ATTACK_MYSELF:     // +0x98 bool(int)
+                    if (__inited)
+                    {
+                        info->m_attackFlags[0] = (ScanInt((bool*)0) != 0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[attack myself]",
+                                                          static_cast<int>(AITAG_ATTACK_MYSELF)));
+                case AITAG_ATTACK_FRIEND:     // +0x9c bool(int)
+                    if (__inited)
+                    {
+                        info->m_attackFlags[1] = (ScanInt((bool*)0) != 0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[attack friend]",
+                                                          static_cast<int>(AITAG_ATTACK_FRIEND)));
+                case AITAG_ATTACK_ENEMY:      // +0xa0 bool(int)
+                    if (__inited)
+                    {
+                        info->m_attackFlags[2] = (ScanInt((bool*)0) != 0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[attack enemy]",
+                                                          static_cast<int>(AITAG_ATTACK_ENEMY)));
+                case AITAG_ELEMENTAL_PROPERTY:  // +0xa4 set<ENUM_ELEMENT>
+                    if (__inited)
+                    {
+                        // module 变化时清空元素集(0x0aa0..0x0ac9)
+                        const std::string& curMod = g_moduleNameTag[2 * info->m_moduleTag];
+                        if (elemModule != curMod)
+                            info->m_elements.clear();
+                        elemModule = curMod;  // 0x0aec 无条件更新缓存
+                        bool isType;          // -0x3ce
+                        ScanTypeOrStr(isType, token, true);
+                        info->setElement((ENUM_ELEMENT)getElement(token.c_str()));
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[elemental property]",
+                                                          static_cast<int>(AITAG_ELEMENTAL_PROPERTY)));
+                case AITAG_ACTIVE_STATUS:     // 0xbc..0xf4 + vectors
+                    if (__inited)
+                    {
+                        const std::string& curMod = g_moduleNameTag[2 * info->m_moduleTag];
+                        if (statusModule != curMod)   // 0x0bb9 module 变化:重置槽
+                        {
+                            for (int i = 0; i < 3; ++i)
+                            {
+                                info->m_activeStatusInt3[i] = 0;          // 0xec+4i
+                                info->m_activeStatusVectors[i].clear();   // 0xf8+12i
+                            }
+                        }
+                        statusModule = curMod;        // 0x0c28 无条件更新缓存
+                        if (statusIdx > 2)            // 0x0c2d 槽满
+                        {
+                            LogManager::logFormat(0, "../RDARScriptAttackInfo.cpp",
+                                                  __FUNCTION__, 0x9c,
+                                                  ".atk \xbf\xa1 [active status] \xb0\xb9\xbc\xf6 \xc3\xca\xb0\xfa");
+                            continue;                 // 0x0c5f → 0x24e3 重查本行
+                        }
+                        bool isType;                  // -0x3cf
+                        ScanTypeOrStr(isType, token, true);     // 0x0c7f
+                        // 逐访问重读 statusIdx(P38:ORIG 每写前 mov -0x34)
+                        info->m_activeStatusType[statusIdx] =
+                            getActiveStatusType(token);          // 0xbc+4i
+                        info->m_activeStatusValue[statusIdx] =
+                            ScanFloat((bool*)0);                 // 0xc8+4i
+                        info->m_activeStatusInt[statusIdx] =
+                            ScanInt((bool*)0);                   // 0xd4+4i
+                        info->m_activeStatusInt3[statusIdx] =
+                            ScanInt((bool*)0);                   // 0xec+4i
+                        // 按状态名追加向量初值(0x0d04..0x1308 比较直链)
+                        if (token == "[blind]")
+                        {
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                        }
+                        else if (token == "[slow]")
+                        {
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                        }
+                        else if (token == "[haste]")
+                        {
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                        }
+                        else if (token == "[stone]")
+                        {
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                        }
+                        else if (token == "[confuse]")
+                        {
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                        }
+                        else if (token == "[armor break]")
+                        {
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                        }
+                        else if (token == "[weapon break]")
+                        {
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                        }
+                        else if (token == "[poison]")
+                        {
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                        }
+                        else if (token == "[lightning]")
+                        {
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                        }
+                        else if (token == "[bleeding]")
+                        {
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                        }
+                        else if (token == "[burn]")       // 0x111f..0x1229:4 次显式
+                        {
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                            info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                        }
+                        else if (token == "[bless]")      // 0x1244:循环 4 次
+                        {
+                            for (int k = 0; k < 4; ++k)
+                            {
+                                info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                            }
+                        }
+                        else if (token == "[curse]")      // 0x12b5:循环 4 次
+                        {
+                            for (int k = 0; k < 4; ++k)
+                            {
+                                info->m_activeStatusVectors[statusIdx].push_back(ScanInt((bool*)0));
+                            }
+                        }
+                        ++statusIdx;                      // 0x130a
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[active status]",
+                                                          static_cast<int>(AITAG_ACTIVE_STATUS)));
+                case AITAG_DAMAGE_REACTION:   // +0x1c 枚举
+                    if (__inited)
+                    {
+                        bool isType;          // -0x3d0
+                        ScanTypeOrStr(isType, token, true);
+                        if (token == "[none]")
+                            info->m_damageReaction = 0;
+                        else if (token == "[damage]")
+                            info->m_damageReaction = 1;
+                        else if (token == "[down]")
+                            info->m_damageReaction = 2;
+                        else if (token == "[damage except human]")
+                            info->m_damageReaction = 3;
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[damage reaction]",
+                                                          static_cast<int>(AITAG_DAMAGE_REACTION)));
+                case AITAG_PUSH_ASIDE:        // +0x20 int
+                    if (__inited)
+                    {
+                        info->m_pushAside = ScanInt((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[push aside]",
+                                                          static_cast<int>(AITAG_PUSH_ASIDE)));
+                case AITAG_LIFT_UP:           // +0x24 int
+                    if (__inited)
+                    {
+                        info->m_liftUp = ScanInt((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[lift up]", static_cast<int>(AITAG_LIFT_UP)));
+                case AITAG_CRITICAL_HIT:      // +0x28 float
+                    if (__inited)
+                    {
+                        info->m_criticalHit = ScanFloat((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[critical hit]",
+                                                          static_cast<int>(AITAG_CRITICAL_HIT)));
+                case AITAG_STUCK:             // +0x2c float
+                    if (__inited)
+                    {
+                        info->m_stuck = ScanFloat((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[stuck]", static_cast<int>(AITAG_STUCK)));
+                case AITAG_STUCK_PROB_INCREASE:  // +0x30 bool(int)
+                    if (__inited)
+                    {
+                        info->m_stuckProbIncrease = (ScanInt((bool*)0) != 0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[stuck prob increase]",
+                                                          static_cast<int>(AITAG_STUCK_PROB_INCREASE)));
+                case AITAG_KNUCK_BACK:        // +0x34 int;==3 时 +0x38 角度
+                    if (__inited)
+                    {
+                        info->m_knuckBack = ScanInt((bool*)0);
+                        if (info->m_knuckBack == 3)   // 0x2b56;fistpl 舍入转 int
+                        {
+                            bool ok = false;          // -0x3d1
+                            info->m_knuckBackAngle = (int)ScanFloat(&ok);
+                        }
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[knuck back]",
+                                                          static_cast<int>(AITAG_KNUCK_BACK)));
+                case AITAG_WEAKNESS:          // +0x3c/+0x40 float
+                    if (__inited)
+                    {
+                        info->m_weakness = ScanFloat((bool*)0);
+                        info->m_weakness2 = ScanFloat((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[weakness]", static_cast<int>(AITAG_WEAKNESS)));
+                case AITAG_BOUNCE:            // +0x44 int
+                    if (__inited)
+                    {
+                        info->m_bounce = ScanInt((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[bounce]", static_cast<int>(AITAG_BOUNCE)));
+                case AITAG_IGNORE_DEFENSE:    // +0x48 bool(int)
+                    if (__inited)
+                    {
+                        info->m_ignoreDefense = (ScanInt((bool*)0) != 0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[ignore defense]",
+                                                          static_cast<int>(AITAG_IGNORE_DEFENSE)));
+                case AITAG_HUMAN_DAMAGE_RATE: // +0x11c float
+                    if (__inited)
+                    {
+                        info->m_damageRate[0] = ScanFloat((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[human damage rate]",
+                                                          static_cast<int>(AITAG_HUMAN_DAMAGE_RATE)));
+                case AITAG_FORT_DAMAGE_RATE:  // +0x120 float
+                    if (__inited)
+                    {
+                        info->m_damageRate[1] = ScanFloat((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[fort damage rate]",
+                                                          static_cast<int>(AITAG_FORT_DAMAGE_RATE)));
+                case AITAG_MONSTER_DAMAGE_RATE:  // +0x124 float
+                    if (__inited)
+                    {
+                        info->m_damageRate[2] = ScanFloat((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[monster damage rate]",
+                                                          static_cast<int>(AITAG_MONSTER_DAMAGE_RATE)));
+                case AITAG_HP_DRAIN:          // +0x78 bool(int)
+                    if (__inited)
+                    {
+                        info->m_hpDrain = (ScanInt((bool*)0) != 0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[HP drain]", static_cast<int>(AITAG_HP_DRAIN)));
+                case AITAG_MP_DRAIN:          // +0x7c bool(int)
+                    if (__inited)
+                    {
+                        info->m_mpDrain = (ScanInt((bool*)0) != 0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[MP drain]", static_cast<int>(AITAG_MP_DRAIN)));
+                case AITAG_HIT_WAV:           // +0x4c string
+                    if (__inited)
+                    {
+                        ScanStr(&info->m_hitWav);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[hit wav]", static_cast<int>(AITAG_HIT_WAV)));
+                case AITAG_ATTACK_DIRECTION:  // +0x50 枚举(lift up/horizon/down)
+                    if (__inited)
+                    {
+                        bool isType;          // -0x3d2
+                        ScanTypeOrStr(isType, token, true);
+                        if (token == "[hit lift up]")
+                            info->m_attackDirection = 0;
+                        else if (token == "[hit horizon]")
+                            info->m_attackDirection = 1;
+                        else if (token == "[hit down]")
+                            info->m_attackDirection = 2;
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[attack direction]",
+                                                          static_cast<int>(AITAG_ATTACK_DIRECTION)));
+                case AITAG_HIT_INFO:          // +0x54/+0x58/+0x5c/+0x60
+                    if (__inited)
+                    {
+                        bool isType;          // -0x3d3(两段复用同槽)
+                        ScanTypeOrStr(isType, token, true);
+                        if (token == "[blow]")
+                            info->m_hitInfo = 0;
+                        else if (token == "[cut]")
+                            info->m_hitInfo = 1;
+                        else if (token == "[burn]")
+                            info->m_hitInfo = 2;
+                        else if (token == "[mana burn]")
+                            info->m_hitInfo = 4;
+                        else if (token == "[etc]")
+                            info->m_hitInfo = 3;
+                        ScanTypeOrStr(isType, token, true);   // 0x1dd4 [no blood]/[blood]
+                        if (token == "[no blood]")
+                            info->m_blood = 0;
+                        else if (token == "[blood]")
+                            info->m_blood = 1;
+                        info->m_field5c = ScanInt((bool*)0);   // +0x5c
+                        info->m_field60 = ScanFloat((bool*)0); // +0x60
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[hit info]", static_cast<int>(AITAG_HIT_INFO)));
+                case AITAG_IS_USE_WEAPON_HIT_DELAY_RATE:  // +0x64 byte bool
+                    if (__inited)
+                    {
+                        info->m_isUseWeaponHitDelayRate = (ScanInt((bool*)0) != 0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type(
+                        "[is use weapon hit delay rate]",
+                        static_cast<int>(AITAG_IS_USE_WEAPON_HIT_DELAY_RATE)));
+                case AITAG_FORCE_HIT_STUN_TIME:  // +0x74 int
+                    if (__inited)
+                    {
+                        info->m_forceHitStunTime = ScanInt((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[force hit stun time]",
+                                                          static_cast<int>(AITAG_FORCE_HIT_STUN_TIME)));
+                case AITAG_HIT_DIRECTION:     // +0x68 枚举(auto/front/back/...)
+                    if (__inited)
+                    {
+                        bool isType;          // -0x3d4
+                        ScanTypeOrStr(isType, token, true);
+                        if (token == "[auto]")
+                            info->m_hitDirection = 0;
+                        else if (token == "[front]")
+                            info->m_hitDirection = 1;
+                        else if (token == "[back]")
+                            info->m_hitDirection = 2;
+                        else if (token == "[outer]")
+                            info->m_hitDirection = 3;
+                        else if (token == "[inner]")
+                            info->m_hitDirection = 4;
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[hit direction]",
+                                                          static_cast<int>(AITAG_HIT_DIRECTION)));
+                case AITAG_IGNORE_SUPER_ARMOR:  // +0x6c int
+                    if (__inited)
+                    {
+                        info->m_ignoreSuperArmor = ScanInt((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[ignore super armor]",
+                                                          static_cast<int>(AITAG_IGNORE_SUPER_ARMOR)));
+                case AITAG_IGNORE_WEIGHT:     // +0x70 int
+                    if (__inited)
+                    {
+                        info->m_ignoreWeight = ScanInt((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[ignore weight]",
+                                                          static_cast<int>(AITAG_IGNORE_WEIGHT)));
+                case AITAG_HUMAN_ACTIVE_STATUS_RATE:  // +0x18 = 值/100.0f
+                    if (__inited)
+                    {
+                        float f = ScanFloat((bool*)0);   // -0x1c 中转
+                        info->m_humanActiveStatusRate = f / 100.0f;
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type(
+                        "[human active status rate]", static_cast<int>(AITAG_HUMAN_ACTIVE_STATUS_RATE)));
+                case AITAG_IS_HIT_NUMBER_INCREASING:  // +0x88 byte bool
+                    if (__inited)
+                    {
+                        info->m_isHitNumberIncreasing = (ScanInt((bool*)0) != 0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type(
+                        "[is hit number increasing]", static_cast<int>(AITAG_IS_HIT_NUMBER_INCREASING)));
+                case AITAG_CATCH_OBJECT:      // +0x128 vector<CatchObjectInfo>
+                    if (__inited)
+                    {
+                        info->m_catchObjects.clear();    // 0x22d6
+                        CatchObjectInfo obj;             // -0x3e0{int,int,float}
+                        bool ok;                         // -0x3e1
+                        for (;;)                         // 0x22e6 回环
+                        {
+                            obj.m_field0 = ScanInt(&ok); // 返回值直接入 field0
+                            if (!ok)
+                                break;
+                            obj.m_field4 = ScanInt((bool*)0);
+                            obj.m_field8 = ScanFloat((bool*)0);
+                            info->m_catchObjects.push_back(obj);
+                        }
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[catch object]",
+                                                          static_cast<int>(AITAG_CATCH_OBJECT)));
+                case AITAG_MAX_TARGET_HIT_NUMBER:  // +0x94 int
+                    if (__inited)
+                    {
+                        info->m_maxTargetHitNumber = ScanInt((bool*)0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[max target hit number]",
+                                                          static_cast<int>(AITAG_MAX_TARGET_HIT_NUMBER)));
+                case AITAG_IGNORE_DIEHARD:    // +0x90 byte bool
+                    if (__inited)
+                    {
+                        info->m_ignoreDiehard = (ScanInt((bool*)0) != 0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[ignore diehard]",
+                                                          static_cast<int>(AITAG_IGNORE_DIEHARD)));
+                case AITAG_HIT_CHECK_BY_SCREEN_POS:  // +0x91;ScanInt 失败 → ret false
+                    if (__inited)
+                    {
+                        int v = 0;                       // -0x3e8
+                        if (!ScanInt(&v))                // _Z7ScanIntPi 0x2485
+                            return false;                // 0x2491(不经 unload)
+                        info->m_hitCheckByScreenPos = (v != 0);
+                        break;
+                    }
+                    __lookup.insert(LookupMap::value_type("[hit check by screen pos]",
+                                                          static_cast<int>(AITAG_HIT_CHECK_BY_SCREEN_POS)));
+                    break;                    // 注册链终点(0x2470 → 公共尾)
+                default:                      // 未知标签:静默忽略(ORIG find=-1)
                     break;
-                info->m_activeStatusType[idx] = getActiveStatusType(token);
-                info->m_activeStatusValue[idx] = ScanFloat((bool*)0);
-                info->m_activeStatusInt[idx] = ScanInt((bool*)0);
-                info->m_activeStatusInt2[idx] = ScanInt((bool*)0);
-                info->m_activeStatusVectors[idx].clear();
-                int v = ScanInt((bool*)0);
-                info->m_activeStatusVectors[idx].push_back(v);
-                idx++;
+                }
+
+                if (!__inited)                // 0x24bb:注册完成 → 置位并同 tag 重处理
+                {
+                    __init_lock.leave();
+                    __inited = true;
+                    continue;
+                }
+                break;                        // 行处理完成 → 读下一行
             }
-        }
-        else if (tag == "[damage reaction]")
-        {
-            ScanTypeOrStr(isType, token, true);
-            if (token == "[none]")
-                info->m_damageReaction = 0;
-            else if (token == "[damage]")
-                info->m_damageReaction = 1;
-            else if (token == "[down]")
-                info->m_damageReaction = 2;
-            else if (token == "[damage except human]")
-                info->m_damageReaction = 3;
-        }
-        else if (tag == "[push aside]")
-        {
-            info->m_pushAside = ScanInt((bool*)0);
-        }
-        else if (tag == "[lift up]")
-        {
-            info->m_liftUp = ScanInt((bool*)0);
-        }
-        else if (tag == "[critical hit]")
-        {
-            info->m_criticalHit = ScanFloat((bool*)0);
-        }
-        else if (tag == "[stuck]")
-        {
-            info->m_stuck = ScanFloat((bool*)0);
-        }
-        else if (tag == "[stuck prob increase]")
-        {
-            info->m_stuckProbIncrease = (ScanInt((bool*)0) != 0) ? 1 : 0;
-        }
-        else if (tag == "[knuck back]")
-        {
-            info->m_knuckBack = ScanInt((bool*)0);
-            if (info->m_knuckBack == 3)
-            {
-                bool ok = false;
-                info->m_knuckBackAngle = (int)ScanFloat(&ok);
-            }
-        }
-        else if (tag == "[weakness]")
-        {
-            info->m_weakness = ScanFloat((bool*)0);
-            info->m_weakness2 = ScanFloat((bool*)0);
-        }
-        else if (tag == "[bounce]")
-        {
-            info->m_bounce = ScanInt((bool*)0);
-        }
-        else if (tag == "[ignore defense]")
-        {
-            info->m_ignoreDefense = (ScanInt((bool*)0) != 0) ? 1 : 0;
-        }
-        else if (tag == "[human damage rate]")
-        {
-            info->m_damageRate[0] = ScanFloat((bool*)0);
-        }
-        else if (tag == "[fort damage rate]")
-        {
-            info->m_damageRate[1] = ScanFloat((bool*)0);
-        }
-        else if (tag == "[monster damage rate]")
-        {
-            info->m_damageRate[2] = ScanFloat((bool*)0);
-        }
-        else if (tag == "[hit wav]")
-        {
-            ScanStr(&info->m_hitWav);
-        }
-        else if (tag == "[attack direction]")
-        {
-            ScanTypeOrStr(isType, token, true);
-            if (token == "[hit lift up]")
-                info->m_attackDirection = 0;
-            else if (token == "[hit horizon]")
-                info->m_attackDirection = 1;
-            else if (token == "[hit down]")
-                info->m_attackDirection = 2;
-        }
-        else if (tag == "[hit info]")
-        {
-            ScanTypeOrStr(isType, token, true);
-            if (token == "[blow]")
-                info->m_hitInfo = 0;
-            else if (token == "[cut]")
-                info->m_hitInfo = 1;
-            else if (token == "[burn]")
-                info->m_hitInfo = 2;
-            else if (token == "[mana burn]")
-                info->m_hitInfo = 4;
-            else if (token == "[etc]")
-                info->m_hitInfo = 3;
-            ScanTypeOrStr(isType, token, true);
-            info->m_blood = (token == "[blood]") ? 1 : 0;
-            info->m_field5c = ScanInt((bool*)0);
-            info->m_field60 = ScanFloat((bool*)0);
-        }
-        else if (tag == "[is use weapon hit delay rate]")
-        {
-            info->m_isUseWeaponHitDelayRate = (ScanInt((bool*)0) != 0) ? 1 : 0;
-        }
-        else if (tag == "[force hit stun time]")
-        {
-            info->m_forceHitStunTime = ScanInt((bool*)0);
-        }
-        else if (tag == "[hit direction]")
-        {
-            ScanTypeOrStr(isType, token, true);
-            if (token == "[auto]")
-                info->m_hitDirection = 0;
-            else if (token == "[front]")
-                info->m_hitDirection = 1;
-            else if (token == "[back]")
-                info->m_hitDirection = 2;
-            else if (token == "[outer]")
-                info->m_hitDirection = 3;
-            else if (token == "[inner]")
-                info->m_hitDirection = 4;
-        }
-        else if (tag == "[ignore super armor]")
-        {
-            info->m_ignoreSuperArmor = ScanInt((bool*)0);
-        }
-        else if (tag == "[ignore weight]")
-        {
-            info->m_ignoreWeight = ScanInt((bool*)0);
-        }
-        else if (tag == "[HP drain]")
-        {
-            info->m_hpDrain = (ScanInt((bool*)0) != 0) ? 1 : 0;
-        }
-        else if (tag == "[MP drain]")
-        {
-            info->m_mpDrain = (ScanInt((bool*)0) != 0) ? 1 : 0;
-        }
-        else if (tag == "[human active status rate]")
-        {
-            info->m_humanActiveStatusRate = ScanFloat((bool*)0);
-        }
-        else if (tag == "[is hit number increasing]")
-        {
-            info->m_isHitNumberIncreasing = (ScanInt((bool*)0) != 0) ? 1 : 0;
-        }
-        else if (tag == "[catch object]")
-        {
-            info->m_catchObjects.clear();
-            bool ok = false;
-            while (ScanInt(&ok))
-            {
-                CatchObjectInfo obj;
-                obj.m_field0 = info->m_field5c;
-                obj.m_field4 = ScanInt((bool*)0);
-                obj.m_field8 = ScanFloat((bool*)0);
-                info->m_catchObjects.push_back(obj);
-            }
-        }
-        else if (tag == "[max target hit number]")
-        {
-            info->m_maxTargetHitNumber = ScanInt((bool*)0);
-        }
-        else if (tag == "[ignore diehard]")
-        {
-            info->m_ignoreDiehard = (ScanInt((bool*)0) != 0) ? 1 : 0;
-        }
-        else if (tag == "[hit check by screen pos]")
-        {
-            int v = 0;
-            bool ok = ScanInt(&v);
-            if (!ok)
-                return false;
-            info->m_hitCheckByScreenPos = (v != 0) ? 1 : 0;
-        }
-        else
-        {
-            LogManager::logFormat(0, "../RDARScriptAttackInfo.cpp", __FUNCTION__,
-                                  0x9c, "attack info script loading error : %s : %s",
-                                  tag.c_str(), path);
-            return false;
         }
     }
+    unloadRDARScriptFile();                   // 0x24ee
     return true;
 }
 
@@ -1262,7 +1846,7 @@ CCreatureScript::~CCreatureScript()
 // = src + 4*(i+0x14) = src+0x50+4i，即 m_artifactSlotRed/Blue/Green 组）。
 void CCreatureScript::Set(CreatureScript* src)
 {
-    m_artifactSlotFlags = new char[3];
+    m_artifactSlotFlags = new bool[3];
     for (int i = 0; i < 3; ++i)
     {
         m_artifactSlotFlags[i] =
@@ -1318,14 +1902,15 @@ int CCreatureScript::GetItemEvolutionCreatureId(int creatureId)
 }
 
 // ORIG 0x833cb38：slot-0x17 在 [0,4) 内返回 m_artifactSlotFlags[slot-0x17]，否则 0。
-unsigned char CCreatureScript::IsAvailableArtifactSlot(int slot)
+// 返回 bool + 字段 bool*：callee 尾 movzbl 直落 + caller 0x833771d call 后
+// 无物化 = bool→bool 透传（int 返回在 4.4 caller 必插 test+setne）。
+bool CCreatureScript::IsAvailableArtifactSlot(int slot)
 {
-    int idx = slot - 0x17;
-    if (idx < 0 || idx >= 4 || m_artifactSlotFlags == 0)
-    {
-        return 0;
-    }
-    return (unsigned char)m_artifactSlotFlags[idx];
+    // ORIG 0x833cb38：仅上界 cmp $3;jle（无下界/判空，负 idx 直读为 ORIG 实况）；
+    // slot-0x17 两次现算，无局部槽，pop 收尾。
+    if (slot - 0x17 > 3)
+        return false;
+    return m_artifactSlotFlags[slot - 0x17];
 }
 
 void CCreatureScript::SetItemId(int itemId)

@@ -20,8 +20,9 @@ public:
     Packet_Monitor_Guild_Chat_Hyper_Link() : PacketHeader(0x2718, 0x24c),
         m_charNo(0), m_guildKey(0), m_itemCount(0), m_msgLen(0)
     {
-    memset(m_items, 0, sizeof(m_items));
+    // ORIG 0x086d1afb memset(this+0x14c,0x100) 先，0x086d1b19 memset(this+0x13,0x138) 后
     memset(m_msg, 0, sizeof(m_msg));
+    memset(m_items, 0, sizeof(m_items));
     };
 } __attribute__((packed));
 

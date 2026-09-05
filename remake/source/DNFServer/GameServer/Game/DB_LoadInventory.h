@@ -21,7 +21,7 @@ class Stream;
 class DB_LoadInventory : public DBDispatcher
 {
 public:
-    DB_LoadInventory();                          // C1/C2 0x0840a604
+    DB_LoadInventory() __attribute__((nothrow)); // C1/C2 0x0840a604；try 区无 pad ⇒ nothrow
     virtual ~DB_LoadInventory();                 // D1/D2 0x0840a620（D0
                                                  // deleting 0x0840a650 编译器产出）
 

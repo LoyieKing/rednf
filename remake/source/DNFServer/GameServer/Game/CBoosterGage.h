@@ -90,7 +90,8 @@ public:
     virtual void _reset() = 0;
 
     void alter();
-    char isSave();  // ORIG _ZN13charac_expand5CData6isSaveEv（非 const，movzbl 直返 m_bIsSave）
+    bool isSave();  // ORIG _ZN13charac_expand5CData6isSaveEv（非 const，movzbl 直返 m_bIsSave；
+                    //   调用点 CDataMgr::update 0x0832ace3 `test %al;je` 直判 → bool ABI，P73）
     bool saveData(CUser* pUser);
     void reset();
 

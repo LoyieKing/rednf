@@ -145,13 +145,47 @@ struct AdvanceAltarShopType { enum T { T_0 = 0, T_1 = 1, T_2 = 2 }; };
 
 // _AdvanceAltarDbData：0x518（get() 序列化布局，pack(1) 匹配 ORIG 扁平 buffer）
 #pragma pack(push, 1)
+// ---- _RidableDbHead：_AdvanceAltarDbData 前 0x21 字节（DB 行头）具名视图。
+//      宽度/偏移全部取自 ORIG 指令（无编造）：
+//      docs/class_func_reports/advancealtar__DB_Load/Select.md（0x0813de40）：
+//        基址 local_14 = &data + row*0x518 + 4，写入调用为
+//          MySQL::get_short(int,int&)     0x0814201c → +0x04、+0x08
+//          MySQL::get_int(int,int&)       0x0811692c → +0x0c、+0x10、+0x14
+//          MySQL::get_short(int,short&)   0x080fddec → +0x18、+0x1a
+//          `movw $0,-0x22` → get_short(+0x1a 后一列) → `movzwl -0x22;test;jle`
+//          → `movb $0x1/$0x0,0x20(%eax)`（+0x20 byte 条件写）
+//      docs/class_func_reports/advancealtar__DB_Update/update.md（0x0813ec5e）：
+//          printf 实参 `mov 0x4/0x8/0xc/0x10/0x14`（4 字节读）、`movswl 0x18`
+//          （有符号半字）、`movzwl 0x1a`（零扩展半字）、`movzbl 0x20`（byte）。
+//      字段名 = ORIG SQL 字面量列名；括号内为 _RidableBase 同偏移既有成员名。----
+struct _RidableDbHead
+{
+    int m_ridableId;                 // +0x00 ridable_id
+    int m_ticketFree;                // +0x04 ticket_free（m_ticket）
+    int m_ticketCera;                // +0x08 ticket_cera（m_freeTicket）
+    int m_starGame;                  // +0x0c star_game（m_curStar）
+    int m_starCera;                  // +0x10 star_cera（m_starPoolBase）
+    int m_starUsable;                // +0x14 star_usable（m_starPoint）
+    short m_survivalBest;            // +0x18 survival_best（m_maxClearRound）
+    short m_starResetCount;          // +0x1a star_reset_count（m_resetCount；ORIG 写点
+                                     //   直接传 (short*)(local_14+0x1a) 给
+                                     //   get_short(int,short&)，读点 update 以 `movzwl`
+                                     //   零扩展 → 读取处需显式 static_cast<unsigned short>）
+    short m_field1c;                 // +0x1c（DB 未出线）
+    short m_field1e;                 // +0x1e（DB 未出线）
+    unsigned char m_isUnlockStageEffect;  // +0x20 is_unlock_stage_effect（m_field20）
+};                                   // sizeof 0x21
 struct _AdvanceAltarDbData
 {
     // ORIG W C1/C2 @0x0848f488（0xd7）：_RidableBase ctor + 50×_Stage + 12×_Slot +
     // 50×_BuyItem + 29×_Reward 各子对象 memset ctor 后整体 memset(this,0,0x518)
     // —— 全 POD，等价于单次全清零。
     _AdvanceAltarDbData() { std::memset(this, 0, sizeof(*this)); }
-    char m_ridable[0x21];            // +0x00
+    union
+    {
+        char m_ridable[0x21];        // +0x00（旧基名保留：整块 0x21 扁平视图）
+        _RidableDbHead m_head;       // +0x00（DB 行头具名字段视图）
+    };
     _Stage m_stages[0x32];           // +0x21（50）
     _Slot  m_slots[0xc];             // +0x1b1（12）
     _BuyItem m_buyItems[0x32];       // +0x229（50）
@@ -160,6 +194,30 @@ struct _AdvanceAltarDbData
     unsigned char m_update;          // +0x517
 };                                   // sizeof 0x518
 #pragma pack(pop)
+
+// ---- _RidableDbHead / _AdvanceAltarDbData 行头布局断言（ORIG 证据见上）----
+static_assert(sizeof(_RidableDbHead) == 0x21,
+              "_RidableDbHead ABI drift (ORIG db head size 0x21)");
+static_assert(offsetof(_AdvanceAltarDbData, m_head.m_ticketFree) == 0x04,
+              "_AdvanceAltarDbData m_head.m_ticketFree offset drift");
+static_assert(offsetof(_AdvanceAltarDbData, m_head.m_starGame) == 0x0c,
+              "_AdvanceAltarDbData m_head.m_starGame offset drift");
+static_assert(offsetof(_AdvanceAltarDbData, m_head.m_starUsable) == 0x14,
+              "_AdvanceAltarDbData m_head.m_starUsable offset drift");
+static_assert(offsetof(_AdvanceAltarDbData, m_head.m_starResetCount) == 0x1a,
+              "_AdvanceAltarDbData m_head.m_starResetCount offset drift");
+static_assert(offsetof(_AdvanceAltarDbData, m_head.m_isUnlockStageEffect) == 0x20,
+              "_AdvanceAltarDbData m_head.m_isUnlockStageEffect offset drift");
+static_assert(offsetof(_AdvanceAltarDbData, m_stages) == 0x21,
+              "_AdvanceAltarDbData m_stages offset drift");
+static_assert(offsetof(_AdvanceAltarDbData, m_slots) == 0x1b1,
+              "_AdvanceAltarDbData m_slots offset drift");
+static_assert(offsetof(_AdvanceAltarDbData, m_buyItems) == 0x229,
+              "_AdvanceAltarDbData m_buyItems offset drift");
+static_assert(offsetof(_AdvanceAltarDbData, m_rewards) == 0x481,
+              "_AdvanceAltarDbData m_rewards offset drift");
+static_assert(offsetof(_AdvanceAltarDbData, m_update) == 0x517,
+              "_AdvanceAltarDbData m_update offset drift");
 
 // _CharacAdvanceAltarDbData：characNo@+0 + _AdvanceAltarDbData@+4 = 0x51c
 #pragma pack(push, 1)
@@ -199,6 +257,7 @@ public:
 class DB_Update : public ::DBDispatcher
 {
 public:
+    DB_Update() {}                 // ORIG W C1/C2 0x0844de06（RegistDispatcher try 区直调无 pad）
     static void makeRequest(int uid, const _CharacAdvanceAltarDbData& data);  // ORIG T 0x0813eb38
     bool dispatch(int uid, int uniqueId, Stream* stream);   // ORIG T 0x813ec24（vtable slot0 覆写）
 
@@ -249,7 +308,7 @@ public:
     ~Manager();   // ORIG T/W 0x08130908：空体（同上）
     static int selectStage(CUser* user, int stageId, StageDifficulty::T diff);  // ORIG T 0x0813090e
     static void procErrorSelectStage(CUser* user, ENUM_ERROR err);              // ORIG T 0x081309f0
-    static int finishLoad(CUser* user);                                         // ORIG T 0x08130eb2（DisP_GroupA 调用）
+    static bool finishLoad(CUser* user);  // ORIG T 0x08130eb2；调用方 `test %al,%al; je`（int 返回必 32 位判）
     static void dieCharac(CUser* user);                                         // ORIG T 0x08130ab2（DisP_GroupG 调用）
     static void giveUpGame(CUser* user);                                        // ORIG T 0x08130fa8（DisP_GroupG 调用）
 
@@ -331,7 +390,15 @@ public:
     AdvanceAltarData* getAdvanceAltarDataByIndex(int idx);          // ORIG T 0x081316e8（nm 权威；任务文本 0x8133194 为笔误）
     void set(const _CharacAdvanceAltarDbData& db);                  // ORIG T 0x08131616：分派到 AdvanceAltarData::set
     void getSlotItem(std::map<unsigned char, _SlotItem>& out) const;   // ORIG T 0x08132638
-    int m_field0;              // +0x00
+    union
+    {
+        int m_field0;                        // +0x00（旧基名保留）
+        AdvanceAltarData* m_currentAdvanceAltarData;  // +0x00：ORIG 语义为
+                                       //  setCurrentAdvanceAltarData(0x08131254)
+                                       //  写 `*(int*)this = &m_data[i]`、无匹配置 0；
+                                       //  getCurrentAdvanceAltarData(W 0x081348c4)
+                                       //  即 `mov (%eax),%eax` 原样返回该指针。
+    };
     AdvanceAltarData m_data[1];  // +0x04（0xd0；ORIG C1/D1 为成员数组自动构造/析构形态，
                                  //   2026-08-28 EmptyStubs6 由单对象改单元素数组）
 };                             // sizeof 0xd4

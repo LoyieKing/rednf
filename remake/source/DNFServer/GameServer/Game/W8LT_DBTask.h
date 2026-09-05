@@ -30,6 +30,7 @@
 #include <utility>       // std::pair
 
 class Stream;
+class CAccountCargo;
 class DBDispatcher;
 class MySQL;                 // DB_UpdateComboSkill::setComboSkill 形参（指针）
 struct comoboSkillData;      // DB_UpdateComboSkill::setComboSkill 形参（指针）
@@ -43,7 +44,7 @@ public:
     DBTask();                                    // 0x083fbfc6
     ~DBTask();                                   // 0x083fbfda
 
-    void RegistDispatcher();                     // 0x083fbfee
+    int RegistDispatcher();                      // 0x083fbfee（尾部 mov $1,%ebx 返 1；catch 路径返 0）
     bool UnregistDispatcher();                   // 0x083ff156（恒返 true）
     bool HandleEvents(MsgQueueMgr::QUEUE_IDX queueIdx,
                       int& signal);              // 0x083ff1c8
@@ -166,6 +167,49 @@ public:
     DB_UpdateSchoolPoint() {}   // ORIG C1 0x844eb7e (sz 0x4: base ctor+vptr only)
     static void makeRequest(unsigned int mId, int point, int flag); // ORIG 0x0842f0f0
     virtual bool dispatch(int userIdx, int slot, Stream* stream);   // ORIG 0x0842f05e
+};
+
+// UpdateData 使用的 DB 请求类：权威声明与实现归口于此头/ W8LT_DBTask.cpp。
+class DB_SaveAccountCargo : public DBDispatcher
+{
+public:
+    DB_SaveAccountCargo() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);
+    static void makeRequest(int userIdx, unsigned int accId,
+                            CAccountCargo* cargo);
+};
+
+class DB_UpdateItemCountValue : public DBDispatcher
+{
+public:
+    DB_UpdateItemCountValue() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);
+    static void makeRequest(unsigned int param1, unsigned int param2);
+};
+
+class DB_UpdateAddItemCountValue : public DBDispatcher
+{
+public:
+    DB_UpdateAddItemCountValue() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);
+    static void makeRequest(unsigned int param1, unsigned int param2);
+};
+
+class DB_UpdateUserFatigueQuantity : public DBDispatcher
+{
+public:
+    DB_UpdateUserFatigueQuantity() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);
+    static void makeRequest(unsigned int accId, unsigned int qty);
+};
+
+class DB_UpdateUserGiftFatigueQuantity : public DBDispatcher
+{
+public:
+    DB_UpdateUserGiftFatigueQuantity() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);
+    static void makeRequest(unsigned int accId, unsigned int qty,
+                            unsigned int characNo);
 };
 
 // DB_UpdateRevengeData —— 权威声明点（FixCond_D ReturnToSelectCharacList 消费）：

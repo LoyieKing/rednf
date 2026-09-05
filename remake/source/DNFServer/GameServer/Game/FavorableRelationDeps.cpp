@@ -140,11 +140,6 @@ stFavorableRelationShip_t::stBuffRewardInfo::stBuffRewardInfo()
     m_c = 0;
 }
 
-// ORIG 0x08a073d4：平凡空体析构。
-stFavorableRelationShip_t::stBuffRewardInfo::~stBuffRewardInfo()
-{
-}
-
 // ---- stPeriodRewardInfo ---------------------------------------------------
 
 // ORIG 0x08a00c70：三个 string（+0x4/+0x10/+0x14）默认构造 → 标量清零

@@ -31,7 +31,7 @@ struct CatchItemInfo
 {
     int m_field0;   // +0x00
     int m_field4;   // +0x04
-    int m_field8;   // +0x08
+    float m_field8; // +0x08（ORIG export 0x08a28ca8 单指令 flds disp ⇒ float）
 };  // sizeof == 0xc
 
 // STThrowAttack：clear W 0x08a3cf40 / C1 W 0x08a3cfda（ORIG 无 D1/D2 → 不加用户析构）。
@@ -87,7 +87,7 @@ struct STCounterAttack
     }
 
     STCounterAttack() { clear(); }
-    ~STCounterAttack() {}   // ORIG D1 W 0x08a4c4e2（空体）
+    ~STCounterAttack() = default;   // ORIG 值拷贝无 scope-exit D1 调用⇒trivial dtor（D1 W 由显式销毁点发射）
 
     int m_field00;      // +0x00（clear =-1）
     int m_field04;      // +0x04（clear =-1）
@@ -128,7 +128,7 @@ struct STJumpAttack
     }
 
     STJumpAttack() { clear(); }
-    ~STJumpAttack() {}   // ORIG D1 W 0x08a4c6f2（空体）
+    ~STJumpAttack() = default;   // ORIG 值拷贝无 scope-exit D1 调用⇒trivial dtor（D1 W 由显式销毁点发射）
 };  // sizeof == 0x2c
 
 // STSummonInfo：clear W 0x08a3d248 / C1 W 0x08a3d274 / D1 W 0x08a4c900。
@@ -148,7 +148,7 @@ struct STSummonInfo
     }
 
     STSummonInfo() { clear(); }
-    ~STSummonInfo() {}   // ORIG D1 W 0x08a4c900（空体）
+    ~STSummonInfo() = default;   // ORIG 值拷贝无 scope-exit D1 调用⇒trivial dtor（D1 W 由显式销毁点发射）
 };  // sizeof == 0x10
 
 // STSummon：clear W 0x08a3d288 / C1 W 0x08a3d2f8 / copy C1 W 0x083d4336
@@ -201,7 +201,7 @@ struct STDash
     }
 
     STDash() { clear(); }
-    ~STDash() {}   // ORIG D1 W 0x08a4ccfe（空体）
+    ~STDash() = default;   // ORIG 值拷贝无 scope-exit D1 调用⇒trivial dtor（D1 W 由显式销毁点发射）
 
     int m_field00;   // +0x00（=0）
     int m_field04;   // +0x04（=-1）
@@ -232,7 +232,7 @@ struct STHold
     }
 
     STHold() { clear(); }
-    ~STHold() {}   // ORIG D1 W 0x08a4cf02（空体）
+    ~STHold() = default;   // ORIG 值拷贝无 scope-exit D1 调用⇒trivial dtor（D1 W 由显式销毁点发射）
 
     int m_field00;   // +0x00
     int m_field04;   // +0x04
@@ -262,7 +262,8 @@ struct STWarp
     }
 
     STWarp() { clear(); }
-    ~STWarp() {}   // ORIG D1 W 0x08a4d106（空体）
+    // ORIG D1 W 0x08a4d106：隐式平凡析构（export 循环内 local 仅调 C1、无 D1
+    // 调用实证 08a268xx；显式空析构会迫使 GCC 在非平凡销毁点外联 call D1）。
 
     int m_field00;   // +0x00（=-1）
     int m_field04;   // +0x04（=-1）
@@ -288,7 +289,7 @@ struct STDifficulty
     }
 
     STDifficulty() { clear(); }
-    ~STDifficulty() {}   // ORIG D1 W 0x08a4d8ce（空体）
+    ~STDifficulty() = default;   // ORIG 值拷贝无 scope-exit D1 调用⇒trivial dtor（D1 W 由显式销毁点发射）
 };  // sizeof == 8
 
 // STEventSuper：clear W 0x08a3d4cc / C1 W 0x08a3d52e / D1 W 0x08a4d310。
@@ -298,12 +299,12 @@ struct STEventSuper
     int m_field04;            // +0x04（=-1）
     int m_field08;            // +0x08（=-1）
     int m_field0c;            // +0x0c（=0）
-    unsigned char m_field10;  // +0x10（byte =0）
+    bool m_field10;           // +0x10（ORIG export 0x08a26dbf 双 movzbl 归一 = bool→int）
     int m_field14;            // +0x14（=-1）
     int m_field18;            // +0x18（=-1）
     int m_field1c;            // +0x1c（=-1）
     int m_field20;            // +0x20（=-1）
-    unsigned char m_field24;  // +0x24（byte =0）
+    bool m_field24;           // +0x24（ORIG export 0x08a26f8c movzbl+test 直判 ⇒ bool）
 
     void clear()
     {
@@ -320,7 +321,7 @@ struct STEventSuper
     }
 
     STEventSuper() { clear(); }
-    ~STEventSuper() {}   // ORIG D1 W 0x08a4d310（空体）
+    ~STEventSuper() = default;   // ORIG 值拷贝无 scope-exit D1 调用⇒trivial dtor（D1 W 由显式销毁点发射）
 };  // sizeof == 0x28
 
 // STAtkSuper：clear W 0x08a3d542 / C1 W 0x08a3d582 / D1 W 0x08a4d502。
@@ -344,7 +345,7 @@ struct STAtkSuper
     }
 
     STAtkSuper() { clear(); }
-    ~STAtkSuper() {}   // ORIG D1 W 0x08a4d502（空体）
+    ~STAtkSuper() = default;   // ORIG 值拷贝无 scope-exit D1 调用⇒trivial dtor（D1 W 由显式销毁点发射）
 };  // sizeof == 0x18
 
 // STCoolTime：clear W 0x08a3d596 / C1 W 0x08a3d5b6（ORIG 无 D1/D2 → 不加用户析构）。
@@ -405,7 +406,7 @@ struct STGuard
 struct STAttackMethod
 {
     STAttackMethod() { clear(); }   // ORIG C1 仅调 clear()
-    ~STAttackMethod() {}            // ORIG D1 空体
+    ~STAttackMethod() = default;   // ORIG 值拷贝无 scope-exit D1 调用⇒trivial dtor（D1 W 由显式销毁点发射）
     void clear()
     {
         m_field00 = 0;
@@ -424,10 +425,10 @@ struct STAttackMethod
     }
 
     int m_field00;   // +0x00（=0）
-    int m_field04;   // +0x04
-    int m_field08;   // +0x08
-    int m_field0c;   // +0x0c
-    int m_field10;   // +0x10
+    float m_field04; // +0x04（ORIG export 0x08a28a83 flds 0x4(%eax) ⇒ float）
+    float m_field08; // +0x08（ORIG export 0x08a23f85 单指令 flds disp ⇒ float）
+    float m_field0c; // +0x0c（同上 0x08a23f60）
+    float m_field10; // +0x10（同上 0x08a23f3d）
     int m_field14;   // +0x14（clear：=+0x18 值）
     int m_field18;   // +0x18
     int m_field1c;   // +0x1c（=+0x20 值）
@@ -521,12 +522,14 @@ struct STMosterAttackReady
     std::vector<std::string> m_field10;  // +0x10
 };  // sizeof == 0x1c
 
-// stEnamyDropAvatarElement_t：push_back W 0x088ccbd6 步长 lea 0xc(%eax)，3×int。
+// stEnamyDropAvatarElement_t：push_back W 0x088ccbd6 步长 lea 0xc(%eax)；
+// ORIG 第三次 ScanInt 仅以 mov %al 写入 +0x08，尾部 3 字节不消费。
 struct stEnamyDropAvatarElement_t
 {
     int m_field0;
     int m_field4;
-    int m_field8;
+    unsigned char m_field8;
+    char m_pad9[3];
 };  // sizeof == 0xc
 
 // stEnamyDropAvatarInfo_t：clear W 0x088cc10c / C1 W 0x08368de8（与
@@ -631,7 +634,7 @@ struct STMonsterParameterCategory
         m_field4 = 0;
         m_field8 = 0;
     }
-    ~STMonsterParameterCategory() {}   // ORIG D1 W 0x08a4bcbc（空体）
+    ~STMonsterParameterCategory() = default;   // ORIG 值拷贝无 scope-exit D1 调用⇒trivial dtor（D1 W 由显式销毁点发射）
 
     int m_field0;   // +0x00（类别 id，upgradeAbilityByMonsterParameterCategory 分派）
     int m_field4;   // +0x04（0=int 加成，非 0=float 倍率）

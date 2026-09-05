@@ -20,9 +20,10 @@
 #include <list>
 #include <map>
 #include <cstring>
+#include "SigTypes_A.h"  // SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER 基类（ORIG
+                        // ctor 0x0831c3e8 首条 call 基类 C1 = 继承形）
 
 class SIG_LOGIN_DATA;
-class SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER;
 class CUser;
 
 // ORIG 中 STRewardDataKey/STRewardData/STRewardDataList 均为全局类
@@ -97,7 +98,10 @@ struct STRewardDataList
 namespace break_away_prevent
 {
 
-class CBreakAwayPreventSystem
+// ORIG 0x0831c3e8：ctor 首条 `mov 0x8(%ebp),%eax; mov %eax,(%esp);
+// call SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGERC1Ev`（先于 map 成员 ctor）——
+// 基类构造形；m_base[0x2e4] 即基类子对象区。
+class CBreakAwayPreventSystem : public SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER
 {
 public:
     CBreakAwayPreventSystem();                                    // T 0x0831c3e0
@@ -124,7 +128,6 @@ public:
     void giveBreakAwayDungeonClearReward(CUser* user);
 
 private:
-    char m_base[0x2e4];
     std::map<STRewardDataKey, STRewardDataList> m_rewardMap;
     STRewardDataKey m_keys[5];
     char m_tail[0x1f];

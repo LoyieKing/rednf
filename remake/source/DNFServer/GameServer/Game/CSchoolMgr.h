@@ -58,6 +58,9 @@ public:
 };
 
 // 全局单例（定义在 CGameManager.cpp）
-extern CSchoolMgr* g_schoolMgr;
+// ORIG nm -S：g_schoolMgr = BSS @0x0943e080 size 0x58（对象本体）；
+// InterDispatcher.cpp 调用点 ORIG 0x084d8279 `movl $0x943e080,(%esp)` 取符号
+// 地址立即数作 this ⇒ 对象声明（指针声明反产 `mov <A>,%eax` 装载形）。
+extern CSchoolMgr g_schoolMgr;
 
 #endif  // DNF_GAME_CSCHOOL_MGR_H_

@@ -27,7 +27,7 @@ class DB_LoadCharac : public DBDispatcher
 {
 public:
     // ORIG 0x844d8c6 _ZN13DB_LoadCharacC1Ev (size 0x0000001c)  报告: docs/class_func_reports/DB_LoadCharac
-    DB_LoadCharac();
+    DB_LoadCharac() __attribute__((nothrow));   // ORIG 调用点（RegistDispatcher try 区）无 cleanup pad ⇒ 编译期 nothrow
     // ORIG 0x844d912 _ZN13DB_LoadCharacD0Ev (size 0x0000001e)  报告: docs/class_func_reports/DB_LoadCharac
     virtual ~DB_LoadCharac();
     // ORIG 0x8408c0a _ZN13DB_LoadCharac10_getGameDBEv (size 0x00000025)  报告: DB_LoadCharac/_getGameDB.md

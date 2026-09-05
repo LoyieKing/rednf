@@ -30,7 +30,7 @@ public:
     ~Village();
     void destroy();
     bool set_village(TownScript& script);
-    int get_gate_area();
+    int get_gate_area(void);  // 消 gcc4.4.7 空括号 K&R 保守 outgoing 帧（mangled 不变）
     Area* getArea(int area);
     void get_user_id_list(
         int area,

@@ -83,37 +83,35 @@ public:
     template <typename T>
     void put_packet_random_option(T& packet) const
     {
-        int index = packet.get_index();
-        packet.put_byte(0);
-        int count = 0;
-        const unsigned char* self = (const unsigned char*)this;
-        for (int i = 0; i <= 2; ++i)
+        // ORIG W 0x0811f1ae（PacketGuard 实例）逐指令对照：
+        int count = 0;                                             // ORIG +0x07 movl $0x0,-0x10(%ebp)
+        int index = packet.get_index();                            // ORIG +0x17 mov %eax,-0x14(%ebp)
+        packet.put_byte(0);                                        // ORIG +0x29 call put_byte
+        for (int i = 0; i <= 2; ++i)                               // ORIG +0xcd cmpl $0x2; setle（while 前置 jmp +0x35）
         {
-            const unsigned char* f = self + i * 3;
-            if (f[0] != 0 || f[1] != 0 || f[2] != 0)
+            if (!((const RandomOptionField*)((int)this + i * 3))->empty())  // ORIG +0x43 add 0x8(%ebp),%eax（i*3 先算，this 后 mem 加）
             {
-                packet.put_byte(f[0]);
-                packet.put_byte(f[1]);
-                packet.put_byte(f[2]);
-                ++count;
+                packet.put_byte(((const RandomOptionField*)((int)this + i * 3))->m_field0);  // ORIG +0x61 movzbl (%eax,%ecx,1),%eax
+                packet.put_byte(((const RandomOptionField*)((int)this + i * 3 + 1))->m_field0);  // ORIG +0x83 lea; add $0x1
+                packet.put_byte(((const RandomOptionField*)((int)this + i * 3 + 2))->m_field0);  // ORIG +0xaa lea; add $0x2
+                ++count;                                           // ORIG +0xc5 addl $0x1,-0x10
             }
         }
-        packet.put_byte(index, count);
-        if (count != 0)
+        packet.put_byte(index, count);                             // ORIG +0xf0 call put_byteERii（index 槽取址+count 值传）
+        if (count != 0)                                            // ORIG +0xf5 cmpl $0x0,-0x10; je end
         {
-            packet.put_byte(self[9]);
-            const unsigned char* a = self + 0xa;
-            if (a[0] != 0 || a[1] != 0 || a[2] != 0)
+            packet.put_byte(m_seed9.m_field);                      // ORIG +0xff movzbl 0x9(%eax); movzbl %al,%edx
+            if (!((const RandomOptionField*)((const char*)this + 0xa))->empty())  // ORIG +0x11e add $0xa,%eax; call empty; xor$1; je→put(-1)
             {
-                packet.put_byte(self[0xd] & 3);
-                packet.put_byte(self[0xd]);
-                packet.put_byte(a[0]);
-                packet.put_byte(a[1]);
-                packet.put_byte(a[2]);
+                packet.put_byte((unsigned char)(m_seedd.m_field & 3));  // ORIG +0x12d movzbl 0xd; and $0x3; movzbl %al,%edx
+                packet.put_byte(m_seedd.m_field);                  // ORIG +0x14d
+                packet.put_byte(m_fielda.m_field0);                // ORIG +0x166 movzbl 0xa
+                packet.put_byte(m_fielda.m_field1);                // ORIG +0x17f
+                packet.put_byte(m_fielda.m_field2);                // ORIG +0x198
             }
             else
             {
-                packet.put_byte(-1);
+                packet.put_byte(-1);                               // ORIG +0x1b3 movl $0xffffffff
             }
         }
     }
@@ -214,7 +212,7 @@ public:
 
     bool m_field0;                 // +0x00（ORIG bool：movzbl;xor $0x1;test %al,%al 惯用式，WarRoom::HandleItemDrop 0x086bfad7）
     unsigned char m_field1;            // +0x01（ITEM_TYPE）
-    int m_addInfo;                     // +0x02（item idx）
+    unsigned int m_addInfo;            // +0x02（item idx；_CheckUsableExpertJobEquipment 0x084c4ba3 find_item(int) 两步 spill 需 unsigned 成员）
     unsigned char m_attr;              // +0x06（upgrade:bit0-4 / reseal:bit5-7）
     int m_addInfo2;                    // +0x07（set_add_info / get_add_info）
     unsigned short m_fieldb;           // +0x0b（endurance）

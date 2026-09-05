@@ -212,11 +212,11 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
     // 基类区未还原槽位【ORIG asm 直读，语义标推断】：
     //   +0x0c short：断线回归天数比较上限；+0x302/+0x303、+0x308/+0x309
     //   signed char：两奖励窗口的 diff-day 下界/上界。
-    short dayLimit = *reinterpret_cast<const short*>(m_base + 0xc);
-    signed char winALow = *reinterpret_cast<const signed char*>(m_base + 0x302);
-    signed char winAHigh = *reinterpret_cast<const signed char*>(m_base + 0x303);
-    signed char winBLow = *reinterpret_cast<const signed char*>(m_base + 0x308);
-    signed char winBHigh = *reinterpret_cast<const signed char*>(m_base + 0x309);
+    short dayLimit = *reinterpret_cast<const short*>((char*)this + 0xc);
+    signed char winALow = *reinterpret_cast<const signed char*>((char*)this + 0x302);
+    signed char winAHigh = *reinterpret_cast<const signed char*>((char*)this + 0x303);
+    signed char winBLow = *reinterpret_cast<const signed char*>((char*)this + 0x308);
+    signed char winBHigh = *reinterpret_cast<const signed char*>((char*)this + 0x309);
 
     unsigned int firstReward = login->m_breakAwayRewardBoundA;   // +0x3f40
     unsigned int secondReward = login->m_breakAwayRewardBoundB;  // +0x3f44
@@ -327,22 +327,22 @@ static const char* const kUvListDay4   = "000000000000000000111000001000";  // 0
 void CBreakAwayPreventSystem::GM_UpdateUvList(unsigned int accId,
                                               unsigned int day)
 {
-    memset(m_base + 0x30b, 0, 0x1f);   // ORIG memset(this+0x30b,0,0x1f)
+    memset((char*)this + 0x30b, 0, 0x1f);   // ORIG memset(this+0x30b,0,0x1f)
     switch (day)                        // ORIG switch ebp+0x10
     {
     case 1:
     case 2:
     case 3:
-        memcpy(m_base + 0x30b, kUvListDay123, 0x1f);   // ORIG 0x8c242c0
+        memcpy((char*)this + 0x30b, kUvListDay123, 0x1f);   // ORIG 0x8c242c0
         break;
     case 4:
-        memcpy(m_base + 0x30b, kUvListDay4, 0x1f);     // ORIG 0x8c242e0
+        memcpy((char*)this + 0x30b, kUvListDay4, 0x1f);     // ORIG 0x8c242e0
         break;
     default:
         break;   // ORIG default 无 memcpy
     }
     DB_UpdateBreakAwayUvList::makeRequest(
-        accId, m_base + 0x30b);   // ORIG 0x0831cb3e
+        accId, (char*)this + 0x30b);   // ORIG 0x0831cb3e
     CLocalChina_DB_BreakAwayReset::makeRequest(accId);   // ORIG static (no this) 0x0831cb49
 }
 // ---- StubS3A_deps 批 ----

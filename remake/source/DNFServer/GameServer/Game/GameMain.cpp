@@ -550,21 +550,63 @@ bool Init(int argc, char** argv)
     okTrace(" %s Success", garenaPubkey);
     CodePage::initCodePage();
 
+    // ORIG 82a0bc5..：各启动阶段 cMyTrace(5-arg) 记录 + 失败即 abort（返回 0）。
+    // 此前重建忽略多数返回值（带病启动），现按 ORIG 逐阶段补失败处理与 trace 日志。
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x29dd, 9, true, true); t("[!] Init GlobalData ..."); }
     if (!GlobalData::Init())
+    {
+        { cMyTrace t(__PRETTY_FUNCTION__, 0x29e0, 9, true, true); t("[!] Init GlobalData Fail"); }
         return false;
+    }
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x29e3, 9, true, true); t("[!] Init GlobalData Success"); }
 
-    HistoryLog::Init();
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x29e5, 9, true, false); t("[!] Init HistoryLog"); }
+    if (!HistoryLog::Init())
+    {
+        { cMyTrace t(__PRETTY_FUNCTION__, 0x29e8, 9, false, true); t("Fail"); }
+        return false;
+    }
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x29eb, 9, false, true); t(" Success"); }
 
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x29f0, 9, true, true); t("[!] Init DataManager ..."); }
     G_CDataManager()->init();
-    G_CGameManager()->init();
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x29f6, 9, true, true); t("[!] Init DataManager Success"); }
 
-    ARAD::Singleton<ARAD::ScriptManager>::Get()->LoadScript();
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x29f9, 9, true, true); t("[!] Init GameManager ..."); }
+    if (!G_CGameManager()->init())
+    {
+        { cMyTrace t(__PRETTY_FUNCTION__, 0x29fc, 9, true, true); t("[!] Init GameManager Fail"); }
+        return false;
+    }
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x29ff, 9, true, true); t("[!] Init GameManager Success"); }
+
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x2a02, 9, true, true);
+      t("[!] Init Arad GameScriptManager ..."); }
+    if (!ARAD::Singleton<ARAD::ScriptManager>::Get()->LoadScript())
+    {
+        { cMyTrace t(__PRETTY_FUNCTION__, 0x2a05, 9, true, true);
+          t("[!] Init Arad GameScriptManager Fail"); }
+        return false;
+    }
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x2a08, 9, true, true);
+      t("[!] Init Arad GameScriptManager Success"); }
 
     G_CGameManager()->GetQuickPartySystemManager();
 
-    G_GameWorld()->InitChannelType();
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x2a1f, 9, true, false); t("[!] Init ChannelType "); }
+    if (!G_GameWorld()->InitChannelType())
+    {
+        { cMyTrace t(__PRETTY_FUNCTION__, 0x2a22, 9, true, true); t("[!] Init ChannelType Fail"); }
+        return false;
+    }
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x2a25, 9, false, true); t("Success"); }
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x2a27, 9, true, true);
+      t("\t- Channel Type : %d", G_GameWorld()->GetChannelType()); }
 
-    GlobalData::initTournamentDB(G_CEnvironment()->get_file_name());
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x2a29, 9, true, false); t("[!] Init tournament db "); }
+    if (!GlobalData::initTournamentDB(G_CEnvironment()->get_file_name()))
+        return false;
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x2a33, 9, false, true); t("Success"); }
 
     // DB 查询计数器挂接（DBMgr@全局 s_db_mgr）
     GlobalData::s_db_mgr->SetQueryCounterPointer(
@@ -582,73 +624,131 @@ bool Init(int argc, char** argv)
             typedef std::map<ENUM_SERVER_GROUP,
                              std::map<std::string, std::string> > GrpMap;
             GrpMap& grpMap = G_CEnvironment()->m_serverGroupMap;
-            const int proxyCount = static_cast<int>(grpMap.size());
-            const int idx = 0;  // ORIG -0x34 起始索引
-            for (GrpMap::iterator it = grpMap.begin(); it != grpMap.end(); ++it)
+            // ORIG 82a15xx：单循环遍历 m_serverGroupMap，每迭代依次建 monitor/guild/
+            // statistic proxy；每 createServerProxy 前重取 G_CEnvironment()->…size()
+            // 作 count 参，失败 cerr + abort。idx（-0x34）随迭代自增。
+            int idx = 0;
+            for (GrpMap::iterator it = grpMap.begin(); it != grpMap.end(); ++it, ++idx)
             {
                 ENUM_SERVER_GROUP g = it->first;
                 std::map<std::string, std::string>& c = it->second;
-                GlobalData::s_monitor_proxy_mgr->createServerProxy(
-                    proxyCount, idx, g,
-                    const_cast<char*>(GetConfigFileString(c, "udp_ip_of_monitor")),
-                    atoi(GetConfigFileString(c, "udp_port_of_monitor")),
-                    atoi(GetConfigFileString(c, "tcp_port_of_monitor")));
-            }
-            for (GrpMap::iterator it = grpMap.begin(); it != grpMap.end(); ++it)
-            {
-                ENUM_SERVER_GROUP g = it->first;
-                std::map<std::string, std::string>& c = it->second;
-                GlobalData::s_guild_proxy_mgr->createServerProxy(
-                    proxyCount, idx, g,
-                    const_cast<char*>(GetConfigFileString(c, "udp_ip_of_guild")),
-                    atoi(GetConfigFileString(c, "udp_port_of_guild")),
-                    atoi(GetConfigFileString(c, "tcp_port_of_guild")));
-            }
-            for (GrpMap::iterator it = grpMap.begin(); it != grpMap.end(); ++it)
-            {
-                ENUM_SERVER_GROUP g = it->first;
-                std::map<std::string, std::string>& c = it->second;
-                GlobalData::s_statistic_proxy_mgr->createServerProxy(
-                    proxyCount, idx, g,
-                    const_cast<char*>(GetConfigFileString(c, "udp_ip_of_statistic")),
-                    atoi(GetConfigFileString(c, "udp_port_of_statistic")), 0);
+
+                int mTcp = atoi(GetConfigFileString(c, "tcp_port_of_monitor"));
+                int mUdp = atoi(GetConfigFileString(c, "udp_port_of_monitor"));
+                char* mIp = const_cast<char*>(GetConfigFileString(c, "udp_ip_of_monitor"));
+                if (!GlobalData::s_monitor_proxy_mgr->createServerProxy(
+                        static_cast<int>(G_CEnvironment()->m_serverGroupMap.size()),
+                        idx, g, mIp, mUdp, mTcp))
+                {
+                    std::cerr << "[s_monitor_proxy_mgr::Init] Fail Init (monitor server proxy)"
+                              << std::endl;
+                    return false;
+                }
+
+                int gTcp = atoi(GetConfigFileString(c, "tcp_port_of_guild"));
+                int gUdp = atoi(GetConfigFileString(c, "udp_port_of_guild"));
+                char* gIp = const_cast<char*>(GetConfigFileString(c, "udp_ip_of_guild"));
+                if (!GlobalData::s_guild_proxy_mgr->createServerProxy(
+                        static_cast<int>(G_CEnvironment()->m_serverGroupMap.size()),
+                        idx, g, gIp, gUdp, gTcp))
+                {
+                    std::cerr << "[s_guild_proxy_mgr::Init] Fail Init (guild server proxy)"
+                              << std::endl;
+                    return false;
+                }
+
+                int sUdp = atoi(GetConfigFileString(c, "udp_port_of_statistic"));
+                char* sIp = const_cast<char*>(GetConfigFileString(c, "udp_ip_of_statistic"));
+                if (!GlobalData::s_statistic_proxy_mgr->createServerProxy(
+                        static_cast<int>(G_CEnvironment()->m_serverGroupMap.size()),
+                        idx, g, sIp, sUdp, 0))
+                {
+                    std::cerr << "[s_statistic_proxy_mgr::Init] Fail Init (statistic server proxy)"
+                              << std::endl;
+                    return false;
+                }
             }
         }
         else
         {
             // 固定 getter 单组（ORIG 82a16aa 非 Integrated 分支）
-            GlobalData::s_monitor_proxy_mgr->createServerProxy(
-                1, 0, E_SERVER_GROUP_NONE,
-                G_CEnvironment()->get_udp_ip_monitor(),
-                G_CEnvironment()->get_tcp_port_monitor(),
-                G_CEnvironment()->get_udp_port_monitor());
-            GlobalData::s_guild_proxy_mgr->createServerProxy(
-                1, 0, E_SERVER_GROUP_NONE,
-                G_CEnvironment()->get_udp_ip_guild(),
-                G_CEnvironment()->get_tcp_port_guild(),
-                G_CEnvironment()->get_udp_port_guild());
-            GlobalData::s_statistic_proxy_mgr->createServerProxy(
-                1, 0, E_SERVER_GROUP_NONE,
-                G_CEnvironment()->get_udp_ip_statistic(), 0,
-                G_CEnvironment()->get_udp_port_statistic());
+            // ORIG 每 createServerProxy 检查返回值，失败 cerr + abort。
+            if (!GlobalData::s_monitor_proxy_mgr->createServerProxy(
+                    1, 0, E_SERVER_GROUP_NONE,
+                    G_CEnvironment()->get_udp_ip_monitor(),
+                    G_CEnvironment()->get_tcp_port_monitor(),
+                    G_CEnvironment()->get_udp_port_monitor()))
+            {
+                std::cerr << "[s_monitor_proxy_mgr::Init] Fail Init (monitor server proxy)"
+                          << std::endl;
+                return false;
+            }
+            if (!GlobalData::s_guild_proxy_mgr->createServerProxy(
+                    1, 0, E_SERVER_GROUP_NONE,
+                    G_CEnvironment()->get_udp_ip_guild(),
+                    G_CEnvironment()->get_tcp_port_guild(),
+                    G_CEnvironment()->get_udp_port_guild()))
+            {
+                std::cerr << "[s_guild_proxy_mgr::Init] Fail Init (guild server proxy)"
+                          << std::endl;
+                return false;
+            }
+            if (!GlobalData::s_statistic_proxy_mgr->createServerProxy(
+                    1, 0, E_SERVER_GROUP_NONE,
+                    G_CEnvironment()->get_udp_ip_statistic(), 0,
+                    G_CEnvironment()->get_udp_port_statistic()))
+            {
+                std::cerr << "[s_statistic_proxy_mgr::Init] Fail Init (statistic server proxy)"
+                          << std::endl;
+                return false;
+            }
         }
     }
-    G_GameWorld()->init();
-
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x2ac8, 9, true, false); t("[!] Init GameWorld "); }
+    if (!G_GameWorld()->init())
+    {
+        { cMyTrace t(__PRETTY_FUNCTION__, 0x2acb, 9, true, true); t("[!] Init GameWorld Fail"); }
+        return false;
+    }
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x2ace, 9, false, true); t("Success"); }
 
     GlobalData::s_DailyScheduleManager->CheckAndSendToAllUserSchedule();
 
-    // LoginState 初始化：遍历 statistic proxy（Start..End 索引区间）
-    for (int idx = GlobalData::s_statistic_proxy_mgr->GetStartIndex(); ; )
+    // LoginState 初始化：遍历 statistic proxy（Start..End 索引区间）。
+    // ORIG 0x2ad7/0x2aec：前后 cMyTrace；InitLoginState 失败(0x2ae8/0x2adf) abort。
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x2ad7, 9, true, false); t("[!] Init Login State "); }
+    if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
-        G_CDataManager()->InitLoginState(
-            static_cast<ENUM_SERVER_GROUP>(
-                G_CEnvironment()->get_gc_no_hardcode(E_SERVER_GROUP_NONE)),
-            G_CEnvironment()->get_channel_no());
-        if (idx >= GlobalData::s_statistic_proxy_mgr->GetEndIndex())  // GetNextIndex(&idx) 推断形态
-            break;
-        GlobalData::s_statistic_proxy_mgr->GetNextIndex(idx);
+        // ORIG 非 Integrated：单发 InitLoginState(m_serverGroup, m_gcNo)。
+        if (!G_CDataManager()->InitLoginState(
+                static_cast<ENUM_SERVER_GROUP>(
+                    G_CEnvironment()->m_serverEnvir.m_serverGroup),
+                G_CEnvironment()->m_serverEnvir.m_gcNo))
+        {
+            { cMyTrace t(__PRETTY_FUNCTION__, 0x2ae8, 9, true, true);
+              t("[!] Init Login State Fail"); }
+            return false;
+        }
     }
+    else
+    {
+        for (int idx = GlobalData::s_statistic_proxy_mgr->GetStartIndex(); ; )
+        {
+            if (!G_CDataManager()->InitLoginState(
+                    static_cast<ENUM_SERVER_GROUP>(
+                        G_CEnvironment()->get_gc_no_hardcode(E_SERVER_GROUP_NONE)),
+                    G_CEnvironment()->get_channel_no()))
+            {
+                { cMyTrace t(__PRETTY_FUNCTION__, 0x2adf, 9, true, true);
+                  t("[!] Init Login State Fail"); }
+                return false;
+            }
+            if (idx >= GlobalData::s_statistic_proxy_mgr->GetEndIndex())  // GetNextIndex(&idx) 推断形态
+                break;
+            GlobalData::s_statistic_proxy_mgr->GetNextIndex(idx);
+        }
+    }
+    { cMyTrace t(__PRETTY_FUNCTION__, 0x2aec, 9, false, true); t("Success"); }
 
     if (IsLightServer())
     {
@@ -663,52 +763,80 @@ bool Init(int argc, char** argv)
     // ---- 事件表装载 ----
     {
         std::vector<int> eventIds;
-        if (CEventTable::VerifyEventTable(eventIds)
-            && CEventTable::InsertEventTable(eventIds))
+        // ORIG 82a1bce..：Verify/Insert/LoadEventFromDB 任一失败记 cMyTrace 并 abort。
+        if (!CEventTable::VerifyEventTable(eventIds))
         {
-            for (int i = 0; i < CEventTable::GetEventTableCount(); ++i)
-            {
-                CEventBase* base = CEventTable::GetEventBase(i);
-                int eventId = CEventTable::GetEventId(i);
-                GlobalData::s_event_manager->AddEvent(eventId, base);
-            }
-            GlobalData::s_event_manager->LoadEventFromDB();
-
-            // 触发周期事件（ORIG 82a1d56..dd8：getCurSec → GetRepeatEvent(0x3a)
-            // → ev->IsEventing(0) 且 curSec>0x4cbe3f0f(约 2017 时间戳) 则
-            // TriggerEventStart(0x3a, Word_Param())；单事件非小时槽循环）。
-            long curSec = static_cast<long>(s_systemTime_.getCurSec());
-            CEventBase* ev =
-                GlobalData::s_event_manager->GetRepeatEvent(0x3a);
-            if (ev && ev->IsEventing(0) && curSec > 0x4cbe3f0f)
-                GlobalData::s_event_manager->TriggerEventStart(0x3a, Word_Param());
+            cMyTrace t(__PRETTY_FUNCTION__, 0x2b0e, 9, true, true);
+            t("Fail verify Event Table");
+            return false;
         }
+        if (!CEventTable::InsertEventTable(eventIds))
+        {
+            cMyTrace t(__PRETTY_FUNCTION__, 0x2b14, 9, true, true);
+            t("Fail insert Event Table");
+            return false;
+        }
+        for (int i = 0; i < CEventTable::GetEventTableCount(); ++i)
+        {
+            CEventBase* base = CEventTable::GetEventBase(i);
+            int eventId = CEventTable::GetEventId(i);
+            GlobalData::s_event_manager->AddEvent(eventId, base);
+        }
+        if (!GlobalData::s_event_manager->LoadEventFromDB())
+        {
+            cMyTrace t(__PRETTY_FUNCTION__, 0x2b25, 9, true, true);
+            t("Fail Load Event From DB");
+            return false;
+        }
+        // 触发周期事件（ORIG 82a1d56..dd8：getCurSec → GetRepeatEvent(0x3a)
+        // → ev->IsEventing(0) 且 curSec>0x4cbe3f0f(约 2017 时间戳) 则
+        // TriggerEventStart(0x3a, Word_Param())；单事件非小时槽循环）。
+        long curSec = static_cast<long>(s_systemTime_.getCurSec());
+        CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x3a);
+        if (ev && ev->IsEventing(0) && curSec > 0x4cbe3f0f)
+            GlobalData::s_event_manager->TriggerEventStart(0x3a, Word_Param());
     }
     // 公会信息装载
     for (int gi = GlobalData::s_guild_proxy_mgr->GetStartIndex(); ; )
     {
         CGuildServerProxy* gp = GlobalData::s_guild_proxy_mgr->GetServerProxy(E_SERVER_GROUP_NONE /*推断*/);
-        if (gp)
-            gp->LoadGuildInfoProxyFromDB(E_SERVER_GROUP_NONE);
+        // ORIG 0x2b88：LoadGuildInfoProxyFromDB 失败记 cMyTrace 并 abort。
+        if (gp && !gp->LoadGuildInfoProxyFromDB(E_SERVER_GROUP_NONE))
+        {
+            cMyTrace t(__PRETTY_FUNCTION__, 0x2b88, 9, true, true);
+            t("Fail Load Guild Info Proxy");
+            return false;
+        }
         if (gi >= GlobalData::s_guild_proxy_mgr->GetEndIndex())
             break;
         GlobalData::s_guild_proxy_mgr->GetNextIndex(gi);
     }
 
     // 广告 / 共享服务器消息 / 拍卖均价
-    InGameADManagerInstance()->LoadADExposeInfoAtApp();
+    // ORIG 0x2b91：LoadADExposeInfoAtApp 失败记 cMyTrace 并 abort。
+    if (!InGameADManagerInstance()->LoadADExposeInfoAtApp())
+    {
+        cMyTrace t(__PRETTY_FUNCTION__, 0x2b91, 9, true, true);
+        t("Fail Load In Game Advertisement Expose Info");
+        return false;
+    }
     G_CGameManager()->GetSharedServerMessageManager()->LoadServerMessageFromDB();
     G_CGameManager()->GetAuctionAveragePriceManager()->LoadAveragePrice();
 
     np_server_xml::CServerXml xml;  // 「推断」实例化方式（ORIG 直接调用成员）
     xml.StrLoading();
 
-    // 死亡之塔排行榜三表懒构造 + 定时刷新
-    WongWork::CDeathTowerRanking::getRankTable(0);
-    WongWork::CDeathTowerRanking::getRankTable(1);
-    WongWork::CDeathTowerRanking::getRankTable(2);
-    WongWork::CDeathTowerRanking::init(0);
-    TimerDeathTowerTopRankerReload::registNextTimer(60000);  // 「推断」ms
+    // 死亡之塔排行榜 4 表（type 1..4）懒构造 + 逐表 init（ORIG 82a1f.. 循环）；
+    // registNextTimer 传 0（ORIG 实证，非 60000）。
+    for (int i = 1; i < 5; ++i)
+    {
+        // ORIG 0x082a1f60..0x082a1f75：getRankTable(i) 返回表指针作 this 传参，
+        // 再 init(i)（非静态成员，esp[0]=this、esp[4]=i）。
+        WongWork::CDeathTowerRanking* rankTable =
+            (WongWork::CDeathTowerRanking*)WongWork::CDeathTowerRanking::getRankTable(i);
+        rankTable->init(i);
+    }
+    TimerDeathTowerTopRankerReload::registNextTimer(0);
 
     InitCipherKeyString();
     RegistServerSchedule();
@@ -730,17 +858,21 @@ bool Init(int argc, char** argv)
     Timer_EventManagement::RegistNextTimer(60000);           // 「推断」间隔
     Timer_DungeonStatisticEntrance_Hour::RegistNextTimer();
 
-    create_thread();
-
-    // ORIG 82a204e：CDBConnector::Close()（s_db_connector，仅 master 连接器）；
-    // 原用 s_db_mgr->Close() 关所有 handle 与 ORIG 不一致。
-    GlobalData::s_db_connector->Close();
-
-    cMyTrace trace(G_CEnvironment()->get_channel_name(), 0, 0);  // 「推断」参数
-    trace("%s %d %s init complete",
-          G_CEnvironment()->get_channel_name(), G_CEnvironment()->get_channel_no(),
-          G_CEnvironment()->get_file_name());
-
+    // ORIG 0x2bf6：create_thread 失败记 "Fail to Create Threads." 并 abort。
+    if (!create_thread())
+    {
+        cMyTrace t(__PRETTY_FUNCTION__, 0x2bf6, 9, true, true);
+        t("Fail to Create Threads.");
+        return false;
+    }
+    // ORIG 82a204e：仅 master 连接器 s_db_connector 非空才 Close()。
+    if (GlobalData::s_db_connector != 0)
+        GlobalData::s_db_connector->Close();
+    // ORIG 0x2c0e：启动成功 trace（file_name / channel_no / channel_name 序）。
+    cMyTrace t(__PRETTY_FUNCTION__, 0x2c0e, 9, true, true);
+    t("[!] The %s channel %d('%s') server has been started successfully.",
+      G_CEnvironment()->get_file_name(), G_CEnvironment()->get_channel_no(),
+      G_CEnvironment()->get_channel_name());
     return true;
 }
 

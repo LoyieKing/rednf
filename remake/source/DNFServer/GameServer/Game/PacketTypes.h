@@ -590,7 +590,7 @@ public:
     unsigned short m_13;    // +0x13
     unsigned short m_15;    // +0x15（%7 反外挂校验）
     unsigned char m_17;     // +0x17（!=1 时计 hack 0x3bb）
-    unsigned char m_pad18[2];   // +0x18..+0x19
+    union { unsigned char m_pad18[2]; unsigned short m_18; };   // +0x18（ORIG 081c3566 get_shortERt@0x18 → ushort；m_pad18 兼容旧消费者）
     unsigned short m_1a;    // +0x1a（拾取 x）
     unsigned short m_1c;    // +0x1c（拾取 y）
 };
@@ -1014,7 +1014,7 @@ class MSG_PARTY_SET_INFO
 public:
     char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     unsigned char m_titleIndex;   // +0x0d
-    char m_pad0e[4];              // +0x0e..0x11
+    int m_titleLen;               // +0x0e..0x11（SetPartyInfo::read 单级 int 字段装载 0xe(%eax)，DCoreB 证据；4B 同宽 sizeof 0x3e 不变）
     char m_title[0x20];           // +0x12（setTitle 拷贝源，0x20 同 CParty::m_title）
     unsigned char m_userMax;      // +0x32
     unsigned short m_dungIndex;   // +0x33

@@ -37,23 +37,165 @@ class Inven_Item;
 #pragma pack(push, 1)
 struct CHARAC_DATA
 {
-    char m_data[0x60];          // +0x000..+0x05f（blob 前段视图）
+    // 前段 0x60：getCharacInfoDetail @0x0864bdba（ORIG 汇编逐条宽度实证，
+    // 报告 docs/class_func_reports/CUser/getCharacInfoDetail.md）；m_data 保留
+    // 兼容既有 blob 视图消费者（Main 协调 2026-09-04，union 叠加）。
+    union
+    {
+        char m_data[0x60];
+        struct
+        {
+            int            m_characNo;   // +0x00（mov %edx,(%eax)；←src+0x00）
+            char           m_name[0x1e]; // +0x04（strncpy 0x1e；←src m_name）
+            // 2026-09-05 §4.3（DBCharac 批次）：DB 绑定别名 union——get_* callee
+            // 即 ORIG 引用类型实证（_getCharacInfo/_getCharacStat 报告：
+            // get_byte(char&)@0x080fde54 / get_short(short&)@0x080fddec /
+            // get_uint@0x080e22f2）；旧名旧类型保留，消费者零改动。
+            union { unsigned char  m_field22;   // +0x22（movb；←src+0x22）
+                            char           m_village;      // +0x22 charac_stat.village
+        };
+            union { unsigned char  m_field23;   // +0x23（movb；←src+0x25）
+                            char           m_villagePrev;  // +0x23 village_prev
+    };
+            union { unsigned char  m_field24;   // +0x24（movb；←src+0x26 job）
+                            char           m_job;          // +0x24 charac_info.job（get_byte char&）
+            };
+            union { unsigned short m_field25;   // +0x25（mov %dx 2B；←src+0x27 movzwl）
+                            short          m_lev;          // +0x25 lev（get_short short&）
+            };
+            union { unsigned char  m_field27;   // +0x27（movb；←src+0x29）
+                            char           m_growType;     // +0x27 grow_type（get_byte char&）
+            };
+            union { int            m_field28;   // +0x28（movl；←src+0x2b）
+                            unsigned int   m_exp;          // +0x28 exp（get_uint）
+            };
+            unsigned short m_field2c;    // +0x2c（movzwl 0x33）
+            unsigned short m_field2e;    // +0x2e（movzwl 0x35）
+            unsigned short m_field30;    // +0x30（movzwl 0x37）
+            union { unsigned short m_field32;   // +0x32（movzwl 0x4f）
+                            short          m_fatigueBattery; // +0x32 fatigue_battery_charging（get_short short&）
+            };
+            char           m_field34[0x19]; // +0x34（CommonTime::GetCreateTime 出参区至 +0x4d）
+            union { int            m_field4d;   // +0x4d（movl；←src+0x7b CharLastPlayTick）
+                            unsigned int   m_lastPlayTime; // +0x4d last_play_time（get_uint）
+            };
+            char           m_pad51[5];   // +0x51..+0x55（本函数无写点）
+            union { int            m_guildId;   // +0x56（movl；←src m_guildId@0xdbe）
+                            unsigned int   m_guildIdUint;  // +0x56 guild_id（get_uint 绑定视图）
+            };
+            unsigned char  m_field5a;    // +0x5a（movb；←src+0xdc2）
+            unsigned short m_field5b;    // +0x5b（movzwl 0x77）
+            unsigned short m_field5d;    // +0x5d（movzwl 0x79）
+            unsigned char  m_field5f;    // +0x5f（movb $0/$1；←src+0xe22!=0）
+        };
+    };
     _Additioal_info m_add;      // +0x060（pack1，0x52）
     // +0x0b2..+0x137 未还原字段组件视图（ORIG Reset 0x822ec9e 尾部字节簇 + dword）
     struct UnknownB2
     {
-        char m_pad0[0x72];      // +0x0b2..+0x123
+        // m_pad0 union 叠加 getCharacInfoDetail 实证写字段（宽度=ORIG store 指令）。
+        union
+        {
+            char m_pad0[0x72];  // +0x0b2..+0x123
+            struct
+            {
+                unsigned char  m_fieldb2;   // +0x0b2（movb；←src m_stamina@0x75）
+                unsigned short m_fieldb3;   // +0x0b3（movzwl 0x4d）
+                // 2026-09-05 §4.3（DBCharac 批次）：charac_stat DB 列绑定别名
+                // union——callee 实证见 _getCharacStat 报告（get_uint@0x080e22f2 /
+                // get_int(int&)@0x0811692c / get_byte(char&)@0x080fde54 /
+                // get_short(short&)@0x080fddec）；旧名旧类型保留，消费者零改动。
+                union { int            m_fieldb5;   // +0x0b5（movl；←src+0x51）
+                        unsigned int   m_tutorialFlag;      // +0x0b5 tutorial_flag（get_uint）
+                };
+                char           m_fieldb9[0x10]; // +0x0b9（memcpy 0x10；←src+0x55）
+                union { int            m_fieldc9;   // +0x0c9（CReliablePerson::GetTradeGoldTotal）
+                        unsigned int   m_tradeGoldTotal;    // +0x0c9 trade_gold_total（get_uint）
+                };
+                int            m_fieldcd;   // +0x0cd（GetTradeGoldTotalBillion）
+                union { int            m_fieldd1;   // +0x0d1（GetTradeGoldDaily）
+                        unsigned int   m_tradeGoldDaily;    // +0x0d1 trade_gold_daily（get_uint）
+                };
+                int            m_fieldd5;   // +0x0d5（←src+0xe49）
+                int            m_fieldd9;   // +0x0d9（←src+0xe4d）
+                int            m_fielddd;   // +0x0dd（←src+0xe51）
+                int            m_fielde1;   // +0x0e1（←src+0xe55）
+                int            m_fielde5;   // +0x0e5（←src+0xe59）
+                int            m_fielde9;   // +0x0e9（←src+0xe5d）
+                int            m_fielded;   // +0x0ed（←src+0xe45）
+                int            m_fieldf1;   // +0x0f1（←src+0xe68）
+                union { unsigned char  m_fieldf5;   // +0x0f5（movb；←src+0xe70）
+                        char           m_openFlag;          // +0x0f5 open_flag（get_byte char&）
+                };
+                int            m_fieldf6;   // +0x0f6（←src+0xe71）
+                int            m_fieldfa;   // +0x0fa（←src+0xe79）
+                union { int            m_fieldfe;   // +0x0fe（←src+0xdf4）
+                        unsigned int   m_helpAbuseRatio;    // +0x0fe help_abuse_ratio（get_uint）
+                };
+                union { int            m_field102;  // +0x102（←src+0xdf8）
+                        unsigned int   m_helpAbuseExp;      // +0x102 help_abuse_exp（get_uint）
+                };
+                int            m_field106;  // +0x106（←src+0xe7d）
+                int            m_field10a;  // +0x10a（←src+0xe81）
+                union { unsigned short m_field10e;  // +0x10e（movzwl 0x121f）
+                        short          m_powerWarPoint;     // +0x10e power_war_point（get_short）
+                };
+                union { int            m_field110;  // +0x110（←src+0x1221）
+                        unsigned int   m_pwAssaultCount;    // +0x110 power_war_assault_count（get_uint）
+                };
+                union { int            m_field114;  // +0x114（←src+0x1225；ORIG 重复写两次）
+                        unsigned int   m_pwAssaultVicCount; // +0x114 power_war_assault_victory_count（get_uint）
+                };
+                union { int            m_field118;  // +0x118（←src+0x7f）
+                        unsigned int   m_lastPlayTimePW;    // +0x118 last_play_time_powerwar（get_uint）
+                };
+                union { unsigned short m_field11c;  // +0x11c（movzwl 0x122c）
+                        short          m_emotion;           // +0x11c emotion（get_short）
+                };
+                union { unsigned char  m_field11e;  // +0x11e（movb；←src+0x1239 movzbl）
+                        char           m_skillTreeIndex;    // +0x11e skill_tree_index（get_byte char&）
+                };
+                union { unsigned char  m_field11f;  // +0x11f（movb；←src+0x123e）
+                        char           m_addSlotFlag;       // +0x11f add_slot_flag（get_byte char&）
+                };
+                union { unsigned char  m_field120;  // +0x120（movb；←src+0x123f）
+                        char           m_eventCharacLevel;  // +0x120 event_charac_level（get_byte char&）
+                };
+                union { unsigned char  m_field121;  // +0x121（movb；←src+0x1241）
+                        char           m_memberDungeonFlag; // +0x121 member_dungeon_flag（get_byte char&）
+                };
+                union { unsigned short m_field122;  // +0x122（movzwl 0x126c）
+                        short          m_memberBonusFatigue;// +0x122 member_bonus_fatigue（get_short）
+                };
+            };
+        };
         char m_b124;            // +0x124
-        char m_pad125[4];       // +0x125..+0x128
+        union
+        {
+            char m_pad125[4];   // +0x125..+0x128
+            int  m_i125;        // +0x125（movl；←src+0x126f，getCharacInfoDetail 实证）
+            unsigned int m_lastPlayDungeonIndex; // +0x125 last_play_dungeon_index（get_uint）
+        };
         char m_b129;            // +0x129
         char m_b12a;            // +0x12a
         char m_b12b;            // +0x12b
-        char m_b12c;            // +0x12c
-        char m_b12d;            // +0x12d
+        union { char m_b12c;            // +0x12c
+                unsigned char m_giveRewardFlag;  // +0x12c give_reward_flag（_LoadEventBringUpInfo uchar 存）
+        };
+        union { char m_b12d;            // +0x12d
+                unsigned char m_useMaterialCnt;  // +0x12d use_material_cnt（_LoadEventBringUpInfo uchar 存）
+        };
         char m_b12e;            // +0x12e（ORIG Reset 不清）
-        char m_b12f;            // +0x12f
+        union { char m_b12f;            // +0x12f
+                unsigned char m_growthPowerReward; // +0x12f growth_power_reward（get_ubyte uchar&）
+        };
         int  m_i130;            // +0x130
-        char m_pad134[4];       // +0x134..+0x137
+        union
+        {
+            char m_pad134[4];   // +0x134..+0x137
+            int  m_i134;        // +0x134（movl；=get_acc_id()，getCharacInfoDetail 实证）
+            unsigned int m_mId;             // +0x134 charac_info.m_id（get_uint）
+        };
     };
     UnknownB2 m_unkB2;          // +0x0b2（sizeof 0x86）
     // ORIG C1 0x822ec4c 循环 esi=0x15 起减到 0 共 22 次 → m_items[22]
@@ -71,7 +213,32 @@ static_assert(sizeof(CHARAC_DATA) == 0x67a, "CHARAC_DATA ABI drift");
 struct TAG_CHARAC_DATA
 {
     // ORIG C1 0x822edae 实证：+0x26 构造 _Additioal_info（0x52）后调 clear()。
-    char m_data[0x26];          // +0x00..+0x25（blob 前段视图）
+    // 前段 0x26 字段化：getTagCharacInfo @0x086904f0（ORIG 汇编宽度实证，
+    // 报告 docs/class_func_reports/CUser/getTagCharacInfo.md）；m_data 保留兼容。
+    union
+    {
+        char m_data[0x26];      // +0x00..+0x25（blob 前段视图）
+        struct
+        {
+            int            m_characNo;  // +0x00（movl；←src+0x00）
+            char           m_name[0x1d]; // +0x04（strncpy 0x1d；←src m_name）
+            // 2026-09-05 §4.3（DBCharac 批次）：_GetTagCharacInfo（0x08409fa6 报告）
+            // get_byte(char&)@0x080fde54 / get_short(short&)@0x080fddec 绑定别名；
+            // 旧名旧类型保留（getTagCharacInfo/setTagCharacInfo 消费者零改动）。
+            union { unsigned char  m_field21;   // +0x21（movb；←src+0x26 movzbl）
+                    char           m_job;       // +0x21 charac_info.job（get_byte char&）
+            };
+            union { unsigned short m_field22;   // +0x22（mov %dx；←src+0x27 movzwl）
+                    short          m_lev;       // +0x22 lev（get_short short&）
+            };
+            union { unsigned char  m_field24;   // +0x24（movb；←src+0x29）
+                    char           m_growType;  // +0x24 grow_type（get_byte char&）
+            };
+            union { unsigned char  m_field25;   // +0x25（movb；←src+0x1239）
+                    char           m_skillTreeIndex; // +0x25 skill_tree_index（get_byte char&）
+            };
+        };
+    };
     _Additioal_info m_add;      // +0x26（pack1 0x52）
 
     TAG_CHARAC_DATA() { clear(); }  // ORIG W 0x822edae _ZN15TAG_CHARAC_DATAC1Ev
@@ -88,7 +255,21 @@ struct TAG_CHARAC_INVEN_DATA
     // （0x69×0x3d=0x18f9）两组倒计数构造后调 clear()（P151）。
     Inven_Item m_items[0x16];         // +0x000（0x16×0x3d = 0x53e）
     Inven_Item m_items2[0x69];        // +0x53e（0x69×0x3d = 0x1905 → +0x1e43）
-    char m_pad1e43[0x4024 - 0x1e43];  // +0x1e43（0x21e1）
+    // +0x1e43 区：getTagCharacInventory @0x0869067c（报告 ## 汇编）实证
+    // CAvatarItemMgr::GetItem(out+0x1e47 avatar 明细, out+0x1e43 int* 计数)、
+    // GetClearAvatar(out+0x3ff8, 0x28B)、movl cargo->GetCapacity()→out+0x4020。
+    // m_pad1e43 保留兼容，union 叠加具名。
+    union
+    {
+        char m_pad1e43[0x4024 - 0x1e43];  // +0x1e43（0x21e1）
+        struct
+        {
+            int  m_avatarCount;                    // +0x1e43（GetItem int* 出参）
+            char m_avatarDetail[0x3ff8 - 0x1e47];  // +0x1e47（AvatarDetailInfo 0x21b1）
+            char m_clearAvatar[0x28];              // +0x3ff8（GetClearAvatar 出参）
+            unsigned int m_cargoCapacity;          // +0x4020（movl）
+        };
+    };
 
     TAG_CHARAC_INVEN_DATA() { clear(); }  // ORIG C1 0x0848f774
     void clear();              // ORIG W 0x822edd0 _ZN21TAG_CHARAC_INVEN_DATA5clearEv
@@ -228,8 +409,9 @@ struct stNPCRelationship_t
 struct SIG_LOAD_PREMIUM_LETHE
 {
     SIG_LOAD_PREMIUM_LETHE() {}   // 空体让数组成员自动逐元素构造（同 ORIG）
-    _Mastered_skill m_skills[0xcb];   // +0x00（203 × 2B）
-    char m_pad196[3];                 // +0x196..0x198（sizeof = 0x199）
+    // ORIG ctor 0x0848ff7c `mov $0xcb,%esi`：gcc 数组构造循环计数=N-1 ⇒ N=0xcc。
+    _Mastered_skill m_skills[0xcc];   // +0x00（204 × 2B = 0x198）
+    char m_pad196[1];                 // +0x198（sizeof = 0x199）
 };
 
 // ORIG sizeof = 0x14b60（CACHE_CHARACTER_TYPE@+0x1fd20 → +0x34880 cacheTime）。
@@ -239,6 +421,31 @@ struct SIG_LOAD_PREMIUM_LETHE
 // 为可重叠序列化区，经命名数组 + 文档化偏移访问（同 GetContinuousItemInfo 约定）。
 // 字节打包：ORIG 在 +0xc9b3（奇数偏移）写 dword，故必须 pack(1)。
 #pragma pack(push, 1)
+// SIG_LOAD_ETC +0x263c 受限道具条目（16B；GetLimitItemUsage @0x08688dc4 字段实证）。
+struct SIG_ETC_LIMIT_ITEM
+{
+    unsigned char m_used;                // 元素+0x00（←LimitItemUsage::m_field10）
+    char          m_pad1[3];
+    int           m_itemIdx;             // 元素+0x04（←m_fieldc）
+    int           m_field8;              // 元素+0x08（←m_field15）
+    int           m_fieldc;              // 元素+0x0c（←m_field19）
+};
+// SIG_LOAD_ETC +0x2d3c event_server_message 条目（0x58；DB_LoadEtc/
+// LoadEventServerMessageInfo.md 写点实证：+0 movb kind、+1 movb index、
+// +4 movl 串长、+8 strncpy（上限 $0x32=50，字段区 0x34=52）、+0x3c movl、
+// +0x40 strncpy name[20]、+0x54 movl update_time）。
+struct SIG_ETC_EVENT_MESSAGE
+{
+    unsigned char  m_kind;        // 元素+0x00
+    unsigned char  m_index;       // 元素+0x01
+    char           m_pad2[2];     // 元素+0x02
+    unsigned int   m_messageLen;  // 元素+0x04
+    char           m_message[52]; // 元素+0x08
+    unsigned int   m_nameLen;     // 元素+0x3c
+    char           m_name[20];    // 元素+0x40
+    int            m_updateTime;  // 元素+0x54
+};
+static_assert(sizeof(SIG_ETC_EVENT_MESSAGE) == 0x58, "SIG_ETC_EVENT_MESSAGE ABI drift");
 struct SIG_LOAD_ETC
 {
     unsigned int m_accId;                              // +0x000（RequestDBETC ← get_acc_id）
@@ -250,7 +457,48 @@ struct SIG_LOAD_ETC
     PvpResultType m_pvpResult;                       // +0x340（0x84）
     int      m_recordCount;                          // +0x3c4
     GameResultType m_records[0x64];                  // +0x3c8（0x64×0x50 = 0x1f40）
-    char     m_pad2308[0x29fc - (0x3c8 + 0x1f40)];   // +0x2308（0x6f4）
+    // +0x2308 区：GetLimitItemUsage @0x08688dc4 实证 count@+0x2638（movl $0/写
+    // index）、条目 0x263c 起 stride 0x10（dst=(idx+0x263)*0x10；字段 dst+0xc
+    // movb ←LimitItemUsage::m_field10、dst+0x10 movl ←m_fieldc、dst+0x14 ←
+    // m_field15、dst+0x18 ←m_field19）。m_pad2308 保留兼容，union 叠加具名。
+    union
+    {
+        char m_pad2308[0x29fc - (0x3c8 + 0x1f40)];   // +0x2308（0x6f4）
+        struct
+        {
+            // CUserCharacInfo::GetContinuousItemInfo 0x08677f24 实证写点：
+            //   +0x2308 `mov %edx,0x2308(%eax)` ← +0x004 charac_no（08677f34）
+            //   +0x24a0 `mov %edx,0x24a0(%eax)` ← +0x004 charac_no（08677f43）
+            //   +0x230c `mov %dl,0x230c(%eax)` ← cooltime vector::size 截断字节
+            //            （08677f67，blob 首字节 = 序列化计数）
+            //   +0x24a4 `mov %dl,0x24a4(%eax)` ← effect vector::size（08678008）
+            // DB_LoadEtc/LoadCharacItemStat.md：cooltime_item get_binary
+            // 目标 +0x230c cap 0x194；effect_item 目标 +0x24a4 cap 0x194
+            // （0x24a4+0x194 = +0x2638 精确衔接 count）。union 叠加保留基名。
+            union
+            {
+                char m_pad2308a[0x230c - 0x2308];    // +0x2308
+                int m_cooltimeCharacNo;              // +0x2308
+            };
+            union
+            {
+                char m_cooltimeItem[0x194];          // +0x230c
+                unsigned char m_cooltimeItemCount;   // +0x230c
+            };
+            union
+            {
+                char m_pad24A0[4];                   // +0x24a0
+                int m_effectCharacNo;                // +0x24a0
+            };
+            union
+            {
+                char m_effectItem[0x194];            // +0x24a4（→ +0x2638）
+                unsigned char m_effectItemCount;     // +0x24a4
+            };
+            int  m_limitItemCount;                   // +0x2638
+            SIG_ETC_LIMIT_ITEM m_limitItems[(0x29fc - 0x263c) / 0x10];  // +0x263c
+        };
+    };
     unsigned char m_oneDayLetheFlag;                 // +0x29fc
     char     m_backupSkill[0x199];                   // +0x29fd
     unsigned char m_oneDayLetheFlag2ND;              // +0x2b96
@@ -258,13 +506,47 @@ struct SIG_LOAD_ETC
     char     m_pad2d30[0x2d30 - (0x2b97 + 0x199)];     // +0x2d30 前垫
     unsigned int m_serverGroup;                        // +0x2d30（RequestDBETC ← G_CEnvironment()->m_serverEnvir.m_serverGroup）
     int      m_channelNo;                              // +0x2d34（RequestDBETC ← CEnvironment::get_channel_no）
-    char     m_pad2d38[0x40c8 - 0x2d38];               // +0x2d38
+    // +0x2d38 区：LoadEventServerMessageInfo.md（计数 movb 截断 @0x2d38，条目
+    // 基址 0x2d3c 步长 imul $0x58；ORIG 无行数上限，written 超 50 项落 npc 区 =
+    // 如实转写，O0 地址连续与 ORIG 同行为）；_loadNPCRelasionship.md（npc_cnt get_uint @0x3e6c、npc_data
+    // get_binary cap 0x258=600 @0x3e70 → +0x40c8）。
+    unsigned char m_eventMessageCount;                 // +0x2d38
+    char     m_pad2D39[3];                             // +0x2d39
+    SIG_ETC_EVENT_MESSAGE m_eventMessages[50];         // +0x2d3c（50×0x58 = 0x1130
+                                                       //   → +0x3e6c 精确衔接 npc）
+    unsigned int m_npcCount;                           // +0x3e6c
+    char     m_npcData[0x40c8 - 0x3e70];               // +0x3e70（0x258）
     unsigned short m_curConditionEventStep;          // +0x40c8
     unsigned short m_curConditionEventRewardStep;    // +0x40ca
     unsigned short m_properDungeonClearCount;        // +0x40cc
     char     m_expandData6[0x466a - 0x40ce];         // +0x40ce（type 6）
-    char     m_expandDataE[0xb1a4 - 0x466a];         // +0x466a（type 0xe）
-    char     m_expandDataF[0xc9ac - 0xb1a4];         // +0xb1a4（type 0xf）
+    // type 0xe 区 = charac_titlebook 4 解压列（DB_LoadEtc/LoadTitleBook.md：
+    // uncompress_zip 目标 0x466a/0x5718/0x86c0/0xa358，outLen 0x10ae/0x2fa8/
+    // 0x1c98/0xe4c 精确衔接）；union 保留老基名。
+    union
+    {
+        char m_expandDataE[0xb1a4 - 0x466a];         // +0x466a（type 0xe）
+        struct
+        {
+            char m_titlebookGeneral[0x10ae];         // +0x466a
+            char m_titlebookSpecific[0x2fa8];        // +0x5718
+            char m_titlebookDespair[0x1c98];         // +0x86c0
+            char m_titlebookEvent[0xe4c];            // +0xa358（→ +0xb1a4）
+        };
+    };
+    // type 0xf 区 = charac_achievement（DB_LoadEtc/LoadAchievement.md：解压目标
+    // 0xb1a4 cap 0x1800；条目 stride 12 首 dword 判零 ≤512 条；计数 movl
+    // @0xc9a4；last_update get_uint @0xc9a8 → +0xc9ac 接具名字段）。
+    union
+    {
+        char m_expandDataF[0xc9ac - 0xb1a4];         // +0xb1a4（type 0xf）
+        struct
+        {
+            char           m_achievementData[0x1800];    // +0xb1a4
+            int            m_achievementCount;           // +0xc9a4
+            unsigned int   m_achievementLastUpdate;      // +0xc9a8
+        };
+    };
     unsigned char m_curVillageAttackCount;           // +0xc9ac
     unsigned char m_curRevengeDungeonCount;          // +0xc9ad
     unsigned char m_flagPresentAvengerTitle;         // +0xc9ae
@@ -273,7 +555,61 @@ struct SIG_LOAD_ETC
     unsigned char m_pcRoomPlayTimeRewardCnt;         // +0xc9b7
     int      m_curCharacUsedGiftFatigueQuantity;     // +0xc9b8
     std::bitset<32> m_bitset;                        // +0xc9bc（ORIG bitset<32>，4 字节；set/reset 成员调用）
-    char     m_mixedRegion[0x14a98 - 0xc9c0];        // +0xc9c0（skill + expand8/7/b/10/d/10 + aura + option）
+    // +0xc9c0 混合区（skill + expand8/7/b/10/d/10 + aura + option）：
+    // 前 0x414 为 SIG_LOAD_SKILL 视图（CUser::GetEtcInfo/Inter_LoadEtc 消费，
+    // 保留经 m_mixedRegion 基名访问）；其后各段按 DB_LoadEtc 报告写点字段化
+    // （证据：GetUserSkill.md cdd1/cdd4 movb；LoadPvPMissionList.md cdd5 cap
+    // 0x198 与 fair_pvp 0xcf23 重叠序列化；LoadFairPvPScore.md cf23..cf4a
+    // 10×get_uint、cf4b blob 0x650、d59b get_uint/d59f get_int/d5a3 get_ubyte、
+    // movl $0 清 d59b；LoadQuestShop/_LoadQuestShop.md d5a7、d651 双实例 0xaa、
+    // d6fb movb；LoadItemMakingSkill.md d700 起 11×get_short；LoadTODUserState.md
+    // d71c/d720/d728/d72c 4B、d724/d726 2B；LoadAuraAvatarOption.md d730
+    // reset=memset 0xc + 3×int；LoadCharacItemStat.md d740 blob 5000、eac8
+    // get_binary 0x200；LoadBoosterGage.md eccc get_int；LoadCharacOption.md
+    // ecd4 movl、ecd8 blob 24000、ecdc+4i 5×dword 钳位）。union 保 sizeof/偏移。
+    union
+    {
+        char m_mixedRegion[0x14a98 - 0xc9c0];        // +0xc9c0
+        struct
+        {
+            char           m_padC9C0[0x411];         // +0xc9c0（SIG_LOAD_SKILL 视图区）
+            unsigned char  m_scriptVersion;          // +0xcdd1（get_ubyte）
+            char           m_padCDD2[2];             // +0xcdd2
+            unsigned char  m_pvpSkillInsertFlag;     // +0xcdd4（insert 占位行置 1）
+            char           m_pvpMissionInfo[0x14e];  // +0xcdd5（解压 cap 0x198，尾部
+                                                     //   与 m_fairPvpScore 重叠 =
+                                                     //   ORIG 序列化复用，后写覆盖）
+            unsigned int   m_fairPvpScore[10];       // +0xcf23（private_win..daily_play_count）
+            char           m_fairPvpGiveItem[0x650]; // +0xcf4b（give_item blob）
+            unsigned int   m_fairPvpLastPlayTime;    // +0xd59b（unix(last_play_time)）
+            int            m_fairPvpLastPlaySec;     // +0xd59f（get_int 重读）
+            unsigned char  m_fairPvpGiveFlag;        // +0xd5a3（get_ubyte）
+            char           m_padD5A4[3];             // +0xd5a4
+            char           m_questShopMain[0xaa];    // +0xd5a7（CHARAC_QUEST_SHOP_DATA 视图）
+            char           m_questShopTag[0xaa];     // +0xd651（tag 双实例）
+            unsigned char  m_questShopTagLoaded;     // +0xd6fb（tag 装载成功置 1）
+            char           m_padD6FC[4];             // +0xd6fc
+            unsigned short m_itemMakingSkill[11];    // +0xd700（weapon..magic_stone）
+            char           m_padD716[6];             // +0xd716
+            int            m_todFirstLayerStartDate; // +0xd71c
+            int            m_todTodayEnterCount;     // +0xd720
+            unsigned short m_todLastClearLayer;      // +0xd724
+            short          m_todEnterCountByWeek;    // +0xd726（get_short，
+                                                     //   LoadTODUserState.md 布局
+                                                     //   int,int,ushort,short,int,int）
+            int            m_todDate;                // +0xd728
+            int            m_todLastClearDate;       // +0xd72c
+            char           m_auraAvatarOption[0xc];  // +0xd730（stAuraAvatarOption 视图）
+            char           m_padD73C[4];             // +0xd73c
+            char           m_itemDictionary[5000];   // +0xd740（check_flag blob cap 5000）
+            char           m_characOptions[0x200];   // +0xeac8（options get_binary）
+            char           m_padECC8[4];             // +0xecc8
+            int            m_boosterGage;            // +0xeccc（member_booster_gage）
+            char           m_padECD0[4];             // +0xecd0
+            int            m_bestClearTimeCount;     // +0xecd4（条目计数 movl）
+            char           m_bestClearTime[24000];   // +0xecd8（blob；条目 stride 0x18）
+        };
+    };
     unsigned char m_blueMarbleEnterCount;            // +0x14a98
     SIG_ATTENDANCE_EVENT m_attendanceEvent;          // +0x14a99
     char     m_comboSkill[0x14b60 - 0x14aaa];        // +0x14aaa
@@ -455,7 +791,11 @@ struct SIG_LOAD_KILL_MONSTER_INFO
     stMonsterInfo_t m_boss[0x5dc];      // +0x000（0x1d4c）
     stMonsterInfo_t m_named[0x1770];    // +0x1d4c（0x7530 → +0x927c）
     stMonsterInfo_t m_apc[0x5dc];       // +0x927c（0x1d4c → +0xafc8）
-    unsigned int m_characNo;            // +0xafc8
+    int m_characNo;                     // +0xafc8（ORIG KMI 0x081c7836 store 为
+                                        // `mov -0xc,%edx; mov %eax,0xafc8(%edx)`
+                                        // 直存形——int 成员实证；unsigned 成员在
+                                        // int 值赋值时必出 3 行 swap，c6root 探针
+                                        // 实证；广播 2026-09-05，W8C 无异议）
 
     // ORIG W 0x0848fc8e：数组成员隐式构造后，ctor 体 memset 三块数组清零并
     // m_characNo=0（ORIG 848fd0c/848fd27/848fd47/848fd67）。
@@ -532,23 +872,27 @@ static_assert(offsetof(SIG_LOAD_QUEST, m_cleared) == 0xb0, "SIG_LOAD_QUEST m_cle
 #pragma pack(push, 1)
 struct SIG_LOAD_SKILL
 {
-    unsigned char m_pad0[4];        // +0x000（GetSkill 不触碰）
+    union
+    {
+        unsigned char m_pad0[4];    // +0x000
+        unsigned int  m_characNo;   // +0x000（UpdateData 0x0865359x movl 写 getCurCharacNo；
+                                    //   W8LT_DBTask.cpp DB_SaveSkillCharacView 同义视图）
+    };
     int m_field04;                  // +0x004（GetSkill 清零）
     int m_remainSpTree1;            // +0x008（SkillSlot+0x4）
-    _Mastered_skill m_skillSlotTree1[0xcb];  // +0x00c（0xcb×2 = 0x196 → +0x1a2）
-    char m_pad1a2[2];               // +0x1a2
+    // ORIG ctor 0x08491ee0 循环计数 0xcb ⇒ N=0xcc（memcpy 0x198 实证同宽）。
+    _Mastered_skill m_skillSlotTree1[0xcc];  // +0x00c（0xcc×2 = 0x198 → +0x1a4）
     int m_remainSpTree2;            // +0x1a4（SkillSlot+0xc）
-    _Mastered_skill m_skillSlotTree2[0xcb];  // +0x1a8（0x196 → +0x33e）
-    char m_pad33e[2];               // +0x33e
+    _Mastered_skill m_skillSlotTree2[0xcc];  // +0x1a8（0x198 → +0x340）
     int m_remainSfpTree1;           // +0x340（SkillSlot+0x14）
     int m_remainSfpTree2;           // +0x344（SkillSlot+0x18）
-    STSkillCommandData::STCommand m_commands[0x31];  // +0x348（0x31×4 = 0xc4 → +0x40c）
-    char m_pad40c[4];               // +0x40c
+    // ORIG ctor 循环计数 0x31 ⇒ N=0x32（0x348+0xc8=+0x410 = m_flag410，无 pad）。
+    STSkillCommandData::STCommand m_commands[0x32];  // +0x348（0x32×4 = 0xc8 → +0x410）
     bool m_flag410;                 // +0x410（quest_reward 写 1；SaveSkill 传 get_skill_table_name 直读）
     unsigned char m_field411;       // +0x411（← G_CDataManager()+0xa850）
     char m_pad412[2];               // +0x412（对齐尾，ORIG memset 覆盖范围 0x414）
 
-    // ORIG W 0x08491ee0：_Mastered_skill[0xcb]×2 + STCommand[0x31] 数组成员隐式构造。
+    // ORIG W 0x08491ee0：_Mastered_skill[0xcc]×2 + STCommand[0x32] 数组成员隐式构造。
     SIG_LOAD_SKILL() {}
 };
 #pragma pack(pop)

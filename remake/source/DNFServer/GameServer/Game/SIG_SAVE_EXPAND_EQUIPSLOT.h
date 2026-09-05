@@ -13,7 +13,10 @@
 #pragma pack(push, 1)
 struct SIG_SAVE_EXPAND_EQUIPSLOT
 {
-    char m_pad0[4];                // +0x000
+    // 具名化（W8DB，ORIG 0x0843ff48 _SaveExpandEquipslot：SQL
+    // charac_no=%u 实参 = *(unsigned int*)sig；CExpandEquipslot.cpp:159
+    // SIG_SAVE_EXPAND_CHARAC 同布局首字段 m_characNo(int) 佐证；原 m_pad0）：
+    int m_characNo;                // +0x000（charac_inven_expand.charac_no）
     Inven_Item m_items[0x24];      // +0x004（0x894）
 
     SIG_SAVE_EXPAND_EQUIPSLOT() {} // ORIG W 0x08491c88（数组成员隐式构造）

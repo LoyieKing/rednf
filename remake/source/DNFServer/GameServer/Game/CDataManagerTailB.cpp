@@ -224,8 +224,8 @@ int CDataManager::Verify() const
                 // （STStackableScript.h 循环依赖无法具名化），沿用
                 // CCeraShop_Special.cpp:409 已确立的 reinterpret_cast 模式。
                 CStackableItem* sitem = (CStackableItem*)item;
-                const std::vector<STStackablePackageData>& pkgs =
-                    *reinterpret_cast<const std::vector<STStackablePackageData>*>(
+                std::vector<STStackablePackageData>& pkgs =
+                    *reinterpret_cast<std::vector<STStackablePackageData>*>(
                         &sitem->m_pkg21c);  // 【CStackableItem+0x21c】
                 for (std::vector<STStackablePackageData>::const_iterator p =
                          pkgs.begin();
@@ -244,9 +244,9 @@ int CDataManager::Verify() const
                     }
                 }
 
-                const std::vector<std::vector<STStackablePackageData> >& sel =
+                std::vector<std::vector<STStackablePackageData> >& sel =
                     *reinterpret_cast<
-                        const std::vector<std::vector<STStackablePackageData> >*>(
+                        std::vector<std::vector<STStackablePackageData> >*>(
                         &sitem->m_pkg234);  // 【CStackableItem+0x234】
                 for (std::vector<std::vector<STStackablePackageData> >::
                          const_iterator group = sel.begin();
@@ -299,8 +299,8 @@ int CDataManager::Verify() const
             // 【ORIG +0xc4/+0xd0】两段 RewardItemInfo 奖励向量（当前 Quest.h
             // 未建模此区布局，按 ORIG 偏移访问）
             {
-                const std::vector<RewardItemInfo>& v =
-                    *reinterpret_cast<const std::vector<RewardItemInfo>*>(qp + 0xc4);
+                std::vector<RewardItemInfo>& v =
+                    *reinterpret_cast<std::vector<RewardItemInfo>*>(const_cast<char*>(qp) + 0xc4);
                 for (std::vector<RewardItemInfo>::const_iterator it = v.begin();
                      it != v.end(); ++it)
                 {
@@ -318,8 +318,8 @@ int CDataManager::Verify() const
                 }
             }
             {
-                const std::vector<RewardItemInfo>& v =
-                    *reinterpret_cast<const std::vector<RewardItemInfo>*>(qp + 0xd0);
+                std::vector<RewardItemInfo>& v =
+                    *reinterpret_cast<std::vector<RewardItemInfo>*>(const_cast<char*>(qp) + 0xd0);
                 for (std::vector<RewardItemInfo>::const_iterator it = v.begin();
                      it != v.end(); ++it)
                 {
@@ -355,8 +355,8 @@ int CDataManager::Verify() const
             }
             // 【ORIG +0xec】collision item 向量（RewardItemInfo）
             {
-                const std::vector<RewardItemInfo>& v =
-                    *reinterpret_cast<const std::vector<RewardItemInfo>*>(qp + 0xec);
+                std::vector<RewardItemInfo>& v =
+                    *reinterpret_cast<std::vector<RewardItemInfo>*>(const_cast<char*>(qp) + 0xec);
                 for (std::vector<RewardItemInfo>::const_iterator it = v.begin();
                      it != v.end(); ++it)
                 {

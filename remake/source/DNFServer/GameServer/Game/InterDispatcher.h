@@ -3520,7 +3520,7 @@ public:
     Inter_LoadRewardMedal() {}
     virtual ~Inter_LoadRewardMedal();
     virtual int dispatch_sig(CUser* user, char* data, int len);
-    void SendMail(CUser& user, unsigned int medalCount);   // ORIG T 0x08124ea0
+    bool SendMail(CUser& user, unsigned int medalCount);   // ORIG T 0x08124ea0
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。

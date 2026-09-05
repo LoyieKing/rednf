@@ -16,7 +16,7 @@ class Stream;
 class DB_LoadQuest : public DBDispatcher
 {
 public:
-    DB_LoadQuest();                          // C1 0x0844d930
+    DB_LoadQuest() __attribute__((nothrow)); // C1 0x0844d930；try 区无 pad ⇒ nothrow
     virtual ~DB_LoadQuest();                 // D0 0x0844d97c（D1/D2 编译器产出）
 
     virtual bool dispatch(int userIdx, int slot, Stream* stream);

@@ -81,7 +81,10 @@ static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHac
     unsigned char m_cleanPadVeriB;      // +0x550（randInt(6)）
     char m_pad551[1];                   // +0x551
     unsigned short m_cleanPadVeriC;     // +0x552（randInt(0xffff)+1）
-    char m_pad554[4];                   // +0x554..0x558
+    bool m_loadingHackGold;             // +0x554（0x8e944 isLoadingHackGold movzbl 直返 0x08697448 /
+                                        //   setLoadHackGold ORIG 0x08697458 bool 字段写形：this 先载 +
+                                        //   movzbl 回读 + mov %dl,disp(%eax)，P33 判据）
+    char m_pad555[3];                   // +0x555..0x557
     ::cSecuUserAction* m_secuUserAction; // +0x558（0x8e948；InitOnAccept 0x086493c8 new 后挂接并 Init()）
     unsigned int m_capchaReqTick;       // +0x55c（reqHumanCertify 写 getCurTickCount）
     bool m_hackIpLogged;                // +0x560（setHackUser ORIG 0x0867f748 type==3 IP 监视登记标志写 1）

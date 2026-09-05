@@ -43,8 +43,8 @@ public:
     static bool SelectDungeon(CParty* party, short dungeonIdx, ENUM_DUNGEON_TYPE type);
 
     // ---- 声明先行（DisP_GroupA 调用；定义待批次）----
-    static char FinishLoad(CUser* user);                        // ORIG T 0x08146916
-    static char MoveMap(CUser* user, unsigned short* mapIndex); // ORIG T 0x08146ba2
+    static bool FinishLoad(CUser* user);  // ORIG 0x08146916 尾 mov$1/$0；调用方 `test %al,%al; je`（char 返回恒插 setne，唯 bool 直判）
+    static bool MoveMap(CUser* user, unsigned short* mapIndex); // ORIG T 0x08146ba2；调用方 test %al 直判（bool 形）
     static char DieCharacInDungeon(CUser* user);                // ORIG T 0x08146824（DisP_GroupG 调用）
     static void GiveUpGame(CUser* user);                        // ORIG T 0x08146ad8（恒返回 1；DisP_GroupG 调用）
     // ORIG T 0x081468aa（nm 实证）：state==12(0xc) → getBossTower()

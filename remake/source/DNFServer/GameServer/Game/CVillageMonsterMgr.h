@@ -52,7 +52,7 @@ struct MapArea
     int include(int x, int y, int& outX, int& outY, int margin);
 
     // ORIG T 0x82f0298：矩形包含判定（m_x<=x<=m_x+m_w 且 m_y<=y<=m_y+m_h）。
-    int include(int x, int y);
+    bool include(int x, int y);
 };
 // ORIG 枚举 tag：_ZN16village_attacked18CVillageMonsterMgr23OnDestroyVillageMonsterE28ENUM_VILLAGE_ATTACKED_REWARD
 // （OnDestroyVillageMonster/SetRewardType 参数，写入 m_field20；ORIG mangled 用

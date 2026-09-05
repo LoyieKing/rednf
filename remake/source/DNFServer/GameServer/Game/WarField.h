@@ -199,7 +199,8 @@ public:
     bool GetFieldMob(int idx, map_monster& out);     // 086b9578
     bool HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
                            CUser* user, const CDungeon* dungeon);  // 086b9672
-    int GetFieldItem(int idx, map_item& out);        // 086b9fe6
+    // 086b9fe6；HandleGetItem 调用点 `mov %al,-0x25` bool 槽直落（无 test/setne）⇒ bool 返回。
+    bool GetFieldItem(int idx, map_item& out);
     void PickupItem(std::map<int, map_item>::iterator it);  // 086ba082
     int CheckPickupItem(int idx, int owner,
                         std::map<int, map_item>::iterator& out);  // 086ba0a0

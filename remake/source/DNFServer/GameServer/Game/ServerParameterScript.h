@@ -279,7 +279,11 @@ struct stWeekendBouns
     int m_bonusExpPercent;                  // +0x04（importServerParameterScript.md
                                             //   0x8a8b95b "[weekend bonus exp]"
                                             //   mov %eax,0x4b8(%edx) 实证）
-    int m_field8;                           // +0x08（ORIG 未初始化，仅占位）
+    union
+    {
+        int m_field8;                       // +0x08（旧调用方按 dword 读取）
+        unsigned char m_dropRoutineByParty[4]; // +0x08（[drop routin by party]）
+    };
 };
 
 static_assert(sizeof(stWeekendBouns) == 0xc,
@@ -457,144 +461,136 @@ public:
     struct stPremiumGoldCardEvent
     {
         stPremiumGoldCardEvent();  // ORIG C1/C2 0x0836fc5a
-        int m_field0;                                  // +0x00（ctor 不初始化）
-        int m_field4;                                  // +0x04（ctor 不初始化）
-        stLevelCond4PremiumGoldCard m_conds[10];       // +0x08..+0xa7
-        char m_padA8[0x18];                            // +0xa8..+0xbf（ctor 不初始化）
+        union
+        {
+            int m_field0;           // +0x00（旧调用方平铺读取）
+            float m_cost;           // +0x00（[premiun card cost]）
+        };
+        union
+        {
+            int m_field4;           // +0x04（旧调用方平铺读取）
+            short m_conditionCount; // +0x04（[premium card drop]，低半字）
+        };
+        stLevelCond4PremiumGoldCard m_conds[10]; // +0x08..+0xa7
+        union
+        {
+            char m_padA8[0x18];     // +0xa8..+0xbf（未初始化区）
+            int m_rarityDecision[6];// +0xa8..+0xbc（[premium rarity dicision]）
+        };
     };
 
+
     // ---- 成员布局（0x49f4 字节） ----
-    std::map<stServerIndex, bool> m_map0;                       // +0x00（ORIG C1 0x836fcb2）
-    std::vector<std::pair<int, int> > m_vec18;                  // +0x18（ORIG C1 0x81349d6）
+    std::map<stServerIndex, bool> m_map0;                       // +0x00
+    std::vector<std::pair<int, int> > m_vec18;                  // +0x18
     std::map<int, bool> m_map24;                                // +0x24
     std::vector<stLightServerNotice_t> m_light3c;               // +0x3c
     std::vector<stLuckPoint_t> m_luck48;                        // +0x48
     std::vector<stLuckPointDeduction_t> m_luckDed54;            // +0x54
     std::vector<stLuckPointDeduction_t> m_luckDed60;            // +0x60
     std::vector<int> m_vec6c;                                   // +0x6c
-    int m_78;                                                   // +0x78
-    int m_7c;                                                   // +0x7c
-    int m_80;                                                   // +0x80
-    int m_84;                                                   // +0x84
+    int m_78;                                                    // +0x78
+    int m_7c;                                                    // +0x7c
+    int m_80;                                                    // +0x80
+    int m_84;                                                    // +0x84
     std::map<int, std::vector<std::pair<int, int> > > m_map88;  // +0x88
     std::vector<std::pair<int, int> > m_veca0;                  // +0xa0
-    int m_ac;                                                   // +0xac
+    int m_ac;                                                    // +0xac
     std::map<int, int> m_mapb0;                                 // +0xb0
     std::map<int, STDungeonInoutTime> m_dungeonInoutc8;         // +0xc8
     std::vector<int> m_dungeonOpenE0;                           // +0xe0
     std::vector<stUnusableEquipmentInfo> m_unusableEC;          // +0xec
-    int m_f8;                                                   // +0xf8
+    int m_f8;                                                    // +0xf8
     std::set<unsigned long> m_unusableItemFC;                   // +0xfc
-    std::map<ENUM_EQUIPMENTTYPE, std::set<unsigned long> > m_map114;  // +0x114
-    // LinkClosureD 拆分（§8.3，sizeof 不变；ORIG hasPreventPrefixCharacName
-    // 0x0836360c 实证：count@+0x12c，条目 @+0x130 起步长 0x1e，串区含 NUL）。
-    int m_preventPrefixCount;                    // +0x12c
-    char m_preventPrefixEntries[0x224];          // +0x130（0x1e 步长条目数据区）
-    // ---- 版本字节（CDataManager::init ORIG 0x08358xxx 实证：读 4 字节计算
-    //      antibot 版本并写回 +0x35c）----
-    unsigned char m_versionBytes[4];                            // +0x354（CDataManager::init 逐字节读 4 字节；clear 清零）
-    unsigned int m_358;                                         // +0x358（ORIG clear 写 0；与版本字节为两个独立槽位）
-    unsigned int m_antibotVersion;                              // +0x35c（init 写入 b0*1e7+b1*1e5+(b2-hi*100)*100+hi*1e4+b3，hi=(b2*0x29)>>12；
-                                                                //   若声明 [4]+uint 相邻，antibot 会落 +0x358 使其后全表 -4 漂移）
-    // ---- 浮点池（+0x360..+0x400，ORIG clear 0x0836f38c 全部初始化 1.0f；
-    //      importServerParameterScript 各节以 (基址*4+disp) 写入，节字符串见注释）----
-    float m_expRate360[2];          // +0x360（clear 单独写两个 1.0f；import 0x8e2855d 节）
-    float m_expGroup368[4];         // +0x368（import 0x8e2858c 节；clear 循环 lea 0xd8 disp 8）
-    float m_expGroup378[4];         // +0x378（0x8e285b0；lea 0xdc）
-    float m_expGroup388[4];         // +0x388（0x8e285e4；lea 0xe0）
-    // CParty::getMonsterTotalExp(0x085a23dc) 经验表：
-    //   *(sp + 0x398 + monsterIdx*4)（即 &m_monsterExpTable398[monsterIdx]）。
-    // import 0x8e2860c 节写 5 个 float；ORIG clear 仅复位前 4 个（保留该行为）。
-    float m_monsterExpTable398[5];  // +0x398
-    // ServerParameterScript::GetExpBonusWeight(0x08a8c28c)：
-    //   *(this + (idx+0xe8)*4 + 0xc) = +0x3ac + idx*4，idx∈[0,4]。
-    float m_expBonusWeight3ac[5];   // +0x3ac
-    std::vector<sItemGenRef> m_genRefs0;                        // +0x3c0
-    float m_floatPool3cc[5];        // +0x3cc（import 0x8e2866c 节 lea 0xf0 disp 0xc ×5）
-    float m_floatPool3e0[4];        // +0x3e0（import 0x8e28690 节 lea 0xf8 ×4）
-    // getMonsterTotalExp flag 费率表：*(sp + 0x3f0 + flag*4)（flag 有符号 ≤3，
-    // flag<0 时 ORIG 同样按该式向前越界读取）；import 0x8e286b4 节 ×4。
-    float m_flagExpRate3f0[4];      // +0x3f0
-    std::vector<sItemGenRef> m_genRefs1;                        // +0x400
-    float m_floatPool40c[5];        // +0x40c（import 0x8e28708 节 lea 0x100 disp 0xc ×5）
-    float m_floatPool420[4];        // +0x420（import 0x8e28730 节 lea 0x108 ×4）
-    int m_430;                      // +0x430（import 0x8e28755 节 ScanInt）
-    int m_ints434[4];               // +0x434（import 0x8e28770 节 lea 0x10c disp 4 ×4）
-    int m_ints444[4];               // +0x444（import 0x8e28798 节 lea 0x110 disp 4 ×4）
-    stEventIdolBringUpParam_t m_eventIdolBringUp454;            // +0x454（dtor 0x837bf57 实证）
-    std::map<unsigned int, stUpgradeItemTicketParam_t> m_ticket468;  // +0x468
-    std::vector<stAuctionLimitItemParam_t> m_auction480;        // +0x480
-    std::vector<stBurningFatigueParam_t> m_burning48c;          // +0x48c
-    std::vector<ConditionEnterRevenge> m_revenge498;            // +0x498
-    int m_field4a4;                                             // +0x4a4（村庄袭击事件物品 idx；ORIG ctor/dtor 0x498→0x4a8 空隙）
-    std::vector<stFatigueEventParam_t> m_fatigue4a8;            // +0x4a8
-    stWeekendBouns m_weekendBouns4b4;                           // +0x4b4（ORIG C1 0x836fe24 实证）
-    std::map<int, ItemFarmingData> m_farming4c0;                // +0x4c0
-    std::vector<std::pair<int, float> > m_vec4d8;               // +0x4d8
-    std::vector<stAssaultChaosPointWeight> m_chaosWeight4e4;    // +0x4e4
-    std::vector<stAssaultLevelGhostPanalty> m_ghostLevel4f0;    // +0x4f0
-    std::vector<stAssaultChaosPointGhostPanalty> m_ghostChaos4fc;  // +0x4fc
-    int m_508[20];                                              // +0x508
-    int m_558;                                                  // +0x558（-1）
-    char m_55c[0x1a];                                           // +0x55c
-    int m_578;                                                  // +0x578
+    std::map<ENUM_EQUIPMENTTYPE, std::set<unsigned long> > m_map114; // +0x114
+    // LinkClosureD：条目起点 +0x130，固定步长 0x1e；最多覆盖到 +0x34b。
+    int m_preventPrefixCount;                                   // +0x12c
+    char m_preventPrefixEntries[0x21c];                         // +0x130..+0x34b
+    int m_blackListHelpParameter0;                              // +0x34c
+    int m_blackListHelpParameter1;                              // +0x350
+    unsigned char m_versionBytes[4];                            // +0x354
+    unsigned int m_358;                                          // +0x358
+    unsigned int m_antibotVersion;                              // +0x35c
+    float m_expRate360[2];                                       // +0x360
+    float m_expGroup368[4];                                      // +0x368
+    float m_expGroup378[4];                                      // +0x378
+    float m_expGroup388[4];                                      // +0x388
+    float m_monsterExpTable398[5];                               // +0x398
+    float m_expBonusWeight3ac[5];                                // +0x3ac
+    std::vector<sItemGenRef> m_genRefs0;                         // +0x3c0
+    float m_floatPool3cc[5];                                     // +0x3cc
+    float m_floatPool3e0[4];                                     // +0x3e0
+    float m_flagExpRate3f0[4];                                   // +0x3f0
+    std::vector<sItemGenRef> m_genRefs1;                         // +0x400
+    float m_floatPool40c[5];                                     // +0x40c
+    float m_floatPool420[4];                                     // +0x420
+    int m_430;                                                   // +0x430
+    int m_ints434[4];                                            // +0x434
+    int m_ints444[4];                                            // +0x444
+    stEventIdolBringUpParam_t m_eventIdolBringUp454;             // +0x454
+    std::map<unsigned int, stUpgradeItemTicketParam_t> m_ticket468; // +0x468
+    std::vector<stAuctionLimitItemParam_t> m_auction480;         // +0x480
+    std::vector<stBurningFatigueParam_t> m_burning48c;           // +0x48c
+    std::vector<ConditionEnterRevenge> m_revenge498;             // +0x498
+    int m_field4a4;                                              // +0x4a4
+    std::vector<stFatigueEventParam_t> m_fatigue4a8;              // +0x4a8
+    stWeekendBouns m_weekendBouns4b4;                            // +0x4b4
+    std::map<int, ItemFarmingData> m_farming4c0;                 // +0x4c0
+    std::vector<std::pair<int, float> > m_vec4d8;                // +0x4d8
+    std::vector<stAssaultChaosPointWeight> m_chaosWeight4e4;     // +0x4e4
+    std::vector<stAssaultLevelGhostPanalty> m_ghostLevel4f0;     // +0x4f0
+    std::vector<stAssaultChaosPointGhostPanalty> m_ghostChaos4fc; // +0x4fc
+    int m_508[20];                                               // +0x508
+    int m_558;                                                   // +0x558
+    char m_55c[0x1a];                                            // +0x55c
+    int m_578;                                                   // +0x578
     std::vector<int> m_vec57c;                                  // +0x57c
     std::vector<int> m_vec588;                                  // +0x588
     std::string m_str594;                                       // +0x594
-    int m_598;                                                  // +0x598
-    int m_59c;                                                  // +0x59c
-    int m_5a0;                                                  // +0x5a0
+    int m_598;                                                   // +0x598
+    int m_59c;                                                   // +0x59c
+    float m_assaultLevelPenalty;                                // +0x5a0
     std::vector<float> m_float5a4;                              // +0x5a4
-    char m_pad5b0[0x10];                                        // +0x5b0
-    stFatigueBatteryConstantTable_t m_fatigueTable5c0;          // +0x5c0（ORIG C1 0x836fec4；
-    //   与 CFatigueBatteryHandle 注释 (mgr+0x68)+0x5c0 同一起点互证），sizeof 0x1ac
-    int m_76c;                                                  // +0x76c
-    stSharedServerMessageInfo m_shared770;                     // +0x770（ORIG C1 0x836fa92；0x770..0x794 占位实证）
-    stBloodDungeonRewardInfo m_bloodReward794;                  // +0x794（ORIG C1 0x836fee4 整体构造
-    int m_7b8;                                                  // +0x7b8
-    int m_7bc;                                                  // +0x7bc
-    // 纹章合成表（ORIG ServerParameterScript::clear 0x836f7c0 写入成本=-1）：
-    //   +0x7c0..+0x868 = 7 个纹章合成条目，每条 0x18 = { int cost; int result[5]; }
-    //   (ORIG Dispatcher_CompoundEmblem::dispatch_sig 0x8220bb2 实证：
-    //    成本读 *(this+0x828+grade*0x18)；结果读 *(this+0x82c+(grade*6+jewelType)*4)
-    //    —— 即同一数组 cost@+0、result[j]@+0x04+j*4)
-    //   注意：+0x7c0 区域旧误标为 stAssaultLevelGhostPanalty m_ghost7c0[7]（步长 0x10
-    //   与 ORIG 0x18 不一致），且 getAssaultGhostTime(0x8a8c804) 实际读 m_ghostLevel4f0
-    //   (+0x4f0 vector) 而非此数组，故删除该误标。
+    int m_increaseAbusePoint;                                   // +0x5b0
+    int m_decreaseAbusePoint;                                   // +0x5b4
+    int m_abusePointPenalty;                                    // +0x5b8
+    int m_decreaseExperiencePoint;                              // +0x5bc
+    stFatigueBatteryConstantTable_t m_fatigueTable5c0;           // +0x5c0
+    int m_76c;                                                   // +0x76c
+    stSharedServerMessageInfo m_shared770;                      // +0x770
+    stBloodDungeonRewardInfo m_bloodReward794;                  // +0x794
+    int m_7b8;                                                   // +0x7b8
+    int m_7bc;                                                   // +0x7bc
     struct EmblemCompoundEntry
     {
-        int m_cost;             // +0x00（==-1 → throw ENUM_ERROR 7）
-        int m_result[5];        // +0x04..+0x14（result[grade*6+jewelType] 索引）
+        int m_cost;                                              // +0x00
+        int m_result[5];                                         // +0x04..+0x14
     };
     EmblemCompoundEntry m_emblemCompound[7];                    // +0x7c0
     int m_arr868[32][32];                                       // +0x868
     int m_arr1868[32][32];                                      // +0x1868
-    char m_pad2868[0x2000];                                     // +0x2868
+    int m_arr2868[32][32];                                      // +0x2868
+    int m_arr3868[32][32];                                      // +0x3868
     std::map<int, unsigned int> m_map4868;                      // +0x4868
     std::vector<std::pair<int, int> > m_vec4880;                // +0x4880
-    int m_488c;                                                 // +0x488c（ORIG clear 写 0）
-    int m_4890;                                                 // +0x4890（ORIG clear 写 0）
-    stPremiumGoldCardEvent m_premiumGoldCard4894;               // +0x4894（ORIG C1 0x836ff14 实证；尺寸 0xC0 至 +0x4954）
+    int m_488c;                                                 // +0x488c
+    int m_4890;                                                 // +0x4890
+    stPremiumGoldCardEvent m_premiumGoldCard4894;               // +0x4894
     std::vector<std::pair<int, int> > m_vec4954;                // +0x4954
-    int m_4960;                                                 // +0x4960
-    int m_4964;                                                 // +0x4964
-    int m_4968;                                                 // +0x4968
-    int m_496c;                                                 // +0x496c
-    // 训练印章/公平PvP配置块（ORIG fair_pvp__CFairMatch/GiveTrainingSeal 0x85652c8
-    // 经 CDataManager+0x68 嵌入读 dm+0x49d8..0x49e0 = 本结构 +0x4970..+0x497a）：
-    //   [0]/[1] 1人队 胜/负 场次数；[2]/[3] 1人队 奖励胜/负；
-    //   [4]/[5] 3人队 胜/负；[6]/[7] 3人队 奖励胜/负。
-    unsigned char m_schoolMatchSeal[8];                         // +0x4970（dm+0x49d8）
-    unsigned short m_schoolMatchDailyPlayLimit;                 // +0x4978（dm+0x49e0，每日场次上限）
+    int m_4960;                                                  // +0x4960
+    int m_4964;                                                  // +0x4964
+    int m_4968;                                                  // +0x4968
+    int m_496c;                                                  // +0x496c
+    unsigned char m_schoolMatchSeal[8];                         // +0x4970
+    unsigned short m_schoolMatchDailyPlayLimit;                 // +0x4978
     std::map<int, int> m_map497c;                               // +0x497c
     std::map<int, int> m_map4994;                               // +0x4994
-    std::map<PvPPlayerKey, std::vector<std::pair<int, int> > > m_pvp49ac;  // +0x49ac
+    std::map<PvPPlayerKey, std::vector<std::pair<int, int> > > m_pvp49ac; // +0x49ac
     std::map<int, int> m_map49c4;                               // +0x49c4
     std::vector<int> m_vec49dc;                                 // +0x49dc
-    int m_49e8;                                                 // +0x49e8
-    int m_49ec;                                                 // +0x49ec
-    int m_49f0;                                                 // +0x49f0（末成员；
-    //   ORIG clear 最大写此处，类尺寸 0x49f4）
+    int m_49e8;                                                  // +0x49e8
+    int m_49ec;                                                  // +0x49ec
+    int m_49f0;                                                  // +0x49f0
 };
 
 // ---- 布局断言（ORIG 证据：clear 0x0836f38c / dtor 0x0837bb42 /
@@ -629,6 +625,18 @@ static_assert(offsetof(ServerParameterScript, m_shared770) == 0x770,
               "ServerParameterScript shared server message offset drift");
 static_assert(offsetof(ServerParameterScript, m_premiumGoldCard4894) == 0x4894,
               "ServerParameterScript premium gold card offset drift");
+static_assert(offsetof(ServerParameterScript, m_blackListHelpParameter0) == 0x34c,
+              "ServerParameterScript black-list parameter offset drift");
+static_assert(offsetof(ServerParameterScript, m_blackListHelpParameter1) == 0x350,
+              "ServerParameterScript black-list parameter tail offset drift");
+static_assert(offsetof(ServerParameterScript, m_increaseAbusePoint) == 0x5b0,
+              "ServerParameterScript abuse parameter offset drift");
+static_assert(offsetof(ServerParameterScript, m_arr2868) == 0x2868,
+              "ServerParameterScript second recipe table offset drift");
+static_assert(offsetof(ServerParameterScript, m_arr3868) == 0x3868,
+              "ServerParameterScript second amplify table offset drift");
+static_assert(sizeof(ServerParameterScript::stPremiumGoldCardEvent) == 0xc0,
+              "ServerParameterScript premium event layout drift");
 
 bool importServerParameterScript(ServerParameterScript* script,
                                  const char* path);

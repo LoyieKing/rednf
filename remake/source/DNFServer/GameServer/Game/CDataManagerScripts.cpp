@@ -1,6 +1,7 @@
 // CDataManager 脚本 POD 的构造/析构实现，独立于通用桩 TU.
 #include "CBoosterGage.h"  // BoosterGageData 权威布局（须先于 CDataManager.h）
 #include "CDataManager.h"
+#include "cMyTraceNoop.h"  // add_lottery_needMoney 命中 trace（ORIG 0x83650f5）
 #include "GameWorld.h"
 #include "CItemGeneratorMgr.h"
 #include "CStackableItem.h"
@@ -62,7 +63,9 @@ int QuestParameterScript::getRewardLevel(int level)
 {
     int result = 0;
     std::map<int, int>::iterator it = m_map3c.begin();
-    for (; it != m_map3c.end(); ++it)
+    // ORIG 0x8a6be2a 调 ppEi（后缀 it++，0x8(%esp)=$0，返回值落废弃临时
+    // -0x10），非前缀 ++it。
+    for (; it != m_map3c.end(); it++)
     {
         if (it->second <= level)
         {
@@ -236,7 +239,12 @@ stBroadCastItemScript::~stBroadCastItemScript() {}
 // ORIG isUnCommonItem 0x8918d9c：m_mapC.find(itemIdx) != end()
 bool stBroadCastItemScript::isUnCommonItem(int itemIdx) const
 {
-    return m_mapC.find(itemIdx) != m_mapC.end();
+    // ORIG 0x8918da8：find sret→具名 it(-0x10，声明即构造)；end 临时 -0xc；
+    // 0x8918de6 ne(it,end) 后 je→mov$0/落空→mov$1 ⇒ 显式 if-return 形。
+    std::map<int, std::vector<int> >::const_iterator it = m_mapC.find(itemIdx);
+    if (it != m_mapC.end())
+        return true;
+    return false;
 }
 
 // ORIG checkCommonItem 0x8918cdc：遍历 m_vec0 找 itemIdx
@@ -328,11 +336,13 @@ stSeriaBlessingScript::~stSeriaBlessingScript() {}
 // （0x822aecc）：min==max → lv==min；否则 min<=lv<max。
 bool stSeriaBlessingScript::is_possible_lv(int lv)
 {
-    FindOneByLv pred(lv);                     // ORIG：谓词在入口即构造
-    std::map<int, Value>::iterator it = m_map0.begin();
-    std::map<int, Value>::iterator itEnd = m_map0.end();
-    std::map<int, Value>::iterator found = std::find_if(it, itEnd, pred);  // ORIG：返回值独立变量
-    return found != m_map0.end();
+    // ORIG 0x822af22：pred 入口构造(-0x18)；find_if 内联实参（右到左求值：
+    // 0x822af47 end()→临时 -0x14 先、0x822af5c begin()→临时 -0x10 后）；
+    // 外层 ne 0x822afa9 的 this=第二 end() 临时(-0xc)、rhs=find_if 结果(-0x1c)
+    // ⇒ 源码方向 end() != find_if(...)。
+    std::map<int, Value>::iterator found =
+        std::find_if(m_map0.begin(), m_map0.end(), FindOneByLv(lv));
+    return m_map0.end() != found;
 }
 
 // ORIG C1 0x83724f0 / FindCharacStat 0x8693c66：map.find(CharacterKind(job,grow))，
@@ -400,30 +410,46 @@ stGrowthCapsuleScript::stGrowthCapsuleScript()
 CLottery_NeedMoney::CLottery_NeedMoney() : m_needMoneyMap() {}
 CLottery_NeedMoney::~CLottery_NeedMoney() {}
 
-bool CLottery_NeedMoney::isNeedMoney(unsigned int itemIdx) const
+int CLottery_NeedMoney::isNeedMoney(unsigned int itemIdx) const
 {
     static std::map<unsigned int, unsigned int>::const_iterator _itr;  // ORIG _ZZNK…isNeedMoneyEjE4_itr
     _itr = m_needMoneyMap.find(itemIdx);
-    return _itr == m_needMoneyMap.end() ? false : _itr->second;
+    // ORIG 0x83651d2/0x83651e8：end() 临时(-0xc)为 ne 的 this、&静态 _itr 为
+    // rhs ⇒ 源码方向 end() != _itr；命中 0x83651f1 ptEv 后 `mov 0x4(%eax),%eax`
+    // 值直返（int 透传，无 bool 收窄），未命中 je→0x8365202 mov$0 尾岛。
+    if (m_needMoneyMap.end() != _itr)
+        return _itr->second;
+    return 0;
 }
 
 void CLottery_NeedMoney::add_lottery_needMoney(unsigned int itemIdx, unsigned int cost)
 {
     static std::map<unsigned int, unsigned int>::iterator _itr;  // ORIG _ZZN…add_lottery_needMoneyEjjE4_itr
+    // ORIG 0x83650b2：end() 先于 find 调用（sret 槽 -0x28）；find 结果临时
+    // -0x2c 落静态 _itr（0x83650d6-0xd9）；0x83650ec ne(this=_itr, rhs=&end)。
+    // 命中 fall-through trace（cMyTraceNoop() 临时 -0x21 @0x83650f5-0x836510e，
+    // 串 "already exist item index!!"@0x8c33253），je→0x8365115 insert。
+    std::map<unsigned int, unsigned int>::iterator e = m_needMoneyMap.end();
     _itr = m_needMoneyMap.find(itemIdx);
-    if (_itr == m_needMoneyMap.end())
+    if (_itr != e)
+    {
+        cMyTraceNoop()("already exist item index!!");
+    }
+    else
         m_needMoneyMap.insert(std::make_pair(itemIdx, cost));
 }
 
 channel_info_t* channel_script_t::getChannelInfo(unsigned char channel, unsigned int idx) const
 {
-    // ORIG 0x088dcd38：外层 map(+0x18) 以 channel 查，内层以 channelNo/idx 查，返回 &channel_info_t。
-    std::map<int, std::map<int, channel_info_t> >::const_iterator itOuter =
-        m_channelMap.find((int)channel);
+    // ORIG 0x88dcd44/0x88dcd4f：入口按"内层(-0x1c)先、外层(-0x20)后"顺序默认
+    // 构造两个迭代器；find 结果落临时 -0x30 再单字赋值（0x88dcd80-0x88dcd83、
+    // 0x88dcde8-0x88dcdeb）⇒ 声明+赋值两段式，inner 声明在前。
+    std::map<int, channel_info_t>::const_iterator itInner;
+    std::map<int, std::map<int, channel_info_t> >::const_iterator itOuter;
+    itOuter = m_channelMap.find((int)channel);
     if (itOuter == m_channelMap.end())
         return 0;
-    std::map<int, channel_info_t>::const_iterator itInner =
-        itOuter->second.find((int)idx);
+    itInner = itOuter->second.find((int)idx);
     if (itInner == itOuter->second.end())
         return 0;
     return const_cast<channel_info_t*>(&itInner->second);
@@ -445,7 +471,9 @@ int channel_script_t::GetPvPChannelNumber(unsigned char channel, unsigned int ch
     {
         if (IS_PVP_CHANNEL(it->second.m_channelType))
             ++pvpIndex;
-        if (it->first == (int)channelNo)
+        // ORIG 0x88dccea：mov (%eax),%eax; cmp 0x10(%ebp),%eax（参数槽直折入 cmp，
+        // 无寄存器中转 ⇒ 不加 (int) cast）
+        if (it->first == channelNo)
             return pvpIndex;
     }
     return -1;
@@ -491,13 +519,14 @@ int CNPCScriptList::getFavorLevel(unsigned short favorExp) const
 {
     // 帧对齐：ORIG sub $0x34（Ghidra 未显示的死区局部，P31 dummy 对齐）。
     char pad[24];
-    if (favorExp < getMaxFavorValue())
+    // ORIG 0x8581701-0x8581703：cmp %eax,%ebx; setge ⇒ `favorExp >= max` 正向
+    // 早退 4（0x858170a 尾岛），循环体内 0x8581728 直接 cmp 参数槽 -0x1c。
+    if (favorExp >= getMaxFavorValue())
+        return 4;
+    for (int i = 1; i <= 3; ++i)
     {
-        for (int i = 1; i <= 3; ++i)
-        {
-            if (m_npcCommon.m_favorExp[i] >= favorExp)
-                return i;
-        }
+        if (m_npcCommon.m_favorExp[i] >= favorExp)
+            return i;
     }
     return 4;
 }
@@ -506,13 +535,13 @@ int CNPCScriptList::getFavorLevel(unsigned short favorExp) const
 // m_favorExp[level]（level 0 返 0），越界（>3）返 getMaxFavorValue()。
 unsigned int CNPCScriptList::getFavorLevelValue(unsigned int level) const
 {
-    // 帧对齐：ORIG sub $0x18（P31 dummy 对齐）。
-    char pad[20];
+    // 帧对齐：ORIG 0x8581751 sub $0x18。
+    char pad[8];
     if (level > 3)
         return getMaxFavorValue();
     if (level == 0)
         return 0;
-    return m_npcCommon.m_favorExp[level];
+    return m_npcCommon.m_favorExp[level];   // N: 4.4 恒产双 movzwl(返回 ushort→uint)，ORIG 4.1 单条 0x858177d
 }
 
 // ORIG _destroy 0x8581784：遍历 hash_map delete 各 CNPCScript*（调 D1 + operator delete），
@@ -544,12 +573,10 @@ CItemGeneratorMgr::~CItemGeneratorMgr() {}
 void CItemGeneratorMgr::setDropRatio(float ratio)
 {
     // ORIG 0x8534278：遍历 i=0..7，虚槽 +0x00（setDropRatio，权威头已落地）。
+    // ORIG 0x8534287-0x85342b3：m_generators[i] 被读两遍（0x8534293 取 vtable、
+    // 0x85342a6 再取作 this），无具名 gen 局部 ⇒ i 独占 -0xc。
     for (int i = 0; i < 8; ++i)
-    {
-        // ORIG 不判空（initialize 后 8 槽全为有效生成器）。
-        CItemGenerator* gen = m_generators[i];
-        gen->setDropRatio(ratio);
-    }
+        m_generators[i]->setDropRatio(ratio);
 }
 // getGenerator 已由 CItemGeneratorMgr.cpp 真实定义，不重复。
 }
@@ -571,28 +598,39 @@ WongWork::CItemGeneratorMgr* CDataManager::getItemGenerator()
 // ============================================================================
 void* AccountCargoScript::GetCreateInfo()
 {
-    if (m_upgradeMap.empty())
-        return 0;
-    return &m_upgradeMap.begin()->second;
+    // ORIG 0x88c806c begin()→临时 -0x10；0x88c8084 end()→临时 -0xc；
+    // 0x88c8099 ne(&it,&end)：无 empty() 调用。命中 0x88c80ad add $4 直返；
+    // je→0x88c80b2 mov$0 尾岛。
+    std::map<int, UpgradeInfo>::iterator it = m_upgradeMap.begin();
+    if (it != m_upgradeMap.end())
+        return &it->second;
+    return 0;
 }
 
 void* AccountCargoScript::GetCurrUpgradeInfo(int idx)
 {
     std::map<int, UpgradeInfo>::iterator it = m_upgradeMap.find(idx);
-    if (it == m_upgradeMap.end())
-        return 0;
-    return &it->second;
+    // ORIG 0x88c80f1 ne + 命中 fall-through；je→0x88c811d mov$0 尾岛
+    if (it != m_upgradeMap.end())
+        return &it->second;
+    return 0;
 }
 
 void* AccountCargoScript::GetNextUpgradeInfo(int idx)
 {
     std::map<int, UpgradeInfo>::iterator it = m_upgradeMap.find(idx);
-    if (it == m_upgradeMap.end())
+    // ORIG 0x88c8149-0x88c814c：find 后立即整字复制 nxt(-0x14→-0x18)，
+    // ++nxt 在首个 it != end(0x88c8174 ne) 命中块内（0x88c8183 ppEv(-0x18)）；
+    // 两级均 ne+命中 fall-through，je→mov$0 尾岛 0x88c81c6/0x88c81cd。
+    std::map<int, UpgradeInfo>::iterator nxt = it;
+    if (it != m_upgradeMap.end())
+    {
+        ++nxt;
+        if (nxt != m_upgradeMap.end())
+            return &nxt->second;
         return 0;
-    ++it;
-    if (it == m_upgradeMap.end())
-        return 0;
-    return &it->second;
+    }
+    return 0;
 }
 
 // ============================================================================
@@ -756,17 +794,25 @@ int createGlobalEffectInfo(std::vector<stGlobalEffect_t>& out,
 // GetLightServerFlag() 取指针后写入 bool。
 // ============================================================================
 
+// probe 实证（/tmp/wk/probe12.cpp）：调用点若见 GetLightServerFlag 的"定义"，
+// 4.4 将 caller 帧收紧为 0x14/spill -0x14；只见原型则 pad[12] 生效得
+// ORIG 帧 0x28/spill -0x1c/p -0xc（0x8a8cba8-0x8a8cbbe）⇒ 定义置于调用点之后。
+bool* GetLightServerFlag();
+void SetLightServerFlag(bool flag)
+{
+    bool* lightFlag = GetLightServerFlag();
+    // ORIG 0x8a8cba8 帧 0x28、arg-spill -0x1c、指针槽 -0xc；4.4 需 12B dead pad
+    // 撑帧使 arg spill 恰落 -0x1c（probe 实证：(void)pad 须在末次使用之后，
+    // 否则 4.4 把死数组槽折叠）。尾读 movzbl -0x1c,%edx @0x8a8cbbc
+    char pad[12];
+    *lightFlag = flag;
+    (void)pad;
+}
+
 bool* GetLightServerFlag()
 {
     static bool light_server_flag = false;  // ORIG _ZZ18GetLightServerFlagvE17light_server_flag V @0x940b558
 	return &light_server_flag;
-}
-
-void SetLightServerFlag(bool flag)
-{
-    // ORIG：经 GetLightServerFlag() 取标志指针（存入局部变量）后写入。
-    bool* lightFlag = GetLightServerFlag();
-    *lightFlag = flag;
 }
 // stLimitItemUsageInfoEx 权威定义在 CDataManager.h（含 ctor/dtor 声明），
 // 此处不再重复定义。
@@ -1277,10 +1323,12 @@ void CNPCRelationEventManager::AddDislikeItemInfo(unsigned short idx,
 {
     std::map<unsigned short, stNPCRelationEventInfo*>::iterator it =
         m_npcEventMap.find(idx);
+    // ORIG 0x890d0c5 eq + 0x890d0cc jne 跳过 ⇒ 源码 == end 早退形；
+    // 0x890d0d9-0x890d0f5：node 物化槽 -0xc 后重读、(int)itemId 物化 -0x10，
+    // push_back(EOi) 传 &temp（4.4 将 node 折进 %eax 不复现 ⇒ 余差属 N）。
     if (it == m_npcEventMap.end())
         return;
-
-    it->second->m_dislikeItems.push_back(static_cast<int>(itemId));
+    it->second->m_dislikeItems.push_back((int)itemId);
 }
 
 // ---- CNPCRelationEventManager::GetFavorIndex（ORIG 0x890d3d0：
@@ -1767,12 +1815,16 @@ advancealtar::FieldData* advancealtar::BuyUpgradeData::getFieldDataPoint(
     int level, FieldType::T ft)
 {
     std::map<int, FieldDataMap>::iterator it = m_listMap.find(level);
-    if (it == m_listMap.end())
+    // ORIG 0x88a2e9d 外层 ne+je→0x88a2f13 mov$0（外层尾岛）；
+    // 内层 0x88a2efa je→0x88a2f0c mov$0;jmp（内层岛），命中 0x88a2f07 add $4;jmp merge
+    if (it != m_listMap.end())
+    {
+        std::map<FieldType::T, FieldData>::iterator fit = it->second.find(ft);
+        if (fit != it->second.end())
+            return &fit->second;
         return 0;
-    std::map<FieldType::T, FieldData>::iterator fit = it->second.find(ft);
-    if (fit == it->second.end())
-        return 0;
-    return &fit->second;
+    }
+    return 0;
 }
 
 // ---- advancealtar::BuyShopData::getBuyUpgradeDataVec（ORIG T 0x088a105c）----
@@ -1797,9 +1849,10 @@ advancealtar::AdvanceAltarShopParameter::getBuyUpgradeDataVec(
     int key, AdvanceAltarShopType::T type)
 {
     std::map<int, BuyShopData>::iterator it = m_buyShopMap.find(key);
-    if (it == m_buyShopMap.end())
-        return 0;
-    return it->second.getBuyUpgradeDataVec(type);
+    // ORIG 0x88a102c 调 ne、命中块 fall-through（0x88a1035），je→0x88a1054 mov$0 尾岛
+    if (it != m_buyShopMap.end())
+        return it->second.getBuyUpgradeDataVec(type);
+    return 0;
 }
 
 // ============================================================================
@@ -1954,13 +2007,13 @@ stVictoryPenalty PowerParameterScript::GetPenalty(int victory)
 // winCount < size → v[winCount]，否则 v[size-1]（越界取末元素）。
 int PowerParameterScript::GetBreakBonus(int winCount)
 {
-    const std::vector<int>& v = m_vecC8;
-    const int size = static_cast<int>(v.size());
-    if (winCount < size)
-    {
-        return v[winCount];
-    }
-    return v[size - 1];
+    // ORIG 0x8a59d5e：m_vecC8 不物化引用（每处 call 现场 `add $0xc8,%edx`）；
+    // size→-0xc；0x8a59d77 `cmp -0xc,%eax; jl 0x8a59d98` ⇒ winCount>=size 为
+    // fall-through 首分支（ix(size-1) @0x8a59d8f），jl 目标=ix(winCount)。
+    int size = m_vecC8.size();
+    if (winCount >= size)
+        return m_vecC8[size - 1];
+    return m_vecC8[winCount];
 }
 
 // ============================================================================
@@ -2093,7 +2146,10 @@ void CWorldMapList::destroy()
 // ORIG 0x83647a2：map<int,CWorldMap*>::find(idx)，命中返回 second，否则 0。
 CWorldMap* CWorldMapList::find_world_map(int idx) const
 {
-    std::map<int, CWorldMap*>::const_iterator it = m_map.find(idx);
+    // ORIG 0x83647a8：it 先默认构造（C1Ev @-0x10）；find 结果落临时 -0x1c 后
+    // 0x83647cf-0x83647d2 单字赋值拷贝 → 复现"声明+赋值"两段式。
+    std::map<int, CWorldMap*>::const_iterator it;
+    it = m_map.find(idx);
     return (it == m_map.end()) ? 0 : it->second;
 }
 
@@ -2188,7 +2244,9 @@ stOneEmotionData& stOneEmotionData::operator=(const stOneEmotionData& rhs)
 }
 // ORIG W 0x8370bb0（0x9b 字节）：成员自动析构，标量无操作。
 stOneEmotionData::~stOneEmotionData() {}
-// ORIG W 0x891b61a：clear —— 清零标量 + 清空容器。
+// ORIG W 0x891b61a：clear —— 清零 +0x00/+0x04、string clear(0x8/0xc)、
+// 0x891b652/659/667 逐字节清 0x10/0x11/0x12（无 0x13 存储 ⇒ pad 不清）、
+// string clear(0x14)、vector clear(0x18)。
 void stOneEmotionData::clear()
 {
     m_0 = 0;
@@ -2198,7 +2256,6 @@ void stOneEmotionData::clear()
     m_10 = 0;
     m_11 = 0;
     m_12 = 0;
-    m_pad13 = 0;
     m_14.clear();
     m_18.clear();
 }
@@ -2247,9 +2304,13 @@ pvp_channel_info_t::pvp_channel_info_t()
 
 bool STExpertJobScript::isBoundaryExpValue(int exp)
 {
-    for (size_t i = 0; i < m_expVec.size(); ++i)
+    // ORIG 0x849f423 push %ebx + 0x849f430 mov 0xc(%ebp),%ebx：exp 跨 call 驻
+    // callee-saved 寄存器（技巧2）；i 槽 -0xc 先初始化（0x849f42b）。
+    size_t i = 0;
+    register int e asm("ebx") = exp;
+    for (; i < m_expVec.size(); ++i)
     {
-        if (m_expVec[i].m_exp == exp)
+        if (m_expVec[i].m_exp == e)
             return true;
     }
     return false;
@@ -2259,12 +2320,15 @@ bool STExpertJobScript::isBoundaryExpValue(int exp)
 // ORIG：遍历 vector<ExpertJobExp>，返回首个 v[i].m_exp > exp 的 i+1；无则返回 size()。
 int STExpertJobScript::GetLevel(unsigned int exp)
 {
-    for (size_t i = 0; i < m_expVec.size(); ++i)
+    // ORIG 0x8693ba6：i 于函数级声明（-0xc）；0x8693bee 退出 fall-through
+    // 直接 mov -0xc(%ebp),%eax 返回 i（循环尾 i==size，不再 call size）。
+    size_t i;
+    for (i = 0; i < m_expVec.size(); ++i)
     {
         if ((unsigned int)m_expVec[i].m_exp > exp)
             return (int)i + 1;
     }
-    return (int)m_expVec.size();
+    return (int)i;
 }
 
 // STExpertJobScript::GetCompoundRate（ORIG 0x0849f366 W）。
@@ -2290,9 +2354,10 @@ stCompoundRate* STExpertJobScript::GetCompoundRate(int level)
 int STExpertJobScript::GetRecipeInfoIndex(unsigned long itemIndex)
 {
     std::map<unsigned long, int>::iterator it = m_recipeIndexMap.find(itemIndex);
-    if (it == m_recipeIndexMap.end())
-        return -1;
-    return it->second;
+    // ORIG 0x832b765 ne + 命中 fall-through；未命中 je→0x832b78f mov $-1 尾岛
+    if (it != m_recipeIndexMap.end())
+        return it->second;
+    return -1;
 }
 
 // STExpertJobScript::GetRecipeInfo（ORIG 0x0832b6b6 W）。
@@ -2301,9 +2366,10 @@ int STExpertJobScript::GetRecipeInfoIndex(unsigned long itemIndex)
 stRecipeInfo* STExpertJobScript::GetRecipeInfo(int index)
 {
     std::map<int, stRecipeInfo>::iterator it = m_recipeInfoMap.find(index);
-    if (it == m_recipeInfoMap.end())
-        return 0;
-    return &it->second;
+    // ORIG 0x832b6f9 ne + 命中 fall-through；je→0x832b71f mov$0 尾岛
+    if (it != m_recipeInfoMap.end())
+        return &it->second;
+    return 0;
 }
 // ORIG D1 0x837c3d4 (W)：析构成员 map<int,rewardInfoList>。
 // ---- GuildParameterScript::getGuildExpWeight（ORIG T 0x089795de）----

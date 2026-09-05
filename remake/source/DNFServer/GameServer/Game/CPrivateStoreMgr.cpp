@@ -68,16 +68,16 @@ namespace private_store
 // ---- COperator<int>::Product 特化（ORIG W _ZN13private_store9COperatorIiE7ProductEiiRi @0x85cd22a）----
 // 重复加法乘法：out 累加 a 共 b 次，任一步非正即失败返回 0。须先于首次隐式实例化。
 template <>
-char COperator<int>::Product(int a, int b, int& out)
+bool COperator<int>::Product(int a, int b, int& out)
 {
     out = 0;
     for (int i = 0; i < b; ++i)
     {
         out = out + a;
         if (!(out > 0))
-            return 0;
+            return false;
     }
-    return 1;
+    return true;
 }
 
 
@@ -113,73 +113,15 @@ CPrivateStoreMgr* GetInstancePrivateStoreMgr()
     return &instance;
 }
 
-// ---- PrivateStoreZone（ORIG C1/C2(h,h) W 0x85cb6ce，out-of-line；派生
-//      PrivateStorePos 构造经 C2 初始化基类子对象）----
-PrivateStoreZone::PrivateStoreZone(unsigned char a, unsigned char b)
-    : m_a(a), m_b(b)
-{
-}
+// ---- PrivateStoreZone / PrivateStorePos（定义在 TU 尾 inline 镜像区；
+//      ORIG C1/C2(h,h) W 0x85cb6ce、Pos C1 W 0x85cb6f6 / 0x85cb72c、
+//      clear W 0x85cb784。后置定义复现 ORIG 调用点 conservative outgoing）----
 
-PrivateStorePos::PrivateStorePos() : PrivateStoreZone(0, 0), m_field2(0), m_field4(0) {}
+// ---- PrivateStoreItem（定义在 TU 尾 inline 镜像区；ORIG C1 0x823457c /
+//      Reset 0x823459a / op= 0x85cb66e）----
 
-// ORIG W 0x85cb72c：zone 基类构造后写 +0x2/+0x4。
-PrivateStorePos::PrivateStorePos(unsigned char a, unsigned char b,
-                                 short field2, short field4)
-    : PrivateStoreZone(a, b), m_field2(field2), m_field4(field4)
-{
-}
-
-void PrivateStorePos::clear()
-{
-    m_a = 0;
-    m_b = 0;
-    m_field2 = 0;
-    m_field4 = 0;
-}
-
-// ---- PrivateStoreItem（ORIG C1 0x823457c / Reset 0x823459a）----
-PrivateStoreItem::PrivateStoreItem()
-{
-    Reset();
-}
-
-// ORIG W 0x823459a：清空物品区与全部私有字段。
-void PrivateStoreItem::Reset()
-{
-    m_item.reset();
-    m_flag3d = 0;
-    m_field40 = 0;
-    m_field44 = 0;
-    m_field46 = 0;
-    m_field48 = 0;
-}
-
-// ---- PrivateStoreItem::operator=（ORIG W 0x85cb66e，报告缺失，objdump 转写）----
-// Inven_Item::setCopy 拷物品区，随后逐字段直拷并返回 *this。
-PrivateStoreItem& PrivateStoreItem::operator=(PrivateStoreItem const& other)
-{
-    m_item.setCopy(other.m_item);
-    m_flag3d = other.m_flag3d;
-    m_field40 = other.m_field40;
-    m_field44 = other.m_field44;
-    m_field46 = other.m_field46;
-    m_field48 = other.m_field48;
-    return *this;
-}
-
-// ---- CPrivateStorePos（ORIG C1 0x85cb7c8 / 带参 C1 0x85cb7fc）----
-CPrivateStorePos::CPrivateStorePos() : m_rect(), m_pStore(0) {}
-
-// ORIG W 0x85cb7fc：写宿主 store 指针后，以中心点 (centerX, centerY) 构造
-// 0xa0 x 0x64 的碰撞矩形（左上 = 中心 - 半宽/半高）。
-CPrivateStorePos::CPrivateStorePos(CPrivateStore* store, int centerX, int centerY)
-    : m_rect(), m_pStore(store)
-{
-    m_rect.m_pos.m_x = centerX - 0x50;
-    m_rect.m_width = 0xa0;      // ORIG 先写 width 再 m_y（-O0 语句序）
-    m_rect.m_pos.m_y = centerY - 0x32;
-    m_rect.m_height = 0x64;
-}
+// ---- CPrivateStorePos（定义在 TU 尾 inline 镜像区；
+//      ORIG C1 0x85cb7c8 / 带参 C1 0x85cb7fc）----
 
 // ORIG T 0x85cadf6（报告 docs/class_func_reports/private_store__CPrivateStorePos/
 // put_object_info.md）：校验宿主 store 状态与卖家位置后序列化私商对象信息：
@@ -252,20 +194,20 @@ bool CPrivateStorePos::put_object_info(PacketGuard& p)
 // （村庄对象矩形统一位于 IObject 头之后，与 ORIG lea 0x4(%eax) 一致）。
 bool CPrivateStorePos::include(village_object::IObject const& obj) const
 {
-    collision_detection::Rectangle const* other =
-        reinterpret_cast<collision_detection::Rectangle const*>(
-            reinterpret_cast<char const*>(&obj) + sizeof(village_object::IObject));
-    return m_rect.include(*other);
+    // ORIG：无具名中间量（不 spill），(obj+4) 先求值入 %eax、lea 0x4(%this)
+    // 入 %edx 后直落参数槽 ⇒ 表达式内联。
+    return m_rect.include(
+        *reinterpret_cast<collision_detection::Rectangle const*>(
+            reinterpret_cast<char const*>(&obj) + sizeof(village_object::IObject)));
 }
 
 // ORIG W 0x85ccae4：基类子对象赋值 + Rectangle 4 个 int 直拷 + 宿主指针。
 CPrivateStorePos& CPrivateStorePos::operator=(CPrivateStorePos const& other)
 {
     village_object::IObject::operator=(other);  // ORIG W 0x85ccadc：空操作返回自身
-    m_rect.m_pos.m_x = other.m_rect.m_pos.m_x;
-    m_rect.m_pos.m_y = other.m_rect.m_pos.m_y;
-    m_rect.m_width = other.m_rect.m_width;
-    m_rect.m_height = other.m_rect.m_height;
+    // ORIG 0x85ccae4：单基址四 int 顺序拷贝（mov 0x4/8/c/10(%edx),%ecx → %eax）
+    // ⇒ Rectangle 结构体整体赋值（POD 隐式逐字拷贝），非逐字段（逐字段每行双 reload）。
+    m_rect = other.m_rect;
     m_pStore = other.m_pStore;
     return *this;
 }
@@ -296,7 +238,7 @@ bool CPrivateStore::isDollCreated()
 }
 
 // ORIG W 0x85cb894：卖家 world unique id（GetSeller()->get_unique_id()）。
-int CPrivateStore::GetSellerIndex()
+unsigned short CPrivateStore::GetSellerIndex()
 {
     return m_pSeller->get_unique_id();
 }
@@ -1778,9 +1720,15 @@ bool CPrivateStore::CheckValidItem(int cargoSlot, int count)
     if ((int)item.m_addInfo == 0)
         return false;
 
-    if (item.isEquipableItemType())
-        return true;
-    return (int)item.m_addInfo2 - count >= 0;
+    // ORIG 0x085c9cc2 尾部（报告 CheckValidItem.md L…）：
+    // `if (!isEquipableItemType())`（bool xor$1 形）内嵌 `< 0` 判（jns 跳过 mov$0 岛），
+    // 两路汇合 mov$1 —— 与「两 if return true」布局异，探针+diff 实证。
+    if (!item.isEquipableItemType())
+    {
+        if ((int)item.m_addInfo2 - count < 0)
+            return false;
+    }
+    return true;
 }
 
 // ---- CErrorHandler::Set（ORIG W 0x85cb7a8，objdump 逐指令：三条直存无副作用）----
@@ -1818,13 +1766,16 @@ int CPrivateStore::CheckTotalItemPrice()
             continue;
         if (entry.m_field40 == 0)
             return 0;
-        CItem* pItem = G_CDataManager()->find_item((int)entry.m_item.m_addInfo);
+        CItem* pItem = 0;                          // ORIG +0x55 movl $0,-0xc
+        register int addInfo asm("ebx");           // ORIG +0x5c..+0x62 mov 0x2(%eax),%eax; mov %eax,%ebx
+        addInfo = (int)entry.m_item.m_addInfo;
+        pItem = G_CDataManager()->find_item(addInfo);   // ORIG mov %ebx,0x4(%esp)
         if (pItem == 0)
             return 0;
         if (pItem->is_stackable())
         {
-            if (COperator<int>::Product(entry.m_field40,
-                                        (int)entry.m_item.m_addInfo2, total) != 1)
+            if (!COperator<int>::Product(entry.m_field40,
+                                         (int)entry.m_item.m_addInfo2, total))
                 return 0;
         }
         else
@@ -1834,7 +1785,11 @@ int CPrivateStore::CheckTotalItemPrice()
                 return 0;
         }
     }
-    return (total > 0) ? 1 : 0;
+    // ORIG +0xf6 岛序：jg 跳过 mov$0 岛、mov$1 位于尾部 ⇒ `<= 0 ? 0 : 1` 写法。
+    // 探针 x13 f2：`if (x <= 0) return 0; return 1;` 复现 test/jg/mov0/jmp/mov1 岛序。
+    if (total <= 0)
+        return 0;
+    return 1;
 }
 
 // ---- IsPossibleDeal（ORIG T 0x85c7c0a，报告 IsPossibleDeal.md 全文）----
@@ -1862,12 +1817,19 @@ bool CPrivateStore::IsPossibleDeal(int gold, unsigned int /*a3*/, unsigned int /
 void CPrivateStore::SubtractItemCount(CItem const* item, PrivateStoreItem& storeItem,
                                       int count)
 {
-    if (!item->is_stackable())
-        storeItem.Reset();
-    else if ((int)storeItem.m_item.m_addInfo2 == count)
-        storeItem.Reset();
+    // ORIG 0x085c7bbc：正向 `if (is_stackable())`（test%al;je 直判），
+    // !stackable 的 Reset 位于尾部跳岛（+0x40），非 inline。
+    if (item->is_stackable())
+    {
+        if ((int)storeItem.m_item.m_addInfo2 == count)
+            storeItem.Reset();
+        else
+            storeItem.m_item.m_addInfo2 -= count;
+    }
     else
-        storeItem.m_item.m_addInfo2 -= count;
+    {
+        storeItem.Reset();
+    }
 }
 
 // ---- GetItemPrice（ORIG T 0x85c7d04，报告 GetItemPrice.md 全文）----
@@ -2266,10 +2228,11 @@ int CPrivateStoreMgr::GetStoreBuyer(IBuyer** out, CUser* user, CUser* sellerUser
 // CUser（初始置空）后委托 GetStoreBuyer(3 参版)。
 void CPrivateStoreMgr::GetStoreBuyer(IBuyer** out, CUser* user, unsigned short sellerIndex)
 {
-    unsigned short idx = sellerIndex;
     CUser* sellerUser = 0;
-    sellerUser = G_GameWorld()->find_from_world(idx);
-    GetStoreBuyer(out, user, sellerUser);
+    // ORIG：参数直落（mov %ax,-0x1c 单槽），无具名中转。
+    sellerUser = G_GameWorld()->find_from_world(sellerIndex);
+    // ORIG +0x2d 死 cmpl（flags 存活至 call 前被 mov 序列保留）：逗号算符复现。
+    GetStoreBuyer(out, user, (sellerUser != 0, sellerUser));
 }
 
 // ORIG T 0x85caa8a（报告 Enter.md 逐指令）：委托 LoadPrivateStore(user)，恒返 1。
@@ -2320,11 +2283,18 @@ bool CPrivateStoreMgr::IsBusyPrivateStore(CUser* user)
 {
     CPrivateStore* store = 0;
     store = GetInstancePrivateStoreMgr()->FindStoreSeller(user);
+    // ORIG 0x085cad5e：busy 段 &&/|| 物化岛（4.4 原生复现，探针 x15 b1）；
+    // isDollCreated 正向 test%al 直判（==0 写法会产 xor$1）；
+    // state==1 判定走 sete 物化 + mov$1/$0 岛（`if(...) return true; return false;`）。
     if (store != 0 && (store->GetState() == 1 || store->GetState() == 2))
     {
-        if (store->isDollCreated() == 0)
-            return true;
-        return store->GetState() == 1;
+        if (store->isDollCreated())
+        {
+            if (store->GetState() == 1)
+                return true;
+            return false;
+        }
+        return true;
     }
     return false;
 }
@@ -2524,10 +2494,12 @@ void CPacketBufPrivate::MakeNotipacketCompleteDisplay(unsigned short sellerIndex
     put_short((int)sellerIndex);
     put_int((int)subject.length());
     put_str(subject.c_str(), (int)subject.length());
-    if (dollCreated)
-        put_byte(1);
-    else
+    // ORIG 0x85cbc52 尾：bool 槽 movzbl 重载 + xor$1 + test/je（探针 x14 v2 形
+    // = `if (!p) {A} else {B}` 写法；`if (p)` 会折成 cmpb 直判）。
+    if (!dollCreated)
         put_byte(0);
+    else
+        put_byte(1);
     finalize(true);
 }
 
@@ -2663,6 +2635,78 @@ int CPrivateStoreMgr::GetPrivateStoreSize()
 {
     return (int)m_storeSellers.size();
 }
+// ============================================================================
+// ORIG W（头内联）镜像区：以下定义置于 TU 尾——本 TU 内更早的调用点按
+// conservative outgoing 预留（sub $0x18），与 ORIG 产物一致；inline 标记
+// 使符号为 W，与 ORIG nm 一致。
+// ============================================================================
+
+// ORIG C1/C2(h,h) W 0x85cb6ce。
+inline PrivateStoreZone::PrivateStoreZone(unsigned char a, unsigned char b)
+    : m_a(a), m_b(b)
+{
+}
+
+inline PrivateStorePos::PrivateStorePos() : PrivateStoreZone(0, 0), m_field2(0), m_field4(0) {}
+
+// ORIG W 0x85cb72c：zone 基类构造后写 +0x2/+0x4。
+inline PrivateStorePos::PrivateStorePos(unsigned char a, unsigned char b,
+                                        short field2, short field4)
+    : PrivateStoreZone(a, b), m_field2(field2), m_field4(field4)
+{
+}
+
+// ORIG W 0x85cb784。
+inline void PrivateStorePos::clear()
+{
+    m_a = 0;
+    m_b = 0;
+    m_field2 = 0;
+    m_field4 = 0;
+}
+
+// ORIG C1 W 0x823457c。
+inline PrivateStoreItem::PrivateStoreItem()
+{
+    Reset();
+}
+
+// ORIG W 0x823459a：清空物品区与全部私有字段。
+inline void PrivateStoreItem::Reset()
+{
+    m_item.reset();
+    m_flag3d = 0;
+    m_field40 = 0;
+    m_field44 = 0;
+    m_field46 = 0;
+    m_field48 = 0;
+}
+
+// ORIG W 0x85cb66e：Inven_Item::setCopy 拷物品区，随后逐字段直拷并返回 *this。
+inline PrivateStoreItem& PrivateStoreItem::operator=(PrivateStoreItem const& other)
+{
+    m_item.setCopy(other.m_item);
+    m_flag3d = other.m_flag3d;
+    m_field40 = other.m_field40;
+    m_field44 = other.m_field44;
+    m_field46 = other.m_field46;
+    m_field48 = other.m_field48;
+    return *this;
+}
+
+inline CPrivateStorePos::CPrivateStorePos() : m_rect(), m_pStore(0) {}
+
+// ORIG W 0x85cb7fc：写宿主 store 指针后，以中心点 (centerX, centerY) 构造
+// 0xa0 x 0x64 的碰撞矩形（左上 = 中心 - 半宽/半高）。
+inline CPrivateStorePos::CPrivateStorePos(CPrivateStore* store, int centerX, int centerY)
+    : m_rect(), m_pStore(store)
+{
+    m_rect.m_pos.m_x = centerX - 0x50;
+    m_rect.m_width = 0xa0;      // ORIG 先写 width 再 m_y（-O0 语句序）
+    m_rect.m_pos.m_y = centerY - 0x32;
+    m_rect.m_height = 0x64;
+}
+
 }
 
 // ---- 暂落定义（三处 ORIG 真实符号，权威归属批次后续收编；本批唯一落点 CPrivateStoreMgr.cpp）----

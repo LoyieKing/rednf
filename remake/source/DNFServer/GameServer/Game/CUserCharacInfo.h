@@ -433,16 +433,22 @@ struct CharacInfoFields
     unsigned char m_isInitSkillFlag2ND;    // +0xeb6
     unsigned char m_firstTimeLogin;        // +0xeb7
     unsigned char m_saveDemensionInout;    // +0xeb8
-    char m_demensionInout[6];              // +0xeb9
+    unsigned char m_demensionInout[6];     // +0xeb9（ORIG 宽度实证：CParty
+                                           //   CheckEnterDimensionDungeon 0859f510
+                                           //   `movzbl 0xeb9(%eax,%edx,1)`；访问器
+                                           //   getDemensionInoutValue 返回 unsigned char）
     unsigned char m_saveBloodInout;        // +0xebf
-    char m_ultimateInout[3];               // +0xec0
+    unsigned char m_ultimateInout[3];      // +0xec0（ORIG 宽度实证：CParty
+                                           //   check_dungeon_start 0859fa8f `movzbl
+                                           //   0xec2(%eax)`=本数组[2]；访问器
+                                           //   getUltimateInoutValue 返回 unsigned char）
     unsigned char m_bloodBestRecordUpdate; // +0xec3
     int m_bloodBestRound;                  // +0xec4
     unsigned int m_bloodBestTime;          // +0xec8
     CharacInfoBloodMap m_bloodBestMap;       // +0xecc（0x18）
     unsigned char m_isExpItemAffected;     // +0xee4
     float m_expAffectRate;                 // +0xee5
-    unsigned char m_isDisguiseCharac;      // +0xee9
+    bool m_isDisguiseCharac;               // +0xee9
     unsigned char m_disguiseKind;          // +0xeea
     unsigned short m_disguiseIndex;        // +0xeeb
     char m_backupSkill[0x199];             // +0xeed
@@ -457,7 +463,7 @@ struct CharacInfoFields
     unsigned short m_curConditionEventStep;    // +0x1232
     unsigned short m_curConditionEventRewardStep;  // +0x1234
     unsigned short m_properDungeonClearCount;     // +0x1236
-    unsigned char m_properDungeonUser;     // +0x1238
+    bool m_properDungeonUser;              // +0x1238
     char m_skillTreeIndex;                 // +0x1239
     unsigned short m_curCharacEventItemCount;    // +0x123a
     unsigned short m_curCharacEventAddItemCount; // +0x123c
@@ -479,7 +485,7 @@ struct CharacInfoFields
     int m_lastPlayDungeonIndex;            // +0x126f
     unsigned char m_upgradeSeparateTrue;   // +0x1273
     unsigned char m_upgradeSeparateFalse;  // +0x1274
-    char m_curEquipslotFlag;               // +0x1275
+    unsigned char m_curEquipslotFlag;      // +0x1275
     unsigned char m_curChannelEquipslotSwitch;  // +0x1276
     unsigned char m_curExpandEquipslotSwitch;   // +0x1277
     unsigned char m_bringUpRewardFlag;     // +0x1278
@@ -547,13 +553,13 @@ public:
     PvpResultType m_pvpResult;     // +0x18（0x84）
     std::map<int, GameResultType> m_battleRecord;  // +0x9c（0x18）
     WongWork::CDungeonClear m_dungeonClear;        // +0xb4（0x18）
-    char m_reliablePerson;         // +0xcc
+    bool m_reliablePerson;         // +0xcc
     char m_padcd[3];               // +0xcd..0xcf
     int m_overTradeGoldCount;      // +0xd0
-    char m_saveCharacOption;       // +0xd4
+    bool m_saveCharacOption;       // +0xd4
     char m_padd5[3];               // +0xd5..0xd7
     long m_characStartPlayTick;    // +0xd8
-    char m_userEventCharacterFlag; // +0xdc
+    unsigned char m_userEventCharacterFlag;     // +0xdc
     // 基类尺寸 = 0xe0（ORIG CUser 布局：CNetwork<4096,450000> @ +0xe0）。
     // cUserHistoryLog 位于派生 CUser +0x79700，CUserCharacInfo 方法经
     // `(char*)this + 0x79700` 显式访问（原版源码手法，无需把基类垫大）。
@@ -847,7 +853,8 @@ public:
     void SetCurCharacChaosKillTime(int t);
     unsigned char GetCurCharacSuperState();
     void SetCurCharacSuperState(bool flag);
-    unsigned char IsCurCharacGhost();
+    bool IsCurCharacGhost();   // ORIG 调用点 0x086810f2 `test %al;je` 直判（P143 bool 判据）；
+                               //   callee 0x080da2da movzbl 直返兼容
     void SetCurCharacGhost(bool flag);
     unsigned char IsCurCharacLeaveTimeout();
     void SetCurCharacLeaveTimeout(bool flag);
@@ -919,7 +926,7 @@ public:
     void SetCurCharacRevengeData(unsigned char count, unsigned char ticket);
     void ResetRevengeDungeonClear();
     void DecreaseRevengeDungeonTicket();
-    unsigned char getCurEquipslotFlag();
+    int getCurEquipslotFlag();   // ORIG 0x08696c10 出口 movzbl 全字/mov $-1 ⇒ int（广播3，CUserC6 接受）
     void setCurEquipslotFlag(char flag);
     unsigned char getCurChannelEquipslotSwitch();
     void setCurChannelEquipslotSwitch(char flag);
@@ -964,15 +971,15 @@ public:
     // ---- 可见性 / 外观 / 其它状态 ----
     signed char get_charac_visible_values();
     void set_charac_visible_values(char values);
-    int get_charac_visible_grow_avatar();
+    bool get_charac_visible_grow_avatar();                                  // ORIG 0x0868bf14 caller call 后 `test %al,%al` ⇒ bool ABI（广播 2026-09-05，DispC6/GDataC6 无异议）
     void set_charac_visible_grow_avatar(bool flag);
     void set_charac_visible_teleport_(bool flag);
-    int IsCurCharacVisible();
+    bool IsCurCharacVisible();  // ORIG 0x0868bee4 mov $1/$0,%eax 直返（bool ABI）
     void SetVisible();
     void SetInvisible();
     unsigned char IsFirstTimeLogin();
     void SetFirstTimeLogin(bool flag);
-    unsigned char isDisguiseCharac();
+    bool isDisguiseCharac();    // ORIG 0x0822f8f6；调用点 0x0821b4d8 xor $1 判据（bool-only）
     unsigned char getDisguiseKind();
     void setDisguiseKind(unsigned char kind);
     unsigned short getDisguiseIndex();
@@ -1014,7 +1021,7 @@ public:
     unsigned short GetCurCharacEmotion();
     void SetCurCharacEmotion(short emotion);
     const char* getSkillCommand() const;
-    int GetCurCharacSkillTreeIndex() const;
+    int GetCurCharacSkillTreeIndex() const;  // ORIG caller 双证：0x81dadb4 无扩展直存(int)，0x81c00fe movsbl 系调用点 (char)cast
     void SetCurCharacSkillTreeIndex(char index);
     const char* GetCurCharacBackupSkill() const;
     const char* GetCurCharacBackupSkill2ND() const;

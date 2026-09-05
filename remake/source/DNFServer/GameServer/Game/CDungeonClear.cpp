@@ -4,6 +4,7 @@
 #include "CDungeon.h"
 #include "QuestClear.h"  // WongWork::CQuestClear 唯一权威定义
 #include "WongWorkEvents_A.h"  // WongWork::arad_parsing（ORIG 0x08483e98）
+#include "OS_API.h"
 
 #include <boost/tokenizer.hpp>
 #include <cstdarg>
@@ -141,41 +142,37 @@ void CDungeonClear::fromString(CUser* pUser, char* str)
     AradfromString(pUser, str);
 }
 
-void CDungeonClear::toString(char* buf, unsigned int bufSize) const
+int CDungeonClear::toString(char* buf, unsigned int bufSize) const
 {
-    if (!buf || bufSize == 0)
-        return;
-
-    buf[0] = '\0';
+    int offset;
+    int written;
+    std::map<short, char>::const_iterator it;
+    std::map<short, char>::const_iterator end;
 
     if (m_map.empty())
-        return;
-
-    unsigned int offset = 0;
-    bool first = true;
-
-    for (std::map<short, char>::const_iterator it = m_map.begin();
-         it != m_map.end(); ++it)
     {
-        if (offset >= bufSize)
-            break;
-
-        int written = 0;
-        if (first)
-        {
-            written = snprintf(buf + offset, bufSize - offset, "%d|%d", (int)it->first, (int)it->second);
-            first = false;
-        }
-        else
-        {
-            written = snprintf(buf + offset, bufSize - offset, ",%d|%d", (int)it->first, (int)it->second);
-        }
-
-        if (written < 0)
-            break;
-
-        offset += written;
+        return 0;
     }
+
+    it = m_map.begin();
+    end = m_map.end();
+    written = OS_API::snprintf(buf, bufSize, "%d|%d",
+                               (int)it->first, (int)it->second);
+    offset = written;
+    ++it;
+    while (it != end)
+    {
+        written = OS_API::snprintf(buf + offset, bufSize - offset,
+                                   ",%d|%d", (int)it->first,
+                                   (int)it->second);
+        if (written < 0)
+        {
+            return -1;
+        }
+        offset += written;
+        ++it;
+    }
+    return offset;
 }
 
 void CDungeonClear::toString(std::string& out, int nUnknown) const

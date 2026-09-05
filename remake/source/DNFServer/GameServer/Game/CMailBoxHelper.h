@@ -61,7 +61,31 @@ public:
     {
         // ORIG W 0x085578ae（C1/C2）：清零前 0x28 字节。定义在 W6_RankMailDeps.cpp。
         stAddNewMailInput();
-        char m_pad[0x100];
+        // 字段化（SecuLink 批次 2026-09-05 裸偏移清理；union 保 m_pad 基名）。
+        // 证据：AddNewMail ORIG 0x08551f5a（docs/class_func_reports/
+        // WongWork__CMailBox/AddNewMail.md 汇编逐条：+0x00→mail+0x00、
+        // +0x04→mail+0x04、+0x08→mail+0x28（packageMoney）、+0x0c→mail+0x78、
+        // +0x10→mail+0x7c、+0x14→mail+0x70、+0x18→mail+0x6c、+0x1c movzbl→
+        // mail+0x74、+0x20 strncpy 0x1d→mail+0x08 名区、+0x24 指针 test→
+        // 非空整拷 Inven_Item）；CMailBox.cpp 同布局注释互证。0x25..0xff 区
+        // ORIG 无读写证据，仅经 m_pad 基名访问。sizeof 0x100 不变。
+        union
+        {
+            char m_pad[0x100];
+            struct
+            {
+                unsigned int m_mailIndex;        // +0x00
+                unsigned int m_senderCharacNo;   // +0x04
+                unsigned int m_packageMoney;     // +0x08
+                unsigned int m_letterId;         // +0x0c
+                unsigned int m_remainSec;        // +0x10
+                int m_packageType;               // +0x14
+                long m_period;                   // +0x18
+                unsigned char m_unlimit;         // +0x1c
+                const char* m_senderName;        // +0x20
+                Inven_Item* m_packageItem;       // +0x24
+            };
+        };
     };
     CMailBox();
     ~CMailBox();
@@ -210,7 +234,7 @@ public:
                                         unsigned int nCharacNo,
                                         unsigned int nAmount, bool bA,
                                         const char* pTitle, int nTitleLen);
-    static int ReqDBSendStoredMail(CUser* user);
+    static void ReqDBSendStoredMail(CUser* user);
     static int _DoSendNewMail(CUser* user, Inven_Item const& item,
                                unsigned int nCharacNo, unsigned int nAmount,
                                bool bA, const char* pTitle, int nTitleLen,

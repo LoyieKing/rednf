@@ -278,7 +278,7 @@ void CEventManager::BroadcastEventInfo()
     }
 }
 
-int CEventManager::TriggerEventStart(int idx, Word_Param param)
+bool CEventManager::TriggerEventStart(int idx, Word_Param param)
 {
     if (filterEvent(idx))
         return 1;
@@ -292,7 +292,7 @@ int CEventManager::TriggerEventStart(int idx, Word_Param param)
     return 1;
 }
 
-int CEventManager::TriggerEventEnd(int idx)
+bool CEventManager::TriggerEventEnd(int idx)
 {
     if (filterEvent(idx))
         return 1;

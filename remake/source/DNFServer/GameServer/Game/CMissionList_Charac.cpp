@@ -78,7 +78,10 @@ bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime,
 // CEnvironment +0x37c 的每日任务排程时间（ORIG 布局）
 static int GetDailyScheduleTime(CEnvironment* env)
 {
-    return *(int*)((char*)env + 0x37c);
+    // env+0x37c = Server_Envir(+0x198)::m_fatigueTime(+0x1e4)（CEnvironment.h 权威
+    // 布局；与本仓 CBoosterGage.cpp / BingoEventLink4.cpp / CGameManager.cpp 同款
+    // 具名口径一致）。ORIG loadData 0x085e49d0 `mov 0x37c(%eax),%eax` 4 字节读。
+    return env->m_serverEnvir.m_fatigueTime;
 }
 
 // ============================================================================
@@ -100,19 +103,25 @@ bool CMissionList_Charac::loadData(CUser* pUser, char* pData)
 {
     _reset();
     m_user = pUser;
-    char* p = pData;
+    // pData 实为 SIG_REQUEST_PVP_MISSION_LIST（0x14a 字节 DB/存档 blob，
+    // _saveData 侧同一类型），定基类型后全部具名字段访问。
+    // ORIG 0x085e47ee `mov %eax,-0x14(%ebp)` 亦保留一份本地副本。
+    SIG_REQUEST_PVP_MISSION_LIST* pSig =
+        reinterpret_cast<SIG_REQUEST_PVP_MISSION_LIST*>(pData);
 
     for (int kind = 0; kind < 36; ++kind)
     {
-        m_missionList[kind].m_index = *(short*)(pData + kind * 8 + 6);
-        m_missionList[kind].m_kind = *(short*)(pData + kind * 8 + 4);
-        m_missionList[kind].m_count = *(short*)(pData + kind * 8 + 8);
-        m_missionList[kind].m_streak = *(short*)(pData + kind * 8 + 10);
+        // ORIG 0x085e481c..0x085e4866：movzwl blob+6/+4/+8/+0xa → this+7/+5/+9/+0xb
+        // 即 blob m_missionList[kind]（+0x04 起、步长 8）的 index/kind/count/streak。
+        m_missionList[kind].m_index = pSig->m_missionList[kind].m_index;
+        m_missionList[kind].m_kind = pSig->m_missionList[kind].m_kind;
+        m_missionList[kind].m_count = pSig->m_missionList[kind].m_count;
+        m_missionList[kind].m_streak = pSig->m_missionList[kind].m_streak;
     }
-    StrToBitset((unsigned char*)(pData + 0x124), m_clearedFlags);
-    m_field148 = *(short*)(p + 0x144);
-    m_field14a = *(short*)(p + 0x146);
-    m_field14c = *(short*)(p + 0x148);
+    StrToBitset(pSig->m_cleared, m_clearedFlags);   // +0x124（32 字节位图）
+    m_field148 = pSig->m_field144;                  // +0x144
+    m_field14a = pSig->m_field146;                  // +0x146
+    m_field14c = pSig->m_field148;                  // +0x148
 
     CDataManager* mgr = G_CDataManager();
     std::list<CMission*>* list =
@@ -148,22 +157,26 @@ bool CMissionList_Charac::loadData(CUser* pUser, char* pData)
 
 void CMissionList_Charac::getData(char* pData) const
 {
-    std::memset(pData, 0, 0x14a);
-    *(unsigned int*)pData = *(const unsigned int*)&m_pad14f[1];
+    // pData = SIG_REQUEST_PVP_MISSION_LIST blob（与 _saveData/loadData 同一布局；
+    // ORIG 0x085e4acd `mov %eax,-0x10(%ebp)` 保留一份本地副本）。
+    SIG_REQUEST_PVP_MISSION_LIST* pSig =
+        reinterpret_cast<SIG_REQUEST_PVP_MISSION_LIST*>(pData);
+    std::memset(pSig, 0, sizeof(SIG_REQUEST_PVP_MISSION_LIST));   // 0x14a
+    pSig->m_characNo = m_tail14f.m_characNo;    // this+0x150 → blob+0x00
     for (int kind = 0; kind < 36; ++kind)
     {
-        *(short*)(pData + kind * 8 + 6) = m_missionList[kind].m_index;
-        *(short*)(pData + kind * 8 + 4) = m_missionList[kind].m_kind;
-        *(short*)(pData + kind * 8 + 8) = m_missionList[kind].m_count;
-        *(short*)(pData + kind * 8 + 10) = m_missionList[kind].m_streak;
+        pSig->m_missionList[kind].m_index = m_missionList[kind].m_index;
+        pSig->m_missionList[kind].m_kind = m_missionList[kind].m_kind;
+        pSig->m_missionList[kind].m_count = m_missionList[kind].m_count;
+        pSig->m_missionList[kind].m_streak = m_missionList[kind].m_streak;
     }
     {
         // ORIG 直接调用 BitsetToStr(Ph) 重载写 0x20 字节到 pData+0x124（无 string 中间层）
-        BitsetToStr(m_clearedFlags, (unsigned char*)(pData + 0x124));
+        BitsetToStr(m_clearedFlags, pSig->m_cleared);
     }
-    *(short*)(pData + 0x144) = m_field148;
-    *(short*)(pData + 0x146) = m_field14a;
-    *(short*)(pData + 0x148) = m_field14c;
+    pSig->m_field144 = m_field148;
+    pSig->m_field146 = m_field14a;
+    pSig->m_field148 = m_field14c;
 }
 
 bool CMissionList_Charac::_saveData(CUser* pUser)
@@ -811,7 +824,7 @@ short CMissionList_Charac::getIndex_byKind(int kind) const
     return m_missionList[kind].m_index;
 }
 
-int CMissionList_Charac::getIssue_mode(bool isDaily) const
+unsigned short CMissionList_Charac::getIssue_mode(bool isDaily) const
 {
     if (isDaily)
     {
@@ -820,7 +833,7 @@ int CMissionList_Charac::getIssue_mode(bool isDaily) const
     return m_field14a;
 }
 
-int CMissionList_Charac::getIssue_all() const
+unsigned short CMissionList_Charac::getIssue_all() const
 {
     return m_field14c;
 }

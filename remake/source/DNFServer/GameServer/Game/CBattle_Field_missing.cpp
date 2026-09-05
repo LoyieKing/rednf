@@ -183,11 +183,15 @@ void CBattle_Field::reset_hell_party_value()
 {
     const float* s = static_cast<const float*>(
         G_CDataManager()->get_hellparty_script_values());
+    // 前三个字段 ORIG（reset_hell_party_value.md 0x0830a595/0x0830a5ae/
+    // 0x0830a5c7）为整数 mov 拷贝 dword（script[0]/[+4]/[+0xc]），字段是 int；
+    // 此处以 reinterpret 位拷贝保持 mov 语义（float→int 转换会引入 flds/fistp）。
+    const int* si = reinterpret_cast<const int*>(s);
 
     // —— 固定比例字段 ——
-    m_hellPartyRatio0 = s[0];               // +0x1e8 = script[0]
-    m_hellPartyRatio1 = s[1];               // +0x1ec = script[4]
-    m_hellPartyRatio3 = s[3];               // +0x1f4 = script[0xc]
+    m_hellPartyRatio0 = si[0];              // +0x1e8 = script[0]（int mov）
+    m_hellPartyRatio1 = si[1];              // +0x1ec = script[+4]（int mov）
+    m_hellPartyRatio3 = si[3];              // +0x1f4 = script[+0xc]（int mov）
     m_hellPartyRatio4 = s[4] / 10000.0f;    // +0x1f8 = script[0x10]/10000
     m_hellPartyRatio5 = s[5] / 10000.0f;    // +0x1fc = script[0x14]/10000
     m_hellPartyScriptRate = s[19] / 10000.0f; // +0x234 = script[0x4c]/10000

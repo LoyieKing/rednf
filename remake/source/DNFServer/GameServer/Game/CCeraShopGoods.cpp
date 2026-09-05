@@ -545,7 +545,9 @@ bool importCashShopItemList(
         {
             ok = false;
             int v = ScanInt(&ok);
-            if (ok && param5)
+            if (!ok)
+                break;  // ORIG 0x88ff1a5：ScanInt 失败 goto LAB_088ff96d（退出主循环走尾扫描）
+            if (param5)
                 *param5 = v;
         }
         else if (section == "[bonus item info]")
@@ -558,30 +560,36 @@ bool importCashShopItemList(
                 if (!ok)
                     break;
                 info.m_field4 = ScanInt(&ok);
-                int count = ScanInt(&ok);
                 if (!ok)
-                    break;
+                    return 0;   // ORIG 0x88ff23a：第 2 个 ScanInt 失败 → return 0
+                int count = ScanInt(&ok);
+                // ORIG 0x88ff26b：第 3 个 ScanInt 失败 → return 0
+                if (!ok)
+                    return 0;
                 info.m_items.reserve(count);
                 int total = 0;
-                bool bad = false;
                 for (int i = 0; i < count; ++i)
                 {
                     stCeraShopBonusItemInfo_t bi;
                     bi.m_field0 = ScanInt(&ok);
-                    if (!ok) { bad = true; break; }
+                    if (!ok)
+                        return 0;   // ORIG 0x88ff2c4：失败 → return 0
                     bi.m_field4 = (unsigned short)ScanInt(&ok);
-                    if (!ok) { bad = true; break; }
+                    if (!ok)
+                        return 0;   // ORIG 0x88ff2f5
                     bi.m_field8 = ScanInt(&ok);
-                    if (!ok) { bad = true; break; }
+                    if (!ok)
+                        return 0;   // ORIG 0x88ff327
                     total += bi.m_field8;
                     info.m_items.push_back(bi);
                 }
-                if (bad)
-                    break;
                 if (total == 1000)
                     bonusList.push_back(info);
                 else
                     printf("bonus rate error %d", total);
+                // ORIG 0x88ff3a5：总概率≠1000 → 打印后 return 0
+                if (total != 1000)
+                    return 0;
             }
         }
         else if (section == "[not stackable buy]")

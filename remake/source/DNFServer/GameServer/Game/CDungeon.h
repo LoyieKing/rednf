@@ -177,13 +177,28 @@ struct DimensionPartyCount
     }
 };
 
+// ORIG ImportDungeonScript 0x088ea9eb 逐条读取四个 int；WarField 按四列
+// 累积概率选择 monster list。使用具名数组替代原始 0x10 字节占位区。
 class STMonsterTypeSpawnProb
 {
 public:
     STMonsterTypeSpawnProb();
     void clear();
-    char m_pad[0x10];
+    int m_probability[4];       // +0x00..+0x0c
 };
+
+// ORIG ImportDungeonScript 0x088e8418：pathgate object 写入 3+3+2+2
+// 个 int，+0x118 与 +0x124 为未消费的结构槽，Clear 时同样置为 -1。
+struct STPathgateObject
+{
+    int m_group0[3];            // +0x00..+0x08（STDungeonScript +0xf8）
+    int m_group1[3];            // +0x0c..+0x14
+    int m_group2[2];            // +0x18..+0x1c
+    int m_unused20;             // +0x20
+    int m_group3[2];            // +0x24..+0x2c
+    int m_unused2c;             // +0x2c
+};
+static_assert(sizeof(STPathgateObject) == 0x30, "STPathgateObject size mismatch");
 
 class STDeadTowerData
 {
@@ -215,14 +230,14 @@ public:
     int m_5c[4];                              // +0x5c
     std::vector<int> m_vec6c[4];              // +0x6c..+0x9b（ORIG ctor 数组循环 836a275）
     int m_9c[4];                              // +0x9c
-    int m_ac;                                 // +0xac
+    float m_ac;                               // +0xac（[kill count const]）
     std::vector<STMonsterTypeSpawnProb> m_spawnProb; // +0xb0
-    int m_bc;                                 // +0xbc
-    int m_c0;                                 // +0xc0
+    float m_bc;                               // +0xbc（[monster exp bonus per user decrease]）
+    float m_c0;                               // +0xc0（[result exp bonus per user decrease]）
     int m_c4[4];                              // +0xc4
     int m_d4;                                 // +0xd4
     int m_d8;                                 // +0xd8
-    int m_dc[4];                              // +0xdc
+    float m_dc[4];                            // +0xdc（[monster type spawn interval rate]）
     int m_ec;                                 // +0xec
     int m_f0;                                 // +0xf0
     int m_f4;                                 // +0xf4
@@ -491,7 +506,7 @@ struct STDungeonScript
     std::vector<std::pair<int, int> > m_vecd4;   // +0xd4
     std::vector<std::pair<int, int> > m_vece0;   // +0xe0
     std::vector<stDungeonAssignItem_t> m_vecec;  // +0xec
-    char m_padF8[0x30];                     // +0xf8（POD 区，ORIG 无构造）
+    STPathgateObject m_pathgate;             // +0xf8（ORIG POD 区）
     int m_128[5];                           // +0x128（set_dungeon copy 到 CDungeon+0x880）
     int m_13c;                              // +0x13c
     unsigned char m_140;                             // +0x140
@@ -499,7 +514,7 @@ struct STDungeonScript
     unsigned char m_142;                             // +0x142
     std::vector<std::pair<int, int> > m_vec144;  // +0x144
     unsigned char m_150;                             // +0x150
-    int m_154;                              // +0x154
+    float m_154;                            // +0x154（[use zoom rate]）
     unsigned char m_158;                             // +0x158
     unsigned char m_159;                             // +0x159
     std::vector<int> m_vec15c;              // +0x15c
@@ -544,8 +559,8 @@ struct STDungeonScript
     int m_368;                              // +0x368
     int m_36c;                              // +0x36c
     int m_370;                              // +0x370
-    int m_374;                              // +0x374
-    int m_378;                              // +0x378
+    float m_374;                            // +0x374（[tower high skill initial cool time rate]）
+    float m_378;                            // +0x378（[tower high skill initial cool time rate]）
     int m_37c;                              // +0x37c
     int m_380;                              // +0x380
     std::vector<RecoveryStairInfo> m_vec384;         // +0x384
@@ -567,10 +582,10 @@ struct STDungeonScript
     std::vector<std::vector<float> > m_vec404;       // +0x404
     int m_410[5];                           // +0x410
     int m_424[5];                           // +0x424
-    int m_438;                              // +0x438
-    int m_43c;                              // +0x43c
-    int m_440;                              // +0x440
-    int m_444;                              // +0x444
+    float m_438;                            // +0x438（[monster difficulty bonus]）
+    float m_43c;                            // +0x43c（[monster difficulty bonus]）
+    float m_440;                            // +0x440（[monster difficulty bonus]）
+    float m_444;                            // +0x444（[monster difficulty bonus]）
     std::string m_str448;                   // +0x448
     unsigned char m_44c;                             // +0x44c
     int m_450;                              // +0x450
@@ -588,7 +603,11 @@ struct STDungeonScript
     int m_498;                              // +0x498
     std::map<int, TournamentRewardRate> m_map49c;    // +0x49c
     TournamentRewardItemRate m_itemRate4b4;          // +0x4b4
-    int m_4c4;                              // +0x4c4
+    union
+    {
+        int m_4c4;                          // +0x4c4（set_dungeon 按位复制）
+        float m_4c4Value;                   // +0x4c4（[tournament clear reward gold rate]）
+    };
     std::map<unsigned char, unsigned int> m_map4c8;  // +0x4c8
     unsigned char m_4e0;                             // +0x4e0
     std::map<int, UseCoinDungeonDiff> m_map4e4;      // +0x4e4
@@ -596,10 +615,7 @@ struct STDungeonScript
     int m_500;                              // +0x500
     unsigned char m_504;                             // +0x504
     unsigned char m_505;                             // +0x505
-    char m_508;                             // +0x508
-    char m_509;                             // +0x509
-    char m_50a;                             // +0x50a（ORIG Clear movl $0,0x508 覆盖 508-50b）
-    char m_50b;                             // +0x50b
+    int m_508;                              // +0x508（[disable exit]，ORIG dword 写入）
     char m_50c;                             // +0x50c（ORIG Clear movb $0,0x50c）
 
     STDungeonScript();
@@ -768,8 +784,11 @@ public:
     unsigned char m_tournamentFlag; // +0x8a8（isTournamentDungeon：signed <=1 判定）
     std::map<int, TournamentRewardRate> m_map8ac; // +0x8ac
     TournamentRewardItemRate m_itemRate8c4;       // +0x8c4（sizeof 0x10）
-    int m_8d4;                      // +0x8d4（set_dungeon 从 script.m_4c4 位拷贝；
-                                    //      ORIG 0x834b8cc mov 0x4c4→0x8d4）
+    union
+    {
+        int m_8d4;                  // +0x8d4（set_dungeon 原样 dword 搬运）
+        float m_tournamentGoldRate; // +0x8d4（CParty 结算按 float 消费）
+    };
     std::map<unsigned char, unsigned int> m_map8d8; // +0x8d8
     std::vector<STNamedMonsterMapPos> m_vec8f0;   // +0x8f0
     unsigned char m_questNpcDungeon; // +0x8fc（getQuestNpcDungeon；script+0x2aa）

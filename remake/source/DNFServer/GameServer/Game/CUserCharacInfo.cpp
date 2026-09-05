@@ -27,6 +27,39 @@ int DEFAULT_MAX_FATIGUE = 0;  // ORIG 全局（0x9370f5c），原 GameStubs.cpp 
 
 #define CUR ((CharacInfoFields*)m_selected)
 
+// ORIG 平坦窗口视图（P1 组件视图：pad 前置使成员寻址折叠为单条 disp/scale 指令，
+// 与具名字段等偏移；ORIG 源码即以“基址+魔数下标”形态书写，直接成员下标会丢
+// 常量项使指令序列回退）：
+//   WarAreaKill 0x08645a3a `flds 0xe(%edx,%ebx,4)`，ebx=index+0x380 ⇔
+//     &m_warAreaKill[index]（m_warAreaKill[5]@+0xe0e = +0xe + 0x380*4）；
+//   GetContinuousItemInfo 0x08677f97 `mov %edx,0x10(%eax,%ecx,8)`，
+//     ecx=index+0x460 ⇔ cooltime 条目 @SIG_LOAD_ETC +0x2310 + 8i；
+//   0x08678031 `mov %edx,0x8(%eax,%ecx,8)`，ecx=index+0x494 ⇔ effect 条目
+//     @+0x24a8 + 8i。
+#pragma pack(push, 1)
+struct WarAreaKillWindow
+{
+    char m_pad0E[0xe];
+    float m_warAreaKillFlat[0x385];   // [0x380+i] = +0xe0e + 4i
+};
+struct LoadEtcCoolItemWindow
+{
+    char m_pad10[0x10];
+    ContinuousItemInfo m_entries[0x494];  // [0x460+i] = +0x2310 + 8i
+};
+struct LoadEtcEffectItemWindow
+{
+    char m_pad08[0x8];
+    ContinuousItemInfo m_entries[0x4C8];  // [0x494+i] = +0x24a8 + 8i
+};
+#pragma pack(pop)
+static_assert(offsetof(WarAreaKillWindow, m_warAreaKillFlat) == 0xe,
+              "war area kill window base drift (ORIG flds 0xe(%edx,%ebx,4))");
+static_assert(offsetof(LoadEtcCoolItemWindow, m_entries) == 0x10,
+              "cooltime flat base drift (ORIG mov %edx,0x10(%eax,%ecx,8))");
+static_assert(offsetof(LoadEtcEffectItemWindow, m_entries) == 0x8,
+              "effect flat base drift (ORIG mov %edx,0x8(%eax,%ecx,8))");
+
 CUserCharacInfo::~CUserCharacInfo()
 {
     m_dungeonClear.~CDungeonClear();
@@ -85,7 +118,7 @@ void CUserCharacInfo::set_uppermember_exp_level(unsigned char level)
             LogManager::logFormat(1, "user.cpp",
                                   __PRETTY_FUNCTION__,
                                   0x2d2, "set member exp level error , name(%s) , level(%d), new level(%d)",
-                                  (char*)CUR + 4, (unsigned int)CUR->m_uppermemberExpLevel,
+                                  (char*)CUR->m_name, (unsigned int)CUR->m_uppermemberExpLevel,
                                   (unsigned int)level);
         }
         else
@@ -395,13 +428,14 @@ void CUserCharacInfo::setGuildCreateFlag(unsigned short flag)
 
 
 // ORIG W 0x0822f8f6：m_selected 非空时返回其 +0xee9 字节，否则 0。
-unsigned char CUserCharacInfo::isDisguiseCharac()
+// 返回 bool：调用点 0x0821b4d8 `xor $0x1,%eax;test %al,%al`（uchar/int 声明不出 xor，探针实证）。
+bool CUserCharacInfo::isDisguiseCharac()
 {
     if (m_selected)
     {
         return CUR->m_isDisguiseCharac;
     }
-    return 0;
+    return false;
 }
 
 
@@ -1114,12 +1148,15 @@ bool CUserCharacInfo::isExistItem(int itemIdx)
 {
     if (!m_selected)
         return false;
-    // ORIG（0x8678084）为 lea 0xdaa/0xda(%eax) 直接偏移寻址；具名字段取址
-    // 会生成 add/mov 链破坏 identical 形态，故此处保留偏移式访问（证据：
-    // docs/class_func_reports/CUserCharacInfo/isExistItem.md）。
-    if (((const CCargo*)((const char*)m_selected + 0xdaa))->check_item_exist(itemIdx) != -1)
+    // ORIG（0x8678084）`lea 0xdaa(%eax),%edx`/`lea 0xda(%eax)` 指针算术形态；
+    // char 数组成员 decay 会退化为 add 改写 dest 寄存器（回退证据：转换实验），
+    // 故保留指针算术但偏移改用具名字段 offsetof（防布局漂移，docs/
+    // class_func_reports/CUserCharacInfo/isExistItem.md）。
+    if (((const CCargo*)((const char*)m_selected +
+                         offsetof(CharacInfoFields, m_cargo)))->check_item_exist(itemIdx) != -1)
         return true;
-    if (((const CInventory*)((const char*)m_selected + 0xda))->check_item_exist(itemIdx) != -1)
+    if (((const CInventory*)((const char*)m_selected +
+                             offsetof(CharacInfoFields, m_inven)))->check_item_exist(itemIdx) != -1)
         return true;
     return false;
 }
@@ -1263,7 +1300,7 @@ signed char CUserCharacInfo::get_charac_visible_values()
     return m_selected ? CUR->m_visibleValues : 0;
 }
 
-int CUserCharacInfo::get_charac_visible_grow_avatar()
+bool CUserCharacInfo::get_charac_visible_grow_avatar()
 {
     if (m_selected && CUR->m_visibleBits.growAvatar)
         return 1;
@@ -1558,9 +1595,9 @@ unsigned char CUserCharacInfo::getCurExpandEquipslotSwitch()
 }
 
 
-unsigned char CUserCharacInfo::getCurEquipslotFlag()
+int CUserCharacInfo::getCurEquipslotFlag()
 {
-    return m_selected ? (int)(unsigned char)CUR->m_curEquipslotFlag : -1;
+    return m_selected ? (int)CUR->m_curEquipslotFlag : -1;
 }
 
 
@@ -2155,7 +2192,7 @@ void CUserCharacInfo::add_guild_temp_exp(int exp)
 void CUserCharacInfo::add_guild_exp(int exp)
 {
     if (m_selected && CUR->m_guildkey != 0)
-        CUR->m_guildExp = CUR->m_guildExp + exp;
+        CUR->m_guildExp = exp + CUR->m_guildExp;
 }
 
 
@@ -2185,7 +2222,7 @@ void CUserCharacInfo::WarAreaKill(int index, int point, float kill)
         return;
     }
     ChangeFinishPoint(point);
-    *(float*)((char*)CUR + 0xe + (index + 0x380) * 4) += kill;
+    ((WarAreaKillWindow*)CUR)->m_warAreaKillFlat[index + 0x380] += kill;
     ((CUser*)this)->m_historyLog.FPAdd(
         point, CUR->m_finishPoint, CUR->m_finishPointTotal,
         index == 4 ? (eFPAddReason)1 : eFPAddReason_0);
@@ -2649,11 +2686,11 @@ unsigned char CUserCharacInfo::IsEndLetheAtLogin()
 }
 
 
-int CUserCharacInfo::IsCurCharacVisible()
+bool CUserCharacInfo::IsCurCharacVisible()
 {
     if (m_selected && CUR->m_visibleBits.visible)
-        return 1;
-    return 0;
+        return true;
+    return false;
 }
 
 
@@ -2766,7 +2803,8 @@ void CUserCharacInfo::IncFatigueBatteryCharging(short value)
         // ORIG IncFatigueBatteryCharging（0x86566e4）：movzwl 0x5c0(%eax) 读
         // CDataManager+0x68 处 ServerParameterScript 的疲劳电池常量表上限。
         ServerParameterScript* sp =
-            (ServerParameterScript*)((char*)G_CDataManager() + 0x68);
+            (ServerParameterScript*)((char*)G_CDataManager() +
+                                     offsetof(CDataManager, m_serverParameter));
         unsigned short old = CUR->m_fatigueBattery;
         CUR->m_fatigueBattery = (unsigned short)(CUR->m_fatigueBattery + value);
         if ((short)CUR->m_fatigueBattery < (short)old ||
@@ -3124,7 +3162,7 @@ unsigned char CUserCharacInfo::GetCurCharacSuperState()
     return m_selected ? CUR->m_superState : 0;
 }
 
-int CUserCharacInfo::GetCurCharacSkillTreeIndex() const
+int CUserCharacInfo::GetCurCharacSkillTreeIndex() const  // ORIG 0x822f33c _ZNK15CUserCharacInfo26GetCurCharacSkillTreeIndexEv
 {
     return m_selected ? (signed char)CUR->m_skillTreeIndex : 0;
 }
@@ -3272,24 +3310,28 @@ int CUserCharacInfo::GetCurCharacAssaultFatigueCount()
 
 void CUserCharacInfo::GetContinuousItemInfo(SIG_LOAD_ETC* p) const
 {
-    *(int*)((char*)p + 0x2308) = *(int*)((char*)p + 4);
-    *(int*)((char*)p + 0x24a0) = *(int*)((char*)p + 4);
+    p->m_cooltimeCharacNo = p->m_characNo;
+    p->m_effectCharacNo = p->m_characNo;
     const std::vector<ContinuousItemInfo>* cool = GetCurCharacCoolTimeItemListR();
-    *(unsigned char*)((char*)p + 0x230c) = (unsigned char)cool->size();
+    p->m_cooltimeItemCount = (unsigned char)cool->size();
     int index = 0;
     for (unsigned int i = 0; i < cool->size(); ++i)
     {
-        *(int*)((char*)p + 0x10 + (index + 0x460) * 8) = (*cool)[i].m_itemIdx;
-        *(int*)((char*)p + 0x14 + (index + 0x460) * 8) = (*cool)[i].m_expireTime;
+        ((LoadEtcCoolItemWindow*)p)->m_entries[index + 0x460].m_itemIdx =
+            (*cool)[i].m_itemIdx;
+        ((LoadEtcCoolItemWindow*)p)->m_entries[index + 0x460].m_expireTime =
+            (*cool)[i].m_expireTime;
         ++index;
     }
-    const std::vector<ContinuousItemInfo>* effect = GetCurCharacEffectItemListR();
-    *(unsigned char*)((char*)p + 0x24a4) = (unsigned char)effect->size();
     index = 0;
+    const std::vector<ContinuousItemInfo>* effect = GetCurCharacEffectItemListR();
+    p->m_effectItemCount = (unsigned char)effect->size();
     for (unsigned int i = 0; i < effect->size(); ++i)
     {
-        *(int*)((char*)p + 8 + (index + 0x494) * 8) = (*effect)[i].m_itemIdx;
-        *(int*)((char*)p + 0xc + (index + 0x494) * 8) = (*effect)[i].m_expireTime;
+        ((LoadEtcEffectItemWindow*)p)->m_entries[index + 0x494].m_itemIdx =
+            (*effect)[i].m_itemIdx;
+        ((LoadEtcEffectItemWindow*)p)->m_entries[index + 0x494].m_expireTime =
+            (*effect)[i].m_expireTime;
         ++index;
     }
 }
@@ -3452,7 +3494,8 @@ void CUserCharacInfo::DieCurCharac(int responTime, CUser* user)
     else
     {
         CUserCharacInfo* other = (CUserCharacInfo*)user;
-        ghostTime = ((ServerParameterScript*)((char*)G_CDataManager() + 0x68))
+        ghostTime = ((ServerParameterScript*)((char*)G_CDataManager() +
+                                              offsetof(CDataManager, m_serverParameter)))
                         ->getAssaultGhostTime(other->get_charac_level(),
                                               other->GetCurCharacChaosPoint());
     }
@@ -3508,7 +3551,7 @@ void CUserCharacInfo::SetCurCharacChaosDieTime(int t)
 }
 
 
-unsigned char CUserCharacInfo::IsCurCharacGhost()
+bool CUserCharacInfo::IsCurCharacGhost()
 {
     return m_selected ? CUR->m_ghost : 0;
 }

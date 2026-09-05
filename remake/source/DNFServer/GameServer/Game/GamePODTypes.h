@@ -1,6 +1,8 @@
 #ifndef DNF_GAME_POD_TYPES_H_
 #define DNF_GAME_POD_TYPES_H_
 
+#include <cstddef>   // offsetof（static_assert 用）
+
 #pragma pack(push, 1)
 struct stAvatarEmblemInfo_t
 {
@@ -35,5 +37,39 @@ struct AvatarDetailInfo
 };
 #pragma pack(pop)
 static_assert(sizeof(AvatarDetailInfo) == 0x4b, "AvatarDetailInfo size");
+
+// SIG_CREATURE_ITEM_DETAIL_INFO 唯一权威定义（自 CInventory.h 顶部纯移动，
+// 2026-09-04 DBLoad：轻量 DB TU 免拉 CInventory.h 的 iostream 链——ORIG
+// DB_LoadInventory TU 无 __static_init(ios_base)。pack(1)，0x38；布局证据
+// = CCreature.cpp 局部镜像/CreatureOnlyMgrRest.cpp 镜像交叉锁定 +
+// DB_LoadInventory/GetUserCreature.md 14×movl 写点）。
+#ifndef DNF_GAME_SIG_CREATURE_ITEM_DETAIL_INFO_DEFINED
+#define DNF_GAME_SIG_CREATURE_ITEM_DETAIL_INFO_DEFINED
+#pragma pack(push, 1)
+struct SIG_CREATURE_ITEM_DETAIL_INFO
+{
+    int           m_slotNo;           // +0x00（0xee=装备中槽标记）
+    int           m_uid;              // +0x04（RegisterCreatureItem 的 map key）
+    char          m_name[0xc];        // +0x08（memcpy 12 字节，无终止符）
+    unsigned char m_pad14[4];         // +0x14..0x17
+    int           m_stomachValue;     // +0x18
+    unsigned char m_pad1c[4];         // +0x1c..0x1f
+    int           m_exp;              // +0x20
+    unsigned char m_creatureItemType; // +0x24（低字节；Load 以 (signed char) 还原）
+    unsigned char m_pad25;            // +0x25
+    unsigned char m_noCharge;         // +0x26
+    unsigned char m_stat;             // +0x27（兼作删除标记）
+    int           m_expireTime;       // +0x28
+    unsigned char m_pad2c[4];         // +0x2c..0x2f
+    unsigned char m_growExpFlag;      // +0x30
+    unsigned char m_isMaxLevel;       // +0x31
+    unsigned char m_pad32[6];         // +0x32..0x37
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_CREATURE_ITEM_DETAIL_INFO) == 0x38,
+              "SIG_CREATURE_ITEM_DETAIL_INFO ABI drift");
+static_assert(offsetof(SIG_CREATURE_ITEM_DETAIL_INFO, m_stomachValue) == 0x18,
+              "SIG_CREATURE_ITEM_DETAIL_INFO m_stomachValue offset drift");
+#endif
 
 #endif

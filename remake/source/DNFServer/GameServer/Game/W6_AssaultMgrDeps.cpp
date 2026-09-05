@@ -156,7 +156,7 @@ void CAssaultMgr::FrocedCloseAssaults()
 // OnChangeHp —— ORIG T 0x082ef570 (0x9f)
 // 取用户所在场次转派 ChangeHp；异常路径 SendCmdErrorPacket(0x98,err&0xff)。恒返 1。
 // ===========================================================================
-int CAssaultMgr::OnChangeHp(CUser* user, int hp)
+bool CAssaultMgr::OnChangeHp(CUser* user, int hp)   // 返回类型按 Dispatcher_ChangeHp 调用点 xor $1 证据改 bool（广播 2026-09-05 DispB）
 {
     try
     {
@@ -175,7 +175,7 @@ int CAssaultMgr::OnChangeHp(CUser* user, int hp)
 // ===========================================================================
 // OnAbuseUser —— ORIG T 0x082efc54 (0x5d)：catch 空吞，恒返 1。
 // ===========================================================================
-int CAssaultMgr::OnAbuseUser(CUser* user)
+bool CAssaultMgr::OnAbuseUser(CUser* user)   // 恒返 1；ORIG 调用点 xor $1 ⇒ bool（CAssaultMgr.h:472）
 {
     try
     {
@@ -238,7 +238,7 @@ int CAssaultMgr::OnRevivalUser(CUser* user)
 // ===========================================================================
 // OnCompleteLoad —— ORIG T 0x082ef1e2 (0x97)：错误码包 0x94。
 // ===========================================================================
-int CAssaultMgr::OnCompleteLoad(CUser* user)
+bool CAssaultMgr::OnCompleteLoad(CUser* user)   // 恒返 1；Dispatchers 调用点 xor $1 ⇒ bool
 {
     try
     {
@@ -348,7 +348,7 @@ void CAssaultMgr::AvailableAssault(CUser* user, CUser const* source)
 // ===========================================================================
 // OnEvadeAssaultPlace —— ORIG T 0x082efbf6 (0x5d)：catch 空吞，恒返 1。
 // ===========================================================================
-int CAssaultMgr::OnEvadeAssaultPlace(CUser* user)
+bool CAssaultMgr::OnEvadeAssaultPlace(CUser* user)   // 恒返 1；ORIG 调用点 xor $1 ⇒ bool
 {
     try
     {

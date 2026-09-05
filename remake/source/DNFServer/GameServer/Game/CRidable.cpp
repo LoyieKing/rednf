@@ -26,22 +26,21 @@ void CRidable::SendSpawnRidableObject(PacketGuard* p, int a, int b, int c, int d
     p->put_int(d);
 }
 
-int CRidable::SetRidableObjectState(int idx, eRidableObjectState state)
+bool CRidable::SetRidableObjectState(int idx, eRidableObjectState state)
 {
     // ORIG 0x82feb5e：find != end 门（==end 返回 false）；状态 0/4/3/>4 均
     // 不改写直接返回 true，否则写状态返回 true。
     std::map<int, DungeonRidableObject>::iterator it = m_objects.find(idx);
     if (it == m_objects.end())
-        return 0;
+        return false;
     if (!(it->second.m_state == 0 || it->second.m_state == 4 ||
           it->second.m_state == 3 || it->second.m_state > 4))
     {
         it->second.m_state = (int)state;
     }
-    return 1;
+    return true;
 }
-
-// ORIG 0x82fec2c：遍历对象表，依次 push (m_x, m_y)。
+// ORIG 0x082fec2c：遍历对象表，依次 push (m_x, m_y)。
 // ORIG 汇编为 pair<int,int>::pair<int&,int&> 模板构造（左值引用实例，非
 // make_pair 值传递），故此处用局部左值 + 直接 pair 构造对齐符号集。
 void CRidable::GetObjectPos(std::vector<std::pair<int, int> >& out)

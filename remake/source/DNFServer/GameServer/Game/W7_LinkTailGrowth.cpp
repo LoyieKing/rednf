@@ -174,7 +174,7 @@ void CUser::set_growth_power_exp_reward(int level)
         if (idx >= 0 && static_cast<std::size_t>(idx) < sz &&                  // +0xeb/+0xf3
             !is_growth_power_exp_reward_right())             // +0xfb
         {
-            m_reward = gp.m_vecC[idx].m_reward;  // +0x135 int 写
+            m_reward.m_reward = gp.m_vecC[idx].m_reward;  // +0x135 int 写（m_reward 已 STExpReward 化）
         }
         else
         {

@@ -158,8 +158,8 @@ static_assert(sizeof(StatisticsNatType) == 0x18, "StatisticsNatType size");
 struct SimpleInfo
 {
     int m_id;            // +0x00（ID 映射 / 玩家 acc id）
-    char m_chatBan;      // +0x04（禁言标记）
-    char m_moveBan;      // +0x05（禁移动标记）
+    bool m_chatBan;      // +0x04（禁言标记；ORIG 条件形态 movzbl+test+je ⇒ bool，P73，证据 GameWorld/IsForbiddenChat.md @086cd9f3）
+    bool m_moveBan;      // +0x05（禁移动标记；同上 bool 建模）
     char m_pad6[2];      // +0x06
     int m_chatEndTick;   // +0x08（禁言结束毫秒时间）
     int m_moveEndTick;   // +0x0c（禁移动结束毫秒时间）
@@ -229,7 +229,7 @@ public:
     bool reach_game_world(CUser* user);
     bool leave_game_world(CUser* user);
     unsigned short make_unique_id();
-    unsigned short find_session(unsigned int accId);
+    int find_session(unsigned int accId);   // ORIG caller 0x86c4d5f 全字直存 = int 返回视角
     CUser* find_from_world(unsigned short uniqueId);
     CUser* find_user_from_world_byaccid(unsigned int accId);
     CUser* find_user_from_world_byaccid_loop(unsigned int accId);

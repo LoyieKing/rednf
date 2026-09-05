@@ -28,7 +28,7 @@ public:
 
     // ---- 访问器（ORIG W，地址见 nm）----
     int GetItemEvolutionCreatureId(int creatureId);  // 0x833cad8
-    unsigned char IsAvailableArtifactSlot(int slot); // 0x833cb38
+    bool IsAvailableArtifactSlot(int slot);         // 0x833cb38
 
     void SetItemId(int itemId);        // 0x833f11a：m_itemId(+0x1c)
     int GetItemId();                   // 0x833f128
@@ -57,7 +57,7 @@ public:
     int m_field14;                       // +0x14（evolutionLevel）
     int m_field18;                       // +0x18（maxLevel）
     int m_itemId;                        // +0x1c
-    char* m_artifactSlotFlags;           // +0x20（new char[3]：red/blue/green）
+    bool* m_artifactSlotFlags;           // +0x20（new bool[3]：red/blue/green，caller 0x833771d 直落=%eax = bool 返回）
     int m_field24;                       // +0x24（skillRecoveryTime）
     int m_field28;                       // +0x28（overSkillRecoveryTime）
     unsigned char m_field2c;             // +0x2c（learnOverSkillLevel）

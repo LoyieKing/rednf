@@ -818,118 +818,6 @@ void premium_helper_function::write_log(CUser* user, int type)
 namespace WongWork
 {
 
-// ---- _CheckBuyingCondition 分支内部辅助（file-static，不属 CCeraShop 成员）----
-
-// case 0x03 / 0x06 事件窗口：创角时间落在 [start,end) 内返回 1。
-static int _cbcEventTimeWindow(CUser* user, long startTime, long endTime)
-{
-    long createTime = user->getCurCharacCreateTime();
-    return (createTime >= startTime && createTime < endTime) ? 1 : 0;
-}
-
-// case 0x04 仓库容量精确匹配：GetCapacity() 与固定容量表比较。
-static int _cbcCargoCapacity(CUser* user, unsigned long itemIdx)
-{
-    int cap = user->getCurCharacCargoR()->GetCapacity();
-    if (itemIdx == 0x3c)
-        return cap == 0x48 ? 1 : 0;
-    if (itemIdx < 0x3d)
-    {
-        if (itemIdx == 0x39)
-            return cap == 0x18 ? 1 : 0;
-        if (itemIdx < 0x3a)
-        {
-            if (itemIdx == 0x32)
-                return cap == 8 ? 1 : 0;
-        }
-        else if (itemIdx == 0x3a)
-            return cap == 0x28 ? 1 : 0;
-        else if (itemIdx == 0x3b)
-            return cap == 0x38 ? 1 : 0;
-    }
-    else if (itemIdx == 0x3e)
-        return cap == 0x68 ? 1 : 0;
-    else if (itemIdx < 0x3e)
-        return cap == 0x58 ? 1 : 0;
-    else if (itemIdx == 0x28978b)
-        return cap == 0x78 ? 1 : 0;
-    else if (itemIdx == 0x28978c)
-        return cap == 0x88 ? 1 : 0;
-    return 0;
-}
-
-// case 0x05 背包容量+造物：check_item_exist 于背包/仓库均 -1 时 create_item 后
-// tryInsertItemIntoInventory 成功返回 1。
-// ORIG 顺序：Inven_Item::Inven_Item → m_addInfo=itemIdx → create_item(type=0,item,1)。
-static int _cbcInvenInsertItem(CUser* user, unsigned long itemIdx)
-{
-    const CInventory* inv = user->getCurCharacInvenR();
-    if (inv->check_item_exist((int)itemIdx) != -1)
-        return 0;
-    const CCargo* cargo = user->getCurCharacCargoR();
-    if (cargo->check_item_exist((int)itemIdx) != -1)
-        return 0;
-
-    Inven_Item item;
-    item.m_addInfo = (int)itemIdx;  // ORIG uStack_5b = param_3（写入 m_addInfo@+0x02）
-    G_CDataManager()->getItemList()->create_item(
-        (ENUM_ITEM_CREATE_TYPE)0, item, 1);
-    if (user->getCurCharacInvenW()->tryInsertItemIntoInventory(item) >= 0)
-        return 1;
-    return 0;
-}
-
-// case 0x06 事件商品集：时间窗内要求背包/仓库均无 0x65d6..0x65da 任一。
-static int _cbcEventItemSet(CUser* user, unsigned long itemIdx)
-{
-    if (!_cbcEventTimeWindow(user, 0x46a7b9d0, 0x46d5de50))
-        return 0;
-    const CInventory* inv = user->getCurCharacInvenR();
-    const CCargo* cargo = user->getCurCharacCargoR();
-    for (int id = 0x65d6; id <= 0x65da; ++id)
-    {
-        if (inv->check_item_exist(id) != -1 || cargo->check_item_exist(id) != -1)
-            return 0;
-    }
-    return 1;
-}
-
-// case 0x0c 角色槽/服务器环境：m_serverType==2 或 m_serverGroup∈{5,0xb,0xc} 阻止。
-static int _cbcEnvAndSlotLimit(CUser* user)
-{
-    CEnvironment* env = G_CEnvironment();
-    if (env->m_serverEnvir.m_serverType == 2)
-        return 0;
-    int grp = env->m_serverEnvir.m_serverGroup;
-    if (grp == 0xb || grp == 0xc || grp == 5)
-        return 0;
-    if (user->getCharacSlotLimit() < 0x15)
-        return 1;
-    return 0;
-}
-
-// case 0x0d 背包容量精确：0x2897c8→cap==0，0x2897c9→cap==8。
-static int _cbcInventoryCapacity(CUser* user, unsigned long itemIdx)
-{
-    int cap = user->getCurCharacInvenR()->get_inventory_capacity();
-    if (itemIdx == 0x2897c8)
-        return cap == 0 ? 1 : 0;
-    if (itemIdx == 0x2897c9)
-        return cap == 8 ? 1 : 0;
-    return 0;
-}
-
-// case 0x10 转职/可堆叠限定：job 9/10 阻止；否则 verifyStackableItemActionPlace(TYPE_CLASS_CHANGE=0x2e)。
-static int _cbcCharacJobStackable(CUser* user, unsigned long itemIdx)
-{
-    if (user->get_charac_job() == 9)
-        return 0;
-    if (user->get_charac_job() == 10)
-        return 0;
-    return user->verifyStackableItemActionPlace(StackableAction::TYPE_CLASS_CHANGE,
-                                                (unsigned int)itemIdx);
-}
-
 // ============================================================================
 // checkBuyingCondition —— ORIG 0x08323f2a (T)
 // 仅转发到 _CheckBuyingCondition(CUser*, uint, ulong, uint, ushort, uchar, ushort)。
@@ -1092,22 +980,118 @@ int CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long 
     if (category == 0)
         return 1;
 
+    // case 逻辑直接内联（ORIG 0x8323f86 为单一函数，无 file-static helper；
+    // 各 case 代码形态/调用序对齐报告反编译 C）。
     switch (category)
     {
     case 1:
         return _CheckConditionPutonAvatar(user);
 
     case 3:
-        return _cbcEventTimeWindow(user, 0x4589a450, 0x45ae8e50);
+    {
+        // ORIG 调用两次 getCurCharacCreateTime 后比较 [start,end) 窗口。
+        if (user->getCurCharacCreateTime() < 0x4589a450)
+            break;
+        if (user->getCurCharacCreateTime() >= 0x45ae8e50)
+            break;
+        return 1;
+    }
 
     case 4:
-        return _cbcCargoCapacity(user, itemIdx);
+    {
+        // 仓库容量精确匹配（0x8323f86 汇编 case4 容量表）。
+        const int cap = user->getCurCharacCargoR()->GetCapacity();
+        if (itemIdx == 0x3c)
+        {
+            if (cap == 0x48)
+                return 1;
+        }
+        else if (itemIdx < 0x3d)
+        {
+            if (itemIdx == 0x39)
+            {
+                if (cap == 0x18)
+                    return 1;
+            }
+            else if (itemIdx < 0x3a)
+            {
+                if (itemIdx == 0x32 && cap == 8)
+                    return 1;
+            }
+            else if (itemIdx == 0x3a)
+            {
+                if (cap == 0x28)
+                    return 1;
+            }
+            else if (itemIdx == 0x3b && cap == 0x38)
+            {
+                return 1;
+            }
+        }
+        else if (itemIdx == 0x3e)
+        {
+            if (cap == 0x68)
+                return 1;
+        }
+        else if (itemIdx < 0x3e)
+        {
+            if (cap == 0x58)
+                return 1;
+        }
+        else if (itemIdx == 0x28978b)
+        {
+            if (cap == 0x78)
+                return 1;
+        }
+        else if (itemIdx == 0x28978c && cap == 0x88)
+        {
+            return 1;
+        }
+        break;
+    }
 
     case 5:
-        return _cbcInvenInsertItem(user, itemIdx);
+    {
+        // 背包/仓库均无该物时 create_item 后 tryInsert 成功返回 1。
+        const CInventory* inv = user->getCurCharacInvenR();
+        if (inv->check_item_exist((int)itemIdx) == -1)
+        {
+            const CCargo* cargo = user->getCurCharacCargoR();
+            if (cargo->check_item_exist((int)itemIdx) == -1)
+            {
+                Inven_Item item;
+                item.m_addInfo = (int)itemIdx;   // ORIG uStack_5b = param_3
+                G_CDataManager()->getItemList()->create_item(
+                    (ENUM_ITEM_CREATE_TYPE)0, item, 1);
+                if (user->getCurCharacInvenW()->tryInsertItemIntoInventory(item) >= 0)
+                    return 1;
+            }
+        }
+        break;
+    }
 
     case 6:
-        return _cbcEventItemSet(user, itemIdx);
+    {
+        // 事件窗口内要求背包/仓库均无 0x65d6..0x65da 任一。
+        long createTime = user->getCurCharacCreateTime();
+        if (createTime < 0x46a7b9d0 || createTime >= 0x46d5de50)
+            break;
+        const CInventory* inv = user->getCurCharacInvenR();
+        const CCargo* cargo = user->getCurCharacCargoR();
+        bool foundAny = false;
+        for (int id = 0x65d6; id <= 0x65da; ++id)
+        {
+            if (inv->check_item_exist(id) != -1 ||
+                cargo->check_item_exist(id) != -1)
+            {
+                foundAny = true;
+                break;
+            }
+        }
+        if (!foundAny)
+            return 1;
+        break;
+    }
 
     case 8:
         return user->get_charac_level() > 0xe ? 1 : 0;
@@ -1116,13 +1100,42 @@ int CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long 
         return user->GetCurCharacSkillTreeIndex() == -1 ? 1 : 0;
 
     case 0xc:
-        return _cbcEnvAndSlotLimit(user);
+    {
+        CEnvironment* env = G_CEnvironment();
+        if (env->m_serverEnvir.m_serverType == 2)
+            return 0;
+        const int grp = env->m_serverEnvir.m_serverGroup;
+        if (grp == 0xb || grp == 0xc || grp == 5)
+            return 0;
+        if (user->getCharacSlotLimit() < 0x15)
+            return 1;
+        break;
+    }
 
     case 0xd:
-        return _cbcInventoryCapacity(user, itemIdx);
+    {
+        const int cap = user->getCurCharacInvenR()->get_inventory_capacity();
+        if (itemIdx == 0x2897c8)
+        {
+            if (cap == 0)
+                return 1;
+        }
+        else if (itemIdx == 0x2897c9 && cap == 8)
+        {
+            return 1;
+        }
+        break;
+    }
 
     case 0x10:
-        return _cbcCharacJobStackable(user, itemIdx);
+    {
+        if (user->get_charac_job() == 9)
+            return 0;
+        if (user->get_charac_job() == 10)
+            return 0;
+        return user->verifyStackableItemActionPlace(
+            StackableAction::TYPE_CLASS_CHANGE, (unsigned int)itemIdx);
+    }
     }
 
     return 0;
@@ -1720,9 +1733,9 @@ bool CCeraShop::_CheckValidCount(const CCeraShopGoods** goodsList)
             ++typeCount[type];
             if (specialFlag)
             {
-                // 上限 1：typeCount[type] 取 min(typeCount[type]-1, 1) 后写回
-                int cur = typeCount[type] - 1;
-                typeCount[type] = (cur < 1 ? cur : 1);
+                // ORIG 0x8323cf4：min(max(count-1,1),1) 恒为 1 —— special 商品
+                // 出现即把该 type 计数钳回 1（不参与限购超额判定）。
+                typeCount[type] = 1;
             }
         }
     }

@@ -345,7 +345,7 @@ struct forceRule_ResultItem
 {
     forceRule_ResultItem() : m_flag(false), m_value(0) {}
     forceRule_ResultItem(bool flag, int value);
-    char m_flag;   // +0x00（1=禁止合成，0=强制允许）
+    bool m_flag;   // +0x00（1=禁止合成，0=强制允许；ORIG 0x832e00a P33 bool 截断序）
     int m_value;   // +0x04
 };
 

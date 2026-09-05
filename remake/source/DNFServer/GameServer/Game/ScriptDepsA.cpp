@@ -1449,17 +1449,6 @@ void STCharacterScript::Clear()
 // 以文件级静态等价建模）。
 static std::map<ENUM_CHARACTERJOB, std::string> s_bodyImagePath;
 
-namespace {
-
-bool ScanRound10Short(unsigned short& out, bool& ok)
-{
-    const float v = ScanFloat(&ok);
-    out = static_cast<unsigned short>(GetRoundInt(10.0f * v));
-    return ok;
-}
-
-}  // namespace
-
 // ORIG ImportCharacterScript T 0x08a0ce06（报告 ## 汇编 + ## 反编译 C 全文转写）。
 // 返回：1=解析至 EOF；0=任一段失败。
 bool ImportCharacterScript(STCharacterScript* script, const char* path)
@@ -1475,7 +1464,10 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
     STRDCharacterStatus* curStatus = &script->m_initialStatus;
     std::vector<std::pair<int, int> >* curSkills = &script->m_skillList[0];
     CharacterEtcStats* curEtc = &script->m_etcStats[0];
-    STCharacterScript::STSecondGrowTypeData* curSecond = &script->m_secondGrow[0];
+    // ORIG 汇编 +0x00d1/0x00d8：local_40(二转块)/local_3c(觉醒名) 初值为 0，
+    // 仅 [initial value]/[growtype N] 分支落位；此前出现 [awakening 1/2/name]
+    // 属畸形输入（ORIG 空指针解引用）。
+    STCharacterScript::STSecondGrowTypeData* curSecond = 0;
     std::string* curAwakenName = 0;
 
     std::string token;
@@ -1593,35 +1585,59 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         }
         else if (token == "[physical attack]")
         {
-            if (!ScanRound10Short(curStatus->m_physAttack, ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_physAttack =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[physical defense]")
         {
-            if (!ScanRound10Short(curStatus->m_physDefense, ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_physDefense =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[magical attack]")
         {
-            if (!ScanRound10Short(curStatus->m_magAttack, ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_magAttack =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[magical defense]")
         {
-            if (!ScanRound10Short(curStatus->m_magDefense, ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_magDefense =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[fire resistance]")
         {
-            if (!ScanRound10Short(curStatus->m_elemResist[0], ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_elemResist[0] =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[water resistance]")
         {
-            if (!ScanRound10Short(curStatus->m_elemResist[1], ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_elemResist[1] =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[dark resistance]")
         {
-            if (!ScanRound10Short(curStatus->m_elemResist[2], ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_elemResist[2] =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[light resistance]")
         {
-            if (!ScanRound10Short(curStatus->m_elemResist[3], ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_elemResist[3] =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[inventory limit]")
         {
@@ -1631,11 +1647,17 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         }
         else if (token == "[HP regen speed]")
         {
-            if (!ScanRound10Short(curStatus->m_hpRegen, ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_hpRegen =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[MP regen speed]")
         {
-            if (!ScanRound10Short(curStatus->m_mpRegen, ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_mpRegen =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[move speed]")
         {
@@ -1645,19 +1667,31 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         }
         else if (token == "[attack speed]")
         {
-            if (!ScanRound10Short(curStatus->m_attackSpeed, ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_attackSpeed =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[cast speed]")
         {
-            if (!ScanRound10Short(curStatus->m_castSpeed, ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_castSpeed =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[hit recovery]")
         {
-            if (!ScanRound10Short(curStatus->m_hitRecovery, ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_hitRecovery =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[jump power]")
         {
-            if (!ScanRound10Short(curStatus->m_jumpPower, ok)) return false;
+            float v = 0.0f;
+            if (!ScanFloat(&v)) return false;
+            curStatus->m_jumpPower =
+                static_cast<unsigned short>(GetRoundInt(10.0f * v));
         }
         else if (token == "[weight]")
         {
@@ -1668,8 +1702,9 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         else if (token == "[category]")
         {
             curEtc->m_category.clear();
-            while (ScanTypeOrStr(ok, listTok, true))
+            for (;;)
             {
+                if (!ScanTypeOrStr(ok, listTok, true)) return false;  // EOF→ORIG 0
                 if (ok)
                 {
                     if (!(listTok != "[/category]")) break;
@@ -1717,8 +1752,9 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         else if (token == "[ghost motion]")
         {
             script->m_ghostMotion.clear();
-            while (ScanTypeOrStr(ok, listTok, true))
+            for (;;)
             {
+                if (!ScanTypeOrStr(ok, listTok, true)) return false;  // EOF→ORIG 0
                 if (ok)
                 {
                     if (listTok == "[/ghost motion]") break;
@@ -1730,8 +1766,9 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         else if (token == "[attack motion]")
         {
             script->m_attackMotion.clear();
-            while (ScanTypeOrStr(ok, listTok, true))
+            for (;;)
             {
+                if (!ScanTypeOrStr(ok, listTok, true)) return false;  // EOF→ORIG 0
                 if (ok)
                 {
                     if (listTok == "[/attack motion]") break;
@@ -1743,8 +1780,9 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         else if (token == "[etc motion]")
         {
             script->m_etcMotion.clear();
-            while (ScanTypeOrStr(ok, listTok, true))
+            for (;;)
             {
+                if (!ScanTypeOrStr(ok, listTok, true)) return false;  // EOF→ORIG 0
                 if (ok)
                 {
                     if (listTok == "[/etc motion]") break;
@@ -1766,8 +1804,9 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         else if (token == "[attack action]" || token == "[action list]")
         {
             script->m_actionSet.m_attackList.clear();
-            while (ScanTypeOrStr(ok, listTok, true))
+            for (;;)
             {
+                if (!ScanTypeOrStr(ok, listTok, true)) return false;  // EOF→ORIG 0
                 if (ok)
                 {
                     const bool endAttack =
@@ -1783,8 +1822,9 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         else if (token == "[etc action]")
         {
             script->m_actionSet.m_etc.clear();
-            while (ScanTypeOrStr(ok, listTok, true))
+            for (;;)
             {
+                if (!ScanTypeOrStr(ok, listTok, true)) return false;  // EOF→ORIG 0
                 if (ok)
                 {
                     if (listTok == "[/etc action]") break;
@@ -1800,8 +1840,9 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         else if (token == "[attack info]")
         {
             script->m_attackInfo.clear();
-            while (ScanTypeOrStr(ok, listTok, true))
+            for (;;)
             {
+                if (!ScanTypeOrStr(ok, listTok, true)) return false;  // EOF→ORIG 0
                 if (ok)
                 {
                     if (listTok == "[/attack info]") break;
@@ -1813,8 +1854,9 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         else if (token == "[etc attack info]")
         {
             script->m_etcAttackInfo.clear();
-            while (ScanTypeOrStr(ok, listTok, true))
+            for (;;)
             {
+                if (!ScanTypeOrStr(ok, listTok, true)) return false;  // EOF→ORIG 0
                 if (ok)
                 {
                     if (listTok == "[/etc attack info]") break;
@@ -1826,8 +1868,9 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         else if (token == "[weapon wav]")
         {
             WeaponInfo info;
-            while (ScanTypeOrStr(ok, listTok, true))
+            for (;;)
             {
+                if (!ScanTypeOrStr(ok, listTok, true)) return false;  // EOF→ORIG 0
                 if (ok)
                 {
                     if (listTok == "[/weapon wav]")
@@ -1843,8 +1886,9 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         else if (token == "[weapon hit info]")
         {
             unsigned int idx = 0;
-            while (ScanTypeOrStr(ok, listTok, true))
+            for (;;)
             {
+                if (!ScanTypeOrStr(ok, listTok, true)) return false;  // EOF→ORIG 0
                 if (ok)
                 {
                     if (listTok == "[/weapon hit info]") break;
@@ -1950,9 +1994,10 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
             {
                 if (token == ACTIVESTATUS_TAG[i])
                 {
-                    unsigned short out = 0;
-                    if (!ScanRound10Short(out, ok)) return false;
-                    curStatus->m_activeResist[i] = out;
+                    float v = 0.0f;
+                    if (!ScanFloat(&v)) return false;
+                    curStatus->m_activeResist[i] =
+                        static_cast<unsigned short>(GetRoundInt(10.0f * v));
                     matched = true;
                     break;
                 }

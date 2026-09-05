@@ -20,6 +20,7 @@
 #include "CItemGeneratorMgr.h"
 #include "CItemGenerator.h"
 #include "StreamDeps.h"        // G_CEnvironment（ORIG wrapper 0x080cc181）
+#include "CEnvironment.h"      // Server_Envir 完整布局（m_serverEnvir +0x198 / m_channelNo +0x18）
 #include "GlobalData.h"        // s_stream_pool / s_msgq_mgr
 #include "StreamPool.h"
 #include "MsgQueueMgr.h"
@@ -51,7 +52,8 @@ void DB_UpdateItemDropStatistics::makeRequest(int serverId, int typeId,
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6a14), true);
     guard.operator*()->operator<<(0xd2);      // SIG_UPDATE_ITEM_DROP_STATISTICS
     guard.operator*()->operator<<(-1);
-    guard.operator*()->operator<<(serverId);  // ORIG 实参 = *(int*)(G_CEnvironment()+0x1b0)
+    guard.operator*()->operator<<(serverId);  // ORIG 实参 = env+0x1b0
+                                              //   = m_serverEnvir.m_channelNo
     guard.operator*()->operator<<(typeId);
 
     // 四组计数各写 6 个 uint（asm: i<=5 循环 cmpl $0x5 + setle）
@@ -77,36 +79,33 @@ namespace WongWork
 {
 void CItemGeneratorMgr::onTimerEvent(int timer)
 {
-    if (timer != 0x6b)
-        return;
+    // ORIG 控制流即 `if (param_1 == 0x6b) { … } return;`（正向判定，函数尾
+    // 直落 epilogue，无额外 jmp）。
+    if (timer == 0x6b)
+    {
+        // ORIG（0x08534322）每次调用独立 call G_CEnvironment() 后
+        // `mov 0x1b0(%eax),%eax` —— env+0x1b0 = Server_Envir(+0x198)::m_channelNo(+0x18)，
+        // 故首参具名为 m_serverEnvir.m_channelNo（原写法 `G_CEnvironment() + 0x1b0`
+        // 是 CEnvironment* 上的指针算标度，非字节偏移，属真实缺陷，本次一并修正）。
+        // 四组统计指针即本对象计数表 m_dropStat[g][1..4]（每行 6 uint，
+        // 行距 0x18、genType 距 0x78；ORIG `add $imm,%eax` 序列同源）。
+        DB_UpdateItemDropStatistics::makeRequest(
+            G_CEnvironment()->m_serverEnvir.m_channelNo, 0,
+            m_dropStat[0][1], m_dropStat[0][2], m_dropStat[0][3], m_dropStat[0][4]);
 
-    // ORIG 每次调用独立 call G_CEnvironment()(0x080cc181) 读 +0x1b0
-    // （服务器/环境 int，未建模字段，保持偏移读取）；四组统计指针均指向
-    // m_head 区（未建模区），按原始偏移传参对齐汇编 add $imm,%eax 序列。
-    char* base = reinterpret_cast<char*>(this);
+        DB_UpdateItemDropStatistics::makeRequest(
+            G_CEnvironment()->m_serverEnvir.m_channelNo, 1,
+            m_dropStat[1][1], m_dropStat[1][2], m_dropStat[1][3], m_dropStat[1][4]);
 
-    DB_UpdateItemDropStatistics::makeRequest(
-        *reinterpret_cast<int*>(G_CEnvironment() + 0x1b0), 0,
-        reinterpret_cast<unsigned int*>(base + 0x18),
-        reinterpret_cast<unsigned int*>(base + 0x30),
-        reinterpret_cast<unsigned int*>(base + 0x48),
-        reinterpret_cast<unsigned int*>(base + 0x60));
+        DB_UpdateItemDropStatistics::makeRequest(
+            G_CEnvironment()->m_serverEnvir.m_channelNo, 2,
+            m_dropStat[2][1], m_dropStat[2][2], m_dropStat[2][3], m_dropStat[2][4]);
 
-    DB_UpdateItemDropStatistics::makeRequest(
-        *reinterpret_cast<int*>(G_CEnvironment() + 0x1b0), 1,
-        reinterpret_cast<unsigned int*>(base + 0x90),
-        reinterpret_cast<unsigned int*>(base + 0xa8),
-        reinterpret_cast<unsigned int*>(base + 0xc0),
-        reinterpret_cast<unsigned int*>(base + 0xd8));
-
-    DB_UpdateItemDropStatistics::makeRequest(
-        *reinterpret_cast<int*>(G_CEnvironment() + 0x1b0), 2,
-        reinterpret_cast<unsigned int*>(base + 0x108),
-        reinterpret_cast<unsigned int*>(base + 0x120),
-        reinterpret_cast<unsigned int*>(base + 0x138),
-        reinterpret_cast<unsigned int*>(base + 0x150));
-
-    std::memset(this, 0, 0x3c0);
+        // 头部计数区整体清零（ORIG 0x08534432 `mov 0x8(%ebp),%eax` 先行物化
+        // arg1，再压 0x3c0/0 ⇒ 实参必须写成员数组 m_head（非 `this`），
+        // 否则 GCC 把 arg1 计算延到最后一条 store，指令序与 ORIG 不同）。
+        std::memset(m_head, 0, 0x3c0);
+    }
 }
 
 // ============================================================================

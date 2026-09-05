@@ -48,6 +48,7 @@
                                      // （DataManagerInitDepends.h 前置要求）
 #include "DataManagerInitDepends.h"   // 本批 import* 声明 + AvatarRoulette 完整视图
 #include "DNFLexWrapper.h"            // loadRDARScriptFile/unload/Scan*/ScanTypeOrInt
+#include "CEnvironment.h"             // less_TCHAR / SpinLock（getGrowTypeIndex __lookup）
 
 #ifndef DNF_ENUM_CHARACTERJOB_DEFINED
 #define DNF_ENUM_CHARACTERJOB_DEFINED
@@ -161,57 +162,159 @@ int makeFairPVPEquipmentPackageKey(int a, int b);
 int getCharacterJobToEnumValue(std::string& s);
 
 // ----------------------------------------------------------------------------
-// getGrowTypeIndex —— ORIG T 0x088be63d（0xc7b 字节，定义归本 TU）。ORIG 的静态
-// map<const char*,int> 缓存（0x949b430）lazy-insert 分支链实测展开后语义为下表
-// （组内同名共享一个结果写槽，88bf27b 等共享块实证）：
-// "none"→0；7 个一转名→1；7 个二转名→2；5 名→3；5 名→4；未知→0xffff。
+// getGrowTypeIndex —— ORIG T 0x088be63d（0xc7b 字节，定义归本 TU）。
+// ORIG 结构（/tmp/getGrowTypeIndex.md 汇编+Ghidra C 双段实证）：函数级静态
+// __lookup = map<char const*, int, less_TCHAR>（__cxa_guard 惰性构造）+
+// __init_lock(SpinLock) + __inited 双检；未建表时持锁以 idx=0 进入 switch，
+// 自 case 0（与 case 0x8b5 合并）起逐 case **贯穿** insert(value_type(键,码))
+// 共 25 条，表尾释放锁、置 __inited 并跳回 guard(088be650) 重新 find 派发；
+// 建表后 find 命中按码组 return："none"→0；weaponmaster/nenmaster/ranger/
+// elementalmaster/crusader/rogue/elementalbomber(0x8ba..0x8bf,0x8c1)→1；
+// soulbringer/striker/launcher/summoner/infighter/necromancer/glacialmaster
+// (0x8c7..0x8cc,0x8ce)→2；berserker/streetfighter/mechanic/battlemage/
+// exorcist(0x8d4..0x8d8)→3；asura/grappler/spitfire/witch/avenger
+// (0x8dd..0x8e1)→4；未命中/未知码 return 0xffff（local_24 入口初值）。
+// 键比较为 less_TCHAR（大小写无关），与旧 strcmp 线性链语义不同。
 // ----------------------------------------------------------------------------
+typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
+
 int getGrowTypeIndex(const char* name)
 {
-    static const char* const kGrowTypeGroup1[] =
+    for (;;)
     {
-        "weaponmaster", "nenmaster", "ranger", "elementalmaster",
-        "crusader", "rogue", "elementalbomber"
-    };
-    static const char* const kGrowTypeGroup2[] =
-    {
-        "soulbringer", "striker", "launcher", "summoner", "infighter",
-        "necromancer", "glacialmaster"
-    };
-    static const char* const kGrowTypeGroup3[] =
-    {
-        "berserker", "streetfighter", "mechanic", "battlemage", "exorcist"
-    };
-    static const char* const kGrowTypeGroup4[] =
-    {
-        "asura", "grappler", "spitfire", "witch", "avenger"
-    };
-
-    if (name == 0)
-    {
-        return 0xffff;
+        static GrowTypeMap __lookup;  // ORIG ...E8__lookup
+        static SpinLock __init_lock;                             // ORIG ...E11__init_lock
+        static bool __inited = false;                            // ORIG ...E8__inited
+        int idx;
+        if (!__inited)
+        {
+            __init_lock.enter();
+            if (__inited)
+            {
+                __init_lock.leave();
+                continue;               // ORIG 088be81f jmp 088be650（回 guard 重检）
+            }
+            idx = 0;
+        }
+        else
+        {
+            GrowTypeMap::const_iterator it =
+                __lookup.find(name);
+            idx = (it != __lookup.end()) ? it->second : -1;
+        }
+        switch (idx)
+        {
+        // 建表模式（首调 !__inited，自 case 0 进入）逐 case 贯穿 insert 全表；
+        // 派发模式（__inited）组内各码经 je 链汇聚共享结果槽后 return。
+        case 0:
+        case 0x8b5:
+            if (__inited) return 0;
+            __lookup.insert(GrowTypeMap::value_type("none", 0x8b5));
+            /* fall through */
+        case 0x8ba:
+            if (__inited) return 1;
+            __lookup.insert(GrowTypeMap::value_type("weaponmaster", 0x8ba));
+            /* fall through */
+        case 0x8bb:
+            if (__inited) return 1;
+            __lookup.insert(GrowTypeMap::value_type("nenmaster", 0x8bb));
+            /* fall through */
+        case 0x8bc:
+            if (__inited) return 1;
+            __lookup.insert(GrowTypeMap::value_type("ranger", 0x8bc));
+            /* fall through */
+        case 0x8bd:
+            if (__inited) return 1;
+            __lookup.insert(GrowTypeMap::value_type("elementalmaster", 0x8bd));
+            /* fall through */
+        case 0x8be:
+            if (__inited) return 1;
+            __lookup.insert(GrowTypeMap::value_type("crusader", 0x8be));
+            /* fall through */
+        case 0x8bf:
+            if (__inited) return 1;
+            __lookup.insert(GrowTypeMap::value_type("rogue", 0x8bf));
+            /* fall through */
+        case 0x8c1:
+            if (__inited) return 1;
+            __lookup.insert(GrowTypeMap::value_type("elementalbomber", 0x8c1));
+            /* fall through */
+        case 0x8c7:
+            if (__inited) return 2;
+            __lookup.insert(GrowTypeMap::value_type("soulbringer", 0x8c7));
+            /* fall through */
+        case 0x8c8:
+            if (__inited) return 2;
+            __lookup.insert(GrowTypeMap::value_type("striker", 0x8c8));
+            /* fall through */
+        case 0x8c9:
+            if (__inited) return 2;
+            __lookup.insert(GrowTypeMap::value_type("launcher", 0x8c9));
+            /* fall through */
+        case 0x8ca:
+            if (__inited) return 2;
+            __lookup.insert(GrowTypeMap::value_type("summoner", 0x8ca));
+            /* fall through */
+        case 0x8cb:
+            if (__inited) return 2;
+            __lookup.insert(GrowTypeMap::value_type("infighter", 0x8cb));
+            /* fall through */
+        case 0x8cc:
+            if (__inited) return 2;
+            __lookup.insert(GrowTypeMap::value_type("necromancer", 0x8cc));
+            /* fall through */
+        case 0x8ce:
+            if (__inited) return 2;
+            __lookup.insert(GrowTypeMap::value_type("glacialmaster", 0x8ce));
+            /* fall through */
+        case 0x8d4:
+            if (__inited) return 3;
+            __lookup.insert(GrowTypeMap::value_type("berserker", 0x8d4));
+            /* fall through */
+        case 0x8d5:
+            if (__inited) return 3;
+            __lookup.insert(GrowTypeMap::value_type("streetfighter", 0x8d5));
+            /* fall through */
+        case 0x8d6:
+            if (__inited) return 3;
+            __lookup.insert(GrowTypeMap::value_type("mechanic", 0x8d6));
+            /* fall through */
+        case 0x8d7:
+            if (__inited) return 3;
+            __lookup.insert(GrowTypeMap::value_type("battlemage", 0x8d7));
+            /* fall through */
+        case 0x8d8:
+            if (__inited) return 3;
+            __lookup.insert(GrowTypeMap::value_type("exorcist", 0x8d8));
+            /* fall through */
+        case 0x8dd:
+            if (__inited) return 4;
+            __lookup.insert(GrowTypeMap::value_type("asura", 0x8dd));
+            /* fall through */
+        case 0x8de:
+            if (__inited) return 4;
+            __lookup.insert(GrowTypeMap::value_type("grappler", 0x8de));
+            /* fall through */
+        case 0x8df:
+            if (__inited) return 4;
+            __lookup.insert(GrowTypeMap::value_type("spitfire", 0x8df));
+            /* fall through */
+        case 0x8e0:
+            if (__inited) return 4;
+            __lookup.insert(GrowTypeMap::value_type("witch", 0x8e0));
+            /* fall through */
+        case 0x8e1:
+            if (__inited) return 4;
+            __lookup.insert(GrowTypeMap::value_type("avenger", 0x8e1));
+        }
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = true;
+            continue;                   // ORIG 088bf2a4 jmp 088be650 重派发
+        }
+        return 0xffff;                  // ORIG 未命中/未知码：local_24 初值
     }
-    if (strcmp(name, "none") == 0)
-    {
-        return 0;
-    }
-    for (int i = 0; i < 7; ++i)
-    {
-        if (strcmp(name, kGrowTypeGroup1[i]) == 0) { return 1; }
-    }
-    for (int i = 0; i < 7; ++i)
-    {
-        if (strcmp(name, kGrowTypeGroup2[i]) == 0) { return 2; }
-    }
-    for (int i = 0; i < 5; ++i)
-    {
-        if (strcmp(name, kGrowTypeGroup3[i]) == 0) { return 3; }
-    }
-    for (int i = 0; i < 5; ++i)
-    {
-        if (strcmp(name, kGrowTypeGroup4[i]) == 0) { return 4; }
-    }
-    return 0xffff;
 }
 
 // ============================================================================
@@ -1178,235 +1281,338 @@ int importDailyScheduleEtcScript(const char* path,
 
 // ============================================================================
 // importDimensionActivationData —— ORIG T 0x89160f0
-//   bool (const char*, DimensionActivationData*)
-// [play day count]→+0x00；[coin info]{easy|medium→0,hard→1,ultimate→3} 键入
-// coinMap(+0x04)；[section] 装配 EventRewardSection 入 m_rewardData.m_vec0(+0x1c)；
-// [select group] 按 makeFairPVPEquipmentPackageKey(getCharacterJob,idx) 入
-// m_rewardData.m_mapC(+0x28)；[give group] 按 ((job,growIdx)) 入
-// m_rewardData.m_map24(+0x40)。ScanStr 失败 → false。
+// ORIG 结构（/tmp/importDimAct.md 汇编+Ghidra C 双段实证）：
+// 外层节名 = 函数级静态 __lookup map<char const*,int,less_TCHAR> +
+// __init_lock(SpinLock) + __inited 双检贯穿 insert 建表链（5 条：
+// "[play day count]"0x3488→"[coin info]"0x348d→"[section]"0x34b7→
+// "[select group]"0x34ca→"[give group]"0x34ff），建表后 find 派发；
+// coin info 难度 = 第二张静态 __lookup_0（4 条：[easy]0x3499→0、
+// [medium]0x349e→1、[hard]0x34a3→2、[ultimate]0x34a8→3、未命中保持
+// 入口 -1 且**照常**执行公共尾 insert），两表键均 less_TCHAR 大小写无关。
+// 数据落点：[play day count]→out+0x00（ScanInt 返回值直写，不查 flag）；
+// coinMap(+0x04) insert(coinType, DimensionCoinInfo{+0=首 ScanInt int、
+// +4=二 ScanInt!=0 的 setne 字节})；[section] 装配 EventRewardSection 入
+// m_rewardData.m_vec0(+0x1c)；[select group] 按 makeFairPVPEquipmentPackageKey
+// (getCharacterJob,idx) 入 m_mapC(+0x28)；[give group] 按 (job,growIdx) 入
+// m_map24(+0x40)。节内 ScanStr 失败 → return false；EOF(ScanType 失败) → true。
 // ============================================================================
 bool importDimensionActivationData(const char* path,
                                    DimensionActivationData* out)
 {
-    bool ok = false;
-    std::string token;
-    std::string sub;
+    // ORIG 实证两张函数级静态表同为 map<char const*,int,less_TCHAR>。
+    typedef std::map<const char*, int, less_TCHAR> DimSectionMap;
+    typedef std::map<const char*, int, less_TCHAR> DimCoinDiffMap;
+
+    bool ok = false;                    // ORIG local_1a5（ScanInt 出错 flag）
+    std::string token;                  // ORIG local_1a0（节名）
+    std::string sub;                    // ORIG local_1a4（子串）
 
     if (out == 0)
     {
-        return false;                               // ORIG 先于 load 判空
+        return false;                   // ORIG 0x89160fc 先于 load 判空
     }
     if (!loadRDARScriptFile("", path))
     {
         return false;
     }
 
-    for (;;)
+    for (;;)                            // ORIG LAB_0891615d 主循环
     {
         if (!ScanType(token, true))
         {
-            return true;
+            return true;                // ORIG 0x8917388 EOF → 1
         }
-
-        if (token == "[play day count]")
+        for (;;)                        // ORIG LAB_0891617e guard 重试
         {
-            int v = ScanInt(&ok);
-            out->m_field0 = v;                      // +0x00
-        }
-        else if (token == "[coin info]")
-        {
-            for (;;)
+            static DimSectionMap __lookup;      // ORIG ...E8__lookup
+            static SpinLock __init_lock;        // ORIG ...E11__init_lock
+            static bool __inited = false;       // ORIG ...E8__inited
+            int idx;
+            if (!__inited)
             {
-                if (!ScanStr(&sub))
+                __init_lock.enter();
+                if (__inited)
                 {
-                    break;                          // 回外层节循环
+                    __init_lock.leave();
+                    continue;           // ORIG 0x891635e 回 guard 重检
                 }
-                int diff = 0;
-                if (sub == "[easy]" || sub == "[medium]")
-                {
-                    diff = 0;
-                }
-                else if (sub == "[hard]")
-                {
-                    diff = 1;
-                }
-                else if (sub == "[ultimate]")
-                {
-                    diff = 3;
-                }
-                else
-                {
-                    continue;                       // 未知子键：ORIG 落到公共尾（等价跳过）
-                }
-
-                int count = ScanInt(&ok);           // -0x1b8
-                if (!ok) { break; }
-                int used = ScanInt(&ok);            // -0x1a8
-                if (!ok) { break; }
-
-                DimensionCoinInfo coinInfo;         // ctor 0x891bcb6 清零
-                coinInfo.m_field0 = count;
-                coinInfo.m_field4 = (used != 0) ? 1 : 0;   // setne 字节
-                out->m_coinMap.insert(
-                    std::map<int, DimensionCoinInfo>::value_type(diff, coinInfo));
+                idx = 0;
             }
-        }
-        else if (token == "[section]")
-        {
-            for (;;)
+            else
             {
-                EventRewardSection section;         // ctor 0x89154ee
-                section.m_field0 = ScanInt(&ok);
-                if (!ok) { break; }                 // 首字段失败回外层
-                section.m_field1 = ScanInt((bool*)0);
-                section.m_field2 = ScanInt((bool*)0);
-                int count = ScanInt(&ok);
-                for (int i = 0; i < count; ++i)
-                {
-                    unsigned char item =
-                        static_cast<unsigned char>(ScanInt((bool*)0));
-                    section.m_items.push_back(item);   // vector<uchar> @+0x04
-                }
-                out->m_rewardData.m_vec0.push_back(section);
+                DimSectionMap::const_iterator it = __lookup.find(token.c_str());
+                idx = (it != __lookup.end()) ? it->second : -1;
             }
-        }
-        else if (token == "[select group]")
-        {
-            if (!ScanStr(&sub))
+            switch (idx)
             {
-                return false;
-            }
-            int job = getCharacterJob(sub.c_str());
-            int idx = ScanInt((bool*)0);
-            int packageKey = makeFairPVPEquipmentPackageKey(job, idx);
-
-            std::vector<std::vector<EventRewardItemInfo> > groups;
-            for (;;)
-            {
-                if (!ScanType(token, true))
+            case 0:
+            case 0x3488:                // [play day count]
+                if (__inited)
                 {
-                    break;                          // EOF → 回外层
+                    out->m_field0 = ScanInt(&ok);  // ORIG 不查 flag
+                    break;
                 }
-                if (token != "[package selection]")
+                __lookup.insert(
+                    DimSectionMap::value_type("[play day count]", 0x3488));
+                /* fall through */
+            case 0x348d:                // [coin info]
+                if (__inited)
                 {
-                    if (token == "[/select group]")
-                    {
-                        out->m_rewardData.m_mapC.insert(
-                            std::map<int,
-                                std::vector<std::vector<EventRewardItemInfo> > >::
-                                value_type(packageKey, groups));
-                        break;                      // 回外层
-                    }
-                    continue;                       // 其他 token 忽略（ORIG 回内层头）
-                }
-
-                std::vector<EventRewardItemInfo> items;
-                int first = 0;
-                if (!ScanInt(&first))
-                {
-                    groups.push_back(items);        // 空批也入组（ORIG 0x8916e5e）
-                    continue;
-                }
-                for (;;)
-                {
-                    EventRewardItemInfo info;       // ctor 0x891548a
-                    info.m_field0 = first;
-                    info.m_short8 =
-                        static_cast<short>(ScanInt((bool*)0));   // %ax 半字写
-                    info.m_field4 = ScanInt((bool*)0);
-                    std::string growTypes;
-                    ScanStr(&growTypes);            // 返回值被忽略（ORIG 0x8916c45）
-                    {
-                        std::string tmp(growTypes.c_str());
-                        std::vector<std::string> tokens;
-                        tokenizeStr(tmp, tokens, ",");
-                        for (std::size_t k = 0; k < tokens.size(); ++k)
-                        {
-                            int growIdx = getGrowTypeIndex(tokens.at(k).c_str());
-                            info.m_growTypes.push_back(growIdx);
-                        }
-                    }
-                    items.push_back(info);
-                    if (!ScanInt(&first))
-                    {
-                        break;                      // 本包终止
-                    }
-                }
-                groups.push_back(items);
-            }
-        }
-        else if (token == "[give group]")
-        {
-            if (!ScanStr(&sub))
-            {
-                return false;
-            }
-            int job = getCharacterJob(sub.c_str());
-
-            for (;;)
-            {
-                if (!ScanType(token, true))
-                {
-                    break;                          // EOF → 回外层
-                }
-                if (token != "[grow type]")
-                {
-                    if (token == "[/give group]")
-                    {
-                        break;
-                    }
-                    continue;
-                }
-
-                if (!ScanStr(&sub))
-                {
-                    break;                          // ORIG 0x891735a 回外层
-                }
-                int growIdx = getGrowTypeIndex(sub.c_str());
-
-                std::vector<std::vector<EventRewardItemInfo> > groups;
-                for (;;)
-                {
-                    if (!ScanType(token, true))
-                    {
-                        break;
-                    }
-                    std::vector<EventRewardItemInfo> items;
-                    if (token != "[package selection]")
-                    {
-                        if (token == "[/grow type]")
-                        {
-                            out->m_rewardData.m_map24.insert(
-                                std::map<std::pair<int, int>,
-                                    std::vector<std::vector<EventRewardItemInfo> > >::
-                                    value_type(std::make_pair(job, growIdx),
-                                               groups));
-                            groups.clear();         // ORIG 0x89172c5 显式 clear
-                            break;                  // 回 give-group 层
-                        }
-                        continue;                   // items 构造在比较前（ORIG 0x89170d5），无副作用
-                    }
-
-                    ScanInt(&ok);                   // -0x1c 死存（ORIG 保留形态）
                     for (;;)
                     {
-                        EventRewardItemInfo info;   // ctor 后逐条覆盖
-                        int value = 0;
-                        if (!ScanInt(&value))
+                        if (!ScanStr(&sub))
                         {
-                            break;
+                            break;      // ORIG 0x89164a0 回主循环
                         }
-                        info.m_field0 = value;
-                        info.m_short8 =
-                            static_cast<short>(ScanInt(&ok));
-                        info.m_field4 = ScanInt(&ok);
-                        items.push_back(info);
-                        info.clear();               // ORIG 0x89154bc
+                        int coinType = -1;           // ORIG local_1b4 初值
+                        DimensionCoinInfo coinInfo;  // ctor 0x891bcb6（查表前）
+                        for (;;)                     // ORIG LAB_089164bd
+                        {
+                            static DimCoinDiffMap __lookup_0;    // ...__lookup_0
+                            static SpinLock __init_lock_0;       // ...__init_lock_0
+                            static bool __inited_0 = false;      // ...__inited_0
+                            int diff;
+                            if (!__inited_0)
+                            {
+                                __init_lock_0.enter();
+                                if (__inited_0)
+                                {
+                                    __init_lock_0.leave();
+                                    continue;
+                                }
+                                diff = 0;
+                            }
+                            else
+                            {
+                                DimCoinDiffMap::const_iterator it2 =
+                                    __lookup_0.find(sub.c_str());
+                                diff = (it2 != __lookup_0.end())
+                                           ? it2->second : -1;
+                            }
+                            switch (diff)
+                            {
+                            case 0:
+                            case 0x3499:
+                                if (__inited_0) { coinType = 0; break; }
+                                __lookup_0.insert(
+                                    DimCoinDiffMap::value_type("[easy]", 0x3499));
+                                /* fall through */
+                            case 0x349e:
+                                if (__inited_0) { coinType = 1; break; }
+                                __lookup_0.insert(
+                                    DimCoinDiffMap::value_type("[medium]", 0x349e));
+                                /* fall through */
+                            case 0x34a3:
+                                if (__inited_0) { coinType = 2; break; }
+                                __lookup_0.insert(
+                                    DimCoinDiffMap::value_type("[hard]", 0x34a3));
+                                /* fall through */
+                            case 0x34a8:
+                                if (__inited_0) { coinType = 3; break; }
+                                __lookup_0.insert(
+                                    DimCoinDiffMap::value_type("[ultimate]", 0x34a8));
+                            }
+                            if (__inited_0)
+                            {
+                                break;  // 未命中保持 -1，仍走公共尾 insert
+                            }
+                            __init_lock_0.leave();
+                            __inited_0 = true;
+                        }
+                        coinInfo.m_field0 = ScanInt(&ok);        // -0x1b8
+                        int used = ScanInt(&ok);                 // -0x1a8
+                        coinInfo.m_field4 = (used != 0) ? 1 : 0; // setne 字节
+                        // ORIG 0x8921dcd/0x8921e14：make_pair<int,DimensionCoinInfo>
+                        // （按值实例化）+ value_type 转换 ctor 两级临时。
+                        out->m_coinMap.insert(
+                            std::map<int, DimensionCoinInfo>::value_type(
+                                std::make_pair<int, DimensionCoinInfo>(
+                                    coinType, coinInfo)));
                     }
-                    groups.push_back(items);
-                    items.clear();                  // ORIG 0x89171b4
+                    break;
                 }
+                __lookup.insert(DimSectionMap::value_type("[coin info]", 0x348d));
+                /* fall through */
+            case 0x34b7:                // [section]
+                if (__inited)
+                {
+                    for (;;)
+                    {
+                        EventRewardSection section;   // ctor 0x89154ee
+                        section.m_field0 =
+                            static_cast<unsigned char>(ScanInt(&ok));
+                        if (ok)
+                        {
+                            break;      // ORIG 0x89169e8 flag 真 → 结束节块
+                        }
+                        section.m_field1 = ScanInt(static_cast<bool*>(0));
+                        section.m_field2 = ScanInt(static_cast<bool*>(0));
+                        int count = ScanInt(static_cast<bool*>(0));
+                        for (int i = 0; i < count; ++i)
+                        {
+                            section.m_items.push_back(
+                                static_cast<unsigned char>(
+                                    ScanInt(static_cast<bool*>(0))));
+                        }
+                        out->m_rewardData.m_vec0.push_back(section);
+                    }
+                    break;
+                }
+                __lookup.insert(DimSectionMap::value_type("[section]", 0x34b7));
+                /* fall through */
+            case 0x34ca:                // [select group]
+                if (__inited)
+                {
+                    if (!ScanStr(&sub))
+                    {
+                        return false;   // ORIG 0x8916b3c ebx=0 → 返回
+                    }
+                    int job = getCharacterJob(sub.c_str());
+                    int grade = ScanInt(static_cast<bool*>(0));
+                    int packageKey = makeFairPVPEquipmentPackageKey(job, grade);
+
+                    std::vector<std::vector<EventRewardItemInfo> > groups;
+                    for (;;)
+                    {
+                        if (!ScanType(token, true))
+                        {
+                            break;      // ORIG 0x8916bb2 EOF → 主循环
+                        }
+                        if (token == "[package selection]")
+                        {
+                            std::vector<EventRewardItemInfo> items;  // 0x8921bee
+                            int first = 0;
+                            while (ScanInt(&first))
+                            {
+                                EventRewardItemInfo info;   // ctor 0x891548a
+                                info.m_field0 = first;
+                                info.m_short8 =
+                                    static_cast<short>(ScanInt(&ok));   // %ax
+                                info.m_field4 = ScanInt(&ok);
+                                ScanStr(&sub);   // 返回值被忽略（0x8916c45）
+                                {
+                                    std::string tmp(sub.c_str());
+                                    std::vector<std::string> tokens;
+                                    std::string delim(",");
+                                    tokenizeStr(tmp, tokens, delim);
+                                    for (std::size_t k = 0;
+                                         k < tokens.size(); ++k)
+                                    {
+                                        int growIdx = getGrowTypeIndex(
+                                            tokens.at(k).c_str());
+                                        info.m_growTypes.push_back(growIdx);
+                                    }
+                                }
+                                items.push_back(info);
+                            }
+                            groups.push_back(items);
+                        }
+                        else if (token == "[/select group]")
+                        {
+                            // ORIG 0x8921ce9/0x8921d2e：make_pair(int&,vector&)
+                            // + value_type 转换 ctor（两级临时析构链）。
+                            out->m_rewardData.m_mapC.insert(
+                                std::map<int,
+                                    std::vector<std::vector<EventRewardItemInfo> >
+                                >::value_type(
+                                    std::make_pair(packageKey, groups)));
+                            break;      // 回主循环
+                        }
+                        // 其余 token：ORIG 回内层头继续扫描
+                    }
+                    break;
+                }
+                __lookup.insert(
+                    DimSectionMap::value_type("[select group]", 0x34ca));
+                /* fall through */
+            case 0x34ff:                // [give group]
+                if (__inited)
+                {
+                    if (!ScanStr(&sub))
+                    {
+                        return false;   // ORIG 0x891700c ebx=0 → 返回
+                    }
+                    int job = getCharacterJob(sub.c_str());
+                    for (;;)
+                    {
+                        if (!ScanType(token, true))
+                        {
+                            break;      // ORIG 0x891704d → 主循环
+                        }
+                        // ORIG 比较顺序：先 [grow type]（0x8917074），未中再查
+                        // [/give group]（0x8917345）——operator== 多重集保持一致。
+                        if (token == "[grow type]")
+                        {
+                            if (!ScanStr(&sub))
+                            {
+                                break;  // ORIG 0x891735a → 主循环
+                            }
+                            int growIdx = getGrowTypeIndex(sub.c_str());
+
+                            std::vector<std::vector<EventRewardItemInfo> > groups;
+                            for (;;)
+                            {
+                                if (!ScanType(token, true))
+                                {
+                                    break;  // ORIG 0x89170cf → ~groups 回 give 层
+                                }
+                                std::vector<EventRewardItemInfo> items;  // 0x8921bee
+                                if (token == "[package selection]")
+                                {
+                                    ScanInt(&ok);   // ORIG -0x1c 死存
+                                    EventRewardItemInfo info;  // ctor 0x891548a 一次
+                                    int value = 0;
+                                    while (ScanInt(&value))
+                                    {
+                                        info.m_field0 = value;
+                                        info.m_short8 = static_cast<short>(
+                                            ScanInt(&ok));               // %ax
+                                        info.m_field4 = ScanInt(&ok);
+                                        items.push_back(info);
+                                        info.clear();                    // 0x89154bc
+                                    }
+                                    groups.push_back(items);
+                                    items.clear();                       // 0x89171b4
+                                }
+                                else if (token == "[/grow type]")
+                                {
+                                    // ORIG 0x81b5c8e：key 对默认构造后手写字段，再
+                                    // make_pair<std::pair<int,int>, vector>（0x8921e92
+                                    // 按值实例化）+ 转换 ctor（0x8921ed6）。
+                                    std::pair<int, int> key;
+                                    key.first = job;
+                                    key.second = growIdx;
+                                    out->m_rewardData.m_map24.insert(
+                                        std::map<std::pair<int, int>,
+                                            std::vector<std::vector<EventRewardItemInfo> >
+                                        >::value_type(
+                                            std::make_pair<std::pair<int, int>,
+                                                std::vector<
+                                                    std::vector<EventRewardItemInfo> >
+                                            >(key, groups)));
+                                    groups.clear();                      // 0x89172c5
+                                    break;  // 回 give 层
+                                }
+                                // 其余 token：继续内层（items 已构造无副作用）
+                            }
+                        }
+                        else if (token == "[/give group]")
+                        {
+                            break;      // ORIG 0x8917352 → 主循环
+                        }
+                        // 其余 token：ORIG 0x891734c → give 层继续
+                    }
+                    break;
+                }
+                __lookup.insert(
+                    DimSectionMap::value_type("[give group]", 0x34ff));
             }
+            if (__inited)
+            {
+                break;                  // 派发完成 → 主循环下一 token
+            }
+            __init_lock.leave();        // ORIG 0x8917369 建表收尾重派发
+            __inited = true;
         }
     }
 }

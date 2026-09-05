@@ -27,6 +27,7 @@
 #include "CSchoolServerProxy.h"
 #include "SchoolMatchEnums.h"           // ENUM_ELO_RATING_SYSTEM
 #include "OnlinePreliminary.h"          // CEloRating / PvPGlobalEnvironmentVariable
+#include "Packet_PvPResult.h"           // 结果包 0x80 载荷具名布局（shared/packet/include）
 #include "RDARScriptStringManager.h"
 #include "TimerDispatcher.h"            // TimerStartMatching
 #include "CInventory.h"                 // OS_API::snprintf
@@ -36,15 +37,6 @@ namespace {
 // GetGap 排位增量表：ORIG 各 TU 本地 _ZL13g_RankingIncr（16 字节，
 // df_game_r nm 显示 15 份内容一致）＝ {1.0f, 1.0f, 1.0f, 1.0f}。
 const float g_RankingIncr[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-
-inline void MakePacketHeader10(char* obj, unsigned short id, unsigned short len)
-{
-    // ORIG _ZN12PacketHeaderC1Ett @0x08110b70：+0 u16 / +2 u16 / +4 u16=0 / +6 int=0
-    *reinterpret_cast<unsigned short*>(obj + 0x00) = id;
-    *reinterpret_cast<unsigned short*>(obj + 0x02) = len;
-    *reinterpret_cast<unsigned short*>(obj + 0x04) = 0;
-    *reinterpret_cast<int*>(obj + 0x06) = 0;
-}
 
 }  // namespace
 
@@ -245,17 +237,13 @@ void CLeagueMatch::OnLeaveRoom(CUser* user, PvP_Room* room, int team, int flag)
         for (idx = 0; idx < 4; ++idx) {
             if (flag == 1) {
                 if (m_teamA.m_players[idx].m_user == user) {
-                    selfRating = *(float*)(reinterpret_cast<char*>(this) +
-                                           idx * 0x1c + 0x20);
-                    oppoRating = *(float*)(reinterpret_cast<char*>(this) +
-                                           idx * 0x1c + 0x90);
+                    selfRating = m_teamA.m_players[idx].m_rating;
+                    oppoRating = m_teamB.m_players[idx].m_rating;
                     break;
                 }
             } else if (m_teamB.m_players[idx].m_user == user) {
-                selfRating = *(float*)(reinterpret_cast<char*>(this) +
-                                       idx * 0x1c + 0x90);
-                oppoRating = *(float*)(reinterpret_cast<char*>(this) +
-                                       idx * 0x1c + 0x20);
+                selfRating = m_teamB.m_players[idx].m_rating;
+                oppoRating = m_teamA.m_players[idx].m_rating;
                 break;
             }
         }
@@ -422,31 +410,36 @@ bool CLeagueMatch::OnReady(CUser* /*user*/, bool ready)
 // ORIG T 0x0855eb22（结算奖励全流程）
 void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
 {
-    // ---- 结果包（Packet_PvPResult 0x80 内部布局全部依 asm 偏移公式转写；
-    //       UNLINKED_PRODUCER: Packet_PvPResult::Packet_PvPResult W 0x08568dc6
-    //       未建模，此处手动展开 PacketHeader(this,0xfa5,0x80)） ----
+    // ---- 结果包（ORIG 在 ebp-0xd8 调 Packet_PvPResult ctor W 0x08568dc6，
+    //       该 weak ctor 未建符号 → 此处按 PacketHeader ctor 0x08110b70 的
+    //       逐字段宽度（movw/movw/movw/movl）具名展开，再写载荷字段） ----
     char pkt[0x80];
-    MakePacketHeader10(pkt, 0x0fa5, 0x80);
+    Packet_PvPResult* res = reinterpret_cast<Packet_PvPResult*>(pkt);
+    res->packetId = 0x0fa5;
+    res->packetSize = 0x80;
+    res->reversed1 = 0;
+    res->m_connNo = 0;
 
-    int   eloK2       = PvPGlobalEnvironmentVariable::school_match_elo_k2_;  // pkt+0x0a
-    char  winType     = static_cast<char>(draw ? 1 : (winTeam == 1 ? 2 : 0));  // pkt+0x0e
-    char  playCount   = static_cast<char>(nPlayerCountPerOneTeam_);            // pkt+0x0f
-    // 字节标记区公共寻址（ORIG asm 统一公式）：
-    //   flagAddr(i,j,t) = pkt + 0x1c + i + 3*j + 56*t
-    // 族含义：i=0 → addBadge 输出旗标 / i=1、2 → 蓝、绿新获旗标；
-    // 徽章计数字节回填亦落此区（GetDailyBadge 低字节）。
+    int   eloK2       = PvPGlobalEnvironmentVariable::school_match_elo_k2_;  // m_eloK
+    char  winType     = static_cast<char>(draw ? 1 : (winTeam == 1 ? 2 : 0));  // m_winType
+    char  playCount   = static_cast<char>(nPlayerCountPerOneTeam_);            // m_playCount
+    // ORIG asm 统一寻址公式：team 块基 = pkt + 0x10 + 56*t，块内
+    //   徽章值 @ 0x00 + i + 3*j（`movzwl 0x10(%ebx,%eax,2)` 读 PlayerInfo
+    //   m_badges[i] → `mov %bl,(%eax)` 单字节写）
+    //   新获旗标 @ 0x0c + i + 3*j（`movb $0x0,0xc(%eax)`）
+    // 即 Packet_PvPResult::Team::m_dailyBadge[j][i] / m_newFlag[j][i]。
     unsigned int winFlagLocal = 0;
     (void)winFlagLocal;
 
-    // 1) 初始：两支队伍每日徽章快照写 flagAddr(0,j,t)，同址旗标清零。
+    // 1) 初始：两支队伍每日徽章快照写 m_dailyBadge[j][i]，同队旗标区清零。
     for (int t = 0; t <= 1; ++t) {
         for (int j = 0; j < (int)nPlayerCountPerOneTeam_; ++j) {
-            short badge =
-                *(unsigned short*)(reinterpret_cast<char*>(this) +
-                                   j * 0x1c + t * 0x70 + 0x14);
-            *(char*)(pkt + 0x1c + j * 3 + t * 56) = static_cast<char>(badge);
-            *(char*)(pkt + 0x1d + j * 3 + t * 56) = 0;
-            *(char*)(pkt + 0x1e + j * 3 + t * 56) = 0;
+            TeamInfo& ti = (t == 0) ? m_teamA : m_teamB;
+            for (int i = 0; i <= 2; ++i) {
+                res->m_team[t].m_dailyBadge[j][i] =
+                    static_cast<char>(ti.m_players[j].m_badges[i]);
+                res->m_team[t].m_newFlag[j][i] = 0;
+            }
         }
     }
 
@@ -455,58 +448,55 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
     if (draw) {
         type = 1;
         for (int j = 0; j < (int)nPlayerCountPerOneTeam_; ++j) {
-            *(char*)(pkt + 0x1d + j * 3) = 0;   // 自队蓝章清零
-            addBadge(&m_teamA.m_players[j], static_cast<ENUM_BADGE_TYPE>(2), reinterpret_cast<unsigned char*>(
-                         pkt + 0x1e + j * 3), false);
-            *(char*)(pkt + 0x1c + 56 + j * 3) = 0;
-            addBadge(&m_teamB.m_players[j], static_cast<ENUM_BADGE_TYPE>(2), reinterpret_cast<unsigned char*>(
-                         pkt + 0x1d + 56 + j * 3), false);
+            res->m_team[0].m_newFlag[j][1] = 0;   // 自队蓝章清零
+            addBadge(&m_teamA.m_players[j], static_cast<ENUM_BADGE_TYPE>(2),
+                     &res->m_team[0].m_newFlag[j][2], false);
+            res->m_team[1].m_newFlag[j][1] = 0;
+            addBadge(&m_teamB.m_players[j], static_cast<ENUM_BADGE_TYPE>(2),
+                     &res->m_team[1].m_newFlag[j][2], false);
         }
     } else if (winTeam == 1) {
         type = 2;
         for (int j = 0; j < (int)nPlayerCountPerOneTeam_; ++j) {
-            addBadge(&m_teamA.m_players[j], static_cast<ENUM_BADGE_TYPE>(1), reinterpret_cast<unsigned char*>(
-                         pkt + 0x1d + j * 3), false);
-            *(char*)(pkt + 0x1e + j * 3) = 0;
-            *(char*)(pkt + 0x1c + 56 + j * 3) = 0;
-            addBadge(&m_teamB.m_players[j], static_cast<ENUM_BADGE_TYPE>(2), reinterpret_cast<unsigned char*>(
-                         pkt + 0x1d + 56 + j * 3), false);
+            addBadge(&m_teamA.m_players[j], static_cast<ENUM_BADGE_TYPE>(1),
+                     &res->m_team[0].m_newFlag[j][1], false);
+            res->m_team[0].m_newFlag[j][2] = 0;
+            res->m_team[1].m_newFlag[j][1] = 0;
+            addBadge(&m_teamB.m_players[j], static_cast<ENUM_BADGE_TYPE>(2),
+                     &res->m_team[1].m_newFlag[j][2], false);
         }
     } else {
         type = 0;
         for (int j = 0; j < (int)nPlayerCountPerOneTeam_; ++j) {
-            *(char*)(pkt + 0x1d + j * 3) = 0;
-            addBadge(&m_teamA.m_players[j], static_cast<ENUM_BADGE_TYPE>(2), reinterpret_cast<unsigned char*>(
-                         pkt + 0x1e + j * 3), false);
-            addBadge(&m_teamB.m_players[j], static_cast<ENUM_BADGE_TYPE>(1), reinterpret_cast<unsigned char*>(
-                         pkt + 0x1c + 56 + j * 3), false);
-            *(char*)(pkt + 0x1d + 56 + j * 3) = 0;
+            res->m_team[0].m_newFlag[j][1] = 0;
+            addBadge(&m_teamA.m_players[j], static_cast<ENUM_BADGE_TYPE>(2),
+                     &res->m_team[0].m_newFlag[j][2], false);
+            addBadge(&m_teamB.m_players[j], static_cast<ENUM_BADGE_TYPE>(1),
+                     &res->m_team[1].m_newFlag[j][1], false);
+            res->m_team[1].m_newFlag[j][2] = 0;
         }
     }
 
-    // 写包头数据字段（asm 0855efa6..0855efc1：elo_k2_@+0x0a、winType@+0x0e、
-    // playCount@+0x0f —— 上面语义分配占位时已映射）。
-    *(reinterpret_cast<int*>(pkt + 0x0a)) = eloK2;
-    pkt[0x0e] = winType;
-    pkt[0x0f] = playCount;
+    // 写包头数据字段（asm：elo_k2_@+0x0a 4B、winType@+0x0e 1B、playCount@+0x0f 1B）。
+    res->m_eloK = eloK2;
+    res->m_winType = winType;
+    res->m_playCount = playCount;
 
     // 3) 两队 schoolNo 表（intsBase=pkt+8，elem=(t*14+i+8)，per-team stride 56B）与
     //    school 排他检查（同校不算对手）及绿章提示。
     for (int t = 0; t <= 1; ++t) {
         TeamInfo& ti = (t == 0) ? m_teamA : m_teamB;
         for (int i = 0; i < (int)nPlayerCountPerOneTeam_; ++i) {
-            *reinterpret_cast<unsigned int*>(pkt + 8 + (t * 14 + i + 8) * 4) =
-                ti.m_players[i].m_schoolNo;
+            res->m_team[t].m_schoolNo[i] = ti.m_players[i].m_schoolNo;
         }
         for (int i = 0; i < (int)nPlayerCountPerOneTeam_; ++i) {
-            unsigned int mySchool =
-                *reinterpret_cast<unsigned int*>(pkt + 8 + (t * 14 + i + 8) * 4);
-            unsigned int* schools = reinterpret_cast<unsigned int*>(pkt + 8 + t * 56 + 32);
+            unsigned int mySchool = res->m_team[t].m_schoolNo[i];
+            unsigned int* schools = res->m_team[t].m_schoolNo;
             if (!_getSameSchool(schools, i,
                                 (unsigned int)nPlayerCountPerOneTeam_, mySchool)) {
-                *(char*)(pkt + 0x1c + i * 3 + t * 56) = 0;
-                if (*(pkt + 0x1d + i * 3 + t * 56) != 0 ||
-                    *(pkt + 0x1e + i * 3 + t * 56) != 0) {
+                res->m_team[t].m_newFlag[i][0] = 0;
+                if (res->m_team[t].m_newFlag[i][1] != 0 ||
+                    res->m_team[t].m_newFlag[i][2] != 0) {
                     PlayerInfo& pi = ti.m_players[i];
                     if (pi.m_flag == 1 && pi.m_user != 0 &&
                         pi.m_user->getCurCharacR() != 0) {
@@ -525,14 +515,14 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
                         pi.m_user->Send(pg);
                     }
                 }
-            } else if (*(pkt + 0x1d + i * 3 + t * 56) == 0 &&
-                       *(pkt + 0x1e + i * 3 + t * 56) == 0) {
+            } else if (res->m_team[t].m_newFlag[i][1] == 0 &&
+                       res->m_team[t].m_newFlag[i][2] == 0) {
                 addBadge(&ti.m_players[i], ENUM_BADGE_TYPE_0,
-                         reinterpret_cast<unsigned char*>(pkt + 0x1c + i * 3 + t * 56),
+                         &res->m_team[t].m_newFlag[i][0],
                          false);
             } else {
                 addBadge(&ti.m_players[i], ENUM_BADGE_TYPE_0,
-                         reinterpret_cast<unsigned char*>(pkt + 0x1c + i * 3 + t * 56),
+                         &res->m_team[t].m_newFlag[i][0],
                          true);
             }
         }
@@ -548,7 +538,7 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
             }
             for (int b = 0; b < 3; ++b) {
                 short v = pi.m_user->GetDailyBadge(static_cast<ENUM_BADGE_TYPE>(b));
-                *(char*)(pkt + 0x1c + b + i * 3 + t * 56) = static_cast<char>(v);
+                res->m_team[t].m_dailyBadge[i][b] = static_cast<char>(v);
             }
         }
     }
@@ -558,7 +548,7 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
     for (unsigned int i = 0; i < (unsigned int)nPlayerCountPerOneTeam_; ++i) {
         for (int t = 0; t <= 1; ++t) {
             TeamInfo& ti = (t == 0) ? m_teamA : m_teamB;
-            ratings[t] = *(float*)(reinterpret_cast<char*>(&ti) + i * 0x1c + 4);
+            ratings[t] = ti.m_players[i].m_rating;
         }
         CEloRating::calc(ratings[0], ratings[1],
                          static_cast<ENUM_ELO_RATING_SYSTEM>(type),
@@ -567,8 +557,7 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
             TeamInfo& ti = (t == 0) ? m_teamA : m_teamB;
             if (ti.m_players[i].m_flag != 0 && ti.m_players[i].m_user != 0)
                 ti.m_players[i].m_user->UpdateRating(ratings[t]);
-            *reinterpret_cast<unsigned int*>(pkt + 8 + (t * 14 + i + 12) * 4) =
-                ti.m_players[i].m_accId;
+            res->m_team[t].m_accId[i] = ti.m_players[i].m_accId;
         }
     }
 

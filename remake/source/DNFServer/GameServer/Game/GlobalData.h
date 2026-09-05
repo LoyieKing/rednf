@@ -159,7 +159,8 @@ public:
     void OpenRevengeDungeon();                  // ORIG W 0x0847dd1e
     void CloseRevengeDungeon();                 // ORIG W 0x0847dd2a
     bool m_isOpen;                 // +0x00
-    int m_field04;                 // +0x04
+    unsigned int m_field04;        // +0x04（ORIG SetCloseTime 0x0847dd39 this
+                                   //  先载直存 ⇒ 与 unsigned 形参全等）
 };
 class CVillageMonsterMgr;
 }

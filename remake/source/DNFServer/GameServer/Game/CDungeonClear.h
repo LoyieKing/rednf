@@ -24,7 +24,7 @@ public:
     void AradfromString(CUser* pUser, const char* str);
     void enumDungeonClear(CUser* pUser, bool (*fn)(short, char, char*), ...) const;
     void fromString(CUser* pUser, char* str);
-    void toString(char* buf, unsigned int bufSize) const;
+    int toString(char* buf, unsigned int bufSize) const;
     void toString(std::string& out, int nUnknown) const;
 
 private:

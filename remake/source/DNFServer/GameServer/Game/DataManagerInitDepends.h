@@ -39,7 +39,7 @@ bool InitRDARScriptStringManager(const char* dir, const char* file,
 void InitMapEquipmentAniScript(void);                         // _Z25InitMapEquipmentAniScriptv 0x089c0586
 
 // ---- 全局环境谓词 ----
-char IsLightServer(void);                                     // _Z13IsLightServerv 0x0822ad44（定义 GlobalData.cpp）
+bool IsLightServer(void);                                     // _Z13IsLightServerv 0x0822ad44（定义 GlobalData.cpp；ORIG 调用点 test %al 无 setne ⇒ bool，giveup_panalty 0x086786cb 实证）
 void SetCollectDungeonStatistic(bool flag);                   // _Z26SetCollectDungeonStatisticb
 bool prepareServerDelayCheckDamage(void);                     // _Z29prepareServerDelayCheckDamagev
 
@@ -59,7 +59,7 @@ int  importItmeGroupTable(const char* dir, const char* file,
 bool importInGameAdvertisementEtcScript(class InGameAdvertisementScript* s, const char* path); // _Z34..
 bool importSeriaRoomDecoEvent(class seriaRoomDecoEventScript* s, const char* path);           // _Z24..
 bool importGrowthEquipmentScript(class growthEquipmentScript* s, const char* path);           // _Z27..
-char IsLightServer(void);                                     // _Z13IsLightServerv 0x0822ad44（定义 GlobalData.cpp）
+bool IsLightServer(void);                                     // _Z13IsLightServerv 0x0822ad44（定义 GlobalData.cpp；ORIG 调用点 test %al 无 setne ⇒ bool，giveup_panalty 0x086786cb 实证）
 void SetCollectDungeonStatistic(bool flag);                   // _Z26SetCollectDungeonStatisticb
 bool prepareServerDelayCheckDamage(void);                     // _Z29prepareServerDelayCheckDamagev
 bool ImportWorldDrop(class WorldDropInfo* out, const char* path);   // _Z15ImportWorldDropP13WorldDropInfoPKc
@@ -240,8 +240,6 @@ int  makeFairPVPEquipmentPackageKey(int job, int idx);                          
 
 // ---- 最小类声明（ORIG 有真实符号；布局与专属批次落地前仅以 new/指针使用）----
 
-// ORIG ImportSecurityReward(SecurityReward*) 写入 0x30 字节宿主
-// （CDataManager::m_securityReward）。专属 TU 未落地，先给可编译最小视图。
 // ORIG NeedMaterialDataManager::getInstance T 0x081b5ab2（单例；定义 CItem.cpp 域）
 class CItem;
 class NeedMaterialDataManager
@@ -250,6 +248,7 @@ public:
     static NeedMaterialDataManager* getInstance();
     CItem* getNeedMaterial(const CItem* item) const;   // ORIG T 0x081b5b70（NeedMaterialDataManager.cpp 定义）
 };
+struct SecurityReward;  // CDataManager.h 定义；独立包含本头时仅需指针声明
 
 // ORIG CmmChannelProxy（GlobalData.h 前向；完整布局在 GlobalData.cpp/GameMain.cpp
 // 各自局部镜像——本 TU 仅需 SendCheckChannelScript 一员，ORIG
@@ -258,15 +257,6 @@ class CmmChannelProxy
 {
 public:
     bool SendCheckChannelScript();
-};
-class SecurityReward
-{
-public:
-    // ORIG 无 ctor/dtor 符号（纯 POD，0x30）。ImportSecurityReward(0x089113ec)
-    // 三段各写 4 个 int：[GoblinPad Reward]/[SecurityCard Reward]/[OTP Reward]。
-    int m_goblinPad[4];    // +0x00..+0x0f
-    int m_securityCard[4]; // +0x10..+0x1f
-    int m_otp[4];          // +0x20..+0x2f
 };
 bool ImportSecurityReward(SecurityReward* out);   // _Z20ImportSecurityRewardP14SecurityReward（定义 InitScriptProducers_2.cpp）
 
@@ -360,7 +350,7 @@ public:
     ~CLevelRewardTableMgr();   // ORIG 0x0868777c
     static CLevelRewardTableMgr* GetInstance();                  // ORIG W 0x0837505b
     void SetChallengeInfo(stUnlimitChallengeInfo& info);         // ORIG 0x08687828
-    unsigned char IsOn();                             // ORIG W 0x08697792（读 m_flag；定义 CUserDepsB.cpp）
+    bool IsOn();                             // ORIG W 0x08697792（读 m_flag；定义 CUserDepsB.cpp；caller 0x0864a5cf `xor $0x1,%eax;test %al,%al` bool 形⇒声明 bool）
     bool IsChallengingJob(char job);                  // ORIG T 0x08687792（定义 CUserDepsB.cpp）
     bool IsOnServer(int serverIdx);                   // ORIG T 0x08687d6c（W7_CUserFix 补；实现 owner=CUserDepsB.cpp）
     bool IsHaveStartLevelReward();                    // ORIG T 0x08687d18（同上）

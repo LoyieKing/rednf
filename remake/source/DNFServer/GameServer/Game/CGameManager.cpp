@@ -99,7 +99,7 @@ extern CDoubleConnCheckServerProxy* s_double_check_proxy;
 extern WongWork::CLogGameChannel* s_pLogGameChannel;
 TimerQueue* s_timerQueue_;  // ORIG 全局（GlobalData::s_timerQueue_），原 GameStubs.cpp 定义迁移
 }
-CSchoolMgr* g_schoolMgr;          // ORIG 全局，原 GameStubs.cpp 定义迁移
+CSchoolMgr g_schoolMgr;           // ORIG 全局对象（nm -S BSS size 0x58），原 GameStubs.cpp 定义迁移
 CGuildAgitManager* g_guildAgitMgr;  // ORIG 全局，原 GameStubs.cpp 定义迁移
 namespace GlobalData
 {
@@ -112,7 +112,7 @@ CUserGlobalInfoHandle* CUserGlobalInfoHandleInstance();
 CEventCharacterHandler* CEventCharacterHandlerInstance();
 CShutdowManager* GetInstanceShutdowManager();
 EpollHandler* G_EpollHandler();
-extern CSchoolMgr* g_schoolMgr;
+extern CSchoolMgr g_schoolMgr;
 extern CGuildAgitManager* g_guildAgitMgr;
 bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime, long lCurTime);
 
@@ -151,8 +151,8 @@ StaticPool<T, N>::StaticPool()
     m_pNode = new CNode[N];
     if (m_pNode == 0)
     {
-        cMyTrace tr(__FUNCTION__, 0x6c, 5);
-        tr("[StaticPool] %s(%d) new fail", "StaticPool.cpp", 0x6c);
+        // ORIG C1 实证：trace 落浅槽 -0x30（push 临时对象占 -0x58），临时对象形态
+        cMyTrace(__FUNCTION__, 0x6c, 5)("[StaticPool] %s(%d) new fail", "StaticPool.cpp", 0x6c);
     }
     for (int i = 0; i < N; ++i)
         m_Queue.push(&m_pNode[i]);
@@ -175,18 +175,19 @@ T* StaticPool<T, N>::Acquire()
     if (pNode->magic != 0x8f21)
     {
         register int magic = pNode->magic;
-        cMyTrace tr(__FUNCTION__, 0x89, 0);
-        tr("[StaticPool] magic(%d) node(%p)", magic, pNode);
+        // ORIG 0x082b0351 实证：临时对象形态（非具名局部）→ magic trace 槽 -0x2c、
+        // bUse trace 槽 -0x1c（具名写法槽序相反）
+        cMyTrace(__FUNCTION__, 0x89, 0)("[StaticPool] magic(%d) node(%p)", magic, pNode);
         m_nErrorCode = 3;
     }
     if (pNode->bUse != 0)
     {
         register int use = pNode->bUse;
-        cMyTrace tr(__FUNCTION__, 0x8f, 0);
-        tr("[StaticPool] bUse(%d) node(%p)", use, pNode);
+        cMyTrace(__FUNCTION__, 0x8f, 0)("[StaticPool] bUse(%d) node(%p)", use, pNode);
         m_nErrorCode = 4;
     }
-    pNode->bUse = pNode->bUse + 1;
+    // ORIG `lea 0x1(%eax),%edx` = 后缀 ++（读改写单表达式，探针 t5 实证）
+    pNode->bUse++;
     return pNode;
 }
 
@@ -199,8 +200,8 @@ T* StaticPool<T, N>::Get(int index)
     if (pNode->magic != 0x8f21)
     {
         register int magic = pNode->magic;
-        cMyTrace tr(__FUNCTION__, 0xc3, 0);
-        tr("[StaticPool] magic(%d) node(%p)", magic, pNode);
+        // ORIG 0x82b0xxx 实证：临时对象形态使 magic trace 槽落 -0x2c、bUse 落 -0x1c
+        cMyTrace(__FUNCTION__, 0xc3, 0)("[StaticPool] magic(%d) node(%p)", magic, pNode);
         m_nErrorCode = 7;
     }
     if (pNode->bUse != 1)
@@ -208,8 +209,7 @@ T* StaticPool<T, N>::Get(int index)
         if (pNode->bUse != 0)
         {
             register int use = pNode->bUse;
-            cMyTrace tr(__FUNCTION__, 0xca, 0);
-            tr("[StaticPool] bUse(%d) node(%p)", use, pNode);
+            cMyTrace(__FUNCTION__, 0xca, 0)("[StaticPool] bUse(%d) node(%p)", use, pNode);
             m_nErrorCode = 8;
         }
     }
@@ -219,29 +219,25 @@ T* StaticPool<T, N>::Get(int index)
 template <class T, int N>
 void StaticPool<T, N>::Free(T* p)
 {
+    // ORIG 0x082b082a 实证（探针 t8 全等）：null 检查块先于 pNode 声明、
+    // trace 全临时对象且实参直接写表达式（无具名中间量）→
+    // 槽序 trnull-0x38/pNode-0x3c/trm-0x28/trb-0x18 + %esi 前置装载 + -- 单装载尾
     if (p == 0)
-    {
-        cMyTrace tr(__FUNCTION__, 0xa0, 5);
-        tr("[StaticPool] %s(%d) free null", "StaticPool.cpp", 0xa0);
-    }
+        cMyTrace(__FUNCTION__, 0xa0, 5)("[StaticPool] %s(%d) free null", "StaticPool.cpp", 0xa0);
     CNode* pNode = (CNode*)p;
     m_Queue.push(pNode);
     if (pNode->magic != 0x8f21)
     {
-        register int magic = pNode->magic;
-        cMyTrace tr(__FUNCTION__, 0xaa, 0);
-        tr("[StaticPool] magic(%d) node(%p)", magic, pNode);
+        cMyTrace(__FUNCTION__, 0xaa, 0)("[StaticPool] magic(%d) node(%p)", pNode->magic, pNode);
         m_nErrorCode = 5;
     }
     if (pNode->bUse != 1)
     {
-        register int use = pNode->bUse;
-        cMyTrace tr(__FUNCTION__, 0xb0, 0);
-        tr("[StaticPool] bUse(%d) node(%p)", use, pNode);
+        cMyTrace(__FUNCTION__, 0xb0, 0)("[StaticPool] bUse(%d) node(%p)", pNode->bUse, pNode);
         m_nErrorCode = 6;
         PrintBackTrace();
     }
-    pNode->bUse = pNode->bUse - 1;
+    pNode->bUse--;
 }
 
 template <class T, int N>
@@ -257,15 +253,14 @@ int StaticPool<T, N>::GetIndex(T* p)
     if (pNode->magic != 0x8f21)
     {
         register int magic = pNode->magic;
-        cMyTrace tr(__FUNCTION__, 0x50, 0);
-        tr("[StaticPool] magic(%d) node(%p)", magic, pNode);
+        // ORIG 实证：临时对象形态 → magic trace 槽 -0x34、bUse 槽 -0x24（具名相反）
+        cMyTrace(__FUNCTION__, 0x50, 0)("[StaticPool] magic(%d) node(%p)", magic, pNode);
         m_nErrorCode = 1;
     }
     if (pNode->bUse != 1)
     {
         register int use = pNode->bUse;
-        cMyTrace tr(__FUNCTION__, 0x56, 0);
-        tr("[StaticPool] bUse(%d) node(%p)", use, pNode);
+        cMyTrace(__FUNCTION__, 0x56, 0)("[StaticPool] bUse(%d) node(%p)", use, pNode);
         m_nErrorCode = 2;
     }
     if (index > N - 1)
@@ -472,7 +467,7 @@ bool CGameManager::init()
 
 short CGameManager::getNextUID()
 {
-    m_uid = (short)(m_uid + 1);
+    m_uid++;  // ORIG movzwl+lea 0x1(%eax),%edx+mov %dx 单装载形态（探针 t5）
     unsigned short v = m_uid;
     if (m_uid == 0x7fff || m_uid < 0)
         m_uid = 0;
@@ -813,12 +808,11 @@ void CGameManager::CheckOutParty(CUser* user, bool flag)
 
 unsigned int CGameManager::CheckOutQuickParty(CParty* party, bool flag)
 {
-    unsigned int ret = 0;
+    // ORIG 0x082983fc：ret 无独立槽（call 结果 %eax 直接 xor+test 返回）；
+    // party==0 路径落 nop→ret，返回值 = 函数顶部 bool 形参 spill 的 %eax 残值
+    unsigned int ret;
     if (party != 0)
-    {
-        ret = (unsigned int)G_CGameManager()->GetQuickPartySystemManager()->cancel_quick_party(party, flag, 0);
-        ret = ret ^ 1;
-    }
+        ret = (unsigned int)G_CGameManager()->GetQuickPartySystemManager()->cancel_quick_party(party, flag, 0) ^ 1;
     return ret;
 }
 
@@ -858,12 +852,20 @@ void CGameManager::PutTradeSpace(CTradeSpace* tradeSpace)
 
 void CGameManager::CheckOutTrade(CUser* user)
 {
-    if (user->CheckInTrade() == 1)
+    // ORIG 0x08297c25（Ghidra: cVar1 == '\x01'）：空 then + else 结构命中
+    // xor $0x1,%eax + test %al,%al + jne skip（body fall-through，探针 wb 实证）
+    if ((bool)(user->CheckInTrade() ^ 1))
+    {
+    }
+    else
     {
         CTradeSpace* tradeSpace = m_tradeSpacePool.Get(user->GetTradeSpace());
         tradeSpace->cancel_trade_by_dis(user);
         PutTradeSpace(tradeSpace);
+        return;
     }
+    // ORIG +0x5c 尾岛：else 块尾 return + 函数尾显式 return → call;jmp;merge;leave
+    return;
 }
 
 // ============================================================================
@@ -1168,13 +1170,18 @@ void CGameManager::PutWarRoom(WarRoom* room)
 
 void CGameManager::CheckOutWarRoom(CUser* user)
 {
-    if (user->CheckInWarRoom() == 1)
+    // ORIG 族形态：空 then + else（xor$1;test;jne + 尾岛）
+    if ((bool)(user->CheckInWarRoom() ^ 1))
+    {
+    }
+    else
     {
         WarRoom* room = GetWarRoom(user->GetWarRoomIndex());
         if (room != 0)
         {
-            int ret = room->WalkOutUser(user);
-            if (ret == 4)
+            // ORIG cmp$0x4;sete%al;test;je：具名 ret 槽比较生成 cmpl+jne（无 sete），
+            // (bool)(call()==4) 复现物化形态
+            if ((bool)(room->WalkOutUser(user) == 4))
             {
                 LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x117b,
                                       "CGameManager::CheckOutWarRoom Can't find user charno(%d)",
@@ -1182,7 +1189,9 @@ void CGameManager::CheckOutWarRoom(CUser* user)
             }
             room->CheckState();
         }
+        return;
     }
+    return;
 }
 
 WarRoom* CGameManager::FindJoinableWarRoom(CUser* user)
@@ -1265,17 +1274,25 @@ void CGameManager::returnDeathTower(WongWork::CDeathTower* tower)
 
 void CGameManager::checkOutDeathTower(CUser* user)
 {
-    if (user->checkInDeathTower() == 1)
+    // ORIG 族形态：外层空 then+else；内层 `x!=1` 以 (bool)(x^1) 真值判断复现
+    // xor$1;test;je skip（x==1 跳过），非 `!=1` 物化比较（cmp$1;je;mov1;mov0）
+    if ((bool)(user->checkInDeathTower() ^ 1))
+    {
+    }
+    else
     {
         WongWork::CDeathTower* tower = getDeathTower(user->getDeathTowerIndex());
-        if (tower != 0 && tower->onLeaveUser(user) != 1)
+        // onLeaveUser 返 int：(char)(x^1) 截断防 gcc4.4.7 将 int^1!=0 化简为 cmp$1
+        if (tower != 0 && (char)(tower->onLeaveUser(user) ^ 1))
         {
             LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x123a,
                                   "DeathTower checkOutDeathTower ID[%d] ACCID[%s]",
                                   tower->getIdx(),
                                   NumberToString(user->get_acc_id(), 0));
         }
+        return;
     }
+    return;
 }
 
 WongWork::CBossTower* CGameManager::getBossTower()
@@ -1337,14 +1354,19 @@ void CGameManager::returnBossTower(WongWork::CBossTower* tower)
 
 void CGameManager::checkOutBossTower(CUser* user)
 {
-    if (user->checkInBossTower() == 1)
+    // ORIG 族形态：空 then + else（xor$1;test;jne）
+    if ((bool)(user->checkInBossTower() ^ 1))
+    {
+    }
+    else
     {
         WongWork::CBossTower* tower = getBossTower(user->getBossTowerIndex());
         if (tower != 0)
         {
             // ORIG 调虚表槽 +0x14 = WongWork::CBossPlay::checkAllMemberReady(int)
             // （vtable 0x08b70260 实证：槽内 0x081493fe；实参为 CUser* 转 int）。
-            if ((char)tower->checkAllMemberReady((int)user) != 1)
+            // (bool)(x^1) 真值形态复现 xor$1;test;je（(char)!=1 生成 cmp+setne）
+            if ((bool)(tower->checkAllMemberReady((int)user) ^ 1))
             {
                 LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x11d9,
                                       "BossTower checkOutBossTower ID[%d] ACCID[%s]",
@@ -1352,7 +1374,9 @@ void CGameManager::checkOutBossTower(CUser* user)
                                       NumberToString(user->get_acc_id(), 0));
             }
         }
+        return;
     }
+    return;
 }
 
 advancealtar::StageControl* CGameManager::getAdvanceAltar()
@@ -1512,14 +1536,20 @@ void CGameManager::putBlueMarble(BlueMarble* marble)
 
 void CGameManager::checkOutBlueMarble(CUser* user)
 {
-    if (user->checkInBlueMarble() == 1)
+    // ORIG 同 CheckOutTrade 族：空 then + else → xor$1;test;jne + 双 jmp 尾岛
+    if ((bool)(user->checkInBlueMarble() ^ 1))
+    {
+    }
+    else
     {
         BlueMarble* marble = getBlueMarble(user->getBlueMarbleIndex());
         if (marble != 0)
         {
             marble->leaveUser(user);
         }
+        return;
     }
+    return;
 }
 
 void CGameManager::allocBlueMarble()
@@ -2031,11 +2061,9 @@ void CGameManager::updateDBLinkCharacConnectState(
 
 bool CGameManager::IsNoGameGuardApplingUser(std::string& name, char* addr)
 {
-    // ORIG 0x82a3544：end() 先求值（const_iterator 直构 -0x10），find(name)
-    // 后求值（-0xc）；相等判 false（P56 分支返回 + eq 比较）。
-    std::set<std::string>::const_iterator endIt = m_noGameGuard.end();
-    std::set<std::string>::const_iterator it = m_noGameGuard.find(name);
-    if (it == endIt)
+    // ORIG 0x82a3544：单表达式比较 → 实参右先求值：end() 临时占深槽 -0x10、
+    // find(name) 临时占 -0xc（具名两变量写法槽序相反）
+    if (m_noGameGuard.find(name) == m_noGameGuard.end())
         return false;
     return true;
 }
@@ -2482,7 +2510,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     int guildGroup = (int)(size_t)user->GetServerGroup();
     CGuildServerProxy* guildProxy = GlobalData::s_guild_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)guildGroup);
     guildProxy->SendTcpPacket((char*)&monitor, 0x3f);
-    g_schoolMgr->AddUser(user);
+    g_schoolMgr.AddUser(user);
     if (user->get_charac_guildkey() != 0)
     {
         g_guildAgitMgr->AllocGuildAgitArea(user->get_charac_guildkey());

@@ -264,59 +264,51 @@ int CUser::GetItemSerialChecker(unsigned short serialIdx, unsigned short serialV
 // ===========================================================================
 int CUser::lottery_item(int slot)
 {
-    const CInventory& invenR = *getCurCharacInvenR();
-    CInventory& invenW = *getCurCharacInvenW();
-    CDataManager* dm = G_CDataManager();
-    ServerParameterScript& sp = dm->m_serverParameter;
-
-    Inven_Item curItem = invenR.GetInvenSlot(INVEN_TYPE_EQUIP, slot);
+    int resultSlotNo = 0;                                        // local_60
+    Inven_Item lotto;                                            // local_13d
+    Inven_Item curItem;                                          // local_17a
+    curItem = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_EQUIP, slot);
     unsigned int ticketId = static_cast<unsigned int>(curItem.m_addInfo);
 
-    CItem* costItem = dm->find_item(ticketId);                  // local_5c
+    CItem* costItem = G_CDataManager()->find_item(ticketId);     // local_58
     if (costItem == NULL) {
         return 0x15;
     }
-    if (get_charac_level() < costItem->getUsableLevel()) {
+    if (costItem->getUsableLevel() > get_charac_level()) {
         return 0xe;
     }
 
     // NOTE(NEEDS_FIX)：find_lottery_use_cost 见文件头注记
-    int useCost = dm->find_lottery_use_cost(ticketId);           // local_50
-    if (useCost != 0 && invenR.get_money() < useCost) {
+    int useCost = G_CDataManager()->find_lottery_use_cost(ticketId);  // local_50
+    if (useCost != 0 && getCurCharacInvenR()->get_money() < useCost) {
         return 10;
     }
 
-    Inven_Item lotto;
-    dm->getItemList()->get_lotto_item(ticketId,
-                                      reinterpret_cast<char*>(&lotto));
-
-    int resultSlotNo = 0;                                        // local_60
+    G_CDataManager()->m_itemList->get_lotto_item(
+        ticketId, reinterpret_cast<char*>(&lotto));
 
     // ---- 金币奖励分支：结果项无 id 且金额>0 ----
     if (lotto.m_addInfo == 0 && lotto.m_addInfo2 > 0) {
-        int moneyGain = lotto.m_addInfo2;                        // local_48
-        int limit =
-            dm->GetMoneyLimitPerLevel(get_charac_level(),
-                                      get_acc_name());           // local_44
-        if (limit < (invenR.get_money() + moneyGain)) {
+        int moneyGain = lotto.m_addInfo2;                        // local_44
+        int limit = G_CDataManager()->GetMoneyLimitPerLevel(
+            get_charac_level(), get_acc_name());                 // local_40
+        if (getCurCharacInvenR()->get_money() + moneyGain > limit) {
+            unsigned long charNo = getCurCharacNo();
             const char* accIdStr = NumberToString(get_acc_id(), 0);
             cMyTrace trace(__PRETTY_FUNCTION__, 0x61b9, 4);
             trace("lottery_gold_item:m_id(%s), char_no(%d), money(%d)",
-                  accIdStr, getCurCharacNo(), moneyGain);
+                  accIdStr, charNo, moneyGain);
             return 0x16;
         }
-        int gained =                                             // local_3c
-            invenW.gain_money(moneyGain, static_cast<eMoneyAddReason>(0x17),
-                              true, 0);
+        int gained = getCurCharacInvenW()->gain_money(
+            moneyGain, static_cast<eMoneyAddReason>(0x17), true, 0);  // local_3c
         if (gained < moneyGain) {
             SendMoneyFullReason(static_cast<ENUM_MONEY_FULL_REASON>(0),
                                 static_cast<unsigned long>(moneyGain),
                                 static_cast<unsigned long>(gained));
         }
-        bool okDel =
-            invenW.delete_item(INVEN_TYPE_EQUIP, slot, 1,
-                               eItemDelReason_3, true);
-        if (!okDel) {
+        if (!getCurCharacInvenW()->delete_item(INVEN_TYPE_EQUIP, slot, 1,
+                                               eItemDelReason_3, true)) {
             return 0x11;
         }
         PacketGuard out;                                         // local_bc
@@ -333,18 +325,18 @@ int CUser::lottery_item(int slot)
         out.put_packet(g_emptySlot);
         out.finalize(true);
         Send(out);
-        send_broadcast_lottery_gold_message(
-            static_cast<unsigned long>(lotto.m_addInfo), moneyGain);
+        send_broadcast_lottery_gold_message(static_cast<unsigned long>(ticketId),
+                                            moneyGain);
         return 0;
     }
 
     // ---- 结果道具抽取强化概率（costTicket 可堆叠且类型 0xd 时进入；
-    //      SPS 字段与 dm 绝对偏移映射见注释：dm+0x590→sp 相对 0x528=m_508[8]…）----
+    //      SPS 字段 dm+0x5xx ↔ m_serverParameter(基 0x68) 相对偏移映射见头注）----
     unsigned int resultId = static_cast<unsigned int>(lotto.m_addInfo);
-    CItem* costTicket = dm->find_item(ticketId);                 // local_58
-    CItem* resItem = dm->find_item(resultId);                    // local_54
+    CItem* costTicket = G_CDataManager()->find_item(ticketId);   // local_54(栈-0x54)
+    CItem* resItem = G_CDataManager()->find_item(resultId);      // local_50(栈-0x50)
 
-    // ORIG 条件精写（报告 LAB_08673abd..0x70f）：
+    // ORIG 条件精写（报告 0x051c..0x05d2）：
     if (costTicket != NULL && resItem != NULL) {
         bool condStack = costTicket->is_stackable() &&
                          costTicket->GetItemType() == 0xd;
@@ -353,14 +345,28 @@ int CUser::lottery_item(int slot)
                 (lotto.m_field1 == '\x01') &&
                 (resItem->GetItemType() != 0xb);
             if (upgradeGate) {
-                int up = 0;                                      // local_38
-                int roll = get_rand_int(10000);
-                if (roll < sp.m_508[10]) {
-                    up = sp.m_508[8] + get_rand_int(sp.m_508[11]) / 1000;
-                } else if (roll < (sp.m_508[10] + sp.m_508[14])) {
-                    up = sp.m_508[12] + get_rand_int(sp.m_508[15]) / 1000;
+                int up = 0;                                      // local_34
+                int roll = get_rand_int(10000);                  // local_30
+                if (static_cast<unsigned int>(roll) <
+                    static_cast<unsigned int>(
+                        G_CDataManager()->m_serverParameter.m_508[10])) {
+                    up = G_CDataManager()->m_serverParameter.m_508[8] +
+                         get_rand_int(
+                             G_CDataManager()->m_serverParameter.m_508[11]) /
+                         1000;
+                } else if (static_cast<unsigned int>(roll) <
+                           static_cast<unsigned int>(
+                               G_CDataManager()->m_serverParameter.m_508[14] +
+                               G_CDataManager()->m_serverParameter.m_508[10])) {
+                    up = G_CDataManager()->m_serverParameter.m_508[12] +
+                         get_rand_int(
+                             G_CDataManager()->m_serverParameter.m_508[15]) /
+                         1000;
                 } else {
-                    up = sp.m_508[16] + get_rand_int(sp.m_508[19]) / 1000;
+                    up = G_CDataManager()->m_serverParameter.m_508[16] +
+                         get_rand_int(
+                             G_CDataManager()->m_serverParameter.m_508[19]) /
+                         1000;
                 }
                 if (up < 0 || up > 0x1f) {
                     up = 0;
@@ -375,55 +381,71 @@ int CUser::lottery_item(int slot)
     }
 
     // ---- 插入容量预检 ----
-    bool capacityOK = (invenR.QuickEmptyCount() > 0);
-    if (!capacityOK) {
-        if (!invenR.check_empty_count(Inven_Item::ITEM_TYPE_EQUIP, 1)) {
+    if (getCurCharacInvenR()->QuickEmptyCount() <= 0) {
+        if (!getCurCharacInvenR()->check_empty_count(Inven_Item::ITEM_TYPE_EQUIP,
+                                                     1)) {
             return 4;
         }
-        if (lotto.get_add_info() >= 2) {
-            if (!invenR.check_empty_count(Inven_Item::ITEM_TYPE_2, 1)) {
+        if (curItem.get_add_info() >= 2) {
+            if (!getCurCharacInvenR()->check_empty_count(Inven_Item::ITEM_TYPE_2,
+                                                         1)) {
                 return 4;
             }
         }
-        if (!invenR.check_empty_count(Inven_Item::ITEM_TYPE_3, 1)) {
+        if (!getCurCharacInvenR()->check_empty_count(Inven_Item::ITEM_TYPE_3,
+                                                     1)) {
             return 4;
         }
-        if (!invenR.check_empty_count(Inven_Item::ITEM_TYPE_10, 1)) {
+        if (!getCurCharacInvenR()->check_empty_count(Inven_Item::ITEM_TYPE_10,
+                                                     1)) {
+            return 4;
+        }
+    }
+
+    // ---- 宠物罐子票（0x28bfa1）：读 4 个罐子槽，任一强化等级 >9 拒绝 ----
+    if (ticketId == 0x28bfa1u) {
+        Inven_Item jar1;
+        getCurCharacInvenW()->GetInvenData(0x28bf9d, jar1);
+        Inven_Item jar2;
+        getCurCharacInvenW()->GetInvenData(0x28bf9e, jar2);
+        Inven_Item jar3;
+        getCurCharacInvenW()->GetInvenData(0x28bf9f, jar3);
+        Inven_Item jar4;
+        getCurCharacInvenW()->GetInvenData(0x28bfa0, jar4);
+        if (jar1.m_addInfo2 > 9 || jar2.m_addInfo2 > 9 ||
+            jar3.m_addInfo2 > 9 || jar4.m_addInfo2 > 9) {
             return 4;
         }
     }
 
     // ---- 消耗票（id != 0x28becb 即刻删除；否则延后） ----
     if (ticketId != 0x28becbu) {
-        bool delOk =
-            invenW.delete_item(INVEN_TYPE_EQUIP, slot, 1,
-                               eItemDelReason_3, true);
-        if (!delOk) {
+        if (!getCurCharacInvenW()->delete_item(INVEN_TYPE_EQUIP, slot, 1,
+                                               eItemDelReason_3, true)) {
             return 0x11;
         }
     }
 
-    int remainOrAdd = 0;                                         // local_30
-    char ipgName[24];
-    memset(ipgName, 0, sizeof(ipgName));                         // local_e0
+    int remainOrAdd = 0;                                         // local_2c
 
     if (resItem != NULL && resItem->IsAvatarItem()) {
         // ---- avatar 分支 ----
-        WongWork::CGenUniqueNo::genIPGNo(WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE_1,
-                                         static_cast<unsigned>(getCurCharacNo()),
-                                         ipgName);
-        int period = resItem->getUsablePeriod();
-        resultSlotNo =                                            // local_60
-            invenW.AddAvatarItem(static_cast<int>(resultId), period, false,
-                                 '\0', '\0', ipgName,
-                                 static_cast<eAvatarItemAddReason>(7), false, 0);
+        char ipgBuf[24];                                         // local_e0
+        const char* ipg = WongWork::CGenUniqueNo::genIPGNo(
+            WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE_1,
+            static_cast<unsigned>(getCurCharacNo()), ipgBuf);
+        resultSlotNo = getCurCharacInvenW()->AddAvatarItem(
+            static_cast<int>(resultId), resItem->getUsablePeriod(), false,
+            '\0', static_cast<char>(-1), ipg,
+            static_cast<eAvatarItemAddReason>(7), false, 0);
         if (resultSlotNo == -1) {
             return 4;
         }
-        int nowSec = GlobalData::s_systemTime_.getCurSec();
-        Inven_Item placed = invenR.GetInvenSlot(INVEN_TYPE_AVATAR, resultSlotNo);
-        const WongWork::CAvatarItemMgr* avm = invenR.GetAvatarItemMgrR();
-        remainOrAdd = avm->GetRemainDate(placed.m_addInfo2, nowSec);
+        int nowSec = GlobalData::s_systemTime_.getCurSec();      // local_24
+        int avatarUid = getCurCharacInvenR()->GetInvenSlot(
+            INVEN_TYPE_AVATAR, resultSlotNo).m_addInfo2;
+        remainOrAdd = getCurCharacInvenR()->GetAvatarItemMgrR()->GetRemainDate(
+            avatarUid, nowSec);
         lotto.SetUpgrade(0);
     } else if (resItem != NULL && resItem->IsCreatureItem() &&
                resItem->GetItemType() == 0x16) {
@@ -434,52 +456,46 @@ int CUser::lottery_item(int slot)
         if (user_creature::CCreatureItemConverter::SetEggItem(&lotto) != 1) {
             return 0x11;
         }
-        resultSlotNo =
-            invenW.insertItemIntoInventory(lotto, static_cast<eItemAddReason>(3),
-                                           true, false);
+        resultSlotNo = getCurCharacInvenW()->insertItemIntoInventory(
+            lotto, static_cast<eItemAddReason>(3), true, false);
         if (resultSlotNo < 0) {
             return 4;
         }
-        int expDate = resItem->getExpirationDate();
-        int period = resItem->getUsablePeriod();
-        user_creature::CCreatureMgr* cm = invenW.GetCreatureMgrW();
-        cm->InsertCreatureItem(&lotto, resultSlotNo, 0x19, period, expDate);
+        getCurCharacInvenW()->GetCreatureMgrW()->InsertCreatureItem(
+            &lotto, resultSlotNo, 0x19, resItem->getUsablePeriod(),
+            resItem->getExpirationDate());
     } else {
         // ---- 普通道具（含随机选项生成）----
         if (resItem != NULL && resItem->IsRandomOption()) {
-            RandomOption* optTarget = &lotto.m_random.m_random;
             if (!GlobalData::g_randomOptionHandle->give_option(
                     resultId,
                     static_cast<ENUM_RARITY>(resItem->get_rarity()),
                     resItem->getUsableLevel(), resItem->getItemGroupName(),
-                    resItem->GetRandomOptionGrade(), optTarget)) {
+                    resItem->GetRandomOptionGrade(), &lotto.m_random.m_random)) {
                 return 0x11;
             }
         }
-        resultSlotNo =
-            invenW.insertItemIntoInventory(lotto, static_cast<eItemAddReason>(3),
-                                           true, true);
+        resultSlotNo = getCurCharacInvenW()->insertItemIntoInventory(
+            lotto, static_cast<eItemAddReason>(3), true, true);
         if (resultSlotNo == -1) {
             return 4;
         }
         if (ticketId == 0x28becbu) {
-            bool delOk =
-                invenW.delete_item(INVEN_TYPE_EQUIP, slot, 1,
-                                   eItemDelReason_3, true);
-            if (!delOk) {
+            if (!getCurCharacInvenW()->delete_item(INVEN_TYPE_EQUIP, slot, 1,
+                                                   eItemDelReason_3, true)) {
                 return 0x11;
             }
         }
         remainOrAdd = lotto.get_add_info();
 
         if (resItem != NULL) {
-            int sellPrice = 0;                                    // local_e4
+            int sellPrice = 0;                                   // local_e4
             short count = static_cast<short>(lotto.m_addInfo2);
             G_Store()->GetSellItemPrice(lotto, resItem, count, false,
                                         sellPrice);
-            CValueStatistic* stat = GetInstanceValueStatistic();
-            stat->AddValueStatistic(static_cast<VALUE_STATISTIC_FIELD>(7),
-                                    this, static_cast<unsigned int>(sellPrice));
+            GetInstanceValueStatistic()->AddValueStatistic(
+                static_cast<VALUE_STATISTIC_FIELD>(7), this,
+                static_cast<unsigned int>(sellPrice));
         }
     }
 
@@ -491,21 +507,22 @@ int CUser::lottery_item(int slot)
     }
 
     // ---- useCost 二次扣款与货币更新包 ----
-    useCost = dm->find_lottery_use_cost(ticketId);
+    useCost = G_CDataManager()->find_lottery_use_cost(ticketId);
     if (useCost != 0) {
-        invenW.use_money(useCost, static_cast<eMoneySubReason>(0x2d), true);
-        PacketGuard notify;                                       // local_f0
+        getCurCharacInvenW()->use_money(
+            useCost, static_cast<eMoneySubReason>(0x2d), true);
+        PacketGuard notify;                                      // local_f0
         notify.clear();
         notify.put_header(0, 0xe);
         notify.put_byte(0);
         notify.put_short(1);
-        invenR.MakeItemPacket(INVEN_TYPE_EQUIP, 0, notify);
+        getCurCharacInvenR()->MakeItemPacket(INVEN_TYPE_EQUIP, 0, notify);
         notify.finalize(true);
         Send(notify);
     }
 
     // ---- 主响应包 ----
-    PacketGuard resp;                                             // local_c8
+    PacketGuard resp;                                            // local_c8
     resp.put_header(1, 0x1d);
     resp.put_byte(1);
     resp.put_short(slot);
@@ -518,16 +535,20 @@ int CUser::lottery_item(int slot)
     resp.put_short(lotto.m_amp.getAbilityValue());
     if (lotto.isAvatarItemType()) {
         resp.put_int(0x1e);
-        const WongWork::CAvatarItemMgr* avm = invenR.GetAvatarItemMgrR();
-        resp.put_binary(avm->getJewelSocketData(resultSlotNo), 0x1e);
+        resp.put_binary(getCurCharacInvenR()->GetAvatarItemMgrR()
+                            ->getJewelSocketData(
+                                static_cast<int>(lotto.m_addInfo2)),
+                        0x1e);
         resp.put_int(4);
-        void* expansion = avm->GetExpansionInfo(resultSlotNo);
-        if (expansion == NULL) {
+        const char* expansion = static_cast<const char*>(
+            getCurCharacInvenR()->GetAvatarItemMgrR()->GetExpansionInfo(
+                static_cast<int>(lotto.m_addInfo2)));
+        if (expansion != NULL) {
+            resp.put_binary(expansion, 4);
+        } else {
             stAvatarExpansionInfo_t fresh;
             fresh.init();
             resp.put_binary(reinterpret_cast<const char*>(&fresh), 4);
-        } else {
-            resp.put_binary(static_cast<char*>(expansion), 4);
         }
     }
     resp.put_packet(lotto);
@@ -541,30 +562,25 @@ int CUser::lottery_item(int slot)
 
     // ---- 强化成功全服播报（含稀度上限豁免表）----
     bool eligibleToShout = false;
-    bool havePair = (costTicket != NULL && resItem != NULL);
-    if (havePair && costTicket->is_stackable() &&
-        costTicket->GetItemType() == 0xd) {
-        int cap = sp.m_558;                          // rarity 上限豁免（dm+0x5c0）
-        int rarity = resItem->get_rarity();
-        if (!(rarity < cap)) {
-            eligibleToShout = false;                 // cap<=rarity 直接免播
-        } else if (resItem->IsAvatarItem()) {
-            if (sp.m_55c[resItem->GetItemType()] != 0) {
-                eligibleToShout = false;             // 特例列表命中的 avatar 免播
-            } else {
-                eligibleToShout =
-                    (sp.m_578 > static_cast<int>(lotto.GetUpgrade()));
-            }
+    if (costTicket != NULL && resItem != NULL &&
+        costTicket->is_stackable() && costTicket->GetItemType() == 0xd) {
+        if (G_CDataManager()->m_serverParameter.m_558 <= resItem->get_rarity()) {
+            eligibleToShout = true;                       // 高稀度直接播报
+        } else if (resItem->IsAvatarItem() &&
+                   G_CDataManager()->m_serverParameter
+                       .m_55c[resItem->GetItemType()] != 0) {
+            eligibleToShout = true;                       // 表命中 avatar 特例
         } else {
             eligibleToShout =
-                (sp.m_578 > static_cast<int>(lotto.GetUpgrade()));
+                (G_CDataManager()->m_serverParameter.m_578 <=
+                 static_cast<int>(lotto.GetUpgrade()));  // 强化等级门槛
         }
     }
 
     if (eligibleToShout) {
-        bool skipByPlace = (getMoveSpace() ==
-                            static_cast<UserSpace::T>(1)) ||
-                           (resItem != NULL && resItem->IsRandomOption());
+        bool skipByPlace =
+            (getMoveSpace() == static_cast<UserSpace::T>(1)) ||
+            (resItem != NULL && resItem->IsRandomOption());
         if (!skipByPlace) {
             PacketGuard shout;                                    // local_100
             shout.put_header(0, 0x56);
@@ -586,15 +602,12 @@ int CUser::lottery_item(int slot)
 // ===========================================================================
 int CUser::multibox_lottery_item(int boxSlot, int keySlot)
 {
-    const CInventory& invenR = *getCurCharacInvenR();
-    CInventory& invenW = *getCurCharacInvenW();
-    CDataManager* dm = G_CDataManager();
-
-    Inven_Item boxItem = invenR.GetInvenSlot(INVEN_TYPE_EQUIP, boxSlot);
+    Inven_Item boxItem;                                          // local_151
+    boxItem = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_EQUIP, boxSlot);
     unsigned int boxItemId = static_cast<unsigned int>(boxItem.m_addInfo);
 
-    std::vector<std::pair<Inven_Item, bool> > results;            // local_7c
-    int ret;
+    std::vector<std::pair<Inven_Item, bool> > results;           // local_7c
+    int ret = 0;                                                 // local_50
     if (boxItemId == 0x2061u || boxItemId == 0x289843u) {
         ret = process_use_unlocked_multibox(boxSlot, keySlot, results);
     } else {
@@ -602,53 +615,58 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
     }
     if (ret != 0) {
         if (ret == 0x13) {
-            CBoosterGage* gageFail =
-                reinterpret_cast<CBoosterGage*>(GetCharacExpandData(
-                    (ENUM_CHARAC_EXPAND_TYPE)17));
-            gageFail->send_error_state_packet(this, boxItemId);
+            reinterpret_cast<CBoosterGage*>(
+                    GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)17))
+                ->send_error_state_packet(this, boxItemId);
             return -1;
         }
         return ret;
     }
 
-    CBoosterGage* gage =
-        reinterpret_cast<CBoosterGage*>(GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)17));
-    const bool isFirst = CBoosterGage::cal_booster_gage(boxItemId, this) != 0;
+    const bool isFirst =
+        reinterpret_cast<CBoosterGage*>(
+                    GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)17))
+            ->cal_booster_gage(boxItemId, this) != 0;
     if (isFirst) {
-        gage->log_booster_gage_bonus_reward(this, results);
+        reinterpret_cast<CBoosterGage*>(
+                    GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)17))
+            ->log_booster_gage_bonus_reward(this, results);
     }
 
-    PacketGuard out;                                              // local_88
+    PacketGuard out;                                             // local_88
     out.put_header(1, 0xd3);
     out.put_byte(1);
     out.put_short(boxSlot);
     out.put_short(keySlot);
     out.put_short(static_cast<int>(results.size()));
 
-    std::vector<std::pair<int, int> > updatedSlots;               // local_94
+    std::vector<std::pair<int, int> > updatedSlots;              // local_94
 
-    for (std::size_t i = 0; i < results.size(); ++i) {
-        Inven_Item item = results[i].first;
-        int newSlot = -1;                                         // local_48
-        int remainOut = 0;                                        // local_a0
+    for (std::vector<std::pair<Inven_Item, bool> >::iterator it =
+             results.begin();
+         it != results.end(); ) {
+        Inven_Item item = (*it).first;
+        int newSlot = -1;                                        // local_48
+        int remainOut = 0;                                       // local_a0
         unsigned int itemId = static_cast<unsigned int>(item.m_addInfo);
 
         if (itemId == 1u) {
             // ---- 事件金币项 ----
-            int amount = item.m_addInfo2;
+            int amount = item.m_addInfo2;                        // local_34 初值
             if (amount > 0 && amount < 1000) {
                 int addAmount = amount;
                 if (isFirst) {
-                    addAmount =
-                        static_cast<int>(dm->m_boosterGage.m_cMultiboxCount) *
-                        amount;
+                    addAmount = static_cast<int>(
+                                    G_CDataManager()->m_boosterGage
+                                        .m_cMultiboxCount) *
+                                amount;
                 }
-                unsigned int coinNow =
-                    invenR.GetEventCoin() +
+                unsigned int coin =
+                    getCurCharacInvenR()->GetEventCoin() +
                     static_cast<unsigned int>(addAmount);
-                invenW.SetEventCoin(coinNow);
-                coinNow = invenR.GetEventCoin();
-                m_historyLog.EventCoinAdd(static_cast<int>(coinNow), addAmount,
+                getCurCharacInvenW()->SetEventCoin(coin);
+                coin = getCurCharacInvenR()->GetEventCoin();
+                m_historyLog.EventCoinAdd(static_cast<int>(coin), addAmount,
                                           static_cast<eCoinAddReason>(2));
                 SaveMoneyCoin();
                 SendCoin();
@@ -659,29 +677,29 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
                 out.put_byte(item.GetItemAttr());
                 out.put_packet(item);
             }
+            it++;                                                // ORIG 站点 1
             continue;
         }
 
-        CItem* resItem = dm->find_item(itemId);                   // local_38
+        CItem* resItem = G_CDataManager()->find_item(itemId);    // local_38
         if (resItem == NULL) {
             return 0x11;
         }
 
         if (resItem->IsAvatarItem()) {
-            char ipgName[24];
-            memset(ipgName, 0, sizeof(ipgName));
-            WongWork::CGenUniqueNo::genIPGNo(
+            char ipgBuf[24] = { 0 };                             // local_b8
+            item.SetUpgrade(0);
+            const char* ipg = WongWork::CGenUniqueNo::genIPGNo(
                 WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE_1,
-                static_cast<unsigned>(getCurCharacNo()), ipgName);
-            int period = resItem->getUsablePeriod();
-            newSlot = gage->AddAvatarItem(updatedSlots, isFirst, this, item,
-                                          period, false, '\0', static_cast<char>(-1),
-                                          ipgName,
-                                          static_cast<eAvatarItemAddReason>(7),
-                                          remainOut);
-            if (newSlot == -1) {
-                newSlot = -1;                                     // 保持 ORIG 语义
-            }
+                static_cast<unsigned>(getCurCharacNo()), ipgBuf);
+            newSlot =
+                reinterpret_cast<CBoosterGage*>(
+                    GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)17))
+                    ->AddAvatarItem(updatedSlots, isFirst, this, item,
+                                    resItem->getUsablePeriod(), false, '\0',
+                                    static_cast<char>(-1), ipg,
+                                    static_cast<eAvatarItemAddReason>(7),
+                                    remainOut);
         } else if (resItem->IsCreatureItem() &&
                    resItem->GetItemType() == 0x16) {
             // ---- 生物蛋 ----
@@ -689,115 +707,139 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
                 newSlot = -1;
             } else if (
                 user_creature::CCreatureItemConverter::SetEggItem(&item) == 1) {
-                char ipgName[24];
-                memset(ipgName, 0, sizeof(ipgName));
-                WongWork::CGenUniqueNo::genIPGNo(
+                char ipgBuf[24] = { 0 };                         // local_d8+8
+                const char* ipg = WongWork::CGenUniqueNo::genIPGNo(
                     WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE_1,
-                    static_cast<unsigned>(getCurCharacNo()), ipgName);
-                int expiry = resItem->getExpirationDate();
-                int period = resItem->getUsablePeriod();
-                newSlot = gage->InsertCreatureItem(updatedSlots, isFirst, this,
-                                                   item,
-                                                   static_cast<eItemAddReason>(3),
-                                                   true, false, period, expiry,
-                                                   ipgName);
+                    static_cast<unsigned>(getCurCharacNo()), ipgBuf);
+                newSlot =
+                    reinterpret_cast<CBoosterGage*>(
+                    GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)17))
+                        ->InsertCreatureItem(
+                            updatedSlots, isFirst, this, item,
+                            static_cast<eItemAddReason>(3), true, false,
+                            resItem->getUsablePeriod(),
+                            resItem->getExpirationDate(), ipg);
             } else {
                 newSlot = -1;
             }
         } else {
             // ---- 普通 / 特殊商城品 ----
-            int specialType = 0;                                  // local_d8[0]
-            int specialValue = 0;                                 // local_d8[1]
-            bool specialFlag = false;
-            if (GlobalData::s_pCeraShop->IsSpecialItem(itemId, specialType,
-                                                     specialValue,
-                                                     specialFlag)) {
-                CItem* specItem = dm->find_item(itemId);
+            int specialType = 0;                                 // local_d8[0]
+            int specialValue = 0;                                // local_d8[1]
+            bool specialFlag = false;                            // local_d9
+            if (GlobalData::s_pCeraShop->IsSpecialItem(
+                    itemId, specialType, specialValue, specialFlag)) {
+                CItem* specItem = G_CDataManager()->find_item(itemId);
                 int kind = specItem->GetItemType();
-                if (kind == 0x10 || kind == 0x22) {
-                    newSlot = gage->insertItemIntoInventory(
-                        updatedSlots, isFirst, this, item,
-                        static_cast<eItemAddReason>(3), true);
-                } else {
+                if (kind != 0x10 && kind != 0x22) {
+                    int featured = 0;                            // local_e0
                     int restrictCode =
-                        dm->getItemList()->GetRestrictCode(itemId);
+                        G_CDataManager()->m_itemList->GetRestrictCode(
+                            itemId);
                     long curSec = GlobalData::s_systemTime_.getCurSec();
-                    std::vector<Inven_Item> produceVec;            // local_ec
+                    std::vector<Inven_Item> produceVec;          // local_ec
                     WongWork::CCeraShop::stCeraShopItemParam_t param;  // local_104
-                    bool handled = GlobalData::s_pCeraShop->ProcessSpecialItem(
-                        this, itemId, restrictCode, specialType, curSec, true,
-                        produceVec, param, '\0', '\0', isFirst, 1);
-                    if (handled) {
-                        if (restrictCode != 0) {
+                    if (GlobalData::s_pCeraShop->ProcessSpecialItem(
+                            this, itemId, restrictCode, featured, curSec, true,
+                            produceVec, param, '\0', '\0', isFirst, 1)) {
+                        if (featured != 0) {
                             newSlot = -1;
                         }
                         if (restrictCode != 0 &&
                             !IsRestrictedGoods(restrictCode)) {
                             SetRestrictedGoods(restrictCode);
                             GlobalData::s_pCeraShop->SaveFeaturedIdx(
-                                this, restrictCode, curSec, 0);
+                                this, restrictCode, static_cast<int>(curSec), 0);
                             SendRestrictedGoods(true, restrictCode);
                         }
                     }
-                    newSlot = 0xffff;      // 特殊品不落背包槽（ORIG 写回 0xffff）
+                    newSlot = 0xffff;   // 特殊品不落背包槽（ORIG 写回 0xffff）
+                }
+                if (kind == 0x10 || kind == 0x22) {
+                    newSlot =
+                        reinterpret_cast<CBoosterGage*>(
+                    GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)17))
+                            ->insertItemIntoInventory(
+                                updatedSlots, isFirst, this, item,
+                                static_cast<eItemAddReason>(3), true);
                 }
             } else {
-                newSlot = gage->insertItemIntoInventory(
-                    updatedSlots, isFirst, this, item,
-                    static_cast<eItemAddReason>(3), true);
+                newSlot =
+                    reinterpret_cast<CBoosterGage*>(
+                    GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)17))
+                        ->insertItemIntoInventory(
+                            updatedSlots, isFirst, this, item,
+                            static_cast<eItemAddReason>(3), true);
             }
 
             if (newSlot != -1) {
                 remainOut = item.get_add_info();
-                int price = 0;                                    // local_108
-                short count = static_cast<short>(item.m_addInfo2);
-                G_Store()->GetSellItemPrice(item, resItem, count, false, price);
-                if (isFirst) {
-                    price *= static_cast<int>(dm->m_boosterGage.m_cMultiboxCount);
+                if (resItem == NULL) {
+                    newSlot = -1;
+                } else {
+                    int price = 0;                               // local_108
+                    short count = static_cast<short>(item.m_addInfo2);
+                    G_Store()->GetSellItemPrice(item, resItem, count, false,
+                                                price);
+                    if (isFirst) {
+                        price = price * static_cast<int>(
+                                          G_CDataManager()->m_boosterGage
+                                              .m_cMultiboxCount);
+                    }
+                    GetInstanceValueStatistic()->AddValueStatistic(
+                        static_cast<VALUE_STATISTIC_FIELD>(7), this,
+                        static_cast<unsigned int>(price));
                 }
-                CValueStatistic* stat = GetInstanceValueStatistic();
-                stat->AddValueStatistic(static_cast<VALUE_STATISTIC_FIELD>(7),
-                                        this, static_cast<unsigned int>(price));
             }
         }
 
+        // ORIG 两个分支各自完整重复发送序列（调用计数按站点复现）
         if (newSlot == -1) {
             out.put_short(-1);
             out.put_int(item.m_addInfo);
             out.put_int(item.get_add_info());
+            out.put_short(static_cast<unsigned short>(item.m_fieldb));
+            out.put_byte(item.GetItemAttr());
+            out.put_packet(item);
         } else {
             out.put_short(newSlot);
             out.put_int(item.m_addInfo);
             out.put_int(remainOut);
+            out.put_short(static_cast<unsigned short>(item.m_fieldb));
+            out.put_byte(item.GetItemAttr());
+            out.put_packet(item);
         }
-        out.put_short(static_cast<unsigned short>(item.m_fieldb));
-        out.put_byte(item.GetItemAttr());
-        out.put_packet(item);
+        it++;                                                    // ORIG 站点 2
     }
 
     out.put_byte(isFirst ? 1 : 0);
     out.finalize(true);
     Send(out);
 
-    for (std::size_t i = 0; i < updatedSlots.size(); ++i) {
+    for (std::vector<std::pair<int, int> >::const_iterator itUpd =
+             updatedSlots.begin();
+         itUpd != updatedSlots.end(); itUpd++) {
         SendUpdateItem(eSendTarget_1,
-                       static_cast<ENUM_ITEMSPACE>(updatedSlots[i].second),
-                       updatedSlots[i].first);
+                       static_cast<ENUM_ITEMSPACE>(itUpd->second),
+                       itUpd->first);
     }
 
     InGameADManagerInstance()->CheckFailMultiBoxLottery(this, results);
 
-    for (std::size_t i = 0; i < results.size(); ++i) {
-        if (results[i].second != 0) {
-            PacketGuard shout;                                    // local_114
+    for (std::vector<std::pair<Inven_Item, bool> >::iterator itShout =
+             results.begin();
+         itShout != results.end(); itShout++) {
+        std::pair<Inven_Item, bool> entry = *itShout;
+        if (entry.second) {
+            PacketGuard shout;                                   // local_114
             shout.put_header(0, 0x56);
             shout.put_byte(4);
             shout.put_byte(1);
             shout.put_short(
                 static_cast<unsigned short>(get_unique_id() & 0xffff));
-            shout.put_int(results[i].first.m_addInfo);
+            shout.put_int(entry.first.m_addInfo);
             shout.put_int(static_cast<int>(boxItemId));
-            shout.put_byte(results[i].first.GetUpgrade());
+            shout.put_byte(entry.first.GetUpgrade());
             shout.finalize(true);
             G_GameWorld()->send_all(shout);
         }

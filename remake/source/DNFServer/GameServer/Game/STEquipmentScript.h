@@ -73,7 +73,8 @@ enum T
 #ifndef DNF_STAVATARTYPESELECT_T_DEFINED
 #define DNF_STAVATARTYPESELECT_T_DEFINED
 // ORIG init 0x0898d1fc：5 个 int 清零 + for(i<=4) 清 this+4+(i+8)*2 的 ushort
-// （即 m_socketType[5]@+0x14）；[emblem socket default] 解析按同一寻址写回。
+// （即 m_socketType[5]@+0x14）；[avatar type select] 组解析按同一寻址写回
+// （ImportEquipmentScript 0xc16，汇编 0x89999c55）。
 struct stAvatarTypeSelect_t
 {
     int m_field0;                     // +0x00
@@ -383,12 +384,12 @@ public:
     std::string m_str6b4;                         // +0x6b4（[fullset detail explain]）
     std::string m_str6b8;                         // +0x6b8（[flavor text]）
     int m_6bc;                                    // +0x6bc（[creature species]）
-    std::vector<stAvatarTypeSelect_t> m_avatar6c0;  // +0x6c0（[emblem socket default]/[avatar type select]）
-    std::vector<unsigned short> m_vec6cc;         // +0x6cc（[emblem socket default] 首组 emblem）
-    int m_6d8;                                    // +0x6d8（-1；[avatar type select]）
+    std::vector<stAvatarTypeSelect_t> m_avatar6c0;  // +0x6c0（[avatar type select] 0xc16 组序列）
+    std::vector<unsigned short> m_vec6cc;         // +0x6cc（[emblem socket default] 0xc08 socket 类型列）
+    int m_6d8;                                    // +0x6d8（-1；[avatar func filter] 0xc55）
     int m_6dc;                                    // +0x6dc（-1；[change type ultimateSkillCurScene]）
     int m_6e0;                                    // +0x6e0（[fixed select type]）
-    int m_6e4;                                    // +0x6e4（-1；[emancipate]）
+    int m_6e4;                                    // +0x6e4（-1；[hardcoding cooltime] 0xc8f）
     std::vector<STChangeStatusRate> m_rate6e8;    // +0x6e8（[change status on change hp]）
     char m_6f4;                                   // +0x6f4（impossible: upgrade）
     char m_6f5;                                   // +0x6f5（impossible: amplify upgrade）

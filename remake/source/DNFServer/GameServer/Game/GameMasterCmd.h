@@ -830,6 +830,15 @@ public:
     virtual void execute();                          // ORIG T 0x084b2a08
     void printClient(CUser* user, char const* fileName, char const* content);
 };
+class CSetMultiboxFailCnt : public CCommand
+{
+public:
+    CSetMultiboxFailCnt() {}           // ORIG W 0x082a891e（sizeof=0xc）
+    virtual void parse();                            // ORIG T 0x084b34a4
+    virtual void execute();                          // ORIG T 0x084b34f8
+
+    int m_failCnt;                              // +0x08（ORIG POD：失败次数）
+};
 class CBingoGmTest : public CCommand
 {
 public:
@@ -840,16 +849,6 @@ public:
     void resetData();                                // ORIG T 0x084b363e
 
     int m_subCmd;                               // +0x08（ORIG POD：子命令码）
-};
-
-class CSetMultiboxFailCnt : public CCommand
-{
-public:
-    CSetMultiboxFailCnt() {}           // ORIG W 0x082a891e（sizeof=0xc）
-    virtual void parse();                            // ORIG T 0x084b34a4
-    virtual void execute();                          // ORIG T 0x084b34f8
-
-    int m_failCnt;                              // +0x08（ORIG POD：失败次数）
 };
 class CLevelUp : public CCommand
 {

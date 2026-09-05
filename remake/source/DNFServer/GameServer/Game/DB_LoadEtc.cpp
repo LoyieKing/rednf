@@ -57,13 +57,6 @@ extern char* NumberToString(unsigned int value, int radix);  // C++ linkage
 // （定义 LinkClosureA_Misc.cpp）。
 long GetCurrentResetBaseTime(long t, int hour);
 
-// SIG_LOAD_ETC 文档化偏移访问 helper（同 CUser::GetEtcInfo 约定）。
-// 用宏而非 inline 函数/模板：O0 下 inline 会生成 call（MIX/SGF 弱符号），
-// ORIG 为直接 lea/内存寻址；宏展开才能字节一致。
-#define MIX(sig, off) (reinterpret_cast<char*>(sig) + (off))
-#define SGF(sig, off) (*reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + (off)))
-#define SGF2(type, sig, off) (*reinterpret_cast<type*>(reinterpret_cast<char*>(sig) + (off)))
-
 // ============================================================================
 // DB_LoadEtc::DB_LoadEtc @0x08403b84（C1/C2 同址）
 // ORIG：call DBDispatcher::DBDispatcher(this) 后设 vptr；基类 ctor/dtor 为空体，
@@ -125,34 +118,33 @@ int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
     if (!db->fetch())
         return 1;
 
-    // sig+0x340 起为 PvpResultType（本 TU 内按 ORIG 偏移访问；权威字段布局
-    // 见 PvpResultType.h，+0x0c/+0x10 两列 DB 不读）。
-    // ORIG 逐列 get_int（unrolled），非循环。win/lose/pvp_point@pvpBase+0/+4/+8，
-    // pvp_grade@+0x14（跳过 +0x0c/+0x10）、avg[15]@+0x18..+0x50、pvp_count@+0x54、
-    // win_point@+0x58、pvp_grade_ext@+0x5c。
-    static const unsigned int kPvpBase = 0x340;
-    if (!db->get_int(0, SGF(sig, kPvpBase + 0x0))) return -1;   // win
-    if (!db->get_int(1, SGF(sig, kPvpBase + 0x4))) return -1;   // lose
-    if (!db->get_int(2, SGF(sig, kPvpBase + 0x8))) return -1;   // pvp_point
-    if (!db->get_int(3, SGF(sig, kPvpBase + 0x14))) return -1;  // pvp_grade
-    if (!db->get_int(4, SGF(sig, kPvpBase + 0x18))) return -1;
-    if (!db->get_int(5, SGF(sig, kPvpBase + 0x1c))) return -1;
-    if (!db->get_int(6, SGF(sig, kPvpBase + 0x20))) return -1;
-    if (!db->get_int(7, SGF(sig, kPvpBase + 0x24))) return -1;
-    if (!db->get_int(8, SGF(sig, kPvpBase + 0x28))) return -1;
-    if (!db->get_int(9, SGF(sig, kPvpBase + 0x2c))) return -1;
-    if (!db->get_int(10, SGF(sig, kPvpBase + 0x30))) return -1;
-    if (!db->get_int(11, SGF(sig, kPvpBase + 0x34))) return -1;
-    if (!db->get_int(12, SGF(sig, kPvpBase + 0x38))) return -1;
-    if (!db->get_int(13, SGF(sig, kPvpBase + 0x3c))) return -1;
-    if (!db->get_int(14, SGF(sig, kPvpBase + 0x40))) return -1;
-    if (!db->get_int(15, SGF(sig, kPvpBase + 0x44))) return -1;
-    if (!db->get_int(16, SGF(sig, kPvpBase + 0x48))) return -1;
-    if (!db->get_int(17, SGF(sig, kPvpBase + 0x4c))) return -1;
-    if (!db->get_int(18, SGF(sig, kPvpBase + 0x50))) return -1;
-    if (!db->get_int(19, SGF(sig, kPvpBase + 0x54))) return -1;  // pvp_count
-    if (!db->get_int(20, SGF(sig, kPvpBase + 0x58))) return -1;  // win_point
-    if (!db->get_int(21, SGF(sig, kPvpBase + 0x5c))) return -1;  // pvp_grade_ext
+    // sig+0x340 = m_pvpResult（PvpResultType，权威字段布局见 PvpResultType.h；
+    // +0x0c/+0x10 两列 DB 不读）。ORIG 逐列 get_int（unrolled），非循环：
+    // win/lose/pvp_point→m_totalWinCount/m_totalLoseCount/m_expPoint，
+    // pvp_grade→m_pvpGrade、avg[15]→m_avg[0..14]、pvp_count→m_count、
+    // win_point→m_winPoint、pvp_grade_ext→m_todayWinCount。
+    if (!db->get_int(0, sig->m_pvpResult.m_totalWinCount)) return -1;   // win
+    if (!db->get_int(1, sig->m_pvpResult.m_totalLoseCount)) return -1;  // lose
+    if (!db->get_int(2, sig->m_pvpResult.m_expPoint)) return -1;        // pvp_point
+    if (!db->get_int(3, sig->m_pvpResult.m_pvpGrade)) return -1;        // pvp_grade
+    if (!db->get_int(4, sig->m_pvpResult.m_avg[0])) return -1;
+    if (!db->get_int(5, sig->m_pvpResult.m_avg[1])) return -1;
+    if (!db->get_int(6, sig->m_pvpResult.m_avg[2])) return -1;
+    if (!db->get_int(7, sig->m_pvpResult.m_avg[3])) return -1;
+    if (!db->get_int(8, sig->m_pvpResult.m_avg[4])) return -1;
+    if (!db->get_int(9, sig->m_pvpResult.m_avg[5])) return -1;
+    if (!db->get_int(10, sig->m_pvpResult.m_avg[6])) return -1;
+    if (!db->get_int(11, sig->m_pvpResult.m_avg[7])) return -1;
+    if (!db->get_int(12, sig->m_pvpResult.m_avg[8])) return -1;
+    if (!db->get_int(13, sig->m_pvpResult.m_avg[9])) return -1;
+    if (!db->get_int(14, sig->m_pvpResult.m_avg[10])) return -1;
+    if (!db->get_int(15, sig->m_pvpResult.m_avg[11])) return -1;
+    if (!db->get_int(16, sig->m_pvpResult.m_avg[12])) return -1;
+    if (!db->get_int(17, sig->m_pvpResult.m_avg[13])) return -1;
+    if (!db->get_int(18, sig->m_pvpResult.m_avg[14])) return -1;
+    if (!db->get_int(19, sig->m_pvpResult.m_count)) return -1;          // pvp_count
+    if (!db->get_int(20, sig->m_pvpResult.m_winPoint)) return -1;       // win_point
+    if (!db->get_int(21, sig->m_pvpResult.m_todayWinCount)) return -1;  // pvp_grade_ext
 
     int lastPlaySec = 0;
     if (!db->get_int(22, lastPlaySec))              // unix(last_play_time)→局部
@@ -160,10 +152,10 @@ int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
     unsigned int u;
     if (!db->get_uint(23, u))                       // play_count→+0x64
         return -1;
-    SGF2(unsigned int, sig, kPvpBase + 0x64) = u;
+    sig->m_pvpResult.m_todayPlayCount = u;          // pvpBase+0x64
     if (!db->get_uint(24, u))                       // play_time→+0x60
         return -1;
-    SGF2(unsigned int, sig, kPvpBase + 0x60) = u;
+    sig->m_pvpResult.m_todayLoseCount = u;          // pvpBase+0x60
 
     time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm tmv;
@@ -172,15 +164,15 @@ int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
     tmv.tm_min = 0;
     tmv.tm_hour = 0;
     int nextReset = (int)mktime(&tmv);
-    SGF(sig, kPvpBase + 0x68) = nextReset;
+    sig->m_pvpResult.m_nextResetTime = nextReset;   // pvpBase+0x68
     if (nextReset > lastPlaySec)
-        SGF(sig, kPvpBase + 0x60) = 0;
+        sig->m_pvpResult.m_todayLoseCount = 0;      // play_time 清零
 
     int gradeExtUpdateSec = 0;
     if (!db->get_int(25, gradeExtUpdateSec))        // unix(pvp_grade_ext_update_time)
         return -1;
     if (gradeExtUpdateSec + 0x15180 < (int)GlobalData::s_systemTime_.getCurSec())
-        SGF(sig, kPvpBase + 0x5c) = 0;
+        sig->m_pvpResult.m_todayWinCount = 0;       // pvp_grade_ext 清零
 
     return 0;
 }
@@ -224,8 +216,7 @@ bool DB_LoadEtc::dispatch(int userIdx, int slot, Stream* stream)
         }
         else if (base == 1)
         {
-            // *(undefined4*)(sig + 0x350) = -1 → PvpResultType+0x10（m_field10）。
-            *reinterpret_cast<int*>((char*)&sig->m_pvpResult + 0x10) = -1;   // ORIG sig+0x350（PvpResultType+0x10）
+            sig->m_pvpResult.m_field10 = -1;    // ORIG sig+0x350（PvpResultType+0x10）
         }
     }
     else if (pvp == 1)
@@ -312,7 +303,7 @@ bool DB_LoadEtc::dispatch(int userIdx, int slot, Stream* stream)
     }
 
     WongWork::EventCommon::LoadCharacEventItem(
-        sig->m_accId /*(*(uint*)sig)*/, sig->m_characNo /*(*(uint*)(sig+4))*/, 0);
+        sig->m_accId, sig->m_characNo, 0);
     return true;
 }
 
@@ -339,7 +330,7 @@ bool DB_LoadEtc::LoadProperDungeonClearCount(SIG_LOAD_ETC* sig)
         return false;
     }
     if (!db->get_short(0,
-                       *reinterpret_cast<short*>(&SGF2(unsigned short, sig, 0x40cc))))
+                       *reinterpret_cast<short*>(&sig->m_properDungeonClearCount)))
     {
         return false;
     }
@@ -371,12 +362,12 @@ bool DB_LoadEtc::LoadConditionEventInfo(SIG_LOAD_ETC* sig)
         return false;
     }
     if (!db->get_short(0,
-                       *reinterpret_cast<short*>(&SGF2(unsigned short, sig, 0x40c8))))
+                       *reinterpret_cast<short*>(&sig->m_curConditionEventStep)))
     {
         return false;
     }
     if (!db->get_short(1,
-                       *reinterpret_cast<short*>(&SGF2(unsigned short, sig, 0x40ca))))
+                       *reinterpret_cast<short*>(&sig->m_curConditionEventRewardStep)))
     {
         return false;
     }
@@ -411,12 +402,12 @@ int DB_LoadEtc::_loadNPCRelasionship(SIG_LOAD_ETC* sig)
     {
         return 0x1c8a;
     }
-    SGF2(unsigned int, sig, 0x3e6c) = npcCnt;
+    sig->m_npcCount = npcCnt;                    // +0x3e6c
     if (db->get_binary_length(1) != static_cast<int>(npcCnt) * 12)
     {
         return 0x1c8d;
     }
-    if (!db->get_binary(1, MIX(sig, 0x3e70), 600))
+    if (!db->get_binary(1, sig->m_npcData, 600))  // +0x3e70，cap 0x258
     {
         return 0x1c90;
     }
@@ -464,7 +455,7 @@ bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC* sig)
         return false;
     }
     int srcLen = db->get_binary_length(0);
-    if (!uncompress_zip(MIX(sig, 0x40ce), outLen, blob,
+    if (!uncompress_zip(sig->m_expandData6, outLen, blob,
                         static_cast<unsigned int>(srcLen)))
     {
         return false;
@@ -511,7 +502,7 @@ bool DB_LoadEtc::LoadPvPMissionList(SIG_LOAD_ETC* sig)
         return false;
     }
     int srcLen = db->get_binary_length(0);
-    if (!uncompress_zip(MIX(sig, 0xcdd5), outLen, blob,
+    if (!uncompress_zip(sig->m_pvpMissionInfo, outLen, blob,
                         static_cast<unsigned int>(srcLen)))
     {
         return false;
@@ -552,7 +543,7 @@ bool DB_LoadEtc::LoadAchievement(SIG_LOAD_ETC* sig)
     }
     unsigned int outLen = 0x1800;
     int srcLen = db->get_binary_length(0);
-    if (!uncompress_zip(MIX(sig, 0xb1a4), outLen, blob,
+    if (!uncompress_zip(sig->m_expandDataF, outLen, blob,
                         static_cast<unsigned int>(srcLen)))
     {
         return false;
@@ -561,20 +552,20 @@ bool DB_LoadEtc::LoadAchievement(SIG_LOAD_ETC* sig)
     int count = 0;
     for (int i = 0; i <= 0x1ff; ++i)                       // i <= 0x1ff（cmpl 0x1ff setle）
     {
-        if (SGF(sig, 0xb1a4 + i * 12) == 0)
+        if (*reinterpret_cast<int*>(sig->m_expandDataF + i * 12) == 0)
         {
             break;                                          // 计数停在首个零条目
         }
         ++count;
     }
-    SGF(sig, 0xc9a4) = count;
+    sig->m_achievementCount = count;             // +0xc9a4（movl）
 
     unsigned int lastUpdate = 0;
     if (!db->get_uint(1, lastUpdate))
     {
         return false;
     }
-    SGF2(unsigned int, sig, 0xc9a8) = lastUpdate;
+    sig->m_achievementLastUpdate = lastUpdate;   // +0xc9a8（get_uint）
     return true;
 }
 
@@ -602,7 +593,9 @@ bool DB_LoadEtc::LoadOnceGiveAvengerTitle(SIG_LOAD_ETC* sig)
 // ============================================================================
 bool DB_LoadEtc::LoadAuraAvatarOption(SIG_LOAD_ETC* sig)
 {
-    reinterpret_cast<stAuraAvatarOption*>(MIX(sig, 0xd730))->reset();
+    stAuraAvatarOption* aura =
+        reinterpret_cast<stAuraAvatarOption*>(sig->m_auraAvatarOption);
+    aura->reset();
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
                                                   (ENUM_SERVER_GROUP)0);
@@ -632,9 +625,7 @@ bool DB_LoadEtc::LoadAuraAvatarOption(SIG_LOAD_ETC* sig)
         if (-1 < optionType && optionType < 3)
         {
             // *(int*)(sig + (type + 0x35cc)*4) = value → +0xd730 + type*4。
-            stAuraAvatarOption* opt =
-                reinterpret_cast<stAuraAvatarOption*>(MIX(sig, 0xd730));
-            (&opt->m_value0)[optionType] = value;
+            (&aura->m_value0)[optionType] = value;
         }
     }
     return true;
@@ -669,11 +660,11 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
         return false;
     }
 
-    if (!db->get_binary(0, MIX(sig, 0xeac8), 0x200))         // col0 options
+    if (!db->get_binary(0, sig->m_characOptions, 0x200))     // col0 options
     {
         return false;
     }
-    if (!get_compressed_blob_data(db, 1, MIX(sig, 0xecd8), 24000, 0))
+    if (!get_compressed_blob_data(db, 1, sig->m_bestClearTime, 24000, 0))
     {                                                        // col1 best_clear_time
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1f5d, 5);
@@ -684,20 +675,21 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
 
     for (int i = 0; i <= 4; ++i)                             // base sig+0xC+(i+0x3b34)*4
     {
-        unsigned int off = 0xc + (0x3b34 + i) * 4;           // = 0xECDC + i*4
-        int* p = reinterpret_cast<int*>(MIX(sig, off));
+        int* p = reinterpret_cast<int*>(sig->m_bestClearTime + 4 + i * 4);
+        // = 0xECDC + i*4（ORIG mov %0xc(%eax,%edx,4) 读 + jns 跳 + movl $0 写）
         if (*p < 0)
         {
             *p = 0;
         }
     }
 
-    SGF2(unsigned char, sig, 0x14a98) = 0;                    // 先置 0 再回填
+    sig->m_blueMarbleEnterCount = 0;                          // 先置 0 再回填
     if (!db->get_ubyte(2, sig->m_blueMarbleEnterCount))
     {
         return false;
     }
-    if (!db->get_str(3, MIX(sig, 0x14a9a), 16))
+    // charac_inform_notice @+0x14a9a = attendanceEvent(+0x14a99)+1 重叠区。
+    if (!db->get_str(3, reinterpret_cast<char*>(sig->m_attendanceEvent.m_pad), 16))
     {
         return false;
     }
@@ -705,13 +697,12 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
     int count = 0;
     for (int i = 0; i <= 0x3e7; ++i)                         // 条目 stride 0x18@+0xecd8
     {
-        unsigned int entry = 0xecd8 + i * 0x18;
-        if (SGF(sig, entry + 8) != 0)
+        if (*reinterpret_cast<int*>(sig->m_bestClearTime + i * 0x18 + 8) != 0)
         {
             ++count;
         }
     }
-    SGF(sig, 0xecd4) = count;
+    sig->m_bestClearTimeCount = count;
     return true;
 }
 
@@ -809,32 +800,32 @@ bool DB_LoadEtc::_LoadQuestShop(unsigned int characNo, CHARAC_QUEST_SHOP_DATA* o
             }                                                                  \
         } while (0)
 
-        QUESTSHOP_USHORT(m_maxHp, 0x17f7);                   // max_hp           +0x26
-        QUESTSHOP_USHORT(m_maxMp, 0x17f8);                   // max_mp           +0x6c
-        QUESTSHOP_USHORT(m_psyAttack, 0x17f9);               // psy_attack       +0x0c
-        QUESTSHOP_USHORT(m_psyDefense, 0x17fa);              // psy_defense      +0x12
-        QUESTSHOP_USHORT(m_magAttack, 0x17fb);               // mag_attack       +0x0e
-        QUESTSHOP_USHORT(m_magDefence, 0x17fc);              // mag_defence      +0x10
-        QUESTSHOP_USHORT(m_moveSpeed, 0x17fd);               // move_speed       +0x22
-        QUESTSHOP_USHORT(m_attackSpeed, 0x17fe);             // attack_speed     +0x20
-        QUESTSHOP_USHORT(m_hpRegen, 0x17ff);                 // hp_regen         +0x28
-        QUESTSHOP_USHORT(m_mpRegen, 0x1800);                 // mp_regen         +0x46
-        QUESTSHOP_USHORT(m_allElementResist, 0x1801);        // +0x3c
-        QUESTSHOP_USHORT(m_fireElementResist, 0x1802);       // +0x34
-        QUESTSHOP_USHORT(m_waterElementResist, 0x1803);      // +0x36
-        QUESTSHOP_USHORT(m_lightElementResist, 0x1804);      // +0x3a
-        QUESTSHOP_USHORT(m_darkElementResist, 0x1805);       // +0x38
-        QUESTSHOP_USHORT(m_allElementAttack, 0x1806);        // +0x68
-        QUESTSHOP_USHORT(m_fireElementAttack, 0x1807);       // +0x60
-        QUESTSHOP_USHORT(m_waterElementAttack, 0x1808);      // +0x62
-        QUESTSHOP_USHORT(m_lightElementAttack, 0x1809);      // +0x66
-        QUESTSHOP_USHORT(m_darkElementAttack, 0x180a);       // +0x64
-        QUESTSHOP_USHORT(m_psyCritical, 0x180b);             // +0x2a
-        QUESTSHOP_USHORT(m_magCritical, 0x180c);             // +0x2c
-        QUESTSHOP_USHORT(m_goodHit, 0x180d);                 // +0x4e
-        QUESTSHOP_USHORT(m_evasion, 0x180e);                 // +0x42
-        QUESTSHOP_USHORT(m_hitRecovery, 0x180f);             // +0x48
-        QUESTSHOP_USHORT(m_separatePsyMagAttack, 0x1811);    // +0x76（跳过 0x1810）
+        QUESTSHOP_USHORT(m_data.m_maxHp, 0x17f7);                   // max_hp           +0x26
+        QUESTSHOP_USHORT(m_data.m_maxMp, 0x17f8);                   // max_mp           +0x6c
+        QUESTSHOP_USHORT(m_data.m_psyAttack, 0x17f9);               // psy_attack       +0x0c
+        QUESTSHOP_USHORT(m_data.m_psyDefense, 0x17fa);              // psy_defense      +0x12
+        QUESTSHOP_USHORT(m_data.m_magAttack, 0x17fb);               // mag_attack       +0x0e
+        QUESTSHOP_USHORT(m_data.m_magDefence, 0x17fc);              // mag_defence      +0x10
+        QUESTSHOP_USHORT(m_data.m_moveSpeed, 0x17fd);               // move_speed       +0x22
+        QUESTSHOP_USHORT(m_data.m_attackSpeed, 0x17fe);             // attack_speed     +0x20
+        QUESTSHOP_USHORT(m_data.m_hpRegen, 0x17ff);                 // hp_regen         +0x28
+        QUESTSHOP_USHORT(m_data.m_mpRegen, 0x1800);                 // mp_regen         +0x46
+        QUESTSHOP_USHORT(m_data.m_allElementResist, 0x1801);        // +0x3c
+        QUESTSHOP_USHORT(m_data.m_fireElementResist, 0x1802);       // +0x34
+        QUESTSHOP_USHORT(m_data.m_waterElementResist, 0x1803);      // +0x36
+        QUESTSHOP_USHORT(m_data.m_lightElementResist, 0x1804);      // +0x3a
+        QUESTSHOP_USHORT(m_data.m_darkElementResist, 0x1805);       // +0x38
+        QUESTSHOP_USHORT(m_data.m_allElementAttack, 0x1806);        // +0x68
+        QUESTSHOP_USHORT(m_data.m_fireElementAttack, 0x1807);       // +0x60
+        QUESTSHOP_USHORT(m_data.m_waterElementAttack, 0x1808);      // +0x62
+        QUESTSHOP_USHORT(m_data.m_lightElementAttack, 0x1809);      // +0x66
+        QUESTSHOP_USHORT(m_data.m_darkElementAttack, 0x180a);       // +0x64
+        QUESTSHOP_USHORT(m_data.m_psyCritical, 0x180b);             // +0x2a
+        QUESTSHOP_USHORT(m_data.m_magCritical, 0x180c);             // +0x2c
+        QUESTSHOP_USHORT(m_data.m_goodHit, 0x180d);                 // +0x4e
+        QUESTSHOP_USHORT(m_data.m_evasion, 0x180e);                 // +0x42
+        QUESTSHOP_USHORT(m_data.m_hitRecovery, 0x180f);             // +0x48
+        QUESTSHOP_USHORT(m_data.m_separatePsyMagAttack, 0x1811);    // +0x76（跳过 0x1810）
 
 #       undef QUESTSHOP_USHORT
 
@@ -845,7 +836,7 @@ bool DB_LoadEtc::_LoadQuestShop(unsigned int characNo, CHARAC_QUEST_SHOP_DATA* o
     }
     catch (int e)
     {
-        memset(reinterpret_cast<char*>(out) + 0xc, 0, 0x9a);
+        memset(&out->m_data, 0, sizeof(out->m_data));
         LogManager::logFormat(1, "DBThread.cpp",
                               "static bool DB_LoadEtc::_LoadQuestShop(unsigned int,"
                               " CHARAC_QUEST_SHOP_DATA*)",
@@ -865,7 +856,8 @@ bool DB_LoadEtc::_LoadQuestShop(unsigned int characNo, CHARAC_QUEST_SHOP_DATA* o
 bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC* sig)
 {
     if (!_LoadQuestShop(sig->m_characNo,
-                        reinterpret_cast<CHARAC_QUEST_SHOP_DATA*>(MIX(sig, 0xd5a7))))
+                        reinterpret_cast<CHARAC_QUEST_SHOP_DATA*>(
+                            sig->m_questShopMain)))
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x16c4, 5);
         trace("DB_LoadInventory::_LoadQuestShop ERROR::charac_no(%d)",
@@ -877,14 +869,14 @@ bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC* sig)
     {
         if (!_LoadQuestShop(sig->m_fieldC,
                             reinterpret_cast<CHARAC_QUEST_SHOP_DATA*>(
-                                MIX(sig, 0xd651))))
+                                sig->m_questShopTag)))
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x16d5, 5);
             trace("DB_LoadInventory::_LoadQuestShop ERROR::tag_charac_no(%d)",
                   sig->m_fieldC);
             return false;
         }
-        SGF2(unsigned char, sig, 0xd6fb) = 1;
+        sig->m_questShopTagLoaded = 1;           // +0xd6fb
     }
     return true;
 }
@@ -922,7 +914,7 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         }
         unsigned int outLen = 0x10ae;
         int srcLen = db->get_binary_length(0);
-        if (!uncompress_zip(MIX(sig, 0x466a), outLen, blob,
+        if (!uncompress_zip(sig->m_titlebookGeneral, outLen, blob,
                             static_cast<unsigned int>(srcLen)))
         {
             return false;
@@ -937,7 +929,7 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         }
         unsigned int outLen = 0x2fa8;
         int srcLen = db->get_binary_length(1);
-        if (!uncompress_zip(MIX(sig, 0x5718), outLen, blob,
+        if (!uncompress_zip(sig->m_titlebookSpecific, outLen, blob,
                             static_cast<unsigned int>(srcLen)))
         {
             return false;
@@ -952,7 +944,7 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         }
         unsigned int outLen = 0x1c98;
         int srcLen = db->get_binary_length(2);
-        if (!uncompress_zip(MIX(sig, 0x86c0), outLen, blob,
+        if (!uncompress_zip(sig->m_titlebookDespair, outLen, blob,
                             static_cast<unsigned int>(srcLen)))
         {
             return false;
@@ -967,7 +959,7 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         }
         unsigned int outLen = 0x0e4c;
         int srcLen = db->get_binary_length(3);
-        if (!uncompress_zip(MIX(sig, 0xa358), outLen, blob,
+        if (!uncompress_zip(sig->m_titlebookEvent, outLen, blob,
                             static_cast<unsigned int>(srcLen)))
         {
             return false;
@@ -1157,7 +1149,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
                   sig->m_characNo);
             return false;
         }
-        SGF2(unsigned char, sig, 0xcdd4) = 1;
+        sig->m_pvpSkillInsertFlag = 1;                       // +0xcdd4 movb
         return true;
     }
 
@@ -1172,16 +1164,23 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     int col = 1;                                             // local_14 从 1 起
     unsigned int spVals[4];
     int letheFlags[2] = { 0, 0 };
+    // 混合区首 0x414 为 SIG_LOAD_SKILL 视图（+0xc9c0；字段名见 SigTypes_C.h，
+    // 证据 GetSkill.md/SkillSlot 透传布局：+0x8/+0xc/+0x1a4/+0x1a8/+0x340/
+    // +0x344/+0x348 = sig+0xc9c8/0xc9cc/0xcb64/0xcb68/0xcd00/0xcd04/0xcd08）。
+    SIG_LOAD_SKILL* sk = reinterpret_cast<SIG_LOAD_SKILL*>(sig->m_mixedRegion);
 
-    if (!db->get_uint(0, SGF2(unsigned int, sig, 0xc9c8)))    // col0 remain_sp
-    {
+    if (!db->get_uint(0,
+                      *reinterpret_cast<unsigned int*>(&sk->m_remainSpTree1)))
+    {                                                        // col0 remain_sp
         cMyTrace trace(__PRETTY_FUNCTION__, 0x1d71, 5);
         trace("DB_LoadSkill::GetUserSkill, get(0) ERROR charac_no=%u",
               sig->m_characNo);
         return false;
     }
     ++col;
-    if (!get_compressed_blob_data(db, col++, MIX(sig, 0xc9cc), 0x198, 2))
+    if (!get_compressed_blob_data(db, col++,
+                                  reinterpret_cast<char*>(sk->m_skillSlotTree1),
+                                  0x198, 2))
     {                                                        // col1 skill_slot
         return false;
     }
@@ -1192,8 +1191,10 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
               sig->m_characNo);
         return false;
     }
-    SGF2(unsigned int, sig, 0xcb64) = spVals[0];
-    if (!get_compressed_blob_data(db, col++, MIX(sig, 0xcb68), 0x198, 2))
+    sk->m_remainSpTree2 = static_cast<int>(spVals[0]);       // sig+0xcb64
+    if (!get_compressed_blob_data(db, col++,
+                                  reinterpret_cast<char*>(sk->m_skillSlotTree2),
+                                  0x198, 2))
     {                                                        // skill_slot_2nd
         return false;
     }
@@ -1204,7 +1205,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
               sig->m_characNo);
         return false;
     }
-    SGF2(unsigned int, sig, 0xcd00) = spVals[1];
+    sk->m_remainSfpTree1 = static_cast<int>(spVals[1]);      // sig+0xcd00
     if (!db->get_uint(col++, spVals[2]))                     // remain_sfp_2nd→0xcd04
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x1db2, 5);
@@ -1212,13 +1213,15 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
               sig->m_characNo);
         return false;
     }
-    SGF2(unsigned int, sig, 0xcd04) = spVals[2];
+    sk->m_remainSfpTree2 = static_cast<int>(spVals[2]);      // sig+0xcd04
     (void)spVals[3];
-    if (!get_compressed_blob_data(db, col++, MIX(sig, 0xcd08), 200, 4))
+    if (!get_compressed_blob_data(db, col++,
+                                  reinterpret_cast<char*>(sk->m_commands),
+                                  200, 4))
     {                                                        // skill_command
         return false;
     }
-    if (!get_compressed_blob_data(db, col++, MIX(sig, 0x29fd), 0x198, 2))
+    if (!get_compressed_blob_data(db, col++, sig->m_backupSkill, 0x198, 2))
     {                                                        // skill_slot_lethe
         return false;
     }
@@ -1226,7 +1229,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     {
         return false;
     }
-    if (!get_compressed_blob_data(db, col++, MIX(sig, 0x2b97), 0x198, 2))
+    if (!get_compressed_blob_data(db, col++, sig->m_backupSkill2ND, 0x198, 2))
     {                                                        // skill_slot_lethe_2nd
         return false;
     }
@@ -1239,14 +1242,14 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     {
         return false;
     }
-    SGF2(unsigned char, sig, 0xcdd1) = scriptVersion;         // ORIG get_ubyte→+0xcdd1
+    sig->m_scriptVersion = scriptVersion;                    // ORIG get_ubyte→+0xcdd1
 
 
     // lethe 标志低位字节落位（ORIG movzbl/mov dl）。
-    SGF2(unsigned char, sig, 0x2b95) = (unsigned char)letheFlags[0];
-    SGF2(unsigned char, sig, 0x29fc) = (unsigned char)letheFlags[0];
-    SGF2(unsigned char, sig, 0x2d2f) = (unsigned char)letheFlags[1];
-    SGF2(unsigned char, sig, 0x2b96) = (unsigned char)letheFlags[1];
+    sig->m_backupSkill[0x198] = (unsigned char)letheFlags[0];        // +0x2b95
+    sig->m_oneDayLetheFlag = (unsigned char)letheFlags[0];           // +0x29fc
+    sig->m_backupSkill2ND[0x198] = (unsigned char)letheFlags[1];     // +0x2d2f
+    sig->m_oneDayLetheFlag2ND = (unsigned char)letheFlags[1];        // +0x2b96
 
     if (sig->m_fieldC != 0)
     {
@@ -1269,11 +1272,15 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
                   sig->m_fieldC);
             return false;
         }
-        if (!get_compressed_blob_data(db, 0, MIX(sig, 0x10), 0x198, 2))
+        if (!get_compressed_blob_data(db, 0,
+                                      reinterpret_cast<char*>(&sig->m_tagEtc),
+                                      0x198, 2))
         {
             return false;
         }
-        if (!get_compressed_blob_data(db, 1, MIX(sig, 0x1a8), 0x198, 2))
+        if (!get_compressed_blob_data(db, 1,
+                                      reinterpret_cast<char*>(&sig->m_tagEtc.m_rows[1]),
+                                      0x198, 2))
         {
             return false;
         }
@@ -1304,7 +1311,7 @@ bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC* sig)
         return false;
     }
 
-    if (!db->get_binary(0, MIX(sig, 0x230c), 0x194))         // cooltime_item
+    if (!db->get_binary(0, sig->m_cooltimeItem, 0x194))      // cooltime_item +0x230c
     {
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0xac8a, 5);
@@ -1312,7 +1319,7 @@ bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC* sig)
               " charac_no=%u", 1 /*local_10*/, sig->m_characNo);
         return false;
     }
-    if (!db->get_binary(1, MIX(sig, 0x24a4), 0x194))         // effect_item
+    if (!db->get_binary(1, &sig->m_effectItem[0], 0x194))    // effect_item +0x24a4
     {
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0xac91, 5);
@@ -1320,7 +1327,7 @@ bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC* sig)
               " charac_no=%u", 2 /*local_10 已自增*/, sig->m_characNo);
         return false;
     }
-    if (!get_compressed_blob_data(db, 2, MIX(sig, 0xd740), 5000, 0))
+    if (!get_compressed_blob_data(db, 2, sig->m_itemDictionary, 5000, 0))
     {                                                        // check_flag
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0xac98, 5);
@@ -1365,11 +1372,9 @@ bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC* sig)
 
     for (int col = 0; col <= 0xa; ++col)                     // cmpl $0xa setle → ≤10
     {
-        // ORIG 地址式：sig + 0x10 + (col + 0x6b78)*2。
-        unsigned int off = 0x10 + (unsigned int)(col + 0x6b78) * 2;
+        // ORIG 地址式：sig + 0x10 + (col + 0x6b78)*2 = +0xd700 + col×2。
         if (!db->get_short(col,
-                           *reinterpret_cast<short*>(&SGF2(unsigned short, sig,
-                                                                          off))))
+                           *reinterpret_cast<short*>(&sig->m_itemMakingSkill[col])))
         {
             cMyTrace trace(__PRETTY_FUNCTION__,
                            0x15f2, 5);
@@ -1409,7 +1414,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
     }
 
     int col = 1;
-    if (!db->get_int(0, SGF(sig, 0xd71c)))
+    if (!db->get_int(0, sig->m_todFirstLayerStartDate))      // +0xd71c
     {                                                        // first_layer_start_date
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b77, 5);
@@ -1418,7 +1423,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
         return false;
     }
     ++col;
-    if (!db->get_int(col++, SGF(sig, 0xd720)))
+    if (!db->get_int(col++, sig->m_todTodayEnterCount))      // +0xd720
     {                                                        // today_enter_count
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b7f, 5);
@@ -1436,10 +1441,9 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
         return false;
     }
     TOD_Layer layer(layerVal);                               // ORIG TOD_Layer C1(T)@0x085fe7b4
-    SGF2(unsigned short, sig, 0xd724) = layer.m_layer;
+    sig->m_todLastClearLayer = layer.m_layer;                // +0xd724（movw）
     if (!db->get_short(col++,
-                       *reinterpret_cast<short*>(&SGF2(unsigned short, sig,
-                                                                      0xd726))))
+                       *reinterpret_cast<short*>(&sig->m_todEnterCountByWeek)))
     {                                                        // enter_count_by_week
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b92, 5);
@@ -1447,7 +1451,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
               sig->m_characNo);
         return false;
     }
-    if (!db->get_int(col++, SGF(sig, 0xd728)))
+    if (!db->get_int(col++, sig->m_todDate))                 // +0xd728
     {                                                        // m_date
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b9a, 5);
@@ -1455,7 +1459,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
               sig->m_characNo);
         return false;
     }
-    if (!db->get_int(col, SGF(sig, 0xd72c)))
+    if (!db->get_int(col, sig->m_todLastClearDate))          // +0xd72c
     {                                                        // last_clear_date
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1ba2, 5);
@@ -1694,13 +1698,11 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
     // 前 6 列按 i∈[0,1] 三连 uint 结构装载（stride 0xc，基址 +0xcf23）。
     for (int i = 0; i <= 1; ++i)
     {
-        unsigned int base = 0xcf23 + i * 12;
         for (int k = 0; k < 3; ++k)
         {
             const int lineNo =
                 (k == 0) ? 0x1638 : (k == 1) ? 0x163f : 0x1646;
-            if (!db->get_uint(col++,
-                              SGF2(unsigned int, sig, base + (unsigned)k * 4)))
+            if (!db->get_uint(col++, sig->m_fairPvpScore[i * 3 + k]))
             {
                 cMyTrace trace(__PRETTY_FUNCTION__,
                                lineNo, 5);
@@ -1713,18 +1715,18 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
 
     static const struct
     {
-        unsigned int off;
+        int idx;      // m_fairPvpScore 下标（+0xcf23 + idx×4）
         int line;
     } plainCols[] =
     {
-        { 0xcf3b, 0x1667 },   // successive_win
-        { 0xcf3f, 0x166e },   // max_successive_win
-        { 0xcf43, 0x1675 },   // job_score
-        { 0xcf47, 0x167c },   // daily_play_count
+        { 6, 0x1667 },   // successive_win   → +0xcf3b
+        { 7, 0x166e },   // max_successive_win → +0xcf3f
+        { 8, 0x1675 },   // job_score        → +0xcf43
+        { 9, 0x167c },   // daily_play_count → +0xcf47
     };
     for (int n = 0; n < 4; ++n)
     {
-        if (!db->get_uint(col++, SGF2(unsigned int, sig, plainCols[n].off)))
+        if (!db->get_uint(col++, sig->m_fairPvpScore[plainCols[n].idx]))
         {
             cMyTrace trace(__PRETTY_FUNCTION__,
                            plainCols[n].line, 5);
@@ -1734,11 +1736,11 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
         }
     }
 
-    if (!get_compressed_blob_data(db, col++, MIX(sig, 0xcf4b), 0x650, 0))
+    if (!get_compressed_blob_data(db, col++, sig->m_fairPvpGiveItem, 0x650, 0))
     {                                                        // give_item
         return false;
     }
-    if (!db->get_uint(col++, SGF2(unsigned int, sig, 0xd59b)))
+    if (!db->get_uint(col++, sig->m_fairPvpLastPlayTime))    // +0xd59b
     {                                                        // unix_timestamp(last_play_time)
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1689, 5);
@@ -1756,10 +1758,10 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
               col, sig->m_characNo);
         return false;
     }
-    SGF(sig, 0xd59f) = lastPlay;                        // 实际报告写点 +0xd59f
-    if (SGF(sig, 0xd59f) < getDailyInitializeTime(6, 0, 0))
+    sig->m_fairPvpLastPlaySec = lastPlay;                // 实际报告写点 +0xd59f
+    if (sig->m_fairPvpLastPlaySec < getDailyInitializeTime(6, 0, 0))
     {
-        SGF2(unsigned int, sig, 0xd59b) = 0;
+        sig->m_fairPvpLastPlayTime = 0;                  // ORIG movl $0x0,+0xd59b
     }
     unsigned char giveFlag = 0;
     if (!db->get_ubyte(col++, giveFlag))                     // 末列 → +0xd5a3
@@ -1770,7 +1772,7 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
               col, sig->m_characNo);
         return false;
     }
-    SGF2(unsigned char, sig, 0xd5a3) = giveFlag;
+    sig->m_fairPvpGiveFlag = giveFlag;                   // +0xd5a3
     return true;
 }
 
@@ -1798,7 +1800,7 @@ bool DB_LoadEtc::LoadBoosterGage(SIG_LOAD_ETC* sig)
     {
         return false;
     }
-    if (!db->get_int(0, SGF(sig, 0xeccc)))
+    if (!db->get_int(0, sig->m_boosterGage))                 // +0xeccc
     {
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0xafc4, 5);
@@ -1978,12 +1980,12 @@ bool DB_LoadEtc::LoadSeriaRoomAniDeco(SIG_LOAD_ETC* sig)
         return false;
     }
     if (!db->get_short(0,
-                       *reinterpret_cast<short*>(&SGF2(unsigned short, sig, 0x14b5c))))
+                       *reinterpret_cast<short*>(&sig->m_comboSkill[0xb2])))  // +0x14b5c
     {
         return false;
     }
     if (!db->get_short(1,
-                       *reinterpret_cast<short*>(&SGF2(unsigned short, sig, 0x14b5e))))
+                       *reinterpret_cast<short*>(&sig->m_comboSkill[0xb4])))  // +0x14b5e
     {
         return false;
     }
@@ -2045,20 +2047,20 @@ bool DB_LoadEtc::LoadEventServerMessageInfo(SIG_LOAD_ETC* sig)
             return false;
         }
 
-        unsigned int base = 0x2d3c + (unsigned int)written * 0x58;
-        SGF2(unsigned char, sig, base)     = (unsigned char)kind;
-        SGF2(unsigned char, sig, base + 1) = (unsigned char)msgIndex;
+        SIG_ETC_EVENT_MESSAGE* entry = &sig->m_eventMessages[written];
+        entry->m_kind  = (unsigned char)kind;            // 条目+0x00 movb
+        entry->m_index = (unsigned char)msgIndex;        // 条目+0x01 movb
         size_t msgLen = strlen(message);
-        SGF2(unsigned int, sig, base + 4) = (unsigned int)msgLen;   // +0x2d40 strlen
-        strncpy(MIX(sig, base + 8) /*+0x2d44*/, message, msgLen);
+        entry->m_messageLen = (unsigned int)msgLen;      // 条目+0x04 movl
+        strncpy(entry->m_message, message, msgLen);      // 条目+0x08
         size_t nameLen = strlen(name);
-        SGF2(unsigned int, sig, base + 60) = (unsigned int)nameLen; // +0x2d78 strlen
-        strncpy(MIX(sig, base + 64) /*+0x2d7c*/, name, nameLen);
-        SGF(sig, base + 84) = updateTime;               // +0x2d90 update_time
+        entry->m_nameLen = (unsigned int)nameLen;        // 条目+0x3c movl
+        strncpy(entry->m_name, name, nameLen);           // 条目+0x40
+        entry->m_updateTime = updateTime;                // 条目+0x54 movl
         ++written;
     }
 
-    SGF2(unsigned char, sig, 0x2d38) = (unsigned char)nRows;  // 条目计数（截断）
+    sig->m_eventMessageCount = (unsigned char)nRows;     // +0x2d38 movb 截断
     return true;
 }
 

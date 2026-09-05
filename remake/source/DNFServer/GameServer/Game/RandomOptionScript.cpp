@@ -305,23 +305,23 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     script.m_map30.find(partType);
                 if (mit != script.m_map30.end())
                 {
-                    // ORIG 0x8a70fdb/0x8a71032：把 itemGroup/weight 两个紧邻 int 槽直接
-                    // 当作 PartSelectonField 传给 push_back（ORIG 该结构可平凡析构，无 D1）。
-                    int fbuf[2];
-                    fbuf[0] = itemGroup;
-                    fbuf[1] = weight;
-                    mit->second.m_vec10.push_back(*reinterpret_cast<PartSelectonField*>(fbuf));
+                    // ORIG 0x8a70fdb/0x8a71032：以 (itemGroup, weight) 两紧邻 int 槽
+                    // 直接作 PartSelectonField（+0x00/+0x04）推入两 vector。
+                    PartSelectonField field;
+                    field.m_partType = itemGroup;   // +0x00
+                    field.m_weight = weight;        // +0x04
+                    mit->second.m_vec10.push_back(field);
                     mit->second.m_fieldC += weight;
-                    mit->second.m_vec0.push_back(*reinterpret_cast<PartSelectonField*>(fbuf));
+                    mit->second.m_vec0.push_back(field);
                 }
                 else
                 {
                     PartSelectonValue val;
-                    int fbuf[2];
-                    fbuf[0] = itemGroup;
-                    fbuf[1] = weight;
-                    val.m_vec10.push_back(*reinterpret_cast<PartSelectonField*>(fbuf));
-                    val.m_vec0.push_back(*reinterpret_cast<PartSelectonField*>(fbuf));
+                    PartSelectonField field;
+                    field.m_partType = itemGroup;   // +0x00
+                    field.m_weight = weight;        // +0x04
+                    val.m_vec10.push_back(field);
+                    val.m_vec0.push_back(field);
                     val.m_fieldC = weight;
                     // ORIG 此分支 insert 不检查 duplicate。
                     script.m_map30.insert(std::make_pair(partType, val));
@@ -407,7 +407,9 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                         return 0xc7;
                     }
                     give.m_c += v;
-                    give.m_vec0.push_back((unsigned int)give.m_c);
+                    // ORIG 0x8a71575：m_c 仅累加，vector 推入的是本次输入原值
+                    // （-0x334 = -0x48 的副本），与 [base item] 推累计和不同。
+                    give.m_vec0.push_back((unsigned int)v);
                 }
                 std::map<RandomApplicationKey,
                          std::map<int, RandomOptionGive> >::iterator it =
@@ -439,17 +441,15 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                 {
                     break;
                 }
-                int buf[2];
-                buf[0] = v;
+                QuantityRatio ratio;
+                ratio.m_field0 = v;
                 v = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0xea;
                 }
-                buf[1] = (int)v;
-                // ORIG 0x8a7197f：把两个紧邻 int 槽（m_field0/m_weight4）直接当作
-                // QuantityRatio 传给 push_back（ORIG 该结构可平凡析构，无 D1 调用）。
-                script.m_veca8.push_back(*reinterpret_cast<QuantityRatio*>(buf));
+                ratio.m_weight4 = (unsigned int)v;
+                script.m_veca8.push_back(ratio);
             }
         }
         else if (line == "[option quantity]")
@@ -492,13 +492,9 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     return 0x10b;
                 }
                 short maxVal = (short)v;
-                // key = 4 个字节按小端拼 int（ORIG -0x4a4..-0x4a1）。
-                int key = 0;
-                unsigned char* kp = (unsigned char*)&key;
-                kp[0] = b0;
-                kp[1] = b1;
-                kp[2] = b2;
-                kp[3] = b3;
+                // key = 4 个字节按小端拼 int（ORIG -0x4a4..-0x4a1，b0 为低字节）。
+                int key = (int)((unsigned int)b0 | ((unsigned int)b1 << 8) |
+                                ((unsigned int)b2 << 16) | ((unsigned int)b3 << 24));
                 OptionQuantityValue val;
                 val.m_minA = minVal;
                 val.m_maxB = maxVal;
@@ -547,13 +543,13 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                 {
                     return 0x133;
                 }
-                unsigned char k3 = (unsigned char)v;
+                int kHi = v;   // ORIG：0x133 行读入 -0x4ac（int），即 u64 键高 32 位
                 v = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x137;
                 }
-                int k4 = v;
+                unsigned char k3 = (unsigned char)v;   // ORIG：0x137 行读入 -0x4ad，低 32 位 idx3
                 v = ScanInt(&ok);
                 if (!ok)
                 {
@@ -580,14 +576,15 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     choice.m_vecC.push_back((unsigned int)v);
                     choice.m_field18 += v;
                 }
-                // key = u64：低 4 字节按小端（k0,k1,k2,k3），高 4 字节 k4。
-                unsigned long long key = 0;
-                unsigned char* kp = (unsigned char*)&key;
-                kp[0] = k0;
-                kp[1] = k1;
-                kp[2] = k2;
-                kp[3] = k3;
-                *(int*)(kp + 4) = k4;
+                // key = u64：低 32 位按小端（k0,k1,k2,k3），高 32 位 kHi
+                // （ORIG 槽 -0x4b0..-0x4a9：高 32 = -0x4ac 的 0x133 行值；
+                //  idx3 = -0x4ad 的 0x137 行值）。
+                unsigned long long key =
+                    ((unsigned long long)(unsigned int)kHi << 32) |
+                    ((unsigned long long)k0) |
+                    ((unsigned long long)k1 << 8) |
+                    ((unsigned long long)k2 << 16) |
+                    ((unsigned long long)k3 << 24);
                 if (!script.m_mapcc.insert(std::make_pair(key, choice)).second)
                 {
                     LogManager::logFormat(0, "../RDARScriptRandomOption.cpp",
@@ -633,13 +630,13 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                 {
                     return 0x178;
                 }
-                unsigned char k3 = (unsigned char)v;
+                int kHi = v;   // ORIG：0x178 行读入 -0x4dc（int），即 u64 键高 32 位
                 v = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x17c;
                 }
-                int k4 = v;
+                unsigned char k3 = (unsigned char)v;   // ORIG：0x17c 行读入 -0x4dd，低 32 位 idx3
                 v = ScanInt(&ok);
                 if (!ok)
                 {
@@ -666,13 +663,15 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     choice.m_vecC.push_back((unsigned int)v);
                     choice.m_field18 += v;
                 }
-                unsigned long long key = 0;
-                unsigned char* kp = (unsigned char*)&key;
-                kp[0] = k0;
-                kp[1] = k1;
-                kp[2] = k2;
-                kp[3] = k3;
-                *(int*)(kp + 4) = k4;
+                // key = u64：低 32 位按小端（k0,k1,k2,k3），高 32 位 kHi
+                // （ORIG 槽 -0x4e0..-0x4d9：高 32 = -0x4dc 的 0x178 行值；
+                //  idx3 = -0x4dd 的 0x17c 行值）。
+                unsigned long long key =
+                    ((unsigned long long)(unsigned int)kHi << 32) |
+                    ((unsigned long long)k0) |
+                    ((unsigned long long)k1 << 8) |
+                    ((unsigned long long)k2 << 16) |
+                    ((unsigned long long)k3 << 24);
                 if (!script.m_map130.insert(std::make_pair(key, choice)).second)
                 {
                     LogManager::logFormat(0, "../RDARScriptRandomOption.cpp",
@@ -716,7 +715,9 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                         return 0x1b7;
                     }
                     give.m_c += v;
-                    give.m_vec0.push_back((unsigned int)give.m_c);
+                    // ORIG 0x08a7259a：m_c 仅累加，vector 推入的是本次输入原值
+                    // （-0x1b4 = -0x2c 的副本），与 [base item] 推累计和不同。
+                    give.m_vec0.push_back((unsigned int)v);
                 }
                 std::map<RandomApplicationKey,
                          std::map<int, RandomOptionGive> >::iterator it =
@@ -767,31 +768,31 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         }
         else if (line == "[option value ratio]")
         {
-            // ORIG 0x8a72a15/~0x8a72ac1：ratio 存于 -0x554（+0 scaleRange0/+4 scaleBase4/+8 weight8），
-            // 构造后不复用 D1；用紧邻 float[3] 槽直接当作 OptionValueRatio 传给 push_back。
-            float rbuf[3];
+            // ORIG 0x8a72a15/~0x8a72ac1：ratio 对象（+0 scaleRange0/+4 scaleBase4/+8 weight8）
+            // 于段入口清零构造一次；行内首 float 写 +4、次 float 写 +0、int 写 +8。
             for (;;)
             {
-                float f = ScanFloat(&ok);
+                float base = ScanFloat(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                rbuf[1] = f;   // m_scaleBase4 +0x04
-                f = ScanFloat(&ok);
+                float range = ScanFloat(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                rbuf[0] = f;   // m_scaleRange0 +0x00
                 v = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x1f5;
                 }
-                *(unsigned int*)(&rbuf[2]) = (unsigned int)v;   // m_weight8 +0x08
+                OptionValueRatio ratio;
+                ratio.m_scaleBase4 = base;    // +0x04（行内首 float）
+                ratio.m_scaleRange0 = range;  // +0x00（行内次 float）
+                ratio.m_weight8 = (unsigned int)v;
                 script.m_ratioE4.m_c += v;
-                script.m_ratioE4.m_vec0.push_back(*reinterpret_cast<OptionValueRatio*>(rbuf));
+                script.m_ratioE4.m_vec0.push_back(ratio);
             }
         }
         else if (line == "[option group]")
@@ -928,12 +929,11 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     return 0x297;
                 }
                 int cost = v;
-                // key 字节序：kp[0]=k1, kp[1]=k3, *(short*)(kp+2)=k2（ORIG -0x588/-0x587/-0x586）。
-                int key = 0;
-                unsigned char* kp = (unsigned char*)&key;
-                kp[0] = (unsigned char)k1;
-                kp[1] = (unsigned char)k3;
-                *(unsigned short*)(kp + 2) = (unsigned short)k2;
+                // key 字节序：byte0=k1, byte1=k3, ushort@idx2=k2
+                // （ORIG 槽 -0x588/-0x587/-0x586）→ k1 | k3<<8 | k2<<16。
+                int key = (int)((unsigned int)(unsigned char)k1 |
+                                ((unsigned int)(unsigned char)k3 << 8) |
+                                ((unsigned int)(unsigned short)k2 << 16));
                 if (!script.m_map178.insert(std::make_pair(key, cost)).second)
                 {
                     LogManager::logFormat(0, "../RDARScriptRandomOption.cpp",
@@ -1036,40 +1036,41 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                 {
                     return 0x2eb;
                 }
-                int minVal = v;
+                // ORIG 0x08a73522：此行 ScanInt 结果仅消费、不入 ResetValue（丢弃）。
                 v = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x2ef;
                 }
-                int maxVal = v;
+                int minVal = v;
                 v = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x2f3;
                 }
+                int maxVal = v;
+                v = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0x2f7;
+                }
                 int weight = v;
+                ResetValue rv;
+                rv.m_min = minVal;       // +0x00
+                rv.m_max = maxVal;       // +0x04
+                rv.m_weight8 = weight;   // +0x08
                 std::map<unsigned char, ResetValues>::iterator it =
                     script.m_map1e8.find(key);
                 if (it != script.m_map1e8.end())
                 {
                     it->second.m_count += weight;
-                    // ORIG 0x08a779..：minVal/maxVal/weight 三紧邻槽当作 ResetValue
-                    // 传给 push_back（ORIG 可平凡析构，无 D1）。
-                    int rbuf[3];
-                    rbuf[0] = minVal;
-                    rbuf[1] = maxVal;
-                    rbuf[2] = weight;
-                    it->second.m_values.push_back(*reinterpret_cast<ResetValue*>(rbuf));
+                    it->second.m_values.push_back(rv);
                 }
                 else
                 {
                     ResetValues rvs;
-                    int rbuf[3];
-                    rbuf[0] = minVal;
-                    rbuf[1] = maxVal;
-                    rbuf[2] = weight;
-                    rvs.m_values.push_back(*reinterpret_cast<ResetValue*>(rbuf));
+                    rvs.m_count = weight;   // ORIG 0x08a73678：not-found 直接置本行 weight
+                    rvs.m_values.push_back(rv);
                     script.m_map1e8.insert(std::make_pair(key, rvs));
                 }
             }

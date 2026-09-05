@@ -32,18 +32,9 @@
 
 namespace {
 
-// ORIG 塔记录槽线性寻址（registRanker 0x08468614 汇编实证）：
-//   slot = this + towerIdx*0x390 + slotIdx*0x98。
-// 现头 stTowerBlock/m_slots 视图与该公式 stride 不一致（见 NOTES），故按 ORIG
-// 字节公式取址。字段偏移：+0x04 成员名区(stride 0x1e)；+0x7c/+0x80/+0x84 三条
-// byte lane(index i)；+0x88 stageVal；+0x8c playTime；+0x90 “有纪录”标志位。
-inline unsigned char* rankSlotBase(WongWork::CDeathTowerRanking* self,
-                                   unsigned int towerIdx, unsigned int slotIdx)
-{
-    return reinterpret_cast<unsigned char*>(self)
-         + towerIdx * 0x390 + slotIdx * 0x98;
-}
-
+// （原 rankSlotBase 无类型字节寻址 helper 已删除——SecuLink 批次 2026-09-05
+//  裸偏移清理：塔块 6×0x98 连续 stBestRecord_t 槽证据见 CDeathTowerRanking.h
+//  stTowerBlock 注释；registRanker 内改用具类型 stride 寻址 + 具名字段。）
 } // namespace
 
 // ORIG T 0x08468614 (size 0x300) —— registRanker.md
@@ -55,31 +46,36 @@ void WongWork::CDeathTowerRanking::registRanker(
     // asm +0x00c..+0x03c: cmp $5/ja —— slotIdx>5 时跳过槽操作（落到 +0x21b）。
     if (slotIdx <= 5)
     {
-        unsigned char* slot = rankSlotBase(this, towerIdx, slotIdx);
+        // 具类型 stride 寻址（asm +0x021..+0x032：imul $0x390(tower) +
+        // imul $0x98(slot) 两步，塔块 = 6×stBestRecord_t 连续槽）。
+        stBestRecord_t* slot =
+            reinterpret_cast<stBestRecord_t*>(&m_towers[towerIdx]) + slotIdx;
         // asm +0x064..+0x0a3: 槽已占位 → 先按旧 stage 行、旧时间值 erase 排名
         // 记录（读取发生在改写之前）。
-        if (*(unsigned char*)(slot + 0x90) != 0)
+        if (slot->m_flag90 != 0)
         {
-            unsigned int oldStage = *(unsigned int*)(slot + 0x88);
-            unsigned int oldTime  = *(unsigned int*)(slot + 0x8c);
+            unsigned int oldStage = slot->m_stage;      // +0x88
+            unsigned int oldTime  = slot->m_playTime;   // +0x8c
             m_rankMap[towerIdx][oldStage].erase(oldTime);
         }
         // asm +0x0a8..+0x1a9: for i < m_tableType: strncpy(名字,0x1e) +
         // 三 byte lane ← members[i*0x17 + 0x14/15/16]。
+        // members 按 ORIG 字节读（stDeathTowerRecordMemberInfo_t 未建模字段，
+        // +0x14/15/16 三 byte 无具名证据，保留 stride+偏移形式）。
         for (unsigned int i = 0; i < m_tableType; ++i)
         {
-            strncpy(reinterpret_cast<char*>(slot) + 4 + i * 0x1e,
+            strncpy(slot->m_memberData[i],
                     reinterpret_cast<const char*>(members) + i * 0x17, 0x1e);
             const unsigned char* src =
                 reinterpret_cast<const unsigned char*>(members) + i * 0x17;
-            (slot + 0x7c)[i] = src[0x14];
-            (slot + 0x80)[i] = src[0x15];
-            (slot + 0x84)[i] = src[0x16];
+            slot->m_pad7c[0][i] = src[0x14];
+            slot->m_pad7c[1][i] = src[0x15];
+            slot->m_pad7c[2][i] = src[0x16];
         }
         // asm +0x1af..+0x21b: 写新 stageVal/playTime 并置“有纪录”位=1。
-        *(unsigned int*)(slot + 0x88) = stageVal;
-        *(unsigned int*)(slot + 0x8c) = playTime;
-        *(unsigned char*)(slot + 0x90) = 1;
+        slot->m_stage = stageVal;
+        slot->m_playTime = playTime;
+        slot->m_flag90 = 1;
     }
     // asm +0x21b..+0x2ae: 无条件——m_rankMap[towerIdx][stageVal].insert(
     //   pair(playTime→slotIdx))；键已存在则改写值为 slotIdx（ORIG fresh 插入与
@@ -94,7 +90,7 @@ void WongWork::CDeathTowerRanking::registRanker(
     cur.m_stage = stageVal;
     cur.m_playTime = playTime;
     if (m_tableBest > cur)
-        memcpy(&m_tableBest, &cur, sizeof(m_tableBest));
+        m_tableBest = cur;   // P83：ORIG rep movsl 0x26 dword = 结构整体赋值
 }
 
 // ORIG T 0x08468594 (size 0x80) —— resetRanking.md
@@ -147,18 +143,17 @@ void WongWork::CDeathTowerRanking::registBestRecord(
 {
     // 栈上纪录（ctor 先清零；asm +0x01a: record+0 存 key）。
     stBestRecord_t rec;
-    *(unsigned int*)&rec.m_pad0[0] = key;
+    rec.m_key = key;         // asm +0x01d `mov %eax,-0x220(%ebp)`（4B）
     // asm +0x02f..+0x0c5: 名字/三条 byte lane 填充（同 registRanker 视图）。
-    unsigned char* recBase = reinterpret_cast<unsigned char*>(&rec);
     for (unsigned int i = 0; i < m_tableType; ++i)
     {
-        strncpy(reinterpret_cast<char*>(recBase) + 4 + i * 0x1e,
+        strncpy(rec.m_memberData[i],
                 reinterpret_cast<const char*>(members) + i * 0x17, 0x1e);
         const unsigned char* src =
             reinterpret_cast<const unsigned char*>(members) + i * 0x17;
-        (recBase + 0x7c)[i] = src[0x14];
-        (recBase + 0x80)[i] = src[0x15];
-        (recBase + 0x84)[i] = src[0x16];
+        rec.m_pad7c[0][i] = src[0x14];
+        rec.m_pad7c[1][i] = src[0x15];
+        rec.m_pad7c[2][i] = src[0x16];
     }
     rec.m_stage = stageVal;      // asm -0x198 = record+0x88
     rec.m_playTime = playTime;   // asm -0x194 = record+0x8c
@@ -176,7 +171,7 @@ void WongWork::CDeathTowerRanking::registBestRecord(
     std::pair<BestMap::iterator, bool> br =
         bt.insert(BestMap::value_type(key, rec));
     if (!br.second)
-        memcpy(&bt[key], &rec, sizeof(rec));
+        bt[key] = rec;   // P83：ORIG operator[] + rep movsl 0x26 = 结构整体赋值
 }
 
 // ORIG W 0x08469d90 (size 0x1e) —— objdump 补证（无独立 md）：
@@ -227,17 +222,19 @@ WongWork::CDeathTower::CDungeonMgr::getSpecialPassiveObjectItems() const
 // +0x20/+0x24 指针字段。
 WongWork::CMailBox::stAddNewMailInput::stAddNewMailInput()
 {
-    unsigned int* f = reinterpret_cast<unsigned int*>(m_pad);
-    f[0] = 0;           // +0x00
-    f[1] = 0;           // +0x04
-    f[2] = 0;           // +0x08
-    f[3] = 0;           // +0x0c
-    f[4] = 0;           // +0x10
-    f[5] = 0;           // +0x14
-    f[6] = 0;           // +0x18
-    m_pad[0x1c] = 0;
-    f[8] = 0;           // +0x20
-    f[9] = 0;           // +0x24
+    // 具名字段清零（SecuLink 批次裸偏移清理；字段布局/宽度证据见
+    // CMailBoxHelper.h stAddNewMailInput 注释——AddNewMail ORIG 0x08551f5a）。
+    // ORIG 清零序：+0x00..+0x18 七 dword、+0x1c 一 byte、+0x20/+0x24 两 dword。
+    m_mailIndex = 0;
+    m_senderCharacNo = 0;
+    m_packageMoney = 0;
+    m_letterId = 0;
+    m_remainSec = 0;
+    m_packageType = 0;
+    m_period = 0;
+    m_unlimit = 0;
+    m_senderName = 0;
+    m_packageItem = 0;
 }
 
 // ORIG W 0x084ed2fc (size 0x34)：m_loadedLetterCount-1；负数归零。

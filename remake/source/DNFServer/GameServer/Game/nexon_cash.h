@@ -34,7 +34,7 @@ static const unsigned short C_ARAD_PROD_TYPE = 0x2d;  // _ZN5nexon4cashL16C_ARAD
 //   +0x04 char   m_pad04[0x10]      （本类未引用，保留区）
 //   +0x14 u32    m_peerAdrs         （网络序 in_addr）
 //   +0x18 u16    m_peerPort         （网络序存储，getPeerPort 原样返回）
-//   +0x1c u32    m_sendRetryCount
+//   +0x1c int    m_sendRetryCount （ORIG 0x081af722 `cmp $0x64; setg` 有符号比较）
 // sizeof == 0x20（NCashImpl ctor 内嵌于 +0x20..+0x40 区间验证）
 // ---------------------------------------------------------------------------
 class TCPSocket
@@ -86,7 +86,7 @@ private:
     char           m_pad04[0x10];    // +0x04（未引用保留区）
     unsigned int   m_peerAdrs;       // +0x14
     unsigned short m_peerPort;       // +0x18
-    unsigned int   m_sendRetryCount; // +0x1c
+    int            m_sendRetryCount; // +0x1c（ORIG setg 有符号，0x081af71f-0x081af722）
 
 public:
     static int msRecvBufSize;        // B 0x09407d68
@@ -130,6 +130,8 @@ private:
     int            m_socket;  // +0x00
     unsigned char  m_adrs[16];// +0x04 sockaddr_in（避免系统头污染全局作用域）
     unsigned short m_port;    // +0x14
+    unsigned char  m_pad16[2];// +0x16（ORIG recvfrom 第5参 add $0x18,%eax @0x081af105
+                               //  证明 m_from 基址 +0x18，需显式 2B pad）
     unsigned char  m_from[16];// +0x18
 };
 
@@ -197,7 +199,10 @@ private:
     unsigned char  m_magic;       // +0x00
     unsigned char  m_pad01;       // +0x01（ctor 不初始化）
     unsigned short m_bodyLength;  // +0x02 主机序
-    unsigned char  m_raw[0x204];  // +0x04 报文原始区（data() 视图起点）+ 接收缓冲本体
+    unsigned char  m_wireMagic;   // +0x04 线上头 magic（encode 写 0x55 @0x081ae583）
+    unsigned char  m_netLenB[2];  // +0x05 线上体长（网络序 u16；encode dst
+                                  //   0x081ae585 add $5 单步 fold 反推独立字段）
+    unsigned char  m_bodyBytes[0x201]; // +0x07 接收缓冲本体（body() 视图起点）
     // sizeof = 0x208（+0x40→+0x248 下一个子对象，NCashImpl 内嵌两实例总 0x450）
 };
 
@@ -297,12 +302,13 @@ private:
 // NCashImpl —— 计费服务端连接实现（内嵌 TCPSocket + 收发消息帧）。
 // 布局（ctor 0x081acfdc）：
 //   +0x00 unsigned char m_paramB      （第3参 unsigned char）
-//   +0x02 unsigned short m_fieldC2    （第4参 unsigned short）
+//   +0x02 short          m_fieldC     （第4参 unsigned short；ctor 0x081ad03d
+//                                       arg 先载=符号失配，技巧5 反推成员 short）
 //   +0x04 short          m_fieldD     （第5参 short）
 //   +0x08 unsigned int   m_requestID  （ctor 置 0，_increaseRequestID ++）
 //   +0x0c bool           m_connected  （ctor false）
 //   +0x0d char           m_serverAdrs[0x11] （strcpy 目标；至多到 +0x1e 前区）
-//   +0x1e unsigned short m_port       （第二参 short 端口原值）
+//   +0x1e short          m_port        （第二参 short；ctor 0x081ad06f this 先载=全等）
 //   +0x20 TCPSocket
 //   +0x40 NCashMessage   m_inMsg      （区间 0x208：接收缓冲本体自 data()/body() 起）
 //   +0x248 NCashMessage  m_outMsg
@@ -358,13 +364,13 @@ private:
 public:  // 成员偏移由 ORIG 使用点固定，暴露便于 TU 内访问器同型
     unsigned char   m_paramB;     // +0x00
     unsigned char   m_pad01;      // +0x01
-    unsigned short  m_fieldC;     // +0x02
+    short           m_fieldC;     // +0x02（ctor arg-先载反推，ORIG 0x081ad03d）
     short           m_fieldD;     // +0x04
     unsigned char   m_pad06[2];   // +0x06
     unsigned int    m_requestID;  // +0x08
     bool            m_connected;  // +0x0c
     char            m_serverAdrs[17]; // +0x0d..+0x1d
-    unsigned short  m_port;       // +0x1e
+    short           m_port;       // +0x1e（ctor this-先载全等，ORIG 0x081ad06f）
     TCPSocket       m_socket;     // +0x20
     NCashMessage    m_inMsg;      // +0x40（0x208 区间含接收缓冲）
     NCashMessage    m_outMsg;     // +0x248..+0x450 outMsg 实体（ORIG 总 size 0x450）
@@ -400,10 +406,10 @@ public:
                int encLen, char* encData, char* sendBuf,
                char* wideBuf, char* more, int count,
                NXTransaction& tx);                           // ORIG 0x081ae440
-    int checkCoupon();                                       // ORIG 0x081ae3e8
-    int useCoupon();                                         // ORIG 0x081ae3fe
-    int checkCafeCoupon();                                   // ORIG 0x081ae414
-    int useCafeCoupon();                                     // ORIG 0x081ae42a
+    bool checkCoupon();                                      // ORIG 0x081ae3e8：直返 NCashImpl::checkCoupon()（bool，无 movzbl 再扩展）
+    bool useCoupon();                                        // ORIG 0x081ae3fe
+    bool checkCafeCoupon();                                  // ORIG 0x081ae414
+    bool useCafeCoupon();                                    // ORIG 0x081ae42a
 
 private:
     NexonCash(const NexonCash&);

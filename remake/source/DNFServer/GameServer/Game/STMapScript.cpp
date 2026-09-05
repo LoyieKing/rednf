@@ -13,10 +13,14 @@
 //     Clear T 0x0836c688（逐条转写，顺序保持汇编原序）
 //   ScanChampionFeatures 0x089e6cf4 / WriteChampionFeatures 0x089e6e94
 //     （CHAMPION_FEATURE_LIST/NAME 表自 ORIG rodata 解出，37 项）
-//   ImportMapScript T 0x089dcf54：152 个标签分派分支级复原；ORIG 的
-//     static const map<const char*,int> 查找表还原为等价 if/else 链。
-//   ExportMapScript T 0x089e3c55：全段落输出转写（fopen "wb" → fprintf →
-//     fclose → convertBinaryToText）。
+//   ImportMapScript T 0x089dcf54：标签分派 + 6 张函数局部静态
+//     map<const char*,int,less_TCHAR>（__lookup/__lookup_0..4，键值自
+//     ORIG rodata/insert 现场解出，SpinLock+__inited 双检惰性填充）逐段
+//     还原；blood/defense 校验状态机、named/boss/apc_boss 静态计数、
+//     [background animation]/[ani info] 嵌套表段按 ORIG 形态转写。
+//   ExportMapScript T 0x089e3c55：全段落输出转写（fopen "wb" → fprintf/
+//     fwrite/fputc → fclose → convertBinaryToText）；容器输出按 ORIG
+//     iterator+(*it) / 逐字段 vector::operator[] 形态（P38）。
 // ============================================================================
 
 #include <stdio.h>
@@ -42,11 +46,12 @@
 #include "CreatureScript.h"      // ENUM_ELEMENT（getElementName 形参）
 #include "NpcScript.h"          // STScriptFileList（checkValidIndex 形参）
 #include "STCharacterScript.h"  // STCharacterScript / STRDCharacterStatus / CharacterEtcStats
+#include "CEnvironment.h"       // SpinLock / less_TCHAR（ImportMapScript 6 张函数局部静态查找表）
 
 // ---- 跨 TU 符号（ORIG 地址随注；定义在各自所属批次 TU）----
 extern char g_szMapScriptBaseDirectory[0x100];                    // B 0x094fe2a0
 extern char g_szCharacterScriptBaseDirectory[0x100];             // B 0x094f7470（InitScriptProducers_4.cpp）
-extern std::map<int, std::string> g_stMapScriptFileList;          // B 0x094fe3a0
+extern STScriptFileList g_stMapScriptFileList;                    // B 0x094fe3a0（ORIG cast 视图同 NpcScript.h）
 void exportCharacterStatusScript(FILE* fp, STRDCharacterStatus* st);            // T 0x08a0fb38（OnlyOrigBatch14.cpp）
 void exportCharacterGiveSkillScript(FILE* fp, std::vector<std::pair<int, int> >* vec);  // T 0x08a0fff6
 void exportCharacterEtcStatsScript(FILE* fp, CharacterEtcStats* stats);          // T 0x08a100f3
@@ -62,19 +67,6 @@ bool procSpecialPassiveObject(SPOBJ_ACTION_DATAS& action,         // T 0x089e795
 const char* toMbcs(const char* src);                              // T 0x08adee98
 extern int* Get_instance_stHellParty_t();                         // T 0x089097c4（CDataManager.cpp 单例）
 int ScanStrOrInt(bool& isStr, std::string& s, bool& isInt, bool consume);  // DNFLexWrapperHelpers.cpp
-
-// STScriptFileList::FindIndexByFullScan 等价遍历（ORIG T 0x088bae56；
-// g_stMapScriptFileList 布局同 STScriptFileList，map<path→index>）
-static int findMapScriptIndex(const char* path)
-{
-    for (std::map<int, std::string>::const_iterator it = g_stMapScriptFileList.begin();
-         it != g_stMapScriptFileList.end(); ++it)
-    {
-        if (it->second == path)
-            return it->first;
-    }
-    return -1;
-}
 
 // ============================================================================
 // 局部静态表（ORIG rodata 数据解出）
@@ -151,85 +143,6 @@ void WriteChampionFeatures(FILE* file, STAssignMonster& monster)
         fprintf(file, "`%s` ", CHAMPION_FEATURE_NAME[monster.m_vec28[i] & 0xff]);
     fputc('\n', file);
 }
-
-// ===========================================================================
-// [time line] 段解析 —— advancealtar::StageTimeLineParameter::importPhase
-// 0x0889a930 的流式语义转写（该成员函数属 advancealtar 批次未落地；其伪 C
-// 仅操作 TimeLine& 目标，此处以等价自由函数承载）。返回 0 成功 / 错误码。
-// ===========================================================================
-
-static int importTimeLinePhases(advancealtar::TimeLine* timeline)
-{
-    for (;;)
-    {
-        std::string tok;
-        if (!ScanType(tok, true))
-            return 0x2be;                                  // [/time line] 缺失
-        if (tok == "[/time line]")
-            return 0;
-        if (tok != "[phase]")
-            continue;
-
-        advancealtar::Phase phase;
-        bool ok = true;
-        for (;;)
-        {
-            std::string sub;
-            if (!ScanType(sub, true))
-            {
-                ok = false;
-                break;
-            }
-            if (sub == "[/phase]")
-                break;
-            if (sub == "[duration]")
-            {
-                phase.m_field0 = ScanInt(static_cast<bool*>(0));
-                continue;
-            }
-            if (sub == "[type]")
-            {
-                std::string name;
-                if (!ScanStr(&name))
-                {
-                    ok = false;
-                    break;
-                }
-                // normal=0 / named=1 / boss=2（非法名错误码 0x2dc）
-                if (name == "normal")
-                    phase.m_field4 = 0;
-                else if (name == "named")
-                    phase.m_field4 = 1;
-                else if (name == "boss")
-                    phase.m_field4 = 2;
-                else
-                {
-                    ok = false;
-                    break;
-                }
-                continue;
-            }
-            if (sub == "[action assign]")
-            {
-                for (;;)
-                {
-                    advancealtar::_ActionAssign assign;    // ctor memset 0x10
-                    assign.m_field0 = ScanInt(static_cast<bool*>(0));
-                    if (!ScanInt(static_cast<bool*>(0)))
-                        break;                             // 缺参路径合并为循环退出
-                    assign.m_maxAliveCount =
-                        static_cast<short>(ScanInt(static_cast<bool*>(0)));
-                    phase.m_assigns.push_back(assign);
-                }
-                continue;
-            }
-        }
-        if (!ok)
-            return 0x2cc;
-        timeline->m_phases.push_back(phase);
-    }
-}
-
 
 // ===========================================================================
 // getDrawLayerName / convertBinaryToText —— ORIG 0x088be212 / 0x088be04c
@@ -1033,46 +946,50 @@ void STMapScript::Clear()                   // ORIG T 0x0836c688（顺序保持�
     m_visibleTownMinimap = 1;               // param_1[0xde]=1
 }
 
-// ORIG ScanChampionFeatures(int, STAICharacterMapArrangeData&) @0x089e6dc4
-//（同表匹配，push 到 +0x1c vector<int>）
-static void ScanAiChampionFeatures(int count, STAICharacterMapArrangeData& ai)
-{
-    std::string tok;
-    for (int i = 0; i < count; ++i)
-    {
-        ScanStr(&tok);
-        for (int k = 0; k < 37; ++k)
-        {
-            if (tok == CHAMPION_FEATURE_NAME[CHAMPION_FEATURE_LIST[k] & 0xff])
-            {
-                ai.m_championFeatures.push_back(CHAMPION_FEATURE_LIST[k]);
-                break;
-            }
-        }
-    }
-}
+// ORIG ScanChampionFeatures(int, STAICharacterMapArrangeData&) W 0x089e6dc4
+//（同表匹配，push 到 +0x1c vector<int>；定义在 OnlyOrigBatch14.cpp）。
+void ScanChampionFeatures(int count, STAICharacterMapArrangeData& data);
 
 // ===========================================================================
 // ImportMapScript —— ORIG T 0x089dcf54（标签分派逐分支转写；ORIG 的
 // static map<const char*,int> 查找表还原为等价 if/else 链）
 // ===========================================================================
 
+// STMapScript 词索引视图（P82/P95 具名视图）：ORIG [pathgate pos]/
+// [pathgate recognize range] 以 `words[i*2+j+0x40/0x48]` 形态做
+// `add $imm,%ecx; mov %eax,(%base,%ecx,4)` 三步寻址（报告 0x1bae-0x1bd4、
+// 0x1c35-0x1c58），数组基址即对象首（m_index@+0x000）。
+struct STMapScriptWordView
+{
+    int m_words[0x50];                                // 覆盖 +0x000..0x13f
+};
+static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header span");
+
 bool ImportMapScript(STMapScript* script, const char* path)
 {
     if (!loadRDARScriptFile(g_szMapScriptBaseDirectory, path))
         return false;
     script->Clear();
+    getDirectoryPath(script->m_str1a0, "%s%s", g_szMapScriptBaseDirectory, path);
 
-    // getDirectoryPath(m_str1a0, "%s%s", g_szMapScriptBaseDirectory, path)
-    script->m_str1a0.assign(g_szMapScriptBaseDirectory);
-    script->m_str1a0.append(path);
-
-    int normalMonsterCount = 0;     // iStack_140（[monster] 计数）
-    bool pvpPracticeRead = false;   // cStack_139
-
-    std::string tok;                // iStack_430 主循环 token
-    std::string sub;                // iStack_434 分支内子 token
-    bool ok = false;
+    // 声明序 = ORIG prologue 构造/初始化序（槽位锚点，报告 0x0071..0x0126）：
+    std::string tok;                                // -0x42c 主循环 token
+    std::string sub;                                // -0x430 分支内子 token
+    std::string tok3;                               // -0x434（[NPC] ScanStrOrInt 目标）
+    int okInt = 0;                                  // -0x438（ScanInt 返回值暂存）
+    bool ok = false;                                // -0x439（共享 ok flag）
+    // ORIG 函数头构造、跨轮复用的解析对象（清理路径仅 dtor 其中 3 个非平凡者）。
+    STAssignAnimation aniObj;                       // -0x450
+    STAssignPassiveObject passiveObj;               // -0x460
+    STAssignMonster monObj;                         // -0x76c
+    STAssignSpecialPassiveObj spoObj;               // -0x67c
+    AssignNpc npcObj;                               // -0x47c
+    int normalMonsterCount = 0;                     // -0x13c（[monster] 计数）
+    STAssignBloodSystem bloodSys;                   // -0x6a4
+    STAssignBloodPhaseTime bloodPt;                 // -0x498
+    STAssignDefenseSystem defSys;                   // -0x6cc
+    STAssignDefensePhaseTime defPt;                 // -0x4b0
+    bool pvpPracticeRead = false;                   // -0x135
     for (;;)
     {
         if (!ScanType(tok, true))
@@ -1085,8 +1002,8 @@ bool ImportMapScript(STMapScript* script, const char* path)
         }
         if (tok == "[player number]")                       // 0x089dd10e
         {
-            script->m_playerCountMin = ScanInt(&ok);
-            script->m_playerCountMax = ScanInt(&ok);
+            script->m_playerCountMin = ScanInt(static_cast<bool*>(0));
+            script->m_playerCountMax = ScanInt(static_cast<bool*>(0));
             continue;
         }
         if (tok == "[show dust]")                           // 0x089dd157
@@ -1099,40 +1016,44 @@ bool ImportMapScript(STMapScript* script, const char* path)
         }
         if (tok == "[sort bottom]")                         // 0x089dd1c8
         {
-            script->m_sortBottom = ScanInt(&ok) == 1;
+            script->m_sortBottom = ScanInt(static_cast<bool*>(0)) == 1;
             continue;
         }
         if (tok == "[pvp start area]")                      // 0x089dd202
         {
             for (int i = 0; i < 3; ++i)
             {
-                script->m_pvpStartArea[i].m_x = ScanInt(&ok);
-                script->m_pvpStartArea[i].m_y = ScanInt(&ok);
-                script->m_pvpStartArea[i].m_w = ScanInt(&ok);
-                script->m_pvpStartArea[i].m_h = ScanInt(&ok);
+                script->m_pvpStartArea[i].m_x = ScanInt(static_cast<bool*>(0));
+                script->m_pvpStartArea[i].m_y = ScanInt(static_cast<bool*>(0));
+                script->m_pvpStartArea[i].m_w = ScanInt(static_cast<bool*>(0));
+                script->m_pvpStartArea[i].m_h = ScanInt(static_cast<bool*>(0));
             }
             continue;
         }
         if (tok == "[pvp start area by party slot]")        // 0x089dd309
         {
-            script->m_pvpByPartySlot = ScanInt(&ok) != 0;
+            int slotVal = ScanInt(static_cast<bool*>(0));   // -0x130（ORIG 先落槽再判）
+            script->m_pvpByPartySlot = slotVal != 0;
             continue;
         }
         if (tok == "[map move keep state axis pos]")        // 0x089dd34d
         {
-            script->m_keepStateAxisX = ScanInt(&ok) != 0;
-            script->m_keepStateAxisY = ScanInt(&ok) != 0;
-            script->m_keepStateAxisZ = ScanInt(&ok) != 0;
+            int axisX = ScanInt(static_cast<bool*>(0));     // -0x12c
+            int axisY = ScanInt(static_cast<bool*>(0));     // -0x128
+            int axisZ = ScanInt(static_cast<bool*>(0));     // -0x124
+            script->m_keepStateAxisX = axisX != 0;
+            script->m_keepStateAxisY = axisY != 0;
+            script->m_keepStateAxisZ = axisZ != 0;
             continue;
         }
         if (tok == "[pvp practice start area]")             // 0x089dd3db
         {
             for (int i = 3; i < 5; ++i)
             {
-                script->m_pvpStartArea[i].m_x = ScanInt(&ok);
-                script->m_pvpStartArea[i].m_y = ScanInt(&ok);
-                script->m_pvpStartArea[i].m_w = ScanInt(&ok);
-                script->m_pvpStartArea[i].m_h = ScanInt(&ok);
+                script->m_pvpStartArea[i].m_x = ScanInt(static_cast<bool*>(0));
+                script->m_pvpStartArea[i].m_y = ScanInt(static_cast<bool*>(0));
+                script->m_pvpStartArea[i].m_w = ScanInt(static_cast<bool*>(0));
+                script->m_pvpStartArea[i].m_h = ScanInt(static_cast<bool*>(0));
             }
             pvpPracticeRead = true;                         // cStack_139=1
             continue;
@@ -1140,22 +1061,17 @@ bool ImportMapScript(STMapScript* script, const char* path)
         if (tok == "[shadow type]")                         // 0x089dd4e9
         {
             ScanStr(&sub);
-            // ORIG 仅 [more darker] 写 param_1[0x93]=2；[mirror] 不写
-            //（保持 Clear 值，Export 侧以 0 呈现 mirror 分支）。
-            if (sub == "[more darker]")
+            if (sub == "[mirror]")
+                script->m_24c = 1;                          // +0x24c
+            else if (sub == "[more darker]")
                 script->m_24c = 2;
             continue;
         }
         if (tok == "[dungeon]")                             // 0x089dd56d
         {
             script->m_list4.clear();
-            for (;;)
-            {
-                int v = ScanInt(&ok);
-                if (!ok)
-                    break;
-                script->m_list4.push_back(v);
-            }
+            while (okInt = ScanInt(&ok), ok == true)
+                script->m_list4.push_back(okInt);
             continue;
         }
         if (tok == "[type]")                                // 0x089dd5d7
@@ -1171,67 +1087,73 @@ bool ImportMapScript(STMapScript* script, const char* path)
         }
         if (tok == "[background pos]")                      // 0x089dd682
         {
-            script->m_32c = ScanInt(&ok);                   // param_1[0xcb]
+            script->m_32c = ScanInt(static_cast<bool*>(0)); // param_1[0xcb]
             continue;
         }
         if (tok == "[greed]")                               // 0x089dd6b6
         {
             script->m_recoveryObjects.clear();
             ScanStr(&sub);
-            size_t len = sub.size();
-            int pending = -1;                               // iStack_4b8
-            size_t pos = 0;                                 // iStack_118
-            while (pos + 1 < len)
+            // 声明序 = ORIG 初始化序（-0x11c/-0x118/-0x4b4/-0x114/-0x110）
+            int len = static_cast<int>(sub.size());         // -0x11c
+            int badCount = 0;                               // -0x118（未识别符号数）
+            int pending = -1;                               // -0x4b4
+            int pos = 0;                                    // -0x114
+            int unusedGrid = 0;                             // -0x110（ORIG dead 槽，P31）
+            while (pos < len - 1)
             {
-                int sym = -1;                               // iStack_4c0
-                for (int k = 0; k < 16; ++k)
+                std::string two;                            // -0x4b8（每轮 ctor/dtor）
+                two.append(sub.c_str() + pos, 2);           // Ss::append(PKcj)
+                if (*two.c_str() == '\r' || *two.c_str() == '\n' ||
+                    *two.c_str() == ' ')
                 {
-                    if (sub[pos] == g_gridSymbols[k][0] &&
-                        sub[pos + 1] == g_gridSymbols[k][1])
-                    {
-                        sym = k;
-                        break;
-                    }
+                    pos += 1;                               // 换行/空白：跳一格
                 }
-                if (sym < 0)
-                {
-                    pos += 1;
-                    continue;
-                }
-                if (pending < 0)
-                    pending = sym;
                 else
                 {
-                    script->m_recoveryObjects.push_back(
-                        std::make_pair(pending, sym));
-                    pending = -1;
+                    int sym = 0;                            // -0x4bc
+                    for (; sym < 16; ++sym)
+                    {
+                        if (two.c_str()[0] == g_gridSymbols[sym][0] &&
+                            two.c_str()[1] == g_gridSymbols[sym][1])
+                            break;
+                    }
+                    if (sym == 16)
+                    {
+                        pos += 1;                           // 未识别符号：跳一格
+                        ++badCount;
+                    }
+                    else
+                    {
+                        if (pending == -1)
+                            pending = sym;
+                        else
+                        {
+                            std::pair<int, int> objPair(pending, sym);  // 直接构造（P81）
+                            script->m_recoveryObjects.push_back(objPair);
+                            pending = -1;
+                        }
+                        pos += 2;
+                    }
                 }
-                pos += 2;
             }
+            if (badCount != 0)
+                return false;                               // ORIG：有未识别格 → 失败
+            (void)unusedGrid;
             continue;
         }
         if (tok == "[tile]")                                // 0x089dd90x 区
         {
             script->m_vecTile.clear();
-            for (;;)
-            {
-                std::string tileName;
-                if (!ScanStr(&tileName))
-                    break;
-                script->m_vecTile.push_back(tileName);
-            }
+            while (ScanStr(&sub))                           // 复用子 token（ORIG local_434）
+                script->m_vecTile.push_back(sub);
             continue;
         }
         if (tok == "[extended tile]")
         {
             script->m_vecExtendedTile.clear();
-            for (;;)
-            {
-                std::string tileName;
-                if (!ScanStr(&tileName))
-                    break;
-                script->m_vecExtendedTile.push_back(tileName);
-            }
+            while (ScanStr(&sub))
+                script->m_vecExtendedTile.push_back(sub);
             continue;
         }
         if (tok == "[elemental property]")                  // 0x089ddaef 区
@@ -1242,48 +1164,258 @@ bool ImportMapScript(STMapScript* script, const char* path)
         }
         if (tok == "[far sight scroll]")
         {
-            script->m_sightScroll[0] = ScanInt(&ok);        // param_1[0x22]
+            script->m_sightScroll[0] = ScanInt(static_cast<bool*>(0));  // param_1[0x22]
             continue;
         }
         if (tok == "[middle sight scroll]")
         {
-            script->m_sightScroll[1] = ScanInt(&ok);        // param_1[0x23]
+            script->m_sightScroll[1] = ScanInt(static_cast<bool*>(0));  // param_1[0x23]
             continue;
         }
         if (tok == "[near sight scroll]")
         {
-            script->m_sightScroll[2] = ScanInt(&ok);        // param_1[0x24]
+            script->m_sightScroll[2] = ScanInt(static_cast<bool*>(0));  // param_1[0x24]
+            continue;
+        }
+        if (tok == "[background animation]")                // 0x089ddaf0 区（__lookup 表段）
+        {
+            // ORIG：局部对象循环复用（BackAniScript ctor / string ctor 在 do 之前，
+            // dtor 在段尾）；子键分派走函数局部静态表 __lookup / __lookup_0。
+            script->m_vecBackAni.clear();                   // vector(+0xa0)::clear
+            BackAniScript ani;                              // BackAniScript::BackAniScript
+            std::string line;                               // local_4d8
+            bool finished = false;                          // local_10d
+            do
+            {
+                if (!ScanType(line, true))
+                    return false;
+                int id;
+                while (true)                                // 构建轮完成后重入 find（0x1608）
+                {
+                    static std::map<const char*, int, less_TCHAR> __lookup;
+                    static SpinLock __init_lock;
+                    static bool __inited = false;
+                for (;;)
+                {
+                    if (!__inited)
+                    {
+                        __init_lock.enter();
+                        if (__inited)
+                        {
+                            __init_lock.leave();
+                            continue;
+                        }
+                        id = 0;
+                        break;
+                    }
+                    std::map<const char*, int, less_TCHAR>::const_iterator it =
+                        __lookup.find(line.c_str());
+                    if (it != __lookup.end())
+                        id = it->second;
+                    break;
+                }
+                switch (id)
+                {
+                case 0:
+                case 0x1ca:                                 // [ani info]
+                {
+                    if (!__inited)
+                    {
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[ani info]", 0x1ca));
+                        /* fall through */
+                        goto ani_next210;
+                    }
+                    ani.clear();                            // BackAniScript::clear
+                    std::string subLine;                    // local_4e0
+                    bool aniDone = false;                   // local_105
+                    do
+                    {
+                        if (!ScanType(subLine, true))
+                            return false;
+                        int subId;
+                        while (true)
+                        {
+                            static std::map<const char*, int, less_TCHAR> __lookup_0;
+                            static SpinLock __init_lock_0;
+                            static bool __inited_0 = false;
+                        for (;;)
+                        {
+                            if (!__inited_0)
+                            {
+                                __init_lock_0.enter();
+                                if (__inited_0)
+                                {
+                                    __init_lock_0.leave();
+                                    continue;
+                                }
+                                subId = 0;
+                                break;
+                            }
+                            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                                __lookup_0.find(subLine.c_str());
+                            if (it != __lookup_0.end())
+                                subId = it->second;
+                            break;
+                        }
+                        switch (subId)
+                        {
+                        case 0:
+                        case 0x1d7:                         // [filename]
+                        {
+                            if (!__inited_0)
+                            {
+                                __lookup_0.insert(std::map<const char*, int, less_TCHAR>::value_type("[filename]", 0x1d7));
+                                goto sub_next;
+                            }
+                            if (!ScanStr(&sub))
+                                return false;
+                            ani.m_filename = sub;           // Ss::operator=(RKSs)
+                            goto sub_tail;
+                            break;
+                        }
+                        case 0x1dd:                         // [layer]
+                        {
+                            if (!__inited_0)
+                            {
+                                __lookup_0.insert(std::map<const char*, int, less_TCHAR>::value_type("[layer]", 0x1dd));
+                                goto sub_next;
+                            }
+                            if (!ScanStr(&sub))
+                                return false;
+                            ani.m_layer = getDrawLayer(sub.c_str());  // local_4d0
+                            goto sub_tail;
+                            break;
+                        }
+                        case 0x1e3:                         // [order]
+                        {
+                            if (!__inited_0)
+                            {
+                                __lookup_0.insert(std::map<const char*, int, less_TCHAR>::value_type("[order]", 0x1e3));
+                                goto sub_next;
+                            }
+                            if (!ScanStr(&sub))
+                                return false;
+                            if (sub == "[below]")
+                                ani.m_orderUpper = false;   // local_4cc=0
+                            else if (sub == "[upper]")
+                                ani.m_orderUpper = true;    // local_4cc=1
+                            else
+                                return false;
+                            goto sub_tail;
+                            break;
+                        }
+                        case 0x1ee:                         // [loop y axis]
+                        {
+                            if (!__inited_0)
+                            {
+                                __lookup_0.insert(std::map<const char*, int, less_TCHAR>::value_type("[loop y axis]", 0x1ee));
+                                goto sub_next;
+                            }
+                            int flag = -1;                  // local_4e8
+                            if (ScanInt(&flag) != 1)
+                                return false;
+                            ani.m_loopYAxis = (flag != 0);  // uStack_4cb
+                            goto sub_tail;
+                            break;
+                        }
+                        case 0x1f8:                         // [screen pos]
+                        {
+                            if (!__inited_0)
+                            {
+                                __lookup_0.insert(std::map<const char*, int, less_TCHAR>::value_type("[screen pos]", 0x1f8));
+                                goto sub_next;
+                            }
+                            int v = -1;                     // local_4ec
+                            if (ScanInt(&v) != 1)
+                                return false;
+                            ani.m_screenX = v;              // uStack_4c8
+                            if (ScanInt(&v) != 1)
+                                return false;
+                            ani.m_screenY = v;              // uStack_4c4
+                            ani.m_hasScreenPos = true;      // uStack_4ca
+                            goto sub_tail;
+                            break;
+                        }
+                        case 0x205:                         // [/ani info]
+                        {
+                            if (!__inited_0)
+                            {
+                                __lookup_0.insert(std::map<const char*, int, less_TCHAR>::value_type("[/ani info]", 0x205));
+                                goto sub_next;
+                            }
+                            script->m_vecBackAni.push_back(ani);  // vector(+0xa0)
+                            aniDone = true;
+                            goto sub_tail;
+                            break;
+                        }
+                        default:
+                            break;
+                        }
+                    sub_next:
+                            if (!__inited_0)
+                        {
+                                    __init_lock_0.leave();
+                                __inited_0 = true;
+                            continue;                       // 重入本轮 find（0x1157）
+                        }
+                    sub_tail:
+                        break;
+                        }
+                    } while (!aniDone);
+                    break;
+                }
+                ani_next210:
+                case 0x210:                                 // [/background animation]
+                {
+                    if (!__inited)
+                    {
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/background animation]", 0x210));
+                        break;
+                    }
+                    finished = true;
+                    break;
+                }
+                default:
+                    break;
+                }
+                    if (!__inited)
+                {
+                            __init_lock.leave();
+                        __inited = true;
+                    continue;                               // 重入本轮 find（0xbed）
+                }
+                        break;
+                }
+            } while (!finished);
             continue;
         }
         if (tok == "[town movable area]")                   // 0x089dbc5 区
         {
             script->m_vecTownMovableArea.clear();
-            for (;;)
+            okInt = ScanInt(&ok);                           // 0x16bf：循环前一次消费
+            while (ok == true)
             {
-                int first = ScanInt(&ok);
-                if (!ok)
-                    break;
-                TownPath tp;                                // TownPath::TownPath
-                tp.m_x = first;
-                tp.m_y = ScanInt(&ok);
-                tp.m_w = ScanInt(&ok);
-                tp.m_h = ScanInt(&ok);
-                tp.m_field1c = ScanInt(&ok);
-                tp.m_field20 = ScanInt(&ok);
+                TownPath tp;                                // -0x704 TownPath::TownPath
+                tp.m_x = okInt;
+                tp.m_y = ScanInt(static_cast<bool*>(0));
+                tp.m_w = ScanInt(static_cast<bool*>(0));
+                tp.m_h = ScanInt(static_cast<bool*>(0));
+                tp.m_field1c = ScanInt(static_cast<bool*>(0));
+                tp.m_field20 = ScanInt(static_cast<bool*>(0));
                 {                                           // 可选 [quest condition]
-                    bool isType = false;
-                    std::string s;
-                    bool isInt = false;
-                    ScanTypeOrInt(isType, s, isInt, true);
-                    if (isType && s == "[quest condition]")
+                    bool isType;                            // -0x4ed（ORIG 无初始化存储）
+                    std::string s;                          // -0x4ec
+                    okInt = ScanTypeOrInt(isType, s, ok, true);
+                    if (isType != false)
                     {
-                        for (;;)
+                        if (s == "[quest condition]")
                         {
-                            int cond = ScanInt(&ok);
-                            if (!ok)
-                                break;
-                            tp.m_conds.push_back(cond);
+                            while (okInt = ScanInt(&ok), ok == true)
+                                tp.m_conds.push_back(okInt);
+                            okInt = ScanInt(&ok);           // ORIG while 后额外消费一 token
                         }
+                        else
+                            ok = false;                     // 0x1814：非 quest → 终止循环
                     }
                 }
                 script->m_vecTownMovableArea.push_back(tp);
@@ -1293,30 +1425,28 @@ bool ImportMapScript(STMapScript* script, const char* path)
         if (tok == "[virtual movable area]")
         {
             script->m_vecVirtualMovableArea.clear();
-            for (;;)
+            okInt = ScanInt(&ok);                           // 0x18ee
+            while (ok == true)
             {
-                int first = ScanInt(&ok);
-                if (!ok)
-                    break;
-                MapArea area;                               // MapArea::MapArea
-                area.m_x = first;
-                area.m_y = ScanInt(&ok);
-                area.m_w = ScanInt(&ok);
-                area.m_h = ScanInt(&ok);
+                MapArea area;                               // -0x50c MapArea::MapArea
+                area.m_x = okInt;
+                area.m_y = ScanInt(static_cast<bool*>(0));
+                area.m_w = ScanInt(static_cast<bool*>(0));
+                area.m_h = ScanInt(static_cast<bool*>(0));
                 {                                           // 可选 [quest condition]
-                    bool isType = false;
-                    std::string s;
-                    bool isInt = false;
-                    ScanTypeOrInt(isType, s, isInt, true);
-                    if (isType && s == "[quest condition]")
+                    bool isType;                            // -0x511（ORIG 无初始化存储）
+                    std::string s;                          // -0x510
+                    okInt = ScanTypeOrInt(isType, s, ok, true);
+                    if (isType != false)
                     {
-                        for (;;)
+                        if (s == "[quest condition]")
                         {
-                            int cond = ScanInt(&ok);
-                            if (!ok)
-                                break;
-                            area.m_list.push_back(cond);
+                            while (okInt = ScanInt(&ok), ok == true)
+                                area.m_list.push_back(okInt);
+                            okInt = ScanInt(&ok);
                         }
+                        else
+                            ok = false;                     // 0x19ed：非 quest → 终止循环
                     }
                 }
                 script->m_vecVirtualMovableArea.push_back(area);
@@ -1326,326 +1456,552 @@ bool ImportMapScript(STMapScript* script, const char* path)
         if (tok == "[guild agit entrance info]")
         {
             script->m_vecGuildAgitEntrance.clear();
-            for (;;)
+            while (okInt = ScanInt(&ok), ok == true)        // 0x1a95：赋值在循环头
             {
-                int first = ScanInt(&ok);
-                if (!ok)
-                    break;
-                TownPath tp;
-                tp.m_x = first;
-                tp.m_y = ScanInt(&ok);
-                tp.m_w = ScanInt(&ok);
-                tp.m_h = ScanInt(&ok);
-                tp.m_field1c = ScanInt(&ok);
-                tp.m_field20 = ScanInt(&ok);
+                TownPath tp;                                // -0x704 复用
+                tp.m_x = okInt;
+                tp.m_y = ScanInt(static_cast<bool*>(0));
+                tp.m_w = ScanInt(static_cast<bool*>(0));
+                tp.m_h = ScanInt(static_cast<bool*>(0));
+                tp.m_field1c = ScanInt(static_cast<bool*>(0));
+                tp.m_field20 = ScanInt(static_cast<bool*>(0));
                 script->m_vecGuildAgitEntrance.push_back(tp);
             }
             continue;
         }
         if (tok == "[pathgate pos]")
         {
-            for (int i = 0; i < 4; ++i)
+            for (int i = 0; i < 4; ++i)                 // -0xfc/-0xf8 双层 setle 循环
                 for (int j = 0; j < 2; ++j)
-                    script->m_pathgatePos[i * 2 + j] = ScanInt(&ok);
+                    reinterpret_cast<STMapScriptWordView*>(script)->m_words[i * 2 + j + 0x40] =
+                        ScanInt(static_cast<bool*>(0));
             continue;
         }
         if (tok == "[pathgate recognize range]")
         {
-            for (int i = 0; i < 4; ++i)
+            for (int i = 0; i < 4; ++i)                 // -0xf4/-0xf0
                 for (int j = 0; j < 2; ++j)
-                    script->m_pathgateRange[i * 2 + j] = ScanInt(&ok);
+                    reinterpret_cast<STMapScriptWordView*>(script)->m_words[i * 2 + j + 0x48] =
+                        ScanInt(static_cast<bool*>(0));
             continue;
         }
         if (tok == "[dungeon start area]")
         {
-            script->m_dungeonStartArea.m_x = ScanInt(&ok);
-            script->m_dungeonStartArea.m_y = ScanInt(&ok);
-            script->m_dungeonStartArea.m_w = ScanInt(&ok);
-            script->m_dungeonStartArea.m_h = ScanInt(&ok);
+            script->m_dungeonStartArea.m_x = ScanInt(static_cast<bool*>(0));
+            script->m_dungeonStartArea.m_y = ScanInt(static_cast<bool*>(0));
+            script->m_dungeonStartArea.m_w = ScanInt(static_cast<bool*>(0));
+            script->m_dungeonStartArea.m_h = ScanInt(static_cast<bool*>(0));
             continue;
         }
         if (tok == "[opening bgm]")
         {
             ScanStr(&sub);
             script->m_openingBgm = sub;                     // Ss::assign(RKSs)
-            script->m_openingBgmParam = ScanInt(&ok);       // param_1[100]
+            script->m_openingBgmParam = ScanInt(static_cast<bool*>(0));  // +0x190
             continue;
         }
         if (tok == "[sound]")
         {
             script->m_vecSound.clear();
-            for (;;)
-            {
-                std::string soundName;
-                if (!ScanStr(&soundName))
-                    break;
-                script->m_vecSound.push_back(soundName);
-            }
+            while (ScanStr(&sub))
+                script->m_vecSound.push_back(sub);
             continue;
         }
         if (tok == "[animation]")
         {
             script->m_listAnimation.clear();
-            for (;;)
+            while (ScanStr(&aniObj.m_name))                 // 函数头复用对象（无逐轮 clear）
             {
-                STAssignAnimation ani;                      // 局部对象循环复用
-                if (!ScanStr(&ani.m_name))
-                    break;
                 ScanStr(&sub);
-                ani.m_layer = getDrawLayer(sub.c_str());
-                ani.m_field08 = ScanInt(&ok);
-                ani.m_field0c = ScanInt(&ok);
-                ani.m_field10 = ScanInt(&ok);
-                script->m_listAnimation.push_back(ani);
+                aniObj.m_layer = getDrawLayer(sub.c_str());
+                aniObj.m_field08 = ScanInt(static_cast<bool*>(0));
+                aniObj.m_field0c = ScanInt(static_cast<bool*>(0));
+                aniObj.m_field10 = ScanInt(static_cast<bool*>(0));
+                script->m_listAnimation.push_back(aniObj);
             }
             continue;
         }
         if (tok == "[passive object]")
         {
             script->m_listPassiveObject.clear();
-            for (;;)
+            while (okInt = ScanInt(&ok), ok == true)        // 0x1ea8 循环头赋值
             {
-                int id = ScanInt(&ok);
-                if (!ok)
-                    break;
-                STAssignPassiveObject obj;                  // 0x10 四字段
-                obj.m_0 = id;
-                obj.m_4 = ScanInt(&ok);
-                obj.m_8 = ScanInt(&ok);
-                obj.m_c = ScanInt(&ok);
-                script->m_listPassiveObject.push_back(obj);
+                passiveObj.m_0 = okInt;                     // 函数头复用对象
+                passiveObj.m_4 = ScanInt(static_cast<bool*>(0));
+                passiveObj.m_8 = ScanInt(static_cast<bool*>(0));
+                passiveObj.m_c = ScanInt(static_cast<bool*>(0));
+                script->m_listPassiveObject.push_back(passiveObj);
             }
             continue;
         }
         if (tok == "[monster]" || tok == "[monster condition]")  // code_r0x089deeb7
         {
-            if (tok != "[monster]")
-                script->m_vecConditionMonster.clear();      // vector(+0x40)
-            else
+            std::vector<STAssignMonster>* target = &script->m_vecMonster;
+            if (tok == "[monster]")
                 script->m_vecMonster.clear();               // vector(+0x34)
-            for (;;)
+            else
             {
-                int mobId = ScanInt(&ok);
-                if (!ok)
-                    break;
-                STAssignMonster mon;                        // STAssignMonster::Clear
-                mon.Clear();
-                mon.m_0 = mobId;
+                script->m_vecConditionMonster.clear();      // vector(+0x40)
+                target = &script->m_vecConditionMonster;
+            }
+            while (okInt = ScanInt(&ok), ok == true)        // 0x1fd4 循环头
+            {
+                monObj.Clear();                             // 函数头复用对象
+                monObj.m_0 = okInt;
                 static int named_count = 0;                 // 函数级静态校验计数
-                if ((mobId > 49999 && mobId < 0xc739) ||
-                    (mobId > 55999 && mobId < 0xea61))
+                if ((okInt > 49999 && okInt < 0xc739) ||
+                    (okInt > 55999 && okInt < 0xea61))
                 {
-                    if (++named_count > 6000)
+                    named_count = named_count + 1;
+                    if (named_count > 6000)
                         return false;
                 }
-                mon.m_4 = static_cast<char>(ScanInt(&ok) != 0);
-                mon.m_8 = ScanInt(&ok);
-                mon.m_c = ScanInt(&ok);
-                mon.m_10 = ScanInt(&ok);
-                mon.m_14 = ScanInt(&ok);
-                mon.m_18 = ScanInt(&ok);
-                mon.m_1c = ScanInt(&ok);
+                monObj.m_4 = ScanInt(static_cast<bool*>(0)) != 0;
+                monObj.m_8 = ScanInt(static_cast<bool*>(0));
+                monObj.m_c = ScanInt(static_cast<bool*>(0));
+                monObj.m_10 = ScanInt(static_cast<bool*>(0));
+                monObj.m_14 = ScanInt(static_cast<bool*>(0));
+                monObj.m_18 = ScanInt(static_cast<bool*>(0));
+                monObj.m_1c = ScanInt(static_cast<bool*>(0));
                 ScanStr(&sub);
                 if (sub == "[fixed]")                       // uStack_750
-                    mon.m_20 = 0;
+                    monObj.m_20 = 0;
                 else if (sub == "[half]")
-                    mon.m_20 = 1;
+                    monObj.m_20 = 1;
                 else if (sub == "[ratio]")
-                    mon.m_20 = 2;
-                else
-                    mon.m_20 = 0;
+                    monObj.m_20 = 2;
                 ScanStr(&sub);
                 if (sub == "[NPC]")                         // NPC 携带 idx→+0x58
                 {
-                    mon.m_58 = ScanInt(&ok);
+                    monObj.m_58 = ScanInt(static_cast<bool*>(0));
                     ScanStr(&sub);
                 }
                 if (sub == "[normal]")                      // uStack_74c
-                    mon.m_24 = 0;
+                    monObj.m_24 = 0;
                 else if (sub == "[champion]")
                 {
-                    mon.m_24 = 1;
-                    int cnt = ScanInt(&ok);
-                    if (cnt < 1)
-                        mon.m_vec28.clear();
+                    monObj.m_24 = 1;
+                    int cnt = ScanInt(static_cast<bool*>(0));   // -0xe8
+                    if (cnt <= 0)
+                        monObj.m_vec28.clear();
                     else
-                        ScanChampionFeatures(cnt, mon);
+                        ScanChampionFeatures(cnt, monObj);
                 }
                 else if (sub == "[super champion]")
                 {
-                    mon.m_24 = 2;
-                    int cnt = ScanInt(&ok);
-                    if (cnt < 1)
-                        mon.m_vec28.clear();
+                    monObj.m_24 = 2;
+                    int cnt = ScanInt(static_cast<bool*>(0));   // -0xe4
+                    if (cnt <= 0)
+                        monObj.m_vec28.clear();
                     else
-                        ScanChampionFeatures(cnt, mon);
+                        ScanChampionFeatures(cnt, monObj);
                 }
                 else if (sub == "[boss]")
                 {
                     static int boss_count = 0;
-                    if (++boss_count > 0x5dc)
+                    boss_count = boss_count + 1;
+                    if (boss_count > 0x5dc)
                         return false;
-                    mon.m_24 = 3;
+                    monObj.m_24 = 3;
                 }
-                else
-                    mon.m_24 = 0;
+                monObj.m_34 = 0;                            // local_73c=0（push 前复位）
+                int total = static_cast<int>(script->m_vecMonster.size());  // esi 先算
+                total = total + static_cast<int>(script->m_vecConditionMonster.size());
+                (void)total;                                // ORIG 死存储（校验和，未用）
+                target->push_back(monObj);
                 if (tok == "[monster]")
-                {
-                    script->m_vecMonster.push_back(mon);
                     ++normalMonsterCount;                   // iStack_140++
-                }
-                else
-                    script->m_vecConditionMonster.push_back(mon);
             }
             continue;
         }
         if (tok == "[blood monster]" || tok == "[ultimate monster]")  // code_r0x089df2ff
         {
+            int lineIdx = 0;                                // iStack_e4
             script->m_vecBloodSystem.clear();
-            for (;;)
+            while (okInt = ScanInt(&ok), ok == true)        // 0x23d9 循环头
             {
-                int id = ScanInt(&ok);
-                if (!ok)
-                    break;
-                STAssignBloodSystem sys;                    // ::Clear
-                sys.Clear();
-                sys.m_id = id;
-                sys.m_field04 = ScanInt(&ok);
-                sys.m_phase = ScanInt(&ok);
-                sys.m_field0c = ScanInt(&ok);
-                sys.m_field10 = ScanInt(&ok);
-                sys.m_timeA = ScanInt(&ok);
-                sys.m_timeB = ScanInt(&ok);
-                sys.m_startCnt = ScanInt(&ok);
-                sys.m_cntInc = ScanInt(&ok);
-                sys.m_totalCnt = ScanInt(&ok);
-                printf("\n(%s) [blood monster](%d) GROUP : MATCHING TIME ERROR!!\n",
-                       path, id);
-                script->m_vecBloodSystem.push_back(sys);
+                bloodSys.Clear();                           // 函数头复用对象
+                bloodSys.m_id = okInt;
+                bloodSys.m_field04 = ScanInt(static_cast<bool*>(0));
+                bloodSys.m_phase = ScanInt(static_cast<bool*>(0));
+                bloodSys.m_field0c = ScanInt(static_cast<bool*>(0));
+                bloodSys.m_field10 = ScanInt(static_cast<bool*>(0));
+                bloodSys.m_timeA = ScanInt(static_cast<bool*>(0));
+                bloodSys.m_timeB = ScanInt(static_cast<bool*>(0));
+                bloodSys.m_startCnt = ScanInt(static_cast<bool*>(0));
+                bloodSys.m_cntInc = ScanInt(static_cast<bool*>(0));
+                bloodSys.m_totalCnt = ScanInt(static_cast<bool*>(0));
+                if (bloodSys.m_timeA + -500 <= bloodSys.m_totalCnt * bloodSys.m_timeB)
+                {
+                    printf("\n(%s) [blood monster](%d) GROUP : MATCHING TIME ERROR!!\n",
+                           path, lineIdx);
+                    return false;
+                }
+                script->m_vecBloodSystem.push_back(bloodSys);
+                lineIdx = lineIdx + 1;
             }
             continue;
         }
         if (tok == "[blood phase time]" || tok == "[ultimate phase time]")  // code_r0x089df4b2
         {
             script->m_vecBloodPhaseTime.clear();
-            for (;;)
+            int e0 = 0;                                     // iStack_e0 行序
+            int dc = 0;                                     // iStack_dc 已见 spawn 组数
+            int d8 = 0;                                     // iStack_d8 上上 spawnCnt
+            int d4 = 0;                                     // iStack_d4 上 spawnCnt（mismatch 基线）
+            int d0 = 0;                                     // iStack_d0
+            int cc = 0;                                     // iStack_cc 同 round 连击数
+            int c8 = 0;                                     // iStack_c8 上 spawnCnt
+            int c4 = 0;                                     // iStack_c4 上 round（首值 0）
+            int c0 = -1;                                    // iStack_c0 上 order
+            int bc = 0;                                     // iStack_bc 上 interval
+            bool unusedB6 = false;                          // -0xb2（ORIG dead 槽，P31）
+            (void)unusedB6;
+            while (okInt = ScanInt(&ok), ok == true)        // 0x25ed 循环头
             {
-                int order = ScanInt(&ok);
-                if (!ok)
-                    break;
-                STAssignBloodPhaseTime pt;                  // ::Clear
-                pt.Clear();
-                pt.m_smallRoundOrder = order;
-                pt.m_phaseIdx = ScanInt(&ok);
-                pt.m_interval = ScanInt(&ok);
-                pt.m_time = ScanFloat(static_cast<bool*>(0));
-                pt.m_field10 = ScanInt(&ok);
-                pt.m_spawnCnt = ScanInt(&ok);
-                {                                           // A..E 难度名 → difficulty
-                    std::string diffTok;
-                    if (!ScanType(diffTok, true))
-                        return false;
-                    if (diffTok == "A")      pt.m_difficulty = 1;
-                    else if (diffTok == "B") pt.m_difficulty = 2;
-                    else if (diffTok == "C") pt.m_difficulty = 3;
-                    else if (diffTok == "D") pt.m_difficulty = 4;
-                    else if (diffTok == "E") pt.m_difficulty = 5;
-                    else                     return false;
+                bloodPt.Clear();                            // 函数头复用对象
+                bloodPt.m_smallRoundOrder = okInt;
+                bloodPt.m_phaseIdx = ScanInt(static_cast<bool*>(0));
+                bloodPt.m_interval = ScanInt(static_cast<bool*>(0));
+                bloodPt.m_time = static_cast<float>(ScanFloat(static_cast<bool*>(0)));
+                bloodPt.m_field10 = ScanInt(static_cast<bool*>(0));
+                bloodPt.m_spawnCnt = ScanInt(static_cast<bool*>(0));
+                if (tok == "[ultimate phase time]")         // ultimate 才读难度名
+                {
+                    bool diffOk = false;                    // -0xb1（char）
+                    std::string diffTok;                    // -0x518（每轮 ctor/dtor）
+                    diffOk = ScanStr(&diffTok);
+                    if (!diffOk)
+                        return false;                       // 0x2630 fail 出口
+                    if (diffTok == "A")
+                        bloodPt.m_difficulty = 1;
+                    else if (diffTok == "B")
+                        bloodPt.m_difficulty = 2;
+                    else if (diffTok == "C")
+                        bloodPt.m_difficulty = 3;
+                    else if (diffTok == "D")
+                        bloodPt.m_difficulty = 4;
+                    else if (diffTok == "E")
+                        bloodPt.m_difficulty = 5;
+                    else
+                        return false;                       // 0x26f1 未知难度 → 失败
                 }
-                script->m_vecBloodPhaseTime.push_back(pt);
+                if (bloodPt.m_phaseIdx >=
+                    static_cast<int>(script->m_vecBloodSystem.size()))
+                {
+                    printf("\n(%s) [blood phase time](%d) MONSTER LISTINDEX ERROR!!\n",
+                           path, e0);
+                        return false;
+                }
+                if (bloodPt.m_smallRoundOrder != c4 && bloodPt.m_field10 != 0)
+                {
+                    printf("\n(%s) [blood phase time](%d) SMALLROUND : SPAWN ORDER IS NOT ZERO. ERROR!!\n",
+                           path, e0);
+                        return false;
+                }
+                if (bloodPt.m_spawnCnt > 10)
+                {
+                    printf("\n(%s) [blood phase time](%d) SMALLROUND : TIMER CNT OVER!!\n",
+                           path, e0);
+                        return false;
+                }
+                if (tok == "[blood phase time]" && bloodPt.m_smallRoundOrder == c4 &&
+                    bloodPt.m_field10 == c0)
+                {
+                    if (d4 == 0 || bloodPt.m_spawnCnt == 0 || d4 < bloodPt.m_spawnCnt)
+                    {
+                        printf("\n(%s) [blood phase time](%d) SMALLROUND : ORDER - ORDER_CNT MISMATCHING!!\n",
+                               path, e0);
+                        return false;
+                }
+                    if (bloodPt.m_interval < bc && bloodPt.m_field10 == 0)
+                    {
+                        printf("\n(%s) [blood phase time](%d) SMALLROUND INTERVAL TIME ORDER ERROR:!!\n",
+                               path, e0);
+                        return false;
+                }
+                }
+                if (bloodPt.m_smallRoundOrder < c4 ||
+                    (c4 != bloodPt.m_smallRoundOrder && -1 < c4 - bloodPt.m_smallRoundOrder))
+                {
+                    printf("\n(%s) [blood phase time](%d) SMALLROUND : ROUND ERROR!!\n",
+                           path, e0);
+                        return false;
+                }
+                if (tok == "[blood phase time]" && bloodPt.m_smallRoundOrder == c4 &&
+                    (bloodPt.m_field10 < c0 || (c0 != bloodPt.m_field10 && -1 < c0 - bloodPt.m_field10)))
+                {
+                    printf("\n(%s) [blood phase time](%d) SMALLROUND : ROUND ORDER ERROR!!\n",
+                           path, e0);
+                        return false;
+                }
+                if (e0 == 0 && (bloodPt.m_field10 != 0 || bloodPt.m_smallRoundOrder != 0))
+                {
+                    printf("\n(%s) [blood phase time](%d) SMALLROUND : FIRST SPAWN CNT || ORDER IS NOT ZERO. ERROR || ROUND IS NOT ZERO. ERROR!!\n",
+                           path, 0);
+                        return false;
+                }
+                if (d8 != 0 && c8 < bloodPt.m_spawnCnt)
+                {
+                    if (dc != d8)
+                    {
+                        printf("\n(%s) [blood phase time](%d) SMALLROUND : SPAWN CNT ERROR!!\n",
+                               path, e0);
+                        return false;
+                }
+                    dc = 0;
+                    d8 = 0;
+                }
+                if (bloodPt.m_spawnCnt < 1)
+                {
+                    if (dc != 0)
+                    {
+                        if (dc != d8)
+                        {
+                            printf("\n(%s) [blood phase time](%d) SMALLROUND : SPAWN CNT ERROR!!\n",
+                                   path, e0);
+                        return false;
+                }
+                        dc = 0;
+                        d8 = 0;
+                }
+                }
+                else
+                {
+                    if (bloodPt.m_spawnCnt != 1)
+                        d8 = bloodPt.m_spawnCnt;
+                    dc = dc + 1;
+                }
+                if (bloodPt.m_smallRoundOrder == c4)
+                {
+                    d0 = bloodPt.m_smallRoundOrder;
+                    cc = cc + 1;
+                }
+                else
+                {
+                    cc = 0;
+                }
+                (void)d0; (void)cc; (void)dc;
+                c8 = bloodPt.m_spawnCnt;
+                c4 = bloodPt.m_smallRoundOrder;
+                c0 = bloodPt.m_field10;
+                d4 = bloodPt.m_spawnCnt;
+                bc = bloodPt.m_interval;
+                e0 = e0 + 1;
+                script->m_vecBloodPhaseTime.push_back(bloodPt);
+                }
+            {   // ORIG 收尾校验：最后两条 round 相同且最后一条 spawnCnt!=0 → 失败
+                std::vector<STAssignBloodPhaseTime>& v = script->m_vecBloodPhaseTime;
+                int last = v[static_cast<unsigned int>(e0 - 1)].m_smallRoundOrder;
+                int prev = v[static_cast<unsigned int>(e0 - 2)].m_smallRoundOrder;
+                if (last == prev &&
+                    v[static_cast<unsigned int>(e0 - 1)].m_spawnCnt != 0)
+                {
+                    printf("\n(%s) [blood phase time](%d) SMALLROUND : LAST SMALL ROUND ERROR!!\n",
+                           path, e0);
+                        return false;
+                }
             }
             continue;
         }
         if (tok == "[time line]")                           // call 0x0889a930
         {
-            importTimeLinePhases(&script->m_timeLine);
+            // ORIG 只压 1 个入参（&m_timeLine）：按调用点原样，this 与引用同值。
+            reinterpret_cast<advancealtar::StageTimeLineParameter*>(
+                &script->m_timeLine)->importPhase(script->m_timeLine);
             continue;
         }
         if (tok == "[defense monster]")
         {
+            int lineIdx = 0;                                // iStack_b4
             script->m_vecDefenseSystem.clear();
-            for (;;)
+            while (okInt = ScanInt(&ok), ok == true)        // 0x2cf7 循环头
             {
-                int id = ScanInt(&ok);
-                if (!ok)
-                    break;
-                STAssignDefenseSystem sys;                  // ::Clear
-                sys.Clear();
-                sys.m_id = id;
-                sys.m_field04 = ScanInt(&ok);
-                sys.m_phase = ScanInt(&ok);
-                sys.m_field0c = ScanInt(&ok);
-                sys.m_field10 = ScanInt(&ok);
-                sys.m_timeA = ScanInt(&ok);
-                sys.m_timeB = ScanInt(&ok);
-                sys.m_startCnt = ScanInt(&ok);
-                sys.m_cntInc = ScanInt(&ok);
-                sys.m_totalCnt = ScanInt(&ok);
-                script->m_vecDefenseSystem.push_back(sys);
+                defSys.Clear();                             // 函数头复用对象
+                defSys.m_id = okInt;
+                defSys.m_field04 = ScanInt(static_cast<bool*>(0));
+                defSys.m_phase = ScanInt(static_cast<bool*>(0));
+                defSys.m_field0c = ScanInt(static_cast<bool*>(0));
+                defSys.m_field10 = ScanInt(static_cast<bool*>(0));
+                defSys.m_timeA = ScanInt(static_cast<bool*>(0));
+                defSys.m_timeB = ScanInt(static_cast<bool*>(0));
+                defSys.m_startCnt = ScanInt(static_cast<bool*>(0));
+                defSys.m_cntInc = ScanInt(static_cast<bool*>(0));
+                defSys.m_totalCnt = ScanInt(static_cast<bool*>(0));
+                if (defSys.m_timeA + -500 <= defSys.m_totalCnt * defSys.m_timeB)
+                {
+                    printf("\n(%s) [Defense monster](%d) GROUP : MATCHING TIME ERROR!!\n",
+                           path, lineIdx);
+                    return false;
+                }
+                script->m_vecDefenseSystem.push_back(defSys);
+                lineIdx = lineIdx + 1;
             }
             continue;
         }
         if (tok == "[defense phase time]")
         {
             script->m_vecDefensePhaseTime.clear();
-            for (;;)
+            int b0 = 0;                                     // iStack_b0 行序
+            int cAc = 0;                                    // iStack_ac（dead，P31）
+            int cA8 = 0;                                    // iStack_a8（dead）
+            int a4 = 0;                                     // iStack_a4 上 spawnCnt
+            int a0 = 0;                                     // iStack_a0
+            int c98 = 0;                                    // iStack_98 上 spawnCnt
+            int c9c = 0;                                    // iStack_9c 同 round 连击数
+            int c94 = 0;                                    // iStack_94 上 round
+            int c90 = -1;                                   // iStack_90 上 order
+            int c8c = 0;                                    // iStack_8c 上 interval
+            bool unused85 = false;                          // iStack_85（dead bool，P31）
+            (void)cAc; (void)cA8; (void)unused85;
+            while (okInt = ScanInt(&ok), ok == true)        // 0x2ee1 循环头
             {
-                int order = ScanInt(&ok);
-                if (!ok)
-                    break;
-                STAssignDefensePhaseTime pt;                // ::Clear
-                pt.Clear();
-                pt.m_smallRoundOrder = order;
-                pt.m_phaseIdx = ScanInt(&ok);
-                pt.m_interval = ScanInt(&ok);
-                pt.m_time = ScanFloat(static_cast<bool*>(0));
-                pt.m_field10 = ScanInt(&ok);
-                pt.m_spawnCnt = ScanInt(&ok);
-                script->m_vecDefensePhaseTime.push_back(pt);
+                defPt.Clear();                              // 函数头复用对象
+                defPt.m_smallRoundOrder = okInt;
+                defPt.m_phaseIdx = ScanInt(static_cast<bool*>(0));
+                defPt.m_interval = ScanInt(static_cast<bool*>(0));
+                defPt.m_time = static_cast<float>(ScanFloat(static_cast<bool*>(0)));
+                defPt.m_field10 = ScanInt(static_cast<bool*>(0));
+                defPt.m_spawnCnt = ScanInt(static_cast<bool*>(0));
+                if (defPt.m_phaseIdx >=
+                    static_cast<int>(script->m_vecDefenseSystem.size()))
+                {
+                    printf("\n(%s) [Defense phase time](%d) MONSTER LISTINDEX ERROR!!\n",
+                           path, b0);
+                    return false;
+                }
+                if (defPt.m_smallRoundOrder != c94 && defPt.m_field10 != 0)
+                {
+                    printf("\n(%s) [Defense phase time](%d) SMALLROUND : SPAWN ORDER IS NOT ZERO. ERROR!!\n",
+                           path, b0);
+                    return false;
+                }
+                if (defPt.m_spawnCnt > 10)
+                {
+                    printf("\n(%s) [Defense phase time](%d) SMALLROUND : TIMER CNT OVER!!\n",
+                           path, b0);
+                    return false;
+                }
+                // ORIG 此处以大写 D 的 "[Defense phase time]" 与 token 比较（实际 token 为
+                // 小写，判定恒 false）——按 ORIG 字面照录。
+                if (tok == "[Defense phase time]" && defPt.m_smallRoundOrder == c94 &&
+                    defPt.m_field10 == c90)
+                {
+                    if (a4 == 0 || defPt.m_spawnCnt == 0 || a4 < defPt.m_spawnCnt)
+                    {
+                        printf("\n(%s) [Defense phase time](%d) SMALLROUND : ORDER - ORDER_CNT MISMATCHING!!\n",
+                               path, b0);
+                        return false;
+                    }
+                    if (defPt.m_interval < c8c && defPt.m_field10 == 0)
+                    {
+                        printf("\n(%s) [Defense phase time](%d) SMALLROUND INTERVAL TIME ORDER ERROR:!!\n",
+                               path, b0);
+                        return false;
+                    }
+                }
+                if (defPt.m_smallRoundOrder < c94 ||
+                    (c94 != defPt.m_smallRoundOrder && -1 < c94 - defPt.m_smallRoundOrder))
+                {
+                    printf("\n(%s) [Defense phase time](%d) SMALLROUND : ROUND ERROR!!\n",
+                           path, b0);
+                    return false;
+                }
+                if (tok == "[Defense phase time]" && defPt.m_smallRoundOrder == c94 &&
+                    (defPt.m_field10 < c90 || (c90 != defPt.m_field10 && -1 < c90 - defPt.m_field10)))
+                {
+                    printf("\n(%s) [Defense phase time](%d) SMALLROUND : ROUND ORDER ERROR!!\n",
+                           path, b0);
+                    return false;
+                }
+                if (b0 == 0 && (defPt.m_field10 != 0 || defPt.m_smallRoundOrder != 0))
+                {
+                    printf("\n(%s) [Defense phase time](%d) SMALLROUND : FIRST SPAWN CNT || ORDER IS NOT ZERO. ERROR || ROUND IS NOT ZERO. ERROR!!\n",
+                           path, 0);
+                    return false;
+                }
+                if (defPt.m_smallRoundOrder == c94)
+                {
+                    a0 = defPt.m_smallRoundOrder;
+                    c98 = c98 + 1;
+                }
+                else
+                {
+                    c98 = 0;
+                }
+                (void)a0; (void)c98;
+                c94 = defPt.m_smallRoundOrder;
+                c90 = defPt.m_field10;
+                c8c = defPt.m_interval;
+                a4 = defPt.m_spawnCnt;
+                b0 = b0 + 1;
+                script->m_vecDefensePhaseTime.push_back(defPt);
             }
             continue;
         }
         if (tok == "[summon start area]")
         {
-            script->m_summonStartArea.m_x = ScanInt(&ok);
-            script->m_summonStartArea.m_y = ScanInt(&ok);
-            script->m_summonStartArea.m_w = ScanInt(&ok);
-            script->m_summonStartArea.m_h = ScanInt(&ok);
+            script->m_summonStartArea.m_x = ScanInt(static_cast<bool*>(0));
+            script->m_summonStartArea.m_y = ScanInt(static_cast<bool*>(0));
+            script->m_summonStartArea.m_w = ScanInt(static_cast<bool*>(0));
+            script->m_summonStartArea.m_h = ScanInt(static_cast<bool*>(0));
             continue;
         }
-        if (tok == "[camera edge recovery object]")         // 0x089e036c
+        if (tok == "[center index]")                         // 0x089e042c
         {
-            for (;;)
+            okInt = ScanInt(&ok);
+            if (!ok)
+                break;                                      // 0x3358 → 主循环出口（收尾）
+            script->m_178 = okInt;                          // +0x178
+            continue;
+        }
+        if (tok == "[/center index]")                        // 0x089e0457
+            continue;
+        if (tok == "[camera edge exception]")                // 0x089e0463
+        {
+            okInt = ScanInt(&ok);
+            if (!ok)
+                break;                                      // 0x33ca → 主循环出口
+            script->m_17c = okInt;                          // +0x17c
+            continue;
+        }
+        if (tok == "[/camera edge exception]")               // 0x089e0492
+            continue;
+        if (tok == "[camera edge recovery object]")         // 0x089e036c（0x341f 位序）
+        {
+            int x = -1;                                     // -0x51c
+            int y = 0;                                      // -0x520
+            while (true)                                    // 0x3434 两级 && 短路口
             {
-                int first = ScanInt(&ok);
-                if (!ok)
+                okInt = ScanInt(&ok);
+                if (ok != true)
                     break;
-                int second = ScanInt(&ok);
-                if (!ok)
+                x = okInt;
+                okInt = ScanInt(&ok);
+                if (ok != true)
                     break;
-                script->m_vec180.push_back(std::make_pair(first, second));
+                y = okInt;
+                script->m_vec180.push_back(std::make_pair(x, y));  // -0x360 make_pair<int&,int&>
             }
             continue;
         }
         if (tok == "[heroes mode map index]")               // 0x089e0435
         {
-            script->m_maxMonsterDropException = ScanInt(&ok);
+            script->m_maxMonsterDropException = ScanInt(&ok);   // +0x284 直存
+            if (!ok)
+                break;                                      // 0x34fb → 主循环出口
             continue;
         }
         if (tok == "[monster team]")                        // 0x089e049f 区
         {
-            for (size_t i = 0;
-                 i < static_cast<size_t>(normalMonsterCount) &&
-                 i < script->m_vecMonster.size(); ++i)
-                script->m_vecMonster[i].m_4c = ScanInt(&ok);
+            for (int i = 0; i < normalMonsterCount; ++i)
+                script->m_vecMonster[i].m_4c = ScanInt(static_cast<bool*>(0));
             ScanStr(&sub);
             continue;
         }
         if (tok == "[monster specific AI]")                 // 0x089e050f 区
         {
-            for (size_t i = 0;
-                 i < static_cast<size_t>(normalMonsterCount) &&
-                 i < script->m_vecMonster.size(); ++i)
+            for (int i = 0; i < normalMonsterCount; ++i)
             {
                 if (!ScanStr(&sub))
                     break;
@@ -1654,18 +2010,18 @@ bool ImportMapScript(STMapScript* script, const char* path)
                 else if (sub == "[zone defence]")
                 {
                     script->m_vecMonster[i].m_34 = 1;
-                    script->m_vecMonster[i].m_38 = ScanInt(&ok);
-                    script->m_vecMonster[i].m_3c = ScanInt(&ok);
+                    script->m_vecMonster[i].m_38 = ScanInt(static_cast<bool*>(0));
+                    script->m_vecMonster[i].m_3c = ScanInt(static_cast<bool*>(0));
                 }
                 else if (sub == "[roaming]")
                 {
                     script->m_vecMonster[i].m_34 = 2;
-                    int cnt = ScanInt(&ok);
+                    int cnt = ScanInt(static_cast<bool*>(0));   // -0x78
                     for (int k = 0; k < cnt; ++k)
                     {
-                        std::pair<int, int> way;
-                        way.first = ScanInt(&ok);
-                        way.second = ScanInt(&ok);
+                        std::pair<int, int> way;                // -0x528 默认 ctor
+                        way.first = ScanInt(static_cast<bool*>(0));
+                        way.second = ScanInt(static_cast<bool*>(0));
                         script->m_vecMonster[i].m_vec40.push_back(way);
                     }
                 }
@@ -1675,171 +2031,173 @@ bool ImportMapScript(STMapScript* script, const char* path)
         }
         if (tok == "[monster collision group]")             // 0x089e0660 区
         {
-            for (size_t i = 0; i < script->m_vecMonster.size(); ++i)
+            for (std::vector<STAssignMonster>::iterator it = script->m_vecMonster.begin();
+                 it != script->m_vecMonster.end(); it++)
             {
-                script->m_vecMonster[i].m_vec5c.clear();
+                it->m_vec5c.clear();
                 int cnt = ScanInt(&ok);
                 for (int k = 0; k < cnt; ++k)
-                    script->m_vecMonster[i].m_vec5c.push_back(
-                        static_cast<unsigned char>(ScanInt(&ok)));
+                {
+                    unsigned char v = static_cast<unsigned char>(ScanInt(&ok));  // local_531
+                    it->m_vec5c.push_back(v);
+                }
             }
             ScanType(tok, true);                            // 收尾 consume 标记
             continue;
         }
         if (tok == "[apc collision group]")                 // 0x089e07f0 区
         {
-            for (size_t i = 0; i < script->m_vecAICharacter.size(); ++i)
+            for (std::vector<STAICharacterMapArrangeData>::iterator it =
+                     script->m_vecAICharacter.begin();
+                 it != script->m_vecAICharacter.end(); it++)
             {
-                script->m_vecAICharacter[i].m_collisionGroup.clear();
+                it->m_collisionGroup.clear();
                 int cnt = ScanInt(&ok);
                 for (int k = 0; k < cnt; ++k)
-                    script->m_vecAICharacter[i].m_collisionGroup.push_back(
-                        static_cast<unsigned char>(ScanInt(&ok)));
+                {
+                    unsigned char v = static_cast<unsigned char>(ScanInt(&ok));  // local_539
+                    it->m_collisionGroup.push_back(v);
+                }
             }
             ScanType(tok, true);
             continue;
         }
         if (tok == "[champion]")                            // 0x089e097b
         {
-            script->m_championRate = ScanInt(&ok);          // param_1[0x13]
+            script->m_championRate = ScanInt(static_cast<bool*>(0));  // +0x4c
             continue;
         }
         if (tok == "[special passive object]")              // 0x089e099c 区
         {
+            std::list<STAssignItem> assignItems(script->m_listItem);  // local_544 copy
             script->m_listSpecialPassive.clear();
-            for (;;)
+            int group = 0;                                  // iStack_64
+            while (okInt = ScanInt(&ok), ok == true)        // 0x3a7d 循环头
             {
-                int id = ScanInt(&ok);
-                if (!ok)
-                    break;
-                STAssignSpecialPassiveObj spo;              // ::Clear
-                spo.Clear();
-                spo.m_0 = id;
-                spo.m_4 = ScanInt(&ok);
-                spo.m_8 = ScanInt(&ok);
-                spo.m_c = ScanInt(&ok);
-                int actionCount = ScanInt(&ok);
-                for (int k = 0; k < actionCount; ++k)
+                spoObj.Clear();                             // 函数头复用对象
+                spoObj.m_0 = okInt;
+                spoObj.m_4 = ScanInt(static_cast<bool*>(0));
+                spoObj.m_8 = ScanInt(static_cast<bool*>(0));
+                spoObj.m_c = ScanInt(static_cast<bool*>(0));
+                int actionCount = ScanInt(static_cast<bool*>(0));   // local_60
+                bool hasItem = false;                       // local_59
+                for (int k = 0; k < actionCount; ++k)       // local_58
                 {
-                    SPOBJ_ACTION_DATAS action;              // ctor 清零
-                    memset(&action, 0, sizeof(action));
-                    procSpecialPassiveObject(action, spo,
-                                             findMapScriptIndex(path));
-                    if (action.m_type != 5)
-                        spo.m_vec10.push_back(action);
+                    bool actionError = false;               // local_51（ORIG 恒 false）
+                    SPOBJ_ACTION_DATAS action;              // ctor memset 0xff
+                    procSpecialPassiveObject(action, spoObj,
+                                             g_stMapScriptFileList.FindIndexByFullScan(path));
+                    if (action.getActionType() == 2)
+                        hasItem = true;
+                    if (action.getActionType() != 5)
+                        spoObj.m_vec10.push_back(action);
+                    if (actionError)
+                        return false;
                 }
-                script->m_listSpecialPassive.push_back(spo);
+                if (hasItem)
+                {
+                    spoObj.m_1c = group;                    // local_664（组序）
+                    group = group + 1;
+                }
+                script->m_listSpecialPassive.push_back(spoObj);
             }
             continue;
         }
         if (tok == "[NPC]")                                 // 0x089e0ba1
         {
             script->m_vecNpc.clear();
-            for (;;)
+            while (okInt = ScanInt(&ok), ok == true)        // 0x3c6c 循环头
             {
-                int npcIdx = ScanInt(&ok);
-                if (!ok)
+                bool wasStr;                                // -0x559（ScanStrOrInt 首参，无独立初始化）
+                wasStr = false;                             // 0x3c96：movb $0,-0x559
+                npcObj.m_npcIdx = okInt;                    // 函数头复用对象（npcObj+0）
+                okInt = ScanStrOrInt(wasStr, tok3, ok, true);
+                if (ok != true)
                     break;
-                AssignNpc npc;
-                npc.m_npcIdx = npcIdx;
-                bool wasStr = true;                         // cStack_55d
-                std::string nameTok;                        // iStack_438
-                bool isInt = false;
-                int second = ScanStrOrInt(wasStr, nameTok, isInt, true);
-                if (!ok)
-                    break;
-                if (!wasStr)                                // 第二参为 int
+                if (wasStr != true)                         // 第二 token 为 int
                 {
-                    npc.m_field04 = second;                 // iStack_47c
-                    ScanStr(&sub);                          // 子 token
+                    npcObj.m_field04 = okInt;               // -0x478（npcObj+4）
+                    ScanStr(&tok3);
                 }
-                else
+                if (tok3 == "[visible on dungeon clear]")
                 {
-                    sub = nameTok;
+                    npcObj.m_visible = true;                // uStack_478（ORIG 不复零）
+                    ScanStr(&tok3);
                 }
-                if (sub == "[visible on dungeon clear]")
-                {
-                    npc.m_visible = true;                   // uStack_478
-                    ScanStr(&sub);
-                }
-                if (sub == "[left]")
-                    npc.m_dir = 0;                          // uStack_474=0
-                else if (sub == "[right]")
-                    npc.m_dir = 1;
-                npc.m_x = ScanInt(&ok);
-                npc.m_y = ScanInt(&ok);
-                npc.m_z = ScanInt(&ok);
-                script->m_vecNpc.push_back(npc);
+                if (tok3 == "[left]")
+                    npcObj.m_dir = 0;                       // uStack_474=0
+                else if (tok3 == "[right]")
+                    npcObj.m_dir = 1;
+                npcObj.m_x = ScanInt(static_cast<bool*>(0));
+                npcObj.m_y = ScanInt(static_cast<bool*>(0));
+                npcObj.m_z = ScanInt(static_cast<bool*>(0));
+                script->m_vecNpc.push_back(npcObj);
             }
             continue;
         }
         if (tok == "[monster spawn pos]")                   // 0x089e0d43
         {
             script->m_vecMonsterSpawnPos.clear();
-            int count = ScanInt(&ok);
-            STRivalMapData proto;                           // STRivalMapData ctor
-            script->m_vecMonsterSpawnPos.reserve(count);
+            int count = ScanInt(static_cast<bool*>(0));     // -0x4c
+            STRivalMapData proto;                           // -0x568 ctor（循环外一次）
+            script->m_vecMonsterSpawnPos.reserve(count * 3);  // 0x3e29 imul 形态
             for (int i = 0; i < count; ++i)
             {
-                STRivalMapData data = proto;
-                data.m_field00 = ScanInt(&ok);
-                data.m_field04 = ScanInt(&ok);
-                data.m_field08 = ScanInt(&ok);
-                script->m_vecMonsterSpawnPos.push_back(data);
+                proto.m_field00 = ScanInt(static_cast<bool*>(0));
+                proto.m_field04 = ScanInt(static_cast<bool*>(0));
+                proto.m_field08 = ScanInt(static_cast<bool*>(0));
+                script->m_vecMonsterSpawnPos.push_back(proto);
             }
             continue;
         }
         if (tok == "[ai character]")                        // 0x089e0e00 区
         {
-            for (;;)
+            int type = -1;                                  // -0x44
+            while (type = ScanInt(&ok), ok == true)         // 0x3edd 循环头
             {
-                int type = ScanInt(&ok);                    // iStack_48
-                if (!ok)
-                    break;
-                STAICharacterMapArrangeData ai;             // ctor（含 vector 成员）
+                STAICharacterMapArrangeData ai;             // -0x704 ctor（含 vector 成员）
                 ai.m_type = type;
-                ai.m_field04 = ScanInt(&ok);
-                ai.m_field08 = ScanInt(&ok);
-                ai.m_field0c = ScanInt(&ok);
+                ai.m_field04 = ScanInt(static_cast<bool*>(0));
+                ai.m_field08 = ScanInt(static_cast<bool*>(0));
+                ai.m_field0c = ScanInt(static_cast<bool*>(0));
                 {                                           // 阵营：character/monster/neutral
-                    bool isType = false;
-                    std::string camp;
-                    bool consumed = false;
-                    ScanTypeOrStr(isType, camp, consumed);
-                    if (!isType)
+                    ScanTypeOrStr(ok, tok, true);            // local_430 被覆盖（ORIG 原样）
+                    if (tok == "[character]")
                         ai.m_camp = 0;
-                    else if (camp == "[neutral]")
-                        ai.m_camp = 200;
-                    else
+                    else if (tok == "[monster]")
                         ai.m_camp = 100;
+                    else if (tok == "[neutral]")
+                        ai.m_camp = 200;
                 }
-                bool hasTok = ScanStr(&sub);                // cStack_41
-                if (hasTok && sub == "[NPC]")               // uStack_6e0→+0x28
+                char hasTok = ScanStr(&sub);                // -0x3d（char 直存 al）
+                if (sub == "[NPC]")                         // 0x3ff8 仅比对 token，不查 hasTok
                 {
-                    ai.m_npcIdx = ScanInt(&ok);
+                    ai.m_npcIdx = ScanInt(static_cast<bool*>(0));
                     hasTok = ScanStr(&sub);
                 }
-                if (!hasTok)
+                if (hasTok != 1)
                 {
-                    ai.m_roleType = 5;                      // 缺省 normal
+                    sub = "[normal]";                       // Ss::operator=(PKc)
                 }
+                if (sub == "[normal]")
+                    ai.m_roleType = 5;
                 else if (sub == "[champion]")               // uStack_6f4
                 {
                     ai.m_roleType = 6;
-                    int cnt = ScanInt(&ok);
-                    if (cnt < 1)
+                    int cnt = ScanInt(static_cast<bool*>(0));   // -0x3c
+                    if (cnt <= 0)
                         ai.m_championFeatures.clear();
                     else
-                        ScanAiChampionFeatures(cnt, ai);
+                        ScanChampionFeatures(cnt, ai);
                 }
                 else if (sub == "[super champion]")
                 {
                     ai.m_roleType = 7;
-                    int cnt = ScanInt(&ok);
-                    if (cnt < 1)
+                    int cnt = ScanInt(static_cast<bool*>(0));   // -0x38
+                    if (cnt <= 0)
                         ai.m_championFeatures.clear();
                     else
-                        ScanAiChampionFeatures(cnt, ai);
+                        ScanChampionFeatures(cnt, ai);
                 }
                 else if (sub == "[boss]")
                 {
@@ -1848,45 +2206,38 @@ bool ImportMapScript(STMapScript* script, const char* path)
                         return false;
                     ai.m_roleType = 8;
                 }
-                else                                        // normal 等
-                {
-                    ai.m_roleType = 5;
-                }
-                {                                           // 尾部两 int → 坐标字节
-                    int x = ScanInt(&ok);
-                    if (!ok)
-                        return false;
-                    int y = ScanInt(&ok);
-                    if (!ok)
-                        return false;
-                    ai.m_posX = static_cast<char>(x);
-                    ai.m_posY = static_cast<char>(y);
-                }
+                    else
+                    return false;                           // 未知 role → 失败
+                ai.m_posX = ScanInt(&ok);                   // -0x6f0（char 直存 al）
+                if (!ok)
+                    return false;
+                ai.m_posY = ScanInt(&ok);                   // -0x6eb
+                if (!ok)
+                    return false;
                 script->m_vecAICharacter.push_back(ai);
             }
             continue;
         }
         if (tok == "[apc random point]")                    // 0x089e11c8
         {
-            script->m_apcRandomPoint = ScanInt(&ok);        // param_1[0x9a]
+            script->m_apcRandomPoint = ScanInt(static_cast<bool*>(0));  // +0x268
             continue;
         }
         if (tok == "[event monster position]")              // 0x089e11ec
         {
-            STRivalMapData proto;
-            for (;;)
+            STRivalMapData proto;                           // -0x574 ctor 循环外一次
+            while (true)
             {
-                STRivalMapData data = proto;
-                data.m_field00 = ScanInt(&ok);
+                proto.m_field00 = ScanInt(&ok);
                 if (!ok)
-                    break;
-                data.m_field04 = ScanInt(&ok);
-                if (!ok)
-                    return false;
-                data.m_field08 = ScanInt(&ok);
+                    return false;                           // 0x42d0 首 token 失败也 false
+                proto.m_field04 = ScanInt(&ok);
                 if (!ok)
                     return false;
-                script->m_vecEventMonsterPos.push_back(data);
+                proto.m_field08 = ScanInt(&ok);
+                if (!ok)
+                    return false;
+                script->m_vecEventMonsterPos.push_back(proto);
             }
             continue;
         }
@@ -1895,72 +2246,19 @@ bool ImportMapScript(STMapScript* script, const char* path)
             ScanStr(&script->m_mapLoadingImagePath);        // param_1+0x9b
             continue;
         }
-        if (tok == "[ani info]" || tok == "[background animation]")  // lookup 主表
-        {
-            BackAniScript ani;                              // BackAniScript::clear
-            ani.clear();
-            bool done = false;
-            while (!done)
-            {
-                std::string subTok;
-                if (!ScanType(subTok, true))
-                    return false;
-                if (subTok == "[filename]")                 // lookup_0=0x1d7
-                {
-                    std::string name;
-                    if (!ScanStr(&name))
-                        return false;
-                    ani.m_filename = name;                  // Ss::assign(RKSs)
-                }
-                else if (subTok == "[order]")               // 0x1e3
-                {
-                    std::string order;
-                    if (!ScanStr(&order))
-                        return false;
-                    ani.m_orderUpper = (order == "[upper]");// [below]=0/[upper]=1
-                }
-                else if (subTok == "[loop y axis]")         // 0x1ee
-                {
-                    int flag = -1;
-                    if (!ScanInt(&flag))
-                        return false;
-                    ani.m_loopYAxis = (flag != 0);          // uStack_4cb
-                }
-                else if (subTok == "[screen pos]")          // 0x1f8
-                {
-                    int sx = -1;
-                    if (!ScanInt(&sx))
-                        return false;
-                    ani.m_screenX = sx;                     // uStack_4c8
-                    int sy = -1;
-                    if (!ScanInt(&sy))
-                        return false;
-                    ani.m_screenY = sy;                     // uStack_4c4
-                    ani.m_hasScreenPos = true;              // uStack_4ca
-                }
-                else if (subTok == "[/ani info]")           // 0x205
-                {
-                    script->m_vecBackAni.push_back(ani);    // vector(+0xa0)
-                    done = true;
-                }
-            }
-            continue;
-        }
         if (tok == "[quest animation]")
         {
             script->m_listQuestAnimation.clear();
-            for (;;)
+            STQuestAnimation qani;                          // 段内一次 ctor，跨轮复用
+            while (ScanStr(&qani.m_name))
             {
-                STQuestAnimation qani;
-                if (!ScanStr(&qani.m_name))
-                    break;
                 ScanStr(&sub);
                 qani.m_layer = getDrawLayer(sub.c_str());
-                qani.m_field08 = ScanInt(&ok);
-                qani.m_field0c = ScanInt(&ok);
-                qani.m_field10 = ScanInt(&ok);
-                qani.m_field14 = ScanInt(&ok);
-                qani.m_flag18 = ScanInt(&ok) != 0;
+                qani.m_field08 = ScanInt(static_cast<bool*>(0));
+                qani.m_field0c = ScanInt(static_cast<bool*>(0));
+                qani.m_field10 = ScanInt(static_cast<bool*>(0));
+                qani.m_field14 = ScanInt(static_cast<bool*>(0));
+                qani.m_flag18 = ScanInt(static_cast<bool*>(0)) != 0;
                 script->m_listQuestAnimation.push_back(qani);
             }
             continue;
@@ -1968,27 +2266,29 @@ bool ImportMapScript(STMapScript* script, const char* path)
         if (tok == "[attacked monster info]")
         {
             script->m_vecAttackedMonster.clear();
-            int acc = 0;                                    // iStack_38 累加权重
-            for (;;)
+            int acc = 0;                                    // -0x34 累加权重
+            STAttackedMonster mon;                          // -0x5ac（POD，无 ctor）
+            while (mon.m_id = ScanInt(&ok), ok == true)     // 0x44da 循环头直存字段
             {
-                STAttackedMonster mon;
-                mon.m_id = static_cast<unsigned short>(ScanInt(&ok));
-                if (!ok)
-                    break;
-                if (!ScanInt(reinterpret_cast<int*>(&mon.m_field04)))
-                    return false;
-                if (!ScanInt(reinterpret_cast<int*>(&mon.m_field08)))
-                    return false;
-                if (!ScanInt(reinterpret_cast<int*>(&mon.m_field0c)))
-                    return false;
-                int w = ScanInt(&ok);
+                mon.m_field04 = ScanInt(&ok);
                 if (!ok)
                     return false;
-                acc += w;
-                mon.m_attackWeight = acc;                   // iStack_5a0 = acc
-                if (!ScanInt(reinterpret_cast<int*>(&mon.m_field14)))
+                mon.m_field08 = ScanInt(&ok);
+                if (!ok)
                     return false;
-                if (!ScanInt(reinterpret_cast<int*>(&mon.m_field18)))
+                mon.m_field0c = ScanInt(&ok);
+                if (!ok)
+                    return false;
+                mon.m_attackWeight = ScanInt(&ok);          // iStack_5a0（先存原始值）
+                if (!ok)
+                    return false;
+                mon.m_attackWeight = acc + mon.m_attackWeight;   // local_38 += w
+                acc = mon.m_attackWeight;
+                mon.m_field14 = ScanInt(&ok);
+                if (!ok)
+                    return false;
+                mon.m_field18 = ScanInt(&ok);
+                if (!ok)
                     return false;
                 script->m_vecAttackedMonster.push_back(mon);
             }
@@ -1997,48 +2297,56 @@ bool ImportMapScript(STMapScript* script, const char* path)
         if (tok == "[max monster drop exception]")          // 0x089e17xx 区
         {
             script->m_maxMonsterCountException = ScanInt(&ok);  // param_1[0xc9]
+            if (!ok)
+                return false;                               // 0x4679 fail→false
             continue;
         }
         if (tok == "[max monster count exception]")
         {
-            script->m_328 = ScanInt(&ok);                   // param_1[0xca]
+            script->m_328 = ScanInt(&ok);                   // +0x328
+            if (!ok)
+                return false;                               // 0x46cc fail→false
             continue;
         }
         if (tok == "[background effect]")                   // 0x089e1640 区
         {
             script->m_vecBackGroundEffect.clear();
-            for (;;)
+            BackGroundEffect effect;                        // -0x704 段外一次 ctor，跨轮复用
+            while (true)
             {
-                BackGroundEffect effect;
                 effect.clear();
                 if (!ScanStr(&sub))
                     break;
                 if (sub == "[swing]")                       // type=0 分支
                 {
-                    effect.m_type = 0;                      // iStack_708=0
-                    ScanStr(&sub);
+                    if (!ScanStr(&sub))
+                        break;                              // 0x476a
                     effect.m_layer = getDrawLayer(sub.c_str());
-                    effect.m_field08 = ScanInt(&ok);
-                    effect.m_field0c = ScanInt(&ok);
-                    effect.m_field10 = ScanInt(&ok);
-                    effect.m_field14 = ScanInt(&ok);
-                    effect.m_field18 = ScanInt(&ok);
+                    effect.m_type = 0;                      // -0x704（layer 后写）
+                    effect.m_field08 = ScanInt(static_cast<bool*>(0));
+                    effect.m_field0c = ScanInt(static_cast<bool*>(0));
+                    effect.m_field10 = ScanInt(static_cast<bool*>(0));
+                    effect.m_field14 = ScanInt(static_cast<bool*>(0));
+                    effect.m_field18 = ScanInt(static_cast<bool*>(0));
                     {                                       // 可选动画名 → +0x1c string
-                        std::string anim;
-                        anim.clear();
-                        if (ScanStr(&anim) && !anim.empty())
-                            effect.m_animName = anim;
-                        // 空串时 assign("")（汇编原序）
+                        std::string anim;                   // -0x5b4（每轮 ctor/dtor）
+                        anim.clear();                       // Ss::clear
+                        ScanStr(&anim);
+                        if (anim == "")
+                            effect.m_animName = "";         // Ss::operator=(PKc)
+                        else
+                            effect.m_animName = anim;       // Ss::operator=(RKSs)
                     }
                 }
                 else if (sub == "[dust]")                   // type=1 分支
                 {
                     effect.m_type = 1;
-                    ScanStr(&sub);
+                    if (!ScanStr(&sub))
+                        break;                              // 0x48d1
                     effect.m_layer = getDrawLayer(sub.c_str());
-                    effect.m_field0c = ScanInt(&ok);
-                    effect.m_field10 = ScanInt(&ok);
-                    effect.m_field14 = ScanInt(&ok);
+                    effect.m_field0c = ScanInt(static_cast<bool*>(0));
+                    effect.m_field10 = ScanInt(static_cast<bool*>(0));
+                    effect.m_field14 = ScanInt(static_cast<bool*>(0));
                 }
                 script->m_vecBackGroundEffect.push_back(effect);
             }
@@ -2047,24 +2355,28 @@ bool ImportMapScript(STMapScript* script, const char* path)
         if (tok == "[block effect]")                        // 0x089e18fc 区
         {
             script->m_vecBlockEffect.clear();
-            for (;;)
+            BackGroundEffectBlock block;                    // -0x5c0 段外一次 ctor
+            while (true)
             {
-                BackGroundEffectBlock block;
                 block.clear();
                 if (!ScanStr(&sub))
                     break;
-                block.m_type = (sub == "[swing]") ? 0 : 1;  // swing=0/dust=1
+                if (sub == "[swing]")
+                    block.m_type = 0;
+                else if (sub == "[dust]")
+                    block.m_type = 1;                       // ORIG 字面判定
                 if (!ScanStr(&sub))
                     break;
                 if (sub == "[object]")                      // uStack_5c0=0
                 {
                     block.m_mode = 0;
-                    block.m_val = ScanInt(&ok);
+                    block.m_val = ScanInt(static_cast<bool*>(0));
                 }
                 else if (sub == "[animation]")              // uStack_5c0=1
                 {
                     block.m_mode = 1;
-                    ScanStr(&block.m_animName);
+                    ScanStr(&sub);
+                    block.m_animName = sub;                 // Ss::operator=(RKSs)
                 }
                 script->m_vecBlockEffect.push_back(block);
             }
@@ -2106,20 +2418,55 @@ bool ImportMapScript(STMapScript* script, const char* path)
             }
             continue;
         }
+        if (tok == "[dialog]")                              // 0x089e1c73 区
+        {
+            STDialog dlg;                                   // -0x5c8 ctor
+            char scanOk;                                    // -0x2b（char 物化）
+            scanOk = ScanStr(&dlg.m_name);
+            if (scanOk != 1)
+                return false;                               // 0x4d2b → dlg dtor false
+            {
+                std::string when;                           // -0x5cc（每入构造）
+                scanOk = ScanStr(&when);
+                if (scanOk != 1)
+                    return false;                           // 0x4d62
+                if (when == "on start")
+                {
+                    dlg.m_onStart = 1;                      // -0x5c4（dlg+4）
+                    script->m_vecDialog.push_back(dlg);     // vector(+0xc4)
+                }
+                else if (when == "on complete")
+                {
+                    dlg.m_onComplete = 1;                   // -0x5c3（dlg+5）
+                    script->m_vecDialog.push_back(dlg);
+                }
+                else
+                {
+                    LogManager::logFormat(0, "../RDARScriptMap.cpp", __FUNCTION__,
+                                          0x84f,
+                                          "Error on scanning tower dialog. There is no match string %s",
+                                          when.c_str());   // 未知串仅记日志，继续
+                }
+            }
+            continue;
+        }
         if (tok == "[map dialog]")                          // 0x089e1c61
         {
-            ScanStr(&sub);
+            ScanStr(&script->m_str34c);                     // 0x4ec1：直存 +0x34c
             continue;
         }
         if (tok == "[tournament monster]")                  // 0x089e1e53 区
         {
-            std::vector<TournamentMonster> mons;
-            int teamCount = ScanInt(static_cast<bool*>(0)); // cStack_5dd
-            if (teamCount < 1 || teamCount > 2)
+            std::vector<TournamentMonster> mons;            // -0x5d8（先 ctor）
+            char teamCount = 0;                             // -0x5d9
+            teamCount = ScanInt(&ok);                       // mov %al 截断直存
+            if (teamCount < 1 || teamCount > 2)             // signed char 双判定
                 return false;
-            for (;;)
+            if (!ok)
+                return false;                               // 0x4f4d → mons dtor false
+            while (true)
             {
-                TournamentMonster mon;                      // ctor
+                TournamentMonster mon;                      // -0x5e4 每轮 ctor
                 mon.m_mobId = ScanInt(&ok);
                 if (!ok)
                     break;
@@ -2128,148 +2475,474 @@ bool ImportMapScript(STMapScript* script, const char* path)
                     return false;
                 mons.push_back(mon);
             }
-            if (!script->m_tournamentMonsters.insert(
-                    std::make_pair(
-                        static_cast<char>(teamCount), mons)).second)
+            if (script->m_tournamentMonsters.insert(
+                    std::make_pair(teamCount, mons)).second != true)   // make_pair<char&,vector&>
             {
                 LogManager::logFormat(0, "../RDARScriptMap.cpp", __FUNCTION__,
-                                      0x84f,
+                                      0x878,
                                       "[tournament monster] map index(%d) is duplicated",
-                                      teamCount);
+                                      static_cast<int>(teamCount));
                 return false;
             }
             continue;
         }
         if (tok == "[tournament start area]")               // 0x089e1f00 区
         {
-            TournamentStartPos pos;
-            int teamCount = ScanInt(static_cast<bool*>(0)); // cStack_2e 校验
-            if (teamCount < 1 || teamCount > 2)
+            TournamentStartPos pos;                         // -0x5f0（先 ctor）
+            char t = 0;                                     // -0x2a
+            t = ScanInt(&ok);                               // mov %al 直存
+            if (t < 1 || t > 2)
                 return false;
-            pos.m_slot = teamCount;
-            pos.m_x = ScanInt(&ok);
             if (!ok)
                 return false;
-            pos.m_y = ScanInt(&ok);
-            if (!ok)
-                return false;
-            int slot = ScanInt(static_cast<bool*>(0));      // cStack_2d
-            if (slot < 1 || slot > 2)
-                return false;
-            pos.m_slot = slot;
-            if (slot == 1)
-                script->m_tournamentStartPos1.push_back(pos);   // vector@0xb4
-            else
-                script->m_tournamentStartPos2.push_back(pos);   // vector@0xb7
-            continue;
-        }
-        if (tok == "[move layered map]")                    // 0x089e2040 区
-        {
-            for (;;)
+            if (t == 1)
             {
-                std::string subTok;
-                if (!ScanType(subTok, true))
-                    break;
-                if (subTok == "[zpos under]")               // lookup_1=0x8b8
-                {
-                    script->m_moveLayeredType = 1;          // param_1[0xd4]=1
-                    script->m_zposUnder = ScanInt(&ok);     // param_1[0xd5]
-                }
-                else if (subTok == "[all dead case passable]")  // 0x8be
-                {
-                    script->m_allDeadCasePassable = 1;      // byte @0xd6
-                }
-                else if (subTok == "[move layered map]" ||
-                         subTok == "[/move layered map]")   // 0x8c3 / 结束
-                {
-                    break;
-                }
+                pos.m_x = ScanInt(&ok);
+                if (!ok)
+                    return false;
+                pos.m_y = ScanInt(&ok);
+                if (!ok)
+                    return false;
+                char slot = 0;                              // -0x29
+                slot = ScanInt(&ok);
+                if (slot < 1 || slot > 2)
+                    return false;
+                pos.m_slot = slot;
+                if (slot == 1)
+                    script->m_tournamentStartPos1.push_back(pos);   // vector@0x2d0
+                else if (slot == 2)
+                    script->m_tournamentStartPos2.push_back(pos);   // vector@0x2dc
             }
             continue;
         }
-        if (tok == "[static player start pos]")             // 0x089e21xx 区
+        if (tok == "[move layered map]")                    // 0x089e2216 区（__lookup_1 表段）
         {
-            for (;;)
+            static std::map<const char*, int, less_TCHAR> __lookup_1;
+            static SpinLock __init_lock_1;
+            static bool __inited_1 = false;
+            std::string line;                               // local_5f8（循环外构造一次）
+            bool loop = true;                               // local_5f9
+            do
             {
-                std::string subTok;
-                if (!ScanType(subTok, true))
+                loop = ScanType(line, true);
+                if (!loop)
+                    return false;
+                int id;
+                for (;;)
+                {
+                    if (!__inited_1)
+                    {
+                        __init_lock_1.enter();
+                        if (__inited_1)
+                        {
+                            __init_lock_1.leave();
+                            continue;
+                        }
+                        id = 0;
+                        break;
+                    }
+                    std::map<const char*, int, less_TCHAR>::const_iterator it =
+                        __lookup_1.find(line.c_str());
+                    if (it != __lookup_1.end())
+                        id = it->second;
                     break;
-                if (subTok == "[/static player start pos]")
+                }
+                switch (id)
+                {
+                case 0:
+                case 0x8b8:                                 // [zpos under]
+                {
+                    if (__inited_1)
+                    {
+                        script->m_moveLayeredType = 1;      // movl $1,0x350
+                        script->m_zposUnder = ScanInt(&loop);  // -0x354 ← &-0x5f5
+                        if (loop != true)
+                            return false;
+                        goto layered_next;
+                    }
+                    __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[zpos under]", 0x8b8));
+                    /* fall through */
+                }
+                case 0x8be:                                 // [all dead case passable]
+                {
+                    if (__inited_1)
+                    {
+                        script->m_allDeadCasePassable = 1;  // movb $1,0x358
+                        if (loop != true)
+                            return false;
+                        goto layered_next;
+                    }
+                    __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[all dead case passable]", 0x8be));
+                    /* fall through */
+                }
+                case 0x8c3:                                 // [/move layered map]
+                {
+                    if (__inited_1)
+                        loop = false;
+                    else
+                        __lookup_1.insert(std::map<const char*, int, less_TCHAR>::value_type("[/move layered map]", 0x8c3));
                     break;
-                int playerIdx = -1;                         // lookup_2
-                if (subTok == "[player 1]")      playerIdx = 0;
-                else if (subTok == "[player 2]") playerIdx = 1;
-                else if (subTok == "[player 3]") playerIdx = 2;
-                else if (subTok == "[player 4]") playerIdx = 3;
-                if (playerIdx < 0)
-                    continue;
-                StaticStartPos pos;
-                pos.m_playerIdx = playerIdx;                // uStack_608→+0xc
-                if (!ScanInt(&pos.m_x)) return false;
-                if (!ScanInt(&pos.m_y)) return false;
-                if (!ScanInt(&pos.m_z)) return false;
-                script->m_vecStaticStartPos.push_back(pos); // vector(+0xba)
-            }
+                }
+                default:
+                    break;
+                }
+                if (!__inited_1)
+                {
+                    __init_lock_1.leave();
+                    __inited_1 = true;
+                }
+            layered_next:;
+            } while (loop);
             continue;
         }
-        if (tok == "[limit player move area]")              // 0x089e2c6c 区
+        if (tok == "[static player start pos]")             // 0x089e26a0 区（__lookup_2 表段）
         {
-            for (;;)
+            // ORIG：string / StaticStartPos 每轮 do 体内构造（dtor 同轮尾）；
+            // ScanInt 全部走 bool* 版（局部 ok 复用 ScanType 的 flag 槽）。
+            static std::map<const char*, int, less_TCHAR> __lookup_2;
+            static SpinLock __init_lock_2;
+            static bool __inited_2 = false;
+            int cont = 0;
+            do
             {
-                std::string subTok;
-                if (!ScanType(subTok, true))
+                std::string line;                           // local_604（每轮 ctor/dtor）
+                StaticStartPos pos;                         // local_614（每轮 ctor）
+                bool ok2 = ScanType(line, true);            // local_615
+                if (!ok2)
+                    return false;
+                int id;
+                while (true)
+                {
+                for (;;)
+                {
+                    if (!__inited_2)
+                    {
+                        __init_lock_2.enter();
+                        if (__inited_2)
+                        {
+                            __init_lock_2.leave();
+                            continue;
+                        }
+                        id = 0;
+                        break;
+                    }
+                    std::map<const char*, int, less_TCHAR>::const_iterator it =
+                        __lookup_2.find(line.c_str());
+                    if (it != __lookup_2.end())
+                        id = it->second;
                     break;
-                if (subTok == "[/limit player move area]")
+                }
+                switch (id)
+                {
+                case 0:
+                case 0x8dc:                                 // [player 1]
+                {
+                    if (__inited_2)
+                    {
+                        pos.m_playerIdx = 0;                // movl $0,-0x604
+                        goto static_after;
+                    }
+                    __lookup_2.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 1]", 0x8dc));
+                    /* fall through */
+                }
+                case 0x8df:                                 // [player 2]
+                {
+                    if (__inited_2)
+                    {
+                        pos.m_playerIdx = 1;
+                        goto static_after;
+                    }
+                    __lookup_2.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 2]", 0x8df));
+                    /* fall through */
+                }
+                case 0x8e2:                                 // [player 3]
+                {
+                    if (__inited_2)
+                    {
+                        pos.m_playerIdx = 2;
+                        goto static_after;
+                    }
+                    __lookup_2.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 3]", 0x8e2));
+                    /* fall through */
+                }
+                case 0x8e5:                                 // [player 4]
+                {
+                    if (__inited_2)
+                    {
+                        pos.m_playerIdx = 3;
+                        goto static_after;
+                    }
+                    __lookup_2.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 4]", 0x8e5));
+                    /* fall through */
+                }
+                case 0x8e8:                                 // [/static player start pos]
+                {
+                    if (__inited_2)
+                        ok2 = false;                        // movb $0,-0x611
+                    else
+                        __lookup_2.insert(std::map<const char*, int, less_TCHAR>::value_type("[/static player start pos]", 0x8e8));
                     break;
-                int playerIdx = -1;                         // lookup_3
-                if (subTok == "[player 1]")      playerIdx = 0;
-                else if (subTok == "[player 2]") playerIdx = 1;
-                else if (subTok == "[player 3]") playerIdx = 2;
-                else if (subTok == "[player 4]") playerIdx = 3;
-                if (playerIdx < 0)
-                    continue;
-                MapArea area;                               // MapArea ctor + clear
-                if (!ScanInt(&area.m_x)) return false;
-                if (!ScanInt(&area.m_y)) return false;
-                if (!ScanInt(&area.m_w)) return false;
-                if (!ScanInt(&area.m_h)) return false;
+                }
+                default:
+                    break;
+                }
+                if (!__inited_2)
+                {
+                    __init_lock_2.leave();
+                    __inited_2 = true;
+                    continue;                               // 重入本轮 find（0x26dd）
+                }
+            static_after:
+                break;
+                }
+                if (!ok2)
+                    break;                                  // iVar6 = 1 → 退出 do
+                pos.m_x = ScanInt(&ok2);
+                if (!ok2)
+                    return false;
+                pos.m_y = ScanInt(&ok2);
+                if (!ok2)
+                    return false;
+                pos.m_z = ScanInt(&ok2);
+                if (!ok2)
+                    return false;
+                script->m_vecStaticStartPos.push_back(pos);  // vector(+0x2e8)
+                cont = 2;
+            } while (cont != 1);
+            continue;
+        }
+        if (tok == "[limit player move area]")              // 0x089e2c8c 区（__lookup_3 表段）
+        {
+            // ORIG：每轮 string + MapArea（ctor 后额外 clear()）；未知键 idx 保持 0
+            // 且仍读 4 int（id=-1 同路），find==end 才 insert。
+            static std::map<const char*, int, less_TCHAR> __lookup_3;
+            static SpinLock __init_lock_3;
+            static bool __inited_3 = false;
+            int cont = 0;
+            do
+            {
+                std::string line;                           // local_620（每轮 ctor/dtor）
+                int playerIdx = 0;                          // local_624
+                MapArea area;                               // local_640：ctor + clear
+                area.clear();
+                bool ok2 = ScanType(line, true);            // local_641
+                if (!ok2)
+                    return false;
+                int id;
+                while (true)
+                {
+                for (;;)
+                {
+                    if (!__inited_3)
+                    {
+                        __init_lock_3.enter();
+                        if (__inited_3)
+                        {
+                            __init_lock_3.leave();
+                            continue;
+                        }
+                        id = 0;
+                        break;
+                    }
+                    std::map<const char*, int, less_TCHAR>::const_iterator it =
+                        __lookup_3.find(line.c_str());
+                    if (it != __lookup_3.end())
+                        id = it->second;
+                    break;
+                }
+                switch (id)
+                {
+                case 0:
+                case 0x911:                                 // [player 1]
+                {
+                    if (__inited_3)
+                    {
+                        playerIdx = 0;                      // movl $0,-0x620
+                        goto limit_after;
+                    }
+                    __lookup_3.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 1]", 0x911));
+                    /* fall through */
+                }
+                case 0x914:                                 // [player 2]
+                {
+                    if (__inited_3)
+                    {
+                        playerIdx = 1;
+                        goto limit_after;
+                    }
+                    __lookup_3.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 2]", 0x914));
+                    /* fall through */
+                }
+                case 0x917:                                 // [player 3]
+                {
+                    if (__inited_3)
+                    {
+                        playerIdx = 2;
+                        goto limit_after;
+                    }
+                    __lookup_3.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 3]", 0x917));
+                    /* fall through */
+                }
+                case 0x91a:                                 // [player 4]
+                {
+                    if (__inited_3)
+                    {
+                        playerIdx = 3;
+                        goto limit_after;
+                    }
+                    __lookup_3.insert(std::map<const char*, int, less_TCHAR>::value_type("[player 4]", 0x91a));
+                    /* fall through */
+                }
+                case 0x91d:                                 // [/limit player move area]
+                {
+                    if (__inited_3)
+                        ok2 = false;
+                    else
+                        __lookup_3.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit player move area]", 0x91d));
+                    break;
+                }
+                default:
+                    break;
+                }
+                if (!__inited_3)
+                {
+                    __init_lock_3.leave();
+                    __inited_3 = true;
+                    continue;                               // 重入本轮 find（0x2ce1）
+                }
+            limit_after:
+                break;
+                }
+                if (!ok2)
+                    break;                                  // iVar6 = 1 → 退出 do
+                area.m_x = ScanInt(&ok2);
+                if (!ok2)
+                    return false;
+                area.m_y = ScanInt(&ok2);
+                if (!ok2)
+                    return false;
+                area.m_w = ScanInt(&ok2);
+                if (!ok2)
+                    return false;
+                area.m_h = ScanInt(&ok2);
+                if (!ok2)
+                    return false;
                 std::map<int, MapArea>::iterator it =
                     script->m_limitPlayerMoveAreas.find(playerIdx);
                 if (it == script->m_limitPlayerMoveAreas.end())
                     script->m_limitPlayerMoveAreas.insert(
-                        std::make_pair(playerIdx, area));   // make_pair(idx, area)
-            }
+                        std::make_pair(playerIdx, area));   // make_pair + insert
+                cont = 2;
+            } while (cont != 1);
             continue;
         }
-        if (tok == "[customized screen edge]")              // 0x089e33xx 区
+        if (tok == "[customized screen edge]")              // 0x089e3404 区（__lookup_4 表段）
         {
-            for (;;)
+            // ORIG：结束键以 eq 前置判定；ScanType 返回 false（自然耗尽）→ 整函数失败。
+            static std::map<const char*, int, less_TCHAR> __lookup_4;
+            static SpinLock __init_lock_4;
+            static bool __inited_4 = false;
+            std::string line;                               // local_64c（循环外一次）
+            bool done = false;
+            while (ScanType(line, true))
             {
-                std::string subTok;
-                if (!ScanType(subTok, true))
+                if (line == "[/customized screen edge]")
+                {
+                    done = true;
                     break;
-                if (subTok == "[left]")                     // lookup_4=0x946
-                {
-                    if (!ScanInt(&script->m_screenEdgeLeft)) return false;
                 }
-                else if (subTok == "[right]")
+                int id;
+                while (true)
                 {
-                    if (!ScanInt(&script->m_screenEdgeRight)) return false;
-                }
-                else if (subTok == "[top]")                 // 0x958
+                for (;;)
                 {
-                    if (!ScanInt(&script->m_screenEdgeTop)) return false;
-                }
-                else if (subTok == "[bottom]")              // 0x961
-                {
-                    if (!ScanInt(&script->m_screenEdgeBottom)) return false;
-                }
-                else if (subTok == "[customized screen edge]" ||
-                         subTok == "[/customized screen edge]")
-                {
+                    if (!__inited_4)
+                    {
+                        __init_lock_4.enter();
+                        if (__inited_4)
+                        {
+                            __init_lock_4.leave();
+                            continue;
+                        }
+                        id = 0;
+                        break;
+                    }
+                    std::map<const char*, int, less_TCHAR>::const_iterator it =
+                        __lookup_4.find(line.c_str());
+                    if (it != __lookup_4.end())
+                        id = it->second;
                     break;
+                }
+                switch (id)
+                {
+                case 0:
+                case 0x946:                                 // [left]
+                {
+                    if (__inited_4)
+                    {
+                        int leftV;                          // -0x650（ORIG 无初始化）
+                        if (ScanInt(&leftV) != 1)
+                            return false;
+                        script->m_screenEdgeLeft = leftV;   // +0x35c
+                        goto edge_after;
+                    }
+                    __lookup_4.insert(std::map<const char*, int, less_TCHAR>::value_type("[left]", 0x946));
+                    /* fall through */
+                }
+                case 0x94f:                                 // [right]
+                {
+                    if (__inited_4)
+                    {
+                        int rightV;                         // -0x654
+                        if (ScanInt(&rightV) != 1)
+                            return false;
+                        script->m_screenEdgeRight = rightV; // +0x360
+                        goto edge_after;
+                    }
+                    __lookup_4.insert(std::map<const char*, int, less_TCHAR>::value_type("[right]", 0x94f));
+                    /* fall through */
+                }
+                case 0x958:                                 // [top]
+                {
+                    if (__inited_4)
+                    {
+                        int topV;                           // -0x658
+                        if (ScanInt(&topV) != 1)
+                            return false;
+                        script->m_screenEdgeTop = topV;     // +0x364
+                        goto edge_after;
+                    }
+                    __lookup_4.insert(std::map<const char*, int, less_TCHAR>::value_type("[top]", 0x958));
+                    /* fall through */
+                }
+                case 0x961:                                 // [bottom]
+                {
+                    if (__inited_4)
+                    {
+                        int bottomV;                        // -0x65c
+                        if (ScanInt(&bottomV) != 1)
+                            return false;
+                        script->m_screenEdgeBottom = bottomV;  // +0x368
+                        goto edge_after;
+                    }
+                    __lookup_4.insert(std::map<const char*, int, less_TCHAR>::value_type("[bottom]", 0x961));
+                    break;
+                }
+                default:
+                    break;
+                }
+                if (!__inited_4)
+                {
+                    __init_lock_4.leave();
+                    __inited_4 = true;
+                    continue;                               // 重入本轮 find（0x644b）
+                }
+            edge_after:
+                break;
                 }
             }
+            if (!done)
+                return false;
             continue;
         }
         if (tok == "[block use active skill]")              // else 链最外层
@@ -2289,50 +2962,22 @@ bool ImportMapScript(STMapScript* script, const char* path)
         }
         if (tok == "[basic action]")
         {
-            ScanStr(&sub);
+            if (ScanStr(&script->m_str370) != 1)            // 0x6a72：直存 +0x370
+                return false;
             continue;
         }
         if (tok == "[visible minimap]")
         {
-            int v = 0;
-            if (!ScanInt(&v))
+            if (ScanInt(&okInt) != 1)
                 return false;
-            script->m_visibleMinimap = v;                   // param_1[0xdd]
+            script->m_visibleMinimap = okInt;               // +0x374
             continue;
         }
         if (tok == "[visible town minimap]")
         {
-            int v = 0;
-            if (!ScanInt(&v))
+            if (ScanInt(&okInt) != 1)
                 return false;
-            script->m_visibleTownMinimap = v;               // param_1[0xde]
-            continue;
-        }
-        if (tok == "[dialog]")                              // 0x089e1c73 区
-        {
-            STDialog dlg;                                   // STDialog ctor
-            if (!ScanStr(&dlg.m_name))
-                return false;
-            std::string when;                               // auStack_5d0
-            if (!ScanStr(&when))
-                return false;
-            if (when == "on start")
-            {
-                dlg.m_onStart = true;                       // uStack_5c8
-                script->m_vecDialog.push_back(dlg);         // vector(+0xc4)
-            }
-            else if (when == "on complete")
-            {
-                dlg.m_onComplete = true;                    // uStack_5c7
-                script->m_vecDialog.push_back(dlg);
-            }
-            else
-            {
-                LogManager::logFormat(0, "../RDARScriptMap.cpp", __FUNCTION__,
-                                      0x84f,
-                                      "Error on scanning tower dialog. There is no match string %s",
-                                      when.c_str());
-            }
+            script->m_visibleTownMinimap = okInt;           // +0x378
             continue;
         }
         // 未识别 token：继续扫描（ORIG 无 default 分支动作）
@@ -2352,7 +2997,7 @@ bool ImportMapScript(STMapScript* script, const char* path)
         script->m_pvpStartArea[4].m_w = script->m_pvpStartArea[2].m_w;
         script->m_pvpStartArea[4].m_h = script->m_pvpStartArea[2].m_h;
     }
-    script->m_index = findMapScriptIndex(path);             // *param_1 = 文件表索引
+    script->m_index = g_stMapScriptFileList.FindIndexByFullScan(path);  // *param_1
     return true;
 }
 
@@ -2372,7 +3017,7 @@ bool ExportMapScript(STMapScript* script, const char* path)
 
     STMapScript defaults;                       // auStack_48c：缺省值对照
 
-    if (!script->m_str1b0.empty())              // +0x1b0 非空才输出 [map name]
+    if (script->m_str1b0.length() != 0)         // +0x1b0 非空才输出 [map name]
         fprintf(file, "[map name] `%s`\n", script->m_str1b0.c_str());
     fprintf(file, "[player number] %d %d\n",
             script->m_playerCountMin, script->m_playerCountMax);
@@ -2407,8 +3052,8 @@ bool ExportMapScript(STMapScript* script, const char* path)
     if (!script->m_list4.empty())
     {
         fwrite("[dungeon]\n", 1, 10, file);
-        for (std::list<int>::const_iterator it = script->m_list4.begin();
-             it != script->m_list4.end(); ++it)
+        for (std::list<int>::iterator it = script->m_list4.begin();
+             it != script->m_list4.end(); it++)
             fprintf(file, "%d\n", *it);
         fwrite("[/dungeon]\n", 1, 11, file);
     }
@@ -2421,12 +3066,12 @@ bool ExportMapScript(STMapScript* script, const char* path)
     if (!script->m_recoveryObjects.empty())     // +0x10 [greed]
     {
         std::string grid;
-        for (size_t i = 0; i < script->m_recoveryObjects.size(); ++i)
+        for (unsigned int i = 0; i < script->m_recoveryObjects.size(); ++i)
         {
             grid += g_gridSymbols[script->m_recoveryObjects[i].first];
             grid += " ";
             grid += g_gridSymbols[script->m_recoveryObjects[i].second];
-            if (i + 1 != script->m_recoveryObjects.size())
+            if (script->m_recoveryObjects.size() - 1 != i)
                 grid += "\n ";
         }
         fprintf(file, "[greed]\n`%s`\n", grid.c_str());
@@ -2434,14 +3079,14 @@ bool ExportMapScript(STMapScript* script, const char* path)
     if (!script->m_vecTile.empty())             // +0x70 [tile]
     {
         fwrite("[tile]\n", 1, 7, file);
-        for (size_t i = 0; i < script->m_vecTile.size(); ++i)
+        for (unsigned int i = 0; i < script->m_vecTile.size(); ++i)
             fprintf(file, "`%s`\n", script->m_vecTile[i].c_str());
         fwrite("[/tile]\n", 1, 8, file);
     }
     if (!script->m_vecExtendedTile.empty())     // +0x7c [extended tile]
     {
         fwrite("[extended tile]\n", 1, 16, file);
-        for (size_t i = 0; i < script->m_vecExtendedTile.size(); ++i)
+        for (unsigned int i = 0; i < script->m_vecExtendedTile.size(); ++i)
             fprintf(file, "`%s`\n", script->m_vecExtendedTile[i].c_str());
         fwrite("[/extended tile]\n", 1, 17, file);
     }
@@ -2457,25 +3102,29 @@ bool ExportMapScript(STMapScript* script, const char* path)
     if (!script->m_vecBackAni.empty())          // +0xa0 [background animation]
     {
         fwrite("[background animation]\n", 1, 23, file);
-        for (size_t i = 0; i < script->m_vecBackAni.size(); ++i)
+        for (unsigned int i = 0; i < script->m_vecBackAni.size(); ++i)
         {
-            const BackAniScript& ani = script->m_vecBackAni[i];
+            const char* ord = script->m_vecBackAni[i].m_orderUpper
+                                  ? "[upper]" : "[below]";
             fprintf(file, "`%s` `%s` `%s`\n",
-                    ani.m_filename.c_str(),
-                    getDrawLayerName(static_cast<ENUM_DRAWLAYER>(ani.m_layer)),
-                    ani.m_orderUpper ? "[upper]" : "[below]");
+                    script->m_vecBackAni[i].m_filename.c_str(),
+                    getDrawLayerName(
+                        static_cast<ENUM_DRAWLAYER>(script->m_vecBackAni[i].m_layer)),
+                    ord);
         }
         fwrite("[/background animation]\n", 1, 24, file);
     }
     if (!script->m_vecTownMovableArea.empty())  // +0xdc [town movable area]
     {
         fwrite("[town movable area]\n", 1, 20, file);
-        for (size_t i = 0; i < script->m_vecTownMovableArea.size(); ++i)
-        {
-            const TownPath& tp = script->m_vecTownMovableArea[i];
+        for (unsigned int i = 0; i < script->m_vecTownMovableArea.size(); ++i)
             fprintf(file, "%d %d %d %d %d %d\n",
-                    tp.m_x, tp.m_y, tp.m_w, tp.m_h, tp.m_field1c, tp.m_field20);
-        }
+                    script->m_vecTownMovableArea[i].m_x,
+                    script->m_vecTownMovableArea[i].m_y,
+                    script->m_vecTownMovableArea[i].m_w,
+                    script->m_vecTownMovableArea[i].m_h,
+                    script->m_vecTownMovableArea[i].m_field1c,
+                    script->m_vecTownMovableArea[i].m_field20);
         fwrite("[/town movable area]\n", 1, 21, file);
     }
     if (script->m_vecVirtualMovableArea.empty())    // +0xe8：空 → [pathgate pos]
@@ -2489,23 +3138,25 @@ bool ExportMapScript(STMapScript* script, const char* path)
     else                                        // 非空 → [virtual movable area]
     {
         fwrite("[virtual movable area]\n", 1, 23, file);
-        for (size_t i = 0; i < script->m_vecVirtualMovableArea.size(); ++i)
-        {
-            const MapArea& area = script->m_vecVirtualMovableArea[i];
+        for (unsigned int i = 0; i < script->m_vecVirtualMovableArea.size(); ++i)
             fprintf(file, "%d %d %d %d\n",
-                    area.m_x, area.m_y, area.m_w, area.m_h);
-        }
+                    script->m_vecVirtualMovableArea[i].m_x,
+                    script->m_vecVirtualMovableArea[i].m_y,
+                    script->m_vecVirtualMovableArea[i].m_w,
+                    script->m_vecVirtualMovableArea[i].m_h);
         fwrite("[/virtual movable area]\n", 1, 24, file);
     }
     if (!script->m_vecGuildAgitEntrance.empty())    // +0xf4
     {
         fwrite("[guild agit entrance info]\n", 1, 27, file);
-        for (size_t i = 0; i < script->m_vecGuildAgitEntrance.size(); ++i)
-        {
-            const TownPath& tp = script->m_vecGuildAgitEntrance[i];
+        for (unsigned int i = 0; i < script->m_vecGuildAgitEntrance.size(); ++i)
             fprintf(file, "%d %d %d %d %d %d\n",
-                    tp.m_x, tp.m_y, tp.m_w, tp.m_h, tp.m_field1c, tp.m_field20);
-        }
+                    script->m_vecGuildAgitEntrance[i].m_x,
+                    script->m_vecGuildAgitEntrance[i].m_y,
+                    script->m_vecGuildAgitEntrance[i].m_w,
+                    script->m_vecGuildAgitEntrance[i].m_h,
+                    script->m_vecGuildAgitEntrance[i].m_field1c,
+                    script->m_vecGuildAgitEntrance[i].m_field20);
         fwrite("[/guild agit entrance info]\n", 1, 28, file);
     }
     {                                           // MapArea@0x140 四字段任一非零
@@ -2527,7 +3178,7 @@ bool ExportMapScript(STMapScript* script, const char* path)
     if (!script->m_vecSound.empty())            // +0x194 [sound]
     {
         fwrite("[sound]\n", 1, 8, file);
-        for (size_t i = 0; i < script->m_vecSound.size(); ++i)
+        for (unsigned int i = 0; i < script->m_vecSound.size(); ++i)
             fprintf(file, "`%s`\n", script->m_vecSound[i].c_str());
         fwrite("[/sound]\n", 1, 9, file);
     }
@@ -2535,14 +3186,15 @@ bool ExportMapScript(STMapScript* script, const char* path)
     {
         fwrite("[animation]\n", 1, 12, file);
         std::string layerName;
-        for (std::list<STAssignAnimation>::const_iterator it =
+        for (std::list<STAssignAnimation>::iterator it =
                  script->m_listAnimation.begin();
-             it != script->m_listAnimation.end(); ++it)
+             it != script->m_listAnimation.end(); it++)
         {
-            layerName = getDrawLayerName(static_cast<ENUM_DRAWLAYER>(it->m_layer));
+            layerName = getDrawLayerName(
+                static_cast<ENUM_DRAWLAYER>((*it).m_layer));
             fprintf(file, "`%s` `%s` %d %d %d\n",
-                    it->m_name.c_str(), layerName.c_str(),
-                    it->m_field08, it->m_field0c, it->m_field10);
+                    (*it).m_name.c_str(), layerName.c_str(),
+                    (*it).m_field08, (*it).m_field0c, (*it).m_field10);
         }
         fwrite("[/animation]\n", 1, 13, file);
     }
@@ -2550,87 +3202,96 @@ bool ExportMapScript(STMapScript* script, const char* path)
     {
         fwrite("[quest animation]\n", 1, 18, file);
         std::string layerName;
-        for (std::list<STQuestAnimation>::const_iterator it =
+        for (std::list<STQuestAnimation>::iterator it =
                  script->m_listQuestAnimation.begin();
-             it != script->m_listQuestAnimation.end(); ++it)
+             it != script->m_listQuestAnimation.end(); it++)
         {
-            layerName = getDrawLayerName(static_cast<ENUM_DRAWLAYER>(it->m_layer));
+            layerName = getDrawLayerName(
+                static_cast<ENUM_DRAWLAYER>((*it).m_layer));
             fprintf(file, "`%s` `%s` %d %d %d %d\n",
-                    it->m_name.c_str(), layerName.c_str(),
-                    it->m_field08, it->m_field0c, it->m_field10, it->m_field14);
+                    (*it).m_name.c_str(), layerName.c_str(),
+                    (*it).m_field08, (*it).m_field0c, (*it).m_field10,
+                    (*it).m_field14);
         }
         fwrite("[/quest animation]\n", 1, 19, file);
     }
     if (!script->m_listPassiveObject.empty())   // +0x2c [passive object]
     {
         fwrite("[passive object]\n", 1, 17, file);
-        for (std::list<STAssignPassiveObject>::const_iterator it =
+        for (std::list<STAssignPassiveObject>::iterator it =
                  script->m_listPassiveObject.begin();
-             it != script->m_listPassiveObject.end(); ++it)
-            fprintf(file, "%d %d %d %d\n", it->m_0, it->m_4, it->m_8, it->m_c);
+             it != script->m_listPassiveObject.end(); it++)
+            fprintf(file, "%d %d %d %d\n",
+                    (*it).m_0, (*it).m_4, (*it).m_8, (*it).m_c);
         fwrite("[/passive object]\n", 1, 18, file);
     }
     if (!script->m_vecMonster.empty())          // +0x34 [monster]
     {
         fwrite("[monster]\n", 1, 10, file);
-        for (std::vector<STAssignMonster>::const_iterator it =
+        bool isChampion = false;                // cStack_5d
+        for (std::vector<STAssignMonster>::iterator it =
                  script->m_vecMonster.begin();
-             it != script->m_vecMonster.end(); ++it)
+             it != script->m_vecMonster.end(); it++)
         {
-            bool isChampion = false;            // cStack_5d
-            std::string typeTok;                // [fixed]/[half]/[ratio]
-            std::string roleTok;
-            if (it->m_20 == 0)      typeTok = "`[fixed]`";
-            else if (it->m_20 == 1) typeTok = "`[half]`";
-            else if (it->m_20 == 2) typeTok = "`[ratio]`";
-            if (it->m_24 == 0)      roleTok = "`[normal]`";
-            else if (it->m_24 == 1) { roleTok = "`[champion]`"; isChampion = true; }
-            else if (it->m_24 == 3) roleTok = "`[boss]`";
+            isChampion = false;
+            std::string typeTok;                // local_fc（每轮 ctor/dtor）
+            std::string roleTok;                // local_100
+            if ((*it).m_20 == 0)      typeTok = "`[fixed]`";
+            else if ((*it).m_20 == 1) typeTok = "`[half]`";
+            else if ((*it).m_20 == 2) typeTok = "`[ratio]`";
+            if ((*it).m_24 == 0)      roleTok = "`[normal]`";
+            else if ((*it).m_24 == 1) { roleTok = "`[champion]`"; isChampion = true; }
+            else if ((*it).m_24 == 3) roleTok = "`[boss]`";
             fprintf(file,
                     "%d %d %d %d %d %d %d %d %s %s%c",
-                    it->m_0, static_cast<int>(it->m_4 != 0),
-                    it->m_8, it->m_c, it->m_10, it->m_14, it->m_18, it->m_1c,
+                    (*it).m_0, static_cast<int>((*it).m_4 != 0),
+                    (*it).m_8, (*it).m_c, (*it).m_10, (*it).m_14, (*it).m_18,
+                    (*it).m_1c,
                     typeTok.c_str(), roleTok.c_str(),
                     isChampion ? ' ' : '\n');
             if (isChampion)
-                WriteChampionFeatures(file, const_cast<STAssignMonster&>(*it));
+                WriteChampionFeatures(file, *it);
         }
         fwrite("[/monster]\n", 1, 11, file);
     }
-    if (!script->m_vecMonster.empty())          // [monster specific AI]（ORIG 089e565b..089e58c7）
+    if (script->m_vecMonster.size() != 0)       // [monster specific AI]（ORIG 089e565b..）
     {
         fwrite("[monster specific AI]\n", 1, 0x16, file);
-        for (size_t i = 0; i < script->m_vecMonster.size(); ++i)
+        for (unsigned int i = 0; i < script->m_vecMonster.size(); ++i)
         {
-            const STAssignMonster& mon = script->m_vecMonster[i];
-            if (mon.m_34 == 0)
+            if (script->m_vecMonster[i].m_34 == 0)
                 fwrite("`[normal]`\n", 1, 0xb, file);
-            else if (mon.m_34 == 1)
-                fprintf(file, "`[zone defence]` %d %d\n", mon.m_38, mon.m_3c);
-            else if (mon.m_34 == 2)
+            else if (script->m_vecMonster[i].m_34 == 1)
+                fprintf(file, "%s %d %d\n", "`[zone defence]`",
+                        script->m_vecMonster[i].m_38,
+                        script->m_vecMonster[i].m_3c);
+            else if (script->m_vecMonster[i].m_34 == 2)
             {
+                int wayCount = static_cast<int>(
+                    script->m_vecMonster[i].m_vec40.size());
                 fwrite("`[roaming]`", 1, 0xb, file);
-                fprintf(file, " %d", static_cast<int>(mon.m_vec40.size()));
-                for (size_t k = 0; k < mon.m_vec40.size(); ++k)
-                    fprintf(file, " %d", mon.m_vec40[k].first);
-                for (size_t k = 0; k < mon.m_vec40.size(); ++k)
-                    fprintf(file, " %d", mon.m_vec40[k].second);
+                fprintf(file, " %d", wayCount);
+                for (int k = 0; k < wayCount; ++k)
+                    fprintf(file, " %d", script->m_vecMonster[i].m_vec40[k].first);
+                for (int k = 0; k < wayCount; ++k)
+                    fprintf(file, " %d", script->m_vecMonster[i].m_vec40[k].second);
                 fputc(10, file);
             }
         }
         fwrite("[/monster specific AI]\n", 1, 0x17, file);
     }
-    {                                           // m_4c 任一非默认(100) → team 表
+    if (script->m_vecMonster.size() != 0)       // m_4c 任一非默认(100) → team 表
+    {
         bool anyTeam = false;
-        for (size_t i = 0; i < script->m_vecMonster.size(); ++i)
+        for (unsigned int i = 0; i < script->m_vecMonster.size(); ++i)
             if (script->m_vecMonster[i].m_4c != 100)
                 anyTeam = true;
         if (anyTeam)
         {
-            fwrite("`[monster team]`\n", 1, 15, file);
-            for (size_t i = 0; i < script->m_vecMonster.size(); ++i)
+            fwrite("[monster team]\n", 1, 15, file);
+            for (unsigned int i = 0; i < script->m_vecMonster.size(); ++i)
                 fprintf(file, "%d\n", script->m_vecMonster[i].m_4c);
-            fwrite("`[/monster team]`\n", 1, 16, file);
+            fwrite("[/monster team]\n", 1, 16, file);
         }
     }
     if (script->m_championRate != defaults.m_championRate)      // +0x4c
@@ -2638,65 +3299,63 @@ bool ExportMapScript(STMapScript* script, const char* path)
     if (!script->m_listItem.empty())            // +0x50 [item]
     {
         fwrite("[item]\n", 1, 7, file);
-        for (std::list<STAssignItem>::const_iterator it =
+        for (std::list<STAssignItem>::iterator it =
                  script->m_listItem.begin();
-             it != script->m_listItem.end(); ++it)
+             it != script->m_listItem.end(); it++)
         {
             fprintf(file, "%d %d %d %d %d %d %d %d %d %d",
-                    it->m_field00, it->m_field04, it->m_field08,
-                    it->m_field0c, it->m_field10, it->m_field14,
-                    it->m_field18, it->m_field1c, it->m_field20,
-                    static_cast<int>(it->m_generateInfos.size()));
-            if (!it->m_generateInfos.empty())       // ORIG：仅非空才 fputc(10)
-                fputc('\n', file);
-            for (size_t k = 0; k < it->m_generateInfos.size(); ++k)
+                    (*it).m_field00, (*it).m_field04, (*it).m_field08,
+                    (*it).m_field0c, (*it).m_field10, (*it).m_field14,
+                    (*it).m_field18, (*it).m_field1c, (*it).m_field20,
+                    static_cast<int>((*it).m_generateInfos.size()));
+            if ((*it).m_generateInfos.size() != 0)  // ORIG：仅非空才 fputc(10)
+                fputc(10, file);
+            for (unsigned int k = 0; k < (*it).m_generateInfos.size(); ++k)
                 fprintf(file, "%d %d\n",
-                        it->m_generateInfos[k].m_field00,
-                        it->m_generateInfos[k].m_field04);
-            fputc('\n', file);
+                        (*it).m_generateInfos[k].m_field00,
+                        (*it).m_generateInfos[k].m_field04);
+            fputc(10, file);
         }
         fwrite("[/item]\n", 1, 8, file);
     }
     if (!script->m_listSpecialPassive.empty())  // +0x58 [special passive object]
     {
         fwrite("[special passive object]\n", 1, 25, file);
-        for (std::list<STAssignSpecialPassiveObj>::const_iterator it =
+        for (std::list<STAssignSpecialPassiveObj>::iterator it =
                  script->m_listSpecialPassive.begin();
-             it != script->m_listSpecialPassive.end(); ++it)
+             it != script->m_listSpecialPassive.end(); it++)
         {
-            if (it->m_vec10.size() == 0)
+            STAssignSpecialPassiveObj* p = &*it;            // 单次 de，后续全用指针
+            if (p->m_vec10.size() == 0)
                 fprintf(file, "%d %d %d %d %d\n",
-                        it->m_0, it->m_4, it->m_8, it->m_c,
-                        static_cast<int>(it->m_vec10.size()));
+                        p->m_0, p->m_4, p->m_8, p->m_c,
+                        static_cast<int>(p->m_vec10.size()));
             else
             {
                 fprintf(file, "%d %d %d %d\n",
-                        it->m_0, it->m_4, it->m_8, it->m_c);
-                fprintf(file, "%d\n", static_cast<int>(it->m_vec10.size()));
+                        p->m_0, p->m_4, p->m_8, p->m_c);
+                fprintf(file, "%d\n", static_cast<int>(p->m_vec10.size()));
             }
-            for (size_t k = 0; k < it->m_vec10.size(); ++k)
+            for (unsigned int k = 0; k < p->m_vec10.size(); ++k)
             {
-                const SPOBJ_ACTION_DATAS& act = it->m_vec10[k];
-                static const char* const actionHeads[4] = {
-                    "`[monster]` ", "`[trap]` ", "`[item]` ", "`[quest]` "
-                };
+                int* act = reinterpret_cast<int*>(&p->m_vec10[k]);
                 for (int j = 0; j < 6; ++j)
                 {
-                    int v = (j == 0) ? act.m_type :
-                            (j == 1) ? act.m_4 :
-                            (j == 2) ? act.m_8 :
-                            (j == 3) ? act.m_c :
-                            (j == 4) ? act.m_10 : act.m_14;
                     if (j == 0)
                     {
-                        if (v >= 0 && v <= 3)
-                            fwrite(actionHeads[v], 1,
-                                   v == 0 ? 12 : (v == 3 ? 10 : 9), file);
+                        if (*act == 0)
+                            fwrite("`[monster]` ", 1, 0xc, file);
+                        else if (*act == 1)
+                            fwrite("`[trap]` ", 1, 9, file);
+                        else if (*act == 2)
+                            fwrite("`[item]` ", 1, 9, file);
+                        else if (*act == 3)
+                            fwrite("`[quest]` ", 1, 10, file);
                     }
                     else
-                        fprintf(file, "%d ", v);
+                        fprintf(file, "%d ", act[j]);
                 }
-                fputc('\n', file);
+                fputc(10, file);
             }
         }
         fwrite("[/special passive object]\n", 1, 26, file);
@@ -2704,42 +3363,54 @@ bool ExportMapScript(STMapScript* script, const char* path)
     if (!script->m_vecNpc.empty())              // +0x60 [NPC]
     {
         fwrite("[NPC]\n", 1, 6, file);
-        for (size_t i = 0; i < script->m_vecNpc.size(); ++i)
+        for (std::vector<AssignNpc>::iterator it = script->m_vecNpc.begin();
+             it != script->m_vecNpc.end(); it++)
         {
-            const AssignNpc& npc = script->m_vecNpc[i];
-            std::string dirTok;
-            dirTok = (npc.m_dir == 0) ? "`[left]`" : "`[right]`";
+            std::string dirTok;                             // local_110（每轮 ctor/dtor）
+            if ((*it).m_dir == 0)
+                dirTok = "`[left]`";
+            else
+                dirTok = "`[right]`";
             fprintf(file, "%d %s %d %d %d\n",
-                    npc.m_npcIdx, dirTok.c_str(),
-                    npc.m_x, npc.m_y, npc.m_z);
+                    (*it).m_npcIdx, dirTok.c_str(),
+                    (*it).m_x, (*it).m_y, (*it).m_z);
         }
         fwrite("[/NPC]\n", 1, 7, file);
     }
     if (script->m_vecMonsterSpawnPos.size() == 0)   // +0x250 空 → ai character?
     {
-        if (!script->m_vecAICharacter.empty())      // +0x25c [ai character]
+        if (script->m_vecAICharacter.size() != 0)   // +0x25c [ai character]
         {
             fwrite("[ai character]\n", 1, 15, file);
-            for (size_t i = 0; i < script->m_vecAICharacter.size(); ++i)
+            for (unsigned int i = 0; i < script->m_vecAICharacter.size(); ++i)
             {
-                const STAICharacterMapArrangeData& ai = script->m_vecAICharacter[i];
                 fprintf(file, "%d %d %d %d ",
-                        ai.m_type, ai.m_field04, ai.m_field08, ai.m_field0c);
-                if (ai.m_camp == 0)
+                        script->m_vecAICharacter[i].m_type,
+                        script->m_vecAICharacter[i].m_field04,
+                        script->m_vecAICharacter[i].m_field08,
+                        script->m_vecAICharacter[i].m_field0c);
+                if (script->m_vecAICharacter[i].m_camp == 0)
                     fwrite("`[character]`", 1, 13, file);
-                else if (ai.m_camp == 100)
+                else if (script->m_vecAICharacter[i].m_camp == 100)
                     fwrite("`[monster]`", 1, 11, file);
-                else if (ai.m_camp == 200)
+                else if (script->m_vecAICharacter[i].m_camp == 200)
                     fwrite("`[neutral]`", 1, 11, file);
                 fputc(' ', file);
-                if (ai.m_roleType == 5)          fwrite("`[normal]`", 1, 10, file);
-                else if (ai.m_roleType == 6)     fwrite("`[champion]`", 1, 12, file);
-                else if (ai.m_roleType == 7)     fwrite("`[super champion]`", 1, 18, file);
-                else if (ai.m_roleType == 8)     fwrite("`[boss]`", 1, 8, file);
-                else                             fwrite("`[normal]`", 1, 10, file);
+                if (script->m_vecAICharacter[i].m_roleType == 5)
+                    fwrite("`[normal]`", 1, 10, file);
+                else if (script->m_vecAICharacter[i].m_roleType == 6)
+                    fwrite("`[champion]`", 1, 12, file);
+                else if (script->m_vecAICharacter[i].m_roleType == 7)
+                    fwrite("`[super champion]`", 1, 18, file);
+                else if (script->m_vecAICharacter[i].m_roleType == 8)
+                    fwrite("`[boss]`", 1, 8, file);
+                else
+                    fwrite("`[normal]`", 1, 10, file);
                 fputc(' ', file);
-                fprintf(file, "%d %d\n",
-                        static_cast<int>(ai.m_posX), static_cast<int>(ai.m_posY));
+                fprintf(file, "%d %d",
+                        static_cast<int>(script->m_vecAICharacter[i].m_posX),
+                        static_cast<int>(script->m_vecAICharacter[i].m_posY));
+                fputc(10, file);
             }
             fwrite("[/ai character]\n", 1, 16, file);
         }
@@ -2748,7 +3419,7 @@ bool ExportMapScript(STMapScript* script, const char* path)
     {
         fwrite("[monster spawn pos]\n", 1, 20, file);
         fprintf(file, "%d\n", static_cast<int>(script->m_vecMonsterSpawnPos.size()));
-        for (size_t i = 0; i < script->m_vecMonsterSpawnPos.size(); ++i)
+        for (unsigned int i = 0; i < script->m_vecMonsterSpawnPos.size(); ++i)
             fprintf(file, "%d %d %d\n",
                     script->m_vecMonsterSpawnPos[i].m_field00,
                     script->m_vecMonsterSpawnPos[i].m_field04,
@@ -2773,21 +3444,24 @@ bool ExportMapScript(STMapScript* script, const char* path)
     else                                        // [event monster position]
     {
         fwrite("[event monster position]\n", 1, 25, file);
-        for (size_t i = 0; i < script->m_vecEventMonsterPos.size(); ++i)
-            fprintf(file, "%d %d %d\n",
-                    script->m_vecEventMonsterPos[i].m_field00,
-                    script->m_vecEventMonsterPos[i].m_field04,
-                    script->m_vecEventMonsterPos[i].m_field08);
+        for (unsigned int i = 0; i < script->m_vecEventMonsterPos.size(); ++i)
+        {
+            STRivalMapData* p = &script->m_vecEventMonsterPos[i];  // 单次 ix
+            fprintf(file, "%d %d %d\n", p->m_field00, p->m_field04, p->m_field08);
+        }
         fwrite("[/event monster position]\n", 1, 26, file);
     }
     if (!script->m_vecStaticStartPos.empty())   // +0x2e8
     {
         fwrite("[static player start pos]\n", 1, 26, file);
-        for (int i = 0; i < 4 && i < static_cast<int>(script->m_vecStaticStartPos.size()); ++i)
+        for (int i = 0; i < 4; ++i)
         {
-            const StaticStartPos& pos = script->m_vecStaticStartPos[i];
-            fprintf(file, "\t[player %d] %d %d %d\n",
-                    pos.m_playerIdx + 1, pos.m_x, pos.m_y, pos.m_z);
+            if (static_cast<unsigned int>(i) < script->m_vecStaticStartPos.size())
+                fprintf(file, "\t[player %d] %d %d %d\n",
+                        script->m_vecStaticStartPos[i].m_playerIdx + 1,
+                        script->m_vecStaticStartPos[i].m_x,
+                        script->m_vecStaticStartPos[i].m_y,
+                        script->m_vecStaticStartPos[i].m_z);
         }
         fwrite("[/static player start pos]\n", 1, 27, file);
     }

@@ -46,17 +46,6 @@ int importSpPerLevelReferenceTable(const char* path, stSpPerLevelTable& table);
 namespace
 {
 
-// set_reward_sp 目标表视图：ORIG 以 this+8 为基址的 uint 数组、下标
-// 0x36a2+i 寻址（即绝对偏移 +0xDA10 起 96 项，等级→SP 表）。该区域超出
-// 当前权威头已建模成员区（尾成员止于 +0xb678），按仓库既有局部视图惯例
-// （CItemList.cpp 的 CDataManagerExt）访问，待布局批次并入权威头。
-class CDataManagerRewardSpView
-{
-public:
-    char m_pad[8];
-    unsigned int m_spTable[0x4000];   // this+8 起（set_reward_sp 用 [0x36a2..0x3702)）
-};
-
 // initRandomOptionItem 访问视图（与 CItemList.cpp 的 CDataManagerExt 同一
 // 证据链：insert_item 写 +0x4e70；initRandomOptionItem 读 +0x4e70/+0x4e88）。
 class CDataManagerBaseItemView
@@ -71,7 +60,7 @@ public:
 
 // ===================== set_reward_sp =====================
 // ORIG 0x08360bde：导入 Etc/spTable.etc 至局部 stSpPerLevelTable；
-// 导入失败返回 0。成功时将 +0xDA10 表清零后自 index1 起回填表值
+// 导入失败返回 0。成功时将 +0xDA94 表清零后自 index1 起回填表值
 // （index0 恒为 0），返回 1。逐次重读 this（与 O0 成员访问一致）。
 int CDataManager::set_reward_sp()
 {
@@ -82,12 +71,11 @@ int CDataManager::set_reward_sp()
     }
     for (int i = 0; i < 0x60; ++i)
     {
-        ((CDataManagerRewardSpView*)this)->m_spTable[i + 0x36a2] = 0;
+        ((CDataManagerRewardSpView*)this)->m_spAtLevelUp[i] = 0;
     }
     for (unsigned long i = 1; i < 0x60; ++i)
     {
-        ((CDataManagerRewardSpView*)this)->m_spTable[i + 0x36a2] =
-            table[i];
+        ((CDataManagerRewardSpView*)this)->m_spAtLevelUp[i] = table[i];
     }
     return 1;
 }

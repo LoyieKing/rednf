@@ -30,6 +30,8 @@ extern int LineFunc(int, const char*, int, unsigned int);
 
 #include <ctime>
 
+#include <cstring>
+
 #include <algorithm>
 
 #include "CDataManager.h"
@@ -242,8 +244,13 @@ void Dispatcher_UseVendingMachine::_putItemIntoUser(
             const char* characName = chi->getCurCharacName();
             for (size_t e = 0; e < eff.size(); ++e)
             {
+                // ORIG 0x0821b953：把 stGlobalEffect_t +0x04 按 float
+                // 读取，而非将该 int 数值转换为 float。该槽由
+                // createGlobalEffectInfo 保留脚本中的 IEEE-754 位模式。
+                float value;
+                std::memcpy(&value, &eff[e].m_field4, sizeof(value));
                 GlobalData::s_globalEffectManager_->registNewEffect(
-                    (unsigned int)eff[e].m_field0, eff[e].m_field4, characName, 5,
+                    (unsigned int)eff[e].m_field0, value, characName, 5,
                     (long)eff[e].m_field8);
             }
             slot = -1;
@@ -258,7 +265,7 @@ void Dispatcher_UseVendingMachine::_putItemIntoUser(
             int usablePeriod = item->getUsablePeriod();
             CInventory* invW = chi->getCurCharacInvenW();
             slot = (short)invW->AddAvatarItem((int)itemIdx, usablePeriod, /*b*/0, /*c*/0,
-                                              /*d*/0, ipg, (eAvatarItemAddReason)0xe,
+                                              /*d*/(char)-1, ipg, (eAvatarItemAddReason)0xe,
                                               /*e*/0, /*f*/(unsigned short)0);
             result.m_result = 1;
         }
@@ -281,8 +288,10 @@ void Dispatcher_UseVendingMachine::_putItemIntoUser(
                         invW2->GetCreatureMgrW()->InsertCreatureItem(&outItem, (int)slot,
                                                                      0x23, usable, expire);
                     }
+                    // ORIG 0x0821bc0d：仅 SetEggItem 成功后才标记结果类型 7；
+                    // 转换失败或非 creature equipment 直接沿用默认结果类型 0。
+                    result.m_result = 7;
                 }
-                result.m_result = 7;
             }
         }
         else
@@ -402,18 +411,27 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         if (slot == 0)
         {
-            // 选给物品；若非特殊有效则重选（最多 2 次，仍-1 则放弃该槽）
-            for (int attempt = 0; attempt < 3; ++attempt)
+            // ORIG 只在“全局效果已存在”的特殊物品上重抽；普通物品、
+            // 无效物品指针以及全局效果为空时均保留原选择。
+            unsigned int retry = 0;
+            do
             {
+                if (retry > 2)
+                    break;  // ORIG 此处抛 ENUM_ERROR(1)
                 Inven_Item picked = _getGiveItem(info);
                 give[slot] = picked;
                 if (give[slot].m_addInfo == -1)
                     break;
                 CItem* git = G_CDataManager()->find_item(give[slot].m_addInfo);
-                if (git != 0 && git->GetItemType() == 0x17)
-                    continue;   // 特殊物品，重选
-                break;          // 普通物品即采用
-            }
+                if (git != 0 && git->GetItemType() == 0x17 &&
+                    GlobalData::s_globalEffectManager_ != 0 &&
+                    GlobalData::s_globalEffectManager_->getEffectNum() != 0)
+                {
+                    give[slot].m_addInfo = -1;
+                    give[slot].m_addInfo2 = 0;
+                    ++retry;
+                }
+            } while (give[slot].m_addInfo == -1);
         }
         else
         {
@@ -504,11 +522,15 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
     for (int i = 0; i < 2; ++i)
         _putItemIntoUser(user, give[i].m_addInfo, give[i].m_addInfo2, result[i]);
 
-    for (int i = 0; i < 2; ++i)
+    // ORIG：首个给物品失败时，以给物品表的第一项再尝试一次；随后仅
+    // 对首项按 (itemIdx != -1 && count != 0) 触发延迟通知。
+    if (result[0].m_success != 1 && !info->m_vecGive.empty())
     {
-        if (result[i].m_itemIdx != 0xffffffffUL && result[i].m_count != 0)
-            _notifyItemInfo(info, user, result[i]);
+        const stVendingMachineOutput_t& fallback = info->m_vecGive.front();
+        _putItemIntoUser(user, fallback.m_itemId, fallback.m_count, result[0]);
     }
+    if (result[0].m_itemIdx != 0xffffffffUL && result[0].m_count != 0)
+        _notifyItemInfo(info, user, result[0]);
 
     // 回包：header 0xda
     PacketGuard resp;
