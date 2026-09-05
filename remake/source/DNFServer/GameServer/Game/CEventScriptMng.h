@@ -217,8 +217,8 @@ class CAddItemCountDB : public CEventEntity
 public:
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810e064
     virtual std::string& get_db_table_name();               // slot 8 0x810e15a：m_script+0x20
-    int is_event_item(int itemId);                   // 0x810e08e
-    int is_event_quest(int questId);                 // 0x810e0f4
+    bool is_event_item(int itemId);                  // 0x810e08e
+    bool is_event_quest(int questId);                // 0x810e0f4
 protected:
     InGameEventScript* m_script1c;                   // +0x1c
 };

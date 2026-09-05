@@ -136,12 +136,12 @@ int CBingo::calNewValue(unsigned int& board, int idx)
     {
         return -1;
     }
-    if (isSetBit_Uint(board, index))
+    if (!isSetBit_Uint(board, index))
     {
-        return 0;
+        setBit_Uint(board, true, index);
+        return calBoradMatchLine(static_cast<int>(board));
     }
-    setBit_Uint(board, true, index);
-    return calBoradMatchLine(static_cast<int>(board));
+    return 0;
 }
 
 // getToday @ 0x080ca936（docs/class_func_reports/CBingo/getToday.md）：返回 this+0x18。
@@ -160,13 +160,13 @@ int CBingo::getToday(long sec, int hourLimit)
     struct tm tmYest;
     struct tm* today = localtime_r(&sec, &tmToday);
     struct tm* yest = localtime_r(&yesterday, &tmYest);
-    if (today->tm_hour < 0 || hourLimit <= today->tm_hour)
+    if (today->tm_hour >= 0 && hourLimit > today->tm_hour)
     {
-        m_today = today->tm_mday;
+        m_today = yest->tm_mday;
     }
     else
     {
-        m_today = yest->tm_mday;
+        m_today = today->tm_mday;
     }
     return m_today;
 }
@@ -212,13 +212,9 @@ int CBingo::resetQuiz(int day)
 int CBingo::getBingoRandomVaule(int param_1)
 {
     unsigned long range = 9;
-    int iVar1 = m_rand->randInt(range);
-    iVar1 = iVar1 - 9 + param_1;
-    if (iVar1 < 1 || iVar1 > 0x32)
-    {
-        return 0;
-    }
-    return iVar1;
+    int iVar1 = m_rand->randInt(range) + 1;
+    iVar1 = iVar1 - 10 + param_1;
+    return (iVar1 <= 0 || iVar1 > 0x32) ? 0 : iVar1;
 }
 
 

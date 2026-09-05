@@ -58,8 +58,8 @@ struct combo_script_key
     void clear() { m_job = 0xb; m_growType = 0; }
     bool operator<(const combo_script_key& other) const
     {
-        if (m_job != other.m_job) return m_job < other.m_job;
-        return m_growType < other.m_growType;
+        if (m_job == other.m_job) return m_growType < other.m_growType;
+        return m_job < other.m_job;
     }
 };
 

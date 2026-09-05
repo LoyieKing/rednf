@@ -572,6 +572,13 @@ bool GameWorld::IsPVPChannel() const
     register unsigned int ct asm("eax") = (unsigned int)m_channelType;
     if (ct <= 0x10)
     {
+        // 实测封顶（N7 立即数双段物化）：ORIG 0x081424f7 `mov $0x1,%edx` +
+        // 0x081424fc `mov %edx,%ebx` 是 4.1 的 scratch→目标两段形态。
+        // 已试且全部否决的三种写法：① 不绑寄存器 → 4.4 在移位处重新装载
+        // m_channelType（ndiff 11）；② 只绑 ct 到 %eax、one 自由 → 同上；
+        // ③ 双绑定复现两段（t 绑 %edx + one 绑 %ebx）→ 确实产出那两条，
+        //    但 4.4 另插一条 `mov %ebx,%edx` 且 cmp 仍走 %edx，反而更差。
+        // 当前形态（ct 绑 %eax + one 绑 %edx）余 3 行，已是本族最优 ⇒ 记 N7。
         register unsigned int one asm("edx") = 1;
         if (((one << ct) & 0x1e7f0) != 0)
             return true;

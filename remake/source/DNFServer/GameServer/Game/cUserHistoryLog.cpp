@@ -84,6 +84,7 @@ void cUserHistoryLog::seal_Item(int itemIdx, short count, eSealItemReason reason
 {
     if (m_user != 0)
         m_user->LogHistory("SealItem ,%d,%d,%d", itemIdx, (int)count, (int)reason);
+    return;
 }
 
 // ORIG 0x08686f1e（DeleteInvaildItem.md）：直接以 m_user 调 LogHistory
@@ -654,7 +655,7 @@ void cUserHistoryLog::Logout(const char* a, const char* b, int c, int d, int e,
     m_user->LogHistory("IP-,%s,%d,%d,%d,%d,%d,%p",
                        b, c, d, static_cast<int>(f),
                        G_CEnvironment()->get_server_group(), e,
-                       (const void*)this);
+                       (const void*)m_user);
 }
 
 // RecvMail：ORIG 0x86848a8。"MailR,%d,\"%s\",\"%s\""
@@ -670,6 +671,7 @@ void cUserHistoryLog::ChangeItemLimitCount(int a, int b, int itemIdx, int d, int
 {
     if (m_user != 0)
         m_user->LogHistory("ChangeItemTradeLimitCount,%d,%d,%d,%d,%d", a, b, itemIdx, d, e);
+    return;
 }
 
 void cUserHistoryLog::TradeBegin()
@@ -746,6 +748,7 @@ void cUserHistoryLog::apply_Item(int a, int b, eApplyItemReason reason)
 {
     if (m_user)
         m_user->LogHistory("ApplyItem ,%d,%d,%d", a, b, static_cast<int>(reason));
+    return;
 }
 
 // UseSelectBooster(unsigned int,int,int,std::vector<Inven_Item>&)：ORIG 0x8686b52。
@@ -846,13 +849,15 @@ void cUserHistoryLog::KillMonster(int mobIndex, unsigned int killValue1,
 // ORIG T 0x868455a（报告全文）："Private Store+,%d,%d"
 void cUserHistoryLog::CreatePrivateStore(int zoneA, int zoneB, char const* name)
 {
-    m_user->LogHistory("Private Store+,%d,%d", zoneA, zoneB, name);
+    // ORIG vararg 只压 zoneA+zoneB 两个实参（0xc/0x10(%esp)），format "%d,%d"，
+    // 不传 name；多余 name 实参是 ORIG 未有的（移除以匹配 0x18 帧）。
+    m_user->LogHistory("Private Store+,%d,%d", zoneA, zoneB);
 }
 
 // ORIG T 0x8684586（报告全文）："Private Store-,%d,%d"
 void cUserHistoryLog::RemovePrivateStore(int zoneA, int zoneB, char const* name)
 {
-    m_user->LogHistory("Private Store-,%d,%d", zoneA, zoneB, name);
+    m_user->LogHistory("Private Store-,%d,%d", zoneA, zoneB);
 }
 
 // ORIG T 0x868433e（报告全文）："Item+,..."
@@ -1137,8 +1142,11 @@ void cUserHistoryLog::EndRidable(eRidableType type, int a)
 //   日志第三参数与判断均用 reason（reasonIdx 未参与）。
 void cUserHistoryLog::ExpAdd(int exp, int sp, eExpAddReason reason, int reasonIdx)
 {
+    // N6: ORIG 4.1 `(1u<<reason)&0x1892`(shl;and 0x1892), 4.4 前端恒折为
+    // `(0x1892>>reason)&1`(shr;and 1)，语义等价；局部变量阻断会引入 store/load
+    // + 帧膨胀，历 N6 判据放弃。保留内联折叠形。
     if ((0xc < (unsigned)reason) ||
-        (((1u << ((unsigned char)reason & 0x1f)) & 0x1892U) == 0))
+        (((1u << (unsigned int)reason) & 0x1892U) == 0))
     {
         m_user->LogHistory("Exp+,%d,%d,%d", exp, sp, reason);
     }
@@ -1354,6 +1362,7 @@ void cUserHistoryLog::SelectCubeForPremiumService(int a)
 {
     if (m_user != 0)
         m_user->LogHistory("SelectCubeForPremiumService,%d", a);
+    return;
 }
 
 // ORIG _ZN15cUserHistoryLog21SendBuffertoClientLogEishb @0x08686e3a
@@ -1386,6 +1395,7 @@ void cUserHistoryLog::UseAvatarOptionChange(int a, int b, int c, int d)
 {
     if (m_user != 0)
         m_user->LogHistory("UseAvatarOptionChange,%d,%d,%d,%d", a, b, c, d);
+    return;
 }
 
 // ORIG _ZN15cUserHistoryLog6UseDyeEiiiRKSsi @0x08686cba
@@ -1393,6 +1403,7 @@ void cUserHistoryLog::UseDye(int a, int b, int c, const std::string& dyeName, in
 {
     if (m_user != 0)
         m_user->LogHistory("UseDye ,%d,%d,%d,%s,%d", a, b, c, dyeName.c_str(), d);
+    return;
 }
 
 // ---- 物品网格坐标视图：ORIG 存于 this+0x40/+0x42（类尾部 m_pad 区）， ----

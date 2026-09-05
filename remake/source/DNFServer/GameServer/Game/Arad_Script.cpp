@@ -169,9 +169,7 @@ double Arad_Script::GetDouble(int row, char* col)
 
 char* Arad_Script::GetString(int row, int col)
 {
-    char* local_c;
-    local_c = cells_ + ((cols_ * row + col) << 7);
-    return local_c;
+    return cells_ + ((cols_ * row + col) << 7);
 }
 
 char* Arad_Script::GetString(char* row, char* col)

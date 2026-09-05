@@ -55,11 +55,12 @@ extern void save_pid();                                                 // ORIG 
 // 的 delete+Unwind cleanup（0x0829a4f3 等 pad，实测 probe 确认）。
 ThreadInterface::ThreadInterface() {}
 
-// ORIG T 0x08630c46：pthread_join(m_tid)，返回 rc!=0。
+// ORIG T 0x08630c46：pthread_join(m_tid)，成功(rc==0)返回 1、失败返回 0。
 int ThreadInterface::join()
 {
-    int rc = pthread_join(m_tid, 0);
-    return rc != 0;
+    if (pthread_join(m_tid, 0) != 0)
+        return 0;
+    return 1;
 }
 
 // ORIG W 0x082a4218（非 const）：读 +8（m_tidCopy）。
@@ -75,15 +76,15 @@ unsigned long ThreadInterface::getThreadID()
 // ORIG T 0x08a9d7a6：m_skillIdx<=level<=m_value 区间判定。
 bool TagSkillPenalty::isPenaltyLevel(int level)
 {
-    if (level < m_skillIdx || m_value < level)
-        return false;
-    return true;
+    if (m_skillIdx <= level && level <= m_value)
+        return true;
+    return false;
 }
 
 // ORIG T 0x08a9d81a：m_type == type。
 bool StrikerDirectionType::isType(T type)
 {
-    if (m_type == static_cast<int>(type))
+    if (m_type == type)
         return true;
     return false;
 }
@@ -154,7 +155,11 @@ int checkGetItemPacket(int a, int b, int c)
     const bool oddSum = (sum & 1) != 0;
     if (oddA && oddSum)
         return 0;
-    return 1;
+    if (!oddA)
+        return 1;
+    if (!oddSum)
+        return 1;
+    return 0;
 }
 
 // ============================================================================
@@ -225,17 +230,20 @@ void get_str_time(char* out, int c, char sep)
 }
 
 // ORIG T 0x086b1c7c：12 次 get_rand_int(100) 求和 → /100（截断）→
-// 距中值 (n/2) 的偏移 + 0.45f 截断后 + n。
+// 距中值 (n/2) 的偏移 * 0.95f 截断后 + n（0x3f733333=0.95f；原码久错 0.45f 已改）。
 int get_regular_rand(int n)
 {
-    const int rounds = 0xc;
+    int rounds = 0xc;
     int sum = 0;
-    for (int i = 0; i < rounds; ++i)
+    int centered = 0;
+    float factor = 0.95f;
+    int i = 0;
+    for (; i < rounds; ++i)
         sum += get_rand_int(100);
     sum /= 100;
-    int centered = sum - (rounds / 2);
-    int v = static_cast<int>(static_cast<float>(centered) * 0.45f);
-    return v + n;
+    centered = sum - (rounds / 2);
+    centered = static_cast<int>(static_cast<float>(centered) * factor);
+    return centered + n;
 }
 
 // ORIG T 0x0829e8b9：argv[2]（argv+8 处指针）为 "start"/"start_all" 时
@@ -244,19 +252,17 @@ int get_regular_rand(int n)
 int daemon_init(char** argv)
 {
     const char* arg = argv[2];
-    if (strcmp(arg, "start") != 0 && strcmp(arg, "start_all") != 0)
+    if (strcmp(arg, "start") == 0 || strcmp(arg, "start_all") == 0)
     {
-        save_pid();
-        return 0;
+        const int pid = fork();
+        if (pid < 0)
+            return -1;
+        if (pid != 0)
+            exit(0);
+        setsid();
+        chdir("./");
+        umask(0);
     }
-    const int pid = fork();
-    if (pid < 0)
-        return -1;
-    if (pid > 0)
-        exit(0);
-    setsid();
-    chdir("./");
-    umask(0);
     save_pid();
     return 0;
 }
@@ -387,15 +393,16 @@ int getRevisionToEnumValue(const std::string& s)
 // 2→0、6→1、7→2、9→3、11→4、其余 -1。
 int getActiveStatusDamageIndex(ENUM_ACTIVESTATUS status)
 {
+    int result = -1;
     switch (static_cast<int>(status))
     {
-    case 2:  return 0;
-    case 6:  return 1;
-    case 7:  return 2;
-    case 9:  return 3;
-    case 11: return 4;
-    default: return -1;
+    case 2:  result = 0; break;
+    case 6:  result = 1; break;
+    case 7:  result = 2; break;
+    case 9:  result = 3; break;
+    case 11: result = 4; break;
     }
+    return result;
 }
 
 // ORIG T 0x089c2a81："jump attack"→0、否则 1。

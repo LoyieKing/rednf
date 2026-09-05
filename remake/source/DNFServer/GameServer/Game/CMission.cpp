@@ -255,7 +255,7 @@ bool CMission_winning_count::isSeriesMission() const
 int CMission_winning_count::Update(MissionInfo& info,
                                    const MissionClearCondition_Parameter&) const
 {
-    info.m_count += 1;
+    ++info.m_count;
     return 1;
 }
 
@@ -312,10 +312,10 @@ int CMission_winning_streak::Update(
 {
     if (param.m_victory & 1)
     {
-        info.m_streak -= 1;
+        --info.m_streak;
         if (info.m_streak < 1)
         {
-            info.m_count += 1;
+            ++info.m_count;
             info.m_streak = (short)m_streak;
         }
     }
@@ -379,7 +379,7 @@ bool CMission_join::isSeriesMission() const
 int CMission_join::Update(MissionInfo& info,
                           const MissionClearCondition_Parameter&) const
 {
-    info.m_count += 1;
+    ++info.m_count;
     return 1;
 }
 
@@ -436,7 +436,7 @@ bool CMission_kill_count::isSeriesMission() const
 int CMission_kill_count::Update(MissionInfo& info,
                                 const MissionClearCondition_Parameter&) const
 {
-    info.m_count += 1;
+    ++info.m_count;
     return 1;
 }
 
@@ -478,7 +478,7 @@ bool CMission_hereafter_join::isSeriesMission() const
 int CMission_hereafter_join::Update(MissionInfo& info,
                                     const MissionClearCondition_Parameter&) const
 {
-    info.m_count += 1;
+    ++info.m_count;
     return 1;
 }
 
@@ -529,7 +529,7 @@ bool CMission_hereafter_winning_count::isSeriesMission() const
 int CMission_hereafter_winning_count::Update(
     MissionInfo& info, const MissionClearCondition_Parameter&) const
 {
-    info.m_count += 1;
+    ++info.m_count;
     return 1;
 }
 
@@ -572,7 +572,7 @@ bool CMission_remain_hp::isSeriesMission() const
 int CMission_remain_hp::Update(MissionInfo& info,
                                const MissionClearCondition_Parameter&) const
 {
-    info.m_count += 1;
+    ++info.m_count;
     return 1;
 }
 
@@ -676,7 +676,7 @@ bool CMission_hereafter_kill_count::isSeriesMission() const
 int CMission_hereafter_kill_count::Update(
     MissionInfo& info, const MissionClearCondition_Parameter&) const
 {
-    info.m_count += 1;
+    ++info.m_count;
     return 1;
 }
 
@@ -728,7 +728,7 @@ bool CMission_kill::isSeriesMission() const
 int CMission_kill::Update(MissionInfo& info,
                           const MissionClearCondition_Parameter&) const
 {
-    info.m_count += 1;
+    ++info.m_count;
     return 1;
 }
 
@@ -772,22 +772,19 @@ bool CMission_within::_isAcceptCondition(const CUser& user) const
 
 bool CMission_within::isClearable(MissionInfo& info, bool& clear) const
 {
-    int count = 0;
+    short count = 0;
     for (int i = 0; i < m_round; i++)
     {
         if (((int)info.m_count >> i) & 1) count++;
     }
-    if (count < m_clear)
+    if (count >= m_clear) return 1;
+    if ((m_round - (int)info.m_streak) + count < m_clear)
     {
-        if ((m_round - (int)info.m_streak) + count < m_clear)
-        {
-            info.m_count = 0;
-            info.m_streak = 0;
-            clear = true;
-        }
-        return 0;
+        info.m_count = 0;
+        info.m_streak = 0;
+        clear = true;
     }
-    return 1;
+    return 0;
 }
 
 bool CMission_within::verifyMission(const MissionInfo&) const
@@ -806,7 +803,7 @@ int CMission_within::Update(MissionInfo& info,
     info.m_count = (short)((int)info.m_count * 2);
     info.m_count = (short)(info.m_count +
                            ((param.m_victory & 1) ? 1 : 0));
-    info.m_streak += 1;
+    ++info.m_streak;
     return 1;
 }
 
@@ -834,7 +831,8 @@ bool CMission_remains_hp::_isAcceptCondition(const CUser& user) const
     CMissionList_Charac* list =
         (CMissionList_Charac*)user.GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)8);
     if (list->isClearMission(GetMissionIndex())) return 0;
-    return user.get_charac_job() == m_job;
+    if (user.get_charac_job() == m_job) return true;
+    return false;
 }
 
 bool CMission_remains_hp::isClearable(MissionInfo& info, bool&) const
@@ -859,7 +857,7 @@ bool CMission_remains_hp::isSeriesMission() const
 int CMission_remains_hp::Update(MissionInfo& info,
                                 const MissionClearCondition_Parameter&) const
 {
-    info.m_count += 1;
+    ++info.m_count;
     return 1;
 }
 

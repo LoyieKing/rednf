@@ -328,9 +328,9 @@ char CharString::front() const
 
 char CharString::back() const
 {
-    if (!length())
-        return '\0';
-    return buffer_[length() - 1];
+    if (length())
+        return buffer_[length() - 1];
+    return '\0';
 }
 
 CharString::const_iterator CharString::begin() const
@@ -470,19 +470,16 @@ int CharString::find(const char* pat, int patLength) const
 
 int CharString::find(int pos, const char* pat, int patLength) const
 {
-    if (patLength != 0)
+    if (patLength == 0)
+        return -1;
+    if (pos < 0 || length() - pos < patLength)
+        return -1;
+    const char* strBuf = c_str();
+    int endPos = length() - patLength;
+    for (int thisPos = pos; thisPos <= endPos; ++thisPos)
     {
-        bool invalid = (pos < 0) || (length() - pos < patLength);
-        if (!invalid)
-        {
-            const char* strBuf = c_str();
-            int endPos = length();
-            for (int thisPos = pos; thisPos <= endPos - patLength; ++thisPos)
-            {
-                if (memcmp(strBuf + thisPos, pat, patLength) == 0)
-                    return thisPos;
-            }
-        }
+        if (memcmp(strBuf + thisPos, pat, patLength) == 0)
+            return thisPos;
     }
     return -1;
 }
@@ -504,20 +501,17 @@ int CharString::find(char pat) const
 
 int CharString::find(int pos, char pat) const
 {
-    if (pat != '\0')
+    if (pat == '\0')
+        return -1;
+    if (pos < 0 || length() <= pos)
+        return -1;
+    const char* strBuf = c_str();
+    int endPos = length() - 1;
+    // 注意：ORIG 此处固定用 strBuf[pos] 比较（保留原始行为）。
+    for (int thisPos = pos; thisPos <= endPos; ++thisPos)
     {
-        bool invalid = (pos < 0) || (length() <= pos);
-        if (!invalid)
-        {
-            const char* strBuf = c_str();
-            int endPos = length() - 1;
-            // 注意：ORIG 此处固定用 strBuf[pos] 比较（保留原始行为）。
-            for (int thisPos = pos; thisPos <= endPos; ++thisPos)
-            {
-                if (strBuf[pos] == pat)
-                    return thisPos;
-            }
-        }
+        if (strBuf[pos] == pat)
+            return thisPos;
     }
     return -1;
 }
@@ -540,18 +534,15 @@ int CharString::rfind(const char* pat, int patLength) const
 
 int CharString::rfind(int pos, const char* pat, int patLength) const
 {
-    if (patLength != 0)
+    if (patLength == 0)
+        return -1;
+    if (pos < 0 || length() - pos < patLength)
+        return -1;
+    const char* strBuf = c_str();
+    for (int thisPos = pos; thisPos > -1; --thisPos)
     {
-        bool invalid = (pos < 0) || (length() - pos < patLength);
-        if (!invalid)
-        {
-            const char* strBuf = c_str();
-            for (int thisPos = pos; thisPos > -1; --thisPos)
-            {
-                if (memcmp(strBuf + thisPos, pat, patLength) == 0)
-                    return thisPos;
-            }
-        }
+        if (memcmp(strBuf + thisPos, pat, patLength) == 0)
+            return thisPos;
     }
     return -1;
 }
@@ -574,18 +565,15 @@ int CharString::rfind(char pat) const
 
 int CharString::rfind(int pos, char pat) const
 {
-    if (pat != '\0')
+    if (pat == '\0')
+        return -1;
+    if (pos < 0 || length() <= pos)
+        return -1;
+    const char* strBuf = c_str();
+    for (int thisPos = pos; thisPos > -1; --thisPos)
     {
-        bool invalid = (pos < 0) || (length() <= pos);
-        if (!invalid)
-        {
-            const char* strBuf = c_str();
-            for (int thisPos = pos; thisPos > -1; --thisPos)
-            {
-                if (strBuf[thisPos] == pat)
-                    return thisPos;
-            }
-        }
+        if (strBuf[thisPos] == pat)
+            return thisPos;
     }
     return -1;
 }
@@ -1082,9 +1070,9 @@ wchar_t WideString::front() const
 
 wchar_t WideString::back() const
 {
-    if (!length())
-        return 0;
-    return buffer_[length() - 1];
+    if (length())
+        return buffer_[length() - 1];
+    return 0;
 }
 
 WideString::const_iterator WideString::begin() const
@@ -1224,19 +1212,16 @@ int WideString::find(const wchar_t* pat, int patLength) const
 
 int WideString::find(int pos, const wchar_t* pat, int patLength) const
 {
-    if (patLength != 0)
+    if (patLength == 0)
+        return -1;
+    if (pos < 0 || length() - pos < patLength)
+        return -1;
+    const wchar_t* strBuf = c_str();
+    int endPos = length() - patLength;
+    for (int thisPos = pos; thisPos <= endPos; ++thisPos)
     {
-        bool invalid = (pos < 0) || (length() - pos < patLength);
-        if (!invalid)
-        {
-            const wchar_t* strBuf = c_str();
-            int endPos = length();
-            for (int thisPos = pos; thisPos <= endPos - patLength; ++thisPos)
-            {
-                if (memcmp(strBuf + thisPos, pat, patLength * sizeof(wchar_t)) == 0)
-                    return thisPos;
-            }
-        }
+        if (memcmp(strBuf + thisPos, pat, patLength * sizeof(wchar_t)) == 0)
+            return thisPos;
     }
     return -1;
 }
@@ -1258,20 +1243,16 @@ int WideString::find(wchar_t pat) const
 
 int WideString::find(int pos, wchar_t pat) const
 {
-    if (pat != 0)
+    if (pat == 0)
+        return -1;
+    if (pos < 0 || length() <= pos)
+        return -1;
+    const wchar_t* strBuf = c_str();
+    int endPos = length() - 1;
+    for (int thisPos = pos; thisPos <= endPos; ++thisPos)
     {
-        bool invalid = (pos < 0) || (length() <= pos);
-        if (!invalid)
-        {
-            const wchar_t* strBuf = c_str();
-            int endPos = length() - 1;
-            // 注意：ORIG 此处固定用 strBuf[pos] 比较（保留原始行为）。
-            for (int thisPos = pos; thisPos <= endPos; ++thisPos)
-            {
-                if (strBuf[pos] == pat)
-                    return thisPos;
-            }
-        }
+        if (strBuf[thisPos] == pat)
+            return thisPos;
     }
     return -1;
 }
@@ -1294,18 +1275,15 @@ int WideString::rfind(const wchar_t* pat, int patLength) const
 
 int WideString::rfind(int pos, const wchar_t* pat, int patLength) const
 {
-    if (patLength != 0)
+    if (patLength == 0)
+        return -1;
+    if (pos < 0 || length() - pos < patLength)
+        return -1;
+    const wchar_t* strBuf = c_str();
+    for (int thisPos = pos; thisPos > -1; --thisPos)
     {
-        bool invalid = (pos < 0) || (length() - pos < patLength);
-        if (!invalid)
-        {
-            const wchar_t* strBuf = c_str();
-            for (int thisPos = pos; thisPos > -1; --thisPos)
-            {
-                if (memcmp(strBuf + thisPos, pat, patLength * sizeof(wchar_t)) == 0)
-                    return thisPos;
-            }
-        }
+        if (memcmp(strBuf + thisPos, pat, patLength * sizeof(wchar_t)) == 0)
+            return thisPos;
     }
     return -1;
 }
@@ -1328,18 +1306,15 @@ int WideString::rfind(wchar_t pat) const
 
 int WideString::rfind(int pos, wchar_t pat) const
 {
-    if (pat != 0)
+    if (pat == 0)
+        return -1;
+    if (pos < 0 || length() <= pos)
+        return -1;
+    const wchar_t* strBuf = c_str();
+    for (int thisPos = pos; thisPos > -1; --thisPos)
     {
-        bool invalid = (pos < 0) || (length() <= pos);
-        if (!invalid)
-        {
-            const wchar_t* strBuf = c_str();
-            for (int thisPos = pos; thisPos > -1; --thisPos)
-            {
-                if (strBuf[thisPos] == pat)
-                    return thisPos;
-            }
-        }
+        if (strBuf[thisPos] == pat)
+            return thisPos;
     }
     return -1;
 }
@@ -1664,7 +1639,6 @@ bool WideString::isuspace(wchar_t ch)
 bool WideString::isupunct(wchar_t ch)
 {
     // ORIG 0x08adcb50：条件为「不是 Unicode 标点」，命中返回 false，否则 true。
-    bool result;
     if (((((((((((ch < 0x21) || (0x23 < ch)) && ((ch < 0x25 || (0x2a < ch)))) &&
             ((((((ch < 0x2c || (0x2f < ch)) && (ch != 0x3a)) && ((ch != 0x3b && (ch != 0x3f)))) &&
               (ch != 0x40)) &&
@@ -1715,13 +1689,9 @@ bool WideString::isupunct(wchar_t ch)
                 (((ch != 0xff1b && (ch != 0xff1f)) &&
                  (((ch != 0xff20 && ((ch < 0xff3b || (0xff3d < ch)))) && (ch != 0xff3f)))))) &&
                (((ch != 0xff5b && (ch != 0xff5d)) && ((ch < 0xff5f || (0xff65 < ch)))))))))))))) {
-        result = false;
+        return false;
     }
-    else
-    {
-        result = true;
-    }
-    return result;
+    return true;
 }
 
 // ---- <global> 自由函数 ----

@@ -234,13 +234,15 @@ void EventClassify::CEventScriptMng::process_add_item_count_db(CUser* user,
                                                                int itemId,
                                                                int count)
 {
-    if (user == 0)
-        return;
-    CEventEntity* entity = get_event_entity(0x193);
-    if (entity == 0)
-        return;
-    if (static_cast<CAddItemCountDB*>(entity)->is_event_item(itemId) != 0)
-        user->IncCurCharacEventAddItemCount((unsigned short)count);
+    if (user != 0)
+    {
+        CEventEntity* entity = get_event_entity(0x193);
+        if (entity != 0)
+        {
+            if (static_cast<CAddItemCountDB*>(entity)->is_event_item(itemId))
+                user->IncCurCharacEventAddItemCount((unsigned short)count);
+        }
+    }
 }
 
 // ORIG 0x810b110：按事件类型取实体，并转发到实体的表名访问器。
@@ -269,27 +271,35 @@ void CEventScriptMng::process_account_first_login(
 // ORIG 0x810c110：活动 0x56 开启时更新用户服务器疲劳值。
 void CEventScriptMng::process_add_fatigue_count(CUser* user, int count)
 {
-    if (user != 0 && is_eventing(0x56))
-        user->set_server_fatigue_count((short)count);
+    if (user == 0)
+        return;
+    if (!is_eventing(0x56))
+        return;
+    user->set_server_fatigue_count((short)count);
 }
 
 // ORIG 0x810bf00：活动 0x193 的任务计数命中时累加一次物品计数。
 void CEventScriptMng::process_add_quest_count_db(CUser* user, int questId)
 {
-    if (user == 0)
-        return;
-
-    CAddItemCountDB* entity =
-        static_cast<CAddItemCountDB*>(get_event_entity(0x193));
-    if (entity != 0 && entity->is_event_quest(questId) != 0)
-        user->IncCurCharacEventAddItemCount(1);
+    if (user != 0)
+    {
+        CAddItemCountDB* entity =
+            static_cast<CAddItemCountDB*>(get_event_entity(0x193));
+        if (entity != 0)
+        {
+            if (entity->is_event_quest(questId))
+                user->IncCurCharacEventAddItemCount(1);
+        }
+    }
 }
 
 // ORIG 0x810c0a6：升级奖励按指定等级/成长类型发放。
 void CEventScriptMng::process_level_up_reward_recv_level(
     CUser* user, int level, int growType)
 {
-    if (user == 0 || !is_eventing(0x194))
+    if (user == 0)
+        return;
+    if (!is_eventing(0x194))
         return;
 
     CLevelUpReward* entity =
@@ -352,8 +362,10 @@ bool CEventScriptMng::send_purchase_bonus_mail(
 
     CPurchaseCashItemBonus* entity =
         static_cast<CPurchaseCashItemBonus*>(get_event_entity(0x19a));
-    return entity != 0 &&
-           entity->sendPurchaseBonusReward(user, (int)goodsId) != 0;
+    if (entity == 0)
+        return false;
+
+    return entity->sendPurchaseBonusReward(user, (int)goodsId);
 }
 
 // ORIG 0x810c33a：养成事件开启时发送疲劳奖励。
@@ -375,13 +387,12 @@ bool CEventScriptMng::send_bring_up_item_fatigue(
 // ORIG 0x810c3a4：网吧事件初始化通知。
 void CEventScriptMng::send_pc_room_play_init_time(CUser* user)
 {
-    if (!is_eventing(0x5c))
+    CPcRoomPlayTime* entity;
+    if (!is_eventing(0x5c)
+        || (entity = static_cast<CPcRoomPlayTime*>(get_event_entity(0x5c))) == 0
+        || entity->verifyUserPcRoomPlayEvent(user) != 0)
         return;
-
-    CPcRoomPlayTime* entity =
-        static_cast<CPcRoomPlayTime*>(get_event_entity(0x5c));
-    if (entity != 0 && entity->verifyUserPcRoomPlayEvent(user) == 0)
-        user->sendNotiPcRoomPlayTime();
+    user->sendNotiPcRoomPlayTime();
 }
 
 // ORIG 0x810c40e：包 0x176 —— put_header(0,0x176)、put_int(m_todayTime)、
@@ -440,7 +451,9 @@ CEventEntity* CEventScriptMng::get_event_entity(int key)
 // ORIG 0x810b9d4（const）：map find != end。
 bool CEventScriptMng::is_event_entity(int key) const
 {
-    return m_entities.find(key) != m_entities.end();
+    if (m_entities.find(key) != m_entities.end())
+        return true;
+    return false;
 }
 
 // ORIG 0x810c7b8：实体存在则调用虚 get_event_record_type（vtable+0x14）。
@@ -497,9 +510,9 @@ int CEventScriptMng::get_pass_day(int yyyymmdd1, int yyyymmdd2)
     t2.tm_hour = 0;
     time_t v2 = std::mktime(&t2);
 
-    if (v2 < v1)
-        return -1;
-    return static_cast<int>((v2 - v1) / 0x15180);
+    if (v2 >= v1)
+        return static_cast<int>((v2 - v1) / 0x15180);
+    return -1;
 }
 
 void CEventScriptMng::update_time_values(int hour)

@@ -468,7 +468,7 @@ std::string& CAddItemCountDB::get_db_table_name()
     return static_cast<AddItemCountDBScript*>(m_script1c)->m_dbTableName;
 }
 
-int CAddItemCountDB::is_event_item(int itemId)
+bool CAddItemCountDB::is_event_item(int itemId)
 {
     // ORIG 0x810e08e：size() 后按下标遍历 m_itemIdxs（每次内联解引用脚本）。
     int count = static_cast<AddItemCountDBScript*>(m_script1c)->m_itemIdxs.size();
@@ -480,7 +480,7 @@ int CAddItemCountDB::is_event_item(int itemId)
     return 0;
 }
 
-int CAddItemCountDB::is_event_quest(int questId)
+bool CAddItemCountDB::is_event_quest(int questId)
 {
     // ORIG 0x810e0f4：size() 后按下标遍历 m_questIds（每次内联解引用脚本）。
     int count = static_cast<AddItemCountDBScript*>(m_script1c)->m_questIds.size();
