@@ -11,6 +11,7 @@
 // ============================================================================
 
 #include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h
 
 // ---------------------------------------------------------------------------
 // 1. kill_blood_monster  @0x0830d58c

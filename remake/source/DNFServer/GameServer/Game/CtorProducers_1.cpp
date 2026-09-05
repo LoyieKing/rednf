@@ -221,6 +221,11 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
     m_totalCount = m_pRoulette->m_upperAvatarRate + m_pRoulette->m_normalAvatarRate;
 
     bool result = true;   // ORIG movb $0x1,-0x45；失败路径写 0，最终返回常量 true
+    // 技巧 31（槽号对齐）：ORIG 把 result 放在 **-0x45**、循环 int 在 -0x44、
+    // 指针在 -0x40，我方整体比 ORIG **近 4 字节**（-0x41/-0x40/-0x3c）。
+    // 4.4 按声明序由近及远分配 ⇒ 在 result **之后**插一个 4B dead 局部，
+    // 即可把 result 及其后所有槽整体推远 4B，一次对齐三处引用。
+    unsigned int gapSlot;
     if (G_CEnvironment()->m_serverEnvir.m_validateScript)
     {
         for (int job = 0; job < 0xb; ++job)

@@ -14,7 +14,8 @@
 #include <utility>
 #include <vector>
 
-#include "CBattle_Field.h"   // CBattle_Field::drop_item(map_item) + WarField.h map_item
+#include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h   // CBattle_Field::drop_item(map_item) + WarField.h map_item
 #include "CDataManager.h"    // G_CDataManager + m_serverParameter(+0x68) + find_item
 #include "CInventory.h"      // insert_event_items / NumberToString
 #include "Inven_Item.h"      // Inven_Item 布局与访问器

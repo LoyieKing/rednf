@@ -58,6 +58,7 @@ bool addUserHackCount150(CUser* user);
 #include "CAssaultMgr.h"
 #include "BattleData.h"
 #include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h
 #include "CDungeon.h"             // CDungeon/RequiredItem/MazeScript/ENUM_MAZE_QUEST_TYPE
 #include "CGameManager.h"         // G_CGameManager/GetQuickPartyRewardManager
 #include "CInventory.h"           // use_money/delete_item/MakeItemPacket + OS_API::snprintf

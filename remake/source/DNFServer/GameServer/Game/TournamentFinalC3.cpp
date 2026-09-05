@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h
 
 // ---------------------------------------------------------------------------
 // CBattle_Field::InsertTournamentInfo @ 0x08303e02

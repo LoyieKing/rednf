@@ -13,6 +13,7 @@
 // ============================================================================
 
 #include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h
 #include "CEquipItem.h"      // CEquipItem::get_endurance（ORIG 非虚 thiscall）
 #include "CDataManager.h"    // G_CDataManager / CDataManager::find_item
 #include "CInventory.h"

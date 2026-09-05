@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h
 #include "CWorldMap.h"
 #include "GlobalData.h"
 #include "DataManagerInitDepends.h"  // TOD_UserState/TOD_Layer（MakePacket 0x1c 当日层链）

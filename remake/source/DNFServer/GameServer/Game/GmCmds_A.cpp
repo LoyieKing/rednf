@@ -53,6 +53,7 @@
 #include "RDARScriptStringManager.h"
 #include "CSystemTime.h"
 #include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h
 #include "CInventory.h"
 #include "CItemList.h"
 #include "CStackableItem.h"

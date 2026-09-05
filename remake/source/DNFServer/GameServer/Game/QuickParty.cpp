@@ -11,6 +11,7 @@
 #include "LogManager.h"
 
 #include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h
 #include "CDungeon.h"
 #include "GameWorld.h"   // send_party_info_to_all / G_GameWorld
 

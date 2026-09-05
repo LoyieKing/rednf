@@ -34,7 +34,19 @@
 #include "CDungeon.h"          // CDungeon + MazeScript/GridScript + ENUM_MAZE_QUEST_TYPE
 #include "CDungeonClearTracer.h"
 #include "CMonster.h"         // CMonster（CBattle_Field_unresolved.cpp 定义 getMonsterScript 等需要完整类型）
-#include "CParty.h"            // CParty + ENUM_DUNGEON_TYPE/MODE + eRidableObjectState + QuickParty::RandomBuffDungeon
+// —— 依赖降级（batch-15 步骤①，CParty.h↔CBattle_Field.h 解环，为 m_battleField
+// 内嵌铺路）：CParty 仅指针用 → 前向声明；TYPE/MODE/eRidableObjectState/
+// QuickParty::RandomBuffDungeon 改走权威定义头。
+class CParty;
+#include "CQuickPartyRewardManager.h"   // QuickParty::RandomBuffDungeon（自足头）
+#include "GameEnums.h"                  // ENUM_DUNGEON_MODE / eRidableObjectState
+#ifndef DNF_ENUM_ENUM_DUNGEON_TYPE_DEFINED
+#define DNF_ENUM_ENUM_DUNGEON_TYPE_DEFINED
+enum ENUM_DUNGEON_TYPE                   // 与 CParty.h:45-51 占位段逐字同体，
+{                                        // 共享 guard，行为与原传递闭包一致
+    ENUM_DUNGEON_TYPE_0 = 0
+};
+#endif
 #include "CRidable.h"
 #include "CTournamentDungeonReward.h"
 #include "HellPartyGroupOrder.h"  // STHellPartyGroupOrder/STHellPartyGroupRate

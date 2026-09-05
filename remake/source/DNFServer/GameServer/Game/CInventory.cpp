@@ -6577,6 +6577,12 @@ void CInventory::SendItemLockListCreature() const
 // [N82 封顶] batch-10 新立项：差集 108=108 归零（删多余 clear()、creature 日期改
 // GetCreatureMgrR()、三分支 item 指针缓存全物化为 m_pXxx[slot].field，P183）。
 // gap 114→6，残余 6 为槽位 spill 形差。
+// [N82 封顶] batch-15 深度块序专项：if 链→switch(invenType)（body 落序
+// EQUIP→AVATAR→CREATURE 复现 ORIG cmp $2/$3/$1 决策树 + fall-through 布局，
+// difflib 等值率 79.4%）；gap 6→2。定形项：put_header 先行（clear 删除）、
+// count=3 槽物化 `put_short(count+3)`、AVATAR/CREATURE `put_short(count)`
+// 变量传参、CREATURE tick 先 0 物化。残 2 = push/pop %edi RA 差 + 实参装载
+// 次序（4.1 object 先载 vs 4.4 后载，全文件成对 swap 噪声）——版本级行为，勿再迭代。
 
 // ============================================================================
 // CInventory::MakeItemList（ORIG 0x084fd7b6 T，docs/class_func_reports/
@@ -6607,152 +6613,161 @@ int CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
     GameWorld* world;
     buf->put_header(0, 0xd);
 
-    if (invenType == INVEN_TYPE_AVATAR)
+    // ORIG switch(invenType)：决策树 cmp $2/$3/$1、body 落序 EQUIP→AVATAR→CREATURE
+    // （fall-through 布局），default 直达 finalize。switch 形式复现块序。
+    switch (invenType)
     {
-        buf->put_byte(1);
-        int countIdx = buf->get_index();
-        int count = 0;
-        buf->put_short(0);
-        int nowTick = OS_API::GetDateTimeTick();
-        for (int slot = 0; slot < 0x69; ++slot)
-        {
-            if (m_pAvatarSlot[slot].m_addInfo == 0)
-                continue;
-            buf->put_short(slot);
-            buf->put_int(m_pAvatarSlot[slot].m_addInfo);
-            buf->put_int(m_avatarItemMgr.GetRemainDate(m_pAvatarSlot[slot].m_addInfo2, nowTick));
-            buf->put_byte(m_pAvatarSlot[slot].GetItemAttr());
-            buf->put_short(m_pAvatarSlot[slot].m_fieldb);
-            buf->put_byte(m_pAvatarSlot[slot].m_field0);
-            buf->put_int(m_pAvatarSlot[slot].m_fieldd);
+    case INVEN_TYPE_EQUIP:
+    {
+
+            buf->put_byte(0);
+            buf->put_short(get_inventory_capacity());
+            int countIdx = buf->get_index();
+            int count = 3;
+            // ORIG +0x00cb..+0x00e2：count=3 槽物化 + `lea 0x3(%eax)` 二次求值后
+            // put_short（固定前导 short 0x6，语义未证——物化形按 ORIG 保留）。
+            buf->put_short(count + 3);
+
+            // slot0：金币条目（addInfo=0，addInfo2=m_money）
+            buf->put_short(0);
+            buf->put_int(0);
+            buf->put_int(m_money);
             buf->put_byte(0);
             buf->put_short(0);
-            ++count;
-            buf->put_int(0x1e);
-            buf->put_binary((char*)m_avatarItemMgr.getJewelSocketData(
-                                m_pAvatarSlot[slot].m_addInfo2), 0x1e);
-            char* expansion =
-                (char*)m_avatarItemMgr.GetExpansionInfo(m_pAvatarSlot[slot].m_addInfo2);
-            buf->put_int(4);
-            if (expansion == 0)
-            {
-                stAvatarExpansionInfo_t expInfo;
-                expInfo.init();
-                buf->put_binary((char*)&expInfo, 4);
-            }
-            else
-            {
-                buf->put_binary(expansion, 4);
-            }
             buf->put_byte(0);
-            buf->put_packet(m_pAvatarSlot[slot]);
-        }
-        buf->put_short(countIdx, count);
-    }
-    else if (invenType == INVEN_TYPE_CREATURE)
-    {
-        buf->put_byte(7);
-        int countIdx = buf->get_index();
-        int count = 0;
-        buf->put_short(0);
-        for (int slot = 0; slot < 0xf2; ++slot)
-        {
-            if (m_pCreatureSlot[slot].m_addInfo == 0)
-                continue;
-            buf->put_short(slot);
-            buf->put_int(m_pCreatureSlot[slot].m_addInfo);
-            buf->put_int(m_pCreatureSlot[slot].m_addInfo2);
-            buf->put_byte(m_pCreatureSlot[slot].GetItemAttr());
-            buf->put_short(m_pCreatureSlot[slot].m_fieldb);
-            buf->put_byte(m_pCreatureSlot[slot].m_field0);
-            buf->put_int(m_pCreatureSlot[slot].m_fieldd);
+            buf->put_int(0);
             buf->put_byte(0);
             buf->put_short(0);
-            if (m_pCreatureSlot[slot].m_field1 ==
-                (unsigned char)Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
-            {
-                int nowTick = OS_API::GetDateTimeTick();
-                buf->put_int(GetCreatureMgrR()->GetRemainDate(m_pCreatureSlot[slot].m_addInfo2, nowTick));
-            }
             buf->put_byte(0);
-            buf->put_packet(m_pCreatureSlot[slot]);
-            ++count;
+            buf->put_packet(g_emptySlot);
+
+            // slot1：代币条目（addInfo=1，addInfo2=coin+payCoin+eventCoin）
+            buf->put_short(1);
+            buf->put_int(1);
+            buf->put_int(m_coin + m_payCoin + m_eventCoin);
+            buf->put_byte(0);
+            buf->put_short(0);
+            buf->put_byte(0);
+            buf->put_int(0);
+            buf->put_byte(0);
+            buf->put_short(0);
+            buf->put_byte(0);
+            buf->put_packet(g_emptySlot);
+
+            // slot2：胜利点条目（addInfo=2，addInfo2=GetWinPoint）
+            buf->put_short(2);
+            buf->put_int(2);
+            buf->put_int(((CUserCharacInfo*)m_pParent)->GetWinPoint());
+            buf->put_byte(0);
+            buf->put_short(0);
+            buf->put_byte(0);
+            buf->put_int(0);
+            buf->put_byte(0);
+            buf->put_short(0);
+            buf->put_byte(0);
+            buf->put_packet(g_emptySlot);
+
+            for (int slot = 3; slot < 0x138; ++slot)
+            {
+                if (m_pEquipSlot[slot].m_addInfo == 0)
+                    continue;
+                buf->put_short(slot);
+                buf->put_int(m_pEquipSlot[slot].m_addInfo);
+                buf->put_int(m_pEquipSlot[slot].m_addInfo2);
+                buf->put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], invenType, slot));
+                buf->put_short(m_pEquipSlot[slot].m_fieldb);
+                buf->put_byte(m_pEquipSlot[slot].m_field0);
+                world = G_GameWorld();
+                if (!world->IsEnchantRevisionChannel())
+                    buf->put_int(m_pEquipSlot[slot].m_fieldd);
+                else
+                    buf->put_int(0);
+                buf->put_byte((unsigned char)m_pEquipSlot[slot].m_amp.getAbilityType() & 0xff);
+                buf->put_short(m_pEquipSlot[slot].m_amp.getAbilityValue());
+                G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
+                    m_pParent, m_pEquipSlot[slot], (PacketGuard*)buf);
+                buf->put_packet(m_pEquipSlot[slot]);
+                ++count;
+            }
+            buf->put_short(countIdx, count);
         }
-        buf->put_short(countIdx, count);
-    }
-    else if (invenType == INVEN_TYPE_EQUIP)
+    case INVEN_TYPE_AVATAR:
     {
-        buf->put_byte(0);
-        buf->put_short(get_inventory_capacity());
-        int countIdx = buf->get_index();
-        int count = 3;
-        // ORIG 固定前导 short 0x6（MakeItemList.md +0x383 段，语义未证）。
-        buf->put_short(6);
 
-        // slot0：金币条目（addInfo=0，addInfo2=m_money）
-        buf->put_short(0);
-        buf->put_int(0);
-        buf->put_int(m_money);
-        buf->put_byte(0);
-        buf->put_short(0);
-        buf->put_byte(0);
-        buf->put_int(0);
-        buf->put_byte(0);
-        buf->put_short(0);
-        buf->put_byte(0);
-        buf->put_packet(g_emptySlot);
-
-        // slot1：代币条目（addInfo=1，addInfo2=coin+payCoin+eventCoin）
-        buf->put_short(1);
-        buf->put_int(1);
-        buf->put_int(m_coin + m_payCoin + m_eventCoin);
-        buf->put_byte(0);
-        buf->put_short(0);
-        buf->put_byte(0);
-        buf->put_int(0);
-        buf->put_byte(0);
-        buf->put_short(0);
-        buf->put_byte(0);
-        buf->put_packet(g_emptySlot);
-
-        // slot2：胜利点条目（addInfo=2，addInfo2=GetWinPoint）
-        buf->put_short(2);
-        buf->put_int(2);
-        buf->put_int(((CUserCharacInfo*)m_pParent)->GetWinPoint());
-        buf->put_byte(0);
-        buf->put_short(0);
-        buf->put_byte(0);
-        buf->put_int(0);
-        buf->put_byte(0);
-        buf->put_short(0);
-        buf->put_byte(0);
-        buf->put_packet(g_emptySlot);
-
-        for (int slot = 3; slot < 0x138; ++slot)
-        {
-            if (m_pEquipSlot[slot].m_addInfo == 0)
-                continue;
-            buf->put_short(slot);
-            buf->put_int(m_pEquipSlot[slot].m_addInfo);
-            buf->put_int(m_pEquipSlot[slot].m_addInfo2);
-            buf->put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], invenType, slot));
-            buf->put_short(m_pEquipSlot[slot].m_fieldb);
-            buf->put_byte(m_pEquipSlot[slot].m_field0);
-            world = G_GameWorld();
-            if (!world->IsEnchantRevisionChannel())
-                buf->put_int(m_pEquipSlot[slot].m_fieldd);
-            else
-                buf->put_int(0);
-            buf->put_byte((unsigned char)m_pEquipSlot[slot].m_amp.getAbilityType() & 0xff);
-            buf->put_short(m_pEquipSlot[slot].m_amp.getAbilityValue());
-            G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
-                m_pParent, m_pEquipSlot[slot], (PacketGuard*)buf);
-            buf->put_packet(m_pEquipSlot[slot]);
-            ++count;
+            buf->put_byte(1);
+            int countIdx = buf->get_index();
+            int count = 0;
+            buf->put_short(count);   // ORIG +0x05ec/+0x08db：以 count 变量传参（此刻 0）
+            int nowTick = OS_API::GetDateTimeTick();
+            for (int slot = 0; slot < 0x69; ++slot)
+            {
+                if (m_pAvatarSlot[slot].m_addInfo == 0)
+                    continue;
+                buf->put_short(slot);
+                buf->put_int(m_pAvatarSlot[slot].m_addInfo);
+                buf->put_int(m_avatarItemMgr.GetRemainDate(m_pAvatarSlot[slot].m_addInfo2, nowTick));
+                buf->put_byte(m_pAvatarSlot[slot].GetItemAttr());
+                buf->put_short(m_pAvatarSlot[slot].m_fieldb);
+                buf->put_byte(m_pAvatarSlot[slot].m_field0);
+                buf->put_int(m_pAvatarSlot[slot].m_fieldd);
+                buf->put_byte(0);
+                buf->put_short(0);
+                ++count;
+                buf->put_int(0x1e);
+                buf->put_binary((char*)m_avatarItemMgr.getJewelSocketData(
+                                    m_pAvatarSlot[slot].m_addInfo2), 0x1e);
+                char* expansion =
+                    (char*)m_avatarItemMgr.GetExpansionInfo(m_pAvatarSlot[slot].m_addInfo2);
+                buf->put_int(4);
+                if (expansion == 0)
+                {
+                    stAvatarExpansionInfo_t expInfo;
+                    expInfo.init();
+                    buf->put_binary((char*)&expInfo, 4);
+                }
+                else
+                {
+                    buf->put_binary(expansion, 4);
+                }
+                buf->put_byte(0);
+                buf->put_packet(m_pAvatarSlot[slot]);
+            }
+            buf->put_short(countIdx, count);
         }
-        buf->put_short(countIdx, count);
-    }
+    case INVEN_TYPE_CREATURE:
+    {
 
+            buf->put_byte(7);
+            int countIdx = buf->get_index();
+            int count = 0;
+            buf->put_short(count);   // ORIG +0x05ec/+0x08db：以 count 变量传参（此刻 0）
+            for (int slot = 0; slot < 0xf2; ++slot)
+            {
+                if (m_pCreatureSlot[slot].m_addInfo == 0)
+                    continue;
+                buf->put_short(slot);
+                buf->put_int(m_pCreatureSlot[slot].m_addInfo);
+                buf->put_int(m_pCreatureSlot[slot].m_addInfo2);
+                buf->put_byte(m_pCreatureSlot[slot].GetItemAttr());
+                buf->put_short(m_pCreatureSlot[slot].m_fieldb);
+                buf->put_byte(m_pCreatureSlot[slot].m_field0);
+                buf->put_int(m_pCreatureSlot[slot].m_fieldd);
+                buf->put_byte(0);
+                buf->put_short(0);
+                if (m_pCreatureSlot[slot].m_field1 ==
+                    (unsigned char)Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+                {
+                    int nowTick = 0;   // ORIG +0x0a50 先 0 物化再 call 回填
+                    nowTick = OS_API::GetDateTimeTick();
+                    buf->put_int(GetCreatureMgrR()->GetRemainDate(m_pCreatureSlot[slot].m_addInfo2, nowTick));
+                }
+                buf->put_byte(0);
+                buf->put_packet(m_pCreatureSlot[slot]);
+                ++count;
+            }
+            buf->put_short(countIdx, count);
+        }
+    }
     buf->finalize(true);
     return 1;
 }

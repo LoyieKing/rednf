@@ -32,7 +32,8 @@
 #include <string.h>
 
 #include "CBoosterGage.h"          // charac_expand::CData（alter）
-#include "CBattle_Field.h"         // 经 WarField.h 引入 CAICharacterList/CDataManager 宿主
+#include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h         // 经 WarField.h 引入 CAICharacterList/CDataManager 宿主
 #include "CDataManager.h"          // G_CDataManager / find_monster / m_aiCharacterList
 #include "LogManager.h"            // LogManager::logFormat
 #include "CServerProxyMgr.h"      // CServerProxyMgr<T>::GetServerProxy 完整模板

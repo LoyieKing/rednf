@@ -20,6 +20,7 @@
 //     脚本值经 G_CDataManager()->get_hellparty_script_values() 取得（float 数组）。
 
 #include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h
 #include "CVillageMonsterMgr.h"   // 完整类型（reset_field 调用 OnKillVillageMonster 4 参重载）
 #include "LogManager.h"          // logFormat（血轮日志）
 #include "TimerQueue.h"          // G_TimerQueue / InsertTimerInMilisecond

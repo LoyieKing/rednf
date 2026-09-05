@@ -21,7 +21,8 @@
 #include <map>
 #include <vector>
 
-#include "CBattle_Field.h"         // CBattle_Field/MapInfo/map_item/map_monster
+#include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h         // CBattle_Field/MapInfo/map_item/map_monster
 #include "CDungeon.h"              // get_dimension_possible/get_standard_level/…
 #include "CDataManager.h"          // G_CDataManager/find_item/find_monster
 #include "CGuildServerProxy.h"    // CEventBase / CEventManager::GetRepeatEvent

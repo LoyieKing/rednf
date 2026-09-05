@@ -34,7 +34,8 @@
 #include <utility>
 #include <vector>
 
-#include "CBattle_Field.h"      // CBattle_Field + WarField.h(MapInfo/map_monster) +
+#include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h      // CBattle_Field + WarField.h(MapInfo/map_monster) +
                                 // CMap.h(STAssignBloodSystem/STAssignBloodPhaseTime/CMap) +
                                 // CDungeon.h(CDungeon/m_index/m_dummyMap*/m_map1a4)
 #include "CDataManager.h"       // G_CDataManager()/find_map/find_monster

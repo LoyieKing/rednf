@@ -69,7 +69,8 @@
 #include <utility>
 #include <vector>
 
-#include "CBattle_Field.h"      // CBattle_Field + WarField/CMap/CDungeon/CParty/
+#include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h      // CBattle_Field + WarField/CMap/CDungeon/CParty/
                                 // CMonster/STMonsterScript/GridScript/MazeScript 权威链
 #include "CDataManager.h"       // G_CDataManager/find_*/get_hellparty_groupOrder_map/
                                 // CAICharacterList（get/getByLevel 桥接声明）

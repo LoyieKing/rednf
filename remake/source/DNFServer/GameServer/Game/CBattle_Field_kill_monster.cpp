@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h
 #include "CGlobalEffectManager.h"   // isAffectedEffect / getEffectValue
 #include "CSystemTime.h"            // CSystemTime::getCurTickCount
 #include "GlobalData.h"             // s_globalEffectManager_ / s_systemTime_

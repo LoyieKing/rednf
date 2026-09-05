@@ -34,6 +34,7 @@
 #include "CDataManager.h"
 #include "DataManagerInitDepends.h"  // stHellParty_t/stHellPartyMonsterGroupList（须在 CDataManager.h 之后）
 #include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h
 #include "GameRand.h"                // get_rand_int
 #include "HellPartyGroupOrder.h"
 

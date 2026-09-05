@@ -228,6 +228,13 @@ public:
     union UpgradeBodyView
     {
         char m_body[0x434 - 0x00c];
+        // dword 下标视图（P30 关键形）：ORIG 对「基址 + 含常数下标」的表访问发
+        //   `mov idx,%edx ; add $K,%edx ; movl $imm,(%eax,%edx,4)`
+        // 两步（upgrade_table_t::C1 @0x089000ca 12 个初始化循环、importUpgradeTable
+        // 写点、get_upgrade_info 16 行缩放全为该形）；用字节偏移表达式
+        // （m_body + off）会被 4.4 折成 lea/shl/add 链（N81）。数组长度 0x428/4。
+        float m_f32[(0x434 - 0x00c) / 4];
+        int m_i32[(0x434 - 0x00c) / 4];
         struct UpgradeTableNamed
         {
             char m_pad00c[0x234 - 0x00c];   // +0x00c..+0x233（脚本行区，按
@@ -327,6 +334,11 @@ static_assert(offsetof(upgrade_table_t, m_destruction) == 0x434,
     (*reinterpret_cast<const int*>((tbl)->m_bodyView.m_body + ((off) - 0xc)))
 #define UPG_TBL_CFLT(tbl, off) \
     (*reinterpret_cast<const float*>((tbl)->m_bodyView.m_body + ((off) - 0xc)))
+
+// dword 下标版（k = (off - 0xc)/4，即“元素序号”）：用于 ORIG 的
+// `add $K,%edx; movl/flds disp(%eax,%edx,4)` 两步形（P30/N81）。
+#define UPG_TBL_I32(tbl, k)  ((tbl)->m_bodyView.m_i32[(k)])
+#define UPG_TBL_F32(tbl, k)  ((tbl)->m_bodyView.m_f32[(k)])
 
 class CItemAmplifier
 {

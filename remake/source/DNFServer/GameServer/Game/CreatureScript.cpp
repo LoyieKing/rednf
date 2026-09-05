@@ -242,6 +242,8 @@ void AttackInfo::clear()
     m_ignoreWeight = 0;
     m_hpDrain = 0;
     m_mpDrain = 0;
+    m_field80 = 0.0f;    // ORIG 0x88904e3 mov $0x0,%edx;mov %edx,0x80（float 0 中转）
+    m_field84 = 100.0f;  // ORIG 0x88904f2 mov $0x42c80000,%edx;mov %edx,0x84（float 100）
     m_isHitNumberIncreasing = 1;
     m_forceHitStunTime = 0;
     m_moduleTag = 3;

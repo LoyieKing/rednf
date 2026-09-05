@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h
 #include "InterfacePacketBuf.h"
 #include "TimerQueue.h"
 #include "PacketGuard.h" // 权威 PacketGuard(0xc)

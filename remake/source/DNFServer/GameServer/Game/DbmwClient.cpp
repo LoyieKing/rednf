@@ -132,10 +132,29 @@ bool DbmwClient::ReceiveRegistAck()
 
 bool DbmwClient::Regist()
 {
-    // ORIG @0x081209ba。
-    if (RegistToMiddleware())
-        return ReceiveRegistAck();
-    return false;
+    // ORIG @0x081209ba 整读（range 0x081209ba..0x081209f9，63 字节）：
+    //   +0x06 mov this,(%esp); call RegistToMiddleware
+    //   +0x11 xor $0x1,%eax; test %al,%al; je +0x1f        ← 成功跳下一段
+    //   +0x18 mov $0x0,%eax; jmp +0x3d(end)                 ← 失败返回 0
+    //   +0x1f mov this,(%esp); call ReceiveRegistAck
+    //   +0x2a xor $0x1,%eax; test %al,%al; je +0x38
+    //   +0x31 mov $0x0,%eax; jmp +0x3d
+    //   +0x38 mov $0x1,%eax
+    //   +0x3d leave; ret
+    // 关键：原写法 `if (A()) return B();` 把 B 的结果**透传**（`call B; leave; ret`），
+    // ORIG 实际是**双臂各自 xor 取反 + 常量返回 + 单一 epilogue**（gap 缺的 7 条
+    // 就是第二个 xor/test/je/mov/jmp 段）。故必须写成两次"取反判断 + 常量返回"，
+    // 并用 goto 把两个失败出口汇到同一个 `mov $0x0,%eax; jmp end`（技巧 23）。
+    // 技巧 1（在册，比 X1 register 形更短）：被调本身返回 **bool** 时，
+    // `if (!boolcall())` 在 4.4 直接产 ORIG 形 `call; xor $0x1,%eax;
+    // test %al,%al; je <下一段>` + `mov $0x0,%eax; jmp end` 落点岛，
+    // 无需 register asm 绑定（X1 形是给 int 返回准备的，这里用反而把
+    // 分支极性做成 jne，实测 ndiff 9→11 变差）。
+    if (!RegistToMiddleware())
+        return false;
+    if (!ReceiveRegistAck())
+        return false;
+    return true;
 }
 
 unsigned int DbmwClient::Connect()
@@ -169,10 +188,12 @@ unsigned int DbmwClient::Connect()
 
 int DbmwClient::Close()
 {
-    // ORIG @0x08120ab0：close 结果 -1 时返回 errno；
-    // 否则清 connected/initialized 标志与 sock，返回 0。
-    int result = ::close(m_sock);
-    if (result == -1)
+    // ORIG @0x08120ab0：`call close; cmp $0xffffffff,%eax; sete %al;
+    // test %al,%al; je else` —— **结果不落栈**，直接在 %eax 上比较并 sete 归一。
+    // 技巧 9（`(bool)(intcall()==K)` → cmp+sete+test）：引入 `int result` 具名
+    // 局部会让 4.4 先 `mov %eax,-0xc(%ebp)` 再 `cmpl $-1,-0xc`（形态失配 4 条、
+    // 且帧从 0x18 涨到 0x28）。免局部直比同时解决两处。
+    if ((bool)(::close(m_sock) == -1))
         return errno;
 
     m_connected = false;
@@ -214,10 +235,20 @@ bool DbmwClient::DoQuery()
     static const char UPDATE_QUERY_GO = 1;  // ORIG _ZZN10DbmwClient7DoQueryEvE15UPDATE_QUERY_GO
     // ORIG @0x08120cd0。
     m_affectedRow = 0;
-    size_t qlen = strlen(m_query);
-    if ((long)qlen >= 0x1000 || (long)qlen <= 7)
+    // 技巧 5（signedness 装载序定律）：ORIG 是 `mov %eax,-0x10(%ebp)` 之后
+    // **两条内存-立即数直比** `cmpl $0xfff,-0x10(%ebp); jg` +
+    // `cmpl $0x7,-0x10(%ebp); jg`。用 `(long)qlen` 会迫使 4.4 先把槽值装进
+    // %eax 再 `cmp`（实测多 1 条 mov、2 条 cmp 形态失配）。
+    // ⇒ 局部必须是 **int**（ORIG 槽宽 4B、比较用有符号 jg），且比较写成
+    //   `> 0xfff` 而非 `>= 0x1000`，让立即数与 ORIG 完全一致。
+    int qlen = (int)strlen(m_query);
+    if (qlen > 0xfff || qlen <= 7)
         return false;
-    if (m_queryLen != qlen)
+    // 技巧 5/27：ORIG 是 `mov 0x1038(%eax),%eax; cmp -0x10(%ebp),%eax`
+    // （成员先载入 %eax、再与栈槽**内存操作数**直比）。`m_queryLen` 是
+    // `unsigned long`、`qlen` 是 `int`，signedness 失配迫使 4.4 把两侧都装进
+    // 寄存器再比（多一条 mov）。显式把 qlen 转成同型即恢复单内存操作数形。
+    if ((unsigned long)qlen != m_queryLen)
         return false;
 
     if (!SendHeader(UPDATE_QUERY_GO, (int)m_queryLen))

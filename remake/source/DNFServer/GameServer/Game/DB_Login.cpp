@@ -283,6 +283,10 @@ MySQL* DB_Login::_GetDNFAccountDB()
 
 // ============================================================================
 // dispatch（ORIG T 0x0840f51c —— 登录主流程，0xAAE 字节）
+// 【N81 blocked 归因（batch-15）】gap~116 = 八处 SSORecord 数组索引的 4.1 IMAD 九段
+// 内联（`mov i,%eax; add%eax,%eax; add i,%eax; shl $3; lea(base,i); add $0x3a68; mov`
+// 逐读重算、无 CSE，0x0840f7xx 段实证）vs 4.4 恒 `imul $0x18` 单条 lea 合并 +
+// 三处 je/jne 块序（4.1 fall-through 反向）——表达式不可控（N81/N17 既定不可翻）。
 // ============================================================================
 
 bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
@@ -1487,6 +1491,12 @@ bool DB_Login::_DecryptUserInfo(char* hex, char* out, unsigned int mid)
 
 // ============================================================================
 // GetAccountInfo（ORIG T 0x0841325e）
+// 【N78/N80 blocked 归因（batch-15）】gap~138 主体 = 三块 4.1 memset 前端内联展开
+// （serverPwd 0x84 步进字清 + dec 区 0x21×3 + 0x81 步进清，ORIG ~193 行 vs 4.4 恒
+// call ~40 行；N78 五探针既定不可翻）+ 四处 cMyTrace varargs 前置物化（N80：4.1 于
+// ctor call 前右起求 varargs 并 callee-saved 跨 call，4.4 恒 ctor 后求，三形实测败）。
+// 可达部分已修：0x3b1b trace 分支重建、birthTm 逐字段直写（ORIG 无 memset 实证）、
+// /100 无符号 magic、NumberToString 中转槽消除（1045/899）。
 // ============================================================================
 
 bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)

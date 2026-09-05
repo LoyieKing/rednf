@@ -29,34 +29,37 @@ upgrade_table_t::upgrade_table_t()
     : m_machineFrames(0xa)   // ORIG C1 0x089000ca：_Hashtable 桶数 0xa
 {
     int i;
-    for (i = 0; i <= 3; ++i)          // +0x0c..：1.0f
-        UPG_TBL_FLT(this, i * 4 + 0xc) = 1.0f;
-    for (i = 0; i <= 0x15; ++i)       // +0x1c..：1.0f
-        UPG_TBL_FLT(this, (i + 4) * 4 + 0xc) = 1.0f;
+    // 初始化循环一律用 **dword 下标** 形（UPG_TBL_F32/I32 + `i + K`），复现 ORIG
+    // 0x089001xx..0x089003a0 的 `mov %edx,%eax? ; add $K,%edx ;
+    // movl $imm,disp(%eax,%edx,4)` 两步寻址（P30/N81：字节偏移表达式会被 4.4
+    // 折成 lea/shl/add 链，实测本函数因此多 41 insn）。K 值 = (绝对偏移-0xc)/4。
+    for (i = 0; i <= 3; ++i)              // +0x0c..：1.0f  ⇒ k = i + 0x3
+        UPG_TBL_F32(this, i) = 1.0f;
+    for (i = 0; i <= 0x15; ++i)           // +0x1c..：1.0f  ⇒ k = i + 0x7
+        UPG_TBL_F32(this, i + 0x4) = 1.0f;
     for (i = 0; i <= 5; ++i)
     {
-        UPG_TBL_FLT(this, (i + 0x1c) * 4 + 4) = 1.0f;    // ORIG 0x089000ca：+0x74..
-        UPG_TBL_FLT(this, (i + 0x20) * 4 + 0xc) = 1.0f;  // +0x8c..
+        UPG_TBL_F32(this, i + 0x1b) = 1.0f;   // +0x74..
+        UPG_TBL_F32(this, i + 0x20) = 1.0f;   // +0x8c..
     }
-    for (i = 0; i <= 0x63; ++i)       // ORIG +0xa4..：整数 1
-        UPG_TBL_INT(this, (i + 0x28) * 4 + 4) = 1;
-    UPG_TBL_INT(this, 0x234) = 0;
-    for (i = 0; i <= 0x63; ++i)       // +0x274..：1.0f
-        UPG_TBL_FLT(this, (i + 0x9c) * 4 + 4) = 1.0f;
+    for (i = 0; i <= 0x63; ++i)           // +0xa4..：整数 1
+        UPG_TBL_I32(this, i + 0x26) = 1;
+    UPG_TBL_I32(this, 0x8a) = 0;              // +0x234 公告阈值
+    for (i = 0; i <= 0x63; ++i)           // +0x274..：1.0f
+        UPG_TBL_F32(this, i + 0x9b) = 1.0f;
     for (i = 0; i <= 5; ++i)
     {
-        UPG_TBL_INT(this, (i + 0x100) * 4 + 4) = -1;    // +0x404..
-        UPG_TBL_INT(this, (i + 0x104) * 4 + 0xc) = -1;  // +0x41c..
+        UPG_TBL_I32(this, i + 0xfe) = -1;    // +0x404..
+        UPG_TBL_I32(this, i + 0x104) = -1;   // +0x41c..
     }
-    UPG_TBL_INT(this, 0x238) = -1;
-    UPG_TBL_INT(this, 0x23c) = 0;
+    UPG_TBL_I32(this, 0x8b) = -1;             // +0x238 附加分解物 item
+    UPG_TBL_I32(this, 0x8c) = 0;              // +0x23c 等级差阈值
     for (i = 0; i <= 5; ++i)
     {
-        UPG_TBL_INT(this, (i + 0x90) * 4) = 0;          // +0x240..
-        UPG_TBL_INT(this, (i + 0x94) * 4 + 0xc) = 0;    // +0x25c..
+        UPG_TBL_I32(this, i + 0x8d) = 0;   // +0x240.. 权重区
+        UPG_TBL_I32(this, i + 0x94) = 0;   // +0x25c.. 基准等级区
     }
-    UPG_TBL_INT(this, 0x258) = 0;
-
+    UPG_TBL_I32(this, 0x93) = 0;              // +0x258 强化等级下限
     m_floatMap.clear();
     memset(m_zero4b4, 0, sizeof(m_zero4b4));
 }
@@ -124,7 +127,7 @@ bool CItemAmplifier::checkInvestableItem(const CItem* item,
     int grade = item->get_grade();
     int rarity = item->get_rarity();
     // ORIG 直读 `mov 0x25c(%eax,%edx,4)`（+0x25c 具名视图，无 cvt 无 call）；
-    // 走 inline 访问器 UPG_TBL_CFLT(this, ) 在 -O0 会额外发一次 call（+5 insn）。
+    // 走访问器（-O0 下类内 inline 成员函数每点发 call）会额外多 3-5 条。
     int base = m_upgrade.m_bodyView.m_named.m_baseGrade[rarity];
     int diff = grade - base;
     // 钳零保持 std::max 形：实测显式 if 版反而少 4 insn（139/130），
@@ -385,6 +388,10 @@ int upgrade_table_t::get_upgrade_info(upgrade_info_t* out,
     // 让编译器自行展开/发块拷（batch-14 访问器专项连带项）。
     *out = m_infos.at(upgrade);
 
+    // 【实测记录】本函数 16 行缩放改用 dword 下标视图 UPG_TBL_F32 后为
+    // 326 insn（更偏离 ORIG 371），字节偏移宏形 UPG_TBL_CFLT 为 352 ⇒ 本函数
+    // 取字节偏移形（ORIG 此处是 `movzbl+flds disp(,%edx,4)` 混合链，与 C1 的
+    // `add $K,%edx; movl $imm,disp` 两步形不同，不可套用 N81/P30 结论）。
     // 16 行缩放：ORIG 每行重发 gain 取址（47×flds vs 重建 30×flds），但 4.4 的
     // 展开形是「flds gain; fstps 临时; flds 下一操作数; …」并逐行多 2 条 store/load
     // （实测逐行内联 gain → 471 insn，比缓存形 352 更偏离 371；缓存形与逐行形
@@ -456,7 +463,7 @@ int upgrade_table_t::get_upgrade_info(upgrade_info_t* out,
 int upgrade_table_t::GetPenaltyType(unsigned char upgrade, ENUM_RARITY rarity,
                                     const upgrade_info_t* info) const
 {
-    int th = UPG_TBL_CINT(this, (rarity + 0x100) * 4 + 4);
+    int th = UPG_TBL_I32(this, rarity + 0xfe);   // +0x404.. 按 rarity 的惩罚表基
     if (th == -1 || (int)upgrade < th)
         return *(const int*)((const char*)info + 0x24);
     return 3;

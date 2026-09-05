@@ -34,7 +34,8 @@
 #include <vector>
 
 #include "BattleData.h"           // BattleData（CParty+0x32c 子对象，m_hellPartyValueTotal）
-#include "CBattle_Field.h"        // CBattle_Field + CMap/CDungeon/CParty/WarField 权威类型
+#include "CBattle_Field.h"
+#include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h        // CBattle_Field + CMap/CDungeon/CParty/WarField 权威类型
 #include "CGuildServerProxy.h"    // CEventBase::IsEventing / CEventManager::GetRepeatEvent
 #include "DataManagerInitDepends.h"  // stHellParty_t（get_hellparty_script_values 返回值）
 #include "Quest.h"               // Quest 完整类型（m_field120）

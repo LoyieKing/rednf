@@ -1326,7 +1326,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
             {
                 for (int i = 0; i <= 5; ++i)
                 {
-                    UPG_TBL_FLT(table, (i + 0x1c) * 4 + 4) = ScanFloat(&ok);
+                    UPG_TBL_F32(table, i + 0x1b) = ScanFloat(&ok);
                     if (!ok)
                     {
                         LogManager::logFormat(
@@ -1339,7 +1339,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
             {
                 for (int i = 0; i <= 5; ++i)
                 {
-                    UPG_TBL_FLT(table, (i + 0x20) * 4 + 0xc) = ScanFloat(&ok);
+                    UPG_TBL_F32(table, i + 0x20) = ScanFloat(&ok);
                     if (!ok)
                     {
                         LogManager::logFormat(
@@ -1352,7 +1352,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
             {
                 for (int i = 10; i <= 0x15; ++i)
                 {
-                    UPG_TBL_FLT(table, (i + 4) * 4 + 0xc) = ScanFloat(&ok);
+                    UPG_TBL_F32(table, i + 0x4) = ScanFloat(&ok);
                     if (!ok)
                     {
                         LogManager::logFormat(
@@ -1365,7 +1365,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
             {
                 for (int i = 0; i <= 3; ++i)
                 {
-                    UPG_TBL_FLT(table, i * 4 + 0xc) = ScanFloat(&ok);
+                    UPG_TBL_F32(table, i) = ScanFloat(&ok);
                     if (!ok)
                     {
                         LogManager::logFormat(
@@ -1378,7 +1378,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
             {
                 for (int i = 0; i <= 0x63; ++i)
                 {
-                    UPG_TBL_INT(table, (i + 0x28) * 4 + 4) = ScanInt(&ok);
+                    UPG_TBL_I32(table, i + 0x26) = ScanInt(&ok);
                     if (!ok)
                     {
                         LogManager::logFormat(
@@ -1389,7 +1389,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
             }
             else if (token == "[notice]")
             {
-                UPG_TBL_INT(table, 0x234) = ScanInt(&ok);
+                UPG_TBL_I32(table, 0x8a) = ScanInt(&ok);
                 if (!ok)
                 {
                     LogManager::logFormat(
@@ -1401,7 +1401,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
             {
                 for (int i = 0; i <= 0x63; ++i)
                 {
-                    UPG_TBL_FLT(table, (i + 0x9c) * 4 + 4) = ScanFloat(&ok);
+                    UPG_TBL_F32(table, i + 0x9b) = ScanFloat(&ok);
                     if (!ok)
                     {
                         if (i != 0x63)
@@ -1430,7 +1430,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     {
                         return 0;
                     }
-                    UPG_TBL_INT(table, (rarity + 0x100) * 4 + 4) = level;
+                    UPG_TBL_I32(table, rarity + 0xfe) = level;
                 }
             }
             else if (token == "[max upgrade level by rarity]")
@@ -1447,7 +1447,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     {
                         return 0;
                     }
-                    UPG_TBL_INT(table, (rarity + 0x104) * 4 + 0xc) = level;
+                    UPG_TBL_I32(table, rarity + 0x104) = level;
                 }
             }
             else if (token == "[disjoint]")
@@ -1464,7 +1464,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     }
                     if (token == "[disjoint bonus item]")
                     {
-                        UPG_TBL_INT(table, 0x238) = ScanInt(&ok);
+                        UPG_TBL_I32(table, 0x8b) = ScanInt(&ok);
                         if (!ok)
                         {
                             break;
@@ -1472,7 +1472,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     }
                     else if (token == "[equip level const]")
                     {
-                        UPG_TBL_INT(table, 0x23c) = ScanInt(&ok);
+                        UPG_TBL_I32(table, 0x8c) = ScanInt(&ok);
                         if (!ok)
                         {
                             throw static_cast<unsigned int>(0xbea);
@@ -1492,12 +1492,12 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                             {
                                 throw static_cast<unsigned int>(0xbf7);
                             }
-                            UPG_TBL_FLT(table, (rarity + 0x90) * 4) = weight;
+                            UPG_TBL_F32(table, rarity + 0x8d) = weight;
                         }
                     }
                     else if (token == "[upgrade const for bonus item count]")
                     {
-                        UPG_TBL_INT(table, 0x258) = ScanInt(&ok);
+                        UPG_TBL_I32(table, 0x93) = ScanInt(&ok);
                         if (!ok)
                         {
                             throw static_cast<unsigned int>(0xbff);
@@ -1517,7 +1517,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                             {
                                 throw static_cast<unsigned int>(0xc0c);
                             }
-                            UPG_TBL_INT(table, (rarity + 0x94) * 4 + 0xc) = grade;
+                            UPG_TBL_I32(table, rarity + 0x94) = grade;
                         }
                     }
                 }
@@ -1526,7 +1526,7 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
             {
                 for (int t = 10; t <= 0x15; ++t)
                 {
-                    UPG_TBL_FLT(table, (t + 0x10c) * 4 + 4) = ScanFloat(&ok);
+                    UPG_TBL_F32(table, t + 0x10b) = ScanFloat(&ok);
                     if (!ok)
                     {
                         LogManager::logFormat(
