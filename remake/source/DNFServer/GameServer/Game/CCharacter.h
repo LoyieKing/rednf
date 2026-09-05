@@ -123,7 +123,11 @@ public:
     const _Additioal_info* get_growtype_stat(int firstGrow, int secondGrow) const;
 
 public:  // ORIG SetSkillTree 0x84ef8cd 直访 m_characs[job]+0x240（m_giveSkillList[0]）
-    _Additioal_info m_baseInfo[7];                 // +0x000..+0x23f
+    // ORIG C1 T 0x0834828c：+0x00 为 base-case 单条 _Additioal_info C1 调用，
+    // +0x52 起才是 6 元数组倒计数循环（mov $0x5,%esi，P151/TB 混合构造形）；
+    // clear 0x0834852e 同形 ⇒ 首元素是独立成员而非数组第 0 项。
+    _Additioal_info m_baseInfo0;                   // +0x000（职业基础行）
+    _Additioal_info m_baseInfoGrow[6];             // +0x052..+0x23f（grow 1..6）
     std::vector<std::pair<int, int> > m_giveSkillList[7];  // +0x240..+0x293
 private:
     STSecondGrowTypeInfo m_secondGrowTypes[7];     // +0x294..+0x7d3

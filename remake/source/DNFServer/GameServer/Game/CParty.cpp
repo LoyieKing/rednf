@@ -3322,12 +3322,11 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
         if (!_checkValidUser(i))
             continue;
 
-        CUser* mu = m_member[i].m_pUser;
-        GlobalData::s_secret_shop->SendSecretShopNpc(mu, shop.m_openCode);
-        mu->getCurCharacQuestW()->set_authen_data((QUEST_CONDITION)0,
+        GlobalData::s_secret_shop->SendSecretShopNpc(m_member[i].m_pUser, shop.m_openCode);
+        m_member[i].m_pUser->getCurCharacQuestW()->set_authen_data((QUEST_CONDITION)0,
                                                   dungeonIdx, (int)(char)type);
         if (dungeon != 0)
-            SetProperLevelDungeon(mu);
+            SetProperLevelDungeon(m_member[i].m_pUser);
 
         if (partyType != 1)
         {
@@ -3338,23 +3337,23 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
             {
                 if (!dungeon->isTournamentDungeon())
                 {
-                    mu->FatigueUp(0);
+                    m_member[i].m_pUser->FatigueUp(0);
                 }
                 else
                 {
-                    mu->FatigueUp(dungeon->getTournamentRoundFatigue());
-                    mu->SendFatigue();
+                    m_member[i].m_pUser->FatigueUp(dungeon->getTournamentRoundFatigue());
+                    m_member[i].m_pUser->SendFatigue();
                 }
             }
         }
 
-        mu->setPlayingDungeonIndex(dungeonIdx);
-        mu->m_character.PlayInfo::Reset();    // ORIG PlayInfo::Reset @ user+0x8e034（不清 m_f3c）
-        mu->m_character.m_f20 = startCount;   // user+0x8e054
-        mu->m_field8e074 = 0;                 // user+0x8e074（CUser 直属字段；Layout_D 布局修正）
+        m_member[i].m_pUser->setPlayingDungeonIndex(dungeonIdx);
+        m_member[i].m_pUser->m_character.PlayInfo::Reset();    // ORIG PlayInfo::Reset @ user+0x8e034（不清 m_f3c）
+        m_member[i].m_pUser->m_character.m_f20 = startCount;   // user+0x8e054
+        m_member[i].m_pUser->m_field8e074 = 0;                 // user+0x8e074（CUser 直属字段；Layout_D 布局修正）
 
         int stdLvl = m_dungeon->get_standard_level();
-        int muLvl = mu->get_charac_level();
+        int muLvl = m_member[i].m_pUser->get_charac_level();
         bool properLevel =
             ((muLvl >= stdLvl - 5) && (muLvl <= stdLvl + 3));
         if (properLevel)
@@ -3364,12 +3363,12 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
         }
 
         int maxBefore = getMemberMaxLevelBeforeDungeon();
-        int lvBefore = mu->get_charac_level_before_dungeon();
+        int lvBefore = m_member[i].m_pUser->get_charac_level_before_dungeon();
         if ((maxBefore - lvBefore >= 7) && (startCount != 1))
         {
             bd.m_flag28[2] = 1;                // +0x356
             if (isGuildParty() ||
-                FindUserByCharId(mu->get_connect_upper_member()))
+                FindUserByCharId(m_member[i].m_pUser->get_connect_upper_member()))
                 bd.m_flag28[3] = 0;            // +0x357
             else
                 bd.m_flag28[3] = 1;
@@ -3386,10 +3385,10 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
             bd.m_flag28[1] = 1;
         }
 
-        HistoryLog::WriteDunStart((_IO_FILE*)mu->m_field796f8,
-                                  mu->get_charac_job(),
-                                  mu->get_charac_level(),
-                                  (int)mu->getCurCharacGrowType());
+        HistoryLog::WriteDunStart((_IO_FILE*)m_member[i].m_pUser->m_field796f8,
+                                  m_member[i].m_pUser->get_charac_job(),
+                                  m_member[i].m_pUser->get_charac_level(),
+                                  (int)m_member[i].m_pUser->getCurCharacGrowType());
 
         if (getManager()->getMoveSpace() != 1)
         {
@@ -3397,19 +3396,19 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
                 dungeonIdx, partyType == 1);
         }
         if (partyType != 1)
-            mu->IncCurCharacDungeonPlayCount();
+            m_member[i].m_pUser->IncCurCharacDungeonPlayCount();
         if (partyType == 1)
         {
             user_creature::CCreatureMgr* cm =
-                const_cast<CInventory*>(mu->getCurCharacInvenR())->GetCreatureMgrW();
+                const_cast<CInventory*>(m_member[i].m_pUser->getCurCharacInvenR())->GetCreatureMgrW();
             cm->TurnStomach(false);
         }
-        mu->set_level_before_dungeon((short)mu->get_charac_level());
+        m_member[i].m_pUser->set_level_before_dungeon((short)m_member[i].m_pUser->get_charac_level());
 
         if (dungeon != 0)
-            SetProperDungeonEvent(mu, dungeonIdx);
+            SetProperDungeonEvent(m_member[i].m_pUser, dungeonIdx);
         SetEndRouting();
-        static_cast<XNuclear::CHades*>(mu->getHades())->StdCateUpdate(2, 0);
+        static_cast<XNuclear::CHades*>(m_member[i].m_pUser->getHades())->StdCateUpdate(2, 0);
     }
 
     for (int a = 0; a <= 1; ++a)
@@ -6581,11 +6580,15 @@ void CParty::clear_reward(int param)
     // ORIG:条件为 != 0(power_war 分支先发射,generateSpecificItem 为 else)。
     if (dungeon->m_89e != 0)
     {
+        // ORIG 0x085ae520 区：getGenerator 链在循环【前】求值一次（local_a8 缓存），
+        // 循环体仅 checkValidUser→get_charac_level→power_war(...)。
+        WongWork::CClearReward* powerGen =
+            static_cast<WongWork::CClearReward*>(G_CDataManager()->getItemGenerator()->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_2));
         for (int i = 0; i < 4; ++i)
         {
             if (_checkValidUser(i))
             {
-                static_cast<WongWork::CClearReward*>(G_CDataManager()->getItemGenerator()->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_2))->power_war_dungeon_gold_clear_reward(
+                powerGen->power_war_dungeon_gold_clear_reward(
                     ref, result, m_member[i].m_pUser->get_charac_level());
             }
         }
@@ -6595,6 +6598,10 @@ void CParty::clear_reward(int param)
         static_cast<WongWork::CClearReward*>(G_CDataManager()->getItemGenerator()->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_2))->generateSpecificItem(ref, result);
     }
     increase_result_card_gold(result);
+
+    // ORIG 0x085ae55f/0x085ae57a：dropItems 迭代器 begin() 在第二遍 ref 赋值【前】
+    // 构造一次（iterator→const_iterator 转换调用），跨 slot 递进消费；end() 每轮重取。
+    std::vector<Inven_Item>::const_iterator dropIt = result.m_dropItems.begin();
 
     ref.m_field35 = static_cast<char>(bfView.get_dungeon_diff());
     ref.m_field34 = static_cast<char>(stdLevel);
@@ -6633,10 +6640,6 @@ void CParty::clear_reward(int param)
             }
         }
     }
-
-    // ORIG 0x085ae5b7 区：dropItems 迭代器在 slot 大循环【前】begin() 构造一次，
-    // 跨 slot 递进消费（每个存活成员取不同掉落项）；end() 每轮重取。
-    std::vector<Inven_Item>::const_iterator dropIt = result.m_dropItems.begin();
 
     for (int slot = 0; slot <= 3; ++slot)
     {
@@ -6833,21 +6836,23 @@ void CParty::clear_reward(int param)
             }
         }
 
-        if (genResult.m_dropItems.empty())
+        // ORIG 0x085af461 区：非空 setCopy 代码物理在前、empty 的 reset+ev13 块
+        // 在后（P59 布局方向）——源写非空先判形。
+        if (!genResult.m_dropItems.empty())
+        {
+            goldCardItems[1].setCopy(*genResult.m_dropItems.begin());
+            if (goldCardItems[1].m_addInfo == -1 || dungeon->m_89e != 0)
+            {
+                goldCardItems[1].reset();
+            }
+        }
+        else
         {
             goldCardItems[1].reset();
             CEventBase* ev13 = GlobalData::s_event_manager->GetRepeatEvent(0x13);
             if (ev13->IsEventing(static_cast<CUser*>(0)))
             {
                 clearGen->generateGoldCardBlankItem(goldCardItems[1]);
-            }
-        }
-        else
-        {
-            goldCardItems[1].setCopy(*genResult.m_dropItems.begin());
-            if (goldCardItems[1].m_addInfo == -1 || dungeon->m_89e != 0)
-            {
-                goldCardItems[1].reset();
             }
         }
 
@@ -6876,12 +6881,17 @@ void CParty::clear_reward(int param)
             ref.m_field3c = 5;                                 // +0x3c 整字视图
             genResult.m_dropItems.clear();
             static_cast<WongWork::CClearReward*>(G_CDataManager()->getItemGenerator()->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_2))->generateRandomItem(ref, genResult);
-            if (genResult.m_dropItems.empty())
+            // ORIG 0x085af5xx 区：非空 setCopy 物理在前，empty 分支后置（P59）；
+            // empty 内 reset 在 getGenerator 链之后。
+            if (!genResult.m_dropItems.empty())
+            {
+                pcRoomItems[1].setCopy(*genResult.m_dropItems.begin());
+            }
+            else
             {
                 WongWork::CClearReward* pcRoomGen =
                     static_cast<WongWork::CClearReward*>(G_CDataManager()->getItemGenerator()->getGenerator(
                         WongWork::CItemGeneratorMgr::eGenerateType_2));
-                // ORIG:reset 在 getGenerator 链之后。
                 pcRoomItems[1].reset();
                 if (pcRoomGen != 0)
                 {
@@ -6892,10 +6902,6 @@ void CParty::clear_reward(int param)
                         pcRoomGen->generatePcRoomCardBlankItem(pcRoomItems[1]);
                     }
                 }
-            }
-            else
-            {
-                pcRoomItems[1].setCopy(*genResult.m_dropItems.begin());
             }
         }
     }

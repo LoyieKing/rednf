@@ -25,6 +25,17 @@
 //     （各 _lt_global_gt_/*.md 报告完整转写）
 //   ACTIVEOBJECT_STATE_STRING D 0x093f4d80 / ACTIVESTATUS_ATTACK_TAG D 0x093f54e0
 //     （ORIG .data 指针表逐项解引用 .rodata 字符串提取，NULL 终止实证）
+//
+// 残余 DIFF 归因（batch-11 §6.3 口径）：
+//   _Z41__static_initialization_and_destruction_0ii —— 全镜像 493 个同名 t 符号，
+//   game_func_report 二进制切片撞名假阳性（§6.3）。本 TU 真实体 =
+//   0x088cc086（26 insn：ios_base::Init + atexit + STScriptFileList
+//   g_aiCharacterScriptFileList@0x94f6a20 ctor）；后者按 P186 归属迁移至
+//   InitScriptProducers_5.cpp:68 定义，本 TU _Z41 仅余 __ioinit 链（16 insn），
+//   语义覆盖等价，勿在本 TU 重复定义该对象（ODR 双定义禁止）。
+//   importAIInfoScript / importAICharacterCommonScript / STAIInfoScript::destroy /
+//   STRDCharacterStatusRate::Clear / _Vector_base/uninitialized_copy 模板族 ——
+//   N7/N82/常量折叠/libstdc++ 内部结构跨版本产物，逐条标注见各函数头注释。
 // ============================================================================
 
 #include <cstdlib>
@@ -73,7 +84,11 @@ bool isKeyFile(const char* name)
 {
     if (name == 0)
         return false;
-    return std::strcmp(name + std::strlen(name) - 4, ".key") == 0;
+    // ORIG 0x088c9a65：strlen 结果落命名槽；strcmp 命中/未命中走分支常量岛（P56）。
+    unsigned int len = strlen(name);
+    if (strcmp(name + (len - 4), ".key") == 0)
+        return true;
+    return false;
 }
 
 // stringToInt —— 报告 _lt_global_gt_/stringToInt.md：线性查表，max==-1 视为 999。
@@ -81,9 +96,13 @@ int stringToInt(const char* s, const char** table, int maxCount)
 {
     if (maxCount == -1)
         maxCount = 999;
-    for (int i = 0; i < maxCount && table[i] != 0; ++i)
+    // ORIG 0x08a38aa7..0x08a38ae8：loop 头只判 i<max（setl）；体内 table[i]
+    // 两次独立装载（null 守卫 + strcmp 实参，O0 无 CSE，P48），空则跳出。
+    for (int i = 0; i < maxCount; ++i)
     {
-        if (std::strcmp(table[i], s) == 0)
+        if (table[i] == 0)
+            break;
+        if (strcmp(table[i], s) == 0)
             return i;
     }
     return -1;
@@ -123,14 +142,15 @@ std::string getFileName(const std::string& path)
 // dir+path 回写 path 并返 true；否则不动返 false。首参按值传递（mangled Ss）。
 bool makeFullPath(std::string directory, std::string& path)
 {
-    const std::size_t slash = path.find('/', 0);
-    const std::size_t backslash = path.find('\\', 0);
-    if (slash == std::string::npos && backslash == std::string::npos)
-    {
-        path = directory + path;
-        return true;
-    }
-    return false;
+    // ORIG 0x088c99d4..0x088c99de：两处 `cmpl $0x0; jns/js` 符号位测试
+    // （4.1 把 ==npos 折成 <0 判）→ 用有符号比较复现 cmp 立即数形；
+    // 第二分支 js→then 的前跳为 4.1 jump-threading（N 类残余）。
+    const int slash = path.find('/', 0);
+    const int backslash = path.find('\\', 0);
+    if (slash >= 0 || backslash >= 0)
+        return false;
+    path = directory + path;
+    return true;
 }
 
 // makeAIFullPath —— 报告 _lt_global_gt_/makeAIFullPath.md：dir+"ai/" 后接 makeFullPath。
@@ -169,11 +189,8 @@ struct MinimumInfo
 // clear W 0x088cc390；add W 0x088cc3b2 = lines.push_back(s); probs.push_back(i)。
 struct APCSpeech
 {
-    APCSpeech()
-    {
-        m_lines.clear();
-        m_probs.clear();
-    }
+    // ORIG C1 W 0x088cc328：两 vector 默认构造 + call clear()（非内联 clear 体）。
+    APCSpeech() { clear(); }
     ~APCSpeech() {}
     void clear()
     {
@@ -202,10 +219,30 @@ struct STRDCharacterStatusRate
 
     void Clear()
     {
-        for (int i = 0; i < 10; ++i) m_head[i] = 1.0f;
+        // ORIG 0x088cc1a0：head/tail 各 10 条独立写（每次重装载 this），
+        // mid28/mid38 为循环（setle）。4.4 常量折叠省 %edx 中转属版本差（P182）。
+        m_head[0] = 1.0f;
+        m_head[1] = 1.0f;
+        m_head[2] = 1.0f;
+        m_head[3] = 1.0f;
+        m_head[4] = 1.0f;
+        m_head[5] = 1.0f;
+        m_head[6] = 1.0f;
+        m_head[7] = 1.0f;
+        m_head[8] = 1.0f;
+        m_head[9] = 1.0f;
         for (int i = 0; i <= 3; ++i) m_mid28[i] = 1.0f;
         for (int k = 0; k <= 16; ++k) m_mid38[k] = 1.0f;
-        for (int i = 0; i < 10; ++i) m_tail[i] = 1.0f;
+        m_tail[0] = 1.0f;
+        m_tail[1] = 1.0f;
+        m_tail[2] = 1.0f;
+        m_tail[3] = 1.0f;
+        m_tail[4] = 1.0f;
+        m_tail[5] = 1.0f;
+        m_tail[6] = 1.0f;
+        m_tail[7] = 1.0f;
+        m_tail[8] = 1.0f;
+        m_tail[9] = 1.0f;
     }
 
     float m_head[10];   // +0x00..+0x24
@@ -270,10 +307,8 @@ typedef char assert_enamy_elem_size[(sizeof(stEnamyDropAvatarElement_t) == 0xc) 
 //   +0x2c=0；+0x30 vector clear。
 struct stEnamyDropAvatarInfo_t
 {
-    stEnamyDropAvatarInfo_t()
-        : m_field0(0), m_field4(0), m_total(0)
-    {
-    }
+    // ORIG C1 W 0x08368de8：仅 +0x30 vector 默认构造；标量字段不初始化（P131）。
+    stEnamyDropAvatarInfo_t() {}
     ~stEnamyDropAvatarInfo_t() {}
 
     void clear()
@@ -316,7 +351,14 @@ public:
     int m_targetingBonus[22];           // +0x4c
     std::vector<int> m_targetingBonusStr[22]; // +0xa4
     int m_keepDistance;                 // +0x1ac
-    std::vector<int> m_keepRange[5];    // +0x1b0/+0x1bc/+0x1c8/+0x1d4/+0x1e0
+    // ORIG C1 0x08366f48（+0xe7..）对 +0x1b0..0x1e0 发射 5 个独立 C1Ev call
+    // （非数组构造循环；同族数组 patterns/bonusStr 均为倒计数循环）→ 权威建模
+    // 为 5 个独立命名成员。
+    std::vector<int> m_keepRange0;      // +0x1b0
+    std::vector<int> m_keepRange1;      // +0x1bc
+    std::vector<int> m_keepRange2;      // +0x1c8
+    std::vector<int> m_keepRange3;      // +0x1d4
+    std::vector<int> m_keepRange4;      // +0x1e0
     int m_intelligence;                 // +0x1ec
     int m_field1f0;                     // +0x1f0
     int m_field1f4;                     // +0x1f4
@@ -441,8 +483,12 @@ STAIInfoScript& STAIInfoScript::operator=(const STAIInfoScript& other)
         m_targetingBonusStr[i] = other.m_targetingBonusStr[i];
     }
     m_keepDistance = other.m_keepDistance;
-    for (int i = 0; i < 5; ++i)
-        m_keepRange[i] = other.m_keepRange[i];
+    // ORIG 0x08a38fd2..0x08a3905e：5 个独立 aSERKS call（逐条）。
+    m_keepRange0 = other.m_keepRange0;
+    m_keepRange1 = other.m_keepRange1;
+    m_keepRange2 = other.m_keepRange2;
+    m_keepRange3 = other.m_keepRange3;
+    m_keepRange4 = other.m_keepRange4;
     m_vision = other.m_vision;
     m_backVision = other.m_backVision;
     m_intelligence = other.m_intelligence;
@@ -461,14 +507,22 @@ STAIInfoScript::~STAIInfoScript()
 
 void STAIInfoScript::destroy()
 {
-    // ORIG 0x0836753a：释放 m_patterns 各桶内 new 出来的 std::string 后清空。
-    for (int p = 0; p < 5; ++p)
+    // ORIG 0x0836753a 逐块转写：外层 p≤4（setle）；内层每轮重取 size()
+    // （setg 有符号比较）；body 内 ix() 三次独立装载（P48 无 CSE）：
+    // 判空 → 取值 → 置 0；死块重复判空照抄（P184）。
+    for (int p = 0; p <= 4; ++p)
     {
-        std::vector<std::string*>& bucket = m_patterns[p];
-        const std::size_t n = bucket.size();
-        for (std::size_t i = 0; i < n; ++i)
-            delete bucket[i];
-        bucket.clear();
+        for (int i = 0; i < (int)m_patterns[p].size(); ++i)
+        {
+            if (m_patterns[p][i] != 0)
+            {
+                std::string* elem = m_patterns[p][i];
+                if (elem != 0)
+                    delete elem;
+            }
+            m_patterns[p][i] = 0;
+        }
+        m_patterns[p].clear();
     }
 }
 
@@ -477,14 +531,22 @@ void STAIInfoScript::clear()
     // ORIG 0x083673d4（objdump 逐条转写）。
     m_thinkTerm = 0x3e8;
     m_destinationChangeTerm = 0x3e8;
-    for (int i = 0; i < 5; ++i)
-        m_keepRange[i].clear();
+    m_keepRange0.clear();               // ORIG 0x083673f9..0x08367439 逐条
+    m_keepRange1.clear();
+    m_keepRange2.clear();
+    m_keepRange3.clear();
+    m_keepRange4.clear();
     m_dir.clear();
     for (int i = 0; i <= 4; ++i)
         m_patterns[i].clear();
     for (int i = 0; i <= 21; ++i)
     {
-        m_targetingBonus[i] = (i == 0) ? 0x32 : 0;
+        // ORIG 0x08367487..0x083674b0：两分支各自重装载 this+下标写常量
+        // （三目会被 4.4 合并公共地址，-2 insn）。
+        if (i == 0)
+            m_targetingBonus[i] = 0x32;
+        else
+            m_targetingBonus[i] = 0;
         m_targetingBonusStr[i].clear();
     }
     m_keepDistance = 0x64;
@@ -562,11 +624,19 @@ void STAICharacterCommonScript::clear()
     m_addGravityInAerial = false;        // byte +0xff4 = 0
     m_gravityAerialA = 20.0f;            // +0xff8 = 0x41a00000
     m_gravityAerialB = -300.0f;          // +0xffc = 0xc3960000（-300.0）
+    // ORIG 0x088c9819..0x088c9898 逐条序：1000 → 1008 → 1004 → POD 组
+    // （POD 写序 0,1,7,4,6,5,2,3 非单调——原码语句序照抄）→ 100c → 1010。
     m_noCooltime = 0;                    // +0x1000
-    m_checkAccountItem = true;           // byte +0x1004 = 1
-    for (int i = 0; i < 8; ++i)          // STAIInfoScript 尾部 POD 绝对 +0x2b0..+0x2cc
-        m_info.m_pod204[i] = 0;          //   由外层 clear 负责清零
     m_npcId = -1;                        // +0x1008
+    m_checkAccountItem = true;           // byte +0x1004 = 1
+    m_info.m_pod204[0] = 0;
+    m_info.m_pod204[1] = 0;
+    m_info.m_pod204[7] = 0;
+    m_info.m_pod204[4] = 0;
+    m_info.m_pod204[6] = 0;
+    m_info.m_pod204[5] = 0;
+    m_info.m_pod204[2] = 0;
+    m_info.m_pod204[3] = 0;
     m_isHellMonster = false;             // byte +0x100c = 0
     m_animationJob = 11;                 // +0x1010 = 0xb
 }
@@ -574,6 +644,9 @@ void STAICharacterCommonScript::clear()
 // ============================================================================
 // importAIInfoScript —— ORIG T 0x08a390db
 // 报告 _lt_global_gt_/importAIInfoScript.md 完整转写。
+// 调用点差集：MISS=0（EXTRA 仅 _Unwind_Resume×2，EH landing pad 版本数差）。
+// 残余 gap14 全部为 4.1 xor$1/test 岛 + jmp 岛（N 类跨版本 jump-threading 豁免项）
+// ⇒ 判语义完成、byte 层 N 封顶（§6.2 同口径）。
 // ============================================================================
 bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel);
 
@@ -633,8 +706,9 @@ bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
                 std::string s;
                 while (ScanStr(&s))
                 {
-                    int v = stringToInt(s.c_str(), ACTIVEOBJECT_STATE_STRING, -1);
-                    info->m_targetingBonusStr[i].push_back(v);
+                    // ORIG 0x08a39463：实参右值 → push_back(int&&)。
+                    info->m_targetingBonusStr[i].push_back(
+                        stringToInt(s.c_str(), ACTIVEOBJECT_STATE_STRING, -1));
                 }
             }
             else if (i == 21)
@@ -642,8 +716,8 @@ bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
                 std::string s;
                 while (ScanStr(&s))
                 {
-                    int v = stringToInt(s.c_str(), ACTIVESTATUS_ATTACK_TAG, 0x13);
-                    info->m_targetingBonusStr[i].push_back(v);
+                    info->m_targetingBonusStr[i].push_back(
+                        stringToInt(s.c_str(), ACTIVESTATUS_ATTACK_TAG, 0x13));
                 }
             }
         }
@@ -661,8 +735,11 @@ bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
         *tag == "[keep range distance with target 4]" ||
         *tag == "[keep range distance with target 5]")
     {
-        for (int i = 0; i < 4; ++i)
-            info->m_keepRange[i].push_back(ScanInt((bool*)0));
+        // ORIG 0x08a3961c..0x08a396b3：4 条逐句写 m_keepRange0..3（非循环）。
+        info->m_keepRange0.push_back(ScanInt((bool*)0));
+        info->m_keepRange1.push_back(ScanInt((bool*)0));
+        info->m_keepRange2.push_back(ScanInt((bool*)0));
+        info->m_keepRange3.push_back(ScanInt((bool*)0));
         return true;
     }
     if (*tag == "[warlike]")
@@ -693,6 +770,9 @@ bool importAIInfoScript(STAIInfoScript* info, std::string* tag, bool byLevel)
 // ============================================================================
 // importAICharacterCommonScript —— ORIG T 0x088c9ccc
 // 报告 _lt_global_gt_/importAICharacterCommonScript.md 完整转写。
+// §6.2 超大函数（2105 insns）验收：调用点差集 320/320 全命中（MISS/EXTRA=0）；
+// gap 186→-5，残余为 N82 帧槽错位（ORIG 0x130 vs NEW 0x160，P182 不强凑）与
+// 4.1/4.4 jump-threading 岛差异 ⇒ 判语义完成、byte 层 N 封顶。
 // 返回 bool：文件加载失败 / [rarity] 解析失败或=6 / [pvp win point] 逆序 /
 //   [drop avatar item] 任一扫描失败 / [animation job] 失败 /
 //   兜底 importAIInfoScript 失败 → false；ScanType 终结 → true。
@@ -720,12 +800,25 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
 
         if (tag == "[minimum info]")
         {
-            ScanStr(&script->m_minimumInfo.m_name);
-            for (int i = 0; i < 4; ++i) ScanInt((bool*)0);
-            script->m_minimumInfo.m_field4 = ScanInt((bool*)0);
-            for (int i = 0; i < 6; ++i) ScanInt((bool*)0);
+            // ORIG 0x088c9dd0..0x088c9eaf：ScanStr→m_name=tok + 14 个逐条
+            // ScanInt（第 5 个写 m_field4），无循环合并（P183 物化口径）。
             ScanStr(&tok);
-            for (int i = 0; i < 3; ++i) ScanInt((bool*)0);
+            script->m_minimumInfo.m_name = tok;
+            ScanInt((bool*)0);
+            ScanInt((bool*)0);
+            ScanInt((bool*)0);
+            ScanInt((bool*)0);
+            script->m_minimumInfo.m_field4 = ScanInt((bool*)0);
+            ScanInt((bool*)0);
+            ScanInt((bool*)0);
+            ScanInt((bool*)0);
+            ScanInt((bool*)0);
+            ScanInt((bool*)0);
+            ScanInt((bool*)0);
+            ScanStr(&tok);
+            ScanInt((bool*)0);
+            ScanInt((bool*)0);
+            ScanInt((bool*)0);
         }
         else if (tag == "[NPC]")
         {
@@ -757,8 +850,7 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                 const int v = ScanInt(&ok);
                 if (!ok)
                     break;
-                if (n <= 16)
-                    st.m_activeResist[n] = (short)v;  // ORIG 无界写；按数组边界裁剪
+                st.m_activeResist[n] = (short)v;      // ORIG 0x088ca0bd 无界写，照抄（P171）
             }
         }
         else if (tag == "[equipment]")
@@ -830,13 +922,13 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                 if (isKeyFile(keyFile.c_str()))
                 {
                     tok = keyFile;
-                    keyFile.clear();
+                    keyFile = "";                      // ORIG 0x088ca432 operator=(const char*)
                 }
                 else
                 {
                     keyOk = ScanStr(&tok);
                 }
-                if (keyFile.empty())
+                if (*keyFile.c_str() == '\0')          // ORIG 0x088ca456 c_str+testb（非 empty()）
                     keyFile = getFileName(tok);
                 script->m_keyFiles.push_back(keyFile);
                 if (keyOk)
@@ -880,11 +972,13 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
             script->m_deathTowerItems.clear();
             while (true)
             {
-                const int first = ScanInt(&ok);
+                int first = ScanInt(&ok);
                 if (!ok)
                     break;
-                const int second = ScanInt((bool*)0);
-                script->m_deathTowerItems.push_back(std::pair<int, int>(first, second));
+                // ORIG 0x088ca81c/0x088ca837：pair<int&,int> 模板 ctor（第二参为
+                // 右值实参）→ push_back(T&&)。
+                script->m_deathTowerItems.push_back(
+                    std::pair<int, int>(first, ScanInt((bool*)0)));
             }
         }
         else if (tag == "[leave body]")
@@ -895,8 +989,8 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
         else if (tag == "[move action]")      { ScanStr(&script->m_actionSet.m_move); }
         else if (tag == "[dash action]")      { ScanStr(&script->m_actionSet.m_dash); }
         else if (tag == "[sit action]")       { ScanStr(&script->m_actionSet.m_sit); }
-        else if (tag == "[damage action 1]")  { ScanStr(&script->m_actionSet.m_damage1); }
-        else if (tag == "[damage action 2]")  { ScanStr(&script->m_actionSet.m_damage2); }
+        else if (tag == "[damage action 1]")  { ScanStr(&script->m_actionSet.m_damage[0]); }
+        else if (tag == "[damage action 2]")  { ScanStr(&script->m_actionSet.m_damage[1]); }
         else if (tag == "[down action]")      { ScanStr(&script->m_actionSet.m_down); }
         else if (tag == "[overturn action]")  { ScanStr(&script->m_actionSet.m_overturn); }
         else if (tag == "[jump action]")      { ScanStr(&script->m_actionSet.m_jump); }
@@ -926,7 +1020,7 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
         else if (tag == "[speech on situation]")
         {
             std::string line;
-            for (int i = 0; i < 111; ++i)
+            for (int i = 0; i <= 0x6e; ++i)               // ORIG cmpl $0x6e; setle（P51）
                 script->m_speeches[i].clear();           // 24*i + 0x300
             script->m_onAttackSpeech.clear();            // +0xd68
             script->m_onKeySpeech.clear();               // +0xd74
@@ -935,34 +1029,15 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                 bool isType = false;
                 if (!ScanTypeOrStr(isType, tok, true))
                     break;                               // 段结束（esi=1）
-                if (isType && tok == "[/speech on situation]")
+                if (tok == "[/speech on situation]")     // ORIG 不查 isType 标志
                     break;
                 ScanStr(&line);
                 const int prob = ScanInt((bool*)0);
-                const bool isAttack = (tok == "[on attack]");
-                const bool isKey = (tok == "[on key]");
-                if (!isAttack && !isKey)
+                int slot = -1;                            // ORIG 0x1092 先置 -1
+                if (tok == "[on attack]")
                 {
-                    int slot = -1;
-                    if (tok == "[on damage]")      slot = 0x65;
-                    else if (tok == "[on die]")    slot = 0x66;
-                    else if (tok == "[on revenge]") slot = 0x67;
-                    else if (tok == "[on etc]")    slot = 0x68;
-                    else if (tok == "[on appear]") slot = 0x69;
-                    else if (tok == "[on disappear]") slot = 0x6a;
-                    else if (tok == "[on go to help]") slot = 0x6b;
-                    else if (tok == "[on stand]")  slot = 0x6c;
-                    else
-                        return false;                // ORIG: esi=0 → 返回失败
-                    if ((unsigned)slot <= 0x6e)      // cmpl $0x6e; ja skip
-                        script->m_speeches[slot].add(line, prob);
-                }
-                else
-                {
-                    // ORIG ScanFloatStr：kind==0 数值桶 / kind==1 在 m_keyFiles 找名字；
-                    // fistpl 前 fldcw 切截断模式 → C 风格 (int) 转换同语义。
+                    // ORIG 0x088cad83..0x088caeed：独立块（与 [on key] 不共享代码）。
                     float fv = 0.0f;
-                    int slot = -1;
                     const int kind = ScanFloatStr(fv, tok);
                     if (kind == 0)
                         slot = (int)fv;
@@ -977,15 +1052,45 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                             }
                         }
                     }
-                    std::vector<APCSpeech>& bucket =
-                        isAttack ? script->m_onAttackSpeech : script->m_onKeySpeech;
-                    if (slot >= 0 && bucket.size() < (std::size_t)slot + 1)
+                    if (script->m_onAttackSpeech.size() < (std::size_t)slot + 1)
+                        script->m_onAttackSpeech.resize((std::size_t)slot + 1, APCSpeech());
+                    script->m_onAttackSpeech[(std::size_t)slot].add(line, prob);
+                }
+                else if (tok == "[on key]")
+                {
+                    float fv = 0.0f;
+                    const int kind = ScanFloatStr(fv, tok);
+                    if (kind == 0)
+                        slot = (int)fv;
+                    else if (kind == 1)
                     {
-                        APCSpeech filler;
-                        bucket.resize((std::size_t)slot + 1, filler);
+                        for (std::size_t i = 0; i < script->m_keyFiles.size(); ++i)
+                        {
+                            if (script->m_keyFiles[i] == tok)
+                            {
+                                slot = (int)i;
+                                break;
+                            }
+                        }
                     }
-                    if (slot >= 0)
-                        bucket[(std::size_t)slot].add(line, prob);
+                    if (script->m_onKeySpeech.size() < (std::size_t)slot + 1)
+                        script->m_onKeySpeech.resize((std::size_t)slot + 1, APCSpeech());
+                    script->m_onKeySpeech[(std::size_t)slot].add(line, prob);
+                }
+                else
+                {
+                    if (tok == "[on damage]")      slot = 0x65;
+                    else if (tok == "[on die]")    slot = 0x66;
+                    else if (tok == "[on revenge]") slot = 0x67;
+                    else if (tok == "[on etc]")    slot = 0x68;
+                    else if (tok == "[on appear]") slot = 0x69;
+                    else if (tok == "[on disappear]") slot = 0x6a;
+                    else if (tok == "[on go to help]") slot = 0x6b;
+                    else if (tok == "[on stand]")  slot = 0x6c;
+                    else
+                        return false;                // ORIG: esi=0 → 返回失败
+                    if ((unsigned)slot <= 0x6e)      // cmpl $0x6e; ja skip
+                        script->m_speeches[slot].add(line, prob);
                 }
             }
         }
@@ -1009,13 +1114,14 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
             script->m_partyMembers.clear();
             while (true)
             {
-                const int a = ScanInt(&ok);
+                int a = ScanInt(&ok);
                 if (!ok)
                     break;
-                const int b = ScanInt(&ok);
+                int b = ScanInt(&ok);
                 if (!ok)
                     break;
-                script->m_partyMembers.push_back(std::pair<int, int>(a, b));
+                // ORIG 0x088cb399：make_pair<int&,int&> sret + push_back 嵌套实参（P178）。
+                script->m_partyMembers.push_back(std::make_pair(a, b));
             }
         }
         else if (tag == "[far attack reaction rate]")
@@ -1035,15 +1141,31 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
             if (script->m_pvpWinPointHigh < script->m_pvpWinPointLow)
                 return false;
         }
-        else if (tag == "[character status rate]" ||
-                 tag == "[character status rate special]")
+        else if (tag == "[character status rate]")
         {
-            STRDCharacterStatusRate& r = (tag == "[character status rate]")
-                ? script->m_statusRate : script->m_specialStatusRate;
-            const bool special = (tag != "[character status rate]");
-            for (int i = 0; i < 10; ++i) r.m_head[i] = ScanFloat((bool*)0);
-            for (int k = 0; k <= 16; ++k) r.m_mid38[k] = ScanFloat((bool*)0);
-            for (int i = 0; i < 10; ++i) r.m_tail[i] = ScanFloat((bool*)0);
+            // ORIG 0x088cb4ed..0x088cb703：head 10 条 + tail 10 条逐条单写
+            // （fstps 0xdac.. / 0xe28..），随后 for≤3 写 mid28、while 无界写 mid38。
+            STRDCharacterStatusRate& r = script->m_statusRate;
+            r.m_head[0] = ScanFloat((bool*)0);
+            r.m_head[1] = ScanFloat((bool*)0);
+            r.m_head[2] = ScanFloat((bool*)0);
+            r.m_head[3] = ScanFloat((bool*)0);
+            r.m_head[4] = ScanFloat((bool*)0);
+            r.m_head[5] = ScanFloat((bool*)0);
+            r.m_head[6] = ScanFloat((bool*)0);
+            r.m_head[7] = ScanFloat((bool*)0);
+            r.m_head[8] = ScanFloat((bool*)0);
+            r.m_head[9] = ScanFloat((bool*)0);
+            r.m_tail[0] = ScanFloat((bool*)0);
+            r.m_tail[1] = ScanFloat((bool*)0);
+            r.m_tail[2] = ScanFloat((bool*)0);
+            r.m_tail[3] = ScanFloat((bool*)0);
+            r.m_tail[4] = ScanFloat((bool*)0);
+            r.m_tail[5] = ScanFloat((bool*)0);
+            r.m_tail[6] = ScanFloat((bool*)0);
+            r.m_tail[7] = ScanFloat((bool*)0);
+            r.m_tail[8] = ScanFloat((bool*)0);
+            r.m_tail[9] = ScanFloat((bool*)0);
             for (int t = 0; t <= 3; ++t)
                 r.m_mid28[t] = ScanFloat((bool*)0);      // (t+0x370)*4+0x14 → Rate+0x28+4t
             for (int n = 0; ; ++n)
@@ -1051,11 +1173,8 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                 const float f = ScanFloat(&ok);
                 if (!ok)
                     break;
-                // ORIG 无界连续追加 (n+0x374)*4+0x14 → Rate+0x38+4n 起；
-                // 此处按数组边界裁剪以避免内存破坏（可观察行为：合法范围内一致）。
-                if (n <= 16)
-                    r.m_mid38[n] = f;
-                (void)special;
+                // ORIG 0x088cb6cc 无界连续写 (n+0x374)*4+0x14 → Rate+0x38+4n；照抄（P171）。
+                r.m_mid38[n] = f;
             }
         }
         else if (tag == "[custom skill level]")
@@ -1096,6 +1215,41 @@ bool importAICharacterCommonScript(STAICharacterCommonScript* script,
                 if (!ok)
                     break;
                 script->m_dollSpecialDungeons.push_back(v);
+            }
+        }
+        else if (tag == "[character status rate special]")
+        {
+            // ORIG 0x088cb8da..（链位在 doll 之后）：special 独立块，e78.. / ef4..
+            // 各 10 条逐条单写（fstps），for≤3 mid28、while 无界 mid38。
+            STRDCharacterStatusRate& r = script->m_specialStatusRate;
+            r.m_head[0] = ScanFloat((bool*)0);
+            r.m_head[1] = ScanFloat((bool*)0);
+            r.m_head[2] = ScanFloat((bool*)0);
+            r.m_head[3] = ScanFloat((bool*)0);
+            r.m_head[4] = ScanFloat((bool*)0);
+            r.m_head[5] = ScanFloat((bool*)0);
+            r.m_head[6] = ScanFloat((bool*)0);
+            r.m_head[7] = ScanFloat((bool*)0);
+            r.m_head[8] = ScanFloat((bool*)0);
+            r.m_head[9] = ScanFloat((bool*)0);
+            r.m_tail[0] = ScanFloat((bool*)0);
+            r.m_tail[1] = ScanFloat((bool*)0);
+            r.m_tail[2] = ScanFloat((bool*)0);
+            r.m_tail[3] = ScanFloat((bool*)0);
+            r.m_tail[4] = ScanFloat((bool*)0);
+            r.m_tail[5] = ScanFloat((bool*)0);
+            r.m_tail[6] = ScanFloat((bool*)0);
+            r.m_tail[7] = ScanFloat((bool*)0);
+            r.m_tail[8] = ScanFloat((bool*)0);
+            r.m_tail[9] = ScanFloat((bool*)0);
+            for (int t = 0; t <= 3; ++t)
+                r.m_mid28[t] = ScanFloat((bool*)0);      // (t+0x3a4)*4+0x10 → Rate+0x28+4t
+            for (int n = 0; ; ++n)
+            {
+                const float f = ScanFloat(&ok);
+                if (!ok)
+                    break;
+                r.m_mid38[n] = f;                        // ORIG 无界写，照抄（P171）
             }
         }
         else if (tag == "[attack damage rate special]")

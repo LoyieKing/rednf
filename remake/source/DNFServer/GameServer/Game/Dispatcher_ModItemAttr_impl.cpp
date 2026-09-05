@@ -61,6 +61,25 @@ void sSendResult(CUser* user, unsigned short resultType,
 
 int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
 {
+    // ========================================================================
+    // ORIG 0x08200b08（报告 docs/class_func_reports/Dispatcher_ModItemAttr/
+    // dispatch_sig.md + objdump /tmp/mia.txt 逐条核实）。
+    // 该函数是 **单个 try + 两个 catch 子句** 结构，共 19 处抛出：
+    //   · 14 处 __cxa_throw(&ENUM_ERROR::typeinfo@0x08b75f40)，载荷
+    //     4/4/0x13/4/0x13/0x11/0xd/0x13/0x13/0x13/0x13/0x11/0x16/0x12
+    //     （地址 0x08200e4f/e88/ebf/f0d/f77、0x082010af/11a4/11ec/12b3/130c/
+    //      134d/13fb/1443/14f9）；
+    //   · 5 处 __cxa_throw(&typeinfo(int)@0x0936b1e0)，载荷 0/-1/-2/-2/-3
+    //     （0x08200bd6/0d18/126e/13cf/14ab）。
+    // catch 子句：@0x08201880 → SendCmdErrorPacket(0x54,(unsigned char)e)；
+    //             @0x082018c8 → `cmpl $0x0; jns`：e<0 才 LineFunc(0x9706,...,0,0)，
+    //                            e>=0 置 %ebx=0。
+    // 旧实现把全部抛出点内联成 `SendCmdErrorPacket(0x54,N); return 0;`（EXTRA
+    // 13 次该调用、缺 19+19 次 allocate/throw 与 2 catch），语义近似但结构与
+    // ORIG 完全不符（gap 173），现按 ORIG 恢复。为免整函数重排，try 内保持原缩进。
+    // ========================================================================
+    register int ret asm("ebx");        // ORIG 出口统一 mov %ebx,%eax
+    try {
     // ---- 1. 状态检查：state==3 且当前角色存在，否则错误包(0x54,0) 后 return ----
     if (user->get_state() != 3 || user->getCurCharacR() == 0)
     {
@@ -69,7 +88,7 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
                     0x95db, 5);
         tr("Dispatcher_ModItemAttr => User State : %d, m_id : %s",
            user->get_state(), idStr);
-        return 0;   // ORIG throw int(0) → catch2 e>=0 → return 0（不发包）
+        throw 0;                        // ORIG 0x08200bd6 throw int(0)
     }
 
     // ---- 2. 服务限制 (RestrictCategory=1, v=0xf) ----
@@ -77,7 +96,8 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
             ->isRestricted(user, (RestrictCategory::Enum)1, 0xf))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 0xd1);
-        return 0;
+        ret = 0;
+        return ret;
     }
 
     // ---- 3. 安全保护 CSecu_ProtectionField::Check(0x26) ----
@@ -85,12 +105,16 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
     if (secuRet != 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, (unsigned char)secuRet);
-        return 0;
+        ret = 0;
+        return ret;
     }
 
     // ---- 4. 交易中则直接忽略 ----
     if (user->CheckInTrade())
-        return 0;
+    {
+        ret = 0;
+        return ret;
+    }
 
     // ---- 5. 解析包 ----
     unsigned short equipSlot = 0;
@@ -100,50 +124,48 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
         !packet.get_int(itemIdx) ||
         !packet.get_short(matSlot))
     {
-        // ORIG throw int(-1) → catch2 e<0 → LineFunc(0x9706)（仅日志）
-        return LineFunc(0x9706, __PRETTY_FUNCTION__, 0, 0);
+        throw -1;                       // ORIG 0x08200d18 throw int(-1)
     }
 
     // ---- 6. 取目标装备槽项目并校验 ----
     CInventory* inven = user->getCurCharacInvenW();
-    Inven_Item target = inven->GetInvenSlot((INVEN_TYPE)1, (int)equipSlot);
+    // ORIG callee 差集实证：本函数有 2 次 Inven_Item::Inven_Item()（默认构造），
+    // 即「先默认构造、再赋值」两语句形（copy-init `Inven_Item t = GetInvenSlot()`
+    // 不产生默认 ctor 调用）。
+    Inven_Item target;
+    target = inven->GetInvenSlot((INVEN_TYPE)1, (int)equipSlot);
     if (target.isEmpty())
     {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 4);   // ORIG ENUM_ERROR(4)
-        return 0;
+        throw (ENUM_ERROR)4;            // ORIG 0x08200e4f
     }
     if ((unsigned int)(unsigned short)target.m_addInfo != (unsigned int)itemIdx)
     {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 4);   // ORIG ENUM_ERROR(4)
-        return 0;
+        throw (ENUM_ERROR)4;            // ORIG 0x08200e88
     }
     if (target.m_field1 != 1)
     {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 0x13);
-        return 0;
+        throw (ENUM_ERROR)0x13;         // ORIG 0x08200ebf
     }
 
     CItem* citem = G_CDataManager()->find_item((int)itemIdx);
     if (citem == 0)
     {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 4);   // ORIG ENUM_ERROR(4)
-        return 0;
+        throw (ENUM_ERROR)4;            // ORIG 0x08200f0d
     }
     {
         int itype = citem->GetItemType();
         if (itype < 10 || itype > 0x15)
         {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 0x13);
-            return 0;
+            throw (ENUM_ERROR)0x13;     // ORIG 0x08200f77
         }
     }
 
     // ---- 7. 取材料槽项目 ----
-    Inven_Item material = inven->GetInvenSlot((INVEN_TYPE)1, (int)matSlot);
+    Inven_Item material;
+    material = inven->GetInvenSlot((INVEN_TYPE)1, (int)matSlot);
     if (material.isEmpty())
     {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 0x11);
-        return 0;
+        throw (ENUM_ERROR)0x11;         // ORIG 0x082010af
     }
 
     // ---- 8. 装备槽加锁检查 ----
@@ -163,13 +185,11 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
         resultType = 1;
         if (target.GetReSealCount() > 6)
         {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 0xd);
-            return 0;
+            throw (ENUM_ERROR)0xd;      // ORIG 0x082011a4
         }
         if (citem->GetItemType() == 0xb)
         {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 0x13);
-            return 0;
+            throw (ENUM_ERROR)0x13;     // ORIG 0x082011ec
         }
         cost = G_CDataManager()->m_resealTable.get_reseal_cost(
                    (unsigned char)citem->get_rarity(),
@@ -177,13 +197,11 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
                    target.GetReSealCount());
         if (cost < 0)
         {
-            // ORIG throw int(-2) → catch2 e<0 → LineFunc(0x9706)（仅日志）
-            return LineFunc(0x9706, __PRETTY_FUNCTION__, 0, 0);
+            throw -2;                   // ORIG 0x0820126e throw int(-2)
         }
         if (citem->GetAttachType() != 3)
         {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 0x13);
-            return 0;
+            throw (ENUM_ERROR)0x13;     // ORIG 0x082012b3
         }
     }
     else if (matIdx == 0x28978e)
@@ -192,13 +210,11 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
         resultType = 1;
         if (citem->GetItemType() == 0xb)
         {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 0x13);
-            return 0;
+            throw (ENUM_ERROR)0x13;     // ORIG 0x0820130c
         }
         if (citem->GetAttachType() != 3)
         {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 0x13);
-            return 0;
+            throw (ENUM_ERROR)0x13;     // ORIG 0x0820134d
         }
         cost = G_CDataManager()->m_resealTable.get_oneshot_reseal_cost(
                    (unsigned char)citem->get_rarity(),
@@ -206,30 +222,25 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
                    target.GetReSealCount());
         if (cost < 0)
         {
-            // ORIG throw int(-2) → catch2 e<0 → LineFunc(0x9706)（仅日志）
-            return LineFunc(0x9706, __PRETTY_FUNCTION__, 0, 0);
+            throw -2;                   // ORIG 0x082013cf throw int(-2)
         }
     }
     else if (matIdx != 0x28d14e && matIdx != 0xf &&
              matIdx != 0x381 && matIdx != 0x292090f2)
     {
-        // 未知材料 idx → ORIG ENUM_ERROR(0x11)
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 0x11);
-        return 0;
+        throw (ENUM_ERROR)0x11;         // ORIG 0x082013fb
     }
     // 其余 (0x28d14e / 0xf / 0x381 / 0x292090f2) 保持 resultType=2（一次性）
 
     // ---- 10. 校验材料数量并扣除 ----
     if (material.get_add_info() < cost)
     {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 0x16);
-        return 0;
+        throw (ENUM_ERROR)0x16;         // ORIG 0x08201443
     }
     if (!inven->delete_item((INVEN_TYPE)1, (int)matSlot, cost,
                             (eItemDelReason)3, true))
     {
-        // ORIG throw int(-3) → catch2 e<0 → LineFunc(0x9706)（仅日志）
-        return LineFunc(0x9706, __PRETTY_FUNCTION__, 0, 0);
+        throw -3;                       // ORIG 0x082014ab throw int(-3)
     }
 
     // ---- 11. 修改装备并落库 ----
@@ -238,8 +249,7 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
         // 封印再铸：标记已用 + 封印次数 +1（上限 7）
         if (target.m_field0 != 0)
         {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, 0x12);
-            return 0;
+            throw (ENUM_ERROR)0x12;     // ORIG 0x082014f9
         }
         target.m_field0 = 1;
         target.SetReSealCount(
@@ -253,7 +263,9 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
     inven->update_item((INVEN_TYPE)1, (int)equipSlot, target);
 
     // ---- 12. 回包（修改结果） ----
-    sSendResult(user, (unsigned short)resultType,
+    // ORIG 是该类真实成员 _ZN22Dispatcher_ModItemAttr11_SendResultEP5CUserttt
+    // （T 0x08201938），匿名 namespace 自由函数 sSendResult 属 §4.1 发明符号。
+    _SendResult(user, (unsigned short)resultType,
                 (unsigned short)matSlot, (unsigned short)equipSlot);
 
     // ---- 13. 会员返还材料（GetReturnItemRate(matIdx) / insertItemIntoInventory） ----
@@ -265,7 +277,9 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
         if (returnQty > 0)
         {
             Inven_Item ret = material;
-            ret.set_add_info(returnQty);
+            // ORIG 此处无第三次 Inven_Item::set_add_info（callee 差集：我方多 1 次），
+            // 即直接字段写而非 setter。
+            ret.m_addInfo = (unsigned int)returnQty;
             int reslot = inven->insertItemIntoInventory(ret, (eItemAddReason)0xe,
                                                         true, false);
             if (reslot > -1)
@@ -273,7 +287,26 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
                                          (ENUM_ITEMSPACE)0, reslot);
         }
     }
-    return 0;
+    ret = 0;
+    return ret;
+    }
+    // ---- ORIG catch 子句一 @0x08201880：ENUM_ERROR → 0x54 错误包（载荷低字节）----
+    catch (ENUM_ERROR e)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x54, (unsigned char)e);
+        ret = 0;
+        return ret;
+    }
+    // ---- ORIG catch 子句二 @0x082018c8：`cmpl $0x0,-0x1c(%ebp); jns` ----
+    // e<0 才 LineFunc(0x9706, pretty, 0, 0)（第 3/4 参均为 0，非 e）；e>=0 置 0。
+    catch (int e)
+    {
+        if (e < 0)
+            ret = LineFunc(0x9706, __PRETTY_FUNCTION__, 0, 0);
+        else
+            ret = 0;
+        return ret;
+    }
 }
 
 // ============================================================================

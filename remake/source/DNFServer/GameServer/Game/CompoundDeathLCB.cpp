@@ -83,25 +83,26 @@ namespace WongWork {
 // 当前 CItem.h 虚函数声明序与该权威槽序的审计差异尚未收敛（AuditCItemVtable
 // 域负责）；为保证本 TU 与 ORIG 虚分派逐指令等价，经槽偏移显式调用，
 // 全局虚表收敛后应替换回语义虚调用。
+//
+// 必须是**宏**而非 static helper：ORIG 的虚取址序列
+//   mov (obj),%eax ; add $slot,%eax ; mov (%eax),%edx ; mov obj,%eax ;
+//   mov %eax,(%esp) ; call *%edx
+// （7 insn/处）位于调用者帧内；提成 helper 后调用者只剩 2 insn，本 TU
+// _CheckCondition 实测 10 处虚调用 ⇒ ~50 insn 缺口（P183 同类物化口径，
+// P167 差集 ORIG indirect=10 / ours=0 实证）。
 // ---------------------------------------------------------------------------
-static int CI_SubType(const void* item)
-{
-    typedef int (*Fn)(const void*);
-    return (*reinterpret_cast<Fn*>(*reinterpret_cast<void* const*>(item) + 0x0c))(
-        item);
-}
-static bool CI_IsAvatarItem(const void* item)
-{
-    typedef bool (*Fn)(const void*);
-    return (*reinterpret_cast<Fn*>(*reinterpret_cast<void* const*>(item) + 0x10))(
-        item);
-}
-static bool CI_UsableType1(const void* item)
-{
-    typedef bool (*Fn)(const void*, int);
-    return (*reinterpret_cast<Fn*>(*reinterpret_cast<void* const*>(item) + 0x24))(
-        item, 1);
-}
+#define CI_VCALL0(ret, slot, obj)                                        \
+    reinterpret_cast<ret (*)(const void*)>(                              \
+        *reinterpret_cast<const int*>(                                   \
+            *reinterpret_cast<const void* const*>(obj) + (slot)))(obj)
+#define CI_VCALL1(ret, slot, obj, a1)                                    \
+    reinterpret_cast<ret (*)(const void*, int)>(                         \
+        *reinterpret_cast<const int*>(                                   \
+            *reinterpret_cast<const void* const*>(obj) + (slot)))(obj, (a1))
+
+#define CI_SubType(item)       CI_VCALL0(int, 0x0c, item)
+#define CI_IsAvatarItem(item)  CI_VCALL0(bool, 0x10, item)
+#define CI_UsableType1(item)   CI_VCALL1(bool, 0x24, item, 1)
 
 // ============================ _MakeCompoundInfo ============================
 
@@ -226,135 +227,211 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
 // ============================== _CheckCondition =============================
 
 // ORIG 0x0833260c（const）。错误码：1 材料异常/条目缺失、0x11 通用条件失败、
-// 0x13 有效期类别不一致、0x16 缺事件材料、0x17 组合约束失败；0 通过。
+// 0x13 有效期类别不一致、0x16 缺事件材料、0x17 组合约束失败、0x18 剩余天数过短；
+// 0 通过。
+//
+// 【batch-11 验收标注（§6.2 口径）】orig 611 / ours 616（gap 5）。
+//   ① 调用点差集：ORIG direct 52 + indirect 10 ↔ ours direct 52 + indirect 10，
+//      **归零**（仅 __normal_iterator C2×2 ↔ 4.4 发射 C1×2 的同体符号名对称差）；
+//   ② 逐块补齐：CI_* 由 static helper 改宏内联（虚取址 7 insn 回到本帧，
+//      indirect 0→10）、补 ORIG 0x08332792 的 `m_field04 == 0 → 0x17` 漏判、
+//      getCurCharacInvenR ×7 / GetAvatarItemMgrR ×3 / get_grade ×6 /
+//      get_charac_job ×2 全部改为逐点重取、迭代器改「默认构造 + 分支内
+//      begin/end + 循环后 ==」形、opts 下标不再命名局部（gap 156 → 5）；
+//   ③ 残余 5 insn 为 4.1 的 `cmp $imm; sete; test` 布尔物化岛与统一出口
+//      jmp/nop 布局（N3/N76/setcc-fold 族）⇒ 判**语义完成、byte 层封顶**。
+// 物化口径（P183/P167 实证）：ORIG 对每个判据都重发完整取数链 ——
+//   getCurCharacInvenR ×7（0x08332c27/0c6a/0cad/0cee + 日期段 0x0723/0x0752/0x0781/0x07ab）
+//   GetAvatarItemMgrR ×3、get_grade ×6、get_charac_job ×2、
+//   两个 vector 迭代器各显式构造（normal_iterator C2 ×2）+ begin/end ×2 + 循环后 ==。
+// 重建端禁缓存（一处缓存即整条链消失，本函数 gap 156 的主体即此）。
 int CCompoundAvatar::_CheckCondition(const CUser* user,
                                      const tagCompoundInfo& info) const
 {
     // 分离模式(type4)仅允许指定物品 0x2898c4。
-    if (info.m_type == 4 && static_cast<int>(info.m_avatar.m_addInfo) != 0x2898c4)
+    if (info.m_type == 4 && info.m_avatar.m_addInfo != 0x2898c4)
+    {
         return 0x11;
-    if (info.m_slot > 99)                                      // u16 cmp 0x63
+    }
+    if (info.m_slot > 99)                                       // u16 cmp $0x63
+    {
         return 0x11;
+    }
     if (info.m_errorFlag != 0)
+    {
         return 0x11;
-    if (info.m_field00 == 0xb)                                 // 表索引无效
+    }
+    if (info.m_field00 == 0xb)                                  // 表索引无效
+    {
         return 0x17;
-    // ORIG 读 m_addInfo(+0x02)（get_add_info() 读 m_addInfo2，字段不同）。
-    if (info.m_materialA.m_addInfo == 0 ||
-        info.m_materialB.m_addInfo == 0)
+    }
+    // ORIG 两个独立守卫（0x08332687 / 0x08332691 各 je/jne 直跳统一出口，P133）。
+    if (info.m_materialA.m_addInfo == 0)
+    {
         return 0x11;
+    }
+    if (info.m_materialB.m_addInfo == 0)
+    {
+        return 0x11;
+    }
 
-    // 任一材料的 uid(addInfo2) 是临时 key → 1。
+    // 任一材料的 uid 是临时 key → 1（0x083326a8 / 0x083326ba 两次实调 +
+    // mov$1/mov$0 汇聚岛）。
     if (CAvatarItemMgr::IsTempKey(info.m_materialA.m_addInfo2) ||
         CAvatarItemMgr::IsTempKey(info.m_materialB.m_addInfo2))
+    {
         return 1;
+    }
 
-    if (!CI_IsAvatarItem(info.m_scriptA) || !CI_IsAvatarItem(info.m_scriptB))
+    if (!CI_IsAvatarItem(info.m_scriptA) ||
+        !CI_IsAvatarItem(info.m_scriptB))
+    {
         return 0x11;
+    }
     if (CI_SubType(info.m_scriptA) != CI_SubType(info.m_scriptB))
+    {
         return 0x17;
-    if (!CI_UsableType1(info.m_scriptA) || !CI_UsableType1(info.m_scriptB))
-        throw static_cast<ENUM_ERROR>(0x17);                   // __cxa_throw ENUM_ERROR
-    const tagCompoundAvatarTable& table = m_tables[info.m_field00];
-    const tagCompoundAvatar* rec =
-        table.getCompoundAvatarInfo(info.m_field04);           // 所选 recipe 条目
-    const int subType = CI_SubType(info.m_scriptA);
-    const int gradeA = info.m_scriptA->get_grade();
-    const int gradeB = info.m_scriptB->get_grade();
+    }
+    if (!(CI_UsableType1(info.m_scriptA) && CI_UsableType1(info.m_scriptB)))
+    {
+        throw static_cast<ENUM_ERROR>(0x17);                    // __cxa_throw
+    }
+    // ORIG 0x08332792：recipe 下标为 0 → 0x17（位于 throw 之后、取表之前）。
+    if (info.m_field04 == 0)
+    {
+        return 0x17;
+    }
 
-    // ORIG 0x0833260c：两材料稀有度必须 ≤ 1（普通），否则 0x17。
-    if (info.m_scriptA->get_rarity() > 1 || info.m_scriptB->get_rarity() > 1)
+    const tagCompoundAvatarTable& table =
+        m_tables[info.m_field00];
+    const tagCompoundAvatar* rec =
+        table.getCompoundAvatarInfo(info.m_field04);            // -0x1c
+
+    if (!(info.m_scriptA->get_rarity() < 2 &&
+          info.m_scriptB->get_rarity() < 2))
+    {
         return 0x17;
-    // ORIG 0x0833260c：两材料 grade 必须相等，否则 0x17。
-    if (gradeA != gradeB)
+    }
+    if (info.m_scriptA->get_grade() != info.m_scriptB->get_grade())
+    {
         return 0x17;
+    }
 
     // 非“加攻标记”时才检查选项池里存在用户请求的 option 对：
-    // subType==rec->m_idx 用 m_optsC[sub]，否则 grade 必须 == rec->m_flag2dc
-    // 再用 m_optsB[sub]。
+    // grade == rec->m_idx 用 m_optsC[sub]（+0x194），否则 grade 必须 ==
+    // rec->m_flag2dc（+0x2dc）再用 m_optsB[sub]（+0xf4）。
     if (info.m_fieldD6 != 1)
     {
-        const std::vector<std::pair<int, int> >* opts = 0;
-        if (gradeA == rec->m_idx)
+        // ORIG 两个迭代器先默认构造（-0x20/-0x24，normal_iterator C2 ×2），
+        // 再在两分支内各自 begin()/end() 赋值；循环用 != 条件 + 循环后 ==。
+        // ORIG 每个 begin()/end() 前都重发一次 CI_SubType 虚调用（0x0833292f
+        // 与 0x0833297b 各 12/13 insn；else 支 0x083329f3/0x08332a3f 同）⇒
+        // 下标不命名局部（P183/P36）。
+        std::vector<std::pair<int, int> >::const_iterator it;
+        std::vector<std::pair<int, int> >::const_iterator last;
+        if (info.m_scriptA->get_grade() == rec->m_idx)
         {
-            opts = &rec->m_optsC[subType];                     // +0x194
+            it = rec->m_optsC[CI_SubType(info.m_scriptA)].begin();
+            last = rec->m_optsC[CI_SubType(info.m_scriptA)].end();
         }
         else
         {
-            if (gradeA != static_cast<int>(rec->m_flag2dc))    // +0x2dc
-                return 1;
-            opts = &rec->m_optsB[subType];                     // +0xf4
-        }
-        bool found = false;
-        for (std::vector<std::pair<int, int> >::const_iterator it = opts->begin();
-             it != opts->end(); ++it)
-        {
-            if (it->first == info.m_fieldD0)
+            if (info.m_scriptA->get_grade() != rec->m_flag2dc)
             {
-                found = true;
-                break;
+                return 1;
             }
+            it = rec->m_optsB[CI_SubType(info.m_scriptA)].begin();
+            last = rec->m_optsB[CI_SubType(info.m_scriptA)].end();
         }
-        if (!found)
+        while (it != last && it->first != info.m_fieldD0)
+        {
+            ++it;
+        }
+        if (it == last)
+        {
             return 1;
+        }
     }
 
     // grade 必须都 >= 所选 recipe 下标，且不超出表内上限 flag2dc。
-    if (gradeA < info.m_field04 || gradeB < info.m_field04)
-        return 0x17;
-    if (static_cast<int>(rec->m_flag2dc) < gradeA ||
-        static_cast<int>(rec->m_flag2dc) < gradeB)
-        return 0x17;
-
-    // 角色职业两件均可用（check_job_type 返回值与 1 比较）。
-    const char job = static_cast<char>(user->get_charac_job());
-    if (!(info.m_scriptA->check_job_type(job) == 1 &&
-          info.m_scriptB->check_job_type(job) == 1))
-        return 0x17;
-
-    // 按类型验证事件材料消耗单。
-    const CInventory* inv = user->getCurCharacInvenR();
-    switch (info.m_type)
+    if (info.m_scriptA->get_grade() < info.m_field04 ||
+        info.m_scriptB->get_grade() < info.m_field04)
     {
-        case 0:
-            if (inv->CheckNeedItemList(rec->m_tailA) != 1)     // +0x2b8
-                return 0x16;
-            break;
-        case 1:
-            if (inv->CheckNeedItemList(rec->m_tailB) != 1)     // +0x2c4
-                return 0x16;
-            break;
-        case 3:
-            if (inv->CheckNeedItemList(rec->m_tailC) != 1)     // +0x2d0
-                return 0x16;
-            break;
-        case 4:
-            if (inv->CheckNeedItemList(rec->m_cube.m_vec) != 1)  // +0x20c
-                return 0x16;
-            break;
-        default:
-            break;
+        return 0x17;
+    }
+    if (static_cast<int>(rec->m_flag2dc) < info.m_scriptA->get_grade() ||
+        static_cast<int>(rec->m_flag2dc) < info.m_scriptB->get_grade())
+    {
+        return 0x17;
+    }
+
+    // 角色职业两件均可用（两臂各重取 job，0x08332ba8 / 0x08332bd2）。
+    if (!(info.m_scriptA->check_job_type(
+              static_cast<char>(user->get_charac_job())) == 1 &&
+          info.m_scriptB->check_job_type(
+              static_cast<char>(user->get_charac_job())) == 1))
+    {
+        return 0x17;
+    }
+
+    // 按类型验证事件材料消耗单（ORIG if/else-if 链，每分支重取
+    // getCurCharacInvenR，0x08332c27/0c6a/0cad/0cee）。
+    if (info.m_type == 0)
+    {
+        if (user->getCurCharacInvenR()->CheckNeedItemList(rec->m_tailA) != 1)
+        {
+            return 0x16;                                        // +0x2b8
+        }
+    }
+    else if (info.m_type == 1)
+    {
+        if (user->getCurCharacInvenR()->CheckNeedItemList(rec->m_tailB) != 1)
+        {
+            return 0x16;                                        // +0x2c4
+        }
+    }
+    else if (info.m_type == 3)
+    {
+        if (user->getCurCharacInvenR()->CheckNeedItemList(rec->m_tailC) != 1)
+        {
+            return 0x16;                                        // +0x2d0
+        }
+    }
+    else if (info.m_type == 4)
+    {
+        if (user->getCurCharacInvenR()->CheckNeedItemList(rec->m_cube.m_vec)
+                != 1)
+        {
+            return 0x16;                                        // +0x20c
+        }
     }
 
     const int curSec = GlobalData::s_systemTime_.getCurSec();
-    const CAvatarItemMgr* mgrR = inv->GetAvatarItemMgrR();
     const int remainA =
-        mgrR->GetRemainDate(static_cast<int>(info.m_materialA.m_addInfo2), curSec);
+        user->getCurCharacInvenR()->GetAvatarItemMgrR()
+            ->GetRemainDate(info.m_materialA.m_addInfo2, curSec);
     const int remainB =
-        mgrR->GetRemainDate(static_cast<int>(info.m_materialB.m_addInfo2), curSec);
+        user->getCurCharacInvenR()->GetAvatarItemMgrR()
+            ->GetRemainDate(info.m_materialB.m_addInfo2, curSec);
     const bool noExpireA =
-        mgrR->GetExpireDate(static_cast<int>(info.m_materialA.m_addInfo2)) == 0;
+        user->getCurCharacInvenR()->GetAvatarItemMgrR()
+            ->GetExpireDate(info.m_materialA.m_addInfo2) == 0;
     const bool noExpireB =
-        mgrR->GetExpireDate(static_cast<int>(info.m_materialB.m_addInfo2)) == 0;
+        user->getCurCharacInvenR()->GetAvatarItemMgrR()
+            ->GetExpireDate(info.m_materialB.m_addInfo2) == 0;
 
     if (noExpireA != noExpireB)
+    {
         return 0x13;
+    }
     if (noExpireA || (remainA > 5 && remainB > 5))
     {
         // 分离升级位标记禁拆者不允许操作。
         if (info.m_materialA.m_upgradeSep.IsTradeRestriction() ||
             info.m_materialB.m_upgradeSep.IsTradeRestriction())
+        {
             return 0x17;
+        }
         return 0;
     }
     return 0x18;
@@ -573,12 +650,32 @@ void CCompoundAvatar::_SendDisjointAvatarStatistic(tagCompoundInfo& info)
     const CItem* scriptB = info.m_scriptB;
 
     packet.m_field0a = 2;                                      // -0x36/local_36
-    packet.m_gradeIdxA =
-        (scriptA->get_rarity() == 2) ? 2 : scriptA->get_grade() - 1;
+    // ORIG 0x08333ef6..0x08333f33：先 `movl $0,-0xc` 建分级**中间槽**，
+    // 命中分支 `movl $2,-0xc` + jmp，未命中分支 get_grade 后落同槽，
+    // 末尾统一 `mov -0xc,%eax` 写包字段 ⇒ 三目直写包成员会丢整组槽
+    // （实测每组少 5-6 insn，两组共 11）。
+    int gradeIdxA = 0;
+    if (scriptA->get_rarity() == 2)
+    {
+        gradeIdxA = 2;
+    }
+    else
+    {
+        gradeIdxA = scriptA->get_grade() - 1;
+    }
+    packet.m_gradeIdxA = gradeIdxA;
     packet.m_subTypeA = CI_SubType(scriptA);
     packet.m_flagA = 0;
-    packet.m_gradeIdxB =
-        (scriptB->get_rarity() == 2) ? 2 : scriptB->get_grade() - 1;
+    int gradeIdxB = 0;
+    if (scriptB->get_rarity() == 2)
+    {
+        gradeIdxB = 2;
+    }
+    else
+    {
+        gradeIdxB = scriptB->get_grade() - 1;
+    }
+    packet.m_gradeIdxB = gradeIdxB;
     packet.m_subTypeB = CI_SubType(scriptA);                   // 【ORIG 怪癖】保留
     packet.m_flagB = 0;
 
@@ -625,9 +722,13 @@ void CDeathTowerRanking::_makeRecordPacket(const stBestRecord_t& record,
 {
     for (int i = 0; i < 4; ++i)
     {
-        const int len = static_cast<int>(strlen(record.m_memberData[i]));
-        packet.put_int(len);
-        packet.put_str(const_cast<char*>(record.m_memberData[i]), len);
+        // ORIG 0x08468cd6/0x08468d03：strlen **两次独立调用**（每次完整重发
+        // record+i*0x1e+4 两级寻址 + call），put_str 用第二次结果（P48/P183）。
+        packet.put_int(
+            static_cast<int>(strlen(record.m_memberData[i])));
+        packet.put_str(
+            const_cast<char*>(record.m_memberData[i]),
+            static_cast<int>(strlen(record.m_memberData[i])));
         packet.put_byte(record.m_pad7c[1][i]);                // +0x80..+0x83
         packet.put_byte(record.m_pad7c[2][i]);                // +0x84..+0x87
     }
@@ -637,20 +738,26 @@ void CDeathTowerRanking::_makeRecordPacket(const stBestRecord_t& record,
 }
 
 // ORIG T 0x08468b8e。查 best 表：命中 put_byte(1)+纪录；否则 put_byte(0)。
+// 【切片转写】0x08468b9e `call _getBestRecordTable`（不内联算址）；find/end 结果
+// 各经 _Hashtable_iterator → _Hashtable_const_iterator **转换构造 2 次**
+// （0x08468bc5/0x08468bfb），比较用 const_iterator::operator==、取值用
+// const_iterator::operator-> ⇒ 必须声明 const_iterator 并写 `==`（iterator +
+// `!=` 会走 operator!= 并省掉两次转换 ctor，实测差 5 call / 9 insn）。
 void CDeathTowerRanking::makeMyBestRecordPacket(unsigned int towerIdx,
                                                 unsigned int key,
                                                 PacketGuard& packet)
 {
-    BestMap& best = m_bestTables[towerIdx];                    // _getBestRecordTable
-    BestMap::iterator it = best.find(key);
-    if (it != best.end())
+    BestMap* best = _getBestRecordTable(towerIdx);
+    const BestMap::const_iterator it = best->find(key);
+    const BestMap::const_iterator last = best->end();
+    if (it == last)
     {
-        packet.put_byte(1);
-        _makeRecordPacket(it->second, packet);
+        packet.put_byte(0);
     }
     else
     {
-        packet.put_byte(0);
+        packet.put_byte(1);
+        _makeRecordPacket(it->second, packet);
     }
 }
 

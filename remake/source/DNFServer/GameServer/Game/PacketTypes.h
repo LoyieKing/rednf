@@ -802,7 +802,14 @@ class MSG_ITEM_UPGRADE : public MSG_BASE
 public:
     MSG_ITEM_UPGRADE();
     // ORIG C1：+0x25 word 清零、memset(this+0x28,0,0x81)、+0x27 byte 清零
-    char m_padD[0x18];        // +0x0d..+0x24（ORIG 未出线）
+    // +0x0d..+0x24 字段化（ORIG ProcUpgrade @0x0854779c 逐 disp 实证，UpC11 请求/Main 代落；
+    // 净长 0xd+1+2+4+2+2=0x18 与旧 padD 等长，sizeof 0x10d 不变）
+    char m_padD[0xd];              // +0x0d..0x19（ORIG 未出线）
+    unsigned char m_upgradeType;   // +0x1a 升级(0)/增幅(1) movzbl 分派
+    unsigned short m_targetSlot;   // +0x1b movzwl（GetInvenSlot/update_item/delete_item 第2参）
+    unsigned int m_targetItemIdx;  // +0x1d 与 Inven_Item+0x02 一致性校验
+    unsigned short m_ticketSlot;   // +0x21 保护券槽 0xffff=无券
+    unsigned short m_materialSlot; // +0x23 材料槽（delete_item 第2参）
     unsigned short m_25;      // +0x25
     unsigned char m_27;       // +0x27
     char m_28[0x81];          // +0x28..+0xa8（ctor memset 全零）

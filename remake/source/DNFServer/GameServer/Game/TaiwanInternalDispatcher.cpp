@@ -364,6 +364,17 @@ bool TaiwanInternalDispatcher::init()
 // 注意：ORIG 0x08161384 处为无条件 jmp（E9 04 02 00 00 → +0x263），
 // 发邮件主体（make_pair/findString/ReqDBSendNewSystemMultiMail/SendReward）
 // 在 ORIG 中为不可达代码；执行路径仅回写 user+0x8ec31 = m_rewarded。
+//
+// 【N84 归因（batch-11 实测）】we-smaller 143 行 = ORIG 4.1 -O0 对
+// `if ((msg->rewarded ^ 1) != 0 && <const-false>)` 型条件保留首项求值
+// （0x08161378..58 movzbl/xor $1/test）+ 无条件 jmp + **文本发射不可达 body**
+// （+0x79..+0x262：vector pair/findString×2/strncpy×2/9-loop/
+// MakeSystemMultiMailPostal/ReqDBSendNewSystemMultiMail/GetRepeatEvent/SendReward
+// + EH vector dtor cleanup）。gcc 4.4 -O0 对同形条件整体折叠（/tmp/ehtest.C
+// 探针：`if(msg && (r^1) && 0)` 仅输出 tail+mov$0，首项求值与 body 全消）；
+// volatile 守卫探针（ehtest2.C）可出 body 但条件三段 short-circuit 形距 ORIG
+// `test;jmp` 更远、且需新增 TU static 符号（链接污染）+误启用发信行为风险。
+// ⇒ 编译期不可构造，按 blocked；本函数保持「仅可达路径」语义忠实实现。
 // ============================================================================
 int InterSelectMobileAuthReward::dispatch_sig(CUser* user, char* buf, int len)
 {
@@ -383,15 +394,31 @@ int InterSelectMobileAuthReward::dispatch_sig(CUser* user, char* buf, int len)
 // OnlyOrigBatch14：InterUpdateP2pHolePunchingState::dispatch_sig
 // ORIG T 0x08161952：P2P 洞穿状态包经统计代理转发（含国家代码）。
 // ============================================================================
+// 消息体读侧视图（§4.3）：ORIG 单段 disp `movzbl 0xd(%eax)`/`mov 0xe(%eax)`/
+// `mov 0x12(%eax)`（0x081619xx）；宽=装载指令。
+#pragma pack(push, 1)
+struct P2pHoleMsgV
+{
+    char m_pad0[0xd];           // +0x00..未消费
+    unsigned char m_connectedType;  // +0x0d
+    int m_requiredTime;         // +0x0e
+    int m_checkTime;            // +0x12
+};
+#pragma pack(pop)
+
 int InterUpdateP2pHolePunchingState::dispatch_sig(CUser* user, char* buf, int len)
 {
     // ORIG 0x08161952：统计包 → 国家代码 + 对端 IP → 经统计代理 UDP 转发。
+    // ORIG 0x081619xx：buf 入口单槽物化 -0xc（无 char*+view 双中转，p 删除），
+    // 三处字段读均经该槽 reload（技巧36 反向）。
+    P2pHoleMsgV* v = reinterpret_cast<P2pHoleMsgV*>(buf);
     Packet_GameServer2Statisctics2DBServer pkt;
     pkt.m_serverGroup = (short)G_CEnvironment()->get_server_group();
-    // ORIG 读 buf（消息体）源结构 +0xd/+0xe/+0x12。
-    pkt.m_connectedType = (unsigned char)((char*)buf)[0xd];
-    pkt.m_requiredTime = *(int*)((char*)buf + 0xe);
-    pkt.m_checkTime = *(int*)((char*)buf + 0x12);
+    // ORIG `movzbl 0xd(%eax)`/`mov 0xe(%eax)`/`mov 0x12(%eax)` 单段 disp ⇒
+    // pack(1) 视图具名字段（§4.3；裸 add 形实测不折 disp）。
+    pkt.m_connectedType = v->m_connectedType;
+    pkt.m_requiredTime = v->m_requiredTime;
+    pkt.m_checkTime = v->m_checkTime;
     user->m_network.GetPeerIP2(pkt.m_peerAddress, 0x10);
     RestrictGeolocation::Get()->getCountryCode(
         pkt.m_nationCode, 0x10, std::string(pkt.m_peerAddress));

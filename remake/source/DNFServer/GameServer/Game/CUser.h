@@ -2944,7 +2944,9 @@ public:
     void processLevelUpEventReward(bool flag);                       // ORIG T 0x08663cc0
     void processLevelUpEvent();                                      // ORIG T 0x0869115a
     // ORIG 0x8679cee：公会强化公告（name/upgrade 标记/是否增幅）。
-    int makeGuildItemUpgradMessage(const char* itemName, int from,
+    // 尾 epilogue 无 %eax 写（结果仅 %ebx 内部 goto）+4 调用点均表达式语句⇒void
+    //（CUserC8 证据/Main 代落，mangled EPKciib 无返回类型零 ABI 风险）
+    void makeGuildItemUpgradMessage(const char* itemName, int from,
                                     int to, bool isAmplify);
     // ORIG T 0x0867a242：分离强化公告（Ctor2_ContB 定义于 CItemUpgrade_Separate.cpp）。
     void makeGuildItemSeparateUpgradMessage(const char* itemName, int oldLevel,

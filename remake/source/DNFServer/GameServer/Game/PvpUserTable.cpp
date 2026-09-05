@@ -66,9 +66,11 @@ int PvpUserTable::Set(int team, CUser* user)
     return 1;
 }
 
-int PvpUserTable::IsValidTeam(int team)
+bool PvpUserTable::IsValidTeam(int team)
 {
-    return (team >= 0 && team <= 7) ? 1 : 0;
+    // ORIG 0x085d4a14：`cmpl $0; js 岛; cmpl $7; jg 岛; mov $1; jmp; mov $0`
+    // （返回类型按 caller 0x085d5081 的 xor$1+testb 形定为 bool，见 PvPTypes.h）
+    return (team >= 0 && team <= 7);
 }
 
 int PvpUserTable::IsValidConvertedGrade(int grade)
@@ -246,62 +248,76 @@ int PvpUserTable::GetResult(int team, bool isWinTeam, int mode)
             return 0;
         }
         int winSide = (team == 1) ? 2 : 1;
-        if (m_winTeam == team && m_dan[winSide] != 1 &&
+        // 0x085d511d..0x085d512a：`movzbl 0x344(%edx,%eax,1),%eax; xor $0x1,%eax;
+        // test %al,%al; je` ⇒ 原码是"值即 bool 的取反"（技巧 1/19），
+        // 写 `!= 1` 时 4.4 出 `cmp $0x1,%al`。
+        if (m_winTeam == team && !m_dan[winSide] &&
             m_teamVsTeam[m_winTeam][team] != 0.0f)
         {
             return 0;
         }
     }
 
+    // 常数经 .rodata 实测核对（objdump -s -j .rodata 0x08cc27d0 段）：
+    //   0x08cc27d8 = 1000.0f、0x08cc27dc = 40.0f、0x08cc27e0 = 100.0f、
+    //   0x08cc27e4 = 120.0f ⇒ 四分支乘除常数与此前一致（复核通过）。
+    // 关键：**不能有 f / v 中间局部**。ORIG 每个边界测试、trace 实参与 return
+    // 各自完整重算一遍 x87 链（0x085d5433/0x085d54c4/0x085d550b/0x085d55b6 段
+    // 各出现 4 次 flds+shl+fmulp+fldcw+fistpl），指令数差即本函数 gap 主体；
+    // 一旦引入具名局部，4.4 会复用 ⇒ 少 ~110 条（技巧 36/37 的浮点推广）。
     if (G_GameWorld()->IsCharacterPvPExpRevisionChannel())
     {
         if (m_winTeam == team)
         {
-            float f = m_teamVsTeam[m_winTeam][team];
-            int v = (int)(f * 1000.0f * 120.0f / 100.0f);
-            if (v < -100000 || 100000 < v)
+            // 0x085d5410 区（line 0x1d0）：下标 [m_winTeam][team]
+            if ((int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 120.0f / 100.0f) < -100000 ||
+                100000 < (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 120.0f / 100.0f))
             {
-                cMyTrace tr(__PRETTY_FUNCTION__,
-                            0x1d0, 5);
+                cMyTrace tr(__PRETTY_FUNCTION__, 0x1d0, 5);
                 tr("pvp_exp_error3 %d, %f",
-                   (int)(f * 1000.0f * 120.0f / 100.0f), (double)f);
+                   (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 120.0f / 100.0f),
+                   (double)m_teamVsTeam[m_winTeam][team]);
             }
-            return (int)(f * 1000.0f * 120.0f / 100.0f);
+            return (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 120.0f / 100.0f);
         }
 
-        if (mode > 14)
+        if (mode >= 0xf)
         {
-            float f = m_teamVsTeam[m_winTeam][team];
-            int v = (int)(f * 1000.0f * 40.0f / 100.0f);
-            if (v < -100000 || 100000 < v)
+            // 0x085d52f1 区（line 0x1c4）：cmpl $0xe,0x14; jg → mode > 14 走本支
+            if ((int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 40.0f / 100.0f) < -100000 ||
+                100000 < (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 40.0f / 100.0f))
             {
-                cMyTrace tr(__PRETTY_FUNCTION__,
-                            0x1c4, 5);
+                cMyTrace tr(__PRETTY_FUNCTION__, 0x1c4, 5);
                 tr("pvp_exp_error2 %d, %f",
-                   (int)(f * 1000.0f * 40.0f / 100.0f), (double)f);
+                   (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 40.0f / 100.0f),
+                   (double)m_teamVsTeam[m_winTeam][team]);
             }
-            return (int)(f * 1000.0f * 40.0f / 100.0f);
+            return (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 40.0f / 100.0f);
         }
 
-        float f = m_teamVsTeam[team][team];
-        int v = (int)(f * 1000.0f * 40.0f / 100.0f);
-        if (v < -100000 || 100000 < v)
+        // 0x085d5182 区（line 0x1b9）：mode < 0xf ⇒ 下标 [team][team]
+        // （0x085d5195 `shl $0x3,%ecx; lea (%ecx,%edx,1)` ecx=edx=team ⇒ team*9*4=team*0x24）
+        if ((int)(m_teamVsTeam[team][team] * 1000.0f * 40.0f / 100.0f) < -100000 ||
+            100000 < (int)(m_teamVsTeam[team][team] * 1000.0f * 40.0f / 100.0f))
         {
             cMyTrace tr(__PRETTY_FUNCTION__, 0x1b9, 5);
             tr("pvp_exp_error1 %d, %f",
-               (int)(f * 1000.0f * 40.0f / 100.0f), (double)f);
+               (int)(m_teamVsTeam[team][team] * 1000.0f * 40.0f / 100.0f),
+               (double)m_teamVsTeam[team][team]);
         }
-        return (int)(f * 1000.0f * 40.0f / 100.0f);
+        return (int)(m_teamVsTeam[team][team] * 1000.0f * 40.0f / 100.0f);
     }
 
-    float f = m_teamVsTeam[m_winTeam][team];
-    int v = (int)(f * 1000.0f);
-    if (v < -100000 || 100000 < v)
+    // 0x085d55f7 区（line 0x1dd）：非 revision 频道 ⇒ 仅 ×1000
+    if ((int)(m_teamVsTeam[m_winTeam][team] * 1000.0f) < -100000 ||
+        100000 < (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f))
     {
         cMyTrace tr(__PRETTY_FUNCTION__, 0x1dd, 5);
-        tr("pvp_exp_error4 %d, %f", (int)(f * 1000.0f), (double)f);
+        tr("pvp_exp_error4 %d, %f",
+           (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f),
+           (double)m_teamVsTeam[m_winTeam][team]);
     }
-    return (int)(f * 1000.0f);
+    return (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f);
 }
 
 int PvpUserTable::GetLeavePenalty(int team)

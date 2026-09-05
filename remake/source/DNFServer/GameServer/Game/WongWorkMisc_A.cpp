@@ -164,7 +164,7 @@ _Additioal_info* CCalcCharacStat::CalcStat(_Additioal_info* out, int job,
     out->clear();
     // ORIG 四次独立 call G_CDataManager + mov +0x14 + imul $0x7dc 重算行地址
     // （CalcStat.md +0x011/+0x034/+0x063/+0x090），故逐处表达式访问、不缓存行引用。
-    out->add(G_CDataManager()->m_characList->m_characs[job].m_baseInfo[0]);
+    out->add(G_CDataManager()->m_characList->m_characs[job].m_baseInfo0);
 
     const _Additioal_info* pFirst = G_CDataManager()->m_characList
                                         ->m_characs[job]

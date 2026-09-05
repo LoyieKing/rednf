@@ -1173,15 +1173,17 @@ inline int& infoInt(upgrade_info_t& info, int off)
     {
         return info.m_discountBase;
     }
-    return *(int*)(info.m_pad0 + off);
+    // upgrade_info_t +0x00 区已按 ORIG C1 @0x0854b282 写域分段具名
+    // （m_prob00[8] + m_prob20[3]，连续 0x2c 字节）；此处按字节偏移取视图。
+    return *(int*)(reinterpret_cast<char*>(&info.m_prob00[0]) + off);
 }
 inline float& infoFloat(upgrade_info_t& info, int off)
 {
-    return *(float*)(info.m_pad0 + off);
+    return *(float*)(reinterpret_cast<char*>(&info.m_prob00[0]) + off);
 }
 inline int& infoIntTail(upgrade_info_t& info, int off)   // +0x38..+0x6b 放大区
 {
-    return *(int*)(info.m_pad + off - 0x38);
+    return *(int*)(reinterpret_cast<char*>(&info.m_w38[0]) + off - 0x38);
 }
 
 }  // namespace

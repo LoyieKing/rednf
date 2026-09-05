@@ -166,14 +166,13 @@ public:
         short m_c;   // +0x06
     };
 
-    // [prefer item] 等的礼物表：ORIG 每张 0x78 = 5 个相邻
-    // std::map<unsigned long, stGiftItemInfo_t>（旧 libstdc++ sizeof(map)=0x18；
-    // stride 见 ORIG clear() 的 +l*0x18 + {0x28, 0xa0, 0x118, 0x190}），按 slot 索引取表。
-    struct stGiftTable_t
-    {
-        std::map<unsigned long, stGiftItemInfo_t> m_maps[5];
-    };
-    static_assert(sizeof(stGiftTable_t) == 0x78, "stGiftTable_t size mismatch");
+    // [prefer item] 等的礼物表：ORIG 为 4 个独立 `map<unsigned long,
+    // stGiftItemInfo_t> m_X[5]` 数组成员（旧 libstdc++ sizeof(map)=0x18）——
+    // C1 W 0x08a00eb0 对 +0x28/+0xa0/+0x118/+0x190 各发一组 `mov $4,ebx`
+    // 倒计数 ×5 map::C1 构造循环（P151，组距 0x78）；D1 逆序 4 组循环析构；
+    // ORIG nm 无 stGiftTable_t 符号（该包装型系重建发明，P154 仅NEW，2026-09-05
+    // EmoC11 数组化归正）。stride 亦见 ORIG clear() +l*0x18 × {0x28,0xa0,0x118,0x190}。
+    typedef std::map<unsigned long, stGiftItemInfo_t> GiftMapArray_t;  // 仅命名元素型
 
     // [reward item]/[favor]：单个奖励元素（3 int）。ORIG 为 POD：无用户析构
     // （ORIG 08a06f28 W D1/D2 为 vector 析构链隐式实例；P12 实证 __uninitialized_copy<true>
@@ -260,10 +259,10 @@ public:
         std::vector<std::pair<ENUM_NPC_MOOD, unsigned int> > m_moodChanges;   // +0x010（abs 0x180）
         std::vector<std::pair<unsigned long, unsigned int> > m_keyItems; // +0x01c（abs 0x18c）
     } m_fav;                                              // +0x010（sizeof 0x18）
-    stGiftTable_t m_preferItems;                      // +0x028（abs 0x198）
-    stGiftTable_t m_preferItemGroups;                 // +0x0a0（abs 0x210）
-    stGiftTable_t m_unpreferItems;                    // +0x118（abs 0x288）
-    stGiftTable_t m_unpreferItemGroups;               // +0x190（abs 0x300）
+    GiftMapArray_t m_preferItems[5];                  // +0x028（abs 0x198）
+    GiftMapArray_t m_preferItemGroups[5];             // +0x0a0（abs 0x210）
+    GiftMapArray_t m_unpreferItems[5];                // +0x118（abs 0x288）
+    GiftMapArray_t m_unpreferItemGroups[5];           // +0x190（abs 0x300）
     stRewardItem_t m_rewardItems;                     // +0x208（abs 0x378）[level][mood] 全表
     float m_favorRate0;                               // +0x4d8（abs 0x648）
     float m_favorRate1;                               // +0x4dc（abs 0x64c）

@@ -221,6 +221,12 @@ bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
 // guard 惰性构造）：10 个开/闭标签对（[expert job none] 对不参与主循环）。
 // i=1..4 命中开标签（arr[2i]）写 out=i 返回 0；命中闭标签（arr[2i+1]）返回 0；
 // 否则返回 1。
+// 验收（§6.2）：gap 125 全部位于 guard 内 static string[10] initializer-list
+// 构造块——4.1 每元素独立 allocator temp 槽（-0x26..-0x1d）+双层倒计数循环+
+// 逐元素 EH cleanup 链，4.4.7 复用 temp 槽合并循环（libstdc++ 版本内部结构
+// 差，跨版本 N 类，源码层无合法写法可复现）；可达路径调用差集与 ORIG 一致
+// （5×~string 差全在构造失败 landing pad，不执行）。parse 主体逐行同形，
+// 仅 arr[i*2] 寻址 4.1 折 `shl $3` vs 4.4 `add+shl $2`（N1 常量折叠族，1 行）。
 // ===========================================================================
 bool processModuleTagSet(std::string* tag, int& out)
 {

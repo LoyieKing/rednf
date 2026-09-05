@@ -1864,8 +1864,8 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         else if (token == "[move action]")        { if (!ScanStr(&script->m_actionSet.m_move)) return false; }
         else if (token == "[dash action]")        { if (!ScanStr(&script->m_actionSet.m_dash)) return false; }
         else if (token == "[sit action]")         { if (!ScanStr(&script->m_actionSet.m_sit)) return false; }
-        else if (token == "[damage action 1]")    { if (!ScanStr(&script->m_actionSet.m_damage1)) return false; }
-        else if (token == "[damage action 2]")    { if (!ScanStr(&script->m_actionSet.m_damage2)) return false; }
+        else if (token == "[damage action 1]")    { if (!ScanStr(&script->m_actionSet.m_damage[0])) return false; }
+        else if (token == "[damage action 2]")    { if (!ScanStr(&script->m_actionSet.m_damage[1])) return false; }
         else if (token == "[down action]")        { if (!ScanStr(&script->m_actionSet.m_down)) return false; }
         else if (token == "[overturn action]")    { if (!ScanStr(&script->m_actionSet.m_overturn)) return false; }
         else if (token == "[jump action]")        { if (!ScanStr(&script->m_actionSet.m_jump)) return false; }

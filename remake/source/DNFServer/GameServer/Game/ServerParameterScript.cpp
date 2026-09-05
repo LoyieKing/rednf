@@ -169,11 +169,11 @@ void ServerParameterScript::clear()
 
 float ServerParameterScript::GetExpBonusWeight(eRankBonusIndex idx) const
 {
-    if (idx < 0 || idx > 4)
+    if (idx >= 0 && idx <= 4)
     {
-        return 0.0f;
+        return m_expBonusWeight3ac[idx];
     }
-    return m_expBonusWeight3ac[idx];
+    return 0.0f;
 }
 
 bool ServerParameterScript::CheckCollectDungeonStatisticServer(int serverGroup,
@@ -229,21 +229,26 @@ std::vector<std::pair<int, int> >* ServerParameterScript::GetEscaladeTutorialRew
 {
     std::map<int, std::vector<std::pair<int, int> > >::iterator it =
         m_map88.find(rewardIdx);
-    if (it == m_map88.end())
+    if (it != m_map88.end())
     {
-        return 0;
+        return &it->second;
     }
-    return &it->second;
+    return 0;
 }
 
 bool ServerParameterScript::checkAssaultServer(int serverGroup, int channelNo)
 {
     std::pair<int, int> p;
-    for (std::vector<std::pair<int, int> >::iterator it = m_vec18.begin();
-         it != m_vec18.end(); ++it)
+    std::vector<std::pair<int, int> >::iterator it = m_vec18.begin();
+    std::vector<std::pair<int, int> >::iterator e = m_vec18.end();
+    for (; it != e; ++it)
     {
         p = *it;
-        if (p.first == serverGroup && p.second == channelNo)
+        if (p.first != serverGroup)
+        {
+            continue;
+        }
+        else if (p.second == channelNo)
         {
             return true;
         }
@@ -411,7 +416,9 @@ int ServerParameterScript::GetLottePoint(int idx)
     }
     std::vector<std::pair<int, int> >::iterator it =
         m_bloodReward794.m_vec18.begin();
-    for (; it != m_bloodReward794.m_vec18.end(); ++it)
+    std::vector<std::pair<int, int> >::iterator e =
+        m_bloodReward794.m_vec18.end();
+    for (; it != e; ++it)
     {
         if (it->first > idx)
         {
@@ -430,7 +437,9 @@ int ServerParameterScript::GetPriceAverage(int idx)
     }
     std::vector<std::pair<int, int> >::iterator it =
         m_bloodReward794.m_vec0.begin();
-    for (; it != m_bloodReward794.m_vec0.end(); ++it)
+    std::vector<std::pair<int, int> >::iterator e =
+        m_bloodReward794.m_vec0.end();
+    for (; it != e; ++it)
     {
         if (it->first >= idx)
         {
@@ -458,10 +467,13 @@ float ServerParameterScript::getChaosPointWeight(int idx)
     {
         return 0.0f;
     }
-    unsigned int size = m_float5a4.size();
-    if (idx > (int)size)
+    int size = m_float5a4.size();
+    if (idx <= size)
     {
-        idx = (int)size;
+    }
+    else
+    {
+        idx = size;
     }
     return m_float5a4[idx - 1];
 }
@@ -474,7 +486,9 @@ int ServerParameterScript::GetAdmissionIncrease(int idx)
     }
     std::vector<std::pair<int, int> >::iterator it =
         m_bloodReward794.m_vecc.begin();
-    for (; it != m_bloodReward794.m_vecc.end(); ++it)
+    std::vector<std::pair<int, int> >::iterator e =
+        m_bloodReward794.m_vecc.end();
+    for (; it != e; ++it)
     {
         if (it->first > idx)
         {
@@ -487,19 +501,20 @@ int ServerParameterScript::GetAdmissionIncrease(int idx)
 
 float ServerParameterScript::GetPvPPenaltyRevision(int grade)
 {
-    std::map<int, int>::const_iterator it = m_mapb0.find(grade);
-    if (it == m_mapb0.end())
+    std::map<int, int>::iterator it = m_mapb0.find(grade);
+    // ORIG 0x08693918：命中正分支 → int 具名槽 fildl; flds 100.0f; fdivrp；
+    // fld1 冷岛在尾。
+    if (it != m_mapb0.end())
     {
-        return 1.0f;
+        return (float)it->second / 100.0f;
     }
-    // ORIG 0x08693918：命中 → fildl second; flds 100.0f; fdivrp（second/100.0）
-    return (float)it->second / 100.0f;
+    return 1.0f;
 }
 
 int ServerParameterScript::getRecoverStaminaPrice(int stamina, int price)
 {
-    int n = std::min((int)m_vec57c.size(), stamina) - 1;
-    int v = m_vec57c[n];
+    int size = m_vec57c.size();
+    int v = m_vec57c[std::min(size, stamina) - 1];
     // ORIG 0x0869375a：magic 0xb60b60b7 + sar $0x6 = 除以 90（非 100）
     return ((100 - price) * v) / 90;
 }
@@ -515,14 +530,15 @@ int ServerParameterScript::GetPvPChannelGradePenalty(int grade) const
     {
         return it->second;
     }
-    // ORIG：未命中且 size>2 时回退到最大 key 的 value（end 前一个）
-    if ((int)m_map497c.size() <= 2)
+    // ORIG 0x08693xx 实证：size>2(seta) 时 it **复用** = end() 临时+拷贝赋值，
+    // --it 后取 second；否则落尾部 return 0 岛。
+    if (m_map497c.size() > 2)
     {
-        return 0;
+        it = m_map497c.end();
+        --it;
+        return it->second;
     }
-    std::map<int, int>::const_iterator last = m_map497c.end();
-    --last;
-    return last->second;
+    return 0;
 }
 
 bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_TYPE type, int idx)
@@ -532,29 +548,34 @@ bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_T
          it != m_unusableEC.end(); ++it)
     {
         stUnusableEquipmentInfo* p = &*it;
-        if (p->m_field0 == type)
+        if (type == p->m_field0)
         {
-            if (p->m_field4 != 0)
+            // ORIG 0x08693xxx CFG 实证收敛形：field4!=0 直接 jne 落公共尾检。
+            // [N-类] 剩 11：①`type==field0` 的 cmp 操作数朝向(N22a，4.4 恒双
+            // load)；②两处 `return false/true` 4.4 内联 if-body(mov$X;jmp 3 行)
+            // vs 4.1 跳共享返回岛(1 行 jcc+2 行共享尾，tail-merge 跨版本差)。
+            if (p->m_field4 == 0)
             {
-                if (p->m_field8 >= idx)
+                if (p->m_field8 != 0)
+                {
+                }
+                else
                 {
                     return false;
                 }
+                if (p->m_field4 <= idx)
+                {
+                }
+                else
+                {
+                    return true;
+                }
+            }
+            if (p->m_field8 < idx)
+            {
                 return true;
             }
-            if (p->m_field8 == 0)
-            {
-                return false;
-            }
-            if (p->m_field4 > idx)
-            {
-                return true;
-            }
-            if (p->m_field8 >= idx)
-            {
-                return false;
-            }
-            return true;
+            return false;
         }
     }
     return true;
@@ -599,7 +620,8 @@ int ServerParameterScript::GetCleanChattingCount(int level)
         return 0;
     }
     std::vector<std::pair<int, int> >::iterator it = m_vec4954.begin();
-    for (; it != m_vec4954.end(); ++it)
+    std::vector<std::pair<int, int> >::iterator e = m_vec4954.end();
+    for (; it != e; ++it)
     {
         if (it->first >= level)
         {
@@ -654,14 +676,14 @@ int ServerParameterScript::GetTraningSealGive(int idx) const
     {
         return it->second;
     }
-    // ORIG：未命中且 map 非空时回退到最大 key 的 value（end 前一个）
-    if (m_map4994.empty())
+    // ORIG 实证：!empty() 正形(xor$1)，it 复用 = end() 临时+拷贝赋值
+    if (!m_map4994.empty())
     {
-        return 0;
+        it = m_map4994.end();
+        --it;
+        return it->second;
     }
-    std::map<int, int>::const_iterator last = m_map4994.end();
-    --last;
-    return last->second;
+    return 0;
 }
 
 bool ServerParameterScript::CheckTraningFirstGive() const
@@ -691,23 +713,32 @@ bool ServerParameterScript::isDungeonOpen(int dungeonIdx)
 {
     std::vector<int>::iterator it =
         std::find(m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(), dungeonIdx);
-    return it != m_dungeonOpenE0.end();
+    // ORIG 0x085bf0xx 尾部实证 test/je + 两分支均 mov$1：原源码即
+    // 「found 与否都 return true」的死分支形（忠实还原）。
+    if (it != m_dungeonOpenE0.end())
+    {
+        return true;
+    }
+    return true;
 }
 
 void ServerParameterScript::setDungeonOpen(int dungeonIdx, bool open)
 {
-    std::vector<int>::iterator it =
-        std::find(m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(),
-                  dungeonIdx);
-    if (it != m_dungeonOpenE0.end())
+    // ORIG 0x085bfxxx 实证双 find 分支形：open!=1(cmpb $0x1) 先走 erase 路径
+    // 后 return；open==1 路径重 find，==end 则 push_back。
+    if (open != 1)
     {
-        if (!open)
+        std::vector<int>::iterator it = std::find(
+            m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(), dungeonIdx);
+        if (it != m_dungeonOpenE0.end())
         {
             m_dungeonOpenE0.erase(it);
         }
         return;
     }
-    if (open)
+    std::vector<int>::iterator it2 = std::find(
+        m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(), dungeonIdx);
+    if (it2 == m_dungeonOpenE0.end())
     {
         m_dungeonOpenE0.push_back(dungeonIdx);
     }
@@ -976,7 +1007,6 @@ bool importServerParameterScript(ServerParameterScript* script,
             script->m_vec57c.clear();
             while (true)
             {
-                ok = false;
                 int v = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1018,7 +1048,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[notice legacy with rarity]")
         {
-            ok = false;
             int v = ScanInt(&ok);
             if (!ok)
             {
@@ -1040,7 +1069,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[notice legacy with upgrade]")
         {
-            ok = false;
             int v = ScanInt(&ok);
             if (!ok)
             {
@@ -1055,13 +1083,11 @@ bool importServerParameterScript(ServerParameterScript* script,
             while (true)
             {
                 stServerIndex key;
-                ok = false;
                 key.m_field0 = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 key.m_field4 = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1074,7 +1100,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int v = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1088,7 +1113,6 @@ bool importServerParameterScript(ServerParameterScript* script,
             while (true)
             {
                 stBurningFatigueParam_t p;
-                ok = false;
                 p.m_level = (unsigned short)ScanInt(&ok);
                 if (!ok)
                 {
@@ -1147,7 +1171,6 @@ bool importServerParameterScript(ServerParameterScript* script,
             while (true)
             {
                 stFatigueEventParam_t p;
-                ok = false;
                 p.m_field0 = (unsigned short)ScanInt(&ok);
                 if (!ok)
                 {
@@ -1186,19 +1209,16 @@ bool importServerParameterScript(ServerParameterScript* script,
             while (true)
             {
                 stLightServerNotice_t n;
-                ok = false;
                 n.m_hour = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 n.m_min = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 if (!ScanStr(&n.m_message))
                 {
                     return 0;
@@ -1211,7 +1231,6 @@ bool importServerParameterScript(ServerParameterScript* script,
             script->m_vec588.clear();
             while (true)
             {
-                ok = false;
                 int v = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1224,13 +1243,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1241,7 +1258,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[assault user runaway notice]")
         {
-            ok = false;
             if (!ScanStr(&script->m_str594))
             {
                 return 0;
@@ -1264,7 +1280,6 @@ bool importServerParameterScript(ServerParameterScript* script,
             script->m_float5a4.clear();
             while (true)
             {
-                ok = false;
                 float v = ScanFloat(&ok);
                 if (!ok)
                 {
@@ -1294,7 +1309,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int unused = ScanInt(&ok);
                 (void)unused;
                 if (!ok)
@@ -1302,13 +1316,11 @@ bool importServerParameterScript(ServerParameterScript* script,
                     break;
                 }
                 stLuckPoint_t p;
-                ok = false;
                 p.m_field0 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 p.m_field1 = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1322,13 +1334,11 @@ bool importServerParameterScript(ServerParameterScript* script,
             while (true)
             {
                 stLuckPointDeduction_t p;
-                ok = false;
                 int level = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 p.m_field0 = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1337,7 +1347,6 @@ bool importServerParameterScript(ServerParameterScript* script,
                 p.m_levels.reserve(4);
                 for (int i = 0; i < 4; ++i)
                 {
-                    ok = false;
                     int v = ScanInt(&ok);
                     p.m_levels.push_back(v);
                     if (!ok)
@@ -1354,13 +1363,11 @@ bool importServerParameterScript(ServerParameterScript* script,
             while (true)
             {
                 stLuckPointDeduction_t p;
-                ok = false;
                 int level = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 p.m_field0 = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1369,7 +1376,6 @@ bool importServerParameterScript(ServerParameterScript* script,
                 p.m_levels.reserve(4);
                 for (int i = 0; i < 4; ++i)
                 {
-                    ok = false;
                     int v = ScanInt(&ok);
                     p.m_levels.push_back(v);
                     if (!ok)
@@ -1386,14 +1392,12 @@ bool importServerParameterScript(ServerParameterScript* script,
             script->m_vec6c.reserve(4);
             for (int i = 0; i < 3; ++i)
             {
-                ok = false;
                 int unused = ScanInt(&ok);
                 (void)unused;
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int v = ScanInt(&ok);
                 script->m_vec6c.push_back(v);
                 if (!ok)
@@ -1401,14 +1405,12 @@ bool importServerParameterScript(ServerParameterScript* script,
                     return 0;
                 }
             }
-            ok = false;
             int unused2 = ScanInt(&ok);
             (void)unused2;
             if (!ok)
             {
                 return 0;
             }
-            ok = false;
             int unused3 = ScanInt(&ok);
             (void)unused3;
             if (!ok)
@@ -1484,7 +1486,6 @@ bool importServerParameterScript(ServerParameterScript* script,
             int i = 0;
             while (true)
             {
-                ok = false;
                 int v = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1508,7 +1509,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[pc room party exp bonus rate]")
         {
-            ok = false;
             float v = ScanFloat(&ok);
             if (!ok)
             {
@@ -1520,19 +1520,16 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int key = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1545,13 +1542,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1567,13 +1562,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1586,13 +1579,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1605,20 +1596,17 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int unused = ScanInt(&ok);
                 (void)unused;
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1639,13 +1627,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1658,13 +1644,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1677,13 +1661,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int idx = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 script->m_emblemCompound[idx].m_cost = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1691,7 +1673,6 @@ bool importServerParameterScript(ServerParameterScript* script,
                 }
                 for (int j = 0; j < 5; ++j)
                 {
-                    ok = false;
                     script->m_emblemCompound[idx].m_result[j] = ScanInt(&ok);
                     if (!ok)
                     {
@@ -1704,12 +1685,10 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             for (int i = 0; i < 0x20; ++i)
             {
-                ok = false;
                 int unused = ScanInt(&ok);
                 (void)unused;
                 for (int j = 0; j < 0x20; ++j)
                 {
-                    ok = false;
                     script->m_arr868[i][j] = ScanInt(&ok);
                     if (!ok)
                     {
@@ -1723,12 +1702,10 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             for (int i = 0; i < 0x20; ++i)
             {
-                ok = false;
                 int unused = ScanInt(&ok);
                 (void)unused;
                 for (int j = 0; j < 0x20; ++j)
                 {
-                    ok = false;
                     script->m_arr1868[i][j] = ScanInt(&ok);
                     if (!ok)
                     {
@@ -1742,12 +1719,10 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             for (int i = 0; i < 0x20; ++i)
             {
-                ok = false;
                 int unused = ScanInt(&ok);
                 (void)unused;
                 for (int j = 0; j < 0x20; ++j)
                 {
-                    ok = false;
                     script->m_arr2868[i][j] = ScanInt(&ok);
                     if (!ok)
                     {
@@ -1761,12 +1736,10 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             for (int i = 0; i < 0x20; ++i)
             {
-                ok = false;
                 int unused = ScanInt(&ok);
                 (void)unused;
                 for (int j = 0; j < 0x20; ++j)
                 {
-                    ok = false;
                     script->m_arr3868[i][j] = ScanInt(&ok);
                     if (!ok)
                     {
@@ -1796,13 +1769,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1816,13 +1787,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 unsigned short b = (unsigned short)ScanInt(&ok);
                 if (!ok)
                 {
@@ -1843,13 +1812,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1862,13 +1829,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1882,7 +1847,6 @@ bool importServerParameterScript(ServerParameterScript* script,
             while (true)
             {
                 std::string s;
-                ok = false;
                 if (!ScanStr(&s))
                 {
                     break;
@@ -1934,13 +1898,11 @@ bool importServerParameterScript(ServerParameterScript* script,
                 }
                 stUnusableEquipmentInfo info;
                 info.m_field0 = type;
-                ok = false;
                 info.m_field4 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 info.m_field8 = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1961,7 +1923,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int v = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1974,13 +1935,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -1993,7 +1952,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int key = ScanInt(&ok);
                 if (!ok)
                 {
@@ -2014,7 +1972,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[member bonus fatigue limit]")
         {
-            ok = false;
             script->m_488c = ScanInt(&ok);
             if (!ok)
             {
@@ -2035,28 +1992,24 @@ bool importServerParameterScript(ServerParameterScript* script,
             int i = 0;
             while (true)
             {
-                ok = false;
                 script->m_premiumGoldCard4894.m_conds[i].m_field0 =
                     ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 script->m_premiumGoldCard4894.m_conds[i].m_field4 =
                     ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 script->m_premiumGoldCard4894.m_conds[i].m_field8 =
                     ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 script->m_premiumGoldCard4894.m_conds[i].m_fieldc =
                     ScanInt(&ok);
                 if (!ok)
@@ -2073,7 +2026,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[premium rarity dicision]")
         {
-            ok = false;
             script->m_premiumGoldCard4894.m_rarityDecision[0] =
                 ScanInt(&ok);
             if (!ok)
@@ -2123,20 +2075,17 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int unused = ScanInt(&ok);
                 (void)unused;
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -2171,7 +2120,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[private training seal gain count]")
         {
-            ok = false;
             script->m_schoolMatchSeal[0] = (unsigned char)ScanInt(&ok);
             if (!ok)
             {
@@ -2195,7 +2143,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[relay battle training seal gain count]")
         {
-            ok = false;
             script->m_schoolMatchSeal[4] = (unsigned char)ScanInt(&ok);
             if (!ok)
             {
@@ -2230,13 +2177,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -2249,13 +2194,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
@@ -2268,25 +2211,21 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int b = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 int c = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 int n = ScanInt(&ok);
                 if (!ok)
                 {
@@ -2295,13 +2234,11 @@ bool importServerParameterScript(ServerParameterScript* script,
                 std::vector<std::pair<int, int> > vec;
                 for (int i = 0; i < n; ++i)
                 {
-                    ok = false;
                     int x = ScanInt(&ok);
                     if (!ok)
                     {
                         return 0;
                     }
-                    ok = false;
                     int y = ScanInt(&ok);
                     if (!ok)
                     {
@@ -2328,7 +2265,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int v = ScanInt(&ok);
                 if (!ok)
                 {
@@ -2347,7 +2283,6 @@ bool importServerParameterScript(ServerParameterScript* script,
             {
                 while (true)
                 {
-                    ok = false;
                     int v = ScanInt(&ok);
                     if (!ok)
                     {
@@ -2364,7 +2299,6 @@ bool importServerParameterScript(ServerParameterScript* script,
             {
                 continue;
             }
-            ok = false;
             script->m_eventIdolBringUp454.m_field0 = ScanInt(&ok);
             if (!ok)
             {
@@ -2380,7 +2314,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 unsigned int key = (unsigned int)ScanInt(&ok);
                 if (!ok)
                 {
@@ -2388,25 +2321,21 @@ bool importServerParameterScript(ServerParameterScript* script,
                 }
                 stUpgradeItemTicketParam_t p;
                 char* pb = reinterpret_cast<char*>(&p);
-                ok = false;
                 p.m_field0 = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 pb[1] = (char)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 pb[2] = (char)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int f4 = ScanInt(&ok);
                 if (!ok)
                 {
@@ -2423,7 +2352,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 unsigned int key = (unsigned int)ScanInt(&ok);
                 if (!ok)
                 {
@@ -2431,25 +2359,21 @@ bool importServerParameterScript(ServerParameterScript* script,
                 }
                 stUpgradeItemTicketParam_t p;
                 char* pb = reinterpret_cast<char*>(&p);
-                ok = false;
                 p.m_field0 = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 pb[1] = (char)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 pb[2] = (char)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 int f4 = ScanInt(&ok);
                 if (!ok)
                 {
@@ -2483,7 +2407,6 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             for (int i = 0; i < 4; ++i)
             {
-                ok = false;
                 script->m_weekendBouns4b4.m_dropRoutineByParty[i] =
                     (unsigned char)ScanInt(&ok);
                 if (!ok)
@@ -2497,7 +2420,6 @@ bool importServerParameterScript(ServerParameterScript* script,
             while (true)
             {
                 std::string s;
-                ok = false;
                 if (!ScanStr(&s))
                 {
                     break;
@@ -2530,13 +2452,11 @@ bool importServerParameterScript(ServerParameterScript* script,
                 ItemFarmingData data;
                 while (true)
                 {
-                    ok = false;
                     int itemId = ScanInt(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    ok = false;
                     int weight = ScanInt(&ok);
                     if (!ok)
                     {
@@ -2552,13 +2472,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                ok = false;
                 int a = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 float b = ScanFloat(&ok);
                 if (!ok)
                 {
@@ -2567,24 +2485,27 @@ bool importServerParameterScript(ServerParameterScript* script,
                 script->m_vec4d8.push_back(std::make_pair(a, b));
             }
         }
+        // [N-类·跨版本 EH] 本函数 4 处局部对象段(auction480/chaosWeight4e4/
+        // ghostLevel4f0/ghostChaos4fc，ORIG tag $0xd67/$0xd8b/$0xda3/$0xdbb)我们
+        // 各多 1 个 8 行 landing pad(mov%edx,%ebx;mov%eax,%esi;lea obj;call D1;
+        // 还原;jmp)。ORIG=gcc4.1 SJLJ EH：清理走函数级 personality，无 per-call
+        // landing pad(ORIG @0x08a87f16 后 4 段实测 0 条 cleanup)；4.4.7 DW2 每
+        // potential-throw 区生成。正常路径 D1 调用两侧一致，仅冷路径多。豁免。
         else if (line == "[auction register item limit]")
         {
             while (true)
             {
                 stAuctionLimitItemParam_t p;
-                ok = false;
                 p.m_itemId = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 p.m_startSec = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 p.m_endSec = ScanInt(&ok);
                 if (!ok)
                 {
@@ -2598,25 +2519,21 @@ bool importServerParameterScript(ServerParameterScript* script,
             while (true)
             {
                 stAssaultChaosPointWeight w;
-                ok = false;
                 w.m_min = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 w.m_max = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 w.m_w0 = ScanFloat(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 w.m_w1 = ScanFloat(&ok);
                 if (!ok)
                 {
@@ -2630,25 +2547,21 @@ bool importServerParameterScript(ServerParameterScript* script,
             while (true)
             {
                 stAssaultLevelGhostPanalty g;
-                ok = false;
                 g.m_min = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 g.m_max = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 g.m_t0 = (unsigned int)ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 g.m_t1 = (unsigned int)ScanInt(&ok);
                 if (!ok)
                 {
@@ -2662,25 +2575,21 @@ bool importServerParameterScript(ServerParameterScript* script,
             while (true)
             {
                 stAssaultChaosPointGhostPanalty g;
-                ok = false;
                 g.m_min = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                ok = false;
                 g.m_max = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 g.m_r0 = ScanFloat(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                ok = false;
                 g.m_r1 = ScanFloat(&ok);
                 if (!ok)
                 {

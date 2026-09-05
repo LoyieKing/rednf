@@ -204,7 +204,7 @@ namespace WongWork
 
     void _beginTowerClearProcess(bool);
     bool _checkMemberDie();   // 原 int；ORIG caller 0x84661bc `test %al,%al` 直用 al 无归一 ⇒ bool 返回（mangled 无返回类型）
-    int _checkMemberReady();
+    void _checkMemberReady();  // 原 int；ORIG 0x84670f8 尾无 %eax 置值 ⇒ void（mangled 无返回类型）
     int _checkRenewMyRecord(unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
     int _checkRenewTopRecord(unsigned int, unsigned int, unsigned int, unsigned int);
     int _checkStartGameCondition(unsigned char&);

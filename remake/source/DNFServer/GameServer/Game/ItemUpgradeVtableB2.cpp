@@ -57,9 +57,18 @@
 #include "CSystemTime.h"
 #include "CUserProc.h"            // APSystem::CUserProc
 #include "CEnvironment.h"
+// WongWork::CItemUpgradeTable（CItemUpgrade 表区子对象；ProcUpgrade 取表直调
+// 其 getUpgradeInfoTable W 0x0854b382，禁 inline 视图代返）。
+#include "CItemGenerator.h"
+// MSG_ITEM_UPGRADE 完整类型（CItemUpgrade_Separate.h 仅前向声明；ProcUpgrade
+// 需具名读 m_upgradeType/m_targetSlot/m_targetItemIdx/m_ticketSlot/
+// m_materialSlot/m_25/m_27/m_28）。
+#include "PacketTypes.h"
 
 #include <cmath>
 #include <cstring>
+// std::max（_getAdditionalDisjointItem 0x08546983 模板实调）
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -120,25 +129,35 @@ float expert_job::CAlchemist::GetItemUpgradeSuccessRate()
 }
 
 // ============================================================================
-// getItemSellPrice @ 0x0898c86e（自由函数）
-//   sel = flag ? 2 : 0；a = min(a,b)；base = itemPriceRates_[sel]*price/1000；
-//   b==0 → base；否则 base*a/b。（ORIG 的魔数除法即有符号 /1000 截断语义。）
+// getItemSellPrice @ 0x0898c86e（自由函数；nm 实查 size 0x8e）
+//   【切片转写】game_func_report 对本符号的 ORIG 段取错（撞名，§6.3 假阳性清单
+//   已报 Main），故按 objdump 0x0898c86e..0x0898c8fb 人工转写：
+//     0x0898c874 `mov 0x14(%ebp),%eax; mov %al,-0x14(%ebp)` bool 实参落本地槽；
+//     0x0898c87a `movb $0,-0x1` + `cmpb $0,-0x14; je` + `movb $2,-0x1` ⇒ sel 形；
+//     0x0898c888 `cmp 0x10,%eax; jle; mov 0x10→0xc` ⇒ a=min(a,b)（写回形参槽）；
+//     0x0898c896 `cmpl $0,0x10; jne` 后**两分支各自完整重发**
+//     `movzbl sel; mov rates(,%eax,4); imul price; 0x10624dd3 magic /1000`
+//     （0x0898c89c 与 0x0898c8c6 各 13 条）⇒ 提公共 base 局部会丢整段 13 insn
+//     （P48/P183：-O0 无 CSE）。
 // ============================================================================
 int getItemSellPrice(int price, int a, int b, bool flag)
 {
-    const unsigned char sel = flag ? 2 : 0;
+    char sel = 0;
+    if (flag)
+    {
+        sel = 2;
+    }
 
     if (a > b)
     {
         a = b;
     }
 
-    const int base = itemPriceRates_[sel] * price / 1000;
     if (b == 0)
     {
-        return base;
+        return itemPriceRates_[sel] * price / 1000;
     }
-    return base * a / b;
+    return itemPriceRates_[sel] * price / 1000 * a / b;
 }
 
 // ============================================================================
@@ -275,6 +294,16 @@ inline const upgrade_table_t& embeddedTable(const WongWork::CItemUpgrade* self)
         reinterpret_cast<const char*>(self) + 0x04);
 }
 
+// 表区子对象视图（+0x04）：ORIG ProcUpgrade 0x08547ca4 `add $0x4,%eax` +
+// call _ZNK8WongWork17CItemUpgradeTable19getUpgradeInfoTableEv（W 0x0854b382）。
+// 必须走真实成员函数调用（inline 视图代返会丢该 call，P167 差集实证）。
+inline const WongWork::CItemUpgradeTable* embeddedUpgradeTable(
+    const WongWork::CItemUpgrade* self)
+{
+    return reinterpret_cast<const WongWork::CItemUpgradeTable*>(
+        reinterpret_cast<const char*>(self) + 0x04);
+}
+
 }  // namespace
 
 namespace WongWork
@@ -312,10 +341,16 @@ unsigned short CItemUpgrade::_getUpgradeCountByUpgradeItem(
         CStackableItem* stack = (CStackableItem*)script;
         if (stack->IsReinforceTicket())
         {
-            count = (short)stack->GetReinforceVaule();
-            if (count < 0 || 0x1f < count)
+            // ORIG 0x08548f70 `cwtl` + int 槽 -0x10 + `cmpl` 区间判定，末了
+            // `mov %ax,-0x1a` 落 short ⇒ 票面值先入 int 局部（P10/P11）。
+            const int value = (short)stack->GetReinforceVaule();
+            if (value < 0 || 0x1f < value)
             {
                 count = 0;
+            }
+            else
+            {
+                count = (short)value;
             }
         }
         else if (stack->IsAmplifyReinforceTicket())
@@ -325,10 +360,14 @@ unsigned short CItemUpgrade::_getUpgradeCountByUpgradeItem(
                 err = (ENUM_ERROR)0x13;
                 return 0;
             }
-            count = (short)stack->GetAmplifyReinforceValue();
-            if (count < 0 || 0x1f < count)
+            const int value = (short)stack->GetAmplifyReinforceValue();
+            if (value < 0 || 0x1f < value)
             {
                 count = 0;
+            }
+            else
+            {
+                count = (short)value;
             }
         }
     }
@@ -346,11 +385,25 @@ unsigned char CItemUpgrade::_getUpgradeRateByUpgradeItem(
     const bool amplify = target.m_amp.hasAbility();
     if (!amplify)
     {
-        const unsigned idx = (unsigned)material.m_addInfo;
-        if (idx == 0x1d29 || (idx >= 0x1c69 && idx <= 0x1c6b) ||
-            (idx >= 0x1e3f && idx <= 0x1e40) || idx == 0x1e86)
+        // ORIG 0x0854901d..0x08549059 是 switch 二分决策树（首比较 0x1d29、
+        // `sub $0x1c69; cmp $0x2; ja` 小区间、0x1e3f/0x1e40 jb/jbe、0x1e86），
+        // 命中共享叶 `movb $0x64,-0x19; movzbl; jmp 返回`；default 叶
+        // `movb $0,-0x19` 后**继续**执行（不返回）⇒ 必须写 switch + case 升序
+        // （P46/P163），布尔区间链会退化成 cmp 序列且丢 18 insn。
+        switch (material.m_addInfo)
         {
-            return (unsigned char)100;
+            case 0x1c69:
+            case 0x1c6a:
+            case 0x1c6b:
+            case 0x1d29:
+            case 0x1e3f:
+            case 0x1e40:
+            case 0x1e86:
+                rate = 100;
+                return (unsigned char)rate;
+            default:
+                rate = 0;
+                break;
         }
     }
 
@@ -360,10 +413,15 @@ unsigned char CItemUpgrade::_getUpgradeRateByUpgradeItem(
         CStackableItem* stack = (CStackableItem*)script;
         if (stack->IsReinforceTicket())
         {
-            rate = (char)stack->GetReinforceRate();
-            if (rate < 0 || 100 < rate)
+            // ORIG `movsbl` 到 int 槽后 cmpl 判定，末了 movb 落 char ⇒ int 中转。
+            const int value = (char)stack->GetReinforceRate();
+            if (value < 0 || 100 < value)
             {
                 rate = 0;
+            }
+            else
+            {
+                rate = (char)value;
             }
         }
         else if (stack->IsAmplifyReinforceTicket())
@@ -373,10 +431,14 @@ unsigned char CItemUpgrade::_getUpgradeRateByUpgradeItem(
                 err = (ENUM_ERROR)0x13;
                 return 0;
             }
-            rate = (char)stack->GetAmplifyReinforceRate();
-            if (rate < 0 || 100 < rate)
+            const int value = (char)stack->GetAmplifyReinforceRate();
+            if (value < 0 || 100 < value)
             {
                 rate = 0;
+            }
+            else
+            {
+                rate = (char)value;
             }
         }
     }
@@ -391,36 +453,48 @@ unsigned char CItemUpgrade::_getUpgradeRateByUpgradeItem(
 bool CItemUpgrade::_CheckTargetUsableLv(const Inven_Item& material,
                                         const Inven_Item& target) const
 {
+    // ORIG（Ghidra uVar5）各分支写同一结果槽 + 统一出口（P63）：散布 return 让
+    // 4.4 为每个出口生成独立 epilogue 中继，实测 result 汇聚形 78/73 优于
+    // 散布形 78/71；余 5 insn 为 m_char320 的 xor$1/test 布尔物化（4.1 对
+    // 值域 [0,1] 字节比较的发形，4.4 恒 cmp $0x1 → N6/N18b 族）。
+    bool result;
     CItem* matScript = G_CDataManager()->find_item(material.m_addInfo);
     if (matScript == 0)
     {
-        return false;
+        result = false;
     }
-    if (!matScript->is_stackable())
+    else if (!matScript->is_stackable())
     {
-        return true;
+        result = true;
     }
-    const CStackableItem* stack = (const CStackableItem*)matScript;
-    if (stack->m_char320 != 1)
+    else
     {
-        return true;
+        const CStackableItem* stack = (const CStackableItem*)matScript;
+        if (stack->m_char320 != 1)
+        {
+            result = true;
+        }
+        else
+        {
+            CItem* tgtScript = G_CDataManager()->find_item(target.m_addInfo);
+            if (tgtScript == 0)
+            {
+                result = false;
+            }
+            else if (!target.isEquipableItemType())
+            {
+                result = false;
+            }
+            else
+            {
+                // 目标可用等级须位于材料脚本的区间 [m_int318, m_int31c]。
+                const int usable = tgtScript->getUsableLevel();
+                result = !(usable < stack->m_int318 ||
+                           stack->m_int31c < usable);
+            }
+        }
     }
-    CItem* tgtScript = G_CDataManager()->find_item(target.m_addInfo);
-    if (tgtScript == 0)
-    {
-        return false;
-    }
-    if (!target.isEquipableItemType())
-    {
-        return false;
-    }
-    // 目标可用等级须位于材料脚本的区间 [m_int318, m_int31c]。
-    const int usable = tgtScript->getUsableLevel();
-    if (usable < stack->m_int318 || stack->m_int31c < usable)
-    {
-        return false;
-    }
-    return true;
+    return result;
 }
 
 // ============================================================================
@@ -549,53 +623,64 @@ bool CItemUpgrade::_DoProcUpgrade(CUser* user, Inven_Item* item,
 // ============================================================================
 // ProcUpgrade @ 0x0854779c —— 强化主流程（vtable 槽 0）。
 // 返回 0 成功；其余为错误码（4/8/9/0xd/0x10/0x11/0x13/0x16/0x17/0xea/0x3f4…）。
+//
+// 【batch-11 验收标注（§6.2 超大函数口径）】orig 1242 / ours 1246（gap 4）。
+//   ① 调用点差集（P167）：ORIG direct 115 + indirect 5 ↔ ours 115 + 5，**归零**
+//      （仅 Inven_Item C2×4 / upgrade_info_t C2×1 ↔ 4.4 发射 C1×5 的同体符号名
+//      对称差，函数体等价，属跨 GCC 版本发形）；
+//   ② 逐块比对补齐：4 处 Inven_Item「默认构造+赋值」物化块、map operator-> ×3、
+//      GetRepeatEvent ×2、use_money 双分支各自重取 invenW、减费装备改走
+//      getCurCharacInvenR(0,0xb)、回包 add_info 改取材料槽且重取 invenW、
+//      randInt 上界改字面 99、去掉 ORIG 不存在的 GetRepeatEvent 判空防御
+//      （gap 156 → 4）；
+//   ③ 残余 4 insn 集中在 ticket 级 bool 汇聚岛（0x08547c51）与
+//      /100 magic 除法展开（0x08548a98）⇒ 判**语义完成、byte 层
+//      N76/N82/N18b 封顶**，勿再耗轮次。
+//   MSG_ITEM_UPGRADE +0x1a/+0x1b/+0x1d/+0x21/+0x23 字段化已由 Main 代落
+//   PacketTypes.h:807-812；本函数无裸偏移读（仅 CEnvironment+0x378 待补）。
+//
+// 物化口径（P183/P167 实证）：ORIG 对材料/保护券槽各发
+//   Inven_Item C2（0x080cb854）+ GetInvenSlot 临时槽（-0x2c8）+ 15×movl+1×movb
+//   逐字段拷贝，共四处独立物化块（-0x15e/-0x19b/-0x1d8/-0x215）；重建端一律
+//   「默认构造 + 赋值」两步形，禁 `T x = f()` 直构（会折叠 sret 目标，丢整块）。
 // ============================================================================
 int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
                               PacketGuard* pg)
 {
-    char* mb = reinterpret_cast<char*>(msg);
-    const unsigned char type = *(const unsigned char*)(mb + 0x1a);
-    const unsigned short tSlot = *(const unsigned short*)(mb + 0x1b);
-    const unsigned int expectIdx = *(const unsigned int*)(mb + 0x1d);
-    const unsigned short ticketSlot = *(const unsigned short*)(mb + 0x21);
-    const unsigned short matSlot = *(const unsigned short*)(mb + 0x23);
-    unsigned short upCount = *(const unsigned short*)(mb + 0x25);
-
     CInventory* invenW = ((CUserCharacInfo*)user)->getCurCharacInvenW();
 
-    Inven_Item target = invenW->GetInvenSlot(INVEN_TYPE_EQUIP, tSlot);
+    Inven_Item target = invenW->GetInvenSlot(INVEN_TYPE_EQUIP,
+                                             msg->m_targetSlot);
     if (target.isEmpty())
     {
         return 4;
     }
-    if (*(const int*)(reinterpret_cast<const char*>(&target) + 2) !=
-        (const int)expectIdx)
+    if (target.m_addInfo != msg->m_targetItemIdx)
     {
         return 4;
     }
 
-    Inven_Item material = invenW->GetInvenSlot(INVEN_TYPE_EQUIP, matSlot);
+    Inven_Item material;
+    material = invenW->GetInvenSlot(INVEN_TYPE_EQUIP, msg->m_materialSlot);
     if (material.isEmpty())
     {
         return 0x16;
     }
 
     Event_Upgrade_Jar* jar = GlobalData::s_pEvent_UpGrade_Jar;
-    if (!jar->CheckMaxLuckyLevel(target, (unsigned long)material.m_addInfo))
+    if (!jar->CheckMaxLuckyLevel(target, material.m_addInfo))
     {
         return 0x3f4;
     }
-    jar->CheckMaterialIndex((unsigned long)material.m_addInfo);
+    jar->CheckMaterialIndex(material.m_addInfo);
 
-    ENUM_ERROR err = ENUM_ERROR_NONE;
-    *(unsigned short*)(mb + 0x25) = upCount =
-        _getUpgradeCountByUpgradeItem(target, material, err);
+    ENUM_ERROR err = ENUM_ERROR_NONE;              // -0xdc
+    msg->m_25 = _getUpgradeCountByUpgradeItem(target, material, err);
     if (err != ENUM_ERROR_NONE)
     {
         return (int)err;
     }
-    *(unsigned char*)(mb + 0x27) =
-        _getUpgradeRateByUpgradeItem(target, material, err);
+    msg->m_27 = _getUpgradeRateByUpgradeItem(target, material, err);
     if (err != ENUM_ERROR_NONE)
     {
         return (int)err;
@@ -607,74 +692,79 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         return 4;
     }
 
-    Inven_Item ticketFirstCopy;  // ORIG 先默认构造，仅在 ticketSlot 有效时装填
-    char ticketFlag = 0;
-    if (ticketSlot != 0xffff)
+    Inven_Item ticket;                             // -0x19b
+    char ticketFlag = 0;                           // -0x45
+    if (msg->m_ticketSlot != 0xffff)
     {
-        if (!script->IsPossibleKiriProtection())  // CItem vtable+0x44
+        if (!script->IsPossibleKiriProtection())   // CItem vtable+0x44
         {
             return 0xea;
         }
-        ticketFirstCopy = invenW->GetInvenSlot(INVEN_TYPE_EQUIP, ticketSlot);
-        if (ticketFirstCopy.isEmpty())
+        ticket = invenW->GetInvenSlot(INVEN_TYPE_EQUIP, msg->m_ticketSlot);
+        if (ticket.isEmpty())
         {
             return 4;
         }
         std::map<unsigned int, stUpgradeItemTicketParam_t>& tickets =
             G_CDataManager()->m_serverParameter.m_ticket468;
         std::map<unsigned int, stUpgradeItemTicketParam_t>::iterator it =
-            tickets.find((unsigned int)ticketFirstCopy.m_addInfo);
+            tickets.find(ticket.m_addInfo);
         if (it == tickets.end())
         {
             return 9;
         }
-        const unsigned char* param =
-            reinterpret_cast<const unsigned char*>(&it->second);
-        const unsigned char up = target.GetUpgrade();
-        if (up < param[0] || param[1] < up)
+        // ORIG 每次 it->second 都重调 _Rb_tree_iterator::operator->（3 次：
+        // 0x08547c15/0x08547c3b/0x08547c6b）、GetUpgrade 重调 2 次 ⇒ 表达式内
+        // 逐点写，禁 &it->second 缓存（P183）。
+        if (target.GetUpgrade() < it->second.m_view.m_minUpgrade ||
+            it->second.m_view.m_maxUpgrade < target.GetUpgrade())
         {
             return 8;
         }
-        ticketFlag = (char)param[2];
+        ticketFlag = (char)it->second.m_view.m_ticketFlag;
     }
 
-    // 升级表：增幅物品用 CItemAmplifier 表，否则类内嵌表（this+0x04）。
-    const upgrade_table_t& table =
-        target.m_amp.hasAbility()
-            ? *GlobalData::s_itemAmplifier_->getUpgradeInfoTable()
-            : embeddedTable(this);
+    // 升级表：增幅物品用 CItemAmplifier 表，否则表区子对象的 getUpgradeInfoTable。
+    const upgrade_table_t* table;
+    if (!target.m_amp.hasAbility())
+    {
+        table = embeddedUpgradeTable(this)->getUpgradeInfoTable();
+    }
+    else
+    {
+        table = GlobalData::s_itemAmplifier_->getUpgradeInfoTable();
+    }
 
-    upgrade_info_t info;
-    std::memset(&info, 0, sizeof(info));  // ORIG upgrade_info_t ctor 全清零
+    upgrade_info_t info;                           // -0x284（ctor 自清零）
     const int level = ((const CUserCharacInfo*)user)->get_charac_level();
-    if (!_GetUpgradeInfo(&target, script, table, &info, level))
+    if (!_GetUpgradeInfo(&target, script, *table, &info, level))
     {
         return 0xd;
     }
 
-    // 【ORIG 怪癖】payBase/matCount 仅在部分分支赋值，其余路径沿用栈上旧值。
-    int payBase;   // -0x250：金钱基数
-    int matCount;  // -0x254：材料消耗数量
-    if (upCount != 0)
+    // 【ORIG 怪癖】payBase/matCount 仅 upCount!=0 时赋值，其余路径沿用旧栈值。
+    int payBase;                // -0x250 金钱基数
+    int matCount;               // -0x254 材料消耗数量
+    int ticketMatIdx;           // -0x258（ORIG 写入后无读者：死写入照抄，P171）
+    if (msg->m_25 != 0)
     {
         payBase = 0;
         matCount = 1;
-        // （dead store：materialIdx 写入 -0x258 后无读者，忠实省略。）
+        ticketMatIdx = (int)material.m_addInfo;
     }
+    (void)ticketMatIdx;
 
     if (!_CheckTargetUsableLv(material, target))
     {
         return 0x13;
     }
-    const int portable =
-        _ProcPortableUpgradeItem(material, target, info);
+    const int portable = _ProcPortableUpgradeItem(material, target, info);
     if (portable != 0)
     {
         return portable;
     }
 
-    if (ticketFirstCopy.m_addInfo == 0x28d30e ||
-        ticketFirstCopy.m_addInfo == 0x28d30f)
+    if (ticket.m_addInfo == 0x28d30e || ticket.m_addInfo == 0x28d30f)
     {
         payBase = 0;
     }
@@ -682,61 +772,100 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
     jar->SettingRecipeNUpConunt(material.m_addInfo, info,
                                 target.GetUpgrade());
 
-    if (type == 0 && script->IsImpossibleUpgrade())
-    {  // CItem vtable+0x30
+    if (msg->m_upgradeType == 0 && script->IsImpossibleUpgrade())
+    {   // CItem vtable+0x30
         return 0x13;
     }
-    if (type == 1 && script->IsImpossibleAmplify())
-    {  // CItem vtable+0x34
+    if (msg->m_upgradeType == 1 && script->IsImpossibleAmplify())
+    {   // CItem vtable+0x34
         return 0x13;
     }
 
-    // 特殊券（0x28d30e/0x28d30f）覆盖材料消耗数（两处相同逻辑，忠实保留）。
-    if (ticketSlot != 0xffff)
+    // 特殊券覆盖材料消耗数（第一处 @0x08547e89，删除前第二次见 @0x085483b4）。
+    if (msg->m_ticketSlot != 0xffff)
     {
-        Inven_Item t = invenW->GetInvenSlot(INVEN_TYPE_EQUIP, ticketSlot);
-        if (t.m_addInfo == 0x28d30f)
+        Inven_Item ticketAgain;                    // -0x1d8
+        ticketAgain =
+            invenW->GetInvenSlot(INVEN_TYPE_EQUIP, msg->m_ticketSlot);
+        // ORIG 各分支直发 movl $imm,-0x254（0x08547f9e/0x08547faa/0x08547fce/
+        // 0x08547fda）⇒ if/else 独立赋值，禁三目（三目物化「先备值再 store」
+        // 两条，本函数 4 处共 +4 insn）。
+        if (ticketAgain.m_addInfo == 0x28d30f)
         {
-            matCount = (type == 0) ? 0x32 : 10;
+            if (msg->m_upgradeType == 0)
+            {
+                matCount = 0x32;
+            }
+            else
+            {
+                matCount = 10;
+            }
         }
-        else if (t.m_addInfo == 0x28d30e)
+        else if (ticketAgain.m_addInfo == 0x28d30e)
         {
-            matCount = (type == 0) ? 100 : 20;
+            if (msg->m_upgradeType == 0)
+            {
+                matCount = 100;
+            }
+            else
+            {
+                matCount = 20;
+            }
         }
     }
 
-    const int cond =
-        _CheckCondition(user, target, script, material, table, info);
+    int cond = 0;                                  // -0x3c
+    cond = _CheckCondition(user, target, script, material, *table, info);
     if (cond != 0)
     {
         return cond;
     }
-    if (type == 0 && target.m_amp.hasAbility())
+    if (msg->m_upgradeType == 0 && target.m_amp.hasAbility())
     {
         return 0x17;
     }
-    if (type == 1 && !target.m_amp.hasAbility())
+    if (msg->m_upgradeType == 1 && !target.m_amp.hasAbility())
     {
         return 0x17;
     }
 
     pg->put_byte(1);
 
-    const unsigned char oldUp = target.GetUpgrade();
-    bool upgraded = false;
-    char winFlag = 0;
+    const int oldUp = (int)target.GetUpgrade();    // -0x38（int 槽）
+    bool upgraded = false;                         // -0x32
+    char winFlag = 0;                              // -0x31
 
-    if (upCount == 0)
+    if (msg->m_25 != 0)
+    {
+        upgraded = true;
+        // ORIG 上界是字面量 99（movl $0x63,-0xd0），非 _DoProcUpgrade 的 +0x4ec。
+        unsigned long bound = 99;
+        if (upgradeRand(this)->randInt(bound) < msg->m_27)
+        {
+            target.SetUpgrade((unsigned char)msg->m_25);
+            winFlag = 1;
+        }
+        else
+        {
+            target.SetUpgrade((unsigned char)oldUp);
+            winFlag = 0;
+        }
+    }
+    else
     {
         upgraded = _DoProcUpgrade(user, &target, &info);
 
-        int pay = payBase;  // -0x2c
+        int pay = payBase;                         // -0x2c
+        // ORIG 无判空防御（0x085481bc 直接解引用返回值，P140）。
         CEventBase* repeat =
             GlobalData::s_event_manager->GetRepeatEvent(0x32);
-        if (repeat != 0 && repeat->IsEventing((CUser*)0) &&
-            !target.m_amp.hasAbility())
+        if (repeat->IsEventing((CUser*)0) && !target.m_amp.hasAbility())
         {
-            const int rate = ((CReduceUpgradeItemPay*)repeat)->GetReduceRate();
+            // 第二次 GetRepeatEvent（0x0854820c）：ORIG 不缓存返回值（P48）。
+            const int rate =
+                ((CReduceUpgradeItemPay*)
+                    GlobalData::s_event_manager->GetRepeatEvent(0x32))
+                    ->GetReduceRate();
             if (rate > 0)
             {
                 pay = payBase - (payBase * rate) / 100;
@@ -746,91 +875,107 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
                 }
             }
         }
+        else
+        {
+            pay = payBase;
+        }
 
-        Inven_Item worn = invenW->GetInvenSlot(0, 0xb);
-        CItem* discScript = G_CDataManager()->find_item(worn.m_addInfo);
+        // 减费装备来自**右槽**（0x08548ad3 getCurCharacInvenR，type=0/slot=0xb）。
+        Inven_Item worn =
+            ((const CUserCharacInfo*)user)
+                ->getCurCharacInvenR()
+                ->GetInvenSlot((INVEN_TYPE)0, 0xb);
+        const int wornIdx = (int)worn.m_addInfo;   // -0x28
+        CItem* discScript = G_CDataManager()->find_item(wornIdx);
         if (discScript != 0)
         {
             const float discount =
                 ((CEquipItem*)discScript)->getUpgradeCostDiscount();
-            // _DAT_08c9d304 == -100.0f（ORIG 分母常量）。
+            // _DAT_08c9d304 = -100.0f（objdump flds 立即数直读，P185）。
             pay = (int)((discount * (float)pay) / -100.0f + (float)pay);
         }
 
-        const eMoneySubReason reason =
-            target.m_amp.hasAbility() ? eMoneySubReason_0x2e
-                                      : eMoneySubReason_0xd;
-        if (((CUserCharacInfo*)user)->getCurCharacInvenW()->use_money(
-                pay, reason, true) != 1)
+        if (target.m_amp.hasAbility())
         {
-            return 10;
-        }
-    }
-    else
-    {
-        upgraded = true;
-        unsigned long boundStorage;
-        const unsigned int roll =
-            (unsigned int)upgradeRand(this)->randInt(
-                randIntBound(this, boundStorage));
-        if (roll < (unsigned int)*(const unsigned char*)(mb + 0x27))
-        {
-            target.SetUpgrade((unsigned char)upCount);
-            winFlag = 1;
+            if (((CUserCharacInfo*)user)->getCurCharacInvenW()->use_money(
+                    pay, (eMoneySubReason)0x2e, true) != 1)
+            {
+                return 10;
+            }
         }
         else
         {
-            target.SetUpgrade(oldUp);
+            if (((CUserCharacInfo*)user)->getCurCharacInvenW()->use_money(
+                    pay, (eMoneySubReason)0xd, true) != 1)
+            {
+                return 10;
+            }
         }
     }
 
-    // 特殊券覆盖材料消耗数（删除前第二次，同 +0x06dc 段逻辑）。
-    if (ticketSlot != 0xffff)
+    // 特殊券覆盖材料消耗数（第二处 @0x085483b4）+ 删券。
+    if (msg->m_ticketSlot != 0xffff)
     {
-        Inven_Item t = invenW->GetInvenSlot(INVEN_TYPE_EQUIP, ticketSlot);
-        if (t.m_addInfo == 0x28d30f)
+        Inven_Item ticketDel;                      // -0x215
+        ticketDel = invenW->GetInvenSlot(INVEN_TYPE_EQUIP, msg->m_ticketSlot);
+        if (ticketDel.m_addInfo == 0x28d30f)
         {
-            matCount = (type == 0) ? 0x32 : 10;
+            if (msg->m_upgradeType == 0)
+            {
+                matCount = 0x32;
+            }
+            else
+            {
+                matCount = 10;
+            }
         }
-        else if (t.m_addInfo == 0x28d30e)
+        else if (ticketDel.m_addInfo == 0x28d30e)
         {
-            matCount = (type == 0) ? 100 : 20;
+            if (msg->m_upgradeType == 0)
+            {
+                matCount = 100;
+            }
+            else
+            {
+                matCount = 20;
+            }
         }
-        if (((CUserCharacInfo*)user)->getCurCharacInvenW()
-                ->delete_item(INVEN_TYPE_EQUIP, ticketSlot, 1,
-                              eItemDelReason_3, true) != 1)
+        if (((CUserCharacInfo*)user)->getCurCharacInvenW()->delete_item(
+                INVEN_TYPE_EQUIP, msg->m_ticketSlot, 1, (eItemDelReason)3,
+                true) != 1)
         {
             return 0x11;
         }
-        user->m_historyLog.apply_Item(ticketFirstCopy.m_addInfo,
-                                      target.m_addInfo,
-                                      eApplyItemReason_0);
+        user->m_historyLog.apply_Item(ticket.m_addInfo, target.m_addInfo,
+                                      (eApplyItemReason)0);
     }
 
     if (((CUserCharacInfo*)user)->getCurCharacInvenW()->delete_item(
-            INVEN_TYPE_EQUIP, matSlot, matCount, eItemDelReason_0xc,
-            true) != 1)
+            INVEN_TYPE_EQUIP, msg->m_materialSlot, matCount,
+            (eItemDelReason)0xc, true) != 1)
     {
         return 0x11;
     }
-    if (upCount != 0)
+    if (msg->m_25 != 0)
     {
         user->m_historyLog.apply_Item(material.m_addInfo, target.m_addInfo,
-                                      eApplyItemReason_1);
+                                      (eApplyItemReason)1);
     }
 
     GetInstanceValueStatistic()->AddValueStatistic(
         (VALUE_STATISTIC_FIELD)0xe, user, (unsigned int)payBase);
 
-    pg->put_byte((int)type);
-    pg->put_short((int)matSlot);
-    {
-        Inven_Item cur = invenW->GetInvenSlot(INVEN_TYPE_EQUIP, tSlot);
-        pg->put_int(cur.get_add_info());
-    }
-    pg->put_short((int)ticketSlot);
+    pg->put_byte((int)msg->m_upgradeType);
+    pg->put_short((int)msg->m_materialSlot);
+    // 回包的 add_info 取自**材料槽**当前物品，且 ORIG 在此重取 invenW
+    // （0x08548ee7 call getCurCharacInvenW → 0x08548f0b GetInvenSlot(1, +0x23)）。
+    pg->put_int(((CUserCharacInfo*)user)
+                    ->getCurCharacInvenW()
+                    ->GetInvenSlot(INVEN_TYPE_EQUIP, msg->m_materialSlot)
+                    .get_add_info());
+    pg->put_short((int)msg->m_ticketSlot);
 
-    if (upCount == 0)
+    if (msg->m_25 == 0)
     {
         if (jar->isNewNPC())
         {
@@ -849,31 +994,34 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
     {
         pg->put_byte(1);
     }
-    pg->put_byte((int)(char)oldUp);
+    pg->put_byte(oldUp);
 
-    if (table.intAtConst(0x234) <= (int)target.GetUpgrade() &&
-        (upCount == 0 || winFlag != 0))
+    if (table->m_bodyView.m_named.m_noticeUpgradeLevel <=
+            (int)target.GetUpgrade() &&
+        (msg->m_25 == 0 || winFlag != 0))
     {
         _NoticeUpgrade(user, target, upgraded);
     }
 
     if (target.GetUpgrade() > 12)
     {
+        const unsigned int logUpgraded = (unsigned int)upgraded;  // -0x2d4
+        const unsigned int logUpgrade =
+            (unsigned int)target.GetUpgrade();                    // -0x2d0
         const unsigned int envField =
             *reinterpret_cast<const unsigned int*>(
                 reinterpret_cast<const char*>(G_CEnvironment()) +
                 0x378);  // [裸偏移] CEnvironment+0x378（具名字段待补）
-        DB_ReqItemUpgradeLog::makeRequest(envField, target.m_addInfo,
-                                          ((const CUserCharacInfo*)user)
-                                              ->getCurCharacNo(),
-                                          ((const CUserCharacInfo*)user)
-                                              ->getCurCharacName(),
-                                          target.GetUpgrade(), upgraded);
+        DB_ReqItemUpgradeLog::makeRequest(
+            envField, target.m_addInfo,
+            ((const CUserCharacInfo*)user)->getCurCharacNo(),
+            ((const CUserCharacInfo*)user)->getCurCharacName(), logUpgrade,
+            logUpgraded != 0);
     }
 
     if (upgraded)
     {
-        if (upCount == 0)
+        if (msg->m_25 == 0)
         {
             pg->put_byte(0);
         }
@@ -886,25 +1034,26 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
             pg->put_byte(0);
         }
         pg->put_byte((int)target.GetUpgrade());
-        pg->put_short((int)tSlot);
-        if (upCount == 0)
+        pg->put_short((int)msg->m_targetSlot);
+        if (msg->m_25 == 0)
         {
             APSystem::CUserProc::ClearActionAndSendtoUser(
-                user, (APSystem::_ActionGroupIndex)0xc, 0, (ENUM_PACKETCLASS)0);
+                user, (APSystem::_ActionGroupIndex)0xc, 0,
+                (ENUM_PACKETCLASS)0);
         }
     }
     else
     {
-        int sellPrice = 0;
+        int sellPrice = 0;                         // -0xe4
         G_Store()->GetSellItemPrice(target, script,
-                                    (short)target.get_add_info(), false,
+                                    (short)target.m_addInfo2, false,
                                     sellPrice);
         GetInstanceValueStatistic()->AddValueStatistic(
             (VALUE_STATISTIC_FIELD)0xf, user, (unsigned int)sellPrice);
 
         const int penalty =
-            _ProcPenalty(user, &target, script, tSlot, table, &info, pg,
-                         &ticketFirstCopy, ticketFlag);
+            _ProcPenalty(user, &target, script, msg->m_targetSlot, *table,
+                         &info, pg, &ticket, ticketFlag);
         if (penalty != 0)
         {
             if (penalty != 0xd8)
@@ -912,30 +1061,30 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
                 return penalty;
             }
             user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
-                                 (int)matSlot);
+                                 (int)msg->m_materialSlot);
             user->SendUpdateItemList((CUser::eSendTarget)1,
                                      (ENUM_ITEMSPACE)0, 0);
             return penalty;
         }
     }
 
-    user->m_historyLog.UpgradeItem(script->get_index(), (int)oldUp,
+    user->m_historyLog.UpgradeItem(script->get_index(), oldUp,
                                    (int)target.GetUpgrade(), upgraded);
 
-    if (script->IsRandomOption())
+    if (script->IsRandomOption())                  // CItem vtable+0x4c
     {
-        user->makeGuildItemUpgradMessage(mb + 0x28, (int)oldUp,
+        user->makeGuildItemUpgradMessage(msg->m_28, oldUp,
                                          (int)target.GetUpgrade(), upgraded);
     }
     else
     {
-        user->makeGuildItemUpgradMessage(script->GetItemName(), (int)oldUp,
+        user->makeGuildItemUpgradMessage(script->GetItemName(), oldUp,
                                          (int)target.GetUpgrade(), upgraded);
     }
 
-    if (*(const int*)&target != 0)
+    if (target.m_addInfo != 0)
     {
-        invenW->update_item(INVEN_TYPE_EQUIP, tSlot, target);
+        invenW->update_item(INVEN_TYPE_EQUIP, msg->m_targetSlot, target);
     }
     user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, 0);
     return 0;
@@ -951,25 +1100,45 @@ void CItemUpgrade::_getAdditionalDisjointItem(unsigned int up,
                                               std::vector<std::pair<int, int> >& items,
                                               const upgrade_table_t& table)
 {
+    // 【切片转写 0x08546938..0x08546a95】表项全部走具名字段直访（inline
+    // 访问器在 -O0 每点额外发 call）；**语义纠错**：pow 的底数是
+    // `up - table.m_additionalMinUpgrade`（0x085469db..0x085469f8：先取 +0x258，
+    // 与形参 up(0xc(%ebp)) 相减、符号扩展成 long long 后 fildll），
+    // 此前误用钳零后的 grade 差。
     const int grade = itemScript->get_grade();
-    const int rarity = itemScript->get_rarity();
 
-    const int baseGrade = table.intAtConst(rarity * 4 + 0x25c);
-    int diff = grade - baseGrade;
-    if (diff < 0)
-    {
-        diff = 0;
-    }
-    if ((unsigned int)table.intAtConst(0x23c) <= (unsigned int)diff &&
-        (unsigned int)table.intAtConst(600) < up)
-    {
-        const int itemId = table.intAtConst(0x238);
-        const float weight = table.floatAt(rarity * 4 + 0x240);
+    // 0x0854696f..0x0854698a：`lea -0x24(&diff); lea -0x20(&zero); call max;
+    // mov (%eax)` ⇒ ORIG 用 std::max 模板（两实参各取地址，故 zero 必须是
+    // 具名 int 局部）；写成 if 钳零会少 6 insn。
+    // get_rarity **两次独立调用**（0x0854695a 算 grade 差、0x085469bf 选权重
+    // 槽）⇒ 不命名 rarity 局部（P48/P183）。
+    int diff = grade -
+               table.m_bodyView.m_named.m_baseGrade[itemScript->get_rarity()];
+    int zero = 0;
+    const int clamped = std::max(diff, zero);
 
-        // pow(diff, 2.0)（_DAT_08c9d308），两级 fistp 取整。
-        const double powered = std::pow((double)(unsigned)diff, 2.0);
-        int count = (int)(powered + 0.5);           // fistp 四舍五入
-        count = (int)((float)count * weight + 0.5f);  // fistpll 四舍五入
+    if ((unsigned int)table.m_bodyView.m_named.m_additionalGradeGap <=
+            (unsigned int)clamped &&
+        (unsigned int)table.m_bodyView.m_named.m_additionalMinUpgrade < up)
+    {
+        // ORIG 的 make_pair 实参是 `Rm Rj`（unsigned long& / unsigned int&
+        // 左值）⇒ pair 由转换 ctor C2<unsigned long,unsigned int> 落成
+        // pair<int,int>（0x08546a5c/0x08546a71 两个 call）⇒ 两量必须是有类型
+        // 的具名局部，不能是表达式直传。
+        unsigned long itemId =
+            (unsigned long)table.m_bodyView.m_named.m_additionalItemId;
+        const float weight = table.m_bodyView.m_named
+                                 .m_additionalWeight[itemScript->get_rarity()];
+
+        // pow(up - +0x258, 2.0)：64 位底数（`fildll -0x40`）+ _DAT_08c9d308=2.0；
+        // 两级取整分别是 fistpl（32 位）与 fmuls weight 后 fistpll（64 位），
+        // 均切 RC=nearest 控制字 ⇒ +0.5 近似（P176 同类，无合法 ROUND 源形）。
+        const long long span =
+            (long long)up -
+            (long long)table.m_bodyView.m_named.m_additionalMinUpgrade;
+        const double powered = std::pow((double)span, 2.0);
+        unsigned int count =
+            (unsigned int)((float)(int)(powered + 0.5) * weight + 0.5f);
         if (count != 0)
         {
             items.push_back(std::make_pair(itemId, count));

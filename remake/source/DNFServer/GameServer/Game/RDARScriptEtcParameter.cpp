@@ -90,7 +90,9 @@ struct InvalidCharData::stRangeElement<unsigned short>
 // 调用点（init.md 0x832…+0x2e4b）：CDataManager::init → this+0x6410
 //   （CDataManager::m_moneyLimit[201]，int 数组）。
 // 目标为 unsigned int*（报告 uint*），访问 out[level]。
-// ============================================================================
+// 验收：gap 5→1；P167 差集 11/11 归零；残余 1 行 = ORIG `mov $0,%eax;
+// mov %eax,-0x10` 死初始化二段物化，4.4 恒折单条 movl（N18a 族）。
+// ===========================================================================
 int importGoldLimitByLevel(unsigned int* out)
 {
     // 清前 0x190（400）字节（与汇编 movl $0x190 一致；m_moneyLimit 数组更大，
@@ -106,22 +108,23 @@ int importGoldLimitByLevel(unsigned int* out)
     }
 
     std::string token;
-    int count = 0;
-    bool ok = false;
-
-    while (ScanType(token, true))
+    int level = 0;            // ORIG -0x14（movl $0 直存）
+    int value = 0;            // ORIG -0x10（mov $0,%eax 二段；死初始化照抄 P171）
+    bool ok = false;          // ORIG -0x19
+    (void)value;
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[gold limit from level]")
         {
-            count = 0;
-            while (count < 100)
+            for (int j = 0; j <= 0x63; ++j)   // ORIG cmpl $0x63/setle（P2）
             {
-                int level = ScanInt(&ok);
+                level = ScanInt(&ok);
                 if (!ok)
                     break;
-                int value = ScanInt((bool*)0);   // 第二值（不关心成功标志）
-                out[level] = (unsigned int)value;
-                ++count;
+                // ORIG：LHS 地址先物化（ebx）→ ScanInt(0) → (%ebx) 直存
+                out[level] = (unsigned int)ScanInt((bool*)0);
             }
         }
     }
@@ -137,70 +140,83 @@ int importGoldLimitByLevel(unsigned int* out)
 //       +0x0c vector<stRangeElement<unsigned char>> m_charRange
 //       +0x18 vector<unsigned short> m_shortList
 //       +0x24 vector<stRangeElement<unsigned short>> m_shortRange
-// ============================================================================
+// 验收：P167 差集 ORIG-only=0；OURS-only 4×~stRangeElement = 4.1 对 user
+// 空析构类 temp 消解 dtor 调用、4.4 判 non-trivial 必发 D1+EH cleanup
+// （P71/P67 跨编译器结构性差异；ORIG D1/D2 W 0x8948ff0/0x89491a6 须保留，
+// 不删用户析构）⇒ 标 N 封顶。
+// ===========================================================================
 int importInvalidName(char* path, InvalidCharData* out)
 {
     if (!loadRDARScriptFile("", path))
         return 0;
 
     std::string token;
-    bool okA = false;
-    bool okB = false;
-    bool okC = false;
-    bool okD = false;
-    bool okE = false;
-    bool okF = false;
-
-    while (ScanType(token, true))
+    bool okA;                               // ORIG -0x21..-0x26 无初始化（ScanInt 必写）
+    bool okB;
+    bool okC;
+    bool okD;
+    bool okE;
+    bool okF;
+    int lo;                                 // ORIG -0x10 跨块共享（含 one/two byte 值）
+    int hi;                                 // ORIG -0xc 跨块共享
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[one byte range]")
         {
-            while (true)
+            for (;;)
             {
-                int lo = ScanInt(&okA);
+                lo = ScanInt(&okA);
                 if (!okA)
                     break;
-                int hi = ScanInt(&okB);
-                if (!okB)
-                    break;
-                out->m_charRange.push_back(
-                    InvalidCharData::stRangeElement<unsigned char>(
-                        (unsigned char)lo, (unsigned char)hi));
+                hi = ScanInt(&okB);
+                if (okA && okB)             // ORIG +0x99/+0xa1 双正向 test/je
+                {
+                    out->m_charRange.push_back(
+                        InvalidCharData::stRangeElement<unsigned char>(
+                            (unsigned char)lo, (unsigned char)hi));
+                    continue;
+                }
+                break;
             }
         }
         else if (token == "[one byte]")
         {
-            while (true)
+            for (;;)
             {
-                int v = ScanInt(&okC);
+                lo = ScanInt(&okC);
                 if (!okC)
                     break;
-                out->m_charList.push_back((unsigned char)v);
+                out->m_charList.push_back((unsigned char)lo);
             }
         }
         else if (token == "[two byte range]")
         {
-            while (true)
+            for (;;)
             {
-                int lo = ScanInt(&okD);
+                lo = ScanInt(&okD);
                 if (!okD)
                     break;
-                int hi = ScanInt(&okE);
-                if (!okE)
-                    break;
-                out->m_shortRange.push_back(
-                    InvalidCharData::stRangeElement<unsigned short>(
-                        (unsigned short)lo, (unsigned short)hi));
+                hi = ScanInt(&okE);
+                if (okD && okE)             // ORIG +0x172/+0x17a 双正向 test/je
+                {
+                    out->m_shortRange.push_back(
+                        InvalidCharData::stRangeElement<unsigned short>(
+                            (unsigned short)lo, (unsigned short)hi));
+                    continue;
+                }
+                break;
             }
         }
         else if (token == "[two byte]")
         {
-            while (true)
+            for (;;)
             {
-                int v = ScanInt(&okF);
+                lo = ScanInt(&okF);
                 if (!okF)
                     break;
-                out->m_shortList.push_back((unsigned short)v);
+                out->m_shortList.push_back((unsigned short)lo);
             }
         }
     }
@@ -238,38 +254,36 @@ int importExperienceItemMapInfo(std::map<int, int, std::less<int>,
         return 0;
 
     std::string token;
-    bool ok = false;
-
+    bool ok;                      // ORIG -0x39 无初始化（ScanInt 必写）
     if (!ScanType(token, true))
         return 0;
-    if (token != "[base table]")
-        return 0;
-
-    while (true)
+    if (token == "[base table]")
     {
-        int key = ScanInt(&ok);
-        if (!ok)
-            break;
-        int val = ScanInt(&ok);
-        if (!ok)
-            return 0;
-
-        // 阈值检查：val > 0x88b8（35000）
-        if ((unsigned)val > 0x88b8u)
+        for (;;)
         {
-            LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
-                                  __FUNCTION__, 0x30b8,
-                                  "ItemDictionary mappingTable MAX INDEX(40000) WARNING READY TO DB_TOOL");
-            return 0;
+            int key = ScanInt(&ok);
+            if (!ok)
+                break;
+            int val = ScanInt(&ok);
+            if (!ok)
+                return 0;
+            // ORIG cmp $0x88b8/jle：有符号比较
+            if (val > 0x88b8)
+            {
+                LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
+                                      __FUNCTION__, 0x30b8,
+                                      "ItemDictionary mappingTable MAX INDEX(40000) WARNING READY TO DB_TOOL");
+                return 0;
+            }
+            // 依据 objdump 压栈序：second==false → (key,val)；true → (val,key)
+            if (second)
+                m.insert(std::make_pair(val, key));
+            else
+                m.insert(std::make_pair(key, val));
         }
-
-        // 依据 objdump：second==false → (key,val)；second==true → (val,key)
-        if (second)
-            m.insert(std::make_pair(val, key));
-        else
-            m.insert(std::make_pair(key, val));
+        return 1;
     }
-    return 1;
+    return 0;
 }
 
 // ============================================================================
@@ -292,44 +306,45 @@ int importBoosterGage(char* path, BoosterGageData* out)
         return 0;
 
     std::string token;
-    bool ok = false;
-
-    while (ScanType(token, true))
+    std::string unused;   // ORIG -0x10：构造/析构但从未使用的第二 string（照抄）
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[max gage]")
         {
-            int v = ScanInt(&ok);
-            if (!ok)
+            // ORIG：store 先于 ok 检查（ScanInt 返回值 %eax→%edx 截 byte 直写 +0xc）
+            bool okMax = false;                    // ORIG -0x11 独立槽
+            out->m_cMaxBoosterGage = (unsigned char)ScanInt(&okMax);
+            if (!okMax)
                 break;
-            out->m_cMaxBoosterGage = (unsigned char)v;
         }
         else if (token == "[sub gage]")
         {
-            int v = ScanInt(&ok);
-            if (!ok)
+            bool okSub = false;                    // ORIG -0x12 独立槽
+            out->m_cFieldD = (unsigned char)ScanInt(&okSub);
+            if (!okSub)
                 break;
-            out->m_cFieldD = (unsigned char)v;
         }
         else if (token == "[reward multiple]")
         {
-            int v = ScanInt(&ok);
-            if (!ok)
+            bool okRw = false;                     // ORIG -0x13 独立槽
+            out->m_cMultiboxCount = (unsigned char)ScanInt(&okRw);
+            if (!okRw)
                 break;
-            out->m_cMultiboxCount = (unsigned char)v;
         }
         else if (token == "[booster point]")
         {
-            while (true)
+            BoosterPoint bp;                       // ORIG -0x19..-0x15 固定槽
+            for (;;)
             {
-                int idx = ScanInt(&ok);
-                if (!ok)
+                bool okBp = false;                 // ORIG 每轮 movb $0,-0x14
+                bp.m_dwItemIdx = (unsigned long)ScanInt(&okBp);   // →-0x19
+                if (!okBp)
                     break;
-                int point = ScanInt(&ok);
-                if (!ok)
+                bp.m_cPoint = (unsigned char)ScanInt(&okBp);      // al 直写 -0x15
+                if (!okBp)
                     break;
-                BoosterPoint bp;
-                bp.m_dwItemIdx = (unsigned long)idx;
-                bp.m_cPoint = (unsigned char)point;
                 out->m_BoosterPoint.push_back(bp);
             }
         }
@@ -343,12 +358,11 @@ int importBoosterGage(char* path, BoosterGageData* out)
 // 调用点（init.md +0x0966）：CDataManager::init → this+0xb4c4
 //   （CDataManager::m_imageCommData，ImageCommunicationData，写 +0x00 int）。
 // 段键："[charge]" 写首字；"[/image communication]" 结束返回 1。
-// ============================================================================
+// 验收：gap 12→1；差集 10/10 归零；残余 = ORIG 三态汇聚 ebx+终值 esi 双
+// 寄存器物化（4.1 choose-without-store，N3/N76 族）。
+// ===========================================================================
 int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
 {
-    if (!out)
-        return 0;
-
     if (!loadRDARScriptFile("", path))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
@@ -356,35 +370,29 @@ int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
                               "ERROR : %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.", path);
         return 0;
     }
-
-    std::string token;
-    bool isType = false;
-    bool isInt = false;
-
-    // 报告 do-while：每次 ScanTypeOrInt 得 token（返回值=解析标量，不能作为
-    // 成功标志；用 isInt 出参判定）。isInt==false（EOF/非法）→ 返回 0。
-    //   isType && "[charge]"           → 写首字，返回 1。
-    //   isType && "[/image communication]" → 返回 1（结束段）。
-    //   其它 type/数值 token            → 继续循环。
-    while (true)
+    // ORIG 0x08913dbc：循环体内每轮重置 isType(-0xd)/ok(-0xe)+构造 token(-0x14)、
+    // 尾析构；ScanTypeOrInt 返回值落 -0xc 死槽（照抄 P171）。charge 段的
+    // ScanInt 复用仍为 true 的 ok 槽（ORIG 不重置）、结果直写 *out 后查 ok。
+    for (;;)
     {
-        ScanTypeOrInt(isType, token, isInt, true);
-        if (!isInt)
+        bool isType = false;
+        bool ok = false;
+        std::string token;
+        int ret = ScanTypeOrInt(isType, token, ok, true);
+        (void)ret;
+        if (!ok)
             return 0;
         if (isType && token == "[charge]")
         {
-            bool ok = false;
-            int v = ScanInt(&ok);
+            out->m_charge = ScanInt(&ok);
             if (!ok)
                 return 0;
-            out->m_charge = v;
             return 1;
         }
         if (isType && token == "[/image communication]")
         {
             return 1;
         }
-        // 其它 token：继续。
     }
 }
 
@@ -397,19 +405,31 @@ int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
 // 本文件此前与该 TU 三重重复（wave22 链接 multiple definition），已删除；
 // 本 TU 无任何消费点，无需前向声明。
 // ===========================================================================
-// ===========================================================================
 // importPremiumServiceData —— ORIG T 0x08912e47
 // （docs/class_func_reports/_lt_global_gt_/importPremiumServiceData.md）
-// 双阶段：首次调用（__inited==0，SpinLock 双检）建 token→偏移查表
-// （[type]0x3059/[icon index]0x305c/[icon explain]0x305f/[add equipment list]
-// 0x3062/[main premium image index]0x306e/[additional premium image index]
-// 0x3072/[add selectAble equipment list]0x3076/[/premium service]0x3088），
-// 置 __inited=1；后续调用查表分派写入 PremiumServiceData 对应成员，
-// "[/premium service]" 时 push_back 并 clear 临时对象。
-// loadRDARScriptFile 失败记日志返 0，成功返 1。
+// 真形（ORIG 0x08912e47 汇编+Ghidra C 双段转写，P163/P165/P177/P178 族）：
+// 外层字符串匹配 "[premium service]"，内层 while(ScanType) 每轮穿
+// static 三件套（__lookup map<char const*,int,less_TCHAR> + __init_lock
+// SpinLock + __inited，guard 声明位于重派发标签后）；未建表持锁 id=0 进
+// switch，自 case 0（与 0x3059 共 leaf，P163）起逐 case 构造
+// value_type(键, nId 具名槽) + insert 后**贯穿**下一 leaf，公共尾
+// leave+__inited=1 后 jmp guard 以同 token 重查派发；建表后
+// c_str→find→!=end 三目单点写 id，switch(id) 派发：
+//   [type]0x3059→+0x00、[icon index]0x305c→+0x10、[icon explain]0x305f→
+//   ScanStr(+0x14)、[add equipment list]0x3062→循环 push_back(+0x18)、
+//   [main premium image index]0x306e→+0x04/+0x08 双 ScanInt、
+//   [additional premium image index]0x3072→+0x0c、
+//   [add selectAble equipment list]0x3076→双 ScanInt + insert(make_pair(a,
+//     make_pair(false,b))) 嵌套实参形（+0x24 map）、
+//   [/premium service]0x3088→out.push_back(data)+data.clear()。
+// loadRDARScriptFile 失败记日志（0x3044）返 0，成功返 1。
+// 验收（§6.2）：gap 158→1；P167 调用点差集 64/64 全命中；残余 1 insn =
+// 4.4 在 token== 匹配后发射 `jmp <内层检查>` 中继 vs 4.1 fall-through
+// （跨版本 nop;jmp 岛 vs jump-threading，N 类豁免）。
 // ===========================================================================
 int importPremiumServiceData(std::vector<PremiumServiceData>& out)
 {
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
     if (!loadRDARScriptFile("", "Etc/PremiumServiceEffect.etc"))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
@@ -417,84 +437,157 @@ int importPremiumServiceData(std::vector<PremiumServiceData>& out)
                               "CRITICAL ERROR : importPremiumServiceData load faild!");
         return 0;
     }
-    static std::map<const char*, int> __lookup;
-    static SpinLock __init_lock;
-    static bool __inited = false;
-    PremiumServiceData data;
-    std::string token;
+    std::string token;                            // ORIG -0xfc（先构造）
+    PremiumServiceData data;                      // ORIG -0x150
     for (;;)
     {
         if (!ScanType(token, true))
-            break;
-        __init_lock.enter();
-        if (!__inited)
+            break;                                // ORIG 出口岛在函数尾（共享 leave）
+        if (token == "[premium service]")
         {
-            __lookup["[type]"] = 0x3059;
-            __lookup["[icon index]"] = 0x305c;
-            __lookup["[icon explain]"] = 0x305f;
-            __lookup["[add equipment list]"] = 0x3062;
-            __lookup["[main premium image index]"] = 0x306e;
-            __lookup["[additional premium image index]"] = 0x3072;
-            __lookup["[add selectAble equipment list]"] = 0x3076;
-            __lookup["[/premium service]"] = 0x3088;
-            __inited = true;
-            __init_lock.leave();
-            continue;
-        }
-        __init_lock.leave();
-        std::map<const char*, int>::const_iterator it = __lookup.find(token.c_str());
-        int off = (it == __lookup.end()) ? -1 : it->second;
-        switch (off)
-        {
-        case 0x3059:
-            data.m_type = ScanInt((bool*)0);
-            break;
-        case 0x305c:
-            data.m_iconIndex = ScanInt((bool*)0);
-            break;
-        case 0x305f:
-            ScanStr(&data.m_iconExplain);
-            break;
-        case 0x3062:
-        {
-            bool ok = false;
             for (;;)
             {
-                int v = ScanInt(&ok);
-                if (!ok)
+                if (!ScanType(token, true))
+                {
+                scan_exit:
+                    goto scan_done;
+                }
+            redo_lookup:
+                static LookupMap __lookup;        // guard bss 0x094f71b8
+                static SpinLock __init_lock;      // guard bss 0x094f71c0
+                static bool __inited = false;     // bss 0x094f72d4
+                int id;                           // ORIG -0x1c
+                if (__inited)
+                {
+                    const char* key = token.c_str();     // ORIG -0xf4
+                    LookupMap::const_iterator it = __lookup.find(key);
+                    id = (it != __lookup.end()) ? it->second : -1;
+                }
+                else
+                {
+                    __init_lock.enter();
+                    if (__inited)
+                    {
+                        __init_lock.leave();
+                        goto redo_lookup;
+                    }
+                    id = 0;
+                }
+                switch (id)
+                {
+                case 0:
+                case 0x3059:                       // [type]
+                    if (!__inited)
+                    {
+                        __lookup.insert(LookupMap::value_type("[type]", 0x3059));
+                        }
+                    else
+                    {
+                        data.m_type = ScanInt((bool*)0);
+                        break;
+                    }
+                case 0x305c:                       // [icon index]
+                    if (!__inited)
+                    {
+                        __lookup.insert(LookupMap::value_type("[icon index]", 0x305c));
+                        }
+                    else
+                    {
+                        data.m_iconIndex = ScanInt((bool*)0);
+                        break;
+                    }
+                case 0x305f:                       // [icon explain]
+                    if (!__inited)
+                    {
+                        __lookup.insert(LookupMap::value_type("[icon explain]", 0x305f));
+                        }
+                    else
+                    {
+                        ScanStr(&data.m_iconExplain);
+                        break;
+                    }
+                case 0x3062:                       // [add equipment list]
+                    if (!__inited)
+                    {
+                        __lookup.insert(LookupMap::value_type("[add equipment list]", 0x3062));
+                        }
+                    else
+                    {
+                        for (;;)
+                        {
+                            bool ok = false;      // ORIG 每轮 movb $0
+                            int v = ScanInt(&ok);
+                            if (!ok)
+                                break;
+                            data.m_addEquipmentList.push_back(v);
+                        }
+                        break;
+                    }
+                case 0x306e:                       // [main premium image index]
+                    if (!__inited)
+                    {
+                        __lookup.insert(LookupMap::value_type("[main premium image index]", 0x306e));
+                        }
+                    else
+                    {
+                        data.m_mainImageIndex.first = ScanInt((bool*)0);
+                        data.m_mainImageIndex.second = ScanInt((bool*)0);
+                        break;
+                    }
+                case 0x3072:                       // [additional premium image index]
+                    if (!__inited)
+                    {
+                        __lookup.insert(LookupMap::value_type("[additional premium image index]", 0x3072));
+                        }
+                    else
+                    {
+                        data.m_additionalImageIndex = ScanInt((bool*)0);
+                        break;
+                    }
+                case 0x3076:                       // [add selectAble equipment list]
+                    if (!__inited)
+                    {
+                        __lookup.insert(LookupMap::value_type("[add selectAble equipment list]", 0x3076));
+                        }
+                    else
+                    {
+                        for (;;)
+                        {
+                            bool ok = false;
+                            int a = ScanInt(&ok);
+                            if (!ok)
+                                break;
+                            int b = ScanInt(&ok);   // 复用 ok，不重置（ORIG +0x6b8）
+                            if (!ok)
+                                break;
+                            data.m_selectAbleEquipmentList.insert(
+                                std::make_pair(a, std::make_pair(false, b)));
+                        }
+                        break;
+                    }
+                case 0x3088:                       // [/premium service]
+                    if (!__inited)
+                    {
+                        __lookup.insert(LookupMap::value_type("[/premium service]", 0x3088));
+                        }
+                    else
+                    {
+                        out.push_back(data);
+                        data.clear();
+                        break;
+                    }
+                default:
                     break;
-                data.m_addEquipmentList.push_back(v);
+                }
+                if (!__inited)                    // ORIG xor$1/test/je 回边形
+                {
+                    __init_lock.leave();
+                    __inited = true;
+                    goto redo_lookup;
+                }
             }
-            break;
-        }
-        case 0x306e:
-            data.m_mainImageIndex.first = ScanInt((bool*)0);
-            data.m_mainImageIndex.second = ScanInt((bool*)0);
-            break;
-        case 0x3072:
-            data.m_additionalImageIndex = ScanInt((bool*)0);
-            break;
-        case 0x3076:
-        {
-            bool ok = false;
-            for (;;)
-            {
-                int a = ScanInt(&ok);
-                if (!ok)
-                    break;
-                int b = ScanInt(&ok);
-                if (!ok)
-                    break;
-                data.m_selectAbleEquipmentList[a] = std::make_pair(false, b);
-            }
-            break;
-        }
-        case 0x3088:
-            out.push_back(data);
-            data.clear();
-            break;
-        default:
-            break;
+        scan_done:
+            ;
         }
     }
     return 1;
@@ -506,6 +599,7 @@ int importPremiumServiceData(std::vector<PremiumServiceData>& out)
 // "[except skill info]" 块内每轮 ScanStr(jobName)→getCharacterJob + 连续
 // ScanInt 进 set<int>，插入 map<job,set>；loadRDARScriptFile 失败记日志返 0，
 // 成功返 1。
+// 验收：差集 35/35 归零；残余为 set/pair 临时链槽位序（N82）+ 块排布镜像。
 // ===========================================================================
 int importCommonSkillIndexes(
     const char* path,
@@ -521,13 +615,13 @@ int importCommonSkillIndexes(
     commonSkill.clear();
     exceptSkill.clear();
     std::string token;
+    bool ok = false;                        // ORIG -0x55 函数级一次初始化
     for (;;)
     {
         if (!ScanType(token, true))
             return 1;
         if (token == "[common skill]")
         {
-            bool ok = false;
             for (;;)
             {
                 int v = ScanInt(&ok);
@@ -538,27 +632,32 @@ int importCommonSkillIndexes(
         }
         else if (token == "[except skill info]")
         {
+            std::set<int> skills;                       // ORIG -0x78 外层块构造一次
             for (;;)
             {
                 if (!ScanType(token, true))
                     break;
                 if (token == "[/except skill info]")
                     break;
-                std::set<int> skills;
-                std::string jobName;
+                ENUM_CHARACTERJOB job = ENUM_CHARACTERJOB(0xb);   // ORIG 每轮 movl $0xb,-0x60
+                skills.clear();
+                std::string jobName;                    // ORIG -0x7c 每轮构造
                 if (!ScanStr(&jobName))
                     return 0;
-                ENUM_CHARACTERJOB job = ENUM_CHARACTERJOB(getCharacterJob(jobName.c_str()));
-                bool ok = false;
+                job = ENUM_CHARACTERJOB(getCharacterJob(jobName.c_str()));
+                bool okJob;                             // ORIG -0x7d 无初始化
                 for (;;)
                 {
-                    int v = ScanInt(&ok);
-                    if (!ok)
+                    int v = ScanInt(&okJob);
+                    if (!okJob)
                         break;
                     skills.insert(v);
                 }
                 exceptSkill.insert(std::make_pair(job, skills));
             }
+        }
+        else if (token == "[/common skill]")
+        {
         }
     }
 }
@@ -566,13 +665,21 @@ int importCommonSkillIndexes(
 // ===========================================================================
 // importCancelSkillIndices —— ORIG T 0x08914dd1
 // （docs/class_func_reports/_lt_global_gt_/importCancelSkillIndices.md）
-// 双阶段（SpinLock 双检 + static lookup 表）：
-//   "[cancel skill]"0x3384 / "[/cancel skill]"0x3388 /
-//   "[character job]"0x338c / "[/character job]"0x33aa；
-// 首次调用建表后置 __inited=1；后续 "[character job]" 块内
-// ScanStr(job)→getCharacterJob、ScanStr(grow)→getGrowTypeIndex、
-// 连续 ScanInt 进 set<int>，insert map<pair<job,grow>,set> 后重置
-// key=(0xb,-1)、set.clear()。loadRDARScriptFile 失败记日志返 0，成功返 1。
+// 真形（ORIG 0x08914dd1，同 importPremiumServiceData 双相派发族 P163/P177）：
+// 外层 for(;;)+ScanType；每轮穿 static 三件套（__lookup map<char const*,int,
+// less_TCHAR> + __init_lock SpinLock + __inited，声明位于 redo_lookup 标签后）；
+// 未建表 enter 双检 id=0 进 switch（case 0 与 0x3384 共 leaf），自
+// "[cancel skill]"0x3384 → "[/cancel skill]"0x3388 → "[character job]"0x338c →
+// "[/character job]"0x33aa 逐 case 构造 value_type(键,字面量) + insert 后
+// **贯穿**下一 leaf，公共尾 leave+__inited=1 重查派发。建表后仅 0x338c 有
+// parse：jobName ScanStr 失败 return 0；key.first=getCharacterJob(c_str)；
+// growName ScanStr 失败 return 0；key.second=getGrowTypeIndex；ScanInt 循环
+// 进 skills，失败轮 out.insert(value_type(key,skills)) 直构形（无 make_pair
+// 转换临时，OnlyOrigBatch14 口径）+ key=(0xb,-1) 重置 + skills.clear()。
+// "[cancel skill]"/"[/cancel skill]"/"[/character job]" 命中均无动作（仅登记）。
+// loadRDARScriptFile 失败记日志（0x3372）返 0，成功返 1。
+// 验收：gap 52→1（413/412）；P167 差集 58/58 归零；残余=槽号平移+ctor/dtor
+// 块序（N82/EH-merge 族）。
 // ===========================================================================
 int importCancelSkillIndices(
     const char* path,
@@ -584,54 +691,104 @@ int importCancelSkillIndices(
                               __FUNCTION__, 0x3372, "%s", path);
         return 0;
     }
-    static std::map<const char*, int> __lookup;
-    static SpinLock __init_lock;
-    static bool __inited = false;
-    std::string token;
-    std::pair<ENUM_CHARACTERJOB, int> key(ENUM_CHARACTERJOB(0xb), -1);
-    std::set<int> skills;
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+    std::pair<ENUM_CHARACTERJOB, int> key;      // ORIG -0xb4 C2Ev + 直写两成员
+    key.first = ENUM_CHARACTERJOB(0xb);         // -0xb4 movl $0xb
+    key.second = -1;                            // -0xb0 movl $-1
+    std::set<int> skills;                       // ORIG -0xcc
+    std::string token;                          // ORIG -0xd0
     for (;;)
     {
         if (!ScanType(token, true))
-            return 1;
-        __init_lock.enter();
+            break;
+    redo_lookup:
+        static LookupMap __lookup;              // guard bss 0x094f71d8
+        static SpinLock __init_lock;            // guard bss 0x094f71e0
+        static bool __inited = false;           // bss 0x094f7294
+        int id;                                 // ORIG -0x1c
+        if (__inited)
+        {
+            const char* tk = token.c_str();     // ORIG -0xa8
+            LookupMap::const_iterator it = __lookup.find(tk);
+            id = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
+        {
+            __init_lock.enter();
+            if (__inited)
+            {
+                __init_lock.leave();
+                goto redo_lookup;
+            }
+            id = 0;
+        }
+        switch (id)
+        {
+        case 0:
+        case 0x3384:                            // [cancel skill]（无 parse）
+            if (!__inited)
+                            {
+                                __lookup.insert(LookupMap::value_type("[cancel skill]", 0x3384));
+                            }
+                            else
+                                break;
+        case 0x3388:                            // [/cancel skill]（无 parse）
+            if (!__inited)
+                            {
+                                __lookup.insert(LookupMap::value_type("[/cancel skill]", 0x3388));
+                            }
+                            else
+                                break;
+        case 0x338c:                            // [character job]
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[character job]", 0x338c));
+            }
+            else
+            {
+                std::string jobName;            // ORIG -0xd8 块级
+                if (!ScanStr(&jobName))
+                    return 0;
+                key.first = ENUM_CHARACTERJOB(getCharacterJob(jobName.c_str()));
+                std::string growName;           // ORIG -0xdc
+                if (!ScanStr(&growName))
+                    return 0;
+                key.second = getGrowTypeIndex(growName.c_str());
+                bool ok;                        // ORIG -0xdd 无初始化
+                for (;;)
+                {
+                    int v = ScanInt(&ok);       // ORIG -0xe4
+                    if (!ok)
+                    {
+                        out.insert(std::map<std::pair<ENUM_CHARACTERJOB, int>,
+                                           std::set<int> >::value_type(key, skills));
+                        key.first = ENUM_CHARACTERJOB(0xb);
+                        key.second = -1;
+                        skills.clear();
+                        break;
+                    }
+                    skills.insert(v);
+                }
+                break;
+            }
+        case 0x33aa:                            // [/character job]（无 parse）
+            if (!__inited)
+                            {
+                                __lookup.insert(LookupMap::value_type("[/character job]", 0x33aa));
+                            }
+                            else
+                                break;
+        default:
+            break;
+        }
         if (!__inited)
         {
-            __lookup["[cancel skill]"] = 0x3384;
-            __lookup["[/cancel skill]"] = 0x3388;
-            __lookup["[character job]"] = 0x338c;
-            __lookup["[/character job]"] = 0x33aa;
-            __inited = true;
             __init_lock.leave();
-            continue;
-        }
-        __init_lock.leave();
-        std::map<const char*, int>::const_iterator it = __lookup.find(token.c_str());
-        int off = (it == __lookup.end()) ? -1 : it->second;
-        if (off == 0x338c)
-        {
-            std::string jobName;
-            std::string growName;
-            if (!ScanStr(&jobName))
-                return 0;
-            key.first = ENUM_CHARACTERJOB(getCharacterJob(jobName.c_str()));
-            if (!ScanStr(&growName))
-                return 0;
-            key.second = getGrowTypeIndex(growName.c_str());
-            bool ok = false;
-            for (;;)
-            {
-                int v = ScanInt(&ok);
-                if (!ok)
-                    break;
-                skills.insert(v);
-            }
-            out.insert(std::make_pair(key, skills));
-            key.first = ENUM_CHARACTERJOB(0xb);
-            key.second = -1;
-            skills.clear();
+            __inited = true;
+            goto redo_lookup;
         }
     }
+    return 1;
 }
 // ===========================================================================
 // importAdditionalEffectListScript —— ORIG T 0x08907e3a
@@ -641,6 +798,8 @@ int importCancelSkillIndices(
 // 清空 g_additionalEffectMap_ 后按 "[effect]" 块解析各字段，
 // "[/effect]" 时 g_additionalEffectMap_[index] = tmp。
 // loadRDARScriptFile 失败记日志返 0，成功返 1。
+// 验收：差集 40/40 归零；clean 225=225，残余为 clear/dtor 块序镜像
+// （4.4 jump-threading 跨版本伪影，N 类）。
 // ===========================================================================
 int importAdditionalEffectListScript(const char* path)
 {
@@ -650,19 +809,19 @@ int importAdditionalEffectListScript(const char* path)
                               __FUNCTION__, 0x172c, "%s", path);
         return 0;
     }
-    g_additionalEffectMap_.clear();
     std::string token;
+    g_additionalEffectMap_.clear();
     for (;;)
     {
         if (!ScanType(token, true))
             return 1;
-        if (token != "[effect]")
-            continue;
-        AdditionalEffectData data;
-        for (;;)
+        if (token == "[effect]")
         {
-            if (!ScanType(token, true))
-                break;
+            AdditionalEffectData data;             // ORIG -0x40（每轮外层 body 构造）
+            for (;;)
+            {
+                if (!ScanType(token, true))
+                    break;                          // EOF：仅析构 data，**不**写表
             if (token == "[index]")
                 data.m_id = ScanInt((bool*)0);
             else if (token == "[type]")
@@ -683,14 +842,21 @@ int importAdditionalEffectListScript(const char* path)
                 data.m_valueC = ScanInt((bool*)0);
             else if (token == "[animation]")
             {
-                std::string str;
-                while (ScanStr(&str))
+                std::string str;                   // ORIG -0x10 块级一次构造/尾析构
+                for (;;)
+                {
+                    if (!ScanStr(&str))              // ORIG xor$1/test/jne 形
+                        break;
                     data.m_strings.push_back(str);
+                }
             }
             else if (token == "[/effect]")
+            {
+                g_additionalEffectMap_[data.m_id] = data;
                 break;
+            }
+            }
         }
-        g_additionalEffectMap_[data.m_id] = data;
     }
 }
 // ===========================================================================
@@ -701,39 +867,128 @@ int importAdditionalEffectListScript(const char* path)
 // at fighter→+0x54(8)/thief→+0x48(6)/mage→+0x24(10)/
 // at gunner→+0x3c(10)/priest→+0x30(10)，每轮内层 10 个 ScanInt。
 // loadRDARScriptFile 失败返 0x11cc，成功返 1。
+// 重建形 = ORIG 物理内联展开（P165 we-smaller 复原：8 个独立职业块、
+// 各自 j/k 计数器，勿用 dst/rounds 参数化共享内层循环）。
 // ===========================================================================
 int importNoviceCommandScript(const char* path, stNoviceCommand& out)
 {
     if (!loadRDARScriptFile("", path))
         return 0x11cc;
-    for (int i = 0; i < 0xb; ++i)
-        reinterpret_cast<std::vector<std::vector<int> >*>(&out)[i].clear();
     std::string token;
+    for (int i = 0; i <= 0xa; ++i)   // ORIG cmpl $0xa/setle（P2）
+        out.m_slots[i].clear();
     std::vector<int> row;
+    int val;                          // ORIG 单槽 -0x60：各块共用
     for (;;)
     {
         if (!ScanType(token, true))
-            return 1;
-        std::vector<std::vector<int> >* dst = 0;
-        int rounds = 0;
-        if (token == "[gunner]")          { dst = &out.m_gunner; rounds = 10; }
-        else if (token == "[fighter]")    { dst = &out.m_fighter; rounds = 8; }
-        else if (token == "[swordman]")   { dst = &out.m_swordman; rounds = 8; }
-        else if (token == "[at fighter]") { dst = &out.m_atFighter; rounds = 8; }
-        else if (token == "[thief]")      { dst = &out.m_thief; rounds = 6; }
-        else if (token == "[mage]")       { dst = &out.m_mage; rounds = 10; }
-        else if (token == "[at gunner]")  { dst = &out.m_atGunner; rounds = 10; }
-        else if (token == "[priest]")     { dst = &out.m_priest; rounds = 10; }
-        if (dst == 0)
-            continue;
-        for (int r = 0; r < rounds; ++r)
+            break;                    // ORIG 出口岛在函数尾（共享 leave）
+        if (token == "[gunner]")
         {
-            row.clear();
-            for (int c = 0; c < 10; ++c)
-                row.push_back(ScanInt((bool*)0));
-            dst->push_back(row);
+            for (int j = 0; j <= 0x9; ++j)
+            {
+                row.clear();
+                for (int k = 0; k <= 0x9; ++k)
+                {
+                    val = ScanInt((bool*)0);
+                    row.push_back(val);
+                }
+                out.m_slots[stNoviceCommand::SLOT_GUNNER].push_back(row);
+            }
+        }
+        else if (token == "[fighter]")
+        {
+            for (int j = 0; j <= 0x7; ++j)
+            {
+                row.clear();
+                for (int k = 0; k <= 0x9; ++k)
+                {
+                    val = ScanInt((bool*)0);
+                    row.push_back(val);
+                }
+                out.m_slots[stNoviceCommand::SLOT_FIGHTER].push_back(row);
+            }
+        }
+        else if (token == "[swordman]")
+        {
+            for (int j = 0; j <= 0x7; ++j)
+            {
+                row.clear();
+                for (int k = 0; k <= 0x9; ++k)
+                {
+                    val = ScanInt((bool*)0);
+                    row.push_back(val);
+                }
+                out.m_slots[stNoviceCommand::SLOT_SWORDMAN].push_back(row);
+            }
+        }
+        else if (token == "[at fighter]")
+        {
+            for (int j = 0; j <= 0x7; ++j)
+            {
+                row.clear();
+                for (int k = 0; k <= 0x9; ++k)
+                {
+                    val = ScanInt((bool*)0);
+                    row.push_back(val);
+                }
+                out.m_slots[stNoviceCommand::SLOT_ATFIGHTER].push_back(row);
+            }
+        }
+        else if (token == "[thief]")
+        {
+            for (int j = 0; j <= 0x5; ++j)
+            {
+                row.clear();
+                for (int k = 0; k <= 0x9; ++k)
+                {
+                    val = ScanInt((bool*)0);
+                    row.push_back(val);
+                }
+                out.m_slots[stNoviceCommand::SLOT_THIEF].push_back(row);
+            }
+        }
+        else if (token == "[mage]")
+        {
+            for (int j = 0; j <= 0x9; ++j)
+            {
+                row.clear();
+                for (int k = 0; k <= 0x9; ++k)
+                {
+                    val = ScanInt((bool*)0);
+                    row.push_back(val);
+                }
+                out.m_slots[stNoviceCommand::SLOT_MAGE].push_back(row);
+            }
+        }
+        else if (token == "[at gunner]")
+        {
+            for (int j = 0; j <= 0x9; ++j)
+            {
+                row.clear();
+                for (int k = 0; k <= 0x9; ++k)
+                {
+                    val = ScanInt((bool*)0);
+                    row.push_back(val);
+                }
+                out.m_slots[stNoviceCommand::SLOT_ATGUNNER].push_back(row);
+            }
+        }
+        else if (token == "[priest]")
+        {
+            for (int j = 0; j <= 0x9; ++j)
+            {
+                row.clear();
+                for (int k = 0; k <= 0x9; ++k)
+                {
+                    val = ScanInt((bool*)0);
+                    row.push_back(val);
+                }
+                out.m_slots[stNoviceCommand::SLOT_PRIEST].push_back(row);
+            }
         }
     }
+    return 1;
 }
 // ===========================================================================
 // importEquipmentEffectSetInfo —— ORIG T 0x0890793f
@@ -745,6 +1000,9 @@ int importNoviceCommandScript(const char* path, stNoviceCommand& out)
 //   ImportEquipmentScript(script, name, false, moduleType, id)，失败记日志
 //   （0x1712）删除后返 0；m_paramMap678 若含 key=-1 档则复制后清空，
 //   以套装件数为 key 重存。loadRDARScriptFile 失败记日志（0x16df）返 0。
+// 验收：P167 差集 66/66 归零（op-> 13×、op[] 3×、find/end/clear/size/EPI
+// 拷贝链逐点对应）；残余 = 循环出口多路 dtor 链块序与槽号
+// （N82/EH merge 跨版本族）。
 // ===========================================================================
 int importEquipmentEffectSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
 {
@@ -754,55 +1012,67 @@ int importEquipmentEffectSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
                               __FUNCTION__, 0x16df, "%s", path);
         return 0;
     }
-    g_equipmentEffectSetMap_.clear();
-    std::string token;
+    std::string token;                    // ORIG 三 string 先构造（-0x34/-0x38/-0x3c）
     std::string name;
     std::string pieceName;
+    g_equipmentEffectSetMap_.clear();
     for (;;)
     {
         if (!ScanType(token, true))
             break;
-        if (token != "[effect equipment part set]")
-            continue;
-        STEquipmentPartSetData data;
-        data.m_field0 = ScanInt((bool*)0);
-        ScanStr(&name);
-        data.m_name4 = name;
-        for (;;)
+        if (token == "[effect equipment part set]")
         {
-            if (!ScanStr(&pieceName))
-                break;
-            STEquipmentPartSetPiece piece;
-            piece.m_name = pieceName;
-            piece.m_field4 = getSameStringIndex(pieceName.c_str(),
-                                                characterEquipmentTypeTags, 0x1a);
-            data.m_pieces.push_back(piece);
-            g_equipmentEffectSetMap_[data.m_field0] = data;
+            STEquipmentPartSetData data;
+            data.m_field0 = ScanInt((bool*)0);
+            ScanStr(&name);
+            data.m_name4 = name;
+            for (;;)
+            {
+                // ORIG：piece 每轮先构造（-0x64），ScanStr 失败也走析构；
+                // piece.m_name 从不赋值（仅取 idx，-0x60=piece+4）
+                STEquipmentPartSetPiece piece;
+                if (!ScanStr(&pieceName))
+                    break;
+                piece.m_field4 = getSameStringIndex(pieceName.c_str(),
+                                                    characterEquipmentTypeTags, 0x1a);
+                data.m_pieces.push_back(piece);
+                g_equipmentEffectSetMap_[data.m_field0] = data;
+            }
         }
     }
     for (std::map<int, STEquipmentPartSetData>::iterator it =
              g_equipmentEffectSetMap_.begin();
          it != g_equipmentEffectSetMap_.end(); ++it)
     {
-        STEquipmentScript* script = new STEquipmentScript;
-        it->second.m_script = script;
-        if (!ImportEquipmentScript(script, it->second.m_name4.c_str(), false,
+        // P157：ORIG 每次字段访问重调 _Rb_tree_iterator::operator->（共 13+ 次），
+        // 禁缓存 it->second 引用；m_script 传参/删除前均重读。
+        STEquipmentScript* pNew = new STEquipmentScript;
+        it->second.m_script = pNew;
+        if (!ImportEquipmentScript(it->second.m_script,
+                                   it->second.m_name4.c_str(), false,
                                    (int)moduleType, it->first))
         {
             LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
-                                  __FUNCTION__, 0x1712, "%s",
+                                  __FUNCTION__, 0x1712,
+                                  "ERROR : \xc0\xe5\xba\xf1\xba\xce\xc0\xa7\xbc\xc2\xc6\xae \xb1\xb8\xbc\xba\xc7\xb0 %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.",
                                   it->second.m_name4.c_str());
-            delete script;
-            it->second.m_script = 0;
+            // ORIG 同一次 op-> 内读字段两遍（ebx 缓存）：具名指针缓存复现
+            STEquipmentScript* pDel = it->second.m_script;
+            if (pDel)
+                delete pDel;                  // ORIG 不回写 m_script=0（P171 照抄）
             return 0;
         }
-        std::map<int, EquipmentParameterInfo>::iterator found =
-            script->m_paramMap678.find(-1);
-        if (found != script->m_paramMap678.end())
+        // key=-1 档存在性检查（find 以 int& 具名槽传参，RS4_ 形）
+        int kDel = -1;
+        if (it->second.m_script->m_paramMap678.find(kDel) !=
+            it->second.m_script->m_paramMap678.end())
         {
-            EquipmentParameterInfo tmp = found->second;
-            script->m_paramMap678.clear();
-            script->m_paramMap678[(int)it->second.m_pieces.size()] = tmp;
+            int kNeg = -1;
+            EquipmentParameterInfo tmp(
+                it->second.m_script->m_paramMap678[kNeg]);   // op[] 引用拷贝构造（0x4bc 大 temp）
+            it->second.m_script->m_paramMap678.clear();
+            int nPieces = (int)it->second.m_pieces.size();
+            it->second.m_script->m_paramMap678[nPieces] = tmp;
         }
     }
     return 1;

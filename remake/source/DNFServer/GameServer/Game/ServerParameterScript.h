@@ -189,14 +189,39 @@ struct stFatigueEventParam_t
 static_assert(sizeof(stFatigueEventParam_t) == 0xc,
               "stFatigueEventParam_t ABI drift (ORIG size 0xc)");
 
+// stUpgradeItemTicketParam_t 的字节视图（ORIG C1
+// 0x08a8cc22 为 4×movb 清零 ⇒ 逻辑上是 4 个 uchar）。证据：
+// ProcUpgrade @0x0854779c 0x08547c23 `movzbl 0x4(%eax)`（pair.first 4 字节 ⇒
+// 结构 +0x00 = 可强化下限）、0x08547c49 `movzbl 0x5(%eax)`（+0x01 = 上限）、
+// 0x08547c79 `movzbl 0x6(%eax)` → `movb %al,-0x45(%ebp)`（+0x02 = 降级保护位，
+// 传入 _ProcPenalty 的 char ticketFlag）。消费方 ItemUpgradeVtableB2.cpp。
+struct UpgradeTicketParamView
+{
+    unsigned char m_minUpgrade;   // +0x00 强化允许下限
+    unsigned char m_maxUpgrade;   // +0x01 强化允许上限
+    unsigned char m_ticketFlag;   // +0x02 降级保护位（_ProcPenalty ticketFlag）
+    unsigned char m_field3;       // +0x03（C1 清零，ORIG 无读取点）
+};
+static_assert(sizeof(UpgradeTicketParamView) == 4,
+              "UpgradeTicketParamView ABI drift (ORIG C1 movb x4 => size 4)");
+
 struct stUpgradeItemTicketParam_t
 {
-    stUpgradeItemTicketParam_t()   // ORIG C1 W 0x08a8cc22：清零（ORIG 逐字节 movb×4）
+    stUpgradeItemTicketParam_t()   // ORIG C1 W 0x08a8cc22：4×movb 清零
     {
-        m_field0 = 0;
+        m_view.m_minUpgrade = 0;
+        m_view.m_maxUpgrade = 0;
+        m_view.m_ticketFlag = 0;
+        m_view.m_field3 = 0;
     }
-    int m_field0;   // +0x00
+    union
+    {
+        int m_field0;                  // +0x00（脚本导入整体写口径，保持原符号）
+        UpgradeTicketParamView m_view; // +0x00 逐字节语义视图
+    };
 };
+static_assert(sizeof(stUpgradeItemTicketParam_t) == 4,
+              "stUpgradeItemTicketParam_t ABI drift (ORIG size 4)");
 
 // 拍卖限购参数：ORIG 12 字节 {m_itemId(+0,-1 通配); m_startSec(+4); m_endSec(+8)}。
 // 依据 Dispatcher_AuctionRegistItem::dispatch_sig ORIG 0x082147c5/0x082147d8：
@@ -556,7 +581,7 @@ public:
     int m_abusePointPenalty;                                    // +0x5b8
     int m_decreaseExperiencePoint;                              // +0x5bc
     stFatigueBatteryConstantTable_t m_fatigueTable5c0;           // +0x5c0
-    int m_76c;                                                   // +0x76c
+    float m_76c;                                                 // +0x76c ORIG 0x08a87f16 fstps+4B 位拷贝实证
     stSharedServerMessageInfo m_shared770;                      // +0x770
     stBloodDungeonRewardInfo m_bloodReward794;                  // +0x794
     int m_7b8;                                                   // +0x7b8

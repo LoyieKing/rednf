@@ -81,37 +81,15 @@ namespace WongWork
 namespace
 {
 const int kBuyEntryStride = 0x1cf;   // MSG 条目区步长（ProcessBuyRequest imul 实证）
-
-inline int AtoiAt(const WongWork::IPG::SIPGData* data, int off)
-{
-    // SIPGData 当前为 char 镜像（TaiwanCash.h）；IPG 协议文本槽按偏移 atoi，
-    // 语义字段化由后续 IPG 批次收口【推断】。
-    return atoi(reinterpret_cast<const char*>(data) + off);
-}
-
-inline int ReadIntAt(const WongWork::IPG::SIPGData* data, int off)
-{
-    return *reinterpret_cast<const int*>(reinterpret_cast<const char*>(data) + off);
-}
-inline char* BufAt(WongWork::IPG::SIPGData* data, int off)
-{
-    return reinterpret_cast<char*>(data) + off;
-}
-
-// gift 族公共形态：buf 清零后 sprintf(findString(4,"game_server_msg_02"), 角色名)。
-void FormatGiftMessage(char (&buf)[256], CUser* user)
-{
-    std::memset(buf, 0, sizeof(buf));
-    const char* name = user->getCurCharacName();
-    const char* fmt = g_scriptStringManager_.findString(4, "game_server_msg_02", 0);
-    sprintf(buf, fmt, name);
-}
-
-inline cUserHistoryLog* GiftHistoryLog(CUser* user)
-{
-    return &user->m_historyLog;
-}
 }  // namespace
+
+// SIPGData 为 char 镜像（TaiwanCash.h）；按偏移读形。P49：-O0 下 inline helper
+// 会产真实 call 符号（仅NEW 发明符号违规），统一用宏直发 ORIG 的内联寻址形。
+// AtoiAt/ReadIntAt 语义字段化由后续 IPG 批次收口【推断】。
+#define AtoiAt(data, off) atoi(reinterpret_cast<const char*>(data) + (off))
+#define ReadIntAt(data, off) \
+    *reinterpret_cast<const int*>(reinterpret_cast<const char*>(data) + (off))
+#define BufAt(data, off) (reinterpret_cast<char*>(data) + (off))
 
 // ---------------------------------------------------------------------------
 // CallSpecialItemHandler —— ORIG T 0x08325854 (0x2a)
@@ -125,36 +103,40 @@ bool CCeraShop::CallSpecialItemHandler(int type, const STSpecailItem_Param& para
 
 // ---------------------------------------------------------------------------
 // LogError —— ORIG T 0x0832033a (0x13f)
-// StreamPool 取流 → Guard<<0x32e<<input[0] → 组装 0x1c 字节 SIG 包体 →
-// put_binary → MsgQueueMgr::put(DB_Q)。SIG ctor 0x08328110 清零 +0..+0x11，
-// 各槽来源见 BuildCerashopErrorLogBody 对应注释【字段语义推断】。
+// StreamPool 取流 → guard.operator*() 两次分别 operator<<(0x32e)(int 形参) 与
+// operator<<(input[0])(unsigned int 形参，ORIG 0x080e2292) → SIG ctor
+// (0x08328110 清零) + 7 字段按 ORIG 写入序（+0/+4/+0x14/+0x10/+8/+0xc/+0x18）→
+// guard.operator->()->put_binary(&sig,0x1c)（P103 链保留）→ put(DB_Q) → 返回 1
+// （P159 尾部 mov $1 跨 D1 保活）。
 // ---------------------------------------------------------------------------
-void CCeraShop::LogError(const stErrorLogInput_t& input) const
+int CCeraShop::LogError(const stErrorLogInput_t& input) const
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("CeraShop.cpp", 0x7a);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("CeraShop.cpp", 0x7a),
+                       true);
 
-    guard << 0x32e;                       // operator<<(0x32e)
-    guard << input.m_field0;              // operator<<(input[0])
+    (**guard).operator<<(0x32e);          // operator*() → operator<<(int)
+    (**guard).operator<<(static_cast<unsigned int>(input.m_field0));  // uint 形参
 
-    unsigned char body[0x1c];
-    std::memset(body, 0, sizeof(body));
-    *reinterpret_cast<int*>(&body[0x00]) = input.m_field0;
-    *reinterpret_cast<int*>(&body[0x04]) = input.m_field4;
-    body[0x08] = static_cast<unsigned char>(
-        *reinterpret_cast<const int*>(
+    SIG_CERASHOP_ERROR_LOG sig;           // ctor 0x08328110 清零 +0..+0x18
+    sig.m_field0 = input.m_field0;
+    sig.m_field4 = input.m_field4;
+    sig.m_field14 = input.m_field8;
+    sig.m_field10 = input.m_field10;
+    sig.m_field8 = static_cast<unsigned char>(
+        *reinterpret_cast<const unsigned char*>(
             reinterpret_cast<const char*>(G_CEnvironment()) + 0x378));
-    *reinterpret_cast<int*>(&body[0x0c]) = G_CEnvironment()->get_channel_no();
-    *reinterpret_cast<unsigned short*>(&body[0x10]) = input.m_field10;
-    *reinterpret_cast<int*>(&body[0x14]) = input.m_field8;
-    *reinterpret_cast<int*>(&body[0x18]) = input.m_fieldc;
+    sig.m_fieldc = G_CEnvironment()->get_channel_no();
+    sig.m_field18 = input.m_fieldc;
 
-    guard.put_binary(body, 0x1c);         // try 域（catch 后 resume，等价 RAII）
+    guard.operator->()->put_binary(&sig, 0x1c);   // P103 operator-> 链
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    return 1;
 }
 
 // ---------------------------------------------------------------------------
 // _ProcessIPGError —— ORIG T 0x083237f6 (0x182)
+// 【§6.2】P167 差集归零；AtoiAt/ReadIntAt/BufAt 已宏化（P49），109 vs 105
+// 残余为寻址折叠/寄存器形态（N7/N18b 族）。
 // resData->status(+0x1c)==2 且 atoi(resData+0x173)==1 时走 helper 取消链；
 // 否则 logFormat "IPG ERROR (Goods No: %d)(%s)"；末尾 user!=0 转 ProcessError。
 // ---------------------------------------------------------------------------
@@ -203,6 +185,10 @@ void CCeraShop::_ProcessIPGError(CUser* user, IPG::SIPGData* reqData,
     }
 }
 
+// gift 族（coinGift×2/itemGift/avatarGift/creatureGift）ORIG 均内联
+// memset 0x100（rep stos 慢路）+ getCurCharacName/findString/sprintf 三调用，
+// 本批删除 FormatGiftMessage/GiftHistoryLog helper（P49/§4.1 发明符号），逐
+// 函数内联复刻 ⇒ P167 差集归零；coinGift 族余 gap≈N78 rep 段（28 vs 5 insn）。
 // ---------------------------------------------------------------------------
 // _processCoinGift —— ORIG T 0x0832619c (0x195)：四参重载
 // 代币物品 idx=1、count=currencyType 构造 Inven_Item → 赠送邮件 + 统计日志。
@@ -213,15 +199,19 @@ void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
     char msgBuf[256];
 
     Inven_Item item;
-    item.m_field1 = 2;                                // ITEM_TYPE_2（movb $2,-0x44）
     item.m_addInfo = 1;                               // movl $1 → idx=1
+    item.m_field1 = 2;                                // ITEM_TYPE_2（movb $2,-0x44）
     item.m_addInfo2 = static_cast<int>(currencyType); // movzwl → set_add_info2
     item.m_fieldb = 2;                                // endurance=2
     item.ResetItemAttr();
 
-    FormatGiftMessage(msgBuf, user);
+    std::memset(msgBuf, 0, 256);
+    const char* giftName = user->getCurCharacName();
+    const char* giftFmt =
+        g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0);
+    sprintf(msgBuf, giftFmt, giftName);
 
-    GiftHistoryLog(user)->SendMailForCeraShopGift(
+    user->m_historyLog.SendMailForCeraShopGift(
         static_cast<unsigned int>(cost), '\x01', 1u,
         static_cast<unsigned int>(currencyType));
     user->SendCeraShopGiftStatisticLog(buyIdx, static_cast<unsigned int>(cost),
@@ -248,7 +238,11 @@ void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
     item.m_fieldb = 2;
     item.ResetItemAttr();
 
-    FormatGiftMessage(msgBuf, user);
+    std::memset(msgBuf, 0, 256);
+    const char* giftName = user->getCurCharacName();
+    const char* giftFmt =
+        g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0);
+    sprintf(msgBuf, giftFmt, giftName);
 
     char kindFlag = '\0';
     if (count == 0xec)
@@ -260,7 +254,7 @@ void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
         kindFlag = '\x05';
     }
 
-    GiftHistoryLog(user)->SendMailForCeraShopGift(
+    user->m_historyLog.SendMailForCeraShopGift(
         static_cast<unsigned int>(cost), kindFlag,
         static_cast<unsigned int>(count),
         static_cast<unsigned int>(currencyType));
@@ -281,11 +275,14 @@ void CCeraShop::_processItemGift(CUser* user, Inven_Item item,
                                  unsigned int buyIdx, int giftKind)
 {
     char msgBuf[256];
-    std::memset(msgBuf, 0, sizeof(msgBuf));           // ORIG rep stos 0x40 dword
 
-    FormatGiftMessage(msgBuf, user);
+    std::memset(msgBuf, 0, 256);
+    const char* giftName = user->getCurCharacName();
+    const char* giftFmt =
+        g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0);
+    sprintf(msgBuf, giftFmt, giftName);
 
-    GiftHistoryLog(user)->SendMailForCeraShopGift(
+    user->m_historyLog.SendMailForCeraShopGift(
         static_cast<unsigned int>(giftKind), '\0',
         static_cast<unsigned int>(item.m_addInfo),
         static_cast<unsigned int>(item.m_addInfo2));
@@ -314,10 +311,13 @@ void CCeraShop::_processAvatarGift(CUser* user, int slot, int periodDays, char c
         deadline = GlobalData::s_systemTime_.getCurSec() + periodDays * 0x15180;
     }
 
-    std::memset(msgBuf, 0, sizeof(msgBuf));
-    FormatGiftMessage(msgBuf, user);
+    std::memset(msgBuf, 0, 256);
+    const char* giftName = user->getCurCharacName();
+    const char* giftFmt =
+        g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0);
+    sprintf(msgBuf, giftFmt, giftName);
 
-    GiftHistoryLog(user)->SendMailForCeraShopGift(
+    user->m_historyLog.SendMailForCeraShopGift(
         static_cast<unsigned int>(cost), '\x02', static_cast<unsigned int>(slot), 1u);
     user->SendCeraShopGiftStatisticLog(buyIdx, static_cast<unsigned int>(cost),
                                        static_cast<long>(slot), 1u);
@@ -339,11 +339,14 @@ void CCeraShop::_processCreatureGift(CUser* user, Inven_Item item, unsigned int 
     (void)a6;
 
     char msgBuf[256];
-    std::memset(msgBuf, 0, sizeof(msgBuf));
 
-    FormatGiftMessage(msgBuf, user);
+    std::memset(msgBuf, 0, 256);
+    const char* giftName = user->getCurCharacName();
+    const char* giftFmt =
+        g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0);
+    sprintf(msgBuf, giftFmt, giftName);
 
-    GiftHistoryLog(user)->SendMailForCeraShopGift(
+    user->m_historyLog.SendMailForCeraShopGift(
         static_cast<unsigned int>(a4), '\x03',
         static_cast<unsigned int>(item.m_addInfo),
         static_cast<unsigned int>(item.m_addInfo2));
@@ -368,555 +371,526 @@ void CCeraShop::_processCreatureGift(CUser* user, Inven_Item item, unsigned int 
 // ProcessBuyRequest —— ORIG T 0x0832047a (0x18b3)
 // MSG 条目逐个 FindGoods → 非 GM 走 sticker/gift 禁售检查 → GM/常规路径查
 // GetRelatedItem/PVP 禁购清单/_CheckBuyingCondition(0x8323f86) →
-// _CheckValidCount 通过后重置 UsedCera 并逐条折扣计价、额度校验 →
-// 组装 stCeraShopIPGRequest_t 从 stream 发往 s_pIPGHelper 的
-// IPGOutputSimulation/IPGOutput（cerapoint==0 分支）。控制流、错误码、
-// cMyTrace 行号与字符串均照报告汇编/反编译转写。
+// _CheckValidCount 通过后重置 UsedCera 并逐条折扣计价、64 位余额扣减
+// （std::max<long long>(0LL,·) 夹紧）→ 组装 stCeraShopIPGRequest_t 经
+// CStreamGuard 发往 s_pIPGHelper 的 IPGOutputSimulation(+0x18)/IPGOutput
+// (+0x14)（ceraPrice==0 分支）。控制流、错误码、cMyTrace 行号与字符串均照
+// 报告 /tmp/pbr_report.md（ORIG 汇编 + Ghidra C）逐块转写；MSG 访问一律
+// 经 SigTypes_A.h 具名字段视图（条目步长 0x1cf，P161 组件视图）。
 // 说明【忠实度局限】：0x8323f86 六参校验在 ORIG 以 6 数据槽装载
 // （goodsNo / itemIdx:stackCount 组合 long / expiry / byte37 / byte38sext），
 // 对齐现存 CCeraShop_Special.cpp 实现体的头声明，末参 e 以 0 补位。
+// 【§6.2 验收标注】orig=1551 our=1562；P167 调用点差集归零（仅余 N78 三处
+// rep stos→memset call 差：deadPad/priceStr/serialBuf 清零区）；其余 |gap|
+// 为 N82 帧/槽号与 4.1/4.4 条件物化（sete/setne、块排布）残余 ⇒ 语义完成、
+// byte 层 N 封顶，勿再耗轮次。
 // ---------------------------------------------------------------------------
 int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 {
-    // MSG_BUY_CERASHOP_ITEM 为报文缓冲镜像（SigTypes_A.h m_pad[0x3f84]；
-    // 条目步长 0x1cf，由 Dispatcher_BuyCeraShopItem::read 填充）。槽位偏移
-    // 语义：+0xf 赠送区、+0x2e accId、+0x32 characNo、+0x36 条数；
-    // 条目 +0x37/+0x38 avatar 选择、+0x39 goodsNo、+0x3d 子项数、+0xed 选项数。
-    const unsigned char* raw = reinterpret_cast<const unsigned char*>(&msg);
-
-    const unsigned char itemCount = raw[0x36];
-    const unsigned char bGiftZone = raw[0xf];
-
     char* idStr = NumberToString(user->get_acc_id(), 0);
 
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x92, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x92, 0);
     trace("NEXON BILLING : ProcessBuyRequest(m_id(%s),count(%d))", idStr,
-          static_cast<int>(itemCount));
+          static_cast<int>(msg.m_scalars.m_itemCount));
 
-    CCeraShopGoods* goodsList[36];
-    for (int i = 0; i < 36; ++i)
-    {
-        goodsList[i] = 0;
-    }
-    int relatedItems[36];                 // local_3cc / entryCosts
-    for (int i = 0; i < 36; ++i)
-    {
-        relatedItems[i] = 0;
-    }
+    // ORIG 0x77：36-dword 清零区（-0x2a8..-0x218，后续无任何读点，-O0 死
+    // 清零照抄，P171）；随后 -0x84/-0x80 两槽写 0（-0x80 即 avatarField
+    // 预置，-0x84 死写）。
+    unsigned int deadPad[36];
+    std::memset(deadPad, 0, sizeof(deadPad));
+    (void)deadPad;
+    int dead88 = 0;
+    (void)dead88;
+    unsigned int avatarSelField = 0;
 
     CCeraShopGoods* firstGoods =
-        reinterpret_cast<CCeraShopGoods*>(G_CDataManager()->FindGoods(
-            *reinterpret_cast<const int*>(&raw[0x39])));
-    if (firstGoods == 0)
+        G_CDataManager()->FindGoods(msg.m_entrySection.m_arr[0].m_productNo);
+    if (firstGoods != 0)
     {
-        ProcessError(user, 0x15, 0, *reinterpret_cast<const unsigned int*>(&raw[0x39]),
-                     1u, 1u, static_cast<char>(bGiftZone));
-        return 1;
-    }
-
-    if (WongWork::CEventMgr::IsChildrensDayEventing())
-    {
-        user->ClearChildrensDayEvent();
-    }
-
-    for (int i = 0; i < static_cast<int>(itemCount); ++i)
-    {
-        const unsigned char* entry = &raw[i * kBuyEntryStride];
-        const unsigned int productNo = *reinterpret_cast<const unsigned int*>(&entry[0x39]);
-
-        goodsList[i] = reinterpret_cast<CCeraShopGoods*>(G_CDataManager()->FindGoods(
-            *reinterpret_cast<const int*>(&entry[0x39])));
-        if (goodsList[i] == 0)
+        if (WongWork::CEventMgr::IsChildrensDayEventing())
         {
-            ProcessError(user, 0x15, -1, productNo,
-                         static_cast<unsigned int>(i + 1),
-                         static_cast<unsigned int>(itemCount),
-                         static_cast<char>(bGiftZone));
+            user->ClearChildrensDayEvent();
+        }
+
+        CCeraShopGoods* goodsList[36];
+        for (int i = 0; i < 36; ++i)
+        {
             goodsList[i] = 0;
-
-            cMyTrace t(
-                __PRETTY_FUNCTION__,
-                0xc3, 0);
-            t("[%s][%d]",
-              __PRETTY_FUNCTION__,
-              0xc3);
-            continue;
+        }
+        int relatedItems[36];
+        for (int i = 0; i < 36; ++i)
+        {
+            relatedItems[i] = 0;
         }
 
-        int groupIdx = goodsList[i]->GetGroupIdx();
-        bool proceedMain = true;
-        if (user->IsGameMasterMode() != 1)
+        for (int i = 0; i < static_cast<int>(msg.m_scalars.m_itemCount); ++i)
         {
-            // 非 GM：sticker/gift 禁售检查（ORIG xor/test 走向）
-            if (goodsList[i]->GetSticker() == 99)
+            goodsList[i] = G_CDataManager()->FindGoods(
+                msg.m_entrySection.m_arr[i].m_productNo);
+            if (goodsList[i] == 0)
             {
-                ProcessError(user, 8, groupIdx, productNo,
-                             static_cast<unsigned int>(i + 1),
-                             static_cast<unsigned int>(itemCount),
-                             static_cast<char>(bGiftZone));
+                int negIdx = -1;
+                ProcessError(user, 0x15, negIdx,
+                             msg.m_entrySection.m_arr[i].m_productNo,
+                             i + 1, static_cast<int>(msg.m_scalars.m_itemCount),
+                             static_cast<char>(msg.m_scalars.m_buyFlag));
                 goodsList[i] = 0;
-                cMyTrace t(__PRETTY_FUNCTION__,
-                           0xde, 0);
-                t("[%s][%d]",
-                  __PRETTY_FUNCTION__,
-                  0xde);
+
+                cMyTrace t(__PRETTY_FUNCTION__, 0xc3, 0);
+                t("[%s][%d]", __PRETTY_FUNCTION__, 0xc3);
                 continue;
             }
-            if (bGiftZone == 1 && goodsList[i]->isGiftDisallowance_() != 0)
-            {
-                ProcessError(user, 8, groupIdx, productNo,
-                             static_cast<unsigned int>(i + 1),
-                             static_cast<unsigned int>(itemCount),
-                             static_cast<char>(bGiftZone));
-                goodsList[i] = 0;
-                cMyTrace t(__PRETTY_FUNCTION__,
-                           0xe8, 0);
-                t("[%s][%d]",
-                  __PRETTY_FUNCTION__,
-                  0xe8);
-                continue;
-            }
-        }
-        if (!proceedMain)
-        {
-            continue;
-        }
 
-        // LAB_083208e9 主路径
-        groupIdx = goodsList[i]->GetGroupIdx();
-        if (groupIdx != 1)
-        {
-            relatedItems[i] = reinterpret_cast<int>(goodsList[i]->GetRelatedItem());
-            if (relatedItems[i] == 0)
+            int groupIdx = goodsList[i]->GetGroupIdx();
+            if (user->IsGameMasterMode() != 1)
             {
-                ProcessError(user, 0x11, groupIdx, productNo,
-                             static_cast<unsigned int>(i + 1),
-                             static_cast<unsigned int>(itemCount),
-                             static_cast<char>(bGiftZone));
-                goodsList[i] = 0;
-                cMyTrace t(__PRETTY_FUNCTION__,
-                           0x116, 0);
-                t("[%s][%d]",
-                  __PRETTY_FUNCTION__,
-                  0x116);
-                continue;
+                // 非 GM：sticker/gift 禁售检查（ORIG 0x29c..0x46a）。
+                if (goodsList[i]->GetSticker() == 99)
+                {
+                    ProcessError(user, 8, groupIdx,
+                                 msg.m_entrySection.m_arr[i].m_productNo,
+                                 i + 1,
+                                 static_cast<int>(msg.m_scalars.m_itemCount),
+                                 static_cast<char>(msg.m_scalars.m_buyFlag));
+                    goodsList[i] = 0;
+                    cMyTrace t(__PRETTY_FUNCTION__, 0xde, 0);
+                    t("[%s][%d]", __PRETTY_FUNCTION__, 0xde);
+                    continue;
+                }
+                if (static_cast<char>(msg.m_scalars.m_buyFlag) == 1 &&
+                    goodsList[i]->isGiftDisallowance_() != 0)
+                {
+                    ProcessError(user, 8, groupIdx,
+                                 msg.m_entrySection.m_arr[i].m_productNo,
+                                 i + 1,
+                                 static_cast<int>(msg.m_scalars.m_itemCount),
+                                 static_cast<char>(msg.m_scalars.m_buyFlag));
+                    goodsList[i] = 0;
+                    cMyTrace t(__PRETTY_FUNCTION__, 0xe8, 0);
+                    t("[%s][%d]", __PRETTY_FUNCTION__, 0xe8);
+                    continue;
+                }
             }
-        }
-
-        // PVP 渠道禁购清单（LAB_083208..LAB_08320aba 判定树）
-        int itemIdx = goodsList[i]->GetItemIdx();
-        bool pvpRestricted = false;
-        if (itemIdx == 0x334)
-        {
-            pvpRestricted = true;
-        }
-        else if (itemIdx < 0x335)
-        {
-            if (itemIdx < 0xc6)
+            // LAB_083208e9：GM 直落 / 非 GM 检查通过落入。
+            if (goodsList[i]->GetGroupIdx() != 1)
             {
-                if (itemIdx > 0xc3 || itemIdx == 0xc2)
+                relatedItems[i] =
+                    reinterpret_cast<int>(goodsList[i]->GetRelatedItem());
+                if (relatedItems[i] == 0)
+                {
+                    ProcessError(user, 0x11, groupIdx,
+                                 msg.m_entrySection.m_arr[i].m_productNo,
+                                 i + 1,
+                                 static_cast<int>(msg.m_scalars.m_itemCount),
+                                 static_cast<char>(msg.m_scalars.m_buyFlag));
+                    goodsList[i] = 0;
+                    cMyTrace t(__PRETTY_FUNCTION__, 0x116, 0);
+                    t("[%s][%d]", __PRETTY_FUNCTION__, 0x116);
+                    continue;
+                }
+            }
+
+            // PVP 渠道禁购清单（ORIG 0x57e..0x68e 决策树，条目 itemIdx）。
+            bool pvpRestricted = false;
+            int checkIdx = goodsList[i]->GetItemIdx();
+            if (checkIdx == 0x334)
+            {
+                pvpRestricted = true;
+            }
+            else if (checkIdx < 0x335)
+            {
+                if (checkIdx < 0xc6)
+                {
+                    if (checkIdx >= 0xc4 || checkIdx == 0xc2)
+                    {
+                        pvpRestricted = true;
+                    }
+                    else if (checkIdx == 0xc3)
+                    {
+                        user->isAffectedPremium(
+                            static_cast<ENUM_PREMIUM_TYPE>(0x21));   // 副作用查询
+                    }
+                }
+                else if (checkIdx == 0x2d0 ||
+                         (checkIdx > 0x2cf &&
+                          (static_cast<unsigned int>(checkIdx - 0x2e7) < 2)))
                 {
                     pvpRestricted = true;
                 }
-                else if (itemIdx == 0xc3)
+            }
+            else if (checkIdx <= 0x289832)
+            {
+                if (checkIdx >= 0x289831 || checkIdx == 0x2897c2 ||
+                    checkIdx == 0x289806 || checkIdx == 0x398)
                 {
-                    user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0x21));   // 副作用查询（ORIG 调用）
+                    pvpRestricted = true;
                 }
             }
-            else if (itemIdx == 0x2d0 ||
-                     (itemIdx > 0x2cf && (itemIdx - 0x2e7) < 2))
+            else if (checkIdx == 0x28beba || checkIdx == 0x28d154)
             {
                 pvpRestricted = true;
             }
-        }
-        else if (itemIdx < 0x289833)
-        {
-            if (itemIdx > 0x289830 || itemIdx == 0x2897c2 ||
-                itemIdx == 0x289806 || itemIdx == 0x398)
+
+            if (pvpRestricted)
             {
-                pvpRestricted = true;
+                char blockPvp = '\0';
+                if (G_GameWorld()->IsPVPChannel())
+                {
+                    blockPvp = '\x01';
+                    if (G_GameWorld()->IsPvPSkilTreeChannel() &&
+                        user->get_pvp_grade() >= 10)
+                    {
+                        blockPvp = '\0';
+                    }
+                }
+                if (blockPvp != '\0')
+                {
+                    ProcessError(user, 7, groupIdx,
+                                 msg.m_entrySection.m_arr[i].m_productNo,
+                                 i + 1,
+                                 static_cast<int>(msg.m_scalars.m_itemCount),
+                                 static_cast<char>(msg.m_scalars.m_buyFlag));
+                    goodsList[i] = 0;
+                    cMyTrace t(__PRETTY_FUNCTION__, 0x16c, 0);
+                    t("[%s][%d]", __PRETTY_FUNCTION__, 0x16c);
+                    continue;
+                }
             }
-        }
-        else if (itemIdx == 0x28beba || itemIdx == 0x28d154)
+
+            // _CheckBuyingCondition（ORIG 0x757：字段逐次从 msg 重读，P183）。
+            unsigned short expiry =
+                static_cast<unsigned short>(goodsList[i]->GetExpiryDate());
+            if (!this->_CheckBuyingCondition(
+                    user, msg.m_entrySection.m_arr[i].m_productNo,
+                    static_cast<unsigned long>(goodsList[i]->GetItemIdx()),
+                    static_cast<unsigned int>(goodsList[i]->GetStackCount()),
+                    expiry,
+                    msg.m_entrySection.m_arr[i].m_avatarType0,
+                    static_cast<unsigned short>(static_cast<signed char>(
+                        msg.m_entrySection.m_arr[i].m_avatarType1))))
+            {
+                ProcessError(user, 0x4f, groupIdx,
+                             msg.m_entrySection.m_arr[i].m_productNo,
+                             i + 1,
+                             static_cast<int>(msg.m_scalars.m_itemCount),
+                             static_cast<char>(msg.m_scalars.m_buyFlag));
+                goodsList[i] = 0;
+                cMyTrace t(__PRETTY_FUNCTION__, 0x185, 0);
+                t("[%s][%d]", __PRETTY_FUNCTION__, 0x185);
+            }
+        }   // 条目循环（校验段）
+
+        if (!_CheckValidCount(const_cast<const CCeraShopGoods**>(goodsList)))
         {
-            pvpRestricted = true;
+            int negOne = -1;
+            ProcessError(user, 1, negOne, msg.m_entrySection.m_arr[0].m_productNo,
+                         1, 1, static_cast<char>(msg.m_scalars.m_buyFlag));
+            return 1;
         }
 
-        if (pvpRestricted)
+        user->resetUsedCera();
+
+        // ORIG 清零顺序：priceStr(0x24) rep stos + serialBuf(0x15) 内联慢路；
+        // countStr/itemName 不清零（N78：4.4 生成 memset call）。
+        char priceStr[0x24];
+        std::memset(priceStr, 0, 0x24);
+        char serialBuf[0x15];
+        std::memset(serialBuf, 0, 0x15);
+        char countStr[8];
+        char itemName[0x64];
+
+        unsigned int nowSec =
+            static_cast<unsigned int>(GlobalData::s_systemTime_.getCurSec());
+        long long remMoney =
+            static_cast<long long>(static_cast<int>(user->getCurCharacMoney()));
+        long long remWP = static_cast<long long>(user->GetWinPoint());
+        unsigned int ceraPrice = 0;
+        int goldPrice = 0;
+        unsigned int wpPrice = 0;
+
+        for (int i = 0; i < static_cast<int>(msg.m_scalars.m_itemCount); ++i)
         {
-            char blockPvp = '\0';
-            GameWorld* world = G_GameWorld();
-            if (world->IsPVPChannel())
+            if (goodsList[i] == 0)
             {
-                blockPvp = '\x01';
-                if (!world->IsPvPSkilTreeChannel() ||
-                    user->get_pvp_grade() < 10)
+                continue;
+            }
+            if (goodsList[i]->GetGroupIdx() != 0)
+            {
+                ceraPrice = static_cast<unsigned int>(goodsList[i]->GetCeraPrice());
+                goldPrice = goodsList[i]->GetGoldPrice();
+                wpPrice = static_cast<unsigned int>(goodsList[i]->GetWinPoint());
+            }
+            else
+            {
+                int groupSub = 0;
+                CItem* related =
+                    static_cast<CItem*>(goodsList[i]->GetRelatedItem());
+                if (related->IsAvatarItem())
                 {
-                    // PvP 技能树渠道且 10 段以上豁免
+                    related = static_cast<CItem*>(goodsList[i]->GetRelatedItem());
+                    const std::vector<stAvatarTypeSelect_t>* selects =
+                        static_cast<const std::vector<stAvatarTypeSelect_t>*>(
+                            static_cast<CEquipItem*>(related)
+                                ->getAvatarTypeSelect());
+                    if (selects->empty() ||
+                        static_cast<signed char>(
+                            msg.m_entrySection.m_arr[i].m_avatarType1) >=
+                            static_cast<int>(selects->size()))
+                    {
+                        ProcessError(user, 0x17, groupSub,
+                                     msg.m_entrySection.m_arr[i].m_productNo,
+                                     i + 1,
+                                     static_cast<int>(msg.m_scalars.m_itemCount),
+                                     static_cast<char>(msg.m_scalars.m_buyFlag));
+                        goodsList[i] = 0;
+                        cMyTrace t(__PRETTY_FUNCTION__, 0x253, 0);
+                        t("[%s][%d]", __PRETTY_FUNCTION__, 0x253);
+                        continue;
+                    }
+                    if (msg.m_entrySection.m_arr[i].m_avatarType0 >= 100)
+                    {
+                        ProcessError(user, 0x17, groupSub,
+                                     msg.m_entrySection.m_arr[i].m_productNo,
+                                     i + 1,
+                                     static_cast<int>(msg.m_scalars.m_itemCount),
+                                     static_cast<char>(msg.m_scalars.m_buyFlag));
+                        goodsList[i] = 0;
+                        cMyTrace t(__PRETTY_FUNCTION__, 0x25e, 0);
+                        t("[%s][%d]", __PRETTY_FUNCTION__, 0x25e);
+                        continue;
+                    }
+                    // ORIG 四字段各发一次 const operator[]（P157/P183）。
+                    ceraPrice = static_cast<unsigned int>(
+                        (*selects)[static_cast<signed char>(
+                            msg.m_entrySection.m_arr[i].m_avatarType1)].m_fieldc);
+                    goldPrice =
+                        (*selects)[static_cast<signed char>(
+                            msg.m_entrySection.m_arr[i].m_avatarType1)].m_field4;
+                    wpPrice = static_cast<unsigned int>(
+                        (*selects)[static_cast<signed char>(
+                            msg.m_entrySection.m_arr[i].m_avatarType1)].m_field8);
+                    avatarSelField = static_cast<unsigned int>(
+                        (*selects)[static_cast<signed char>(
+                            msg.m_entrySection.m_arr[i].m_avatarType1)].m_field0);
                 }
                 else
                 {
-                    blockPvp = '\0';
-                }
-            }
-            if (blockPvp != '\0')
-            {
-                ProcessError(user, 7, groupIdx, productNo,
-                             static_cast<unsigned int>(i + 1),
-                             static_cast<unsigned int>(itemCount),
-                             static_cast<char>(bGiftZone));
-                goodsList[i] = 0;
-                cMyTrace t(__PRETTY_FUNCTION__,
-                           0x16c, 0);
-                t("[%s][%d]",
-                  __PRETTY_FUNCTION__,
-                  0x16c);
-                continue;
-            }
-        }
-
-        const unsigned char selByteB = entry[0x37];
-        const unsigned char selByteA = entry[0x38];
-        const unsigned short expiry =
-            static_cast<unsigned short>(goodsList[i]->GetExpiryDate());
-
-        bool ok = this->_CheckBuyingCondition(
-            user, productNo,
-            static_cast<unsigned long>(
-                static_cast<unsigned int>(goodsList[i]->GetItemIdx())),
-            static_cast<unsigned int>(goodsList[i]->GetStackCount()),
-            expiry, selByteB,
-            static_cast<unsigned short>(
-                static_cast<short>(static_cast<signed char>(selByteA))));
-        if (!ok)
-        {
-            ProcessError(user, 0x4f, groupIdx, productNo,
-                         static_cast<unsigned int>(i + 1),
-                         static_cast<unsigned int>(itemCount),
-                         static_cast<char>(bGiftZone));
-            goodsList[i] = 0;
-            cMyTrace t(__PRETTY_FUNCTION__,
-                       0x185, 0);
-            t("[%s][%d]",
-              __PRETTY_FUNCTION__,
-              0x185);
-        }
-    }   // 条目循环（校验段）
-
-    if (!_CheckValidCount(const_cast<const CCeraShopGoods**>(goodsList)))
-    {
-        ProcessError(user, 1, -1, *reinterpret_cast<const unsigned int*>(&raw[0x39]),
-                     1u, 1u, static_cast<char>(raw[0xf]));
-        return 1;
-    }
-
-    user->resetUsedCera();
-
-    char priceStr[0x24];
-    char countStr[8];
-    char serialBuf[0x15];
-    char itemName[100];
-    std::memset(priceStr, 0, sizeof(priceStr));
-    std::memset(countStr, 0, sizeof(countStr));
-    std::memset(serialBuf, 0, sizeof(serialBuf));
-    std::memset(itemName, 0, sizeof(itemName));
-
-    const unsigned int nowSec =
-        static_cast<unsigned int>(GlobalData::s_systemTime_.getCurSec());
-    unsigned int moneyLow = static_cast<unsigned int>(user->getCurCharacMoney());
-    unsigned int wpLow = static_cast<unsigned int>(user->GetWinPoint());
-    unsigned int ceraPrice = 0;
-    int goldPrice = 0;
-    unsigned int wpPrice = 0;
-    unsigned int avatarSelField = 0;
-    // ORIG 64 位剩余预算（ProcessBuyRequest 汇编 0x83213ed..0x83214b4）：
-    // money 高字为符号扩展，WP 高字恒 0；逐条目扣价后以 max(0,·) 夹紧。
-    long long remMoney =
-        (static_cast<long long>(static_cast<int>(moneyLow) >> 31) << 32) |
-        static_cast<long long>(moneyLow);
-    long long remWP = static_cast<long long>(wpLow);
-
-    for (int i = 0; i < static_cast<int>(itemCount); ++i)
-    {
-        if (goodsList[i] == 0)
-        {
-            continue;
-        }
-        const unsigned char* entry = &raw[i * kBuyEntryStride];
-        const unsigned int productNo = *reinterpret_cast<const unsigned int*>(&entry[0x39]);
-
-        int groupLocal = goodsList[i]->GetGroupIdx();
-        if (groupLocal == 0)
-        {
-            int groupSub = 0;
-            CItem* related = reinterpret_cast<CItem*>(relatedItems[i]);
-            if (related->IsAvatarItem())
-            {
-                std::vector<stAvatarTypeSelect_t>* selects =
-                    static_cast<std::vector<stAvatarTypeSelect_t>*>(
-                        reinterpret_cast<CEquipItem*>(related)->getAvatarTypeSelect());
-                // ORIG 0x8321030：empty()!=0 或 (char)entry[0x38] >= size → 错误 0x253
-                // （entry[0x38] 有符号 char 扩展后与 size 比较）。
-                const bool badRange = selects->empty() ||
-                    (static_cast<int>(static_cast<signed char>(entry[0x38])) >=
-                     static_cast<int>(selects->size()));
-                if (badRange)
-                {
-                    ProcessError(user, 0x17, groupSub, productNo,
-                                 static_cast<unsigned int>(i + 1),
-                                 static_cast<unsigned int>(itemCount),
-                                 static_cast<char>(bGiftZone));
+                    ProcessError(user, 0x17, groupSub,
+                                 msg.m_entrySection.m_arr[i].m_productNo,
+                                 i + 1,
+                                 static_cast<int>(msg.m_scalars.m_itemCount),
+                                 static_cast<char>(msg.m_scalars.m_buyFlag));
                     goodsList[i] = 0;
-                    cMyTrace t(__PRETTY_FUNCTION__,
-                               0x253, 0);
-                    t("[%s][%d]",
-                      "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
-                      0x253);
+                    cMyTrace t(__PRETTY_FUNCTION__, 0x247, 0);
+                    t("[%s][%d]", __PRETTY_FUNCTION__, 0x247);
                     continue;
                 }
-                // ORIG 0x832111c：entry[0x37]（无符号）> 99 → 错误 0x25e。
-                if (entry[0x37] > 99)
-                {
-                    ProcessError(user, 0x17, groupSub, productNo,
-                                 static_cast<unsigned int>(i + 1),
-                                 static_cast<unsigned int>(itemCount),
-                                 static_cast<char>(bGiftZone));
-                    goodsList[i] = 0;
-                    cMyTrace t(__PRETTY_FUNCTION__,
-                               0x25e, 0);
-                    t("[%s][%d]",
-                      "bool WongWork::CCeraShop::ProcessBuyRequest(CUser*, const MSG_BUY_CERASHOP_ITEM&)",
-                      0x25e);
-                    continue;
-                }
-                // ORIG 0x83211e8：vector 下标 = (signed char)entry[0x38]；
-                // 价格映射：+0xc=cera、+0x4=gold、+0x8=wp、+0x0=avatarSelField。
-                const int selIdx = static_cast<signed char>(entry[0x38]);
-                const stAvatarTypeSelect_t& sel = (*selects)[selIdx];
-                ceraPrice = static_cast<unsigned int>(sel.m_fieldc);
-                goldPrice = sel.m_field4;
-                wpPrice = static_cast<unsigned int>(sel.m_field8);
-                avatarSelField = static_cast<unsigned int>(sel.m_field0);
+            }
+
+            // LAB_083212dc：会员折扣（cera/wp 无符号乘除，gold 有符号）。
+            unsigned short discountRate =
+                user->GetPremiumInfo()->getCeraShopDiscountRate();
+            if (discountRate != 0)
+            {
+                ceraPrice -=
+                    static_cast<unsigned int>(discountRate) * ceraPrice / 100;
+                goldPrice -= static_cast<int>(discountRate) * goldPrice / 100;
+                wpPrice -=
+                    static_cast<unsigned int>(discountRate) * wpPrice / 100;
+            }
+
+            // 额度校验（11=cera 不足，10=金币不足，12=WP 不足）。
+            int errorReason = 0;
+            if (user->GetCera() < ceraPrice)
+            {
+                errorReason = 0xb;
             }
             else
             {
-                ProcessError(user, 0x17, groupSub, productNo,
-                             static_cast<unsigned int>(i + 1),
-                             static_cast<unsigned int>(itemCount),
-                             static_cast<char>(bGiftZone));
-                goodsList[i] = 0;
-                cMyTrace t(__PRETTY_FUNCTION__,
-                           0x247, 0);
-                t("[%s][%d]",
-                  __PRETTY_FUNCTION__,
-                  0x247);
-                continue;
+                if (user->getCurCharacInvenR()->get_money() < goldPrice)
+                {
+                    errorReason = 10;
+                }
+                else if (user->GetWinPoint() < wpPrice)
+                {
+                    errorReason = 0xc;
+                }
             }
-        }
-        else
-        {
-            ceraPrice = static_cast<unsigned int>(goodsList[i]->GetCeraPrice());
-            goldPrice = goodsList[i]->GetGoldPrice();
-            wpPrice = static_cast<unsigned int>(goodsList[i]->GetWinPoint());
-        }
 
-        // LAB_083212dc：会员折扣
-        WongWork::CUserPremium* premium = user->GetPremiumInfo();
-        unsigned short discountRate = premium->getCeraShopDiscountRate();
-        if (discountRate != 0)
-        {
-            ceraPrice -= discountRate * ceraPrice / 100;
-            goldPrice -= discountRate * goldPrice / 100;
-            wpPrice -= discountRate * wpPrice / 100;
-        }
-
-        // 额度校验（错误码：11=cera 不足，10=金币不足，12=WP 不足）
-        int errorReason = 0;
-        if (user->GetCera() < ceraPrice)
-        {
-            errorReason = 0xb;
-        }
-        else
-        {
-            const CInventory* invR = user->getCurCharacInvenR();
-            if (invR->get_money() < static_cast<int>(goldPrice))
+            // ORIG 0xf55..0x1037：64 位余额复核 + 扣减，
+            // std::max<long long>(0LL, rem-cost) 夹紧（两条）。
+            if (remMoney < static_cast<long long>(goldPrice))
             {
                 errorReason = 10;
             }
-            else if (wpLow < wpPrice)
+            if (remWP < static_cast<long long>(wpPrice))
             {
                 errorReason = 0xc;
             }
-        }
+            remMoney = std::max(0LL, remMoney - static_cast<long long>(goldPrice));
+            remWP = std::max(0LL, remWP - static_cast<long long>(wpPrice));
 
-        // ORIG 0x83213ed..0x83214b4：64 位剩余预算复核（逐条目扣减并以
-        // max<long long>(0,·) 夹紧；error 条目同样扣减）。
-        if (remMoney < static_cast<long long>(goldPrice))
-        {
-            errorReason = 10;
-        }
-        if (remWP < static_cast<long long>(wpPrice))
-        {
-            errorReason = 0xc;
-        }
-        remMoney -= static_cast<long long>(goldPrice);
-        if (remMoney < 0)
-        {
-            remMoney = 0;
-        }
-        remWP -= static_cast<long long>(wpPrice);
-        if (remWP < 0)
-        {
-            remWP = 0;
-        }
-
-        if (errorReason != 0)
-        {
-            const char* charName = user->getCurCharacName();
-            LogManager::logFormat(
-                1, "CeraShop.cpp",
-                __PRETTY_FUNCTION__,
-                0x2d6,
-                "IPG ERROR [Dispatcher_BuyCeraShopItem::dispatch_sig] UserID[%s] ACera[%d] AGold[%d] AWP[%d]",
-                charName, static_cast<int>(ceraPrice),
-                static_cast<int>(goldPrice), static_cast<int>(wpPrice));
-            LogManager::logFormat(
-                1, "CeraShop.cpp",
-                __PRETTY_FUNCTION__,
-                0x2d7, " / UCera[%d] UGold[%d] UWP[%d]\n",
-                user->GetCera(), user->getCurCharacMoney(), user->GetWinPoint());
-            LogManager::logFormat(
-                1, "CeraShop.cpp",
-                __PRETTY_FUNCTION__,
-                0x2d9, "Error Goods No : %d", productNo);
-
-            ProcessError(user, static_cast<unsigned short>(errorReason),
-                         goodsList[i]->GetGroupIdx(), productNo,
-                         static_cast<unsigned int>(i + 1),
-                         static_cast<unsigned int>(itemCount),
-                         static_cast<char>(bGiftZone));
-            goodsList[i] = 0;
-            cMyTrace t(__PRETTY_FUNCTION__,
-                       0x2e1, 0);
-            t("[%s][%d]",
-              __PRETTY_FUNCTION__,
-              0x2e1);
-            continue;
-        }
-
-        int featuredIdx = goodsList[i]->GetFeaturedIdx();
-        if (user->IsRestrictedGoods(featuredIdx))
-        {
-            ProcessError(user, 0x14, goodsList[i]->GetGroupIdx(), productNo,
-                         static_cast<unsigned int>(i + 1),
-                         static_cast<unsigned int>(itemCount),
-                         static_cast<char>(bGiftZone));
-            goodsList[i] = 0;
-            cMyTrace t(__PRETTY_FUNCTION__,
-                       0x2ed, 0);
-            t("[%s][%d]",
-              __PRETTY_FUNCTION__,
-              0x2ed);
-            continue;
-        }
-
-        Stream* reqStream = GlobalData::s_stream_pool->Acquire("CeraShop.cpp", 0x37b);
-        CStreamGuard guard(reqStream, false);
-
-        stCeraShopIPGRequest_t* req = guard.GetInBuffer<stCeraShopIPGRequest_t>();
-        req->m_productNo = productNo;
-        req->m_groupIdx = goodsList[i]->GetGroupIdx();
-        req->m_itemIdx = goodsList[i]->GetItemIdx();
-        req->m_stackCount = static_cast<unsigned short>(goodsList[i]->GetStackCount());
-        req->m_ceraPrice = ceraPrice;
-        req->m_goldPrice = static_cast<unsigned int>(goldPrice);
-        req->m_winPoint = wpPrice;
-        req->m_avatarType0 = entry[0x37];
-        req->m_avatarType1 = entry[0x38];
-        req->m_avatarField = avatarSelField;
-        req->m_featuredIdx = featuredIdx;
-        req->m_itemCount = itemCount;
-        req->m_seq = i + 1;
-        req->m_curSec = nowSec;
-        req->m_buyFlag = raw[0xf];
-        req->m_accId = *reinterpret_cast<const unsigned int*>(&raw[0x2e]);
-        req->m_characNo = *reinterpret_cast<const unsigned int*>(&raw[0x32]);
-        req->m_subCount = entry[0x3d];
-        for (int s = 0; s < static_cast<int>(req->m_subCount); ++s)
-        {
-            *reinterpret_cast<unsigned int*>(&req->m_subEntries[s][0]) =
-                *reinterpret_cast<const unsigned int*>(entry + 0x3e + s * 5);
-            req->m_subEntries[s][4] = entry[0x42 + s * 5];
-        }
-        req->m_optCount = entry[0xed];
-        for (int o = 0; o < static_cast<int>(req->m_optCount); ++o)
-        {
-            *reinterpret_cast<unsigned int*>(&req->m_optEntries[o][0]) =
-                *reinterpret_cast<const unsigned int*>(entry + 0x3e + (o + 0x16) * 8);
-            *reinterpret_cast<unsigned short*>(&req->m_optEntries[o][4]) =
-                *reinterpret_cast<const unsigned short*>(entry + 0x42 + (o + 0x16) * 8);
-            *reinterpret_cast<unsigned short*>(&req->m_optEntries[o][6]) =
-                *reinterpret_cast<const unsigned short*>(entry + 0x44 + (o + 0x16) * 8);
-        }
-
-        OS_API::snprintf(priceStr, 0x24, "%d", static_cast<int>(ceraPrice));
-        OS_API::snprintf(countStr, 8, "%d",
-                         static_cast<int>(*reinterpret_cast<const unsigned int*>(&entry[0x39])));
-
-        if (goodsList[i]->GetItemIdx() == 1)
-        {
-            OS_API::snprintf(itemName, 0x62,
-                             "\xbd\xc3\xb4\xdc\xc7\xd2\xc0\xaf %d\xb0\xb3",
-                             goodsList[i]->GetStackCount());   // ORIG DAT_08c25d6b 格式串
-        }
-        else
-        {
-            CItem* priced = reinterpret_cast<CItem*>(relatedItems[i]);
-            if (priced != 0 && priced->is_stackable() &&
-                goodsList[i]->GetStackCount() >= 2)
+            if (errorReason != 0)
             {
-                OS_API::snprintf(itemName, 0x62,
-                                 "\xbd\xc3\xb4\xdc\xc7\xd2\xc0\xaf %s %d\xb0\xb3",
-                                 priced->GetItemName(),
-                                 goodsList[i]->GetStackCount());   // ORIG DAT_08c25d63
+                unsigned int uWp = user->GetWinPoint();
+                unsigned int uGold =
+                    static_cast<unsigned int>(user->getCurCharacInvenR()->get_money());
+                unsigned int uCera = user->GetCera();
+                LogManager::logFormat(
+                    1, "CeraShop.cpp", __PRETTY_FUNCTION__, 0x2d6,
+                    "IPG ERROR [Dispatcher_BuyCeraShopItem::dispatch_sig] "
+                    "UserID[%s] ACera[%d] AGold[%d] AWP[%d]",
+                    user->getCurCharacName(), static_cast<int>(ceraPrice),
+                    goldPrice, static_cast<int>(wpPrice));
+                LogManager::logFormat(
+                    1, "CeraShop.cpp", __PRETTY_FUNCTION__, 0x2d7,
+                    " / UCera[%d] UGold[%d] UWP[%d]\n",
+                    uCera, uGold, uWp);
+                LogManager::logFormat(
+                    1, "CeraShop.cpp", __PRETTY_FUNCTION__, 0x2d9,
+                    "Error Goods No : %d",
+                    msg.m_entrySection.m_arr[i].m_productNo);
+
+                int errGroupIdx = goodsList[i]->GetGroupIdx();
+                ProcessError(user, static_cast<unsigned short>(errorReason),
+                             errGroupIdx,
+                             msg.m_entrySection.m_arr[i].m_productNo,
+                             i + 1,
+                             static_cast<int>(msg.m_scalars.m_itemCount),
+                             static_cast<char>(msg.m_scalars.m_buyFlag));
+                goodsList[i] = 0;
+                cMyTrace t(__PRETTY_FUNCTION__, 0x2e1, 0);
+                t("[%s][%d]", __PRETTY_FUNCTION__, 0x2e1);
+                continue;
             }
-            else if (priced != 0)
+
+            if (user->IsRestrictedGoods(goodsList[i]->GetFeaturedIdx()))
             {
-                strcpy(itemName, priced->GetItemName());
+                int errGroupIdx = goodsList[i]->GetGroupIdx();
+                ProcessError(user, 0x14, errGroupIdx,
+                             msg.m_entrySection.m_arr[i].m_productNo,
+                             i + 1,
+                             static_cast<int>(msg.m_scalars.m_itemCount),
+                             static_cast<char>(msg.m_scalars.m_buyFlag));
+                goodsList[i] = 0;
+                cMyTrace t(__PRETTY_FUNCTION__, 0x2ed, 0);
+                t("[%s][%d]", __PRETTY_FUNCTION__, 0x2ed);
+                continue;
+            }
+
+            // stream 组装（P103：operator-> 链保留；写入序照 ORIG 0x1359..）。
+            Stream* reqStream =
+                GlobalData::s_stream_pool->Acquire("CeraShop.cpp", 0x37b);
+            CStreamGuard guard(reqStream, false);
+            stCeraShopIPGRequest_t* req =
+                guard.operator->()->GetInBuffer<stCeraShopIPGRequest_t>();
+            req->m_productNo =
+                static_cast<unsigned int>(msg.m_entrySection.m_arr[i].m_productNo);
+            req->m_groupIdx = goodsList[i]->GetGroupIdx();
+            req->m_stackCount =
+                static_cast<unsigned short>(goodsList[i]->GetStackCount());
+            req->m_ceraPrice = ceraPrice;
+            req->m_goldPrice = static_cast<unsigned int>(goldPrice);
+            req->m_winPoint = wpPrice;
+            req->m_itemIdx = goodsList[i]->GetItemIdx();
+            req->m_avatarType0 = msg.m_entrySection.m_arr[i].m_avatarType0;
+            req->m_avatarType1 = msg.m_entrySection.m_arr[i].m_avatarType1;
+            req->m_avatarField = avatarSelField;
+            req->m_featuredIdx = goodsList[i]->GetFeaturedIdx();
+            req->m_itemCount = msg.m_scalars.m_itemCount;
+            req->m_seq = i + 1;
+            req->m_curSec = nowSec;
+            req->m_buyFlag = msg.m_scalars.m_buyFlag;
+            req->m_accId = msg.m_scalars.m_accId;
+            req->m_characNo = msg.m_scalars.m_characNo;
+            req->m_subCount = msg.m_entrySection.m_arr[i].m_subCount;
+            for (int s = 0;
+                 s < static_cast<int>(msg.m_entrySection.m_arr[i].m_subCount);
+                 ++s)
+            {
+                *reinterpret_cast<unsigned int*>(&req->m_subEntries[s][0]) =
+                    static_cast<unsigned int>(
+                        msg.m_entrySection.m_arr[i].m_subEntries[s].m_itemIdx);
+                req->m_subEntries[s][4] =
+                    msg.m_entrySection.m_arr[i].m_subEntries[s].m_value;
+            }
+            req->m_optCount = msg.m_entrySection.m_arr[i].m_optCount;
+            for (int o = 0;
+                 o < static_cast<int>(msg.m_entrySection.m_arr[i].m_optCount);
+                 ++o)
+            {
+                *reinterpret_cast<unsigned int*>(&req->m_optEntries[o][0]) =
+                    static_cast<unsigned int>(
+                        msg.m_entrySection.m_arr[i]
+                            .m_optEntries[o + 0x16].m_itemUid);
+                *reinterpret_cast<unsigned short*>(&req->m_optEntries[o][4]) =
+                    msg.m_entrySection.m_arr[i].m_optEntries[o + 0x16].m_a;
+                *reinterpret_cast<unsigned short*>(&req->m_optEntries[o][6]) =
+                    msg.m_entrySection.m_arr[i].m_optEntries[o + 0x16].m_b;
+            }
+
+            OS_API::snprintf(priceStr, 0x24, "%d", static_cast<int>(ceraPrice));
+            OS_API::snprintf(countStr, 8, "%d",
+                             msg.m_entrySection.m_arr[i].m_productNo);
+
+            if (goodsList[i]->GetItemIdx() != 1)
+            {
+                CItem* priced =
+                    reinterpret_cast<CItem*>(relatedItems[i]);
+                if (priced->is_stackable() &&
+                    goodsList[i]->GetStackCount() > 1)
+                {
+                    OS_API::snprintf(itemName, 0x62,
+                                     "\xbd\xc3\xb4\xdc\xc7\xd2\xc0\xaf %s %d\xb0\xb3",
+                                     priced->GetItemName(),
+                                     goodsList[i]->GetStackCount());
+                }
+                else
+                {
+                    strcpy(itemName, priced->GetItemName());
+                }
             }
             else
             {
-                itemName[0] = '\0';
+                OS_API::snprintf(itemName, 0x62,
+                                 "\xbd\xc3\xb4\xdc\xc7\xd2\xc0\xaf %d\xb0\xb3",
+                                 goodsList[i]->GetStackCount());
             }
-        }
 
-        CGenUniqueNo uniqueGen;                 // ORIG 调 GenUniqueNo(&serialBuf)
-        char* uniqueNo = uniqueGen.GenUniqueNo(serialBuf);
-        if (ceraPrice == 0)
-        {
-            GlobalData::s_pIPGHelper->IPGOutputSimulation(
-                user, countStr, priceStr, uniqueNo, itemName,
-                user->getCurCharacName(),
-                static_cast<void*>(&guard));
+            if (ceraPrice == 0)
+            {
+                const char* charName = user->getCurCharacName();
+                char* uniqueNo = CGenUniqueNo::GenUniqueNo(serialBuf);
+                GlobalData::s_pIPGHelper->IPGOutputSimulation(
+                    user, countStr, priceStr, uniqueNo, itemName, charName,
+                    static_cast<void*>(&guard));
+            }
+            else
+            {
+                const char* charName = user->getCurCharacName();
+                char* uniqueNo = CGenUniqueNo::GenUniqueNo(serialBuf);
+                GlobalData::s_pIPGHelper->IPGOutput(
+                    user, countStr, priceStr, uniqueNo, itemName, charName,
+                    static_cast<void*>(&guard));
+            }
+            // guard RAII 析构释放流（ORIG 1876 D1）。
         }
-        else
-        {
-            GlobalData::s_pIPGHelper->IPGOutput(
-                user, countStr, priceStr, uniqueNo, itemName,
-                user->getCurCharacName(),
-                static_cast<void*>(&guard));
-        }
-        // guard RAII 析构释放流（ORIG leave 前 CStreamGuard::~）
     }
-
+    else
+    {
+        ProcessError(user, 0x15, 0, msg.m_entrySection.m_arr[0].m_productNo,
+                     1, 1, static_cast<char>(msg.m_scalars.m_buyFlag));
+    }
     return 1;
 }
 
-
 // ---------------------------------------------------------------------------
 // ProcessIPGUserData —— ORIG T 0x8321d2e (0x1ac7)
+// 【§6.2 验收标注】orig=1564 our≈1634；P167 调用点差集归零（含本批补全：
+// _ProcessIPGError 双调用点、creature 双 expiration/usable、get_acc_id 现场、
+// ChildrensDay period 双调用、GetRepeatEvent 双调用、make_pair<ulong&,uchar&>
+// 转换形、const_iterator 显式转换对、m_itemList 成员直读、opt push_back 直引）。
+// we-bigger 残余为 4.4 EH/cleanup 物化与 N82 槽号形态。
 // IPG 结果回包处理：resData->status(+0x1c) 4=回填 cera、0=状态包、2=业务结算
 // （avatar/coin/item/item-special/creature/additional 六路分派）→ 成功路径
 // 扣款与响应包 0x43/0x35/0xe 广播 + ChildrensDay 补发 + Bonus 概率奖励。
@@ -997,16 +971,19 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
         stCeraShopItemParam_t itemParam;                  // local_104（RAII）
         for (int s = 0; s < static_cast<int>(q->m_subCount); ++s)
         {
-            itemParam.m_pairs.push_back(std::make_pair(
-                static_cast<int>(*reinterpret_cast<const unsigned int*>(
-                    &q->m_subEntries[s][0])),
-                static_cast<int>(q->m_subEntries[s][4])));
+            // ORIG 0x8322086：make_pair(ulong&, uchar&) 左值绑定 → pair<int,int>
+            // 转换临时（P61/P135/P178 形）→ push_back。
+            unsigned long& subUid = *reinterpret_cast<unsigned long*>(
+                &q->m_subEntries[s][0]);
+            unsigned char& subVal = q->m_subEntries[s][4];
+            itemParam.m_pairs.push_back(
+                std::pair<int, int>(std::make_pair(subUid, subVal)));
         }
         for (int o = 0; o < static_cast<int>(q->m_optCount); ++o)
         {
-            tagPackageItemSelection selEntry;
-            std::memcpy(&selEntry, &q->m_optEntries[o][0], sizeof(selEntry));
-            itemParam.m_sel.push_back(selEntry);
+            // ORIG 0x83220xx：push_back 直接引用 req 内元素（无本地拷贝/memcpy）。
+            itemParam.m_sel.push_back(*reinterpret_cast<tagPackageItemSelection*>(
+                &q->m_optEntries[o][0]));
         }
 
         int restrictCode = atoi(BufAt(resData, 0x173));   // local_108
@@ -1014,10 +991,19 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
         const int errArgB = groupIdx;
         if (!(restrictCode == 1 && user != 0 && user->getCurCharacR() != 0))
         {
-            _ProcessIPGError(user, reqData, resData,
-                             static_cast<unsigned char>(restrictCode == -0xc ? '\x1a' : '\x19'),
-                             errArgB, productNo, seq, itemCountField,
-                             static_cast<char>(buyFlag));
+            // ORIG 0x83221d3/0x832222d：两独立调用点（-0xc → 0x1a，否则 0x19）。
+            if (restrictCode == -0xc)
+            {
+                _ProcessIPGError(user, reqData, resData, '\x1a',
+                                 errArgB, productNo, seq, itemCountField,
+                                 static_cast<char>(buyFlag));
+            }
+            else
+            {
+                _ProcessIPGError(user, reqData, resData, '\x19',
+                                 errArgB, productNo, seq, itemCountField,
+                                 static_cast<char>(buyFlag));
+            }
         }
         else
         {
@@ -1150,17 +1136,18 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                     src->make_item(item);
                     item.m_addInfo = static_cast<int>(itemIdx64 & 0xffffffffu);
                     item.m_fieldb = stackCount;
-                    const int expirationDate = src->getExpirationDate();
-                    const int usablePeriod = src->getUsablePeriod();
                     if (buyFlag == 1)
                     {
-                        // ORIG gift 分支同样先取 usablePeriod/expirationDate 传入
-                        // （_processCreatureGift 内 a5/a6 不消费，仅对齐调用形态）。
+                        // ORIG 0x83229af/0x83229bc：两分支各自重发调用（P48）。
+                        const int expirationDate = src->getExpirationDate();
+                        const int usablePeriod = src->getUsablePeriod();
                         _processCreatureGift(user, item, accIdReq, characNoReq,
                                              usablePeriod, expirationDate);
                     }
                     else
                     {
+                        const int expirationDate = src->getExpirationDate();
+                        const int usablePeriod = src->getUsablePeriod();
                         _processCreature(user, item, restrictCode, resultState,
                                          true, usablePeriod, expirationDate);
                     }
@@ -1198,7 +1185,9 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                     if (IsSpecialItem(limit->getRelateditem(), hitVal[1],
                                       hitVal[0], isSpecialFlag))
                     {
-                        restrictLocal = G_CDataManager()->getItemList()->GetRestrictCode(
+                        // ORIG 0x8322d5f `mov 0xc(%eax)` 成员直读（4.1 内联 accessor
+                        // 展开形，4.4 产 call ⇒ 用成员直读复刻）。
+                        restrictLocal = G_CDataManager()->m_itemList->GetRestrictCode(
                             limit->getRelateditem());
                     }
                 }
@@ -1213,7 +1202,9 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
             {
                 if (ceraPriceReq != 0)
                 {
-                    GlobalData::s_BreakAwaySys->updateUsedCera(accIdReq, ceraPriceReq);
+                    // ORIG 0x8322e4a：get_acc_id(user) 现场调用（非 req+0x40 值）。
+                    GlobalData::s_BreakAwaySys->updateUsedCera(
+                        user->get_acc_id(), ceraPriceReq);
                 }
                 if (goldSpend != 0)
                 {
@@ -1243,11 +1234,17 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                 outPkt.put_int( resultState);
                 outPkt.put_short(
                                               static_cast<int>(resultItems.size()));
-                for (std::vector<Inven_Item>::const_iterator it = resultItems.begin();
-                     it != resultItems.end(); ++it)
                 {
-                    outPkt.put_int( it->m_addInfo);
-                    outPkt.put_int( it->m_addInfo2);
+                    // ORIG：begin/end 各一次 iterator→const_iterator 转换构造，
+                    // while 循环 operator!= 逐轮调用（Ghidra local_11c/local_120）。
+                    std::vector<Inven_Item>::const_iterator itBeg(resultItems.begin());
+                    std::vector<Inven_Item>::const_iterator itEnd(resultItems.end());
+                    while (itBeg != itEnd)
+                    {
+                        outPkt.put_int(itBeg->m_addInfo);
+                        outPkt.put_int(itBeg->m_addInfo2);
+                        ++itBeg;
+                    }
                 }
 
                 unsigned long bonusItem = 0xffffffffUL;     // local_124
@@ -1275,12 +1272,14 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                         {
                             const int targetSlot =
                                 user->GetChildrensDayEventTargetItemSlot(d);
-                            const int targetPeriod =
-                                user->GetChildrensDayEventTargetItemPeriod(d);
-                            if (targetSlot < 0 || targetPeriod == -1)
+                            if (targetSlot < 0 ||
+                                user->GetChildrensDayEventTargetItemPeriod(d) == -1)
                             {
                                 break;
                             }
+                            // ORIG 0x83232bf：条件后再次现场调用（P48 双调用点）。
+                            const int targetPeriod =
+                                user->GetChildrensDayEventTargetItemPeriod(d);
                             const Inven_Item bufItem =
                                 user->getCurCharacInvenR()->GetInvenSlot(
                                     2, targetSlot);
@@ -1301,18 +1300,19 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                         user->Send(notiPkt);
                     }
 
-                    CEventManager* evMgr = GlobalData::s_event_manager;
-                    CEventBase* bonusBase = evMgr->GetRepeatEvent(0x11);
-                    // ORIG vtable+0x34 调用仅压 0（null user，见汇编 0x832340f）。
-                    if (bonusBase != 0 && bonusBase->IsEventing(0))
+                    // ORIG 0x8323408/0x8323439：条件与体内各一次现场调用；
+                    // vtable+0x34 直调无判空（P171 照抄；bonus 事件该槽空体）。
+                    if (GlobalData::s_event_manager->GetRepeatEvent(0x11)
+                            ->IsEventing(0))
                     {
                         CCeraShopBonusItemEvent* bonus =
-                            static_cast<CCeraShopBonusItemEvent*>(bonusBase);
+                            static_cast<CCeraShopBonusItemEvent*>(
+                                GlobalData::s_event_manager->GetRepeatEvent(0x11));
                         const int rate = bonus->getBonusRate();
                         if (get_rand_int(1000) <= rate)
                         {
                             const int usedCera = static_cast<int>(user->getUsedCera());
-                            G_CDataManager()->getItemList()->getCeraShopBonusItem(
+                            G_CDataManager()->m_itemList->getCeraShopBonusItem(
                                 usedCera, bonusItem, bonusCount);
                             if (bonusItem != 0xffffffffUL)
                             {
@@ -1380,15 +1380,17 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
 
 // ---------------------------------------------------------------------------
 // ORIG W 0x08179fb4 _ZNK5CItem21isCerashopPackageItemEv：逐指令转写。
+// 【N 标注】ORIG 两臂 `cmp $imm,%eax; je/jne` 直分支常量岛；4.4 O0 恒折
+// sete+test（setcc-fold 负例命中）⇒ 每臂 +2 insn，26 vs 32，语义完成豁免。
 // 经 vtable 槽 +0x0c 虚方法（子类型索引，与 CI_SubType 先例同型）连续两次
 // 调用，返回值 ==0xe 或 ==0xf 判定礼包类目 → true，否则 false。
 // ---------------------------------------------------------------------------
 bool CItem::isCerashopPackageItem() const
 {
-    typedef int (*Fn)(const void*);
-    const void* item = this;
-    int slot = (*reinterpret_cast<Fn*>(*reinterpret_cast<void* const*>(item) + 0x0c))(item);
-    if (slot == 0x0e)
+    // vtable +0x0c = GetItemType()（_GetItemType 批次实证 make_item@+0x08 后继槽）。
+    if (GetItemType() == 0x0e)
         return true;
-    return (*reinterpret_cast<Fn*>(*reinterpret_cast<void* const*>(item) + 0x0c))(item) == 0x0f;
+    if (GetItemType() == 0x0f)
+        return true;
+    return false;
 }

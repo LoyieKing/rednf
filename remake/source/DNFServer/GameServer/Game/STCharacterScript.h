@@ -86,8 +86,9 @@ public:
     std::string m_move;
     std::string m_dash;
     std::string m_sit;
-    std::string m_damage1;
-    std::string m_damage2;
+    // ORIG AFS C1 W 0x08367eee：+0x10/+0x14 为 2 元素 string 数组
+    // （构造=倒计数循环 mov $0x1,%ebx;…cmp $-1，P151；同域 D1 亦数组循环）。
+    std::string m_damage[2];             // +0x10（[damage action 1]/[2]）
     std::string m_down;
     std::string m_overturn;
     std::string m_jump;

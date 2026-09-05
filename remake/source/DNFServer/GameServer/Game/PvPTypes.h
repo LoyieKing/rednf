@@ -155,7 +155,12 @@ public:
     ~PvpUserTable();
     void Clear();
     int  Set(int team, CUser* user);          // ORIG 返回 undefined4（int）
-    int  IsValidTeam(int team);
+    // caller 侧证据：ORIG 0x085d5081 `call _ZN12PvpUserTable11IsValidTeamEi` 后接
+    // `xor $0x1,%eax; test %al,%al; je` —— 只有 callee 按 bool 返回时 4.1 才出
+    // xor+testb 形（技巧 1）；声明 int 时 4.4 出 `test;sete;test` 多一条。
+    // callee 体 0x085d4a14 = `cmpl $0; js; cmpl $7; jg; mov $1; jmp; mov $0`
+    // 常量岛形。mangled 无返回类型 ⇒ 零 ABI 风险（技巧 33）。
+    bool IsValidTeam(int team);
     int  IsValidConvertedGrade(int grade);
     int  GetTeamUserCount(int team);
     float GetExpectVal(int grade1, int grade2, CUser* user);

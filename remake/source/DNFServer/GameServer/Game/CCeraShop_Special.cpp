@@ -69,23 +69,40 @@ SpecialItemHandler::SpecialItemHandler(WongWork::CCeraShop* owner)
         m_entries[i].fn = 0;
         m_entries[i].offset = 0;
     }
+    // ORIG 0x0827bcec：按登记表序逐对写 fn + offset=0（-O0 每 entry 两条
+    // store；offset 虽已被循环清零，ORIG 仍成对重写——照抄）。
     m_entries[1].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_cargo);
-    m_entries[2].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_premium);
-    m_entries[5].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_package);
-    m_entries[6].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_booster);
+    m_entries[1].offset = 0;
     m_entries[7].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_cargo_abs);
-    m_entries[8].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_charac_slot_extend);
-    m_entries[9].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_skill_confirm);
-    m_entries[10].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_skill_tree_style);
+    m_entries[7].offset = 0;
     m_entries[11].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_inventory_upgrade);
+    m_entries[11].offset = 0;
+    m_entries[8].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_charac_slot_extend);
+    m_entries[8].offset = 0;
+    m_entries[5].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_package);
+    m_entries[5].offset = 0;
+    m_entries[6].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_booster);
+    m_entries[6].offset = 0;
     m_entries[12].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_booster_selection);
+    m_entries[12].offset = 0;
+    m_entries[9].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_skill_confirm);
+    m_entries[9].offset = 0;
+    m_entries[10].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_skill_tree_style);
+    m_entries[10].offset = 0;
+    m_entries[2].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_premium);
+    m_entries[2].offset = 0;
     m_entries[13].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_cerapoint_giftcard);
+    m_entries[13].offset = 0;
 }
 
 // ---- SpecialItemHandler::execute —— ORIG 0x0827be0a ----
 // 表驱动分发：type<0xe 时取 m_entries[type] 的 respond fn，以 (this+offset) 为接收者调用。
 // ORIG 的 flag 低 1 位为“间接表”标记；本对象所有条目均为直接 respond 地址（低位置 0），
 // 故等价于直接调用。type 越界返回 0。
+// 【N 标注】ORIG 调用点携带 4.1 单字成员函数指针（{delta;ptr-1} 双字折叠 + bit0
+// 间接判定）寻址岛（30 insn 形）；4.4 PMF ABI 为 8 字节双字，合法 C++ 无法在
+// 4 字节表槽复现该 itoc 单字形 ⇒ execute/C1 的 -13/-12 gap 记跨版本 PMF ABI
+// 结构性差异（负例表“跨版本 bool ABI”同族），语义派发等价，byte 层封顶。
 bool SpecialItemHandler::execute(int type, const STSpecailItem_Param& param,
                                  STSpecailItem_Result& result)
 {
@@ -127,11 +144,13 @@ void SpecialItemHandler::respond_special_item_cargo_abs(int type,
 {
     CUser* user = static_cast<CUser*>(param.m_user);
     int value = param.m_value;
-    const CCargo* cargoR = user->getCurCharacCargoR();
-    int target = cargoR->GetCapacity() + value;
-    if (cargoR->isUpgradable(target) == 1)
+    // ORIG 0x827bee6..：getCurCharacCargoR 逐点重发（GetCapacity/isUpgradable
+    // 各双次物化（P48：UpgradeCargo 处 target 重算）。
+    if (user->getCurCharacCargoR()->isUpgradable(
+            user->getCurCharacCargoR()->GetCapacity() + value) == 1)
     {
-        user->getCurCharacCargoW()->UpgradeCargo(target);
+        user->getCurCharacCargoW()->UpgradeCargo(
+            user->getCurCharacCargoR()->GetCapacity() + value);
         m_owner->_sendCargoUpgradePacket(user, type);
     }
     else
@@ -157,12 +176,13 @@ void SpecialItemHandler::respond_special_item_skill_confirm(int,
 {
     CUser* user = static_cast<CUser*>(param.m_user);
     CPremiumLetheManager* mgr = G_CGameManager()->GetPremiumLetheManager();
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x1e1, 0);
+    // P87/N80 形：三变参值按 ORIG 序（style→no→name）先于 ctor 物化。
+    int style = user->GetCurCharacSkillTreeIndex();
+    int characNo = user->getCurCharacNo();
+    const char* charName = user->getCurCharacName();
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x1e1, 0);
     trace("ONE_DAY_LETHE : BUY_SKILL_CONFIRM_TICKET, char(%s), char_no(%d), style(%d)",
-          user->getCurCharacName(), user->getCurCharacNo(),
-          user->GetCurCharacSkillTreeIndex());
+          charName, characNo, style);
     if (mgr != 0)
         mgr->ConfirmSkillReq(user);
 }
@@ -176,11 +196,12 @@ void SpecialItemHandler::respond_special_item_skill_tree_style(int,
 {
     CUser* user = static_cast<CUser*>(param.m_user);
     CPremiumLetheManager* mgr = G_CGameManager()->GetPremiumLetheManager();
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        499, 0);
+    // P87/N80 形：两变参值先于 ctor 物化（ORIG 0x0827ce7e 区 edi/ebx 缓存）。
+    int characNo = user->getCurCharacNo();
+    const char* charName = user->getCurCharacName();
+    cMyTrace trace(__PRETTY_FUNCTION__, 499, 0);
     trace("SKILL_TREE_STYLE : BUY_SKILL_TREE_STYLE, char(%s), char_no(%d)",
-          user->getCurCharacName(), user->getCurCharacNo());
+          charName, characNo);
     user->SetCurCharacSkillTreeIndex(0);
     user->UpdateData();
     mgr->InitSkill(user, true, (ENUM_SKILL_TREE_KIND)1);
@@ -213,14 +234,12 @@ void SpecialItemHandler::respond_special_item_booster_selection(
 void SpecialItemHandler::respond_special_item_cerapoint_giftcard(
     int, const STSpecailItem_Param& param, STSpecailItem_Result&)
 {
-    WongWork::IPG::CIPGHelper* helper = GlobalData::s_pIPGHelper;
-    CUser* user = static_cast<CUser*>(param.m_user);
-    int value = param.m_value;
-    // CIPGHelper 虚接口（vtable+0xc 槽）尚未建模成头，沿用裸槽派发；指针类型
-    // 已按 GlobalData.h 权威声明落地。
+    // ORIG 0x827de4e：无局部槽，实参 RTL 现取（helper 在 vtable 载入后
+    // reload），vtable+0xc 裸槽派发保留（IPGHelper 该槽未建模）。
     typedef void (*Fn)(void*, void*, int, int, int, int);
-    Fn fn = *reinterpret_cast<Fn*>(*reinterpret_cast<char**>(helper) + 0xc);
-    fn(helper, user, value, 2, 0, 0);
+    Fn fn = *reinterpret_cast<Fn*>(
+        *reinterpret_cast<char**>(GlobalData::s_pIPGHelper) + 0xc);
+    fn(GlobalData::s_pIPGHelper, param.m_user, param.m_value, 2, 0, 0);
 }
 
 // ---- respond_special_item_charac_slot_extend —— ORIG 0x0827c0c2 ----
@@ -232,8 +251,8 @@ void SpecialItemHandler::respond_special_item_charac_slot_extend(
     CUser* user = static_cast<CUser*>(param.m_user);
     user->incCharacSlotLimit(static_cast<unsigned char>(param.m_value));
 
-    Stream* stream = GlobalData::s_stream_pool->Acquire("SpecialItemHandler.cpp", 0x8d);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("SpecialItemHandler.cpp", 0x8d),
+                           true);
     guard.operator*()->operator<<((int)0x28a);
     guard.operator*()->operator<<(-1);
     char* buf = reinterpret_cast<char*>(guard->GetInBuffer<SIG_EXTEND_CHARAC_SLOT>());
@@ -251,22 +270,26 @@ void SpecialItemHandler::respond_special_item_inventory_upgrade(
     int type, const STSpecailItem_Param& param, STSpecailItem_Result& result)
 {
     CUser* user = static_cast<CUser*>(param.m_user);
-    // ORIG 调 getCurCharacInvenR（const 版，无 enableSaveInven 副作用；W 版会置脏标记）
-    CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
-    int cap = inv->get_inventory_capacity();
-    if (cap < 0x10)
-    {
-        int newCap = cap + param.m_value;
-        user->m_historyLog.ExpandInventory(cap, newCap, 0);
-        inv->set_inventory_capacity(newCap);
-        DB_UpdateInventoryCapacity::makeRequest(user->GetServerGroup(), user->GetUID(),
-                                                (unsigned int)user->getCurCharacNo(), newCap);
-        m_owner->_sendInventoryUpgradePacket(user, type);
-    }
-    else
+    // ORIG 0x827bf90..：getCurCharacInvenR（const 版，无 enableSaveInven 副作用）
+    // 与 get_inventory_capacity 各 5+ 处逐点重发（P48/P183 禁缓存）。
+    if (user->getCurCharacInvenR()->get_inventory_capacity() >= 0x10)
     {
         result.m_value = 0x12;
+        return;
     }
+    int newCap =
+        user->getCurCharacInvenR()->get_inventory_capacity() + param.m_value;
+    user->m_historyLog.ExpandInventory(
+        user->getCurCharacInvenR()->get_inventory_capacity(), newCap, 0);
+    // ORIG set 处 this 仍是第 5 次 getCurCharacInvenR（const 视图强转，
+    // 全函数 InvenR×6 / capacity×5 静态调用点，无 W 版）。
+    const_cast<CInventory*>(user->getCurCharacInvenR())->set_inventory_capacity(
+        user->getCurCharacInvenR()->get_inventory_capacity() + param.m_value);
+    DB_UpdateInventoryCapacity::makeRequest(
+        user->GetServerGroup(), user->GetUID(),
+        (unsigned int)user->getCurCharacNo(),
+        user->getCurCharacInvenR()->get_inventory_capacity());
+    m_owner->_sendInventoryUpgradePacket(user, type);
 }
 
 // ---- respond_special_item_booster —— ORIG 0x0827ca4a ----
@@ -308,7 +331,7 @@ void SpecialItemHandler::respond_special_item_booster(int,
             subItem->set_parent_booster_item_id(0);
     }
 
-    int restrictCode = G_CDataManager()->getItemList()->GetRestrictCode(itemIdx);
+    int restrictCode = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
     if (restrictCode != 0)
     {
         if (!user->IsRestrictedGoods(restrictCode))
@@ -342,8 +365,8 @@ void SpecialItemHandler::respond_special_item_package(
     if (itemIdx == 0x1b)
     {
         // 疯狂升级事件包：header 0xb4 + body "0612\0"+accId+characNo 入队列 4。
-        Stream* stream = GlobalData::s_stream_pool->Acquire("SpecialItemHandler.cpp", 0xc3);
-        CStreamGuard guard(stream, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("SpecialItemHandler.cpp", 0xc3),
+                               true);
         guard.operator*()->operator<<((int)0xb4);
         guard.operator*()->operator<<(-1);
         char* buf = reinterpret_cast<char*>(guard->GetInBuffer<SIG_SAVE_CRAZY_LEVELUP_EVENT>());
@@ -366,8 +389,9 @@ void SpecialItemHandler::respond_special_item_package(
         static_cast<CStackableItem*>(G_CDataManager()->find_item(itemIdx));
     std::vector<STStackablePackageData> pkgList(
         *reinterpret_cast<std::vector<STStackablePackageData>*>(&stackItem->m_pkg21c));
-    std::vector<std::vector<STStackablePackageData> >* pkgTable =
-        reinterpret_cast<std::vector<std::vector<STStackablePackageData> >*>(
+    // ORIG operator[] 为 const 版（local_2c const 视图）+ inner.at() const。
+    const std::vector<std::vector<STStackablePackageData> >* pkgTable =
+        reinterpret_cast<const std::vector<std::vector<STStackablePackageData> >*>(
             &stackItem->m_pkg234);
     std::vector<tagPackageItemSelection>& selections = cera->m_sel;   // +0xc
     std::vector<std::pair<int, int> >& pairs = cera->m_pairs;         // +0x0
@@ -397,10 +421,10 @@ void SpecialItemHandler::respond_special_item_package(
                 bool invalid = true;
                 if (it->m_outer < pkgTable->size())
                 {
-                    std::vector<STStackablePackageData>& inner = (*pkgTable)[it->m_outer];
-                    if (inner.size() > it->m_inner)
+                    // ORIG 两处独立 (*pkgTable)[outer]（size 检查 + at，无 inner 缓存）。
+                    if ((*pkgTable)[it->m_outer].size() > it->m_inner)
                     {
-                        pkgList.push_back(inner[it->m_inner]);
+                        pkgList.push_back((*pkgTable)[it->m_outer].at(it->m_inner));
                         it = selections.erase(it);
                         invalid = false;
                     }
@@ -426,49 +450,57 @@ void SpecialItemHandler::respond_special_item_package(
 
     // 逐包处理：配对 itemIdx→count 消费、set_parent_booster_item_id（vtable+0x60 槽）、
     // _processAdditionalItem、SendRandomBoxStatistic。
-    for (std::vector<STStackablePackageData>::iterator it = pkgList.begin();
-         it != pkgList.end(); ++it)
+    // ORIG：pkgList 循环用 const_iterator 对（begin/end 各一次转换构造，
+    // it-> 逐点重发 operator->const，P157/P183）；pairs 消费前先 empty() 短路。
+    std::vector<STStackablePackageData>::const_iterator itBeg = pkgList.begin();
+    std::vector<STStackablePackageData>::const_iterator itEnd = pkgList.end();
+    for (; itBeg != itEnd; ++itBeg)
     {
         unsigned char local25 = 0;
-        for (std::vector<std::pair<int, int> >::iterator pit = pairs.begin();
-             pit != pairs.end(); )
+        if (!pairs.empty())
         {
-            if (pit->first == it->m_field0)
+            for (std::vector<std::pair<int, int> >::iterator pit = pairs.begin();
+                 pit != pairs.end(); )
             {
-                local25 = static_cast<unsigned char>(pit->second);
-                pairs.erase(pit);
-                break;
-            }
-            else
-            {
-                ++pit;
+                if (pit->first == itBeg->m_field0)
+                {
+                    local25 = static_cast<unsigned char>(pit->second);
+                    pairs.erase(pit);
+                    break;
+                }
+                else
+                {
+                    ++pit;
+                }
             }
         }
 
-        CItem* sub = G_CDataManager()->find_item(it->m_field0);
+        CItem* sub = G_CDataManager()->find_item(itBeg->m_field0);
         // ORIG (**(code**)(*sub + 0x60))(sub, itemIdx)：CItem vtable 序核对槽 +0x60
         // = set_parent_booster_item_id(unsigned long)，按真实虚方法直调。
         if (sub != 0)
             sub->set_parent_booster_item_id(static_cast<unsigned long>(itemIdx));
 
         m_owner->_processAdditionalItem(
-            user, static_cast<unsigned long>(it->m_field0),
-            static_cast<unsigned short>(it->m_field4), local25, 0xff, *items, *cera, 0);
+            user, static_cast<unsigned long>(itBeg->m_field0),
+            static_cast<unsigned short>(itBeg->m_field4), local25, 0xff, *items, *cera, 0);
 
         if (sub != 0)
             sub->set_parent_booster_item_id(0);
 
-        // 随机箱统计调用链（ORIG 0x0827c8fc..0x0827c976）
-        if (it->m_field0 == 0x289749)
+        // 随机箱统计调用链（ORIG 0x0827c8fc..0x0827c976）：一次 operator->
+        // 取值、三分支复用（local_4c 槽形）。
+        const unsigned int pkgIdx = itBeg->m_field0;
+        if (pkgIdx == 0x289749)
             user->SendRandomBoxStatistic(2, (ENUM_RANDOMBOX_ACTION_KIND)0);
-        else if (it->m_field0 == 0x28982d)
+        else if (pkgIdx == 0x28982d)
             user->SendRandomBoxStatistic(1, (ENUM_RANDOMBOX_ACTION_KIND)0);
-        else if (it->m_field0 == 0x380)
+        else if (pkgIdx == 0x380)
             user->SendRandomBoxStatistic(0, (ENUM_RANDOMBOX_ACTION_KIND)0);
     }
 
     // 收尾：GetRestrictCode → SetRestrictedGoods/SaveFeaturedIdx → SaveInventory。
-    int restrictCode = G_CDataManager()->getItemList()->GetRestrictCode(itemIdx);
+    int restrictCode = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
     if (restrictCode != 0)
     {
         if (!user->IsRestrictedGoods(restrictCode))
@@ -498,7 +530,11 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     int flag = param.m_flag;                    // local_39（byte@+0x1c）
     long timeVal = param.m_time;                // local_a4
     long timeA = timeVal;                       // local_34
-    long timeB = timeVal;                       // local_38
+    long timeB = timeVal;                       // local_34（ORIG 双写同值）
+
+    // ORIG 0x827d3dc+：lethe 管理器函数头单次获取入槽（local_48）。
+    CPremiumLetheManager* lethe =
+        G_CGameManager()->GetPremiumLetheManager();
 
     std::map<unsigned long, STPremiumItemData>::iterator it =
         g_map_premium_item_data.find((unsigned long)itemIdx);
@@ -512,11 +548,12 @@ void SpecialItemHandler::respond_special_item_premium(int type,
         return;
     }
 
-    const STPremiumItemData& d = it->second;
-    int ptype = d.m_value0;                     // 商品类型（jump 键）
-    int term = (int)d.m_c4;                     // 期限（signed char）
-    unsigned int flag2 = (unsigned int)(unsigned char)d.m_c5;  // 次字节
-    int item = d.m_value8;                      // 限制物品 idx
+    // ORIG 四字段各发一次 _Rb_tree_iterator::operator->（P157 禁缓存引用）。
+    int ptype = it->second.m_value0;            // 商品类型（jump 键）
+    int term = (int)it->second.m_c4;            // 期限（signed char）
+    unsigned int flag2 =
+        (unsigned int)(unsigned char)it->second.m_c5;  // 次字节
+    int item = it->second.m_value8;             // 限制物品 idx
     int resultVal = premium_helper_function::cal_premium_term(
         term, param.m_char1f != 0, param.m_extra);
 
@@ -525,6 +562,13 @@ void SpecialItemHandler::respond_special_item_premium(int type,
 
     switch (ptype)
     {
+    default:
+        // ORIG default：count==0 时按 itemIdx 现取 restrict code。
+        if (count == 0)
+{
+            count = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
+    }
+        break;
     case 1:
     case 3:
         resultVal = WongWork::CEventMgr::GetPremiumServiceBonus() + resultVal + 1;
@@ -552,7 +596,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     case 0xe:
         if (user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xd) != 0)
         {
-            count = G_CDataManager()->getItemList()->GetRestrictCode(itemIdx);
+            count = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
             ptype = 0xd;
         }
         break;
@@ -582,56 +626,67 @@ void SpecialItemHandler::respond_special_item_premium(int type,
             }
         }
         break;
+    // ORIG 0x16/0x1b/0x1d 三 case 各含独立同形调用块（-O0 不合并，×3 静态点）。
     case 0x16:
+        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
+        flag = 1;
+        break;
     case 0x1b:
+        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
+        flag = 1;
+        break;
     case 0x1d:
-        count = G_CDataManager()->getItemList()->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
         flag = 1;
         break;
     case 0x21:
     {
+        bool b = false;
         if (flag2 == 0 && count != 0 &&
             user->IsRestrictedGoods(count) != 1)
+            b = true;
+        if (b)
         {
             user->SetRestrictedGoods(count);
             int serverCode = 0;
             if (g_SPremiumInfo[ptype].m_useTargetServer == 1)
-                serverCode = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x198+0x1e0
+                serverCode = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x378
             m_owner->SaveFeaturedIdx(user, count, (int)timeB, serverCode);
         }
-        count = G_CDataManager()->getItemList()->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
         flag = 1;
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x3a5, 0);
+        unsigned int characNo = (unsigned int)user->getCurCharacNo();
+        const char* charName = user->getCurCharacName();
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x3a5, 0);
         trace("ONE_DAY_LETHE : BUY_RESTRICTED_PREMIUM, char(%s), char_no(%d)",
-              user->getCurCharacName(), user->getCurCharacNo());
-        if (G_CGameManager()->GetPremiumLetheManager() != 0)
+              charName, characNo);
+        // ORIG：lethe 判空用函数头 local_48 槽；SkillSave 两条各自重发
+        // get_charac_job/getCurCharacSkillR（P48），技能块 = SkillR 视图 +0x46/
+        // +0x1de（SkillSlot.h m_skillSlot/m_skillSlot2 权威偏移，直加数形态）。
+        if (lethe != 0)
         {
             if (user->IsEndLetheAtLogin() != 1)
             {
-                G_CGameManager()->GetPremiumLetheManager()->BackupSkill(user, SKILL_TREE_1);
-                G_CGameManager()->GetPremiumLetheManager()->BackupSkill(user, SKILL_TREE_2);
+                lethe->BackupSkill(user, SKILL_TREE_1);
+                lethe->BackupSkill(user, SKILL_TREE_2);
             }
             user->m_historyLog.SkillSPInfoSave(user, (eSkillSPInfoSaveReason)0);
-            int job = user->get_charac_job();
-            // getCurCharacSkillR() 返回当前角色 SkillSlot 对象（SkillSlot.h 权威布局：
-            // m_skillSlot[204]@+0x46 / m_skillSlot2[204]@+0x1de），ORIG 裸偏移即两棵
-            // 技能树已学技能块，经访问器按树序取用。
-            const SkillSlot* skills =
-                reinterpret_cast<const SkillSlot*>(user->getCurCharacSkillR());
-            user->m_historyLog.SkillSave(skills->get_skillslot_buf(SKILL_TREE_1),
-                                         (unsigned int)job, SKILL_TREE_1,
-                                         (eSkillSaveReason)0);
-            user->m_historyLog.SkillSave(skills->get_skillslot_buf(SKILL_TREE_2),
-                                         (unsigned int)job, SKILL_TREE_2,
-                                         (eSkillSaveReason)0);
+            user->m_historyLog.SkillSave(
+                reinterpret_cast<const _Mastered_skill*>(
+                    user->getCurCharacSkillR() + 0x46),
+                (unsigned int)user->get_charac_job(), SKILL_TREE_1,
+                (eSkillSaveReason)0);
+            user->m_historyLog.SkillSave(
+                reinterpret_cast<const _Mastered_skill*>(
+                    user->getCurCharacSkillR() + 0x1de),
+                (unsigned int)user->get_charac_job(), SKILL_TREE_2,
+                (eSkillSaveReason)0);
         }
         break;
     }
     case 0x4f:
     {
-        count = G_CDataManager()->getItemList()->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
         flag = 1;
         cMyTrace trace(
             __PRETTY_FUNCTION__,
@@ -642,7 +697,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     }
     case 0x53:
     {
-        count = G_CDataManager()->getItemList()->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
         flag = 1;
         cMyTrace trace(
             __PRETTY_FUNCTION__,
@@ -655,7 +710,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     }
     case 0x57:
     {
-        count = G_CDataManager()->getItemList()->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
         flag = 1;
         cMyTrace trace(
             __PRETTY_FUNCTION__,
@@ -668,7 +723,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     }
     case 0x5c:
     {
-        count = G_CDataManager()->getItemList()->GetRestrictCode(restrictItem);
+        count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
         flag = 1;
         cMyTrace trace(
             __PRETTY_FUNCTION__,
@@ -677,10 +732,6 @@ void SpecialItemHandler::respond_special_item_premium(int type,
               user->getCurCharacName(), user->getCurCharacNo());
         break;
     }
-    default:
-        if (count == 0)
-            count = G_CDataManager()->getItemList()->GetRestrictCode(itemIdx);
-        break;
     }
 
     // ---- 公共收尾（switch 之后）----
@@ -770,8 +821,8 @@ void premium_helper_function::send_db(CUser* user, int type, long start, long en
                                       int flag)
 {
     // ORIG 0x0827d0f5：acc_id/target_server 按无符号(lsEj)、start/end 按 long(lsEl) 写。
-    Stream* stream = GlobalData::s_stream_pool->Acquire("SpecialItemHandler.cpp", 0x295);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("SpecialItemHandler.cpp", 0x295),
+                           true);
     guard.operator*()->operator<<((int)0x54);
     guard.operator*()->operator<<((int)user->GetUID());
     guard.operator*()->operator<<((unsigned int)user->get_acc_id());
@@ -787,10 +838,12 @@ void premium_helper_function::send_db(CUser* user, int type, long start, long en
 // premium 项存在且 m_state==2（等待开始）时返回 1。
 int premium_helper_function::is_notify(CUser* user, int type)
 {
-    WongWork::CUserPremium* premium = user->GetPremiumInfo();
-    WongWork::SUserPremiumInfo* info = premium->GetPremiumInfo(type);
+    // ORIG 0x0827d29d：链式内联（GetPremiumInfo 结果不入槽）；m_type 槽直读
+    // 单次，m_state==2 用 == 直比（三目会折 cmp 双物化，异形）。
+    WongWork::SUserPremiumInfo* info =
+        user->GetPremiumInfo()->GetPremiumInfo(type);
     if (info->m_type == type)
-        return (info->m_state == 2) ? 1 : 0;
+        return info->m_state == 2;
     return 0;
 }
 
@@ -836,16 +889,16 @@ int CCeraShop::checkBuyingCondition(CUser* user, unsigned int a, unsigned long i
 // ============================================================================
 int CCeraShop::_CheckConditionPutonAvatar(CUser* user)
 {
-    const CInventory* inv = user->getCurCharacInvenR();
+    // ORIG 两循环各自入口一次 getCurCharacInvenR 静态调用点（P48）。
     for (int i = 0; i <= 9; ++i)
     {
-        const Inven_Item* it = inv->GetInvenRef(0, i);
+        const Inven_Item* it = user->getCurCharacInvenR()->GetInvenRef(0, i);
         if (it != 0 && it->m_addInfo != 0)
             return 1;
     }
     for (int i = 0; i <= 0x68; ++i)
     {
-        const Inven_Item* it = inv->GetInvenRef(2, i);
+        const Inven_Item* it = user->getCurCharacInvenR()->GetInvenRef(2, i);
         if (it != 0 && it->m_addInfo != 0)
             return 1;
     }
@@ -1671,10 +1724,10 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, const CCeraShopGoods* goods,
     int groupIdx = goods->GetGroupIdx();
     if (groupIdx == 1 && param6 == 0)
     {
-        const CInventory* inv = user->getCurCharacInvenR();
-        unsigned int coin = inv->GetCoin();
-        unsigned int payCoin = inv->GetPayCoin();
-        unsigned int eventCoin = inv->GetEventCoin();
+        // ORIG：三取值各自现场 getCurCharacInvenR（P48/P183 禁缓存）。
+        unsigned int coin = user->getCurCharacInvenR()->GetCoin();
+        unsigned int payCoin = user->getCurCharacInvenR()->GetPayCoin();
+        unsigned int eventCoin = user->getCurCharacInvenR()->GetEventCoin();
         int stackCount = goods->GetStackCount();
         if ((int)(coin + payCoin + eventCoin + (unsigned int)stackCount) < 0x186a1)
         {
@@ -1733,9 +1786,13 @@ bool CCeraShop::_CheckValidCount(const CCeraShopGoods** goodsList)
             ++typeCount[type];
             if (specialFlag)
             {
-                // ORIG 0x8323cf4：min(max(count-1,1),1) 恒为 1 —— special 商品
-                // 出现即把该 type 计数钳回 1（不参与限购超额判定）。
-                typeCount[type] = 1;
+                // ORIG 0x8323cf4：以 std::max/std::min 实调钳制
+                // min(1, max(count, count-1))（special 商品出现即回 1，
+                // 不参与限购超额判定；两算法调用点照抄）。
+                int dec = typeCount[type] - 1;
+                int mx = std::max(typeCount[type], dec);
+                int one = 1;
+                typeCount[type] = std::min(one, mx);
             }
         }
     }
@@ -1755,23 +1812,24 @@ bool CCeraShop::_CheckValidCount(const CCeraShopGoods** goodsList)
             continue;
         if (goodsList[i]->isStackBuyable())
         {
-            int restrictCode = G_CDataManager()->getItemList()->GetRestrictCode(
+            int restrictCode = G_CDataManager()->m_itemList->GetRestrictCode(
                 goodsList[i]->GetItemIdx());
             if (restrictCode != 0)
             {
-                // 按商品指针找到已有计数并自增；否则插入新项 count=1。
-                bool found = false;
-                for (std::vector<GoodsCount>::iterator it = counts.begin();
-                     it != counts.end(); ++it)
+                // 按商品指针找到已有计数并自增；ORIG 以循环后 it==end() 判缺
+                // （operator== 调用点，无 bool 标志；begin/end 各一次、判缺复用
+                // 迭代器无 end 重发）。
+                std::vector<GoodsCount>::iterator itBeg = counts.begin();
+                std::vector<GoodsCount>::iterator itEnd = counts.end();
+                for (; itBeg != itEnd; ++itBeg)
                 {
-                    if (it->first == goodsList[i])
+                    if (itBeg->first == goodsList[i])
                     {
-                        ++(it->second);
-                        found = true;
+                        ++(itBeg->second);
                         break;
                     }
                 }
-                if (!found)
+                if (itBeg == itEnd)
                     counts.push_back(GoodsCount(goodsList[i], 1));
             }
         }
@@ -1842,7 +1900,10 @@ void CCeraShop::setOriginalItem(int itemIdx)
 // ============================================================================
 int CCeraShop::getOriginalItem()
 {
-    return m_originalItemIdx > 0 ? m_originalItemIdx : 0;
+    // ORIG 0x08327ef4：if-return 分支岛形（4.4 三目会折 cmovs，异形）。
+    if (m_originalItemIdx > 0)
+        return m_originalItemIdx;
+    return 0;
 }
 
 // ============================================================================
@@ -2086,38 +2147,42 @@ void CCeraShop::_ClosePremium(CUser* user, int type)
 {
     WongWork::CUserPremium* premium = user->GetPremiumInfo();
     std::vector<WongWork::SUserPremiumInfo> list;
-    WongWork::SUserPremiumInfo* info = premium->GetPremiumInfo(type);
-    if (info->m_type != 0)
-        list.push_back(*info);
+    // ORIG 0x08327be4/0x8327bfa：GetPremiumInfo(type) 判空与取值两次独立调用
+    // （P48 无 CSE）。
+    if (premium->GetPremiumInfo(type)->m_type != 0)
+        list.push_back(*premium->GetPremiumInfo(type));
 
     int curSec = GlobalData::s_systemTime_.getCurSec();
     int nextSec = curSec + 1;
     unsigned int serverCode = 0;
-    for (size_t i = 0; i < list.size(); ++i)
+    // ORIG 0x8327c4e..：非 const iterator for（begin 一次、end 逐轮、7×
+    // operator-> 逐点重发，P157/P175 —— 禁缓存引用/索引）。
+    for (std::vector<WongWork::SUserPremiumInfo>::iterator it = list.begin();
+         it != list.end(); ++it)
     {
-        const WongWork::SUserPremiumInfo& e = list[i];
         serverCode = 0;
         // m_useTargetServer(+0x5c)==1 → serverCode = m_serverEnvir.m_serverGroup
         // （CEnvironment+0x378）
-        if (g_SPremiumInfo[e.m_type].m_useTargetServer == 1)
+        if (g_SPremiumInfo[it->m_type].m_useTargetServer == 1)
         {
             serverCode = (unsigned int)G_CEnvironment()->m_serverEnvir.m_serverGroup;
         }
-        Stream* stream = GlobalData::s_stream_pool->Acquire("CeraShop.cpp", 0x20e7);
-        CStreamGuard guard(stream, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("CeraShop.cpp", 0x20e7),
+                               true);
         guard.operator*()->operator<<((int)0x54);   // 0x54 头（ORIG lsEi）
         guard.operator*()->operator<<((int)user->GetUID());   // lsEi
         guard.operator*()->operator<<((unsigned int)user->get_acc_id());  // ORIG lsEj
-        guard.operator*()->operator<<((int)e.m_type);   // lsEi
+        guard.operator*()->operator<<((int)it->m_type);   // lsEi
         guard.operator*()->operator<<((long)curSec);    // ORIG lsEl
         guard.operator*()->operator<<((long)nextSec);   // ORIG lsEl
-        guard.operator*()->operator<<((int)e.m_flag);   // lsEi
+        guard.operator*()->operator<<((int)it->m_flag);   // lsEi
         guard.operator*()->operator<<((unsigned int)serverCode);  // ORIG lsEj
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
         WongWork::CHandlePremium::handleSetUserPremium(
-            user, (ENUM_PREMIUM_TYPE)e.m_type, curSec, nextSec, e.m_flag, false);
-        WongWork::CHandlePremium::handlePremiumEffect(user, (ENUM_PREMIUM_TYPE)e.m_type);
-        WongWork::CHandlePremium::handleNotifyPremiumInfo(user, e.m_type, 0);
+            user, (ENUM_PREMIUM_TYPE)it->m_type, curSec, nextSec, it->m_flag, false);
+        WongWork::CHandlePremium::handlePremiumEffect(user,
+            (ENUM_PREMIUM_TYPE)it->m_type);
+        WongWork::CHandlePremium::handleNotifyPremiumInfo(user, it->m_type, 0);
     }
 }
 
@@ -2134,8 +2199,8 @@ void CCeraShop::_onBuySpecialItem(CUser* user, ENUM_CERA_SPECIALITEM,
     unsigned int k = (unsigned int)(itemIdx - 0x3f);
     if (k < 0xb && ((1u << (k & 0x1f)) & 0x7dfu) != 0)
     {
-        Stream* stream = GlobalData::s_stream_pool->Acquire("CeraShop.cpp", 0x1971);
-        CStreamGuard guard(stream, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("CeraShop.cpp", 0x1971),
+                               true);
         guard.operator*()->operator<<((int)0xb4);
         guard.operator*()->operator<<(-1);
         SIG_SAVE_CRAZY_LEVELUP_EVENT* buf =
@@ -2170,17 +2235,18 @@ int CCeraShop::_processBoosterSelect(CUser* user, int itemIdx, int count, int& r
 
     std::vector<stStackableBoosterItemInfo_t> boosterList;
     CStackableItem* stackable = static_cast<CStackableItem*>(item);
-    std::map<std::pair<char, char>,
-             std::vector<stStackableBoosterItemInfo_t> >& bmap =
+    // ORIG const 视图（find/end/==/-> 与 vector operator[] 全部 const 形）。
+    const std::map<std::pair<char, char>,
+                   std::vector<stStackableBoosterItemInfo_t> >& bmap =
         stackable->m_booster.m_map;
 
     std::map<std::pair<char, char>,
-             std::vector<stStackableBoosterItemInfo_t> >::iterator it =
+             std::vector<stStackableBoosterItemInfo_t> >::const_iterator it =
         bmap.find(std::make_pair(c1, c2));
     if (it == bmap.end())
         return 0;
 
-    std::vector<stStackableBoosterItemInfo_t>& src = it->second;
+    const std::vector<stStackableBoosterItemInfo_t>& src = it->second;
     for (std::vector<Inven_Item>::size_type i = 0; i < items.size(); ++i)
     {
         for (std::vector<stStackableBoosterItemInfo_t>::size_type j = 0;
@@ -2202,7 +2268,7 @@ int CCeraShop::_processBoosterSelect(CUser* user, int itemIdx, int count, int& r
                                b->m_byteA);
     }
 
-    int restrictCode = G_CDataManager()->getItemList()->GetRestrictCode(itemIdx);
+    int restrictCode = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
     if (restrictCode != 0 && !user->IsRestrictedGoods(restrictCode))
     {
         user->SetRestrictedGoods(restrictCode);
@@ -2214,11 +2280,17 @@ int CCeraShop::_processBoosterSelect(CUser* user, int itemIdx, int count, int& r
 
 // ============================================================================
 // _processAdditionalItem —— ORIG 0x083267a2 (T)
-// itemIdx==1（金币）→ _processCoin + 推入 items；否则按物品类型分派：
-//   可叠特殊物品（type 0x10/0x22）→ insertItemIntoInventory/邮件兜底；
-//   头像 → AddAvatarItem/邮件兜底 + genIPGNo + findString + SendAradEventItemLog；
-//   非头像非造物 → _processItem（0xc1 时嵌套发放 0x10）；造物 → _processCreature。
-//   循环前 autoUnsealItem；每轮按可叠/包（_isPackageItem）判断 push_back。
+// 结构（报告 /tmp/pai_report.md 全量逐块对照）：
+//   getCurCharacR()==0 → return；itemIdx==1 → _processCoin + Inven_Item + push_back。
+//   否则 errIdx 局部恒 -1 → ORIG -O0 下 `if (errIdx != -1)` 为死块（P184 照抄：
+//   两枚 PacketGuard 发包 + Inven_Item 推入），else 主路径：
+//   find_item；可叠特殊物品（type 0x10/0x22）→ insertItemIntoInventory/邮件兜底+push_back；
+//   一般路径：agency 清零 + genIPGNo(头像) + Inven_Item 组装 + SetUpgrade(flag/五值) +
+//   autoUnsealItem + 计数循环（头像 AddAvatarItem/邮件；造物 _processCreature；
+//   否则 _processItem（0xc1 时前置双 find + 嵌套发放 0x10 count=0xc352））。
+// 【§6.2 验收标注】orig=765 our=732；P167 调用点差集归零（仅余 N78 两处
+// rep stos→memset call：nameBuf 0x200 / agency 0x18）；其余 |gap| 为 N82 帧
+// 槽号 + P184 死块 rep 段形态残余 ⇒ 语义完成、byte 层 N 封顶。
 // ============================================================================
 void CCeraShop::_processAdditionalItem(CUser* user, unsigned long itemIdx,
                                        unsigned short slot, unsigned char a,
@@ -2238,144 +2310,167 @@ void CCeraShop::_processAdditionalItem(CUser* user, unsigned long itemIdx,
         return;
     }
 
-    // ORIG 栈上 name 缓冲（0x200）与 error 分支局部（local_58 恒为 -1，走 find 路径）。
-    char nameBuf[0x200];
+    int notifySize = 0;      // ORIG -0x5c
+    int notifyCount = 0;     // ORIG -0x58
+    int errIdx = -1;         // ORIG -0x54；-O0 下恒 -1 → 下方 if 为死块（P184）
+    char nameBuf[0x200];     // ORIG -0x3ed
     std::memset(nameBuf, 0, sizeof(nameBuf));
+    int nameLen = 0;         // ORIG -0x50
 
-    CItem* item = G_CDataManager()->find_item((int)itemIdx);
-    if (item == 0)
-        return;
-
-    // is_stackable && GetItemType() ∈ {0x10, 0x22}
-    bool specialStack = false;
-    if (item->is_stackable())
+    if (errIdx != -1)
     {
-        int t = item->GetItemType();
-        if (t == 0x10 || t == 0x22)
-            specialStack = true;
+        // —— -O0 静态不可达块：照抄 ORIG 0x134..0x303 发射序 ——
+        PacketGuard notify;
+        notify.put_header(1, notifySize);
+        notify.put_byte(1);
+        notify.put_int(notifyCount);
+        notify.finalize(true);
+        user->Send(notify);
+
+        Inven_Item errItem;
+        errItem.m_addInfo = errIdx;
+        errItem.m_addInfo2 = (int)slot;
+        items.push_back(errItem);
+
+        PacketGuard errorMsg;
+        errorMsg.put_header(0, 0xc);
+        errorMsg.put_byte(0);
+        errorMsg.put_short(0);
+        errorMsg.put_byte(0);
+        errorMsg.put_int(nameLen);
+        errorMsg.put_str(nameBuf, nameLen);
+        errorMsg.finalize(true);
+        user->Send(errorMsg);
     }
-
-    if (specialStack)
+    else
     {
+        CItem* item = G_CDataManager()->find_item((int)itemIdx);
+        if (item == 0)
+            return;
+
+        // 可叠特殊物品：is_stackable && GetItemType() ∈ {0x10, 0x22}
+        // （ORIG 短路形：非 stackable 直落 false 岛；两次 GetItemType 独立求值 P48）
+        if (item->is_stackable() &&
+            (item->GetItemType() == 0x10 || item->GetItemType() == 0x22))
+        {
+            int resSlot = -1;                // ORIG 先写 -0x44=-1 再组装
+            Inven_Item invItem;
+            invItem.m_addInfo = (int)itemIdx;
+            invItem.m_addInfo2 = (int)slot;
+            item->make_item(invItem);
+            resSlot = user->getCurCharacInvenW()->insertItemIntoInventory(
+                invItem, (eItemAddReason)0xf, true, false);
+            if (resSlot != -1)
+                user->SendUpdateItemList(CUser::eSendTarget_1, ENUM_ITEMSPACE_0, resSlot);
+            else
+                CMailBoxHelper::ReqDBSendNewMailCashShop(
+                    user, invItem, 0, user->getCurCharacNo(), true, 0, 0);
+            items.push_back(invItem);
+            return;
+        }
+
+        // 一般路径
+        unsigned int count = slot;
+        if (item->is_stackable())
+            count = 1;
+
+        char agency[0x18];
+        std::memset(agency, 0, sizeof(agency));
+        if (item->IsAvatarItem())
+        {
+            unsigned int characNo = (unsigned int)user->getCurCharacNo();
+            WongWork::CGenUniqueNo::genIPGNo(
+                (WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE)3, characNo, agency);
+        }
+
         Inven_Item invItem;
         invItem.m_addInfo = (int)itemIdx;
         invItem.m_addInfo2 = (int)slot;
         item->make_item(invItem);
-        CInventory* inv = user->getCurCharacInvenW();
-        int resSlot = inv->insertItemIntoInventory(
-            invItem, (eItemAddReason)0xf, true, false);
-        if (resSlot != -1)
-            user->SendUpdateItemList(CUser::eSendTarget_1, ENUM_ITEMSPACE_0, resSlot);
-        else
+
+        if (flag != 0)
+            invItem.SetUpgrade(flag);
+        if (invItem.m_addInfo == 0x71db || invItem.m_addInfo == 0x72d0 ||
+            invItem.m_addInfo == 0x742d || invItem.m_addInfo == 0x7556 ||
+            invItem.m_addInfo == 0x7661)
+            invItem.SetUpgrade(0xc);
+
+        autoUnsealItem(item, invItem);
+
+        int accCera = 0;  // ORIG -0x78 累积出参（_processItem/_processCreature 共用）
+
+        for (int i = 0; i < (int)count; ++i)
         {
-            unsigned int characNo = (unsigned int)user->getCurCharacNo();
-            CMailBoxHelper::ReqDBSendNewMailCashShop(
-                user, invItem, 0, characNo, true, 0, 0);
-        }
-        items.push_back(invItem);
-        return;
-    }
-
-    // 一般路径
-    unsigned int count = slot;
-    if (item->is_stackable())
-        count = 1;
-
-    char agency[0x18];
-    std::memset(agency, 0, sizeof(agency));
-    if (item->IsAvatarItem())
-    {
-        unsigned int characNo = (unsigned int)user->getCurCharacNo();
-        WongWork::CGenUniqueNo::genIPGNo(
-            (WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE)3, characNo, agency);
-    }
-
-    Inven_Item invItem;
-    invItem.m_addInfo = (int)itemIdx;
-    invItem.m_addInfo2 = (int)slot;
-    item->make_item(invItem);
-
-    if (flag != 0)
-        invItem.SetUpgrade(flag);
-    if (itemIdx == 0x71db || itemIdx == 0x72d0 || itemIdx == 0x742d ||
-        itemIdx == 0x7556 || itemIdx == 0x7661)
-        invItem.SetUpgrade(0xc);
-
-    autoUnsealItem(item, invItem);
-
-    int local_7c = 0;  // ORIG +0x7c 累积出参（_processItem/_processCreature 使用）
-
-    for (unsigned int i = 0; i < count; ++i)
-    {
-        if (item->IsAvatarItem())
-        {
-            int avatarPeriod = ((CEquipItem*)item)->getAvatarPeriod(b);
-            CInventory* inv = user->getCurCharacInvenW();
-            int avSlot = inv->AddAvatarItem(
-                (int)itemIdx, avatarPeriod, false, (char)a, (char)b, agency,
-                eAvatarItemAddReason_0, false, 0);
-            if (avSlot >= 0)
-                user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)1, avSlot);
+            if (!item->IsAvatarItem())
+            {
+                if (!item->IsCreatureItem())
+                {
+                    long curSec = GlobalData::s_systemTime_.getCurSec();
+                    _processItem(user, invItem, 0, accCera, curSec, true, false,
+                                 items, param);
+                    // ORIG 双 find_item 先于条件（0xa5e..0xa76），0xc1 判定在后。
+                    CItem* found = G_CDataManager()->find_item(invItem.m_addInfo);
+                    CItem* item10 = G_CDataManager()->find_item(0x10);  // ORIG 无空判
+                    if (invItem.m_addInfo == 0xc1 && found != 0)
+                    {
+                        std::vector<Inven_Item> nestedItems;
+                        stCeraShopItemParam_t nestedParam;
+                        int nestedRestrict = 0;
+                        Inven_Item nestedItem;
+                        item10->make_item(nestedItem);
+                        nestedItem.m_addInfo = 0x10;
+                        nestedItem.m_addInfo2 = 1;
+                        _processItem(user, nestedItem, 0xc352, nestedRestrict, curSec,
+                                     false, true, nestedItems, nestedParam);
+                    }
+                }
+                else
+                {
+                    int creatureSlot = 0;  // ORIG -0x94 出参
+                    _processCreature(user, invItem, creatureSlot, accCera, false,
+                                     item->getUsablePeriod(),
+                                     item->getExpirationDate());
+                }
+            }
             else
             {
-                int expireDate = 0;
-                if (avatarPeriod != 0 && avatarPeriod != 0x16d)
+                int avatarPeriod = ((CEquipItem*)item)->getAvatarPeriod(b);
+                int avSlot = user->getCurCharacInvenW()->AddAvatarItem(
+                    (int)itemIdx, avatarPeriod, false, (char)a, (char)b, agency,
+                    eAvatarItemAddReason_0, false, 0);
+                if (avSlot >= 0)
+                    user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)1,
+                                             avSlot);
+                else
                 {
-                    expireDate = GlobalData::s_systemTime_.getCurSec();
-                    expireDate += avatarPeriod * 0x15180;
+                    int expireDate = 0;
+                    if (avatarPeriod != 0 && avatarPeriod != 0x16d)
+                    {
+                        expireDate = GlobalData::s_systemTime_.getCurSec();
+                        expireDate += avatarPeriod * 0x15180;
+                    }
+                    const char* msg = g_scriptStringManager_.findString(
+                        4, "game_server_msg_104", (bool*)0);
+                    int msgLen = std::strlen(msg);
+                    int characNo = user->getCurCharacNo();
+                    CMailBoxHelper::ReqDBSendNewAvatarMail(
+                        user, characNo, (int)itemIdx, expireDate, (char)a, (char)b,
+                        agency, msg, msgLen);
                 }
-                const char* msg = g_scriptStringManager_.findString(
-                    4, "game_server_msg_104", (bool*)0);
-                std::size_t msgLen = msg ? std::strlen(msg) : 0;
-                int characNo = user->getCurCharacNo();
-                CMailBoxHelper::ReqDBSendNewAvatarMail(
-                    user, characNo, (int)itemIdx, expireDate, (char)a, (char)b,
-                    agency, msg, (int)msgLen);
+                user->SendAradEventItemLog(itemIdx, 1);
             }
-            user->SendAradEventItemLog((unsigned long)itemIdx, 1);
-        }
-        else if (item->IsCreatureItem())
-        {
-            int creatureSlot = 0;  // ORIG local_94 出参（本调用链内死存储）
-            _processCreature(user, invItem, creatureSlot, local_7c, false,
-                             item->getUsablePeriod(), item->getExpirationDate());
-        }
-        else
-        {
-            long curSec = GlobalData::s_systemTime_.getCurSec();
-            _processItem(user, invItem, 0, local_7c, curSec, true, false, items,
-                         param);
-            // ORIG 嵌套：0xc1 商品追加发放固定物品 0x10（count=0xc352，save=true）。
-            if (itemIdx == 0xc1)
+            if (!item->is_stackable())
             {
-                CItem* found = G_CDataManager()->find_item((int)itemIdx);
-                CItem* item10 = G_CDataManager()->find_item(0x10);  // ORIG 无空判
-                if (found != 0)
-                {
-                    std::vector<Inven_Item> nestedItems;
-                    stCeraShopItemParam_t nestedParam;
-                    int nestedRestrict = 0;
-                    Inven_Item nestedItem;
-                    item10->make_item(nestedItem);
-                    nestedItem.m_addInfo = 0x10;
-                    nestedItem.m_addInfo2 = 1;
-                    _processItem(user, nestedItem, 0xc352, nestedRestrict, curSec,
-                                 false, true, nestedItems, nestedParam);
-                }
-            }
-        }
-        if (!item->is_stackable())
-        {
-            items.push_back(invItem);
-        }
-        else
-        {
-            if (!_isPackageItem(item))
                 items.push_back(invItem);
+            }
+            else
+            {
+                if (!_isPackageItem(item))
+                    items.push_back(invItem);
+            }
         }
     }
 }
-
 }  // namespace WongWork
 
 // ---- DB_SaveFeaturedGoodsIdx::makeRequest —— ORIG 0x0841b2da (T) ----
@@ -2385,8 +2480,8 @@ void CCeraShop::_processAdditionalItem(CUser* user, unsigned long itemIdx,
 void DB_SaveFeaturedGoodsIdx::makeRequest(unsigned int accId, int characNo,
                                           int restrictCode, int curSec, int d)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x4dfb);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x4dfb),
+                           true);
     guard.operator*()->operator<<((int)0x52);
     guard.operator*()->operator<<((int)-1);
     guard.operator*()->operator<<((unsigned int)accId);

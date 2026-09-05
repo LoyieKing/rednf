@@ -28,7 +28,13 @@ public:
     int m_targetingBonus[22];           // +0x4c
     std::vector<int> m_targetingBonusStr[22]; // +0xa4
     int m_keepDistance;                 // +0x1ac
-    std::vector<int> m_keepRange[5];    // +0x1b0/+0x1bc/+0x1c8/+0x1d4/+0x1e0
+    // 5 个独立成员（ORIG C1 0x08366f48 对 +0x1b0..0x1e0 逐个发射 C1Ev，
+    // 非数组倒计数循环）；与 CharacterAIA2.cpp 0x224 域定义同步。
+    std::vector<int> m_keepRange0;      // +0x1b0
+    std::vector<int> m_keepRange1;      // +0x1bc
+    std::vector<int> m_keepRange2;      // +0x1c8
+    std::vector<int> m_keepRange3;      // +0x1d4
+    std::vector<int> m_keepRange4;      // +0x1e0
     int m_intelligence;                 // +0x1ec
     int m_field1f0;                     // +0x1f0
     int m_field1f4;                     // +0x1f4

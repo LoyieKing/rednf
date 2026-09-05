@@ -30,10 +30,8 @@ static int parseStringLine(char* line, int* key, char** value)
     // 前导空白（' '/'\t'）跳过；空行/换行起始 → 失败（ORIG 返回非解析态）
     while (*p)
     {
-        if (*p == '\r')
-            return 0;
-        if (*p == '\n')
-            return 0;
+        if (*p == '\r' || *p == '\n')
+            return 0;                   // ORIG @0x8ad4931 共享 return-0 岛
         if (*p == ' ' || *p == '\t')
         {
             ++p;
@@ -57,20 +55,23 @@ static int parseStringLine(char* line, int* key, char** value)
             valueStart = p;
             break;
         }
-        if (*p <= '/')
-            return -1;                  // key 非 [0-9] 字符
-        if (*p > '9')
-            return -1;
+        if (*p <= '/' || *p > '9')
+            return -1;                  // key 非 [0-9] 字符（ORIG 共享 -1 岛）
         ++p;
     }
     if (valueStart == 0)
         return -1;                      // 未发现 '>' 分隔
+    // ORIG @0x8ad49fe：空 key（valueStart-keyStart==1，即 '>' 紧跟或仅隔）
+    // 同样返回 -1（表达式与下一条重复计算，P48 无 CSE 照抄）。
+    if ((int)(valueStart - keyStart) == 1)
+        return -1;
 
-    const int keyDigits = static_cast<int>(valueStart - keyStart) - 1;
-    if (keyDigits > 10)
+    if ((int)(valueStart - keyStart) - 1 > 10)
         return -2;                      // ORIG cmp $0xa 上限
 
-    // value 内扫描：'\r'/'\n' 终结该行；"\\n" 转义真实换行；其余 '\\' 消除。
+    // value 内扫描：'\r'/'\n' 终结该行；"\n" 转义真实换行并左移补位。
+    // ORIG @0x8ad4a4f 对 '\' 后非 'n' 一律不处理（两 jne 直落 i++，无删
+    // 反斜杠逻辑）——此前 EXTRA 的删除循环系误读，已删。
     p = valueStart;
     while (*p)
     {
@@ -79,6 +80,8 @@ static int parseStringLine(char* line, int* key, char** value)
             *p = '\0';
             break;
         }
+        // ORIG @0x8ad4a5e-0x163：命中 "\n" 转换+左移后与 miss 路径共享同一条
+        // p++（@0x163），不 continue 跳过步进。
         if (*p == '\\')
         {
             if (p[1] == 'n')
@@ -87,12 +90,7 @@ static int parseStringLine(char* line, int* key, char** value)
                 // 左移覆盖被吃掉的第二个字符（ORIG copy 循环）。
                 for (char* q = p + 1; *q; ++q)
                     *q = *(q + 1);
-                continue;
             }
-            // 其余转义：删除 '\' 本身，保留后续字面字符。
-            for (char* q = p; *q; ++q)
-                *q = *(q + 1);
-            continue;
         }
         ++p;
     }
@@ -109,7 +107,10 @@ static int parseStringLine(char* line, int* key, char** value)
 // ---------------------------------------------------------------------------
 bool StringResource::add(int id, const CharString& value)
 {
-    return m_strings.insert(std::make_pair(id, value)).second;
+    // ORIG @0x8ad47d0：insert(std::pair<int, CharString>(id, value)) —— 临时
+    // 值 pair 直构（C1IRiRKS0_ 引用实参形）→ EOS_ 右值转 pair<const int,...>
+    // → insert。make_pair 会先物化 make_pair 调用改变装载序（P61/P81）。
+    return m_strings.insert(std::pair<int, CharString>(id, value)).second;
 }
 
 void StringResource::set(int id, const CharString& value)
@@ -139,56 +140,63 @@ bool StringResource::loadFromString(char* text, int length, CharString* error)
 {
     m_strings.clear();
 
+    // toTString(const char*)：ORIG _Z9toTStringPKc @0x08adeb75（恒等转换，
+    // 定义 SyncScriptDeps.cpp）；本 TU 属字符串底座，按 InitScriptProducers_5
+    // 先例局部声明避免拖入 SyncScriptDeps.h 依赖。
+    const char* toTString(const char* pszSrc);
+
     int lineNo = 0;                 // -0x20
     char* lineStart = text;         // -0x1c
     int i = 0;                      // -0x18
-    while (i <= length)
+    do
     {
-        const int c = static_cast<int>(text[i]);
-        if (c == '\n')
+        // ORIG @0x2c-0x4a：c 为 byte 槽（-0x11，mov %al）；三条件
+        // cmpb je/cmpb je/cmp jne 全部直跳，共享行末 i++（@0x1fd）——
+        // 非行内联 \0/补偿块。
+        const char c = text[i];
+        if (c == '\n' || c == '\r' || i == length)
         {
+            ++lineNo;                   // 行号在边界块首自增（@0x50）
             text[i] = '\0';
+            char* val = 0;              // -0x34（ORIG @0x5d 唯一 0 初始化）
+            int key;                    // -0x30
+            int r = parseStringLine(lineStart, &key, &val);   // -0x10
+            if (r != 0)
+            {
+                // ORIG：仅 error!=0 时报错并 return false；error==0 时
+                // 忽略解析失败继续（@0x87 je →val 检查）。
+                if (error != 0)
+                {
+                    CharString msg;     // -0x2c 具名临时 + aSER + 具析构
+                    msg.format("Parse error : line:%d reason:%d", lineNo, r);
+                    *error = msg;
+                    return false;
+                }
+            }
+            if (val != 0)               // ORIG @0xf5 判 val（非 key）
+            {
+                CharString v(toTString(val));      // -0x28（toTString 恒等）
+                bool ok = add(key, v);             // -0x9 byte 槽
+                if (!ok)
+                {
+                    // 重复 key：写 err 后**整表加载失败返回**（@0x16c-0x1d5）。
+                    if (error != 0)
+                    {
+                        CharString dupMsg;         // -0x24
+                        dupMsg.format("Duplicated key : line:%d key:%d",
+                                      lineNo, key);
+                        *error = dupMsg;
+                    }
+                    return false;
+                }
+            }
+            // \r\n 连续补偿在 val 处理之后（@0x1d7），随后 lineStart 前移。
+            if (c == '\r' && text[i + 1] == '\n')
+                ++i;
+            lineStart = text + i + 1;
         }
-        else if (c == '\r')
-        {
-            text[i] = '\0';
-            if (text[i + 1] == '\n')
-                ++i;                                // ORIG 双字节补偿
-        }
-        else if (i < length)
-        {
-            ++i;
-            continue;
-        }
-        else
-        {
-            // i==length 且非换行：最后一行截断（ORIG 尾部 movb $0）
-            text[length] = '\0';
-        }
-
-        // —— 解析本行（lineNo 与 ORIG 行号语义：++ 于行末消费后）——
-        lineNo += 1;
-        int key = 0;
-        char* val = 0;
-        const int r = parseStringLine(lineStart, &key, &val);
-        if (r != 0)
-        {
-            if (error)
-                *error = CharString().format(
-                    "Parse error : line:%d reason:%d", lineNo, r);
-            return false;                            // ORIG 返回 $0
-        }
-        if (key != 0)
-        {
-            CharString v(val);
-            if (!add(key, v) && error)
-                *error = CharString().format(
-                    "Duplicated key : line:%d key:%d", lineNo, key);
-        }
-
-        lineStart = text + i + 1;
-        ++i;                                         // 移入下一行起始
-    }
+        ++i;
+    } while (i <= length);
     return true;
 }
 
@@ -203,15 +211,27 @@ bool StringResource::loadFromResource(void*, int, CharString*)
 }
 
 // ---------------------------------------------------------------------------
-// loadFromBinary —— ORIG T 0x08ad4e04。
-// 分支一（SC01）：magic "S","C","0","1"；origSize=*(data+4)；payload 取
-// round4(size+3) 字节 new[]；running-key XOR 解密（k 初值 0x5819af17，
-// 每 dword：v^=k; k^=v）；convertFromUtf8(payload, origSize, ws) →
-// convertToCharString(ws) 赋值。
-// 分支二（UTF-8 BOM EF BB BF）：convertFromUtf8(data+3, size-3, ws)。
-// 分支三（UTF-16LE BOM FF FE）：WideString(data+2, (size-2)/2)。
-// 默认分支：CharString(data, size)。之后统一
-// loadFromString(cs.c_str(), cs.length(), err)，透传结果。
+// loadFromBinary —— ORIG T 0x08ad4e04（报告全文；§6.2 大函数口径）。
+// 【验收 batch-11】orig_insns=361 / our=363（gap −2）；P167 调用点差集归零
+// （new[]/delete[]×2、memcpy×2、convertFromUtf8×2、convertToCharString×3、
+// CharString D1×10/aSER×4/WString D1×6 全命中）。残余 2 行 = round4 的
+// 4.1 sar/shr 有符号折叠 vs 4.4 cmovs（N81 族）与 XOR 循环体 shl+add vs
+// 4.4 lea 折叠（N18a/P30），封顶勿再追。
+// 分支一（SC01）：magic "S","C","0","1"；origSize=*(int*)(data+4)；
+// payloadBytes=(size+3)/4*4（ORIG sar/shr 有符号 /4*4 形态 @0x069）；
+// new[](payloadBytes) 后 memcpy(buf, data+8, size)（拷贝长度=size，
+// P171 照抄）；running-key XOR：k0@-0x24 先于 new、cur/key 二次复制槽
+// （-0x18/-0x14）、循环体三处地址重算（*p=*p^key; key^=*p，P38/P157）；
+// convertFromUtf8(buf, origSize, ws) 结果落 byte 槽，delete[] 带显式判空
+// 守卫，失败 return false（ws 具析构）；成功 content=convertToCharString(ws)。
+// 分支二（UTF-8 BOM EF BB BF）：同形（无 buf）。
+// 分支三（UTF-16LE BOM FF FE）：ORIG 直接 WideString(data+2,(size-2)/2)
+// （wchar_t* 别名字节借用，i386 wchar=4B；P171 照抄，不做大小端重组）。
+// 默认分支：具名 CharString(data,size) 临时 + op= + 具析构。
+// 尾部统一（ORIG @0x3e3）：copyBuf=new char[content.length()+1];
+// memcpy(copyBuf, content.c_str(), length+1); loadFromString(copyBuf,
+// content.length(), error)（length 共调用 3 次，P48 无 CSE）;
+// if (copyBuf) delete[] copyBuf; 返回结果 byte 槽聚合。
 // ---------------------------------------------------------------------------
 bool StringResource::loadFromBinary(const unsigned char* data, int size, CharString* error)
 {
@@ -220,60 +240,57 @@ bool StringResource::loadFromBinary(const unsigned char* data, int size, CharStr
     if (size > 4 && data[0] == 'S' && data[1] == 'C' &&
         data[2] == '0' && data[3] == '1')
     {
-        const int origSize =
-            *reinterpret_cast<const int*>(data + 4);       // -0x2c ORIG data+4 dword
-        const unsigned int payloadBytes =
-            static_cast<unsigned int>((size + 3) & ~3);   // round4(size+3)
+        int origSize = *reinterpret_cast<const int*>(data + 4);     // -0x2c
+        int payloadBytes = (size + 3) / 4 * 4;                      // -0x28
+        unsigned int k0 = 0x5819af17u;                              // -0x24
+        char* buf = new char[payloadBytes];                         // -0x20
+        memcpy(buf, data + 8, size);
 
-        char* payload = new char[payloadBytes];
-        memcpy(payload, data + 8, payloadBytes);     // ORIG 源 data+8
-
-        unsigned int k = 0x5819af17u;
-        for (unsigned int wi = 0; wi < payloadBytes / 4; ++wi)
+        char* cur = buf;                                            // -0x18
+        unsigned int key = k0;                                      // -0x14
+        for (unsigned int i = 0; i < (unsigned int)payloadBytes / 4; ++i)
         {
-            unsigned int* w =
-                reinterpret_cast<unsigned int*>(payload + wi * 4);
-            *w ^= k;
-            k ^= *w;
+            *reinterpret_cast<unsigned int*>(cur + i * 4) =
+                *reinterpret_cast<unsigned int*>(cur + i * 4) ^ key;
+            key = key ^ *reinterpret_cast<unsigned int*>(cur + i * 4);
         }
 
         WideString ws;
-        const bool converted = convertFromUtf8(payload, origSize, &ws);
-        delete[] payload;
+        bool converted = convertFromUtf8(buf, origSize, &ws);
+        delete[] buf;                        // ORIG @0x12b 单对判空守卫为
+                                             // 编译器隐式形（P141），勿再显式
         if (!converted)
-            return false;                             // ORIG 失败路径返 0
-        content = convertToCharString(ws);
-    }
-    else if (size > 3 && data[0] == '\xef' &&
-             data[1] == '\xbb' && data[2] == '\xbf')
-    {
-        WideString ws;
-        if (!convertFromUtf8(reinterpret_cast<const char*>(data + 3), size - 3, &ws))
             return false;
         content = convertToCharString(ws);
     }
-    else if (size > 2 && data[0] == '\xff' && data[1] == '\xfe')
+    // BOM 常量用无符号立即数值（ORIG cmp $0xef/$0xbb/$0xbf,%al）：
+    // '\xef' 等 char 字面量为负值，与 uchar 提升值恒不等，4.4 折叠死分支。
+    else if (size > 3 && data[0] == 0xef &&
+             data[1] == 0xbb && data[2] == 0xbf)
     {
-        // UTF-16LE → wchar_t(i386 上同为 4 字节 UCS-2 语义槽)——ORIG 经
-        // WideStringC1EPKwi 直接借字节；重建按小端重组。
-        const int wchCount = (size - 2) / 2;
-        std::vector<wchar_t> wbuf(wchCount + 1);
-        for (int wi = 0; wi < wchCount; ++wi)
-            wbuf[wi] = static_cast<wchar_t>(
-                static_cast<unsigned char>(data[2 + wi * 2]) |
-                (static_cast<unsigned char>(data[3 + wi * 2]) << 8));
-        wbuf[wchCount] = L'\0';
-        WideString ws(&wbuf[0], wchCount);
+        WideString ws;
+        bool converted = convertFromUtf8(
+            reinterpret_cast<const char*>(data + 3), size - 3, &ws);
+        if (!converted)
+            return false;
+        content = convertToCharString(ws);
+    }
+    else if (size > 2 && data[0] == 0xff && data[1] == 0xfe)
+    {
+        WideString ws(reinterpret_cast<const wchar_t*>(data + 2),
+                      (size - 2) / 2);
         content = convertToCharString(ws);
     }
     else
     {
-        content = CharString(reinterpret_cast<const char*>(data), size);
+        CharString tmp(reinterpret_cast<const char*>(data), size);
+        content = tmp;
     }
 
-    const bool result =
-        loadFromString(const_cast<char*>(content.c_str()),
-                       content.length(), error);
+    char* copyBuf = new char[content.length() + 1];                 // -0x34
+    memcpy(copyBuf, content.c_str(), content.length() + 1);
+    bool result = loadFromString(copyBuf, content.length(), error); // -0x2d
+    delete[] copyBuf;                    // 同上 P141：隐式单守卫
     return result;
 }
 
@@ -300,13 +317,13 @@ bool StringResource::loadFromFile(const char* path, CharString* error)
         fclose(fp);
         return false;
     }
-    const int size = static_cast<int>(fileSize);
-
-    char* buf = new char[size];
-    fread(buf, 1, static_cast<size_t>(size), fp);
+    // ORIG 各使用点直接读 ftell 槽（-0x14）：无具名 int 中间量（P183）。
+    char* buf = new char[fileSize];
+    fread(buf, 1, (size_t)fileSize, fp);
     fclose(fp);
 
-    const bool result = loadFromBinary(reinterpret_cast<const unsigned char*>(buf), size, error);
+    const bool result = loadFromBinary(
+        reinterpret_cast<const unsigned char*>(buf), fileSize, error);
     delete[] buf;
     return result;
 }
@@ -349,11 +366,17 @@ bool loadString(CharString* error)
 CharString convertToCharString(const wchar_t* src, unsigned int srcLength)
 {
     (void)srcLength;
-    const std::size_t n = wcstombs(NULL, src, 0);
-    if (n == static_cast<std::size_t>(-1) || n == 0)
+    // ORIG @0x8adf595-0x5d2：两段检查各自独立空串返回岛（-1 与 0 分开、
+    // 各自 call CharStringC1Ev），且求长结果二次复制到新槽（-0x14→-0x10，
+    // P171 照抄）。
+    std::size_t n = wcstombs(NULL, src, 0);
+    if (n == static_cast<std::size_t>(-1))
         return CharString();
-    CharStringData* data = CharStringData::create(static_cast<int>(n));
-    wcstombs(data->getBuffer(), src, n + 1);
+    std::size_t len = n;
+    if (len == 0)
+        return CharString();
+    CharStringData* data = CharStringData::create(static_cast<int>(len));
+    wcstombs(data->getBuffer(), src, len + 1);
     return CharString(data);
 }
 
@@ -368,11 +391,19 @@ CharString convertToCharString(const WideString& src)
 }
 
 // ---------------------------------------------------------------------------
-// convertFromUtf8 —— ORIG T 0x08adf893（size 0x1fd）。两遍式 UTF-8→wchar_t：
-// pass1 统计宽字符数（≤0x7f:1 / ≤0xdf:2 / ≤0xef:3 / 其余:4；
-// 截断序列 → 返回 0）；count==0 → *out=L"" 返 1；否则 createTerminated 后逐字
-// 合成输出，最后 *out = tmp 返 1。合成移位与 ORIG 一致：
-//   cp=(b&0x1f)<<6|(b1&0x3f)；cp=(b&0x0f)<<12|(b1&0x3f)<<6|(b2&0x3f)；4 字节同理。
+// convertFromUtf8 —— ORIG T 0x08adf893。两遍式 UTF-8→wchar_t：pass1 统计宽
+// 【验收 batch-11】orig=161 / our=162（gap −1）：修正旧实现多出的 4 字节分支
+// （ORIG >0xef 一律 return false，@0x51-0x71 无第 4 档，此前语义偏差已消除）；
+// ASCII 首块 js 直跳形、合成段 add 非 or、(unsigned short)(b<<12) 两段形均已
+// 对齐。残 1 行 = ws 析构块 EH 聚合布局（4.1 共享 dtor tail vs 4.4 散布
+// return 岛，跨版本负例族），封顶勿再追。
+// 字符数（ASCII(js 直跳) / c<=0xdf&&i+1<len:2 / c<=0xef&&i+2<len:3 / 其余
+// ——含 4 字节序列与截断——一律 return false，ORIG 无 4 字节分支 @0x51-0x71）；
+// count==0 → *out=L""（operator=(const wchar_t*)）返 1；否则 createTerminated
+// + getBuffer 得 wchar_t* 游标（*dst++，ORIG addl $4,-0x1c 形态）逐字合成，
+// 具名 WideString tmp(data) + op= + 具析构后返 1。合成式与 ORIG 逐指令：
+// 2 字节 (c&0x1f)<<6 | (signed)src[i+1]&0x3f；3 字节
+// (unsigned short)(c<<12)（shl $0xc; movzwl %ax 两段形）| (b1&0x3f)<<6 | (b2&0x3f)。
 // ---------------------------------------------------------------------------
 bool convertFromUtf8(const char* src, int srcLength, WideString* out)
 {
@@ -380,32 +411,27 @@ bool convertFromUtf8(const char* src, int srcLength, WideString* out)
     int i = 0;                                // -0x18
     while (i < srcLength)
     {
-        const unsigned char b = static_cast<unsigned char>(src[i]);
-        if ((b & 0x80) == 0)
+        const unsigned char b = (unsigned char)src[i];
+        // ORIG 块排布：ASCII 为 fall-through 首块（test;js→多字节区 @0xf8）。
+        if ((char)b >= 0)
         {
             wideCount += 1;
             i += 1;
         }
-        else if (b <= 0xdf)
+        else
         {
-            if (i + 1 >= srcLength)
-                return false;
+            if (b <= 0xdf && i + 1 < srcLength)
+    {
             wideCount += 1;
             i += 2;
         }
-        else if (b <= 0xef)
+            else if (b <= 0xef && i + 2 < srcLength)
         {
-            if (i + 2 >= srcLength)
-                return false;
             wideCount += 1;
             i += 3;
         }
         else
-        {
-            if (i + 3 >= srcLength)
                 return false;
-            wideCount += 1;
-            i += 4;
         }
     }
     if (wideCount == 0)
@@ -419,32 +445,31 @@ bool convertFromUtf8(const char* src, int srcLength, WideString* out)
     i = 0;
     while (i < srcLength)
     {
-        const unsigned char b = static_cast<unsigned char>(src[i]);
-        if ((b & 0x80) == 0)
+        const unsigned char b = (unsigned char)src[i];
+        // 同上：ASCII 首块 + js 直跳多字节区；合成段间用加法（ORIG add
+        // %eax,%edx，4.1 对无重叠位 or 发射 add；4.4 的 | 直出 or）。
+        if ((char)b >= 0)
         {
-            *dst++ = static_cast<wchar_t>(b);
+            *dst++ = (wchar_t)b;
             i += 1;
-        }
-        else if (b <= 0xdf)
-        {
-            *dst++ = static_cast<wchar_t>(((b & 0x1f) << 6) |
-                                           (src[i + 1] & 0x3f));
-            i += 2;
-        }
-        else if (b <= 0xef)
-        {
-            *dst++ = static_cast<wchar_t>(((b & 0x0f) << 12) |
-                                           ((src[i + 1] & 0x3f) << 6) |
-                                           (src[i + 2] & 0x3f));
-            i += 3;
         }
         else
         {
-            *dst++ = static_cast<wchar_t>(((b & 0x07) << 18) |
-                                           ((src[i + 1] & 0x3f) << 12) |
-                                           ((src[i + 2] & 0x3f) << 6) |
-                                           (src[i + 3] & 0x3f));
-            i += 4;
+            if (b <= 0xdf && i + 1 < srcLength)
+    {
+                *dst++ = (wchar_t)(((b & 0x1f) << 6) +
+                                   ((int)src[i + 1] & 0x3f));
+            i += 2;
+        }
+            else if (b <= 0xef && i + 2 < srcLength)
+        {
+                *dst++ = (wchar_t)((unsigned short)(b << 12) +
+                                   (((int)src[i + 1] & 0x3f) << 6) +
+                                   ((int)src[i + 2] & 0x3f));
+            i += 3;
+        }
+        else
+                return false;
         }
     }
     WideString tmp(data);
@@ -458,7 +483,7 @@ bool convertFromUtf8(const char* src, int srcLength, WideString* out)
 // ---------------------------------------------------------------------------
 CharString app::getStr(int id)
 {
-    const CharString* entry = 0;
+    const CharString* entry;        // ORIG 无初始化槽（@0x8ad54d6 直接取址传参）
     if (app::stringResource()->get(id, &entry))
         return *entry;
     return CharString::format("getStr(%d) == none", id);

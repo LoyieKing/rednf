@@ -548,13 +548,19 @@ CDeathTower::CStage* CDeathTower::getCStage()
 void CDeathTower::attachParty(CParty* party)
 {
     m_party = party;
-    for (int i = 0; i < 4; ++i)
+    // ORIG 0x8462a3c/0x8462a45：i 双次置 0 直落 -0xc（范式8）；int 计数 setle。
+    int i = 0;
+    i = 0;
+    for (; i <= 3; ++i)
     {
-        if (party->checkValidUser(i))
+        // ORIG 0x8462a45：receiver 走 this->m_party reload（mov 0x8,%eax; mov(%eax),%eax），
+        // 非 party 形参槽。
+        if (m_party->checkValidUser(i))
         {
-            short idx = (short)m_idx;
-            CUser* user = party->get_user(i);
-            user->setDeathTowerIndex(idx);
+            // ORIG 0x8462a61：movswl %ax,%ebx sext 直落 %ebx。
+            register int idx asm("ebx");
+            idx = (short)m_idx;
+            m_party->get_user(i)->setDeathTowerIndex((short)idx);
         }
     }
     setTowerState((ENUM_TOWER_STATE)1);
@@ -600,24 +606,25 @@ bool CDeathTower::_checkMemberDie()
     return 0;
 }
 
-int CDeathTower::_checkMemberReady()
+// ORIG rodata 0x8c635f0/0x8c635f4（nm：_ZL37CONST_SINGLE_MAP_LOADING_WAIT_TIMEOUT /
+// _ZL36CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT，各 4B r）：4.1 以内存读引用
+// （_checkMemberReady 0x8467122/0x8467129 `mov 0x8c635f0/4,%eax`）⇒ volatile 阻止
+// 4.4 常量化为立即数；值 120/90 沿用既有转写。
+static volatile const int CONST_SINGLE_MAP_LOADING_WAIT_TIMEOUT = 120;
+static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
+
+void CDeathTower::_checkMemberReady()
 {
     m_playData.resetMemberReady();
-    int count = m_party->get_member_count();
-    unsigned int timeout;
-    if (count == 1)
-    {
-        timeout = 0x78;  // CONST_SINGLE_MAP_LOADING_WAIT_TIMEOUT
-    }
-    else
-    {
-        timeout = 0x5a;  // CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT
-    }
-    int key = _genTimerKey((TIMER_MESSAGE)0x49);
-    int idx = m_idx;
+    // ORIG 0x84670f8：call 结果直 cmp $0x1（免具名）；key/idx 走 ebx/esi
+    // callee-saved（范式2）；函数尾无 mov %eax 置值 ⇒ 返回语义 void。
+    unsigned int timeout =
+        m_party->get_member_count() == 1
+            ? (unsigned int)CONST_SINGLE_MAP_LOADING_WAIT_TIMEOUT
+            : (unsigned int)CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT;
     G_TimerQueue()->InsertTimer(
-        (TimerEntry::OBJ_TYPE)6, idx, (TIMER_MESSAGE)0x49, timeout, key, 0x49);
-    return 0;
+        (TimerEntry::OBJ_TYPE)6, m_idx, (TIMER_MESSAGE)0x49, timeout,
+        _genTimerKey((TIMER_MESSAGE)0x49), 0x49);
 }
 
 int CDeathTower::onLeaveUser(CUser* user)
@@ -1210,11 +1217,9 @@ void CDeathTower::_onPrepareFinishTower()
 {
     // ORIG 0x8467e00：key 缓存 %ebx（mov %eax,%ebx）、idx 缓存 %esi（mov 0x4(%eax),%esi）
     // ——callee-saved 直落免槽（范式2/39）。
-    register int idx asm("esi");
     register int key asm("ebx") = _genTimerKey((TIMER_MESSAGE)0x4a);
-    idx = m_idx;
     G_TimerQueue()->InsertTimer(
-        (TimerEntry::OBJ_TYPE)6, idx, (TIMER_MESSAGE)0x4a, 5, key, 0x4a);
+        (TimerEntry::OBJ_TYPE)6, m_idx, (TIMER_MESSAGE)0x4a, 5, key, 0x4a);
 }
 
 void CDeathTower::_onStartDeathTower()
@@ -1698,91 +1703,130 @@ int CDeathTower::_checkStartGameCondition(unsigned char& flag)
 }
 int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE dungeonType)
 {
-    if (dungeonType == (ENUM_DUNGEON_TYPE)1)
-    {
-        throw 8;
-    }
-
-    m_dungeonMgr.reset();
-    if (!m_dungeonMgr.initDungeonMgr(dungeonIdx))
-    {
-        throw 0x16;
-    }
-
+    // ORIG 0x846398e：整体 try/catch(int)；checkFlag 槽 -0x21 于函数头清零
+    // （0x846399c movb $0 早于首 if）；cond -0x20 先 `movl $0`（0x8463a28）再赋值。
     unsigned char checkFlag = 0;
-    int cond = _checkStartGameCondition(checkFlag);
-    if (cond != 0)
+    (void)flag;
+    try
     {
-        throw cond;
-    }
-
-    m_stage.reset();
-    m_stage.resetCurrentStage();
-    CMap* map = m_dungeonMgr.getStageMap(m_stage.getCurrentStage());
-    if (!map)
-    {
-        throw 0x15;
-    }
-    if (!m_stage.consistMap(m_dungeonMgr, map, this))
-    {
-        throw 1;
-    }
-
-    m_playData.reset();
-    m_playData.makeStartMemberInfo(m_party);
-
-    for (int i = 0; i <= 3; ++i)
-    {
-        if (m_party->checkValidUser(i))
+        if (dungeonType == (ENUM_DUNGEON_TYPE)1)
         {
-            CUser* user = m_party->get_user(i);
+            throw 8;
+        }
+        m_dungeonMgr.reset();
+        if ((int)!m_dungeonMgr.initDungeonMgr(dungeonIdx))  // ORIG 0x84639f5 xor$1 值形
+        {
+            throw 0x16;
+        }
+        int cond = 0;
+        cond = _checkStartGameCondition(checkFlag);
+        register bool cnd asm("al");  // ORIG 0x8463a48：cmpl+setne %al+test+je（范式22）
+        cnd = (cond != 0);
+        if (cnd)
+        {
+            throw cond;
+        }
+        m_stage.reset();
+        m_stage.resetCurrentStage();
+        CMap* map = m_dungeonMgr.getStageMap(m_stage.getCurrentStage());
+        if (map == 0)
+        {
+            throw 0x15;
+        }
+        if ((int)!m_stage.consistMap(m_dungeonMgr, map, this))  // ORIG 0x8463b11 xor$1
+        {
+            throw 1;
+        }
+        m_playData.reset();
+        m_playData.makeStartMemberInfo(m_party);
+        for (int i = 0; i <= 3; ++i)
+        {
+            // ORIG 0x8463b7a：循环体首 `movl $0,-0x14` user dead init；get_user 先行、
+            // || 共享物化岛 skip（0x8463bb9/0x8463bc0，范式40 同 _onFinishDeathTower）。
+            CUser* user = 0;
+            user = m_party->get_user(i);
+            register bool skip asm("eax");
+            skip = (user == 0) || (int)!m_party->checkValidUser(i);
+            if (skip)
+                continue;
             int minLevel = m_dungeonMgr.getDungeon()->get_min_level();
-            if (user->get_charac_level() < minLevel)
+            if ((bool)(user->get_charac_level() < minLevel))  // ORIG 0x8463bf4 cmp+setl+test
             {
                 throw 0xe;
             }
             user->set_state((ch_state)10);
             m_playData.setMemberAlive(i, true);
-            int partyState = m_party->get_party_type();
-            GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(
-                dungeonIdx, partyState == 1);
+            // ORIG 0x8463c5f：0xcd8 具名字段直读（无 call）；块序（范式17）：
+            // !=1 的 Increment(…,false) 为 fall-through@8463c6a，==1 块殿后@8463c88。
+            if (m_party->m_partyType != 1)
+            {
+                GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(
+                    dungeonIdx, false);
+            }
+            else
+            {
+                GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(
+                    dungeonIdx, true);
+            }
         }
+        m_party->gen_timer_key((TIMER_MESSAGE)0x2d);
+        m_party->SetSelectedEPLPCmd(-1);
+        // ORIG 0x08463ce9：party 内嵌 BF（+0xb24）getRandomBuffDungeonType(0) 结果
+        // 免槽直入 call arg（范式37）。
+        m_party->choose_random_buff((QuickParty::RandomBuffDungeon)
+            reinterpret_cast<CPartyBattleFieldView*>(m_party)
+                ->m_battleField.getRandomBuffDungeonType(0));
+
+        CPacketHandler packet;  // ORIG -0x30：析构在 try 尾（0x8463e81），lifetime 覆盖后续全部
+        packet.put_header(0, 0x8e);
+        packet.put_int(dungeonIdx);
+        packet.put_short(m_dungeonMgr.getEndStage());
+        packet.put_byte(m_party->m_partyType);    // ORIG 0x8463d69：0xcd8 直读
+        // 块序（范式17）：非 NULL→get_random_buff_type 为 fall-through@8463d87，
+        // NULL→put 0xb 岛殿后@8463da5。
+        if (m_party != NULL)
+        {
+            packet.put_byte(m_party->get_random_buff_type());
+        }
+        else
+        {
+            packet.put_byte(0xb);
+        }
+        packet.finalize(true);
+        m_party->send_to_party(packet);
+        packet.clear();
+        packet.put_header(0, 0x8f);
+        m_stage.makeStagePacket(packet);
+        packet.finalize(true);
+        m_party->send_to_party(packet);
+        _checkMemberReady();
+        setTowerState((ENUM_TOWER_STATE)2);
+        _onStartDeathTower();
     }
-
-    m_party->gen_timer_key((TIMER_MESSAGE)0x2d);
-    m_party->SetSelectedEPLPCmd(-1);
-    // ORIG 0x08463d09：party 内嵌 BF（+0xb24）选随机 buff 类型后抽取
-    int buffDungeon = reinterpret_cast<CPartyBattleFieldView*>(m_party)
-                          ->m_battleField.getRandomBuffDungeonType(0);
-    m_party->choose_random_buff((QuickParty::RandomBuffDungeon)buffDungeon);
-
-    CPacketHandler packet;
-    packet.put_header(0, 0x8e);
-
-    packet.put_int(dungeonIdx);
-    packet.put_short(m_dungeonMgr.getEndStage());
-    packet.put_byte((int)m_party->get_party_type());    // ORIG party+0xcd8
-    if (m_party == NULL)
+    catch (int e)  // ORIG 0x8463e91：type selector cmp $0x1 → begin_catch；e 槽 -0xc
     {
-        packet.put_byte(0xb);
+        if (e == 0x11)  // ORIG 0x8463eab：0x11 分支 PacketGuard@-0x3c 带 checkFlag
+        {
+            PacketGuard g;
+            g.put_header(1, 0x10);
+            g.put_byte(0);
+            g.put_byte(0x11);
+            g.put_byte((int)checkFlag);
+            g.finalize(true);
+            m_party->send_to_party(g);
+        }
+        else            // ORIG 0x8463f68：另一 PacketGuard@-0x48 带 e
+        {
+            PacketGuard g;
+            g.put_header(1, 0x10);
+            g.put_byte(0);
+            g.put_byte(e);
+            g.finalize(true);
+            m_party->send_to_party(g);
+        }
+        _destroy();
+        return 0;
     }
-    else
-    {
-        packet.put_byte(m_party->get_random_buff_type());
-    }
-    packet.finalize(true);
-    m_party->send_to_party(packet);
-
-    packet.clear();
-    packet.put_header(0, 0x8f);
-    m_stage.makeStagePacket(packet);
-    packet.finalize(true);
-    m_party->send_to_party(packet);
-
-    _checkMemberReady();
-    setTowerState((ENUM_TOWER_STATE)2);
-    _onStartDeathTower();
-
     return 1;
 }
 
@@ -1827,26 +1871,27 @@ int CDeathTower::CDungeonMgr::getEndStage()
 
 int CDeathTower::handleFinishLoading(CUser* user)
 {
+    // ORIG 0x8466024：正向 && 短路（cmpl$-1;je ERR / call valid;test al;je ERR
+    // 无 xor），ERR=return 0 尾岛，body fall-through（范式17）。
     int slot = m_party->GetMemberSlotNo(user);
-    if (slot == -1 || !m_party->checkValidUser(slot))
+    if (slot != -1 && m_party->checkValidUser(slot))
     {
-        return 0;
-    }
+        if (m_playData.checkEnterStartMap(slot))
+        {
+            user->SendCmdOkPacket((ENUM_CMDPACKET)0x28);
+        }
+        m_playData.setMemberReady(slot, true);
 
-    if (m_playData.checkEnterStartMap(slot))
-    {
-        user->SendCmdOkPacket((ENUM_CMDPACKET)0x28);
+        // ORIG 0x84660a3：get_member_count 结果免槽直入 arg（0x84660b1 `mov %eax,0x4(%esp)`）。
+        if (m_playData.checkAllMemberReady(m_party->get_member_count()))
+        {
+            CPacketHandler packet;
+            packet.makeFinishLoading();    // ORIG：全员 ready 后广播加载完成包
+            m_party->send_to_party(packet);
+        }
+        return 1;
     }
-    m_playData.setMemberReady(slot, true);
-
-    int memberCnt = m_party->get_member_count();
-    if (m_playData.checkAllMemberReady(memberCnt))
-    {
-        CPacketHandler packet;
-        packet.makeFinishLoading();    // ORIG：全员 ready 后广播加载完成包
-        m_party->send_to_party(packet);
-    }
-    return 1;
+    return 0;
 }
 
 int CDeathTower::handleDieUser(CUser* user)
@@ -1885,6 +1930,8 @@ int CDeathTower::handleDropItem(CUser* user, int a2, int a3, char a4, int a5, in
         return 0;
     }
 
+    unsigned int padA;  // 范式31：试验推移 item 槽（ORIG item@-0x6c vs 4.4 -0x70）
+    (void)padA;
     map_item item;
     CPacketHandler packet;
 
@@ -2187,16 +2234,17 @@ int CDeathTower::handleSelectEPLPCommand(CUser* user, int cmd)
     // ORIG 0x8466208：slot 具名槽 -0xc（0x8466224）；&& 物化岛共享 mov$1/$0
     // （0x8466245/0x846624c）+ test/je 反判（范式22/40）；key/idx 缓存 ebx/esi。
     int slot = m_party->GetMemberSlotNo(user);
-    if (slot == -1 || !m_party->checkValidUser(slot))
+    // ORIG 0x8466227/0x8466241：正向 && 短路（call valid 结果直 test al; je ERR，
+    // 无 xor），ERR=return 0 尾岛@84662c0，body fall-through（范式17）。
+    if (slot != -1 && m_party->checkValidUser(slot))
     {
-        return 0;
+        m_party->SetEPLPState(3);
+        register int key asm("ebx") = _genTimerKey((TIMER_MESSAGE)0x4e);
+        G_TimerQueue()->InsertTimer(
+            (TimerEntry::OBJ_TYPE)6, m_idx, (TIMER_MESSAGE)0x4e, cmd, key, 0x4e);
+        return 1;
     }
-    m_party->SetEPLPState(3);
-    register int key asm("ebx") = _genTimerKey((TIMER_MESSAGE)0x4e);
-    register int idx asm("esi") = m_idx;
-    G_TimerQueue()->InsertTimer(
-        (TimerEntry::OBJ_TYPE)6, idx, (TIMER_MESSAGE)0x4e, cmd, key, 0x4e);
-    return 1;
+    return 0;
 }
 int CDeathTower::handleStageCommand(CUser* user, unsigned char cmd)
 {

@@ -67,6 +67,10 @@ CItemAmplifier::CItemAmplifier()
 {
 }
 
+// 【batch-11 残差标注】o=139 n=134，调用点差集已归零（direct 9/9、indirect 3/3）：
+//   +0x25c 表项按证据建真实成员 m_baseGrade[6]（消除 1 个 floatAt call 型 EXTRA）。
+//   余 5 insn = ORIG 对表址/结果地址的重复物化（非语义缺口）；实测把 std::max
+//   改显式 if 反而更差（139/130），故保留模板形。
 bool CItemAmplifier::checkInvestableItem(const CItem* item,
                                          const Inven_Item& inven,
                                          int flag) const
@@ -119,8 +123,12 @@ bool CItemAmplifier::checkInvestableItem(const CItem* item,
 
     int grade = item->get_grade();
     int rarity = item->get_rarity();
-    int base = (int)m_upgrade.floatAt(rarity * 4 + 0x25c);
+    // ORIG 直读 `mov 0x25c(%eax,%edx,4)`（+0x25c 具名视图，无 cvt 无 call）；
+    // 走 inline 访问器 floatAt() 在 -O0 会额外发一次 call（+5 insn）。
+    int base = m_upgrade.m_bodyView.m_named.m_baseGrade[rarity];
     int diff = grade - base;
+    // 钳零保持 std::max 形：实测显式 if 版反而少 4 insn（139/130），
+    // std::max 版 139/134 更接近（余差集中在 ORIG 的地址重复物化）。
     return std::max(diff, 0) >= m_script.m_field3c;
 }
 
@@ -152,8 +160,12 @@ void CItemAmplifier::_generateOption(const CItem* item,
                                      ENUM_AMPLIFY_TYPE& type,
                                      unsigned short& value) const
 {
-    int rarity = item->get_rarity();
-    if (rarity < 0 || rarity > 5)
+    // ORIG 0x08514f76..0x08514fa3：范围守卫**两次独立 get_rarity**（0x08514f7c
+    // 与 0x08514f8b）+ `mov$1/mov$0` 汇聚岛 + `test%al; je` ⇒ 用命名 bool 物化、
+    // 且两臂各重调（P84/P48/P183）；写成 `int rarity` 缓存会让 4.4 只发 1 次
+    // call 并直接 cmp/jcc（实测少 3 call / 15 insn）。
+    const bool outOfRange = (item->get_rarity() < 0 || item->get_rarity() > 5);
+    if (outOfRange)
     {
         type = ENUM_AMPLIFY_TYPE_NONE;
         value = 0;
@@ -161,7 +173,7 @@ void CItemAmplifier::_generateOption(const CItem* item,
     }
 
     int rand = get_rand_int(0x2710);
-    if (m_script.m_rarityProb[rarity] <= rand)
+    if (m_script.m_rarityProb[item->get_rarity()] <= rand)
     {
         type = ENUM_AMPLIFY_TYPE_NONE;
         value = 0;
@@ -178,8 +190,13 @@ void CItemAmplifier::_generateOption(const CItem* item,
         if (it->m_prob > rand2)
         {
             type = (ENUM_AMPLIFY_TYPE)it->m_type;
-            value = (unsigned short)((float)it->m_value *
-                                     m_script.m_rarityRate[rarity]);
+            // ORIG 0x0851508x：先 `fildl; fstps -0x24` 把 m_value 落成 float 槽，
+            // 再**第三次** get_rarity → `flds m_rarityRate[r]`（被乘数在前）→
+            // `fmuls -0x24` → 控制字 ROUND → `fistpl`。故 rarityRate 作左操作数、
+            // m_value 走具名 float 局部（P176 ROUND 辨伪 + P183 重物化）。
+            const float baseValue = (float)it->m_value;
+            value = (unsigned short)(
+                m_script.m_rarityRate[item->get_rarity()] * baseValue);
             return;
         }
         ++it;
@@ -235,16 +252,27 @@ int CItemAmplifier::getInvestMaterialInfo(
     unsigned long level,
     stInvestAmplifyOption_t& info) const
 {
-    // ORIG 0x08234c3c：无边界检查，直接以 type 索引表（越界行为与 ORIG 一致）。
+    // ORIG 0x08234d64..0x08234e1b 逐条转写（无 md 报告，二进制切片）：
+    //   ① 表址 = this + ((type*4+type)*4 + 0xa0) + 0xc（无边界检查，P140）；
+    //   ② hash_map::end() **两次**（-0x1c 先作 it 初值、-0x14 作 last），
+    //      find 结果以 POD 双 dword 覆盖 -0x1c（4.1 迭代器赋值发形）；
+    //   ③ it == last → 0；
+    //   ④ 命中段**逐成员**赋值：两次 _Hashtable_const_iterator::operator->
+    //      分别取 pair+4 / pair+8（⇒ `info = it->second` 整体拷贝会丢一次
+    //      operator-> 并改走结构复制路径）。
     const __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>&
         table = m_script.m_investMap[(int)type];
     __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>::const_iterator it =
-        table.find(level);
-    if (it == table.end())
+        table.end();
+    const __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>::const_iterator
+        last = table.end();
+    it = table.find(level);
+    if (it == last)
     {
         return 0;
     }
-    info = it->second;
+    info.m_amount = it->second.m_amount;
+    info.m_value = it->second.m_value;
     return 1;
 }
 
@@ -331,6 +359,11 @@ void CItemAmplifier::investAmplifyOption(
 //   返回 0=越界/失败, 1=成功。
 // ============================================================================
 
+// 【batch-11 残差标注 · 待访问器专项批】o=371 n=365：本函数按**脚本列号变量**
+//   偏移访问 +0x00c 混合表，重建侧走 inline 成员访问器 floatAt/intAt（-O0 每点
+//   额外 1 call，实测 EXTRA 11 个 + 1 memcpy），ORIG 侧是 `flds off(%eax,%edx,4)`
+//   直访。访问器全域宏化/字段化需同时改 ScriptLeafA2::importUpgradeTable 十余
+//   写点且横跨 13 TU ⇒ Main 裁决延至 batch-12 单派专项，本批不改形。
 int upgrade_table_t::get_upgrade_info(upgrade_info_t* out,
                                       unsigned char rarity,
                                       unsigned char growthGrade,
@@ -351,9 +384,9 @@ int upgrade_table_t::get_upgrade_info(upgrade_info_t* out,
     memcpy(out, &m_infos.at(upgrade), sizeof(upgrade_info_t));
 
     float gain = floatAt((rarity + 0x20) * 4 + 0xc);
-    out->m_pad0[0] = 0;  // 占位：浮点区逐项缩放（见 floatAt 访问）
+    out->m_prob00[0] = 0;  // 占位：浮点区逐项缩放（见 floatAt 访问）
     // 前 0x4 字节概率/等级混合区按 float 偏移缩放。
-    float* p = (float*)out->m_pad0;
+    float* p = (float*)out->m_prob00;
     // param_1[0..7] 与 param_1[0x13..0x1a] 各有系数缩放，这里按 ORIG 逐项到
     // 0x6c 内 float 数组（0/1/2/3 用 +0xc/0x10/0x14/0x18 分母，4..7 直接乘）。
     float* f = (float*)out;

@@ -141,7 +141,9 @@ public:
         int m_fieldc;            // +0x0c（→ +0x18）
         unsigned short m_field10;// +0x10（→ +0x10）
     };
-    void LogError(const stErrorLogInput_t& input) const;   // 0x0832033a
+    // P159：ORIG 0x08320445 尾部 `mov $0x1,%ebx`+D1 后回存 ⇒ 实际返回 int 1
+    // （mangled 不含返回类型；全仓无非语句式调用点）。
+    int LogError(const stErrorLogInput_t& input) const;     // 0x0832033a
     bool CallSpecialItemHandler(int type, const STSpecailItem_Param& param,
                                 STSpecailItem_Result& result);                     // 0x08325854
     void _ProcessIPGError(CUser* user, IPG::SIPGData* reqData,

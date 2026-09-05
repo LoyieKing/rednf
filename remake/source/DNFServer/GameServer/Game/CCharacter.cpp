@@ -7,7 +7,9 @@
 // ORIG STSecondGrowTypeInfo::STSecondGrowTypeInfo W 0x8373934：
 // 2 个 _Additioal_info 构造 + 2 个 vector 默认构造 + clear()。
 STSecondGrowTypeInfo::STSecondGrowTypeInfo()
-    : m_addInfo(), m_skills(), m_fieldbc(0)
+    // ORIG W 0x08373934：两组数组循环构造后直接 call clear()；
+    // m_fieldbc 不在 C1 写（仅 clear 的 memset 2B 覆盖）。
+    : m_addInfo(), m_skills()
 {
     clear();   // ORIG 0x8373a1e：成员构造后调 clear()（m_fieldbc 低 2 字节置 0）
 }
@@ -22,7 +24,7 @@ STSecondGrowTypeInfo::~STSecondGrowTypeInfo()
 //   vector[7]（+0x240，步长 0xc）
 //   STSecondGrowTypeInfo[7]（+0x294，步长 0xc0）→ clear()。
 CCharacter::CCharacter()
-    : m_baseInfo(), m_giveSkillList(), m_secondGrowTypes()
+    : m_baseInfo0(), m_baseInfoGrow(), m_giveSkillList(), m_secondGrowTypes()
 {
     // ORIG 0x834828c：各成员构造完成后调 clear()。
     clear();
@@ -89,7 +91,7 @@ const _Additioal_info* CCharacter::get_growtype_stat(int firstGrow,
     if (firstGrow > 5 || secondGrow > 2)
         return 0;
     if (secondGrow == 0)
-        return &m_baseInfo[firstGrow + 1];
+        return &m_baseInfoGrow[firstGrow];
     return &m_secondGrowTypes[firstGrow + 1].m_addInfo[secondGrow - 1];
 }
 
@@ -98,17 +100,21 @@ char CCharacter::get_give_skill(int firstGrow, int secondGrow,
                                 std::vector<std::pair<int, int> >& out,
                                 unsigned int flag) const
 {
+    // ORIG 0x08348798：所有分支经 char r 槽（-0x9）物化后统一 movzbl 尾返；
+    // flag==0 支双赋值（r=f1(); r=f2(); 死写照抄 P171）。
+    char r;
     if (flag == 0)
     {
-        char r = get_give_skill_firstGrowtype(firstGrow, out);
+        r = get_give_skill_firstGrowtype(firstGrow, out);
         r = (char)get_give_skill_secondGrowtype(firstGrow, secondGrow, out);
-        return r;
     }
-    if (flag == 1)
-        return get_give_skill_firstGrowtype(firstGrow, out);
-    if (flag == 2)
-        return get_give_skill_secondGrowtype(firstGrow, secondGrow, out);
-    return 0;
+    else if (flag == 1)
+        r = get_give_skill_firstGrowtype(firstGrow, out);
+    else if (flag == 2)
+        r = (char)get_give_skill_secondGrowtype(firstGrow, secondGrow, out);
+    else
+        r = 0;
+    return r;
 }
 
 // ============================================================================
@@ -140,8 +146,11 @@ void CCharacter::destroy()
 
 void CCharacter::clear()
 {
-    for (int i = 1; i < 7; ++i)
-        m_baseInfo[i].clear();
+    // ORIG 0x0834852e..0x0834856c：base case 单条 + 循环 i≤5 写 m_baseInfoGrow[i]
+    // （imul $0x52 +0x50/+0x2）——与 C1 混合构造形一致。
+    m_baseInfo0.clear();
+    for (int i = 0; i <= 5; ++i)
+        m_baseInfoGrow[i].clear();
     for (int i = 0; i <= 6; ++i)
     {
         m_giveSkillList[i].clear();
@@ -150,6 +159,10 @@ void CCharacter::clear()
 }
 
 // ORIG CCharacter::set_data @ 0x08348894（objdump 全量转写，2901B / 932 条）。
+// §6.2 超大函数（932 insns）验收：调用点差集 ZERO；gap 43→16（1.7%），残余为
+// 4.1 常量拆分二段 `add $0x50/add $0x2` 寻址 vs 4.4 `lea disp(,%e)` 折叠
+// （ORIG-only add 58 / OURS-only lea 46 净额，N82/P183 同族机器码折叠差）
+// ⇒ 判语义完成、byte 层 N 封顶。
 // ORIG 结构为 if(i==0)/else **双展开体**，两支各写一整套 24 条赋值，不共享缓存：
 //   读侧两支统一为 (&script->m_initialStatus)[i]（ORIG 每次读都重算 script+i*0x57+0x24；
 //   i=0 落 m_initialStatus，i=1..6 落 m_growStatus[i-1]，布局见 STCharacterScript.h）；
@@ -171,48 +184,48 @@ void CCharacter::set_data(STCharacterScript* script)
     {
         if (i == 0)
         {
-            m_baseInfo[0].m_field00 = (&script->m_initialStatus)[i].m_hpMax;
-            m_baseInfo[0].m_field04 = (&script->m_initialStatus)[i].m_mpMax;
-            m_baseInfo[0].m_field08 = (&script->m_initialStatus)[i].m_physAttack;
-            m_baseInfo[0].m_field0a = (&script->m_initialStatus)[i].m_physDefense;
-            m_baseInfo[0].m_field0c = (&script->m_initialStatus)[i].m_magAttack;
-            m_baseInfo[0].m_field0e = (&script->m_initialStatus)[i].m_magDefense;
+            m_baseInfo0.m_field00 = (&script->m_initialStatus)[i].m_hpMax;
+            m_baseInfo0.m_field04 = (&script->m_initialStatus)[i].m_mpMax;
+            m_baseInfo0.m_field08 = (&script->m_initialStatus)[i].m_physAttack;
+            m_baseInfo0.m_field0a = (&script->m_initialStatus)[i].m_physDefense;
+            m_baseInfo0.m_field0c = (&script->m_initialStatus)[i].m_magAttack;
+            m_baseInfo0.m_field0e = (&script->m_initialStatus)[i].m_magDefense;
             for (int j = 0; j <= 3; ++j)
-                m_baseInfo[0].m_field10[j] = (&script->m_initialStatus)[i].m_elemResist[j];
+                m_baseInfo0.m_field10[j] = (&script->m_initialStatus)[i].m_elemResist[j];
             for (int k = 0; k <= 16; ++k)
-                m_baseInfo[0].m_field18[k] = (&script->m_initialStatus)[i].m_activeResist[k];
-            m_baseInfo[0].m_field3a = (&script->m_initialStatus)[i].m_inventoryLimit;
-            m_baseInfo[0].m_field3e = (&script->m_initialStatus)[i].m_hpRegen;
-            m_baseInfo[0].m_field40 = (&script->m_initialStatus)[i].m_mpRegen;
-            m_baseInfo[0].m_field42 = (&script->m_initialStatus)[i].m_moveSpeed;
-            m_baseInfo[0].m_field46 = (&script->m_initialStatus)[i].m_attackSpeed;
-            m_baseInfo[0].m_field48 = (&script->m_initialStatus)[i].m_castSpeed;
-            m_baseInfo[0].m_field4a = (&script->m_initialStatus)[i].m_hitRecovery;
-            m_baseInfo[0].m_field4c = (&script->m_initialStatus)[i].m_jumpPower;
-            m_baseInfo[0].m_field4e = (&script->m_initialStatus)[i].m_weight;
+                m_baseInfo0.m_field18[k] = (&script->m_initialStatus)[i].m_activeResist[k];
+            m_baseInfo0.m_field3a = (&script->m_initialStatus)[i].m_inventoryLimit;
+            m_baseInfo0.m_field3e = (&script->m_initialStatus)[i].m_hpRegen;
+            m_baseInfo0.m_field40 = (&script->m_initialStatus)[i].m_mpRegen;
+            m_baseInfo0.m_field42 = (&script->m_initialStatus)[i].m_moveSpeed;
+            m_baseInfo0.m_field46 = (&script->m_initialStatus)[i].m_attackSpeed;
+            m_baseInfo0.m_field48 = (&script->m_initialStatus)[i].m_castSpeed;
+            m_baseInfo0.m_field4a = (&script->m_initialStatus)[i].m_hitRecovery;
+            m_baseInfo0.m_field4c = (&script->m_initialStatus)[i].m_jumpPower;
+            m_baseInfo0.m_field4e = (&script->m_initialStatus)[i].m_weight;
             m_growTypeFlag[0] = (char)(&script->m_initialStatus)[i].m_field52;
         }
         else
         {
-            m_baseInfo[i].m_field00 = (&script->m_initialStatus)[i].m_hpMax;
-            m_baseInfo[i].m_field04 = (&script->m_initialStatus)[i].m_mpMax;
-            m_baseInfo[i].m_field08 = (&script->m_initialStatus)[i].m_physAttack;
-            m_baseInfo[i].m_field0a = (&script->m_initialStatus)[i].m_physDefense;
-            m_baseInfo[i].m_field0c = (&script->m_initialStatus)[i].m_magAttack;
-            m_baseInfo[i].m_field0e = (&script->m_initialStatus)[i].m_magDefense;
+            m_baseInfoGrow[i - 1].m_field00 = (&script->m_initialStatus)[i].m_hpMax;
+            m_baseInfoGrow[i - 1].m_field04 = (&script->m_initialStatus)[i].m_mpMax;
+            m_baseInfoGrow[i - 1].m_field08 = (&script->m_initialStatus)[i].m_physAttack;
+            m_baseInfoGrow[i - 1].m_field0a = (&script->m_initialStatus)[i].m_physDefense;
+            m_baseInfoGrow[i - 1].m_field0c = (&script->m_initialStatus)[i].m_magAttack;
+            m_baseInfoGrow[i - 1].m_field0e = (&script->m_initialStatus)[i].m_magDefense;
             for (int j = 0; j <= 3; ++j)
-                m_baseInfo[i].m_field10[j] = (&script->m_initialStatus)[i].m_elemResist[j];
+                m_baseInfoGrow[i - 1].m_field10[j] = (&script->m_initialStatus)[i].m_elemResist[j];
             for (int k = 0; k <= 16; ++k)
-                m_baseInfo[i].m_field18[k] = (&script->m_initialStatus)[i].m_activeResist[k];
-            m_baseInfo[i].m_field3a = (&script->m_initialStatus)[i].m_inventoryLimit;
-            m_baseInfo[i].m_field3e = (&script->m_initialStatus)[i].m_hpRegen;
-            m_baseInfo[i].m_field40 = (&script->m_initialStatus)[i].m_mpRegen;
-            m_baseInfo[i].m_field42 = (&script->m_initialStatus)[i].m_moveSpeed;
-            m_baseInfo[i].m_field46 = (&script->m_initialStatus)[i].m_attackSpeed;
-            m_baseInfo[i].m_field48 = (&script->m_initialStatus)[i].m_castSpeed;
-            m_baseInfo[i].m_field4a = (&script->m_initialStatus)[i].m_hitRecovery;
-            m_baseInfo[i].m_field4c = (&script->m_initialStatus)[i].m_jumpPower;
-            m_baseInfo[i].m_field4e = (&script->m_initialStatus)[i].m_weight;
+                m_baseInfoGrow[i - 1].m_field18[k] = (&script->m_initialStatus)[i].m_activeResist[k];
+            m_baseInfoGrow[i - 1].m_field3a = (&script->m_initialStatus)[i].m_inventoryLimit;
+            m_baseInfoGrow[i - 1].m_field3e = (&script->m_initialStatus)[i].m_hpRegen;
+            m_baseInfoGrow[i - 1].m_field40 = (&script->m_initialStatus)[i].m_mpRegen;
+            m_baseInfoGrow[i - 1].m_field42 = (&script->m_initialStatus)[i].m_moveSpeed;
+            m_baseInfoGrow[i - 1].m_field46 = (&script->m_initialStatus)[i].m_attackSpeed;
+            m_baseInfoGrow[i - 1].m_field48 = (&script->m_initialStatus)[i].m_castSpeed;
+            m_baseInfoGrow[i - 1].m_field4a = (&script->m_initialStatus)[i].m_hitRecovery;
+            m_baseInfoGrow[i - 1].m_field4c = (&script->m_initialStatus)[i].m_jumpPower;
+            m_baseInfoGrow[i - 1].m_field4e = (&script->m_initialStatus)[i].m_weight;
             m_growTypeFlag[i] = (char)(&script->m_initialStatus)[i].m_field52;
         }
         m_giveSkillList[i] = script->m_skillList[i];   // vector::operator=

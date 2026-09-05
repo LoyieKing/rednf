@@ -11092,6 +11092,13 @@ void (*volatile g_cuoo_charac_info_emit)(const _Charac_info&, _Charac_info*) =
     _cuoo_emit_charac_info_ops;   // volatile 指针防 DCE
 
 // ---- _Charac_info ctor/dtor（LinkE2）----
+// 收敛口径（2026-09-05 EmoC11，Main 裁决记封顶不批成员化）：ORIG W 0x08695cf8
+// o=150 形 = 18 子对象按偏移升序隐式成员构造（每处 4 条 mov/add/mov/call T::C1）
+// + 尾 call Reset；本重建 CUser.h（冻结）保留 pad 区、此处 placement new 补构，
+// 4.4.7 对每处 placement operator new 发射 _ZnwjPv 实调用 + size 装载 + 判空 +
+// _ZdlPvS_ EH 清理岛 ≈ +10 条 ⇒ n=304（we-bigger 154）。范式库 N83（SIG_LOAD_ETC
+// ctor 49 处同族已豁免）×16；+0xecc/+0x1254 两真成员先构亦属声明序隐式形约束。
+// 语义完成（18 ctor 与 Reset 全部真实对位 ORIG 符号），byte 层 N83 封顶，勿再耗轮次。
 _Charac_info::_Charac_info()
 {
     char* p = reinterpret_cast<char*>(this);

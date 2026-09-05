@@ -150,22 +150,54 @@ public:
 // 与 get_upgrade_info 按 float 偏移访问，属内部镜像，不具名）。
 struct upgrade_info_t
 {
-    // ORIG C1/C2 0x0854b282（W）：+0x00..+0x68 全部清零
-    // （前 8 字 edx 中转 movl、+0x20..+0x34 直 movl、两段循环）。
+    // ORIG C1/C2 @0x0854b282（W，69 insn）写域逐段实证（二进制切片人工转写；
+    // docs/class_func_reports 的 Ghidra C 段撞名，见 §6.3）：
+    //   ① +0x00..+0x1c 八字（每字经 %edx 中转 movl）；
+    //   ② +0x20..+0x34 六字直 movl（0x0854b2e2..0x0854b314）；
+    //   ③ 循环 i=0..4：`add $0xc,%edx; movl $0,0x8(%eax,%edx,4)`
+    //      ⇒ this + 4i + 0x38 ⇒ +0x38..+0x48 五字（0x0854b324）；
+    //   ④ 同循环两 store：`lea 0x10(%edx)` ⇒ 4j+0x4c、`lea 0x14(%edx)`
+    //      ⇒ 4j+0x5c ⇒ 各四字（0x0854b34d/0x0854b35f）。
+    // 写域合计 +0x00..+0x6b ⇒ sizeof 恰 0x6c（与 ProcUpgrade 栈槽
+    // -0x284→-0x215 跨度一致），故为**分段具名字段**而非扩容。
     upgrade_info_t()
     {
-        memset(m_pad0, 0, sizeof(m_pad0));
+        // ①（逐条写：4.1 展开发形；写成循环会被 4.4 保留循环而丢 8×2 展开）
+        m_prob00[0] = 0; m_prob00[1] = 0; m_prob00[2] = 0; m_prob00[3] = 0;
+        m_prob00[4] = 0; m_prob00[5] = 0; m_prob00[6] = 0; m_prob00[7] = 0;
+        // ②
+        m_prob20[0] = 0;
+        m_prob20[1] = 0;
+        m_prob20[2] = 0;
         m_recipeItem = 0;
         m_meterialCount = 0;
         m_discountBase = 0;
-        memset(m_pad, 0, sizeof(m_pad));
+        // ③
+        for (int i = 0; i <= 4; ++i)
+        {
+            m_w38[i] = 0;
+        }
+        // ④（ORIG 两个四字数组共用一个循环计数器）
+        for (int j = 0; j <= 3; ++j)
+        {
+            m_w4c[j] = 0;
+            m_w5c[j] = 0;
+        }
     }
-    char m_pad0[0x2c];        // +0x00 概率/等级混合区（float 偏移访问）
-    int m_recipeItem;         // +0x2c（材料 item idx / 强化商品）
-    int m_meterialCount;      // +0x30（材料数量）
-    int m_discountBase;       // +0x34（折扣基数；updateUpgradeTable... 亦写 +0x2c/+0x30）
-    char m_pad[0x34];         // +0x38..+0x6b 尾部补齐至 0x6c
+    int m_prob00[8];        // +0x00..+0x1f 概率/等级混合区（float 视图见
+                            //   get_upgrade_info/CItemAmplifier.cpp）
+    int m_prob20[3];        // +0x20..+0x2b 同区尾字
+    int m_recipeItem;       // +0x2c（材料 item idx / 强化商品）
+    int m_meterialCount;    // +0x30（材料数量）
+    int m_discountBase;     // +0x34（折扣基数；updateUpgradeTable... 亦写 +0x2c/+0x30）
+    int m_w38[5];           // +0x38..+0x48（ORIG C1 循环 ③ 清五字）
+    int m_w4c[4];           // +0x4c..+0x58（循环 ④ 组一）
+    int m_w5c[4];           // +0x5c..+0x68（循环 ④ 组二）
 };
+static_assert(sizeof(upgrade_info_t) == 0x6c, "upgrade_info_t size drift");
+static_assert(offsetof(upgrade_info_t, m_recipeItem) == 0x2c, "info +0x2c");
+static_assert(offsetof(upgrade_info_t, m_w4c) == 0x4c, "info +0x4c");
+static_assert(offsetof(upgrade_info_t, m_w5c) == 0x5c, "info +0x5c");
 
 class upgrade_table_t
 {
@@ -186,7 +218,42 @@ public:
     upgrade_table_t();                                // ORIG 0x089000ca
 
     std::vector<upgrade_info_t> m_infos;              // +0x000
-    char m_body[0x434 - 0x00c];                       // +0x00c 混合表（至 0x433）
+    // +0x00c 混合表（至 0x433）。ORIG 对该区既有「按脚本行/列号计算偏移」的
+    // 通用访问（intAt/floatAt），也有编译期常量偏移的直接成员访存：
+    //   ProcUpgrade @0x0854779c 0x08548ff2 `mov 0x234(%eax),%eax`（-O0 单条
+    //   disp，非 helper call）—— 与 CItemUpgrade.cpp:188 的
+    //   `newUpgrade >= table->…(0x234)` 同读点 ⇒ +0x234 建具名成员。
+    // m_body 与视图并列（union 零改布局，sizeof/后续成员偏移不变；C++98 匿名
+    // union 不得嵌套类型声明 ⇒ 用具名 union 成员 m_bodyView）。
+    union UpgradeBodyView
+    {
+        char m_body[0x434 - 0x00c];
+        struct UpgradeTableNamed
+        {
+            char m_pad00c[0x234 - 0x00c];   // +0x00c..+0x233（脚本行区，按
+                                            //   intAt/floatAt 计算偏移访问）
+            int m_noticeUpgradeLevel;       // +0x234 强化成功公告阈值
+            // +0x238..+0x258 附加分解物四元组（ORIG _getAdditionalDisjointItem
+            // @0x08546938 逐 disp 实证：0x085469b6 `mov 0x238`、0x08546993
+            // `mov 0x23c`、0x085469d5 `flds (%eax,%edx,4)` 其中
+            // edx=rarity+0x90 ⇒ +0x240+4·rarity、0x085469a4/0x085469de
+            // `mov 0x258`）。写点 = importUpgradeTable 的
+            // CItemAmplifier.cpp:51/52/55/58（权重区 i=0..5 ⇒ 6 项，0x258 独立）。
+            int m_additionalItemId;         // +0x238 附加分解物 item idx
+            int m_additionalGradeGap;       // +0x23c 触发所需的成长等级差下限
+            float m_additionalWeight[6];    // +0x240..+0x257 按 rarity 的产量权重
+            int m_additionalMinUpgrade;     // +0x258 触发所需的强化等级下限
+            int m_baseGrade[6];             // +0x25c..+0x273 各稀有度基准成长
+                                            //   等级。证据：checkInvestableItem
+                                            //   @0x08234980 直读 `mov 0x25c(,%eax,4)`
+                                            //   （inline 访问器在 -O0 会额外发
+                                            //   call，故建真实成员）；写点
+                                            //   importUpgradeTable [upgrade base
+                                            //   grade] 行 CItemAmplifier.cpp:56
+                                            //   `intAt((i+0x94)*4+0xc)` i=0..5。
+            char m_pad274[0x434 - 0x274];   // +0x274..+0x433（其余脚本行区）
+        } m_named;
+    } m_bodyView;
     ST3rdChronicleDestructionResult m_destruction;    // +0x434（ORIG C1 0x089000ca 直构；
                                                       //   内部 m_vec @+0x490 = 旧 m_resultItems）
     std::map<int, float> m_floatMap;                  // +0x49c（[cost weight by upgrade level]）
@@ -194,11 +261,14 @@ public:
     std::unordered_map<int, MachineFrameInfo> m_machineFrames;  // +0x4c4
                                                        // （sizeof 0x20，与 ORIG 一致）
 
-    // ORIG 直访视图（off 为对象内绝对偏移）。
-    int& intAt(int off) { return *(int*)(m_body + off - 0xc); }
-    float& floatAt(int off) { return *(float*)(m_body + off - 0xc); }
-    float floatAt(int off) const { return *(const float*)(m_body + off - 0xc); }
-    int intAtConst(int off) const { return *(const int*)(m_body + off - 0xc); }
+    // 通用偏移视图（off 为对象内绝对偏移）。
+    int& intAt(int off) { return *(int*)(m_bodyView.m_body + off - 0xc); }
+    float& floatAt(int off)
+    { return *(float*)(m_bodyView.m_body + off - 0xc); }
+    float floatAt(int off) const
+    { return *(const float*)(m_bodyView.m_body + off - 0xc); }
+    int intAtConst(int off) const
+    { return *(const int*)(m_bodyView.m_body + off - 0xc); }
 
     // ORIG 0x08900436：按 rarity/growthGrade/upgrade/equipType 计算 upgrade_info 到 out。
     // 返回 0 表示越界/失败，1 表示成功。
@@ -209,6 +279,35 @@ public:
     int GetPenaltyType(unsigned char upgrade, ENUM_RARITY rarity,
                        const upgrade_info_t* info) const;
 };
+
+static_assert(sizeof(upgrade_table_t::UpgradeBodyView) == 0x434 - 0x00c,
+              "upgrade_table_t::UpgradeBodyView ABI drift");
+static_assert(sizeof(upgrade_table_t::MachineFrameInfo) == 0x14,
+              "upgrade_table_t::MachineFrameInfo ABI drift");
+static_assert(
+    sizeof(upgrade_table_t::UpgradeBodyView::UpgradeTableNamed) ==
+        0x434 - 0x00c,
+    "upgrade_table_t::UpgradeBodyView::UpgradeTableNamed ABI drift");
+static_assert(offsetof(upgrade_table_t::UpgradeBodyView::UpgradeTableNamed,
+                       m_noticeUpgradeLevel) == 0x234 - 0x00c,
+              "upgrade_table_t +0x234 view offset drift");
+static_assert(offsetof(upgrade_table_t::UpgradeBodyView::UpgradeTableNamed,
+                       m_baseGrade) == 0x25c - 0x00c,
+              "upgrade_table_t +0x25c view offset drift");
+static_assert(offsetof(upgrade_table_t::UpgradeBodyView::UpgradeTableNamed,
+                       m_additionalItemId) == 0x238 - 0x00c,
+              "upgrade_table_t +0x238 view offset drift");
+static_assert(offsetof(upgrade_table_t::UpgradeBodyView::UpgradeTableNamed,
+                       m_additionalGradeGap) == 0x23c - 0x00c,
+              "upgrade_table_t +0x23c view offset drift");
+static_assert(offsetof(upgrade_table_t::UpgradeBodyView::UpgradeTableNamed,
+                       m_additionalWeight) == 0x240 - 0x00c,
+              "upgrade_table_t +0x240 view offset drift");
+static_assert(offsetof(upgrade_table_t::UpgradeBodyView::UpgradeTableNamed,
+                       m_additionalMinUpgrade) == 0x258 - 0x00c,
+              "upgrade_table_t +0x258 view offset drift");
+static_assert(offsetof(upgrade_table_t, m_destruction) == 0x434,
+              "upgrade_table_t m_destruction offset drift");
 
 class CItemAmplifier
 {

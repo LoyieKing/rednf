@@ -24,6 +24,7 @@
 #include "CBattle_Field.h"
 #include "CWorldMap.h"
 #include "GlobalData.h"
+#include "DataManagerInitDepends.h"  // TOD_UserState/TOD_Layer（MakePacket 0x1c 当日层链）
 #include "InterfacePacketBuf.h"
 #include "LogManager.h"
 #include "PacketGuard.h"
@@ -47,10 +48,13 @@ int CBattle_Field::drop_item(map_item item)
 
 // ---- get_field_item(int, map_item&) —— ORIG 0x0830d9c0（get_field_item.md） ----
 // 当前地图 m_itemMap(+0x24) 查找 uid；命中则 21 dword 复制到出参并返回 1。
+// ORIG 形态同 is_last_field_item：迭代器先默认构造（C1Ev @+0x0f）、find 经
+// sret 临时槽（-0x2c）赋值（P28），op-> 一次 + rep movsl 21 dword 整体复制
+// （P83/N78 4.1 内联形态）。
 bool CBattle_Field::get_field_item(int uid, map_item& out)
 {
-    std::map<int, map_item>::iterator it =
-        GetCurrentMapInfo()->m_itemMap.find(uid);
+    std::map<int, map_item>::iterator it;
+    it = GetCurrentMapInfo()->m_itemMap.find(uid);
     if (it == GetCurrentMapInfo()->m_itemMap.end())
         return false;
     out = it->second;
@@ -59,11 +63,16 @@ bool CBattle_Field::get_field_item(int uid, map_item& out)
 
 // ---- is_last_field_item(int) —— ORIG 0x0830da6c（is_last_field_item.md） ----
 // 与 get_field_item 同构，但作用于 GetLastMapInfo()；返回 uid 是否仍在场上。
+// ORIG 形态（报告 0x830da72-0x830da6b）：迭代器先默认构造（C1Ev @+0x09）、
+// find 经 sret 临时槽（-0x1c）再 4 字节赋值到 -0x10（P28「先声明后赋值」）、
+// == end 后走 test/je→mov$1 分支岛（P56，非 sete 直折）。
 bool CBattle_Field::is_last_field_item(int uid)
 {
-    std::map<int, map_item>::iterator it =
-        GetLastMapInfo()->m_itemMap.find(uid);
-    return it != GetLastMapInfo()->m_itemMap.end();
+    std::map<int, map_item>::iterator it;
+    it = GetLastMapInfo()->m_itemMap.find(uid);
+    if (it == GetLastMapInfo()->m_itemMap.end())
+        return false;
+    return true;
 }
 
 // ---- check_random_appear_hell_dungeon(CDungeon const*, ENUM_DUNGEON_MODE,
@@ -72,6 +81,9 @@ bool CBattle_Field::is_last_field_item(int uid)
 // 统计 4 席有效成员的等级 min/max（无角色者按 1 级），依据与副本标准等级的
 // 差值决定 *flag；等级离散(>8)且 ≥2 人、或两个旗标未置且类型 1 时清除缓存。
 // mode==1（普通模式）强制清除并置 flag=false。
+// 【验收 batch-11】orig=149 / our=149（gap 0）：双臂 P48 重发 get_user/
+// getCurCharacR 链、正向嵌套防聚合岛、uchar `> 0` 真值形、level 循环前
+// 0 初始化槽。残差为 N82 槽号平移与 call 目标显示。
 void CBattle_Field::check_random_appear_hell_dungeon(const CDungeon* dungeon,
                                                      ENUM_DUNGEON_MODE mode,
                                                      ENUM_DUNGEON_TYPE type,
@@ -80,32 +92,42 @@ void CBattle_Field::check_random_appear_hell_dungeon(const CDungeon* dungeon,
     if (m_party->m_hellWorldMap == 0)
         return;
 
-    // ORIG 内层重复测试 m_hellWorldMap != 0（外层已保证非零），语义等价保留两条件。
-    if (IsEnableHellDungeon() && m_party->m_hellWorldMap->IsInHellDungeon())
+    // ORIG 三条件各自 je 直达统一尾部（mode 检查 @0x1c4）：正向嵌套 if 的
+    // 失败分支 4.4 亦归一到 body 后统一出口，同形。&& 链会折 bool 聚合岛、
+    // `!call` 会多 sete/xor 物化，均不用。内层重复测试 m_hellWorldMap != 0
+    // （外层已保证非零）系 ORIG 原样（@0x026-0x033）。
+    // uchar 返回真值测试：`!= 0`/裸调用在 4.4 折 setne 物化（P73），
+    // `> 0` 无符号下限形可回 test/je 直跳（对齐 ORIG @0x1e）。
+    if (IsEnableHellDungeon() > 0)
+    {
+    if (m_party->m_hellWorldMap != 0)
+    {
+    if (m_party->m_hellWorldMap->IsInHellDungeon())
     {
         int minLevel = 1;
         int maxLevel = 200;
+        int level = 0;                    // ORIG 循环前初始化槽 -0x14
         int validCount = 0;
-        for (int i = 0; i < 4; ++i)
+        for (int i = 0; i <= 3; ++i)
         {
             if (!m_party->checkValidUser(i))
                 continue;
-            CUser* user = m_party->get_user(i);
-            const _Charac_info* charac = user->getCurCharacR();
-            int level;
-            if (charac == 0)
-                level = 1;
+            // ORIG @0x097/@0x0bc 双臂各自重发 get_user+getCurCharacR 完整链
+            // （P48 无 CSE）；m_level +0x27 short（movzwl+cwtl 为 4.1 符号
+            // 扩展两段形态，跨版本 N 豁免）。
+            if (m_party->get_user(i)->getCurCharacR() != 0)
+                level = (int)m_party->get_user(i)->getCurCharacR()->m_level;
             else
-                level = (int)charac->m_level;  // +0x27 short（movzwl+cwtl）
+                level = 1;
+            // ORIG @0x0e9/@0x0fc：三目物化岛（两臂各载一侧、统一 store）。
+            minLevel = (level <= minLevel) ? level : minLevel;
+            maxLevel = (level >= maxLevel) ? level : maxLevel;
             validCount += 1;
-            if (level > minLevel)
-                minLevel = level;
-            if (level < maxLevel)
-                maxLevel = level;
         }
 
-        int stdLevel = dungeon->get_standard_level();
-        if (minLevel - stdLevel <= 5)
+        // ORIG @0x134：get_standard_level 返回值（eax）直接参与减法，不落槽
+        // （P160 勿缓存）。
+        if (minLevel - dungeon->get_standard_level() <= 5)
         {
             if (validCount <= 1)
                 flag = true;
@@ -119,6 +141,8 @@ void CBattle_Field::check_random_appear_hell_dungeon(const CDungeon* dungeon,
         {
             m_party->m_hellWorldMap = 0;
         }
+    }
+    }
     }
 
     if (mode == 1)
@@ -151,7 +175,14 @@ bool CBattle_Field::SelectDungeon(int dungeonIdx, const CDungeon* dungeon,
         "bool CBattle_Field::SelectDungeon(int, const CDungeon*, int, "
         "ENUM_DUNGEON_TYPE, int, CWorldMap*, bool, int)";
 
-    if (IsEnableHellDungeon() && worldMap != 0 && worldMap->IsInHellDungeon())
+    // 三条件各自 je 直达统一出口（ORIG @0x1e/@0x25/@0x36 →0x22a）：`&&` 链在
+    // 4.4 末尾条件折 bool 聚合岛（mov$1/jmp/mov$0，+3），正向嵌套同形 ORIG；
+    // uchar 真值测试用 `> 0`（P73 反向，同 check_random 实证）。
+    if (IsEnableHellDungeon() > 0)
+    {
+    if (worldMap != 0)
+    {
+    if (worldMap->IsInHellDungeon())
     {
         if (type == 1)
         {
@@ -167,22 +198,36 @@ bool CBattle_Field::SelectDungeon(int dungeonIdx, const CDungeon* dungeon,
             m_hellPartyEventType = (char)GetHellPartyEventType(m_hellPartyDifficulty);
             m_hellPartyActive = 1;
         }
-        else if (isHellParty && m_party->get_member_count() != 1 &&
-                 CheckHellPartyCondition())
+        else
         {
-            m_party->sub_hellparty_value();
-            m_hellPartyActive = 1;
-            m_hellPartyRandom = isHellParty ? 1 : 0;   // +0x1ce（byte 写）
-            m_hellPartyDifficulty = (char)GetHellPartyDifficulty(type);
-            if (m_hellPartyDifficulty == 0)
+        // ORIG else 链同直跳形：isHellParty（-0x2fc 参数叶局部槽 cmpb/je）、
+        // member_count != 1（setne 物化为 4.1 && 行为，嵌套后 N 封顶）、
+        // CheckHellPartyCondition 结果具名 bool 落槽回读（@0x155 mov%al,-0x9）。
+        if (isHellParty)
+        {
+        if (m_party->get_member_count() != 1)
+        {
+            bool hellCond = CheckHellPartyCondition();
+            if (hellCond)
             {
-                LogManager::logFormat(
-                    1, "battle_field.cpp", s_pretty, 0x22b,
-                    "HELLPARTY_LOG : HELLPARTY DIFFICULTY ERROR!!\n");
-                return false;
+                m_party->sub_hellparty_value();
+                m_hellPartyActive = 1;
+                m_hellPartyRandom = isHellParty;       // +0x1ce（byte 直copy）
+                m_hellPartyDifficulty = (char)GetHellPartyDifficulty(type);
+                if (m_hellPartyDifficulty == 0)
+                {
+                    LogManager::logFormat(
+                        1, "battle_field.cpp", s_pretty, 0x22b,
+                        "HELLPARTY_LOG : HELLPARTY DIFFICULTY ERROR!!\n");
+                    return false;
+                }
+                m_hellPartyEventType = (char)GetHellPartyEventType(m_hellPartyDifficulty);
             }
-            m_hellPartyEventType = (char)GetHellPartyEventType(m_hellPartyDifficulty);
         }
+        }
+        }
+    }
+    }
     }
 
     if (dungeon != 0 && dungeon->m_89d != 1)
@@ -226,9 +271,16 @@ bool CBattle_Field::SelectDungeon(int dungeonIdx, const CDungeon* dungeon,
 }
 
 // ---- MakePacket(int, void*) —— ORIG 0x083090a4（MakePacket.md 全文） ----
-// 六个包分支：0x1c（房间基础+骑乘物+当日层）、0x1d（进图全量：坐标/怪物/掉落）、
-// 0xd3 / 0x183（小地图信息，find_map 失败走日志且不 finalize）、
-// 0xd4（无头的精简房间信息）、0x182（锦标赛轮次表）。
+// 【§6.2 超大函数验收（batch-11）】orig_insns=1053 / our=1058（gap −5）；
+// P167 调用点差集已清零（48 符号×次数全命中，含 find_map/logFormat/TOD 链/
+// ppEi 后置自增）；switch 决策树与叶块序逐条同 ORIG（cmp 0xd3 根、叶序
+// 0x1d,0x1c,0xd3,0xd4,0x182,0x183）。残余为 N82（帧 0x46c vs 0x45c、pkt 槽
+// -0x5c vs -0x58 全帧平移）与 N76/N18a（store 装载两步/单步）封顶，勿再追。
+// 六个包分支（switch 决策树 cmp 0xd3 根）：0x1d（进图全量：坐标/怪物/掉落）、
+// 0x1c（房间基础+骑乘物+当日层）、0xd3/0x183（小地图信息，两份独立展开，
+// find_map 失败走日志且不 finalize）、0xd4（无头的精简房间信息）、
+// 0x182（锦标赛轮次表）。MapInfo 字段访问按 ORIG 逐点重取
+// GetCurrentMapInfo()（P183 禁缓存；0x182 分支例外——ORIG 自身缓存 map ptr）。
 void CBattle_Field::MakePacket(int packetId, void* packet)
 {
     InterfacePacketBuf* pkt = (InterfacePacketBuf*)packet;
@@ -238,7 +290,9 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
     // 变量复现同一行为。
     short staleStackValue;
 
-    if (packetId == 0x1d)
+    switch (packetId)
+    {
+    case 0x1d:
     {
         pkt->put_header(0, 0x1d);
         int posX = -1;
@@ -246,21 +300,20 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
         getCurPosXY(posX, posY);
         pkt->put_byte(posX);
         pkt->put_byte(posY);
-        MapInfo* mapInfo = GetCurrentMapInfo();
-        pkt->put_byte(mapInfo->m_layeredMap != 0 ? 1 : 0);   // +0xe8
-        pkt->put_int(mapInfo->m_mapBasisLevel);              // +0x48
+        pkt->put_byte(GetCurrentMapInfo()->m_layeredMap != 0 ? 1 : 0);   // +0xe8
+        pkt->put_int(GetCurrentMapInfo()->m_mapBasisLevel);              // +0x48
         pkt->put_byte((char)m_hellPartyDifficulty);          // +0x1cc
         pkt->put_byte((char)m_hellPartyEventType);           // +0x1cd
-        if (mapInfo->m_visited == '\0')                      // +0x01
+        if (GetCurrentMapInfo()->m_visited == '\0')          // +0x01
         {
-            pkt->put_byte((char)mapInfo->m_mapType);         // +0x44
-            pkt->put_short(mapInfo->m_mapIndex);             // +0x04
-            pkt->put_byte((int)mapInfo->m_monsterMap.size());  // +0x0c
+            pkt->put_byte((char)GetCurrentMapInfo()->m_mapType);         // +0x44
+            pkt->put_short(GetCurrentMapInfo()->m_mapIndex);             // +0x04
+            pkt->put_byte((int)GetCurrentMapInfo()->m_monsterMap.size());  // +0x0c
 
             map_monster mob;
             for (std::map<int, map_monster>::iterator it =
-                     mapInfo->m_monsterMap.begin();
-                 it != mapInfo->m_monsterMap.end(); ++it)
+                     GetCurrentMapInfo()->m_monsterMap.begin();
+                 it != GetCurrentMapInfo()->m_monsterMap.end(); it++)
             {
                 mob = it->second;
                 pkt->put_short(staleStackValue);             // 未初始化槽复现
@@ -276,12 +329,13 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
                 pkt->put_byte((unsigned char)mob.m_field14); // +0x14
             }
 
-            pkt->put_byte((int)mapInfo->m_itemMap.size());   // +0x24
+            pkt->put_byte((int)GetCurrentMapInfo()->m_itemMap.size());   // +0x24
+            map_item item;
             for (std::map<int, map_item>::iterator it =
-                     mapInfo->m_itemMap.begin();
-                 it != mapInfo->m_itemMap.end(); ++it)
+                     GetCurrentMapInfo()->m_itemMap.begin();
+                 it != GetCurrentMapInfo()->m_itemMap.end(); it++)
             {
-                map_item item = it->second;              // 21 dword 复制
+                item = it->second;                           // 21 dword 复制
                 pkt->put_byte((char)item.m_standardLevel);       // +0x01
                 pkt->put_short(item.m_itemIndex);                // +0x04
                 pkt->put_int(item.m_item.m_addInfo);             // +0x12
@@ -308,8 +362,9 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
                 pkt->put_byte(0xff);
             pkt->finalize(true);
         }
+        break;
     }
-    else if (packetId == 0x1c)
+    case 0x1c:
     {
         pkt->put_byte(m_mazeType);                         // +0x1ac
         pkt->put_byte(m_pos[0].first);                     // +0x0c
@@ -326,21 +381,15 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
             pkt->put_byte(ridablePos[i].second);
         }
 
-        unsigned short todayLayer = 0;                     // local_4a
-        if (m_party != 0)
+        CUser* manager = 0;
+        TOD_UserState* todState = 0;
+        unsigned short todayLayer = 0;                     // -0x46（ushort 写）
+        if (m_party != 0 && (manager = m_party->getManager()) != 0)
         {
-            CUser* manager = m_party->getManager();
-            if (manager != 0)
-            {
-                // （同 CDungeon.cpp tod_detail 注）。ORIG 语义（0x86439c8/0x85fe7b4）：
-                // layer = (ushort)(state+0x14) + 1，>0x64 时 clamp 到 1。
-                char* todState = (char*)manager->GetCharacExpandData(
-                    (ENUM_CHARAC_EXPAND_TYPE)0xd);
-                unsigned short todBase = *(unsigned short*)(todState + 0x14);
-                todayLayer = (unsigned short)(todBase + 1);
-                if (todayLayer > 0x64)
-                    todayLayer = 1;
-            }
+            todState = reinterpret_cast<TOD_UserState*>(
+                manager->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xd));
+            TOD_Layer layer = todState->getTodayEnterLayer();
+            todayLayer = layer.GetLayer();
         }
         pkt->put_short(todayLayer);
         if (m_party == 0)
@@ -348,85 +397,29 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
         else
             pkt->put_byte(m_party->get_random_buff_type());
         pkt->finalize(true);
+        break;
     }
-    else if (packetId == 0xd4)
+    case 0xd3:
     {
-        pkt->put_byte(m_mazeType);
-        pkt->put_byte(m_pos[0].first);
-        pkt->put_byte(m_pos[0].second);
-        pkt->put_byte(0);
-        pkt->put_byte(0);
-        pkt->put_byte(m_bloodState);
-        if (m_party == 0)
-            pkt->put_byte(0xb);
-        else
-            pkt->put_byte(m_party->get_random_buff_type());
-        pkt->finalize(true);
-    }
-    else if (packetId == 0x182)
-    {
-        char memberCount = (char)m_party->get_member_count();
-        pkt->put_byte(memberCount);                        // movsbl
-        MapInfo* mapInfo = GetCurrentMapInfo();
-        std::map<int, map_monster>::iterator mobIt =
-            mapInfo->m_monsterMap.begin();
-        for (char round = 1; round <= 4; ++round)
-        {
-            pkt->put_byte(round);
-            std::map<short, std::vector<TournamentInfo> >::iterator roundIt =
-                m_tournamentRoundMap.find((short)round);   // +0x13c
-            std::vector<TournamentInfo>& infos = roundIt->second;
-            pkt->put_byte((int)infos.size());
-            for (size_t j = 0; j < infos.size(); ++j)
-            {
-                TournamentInfo& info = infos[j];
-                pkt->put_byte(info.m_roundOrder);
-                for (int k = 0; k < memberCount; ++k)
-                {
-                    pkt->put_int(info.m_monster[k].m_mobId);
-                    pkt->put_short(info.m_monster[k].m_rate);
-                }
-            }
-            int written = 0;
-            while (written < memberCount &&
-                   mobIt != mapInfo->m_monsterMap.end())
-            {
-                const map_monster& mob = mobIt->second;
-                pkt->put_short(mob.m_instId);
-                pkt->put_int(mob.m_mobIndex);
-                pkt->put_byte((unsigned char)mob.m_level);
-                pkt->put_byte((char)mob.m_roleType);
-                ++written;
-                ++mobIt;
-            }
-        }
-        pkt->finalize(true);
-    }
-    else if (packetId == 0xd3 || packetId == 0x183)
-    {
-        pkt->put_header(0, packetId);
+        pkt->put_header(0, 0xd3);
         int posX = -1;
         int posY = -1;
         getCurPosXY(posX, posY);
         pkt->put_byte(posX);
         pkt->put_byte(posY);
-        MapInfo* mapInfo = GetCurrentMapInfo();
-        pkt->put_int(mapInfo->m_mapBasisLevel);
+        pkt->put_int(GetCurrentMapInfo()->m_mapBasisLevel);  // +0x48
         pkt->put_byte(0);
-        if (mapInfo->m_visited == '\0')
+        if (GetCurrentMapInfo()->m_visited == '\0')          // +0x01
         {
-            pkt->put_byte((char)mapInfo->m_mapType);
-            pkt->put_short(mapInfo->m_mapIndex);
-            const CDataManager* dataMgr = G_CDataManager();  // const → find_map const
-            if (dataMgr->find_map(mapInfo->m_mapIndex) == 0)
+            pkt->put_byte((char)GetCurrentMapInfo()->m_mapType);       // +0x44
+            pkt->put_short(GetCurrentMapInfo()->m_mapIndex);            // +0x04
+            const CDataManager* dataMgr = G_CDataManager();
+            if (dataMgr->find_map(GetCurrentMapInfo()->m_mapIndex) == 0)
             {
-                // ORIG 两分支日志行不同：0x1746(0xd3) / 0x17d2(0x183)
                 LogManager::logFormat(
-                    1, "battle_field.cpp",
-                    __PRETTY_FUNCTION__,
-                    packetId == 0xd3 ? 0x1746 : 0x17d2,
+                    1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1746,
                     "Find Map[%d] Error(In Map Maker)(%d/%d)",
-                    mapInfo->m_mapIndex, m_curX, m_curY);
+                    GetCurrentMapInfo()->m_mapIndex, m_curX, m_curY);
                 // 错误路径不 finalize，直接返回
             }
             else
@@ -442,9 +435,109 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
             pkt->put_byte(0);
             pkt->finalize(true);
         }
+        break;
+    }
+    case 0xd4:
+    {
+        pkt->put_byte(m_mazeType);
+        pkt->put_byte(m_pos[0].first);
+        pkt->put_byte(m_pos[0].second);
+        pkt->put_byte(0);
+        pkt->put_byte(0);
+        pkt->put_byte(m_bloodState);
+        if (m_party == 0)
+            pkt->put_byte(0xb);
+        else
+            pkt->put_byte(m_party->get_random_buff_type());
+        pkt->finalize(true);
+        break;
+    }
+    case 0x182:
+    {
+        char memberCount = (char)m_party->get_member_count();
+        pkt->put_byte(memberCount);                        // movsbl
+        MapInfo* mapInfo = GetCurrentMapInfo();            // ORIG 缓存 map ptr
+        std::map<int, map_monster>::iterator mobIt =
+            mapInfo->m_monsterMap.begin();
+        for (char round = 1; round <= 4; ++round)
+        {
+            pkt->put_byte(round);
+            short roundKey = round;                        // -0x62 short 槽
+            std::map<short, std::vector<TournamentInfo> >::iterator roundIt =
+                m_tournamentRoundMap.find(roundKey);       // +0x13c
+            std::vector<TournamentInfo>& infos = roundIt->second;
+            pkt->put_byte((int)infos.size());
+            for (unsigned int j = 0; j < infos.size(); ++j)
+            {
+                pkt->put_byte(infos[j].m_roundOrder);
+                for (int k = 0; k < memberCount; ++k)
+                {
+                    pkt->put_int(infos[j].m_monster[k].m_mobId);
+                    pkt->put_short(infos[j].m_monster[k].m_rate);
+                }
+            }
+        }
+        for (char round2 = 1; round2 <= 4; ++round2)
+        {
+            pkt->put_byte(round2);
+            int written = 0;
+            while (written < memberCount &&
+                   mobIt != mapInfo->m_monsterMap.end())
+            {
+                const map_monster& mob = mobIt->second;
+                pkt->put_short(mob.m_instId);
+                pkt->put_int(mob.m_mobIndex);
+                pkt->put_byte((unsigned char)mob.m_level);
+                pkt->put_byte((char)mob.m_roleType);
+                ++written;
+                mobIt++;
+            }
+        }
+        pkt->finalize(true);
+        break;
+    }
+    case 0x183:
+    {
+        pkt->put_header(0, 0x183);
+        int posX = -1;
+        int posY = -1;
+        getCurPosXY(posX, posY);
+        pkt->put_byte(posX);
+        pkt->put_byte(posY);
+        pkt->put_int(GetCurrentMapInfo()->m_mapBasisLevel);  // +0x48
+        pkt->put_byte(0);
+        if (GetCurrentMapInfo()->m_visited == '\0')          // +0x01
+        {
+            pkt->put_byte((char)GetCurrentMapInfo()->m_mapType);       // +0x44
+            pkt->put_short(GetCurrentMapInfo()->m_mapIndex);            // +0x04
+            const CDataManager* dataMgr = G_CDataManager();
+            if (dataMgr->find_map(GetCurrentMapInfo()->m_mapIndex) == 0)
+            {
+                LogManager::logFormat(
+                    1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x17d2,
+                    "Find Map[%d] Error(In Map Maker)(%d/%d)",
+                    GetCurrentMapInfo()->m_mapIndex, m_curX, m_curY);
+                // 错误路径不 finalize，直接返回
+            }
+            else
+            {
+                pkt->put_byte(0);
+                pkt->put_byte(0);
+                pkt->put_byte(0);
+                pkt->finalize(true);
+            }
+        }
+        else
+        {
+            pkt->put_byte(0);
+            pkt->finalize(true);
+        }
+        break;
+    }
+    default:
+        break;
     }
 }
-
 // ============================== CDungeon ==============================
 
 // ---- InsertMap(int, int, CMap*) —— ORIG 0x0834b988（InsertMap.md 全文） ----
@@ -540,6 +633,9 @@ void CDungeon::insertStart(int idx, CMap* map)
 // GlobalData::s_DailyScheduleManager.GetScheduleState(type=0, m_index) ∈ {1,2}。
 bool CDungeon::IsOpenScheduleDungeon() const
 {
+    // ORIG @0x834d2da 函数头 `movl $0,-0x10` 死初始化槽（全函数无后续读写，
+    // P171 照抄）。
+    int deadSlot = 0;
     int state = GlobalData::s_DailyScheduleManager->GetScheduleState(
         (_DailyScheduleType)0, (unsigned int)m_index);
     if (state == 1 || state == 2)

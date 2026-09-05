@@ -182,10 +182,10 @@ void stFavorableRelationShip_t::clear()
     {
         for (int i = 0; i < 5; ++i)
         {
-            m_preferItems.m_maps[l].clear();
-            m_unpreferItems.m_maps[l].clear();
-            m_preferItemGroups.m_maps[l].clear();
-            m_unpreferItemGroups.m_maps[l].clear();
+            m_preferItems[l].clear();
+            m_unpreferItems[l].clear();
+            m_preferItemGroups[l].clear();
+            m_unpreferItemGroups[l].clear();
         }
     }
     // ORIG：三档 favorRate 写入常量 1.0f（非清零）。
@@ -643,7 +643,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                                 if (!ok) { return IMPORT_FAIL; }
                                 info.m_c = static_cast<short>(ScanInt(&ok));
                                 if (!ok) { return IMPORT_FAIL; }
-                                fav.m_preferItems.m_maps[slot].insert(
+                                fav.m_preferItems[slot].insert(
                                     std::make_pair(info.m_a, info));
                             }
                             continue;
@@ -665,7 +665,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                                 if (!ok) { return IMPORT_FAIL; }
                                 info.m_c = static_cast<short>(ScanInt(&ok));
                                 if (!ok) { return IMPORT_FAIL; }
-                                fav.m_preferItemGroups.m_maps[slot].insert(
+                                fav.m_preferItemGroups[slot].insert(
                                     std::make_pair(info.m_a, info));
                             }
                             continue;
@@ -684,7 +684,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                                 if (!ok) { return IMPORT_FAIL; }
                                 info.m_b = 1;
                                 info.m_c = -info.m_c;
-                                fav.m_unpreferItems.m_maps[slot].insert(
+                                fav.m_unpreferItems[slot].insert(
                                     std::make_pair(info.m_a, info));
                             }
                             continue;
@@ -706,7 +706,7 @@ int importNpcScript(NpcScript* npc, char const* path)
                                 if (!ok) { return IMPORT_FAIL; }
                                 info.m_b = 1;
                                 info.m_c = -info.m_c;
-                                fav.m_unpreferItemGroups.m_maps[slot].insert(
+                                fav.m_unpreferItemGroups[slot].insert(
                                     std::make_pair(info.m_a, info));
                             }
                             continue;
@@ -1085,8 +1085,8 @@ unsigned short CNPCScript::giveGiftItem(unsigned int mood, CItem const* item, un
     short give = 0;
     std::map<unsigned long, stFavorableRelationShip_t::stGiftItemInfo_t>::const_iterator it;
     unsigned long key = item->get_index();
-    it = m_npcScript.m_favorableRelationShip.m_preferItems.m_maps[mood].find(key);
-    if (it != m_npcScript.m_favorableRelationShip.m_preferItems.m_maps[mood].end())
+    it = m_npcScript.m_favorableRelationShip.m_preferItems[mood].find(key);
+    if (it != m_npcScript.m_favorableRelationShip.m_preferItems[mood].end())
     {
         if (static_cast<unsigned short>(it->second.m_b) <= count)
         {
@@ -1100,9 +1100,9 @@ unsigned short CNPCScript::giveGiftItem(unsigned int mood, CItem const* item, un
     int groupName = item->getItemGroupName();
     if (groupName != 0)
     {
-        it = m_npcScript.m_favorableRelationShip.m_preferItemGroups.m_maps[mood].find(
+        it = m_npcScript.m_favorableRelationShip.m_preferItemGroups[mood].find(
             static_cast<unsigned long>(groupName));
-        if (it != m_npcScript.m_favorableRelationShip.m_preferItemGroups.m_maps[mood].end())
+        if (it != m_npcScript.m_favorableRelationShip.m_preferItemGroups[mood].end())
         {
             if (static_cast<unsigned short>(it->second.m_b) <= count)
             {
@@ -1122,17 +1122,17 @@ unsigned short CNPCScript::giveGiftItem(unsigned int mood, CItem const* item, un
         return give;
     }
     key = item->get_index();
-    it = m_npcScript.m_favorableRelationShip.m_unpreferItems.m_maps[mood].find(key);
-    if (it != m_npcScript.m_favorableRelationShip.m_unpreferItems.m_maps[mood].end())
+    it = m_npcScript.m_favorableRelationShip.m_unpreferItems[mood].find(key);
+    if (it != m_npcScript.m_favorableRelationShip.m_unpreferItems[mood].end())
     {
         give = it->second.m_c;
     }
     int groupName2 = item->getItemGroupName();
     if (groupName2 != 0)
     {
-        it = m_npcScript.m_favorableRelationShip.m_unpreferItemGroups.m_maps[mood].find(
+        it = m_npcScript.m_favorableRelationShip.m_unpreferItemGroups[mood].find(
             static_cast<unsigned long>(groupName2));
-        if (it != m_npcScript.m_favorableRelationShip.m_unpreferItemGroups.m_maps[mood].end())
+        if (it != m_npcScript.m_favorableRelationShip.m_unpreferItemGroups[mood].end())
         {
             if (give != 0)
             {

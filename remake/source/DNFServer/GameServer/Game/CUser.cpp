@@ -1956,39 +1956,80 @@ void CUser::makeGuildSkillMessage(const char* skillName, int count)
 //   GetServerString(0x3ec 强化 / 0x3ed 降级) + 角色名；长度>0x77 不发，
 //   否则经 CGuildServerProxy::SendGuildBoardWrite 广播。
 // ============================================================================
-int CUser::makeGuildItemUpgradMessage(const char* itemName, int from,
-                                      int to, bool isAmplify)
+void CUser::makeGuildItemUpgradMessage(const char* itemName, int from,
+                                       int to, bool isAmplify)
 {
-    char numStr[256];
-    memset(numStr, 0, sizeof(numStr));
-    if (isAmplify)
+    // ORIG T 0x08679cee 全录（汇编+Ghidra C 双段读完）：返回类型 void
+    // （epilogue 0x867a236 无 %eax 写，0/1 仅内部 %ebx goto 判定——Main 已落
+    // CUser.h 声明 void）。结构：入口 board[120] rep stos 清零 →
+    // **双分支整段复制**（4.1 无跨分支复用，gap196 主因）：
+    //   分支1 isAmplify&&to>10：name/pre(0x3e8)/suf(0x3ec) 三 string 构造 →
+    //     msg[0xff] memset → sprintf("+%d %s",to) → pre+=msg → pre+=suf →
+    //     name+=pre → len>0x77 seta 物化 → !tooLong: memcpy(board,c_str,len)
+    //     （len 先算存寄存器再 c_str，Ghidra sVar2/pvVar3 序）→ sent=1；
+    //   分支2 !isAmplify&&from>10：同构 key=0x3ed、"+%d %s" from+1（lea 0x1）；
+    //   两分支块末 dtor suf/pre/name 反序链 + EH resume pad →
+    //   共享 SEND 尾（0x867a1c7）：guildkey、characNo、group 三取后
+    //   GetServerProxy、SendGuildBoardWrite(board,0,characNo,-1,-1,guildkey)。
+    // 【N 封顶（Main 批准 2026-09-05）】语义/调用序/清零形全对齐；残差：
+    //   slot 漂移 12B（4.4 memcpy 临时落槽 vs 4.1 寄存器承载，N76/N82 族）、
+    //   sent 二次归一化 `test;jne;mov$0;jmp;mov$1` 岛（N7 channel-predicate 形）、
+    //   EH pad 布局。
+    // 【2026-09-05 21:0x 事故重建】本函数体曾被 StringResource 批次误写覆盖，
+    // 从 HEAD(batch-10) 恢复后按会话记录重放。
+    char board[0x78] = {0};
+    // ORIG 无顶部初始化（%ebx 仅分支内 0x8679e9d mov$0 / 0x8679e43 mov$1 两路
+    // 径赋值后共享 dtor 尾）→ if/else 双赋值形，无 sent=0 预写。
+    register int sent asm("ebx");
+    if (isAmplify && to > 10)
     {
-        if (to <= 10)
-            return 0;
-        sprintf(numStr, "+%d %s", to, itemName);
+        std::string name(getCurCharacName());
+        std::string pre = g_ServerString_.GetServerString(0x3e8, 0);
+        std::string suf = g_ServerString_.GetServerString(0x3ec, 0);
+        char msg[0xff] = {0};   // ORIG 0x8679dd0 非对齐 peel+rep stos 展开
+        sprintf(msg, "+%d %s", to, itemName);
+        pre += msg;
+        pre += suf;
+        name += pre;
+        register bool tooLong asm("al");
+        tooLong = (name.length() > 0x77);   // ORIG 0x8679e93 seta %al 物化
+        if (tooLong) {
+            sent = 0;
+        } else {
+            memcpy(board, name.c_str(), (unsigned int)name.length());
+            sent = 1;
+        }
+    }
+    else if (!isAmplify && from > 10)
+    {
+        std::string name(getCurCharacName());
+        std::string pre = g_ServerString_.GetServerString(0x3e8, 0);
+        std::string suf = g_ServerString_.GetServerString(0x3ed, 0);
+        char msg[0xff] = {0};   // ORIG 0x867a02c 同形第二份
+        sprintf(msg, "+%d %s", from + 1, itemName);   // ORIG 0x867a08a lea 0x1(%eax)
+        pre += msg;
+        pre += suf;
+        name += pre;
+        register bool tooLong2 asm("al");
+        tooLong2 = (name.length() > 0x77);
+        if (tooLong2) {
+            sent = 0;
+        } else {
+            memcpy(board, name.c_str(), (unsigned int)name.length());
+            sent = 1;
+        }
     }
     else
     {
-        if (from <= 10)
-            return 0;
-        sprintf(numStr, "+%d %s", from + 1, itemName);
+        return;
     }
-    std::string name = getCurCharacName();   // ORIG 先构名字串（拼接在末尾）
-    std::string body = g_ServerString_.GetServerString(0x3e8, 0);
-    body += numStr;
-    body += g_ServerString_.GetServerString(isAmplify ? 0x3ec : 0x3ed, 0);
-    body += name;
-    if (body.length() > 0x77)
-        return 0;
-    char board[120];
-    memset(board, 0, sizeof(board));
-    memcpy(board, body.c_str(), body.length());
+    if (sent == 0)
+        return;
+    unsigned int guildKey = (unsigned int)get_charac_guildkey();
+    unsigned int characNo = (unsigned int)getCurCharacNo();
     CGuildServerProxy* proxy =
         GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup());
-    if (proxy != 0)
-        proxy->SendGuildBoardWrite(board, 0, (unsigned int)getCurCharacNo(),
-                                   -1, -1, (unsigned int)get_charac_guildkey());
-    return 1;
+    proxy->SendGuildBoardWrite(board, 0, characNo, -1, -1, guildKey);
 }
 
 // ORIG 0x086787fc：改成长类型主分支（set_grow_type.md 汇编+反编译 C 全文核对）。
@@ -3091,20 +3132,27 @@ int CUser::SendPacket(eSendTarget target, PacketGuard& packet)
 
 int CUser::SendCmdPacket(eSendTarget target, ENUM_CMDPACKET cmd, int param)
 {
+    // ORIG 0x867c1d4 块序（技巧 23 goto 钉）：true 路径 put_byte×2 后 **jmp 到位于
+    // false(log) 块之后的共享 finalize+SendPacket 段（0x867c279）**；false 块
+    // cmd→%ebx 缓存、logFormat、%ebx=0 汇合 0x867c2c4 dtor 尾。
     PacketGuard packet;
     ((InterfacePacketBuf*)&packet)->put_header(1, (int)cmd);
-    if ((int)cmd == 0x41)
-    {
-        ((InterfacePacketBuf*)&packet)->put_byte(1);
-        ((InterfacePacketBuf*)&packet)->put_byte(param);
-        ((InterfacePacketBuf*)&packet)->finalize(true);
-        return SendPacket(target, packet);
-    }
+    register int cv asm("eax");   // ORIG 0x867c201 独立装载+寄存器 cmp（mem 直折反形）
+    cv = (int)cmd;
+    if (cv != 0x41)
+        goto BAD;
+    ((InterfacePacketBuf*)&packet)->put_byte(1);
+    ((InterfacePacketBuf*)&packet)->put_byte(param);
+    goto DO_FIN;
+BAD:
     LogManager::logFormat(1, "user.cpp",
                           __PRETTY_FUNCTION__,
                           0x7741, "User %s - CmdID %d invalid", getCurCharacName(),
                           (int)cmd);
     return 0;
+DO_FIN:
+    ((InterfacePacketBuf*)&packet)->finalize(true);
+    return SendPacket(target, packet);
 }
 
 int CUser::SendCmdOkPacket(ENUM_CMDPACKET cmd)
@@ -3518,16 +3566,18 @@ int CUser::GetAge()
 bool CUser::IsOverBirthDay()
 {
     // ORIG 0x0867ec66：出生月/日是否已过（用于 PowerWar 最低年龄判定）。
+    // ORIG 0x867ec66 形：cur@-0x18 → localtime_r **返回值**落槽 pLocal@-0x14
+    // （0x867ec8d mov %eax,-0x14），month/day 各自 reload pLocal（0x867ec90/9c，
+    // T-CU14 同款）；birth 字段无具名槽——两处成员直读+展宽直发 cmp。
     time_t cur = GlobalData::s_systemTime_.getCurSec();
     struct tm local;
-    localtime_r(&cur, &local);
-    int curMonth = local.tm_mon + 1;
-    int curDay = local.tm_mday;
-    unsigned char birthMon = this->m_clientSpec.m_birthMonth;
-    unsigned char birthDay = this->m_clientSpec.m_birthDay;
-    if (birthMon < curMonth)
+    tm* pLocal = localtime_r(&cur, &local);
+    int curMonth = pLocal->tm_mon + 1;
+    int curDay = pLocal->tm_mday;
+    if (m_clientSpec.m_birthMonth < curMonth)
         return true;
-    if (birthMon == curMonth && birthDay < curDay)
+    if (m_clientSpec.m_birthMonth == curMonth &&
+        m_clientSpec.m_birthDay < curDay)
         return true;
     return false;
 }
@@ -5175,32 +5225,42 @@ void CUser::NextCharacMoneyLog(int now)
 // 状态 8/村庄 7 任一命中 → 跳过货币滚窗。
 bool CUser::exceptedStateMoneyLog()
 {
-    CParty* party = static_cast<CParty*>(GetParty());
-    if (party != 0)
+    // ORIG T 0x868f3ba 全录（报告缺失，objdump 71 insn 转写）：GetParty() 每使用点
+    // 重调共 4 次（0x868f3c6/3da/3fd/417，无具名槽，T-CU15）；条件全走 4.1 bool
+    // 物化 `test;setne %al;test %al,%al;je`（技巧 22 register bool al）；m_89e
+    // uchar `movzbl 0x89e;test %al` 免物化直判；get_state `cmp $0x8,%eax; sete`、
+    // getCurCharacVill `cmp $0x7,%al` 8 位形（callee uchar 返回）。bf 读保留
+    // CParty+0xb24 视图（§4.3 具名，0xc4c 单级系 4.1 复合折叠，4.4 两段为 N）。
+    register bool gp asm("al");
+    gp = (GetParty() != 0);
+    if (gp)
     {
-        CBattle_Field& bf =
-            *reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1);
-        if (bf.m_villageMonsterId != 0)
-        {
+        register bool bfNZ asm("al");
+        bfNZ = ((*reinterpret_cast<CBattle_Field*>(
+                    ((CParty*)GetParty())->m_padBattleField1)).m_villageMonsterId != 0);
+        if (bfNZ)
             return true;
-        }
-        if (party->m_dungeon != 0 && party->m_dungeon->m_89e != 0)
+        gp = (((CParty*)GetParty())->m_dungeon != 0);
+        if (gp)
         {
-            return true;
+            register unsigned char m89e asm("al");
+            m89e = ((CParty*)GetParty())->m_dungeon->m_89e;
+            if (m89e)
+                return true;
         }
     }
-    if (get_state() == 8)
-    {
+    register bool st8 asm("al");
+    st8 = (get_state() == 8);
+    if (st8)
         return true;
-    }
-    if (getCurCharacVill() == 7)
-    {
+    register bool vil7 asm("al");
+    vil7 = (getCurCharacVill() == 7);
+    if (vil7)
         return true;
-    }
     return false;
 }
 
-// ORIG _ZN5CUser11UseWinPointEi12eWPSubReason T 0x0864fcc6：底层扣减 + WPSub 日志。
+
 int CUser::UseWinPoint(int winPoint, eWPSubReason reason)
 {
     useWinPoint(winPoint, reason);
@@ -8412,14 +8472,27 @@ int CUser::gainGuildSkillExp(int exp)
         return 0;
     if (getGuildMemberGrade() == 0)
         return 0;
-    char learned = (char)IsGuildSkillLearn(0xc9);   // ORIG：movb 存栈 + cmpb + movsbl
-    if (learned == 0)
+    // ORIG 0x864fb7d-0x864fc2e 系：learned@-0x11 **dead init 0 + 赋值两段**（技巧 8）
+    // → cmpb $0,-0x11; sete %al 物化 guard（技巧 22）；skill@-0x10 dead init；
+    // job/gradeIdx 共用 %ebx 跨 call（块作用域分离）；gradeWeights 无具名槽
+    // （skill+0x108 直发 op[]，T-CU15）；at() 结果 `mov (%eax),%eax` 落 weight 槽
+    // -0xc 再 imul（具名物化补齐槽后 learned/skill 平移归位）。
+    char learned = 0;
+    learned = (char)IsGuildSkillLearn(0xc9);
+    register bool isZero asm("al");
+    isZero = (learned == 0);
+    if (isZero)
         return 0;
-    CSkill* skill = G_CDataManager()->find_skill(get_charac_job(), 0xc9);
-    std::vector<std::vector<int> >* gradeWeights =
-        &skill->m_field108;
-    int gradeIdx = (int)learned - 1;
-    return (exp * (*gradeWeights)[0].at(gradeIdx)) / 100;
+    CSkill* skill = 0;
+    {
+        register int job asm("ebx");
+        job = get_charac_job();
+        skill = G_CDataManager()->find_skill(job, 0xc9);
+    }
+    register int gradeIdx asm("ebx");
+    gradeIdx = (int)learned - 1;   // 残 2：4.4 ebx 绑定赋值绕 %ebx 旧值搬运
+    int weight = (skill->m_field108)[0].at(gradeIdx);
+    return (exp * weight) / 100;
 }
 
 // ---- 0x08659faa make_charac_stat(PacketGuard&)：角色属性块序列化。
@@ -10000,8 +10073,15 @@ bool CUser::GetCharacInfo(SIG_LOAD_CHARAC* sig) const
     int characIdx = get_charac_idx(sig->m_characNo);
     sig->m_result = 0;
 
-    if (getCharacInfoDetail(characIdx, sig->m_characNo,
-            reinterpret_cast<CHARAC_DATA*>(&sig->m_characData)) ^ 1)
+    // ORIG 0x0864bcc8 系 `xor $0x1,%eax; test %al,%al; je`：register bool al 绑
+    // `!call()`（技巧 1 经物化赋值；直 `!call()`/`^1` 均产 sete/cmp 三段）。
+    // err trace 保具名（ORIG err@-0x30 远槽），主块 trace 临时链改注册序。
+    register bool ne asm("al");
+    ne = (getCharacInfoDetail(characIdx, sig->m_characNo,
+                              reinterpret_cast<CHARAC_DATA*>(&sig->m_characData))
+          != false);   // 技巧 22 直用：cmp $1/setne 两段=ORIG xor$1 段数；`!ident(` token 会被 eval 写路径破坏（__omp_shell），勿用
+
+    if (ne)
     {
         cMyTrace tr(__PRETTY_FUNCTION__, 0x1052, 0);
         tr("getCharacInfoDetail() return = false");
@@ -10019,12 +10099,13 @@ bool CUser::GetCharacInfo(SIG_LOAD_CHARAC* sig) const
                      reinterpret_cast<TAG_CHARAC_DATA*>(&sig->m_tagCharacData));
     {
         // ORIG 0x864bcf6/0x864bd01：两值先求值直落 callee-saved %esi/%ebx，
-        // 跨 ctor/operator() 存活（register 局部实证形态）。
+        // 跨 ctor/operator() 存活（register 局部实证形态）；主 trace 临时链
+        // （技巧 3）翻转与 err-trace 的槽分配序（ORIG 主@-0x20/err@-0x30）。
         register int tick = (int)reinterpret_cast<const CHARAC_DATA*>(
                                 &sig->m_characData)->m_field4d;
         register int cno = (int)sig->m_characNo;
-        cMyTrace tr(__PRETTY_FUNCTION__, 0x1066, 0);
-        tr("CharLastPlayTick char(%d) t(%d)", cno, tick);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1066, 0)(
+            "CharLastPlayTick char(%d) t(%d)", cno, tick);
     }
     return true;
 }
