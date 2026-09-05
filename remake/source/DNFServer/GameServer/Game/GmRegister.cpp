@@ -10,6 +10,15 @@
 namespace game_master
 {
 
+// 语义完成（§6.2 口径，batch-12 复核）：ORIG 1609 / 我们 1489，gap=120 全量归因——
+//   ① 119×(movl/movw $0x0 前置零写) = N77：4.1 对 new T() value-init 前置清零，4.4 按
+//      CWG434 不发射（89 个 new 站点中 68 个带零写块：47×2dword + 18×3dword + 3×(2dword+2word)）；
+//   ② 余 1 条为显示口径噪音（.o 阶段 string 实参 reloc addend 与 ORIG rodata 地址文本差，
+//      P160/P162 口径）；字符串内容已逐条核对一致（bongfail/lv/recipeprob/cash/restrict/
+//      pcroomrewardreset/heromission）；senior/junior 实参装载 4 行寄存器名差为计数抵消的 N7 族。
+//   调用点差集=0（两侧 318 call 多重集全等）；87 注册块 (new尺寸↔类↔id/串↔顺序) 与 ORIG
+//   逐块全等（含 batch-12 修正：CBillingRechargeCommand new $0x10、CHeroMissionCommand
+//   new $0x14，见 GameMasterCmd.h 字段实证）。byte 层 N77 封顶，勿再耗轮次。
 CGameMasterMgr::CGameMasterMgr()                        // 0x082a8a28
 {
     m_senior = new CSeniorGameMaster(0);                // 链尾

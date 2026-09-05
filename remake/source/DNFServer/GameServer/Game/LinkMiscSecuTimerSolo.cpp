@@ -12,6 +12,19 @@
 //   user_creature::CCreatureMgr::CheckDiedCreature（CInventory.h 声明）
 //   CAutoMarketConditionsControl::LoadDatabase + GetMarketConditionRate +
 //     SendNotiSetDurability 族 + DB_UpdateAutoMarketConditionsControl::makeRequest
+// ---------------------------------------------------------------------------
+// 撞名 structural 复核（batch-12，nm 实址切片，Main 要求）：
+//   * __tcf_0：ORIG 同名 10 枚（每 TU 一枚）。本 guard 表真身 = 0x0896a850
+//     （processModuleTagSetPSsRi atexit 引用），size 0x2b 与本 .o __tcf_0
+//     0x2b 全等，体 17 条逐条对位（mov base; lea 0x28(eax); mov base; cmp;
+//     je; sub $4,%ebx; mov esp; call _ZNSsD1Ev; jmp; add; pop×3; ret）。
+//     compare 工具按名取到 0x0828f940（CDeathTowerRanking 域，另一 TU）——
+//     索引伪差集（P93/P154 同族），非实现缺口。
+//   * _Z41__static_initialization_and_destruction_0ii：本 TU 无全局动态对象
+//     （静态局部表走函数内 guard），体 = 纯 ios_base::Init+atexit 16 条
+//     （size 0x40），与 ORIG 同形态实例 0x08083c60（0x40/16 条）逐行一致；
+//     compare 取到的是他 TU 47 条含对象实例——同名键不同归属，_GLOBAL__I_
+//     键名族（P108/P128）结构噪音。
 // ============================================================================
 
 #include "TimerDispatcher.h"
@@ -35,6 +48,7 @@
 #include "CreatureScript.h"      // g_moduleNameTag
 #include "DNFLexWrapper.h"       // ScanType
 #include "LogManager.h"
+#include "PackSet.h"             // PackSet::is_exist（ORIG T 0x08ac498c）
 
 #include "GlobalData.h"           // s_stream_pool / s_msgq_mgr / s_systemTime_
 #include "CStreamGuard.h"
@@ -58,36 +72,51 @@
 // ---------------------------------------------------------------------------
 extern std::vector<std::string> g_szScriptFilePriorityBaseDirectory;
 extern char g_szScriptFileBaseDirectory[0x104];
-// PackSet 未建模（ScriptExtras.cpp 同注）：pack 分支以 access 等价回退。
-static bool dnf_packset_is_exist(const char* path)
-{
-    return access(path, 0) == 0;
-}
+// s_bUseScriptPack 为 ORIG RDARScript.cpp TU-local static（d 0x93f4d24，重建定义
+// 于 ScriptExtras.cpp）；跨 TU 经其真实访问器 UseScriptPack（ORIG T 0x088bb7cf）。
+extern char UseScriptPack();
+extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定义）
 
 // ===========================================================================
 // findFileWithServerToken  ORIG T 0x88bb7db
-// 路径"dir/name"已在 ORIG 无 '/' 时用 '.' 定位分隔符；把分隔符后段插入
-// "server" 子目录名（dir/"server"+name），存在（access / PackSet）则改写
-// 路径并返回 true；否则还原路径返回 false。
+// pathStr(path) 副本 + 默认构造 full；find_last_of("/",npos)，无则
+// find_last_of("\\",npos)；命中则 full = substr(0,pos+1); full += "(R)";
+// full += substr(pos+1,size())；ss_strcpy 回写 path，pack 模式查
+// g_script_package.is_exist，否则 access(path,0)==0；命中即 true（path 保留
+// full），未命中 ss_strcpy 还原 pathStr 后 false；pos==-1 直接 false。
+// 验收（batch-12）：182/181，语义与 ORIG 切片逐条对位（含此前缺失的
+// s_bUseScriptPack/PackSet 双分支与 full 默认构造+substr 临时 operator=
+// 链）；唯一残差 = pack 开关 4.4 对 char 返回 `!f()` 发 sete+test（2 行）
+// vs 4.1 movzbl+xor（1 行）——setcc-fold N 类；UseScriptPack 调用替换
+// ORIG TU-local static 直读（_ZL 符号跨 TU 不可达，改经其真实访问器）。
 // ===========================================================================
 bool findFileWithServerToken(char* path)
 {
     std::string pathStr(path);
-    std::string::size_type pos = pathStr.find_last_of("/");
-    if (pos == std::string::npos)
-        pos = pathStr.find_last_of("\\");
-    if (pos == std::string::npos)
-        return false;
-
-    std::string full = pathStr.substr(0, pos + 1);
-    full += "(R)";
-    full += pathStr.substr(pos + 1, pathStr.size());
-
-    ss_strcpy(path, 0x104, full.c_str());
-    if (dnf_packset_is_exist(path))
-        return true;
-
-    ss_strcpy(path, 0x104, pathStr.c_str());
+    std::string full;
+    int pos = pathStr.find_last_of("/", std::string::npos);
+    if (pos == -1)
+        pos = pathStr.find_last_of("\\", std::string::npos);
+    if (pos != -1)
+    {
+        full = pathStr.substr(0, pos + 1);
+        full += "(R)";
+        full += pathStr.substr(pos + 1, pathStr.size());
+        ss_strcpy(path, 0x104, full.c_str());
+        // ORIG 982 `movzbl s_b;xor$1;test;je pack`：pack==0 fall=access，
+        // pack==1 je=PackSet；P22 `if(!f())`⇒xor+test 同 line 数。
+        if (!UseScriptPack())
+        {
+            if (access(path, 0) == 0)
+                return true;
+        }
+        else
+        {
+            if (g_script_package.is_exist(path))
+                return true;
+        }
+        ss_strcpy(path, 0x104, pathStr.c_str());
+    }
     return false;
 }
 
@@ -103,7 +132,7 @@ void getScriptFileFullPath(char* out, unsigned int size, const char* dir,
     if (!g_szScriptFilePriorityBaseDirectory.empty())
     {
         int i = static_cast<int>(g_szScriptFilePriorityBaseDirectory.size()) - 1;
-        while (true)
+        for (; i >= 0; --i)
         {
             ss_strcpy(out, size,
                       g_szScriptFilePriorityBaseDirectory[i].c_str());
@@ -111,10 +140,10 @@ void getScriptFileFullPath(char* out, unsigned int size, const char* dir,
                 ss_strcat(out, size, dir);
             if (name != 0)
                 ss_strcat(out, size, name);
-            if (access(out, 0) == 0 || findFileWithServerToken(out))
+            if (access(out, 0) == 0)
                 return;
-            if (--i < 0)
-                break;
+            if (findFileWithServerToken(out))
+                return;
         }
         out[0] = 0;
     }
@@ -131,6 +160,27 @@ void getScriptFileFullPath(char* out, unsigned int size, const char* dir,
 // processModuleTagSet  ORIG T 0x08a97637（RDARScriptSkill.cpp 模块标签域）
 // 解析 "<module>"/"<sub>" 标签对：moduleId/subId 输出 + 前置 tag 消费。
 // type 覆写为 3（ORIG 直接改参数）；标签表 g_moduleNameTag[0x20]（开/闭对）。
+// batch-12 逐条对位修正：
+//  ① dungeon 分支 ORIG 797 `movzbl -0x15;xor$1;test;je tail` ⇔ subMatched==1
+//     跳过赋值直落尾部（return 0），即 `if (!subMatched) {subId=3; log}`；
+//     原实现条件反了。
+//  ② 扫描子标签 j 循环：ORIG 861 循环体地址 `mov 0x8(%ebp); mov (%eax);
+//     add;add1;shl2` 索引 = 2*moduleId+1（固定元素，逐 token 推进 *tag），
+//     j（-0xc）仅作循环计数；原实现误用 2*j+1。
+//  ③ 尾部消费条件 ORIG 900 `movzbl -0x1c(flag);xor$1;test;je ret1` ⇔
+//     flag==0 才进 `if (moduleId != -1) ScanType`，即 `if (!flag && ...)`；
+//     原实现条件反了。
+//  ④ do 块：ORIG 83a foundSub 初始化仅一次，matched（-0xd）首次写入在
+//     ScanType 之后（854），回边条件 `cmpb $0,-0xd; je 岛`（89f）；
+//     for(;;)+尾部 if(matched)break 复现该形。
+//  ⑤ 命中块第三与条件（tag 相等检查）写嵌套 if：4.4 对三目 && 链尾操作数
+//     物化 bool 岛（+5），ORIG 718 为 `call;test;je` 直短路；
+//     嵌套形消物化且块排布同 ORIG。
+// 表型（Main 批准，batch-12）：g_moduleNameTag 改 [17][2] pair 表（ORIG
+// B 0x88 = 17 对，切片 `2*i` 寻址折 `shl $3` stride-8 实证），本函数以
+// [i][0]/[i][1] 形寻址逐处对位。残留 N：pvp `type==9||type==5`
+// ORIG 4.1 常量岛物化 test%al（N3，4.4 无合法写法）；73b/73e/741 空块
+// nop;jmp 中继（跨版本 jump-threading，N）。
 // ===========================================================================
 // ORIG T 0x08a97637（mangled _Z19processModuleTagSetRiS_PSsib：int&,int& 形参）。
 bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
@@ -143,15 +193,18 @@ bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
     int i = 0;
     for (; i <= 0x10; ++i)
     {
-        if (*tag == g_moduleNameTag[2 * i] ||
-            *tag == g_moduleNameTag[2 * i + 1])
+        if (*tag == g_moduleNameTag[i][0] ||
+            *tag == g_moduleNameTag[i][1])
         {
             moduleId = i;
-            subMatched = (*tag == g_moduleNameTag[2 * i + 1]);
-            if (i != type && type <= 0x10 &&
-                g_moduleNameTag[2 * type] == g_moduleNameTag[2 * i])
+            subMatched = (*tag == g_moduleNameTag[i][1]);
+            if (i != type && type <= 0x10)
             {
-                moduleId = type;
+                // 操作数序 [i] 左 [type] 右：4.4 二元比较 RHS 先求值 ⇒
+                // type 槽先装载，与 ORIG 6f5-6fa（mov KE;shl3;lea/mov SE;shl3）
+                // 行序一致。
+                if (g_moduleNameTag[i][0] == g_moduleNameTag[type][0])
+                    moduleId = type;
             }
             break;
         }
@@ -164,9 +217,9 @@ bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
             if (!subMatched)
                 subId = type;
         }
-        else if (g_moduleNameTag[2 * moduleId] == "[dungeon]")
+        else if (g_moduleNameTag[moduleId][0] == "[dungeon]")
         {
-            if (subMatched)
+            if (!subMatched)
             {
                 subId = 3;
                 LogManager::logFormat(0, "../RDARScriptSkill.cpp",
@@ -175,29 +228,32 @@ bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
                                       tag->c_str());
             }
         }
-        else if (g_moduleNameTag[2 * moduleId] == "[pvp]")
+        else if (g_moduleNameTag[moduleId][0] == "[pvp]")
         {
-            if (type == 9 || type == 5)
+            bool hit = (type == 9 || type == 5);
+            if (hit)
                 subId = 4;
         }
         else
         {
             bool foundSub = false;
-            bool matched = false;
-            do
+            bool matched;
+            for (;;)
             {
-                matched = false;
                 ScanType(*tag, false);
+                matched = false;
                 for (int j = 0; j <= 0x10; ++j)
                 {
-                    if (*tag == g_moduleNameTag[2 * j + 1])
+                    if (*tag == g_moduleNameTag[moduleId][1])
                     {
                         foundSub = true;
                         matched = true;
                         break;
                     }
                 }
-            } while (!matched);
+                if (matched)
+                    break;
+            }
             if (!foundSub)
             {
                 LogManager::logFormat(0, "../RDARScriptSkill.cpp",
@@ -211,40 +267,39 @@ bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
 
     if (subMatched)
         return 0;
-    if (flag && moduleId != -1)
+    if (!flag && moduleId != -1)
         ScanType(*tag, false);
     return 1;
 }
 
 // processModuleTagSet(std::string*, int&)  ORIG T 0x0896a87b（RDARScriptSkill.cpp）
-// 局部 static 标签表（函数局部 _ZZ19processModuleTagSetPSsRiE13moduleNameTag，
-// guard 惰性构造）：10 个开/闭标签对（[expert job none] 对不参与主循环）。
-// i=1..4 命中开标签（arr[2i]）写 out=i 返回 0；命中闭标签（arr[2i+1]）返回 0；
+// 局部 static 开/闭标签对表（函数局部 _ZZ19processModuleTagSetPSsRiE13moduleNameTag，
+// guard 惰性构造），5 组 {开,闭} 对：[expert job none] 对（idx 0）不参与主循环。
+// i=1..4 命中开标签（arr[i][0]）写 out=i 返回 0；命中闭标签（arr[i][1]）返回 0；
 // 否则返回 1。
-// 验收（§6.2）：gap 125 全部位于 guard 内 static string[10] initializer-list
-// 构造块——4.1 每元素独立 allocator temp 槽（-0x26..-0x1d）+双层倒计数循环+
-// 逐元素 EH cleanup 链，4.4.7 复用 temp 槽合并循环（libstdc++ 版本内部结构
-// 差，跨版本 N 类，源码层无合法写法可复现）；可达路径调用差集与 ORIG 一致
-// （5×~string 差全在构造失败 landing pad，不执行）。parse 主体逐行同形，
-// 仅 arr[i*2] 寻址 4.1 折 `shl $3` vs 4.4 `add+shl $2`（N1 常量折叠族，1 行）。
+// 2D 形证据（batch-12）：ORIG guard 段构造/清理链按 pair 记账（outer 计数 -0x54
+// 初值 4、pair 基址步进 +8、清理外循环 `sub -0x54;shl $0x3` 步长 8 = 2×string），
+// 主体 arr[i][0] 寻址为 `shl $0x3; add base`（stride 8 折叠）；[10] 平表 + `2*i`
+// 表达式在 4.4.7 下不产生该形态。[5][2] 形整函数 438 条与 ORIG 逐条对位
+// （/tmp/pt2.md diff 仅剩 guard 数据地址与字面量常量，AE 口径归一）。
 // ===========================================================================
 bool processModuleTagSet(std::string* tag, int& out)
 {
-    static const std::string moduleNameTag[10] = {
-        "[expert job none]", "[/expert job none]",
-        "[magic enchant]",   "[/magic enchant]",
-        "[alchemist]",       "[/alchemist]",
-        "[disjointer]",      "[/disjointer]",
-        "[doll controller]", "[/doll controller]"
+    static const std::string moduleNameTag[5][2] = {
+        {"[expert job none]", "[/expert job none]"},
+        {"[magic enchant]",   "[/magic enchant]"},
+        {"[alchemist]",       "[/alchemist]"},
+        {"[disjointer]",      "[/disjointer]"},
+        {"[doll controller]", "[/doll controller]"}
     };
     for (int i = 1; i <= 4; ++i)
     {
-        if (*tag == moduleNameTag[2 * i])
+        if (*tag == moduleNameTag[i][0])
         {
             out = i;
             return 0;
         }
-        if (*tag == moduleNameTag[2 * i + 1])
+        if (*tag == moduleNameTag[i][1])
             return 0;
     }
     return 1;
@@ -307,36 +362,46 @@ competition_reward_result::competition_reward_result()
 // ===========================================================================
 // user_creature::CCreatureMgr::CheckDiedCreature  ORIG T 0x08339acc：
 // m_equippedCreature 非空且其 CheckDiedCreature(m_user) 为真 → true。
+// 嵌套 if 形（非 && 短路）：4.4.7 对 `if (a && b) return true;` 会追加 bool
+// 物化尾块（+5），ORIG 21 条为统一 leave 双失败出口，嵌套写形与其逐条一致。
 // ===========================================================================
 bool user_creature::CCreatureMgr::CheckDiedCreature()
 {
-    if (m_equippedCreature != 0 &&
-        m_equippedCreature->CheckDiedCreature(m_user))
-        return true;
+    if (m_equippedCreature != 0)
+        if (m_equippedCreature->CheckDiedCreature(m_user))
+            return true;
     return false;
 }
 
 // ===========================================================================
 // GetMarketConditionRate  ORIG T 0x082f843f
-// 找市场条件档位：*outIdx = 首个 arr[i]*rate > amount 的下标（<=4 扫描；
-// 全不满足为 5），钳到 nCount+1；非 0 时 *outRate = arr[*outIdx+4]。
+// 找市场条件档位：outIdx = 首个 arr[outIdx]*rate > amount 的下标（<=4 扫描；
+// 全不满足为 5），钳到 nCount+1；非 0 时 outRate = arr[outIdx+4]。
+// P0 判据（ORIG 切片逐条）：无独立 i 局部——循环索引直接走 outIdx 引用槽
+// （0x20(%ebp) 每次重读），源形 for(outIdx=0;...;outIdx=outIdx+1)；自增为
+// 双读引用 5 条 lea/store 形；钳位比较 RHS 先物化（`lea 0x1(nc);cmp;jge`），
+// 即源码写 `nCount + 1 < outIdx`；尾索引 outIdx+4 经 scratch 槽（-0x4）
+// store/load 往返。余 fucompp/fnstsw/sahf vs fucomip 为 N（x87 跨版本）。
 // ===========================================================================
 void GetMarketConditionRate(double rate, double amount, double* arr,
                             int nCount, int& outIdx, double& outRate)
 {
     outIdx = 0;
     outRate = 1.0;
-    int i = 0;
-    for (i = 0; i <= 4; ++i)
+    for (outIdx = 0; outIdx <= 4; outIdx = outIdx + 1)
     {
-        if (arr[i] * rate > amount)
+        if (arr[outIdx] * rate > amount)
             break;
     }
-    outIdx = i;
-    if (outIdx > nCount + 1)
+    if (nCount + 1 < outIdx)
+    {
         outIdx = nCount + 1;
+    }
     if (outIdx != 0)
-        outRate = arr[outIdx + 4];
+    {
+        int idx = outIdx + 4;
+        outRate = arr[idx];
+    }
 }
 
 // ===========================================================================
@@ -402,6 +467,24 @@ public:
 //             + (msg+0x20,0x24)；
 //   三次 GetMarketConditionRate（gold/equip/dur 段）；msg+0x38 变化则通知；
 //   仅 channel no==1 时 DB_UpdateAutoMarketConditionsControl 上报。
+// P0 判据修正（batch-12）：ORIG 帧（sub $0x9c）无 amount/field30/34/38/v1/v2
+// 槽——base 为唯一 64 位局部（-0x28/-0x24，有槽：三处 fildll -0x28 复读 +
+// trace/diff 复读 ⇒ 具名局部），(double)msg+0x8 在 3 个调用点各自内联转换
+// （每点 `mov msg; mov 0x8/0xc; mov scratch pair; fildll; test 高位; jns;
+// fldt 2^64; faddp` = 4.1 utodf 形），phase 值直接进参数寄存器（%ecx 单槽
+// 即弃）；msg+0x38 在调用参数与 dur 变化比较两处分别重读（O0 无 CSE，P48）。
+// base/diff 为 signed long long：ORIG base 转 double 是裸 fildll（无符号
+// 修正），diff = 整数 sub/sbb，(ll)diff<0 经 `cmpl $0,-0x1c; jns` 高字判负。
+// trace 变参：ORIG 4.1 在 cMyTrace ctor call 前把 %qd/%u/%d 全部求值入
+// 槽（-0x64=+0x3e8、-0x60=+0x380）/callee-saved（edi=this[0]、ebx/esi=
+// msg+0x8/0xc）（N80 跨版本装载时刻；本侧两具名局部+其余表达式，push 段
+// 指令等量，寄存器归属差记 N）。
+// 验收（batch-12）：250/246，可达路径指令全对位；残差 4 条 =
+// ①trace msg 双字段 4.1 共享单次基址装载、4.4 每局部重读（+1，N18a 族）；
+// ②push 段 4.4 寄存器中转多一跳（+1）；③diff 计算 4.4 RHS-first 预装载
+// optGold 后拷回 ecx/ebx（+2，P75 求值时刻跨版本）；均属结构性伪影，
+// 语义（base 唯一 64 位局部/三处内联 utodf/整数 diff 减法/clamp/
+// channel==1 上报参数）与 ORIG 逐条一致。
 // ===========================================================================
 // ===========================================================================
 // Inter_MonitorServerEventStart::SendEventNotiPacket  ORIG T 0x084cf2de
@@ -415,7 +498,7 @@ void Inter_MonitorServerEventStart::SendEventNotiPacket(bool noti,
 {
     PacketGuard packet;
     packet.put_header(0, 0x45);
-    packet.put_byte(noti ? 1 : 0);
+    packet.put_byte(noti);
     packet.put_short((int)eventIdx);
     packet.put_short((int)interval);
     packet.finalize(true);
@@ -427,52 +510,55 @@ void Inter_MonitorServerEventStart::SendEventNotiPacket(bool noti,
 int CAutoMarketConditionsControl::LoadDatabase(
     SIG_AUTO_MARKET_CONDITIONS_CONTROL* msg)
 {
-    unsigned long long base = 0;
+    long long base = 0;
     if (msg->m_view.m_flag != 0)
     {
         base = msg->m_view.m_overGold;
     }
     else
     {
-        unsigned long long v1 =
-            msg->m_view.m_rows[1].m_totalGold +
-            msg->m_view.m_rows[1].m_auctionGold;
-        unsigned long long v2 =
-            msg->m_view.m_rows[0].m_totalGold +
-            msg->m_view.m_rows[0].m_auctionGold;
-        base = v1 - v2 + msg->m_view.m_rows[0].m_overGold;
+        base = (msg->m_view.m_rows[1].m_totalGold +
+                msg->m_view.m_rows[1].m_auctionGold) -
+               (msg->m_view.m_rows[0].m_totalGold +
+                msg->m_view.m_rows[0].m_auctionGold) +
+               msg->m_view.m_rows[0].m_overGold;
     }
 
-    double amount = static_cast<double>(
-        static_cast<long long>(msg->m_view.m_optimumGold));
-    if (amount < 0)
-        amount += 2.0;   // ORIG fldt 0x8c1fc60 校正值（-2^63 回卷路径）【推断】
+    GetMarketConditionRate(
+        static_cast<double>(msg->m_view.m_optimumGold),
+        static_cast<double>(base), m_goldRate,
+        msg->m_view.m_rows[0].m_goldPhase, m_field00, m_goldBaseRate);
+    GetMarketConditionRate(
+        static_cast<double>(msg->m_view.m_optimumGold),
+        static_cast<double>(base), m_equipProb,
+        msg->m_view.m_rows[0].m_itemPhase, m_field380, m_equipProbBase);
+    GetMarketConditionRate(
+        static_cast<double>(msg->m_view.m_optimumGold),
+        static_cast<double>(base), m_durRate,
+        msg->m_view.m_rows[0].m_durabilityPhase, m_field3e8, m_durCurrent);
 
-    int field30 = msg->m_view.m_rows[0].m_goldPhase;
-    int field34 = msg->m_view.m_rows[0].m_itemPhase;
-    int field38 = msg->m_view.m_rows[0].m_durabilityPhase;
-
-    GetMarketConditionRate(amount, static_cast<double>(base), m_goldRate,
-                           field30, m_field00, m_goldBaseRate);
-    GetMarketConditionRate(amount, static_cast<double>(base), m_equipProb,
-                           field34, m_field380, m_equipProbBase);
-    GetMarketConditionRate(amount, static_cast<double>(base), m_durRate,
-                           field38, m_field3e8, m_durCurrent);
-
-    if (field38 != m_field3e8)
+    if (msg->m_view.m_rows[0].m_durabilityPhase != m_field3e8)
         SendNotiSetDurability();
 
+    int durNow = m_field3e8;    // ORIG -0x64（ctor 前具名槽）
+    int equipNow = m_field380;  // ORIG -0x60
+    // ORIG ctor call 前把余下三个变参读入 callee-saved（1df edi=this[0]、
+    // 1e4 ebx=msg+8、1e7 esi=msg+c）跨调用保活（P87/P37 形；寄存器归属
+    // 差异记 N7）。
+    register int field00Now = m_field00;
+    register unsigned int optGoldLo = msg->m_view.m_optimumGoldWords[0];
+    register unsigned int optGoldHi = msg->m_view.m_optimumGoldWords[1];
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0xae, 0);
     trace("LoadDatabase() %qd %u %d %d %d",
-          static_cast<long long>(static_cast<unsigned long long>(base)),
-          msg->m_view.m_optimumGoldWords[0],
-          static_cast<int>(msg->m_view.m_optimumGoldWords[1]),
-          m_field00, m_field380, m_field3e8);
+          base,
+          optGoldLo,
+          static_cast<int>(optGoldHi),
+          field00Now, equipNow, durNow);
 
-    long long diff = static_cast<long long>(base) -
-                     static_cast<long long>(amount);
+    long long diff = base -
+                     static_cast<long long>(msg->m_view.m_optimumGold);
     if (diff < 0)
         diff = 0;
 
@@ -481,7 +567,7 @@ int CAutoMarketConditionsControl::LoadDatabase(
         DB_UpdateAutoMarketConditionsControl::makeRequest(
             msg->m_view.m_rows[1].m_totalGold,
             msg->m_view.m_rows[1].m_auctionGold,
-            static_cast<unsigned long long>(diff),
+            diff,
             msg->m_view.m_optimumGold,
             m_field00, m_field380, m_field3e8);
     }

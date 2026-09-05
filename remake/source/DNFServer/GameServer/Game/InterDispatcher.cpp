@@ -12308,10 +12308,27 @@ Inter_GuildCargo::~Inter_GuildCargo() {}
 // 报告 docs/class_func_reports/Inter_GuildCargo/dispatch_sig.md 全文转写。
 #pragma pack(push, 1)
 // Inter_GuildCargoPktView —— Inter_GuildCargo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
-//   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
+//   宽度=ORIG 访问指令核实）。
+// entry 区视图：ORIG 0x084dd3dc `imul $0x35 → lea (base,i) → add $0x10 → mov 0x3(%eax)`
+// 与 0x084dd405 `imul → add $0x10 → add base → add $0x2` 的两段拆分布局实证
+// （flag 绝对 +0x13、blob 绝对 +0x12，entry stride 0x35）。
+struct GuildCargoPayloadV
+{
+    unsigned char m_blob[2];      // +0x00（put_binary 起点，0x35 长覆盖至 entry 尾）
+    char m_pad2[1];
+    int m_flag;                   // +0x03
+    unsigned char m_rest[0x1e];   // +0x07..0x24（payload 0x25 = 0x35−0x10）
+};
+struct GuildCargoEntryV
+{
+    char m_head[0x10];            // +0x00 entry 头
+    GuildCargoPayloadV m_payload; // +0x10
+};
+static_assert(sizeof(GuildCargoEntryV) == 0x35,
+              "GuildCargoEntryV ORIG stride 0x35（imul $0x35 实证）");
 struct Inter_GuildCargoPktView
 {
-    char m_pad0[0xe];  // 未消费
+    char m_pad0[0xe];  // +0x0..未消费（entry 区经 GuildCargoEntryV cast 视图消费）
     unsigned int m_e;         // +0x0e（同上）
     char m_pad12[0x18d8];  // 未消费
     unsigned int m_18ea;      // +0x18ea
@@ -12331,14 +12348,18 @@ int Inter_GuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     {   // ORIG 0x084dd2df：GuildCargoResult(reason=1, a=msg+0x18ee, b=capacity=msg+0x18ea)
         //   （esp+4=1、esp+8=0x18ee、esp+0xc=0x18ea——reason 为常量 1，勿与字段错位）
-        cUserHistoryLog* hist = &user->m_historyLog;
-        hist->GuildCargoResult(
+        // ORIG 0x084dd2df 前 `mov 0xc,%ecx; add $0x79700,%ecx; mov %ecx,(%esp)`：
+        // hist 免槽即算直落（具名 hist 槽会顶深 pPkt 至 -0x18，ORIG -0x14）。
+        user->m_historyLog.GuildCargoResult(
             (ENUM_GUILD_CARGO_HISTORY_REASON)1,
             (int)pPkt->m_18ee,
             (int)pPkt->m_18ea);
     }
 
-    if (pPkt->m_18ee != (char)0xc1)
+    // ORIG 0x084dd30a `movzbl 0x18ee; cmp $0xc1,%al; je +0xd0`：字段 unsigned char
+    // 与 0xc1 直接字节比较（原 (char)0xc1 恒真不等致 4.4 折叠整个成功路径 -106 行，
+    // 技巧46 同款语义 bug 已纠正）。
+    if (pPkt->m_18ee != 0xc1)
     {   // 失败：SendCmdErrorPacket(0x109, errCode)
         user->SendCmdErrorPacket(
             (ENUM_CMDPACKET)0x109,
@@ -12359,10 +12380,16 @@ int Inter_GuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_short(count);
     for (int i = 0; i <= 0x77; ++i)                    // cmpl $0x77; setle
     {
-        if (*reinterpret_cast<int*>(data + i * 0x35 + 0x13) != 0)
+        // ORIG 0x084dd3dc..：entry 数组（stride 0x35）+ payload 嵌套成员 ⇒
+        // 两段地址 `add $0x10` + disp；put_binary 地址独立重算（P48 无 CSE）。
+        // entries 具名指针占槽顶深 pPkt（技巧36），改 rvalue cast 免槽。
+        if (reinterpret_cast<GuildCargoEntryV*>(pPkt)[i].m_payload.m_flag != 0)
         {
             packet.put_short((int)(short)i);
-            packet.put_binary(data + i * 0x35 + 0x12, 0x35);
+            packet.put_binary(
+                reinterpret_cast<char*>(
+                    &reinterpret_cast<GuildCargoEntryV*>(pPkt)[i].m_payload.m_blob[0]),
+                0x35);
             count = count + 1;
         }
     }

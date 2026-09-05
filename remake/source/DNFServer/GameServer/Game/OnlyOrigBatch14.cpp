@@ -2948,6 +2948,7 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                             }
                         switch (hv)
                         {
+                    case 0:   // ORIG 4.1 树含未列 case 0 路由链首（P163）；注册轮 id=0 走贯穿
                     case 0x2072:   // [homing use] → m_b9c
                         if (!__inited)
                         {
@@ -3760,6 +3761,7 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                             }
                             switch (iv)
                             {
+                            case 0:   // ORIG 4.1 树含未列 case 0 路由链首（P163）；注册轮 id=0 走贯穿
                             case 0x21b5:   // [index] → m_i00
                                 if (!__inited)
                                 {
@@ -4000,6 +4002,7 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                             }
                             switch (iv)
                             {
+                            case 0:   // ORIG 4.1 树含未列 case 0 路由链首（P163）；注册轮 id=0 走贯穿
                             case 0x2203:   // [name] → m_s04
                                 if (!__inited)
                                 {
@@ -4378,6 +4381,7 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                         }
                         switch (sv)
                         {
+                        case 0:   // ORIG 4.1 树含未列 case 0 路由链首（P163）；注册轮 id=0 走贯穿
                         case 0x22ae:   // [accelerate] → m_i30
                             if (!__inited)
                             {
@@ -4716,6 +4720,7 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                         }
                         switch (fv)
                         {
+                        case 0:   // ORIG 4.1 树含未列 case 0 路由链首（P163）；注册轮 id=0 走贯穿
                         case 0x2325:   // [/random item fairy]
                             if (!__inited)
                             {

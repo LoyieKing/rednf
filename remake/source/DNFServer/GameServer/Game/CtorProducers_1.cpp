@@ -469,8 +469,11 @@ bool initNpcScript(const char* dir, const char* listPath)
 
 bool isExistNPCScript(const char* name)
 {
-    // ORIG 0x089fae70：return loadRDARScriptFile(g_npcScriptBaseDirectory,name)。
-    return loadRDARScriptFile(g_npcScriptBaseDirectory, name) ? true : false;
+    // ORIG 0x089fae70：call loadRDARScriptFile 之后
+    // `xor $0x1,%eax; test %al,%al; je +7; mov $0x0,%eax; jmp end; +7: mov $1,%eax`
+    // ⇒ 原码是 **取反返回**（技巧 1：`!boolcall()` 才产出 xor+testb+双常量岛；
+    //   写成 `? true : false` 会被 4.4 折成直返 %eax，少 6 条）。
+    return !loadRDARScriptFile(g_npcScriptBaseDirectory, name);
 }
 
 // ============================================================================
@@ -563,8 +566,11 @@ void TowerOfDespairMgr::_Set_LayerByDungeonIndex(unsigned int layer, unsigned in
     // ORIG 0x08643c86：写 uint 表；set.insert(idx)；find_dungeon 命中转调重载。
     m_dungeonIndexOfLayer[layer] = dungeonIdx;
     m_layerSet.insert(static_cast<int>(dungeonIdx));
-    CDungeon* dungeon = G_CDataManager()->find_dungeon(static_cast<int>(dungeonIdx));
-    _Set_LayerByDungeonIndex(layer, dungeon);
+    // 技巧 37 免槽直用：ORIG 0x08643c?? 把 find_dungeon 的 %eax 直接写进
+    // 下一 call 的 0x4(%esp)，**没有** `mov %eax,-slot; mov -slot,%eax` 往返
+    // （我们具名 dungeon 局部造出该往返，多 2 条）。
+    _Set_LayerByDungeonIndex(layer,
+                             G_CDataManager()->find_dungeon(static_cast<int>(dungeonIdx)));
 }
 
 void TowerOfDespairMgr::_Set_APCIndexByLayer(unsigned int layer)
@@ -647,15 +653,29 @@ void CLevelRewardTable::SetJobAffection(bool on)
 
 int CLevelRewardTable::GetProperJobIndex(char job)
 {
-    // ORIG 0x08687e78：<0→-1；开关关→0；>7→-1；否则跳转表返回 job+1
-    // （表 0x8cf10cc 八条目 0→1..7→8，cmp $0x7,ja 拦截 ≥8）。
+    // ORIG 0x08687e78（83 字节）逐条：0x08687e84 `cmpb $0,-0xc; jns` → -1 岛；
+    // 0x08687e9c `xor $1,%eax; test; je` → 0 岛（技巧 1）；
+    // 0x08687eaa `movsbl -0xc,%eax; cmp $7,%eax; ja 0x08687ef4` +
+    // 0x08687eb3 `mov 0x8cf10cc(,%eax,4),%eax; jmp *%eax` —— **8 路跳表**
+    // （case 0..7 依次 mov $1..$8; jmp end，default 落 0x08687ef4 `mov $-1`）。
+    // ⇒ 直写 switch 才能复现跳表（技巧 34）；`return job + 1` 的算式形不会生成
+    //   `jmp *%eax` 与被调表项（原 ndiff 27 全在此）。
     if (job < 0)
         return -1;
     if (!GetJobAffection())
         return 0;
-    if (static_cast<unsigned char>(job) > 7)
-        return -1;
-    return job + 1;
+    switch (job)
+    {
+    case 0:  return 1;
+    case 1:  return 2;
+    case 2:  return 3;
+    case 3:  return 4;
+    case 4:  return 5;
+    case 5:  return 6;
+    case 6:  return 7;
+    case 7:  return 8;
+    default: return -1;
+    }
 }
 
 int CLevelRewardTable::GetProperLevelIndex(unsigned int level)
@@ -807,12 +827,18 @@ bool importWorldMapScript(WorldMapScript* script, const char* path)
         return false;
     script->clear();
 
-    bool ok = false;
+    // 函数级局部序与宽度实证：0x08ab03bf `lea -0x24; call std::string::string()`
+    // （token **先**构造）→ 0x08ab03ca `movl $0x0,-0x28`（int 暂存）→
+    // 0x08ab03d1 `movb $0x0,-0x29`（bool flag）→ 0x08ab03d5 `jmp` 条件头
+    // 0x08ab03d8 `movl $1,0x4; lea token; call ScanType; xor $1; test; jne 尾`。
+    // ⇒ 外层是 while(ScanType(...))，且 tmp/flag 是**跨所有子块复用的函数级**
+    // 局部（不是每块各一个），故各块写成 `tmp = ScanInt(&flag); if (!flag) break;`
+    // （P-H：中间变量必须提到函数级并与 ORIG 同数量，否则槽号全漂）。
     std::string token;
-    for (;;)
+    int tmp = 0;
+    bool flag = false;
+    while (ScanType(token, true))
     {
-        if (!ScanType(token, true))
-            break;
         if (token == "[name]")
         {
             ScanStr(&script->m_name);
@@ -820,7 +846,10 @@ bool importWorldMapScript(WorldMapScript* script, const char* path)
         else if (token == "[map image]")
         {
             ScanStr(&script->m_mapImage);
-            script->m_field10 = ScanInt((bool*)0);
+            // 0x08ab0442..0x08ab0451：ScanInt(NULL) 先落 -0x28（tmp）再
+            // `mov %eax,0x10(%edx)` ⇒ 两步经函数级暂存。
+            tmp = ScanInt((bool*)0);
+            script->m_field10 = tmp;
         }
         else if (token == "[ui path]")
         {
@@ -828,70 +857,104 @@ bool importWorldMapScript(WorldMapScript* script, const char* path)
         }
         else if (token == "[dungeon]")
         {
+            // 0x08ab04a9..0x08ab055d：wd 基址 -0x38；`movb $0,-0x39` 是**独立 bool**
+            // （在 wd 之前一字节），ScanTypeOrInt 实参 = (&b, token, &flag, true)
+            // （0x08ab04f2 四实参），返回存 -0x28；`[in progress]` 命中写
+            // **wd.m_flag=1**（0x08ab052c `movl $1,-0x30`），随后 `ScanInt(NULL)`
+            // 覆盖 -0x28；最后 `mov -0x28,%eax; mov %eax,-0x34` ⇒ wd.m_state=tmp。
             script->m_dungeons.clear();
             for (;;)
             {
-                bool isType = false;
-                bool isInt = false;
+                tmp = ScanInt(&flag);
+                if (!flag)
+                    break;
                 WorldMapDungeon wd;
-                wd.m_dungeonIndex = ScanInt(&ok);
-                if (!ok)
+                wd.m_dungeonIndex = tmp;
+                bool isType = false;
+                // mangled _Z13ScanTypeOrIntRbRSsS_b = (bool&, string&, bool&, bool)，
+                // 0x08ab04f2 传的是 `lea -0x39`（&isType）与 0x08ab04e7 的
+                // `lea -0x29`（&flag）两个地址。
+                tmp = ScanTypeOrInt(isType, token, flag, true);
+                if (!flag)
                     break;
-                isInt = ScanTypeOrInt(isType, token, isType, true);
-                if (!(isType || isInt))
-                    break;
-                wd.m_state = atoi(token.c_str());
+                if (isType)
+                {
+                    if (token == "[in progress]")
+                        wd.m_flag = 1;
+                    tmp = ScanInt((bool*)0);
+                }
+                wd.m_state = tmp;
                 script->m_dungeons.push_back(wd);
             }
         }
         else if (token == "[hell dungeon]")
         {
-            script->m_isHellDungeon = ScanInt((bool*)0) != 0 ? 1 : 0;
+            // 0x08ab057e..0x08ab0598：tmp = ScanInt(NULL)；`test;setne %dl`
+            // 一次物化后 `mov %dl,0x20(%eax)` ⇒ 赋 bool 表达式（技巧 9）。
+            tmp = ScanInt((bool*)0);
+            script->m_isHellDungeon = (tmp != 0);
         }
         else if (token == "[hell quest]")
         {
             for (;;)
             {
-                int v = ScanInt(&ok);
-                if (!ok)
+                // 0x08ab05b7..0x08ab05eb：push_back 的实参是 `lea -0x28` ⇒
+                // 传的是函数级 tmp 的**地址**（不是新局部 v）。
+                tmp = ScanInt(&flag);
+                if (!flag)
                     break;
-                script->m_hellQuests.push_back(v);
+                script->m_hellQuests.push_back(tmp);
             }
         }
         else if (token == "[hell freepass item]")
         {
             for (;;)
             {
-                int a = ScanInt(&ok);
-                if (!ok)
+                tmp = ScanInt(&flag);
+                if (!flag)
                     break;
-                int b = ScanInt((bool*)0);
-                script->m_freepassItems.push_back(std::make_pair(a, b));
+                int second = ScanInt((bool*)0);   // ORIG 独立槽 -0x18
+                // ORIG 0x08ab0646 `call _ZNSt4pairIiiEC1IRiiEEOT_OT0_`（pair<int,int>
+                // 以两个 **int lvalue 引用** 实例化构造）+ 0x08ab065b
+                // `push_back(EOS1_)` ⇒ 原码是嵌套 pair 临时构造，
+                // 写 std::make_pair 会换成 _ZSt8make_pair 实例（P134）。
+                script->m_freepassItems.push_back(std::pair<int, int>(tmp, second));
             }
         }
         else if (token == "[item condition]")
         {
             for (;;)
             {
-                int a = ScanInt(&ok);
+                // 0x08ab0679..0x08ab06aa：先 ScanInt(&flag) 落 tmp，再无条件
+                // ScanInt(NULL)（结果丢弃），之后才判 flag。
+                tmp = ScanInt(&flag);
                 ScanInt((bool*)0);
-                if (!ok)
+                if (!flag)
                     break;
-                script->m_itemConditions.push_back(a);
+                script->m_itemConditions.push_back(tmp);
             }
         }
         else if (token == "[minimap points]")
         {
-            int v = ScanInt(&ok);
-            while (ok)
+            // 0x08ab06d6..0x08ab075c：外层 `tmp = ScanInt(&flag)` 后 while(flag)；
+            // 内层 `for (k=0; k<2 && flag; ++k)`（0x08ab0715 `cmpl $1,-0xc; jg`
+            // + 0x08ab071b `movzbl -0x29` 复合条件）；k==0 写 -0x44、否则写 -0x48
+            // ⇒ 两个**独立具名 int**（不是数组，数组会走变址寻址）。
+            tmp = ScanInt(&flag);
+            while (flag)
             {
-                int pt[2] = { 0, 0 };
-                for (int k = 0; k < 2 && ok; ++k)
+                int first = 0;
+                int secondPoint = 0;
+                for (int k = 0; k < 2 && flag; ++k)
                 {
-                    pt[k] = v;
-                    v = ScanInt(&ok);
+                    if (k == 0)
+                        first = tmp;
+                    else
+                        secondPoint = tmp;
+                    tmp = ScanInt(&flag);
                 }
-                script->m_minimapPoints.push_back(std::make_pair(pt[0], pt[1]));
+                script->m_minimapPoints.push_back(
+                    std::pair<int, int>(first, secondPoint));
             }
         }
     }
@@ -968,18 +1031,30 @@ void CWorldMap::set_world_map(WorldMapScript* script)
 
 bool CWorldMapList::insert_world_map(CWorldMap* worldMap)
 {
-    // ORIG 0x08364694：重复 index → logFormat 后返回 false；否则 insert。
-    int idx = worldMap->get_index();
-    if (m_map.find(idx) != m_map.end())
+    // ORIG 0x08364694 逐条（报告 call 标注被 report_resolve 误标，以地址与 C 段为准）：
+    //  ① 0x083646a5 `call get_index` → 结果落 -0x2c 作 find 实参；
+    //  ② 0x083646c7 `call map::find` 到临时 -0x3c，再 0x083646d2 拷进持久迭代器槽 -0x30；
+    //  ③ 0x083646e2 `call map::end` → 持久槽 -0x28；
+    //  ④ 0x083646f7 `call _Rb_tree_iterator::operator==` + `test; je 0x0836475f`
+    //     ⇒ **真路径 fall-through 是"未命中→插入"**（技巧 17），不是我们的"命中→报错"；
+    //  ⑤ 插入分支 0x08364700 **再 call 一次 get_index** 落 -0xc，
+    //     0x08364722 make_pair<int,CWorldMap*&>、0x08364737 pair<int const,CWorldMap*>::pair
+    //     两级临时、0x08364750 map::insert；
+    //  ⑥ 报错分支 0x0836475f **又 call 一次 get_index**（共 3 次）⇒ 不得缓存 idx 局部
+    //     （P-H），且 find/end 都要具名持久槽（技巧 30 + 技巧 21 槽序）。
+    std::map<int, CWorldMap*>::iterator it = m_map.find(worldMap->get_index());
+    std::map<int, CWorldMap*>::iterator last = m_map.end();
+    if (it == last)
     {
-        LogManager::logFormat(
-            1, "data_manager.cpp",
-            __PRETTY_FUNCTION__, 0x2be9,
-            "Already registed world map index detected : %d", idx);
-        return false;
+        m_map.insert(std::make_pair(worldMap->get_index(), worldMap));
+        return true;
     }
-    m_map.insert(std::make_pair(idx, worldMap));
-    return true;
+    LogManager::logFormat(
+        1, "data_manager.cpp",
+        __PRETTY_FUNCTION__, 0x2be9,
+        "Already registed world map index detected : %d",
+        worldMap->get_index());
+    return false;
 }
 
 bool CWorldMapList::load_list()
@@ -1027,9 +1102,15 @@ CCharacList::~CCharacList()
 
 void CCharacList::destroy()
 {
-    // ORIG 0x083494da：for i in [0,10]: m_characs[i].destroy()。
+    // ORIG 0x083494da：循环内**两个**函数级槽 —— i(-0x10) 与元素地址(-0xc)：
+    // `imul $0x7dc; add this; mov %eax,-0xc; mov -0xc,%eax; mov (%esp); call`。
+    // 4.4 默认把地址直接留在 %eax（copy-prop）⇒ 少 2 条，需具名中间指针
+    //   才能保住那对 `mov %eax,-slot; mov -slot,%eax`（技巧 36 的反向用法）。
     for (int i = 0; i <= 0xa; ++i)
-        sub_CCharacterDestroy(&m_characs[i]);
+    {
+        CCharacter* p = &m_characs[i];
+        sub_CCharacterDestroy(p);
+    }
 }
 
 bool CCharacList::init()

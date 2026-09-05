@@ -164,7 +164,10 @@ public:
         {
             return;
         }
-        delete[] m_data;                              // ORIG delete[] null 安全写法原样保留
+        delete[] m_data;
+        // ORIG 0x0844e05f `movl $0x0,(%eax)`：delete[] 后显式清指针再 new。
+        // （ORIG 4.1 delete[] 展开双 null 检 `test;je` ×2，4.4 恒单检 ⇒ 1 行 N 差。）
+        m_data = 0;
         m_data = new char[cap];
         m_cap = cap;
     }
@@ -869,6 +872,8 @@ void DB_Login::_getSecurityCardInfo(SIG_LOGIN_DATA* sig)
     if (((VCertFlag*)sig)->m_certFlag != 0)
     {
         // ORIG：curSec→%ebx、occTime→%esi 跨 G_CEnvironment 调用缓存（P52/P87）
+        // asm 钉形实测：esi 装载 round-trip ×4、bool hit 钉后 if/else 物化岛丢失，
+        // 形距更远 ⇒ 保持裸 register（N7 角色轮换 + N18a 单段装载不可翻）。
         register long curSec = GlobalData::s_systemTime_.getCurSec();
         register long occTime = ((VOccTime*)sig)->m_occTime;
         // ORIG bVar2 仅在 CheckDailyScheduleTime 非零时为真（choose 物化后再分支）
@@ -1708,13 +1713,16 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     sig->m_regDate = regDate / 100;                       // +0xcc
 
     struct tm birthTm;
-    memset(&birthTm, 0, sizeof(birthTm));
+    // ORIG 0x084142xx：无 memset 调用——逐字段直写（`movl $0xffffffff,-0x1c4(%ebp)`
+    // = tm_isdst=-1 word 直落实证），wday/yday/gmtoff 未初始化即入 mktime。
     birthTm.tm_isdst = -1;
     birthTm.tm_year = (int)(regDate / 1000000) - 0x76c;
     birthTm.tm_mon = (int)((regDate % 1000000) / 10000) - 1;
-    int hourField = (int)((regDate % 1000000) % 10000);
-    birthTm.tm_mday = hourField / 100;
-    birthTm.tm_hour = hourField % 100;
+    // ORIG Ghidra 1436..：先 tm_hour=(regDate%1000000)%10000（unsigned），再
+    // (uint)/100→mday、(uint)%100→hour ⇒ mul $0x51eb851f/shr $5 无符号 magic。
+    birthTm.tm_hour = (int)((regDate % 1000000) % 10000);
+    birthTm.tm_mday = (int)((unsigned int)birthTm.tm_hour / 100);
+    birthTm.tm_hour = (int)((unsigned int)birthTm.tm_hour % 100);
     birthTm.tm_min = 0;
     birthTm.tm_sec = 0;
     sig->m_regTime = (unsigned int)mktime(&birthTm);      // +0xd4
@@ -1735,6 +1743,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
                 sig->m_timeStamp, nowSec, loginTime, lastPlay);
             return false;
         }
+        // ORIG Ghidra 1474：white-success 亦 5-vararg（token_time 先 reload %eax）。
         LogManager::logFormat(
             1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x3b0f,
             "[Taiwan, Auth] White Account Success Token reuse login. (mid:%s, token_time:%u, current_time:%u, login_time:%u, last_play_time:%u)",
@@ -1954,12 +1963,14 @@ bool CCompressedBlobUncompress(CCompressedBlob& blob, MySQL* db, int col,
     return true;
 }
 
-int get_compressed_blob_data(MySQL* db, int col, char* out, int outCap, int recordSize)
+// 其余 TU 声明均为 bool（mangled 不含返回型）；ORIG 尾 `call uncompress; leave; ret`
+// bool→bool 透传零转换（int 返回+`?1:0` 反产 test/setne 尾段，实测 +5 行）。
+bool get_compressed_blob_data(MySQL* db, int col, char* out, int outCap, int recordSize)
 {
     static CCompressedBlob compressed_blob;   // ORIG _ZZ24get_compressed_blob_dataP5MySQLiPciiE15compressed_blob 0x0943d24c
     // ORIG 0x083fbc79 直接调成员 uncompress（容量公式 outCap + outCap/10 + 0xc，
     // 见 WindowsPackFiles.cpp），不经过 CCompressedBlobUncompress（/6 公式）。
-    return compressed_blob.uncompress(db, col, out, outCap, recordSize) ? 1 : 0;
+    return compressed_blob.uncompress(db, col, out, outCap, recordSize);
 }
 
 // ============================================================================
@@ -2427,11 +2438,13 @@ int DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
     typedef bool (*IsEventingFn)(CEventBase*, int);
     // 4.4 槽序与 4.1 相反（P28/P112）：先声明者槽更深，按 ORIG 槽位（db -0xc、ok -0xd）
     // 逆序声明 evt/ok/db。
-    CEventBase* evt;
     bool ok;
     MySQL* db;
-    // ORIG +0x1b：GetRepeatEvent 结果裸跨 vtable+0x34 手动调用（无判空）。
-    evt = GlobalData::s_event_manager->GetRepeatEvent(100);
+    // ORIG +0x1b：GetRepeatEvent 结果裸跨 vtable+0x34 手动调用（无判空）；
+    // evt 恒居 %eax（ORIG `mov (%eax),%edx;…; mov %eax,(%esp)` 无槽），asm 钉形防
+    // 4.4 spill 槽顶深后续（实测槽 -0x14 多占 → vfn/arg 序全漂移）。
+    register CEventBase* evt asm("eax") =
+        GlobalData::s_event_manager->GetRepeatEvent(100);
     if (!(*reinterpret_cast<IsEventingFn*>(*reinterpret_cast<void**>(evt) + 0x34))(evt, 0))
     {
         return 1;

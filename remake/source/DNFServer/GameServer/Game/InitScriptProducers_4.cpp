@@ -405,7 +405,14 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
     if (list != 0)                          // ORIG cmpl $0x0,0xc(%ebp)
     {
         strncpy(g_szMonsterScriptBaseDirectory, dir, 0x100);
-        AppendDirSeparator(g_szMonsterScriptBaseDirectory);
+        // ORIG 0x8a11342..0x8a113a0：本 TU 仅此两处**内联**分隔符判定
+        // （strlen×2 短路 + strcat 内建展开 strlen+memcpy 2B），
+        // 其余 *Script 段为真实 AppendDirSeparator 调用——勿用 helper。
+        {
+            char* b = g_szMonsterScriptBaseDirectory;
+            if (b[strlen(b) - 1] != '\\' && b[strlen(b) - 1] != '/')
+                strcat(b, "/");
+        }
 
         if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stMonsterScriptFileList),
                                     g_szMonsterScriptBaseDirectory, list, 0))
@@ -431,27 +438,42 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                 param.m_value[0] = ScanInt(&ok);        // 首列驱动循环
                 if (!ok)                                // ORIG 0x8a114a8 jne
                     break;
-                for (int k = 1; k <= 12; ++k)           // +0x04..+0x30
-                    param.m_value[k] = ScanInt((bool*)0);
-                for (int k = 13; k <= 16; ++k)          // +0x34..+0x40
-                    param.m_value[k] = ScanInt((bool*)0);
-                for (int k = 17; k <= 20; ++k)          // +0x44..+0x50
-                    param.m_value[k] = ScanInt((bool*)0);
+                // ORIG 4.1 逐列展开（0x8a114b5..0x8a116a0，无 k 循环）
+                param.m_value[1] = ScanInt((bool*)0);
+                param.m_value[2] = ScanInt((bool*)0);
+                param.m_value[3] = ScanInt((bool*)0);
+                param.m_value[4] = ScanInt((bool*)0);
+                param.m_value[5] = ScanInt((bool*)0);
+                param.m_value[6] = ScanInt((bool*)0);
+                param.m_value[7] = ScanInt((bool*)0);
+                param.m_value[8] = ScanInt((bool*)0);
+                param.m_value[9] = ScanInt((bool*)0);
+                param.m_value[10] = ScanInt((bool*)0);
+                param.m_value[11] = ScanInt((bool*)0);
+                param.m_value[12] = ScanInt((bool*)0);
+                param.m_value[13] = ScanInt((bool*)0);
+                param.m_value[14] = ScanInt((bool*)0);
+                param.m_value[15] = ScanInt((bool*)0);
+                param.m_value[16] = ScanInt((bool*)0);
+                param.m_value[17] = ScanInt((bool*)0);
+                param.m_value[18] = ScanInt((bool*)0);
+                param.m_value[19] = ScanInt((bool*)0);
+                param.m_value[20] = ScanInt((bool*)0);
                 param.m_value[21] = ScanInt((bool*)0);         // +0x54
                 param.m_value[22] = ScanInt((bool*)0);         // +0x58
                 param.m_value[23] = ScanInt((bool*)0);         // +0x5c
 
-                std::vector<MonsterBaseParameter>& vec =
-                    g_monsterBaseParameters[tableIdx];  // ORIG operator[]
-                if (row == static_cast<int>(vec.size()))
-                    vec.push_back(param);               // ORIG 0x8a11670
-                else if (row > static_cast<int>(vec.size()))
+                // ORIG P157：operator[] 每用点独立取（size×2/push_back/resize/
+                // 赋值共 5 次），勿建 vec 引用缓存。
+                if (row == static_cast<int>(g_monsterBaseParameters[tableIdx].size()))
+                    g_monsterBaseParameters[tableIdx].push_back(param);   // ORIG 0x8a11670
+                else if (row > static_cast<int>(g_monsterBaseParameters[tableIdx].size()))
                 {
                     // ORIG 0x8a116a1: 默认元素 resize(row+1) 后再赋值。
                     MonsterBaseParameter def;
-                    vec.resize(row + 1, def);
+                    g_monsterBaseParameters[tableIdx].resize(row + 1, def);
                 }
-                vec[row] = param;                       // ORIG rep movsl 0x18
+                g_monsterBaseParameters[tableIdx][row] = param;          // ORIG rep movsl 0x18
             }
         }
     }
@@ -640,10 +662,10 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                     if (!inited)
                     {
                         // ORIG 插入链 0x8a12320/0x8a12386/0x8a1246a/0x8a1254e
-                        lookup.insert(std::make_pair("[/limit slowdown]", 0x932));
-                        lookup.insert(std::make_pair("[normal]", 0x935));
-                        lookup.insert(std::make_pair("[boss]", 0x949));
-                        lookup.insert(std::make_pair("[named]", 0x95d));
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x932));
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x935));
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x949));
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x95d));
                         lock.leave();                   // ORIG 0x8a1262a
                         inited = true;
                     }
@@ -768,7 +790,14 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
     if (list != 0)                          // ORIG cmpl $0x0,0xc(%ebp)
     {
         strncpy(g_szMonsterScriptBaseDirectory, dir, 0x100);
-        AppendDirSeparator(g_szMonsterScriptBaseDirectory);
+        // ORIG 0x8a11342..0x8a113a0：本 TU 仅此两处**内联**分隔符判定
+        // （strlen×2 短路 + strcat 内建展开 strlen+memcpy 2B），
+        // 其余 *Script 段为真实 AppendDirSeparator 调用——勿用 helper。
+        {
+            char* b = g_szMonsterScriptBaseDirectory;
+            if (b[strlen(b) - 1] != '\\' && b[strlen(b) - 1] != '/')
+                strcat(b, "/");
+        }
 
         if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stMonsterScriptFileList),
                                     g_szMonsterScriptBaseDirectory, list, map))
@@ -794,27 +823,42 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                 param.m_value[0] = ScanInt(&ok);        // 首列驱动循环
                 if (!ok)                                // ORIG 0x8a114a8 jne
                     break;
-                for (int k = 1; k <= 12; ++k)           // +0x04..+0x30
-                    param.m_value[k] = ScanInt((bool*)0);
-                for (int k = 13; k <= 16; ++k)          // +0x34..+0x40
-                    param.m_value[k] = ScanInt((bool*)0);
-                for (int k = 17; k <= 20; ++k)          // +0x44..+0x50
-                    param.m_value[k] = ScanInt((bool*)0);
+                // ORIG 4.1 逐列展开（0x8a114b5..0x8a116a0，无 k 循环）
+                param.m_value[1] = ScanInt((bool*)0);
+                param.m_value[2] = ScanInt((bool*)0);
+                param.m_value[3] = ScanInt((bool*)0);
+                param.m_value[4] = ScanInt((bool*)0);
+                param.m_value[5] = ScanInt((bool*)0);
+                param.m_value[6] = ScanInt((bool*)0);
+                param.m_value[7] = ScanInt((bool*)0);
+                param.m_value[8] = ScanInt((bool*)0);
+                param.m_value[9] = ScanInt((bool*)0);
+                param.m_value[10] = ScanInt((bool*)0);
+                param.m_value[11] = ScanInt((bool*)0);
+                param.m_value[12] = ScanInt((bool*)0);
+                param.m_value[13] = ScanInt((bool*)0);
+                param.m_value[14] = ScanInt((bool*)0);
+                param.m_value[15] = ScanInt((bool*)0);
+                param.m_value[16] = ScanInt((bool*)0);
+                param.m_value[17] = ScanInt((bool*)0);
+                param.m_value[18] = ScanInt((bool*)0);
+                param.m_value[19] = ScanInt((bool*)0);
+                param.m_value[20] = ScanInt((bool*)0);
                 param.m_value[21] = ScanInt((bool*)0);         // +0x54
                 param.m_value[22] = ScanInt((bool*)0);         // +0x58
                 param.m_value[23] = ScanInt((bool*)0);         // +0x5c
 
-                std::vector<MonsterBaseParameter>& vec =
-                    g_monsterBaseParameters[tableIdx];  // ORIG operator[]
-                if (row == static_cast<int>(vec.size()))
-                    vec.push_back(param);               // ORIG 0x8a11670
-                else if (row > static_cast<int>(vec.size()))
+                // ORIG P157：operator[] 每用点独立取（size×2/push_back/resize/
+                // 赋值共 5 次），勿建 vec 引用缓存。
+                if (row == static_cast<int>(g_monsterBaseParameters[tableIdx].size()))
+                    g_monsterBaseParameters[tableIdx].push_back(param);   // ORIG 0x8a11670
+                else if (row > static_cast<int>(g_monsterBaseParameters[tableIdx].size()))
                 {
                     // ORIG 0x8a116a1: 默认元素 resize(row+1) 后再赋值。
                     MonsterBaseParameter def;
-                    vec.resize(row + 1, def);
+                    g_monsterBaseParameters[tableIdx].resize(row + 1, def);
                 }
-                vec[row] = param;                       // ORIG rep movsl 0x18
+                g_monsterBaseParameters[tableIdx][row] = param;          // ORIG rep movsl 0x18
             }
         }
     }
@@ -1003,10 +1047,10 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                     if (!inited)
                     {
                         // ORIG 插入链 0x8a12320/0x8a12386/0x8a1246a/0x8a1254e
-                        lookup.insert(std::make_pair("[/limit slowdown]", 0x932));
-                        lookup.insert(std::make_pair("[normal]", 0x935));
-                        lookup.insert(std::make_pair("[boss]", 0x949));
-                        lookup.insert(std::make_pair("[named]", 0x95d));
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x932));
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x935));
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x949));
+                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x95d));
                         lock.leave();                   // ORIG 0x8a1262a
                         inited = true;
                     }

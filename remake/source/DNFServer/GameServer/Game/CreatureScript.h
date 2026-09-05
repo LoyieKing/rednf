@@ -25,8 +25,10 @@ enum ENUM_ELEMENT
     ENUM_ELEMENT_NONE = 4,
 };
 
-// 模块名表（MODULE_NAME_TAG，processModuleTagSet 使用；+8 步长 = 开/闭两 string）。
-extern std::string g_moduleNameTag[0x22];
+// 模块名表（MODULE_NAME_TAG，processModuleTagSet 使用；+8 步长 = 开/闭两
+// string 对）。2D 形（batch-12，Main 批准）：ORIG 0x08a97637 切片 `2*i` 寻址
+// 折 `shl $3`（stride 8 = pair）+ 同域局部表 [5][2] 438=438 闭合形实证。
+extern std::string g_moduleNameTag[17][2];
 
 // ---- 原生 CreatureScript 脚本结构（importCreatureScript 填充） ----
 struct st_crature_id_item_id

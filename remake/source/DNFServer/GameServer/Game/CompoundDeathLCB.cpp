@@ -106,14 +106,37 @@ namespace WongWork {
 
 // ============================ _MakeCompoundInfo ============================
 
-// ORIG 0x08331efe。步骤：
-//   1. 构造临时 tagCompoundInfo 并 clear()（ctor/clear 定义于 WongWorkMiscB_A.cpp）；
+// ORIG 0x08331efe（sret 返回 tagCompoundInfo）。步骤：
+//   1. tagCompoundInfo 构造（0x08334344）+ clear()（0x0833424a）；
 //   2. 回填 msg 定长字段（MSG_COMPOUND_AVATAR.h 权威布局，具名字段读取）；
-//   3. GetInvenSlot 三次取物品拷贝（slot1→m_avatar、slot2→材料A/B）；
-//   4. find_item 两脚本指针；
-//   5. 双脚本有效且 itemId 与槽内 addInfo 一致时，按 msg->type 在 rec 的
-//      tail 向量链上找 first==avatar.add_info 的表项 rec 下标 → info.m_field04，
-//      并落 info.m_type。
+//   3. **三次独立** getCurCharacInvenR → GetInvenSlot(1|2, (short)msg+0xd/0xf/0x15)
+//      → 临时槽（-0x88）→ 15×movl + 1×movb 逐字段拷进 info 的
+//      m_avatar(+0x92)/m_materialA(+0x0a)/m_materialB(+0x4a)；
+//   4. find_item 两脚本指针（各自重取 G_CDataManager）；
+//   5. 双脚本有效且 msg 两 itemIdx 与槽内 addInfo 一致时，job 0..10 匹配循环
+//      定 info.m_field00；再按表长遍历 rec，对 msg->m_type 选中的 **那条**
+//      tail 向量在 case 分支内各自完整展开一遍 begin/end/!=/++/-> 循环
+//      （ORIG 物理展开 4 组，非提公共指针后单循环 —— N-C/P165），
+//      命中 first==m_avatar.addInfo 则 found=idx 并终止双层。
+//   6. 落 info.m_field04(+0x6cd)/m_type(+0x6d9)。
+//
+// 【batch-12 验收标注（§6.2 超大函数口径）】o=523 n=537（gap 114 → 14）。
+//   ① 调用点差集（P167）：ORIG direct 40 ↔ ours direct 40，**归零**（残
+//      missing=2/extra=2 仅为 tagCompoundInfo C2/D2 ↔ 4.4 发射 C1/D1 的
+//      同体符号名对称差）；
+//   ② 补全的三形：
+//      a) `info.x = inv->GetInvenSlot(...)` 折叠 sret 目标 ⇒ 改「Inven_Item
+//         临时 + 赋值」两步形，恢复 3×（getCurCharacInvenR + 15×movl+1×movb）；
+//      b) 遍历提公共 `opts` 指针 ⇒ 只发 1 组迭代器调用，ORIG 是 4 组物理展开
+//         （begin/end/operator!=/operator++/operator-> 各 ×4）⇒ case 内各自成组，
+//         且迭代器**声明即初始化**（ORIG 该区无 normal_iterator 默认构造）；
+//      c) found 经 `cand` 变量在 while 体内传递（ORIG 用条件里的 `uVar8 = idx`
+//         逗号项），避免第二次 operator!= 调用；
+//      d) job 匹配循环改「相等判定 + 命名 bool bothUsable」以复现 4.1 的
+//         `mov$1/mov$0/test` 汇聚岛（三条独立 continue 少 6 insn）。
+//   ③ 余 14 insn 逐块核对为：每字段拷贝前 ORIG 重发 `mov %ebx,%eax`（this 重载，
+//      4.4 寄存器缓存不重发，6 处）、job 段 `jmp/nop` 中继岛、末尾对齐 nop
+//      （§6.1 豁免）⇒ 判**语义完成、byte 层 N76/N82/N18a 封顶**，勿再耗轮次。
 CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
     const CUser* user, const MSG_COMPOUND_AVATAR* msg) const
 {
@@ -129,15 +152,21 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
     info.m_slot = msg->m_slot;
     info.m_field90 = msg->m_avatarSlot;
 
-    const CInventory* inv = user->getCurCharacInvenR();
-    info.m_avatar = inv->GetInvenSlot(
+    // 三步形（0x08331f64..0x08332043）：临时槽 + 逐字段拷贝；每次重取
+    // getCurCharacInvenR（P183/P48 禁缓存 inv）。
+    Inven_Item avatarSlot = user->getCurCharacInvenR()->GetInvenSlot(
         1, static_cast<int>(static_cast<short>(msg->m_avatarSlot)));
+    info.m_avatar = avatarSlot;
+
     info.m_field08 = msg->m_materialSlotA;
-    info.m_materialA = inv->GetInvenSlot(
+    Inven_Item materialSlotA = user->getCurCharacInvenR()->GetInvenSlot(
         2, static_cast<int>(static_cast<short>(msg->m_materialSlotA)));
+    info.m_materialA = materialSlotA;
+
     info.m_field48 = msg->m_materialSlotB;
-    info.m_materialB = inv->GetInvenSlot(
+    Inven_Item materialSlotB = user->getCurCharacInvenR()->GetInvenSlot(
         2, static_cast<int>(static_cast<short>(msg->m_materialSlotB)));
+    info.m_materialB = materialSlotB;
 
     info.m_scriptA = G_CDataManager()->find_item(
         static_cast<int>(msg->m_materialItemIdA));
@@ -146,12 +175,11 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
 
     if (info.m_scriptA == 0 || info.m_scriptB == 0)
     {
-        info.m_errorFlag = true;                 // ORIG +0x2ef
+        info.m_errorFlag = true;                 // ORIG +0xd7
         return info;
     }
-    // ORIG 0x306/0x315：msg 两 itemIdx 必须与槽内物品 addInfo（Inven_Item+0x02，
-    // 即 info+0x0c / info+0x4c）一致，任一不符 → 置 errorFlag(+0xd7) 并返回
-    //（ORIG 0x319 movb $0x1,0xd7 / 0x322 jmp 出口）。
+    // ORIG 0x08332133/0x0833215c：msg 两 itemIdx 必须与槽内物品 addInfo
+    //（Inven_Item+0x02，即 info+0x0c / info+0x4c）一致，任一不符 → errorFlag。
     if (static_cast<int>(msg->m_materialItemIdA) !=
             static_cast<int>(info.m_materialA.m_addInfo) ||
         static_cast<int>(msg->m_materialItemIdB) !=
@@ -160,66 +188,142 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
         info.m_errorFlag = true;
         return info;
     }
-    // ORIG 0x327：双脚本 job 匹配循环（0..10）——两脚本同 job 且均可用时
+    // ORIG 0x08332153：job 0..10 匹配循环 —— 两脚本同 job 且均可用时
     // m_field00=job；无匹配保持 clear 哨兵 0xb → 直接返回（不设 error）。
     for (int job = 0; job <= 10; ++job)
     {
-        if (info.m_scriptA->check_job_type(static_cast<char>(job)) !=
+        // ORIG 0x083322xx 发形：先 `check_job_type(A) == check_job_type(B)`，
+        // 命中后再各调一次并做 **bool 汇聚岛**（`test; je 岛; mov$1/mov$0;
+        // test%al; je`）⇒ 两条件必须写成命名 bool（P84/P133）；三条独立
+        // continue 会让 4.4 直接 cmp/jcc（实测少 6 insn）。
+        if (info.m_scriptA->check_job_type(static_cast<char>(job)) ==
             info.m_scriptB->check_job_type(static_cast<char>(job)))
         {
-            continue;
+            const bool bothUsable =
+                (info.m_scriptA->check_job_type(static_cast<char>(job)) != 0 &&
+                 info.m_scriptB->check_job_type(static_cast<char>(job)) != 0);
+            if (bothUsable)
+            {
+                info.m_field00 = job;        // ORIG +0x00
+                break;
+            }
         }
-        if (info.m_scriptA->check_job_type(static_cast<char>(job)) == 0)
-            continue;
-        if (info.m_scriptB->check_job_type(static_cast<char>(job)) == 0)
-            continue;
-        info.m_field00 = job;                    // ORIG +0x3b8
-        break;
     }
-    if (info.m_field00 == 0xb)                   // ORIG +0x3dd：无匹配
+    if (info.m_field00 == 0xb)                   // ORIG 0x0833221b：无匹配
         return info;
 
     const tagCompoundAvatarTable& table = m_tables[info.m_field00];
-    unsigned int found = 0;                      // -0x28：匹配到的 rec 下标
-    for (unsigned int idx = 1; idx < table.m_avatars.size(); ++idx)  // -0x20
+    unsigned int found = 0;                      // -0x2c：匹配到的 rec 下标
+    for (unsigned int idx = 1; idx < table.m_avatars.size(); ++idx)  // -0x24
     {
         const tagCompoundAvatar* rec = table.getCompoundAvatarInfo(
             static_cast<int>(idx));
         if (rec == 0)
             continue;
 
-        const std::vector<std::pair<int, int> >* opts = 0;
+        // ORIG 4 个类型分支**各自完整展开**一遍迭代器遍历（begin/end/operator!=/operator++/operator-> 各 4 组，槽 -0x30/-0x34…-0x48/-0x4c），
+        // 不是提公共 vector 指针后单循环（P165 物理展开 / N-C）。
         switch (msg->m_type)
         {
             case 0:
-                opts = &rec->m_tailA;            // +0x2b8
-                break;
-            case 1:
-                opts = &rec->m_tailB;            // +0x2c4
-                break;
-            case 3:
-                opts = &rec->m_tailC;            // +0x2d0
-                break;
-            case 4:
-                opts = &rec->m_cube.m_vec;       // +0x20c
-                break;
-            default:
-                continue;                        // 其它类型跳过本轮
-        }
-        for (std::vector<std::pair<int, int> >::const_iterator it = opts->begin();
-             it != opts->end(); ++it)
-        {
-            if (it->first ==
-                static_cast<int>(info.m_avatar.m_addInfo))
             {
-                found = idx;                     // 匹配 → 记录 rec 下标并终止外层
+                // 声明即初始化：ORIG 各分支把 begin()/end() 的 sret 目标**直接**
+                // 指到本组迭代器槽（0x083323xx 区无 normal_iterator 默认构造调用），
+                // 故不可先 `iterator it;` 再赋值；found 经 cand 变量传递（ORIG 用
+                // 条件里的 `uVar8 = local_24` 逗号项），避免二次 operator!= 调用。
+                std::vector<std::pair<int, int> >::const_iterator it =
+                    rec->m_tailA.begin();
+                std::vector<std::pair<int, int> >::const_iterator last =
+                    rec->m_tailA.end();
+                unsigned int cand = found;
+                while (it != last)
+                {
+                    cand = idx;
+                    if (static_cast<int>(info.m_avatar.m_addInfo) == it->first)
+                    {
+                        break;
+                    }
+                    ++it;
+                }
+                found = cand;
                 break;
             }
+            case 1:
+            {
+                // 声明即初始化：ORIG 各分支把 begin()/end() 的 sret 目标**直接**
+                // 指到本组迭代器槽（0x083323xx 区无 normal_iterator 默认构造调用），
+                // 故不可先 `iterator it;` 再赋值；found 经 cand 变量传递（ORIG 用
+                // 条件里的 `uVar8 = local_24` 逗号项），避免二次 operator!= 调用。
+                std::vector<std::pair<int, int> >::const_iterator it =
+                    rec->m_tailB.begin();
+                std::vector<std::pair<int, int> >::const_iterator last =
+                    rec->m_tailB.end();
+                unsigned int cand = found;
+                while (it != last)
+                {
+                    cand = idx;
+                    if (static_cast<int>(info.m_avatar.m_addInfo) == it->first)
+                    {
+                        break;
+                    }
+                    ++it;
+                }
+                found = cand;
+                break;
+            }
+            case 3:
+            {
+                // 声明即初始化：ORIG 各分支把 begin()/end() 的 sret 目标**直接**
+                // 指到本组迭代器槽（0x083323xx 区无 normal_iterator 默认构造调用），
+                // 故不可先 `iterator it;` 再赋值；found 经 cand 变量传递（ORIG 用
+                // 条件里的 `uVar8 = local_24` 逗号项），避免二次 operator!= 调用。
+                std::vector<std::pair<int, int> >::const_iterator it =
+                    rec->m_tailC.begin();
+                std::vector<std::pair<int, int> >::const_iterator last =
+                    rec->m_tailC.end();
+                unsigned int cand = found;
+                while (it != last)
+                {
+                    cand = idx;
+                    if (static_cast<int>(info.m_avatar.m_addInfo) == it->first)
+                    {
+                        break;
+                    }
+                    ++it;
+                }
+                found = cand;
+                break;
+            }
+            case 4:
+            {
+                // 声明即初始化：ORIG 各分支把 begin()/end() 的 sret 目标**直接**
+                // 指到本组迭代器槽（0x083323xx 区无 normal_iterator 默认构造调用），
+                // 故不可先 `iterator it;` 再赋值；found 经 cand 变量传递（ORIG 用
+                // 条件里的 `uVar8 = local_24` 逗号项），避免二次 operator!= 调用。
+                std::vector<std::pair<int, int> >::const_iterator it =
+                    rec->m_cube.m_vec.begin();
+                std::vector<std::pair<int, int> >::const_iterator last =
+                    rec->m_cube.m_vec.end();
+                unsigned int cand = found;
+                while (it != last)
+                {
+                    cand = idx;
+                    if (static_cast<int>(info.m_avatar.m_addInfo) == it->first)
+                    {
+                        break;
+                    }
+                    ++it;
+                }
+                found = cand;
+                break;
+            }
+            default:
+                continue;                    // 其它类型跳过本轮
         }
         if (found != 0)
             break;
     }
-    info.m_field04 = static_cast<int>(found);    // ORIG +0x6cd
+    info.m_field04 = static_cast<unsigned int>(found);  // ORIG +0x6cd
     info.m_type = msg->m_type;                   // ORIG +0x6d9
     return info;
 }
@@ -642,6 +746,8 @@ int CCompoundAvatar::_ProcCompoundCore(CUser* user, tagCompoundInfo& info,
 
 // ORIG 0x08333ecc。统计服上报本次分离的两件头像分级；注意 B 组 subType 也读
 // scriptA 的 vtbl+0xc（ORIG 如此）。
+// 【batch-12 标注】o=79 n=78（gap 11 → 1）：调用点差集归零；余 1 = ORIG 多一条
+//   callee-saved `push`（帧/寄存器分配，N82）+ 尾部对齐 nop（§6.1 豁免）⇒ N 封顶。
 void CCompoundAvatar::_SendDisjointAvatarStatistic(tagCompoundInfo& info)
 {
     Packet_Avater_Disjoint_Statistic packet;
@@ -717,6 +823,8 @@ namespace WongWork {
 // ORIG T 0x08468cb6。每名成员：strlen 名字(int)+名字串、两个槽位 byte
 // （stBestRecord_t +0x80/+0x84 即 m_pad7c[4+i]/m_pad7c[8+i]）、层号 short、
 // 通关耗时 int、名次 int。
+// 【batch-12 标注】o=89 n=88（gap 10 → 1）：strlen 两次独立调用已补齐（P48）；余 1
+//   为 ORIG 尾 `call leave ret` 前的 mov + 对齐 nop（§6.1 豁免）⇒ N 封顶。
 void CDeathTowerRanking::_makeRecordPacket(const stBestRecord_t& record,
                                            PacketGuard& packet)
 {
@@ -743,6 +851,9 @@ void CDeathTowerRanking::_makeRecordPacket(const stBestRecord_t& record,
 // （0x08468bc5/0x08468bfb），比较用 const_iterator::operator==、取值用
 // const_iterator::operator-> ⇒ 必须声明 const_iterator 并写 `==`（iterator +
 // `!=` 会走 operator!= 并省掉两次转换 ctor，实测差 5 call / 9 insn）。
+// 【batch-12 标注】o=63 n=61（gap 9 → 2）：调用点差集 10/10 归零（残差仅
+//   _Hashtable_const_iterator 转换 ctor 的 C2↔C1 符号名）；余 2 = 尾部 nop/装载
+//   步序（§6.1/N82）⇒ N 封顶。
 void CDeathTowerRanking::makeMyBestRecordPacket(unsigned int towerIdx,
                                                 unsigned int key,
                                                 PacketGuard& packet)

@@ -29,8 +29,8 @@ char g_creatureScriptBaseDirectory[0x104];
 // ORIG g_creatureScriptFileList（STScriptFileList，+0x00 即 map<int,string>）。
 std::map<int, std::string> g_creatureScriptFileList;
 
-// 模块名表 MODULE_NAME_TAG（processModuleTagSet 用；+8 步长 = 开/闭 string）。
-std::string g_moduleNameTag[0x22];   // ORIG MODULE_NAME_TAG B 0x88 字节（34 个 string）
+// 模块名表 MODULE_NAME_TAG（processModuleTagSet 用；+8 步长 = 开/闭 string 对）。
+std::string g_moduleNameTag[17][2];  // ORIG MODULE_NAME_TAG B 0x88 字节（17 对 = 34 string）
 
 // ---- 原生类型生命周期 ----
 
@@ -1237,9 +1237,9 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
     std::string token;                        // -0x3b8 子 token(ScanTypeOrStr 读入)
     int statusIdx = 0;                        // -0x34 文件级 active status 槽计数
     // module 名缓存(元素集 / active status 各一):初值 MODULE_NAME_TAG+0x18 =
-    // g_moduleNameTag[6],与 clear() 的 m_moduleTag=3 对齐 → 首遇不误重置。
-    std::string elemModule(g_moduleNameTag[6]);     // -0x3bc
-    std::string statusModule(g_moduleNameTag[6]);   // -0x3c0
+    // g_moduleNameTag[3][0],与 clear() 的 m_moduleTag=3 对齐 → 首遇不误重置。
+    std::string elemModule(g_moduleNameTag[3][0]);     // -0x3bc
+    std::string statusModule(g_moduleNameTag[3][0]);   // -0x3c0
 
     for (;;)                                  // 行循环:读行 → module 过滤 → 处理
     {
@@ -1368,7 +1368,7 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                     if (__inited)
                     {
                         // module 变化时清空元素集(0x0aa0..0x0ac9)
-                        const std::string& curMod = g_moduleNameTag[2 * info->m_moduleTag];
+                        const std::string& curMod = g_moduleNameTag[info->m_moduleTag][0];
                         if (elemModule != curMod)
                             info->m_elements.clear();
                         elemModule = curMod;  // 0x0aec 无条件更新缓存
@@ -1382,7 +1382,7 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                 case AITAG_ACTIVE_STATUS:     // 0xbc..0xf4 + vectors
                     if (__inited)
                     {
-                        const std::string& curMod = g_moduleNameTag[2 * info->m_moduleTag];
+                        const std::string& curMod = g_moduleNameTag[info->m_moduleTag][0];
                         if (statusModule != curMod)   // 0x0bb9 module 变化:重置槽
                         {
                             for (int i = 0; i < 3; ++i)

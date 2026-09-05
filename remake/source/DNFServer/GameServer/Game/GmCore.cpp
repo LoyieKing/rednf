@@ -82,10 +82,16 @@ void CParser::parse()                           // 0x084a8ab6
 {
     m_line = m_buf;                             // operator=(string&, const char*)
     m_pos = static_cast<int>(m_line.find(" ", 0));
-    std::string head = m_line.substr(0, m_pos);
-    m_cmdName = head;
-    std::string tail = m_line.substr(m_pos + 1, std::string::npos);
-    m_args = tail;
+    // ORIG：两临时各占独立槽（head@-0x10 先声明、tail@-0xc），赋值后块尾即毁
+    //（4.1 块级作用域形）⇒ 各包一层块，禁平铺（平铺时 4.4 合并函数尾析构）。
+    {
+        std::string head = m_line.substr(0, m_pos);
+        m_cmdName = head;
+    }
+    {
+        std::string tail = m_line.substr(m_pos + 1, std::string::npos);
+        m_args = tail;
+    }
     trim(m_cmdName);
     m_id = atoi(m_cmdName.c_str());
 }
@@ -128,7 +134,9 @@ void CCommandMap::add(int id, CCommand* cmd)    // 0x082a7c76
 
 void CCommandMap::add(std::string name, CCommand* cmd)  // 0x082a7cdc
 {
-    m_byName.insert(std::make_pair(name, cmd));
+    // ORIG pair ctor 模板 C1IRSsRS3_EEOT_OT0_（引用绑定）直接构造 value_type 临时，
+    // 由 insert(RKS5_) 按引用消费 ⇒ 禁 make_pair（值 pair 额外一次拷贝构造+析构）。
+    m_byName.insert(std::pair<const std::string, CCommand*>(name, cmd));
 }
 
 CCommand* CCommandMap::get(int id)              // 0x084b3fc8

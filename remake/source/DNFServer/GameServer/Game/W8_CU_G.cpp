@@ -433,14 +433,25 @@ void CUser::SetAccountCargoDBData(Inven_Item* items, unsigned int money,
 // ===========================================================================
 char CUser::VerifyPresentAvengerTitle()
 {
+    // ORIG T 0x868b552 全录（报告 docs/class_func_reports/CUser/VerifyPresentAvengerTitle.md
+    // 汇编+Ghidra C 双段读完；调用序 Counter 48 项对齐重建 2026-09-05 CUserC8）：
+    //  accId 先取 → createTime → 临时 string 两段（allocator C1/string C1/dtor）
+    //  → Singleton Get → findGameScript → checkCreateTime(0x8e, createTime, accId)
+    //  → 三 guard 短路 → getCurSec → flag!=1 才 **第二次独立** Get/findGameScript
+    //    +isApplied（orig 各 2 次，勿复用 period）→ Inven_Item C1 → **先写
+    //    item.m_random.m_rand4=0x28d3af 再 create_item**（判据读同一 local_90 槽，
+    //    原 const 局部为语义误植）→ findString/strncpy 交替对 → ReqDBSend 系
+    //    参数序 group→strlen→characNo → makeRequest 系 characNo→acc→GetUID →
+    //    trace 段 idxVal→characNo→acc→NumberToString→C1→operator()。
+    unsigned int accId = (unsigned int)get_acc_id();
     unsigned int createTime =
         static_cast<unsigned int>(getCurCharacCreateTime());
-    ARAD::Arad_DataManager* mgr = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
     ARAD::Arad_EventPeriodDataManager* period =
         static_cast<ARAD::Arad_EventPeriodDataManager*>(
-            mgr->findGameScript(std::string("Arad_EventPeriodDataManager")));
-    if (!period->checkCreateTime(static_cast<ENUM_REPEAT_EVENT_CODE>(0x8e),
-                                 createTime, get_acc_id()))
+            ARAD::Singleton<ARAD::Arad_DataManager>::Get()->findGameScript(
+                std::string("Arad_EventPeriodDataManager")));
+    if (period->checkCreateTime(static_cast<ENUM_REPEAT_EVENT_CODE>(0x8e),
+                                createTime, accId) != 1)
     {
         return 0;
     }
@@ -454,10 +465,14 @@ char CUser::VerifyPresentAvengerTitle()
     unsigned int curSec = GlobalData::s_systemTime_.getCurSec();
 
     bool eventOn = false;
-    if (!getFlagPresentAvengerTitle())
+    if (getFlagPresentAvengerTitle() != 1)
     {
-        eventOn = period->isApplied(static_cast<ENUM_REPEAT_EVENT_CODE>(0x8e),
-                                    curSec);
+        ARAD::Arad_EventPeriodDataManager* period2 =
+            static_cast<ARAD::Arad_EventPeriodDataManager*>(
+                ARAD::Singleton<ARAD::Arad_DataManager>::Get()->findGameScript(
+                    std::string("Arad_EventPeriodDataManager")));
+        eventOn = period2->isApplied(static_cast<ENUM_REPEAT_EVENT_CODE>(0x8e),
+                                     curSec);
     }
     if (!eventOn)
     {
@@ -465,38 +480,45 @@ char CUser::VerifyPresentAvengerTitle()
     }
 
     Inven_Item item;
-    const int itemIdx = 0x28d3af;
-    G_CDataManager()->getItemList()->create_item(
+    const int itemIdx = 0x28d3af;   // ORIG 0x868b77c 独立栈槽 -0x8c（非 Inven_Item
+                                    // 成员——0x868b77c 与 item@-0x8e 尺寸不重叠实证；
+                                    // ChronicleRandomOptionInfo 亦无 +1 偏移 int 成员）
+    // ORIG 0x868b78b `mov 0xc(%eax),%eax` 直读 m_itemList 成员（getItemList
+    // 转发 call orig=0，具名字段直访）。
+    G_CDataManager()->m_itemList->create_item(
         static_cast<ENUM_ITEM_CREATE_TYPE>(0), item, 1);
     if (itemIdx != 0 && itemIdx != -1)
     {
         setFlagPresentAvengerTitle(true);
 
-        char subject[0x15];
-        char body[0x100];
-        const char* subjText =
-            g_scriptStringManager_.findString(4, "ready_to_avenger_title", 0);
-        const char* bodyText =
-            g_scriptStringManager_.findString(4, "ready_to_avenger_mail", 0);
-        strncpy(subject, subjText, 0x14);
-        strncpy(body, bodyText, 0xff);
+        // ORIG 0x868b7e2/82c 两段 peel+rep stos 清零块 = `= {0}` 聚合初始化
+        //（makeGuildItemUpgradMessage board 同形，4.4 产 memset 调用 orig=0）。
+        char subject[0x15] = {0};
+        char body[0x100] = {0};
+        strncpy(subject,
+                g_scriptStringManager_.findString(4, "ready_to_avenger_title", 0),
+                0x14);
+        strncpy(body,
+                g_scriptStringManager_.findString(4, "ready_to_avenger_mail", 0),
+                0xff);
 
         ENUM_SERVER_GROUP group = static_cast<ENUM_SERVER_GROUP>(GetServerGroup());
+        unsigned int blen = (unsigned int)strlen(body);
         unsigned int characNo = getCurCharacNo();
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-            subject, item, 0, characNo, body,
-            static_cast<int>(strlen(body)), 0, group, false, false);
+            subject, item, 0, characNo, body, blen, 0, group, false, false);
 
-        DB_SaveGiveAvengerTitleFlag().makeRequest(
-            static_cast<int>(GetUID()), get_acc_id(), getCurCharacNo());
+        unsigned int characNo2 = getCurCharacNo();
+        unsigned int accId2 = get_acc_id();
+        int uid = (int)GetUID();
+        DB_SaveGiveAvengerTitleFlag().makeRequest(uid, accId2, characNo2);
 
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0xa6eb, 0);
-            char* idStr = NumberToString(get_acc_id(), 0);
-            trace("avenger plan event item post m_id(%s),charac_no(%u), itemidx(%u)",
-                  idStr, getCurCharacNo(),
-                  static_cast<unsigned int>(itemIdx));
-        }
+        int idxVal = itemIdx;
+        unsigned int characNo3 = getCurCharacNo();
+        char* idStr = NumberToString(get_acc_id(), 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xa6eb, 0);
+        trace("avenger plan event item post m_id(%s),charac_no(%u), itemidx(%u)",
+              idStr, characNo3, static_cast<unsigned int>(idxVal));
         return 1;
     }
     return 0;

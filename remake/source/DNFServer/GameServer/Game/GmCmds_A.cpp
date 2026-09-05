@@ -1108,7 +1108,7 @@ void CBillingRechargeCommand::parse()
     if (m_parser != 0)
     {
         m_str0 = m_parser->m_extra[1];
-        cmd_int1(this) = static_cast<int>(StringToNumber(m_parser->m_extra[2].c_str()));
+        m_amount = static_cast<int>(StringToNumber(m_parser->m_extra[2].c_str()));
     }
 }
 
@@ -1117,21 +1117,25 @@ void CBillingRechargeCommand::parse()
 void CBillingRechargeCommand::execute()
 {
     CUser* user = GetUser();
-    void** vtable = *reinterpret_cast<void***>(GlobalData::s_pIPGHelper);
-
+    // ORIG（P157 逐点重取形）：每个调用表达式独立重读 s_pIPGHelper → 取 vptr →
+    // add 槽 → deref fn，随后再读一次 helper 作首实参；禁 vtable 缓存局部
+    //（缓存少发 ORIG 的逐点 fetch 行且引入额外栈槽）。
     if (m_str0 == "cera")
     {
         reinterpret_cast<void (*)(void*, CUser*, int, int, char const*, char const*,
-                                  char const*, int, int, int)>(vtable[1])(
-            GlobalData::s_pIPGHelper, user, 5, cmd_int1(this), "", "", "GM", 0, 0, 0);
+                                  char const*, int, int, int)>(
+            (*reinterpret_cast<void***>(GlobalData::s_pIPGHelper))[1])(
+            GlobalData::s_pIPGHelper, user, 5, m_amount, "", "", "GM", 0, 0, 0);
     }
     else if (m_str0 == "point")
     {
-        reinterpret_cast<void (*)(void*, CUser*, int, int, int, int)>(vtable[3])(
-            GlobalData::s_pIPGHelper, user, cmd_int1(this), 4, 0, 0);
+        reinterpret_cast<void (*)(void*, CUser*, int, int, int, int)>(
+            (*reinterpret_cast<void***>(GlobalData::s_pIPGHelper))[3])(
+            GlobalData::s_pIPGHelper, user, m_amount, 4, 0, 0);
     }
-
-    reinterpret_cast<void (*)(void*, CUser*)>(vtable[11])(GlobalData::s_pIPGHelper, user);
+    reinterpret_cast<void (*)(void*, CUser*)>(
+        (*reinterpret_cast<void***>(GlobalData::s_pIPGHelper))[11])(
+        GlobalData::s_pIPGHelper, user);
 }
 
 } // namespace game_master

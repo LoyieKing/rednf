@@ -131,13 +131,6 @@ struct GmDBase { void* vptr; void* parser; };                // CCommand +0x00/+
 template <typename T>
 struct GmDFld : GmDBase { T f08; };                          // 单 POD @+0x08
 
-struct GmDHM : GmDBase                                       // CHeroMissionCommand
-{
-    int pad08;                                               // +0x08（string 槽）
-    unsigned int no;                                         // +0x0c missionNo
-    unsigned int param;                                      // +0x10 参数
-};
-
 struct GmDID : GmDBase                                       // CIndependentDrop 0x3c
 {
     bool all;                                                // +0x08
@@ -667,10 +660,9 @@ void CHeroMissionCommand::parse()
     if (m_parser != 0)
     {
         m_str0 = m_parser->m_extra[1];
-        GmDHM* self = (GmDHM*)this;
-        self->no = static_cast<unsigned int>(
+        m_missionNo = static_cast<unsigned int>(
             StringToNumber(m_parser->m_extra[2].c_str()));
-        self->param = static_cast<unsigned int>(
+        m_param = static_cast<unsigned int>(
             StringToNumber(m_parser->m_extra[3].c_str()));
     }
 }
@@ -680,19 +672,21 @@ void CHeroMissionCommand::parse()
 void CHeroMissionCommand::execute()
 {
     CUser* user = GetUser();
-    HeroMissionEvent* mission = ARAD::Singleton<HeroMissionEvent>::Get();
+    // ORIG P48：O0 无 CSE，三个调用表达式各含一次 Singleton::Get()（共 3 call），
+    // 禁函数顶缓存 mission。set 分支先按右→左读 m_param(+0x10)/m_missionNo(+0xc)
+    // 入 callee-saved 跨 Get() 保活（P87 形），再 call Get 作 receiver。
     if (m_str0 == "set")
     {
-        const GmDHM* self = (const GmDHM*)this;
-        mission->processMission(user,
-                                static_cast<HeroMissionCondition::MissionNo::T>(self->no),
-                                self->param);
+        register unsigned int param = m_param;
+        register unsigned int no = m_missionNo;
+        ARAD::Singleton<HeroMissionEvent>::Get()->processMission(
+            user, static_cast<HeroMissionCondition::MissionNo::T>(no), param);
     }
     else if (m_str0 == "reset")
     {
-        mission->setEventData(user, "");
+        ARAD::Singleton<HeroMissionEvent>::Get()->setEventData(user, "");
     }
-    mission->sendMissionData(user);
+    ARAD::Singleton<HeroMissionEvent>::Get()->sendMissionData(user);
 }
 
 // （namespace game_master 于文件尾闭合——asm-label 实现体同属该命名空间）

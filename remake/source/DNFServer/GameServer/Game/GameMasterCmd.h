@@ -878,6 +878,9 @@ public:
     virtual void execute();                          // ORIG T 0x084b3ad4
 
     std::string m_str0;                              // +0x08
+    int m_amount;                                    // +0x0c（ORIG parse 0x084b3acb 写、
+                                                     //  execute 0x084b3b11/0x084b3b8c 读；
+                                                     //  C1 new $0x10 @0x082a8a28 块实证）
 };
 class CMobileRestrictCommand : public CCommand
 {
@@ -904,7 +907,11 @@ public:
     virtual void execute();                          // ORIG T 0x084b3e5e
 
     std::string m_str0;                              // +0x08
-    unsigned int m_f1;                               // +0x10（字段语义见报告）
+    unsigned int m_missionNo;                        // +0x0c（ORIG parse 0x084b3e23 写、
+                                                     //  execute 0x084b3e99 读：MissionNo::T；
+                                                     //  C1 new $0x14 @0x082a8a28 块实证）
+    unsigned int m_param;                            // +0x10（ORIG parse 0x084b3e56 写、
+                                                     //  execute 0x084b3e91 读：processMission 第4参）
 };
 
 
