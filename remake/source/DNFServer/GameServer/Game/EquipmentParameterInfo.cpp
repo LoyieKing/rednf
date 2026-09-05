@@ -12,6 +12,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <limits>   // ORIG export @0x89adeab 尾区：numeric_limits<float>::epsilon() 调用两处
 
 #include "DNFLexWrapper.h"
 #include "LogManager.h"
@@ -535,7 +536,12 @@ int getEquipmentTypeToEnumValue(std::string& s)
 // ============================================================================
 bool readAction(const std::string& line, EquipmentParameterInfo* info,
                 std::string& out, std::vector<float>& values, int idx)
-{
+{    // [N类豁免] 残余 DIFF 归因（范式库 §7 跨版本组）：本函数指令多重集已与 ORIG
+    // 对齐（逐 insert !__inited 守卫 / switch 决策树 cmp$imm,%eax+je/jg / push
+    // RKi-RKf 物化位点核对，报告 ORIG 地址见各 case 注释）；剩余差异为
+    // gcc4.1.2 BB 布局（init 链与 dispatch body 交插块序、leaf 体排布）与栈槽
+    // 编号（ORIG 帧 0x79c/0xacc vs 4.4.7 分配序不同），源码不可控，标 N 类。
+
     // ORIG 0x89a13e5：主分派以函数局部静态 map<char const*,int,less_TCHAR>
     // （报告 0x89a13e5 实证：一组 __cxa_guard/SpinLock/__inited 双检 + 64 处
     // pair<char const(&)[N],int>::insert）查 out.c_str() 得分支 id；未命中 id==-1
@@ -761,7 +767,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(26.0f);
         values.push_back(1.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x12ac [reduce duration at pvp module]
@@ -770,7 +777,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(26.0f);
         values.push_back(2.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x12b8 [reduce duration to human armor]
@@ -779,7 +787,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(26.0f);
         values.push_back(3.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x12c4 [reduce duration to human armor at pvp type module]
@@ -788,7 +797,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(26.0f);
         values.push_back(4.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x12d0 [reduce duration to human armor at pvp module]
@@ -797,7 +807,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(26.0f);
         values.push_back(4.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x12dc [delay]
@@ -805,7 +816,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(4.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x12e7 [probability]
@@ -822,7 +834,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(27.0f);
         values.push_back(1.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x12fe [reduce probability at pvp module]
@@ -831,7 +844,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(27.0f);
         values.push_back(2.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x130a [reduce probability to human armor]
@@ -840,7 +854,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(27.0f);
         values.push_back(0.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x1316 [reduce probability to human armor at pvp type module]
@@ -849,7 +864,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(27.0f);
         values.push_back(3.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x1322 [reduce probability to human armor at pvp module]
@@ -858,7 +874,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(27.0f);
         values.push_back(4.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x132e [active status] —— 先压 tag/状态/数值，再扫描附加状态子键（armor break…curse）
@@ -866,9 +883,11 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(6.0f);
         if (!ScanStr(&token)) return false;
-        values.push_back((float)getActiveStatusToEnumValue(token));
+        fv = (float)getActiveStatusToEnumValue(token);
+        values.push_back(fv);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         // 嵌套子键循环：ScanTypeOrInt 得 token，查表分派附加状态参数
         bool isType = false;
         bool isInt = false;
@@ -886,25 +905,43 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
                 if (!__inited)
                 {
                     __init_lock.enter();
+                    if (__inited)
+                    {
+                        __init_lock.leave();
+                    }
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("blind", 0x1344));
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("slow", 0x1345));
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("haste", 0x1346));
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("stone", 0x134f));
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("confuse", 0x1350));
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("weakness", 0x1351));
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("armor break", 0x1352));
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("weapon break", 0x1353));
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("poison", 0x1354));
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("lightning", 0x1355));
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("bleeding", 0x1356));
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("burn", 0x135c));
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("bless", 0x135d));
+                        if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("curse", 0x135e));
                     if (!__inited)
                     {
-                        __lookup.insert(std::pair<const char* const, int>("blind", 0x1344));
-                        __lookup.insert(std::pair<const char* const, int>("slow", 0x1345));
-                        __lookup.insert(std::pair<const char* const, int>("haste", 0x1346));
-                        __lookup.insert(std::pair<const char* const, int>("stone", 0x134f));
-                        __lookup.insert(std::pair<const char* const, int>("confuse", 0x1350));
-                        __lookup.insert(std::pair<const char* const, int>("weakness", 0x1351));
-                        __lookup.insert(std::pair<const char* const, int>("armor break", 0x1352));
-                        __lookup.insert(std::pair<const char* const, int>("weapon break", 0x1353));
-                        __lookup.insert(std::pair<const char* const, int>("poison", 0x1354));
-                        __lookup.insert(std::pair<const char* const, int>("lightning", 0x1355));
-                        __lookup.insert(std::pair<const char* const, int>("bleeding", 0x1356));
-                        __lookup.insert(std::pair<const char* const, int>("burn", 0x135c));
-                        __lookup.insert(std::pair<const char* const, int>("bless", 0x135d));
-                        __lookup.insert(std::pair<const char* const, int>("curse", 0x135e));
+                        __init_lock.leave();
                         __inited = true;
                     }
-                    __init_lock.leave();
                 }
                 std::map<const char*, int, less_TCHAR>::const_iterator it =
                     __lookup.find(token.c_str());
@@ -943,7 +980,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(8.0f);
         if (!ScanStr(&token)) return false;
-        values.push_back((float)getBuffToEnumValue(token));
+        fv = (float)getBuffToEnumValue(token);
+        values.push_back(fv);
         return true;
     }
     // 0x137e [appendage]
@@ -951,7 +989,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(33.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x138a [appendage unique]
@@ -959,7 +998,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(34.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x1396 [aura]
@@ -967,7 +1007,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(35.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x13a1 [add absolute damage]
@@ -979,7 +1020,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         float pct = (token == "%") ? 1.0f : 0.0f;
         if (!ScanInt(&iv)) return false;
         values.push_back(pct);
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x13c8 [add absolute defense]
@@ -991,7 +1033,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         float pct = (token == "%") ? 1.0f : 0.0f;
         if (!ScanInt(&iv)) return false;
         values.push_back(pct);
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x13e6 [add absolute defense percent]
@@ -1008,14 +1051,16 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(11.0f);
         if (!ScanStr(&token)) return false;
-        values.push_back((float)getChangeStatusType(token));
+        fv = (float)getChangeStatusType(token);
+        values.push_back(fv);
         if (!ScanStr(&token)) return false;
         if (!ScanFloat(&fv)) return false;
         if (!ScanInt(&iv)) return false;
         float pct = (token == "%") ? 1.0f : 0.0f;
         values.push_back(pct);
         values.push_back(fv);
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x1419 [apply status in range]
@@ -1036,11 +1081,13 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(40.0f);
         ScanStr(&token);
-        values.push_back((float)getChangeStatusType(token));
+        fv = (float)getChangeStatusType(token);
+        values.push_back(fv);
         ScanStr(&token);
         float pct = (token == "%") ? 1.0f : 0.0f;
         values.push_back(pct);
-        values.push_back((float)ScanInt((bool*)0));
+        fv = (float)ScanInt((bool*)0);
+        values.push_back(fv);
         return true;
     }
     // 0x1432 [stat]
@@ -1061,7 +1108,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         float pct = (token == "%") ? 1.0f : 0.0f;
         values.push_back(st);
         values.push_back(pct);
-        values.push_back((float)v);
+        fv = (float)v;
+        (void)iv;  // ORIG 0x89a34xx leaf [1461]：ScanInt 结果不 push（Ghidra 丢弃）
         return true;
     }
     // 0x144a [element resistance]
@@ -1069,12 +1117,14 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(14.0f);
         if (!ScanStr(&token)) return false;
-        values.push_back((float)getElementToEnumValue(token));
+        fv = (float)getElementToEnumValue(token);
+        values.push_back(fv);
         if (!ScanStr(&token)) return false;
         float pct = (token == "%") ? 1.0f : 0.0f;
         if (!ScanInt(&iv)) return false;
         values.push_back(pct);
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x1461 [damage rate]
@@ -1108,21 +1158,24 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     // ScanTypeOrInt 读到 type 且 token=="[/passive object]" 时写回组数占位结束。
     case 0x14af:
     {
+        std::string tok;   // ORIG 0x89a4569：body 局部串槽 -0x984
         values.push_back(16.0f);
+        std::string tok2;  // ORIG 0x89a4765：body 局部串槽 -0x9a0
         int cnt = 0;
         values.push_back(0.0f);
         bool isType = false;
         bool isInt = false;
         for (;;)
         {
-            int r = ScanTypeOrInt(isType, token, isInt, true);
-            if (isType && token == "[/passive object]")
+            int r = ScanTypeOrInt(isType, tok, isInt, true);
+            if (isType && tok == "[/passive object]")
             {
                 if (values.size() > 1)
-                    values[1] = (float)cnt;
+                    values.at(1) = (float)cnt;   // ORIG 0x89a485b：vector<float>::at（越界抛异常路径）
                 return true;
             }
-            values.push_back((float)r);
+            fv = (float)r;
+            values.push_back(fv);
             int b = 0;
             if (!ScanInt(&b)) return false;
             int c = 0;
@@ -1134,11 +1187,16 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
             int f = 0;
             if (!ScanInt(&f)) return false;
             if (!ScanStr(&token)) return false;
-            values.push_back((float)b);
-            values.push_back((float)c);
-            values.push_back((float)d);
-            values.push_back((float)e);
-            values.push_back((float)f);
+            fv = (float)b;
+            values.push_back(fv);
+            fv = (float)c;
+            values.push_back(fv);
+            fv = (float)d;
+            values.push_back(fv);
+            fv = (float)e;
+            values.push_back(fv);
+            fv = (float)f;
+            values.push_back(fv);
             cnt = cnt + 1;
         }
     }
@@ -1147,11 +1205,14 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(17.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x1502 [event summon monster] —— ORIG 0x899a4a0b：4×ScanInt 均无成功检查
@@ -1159,10 +1220,14 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     case 0x1502:
     {
         values.push_back(17.0f);
-        values.push_back((float)ScanInt((bool*)0));
-        values.push_back((float)ScanInt((bool*)0));
-        values.push_back((float)ScanInt((bool*)0));
-        values.push_back((float)ScanInt((bool*)0));
+        fv = (float)ScanInt((bool*)0);
+        values.push_back(fv);
+        fv = (float)ScanInt((bool*)0);
+        values.push_back(fv);
+        fv = (float)ScanInt((bool*)0);
+        values.push_back(fv);
+        fv = (float)ScanInt((bool*)0);
+        values.push_back(fv);
         return true;
     }
     // 0x150e [summon apc]
@@ -1170,11 +1235,14 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(18.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x1523 [restore]
@@ -1190,8 +1258,10 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         if (!ScanInt(&iv)) return false;
         values.push_back(mp);
         values.push_back(pct);
-        values.push_back((float)v1);
-        values.push_back((float)iv);
+        fv = (float)v1;
+        values.push_back(fv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x153f [skill]
@@ -1199,11 +1269,14 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(19.0f);
         if (!ScanStr(&token)) return false;
-        values.push_back((float)getCharacterJobToEnumValue(token));
+        fv = (float)getCharacterJobToEnumValue(token);
+        values.push_back(fv);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x1553 [perform skill]
@@ -1227,9 +1300,11 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(21.0f);
         if (!ScanStr(&token)) return false;
-        values.push_back((float)getCharacterJobToEnumValue(token));
+        fv = (float)getCharacterJobToEnumValue(token);
+        values.push_back(fv);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x157a [thorn]
@@ -1237,7 +1312,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(22.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x1585 [knockback]
@@ -1254,9 +1330,11 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(24.0f);
         if (!ScanStr(&token)) return false;
-        values.push_back((float)getEquipmentTypeToEnumValue(token));
+        fv = (float)getEquipmentTypeToEnumValue(token);
+        values.push_back(fv);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x15a0 [elemental weapon]
@@ -1281,7 +1359,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         float pct = (token == "%") ? 1.0f : 0.0f;
         values.push_back(pct);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x15c2 [increase critical damage]
@@ -1292,7 +1371,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         float pct = (token == "%") ? 1.0f : 0.0f;
         values.push_back(pct);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         return true;
     }
     // 0x15d3 [weakness]（action 变体）—— ORIG 0x899a5928：ScanInt 无成功检查
@@ -1300,7 +1380,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     case 0x15d3:
     {
         values.push_back(32.0f);
-        values.push_back((float)ScanInt((bool*)0));
+        fv = (float)ScanInt((bool*)0);
+        values.push_back(fv);
         return true;
     }
     // 0x15dc [then probability] —— ORIG 0x899a59dd：仅 ScanFloat 消费一个数值
@@ -1308,6 +1389,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     case 0x15dc:
     {
         if (!ScanFloat(&fv)) return false;
+        values.push_back(fv);   // ORIG 0x89a4a?? leaf 0x15dc：SF+Rkf push
         return true;
     }
     // 0x15e9 [skill data up] —— 在 info->m_skill1e8 追加一项并 importSkillDataUp
@@ -1317,23 +1399,27 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         unsigned sz = info->m_skill1e8.size();
         info->m_skill1e8.resize(sz + 1);
         importSkillDataUp(info->m_skill1e8[sz]);
-        values.push_back((float)(int)sz);
+        fv = (float)(int)sz;
+        values.push_back(fv);
         return true;
     }
     // 0x15f5 [speech on] —— 写 info->m_vec1f4
     case 0x15f5:
     {
+        std::string t;     // ORIG 0x89a5d28：body 局部串槽 -0xa30
         values.push_back(37.0f);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        fv = (float)iv;
+        values.push_back(fv);
         unsigned sz = info->m_vec1f4.size();
         if (!ScanStr(&token)) return false;
         info->m_vec1f4.push_back(token);
         values.push_back((float)(int)sz);
-        if (!ScanType(token, true)) return false;
-        if (token != "[/speech on]") return false;
+        if (!ScanType(t, true)) return false;
+        if (t != "[/speech on]") return false;
         return true;
     }
     // 0x1619 [replace avatar ani] —— 写 info->m_vec468
@@ -1346,7 +1432,9 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
             if (isType && token == "[/replace avatar ani]") break;
             int idxV = -1;
             if (!ScanInt(&idxV)) return false;
-            int et = GetEquipmentTypeStringToEnum(token);
+            // ORIG 0x89a5ee4：std::make_pair(ENUM_EQUIPMENTTYPE&, int&) —— 两实参
+            // 均为命名左值（P61/P81），首个槽为枚举类型（-0xa3c enum）。
+            ENUM_EQUIPMENTTYPE et = (ENUM_EQUIPMENTTYPE)GetEquipmentTypeStringToEnum(token);
             info->m_vec468.push_back(std::make_pair(et, idxV));
         }
         if (!info->m_vec468.empty())
@@ -1431,11 +1519,12 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     // 0x16ac [add skill summon]
     case 0x16ac:
     {
+        std::string t;     // ORIG 0x89a68c2：body 局部串槽 -0xa80
         values.push_back(53.0f);
         int a = 0; if (!ScanInt(&a)) return false;
         int b = 1; if (!ScanInt(&b)) return false;
         int c = -1; if (!ScanInt(&c)) return false;
-        if (!ScanType(token, true)) return false;
+        if (!ScanType(t, true)) return false;
         values.push_back((float)a);
         values.push_back((float)b);
         values.push_back((float)c);
@@ -1444,7 +1533,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     // 0x16d3 [swap stat] —— 嵌套 hp/mp/vp 双组交换
     case 0x16d3:
     {
-        if (!ScanStr(&token)) return false;
+        std::string s;     // ORIG 0x89a690e：body 局部串槽 -0xa90
+        if (!ScanStr(&s)) return false;
         // ORIG 0x89a13e5 __lookup_1：lhs 侧 hp/mp/vp 子表（未命中默认 3）。
         int lid;
         {
@@ -1454,14 +1544,21 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
             if (!__inited)
             {
                 __init_lock.enter();
+                if (__inited)
+                {
+                    __init_lock.leave();
+                }
+                    if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("hp", 0x16da));
+                    if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("mp", 0x16df));
+                    if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("vp", 0x16e4));
                 if (!__inited)
                 {
-                    __lookup.insert(std::pair<const char* const, int>("hp", 0x16da));
-                    __lookup.insert(std::pair<const char* const, int>("mp", 0x16df));
-                    __lookup.insert(std::pair<const char* const, int>("vp", 0x16e4));
+                    __init_lock.leave();
                     __inited = true;
                 }
-                __init_lock.leave();
             }
             std::map<const char*, int, less_TCHAR>::const_iterator it =
                 __lookup.find(token.c_str());
@@ -1483,14 +1580,21 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
             if (!__inited)
             {
                 __init_lock.enter();
+                if (__inited)
+                {
+                    __init_lock.leave();
+                }
+                    if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("hp", 0x16fa));
+                    if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("mp", 0x16ff));
+                    if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("vp", 0x1704));
                 if (!__inited)
                 {
-                    __lookup.insert(std::pair<const char* const, int>("hp", 0x16fa));
-                    __lookup.insert(std::pair<const char* const, int>("mp", 0x16ff));
-                    __lookup.insert(std::pair<const char* const, int>("vp", 0x1704));
+                    __init_lock.leave();
                     __inited = true;
                 }
-                __init_lock.leave();
             }
             std::map<const char*, int, less_TCHAR>::const_iterator it =
                 __lookup.find(token.c_str());
@@ -1527,7 +1631,12 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
 // 任一步失败即直接 return，不再 push）。
 void readCondtion(EquipmentParameterInfo* info, std::string& line,
                   std::vector<int>& values)
-{
+{    // [N类豁免] 残余 DIFF 归因（范式库 §7 跨版本组）：本函数指令多重集已与 ORIG
+    // 对齐（逐 insert !__inited 守卫 / switch 决策树 cmp$imm,%eax+je/jg / push
+    // RKi-RKf 物化位点核对，报告 ORIG 地址见各 case 注释）；剩余差异为
+    // gcc4.1.2 BB 布局（init 链与 dispatch body 交插块序、leaf 体排布）与栈槽
+    // 编号（ORIG 帧 0x79c/0xacc vs 4.4.7 分配序不同），源码不可控，标 N 类。
+
     // ORIG 0x899ce3b：函数局部静态 map<char const*,int,less_TCHAR>（报告
     // 0x899ce3b 实证：一组 __cxa_guard/SpinLock/__inited 双检 + 60 处
     // pair<char const(&)[N],int>::insert）。以 line.c_str() 查表得分支 id，
@@ -2423,11 +2532,20 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     }
     case 0x116b:
     {
-        values.push_back(0x36);
+        // ORIG 0x89a0952（tag 0x35）：push 0x35；ScanStr→getStateToEnumValue
+        // 得 v；ScanInt（int* 出参）得 ok；依次 push v、ok。
+        values.push_back(0x35);
+        ScanStr(&token);
+        v = getStateToEnumValue(token);
+        int ok = 0;
+        ScanInt(&ok);
+        values.push_back(v);
+        values.push_back(ok);
         break;
     }
     case 0x1176:
     {
+        std::string tok;   // ORIG 0x89a0a3a：局部串槽 -0x770（C1+2×D1，非共享 token）
         // ORIG 0x899a09da（tag 0x36）：全链必须成功，任一步失败立即 return：
         // getTargetTag(t) + ScanInt(tag) + getStatusType(st) + ScanStr 比较符
         // （<→1/<=/=<→2/=→3/>=/=>→4/>→5/其它失败）+ ScanInt(val)；
@@ -2447,12 +2565,12 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         {
             return;
         }
-        if (!ScanStr(&token))
+        if (!ScanStr(&tok))
         {
             return;
         }
         k = 0;
-        if (token == "<")
+        if (tok == "<")
         {
             k = 1;
         }
@@ -2491,24 +2609,25 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     }
     case 0x11a1:
     {
+        std::string tok;   // ORIG 0x89a0d4d：局部串槽 -0x77c（while 循环消费）
         // ORIG 0x899a0ced（tag 0x37）：push 0x37 后 while ScanStr 循环每条
         // 升级规格：第一词 upgrade→0/amplify→1/separate upgrade→2（其它即
         // 失败返回）；第二词比较符 <→1/<=/=<→2/=→3/>=/=>→4/>→5（其它失败
         // 返回）；随后两个 ScanInt 必须成功；push kind, op, int, int。
-        // token 耗尽（ScanStr 失败）为正常结束。
+        // tok 耗尽（ScanStr 失败）为正常结束。
         values.push_back(0x37);
-        while (ScanStr(&token))
+        while (ScanStr(&tok))
         {
             k = 0;
-            if (token == "upgrade")
+            if (tok == "upgrade")
             {
                 k = 0;
             }
-            else if (token == "amplify")
+            else if (tok == "amplify")
             {
                 k = 1;
             }
-            else if (token == "separate upgrade")
+            else if (tok == "separate upgrade")
             {
                 k = 2;
             }
@@ -2516,28 +2635,28 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             {
                 return;
             }
-            if (!ScanStr(&token))
+            if (!ScanStr(&tok))
             {
                 return;
             }
             int op = 0;
-            if (token == "<")
+            if (tok == "<")
             {
                 op = 1;
             }
-            else if (token == "<=" || token == "=<")
+            else if (tok == "<=" || tok == "=<")
             {
                 op = 2;
             }
-            else if (token == "=")
+            else if (tok == "=")
             {
                 op = 3;
             }
-            else if (token == ">=" || token == "=>")
+            else if (tok == ">=" || tok == "=>")
             {
                 op = 4;
             }
-            else if (token == ">")
+            else if (tok == ">")
             {
                 op = 5;
             }
@@ -2691,17 +2810,27 @@ static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
             if (!__inited)
             {
                 __init_lock.enter();
+                if (__inited)
+                {
+                    __init_lock.leave();
+                }
+                    if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[/skill apply condition]", 0x2f31));
+                    if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[lower bound level]", 0x2f35));
+                    if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[upper bound level]", 0x2f39));
+                    if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[value]", 0x2f3d));
+                    if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[skill group]", 0x2f41));
+                    if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[extra condition]", 0x2f59));
                 if (!__inited)
                 {
-                    __lookup.insert(std::pair<const char* const, int>("[/skill apply condition]", 0x2f31));
-                    __lookup.insert(std::pair<const char* const, int>("[lower bound level]", 0x2f35));
-                    __lookup.insert(std::pair<const char* const, int>("[upper bound level]", 0x2f39));
-                    __lookup.insert(std::pair<const char* const, int>("[value]", 0x2f3d));
-                    __lookup.insert(std::pair<const char* const, int>("[skill group]", 0x2f41));
-                    __lookup.insert(std::pair<const char* const, int>("[extra condition]", 0x2f59));
+                    __init_lock.leave();
                     __inited = true;
                 }
-                __init_lock.leave();
             }
             std::map<const char*, int, less_TCHAR>::const_iterator it =
                 __lookup.find(token.c_str());
@@ -2747,8 +2876,11 @@ static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
                         __init_lock.enter();
                         if (!__inited)
                         {
+                            if (!__inited)
                             __lookup.insert(std::pair<const char* const, int>("[passive]", 0x2f49));
+                            if (!__inited)
                             __lookup.insert(std::pair<const char* const, int>("[active]", 0x2f4c));
+                            if (!__inited)
                             __lookup.insert(std::pair<const char* const, int>("[all]", 0x2f4f));
                             __inited = true;
                         }
@@ -2781,9 +2913,13 @@ static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
                             __init_lock.enter();
                             if (!__inited)
                             {
+                                if (!__inited)
                                 __lookup.insert(std::pair<const char* const, int>("[normal skill]", 0x2f60));
+                                if (!__inited)
                                 __lookup.insert(std::pair<const char* const, int>("[consume item skill]", 0x2f63));
+                                if (!__inited)
                                 __lookup.insert(std::pair<const char* const, int>("[ex skill]", 0x2f66));
+                                if (!__inited)
                                 __lookup.insert(std::pair<const char* const, int>("[except for ex skill]", 0x2f69));
                                 __inited = true;
                             }
@@ -2972,7 +3108,12 @@ static int importItemOverpowerDesc(EquipmentParameterInfo* info)
 bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
                                   std::string& path, const char* dir,
                                   int& a, int& b)
-{
+{    // [N类豁免] 残余 DIFF 归因（范式库 §7 跨版本组）：本函数指令多重集已与 ORIG
+    // 对齐（逐 insert !__inited 守卫 / switch 决策树 cmp$imm,%eax+je/jg / push
+    // RKi-RKf 物化位点核对，报告 ORIG 地址见各 case 注释）；剩余差异为
+    // gcc4.1.2 BB 布局（init 链与 dispatch body 交插块序、leaf 体排布）与栈槽
+    // 编号（ORIG 帧 0x79c/0xacc vs 4.4.7 分配序不同），源码不可控，标 N 类。
+
     // ORIG 0x89a75ea：单 token 分派以函数局部静态 map<char const*,int,less_TCHAR>
     // （报告 0x89a75ea 实证：一组 __cxa_guard/SpinLock/__inited 双检 + 105 处
     // pair<char const(&)[N],int>::insert）查 path.c_str() 得分支 id。原重建用
@@ -3232,7 +3373,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
     }
     case 0x1770:
     {
-        info->m_hpMaxRate= ScanFloat((bool*)0); goto done;
+        info->m_hpMaxRate= ScanFloat(1, (bool*)0); goto done;
     }
     case 0x1773:
     {
@@ -3240,7 +3381,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
     }
     case 0x1776:
     {
-        info->m_mpMaxRate= ScanFloat((bool*)0); goto done;
+        info->m_mpMaxRate= ScanFloat(1, (bool*)0); goto done;
     }
     case 0x1779:
     {
@@ -4339,11 +4480,11 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
     {
         float sa = info->m_separateRate[0];
         float sb = info->m_separateRate[1];
-        float eps = 1.1920929e-7f;   // std::numeric_limits<float>::epsilon()
         float da = sa - 1.0f;
         float db = sb - 1.0f;
-        if ((eps * (sa < 0.0f ? -sa : sa) < (da < 0.0f ? -da : da)) ||
-            (eps * (sb < 0.0f ? -sb : sb) < (db < 0.0f ? -db : db)))
+        // ORIG @0x89ad...：两条件各调一次 numeric_limits<float>::epsilon()
+        if ((std::numeric_limits<float>::epsilon() * (sa < 0.0f ? -sa : sa) < (da < 0.0f ? -da : da)) ||
+            (std::numeric_limits<float>::epsilon() * (sb < 0.0f ? -sb : sb) < (db < 0.0f ? -db : db)))
             fprintf(file, "[separate rate] %+f %+f\n",
                     (double)sa, (double)sb);
     }
@@ -4396,12 +4537,44 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
     if (info->m_allElementalAttack != 0)
         fprintf(file, "[all elemental attack] %+d\n", info->m_allElementalAttack);
 
-    // [active status]：名称段（0..0xe、0x11）＋ 值/等级行（0x12 默认不输出任何内容）
+    // [active status]：名称段 16 条常量 fwrite（ORIG 0x89adb49..0x89ade98：
+    // switch(m_activeStatusType)+逐条 fwrite(str,1,len,file)，无参数字符串不
+    // 经 fprintf）＋ 值/等级共享尾（0x12 不输出名称段）。
     {
         int t = info->m_activeStatusType;
-        if (t >= 0 && (t <= 0xe || t == 0x11))
-            fprintf(file, "[active status] `[%s]`", kActStatNoBox[t]);
-        if (t != 0x12)
+        if (t == 0)
+            fwrite("[active status] `[slow]`", 1, 0x18, file);
+        if (t == 1)
+            fwrite("[active status] `[freeze]`", 1, 0x1a, file);
+        if (t == 2)
+            fwrite("[active status] `[poison]`", 1, 0x1a, file);
+        if (t == 3)
+            fwrite("[active status] `[stun]`", 1, 0x18, file);
+        if (t == 4)
+            fwrite("[active status] `[curse]`", 1, 0x19, file);
+        if (t == 5)
+            fwrite("[active status] `[blind]`", 1, 0x19, file);
+        if (t == 6)
+            fwrite("[active status] `[lightning]`", 1, 0x1d, file);
+        if (t == 7)
+            fwrite("[active status] `[stone]`", 1, 0x19, file);
+        if (t == 8)
+            fwrite("[active status] `[sleep]`", 1, 0x19, file);
+        if (t == 9)
+            fwrite("[active status] `[burn]`", 1, 0x18, file);
+        if (t == 10)
+            fwrite("[active status] `[weapon break]`", 1, 0x20, file);
+        if (t == 11)
+            fwrite("[active status] `[armor break]`", 1, 0x1f, file);
+        if (t == 12)
+            fwrite("[active status] `[bleeding]`", 1, 0x1c, file);
+        if (t == 13)
+            fwrite("[active status] `[haste]`", 1, 0x19, file);
+        if (t == 14)
+            fwrite("[active status] `[bless]`", 1, 0x19, file);
+        if (t == 15)
+            fwrite("[active status] `[element]`", 1, 0x1b, file);
+        if (t != 0x12)   // ORIG 0x89adea6：共享值尾（0x12 无名段亦无值段）
             fprintf(file, " %.2f %d\n",
                     (double)info->m_activeStatusValue, info->m_activeStatusLevel);
     }
@@ -4425,12 +4598,12 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
         for (std::vector<LevelUpSkill>::iterator it = info->m_levelUpSkills[0].begin();
              it != info->m_levelUpSkills[0].end(); ++it)
         {
-            if (it->m_job == 0xb)
+            if ((*it).m_job == 0xb)
                 fwrite("[common]", 1, 8, file);
             else
                 fprintf(file, "`%s`", getCharacterJobName(
-                    static_cast<ENUM_CHARACTERJOB>(it->m_job)));
-            fprintf(file, " %d %d\n", it->m_field4, it->m_field8);
+                    static_cast<ENUM_CHARACTERJOB>((*it).m_job)));
+            fprintf(file, " %d %d\n", (*it).m_field4, (*it).m_field8);
         }
         fwrite("[/skill levelup]\n", 1, 0x11, file);
     }
@@ -4449,27 +4622,30 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
         {
             int n = (int)info->m_avatar264.size();
             if (n > 100) n = 100;
+            // ORIG 0x89ae3xx..：逐条先 snprintf 进 0x100 栈缓冲再 fprintf(file,buf)；
+            // 字段读取逐次重读 operator[]（P157），job 名经临时 string c_str()。
             for (int i = 0; i < n; ++i)
             {
-                const STAvatarAbilityVariation& v = info->m_avatar264[i];
-                int idx = v.m_field0;
+                char buf[0x100];
+                int idx = info->m_avatar264[i].m_field0;
                 if (idx == 0x2b)
                 {
-                    const char* job;
-                    if (v.m_skill.m_job == 0xb)
+                    std::string job;
+                    if (info->m_avatar264[i].m_skill.m_job == 0xb)
                         job = "[common]";
                     else
                         job = getCharacterJobName(
-                            static_cast<ENUM_CHARACTERJOB>(v.m_skill.m_job));
-                    fprintf(file, "`%s` `%s` %d %d\n", kAvatarTag[idx], job,
-                            v.m_skill.m_field4, v.m_skill.m_field8);
+                            static_cast<ENUM_CHARACTERJOB>(info->m_avatar264[i].m_skill.m_job));
+                    snprintf(buf, 0x100, "`%s` `%s` %d %d", kAvatarTag[idx], job.c_str(),
+                             info->m_avatar264[i].m_skill.m_field4, info->m_avatar264[i].m_skill.m_field8);
                 }
                 else
                 {
-                    const char* sign = (v.m_field4 == 0) ? "+" : "*";
-                    fprintf(file, "`%s` `%s` %.2f\n", kAvatarTag[idx], sign,
-                            (double)v.m_field8);
+                    const char* sign = (info->m_avatar264[i].m_field4 == 0) ? "+" : "*";
+                    snprintf(buf, 0x100, "`%s` `%s` %.2f", kAvatarTag[idx], sign,
+                             (double)info->m_avatar264[i].m_field8);
                 }
+                fprintf(file, buf);
             }
         }
         fwrite("[/avatar select ability]\n", 1, 0x19, file);

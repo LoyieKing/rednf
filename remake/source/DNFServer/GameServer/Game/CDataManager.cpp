@@ -564,6 +564,9 @@ float CDataManager::BaseExpPenalty(int levelA, int levelB)
 
 // ORIG 0x08360716：float 比较用 fucompp+fnstsw+sahf（i486 形态）、循环体
 // fildll/fmuls/fistpll（64 位零扩展中间量）——以 target attribute 与强转链复刻。
+// 残余 DIFF = 跨版本负例（范式库「跨版本」行）：4.1 在循环回边后保留
+// `jmp +0xbf; nop` 空中转岛、NaN 分支 je 落 nop 再 fall-through（0x083607d4/
+// 0x083607be），4.4.7 jump-threading 直落 leave ret，语义等价不可翻。
 __attribute__((target("arch=i486"))) void CDataManager::SetExpRate(float rate)
 {
     if (m_expRate != rate)
@@ -919,6 +922,9 @@ void CDataManager::set_lottery_use_cost(unsigned int money, unsigned int cost)
     m_lotteryNeedMoney.add_lottery_needMoney(money, cost);
 }
 
+// 残余 DIFF = 跨版本负例（「空 else nop;jmp 岛」类）：ORIG then 赋值后多发
+// `jmp +0x26` + `nop` 中继（0x08365e9d/0x08365e9e），4.4.7 直落统一 leave，
+// 序列与语义均等价，不可翻。
 void CDataManager::set_original_dimensionInout(int idx, char value)
 {
     if (idx < 6)
@@ -1439,50 +1445,51 @@ char CDataManager::get_dimensionInout(int idx)
     return m_dimensionInout[idx];
 }
 
-void CDataManager::GetPvPChannelGrade()
+int CDataManager::GetPvPChannelGrade()
 {
-    // ORIG 0x08357e9e T：非 PVP 频道直接返回；否则在 m_liveServerInfo.m_pvpChannelMap
-    // （+0xb4ec，map<int,vector<pvp_channel_info_t>>）按 serverGroup 查找，命中则把
-    // 首个匹配项的 9 个字段拷入 m_pvpChannel（+0xb430），并记 PVP 日志。
+    // ORIG 0x08357e9e T：-0x1c(dst)/-0x38(serverGroup) 在 guard 前物化；
+    // guard `xor$1;test;je` 为 if(IsPVPChannel()) 正向包裹（0x08357ecd）。
+    // 返回 0/1（ORIG `mov$0/mov$1,%eax` 双路，P159）。
+    pvp_channel_info_t* dst = &m_pvpChannel;                    // 0x08357eaa
+    int serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x378
     if (!G_GameWorld()->IsPVPChannel())
     {
-        return;
+        return 0;
     }
-    // ORIG 读 env+0x378 = m_serverEnvir.m_serverGroup（CEnvironment.h 权威布局）。
-    int serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;
-    std::map<int, std::vector<pvp_channel_info_t> >& channelMap =
-        m_liveServerInfo.m_pvpChannelMap;
-    std::map<int, std::vector<pvp_channel_info_t> >::iterator it =
-        channelMap.find(serverGroup);
-    if (it != channelMap.end())
     {
-        // ORIG 0x08357e9e：遍历 vector，取 env channelNo(Server_Envir+0x18)
-        // 与 info.m_field0 匹配的首项拷入 m_pvpChannel（9 int）；未命中保持旧值。
-        int channelNo = G_CEnvironment()->m_serverEnvir.m_channelNo;
-        std::vector<pvp_channel_info_t>& vec = it->second;
-        for (std::vector<pvp_channel_info_t>::iterator vit = vec.begin();
-             vit != vec.end(); ++vit)
+        std::map<int, std::vector<pvp_channel_info_t> >::iterator it =
+            m_liveServerInfo.m_pvpChannelMap.find(serverGroup);
+        if (it != m_liveServerInfo.m_pvpChannelMap.end())
         {
-            if (channelNo == vit->m_field0)
+            // ORIG 0x08357f57：channelNo 每轮重取 env+0x1b0（G_CEnvironment
+            // 调用不被缓存，P48）；命中整结构赋值（0x08357f83..0x119 逐 dword
+            // 展开拷贝 9 项）后跳出。end 每轮重取 it->second.end()（0x08357fcd）。
+            for (std::vector<pvp_channel_info_t>::iterator vit =
+                     it->second.begin();
+                 vit != it->second.end(); ++vit)
             {
-                int* dst = (int*)&m_pvpChannel;
-                const int* src = (const int*)&*vit;
-                for (int i = 0; i < 9; ++i)
+                if (G_CEnvironment()->m_serverEnvir.m_channelNo == vit->m_field0)
                 {
-                    dst[i] = src[i];
+                    // ORIG 0x08357f83 `mov -0x1c(%ebp),%edx` + 逐 dword (0..0x20)
+                    // = 经命名指针槽的聚合赋值（非 this+disp 直写）。
+                    *dst = *vit;
+                    break;
                 }
-                break;
             }
         }
+        // ORIG 0x08358001..：P37 临时链式——R2L 求值使 maxLevel..+0xc 落
+        // -0x58..-0x4c 槽、+8/+4 跨 ctor 存 edi/esi、group 存 ebx，随后才
+        // ctor（0x08358052）→ operator()（0x08358095）。pvpChannelNum 常数 0。
+        cMyTrace(__PRETTY_FUNCTION__, 0x18f3, 0)(
+            "PVP Channel Information  serverGroup(%d), pvpChannelNum(%d), "
+            "minGrade(%d), maxGrade(%d), upgradeRevision(%d), type(%d), "
+            "minLevel(%d), maxLevel(%d)",
+            serverGroup, 0, dst->m_minGrade, dst->m_maxGrade,
+            dst->m_upgradeRevision, dst->m_channelType, dst->m_minLevel,
+            dst->m_maxLevel);
+        return 1;
     }
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x18f3, 0);
-    trace("PVP Channel Information  serverGroup(%d), pvpChannelNum(%d), "
-          "minGrade(%d), maxGrade(%d), upgradeRevision(%d), type(%d), "
-          "minLevel(%d), maxLevel(%d)",
-          serverGroup, 0, ((int*)&m_pvpChannel)[1], ((int*)&m_pvpChannel)[2],
-          ((int*)&m_pvpChannel)[3], ((int*)&m_pvpChannel)[4],
-          ((int*)&m_pvpChannel)[5], ((int*)&m_pvpChannel)[6],
-          ((int*)&m_pvpChannel)[7]);
+    return 0;
 }
 
 int CDataManager::GetMaxGradePvPChannel()
@@ -1522,6 +1529,13 @@ const char* CDataManager::SuddenShopFileName3()
     return m_packName4.c_str();
 }
 
+// 结构终态（o=704 n=689）：七段语义/控制流全对齐——monster 短路空体、ai
+// empty()==false 岛、dungeonList 条件序、item×dungeon 三层 at() 汇聚岛、
+// hash 扫描 for+break（found 检查体首 0x08362481）、无条件 dungeonList 复扫
+// (0x0836283c)、missing 判定后置、entrance 读取弃。残余 ndiff 归因：
+//  跨版本 this-cache 物化——4.1.2 对局部容器成员调用先 `lea obj; mov %eax,-slot`
+//  （-0x58=&monsterList、-0x54=aiList 等，0x08362125 实证），4.4.7 直发 lea 不
+//  物化，全帧槽号系统性平移（P112 族）；条目基址/负值检查行随之整块错位。
 int CDataManager::VerifyMap(const CMap& map, int idx) const
 {
     // ORIG 0x083620ee：map type 与 monster list 只被读取，结果不参与返回。
@@ -1530,17 +1544,17 @@ int CDataManager::VerifyMap(const CMap& map, int idx) const
     for (std::list<_mapMonster>::const_iterator it = monsterList.begin();
          it != monsterList.end(); it++)
     {
-        // ORIG 仅读取这两个字段后前进迭代器，无校验或状态写入。
+        // ORIG 0x08362153..：`test %al; jne ++; mov 0x8; test %eax` 尾 test 无
+        // 消费者 = `flag==0 && field` 空体短路链（结果丢弃，不物化槽）。
         const _mapMonster& mon = *it;
-        char flag = mon.m_flag04;
-        int field = mon.m_field08;
-        (void)flag;
-        (void)field;
+        if (mon.m_flag04 == 0 && mon.m_field08 != 0)
+        {
+        }
     }
 
     const std::vector<STAICharacterMapArrangeData>* aiList =
         map.getAICharacters();
-    if (!aiList->empty())
+    if (aiList->empty() == false)
     {
         for (std::vector<STAICharacterMapArrangeData>::const_iterator it =
                  aiList->begin(); it != aiList->end(); ++it)
@@ -1559,10 +1573,12 @@ int CDataManager::VerifyMap(const CMap& map, int idx) const
     }
 
     std::list<int> dungeonList;
-    if (idx == -1)
-        dungeonList = *map.getDungeonLists();
-    else
+    // ORIG 0x083622cb..：idx != -1 → push_back(&idx)（形参槽按引用）；
+    // 否则拷贝赋值 getDungeonLists() 解引用。
+    if (idx != -1)
         dungeonList.push_back(idx);
+    else
+        dungeonList = *map.getDungeonLists();
 
     const std::list<_mapItem> itemList = map.get_item_list();
     for (std::list<_mapItem>::const_iterator itemIt = itemList.begin();
@@ -1576,106 +1592,123 @@ int CDataManager::VerifyMap(const CMap& map, int idx) const
             const std::vector<stDungeonAssignItem_t>* passive =
                 dungeon->getSpecialPassiveObjectItems();
             passive->size();
-            if (item.m_objectIdx == -1 || passive->empty())
-                continue;
-            // ORIG 0x083629..：逐次 const at() 重取（P38 SAVE_EXPR 拆分），共 3 次。
+            // ORIG 0x083623ff..：bool 汇聚岛（P73/P84）：
+            // bVar2 = objectIdx != -1 && !passive->empty()
+            bool usable = false;
+            if (item.m_objectIdx != -1)
+            {
+                if (!passive->empty())
+                    usable = true;
+            }
+            if (usable)
+            {
+                // ORIG 0x0836243e/0x0836245d：两分支各自重取 at()（P48），
+                // 命中再第三次 at() 读弃（0x08362476）。
             if (passive->at(item.m_objectIdx).m_assignItemIdx < 1 ||
                 passive->at(item.m_objectIdx).m_assignItemIdx > 200)
-            {
+                {
                 passive->at(item.m_objectIdx);
+                }
             }
         }
     }
 
-    if (!dungeonList.empty())
-    {
+    // ORIG 0x0836242a 起：missingDungeon(-0x49) 先置 0；hash 全表扫描仅在
+    // dungeonList 非空侧执行（0x0836243c je 0x83c 跳过），且 found(-0x2d) 检查
+    // 位于循环体首（for+break 形，0x08362481）；扫描后无条件再过一遍
+    // dungeonList（0x0836283c，空表 0 轮），missing 判定在两段扫描之后。
         bool missingDungeon = false;
-        for (std::list<int>::const_iterator dungeonIt = dungeonList.begin();
-             dungeonIt != dungeonList.end(); ++dungeonIt)
-        {
-            CDungeon* dungeon = find_dungeon(*dungeonIt);
-            if (dungeon == 0)
-                missingDungeon = true;
-            // ORIG 0x083629c2：直读 m_eventMonsters(+0x690) 成员（内联 getEventMonsters）。
-            if (!dungeon->m_eventMonsters.empty())
-                map.m_rivalData2.empty();
-        }
-
-        if (missingDungeon)
-            return 0;
-
-        // ORIG reads each entrance pair and performs comparisons whose result
-        // is discarded; retain the reads without inventing a validity rule.
-        for (std::vector<std::pair<int, int> >::const_iterator it =
-                 map.m_entranceVec.begin(); it != map.m_entranceVec.end(); it++)
-        {
-            const std::pair<int, int>& e = *it;
-            int x = e.first;
-            int y = e.second;
-            (void)x;
-            (void)y;
-        }
-        return 1;
-    }
-
-    // With no selected dungeon, ORIG scans the global dungeon map.  The
-    // comparisons only short-circuit this scan; the final return remains 1.
+    if (dungeonList.empty() == false)
+    {
     bool found = false;
     for (__gnu_cxx::hash_map<int, CDungeon*>::const_iterator it =
              m_dungeonList->m_dungeonMap.begin();
-         it != m_dungeonList->m_dungeonMap.end() && !found; ++it)
-    {
+             it != m_dungeonList->m_dungeonMap.end(); ++it)
+        {
+            if (found)
+                break;
         PvPMapInfo pvpInfo;
         (void)pvpInfo;
         // ORIG 0x08362592/0x083625a4：范围判定两次独立 get_index（P44 实参即时求值）。
         if (map.get_index() > 0xc350 && map.get_index() <= 0xc738)
-        {
-            found = true;
-            break;
-        }
-
-        CDungeon* dungeon = it->second;
-        if (dungeon->getDungeonKind() == 1)
-        {
-            // ORIG 0x083625e3..：直读 m_deathTowerMaxStage 字段 + m_deathTowerMapIndexes[]
-            // 索引（operator[]），非 getter 方法。
-            for (int stage = 1;
-                 stage <= dungeon->m_deathTowerMaxStage && !found;
-                 ++stage)
-            {
-                if (dungeon->m_deathTowerMapIndexes[stage] == map.get_index())
-                    found = true;
-            }
-        }
-
-        // ORIG 0x08362657..：m_mazeList.size() + operator[] 索引，非迭代器遍历。
-        for (int mi = 0; mi < (int)dungeon->m_mazeList.size() && !found; ++mi)
-        {
-            const MazeScript& maze = dungeon->m_mazeList[mi];
-            if (maze.m_2c == map.get_index())
             {
                 found = true;
                 break;
             }
-            for (int y = 0; y < maze.m_height && !found; ++y)
+
+        CDungeon* dungeon = it->second;
+        if (dungeon->getDungeonKind() == 1)
             {
-                for (int x = 0; x < maze.m_width && !found; ++x)
+                // ORIG 0x083625e3..：直读 m_deathTowerMaxStage(+0x680) 字段 +
+                // m_deathTowerMapIndexes(+0x674) operator[]，非 getter。
+            for (int stage = 1;
+                 stage <= dungeon->m_deathTowerMaxStage && !found;
+                 ++stage)
                 {
+                if (dungeon->m_deathTowerMapIndexes[stage] == map.get_index())
+{
+                        found = true;
+            break;
+    }
+                }
+            }
+
+            // ORIG 0x08362657..：m_mazeList(+0x62c).size() + operator[] 索引。
+        for (int mi = 0; mi < (int)dungeon->m_mazeList.size() && !found; ++mi)
+            {
+            const MazeScript& maze = dungeon->m_mazeList[mi];
+            if (maze.m_2c == map.get_index())
+                {
+                    found = true;
+                break;
+                }
+            for (int y = 0; y < maze.m_height && !found; ++y)
+                {
+                for (int x = 0; x < maze.m_width && !found; ++x)
+    {
                     const GridScript& grid = maze.getGridR(x, y);
                     if (grid.m_gridValue == 0)
-                        continue;
-                    // ORIG 0x0836276a/0x08362803：std::find(candidates, map.get_index())
-                    // != end()，命中即 found；两级候选 else-if 串联。
+                continue;
+                        // ORIG 0x0836276a/0x08362803：std::find(candidates,
+                        // map.get_index()) != end()，命中即 found；find 各 1 次。
                     if (std::find(grid.m_mapCandidates.begin(),
                                   grid.m_mapCandidates.end(),
                                   map.get_index()) != grid.m_mapCandidates.end())
-                        found = true;
+            found = true;
                     else if (std::find(grid.m_secondCandidates.begin(),
                                        grid.m_secondCandidates.end(),
                                        map.get_index()) != grid.m_secondCandidates.end())
-                        found = true;
+                    found = true;
+            }
                 }
             }
+        }
+    }
+
+        for (std::list<int>::const_iterator dungeonIt = dungeonList.begin();
+             dungeonIt != dungeonList.end(); ++dungeonIt)
+    {
+            CDungeon* dungeon = find_dungeon(*dungeonIt);
+            if (dungeon == 0)
+                missingDungeon = true;
+            // ORIG 0x083629c2：直读 m_eventMonsters(+0x690) 成员（内联 getEventMonsters）。
+        if (dungeon->m_eventMonsters.empty() == false)
+                map.m_rivalData2.empty();
+    }
+
+        if (missingDungeon)
+            return 0;
+
+    // ORIG 0x08362a43..：读 pair first/second 负值检查 + first 与 0x64 比较，
+    // 结果全部丢弃；保留读取不发明校验规则。
+        for (std::vector<std::pair<int, int> >::const_iterator it =
+                 map.m_entranceVec.begin(); it != map.m_entranceVec.end(); it++)
+    {
+            const std::pair<int, int>& e = *it;
+        if (e.first >= 0 && e.second >= 0)
+        {
+            int cmp = e.first;
+            (void)cmp;
         }
     }
     return 1;
@@ -3709,23 +3742,37 @@ int CDataManager::init()
 unsigned int CDataManager::getDungeonClearAverageTime(int dungeonIdx, int partyCount,
                                                       ENUM_DUNGEON_DIFFICULTY difficulty)
 {
-    stClearTimeAverageMapKey key;
+    // ORIG 0x083639d2：result(-0xc) 入口初始化在 key ctor 前；case 0..3 走
+    // -0xc 赋值汇聚（0x08363ac2 mov -0xc），end/default 两路直接 mov$0 返回
+    // （0x08363a77/0x08363abb）。
+    unsigned int result = 0;
+    stClearTimeAverageMapKey key;                                // -0x18
     key.m_a = dungeonIdx;
     key.m_b = partyCount;
 
-    std::map<stClearTimeAverageMapKey, stClearTimeAverage>::const_iterator it =
-        m_rankSystem.m_dungeonRank.m_map0.find(key);
-    if (it == m_rankSystem.m_dungeonRank.m_map0.end())
+    // ORIG 仅发射非 const find/end（_ZNSt3map...4findERS5_ / 3endEv，无
+    // _ZNK 重载）且 it 无 const_iterator 转换调用 ⇒ 原码经非 const 引用
+    // 内联 cast 访问（ORIG 每处 `lea 0x5108(%eax)` 直发，无引用槽物化，
+    // 0x083639f9/0x08363a1b），iterator 直接比较。
+    typedef std::map<stClearTimeAverageMapKey, stClearTimeAverage> RankMap;
+    RankMap::iterator it =
+        const_cast<RankMap&>(m_rankSystem.m_dungeonRank.m_map0).find(key);
+    // ORIG 0x08363a45 == 调用的 this = end 迭代器（-0x10）、实参 = it
+    // （-0x1c）⇒ 原码操作数序为 `end() == it`。
+    if (const_cast<RankMap&>(m_rankSystem.m_dungeonRank.m_map0).end() == it)
+    {
         return 0;
+    }
 
     switch (difficulty)
     {
-    case 0: return (unsigned int)it->second.m_v[0];
-    case 1: return (unsigned int)it->second.m_v[1];
-    case 2: return (unsigned int)it->second.m_v[2];
-    case 3: return (unsigned int)it->second.m_v[3];
+    case 0: result = (unsigned int)it->second.m_v[0]; break;
+    case 1: result = (unsigned int)it->second.m_v[1]; break;
+    case 2: result = (unsigned int)it->second.m_v[2]; break;
+    case 3: result = (unsigned int)it->second.m_v[3]; break;
     default: return 0;
     }
+    return result;
 }
 
 // ORIG T 0x08363ac8 _ZN12CDataManager22getClearTimeBonusPointEii：
@@ -3735,25 +3782,48 @@ unsigned int CDataManager::getDungeonClearAverageTime(int dungeonIdx, int partyC
 //     否则记录 (lo, value) 继续；循环结束返回最后一个 value。
 int CDataManager::getClearTimeBonusPoint(int avgTime, int clearTime)
 {
-    if (avgTime == 0 || clearTime == 0)
-        return 0;
-
-    int diff = avgTime - clearTime;
+    // ORIG 0x08363ac8：result(-0x10)/diff(-0xc) 双双入口零初始化；早退
+    // `return result`（0x08363ae8 mov -0x10 而非立即 0）；cur(-0x20)/
+    // prev(-0x28) 两个带 ctor 的结构本地（0x08363af0/af6）；vector 走非
+    // const begin/end/==/operator->/postfix ++（无 const 实例⇒const_cast
+    // 内联形，0x08363b06 二段装载 N18a）；命中 `cur.m_a > diff` 时
+    // it==begin() → result=0 走 -0x10 物化（0x08363b9f..0xa6）。
     int result = 0;
-    const std::vector<stBonusPointValues>& values =
-        m_rankSystem.m_dungeonRank.m_vec18;
+    int diff = 0;
+    if (avgTime == 0 || clearTime == 0)
+        return result;
 
-    for (std::vector<stBonusPointValues>::const_iterator it = values.begin();
-         it != values.end(); ++it)
+    diff = avgTime - clearTime;
+
+    typedef std::vector<stBonusPointValues> Vec;
+    // ORIG 槽深序：prev(-0x28) 比 cur(-0x20) 深 ⇒ 4.4 先声明置深，
+    // 声明序取 prev → cur（ctor 调用序 cur 在前由赋值使用序无关，
+    // ORIG ctor 序 -0x20 先——4.1 构造按声明、4.4 同；槽位与调用序
+    // 以 ORIG 汇编 0x08363af0(-0x20)/0x08363afb(-0x28) 为准折中）。
+    stBonusPointValues prev;
+    stBonusPointValues cur;
+    // 指针形 const_cast：4.4 对引用 cast 结果会物化临时槽（把 cur 起整体
+    // 平移 4B），指针形直传 this 与 ORIG `lea 0x5120(%eax)` 一致。
+    for (Vec::iterator it =
+             const_cast<Vec*>(&m_rankSystem.m_dungeonRank.m_vec18)->begin();
+         it != const_cast<Vec*>(&m_rankSystem.m_dungeonRank.m_vec18)->end();
+         it++)
     {
-        if (diff < it->m_a)
+        cur = *it;
+        if (cur.m_a > diff)
         {
-            if (it == values.begin())
-                return 0;
+            if (it ==
+                const_cast<Vec*>(&m_rankSystem.m_dungeonRank.m_vec18)->begin())
+            {
+                result = 0;
+                return result;
+            }
+            result = prev.m_b;
             return result;
         }
-        result = it->m_b;
+        prev = cur;
     }
+    result = prev.m_b;
     return result;
 }
 

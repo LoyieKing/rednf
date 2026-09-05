@@ -874,6 +874,10 @@ bool importCharacterCreateGiftScript(createChracScript* s, const char* path)
 // 当前令牌重查表派发。case 贯穿链按 [event job]→[start]→[end]→[/event job]→
 // [change able creature lev]→[change infinity creature]→[client infinity
 // creature] 顺序 insert(0x277/0x27d/0x281/0x285/0x28c/0x290/0x2a2)。
+// 收敛口径：orig=ours=487，助记符序列全等、栈槽逐条一致；残余差异仅为
+// .o 未链接的 guard/静态对象/串字面量重定位显示（.rodata 内容与 5 个局部
+// 静态符号名 _ZZ…E8__lookup/11__init_lock/8__inited+双 guard 实测与 ORIG
+// 一致），链接后按 AE 口径判等。
 // ============================================================================
 bool importCharacterCreateCreatureGiftScript(CharacterCreateCreatureGiftScript* s,
                                              const char* path)

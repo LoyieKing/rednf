@@ -56,12 +56,17 @@ public:
     void _SaveAvatarItemOwnerChange(unsigned int a, unsigned int b,
                                     unsigned int c, unsigned char d);
     int add_item(int traderIdx, TradeSlot slot, int count);
-    int cancel_trade();
+    bool cancel_trade();  // 头声明 bool：ORIG __PRETTY_FUNCTION__
+        // "bool CTradeSpace::cancel_trade()"（cancel_trade@0x852effa Ghidra C
+        // cMyTrace 第 1 参）；尾 `return cancel_trade_for_china(0)` 原样穿透
+        // （ORIG call 后无 movzbl），int 声明会诱发 bool→int 归一 +1 指令。
     void cancel_trade_by_dis(CUser* user);
-    int cancel_trade_for_china(CUser* user);
+    bool cancel_trade_for_china(CUser* user);  // 头声明 bool：ORIG
+        // __PRETTY_FUNCTION__ 串 "bool CTradeSpace::cancel_trade_for_china(CUser*)"
+        // （@0x852e544 +0x181）；mangled 不含返回类型，ABI 不变。
     int change_trade_state(CUser* user, int state);
-    int checkCancelTrade();
-    int checkTrade();
+    bool checkCancelTrade();  // bool：ORIG PRETTY 串 'bool CTradeSpace::checkCancelTrade()' @0x8c98540
+    bool checkTrade();  // bool：ORIG PRETTY 串 'bool CTradeSpace::checkTrade()' @0x8c98444
     int check_item_exist(int traderIdx, int itemId);
     bool check_trade_possibility();  // ORIG 0x852994a 体 xor$1+test al = bool 物化
     int get_empty_itemslot(int traderIdx);

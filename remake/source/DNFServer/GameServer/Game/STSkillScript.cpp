@@ -324,6 +324,33 @@ int ImportSkillScript(STSkillScript* script, const char* path,
     }
     script->Clear();
 
+    // ---- ORIG 4.1 槽位序（ebp 相对，浅→深，0x08a9792f 全函数汇编实证）：
+    // -0x1c finIdx / -0x1d moduleRet / -0x24 enVal / -0x28 srcIdx / -0x2c kIdx /
+    // -0x30 chunk / -0x34 row / -0x38 jIdx / -0x3c poolSize / -0x40 rowCnt /
+    // -0x44..-0x68 各 case 循环 i/j / -0x6c tagId / -0x70.. guard 临时区 /
+    // -0x5b0.. -0x5c0 段（guard 尾部+find 临时）/ -0x5d4 token ... -0x5ec pool。
+    // 4.4 按“先声明→浅”分配、块作用域临时会共享槽，故 C89 风格集中声明防共享。
+    int finIdx;                                     // finalize 夹紧循环 i（-0x1c）
+    bool moduleRet;                                 // default 死存返回值（-0x1d，8a9abd9）
+    int enVal;                                      // special level up enableVal（-0x24）
+    int srcIdx;                                     // level info 源下标（-0x28）
+    int kIdx;                                       // level info 内层 k（-0x2c）
+    int chunk;                                      // level info 列块（-0x30）
+    int jIdx;                                       // level info 外层 j（-0x38）
+    int poolSize;                                   // level info pool.size()（-0x3c）
+    int rowCnt;                                     // level info 行数（-0x40）
+    int coolIdx;                                    // cool time i（-0x44）
+    int maintainIdx;                                // maintain MP i（-0x48）
+    int mpIdx;                                      // consume MP i（-0x4c）
+    int castIdx;                                    // casting time i（-0x50）
+    int sMaxJ;                                      // second growtype maximum j（-0x54）
+    int sMaxI;                                      // second growtype maximum i（-0x58）
+    int maxIdx;                                     // growtype maximum i（-0x5c）
+    int sFitJ;                                      // second growtype fitness j（-0x60）
+    int sFitI;                                      // second growtype fitness i（-0x64）
+    int fitIdx;                                     // growtype fitness i（-0x68）
+    int tagId;                                      // 标签 id（-0x6c）
+
     std::string token;                              // -0x5d4
     std::string scanStrBuf;                         // -0x5d8
     int value = 0;                                  // -0x5dc
@@ -342,17 +369,14 @@ read_token:                                         // 8a979bb：唯一 ScanType
     static SpinLock __init_lock;
     static bool __inited = false;
 
-    int tagId;                                      // ORIG 仅在两条路径分别写 -0x6c：else 注册路
-                                                    // 8a97bc1 movl $0；find 路 8a97b93 写结果。
 
 loop_head:                                          // 8a979dc：guard(__lookup) → guard(__init_lock) → __inited 判定
     if (__inited)                                   // 8a97ad0 movzbl __inited; test; je 8a97b98
     {
-        SkillTagMap::const_iterator it = __lookup.find(token.c_str());   // 8a97adf..8a97b72
-        if (it != __lookup.end())
-            tagId = it->second;                     // 8a97b89 mov 0x4(%eax),%eax
-        else
-            tagId = -1;                             // 8a97b8e mov $0xffffffff（未知标签）
+        // ORIG 8a97adf..8a97b93：两臂汇聚到 %eax（mov $-1,%eax / second→eax）后
+        // 单点 store -0x6c —— 三目形（P47）。
+        SkillTagMap::const_iterator it = __lookup.find(token.c_str());
+        tagId = (it != __lookup.end()) ? it->second : -1;
     }
     else
     {
@@ -444,10 +468,10 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                      script->m_levelFeatures1b4.begin();
                  it != script->m_levelFeatures1b4.end();)
             {
-                bool overlap =
-                    ((*it).m_field0[1] >= feat.m_field0[0]) &&
-                    ((*it).m_field0[0] <= feat.m_field0[1]);
-                if (overlap)
+                // ORIG 8a982d5..：&& 短路双条件直接物化 %eax（mov$1/mov$0/test%al），
+                // 无 bool 栈槽——写成单一 if(A && B)。
+                if (((*it).m_field0[1] >= feat.m_field0[0]) &&
+                    ((*it).m_field0[0] <= feat.m_field0[1]))
                     it = script->m_levelFeatures1b4.erase(it);
                 else
                     it++;
@@ -631,8 +655,8 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             }
             // ORIG 8a98b5f fold = `lea 0x18(%ebx),%ecx; mov %eax,0x4(%edx,%ecx,4)`
             // （m_arr64@0x64 = 4 + 0x18*4，4.4 与 4.1 折叠同形）
-            for (int i = 0; i <= 5; ++i)
-                script->m_arr64[i] = ScanInt((bool*)0);
+            for (fitIdx = 0; fitIdx <= 5; ++fitIdx)
+                script->m_arr64[fitIdx] = ScanInt((bool*)0);
             break;
 
         L_SKLTAG_TAG_SECOND_GROWTYPE_FITNESS:
@@ -642,10 +666,10 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                 __lookup.insert(SkillTagMap::value_type("[second growtype fitness]", 0x1a4));
                 goto L_SKLTAG_TAG_GROWTYPE_MAXIMUM_LEVEL;
             }
-            for (int i = 0; i <= 5; ++i)
-                for (int j = 0; j <= 1; ++j)
-                    script->m_growType[i].m_0[j] =
-                        ScanInt((bool*)0);                  // dst = this+(i*16+j)+0x24+0x10
+            for (sFitI = 0; sFitI <= 5; ++sFitI)
+                for (sFitJ = 0; sFitJ <= 1; ++sFitJ)
+                    script->m_growType[sFitI].m_0[sFitJ] =
+                        ScanInt((bool*)0);
             break;
 
         L_SKLTAG_TAG_GROWTYPE_MAXIMUM_LEVEL:
@@ -655,8 +679,8 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                 __lookup.insert(SkillTagMap::value_type("[growtype maximum level]", 0x1ac));
                 goto L_SKLTAG_TAG_SECOND_GROWTYPE_MAXIMUM_LEVEL;
             }
-            for (int i = 0; i <= 5; ++i)
-                script->m_arr7c[i] = ScanInt((bool*)0);   // dst = +0x7c+i*4
+            for (maxIdx = 0; maxIdx <= 5; ++maxIdx)
+                script->m_arr7c[maxIdx] = ScanInt((bool*)0);
             break;
 
         L_SKLTAG_TAG_SECOND_GROWTYPE_MAXIMUM_LEVEL:
@@ -666,10 +690,10 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                 __lookup.insert(SkillTagMap::value_type("[second growtype maximum level]", 0x1b1));
                 goto L_SKLTAG_TAG_SKILL_FITNESS_GROWTYPE;
             }
-            for (int i = 0; i <= 5; ++i)
-                for (int j = 0; j <= 1; ++j)
-                    script->m_growType[i].m_8[j] =
-                        ScanInt((bool*)0);                  // dst = this+(i*16+j)+0x24+0x1c
+            for (sMaxI = 0; sMaxI <= 5; ++sMaxI)
+                for (sMaxJ = 0; sMaxJ <= 1; ++sMaxJ)
+                    script->m_growType[sMaxI].m_8[sMaxJ] =
+                        ScanInt((bool*)0);
             break;
 
         L_SKLTAG_TAG_SKILL_FITNESS_GROWTYPE:
@@ -719,8 +743,8 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             }
             // ORIG 8a98f57 `lea 0x44(%ebx),%ecx; mov %eax,(%edx,%ecx,4)`：int 视图基址
             // +0x110（m_dw110，STSkillScript.h 同存储 union 字段）。
-            for (int i = 0; i <= 1; ++i)
-                script->m_dw110[i] = ScanInt((bool*)0);
+            for (castIdx = 0; castIdx <= 1; ++castIdx)
+                script->m_dw110[castIdx] = ScanInt((bool*)0);
             break;
 
         L_SKLTAG_TAG_DURABILITY_DECREASE_RATE:
@@ -740,8 +764,8 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                 __lookup.insert(SkillTagMap::value_type("[consume MP]", 0x1d6));
                 goto L_SKLTAG_TAG_MAINTAIN_MP;
             }
-            for (int i = 0; i <= 1; ++i)
-                script->m_f100[i] = ScanFloat((bool*)0);    // fstps this+i*0x40
+            for (mpIdx = 0; mpIdx <= 1; ++mpIdx)
+                script->m_f100[mpIdx] = ScanFloat((bool*)0);
             break;
 
         L_SKLTAG_TAG_MAINTAIN_MP:
@@ -753,8 +777,8 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             }
             // ORIG 8a990f2 `lea 0x40(%ebx),%edx; fstps 0x8(%eax,%edx,4)`：float 视图基址
             // +0x108（m_f108 union 字段）。
-            for (int i = 0; i <= 1; ++i)
-                script->m_f108[i] = ScanFloat((bool*)0);
+            for (maintainIdx = 0; maintainIdx <= 1; ++maintainIdx)
+                script->m_f108[maintainIdx] = ScanFloat((bool*)0);
             break;
         L_SKLTAG_TAG_CONSUME_ITEM:
         case TAG_CONSUME_ITEM:                       // [consume item]
@@ -814,8 +838,8 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                 __lookup.insert(SkillTagMap::value_type("[cool time]", 0x1fb));
                 goto L_SKLTAG_TAG_LEAGUE_BAN;
             }
-            for (int i = 0; i <= 1; ++i)
-                script->m_arr138[i] = ScanInt((bool*)0); // dst = this+(i+0x4c)*4+0x08（+0x138）
+            for (coolIdx = 0; coolIdx <= 1; ++coolIdx)
+                script->m_arr138[coolIdx] = ScanInt((bool*)0);
             break;
 
         L_SKLTAG_TAG_LEAGUE_BAN:
@@ -1026,10 +1050,9 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                      script->m_levelFeatures1b4.begin();
                  it != script->m_levelFeatures1b4.end();)
             {
-                bool overlap =
-                    ((*it).m_field0[1] >= feat.m_field0[0]) &&
-                    ((*it).m_field0[0] <= feat.m_field0[1]);
-                if (overlap)
+                // ORIG 8a99d0e..：同 [basic property] erase 形
+                if (((*it).m_field0[1] >= feat.m_field0[0]) &&
+                    ((*it).m_field0[0] <= feat.m_field0[1]))
                     it = script->m_levelFeatures1b4.erase(it);
                 else
                     it++;
@@ -1227,13 +1250,13 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             while (cont)                             // ORIG do{ obj ctor; ... }while(ebx)（8a9a6d9..8a9a822）
             {
                 STPassiveFeatureData featData;       // -0x620：每轮 ctor 重置 enable=1 / m_4=0 / m_8=0 / m_c=0
-                int enableVal = ScanInt(&okFlag);    // -0x24
+                enVal = ScanInt(&okFlag);            // -0x24
                 if (!okFlag)                         // 8a9a70d：失败 ebx=0 出循环
                 {
                     cont = false;
                     break;
                 }
-                if (enableVal != -1)                 // 8a9a71e：仅 -1 保持 ctor 初值 enable=1
+                if (enVal != -1)                     // 8a9a71e：仅 -1 保持 ctor 初值 enable=1
                     featData.m_enable = 0;           // movb $0,-0x620
                 featData.m_4 = ScanInt(&okFlag);     // -0x61c（8a9a734 传 &ok，值不查）
                 ScanStr(&opToken);
@@ -1280,21 +1303,21 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                 goto L_SKLTAG_TAG_NUT_SKILL_SCRIPT;
             }
         {
-            std::string unused;                      // -0x624（每轮构造/析构）
-            bool cont = true;
-            while (cont)
+            // ORIG 8a9a96b..：string 临时（-0x624）每轮 ctor/dtor；cont 走 4.1 callee-saved
+            // %ebx（mov $0/$1,%ebx + test%ebx 后测 do-while）。
+            bool cont;
+            do
             {
+                std::string unused;
                 value = ScanInt(&okFlag);
-                if (okFlag)
-                {
-                    int pushVal = value;
-                    script->m_vec284.push_back(pushVal);
-                }
+                if (!okFlag)
+                    cont = false;
                 else
                 {
-                    cont = false;
+                    script->m_vec284.push_back(value);
+                    cont = true;
                 }
-            }
+            } while (cont);
             break;
         }
 
@@ -1348,7 +1371,7 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             // type 实参 = 形参 4（0x14(%ebp)），非 job（汇编 8a9abb0/8a9abb3 实证）
             int moduleA = -1;                        // -0x628
             int moduleB = -1;                        // -0x62c
-            processModuleTagSet(moduleA, moduleB, &token, paramB, true);
+            moduleRet = processModuleTagSet(moduleA, moduleB, &token, paramB, true);
             if (moduleA != -1)
                 script->m_228[moduleA] = 1;          // +0x228+a（8a9abf0）
             if (moduleB != -1)
@@ -1368,31 +1391,32 @@ loop_head:                                          // 8a979dc：guard(__lookup)
 
 finalize:                                           // 8a9ac50 尾部修正段（内联，非独立符号）
     // [growtype maximum level] 表逐项夹紧最大等级（8a9ac5a..8a9aca4，i<=5 setle）
-    for (int i = 0; i <= 5; ++i)
+    for (finIdx = 0; finIdx <= 5; ++finIdx)
     {
-        if (script->m_14 < script->m_arr7c[i])
+        if (script->m_14 < script->m_arr7c[finIdx])
         {
             printf("SKILL ERROR : 만렙이 배울 수 있는 레벨 미만 [%s]\n", path);
-            script->m_14 = script->m_arr7c[i];
+            script->m_14 = script->m_arr7c[finIdx];
         }
     }
-    // 购买价格向量补齐（8a9acc8..ae7f）：vec18/vec24/vec128 用 empty() 守；
-    // vec204/vec210 ORIG 以 size()!=0 守（ACTIVESTATUS size 调用两次，汇编 8a9ad64/adc3）。
-    if (!script->m_vec18.empty())
-        while (script->m_vec18.size() < static_cast<unsigned>(script->m_14))
-            script->m_vec18.push_back(script->m_vec18.back());
-    if (!script->m_vec24.empty())
-        while (script->m_vec24.size() < static_cast<unsigned>(script->m_14))
-            script->m_vec24.push_back(script->m_vec24.back());
+    // 购买价格向量补齐（8a9acc8..ae7f）：ORIG vec18/vec24/vec128 的 empty() 在
+    // **每轮**条件位重新求值（9acc8/9ad27/9ae2d call empty → xor$1/test/je 出环；
+    // 非空再 size()<m_14 物化比较）⇒ 双条件短路 while 形。
+    while (!script->m_vec18.empty() &&
+           script->m_vec18.size() < static_cast<unsigned>(script->m_14))
+        script->m_vec18.push_back(script->m_vec18.back());
+    while (!script->m_vec24.empty() &&
+           script->m_vec24.size() < static_cast<unsigned>(script->m_14))
+        script->m_vec24.push_back(script->m_vec24.back());
     if (script->m_vec204.size() != 0)
         while (script->m_vec204.size() < static_cast<unsigned>(script->m_14))
             script->m_vec204.push_back(script->m_vec204.back());
     if (script->m_vec210.size() != 0)
         while (script->m_vec210.size() < static_cast<unsigned>(script->m_14))
             script->m_vec210.push_back(script->m_vec210.back());
-    if (!script->m_vec128.empty())
-        while (script->m_vec128.size() < static_cast<unsigned>(script->m_14))
-            script->m_vec128.push_back(script->m_vec128.back());
+    while (!script->m_vec128.empty() &&
+           script->m_vec128.size() < static_cast<unsigned>(script->m_14))
+        script->m_vec128.push_back(script->m_vec128.back());
 
     // job==0xb 特判 -1；否则 iconIdx==-1 时经技能脚本文件表全量扫描定位（8a9ae7f..ae90）
     if (job == 0xb)

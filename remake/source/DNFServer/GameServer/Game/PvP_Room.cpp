@@ -72,15 +72,17 @@ char PVPMAP_ONLY_TOURNAMENT_RANDOM[0x14] = {0};
 // mapNo∈[0,0x13] 时返回 PVPMAP_DEATHMATCH_MODE[mapNo]
 // 末段 ORIG `movzbl tbl(%eax),%eax` 全字直返（无 setne 归一）⇒ 原返回 int +
 // (unsigned char) 提升（mangled 无返回类型，零 ABI 风险，技巧33）。
-int IsDeathMatchMap(int mapNo, bool& onlyDeathMatch)
+unsigned char IsDeathMatchMap(int mapNo, bool& onlyDeathMatch)
 {
     PvPMapInfo info;
-    if (!CMapList::GetPvpMapInfo(mapNo, info))
-        return false;
-    onlyDeathMatch = info.m_playable;
-    if (mapNo > 0x13 || mapNo < 0)
-        return false;
-    return (unsigned char)PVPMAP_DEATHMATCH_MODE[mapNo];
+    if (CMapList::GetPvpMapInfo(mapNo, info))
+    {
+        onlyDeathMatch = info.m_playable;
+        if (mapNo > 0x13 || mapNo < 0)
+            return 0;
+        return PVPMAP_DEATHMATCH_MODE[mapNo];
+    }
+    return 0;
 }
 // ORIG 0x855c8f4：按频道类型返回匹配类型（9→2, 10→3, 14→4, 15→5, 其余→0）
 int GetMatchingType()
@@ -258,7 +260,7 @@ int PvP_Room::CalculateVictoryPointOfSinglePlay(int rank, bool win, int score)
     int local_10;
     if (win)
     {
-        local_10 = score + 1;
+        return score + 1;                 // ORIG win 分支直返（不写 local_10）
     }
     else if (rank == 1)
     {
@@ -266,27 +268,27 @@ int PvP_Room::CalculateVictoryPointOfSinglePlay(int rank, bool win, int score)
     }
     else if (rank == 2)
     {
-        local_10 = (int)(((unsigned)(score + 1 >> 0x1f) >> 0x1e) + score + 1) >> 2;
+        local_10 = (score + 1) / 4;
     }
     else if (rank == 3)
     {
-        local_10 = (int)(((unsigned)(score + 1 >> 0x1f) >> 0x1d) + score + 1) >> 3;
+        local_10 = (score + 1) / 8;
     }
     else if (rank == 4)
     {
-        local_10 = (int)(((unsigned)(score + 1 >> 0x1f) >> 0x1c) + score + 1) >> 4;
+        local_10 = (score + 1) / 16;
     }
     else if (rank == 5)
     {
-        local_10 = (int)(((unsigned)(score + 1 >> 0x1f) >> 0x1b) + score + 1) >> 5;
+        local_10 = (score + 1) / 32;
     }
     else if (rank == 6)
     {
-        local_10 = (int)(((unsigned)(score + 1 >> 0x1f) >> 0x1a) + score + 1) >> 6;
+        local_10 = (score + 1) / 64;
     }
     else if (rank == 7)
     {
-        local_10 = (int)(((unsigned)(score + 1 >> 0x1f) >> 0x19) + score + 1) >> 7;
+        local_10 = (score + 1) / 128;
     }
     else if (rank == 0)
     {
@@ -325,22 +327,22 @@ int PvP_Room::CalcuateVictoryPoint(int* rank, int rankCount)
             if (P_SEATS(local_2c) != 0)
             {
                 bool bVar1;
-                char cVar2;
                 if (P_SEATS(local_2c) == 0)
                 {
                     bVar1 = false;
                 }
                 else
                 {
-                    cVar2 = (char)IsPvpObserver(local_2c);
-                    bVar1 = cVar2 != 0;
+                    bVar1 = IsPvpObserver(local_2c);
                 }
                 if (!bVar1)
                 {
                     int local_28 = 0;
-                    for (; local_28 < rankCount && rank[local_28] != local_2c;
-                         local_28 = local_28 + 1)
+                    while (local_28 < rankCount)
                     {
+                        if (rank[local_2c] == local_2c)
+                            break;
+                        local_28 = local_28 + 1;
                     }
                     if (local_28 == rankCount)
                     {
@@ -351,8 +353,7 @@ int PvP_Room::CalcuateVictoryPoint(int* rank, int rankCount)
                     }
                     int local_34 = local_28;
                     bool local_2d = m_userTable.GetWinTeam() == local_2c;
-                    CUser* user = P_SEATS(local_2c);
-                    *(int*)((char*)user + 0x796fc) =
+                    P_SEATS(local_2c)->m_winPointBuffer =
                         CalculateVictoryPointOfSinglePlay(local_34, local_2d, m_fieldBc);
                 }
             }
@@ -365,23 +366,23 @@ int PvP_Room::CalcuateVictoryPoint(int* rank, int rankCount)
             if (P_SEATS(local_24) != 0)
             {
                 bool bVar1;
-                char cVar2;
                 if (P_SEATS(local_24) == 0)
                 {
                     bVar1 = false;
                 }
                 else
                 {
-                    cVar2 = (char)IsPvpObserver(local_24);
-                    bVar1 = cVar2 != 0;
+                    bVar1 = IsPvpObserver(local_24);
                 }
                 if (!bVar1)
                 {
                     int local_20 = GetTeamIndex(P_SEATS(local_24));
                     int local_1c = 0;
-                    for (; local_1c < rankCount && rank[local_1c] != local_24;
-                         local_1c = local_1c + 1)
+                    while (local_1c < rankCount)
                     {
+                        if (rank[local_24] == local_24)
+                            break;
+                        local_1c = local_1c + 1;
                     }
                     if (local_1c == rankCount)
                     {
@@ -393,7 +394,7 @@ int PvP_Room::CalcuateVictoryPoint(int* rank, int rankCount)
                     int local_18 = local_1c;
                     int local_34 = local_1c;
                     int local_14 = local_1c;
-                    while (local_14 = local_14 + -1, -1 < local_14)
+                    while (local_14 = local_14 - 1, -1 < local_14)
                     {
                         int local_10 = rank[local_14];
                         bool bVar3;
@@ -403,18 +404,16 @@ int PvP_Room::CalcuateVictoryPoint(int* rank, int rankCount)
                         }
                         else
                         {
-                            cVar2 = (char)IsPvpObserver(local_10);
-                            bVar3 = cVar2 != 0;
+                            bVar3 = IsPvpObserver(local_10);
                         }
                         if ((!bVar3) &&
                             (GetTeamIndex(P_SEATS(local_10)) != local_20))
                         {
-                            local_34 = local_34 + -1;
+                            local_34 = local_34 - 1;
                         }
                     }
                     bool local_2d = m_userTable.GetWinTeam() == local_20;
-                    CUser* user = P_SEATS(local_24);
-                    *(int*)((char*)user + 0x796fc) =
+                    P_SEATS(local_24)->m_winPointBuffer =
                         CalculateVictoryPointOfTeamPlay(local_34, local_2d, m_fieldBc / 2);
                 }
             }
@@ -521,20 +520,12 @@ int PvP_Room::get_manager_team()
 
 int PvP_Room::get_user_seat(CUser* user)
 {
-    int local_8 = 0;
-    while (true)
+    for (int local_8 = 0; local_8 <= 7; local_8 = local_8 + 1)
     {
-        if (7 < local_8)
-        {
-            return -1;
-        }
         if (P_SEATS(local_8) == user)
-        {
-            break;
-        }
-        local_8 = local_8 + 1;
+            return local_8;
     }
-    return local_8;
+    return -1;
 }
 
 int PvP_Room::get_user_seat(int seat)
@@ -814,7 +805,7 @@ int PvP_Room::get_recv_pvp_rank_count()
     // ORIG 0x085dc2cc：bool IsRecv 直用条件（test %al/je，无 !=0 物化）；
     // 槽 -0x8=count、-0x4=i，帧 $0x18。
     int local_c = 0;
-    for (int local_8 = 0; local_8 < 8; local_8 = local_8 + 1)
+    for (int local_8 = 0; local_8 <= 7; local_8 = local_8 + 1)
     {
         if (P_SEATS(local_8) != 0)
         {
@@ -833,13 +824,17 @@ int PvP_Room::get_recv_pvp_rank_count()
 int PvP_Room::get_recv_pvp_end_result_count() const
 {
     int local_c = 0;
-    for (int local_8 = 0; local_8 < 8; local_8 = local_8 + 1)
+    for (int local_8 = 0; local_8 <= 7; local_8 = local_8 + 1)
     {
-        if ((P_SEATS(local_8) != 0) &&
-            (P_TEAMS(local_8) != 0xff) &&
-            (m_recvFlagBC.IsRecv(local_8) != 0))
+        if (P_SEATS(local_8) != 0)
         {
-            local_c = local_c + 1;
+            if (P_TEAMS(local_8) != 0xff)
+            {
+                if (m_recvFlagBC.IsRecv(local_8))
+                {
+                    local_c = local_c + 1;
+                }
+            }
         }
     }
     return local_c;
@@ -847,42 +842,30 @@ int PvP_Room::get_recv_pvp_end_result_count() const
 
 int PvP_Room::recv_pvp_rank_all() const
 {
-    int local_8 = 0;
-    while (true)
+    for (int local_8 = 0; local_8 <= 7; ++local_8)
     {
-        if (7 < local_8)
-        {
-            return 1;
-        }
-        if ((P_SEATS(local_8) != 0) &&
-            (P_TEAMS(local_8) != 0xff) &&
-            (m_recvFlagB4.IsRecv(local_8) != 1))
-        {
-            break;
-        }
-        local_8 = local_8 + 1;
+        if (P_SEATS(local_8) == 0)
+            continue;
+        if (P_TEAMS(local_8) == 0xff)
+            continue;
+        if (m_recvFlagB4.IsRecv(local_8) == false)
+            return 0;
     }
-    return 0;
+    return 1;
 }
 
 int PvP_Room::recv_pvp_end_result_all() const
 {
-    int local_8 = 0;
-    while (true)
+    for (int local_8 = 0; local_8 <= 7; ++local_8)
     {
-        if (7 < local_8)
-        {
-            return 1;
-        }
-        if ((P_SEATS(local_8) != 0) &&
-            (P_TEAMS(local_8) != 0xff) &&
-            (m_recvFlagBC.IsRecv(local_8) != 1))
-        {
-            break;
-        }
-        local_8 = local_8 + 1;
+        if (P_SEATS(local_8) == 0)
+            continue;
+        if (P_TEAMS(local_8) == 0xff)
+            continue;
+        if (m_recvFlagBC.IsRecv(local_8) == false)
+            return 0;
     }
-    return 0;
+    return 1;
 }
 
 int PvP_Room::recv_pvp_end_result_team(CUser* user) const
@@ -1114,12 +1097,13 @@ int PvP_Room::create_room(CUser* user, char a, char* name, short b, bool c,
     short local_44 = b;
     bool local_45 = c;
     int local_48 = (int)mode;
-    int roomIdx = m_index;
-    const char* characName = user->getCurCharacName();
-    const char* accName = user->get_acc_name();
+    // ORIG +0x25..+0x41：三值以 callee-saved（%edi/%esi/%ebx）跨后续调用缓存
+    // （P87 register 形），日志首参为 __PRETTY_FUNCTION__ 局部静态（P118/P139）。
+    register int roomIdx = m_index;
+    register const char* characName = user->getCurCharacName();
+    register const char* accName = user->get_acc_name();
     {
-        CSwitchLog local_30("int PvP_Room::create_room(CUser*, char, char*, short int, bool, const char*, int, PVP_BATTLE_MODE)",
-                            0x43a, 0, 0);
+        CSwitchLog local_30(__PRETTY_FUNCTION__, 0x43a, 0, 0);
         local_30("pvp@log %s,%s,room(%d),%d", accName, characName, roomIdx, local_48);
     }
     if (user->getCurCharacR() == 0)
@@ -1174,7 +1158,7 @@ int PvP_Room::join_room(CUser* user, int& seat, bool flag)
     PacketGuard local_64;
     PacketGuard local_70;
     {
-        CSwitchLog local_58("int PvP_Room::join_room(CUser*, int&, bool)", 0x4a8, 0, 0);
+        CSwitchLog local_58(__PRETTY_FUNCTION__, 0x4a8, 0, 0);   // ORIG _ZZ…join_room…__PRETTY_FUNCTION__ 同文（P139）
         local_58("pvp@log %s,%s,room(%d),%d,%d,%d", user->get_acc_name(),
                  user->getCurCharacName(), m_index, m_pvpBattleMode, flag ? 1 : 0, local_48);
     }
@@ -1351,7 +1335,7 @@ LAB_085d6dde:
     unlock();
     local_64.finalize(true);
     user->Send(local_64);
-    *(int*)((char*)user + 0x796fc) = 0;
+    user->m_winPointBuffer = 0;   // ORIG CUser.h:2282 具名字段
     m_joinCount = m_joinCount + 1;
     m_relayMgr.OnJoinRoom(seat);
     ((IMatch*)m_matching)->OnJoinRoom(user);
@@ -1362,7 +1346,7 @@ int PvP_Room::leave_room(CUser* user, bool& flag)
 {
     int local_24;
     {
-        CSwitchLog local_34("int PvP_Room::leave_room(CUser*, bool&)", 0x6c2, 0, 0);
+        CSwitchLog local_34(__PRETTY_FUNCTION__, 0x6c2, 0, 0);   // ORIG 同文（P139）
         local_34("pvp@log %s,%s,room(%d),%d,%d,%d", user->get_acc_name(),
                  user->getCurCharacName(), m_index, m_pvpBattleMode, flag ? 1 : 0,
                  get_waiter_count());
@@ -1408,21 +1392,25 @@ int PvP_Room::leave_room(CUser* user, bool& flag)
     return local_24;
 }
 
-int PvP_Room::destroy_room(int idx)
+CUser* PvP_Room::destroy_room(int idx)
 {
-    int local_14;
+    // ORIG 0x085d81d0：get_index() 在 CSwitchLog 构造前求值并以 callee-saved
+    // 跨构造调用缓存（ORIG +0x07..+0x12），日志首参为 __PRETTY_FUNCTION__
+    // 局部静态符号（_ZZ…E19__PRETTY_FUNCTION__，P118/P139）。
+    register int roomIdx = get_index();
+    CUser* local_14;
     {
-        CSwitchLog local_24("CUser* PvP_Room::destroy_room(int)", 0x721, 0, 0);
-        local_24("pvp@log room(%d), %d", get_index(), idx);
+        CSwitchLog local_24(__PRETTY_FUNCTION__, 0x721, 0, 0);
+        local_24("pvp@log room(%d), %d", roomIdx, idx);
     }
-    local_14 = (int)P_SEATS(idx);
+    local_14 = P_SEATS(idx);
     if (local_14 == 0)
     {
-        for (int local_10 = 0; local_10 < 8; local_10 = local_10 + 1)
+        for (int local_10 = 0; local_10 <= 7; local_10 = local_10 + 1)
         {
             if (P_SEATS(local_10) != 0)
             {
-                local_14 = (int)P_SEATS(local_10);
+                local_14 = P_SEATS(local_10);
                 break;
             }
         }
@@ -1606,8 +1594,7 @@ int PvP_Room::set_seat_state(CUser* user, int seat, ENUM_SEAT_STATE state,
     }
     int local_24;
     {
-        CSwitchLog local_34("int PvP_Room::set_seat_state(CUser*, int, ENUM_SEAT_STATE, CUser**, bool&, bool&, bool&)",
-                            0x594, 0, 0);
+        CSwitchLog local_34(__PRETTY_FUNCTION__, 0x594, 0, 0);   // ORIG 同文（P139）
         local_34("pvp@log %s,%s,room(%d),%d,%d,%d,%d", user->get_acc_name(),
                  user->getCurCharacName(), m_index, m_pvpBattleMode, seat, (int)state,
                  get_waiter_count());
@@ -2526,21 +2513,24 @@ int PvP_Room::insert_timer_recv_pvp_rank()
     {
         return 1;
     }
-    unsigned int key = gen_timer_key((TIMER_MESSAGE)0x3c);
-    TimerQueue* tq = G_TimerQueue();
-    tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1, m_index,
-                                (TIMER_MESSAGE)0x3c, 10000LL, (int)key, 0);
+    G_TimerQueue()->InsertTimerInMilisecond(
+        (TimerEntry::OBJ_TYPE)1, m_index, (TIMER_MESSAGE)0x3c, 10000LL,
+        (int)gen_timer_key((TIMER_MESSAGE)0x3c), 0);
     m_isInsertTimerRecvPvpRank = 1;
     return 1;
 }
 
 int PvP_Room::insert_timer_recv_pvp_end_result()
 {
-    unsigned int key = gen_timer_key((TIMER_MESSAGE)0x3d);
-    int ms = ((IMatch*)m_matching)->GetEndPvPResultTimeout();
-    TimerQueue* tq = G_TimerQueue();
-    tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1, m_index,
-                                (TIMER_MESSAGE)0x3d, (long long)ms, (int)key, 0);
+    // P24 内联实参形（ORIG：key/this 结果以 callee-saved 跨后续调用直落
+    // outgoing 槽，0x085dc253/0x085dc27a/0x085dc28c）。
+    // P24 内联实参形（ORIG 0x085dc253/27a/28c：key/ms 结果 callee-saved 直落
+    // outgoing 槽）。残余 1 条：ORIG 把 m_index 经 -0x1c 槽 store/reload（4.1
+    // 具名局部 spill），4.4 表达式直传不可复现（N18a 族）。
+    G_TimerQueue()->InsertTimerInMilisecond(
+        (TimerEntry::OBJ_TYPE)1, m_index, (TIMER_MESSAGE)0x3d,
+        ((IMatch*)m_matching)->GetEndPvPResultTimeout(),
+        (int)gen_timer_key((TIMER_MESSAGE)0x3d), 0);
     return 1;
 }
 
@@ -2922,7 +2912,7 @@ int PvP_Room::die_charac(CUser* killer, CUser* victim)
     int local_24;
     int local_20;
     {
-        CSwitchLog local_40("int PvP_Room::die_charac(CUser*, CUser*)", 0x9a1, 0, 0);
+        CSwitchLog local_40(__PRETTY_FUNCTION__, 0x9a1, 0, 0);   // ORIG 同文（P139）
         local_40("pvp@log %s,%s,%d,%d", victim->get_acc_name(), victim->getCurCharacName(),
                  get_index(), get_pvp_battle_mode());
     }

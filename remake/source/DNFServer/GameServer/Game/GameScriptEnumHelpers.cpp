@@ -119,8 +119,9 @@ int getCategoryToEnumValue(std::string& s)
 // ---------------------------------------------------------------------------
 int getElementToEnumValue(std::string& s)
 {
-    if (s == "fire")  return 0;
+    // ORIG 0x089bca42：比较序为 water→fire→dark→light→none→all（Ghidra C 实证）
     if (s == "water") return 1;
+    if (s == "fire")  return 0;
     if (s == "dark")  return 2;
     if (s == "light") return 3;
     if (s == "none")  return 4;
@@ -163,6 +164,10 @@ int getObjectTypeToEnumValue(std::string& s)
 // find 命中按 case 直接 return change-status 枚举，未命中/未知码 return 0x4d。
 // 「merge」case（0x29c/0x29f/0x2ae/0x2b1/0x2b4/0x2b7/0x2ce/0x2d1）无独立返回值，
 // 命中后落入下一 case 的 return（ORIG 汇编 je 直落下一块，逐条转写）。
+// 【batch-9 收敛】case 体改 `if (!__inited){insert} else return N;` xor-bool 岛形
+// （ORIG 每块 movzbl+xor$1+test，0x08892e53 起）+ 外层翻为 if(__inited){find}
+// else{enter 双检}：ours 1294 → 1383 == ORIG 1383（残余仅 .o relocation 显示，
+// relink 后按 AE 口径核销）。
 // ---------------------------------------------------------------------------
 int getChangeStatusType(std::string& s)
 {
@@ -171,21 +176,21 @@ int getChangeStatusType(std::string& s)
         static EnumLookupMap __lookup;      // ORIG _ZZ19getChangeStatusTypeRSsE8__lookup
         static SpinLock __init_lock;        // ORIG ...E11__init_lock
         static bool __inited = false;       // ORIG ...E8__inited
-        int idx;
-        if (!__inited)
+                int idx;
+        if (__inited)
+        {
+            EnumLookupMap::const_iterator it = __lookup.find(s.c_str());
+            idx = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
         {
             __init_lock.enter();
             if (__inited)
             {
                 __init_lock.leave();
-                continue;                   // ORIG 08892cfc jmp +0xc（回 guard 重检）
+                continue;
             }
             idx = 0;
-        }
-        else
-        {
-            EnumLookupMap::const_iterator it = __lookup.find(s.c_str());
-            idx = (it != __lookup.end()) ? it->second : -1;
         }
         switch (idx)
         {
@@ -193,76 +198,104 @@ int getChangeStatusType(std::string& s)
         // 派发模式（__inited）命中即 return（ORIG 各块 mov $N,%eax; jmp ret）。
         case 0:
         case 0x294:
-            if (__inited) return 0;
-            __lookup.insert(EnumLookupMap::value_type("physical attack", 0x294));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("physical attack", 0x294));
+            else
+                return 0;
             /* fall through */
         case 0x296:
-            if (__inited) return 1;
-            __lookup.insert(EnumLookupMap::value_type("magical attack", 0x296));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("magical attack", 0x296));
+            else
+                return 1;
             /* fall through */
         case 0x298:
-            if (__inited) return 3;
-            __lookup.insert(EnumLookupMap::value_type("physical defense", 0x298));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("physical defense", 0x298));
+            else
+                return 3;
             /* fall through */
         case 0x29a:
-            if (__inited) return 2;
-            __lookup.insert(EnumLookupMap::value_type("magical defense", 0x29a));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("magical defense", 0x29a));
+            else
+                return 2;
             /* fall through */
         case 0x29c:
             if (!__inited)
                 __lookup.insert(EnumLookupMap::value_type("equipment physical attack", 0x29c));
             /* fall through（ORIG 088931bb 无 else 出口，直落 0x29d）*/
         case 0x29d:
-            if (__inited) return 4;
-            __lookup.insert(EnumLookupMap::value_type("physical equipment attack", 0x29d));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("physical equipment attack", 0x29d));
+            else
+                return 4;
             /* fall through */
         case 0x29f:
             if (!__inited)
                 __lookup.insert(EnumLookupMap::value_type("equipment physical defense", 0x29f));
             /* fall through */
         case 0x2a0:
-            if (__inited) return 5;
-            __lookup.insert(EnumLookupMap::value_type("physical equipment defense", 0x2a0));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("physical equipment defense", 0x2a0));
+            else
+                return 5;
             /* fall through */
         case 0x2a2:
-            if (__inited) return 8;
-            __lookup.insert(EnumLookupMap::value_type("jump power", 0x2a2));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("jump power", 0x2a2));
+            else
+                return 8;
             /* fall through */
         case 0x2a4:
-            if (__inited) return 10;
-            __lookup.insert(EnumLookupMap::value_type("attack speed", 0x2a4));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("attack speed", 0x2a4));
+            else
+                return 10;
             /* fall through */
         case 0x2a6:
-            if (__inited) return 11;
-            __lookup.insert(EnumLookupMap::value_type("move speed", 0x2a6));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("move speed", 0x2a6));
+            else
+                return 11;
             /* fall through */
         case 0x2a8:
-            if (__inited) return 12;
-            __lookup.insert(EnumLookupMap::value_type("cast speed", 0x2a8));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("cast speed", 0x2a8));
+            else
+                return 12;
             /* fall through */
         case 0x2aa:
-            if (__inited) return 13;
-            __lookup.insert(EnumLookupMap::value_type("hp max", 0x2aa));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("hp max", 0x2aa));
+            else
+                return 13;
             /* fall through */
         case 0x2ac:
-            if (__inited) return 14;
-            __lookup.insert(EnumLookupMap::value_type("hp regen rate", 0x2ac));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("hp regen rate", 0x2ac));
+            else
+                return 14;
             /* fall through */
         case 0x2ae:
             if (!__inited)
                 __lookup.insert(EnumLookupMap::value_type("magical critical hit rate", 0x2ae));
             /* fall through */
         case 0x2af:
-            if (__inited) return 16;
-            __lookup.insert(EnumLookupMap::value_type("magical critical hit", 0x2af));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("magical critical hit", 0x2af));
+            else
+                return 16;
             /* fall through */
         case 0x2b1:
             if (!__inited)
                 __lookup.insert(EnumLookupMap::value_type("physical critical hit rate", 0x2b1));
             /* fall through */
         case 0x2b2:
-            if (__inited) return 15;
-            __lookup.insert(EnumLookupMap::value_type("physical critical hit", 0x2b2));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("physical critical hit", 0x2b2));
+            else
+                return 15;
             /* fall through */
         case 0x2b4:
             if (!__inited)
@@ -270,8 +303,10 @@ int getChangeStatusType(std::string& s)
                     EnumLookupMap::value_type("physical back attack critical rate", 0x2b4));
             /* fall through */
         case 0x2b5:
-            if (__inited) return 17;
-            __lookup.insert(EnumLookupMap::value_type("physical back attack critical", 0x2b5));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("physical back attack critical", 0x2b5));
+            else
+                return 17;
             /* fall through */
         case 0x2b7:
             if (!__inited)
@@ -280,132 +315,192 @@ int getChangeStatusType(std::string& s)
             /* fall through */
         case 0x2b8:
             // ORIG 0889384a：与 0x2b7 同串（原表笔误照录），insert 仍各一条。
-            if (__inited) return 18;
-            __lookup.insert(EnumLookupMap::value_type("magical back attack critical rate", 0x2b8));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("magical back attack critical rate", 0x2b8));
+            else
+                return 18;
             /* fall through */
         case 0x2ba:
-            if (__inited) return 20;
-            __lookup.insert(EnumLookupMap::value_type("fire element", 0x2ba));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("fire element", 0x2ba));
+            else
+                return 20;
             /* fall through */
         case 0x2bc:
-            if (__inited) return 21;
-            __lookup.insert(EnumLookupMap::value_type("water element", 0x2bc));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("water element", 0x2bc));
+            else
+                return 21;
             /* fall through */
         case 0x2be:
-            if (__inited) return 22;
-            __lookup.insert(EnumLookupMap::value_type("dark element", 0x2be));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("dark element", 0x2be));
+            else
+                return 22;
             /* fall through */
         case 0x2c0:
-            if (__inited) return 23;
-            __lookup.insert(EnumLookupMap::value_type("light element", 0x2c0));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("light element", 0x2c0));
+            else
+                return 23;
             /* fall through */
         case 0x2c2:
-            if (__inited) return 33;
-            __lookup.insert(EnumLookupMap::value_type("stuck", 0x2c2));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("stuck", 0x2c2));
+            else
+                return 33;
             /* fall through */
         case 0x2c4:
-            if (__inited) return 27;
-            __lookup.insert(EnumLookupMap::value_type("stuck resistance", 0x2c4));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("stuck resistance", 0x2c4));
+            else
+                return 27;
             /* fall through */
         case 0x2c7:
-            if (__inited) return 48;
-            __lookup.insert(EnumLookupMap::value_type("mp max", 0x2c7));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("mp max", 0x2c7));
+            else
+                return 48;
             /* fall through */
         case 0x2ca:
-            if (__inited) return 29;
-            __lookup.insert(EnumLookupMap::value_type("mp regen rate", 0x2ca));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("mp regen rate", 0x2ca));
+            else
+                return 29;
             /* fall through */
         case 0x2cc:
-            if (__inited) return 30;
-            __lookup.insert(EnumLookupMap::value_type("extra speed rate", 0x2cc));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("extra speed rate", 0x2cc));
+            else
+                return 30;
             /* fall through */
         case 0x2ce:
             if (!__inited)
                 __lookup.insert(EnumLookupMap::value_type("equipment magical attack", 0x2ce));
             /* fall through */
         case 0x2cf:
-            if (__inited) return 31;
-            __lookup.insert(EnumLookupMap::value_type("magical equipment attack", 0x2cf));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("magical equipment attack", 0x2cf));
+            else
+                return 31;
             /* fall through */
         case 0x2d1:
             if (!__inited)
                 __lookup.insert(EnumLookupMap::value_type("equipment magical defense", 0x2d1));
             /* fall through */
         case 0x2d2:
-            if (__inited) return 32;
-            __lookup.insert(EnumLookupMap::value_type("magical equipment defense", 0x2d2));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("magical equipment defense", 0x2d2));
+            else
+                return 32;
             /* fall through */
         case 0x2d4:
-            if (__inited) return 20;
-            __lookup.insert(EnumLookupMap::value_type("fire resistance", 0x2d4));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("fire resistance", 0x2d4));
+            else
+                return 20;
             /* fall through */
         case 0x2d6:
-            if (__inited) return 21;
-            __lookup.insert(EnumLookupMap::value_type("water resistance", 0x2d6));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("water resistance", 0x2d6));
+            else
+                return 21;
             /* fall through */
         case 0x2d8:
-            if (__inited) return 22;
-            __lookup.insert(EnumLookupMap::value_type("dark resistance", 0x2d8));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("dark resistance", 0x2d8));
+            else
+                return 22;
             /* fall through */
         case 0x2da:
-            if (__inited) return 23;
-            __lookup.insert(EnumLookupMap::value_type("light resistance", 0x2da));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("light resistance", 0x2da));
+            else
+                return 23;
             /* fall through */
         case 0x2dc:
-            if (__inited) return 24;
-            __lookup.insert(EnumLookupMap::value_type("all elemental resistance", 0x2dc));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("all elemental resistance", 0x2dc));
+            else
+                return 24;
             /* fall through */
         case 0x2de:
-            if (__inited) return 26;
-            __lookup.insert(EnumLookupMap::value_type("all activestatus resistance", 0x2de));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("all activestatus resistance", 0x2de));
+            else
+                return 26;
             /* fall through */
         case 0x2e0:
-            if (__inited) return 41;
-            __lookup.insert(EnumLookupMap::value_type("rigidity", 0x2e0));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("rigidity", 0x2e0));
+            else
+                return 41;
             /* fall through */
         case 0x2e2:
-            if (__inited) return 42;
-            __lookup.insert(EnumLookupMap::value_type("fire attack", 0x2e2));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("fire attack", 0x2e2));
+            else
+                return 42;
             /* fall through */
         case 0x2e4:
-            if (__inited) return 43;
-            __lookup.insert(EnumLookupMap::value_type("water attack", 0x2e4));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("water attack", 0x2e4));
+            else
+                return 43;
             /* fall through */
         case 0x2e6:
-            if (__inited) return 44;
-            __lookup.insert(EnumLookupMap::value_type("dark attack", 0x2e6));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("dark attack", 0x2e6));
+            else
+                return 44;
             /* fall through */
         case 0x2e8:
-            if (__inited) return 45;
-            __lookup.insert(EnumLookupMap::value_type("light attack", 0x2e8));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("light attack", 0x2e8));
+            else
+                return 45;
             /* fall through */
         case 0x2eb:
-            if (__inited) return 53;
-            __lookup.insert(EnumLookupMap::value_type("separate attack", 0x2eb));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("separate attack", 0x2eb));
+            else
+                return 53;
             /* fall through */
         case 0x2f4:
-            if (__inited) return 55;
-            __lookup.insert(EnumLookupMap::value_type("antievil", 0x2f4));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("antievil", 0x2f4));
+            else
+                return 55;
             /* fall through */
         case 0x2f7:
-            if (__inited) return 49;
-            __lookup.insert(EnumLookupMap::value_type("skill cool time", 0x2f7));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("skill cool time", 0x2f7));
+            else
+                return 49;
             /* fall through */
         case 0x2f9:
-            if (__inited) return 56;
-            __lookup.insert(EnumLookupMap::value_type("physical absolute damage", 0x2f9));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("physical absolute damage", 0x2f9));
+            else
+                return 56;
             /* fall through */
         case 0x2fb:
-            if (__inited) return 57;
-            __lookup.insert(EnumLookupMap::value_type("no breath time change", 0x2fb));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("no breath time change", 0x2fb));
+            else
+                return 57;
             /* fall through */
         case 0x2fd:
-            if (__inited) return 6;
-            __lookup.insert(EnumLookupMap::value_type("physical attack bonus", 0x2fd));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("physical attack bonus", 0x2fd));
+            else
+                return 6;
             /* fall through */
         case 0x2ff:
-            if (__inited) return 7;
-            __lookup.insert(EnumLookupMap::value_type("magical attack bonus", 0x2ff));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("magical attack bonus", 0x2ff));
+            else
+                return 7;
         }
         if (!__inited)
         {
@@ -419,6 +514,11 @@ int getChangeStatusType(std::string& s)
 
 // ---------------------------------------------------------------------------
 // getNpcRoleByString — ORIG @ 0x89fecee（按 std::string 值传参）。
+// 【batch-9 收敛】case 体改 `if (!__inited){insert} else {result=N;break;}`
+// xor-bool 岛形（ORIG 每块 movzbl+xor$1+test）+ 外层 if(__inited){find}
+// else{enter 双检}：ours 1364 → 1475（ORIG 1476；唯一实质残差 = lock 区
+// 2 条 4.1 块对齐 nop，负例表空 else nop;jmp 岛族；relocation 显示差待
+// relink 核销）。
 // ORIG 结构（/tmp/getNpcRoleByString.md 汇编+Ghidra C 双段实证）：函数级静态
 // __lookup = map<char const*, int, less_TCHAR>（__cxa_guard 惰性构造）+
 // __init_lock(SpinLock) + __inited 双检；未建表时持锁以 idx=0 进入 switch，
@@ -434,21 +534,21 @@ int getNpcRoleByString(std::string name)
         static EnumLookupMap __lookup;      // ORIG _ZZ18getNpcRoleByStringSsE8__lookup
         static SpinLock __init_lock;        // ORIG ...E11__init_lock
         static bool __inited = false;       // ORIG ...E8__inited
-        int idx;
-        if (!__inited)
+                int idx;
+        if (__inited)
+        {
+            EnumLookupMap::const_iterator it = __lookup.find(name.c_str());
+            idx = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
         {
             __init_lock.enter();
             if (__inited)
             {
                 __init_lock.leave();
-                continue;                   // ORIG 089fee04 重检回 guard
+                continue;
             }
             idx = 0;
-        }
-        else
-        {
-            EnumLookupMap::const_iterator it = __lookup.find(name.c_str());
-            idx = (it != __lookup.end()) ? it->second : -1;
         }
         switch (idx)
         {
@@ -456,228 +556,284 @@ int getNpcRoleByString(std::string name)
         // 派发模式命中写 result 后 break（ORIG 各块 movl $N,-0x20(%ebp); jmp done）。
         case 0:
         case 0x706:
-            if (__inited) { result = 0; break; }
-            __lookup.insert(EnumLookupMap::value_type("[item shop]", 0x706));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[item shop]", 0x706));
+            else { result = 0; break; }
             /* fall through */
         case 0x70b:
-            if (__inited) { result = 1; break; }
-            __lookup.insert(EnumLookupMap::value_type("[recover stamina]", 0x70b));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[recover stamina]", 0x70b));
+            else { result = 1; break; }
             /* fall through */
         case 0x710:
-            if (__inited) { result = 2; break; }
-            __lookup.insert(EnumLookupMap::value_type("[sera shop]", 0x710));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[sera shop]", 0x710));
+            else { result = 2; break; }
             /* fall through */
         case 0x715:
-            if (__inited) { result = 3; break; }
-            __lookup.insert(EnumLookupMap::value_type("[guild]", 0x715));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[guild]", 0x715));
+            else { result = 3; break; }
             /* fall through */
         case 0x71a:
-            if (__inited) { result = 4; break; }
-            __lookup.insert(EnumLookupMap::value_type("[upgrade item]", 0x71a));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[upgrade item]", 0x71a));
+            else { result = 4; break; }
             /* fall through */
         case 0x720:
-            if (__inited) { result = 5; break; }
-            __lookup.insert(EnumLookupMap::value_type("[upgrade item event]", 0x720));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[upgrade item event]", 0x720));
+            else { result = 5; break; }
             /* fall through */
         case 0x726:
-            if (__inited) { result = 6; break; }
-            __lookup.insert(EnumLookupMap::value_type("[disjoint item]", 0x726));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[disjoint item]", 0x726));
+            else { result = 6; break; }
             /* fall through */
         case 0x72b:
-            if (__inited) { result = 7; break; }
-            __lookup.insert(EnumLookupMap::value_type("[product item]", 0x72b));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[product item]", 0x72b));
+            else { result = 7; break; }
             /* fall through */
         case 0x730:
-            if (__inited) { result = 8; break; }
-            __lookup.insert(EnumLookupMap::value_type("[power war]", 0x730));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[power war]", 0x730));
+            else { result = 8; break; }
             /* fall through */
         case 0x735:
-            if (__inited) { result = 9; break; }
-            __lookup.insert(EnumLookupMap::value_type("[move town]", 0x735));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[move town]", 0x735));
+            else { result = 9; break; }
             /* fall through */
         case 0x73a:
-            if (__inited) { result = 10; break; }
-            __lookup.insert(EnumLookupMap::value_type("[item storage]", 0x73a));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[item storage]", 0x73a));
+            else { result = 10; break; }
             /* fall through */
         case 0x73f:
-            if (__inited) { result = 11; break; }
-            __lookup.insert(EnumLookupMap::value_type("[post box]", 0x73f));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[post box]", 0x73f));
+            else { result = 11; break; }
             /* fall through */
         case 0x744:
-            if (__inited) { result = 12; break; }
-            __lookup.insert(EnumLookupMap::value_type("[coke vending machine]", 0x744));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[coke vending machine]", 0x744));
+            else { result = 12; break; }
             /* fall through */
         case 0x749:
-            if (__inited) { result = 13; break; }
-            __lookup.insert(EnumLookupMap::value_type("[mouse register]", 0x749));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[mouse register]", 0x749));
+            else { result = 13; break; }
             /* fall through */
         case 0x74e:
-            if (__inited) { result = 14; break; }
-            __lookup.insert(EnumLookupMap::value_type("[security card make]", 0x74e));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[security card make]", 0x74e));
+            else { result = 14; break; }
             /* fall through */
         case 0x753:
-            if (__inited) { result = 15; break; }
-            __lookup.insert(EnumLookupMap::value_type("[security card remake]", 0x753));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[security card remake]", 0x753));
+            else { result = 15; break; }
             /* fall through */
         case 0x758:
-            if (__inited) { result = 16; break; }
-            __lookup.insert(EnumLookupMap::value_type("[security card delete]", 0x758));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[security card delete]", 0x758));
+            else { result = 16; break; }
             /* fall through */
         case 0x75e:
-            if (__inited) { result = 17; break; }
-            __lookup.insert(EnumLookupMap::value_type("[automat]", 0x75e));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[automat]", 0x75e));
+            else { result = 17; break; }
             /* fall through */
         case 0x772:
-            if (__inited) { result = 18; break; }
-            __lookup.insert(EnumLookupMap::value_type("[just a cake]", 0x772));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[just a cake]", 0x772));
+            else { result = 18; break; }
             /* fall through */
         case 0x778:
-            if (__inited) { result = 19; break; }
-            __lookup.insert(EnumLookupMap::value_type("[convert avatar]", 0x778));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[convert avatar]", 0x778));
+            else { result = 19; break; }
             /* fall through */
         case 0x77d:
-            if (__inited) { result = 20; break; }
-            __lookup.insert(EnumLookupMap::value_type("[compound emblem]", 0x77d));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[compound emblem]", 0x77d));
+            else { result = 20; break; }
             /* fall through */
         case 0x782:
-            if (__inited) { result = 21; break; }
-            __lookup.insert(EnumLookupMap::value_type("[amplify item]", 0x782));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[amplify item]", 0x782));
+            else { result = 21; break; }
             /* fall through */
         case 0x787:
-            if (__inited) { result = 22; break; }
-            __lookup.insert(EnumLookupMap::value_type("[coin vending machine]", 0x787));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[coin vending machine]", 0x787));
+            else { result = 22; break; }
             /* fall through */
         case 0x795:
-            if (__inited) { result = 43; break; }
-            __lookup.insert(EnumLookupMap::value_type("[event halloween witch]", 0x795));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[event halloween witch]", 0x795));
+            else { result = 43; break; }
             /* fall through */
         case 0x79a:
-            if (__inited) { result = 44; break; }
-            __lookup.insert(EnumLookupMap::value_type("[event halloween caldron]", 0x79a));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[event halloween caldron]", 0x79a));
+            else { result = 44; break; }
             /* fall through */
         case 0x7af:
-            if (__inited) { result = 23; break; }
-            __lookup.insert(EnumLookupMap::value_type("[event message board]", 0x7af));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[event message board]", 0x7af));
+            else { result = 23; break; }
             /* fall through */
         case 0x7b5:
-            if (__inited) { result = 24; break; }
-            __lookup.insert(EnumLookupMap::value_type("[donate power war point]", 0x7b5));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[donate power war point]", 0x7b5));
+            else { result = 24; break; }
             /* fall through */
         case 0x7ba:
-            if (__inited) { result = 25; break; }
-            __lookup.insert(EnumLookupMap::value_type("[create guild agit]", 0x7ba));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[create guild agit]", 0x7ba));
+            else { result = 25; break; }
             /* fall through */
         case 0x7bf:
-            if (__inited) { result = 26; break; }
-            __lookup.insert(EnumLookupMap::value_type("[delete guild agit]", 0x7bf));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[delete guild agit]", 0x7bf));
+            else { result = 26; break; }
             /* fall through */
         case 0x7c4:
-            if (__inited) { result = 27; break; }
-            __lookup.insert(EnumLookupMap::value_type("[enter guild agit]", 0x7c4));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[enter guild agit]", 0x7c4));
+            else { result = 27; break; }
             /* fall through */
         case 0x7c9:
-            if (__inited) { result = 28; break; }
-            __lookup.insert(EnumLookupMap::value_type("[exit guild agit]", 0x7c9));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[exit guild agit]", 0x7c9));
+            else { result = 28; break; }
             /* fall through */
         case 0x7ce:
-            if (__inited) { result = 29; break; }
-            __lookup.insert(EnumLookupMap::value_type("[upgrade guild agit]", 0x7ce));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[upgrade guild agit]", 0x7ce));
+            else { result = 29; break; }
             /* fall through */
         case 0x7d3:
-            if (__inited) { result = 30; break; }
-            __lookup.insert(EnumLookupMap::value_type("[housing guild agit]", 0x7d3));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[housing guild agit]", 0x7d3));
+            else { result = 30; break; }
             /* fall through */
         case 0x7d8:
-            if (__inited) { result = 31; break; }
-            __lookup.insert(EnumLookupMap::value_type("[guild storage]", 0x7d8));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[guild storage]", 0x7d8));
+            else { result = 31; break; }
             /* fall through */
         case 0x7df:
-            if (__inited) { result = 32; break; }
-            __lookup.insert(EnumLookupMap::value_type("[powerwar statue]", 0x7df));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[powerwar statue]", 0x7df));
+            else { result = 32; break; }
             /* fall through */
         case 0x7e5:
-            if (__inited) { result = 33; break; }
-            __lookup.insert(EnumLookupMap::value_type("[disjoint repair]", 0x7e5));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[disjoint repair]", 0x7e5));
+            else { result = 33; break; }
             /* fall through */
         case 0x7ea:
-            if (__inited) { result = 34; break; }
-            __lookup.insert(EnumLookupMap::value_type("[disjoint upgrade]", 0x7ea));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[disjoint upgrade]", 0x7ea));
+            else { result = 34; break; }
             /* fall through */
         case 0x7ef:
-            if (__inited) { result = 49; break; }
-            __lookup.insert(EnumLookupMap::value_type("[play quest movie]", 0x7ef));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[play quest movie]", 0x7ef));
+            else { result = 49; break; }
             /* fall through */
         case 0x7f6:
-            if (__inited) { result = 51; break; }
-            __lookup.insert(EnumLookupMap::value_type("[play bead movie]", 0x7f6));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[play bead movie]", 0x7f6));
+            else { result = 51; break; }
             /* fall through */
         case 0x7fd:
-            if (__inited) { result = 35; break; }
-            __lookup.insert(EnumLookupMap::value_type("[job change]", 0x7fd));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[job change]", 0x7fd));
+            else { result = 35; break; }
             /* fall through */
         case 0x803:
-            if (__inited) { result = 36; break; }
-            __lookup.insert(EnumLookupMap::value_type("[cera shop inventory]", 0x803));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[cera shop inventory]", 0x803));
+            else { result = 36; break; }
             /* fall through */
         case 0x80b:
-            if (__inited) { result = 38; break; }
-            __lookup.insert(EnumLookupMap::value_type("[sudden shop]", 0x80b));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[sudden shop]", 0x80b));
+            else { result = 38; break; }
             /* fall through */
         case 0x81b:
-            if (__inited) { result = 40; break; }
-            __lookup.insert(EnumLookupMap::value_type("[SANSENBAKO]", 0x81b));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[SANSENBAKO]", 0x81b));
+            else { result = 40; break; }
             /* fall through */
         case 0x830:
-            if (__inited) { result = 37; break; }
-            __lookup.insert(EnumLookupMap::value_type("[random option operate]", 0x830));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[random option operate]", 0x830));
+            else { result = 37; break; }
             /* fall through */
         case 0x854:
-            if (__inited) { result = 41; break; }
-            __lookup.insert(EnumLookupMap::value_type("[contest reception]", 0x854));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[contest reception]", 0x854));
+            else { result = 41; break; }
             /* fall through */
         case 0x85b:
-            if (__inited) { result = 42; break; }
-            __lookup.insert(EnumLookupMap::value_type("[genuine damage upgrade]", 0x85b));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[genuine damage upgrade]", 0x85b));
+            else { result = 42; break; }
             /* fall through */
         case 0x869:
-            if (__inited) { result = 45; break; }
-            __lookup.insert(EnumLookupMap::value_type("[image communication]", 0x869));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[image communication]", 0x869));
+            else { result = 45; break; }
             /* fall through */
         case 0x870:
-            if (__inited) { result = 46; break; }
-            __lookup.insert(EnumLookupMap::value_type("[tutorial dungeon lvup]", 0x870));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[tutorial dungeon lvup]", 0x870));
+            else { result = 46; break; }
             /* fall through */
         case 0x877:
-            if (__inited) { result = 47; break; }
-            __lookup.insert(EnumLookupMap::value_type("[crane minigame]", 0x877));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[crane minigame]", 0x877));
+            else { result = 47; break; }
             /* fall through */
         case 0x87e:
-            if (__inited) { result = 48; break; }
-            __lookup.insert(EnumLookupMap::value_type("[time sand]", 0x87e));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[time sand]", 0x87e));
+            else { result = 48; break; }
             /* fall through */
         case 0x885:
-            if (__inited) { result = 39; break; }
-            __lookup.insert(EnumLookupMap::value_type("[repair item]", 0x885));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[repair item]", 0x885));
+            else { result = 39; break; }
             /* fall through */
         case 0x88c:
-            if (__inited) { result = 50; break; }
-            __lookup.insert(EnumLookupMap::value_type("[blue marble]", 0x88c));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[blue marble]", 0x88c));
+            else { result = 50; break; }
             /* fall through */
         case 0x89f:
-            if (__inited) { result = 55; break; }
-            __lookup.insert(EnumLookupMap::value_type("[one a day shop]", 0x89f));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[one a day shop]", 0x89f));
+            else { result = 55; break; }
             /* fall through */
         case 0x8a6:
-            if (__inited) { result = 52; break; }
-            __lookup.insert(EnumLookupMap::value_type("[secret shop]", 0x8a6));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[secret shop]", 0x8a6));
+            else { result = 52; break; }
             /* fall through */
         case 0x8e1:
-            if (__inited) { result = 53; break; }
-            __lookup.insert(EnumLookupMap::value_type("[convert avatar jpn]", 0x8e1));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[convert avatar jpn]", 0x8e1));
+            else { result = 53; break; }
             /* fall through */
         case 0x8e8:
-            if (__inited) { result = 54; break; }
-            __lookup.insert(EnumLookupMap::value_type("[compound emblem jpn]", 0x8e8));
+            if (!__inited)
+                __lookup.insert(EnumLookupMap::value_type("[compound emblem jpn]", 0x8e8));
+            else { result = 54; break; }
         }
         if (!__inited)
         {
@@ -723,7 +879,12 @@ int getModuleType(const char* name)
         static SpinLock __init_lock;        // ORIG ...E11__init_lock
         static bool __inited = false;       // ORIG ...E8__inited
         int idx;
-        if (!__inited)
+        if (__inited)
+        {
+            EnumLookupMap::const_iterator it = __lookup.find(name);
+            idx = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
         {
             __init_lock.enter();
             if (__inited)
@@ -732,11 +893,6 @@ int getModuleType(const char* name)
                 continue;                   // ORIG 0x088c0dd7 jmp +0xc（回 guard 重检）
             }
             idx = 0;
-        }
-        else
-        {
-            EnumLookupMap::const_iterator it = __lookup.find(name);
-            idx = (it != __lookup.end()) ? it->second : -1;
         }
         switch (idx)
         {
@@ -876,6 +1032,9 @@ int getCodePage()
 }
 
 // setCodePageByLocal — ORIG @ 0x808ec64：setCodePage(950 /*0x3b6*/)。
+// 【残差豁免·NEAR】指令序列与 ORIG 逐条等（push/mov/sub/movl$/call/leave/ret），
+// 唯一差 = 帧 sub $0x18 vs $0x4（ORIG 0x0808ec67）——负例表「跨版本 outgoing
+// frame」族；dummy 局部会新增 store 破坏 7 条指令正文，无法源码复现。
 void setCodePageByLocal()
 {
     setCodePage(950);

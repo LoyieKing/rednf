@@ -538,13 +538,15 @@ int GameWorld::GetChannelType() const
 
 bool GameWorld::IsIntegratedPvPBaseChannel() const
 {
-    // ORIG 0x080f1325 族布局：嵌套正向 if + 双假路径共享 `mov $0,%eax` 尾块
-    // （早返回两写法各生成 mov $0 多 4 行）；register one 防 gcc4.4.7 将
-    // (1<<t)&MASK 折叠成 MASK>>t&1
-    if ((unsigned int)m_channelType <= 0x10)
+    // ORIG _ZNK9GameWorld26IsIntegratedPvPBaseChannelEv @0x080f131e：
+    // 0x080f1322/0x080f1325 装载 m_channelType 一次，0x080f1328 cmp、
+    // 移位量复用同一 %eax；4.4 会在 `one << m_channelType` 处再装载 ⇒
+    // 同 IsPVPChannel 配方（ct 绑 %eax、one 绑 %edx 复现 `mov $0x1,%edx`）。
+    register unsigned int ct asm("eax") = (unsigned int)m_channelType;
+    if (ct <= 0x10)
     {
-        register unsigned int one = 1;
-        if (((one << (unsigned int)m_channelType) & 0x1e700) != 0)
+        register unsigned int one asm("edx") = 1;
+        if (((one << ct) & 0x1e700) != 0)
             return true;
     }
     return false;
@@ -552,10 +554,21 @@ bool GameWorld::IsIntegratedPvPBaseChannel() const
 
 bool GameWorld::IsPVPChannel() const
 {
-    if ((unsigned int)m_channelType <= 0x10)
+    // ORIG _ZNK9GameWorld12IsPVPChannelEv @0x081424e8：m_channelType 只装载一次
+    // （0x081424ec `mov 0x8(%ebp),%eax` + 0x081424ef `mov 0x20(%eax),%eax`），
+    // 0x081424f2 cmp 与 0x081424fe `mov %eax,%ecx`（移位量）复用同一 %eax
+    // （0x081424f5 ja / 0x081424f7 `mov $0x1,%edx` / 0x081424fc `mov %edx,%ebx`
+    //  / 0x08142500 `shl %cl,%ebx` / 0x08142502 `mov %ebx,%eax`）；
+    // 4.4 默认在 `one << m_channelType` 处再装载一遍 ⇒ 多 2 条。
+    // register asm("eax") 钉住该值（技巧 28）；one 绑 %edx 复现 0x081424f7
+    // `mov $0x1,%edx`（实测 ndiff：不绑=11、绑 eax 无 ct=10、双绑=3）。
+    // 代价是 0x081424f2 的 cmp 被折成 `mov %eax,%edx; cmp $0x10,%edx`（+2，
+    // 与 ORIG `mov %edx,%ebx` 双段物化（-1）相抵后余 3 行，属 N7 立即数物化族）。
+    register unsigned int ct asm("eax") = (unsigned int)m_channelType;
+    if (ct <= 0x10)
     {
-        register unsigned int one = 1;
-        if (((one << (unsigned int)m_channelType) & 0x1e7f0) != 0)
+        register unsigned int one asm("edx") = 1;
+        if (((one << ct) & 0x1e7f0) != 0)
             return true;
     }
     return false;
@@ -563,10 +576,12 @@ bool GameWorld::IsPVPChannel() const
 
 bool GameWorld::IsFreePvPChannel() const
 {
-    if ((unsigned int)m_channelType <= 0x10)
+    // ORIG _ZNK9GameWorld16IsFreePvPChannelEv @0x081a0ab2（同 0x081424e8 族布局）
+    register unsigned int ct asm("eax") = (unsigned int)m_channelType;
+    if (ct <= 0x10)
     {
-        register unsigned int one = 1;
-        if (((one << (unsigned int)m_channelType) & 0x166a0) != 0)
+        register unsigned int one asm("edx") = 1;
+        if (((one << ct) & 0x166a0) != 0)
             return true;
     }
     return false;
@@ -574,10 +589,12 @@ bool GameWorld::IsFreePvPChannel() const
 
 bool GameWorld::IsWinPointPvPChannel() const
 {
-    if ((unsigned int)m_channelType <= 0xf)
+    // ORIG _ZNK9GameWorld20IsWinPointPvPChannelEv @0x085dfa92（同族，上界 0xf）
+    register unsigned int ct asm("eax") = (unsigned int)m_channelType;
+    if (ct <= 0xf)
     {
-        register unsigned int one = 1;
-        if (((one << (unsigned int)m_channelType) & 0x8110) != 0)
+        register unsigned int one asm("edx") = 1;
+        if (((one << ct) & 0x8110) != 0)
             return true;
     }
     return false;
@@ -585,10 +602,12 @@ bool GameWorld::IsWinPointPvPChannel() const
 
 bool GameWorld::IsSameTeamChannelJoin()
 {
-    if ((unsigned int)m_channelType <= 0xf)
+    // ORIG _ZN9GameWorld21IsSameTeamChannelJoinEv @0x082343c8（同族，非 const）
+    register unsigned int ct asm("eax") = (unsigned int)m_channelType;
+    if (ct <= 0xf)
     {
-        register unsigned int one = 1;
-        if (((one << (unsigned int)m_channelType) & 0xc200) != 0)
+        register unsigned int one asm("edx") = 1;
+        if (((one << ct) & 0xc200) != 0)
             return true;
     }
     return false;
@@ -1660,19 +1679,21 @@ int GameWorld::get_gate_area(int vill) const
 bool GameWorld::get_area_center_point(int vill, int area, int& x, int& y) const
 {
     // ORIG 0x86c4724-0x86c4732：`js RET0; mov MAX,%eax; cmp %eax,0xc; jl PASS`
-    // 第二条件 taken=continue（技巧23 双 goto 钉块序，RET0 块在前）
-    if (vill < 0)
+    // 第二条件 taken=continue（技巧23 双 goto 钉块序）。
+    // 关键：两条失败路径必须**共享同一个 RET0 岛**且该岛位于第二条件之后
+    // （ORIG 0x86c4724 `js RET0` → 0x86c4729 `mov MAX,%eax` / 0x86c472e
+    // `cmp %eax,0xc` / 0x86c4730 `jl PASS` → RET0: `mov $0x0,%eax; jmp end`）。
+    // 写成 `if (vill < 0) { return false; }` 会让 4.4 在原地物化 `mov $0;jmp`
+    // （多 2 条）；必须用 goto 把首条失败出口也指向后置于第二条件的 RET0 岛。
+    // 变体：外层正向 if（假路径 fall-through 到尾 return），内层唯一 goto PASS
+    // ⇒ 期望 ORIG 0x86c4724 `js 岛` + 0x86c4730 `jl PASS` + 岛 `mov $0;jmp end`
+    //   且两 return 合并为同一物化块（上一版 `goto RET0` 会多留一条 jmp）。
+    if (vill >= 0)
     {
-        return false;
+        if (vill < MAX_VILLAGE_NUM)
+            goto PASS;
     }
-    if (vill < MAX_VILLAGE_NUM)
-    {
-        goto PASS;
-    }
-    else
-    {
-        return false;
-    }
+    return false;
 PASS:
     // ORIG 0x86c4756 #1：getArea 结果不判空直 `add $0x7c` 调 empty()（每次内联重取，无具名 pArea）
     if (m_pVill[vill].getArea(area)->m_mapAreas.empty())

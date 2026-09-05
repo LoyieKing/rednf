@@ -583,7 +583,6 @@ int ImportMonsterScript(STMonsterScript* script, int type, const char* path,
 
     std::string tag;
     std::string token;
-    std::string local_str;
     bool ok = false;
     int moduleId = -1;
     int subId = -1;
@@ -673,8 +672,8 @@ case 0xa21:  // "[layer]"
         }
         else
         {
-            ScanStr(&local_str);  // C LAB_08a1389f：ScanStr→getDrawLayer→+0x18
-            script->m_layer = getDrawLayer(local_str.c_str());  // +0x18
+            ScanStr(&token);  // ORIG 08a13905：ScanStr→-0x1a10(token)→getDrawLayer→+0x18
+            script->m_layer = getDrawLayer(token.c_str());  // +0x18
             break;
         }
 
@@ -688,28 +687,27 @@ case 0xa25:  // "[category]" → ScanTypeOrStr + getObjectCategory → m_field01
         {
         {
             script->m_field01c.clear();
-            bool ended = false;
-            bool isType = false;
-            while (ScanTypeOrStr(isType, token, true))
+            //  ORIG 08a13994..08a13ac8：block 级 string -0x1a28 + isType -0x1a29；
+            //  ScanTypeOrStr 失败 → return 0；isType 时 **!=** "[/category]" 即 return 0；
+            //  getObjectCategory(std::string 值参拷贝临时 -0x1994)；push_back((int)cat 临时
+            //  物化 -0x1990 → OOi)。
+            std::string catstr;                     // ORIG -0x1a28
+            bool isType = false;                    // ORIG -0x1a29
+            while (true)
             {
-                if (isType)
-                {
-                    if (token == "[/category]")
-                    {
-                        ended = true;
-                        break;
-                    }
+                if (!ScanTypeOrStr(isType, catstr, true))
                     return 0;
-                }
-                const int category = getObjectCategory(token);
-                if (category != 0x2c)
+                if (!isType)
                 {
-                    script->m_field01c.push_back(category);
+                    int category = getObjectCategory(std::string(catstr));
+                    if (category == 0x2c)
+                        continue;
+                    script->m_field01c.push_back((int)category);
+                    continue;
                 }
-            }
-            if (!ended)
-            {
-                return 0;
+                if (catstr != "[/category]")
+                    return 0;
+                break;
             }
         }
             break;
@@ -1359,8 +1357,7 @@ case 0xb1b:  // "[item]"
             while (true) {
                 int v1 = ScanInt(&ok);
                 if (!ok) break;
-                int v2 = ScanInt(static_cast<bool*>(0));
-                script->m_field028[0].push_back(std::make_pair(v1, v2));
+                script->m_field028[0].push_back(std::pair<int, int>(v1, ScanInt(static_cast<bool*>(0))));
             }
             break;
         }
@@ -1377,8 +1374,7 @@ case 0xb25:  // "[common champion drop item]"
             while (true) {
                 int v1 = ScanInt(&ok);
                 if (!ok) break;
-                int v2 = ScanInt(static_cast<bool*>(0));
-                script->m_field028[1].push_back(std::make_pair(v1, v2));
+                script->m_field028[1].push_back(std::pair<int, int>(v1, ScanInt(static_cast<bool*>(0))));
             }
             break;
         }
@@ -1407,8 +1403,7 @@ case 0xb36:  // "[boss drop item]"
             while (true) {
                 int v1 = ScanInt(&ok);
                 if (!ok) break;
-                int v2 = ScanInt(static_cast<bool*>(0));
-                script->m_field028[3].push_back(std::make_pair(v1, v2));
+                script->m_field028[3].push_back(std::pair<int, int>(v1, ScanInt(static_cast<bool*>(0))));
             }
             break;
         }
@@ -1431,7 +1426,7 @@ case 0xb40:  // "[specific gen rate item]"
             ok = false;
             int v2 = ScanInt(&ok);
             if (!ok) break;
-            script->m_field08c.push_back(std::make_pair(v1, v2));
+            script->m_field08c.push_back(std::pair<int, int>(v1, v2));
         }
             break;
         }
@@ -1468,8 +1463,7 @@ case 0xbc8:  // "[super champion drop item]"
             while (true) {
                 int v1 = ScanInt(&ok);
                 if (!ok) break;
-                int v2 = ScanInt(static_cast<bool*>(0));
-                script->m_field028[2].push_back(std::make_pair(v1, v2));
+                script->m_field028[2].push_back(std::pair<int, int>(v1, ScanInt(static_cast<bool*>(0))));
             }
             break;
         }
@@ -1486,8 +1480,7 @@ case 0xbab:  // "[death tower item]"
             while (true) {
                 int v1 = ScanInt(&ok);
                 if (!ok) break;
-                int v2 = ScanInt(static_cast<bool*>(0));
-                script->m_field058.push_back(std::make_pair(v1, v2));
+                script->m_field058.push_back(std::pair<int, int>(v1, ScanInt(static_cast<bool*>(0))));
             }
             break;
         }
@@ -2032,16 +2025,25 @@ case 0xcea:  // "[speech on situation]" → 111 个情境字符串桶
 
             while (ScanStr(&token))
             {
-                ScanStr(&local_str);
+                ScanStr(&token);
                 const int index = ScanInt(static_cast<bool*>(0));
                 int bucket = 0;
-                int subId1 = -1;
-                for (;;)
+                int subId1;
+                while (true)
                 {
                     static std::map<const char*, int, less_TCHAR> __lookup;
                     static SpinLock __init_lock;
                     static bool __inited = false;
-                    if (!__inited)
+                    if (__inited)
+                    {
+                        std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                            __lookup.find(token.c_str());
+                        if (__it != __lookup.end())
+                            subId1 = __it->second;
+                        else
+                            subId1 = -1;
+                    }
+                    else
                     {
                         __init_lock.enter();
                         if (__inited)
@@ -2049,63 +2051,114 @@ case 0xcea:  // "[speech on situation]" → 111 个情境字符串桶
                             __init_lock.leave();
                             continue;
                         }
-                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on attack]", 3321));
-                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on damage]", 3324));
-                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on die]", 3327));
-                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on revenge]", 3330));
-                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on etc]", 3333));
-                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on appear]", 3336));
-                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on disappear]", 3339));
-                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on go to help]", 3342));
-                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on stand]", 3345));
-                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on village]", 3348));
-                            __init_lock.leave();
-                            __inited = true;
-                            continue;
-                        }
-                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
-                        if (__it != __lookup.end())
-                            subId1 = __it->second;
-                        break;
+                        subId1 = 0;
                     }
-                    // ORIG 08a17ed0..08a183c5：speech 子表 if-else 链（bucket 选择）
                     switch (subId1)
                     {
+                    case 0:
                     case 3321:  // [on attack] → 当前行号桶（ORIG 08a17fca：-0xf8=-0x100）
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on attack]", 3321));
+                            goto sub1_3324;
+                        }
                         bucket = index;
                         break;
+                    sub1_3324:
                     case 3324:  // [on damage]
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on damage]", 3324));
+                            goto sub1_3327;
+                        }
                         bucket = 0x65;
                         break;
+                    sub1_3327:
                     case 3327:  // [on die]
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on die]", 3327));
+                            goto sub1_3330;
+                        }
                         bucket = 0x66;
                         break;
+                    sub1_3330:
                     case 3330:  // [on revenge]
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on revenge]", 3330));
+                            goto sub1_3333;
+                        }
                         bucket = 0x67;
                         break;
+                    sub1_3333:
                     case 3333:  // [on etc]
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on etc]", 3333));
+                            goto sub1_3336;
+                        }
                         bucket = 0x68;
                         break;
+                    sub1_3336:
                     case 3336:  // [on appear]
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on appear]", 3336));
+                            goto sub1_3339;
+                        }
                         bucket = 0x69;
                         break;
+                    sub1_3339:
                     case 3339:  // [on disappear]
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on disappear]", 3339));
+                            goto sub1_3342;
+                        }
                         bucket = 0x6a;
                         break;
+                    sub1_3342:
                     case 3342:  // [on go to help]
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on go to help]", 3342));
+                            goto sub1_3345;
+                        }
                         bucket = 0x6b;
                         break;
+                    sub1_3345:
                     case 3345:  // [on stand]
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on stand]", 3345));
+                            goto sub1_3348;
+                        }
                         bucket = 0x6c;
                         break;
+                    sub1_3348:
                     case 3348:  // [on village]
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on village]", 3348));
+                            goto end1;
+                        }
                         bucket = 0x6e;
                         break;
                     default:
                         break;
                     }
+                    end1:;
+                if (!__inited)
+                {
+                    __init_lock.leave();
+                    __inited = true;
+                    continue;
+                }
+                break;
+                }
                     // ORIG 08a183c6：m_field70c[bucket]（stride 0xc）.push_back(local_str)
-                    script->m_field70c[bucket].push_back(local_str);
+                    script->m_field70c[bucket].push_back(token);
                 }
             }
             break;
@@ -2401,13 +2454,22 @@ case 0xd96:  // "[counter attack]"（收集父 case；ORIG asm 08a19436 / C 直�
                 {
                     while (ScanStr(&token))
                     {
-                        int subId3 = -1;
-                        for (;;)
+                        int subId3;
+                        while (true)
                         {
                             static std::map<const char*, int, less_TCHAR> __lookup;
                             static SpinLock __init_lock;
                             static bool __inited = false;
-                            if (!__inited)
+                            if (__inited)
+                            {
+                                std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                    __lookup.find(token.c_str());
+                                if (__it != __lookup.end())
+                                    subId3 = __it->second;
+                                else
+                                    subId3 = -1;
+                            }
+                            else
                             {
                                 __init_lock.enter();
                                 if (__inited)
@@ -2415,28 +2477,35 @@ case 0xd96:  // "[counter attack]"（收集父 case；ORIG asm 08a19436 / C 直�
                                     __init_lock.leave();
                                     continue;
                                 }
-                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[probability]", 3489));
-                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3492));
-                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[damage type]", 3495));
-                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[need hp]", 3511));
-                                __init_lock.leave();
-                                __inited = true;
-                                continue;
+                                subId3 = 0;
                             }
-                            std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
-                            if (__it != __lookup.end())
-                                subId3 = __it->second;
-                            break;
-                        }
-                        switch (subId3)
-                        {
-                        case 3489:  // [probability] → +0x00
+                            switch (subId3)
+                            {
+                            case 0:
+                            case 3489:  // [probability] → +0x00
+                                if (!__inited)
+                                {
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[probability]", 3489));
+                                    goto sub3_3492;
+                                }
                             elem.m_field00 = ScanInt(static_cast<bool*>(0));
                             break;
-                        case 3492:  // [attack index] → +0x04
+                            sub3_3492:
+                            case 3492:  // [attack index] → +0x04
+                                if (!__inited)
+                                {
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3492));
+                                    goto sub3_3495;
+                                }
                             elem.m_field04 = ScanInt(static_cast<bool*>(0));
                             break;
-                        case 3495:  // [damage type] → 三串比较映射 0/1/2 → +0x08
+                            sub3_3495:
+                            case 3495:  // [damage type] → 三串比较映射 0/1/2 → +0x08
+                                if (!__inited)
+                                {
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[damage type]", 3495));
+                                    goto sub3_3511;
+                                }
                         {
                             std::string kind;            // -0x1ad4（块内构造/析构）
                             ScanStr(&kind);
@@ -2448,11 +2517,26 @@ case 0xd96:  // "[counter attack]"（收集父 case；ORIG asm 08a19436 / C 直�
                                 elem.m_field08 = 2;
                         }
                             break;
-                        case 3511:  // [need hp] → +0x10
+                            sub3_3511:
+                            case 3511:  // [need hp] → +0x10
+                                if (!__inited)
+                                {
+                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[need hp]", 3511));
+                                    goto end3;
+                                }
                             elem.m_field10 = ScanInt(static_cast<bool*>(0));
                             break;
-                        default:
-                            break;
+                            default:
+                                break;
+                            }
+                            end3:;
+                        if (!__inited)
+                        {
+                            __init_lock.leave();
+                            __inited = true;
+                            continue;
+                        }
+                        break;
                         }
                     }
                     script->m_counterAttacks.push_back(elem);   // +0xa8
@@ -2474,13 +2558,22 @@ case 0xdc0:  // "[jump attack]"（收集父 case；ORIG asm 08a19a00：STJumpAtt
                 STJumpAttack elem;                       // -0x1d24
                 while (ScanStr(&token))
                 {
-                    int subId4 = -1;
-                    for (;;)
+                    int subId4;
+                    while (true)
                     {
                         static std::map<const char*, int, less_TCHAR> __lookup;
                         static SpinLock __init_lock;
                         static bool __inited = false;
-                        if (!__inited)
+                        if (__inited)
+                        {
+                            std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                __lookup.find(token.c_str());
+                            if (__it != __lookup.end())
+                                subId4 = __it->second;
+                            else
+                                subId4 = -1;
+                        }
+                        else
                         {
                             __init_lock.enter();
                             if (__inited)
@@ -2488,63 +2581,120 @@ case 0xdc0:  // "[jump attack]"（收集父 case；ORIG asm 08a19a00：STJumpAtt
                                 __init_lock.leave();
                                 continue;
                             }
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3526));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[start frame index]", 3529));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[end frame index]", 3532));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump height]", 3535));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump speed]", 3538));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on collision custom animation index]", 3541));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[ememy distance rate]", 3544));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[limited x cood]", 3547));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[limited y cood]", 3550));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump type]", 3553));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump direction]", 3556));
-                            __init_lock.leave();
-                            __inited = true;
-                            continue;
+                            subId4 = 0;
                         }
-                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
-                        if (__it != __lookup.end())
-                            subId4 = __it->second;
-                        break;
-                    }
-                    switch (subId4)
-                    {
-                    case 3526:  // [attack index] → +0x00
+                        switch (subId4)
+                        {
+                        case 0:
+                        case 3526:  // [attack index] → +0x00
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3526));
+                                goto sub4_3529;
+                            }
                         elem.m_field00 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3529:  // [start frame index] → +0x1c
+                        sub4_3529:
+                        case 3529:  // [start frame index] → +0x1c
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[start frame index]", 3529));
+                                goto sub4_3532;
+                            }
                         elem.m_field1c = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3532:  // [end frame index] → +0x20
+                        sub4_3532:
+                        case 3532:  // [end frame index] → +0x20
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[end frame index]", 3532));
+                                goto sub4_3535;
+                            }
                         elem.m_field20 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3535:  // [jump height] → +0x04
+                        sub4_3535:
+                        case 3535:  // [jump height] → +0x04
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump height]", 3535));
+                                goto sub4_3538;
+                            }
                         elem.m_field04 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3538:  // [jump speed] → +0x08
+                        sub4_3538:
+                        case 3538:  // [jump speed] → +0x08
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump speed]", 3538));
+                                goto sub4_3541;
+                            }
                         elem.m_field08 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3541:  // [on collision custom animation index] → +0x0c
+                        sub4_3541:
+                        case 3541:  // [on collision custom animation index] → +0x0c
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on collision custom animation index]", 3541));
+                                goto sub4_3544;
+                            }
                         elem.m_field0c = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3544:  // [ememy distance rate] → +0x10（ScanFloat，P79 float 域）
+                        sub4_3544:
+                        case 3544:  // [ememy distance rate] → +0x10（ScanFloat，P79 float 域）
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[ememy distance rate]", 3544));
+                                goto sub4_3547;
+                            }
                         elem.m_field10 = ScanFloat(static_cast<bool*>(0));
                         break;
-                    case 3547:  // [limited x cood] → +0x24
+                        sub4_3547:
+                        case 3547:  // [limited x cood] → +0x24
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[limited x cood]", 3547));
+                                goto sub4_3550;
+                            }
                         elem.m_field24 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3550:  // [limited y cood] → +0x28
+                        sub4_3550:
+                        case 3550:  // [limited y cood] → +0x28
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[limited y cood]", 3550));
+                                goto sub4_3553;
+                            }
                         elem.m_field28 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3553:  // [jump type] → +0x14
+                        sub4_3553:
+                        case 3553:  // [jump type] → +0x14
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump type]", 3553));
+                                goto sub4_3556;
+                            }
                         elem.m_field14 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3556:  // [jump direction] → +0x18
+                        sub4_3556:
+                        case 3556:  // [jump direction] → +0x18
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[jump direction]", 3556));
+                                goto end4;
+                            }
                         elem.m_field18 = ScanInt(static_cast<bool*>(0));
                         break;
-                    default:
-                        break;
+                        default:
+                            break;
+                        }
+                        end4:;
+                    if (!__inited)
+                    {
+                        __init_lock.leave();
+                        __inited = true;
+                        continue;
+                    }
+                    break;
                     }
                 }
                 script->m_jumpAttacks.push_back(elem);   // +0xb4
@@ -2566,13 +2716,22 @@ case 0xdec:  // "[summon]"（收集父 case；ORIG asm 08a1a262：STSummon C1(-0
                 STSummonInfo info;                       // -0x1ae8（每轮四 int 覆写后 push）
                 while (ScanStr(&token))
                 {
-                    int subId5 = -1;
-                    for (;;)
+                    int subId5;
+                    while (true)
                     {
                         static std::map<const char*, int, less_TCHAR> __lookup;
                         static SpinLock __init_lock;
                         static bool __inited = false;
-                        if (!__inited)
+                        if (__inited)
+                        {
+                            std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                __lookup.find(token.c_str());
+                            if (__it != __lookup.end())
+                                subId5 = __it->second;
+                            else
+                                subId5 = -1;
+                        }
+                        else
                         {
                             __init_lock.enter();
                             if (__inited)
@@ -2580,36 +2739,44 @@ case 0xdec:  // "[summon]"（收集父 case；ORIG asm 08a1a262：STSummon C1(-0
                                 __init_lock.leave();
                                 continue;
                             }
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[function index]", 3572));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3575));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[pos random]", 3578));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[monster kind]", 3581));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[summon term]", 3593));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[probability]", 3596));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[enterance effect]", 3599));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[max number]", 3602));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[max frequency]", 3605));
-                            __init_lock.leave();
-                            __inited = true;
-                            continue;
+                            subId5 = 0;
                         }
-                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
-                        if (__it != __lookup.end())
-                            subId5 = __it->second;
-                        break;
-                    }
-                    switch (subId5)
-                    {
-                    case 3572:  // [function index] → +0x00
+                        switch (subId5)
+                        {
+                        case 0:
+                        case 3572:  // [function index] → +0x00
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[function index]", 3572));
+                                goto sub5_3575;
+                            }
                         elem.m_field00 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3575:  // [attack index] → +0x04
+                        sub5_3575:
+                        case 3575:  // [attack index] → +0x04
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3575));
+                                goto sub5_3578;
+                            }
                         elem.m_field04 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3578:  // [pos random] → +0x08
+                        sub5_3578:
+                        case 3578:  // [pos random] → +0x08
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[pos random]", 3578));
+                                goto sub5_3581;
+                            }
                         elem.m_field08 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3581:  // [monster kind] → +0x0c 数量 + infos reserve/loop
+                        sub5_3581:
+                        case 3581:  // [monster kind] → +0x0c 数量 + infos reserve/loop
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[monster kind]", 3581));
+                                goto sub5_3593;
+                            }
                     {
                         elem.m_field0c = ScanInt(static_cast<bool*>(0));
                         elem.m_infos.reserve(elem.m_field0c);
@@ -2623,23 +2790,62 @@ case 0xdec:  // "[summon]"（收集父 case；ORIG asm 08a1a262：STSummon C1(-0
                         }
                     }
                         break;
-                    case 3593:  // [summon term] → +0x1c
+                        sub5_3593:
+                        case 3593:  // [summon term] → +0x1c
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[summon term]", 3593));
+                                goto sub5_3596;
+                            }
                         elem.m_field1c = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3596:  // [probability] → +0x20
+                        sub5_3596:
+                        case 3596:  // [probability] → +0x20
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[probability]", 3596));
+                                goto sub5_3599;
+                            }
                         elem.m_field20 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3599:  // [enterance effect] → +0x24
+                        sub5_3599:
+                        case 3599:  // [enterance effect] → +0x24
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[enterance effect]", 3599));
+                                goto sub5_3602;
+                            }
                         elem.m_field24 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3602:  // [max number] → +0x28
+                        sub5_3602:
+                        case 3602:  // [max number] → +0x28
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[max number]", 3602));
+                                goto sub5_3605;
+                            }
                         elem.m_field28 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3605:  // [max frequency] → +0x2c
+                        sub5_3605:
+                        case 3605:  // [max frequency] → +0x2c
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[max frequency]", 3605));
+                                goto end5;
+                            }
                         elem.m_field2c = ScanInt(static_cast<bool*>(0));
                         break;
-                    default:
-                        break;
+                        default:
+                            break;
+                        }
+                        end5:;
+                    if (!__inited)
+                    {
+                        __init_lock.leave();
+                        __inited = true;
+                        continue;
+                    }
+                    break;
                     }
                 }
                 script->m_summons.push_back(elem);   // +0xc0
@@ -2660,13 +2866,22 @@ case 0xe1d:  // "[dash attack]"（收集父 case；ORIG asm 08a1aaa6：STDash C1
                 STDash elem;                             // -0x1d24
                 while (ScanStr(&token))
                 {
-                    int subId6 = -1;
-                    for (;;)
+                    int subId6;
+                    while (true)
                     {
                         static std::map<const char*, int, less_TCHAR> __lookup;
                         static SpinLock __init_lock;
                         static bool __inited = false;
-                        if (!__inited)
+                        if (__inited)
+                        {
+                            std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                __lookup.find(token.c_str());
+                            if (__it != __lookup.end())
+                                subId6 = __it->second;
+                            else
+                                subId6 = -1;
+                        }
+                        else
                         {
                             __init_lock.enter();
                             if (__inited)
@@ -2674,55 +2889,97 @@ case 0xe1d:  // "[dash attack]"（收集父 case；ORIG asm 08a1aaa6：STDash C1
                                 __init_lock.leave();
                                 continue;
                             }
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[function index]", 3620));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3623));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[shakeable]", 3626));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[first speed]", 3631));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[last speed]", 3634));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[dash time]", 3637));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[dash ready time]", 3640));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[animation first index]", 3643));
-                            __init_lock.leave();
-                            __inited = true;
-                            continue;
+                            subId6 = 0;
                         }
-                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
-                        if (__it != __lookup.end())
-                            subId6 = __it->second;
-                        break;
-                    }
-                    switch (subId6)
-                    {
-                    case 3620:  // [function index] → +0x00
+                        switch (subId6)
+                        {
+                        case 0:
+                        case 3620:  // [function index] → +0x00
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[function index]", 3620));
+                                goto sub6_3623;
+                            }
                         elem.m_field00 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3623:  // [attack index] → +0x04
+                        sub6_3623:
+                        case 3623:  // [attack index] → +0x04
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3623));
+                                goto sub6_3626;
+                            }
                         elem.m_field04 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3626:  // [shakeable] → 连续三 int +0x08/+0x0c/+0x10
+                        sub6_3626:
+                        case 3626:  // [shakeable] → 连续三 int +0x08/+0x0c/+0x10
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[shakeable]", 3626));
+                                goto sub6_3631;
+                            }
                     {
                         elem.m_field08 = ScanInt(static_cast<bool*>(0));
                         elem.m_field0c = ScanInt(static_cast<bool*>(0));
                         elem.m_field10 = ScanInt(static_cast<bool*>(0));
                     }
                         break;
-                    case 3631:  // [first speed] → +0x14
+                        sub6_3631:
+                        case 3631:  // [first speed] → +0x14
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[first speed]", 3631));
+                                goto sub6_3634;
+                            }
                         elem.m_field14 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3634:  // [last speed] → +0x18
+                        sub6_3634:
+                        case 3634:  // [last speed] → +0x18
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[last speed]", 3634));
+                                goto sub6_3637;
+                            }
                         elem.m_field18 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3637:  // [dash time] → +0x1c
+                        sub6_3637:
+                        case 3637:  // [dash time] → +0x1c
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[dash time]", 3637));
+                                goto sub6_3640;
+                            }
                         elem.m_field1c = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3640:  // [dash ready time] → +0x20
+                        sub6_3640:
+                        case 3640:  // [dash ready time] → +0x20
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[dash ready time]", 3640));
+                                goto sub6_3643;
+                            }
                         elem.m_field20 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3643:  // [animation first index] → +0x24
+                        sub6_3643:
+                        case 3643:  // [animation first index] → +0x24
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[animation first index]", 3643));
+                                goto end6;
+                            }
                         elem.m_field24 = ScanInt(static_cast<bool*>(0));
                         break;
-                    default:
-                        break;
+                        default:
+                            break;
+                        }
+                        end6:;
+                    if (!__inited)
+                    {
+                        __init_lock.leave();
+                        __inited = true;
+                        continue;
+                    }
+                    break;
                     }
                 }
                 script->m_dashes.push_back(elem);   // +0xcc
@@ -2743,13 +3000,22 @@ case 0xe43:  // "[hold attack]"（收集父 case；ORIG asm 08a1b1af：STHold C1
                 STHold elem;                             // -0x1d24
                 while (ScanStr(&token))
                 {
-                    int subId7 = -1;
-                    for (;;)
+                    int subId7;
+                    while (true)
                     {
                         static std::map<const char*, int, less_TCHAR> __lookup;
                         static SpinLock __init_lock;
                         static bool __inited = false;
-                        if (!__inited)
+                        if (__inited)
+                        {
+                            std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                __lookup.find(token.c_str());
+                            if (__it != __lookup.end())
+                                subId7 = __it->second;
+                            else
+                                subId7 = -1;
+                        }
+                        else
                         {
                             __init_lock.enter();
                             if (__inited)
@@ -2757,24 +3023,17 @@ case 0xe43:  // "[hold attack]"（收集父 case；ORIG asm 08a1b1af：STHold C1
                                 __init_lock.leave();
                                 continue;
                             }
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[function index]", 3658));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3666));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[offset]", 3669));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[animation index]", 3673));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[min hold]", 3676));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[max hold]", 3679));
-                            __init_lock.leave();
-                            __inited = true;
-                            continue;
+                            subId7 = 0;
                         }
-                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
-                        if (__it != __lookup.end())
-                            subId7 = __it->second;
-                        break;
-                    }
-                    switch (subId7)
-                    {
-                    case 3658:  // [function index] → +0x00；==1 时连读 +0x04/+0x08
+                        switch (subId7)
+                        {
+                        case 0:
+                        case 3658:  // [function index] → +0x00；==1 时连读 +0x04/+0x08
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[function index]", 3658));
+                                goto sub7_3666;
+                            }
                     {
                         elem.m_field00 = ScanInt(static_cast<bool*>(0));
                         if (elem.m_field00 == 1)
@@ -2784,23 +3043,62 @@ case 0xe43:  // "[hold attack]"（收集父 case；ORIG asm 08a1b1af：STHold C1
                         }
                     }
                         break;
-                    case 3666:  // [attack index] → +0x0c
+                        sub7_3666:
+                        case 3666:  // [attack index] → +0x0c
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3666));
+                                goto sub7_3669;
+                            }
                         elem.m_field0c = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3669:  // [offset] → +0x10
+                        sub7_3669:
+                        case 3669:  // [offset] → +0x10
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[offset]", 3669));
+                                goto sub7_3673;
+                            }
                         elem.m_field10 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3673:  // [animation index] → +0x18
+                        sub7_3673:
+                        case 3673:  // [animation index] → +0x18
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[animation index]", 3673));
+                                goto sub7_3676;
+                            }
                         elem.m_field18 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3676:  // [min hold] → +0x1c
+                        sub7_3676:
+                        case 3676:  // [min hold] → +0x1c
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[min hold]", 3676));
+                                goto sub7_3679;
+                            }
                         elem.m_field1c = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3679:  // [max hold] → +0x20
+                        sub7_3679:
+                        case 3679:  // [max hold] → +0x20
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[max hold]", 3679));
+                                goto end7;
+                            }
                         elem.m_field20 = ScanInt(static_cast<bool*>(0));
                         break;
-                    default:
-                        break;
+                        default:
+                            break;
+                        }
+                        end7:;
+                    if (!__inited)
+                    {
+                        __init_lock.leave();
+                        __inited = true;
+                        continue;
+                    }
+                    break;
                     }
                 }
                 script->m_holds.push_back(elem);   // +0xd8
@@ -2822,13 +3120,22 @@ case 0xe67:  // "[warp attack]"（收集父 case；ORIG asm 08a1b7c6：STWarp C1
                 STWarp elem;                             // -0x1d24
                 while (ScanStr(&token))
                 {
-                    int subId8 = -1;
-                    for (;;)
+                    int subId8;
+                    while (true)
                     {
                         static std::map<const char*, int, less_TCHAR> __lookup;
                         static SpinLock __init_lock;
                         static bool __inited = false;
-                        if (!__inited)
+                        if (__inited)
+                        {
+                            std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                __lookup.find(token.c_str());
+                            if (__it != __lookup.end())
+                                subId8 = __it->second;
+                            else
+                                subId8 = -1;
+                        }
+                        else
                         {
                             __init_lock.enter();
                             if (__inited)
@@ -2836,51 +3143,89 @@ case 0xe67:  // "[warp attack]"（收集父 case；ORIG asm 08a1b7c6：STWarp C1
                                 __init_lock.leave();
                                 continue;
                             }
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[function index]", 3694));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3697));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[warp style]", 3700));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[after attack]", 3703));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[after appear time]", 3706));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[cool time]", 3709));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[target offset]", 3712));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object index]", 3715));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[category of target]", 3718));
-                            __init_lock.leave();
-                            __inited = true;
-                            continue;
+                            subId8 = 0;
                         }
-                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
-                        if (__it != __lookup.end())
-                            subId8 = __it->second;
-                        break;
-                    }
-                    switch (subId8)
-                    {
-                    case 3694:  // [function index] → +0x00
+                        switch (subId8)
+                        {
+                        case 0:
+                        case 3694:  // [function index] → +0x00
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[function index]", 3694));
+                                goto sub8_3697;
+                            }
                         elem.m_field00 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3697:  // [attack index] → +0x04
+                        sub8_3697:
+                        case 3697:  // [attack index] → +0x04
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack index]", 3697));
+                                goto sub8_3700;
+                            }
                         elem.m_field04 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3700:  // [warp style] → +0x08
+                        sub8_3700:
+                        case 3700:  // [warp style] → +0x08
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[warp style]", 3700));
+                                goto sub8_3703;
+                            }
                         elem.m_field08 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3703:  // [after attack] → +0x0c
+                        sub8_3703:
+                        case 3703:  // [after attack] → +0x0c
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[after attack]", 3703));
+                                goto sub8_3706;
+                            }
                         elem.m_field0c = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3706:  // [after appear time] → +0x10
+                        sub8_3706:
+                        case 3706:  // [after appear time] → +0x10
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[after appear time]", 3706));
+                                goto sub8_3709;
+                            }
                         elem.m_field10 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3709:  // [cool time] → +0x14
+                        sub8_3709:
+                        case 3709:  // [cool time] → +0x14
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[cool time]", 3709));
+                                goto sub8_3712;
+                            }
                         elem.m_field14 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3712:  // [target offset] → +0x18
+                        sub8_3712:
+                        case 3712:  // [target offset] → +0x18
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[target offset]", 3712));
+                                goto sub8_3715;
+                            }
                         elem.m_field18 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3715:  // [passive object index] → +0x1c
+                        sub8_3715:
+                        case 3715:  // [passive object index] → +0x1c
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[passive object index]", 3715));
+                                goto sub8_3718;
+                            }
                         elem.m_field1c = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 3718:  // [category of target] → +0x20
+                        sub8_3718:
+                        case 3718:  // [category of target] → +0x20
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[category of target]", 3718));
+                                goto end8;
+                            }
                     {
                         std::string cat;         // -0x1afc（块内构造/析构）
                         ScanStr(&cat);
@@ -2892,8 +3237,17 @@ case 0xe67:  // "[warp attack]"（收集父 case；ORIG asm 08a1b7c6：STWarp C1
                             elem.m_field20 = getCategoryToEnumValue(cat);
                     }
                         break;
-                    default:
-                        break;
+                        default:
+                            break;
+                        }
+                        end8:;
+                    if (!__inited)
+                    {
+                        __init_lock.leave();
+                        __inited = true;
+                        continue;
+                    }
+                    break;
                     }
                 }
                 script->m_warps.push_back(elem);   // +0xe4
@@ -2914,13 +3268,22 @@ case 0xe9e:  // "[event super on scr]"（收集父 case；ORIG asm 08a1bfcf：ST
                 STEventSuper elem;                       // -0x1d24（每元素复用槽）
                 while (ScanStr(&token))
                 {
-                    int subId9 = -1;
-                    for (;;)
+                    int subId9;
+                    while (true)
                     {
                         static std::map<const char*, int, less_TCHAR> __lookup;
                         static SpinLock __init_lock;
                         static bool __inited = false;
-                        if (!__inited)
+                        if (__inited)
+                        {
+                            std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                __lookup.find(token.c_str());
+                            if (__it != __lookup.end())
+                                subId9 = __it->second;
+                            else
+                                subId9 = -1;
+                        }
+                        else
                         {
                             __init_lock.enter();
                             if (__inited)
@@ -2928,27 +3291,17 @@ case 0xe9e:  // "[event super on scr]"（收集父 case；ORIG asm 08a1bfcf：ST
                                 __init_lock.leave();
                                 continue;
                             }
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on time]", 3749));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on hp]", 3755));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[always]", 3761));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[counter]", 3767));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[breakable]", 3773));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[half]", 3780));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[unbreakable]", 3787));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[with blast]", 3794));
-                            __init_lock.leave();
-                            __inited = true;
-                            continue;
+                            subId9 = 0;
                         }
-                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token.c_str());
-                        if (__it != __lookup.end())
-                            subId9 = __it->second;
-                        break;
-                    }
-                    // 条件/触发模式（元素基 -0x1d24 实证：mode 于 +0）
-                    switch (subId9)
-                    {
-                    case 3749:
+                        switch (subId9)
+                        {
+                        case 0:
+                        case 3749:
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on time]", 3749));
+                                goto sub9_3755;
+                            }
                     {
                         elem.m_field00 = 0;
                         elem.m_field08 = ScanInt(&ok);   // +8
@@ -2956,7 +3309,13 @@ case 0xe9e:  // "[event super on scr]"（收集父 case；ORIG asm 08a1bfcf：ST
                         elem.m_field10 = ScanInt(&ok) != 0;   // +0x10 byte（CONCAT 低位）
                     }
                         break;
-                    case 3755:
+                        sub9_3755:
+                        case 3755:
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[on hp]", 3755));
+                                goto sub9_3761;
+                            }
                     {
                         elem.m_field00 = 1;
                         elem.m_field08 = ScanInt(&ok);
@@ -2964,14 +3323,26 @@ case 0xe9e:  // "[event super on scr]"（收集父 case；ORIG asm 08a1bfcf：ST
                         elem.m_field10 = ScanInt(&ok) != 0;
                     }
                         break;
-                    case 3761:
+                        sub9_3761:
+                        case 3761:
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[always]", 3761));
+                                goto sub9_3767;
+                            }
                     {
                         elem.m_field00 = 2;
                         elem.m_field08 = ScanInt(&ok);
                         elem.m_field10 = ScanInt(&ok) != 0;
                     }
                         break;
-                    case 3767:
+                        sub9_3767:
+                        case 3767:
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[counter]", 3767));
+                                goto sub9_3773;
+                            }
                     {
                         elem.m_field00 = 3;
                         elem.m_field08 = ScanInt(&ok);
@@ -2979,7 +3350,13 @@ case 0xe9e:  // "[event super on scr]"（收集父 case；ORIG asm 08a1bfcf：ST
                         elem.m_field10 = ScanInt(&ok) != 0;
                     }
                         break;
-                    case 3773:
+                        sub9_3773:
+                        case 3773:
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[breakable]", 3773));
+                                goto sub9_3780;
+                            }
                     {
                         elem.m_field04 = 0;
                         elem.m_field14 = ScanInt(&ok);   // +0x14（local_1d10）
@@ -2988,7 +3365,13 @@ case 0xe9e:  // "[event super on scr]"（收集父 case；ORIG asm 08a1bfcf：ST
                         elem.m_field20 = ScanInt(&ok);   // +0x20
                     }
                         break;
-                    case 3780:
+                        sub9_3780:
+                        case 3780:
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[half]", 3780));
+                                goto sub9_3787;
+                            }
                     {
                         elem.m_field04 = 1;
                         elem.m_field14 = ScanInt(&ok);
@@ -2997,7 +3380,13 @@ case 0xe9e:  // "[event super on scr]"（收集父 case；ORIG asm 08a1bfcf：ST
                         elem.m_field20 = ScanInt(&ok);
                     }
                         break;
-                    case 3787:
+                        sub9_3787:
+                        case 3787:
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[unbreakable]", 3787));
+                                goto sub9_3794;
+                            }
                     {
                         elem.m_field04 = 2;
                         elem.m_field14 = ScanInt(&ok);
@@ -3006,11 +3395,26 @@ case 0xe9e:  // "[event super on scr]"（收集父 case；ORIG asm 08a1bfcf：ST
                         elem.m_field20 = ScanInt(&ok);
                     }
                         break;
-                    case 3794:
+                        sub9_3794:
+                        case 3794:
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[with blast]", 3794));
+                                goto end9;
+                            }
                         elem.m_field24 = 1;   // +0x24 byte（CONCAT 置 1）
                         break;
-                    default:
-                        break;
+                        default:
+                            break;
+                        }
+                        end9:;
+                    if (!__inited)
+                    {
+                        __init_lock.leave();
+                        __inited = true;
+                        continue;
+                    }
+                    break;
                     }
                     // ORIG：未识别引导无字段分支，循环继续
                 }
@@ -3852,13 +4256,22 @@ case 0x108b:  // "[ridableskill definition]"（收集父 case；ORIG asm 08a1ebd
                             break;
                     }
                     bool doneLine = false;             // local_71
-                    int subId10 = -1;
-                    for (;;)
+                    int subId10;
+                    while (true)
                     {
                         static std::map<const char*, int, less_TCHAR> __lookup;
                         static SpinLock __init_lock;
                         static bool __inited = false;
-                        if (!__inited)
+                        if (__inited)
+                        {
+                            std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                __lookup.find(token2.c_str());
+                            if (__it != __lookup.end())
+                                subId10 = __it->second;
+                            else
+                                subId10 = -1;
+                        }
+                        else
                         {
                             __init_lock.enter();
                             if (__inited)
@@ -3866,31 +4279,44 @@ case 0x108b:  // "[ridableskill definition]"（收集父 case；ORIG asm 08a1ebd
                                 __init_lock.leave();
                                 continue;
                             }
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/ridableskill definition]", 4254));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[pattern]", 4260));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[image path]", 4263));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[skill]", 4266));
-                            __init_lock.leave();
-                            __inited = true;
-                            continue;
+                            subId10 = 0;
                         }
-                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(token2.c_str());
-                        if (__it != __lookup.end())
-                            subId10 = __it->second;
-                        break;
-                    }
-                    switch (subId10)
-                    {
-                    case 4254:  // [/ridableskill definition]
+                        switch (subId10)
+                        {
+                        case 0:
+                        case 4254:  // [/ridableskill definition]
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/ridableskill definition]", 4254));
+                                goto sub10_4260;
+                            }
                         doneLine = true;
                         break;
-                    case 4260:  // [pattern] → sk +0x00
+                        sub10_4260:
+                        case 4260:  // [pattern] → sk +0x00
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[pattern]", 4260));
+                                goto sub10_4263;
+                            }
                         sk.m_field00 = ScanInt(static_cast<bool*>(0));
                         break;
-                    case 4263:  // [image path] → sk +0x04
+                        sub10_4263:
+                        case 4263:  // [image path] → sk +0x04
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[image path]", 4263));
+                                goto sub10_4266;
+                            }
                         ScanStr(&sk.m_name);
                         break;
-                    case 4266:  // [skill]：8 组（2×int + type 词）
+                        sub10_4266:
+                        case 4266:  // [skill]：8 组（2×int + type 词）
+                            if (!__inited)
+                            {
+                                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[skill]", 4266));
+                                goto end10;
+                            }
                     {
                         for (int i = 0; i < 8; ++i)
                         {
@@ -3900,13 +4326,22 @@ case 0x108b:  // "[ridableskill definition]"（收集父 case；ORIG asm 08a1ebd
                             ty.clear();
                             ScanStr(&ty);
                             sk.m_field88[i] = 6;
-                            int subId11 = -1;
-                            for (;;)
+                            int subId11;
+                            while (true)
                             {
                                 static std::map<const char*, int, less_TCHAR> __lookup;
                                 static SpinLock __init_lock;
                                 static bool __inited = false;
-                                if (!__inited)
+                                if (__inited)
+                                {
+                                    std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                        __lookup.find(ty.c_str());
+                                    if (__it != __lookup.end())
+                                        subId11 = __it->second;
+                                    else
+                                        subId11 = -1;
+                                }
+                                else
                                 {
                                     __init_lock.enter();
                                     if (__inited)
@@ -3914,32 +4349,90 @@ case 0x108b:  // "[ridableskill definition]"（收集父 case；ORIG asm 08a1ebd
                                         __init_lock.leave();
                                         continue;
                                     }
-                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("normal", 4282));
-                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("defaultcancel", 4287));
-                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("movable", 4292));
-                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("charge", 4297));
-                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("evasion", 4302));
-                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("super", 4307));
+                                    subId11 = 0;
+                                }
+                                switch (subId11)
+                                {
+                                case 0:
+                                case 4282:                                    // normal
+                                    if (!__inited)
+                                    {
+                                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("normal", 4282));
+                                        goto sub11_4287;
+                                    }
+                                    sk.m_field88[i] = 0;
+                                    break;
+                                sub11_4287:
+                                case 4287:                                    // defaultcancel
+                                    if (!__inited)
+                                    {
+                                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("defaultcancel", 4287));
+                                        goto sub11_4292;
+                                    }
+                                    sk.m_field88[i] = 1;
+                                    break;
+                                sub11_4292:
+                                case 4292:                                    // movable
+                                    if (!__inited)
+                                    {
+                                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("movable", 4292));
+                                        goto sub11_4297;
+                                    }
+                                    sk.m_field88[i] = 2;
+                                    break;
+                                sub11_4297:
+                                case 4297:                                    // charge
+                                    if (!__inited)
+                                    {
+                                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("charge", 4297));
+                                        goto sub11_4302;
+                                    }
+                                    sk.m_field88[i] = 3;
+                                    break;
+                                sub11_4302:
+                                case 4302:                                    // evasion
+                                    if (!__inited)
+                                    {
+                                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("evasion", 4302));
+                                        goto sub11_4307;
+                                    }
+                                    sk.m_field88[i] = 4;
+                                    break;
+                                sub11_4307:
+                                case 4307:                                    // super
+                                    if (!__inited)
+                                    {
+                                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("super", 4307));
+                                        goto end11;
+                                    }
+                                    sk.m_field88[i] = 5;
+                                    break;
+                                default:
+                                    break;
+                                }
+                            end11:;
+                                if (!__inited)
+                                {
                                     __init_lock.leave();
                                     __inited = true;
                                     continue;
                                 }
-                                std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(ty.c_str());
-                                if (__it != __lookup.end())
-                                    subId11 = __it->second;
                                 break;
                             }
-                            if (subId11 == 4282) sk.m_field88[i] = 0;         // normal
-                            else if (subId11 == 4287) sk.m_field88[i] = 1;         // defaultcancel
-                            else if (subId11 == 4292) sk.m_field88[i] = 2;         // movable
-                            else if (subId11 == 4297) sk.m_field88[i] = 3;         // charge
-                            else if (subId11 == 4302) sk.m_field88[i] = 4;         // evasion
-                            else if (subId11 == 4307) sk.m_field88[i] = 5;         // super
                         }
                     }
                         break;
-                    default:
-                        break;
+                        default:
+                            break;
+                        }
+                        end10:;
+                    if (!__inited)
+                    {
+                        __init_lock.leave();
+                        __inited = true;
+                        continue;
+                    }
+                    break;
                     }
                     if (doneLine)
                         closed = 1;
@@ -4081,8 +4574,8 @@ case 0x119a:  // "[damage time balance]"（4×ScanInt(&ok) push vector +0x554）
         }
         else
         {
-            for (int i = 0; i < 4; ++i)
-                script->m_field554.push_back(ScanInt(&ok));
+            for (int i = 0; i <= 3; ++i)          // ORIG 08a1fd87 cmp $3,setle
+                script->m_field554.push_back(ScanInt(static_cast<bool*>(0)));
             break;
         }
 
@@ -4094,8 +4587,8 @@ case 0x11a0:  // "[stun time balance]"（4× push +0x560）
         }
         else
         {
-            for (int i = 0; i < 4; ++i)
-                script->m_field560.push_back(ScanInt(&ok));
+            for (int i = 0; i <= 3; ++i)          // ORIG 同族 i<=3 形
+                script->m_field560.push_back(ScanInt(static_cast<bool*>(0)));
             break;
         }
 
@@ -4359,6 +4852,9 @@ case 0x124b:  // "[control passive object]"（ORIG 08a208ff：do{ScanType→__lo
             //  11 键；[option]→ScanStr+__lookup_13；[transparency]→词循环 __lookup_14/15；
             //  [fix direction]→ScanStr+__lookup_16；[/control passive object]→退出}
             //  while(ScanType 成功)）
+            //  ORIG 08a2095f..08a22096：增量链式建表（case 0 哨兵 + 每 leaf
+            //  if(!__inited_12){insert 本键; jmp 下 leaf}；建轮 continue 跳 guard
+            //  08a209a9 而非 loop head 08a2096f）。
             {
                 std::string tag2;                      // local_1bf0
                 bool ended = false;                    // local_1bf5
@@ -4367,104 +4863,153 @@ case 0x124b:  // "[control passive object]"（ORIG 08a208ff：do{ScanType→__lo
                     ended = ScanType(tag2, true);
                     if (ended != true)
                         return 0;
-                    int subId12 = -1;
-                    for (;;)
+                    int subId12;                       // ORIG -0x30
+                    while (true)
                     {
                         static std::map<const char*, int, less_TCHAR> __lookup;
                         static SpinLock __init_lock;
                         static bool __inited = false;
-                        if (!__inited)
+                            if (__inited)
+                        {
+                            std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                __lookup.find(tag2.c_str());
+                        if (__it != __lookup.end())
+                            subId12 = __it->second;
+                            else
+                                subId12 = -1;
+                        }
+                        else
                         {
                             __init_lock.enter();
                             if (__inited)
                             {
                                 __init_lock.leave();
-                                continue;
+                                continue;                // ORIG 08a20b8d jmp 08a209a9
                             }
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[index]", 4696));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[x pos]", 4704));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[y pos]", 4712));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[width]", 4720));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[height]", 4728));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[velocity x]", 4736));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[velocity y]", 4744));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[option]", 4752));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[transparency]", 4771));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[fix direction]", 4823));
-                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/control passive object]", 4844));
-                            __init_lock.leave();
-                            __inited = true;
-                            continue;
+                            subId12 = 0;                // ORIG 08a20b92
                         }
-                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(tag2.c_str());
-                        if (__it != __lookup.end())
-                            subId12 = __it->second;
-                        break;
-                    }
+                        {
                     switch (subId12)
                     {
+                    case 0:
                     case 4696:  // [index] → +0x658
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[index]", 4696));
+                            goto sub12_4704;             // ORIG 08a20c86 链
+                        }
                     {
                         const int v = ScanInt(&ok);
                         if (!ok) return 0;
                         script->m_field658 = v;
                     }
                         break;
+                    sub12_4704:
                     case 4704:  // [x pos] → +0x65c
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[x pos]", 4704));
+                            goto sub12_4712;
+                        }
                     {
                         const int v = ScanInt(&ok);
                         if (!ok) return 0;
                         script->m_field65c = v;
                     }
                         break;
+                    sub12_4712:
                     case 4712:  // [y pos] → +0x660
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[y pos]", 4712));
+                            goto sub12_4720;
+                        }
                     {
                         const int v = ScanInt(&ok);
                         if (!ok) return 0;
                         script->m_field660 = v;
                     }
                         break;
+                    sub12_4720:
                     case 4720:  // [width] → +0x664
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[width]", 4720));
+                            goto sub12_4728;
+                        }
                     {
                         const int v = ScanInt(&ok);
                         if (!ok) return 0;
                         script->m_field664 = v;
                     }
                         break;
+                    sub12_4728:
                     case 4728:  // [height] → +0x668
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[height]", 4728));
+                            goto sub12_4736;
+                        }
                     {
                         const int v = ScanInt(&ok);
                         if (!ok) return 0;
                         script->m_field668 = v;
                     }
                         break;
+                    sub12_4736:
                     case 4736:  // [velocity x] → float +0x66c
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[velocity x]", 4736));
+                            goto sub12_4744;
+                        }
                     {
                         const float f = ScanFloat(&ok);
                         if (!ok) return 0;
                         script->m_field66c = f;
                     }
                         break;
+                    sub12_4744:
                     case 4744:  // [velocity y] → float +0x670
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[velocity y]", 4744));
+                            goto sub12_4752;
+                        }
                     {
                         const float f = ScanFloat(&ok);
                         if (!ok) return 0;
                         script->m_field670 = f;
                     }
                         break;
+                    sub12_4752:
                     case 4752:  // [option] → ScanStr + convert y to z
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[option]", 4752));
+                            goto sub12_4771;
+                        }
                     {
                         std::string opt;               // local_1c00
                         bool okflag = false;
                         if (ScanStr(&opt))
                         {
-                            int subId13 = -1;
-                            for (;;)
+                            int subId13;
+                            while (true)
                             {
                                 static std::map<const char*, int, less_TCHAR> __lookup;
                                 static SpinLock __init_lock;
                                 static bool __inited = false;
-                                if (!__inited)
+                                if (__inited)
+                                {
+                                    std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                        __lookup.find(opt.c_str());
+                                    if (__it != __lookup.end())
+                                        subId13 = __it->second;
+                                    else
+                                        subId13 = -1;
+                                }
+                                else
                                 {
                                     __init_lock.enter();
                                     if (__inited)
@@ -4472,27 +5017,44 @@ case 0x124b:  // "[control passive object]"（ORIG 08a208ff：do{ScanType→__lo
                                         __init_lock.leave();
                                         continue;
                                     }
-                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("convert y to z", 4760));
+                                    subId13 = 0;
+                                }
+                                switch (subId13)
+                                {
+                                case 0:
+                                case 4760:      // convert y to z → +0x674 = 1
+                                    if (!__inited)
+                                    {
+                                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("convert y to z", 4760));
+                                        goto end13;
+                                    }
+                                    script->m_field674 = 1;
+                                    okflag = true;
+                                    break;
+                                default:
+                                    break;
+                                }
+                            end13:;
+                                if (!__inited)
+                                {
                                     __init_lock.leave();
                                     __inited = true;
                                     continue;
                                 }
-                                std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(opt.c_str());
-                                if (__it != __lookup.end())
-                                    subId13 = __it->second;
                                 break;
-                            }
-                            if (subId13 == 4760)       // convert y to z → +0x674 = 1
-                            {
-                                script->m_field674 = 1;
-                                okflag = true;
                             }
                         }
                         if (!okflag)
                             return 0;
                     }
                         break;
+                    sub12_4771:
                     case 4771:  // [transparency] → 词循环
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[transparency]", 4771));
+                            goto sub12_4823;
+                        }
                     {
                         std::string word;              // local_1c08
                         bool done = false;
@@ -4503,13 +5065,22 @@ case 0x124b:  // "[control passive object]"（ORIG 08a208ff：do{ScanType→__lo
                                 done = true;
                                 break;
                             }
-                            int subId14 = -1;
-                            for (;;)
+                            int subId14;
+                            while (true)
                             {
                                 static std::map<const char*, int, less_TCHAR> __lookup;
                                 static SpinLock __init_lock;
                                 static bool __inited = false;
-                                if (!__inited)
+                                if (__inited)
+                                {
+                                    std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                        __lookup.find(word.c_str());
+                                    if (__it != __lookup.end())
+                                        subId14 = __it->second;
+                                    else
+                                        subId14 = -1;
+                                }
+                                else
                                 {
                                     __init_lock.enter();
                                     if (__inited)
@@ -4517,89 +5088,149 @@ case 0x124b:  // "[control passive object]"（ORIG 08a208ff：do{ScanType→__lo
                                         __init_lock.leave();
                                         continue;
                                     }
-                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[master]", 4784));
-                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[others]", 4792));
-                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[option]", 4800));
+                                    subId14 = 0;
+                                }
+                                switch (subId14)
+                                {
+                                case 0:
+                                case 4784:      // [master] → int +0x678
+                                    if (!__inited)
+                                    {
+                                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[master]", 4784));
+                                        goto sub14_4792;
+                                    }
+                                    {
+                                        int mv;                    // ORIG -0x1bf0（ScanInt(int*) 直写）
+                                        if (!ScanInt(&mv))
+                                            return 0;
+                                        script->m_field678 = mv;
+                                    }
+                                    break;
+                                sub14_4792:
+                                case 4792:      // [others] → int +0x67c
+                                    if (!__inited)
+                                    {
+                                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[others]", 4792));
+                                        goto sub14_4800;
+                                    }
+                                    {
+                                        int mv;                    // ORIG -0x1bf0（ScanInt(int*) 直写）
+                                        if (!ScanInt(&mv))
+                                            return 0;
+                                        script->m_field67c = mv;
+                                    }
+                                    break;
+                                sub14_4800:
+                                case 4800:      // [option] → ScanStr + inherit → +0x680
+                                    if (!__inited)
+                                    {
+                                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[option]", 4800));
+                                        goto end14;
+                                    }
+                                    {
+                                        std::string opt2;      // local_1c10
+                                        bool okflag = false;
+                                        if (ScanStr(&opt2))
+                                        {
+                                            int subId15;
+                                            while (true)
+                                            {
+                                                static std::map<const char*, int, less_TCHAR> __lookup;
+                                                static SpinLock __init_lock;
+                                                static bool __inited = false;
+                                                if (__inited)
+                                                {
+                                                    std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                                        __lookup.find(opt2.c_str());
+                                                    if (__it != __lookup.end())
+                                                        subId15 = __it->second;
+                                                    else
+                                                        subId15 = -1;
+                                                }
+                                                else
+                                                {
+                                                    __init_lock.enter();
+                                                    if (__inited)
+                                                    {
+                                                        __init_lock.leave();
+                                                        continue;
+                                                    }
+                                                    subId15 = 0;
+                                                }
+                                                switch (subId15)
+                                                {
+                                                case 0:
+                                                case 4807:
+                                                    if (!__inited)
+                                                    {
+                                                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("inherit", 4807));
+                                                        goto end15;
+                                                    }
+                                                    script->m_field680 = 1;
+                                                    okflag = true;
+                                                    break;
+                                                default:
+                                                    break;
+                                                }
+                                            end15:;
+                                                if (!__inited)
+                                                {
+                                                    __init_lock.leave();
+                                                    __inited = true;
+                                                    continue;
+                                                }
+                                                break;
+                                            }
+                                        }
+                                        if (!okflag)
+                                            return 0;
+                                    }
+                                    break;
+                                default:
+                                    return 0;
+                                }
+                            end14:;
+                                if (!__inited)
+                                {
                                     __init_lock.leave();
                                     __inited = true;
                                     continue;
                                 }
-                                std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(word.c_str());
-                                if (__it != __lookup.end())
-                                    subId14 = __it->second;
                                 break;
                             }
-                            if (subId14 == 4784)       // [master] → int +0x678
-                            {
-                                const int v = ScanInt(&ok);
-                                if (!ok) return 0;
-                                script->m_field678 = v;
-                            }
-                            else if (subId14 == 4792)  // [others] → int +0x67c
-                            {
-                                const int v = ScanInt(&ok);
-                                if (!ok) return 0;
-                                script->m_field67c = v;
-                            }
-                            else if (subId14 == 4800)  // [option] → ScanStr + inherit → +0x680
-                            {
-                                std::string opt2;      // local_1c10
-                                bool okflag = false;
-                                if (ScanStr(&opt2))
-                                {
-                                    int subId15 = -1;
-                                    for (;;)
-                                    {
-                                        static std::map<const char*, int, less_TCHAR> __lookup;
-                                        static SpinLock __init_lock;
-                                        static bool __inited = false;
-                                        if (!__inited)
-                                        {
-                                            __init_lock.enter();
-                                            if (__inited)
-                                            {
-                                                __init_lock.leave();
-                                                continue;
-                                            }
-                                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("inherit", 4807));
-                                            __init_lock.leave();
-                                            __inited = true;
-                                            continue;
-                                        }
-                                        std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(opt2.c_str());
-                                        if (__it != __lookup.end())
-                                            subId15 = __it->second;
-                                        break;
-                                    }
-                                    if (subId15 == 4807)
-                                    {
-                                        script->m_field680 = 1;
-                                        okflag = true;
-                                    }
-                                }
-                                if (!okflag)
-                                    return 0;
-                            }
-                            else
-                                return 0;
                         }
                         if (!done)
                             return 0;
                     }
                         break;
+                    sub12_4823:
                     case 4823:  // [fix direction] → ScanStr + left/right
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[fix direction]", 4823));
+                            goto sub12_4844;
+                        }
                     {
                         std::string dir;               // local_1c18
                         bool okflag = false;
                         if (ScanStr(&dir))
                         {
-                            int subId16 = -1;
-                            for (;;)
+                            int subId16;
+                            while (true)
                             {
                                 static std::map<const char*, int, less_TCHAR> __lookup;
                                 static SpinLock __init_lock;
                                 static bool __inited = false;
-                                if (!__inited)
+                                if (__inited)
+                                {
+                                    std::map<const char*, int, less_TCHAR>::const_iterator __it =
+                                        __lookup.find(dir.c_str());
+                                    if (__it != __lookup.end())
+                                        subId16 = __it->second;
+                                    else
+                                        subId16 = -1;
+                                }
+                                else
                                 {
                                     __init_lock.enter();
                                     if (__inited)
@@ -4607,39 +5238,70 @@ case 0x124b:  // "[control passive object]"（ORIG 08a208ff：do{ScanType→__lo
                                         __init_lock.leave();
                                         continue;
                                     }
-                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[left]", 4832));
-                                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[right]", 4836));
+                                    subId16 = 0;
+                                }
+                                switch (subId16)
+                                {
+                                case 0:
+                                case 4832:      // [left] → +0x684=0
+                                    if (!__inited)
+                                    {
+                                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[left]", 4832));
+                                        goto sub16_4836;
+                                    }
+                                    script->m_field684 = 0;
+                                    okflag = true;
+                                    break;
+                                sub16_4836:
+                                case 4836:      // [right] → +0x684=1
+                                    if (!__inited)
+                                    {
+                                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[right]", 4836));
+                                        goto end16;
+                                    }
+                                    script->m_field684 = 1;
+                                    okflag = true;
+                                    break;
+                                default:
+                                    break;
+                                }
+                            end16:;
+                                if (!__inited)
+                                {
                                     __init_lock.leave();
                                     __inited = true;
                                     continue;
                                 }
-                                std::map<const char*, int, less_TCHAR>::const_iterator __it = __lookup.find(dir.c_str());
-                                if (__it != __lookup.end())
-                                    subId16 = __it->second;
                                 break;
-                            }
-                            if (subId16 == 4832)       // [left] → +0x684=0
-                            {
-                                script->m_field684 = 0;
-                                okflag = true;
-                            }
-                            else if (subId16 == 4836)  // [right] → +0x684=1
-                            {
-                                script->m_field684 = 1;
-                                okflag = true;
                             }
                         }
                         if (!okflag)
                             return 0;
                     }
                         break;
+                    sub12_4844:
                     case 4844:  // [/control passive object] → 结束本 case
+                        if (!__inited)
+                        {
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/control passive object]", 4844));
+                            goto sub12_end;            // ORIG 08a2204e jmp 08a22057
+                        }
                         ended = false;
                         break;
                     default:
                         break;
                     }
                     // ORIG：未命中键（含 -1）无动作，继续外层 do-while 读下一词
+                        sub12_end:;
+                        }
+                        if (!__inited)
+                        {
+                            __init_lock.leave();       // ORIG 08a22065
+                            __inited = true;           // ORIG 08a22071
+                            continue;                  // ORIG 08a22078 jmp 08a209a9
+                        }
+                        break;
+                    }
                 } while (ended == true);
             }
             break;

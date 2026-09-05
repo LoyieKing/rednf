@@ -289,7 +289,7 @@ bool Arad_Script::Load(const char* dir, const char* file)
     // 末段写完后 usedCols_ 自增一次并按需 ExpandCol。
     char colBuf[0x200] = { 0 };
     colLen = 0;
-    while (true)
+    for (;;)
     {
         c = (int)(signed char)*dir++;
         if (c == -1)

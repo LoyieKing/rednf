@@ -4915,7 +4915,25 @@ int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     static const char* const kPretty =
         "virtual int DisPatcher_MoveItem::process(CUser*, MSG_BASE&, ParamBase&)";
-    const MSG_MOVE_ITEMSPACE& req = *reinterpret_cast<const MSG_MOVE_ITEMSPACE*>(&msg);
+    // 本 TU 同址视图（PvPTimeout::read ViewPacked 先例）：m_fromSpace/m_toSpace 以
+    // unsigned char 读出 ORIG `movzbl 0xd/0x18(%eax),%edx` 单步 disp 折叠 + QI 直存
+    // （冻结头 char 声明混号必两段）；偏移/宽度按 PacketTypes.h:908 布局注释。
+    #pragma pack(push, 1)
+    struct MoveItemSpaceView {
+        char m_head[0xd];
+        unsigned char m_fromSpace;   // +0x0d
+        short m_fromPos;             // +0x0e
+        unsigned int m_count;        // +0x10
+        int m_field14;               // +0x14
+        unsigned char m_toSpace;     // +0x18
+        short m_toPos;               // +0x19
+        unsigned int m_itemIdx;      // +0x1b
+        char m_gap1f[4];             // +0x1f..0x22
+        char m_expanda;              // +0x23
+        char m_expandb;              // +0x24
+    };
+    #pragma pack(pop)
+    const MoveItemSpaceView* req = reinterpret_cast<const MoveItemSpaceView*>(&msg);
     stMoveItemParam& out = static_cast<stMoveItemParam&>(param);
     // ORIG value→%edx 先、槽地址→%eax 后（双钉）。
     register int ec asm("edx") = check_error(user, msg);
@@ -4925,8 +4943,8 @@ int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     {
         if (out.m_4 == 0xd5)   // 仅锁定类错误回显源/目的 space
         {
-            out.m_8 = req.m_fromSpace;
-            out.m_10 = req.m_toSpace;
+            out.m_8 = req->m_fromSpace;
+            out.m_10 = req->m_toSpace;
         }
         return 0;
     }
@@ -4935,42 +4953,51 @@ int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         return LineFunc(0x141b, kPretty, out.m_4, user->get_acc_id());
     }
 
-    int outSlot = 0;
-    int ret = 0;
-    if (((signed char)req.m_toSpace == 3 || (signed char)req.m_toSpace == 0x12) &&
-        req.m_toPos > 9 && req.m_toPos < 0x16)
+    // ORIG 无 outSlot/ret 初始化写（ret 槽由 call 返回值直写 `mov %eax,-0x1c`）。
+    int outSlot;
+    int ret;
+    // ORIG +0x0ad：uchar 装载 + 字节立即数 `cmp $0x3,%al` 直判（无 sext）。
+    if ((req->m_toSpace == 3 || req->m_toSpace == 0x12) &&
+        req->m_toPos > 9 && req->m_toPos < 0x16)
     {
         // 扩容区间移动（toSpace 3/0x12 且目的槽位 10..21）
         ret = user->exchange_interspace_expand(
-            (int)(char)req.m_fromSpace, (int)req.m_fromPos,
-            (unsigned long)req.m_count, (int)req.m_field14,
-            (int)(char)req.m_toSpace, (int)req.m_toPos,
-            (unsigned long)req.m_itemIdx,
-            &outSlot, (char)req.m_expanda, (char)req.m_expandb);
+            (int)(char)req->m_fromSpace, (int)req->m_fromPos,
+            (unsigned long)req->m_count, (int)req->m_field14,
+            (int)(char)req->m_toSpace, (int)req->m_toPos,
+            (unsigned long)req->m_itemIdx,
+            &outSlot, req->m_expanda, req->m_expandb);
     }
     else
     {
         ret = user->exchange_interspace(
-            (int)(char)req.m_fromSpace, (int)req.m_fromPos,
-            (unsigned long)req.m_count, (int)req.m_field14,
-            (int)(char)req.m_toSpace, (int)req.m_toPos,
-            (unsigned long)req.m_itemIdx,
+            (int)(char)req->m_fromSpace, (int)req->m_fromPos,
+            (unsigned long)req->m_count, (int)req->m_field14,
+            (int)(char)req->m_toSpace, (int)req->m_toPos,
+            (unsigned long)req->m_itemIdx,
             &outSlot);
     }
 
     if (ret == 0)
     {
-        out.m_8 = req.m_fromSpace;
-        out.m_a = req.m_fromPos;
-        out.m_c = (int)req.m_field14;
-        out.m_10 = req.m_toSpace;
+        // 冻结头 m_fromSpace/m_toSpace 为 char；ORIG QI 直存 `movzbl mem,%edx`
+        // 要求 RHS 与 m_8/m_10(uchar) 同型（probe /tmp/qi3 s4/s6），经同址
+        // uchar 视图读取（偏移不变，§4.3 同型口径）。
+        out.m_8 = req->m_fromSpace;
+        out.m_a = req->m_fromPos;
+        out.m_c = (int)req->m_field14;
+        out.m_10 = req->m_toSpace;
         out.m_14 = outSlot;
     }
     else
     {
-        out.m_4 = ret;
-        out.m_8 = req.m_fromSpace;
-        out.m_10 = req.m_toSpace;
+        // ORIG +0x242：value 从槽先载 %edx、地址槽后载 %eax（双钉 reload 形，
+        // 同 DisPatcherCore:16647 RepairDisjoint 先例）。
+        register int rv asm("edx") = ret;
+        register stMoveItemParam* dst2 asm("eax") = &out;
+        dst2->m_4 = rv;
+        out.m_8 = req->m_fromSpace;
+        out.m_10 = req->m_toSpace;
     }
     return 0;
 }
@@ -5861,18 +5888,19 @@ void DisPatcher_RepairEquip::send(CUser* user, ParamBase& param)
     stRepairEquipParam& p = static_cast<stRepairEquipParam&>(param);
     PacketGuard guard;
     guard.put_header(1, 0x19);
-    if (p.m_errNo == 0)
+    // ORIG +0x3c：`test; je +0x6b` ⇒ 非零块是 fall-through 块（技17 写在 true 侧）。
+    if (p.m_errNo != 0)
+    {
+        guard.put_byte(0);
+        guard.put_byte(p.m_errNo);
+    }
+    else
     {
         guard.put_byte(1);
         guard.put_int(user->getCurCharacInvenR()->get_money());
         guard.put_byte((char)p.m_8);
         guard.put_short((unsigned int)p.m_a);
         guard.put_short((unsigned int)p.m_c);
-    }
-    else
-    {
-        guard.put_byte(0);
-        guard.put_byte(p.m_errNo);
     }
     guard.finalize(true);
     user->Send(guard);
@@ -10237,6 +10265,8 @@ int DisPatcher_UseEquip::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     // 声明，技21）。slot 值 `movzbl; movsbl %al,%ebx` 直落 %ebx（技2）。
     stOnUseEquipParam& out = static_cast<stOnUseEquipParam&>(param);
     MSG_DECREASE_DURABILITY& req = *reinterpret_cast<MSG_DECREASE_DURABILITY*>(&msg);
+    // `movsbl %al,%ebx` 直落 callee-saved = N 类（单条 sext 直落不可造），
+    // register asm("ebx") 绑定为本 TU 最优形（ndiff 20 vs 26/27）。
     register int slot asm("ebx") = (int)(signed char)req.m_0d;
     CInventory* inven = user->getCurCharacInvenW();  // thunk 0x80da28e
     // ORIG +0x7a 双钉 store（技45）。

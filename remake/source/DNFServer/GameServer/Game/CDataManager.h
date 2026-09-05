@@ -321,8 +321,18 @@ struct pieceQuestRewardStatus
 // ---- stRankSystemInfo 内嵌元素（ORIG importRankSystemScript 0x0890ed7f 逐字段实证）----
 // stDungeonClearTimeData：7 个 int（0x1c）；stClearTimeAverage：5 个 int（0x14）；
 // stBonusPointValues：2 个 int；stComboIntervalBoundary：4 个 int（0x10）。
+// ctor/clear 声明补齐（MbxC9 2026-09-05，与权威 stBonusPointValues.h 对齐）：
+// ORIG C1 W 0x08370d8c（call clear 0x08370da0），getClearTimeBonusPoint
+// 0x08363af0/0x08363afb 两次 `lea obj; call ctor` 实证；定义唯一归属
+// stBonusPointValues.cpp（同名 mangled 链接）。
 struct stClearTimeAverage         { int m_v[5]; };   // +0x00..0x13
-struct stBonusPointValues         { int m_a; int m_b; };
+struct stBonusPointValues
+{
+    int m_a;   // +0x00
+    int m_b;   // +0x04
+    stBonusPointValues();
+    void clear();
+};
 // ---- stUnlimitChallengeInfo 元素（ORIG importUnlimitChallengeScript 0x0890bc63 实证）----
 struct stUnlimitChallengeRewardInfo
 {
@@ -538,6 +548,12 @@ struct stClearTimeAverageMapKey
 {
     int m_a;   // [推断]
     int m_b;   // [推断]
+    // 与权威段 stClearTimeAverage.h 对齐（MbxC9 2026-09-05）：ORIG C1/C2
+    // W 0x08370d1c（体内 call clear 0x08370d30），getDungeonClearAverageTime
+    // 0x083639df `lea -0x18; call ctor` 实证 key 为带 ctor 类型；定义唯一
+    // 归属 stClearTimeAverage.cpp（同名 mangled 链接）。
+    stClearTimeAverageMapKey();
+    void clear();
     bool operator<(const stClearTimeAverageMapKey& o) const
     {
         // ORIG W 0x08370d48：jge/mov1/jmp - jne/jge/mov1/mov0（嵌套短路；int 有符号比较）；
@@ -3482,7 +3498,8 @@ public:
     void* get_event_script_mng();
     char get_dimensionInout(int idx);   // ORIG 0x0822b612 返回 char：movzbl 单条读取（无 32 位扩展指令）
     char get_limit_inout_count(ENUM_BLOOD_TYPE type);   // ORIG caller 0x08431e71 `movsbl %al,%eax` ⇒ 返回 char（signed）
-    void GetPvPChannelGrade();               // ORIG _ZN12CDataManager18GetPvPChannelGradeEv
+    int GetPvPChannelGrade();                // ORIG _ZN12CDataManager18GetPvPChannelGradeEv
+                                             // 0x08357ed4/0x0835809a 双路 mov$0/$1,%eax ⇒ int（P159）
     std::vector<stResetItemInfo::ResetItem>* GetResetItemInfo() const;  // ORIG W 0x8693f24
     std::vector<stRefillItemInfo::RefillItem>* GetRefillItemInfo() const;  // ORIG W 0x8693f32
     stLimitItemUsageInfoEx* GetLimitItemUsageInfo();   // ORIG W 0x8693f16：返回 m_limitItemUsage(+0x4cf8)

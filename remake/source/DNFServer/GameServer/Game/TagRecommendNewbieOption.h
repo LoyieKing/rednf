@@ -19,7 +19,9 @@
 struct tagRecommendNewbieOption
 {
     tagRecommendNewbieOption() { clear(); }   // W 0x0891ad16（C1/C2）
-    ~tagRecommendNewbieOption() {}            // W 0x0893908c（D1/D2，trivial）
+    // 无用户析构（P12）：ORIG importRecommendNewbieOptionScript 0x0890457c..0x08905772
+    // 全段无 0x0893908c(D1) 调用点（opt@-0x194 每轮仅 C1 8904911），隐式 trivial
+    // 析构；D1/D2 W@0x0893908c(0x5) 由其它 TU 的 ODR 使用点发射。
     void clear()                              // W 0x0891ad2a
     {
         m_growType = -1;

@@ -994,9 +994,17 @@ bool CUser::alonePlay_Mode(const MSG_REQ_TO_PEER& req)
     // `movzbl 0xf(%eax),%eax`（MSG_REQ_TO_PEER 无布局符号，§4.3 例外具名视图）。
     // 免具名 reqType 槽（ORIG `add $0,%eax` 即 4.1 无槽物化；槽版挤占 opt/-0xa）。
     struct PeerTypeView { char m_pad[0xf]; unsigned char m_reqType; };
-    if (static_cast<unsigned int>(static_cast<signed char>(
-            (reinterpret_cast<const PeerTypeView*>(&req))->m_reqType)) > 3u)
+    // ORIG 0x0868dcea-0x0868dd00：`add $0x0,%eax; cmp $0x3,%eax; jbe` 后随
+    // mov$0 false 岛 = switch 连续 0..3 区间 lower-bound 减法形（4.1 range
+    // lowering）⇒ 用 switch 全 case break + default return false 复现
+    register int t asm("eax") = static_cast<signed char>(
+        (reinterpret_cast<const PeerTypeView*>(&req))->m_reqType);
+    switch (t) {
+    case 0: case 1: case 2: case 3:
+        break;
+    default:
         return false;
+    }
     // ORIG 0x0868dd01 `movswl -0xa(%ebp),%eax; cmp $1,%eax`：register asm(eax) 破
     // cmpw 融合（同 alonePlay_Mode() Ev 版实证）。
     register int v asm("eax") = etc;
@@ -1267,16 +1275,18 @@ int CUser::check_locked_multibox_error(const CItem* opener, int openedCnt, bool 
 // ---------------------------------------------------------------------------
 int CUser::check_multibox_error(int requiredEmptySlots)
 {
-    CInventory* inv = getCurCharacInvenW();
-    if (inv->check_empty_count((Inven_Item::ITEM_TYPE)1, requiredEmptySlots) != 1)
-        return 0x13;
-    if (inv->check_empty_count((Inven_Item::ITEM_TYPE)2, requiredEmptySlots) != 1)
-        return 0x13;
-    if (inv->check_empty_count((Inven_Item::ITEM_TYPE)3, requiredEmptySlots) != 1)
-        return 0x13;
-    if (inv->check_empty_count((Inven_Item::ITEM_TYPE)10, requiredEmptySlots) != 1)
-        return 0x13;
-    if (inv->check_empty_count((Inven_Item::ITEM_TYPE)5, requiredEmptySlots) != 1)
+    // ORIG 0x08675ee2-0x08675fb1：getCurCharacInvenW 每段重调（免 inv 槽）+
+    // 各段 `xor $0x1,%eax; test %al,%al; jne BAD岛`——(check^1) || 短路链 +
+    // 具名 bool 两级物化（[mov$1][mov$0]; test;je → 0x13 岛，08675fbf-08675fc8）
+    // 4.4 把 `(x^1)||` 折成 `cmp $1`——register %eax 具名 + 逗号 expr 阻断
+    // fold-const，复现 ORIG 0x08675f04 每段 `xor $0x1,%eax; test %al,%al; jne
+    // 共享BAD岛(mov$1)`、末段 `je GOOD(mov$0)` 两级物化（probe t19 实证）
+    register unsigned r asm("eax");
+    if (((r = getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)1, requiredEmptySlots) ^ 1, (unsigned char)r) ||
+         (r = getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)2, requiredEmptySlots) ^ 1, (unsigned char)r) ||
+         (r = getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)3, requiredEmptySlots) ^ 1, (unsigned char)r) ||
+         (r = getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)10, requiredEmptySlots) ^ 1, (unsigned char)r) ||
+         (r = getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)5, requiredEmptySlots) ^ 1, (unsigned char)r)))
         return 0x13;
     return 0;
 }
@@ -5495,10 +5505,12 @@ unsigned int CUser::registerToBlackList(unsigned int accId)
 // ORIG 0x0864f930 CUser::reset_tag_info_to_me(unsigned int tagAccId) void
 void CUser::reset_tag_info_to_me(unsigned int tagAccId)
 {
-    bool touched = false;                                      // -0x9
-    std::vector<_Charac_info>& chars = m_characList;           // +0x796e8
-    std::vector<_Charac_info>::iterator it;
-    for (it = chars.begin(); it != chars.end(); ++it) {
+    // ORIG 0x0864f930：touched byte 槽 -0x9；vector base 每使用点 `lea 0x796e8(%eax)`
+    // 重算（删 chars 引用中转槽，技巧36）；for-init 声明 it ⇒ begin sret 直落
+    // it 槽 -0x14（无 tmp→it 拷贝）；end tmp -0x10
+    bool touched = false;
+    for (std::vector<_Charac_info>::iterator it = m_characList.begin();
+         it != m_characList.end(); ++it) {
         if ((*it).m_field14b8 == tagAccId) {                                   // +0x14b8
             (*it).m_field14b8 = 0;
             (*it).m_field14b7 = 0;                                    // +0x14b7
@@ -9661,21 +9673,24 @@ void CUser::initBingoData()
     // BingoEvent::getBingoSystem()（全局符号 T 0x080c9fea，定义 BingoEventLink4.cpp）
     // 返回 shared_ptr<CBingo> 槽 {px,pn}，经 px 调 CBingo::initUserData(*bingoData)
     // （本 TU 补真实定义，见下），最后 sendBingoData()（定义 BingoEventLink4.cpp）。
-    CEventBase* probe = GlobalData::s_event_manager->GetRepeatEvent(0x6a);
-    // ORIG 0x086912be：首次 GetRepeatEvent 后无空判直接虚调 IsEventing；
-    // 事件进行中**二次** GetRepeatEvent（此处于判空）后经 shared_ptr
-    // operator->（pt 显式符号）解引用 CBingo。NEW 曾复用 probe 且直读 px。
-    if (!probe->IsEventing(static_cast<CUser*>(0)))
-        return;
-    BingoEvent* event = reinterpret_cast<BingoEvent*>(
-        GlobalData::s_event_manager->GetRepeatEvent(0x6a));
-    if (event == 0) return;
-    BingoData* data = static_cast<BingoData*>(getBingoData());
-    // 注：boost::shared_ptr<CBingo> operator-> 因 TU-local CBingo 不完整无法实例化，
-    // 直读 px 槽（语义等价；ORIG pt 符号差异记深查）
-    CBingo* bingo = *reinterpret_cast<CBingo**>(event->getBingoSystem());
-    bingo->initUserData(*data);
-    sendBingoData();
+    // ORIG 0x086912d5-0x086912f0：首 call 结果 %eax 免槽直接虚调 IsEventing(0)，
+    // `test %al,%al; je END` truthy 正向包裹（技巧6/17）
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x6a)
+            ->IsEventing(static_cast<CUser*>(0)))
+    {
+        // ORIG 0x08691307：二次 GetRepeatEvent 存 -0xc 槽判空（if(event) 正向）
+        BingoEvent* event = reinterpret_cast<BingoEvent*>(
+            GlobalData::s_event_manager->GetRepeatEvent(0x6a));
+        if (event != 0)
+        {
+            BingoData* data = static_cast<BingoData*>(getBingoData());
+            // 注：boost::shared_ptr<CBingo> operator-> 因 TU-local CBingo 不完整
+            // 无法实例化，直读 px（4.4 inline 折叠，ORIG pt 显式 call 为跨版本差）
+            CBingo* bingo = *reinterpret_cast<CBingo**>(event->getBingoSystem());
+            bingo->initUserData(*data);
+            sendBingoData();
+        }
+    }
 }
 
 
@@ -9707,24 +9722,21 @@ class CEventManager_fwd_check;   // GetRepeatEvent/IsEventing 经 CGuildServerPr
 // ---------------------------------------------------------------------------
 int CUser::get_SoloPlay_msgType(const MSG_REQ_TO_PEER& msg)
 {
-    int v = static_cast<signed char>(
-        *reinterpret_cast<const unsigned char*>(
-            reinterpret_cast<const char*>(&msg) + 0xf));
-    if (v == 1) {
-        return 0;
+    // ORIG 0x0868dd7c：`movzbl 0xf(%eax),%eax; movsbl %al,%eax` 单条成员 disp
+    // 装载（§4.3 例外视图，MSG_REQ_TO_PEER 无布局符号）+ 值留 %eax 二分下探
+    // （4.1 switch 决策树 `cmp $1; je; cmp $1; jg; test; je;…`，技巧34）
+    struct PeerTypeView { char m_pad[0xf]; unsigned char m_reqType; };
+    register int v asm("eax") = static_cast<signed char>(
+        (reinterpret_cast<const PeerTypeView*>(&msg))->m_reqType);
+    switch (v) {
+    // ORIG 岛序 0x29 ret1 / 0x30 ret0 / 0x37 ret2 / 0x3e ret3 / 0x45 ret4
+    // ⇒ 源 case 书写序 0,1,2,3（body 块按声明序发射）
+    case 0: return 1;
+    case 1: return 0;
+    case 2: return 2;
+    case 3: return 3;
+    default: return 4;
     }
-    if (v > 1) {
-        if (v == 2) {
-            return 2;
-        }
-        if (v == 3) {
-            return 3;
-        }
-    }
-    else if (v == 0) {
-        return 1;
-    }
-    return 4;
 }
 
 // ---------------------------------------------------------------------------

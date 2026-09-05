@@ -77,7 +77,7 @@ public:
                     const char* password, int d, PVP_BATTLE_MODE mode);
     int join_room(CUser* user, int& seat, bool flag);
     int leave_room(CUser* user, bool& flag);
-    int destroy_room(int idx);
+    CUser* destroy_room(int idx);   // ORIG __PRETTY_FUNCTION__ 实证返回 CUser*（08cc25c0）
     int Disconnect(CUser* user);
     bool WalkOut(CUser* user, int seat, ENUM_SEAT_STATE state,
                 ENUM_WALKOUT_TYPE walkoutType);

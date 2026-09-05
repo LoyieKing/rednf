@@ -79,7 +79,10 @@ CBitManager::~CBitManager()
 
 void CBitManager::SetAll(int value, unsigned char* buf)     // 0x0831c0ce
 {
-    for (int i = 0; i < m_size; ++i)
+    // ORIG 0x0831c0d4/0x0831c0db：i 声明置 0 + for 头再置 0（两条 movl $0 同
+    // 槽）——原码即 `int i = 0; for (i = 0; ...)` 形，忠实保留。
+    int i = 0;
+    for (i = 0; i < m_size; ++i)
     {
         if (value == 0)
         {
@@ -102,12 +105,24 @@ void CBitManager::ReadData(unsigned char* data, int size)   // 0x0831c116
 
 unsigned char CBitManager::GetBitFromLSB(int bits)          // 0x0831c160
 {
-    // ORIG 栈上掩码表 [1,3,7,0xf,0x1f,0x3f,0x7f]，下标 bits-1
-    static const unsigned char maskTable[8] =
-        { 0, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f };
-    unsigned char mask = maskTable[bits - 1];
-    unsigned char ret = m_data[m_size - 1] & mask;          // 源是 m_data
-    ShiftRight(bits, m_buffer);                             // 移位对象为 m_buffer
+    // ORIG 0x0831c160：栈上 8 字节掩码表**逐元素赋值**（非初始化列表——P60
+    // 列表形变 .rodata 模板+rep movs，ORIG 为 8 条 movb 立即数）；下标 bits-1；
+    // -0x10 dead int 零初始化槽（P31）；ShiftRight 第 3 实参 = mov (%eax) =
+    // this+0 即 m_data（此前 m_buffer 系误转，0x0831c1b8 实证）。
+    unsigned char table[7];
+    table[0] = 0x01;
+    table[1] = 0x03;
+    table[2] = 0x07;
+    table[3] = 0x0f;
+    table[4] = 0x1f;
+    table[5] = 0x3f;
+    table[6] = 0x7f;
+    unsigned char ret = 0;
+    int unused = 0;
+    (void)unused;
+    unsigned char mask = table[bits - 1];
+    ret = m_data[m_size - 1] & mask;
+    ShiftRight(bits, m_data);
     return ret;
 }
 
@@ -141,14 +156,26 @@ void CBitManager::ShiftLeft(int bits, unsigned char* buf)   // 0x0831c266
 
 unsigned char CBitManager::GetBit(int idx, int bitLo, int bitHi) // 0x0831c2fc
 {
-    static const unsigned char masks[8] =
-        { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 };
+    // ORIG 0x0831c2fc：int 循环槽先置 0（-0x8）、acc/ret 置 0（-0x2/-0x1），
+    // 栈掩码表逐元素赋值，(int)b<=bitHi setle 形循环。
+    int b = 0;
     unsigned char acc = 0;
-    for (int b = bitLo; b <= bitHi; ++b)
+    unsigned char ret = 0;
+    unsigned char masks[8];
+    masks[0] = 0x01;
+    masks[1] = 0x02;
+    masks[2] = 0x04;
+    masks[3] = 0x08;
+    masks[4] = 0x10;
+    masks[5] = 0x20;
+    masks[6] = 0x40;
+    masks[7] = 0x80;
+    for (b = bitLo; b <= bitHi; ++b)
     {
-        acc |= masks[b];
+        acc = static_cast<unsigned char>(acc | masks[b]);
     }
-    return static_cast<unsigned char>(m_data[idx] & acc);
+    ret = static_cast<unsigned char>(m_data[idx] & acc);
+    return ret;
 }
 
 // ===========================================================================
@@ -156,7 +183,11 @@ unsigned char CBitManager::GetBit(int idx, int bitLo, int bitHi) // 0x0831c2fc
 // ===========================================================================
 CObfuscator::CObfuscator()                                   // 0x08585888
 {
-    // ORIG 构造局部临时 CBitManager 后立即析构（无副作用），忠实保留：
+    // ORIG 0x08585888：base CBitManager ctor → 局部临时 CBitManager ctor/dtor
+    // （0x085858a1/0x085858ac）。ORIG 4.1 对 temp ctor call 点带 EH landing pad
+    // （+0x2b..+0x41 dtor+Unwind_Resume，"new-expression landing-pad 抑制"反例
+    // 族：4.4 判定半构造对象无需 cleanup 不发 landing，14 vs 30 的 16 条全在
+    // 此块 + push esi/ebx 帧差），正常路径指令逐条同形。
     CBitManager temp;
 }
 
@@ -355,21 +386,26 @@ WindowsExeFile::~WindowsExeFile()
         delete m_image;      // ORIG _ZdlPv（new[]/delete 不匹配为 ORIG 原样，同 LoadClientFile）
         m_image = 0;
     }
-    for (std::size_t i = 0; i < m_sections.size(); ++i)
+    // ORIG 0x08573744..：迭代器形——begin 一次性入临时槽（-0x14），每轮 end()
+    // 重取临时（-0x1c）+ operator!=/operator*（多次直调），delete 后 *it=0，
+    // operator++ 回边；无 size/operator[] 索引链。
+    for (std::vector<WindowsExeConstantSection*>::iterator it = m_sections.begin();
+         it != m_sections.end(); ++it)
     {
-        if (m_sections[i] != 0)
+        if (*it != 0)
         {
-            delete m_sections[i];
-            m_sections[i] = 0;
+            delete *it;
+            *it = 0;
         }
     }
     m_sections.clear();
-    for (std::size_t i = 0; i < m_commonSections.size(); ++i)
+    for (std::vector<WindowsExeConstantSection*>::iterator it = m_commonSections.begin();
+         it != m_commonSections.end(); ++it)
     {
-        if (m_commonSections[i] != 0)
+        if (*it != 0)
         {
-            delete m_commonSections[i];
-            m_commonSections[i] = 0;
+            delete *it;
+            *it = 0;
         }
     }
     m_commonSections.clear();
@@ -609,11 +645,14 @@ WindowsDataFileFamily::~WindowsDataFileFamily()
 
 bool WindowsDataFileFamily::IsDifferentFileData(WindowsDataFile* f)    // 0x08575068（非 const）
 {
-    for (std::size_t i = 0; i < m_files.size(); ++i)
+    // ORIG 0x08575068：迭代器循环（begin 临时槽 + 每轮 end/operator!=/
+    // operator* 直调）；memcmp 长度实参照抄取 f->m_size。
+    for (std::vector<WindowsDataFile*>::iterator it = m_files.begin();
+         it != m_files.end(); ++it)
     {
-        const WindowsDataFile& cur = *m_files[i];
-        if (cur.m_size == f->m_size &&
-            memcmp(cur.m_data, f->m_data, cur.m_size) == 0)
+        WindowsDataFile* cur = *it;
+        if (cur->m_size == f->m_size &&
+            memcmp(cur->m_data, f->m_data, f->m_size) == 0)
         {
             return false;                                    // 相同内容 → 非新文件
         }
@@ -780,11 +819,14 @@ bool WindowsExeFileFamily::LoadWindowsExeFile(const char* path,
 
 bool WindowsExeFileFamily::IsDifferentFileData(WindowsExeFile* f) // 0x08574ace
 {
-    for (std::size_t i = 0; i < m_exeFiles.size(); ++i)
+    // ORIG 0x08574ace：迭代器循环形（begin 临时槽 + 每轮 end/operator!=/operator*
+    // 直调，无 size/[] 索引链）。
+    for (std::vector<WindowsExeFile*>::iterator it = m_exeFiles.begin();
+         it != m_exeFiles.end(); ++it)
     {
-        const WindowsExeFile& cur = *m_exeFiles[i];
-        if (cur.m_size == f->m_size &&
-            memcmp(cur.m_image, f->m_image, f->m_size) == 0)
+        WindowsExeFile* cur = *it;
+        if (cur->m_size == f->m_size &&
+            memcmp(cur->m_image, f->m_image, f->m_size) == 0)
         {
             return false;
         }
@@ -792,52 +834,72 @@ bool WindowsExeFileFamily::IsDifferentFileData(WindowsExeFile* f) // 0x08574ace
     return true;
 }
 
+// swap_value<IntervalSet*> —— ORIG W 0x0857688f 全局模板（OnlyOrigBatch12.cpp
+// force 发射同定义；本 TU 隐式实例化再发同名 W，链接合并）。
+template <class T>
+void swap_value(T& a, T& b)
+{
+    T tmp = a;
+    a = b;
+    b = tmp;
+}
+
 bool WindowsExeFileFamily::CompleteLoadingWindowsExeFiles()  // 0x08574736
 {
-    IntervalSet intersected;                                 // local_80/74/68 工作区
-    IntervalSet cur;
-    IntervalSet prev;
+    // ORIG 0x08574736 全形转写：sets[3] 逐元素构造 + 三个 IntervalSet* 槽做
+    // **指针级** swap_value<IntervalSet*>（非对象 std::swap）；未使用的局部
+    // std::vector<IntervalSet*>（ORIG local_50 ctor/dtor，0x08574757/尾部）；
+    // 双层迭代器循环（begin 一次入槽 + 每轮 end/operator!=/operator*/++）。
+    IntervalSet sets[3];
+    IntervalSet* pCur = &sets[0];
+    IntervalSet* pPrev = &sets[1];
+    IntervalSet* pInter = &sets[2];
     bool first = true;
+    std::vector<IntervalSet*> unusedVec;
 
-    for (std::size_t i = 0; i < m_exeFiles.size(); ++i)
+    for (std::vector<WindowsExeFile*>::iterator it = m_exeFiles.begin();
+         it != m_exeFiles.end(); ++it)
     {
-        WindowsExeFile* exe = m_exeFiles[i];
-        prev.Clear();
-        for (std::size_t k = 0; k < exe->m_sections.size(); ++k)
+        WindowsExeFile* exe = *it;
+        pPrev->Clear();
+        for (std::vector<WindowsExeConstantSection*>::iterator sit =
+                 exe->m_sections.begin();
+             sit != exe->m_sections.end(); ++sit)
         {
-            const WindowsExeConstantSection& sec = *exe->m_sections[k];
-            Interval r(static_cast<long>(sec.start),
-                       static_cast<long>(sec.size));
-            prev.AddInterval(r);
+            WindowsExeConstantSection* sec = *sit;
+            Interval iv(sec->start, sec->size);
+            pPrev->AddInterval(iv);
         }
         if (first)
         {
-            std::swap(cur, prev);                            // ORIG swap_value<IntervalSet*>
+            swap_value(pCur, pPrev);
             first = false;
         }
         else
         {
-            IntersectIntervalSet(&intersected, cur, prev);
-            if (intersected.m_intervals.empty())
+            IntersectIntervalSet(pInter, *pCur, *pPrev);
+            if (pInter->m_intervals.size() == 0)
             {
                 return false;
             }
-            std::swap(cur, intersected);
+            swap_value(pCur, pInter);
         }
     }
 
-    if (cur.m_intervals.empty())
+    if (pCur->m_intervals.size() == 0)
     {
         return false;
     }
-    this->IntervalSet::operator=(cur);                       // IntervalSet::operator=
+    this->IntervalSet::operator=(*pCur);                     // IntervalSet::operator=
     Sort();
-    for (std::size_t i = 0; i < m_exeFiles.size(); ++i)
+    for (std::vector<WindowsExeFile*>::iterator it = m_exeFiles.begin();
+         it != m_exeFiles.end(); ++it)
     {
-        m_exeFiles[i]->MakeCommonWindowsExeConstantSections(*this);
+        WindowsExeFile* exe = *it;
+        exe->MakeCommonWindowsExeConstantSections(*this);
     }
-    m_curOffset = m_intervals[0].m_start;                    // vector<Interval>[0].start
-    m_curSectionIndex = 0;
+    m_curSectionIndex = 0;                                   // this+0x11c
+    m_curOffset = m_intervals[0].m_start;                    // operator[](this,0) 首字
     return true;
 }
 
@@ -1179,23 +1241,28 @@ void CCompressedBlob::reset()                                // 0x0844e080
 bool CCompressedBlob::compress(MySQL* db, int fieldIdx, char* src, int srcLen,
                                char** outStr)                // 0x0844de9a
 {
-    int needSize = srcLen + srcLen / 10 + 12;                // imul 0x66666667 == /10
+    // ORIG 0x0844de9a：单一 unsigned int 槽（-0xc）既作 resize 入参又作
+    // compress_zip 的 unsigned int& 出参（blob_to_str 读回同槽）——引入独立
+    // outLen 变量会多占一槽并差 store/load。除法带符号展开 magic 0x66666667
+    // 配 `sar $1` = **/5**（前批误读为 /10：/10 与 /5 共用 magic、以移位区分，
+    // ORIG sar1 vs ours sar2 即常数不同之证；改 /5 后 4.4 展开与 ORIG 同形）。
+    unsigned int needSize = srcLen + srcLen / 5 + 12;
     resize(needSize);
     reset();
-
-    unsigned int outLen = static_cast<unsigned int>(needSize);
-    if (!compress_zip(m_buf, outLen, src, static_cast<unsigned int>(srcLen)))
+    if (!compress_zip(m_buf, needSize, src, static_cast<unsigned int>(srcLen)))
     {
         return false;
     }
-    *outStr = db->blob_to_str(fieldIdx, m_buf, static_cast<int>(outLen));
+    *outStr = db->blob_to_str(fieldIdx, m_buf, static_cast<int>(needSize));
     return true;
 }
 
 bool CCompressedBlob::uncompress(MySQL* db, int fieldIdx, char* dst,
                                  int dstLen, int align)      // 0x0844df40
 {
-    int needSize = dstLen + dstLen / 10 + 12;
+    // ORIG 0x0844df40：needSize 单槽（-0x10）复用 uint& 出参；binaryLen 独立
+    // 槽 -0xc；尾部 align 检查 `align!=0 && needSize%align!=0 && needSize!=0`。
+    unsigned int needSize = dstLen + dstLen / 5 + 12;
     resize(needSize);
     reset();
 
@@ -1204,14 +1271,13 @@ bool CCompressedBlob::uncompress(MySQL* db, int fieldIdx, char* dst,
     {
         return false;
     }
-    unsigned int unLen = static_cast<unsigned int>(needSize);
-    if (!uncompress_zip(dst, unLen, m_buf,
+    if (!uncompress_zip(dst, needSize, m_buf,
                         static_cast<unsigned int>(binaryLen)))
     {
         return false;
     }
-    if (align != 0 && (unLen % static_cast<unsigned int>(align)) != 0 &&
-        unLen != 0)
+    if (align != 0 && (needSize % static_cast<unsigned int>(align)) != 0 &&
+        needSize != 0)
     {
         return false;
     }

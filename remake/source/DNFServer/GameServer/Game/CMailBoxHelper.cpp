@@ -89,15 +89,8 @@ struct MailBoxListV
         int m_expire2;                   // +0x0c
     };                                   // 步长 0x25
 
-    struct DetailEntry
-    {
-        unsigned int m_letterId;         // +0x00
-        unsigned int m_characNo;         // +0x04
-        char m_title[0x1d];              // +0x08
-        char m_msg[0x100];               // +0x25
-        int m_period;                    // +0x125
-        short m_flag;                    // +0x129
-    };                                   // sizeof 0x12b
+    // DetailEntry 已上收权威头：SIG_LETTER_INFO（CMailBoxHelper.h pack(1)
+    // 字段版）与本视图同布局，明细区直接按 SIG_LETTER_INFO 访问。
 
     char m_padEntries[0x794];
     int m_mailCount;                 // +0x794
@@ -117,7 +110,6 @@ struct MailBoxListV
 static_assert(sizeof(MailBoxListV) == 0x338a, "MailBoxListV ABI drift");
 static_assert(sizeof(MailBoxListV::Entry) == 0x61, "MailBoxListV::Entry ABI drift");
 static_assert(sizeof(MailBoxListV::AvatarEntry) == 0x47, "MailBoxListV::AvatarEntry ABI drift");
-static_assert(sizeof(MailBoxListV::DetailEntry) == 0x12b, "MailBoxListV::DetailEntry ABI drift");
 
 // SIG_MAILBOX_DEL_MAIL：+0 count / +4*i idx 表 / +0x54 type，总 0x58。
 #pragma pack(push, 1)
@@ -333,41 +325,8 @@ struct MailBoxLoadReqV
     unsigned int m_lackList[0x14];    // +0x14
 };
 #pragma pack(pop)
-// Inven_Item 布局镜像（pack(1) 0x3d；与 Inven_Item.h 权威布局一致，用于
-// SetMailBoxInfo 中对 amp/random 区按 ORIG 偏移逐字段搬运）。
-#pragma pack(push, 1)
-struct InvenItemRawV
-{
-    char m_field0;              // +0x00
-    unsigned char m_field1;     // +0x01
-    int m_addInfo;              // +0x02
-    unsigned char m_attr;       // +0x06
-    int m_addInfo2;             // +0x07
-    unsigned short m_fieldb;    // +0x0b
-    int m_fieldd;               // +0x0d
-    char m_ampArea[0xe];        // +0x11
-    char m_randomArea[0x14];    // +0x1f
-    unsigned char m_upgradeSep; // +0x33
-    char m_reserved[9];         // +0x34
-};
-#pragma pack(pop)
-// stAddNewMailInput 布局视图（SetMailBoxInfo 0x85525a6 条目区汇编证据：
-// input+0x20 = 条目+0x08 指针；input+0x08 ← 条目+0x25 dword）。
-#pragma pack(push, 1)
-struct MailInputV
-{
-    unsigned int m_mailIdx;      // +0x00
-    unsigned int m_characNo;     // +0x04
-    unsigned int m_unk08;        // +0x08
-    unsigned int m_letterId;     // +0x0c
-    unsigned char m_attachType;  // +0x10
-    int m_pkgType;               // +0x14
-    unsigned int m_money;        // +0x18
-    unsigned char m_unlimit;     // +0x1c
-    char m_pad1d[3];
-    const char* m_senderName;    // +0x20
-};
-#pragma pack(pop)
+// （InvenItemRawV / MailInputV 已删：SetMailBoxInfo 改用 &item+disp 直写
+//  amp/random 区 + 权威头 stAddNewMailInput 具名字段，两视图无剩余消费方。）
 // SIG_AVATAR_INSERT 布局视图（set 0x850d3c8 逐字段证据；SigTypes_A.h 为
 // m_data[0x53] 占位）。
 #pragma pack(push, 1)
@@ -740,20 +699,23 @@ void CMailBoxHelper::MakeMailBoxListPacket(CUser* user, PacketGuard* packet)
 // ORIG 逐字段重读形（P157/P49）：ORIG 汇编对 SIG_MAILBOX_LIST 各段每次访问都
 // 重算 `mov 0xc(%ebp) + imul + lea + disp`（0x085528ee/0x08552a45/0x08553254
 // 等），不缓存条目指针槽 ⇒ 用宏直构（static inline 会发 call 符号，P49）。
+// 表达式取 `i*step + info`（i 先求值）以复现 ORIG 4.1.2 装载序
+// （`mov -0x30,%eax; imul $0x61; lea (%edx,%eax,1)` vs 4.4 info-先形态）。
 #define MBV (reinterpret_cast<MailBoxListV const*>(info))
 #define MB_ENTRY(k) (reinterpret_cast<MailBoxListV::Entry const*>( \
-    reinterpret_cast<char const*>(info) + (k) * 0x61))
+    (k) * 0x61 + reinterpret_cast<char const*>(info)))
 #define MB_AVATAR(k) (reinterpret_cast<MailBoxListV::AvatarEntry const*>( \
-    reinterpret_cast<char const*>(info) + 0x7a4 + (k) * 0x47))
+    (k) * 0x47 + reinterpret_cast<char const*>(info) + 0x7a4))
 #define MB_CREATURE(k) (reinterpret_cast<MailBoxListV::CreatureEntry const*>( \
-    reinterpret_cast<char const*>(info) + 0xd30 + (k) * 0x25))
+    (k) * 0x25 + reinterpret_cast<char const*>(info) + 0xd30))
 #define MB_DETAIL(k) (reinterpret_cast<SIG_LETTER_INFO const*>( \
-    reinterpret_cast<char const*>(info) + 0x101c + (k) * 0x12b))
+    (k) * 0x12b + reinterpret_cast<char const*>(info) + 0x101c))
 
 // 残余 DIFF 归因（语义/调用序/字段序已按 ORIG 逐段恢复，insns 1086 vs 1117）：
-//  N1 族——ORIG(4.1.2) 条目基址两步常量折叠 `add $0x7e0; add $0x7` /
-//        `add $0x20; mov 0xa(%eax)`（0x08552822/0x08552a45），4.4.7 恒折单 add
-//        或先载 info 后加，穷举组合不可复现；
+//  N1 族——ORIG(4.1.2) 条目基址 combine 拆叠 `i*0x47; add $0x7e0; add info;
+//        add $0x7`（0x08552822：0x7a4+0x43 拆为 dword 对齐段 0x7c0/0x7e0 前置
+//        + 尾余 0x7/0x9）、`add $0x20; mov 0xa(%eax)`（0x08552a45）——4.4.7
+//        恒折 0x7a4+0x43 或 info-先行形态，i-first 表达式序已试，不可复现；
 //  P112——4.4.7 将浅层 dead 间隔槽位合并（nowSec 并入 len 层），致 -0x40..-0x4c
 //        一层平移 4 字节；声明序重排已把 -0x1c..-0x3c 与 -0x2b0..-0x384 深区
 //        对齐，剩余层不可控；

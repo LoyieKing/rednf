@@ -18,6 +18,27 @@
 #include "ItemGloballyUniqueIdentifierGenerator.h"  // itemGloballyUniqueIdentifier_t
 #include "TimeLog_.h"
 
+// CUser 冻结头（§8.2-3）未建模 m_characs 向量：@+0x796e8（ORIG 0x08682a92/
+// 0x08682ae0 operator[] 基址实证，std::vector<_Charac_info> 元素步距见
+// _Charac_info 字段 +0x26 访问）。P49：寻址助手用宏不用 static inline。
+// Main 在 CUser.h 落真实成员后本宏应替换为具名访问。
+#define CHARAC_VEC(user) \
+    (*reinterpret_cast<std::vector<_Charac_info>*>( \
+        reinterpret_cast<char*>(user) + 0x796e8))
+
+// Inven_Item +0x25..0x32（ChronicleRandomOptionInfo::m_random 尾区，日志 14 个
+// %02X 字节）审计视图（P80）：ORIG 0x08682e84/0x0868340a 逐字段 `mov 0x18(%ebp),
+// %eax; movzbl 0x2X(%eax),%eax` 单 disp 折叠形——4.4 对通用指针下标恒发 add+
+// movzbl 两段，仅同布局具名字段视图按 ((View*)&item)->m_bNN 每次内联访问可复现
+// （P86/P95；视图指针不可命名局部，否则 re-spill）。
+struct InvenByteView
+{
+    char m_pad0[0x25];
+    unsigned char m_b25, m_b26, m_b27, m_b28, m_b29, m_b2a;
+    unsigned char m_b2b, m_b2c, m_b2d, m_b2e, m_b2f, m_b30;
+    unsigned char m_b31, m_b32;
+};
+
 // ---- CItemGloballyUniqueIdentifierPrint（ORIG W 0x84ebe58 族实证）----
 // ctor：memset(this,0,0x15)；operator()：DNFFLib::Binary2Hex(&guid,0xa,this)，返回缓冲；
 // dtor 空。0xa 字节 → 20 hex 字符 + NUL = 0x15 缓冲尺寸吻合。
@@ -98,7 +119,6 @@ void cUserHistoryLog::AvatarItemAdd(int itemIdx, int avatarUid, const char* agen
 void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
                               const Inven_Item& item, eItemAddReason reason)
 {
-    const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
     if ((int)reason == 1 || (int)reason == 2)
     {
         if (m_traderCharac[0] != 0)
@@ -114,11 +134,11 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
                 "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
                 (int)invenType, item.m_addInfo, a3, a4, (int)reason,
                 m_traderCharac, m_traderAccount,
-                upgrade & 0xff, (unsigned)item.m_fieldb,
-                raw[0x25], raw[0x26], raw[0x27], raw[0x28], raw[0x29], raw[0x2a],
-                raw[0x2b], raw[0x2c], raw[0x2d], raw[0x2e], raw[0x2f], raw[0x30],
-                raw[0x31], raw[0x32],
-                reseal & 0xff, guid);
+                upgrade, (unsigned)item.m_fieldb,
+                ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26, ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28, ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
+                ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
+                ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
+                reseal, guid);
         }
         // ORIG：getItemXPos/YPos(m_user + 0x79700)（history 子对象 +0x40/+0x42 网格坐标）。
         cUserHistoryLog* posSrc = &m_user->m_historyLog;
@@ -136,11 +156,11 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
             xPos & 0xffff, yPos & 0xffff,
             item.m_addInfo2, item.m_fieldd,
             (unsigned)item.m_amp.m_abilityType, (unsigned)item.m_amp.m_abilityValue,
-            upgrade & 0xff, (unsigned)item.m_fieldb,
-            raw[0x25], raw[0x26], raw[0x27], raw[0x28], raw[0x29], raw[0x2a],
-            raw[0x2b], raw[0x2c], raw[0x2d], raw[0x2e], raw[0x2f], raw[0x30],
-            raw[0x31], raw[0x32],
-            reseal & 0xff, guid);
+            upgrade, (unsigned)item.m_fieldb,
+            ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26, ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28, ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
+            ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
+            ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
+            reseal, guid);
     }
 }
 
@@ -149,7 +169,6 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
 void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
                               const Inven_Item& item, eItemDelReason reason)
 {
-    const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
     if ((int)reason == 1 || (int)reason == 2)
     {
         if (m_traderCharac[0] != 0)
@@ -165,11 +184,11 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
                 "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
                 (int)invenType, item.m_addInfo, a3, a4, (int)reason,
                 m_traderCharac, m_traderAccount,
-                upgrade & 0xff, (unsigned)item.m_fieldb,
-                raw[0x25], raw[0x26], raw[0x27], raw[0x28], raw[0x29], raw[0x2a],
-                raw[0x2b], raw[0x2c], raw[0x2d], raw[0x2e], raw[0x2f], raw[0x30],
-                raw[0x31], raw[0x32],
-                reseal & 0xff, guid);
+                upgrade, (unsigned)item.m_fieldb,
+                ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26, ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28, ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
+                ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
+                ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
+                reseal, guid);
         }
     }
     else
@@ -185,27 +204,29 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
             (int)invenType, item.m_addInfo, a3, a4, (int)reason,
             item.m_addInfo2, item.m_fieldd,
             (unsigned)item.m_amp.m_abilityType, (unsigned)item.m_amp.m_abilityValue,
-            upgrade & 0xff, (unsigned)item.m_fieldb,
-            raw[0x25], raw[0x26], raw[0x27], raw[0x28], raw[0x29], raw[0x2a],
-            raw[0x2b], raw[0x2c], raw[0x2d], raw[0x2e], raw[0x2f], raw[0x30],
-            raw[0x31], raw[0x32],
-            reseal & 0xff, guid);
+            upgrade, (unsigned)item.m_fieldb,
+            ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26, ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28, ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
+            ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
+            ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
+            reseal, guid);
     }
 
     // Compound 补丁块（ORIG +0x543）：reason==8 && m_field1(ITEM_TYPE)==1。
     if ((int)reason == 8 && item.m_field1 == 1)
     {
-        unsigned int lockV = item.m_amp.GetLock();
-        unsigned int valueV = item.m_amp.getAbilityValue();
+        // ORIG 0x086839xx：实参位右到左即时求值（P44），uchar/ushort getter 的
+        // movzbl/movzwl 零扩展即掩码，无需显式 &0xff/&0xffff。
+        register unsigned int lockV = item.m_amp.GetLock();
+        register unsigned int valueV = item.m_amp.getAbilityValue();
         unsigned int typeV = item.m_amp.getAbilityType();
+        unsigned int fieldV = item.m_fieldd;
+        unsigned int sepV = item.m_upgradeSep.m_field & 0x1f;
+        unsigned int addInfoV = item.get_add_info();
+        unsigned int upgradeV = item.GetUpgrade();
         m_user->LogHistory(
             "Compound-,%u,%d,%d,%d,%d,%d,%d,%d,",
-            (unsigned)item.m_addInfo, item.GetUpgrade() & 0xff, item.get_add_info(),
-            (unsigned)(item.m_upgradeSep.m_field & 0x1f),
-            item.m_fieldd,
-            typeV & 0xff,
-            valueV & 0xffff,
-            lockV & 0xff);
+            (unsigned)item.m_addInfo, upgradeV, addInfoV, sepV, fieldV,
+            typeV, valueV, lockV);
     }
 }
 
@@ -400,22 +421,17 @@ void cUserHistoryLog::SkillSPInfoSave(CUser* user, eSkillSPInfoSaveReason reason
     WongWork::CSkillChanger changer;
     int totalSP = changer.GetCurCharacTotalSP(user, false);
 
-    char buf1[0x20] = {0};   // ORIG rep stos 0x20 清零
-    char buf2[0x20] = {0};
+    // ORIG 0x08686188：buf1/buf2 各 0x80（rep stos $0x20 dwords，P116 计数口径）；
+    // 单/双树判定不物化 bool（ORIG test/je+cmp/je 直落两分支体，P133 独立守卫形）。
+    char buf1[0x80] = {0};
+    char buf2[0x80] = {0};
 
-    bool isSingleTree = false;
-    if (user != 0)
+    if (user != 0 && user->GetCurCharacSkillTreeIndex() == -1)
     {
-        if (user->GetCurCharacSkillTreeIndex() == -1)
-        {
-            isSingleTree = true;
-        }
-    }
-
-    if (isSingleTree)
-    {
-        const SkillSlot* slot = (const SkillSlot*)user->getCurCharacSkillR();
-        int remain0 = slot->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0);
+        // ORIG 0x08686210：链式 receiver（getR 结果 eax 直转 this 实参，不落
+        // slot——P52；命名 slot 局部会 spill+reload 各多 1 条）。
+        int remain0 = reinterpret_cast<const SkillSlot*>(user->getCurCharacSkillR())
+                          ->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0);
         if (totalSP >= 0 && remain0 >= 0)
         {
             sprintf(buf1, "SkillSPInfo,%d,%d,%d,%d", (int)reason, remain0, totalSP, 0xffffffff);
@@ -424,9 +440,10 @@ void cUserHistoryLog::SkillSPInfoSave(CUser* user, eSkillSPInfoSaveReason reason
     }
     else
     {
-        const SkillSlot* slot = (const SkillSlot*)user->getCurCharacSkillR();
-        int remain0 = slot->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0);
-        int remain1 = slot->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)1);
+        int remain0 = reinterpret_cast<const SkillSlot*>(user->getCurCharacSkillR())
+                          ->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0);
+        int remain1 = reinterpret_cast<const SkillSlot*>(user->getCurCharacSkillR())
+                          ->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)1);
         if (totalSP >= 0 && remain0 >= 0 && remain1 == 0)
         {
             sprintf(buf1, "SkillSPInfo,%d,%d,%d,%d", (int)reason, remain0, totalSP, 0);
@@ -446,6 +463,10 @@ void cUserHistoryLog::SkillSPInfoSave(CUser* user, eSkillSPInfoSaveReason reason
 void cUserHistoryLog::BillingSuccess(ENUM_BILLING_TYPE type,
                                      unsigned long long tranNo, int amount)
 {
+    // ORIG 0x086858a0：两分支各调一次 NumberToString（P48 双臂独立 call）+
+    // ullong 实参经 8B 对齐槽对预 spill——4.4 对嵌套实参 R→L 装载序与 4.1
+    // “call 先行+结果寄存器直转”不可齐（穷举 inline/命名/tn 预spill 三形，
+    // 命名单 call 形 41/45 最近），取最小 ndiff 形并保语义。
     char* str = NumberToString(tranNo, 0);
     if (type == 3)
         m_user->LogHistory("BILLING, Success,%d,%s", 3, str);
@@ -628,9 +649,11 @@ void cUserHistoryLog::MoveArea(int a, int b, int c, int d, int e)
 void cUserHistoryLog::Logout(const char* a, const char* b, int c, int d, int e,
                              unsigned char f)
 {
-    int serverGroup = G_CEnvironment()->get_server_group();
+    // ORIG 0x08685bxx：get_server_group 结果留 callee-saved（%ebx）直转实参；
+    // 4.4 命名局部必 spill 槽（frame +0x14）。取链式内联形。
     m_user->LogHistory("IP-,%s,%d,%d,%d,%d,%d,%p",
-                       b, c, d, static_cast<int>(f), serverGroup, e,
+                       b, c, d, static_cast<int>(f),
+                       G_CEnvironment()->get_server_group(), e,
                        (const void*)this);
 }
 
@@ -816,14 +839,6 @@ void cUserHistoryLog::KillMonster(int mobIndex, unsigned int killValue1,
 }
 
 
-// ORIG 逐字节 movzbl 读取 item 偏移（0x25..0x32 落于 ChronicleRandomOptionInfo 内部，
-// 无具名字段，按报告字面偏移读取）。
-static unsigned int privStoreItemByteAt(Inven_Item const& item, int offset)
-{
-    return (unsigned int)*reinterpret_cast<unsigned char const*>(
-        reinterpret_cast<char const*>(&item) + offset);
-}
-
 // ==================== 私有商店历史（FixPrivateStoreSellerVtable 批次）====================
 // 报告 docs/class_func_reports/cUserHistoryLog/{CreatePrivateStore,RemovePrivateStore,
 // PrivateStoreItemAdd,PrivateStoreItemDel}.md 全文已读（汇编+反编译 C）。
@@ -847,7 +862,6 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
                                           int addNew, int addOld, eItemAddReason reason,
                                           char const* name1, char const* name2)
 {
-    const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
     CItemGloballyUniqueIdentifierPrint print;
     const char* guid = print(
         *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
@@ -856,16 +870,16 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
         (int)invenType, (int)item.m_addInfo, addNew, addOld, (int)reason,
         name1, name2,
-        (unsigned)item.GetUpgrade() & 0xff,
+        item.GetUpgrade(),
         (unsigned)item.m_fieldb,
-        privStoreItemByteAt(item, 0x25), privStoreItemByteAt(item, 0x26),
-        privStoreItemByteAt(item, 0x27), privStoreItemByteAt(item, 0x28),
-        privStoreItemByteAt(item, 0x29), privStoreItemByteAt(item, 0x2a),
-        privStoreItemByteAt(item, 0x2b), privStoreItemByteAt(item, 0x2c),
-        privStoreItemByteAt(item, 0x2d), privStoreItemByteAt(item, 0x2e),
-        privStoreItemByteAt(item, 0x2f), privStoreItemByteAt(item, 0x30),
-        privStoreItemByteAt(item, 0x31), privStoreItemByteAt(item, 0x32),
-        (unsigned)item.GetReSealCount() & 0xff,
+        ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26,
+        ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28,
+        ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
+        ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c,
+        ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e,
+        ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
+        ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
+        item.GetReSealCount(),
         guid);
 }
 
@@ -874,7 +888,6 @@ void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const
                                           int delNew, int delOld, eItemDelReason reason,
                                           char const* name1, char const* name2)
 {
-    const unsigned char* raw = reinterpret_cast<const unsigned char*>(&item);
     CItemGloballyUniqueIdentifierPrint print;
     const char* guid = print(
         *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
@@ -883,16 +896,16 @@ void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
         (int)invenType, (int)item.m_addInfo, delNew, delOld, (int)reason,
         name2,
-        (unsigned)item.GetUpgrade() & 0xff,
+        item.GetUpgrade(),
         (unsigned)item.m_fieldb,
-        privStoreItemByteAt(item, 0x25), privStoreItemByteAt(item, 0x26),
-        privStoreItemByteAt(item, 0x27), privStoreItemByteAt(item, 0x28),
-        privStoreItemByteAt(item, 0x29), privStoreItemByteAt(item, 0x2a),
-        privStoreItemByteAt(item, 0x2b), privStoreItemByteAt(item, 0x2c),
-        privStoreItemByteAt(item, 0x2d), privStoreItemByteAt(item, 0x2e),
-        privStoreItemByteAt(item, 0x2f), privStoreItemByteAt(item, 0x30),
-        privStoreItemByteAt(item, 0x31), privStoreItemByteAt(item, 0x32),
-        (unsigned)item.GetReSealCount() & 0xff,
+        ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26,
+        ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28,
+        ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
+        ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c,
+        ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e,
+        ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
+        ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
+        item.GetReSealCount(),
         guid);
 }
 
@@ -1062,10 +1075,11 @@ void cUserHistoryLog::CharacAdd(int idx)
     // ORIG 栈上 TimeLog_ 局部对象调 setTime()（结果未用，保留以对齐字节）。
     TimeLog_ tl;
     tl.setTime();
-    std::vector<_Charac_info>& characs =
-        *reinterpret_cast<std::vector<_Charac_info>*>(
-            reinterpret_cast<char*>(m_user) + 0x796e8);
-    m_user->LogHistory("Charac+,%d", (int)characs[idx].m_field26);
+    // CUser 冻结头未建模 m_characs（@+0x796e8，vector<_Charac_info>，nm/反汇编
+    // 证据：ORIG 0x08682a92 operator[] 基址），表达式内联传递（P134——引用局部
+    // 会挤占 -0xc 槽并使实参装载序漂移）。
+    m_user->LogHistory("Charac+,%d",
+        (int)CHARAC_VEC(m_user)[idx].m_field26);
 }
 
 // ORIG _ZN15cUserHistoryLog9CharacDelEi @0x08682ae0（与 CharacAdd 同型，"Charac-,"）
@@ -1073,10 +1087,8 @@ void cUserHistoryLog::CharacDel(int idx)
 {
     TimeLog_ tl;
     tl.setTime();
-    std::vector<_Charac_info>& characs =
-        *reinterpret_cast<std::vector<_Charac_info>*>(
-            reinterpret_cast<char*>(m_user) + 0x796e8);
-    m_user->LogHistory("Charac-,%d", (int)characs[idx].m_field26);
+    m_user->LogHistory("Charac-,%d",
+        (int)CHARAC_VEC(m_user)[idx].m_field26);
 }
 
 // ORIG _ZN15cUserHistoryLog6DiePvPE23ENUM_PVP_HISTORY_REASONjjiiiiPKc @0x08686490
@@ -1110,7 +1122,8 @@ void cUserHistoryLog::EnchantItem(int a, int b, int c, bool up,
 // ORIG _ZN15cUserHistoryLog6EndPvPE23ENUM_PVP_HISTORY_REASONbj @0x0868642e
 void cUserHistoryLog::EndPvP(ENUM_PVP_HISTORY_REASON reason, bool flag, unsigned int v)
 {
-    m_user->LogHistory("PVP,%d,%d,%u", (int)reason, flag ? 1 : 0, v);
+    // ORIG 0x08687f1x：bool 形参 spill 槽 movzbl 直接进 %d 实参（无三目岛）。
+    m_user->LogHistory("PVP,%d,%d,%u", (int)reason, flag, v);
 }
 
 // ORIG _ZN15cUserHistoryLog10EndRidableENS_12eRidableTypeEi @0x0868695c：注意参数换位
@@ -1385,25 +1398,26 @@ void cUserHistoryLog::UseDye(int a, int b, int c, const std::string& dyeName, in
 // ---- 物品网格坐标视图：ORIG 存于 this+0x40/+0x42（类尾部 m_pad 区）， ----
 // ---- 此前 static helper 直读偏移，现改用具名成员 m_itemX/m_itemY。     ----
 
-// ORIG W _ZN15cUserHistoryLog11getItemXPosEv @0x08696000（movzwl 0x40(%eax)）
+// ORIG W _ZN15cUserHistoryLog11getItemXPosEv @0x08696000：
+//   mov 0x8(%ebp),%eax; movzwl 0x40(%eax),%eax（单 disp 折叠）——具名成员
+//   m_itemX（CUser.h:2153 +0x40）直读。
 unsigned short cUserHistoryLog::getItemXPos()
 {
-    return *reinterpret_cast<const unsigned short*>(
-        reinterpret_cast<const char*>(this) + 0x40);
+    return m_itemX;
 }
 
-// ORIG W _ZN15cUserHistoryLog11getItemYPosEv @0x0869600c（movzwl 0x42(%eax)）
+// ORIG W _ZN15cUserHistoryLog11getItemYPosEv @0x0869600c：movzwl 0x42(%eax)。
 unsigned short cUserHistoryLog::getItemYPos()
 {
-    return *reinterpret_cast<const unsigned short*>(
-        reinterpret_cast<const char*>(this) + 0x42);
+    return m_itemY;
 }
 
-// ORIG W _ZN15cUserHistoryLog12SetItemXYPosEtt @0x0822f084（movw → 0x40/0x42）
+// ORIG W _ZN15cUserHistoryLog12SetItemXYPosEtt @0x0822f084：short 形参 spill
+// 槽（-0x4/-0x8）+ movzwl 回读 + `mov %dx,0x40(%eax)` disp 折叠写。
 void cUserHistoryLog::SetItemXYPos(unsigned short x, unsigned short y)
 {
-    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(this) + 0x40) = x;
-    *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(this) + 0x42) = y;
+    m_itemX = x;
+    m_itemY = y;
 }
 
 // ORIG _ZN15cUserHistoryLog13QuestCompleteEi @0x0868514e（格式串 ORIG .rodata 0x8cf0957）

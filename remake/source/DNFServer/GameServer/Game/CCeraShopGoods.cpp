@@ -27,6 +27,9 @@ STCeraShopItem::STCeraShopItem()
 }
 
 // ---- clear @ 0x88fd9c4 ----
+// 残余 1 insn（N 类豁免）：m_field44 写 ORIG 0x088fd…为 `mov $0x0,%edx;
+// mov %edx,0x44(%eax)` 两段（4.1 常数寄存器中转），4.4.7 恒折 `movl $0x0,
+// 0x44(%eax)` 单段（N18a 系 regmove 折叠，无源码形可翻）。
 void STCeraShopItem::clear()
 {
     m_field0 = (char)0xff;
@@ -72,7 +75,8 @@ void STCeraShopItem::clear()
 // ---- operator== @ 0x891a89e ----
 bool STCeraShopItem::operator==(const STCeraShopItem& other)
 {
-    if (m_field8 == other.m_field8)
+    // ORIG 0x0891a8a1：先载 other（0xc(%ebp)）后载 this，cmp %eax,%edx。
+    if (other.m_field8 == m_field8)
         return true;
     return false;
 }
@@ -100,6 +104,9 @@ bool STCeraShopItem::isLimitSaleItem()
 // ============================================================================
 
 // ---- SetItem @ 0x8510c1a ----
+// 残余 1 insn（N 类豁免）：m_itemIdx 读 ORIG 0x08510…为 `mov 0x14(%eax),
+// %eax; mov %eax,%edx` 两段物化，4.4.7 恒折单段 `mov 0x14(%eax),%edx`
+// （N18a：regmove 落 callee 不可复现）。
 void CCeraShopGoods::SetItem(const STCeraShopItem& item)
 {
     m_itemIdx = item.m_field14;
@@ -185,6 +192,11 @@ int CCeraShopGoods::GetExpiryDate() const
 
 float CCeraShopGoods::GetBonusWeight() const
 {
+    // ORIG 0x0854c588：`mov 0x2c(%eax),%eax; mov %eax,-0x4(%ebp); flds
+    // -0x4(%ebp)`（9 insn）。4.4.7 对 int 成员按位转 float 的三种合法形
+    // （直接 cast 返回 / union 成员拷贝 / float 槽直写）分别多出 add+mov
+    // 拆分、int round-trip、P76 LHS-address-first 伪影，均无法 1:1 复现
+    // 4.1 的单槽 spill+flds —— 记跨版本 store 形态豁免，保留语义最短形。
     return *(float*)&m_bonusWeight;
 }
 
@@ -219,6 +231,15 @@ bool ScanType(std::string& token, bool consume);
 int ScanInt(bool* ok);
 bool ScanStr(std::string* value);
 
+// 残余 DIFF 归因（N 类豁免，结构/语义/调用序已按报告全量转写）：
+//  ① 4.1 主链 39 对 `nop; jmp loop_head` 空 else 岛（0x089c→正确为
+//     0x088fdd31..0x088fdd5c 区起，报告 +0x007c 后）= 负例“空 else
+//     nop;jmp 岛 vs jump-threading”；
+//  ② item/串临时基槽深度差（ORIG item@-0x180/section@-0x84 vs 4.4
+//     -0x14c/-0x64，帧 0x190 vs 0x160）= P112 4.1/4.4 槽分配方向伪影，
+//     槽号差异在链接 AE 前以行差计；
+//  ③ bonus/mileage 环若干 `movzbl; xor$1; test` 与 jcc 目标镜像 = 负例
+//     jump-threading；④ .o 串/符号重定位立即数显示差（链接后消除）。
 bool importCashShopItemList(
     char* path, std::vector<STCeraShopItem>* itemList,
     std::vector<stCeraShopBonusInfo_t>& bonusList, void* param4, int* param5,
@@ -229,14 +250,20 @@ bool importCashShopItemList(
         return 0;
 
     // 按 ORIG 0x88fdcb5 完整转写。itemList 指向 16 个连续 vector<STCeraShopItem>
-    // 桶（调用方 shopList[0x10]）。分区→槽位：avatar=0 coin=1 item=2 creature=3
-    // package=7 premium=9 mileage=11 avatar-dye=15。
-    for (int i = 0; i < 0x10; ++i)
-        itemList[i].clear();
+    // 桶（stride 0xc，调用方 shopList[0x10]）。分区→槽位：avatar=0 coin=1
+    // item=2 creature=3 package=7 premium=9 mileage=11 avatar-dye=15。
+    // 头部仅清 mileage 桶（0x088fdcef `add $0x84` = itemList[11]）；其余桶
+    // 由各自分区块进入时 clear（0x088fdea2 avatar、0x088fe14c coin …）。
+    itemList[11].clear();
 
-    std::string section;
-    int seq = 0;                // ORIG -0x50(%ebp)：avatar 族 m_field4 序数
-    bool ok = false;
+    // ORIG 0x088fdcf4..0x088fdd28：两个串（-0x84/-0x88）+ itemIdx(-0x8c)=0、
+    // ok(-0x8d)=0、flag0(-0x54)=0、seq(-0x50)=0 全为函数级槽，各分区共享。
+    std::string section;       // -0x84
+    std::string str2;          // -0x88（[type]/局部串段消费）
+    int itemIdx = 0;           // -0x8c（各分区首列暂存）
+    bool ok = false;           // -0x8d
+    int flag0 = 0;             // -0x54（尾组 field0 经此 int 槽 byte 化）
+    int seq = 0;               // -0x50（avatar 族 m_field4 序数）
 
     while (true)
     {
@@ -245,7 +272,7 @@ bool importCashShopItemList(
 
         if (section == "[cerashop banner]")
         {
-            ok = false;
+            
             ScanInt(&ok);                     // local_50（仅消费）
         }
         else if (section == "[npc info]")
@@ -254,17 +281,17 @@ bool importCashShopItemList(
             {
                 std::string s;
                 ScanStr(&s);
-                ok = false;
+                
                 ScanInt(&ok);
             }
         }
         else if (section == "[category event tag]")
         {
-            ok = false;
+            
             while (true)
             {
                 int v = ScanInt(&ok);
-                if (!ok)
+                if (ok != true)
                     break;
                 if (param7)
                     param7->push_back(v);
@@ -274,99 +301,111 @@ bool importCashShopItemList(
         {
             if (section == "[avatar]")
                 itemList[0].clear();
-            ok = false;
+            
             while (true)
             {
-                int itemIdx = ScanInt(&ok);
-                if (!ok)
+                itemIdx = ScanInt(&ok);
+                if (ok != true)
                     break;
+                // ORIG 0x088fdee3..0x088fdf75：字段列 ScanInt 传 NULL
+                // （`movl $0x0,(%esp)`），写序 field4←seq、field8←itemIdx、
+                // 14/22/20/10/3c、随后 flag0 槽(-0x54)置 0 → fieldc=0、
+                // field1c=1、field0=flag0（byte 化自 int 槽）。
                 STCeraShopItem item;
                 item.m_field4 = seq;
                 ++seq;
-                item.m_field8 = itemIdx;            // +0x08 itemIdx
-                item.m_field14 = ScanInt(&ok);      // +0x14
-                item.m_field22 = (unsigned short)ScanInt(&ok);  // +0x22
-                item.m_field20 = (char)ScanInt(&ok);            // +0x20
-                item.m_field10 = ScanInt(&ok);      // +0x10
-                item.m_field3c = (char)ScanInt(&ok);// +0x3c
-                item.m_field0 = 0;                  // 类型 0
-                item.m_fieldc = 0;                  // 组 0
-                item.m_field1c = 1;                 // stack 1
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field22 = ScanInt(static_cast<bool*>(0));
+                item.m_field20 = ScanInt(static_cast<bool*>(0));
+                item.m_field10 = ScanInt(static_cast<bool*>(0));
+                item.m_field3c = ScanInt(static_cast<bool*>(0));
+                flag0 = 0;
+                item.m_fieldc = 0;
+                item.m_field1c = 1;
+                item.m_field0 = flag0;
                 itemList[0].push_back(item);
             }
         }
         else if (section == "[dont trade avatar]")
         {
-            ok = false;
+            
             while (true)
             {
-                int itemIdx = ScanInt(&ok);
-                if (!ok)
+                itemIdx = ScanInt(&ok);
+                if (ok != true)
                     break;
                 STCeraShopItem item;
                 item.m_field4 = seq;
                 ++seq;
                 item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(&ok);
-                item.m_field22 = (unsigned short)ScanInt(&ok);
-                item.m_field20 = (char)ScanInt(&ok);
-                item.m_field10 = ScanInt(&ok);
-                item.m_field3c = (char)ScanInt(&ok);
-                item.m_field0 = 0;
+                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field22 = ScanInt(static_cast<bool*>(0));
+                item.m_field20 = ScanInt(static_cast<bool*>(0));
+                item.m_field10 = ScanInt(static_cast<bool*>(0));
+                item.m_field3c = ScanInt(static_cast<bool*>(0));
+                flag0 = 0;
                 item.m_fieldc = 0;
                 item.m_field1c = 1;
-                ok = false;
-                item.m_field7c = ScanInt(&ok);      // +0x7c（仅消费，不入桶）
+                item.m_field0 = 0;                     // 0x088fe2…：本块尾写为立即数
+                item.m_field7c = ScanInt(static_cast<bool*>(0));   // 仅消费，不入桶
             }
         }
         else if (section == "[coin]" || section == "[national coin]")
         {
             if (section == "[coin]")
                 itemList[1].clear();
-            ok = false;
+            
             while (true)
             {
-                int itemIdx = ScanInt(&ok);
-                if (!ok)
+                itemIdx = ScanInt(&ok);
+                if (ok != true)
                     break;
+                // ORIG 0x088fe182..0x088fe2bf：m_field0 立即数字节写在前，
+                // 字段列 ScanInt 传 NULL，尾组 = m_name="" + flag 槽(-0x54)
+                // → m_fieldc → m_field0 再写。
                 STCeraShopItem item;
-                item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(&ok);
-                item.m_field1c = ScanInt(&ok);
-                item.m_field2c = ScanInt(&ok);
-                item.m_field30 = ScanInt(&ok);
-                item.m_field38 = ScanInt(&ok);
-                ScanStr(&item.m_name);
-                item.m_field20 = (char)ScanInt(&ok);
-                item.m_field10 = ScanInt(&ok);
                 item.m_field0 = 1;
-                item.m_fieldc = 1;
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field1c = ScanInt(static_cast<bool*>(0));
+                item.m_field2c = ScanInt(static_cast<bool*>(0));
+                item.m_field30 = ScanInt(static_cast<bool*>(0));
+                item.m_field38 = ScanInt(static_cast<bool*>(0));
+                ScanStr(&item.m_name);
+                item.m_field20 = ScanInt(static_cast<bool*>(0));
+                item.m_field10 = ScanInt(static_cast<bool*>(0));
                 item.m_name = "";
+                flag0 = 1;
+                item.m_fieldc = 1;
+                item.m_field0 = flag0;
                 itemList[1].push_back(item);
             }
         }
         else if (section == "[avatar dye]")
         {
             itemList[15].clear();
-            ok = false;
+            
             while (true)
             {
-                int itemIdx = ScanInt(&ok);
-                if (!ok)
+                itemIdx = ScanInt(&ok);
+                if (ok != true)
                     break;
                 STCeraShopItem item;
-                item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(&ok);
-                item.m_field1c = ScanInt(&ok);
-                item.m_field2c = ScanInt(&ok);
-                item.m_field30 = ScanInt(&ok);
-                item.m_field38 = ScanInt(&ok);
-                ScanStr(&item.m_name);
-                item.m_field20 = (char)ScanInt(&ok);
-                item.m_field10 = ScanInt(&ok);
                 item.m_field0 = 2;
-                item.m_fieldc = 2;
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field1c = ScanInt(static_cast<bool*>(0));
+                item.m_field2c = ScanInt(static_cast<bool*>(0));
+                item.m_field30 = ScanInt(static_cast<bool*>(0));
+                item.m_field38 = ScanInt(static_cast<bool*>(0));
+                ScanStr(&item.m_name);
+                item.m_field20 = ScanInt(static_cast<bool*>(0));
+                item.m_field10 = ScanInt(static_cast<bool*>(0));
                 item.m_name = "";
+                flag0 = 2;
+                item.m_fieldc = 2;
+                item.m_field0 = flag0;
                 itemList[15].push_back(item);
             }
         }
@@ -374,25 +413,27 @@ bool importCashShopItemList(
         {
             if (section == "[item]")
                 itemList[2].clear();
-            ok = false;
+            
             while (true)
             {
-                int itemIdx = ScanInt(&ok);
-                if (!ok)
+                itemIdx = ScanInt(&ok);
+                if (ok != true)
                     break;
                 STCeraShopItem item;
-                item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(&ok);
-                item.m_field1c = ScanInt(&ok);
-                item.m_field2c = ScanInt(&ok);
-                item.m_field30 = ScanInt(&ok);
-                item.m_field38 = ScanInt(&ok);
-                ScanStr(&item.m_name);
-                item.m_field20 = (char)ScanInt(&ok);
-                item.m_field10 = ScanInt(&ok);
                 item.m_field0 = 2;
-                item.m_fieldc = 2;
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field1c = ScanInt(static_cast<bool*>(0));
+                item.m_field2c = ScanInt(static_cast<bool*>(0));
+                item.m_field30 = ScanInt(static_cast<bool*>(0));
+                item.m_field38 = ScanInt(static_cast<bool*>(0));
+                ScanStr(&item.m_name);
+                item.m_field20 = ScanInt(static_cast<bool*>(0));
+                item.m_field10 = ScanInt(static_cast<bool*>(0));
                 item.m_name = "";
+                flag0 = 2;
+                item.m_fieldc = 2;
+                item.m_field0 = flag0;
                 itemList[2].push_back(item);
             }
         }
@@ -400,25 +441,27 @@ bool importCashShopItemList(
         {
             if (section == "[premium]")
                 itemList[9].clear();
-            ok = false;
+            
             while (true)
             {
-                int itemIdx = ScanInt(&ok);
-                if (!ok)
+                itemIdx = ScanInt(&ok);
+                if (ok != true)
                     break;
                 STCeraShopItem item;
-                item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(&ok);
-                item.m_field1c = ScanInt(&ok);
-                item.m_field2c = ScanInt(&ok);
-                item.m_field30 = ScanInt(&ok);
-                item.m_field38 = ScanInt(&ok);
-                ScanStr(&item.m_name);
-                item.m_field20 = (char)ScanInt(&ok);
-                item.m_field10 = ScanInt(&ok);
                 item.m_field0 = 9;
-                item.m_fieldc = 9;
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field1c = ScanInt(static_cast<bool*>(0));
+                item.m_field2c = ScanInt(static_cast<bool*>(0));
+                item.m_field30 = ScanInt(static_cast<bool*>(0));
+                item.m_field38 = ScanInt(static_cast<bool*>(0));
+                ScanStr(&item.m_name);
+                item.m_field20 = ScanInt(static_cast<bool*>(0));
+                item.m_field10 = ScanInt(static_cast<bool*>(0));
                 item.m_name = "";
+                flag0 = 9;
+                item.m_fieldc = 9;
+                item.m_field0 = flag0;
                 itemList[9].push_back(item);
             }
         }
@@ -426,60 +469,61 @@ bool importCashShopItemList(
         {
             if (section == "[creature]")
                 itemList[3].clear();
-            ok = false;
+            
             while (true)
             {
-                int itemIdx = ScanInt(&ok);
-                if (!ok)
+                itemIdx = ScanInt(&ok);
+                if (ok != true)
                     break;
                 STCeraShopItem item;
-                item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(&ok);
-                item.m_field1c = ScanInt(&ok);
-                item.m_field2c = ScanInt(&ok);
-                item.m_field30 = ScanInt(&ok);
-                item.m_field38 = ScanInt(&ok);
-                ScanStr(&item.m_name);
-                item.m_field20 = (char)ScanInt(&ok);
-                item.m_field10 = ScanInt(&ok);
                 item.m_field0 = 3;
-                item.m_fieldc = 3;
+                item.m_field8 = itemIdx;
+                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field1c = ScanInt(static_cast<bool*>(0));
+                item.m_field2c = ScanInt(static_cast<bool*>(0));
+                item.m_field30 = ScanInt(static_cast<bool*>(0));
+                item.m_field38 = ScanInt(static_cast<bool*>(0));
+                ScanStr(&item.m_name);
+                item.m_field20 = ScanInt(static_cast<bool*>(0));
+                item.m_field10 = ScanInt(static_cast<bool*>(0));
                 item.m_name = "";
+                flag0 = 3;
+                item.m_fieldc = 3;
+                item.m_field0 = flag0;
                 itemList[3].push_back(item);
             }
         }
         else if (section == "[NPC]")
         {
-            ok = false;
+            
             ScanInt(&ok);                          // local_90
         }
         else if (section == "[type]")
         {
-            std::string s;
-            ScanStr(&s);                           // local_8c
+            ScanStr(&str2);                        // 0x088f??：写函数级 -0x88
         }
         else if (section == "[item group index]")
         {
-            ok = false;
+            
             ScanInt(&ok);                          // local_44
         }
         else if (section == "[mileage item]")
         {
             itemList[11].clear();
-            ok = false;
+            
             while (true)
             {
-                int itemIdx = ScanInt(&ok);
-                if (!ok)
+                itemIdx = ScanInt(&ok);
+                if (ok != true)
                     break;
                 STCeraShopItem item;
                 item.m_field8 = itemIdx;
-                item.m_field0 = (char)ScanInt(&ok);  // +0x00 类型
-                item.m_field14 = ScanInt(&ok);
-                item.m_field1c = ScanInt(&ok);
-                item.m_field34 = ScanInt(&ok);
+                item.m_field0 = ScanInt(static_cast<bool*>(0));   // +0x00 类型
+                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field1c = ScanInt(static_cast<bool*>(0));
+                item.m_field34 = ScanInt(static_cast<bool*>(0));
                 ScanStr(&item.m_name);
-                item.m_field20 = (char)ScanInt(&ok);
+                item.m_field20 = ScanInt(static_cast<bool*>(0));
                 item.m_fieldc = 0xb;
                 item.m_name = "";
                 itemList[11].push_back(item);
@@ -489,27 +533,28 @@ bool importCashShopItemList(
         {
             if (section == "[package]")
                 itemList[7].clear();
-            ok = false;
+            
             while (true)
             {
-                int itemIdx = ScanInt(&ok);
-                if (!ok)
+                itemIdx = ScanInt(&ok);
+                if (ok != true)
                     break;
                 STCeraShopItem item;
                 item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(&ok);
-                item.m_field2c = ScanInt(&ok);
-                item.m_field30 = ScanInt(&ok);
-                item.m_field38 = ScanInt(&ok);
+                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field2c = ScanInt(static_cast<bool*>(0));
+                item.m_field30 = ScanInt(static_cast<bool*>(0));
+                item.m_field38 = ScanInt(static_cast<bool*>(0));
                 ScanStr(&item.m_name);
-                item.m_field20 = (char)ScanInt(&ok);
-                item.m_field10 = ScanInt(&ok);
-                item.m_field22 = (unsigned short)ScanInt(&ok);
-                item.m_field3c = (char)ScanInt(&ok);
-                item.m_field0 = 7;
+                item.m_field20 = ScanInt(static_cast<bool*>(0));
+                item.m_field10 = ScanInt(static_cast<bool*>(0));
+                item.m_field22 = ScanInt(static_cast<bool*>(0));
+                item.m_field3c = ScanInt(static_cast<bool*>(0));
+                item.m_name = "";
+                flag0 = 7;                             // ORIG 尾组经 -0x54 int 槽
                 item.m_fieldc = 7;
                 item.m_field1c = 1;
-                item.m_name = "";
+                item.m_field0 = flag0;
                 itemList[7].push_back(item);
             }
         }
@@ -517,11 +562,11 @@ bool importCashShopItemList(
                  section == "[gift disallowance]" ||
                  section == "[cerapoint disallowance]")
         {
-            ok = false;
+            
             while (true)
             {
-                int itemIdx = ScanInt(&ok);
-                if (!ok)
+                itemIdx = ScanInt(&ok);
+                if (ok != true)
                     break;
                 STCeraShopItem probe;
                 probe.m_field8 = itemIdx;
@@ -543,9 +588,9 @@ bool importCashShopItemList(
         }
         else if (section == "[max gift count]")
         {
-            ok = false;
+            
             int v = ScanInt(&ok);
-            if (!ok)
+            if (ok != true)
                 break;  // ORIG 0x88ff1a5：ScanInt 失败 goto LAB_088ff96d（退出主循环走尾扫描）
             if (param5)
                 *param5 = v;
@@ -555,16 +600,16 @@ bool importCashShopItemList(
             while (true)
             {
                 stCeraShopBonusInfo_t info;
-                ok = false;
+                
                 info.m_field0 = ScanInt(&ok);
-                if (!ok)
+                if (ok != true)
                     break;
                 info.m_field4 = ScanInt(&ok);
-                if (!ok)
+                if (ok != true)
                     return 0;   // ORIG 0x88ff23a：第 2 个 ScanInt 失败 → return 0
                 int count = ScanInt(&ok);
                 // ORIG 0x88ff26b：第 3 个 ScanInt 失败 → return 0
-                if (!ok)
+                if (ok != true)
                     return 0;
                 info.m_items.reserve(count);
                 int total = 0;
@@ -572,13 +617,13 @@ bool importCashShopItemList(
                 {
                     stCeraShopBonusItemInfo_t bi;
                     bi.m_field0 = ScanInt(&ok);
-                    if (!ok)
+                    if (ok != true)
                         return 0;   // ORIG 0x88ff2c4：失败 → return 0
                     bi.m_field4 = (unsigned short)ScanInt(&ok);
-                    if (!ok)
+                    if (ok != true)
                         return 0;   // ORIG 0x88ff2f5
                     bi.m_field8 = ScanInt(&ok);
-                    if (!ok)
+                    if (ok != true)
                         return 0;   // ORIG 0x88ff327
                     total += bi.m_field8;
                     info.m_items.push_back(bi);
@@ -595,11 +640,11 @@ bool importCashShopItemList(
         else if (section == "[not stackable buy]")
         {
             std::vector<int> indexList;
-            ok = false;
+            
             while (true)
             {
                 int v = ScanInt(&ok);
-                if (!ok)
+                if (ok != true)
                     break;
                 indexList.push_back(v);
             }
@@ -618,16 +663,16 @@ bool importCashShopItemList(
         }
         else if (section == "[recommended avatar list]")
         {
-            ok = false;
+            
             while (true)
             {
                 int mapKey = ScanInt(&ok);
-                if (!ok)
+                if (ok != true)
                     break;
                 std::vector<int> list;
                 for (int i = 0; i < 10; ++i)
                 {
-                    ok = false;
+                    
                     int v = ScanInt(&ok);
                     if (v == 0)
                         v = -1;
@@ -639,39 +684,39 @@ bool importCashShopItemList(
         }
         else if (section == "[restricted premium map]")
         {
-            ok = false;
+            
             do {
                 int a = ScanInt(&ok);
-                if (!ok)
+                if (ok != true)
                     break;
                 int b = ScanInt(&ok);
             } while (ok);
         }
         else if (section == "[immediately adaptive product]")
         {
-            ok = false;
+            
             do {
                 ScanInt(&ok);
             } while (ok);
         }
         else if (section == "[avatar coin]")
         {
-            ok = false;
+            
             while (true)
             {
-                int itemIdx = ScanInt(&ok);
-                if (!ok)
+                itemIdx = ScanInt(&ok);
+                if (ok != true)
                     break;
                 STCeraShopItem item;
                 item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(&ok);
-                item.m_field1c = ScanInt(&ok);
-                item.m_field2c = ScanInt(&ok);
-                item.m_field30 = ScanInt(&ok);
-                item.m_field38 = ScanInt(&ok);
+                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field1c = ScanInt(static_cast<bool*>(0));
+                item.m_field2c = ScanInt(static_cast<bool*>(0));
+                item.m_field30 = ScanInt(static_cast<bool*>(0));
+                item.m_field38 = ScanInt(static_cast<bool*>(0));
                 ScanStr(&item.m_name);
-                item.m_field20 = (char)ScanInt(&ok);
-                item.m_field10 = ScanInt(&ok);
+                item.m_field20 = ScanInt(static_cast<bool*>(0));
+                item.m_field10 = ScanInt(static_cast<bool*>(0));
                 item.m_field0 = 2;
                 item.m_fieldc = 2;
                 item.m_name = "";
@@ -680,10 +725,10 @@ bool importCashShopItemList(
         }
         else if (section == "[exceptional product price in first server]")
         {
-            ok = false;
+            
             do {
                 unsigned int price = (unsigned int)ScanInt(&ok);
-                if (!ok)
+                if (ok != true)
                     break;
                 int val = ScanInt(&ok);
             } while (ok);

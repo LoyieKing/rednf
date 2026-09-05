@@ -362,58 +362,73 @@ bool isOpenAdvanceAltar()
 // 去发明模板：ORIG nm 无 putMapEntries 实例（§4.1），七段逐循环内联，
 // 循环体形态按 ORIG 汇编（begin 前置 0x0851417d2 区、end 每轮尾构、
 // postfix it++ 带 dest 临时 0x08135f38、operator-> 后 +4/+1 直传 put_binary）。
+// 残余 DIFF 归因（终态 insns 350 vs 349，槽图 -0x10/-0xc/-0x14..-0x64 与
+// begin/end/++temp 三件套逐段对齐）：唯一真实指令差 = 首条 put_binary 的
+// data 装载 ORIG 两段 `mov 0xc(%ebp),%eax; mov %eax,%edx`（0x08141787/8a），
+// 4.4.7 恒折单段（N18a 负例，probe 不可翻）；其余 diff 行为该 1 行错位引发
+// 的对齐伪差与 ORIG nearest-symbol call 显示行（put_binary 等公共 W 符号两侧
+// 同名，relink 归一后消）。
 // ============================================================================
 void putRidableInfoToPacket(PacketGuard& packet, const AdvanceAltarData& data)
 {
-    InterfacePacketBuf& buf = packet;
-    buf.put_binary(const_cast<char*>(reinterpret_cast<const char*>(&data)), 0x21);   // [objdump 0x8141798]
+    // ORIG 每处直接 `mov 0x8(%ebp)` 传参（无 buf 引用槽）⇒ 不用具名别名。
+    // 段 2..6 容器指针 = ORIG 二段初始化槽（`movl $0,-0x10/-0xc` + 赋值，
+    // 0x0814184e/0x0814185b 等）；段 1/7 直取（0x081417a3/0x08141bb7）。
+    packet.put_binary(const_cast<char*>(reinterpret_cast<const char*>(&data)), 0x21);   // [objdump 0x8141798]
 
     // +0x24 stages（put_binary 8 字节，0x081417fe）
-    buf.put_int((int)data.m_stages.size());                              // [0x081417ac/0x081417bd]
+    packet.put_int((int)data.m_stages.size());                           // [0x081417ac/0x081417bd]
     for (std::map<int, _Stage>::const_iterator it = data.m_stages.begin();
          it != data.m_stages.end(); it++)
-        buf.put_binary(reinterpret_cast<char*>(
+        packet.put_binary(reinterpret_cast<char*>(
             const_cast<_Stage*>(&it->second)), sizeof(_Stage));
 
     // +0x3c / +0x54 / +0x6c 三张 buyItem 表（各 0xc，0x081418b3/0x0814195e/
     // 0x08141a09），局部引用形：ORIG 每轮 `lea 0xXX(%eax)` 重取容器地址。
-    buf.put_int((int)data.m_buyItems1.size());                           // [0x08141864]
-    for (std::map<int, _BuyItem>::const_iterator it = data.m_buyItems1.begin();
-         it != data.m_buyItems1.end(); it++)
-        buf.put_binary(reinterpret_cast<char*>(
+    std::map<int, _BuyItem> const* pBuy = 0;
+    pBuy = &data.m_buyItems1;
+    packet.put_int((int)pBuy->size());                                   // [0x08141864]
+    for (std::map<int, _BuyItem>::const_iterator it = pBuy->begin();
+         it != pBuy->end(); it++)
+        packet.put_binary(reinterpret_cast<char*>(
             const_cast<_BuyItem*>(&it->second)), sizeof(_BuyItem));
 
-    buf.put_int((int)data.m_buyItems2.size());                           // [0x0814190f]
-    for (std::map<int, _BuyItem>::const_iterator it = data.m_buyItems2.begin();
-         it != data.m_buyItems2.end(); it++)
-        buf.put_binary(reinterpret_cast<char*>(
+    pBuy = &data.m_buyItems2;
+    packet.put_int((int)pBuy->size());                                   // [0x0814190f]
+    for (std::map<int, _BuyItem>::const_iterator it = pBuy->begin();
+         it != pBuy->end(); it++)
+        packet.put_binary(reinterpret_cast<char*>(
             const_cast<_BuyItem*>(&it->second)), sizeof(_BuyItem));
 
-    buf.put_int((int)data.m_buyItems3.size());                           // [0x081419ba]
-    for (std::map<int, _BuyItem>::const_iterator it = data.m_buyItems3.begin();
-         it != data.m_buyItems3.end(); it++)
-        buf.put_binary(reinterpret_cast<char*>(
+    pBuy = &data.m_buyItems3;
+    packet.put_int((int)pBuy->size());                                   // [0x081419ba]
+    for (std::map<int, _BuyItem>::const_iterator it = pBuy->begin();
+         it != pBuy->end(); it++)
+        packet.put_binary(reinterpret_cast<char*>(
             const_cast<_BuyItem*>(&it->second)), sizeof(_BuyItem));
 
     // +0x84 / +0x9c slot 表（key uchar，value 偏移 +1，len 10，
     // 0x08141abd/0x08141b6a）
-    buf.put_int((int)data.m_slots1.size());                              // [0x08141875]
-    for (std::map<unsigned char, _Slot>::const_iterator it = data.m_slots1.begin();
-         it != data.m_slots1.end(); it++)
-        buf.put_binary(reinterpret_cast<char*>(
+    std::map<unsigned char, _Slot> const* pSlot = 0;
+    pSlot = &data.m_slots1;
+    packet.put_int((int)pSlot->size());                                  // [0x08141875]
+    for (std::map<unsigned char, _Slot>::const_iterator it = pSlot->begin();
+         it != pSlot->end(); it++)
+        packet.put_binary(reinterpret_cast<char*>(
             const_cast<_Slot*>(&it->second)), sizeof(_Slot));
 
-    buf.put_int((int)data.m_slots2.size());                              // [0x08141920]
-    for (std::map<unsigned char, _Slot>::const_iterator it = data.m_slots2.begin();
-         it != data.m_slots2.end(); it++)
-        buf.put_binary(reinterpret_cast<char*>(
+    pSlot = &data.m_slots2;
+    packet.put_int((int)pSlot->size());                                  // [0x08141920]
+    for (std::map<unsigned char, _Slot>::const_iterator it = pSlot->begin();
+         it != pSlot->end(); it++)
+        packet.put_binary(reinterpret_cast<char*>(
             const_cast<_Slot*>(&it->second)), sizeof(_Slot));
 
     // +0xb4 rewards（5 字节，0x08141c17）
-    buf.put_int((int)data.m_rewards.size());                             // [0x08141bc2]
+    packet.put_int((int)data.m_rewards.size());                          // [0x08141bc2]
     for (std::map<int, _Reward>::const_iterator it = data.m_rewards.begin();
          it != data.m_rewards.end(); it++)
-        buf.put_binary(reinterpret_cast<char*>(
+        packet.put_binary(reinterpret_cast<char*>(
             const_cast<_Reward*>(&it->second)), sizeof(_Reward));
 }
 

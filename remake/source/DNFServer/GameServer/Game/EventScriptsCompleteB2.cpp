@@ -18,10 +18,15 @@
 //     EventLevelupA2.cpp（基类/邮件动作/装载器定义）。各函数头部均已标记。
 //
 // 解析器形态说明：ORIG 各 import 函数内的「static map<tag,id> + SpinLock +
-// __cxa_guard」是 GCC 对函数级静态查表的一次性构建代码；构建完成前首个 token
-// 走建表-重派发路径，可观测行为与直接 token 比较完全一致（表内容为纯常量，
-// 无副作用）。本仓既有惯例（InitScriptProducers_1/6.cpp、StrikerWorldDropB2.cpp）
-// 均将其转写为直接 token 比较，本文件沿用。
+// __cxa_guard」是函数级静态惰性建表（map 构造/SpinLock 构造各带 guard +
+// __cxa_atexit，__inited 零初始化 bool）；构建完成前首个 token 以 key=0 进入
+// case 贯穿注册链，表尾释放锁置位后回 guard 重派发同一 token。batch-9 起，
+// importAttendanceScript / importPcBangPlayTimeScript /
+// importUsedFatigueGiveItemEventScript / importExchangeRandomItemRewardScript
+// 四函数按报告逐指令还原该真实双相形（不再用直接 token 比较简化形）；其余
+// 同族函数暂保留简化形（各自报告到位后同法收敛）。回边布局技巧：外循环头
+// 写 `if (!ScanType) { scan_exit: goto scan_done; }` + 公共尾 `goto
+// scan_exit;`，可阻止 4.4 循环旋转、复现 ORIG 4.1 入口直落 + 尾部回跳岛。
 
 #include <map>
 #include <string>
@@ -241,87 +246,413 @@ bool importActionMailScript(Action_SendMail* mail)
 // ============================================================================
 
 // ---- importFatigueQuantityEventScript T 0x08982fc6（1248B）----
-// [objdump·报告缺失]。标签：[/event]=返回真、[title]→+0、[explain]→+4、
-// [db table]→+8、[user type]→byte+0xc。ORIG 成功结束路径的 ok 标志恒 0
-// （仅 init 后从未置 1），故 token 耗尽必返回 false —— 忠实保留。
+// 报告 docs/class_func_reports/_lt_global_gt_/importFatigueQuantityEventScript.md
+// （双段完整阅读）。双相派发同族：5 键注册链 +0x29d→LAB(title)→explain→
+// db table→user type，公共尾 +0x474。id：[/event]0x478 [title]0x47a
+// [explain]0x47d [db table]0x480 [user type]0x483。[user type] ScanInt(NULL)
+// 字节截断值先物化存 +0xc（+0x46c mov %eax,%edx / mov %dl）；-0x1d bool 槽
+// 初值 0 仅作 ScanType 失败返回（+0x4a1 movzbl -0x1d），此外从不写。
 bool importFatigueQuantityEventScript(FatigueQuantityScript* script, char const* path)
 {
     if (!loadRDARScriptFile("Event/", path))
         return false;
-    bool result = false;
+
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+
     std::string token;
-    while (ScanType(token, true))
+    bool result = false;
+
+    for (;;)
     {
-        if (token == "[/event]")
-            return true;
-        else if (token == "[title]")
-            ScanStr(&script->m_field00);
-        else if (token == "[explain]")
-            ScanStr(&script->m_field04);
-        else if (token == "[db table]")
-            ScanStr(&script->m_dbTableName);
-        else if (token == "[user type]")
-            script->m_userType = static_cast<unsigned char>(ScanInt((bool*)0));
+        if (!ScanType(token, true))
+        {
+        scan_exit:
+            goto scan_done;
+        }
+
+    redo_lookup:
+        static LookupMap __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        int key;
+        if (__inited)
+        {
+            LookupMap::const_iterator it = __lookup.find(token.c_str());
+            key = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
+        {
+            __init_lock.enter();                        // +0x226
+            if (__inited)
+            {
+                __init_lock.leave();                    // +0x23d
+                goto redo_lookup;                       // +0x243 → guard 重查
+            }
+            key = 0;                                    // +0x248 注册链入口
+        }
+
+        switch (key)
+        {
+        case 0x478:                                     // [/event]
+        case 0:
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[/event]", 0x478));
+            }
+            else
+            {
+                return true;
+            }
+        }
+        /* fall through */
+        case 0x47a:                                     // [title]
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[title]", 0x47a));
+            }
+            else
+            {
+                ScanStr(&script->m_field00);
+                break;
+            }
+        }
+        /* fall through */
+        case 0x47d:                                     // [explain]
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[explain]", 0x47d));
+            }
+            else
+            {
+                ScanStr(&script->m_field04);
+                break;
+            }
+        }
+        /* fall through */
+        case 0x480:                                     // [db table]
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[db table]", 0x480));
+            }
+            else
+            {
+                ScanStr(&script->m_dbTableName);
+                break;
+            }
+        }
+        /* fall through */
+        case 0x483:                                     // [user type]
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[user type]", 0x483));
+            }
+            else
+            {
+                script->m_userType =
+                    static_cast<unsigned char>(ScanInt((bool*)0));
+                break;
+            }
+        }
+        }
+
+        if (!__inited)
+        {
+            __init_lock.leave();                        // +0x489
+            __inited = true;                            // +0x48e
+            goto redo_lookup;                           // +0x495 → guard 重派发
+        }
+        goto scan_exit;                                 // +0x49b → ScanType 回边
     }
+scan_done:
     return result;
 }
 
 // ---- importAccountFirstLoginEventScript T 0x0897f7bf（1242B）----
-// [objdump·报告缺失]。标签：[/event]、[title]、[explain]、[db table]、[send mail]。
+// 报告 docs/class_func_reports/_lt_global_gt_/importAccountFirstLoginEventScript.md
+// （双段完整阅读）。双相派发同族：5 键注册链 +0x29d→LAB(0x fab4)→(fb12)→
+// (fb73)→(fbd1)，公共尾 +0x46e。id：[/event]0xc4 [title]0xc6 [explain]0xc9
+// [db table]0xcc [send mail]0xcf；mail 存 +0xc；-0x1d bool 槽仅作 ScanType
+// 失败返回（+0x49b）。
 bool importAccountFirstLoginEventScript(AccountFirstLoginScript* script, char const* path)
 {
     if (!loadRDARScriptFile("Event/", path))
         return false;
-    bool result = false;
+
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+
     std::string token;
-    while (ScanType(token, true))
+    bool result = false;
+
+    for (;;)
     {
-        if (token == "[/event]")
-            return true;
-        else if (token == "[title]")
-            ScanStr(&script->m_field00);
-        else if (token == "[explain]")
-            ScanStr(&script->m_field04);
-        else if (token == "[db table]")
-            ScanStr(&script->m_dbTableName);
-        else if (token == "[send mail]")
-            importActionMailScript(&script->m_mail);
+        if (!ScanType(token, true))
+        {
+        scan_exit:
+            goto scan_done;
+        }
+
+    redo_lookup:
+        static LookupMap __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        int key;
+        if (__inited)
+        {
+            LookupMap::const_iterator it = __lookup.find(token.c_str());
+            key = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
+        {
+            __init_lock.enter();                        // +0x226
+            if (__inited)
+            {
+                __init_lock.leave();                    // +0x23d
+                goto redo_lookup;                       // +0x243 → guard 重查
+            }
+            key = 0;                                    // +0x248 注册链入口
+        }
+
+        switch (key)
+        {
+        case 0xc4:                                      // [/event]
+        case 0:
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[/event]", 0xc4));
+            }
+            else
+            {
+                return true;
+            }
+        }
+        /* fall through */
+        case 0xc6:                                      // [title]
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[title]", 0xc6));
+            }
+            else
+            {
+                ScanStr(&script->m_field00);
+                break;
+            }
+        }
+        /* fall through */
+        case 0xc9:                                      // [explain]
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[explain]", 0xc9));
+            }
+            else
+            {
+                ScanStr(&script->m_field04);
+                break;
+            }
+        }
+        /* fall through */
+        case 0xcc:                                      // [db table]
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[db table]", 0xcc));
+            }
+            else
+            {
+                ScanStr(&script->m_dbTableName);
+                break;
+            }
+        }
+        /* fall through */
+        case 0xcf:                                      // [send mail]
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[send mail]", 0xcf));
+            }
+            else
+            {
+                importActionMailScript(&script->m_mail);   // +0xc
+                break;
+            }
+        }
+        }
+
+        if (!__inited)
+        {
+            __init_lock.leave();                        // +0x483
+            __inited = true;                            // +0x488
+            goto redo_lookup;                           // +0x48f → guard 重派发
+        }
+        goto scan_exit;                                 // +0x495 → ScanType 回边
     }
+scan_done:
     return result;
 }
 
 // ---- importAddItemCountDBEventScript T 0x0897fc99（1480B）----
-// [objdump·报告缺失]。[item index]/[quest index] 用 ScanInt(&ok) 且仅在成功时
-// push_back；ok 即最终返回值（init 0）。
+// 报告 docs/class_func_reports/_lt_global_gt_/importAddItemCountDBEventScript.md
+// （双段完整阅读）。双相派发同族：6 键注册链 +0x2a8→+0x30f→+0x36d→+0x3ce→
+// +0x42f→+0x4c4，公共尾 +0x559。id：[/event]0xe9 [title]0xeb [explain]0xee
+// [db table]0xf1 [item index]0xf4 [quest index]0xff。[item index]/[quest
+// index] 均为「槽清 0→ScanInt(&ok)→失败回主循环→push_back→重循环」的收集
+// 循环（+0x47d/+0x512，此前简化形漏循环=语义缺口），vec 分别 +0x8/+0x14；
+// [db table] 串存 +0x20。ok(-0xa9) 共享即返回值。
 bool importAddItemCountDBEventScript(AddItemCountDBScript* script, char const* path)
 {
     if (!loadRDARScriptFile("Event/", path))
         return false;
-    bool ok = false;
+
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+
     std::string token;
-    while (ScanType(token, true))
+    bool ok = false;
+
+    for (;;)
     {
-        if (token == "[/event]")
-            return true;
-        else if (token == "[title]")
+        if (!ScanType(token, true))
+        {
+        scan_exit:
+            goto scan_done;
+        }
+
+    redo_lookup:
+        static LookupMap __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        int key;
+        if (__inited)
+        {
+            LookupMap::const_iterator it = __lookup.find(token.c_str());
+            key = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
+        {
+            __init_lock.enter();                        // +0x229
+            if (__inited)
+{
+                __init_lock.leave();                    // +0x240
+                goto redo_lookup;                       // +0x246 → guard 重查
+        }
+            key = 0;                                    // +0x24b 注册链入口
+        }
+
+        switch (key)
+        {
+        case 0xe9:                                      // [/event]（+0x2a8）
+        case 0:
+        {
+            if (!__inited)
+    {
+                __lookup.insert(LookupMap::value_type("[/event]", 0xe9));
+        }
+            else
+        {
+                return true;                            // +0x305
+            }
+        }
+        /* fall through */
+        case 0xeb:                                      // [title]（+0x30f）
+        {
+            if (!__inited)
+        {
+                __lookup.insert(LookupMap::value_type("[title]", 0xeb));
+            }
+            else
+            {
             ScanStr(&script->m_field00);
-        else if (token == "[explain]")
+                break;
+            }
+        }
+        /* fall through */
+        case 0xee:                                      // [explain]（+0x36d）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[explain]", 0xee));
+            }
+            else
+            {
             ScanStr(&script->m_field04);
-        else if (token == "[db table]")
-            ScanStr(&script->m_dbTableName);
-        else if (token == "[item index]")
-        {
-            const int v = ScanInt(&ok);
-            if (ok)
-                script->m_itemIdxs.push_back(v);
+                break;
+            }
         }
-        else if (token == "[quest index]")
+        /* fall through */
+        case 0xf1:                                      // [db table]（+0x3ce）
         {
-            const int v = ScanInt(&ok);
-            if (ok)
-                script->m_questIds.push_back(v);
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[db table]", 0xf1));
+            }
+            else
+            {
+                ScanStr(&script->m_dbTableName);       // +0x20
+                break;
+            }
         }
+        /* fall through */
+        case 0xf4:                                      // [item index]（+0x42f）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[item index]", 0xf4));
+            }
+            else
+            {
+                for (;;)
+                {
+                    int v = 0;                          // -0xb4 每轮清 0
+                    v = ScanInt(&ok);
+                    if (ok)
+                        script->m_itemIdxs.push_back(v);   // +0x8
+                    else
+                        break;                          // +0x4a4 → 公共尾
+                }
+                break;
+            }
+        }
+        /* fall through */
+        case 0xff:                                      // [quest index]（+0x4c4）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[quest index]", 0xff));
+            }
+            else
+            {
+                for (;;)
+                {
+                    int v = 0;                          // -0xb8 每轮清 0
+                    v = ScanInt(&ok);
+                    if (ok)
+                        script->m_questIds.push_back(v);   // +0x14
+                    else
+                        break;                          // +0x539 → 公共尾
+                }
+                break;
+            }
+        }
+        }
+
+        if (!__inited)
+        {
+            __init_lock.leave();                        // +0x56e
+            __inited = true;                            // +0x573
+            goto redo_lookup;                           // +0x57a → guard 重派发
+        }
+        goto scan_exit;                                 // +0x580 → ScanType 回边
     }
+scan_done:
     return ok;
 }
 
@@ -436,7 +767,14 @@ bool importPcBangPlayTimeScript(PcBangPlayTimeScript* script, char const* path)
                 }
                 else
                 {
-                    script->m_playTime = ScanInt((bool*)0);
+                    // ORIG +0x4d5 值先物化经 %edx 再重载 this 存 +0xc；4.4 对
+                    // register 局部固定分配 %ebx（+0x4d5 `mov %eax,%edx` vs 本
+                    // 形 `mov %eax,%ebx`，等长等助记符仅寄存器名差 = N7/N18a/P78
+                    // 结构性天花板 → NEAR 豁免，ORIG 0x08985601..+0x4da 实证；
+                    // 普通赋值会被 4.4 折为 LHS 地址先行形反而 DIFF，uint 中转
+                    // 则多一条 `mov %ebx,%edx`）。
+                    register int v = ScanInt((bool*)0);
+                    script->m_playTime = v;
                     break;
                 }
             }
@@ -499,124 +837,326 @@ scan_done:
 }
 
 // ---- importExchangeRandomItemRewardScript T 0x08981e0f（1701B）----
-// [objdump·报告缺失]。[material] 节：先 ScanType 一次（失败直接返回假）；若该
-// token 为 [exchange rule] 则读规则字节（失败回主循环），随后成对读 uint 直到
-// ScanInt 失败；非规则 token 直接进入同一整数对循环。[random reward item]
-// 单值列；ok 共享变量即最终返回值。
+// 报告 docs/class_func_reports/_lt_global_gt_/importExchangeRandomItemRewardScript.md
+// （双段完整阅读）。双相派发同族：6 个 (键,id) 注册链 +0x2a8→+0x30f→+0x376→
+// +0x3d7→+0x540→+0x5d7，公共尾 +0x636。id：[/event]0x2e8 [title]0x2ea
+// [explain]0x2ed [material]0x2f0 [random reward item]0x308 [send mail]0x312。
+// [material] 节（+0x428）：先 ScanType 一次（失败 mov $0,%ebx 直返假，+0x445）；
+// 该 token 经 std::operator== 与 "[exchange rule]" 直比（+0x460，非查表）；
+// 相等则 ScanInt(&ok) 字节存 +0x8，失败跳公共尾回主循环；两路均汇入 uint
+// 整数对循环（+0x491：槽先清 0，make_pair<unsigned&,unsigned&> 引用对临时
+// （P61/P81）→ pair<int,int>::pair<unsigned,unsigned> 转换构造 →
+// vector<pair<int,int>>::push_back）。[random reward item]（+0x58e）int 槽每轮
+// 清 0 后 ScanInt(&ok)，成功 push_back 至 +0x18；ok 共享变量即返回值（+0x663）。
 bool importExchangeRandomItemRewardScript(ExchangeRandomItemRewardScript* script,
                                           char const* path)
 {
     if (!loadRDARScriptFile("Event/", path))
         return false;
-    bool ok = false;
+
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+
     std::string token;
-    while (ScanType(token, true))
+    bool ok = false;
+
+    for (;;)
     {
-        if (token == "[/event]")
-            return true;
-        else if (token == "[title]")
-            ScanStr(&script->m_field00);
-        else if (token == "[explain]")
-            ScanStr(&script->m_field04);
-        else if (token == "[material]")
+        if (!ScanType(token, true))
         {
-            if (!ScanType(token, true))
-                return false;                     // ORIG 直接返回假
-            if (token == "[exchange rule]")
+        scan_exit:
+            goto scan_done;
+        }
+
+    redo_lookup:
+        static LookupMap __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        int key;
+        if (__inited)
+        {
+            LookupMap::const_iterator it = __lookup.find(token.c_str());
+            key = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
+        {
+            __init_lock.enter();                        // +0x229
+            if (__inited)
             {
-                script->m_flag08 =
-                    static_cast<unsigned char>(ScanInt(&ok));
-                if (ok)
-                {
-                    for (;;)
-                    {
-                        unsigned int first  = 0;
-                        unsigned int second = 0;
-                        first = static_cast<unsigned int>(ScanInt(&ok));
-                        if (!ok)
-                            break;
-                        second = static_cast<unsigned int>(ScanInt(&ok));
-                        if (!ok)
-                            break;
-                        script->m_pairs0c.push_back(
-                            std::pair<int, int>(
-                                static_cast<int>(first),
-                                static_cast<int>(second)));
-                    }
-                }
+                __init_lock.leave();                    // +0x240
+                goto redo_lookup;                       // +0x246 → guard 重查
+            }
+            key = 0;                                    // +0x24b 注册链入口
+        }
+
+        switch (key)
+        {
+        case 0x2e8:                                     // [/event]（+0x2a8）
+        case 0:
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[/event]", 0x2e8));
             }
             else
             {
-                // 非规则标签：直接进入整数对循环（首个 ScanInt 失败即回主循环）
+                return true;                            // +0x305 mov $1,%ebx
+            }
+        }
+        /* fall through */
+        case 0x2ea:                                     // [title]（+0x30f）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[title]", 0x2ea));
+            }
+            else
+            {
+                ScanStr(&script->m_field00);
+                break;
+            }
+        }
+        /* fall through */
+        case 0x2ed:                                     // [explain]（+0x376）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[explain]", 0x2ed));
+            }
+            else
+            {
+                ScanStr(&script->m_field04);
+                break;
+            }
+        }
+        /* fall through */
+        case 0x2f0:                                     // [material]（+0x3d7）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[material]", 0x2f0));
+            }
+            else
+            {
+                if (!ScanType(token, true))
+                    return false;                       // +0x445 直接返回假
+                if (token == "[exchange rule]")          // +0x460 串比较（非查表）
+                {
+                    script->m_flag08 = static_cast<unsigned char>(
+                        ScanInt(&ok));
+                    // 规则读失败：跳过整数对循环直回公共尾（+0x48b→+0x636）。
+                    if (!ok)
+                        break;
+                }
+                // 非规则 token 与规则读取成功两路汇入同一整数对循环
+                // （+0x467 je +0x491 / +0x48b fall-through，ORIG 物理单份）。
                 for (;;)
                 {
                     unsigned int first  = 0;
                     unsigned int second = 0;
-                    first = static_cast<unsigned int>(ScanInt(&ok));
+                    first = ScanInt(&ok);
                     if (!ok)
                         break;
-                    second = static_cast<unsigned int>(ScanInt(&ok));
+                    second = ScanInt(&ok);
                     if (!ok)
                         break;
+                    // 引用对临时（-0x4c）+ pair&lt;int,int&gt; 转换临时（-0x54）均为
+                    // 内联实参 sret 槽（P134），不命名局部。
                     script->m_pairs0c.push_back(
-                        std::pair<int, int>(static_cast<int>(first),
-                                            static_cast<int>(second)));
+                        std::pair<int, int>(std::make_pair(first, second)));
                 }
+                break;
             }
         }
-        else if (token == "[random reward item]")
+        /* fall through */
+        case 0x308:                                     // [random reward item]（+0x540）
         {
-            for (;;)
+            if (!__inited)
             {
-                const int v = ScanInt(&ok);
-                if (!ok)
-                    break;
-                script->m_ints18.push_back(v);
+                __lookup.insert(
+                    LookupMap::value_type("[random reward item]", 0x308));
+            }
+            else
+            {
+                for (;;)
+                {
+                    int v = 0;                          // -0xcc 每轮清 0
+                    v = ScanInt(&ok);
+                    if (!ok)
+                        break;
+                    script->m_ints18.push_back(v);      // +0x18 vector<int>
+                }
+                break;
             }
         }
-        else if (token == "[send mail]")
-            importActionMailScript(&script->m_mail);
+        /* fall through */
+        case 0x312:                                     // [send mail]（+0x5d7）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[send mail]", 0x312));
+            }
+            else
+            {
+                importActionMailScript(&script->m_mail);   // +0x24
+                break;
+            }
+        }
+        }
+
+        if (!__inited)
+        {
+            __init_lock.leave();                        // +0x64b
+            __inited = true;                            // +0x650
+            goto redo_lookup;                           // +0x657 → guard 重派发
+        }
+        goto scan_exit;                                 // +0x65d → ScanType 回边
     }
+scan_done:
     return ok;
 }
 
 // ---- importAvatarDisjointRandomRewardScript T 0x089824b4（1429B）----
-// [objdump·报告缺失]。[random reward item]：(char)ScanInt、(uint)ScanInt 成对，
-// 插入 map<char,uint>+0x8；任一失败回主循环。
+// 报告 docs/class_func_reports/_lt_global_gt_/importAvatarDisjointRandomRewardScript.md
+// （双段完整阅读）。双相派发同族：5 键注册链 +0x29d→+0x304→+0x365→+0x3c6→
+// +0x4ca，公共尾 +0x526。id：[/event]0x32e [title]0x330 [explain]0x333
+// [random reward item]0x336 [send mail]0x346。[random reward item]（+0x417）：
+// char/uint 双槽每轮先清 0，key=(char)ScanInt 字节截断存槽（+0x436 mov %al），
+// 成功对经 make_pair&lt;char&amp;,unsigned&amp;&gt; 引用对临时+value_type 转换+
+// map::insert 三段（P134 嵌套实参形），任一 ScanInt 失败回主循环。
 bool importAvatarDisjointRandomRewardScript(AvatarDisjointRandomRewardScript* script,
                                             char const* path)
 {
     if (!loadRDARScriptFile("Event/", path))
         return false;
-    bool ok = false;
+
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+
     std::string token;
-    while (ScanType(token, true))
-    {
-        if (token == "[/event]")
-            return true;
-        else if (token == "[title]")
-            ScanStr(&script->m_field00);
-        else if (token == "[explain]")
-            ScanStr(&script->m_field04);
-        else if (token == "[random reward item]")
-        {
+    bool ok = false;
+
             for (;;)
+    {
+        if (!ScanType(token, true))
+        {
+        scan_exit:
+            goto scan_done;
+        }
+
+    redo_lookup:
+        static LookupMap __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        int key;
+        if (__inited)
+        {
+            LookupMap::const_iterator it = __lookup.find(token.c_str());
+            key = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
+        {
+            __init_lock.enter();                        // +0x229
+            if (__inited)
             {
-                char         key = 0;
-                unsigned int cnt = 0;
-                key = static_cast<char>(ScanInt(&ok));
-                if (!ok)
-                    break;
-                cnt = static_cast<unsigned int>(ScanInt(&ok));
-                if (!ok)
-                    break;
-                script->m_map08.insert(
-                    std::pair<char, unsigned int>(key, cnt));
+                __init_lock.leave();                    // +0x240
+                goto redo_lookup;                       // +0x246 → guard 重查
+            }
+            key = 0;                                    // +0x24b 注册链入口
+        }
+
+        switch (key)
+        {
+        case 0x32e:                                     // [/event]（+0x29d）
+        case 0:
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[/event]", 0x32e));
+            }
+            else
+            {
+                return true;                            // +0x2fa
             }
         }
-        else if (token == "[send mail]")
-            importActionMailScript(&script->m_mail);
+        /* fall through */
+        case 0x330:                                     // [title]（+0x304）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[title]", 0x330));
+            }
+            else
+            {
+            ScanStr(&script->m_field00);
+                    break;
+            }
+        }
+        /* fall through */
+        case 0x333:                                     // [explain]（+0x365）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[explain]", 0x333));
+            }
+            else
+            {
+            ScanStr(&script->m_field04);
+                    break;
+            }
+        }
+        /* fall through */
+        case 0x336:                                     // [random reward item]（+0x3c6）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(
+                    LookupMap::value_type("[random reward item]", 0x336));
+            }
+            else
+            {
+            for (;;)
+{
+                    char         rewardKey = 0;         // -0xb5 每轮清 0
+                    unsigned int cnt = 0;               // -0xbc
+                    rewardKey = static_cast<char>(ScanInt(&ok));
+                if (!ok)
+                        break;                          // +0x44a → 公共尾
+                cnt = static_cast<unsigned int>(ScanInt(&ok));
+                if (!ok)
+                        break;                          // +0x46e → 公共尾
+                    // 引用对临时(-0x38)+value_type 转换(-0x40)+insert(-0x48)
+                    // 三段 sret 内联实参形（P134/P61）。
+                script->m_map08.insert(
+                        std::make_pair(rewardKey, cnt));
+            }
+                break;
+            }
+        }
+        /* fall through */
+        case 0x346:                                     // [send mail]（+0x4ca）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[send mail]", 0x346));
+            }
+            else
+            {
+                importActionMailScript(&script->m_mail);   // +0x20
+                break;
+            }
+        }
+        }
+
+        if (!__inited)
+        {
+            __init_lock.leave();                        // +0x53b
+            __inited = true;                            // +0x540
+            goto redo_lookup;                           // +0x547 → guard 重派发
+        }
+        goto scan_exit;                                 // +0x54d → ScanType 回边
     }
+scan_done:
     return ok;
 }
 
@@ -1081,135 +1621,278 @@ scan_done:
 }
 
 // ---- importObjectBringUpEventScript T 0x08983e48（2771B）----
-// [objdump·报告缺失]。四数据节：
-//   [material item]：先 [exchange rule] 字节（ScanInt 失败→回主循环），随后整数
-//                    列入 m_ints10 直到 ScanInt 失败；ScanType 失败→返回假。
-//   [eventitem send]：循环收 [get eventitem fatigue] 整数到局部 vector<uint>；
-//                    [send mail] 构造局部 mail 并 make_pair 推入 +0x1c（解析
-//                    失败→退出本节回主循环）；[/eventitem send] 或 ScanType
-//                    失败退出本节；未知 token 忽略继续。
-//   [send]：进入后一直吞 token 到 EOF；[reward start/end count]、
-//          [reward mutiple number] 填 Rule；[send mail] 在三字段均非 -1 时推入
-//          +0x28，随后 rule.reset() 继续节内循环（解析失败同样留在主流程）。
+// 报告 docs/class_func_reports/_lt_global_gt_/importObjectBringUpEventScript.md
+// （双段完整阅读）。双相派发同族：7 键注册链 +0x2bf→+0x326→+0x393→+0x403→
+// +0x473→+0x58b→+0x626，公共尾 +0xa64。id：[/event]0x509 [title]0x50b
+// [explain]0x50e [db table]0x511 [material item]0x515 [eventitem send]0x529
+// [send]0x54c。[material item]（+0x4d3）：节内 ScanType 失败 mov $0,%ebx 直返
+// 假（+0x4f5）；[exchange rule] 字节存 +0xc，读失败退出节回主循环（+0x536）；
+// 两路汇入同一 int 收集循环（+0x53c 槽清 0，失败回主循环）。[eventitem send]
+// （+0x5eb）：局部 vector<uint> fatigues；[get eventitem fatigue] 为内层收集
+// 循环（+0x637），ScanInt 失败回节内头重 ScanType（+0x664，非退节）；
+// [send mail] 成功 pair(vector,mail) 值临时 push +0x1c 后 fatigues.clear()
+// （+0x754）并继续节内，失败退节（+0x786 je→退）；[/eventitem send] 或
+// ScanType 失败或未知 token 后判定退节/继续如汇编；节退一律 dtor fatigues。
+// [send]（+0x832）：局部 ObjectBringUpRule rule；三个 [reward * ] 数值节
+// ScanInt(&ok) 成功→回节内头、失败→直接公共尾（rule 不清理）；[send mail]
+// 失败仅退节不复位 rule（+0x997），成功三字段均 !=-1 时 push +0x28、
+// rule.reset() 后回节内（+0xa58）；ScanType 失败直接公共尾。此前简化形漏
+// 「fatigue 内层循环/clear 复位/mail 失败不复位 rule」三处语义，已按 ORIG 修正。
 bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* path)
 {
     if (!loadRDARScriptFile("Event/", path))
         return false;
-    bool result = false;   // 兼作节内 ScanInt 的 ok（ORIG 同一栈槽）
+
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+
     std::string token;
-    while (ScanType(token, true))
-    {
-        if (token == "[/event]")
-            return true;
-        else if (token == "[title]")
-            ScanStr(&script->m_field00);
-        else if (token == "[explain]")
-            ScanStr(&script->m_field04);
-        else if (token == "[db table]")
-            ScanStr(&script->m_dbTableName);
-        else if (token == "[material item]")
-        {
-            if (!ScanType(token, true))
-                return false;
-            if (token == "[exchange rule]")
-            {
-                script->m_exchangeRuleFlag =
-                    static_cast<unsigned char>(ScanInt(&result));
-                if (result)
-                {
+    bool result = false;   // 兼作节内 ScanInt 的 ok（ORIG 同槽 -0x165）
+    // P31 dead local（switch 前）：复现 ORIG 帧 0x1dc 与 mail/rule/
+    // fatigues 深端槽号（-0x1cc/-0x188/-0x17c）。token/iterator 交错槽
+    // 序（ORIG conv2 -0x158 vs 4.4 -0x168 区）属跨版本栈槽分配器差异
+    // （P112/N76 族），无法由合法源码复现，残差按 N 类标注。
+
                     for (;;)
-                    {
-                        int idx = ScanInt(&result);
-                        if (!result)
-                            break;                    // 回主循环
-                        script->m_materialItemIdxs.push_back(idx);
-                    }
-                }
+    {
+            if (!ScanType(token, true))
+        {
+        scan_exit:
+            goto scan_done;
+        }
+
+    redo_lookup:
+        static LookupMap __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        int key;
+        if (__inited)
+        {
+            LookupMap::const_iterator it = __lookup.find(token.c_str());
+            key = (it != __lookup.end()) ? it->second : -1;
+        }
+            else
+        {
+            __init_lock.enter();                        // +0x229
+            if (__inited)
+            {
+                __init_lock.leave();                    // +0x240
+                goto redo_lookup;                       // +0x246 → guard 重查
+            }
+            key = 0;                                    // +0x24b 注册链入口
+        }
+        int deadB;             // 槽位对齐 dead（浅端）
+
+        switch (key)
+        {
+        case 0x509:                                     // [/event]（+0x2bf）
+        case 0:
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[/event]", 0x509));
             }
             else
             {
-                // 非规则标签：直接尝试整数收集（首个失败即回主循环）
+                return true;                            // +0x31c
+            }
+        }
+        /* fall through */
+        case 0x50b:                                     // [title]（+0x326）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[title]", 0x50b));
+            }
+            else
+            {
+            ScanStr(&script->m_field00);
+                        break;
+            }
+        }
+        /* fall through */
+        case 0x50e:                                     // [explain]（+0x393）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[explain]", 0x50e));
+            }
+            else
+            {
+            ScanStr(&script->m_field04);
+                        break;
+            }
+        }
+        /* fall through */
+        case 0x511:                                     // [db table]（+0x403）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[db table]", 0x511));
+            }
+            else
+            {
+            ScanStr(&script->m_dbTableName);
+                        break;
+            }
+        }
+        /* fall through */
+        case 0x515:                                     // [material item]（+0x473）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(
+                    LookupMap::value_type("[material item]", 0x515));
+            }
+            else
+            {
+                if (!ScanType(token, true))
+                    return false;                       // +0x4f0 直返假
+                if (token == "[exchange rule]")          // +0x50b 串直比
+                {
+                script->m_exchangeRuleFlag =
+                    static_cast<unsigned char>(ScanInt(&result));
+                    // 失败退出节回主循环（+0x536 jne 公共尾）。
+                    if (result != true)
+                        break;
+                }
+                // 两路汇入同一整数收集循环（物理单份，+0x53c）。
                 for (;;)
                 {
-                    int idx = ScanInt(&result);
-                    if (!result)
-                        break;
+                    int idx = 0;                        // -0x1c 每轮清 0
+                    idx = ScanInt(&result);
+                    if (result != true)
+                        break;                          // +0x563 → 公共尾
                     script->m_materialItemIdxs.push_back(idx);
                 }
+                break;
             }
         }
-        else if (token == "[eventitem send]")
+        /* fall through */
+        case 0x529:                                     // [eventitem send]（+0x58b）
         {
-            std::vector<unsigned int> fatigues;
-            for (;;)
+            if (!__inited)
             {
+                __lookup.insert(
+                    LookupMap::value_type("[eventitem send]", 0x529));
+            }
+            else
+            {
+                std::vector<unsigned int> fatigues;     // -0x178 节局部
+            send_sec_head:;
+                for (;;)
+                {
                 if (!ScanType(token, true))
-                    break;                            // 退节回主循环
+                        break;              // EOF → 退节（+0x7af→+0x7b0）
                 if (token == "[get eventitem fatigue]")
-                {
-                    const unsigned int v =
-                        static_cast<unsigned int>(ScanInt(&result));
-                    if (!result)
-                        continue;
-                    fatigues.push_back(v);
-                }
+                    {
+                for (;;)
+{
+                            unsigned int f = 0;         // -0x17c 每轮清 0
+                            f = static_cast<unsigned int>(ScanInt(&result));
+                            if (result != true)
+                                goto send_sec_head;     // 失败回节内头（+0x664）
+                            fatigues.push_back(f);
+                    }
+                    }
                 else if (token == "[send mail]")
-                {
-                    Action_SendMail mail;
+                    {
+                        Action_SendMail mail;           // -0x1cc ctor+reset
                     mail.reset();
-                    if (!importActionMailScript(&mail))
-                        break;                        // 失败：弃对、退节回主循环
+                        result = importActionMailScript(&mail);
+                        if (result == true)
+    {
                     script->m_ruleMails1c.push_back(
-                        std::pair<std::vector<unsigned int>, Action_SendMail>(
-                            fatigues, mail));
+                                std::pair<std::vector<unsigned int>,
+                                          Action_SendMail>(fatigues, mail));
+                            fatigues.clear();           // +0x754 节内复位
+                            continue;                   // +0x78a 回节内头
                 }
+                        break;                          // 失败退节（+0x786）
+                    }
                 else if (token == "[/eventitem send]")
-                    break;                            // 退节回主循环
+                        break;                          // +0x7ad 退节
+                    // 未知 token：+0x7a7 回节内头继续
+            else
+                        goto send_sec_head;
+                }
+                break;
             }
         }
-        else if (token == "[send]")
+        /* fall through */
+        case 0x54c:                                     // [send]（+0x626）
         {
-            ObjectBringUpScript::ObjectBringUpRule rule;
-            for (;;)
+            if (!__inited)
             {
+                __lookup.insert(LookupMap::value_type("[send]", 0x54c));
+            }
+            else
+            {
+                ObjectBringUpScript::ObjectBringUpRule rule;   // -0x18c
+                for (;;)
+                {
                 if (!ScanType(token, true))
-                    break;                            // EOF → 主循环（再失败即退出）
+                        break;                          // EOF → +0xa64 公共尾
                 if (token == "[reward start count]")
-                {
+                    {
                     rule.m_rewardStartCount = ScanInt(&result);
-                    if (!result)
-                        break;                        // 回主循环
-                }
+                        if (result == true)
+                            continue;                   // +0x8aa→节内头
+                        break;                          // 失败 → 公共尾
+                    }
                 else if (token == "[reward end count]")
-                {
+                    {
                     rule.m_rewardEndCount = ScanInt(&result);
-                    if (!result)
+                        if (result == true)
+                        continue;
                         break;
-                }
+                    }
                 else if (token == "[reward mutiple number]")
-                {
+                    {
                     rule.m_rewardMutipleNumber = ScanInt(&result);
-                    if (!result)
+                        if (result == true)
+                        continue;
                         break;
-                }
+                    }
                 else if (token == "[send mail]")
-                {
-                    Action_SendMail mail;
+                    {
+                        Action_SendMail mail;           // ctor + reset（+0x962/970）
                     mail.reset();
-                    const bool mailOk = importActionMailScript(&mail);
-                    if (mailOk && rule.m_rewardStartCount != -1 &&
+                        result = importActionMailScript(&mail);
+                        if (result == true)
+        {
+                            if (rule.m_rewardStartCount != -1 &&
                         rule.m_rewardEndCount != -1 &&
                         rule.m_rewardMutipleNumber != -1)
-                    {
+            {
                         script->m_sendMails28.push_back(
-                            std::pair<ObjectBringUpScript::ObjectBringUpRule,
+                                    std::pair<
+                                        ObjectBringUpScript::ObjectBringUpRule,
                                       Action_SendMail>(rule, mail));
-                    }
-                    rule.reset();                     // 无论成败均复位续扫
+            }
+                            rule.reset();               // 仅成功路径复位（+0xa24）
+                            continue;                   // +0xa58 回节内头
                 }
+                        break;           // 失败退节，rule 不复位（+0x997 直落）
+                    }
+                    // 未知 token：+0x953 回节内头继续
+            else
+                        continue;
+                }
+                break;
             }
         }
-    }
+        }
+
+        if (!__inited)
+        {
+            __init_lock.leave();                        // +0xa79
+            __inited = true;                            // +0xa7e
+            goto redo_lookup;                           // +0xa85 → guard 重派发
+        }
+        goto scan_exit;                                 // +0xa8b → ScanType 回边
+            }
+scan_done:
     return result;
 }
 
@@ -1235,6 +1918,11 @@ bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* pat
 //     char 左值（本地 char 变量持有 filter[0] 值）；
 //   - ok(=result) 为跨全部分支共享的局部 bool，ScanInt 全写它，且
 //     [level up reward end] 置真后作为返回值。
+// 残差归因（N 类）：ORIG(4.1) 把 token(-0x140) 与 11 个职业分支各自的
+// cond/ri/临时槽在深区按活跃性交错复用（帧 0x170），4.4 分配器为每变量
+// 固定独立槽（帧 0x1a0、token -0x68），几乎每条含槽指令文本错位——跨版本
+// 栈槽分配器差异（P112/N76 族），无法由合法 C++ 复现；语义与指令序列已
+// 逐分支对照 ORIG 汇编一致。
 bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
 {
     if (!loadRDARScriptFile("Event/", path))
@@ -1562,111 +2250,256 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
     return result;
 }
 // ---- importPurchaseCashItemBonusEventScript T 0x089834a6（2404B）----
-// [objdump·报告缺失]。主循环 8 标签：[/event]=返回真、[title]/[explain]/
-// [db table] 三 ScanStr、[item idx] 循环 ScanInt(&ok) 成功才 insert 进 set+0xc、
-// [item idx start]=局部 start 直存（ScanInt(NULL)）、[item idx end] 读 count 后
-// 将 [start,count] 区间逐值 insert（start==0 或 count==0 或解析失败均跳过）、
-// [send] 节。[send] 节内标签用直接 strcmp（不入 static map）：三个
-// [purchase * count] 数值节 ScanInt(&ok) 失败继续节内、成功即退出节回主循环；
-// [send mail] 失败（且节内未曾成功）退出节回主循环、成功则三字段均非 -1 时
-// push_back 进 +0x24 并 rule.reset() 后继续节内（ORIG ebx 标志跨迭代保持）；
-// 未知 token 忽略继续；节内 ScanType 失败回主循环。ok 共享变量即最终返回值
-//（token 耗尽返回 ok 当前值）。
+// 报告 docs/class_func_reports/_lt_global_gt_/importPurchaseCashItemBonusEventScript.md
+// （双段完整阅读）。双相派发同族：8 键注册链 +0x2e0→+0x347→+0x3b4→+0x424→
+// +0x494→+0x54a→+0x5be→+0x6aa，公共尾 +0x933。id：[/event]0x4a1 [title]0x4a3
+// [explain]0x4a6 [db table]0x4a9 [item idx]0x4ac [item idx start]0x4b6
+// [item idx end]0x4b9 [send]0x4c6。函数级 uint start(-0x13c) 初值 0（+0x45）。
+// [item idx]（+0x4f1）uint 槽清 0→ScanInt(&ok)→set<unsigned>+0xc insert，
+// 失败回主循环；[item idx start] ScanInt(NULL) 存 start；[item idx end]
+// （+0x61e）uint end=ScanInt(&ok)，ok&&start!=0&&end!=0 时
+// `for(;start<=end;++start) set.insert(start)`（+0x695 setbe 无符号界）。
+// [send] 节（+0x6fe）：局部 rule ctor 后节内 while(ScanType)，四标签经
+// std::operator== 直比（不入查表）：三个 [purchase * count] ScanInt(&ok)
+// 成功→节内 continue、失败→退出节回主循环（+0x776/+0x778，此前简化形方向
+// 写反=语义缺口，现按 ORIG 修正）；[send mail] 局部 mail ctor+reset，
+// importActionMailScript 失败立即退出节（rule 不复位保留原值，+0x861..868），
+// 成功则三字段均 !=-1 时 push_back(pair(rule,mail) 值临时+~pair)、随后
+// rule.reset() 后回节内（+0x924 test ebx/jne +0x71b）。未知 token 忽略
+// 继续；节内 ScanType 失败退出节回主循环。ok(-0x135) 共享即返回值（+0x960）。
+// 残差归因（N 类，等计数 563=563）：4 节 ok 检查点 je/jne 朝向（4.1 先
+// xor 物化再反判 vs 4.4 直接 test 反转目标，setcc-fold 族）、节头 4 枚
+// 前跳 nop;jmp 岛（+0x70e..+0x717，jump-threading 族）、pair 构造实参
+// %eax↔%edx（N7）、make_pair sret 后 `sub $0x4` 伴随（P75 族）均不可由
+// 合法源码翻正；[item idx end] 的 `xor;test;jne` 已用 != true 形复现。
 bool importPurchaseCashItemBonusEventScript(PurchaseCashItemBonusScript* script,
                                             char const* path)
 {
     if (!loadRDARScriptFile("Event/", path))
         return false;
-    bool ok = false;
-    int  start = 0;
+
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+
     std::string token;
-    while (ScanType(token, true))
+    bool ok = false;
+    unsigned int start = 0;          // -0x13c：函数级，[item idx start] 覆写
+
+            for (;;)
     {
-        if (token == "[/event]")
-            return true;
-        else if (token == "[title]")
-            ScanStr(&script->m_field00);
-        else if (token == "[explain]")
-            ScanStr(&script->m_field04);
-        else if (token == "[db table]")
-            ScanStr(&script->m_dbTableName);
-        else if (token == "[item idx]")
-        {
-            for (;;)
-            {
-                const int v = ScanInt(&ok);
-                if (!ok)
-                    break;
-                script->m_set0c.insert(static_cast<unsigned int>(v));
-            }
-        }
-        else if (token == "[item idx start]")
-        {
-            start = ScanInt((bool*)0);
-        }
-        else if (token == "[item idx end]")
-        {
-            const int count = ScanInt(&ok);
-            if (!ok)
-                continue;                 // 回主循环
-            if (start == 0 || count == 0)
-                continue;                 // ORIG 两处跳过路径均回主循环
-            while (start <= count)
-            {
-                script->m_set0c.insert(static_cast<unsigned int>(start));
-                ++start;
-            }
-        }
-        else if (token == "[send]")
-        {
-            PurchaseCashItemBonusScript::PurchaseBonusRule rule;
-            bool sendOk = false;          // ORIG ebx 标志：节内曾成功处理 [send mail]
-            for (;;)
-            {
                 if (!ScanType(token, true))
-                    break;                // 节内 EOF：回主循环
-                if (token == "[purchase start count]")
-                {
-                    rule.m_purchaseStartCount = ScanInt(&ok);
-                    if (ok)
-                        break;            // 成功退出节回主循环
-                }
-                else if (token == "[purchase end count]")
-                {
-                    rule.m_purchaseEndCount = ScanInt(&ok);
-                    if (ok)
-                        break;
-                }
-                else if (token == "[purchase mutiple number]")
-                {
-                    rule.m_purchaseMutipleNumber = ScanInt(&ok);
-                    if (ok)
-                        break;
-                }
-                else if (token == "[send mail]")
-                {
-                    Action_SendMail mail;
-                    mail.reset();
-                    ok = importActionMailScript(&mail);
-                    if (ok)
-                    {
-                        if (rule.m_purchaseStartCount != -1 &&
-                            rule.m_purchaseEndCount != -1 &&
-                            rule.m_purchaseMutipleNumber != -1)
-                        {
-                            script->m_ruleMails24.push_back(
-                                std::pair<PurchaseCashItemBonusScript::PurchaseBonusRule,
-                                          Action_SendMail>(rule, mail));
-                        }
-                        rule.reset();     // 无论是否入表均复位
-                        sendOk = true;    // 置标志：此后失败仍留在节内（ORIG ebx）
-                    }
-                    else if (!sendOk)
-                        break;            // 首败且未成功过：退出节回主循环
-                }
-                // 其余未知 token：忽略继续节内（ORIG 同）
+        {
+        scan_exit:
+            goto scan_done;
+        }
+
+    redo_lookup:
+        static LookupMap __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        int key;
+        if (__inited)
+        {
+            LookupMap::const_iterator it = __lookup.find(token.c_str());
+            key = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
+        {
+            __init_lock.enter();                        // +0x233
+            if (__inited)
+            {
+                __init_lock.leave();                    // +0x24a
+                goto redo_lookup;                       // +0x250 → guard 重查
+            }
+            key = 0;                                    // +0x255 注册链入口
+        }
+
+        switch (key)
+        {
+        case 0x4a1:                                     // [/event]（+0x2e0）
+        case 0:
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[/event]", 0x4a1));
+            }
+            else
+            {
+                return true;                            // +0x33d
             }
         }
+        /* fall through */
+        case 0x4a3:                                     // [title]（+0x347）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[title]", 0x4a3));
+            }
+            else
+            {
+            ScanStr(&script->m_field00);
+                    break;
+            }
+        }
+        /* fall through */
+        case 0x4a6:                                     // [explain]（+0x3b4）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[explain]", 0x4a6));
+            }
+            else
+            {
+            ScanStr(&script->m_field04);
+                        break;
+            }
+        }
+        /* fall through */
+        case 0x4a9:                                     // [db table]（+0x424）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[db table]", 0x4a9));
+            }
+            else
+            {
+                ScanStr(&script->m_dbTableName);        // +0x8
+                        break;
+            }
+        }
+        /* fall through */
+        case 0x4ac:                                     // [item idx]（+0x494）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[item idx]", 0x4ac));
+            }
+            else
+            {
+            for (;;)
+                {
+                    unsigned int v = 0;                 // -0x144 每轮清 0
+                    v = static_cast<unsigned int>(ScanInt(&ok));
+                    if (ok != true)                     // +0x50f xor 物化形
+                        break;                          // +0x51e → 公共尾
+                    script->m_set0c.insert(v);          // set<unsigned>+0xc
+                }
+                break;
+            }
+        }
+        /* fall through */
+        case 0x4b6:                                     // [item idx start]（+0x54a）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(
+                    LookupMap::value_type("[item idx start]", 0x4b6));
+            }
+            else
+            {
+                start = static_cast<unsigned int>(ScanInt((bool*)0));
+                break;
+            }
+        }
+        /* fall through */
+        case 0x4b9:                                     // [item idx end]（+0x5be）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(
+                    LookupMap::value_type("[item idx end]", 0x4b9));
+            }
+            else
+            {
+                unsigned int end = 0;                   // 槽清 0 后 ScanInt
+                end = static_cast<unsigned int>(ScanInt(&ok));
+                if (ok != true)                         // +0x642 xor/jne 直退
+                    break;                              // 失败 → 公共尾
+                if (start != 0)                         // +0x650
+                {
+                    if (end != 0)
+                    {
+                        for (; start <= end; ++start)
+                            script->m_set0c.insert(start);
+                    }
+                }
+                break;
+            }
+        }
+        /* fall through */
+        case 0x4c6:                                     // [send]（+0x6aa）
+        {
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[send]", 0x4c6));
+            }
+            else
+            {
+            PurchaseCashItemBonusScript::PurchaseBonusRule rule;
+                for (;;)
+                {
+                if (!ScanType(token, true))
+                        break;              // 节内 EOF → 公共尾（+0x932）
+                if (token == "[purchase start count]")
+                    {
+                    rule.m_purchaseStartCount = ScanInt(&ok);
+                        if (!ok)
+                            break;                      // 失败退出节（+0x778）
+                        continue;                       // 成功回节内头
+                    }
+                else if (token == "[purchase end count]")
+                    {
+                    rule.m_purchaseEndCount = ScanInt(&ok);
+                        if (!ok)
+                            break;
+                        continue;
+                    }
+                else if (token == "[purchase mutiple number]")
+                    {
+                    rule.m_purchaseMutipleNumber = ScanInt(&ok);
+                        if (!ok)
+                            break;
+                        continue;
+                    }
+                else if (token == "[send mail]")
+                    {
+                        Action_SendMail mail;            // +0x82e ctor
+                        mail.reset();                    // +0x83c
+                        // 返回值先物化回 ok 槽再判（+0x84f mov %al,-0x135 /
+                        // +0x855 movzbl 读回形）。
+                        ok = importActionMailScript(&mail);
+                        if (ok != true)                  // +0x861 xor 物化形
+                        {
+                            break;          // 失败即退出节，rule 不复位（+0x863）
+                        }
+                        else
+                        {
+                            if (rule.m_purchaseStartCount != -1 &&
+                                rule.m_purchaseEndCount != -1 &&
+                                rule.m_purchaseMutipleNumber != -1)
+                    {
+                                script->m_ruleMails24.push_back(
+                                    std::pair<
+                                        PurchaseCashItemBonusScript::PurchaseBonusRule,
+                                        Action_SendMail>(rule, mail));
+                    }
+                            rule.reset();                // +0x8e7
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        }
+
+        if (!__inited)
+        {
+            __init_lock.leave();                        // +0x948
+            __inited = true;                            // +0x94d
+            goto redo_lookup;                           // +0x954 → guard 重派发
+        }
+        goto scan_exit;                                 // +0x95a → ScanType 回边
     }
+scan_done:
     return ok;
 }

@@ -238,10 +238,15 @@ bool CSyncScript::GetType(std::string name, ENUM_CHARACTERJOB job, int idx,
     {
         return false;
     }
-    name.erase(0, 1);
-    name.erase(name.size() - 1, 1);
+    // ORIG 0x0861cf5f..0x0861d037：迭代器区间 erase（begin,begin+1 去 '['、
+    // end-1,end 去尾 ']'，__normal_iterator begin/operator+/operator- 各带
+    // sret 临时；索引 erase 形指令数不符）。
+    name.erase(name.begin(), name.begin() + 1);
+    name.erase(name.end() - 1, name.end());
     std::string key = "stackable ";
-    if (flag || name != "creature")
+    // ORIG 0x0861d08c：`!flag && name=="creature"` 时拼接（+=），否则整体赋值
+    // （Ghidra bVar1 双否形，此前方向转写反了，修正语义）。
+    if (!flag && name == "creature")
     {
         key += name;
     }
@@ -250,7 +255,9 @@ bool CSyncScript::GetType(std::string name, ENUM_CHARACTERJOB job, int idx,
         key = name;
     }
     SITEMTYPE local = m_itemTypeMap[key];
-    if (m_vec1.empty() || m_vec1[0] == local.m_field1)
+    // ORIG 0x0861d10e：weapon 命中 = size()!=0 && vec[0]==local.m_field1
+    // （原 empty()|| 形为误转，修正）。
+    if (!m_vec1.empty() && m_vec1[0] == local.m_field1)
     {
         SWEAPONTYPE wp(job, idx);
         local = m_weaponMap[wp];
@@ -294,8 +301,21 @@ const char* CSyncScript::GetURL(const char* str, int len, int idx)
 
 const char* CSyncScript::GetUserJob(ENUM_CHARACTERJOB job)
 {
-    // ORIG 0x861d2dc switch 跳表 → 常量字符串（GetJobString 同语义）。
-    return GetJobString(job);
+    // ORIG 0x0861d2dc：switch 跳表（cmp $7; ja 边界 + .rodata 8 项表）→
+    // EUC-KR 职业名常量（.rodata 0x08ce2e6c.. objdump 实证，与 GetJobString 同
+    // 编码），default 为单引号串（0x08ce2e28 = "'"）。逐 case 独立 return。
+    switch ((int)job)
+    {
+    case 0:  return "\xb1\xcd\xb0\xcb\xbb\xe7";                // 귀검사
+    case 1:  return "\xb0\xdd\xc5\xf5\xb0\xa1";                // 격투가
+    case 2:  return "\xb0\xc5\xb3\xca";                        // 거너
+    case 3:  return "\xb8\xb6\xb9\xfd\xbb\xe7";                // 마법사
+    case 4:  return "\xc7\xc1\xb8\xae\xbd\xba\xc6\xae";        // 프리스트
+    case 5:  return "\xbf\xa9\xb0\xc5\xb3\xca";                // 여거너
+    case 6:  return "\xb5\xb5\xc0\xfb";                        // 도적
+    case 7:  return "\xb3\xb2\xb0\xdd\xc5\xf5\xb0\xa1";        // 남격투가
+    default: return "'";
+    }
 }
 
 bool CSyncScript::insert_artifact_info_to_db(STEquipmentScript* script)
@@ -373,39 +393,35 @@ void CSyncScript::GetLevelUpSkill(
 {
     static std::string level_up_skill;
     level_up_skill.clear();
-    // ORIG 0x0861d472：param*0xc+(script+0x40c) → EquipmentParameterInfo 内第 idx 档
-    // vector<LevelUpSkill>（+0x24c/+0x258/+0x264 三档，每档 0xc）。
-    // 第三档（+0x264）与权威头 m_avatar264（[avatar select ability]，CEquipItem.cpp
-    // 有消费证据）语义冲突且无 call 引用可证枚举值域，保守不实现。
-    std::vector<LevelUpSkill>* vec = 0;
-    if (vectorIndex == EquipmentParameterInfo::ENUM_SKILL_UP_VECTOR_INDEX_0)
-    {
-        vec = &script->m_param1c0.m_levelUpSkills[0];
-    }
-    else if (vectorIndex == EquipmentParameterInfo::ENUM_SKILL_UP_VECTOR_INDEX_1)
-    {
-        vec = &script->m_param1c0.m_levelUpSkills[1];
-    }
-    else
-    {
-        return;   // default → 保持空串
-    }
-    const unsigned int skillCount = vec->size();
-    for (unsigned int i = 0; i < skillCount; ++i)
+    // ORIG 0x0861d472：无 vectorIndex 值域检查——直接 m_levelUpSkills[idx] 下标
+    // 寻址（param_3*0xc 每次 shl 重算，0x40c 基址；idx=2 落 +0x264 即权威头
+    // m_avatar264 邻域，ORIG 行为如此，前批“保守 return”系过度防御，已按原码
+    // 照抄）。size 落 int 槽、(int)i<n 有符号比较；at(i) 每处独立重读（P48/P157
+    // 无 CSE）；每轮 memset(tmp,0,0x400)；job 串经 allocator+string(PKc,alloc)
+    // 临时（EH landing pad），非裸 compare。
+    int skillCount = (int)script->m_param1c0.m_levelUpSkills[(int)vectorIndex].size();
+    for (int i = 0; i < skillCount; ++i)
     {
         level_up_skill += "|";
-        const LevelUpSkill& skill = vec->at(i);   // ORIG 用 at
-        const char* job = GetUserJob((ENUM_CHARACTERJOB)skill.m_job);
-        if (std::string(job) == "")
+        std::allocator<char> alloc;
+        std::string jobStr(GetUserJob((ENUM_CHARACTERJOB)
+            script->m_param1c0.m_levelUpSkills[(int)vectorIndex].at(i).m_job), alloc);
+        if (jobStr == "")
         {
             level_up_skill += "\xb0\xf8\xc5\xeb";   // 공용
         }
         else
         {
-            level_up_skill += job;
+            level_up_skill += jobStr;
         }
         char tmp[0x400];
-        sprintf(tmp, "| %d| %d", skill.m_field4, skill.m_field8);
+        memset(tmp, 0, sizeof(tmp));
+        // ORIG 0x0861d637：m_field8 读后跨 sprintf call 留 %ebx（无槽）——
+        // register 形保 ORIG 物化位（P85/P87），普通局部在 4.4 必 spill 槽。
+        register unsigned int f8 =
+            script->m_param1c0.m_levelUpSkills[(int)vectorIndex].at(i).m_field8;
+        sprintf(tmp, "| %d| %d",
+                script->m_param1c0.m_levelUpSkills[(int)vectorIndex].at(i).m_field4, f8);
         level_up_skill += tmp;
     }
     level_up_skill.c_str();
@@ -542,10 +558,14 @@ bool CSyncScript::insert_skill_index(STSkillScript* script, int job)
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)3, (ENUM_SERVER_GROUP)0);
+    // ORIG 0x08622675：name[0xff] 而 memset 计数 0x100（越过数组尾 1 字节，
+    // 原码行为）；escaped=0x300（-0x428）。4.1 O0 把 memset 内联展开为对齐剥离
+    // +rep stos 慢路（ORIG 非对齐基址 -0x12b）；4.4 O0 仅 `= {0}` 展开且恒
+    // fast path（槽基址对齐），显式 memset 变 call —— 展开路径为编译器版本
+    // 行为，本函数按语义+计数口径标注残差。
     char name[0xff];
-    memset(name, 0, sizeof(name));
-    char escaped[0xbf];
-    memset(escaped, 0, sizeof(escaped));
+    memset(name, 0, 0x100);
+    char escaped[0x300] = { 0 };
     if (!CodePage::script2Database((char*)script->m_str4.c_str(), name))
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x6e0, 5)(
@@ -555,7 +575,10 @@ bool CSyncScript::insert_skill_index(STSkillScript* script, int job)
     db->escape_string(escaped, name);
     db->set_query("inSert into skill_index(job, skill_idx, skill_name) values(%d, %d, '%s')",
                   job, script->m_field0, escaped);
-    return db->exec(true);
+    // ORIG 0x086227d1：exec 结果保 bool 比较控制流（P101）。
+    if (!db->exec(true))
+        return false;
+    return true;
 }
 
 bool CSyncScript::truncate_skill_index()
@@ -592,6 +615,11 @@ bool CSyncScript::trancate_skill_info()
 
 bool CSyncScript::insert_skill_info(STSkillScript* script, int job, int type)
 {
+    // 【残差封顶·NEAR 级】指令数 ours=1401 vs ORIG=1400 等量，调用序逐段对齐；
+    // 残余 = ①浅槽临时区 +0x1c 偏移（cMyTrace/string 物化序，牵动 0xb000 缓冲
+    // 基址 -0xa924 vs ORIG -0xa908 全部 29 处——整帧重排风险>收益，Main 批复挂起）
+    // ②useItems11c 子结构边界声明差异（+0x110/+0x8 vs +0x108/+0x10，和址同）
+    // ③for_each 临时物化 1-2 处。证据 ORIG 0x08622e2b 区间。
     if (m_field0 != 1)
     {
         return true;

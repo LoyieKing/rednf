@@ -6657,13 +6657,13 @@ void CParty::clear_reward(int param)
                 float weight = G_CDataManager()->m_guildParameter.getExpWeight(guildLvl);
                 int addExp = static_cast<int>(
                     static_cast<double>(weight) *
-                        static_cast<double>(tempExp) + 0.5);
+                        static_cast<double>(tempExp));
                 // ORIG:条件为 != 0(today 分支先发射,add_guild_exp 为 else)。
                 if (guildTodayFlag[slot] != 0)
                 {
                     addExp += static_cast<int>(
                         G_CDataManager()->m_guildParameter.m_fieldFC / 100.0 *
-                            static_cast<double>(addExp) + 0.5);
+                            static_cast<double>(addExp));
                     user->add_guild_today_exp(addExp);
                 }
                 else
@@ -6683,13 +6683,13 @@ void CParty::clear_reward(int param)
                 static_cast<unsigned long long>(user->get_guild_temp_exp());
             float weight = G_CDataManager()->m_guildParameter.getExpWeight(guildLvl);
             int addExp = static_cast<int>(
-                static_cast<double>(weight) * static_cast<double>(tempExp) + 0.5);
+                static_cast<double>(weight) * static_cast<double>(tempExp));
             // ORIG:条件为 != 0(today 分支先发射,add_guild_exp 为 else)。
             if (guildTodayFlag[slot] != 0)
             {
                 addExp += static_cast<int>(
                     G_CDataManager()->m_guildParameter.m_fieldFC / 100.0 *
-                        static_cast<double>(addExp) + 0.5);
+                        static_cast<double>(addExp));
                 user->add_guild_today_exp(addExp);
             }
             else
@@ -6727,7 +6727,7 @@ void CParty::clear_reward(int param)
         {
             int addInfo = rewardItems[0].get_add_info();
             rewardItems[0].set_add_info(static_cast<int>(
-                (1.0f - deadPenalty) * static_cast<float>(addInfo) + 0.5f));
+                (1.0f - deadPenalty) * static_cast<float>(addInfo)));
             m_field38c[slot] = 1;
         }
 
@@ -6735,7 +6735,7 @@ void CParty::clear_reward(int param)
             int addInfo = rewardItems[0].get_add_info();
             rewardItems[0].set_add_info(static_cast<int>(
                 static_cast<double>(static_cast<float>(minStdDropRate) / 100.0f) *
-                    static_cast<double>(addInfo) + 0.5));
+                    static_cast<double>(addInfo)));
         }
 
         ref.m_field3c =                                          // +0x3c 整字视图
@@ -6789,7 +6789,7 @@ void CParty::clear_reward(int param)
             }
             int commission = clearGen->getGoldCardCommission(stdLevel);
             m_field1e4[1][slot] = static_cast<int>(
-                static_cast<float>(commission) * commissionRate + 0.5f);
+                static_cast<float>(commission) * commissionRate);
             float createRate = clearGen->getGoldCardCreateRate();
             // ORIG 0x085af2af：fstps -0x210(=ref+0x38) —— float 槽覆盖，非 +0x34
             ref.m_rankBonusRate = createRate;
@@ -6905,7 +6905,7 @@ void CParty::clear_reward(int param)
         double weighted =
             static_cast<double>(baseExp) * static_cast<double>(diffWeight);
         totalMobExp = static_cast<unsigned int>(static_cast<long long>(
-            weighted * dungeon->get_exp_weight() + 0.5));
+            weighted * dungeon->get_exp_weight()));
     }
 
     PacketGuard pkBasic;
@@ -6934,7 +6934,7 @@ void CParty::clear_reward(int param)
             double weighted =
                 static_cast<double>(baseExp) * static_cast<double>(diffWeight);
             totalMobExp = static_cast<unsigned int>(static_cast<long long>(
-                weighted * dungeon->get_exp_weight() + 0.5));
+                weighted * dungeon->get_exp_weight()));
         }
 
         int userLevel = user->get_charac_level();
@@ -6959,7 +6959,7 @@ void CParty::clear_reward(int param)
                     static_cast<unsigned long long>(totalMobExp)) *
                     static_cast<float>(MemberPenaltyRate())));
             personalExp = static_cast<unsigned int>(static_cast<long long>(
-                scaled / memberCount + 0.5));
+                scaled / memberCount));
         }
         else
         {
@@ -6969,7 +6969,7 @@ void CParty::clear_reward(int param)
                     static_cast<unsigned long long>(totalMobExp)) * penalty) *
                 static_cast<float>(MemberPenaltyRate()));
             personalExp = static_cast<unsigned int>(static_cast<long long>(
-                scaled / memberCount + 0.5));
+                scaled / memberCount));
         }
 
         QuickParty::RewardData_Param rewardParam(this);
@@ -7010,7 +7010,7 @@ void CParty::clear_reward(int param)
         if (user->IsHavePremiumAdvantage())
         {
             float premiumDeduction;   // ORIG quirk: flds -0x2cc has no writer
-            int deduction = static_cast<int>(premiumDeduction + 0.5f);
+            int deduction = static_cast<int>(premiumDeduction);
             user->m_character.m_f28 -= deduction;
             user->m_character.m_f34 -= deduction;
         }
@@ -7035,8 +7035,7 @@ void CParty::clear_reward(int param)
             if (personalExp != 0)
             {
                 int sub = static_cast<int>(
-                    static_cast<float>(personalExp) / (bonusRate + tableRate) +
-                    0.5f);
+                    static_cast<float>(personalExp) / (bonusRate + tableRate));
                 unsigned int sum = bonus.m_avatarBonusExp +
                                    bonus.m_rankWeightExp +
                                    bonus.m_selectedBonusExp +

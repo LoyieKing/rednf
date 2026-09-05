@@ -647,6 +647,15 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
 // 主循环；reward 段第二/三列失败 = return false。message 段 do-while：
 // 每轮构造 msg1/msg2（0x0890cc53/-0x1bc），id=ScanInt 失败结束段。
 // ============================================================================
+// 残余 DIFF 归因（N 类豁免，语义已全等、指令数 1085/1093）：
+//  ① 4.1 while/if 块排布镜像：ORIG `call ScanType; xor$1; test; jne
+//     exit-island(nop;jmp)`（0x0890bcd3..bcd9）+ body fallthrough；4.4.7 O0
+//     恒生成反向 `je body` + exit fallthrough（范式库负例“空 else nop;jmp 岛
+//     vs jump-threading”，无合法源码形态可翻转 BB 排布）；
+//  ② message 段 ebx 汇聚 flag（0x0890cd42 `mov $0x1,%ebx` / 0x0890cd6f
+//     `test %ebx,%ebx`）= 4.1 统一 dtor epilogue；4.4 每路径独立 dtor
+//     （负例“EH 双份 dtor epilogue vs merge”）；
+//  ③ 其余为 .o 重定位地址显示差（链接后 AE 口径消除）。
 bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
 {
     if (!loadRDARScriptFile("", path))
