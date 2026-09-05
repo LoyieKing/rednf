@@ -6550,11 +6550,13 @@ bool DB_UpdateQuestShopBuyingStatusList::dispatch(int userIdx, int slot,
         sig->m_main.m_data.m_hitRecovery,
         sig->m_main.m_data.m_separatePsyMagAttack,
         sig->m_main.m_questPiece, sig->m_main.m_field0);
-    if (db->exec(true) == 1)
+    // P168a①：ORIG 首段 `[call exec][xor$1][test %al][je 岛]` + 岛
+    // `mov$0,%eax; jmp EPI` = bool callee `!` 裸 early-return（技巧1）。
+    if (!db->exec(true))
+        return 0;
+    if (db->getAffectedRowCount() == 0)
     {
-        if (db->getAffectedRowCount() == 0)
-        {
-            db->set_query(
+        db->set_query(
                 "inSert into charac_quest_shop(charac_no, qp, init_count, max_hp, max_mp, psy_attack, psy_defense, mag_attack, mag_defence, move_speed, attack_speed, hp_regen, mp_regen, all_element_resist, fire_element_resist, water_element_resist, light_element_resist, dark_element_resist, all_element_attack,fire_element_attack, water_element_attack, light_element_attack, dark_element_attack, psy_critical, mag_critical, good_hit , evasion , hit_recovery , separate_psy_mag_attack , quest_piece) values(%u, %u, %u, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
                 sig->m_main.m_field0, sig->m_main.m_qp, sig->m_main.m_initCount,
                 sig->m_main.m_data.m_maxHp, sig->m_main.m_data.m_maxMp,
@@ -6582,12 +6584,11 @@ bool DB_UpdateQuestShopBuyingStatusList::dispatch(int userIdx, int slot,
                 sig->m_main.m_data.m_hitRecovery,
                 sig->m_main.m_data.m_separatePsyMagAttack,
                 sig->m_main.m_questPiece);
-            if (db->exec(true) != 1)
-                return 0;
-        }
-        return 1;
+        // P168a①：二段落同 xor early-return 形。
+        if (!db->exec(true))
+            return 0;
     }
-    return 0;
+    return 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -10963,9 +10964,10 @@ bool DB_CheckSecuReward::dispatch(int userIdx, int slot, Stream* stream)
     db->set_query(
         "seLect unix_timestamp(last_check_time) from member_security_grade where m_id=%s",
         NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
-    // 残留 A 段（blocked）：ORIG exec/fetch 短路为 `xor$1;test;jne/je`
-    // （4.1 材料化）+ 尾双岛 `mov$1;jmp / mov$0;test al;je / mov$1;jmp`
-    // ——4.4 && 直判形无 xor、bool 具名变量必落槽（帧 +0x10）不可复现。
+    // P168a 五步自检定论（goto 落点岛/正判双分支/短路合判三形实跑均劣化
+    // ——首段 sete 岛+3 jmp；4.1 `xor$1;test` 物化段与尾 v 双常数岛为
+    // 跨版本 bool 物化顶③b 族）⇒ 保留 && 直判原形，标 N。S 类
+    // missing-calls:ptEv 已修（guard-> 形）。
     if (db->exec(true) && db->get_n_rows() != 0 && db->fetch())
     {
         db->get_uint(0, lastCheck);
@@ -10982,6 +10984,10 @@ bool DB_CheckSecuReward::dispatch(int userIdx, int slot, Stream* stream)
                 true);
             guard.operator*()->operator<<(userIdx);
             guard.operator*()->operator<<(slot);
+            // ORIG 0x8444397：`lea -0x28; call CStreamGuard::operator->
+            // (ptEv); call GetInBuffer<SIG_SEND_USER_REWARD>` = `guard->`
+            // 形（台账 S 类 missing-calls:ptEv 修复；`operator*()->` 形会
+            // 丢 ptEv call）。
             // ORIG 0x84444xx store：`mov -0x18,%eax; mov 0x4(%eax),%edx;
             // mov -0xc,%eax; mov %edx,(%eax)` —— RHS 先载（sig+4 单级字段
             // 解引用）+ LHS reload；4.4 中 LHS 带 cast 翻为地址先载 + RHS
@@ -10989,7 +10995,7 @@ bool DB_CheckSecuReward::dispatch(int userIdx, int slot, Stream* stream)
             // 变量直存、RHS 取 view 字段。
             DB_SecuRewardOutView* out =
                 reinterpret_cast<DB_SecuRewardOutView*>(
-                    guard.operator*()->GetInBuffer<SIG_SEND_USER_REWARD>());
+                    guard.operator->()->GetInBuffer<SIG_SEND_USER_REWARD>());
             out->m_reward =
                 reinterpret_cast<DB_SecuRewardSigView*>(sig)->m_param4;
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);

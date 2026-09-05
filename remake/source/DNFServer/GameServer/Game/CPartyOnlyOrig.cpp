@@ -135,7 +135,10 @@ void CParty::_GetConnectP2PMaxMinPoint(int& maxPoint, int& minPoint)
     int point = 0;
     for (int i = 0; i < 4; i++)
     {
-        if (_checkValidUser(i))
+        // [X1·判据③有消费者] ORIG 0x085bxxxx `call;xor$1,%eax;test;jne`。
+        register unsigned char v asm("eax") = (unsigned char)_checkValidUser(i);
+        v ^= 1;
+        if (!v)
         {
             point = _GetConnectP2PPoint(i);
             if (point < minPoint)
@@ -259,6 +262,7 @@ void CParty::send_to_alive_member(PacketGuard& packet)
         {
             continue;
         }
+        // [判据①] ORIG O@10 `test;je` 无 xor：==0 直判形。
         if (m_member[i].m_pUser->get_state() == 5 && m_battleData.m_arr54[i] != 0)
         {
             m_member[i].m_pUser->Send(packet);
@@ -275,11 +279,16 @@ int CParty::isMyMember(unsigned int userNo)
 {
     for (int i = 0; i <= 3; i++)
     {
-        if (_checkValidUser(i) &&
-            (static_cast<unsigned int>(
-                 m_member[i].m_pUser->get_unique_id()) & 0xffff) == userNo)
+        // [判据②岛形+拆&&] ORIG O@25 `sete%al;test;je`。
+        if (_checkValidUser(i))
         {
-            return 1;
+            register bool hit asm("al") =
+                (static_cast<unsigned int>(
+                     m_member[i].m_pUser->get_unique_id()) & 0xffff) == userNo;
+            if (hit)
+            {
+                return 1;
+            }
         }
     }
     return 0;
@@ -368,11 +377,14 @@ bool CParty::IsThereGhostInParty()
 {
     for (int i = 0; i <= 3; i++)
     {
-        if (_checkValidUser(i) &&
-            reinterpret_cast<CUserCharacInfo*>(m_member[i].m_pUser)
-                ->IsCurCharacGhost())
+        // [拆&&] ORIG 双段直分支，&& 合一 4.4 产物化岛 5 行。
+        if (_checkValidUser(i))
         {
-            return true;
+            if (reinterpret_cast<CUserCharacInfo*>(m_member[i].m_pUser)
+                    ->IsCurCharacGhost())
+            {
+                return true;
+            }
         }
     }
     return false;
@@ -869,10 +881,14 @@ int CParty::is_limit_minimum_age(int age, int& param)
 {
     for (int i = 0; i <= 3; i++)
     {
-        if (_checkValidUser(i) &&
-            !m_member[i].m_pUser->CheckLimitMiniumAge(age, param))
+        // [判据②直分支形+拆&&] ORIG O@26-31：`call;xor$1;test;je` +
+        // `mov$0;jmp` 直返，无 && 物化岛——两条件拆嵌套。
+        if (_checkValidUser(i))
         {
-            return 0;
+            if (m_member[i].m_pUser->CheckLimitMiniumAge(age, param) == 0)
+            {
+                return 0;
+            }
         }
     }
     return 1;
@@ -883,11 +899,16 @@ int CParty::is_limit_minimum_level(int level, int& param)
 {
     for (int i = 0; i <= 3; i++)
     {
-        if (_checkValidUser(i) &&
-            m_member[i].m_pUser->get_charac_level() < level)
+        // [判据②岛形+拆&&] ORIG O@22-26：`call;cmp;setl%al;test;je`。
+        if (_checkValidUser(i))
         {
-            param = m_member[i].m_pUser->get_unique_id() & 0xffff;
-            return 0;
+            register bool low asm("al") =
+                m_member[i].m_pUser->get_charac_level() < level;
+            if (low)
+            {
+                param = m_member[i].m_pUser->get_unique_id() & 0xffff;
+                return 0;
+            }
         }
     }
     return 1;

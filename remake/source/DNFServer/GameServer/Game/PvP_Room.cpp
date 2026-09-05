@@ -977,6 +977,13 @@ int PvP_Room::check_acquire_guild_point()
 }
 int PvP_Room::check_winner()
 {
+    // ORIG 0x085d98ea（274 条；本侧 290，+16 全为 N 类形态差，台账豁免）：
+    //  - 帧调整 4.1 `add $0xffffff80,%esp`（负常量折叠）vs 4.4 `sub $0x90`；
+    //    帧洞 0x10（outgoing frame N）；
+    //  - local_6c[P_TEAMWIN+3] 索引 4.1 单 lea 折叠、4.4 拆 mov+add 两段
+    //    （N18a/N76）；bVar 常量岛 `mov$1/mov$0/test;je`×3（setcc-fold）；
+    //  - mode5 段 &m_deathMatch 先期 lea 缓存（P52 callee-saved），4.4 实参处
+    //    现算。GetRanking/insert 调用链与错误码逐段核对无语义缺口。
     if (m_fieldC0 != 0)
     {
         return 0;
@@ -1823,6 +1830,11 @@ int PvP_Room::make_room_info(char* buf)
 
 int PvP_Room::make_seat_info(char* buf, int seat)
 {
+    // ORIG 0x085db9e2（199；本侧 193，-6 全为 N 类形态差，multiset 核对无语义
+    // 缺口）：ORIG 将 vptr 读值/getCurCharacName/get_acc_name 结果以 %edi/%esi/
+    // %ebx callee-saved 跨 3 次调用缓存（push 对 +2、`mov (%eax),%edx` 直落
+    // outgoing 槽 vs 4.4 `mov…,%eax; mov %eax,…` 两段，N7/N18a），错误码/日志
+    // 串/PRETTY 符号逐条一致。
     InterfacePacketBuf* local_18 = (InterfacePacketBuf*)buf;
     local_18->put_header(0, 0x2b);
     local_18->put_short(m_index);
@@ -2015,6 +2027,10 @@ int PvP_Room::select_new_manager()
 
 int PvP_Room::change_manager_to_winner()
 {
+    // ORIG 0x085d7d54（81；本侧 83，+2=N 落点：ORIG seat==0 skip 的 je 与
+    // is_last_win!=true skip 的 jne 分落 +0x15c/+0x15d 两独立 landing（其间
+    // 1 条 nop/重叠指令布局产物），4.4 合并共享出口+中继 jmp。bVar 常量岛/
+    // !=1→xor 物化/嵌套实参消槽三形已应用，141→83。）
     if (m_seats[7] == 0)
     {
         return 0;
@@ -2967,6 +2983,14 @@ int PvP_Room::die_charac(CUser* killer, CUser* victim)
 
 int PvP_Room::time_out(int* seats)
 {
+    // ORIG 0x085d9b0e（365 条；本侧 373，+8 全为 N 类形态差，台账豁免）：
+    //  - local_4c/local_3d 的 ==1/!=0 检查 4.1 折成 `xor$1,%eax;test%al;je`
+    //    常量岛（4.4 恒 `cmpb/cmpl` 直判，setcc-fold 负例在册）；
+    //  - PVP_*_BATTLE_TIME[local_4c] 与 local_84[teamwin+5] 索引 4.1 单段
+    //    `mov &arr(,%eax,4)`/`lea …,%edx` 直落，4.4 拆 lea+reload（N76/N18a）；
+    //  - end_time 日志 3 实参 4.1 以 callee-saved 缓存（push 对），4.4 逐槽
+    //    reload（+4 mov）。lock()/unlock() 调用点、模式分派、do-while 比较
+    //    （jl/jle 方向）已逐段核对无语义缺口。
     if (m_battleEndFlag != 0)
     {
         return 0;
@@ -3000,7 +3024,7 @@ int PvP_Room::time_out(int* seats)
     {
         return 0x13;
     }
-    char local_3d = 1;
+    int local_3d = 1;
     for (int local_3c = 0; local_3c < 7; local_3c = local_3c + 1)
     {
         if (seats[local_3c] != seats[local_3c + 1])

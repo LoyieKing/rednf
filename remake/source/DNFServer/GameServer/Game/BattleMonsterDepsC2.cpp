@@ -162,7 +162,8 @@ bool CBattle_Field::get_monster_list(std::list<_mapMonster>& mobList)
     if (m_pDungeon->isTournamentDungeon())
     {
         m_tournamentRoundMap.clear();                                    // +0x13c
-        if (!ConsistTournament(m_pMap, mobList, m_tournamentRoundMap))
+        bool ok = ConsistTournament(m_pMap, mobList, m_tournamentRoundMap);
+        if (!ok)
             return false;
         m_dungeonClearTracer.SetMaxBossCount(m_party->get_member_count());
         SetTournamentCurRound(1);
@@ -882,8 +883,7 @@ int CBattle_Field::get_invade_direction(int x, int y)
 // ORIG 0x08307d7c：按副本是否每图进入选用 goto 位或普通访问位判定。
 bool CBattle_Field::check_visited_map(int x, int y, bool& firstVisit)
 {
-    const bool enterEach = (m_pDungeon != NULL) && m_pDungeon->IsEnterEachMap();
-    if (enterEach)
+    if ((m_pDungeon != NULL) && m_pDungeon->IsEnterEachMap())
     {
         if (is_visited_map_goto(x, y))
         {

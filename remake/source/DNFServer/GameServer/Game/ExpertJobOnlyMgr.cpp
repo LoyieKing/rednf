@@ -108,7 +108,7 @@ int CAlchemist::GetQuestItemDropRate(CUser* user, int rate)
     if (IsExistContinuousEffectItem(user, 0x27ac52) ||
         IsExistContinuousEffectItem(user, 0x1f8e))
     {
-        rate = (g_alchemistInfo[1] + 10000) * rate / 10000;
+        return (g_alchemistInfo[1] + 10000) * rate / 10000;
     }
     return rate;
 }
@@ -118,8 +118,7 @@ int CAlchemist::CheckUsableStackableItem(CUser* user, CItem const* item)
 {
     // ORIG：CStackableItem::get_sub_type()==2（APC 强力药水）时检查全队
     // GetUseAPCPotionTime 未到者存在则禁用；其余放行。
-    const CStackableItem* stacked = static_cast<const CStackableItem*>(item);
-    if (stacked->get_sub_type() == 2)
+    if (static_cast<const CStackableItem*>(item)->get_sub_type() == 2)
     {
         CParty* party = static_cast<CParty*>(user->GetParty());
         if (party != 0)
@@ -127,11 +126,13 @@ int CAlchemist::CheckUsableStackableItem(CUser* user, CItem const* item)
             for (int i = 0; i < 4; ++i)
             {
                 CUser* member = party->get_user(i);
-                if (member != 0 &&
-                    member->GetUseAPCPotionTime() >
-                        GlobalData::s_systemTime_.getCurSec())
+                if (member != 0)
                 {
-                    return 0;
+                    register bool gt asm("al") =
+                        member->GetUseAPCPotionTime() >
+                        GlobalData::s_systemTime_.getCurSec();
+                    if (gt)
+                        return 0;
                 }
             }
         }
@@ -152,14 +153,18 @@ int CAlchemist::GetAssaultPrevent(CUser* user, bool* peerFlag)
         for (int i = 0; i < 4; ++i)
         {
             CUser* member = party->get_user(i);
-            if (member != 0 && member != user &&
-                IsExistContinuousEffectItem(member, 0x27ac4a))
+            if (member != 0 && member != user)
             {
-                if (peerFlag != 0)
+                register bool ex asm("al") =
+                    IsExistContinuousEffectItem(member, 0x27ac4a);
+                if (ex)
                 {
-                    *peerFlag = true;
+                    if (peerFlag != 0)
+                    {
+                        *peerFlag = true;
+                    }
+                    return 1;
                 }
-                return 1;
             }
         }
     }
@@ -436,8 +441,10 @@ void CExpertJobMgr::OnRequestPeer(CUser* requester, CUser* target,
                                   ENUM_PEER_REQUEST_TYPE type,
                                   PacketGuard& packet)
 {
-    unsigned int err = IsAvailableRequestPeer(requester, target, type, packet);
-    if (err != 0)
+    unsigned int err = 0;
+    err = IsAvailableRequestPeer(requester, target, type, packet);
+    register bool enz asm("al") = (err != 0);
+    if (enz)
     {
         requester->SendCmdPeerErrorPacket((ENUM_CMDPACKET)10, type,
                                           (unsigned char)err, packet);
@@ -782,8 +789,8 @@ namespace expert_job
 
 bool CDisjointMachine::include(const village_object::IObject& other) const
 {
-    const CDisjointMachine& rhs = reinterpret_cast<const CDisjointMachine&>(other);
-    return m_rect.include(rhs.m_rect);
+    return m_rect.include(
+        reinterpret_cast<const CDisjointMachine&>(other).m_rect);
 }
 
 }  // namespace expert_job

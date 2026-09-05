@@ -130,36 +130,30 @@ CAutoMarketConditionsControl::~CAutoMarketConditionsControl()
 }
 
 // ORIG LoadScript 0x082f815c（0x2e2 字节）逐分支转写：返回出错行，0=成功。
+// 结构按 ORIG：各键失败即 return（ebx=err 直落尾，无 err 汇聚变量）；
+// value(-0x20)/ok(-0x21) 为函数级共享（key2/key4 复用同槽）；键1/3/5 循环
+// `cmpl $9; setle` = i<=9 头检 for；key2 上界检查 ORIG 不存在（仅 <=0 →
+// 0x3c）；key4 push_back 后存在 ok 二次重载检查（0x082f8386，别名后重读）；
+// 未知键直接 return 0x64（0x082f8401），非 continue。
 int CAutoMarketConditionsControl::LoadScript(const char* path)
 {
     if (!loadRDARScriptFile("", path))
     {
         return 0x1e;
     }
-    int err = 0;
     std::string token;
+    int value = 0;
     bool ok = false;
-    for (;;)
+    while (ScanType(token, true) != false)
     {
-        if (!ScanType(token, true))
-        {
-            err = 0;
-            break;
-        }
         if (token == "[control of gold drop amount rate]")
         {
-            int i = 0;
-            while (true)
+            for (int i = 0; i <= 9; ++i)
             {
                 m_goldRate[i] = ScanFloat(3, &ok);
-                if (!ok)
+                if (ok != true)
                 {
-                    err = 0x2f;
-                    break;
-                }
-                if (++i >= 10)
-                {
-                    break;
+                    return 0x2f;
                 }
             }
         }
@@ -168,81 +162,77 @@ int CAutoMarketConditionsControl::LoadScript(const char* path)
             memset(m_goldPerLevel, 0, 0x324);
             while (true)
             {
-                int level = ScanInt(&ok);
-                if (!ok)
+                value = ScanInt(&ok);
+                if (ok != true)
                 {
                     break;
                 }
-                if (level < 1 || 200 < level)
+                if (value <= 0)
                 {
-                    err = 0x3c;
-                    break;
+                    return 0x3c;
                 }
-                m_goldPerLevel[level] = ScanInt(&ok);
-                if (!ok)
+                // ORIG 0x082f82ac `lea 0x14(%ebx); 0xc(this+0x5c,,4)` = 落
+                // +0xB8+level*4，即 m_goldPerLevel[level+0x17]（写侧基差
+                // 0x5c 实证【推断：消费侧 GetMarketConditionRate 以同数组
+                // 低段读取，此处忠实 ORIG 写位不臆改】）。
+                m_goldPerLevel[value + 0x17] = ScanInt(&ok);
+                if (ok != true)
                 {
-                    err = 0x40;
-                    break;
+                    return 0x40;
                 }
             }
         }
         else if (token == "[control of equipment drop prob]")
         {
-            int i = 0;
-            while (true)
+            for (int i = 0; i <= 9; ++i)
             {
                 m_equipProb[i] = ScanFloat(3, &ok);
-                if (!ok)
+                if (ok != true)
                 {
-                    err = 0x49;
-                    break;
-                }
-                if (++i >= 10)
-                {
-                    break;
+                    return 0x49;
                 }
             }
         }
         else if (token ==
                  "[control of equipment drop prob per level range]")
         {
+            // ORIG 0x082f81e9 `movl $0,-0x10`：key4 块首存在一个仅初始化
+            // 的本地（后续未使用，P31 槽对齐实证保留）。
+            int cnt = 0;
+            (void)cnt;
             while (true)
             {
-                int range = ScanInt(&ok);
-                if (!ok)
+                value = ScanInt(&ok);
+                if (ok != true)
                 {
                     break;
                 }
-                m_vec3dc.push_back(range);
+                m_vec3dc.push_back(value);
+                // ORIG 0x082f8386：push_back（不透明调用）后 ok 重读判失败
+                // → 0x57（别名性二次检查，忠实保留）。
+                if (ok != true)
+                {
+                    return 0x57;
+                }
             }
         }
         else if (token == "[control of durability decrease rate]")
         {
-            int i = 0;
-            while (true)
+            for (int i = 0; i <= 9; ++i)
             {
                 m_durRate[i] = ScanFloat(3, &ok);
-                if (!ok)
+                if (ok != true)
                 {
-                    err = 0x60;
-                    break;
-                }
-                if (++i >= 10)
-                {
-                    break;
+                    return 0x60;
                 }
             }
         }
         else
         {
-            err = 0x64;
-        }
-        if (err != 0)
-        {
-            break;
+            return 0x64;
         }
     }
-    return err;
+    return 0;
 }
 
 
@@ -987,7 +977,9 @@ void CChattingEmoticonList::ReCalc(CChattingEmoticonConfig& config,
     std::vector<CChattingEmoticonConfigRow> rows;
     std::set<int> used;
 
-    for (int i = 0; i <= 0x17; ++i)
+    // ORIG 0x080e58?? `mov -0x20; cmp $0x17; setbe` = 无符号比较（范式库
+    // P2 反例：signed setle 异形）。
+    for (unsigned int i = 0; i <= 0x17; ++i)
     {
         ChattingEmoticonBase* p = find_emoticon(config.m_Row[i].m_nCount);
         if (p == 0)

@@ -1,6 +1,15 @@
 // ============================================================================
 // df_game_r 还原 —— CCharacter（依据 docs/class_func_reports/CCharacter/ 报告）。
 // ctor ORIG _ZN10CCharacterC1Ev T 0x0834828c / dtor D1 T 0x0834842a。
+//
+// batch-15 近战池（ledger class=A 共 2 行）亲验归因：
+//   1) _ZN9__gnu_cxx13new_allocatorISt4pairIiiEE9constructIIS2_EEEvPS2_DpOT_
+//      (ORIG 0x080dda40 22 / 我 38)——libstdc++ 头生成体，差 16 = 4.4 placement
+//      new 的 EH cleanup（_ZdlPvS_+_Unwind_Resume 10 条，N 类『new-expression
+//      landing-pad 抑制』）+ N83 外联 op new + 寄存器物化；源码侧无合法解，豁免。
+//   2) set_data：见其函数头 §6.2 标注；逐块亲验——调用多重集全等、目标常量写址
+//      多重集仅 ORIG 以 +0x7d5 为基 + (i-1) 缩放 vs 我方 +0x7d4 基 + i（同一地址
+//      集，常量基表达差 1）与 1 处 +0x10 标量写形态差 ⇒ 语义完成维持。
 // ============================================================================
 #include "CCharacter.h"
 

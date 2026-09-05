@@ -80,6 +80,10 @@ DB_LoadEtc::~DB_LoadEtc()
 int DB_LoadEtc::GetUserRecord(SIG_LOAD_ETC* sig)
 {
     (void)sig;
+    // ORIG 0x084075c4 六指令含 `sub $0x30,%esp`+leave：4.1 对本函数体预留帧空间
+    // （无 call 也展开帧），dummy 数组令 4.4 同形（P31）。
+    char frame[0x30];
+    (void)frame;
     return 1;
 }
 
@@ -89,6 +93,8 @@ int DB_LoadEtc::GetUserRecord(SIG_LOAD_ETC* sig)
 int DB_LoadEtc::GetUserPvpBase(SIG_LOAD_ETC* sig)
 {
     (void)sig;
+    char frame[0x30];          // ORIG 0x08407db4 sub $0x30 + leave 同形
+    (void)frame;
     return 1;
 }
 
@@ -182,6 +188,8 @@ int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
 bool DB_LoadEtc::LoadLitmitItem(SIG_LOAD_ETC* sig)
 {
     (void)sig;
+    char frame[0x30];          // ORIG 0x0840xxxx sub $0x30,%esp + leave 同形
+    (void)frame;
     return true;
 }
 
@@ -312,6 +320,7 @@ bool DB_LoadEtc::dispatch(int userIdx, int slot, Stream* stream)
 // ============================================================================
 bool DB_LoadEtc::LoadProperDungeonClearCount(SIG_LOAD_ETC* sig)
 {
+    // ORIG 槽序：db=-0x10（先声明→深）、nRows=-0xc（后声明→浅）。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect clear_cnt from event_dungeon_clear where charac_no=%u",
@@ -320,7 +329,8 @@ bool DB_LoadEtc::LoadProperDungeonClearCount(SIG_LOAD_ETC* sig)
     {
         return false;
     }
-    if (db->get_n_rows() != 1)
+    int nRows = db->get_n_rows();
+    if (nRows != 1)
     {
         sig->m_properDungeonClearCount = 0;          // +0x40cc word 清零
         return true;
@@ -351,7 +361,8 @@ bool DB_LoadEtc::LoadConditionEventInfo(SIG_LOAD_ETC* sig)
     {
         return false;
     }
-    if (db->get_n_rows() != 1)
+    int nRows = db->get_n_rows();   // 后声明→浅槽 -0xc（ORIG 形）
+    if (nRows != 1)
     {
         sig->m_curConditionEventStep = 0;            // +0x40c8
         sig->m_curConditionEventRewardStep = 0;      // +0x40ca
@@ -576,14 +587,19 @@ bool DB_LoadEtc::LoadOnceGiveAvengerTitle(SIG_LOAD_ETC* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
                                                   (ENUM_SERVER_GROUP)0);
-    char* accStr = NumberToString(sig->m_accId, 0);
-    db->set_query("seLect m_id from event_1107_avenger_plan where m_id=%s", accStr);
+    // 结果不入槽：ORIG 8904 内联实参直传（无 accStr 保存对）。
+    db->set_query("seLect m_id from event_1107_avenger_plan where m_id=%s",
+                  NumberToString(sig->m_accId, 0));
     if (!db->exec(true))
     {
-        sig->m_flagPresentAvengerTitle = 1;                 // +0xc9ae
+        sig->m_flagPresentAvengerTitle = 1;                 // +0xc9ae movb $1 直写
         return false;
     }
-    sig->m_flagPresentAvengerTitle = (db->get_n_rows() != 0) ? 1 : 0;
+    int nRows = db->get_n_rows();       // 后声明→浅 -0xc（ORIG cmpl $0,-0xc 保存比较形）
+    if (nRows != 0)
+        sig->m_flagPresentAvengerTitle = 1;           // movb $1,0xc9ae(%eax)
+    else
+        sig->m_flagPresentAvengerTitle = 0;           // movb $0,0xc9ae(%eax)
     return true;
 }
 
@@ -1988,7 +2004,9 @@ bool DB_LoadEtc::LoadSeriaRoomAniDeco(SIG_LOAD_ETC* sig)
     db->set_query("seLect receive_flow, deco_flow from event_1208_seriaroom_anideco"
                   " where m_id = %d and server_id = %d and charac_no = %d",
                   sig->m_accId, sig->m_serverGroup, sig->m_characNo);
-    if (!db->exec(true))
+    // ORIG 0844a2b0：exec 结果存 -0xd 槽后读回（bool 保存形），其余步 xor 直判。
+    bool ok = db->exec(true);
+    if (!ok)
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__,
@@ -1996,23 +2014,24 @@ bool DB_LoadEtc::LoadSeriaRoomAniDeco(SIG_LOAD_ETC* sig)
                               sig->m_accId);
         return false;
     }
-    if (db->get_n_rows() == 0)
+    // ORIG 0844a308-30f：test/setne 物化正条件（nRows != 0 才进 fetch 段），
+    // 尾统一 return true。
+    if (db->get_n_rows() != 0)
     {
-        return true;
-    }
-    if (!db->fetch())
-    {
-        return false;
-    }
-    if (!db->get_short(0,
-                       *reinterpret_cast<short*>(&sig->m_comboSkill[0xb2])))  // +0x14b5c
-    {
-        return false;
-    }
-    if (!db->get_short(1,
-                       *reinterpret_cast<short*>(&sig->m_comboSkill[0xb4])))  // +0x14b5e
-    {
-        return false;
+        if (!db->fetch())
+        {
+            return false;
+        }
+        if (!db->get_short(0,
+                           *reinterpret_cast<short*>(&sig->m_comboSkill[0xb2])))  // +0x14b5c
+        {
+            return false;
+        }
+        if (!db->get_short(1,
+                           *reinterpret_cast<short*>(&sig->m_comboSkill[0xb4])))  // +0x14b5e
+        {
+            return false;
+        }
     }
     return true;
 }
@@ -2114,6 +2133,10 @@ char const* get_skill_table_name(bool use2nd)
 // ============================================================================
 char const* getComboSkillTableName(ENUM_SKILL_TREE_KIND kind)
 {
+    // ORIG 0x0844a38b 精确形：kind==0 早返 "combo_skill"（test/jne+mov+jmp 岛）、
+    // ==1 → "combo_skill_2nd"、default "combo_skill"。
+    if (kind == 0)
+        return "combo_skill";
     if (kind == 1)
         return "combo_skill_2nd";
     return "combo_skill";

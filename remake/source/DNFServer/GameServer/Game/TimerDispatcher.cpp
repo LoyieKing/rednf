@@ -2065,7 +2065,10 @@ int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if ((unsigned short)user->get_unique_id() != p2)
         return 0;
-    if (user->IsRecvEvent() != 1)
+    // P168a X2：同上（bool callee 直判域内 ==0 ⇔ ^1 为真）
+    register unsigned char rc asm("eax") = (unsigned char)user->IsRecvEvent();
+    rc ^= 1;
+    if (rc)
     {
         // ORIG 0x086369e6：DisConnSig(0x1d, false, 0) 断线
         user->DisConnSig((DISCONN_SIG)0x1d, false, 0);
@@ -2123,7 +2126,18 @@ int TimerLightServerNotice::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int p3
     packet.put_str(notices[p3].m_message.c_str(), len);
     packet.finalize(true);
     G_GameWorld()->send_all(guard);
-    return RegistNextTimer(static_cast<int>(p3)) == 1;
+    // P168a①②/技巧21：ORIG 0x08636c00 `mov %al,-0x9; movzbl; xor $0x1; test; je`
+    // 双岛直存 %ebx 跨 guard dtor（具名 bool 落 byte 槽 + register ret asm(ebx)）
+    // P168a①②/X2：具名 bool 落 byte 槽 -0x9 后 reload+xor1（register asm(eax)
+    // 承载 (unsigned char)(done^1) 阻 cmpb 折叠），双岛存 %ebx 跨 guard dtor
+    const bool done = RegistNextTimer(static_cast<int>(p3));
+    register int ret asm("ebx");
+    register unsigned char dv asm("eax") = (unsigned char)(done ^ 1);
+    if (dv)
+        ret = 0;
+    else
+        ret = 1;
+    return ret;
 }
 
 // ORIG T 0x08636c14（_ZN22TimerLightServerNotice15RegistNextTimerEi）
@@ -2328,7 +2342,12 @@ int TimerCheckHumanCertifyTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
         local_24[i] = 0;
     }
 
-    if (!user->checkHumanCertify(1, local_24))
+    // P168a X2：ORIG `call; xor $0x1,%eax; test %al,%al; je`——int callee 在调用点
+    // 经 register unsigned char asm("eax") 承载 ^1（in-place xor 阻 fold）
+    register unsigned char hc asm("eax") =
+        (unsigned char)user->checkHumanCertify(1, local_24);
+    hc ^= 1;
+    if (hc)
     {
         if ((int)user->isSendMailCertified() == 1)
         {

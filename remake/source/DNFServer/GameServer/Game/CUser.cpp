@@ -8546,8 +8546,7 @@ int CUser::gainGuildSkillExp(int exp)
         job = get_charac_job();
         skill = G_CDataManager()->find_skill(job, 0xc9);
     }
-    register int gradeIdx asm("ebx");
-    gradeIdx = (int)learned - 1;   // 残 2：4.4 ebx 绑定赋值绕 %ebx 旧值搬运
+    register int gradeIdx asm("ebx") = (int)learned - 1;  // 初始化式（分离赋值形产 mov%ebx→%eax 两段自搬运）   // 残 2：4.4 ebx 绑定赋值绕 %ebx 旧值搬运
     int weight = (skill->m_field108)[0].at(gradeIdx);
     return (exp * weight) / 100;
 }
@@ -8658,18 +8657,38 @@ void CUser::incPlayExpAdd(int v)
 // 0x0866a9a0 gain_sp：SP 双树（0/1）clamp 0x7fffffff 后累加。
 void CUser::gain_sp(int v)
 {
-    for (int kind = 0; kind < 2; ++kind)
+    // ORIG 0x866a3fe（80 insn 无回跳 = **源码两段手动展开**；remain 无变量：
+    // else 支重呼 SkillR+get_remain；cap=INT_MAX-v 每段表达式内联先算（4.1 落
+    // %ebx 三行），cmp 结果 setl 物化岛（技巧 22 register bool al 方向）。
+    if (0x7fffffff - v <
+        ((SkillSlot*)getCurCharacSkillR())
+            ->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0))
     {
-        SkillSlot* slotR = (SkillSlot*)getCurCharacSkillR();
-        int remain =
-            slotR->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)kind);
-        SkillSlot* slotW = (SkillSlot*)getCurCharacSkillW();
-        if (0x7fffffff - v < remain)
-            slotW->set_remain_sp_at_index(0x7fffffff,
-                                          (ENUM_SKILL_TREE_KIND)kind);
-        else
-            slotW->set_remain_sp_at_index(remain + v,
-                                          (ENUM_SKILL_TREE_KIND)kind);
+        ((SkillSlot*)getCurCharacSkillW())
+            ->set_remain_sp_at_index(0x7fffffff, (ENUM_SKILL_TREE_KIND)0);
+    }
+    else
+    {
+        ((SkillSlot*)getCurCharacSkillW())
+            ->set_remain_sp_at_index(
+                ((SkillSlot*)getCurCharacSkillR())
+                    ->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0) + v,
+                (ENUM_SKILL_TREE_KIND)0);
+    }
+    if (0x7fffffff - v <
+        ((SkillSlot*)getCurCharacSkillR())
+            ->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)1))
+    {
+        ((SkillSlot*)getCurCharacSkillW())
+            ->set_remain_sp_at_index(0x7fffffff, (ENUM_SKILL_TREE_KIND)1);
+    }
+    else
+    {
+        ((SkillSlot*)getCurCharacSkillW())
+            ->set_remain_sp_at_index(
+                ((SkillSlot*)getCurCharacSkillR())
+                    ->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)1) + v,
+                (ENUM_SKILL_TREE_KIND)1);
     }
 }
 
@@ -8678,37 +8697,85 @@ void CUser::gain_sfp(int v)
 {
     if (v == 0)
         return;
-    for (int kind = 2; kind < 4; ++kind)
+    // ORIG 0x866aad2：v==0 守卫后**两段展开**（同 gain_sp 法：cap=INT_MAX-v 每段
+    // 先算、else 支重呼 SkillR+get_remain_sfp、无 remain/slot 缓存变量）。
+    if (0x7fffffff - v <
+        ((SkillSlot*)getCurCharacSkillR())
+            ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)2))
     {
-        SkillSlot* slotR = (SkillSlot*)getCurCharacSkillR();
-        int remain =
-            slotR->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)kind);
-        SkillSlot* slotW = (SkillSlot*)getCurCharacSkillW();
-        if (0x7fffffff - v < remain)
-            slotW->set_remain_sfp_at_index(0x7fffffff,
-                                           (ENUM_SKILL_TREE_KIND)kind);
-        else
-            slotW->set_remain_sfp_at_index(remain + v,
-                                           (ENUM_SKILL_TREE_KIND)kind);
+        ((SkillSlot*)getCurCharacSkillW())
+            ->set_remain_sfp_at_index(0x7fffffff, (ENUM_SKILL_TREE_KIND)2);
+    }
+    else
+    {
+        ((SkillSlot*)getCurCharacSkillW())
+            ->set_remain_sfp_at_index(
+                ((SkillSlot*)getCurCharacSkillR())
+                    ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)2) + v,
+                (ENUM_SKILL_TREE_KIND)2);
+    }
+    if (0x7fffffff - v <
+        ((SkillSlot*)getCurCharacSkillR())
+            ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)3))
+    {
+        ((SkillSlot*)getCurCharacSkillW())
+            ->set_remain_sfp_at_index(0x7fffffff, (ENUM_SKILL_TREE_KIND)3);
+    }
+    else
+    {
+        // 残 1 = 末支 call 后 `jmp END`（4.4 尾块 fall 选择与 4.1 相反，纯块布局
+        // 不可源码控制——同 OnDisconnect 尾岛 N 族）。
+        ((SkillSlot*)getCurCharacSkillW())
+            ->set_remain_sfp_at_index(
+                ((SkillSlot*)getCurCharacSkillR())
+                    ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)3) + v,
+                (ENUM_SKILL_TREE_KIND)3);
     }
 }
 
 // 0x0866ac0e history_log_sp：before==-1 或当前值变化时记 SPAdd(tree 0)。
 void CUser::history_log_sp(int before, int delta, eSPAddReason reason)
 {
-    SkillSlot* slotR = (SkillSlot*)getCurCharacSkillR();
-    int remain = slotR->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0);
-    if (before == -1 || remain != before)
-        m_historyLog.SPAdd(0, remain, delta, reason);
+    // ORIG 0x866ac0e 三调用复制形（判据③直分支消费者）：==-1 真支调一次读+SPAdd；
+    // 假支 cmp 直落 je；SPAdd 前**再调一次**重取（无 remain 槽）。免缓存三处展开。
+    if (before == -1)
+    {
+        m_historyLog.SPAdd(0,
+            ((SkillSlot*)getCurCharacSkillR())
+                ->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0),
+            delta, reason);
+    }
+    else if ((((SkillSlot*)getCurCharacSkillR())
+                  ->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0)
+              != before))
+    {
+        m_historyLog.SPAdd(0,
+            ((SkillSlot*)getCurCharacSkillR())
+                ->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)0),
+            delta, reason);
+    }
 }
 
 // 0x0866acd0 history_log_sfp：同上（tree 2 / SFPAdd）。
 void CUser::history_log_sfp(int before, int delta, eSPAddReason reason)
 {
-    SkillSlot* slotR = (SkillSlot*)getCurCharacSkillR();
-    int remain = slotR->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)2);
-    if (before == -1 || remain != before)
-        m_historyLog.SFPAdd(2, remain, delta, reason);
+    // ORIG 同构三调用形（tree 2 / SFPAdd，0x0866acd0）。
+    if (before == -1)
+    {
+        m_historyLog.SFPAdd(2,
+            ((SkillSlot*)getCurCharacSkillR())
+                ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)2),
+            delta, reason);
+    }
+    else if ((((SkillSlot*)getCurCharacSkillR())
+                  ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)2)
+              != before))
+    {
+        m_historyLog.SFPAdd(2,
+            ((SkillSlot*)getCurCharacSkillR())
+                ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)2),
+            delta, reason);
+    }
 }
 
 // 0x866273c Remove_Mission：转发 charac_expand 槽 8 的任务列表。
@@ -11222,20 +11289,39 @@ void CUser::SendCoin()
 // 填充、+0x08 字节置 1，投递 DB_Q。反编译见 CUser/SaveMoneyCoin.md。
 bool CUser::SaveMoneyCoin()
 {
-    int channelType = G_GameWorld()->GetChannelType();
-    if (channelType == 7)
-        return false;
-
-    Stream* stream = GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x18cc);
-    CStreamGuard guard(stream, true);
-    guard << 0x23;
-    guard << (int)GetUID();
-    SIG_SAVE_INVENTORY* sig =
-        guard.GetInBuffer<SIG_SAVE_INVENTORY>();
-    _GetSaveInvenBase(sig);
-    sig->m_saveFlag = 1;                // ORIG movb $0x1,0x8(%eax)（+0x08 标志）
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    return true;
+    // P185 guard 作用域块形（ORIG 0x086504d8：guard@-0x14、put 后 `mov $1,%ebx`
+    // 真值先于 dtor、epilogue 统一 movzbl %bl——旧平铺形 dtor 岛位置不同）。
+    // ==7 走 sete 物化岛（技巧 22）；uid 跨 operator- 存活 %ebx。
+    // ORIG 0x86504d8 **ebx 聚合单出口**：假支 `mov $0,%ebx; jmp END`、真支 put 后
+    // `mov $1,%ebx`，END epilogue `movzbl %bl,%eax`；uid 跨 operator* 存活同用 %ebx
+    // （时序不重叠：uid 在 put 前消费完）。
+    register bool ch7 asm("al");
+    ch7 = (G_GameWorld()->GetChannelType() == 7);
+    register bool rc asm("ebx");
+    if (ch7)
+    {
+        rc = false;
+        goto RCEND;
+    }
+    {
+        CStreamGuard guard(GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x18cc),
+                           true);
+        guard.operator*()->operator<<(0x23);
+        register int uid asm("ebx");
+        uid = (int)GetUID();
+        guard.operator*()->operator<<(uid);
+        // ORIG 0x8650574-582：取 buffer 前先经一次 operator->（pt）call——源形
+        // `guard->GetInBuffer<...>()`（智能指针循环解引用，pt 返回值作 this）。
+        SIG_SAVE_INVENTORY* sig =
+            ((CStreamGuard*)(void*)guard.operator->())
+                ->GetInBuffer<SIG_SAVE_INVENTORY>();
+        _GetSaveInvenBase(sig);
+        sig->m_saveFlag = 1;            // ORIG movb $0x1,0x8(%eax)（+0x08 标志）
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        rc = true;
+    }
+RCEND:
+    return rc;
 }
 
 // ORIG T 0x08690e36 sz0x82：事件邮件提醒 tooltip。空包 put_header(0,0x1ad) +

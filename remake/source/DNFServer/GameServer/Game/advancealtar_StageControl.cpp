@@ -56,7 +56,8 @@ void StageControl::setIndex(int idx)
 //   destroy(this) → 1。
 char StageControl::leaveUser()
 {
-    CUser* user = getCharacData()->getUser();  // CharacData::getUser W thunk 实证
+    CUser* user =
+        reinterpret_cast<CharacData*>(m_characData)->getUser();
     if (user == 0)
     {
         return 0;
@@ -76,7 +77,7 @@ char StageControl::leaveUser()
     G_GameWorld()->send_all(guard, user);
     user->send_itemspace(0);
     user->getCurCharacInvenR()->SendItemLockListInven();
-    user->m_advanceAltarIdx = -1;  // ORIG CUser::setAdvanceAltarIndex(user,-1)
+    user->setAdvanceAltarIndex(-1);  // ORIG CUser::setAdvanceAltarIndex(user,-1)
     destroy();                // ORIG 尾部真实调用 destroy(this)（leaveUser.md 实证）
     return 1;                 // ORIG uVar4 = 1
 }

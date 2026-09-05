@@ -2175,8 +2175,11 @@ int DisPatcher_ReturnToSelectCharacter::dispatch_sig(CUser* user, PacketBuf& /*p
         PacketGuard guard;
         guard.put_header(1, 7);
         guard.put_byte(flag);
-        if (flag != 1)     // ORIG +0x8d `xor $0x1,%eax; test %al`（4.1 VRP 折形；
-                           // 4.4 恒 `cmpb $0x1`，&1 变体语义反转不可用 → fold-const 天花板）
+        // P168a X2 精确形（ORIG +0x8d `movzbl -0x9,%eax; xor $0x1,%eax; test %al,%al;
+        // je`：test 有 je 消费者过③闸；栈槽 byte 读→X2 寄存器中转）。
+        register unsigned char chk asm("eax") = flag;
+        chk ^= 1;
+        if (chk)
         {
             guard.put_byte(0x13);
         }
@@ -6066,10 +6069,9 @@ int DisPatcher_Compound::dispatch_sig(CUser* user, PacketBuf& packet)
     // ORIG +0x1c8..+0x1f5：右→左求值 count(movzwl 两段→%ecx)、type==1（`cmp $1,%al;
     // sete %al; movzbl %al,%edx` bool 物化经具名量传参，技9）、itemId(→%eax)；
     // 分支 `cmpl $0,-0xc; jle fail岛` ⇒ 成功 guard 块是 fall-through（技17）。
-    // ORIG +0x1cf：`cmp $1,%al; sete %al; movzbl %al,%edx` 无槽值直达；bool 具名量
-    // 4.4 恒 byte 槽物化（挤 4B 帧致 guard/blob 基整体偏 1/4B），register asm("dl")
-    // 绑定强制免槽（技2 变体）。
-    register bool isOneType asm("dl");
+    // P168a-②：ORIG `movzbl -0xf,%eax; cmp $0x1,%al; sete %al; movzbl %al,%edx` =
+    // `sete %al` 岛形 → register bool asm("al") 直产（dl 绑定反产 mov$1/$0 岛）。
+    register bool isOneType asm("al");
     isOneType = (msg.m_type == '\x01');
     int local_10 = user->compound_item(static_cast<int>(msg.m_itemId),
                                        isOneType, msg.m_count, 0x1b);
