@@ -1462,7 +1462,7 @@ bool PvP_Room::WalkOut(CUser* user, int seat, ENUM_SEAT_STATE state,
     int local_14 = get_team(seat);
     SendWalkOut(seat, walkoutType);
     int local_10 = set_seat_state(user, seat, state, &local_24, local_25, local_26, local_27);
-    if ((get_waiter_count() == 0) && (local_27 != 1))
+    if ((get_waiter_count() == 0) && (local_27 == false))
     {
         LogManager::logFormat(1, "pvp.cpp",
                               __PRETTY_FUNCTION__,
@@ -1509,12 +1509,12 @@ bool PvP_Room::OnSetPVPSeatState(CUser* user, int seat, ENUM_SEAT_STATE state,
     }
     PacketGuard local_20;
     int local_14 = 0;
-    if (check_authority(user, seat) != 1)
+    if (check_authority(user, seat) == 0)
     {
         local_14 = 8;
         goto LAB_085dd357;
     }
-    if (((IMatch*)m_matching)->CheckSeat((int)state) != 1)
+    if (((IMatch*)m_matching)->CheckSeat((int)state) == 0)
     {
         local_14 = 8;
         goto LAB_085dd357;
@@ -1542,7 +1542,7 @@ bool PvP_Room::OnSetPVPSeatState(CUser* user, int seat, ENUM_SEAT_STATE state,
         }
     }
     local_14 = set_seat_state(user, seat, state, &local_24, local_25, local_26, local_27);
-    if ((get_waiter_count() == 0) && (local_27 != 1))
+    if ((get_waiter_count() == 0) && (local_27 == false))
     {
         LogManager::logFormat(1, "pvp.cpp",
                               __PRETTY_FUNCTION__,
@@ -2023,18 +2023,8 @@ int PvP_Room::change_manager_to_winner()
     {
         return 1;
     }
-    bool bVar1;
-    if (G_GameWorld()->GetChannelType() != 7)
-    {
-        if (G_GameWorld()->IsSchoolPvPChannel() == 0)
-        {
-            bVar1 = false;
-            goto LAB_085d7e5a;
-        }
-    }
-    bVar1 = true;
-LAB_085d7e5a:
-    if (bVar1)
+    if (G_GameWorld()->GetChannelType() == 7 ||
+        G_GameWorld()->IsSchoolPvPChannel() != 0)
     {
         return 1;
     }
@@ -2044,12 +2034,13 @@ LAB_085d7e5a:
     }
     for (int local_10 = 0; local_10 < 8; local_10 = local_10 + 1)
     {
-        if ((P_SEATS(local_10) != 0) && (is_last_win(local_10)))
-        {
-            m_seats[7] = P_SEATS(local_10);
-            m_managerSeat = local_10;
-            return 1;
-        }
+        if (P_SEATS(local_10) == 0)
+            continue;
+        if (is_last_win(local_10) != true)
+            continue;
+        m_seats[7] = P_SEATS(local_10);
+        m_managerSeat = local_10;
+        return 1;
     }
     return 0;
 }
@@ -2330,7 +2321,8 @@ int PvP_Room::CheckPvPMapMode(CUser* user, int mapNo, bool& flag)
     }
     // ORIG 085dd9xx：bool 型 cVar1（call 结果 al 直存 byte 槽、无归一）；
     // !cVar1 判定走 movzbl+xor $1 的 4.1 取反形。
-    bool cVar1 = IsDeathMatchMap(mapNo, flag);
+    bool cVar1 = IsDeathMatchMap(mapNo, flag);   // bool 形：后两处 !cVar1 的 movzbl+xor 物化与 ORIG 同；
+    // 差仅入口 mov%al 直存 vs 4.4 test;setne 归一（N bool ABI），净差 -2 优于 uchar 形 +4
     if ((cVar1 != 0) && (!flag) && (m_pvpBattleMode == 4))
     {
         return 1;
@@ -2622,12 +2614,9 @@ bool PvP_Room::IsThereSameGuildMember()
             CUser* local_34 = P_SEATS(local_10);
             if ((local_34 != 0) && (local_14 = local_34->get_charac_guildkey(), local_14 != 0))
             {
-                bool bVar3 = local_18 == local_14;
-                local_18 = local_14;
-                if (bVar3)
-                {
+                if (local_18 == local_14)
                     return 1;
-                }
+                local_18 = local_14;
             }
         }
     }
@@ -2747,33 +2736,37 @@ int PvP_Room::update_pvp_point()
         {
             for (int local_18 = 0; local_18 < 8; local_18 = local_18 + 1)
             {
-                if ((P_SEATS(local_18) != 0) &&
-                    (IsPvpObserver(local_18) == 0))
-                {
-                    P_SEATS(local_18)->update_old_pvp_point();
-                }
+                if (P_SEATS(local_18) == 0)
+                    continue;
+                if (IsPvpObserver(local_18) != false)
+                    continue;
+                P_SEATS(local_18)->update_old_pvp_point();
             }
             goto LAB_085dca42;
         }
     }
     for (int local_14 = 0; local_14 < 8; local_14 = local_14 + 1)
     {
-        if ((P_SEATS(local_14) != 0) &&
-            (IsPvpObserver(local_14) == 0))
+        if (P_SEATS(local_14) == 0)
+            continue;
+        if (IsPvpObserver(local_14) != false)
+            continue;
         {
             P_SEATS(local_14)->update_old_pvp_point();
             if ((m_pvpBattleMode == 1) || (m_pvpBattleMode == 4))
             {
-                int iVar3 = P_SEATS(local_14)->get_pvp_grade();
-                iVar3 = m_userTable.GetResult(local_14, false, iVar3);
-                P_SEATS(local_14)->update_pvp_point(iVar3);
+                P_SEATS(local_14)->update_pvp_point(
+                    m_userTable.GetResult(local_14, false,
+                                          P_SEATS(local_14)->get_pvp_grade()));
             }
             else
             {
-                int iVar3 = P_SEATS(local_14)->get_pvp_grade();
-                int iVar4 = P_SEATS(local_14)->get_pvp_grade();
-                iVar3 = m_userTable.GetResult(P_TEAMWIN(local_14), iVar3 > 10, iVar4);
-                P_SEATS(local_14)->update_pvp_point(iVar3);
+                bool mid = false;                       // ORIG -0x9 byte 槽
+                if (P_SEATS(local_14)->get_pvp_grade() > 10)
+                    mid = true;
+                P_SEATS(local_14)->update_pvp_point(
+                    m_userTable.GetResult(P_TEAMWIN(local_14), mid,
+                                          P_SEATS(local_14)->get_pvp_grade()));
             }
         }
     }

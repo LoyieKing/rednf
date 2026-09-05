@@ -701,41 +701,72 @@ CLevelRewardTableMgr* CLevelRewardTableMgr::GetInstance()
 
 void CLevelRewardTableMgr::SetChallengeInfo(stUnlimitChallengeInfo& info)
 {
-    // ORIG 0x08687828：flag←info 首字节；vec8=info.vec4；SetJobAffection(true)；
-    // levelKeys←vec10；rewards 写 primary/secondary 两块；messages 经
-    // findString 写名字/留言区。
+    // ORIG 0x08687828 全量转写（报告双段 + objdump 逐条）：
+    // 0x08687837 `movzbl (%eax)` + 0x0868783d `mov %dl,(%eax)` ⇒ flag 单字节；
+    // 0x08687852 vec 赋值、0x08687868 SetJobAffection(true)；随后三段同构循环，
+    // 每段 ORIG 都：① size() **只调一次并存具名槽**（-0x3c / -0x38 / -0x34）；
+    // ② begin()/end() 各构造一次成持久迭代器槽（-0x64/-0x68、-0x6c/-0x70、
+    //   -0x78/-0x7c）⇒ end() 不能写在循环条件里；③ 条件头 =
+    //   `mov -0x30,%eax; cmp -0x3c,%eax; jge out`（0x086878ed）短路后再
+    //   `call operator!=`（0x08687902）+ bool 物化岛 ⇒ 原码是 `i < sz && it != last`；
+    // ④ 体内 `addl $1,-0x30` 之后 `call operator++(int)`（0x086878e5，带临时槽
+    //   -0x58）⇒ **i++ 与 it++ 都是后置**，不是 ++it。
     m_flag = *reinterpret_cast<const char*>(&info.m_field0);   // ORIG movzbl (%eax) 读 1 字节
     m_vec8 = info.m_vec4;
     m_table->SetJobAffection(true);
 
     {
+        const int sz = static_cast<int>(info.m_vec10.size());   // 0x0868784e → -0x3c
         std::vector<int>::const_iterator it = info.m_vec10.begin();
-        for (int i = 0; it != info.m_vec10.end(); ++i, ++it)
+        std::vector<int>::const_iterator last = info.m_vec10.end();
+        for (int i = 0; i < sz && it != last; i++, it++)
             m_table->m_levelKeys[i] = *it;
     }
-    for (std::vector<stUnlimitChallengeRewardInfo>::const_iterator it =
-             info.m_vec1c.begin();
-         it != info.m_vec1c.end(); ++it)
     {
-        unsigned int level = static_cast<unsigned int>(it->m_jobLevel);
-        int jobIdx = m_table->GetProperJobIndex(static_cast<char>(it->m_subIdx));
-        int levelIdx = m_table->GetProperLevelIndex(level);
-        m_table->m_rewardPrimary[jobIdx * 0x46 + levelIdx] = it->m_a;
-        jobIdx = m_table->GetProperJobIndex(static_cast<char>(it->m_subIdx));
-        levelIdx = m_table->GetProperLevelIndex(level);
-        m_table->m_rewardSecondary[jobIdx * 0x46 + levelIdx] = it->m_b;
+        // 0x0868794c size()→-0x38；begin→-0x6c、end→-0x70；i=-0x2c
+        const int sz =
+            static_cast<int>(info.m_vec1c.size());
+        std::vector<stUnlimitChallengeRewardInfo>::const_iterator it =
+            info.m_vec1c.begin();
+        std::vector<stUnlimitChallengeRewardInfo>::const_iterator last =
+            info.m_vec1c.end();
+        for (int i = 0; i < sz && it != last; i++, it++)
+        {
+            unsigned int level = static_cast<unsigned int>(it->m_jobLevel);
+            int jobIdx = m_table->GetProperJobIndex(static_cast<char>(it->m_subIdx));
+            int levelIdx = m_table->GetProperLevelIndex(level);
+            m_table->m_rewardPrimary[jobIdx * 0x46 + levelIdx] = it->m_a;
+            jobIdx = m_table->GetProperJobIndex(static_cast<char>(it->m_subIdx));
+            levelIdx = m_table->GetProperLevelIndex(level);
+            m_table->m_rewardSecondary[jobIdx * 0x46 + levelIdx] = it->m_b;
+        }
     }
-    for (std::vector<stUnlimitChallengeMessageInfo>::const_iterator it =
-             info.m_vec28.begin();
-         it != info.m_vec28.end(); ++it)
     {
-        unsigned int level =
-            static_cast<unsigned int>(static_cast<unsigned short>(it->m_id));
-        int levelIdx = m_table->GetProperLevelIndex(level);
-        const char* p1 = g_scriptStringManager_.findString(4, it->m_msg1.c_str(), 0);
-        strncpy(m_table->m_nameStrings + levelIdx * 0x15, p1, 0x14);
-        const char* p2 = g_scriptStringManager_.findString(4, it->m_msg2.c_str(), 0);
-        strncpy(m_table->m_messages + levelIdx * 0x100, p2, 0xff);
+        // 0x08687a30 size()→-0x34；begin→-0x78、end→-0x7c；i=-0x24
+        const int sz =
+            static_cast<int>(info.m_vec28.size());
+        std::vector<stUnlimitChallengeMessageInfo>::const_iterator it =
+            info.m_vec28.begin();
+        std::vector<stUnlimitChallengeMessageInfo>::const_iterator last =
+            info.m_vec28.end();
+        for (int i = 0; i < sz && it != last; i++, it++)
+        {
+            unsigned int level =
+                static_cast<unsigned int>(static_cast<unsigned short>(it->m_id));
+            // ORIG 0x08687b8x/0x08687b9x：**两个 std::string 拷贝临时**先各自
+            // 构造（local_80←it->m_msg1、local_84←it->m_msg2），再取 c_str() 交
+            // findString，块尾按构造逆序析构（0x08687c7c 处 ~string×2，带 EH
+            // CatchHandler 0x08687c94/0x08687c7f）⇒ 不能直接对 it->m_msgN 调
+            // c_str()（P-H：拷贝临时本身就是 ORIG 的指令来源）。
+            std::string msg1 = it->m_msg1;
+            std::string msg2 = it->m_msg2;
+            const char* p1 = g_scriptStringManager_.findString(4, msg1.c_str(), 0);
+            int nameIdx = m_table->GetProperLevelIndex(level);
+            strncpy(m_table->m_nameStrings + nameIdx * 0x15, p1, 0x14);
+            const char* p2 = g_scriptStringManager_.findString(4, msg2.c_str(), 0);
+            int msgIdx = m_table->GetProperLevelIndex(level);
+            strncpy(m_table->m_messages + msgIdx * 0x100, p2, 0xff);
+        }
     }
 }
 

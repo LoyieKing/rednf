@@ -630,12 +630,9 @@ namespace WongWork
 // ---------------------------------------------------------------------------
 // g_SPremiumInfo 权威元素类型见 SPremiumInfo.h（stride 0x120、0x6a 元素）；
 // 本 TU 经 g_SPremiumInfo[type] 具名字段访问。
+// importPremiumList 残差豁免（O=1155/N=1130，-25 散布：解析器逐字段
+// string/栈槽折叠宽度差，等结构无缺语义；Main 裁决标注不追 2026-09-05）。
 // ---------------------------------------------------------------------------
-static const SPremiumInfo* GetPremiumDefinition(int type)
-{
-    return &g_SPremiumInfo[type];
-}
-
 // ---------------------------------------------------------------------------
 // CUserPremium 字段（ORIG 偏移 → CUser.h 具名成员）
 //   0x000 m_entries[0x6a]  0x848 m_normalCount  0x84c m_restrictedCount
@@ -690,77 +687,85 @@ void CUserPremium::InitPremium()
     m_overSkillLevel = 0;              // overSkillLevel
     m_ceraDiscountRate = 0;                  // +0x860（field860）
     m_field862 = 0;                          // +0x862（field862）
-    memset(m_overEquipableLevel, 0, sizeof(m_overEquipableLevel));         // additionalInfo[0x58]（+0x864..+0x8bb）
-    memset(&m_additionalInfo, 0, sizeof(_Additioal_info));  // additionalOut（+0x90f）
-    m_field8bc = 0;                        // field8bc
-    memset(&m_additionalBase, 0, sizeof(_Additioal_info));   // additionalBase（+0x8bd 起）
-    m_returnItemMap.clear();                 // returnItemMap
+    // ORIG 0x86ad9e8 序：memset(+0x864,0x58) → +0x8bc → clear(0x8bd) →
+    // clear(0x90f) → map.clear；_Additioal_info 走 **clear() 调用**（W 符号），
+    // 非 memset（后者使 4.4 展开/直调 memset，与 ORIG call 形不符）
+    memset(m_overEquipableLevel, 0, sizeof(m_overEquipableLevel));  // +0x864
+    m_field8bc = 0;                                                 // +0x8bc
+    m_additionalBase.clear();                                       // +0x8bd
+    m_additionalInfo.clear();                                       // +0x90f
+    m_returnItemMap.clear();                                        // +0x964
 }
 
 void CUserPremium::AddPremium(int type, int start, int end, int flag)
 {
-    SUserPremiumInfo* entry = m_entries;
-    entry += type;
-    if (entry->m_type != 0)
+    // ORIG 0x86adad2：每个字段读写独立重算 this+type*0x14 链（T-C9-1，
+    // 无 entry/def 指针缓存）；m_applyDayMask[0] 直读 +0xac。
+    if (m_entries[type].m_type != 0)
         RemovePremium(type);
-    entry->m_type = type;
-    entry->m_start = start;
-    entry->m_end = end;
-    entry->m_flag = flag;
-    const SPremiumInfo* def = GetPremiumDefinition(type);
-    if (def->m_applyDayMask[0] != -1)
+    m_entries[type].m_type = type;
+    m_entries[type].m_start = start;
+    m_entries[type].m_end = end;
+    m_entries[type].m_flag = flag;
+    if (g_SPremiumInfo[type].m_applyDayMask[0] != -1)
         m_field862 = 1;
     startPremium(type, true);
 }
 
 void CUserPremium::RemovePremium(int type)
 {
-    SUserPremiumInfo* entry = m_entries;
-    if (entry[type].m_state != 2)
+    // ORIG 0x86adba6：计数递减走 std::max<int>(zero, dec) 调用形（两临时
+    // 槽分支各独立，非三目）；链全重算。
+    if (m_entries[type].m_state != 2)
     {
-        entry[type].m_type = 0;
-        const SPremiumInfo* def = GetPremiumDefinition(type);
-        if (def->m_kind == 1)
+        m_entries[type].m_type = 0;
+        if (g_SPremiumInfo[type].m_kind == 1)
         {
-            int c = m_normalCount - 1;
-            m_normalCount = c > 0 ? c : 0;
+            int dec = m_normalCount + -1;
+            int zero = 0;
+            m_normalCount = std::max(zero, dec);
         }
         else
         {
-            int c = m_restrictedCount - 1;
-            m_restrictedCount = c > 0 ? c : 0;
+            int dec = m_restrictedCount + -1;
+            int zero = 0;
+            m_restrictedCount = std::max(zero, dec);
         }
     }
 }
 
 bool CUserPremium::startPremium(int type, bool force)   // 0x086adc6a；调用点 xor $0x1 ⇒ bool（Main 代落 CUser.h 同步）
 {
-    SUserPremiumInfo* entry = m_entries;
-    if (!force && entry[type].m_state != 2)
+    // ORIG 0x86adc6a：无 entry/def 缓存；state/start/end 各独立
+    // this+type*0x14 链，checkTerm/kind 直读 g_SPremiumInfo 表（T-C9-1）
+    if (!force && m_entries[type].m_state != 2)
         return 0;
     int curTime = GlobalData::s_systemTime_.getCurSec();
-    const SPremiumInfo* def = GetPremiumDefinition(type);
-    if (def->m_checkTerm != 0)
+    if (g_SPremiumInfo[type].m_checkTerm != 0)
     {
-        if (curTime < entry[type].m_start)
+        if (curTime < m_entries[type].m_start)
         {
-            entry[type].m_state = 2;
+            m_entries[type].m_state = 2;
             return 0;
         }
-        if (entry[type].m_end <= curTime)
+        if (m_entries[type].m_end <= curTime)
             return 0;
     }
-    if (def->m_kind == 1)
+    if (g_SPremiumInfo[type].m_kind == 1)
         ++(m_normalCount);
     else
         ++(m_restrictedCount);
-    entry[type].m_state = 1;
+    m_entries[type].m_state = 1;
     return 1;
 }
 
 void CUserPremium::ReCalcAdvantage()
 {
-    // ORIG 0x086ae10e：先清除所有由当前 premium 汇总出的结果。
+    // ORIG 0x086ae10e（O=487）：形态按 T-C9-1 全去缓存——g_SPremiumInfo[type]
+    // 链（type*0x120=(t*9)<<5）与 m_entries[slot]（slot*0x14）在每个字段读取点
+    // 独立重算（ORIG +0x142/0x1bc/0x1ee/0x237/0x283...每处 11-14 条），不使用
+    // def/groupDef/entries 指针局部。清零段：0x850(movw)/0x854/0x858/0x85c/
+    // 0x8bc/memset(0x864,0x58)/clear×2/map.clear/0x85e/0x860。
     m_outFatigueRate = 0;
     m_outPremiumCount = 0;
     m_outExpRate = 0;
@@ -778,84 +783,100 @@ void CUserPremium::ReCalcAdvantage()
     tm localTm;
     localtime_r(&nowT, &localTm);
 
-    // ORIG:g_SPremiumInfo 全局表直接按 [type*0x120] 索引(无 helper)。
-    SUserPremiumInfo* entries = m_entries;
     for (int slot = 1; slot <= 0x69; ++slot)
     {
-        int type = entries[slot].m_type;
-        if (type == 0)
+        if (m_entries[slot].m_type == 0)
+            continue;
+        if (g_SPremiumInfo[m_entries[slot].m_type].m_kind != 1)
+            continue;
+        if (m_entries[slot].m_state == 2)
+            continue;
+        if (!_CheckApply(m_entries[slot].m_type, localTm))
             continue;
 
-        const SPremiumInfo* def = &g_SPremiumInfo[type];
-        if (def->m_kind != 1 || entries[slot].m_state == 2)
-            continue;
-        if (!_CheckApply(type, localTm))
-            continue;
-
-        if (def->m_needDailyCheck != 0)
+        if (g_SPremiumInfo[m_entries[slot].m_type].m_needDailyCheck != 0)
             m_overEquipFlag = true;
 
-        // +0x85e/+0x860 是无符号 16 位 max；m_overSkillLevel 的声明类型
-        // 为 short，但比较和写回均按原始 16 位值处理。
-        // ORIG:std::max<unsigned short>(this+0x85e, def+0x58) 调用站点。
+        // +0x85e/+0x860：unsigned short max，ORIG 调用站点 max<unsigned short>
         m_overSkillLevel = static_cast<short>(
             std::max(static_cast<unsigned short>(m_overSkillLevel),
-                     def->m_overSkillLevel));
-        m_ceraDiscountRate = std::max(m_ceraDiscountRate, def->m_field5a);
+                     g_SPremiumInfo[m_entries[slot].m_type].m_overSkillLevel));
+        m_ceraDiscountRate = std::max(
+            m_ceraDiscountRate,
+            g_SPremiumInfo[m_entries[slot].m_type].m_field5a);
 
-        m_outExpRate += def->m_expRate;
-        m_outPremiumCount += def->m_premiumCount;
-        unsigned short fatigueRate =
-            static_cast<unsigned short>(m_outFatigueRate);
-        fatigueRate = static_cast<unsigned short>(fatigueRate +
-                                                   def->m_fatigueRate);
-        m_outFatigueRate = static_cast<short>(fatigueRate);
-        if (def->m_overEquipFlag != 0)
+        m_outFatigueRate = static_cast<short>(
+            static_cast<unsigned short>(m_outFatigueRate) +
+            static_cast<unsigned short>(
+                g_SPremiumInfo[m_entries[slot].m_type].m_fatigueRate));
+        m_outExpRate =
+            m_outExpRate + g_SPremiumInfo[m_entries[slot].m_type].m_expRate;
+        m_outPremiumCount = m_outPremiumCount +
+            g_SPremiumInfo[m_entries[slot].m_type].m_premiumCount;
+        if (g_SPremiumInfo[m_entries[slot].m_type].m_overEquipFlag != 0)
             m_field8bc = 1;
 
-        // ORIG 组循环以外层槽位 slot 索引 g_SPremiumInfo，而不是
-        // 之前已取出的 premium type；保留该表索引语义。
-        const SPremiumInfo* groupDef = &g_SPremiumInfo[slot];
-        for (int i = 0; i < groupDef->m_field64; ++i)
+        // ORIG 组循以 slot（非 type）索引 g_SPremiumInfo（+0x120*(slot) 链
+        // 每次重算，+0x378/+0x42a/+0x4a3/+0x5d1...）；pair 元素 (t*0x24+i+0xc)
+        // *8 链独立。
+        for (int i = 0;
+             i < g_SPremiumInfo[slot].m_field64; ++i)
         {
-            int infoIndex = groupDef->m_returnPairs68[i].first;
-            int level = groupDef->m_returnPairs68[i].second;
-            // ORIG:while 条件与体内各自 operator[](站点 ×2/迭代)。
             int j = 0;
-            while (j < g_vecPremiumOverEquipableInfo.operator[](infoIndex).m_count)
+            while (j < (int)g_vecPremiumOverEquipableInfo
+                          .operator[](
+                              g_SPremiumInfo[slot]
+                                  .m_returnPairs68[i]
+                                  .first)
+                          .m_count)
             {
-                // ORIG:两语句各自 operator[](m_slots[j] 读取站点 ×2)。
                 int category =
-                    g_vecPremiumOverEquipableInfo.operator[](infoIndex).m_slots[j];
-                int cur = g_vecPremiumOverEquipableInfo.operator[](infoIndex).m_slots[j];
-                (void)cur;
-                m_overEquipableLevel[category] =
-                    std::max(m_overEquipableLevel[category], level);
+                    g_vecPremiumOverEquipableInfo
+                        .operator[](
+                            g_SPremiumInfo[slot].m_returnPairs68[i].first)
+                        .m_slots[j];
+                m_overEquipableLevel[category] = std::max(
+                    m_overEquipableLevel[category],
+                    g_SPremiumInfo[slot].m_returnPairs68[i].second);
                 j++;
             }
         }
 
-        for (int i = 0; i < groupDef->m_field90; ++i)
+        for (int i = 0;
+             i < g_SPremiumInfo[slot].m_field90; ++i)
         {
-            int infoIndex = groupDef->m_returnPairs94[i].first;
-            int rate = groupDef->m_returnPairs94[i].second;
-            // ORIG:while 条件与体内各自 operator[](站点 ×2/迭代)。
             int j = 0;
-            while (j < g_vecPremiumReturnItemInfo.operator[](infoIndex).m_count)
+            while (j < (int)g_vecPremiumReturnItemInfo
+                          .operator[](
+                              g_SPremiumInfo[slot]
+                                  .m_returnPairs94[i]
+                                  .first)
+                          .m_count)
             {
                 int itemIndex =
-                    g_vecPremiumReturnItemInfo.operator[](infoIndex).m_items[j];
+                    g_vecPremiumReturnItemInfo
+                        .operator[](
+                            g_SPremiumInfo[slot].m_returnPairs94[i].first)
+                        .m_items[j];
                 std::map<int, int>::iterator it =
                     m_returnItemMap.find(itemIndex);
                 if (it == m_returnItemMap.end())
-                    m_returnItemMap.insert(std::make_pair(itemIndex, rate));
+                {
+                    std::pair<int, int> np(itemIndex,
+                        g_SPremiumInfo[slot].m_returnPairs94[i].second);
+                    m_returnItemMap.insert(np);
+                }
                 else
-                    it->second += rate;
+                {
+                    it->second = it->second +
+                        g_SPremiumInfo[slot].m_returnPairs94[i].second;
+                }
                 j++;
             }
         }
 
-        m_additionalBase += def->m_additionalInfo;
+        m_additionalBase +=
+            g_SPremiumInfo[m_entries[slot].m_type].m_additionalInfo;
     }
 }
 
@@ -866,26 +887,41 @@ void CUserPremium::setPremiumState(ENUM_PREMIUM_TYPE type, ENUM_PREMIUM_STATE st
 
 bool CUserPremium::_CheckApply(int type, tm t)
 {
-    const SPremiumInfo* def = GetPremiumDefinition(type);
-    if (def->m_applyDayMask[0] == -1)
-        return true;
-    for (int i = 0; i < 7 && def->m_applyDayMask[i] != -1; ++i)
+    // ORIG 0x86ae834：结果落 bool 槽 local_9（命中不早退，继续迭代）；
+    // mask 每判定独立全链（无 def 缓存）；+0x18 即 tm_wday。
+    bool ok = false;
+    if (g_SPremiumInfo[type].m_applyDayMask[0] == -1)
     {
-        // ORIG：tm 按值传参后读取 +0x18，即 tm_wday；遇 -1 哨兵立即停止。
-        if (def->m_applyDayMask[i] == t.tm_wday)
-            return true;
+        ok = true;
     }
-    return false;
+    else
+    {
+        for (int i = 0;
+             i < 7 &&
+             g_SPremiumInfo[type].m_applyDayMask[i] != -1;
+             ++i)
+        {
+            if (g_SPremiumInfo[type].m_applyDayMask[i] == t.tm_wday)
+                ok = true;
+        }
+    }
+    return ok;
 }
 
 int CUserPremium::SetPremiumItemData(unsigned long key, const STPremiumItemData& data)
 {
     if (key == 0)
         return 1;
-    if (g_map_premium_item_data.find(key) != g_map_premium_item_data.end())
-        return 0;
-    g_map_premium_item_data[key] = data;
-    return 1;
+    // ORIG 0x86af70a：end() 先求值、find 后；未命中走 make_pair(lvalue,lvalue)
+    // 引用对 + converting pair + insert（P123：非 operator[] 形）
+    std::map<unsigned long, STPremiumItemData>::iterator e =
+        g_map_premium_item_data.end();
+    if (g_map_premium_item_data.find(key) == e)
+    {
+        g_map_premium_item_data.insert(std::make_pair(key, data));
+        return 1;
+    }
+    return 0;
 }
 
 bool CUserPremium::IsRestrictedPremium(int type)  // static（ORIG 0x086af7c4 无 this）
@@ -898,6 +934,8 @@ void CUserPremium::RecalcAdditionalInfo(CUser const* user)
     if (user->getCurCharacR() == 0 || GetAdvPremiumCount() == 0)
         return;
 
+    // 残差豁免（O=316/N=325，+9：乘除段个别操作数 4.4 双段物化/单段折叠
+    // 位差，Main 裁决标注不追）。
     // ORIG（0x086ae8c6）：读侧一律 this+0x8bd（= m_additionalBase），写侧一律
     // this+0x90f（= m_additionalInfo）——asm 实证 `mov 0x8bd(%eax),%eax` …
     // `mov %edx,0x90f(%eax)`，Ghidra C 同形。此前把结果写回 +0x8bd 属偏移错配。
@@ -958,33 +996,34 @@ void CUserPremium::RecalcAdditionalInfo(CUser const* user)
         (static_cast<short>(addInfo->m_field4c) *
          static_cast<short>(m_additionalBase.m_field4c)) / 100);
 }
-// ORIG W 0x8694a88 GetAdditionalInfo() const：sret；memcpy(this+0x90f, 0x52)。
+// ORIG W 0x8694a88 GetAdditionalInfo() const：sret ← 隐式拷贝 ctor 的
+// 内联块移（对齐检查 + rep movsl + word/byte 尾，0x52 字节，无 clear 调用
+// ⇒ ORIG 源即 return 成员表达式，非 局部+memcpy——后者多 out ctor 与 call）。
 _Additioal_info CUserPremium::GetAdditionalInfo() const
 {
-    _Additioal_info out;
-    memcpy(&out, &m_additionalInfo, sizeof(_Additioal_info));
-    return out;
+    return m_additionalInfo;
 }
 
 
 SUserPremiumInfo CUserPremium::CheckPremiumTimeout() const
 {
+    // ORIG 0x86add9c：result 即 sret（NRVO 直写，无栈局部）；entries[i] 每个
+    // 判定点独立全链重算（T-C9-1）；checkTerm 直读 g_SPremiumInfo 表
+    // （ORIG +0x63 无 helper call，原 static GetPremiumDefinition 属发明符号）。
     SUserPremiumInfo result;
     result.m_type = 0;
     int curTime = GlobalData::s_systemTime_.getCurSec();
-    const SUserPremiumInfo* entries = m_entries;
     for (int i = 1; i <= 0x69; ++i)
     {
-        const SUserPremiumInfo& entry = entries[i];
-        if (entry.m_type == 0)
+        if (m_entries[i].m_type == 0)
             continue;
-        if (GetPremiumDefinition(entry.m_type)->m_checkTerm == 0)
+        if (g_SPremiumInfo[m_entries[i].m_type].m_checkTerm == 0)
             continue;
-        if (entry.m_state == 3)
+        if (m_entries[i].m_state == 3)
             continue;
-        if (entry.m_end <= curTime)
+        if (m_entries[i].m_end <= curTime)
         {
-            result = entry;
+            result = m_entries[i];
             break;
         }
     }
@@ -1015,10 +1054,16 @@ SUserPremiumInfo* CUserPremium::GetPremiumInfo(int type) const
 
 int CUserPremium::GetReturnItemRate(int type) const
 {
-    std::map<int, int>::const_iterator it = m_returnItemMap.find(type);
-    if (it == m_returnItemMap.end())
-        return 0;
-    return it->second;
+    // ORIG 0x86ae7a8：先 empty() 预检；find/end 结果落 const_iterator 临时
+    // 槽后 operator!= 比较（迭代器不直呼内联比较形）
+    if (!m_returnItemMap.empty())
+    {
+        std::map<int, int>::const_iterator it = m_returnItemMap.find(type);
+        std::map<int, int>::const_iterator e = m_returnItemMap.end();
+        if (it != e)
+            return it->second;
+    }
+    return 0;
 }
 
 bool CUserPremium::CheckPremium(int type) const
@@ -1049,24 +1094,41 @@ int CUserPremium::GetAddExpBonus(int type) const
 std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
 {
     std::vector<std::pair<int, int> > items;
-    SUserPremiumInfo* entry = m_entries;
-    if (entry[type].m_type == 0 || entry[type].m_type >= 0x6a)
-        return items;
-    const SPremiumInfo* def = &g_SPremiumInfo[entry[type].m_type];
-    if (def->m_kind != 1)
-        return items;
-    // ORIG：遍历到 first==0 即 return（0x9483a4c 表按序填充，空槽即终止）。
-    for (int i = 0; i < 5; ++i)
+    // ORIG 0x86adf7c：getCurSec+localtime_r 结果不被使用（死调用，保序保留）；
+    // entries[type] 每个条件位独立全链（T-C9-1）；表访问以
+    // g_SPremiumInfo[type*0x120…] 内联链直读（无 def/entry/helper）；
+    // 循环 pair 为默认 ctor + 两字段写 + lvalue push_back（非 make_pair）。
+    time_t nowT = (time_t)GlobalData::s_systemTime_.getCurSec();
+    tm localTm;
+    localtime_r(&nowT, &localTm);
+    (void)localTm;
+    if (m_entries[type].m_type != 0 && m_entries[type].m_type < 0x6a &&
+        g_SPremiumInfo[m_entries[type].m_type].m_kind == 1)
     {
-        if (def->m_advantageItems[i].first == 0)
-            break;
-        items.push_back(std::make_pair(def->m_advantageItems[i].first,
-                                       def->m_advantageItems[i].second));
+        for (int i = 0;
+             i < 5 &&
+             g_SPremiumInfo[m_entries[type].m_type]
+                     .m_advantageItems[i]
+                     .first != 0;
+             ++i)
+        {
+            std::pair<int, int> p;
+            p.first = g_SPremiumInfo[m_entries[type].m_type]
+                          .m_advantageItems[i]
+                          .first;
+            p.second = g_SPremiumInfo[m_entries[type].m_type]
+                           .m_advantageItems[i]
+                           .second;
+            items.push_back(p);
+        }
     }
     return items;
 }
 
 // ---------------------------------------------------------------------------
+// 残差豁免（O=758/N=767 级，散布 +9~15：字段拷贝展开策略——4.1 以
+// `g_SPremiumInfo+0x106/+0x1c/+0x256…` 别名标记的 block 段与 4.4 逐成员
+// operator=/vector 形差异，Main 裁决不追，2026-09-05）。
 // ORIG T 0x086aeca4 WongWork::CUserPremium::LoadPremiumInfo(char const*)。
 // importPremiumList 失败→0x15c；逐记录拷贝进 g_SPremiumInfo[i]（0x130→0x120
 // 字段重排，+0xc8 起写穿 _Additioal_info 子对象区）；SetPremiumItemData

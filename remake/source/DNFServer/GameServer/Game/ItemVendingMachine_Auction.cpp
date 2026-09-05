@@ -168,16 +168,42 @@ bool ItemVendingMachine::BuyAuctionItem(CUser* user, AuctionNeedInfo& info,
     }
     else
     {
-        const double rate = static_cast<double>(info.m_price) /
-                            static_cast<double>(refValue);
-        if (rate < kRateDeny)
+        // **语义修正 + P-H**：.rodata 实读（objdump -s -j .rodata 0x8b871a0 段）
+        // 0x08b871a8=0.5 / b0=1.5 / b8=1.6 / c0=1.7 / c8=1.8 ⇒ 原码分档边界是
+        // **1.7**（不是 1.8），且判定链是嵌套短路对（0x08175cd0..0x08175d80 共
+        // 8 次 fucompp），每层写成 `(rate < Lo) || (Hi <= rate)` 两次比较。
+        // 表达式必须逐处重算（不得有 rate 中间局部，否则 4.4 复用 ⇒ 少 5 组
+        // fldl/fucompp/fnstsw/sahf 链，正是本函数 gap 主体之一）。
+        if (static_cast<double>(info.m_price) / static_cast<double>(refValue) < kRateDeny)
             return false;
-        if (rate < kRate150)
-            feeBase = bPremiumFee ? 2 : 5;
-        else if (rate < kRate180)   // [1.5,1.8)：ORIG 三段比较合并为同一 50 档
-            feeBase = 50;
-        else                        // >= 1.8
-            feeBase = 80;
+        if (kRate150 <= static_cast<double>(info.m_price) / static_cast<double>(refValue))
+        {
+            if (static_cast<double>(info.m_price) / static_cast<double>(refValue) < kRate150 ||
+                kRate160 <= static_cast<double>(info.m_price) / static_cast<double>(refValue))
+            {
+                if (static_cast<double>(info.m_price) / static_cast<double>(refValue) < kRate160 ||
+                    kRate170 <= static_cast<double>(info.m_price) / static_cast<double>(refValue))
+                {
+                    feeBase = 0x50;
+                }
+                else
+                {
+                    feeBase = 0x32;
+                }
+            }
+            else
+            {
+                feeBase = 0x32;
+            }
+        }
+        else if (bPremiumFee)
+        {
+            feeBase = 2;
+        }
+        else
+        {
+            feeBase = 5;
+        }
     }
 
     // ---- fee = trunc(feeBase * price/100.0)（ORIG fldcw RC=0b11 后 fistpl）----
@@ -189,7 +215,9 @@ bool ItemVendingMachine::BuyAuctionItem(CUser* user, AuctionNeedInfo& info,
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("localjapan/AppendVendingMachine.cpp", 0x7b),
         true);
-    guard.put_binary(&info, 0x28);
+    // 0x08175e51..0x08175e5a：`lea -0x50; call CStreamGuard::operator->`
+    // 之后再 `call put_binary` ⇒ 原码写的是 guard->put_binary（P-B 代理链形）。
+    guard->put_binary(&info, 0x28);
 
     // ---- 计费入参字符串（ORIG buf8/buf36/buf21 三缓冲 + atoi 回读）----
     // priceBuf ← "%ld" 99999（购买单价槽恒为 99999）；payBuf ← "%d"(price-fee 或 fee)；
@@ -203,8 +231,9 @@ bool ItemVendingMachine::BuyAuctionItem(CUser* user, AuctionNeedInfo& info,
     OS_API::snprintf(uidBuf, sizeof(uidBuf), "%ld",
                      static_cast<long>(info.m_itemUid));
 
-    const char* accName = user->get_acc_name();
-    const char* characName = user->getCurCharacName();
+    // 名字不缓存：ORIG 每笔计费前各自 call get_acc_name / getCurCharacName
+    // （0x08175f6a、0x08175f7f 与第二笔同址各一次 ⇒ 共 4 次 call），
+    // 缓存成局部会少 2 次 call（本函数 ORIG-only call 缺口的来源之一）。
 
     // 经 s_pIPGHelper 虚表 +0x3c 取 CIPGMgr*（ORIG 0x8175f46..0x8175f5a），再取计费句柄
     //（getBillingCash → *(mgr+0xec)，ORIG 0x0817a2ee）。虚表槽未建模，沿用工程内
@@ -214,12 +243,15 @@ bool ItemVendingMachine::BuyAuctionItem(CUser* user, AuctionNeedInfo& info,
         *reinterpret_cast<GetIPGMgrFn*>(*reinterpret_cast<char**>(GlobalData::s_pIPGHelper) + 0x3c);
     WongWork::IPG::CIPGMgr* mgr =
         reinterpret_cast<WongWork::IPG::CIPGMgr*>(getMgr(GlobalData::s_pIPGHelper));
-    Taiwan::TaiwanCash* cash = mgr->getBillingCash();
+    // getBillingCash 不缓存：ORIG 两段计费各 call 一次
+    // （0x08175f94 与第二笔 0x081760xx 同址），缓存会少 1 次 call。
 
     // ---- 第一段：主扣费（kind=0x3c，金额 price-fee）----
-    int rc = cash->purchase(static_cast<unsigned long long>(info.m_itemUid),
-                            atoi(priceBuf), atoi(payBuf),
-                            accName, characName, info.m_trans1, 0x3c);
+    int rc = mgr->getBillingCash()->purchase(
+                        static_cast<unsigned long long>(info.m_itemUid),
+                        atoi(priceBuf), atoi(payBuf),
+                        user->get_acc_name(), user->getCurCharacName(),
+                        info.m_trans1, 0x3c);
     if (!CheckBillingErrorCode(rc))
     {
         user->m_historyLog.BillingFail(static_cast<ENUM_BILLING_TYPE>(1),
@@ -237,13 +269,16 @@ bool ItemVendingMachine::BuyAuctionItem(CUser* user, AuctionNeedInfo& info,
                                       info.m_trans1.m_tranNo, info.m_price);
 
     // ---- 第二段：手续费（kind=0x3e，金额 fee）----
+    OS_API::snprintf(priceBuf, sizeof(priceBuf), "%ld", 99999L);   // 0x08176015
     OS_API::snprintf(payBuf, sizeof(payBuf), "%d", fee);
     OS_API::snprintf(uidBuf, sizeof(uidBuf), "%ld",
                      static_cast<long>(info.m_itemUid));
 
-    rc = cash->purchase(static_cast<unsigned long long>(info.m_itemUid),
+    rc = mgr->getBillingCash()->purchase(
+                        static_cast<unsigned long long>(info.m_itemUid),
                         atoi(priceBuf), atoi(payBuf),
-                        accName, characName, info.m_trans2, 0x3e);
+                        user->get_acc_name(), user->getCurCharacName(),
+                        info.m_trans2, 0x3e);
     if (!CheckBillingErrorCode(rc))
     {
         user->m_historyLog.BillingFail(static_cast<ENUM_BILLING_TYPE>(1),

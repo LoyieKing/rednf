@@ -92,7 +92,9 @@ float GetUniformVelocityFloatSDC(float v0, float v1, int cur, int max)
         return v1;
     if (cur <= 0)
         return v0;
-    return v0 + (v1 - v0) * (float)cur / (float)max;
+    // ORIG 0x088924c1 x87 序：fildl cur 先于 flds v1 —— 乘法交换序复刻
+    // （IEEE 乘法 bit-exact 同值）。
+    return v0 + (float)cur * (v1 - v0) / (float)max;
 }
 
 // _SDC::isObjectType @0x080950e8
@@ -133,9 +135,15 @@ float SDCActiveStatusSyncCommon::getActiveStatusPower2(int idx, int level)
 float SDCActiveStatusSyncCommon::getActiveStatusEtcParameter(int idx, int level,
                                                              int j)
 {
-    return GetUniformVelocityFloatSDC(ACTIVESTATUS_ETC_PARAMETERS[idx][j * 2],
-                                      ACTIVESTATUS_ETC_PARAMETERS[idx][j * 2 + 1],
-                                      level - 1, ACTIVESTATUS_MAXLEVEL - 1);
+    // ORIG 0x0808d446/0x0808d44d：entry 双 dead init 槽 -0x14=0/-0x10=1（P31）；
+    // 返回两段物化（fstps -0xc → mov %eax,-0x1c → flds -0x1c，P0 双具名局部）。
+    int lo = 0;
+    int hi = 1;
+    (void)lo; (void)hi;
+    return GetUniformVelocityFloatSDC(
+        ACTIVESTATUS_ETC_PARAMETERS[idx][j * 2],
+        ACTIVESTATUS_ETC_PARAMETERS[idx][j * 2 + 1],
+        level - 1, ACTIVESTATUS_MAXLEVEL - 1);
 }
 
 float SDCActiveStatusSyncCommon::getUserToUserDamageRate(bool deathTower)

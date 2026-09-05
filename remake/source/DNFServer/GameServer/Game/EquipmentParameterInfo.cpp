@@ -400,8 +400,11 @@ int GetStatValue(std::vector<float>* v)
     return 0;
 }
 
-void GetStat(std::vector<float>* v)
+bool GetStat(std::vector<float>* v)
 {
+    // ORIG 0x89915d4 体尾 `call GetStatValue; leave; ret`：无显式 return，
+    // 返回值=GetStatValue 在 %eax 的残留（调用方 @0x89bf56f 直接 test %al）。
+    // 此处如实保留该形态（体指令数不变，mangled 不含返回类型）。
     v->push_back(12.0f);
     GetStatValue(v);
 }
@@ -3046,31 +3049,28 @@ static int importAllSkillItem(EquipmentParameterInfo* info)
                 __lookup.find(token.c_str());
             id = (it != __lookup.end()) ? it->second : -1;
         }
-        if (id == 0x2fc1)
+        switch (id)
         {
+        case 0x2fc1:
             terminated = true;
             break;
-        }
-        if (id == 0x2fc5)
-        {
+        case 0x2fc5:
             if (!GetItemGrowtype(&sp)) return 0;
-        }
-        else if (id == 0x2fc9)
-        {
+            break;
+        case 0x2fc9:
             if (!GetSkillApplyCondition(&sp)) return 0;
-        }
-        else if (id == 0x2fcd)
-        {
+            break;
+        case 0x2fcd:
             if (!GetSkillPhase(&sp)) return 0;
-        }
-        else if (id == 0x2fd1)
-        {
+            break;
+        case 0x2fd1:
             if (!GetSkillLevelUp(&sp.m_vec20)) return 0;
+            break;
+        default:
+            return 0;             // ORIG 0x89bf13f：未知 token → 失败
         }
-        else
-        {
-            return 0;             // ORIG default：未知 token → 失败
-        }
+        if (terminated)
+            break;
     }
     if (terminated)
     {
@@ -3105,24 +3105,57 @@ static int importItemOverpowerDesc(EquipmentParameterInfo* info)
             s_first = false;
             continue;
         }
-        if (token == "[/item overpower desc]")
+        // ORIG 0x089bf290：函数局部 static map<char const*,int,less_TCHAR>
+        // 2 项（[/item overpower desc]=0x3001 @0x89bf4be，[stat]=0x3005
+        // @0x89bf519，逐条 !__inited 守卫 insert 链）→ find(token.c_str())
+        // 分派树 @0x89bf497（cmp je / test jne）。
+        int id;
         {
+            static std::map<const char*, int, less_TCHAR> __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
+            if (!__inited)
+            {
+                __init_lock.enter();
+                if (__inited)
+                {
+                    __init_lock.leave();
+                }
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[/item overpower desc]", 0x3001));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[stat]", 0x3005));
+                if (!__inited)
+                {
+                    __init_lock.leave();
+                    __inited = true;
+                }
+            }
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                __lookup.find(token.c_str());
+            id = (it != __lookup.end()) ? it->second : -1;
+        }
+        switch (id)
+        {
+        case 0:
+            break;   // P163：独立 case 0 块参与 range 撑宽（值域 0..0x3005）
+        case 0x3001:
             terminated = true;
             break;
-        }
-        if (token == "[stat]")
+        case 0x3005:
         {
-            // ORIG：GetStat（push 12.0f + GetStatValue）后以 eax 残留的
-            // GetStatValue 返回值判定，成功才 push 到 m_428。
+            // ORIG 0x89bf559：局部 vector C1 + GetStat（内部 push 12.0f +
+            // GetStatValue，返回值取 %eax 残留）成功才 push 到 m_428；D1。
             std::vector<float> v;
-            v.push_back(12.0f);
-            if (GetStatValue(&v))
+            if (GetStat(&v))
                 info->m_119.m_428.push_back(v);
+            break;
         }
-        else
-        {
-            return 0;
+        default:
+            return 0;             // ORIG 0x89bf5b2：未知 token → 失败
         }
+        if (terminated)
+            break;
     }
     if (terminated && info->m_119.m_428.empty())
     {
@@ -4771,35 +4804,37 @@ void importSkillDataUp(std::vector<EquipmentSkillDataUp>& out)
                 __lookup.find(line.c_str());
             id = (it != __lookup.end()) ? it->second : -1;
         }
-        if (id == 0xa47)
+        // P163：case 0 与 default 共享（ORIG 0x88c0ac3 尾，未知/0 均不消费）
+        // 撑宽 range 至 0xa6d，4.4.7 放弃跳表改发 cmp-imm 二分树，
+        // 与 ORIG @0x88c070f 树逐节点同序。
+        switch (id)
         {
+        case 0:
+            break;   // P163：独立 case 0 块参与 range 撑宽
+        default:
+            break;   // 未知标签：key/level 保持默认（ORIG 0x88c0ac3 尾）
+        case 0xa47:
             e.m_key = 0; e.m_v8 = ScanInt((bool*)0);
-        }
-        else if (id == 0xa4b)
-        {
+            break;
+        case 0xa4b:
             e.m_key = 1; e.m_v8 = ScanInt((bool*)0);
-        }
-        else if (id == 0xa4f)
-        {
+            break;
+        case 0xa4f:
             e.m_key = 2; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
-        }
-        else if (id == 0xa54)
-        {
+            break;
+        case 0xa54:
             e.m_key = 3; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
-        }
-        else if (id == 0xa59)
-        {
+            break;
+        case 0xa59:
             e.m_key = 4; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
-        }
-        else if (id == 0xa5e)
-        {
+            break;
+        case 0xa5e:
             e.m_key = 5; e.m_v8 = ScanInt((bool*)0);
-        }
-        else if (id == 0xa6d)
-        {
+            break;
+        case 0xa6d:
             e.m_key = 6; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
+            break;
         }
-        // 未知标签：不消费 level token，key/level 保持默认
 
         ScanStr(&line);
         e.m_percent = (line == "+") ? 0 : 1;

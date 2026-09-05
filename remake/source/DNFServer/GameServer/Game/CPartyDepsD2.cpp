@@ -376,8 +376,8 @@ bool CParty::OnStartMapFinishLoading(CUser* user)
 {
     if (bf(this).GetDungeon() != 0)                      // thunk 0x080fdcfc ×2
     {
-        CDungeon* dungeon = bf(this).GetDungeon();
-        if (do_after_dungeon_start(dungeon, user) != 0)
+        // ORIG 实证双取形（无 dungeon 局部缓存），user 直传实参无 spill。
+        if (do_after_dungeon_start(bf(this).GetDungeon(), user) != 0)
         {   // 入场善后失败：按放弃处理并返回 0
             giveup_game(user, false, false, false);      // B2 批次实现
             return false;
@@ -436,6 +436,9 @@ bool CParty::isCheckUseSkill(int job, int skillIdx)
 // 报告：docs/class_func_reports/CParty/SaveCoin.md
 // eCoinSubReason 参数未消费（ORIG 形态）；全员 SaveMoneyCoin。
 // ---------------------------------------------------------------------------
+// [N-类] 剩 4：ORIG 4.1 `!_checkValidUser(i)` 产 xor$1;test;je 物化岛 +
+// ++i 在 continue 路径中部；4.4.7 恒折 test/jne + ++i 归条件块（setcc-fold/
+// 块布局跨版本，同 GetFirstValidMemberState 0x085ba574 剩 4 行）。
 void CParty::SaveCoin(eCoinSubReason reason)
 {
     (void)reason;
@@ -479,7 +482,7 @@ bool CParty::canFatigueUp(unsigned char flag)
         return false;
     if (m_dungeon == 0)
         return false;
-    if (m_dungeon->m_bloodDungeonType == 0 && m_dungeon->m_villageAttackEventFlag != 1 &&
+    if (m_dungeon->m_bloodDungeonType == 0 && !m_dungeon->m_villageAttackEventFlag &&
         !m_dungeon->isNoFatigueDungeon())
         return true;
     return false;
@@ -995,17 +998,25 @@ void CParty::send_to_party_cmd_error(ENUM_CMDPACKET cmd, unsigned char error)
 bool CParty::setStandardDimensionLevel(CDungeon const* dungeon)
 {
     (void)dungeon;
+    // ORIG 0x0859f612 + Ghidra 双证：char 死标志 -0x19（非 GM 时置 1，
+    // 从不读取——isGMUser 结果**不是**跳过条件，等级照累加）；
+    // _checkValidUser(i)=='\x01' 具值比较；sum/count 分槽 -0x18/-0x14。
+    char nonGM = 0;                                      // -0x19
     int levelSum = 0;                                    // -0x18
-    int validCount = 0;                                  // -0x10
-    for (int i = 0; i < 4; ++i)
+    int validCount = 0;                                  // -0x14
+    for (int i = 0; i < 4; ++i)                          // -0x1c
     {
-        if (!_checkValidUser(i))
-            continue;
-        if (memberUser(this, i)->isGMUser() == 0)        // test/je —— 非 GM 跳过
-            continue;
-        levelSum += memberUser(this, i)->get_charac_level();  // thunk 0x080da2b8
-        ++validCount;
+        if (_checkValidUser(i))
+        {
+            if (!memberUser(this, i)->isGMUser())
+            {
+                nonGM = 1;
+            }
+            levelSum += memberUser(this, i)->get_charac_level();  // thunk 0x080da2b8
+            ++validCount;
+        }
     }
+    (void)nonGM;
     m_standardDimensionLevel = levelSum / validCount;    // cdq/idivl
     return true;
 }
@@ -1018,13 +1029,17 @@ bool CParty::setStandardDimensionLevel(CDungeon const* dungeon)
 // ---------------------------------------------------------------------------
 void CParty::sub_hellparty_value()
 {
-    BattleData& d = bd(this);
-    float value = bf(this).m_hellPartyRatio4 * d.m_hellPartyValueTotal;  // flds×2 fmulp
+    // [N-类] 剩 15：ORIG 0x085b5a4e 为 4.1 位移折叠形（flds 0xb0c/0xd1c、
+    // mov 0xd10 单段）；4.4.7 恒物化基址 `add $0x32c/$0xb24,%eax`+短位移
+    // （地址算术折叠跨版本差，同 P112/memset-edx 类）。语义同址已验证
+    // （0x32c+0x7e0=0xb0c、0xb24+0x1f8=0xd1c、0xb24+0x1ec=0xd10）。
+    float value = bf(this).m_hellPartyRatio4 *
+                  bd(this).m_hellPartyValueTotal;                        // flds×2 fmulp
     if (D2_ROUND(value) < bf(this).m_hellPartyRatio1)                    // fistpl/jge
     {
         value = static_cast<float>(bf(this).m_hellPartyRatio1);          // fildl
     }
-    d.m_hellPartyValueTotal = value;                     // fstps 0xb0c
+    bd(this).m_hellPartyValueTotal = value;              // fstps 0xb0c
     send_hellParty_value();                              // T 0x085b697c
 }
 
@@ -1230,11 +1245,17 @@ int CParty::GetSetPlayResultCount()
 // ---------------------------------------------------------------------------
 const char* CParty::GetNoSendSetPlayResultUser(int slot)
 {
-    if (m_member[slot].m_pUser != 0 && m_member[slot].m_field4 == 0)
+    // ORIG 0x085b2384 + Ghidra 双证：field4 **!=0** 且 pUser 非空且
+    // getCurCharacR 非空才返回昵称；pUser 地址每次重算（无局部缓存 spill）。
+    // [N-类·setcc-fold] 剩 5：getCurCharacR!=0 的 bool 物化 ORIG 4.1 出
+    // test; setne%al; test; je，4.4.7 恒折 test;je+mov1/jmp/mov0 分支形
+    // （范式库负例 setcc-fold，probe 全试无源码复现）。
+    if (m_member[slot].m_pUser != 0 && m_member[slot].m_field4 != 0 &&
+        reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser)
+            ->getCurCharacR() != 0)
     {
-        CUserCharacInfo* ci = reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser);
-        if (ci->getCurCharacR() != 0)
-            return ci->getCurCharacName();
+        return reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser)
+            ->getCurCharacName();
     }
     return "";
 }
@@ -1547,9 +1568,12 @@ const char* TowerOfDespair_APC_Mgr::Get_APC_Name_byIndex(const TOD_Layer& layer)
 // ---------------------------------------------------------------------------
 const char* TowerOfDespairMgr::Get_APCNameByLayer(const TOD_Layer& layer)
 {
-    if (m_apcMgr == 0)
-        return 0;
-    return m_apcMgr->Get_APC_Name_byIndex(layer);
+    // ORIG 0x08643e4a：非空正分支 inline，null 冷岛在尾。
+    if (m_apcMgr != 0)
+    {
+        return m_apcMgr->Get_APC_Name_byIndex(layer);
+    }
+    return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -1575,9 +1599,9 @@ void cUserHistoryLog::BloodRoundClear(int round, unsigned int clearTime,
 {
     (void)playTime;
     (void)dungeonName;
-    if (m_user != 0)
-        m_user->LogHistory("BloodRoundClear,%d,%u,%s", (int)round,
-                           (unsigned int)clearTime, memberNames);
+    // ORIG 0x08684af0：无 null 检查，直接解引用。
+    m_user->LogHistory("BloodRoundClear,%d,%u,%s", (int)round,
+                       (unsigned int)clearTime, memberNames);
 }
 
 // 注：用 #pragma pack（而非 __attribute__((packed))）——GCC 4.4 的 attribute

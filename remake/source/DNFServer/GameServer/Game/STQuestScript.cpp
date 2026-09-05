@@ -34,8 +34,11 @@
 // mangled _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIiiSt4lessIiESaISt4pairIKiiEEE）。
 // STScriptFileList 无权威头，此处仅前置声明 + 正常 C++ 自由函数声明（非 asm 桥）。
 // STScriptFileList 权威定义见 NpcScript.h（经 Quest.h include 链可见）。
-int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
-                           const char* listPath, std::map<int, int>* map);
+// 本 TU 按 bool 视图声明（P22：ORIG init* 尾 @0x8a616e9 xor $1,%eax;test %al
+// 为 bool 取反形；返回类型不入 mangled，链接 STScriptFileList.cpp 的 int 定义，
+// 其返回恒 0/1，ABI 兼容——StrikerScript.cpp 同例先）。
+bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
+                            const char* listPath, std::map<int, int>* map);
 // ---- importQuestScript 依赖的外部符号（权威定义分属其他 TU）----
 bool IsLightServer();                                        // _Z13IsLightServerv 0x0822ad44（GlobalData.cpp）
 void OutputErrorMessage(const char* msg);                    // _Z18OutputErrorMessagePKc（STMapScript.cpp）
@@ -54,25 +57,6 @@ char g_townScriptBaseDirectory[0x100];    // ORIG B 0x9500da0
 extern std::map<int, std::string> g_townScriptFileList;  // 定义于 GameWorld.cpp（ORIG B 0x9500ea0）
 // g_questScriptFileList 权威定义见 InitScriptProducers_4.cpp（extern 声明 + loadRDARScriptListFile 填充）。
         // ORIG B 0x9500480（initQuestScript 填充）
-
-namespace
-{
-// 目录补齐：末尾非 '\' 且非 '/' 时补 "\\"（ORIG Init*/init* 族共用该字符）。
-void AppendDirSeparator(char* dir)
-{
-    size_t len = strlen(dir);
-    if (len == 0)
-    {
-        return;
-    }
-    char last = dir[len - 1];
-    if (last != '\\' && last != '/')
-    {
-        dir[len] = '\\';
-        dir[len + 1] = '\0';
-    }
-}
-}
 
 // ===================== QuestScript =====================
 
@@ -486,10 +470,17 @@ bool TrainingQuestScript::getApplyLevel(std::multiset<int>* out)
 // 权威定义见 InitScriptProducers_4.cpp（g_questScriptFileList B 0x9500480）。
 extern std::map<int, std::string> g_questScriptFileList;
 
-int initQuestScript(const char* dir, const char* list)
+bool initQuestScript(const char* dir, const char* list)
 {
     strncpy(g_questScriptBaseDirectory, dir, 0x100);
-    AppendDirSeparator(g_questScriptBaseDirectory);
+    // ORIG 0x8a6166a..0x8a616c1 / 0x8aad9ec 族形：内联补齐（strlen×3 + memcpy
+    // 2 字节 "\\"），无空串防御（ORIG len==0 时读 buf[-1] 为原始 UB 形态，
+    // P140 忠实保留）；P49 禁本 TU 外 helper——原 AppendDirSeparator 属发明
+    // 符号（ORIG nm 无），此处按汇编逐调用点内联恢复。
+    if (g_questScriptBaseDirectory[strlen(g_questScriptBaseDirectory) - 1] != '\\' && g_questScriptBaseDirectory[strlen(g_questScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_questScriptBaseDirectory + strlen(g_questScriptBaseDirectory), "\\", 2);
+    }
     if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_questScriptFileList),
                                 g_questScriptBaseDirectory, list, 0))
     {
@@ -1081,38 +1072,69 @@ int importQuestScript(QuestScript* script, const char* path)
             if (!__inited)
             {
                 __init_lock.enter();
+                if (__inited)
+                {
+                    __init_lock.leave();
+                }
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[seeking]", 0x32c));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[condition under clear]", 0x32f));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[hunt monster]", 0x332));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[clear map]", 0x335));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[meet npc]", 0x338));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[pvp rank]", 0x33b));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[hunt enemy]", 0x33e));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[powerwar win]", 0x342));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[powerwar point]", 0x345));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[mobile]", 0x34a));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[use item]", 0x34f));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[get score]", 0x352));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[clear quest]", 0x355));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[check time]", 0x358));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[check life]", 0x35b));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[amplify item]", 0x35e));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[disjoint item]", 0x361));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[equipped item]", 0x364));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[get item]", 0x367));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[custom quest]", 0x36a));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[send chatting]", 0x36f));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[turn gold card]", 0x372));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[use fortune coin]", 0x375));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[meet secret npc]", 0x378));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[ui click]", 0x37d));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[seek n meet npc]", 0x382));
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[assault count]", 0x387));
                 if (!__inited)
                 {
-                    __lookup.insert(std::pair<const char* const, int>("[seeking]", 0x32c));
-                    __lookup.insert(std::pair<const char* const, int>("[condition under clear]", 0x32f));
-                    __lookup.insert(std::pair<const char* const, int>("[hunt monster]", 0x332));
-                    __lookup.insert(std::pair<const char* const, int>("[clear map]", 0x335));
-                    __lookup.insert(std::pair<const char* const, int>("[meet npc]", 0x338));
-                    __lookup.insert(std::pair<const char* const, int>("[pvp rank]", 0x33b));
-                    __lookup.insert(std::pair<const char* const, int>("[hunt enemy]", 0x33e));
-                    __lookup.insert(std::pair<const char* const, int>("[powerwar win]", 0x342));
-                    __lookup.insert(std::pair<const char* const, int>("[powerwar point]", 0x345));
-                    __lookup.insert(std::pair<const char* const, int>("[mobile]", 0x34a));
-                    __lookup.insert(std::pair<const char* const, int>("[use item]", 0x34f));
-                    __lookup.insert(std::pair<const char* const, int>("[get score]", 0x352));
-                    __lookup.insert(std::pair<const char* const, int>("[clear quest]", 0x355));
-                    __lookup.insert(std::pair<const char* const, int>("[check time]", 0x358));
-                    __lookup.insert(std::pair<const char* const, int>("[check life]", 0x35b));
-                    __lookup.insert(std::pair<const char* const, int>("[amplify item]", 0x35e));
-                    __lookup.insert(std::pair<const char* const, int>("[disjoint item]", 0x361));
-                    __lookup.insert(std::pair<const char* const, int>("[equipped item]", 0x364));
-                    __lookup.insert(std::pair<const char* const, int>("[get item]", 0x367));
-                    __lookup.insert(std::pair<const char* const, int>("[custom quest]", 0x36a));
-                    __lookup.insert(std::pair<const char* const, int>("[send chatting]", 0x36f));
-                    __lookup.insert(std::pair<const char* const, int>("[turn gold card]", 0x372));
-                    __lookup.insert(std::pair<const char* const, int>("[use fortune coin]", 0x375));
-                    __lookup.insert(std::pair<const char* const, int>("[meet secret npc]", 0x378));
-                    __lookup.insert(std::pair<const char* const, int>("[ui click]", 0x37d));
-                    __lookup.insert(std::pair<const char* const, int>("[seek n meet npc]", 0x382));
-                    __lookup.insert(std::pair<const char* const, int>("[assault count]", 0x387));
+                    __init_lock.leave();
                     __inited = true;
                 }
-                __init_lock.leave();
             }
             std::map<const char*, int, less_TCHAR>::const_iterator it =
                 __lookup.find(sub.c_str());
@@ -1643,12 +1665,17 @@ int importQuestScript(QuestScript* script, const char* path)
             if (!__inited)
             {
                 __init_lock.enter();
+                if (__inited)
+                {
+                    __init_lock.leave();
+                }
+        if (!__inited)
+                    __lookup.insert(std::pair<const char* const, int>("[urgent]", 0x5c1));
                 if (!__inited)
                 {
-                    __lookup.insert(std::pair<const char* const, int>("[urgent]", 0x5c1));
+                    __init_lock.leave();
                     __inited = true;
                 }
-                __init_lock.leave();
             }
             for (;;)
             {
@@ -1763,10 +1790,17 @@ int importQuestScript(QuestScript* script, const char* path)
     }
     return 1;
 }
-int initTownScript(char* dir, char* list)
+bool initTownScript(char* dir, char* list)
 {
     strncpy(g_townScriptBaseDirectory, dir, 0x100);
-    AppendDirSeparator(g_townScriptBaseDirectory);
+    // ORIG 0x8a6166a..0x8a616c1 / 0x8aad9ec 族形：内联补齐（strlen×3 + memcpy
+    // 2 字节 "\\"），无空串防御（ORIG len==0 时读 buf[-1] 为原始 UB 形态，
+    // P140 忠实保留）；P49 禁本 TU 外 helper——原 AppendDirSeparator 属发明
+    // 符号（ORIG nm 无），此处按汇编逐调用点内联恢复。
+    if (g_townScriptBaseDirectory[strlen(g_townScriptBaseDirectory) - 1] != '\\' && g_townScriptBaseDirectory[strlen(g_townScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_townScriptBaseDirectory + strlen(g_townScriptBaseDirectory), "\\", 2);
+    }
     if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_townScriptFileList),
                                 g_townScriptBaseDirectory, list, 0))
     {

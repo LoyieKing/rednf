@@ -989,11 +989,14 @@ int importUltimateSkillCutScene(const char*,
 // **逆序声明** 对齐 ORIG 深度。
 void importActiveStatus(STActiveStatus& st, bool flag)
 {
+    // 槽序对齐：ORIG 帧深→浅 = f(-0x6c), s(-0x5c), t5A..t4(-0x58..-0x1c),
+    // type(-0x18), i9(-0x14), iD(-0x10), i4(-0xc)。4.4 实测"后声明更深"
+    // （v1 序 i4→f 得 97），本轮微调：type 移至 temps 前（介于 i9 与 t4 间）。
     int i4;
     int iD;
     int i9;
-    int type;
     int t4, tD, t9, tB, t6, t2, tA, t11, tF, t7, tCB, tCA, t0B, t0A, t5B, t5A;
+    int type;
     std::string s;
     bool f = flag;  // ORIG 0x088c1e96 entry spill
 

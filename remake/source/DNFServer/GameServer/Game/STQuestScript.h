@@ -80,9 +80,11 @@ public:
 // loadRDARScriptFile(g_questScriptBaseDirectory, path) 使用）。
 extern char g_questScriptBaseDirectory[0x100];
 
-int initQuestScript(const char* dir, const char* list);
+// 返回类型 bool：ORIG 定义尾 @0x8a616e9 xor $1,%eax;test %al（P22 bool 形，
+// mangled 不含返回类型；消费点仅 CDataManager.cpp:2856 判零、GameWorld.cpp:184 语句调用）。
+bool initQuestScript(const char* dir, const char* list);
 int importTrainingQuestScript(TrainingQuestScript* script, const char* path);
-int initTownScript(char* dir, char* list);
+bool initTownScript(char* dir, char* list);   // 同上，ORIG @0x8aad9ec 族尾形
 bool importTownScript(TownScript* script, const char* path);
 int importQuestScript(QuestScript* script, const char* path);
 
