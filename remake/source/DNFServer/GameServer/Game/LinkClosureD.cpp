@@ -381,6 +381,15 @@ private:
 // ORIG W _Z11_verifyItemiPK10Inven_Item14INVENTORY_TYPEbbP5CUser @0x084efcdd
 // sz0x398。报告缺失（objdump 0x084efcdd..0x084f0075 逐段转写）。返回错误码，
 // 0 = 通过；0x1562..0x15f8 为各校验失败码（语义见各分支注释）。
+// 判例（ADeepY4[7]）：DIFF(N封)，gap +9（orig 290 / our 299，was 301）。真 bug 修复：
+//   m_field0 校验 `if(m_field0 && !b1)`→`if(m_field0 && b1)`。ORIG 84efe89 区：
+//   `movzbl(%item)(m_field0);test;je续;cmpb $0,-0x4c(b1);je续;mov $0x157d`——失败条件是
+//   m_field0 非零 **且** b1 非零（P196 布尔反演，equip 段 b1=true 拒带残留 flag 物品、
+//   inven 段 b1=false 放行）；原译写 !b1 为反。翻转后 xor $1 消失、代码 301→299。
+//   残余：GUID 分支 ORIG 将 guid/characNo/accId 入 edi/esi/ebx 提前(cMyTrace ctor 前)，
+//   4.4 下栈槽(N82)；stackable 位测 ORIG `shl %cl;and $0x69c`、我们强度归约 `shr;and $1`
+//   (N86b 等价)；非 stackable type 分发 ORIG 链式 cmp、我们区间式。错误码 0x1562..0x15f8
+//   与空槽全零/rarity/attachtype 各分支语义全部对应。
 // ---------------------------------------------------------------------------
 int _verifyItem(int slot, const Inven_Item* item, INVENTORY_TYPE type,
                 bool b1, bool b2, CUser* user)
@@ -416,7 +425,7 @@ int _verifyItem(int slot, const Inven_Item* item, INVENTORY_TYPE type,
         return 0x1576;
     if (def->get_index() != item->m_addInfo)
         return 0x157a;
-    if (item->m_field0 != 0 && !b1)
+    if (item->m_field0 != 0 && b1)
         return 0x157d;
 
     if (def->is_stackable())

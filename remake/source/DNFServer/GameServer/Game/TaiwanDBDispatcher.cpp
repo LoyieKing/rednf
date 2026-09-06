@@ -903,8 +903,14 @@ bool DBUpdatePcroomDailyReward::dispatch(int code, int uid, Stream* stream)
 // get_n_rows()==0 → INSERT(m_id,charac_no,occ_date) exec 失败 throw
 // "insert_exec"；Acquire(file, 0x3a5) → CStreamGuard(true) →
 // internal_stream(guard, 0x10, uid) → GetInBuffer<MSG> null → throw "stream"；
-// 拷贝 m_accId/m_characNo 后 MsgQueueMgr::put(DB_Q, guard)。catch
+// 拷贝 m_characNo/m_accId 后 MsgQueueMgr::put(idx 1, guard)。catch
 // logFormat(0x3b4) 返 0。成功返 1。
+// [b21] 修正三真 bug：①set_query 返回不检查（ORIG 仅 check exec，删 if(!..)throw 两支）；
+//   ②MsgQueueMgr::put 旧用 DB_Q(=2)，ORIG 传 $0x1（同族 Taiwan dispatch 均 idx 1，改 DISPATCH_Q）；
+//   ③m_accId/m_characNo 拷贝序反（ORIG 先 0x4 后 0x0）。疲劳比较改读 tm2.tm_hour 内存对
+//   齐 `cmp/jge`；Acquire 内联进 CStreamGuard ctor（P134）消中间槽；nRows 具名局部。
+//   残余 N82：INSERT 的 m_characNo 装载 ORIG 直 `mov 0x4(%eax),%ebx`，4.4 多 `mov %eax,%ebx`
+//   中转；返回路径 %ebx 合并 epilogue 与 ORIG 各 return 点直发略有出入。语义逐一相等，封 N。
 bool DBInsertGiveBoxEventReward::dispatch(int code, int uid, Stream* stream)
 {
     try
@@ -931,23 +937,25 @@ bool DBInsertGiveBoxEventReward::dispatch(int code, int uid, Stream* stream)
                 NumberToString(sig->m_accId, 0), (int)now);
         if (!db->exec(1))
             throw "select_exec";
-        if (db->get_n_rows() == 0)
+        int nRows = db->get_n_rows();
+        if (nRows == 0)
         {
             db->set_query(
                     "inSert into event_1306_account_reward_2nd (m_id , charac_no , occ_date ) values (%s , %u , now())",
                     NumberToString(sig->m_accId, 0), (unsigned int)sig->m_characNo);
             if (!db->exec(1))
                 throw "insert_exec";
-            Stream* out = GlobalData::s_stream_pool->Acquire(
-                "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x3a5);
-            CStreamGuard guard(out, true);
+            CStreamGuard guard(
+                GlobalData::s_stream_pool->Acquire(
+                    "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x3a5),
+                true);
             Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0x10, uid);
             DBInsertGiveBoxEventReward::MSG* outSig =
                 guard.operator->()->GetInBuffer<DBInsertGiveBoxEventReward::MSG>();
             if (outSig == 0)
                 throw "stream";
-            outSig->m_accId = sig->m_accId;
             outSig->m_characNo = sig->m_characNo;
+            outSig->m_accId = sig->m_accId;
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         }
         return 1;

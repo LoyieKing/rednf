@@ -682,8 +682,7 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
     }
 
     char enableFlag = 0;
-    bool ok = db->get_str(0, data->m_passPadPassword, 0x24);   // +0x38e1
-    if (!ok)
+    if (!db->get_str(0, data->m_passPadPassword, 0x24))   // +0x38e1
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
@@ -691,6 +690,11 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
             0x2cf, "%s", "Mouse Pass Encrypted Parsing error");
         return -1;
     }
+    // [b21 N·P198-②/P197-④] 以下 get_str/get_int/get_byte/get_uint 五连判定——
+    // ORIG(4.1) 对 call 结果 `xor $0x1,%eax; test; je` 寄存器直测（无槽）;4.4-O0 对
+    // 该类 call 结果 bool 判定恒 materialize 到栈槽 `mov %al,-off; movzbl; xor; test`
+    // （P198-②/P197-④：源形不可复现，内联也出同样栈槽，禁改比较=双调用真 bug）。
+    // 逐 getter 列/目标偏移/错误日志行号已与 ORIG 逐一核对，语义闭合，封 N。
     if (!db->get_int(1, login_field<int>(data, 0x3914)))     // fail_cnt
     {
         LogManager::logFormat(

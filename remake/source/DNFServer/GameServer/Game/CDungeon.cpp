@@ -542,6 +542,12 @@ CDungeon_TowerOfDespair::CDungeon_TowerOfDespair()
 int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
 {
     // ORIG 0x0834d8ec：进入绝望之塔——递增计数、二次进入扣门票、发包回执、统计。
+    // 判例（ADeepY4[6]）：DIFF(N封)，gap +1（orig 254 / our 255）。全调用点成立
+    // （GetCharacExpandData/IncreaseEnterCount/getEnterCount/check_item_exist/GetInvenSlot/
+    // delete_item/cMyTrace×2/PacketGuard 族/getTodayEnterLayer/GetServerProxy/SendPacket）。
+    // 残余=4.1.2 跨 call 值寄存器缓存（N82）：失败路径 ORIG 将 m_itemCount→%esi、getCurCharacNo
+    // →%ebx 于 cMyTrace ctor 之前 calc（callee-saved 存活）、统计素 ORIG 令 &gts→%ebx 提前；
+    // 4.4-O0 对同样本轮把它下栈槽（P197② 记 N）。语义与 Ghidra C 逐条对应。
     if (user == 0)
         return 0;
 
