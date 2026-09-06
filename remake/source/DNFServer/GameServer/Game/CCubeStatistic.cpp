@@ -96,11 +96,11 @@ int CCubeStatistic::sendCubeStatistic(int itemIndex, int count, CUser* user,
 void CCubeStatistic::collectCubeStatistics(int itemIndex, int count, CUser* user,
                                            CUBE_STATISTIC_FIELD field)
 {
-    // ORIG：item=G_CDataManager().find_item(itemIndex)；非 NULL 时
+    // ORIG：item=G_CDataManager()->find_item(itemIndex) 直调（无 manager NULL 防御）；
+    // 非 NULL 时
     // 1) 本对象 findCubeStuff(item->getItemGroupName()) 命中 → 本对象 send；
     // 2) 单例 GetInstanceCubeStatistic()->findCubeStuff(...) 命中 → 单例 send。
-    CDataManager* dm = G_CDataManager();
-    CItem* item = dm ? dm->find_item(itemIndex) : 0;
+    CItem* item = G_CDataManager()->find_item(itemIndex);
     if (item == 0)
         return;
     int group = item->getItemGroupName();

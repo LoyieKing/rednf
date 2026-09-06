@@ -466,8 +466,7 @@ bool AvatarFixedHiddenOptionServer::CheckCondition(
 bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(
     CUser* user, arad::SigAvatarHiddenOptionChange* sig)
 {
-    CInventory* invW = user->getCurCharacInvenW();
-    if (invW->delete_item(INVEN_TYPE(1), (int)sig->m_materialSlot, 1,
+    if (user->getCurCharacInvenW()->delete_item(INVEN_TYPE(1), (int)sig->m_materialSlot, 1,
                           eItemDelReason(3), true) != 1)
     {
         LogManager::logFormat(
@@ -488,7 +487,7 @@ bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(
              "[charac_no:%d]",
              (int)sig->m_materialSlot, (unsigned int)user->getCurCharacNo());
 
-    Inven_Item* ref = invW->GetInvenRef(2, (int)sig->m_avatarSlot);
+    Inven_Item* ref = user->getCurCharacInvenW()->GetInvenRef(2, (int)sig->m_avatarSlot);
     if (ref == 0)
         return false;
     CItem* item = G_CDataManager()->find_item((int)ref->m_addInfo);
@@ -522,7 +521,7 @@ bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(
     CStreamGuard guard(stream, true);
     ARAD::DISPATCHER::make_internal_stream_jpn(
         guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2f, -1);
-    guard.put_binary(&save, 0x10);
+    guard.operator->()->put_binary(&save, 0x10);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(2), guard);
     user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)1,
                              (int)sig->m_avatarSlot);

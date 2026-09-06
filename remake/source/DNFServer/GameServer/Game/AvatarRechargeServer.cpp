@@ -177,8 +177,7 @@ bool AvatarRechargeServer::Recharge(CUser* user,
         return false;
     }
 
-    CInventory* invenW = user->getCurCharacInvenW();
-    if (invenW->delete_item((INVEN_TYPE)1, sig->stoneSlot, 1,
+    if (user->getCurCharacInvenW()->delete_item((INVEN_TYPE)1, sig->stoneSlot, 1,
                             (eItemDelReason)3, true))
     {
         user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
@@ -191,7 +190,7 @@ bool AvatarRechargeServer::Recharge(CUser* user,
               "[charac_no:%d]",
               (int)sig->stoneSlot, user->getCurCharacNo());
 
-        Inven_Item* avatar = invenW->GetInvenRef(2, (int)sig->avatarSlot);
+        Inven_Item* avatar = user->getCurCharacInvenW()->GetInvenRef(2, (int)sig->avatarSlot);
         if (avatar == 0 || avatar->isEmpty())
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0x16);

@@ -996,8 +996,8 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
 // ============================================================================
 void DB_LoadEtc::LoadComboSkillInfo(SIG_LOAD_ETC* sig)
 {
-    SIG_COMBO_SKILL* cs = reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill);
-    if (cs->m_job != 9)                                      // *(int*)(sig+0x14ab0)==9
+    // ORIG: 直读 sig+0x14ab0（mov 0x14ab0(%eax)，直接折叠反偏移），无意引局部槽（P0）。
+    if (reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill)->m_job != 9)
     {
         return;
     }

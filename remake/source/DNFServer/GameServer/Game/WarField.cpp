@@ -26,6 +26,8 @@
 #include "CMonster.h"         // 权威 CMonster（m_weight=+0x1d24，ConsistMap 086b8d97 movl 直读）
 #include "GlobalData.h"       // 权威 GlobalData::s_systemTime_
 #include "Arad_DataManager.h" // 权威 ARAD::Singleton<T> 模板（本文件不再重复定义）
+#include "ServiceRestrictManager.h" // 权威 ServiceRestrictManager（含 map 成员，Meyers 单例非平凡
+                                    // → Get() 发 guard；此前局部平凡类致 Get 退化为 5 指令 stub）
 
 int get_rand_int(int range);  // ORIG T 0x86b1b87
 
@@ -41,21 +43,6 @@ int get_rand_int(int range);  // ORIG T 0x86b1b87
 using WongWork::stGenerateRefData_t;
 using WongWork::stGenerateResult_t;
 using WongWork::CItemGenerator;
-
-namespace RestrictCategory
-{
-enum Enum
-{
-    Enum_0 = 0,
-    Enum_3 = 3
-};
-}
-
-class ServiceRestrictManager
-{
-public:
-    bool isRestricted(RestrictCategory::Enum category, int idx);  // ORIG T 0x816e75e
-};
 
 // ============================================================================
 // 构造/析构（ORIG 086c0b8e / 086c0ba4：仅 MapInfo 子对象）
@@ -659,8 +646,8 @@ int WarAreaCounter::GetWarRoomCountAtPeekTime(int idx)
             "WarAreaCounter GetWarRoomCountAtPeekTime error idx(%d)", idx);
         return 0;
     }
-    int cur = m_curHourIdx;
-    return m_warRoomCount[cur][idx];
+    // ORIG: 直读 m_curHourIdx（mov 0xe8(%eax),%edx），无意引局部槽（P0）。
+    return m_warRoomCount[m_curHourIdx][idx];
 }
 
 // ORIG 0x82a3df4 W（_ZN14WarAreaCounter25GetWarRoomCountFirstIndexEi）：

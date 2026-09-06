@@ -299,10 +299,10 @@ int CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
     channel_script_t* chScript = (channel_script_t*)dm2->GetChannelScript();
     CEnvironment* env = G_CEnvironment();
     unsigned int channelNo = (unsigned int)env->get_channel_no();
-    // 渠道组字节：ORIG movzbl G_CEnvironment()+0x378 低字节
-    //             = Server_Envir::m_serverGroup(+0x1e0)（set_clear_reward_exp_parameter/
-    //             generateRewardExp 两份报告一致引用）
-    unsigned char channelType = (unsigned char)env->get_server_group();
+    // 渠道组字节：ORIG 重取 G_CEnvironment() 并内联读 +0x378（= Server_Envir
+    //             m_serverGroup，+0x198+0x1e0），不 call get_server_group()。
+    unsigned char channelType =
+        (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup;
     float channelRate =
         chScript->getBonusRate(channelType, channelNo, dungeon->get_index());
 
@@ -312,18 +312,21 @@ int CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
     float premiumRate = 0.0f;
 
     CEventBase* ev8 = GlobalData::s_event_manager->GetRepeatEvent(8);
-    if (ev8 != 0 && ev8->IsEventing(user))
+    if (ev8->IsEventing(user))
         // ORIG：整型 /100（imul 0x51eb851f 形态）后才转 float
-        pcrBurning = (float)(((CPCRoomBurningEvent*)ev8)->GetExpFactor() / 100);
+        pcrBurning = (float)(((CPCRoomBurningEvent*)
+            GlobalData::s_event_manager->GetRepeatEvent(8))->GetExpFactor() / 100);
 
     CEventBase* ev3 = GlobalData::s_event_manager->GetRepeatEvent(3);
-    if (ev3 != 0 && ev3->IsEventing(0))
-        expDouble = (float)((CExpDoubleEvent*)ev3)->GetExpFactor() / kPercentDivisor;
+    if (ev3->IsEventing(0))
+        expDouble = (float)((CExpDoubleEvent*)
+            GlobalData::s_event_manager->GetRepeatEvent(3))->GetExpFactor() / kPercentDivisor;
 
     CEventBase* evF = GlobalData::s_event_manager->GetRepeatEvent(0xf);
-    if (evF != 0 && evF->IsEventing(0))
+    if (evF->IsEventing(0))
         burningRate =
-            ((CBurningFatigueEvent*)evF)->getBonusExpRate(user->getCurCharacUsedFatigue());
+            ((CBurningFatigueEvent*)
+                GlobalData::s_event_manager->GetRepeatEvent(0xf))->getBonusExpRate(user->getCurCharacUsedFatigue());
 
     if (user->IsHavePremiumAdvantage())
     {

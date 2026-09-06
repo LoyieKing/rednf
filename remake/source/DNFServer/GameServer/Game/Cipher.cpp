@@ -6,6 +6,7 @@
 //   - 成功返回 1（0x6fffffff 由各图返回）。
 
 #include "Cipher.h"
+#include "CEnvironment.h"  // GlobalInstance<T>（G_Cipher→inst_ptr 单例模板）
 
 #include <cstdlib>
 #include <cstring>
@@ -195,8 +196,9 @@ void DestroyCryptoGraph(ICryptoGraph*& graph)
 
 Cipher* G_Cipher()
 {
-    static Cipher g_cipher;
-    return &g_cipher;
+    // ORIG 0x82a713a（6 insns）：尾调 GlobalInstance<Cipher>::inst_ptr()（0x82ab9da），
+    // 非 Meyers static。返回 GlobalInstance<T>::inst_ptr()→create()->m_p。
+    return GlobalInstance<Cipher>::inst_ptr();
 }
 
 // ============================================================================

@@ -147,19 +147,20 @@ void Arad_IPGProcess::CashShopModeCreature(CUser* user, unsigned long itemIdx,
     localItem.m_addInfo = (int)itemIdx;
     localItem.m_addInfo2 = (int)stack;
 
-    int usablePeriod = item->getUsablePeriod();
-    int expirationDate = item->getExpirationDate();
-
     if (buyFlag == 1)
     {
         // mangled _processCreatureGift(CUser*, Inven_Item, j, i, i, i)：
         //   esp 0x48=accId、0x4c=characNo、0x50=usablePeriod、0x54=expirationDate
+        int usablePeriod = item->getUsablePeriod();
+        int expirationDate = item->getExpirationDate();
         reinterpret_cast<WongWork::CCeraShop*>(m_vm)->_processCreatureGift(
             user, localItem, accId, characNo, usablePeriod, expirationDate);
     }
     else
     {
         // mangled _processCreature(CUser*, Inven_Item, Ri, Ri, b, i, i)
+        int usablePeriod = item->getUsablePeriod();
+        int expirationDate = item->getExpirationDate();
         reinterpret_cast<WongWork::CCeraShop*>(m_vm)->_processCreature(
             user, localItem, outCodeA, outCodeB, true, usablePeriod, expirationDate);
     }
@@ -204,7 +205,7 @@ void Arad_IPGProcess::CashShopModeVendingItem(
             const char* msg =
                 g_scriptStringManager_.findString(4, "game_server_msg_104", 0);
             WongWork::CMailBoxHelper::ReqDBSendNewMailCashShop(
-                user, localItem, 0, (unsigned int)characNo, true, msg,
+                user, localItem, 0, (unsigned int)user->getCurCharacNo(), true, msg,
                 (int)strlen(msg));
             slot = 0;
         }
