@@ -25,17 +25,18 @@ struct DungeonKey
 {
     int m_dungeonIndex;   // +0x00
     int m_dungeonDiff;    // +0x04
-    int m_field8;         // +0x08（ORIG 第三字段；sizeof 0xc。不参与 InsertDB 传参与 operator<）
+    short m_field8;       // +0x08（ORIG 第三字段，pair 拷贝构 movzwl 短/字节两段，P10/P11）
+    unsigned char m_fieldA;  // +0x0a（pair 拷贝构 movzbl 单字节；sizeof 保持 0xc）
 
     ~DungeonKey() {}   // ORIG D1/D2 W 0x084868b2：空体用户析构（P67 保留，勿删转 trivial）
 
     bool operator<(const DungeonKey& other) const   // ORIG W 0x0848686c：
     {                                               // 先比 +4 diff、相等再比 +0 index（P56）
+        // ORIG 0x0848686c：jge/mov1/jmp - jne ret0 - jge/mov1/jmp - mov0（嵌套短路）
+        // 分支极性同 CharacterKind::operator<。原 != 形式生成 je skip;mov0 反极性，与 ORIG 不符。
         if (m_dungeonDiff < other.m_dungeonDiff)
             return true;
-        if (m_dungeonDiff != other.m_dungeonDiff)
-            return false;
-        if (m_dungeonIndex < other.m_dungeonIndex)
+        if (m_dungeonDiff == other.m_dungeonDiff && m_dungeonIndex < other.m_dungeonIndex)
             return true;
         return false;
     }

@@ -32,11 +32,17 @@ bool CDataManager::IsAvailablePvPChannel(int grade)
     {
         return true;
     }
-    if (m_pvpChannel.m_minGrade > grade || m_pvpChannel.m_maxGrade < grade)
-    {
-        return false;
-    }
+    // ORIG 0x0819ee10/1e：`jg`(m_minGrade>grade) 与 `jl`(m_maxGrade<grade) 各自直跳
+    // 共享尾 return-false 岛，return true 为 fall-through，false 块经 jmp 跳越
+    // （CNRD 落点岛形，P133）。合并 || 被 4.4 折成 max 侧反向 jge；拆成两条独立
+    // if 又各产 false 块（不共享）→ goto 落点岛让两侧共指一 false 块。
+    if (m_pvpChannel.m_minGrade > grade)
+        goto unavailable;
+    if (m_pvpChannel.m_maxGrade < grade)
+        goto unavailable;
     return true;
+unavailable:
+    return false;
 }
 
 // GetMinLevelPvPChannel —— ORIG W 0x0819ee2e：读 m_pvpChannel.m_minLevel(+0x14 → CDM+0xb444)
@@ -684,6 +690,11 @@ void CDataManager::get_useJobFatigueMatchGiftMsg(int job, std::string& msg1,
 // ---------------------------------------------------------------------------
 const char* CDataManager::get_server_name(int idx) const
 {
+    // ORIG 0x08365f03/07：先 `cmpl $0,idx; js`（idx<0）+ `cmpl $0x12,idx; jle`
+    // 显式越界守卫 → ERROR_SERVER；再进 switch 跳表（保留 default 兜底）。
+    // OURS 原缺该守卫（只靠 switch default）＝少 3 条越界路径。
+    if (idx < 0 || idx > 0x12)
+        return "ERROR_SERVER";
     switch (idx)
     {
     case 0:  return "\xc4\xab\xc0\xce";                      // 카인      8c3327b

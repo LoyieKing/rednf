@@ -108,20 +108,18 @@ void CShutdowManager::EnableShutdown(bool on)
 //   GlobalData::s_server_stop = 1。
 void CShutdowManager::OnAllUserLogout()
 {
-    if (!static_cast<bool>(m_flag))
+    if (!m_flag)
     {
         return;
     }
     cMyTrace trace(__PRETTY_FUNCTION__, 0x323b, 0);
     trace("Send message to monitor for logout all user.");
-    {
-        Stream* s =
-            GlobalData::s_stream_pool->Acquire((const char*)"App.cpp", 0x323d);
-        CStreamGuard guard(s, true);
-        guard << 0x3f;
-        guard << -1;
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    }
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                           (const char*)"App.cpp", 0x323d),
+                       true);
+    guard.operator*()->operator<<(0x3f);      // op*(guard)→op<<(int)
+    guard.operator*()->operator<<(-1);        // op*(guard)→op<<(int)
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     GlobalData::s_server_stop = true;
 }
 

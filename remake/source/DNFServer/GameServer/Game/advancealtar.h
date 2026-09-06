@@ -420,7 +420,7 @@ struct _ActionAssign
     ActionDefine* m_define;  // +0x04（makeCurrentPhaseSummonObject 取 m_id/m_actions）
     short m_minAliveCount;   // +0x08（-1 = 不限下限）
     short m_maxAliveCount;   // +0x0a（-1 = 不限上限）
-    int m_fieldC;            // +0x0c（ctor 清零；用途未证）
+    unsigned short m_fieldC; // +0x0c（ORIG allocator construct 尾段 movzwl=16 位拷贝；用途未证；+0x0e 对齐 pad）
 };                           // sizeof 0x10（ORIG ctor 0x889b99c memset 0x10）
 
 typedef char _assert_action_assign_size[(sizeof(_ActionAssign) == 0x10) ? 1 : -1];

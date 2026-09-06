@@ -170,13 +170,12 @@ void CCharacBloodDungeon::_reset()           // ORIG 0x832a2d4
 
 bool CCharacBloodDungeon::_saveData(CUser* pUser)  // ORIG 0x832a330
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("CharacBloodDungeon.cpp", 0x1e);
-    CStreamGuard guard(stream, true);
-    guard << 0x197;
-    guard << (int)pUser->GetUID();
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("CharacBloodDungeon.cpp", 0x1e),
+                       true);
+    guard.operator*()->operator<<(0x197);       // op*(guard)→op<<(int)
+    guard.operator*()->operator<<((int)pUser->GetUID());
 
-    SIG_BLOOD_DUNGEON* sig = guard.GetInBuffer<SIG_BLOOD_DUNGEON>();
+    SIG_BLOOD_DUNGEON* sig = guard.operator->()->GetInBuffer<SIG_BLOOD_DUNGEON>();
     memset(sig, 0, sizeof(SIG_BLOOD_DUNGEON));   // ORIG memset 0x28
     sig->m_characNo = (int)pUser->getCurCharacNo();
     sig->m_point = m_point;                      // this+0x08 → sig+0x04

@@ -2883,7 +2883,9 @@ public:
     void LogoutCachedCharacter(unsigned char param);
     void SetCharacInfo(int slot, char* data);
     int SetCharacLevel(int level);
-    void SetSkillLevel(int skillIdx, int level);
+    // 返回 int：ORIG 调用点 test %al 消费返回值（Model22 桥清点证据；定义 W7_UserOnlyC.cpp
+    // :455 与桥行 DisPatcher_DebugCommand_cmds.cpp:92 由 Model22 同步归正）。
+    int SetSkillLevel(int skillIdx, int level);
     void onSelectCharacter();
     void select_charac_set_visible_values(char value);
     void UpdateCharacView();

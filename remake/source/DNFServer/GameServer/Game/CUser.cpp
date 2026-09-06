@@ -5796,7 +5796,10 @@ void CUser::send_pvp_record()
     packet.put_int(GlobalData::s_ref_pvp_grade
                        ->GetPvpNextRankPoint(getPVPResultRefR()->m_pvpGrade));
     packet.put_byte(getPVPResultRefR()->m_pvpGrade);
-    packet.put_byte(*(unsigned char*)&getPVPResultRefR()->m_todayWinCount);
+    // ORIG 0x: `mov 0x5c(%eax),%eax` 32 位直读 m_todayWinCount(int@+0x5c) 后
+    // 交 put_byte(int)——用字节指针 `*(unsigned char*)&` 会被 4.4 折成
+    // add+movzbl 载低字节（多 3 条），改传 int 直读对齐 ORIG。
+    packet.put_byte(getPVPResultRefR()->m_todayWinCount);
     packet.finalize(true);
     Send(packet);
 }

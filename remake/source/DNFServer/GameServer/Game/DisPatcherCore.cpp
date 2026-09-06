@@ -4617,11 +4617,12 @@ int DisPatcher_DeleteItem::condition_check(CUser* user, MSG_BASE& msg, INVEN_TYP
     {
         return 0x17;   // 普通背包槽位 <=9 受保护
     }
-    // ORIG +0x3f..+0x5c：position[idx] sext 直落 %ebx（技2，`movswl %ax,%ebx`，
-    // push %ebx 帧 0x24）；GetInvenType 结果 %eax 直传（技37 无 invenType 槽）。
-    register int pos asm("ebx") = (int)req.m_position[idx];
-    if (user->CheckItemLock(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(char)req.m_itemSpace),
-                            pos))
+    // ORIG +0x3f..+0x5c：position[idx] 短整表达式作普通实参直传（P200，
+    // `movzwl field,%eax; movswl %ax,%ebx` 跨 GetInvenType 存活于 %ebx）。
+    // 禁具名中间局部/register asm（退化 cwtl+mov 两步）；直接内联为实参。
+    if (user->CheckItemLock(
+            GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(char)req.m_itemSpace),
+            (int)req.m_position[idx]))
     {
         return 0xd5;   // 物品锁定
     }
