@@ -143,7 +143,7 @@ int CAccountCargo::CheckInsertCondition(Inven_Item& item)
         if (item.m_amp.GetLock() != 0) {
             CExpandEquipslot* expand = m_pUser->GetCharacExpandDataR(
                 (ENUM_CHARAC_EXPAND_TYPE)2);
-            if (!((item_lock::CItemLock*)expand)->CheckItemLock(item.m_amp.GetLock()))
+            if (((item_lock::CItemLock*)expand)->CheckItemLock(item.m_amp.GetLock()))
                 return 0;
         }
         if (item.m_field1 == 4 || item.m_field1 == 5 || item.m_field1 == 6 ||
