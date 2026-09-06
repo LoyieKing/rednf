@@ -33,6 +33,7 @@
 #include "StreamPool.h"
 #include "CEnvironment.h"           // G_CEnvironment()->m_serverEnvir.m_serverGroup
 #include "CServerProxyMgr.h"        // CServerProxyMgr<T>::GetServerProxy
+#include "OS_API.h"                 // OS_API::WriteLog（第三方，定义 LinkMisc4_Data.cpp）
 
 #include <cstdio>
 #include <cstring>
@@ -69,11 +70,6 @@ int WriteLog(char const* tag, char const* fmt, ...)
 // DB_TestTradeRestrict::makeRequest(unsigned int) ORIG T 0x0844a132。
 extern void DB_TestTradeRestrict_makeRequest(unsigned int characNo)
     asm("_ZN20DB_TestTradeRestrict11makeRequestEj");
-
-// game_master::CGameMasterMgr::GetDispatcher(int) ORIG T 0x084a8a9a
-// （实现见 GmCore.cpp；ORIG 调用点未提供 this，按自由函数桥接）。
-extern IDispatcher* CGameMasterMgr_GetDispatcher(int code)
-    asm("_ZN11game_master14CGameMasterMgr13GetDispatcherEi");
 
 // CStackableItem 非虚查询族（ORIG W：0x84b4222/0x84b4232/0x84b4242/0x84b4252；
 // 权威类声明尚未落地，按 thiscall 第一参显式桥接）。
@@ -322,7 +318,7 @@ void CUserPremiumDelete::execute()
 // 经其虚表 [0] 入口 (this, user, PacketBuf*) 投递。
 void CDropItem::execute()
 {
-    IDispatcher* dispatcher = CGameMasterMgr_GetDispatcher(0x32);
+    IDispatcher* dispatcher = CGameMasterMgr::GetDispatcher(0x32);
     if (dispatcher == 0)
         return;
 

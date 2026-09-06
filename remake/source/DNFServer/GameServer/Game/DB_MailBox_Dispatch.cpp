@@ -284,7 +284,9 @@ bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* strea
         db->get_int(5, growType);
         db->get_int(6, sex);
 
-        _sendResult(0, slot, name, characNo, job, lev, growType, sex);
+        // ORIG（0843c0bd mov -0x20(%ebp),%eax）：第 3 参 name 传的是 GetOutBuffer
+        // 返回的 sig 指针，NOT 转义后的 name 缓冲（0843c0bb..0843c0bd 用 -0x20 槽）。
+        _sendResult(0, slot, (const char*)sig, characNo, job, lev, growType, sex);
         return 1;
     }
 

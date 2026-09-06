@@ -88,10 +88,9 @@ void CAssaultPlace::_MakeMoveAssaultPlace(PacketGuard* p)
         leaderUid0 = m_checkUser->get_unique_id();
     p->put_short(leaderUid0);
     unsigned short leaderUid1 = 0;
-    if (*reinterpret_cast<CUser**>(reinterpret_cast<char*>(this) + 0x138) != 0)
-        leaderUid1 = reinterpret_cast<CUser*>(*reinterpret_cast<void**>(
-                        reinterpret_cast<char*>(this) + 0x138))->get_unique_id();
-    p->put_short(leaderUid1);    // +0x138 通用指针槽（pad，未具名）
+    if (m_field138 != 0)                                        // +0x138
+        leaderUid1 = m_field138->get_unique_id();
+    p->put_short(leaderUid1);    // +0x138
 
     // 第一段：场内成员列表
     int countIdx = p->get_index();              // PacketGuard 局部 idx 补丁槽
@@ -825,12 +824,11 @@ void CAssaultPlace::MakeTeam(CUser* user1, CUser* user2, int& outIdx)
     if (m_pos.m_x == 0 && m_pos.m_y == 0)
         throw (ENUM_ERROR)0x15;
     m_checkUser = user1;                                        // +0x134
-    *reinterpret_cast<CUser**>(reinterpret_cast<char*>(this) + 0x138) = user2;  // +0x138
+    m_field138 = user2;                                         // +0x138
 
-    // posX 比较：ORIG 对 param_2 与 param_3 取 get_posX；随后 _SeparateTeam 两参顺序随比较翻转，+0x124 记 0/1。
-    unsigned int px1 = user1->get_posX();
-    unsigned int px2 = user2->get_posX();
-    if (px1 < px2) {
+    // posX 比较：ORIG 首 get_posX 结果 `mov %eax,%ebx` 跨第二 call 存寄存器
+    // （P197② 语句表达式）；随后 _SeparateTeam 两参顺序随比较翻转，+0x124 记 0/1。
+    if (({ unsigned short r = user1->get_posX(); r; }) < user2->get_posX()) {
         _SeparateTeam(user2, user1);
         m_winTeam = 0;                                          // +0x124
     } else {
@@ -841,36 +839,37 @@ void CAssaultPlace::MakeTeam(CUser* user1, CUser* user2, int& outIdx)
     m_authenValue = GlobalData::s_systemTime_.getCurSec();       // +0x108 = getCurSec
     _SetReadyState();
 
-    if ((reinterpret_cast<CParty*>(m_parties[0].Get())) != 0)
-        (reinterpret_cast<CParty*>(m_parties[0].Get()))->SetAssaultState('\x02');
-    if ((reinterpret_cast<CParty*>(m_parties[1].Get())) != 0)
-        (reinterpret_cast<CParty*>(m_parties[1].Get()))->SetAssaultState('\x02');
+    if (m_parties[0].m_field00 != 0)                            // +0x12c
+        m_parties[0].m_field00->SetAssaultState('\x02');
+    if (m_parties[1].m_field00 != 0)                            // +0x130
+        m_parties[1].m_field00->SetAssaultState('\x02');
 
-    // 8 个名字槽（.rodata 空串 DAT_08c1bca0 初始化），team0 填 [0..]，team1 填 [4..]。
-    static const char* s_emptyName = "";
-    const char* names[8] = { s_emptyName, s_emptyName, s_emptyName, s_emptyName,
-                             s_emptyName, s_emptyName, s_emptyName, s_emptyName };
+    // 8 个名字槽（.rodata 空串 DAT_08c1bca0 直存），team0 填 [0..]，team1 填 [4..]。
+    const char* names[8] = { "", "", "", "", "", "", "", "" };
     int team0Count = 0;                          // local_2c
     int team1Count = 0;                          // local_28
     for (int i = 0; i <= 7; ++i) {
-        if (!m_assaulters[i].Empty()) {
-            if (m_assaulters[i].GetTeam() == 0) {
-                names[team0Count] = m_assaulters[i].GetCharacName();
-                team0Count++;
-            } else if (m_assaulters[i].GetTeam() == 1) {
-                names[team1Count + 4] = m_assaulters[i].GetCharacName();
-                team1Count++;
-            }
+        if (m_assaulters[i].Empty())
+            continue;
+        if (m_assaulters[i].GetTeam() == 0) {
+            names[team0Count] = m_assaulters[i].GetCharacName();
+            team0Count++;
+        } else if (m_assaulters[i].GetTeam() == 1) {
+            names[team1Count + 4] = m_assaulters[i].GetCharacName();
+            team1Count++;
         }
     }
     for (int i = 0; i <= 7; ++i) {
         CUser* u = m_assaulters[i].GetUser();
         if (u != 0) {
-            int reason = (u->getCurCharacVill() == 7) ? 0 : 4;   // ENUM_PVP_HISTORY_REASON
-            cUserHistoryLog* hist = &u->m_historyLog;           // +0x79700
-            hist->StartPvP((ENUM_PVP_HISTORY_REASON)reason,
-                           names[0], names[1], names[2], names[3],
-                           names[4], names[5], names[6], names[7]);
+            int reason;                                          // ORIG sete/test 形
+            if (u->getCurCharacVill() == 7)
+                reason = 0;
+            else
+                reason = 4;
+            u->m_historyLog.StartPvP((ENUM_PVP_HISTORY_REASON)reason,
+                                     names[0], names[1], names[2], names[3],
+                                     names[4], names[5], names[6], names[7]);
         }
     }
 }

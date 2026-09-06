@@ -326,7 +326,7 @@ public:
     PartyInfo m_parties[2];         // +0x12c
     CUser* m_checkUser;             // +0x134（EvadeAssaultPlace/_AvailableAssault
                                     //   与请求用户指针比较；ORIG 无 setter [推断]）
-    char m_pad138[4];               // +0x138..+0x13b
+    CUser* m_field138;              // +0x138（MakeTeam 存 param_3/user2；_MakeMoveAssaultPlace 读 [推断]）
     int m_abuseSec;                 // +0x13c（AbuseUser 节流时间戳）
     void Reset();                                   // 报告 Reset.md
     bool CheckPlayable();                           // ORIG W 0x82f06ea

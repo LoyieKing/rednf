@@ -65,6 +65,7 @@ char* NumberToString(unsigned int value, int radix);
 #include "CEventScriptMng.h"      // EventClassify::CEventScriptMng 完整类型（is_eventing）
 #include "CTitleBook.h"          // CItemLock/stItemLockRef（GetItemLockRefVec 完整类型）
 #include "AuctionProxy.h"       // CAuctionServerProxy/CCeraAuctionServerProxy::SendPacket（含 PacketDesign.h）
+#include "ROI_Category.h"       // ROI_Category（m_keys/m_marks，_sort@0x0822ac30；PCK_AUCTION_REGIST_ITEM_GA._reg_roi_category_key 权威类型）
 #include "RDARScriptStringManager.h"  // g_scriptStringManager_（GuildCargoPopItem 邮件文案）
 #include "CMyFileLog.h"          // JumpingCharacter 活动日志
 #include "HistoryLog.h"          // WriteCreateCh（ORIG T 三参版）
@@ -9146,40 +9147,6 @@ struct RegPckGuid  // 10B：ORIG pck+0x8b..+0x95（=auction itemGloballyUniqueId
     char data_[10];
 };
 
-struct RegPckRoiCategory   // 12B：ORIG high(short)×3 + reserved(short) + low(char)×3
-{
-    // ORIG ROI_Category C1 @0x0822ac10：清零 12B（3×movl $0），PCK_ 构造内先于 memset。
-    RegPckRoiCategory()
-    {
-        memset(this, 0, 12);
-    }
-
-    void _sort()
-    {
-        short th;
-        char tl;
-        if (_high[0] > _high[1])
-        {
-            th = _high[0]; _high[0] = _high[1]; _high[1] = th;
-            tl = _low[0]; _low[0] = _low[1]; _low[1] = tl;
-        }
-        if (_high[1] > _high[2])
-        {
-            th = _high[1]; _high[1] = _high[2]; _high[2] = th;
-            tl = _low[1]; _low[1] = _low[2]; _low[2] = tl;
-        }
-        if (_high[0] > _high[1])
-        {
-            th = _high[0]; _high[0] = _high[1]; _high[1] = th;
-            tl = _low[0]; _low[0] = _low[1]; _low[1] = tl;
-        }
-    }
-
-    short _high[3];
-    short _reserved;
-    char _low[3];
-};
-
 }  // namespace
 
 struct PCK_AUCTION_REGIST_ITEM_GA : public nsl::PACKET_HEADER
@@ -9196,7 +9163,7 @@ struct PCK_AUCTION_REGIST_ITEM_GA : public nsl::PACKET_HEADER
     unsigned int black_point;                 // @135
     char guid[10];                            // @139（10B；ORIG dispatch_sig +0x8b..+0x95）
     int unit_price;                           // @149
-    RegPckRoiCategory _reg_roi_category_key;  // @153
+    ROI_Category _reg_roi_category_key;       // @153（12B，ORIG ROI_Category：m_keys[3]+pad+m_marks[3]）
     char owner_nexon_id[nexon::cash::MAX_NEXON_ID_LENTH];  // @165
 
     PCK_AUCTION_REGIST_ITEM_GA()
@@ -9326,14 +9293,19 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     pck.owner_id = user->getCurCharacNo();                            // getCurCharacNo
     strncpy(pck.owner_name,
             const_cast<char*>(reinterpret_cast<const char*>(user->getCurCharacR())) + 4, 0xd);
-    pck.user_type = premiumAffected ? 1 : 0;                          // isAffectedPremium(0x1d)
     pck.price = price;
     pck.instant_price = instantPrice;
     pck.black_point = user->getCurrCharacBlackCount();
     pck.unit_price = pPkt->m_1d;      // msg+0x1d
-    memcpy(&pck._reg_roi_category_key, data + 0x21,                   // ROI 三组原始分类
-           sizeof(pck._reg_roi_category_key));
-    pck._reg_roi_category_key._sort();
+    pck.user_type = static_cast<unsigned char>(
+        user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x1d));             // ORIG 第二次 isAffectedPremium → local_158
+    {   // ORIG 三次 movl 装载 msg+0x21/0x25/0x29（12B ROI_Category），非 memcpy（_sort 延至块尾，ORIG +0x1577）
+        unsigned int* roiw = reinterpret_cast<unsigned int*>(&pck._reg_roi_category_key);
+        const unsigned int* roir = reinterpret_cast<const unsigned int*>(data + 0x21);
+        roiw[0] = roir[0];
+        roiw[1] = roir[1];
+        roiw[2] = roir[2];
+    }
 
     CInventory* inven = user->getCurCharacInvenW();
     Inven_Item item;                                                  // 局部空 Inven_Item
@@ -9368,10 +9340,13 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
             user->SaveInventory();
             user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, 0);
             pck.setCategory(0x12);
-            item.reset();
-            pck.item_info.item_id = itemId;                            // item_info 基本填充
-            memcpy(pck.owner_nexon_id, user->get_acc_name(),
-                   strlen(user->get_acc_name()));
+            pck.item_info.add_info = restrictAmount;                  // ORIG local_149 = msg+0x11
+            pck.jewel_info.init();                                    // ORIG stAvatarEmblemInfo_t::init(pck+0x65)
+            pck.item_info.seal = false;                               // ORIG local_14f = 0
+            pck.item_info.item_id = itemId;                            // ORIG local_14e = msg+0x0d
+            pck.item_info.uniItemAttr = 0;                             // ORIG local_145 = 0
+            strncpy(pck.owner_nexon_id, user->get_acc_name(),
+                    strlen(user->get_acc_name()));                     // ORIG 形：strncpy(dst,acc,strlen)（不补 \0）
             GlobalData::s_cera_auction_proxy->SendPacket(&pck);
             return 0;
         }
@@ -9413,7 +9388,8 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         if (ci->IsAvatarItem())
         {
             avatarFlow = true;
-            const WongWork::CAvatarItemMgr* mgr = inven->GetAvatarItemMgrR();
+            const WongWork::CAvatarItemMgr* mgr =
+                user->getCurCharacInvenR()->GetAvatarItemMgrR();      // ORIG getCurCharacInvenR→GetAvatarItemMgrR→GetExpireDate
             const int expireDate = mgr->GetExpireDate(item.m_addInfo2);
             if (expireDate != 0 &&
                 GlobalData::s_systemTime_.getCurSec() > expireDate)
@@ -9427,19 +9403,21 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
             const int usablePeriod = ci->getUsablePeriod();
             const int expirationDate = ci->getExpirationDate();
             if (usablePeriod != 0 || expirationDate != 0)
-            {   // ORIG 双重判定（重复 getter 调用——不得合并为局部缓存）
+            {   // ORIG 双重判定（重复 getter 调用——不得合并为局部缓存）：
+                //   第二次重读 usablePeriod/expirationDate 同时为 0 → err=0x91（ORIG +0x0a27）；
+                //   否则到期时间 local_28 <= getCurSec → err=0x91（ORIG +0x0a31）。
                 if (ci->getUsablePeriod() == 0 && ci->getExpirationDate() == 0)
-                    ;
-                else
                 {
-                    const long endTime =
-                        static_cast<long>(item.m_fieldd & 0xff) * 0x15180 +
-                        0x44a54a80;
-                    if (endTime <= GlobalData::s_systemTime_.getCurSec())
-                    {
-                        user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x91, (PAY_TYPE)payType);
-                        return 0;
-                    }
+                    user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x91, (PAY_TYPE)payType);
+                    return 0;
+                }
+                const long endTime =
+                    static_cast<long>(item.m_fieldd & 0xff) * 0x15180 +
+                    0x44a54a80;
+                if (endTime <= GlobalData::s_systemTime_.getCurSec())
+                {
+                    user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x91, (PAY_TYPE)payType);
+                    return 0;
                 }
             }
         }
@@ -9451,7 +9429,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         }
 
         if (pck.user_type == 0 && ci->GetCashPrice() != 0 &&
-            !dm->is_AuctionRegFreeCeraItem(itemId))
+            !G_CDataManager()->is_AuctionRegFreeCeraItem(itemId))     // ORIG 第二次 G_CDataManager（+0x0ae4）
         {   // 非白名单付费道具禁止金币拍卖（err=0x95）
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x95, (PAY_TYPE)payType);
             return 0;
@@ -9482,7 +9460,8 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         }
         if (avatarFlow)
         {
-            if (WongWork::CAvatarItemMgr::IsTempKey(item.m_addInfo2))
+            const WongWork::CAvatarItemMgr* mgrT = inven->GetAvatarItemMgrR();   // ORIG 第 5 处 GetAvatarItemMgrR（+0x0bee 前置 mgr 装载）
+            if (mgrT->IsTempKey(item.m_addInfo2))
             {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x91, (PAY_TYPE)payType);
                 return 0;
@@ -9503,33 +9482,39 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         pck.item_info.add_info =
             item.isEquipableItemType() ? item.m_addInfo2 : restrictAmount;
         item.m_amp.getValues(pck.item_info.abilityType_, pck.item_info.abilityValue_);
-        {   // m_random(+0x1f).m_random(+0x06)：chronic random option → 包内选项域
-            const unsigned char* src = reinterpret_cast<const unsigned char*>(&item);
-            memcpy(&pck.item_info.random_option_, src + 0x25, sizeof(RandomOption));
-            pck.item_info.separate_info.SetUpgradeSeparate(
-                item.m_upgradeSep.GetUpgradeSeparate());
-        }
+        pck.jewel_info.init();                                         // ORIG 无条件 stAvatarEmblemInfo_t::init(local_11a)
         if (avatarFlow)
         {
-            memcpy(pck.jewel_info.stEmblemSocket,
-                   inven->GetAvatarItemMgrR()->getJewelSocketData(item.m_addInfo2),
-                   0x1e);
-            const void* exp =
-                inven->GetAvatarItemMgrR()->GetExpansionInfo(item.m_addInfo2);
-            if (exp != 0)
-                pck.expansion = *static_cast<const stAvatarExpansionInfo_t*>(exp);
+            const WongWork::CAvatarItemMgr* mgrJ = inven->GetAvatarItemMgrR();   // ORIG +0x0cad
+            memcpy(&pck.jewel_info,
+                   mgrJ->getJewelSocketData(item.m_addInfo2), 0x1e);             // ORIG memcpy(local_11a,src,0x1e)
+            const WongWork::CAvatarItemMgr* mgrE = inven->GetAvatarItemMgrR();   // ORIG +0x0ce2
+            const void* exp = mgrE->GetExpansionInfo(item.m_addInfo2);           // ORIG +0x0ce7
+            if (exp == 0)
+                pck.expansion.init();                                            // ORIG stAvatarExpansionInfo_t::init
+            else
+                memcpy(&pck.expansion, exp, 4);                                  // ORIG memcpy(asStack_fc,src,4)
             if (pck.jewel_info.stEmblemSocket[0].emblemSocketType_ != 0)
                 pck.item_info.uniItemAttr =
                     (unsigned char)((pck.item_info.uniItemAttr & 0xe0) | 0x1);
+        }
+        {   // ORIG 逐字段（CONCAT13/CONCAT33）写 random_option，非 memcpy；随后 SetUpgradeSeparate
+            const unsigned char* src = reinterpret_cast<const unsigned char*>(&item) + 0x25;
+            unsigned char* dst = reinterpret_cast<unsigned char*>(&pck.item_info.random_option_);
+            for (int i = 0; i < (int)sizeof(RandomOption); ++i)
+                dst[i] = src[i];
+            pck.item_info.separate_info.SetUpgradeSeparate(
+                item.m_upgradeSep.GetUpgradeSeparate());
         }
 
         // vtable+0x4c 槽位真身未定（audit 缺口）——行为保守：类别未填时补 MAX 分类。
         // [INFERENCE] 若后续批次确认槽位真身为其他判定需回改此条件。
         for (int k = 0; k <= 2; ++k)
         {
-            if (pck._reg_roi_category_key._high[k] == 0)
-                pck._reg_roi_category_key._high[k] = 30000;
+            if (pck._reg_roi_category_key.m_keys[k] == 0)
+                pck._reg_roi_category_key.m_keys[k] = 30000;
         }
+        pck._reg_roi_category_key._sort();                            // ORIG ROI_Category::_sort（+0x1577）
     }
 
     // ---- END 收尾段（LA_084d67be 起）----

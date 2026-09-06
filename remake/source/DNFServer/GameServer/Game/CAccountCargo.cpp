@@ -493,20 +493,19 @@ void CAccountCargo::CreateAccountCargo(CUser* user)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x14);
         return;
     }
-    void* script = &G_CDataManager()->m_accountCargo;
-    int reqLevel = G_CDataManager()->m_accountCargo.m_reqLevel;
-    const char* info = (const char*)user->getCurCharacR();
-    if (*(short*)(info + 0x27) < reqLevel) {
+    if (G_CDataManager()->m_accountCargo.m_reqLevel >
+        (int)*(short*)((const char*)user->getCurCharacR() + 0x27)) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0xe);
         return;
     }
-    unsigned int* createInfo = (unsigned int*)((AccountCargoScript*)script)->GetCreateInfo();
+    UpgradeInfo* createInfo =
+        (UpgradeInfo*)G_CDataManager()->m_accountCargo.GetCreateInfo();
     if (createInfo == 0) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x13);
         return;
     }
-    ServiceRestrictManager* mgr = ARAD::Singleton<ServiceRestrictManager>::Get();
-    if (mgr->isRestricted(user, (RestrictCategory::Enum)1, 0x18)) {
+    if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
+            user, (RestrictCategory::Enum)1, 0x18)) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0xd1);
         return;
     }
@@ -517,35 +516,36 @@ void CAccountCargo::CreateAccountCargo(CUser* user)
     }
     Inven_Item item;
     int itemIdx = G_CDataManager()->m_accountCargo.m_itemIdx;
-    CInventory* inven = (CInventory*)user->getCurCharacInvenR();
-    int slot = inven->GetInvenData(itemIdx, item);
-    if (createInfo[2] != 0 &&
-        (slot == -1 || (int)createInfo[2] > item.get_add_info())) {
+    int slot = ((CInventory*)user->getCurCharacInvenR())->GetInvenData(itemIdx,
+                                                                        item);
+    if (createInfo->m_field8 != 0 &&
+        (slot == -1 || createInfo->m_field8 > (int)item.m_addInfo2)) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x16);
         return;
     }
-    if (0 < (int)createInfo[3] &&
-        user->getCurCharacMoney() < (int)createInfo[3]) {
+    if (0 < createInfo->m_fieldC &&
+        user->getCurCharacMoney() < createInfo->m_fieldC) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x16);
         return;
     }
-    if (createInfo[2] != 0) {
-        CInventory* invenW = (CInventory*)user->getCurCharacInvenW();
-        if (!invenW->delete_item((INVEN_TYPE)1, slot, createInfo[2],
-                                 (eItemDelReason)0x24, 1)) {
+    if (createInfo->m_field8 != 0) {
+        if (!((CInventory*)user->getCurCharacInvenW())
+                 ->delete_item((INVEN_TYPE)1, slot, createInfo->m_field8,
+                               (eItemDelReason)0x24, 1)) {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x16);
             return;
         }
     }
-    if (0 < (int)createInfo[3]) {
-        CInventory* invenW = (CInventory*)user->getCurCharacInvenW();
-        if (!invenW->use_money(createInfo[3], (eMoneySubReason)0x29, 1)) {
+    if (0 < createInfo->m_fieldC) {
+        if (!((CInventory*)user->getCurCharacInvenW())
+                 ->use_money(createInfo->m_fieldC, (eMoneySubReason)0x29, 1)) {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x16);
             return;
         }
     }
-    SendNotifyRecipe(user, slot, createInfo[2] != 0);
-    DB_CreateAccountCargo::makeRequest(user->GetUID(), user->get_acc_id(), createInfo[0]);
+    SendNotifyRecipe(user, slot, createInfo->m_field8 != 0);
+    DB_CreateAccountCargo::makeRequest(user->GetUID(), user->get_acc_id(),
+                                       (unsigned int)createInfo->m_field0);
 }
 
 void CAccountCargo::UpgradeAccountCargo(CUser* user)
@@ -555,16 +555,15 @@ void CAccountCargo::UpgradeAccountCargo(CUser* user)
         return;
     }
     CAccountCargo* cargo = user->GetAccountCargo();
-    int capacity = cargo->GetCapacity();
-    void* script = &G_CDataManager()->m_accountCargo;
-    unsigned int* upgradeInfo =
-        (unsigned int*)((AccountCargoScript*)script)->GetNextUpgradeInfo(capacity);
+    UpgradeInfo* upgradeInfo =
+        (UpgradeInfo*)G_CDataManager()->m_accountCargo.GetNextUpgradeInfo(
+            cargo->GetCapacity());
     if (upgradeInfo == 0) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133, 0x13);
         return;
     }
-    ServiceRestrictManager* mgr = ARAD::Singleton<ServiceRestrictManager>::Get();
-    if (mgr->isRestricted(user, (RestrictCategory::Enum)1, 0x19)) {
+    if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
+            user, (RestrictCategory::Enum)1, 0x19)) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133, 0xd1);
         return;
     }
@@ -575,35 +574,36 @@ void CAccountCargo::UpgradeAccountCargo(CUser* user)
     }
     Inven_Item item;
     int itemIdx = G_CDataManager()->m_accountCargo.m_itemIdx;
-    CInventory* inven = (CInventory*)user->getCurCharacInvenR();
-    int slot = inven->GetInvenData(itemIdx, item);
-    if (upgradeInfo[2] != 0 &&
-        (slot == -1 || (int)upgradeInfo[2] > item.get_add_info())) {
+    int slot = ((CInventory*)user->getCurCharacInvenR())->GetInvenData(itemIdx,
+                                                                       item);
+    if (upgradeInfo->m_field8 != 0 &&
+        (slot == -1 || upgradeInfo->m_field8 > (int)item.m_addInfo2)) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133, 0x16);
         return;
     }
-    if (0 < (int)upgradeInfo[3] &&
-        user->getCurCharacMoney() < (int)upgradeInfo[3]) {
+    if (0 < upgradeInfo->m_fieldC &&
+        user->getCurCharacMoney() < upgradeInfo->m_fieldC) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133, 0x16);
         return;
     }
-    if (upgradeInfo[2] != 0) {
-        CInventory* invenW = (CInventory*)user->getCurCharacInvenW();
-        if (!invenW->delete_item((INVEN_TYPE)1, slot, upgradeInfo[2],
-                                 (eItemDelReason)0x24, 1)) {
+    if (upgradeInfo->m_field8 != 0) {
+        if (!((CInventory*)user->getCurCharacInvenW())
+                 ->delete_item((INVEN_TYPE)1, slot, upgradeInfo->m_field8,
+                               (eItemDelReason)0x24, 1)) {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133, 0x16);
             return;
         }
     }
-    if (0 < (int)upgradeInfo[3]) {
-        CInventory* invenW = (CInventory*)user->getCurCharacInvenW();
-        if (!invenW->use_money(upgradeInfo[3], (eMoneySubReason)0x29, 1)) {
+    if (0 < upgradeInfo->m_fieldC) {
+        if (!((CInventory*)user->getCurCharacInvenW())
+                 ->use_money(upgradeInfo->m_fieldC, (eMoneySubReason)0x29, 1)) {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133, 0x16);
             return;
         }
     }
-    SendNotifyRecipe(user, slot, upgradeInfo[2] != 0);
-    DB_UpgradeAccountCargo::makeRequest(user->GetUID(), user->get_acc_id(), upgradeInfo[0]);
+    SendNotifyRecipe(user, slot, upgradeInfo->m_field8 != 0);
+    DB_UpgradeAccountCargo::makeRequest(user->GetUID(), user->get_acc_id(),
+                                        (unsigned int)upgradeInfo->m_field0);
 }
 
 void CAccountCargo::SendNotifyRecipe(CUser* user, int slot, bool flag)

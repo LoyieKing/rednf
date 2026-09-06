@@ -463,35 +463,47 @@ char CBossTower::handleStartGame(CParty* party, int towerIdx, char b,
     m_dungeonLog.reset();
     m_stageCur = 1;
 
-    if (!InitBossTower(party, towerIdx))
-        return 0;
-
+    // X1 形（XOR_FAMILY + 落点岛）：ORIG `call InitBossTower; xor $0x1,%eax;
+    // test %al,%al; je BODY; mov $0,%ebx; jmp end` — return 0 走落点岛。
+    register unsigned char ibt asm("eax") =
+        (unsigned char)InitBossTower(party, towerIdx);
+    ibt ^= 1;
+    if (!ibt) goto CHECK;
+    return 0;
+CHECK:
     unsigned char gmFlag = 0;
-    if (!checkStartGameCondition(gmFlag, true))
-        return 0;
-
+    // X1 形：ORIG `call checkStartGameCondition; xor $0x1,%eax; test; je GM`.
+    register unsigned char csc asm("eax") =
+        (unsigned char)checkStartGameCondition(gmFlag, true);
+    csc ^= 1;
+    if (!csc) goto GMBLOCK;
+    return 0;
+GMBLOCK:
+    // ORIG：manager 存 -0x28 复用；GM 字节直写回 b 的字节槽（-0x13c）。
     CUser* manager = party->getManager();
-    char announceByte = b;
     if (manager->isGMUser() && manager->m_gmBossDifficulty != 0)
     {
-        announceByte = manager->m_gmBossDifficulty;  // GM 观战标记替换广播字节并清位
+        b = manager->m_gmBossDifficulty;   // GM 观战标记替换广播字节
         manager->m_gmBossDifficulty = 0;
     }
-
-    if (!RandomConsistMap(*manager))
-        return 0;
-
+    // X1 形：RandomConsistMap 假 → 0。
+    register unsigned char rcm asm("eax") =
+        (unsigned char)RandomConsistMap(*manager);
+    rcm ^= 1;
+    if (!rcm) goto DOPLAY;
+    return 0;
+DOPLAY:
     InitPlayUser(towerIdx, m_idx);
     m_towerStartTick = GlobalData::s_systemTime_.getCurTickCount();
     m_towerEndTick = 0;
 
-    char memberNames[256] = "";                // ebp-0x138（内联展开清零 0x100）
+    char memberNames[256] = "";              // ebp-0x138（内联展开清零 0x100）
     m_party->_getMemberNames(memberNames);
 
     for (int i = 0; i <= 3; ++i)
     {
         CUser* member = m_party->get_user(i);
-        bool valid = (member != 0) && (m_party->checkValidUser(i) != 0);
+        bool valid = (member != 0) && (m_party->checkValidUser(i) == 1);
         if (!valid)
             continue;
 
@@ -500,16 +512,16 @@ char CBossTower::handleStartGame(CParty* party, int towerIdx, char b,
             static_cast<unsigned char>(m_stageCur),
             static_cast<unsigned char>(m_difficulty));
 
+        // ORIG：IncrementDungeonEntrance 在循环内，每个有效成员调用。
+        if (m_party->m_battleField.m_bloodState == 1)
+            GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(towerIdx, 1);
+        else
+            GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(towerIdx, 0);
+
         member->m_historyLog.EnterDungeon(m_dungeon->GetDungeonName(),
                                           m_difficulty, memberNames,
                                           m_party->m_battleField.m_bloodState);
     }
-
-    // ORIG：循环外单次调用（if/else 两分支，常量 0/1），非每成员调用
-    if (m_party->m_battleField.m_bloodState == 1)
-        GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(towerIdx, 1);
-    else
-        GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(towerIdx, 0);
 
     m_party->SetEPLPState(1);
     m_party->gen_timer_key((TIMER_MESSAGE)0x2d);
@@ -520,7 +532,7 @@ char CBossTower::handleStartGame(CParty* party, int towerIdx, char b,
     packet.put_int(towerIdx);
     packet.put_short(m_stageMax);
     packet.put_byte(m_party->m_battleField.m_bloodState);
-    packet.put_byte(static_cast<int>(announceByte));
+    packet.put_byte(static_cast<int>(b));    // announceByte 即 b 槽（GM 可改写）
     packet.finalize(true);
     m_party->send_to_party(packet);
 

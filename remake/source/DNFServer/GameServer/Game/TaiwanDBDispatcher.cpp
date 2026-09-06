@@ -1254,8 +1254,8 @@ bool SaveServiceRestrictPolicy::dispatch(int code, int uid, Stream* stream)
         {
             if (!db->set_query(
                     "inSert ignore into dnf_restrict_info (category , restrict_code , restrict_str , reg_date) values(%d, %d, '%s', now())",
-                    serverGroup, sig->m_restrictValue, i,
-                    &sig->m_data[i * 0x2d][0x8]))
+                    sig->m_restrictValue, i,
+                    sig->m_data[i]))
                 throw "set_query";
             if (!db->exec(true))
                 throw "insert_exec";

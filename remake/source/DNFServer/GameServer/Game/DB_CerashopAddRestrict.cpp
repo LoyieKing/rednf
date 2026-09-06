@@ -65,36 +65,35 @@ void DB_LoadCerashopAddRestrictType::makeRequest(CUser* user)
 void DB_SaveCerashopAddRestrictType::makeRequest(
     CUser* user, CerashopAddRestrict::DBInputData& data)
 {
-    CerashopAddRestrict::InfoDaily* info = data.m_pInfo;
-    CerashopAddRestrict::paramDaily* head =
-        *reinterpret_cast<CerashopAddRestrict::paramDaily**>(&data);
-    if (info->m_type == 0)
+    if (data.m_pInfo->m_type == 0)
     {
-        Stream* stream = GlobalData::s_stream_pool->Acquire(
-            "CerashopAddRestrictType.cpp", 0x18c);
-        CStreamGuard guard(stream, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "CerashopAddRestrictType.cpp", 0x18c), true);
         guard.operator*()->operator<<(0x340);
         guard.operator*()->operator<<(-1);
-        guard.operator*()->operator<<((unsigned int)info->m_type);
-        guard.operator*()->operator<<(info->m_ipgNo);
-        guard.operator*()->operator<<((unsigned int)head->m_count);
-        guard.operator*()->operator<<((long)head->m_nextDate);
-        guard.operator*()->operator<<((long)info->m_end);
+        guard.operator*()->operator<<((unsigned int)data.m_pInfo->m_type);
+        guard.operator*()->operator<<(data.m_pInfo->m_ipgNo);
+        guard.operator*()->operator<<((unsigned int)
+            (*reinterpret_cast<CerashopAddRestrict::paramDaily**>(&data))->m_count);
+        guard.operator*()->operator<<((long)
+            (*reinterpret_cast<CerashopAddRestrict::paramDaily**>(&data))->m_nextDate);
+        guard.operator*()->operator<<((long)data.m_pInfo->m_end);
         guard.operator*()->operator<<(user->get_acc_id());
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
-    else if (info->m_type == 1)
+    else if (data.m_pInfo->m_type == 1)
     {
-        Stream* stream = GlobalData::s_stream_pool->Acquire(
-            "CerashopAddRestrictType.cpp", 0x19a);
-        CStreamGuard guard(stream, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "CerashopAddRestrictType.cpp", 0x19a), true);
         guard.operator*()->operator<<(0x340);
         guard.operator*()->operator<<(-1);
-        guard.operator*()->operator<<((unsigned int)info->m_type);
-        guard.operator*()->operator<<(info->m_ipgNo);
-        guard.operator*()->operator<<((unsigned int)head->m_count);
-        guard.operator*()->operator<<((long)head->m_nextDate);
-        guard.operator*()->operator<<((long)info->m_end);
+        guard.operator*()->operator<<((unsigned int)data.m_pInfo->m_type);
+        guard.operator*()->operator<<(data.m_pInfo->m_ipgNo);
+        guard.operator*()->operator<<((unsigned int)
+            (*reinterpret_cast<CerashopAddRestrict::paramDaily**>(&data))->m_count);
+        guard.operator*()->operator<<((long)
+            (*reinterpret_cast<CerashopAddRestrict::paramDaily**>(&data))->m_nextDate);
+        guard.operator*()->operator<<((long)data.m_pInfo->m_end);
         guard.operator*()->operator<<((unsigned int)user->getCurCharacNo());
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }

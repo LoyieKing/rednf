@@ -73,16 +73,20 @@ __attribute__((weak)) int StringToNumber(const char* s)
 //   流程：SmallStreamPool.Acquire("local",0x325) → CStreamGuard(st,true) →
 //   Taiwan::internal_stream(guard, pack 0xe, GetUID()) → GetInBuffer<MSG>()；
 //   null 则 cMyTrace 报错；否则 MSG.acc_id(+0)/state(+4 byte) 后投递 DB_Q。
-__attribute__((weak)) void DBUpdatePcroomDailyReward_makeRequest_Orig(void* user)
+//   静态性铁判（makeRequest.md）：Ghidra 反编译注释 __PRETTY_FUNCTION__ =
+//   "static void DBUpdatePcroomDailyReward::makeRequest(CUser*)"；prolog 后
+//   仅见 0x8(%ebp) 唯一栈参=CUser*（+0x03c/+0x0b2），无 this ⇒ ORIG 为 static。
+//   以自由函数桥接（DBUpdatePcroomDailyReward.h 成员声明非本批属主，不改动）。
+__attribute__((weak)) void DBUpdatePcroomDailyReward_makeRequest_Orig(CUser* user)
     asm("_ZN25DBUpdatePcroomDailyReward11makeRequestEP5CUser");
-__attribute__((weak)) void DBUpdatePcroomDailyReward_makeRequest_Orig(void* user)
+__attribute__((weak)) void DBUpdatePcroomDailyReward_makeRequest_Orig(CUser* user)
 {
     StreamPool* pool = GlobalData::s_stream_pool;
     Stream* st = pool->Acquire("local", 0x325);
     CStreamGuard guard(st, true);
     Taiwan::internal_stream(guard,
                             static_cast<TaiwanInternalPack::T>(0xe),
-                            reinterpret_cast<CUser*>(user)->GetUID());
+                            user->GetUID());
     DBUpdatePcroomDailyReward::MSG* msg =
         guard.GetInBuffer<DBUpdatePcroomDailyReward::MSG>();
     if (msg == 0)
@@ -94,8 +98,8 @@ __attribute__((weak)) void DBUpdatePcroomDailyReward_makeRequest_Orig(void* user
     }
     else
     {
-        msg->m_id = reinterpret_cast<CUser*>(user)->get_acc_id();
-        msg->m_remain = reinterpret_cast<CUser*>(user)->m_field8ec32;
+        msg->m_id = user->get_acc_id();
+        msg->m_remain = user->m_field8ec32;
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
 }
@@ -214,52 +218,16 @@ void CMonsterDropTest::parse()
     }
 }
 
-// ORIG checkCommandExecuteError(CParty*) 0x084ad82a（带参，asm 承载）：
-// 返回错误文案指针或 0。
-// ---- ORIG 符号前向声明（定义见后；asm 标签承载成员 mangled 名） ----
-void CMonsterDropTest_makeGeneralItemDropList_Orig(void* self,
-                                                   std::list<map_item>* items,
-                                                   std::map<int, int>* out)
-    asm("_ZN11game_master16CMonsterDropTest23makeGeneralItemDropListERSt4listI8map_itemSaIS2_EERSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-void CMonsterDropTest_makeGoldItemDropList_Orig(void* self,
-                                                std::list<map_item>* items,
-                                                std::map<int, int>* out)
-    asm("_ZN11game_master16CMonsterDropTest20makeGoldItemDropListERSt4listI8map_itemSaIS2_EERSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-void CMonsterDropTest_makeUpgradeDropList_Orig(void* self,
-                                               std::list<map_item>* items,
-                                               std::map<int, std::map<int, int> >* out)
-    asm("_ZN11game_master16CMonsterDropTest19makeUpgradeDropListERSt4listI8map_itemSaIS2_EERSt3mapIiS6_IiiSt4lessIiESaISt4pairIKiiEEES8_SaIS9_ISA_SD_EEE");
-void CMonsterDropTest_processKillMonster_Orig(void* self, CParty* party,
-                                              MapInfo* mapInfo, map_monster* mob,
-                                              std::vector<bool>* flags, int killCnt,
-                                              std::list<map_item>* items)
-    asm("_ZN11game_master16CMonsterDropTest18processKillMonsterEP6CPartyR7MapInfoR11map_monsterRSt6vectorIbSaIbEEiRSt4listI8map_itemSaISC_EE");
-void CMonsterDropTest_processDungeonDrop_Orig(void* self, CParty* party,
-                                              std::map<int, int>* drop,
-                                              std::map<int, std::map<int, int> >* grade)
-    asm("_ZN11game_master16CMonsterDropTest18processDungeonDropEP6CPartyRSt3mapIiiSt4lessIiESaISt4pairIKiiEEERS3_IiSA_S5_SaIS6_IS7_SA_EEE");
-void CMonsterDropTest_singleMapMonsterKill_Orig(void* self, CParty* party,
-                                                std::map<int, int>* drop,
-                                                std::map<int, std::map<int, int> >* grade)
-    asm("_ZN11game_master16CMonsterDropTest20singleMapMonsterKillEP6CPartyRSt3mapIiiSt4lessIiESaISt4pairIKiiEEERS3_IiSA_S5_SaIS6_IS7_SA_EEE");
-void CMonsterDropTest_passedMapMonsterKill_Orig(void* self, CParty* party,
-                                                std::map<int, int>* drop,
-                                                std::map<int, std::map<int, int> >* grade)
-    asm("_ZN11game_master16CMonsterDropTest20passedMapMonsterKillEP6CPartyRSt3mapIiiSt4lessIiESaISt4pairIKiiEEERS3_IiSA_S5_SaIS6_IS7_SA_EEE");
-void CMonsterDropTest_getDungeonDropResult_Orig(void* self,
-                                                std::list<map_item>* items,
-                                                std::map<int, int>* drop,
-                                                std::map<int, std::map<int, int> >* grade)
-    asm("_ZN11game_master16CMonsterDropTest20getDungeonDropResultERSt4listI8map_itemSaIS2_EERSt3mapIiiSt4lessIiESaISt4pairIKiiEEERS6_IiSD_S8_SaIS9_ISA_SD_EEE");
-const char* CMonsterDropTest_checkCommandExecuteError_Orig(
-    void* self, CParty* party)
-    asm("_ZN11game_master16CMonsterDropTest24checkCommandExecuteErrorEP6CParty");
-const char* CMonsterDropTest_checkCommandExecuteError_Orig(
-    void* self, CParty* party)
+// ===========================================================================
+// CMonsterDropTest 辅助成员（真签名见 GameMasterCmd.h；i386 成员 ABI =
+//   cdecl + this 首参压栈，与 ORIG mangled 逐字节同形，转换零 ABI 险）。
+// ===========================================================================
+
+// ORIG checkCommandExecuteError(CParty*) 0x084ad82a：返回错误文案指针或 0。
+const char* CMonsterDropTest::checkCommandExecuteError(CParty* party)
 {
-    CMonsterDropTest* cmd = static_cast<CMonsterDropTest*>(self);
-    int mode = cmd->m_mode;
-    unsigned int count = static_cast<unsigned int>(cmd->m_count);
+    int mode = m_mode;
+    unsigned int count = static_cast<unsigned int>(m_count);
     if (party == 0)
     {
         return "Party가 없습니다";
@@ -297,23 +265,17 @@ const char* CMonsterDropTest_checkCommandExecuteError_Orig(
 }
 
 // ORIG processDungeonDrop(CParty*, map&, map2&) 0x084ad8dc：按 mode 分派击杀模拟。
-void CMonsterDropTest_processDungeonDrop_Orig(void* self, CParty* party,
-                                              std::map<int, int>* drop,
-                                              std::map<int, std::map<int, int> >* grade)
-    asm("_ZN11game_master16CMonsterDropTest18processDungeonDropEP6CPartyRSt3mapIiiSt4lessIiESaISt4pairIKiiEEERS3_IiSA_S5_SaIS6_IS7_SA_EEE");
-void CMonsterDropTest_processDungeonDrop_Orig(void* self, CParty* party,
-                                              std::map<int, int>* drop,
-                                              std::map<int, std::map<int, int> >* grade)
+void CMonsterDropTest::processDungeonDrop(CParty* party, DropStat& drop,
+                                          GradeStat& grade)
 {
-    CMonsterDropTest* cmd = static_cast<CMonsterDropTest*>(self);
-    int mode = cmd->m_mode;
+    int mode = m_mode;
     if (mode == 0)
     {
-        CMonsterDropTest_singleMapMonsterKill_Orig(self, party, drop, grade);
+        singleMapMonsterKill(party, drop, grade);
     }
     else if (static_cast<unsigned int>(mode) - 2u < 2u)
     {
-        CMonsterDropTest_passedMapMonsterKill_Orig(self, party, drop, grade);
+        passedMapMonsterKill(party, drop, grade);
     }
 }
 
@@ -321,17 +283,10 @@ void CMonsterDropTest_processDungeonDrop_Orig(void* self, CParty* party,
 // 0x084add20：全局效果 1/4 放大掉落次数（向零截断换算，min/max 夹取）；
 // 统计队员 premium 0x4f 数并取加成；hell 组计入全灭标记；最终转发
 // CBattle_Field::_MakeDropItems。
-void CMonsterDropTest_processKillMonster_Orig(void* self, CParty* party,
-                                              MapInfo* mapInfo, map_monster* mob,
-                                              std::vector<bool>* flags, int killCnt,
-                                              std::list<map_item>* items)
-    asm("_ZN11game_master16CMonsterDropTest18processKillMonsterEP6CPartyR7MapInfoR11map_monsterRSt6vectorIbSaIbEEiRSt4listI8map_itemSaISC_EE");
-void CMonsterDropTest_processKillMonster_Orig(void* self, CParty* party,
-                                              MapInfo* mapInfo, map_monster* mob,
-                                              std::vector<bool>* flags, int killCnt,
-                                              std::list<map_item>* items)
+void CMonsterDropTest::processKillMonster(CParty* party, MapInfo& mapInfo,
+                                          map_monster& mob, std::vector<bool>& flags,
+                                          int killCnt, std::list<map_item>& items)
 {
-    (void)self;
     CGlobalEffectManager* effMgr = GlobalData::s_globalEffectManager_;
 
     if (effMgr->isAffectedEffect(1))
@@ -393,27 +348,22 @@ void CMonsterDropTest_processKillMonster_Orig(void* self, CParty* party,
     }
 
     bool hellKilledAll = false;
-    if (mob->m_hellPartyGroupIdx != 0)
+    if (mob.m_hellPartyGroupIdx != 0)
     {
         CBattle_Field* bf = &party->m_battleField;
-        bf->KillHellPartyGroupMonsterCnt(*mapInfo, *mob, hellKilledAll);
+        bf->KillHellPartyGroupMonsterCnt(mapInfo, mob, hellKilledAll);
     }
 
     int memberCount = party->get_member_count();
     CBattle_Field* bf = &party->m_battleField;
-    bf->_MakeDropItems(*items, *mapInfo, *mob,
+    bf->_MakeDropItems(items, mapInfo, mob,
                        static_cast<unsigned short>(0), memberCount, 100, killCnt,
-                       hellKilledAll, *flags, 1.0f, premRate);
+                       hellKilledAll, flags, 1.0f, premRate);
 }
 
 // ORIG singleMapMonsterKill 0x084ad93a：当前地图全部 m_dropCnt==100 怪 × count 次。
-void CMonsterDropTest_singleMapMonsterKill_Orig(void* self, CParty* party,
-                                                std::map<int, int>* drop,
-                                                std::map<int, std::map<int, int> >* grade)
-    asm("_ZN11game_master16CMonsterDropTest20singleMapMonsterKillEP6CPartyRSt3mapIiiSt4lessIiESaISt4pairIKiiEEERS3_IiSA_S5_SaIS6_IS7_SA_EEE");
-void CMonsterDropTest_singleMapMonsterKill_Orig(void* self, CParty* party,
-                                                std::map<int, int>* drop,
-                                                std::map<int, std::map<int, int> >* grade)
+void CMonsterDropTest::singleMapMonsterKill(CParty* party, DropStat& drop,
+                                            GradeStat& grade)
 {
     std::list<map_item> items;
     int killCnt = 100;
@@ -424,17 +374,15 @@ void CMonsterDropTest_singleMapMonsterKill_Orig(void* self, CParty* party,
     CBattle_Field* bf = &party->m_battleField;
     MapInfo* cur = bf->GetCurrentMapInfo();
 
-    for (unsigned int round = 0; round < static_cast<unsigned int>(
-             static_cast<CMonsterDropTest*>(self)->m_count); round++)
+    for (unsigned int round = 0; round < static_cast<unsigned int>(m_count); round++)
     {
         for (std::map<int, map_monster>::iterator it = cur->m_monsterMap.begin();
              it != cur->m_monsterMap.end(); ++it)
         {
             if (it->second.m_dropCnt == 100)
             {
-                CMonsterDropTest_processKillMonster_Orig(self, party, cur, &it->second,
-                                                         &flags, killCnt, &items);
-                CMonsterDropTest_getDungeonDropResult_Orig(self, &items, drop, grade);
+                processKillMonster(party, *cur, it->second, flags, killCnt, items);
+                getDungeonDropResult(items, drop, grade);
                 items.clear();
             }
         }
@@ -442,13 +390,8 @@ void CMonsterDropTest_singleMapMonsterKill_Orig(void* self, CParty* party,
 }
 
 // ORIG passedMapMonsterKill 0x084adaf8：passed 列表每张图同样处理。
-void CMonsterDropTest_passedMapMonsterKill_Orig(void* self, CParty* party,
-                                                std::map<int, int>* drop,
-                                                std::map<int, std::map<int, int> >* grade)
-    asm("_ZN11game_master16CMonsterDropTest20passedMapMonsterKillEP6CPartyRSt3mapIiiSt4lessIiESaISt4pairIKiiEEERS3_IiSA_S5_SaIS6_IS7_SA_EEE");
-void CMonsterDropTest_passedMapMonsterKill_Orig(void* self, CParty* party,
-                                                std::map<int, int>* drop,
-                                                std::map<int, std::map<int, int> >* grade)
+void CMonsterDropTest::passedMapMonsterKill(CParty* party, DropStat& drop,
+                                            GradeStat& grade)
 {
     std::list<map_item> items;
     int killCnt = 100;
@@ -459,8 +402,7 @@ void CMonsterDropTest_passedMapMonsterKill_Orig(void* self, CParty* party,
     std::vector<MapInfo>* passed =
         static_cast<std::vector<MapInfo>*>(party->getPassedMapInfoList());
 
-    for (unsigned int round = 0; round < static_cast<unsigned int>(
-             static_cast<CMonsterDropTest*>(self)->m_count); round++)
+    for (unsigned int round = 0; round < static_cast<unsigned int>(m_count); round++)
     {
         for (std::vector<MapInfo>::iterator mit = passed->begin();
              mit != passed->end(); ++mit)
@@ -470,10 +412,8 @@ void CMonsterDropTest_passedMapMonsterKill_Orig(void* self, CParty* party,
             {
                 if (it->second.m_dropCnt == 100)
                 {
-                    CMonsterDropTest_processKillMonster_Orig(self, party, &*mit,
-                                                             &it->second, &flags,
-                                                             killCnt, &items);
-                    CMonsterDropTest_getDungeonDropResult_Orig(self, &items, drop, grade);
+                    processKillMonster(party, *mit, it->second, flags, killCnt, items);
+                    getDungeonDropResult(items, drop, grade);
                     items.clear();
                 }
             }
@@ -482,23 +422,15 @@ void CMonsterDropTest_passedMapMonsterKill_Orig(void* self, CParty* party,
 }
 
 // ORIG getDungeonDropResult(list&, map&, map2&) 0x084ae0e2：按 mode 归账。
-void CMonsterDropTest_getDungeonDropResult_Orig(void* self,
-                                                std::list<map_item>* items,
-                                                std::map<int, int>* drop,
-                                                std::map<int, std::map<int, int> >* grade)
-    asm("_ZN11game_master16CMonsterDropTest20getDungeonDropResultERSt4listI8map_itemSaIS2_EERSt3mapIiiSt4lessIiESaISt4pairIKiiEEERS6_IiSD_S8_SaIS9_ISA_SD_EEE");
-void CMonsterDropTest_getDungeonDropResult_Orig(void* self,
-                                                std::list<map_item>* items,
-                                                std::map<int, int>* drop,
-                                                std::map<int, std::map<int, int> >* grade)
+void CMonsterDropTest::getDungeonDropResult(std::list<map_item>& items, DropStat& drop,
+                                            GradeStat& grade)
 {
-    CMonsterDropTest* cmd = static_cast<CMonsterDropTest*>(self);
-    int mode = cmd->m_mode;
+    int mode = m_mode;
     if (mode != 2)
     {
         if (mode == 3)
         {
-            CMonsterDropTest_makeGoldItemDropList_Orig(self, items, drop);
+            makeGoldItemDropList(items, drop);
             return;
         }
         if (mode != 0)
@@ -506,30 +438,24 @@ void CMonsterDropTest_getDungeonDropResult_Orig(void* self,
             return;
         }
     }
-    CMonsterDropTest_makeGeneralItemDropList_Orig(self, items, drop);
-    CMonsterDropTest_makeUpgradeDropList_Orig(self, items, grade);
+    makeGeneralItemDropList(items, drop);
+    makeUpgradeDropList(items, grade);
 }
 
 // ORIG makeGeneralItemDropList 0x084ae734：普通物品按 itemId 计数；
 // itemId==0（金币类）把 Inven_Item.m_addInfo2 累计到键 0。
-void CMonsterDropTest_makeGeneralItemDropList_Orig(void* self,
-                                                   std::list<map_item>* items,
-                                                   std::map<int, int>* out)
-    asm("_ZN11game_master16CMonsterDropTest23makeGeneralItemDropListERSt4listI8map_itemSaIS2_EERSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-void CMonsterDropTest_makeGeneralItemDropList_Orig(void* self,
-                                                   std::list<map_item>* items,
-                                                   std::map<int, int>* out)
+void CMonsterDropTest::makeGeneralItemDropList(std::list<map_item>& items,
+                                               DropStat& out)
 {
-    (void)self;
-    for (std::list<map_item>::iterator it = items->begin(); it != items->end(); ++it)
+    for (std::list<map_item>::iterator it = items.begin(); it != items.end(); ++it)
     {
         int key = it->m_item.m_addInfo;
-        std::map<int, int>::iterator mit = out->find(key);
+        std::map<int, int>::iterator mit = out.find(key);
         if (key == 0)
         {
-            if (mit == out->end())
+            if (mit == out.end())
             {
-                out->insert(std::make_pair(key, it->m_item.m_addInfo2));
+                out.insert(std::make_pair(key, it->m_item.m_addInfo2));
             }
             else
             {
@@ -538,9 +464,9 @@ void CMonsterDropTest_makeGeneralItemDropList_Orig(void* self,
         }
         else
         {
-            if (mit == out->end())
+            if (mit == out.end())
             {
-                out->insert(std::make_pair(key, 1));
+                out.insert(std::make_pair(key, 1));
             }
             else
             {
@@ -551,23 +477,16 @@ void CMonsterDropTest_makeGeneralItemDropList_Orig(void* self,
 }
 
 // ORIG makeGoldItemDropList 0x084ae944：itemId==0 的金币掉落按金额分组计数。
-void CMonsterDropTest_makeGoldItemDropList_Orig(void* self,
-                                                std::list<map_item>* items,
-                                                std::map<int, int>* out)
-    asm("_ZN11game_master16CMonsterDropTest20makeGoldItemDropListERSt4listI8map_itemSaIS2_EERSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-void CMonsterDropTest_makeGoldItemDropList_Orig(void* self,
-                                                std::list<map_item>* items,
-                                                std::map<int, int>* out)
+void CMonsterDropTest::makeGoldItemDropList(std::list<map_item>& items, DropStat& out)
 {
-    (void)self;
-    for (std::list<map_item>::iterator it = items->begin(); it != items->end(); ++it)
+    for (std::list<map_item>::iterator it = items.begin(); it != items.end(); ++it)
     {
         if (it->m_item.m_addInfo == 0)
         {
-            std::map<int, int>::iterator mit = out->find(it->m_item.m_addInfo2);
-            if (mit == out->end())
+            std::map<int, int>::iterator mit = out.find(it->m_item.m_addInfo2);
+            if (mit == out.end())
             {
-                out->insert(std::make_pair(it->m_item.m_addInfo2, 1));
+                out.insert(std::make_pair(it->m_item.m_addInfo2, 1));
             }
             else
             {
@@ -580,16 +499,9 @@ void CMonsterDropTest_makeGoldItemDropList_Orig(void* self,
 // ORIG makeUpgradeDropList 0x084ae14c：非堆叠掉落按 grade 分桶；
 // 桶内记录 [强化等级]=次数 与 [特殊类型+1000]=次数（特殊类型由
 // m_addInfo2 映射：0x5aa7→1 / 0xfa6→2 / 0x6a23→3 / 0x5df0→4 / 0x7270→5）。
-void CMonsterDropTest_makeUpgradeDropList_Orig(void* self,
-                                               std::list<map_item>* items,
-                                               std::map<int, std::map<int, int> >* out)
-    asm("_ZN11game_master16CMonsterDropTest19makeUpgradeDropListERSt4listI8map_itemSaIS2_EERSt3mapIiS6_IiiSt4lessIiESaISt4pairIKiiEEES8_SaIS9_ISA_SD_EEE");
-void CMonsterDropTest_makeUpgradeDropList_Orig(void* self,
-                                               std::list<map_item>* items,
-                                               std::map<int, std::map<int, int> >* out)
+void CMonsterDropTest::makeUpgradeDropList(std::list<map_item>& items, GradeStat& out)
 {
-    (void)self;
-    for (std::list<map_item>::iterator it = items->begin(); it != items->end(); ++it)
+    for (std::list<map_item>::iterator it = items.begin(); it != items.end(); ++it)
     {
         if (it->m_item.m_addInfo == 0)
         {
@@ -631,14 +543,14 @@ void CMonsterDropTest_makeUpgradeDropList_Orig(void* self,
         }
 
         int grade = ci->get_grade();
-        std::map<int, std::map<int, int> >::iterator git = out->find(grade);
-        if (git == out->end())
+        std::map<int, std::map<int, int> >::iterator git = out.find(grade);
+        if (git == out.end())
         {
             std::map<int, int> inner;
             inner.insert(std::make_pair(
                 static_cast<int>(it->m_item.GetUpgrade()), 1));
             inner.insert(std::make_pair(special + 1000, 1));
-            out->insert(std::make_pair(grade, inner));
+            out.insert(std::make_pair(grade, inner));
         }
         else
         {
@@ -667,29 +579,26 @@ void CMonsterDropTest_makeUpgradeDropList_Orig(void* self,
 }
 
 // ORIG makeFileGoldContents 0x084ad6d6：gold 统计追加到文件缓冲；容量不足时提示。
-void CMonsterDropTest_makeFileGoldContents_Orig(void* user, char* fileBuf,
-                                                std::map<int, int>* stat)
-    asm("_ZN11game_master16CMonsterDropTest20makeFileGoldContentsEP5CUserPcRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-void CMonsterDropTest_makeFileGoldContents_Orig(void* user, char* fileBuf,
-                                                std::map<int, int>* stat)
+// （ORIG static：makeRequest.md 反编译注释 __PRETTY_FUNCTION__ 无 this，
+//   报告实证 arg0=CUser*。）
+void CMonsterDropTest::makeFileGoldContents(CUser* user, char* fileBuf, DropStat& stat)
 {
     char line[1024];
     memset(line, 0, 0x100);   // ORIG rep stos 0x100（循环内 memset 仍 0x400）
 
-    for (std::map<int, int>::iterator it = stat->begin(); it != stat->end();)
+    for (std::map<int, int>::iterator it = stat.begin(); it != stat.end();)
     {
         sprintf(line, "\"%s\"\t%d\t%d\n", "gold", it->first, it->second);
         size_t used = strlen(fileBuf);
         size_t addLen = strlen(line);
         if (used + addLen > 89999)
         {
-            CBoosterTest::SendChatMsg(static_cast<CUser*>(user),
-                                      const_cast<char*>("결과 파일 이어붙힘"));
+            CBoosterTest::SendChatMsg(user, const_cast<char*>("결과 파일 이어붙힘"));
             return;
         }
         strcat(fileBuf, line);
         memset(line, 0, sizeof(line));
-        stat->erase(it++);
+        stat.erase(it++);
     }
 }
 
@@ -706,7 +615,7 @@ void CMonsterDropTest::execute()
     {
         return;
     }
-    const char* err = CMonsterDropTest_checkCommandExecuteError_Orig(this, party);
+    const char* err = checkCommandExecuteError(party);
     if (err != 0)
     {
         CBoosterTest::SendChatMsg(user, const_cast<char*>(err));
@@ -733,7 +642,7 @@ void CMonsterDropTest::execute()
     std::map<int, int> drop;
     std::map<int, std::map<int, int> > grade;
 
-    CMonsterDropTest_processDungeonDrop_Orig(this, party, &drop, &grade);
+    processDungeonDrop(party, drop, grade);
 
     bool loop = true;
     // ORIG 表头：mode∈{0,2} 走同一段通用表头；mode==3 金币表头；其余无表头。
@@ -766,7 +675,7 @@ header_done:
         else if (mode == 3)
         {
             sprintf(fname, "gold_dungeon_drop_%d.txt", m_count);
-            CMonsterDropTest_makeFileGoldContents_Orig(user, fileBuf, &drop);
+            makeFileGoldContents(user, fileBuf, drop);
         }
         else if (mode == 0)
         {
@@ -985,18 +894,15 @@ void CRandomObjectTest::parse()
     sscanf(m_parser->m_args.c_str(), "%d%d",
            &m_mode, &m_count);
 }
-void CRandomObjectTest_processVendingMachineItemLottery_Orig(
-    void* self, CMTRand& rng, const stVendingMachineInfo_t* info, Inven_Item* item)
-    asm("_ZN11game_master17CRandomObjectTest32processVendingMachineItemLotteryER7CMTRandPK22stVendingMachineInfo_tR10Inven_Item");
+// ===========================================================================
+// CRandomObjectTest 辅助成员（真签名见 GameMasterCmd.h；i386 成员 ABI =
+//   cdecl + this 首参压栈，与 ORIG mangled 逐字节同形，转换零 ABI 险）。
+// ===========================================================================
 
-// ORIG checkCommandExecuteError 0x084b02be：count ∉ [0,100000] 报错。
-// 头内占位声明为 void checkCommandExecuteError()，与 ORIG char* 返回不符；
-// 以 asm 自由函数承载 ORIG 符号。
-const char* CRandomObjectTest_checkCommandExecuteError_Orig(void* self)
-    asm("_ZN11game_master17CRandomObjectTest24checkCommandExecuteErrorEv");
-const char* CRandomObjectTest_checkCommandExecuteError_Orig(void* self)
+// ORIG checkCommandExecuteError() 0x084b02be：count ∉ [0,100000] 报错。
+const char* CRandomObjectTest::checkCommandExecuteError()
 {
-    int count = static_cast<CRandomObjectTest*>(self)->m_count;
+    int count = m_count;
     if (count < 0x186a1 && count >= 0)
     {
         return 0;
@@ -1005,10 +911,8 @@ const char* CRandomObjectTest_checkCommandExecuteError_Orig(void* self)
 }
 
 // ORIG getVendingMachineInfo 0x084b0444：找 vending 表首个 m_id==1 条目中
-// 首个 m_groupNum==1 的 info；找不到返回 0。同上以 asm 承载（头内占位 void）。
-stVendingMachineInfo_t* CRandomObjectTest_getVendingMachineInfo_Orig(void* self)
-    asm("_ZN11game_master17CRandomObjectTest21getVendingMachineInfoEv");
-stVendingMachineInfo_t* CRandomObjectTest_getVendingMachineInfo_Orig(void* self)
+// 首个 m_groupNum==1 的 info；找不到返回 0。直调 CDataManager::getVendingMachineTable。
+stVendingMachineInfo_t* CRandomObjectTest::getVendingMachineInfo()
 {
     std::vector<stVendingMachine_t>* table =
         G_CDataManager()->getVendingMachineTable();
@@ -1042,29 +946,23 @@ stVendingMachineInfo_t* CRandomObjectTest_getVendingMachineInfo_Orig(void* self)
 
 // ORIG getVendingMachineItem(map&) 0x084b02e6：以 time 种子 Mersenne 随机
 // 模拟 count 次抽取，统计 itemId 出现次数。
-void CRandomObjectTest_getVendingMachineItem_Orig(void* self,
-                                                  std::map<int, int>* out)
-    asm("_ZN11game_master17CRandomObjectTest21getVendingMachineItemERSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-void CRandomObjectTest_getVendingMachineItem_Orig(void* self,
-                                                  std::map<int, int>* out)
+void CRandomObjectTest::getVendingMachineItem(std::map<int, int>& out)
 {
-    stVendingMachineInfo_t* info =
-        CRandomObjectTest_getVendingMachineInfo_Orig(self);
+    stVendingMachineInfo_t* info = getVendingMachineInfo();
     if (info != 0)
     {
         Inven_Item item;
         unsigned long seed = static_cast<unsigned long>(time(NULL));
         CMTRand rng(seed);
-        for (int i = 0; i < static_cast<CRandomObjectTest*>(self)->m_count; i++)
+        for (int i = 0; i < m_count; i++)
         {
             item.m_addInfo = -1;
-            CRandomObjectTest_processVendingMachineItemLottery_Orig(self, rng, info,
-                                                                    &item);
+            processVendingMachineItemLottery(rng, info, item);
             int key = item.m_addInfo;
-            std::map<int, int>::iterator it = out->find(key);
-            if (it == out->end())
+            std::map<int, int>::iterator it = out.find(key);
+            if (it == out.end())
             {
-                out->insert(std::make_pair(key, 1));
+                out.insert(std::make_pair(key, 1));
             }
             else
             {
@@ -1077,13 +975,10 @@ void CRandomObjectTest_getVendingMachineItem_Orig(void* self,
 // ORIG processVendingMachineItemLottery(CMTRand&, info const*, Inven_Item&)
 // 0x084b0550：在 [0, m_giveCount-1] 掷点，扫 m_vecGive 取首个累计权重
 // 大于掷点的输出，把 itemId/m_count 写入物品 +0x02/+0x07。
-void CRandomObjectTest_processVendingMachineItemLottery_Orig(
-    void* self, CMTRand& rng, const stVendingMachineInfo_t* info, Inven_Item* item)
-    asm("_ZN11game_master17CRandomObjectTest32processVendingMachineItemLotteryER7CMTRandPK22stVendingMachineInfo_tR10Inven_Item");
-void CRandomObjectTest_processVendingMachineItemLottery_Orig(
-    void* self, CMTRand& rng, const stVendingMachineInfo_t* info, Inven_Item* item)
+void CRandomObjectTest::processVendingMachineItemLottery(CMTRand& rng,
+                                                         const stVendingMachineInfo_t* info,
+                                                         Inven_Item& item)
 {
-    (void)self;
     unsigned long range = static_cast<unsigned long>(info->m_giveCount - 1);
     int roll = rng.randInt(range);
 
@@ -1093,8 +988,8 @@ void CRandomObjectTest_processVendingMachineItemLottery_Orig(
     {
         if (static_cast<unsigned int>(it->m_cumWeight) > static_cast<unsigned int>(roll))
         {
-            item->m_addInfo = it->m_itemId;
-            item->m_addInfo2 = static_cast<int>(it->m_count);
+            item.m_addInfo = it->m_itemId;
+            item.m_addInfo2 = static_cast<int>(it->m_count);
             return;
         }
     }
@@ -1109,7 +1004,7 @@ void CRandomObjectTest::execute()
         return;
     }
 
-    const char* err = CRandomObjectTest_checkCommandExecuteError_Orig(this);
+    const char* err = checkCommandExecuteError();
     if (err != 0)
     {
         CBoosterTest::SendChatMsg(user, const_cast<char*>(err));
@@ -1128,7 +1023,7 @@ void CRandomObjectTest::execute()
     if (m_mode == 1)
     {
         CBoosterTest::SendChatMsg(user, const_cast<char*>("vending machine 결과체크를 시작합니다"));
-        CRandomObjectTest_getVendingMachineItem_Orig(this, &stat);
+        getVendingMachineItem(stat);
 
         char fileBuf[95000];
         memset(fileBuf, 0, sizeof(fileBuf));

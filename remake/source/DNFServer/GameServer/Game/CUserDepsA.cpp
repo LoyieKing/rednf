@@ -145,8 +145,15 @@ void CUser::SendNotiPacketMessage(const char* msg, ENUM_MESSAGE_TYPE type)
 // 尾部：0<=dstSlot<0xc 时 m_characterView.enableSaveCharacView()；
 // send_equip(dstSlot)；返 0。
 // ----------------------------------------------------------------------------
+// 语义完成 / byte 层 N 封顶（§6.2）：orig_insns=203 our=203，调用点差集 0
+// missing/0 extra（32=32）。残余全为 N82（4.4 帧 0x34 vs 0x44、槽号 -0x1c..
+// 不复用）+ 分支冷热布局（gcc 把 space==1 放 fall-through，space0/space1 的
+// INVEN_TYPE 常量 $0x1/$0x2 在首块对调出现）+ 未链接 .o 的 $0x0 relocation 占位。
+// 语义（space==0→INVEN_TYPE 1、space==1→AVATAR 2、CheckUnusable/Equipslot/
+// AvatarBonus/Durability/send_equip/边界判据）与 ORIG 逐块一致。
 int CUser::change_equip(int space, short slot, int dstSlot)
 {
+    int ret;
     if (space == 1)
     {
         if (G_GameWorld()->IsCheckUnusableEquipmentChannel())
@@ -165,8 +172,8 @@ int CUser::change_equip(int space, short slot, int dstSlot)
         if (isCompetitionMercenary())
             return 0xb3;
 
-        int ret = getCurCharacInvenW()->ChangeEquip(INVEN_TYPE_AVATAR, slot,
-                                                    dstSlot);
+        ret = getCurCharacInvenW()->ChangeEquip(INVEN_TYPE_AVATAR, slot,
+                                                dstSlot);
         if (ret == 0)
             setAvatarTypeBonus(
                 static_cast<char>(CalcMercenaryAvatarBonus()));  // movsbl %al
@@ -212,8 +219,8 @@ int CUser::change_equip(int space, short slot, int dstSlot)
                 return 1;
         }
 
-        int ret = getCurCharacInvenW()->ChangeEquip(INVEN_TYPE_EQUIP, slot,
-                                                    dstSlot);
+        ret = getCurCharacInvenW()->ChangeEquip(INVEN_TYPE_EQUIP, slot,
+                                                dstSlot);
         if (ret > 0)
             return ret;
     }

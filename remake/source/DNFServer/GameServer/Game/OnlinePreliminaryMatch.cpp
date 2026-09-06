@@ -1007,11 +1007,11 @@ int COnlinePreliminary::OnMatchRoom(PvP_Room* room, int authNo)
 
     for (unsigned int s = 0; s <= 7; ++s)
     {
-        CUser* u = reinterpret_cast<CUser*>(room->get_user_seat((int)s));
+        CUser* u = reinterpret_cast<CUser*>(oppRoom->get_user_seat((int)s));
         if (u == 0)
             continue;
-        int team = room->get_team((int)s);
-        _PullOutRoom(u, room, (int)s);
+        int team = oppRoom->get_team((int)s);
+        _PullOutRoom(u, oppRoom, (int)s);
         unsigned int newSeat =
             (unsigned int)_PutInRoom(u, room, false);
         if (team == 3)

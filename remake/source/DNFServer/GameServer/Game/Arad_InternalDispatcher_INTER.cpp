@@ -396,39 +396,35 @@ int Arad_INTER_kAradJumpingCharacter::dispatch_sig(CUser* user, char* body, int 
 // ============================================================================
 int Arad_INTER_kAvatarHiddenOptionChange::dispatch_sig(CUser* user, char* body, int len)
 {
-    int result = 0x664;                                       // ORIG ebx 出口寄存
-    do {
-        if (user == 0)
-            break;
+    // ORIG ebx 出口寄存：各失败路径直接设值返回（检查顺序 user→sig→getCurCharacR）。
+    if (user == 0)
+        return 0x664;
 
-        arad::SigAvatarHiddenOptionChange* sig = (arad::SigAvatarHiddenOptionChange*)body;
-        if (sig == 0)
-        {
-            LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
-                                  0x669, "AVATAR HIDDENOPTION CHANGE INTER_DSP(SigAvatarHiddenOptionChange) null.");
-            result = 0x66a;
-            break;
-        }
-        if (user->getCurCharacR() == 0)
-        {
-            result = 0x670;
-            break;
-        }
+    arad::SigAvatarHiddenOptionChange* sig = (arad::SigAvatarHiddenOptionChange*)body;   // ORIG 读 0x10(%ebp)=body
+    if (sig == 0)
+    {
+        LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
+                              0x669, "AVATAR HIDDENOPTION CHANGE INTER_DSP(SigAvatarHiddenOptionChange) null.");
+        return 0x66a;
+    }
+    if (user->getCurCharacR() == 0)
+        return 0x670;
 
-        if (!Singleton<AvatarFixedHiddenOptionServer>::Get()->CheckCondition(user, sig))
-            break;
-        if (!Singleton<AvatarFixedHiddenOptionServer>::Get()->ChangeHiddenOption(user, sig))
-            break;
-        PacketGuard packet;
-        packet.clear();
-        packet.put_header(1, 0x24c);
-        packet.put_byte(1);
-        packet.put_short((int)*(short*)((char*)sig + 2));
-        packet.put_short((unsigned int)*(unsigned short*)((char*)sig + 4));
-        packet.finalize(true);
-        user->Send(packet);
-    } while (0);
-    return result;
+    // P48：ORIG 每次使用均重调 Singleton<...>::Get()，不许提升到局部。
+    if (!Singleton<AvatarFixedHiddenOptionServer>::Get()->CheckCondition(user, sig))
+        return 0;
+    if (!Singleton<AvatarFixedHiddenOptionServer>::Get()->ChangeHiddenOption(user, sig))
+        return 0;
+
+    PacketGuard packet;
+    packet.clear();
+    packet.put_header(1, 0x24c);
+    packet.put_byte(1);
+    packet.put_short((int)*(short*)((char*)sig + 2));
+    packet.put_short((unsigned int)*(unsigned short*)((char*)sig + 4));
+    packet.finalize(true);
+    user->Send(packet);
+    return 0;
 }
 
 // ============================================================================
@@ -441,7 +437,7 @@ int Arad_INTER_kUseAvatarRecharge::dispatch_sig(CUser* user, char* body, int len
     if (user->getCurCharacR() == 0)
         return 0x691;
 
-    arad::SigAradUseAvatarRecharge* sig = (arad::SigAradUseAvatarRecharge*)len;
+    arad::SigAradUseAvatarRecharge* sig = (arad::SigAradUseAvatarRecharge*)body;   // ORIG 读 0x10(%ebp)=body
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
@@ -449,21 +445,21 @@ int Arad_INTER_kUseAvatarRecharge::dispatch_sig(CUser* user, char* body, int len
         return 0x697;
     }
 
-    AvatarRechargeServer* server = Singleton<AvatarRechargeServer>::Get();
-    if (server->CheckConditionUseRecharge(user, sig))
+    // P48 + ORIG 寄存器出口：! 语义产生 xor $0x1 翻转；Check/Recharge 每次各自 Get()。
+    if (!Singleton<AvatarRechargeServer>::Get()->CheckConditionUseRecharge(user, sig))
+        return 0;
+    if (!Singleton<AvatarRechargeServer>::Get()->Recharge(user, sig))
+        return 0;
     {
-        if (server->Recharge(user, sig))
-        {
-            PacketGuard packet;
-            packet.clear();
-            packet.put_header(1, 0x24d);
-            packet.put_byte(1);
-            packet.put_int(*(int*)((char*)sig + 0xc));
-            packet.put_int(*(int*)((char*)sig + 4));
-            packet.put_short((unsigned int)*(unsigned short*)sig);
-            packet.finalize(true);
-            user->Send(packet);
-        }
+        PacketGuard packet;
+        packet.clear();
+        packet.put_header(1, 0x24d);
+        packet.put_byte(1);
+        packet.put_int((int)sig->enduranceAfter);       // +0x0c（操作后耐久）
+        packet.put_int(sig->addEndurance);              // +0x04（本次增加耐久）
+        packet.put_short((unsigned int)sig->avatarSlot);  // +0x00（avatar 槽）
+        packet.finalize(true);
+        user->Send(packet);
     }
     return 0;
 }
@@ -478,7 +474,7 @@ int Arad_INTER_kEmblemCompound::dispatch_sig(CUser* user, char* body, int len)
     if (user->getCurCharacR() == 0)
         return 0x6b9;
 
-    arad::SigAradEmblemCompound* sig = (arad::SigAradEmblemCompound*)len;
+    arad::SigAradEmblemCompound* sig = (arad::SigAradEmblemCompound*)body;   // ORIG 读 0x10(%ebp)=body
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
@@ -486,20 +482,20 @@ int Arad_INTER_kEmblemCompound::dispatch_sig(CUser* user, char* body, int len)
         return 0x6bf;
     }
 
-    EmblemCompoundServer* server = Singleton<EmblemCompoundServer>::Get();
-    if (server->CheckCondition(user, sig))
-    {
-        if (server->Process(user, sig))
-        {
-            unsigned int resultIdx = (unsigned int)sig->m_resultIdx;
-            unsigned int selectNo = (unsigned int)sig->m_slot1;
-            unsigned int slot1 = (unsigned int)sig->m_slot0;
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x6cc, 0);
-            trace("EMBLEM COMPOUND : success [slot1:%d] [slot2:%d] [selectNo:%d] [resultIdx:%d] [charac_no:%d]",
-                  slot1, selectNo, resultIdx,
-                  (unsigned int)user->getCurCharacNo());
-        }
-    }
+    // P48 + ORIG 寄存器出口：! 语义产生 xor $0x1 翻转；Check/Process 每次各自 Get()。
+    if (!Singleton<EmblemCompoundServer>::Get()->CheckCondition(user, sig))
+        return 0;
+    if (!Singleton<EmblemCompoundServer>::Get()->Process(user, sig))
+        return 0;
+
+    // ORIG 加载序：charac_no(sig+0x10 前先算)，再 sig[0]/sig[8]/sig[0x10]。
+    unsigned int charac_no = (unsigned int)user->getCurCharacNo();   // uVar7
+    unsigned int resultIdx = (unsigned int)sig->m_resultIdx;         // uVar4 = sig+0x10
+    unsigned int slot2 = (unsigned int)sig->m_slot1;                 // uVar1 = sig+0x08
+    unsigned int slot1 = (unsigned int)sig->m_slot0;                 // uVar2 = sig+0x00
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x6cc, 0);
+    trace("EMBLEM COMPOUND : success [slot1:%d] [slot2:%d] [selectNo:%d] [resultIdx:%d] [charac_no:%d]",
+          slot1, slot2, resultIdx, charac_no);
     return 0;
 }
 
@@ -513,7 +509,7 @@ int Arad_INTER_kAvatarConvert::dispatch_sig(CUser* user, char* body, int len)
     if (user->getCurCharacR() == 0)
         return 0x6db;
 
-    arad::SigAradAvatarConvert* sig = (arad::SigAradAvatarConvert*)len;
+    arad::SigAradAvatarConvert* sig = (arad::SigAradAvatarConvert*)body;   // ORIG 读 0x10(%ebp)=body
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
@@ -521,11 +517,11 @@ int Arad_INTER_kAvatarConvert::dispatch_sig(CUser* user, char* body, int len)
         return 0x6e1;
     }
 
-    AvatarConvertServer* server = Singleton<AvatarConvertServer>::Get();
-    if (server->CheckCondition(user, sig))
-    {
-        server->Convert(user, sig);          // ORIG Check 条件后 Convert，两路均返 0
-    }
+    // P48 + ORIG 寄存器出口：! 语义产生 xor $0x1 翻转；Check/Convert 每次各自 Get()。
+    if (!Singleton<AvatarConvertServer>::Get()->CheckCondition(user, sig))
+        return 0;
+    if (!Singleton<AvatarConvertServer>::Get()->Convert(user, sig))
+        return 0;
     return 0;
 }
 
@@ -538,7 +534,7 @@ int Arad_INTER_kAvatarRoulette::dispatch_sig(CUser* user, char* body, int len)
     if (user == 0)
         return 0x3c8;
 
-    unsigned char* sig = (unsigned char*)len;               // SigAvatarRoulette*
+    unsigned char* sig = (unsigned char*)body;              // SigAvatarRoulette*（ORIG 读 0x10(%ebp)=body）
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
@@ -579,9 +575,8 @@ int Arad_INTER_kAvatarRoulette::dispatch_sig(CUser* user, char* body, int len)
         decBand = (signed char)3;
 
     // AvatarCoin 可用性判定(refW+0x658)，不可用则拒抽。
-    AvatarCoin* coin =
-        (AvatarCoin*)(user->getCurCharacInvenRefW() + 0x658);
-    if (!coin->IsUsable())
+    // P48：ORIG 每次使用均重调 getCurCharacInvenRefW()+0x658，不许提升到局部。
+    if (!((AvatarCoin*)(user->getCurCharacInvenRefW() + 0x658))->IsUsable())
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x3f9, "[kAvatarRoulette] need avatarCoin. (%u - %u)",
@@ -615,7 +610,7 @@ int Arad_INTER_kAvatarRoulette::dispatch_sig(CUser* user, char* body, int len)
 
     user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)1, slot);
 
-    if (!coin->Use())
+    if (!((AvatarCoin*)(user->getCurCharacInvenRefW() + 0x658))->Use())
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x410, "[kAvatarRoulette] need avatarCoin. (%u - %u)",
