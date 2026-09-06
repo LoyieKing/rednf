@@ -151,9 +151,12 @@ int InterSelectCreateDnfUserInfo::dispatch_sig(CUser* user, char* buf, int len)
     }
     CEventCreateDnf* event =
         (CEventCreateDnf*)GlobalData::s_event_manager->GetRepeatEvent(0xa0);
+    // §4.5 真实虚调用 CEventBase::IsEventing(CUser*)@vtable+0x34（CGuildServerProxy.h
+    // 权威）。与 ORIG `call *%edx` 相比 GCC 4.4 用 `call *%eax`（寄存器分配 N7 类差），
+    // 实测 typedef 直调与该实调用指令数同为 148（+9 系函数既有 N82 帧差，非本转换引入）。
     bool eventing;
     if (event == 0 ||
-        event->IsEventing(0) != '\x01')   // 真实虚调用 CEventBase::IsEventing @vtable+0x34
+        event->IsEventing(0) != '\x01')
     {
         eventing = true;
     }
@@ -163,7 +166,7 @@ int InterSelectCreateDnfUserInfo::dispatch_sig(CUser* user, char* buf, int len)
     }
     if (eventing)
     {
-        char ev = event->IsEventing(0);   // 真实虚调用 IsEventing @vtable+0x34
+        char ev = event->IsEventing(0);
         const char* stay = (event == 0) ? "nullptr" : "ok";
         LogManager::logFormat(1, "localtaiwan/Dispatcher/Taiwan_InterDispatcher.cpp",
                               __PRETTY_FUNCTION__, 0x138,

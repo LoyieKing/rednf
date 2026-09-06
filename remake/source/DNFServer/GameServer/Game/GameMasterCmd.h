@@ -616,18 +616,18 @@ public:
     CBoosterTest() {}                  // ORIG W 0x082a863a（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084aeb5e
     virtual void execute();                          // ORIG T 0x084aed04
-    void SendChatMsg();                                       // 辅助（ORIG T 0x084aeac6，签名见报告）
-    void _selectJewelTypeIndex();                                       // 辅助（ORIG T 0x084af3b2，签名见报告）
+    static void SendChatMsg(CUser*, char*);            // 辅助（ORIG T 0x084aeac6，static）
+    int _selectJewelTypeIndex(unsigned int, unsigned short const*) const;  // 辅助（ORIG T 0x084af3b2）
     void clear();                                       // 辅助（ORIG T 0x084b40b0，签名见报告）
-    void getBoosterResult();                                       // 辅助（ORIG T 0x084af9d6，签名见报告）
-    void getCompoundEmblemResult();                                       // 辅助（ORIG T 0x084af0d6，签名见报告）
-    void getJarResult();                                       // 辅助（ORIG T 0x084afba8，签名见报告）
-    void getRandomboxResult();                                       // 辅助（ORIG T 0x084afe3a，签名见报告）
-    void getRarityStr();                                       // 辅助（ORIG T 0x084aea80，签名见报告）
-    void get_gold_lottery_result();                                       // 辅助（ORIG T 0x084afd1c，签名见报告）
-    void is_gold_lottery_item();                                       // 辅助（ORIG T 0x084afccc，签名见报告）
-    void makeFileContents();                                       // 辅助（ORIG T 0x084af504，签名见报告）
-    void make_file_gold_contents();                                       // 辅助（ORIG T 0x084af7fc，签名见报告）
+    void getBoosterResult(CItem const*, std::map<int, int>&);            // 辅助（ORIG T 0x084af9d6）
+    bool getCompoundEmblemResult(CItem const*, std::map<int, int>&);     // 辅助（ORIG T 0x084af0d6）
+    void getJarResult(CItem const*, std::map<int, int>&);                // 辅助（ORIG T 0x084afba8）
+    void getRandomboxResult(CItem const*, std::map<int, int>&);          // 辅助（ORIG T 0x084afe3a）
+    static char const* getRarityStr(ENUM_RARITY);                        // 辅助（ORIG T 0x084aea80，static）
+    void get_gold_lottery_result(CItem const*, std::map<int, int>&);     // 辅助（ORIG T 0x084afd1c）
+    bool is_gold_lottery_item(int);                                    // 辅助（ORIG T 0x084afccc，实验）
+    static void makeFileContents(CUser*, char*, std::map<int, int>&);    // 辅助（ORIG T 0x084af504，static）
+    static void make_file_gold_contents(CUser*, char*, std::map<int, int>&); // 辅助（ORIG T 0x084af7fc，static）
     static void printClient(CUser* user, bool more, char const* name, char const* contents);
     static void printServer(char const* path, char const* contents);
 

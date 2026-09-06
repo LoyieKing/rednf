@@ -122,10 +122,6 @@ void gmA_booster_SendChatMsg(CUser* user, char* msg)
     asm("_ZN11game_master12CBoosterTest11SendChatMsgEP5CUserPc");
 
 
-// CBoosterTest::is_gold_lottery_item(int) —— T 0x084afccc（thiscall；this 未使用仍按 ABI 传递）
-bool gmA_booster_is_gold_lottery_item(CBoosterTest* self, int idx)
-    asm("_ZN11game_master12CBoosterTest20is_gold_lottery_itemEi");
-
 // CBoosterTest::getJarResult(CItem const*, std::map<int,int>&) —— T 0x084afba8
 void gmA_booster_getJarResult(CBoosterTest* self, CItem const* item,
                               std::map<int, int>& result)
@@ -468,7 +464,7 @@ void CBoosterTest::execute()
     sprintf(countMsg, "%d번 통계입니다", m_count);
     gmA_booster_SendChatMsg(user, countMsg);
 
-    bool goldLottery = gmA_booster_is_gold_lottery_item(this, item->get_index());
+    bool goldLottery = this->is_gold_lottery_item(item->get_index());
 
     std::map<int, int> result;
     switch (item->GetItemType())                       // ORIG vtbl[3]
@@ -590,7 +586,7 @@ void CBoosterTest::printClient(CUser* user, bool more, char const* name, char co
 }
 
 // ORIG is_gold_lottery_item 0x084afccc：lotto 表项 id(+2)==0 且数量(+7)>0。
-bool gmA_booster_is_gold_lottery_item(CBoosterTest* /*self*/, int idx)
+bool CBoosterTest::is_gold_lottery_item(int idx)
 {
     Inven_Item lotto;
     G_CDataManager()->getItemList()->get_lotto_item(idx, reinterpret_cast<char*>(&lotto));
