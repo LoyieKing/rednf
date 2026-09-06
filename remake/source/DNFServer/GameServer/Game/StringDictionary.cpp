@@ -113,7 +113,7 @@ const char* StringDictionary::addString(const char* s)
         int cap = std::max(need, kBufSize);
         unsigned char* ptr = new unsigned char[cap];
         blocks_.push_back(ptr);
-        m_curPtr = reinterpret_cast<int>(ptr + need);
+        m_curPtr = (int)ptr + need;
         m_curRemain = cap - need;
         ret = ptr;
     }

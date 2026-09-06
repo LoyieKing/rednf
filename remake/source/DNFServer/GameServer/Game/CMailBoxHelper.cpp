@@ -1502,10 +1502,10 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
 
         if (proto->IsAvatarItem())
         {
-            WongWork::CAvatarItemMgr* mgr = inven->GetAvatarItemMgrW();  // IsTempKey ORIG 非 const
-            if (mgr->IsTempKey(found.m_addInfo2))
+            // ORIG 8555ef2/8555f19：IsTempKey/GetExpireDate 各点重取 GetAvatarItemMgrR()（P48 去缓存）
+            if (inven->GetAvatarItemMgrR()->IsTempKey(found.m_addInfo2))
                 return 0x11;
-            if (mgr->GetExpireDate(found.m_addInfo2) != 0)
+            if (inven->GetAvatarItemMgrR()->GetExpireDate(found.m_addInfo2) != 0)
                 return 0x11;
         }
     }

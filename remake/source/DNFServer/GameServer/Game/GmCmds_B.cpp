@@ -78,8 +78,7 @@ void CChangeCharacName::execute()
 void CChangeExpertJobCmd::parse()
 {
     trim(m_parser->m_args);
-    int parsed = atoi(m_parser->m_args.c_str());
-    m_jobType = parsed;
+    m_jobType = atoi(m_parser->m_args.c_str());   // P0：无具名局部（ORIG 无槽）
 }
 
 // ORIG execute 0x084a9900。
@@ -135,8 +134,7 @@ void CChangeExpertJobCmd::execute()
 void CChangeExpertJobExpCmd::parse()
 {
     trim(m_parser->m_args);
-    int parsed = atoi(m_parser->m_args.c_str());
-    m_exp = parsed;
+    m_exp = atoi(m_parser->m_args.c_str());       // P0：无具名局部（ORIG 无槽）
 }
 
 // ORIG execute 0x084a9bd0。

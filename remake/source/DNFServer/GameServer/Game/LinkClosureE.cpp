@@ -216,8 +216,10 @@ int CItemMakingSkill::GetSkillLevel(ENUM_ITEM_MAKING_TYPE type, CUser* user) con
 // @0x08545cf4：GetSkillLevel(GetUpSkillType(item), user)。
 int CItemMakingSkill::GetItemMakingSkillLevel(const CStackableItem* item, CUser* user)
 {
-    return GetSkillLevel(static_cast<ENUM_ITEM_MAKING_TYPE>(item->GetUpSkillType()),
-                         user);
+    // P0：ORIG `call GetUpSkillType; mov %eax,-0xc` 具名局部槽；直传会丢 -0xc。
+    ENUM_ITEM_MAKING_TYPE type =
+        static_cast<ENUM_ITEM_MAKING_TYPE>(item->GetUpSkillType());
+    return GetSkillLevel(type, user);
 }
 
 // ORIG T _ZN16CItemMakingSkill12UpSkillLevelE21ENUM_ITEM_MAKING_TYPEiP5CUser

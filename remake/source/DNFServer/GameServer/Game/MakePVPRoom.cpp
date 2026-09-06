@@ -38,29 +38,21 @@ struct MSG_MAKE_PVP_ROOM
 };
 #pragma pack(pop)
 
-// 共用错误应答：put_byte(0), put_byte(err), finalize(1), Send —— ORIG 各失败段
-// 0x820..0x813/0x7ac8..0x7b0e/0x7b31../0x7b9b../0x7c06.. 共形（仅 err 码不同）。
-static void SendMakePVPRoomError(CUser* user, PacketGuard& packet, int errCode)
-{
-    packet.put_byte(0);
-    packet.put_byte(errCode);
-    packet.finalize(1);
-    user->Send(packet);
-}
-
 bool MakePVPRoom(CUser* user, MSG_MAKE_PVP_ROOM& msg, ENUM_CMDPACKET cmd, PVP_BATTLE_MODE mode)
 {
     PacketGuard packet;                                  // -0x40
     packet.put_header(1, (int)cmd);                      // 0x81f7968
 
-    // 最高段位频道的段位上限门（ORIG 0x81f796d..0x81f7a1d：ch==0xf || ch==0x10）
-    int chType = G_GameWorld()->GetChannelType();
-    bool maxGradeChannel = (chType == 0xf || chType == 0x10);
-    if (maxGradeChannel)
+    // 最高段位频道的段位上限门（ORIG 0x81f796d..0x81f7a1d：ch==0xf || ch==0x10，
+    // ORIG 短路两次 G_GameWorld()/GetChannelType() 不缓存 —— P48 去缓存）
+    if (G_GameWorld()->GetChannelType() == 0xf || G_GameWorld()->GetChannelType() == 0x10)
     {
         if (G_CDataManager()->GetMaxGradePvPChannel() < user->get_pvp_grade())
         {
-            SendMakePVPRoomError(user, packet, 0xd);     // 0x81f79c8..0x81f7a13
+            packet.put_byte(0);                          // 0x81f79c8..0x81f7a13
+            packet.put_byte(0xd);
+            packet.finalize(1);
+            user->Send(packet);
             return false;
         }
     }
@@ -73,28 +65,40 @@ bool MakePVPRoom(CUser* user, MSG_MAKE_PVP_ROOM& msg, ENUM_CMDPACKET cmd, PVP_BA
         G_CDataManager()->m_serverParameter.get_pvp_item_give(user->get_pvp_grade());
     if (giveItem <= giveLimit)
     {
-        SendMakePVPRoomError(user, packet, 0x7);         // 0x81f7a64..0x81f7aaf
+        packet.put_byte(0);                              // 0x81f7a64..0x81f7aaf
+        packet.put_byte(0x7);
+        packet.finalize(1);
+        user->Send(packet);
         return false;
     }
 
     // 幽灵状态门（ORIG 0x81f7ab9..0x81f7b13）
     if (user->IsCurCharacGhost() != 0)
     {
-        SendMakePVPRoomError(user, packet, 0x13);
+        packet.put_byte(0);
+        packet.put_byte(0x13);
+        packet.finalize(1);
+        user->Send(packet);
         return false;
     }
 
     // 非 PvP 频道门（ORIG 0x81f7b1d..0x81f7b81：!IsPVPChannel() → err 0x13）
     if (!G_GameWorld()->IsPVPChannel())
     {
-        SendMakePVPRoomError(user, packet, 0x13);
+        packet.put_byte(0);
+        packet.put_byte(0x13);
+        packet.finalize(1);
+        user->Send(packet);
         return false;
     }
 
     // 用户状态门（ORIG 0x81f7b86..0x81f7be6：get_state() != 3 → err 0x13）
     if (user->get_state() != 3)
     {
-        SendMakePVPRoomError(user, packet, 0x13);
+        packet.put_byte(0);
+        packet.put_byte(0x13);
+        packet.finalize(1);
+        user->Send(packet);
         return false;
     }
 
@@ -102,7 +106,10 @@ bool MakePVPRoom(CUser* user, MSG_MAKE_PVP_ROOM& msg, ENUM_CMDPACKET cmd, PVP_BA
     PvP_Room* pvp = G_CGameManager()->GetPvp();         // -0x24
     if (pvp == 0)
     {
-        SendMakePVPRoomError(user, packet, 0x4);
+        packet.put_byte(0);
+        packet.put_byte(0x4);
+        packet.finalize(1);
+        user->Send(packet);
         return false;
     }
 
@@ -134,7 +141,10 @@ bool MakePVPRoom(CUser* user, MSG_MAKE_PVP_ROOM& msg, ENUM_CMDPACKET cmd, PVP_BA
     {
         // 成功应答（ORIG 0x81f7dc2..0x81f7e07）
         // 建房失败计费区日志（ORIG 0x81f7e0c..0x81f7e42；0x858c=34188；
-        SendMakePVPRoomError(user, packet, roomNo);      // ORIG 0x81f7dc2..0x81f7e07：byte(0), byte(ret), finalize, Send
+        packet.put_byte(0);                              // ORIG 0x81f7dc2..0x81f7e07：byte(0), byte(ret), finalize, Send
+        packet.put_byte(roomNo);
+        packet.finalize(1);
+        user->Send(packet);
         LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp",
                               __PRETTY_FUNCTION__,
                               0x858c,

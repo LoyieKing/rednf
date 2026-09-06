@@ -4762,8 +4762,8 @@ static bool GetExpertJobAdditionalGainExp(STItemScript* item)
         return false;
     bool ok = true;
     item->m_expertJob.m_additionalExp.m_field0 = ScanFloat(&ok);
-    if (ok)
-        return true;
+    if (ok != 1)          // P196 真语义 bug：ORIG ok==1 才进 ScanInt，另一路返 ok（当前极性反、返常量1错）
+        return ok;
     item->m_expertJob.m_additionalExp.m_field4 = ScanInt(&ok);
     return ok;
 }
