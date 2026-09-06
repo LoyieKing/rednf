@@ -1142,13 +1142,14 @@ bool CParty::get_party_realtime_info(PacketGuard& packet)
         if (_checkValidUser(i))
         {
             packet.put_short(m_member[i].m_pUser->get_unique_id() & 0xffff);
-            const _Charac_info* ci = m_member[i].m_pUser->getCurCharacR();
-            if (ci == 0)
+            // P48：ORIG 0859cc0f/0859ccc4 对 getCurCharacR 双侧各一次独立调用
+            //（test %eax;setne 直测 + else 内重新 getCurCharacR 读 +0x75），不缓存。
+            if (m_member[i].m_pUser->getCurCharacR() == 0)
                 packet.put_byte(0);
             else
-                packet.put_byte((int)ci->m_stamina);  // ORIG 0859cc78 `movzbl
-                                                      // 0x75(%eax)` = m_stamina
-                                                      //（unsigned char，宽度一致）
+                packet.put_byte(
+                    // ORIG 0859cc78 `movzbl 0x75(%eax)` = m_stamina。
+                    (int)m_member[i].m_pUser->getCurCharacR()->m_stamina);
             packet.put_byte(isHelpAbuseParty(m_member[i].m_pUser));
             packet.put_byte(i);
             ++count;

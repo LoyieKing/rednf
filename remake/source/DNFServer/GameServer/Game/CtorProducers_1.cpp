@@ -153,8 +153,8 @@ namespace ctors1
 {
 inline bool IsBlockWorldMapMark(const CDungeon* d)
 {
-    // ORIG set_world_map 分支：dungeon+0x87a 字节非 0 跳过收敛。
-    return *(reinterpret_cast<const char*>(d) + 0x87a) != 0;
+    // ORIG set_world_map 分支：dungeon+0x87a（m_villageAttackEventFlag）非 0 跳过收敛。
+    return d->m_villageAttackEventFlag != 0;
 }
 }  // namespace ctors1
 

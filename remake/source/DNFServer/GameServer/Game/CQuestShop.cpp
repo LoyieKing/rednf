@@ -501,7 +501,7 @@ void CQuestShop::getData(char* out) const
             continue;
         reinterpret_cast<QuestShopStatusView*>(view)->m_statusCounts[key] = value;
     }
-    view = reinterpret_cast<SIG_QUEST_SHOP_DATA*>(p + 0xaa); // +0x97a（ORIG 复用 -0x14）
+    view = &((SIG_QUEST_SHOP_DATA*)p)->m_tag;   // +0x0aa 段（ORIG 复用 -0x14）
     for (std::map<unsigned char, short>::const_iterator it =
              m_tagBuyingStatus.begin();
          it != m_tagBuyingStatus.end(); ++it)

@@ -252,16 +252,6 @@ bool DBDispatcher::dispatch(int userIdx, int slot, Stream* stream)
     }
     return true;
 }
-// ---- GetRepeatEvent 后的 is-eventing 判定（ORIG vtable+0x34 = slot 13
-//      CEventBase::IsEventing(CUser*) const，实参 0、返回 bool；P5 真实虚调用）----
-inline bool vtableCall34(CEventBase* evt)
-{
-    if (evt == 0)
-    {
-        return false;
-    }
-    return evt->IsEventing(0);
-}
 // ============================================================================
 // _getGameDB（ORIG T 0x0840f4f8）/ _GetDNFAccountDB（ORIG T 0x08411bae）
 // ============================================================================
@@ -2500,7 +2490,7 @@ int DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
 int DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
 {
     CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x67);
-    if (!vtableCall34(evt))
+    if (evt == 0 || !evt->IsEventing(0))  // §4.1：删发明 helper vtableCall34，原地展开（P5 真虚调用）
     {
         return 1;
     }
@@ -2551,7 +2541,7 @@ int DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
 int DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
 {
     CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x68);
-    if (!vtableCall34(evt))
+    if (evt == 0 || !evt->IsEventing(0))  // §4.1：删发明 helper vtableCall34，原地展开（P5 真虚调用）
     {
         return 1;
     }
@@ -2605,7 +2595,7 @@ int DB_Login::GetBingoEvent(SIG_LOGIN_DATA* sig)
         SGB(sig, OFF_BINGO_EVT));
     bingo.clear();
     CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x6a);
-    if (!vtableCall34(evt))
+    if (evt == 0 || !evt->IsEventing(0))  // §4.1：删发明 helper vtableCall34，原地展开（P5 真虚调用）
     {
         return 1;                            // 事件未开启：视为无数据成功
     }

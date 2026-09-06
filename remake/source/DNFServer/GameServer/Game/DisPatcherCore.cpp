@@ -4317,7 +4317,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
                 const unsigned char revengeCnt = member->GetCurRevengeDungeonCount();
                 if (revengeCnt == 0 || (unsigned char)dungeon->m_maxRevengeCount < revengeCnt)
                 {
-                    member->SetCurRevengeDungeonCount(0);
+                    party->get_user(i)->SetCurRevengeDungeonCount(0);   // P48：ORIG 第二次独立 get_user
                     out.m_c = 0xad;
                     out.m_14 = i;
                     return 0;

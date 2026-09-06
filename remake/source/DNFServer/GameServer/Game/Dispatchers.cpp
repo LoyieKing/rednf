@@ -19691,10 +19691,11 @@ int Dispatcher_UseRightOfChangeGrowType::process(CUser* user, MSG_BASE& msg, Par
 int Dispatcher_UseRightOfChangeGrowType::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x0825dbcc：short@0xd → char@0xf
-    MSG_QUICK_PARTY& m = reinterpret_cast<MSG_QUICK_PARTY&>(msg);
-    if (!packet.get_short(*reinterpret_cast<short*>(&m.m_0e)))   // +0xe word
-        return LineFunc(0x4f1e, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_10)))      // +0x10 byte
+    MSG_RIGHT_OF_CHANGE_GROW_TYPE& m =
+        reinterpret_cast<MSG_RIGHT_OF_CHANGE_GROW_TYPE&>(msg);
+    if (!packet.get_short(*reinterpret_cast<short*>(&m.m_0d)))   // +0xd word
+        return LineFunc(0x81, __PRETTY_FUNCTION__, 0, 0);
+    if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_0f)))      // +0xf byte
         return LineFunc(0x84, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -26260,8 +26261,11 @@ int Dispatcher_RequestIngameAdvertisement::process(CUser* user, MSG_BASE& msg,
 // ==== Dispatcher_RequestIngameAdvertisement::send (ORIG 0x081e46c8) ====
 void Dispatcher_RequestIngameAdvertisement::send(CUser* user, ParamBase& param)
 {
-    char* const P = reinterpret_cast<char*>(&param);
-    const int err = *reinterpret_cast<const int*>(P + 0x640);
+    // 具名访问：stRequestIngameAdvertisement（PacketTypes.h 权威布局，总长 0x648）。
+    // 字符串区落冻结头 pad 区（已 hub 报 Main 补具名串字段），此处以具名成员为基址。
+    stRequestIngameAdvertisement& R =
+        reinterpret_cast<stRequestIngameAdvertisement&>(param);
+    const int err = R.m_errorCode;                                  // +0x640
 
     if (err == 0x7fffffff)
     {
@@ -26276,7 +26280,7 @@ void Dispatcher_RequestIngameAdvertisement::send(CUser* user, ParamBase& param)
         pg.put_header(1, 0x1e9);
         pg.put_byte(0);
         pg.put_byte(err & 0xff);
-        pg.put_short(*reinterpret_cast<const short*>(P + 0x644));
+        pg.put_short(R.m_adType);                                   // +0x644
         pg.finalize(true);
         user->Send(pg);
         return;
@@ -26286,78 +26290,78 @@ void Dispatcher_RequestIngameAdvertisement::send(CUser* user, ParamBase& param)
     pg.clear();
     pg.put_header(1, 0x1e9);
     pg.put_byte(1);
-    pg.put_int(*reinterpret_cast<const int*>(P + 0x004));
-    pg.put_short(*reinterpret_cast<const short*>(P + 0x644));
-    // 以下 +0x33b/+0x33c/+0x33d 与文本区偏移均为 stNotifyIngameADInfo 视图（基址 P+4）
-    pg.put_byte(static_cast<signed char>(*reinterpret_cast<const unsigned char*>(P + 0x33b)));
+    pg.put_int(static_cast<int>(R.m_code));                         // +0x004
+    pg.put_short(R.m_adType);                                       // +0x644
+    // 以下 m_adShape/m_logFlag/m_prizeShape 与文本区字段同属 +0x04 内嵌通知信息块
+    pg.put_byte(static_cast<signed char>(R.m_adShape));             // +0x33b
 
     {
         const int descLen =
-            static_cast<int>(strlen(reinterpret_cast<const char*>(P + 0x008)));
+            static_cast<int>(strlen(R.m_pad08));                    // +0x008
         pg.put_int(descLen);
-        pg.put_str(reinterpret_cast<const char*>(P + 0x008), descLen);
+        pg.put_str(R.m_pad08, descLen);
     }
 
-    pg.put_byte(static_cast<signed char>(*reinterpret_cast<const unsigned char*>(P + 0x33d)));
+    pg.put_byte(static_cast<signed char>(R.m_prizeShape));          // +0x33d
 
-    if (*reinterpret_cast<const unsigned char*>(P + 0x33d) == 0)
+    if (R.m_prizeShape == 0)
     {
         const int textLen =
-            static_cast<int>(strlen(reinterpret_cast<const char*>(P + 0x33e)));
+            static_cast<int>(strlen(R.m_pad33e));                   // +0x33e
         pg.put_int(textLen);
-        pg.put_str(reinterpret_cast<const char*>(P + 0x33e), textLen);
+        pg.put_str(R.m_pad33e, textLen);
 
         const unsigned char kind =
-            *reinterpret_cast<const unsigned char*>(P + 0x33b);
+            R.m_adShape;                                            // +0x33b
         if (kind == 0)
         {
-            pg.put_int(*reinterpret_cast<const int*>(P + 0x53c));
+            pg.put_int(static_cast<int>(R.m_itemID2));              // +0x53c
         }
         else if (kind == 1)
         {
             const int len =
-                static_cast<int>(strlen(reinterpret_cast<const char*>(P + 0x43d)));
+                static_cast<int>(strlen(R.m_pad33e + 0xff));        // +0x43d
             pg.put_int(len);
-            pg.put_str(reinterpret_cast<const char*>(P + 0x43d), len);
+            pg.put_str(R.m_pad33e + 0xff, len);
         }
         else if (kind == 3)
         {
             const int len =
-                static_cast<int>(strlen(reinterpret_cast<const char*>(P + 0x540)));
+                static_cast<int>(strlen(R.m_pad540));               // +0x540
             pg.put_int(len);
-            pg.put_str(reinterpret_cast<const char*>(P + 0x540), len);
+            pg.put_str(R.m_pad540, len);
         }
     }
     else
     {
         const int textLen =
-            static_cast<int>(strlen(reinterpret_cast<const char*>(P + 0x03a)));
+            static_cast<int>(strlen(R.m_pad08 + 0x32));             // +0x03a
         pg.put_int(textLen);
-        pg.put_str(reinterpret_cast<const char*>(P + 0x03a), textLen);
+        pg.put_str(R.m_pad08 + 0x32, textLen);
 
         const unsigned char kind =
-            *reinterpret_cast<const unsigned char*>(P + 0x33b);
+            R.m_adShape;                                            // +0x33b
         if (kind == 0)
         {
-            pg.put_int(*reinterpret_cast<const int*>(P + 0x238));
+            pg.put_int(static_cast<int>(R.m_itemID));               // +0x238
         }
         else if (kind == 1)
         {
             const int len =
-                static_cast<int>(strlen(reinterpret_cast<const char*>(P + 0x139)));
+                static_cast<int>(strlen(R.m_pad08 + 0x131));        // +0x139
             pg.put_int(len);
-            pg.put_str(reinterpret_cast<const char*>(P + 0x139), len);
+            pg.put_str(R.m_pad08 + 0x131, len);
         }
         else if (kind == 3)
         {
             const int len =
-                static_cast<int>(strlen(reinterpret_cast<const char*>(P + 0x23c)));
+                static_cast<int>(strlen(R.m_pad23c));               // +0x23c
             pg.put_int(len);
-            pg.put_str(reinterpret_cast<const char*>(P + 0x23c), len);
+            pg.put_str(R.m_pad23c, len);
         }
     }
 
-    pg.put_byte(static_cast<signed char>(*reinterpret_cast<const unsigned char*>(P + 0x33c)));
+    pg.put_byte(static_cast<signed char>(R.m_logFlag));             // +0x33c
     pg.finalize(true);
     user->Send(pg);
 }
