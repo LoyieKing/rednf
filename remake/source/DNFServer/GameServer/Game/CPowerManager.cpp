@@ -21,10 +21,6 @@
 // 的 m_pad[0x208]（offset 布局一致：+0x00 winnerSide / +0x04/+0x08 分数 /
 // +0x0c/+0x10 频道分数 / +0x14/+0x18 阵营人数 / +0x28..+0x1b4 雕像排行 /
 // +0x1b4 CPowerWarLog / +0x1f0 CPowerWarPacketLog）。
-static bool PowerManager_IsOverBirthDay(CUser* user)
-{
-    return user != 0 && user->IsOverBirthDay();
-}
 bool CPowerManager::IsPowerWarEventOn()
 {
     // ORIG 0x0847f910：重复事件 0x1e（PowerWar）经 vtable+0x34 判活，无空指针检查。

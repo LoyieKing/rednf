@@ -231,17 +231,16 @@ Taiwan::TaiwanCash* CIPGMgr::getBillingCash()   // ORIG W 0x0817a2ee
 //   0xd5/0xe0/0xe5 三态归一（init==1→1、init==0→0）。----
 bool InitBillingCash(Taiwan::TaiwanCash*& cash)
 {
+    // ORIG 0x0814657c：G_CEnvironment() 调两次（type 一次、map 访问一次）。
     CEnvironment* env = G_CEnvironment();
     unsigned char type = static_cast<unsigned char>(env->m_serverEnvir.m_serverGroup);
 
     cash = new Taiwan::TaiwanCash(type, 1);
 
-    // CEnvironment::m_dbConnInfo 权威布局 +0x68（ORIG lea 0x68(%eax)
-    // @0x081465e4）；经 get_db_conn_info() 访问（CEnvironment.h 的 inline
-    // accessor，不产生符号、不改变布局）。
-    std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo>& connMap =
-        env->get_db_conn_info();
-    STDBConnInfo& info = connMap[DB_HANDLE_E];
+    // ORIG 第二次 G_CEnvironment() 后直访 m_dbConnInfo[DB_HANDLE_E]（+0x68；
+    // 禁 get_db_conn_info() accessor——ORIG 无该 call，P167 判据）。
+    STDBConnInfo& info =
+        G_CEnvironment()->m_dbConnInfo[DB_HANDLE_E];
 
     if (cash == 0)
     {

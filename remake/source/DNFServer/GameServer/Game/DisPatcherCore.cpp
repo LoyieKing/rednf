@@ -12977,17 +12977,21 @@ int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
     trace2("GM Command : %s", NumberToString(user->get_acc_id(), 0));
 
     bool result = true;                                  // ORIG local_1e(-0x1a)
-    const bool passFlag = false;                         // ORIG local_1d(-0x19) 恒 0
-    if ((unsigned char)GlobalData::s_GM_Manager->IsGm(user->get_acc_id()) != 1 ||
-        passFlag)
+    bool passFlag = false;                               // ORIG local_1d(-0x19) 恒 0
+    // ORIG 反汇编：`IsGm(accId)` 后 xor $1/test；非 GM 走 Illegal trace+
+    // LineFunc(0x8b91)（不静默 return 0）；GM 再检 passFlag（movzbl -0x19/
+    // xor $1/test，非折叠），假则 return 0、真则 GM Pass trace + switch。
+    if ((unsigned char)GlobalData::s_GM_Manager->IsGm(
+            user->get_acc_id()) != 1)
     {
-        if (!passFlag)
-            return 0;
         cMyTrace trace3(kPretty, 0x8b90, 5);
         trace3("Illegal GM Command : %d", user->get_acc_id());
         return LineFunc(0x8b91, kPretty, 0, 0);
     }
-    else
+    if (!passFlag)
+    {
+        return 0;
+    }
     {
         cMyTrace trace4(kPretty, 0x8bb6, 0);
         trace4("GM Pass Complete! Command(%d)", (int)msg->m_command);
@@ -13155,7 +13159,7 @@ int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
                 user->GetServerGroup());
         proxy->SendIncreaseDecreasePowerWarPoint(
             (unsigned int)(unsigned short)(size_t)user->get_charac_guildkey(),
-            (unsigned int)user->get_charac_no(-1), msg->m_arg);
+            static_cast<unsigned int>(user->getCurCharacNo()), msg->m_arg);
         break;
     }
     case 0x28:
