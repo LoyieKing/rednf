@@ -109,7 +109,14 @@ struct StrikerDirectionType
     StrikerDirectionType() : m_type(0) {}
     void setType(int type)
     {
-        if (type >= 0 && type <= 1)
+        // ORIG 0x08a9d7fa：双独立空块 js/jg+nop 岛保留（4.1 形），显式 else 链。
+        if (type < 0)
+        {
+        }
+        else if (type > 1)
+        {
+        }
+        else
         {
             m_type = type;
         }

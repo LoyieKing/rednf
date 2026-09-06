@@ -786,12 +786,13 @@ bool importSlangList(char* path, std::vector<std::string>* out)
 // ORIG T 0x08917848 _Z23importHiddenNpcListInfoPKcRSt6vectorIiSaIiEE。
 bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
 {
-    if (!loadRDARScriptFile(path, ""))
+    // ORIG 0x089178de：`mov 0xc(%ebp),%eax; mov %eax,0x4(%esp);
+    // movl $<rodata 串>,(%esp); call loadRDARScriptFile` —— **第一参数为
+    // rodata 基串、第二才是 path**（我们原写反，真语义 bug）。
+    if (!loadRDARScriptFile("", path))
         return false;
     std::string token;
     bool done = false;
-    bool isType = false;
-    bool isInt = false;
     out.clear();
     while (!done)
     {
@@ -802,6 +803,10 @@ bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
         for (;;)
         {
             std::string s;
+            // ORIG 0x089179ad：isType/isInt 为**循环内每轮**置零
+            // （movb $0,-0x15/-0x16，P171 dead-init 照抄）。
+            bool isType = false;
+            bool isInt = false;
             int v = ScanTypeOrInt(isType, s, isInt, 1);
             if (!isInt)
                 return false;
@@ -1375,15 +1380,21 @@ int ImportDifficultPenaltyInfoScript(const char* path, DifficultPenaltyInfo& out
         return 0x1bdb;
     }
     std::string token;
+    // ORIG 0x0890a33e：flag(-0x15) 为**函数级未初始化 bool**，ScanType 成功后
+    // 每轮无条件置 true（0890a39a movb $1），内层 ScanInt(&flag) 复用同槽；
+    // v(-0xc) 每轮内层先置 0（0890a3c4 movl $0）再 ScanInt 落值。
+    bool flag;
+    int v;
     while (ScanType(token, true))
     {
+        flag = true;
         if (token == "[COMMON TRAP EXPLOSION]")
         {
             for (int i = 0; i <= 4; ++i)
             {
-                bool ok = false;
-                int v = ScanInt(&ok);
-                if (ok)
+                v = 0;
+                v = ScanInt(&flag);
+                if (flag)
                 {
                     out.m_values[i] = v;
                 }
@@ -1419,6 +1430,10 @@ int ImportTileScript(STTileScript* script, const char* path)
     }
     script->Clear();
 
+    // ORIG 089dcc3f/089dcc47：Clear 后即写 bool ok=false、int n=0 ——
+    // 两临时为**函数级**（[pass type] 段共用其槽 -0x11/-0x18）。
+    bool ok = false;
+    int n = 0;
     std::string token;
     std::string str;
     while (ScanType(token, true))
@@ -1449,15 +1464,18 @@ int ImportTileScript(STTileScript* script, const char* path)
         else if (token == "[pass type]")
         {
             script->m_collisions.clear();
+            // ORIG 089dcd8d：row vector<int> 在循环**外**构造一次（跨轮
+            // 复用，loop top 089dcd92 直落 ScanInt）；行内 089dcdfb 显式
+            // row.clear()；首个 ok 检查 fail → je 089dce1b 跳统一 dtor 岛
+            // （+0x265 nop;D1;jmp 尾），循环体不回跳 dtor。
+            std::vector<int> row;
             for (;;)
             {
-                bool ok = false;
-                int n = ScanInt(&ok);
+                n = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                std::vector<int> row;
                 row.clear();
                 row.push_back(n);
                 for (int i = 1; i <= 0xd; ++i)

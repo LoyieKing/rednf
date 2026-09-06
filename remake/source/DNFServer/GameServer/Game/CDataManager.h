@@ -530,7 +530,7 @@ struct _str_option_value_ratio
     }
     float m_scaleRange0;      // +0x00（以 (max-min) 加权）
     float m_scaleBase4;       // +0x04（以 min 加权）
-    unsigned int m_weight8;   // +0x08（累积权重）
+    int m_weight8;   // +0x08（累积权重；ORIG 0x8a7ea98 三段 dword 直拷，int 载体消符号扩展）
 };  // sizeof 0xc
 // ORIG D1 0x8a5a4f8；importPowerParameterScript [straight victory penalty]
 // （0x8a592bc +0x848..+0x8cc）每条连续扫描 4 个 int（均 ScanInt(&ok) 校验），
@@ -754,7 +754,10 @@ struct stNPCCommonData_t
     {
         int m_changeStatusType;    // +0x00
         int m_value;               // +0x04
-        unsigned char m_isNotPlus; // +0x08
+        // ORIG construct 0x8a7ea98 族：+0x08 以 **dword** 拷贝（`mov 0x8(%edx),%edx;
+        // mov %edx,0x8(%eax)`），uchar 载体反产 movzbl/movb 字节对 ⇒ int（技巧 5
+        // signedness/宽度装载序定律）。
+        int m_isNotPlus;           // +0x08
         ~stOneBuff_t();            // ORIG W 0x08a04b54
     };                             // sizeof 0xc
     // 用户提供默认构造：值初始化仅构造容器成员、不零初始化 POD 前缀。
@@ -2040,7 +2043,9 @@ public:
         int m_stageId;    // +0x04（map 键）
         int m_nextId;     // +0x08（链式后继 stageId；末元素由 loadList 决定）
         unsigned char m_flags;    // +0x0c（loadList 常规=0 / 幕区收尾=1【推断】）
-        unsigned char m_pad0d[3]; // +0x0d..+0x0f（保 sizeof 0x10）
+        // 原 m_pad0d[3] 显式成员使隐式 copy ctor 以 dword 整体覆盖 +0x0c..0x0f，
+        // ORIG construct/copy 仅 `movzbl+movb` 单字节（+0x0d..0x0f 为纯尾隙不拷贝）
+        // ⇒ 删 pad，靠默认对齐保 sizeof 0x10。
     };
 
     // ---- LfAltarStage 批追加（advancealtar clearStage/setNextStage 依赖）----
