@@ -379,21 +379,23 @@ void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
     float pcRoomRate = 0.0f;
     {   // 事件 8：PC 房间燃烧（整除 /100 —— imul 0x51eb851f 形态实证）
         CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(8);
-        if (ev != 0 && ev->IsEventing(user))
-            pcRoomRate = (float)(((CPCRoomBurningEvent*)ev)->GetExpFactor() / 100);
+        if (ev->IsEventing(user))
+            pcRoomRate = (float)(((CPCRoomBurningEvent*)
+                GlobalData::s_event_manager->GetRepeatEvent(8))->GetExpFactor() / 100);
     }
 
     float expDoubleRate = 0.0f;
     {   // 事件 3：双倍经验（浮点 /100.0f，常量 _DAT_08c640b8 = 100.0f）
         CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(3);
-        if (ev != 0 && ev->IsEventing(0))
-            expDoubleRate = (float)((CExpDoubleEvent*)ev)->GetExpFactor() / 100.0f;
+        if (ev->IsEventing(0))
+            expDoubleRate = (float)((CExpDoubleEvent*)
+                GlobalData::s_event_manager->GetRepeatEvent(3))->GetExpFactor() / 100.0f;
     }
 
     int burningBonusExp = 0;
     {   // 事件 0xf：疲劳燃烧加成（千分率原始值）
         CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0xf);
-        if (ev != 0 && ev->IsEventing(0))
+        if (ev->IsEventing(0))
             burningBonusExp =
                 ((CBurningFatigueEvent*)ev)->getBonusExpRate(user->getCurCharacUsedFatigue());
     }
@@ -406,7 +408,9 @@ void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
     const unsigned int channelNo = (unsigned int)env->get_channel_no();
     const unsigned int dungeonIdx = (unsigned int)dungeonMgr.getDungeon()->get_index();
     const float channelRate =
-        channelScript->getBonusRate((unsigned char)env->get_server_group(), channelNo, dungeonIdx);
+        channelScript->getBonusRate(
+            (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
+            channelNo, dungeonIdx);
 
     float premiumAdvantageRate = 0.0f;
     if (user->IsHavePremiumAdvantage())

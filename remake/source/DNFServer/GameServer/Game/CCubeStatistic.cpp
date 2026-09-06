@@ -96,17 +96,15 @@ int CCubeStatistic::sendCubeStatistic(int itemIndex, int count, CUser* user,
 void CCubeStatistic::collectCubeStatistics(int itemIndex, int count, CUser* user,
                                            CUBE_STATISTIC_FIELD field)
 {
-    // ORIG：item=G_CDataManager()->find_item(itemIndex) 直调（无 manager NULL 防御）；
-    // 非 NULL 时
-    // 1) 本对象 findCubeStuff(item->getItemGroupName()) 命中 → 本对象 send；
-    // 2) 单例 GetInstanceCubeStatistic()->findCubeStuff(...) 命中 → 单例 send。
+    // ORIG：item=G_CDataManager()->find_item(itemIndex) 直调（无 manager NULL 防御）。
+    // 两处 findCubeStuff 各自内联 getItemGroupName()（ORIG 重算两次，无 group 局部；
+    // P0 槽-局部对应律禁缓存局部）。GetInstanceCubeStatistic() 也用两次。
     CItem* item = G_CDataManager()->find_item(itemIndex);
     if (item == 0)
         return;
-    int group = item->getItemGroupName();
-    if (findCubeStuff(group))
+    if (findCubeStuff(item->getItemGroupName()))
         sendCubeStatistic(itemIndex, count, user, field);
-    if (GetInstanceCubeStatistic()->findCubeStuff(group))
+    if (GetInstanceCubeStatistic()->findCubeStuff(item->getItemGroupName()))
         GetInstanceCubeStatistic()->sendCubeStatistic(itemIndex, count, user, field);
 }
 
