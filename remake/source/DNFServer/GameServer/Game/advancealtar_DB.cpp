@@ -627,13 +627,14 @@ bool DB_Load::parseSlot(char* str, _Slot* out, int count)
         char* field = strtok_r(line, ",", &saveInner);
         for (int f = 0; field != 0 && f < 4; ++f)
         {
-            const int v = atoi(field);
+            // ORIG：atoi(field) 在 switch 各 case 内各自调用（4 处静态 call），
+            // 勿前置 `const int v = atoi(...)`（会合成单 in-loop call）。
             switch (f)
             {
-            case 0: out[row].m_byte0 = static_cast<unsigned char>(v > 0 ? 1 : 0); break; // [0x813e47a]
-            case 1: out[row].m_int1 = v; break;                                          // [0x813e48f +1]
-            case 2: out[row].m_byte5 = static_cast<unsigned char>(v != 0 ? 1 : 0); break;// [0x813e4a7 +5]
-            case 3: out[row].m_int6 = v; break;                                          // [0x813e4bb +6]
+            case 0: out[row].m_byte0 = static_cast<unsigned char>(atoi(field) > 0 ? 1 : 0); break; // [0x813e47a]
+            case 1: out[row].m_int1 = atoi(field); break;                                   // [0x813e48f +1]
+            case 2: out[row].m_byte5 = static_cast<unsigned char>(atoi(field) != 0 ? 1 : 0); break;// [0x813e4a7 +5]
+            case 3: out[row].m_int6 = atoi(field); break;                                   // [0x813e4bb +6]
             }
             field = strtok_r(0, ",", &saveInner);
         }
@@ -655,13 +656,13 @@ bool DB_Load::parseBuyItem(char* str, _BuyItem* out, int count)
         char* field = strtok_r(line, ",", &saveInner);
         for (int f = 0; field != 0 && f < 4; ++f)
         {
-            const int v = atoi(field);
+            // ORIG：atoi(field) 在 switch 各 case 内各自调用（4 处静态 call）。
             switch (f)
             {
-            case 0: out[row].m_field0 = v; break;                                        // [0x813e76c]
-            case 1: out[row].m_field4 = v; break;
-            case 2: out[row].m_short8 = static_cast<short>(v); break;                    // [0x813e79a +8 short]
-            case 3: out[row].m_short10 = static_cast<short>(v); break;                   // [0x813e7ab +10 short]
+            case 0: out[row].m_field0 = atoi(field); break;                              // [0x813e76c]
+            case 1: out[row].m_field4 = atoi(field); break;
+            case 2: out[row].m_short8 = static_cast<short>(atoi(field)); break;          // [0x813e79a +8 short]
+            case 3: out[row].m_short10 = static_cast<short>(atoi(field)); break;         // [0x813e7ab +10 short]
             }
             field = strtok_r(0, ",", &saveInner);
         }

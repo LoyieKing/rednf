@@ -1292,9 +1292,12 @@ int send_chat_msg(char* msg, int len)
     addr.sin_addr.s_addr = htonl(0);
     addr.sin_port = htons(static_cast<unsigned short>(
         G_CEnvironment()->get_udp_port()));
+    // ORIG：`movb $0x3,-0x72` 在 len 检查之前（hoist）；len<=0x4f 分支
+    // `mov %al,-0x21` → buf[0x51] = (char)len（发送 0x52 字节含尾 len 字节）。
+    buf[0] = 0x3;
     if (len > 0x4f)
         return -1;
-    buf[0] = 0x3;
+    buf[0x51] = (char)len;
     strncpy(buf + 1, msg, 0x50);
     int sent = sendto(fd, buf, 0x52, 0,
                       reinterpret_cast<sockaddr*>(&addr), 0x10);

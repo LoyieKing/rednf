@@ -196,17 +196,19 @@ bool CCreature::IsEvolutionCreature(int creatureId)
 // ORIG _ZN13user_creature9CCreature24IsEvolutionCreatureMultyEi T 0x8338922。
 bool CCreature::IsEvolutionCreatureMulty(int creatureId)
 {
-    if (m_script == 0)
-        return false;
-    return m_script->isEvoluationCreature(creatureId);
+    // ORIG `test; je 返false岛`：call 作 fall-through、return false 作岛（P196 极性）。
+    if (m_script != 0)
+        return m_script->isEvoluationCreature(creatureId);
+    return false;
 }
 
 // ORIG _ZN13user_creature9CCreature24IsEventEvolutionCreatureEi T 0x8338bfa。
 bool CCreature::IsEventEvolutionCreature(int creatureId)
 {
-    if (m_script == 0)
-        return false;
-    return m_script->validEventEvlouteCreature(creatureId);
+    // ORIG `test; je 返false岛`：call 作 fall-through、return false 作岛（P196 极性）。
+    if (m_script != 0)
+        return m_script->validEventEvlouteCreature(creatureId);
+    return false;
 }
 
 // ORIG _ZN13user_creature9CCreature22GetLearnOverSkillLevelEv T 0x8338c78。

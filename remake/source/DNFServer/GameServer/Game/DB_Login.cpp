@@ -15,7 +15,6 @@
 #include "DB_Login.h"
 
 #include <string.h>
-#include <cstring>      // std::strrchr（ORIG 用 _ZSt7strrchrPci 而非全局 strrchr）
 #include <stdlib.h>
 #include <time.h>
 
@@ -2266,12 +2265,12 @@ int DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
     // ORIG：双 16 字节缓冲，当前 ip 与旧登录 ip(+0x4114)
     strcpy(oldIp, SGB(sig, 0x4114));
 
-    char* dotCur = std::strrchr(curIp, '.');     // 截掉最后一段（去端口化前缀）
+    char* dotCur = strrchr(curIp, '.');          // 截掉最后一段（去端口化前缀）
     if (dotCur != 0)
     {
         *dotCur = '\0';
     }
-    char* dotOld = std::strrchr(oldIp, '.');
+    char* dotOld = strrchr(oldIp, '.');
     if (dotOld != 0)
     {
         *dotOld = '\0';

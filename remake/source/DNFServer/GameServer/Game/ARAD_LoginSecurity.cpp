@@ -205,9 +205,13 @@ int PVP_CHANNEL::is_common_channel()
 int PVP_CHANNEL::check_Login_server_group(SIG_LOGIN_DATA* data)
 {
     // P0/P194：ORIG `mov %eax,-0xc`（GetChannelType 结果落具名局部）+ `call
-    // is_all_pvp_channel; xor$1; test; je`（X1 形直测，去 `!=0` 物化）。
+    // is_all_pvp_channel; xor$1; test; je`（X1 形直测）。is_all_pvp 返 int，
+    // `!intcall()` 4.4 产 setne 物化，需 X1 register-uchar-eax 绑回 xor$1。
     int channelType = G_GameWorld()->GetChannelType();
-    if (!is_all_pvp_channel())
+    register unsigned char allPvp asm("eax") =
+        (unsigned char)is_all_pvp_channel();
+    allPvp ^= 1;
+    if (allPvp)
     {
         data->m_channelRestrictField = 0;
     }

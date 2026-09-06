@@ -62,9 +62,9 @@ bool DB_InsertAccountFirstLoginDailyFlag::dispatch(int /*userIdx*/, int /*slot*/
 
     // ORIG 0x0843e99c/0x0843ea12：toTString(const std::string&) 转换表名。
     std::string& tableName = ent->get_db_table_name();
-    const char* tableNameStr = toTString(tableName);
+    // P48 no-CSE：ORIG 两条 set_query 各 fresh toTString(tableName)（共 2 次）。
     db->set_query("upDate %s set charac_no=%u, occ_date=now() where m_id=%u",
-                  tableNameStr, local_24, local_20);
+                  toTString(tableName), local_24, local_20);
     if (!db->exec(true))
         return 0;
 
@@ -72,7 +72,7 @@ bool DB_InsertAccountFirstLoginDailyFlag::dispatch(int /*userIdx*/, int /*slot*/
     {
         db->set_query("inSert into %s(m_id, charac_no, occ_date) "
                       "values(%u, %u, now())",
-                      tableNameStr, local_20, local_24);
+                      toTString(tableName), local_20, local_24);
         if (!db->exec(true))
             return 0;
     }

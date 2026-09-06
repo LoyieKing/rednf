@@ -47,12 +47,12 @@ const int OFF_KEEP        = 0x64;  // map<int,bool>（LetterKeepCount）
 const int OFF_LASTLETTER  = 0x7c;  // unsigned int（GetLastLoadLetterIdx）
 const int OFF_LOADCNT     = 0x80;  // int（Get/SetLoadedLetterCount）
 
-// CAvatarItemMgr 的宝石槽/扩展信息访问器：完整类定义在 CAvatarItemMgr.h（与
-// CInventory.h 镜像声明冲突，不可同时 include），此处以 asm 标签直接对齐 ORIG 符号。
-extern char* CMailBox_AvatarGetJewelSocketData(const void* mgr, int key)
-    asm("_ZNK8WongWork14CAvatarItemMgr18getJewelSocketDataEi");
-extern char* CMailBox_AvatarGetExpansionInfo(const void* mgr, int key)
-    asm("_ZNK8WongWork14CAvatarItemMgr16GetExpansionInfoEi");
+// b22 桥清零（P201，Model22）：原「CAvatarItemMgr.h 与 CInventory.h 镜像声明
+// 冲突」注记过时——CInventory.h:37 已改 include 权威 CAvatarItemMgr.h（本地
+// 最小镜像退役，m_avatarItemMgr 即权威类型 0x84），GetAvatarItemMgrR() 直接
+// 返回 const CAvatarItemMgr*，两个 asm 标签桥转真 const 成员调用
+// （getJewelSocketData W 0x.../GetExpansionInfo，CAvatarItemMgr.h:58-59 声明，
+// mangled 与 ORIG 逐字符一致）。
 
 }  // namespace
 
@@ -151,23 +151,23 @@ void CMailBox::CMail::MakePacket(PacketGuard* packet, long nowSec,
     if (isAvatarPackage())
     {
         CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
-        const void* mgr = inv->GetAvatarItemMgrR();
+        const WongWork::CAvatarItemMgr* mgr = inv->GetAvatarItemMgrR();
         int uid = m_package.m_item.m_addInfo2;
 
         packet->put_int(0x1e);
-        packet->put_binary(CMailBox_AvatarGetJewelSocketData(mgr, uid), 0x1e);
+        packet->put_binary(mgr->getJewelSocketData(uid), 0x1e);
 
-        char* exp = CMailBox_AvatarGetExpansionInfo(mgr, uid);
+        const void* exp = mgr->GetExpansionInfo(uid);
         packet->put_int(4);
         if (exp == 0)
         {
             stAvatarExpansionInfo_t init;
             init.init();
-            packet->put_binary(reinterpret_cast<char*>(&init), 4);
+            packet->put_binary(reinterpret_cast<const char*>(&init), 4);
         }
         else
         {
-            packet->put_binary(exp, 4);
+            packet->put_binary(reinterpret_cast<const char*>(exp), 4);
         }
     }
 

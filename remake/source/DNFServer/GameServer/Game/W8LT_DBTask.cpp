@@ -9001,7 +9001,7 @@ bool DB_LoadExpertJob::dispatch(int userIdx, int slot, Stream* stream)
         guard.operator*()->operator<<(userIdx);
         guard.operator*()->operator<<(slot);
         SIG_EXPERT_JOB* sig =
-            guard.operator*()->GetInBuffer<SIG_EXPERT_JOB>();
+            guard.operator->()->GetInBuffer<SIG_EXPERT_JOB>();
         memset(sig, 0, 0x30);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 1;
@@ -9014,7 +9014,7 @@ bool DB_LoadExpertJob::dispatch(int userIdx, int slot, Stream* stream)
         guard.operator*()->operator<<(userIdx);
         guard.operator*()->operator<<(slot);
         SIG_EXPERT_JOB* sig =
-            guard.operator*()->GetInBuffer<SIG_EXPERT_JOB>();
+            guard.operator->()->GetInBuffer<SIG_EXPERT_JOB>();
         memset(sig, 0, 0x30);
         if (!db->get_ushort(0, sig->m_giveupCount) ||
             !db->get_int(1, sig->m_endurance) ||
@@ -10806,7 +10806,7 @@ bool DB_BlackIPMonitor::dispatch(int userIdx, int slot, Stream* stream)
             guard.operator*()->operator<<(0x156);
             guard.operator*()->operator<<(-1);
             DB_IpMonitorPunishView* sig =
-                (DB_IpMonitorPunishView*)guard.operator*()
+                (DB_IpMonitorPunishView*)guard.operator->()
                     ->GetInBuffer<SIG_IP_MONITOR_PUNISH>();
             sig->m_count = buffered + 1;
             memcpy(&sig->m_items[0], buf, 0xc80);
@@ -18379,10 +18379,10 @@ bool DB_GetDeathTowerBestRecord::dispatch(int userIdx, int slot, Stream* stream)
     guard.operator*()->operator<<(0xe2);
     guard.operator*()->operator<<(slot);
     DB_TowerBestRecordView* out = reinterpret_cast<DB_TowerBestRecordView*>(
-        guard.GetInBuffer<SIG_DEATH_TOWER_GET_BEST_RECORD>());
+        guard.operator->()->GetInBuffer<SIG_DEATH_TOWER_GET_BEST_RECORD>());
     out->m_count = db->get_n_rows();
     out->m_characNo = characNo;
-    for (unsigned int i = 0; i < out->m_count; ++i)
+    for (unsigned int i = 0; i < (unsigned int)db->get_n_rows(); ++i)
     {
         if (!db->fetch())
             return 0;
@@ -19192,7 +19192,7 @@ bool DB_ReloadAutoPunishRuleHackType::dispatch(int userIdx, int slot,
     guard.operator*()->operator<<(-1);
     DB_AutoPunishHackTypeView* out =
         reinterpret_cast<DB_AutoPunishHackTypeView*>(
-            guard.GetInBuffer<SIG_AUTO_PUNISH_RULE_HACK_TYPE>());
+            guard.operator->()->GetInBuffer<SIG_AUTO_PUNISH_RULE_HACK_TYPE>());
     memset(out, 0, 0x2720);
     int rowCount = db->get_n_rows();
     unsigned int limit = std::min((unsigned int)0x1f4,

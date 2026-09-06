@@ -27,6 +27,8 @@
 #include "CTitleBook.h"   // item_lock::CItemLock / stItemLockRef 权威定义
 #include "CGameManager.h"
 #include "CInventory.h"
+#include "CPrivateStoreMgr.h"   // b22：private_store 权威头（局部影子类退役，
+                                //        deleteSpecificItem 转真 RemovePrivateStore）
 #include "DB_LogBuyItem.h"   // DB_LogBuyItem 权威声明（P104 统一：makeRequest 定义本文件）
 #include "APSystemTypes.h"
 #include "GameBasicsScripts.h"
@@ -162,19 +164,10 @@ class EpollHandler;
 EpollHandler* G_EpollHandler();
 
 
-// private_store 域最小前向声明（完整定义见 CPrivateStoreMgr.h；避免其头链
-// 引入与 SkillSlot.h 冲突的 SigTypes.h 包含序问题）
-namespace private_store
-{
-class CPrivateStore;
-class CPrivateStoreMgr
-{
-public:
-    CPrivateStore* FindStoreSeller(CUser* user);
-    bool IsBusyPrivateStore(CUser* user);   // ORIG 0x85cad5e（isEnableAvatarSocketAction 调用；caller test %al ⇒ bool ABI）
-};
-CPrivateStoreMgr* GetInstancePrivateStoreMgr();
-}
+// b22 类建模（Model22）：原「private_store 域最小前向声明」的规避理由
+// （SkillSlot.h↔SigTypes.h 包含序冲突）经双序探针实测**已不存在**（两序
+// 均 COMPILE OK，冲突注记过时）——改为 include 权威头 CPrivateStoreMgr.h
+// （本文件头区），局部影子类删除（§4.4 唯一声明点）。
 
 // CBattle_Field（本地最小视图；get_dungeon_index 定义于 CBattle_Field.cpp，
 // ORIG 0x0822d0d8，符号 _ZN13CBattle_Field17get_dungeon_indexEv。完整类头
@@ -7252,13 +7245,11 @@ void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
         (private_store::CPrivateStore*)mgr->FindStoreSeller(this);
     if (store != 0)
     {
-        // §4.5 例外：虚表+4 = ISeller::RemovePrivateStore(bool)（CPrivateStoreMgr.h:209
-        // 权威 vtable 实证），但 CUser.cpp 因 #include "CPrivateStoreMgr.h" 的
-        // SigTypes.h↔SkillSlot.h 包含序冲突（文件头注释）无法引权威头以获得
-        // 完整 14 虚成员布局；本 TU 仅为 `class CPrivateStore;` 前向。登记
-        // b22 类建模单：消解 CPrivateStoreMgr.h 包含序冲突后改真实 RemovePrivateStore(false)。
-        typedef void (*Vfn)(void*, int);          // 推断：虚表+4 结束个人商店
-        ((Vfn*)*(void**)store)[1](store, 0);
+        // 真成员调用（b22 消解旧 §4.5 例外）：ISeller 槽 +0x04
+        // RemovePrivateStore(bool)，CPrivateStoreMgr.h:54/217 权威声明
+        // （ORIG T 0x85c5fd0，vtable @0x8cbeb60 实证），编译器自动出
+        // vtbl[1] 间接调用，与原手写槽取法同形。
+        store->RemovePrivateStore(false);
     }
 
     _deleteSpecificItemInven((INVEN_TYPE)0, list, out, 10, 0x15);

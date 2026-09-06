@@ -670,6 +670,8 @@ bool CRandomOptionItemHandle::change_option(unsigned long itemIdx, ENUM_RARITY r
 // ===========================================================================
 bool IsAuctionServerDisconnected(unsigned char payType)
 {
+    // ORIG 0x082138f2：两个 if(!running)return true 共享单一 return-1 块（jne/je 不对称），
+    // 4.4 各自的 return-1 内联为 mov1;jmp 反极性（N-JMP/N 布防），合并 && 反而扩帧 ⇒ 维持嵌套。
     if (payType == 0)
     {
         if (!GlobalData::s_auction_proxy->IsRunning())
