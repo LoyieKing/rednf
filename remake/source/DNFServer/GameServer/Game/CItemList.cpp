@@ -2231,9 +2231,11 @@ int CCompound_ExtreamDun_Item::checkCompoundable(                   // ORIG T 0x
         {
             return 0x12;
         }
-        // ORIG +0x115/+0x123：两次独立 getItemGroupName 调用（P48 无 CSE）
+        // ORIG +0x115/+0x123：两次独立 getItemGroupName 调用（P48 无 CSE）。
+        // ORIG +0x173 `jle`（有符号>0）与 +0x18b `jbe`（无符号>0x3a）混合 ⇒
+        // 第二个比较显式转 unsigned（Ghidra `0x3a < uVar5`）。
         if (refs[i]->getItemGroupName() > 0 &&
-            refs[i]->getItemGroupName() > 0x3a)
+            (unsigned int)refs[i]->getItemGroupName() > 0x3a)
         {
             return 0x11;
         }
@@ -2282,7 +2284,10 @@ int CCompound_ExtreamDun_Item::checkCompoundable(                   // ORIG T 0x
     }
     else
     {
-        if (refs[0]->getUsableLevel() > 0x45 || refs[1]->getUsableLevel() > 0x45)
+        // ORIG else 块返回 0x11 条件 = BOTH > 0x45（asm `cmp; jle 定 false` 两级
+        // 与 Ghidra `!(L0<0x46) && !(L1<0x46)` 一致）；kind==3 块才是 OR
+        // （`jg` 短路 true / `!(L0<0x3d)||!(L1<0x3d)`）。原 `||` 语义差异，改 &&。
+        if (refs[0]->getUsableLevel() > 0x45 && refs[1]->getUsableLevel() > 0x45)
         {
             return 0x11;
         }

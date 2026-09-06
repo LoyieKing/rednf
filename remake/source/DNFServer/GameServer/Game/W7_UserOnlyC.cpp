@@ -394,18 +394,18 @@ bool CUser::Parsing(int received)
 
             const int streamLen = hdr.m_size + 8;
             CStreamGuard guard(true);
-            Stream* acquired = 0;
+            // 每个分支各自 Set（ORIG 3 处 Set 调用点，P48）。
             if (streamLen <= 0xfff)
-                acquired = GlobalData::s_small_stream_pool->Acquire("user.cpp", 0x758);
-            else if (streamLen <= 0x3fff)
-                acquired = GlobalData::s_stream_pool->Acquire("user.cpp", 0x75c);
+                guard.Set(GlobalData::s_small_stream_pool->Acquire("user.cpp", 0x758));
+            else if (streamLen > 0x3fff)
+                guard.Set(GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x760));
             else
-                acquired = GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x760);
-            guard.Set(acquired);
+                guard.Set(GlobalData::s_stream_pool->Acquire("user.cpp", 0x75c));
 
-            guard << 0;
-            guard << static_cast<int>(GetUID());
-            guard.put_binary(reinterpret_cast<void*>(net.m_recvBuf), hdr.m_size);
+            // P48：每次写入均重调 operator*；put_binary 经 operator->。
+            (**guard) << 0;
+            (**guard) << static_cast<int>(GetUID());
+            guard->put_binary(reinterpret_cast<void*>(net.m_recvBuf), hdr.m_size);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
             net.m_bBufOffsetTrace = 0;
         }
@@ -427,10 +427,18 @@ bool CUser::Parsing(int received)
     {
         if (remain > 0x1000)
         {
-            LogManager::logFormat(
-                1, "user.cpp", __PRETTY_FUNCTION__, 0x793,
-                "[PARSING LENGTH EXCEPTION] parsinglength > MAX_RECV_BUF , memmove : parsinglength = %d",
-                remain);
+            // ORIG：0x793 logFormat（varargs 可抛）在 try 内；catch(...) 记 0x7a1 后返 0。
+            try {
+                LogManager::logFormat(
+                    1, "user.cpp", __PRETTY_FUNCTION__, 0x793,
+                    "[PARSING LENGTH EXCEPTION] parsinglength > MAX_RECV_BUF , memmove : parsinglength = %d",
+                    remain);
+            } catch (...) {
+                LogManager::logFormat(
+                    1, "user.cpp", __PRETTY_FUNCTION__, 0x7a1,
+                    "[PARSING EXCEPTION] memmove : parsinglength = %d", remain);
+                return false;
+            }
             return false;
         }
         memmove(net.m_recv, net.m_recvBuf, remain);
@@ -596,8 +604,7 @@ void CUser::SendCeraShopGiftStatisticLog(unsigned int arg1, unsigned int arg2,
                                          unsigned long val64,
                                          unsigned int arg4)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0xa2c0);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0xa2c0), true);
     // ORIG 每次写入均重调 operator*（P48），GetInBuffer 经 operator->。
     (**guard) << 0x29c;
     (**guard) << static_cast<int>(GetUID());
@@ -713,8 +720,7 @@ public:
 
 void CUserEventUtil::updateCharacterDayEvent(CUser* user, int day)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x9af5);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x9af5), true);
     // ORIG 每次写入均重调 operator*（P48），GetInBuffer 经 operator->。
     (**guard) << 0x16e;
     (**guard) << static_cast<int>(user->GetUID());

@@ -369,6 +369,7 @@ void CTitleBookNoClear::execute()
         (ENUM_CHARAC_EXPAND_TYPE)0xf))->m_flag = 1;
 }
 
+}  // namespace game_master
 
 // ============================================================================
 // CUpgradeCardDebug — ORIG ctor 0x082a883e（sizeof=0xc，int@+0x08）/

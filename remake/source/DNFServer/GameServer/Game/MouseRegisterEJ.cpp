@@ -529,9 +529,7 @@ int DB_MouseRegister::_modifyPassword(unsigned int mid, const char* pwd,
         "upDate member_mousepass set mousepass='%s',occ_time=now() where m_id=%s"
         " and enable_flag = '1'",
         pwd, NumberToString(mid, 0));
-    register bool fail =
-        !(db->exec(true) && db->getAffectedRowCount() != 0);
-    if (fail)
+    if (!(db->exec(true) && db->getAffectedRowCount() != 0))
     {
         return 0x15;
     }
@@ -540,9 +538,7 @@ int DB_MouseRegister::_modifyPassword(unsigned int mid, const char* pwd,
     grade->set_query(
         "upDate member_security_grade set goblin_pass_mod=now() where m_id=%s",
         NumberToString(mid, 0));
-    register bool fail2 =
-        !(grade->exec(true) && grade->getAffectedRowCount() != 0);
-    if (fail2)
+    if (!(grade->exec(true) && grade->getAffectedRowCount() != 0))
     {
         grade->set_query(
             "inSert into member_security_grade(m_id, goblin_pass_mod)"
@@ -560,7 +556,7 @@ int DB_MouseRegister::_modifyPassword(unsigned int mid, const char* pwd,
         (**guard) << 0x245;
         (**guard) << param4;
         p = guard->GetInBuffer<SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD>();
-        *reinterpret_cast<unsigned int*>(p) = param5 ? 1u : 0u;
+        *reinterpret_cast<unsigned int*>(p) = param5;  // ORIG `movzbl param5,%edx` 直展
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
     return 0;

@@ -179,10 +179,6 @@ void CMoveCharacCmd::execute()
             (ENUM_CHARAC_EXPAND_TYPE)0xf))->sendList();
     }
 
-    // GmCmds_A.cpp 提供的 ORIG 符号（CBoosterTest::printClient 静态桥接）。
-    void gmM_booster_printClient(CUser*, bool, char const*, char const*)
-        asm("_ZN11game_master12CBoosterTest11printClientEP5CUserbPKcS4_");
-
     // -------------------------------------------------------------------
     // CAchievementReport — ORIG execute 0x084b07fe。
     // 成就(0xf)_gm_report 到栈缓冲（95000 字节，先清零、限长 strcpy），
@@ -199,8 +195,8 @@ void CMoveCharacCmd::execute()
         if (out.length() < sizeof(fileBuf))
             strcpy(fileBuf, out.c_str());
 
-        gmM_booster_printClient(GetUser(), false,
-                                "achievement_report.txt", fileBuf);
+        CBoosterTest::printClient(GetUser(), false,
+                                  "achievement_report.txt", fileBuf);
     }
 
     // -------------------------------------------------------------------
