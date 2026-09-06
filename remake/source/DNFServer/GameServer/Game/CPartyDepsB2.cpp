@@ -115,11 +115,19 @@ void CParty::die_user(CUser* user)
     }
     else
     {
-        // X2 形（判据①-③：ORIG 0x085a797b `movzbl 0x380; xor $1,%eax;
-        // test %al,%al; je` 有 je 消费者，裸 ==1 出 cmp $1 单段不同形）
+        // X2 形（判据①-③：ORIG 0x085a794a `movzbl 0x380(%edx,%eax,1); xor $1,%eax;
+        // test %al,%al; je big` 有 je 消费者）；块布局按 ORIG：live 非零（arr==0）
+        // fall 走 0x12 区、je 后跳到 big 区（技巧 17 fall-through 块在前）——
+        // `if(!live){big}else{0x12}` 写法 4.4 反产 jne+fall=big 极性镜像。
         register unsigned char live asm("eax") = m_battleData.m_arr54[slot];
         live ^= 1;
-        if (!live)                      // +0x380[slot]==1
+        if (live)                       // +0x380[slot]==0 → 0x12 回执
+        {
+            packet.put_byte(0x12);
+            packet.finalize(true);
+            user->Send(packet);
+        }
+        else                            // +0x380[slot]==1 → 死亡清算
         {
             set_charac_live(user, (ENUM_USER_DUNGEON_STATE)0);
             if (user->GetRevivalTime() >
@@ -139,12 +147,6 @@ void CParty::die_user(CUser* user)
                 }
             }
         }
-        else
-        {
-            packet.put_byte(0x12);
-            packet.finalize(true);
-            user->Send(packet);
-        }
     }
 }
 
@@ -160,11 +162,17 @@ void CParty::finish_loading(CUser* user)
         if (m_battleData.m_arr50[i] != 0)        // ORIG: movzbl 0x37c; test; jne 循环尾
             continue;
         m_battleData.m_arr50[i] = 1;
-        // +0xb10 装载完成标志（ORIG 直取 this+0xb10，不建 BattleData 引用基址）
-        if (!reinterpret_cast<unsigned char*>(this)[0xb10 + i])
+        // ORIG 0x085b15e0 域：`movzbl 0xb10(%edx,%eax,1); xor $0x1,%eax; test; je`
+        // 具名 m_arr7e4 消裸偏移后 scale 单段 ✓；裸 `!field` 4.4 产 test;jne 缺
+        // xor ⇒ X2 判据③有消费者，register uchar 绑 %eax + `^=1` 形。
+        register unsigned char fv asm("eax") = m_battleData.m_arr7e4[i];
+        fv ^= 1;
+        // 【二次核验】goto 展平 probe 反产 3 jmp；嵌套形 5 行残差为 4.4 CFG
+        // 块布局（双 jmp 汇聚 + bool setne 归一）产品，维持最优 5 行嵌套。
+        if (fv)
         {
             if (OnStartMapFinishLoading(user))
-                reinterpret_cast<unsigned char*>(this)[0xb10 + i] = 1;
+                m_battleData.m_arr7e4[i] = 1;
         }
     }
 
@@ -172,14 +180,10 @@ void CParty::finish_loading(CUser* user)
     // 不保存 CBattle_Field 引用。
     CDungeon* dungeon =
         reinterpret_cast<CBattle_Field*>(&m_battleField)->GetDungeon();  // -0x10
-    int enterEachMap = 0;
-    if (dungeon != 0)
-    {
-        if (dungeon->IsEnterEachMap())
-            enterEachMap = 1;
-    }
-
-    if (enterEachMap)
+    // ORIG 0x085b16??：&& 短路 flag-island 双层物化（`mov $1,%eax; jmp; mov $0,%eax;
+    // test %al; je`，技巧 40/22 形）——独立 enterEachMap 槽会反产 movl 存回。
+    if (dungeon != 0 &&
+        dungeon->IsEnterEachMap())
     {
         if (reinterpret_cast<CBattle_Field*>(&m_battleField)->IsFirstEnterDungeon())
             check_allmember_loading(false);
@@ -249,15 +253,23 @@ void CParty::_onGetItem(CUser* user, unsigned int itemIdx, unsigned int count)
 
     if (item->is_stackable())
     {
-        if (item->GetItemType() == 0x1a)                // vtable 槽 +0xc
+        // ORIG 0x085b951f：`mov -0x14,%eax; mov %eax,-0x10(%ebp)` 第二具名指针
+        // 槽（-0x10），后续 vtable+0xc 虚调用经 p（call *%edx 槽形，N7 残差另计）；
+        // boxKind 判定为 switch 线性降序树（0x289749→2 / 0x28982d→1 / 0x380→0，
+        // 入口 `movl $0,-0xc` 单初始化 + 各 case 单 mov+jmp 合并，0x085b9541..）。
+        CItem* p = item;
+        if (p->GetItemType() == 0x1a)                // vtable 槽 +0xc
         {
             int boxKind = 0;                            // -0xc
-            if (itemIdx == 0x289749)
-                boxKind = 2;
-            else if (itemIdx == 0x28982d)
-                boxKind = 1;
-            else if (itemIdx == 0x380)
-                boxKind = 0;
+            switch (itemIdx)
+            {
+            // ORIG body 内存序 0x380@0x85b9560 → 0x28982d@0x85b9569 →
+            // 0x289749@0x85b9572（值升序、cmp 降序线性探）⇒ case 按升序书写。
+            case 0x380:    boxKind = 0; break;
+            case 0x28982d: boxKind = 1; break;
+            case 0x289749: boxKind = 2; break;
+            default: break;
+            }
             CUser::SendRandomBoxStatistic(boxKind, RANDOMBOX_ACTION_CREATE);
         }
     }
@@ -290,6 +302,9 @@ int CParty::choose_random_buff(QuickParty::RandomBuffDungeon dungeon)
                                           dungeon);
         if (roll <= acc)
         {
+            // 【二次核验】ORIG 0x0859b814 域首存基址先载(mov 0x8,%eax;-0xc,%edx)，
+            // 4.4 调度恒 RHS 先——this->显式/指针中转两 probe 均不改或毁槽序，
+            // 维持直存（1 行 NEAR 封顶）。
             m_field1ae8 = type;                         // +0x1ae8
             return m_field1ae8;
         }

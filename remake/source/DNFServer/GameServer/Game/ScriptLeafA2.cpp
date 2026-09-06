@@ -1153,17 +1153,29 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
 // importUpgradeTable —— ORIG T 0x08900c26
 // 报告 _lt_global_gt_/importUpgradeTable.md 全文转写。
 // 返回 1=成功（含 EOF）；0=失败（文件打开失败/关键扫描失败/键重复/异常捕获）。
+//
+// 【batch-15/16 验收标注（§6.2 口径）】orig 1119 / ours 1166（gap -132 → -47）。
+//   ① 调用点差集（P167）**已归零**：direct 138 ↔ 136，missing 14 / extra 12 全部
+//      是 C2/D2 ↔ C1/D1 同体构造/析构符号名对称差 + 1 个 _Unwind_Resume，
+//      无任何真实调用点缺口；indirect 0/0。
+//   ② 段边界切片法（difflib 在 N82 帧号重排下不可信）逐 token 段核对，修掉两处
+//      真语义偏差：[cost weight by upgrade level] 的取数通道（ORIG 用
+//      ScanInt(bool*) 返回值 + 循环头 ok 复位，非 ScanInt(int*) 出参形）、
+//      [amplification const] 循环入口缺 `ok = true` 复位（orig local_cb）；
+//      并删除匿名 namespace 的 inline helper（-O0 逐点发 call，见 N-I 延伸）。
+//   ③ 余 -47 集中在三处已定位的 4.1 专属形：0x089003fa 的守卫 bool 汇聚岛
+//      （实测命名 bool 反而 +12，已回退）、0x08900d5a 的双段 catch
+//      （begin_catch/end_catch + 清理后 rethrow 的 EH 展开表形）、
+//      0x0890124x 的成功出口 jmp/nop 中继 ⇒ N3/N82/setcc-fold/跨版本 EH
+//      命中 ⇒ 判**语义完成、byte 层封顶**。
+//   ④ 三处「看起来更像 ORIG 但实测更远」的改写已回退并在原地留数值记录
+//      （get_upgrade_info 逐行重发 gain 471、dword 下标视图 326、
+//        命名 bool 汇聚岛 1177），避免后续批次重试。
 // ============================================================================
-namespace
-{
-
-// upgrade_info_t 的表行写入改为**真实字段下标直访**（batch-15 N-I 延伸）：
-// 原匿名 namespace 的 inline helper infoInt/infoFloat/infoIntTail 在 c6root gcc
-// 4.4.7 `-O0` 下每个使用点都发 call（实测本函数因此比 ORIG 多 45 insn），
-// 而 ORIG 0x08900e4x 区是 `call ScanInt` 后 2-3 条直写目标槽。偏移→字段映射
-// 按 upgrade_info_t 已建分段具名成员（m_prob00[8]/m_prob20[3]/+0x2c..34 三项/
+// upgrade_info_t 的表行写入使用**真实字段下标直访**（batch-15 N-I 延伸：
+// 匿名 namespace 的 inline helper 在 -O0 下同样逐点发 call，不豁免）；偏移→字段
+// 映射按 upgrade_info_t 已建分段具名成员（m_prob00[8]/m_prob20[3]/+0x2c..34 三项/
 // m_w38[5]/m_w4c[4]/m_w5c[4]，合计恰 0x6c）。
-}  // namespace
 
 int importUpgradeTable(const char* path, upgrade_table_t* table)
 {

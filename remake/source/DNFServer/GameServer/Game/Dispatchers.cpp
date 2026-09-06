@@ -23455,20 +23455,27 @@ bool GetSelectionIndex(CUser& user, int& outIndex, int type);
 // ==== Dispatcher_PcRoomRentItem::check_error (ORIG 0x081e5762) ====
 int Dispatcher_PcRoomRentItem::check_error(CUser* user, MSG_BASE& msg)
 {
-    MSG_RENT_ITEM& req = static_cast<MSG_RENT_ITEM&>(msg);
     if (user->get_state() == 3 && user->getCurCharacR() != 0)
     {
-        char type = static_cast<char>(req.m_0e);          // +0x0e 租借类型（movzbl+sbyte）
-        if (type < 1 || type > 2)
+        // ①ORIG 0x081e577x：msg 引用槽在 state/characR 判定**之后**才物化
+        //   （`mov 0x10(%ebp),%eax; mov %eax,-0xc(%ebp)`，技巧13 声明位=落栈时机）；
+        //   我方在函数入口物化，槽号亦从 -0xc 漂到 -0x10。
+        MSG_RENT_ITEM& req = static_cast<MSG_RENT_ITEM&>(msg);
+        // ②ORIG 对该 byte 字段是**两次独立装载 + 寄存器测**（`movzbl 0xe(%eax),%eax;
+        //   testb %al,%al; jle` 与再装载一次 `cmp $2,%al; jle`），我方具名 char 局部
+        //   使 4.4 折成 `mov %al,-0x9(%ebp)` + 两次 `cmpb $K,-0x9(%ebp)`（技巧36）。
+        //   整数域内 `type <= 0` 与原 `type < 1` 等价，语义不变。
+        if (static_cast<signed char>(req.m_0e) <= 0 ||
+            static_cast<signed char>(req.m_0e) > 2)
         {
             return 8;
         }
-        if (user->GetPCRoomNo() == 0 && type == 1)
+        if (user->GetPCRoomNo() == 0 && static_cast<signed char>(req.m_0e) == 1)
         {
             return 8;
         }
         // type==2：重复租借事件(0x5e)未进行中 → 错误。vptr+0x34 槽 = IsEventing。
-        if (type == 2 &&
+        if (static_cast<signed char>(req.m_0e) == 2 &&
             !GlobalData::s_event_manager->GetRepeatEvent(0x5e)->IsEventing((CUser*)0))
         {
             return 8;

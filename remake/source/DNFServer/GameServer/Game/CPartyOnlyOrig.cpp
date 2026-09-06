@@ -720,12 +720,15 @@ bool CParty::IsClearedQuest(int questIdx)
 {
     for (int i = 0; i <= 3; i++)
     {
-        if (!_checkValidUser(i))
+        // [判据②] ORIG O@10-11 `test;je` 无 xor：==0 直分支形。
+        if (_checkValidUser(i) == 0)
         {
             continue;
         }
-        UserQuest* quest = m_member[i].m_pUser->getCurCharacQuestR();
-        if (!quest->isClearQuest(questIdx))
+        // [判据②+P148] ORIG `test;je` 无 xor（==0 直分支）+嵌套实参免
+        // quest 具名 spill。
+        if (m_member[i].m_pUser->getCurCharacQuestR()
+                ->isClearQuest(questIdx) == 0)
         {
             return false;
         }

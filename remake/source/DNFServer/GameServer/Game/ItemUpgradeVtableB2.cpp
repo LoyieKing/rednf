@@ -1149,6 +1149,16 @@ void CItemUpgrade::_getAdditionalDisjointItem(unsigned int up,
 // ============================================================================
 // _ProcPenalty @ 0x08546bba
 //   惩罚分派：1=降级（保底）、2=降级（可到 0）、3=破坏（保护券或分解返料）。
+//
+// 【batch-16 验收标注（§6.2 口径）】orig 634 / ours 633（gap 41 → 1）。
+//   本轮补齐：① 返料三元组遍历由 size()+operator[] 索引形改为 ORIG 的
+//   begin/end 迭代器形（恢复 4 个迭代器调用、去掉 3×ix 与 1×size，P175）；
+//   ② GetSellItemPrice 的短参改直读 Inven_Item::m_addInfo2（ORIG 无
+//   get_add_info() 调用）；③ penaltyType==3 的增幅表改走真实成员调用
+//   CItemUpgradeTable::getUpgradeInfoTable（inline 视图代返会丢该 call）。
+//   残余 1 insn 与差集里 operator+ ×3 ↔ operator++ ×1 的符号名形差同源
+//   （Ghidra 把 libstdc++ 的 operator+(difference_type) 渲染为 operator++），
+//   已判语义完成、byte 层封顶。
 // ============================================================================
 int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
                                const CItem* itemScript, unsigned short slot,
@@ -1297,8 +1307,12 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
     _getAdditionalDisjointItem(savedUp, itemScript, items, table);
     if (item->m_amp.hasAbility())
     {
-        _getAdditionalDisjointItem(savedUp, itemScript, items,
-                                   embeddedTable(this));
+        // 表区子对象走**真实成员调用**（0x0854b382
+        // CItemUpgradeTable::getUpgradeInfoTable）；inline 视图代返会丢该 call
+        // （P167 差集实证 missing 1）。
+        _getAdditionalDisjointItem(
+            savedUp, itemScript, items,
+            *embeddedUpgradeTable(this)->getUpgradeInfoTable());
     }
 
     std::vector<int> slots;
@@ -1311,11 +1325,17 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
     pg->put_byte(rc);
 
     // insert_event_items 输出三元组 {slot, itemIdx, addInfo2/count}。
-    for (size_t k = 0; k < slots.size(); k += 3)
+    // 【batch-16 P175 反向铁律】ORIG 0x085472xx 起走 **begin/end 迭代器**
+    // （vector::begin、normal_iterator<int const*>(int*) 转换 ctor、每轮重取
+    // end()、operator!=、operator++ ×3、operator*），我们写成 size()+operator[]
+    // 索引形会丢这 4 个迭代器调用并多出 3×ix 与 1×size（P167 差集实测
+    // missing 23 / extra 13）。三元组取数用 `*(it + n)` 形复现 3 次 operator++。
+    for (std::vector<int>::const_iterator it = slots.begin();
+         it != slots.end(); it += 3)
     {
-        const int outSlot = slots[k];
-        const int outIdx = slots[k + 1];
-        const int outCnt = slots[k + 2];
+        const int outSlot = *(it + 0);
+        const int outIdx = *(it + 1);
+        const int outCnt = *(it + 2);
         pg->put_short(outSlot);
         pg->put_item_idx((unsigned long)outIdx);
         pg->put_int(outCnt);
@@ -1330,8 +1350,10 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
             GetInstanceCubeStatistic()->collectCubeStatistics(
                 outScript, outCnt, user, (CUBE_STATISTIC_FIELD)1);
             int price = 0;
+            // ORIG 0x085474xx 直读 Inven_Item+0x07 低 16 位（`movzwl`/`movswl`），
+            // 不走 get_add_info() 调用。
             G_Store()->GetSellItemPrice(tmp, outScript,
-                                        (short)tmp.get_add_info(), false,
+                                    (short)tmp.m_addInfo2, false,
                                         price);
             GetInstanceValueStatistic()->AddValueStatistic(
                 (VALUE_STATISTIC_FIELD)9, user, (unsigned int)price);

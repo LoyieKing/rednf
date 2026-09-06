@@ -545,6 +545,19 @@ int CCompoundAvatar::_CheckCondition(const CUser* user,
 
 // ORIG 0x08332ee8。结果选择（按 rec 内三组权重池抽样）→ 删除两件材料与事件
 // 材料 → 注销两 uid 并 push 结果三元组 → AddAvatarItem 入包 → 回填 DB 历史。
+//
+// 【batch-16 验收标注（§6.2 口径）】orig 653 / ours 635（gap 77 → 18）。
+//   ① 调用点差集 **归零**：direct 61 ↔ 61、indirect 2 ↔ 2（残 missing=1/extra=1
+//      仅 cMyTrace C2 ↔ C1 同体符号名对称差）；
+//   ② 补齐的真实缺口（P167 差集定位）：
+//      a) 事件材料整单删除由「switch 提公共 materials 指针 + 单调用」改为
+//         4 个 if-else 分支**各自完整展开**（ORIG 每支独立 delete_event_items +
+//         vector::size + 独立 0x16 出口）⇒ 恢复 delete_event_items ×3、size ×2；
+//         type4 的 size 比较对象仍是 tailC(+0x2d0)【ORIG 怪癖，已保留】；
+//      b) 两段 GetRemainDate 各自重取 getCurCharacInvenR → GetAvatarItemMgrR
+//         （不缓存 mgr）；c) AddAvatarItem 走重取的 getCurCharacInvenW。
+//   ③ 余 18 为 N82 帧号重排下的块序对齐伪影（difflib 显示 -46/-32/-5 与总量
+//      -18 自相矛盾，而调用点差集已归零）⇒ 判语义完成、byte 层封顶。
 int CCompoundAvatar::_ProcCompoundCore(CUser* user, tagCompoundInfo& info,
                                        tagCompoundAvatarTable* table)
 {
@@ -645,47 +658,62 @@ int CCompoundAvatar::_ProcCompoundCore(CUser* user, tagCompoundInfo& info,
                              static_cast<eItemDelReason>(3), true) == 1)
         {
             bool bFoundAll = false;                            // -0x8d
-            // 事件材料整单删除；type4 时 size 比较仍用 tailC【ORIG 怪癖】。
-            const std::vector<std::pair<int, int> >* materials = 0;
-            switch (info.m_type)
-            {
-                case 0:
-                    materials = &rec->m_tailA;                 // +0x2b8
-                    break;
-                case 1:
-                    materials = &rec->m_tailB;                 // +0x2c4
-                    break;
-                case 3:
-                    materials = &rec->m_tailC;                 // +0x2d0
-                    break;
-                case 4:
-                    materials = reinterpret_cast<
-                        const std::vector<std::pair<int, int> >*>(
-                        &rec->m_cube);                         // +0x20c 首成员即 m_vec
-                    break;
-                default:
-                    break;
-            }
-            if (materials != 0)
+            // 【batch-16 物理展开】ORIG 0x0833321x..0x083332bx 是 4 个 if-else 分支
+            // **各自完整调用一次** delete_event_items + vector::size + 比较 + 独立
+            // `return 0x16` 出口（调用点差集实测：提公共 materials 指针后单调用会
+            // 少 3 个 delete_event_items 与 2 个 size）。type4 的 size 比较对象
+            // 仍是 tailC（ORIG 0x083332b7 读 +0x2d0）【怪癖保留】。
+            if (info.m_type == 0)
             {
                 const int deleted = inv->delete_event_items(
-                    *materials, info.m_results, bFoundAll,
+                    rec->m_tailA, info.m_results, bFoundAll,
                     static_cast<eMoneySubReason>(0x12),
                     static_cast<eItemDelReason>(0x12), false);
-                const std::size_t expectSize =
-                    (info.m_type == 4) ? rec->m_tailC.size()
-                                       : materials->size();
-                if (deleted != static_cast<int>(expectSize))
+                if (deleted != static_cast<int>(rec->m_tailA.size()))
+                    return 0x16;
+            }
+            else if (info.m_type == 1)
+            {
+                const int deleted = inv->delete_event_items(
+                    rec->m_tailB, info.m_results, bFoundAll,
+                    static_cast<eMoneySubReason>(0x12),
+                    static_cast<eItemDelReason>(0x12), false);
+                if (deleted != static_cast<int>(rec->m_tailB.size()))
+                    return 0x16;
+            }
+            else if (info.m_type == 3)
+            {
+                const int deleted = inv->delete_event_items(
+                    rec->m_tailC, info.m_results, bFoundAll,
+                    static_cast<eMoneySubReason>(0x12),
+                    static_cast<eItemDelReason>(0x12), false);
+                if (deleted != static_cast<int>(rec->m_tailC.size()))
+                    return 0x16;
+            }
+            else if (info.m_type == 4)
+            {
+                const int deleted = inv->delete_event_items(
+                    rec->m_cube.m_vec, info.m_results, bFoundAll,
+                    static_cast<eMoneySubReason>(0x12),
+                    static_cast<eItemDelReason>(0x12), false);
+                if (deleted != static_cast<int>(rec->m_tailC.size()))
                     return 0x16;
             }
 
             const int curSec = GlobalData::s_systemTime_.getCurSec();
-            const CAvatarItemMgr* mgrR = inv->GetAvatarItemMgrR();
+            // 两段 remain 计算各自重取 invenR → GetAvatarItemMgrR（ORIG
+            // 0x0833330a / 0x08333345，不缓存 mgr）。
             const int remainA =
-                mgrR->GetRemainDate(static_cast<int>(info.m_materialA.m_addInfo2),
+                ((CUserCharacInfo*)user)
+                    ->getCurCharacInvenR()
+                    ->GetAvatarItemMgrR()
+                    ->GetRemainDate(static_cast<int>(info.m_materialA.m_addInfo2),
                                     curSec);
             const int remainB =
-                mgrR->GetRemainDate(static_cast<int>(info.m_materialB.m_addInfo2),
+                ((CUserCharacInfo*)user)
+                    ->getCurCharacInvenR()
+                    ->GetAvatarItemMgrR()
+                    ->GetRemainDate(static_cast<int>(info.m_materialB.m_addInfo2),
                                     curSec);
 
             // 注销并广播移除事件。
@@ -709,8 +737,10 @@ int CCompoundAvatar::_ProcCompoundCore(CUser* user, tagCompoundInfo& info,
             char ipgNoBuf[0x14];                               // -0xa5
             _generateIPGNo(user, curSec, ipgNoBuf);
 
+            // AddAvatarItem 走**重取**的 invenW（ORIG 0x083333xx getCurCharacInvenW）。
             info.m_resultSlot = static_cast<unsigned short>(
-                inv->AddAvatarItem(resultIdx, remainA + remainB, false,
+                user->getCurCharacInvenW()->AddAvatarItem(
+                    resultIdx, remainA + remainB, false,
                                    static_cast<char>(info.m_slot),
                                    static_cast<char>(-1), ipgNoBuf,
                                    static_cast<eAvatarItemAddReason>(6), true,
