@@ -617,6 +617,10 @@ int CExpandEquipslot::EquipslotSwitch(CUser* pUser, char flag,
     return 1;
 }
 
+// b21 NEAR：语义与 ORIG 0x08499f84 全等（报告全文已读；CheckEquipable/isIdentified 双查、
+//   IsAvatarItem/IsCreatureItem/IsEquipable/PeriodAfterUnsealing、setCopy 双方向均逐条核对）。
+//   残余：字符串/__PRETTY_FUNCTION__/数据地址【AE】、虚表调用寄存器分配（mov %edx vs mov %eax）、
+//   setne 位置（N-86b）。帧/switch 早返结构一致。
 int CExpandEquipslot::Move_Item(CUser* pUser, int type, int slot, int space,
                                 int expandSlot)
 {

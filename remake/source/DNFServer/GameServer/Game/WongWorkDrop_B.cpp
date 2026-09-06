@@ -85,19 +85,6 @@ void AI_generateDropAvatarItem(CAICharacter const* self, unsigned char a,
 
 }  // namespace
 
-// ref blob 字节读取 helper（+0x34..+0x47 调用方上下文区【推断语义】；布局实证，
-// 与 WongWorkDrop_A.cpp 同款口径）。
-inline unsigned char u8_at(stGenerateRefData_t const& ref, int off)
-{
-    return *reinterpret_cast<unsigned char const*>(
-        reinterpret_cast<char const*>(&ref) + off);
-}
-inline signed char i8_at(stGenerateRefData_t const& ref, int off)
-{
-    return *reinterpret_cast<signed char const*>(
-        reinterpret_cast<char const*>(&ref) + off);
-}
-
 // ---------------------------------------------------------------------------
 // setDropRatio — ORIG T 0x08535948 / 0x085359e8（两者同型，报告逐条对应）：
 //   vector 赋值 m_probsSub(+0x24) = m_probs(+0x18)，随后逐元素 j=0..4：
@@ -136,23 +123,27 @@ void CSpecialMonsterDrop::setDropRatio(float ratio)
 
 // ---------------------------------------------------------------------------
 // generateSpecificItem — ORIG T 0x08535726（虚槽 +0x0c）
+// b21 同族：u8_at/i8_at 全部改 CItemGenerator.h 成员直读（m_field35/m_rateSlot/
+//   m_field3d/m_field3e_byte/m_field42_byte，+0x42 按 ORIG movsbl 取有符号），
+//   消除 helper 的 EXTRA add+movzbl；残余寄存器分配/栈槽 N-86b + AE。
 // ---------------------------------------------------------------------------
 void CMonsterDrop_Hell::generateSpecificItem(stGenerateRefData_t const& ref,
                                              stGenerateResult_t& result)
 {
     // probIdx = _getGenItemProbIdx((byte)ref[0x35])
-    int idx = WM_Hell_getGenItemProbIdx(this, static_cast<int>(u8_at(ref, 0x35)));
+    int idx = WM_Hell_getGenItemProbIdx(
+        this, static_cast<int>(static_cast<unsigned char>(ref.m_field35)));
     if (idx < 0)
         return;
 
     stGenItemProb_t const& e = m_probsSub[idx];      // ORIG op[] on +0x24
     // 阈值 = v[2 + (byte)ref[0x36]] * *(int*)&ref /*m_dropRate*/ / 100
-    int slot = static_cast<int>(u8_at(ref, 0x36));   // ORIG 直索 v[2+slot]
+    int slot = static_cast<int>(static_cast<unsigned char>(ref.m_rateSlot));
     int threshold = e.v[2 + slot] * *reinterpret_cast<int const*>(&ref) / 100;
     if (m_random.generateNumber(0, 1000) <= threshold)
     {
         int luckRoll = m_random.generateNumber(1, 1000000);
-        int basisRow = static_cast<int>(i8_at(ref, 0x42));
+        int basisRow = static_cast<int>(static_cast<signed char>(ref.m_field42_byte));
         // GetItemRarity(&m_rarityBasis[basisRow], luckRoll, dropType=2)
         int rarity =
             reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)->GetItemRarity(
@@ -160,7 +151,8 @@ void CMonsterDrop_Hell::generateSpecificItem(stGenerateRefData_t const& ref,
 
         int itemIdx = m_table.chooseItem(eItemDropType_2,
                                          static_cast<ENUM_RARITY>(rarity),
-                                         static_cast<int>(u8_at(ref, 0x35)));
+                                         static_cast<int>(
+                                             static_cast<unsigned char>(ref.m_field35)));
         if (itemIdx != -1)
         {
             CItem* item = G_CDataManager()->getItemList()->find_item(itemIdx);
@@ -184,6 +176,7 @@ void CMonsterDrop_Hell::generateSpecificItem(stGenerateRefData_t const& ref,
 
 // ---------------------------------------------------------------------------
 // hellPartySpecificItem — ORIG T 0x08535b08
+// b21 同族：如 generateSpecificItem 注，成员直读替换 u8_at/i8_at（+0x3d 有符号 movsbl）。
 // ---------------------------------------------------------------------------
 void CMonsterDrop_Hell::hellPartySpecificItem(stGenerateRefData_t const& ref,
                                               stGenerateResult_t& result)
@@ -198,9 +191,13 @@ void CMonsterDrop_Hell::hellPartySpecificItem(stGenerateRefData_t const& ref,
     if (ai != 0)
     {
         extraCount =
-            AI_IsHellMonster(ai) ? 0 : static_cast<int>(i8_at(ref, 0x3d));
+            AI_IsHellMonster(ai) ? 0
+                                 : static_cast<int>(
+                                       static_cast<signed char>(ref.m_field3d));
         ai->generateIndependentItem(ref, result.m_dropItems);
-        AI_generateDropAvatarItem(ai, u8_at(ref, 0x36), u8_at(ref, 0x3e),
+        AI_generateDropAvatarItem(ai,
+                                  static_cast<unsigned char>(ref.m_rateSlot),
+                                  ref.m_field3e_byte,
                                   result.m_dropItems);
     }
 
@@ -210,26 +207,30 @@ void CMonsterDrop_Hell::hellPartySpecificItem(stGenerateRefData_t const& ref,
     if (mon != 0)
     {
         extraCount =
-            mon->IsHellMonster() ? 0 : static_cast<int>(i8_at(ref, 0x3d));
+            mon->IsHellMonster() ? 0
+                                 : static_cast<int>(
+                                       static_cast<signed char>(ref.m_field3d));
 
         STMonsterScript* script = static_cast<STMonsterScript*>(
             mon->getMonsterScript());               // ORIG inline this+0x60
         if (!script->m_independentDrops.empty())    // +0x3ac
             mon->generateIndependentItem(ref, result.m_dropItems);
 
-        Mon_generateDropAvatarItem(mon, u8_at(ref, 0x36), u8_at(ref, 0x3e),
+        Mon_generateDropAvatarItem(mon,
+                                   static_cast<unsigned char>(ref.m_rateSlot),
+                                   ref.m_field3e_byte,
                                    result.m_dropItems);
 
         STMonsterScript* script2 = static_cast<STMonsterScript*>(
             mon->getMonsterScript());
         bool hasCatch = !script2->m_catchItems.empty() &&   // +0x70
-                        u8_at(ref, 0x45) != 0;              // byte ref+0x45
+                        ref.m_field45 != 0;                 // byte ref+0x45
         if (hasCatch)
             Mon_generateCatchMonsterItem(mon, result.m_dropItems);
     }
 
     // ORIG 0x08535b08 以 movzbl 读 +0x40 仅测低字节（非 dword 非空判据）。
-    if (u8_at(ref, 0x40) != 0)
+    if (ref.m_field40_byte != 0)
     {
         for (int i = 0; i < extraCount; ++i)
             generateSpecificItem(ref, result);         // ORIG vtable 槽 +0xc 直呼

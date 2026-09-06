@@ -2197,6 +2197,9 @@ int CCompound_ExtreamDun_Item::_convertInputItem(                   // ORIG 0x83
     }
 }
 
+// b21 NEAR：语义与 ORIG 全等（两真修已落，CItemList 编译绿）。残余仅 N-86b：
+//   冗余 setne/test、虚拟调用寄存器选择（call* %eax vs call* %edx）、shl 寄存器分配、
+//   IsTradeRestriction 后冗余 setne（结果本就是 0/1，行为全同）+ 全量 AE/分支偏移。
 int CCompound_ExtreamDun_Item::checkCompoundable(                   // ORIG T 0x832d7d6
     Inven_Item* items, const CEquipItem** refs, char kind) const
 {

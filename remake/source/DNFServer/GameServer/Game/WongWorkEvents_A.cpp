@@ -92,6 +92,12 @@ int EventAlttle::CheckAlreadyGetAlttleItem(unsigned int uid, int itemNo)
 
 // ----------------------------------------------------------------------------
 // EventAlttle::ArrangeAlttleEventItem —— ORIG T 0x083fb595 (size 0x2ed)
+// b21 verdict=DIFF（N 残余）：188/172。调用点全等（GetDBHandle/set_query/exec/
+//   NumberToString×2/cMyTraceC1+cMyTracecl/get_int×5/get_n_rows/fetch/
+//   UpdateEventAlttleInfo/InsertEventItem2EventTable）。删冗余 outCount<MAX 界检
+//   （ORIG 无，LIMIT 10 保障安全）；残余 cMyTrace 错误路径 NumberToString 求值序/寄存器
+//   (N82)、entries[outCount][k] scale 定址 vs ORIG 逐字段 shl/lea/sub、帧 push%ebx vs 栈槽。
+//   语义完成，byte 层 N 封顶。
 // 取 occ_check!=0 行（limit 10），对 item_check==0 且 server_id 匹配的行收集，
 // 之后逐条 Update + InsertEventItem2EventTable(event_code=6)。
 // ----------------------------------------------------------------------------
@@ -131,7 +137,8 @@ void EventAlttle::ArrangeAlttleEventItem(unsigned int mid, unsigned int serverId
         db->get_int(3, item_check);
         db->get_int(4, (int&)item_cnt);
 
-        if (item_check == 0 && server_id == serverId && outCount < MAX_ENTRIES)
+        // ORIG 无 outCount<MAX 界检（查询 LIMIT 10 保证 ≤10 行，auStack_e8[40] 不外溢）
+        if (item_check == 0 && server_id == serverId)
         {
             entries[outCount][0] = mid;
             entries[outCount][1] = (unsigned int)charac_no;

@@ -96,6 +96,9 @@ bool DB_MailBox_Req_Delete::dispatch(int userIdx, int slot, Stream* stream)
 //    charac_info 按收件人名查 charac_no/lev/delete_flag/m_id（循环读全部行）→
 //    BigStreamPool 回包：<<0x7e <<slot，回填 +0x1d/+0x21/+0x25/+0x29，
 //    memcpy(+0x31,0x3f88) 载荷透传 → 黑名单 count(*)>0 时 +0x3fb9=0x4d → put。
+// b21 NEAR：语义与 ORIG 全等（字段偏移 +0x1d/+0x21/+0x25/+0x29/+0x31/+0x3fb9 static_assert 核）。
+//   残余仅：call/全局(s_db_mgr/s_big_stream_pool/s_msgq_mgr)/字符串地址【AE】，
+//   mov 0x2d(%eax) 直传 vs mov+mov、NumberToString 求值序、分支偏移、栈槽布局（N-86b/N-frame）。
 // ============================================================================
 bool DB_MailBox_Req_CheckReceiver::dispatch(int userIdx, int slot, Stream* stream)
 {

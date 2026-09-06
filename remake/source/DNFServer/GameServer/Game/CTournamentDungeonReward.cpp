@@ -44,27 +44,33 @@ int CTournamentDungeonReward::GetItemFromCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE t
                                               int cardNo, Inven_Item* items,
                                               unsigned int maxItems)
 {
+    // b21 verdict=DIFF（N 残余）：168/170。调用点全等（reset×/set_add_info/create_item/
+    //   G_CDataManager）。两处大修：1) G_CDataManager()->getItemList() O0 禁内联产 EXTRA
+    //   call → m_itemList 直读(+0xc)；2) `TournamentRewardType& slot` 引用局部只算一次地址
+    //   （ORIG 每访问重推导 `this+type*0x18+i*0xc`）→ 删引用改 m_rewards[type][i].member
+    //   直写（-64 insn）。残余仅索引计算寄存器/leas 调度(N82)与共享退出块布局(N-JMP,+2)。
+    //   语义完成，byte 层 N 封顶。
     if (maxItems < 3 && (int)type >= 0 && (int)type < 2)
     {
         for (int i = 0; i < 2; ++i)
         {
-            TournamentRewardType& slot = m_rewards[(int)type][i];
-            if ((char)slot.m_flag08 == (char)cardNo)
+            if ((char)m_rewards[(int)type][i].m_flag08 == (char)cardNo)
             {
-                if (slot.m_id == 0)
+                if (m_rewards[(int)type][i].m_id == 0)
                 {
                     items[0].reset();
-                    items[0].set_add_info(slot.m_field04);
+                    items[0].set_add_info(m_rewards[(int)type][i].m_field04);
                     items[1].reset();
                     return 1;
                 }
-                if (slot.m_id != -1)
+                if (m_rewards[(int)type][i].m_id != -1)
                 {
                     items[0].reset();
                     items[1].reset();
-                    items[1].m_addInfo = slot.m_id;
-                    G_CDataManager()->getItemList()->create_item(
-                        ENUM_ITEM_CREATE_TYPE_1, items[1], slot.m_field04);
+                    items[1].m_addInfo = m_rewards[(int)type][i].m_id;
+                    G_CDataManager()->m_itemList->create_item(  // ORIG mov 0xc(%eax) 直读
+                        ENUM_ITEM_CREATE_TYPE_1, items[1],
+                        m_rewards[(int)type][i].m_field04);
                     return 1;
                 }
                 items[0].reset();

@@ -967,6 +967,12 @@ int LOGIN_QUERY::arad_sp_select_member_brodcast(
 }
 
 // ORIG 0x0818cc74：member_premium 首条生效记录 → SIG premium 表格区。
+// b21 verdict=DIFF（N 残余）：202/190。调用点集全等（GetDBHandle/select/get_n_rows×n/fetch/
+//   get_int×3/cMyTraceC1+cMyTracecl×3/vector::push_back/LogManager::logFormat）。
+//   premium 写位与 restrictedGoods/Count 偏移已逐位核（m_premiums@+0x2298 使字段落
+//   +0x2298/+0x229c/+0x22a0/+0x22a4=ORIG +0x2290+{8,c,10,14}）；cMyTrace trace 引用局部
+//   占槽 → N82 槽号错位；残余仅帧差(0x78 vs push%ebx+0x74)、槽号、循环退出块
+//   (jmp;nop;jmp vs 单 exit)、寄存器分配。语义完成，byte 层 N 封顶。
 int LOGIN_QUERY::arad_sp_select_member_premium(
     SIG_LOGIN_DATA* data, DB_Login::tagDNFEventEntry& entry,
     std::vector<int>& removeList, std::vector<int> removeScratch)

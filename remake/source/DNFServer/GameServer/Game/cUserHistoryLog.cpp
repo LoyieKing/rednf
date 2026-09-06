@@ -858,6 +858,9 @@ void cUserHistoryLog::RemovePrivateStore(int zoneA, int zoneB, char const* name)
 // ORIG T 0x868433e（报告全文）："Item+,..."
 // GUID 串：ORIG CItemGloballyUniqueIdentifierPrint 对 item+0x15 的渲染
 // （W 0x84ebe58/0x84ebe7c，本文件真实建模）。
+// b21 NEAR：语义与 ORIG 全等。修：vararg 原缺失 item+0x00 字节（IVar1=*param_3），
+//   加在 b32 与 GetReSealCount 之间使 %02X×14+%d+%d 与 26 实参对齐（原 guid 入%02X 移位已消除）。
+//   残余：call/字符串/数据地址【AE】、lea$0x15 vs add、mov0x2 直传 vs mov+mov、栈槽偏移。
 void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const& item,
                                           int addNew, int addOld, eItemAddReason reason,
                                           char const* name1, char const* name2)
@@ -879,11 +882,14 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
         ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e,
         ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
         ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
+        item.m_field0,            // ORIG IVar1 = *param_3（item+0x00 字节）
         item.GetReSealCount(),
         guid);
 }
 
 // ORIG T 0x868412a（报告全文）："Item-,..."——注意 %s 只有一个名字参数（param_8）。
+// b21 NEAR：语义与 ORIG 全等（%s 仅 name2=param_8 正确）。修：补齐 item+0x00 字节 vararg。
+//   残余：call/字符串【AE】、N-86b 双 codegen、栈槽偏移。
 void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const& item,
                                           int delNew, int delOld, eItemDelReason reason,
                                           char const* name1, char const* name2)
@@ -905,6 +911,7 @@ void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const
         ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e,
         ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
         ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
+        item.m_field0,            // ORIG IVar1 = *param_3（item+0x00 字节）
         item.GetReSealCount(),
         guid);
 }

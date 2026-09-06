@@ -1169,6 +1169,11 @@ bool WindowsCodeProtectorServer::BeginLoading()              // 0x08575700
 bool WindowsCodeProtectorServer::LoadWindowsFile(const char* path,
                                                  const char* name) // 0x08575712
 {
+    // b21 verdict=DIFF（N 布局残余）：163/175，21=21 调用点全等（strstr/FindExe*/FindData*/
+    //   LoadWindows{Exe,Data}File/SetCheckingOption×3/Windows{Exe,Data}FileFamily C1+D1/
+    //   operator_new/operator_delete/push_back/Unwind_Resume）。exe(.exe.bak)↔data 频域、
+    //   new+Load→Set-check→push_back 语义、失败删 `delete family` 均已核。残余仅 4.1 共享
+    //   尾块 fall-through vs 4.4 独立 return 块、寄存器分配、块调度。语义完成，N 封顶。
     if (strstr(path, ".exe.bak") == 0)                       // data 文件域
     {
         WindowsDataFileFamily* family = FindDataFamilyFile(name);

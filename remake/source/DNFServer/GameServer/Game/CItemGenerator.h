@@ -215,6 +215,13 @@ struct stGenerateRefData_t
 		float m_rankBonusRate;      // +0x38（float 视图：ORIG CBossPlay::generateRewardItem
 		                            //   特定分支 `mov $0x3f800000,%eax; mov %eax,-0xec(%ebp)`
 		                            //   即写 1.0f；随机分支同槽写整型 1）
+		struct                     // +0x38 低字节视图（WongWorkDrop 按字节读）
+		{
+			unsigned char m_field38;  // +0x38
+			unsigned char m_field39;  // +0x39（循环次数上限 i8）
+			unsigned char m_field3a;  // +0x3a
+			unsigned char m_field3b;  // +0x3b
+		};
 	};
 	union
 	{
@@ -223,6 +230,13 @@ struct stGenerateRefData_t
 		{
 			unsigned short m_goldBase;    // +0x3c（金币公式基数分量；随机分支 movw $1）
 			unsigned short m_goldFactor;  // +0x3e（金币公式加倍分量；随机分支 movw $1）
+		};
+		struct                     // +0x3c 低字节视图（WongWorkDrop_B 按字节读）
+		{
+			unsigned char m_field3c_byte;  // +0x3c
+			unsigned char m_field3d;       // +0x3d
+			unsigned char m_field3e_byte;  // +0x3e（m_goldFactor 低字节）
+			unsigned char m_field3f;       // +0x3f
 		};
 	};
 	union
@@ -235,8 +249,23 @@ struct stGenerateRefData_t
 			unsigned short m_field42;     // +0x42（半字视图：ORIG 随机分支 movw $1，
 			                            //   两半合成指针位型 0x10001，随机路径不解引用）
 		};
+		struct                     // +0x40 低字节视图（WongWorkDrop 按字节读 hell 旗标等）
+		{
+			unsigned char m_field40_byte;  // +0x40
+			unsigned char m_field41;       // +0x41
+			unsigned char m_field42_byte;  // +0x42
+			unsigned char m_field43;       // +0x43
+		};
 	};
-	unsigned short m_field44;       // +0x44
+	union
+	{
+		unsigned short m_field44;         // +0x44
+		struct                     // +0x44 低字节视图（WongWorkDrop_B 按字节读）
+		{
+			unsigned char m_field44_byte;  // +0x44
+			unsigned char m_field45;       // +0x45
+		};
+	};
 	char m_pad46[2];                // +0x46..+0x47
 };
 // 布局自检（union 仅叠加视图，sizeof/成员偏移零漂移）。
