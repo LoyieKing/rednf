@@ -239,6 +239,11 @@ int CUser::AntibotSend(PacketBuf& packet)
     if (packet.isEncryptRequired())
     {
         encReq = true;
+        // §4.5 例外：s_antibotChecker_（GlobalData.h `void*`）承自外部
+        // CreateAntiServerObj，antibot 类未在本仓建模（vtable 槽位
+        // VerifyFn=+0x34 / EncryptFn=+0x28）。登记 b22 类建模单：antibot
+        // （SDS 反外挂插件，需外部 SDK 接口定义）。禁 typedef 槽指针调用
+        // 无可行替代（类型缺失即无法真实虚调用）。
         typedef int (*VerifyFn)(void*, int, unsigned short);   // vtable +0x34
         if ((*(VerifyFn*)((*(void***)GlobalData::s_antibotChecker_)[0x34 / 4]))(
                 GlobalData::s_antibotChecker_, getAntibotKey(), packetId) != 0)
@@ -7237,6 +7242,11 @@ void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
         (private_store::CPrivateStore*)mgr->FindStoreSeller(this);
     if (store != 0)
     {
+        // §4.5 例外：虚表+4 = ISeller::RemovePrivateStore(bool)（CPrivateStoreMgr.h:209
+        // 权威 vtable 实证），但 CUser.cpp 因 #include "CPrivateStoreMgr.h" 的
+        // SigTypes.h↔SkillSlot.h 包含序冲突（文件头注释）无法引权威头以获得
+        // 完整 14 虚成员布局；本 TU 仅为 `class CPrivateStore;` 前向。登记
+        // b22 类建模单：消解 CPrivateStoreMgr.h 包含序冲突后改真实 RemovePrivateStore(false)。
         typedef void (*Vfn)(void*, int);          // 推断：虚表+4 结束个人商店
         ((Vfn*)*(void**)store)[1](store, 0);
     }
@@ -7725,6 +7735,8 @@ void CUser::prepareDisconnect()
 
     void* checker = GlobalData::s_antibotChecker_;
     void** vtbl = *(void***)checker;
+    // §4.5 例外：antibot 类未建模（见 AntibotSend 处 b22 单），
+    // Fn3=+0x08（DeleteClient 上报）/ Fn1=+0x24（DeleteClient 尾标）。
     typedef void (*Fn3)(void*, int, int, unsigned int);   // vptr+0x08
     typedef void (*Fn1)(void*, unsigned int);             // vptr+0x24
     ((Fn3)vtbl[2])(checker, G_CEnvironment()->getProcessSequence(), 0,
@@ -10787,13 +10799,13 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     // 其余 type 0xa/0x10/0xe/0xf/0x11/0x12、aura、option、attendance、
     // blueMarble、type 0x13 均无条件执行。
     CExpandEquipslot* e7 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)7);
-    (*(GetDataFn)((char*)*(void**)e7 + 8))(e7, &sig->m_mixedRegion[0xcf1f - 0xc9c0]);
+    e7->getData(&sig->m_mixedRegion[0xcf1f - 0xc9c0]);
     CExpandEquipslot* ed = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xd);
-    (*(GetDataFn)((char*)*(void**)ed + 8))(ed, &sig->m_mixedRegion[0xd718 - 0xc9c0]);
+    ed->getData(&sig->m_mixedRegion[0xd718 - 0xc9c0]);
     CExpandEquipslot* e8 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)8);
-    (*(GetDataFn)((char*)*(void**)e8 + 8))(e8, &sig->m_mixedRegion[0xcdd5 - 0xc9c0]);
+    e8->getData(&sig->m_mixedRegion[0xcdd5 - 0xc9c0]);
     CExpandEquipslot* eb = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xb);
-    (*(GetDataFn)((char*)*(void**)eb + 8))(eb, &sig->m_mixedRegion[0xd5a7 - 0xc9c0]);
+    eb->getData(&sig->m_mixedRegion[0xd5a7 - 0xc9c0]);
 
     // tag 角色技能槽（+0x10/+0x1a8）
     if (getTagCharacR() != 0)
@@ -10806,17 +10818,17 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
 
     // ORIG 0x0867794c：expand type 0xa → mix+0xd6fc（0xd6fc - 0xc9c0）。
     CExpandEquipslot* ea = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xa);
-    (*(GetDataFn)((char*)*(void**)ea + 8))(ea, &sig->m_mixedRegion[0xd6fc - 0xc9c0]);
+    ea->getData(&sig->m_mixedRegion[0xd6fc - 0xc9c0]);
     CExpandEquipslot* e10 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x10);
-    (*(GetDataFn)((char*)*(void**)e10 + 8))(e10, &sig->m_mixedRegion[0xd73c - 0xc9c0]);
+    e10->getData(&sig->m_mixedRegion[0xd73c - 0xc9c0]);
     CExpandEquipslot* ee = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xe);
-    (*(GetDataFn)((char*)*(void**)ee + 8))(ee, (char*)sig->m_expandDataE);
+    ee->getData((char*)sig->m_expandDataE);
     CExpandEquipslot* ef = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xf);
-    (*(GetDataFn)((char*)*(void**)ef + 8))(ef, (char*)sig->m_expandDataF);
+    ef->getData((char*)sig->m_expandDataF);
     CExpandEquipslot* e11 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x11);
-    (*(GetDataFn)((char*)*(void**)e11 + 8))(e11, &sig->m_mixedRegion[0xecc8 - 0xc9c0]);
+    e11->getData(&sig->m_mixedRegion[0xecc8 - 0xc9c0]);
     CExpandEquipslot* e12 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x12);
-    (*(GetDataFn)((char*)*(void**)e12 + 8))(e12, &sig->m_mixedRegion[0xecd0 - 0xc9c0]);
+    e12->getData(&sig->m_mixedRegion[0xecd0 - 0xc9c0]);
 
     // aura（+0xd730）/ character option（+0xeac8）在混合区内
     GetAuraAvatarOption(
@@ -10829,8 +10841,7 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     sig->m_blueMarbleEnterCount = getBlueMarbleEnterCount();
     CExpandEquipslot* e13 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x13);
     // e13 区 = attendanceEvent 内 +1 字节起（0x14a99 起 0x11 字节，0x14a9a=+1）。
-    (*(GetDataFn)((char*)*(void**)e13 + 8))(
-        e13, (char*)&sig->m_attendanceEvent + 1);
+    e13->getData((char*)&sig->m_attendanceEvent + 1);
 
     return 1;
 }
@@ -11463,11 +11474,6 @@ void CUser::SendEventMailAlaramTooltip()
     packet.finalize(true);
     Send(packet);
 }
-
-// —— 未建模 ORIG 符号的函数指针桥（Secu_GoldControl.cpp 先例）——
-// CUser::verifyStackableItemProcess  ORIG T 0x0868f60e
-// （SaveMoneyCoin/SendCoin 已按报告还原为真实成员，桥接移除。）
-typedef int (*U1VerifyStackableFn)(CUser*, int, const CItem*);  /*推断: 枚举 Type 未建模*/
 
 // ORIG T 0x0869154a sz0x664：抽奖计数道具发放（事件币/道具/邮件补偿）。
 void CUser::giveLotteryCountItem(int itemNo, bool match)

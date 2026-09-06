@@ -6,8 +6,12 @@
 class CHellPartyItemStatistic
 {
 public:
-    void SendHellPartyItemStatistic(bool, int, int, int, char, int*);
+    // ORIG T 0x0860fcc0：eax 传回 bool（SendHellPartyItemStatistic.md 反汇编
+    // mov $0x1/$0x0 实证）；mangled 不含返回型，改 bool 零 ABI 风险。
+    bool SendHellPartyItemStatistic(bool, int, int, int, char, int*);
 };
 
+// ORIG T 0x0860fcb6：函数级 static 单例（.bss instance @0x0947334c，0x24 字节）。
+void* GetInstanceHellPartyItemStatistic();
 
 #endif // DNF_GAME_CHELLPARTYITEMSTATISTIC_H_

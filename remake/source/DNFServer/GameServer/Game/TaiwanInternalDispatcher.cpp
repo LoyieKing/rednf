@@ -151,11 +151,9 @@ int InterSelectCreateDnfUserInfo::dispatch_sig(CUser* user, char* buf, int len)
     }
     CEventCreateDnf* event =
         (CEventCreateDnf*)GlobalData::s_event_manager->GetRepeatEvent(0xa0);
-    typedef bool (*IsEventingFn)(void*, void*);
     bool eventing;
     if (event == 0 ||
-        reinterpret_cast<IsEventingFn>(
-            (*reinterpret_cast<void***>(event))[0x34 / 4])(event, 0) != '\x01')
+        event->IsEventing(0) != '\x01')   // 真实虚调用 CEventBase::IsEventing @vtable+0x34
     {
         eventing = true;
     }
@@ -165,9 +163,7 @@ int InterSelectCreateDnfUserInfo::dispatch_sig(CUser* user, char* buf, int len)
     }
     if (eventing)
     {
-        IsEventingFn fn = reinterpret_cast<IsEventingFn>(
-            (*reinterpret_cast<void***>(event))[0x34 / 4]);
-        char ev = fn(event, 0);
+        char ev = event->IsEventing(0);   // 真实虚调用 IsEventing @vtable+0x34
         const char* stay = (event == 0) ? "nullptr" : "ok";
         LogManager::logFormat(1, "localtaiwan/Dispatcher/Taiwan_InterDispatcher.cpp",
                               __PRETTY_FUNCTION__, 0x138,
@@ -499,9 +495,8 @@ int InterCheckStayTimeEvent::dispatch_sig(CUser* user, char* buf, int len)
     }
     CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x9f);
     // ORIG 直调 vtable+0x34 槽（同 TaiwanInternalDispatcher.cpp 既有口径，保 ABI；无空检）。
-    typedef bool (*IsEventingFn)(void*, void*);
-    if (reinterpret_cast<IsEventingFn>(
-            (*reinterpret_cast<void***>(event))[0x34 / 4])(event, 0) != '\x01')
+    // §4.5 正解：真实虚调用 CEventBase::IsEventing(CUser*)@vtable+0x34（CGuildServerProxy.h 权威）。
+    if (event->IsEventing(0) != '\x01')
     {
         return 0;
     }
@@ -537,9 +532,8 @@ int InterInsertGiveBoxEventReward::dispatch_sig(CUser* user, char* buf, int len)
         return 0x1dd;
     }
     CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0xa5);
-    typedef bool (*IsEventingFn)(void*, void*);
-    if (reinterpret_cast<IsEventingFn>(
-            (*reinterpret_cast<void***>(event))[0x34 / 4])(event, 0) != '\x01')
+    // §4.5 正解：真实虚调用 CEventBase::IsEventing(CUser*)@vtable+0x34（CGuildServerProxy.h 权威）。
+    if (event->IsEventing(0) != '\x01')
     {
         return 0;
     }

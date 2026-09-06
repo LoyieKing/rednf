@@ -15,8 +15,9 @@
 // 三个 std::map<uint,uchar> 子对象位于 +0x8/+0x20/+0x38，ctor 报告实证）；
 // 上述谓词/登记/难度标志均以真实成员函数定义（桥清零，b21 批次）。
 //
-// CHellPartyItemStatistic 同样无权威头；SendHellPartyItemStatistic 不访问任何
-// 成员（this 仅占位），单例 instance 为函数级 static（ORIG .bss _ZZ33...E8instance
+// CHellPartyItemStatistic 权威头 CHellPartyItemStatistic.h；本 TU 提供
+// SendHellPartyItemStatistic 真实成员定义（桥清零）。单例 GetInstanceHellPartyItemStatistic
+// 为自由函数，提供真实定义（函数级 static，ORIG .bss _ZZ33...E8instance
 // @0x0947334c，下一符号距 0x24 → sizeof 0x24）。
 //
 // 统计包 Packet_HellParty_Statistic_Item（ORIG ctor 0x0860ff9e =
@@ -42,6 +43,7 @@
 #include "CStreamGuard.h"         // CStreamGuard(Stream*,bool) / Stream
 #include "MsgQueueMgr.h"          // MsgQueueMgr::put(DB_Q, CStreamGuard&)
 #include "SigTypes_C.h"           // SIG_LOAD_KILL_MONSTER_INFO
+#include "CHellPartyItemStatistic.h"  // 地狱派对统计（桥清零，权威头）
 
 // ============================================================================
 // CKillMonsterInfo 域 —— 桥清零：原 freestanding asm(_ZN…) shim 转为真实成员
@@ -167,13 +169,9 @@ bool CKillMonsterInfo::RegisterAPCBossKill(unsigned int mobIdx,
 
 // ---- SendHellPartyItemStatistic —— ORIG T 0x0860fcc0 -----------------------
 // dungeonDiff>4 或 scriptIdx==0 → false；否则组包经统计代理（组 0）发送 0x2a 字节。
-bool HellPartySendItemStatisticShim(void* /*self*/, bool random, int dungeonIdx,
-                                    int diff, int dieReason, char scriptIdx,
-                                    int* statistic)
-    asm("_ZN23CHellPartyItemStatistic26SendHellPartyItemStatisticEbiiicPi");
-bool HellPartySendItemStatisticShim(void* /*self*/, bool random, int dungeonIdx,
-                                    int diff, int dieReason, char scriptIdx,
-                                    int* statistic)
+bool CHellPartyItemStatistic::SendHellPartyItemStatistic(
+    bool random, int dungeonIdx, int diff, int dieReason, char scriptIdx,
+    int* statistic)
 {
     if (diff > 4)
         return false;
@@ -197,9 +195,7 @@ bool HellPartySendItemStatisticShim(void* /*self*/, bool random, int dungeonIdx,
 
 // ---- GetInstanceHellPartyItemStatistic —— ORIG T 0x0860fcb6 ---------------
 // 函数级 static 单例（ORIG .bss instance 0x0947334c，占 0x24 字节）。
-void* GetInstanceHellPartyItemStatisticShim()
-    asm("_Z33GetInstanceHellPartyItemStatisticv");
-void* GetInstanceHellPartyItemStatisticShim()
+void* GetInstanceHellPartyItemStatistic()
 {
     static unsigned char instance[0x24];
     return instance;

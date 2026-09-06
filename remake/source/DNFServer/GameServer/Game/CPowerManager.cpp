@@ -88,26 +88,19 @@ int CPowerManager::CheckPowerWarEnterLimit(CUser* user)
         minLevel = 0x1e;
     if (minAge == 0)
         minAge = 0xf;
-    // CUser::CheckLimitMiniumAge(user, minAge, &out) 内联。
-
-    int out = 0;
-    int age = user->GetAge();
-    int pass = 1;
-    if ((unsigned int)(age - 1) < (unsigned int)minAge)
+    // ORIG 直调 CUser::CheckLimitMiniumAge（T 0x0864fc3e），禁内联展开（§4.1）。
+    int outUnique = 0;
+    if (user->CheckLimitMiniumAge(minAge, outUnique) == 1)
     {
-        out = user->get_unique_id() & 0xffff;
-        pass = 0;
+        if (user->get_charac_level() < minLevel)
+            return 0xe;
+        else
+            return 0;
     }
-    else if (age - 1 == minAge && !PowerManager_IsOverBirthDay(user))
+    else
     {
-        out = user->get_unique_id() & 0xffff;
-        pass = 0;
-    }
-    if (pass != 1)
         return 0x5f;
-    if (user->get_charac_level() < minLevel)
-        return 0xe;
-    return 0;
+    }
 }
 
 char CPowerManager::GetWinnerSide()
@@ -404,12 +397,14 @@ void CPowerManager::ClearMVPInfo()
         GlobalData::s_stream_pool->Acquire("DNF_PowerManager.cpp", 0x149), true);
     **guard << 0x1a5;
     **guard << -1;
-    **guard << G_CEnvironment()->get_server_group();
+    // ORIG 直读 G_CEnvironment()+0x378（m_serverEnvir.m_serverGroup），两次
+    // 各自重物化（P183）；禁 getter 调用（EXTRA symbol）与跨调用缓存。
+    **guard << G_CEnvironment()->m_serverEnvir.m_serverGroup;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 
     cMyTrace tr("void CPowerManager::ClearMVPInfo()", 0x152, 0);
     tr("PUT DB MSG - E_DELETE_POWER_WAR_STATUE_MESSAGE / server_group : %d",
-       G_CEnvironment()->get_server_group());
+       G_CEnvironment()->m_serverEnvir.m_serverGroup);
 
     CSharedServerMessageManager* mgr =
         G_CGameManager()->GetSharedServerMessageManager();
@@ -424,7 +419,7 @@ void CPowerManager::ClearMVPInfo()
     pkt.put_header(0, 0xc0);
     pkt.put_byte(2);
     pkt.put_byte(3);
-    const char* msg = "null string";
+    char* msg = (char*)"null string";   // ORIG char* → put_str(char*,int) 重载
     int len = static_cast<int>(strlen(msg));
     for (int i = 0; i < 3; ++i)
     {

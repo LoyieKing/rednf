@@ -12,6 +12,7 @@
 
 #include "CEnvironment.h"  // G_CEnvironment / STDBConnInfo / DB_HANDLE_E（InitBillingCash）
 #include "LogManager.h"    // Initialize 失败路径 logFormat（ORIG IPGMgr.cpp 0x98 行文案）
+#include "DNFFunctionLib.h"  // NumberToString(ull,int)（billing trace 直调）
 
 namespace Taiwan
 {
@@ -136,13 +137,13 @@ int TaiwanCash::purchase(unsigned long long uid, int price, int pay,
     // ORIG：NumberToString(trans.m_tranNo) + cMyTrace("[Taiwan, Billing] PurchaseQuery
     // Account:%s, Charac:%s, Price:%d, Transaction:%s")。此处保留等价 trace 面，
     // 经由 cMyTrace（GameTypes.h 局部实现）输出。【推断：等价日志】
+    // ORIG 0x08173a00 直调 NumberToString(trans.m_tranNo,0)（禁 snprintf 替代）。
     {
-        char tranBuf[32];
-        std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
-                      static_cast<unsigned long long>(trans.m_tranNo));
+        char* tranStr = NumberToString(
+            static_cast<unsigned long long>(trans.m_tranNo), 0);
         cMyTrace trace(__FUNCTION__, 0x81, 0);
         trace("[Taiwan, Billing] PurchaseQuery Account:%s, Charac:%s, Price:%d, Transaction:%s",
-              account, charac, pay, tranBuf);
+              account, charac, pay, tranStr);
     }
     return 0;
 }
@@ -410,12 +411,11 @@ int TaiwanCash::charge(char* p1, unsigned char serviceType, unsigned char p3,
     trans.m_tranNo = query.m_trans.m_tranNo;
 
     {
-        char tranBuf[32];
-        std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
-                      static_cast<unsigned long long>(trans.m_tranNo));
+        char* tranStr = NumberToString(
+            static_cast<unsigned long long>(trans.m_tranNo), 0);
         cMyTrace trace(__FUNCTION__, 0xce, 0);
         trace("[Taiwan, Billing] ChargeQuery Account:%s, Price:%d, Transaction:%s",
-              p1, static_cast<int>(price), tranBuf);
+              p1, static_cast<int>(price), tranStr);
     }
     return 0;
 }
@@ -436,11 +436,10 @@ int TaiwanCash::confirm(const BillTransaction& trans)
         return query.m_resultCode;
 
     {
-        char tranBuf[32];
-        std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
-                      static_cast<unsigned long long>(trans.m_tranNo));
+        char* tranStr = NumberToString(
+            static_cast<unsigned long long>(trans.m_tranNo), 0);
         cMyTrace trace(__FUNCTION__, 0xa7, 0);
-        trace("[Taiwan, Billing] ConfirmQuery Transaction:%s", tranBuf);
+        trace("[Taiwan, Billing] ConfirmQuery Transaction:%s", tranStr);
     }
     return 0;
 }
@@ -463,12 +462,11 @@ int TaiwanCash::purchase(unsigned long long uid, int price, int pay,
     trans.m_tranNo = query.m_trans.m_tranNo;
 
     {
-        char tranBuf[32];
-        std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
-                      static_cast<unsigned long long>(trans.m_tranNo));
+        char* tranStr = NumberToString(
+            static_cast<unsigned long long>(trans.m_tranNo), 0);
         cMyTrace trace(__FUNCTION__, 0x6e, 0);
         trace("[Taiwan, Billing] PurchaseQuery Account:%s, Charac:%s, Price:%d, Transaction:%s",
-              account, charac, pay, tranBuf);
+              account, charac, pay, tranStr);
     }
     return 0;
 }

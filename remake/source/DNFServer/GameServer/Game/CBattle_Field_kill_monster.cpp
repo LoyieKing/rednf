@@ -9,14 +9,13 @@
 // 汇编 + Ghidra 反编译 C 双重对照，逐段忠实转写；__PRETTY_FUNCTION__ 取自
 // .r 区 0x08c23400 字面量）。
 //
-// 外部真实符号（ORIG T/W，本项目尚未还原，本 TU 仅声明原型供链接解析；
-// 函数体转写属独立批次，清单见 /tmp/df_batches/BFKillMonster.md）：
+// 外部符号调用（桥清零，b21 批次；全部真实类型直调权威头）：
 //   CKillMonsterInfo::{Check,Register}{BossKill,APCBossKill,NamedKill}
-//     0x0854d184 / 0x0854d418 / 0x0854d1e8 / 0x0854d48c / 0x0854d1b6 / 0x0854d452
-//   CHellPartyItemStatistic::SendHellPartyItemStatistic  0x0860fcc0
-//   GetInstanceHellPartyItemStatistic                    0x0860fcb6
-//   CDataManager::getDropRate                            0x0830e6d2(W)
-//   CUser::getAddIndependentDropRateFromPremium          0x0830edaa(W)
+//     —— CKillMonsterInfo.h，定义见 CKillMonsterInfo_chain.cpp
+//   CHellPartyItemStatistic::SendHellPartyItemStatistic —— CHellPartyItemStatistic.h
+//   GetInstanceHellPartyItemStatistic                    0x0860fcb6（CHellPartyItemStatistic.h）
+//   CDataManager::getDropRate                            0x0830e6d2（CDataManager.cpp）
+//   CUser::getAddIndependentDropRateFromPremium          0x0830edaa（CUser.cpp）
 //
 // 同 TU 依赖的 CBattle_Field 成员（权威头已有纯声明，定义在其它 TU）：
 //   KillHellPartyGroupMonsterCnt / checkKilledSpawnBloodMonsters /
@@ -38,6 +37,9 @@
 #include "CSystemTime.h"            // CSystemTime::getCurTickCount
 #include "GlobalData.h"             // s_globalEffectManager_ / s_systemTime_
 #include "LogManager.h"             // LogManager::logFormat
+#include "CDataManager.h"           // getDropRate / find_monster（桥清零）
+#include "CKillMonsterInfo.h"       // 击杀/奖励链六谓词（桥清零）
+#include "CHellPartyItemStatistic.h" // 地狱派对统计单例/发送（桥清零）
 // ORIG __PRETTY_FUNCTION__（.r 区字面量；重建签名 unsigned int& 与 uint& 文本差异，
 // 故按 ORIG 字符串硬编码，供 LogManager/cMyTrace 使用）。
 #define BFKM_ROUND(v) ((int)((v) + 0.5f))
@@ -50,49 +52,6 @@ namespace
 char const s_bfkm_pretty[] =
     "bool CBattle_Field::kill_monster(PacketGuard&, map_monster&, uint&, "
     "const STKillMonsterData&)";
-
-
-// ---- ORIG 真实符号原型（本 TU 仅声明，不提供定义）----
-
-// CDataManager::getDropRate() const —— W 0x0830e6d2
-float bfkmGetDropRateShim(CDataManager const* /*self*/)
-    asm("_ZNK12CDataManager11getDropRateEv");
-
-// CUser::getAddIndependentDropRateFromPremium(ENUM_PREMIUM_TYPE, unsigned int)
-// —— W 0x0830edaa（转发 WongWork::CUserPremium::GetAddIndependentDropRate）
-int bfkmGetAddIndependentDropRateFromPremiumShim(
-    CUser* /*self*/, ENUM_PREMIUM_TYPE /*type*/, unsigned int /*count*/)
-    asm("_ZN5CUser36getAddIndependentDropRateFromPremiumE17ENUM_PREMIUM_TYPEj");
-
-// CKillMonsterInfo 六个击杀登记谓词（charac_expand 类型 0xc 扩展数据）
-bool bfkmCheckBossKillShim(void* /*self*/, unsigned int /*mobIdx*/,
-                           unsigned char /*diff*/)
-    asm("_ZN16CKillMonsterInfo13CheckBossKillEjh");
-bool bfkmRegisterBossKillShim(void* /*self*/, unsigned int /*mobIdx*/,
-                              unsigned char /*diff*/)
-    asm("_ZN16CKillMonsterInfo16RegisterBossKillEjh");
-bool bfkmCheckAPCBossKillShim(void* /*self*/, unsigned int /*mobIdx*/,
-                              unsigned char /*diff*/)
-    asm("_ZN16CKillMonsterInfo16CheckAPCBossKillEjh");
-bool bfkmRegisterAPCBossKillShim(void* /*self*/, unsigned int /*mobIdx*/,
-                                 unsigned char /*diff*/)
-    asm("_ZN16CKillMonsterInfo19RegisterAPCBossKillEjh");
-bool bfkmCheckNamedKillShim(void* /*self*/, unsigned int /*mobIdx*/,
-                            unsigned char /*diff*/)
-    asm("_ZN16CKillMonsterInfo14CheckNamedKillEjh");
-bool bfkmRegisterNamedKillShim(void* /*self*/, unsigned int /*mobIdx*/,
-                               unsigned char /*diff*/)
-    asm("_ZN16CKillMonsterInfo17RegisterNamedKillEjh");
-
-// 地狱派对物品统计单例（ORIG 函数内 static instance 0x0947334c）
-void* bfkmGetInstanceHellPartyItemStatisticShim()
-    asm("_Z33GetInstanceHellPartyItemStatisticv");
-bool bfkmSendHellPartyItemStatisticShim(void* /*self*/, bool /*random*/,
-                                        int /*dungeonIdx*/, int /*diff*/,
-                                        int /*dieReason*/, char /*scriptIdx*/,
-                                        int* /*statistic[6]*/)
-    asm("_ZN23CHellPartyItemStatistic26SendHellPartyItemStatisticEbiiicPi");
-
 }  // namespace
 
 // ================= kill_monster 主函数 =================
@@ -243,35 +202,36 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
     {
         // ORIG +0x0704：单人分支独立调用 getManager 取扩展数据宿主
         CUser* manager = m_party->getManager();
-        void* killInfo =
-            manager->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xc);
+        CKillMonsterInfo* killInfo = static_cast<CKillMonsterInfo*>(
+            static_cast<void*>(
+                manager->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xc)));
         const int diff = get_dungeon_diff();
         if (mob.m_roleType == 3)
         {
-            if (!bfkmCheckBossKillShim(killInfo, mobIdx, (unsigned char)diff))
+            if (!killInfo->CheckBossKill(mobIdx, (unsigned char)diff))
             {
-                if (bfkmRegisterBossKillShim(killInfo, mobIdx,
-                                             (unsigned char)get_dungeon_diff()))
+                if (killInfo->RegisterBossKill(
+                        mobIdx, (unsigned char)get_dungeon_diff()))
                     firstBossKill = true;
             }
         }
         else if (mob.m_roleType == 8)
         {
-            if (!bfkmCheckAPCBossKillShim(killInfo, mobIdx,
-                                          (unsigned char)get_dungeon_diff()))
+            if (!killInfo->CheckAPCBossKill(
+                    mobIdx, (unsigned char)get_dungeon_diff()))
             {
-                if (bfkmRegisterAPCBossKillShim(killInfo, mobIdx,
-                                                (unsigned char)get_dungeon_diff()))
+                if (killInfo->RegisterAPCBossKill(
+                        mobIdx, (unsigned char)get_dungeon_diff()))
                     firstBossKill = true;
             }
         }
         else if (mob.isNamedMonster())
         {
-            if (!bfkmCheckNamedKillShim(killInfo, mobIdx,
-                                        (unsigned char)get_dungeon_diff()))
+            if (!killInfo->CheckNamedKill(
+                    mobIdx, (unsigned char)get_dungeon_diff()))
             {
-                if (bfkmRegisterNamedKillShim(killInfo, mobIdx,
-                                              (unsigned char)get_dungeon_diff()))
+                if (killInfo->RegisterNamedKill(
+                        mobIdx, (unsigned char)get_dungeon_diff()))
                     firstNamedKill = true;
             }
         }
@@ -280,18 +240,19 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
     {
         // ORIG +0x07ab：组队分支独立调用 getManager 取扩展数据宿主
         CUser* manager = m_party->getManager();
-        void* killInfo =
-            manager->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xc);
+        CKillMonsterInfo* killInfo = static_cast<CKillMonsterInfo*>(
+            static_cast<void*>(
+                manager->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xc)));
         const int diff = get_dungeon_diff();
         if (mob.m_roleType == 3)
         {
-            if (bfkmCheckBossKillShim(killInfo, mobIdx, (unsigned char)diff))
+            if (killInfo->CheckBossKill(mobIdx, (unsigned char)diff))
             {
                 m_party->MemberRegisterKillMonster(
                     mob, (unsigned char)get_dungeon_diff());
             }
-            else if (bfkmRegisterBossKillShim(killInfo, mobIdx,
-                                              (unsigned char)get_dungeon_diff()))
+            else if (killInfo->RegisterBossKill(
+                         mobIdx, (unsigned char)get_dungeon_diff()))
             {
                 firstBossKill = true;
                 m_party->MemberRegisterKillMonster(
@@ -300,14 +261,14 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
         }
         else if (mob.m_roleType == 8)
         {
-            if (bfkmCheckAPCBossKillShim(killInfo, mobIdx,
-                                         (unsigned char)get_dungeon_diff()))
+            if (killInfo->CheckAPCBossKill(
+                    mobIdx, (unsigned char)get_dungeon_diff()))
             {
                 m_party->MemberRegisterKillMonster(
                     mob, (unsigned char)get_dungeon_diff());
             }
-            else if (bfkmRegisterAPCBossKillShim(
-                         killInfo, mobIdx, (unsigned char)get_dungeon_diff()))
+            else if (killInfo->RegisterAPCBossKill(
+                         mobIdx, (unsigned char)get_dungeon_diff()))
             {
                 firstBossKill = true;
                 m_party->MemberRegisterKillMonster(
@@ -316,14 +277,14 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
         }
         else if (mob.isNamedMonster())
         {
-            if (bfkmCheckNamedKillShim(killInfo, mobIdx,
-                                       (unsigned char)get_dungeon_diff()))
+            if (killInfo->CheckNamedKill(
+                    mobIdx, (unsigned char)get_dungeon_diff()))
             {
                 m_party->MemberRegisterKillMonster(
                     mob, (unsigned char)get_dungeon_diff());
             }
-            else if (bfkmRegisterNamedKillShim(
-                         killInfo, mobIdx, (unsigned char)get_dungeon_diff()))
+            else if (killInfo->RegisterNamedKill(
+                         mobIdx, (unsigned char)get_dungeon_diff()))
             {
                 firstNamedKill = true;
                 m_party->MemberRegisterKillMonster(
@@ -364,7 +325,8 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
         {
             const float effectValue =
                 GlobalData::s_globalEffectManager_->getEffectValue(1);
-            const int dropRateRounded = BFKM_ROUND(bfkmGetDropRateShim(G_CDataManager()));
+            const int dropRateRounded =
+                BFKM_ROUND(G_CDataManager()->getDropRate());
             if ((float)dropRateRounded < effectValue)
             {
                 const int delta = BFKM_ROUND(
@@ -379,7 +341,8 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
         {
             const float effectValue =
                 GlobalData::s_globalEffectManager_->getEffectValue(4);
-            const int dropRateRounded = BFKM_ROUND(bfkmGetDropRateShim(G_CDataManager()));
+            const int dropRateRounded =
+                BFKM_ROUND(G_CDataManager()->getDropRate());
             if ((float)dropRateRounded < effectValue)
             {
                 const int delta = BFKM_ROUND(
@@ -408,9 +371,11 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
             {
                 if (!m_party->checkValidUser(i))
                     continue;
-                premiumAddRate = bfkmGetAddIndependentDropRateFromPremiumShim(
-                    m_party->GetMember()[i].m_pUser, (ENUM_PREMIUM_TYPE)0x4f,
-                    (unsigned int)premiumCount);
+                premiumAddRate = static_cast<int>(
+                    m_party->GetMember()[i].m_pUser
+                        ->getAddIndependentDropRateFromPremium(
+                            (ENUM_PREMIUM_TYPE)0x4f,
+                            (unsigned int)premiumCount));
                 break;
             }
         }
@@ -457,11 +422,13 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
             }
             if (m_hellPartyDropFlag != 0 && m_killedAllHellGroups != 0)
             {
-                const bool sent = bfkmSendHellPartyItemStatisticShim(
-                    bfkmGetInstanceHellPartyItemStatisticShim(),
-                    m_hellPartyRandom != 0,
-                    m_pDungeon->get_index(), get_dungeon_diff(), dieReason,
-                    m_hellPartyDifficulty, &m_hellItemStatistic[0]);
+                const bool sent =
+                    static_cast<CHellPartyItemStatistic*>(
+                        GetInstanceHellPartyItemStatistic())
+                        ->SendHellPartyItemStatistic(
+                            m_hellPartyRandom != 0, m_pDungeon->get_index(),
+                            get_dungeon_diff(), dieReason, m_hellPartyDifficulty,
+                            &m_hellItemStatistic[0]);
                 if (!sent)
                 {
                     LogManager::logFormat(
