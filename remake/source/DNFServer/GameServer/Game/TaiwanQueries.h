@@ -47,7 +47,7 @@ class CUser;
 // RSA_public_decrypt 分块，均 RSA_PKCS1_PADDING=1。m_rsa 以 void* 持 opaque
 // RSA*（免 openssl 头依赖）；openssl C 符号由 LibCryptoStatic.cpp 收口实现。
 // ---------------------------------------------------------------------------
-extern "C" {
+extern "C" {   // 第三方 libcrypto（OpenSSL）豁免（§4.5 例外，不转不违例）：C 符号需 extern "C" 链接
 void* BIO_s_file();                                   // libcrypto（运行期由系统库提供）
 void* BIO_new(void* type);
 int BIO_ctrl(void* bio, int cmd, long arg, void* p);

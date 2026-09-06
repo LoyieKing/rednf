@@ -58,17 +58,10 @@ inline int userIdPlaceId(CUser* user)
     return user->GetAssaultPlace();
 }
 
-// expert_job::CAlchemist::GetAssaultPrevent 在 ORIG 中以两参栈式调用（无 this 槽，
-// 函数体仅消费 0x8/0xc 两参）。为忠实复现调用 ABI 且不改动其它组权威声明，
-// 采用 GCC 成员函数指针→普通函数指针转换直呼原符号。
-typedef int (*GetAssaultPreventFn)(CUser*, bool*);
-
-inline int callGetAssaultPrevent(CUser* user, bool* peerFlag)
-{
-    GetAssaultPreventFn fn =
-        reinterpret_cast<GetAssaultPreventFn>(&expert_job::CAlchemist::GetAssaultPrevent);
-    return fn(user, peerFlag);
-}
+// expert_job::CAlchemist::GetAssaultPrevent 为 static（无 this 槽，
+// CExpertJob.h:272 权威声明，ORIG T 0x085d137c）。§4.5 正解：直接静态调用
+// `CAlchemist::GetAssaultPrevent(user, flag)`，无需成员函数指针 ABI 转接。
+// （DisPatcherCore.cpp 已同型直呼。）
 
 // PowerWarOn：ORIG 内联形（s_power_manager 判活）。
 inline bool PowerWarOn()
@@ -734,7 +727,7 @@ int CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
         }
 
         bool preventPeerFlag = false;
-        if (callGetAssaultPrevent(attacker, &preventPeerFlag))
+        if (expert_job::CAlchemist::GetAssaultPrevent(attacker, &preventPeerFlag))
         {
             if (!PowerWarOn())
             {
@@ -816,7 +809,8 @@ int CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
             }
         }
 
-        if (callGetAssaultPrevent(target, 0))
+        if (expert_job::CAlchemist::GetAssaultPrevent(
+                target, static_cast<bool*>(0)))
         {
             if (!PowerWarOn())
             {

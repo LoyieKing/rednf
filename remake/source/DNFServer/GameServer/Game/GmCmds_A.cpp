@@ -59,15 +59,9 @@
 #include "CStackableItem.h"
 #include "CompoundEmblemDeps.h"
 #include "BlueMarble.h"
-
-// CGameManager::GetParty(int) —— T 0x08294f32（CGameManager.h 会拉入 QuickParty
-// 冲突链，此处以 asm 直调替代整头包含）；G_CGameManager() —— W 0x080cc18e。
-class CParty;
-CParty* gmA_G_CGameManager_GetParty(void* self, int partyIndex)
-    asm("_ZN12CGameManager8GetPartyEi");
-class CGameManager;
-CGameManager* gmA_G_CGameManager()
-    asm("_Z14G_CGameManagerv");
+#include "CCompoundAvatar.h"      // WongWork::CCompoundAvatar::ProcTest（桥清零）
+#include "CGuildServerProxy.h"    // CEventManager::GetRepeatEvent（桥清零，权威头）
+#include "CGameManager.h"         // CGameManager::GetParty / G_CGameManager（桥清零）
 
 #include "DNFFunctionLib.h"
 
@@ -109,70 +103,6 @@ namespace game_master
 // BlueMarbleSet::m_flag0/1/2(+0x08/09/0a)+m_param(+0x0c)、CBingoGmTest::m_subCmd），
 // 原 cmd_int0/cmd_int1/cmd_byte0 三宏（内部为 char*+0x08/0x0c 裸偏移）已删除。
 
-// ---------------------------------------------------------------------------
-// ORIG 真实符号原型（带参辅助；asm 标签对齐 ORIG mangled。本 TU 提供定义，
-// 头文件中的无参占位声明保持未定义、未被调用）。
-
-// CBoosterTest::getRarityStr(ENUM_RARITY) —— T 0x084aea80（static 语义：不触碰 this）
-char const* gmA_booster_getRarityStr(ENUM_RARITY rarity)
-    asm("_ZN11game_master12CBoosterTest12getRarityStrE11ENUM_RARITY");
-
-// CBoosterTest::SendChatMsg(CUser*, char*) —— T 0x084aeac6（static 语义）
-void gmA_booster_SendChatMsg(CUser* user, char* msg)
-    asm("_ZN11game_master12CBoosterTest11SendChatMsgEP5CUserPc");
-
-
-// CBoosterTest::getJarResult(CItem const*, std::map<int,int>&) —— T 0x084afba8
-void gmA_booster_getJarResult(CBoosterTest* self, CItem const* item,
-                              std::map<int, int>& result)
-    asm("_ZN11game_master12CBoosterTest12getJarResultEPK5CItemRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-
-// CBoosterTest::get_gold_lottery_result(CItem const*, std::map<int,int>&) —— T 0x084afd1c
-void gmA_booster_get_gold_lottery_result(CBoosterTest* self, CItem const* item,
-                                         std::map<int, int>& result)
-    asm("_ZN11game_master12CBoosterTest23get_gold_lottery_resultEPK5CItemRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-
-// CBoosterTest::getBoosterResult(CItem const*, std::map<int,int>&) —— T 0x084af9d6
-void gmA_booster_getBoosterResult(CBoosterTest* self, CItem const* item,
-                                  std::map<int, int>& result)
-    asm("_ZN11game_master12CBoosterTest16getBoosterResultEPK5CItemRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-
-// CBoosterTest::getRandomboxResult(CItem const*, std::map<int,int>&) —— T 0x084afe3a
-void gmA_booster_getRandomboxResult(CBoosterTest* self, CItem const* item,
-                                    std::map<int, int>& result)
-    asm("_ZN11game_master12CBoosterTest18getRandomboxResultEPK5CItemRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-
-// CBoosterTest::getCompoundEmblemResult(CItem const*, std::map<int,int>&) —— T 0x084af0d6
-bool gmA_booster_getCompoundEmblemResult(CBoosterTest* self, CItem const* item,
-                                         std::map<int, int>& result)
-    asm("_ZN11game_master12CBoosterTest23getCompoundEmblemResultEPK5CItemRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-
-// CBoosterTest::_selectJewelTypeIndex(unsigned int, unsigned short const*) const —— T 0x084af3b2
-int gmA_booster__selectJewelTypeIndex(CBoosterTest const* self, unsigned int count,
-                                      unsigned short const* sockets)
-    asm("_ZNK11game_master12CBoosterTest21_selectJewelTypeIndexEjPKt");
-
-// CBoosterTest::makeFileContents(CUser*, char*, std::map<int,int>&) —— T 0x084af504（static 语义）
-void gmA_booster_makeFileContents(CUser* user, char* fileBuf, std::map<int, int>& result)
-    asm("_ZN11game_master12CBoosterTest16makeFileContentsEP5CUserPcRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-
-// CBoosterTest::make_file_gold_contents(CUser*, char*, std::map<int,int>&) —— T 0x084af7fc（static 语义）
-void gmA_booster_make_file_gold_contents(CUser* user, char* fileBuf, std::map<int, int>& result)
-    asm("_ZN11game_master12CBoosterTest23make_file_gold_contentsEP5CUserPcRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-
-// BlueMarbleSet::getParam(std::string) —— T 0x084b235c（thiscall，string 按值传参）
-void gmA_blueMarbleSet_getParam(BlueMarbleSet* self, std::string param)
-    asm("_ZN11game_master13BlueMarbleSet8getParamESs");
-
-// CEventManager::GetRepeatEvent(int) —— T 0x08115998（GlobalData.h 仅前向声明）
-void* gmA_eventMgr_GetRepeatEvent(void* mgr, int type)
-    asm("_ZN13CEventManager14GetRepeatEventEi");
-
-// WongWork::CCompoundAvatar::ProcTest(ENUM_CHARACTERJOB, ENUM_EQUIPMENTTYPE, int, int,
-//     std::map<int,int>&) —— T 0x08333fda（static；CCompoundAvatar.h 缺声明）
-void gmA_compoundAvatar_ProcTest(void* avatar, int job, int equip, int recipe, int bind,
-                                 std::map<int, int>& result)
-    asm("_ZN8WongWork15CCompoundAvatar8ProcTestE17ENUM_CHARACTERJOB18ENUM_EQUIPMENTTYPEiiRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
 
 // ===========================================================================
 // CAutoMarketConditionsControlCmd — ORIG W ctor 0x082a8060：基类 vptr → 自身
@@ -208,8 +138,7 @@ void CBloodMonsterListCmd::execute()
     }
 
     short partyIndex = user->GetPartyIndex();
-    CParty* party = gmA_G_CGameManager_GetParty(gmA_G_CGameManager(),
-                                                static_cast<int>(partyIndex));
+    CParty* party = G_CGameManager()->GetParty(static_cast<int>(partyIndex));
     if (party == 0)
     {
         return;
@@ -432,12 +361,12 @@ void CBoosterTest::execute()
     memset(fileBuf, 0, sizeof(fileBuf));
 
     static char sMsgStart[] = "LOTTERY 아이템 결과체크를 시작합니다";
-    gmA_booster_SendChatMsg(user, sMsgStart);
+    CBoosterTest::SendChatMsg(user, sMsgStart);
 
     if (m_mode == -1)
     {
         static char sNeedIdx[] = "아이템 인덱스를 입력하세요";
-        gmA_booster_SendChatMsg(user, sNeedIdx);
+        CBoosterTest::SendChatMsg(user, sNeedIdx);
         return;
     }
 
@@ -445,14 +374,14 @@ void CBoosterTest::execute()
     if (item == 0)
     {
         static char sNoItem[] = "존재하지 않는 아이템입니다";
-        gmA_booster_SendChatMsg(user, sNoItem);
+        CBoosterTest::SendChatMsg(user, sNoItem);
         return;
     }
 
     if (m_count > 1000000 || m_count < 0)
     {
         static char sRange[] = "0 ~ 1000000번 통계까지만 지원됩니다";
-        gmA_booster_SendChatMsg(user, sRange);
+        CBoosterTest::SendChatMsg(user, sRange);
         return;
     }
     if (m_count == 0)
@@ -462,7 +391,7 @@ void CBoosterTest::execute()
 
     char countMsg[21];
     sprintf(countMsg, "%d번 통계입니다", m_count);
-    gmA_booster_SendChatMsg(user, countMsg);
+    CBoosterTest::SendChatMsg(user, countMsg);
 
     bool goldLottery = this->is_gold_lottery_item(item->get_index());
 
@@ -474,32 +403,32 @@ void CBoosterTest::execute()
     case 0xd:
         if (!goldLottery)
         {
-            gmA_booster_getJarResult(this, item, result);
+            this->getJarResult(item, result);
         }
         else
         {
-            gmA_booster_get_gold_lottery_result(this, item, result);
+            this->get_gold_lottery_result(item, result);
         }
         break;
     case 0xf:
     case 0x10:
-        gmA_booster_getBoosterResult(this, item, result);
+        this->getBoosterResult(item, result);
         break;
     case 0x14:
-        if (!gmA_booster_getCompoundEmblemResult(this, item, result))
+        if (!this->getCompoundEmblemResult(item, result))
         {
             static char sNotEmblem[] = "엠블렘 합성 대상이 아닙니다.";
-            gmA_booster_SendChatMsg(GetUser(), sNotEmblem);
+            CBoosterTest::SendChatMsg(GetUser(), sNotEmblem);
         }
         break;
     case 0x1a:
     case 0x1b:
-        gmA_booster_getRandomboxResult(this, item, result);
+        this->getRandomboxResult(item, result);
         break;
     default:
     {
         static char sNotLottery[] = "LOTTERY 아이템이 아닙니다";
-        gmA_booster_SendChatMsg(GetUser(), sNotLottery);
+        CBoosterTest::SendChatMsg(GetUser(), sNotLottery);
         return;
     }
     }
@@ -511,11 +440,11 @@ void CBoosterTest::execute()
     {
         if (!goldLottery)
         {
-            gmA_booster_makeFileContents(user, fileBuf, result);
+            CBoosterTest::makeFileContents(user, fileBuf, result);
         }
         else
         {
-            gmA_booster_make_file_gold_contents(user, fileBuf, result);
+            CBoosterTest::make_file_gold_contents(user, fileBuf, result);
         }
         sprintf(fileName, "lottery_%d_%d.txt", m_mode, m_count);
         if (result.empty())
@@ -527,13 +456,13 @@ void CBoosterTest::execute()
     }
 
     static char sDone[] = "LOTTERY 아이템 결과체크가 완료되었습니다";
-    gmA_booster_SendChatMsg(user, sDone);
+    CBoosterTest::SendChatMsg(user, sDone);
 }
 
 // ---- CBoosterTest 辅助函数（ORIG 逐符号转写）------------------------------
 
 // ORIG getRarityStr 0x084aea80：稀有度 → 文件列名。
-char const* gmA_booster_getRarityStr(ENUM_RARITY rarity)
+char const* CBoosterTest::getRarityStr(ENUM_RARITY rarity)
 {
     switch (rarity)
     {
@@ -548,7 +477,7 @@ char const* gmA_booster_getRarityStr(ENUM_RARITY rarity)
 }
 
 // ORIG SendChatMsg 0x084aeac6：make_packet_chat_msg(type=2,len=12) + Send。
-void gmA_booster_SendChatMsg(CUser* user, char* msg)
+void CBoosterTest::SendChatMsg(CUser* user, char* msg)
 {
     PacketGuard packet;
     GameWorld* gw = G_GameWorld();
@@ -595,11 +524,10 @@ bool CBoosterTest::is_gold_lottery_item(int idx)
 }
 
 // ORIG getJarResult 0x084afba8：统计 lotto 表产出物品次数。
-void gmA_booster_getJarResult(CBoosterTest* self, CItem const* item,
-                              std::map<int, int>& result)
+void CBoosterTest::getJarResult(CItem const* item, std::map<int, int>& result)
 {
     Inven_Item lotto;
-    for (int i = 0; i < self->m_count; ++i)
+    for (int i = 0; i < m_count; ++i)
     {
         int idx = const_cast<CItem*>(item)->get_index();
         G_CDataManager()->getItemList()->get_lotto_item(idx, reinterpret_cast<char*>(&lotto));
@@ -617,11 +545,11 @@ void gmA_booster_getJarResult(CBoosterTest* self, CItem const* item,
 }
 
 // ORIG get_gold_lottery_result 0x084afd1c：统计金币产出（key=+7 数量，value=1）。
-void gmA_booster_get_gold_lottery_result(CBoosterTest* self, CItem const* item,
-                                         std::map<int, int>& result)
+void CBoosterTest::get_gold_lottery_result(CItem const* item,
+                                           std::map<int, int>& result)
 {
     Inven_Item lotto;
-    for (int i = 0; i < self->m_count; ++i)
+    for (int i = 0; i < m_count; ++i)
     {
         int idx = const_cast<CItem*>(item)->get_index();
         G_CDataManager()->getItemList()->get_lotto_item(idx, reinterpret_cast<char*>(&lotto));
@@ -639,11 +567,11 @@ void gmA_booster_get_gold_lottery_result(CBoosterTest* self, CItem const* item,
 }
 
 // ORIG getBoosterResult 0x084af9d6：统计 booster 产出（stStackableBoosterItemInfo_t）。
-void gmA_booster_getBoosterResult(CBoosterTest* self, CItem const* item,
-                                  std::map<int, int>& result)
+void CBoosterTest::getBoosterResult(CItem const* item,
+                                    std::map<int, int>& result)
 {
     std::vector<stStackableBoosterItemInfo_t> items;
-    for (int i = 0; i < self->m_count; ++i)
+    for (int i = 0; i < m_count; ++i)
     {
         static_cast<CStackableItem const*>(item)->getBoosterItem(items);
         for (std::vector<stStackableBoosterItemInfo_t>::const_iterator it = items.begin();
@@ -665,12 +593,12 @@ void gmA_booster_getBoosterResult(CBoosterTest* self, CItem const* item,
 }
 
 // ORIG getRandomboxResult 0x084afe3a：统计 multibox 随机盒产出（pair<Inven_Item,bool>）。
-void gmA_booster_getRandomboxResult(CBoosterTest* self, CItem const* item,
-                                    std::map<int, int>& result)
+void CBoosterTest::getRandomboxResult(CItem const* item,
+                                      std::map<int, int>& result)
 {
     Inven_Item dropped;
     std::vector<std::pair<Inven_Item, bool> > drops;
-    for (int i = 0; i < self->m_count; ++i)
+    for (int i = 0; i < m_count; ++i)
     {
         drops.clear();
         const_cast<CStackableItem*>(static_cast<CStackableItem const*>(item))->get_multibox_lottery_item(&drops);
@@ -692,14 +620,14 @@ void gmA_booster_getRandomboxResult(CBoosterTest* self, CItem const* item,
 }
 
 // ORIG getCompoundEmblemResult 0x084af0d6：合成徽章统计；目标不是 16 型物品返回 false。
-bool gmA_booster_getCompoundEmblemResult(CBoosterTest* self, CItem const* item,
-                                         std::map<int, int>& result)
+bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
+                                           std::map<int, int>& result)
 {
     unsigned short sockets[2];
     sockets[0] = static_cast<CStackableItem const*>(item)->getJewelTargetSocket();
     sockets[1] = static_cast<CStackableItem const*>(item)->getJewelTargetSocket();
 
-    int jewelType = gmA_booster__selectJewelTypeIndex(self, 2, sockets);
+    int jewelType = this->_selectJewelTypeIndex(2, sockets);
     if (jewelType == -1)
     {
         return false;
@@ -717,7 +645,7 @@ bool gmA_booster_getCompoundEmblemResult(CBoosterTest* self, CItem const* item,
         return false;
     }
 
-    for (int i = 0; i < self->m_count; ++i)
+    for (int i = 0; i < m_count; ++i)
     {
         std::vector<stStackableBoosterItemInfo_t> items;
         emblem->getBoosterItem(items);
@@ -744,8 +672,8 @@ bool gmA_booster_getCompoundEmblemResult(CBoosterTest* self, CItem const* item,
 }
 
 // ORIG _selectJewelTypeIndex 0x084af3b2：按凹槽数据加权随机选宝石类型槽。
-int gmA_booster__selectJewelTypeIndex(CBoosterTest const* /*self*/, unsigned int count,
-                                      unsigned short const* sockets)
+int CBoosterTest::_selectJewelTypeIndex(unsigned int count,
+                                        unsigned short const* sockets) const
 {
     int counts[5] = {0, 0, 0, 0, 0};
     int cumul[5];
@@ -783,7 +711,8 @@ int gmA_booster__selectJewelTypeIndex(CBoosterTest const* /*self*/, unsigned int
 }
 
 // ORIG makeFileContents 0x084af504：map 结果追加为 TSV 行（超限提示续接并中止）。
-void gmA_booster_makeFileContents(CUser* user, char* fileBuf, std::map<int, int>& result)
+void CBoosterTest::makeFileContents(CUser* user, char* fileBuf,
+                                    std::map<int, int>& result)
 {
     char line[1024];
     memset(line, 0, 0x100);   // ORIG rep stos 0x100（循环内 memset 仍 0x400）
@@ -809,7 +738,7 @@ void gmA_booster_makeFileContents(CUser* user, char* fileBuf, std::map<int, int>
         {
             sprintf(line, "%d\t\"%s\"\t\"%s\"\t%u\t%d\t%d\t%d\n",
                     itemId, info->GetItemName(),
-                    gmA_booster_getRarityStr(static_cast<ENUM_RARITY>(info->get_rarity())),
+                    getRarityStr(static_cast<ENUM_RARITY>(info->get_rarity())),
                     it->second, info->get_price(), info->GetSellPrice(),
                     info->getUsableLevel());
         }
@@ -817,7 +746,7 @@ void gmA_booster_makeFileContents(CUser* user, char* fileBuf, std::map<int, int>
         if (strlen(fileBuf) + strlen(line) > 89999)
         {
             static char sAppend[] = "결과 파일 이어붙힘";
-            gmA_booster_SendChatMsg(user, sAppend);
+            SendChatMsg(user, sAppend);
             return;
         }
         strcat(fileBuf, line);
@@ -828,8 +757,8 @@ void gmA_booster_makeFileContents(CUser* user, char* fileBuf, std::map<int, int>
 
 // ORIG make_file_gold_contents 0x084af7fc：金币分布行 + 尾部 max gold 合计。
 // （格式串 %I64u 按 ORIG 原样保留；glibc 下由 %llu 语义承载 64 位实参。）
-void gmA_booster_make_file_gold_contents(CUser* user, char* fileBuf,
-                                         std::map<int, int>& result)
+void CBoosterTest::make_file_gold_contents(CUser* user, char* fileBuf,
+                                           std::map<int, int>& result)
 {
     char line[1024];
     memset(line, 0, 0x100);   // ORIG rep stos 0x100（循环内 memset 仍 0x400）
@@ -844,7 +773,7 @@ void gmA_booster_make_file_gold_contents(CUser* user, char* fileBuf,
         if (strlen(fileBuf) + strlen(line) > 89999)
         {
             static char sAppend[] = "결과 파일 이어붙힘";
-            gmA_booster_SendChatMsg(user, sAppend);
+            SendChatMsg(user, sAppend);
             break;
         }
         strcat(fileBuf, line);
@@ -892,11 +821,13 @@ void CBindCubeTest::execute()
             {
                 memset(fileName, 0, 0xff);
                 memset(fileBuf, 0, 95000);
-                gmA_compoundAvatar_ProcTest(GlobalData::s_pCompoundAvatar,
-                                            static_cast<int>(static_cast<signed char>(
-                                                m_flag)),
-                                            equip, recipe, bind, result);
-                gmA_booster_makeFileContents(GetUser(), fileBuf, result);
+                static_cast<WongWork::CCompoundAvatar*>(
+                    GlobalData::s_pCompoundAvatar)
+                    ->ProcTest(static_cast<ENUM_CHARACTERJOB>(
+                                   static_cast<int>(static_cast<signed char>(m_flag))),
+                               static_cast<ENUM_EQUIPMENTTYPE>(equip),
+                               recipe, bind, result);
+                CBoosterTest::makeFileContents(GetUser(), fileBuf, result);
                 sprintf(fileName, "bind_%s_%s_%s_%s.txt",
                         CHARACTER_JOB_NAMES[static_cast<int>(
                             static_cast<signed char>(m_flag))],
@@ -924,12 +855,12 @@ void BlueMarbleSet::parse()
 
     trim(m_parser->m_args);
     std::string args(m_parser->m_args);
-    gmA_blueMarbleSet_getParam(this, args);
+    this->getParam(args);
 }
 
 // ORIG getParam 0x084b235c：按空格切 token（≤16），tokens[0]=="move"/"enter" 置
 // 对应标记，atoi(tokens[1]) 写步数字节。
-void gmA_blueMarbleSet_getParam(BlueMarbleSet* self, std::string param)
+void BlueMarbleSet::getParam(std::string param)
 {
     std::string tokens[16];
     int used = 0;
@@ -944,13 +875,13 @@ void gmA_blueMarbleSet_getParam(BlueMarbleSet* self, std::string param)
 
     if (tokens[0].compare("move") == 0)
     {
-        self->m_flag1 = 1;
+        m_flag1 = 1;
     }
     else if (tokens[0].compare("enter") == 0)
     {
-        self->m_flag2 = 1;
+        m_flag2 = 1;
     }
-    self->m_flag0 = static_cast<unsigned char>(atoi(tokens[1].c_str()));
+    m_flag0 = static_cast<unsigned char>(atoi(tokens[1].c_str()));
 }
 
 // ORIG execute 0x084b25a4：enter 标记优先重置入场次数；否则 move 标记 + 步数
@@ -1043,7 +974,7 @@ void CBingoGmTest::reqValue()
     }
 
     BingoEvent* event = static_cast<BingoEvent*>(
-        gmA_eventMgr_GetRepeatEvent(GlobalData::s_event_manager, 0x6a));
+        static_cast<void*>(GlobalData::s_event_manager->GetRepeatEvent(0x6a)));
     if (event == 0)
     {
         return;

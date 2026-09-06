@@ -195,7 +195,7 @@ void DBUpdatePcroomDailyReward::makeRequest(CUser* user)
         "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x325);
     CStreamGuard guard(stream, true);
     Taiwan::internal_stream(guard, TaiwanInternalPack::T(0xe), user->GetUID());
-    MSG* msg = guard.GetInBuffer<MSG>();
+    MSG* msg = guard->GetInBuffer<MSG>();   // ORIG via CStreamGuard::operator->
     if (msg == 0)
     {
         cMyTrace trace(
@@ -387,13 +387,6 @@ bool TaiwanDBDispatcher::init()
 // 异常均为 throw const char*（_ZTIPKc @0x936b288），catch 记 logFormat 返 0。
 // ============================================================================
 
-// SigStayTimeEvent（MoreTypes.h 私有成员）同构视图：+0 m_accId。
-struct TaiwanSigStayTimeEventView
-{
-    unsigned int m_accId;   // +0x00
-    char m_pad[0x1c];
-};
-
 // SigLoadHeroMissionData/SigSaveHeroMissionData（TaiwanQueries.h 私有成员）视图。
 struct SigHeroMissionDataView
 {
@@ -413,7 +406,10 @@ bool CheckStayTimeEvent::dispatch(int code, int uid, Stream* stream)
 {
     try
     {
-        TaiwanSigStayTimeEventView* sig = stream->GetOutBuffer<TaiwanSigStayTimeEventView>();
+        // ORIG 0x0815b362：GetOutBuffer<Taiwan::SigStayTimeEvent>（MoreTypes.h 真类型；
+        // 禁本地同构视图——实例化类型不符产生 EXTRA 调用，P167 判据）。
+        Taiwan::SigStayTimeEvent* sig =
+            stream->GetOutBuffer<Taiwan::SigStayTimeEvent>();
         if (sig == 0)
             throw "context null";
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
@@ -1140,7 +1136,7 @@ void LoadGeolocation::sendCountryData(Taiwan::SigLoadGeolocation& data)
     CStreamGuard guard(stream, true);
     Taiwan::internal_stream(guard, (TaiwanInternalPack::T)4, -1);
     Taiwan::SigLoadGeolocation* out =
-        guard.GetInBuffer<Taiwan::SigLoadGeolocation>();
+        guard->GetInBuffer<Taiwan::SigLoadGeolocation>();   // ORIG via operator->
     if (out == 0)
         throw "stream";
     out->setData(data);

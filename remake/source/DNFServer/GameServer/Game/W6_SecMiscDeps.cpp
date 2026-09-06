@@ -50,10 +50,12 @@ using namespace GlobalData;
 
 // ----------------------------------------------------------------------------
 // IPG helper 低层分发表桥。
-// ORIG RecvInfoFromDB 0x086c1383..13f2：fn = **(void***)&s_pIPGHelper（对象首槽
-// 零偏移），首参传 &GlobalData::s_pIPGHelper（handle-of-handle）。与
-// GlobalData.cpp 既有的 +0x10/+0x14/+0x18 槽位取法同族；真实函数名归属
-// WongWork__IPG 批次，此处仅按汇编指令序转写调用形态。
+// §4.5 例外：ORIG RecvInfoFromDB 0x086c1383..13f2 以 **handle-of-handle** 调用
+// vtable 槽 0（首参传 &s_pIPGHelper，非对象本身）。权威 CIPGHelper（TaiwanCash.h）
+// 槽 0 = IPGInput(CUser*,…) 首参为 CUser*，与 handle-of-handle 首参不匹配，
+// 无法安全转真实成员调用（转 string 会传错首参改语）。登记 b22：WongWork__IPG
+// RecvInfoFromDB 权威分发签名核对后再定。与 GlobalData.cpp 的 +0x10/+0x14/+0x18
+// 槽位取法同族；此处仅按汇编指令序转写调用形态。
 // ----------------------------------------------------------------------------
 typedef void (*IPGBridgeFn)(void* handle, class CUser* user, char const* codeStr,
                             char const* countStr, char const* uniqueNoStr,

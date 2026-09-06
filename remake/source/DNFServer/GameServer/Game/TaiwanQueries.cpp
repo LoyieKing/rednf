@@ -60,6 +60,7 @@ std::string GetAppFolder()
 COpensslRSA::COpensslRSA() : m_rsa(0) {}
 
 // ORIG W 0x0816c246：key 非空 RSA_free 后置空。
+// 第三方 libcrypto（OpenSSL）豁免（§4.5 例外，不转不违例）：C 符号需 extern "C" 链接。
 extern "C" void RSA_free(void* rsa);
 
 COpensslRSA::~COpensslRSA()

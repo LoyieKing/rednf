@@ -23,6 +23,8 @@
 
 class CUser;
 class IDispatcher;
+class CItem;                      // CBoosterTest 辅助签名
+#include "CItemAmplifier.h"       // ENUM_RARITY（getRarityStr 签名；幂等 guard）
 
 // ---- GM 测试角色状态注入（ORIG 全局命名空间类，CItemDropRateCmd 用） ----
 // vtable 单槽（sendServerState），无虚析构、无数据成员（sizeof=4）。
@@ -797,7 +799,7 @@ public:
     BlueMarbleSet() {}                 // ORIG W 0x082a88ae（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084b22ca
     virtual void execute();                          // ORIG T 0x084b25a4
-    void getParam();                                       // 辅助（ORIG T 0x084b235c，签名见报告）
+    void getParam(std::string);                       // 辅助（ORIG T 0x084b235c）
 
     char m_flag0;                                 // +0x08（ORIG POD）
     char m_flag1;                                 // +0x09

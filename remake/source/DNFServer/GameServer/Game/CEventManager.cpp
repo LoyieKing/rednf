@@ -443,10 +443,9 @@ struct EventTableEntry
     const char* name;    // +0x0c（event_name）
     const char* explain; // +0x10（event_explain key/string）
 };
-extern "C"
-{
+// §4.5 正解：events 为本 TU 独占定义（匿名命名空间，无外部引用，ORIG BSS
+// 0x936fa60）。extern "C" 于此无链接信号作用，移除改正常 C++ 链接。
 EventTableEntry events[0x4f];  // ORIG 0x936fa60（BSS 零初始化）
-}
 }  // namespace
 
 CEventTable::CEventTable() {}

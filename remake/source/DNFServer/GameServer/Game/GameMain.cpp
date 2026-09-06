@@ -1252,10 +1252,10 @@ void rdar_init(char** argv)
 // sprintf("<cfg>/%s") + access(F_OK)；存在→true。路径前缀「推断」。
 bool check_cfg_file()
 {
-    char path[0x104];
-    std::memset(path, 0, sizeof(path));
-    std::snprintf(path, sizeof(path), "./cfg/%s.cfg",
-                  G_CEnvironment()->get_file_name());
+    char path[0x1e];   // ORIG 0x1e（38B）
+    std::memset(path, 0, 0x1e);
+    std::sprintf(path, "./cfg/%s.cfg",
+                 G_CEnvironment()->get_file_name());
     std::printf("\t- cfg path: %s\n", path);
     return access(path, F_OK) == 0;
 }
@@ -1263,10 +1263,10 @@ bool check_cfg_file()
 // check_pid_file() —— ORIG 0x829e948（0x82 字节）：pid 文件存在→true。
 bool check_pid_file()
 {
-    char path[0x104];
-    std::memset(path, 0, sizeof(path));
-    std::snprintf(path, sizeof(path), "./pid/%s.pid",
-                  G_CEnvironment()->get_file_name());
+    char path[0x1e];   // ORIG 0x1e（38B）
+    std::memset(path, 0, 0x1e);
+    std::sprintf(path, "./pid/%s.pid",
+                 G_CEnvironment()->get_file_name());
     std::printf("\t- pid path: %s\n", path);
     return access(path, F_OK) == 0;
 }
