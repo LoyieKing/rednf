@@ -547,21 +547,26 @@ int DisPatcher_Login::dispatch_sig(CUser* user, PacketBuf& packet)
     if (packet.get_str(garenaToken, 0x801, (int)tokenLen) != 1)
         return LineFunc(0x6612, __PRETTY_FUNCTION__, 0, 0);
 
-    Taiwan::GarenaAuthData* authData =
-        reinterpret_cast<Taiwan::GarenaAuthData*>(user->getGarenaAuthData());
+    // P48/P0：ORIG 每用点独立求值（Ghidra 4 次 getGarenaAuthData：decrypt/setPatchTime/
+    // getPatchTime/getTimeStamp 各一），禁缓存 authData。
+#define GARENA_AUTH reinterpret_cast<Taiwan::GarenaAuthData*>(user->getGarenaAuthData())
     if (Taiwan::AuthGarenaToken::decrypt(garenaToken, (int)tokenLen,
-                                         *authData) != 0)
+                                         *GARENA_AUTH) != 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x6617, 5);
         trace("[Taiwan, Auth] Fail decrypt:%s", garenaToken);
         return LineFunc(0x6618, __PRETTY_FUNCTION__, 0, 0);
     }
 
-    authData->setPatchTime(patchTime);
+    GARENA_AUTH->setPatchTime(patchTime);
     nowSec = GlobalData::s_systemTime_.getCurSec();
+    // ORIG 求值序：先 getPatchTime(+0x661e trace 前) 再 getTimeStamp；实参按槽装载。
+    unsigned int patchTimeGot = GARENA_AUTH->getPatchTime();
+    unsigned int tokenStamp = GARENA_AUTH->getTimeStamp();
     cMyTrace trace(__PRETTY_FUNCTION__, 0x661e, 0);
     trace("[Taiwan, Auth] Token timestamp info. (token_time:%u, current_time:%u, patch_time:%d)",
-          authData->getTimeStamp(), nowSec, authData->getPatchTime());
+          tokenStamp, nowSec, patchTimeGot);
+#undef GARENA_AUTH
 
     if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
             user, (RestrictCategory::Enum)1, 0x21))
@@ -654,13 +659,13 @@ int DisPatcher_Login::dispatch_sig(CUser* user, PacketBuf& packet)
         GlobalData::s_big_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp",
                                                0x6972),
         true);                                    // -0xa4
-    // ORIG 0x81e9811..0x81e9843：guard << 0x3；guard << GetUID()（消息号+账号ID头）
-    streamGuard << 0x3;
-    streamGuard << static_cast<int>(user->GetUID());
+    // ORIG 0x81e9811..0x81e9843（Ghidra de→op<<→de→op<<）：operator* 显式链形。
+    streamGuard.operator*()->operator<<(0x3);
+    streamGuard.operator*()->operator<<(static_cast<int>(user->GetUID()));
     // 【ABI 镜像】SIG_LOGIN_DATA 偏移字段（SigTypes_D.h 待具名化区：+0x18/+0x84/
     // +0x9c/+0xa0/+0x3905/+0x3a30；+0xa1=m_blackIpCheckBuf、+0x3a34=m_clientVersion、
     // +0x3a38=m_channelRestrictField 已具名可用）
-    SIG_LOGIN_DATA* login = streamGuard.GetInBuffer<SIG_LOGIN_DATA>();
+    SIG_LOGIN_DATA* login = streamGuard->GetInBuffer<SIG_LOGIN_DATA>();   // ORIG pt→GetInBuffer 链
     memset(login, 0, 0x4358);
     if (packet.get_short(login->m_channelRestrictField) != 1)
         return LineFunc(0x6980, __PRETTY_FUNCTION__, 0, 0);
@@ -2127,8 +2132,9 @@ int DisPatcher_DeleteCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     Stream* stream =
         GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0xa4d);
     CStreamGuard guard(stream, true);
-    // ORIG 单 operator-> + 链式：guard-><< 5 返回 Stream&，<< UID 走 Stream::operator<<(int)；GetInBuffer 经 guard->。
-    *guard << 5 << static_cast<int>(user->GetUID());   // SIG 类型 5 + UID
+    // ORIG（Ghidra 0x81c13xx 序列 de→op<<→de→op<<→pt→GetInBuffer）：operator* 显式链形。
+    guard.operator*()->operator<<(5);                  // SIG 类型 5
+    guard.operator*()->operator<<(static_cast<int>(user->GetUID()));
     SIG_DELETE_CHARAC* sig = guard->GetInBuffer<SIG_DELETE_CHARAC>();
     memset(sig, 0, 0x14);
     sig->m_accId = user->get_acc_id();
@@ -7592,7 +7598,7 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
                 multiBox = 0;
                 break;
             }
-            char* dot = strrchr(peerIp, '.');
+            char* dot = std::strrchr(peerIp, '.');   // ORIG _ZSt7strrchr（std:: 限定，匹配 mangled）
             if (dot == 0)
             {
                 sameIp = 0;

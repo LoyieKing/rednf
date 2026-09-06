@@ -73,22 +73,22 @@ void CParty::ConnectP2P(CUser* user, char* ip, int port)
     bool allConnected = true;
     for (int i = 0; i < 4; i++)
     {
-        if (_checkValidUser(i))
+        if (!_checkValidUser(i))
         {
-            if (m_member[i].m_pUser == user)
+            continue;
+        }
+        if (m_member[i].m_pUser == user)
+        {
+            if (m_member[i].m_fieldc == 1)
             {
-                if (m_member[i].m_fieldc == 1)
-                {
-                    throw static_cast<ENUM_ERROR>(0x12);
-                }
-                m_member[i].m_fieldc = 1;
-                int copyLen = std::min(port, 4);
-                memcpy(m_member[i].m_fielde, ip, copyLen);
+                throw static_cast<ENUM_ERROR>(0x12);
             }
-            if (m_member[i].m_fieldc != 1)
-            {
-                allConnected = false;
-            }
+            m_member[i].m_fieldc = 1;
+            memcpy(m_member[i].m_fielde, ip, std::min(port, 4));
+        }
+        if (m_member[i].m_fieldc != 1)
+        {
+            allConnected = false;
         }
     }
     if (allConnected)
@@ -768,14 +768,14 @@ int CParty::CheckEnterAncientDungeon(CDungeon const* dungeon)
 {
     Inven_Item items[4];
     int slots[4];
+    unsigned char flag;    // ORIG -0x1d：items 顶与 slots 底之间声明于函数作用域
     memset(items, 0, sizeof(items));
     memset(slots, 0, sizeof(slots));
 
     if (const_cast<CDungeon*>(dungeon)->m_entryRestrictFlag)
     {
-        unsigned char flag = 0;    // ORIG -0x1d：items 顶与 slots 底之间，+0x79
-                                  // 分支内清零
-        return CheckEnterEventDungeon(dungeon, flag, items, slots) ? 1 : 0;
+        flag = 0;    // ORIG +0x79 分支内清零
+        return CheckEnterEventDungeon(dungeon, flag, items, slots) == 1 ? 1 : 0;
     }
 
     if (dungeon->m_entryRequiredItem.m_itemIdx == -1)
@@ -805,8 +805,7 @@ int CParty::CheckEnterAncientDungeon(CDungeon const* dungeon)
             return 0;
         }
         items[i] = inv->GetInvenSlot(1, slots[i]);
-        if (items[i].get_add_info() <
-            dungeon->m_entryRequiredItem.m_itemCount)
+        if (items[i].m_addInfo2 < dungeon->m_entryRequiredItem.m_itemCount)
         {
             return 0;
         }

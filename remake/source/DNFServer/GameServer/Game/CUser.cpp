@@ -5826,13 +5826,21 @@ int CUser::gainExpAsUpperMember(int exp)
 {
     if (get_charac_memberkey() == 0)
         return 0;
-    if (!is_connect_upper_member())
-        return 0;
-    unsigned char level = get_uppermember_exp_level();
-    int result = (int)(exp * (level * 0.1f));
-    if (result > 0)
-        set_charac_member_bonus_exp(result);
-    return result;
+    // ORIG 0x0864fa08：connect 块 fall-through（技巧59），未连接尾块 set(0)+ret0；
+    // 率常量 = 0.01f（@0x08cf3958 = 0x3c23d70a，此前 0.1f 为语义错）；
+    // result<=0 亦调 set_charac_member_bonus_exp(0)（ORIG 3 call 点）。
+    if (is_connect_upper_member())
+    {
+        unsigned char level = get_uppermember_exp_level();
+        int result = (int)(exp * (level * 0.01f));
+        if (result > 0)
+            set_charac_member_bonus_exp(result);
+        else
+            set_charac_member_bonus_exp(0);
+        return result;
+    }
+    set_charac_member_bonus_exp(0);
+    return 0;
 }
 
 int CUser::gainPowerWarRewardExp(int)
@@ -7286,10 +7294,10 @@ void CUser::doLinkCharacDisconnect()
             NumberToString(get_acc_id(), 0));
         return;
     }
+    // P48：ORIG 0x08652d68/0x08652d94 两 ChangeCharacSlot 各自重调 size()（共 2 次）。
     int slotIdx = (int)getDisconnectLinkCharacSlotIdx() - 1;
-    int last = (int)m_characList.size() - 1;
-    ChangeCharacSlot((unsigned int)slotIdx, (unsigned int)last);
-    ChangeCharacSlot((unsigned int)slotIdx, (unsigned int)last);
+    ChangeCharacSlot((unsigned int)slotIdx, (unsigned int)((int)m_characList.size() - 1));
+    ChangeCharacSlot((unsigned int)slotIdx, (unsigned int)((int)m_characList.size() - 1));
     setLinkCharacDisconnectFlag(false);
     UpdateCharacView();
 }
@@ -10357,15 +10365,20 @@ bool CUser::getTagCharacInventory(TAG_CHARAC_INVEN_DATA* out) const
     if (getTagCharacR() == 0)
         return false;
     // ORIG：getTagCharacInvenR() 返回 CInventory*（位于 _Charac_info.m_inven，本源码返回 Inven_Item* 同址）
-    const CInventory* inven = reinterpret_cast<const CInventory*>(getTagCharacInvenR());
-    inven->GetInvenData(2, out->m_items2, 0x1905);
-    memcpy(out->m_items, inven->m_invenItem, 0x53e);
-    inven->GetClearAvatar((unsigned long*)out->m_clearAvatar);
-    inven->GetAvatarItemMgrR()->GetItem(
+    // P48 逐点重调（ORIG 0x86906b1/0x86906d8/0x8690708/0x8690731 共 4 次）；
+    // cargo/GetItem 各 call 结果寄存器直传（无中间槽）。
+    reinterpret_cast<const CInventory*>(getTagCharacInvenR())
+        ->GetInvenData(2, out->m_items2, 0x1905);
+    memcpy(out->m_items,
+           reinterpret_cast<const CInventory*>(getTagCharacInvenR())->m_invenItem, 0x53e);
+    reinterpret_cast<const CInventory*>(getTagCharacInvenR())
+        ->GetClearAvatar(reinterpret_cast<unsigned long*>(out->m_clearAvatar));
+    reinterpret_cast<const CInventory*>(getTagCharacInvenR())
+        ->GetAvatarItemMgrR()->GetItem(
         reinterpret_cast<AvatarDetailInfo*>(out->m_avatarDetail),
         &out->m_avatarCount);
-    const CCargo* cargo = getTagCharacCargoR();
-    out->m_cargoCapacity = (unsigned int)cargo->GetCapacity();
+    out->m_cargoCapacity =
+        (unsigned int)getTagCharacCargoR()->GetCapacity();
     return true;
 }
 

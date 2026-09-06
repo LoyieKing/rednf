@@ -1451,16 +1451,17 @@ int CParty::check_dungeon_start(CDungeon const* dungeon)
 
 int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon)
 {
-    // ORIG 0x859f3fc
-    if (m_battleField.m_pDungeon == 0 || m_battleField.m_pDungeon->get_dimension_possible() <= 0)
+    // ORIG 0x859f3fc：`if (gdp <= 0) return 0` 前置（`setle` 判定 + 独立 return0 岛），
+    // 尾部 `return 0` 复用 leave 出口（ORIG +0x17f）。P0：gdp 结果 %al 直测无槽；
+    // ORIG 未对 m_pDungeon 判空。
+    if (m_battleField.m_pDungeon->get_dimension_possible() <= 0)
         return 0;
     int memberCount = get_member_count();
-    int dimPossible = dungeon->get_dimension_possible();
-    int dimIdx = (char)dimPossible - 1;
-    DimensionPartyCount dpc;
-    dpc.m_0 = (char)m_battleField.m_bloodState;
-    dpc.m_1 = m_battleField.m_dungeonDiff;
-    dpc.m_2 = -1;
+    int dimIdx = (char)dungeon->get_dimension_possible() - 1;
+    // ORIG 0859f476 `DimensionPartyCount::DimensionPartyCount(local_1b, (char)+0xcd8,
+    // (char)+0xcc4, -1)` —— 用 3 参构造（非默认 ctor 后逐字段赋值）。
+    DimensionPartyCount dpc((char)m_battleField.m_bloodState,
+                            (char)m_battleField.m_dungeonDiff, -1);
     if (dungeon->get_dimension_member_count(dpc))
     {
         if (memberCount < dpc.m_2)
@@ -1473,17 +1474,13 @@ int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon)
     }
     for (int i = 0; i <= 3; ++i)
     {
+        // ORIG 0859f4e7 `_checkValidUser; xor$0x1; test; jne` —— `!x continue` 形态。
         if (!_checkValidUser(i))
             continue;
-        // 同上：CharacInfoFields 镜像视图（冻结 _Charac_info 未语义命名该区）。
-        const CharacInfoFields* charac =
-            reinterpret_cast<const CharacInfoFields*>(
-                m_member[i].m_pUser->getCurCharacR());
-        // ORIG 0859f510 `movzbl 0xeb9(%eax,%edx,1)` = m_demensionInout[dimIdx]
-        //（unsigned char 宽度修正）
-        if (charac->m_demensionInout[dimIdx] < '\x01' &&
-            m_battleField.m_bloodState != 1 &&
-            !m_member[i].m_pUser->isGMUser())
+        // P0：getCurCharacR 结果 %eax 直接索引 m_demensionInout[dimIdx]（+0xeb9），
+        // 无 charac 缓存局部（ORIG 0859f510 `movzbl 0xeb9(%eax,%edx,1)`）。
+        if (m_member[i].m_pUser->getCurCharacR()->m_demensionInout[dimIdx] < '\x01' &&
+            m_battleField.m_bloodState != 1 && !m_member[i].m_pUser->isGMUser())
             return 0xad;
     }
     return 0;
@@ -1503,15 +1500,17 @@ int CParty::CheckEnterVillageAttackRevenge(CDungeon const* dungeon)
             return 0xab;
         for (int i = 0; i <= 3; ++i)
         {
-            // ORIG 085ba88d 直测 %al：checkValidUser==0 时跳过 → `== 0 continue`（非 `!`）。
-            if (checkValidUser(i) == 0)
-                continue;
-            unsigned char cur = get_user(i)->GetCurRevengeDungeonCount();
-            if (cur == 0 || (unsigned char)dungeon->m_maxRevengeCount < cur)
+            // ORIG 085ba88d 直测 %al（checkValidUser 返 bool）：al!=0 才进入体，
+            // ==0 跳循环递增 → 用嵌套 if(checkValidUser(i))，不用 `==0 continue`（免 xor$1）。
+            if (checkValidUser(i))
             {
-                // ORIG 085ba8d0 对同一 i 二次调用 get_user（读/写各一次，无 u 缓存局部=P0）。
-                get_user(i)->SetCurRevengeDungeonCount(0);
-                return 0xad;
+                unsigned char cur = get_user(i)->GetCurRevengeDungeonCount();
+                if (cur == 0 || (unsigned char)dungeon->m_maxRevengeCount < cur)
+                {
+                    // ORIG 085ba8d0 对同一 i 二次调用 get_user（读/写各一次，无 u 缓存局部=P0）。
+                    get_user(i)->SetCurRevengeDungeonCount(0);
+                    return 0xad;
+                }
             }
         }
     }

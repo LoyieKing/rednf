@@ -18,6 +18,7 @@
 
 #include "GameTypes.h"        // cMyTrace
 #include "CDataManager.h"     // G_CDataManager / CDataManager::get_dungeon
+#include "CDungeon.h"         // CDungeon::m_vec6d4（set_village +0x6d4 具名化）
 #include "PacketGuard.h"      // PacketGuard
 #include "TownAreaScript.h"   // TownAreaScript
 #include "CSchoolMgr.h"       // CSchoolMgr::SetSchoolArea / g_schoolMgr
@@ -80,7 +81,10 @@ bool Village::set_village(TownScript& script)
     {
         m_bEnabled = true;
         void* dungeon = G_CDataManager()->get_dungeon(script.m_18);
-        std::vector<int>* v = (std::vector<int>*)((char*)dungeon + 0x6d4);
+        // §4.3 具名化：get_dungeon 的 ORIG 实体是 find_dungeon 转发
+        // （CDataManager.cpp:300 返 CDungeon*），+0x6d4 具名成员 = CDungeon::m_vec6d4
+        // （CDungeon.h:749，std::vector<int>，public 区）。
+        std::vector<int>* v = &static_cast<CDungeon*>(dungeon)->m_vec6d4;
         v->push_back(m_villageId);
     }
 
@@ -105,7 +109,7 @@ bool Village::set_village(TownScript& script)
         for (int i = total - 1; i != -1; --i)
         {
             ::new (pArea) Area();
-            pArea = (Area*)((char*)pArea + 0x98);
+            pArea = pArea + 1;   // §4.3：步长由 Area 真实尺寸给出（sizeof==0x98 探针实证）
         }
         m_pAreas = (Area*)(raw + 1);
         g_schoolMgr.SetSchoolArea(m_areaCount, m_areaCount + 600);
@@ -120,7 +124,7 @@ bool Village::set_village(TownScript& script)
         for (int i = total - 1; i != -1; --i)
         {
             ::new (pArea) Area();
-            pArea = (Area*)((char*)pArea + 0x98);
+            pArea = pArea + 1;   // §4.3（同上）
         }
         m_pAreas = (Area*)(raw + 1);
         g_guildAgitMgr->SetGuildAgitAreaDomain(m_areaCount, total);
@@ -134,7 +138,7 @@ bool Village::set_village(TownScript& script)
         for (int i = count - 1; i != -1; --i)
         {
             ::new (pArea) Area();
-            pArea = (Area*)((char*)pArea + 0x98);
+            pArea = pArea + 1;   // §4.3（同上）
         }
         m_pAreas = (Area*)(raw + 1);
     }

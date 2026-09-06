@@ -349,9 +349,9 @@ int Arad_Dispatcher_Login_Impl::account_password_check(
 
     if (GlobalData::s_GM_Manager->IsGm(userIdx))
     {
-        // GM 口令核对：SIG_LOGIN_DATA+0x18 起 0x84 字节为服务端 GM 口令串槽。
-        const char* serverPwd = reinterpret_cast<const char*>(
-            reinterpret_cast<char*>(data) + 0x18);
+        // GM 口令核对：SIG_LOGIN_DATA::m_pad18（+0x18，0x84 字节 memset 清零区）
+        // 即服务端 GM 口令串槽。
+        const char* serverPwd = reinterpret_cast<const char*>(data->m_pad18);
         if (strncmp(clientPwd, serverPwd, 0x84) == 0)
         {
             return 0;

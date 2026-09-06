@@ -51,6 +51,7 @@
 #include "AvatarRechargeServer.h"
 #include "EmblemCompoundServer.h"
 #include "AvatarConvertServer.h"
+#include "MoreTypes.h"       // arad::SigAradEmblemCompound 权威定义（MoreTypes.h:257）
 
 namespace
 {
@@ -492,9 +493,9 @@ int Arad_INTER_kEmblemCompound::dispatch_sig(CUser* user, char* body, int len)
     {
         if (server->Process(user, sig))
         {
-            unsigned int resultIdx = *(unsigned int*)((char*)sig + 0x10);
-            unsigned int selectNo = (unsigned int)*(unsigned short*)((char*)sig + 8);
-            unsigned int slot1 = (unsigned int)*(unsigned short*)sig;
+            unsigned int resultIdx = (unsigned int)sig->m_resultIdx;
+            unsigned int selectNo = (unsigned int)sig->m_slot1;
+            unsigned int slot1 = (unsigned int)sig->m_slot0;
             cMyTrace trace(__PRETTY_FUNCTION__, 0x6cc, 0);
             trace("EMBLEM COMPOUND : success [slot1:%d] [slot2:%d] [selectNo:%d] [resultIdx:%d] [charac_no:%d]",
                   slot1, selectNo, resultIdx,

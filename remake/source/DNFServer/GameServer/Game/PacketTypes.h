@@ -953,7 +953,10 @@ public:
                                   //   按成员槽读取的击杀数 short 数组）
     unsigned int m_23[4];         // +0x23..+0x33（每成员 playtime tick，
                                   //  CheckOneMapPlayTimeHackCnt 逐槽修正/上报）
-    char m_pad33[6];              // +0x33..+0x38
+    char m_pad33[2];              // +0x33..+0x34
+    unsigned int m_field35;       // +0x35..+0x38（ORIG 0x85a8b8f `mov 0x35(%eax),%eax`
+                                  //  单 dword 直读；checkMoveMapHackCnt 判 0 换单人单尾。
+                                  //  W6Shop19-2 证，Main 代落；memcpy 假调用清除见其源改）
     unsigned char m_39;           // +0x39（process 回写 CParty::get_party_seatno）
     char m_padTail[8];            // +0x3a..+0x41（帧推导总长 0x42）
 };

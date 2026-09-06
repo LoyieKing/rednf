@@ -939,8 +939,8 @@ int CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long 
             }
             else
             {
-                std::vector<stAvatarTypeSelect_t>* sel =
-                    (std::vector<stAvatarTypeSelect_t>*)(
+                const std::vector<stAvatarTypeSelect_t>* sel =
+                    (const std::vector<stAvatarTypeSelect_t>*)(
                         ((CEquipItem*)citem)->getAvatarTypeSelect());
                 if (sel->size() <= e)
                     inner = true;
@@ -951,10 +951,10 @@ int CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long 
                 return 0;
             if (e != c)
                 return 0;
-            std::vector<stAvatarTypeSelect_t>* sel =
-                (std::vector<stAvatarTypeSelect_t>*)(
+            const std::vector<stAvatarTypeSelect_t>* sel =
+                (const std::vector<stAvatarTypeSelect_t>*)(
                     ((CEquipItem*)citem)->getAvatarTypeSelect());
-            stAvatarTypeSelect_t& selItem = sel->at(e);  // at(e)
+            const stAvatarTypeSelect_t& selItem = sel->at(e);  // at(e)（const 重载）
             int slotCount = selItem.m_field10;
             if (c != 4 && slotCount != 0)
                 return 0;
@@ -1106,17 +1106,22 @@ int CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long 
     case 5:
     {
         // 背包/仓库均无该物时 create_item 后 tryInsert 成功返回 1。
-        const CInventory* inv = user->getCurCharacInvenR();
-        if (inv->check_item_exist((int)itemIdx) == -1)
+        // ORIG 0x8323f86 case5：InvenR×2（check_exist / tryInsert 两侧共两次静态
+        // 调用点）、CargoR×1、check_item_exist×2；create_item 直访 m_itemList(+0xc)，
+        // tryInsert 走 getCurCharacInvenR（const 视图，无 W 版）。
+        // InvenR→check；失败侧再 CargoR→check（P48：结果存 bVar1，非缓存指针）。
+        bool invClear = (user->getCurCharacInvenR()->check_item_exist((int)itemIdx) == -1);
+        if (invClear)
         {
-            const CCargo* cargo = user->getCurCharacCargoR();
-            if (cargo->check_item_exist((int)itemIdx) == -1)
+            bool cargoClear =
+                (user->getCurCharacCargoR()->check_item_exist((int)itemIdx) == -1);
+            if (cargoClear)
             {
                 Inven_Item item;
                 item.m_addInfo = (int)itemIdx;   // ORIG uStack_5b = param_3
-                G_CDataManager()->getItemList()->create_item(
+                G_CDataManager()->m_itemList->create_item(
                     (ENUM_ITEM_CREATE_TYPE)0, item, 1);
-                if (user->getCurCharacInvenW()->tryInsertItemIntoInventory(item) >= 0)
+                if (user->getCurCharacInvenR()->tryInsertItemIntoInventory(item) >= 0)
                     return 1;
             }
         }
@@ -1126,23 +1131,27 @@ int CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long 
     case 6:
     {
         // 事件窗口内要求背包/仓库均无 0x65d6..0x65da 任一。
-        long createTime = user->getCurCharacCreateTime();
-        if (createTime < 0x46a7b9d0 || createTime >= 0x46d5de50)
+        // ORIG 双 getCurCharacCreateTime（start/end 各自求值）+ 全展开
+        // 0x65d6..0x65da × (InvenR+check | CargoR+check)（P48/P183 逐点重发禁缓存；
+        // ORIG 静态全展开五组，非循环——调用点差集据此）。
+        if (user->getCurCharacCreateTime() < 0x46a7b9d0)
             break;
-        const CInventory* inv = user->getCurCharacInvenR();
-        const CCargo* cargo = user->getCurCharacCargoR();
-        bool foundAny = false;
-        for (int id = 0x65d6; id <= 0x65da; ++id)
+        if (user->getCurCharacCreateTime() >= 0x46d5de50)
+            break;
+        // 逐 id 短路链：任一 Inven/Cargo 持有 0x65d6..0x65da 中物品即失败。
+        if (user->getCurCharacInvenR()->check_item_exist(0x65d6) == -1 &&
+            user->getCurCharacCargoR()->check_item_exist(0x65d6) == -1 &&
+            user->getCurCharacInvenR()->check_item_exist(0x65d7) == -1 &&
+            user->getCurCharacCargoR()->check_item_exist(0x65d7) == -1 &&
+            user->getCurCharacInvenR()->check_item_exist(0x65d8) == -1 &&
+            user->getCurCharacCargoR()->check_item_exist(0x65d8) == -1 &&
+            user->getCurCharacInvenR()->check_item_exist(0x65d9) == -1 &&
+            user->getCurCharacCargoR()->check_item_exist(0x65d9) == -1 &&
+            user->getCurCharacInvenR()->check_item_exist(0x65da) == -1 &&
+            user->getCurCharacCargoR()->check_item_exist(0x65da) == -1)
         {
-            if (inv->check_item_exist(id) != -1 ||
-                cargo->check_item_exist(id) != -1)
-            {
-                foundAny = true;
-                break;
-            }
-        }
-        if (!foundAny)
             return 1;
+        }
         break;
     }
 
@@ -1154,10 +1163,11 @@ int CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long 
 
     case 0xc:
     {
-        CEnvironment* env = G_CEnvironment();
-        if (env->m_serverEnvir.m_serverType == 2)
+        // ORIG 0x8323f86 case0xc：G_CEnvironment 两次（+0x1a8 serverType /
+        // +0x378 serverGroup 各自取全局，P48 禁缓存）。
+        if (G_CEnvironment()->m_serverEnvir.m_serverType == 2)
             return 0;
-        const int grp = env->m_serverEnvir.m_serverGroup;
+        const int grp = G_CEnvironment()->m_serverEnvir.m_serverGroup;
         if (grp == 0xb || grp == 0xc || grp == 5)
             return 0;
         if (user->getCharacSlotLimit() < 0x15)

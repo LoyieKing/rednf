@@ -734,10 +734,9 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
         }
         m_field1aa4[i] = 0;
 
-        // 单人模式换图检测：msg.dword@+0x35==0 且 IsSinglePlay → 0x1a0
-        unsigned int dword35;
-        memcpy(&dword35, reinterpret_cast<const char*>(&info) + 0x35, 4);
-        if (dword35 == 0 && IsSinglePlay())
+        // 单人模式换图检测：msg.m_field35==0 且 IsSinglePlay → 0x1a0
+        // （ORIG 0x85a8b8f `mov 0x35(%eax),%eax` 单 dword 直读）
+        if (info.m_field35 == 0 && IsSinglePlay())
         {
             memberUser(this, i)->getHackAnalyzer()->addServerHackCnt(
                 memberUser(this, i), (WongWork::ENUM_HACKTYPE)0x1a0, 1, 0, 0);
@@ -938,8 +937,8 @@ int CParty::check_dungeon_start(CDungeon const* dungeon, int& param)
 
     if (dungeon->m_bloodDungeonType == 2)
     {   // 特殊权限图（PowerWar/VillageAttack 等）
-        (void)dungeon->get_index();                      // 结果未消费（ORIG 形态）
-        if (!checkDugeonInoutTime(0))                    // T 0x0859f6e2
+        // ORIG 0859f97a：get_index 结果作为实参传入 checkDugeonInoutTime
+        if (!checkDugeonInoutTime(dungeon->get_index()))  // T 0x0859f6e2
             return 0xf4;
         if (GlobalData::s_power_manager->IsPowerWarEventOn())
             return 0xf6;
@@ -1968,18 +1967,17 @@ void CParty::makeBestClearTimePacket(PacketGuard& packet, int clearTime)
     {
         if (!checkValidUser(slot))
             continue;
-        CUser* user = m_member[slot].m_pUser;
         int diff = bf(this).get_dungeon_diff();
         int dungeonIdx = bf(this).get_dungeon_index();
         BestClearTime* best = reinterpret_cast<BestClearTime*>(
-            user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0x12));
-        int bestTime = best != 0 ? best->getBestClearTime(dungeonIdx, diff) : 0;
-        int newRecord = best != 0 ? (best->checkNewRecord() ? 1 : 0) : 0;
+            m_member[slot].m_pUser->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0x12));
+        int bestTime = best->getBestClearTime(dungeonIdx, diff);
+        int newRecord = best->checkNewRecord() ? 1 : 0;
         if (bestTime == 0)
             bestTime = clearTime;
-        unsigned int uid = (unsigned int)user->get_unique_id();
-        packet.put_byte((int)(uid & 0xff));
-        packet.put_short((int)(uid >> 8));
+        // ORIG +0x140: put_short(get_unique_id & 0xffff)，随后 put_int(bestTime) / put_byte(newRecord)
+        unsigned int uid = (unsigned int)m_member[slot].m_pUser->get_unique_id();
+        packet.put_short((int)(uid & 0xffff));
         packet.put_int(bestTime);
         packet.put_byte(newRecord);
     }

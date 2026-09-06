@@ -2,6 +2,29 @@
 #include "Inter_DispatcherAradOnly.h"  // Inter_DispatcherAradOnly（槽 732）
 #include "Inter_DispatcherTaiwan.h"  // Inter_DispatcherTaiwan（槽 846）
 
+// ============================================================================
+// b20 hardcode 裸偏移清零账（本 TU，§4.3）
+// 已字段化·零扰动（check_tu 计数不变，12 处）：
+//   Inter_MailBox_Req_CheckReceiver +0x3fb9→m_resultFlag；Inter_LoadInven +0x14758→&m_14758、
+//   +0x4044→&m_4044（拆 pad 保 sizeof）；Inter_MonitorCallMemberList +0x12→&m_12；
+//   Inter_GuildCargoPushItem +0x42→m_42、Inter_GuildCargoPopItem +0x41→m_41（UpgradeSeparateInfo）；
+//   Inter_LoadDeathTowerBestRecord +0x10→&m_10、Inter_DeathTowerLoadTopRanker +0xfb0→&m_padfb0；
+//   Inter_NoticeGuildNameOnGuildCreate +0x16→m_pad16、Inter_UpdateSecuServiceState +0x10→m_pad10。
+// 记 N·保留裸偏移（字段化实测破坏 AE/无法零扰动，各因如下，逐处见行内注释）：
+//   · 视图边界外子结构基址（补字段使 sizeof(view) 变化→尺寸敏感装载破坏 AE）：
+//     LoadCharac +0x68b(TAG_CHARAC_DATA)、LoadDungeonClear +0x10、NotifyAuctionMail +0x18(RandomOption)、
+//     MonitorCallGuildMembers/AllMembers +0x34、MembersNext/AllMembersNext +0x17（ST_Guild_Mem_Info*）、
+//     RequestTagCharacInfo +0x7d(TAG_CHARAC_INVEN_DATA)/+0x40a1(CHARAC_QUEST_SHOP_DATA)。
+//   · 透传/外部结构视图：MailBox CheckReceiver m_payload(+0x35/0x46/0x63/0x64/0x67/0x68/0x6c/0x6e，
+//     MSG_MAILBOX_SEND/MULTI 视图)、IPGResult reqData+0x2d8(SIPGData)、GameOption etcOpt+0x48/0x174/0x2a0
+//     (CETCOption 内 CQuickChattingOption/CChattingEmoticonConfig)。
+//   · 工具链求值序依赖：MonitorAddBuddy strlen (char*)pPkt+0x12（ORIG add 形 vs put_str lea 形，AE 依赖此差）。
+//   · 多指针参 reload：SecurityCardIssue +0x37/+0x5e（拆 pad 使 setSecurityCardInfo 双指针参装载重排破坏 AE）。
+//   · 最小镜像类隔离：NpcLimitBuyItemInfo checkError +0x16（LimitNpcBuyItemInfo 无字段，§4.3 例外同 CItemLock）。
+//   · 共享头占位待属主：AuctionResultBidding PrePayInfo +0x08/0x0c/0x10/0x18/0x1c/0x24
+//     （CPrePayInfoMgr.h m_data[0x28]，字段化需 pack(1)+u64 对齐验证、超本 TU 证据，交属主批次）。
+// ============================================================================
+
 // ORIG 各 TU 一份 _ZL26GUILD_ADDRESS_DOUBLE_CHECK（r 0x2）：公会地址重复检查通过标志。
 static const int GUILD_ADDRESS_DOUBLE_CHECK = 4;
 

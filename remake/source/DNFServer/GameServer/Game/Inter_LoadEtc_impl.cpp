@@ -1163,10 +1163,14 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
         if (!SendResult(user)) { result = 0xae6; break; }
 
         user->SendRestrictedGoods(false, 0);
+        // §4.3 具名化：+0x2308 区在 SigTypes_C.h:464 已有 union 具名叠加
+        // （m_cooltimeItem @+0x230c = m_pad2308+4、m_effectItem @+0x24a4 =
+        //  m_pad2308+0x19c；写点证据 CUserCharacInfo::GetContinuousItemInfo
+        //  0x08677f24 / DB_LoadEtc LoadCharacItemStat.md cap 0x194）。
         user->LoadCoolTimeItemInfo(
-            reinterpret_cast<CONTINUOUS_ITEM_INFO*>(sig->m_pad2308 + 4));
+            reinterpret_cast<CONTINUOUS_ITEM_INFO*>(sig->m_cooltimeItem));
         user->LoadEffectItemInfo(
-            reinterpret_cast<CONTINUOUS_ITEM_INFO*>(sig->m_pad2308 + 0x19c));
+            reinterpret_cast<CONTINUOUS_ITEM_INFO*>(sig->m_effectItem));
 
         typedef charac_expand::CData CDataAlias;
         for (;;)
@@ -1223,7 +1227,11 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             exp13->loadData(user, reinterpret_cast<char*>(sig->m_attendanceEvent.m_pad + 1));
         }
 
-        if (*reinterpret_cast<int*>(sig->m_expandDataF + 0x1804) == 0)
+        // §4.3 具名化：m_expandDataF(+0xb1a4)+0x1804 = +0xc9a8 =
+        // SigTypes_C.h:546 具名 m_achievementLastUpdate（DB_LoadEtc
+        // LoadAchievement.md：+0xb1a4 解压 0x1800 数据、+0xc9a4 计数、
+        // +0xc9a8 last_update get_uint → +0xc9ac 衔接具名字段）。
+        if (sig->m_achievementLastUpdate == 0)
         {
             CAchievement* achievement =
                 reinterpret_cast<CAchievement*>(user->GetCharacExpandData(

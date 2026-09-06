@@ -59,12 +59,13 @@ public:
 };
 CGameManager* G_CGameManager();
 
-class CEventBase;
-class CEventManager
-{
-public:
-    CEventBase* GetRepeatEvent(int type);      // ORIG T 0x08115998
-};
+// §4.4/§4.3：CEventBase/CEventManager 统一取权威头（原本 TU 局部镜像
+// `class CEventBase;` + 仅含 GetRepeatEvent 的最小 CEventManager 已删）。
+// 权威 CEventBase 声明序已按 ORIG vtable 0x08b4bae0 排好（IsEventing =
+// slot 13 = vtable+0x34，CGuildServerProxy.h:129），故两处 is-eventing 判定
+// 改真实虚成员调用（范式 P5）。实测：仅 include 权威头对本 TU .o 逐函数
+// 全等（零扰动），无需 asm 槽直调。
+#include "CGuildServerProxy.h"
 
 namespace EventClassify
 {
@@ -251,20 +252,15 @@ bool DBDispatcher::dispatch(int userIdx, int slot, Stream* stream)
     }
     return true;
 }
-class CEventBase;
-// ---- CEventBase 虚表 +0x34 槽直调（GetRepeatEvent 后的 is-eventing 判定；
-//      ORIG 指令 vtable+0x34、实参 int(0)、返回 bool。权威 CEventBase.h 当前
-//      该槽标注为 deliveryEnd，与 ORIG 槽序未对齐——槽位归口属宿主统一，
-//      本 TU 按 ORIG 二进制偏移原样调用【推断】）----
+// ---- GetRepeatEvent 后的 is-eventing 判定（ORIG vtable+0x34 = slot 13
+//      CEventBase::IsEventing(CUser*) const，实参 0、返回 bool；P5 真实虚调用）----
 inline bool vtableCall34(CEventBase* evt)
 {
     if (evt == 0)
     {
         return false;
     }
-    typedef bool (*Fn)(CEventBase*, int);
-    Fn fn = *reinterpret_cast<Fn*>(*reinterpret_cast<void**>(evt) + 0x34);
-    return fn(evt, 0);
+    return evt->IsEventing(0);
 }
 // ============================================================================
 // _getGameDB（ORIG T 0x0840f4f8）/ _GetDNFAccountDB（ORIG T 0x08411bae）
@@ -2445,17 +2441,16 @@ int DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
         unsigned short m_timepiece;            // +0x4150
         unsigned short m_serverId;             // +0x4152
     };
-    typedef bool (*IsEventingFn)(CEventBase*, int);
     // 4.4 槽序与 4.1 相反（P28/P112）：先声明者槽更深，按 ORIG 槽位（db -0xc、ok -0xd）
     // 逆序声明 evt/ok/db。
     bool ok;
     MySQL* db;
-    // ORIG +0x1b：GetRepeatEvent 结果裸跨 vtable+0x34 手动调用（无判空）；
+    // ORIG +0x1b：GetRepeatEvent 结果直调虚槽 +0x34（无判空）；
     // evt 恒居 %eax（ORIG `mov (%eax),%edx;…; mov %eax,(%esp)` 无槽），asm 钉形防
     // 4.4 spill 槽顶深后续（实测槽 -0x14 多占 → vfn/arg 序全漂移）。
     register CEventBase* evt asm("eax") =
         GlobalData::s_event_manager->GetRepeatEvent(100);
-    if (!(*reinterpret_cast<IsEventingFn*>(*reinterpret_cast<void**>(evt) + 0x34))(evt, 0))
+    if (!evt->IsEventing(0))
     {
         return 1;
     }

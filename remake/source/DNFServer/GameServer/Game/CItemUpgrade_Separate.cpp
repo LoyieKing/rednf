@@ -320,8 +320,7 @@ int CItemUpgrade_Separate::_CheckCondition(const CUser* /*user*/, const Inven_It
         return 0x16;
     }
 
-    const unsigned int haveCount = *reinterpret_cast<const unsigned int*>(
-        reinterpret_cast<const char*>(&matItem) + 7);          // +7 未对齐 int（pack(1)）
+    const unsigned int haveCount = matItem.m_addInfo2;         // Inven_Item +0x07（int，具名字段）
 
     const unsigned char sepLv =
         static_cast<unsigned char>(item.m_upgradeSep.GetUpgradeSeparate());

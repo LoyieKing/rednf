@@ -1078,10 +1078,13 @@ bool CMailBoxHelper::_DoGetPackageCoin(CUser* user, CMailBox::CMail const* mail,
         return true;
 
     Inven_Item const& pkg = mail->GetPackageItem();
-    int amount = *reinterpret_cast<int*>(
-        reinterpret_cast<char*>(const_cast<Inven_Item*>(&pkg)) + 0x03); // +0x03（m_addInfo 跨字段）
-    short coinType = *reinterpret_cast<short*>(
-        reinterpret_cast<char*>(const_cast<Inven_Item*>(&pkg)) + 0x07); // +0x07 = m_addInfo2 低 16 位
+    // 语义 bug 修正（同 RandomOption 判例，ORIG 报告 0x08553672 实证）：
+    // GetPackageItem 的 sret 基址 = -0x69(%ebp)，ORIG `mov -0x62` 取 amount
+    // （= base+0x07，int）、`movzwl -0x5e` 取 coinType（= base+0x0b，ushort）。
+    // 旧形 &pkg+0x03 / +0x07 各向低漂 4 字节 → amount 落到 m_addInfo 高位跨界、
+    // coinType 落到 m_addInfo2 低 16 位，读的是错的字节。按 ORIG 归位并具名化。
+    int amount = pkg.m_addInfo2;              // Inven_Item +0x07
+    unsigned short coinType = pkg.m_fieldb;   // Inven_Item +0x0b（ORIG movzwl）
 
     cUserHistoryLog* hist = &user->m_historyLog;   // CUser +0x79700 嵌套成员
     if (coinType == 1)

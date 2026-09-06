@@ -12724,12 +12724,20 @@ int Dispatcher_GuildCargoPushItem::check_error(CUser* user, MSG_BASE& msg,
     if (user->IsExistGuildAgit() != 1)
         return 0xb5;
 
-    const unsigned char itemSpace =
-        *reinterpret_cast<const unsigned char*>(
-            reinterpret_cast<const char*>(&param) + 0x0d);
-    const unsigned short slot =
-        *reinterpret_cast<const unsigned short*>(
-            reinterpret_cast<const char*>(&param) + 0x0e);
+    // param +0x0d/0x0e/0x10：stGuildCargoPushItemParam 冻结头仅 m_4+pad 占位，
+    // 按 §8.3 用 TU 局部视图具名（偏移证据=本函数 ORIG 读出，宽度对照读指令）。
+    struct __attribute__((packed)) PushParamView
+    {
+        int m_4;                 // +0x04
+        char m_pad08[4];         // +0x08..+0x0c
+        unsigned char m_itemSpace;   // +0x0d
+        unsigned short m_slot;       // +0x0e
+        int m_reqAddInfo;            // +0x10
+    };
+    const PushParamView& pv =
+        *reinterpret_cast<const PushParamView*>(&param);
+    const unsigned char itemSpace = pv.m_itemSpace;
+    const unsigned short slot = pv.m_slot;
     const int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)itemSpace);
     const CInventory* inven = user->getCurCharacInvenR();
     const Inven_Item slotItem = inven->GetInvenSlot(invenType, (int)slot);
@@ -12740,9 +12748,7 @@ int Dispatcher_GuildCargoPushItem::check_error(CUser* user, MSG_BASE& msg,
         return err;
     if (user->CheckItemLock(invenType, (int)slot))
         return 0xd5;
-    const int reqAddInfo =
-        *reinterpret_cast<const int*>(
-            reinterpret_cast<const char*>(&param) + 0x10);
+    const int reqAddInfo = pv.m_reqAddInfo;
     if (reqAddInfo == 0 || slotItem.m_addInfo != reqAddInfo)
         return 0xc5;
     if (G_CDataManager()->find_item(slotItem.m_addInfo) == 0)
@@ -12754,11 +12760,10 @@ int Dispatcher_GuildCargoPushItem::process(CUser* user, MSG_BASE& msg, ParamBase
 {
     // ORIG 0x081d10d4 (0x242 insn)
     stGuildCargoPushItemParam& result = static_cast<stGuildCargoPushItemParam&>(param);
-    const char* const M = reinterpret_cast<const char*>(&msg);
-    const unsigned char itemSpace =
-        *reinterpret_cast<const unsigned char*>(reinterpret_cast<const char*>(&msg) + 0x0d);
-    const unsigned short slot =
-        *reinterpret_cast<const unsigned short*>(reinterpret_cast<const char*>(&msg) + 0x0e);
+    const MSG_GUILD_CARGO_PUSH_ITEM* const M =
+        reinterpret_cast<const MSG_GUILD_CARGO_PUSH_ITEM*>(&msg);
+    const unsigned char itemSpace = M->m_field0d;
+    const unsigned short slot = M->m_field0e;
 
     int err = check_error(user, msg, param);
     result.m_4 = err;                                   // +0x04 错误码
@@ -12782,13 +12787,13 @@ int Dispatcher_GuildCargoPushItem::process(CUser* user, MSG_BASE& msg, ParamBase
     Packet_Guild_Check_Guild_Cargo_Push_Item pkt;            // ctor 0x0822bec2
     pkt.m_guildKey = (unsigned int)user->get_charac_guildkey();   // +0xa
     pkt.m_charNo = (unsigned int)user->getCurCharacNo();          // +0xe
-    pkt.m_slot = (int)(unsigned short)*reinterpret_cast<const unsigned short*>(M + 0x18);  // +0x12
-    pkt.m_itemId = *reinterpret_cast<const int*>(M + 0x10);      // +0x16
-    pkt.m_count = *reinterpret_cast<const int*>(M + 0x14);        // +0x1a
+    pkt.m_slot = (int)M->m_field18;                              // +0x12
+    pkt.m_itemId = M->m_field10;                                 // +0x16
+    pkt.m_count = M->m_field14;                                  // +0x1a
     pkt.m_maxStack = stackLimit;                                  // +0x1e
     pkt.m_stackable = (unsigned char)(isStackable ? 1 : 0);       // +0x22
-    pkt.m_invenType = *reinterpret_cast<const unsigned char*>(M + 0x0d);  // +0x23
-    pkt.m_invenSlot = *reinterpret_cast<const unsigned short*>(M + 0x0e); // +0x24
+    pkt.m_invenType = M->m_field0d;                              // +0x23
+    pkt.m_invenSlot = M->m_field0e;                              // +0x24
 
     CGuildServerProxy* proxy =
         GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
@@ -12797,11 +12802,11 @@ int Dispatcher_GuildCargoPushItem::process(CUser* user, MSG_BASE& msg, ParamBase
 
     user->m_historyLog.GuildCargoCheckPushItem(
         (ENUM_GUILD_CARGO_HISTORY_REASON)5,
-        (int)(unsigned short)*reinterpret_cast<const unsigned short*>(M + 0x18),
-        *reinterpret_cast<const int*>(M + 0x10),
-        *reinterpret_cast<const int*>(M + 0x14),
-        (int)*reinterpret_cast<const unsigned char*>(M + 0x0d),
-        (int)(unsigned short)*reinterpret_cast<const unsigned short*>(M + 0x0e),
+        (int)M->m_field18,
+        M->m_field10,
+        M->m_field14,
+        (int)M->m_field0d,
+        (int)M->m_field0e,
         (int)(isStackable ? 1 : 0));
     return 0;
 }
@@ -12810,16 +12815,16 @@ int Dispatcher_GuildCargoPushItem::read(PacketBuf& packet, MSG_BASE& msg)   // O
 {
     static const char kFunc[] =
         "virtual int Dispatcher_GuildCargoPushItem::read(PacketBuf&, MSG_BASE&)";
-    char* pMsg = reinterpret_cast<char*>(&msg);
-    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(pMsg + 0x0d)))
+    MSG_GUILD_CARGO_PUSH_ITEM& pMsg = reinterpret_cast<MSG_GUILD_CARGO_PUSH_ITEM&>(msg);
+    if (!packet.get_byte(pMsg.m_field0d))
         return LineFunc(0x2c91, kFunc, 0, 0);           // msg+0xd byte itemSpace
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(pMsg + 0x0e)))
+    if (!packet.get_short(pMsg.m_field0e))
         return LineFunc(0x2c92, kFunc, 0, 0);           // msg+0xe short slot
-    if (!packet.get_int(*reinterpret_cast<int*>(pMsg + 0x10)))
+    if (!packet.get_int(pMsg.m_field10))
         return LineFunc(0x2c93, kFunc, 0, 0);           // msg+0x10 int
-    if (!packet.get_int(*reinterpret_cast<int*>(pMsg + 0x14)))
+    if (!packet.get_int(pMsg.m_field14))
         return LineFunc(0x2c94, kFunc, 0, 0);           // msg+0x14 int
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(pMsg + 0x18)))
+    if (!packet.get_short(pMsg.m_field18))
         return LineFunc(0x2c95, kFunc, 0, 0);           // msg+0x18 short count
     return 0;
 }
@@ -13024,12 +13029,10 @@ int Dispatcher_RequestMemberEnter::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_RequestMemberEnter::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081cb780：int@0x10（len）→ str@0x14（max 0x1e）
-    // P1：get_str max 值读取用视图折叠。
-    struct __attribute__((packed)) LenView { char m_head[0x10]; int m_len; };
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0x10)))
+    MSG_REQUEST_MEMBER_ENTER& m = reinterpret_cast<MSG_REQUEST_MEMBER_ENTER&>(msg);
+    if (!packet.get_int(m.m_nameLen))
         return LineFunc(0x2169, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_str(m + 0x14, 0x1e, ((LenView*)m)->m_len))
+    if (!packet.get_str(m.m_characName, 0x1e, m.m_nameLen))
         return LineFunc(0x216c, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -13489,6 +13492,17 @@ int Dispatcher_CreateDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBas
                         __PRETTY_FUNCTION__,
                         err, user->get_acc_id());
     }
+    // MSG_CREATE_DISJOINT_STORE 冻结头未建模 payload（仅 m_pad[0x100]）；
+    // §8.3 TU 局部视图具名（偏移/宽度证据=本函数 ORIG + read get_* 序列）。
+    struct DisjointStoreMsgView    // 自然对齐恰落各偏移（0xd+0x103=0x110 已 4 对齐）
+    {
+        char m_head[0xd];
+        char m_storeName[0x103];   // +0x0d（get_str max 0x100）
+        int m_field110;            // +0x110 名字长度（get_int）
+        int m_field114;            // +0x114
+        short m_field118;          // +0x118
+        short m_field11a;          // +0x11a
+    };
     expert_job::CExpertJob* job = GlobalData::s_ExpertJobMgr->AcquireExpertJob((ENUM_EXPERT_JOB_TYPE)3);
     if (job == 0)
     {
@@ -13498,10 +13512,11 @@ int Dispatcher_CreateDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBas
     user->SetCurCharacExpertJob(job);
     int result = reinterpret_cast<expert_job::CDisjointer*>(job)->OnCreateDisjointStore(
         user,
-        reinterpret_cast<char*>(&msg) + 0xd,
-        *(int*)(reinterpret_cast<char*>(&msg) + 0x114),
-        (int)(short)*(unsigned short*)(reinterpret_cast<char*>(&msg) + 0x118),
-        (int)(short)*(unsigned short*)(reinterpret_cast<char*>(&msg) + 0x11a));
+        // 内联视图（ORIG 本函数无 msg 指针槽，禁新增局部保帧零扰动）
+        reinterpret_cast<DisjointStoreMsgView*>(&msg)->m_storeName,
+        reinterpret_cast<DisjointStoreMsgView*>(&msg)->m_field114,
+        (int)reinterpret_cast<DisjointStoreMsgView*>(&msg)->m_field118,
+        (int)reinterpret_cast<DisjointStoreMsgView*>(&msg)->m_field11a);
     if (result != 0)
     {
         user->SetCurCharacExpertJob(0);
@@ -13512,35 +13527,43 @@ int Dispatcher_CreateDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBas
 }
 int Dispatcher_CreateDisjointStore::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    char* base = reinterpret_cast<char*>(&msg);
-    // P1：int@0x110 值读取（get_str max）用视图折叠 `mov 0x110(%eax),%eax`。
-    struct __attribute__((packed)) LenView { char m_head[0x110]; int m_len; };
-    if (!packet.get_int(*reinterpret_cast<int*>(base + 0x110)))
+    // 同上 §8.3 TU 局部视图（冻结头未建模）。
+    struct DisjointStoreMsgView    // 同上：自然对齐即达各字段偏移
+    {
+        char m_head[0xd];
+        char m_storeName[0x103];   // +0x0d
+        int m_field110;            // +0x110
+        int m_field114;            // +0x114
+        short m_field118;          // +0x118
+        short m_field11a;          // +0x11a
+    };
+    DisjointStoreMsgView& base = reinterpret_cast<DisjointStoreMsgView&>(msg);
+    if (!packet.get_int(base.m_field110))
     {
         return LineFunc(0x2976,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_str(base + 0xd, 0x100,
-                        ((LenView*)base)->m_len))
+    if (!packet.get_str(base.m_storeName, 0x100,
+                        base.m_field110))
     {
         return LineFunc(0x2979,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_int(*reinterpret_cast<int*>(base + 0x114)))
+    if (!packet.get_int(base.m_field114))
     {
         return LineFunc(0x297c,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<short*>(base + 0x118)))
+    if (!packet.get_short(base.m_field118))
     {
         return LineFunc(0x297f,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<short*>(base + 0x11a)))
+    if (!packet.get_short(base.m_field11a))
     {
         return LineFunc(0x2982,
                         __PRETTY_FUNCTION__,
@@ -13563,66 +13586,85 @@ int Dispatcher_CreatureSendMessage::dispatch_sig(CUser* user, PacketBuf& packet)
     // ORIG 0x08204710 [0x08204710, 0x08204b0b]
     // 局部载荷区（-0x157 起）：+0x0d type / +0x0e target / +0x10 uint /
     // +0x14 msg2len / +0x18 msg2[0x1e] / +0x36 msg1len / +0x3a msg1[0x100]
+    // §8.3 TU 局部 packed 视图具名（内联视图指针，零新增槽）。
+    struct CSMsgView               // 自然对齐；0x36 非对齐 int 用 4 字节区+显式视图
+    {
+        char m_head[0xd];
+        char m_type;               // +0x0d get_byte(char&)/send_chat_msg char 实参
+        unsigned short m_target;   // +0x0e
+        unsigned int m_field10;    // +0x10
+        int m_msg2Len;             // +0x14
+        char m_msg2[0x1e];         // +0x18
+        unsigned char m_msg1LenB[4];  // +0x36（ORIG 非对齐 int；字节区宽 4，
+                                      //  int 视图经 reinterpret 读写同 ORIG movl）
+        char m_msg1[0x100];        // +0x3a
+    };
     char buf[0x13a];
+    // 内联视图（零新增局部槽；VEXP(f) ≡ buf 上具名字段）
+#define VEXP(f) (reinterpret_cast<CSMsgView*>(buf)->f)
     if (user->get_state() < 3)
     {
         return 0;
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(buf + 0x0d)))
+    if (!packet.get_byte(VEXP(m_type)))
     {
         return LineFunc(0x9c3d,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(buf + 0x0e)))
+    if (!packet.get_short(VEXP(m_target)))
     {
         return LineFunc(0x9c3e,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(buf + 0x10)))
+    if (!packet.get_int(VEXP(m_field10)))
     {
         return LineFunc(0x9c3f,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_int(*reinterpret_cast<int*>(buf + 0x36)))
+    if (!packet.get_int(*reinterpret_cast<int*>(VEXP(m_msg1LenB))))
     {
         return LineFunc(0x9c40,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_str(buf + 0x3a, 0x100, *reinterpret_cast<int*>(buf + 0x36)))
+    if (!packet.get_str(VEXP(m_msg1), 0x100,
+                        *reinterpret_cast<const int*>(VEXP(m_msg1LenB))))
     {
         return LineFunc(0x9c41,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    G_CDataManager()->rewriteUsableEmoticon(*user, buf + 0x3a);
-    if (*reinterpret_cast<unsigned char*>(buf + 0x0d) == 7 ||
-        *reinterpret_cast<unsigned char*>(buf + 0x0d) == 1)
+    G_CDataManager()->rewriteUsableEmoticon(*user, VEXP(m_msg1));
+    // type 比较按 ORIG movzbl 无符号形（字段为 char，显式 uchar 读保持指令形态）
+    if (*reinterpret_cast<const unsigned char*>(&VEXP(m_type)) == 7 ||
+        *reinterpret_cast<const unsigned char*>(&VEXP(m_type)) == 1)
     {
-        if (!packet.get_int(*reinterpret_cast<int*>(buf + 0x14)))
+        if (!packet.get_int(VEXP(m_msg2Len)))
         {
             return LineFunc(0x9c53,
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        if (!packet.get_str(buf + 0x18, 0x1e, *reinterpret_cast<int*>(buf + 0x14)))
+        if (!packet.get_str(VEXP(m_msg2), 0x1e, VEXP(m_msg2Len)))
         {
             return LineFunc(0x9c54,
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        if (*reinterpret_cast<unsigned char*>(buf + 0x0d) == 7)
+        if (*reinterpret_cast<const unsigned char*>(&VEXP(m_type)) == 7)
         {
             Packet_Monitor_Other_Channel_Chat chat;   // ctor ORIG 0x0822b8e6（弱内联）
             chat.m_characNo = user->getCurCharacNo();
-            chat.m_buddyNameLen = (char)*reinterpret_cast<int*>(buf + 0x14);
-            memcpy(chat.buddy_n_user_id_what, buf + 0x18,
-                   *reinterpret_cast<int*>(buf + 0x14));
-            chat.m_msgLen = (unsigned char)*reinterpret_cast<int*>(buf + 0x36);
-            memcpy(chat.m_msg, buf + 0x3a, *reinterpret_cast<int*>(buf + 0x36));
+            chat.m_buddyNameLen = (char)VEXP(m_msg2Len);
+            memcpy(chat.buddy_n_user_id_what, VEXP(m_msg2),
+                   VEXP(m_msg2Len));
+            chat.m_msgLen =
+                (unsigned char)*reinterpret_cast<const int*>(VEXP(m_msg1LenB));
+            memcpy(chat.m_msg, VEXP(m_msg1),
+                   *reinterpret_cast<const int*>(VEXP(m_msg1LenB)));
             chat.packetSize = (unsigned short)(chat.m_msgLen + 0x3b);
             unsigned int size = (unsigned int)chat.packetSize;
             CMonitorServerProxy* proxy =
@@ -13632,14 +13674,15 @@ int Dispatcher_CreatureSendMessage::dispatch_sig(CUser* user, PacketBuf& packet)
         }
     }
     G_GameWorld()->send_chat_msg(user,
-                                 *reinterpret_cast<char*>(buf + 0x0d),
-                                 *reinterpret_cast<unsigned short*>(buf + 0x0e),
-                                 *reinterpret_cast<unsigned int*>(buf + 0x10),
-                                 buf + 0x3a,
-                                 *reinterpret_cast<int*>(buf + 0x36),
+                                 VEXP(m_type),
+                                 VEXP(m_target),
+                                 VEXP(m_field10),
+                                 VEXP(m_msg1),
+                                 *reinterpret_cast<int*>(VEXP(m_msg1LenB)),
                                  0, 0, (ENUM_NOTIPACKET)0x72);
     return 0;
 }
+#undef VEXP
 int Dispatcher_CreatureSendMessage::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CreatureSendMessage::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
@@ -13956,7 +13999,7 @@ int Dispatcher_UnsealRandomOption::_check_unseal_scroll_item(
         {
             return 0x11;
         }
-        if (*(int*)((char*)proto + 0x328) == -1)   // ORIG +0x328 卷轴限等字段
+        if (reinterpret_cast<const CStackableItem*>(proto)->m_int328 == -1)  // +0x328
         {
             return 1;
         }
@@ -14131,12 +14174,10 @@ int Dispatcher_UnsealRandomOption::dispatch_sig(CUser* user, PacketBuf& packet)
 int Dispatcher_RegisterToBlackList::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081cdbc6：int@0x10（len）→ str@0x14（max 0x1e）
-    // P1：get_str max 值读取用视图折叠。
-    struct __attribute__((packed)) LenView { char m_head[0x10]; int m_len; };
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0x10)))
+    MSG_REGISTER_TO_BLACKLIST& m = reinterpret_cast<MSG_REGISTER_TO_BLACKLIST&>(msg);
+    if (!packet.get_int(m.m_nameLen))
         return LineFunc(0x267d, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_str(m + 0x14, 0x1e, ((LenView*)m)->m_len))
+    if (!packet.get_str(m.m_characName, 0x1e, m.m_nameLen))
         return LineFunc(0x2680, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -14165,15 +14206,16 @@ int Dispatcher_RequestDisjointItem::process(CUser* user, MSG_BASE& msg, ParamBas
 
     // msg+0xe：ushort 对象 uid → find_from_world；msg+0x10：short 槽；
     // msg+0x12：char（有符号）背包类型。命令字 0xef，区域 0xffff。
+    MSG_REQUEST_DISJOINT_ITEM& mref =
+        reinterpret_cast<MSG_REQUEST_DISJOINT_ITEM&>(msg);
     unsigned short uid =
-        *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(&msg) + 0xe);
+        *reinterpret_cast<const unsigned short*>(&mref.m_field0e);
     CUser* target = G_GameWorld()->find_from_world(uid);
 
     DisPatcher_DisJointItem::_disjoint(
         user,
-        (int)(*reinterpret_cast<short*>(reinterpret_cast<char*>(&msg) + 0x10)),
-        (int)(signed char)(*reinterpret_cast<unsigned char*>(
-            reinterpret_cast<char*>(&msg) + 0x12)),
+        (int)mref.m_field10,
+        (int)(signed char)*reinterpret_cast<const unsigned char*>(&mref.m_field12),
         (ENUM_CMDPACKET)0xef,
         target,
         0xffff);
@@ -14182,12 +14224,12 @@ int Dispatcher_RequestDisjointItem::process(CUser* user, MSG_BASE& msg, ParamBas
 int Dispatcher_RequestDisjointItem::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081cfb28：short@0xe → short@0x10 → char@0x12
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_short(*reinterpret_cast<short*>(m + 0xe)))
+    MSG_REQUEST_DISJOINT_ITEM& m = reinterpret_cast<MSG_REQUEST_DISJOINT_ITEM&>(msg);
+    if (!packet.get_short(m.m_field0e))
         return LineFunc(0x29ed, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_short(*reinterpret_cast<short*>(m + 0x10)))
+    if (!packet.get_short(m.m_field10))
         return LineFunc(0x29f0, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_byte(*reinterpret_cast<char*>(m + 0x12)))
+    if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_field12)))
         return LineFunc(0x29f3, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -14636,20 +14678,20 @@ int Dispatcher_UpgradeItemSeparate::process(CUser* user, MSG_BASE& msg, ParamBas
 }
 int Dispatcher_UpgradeItemSeparate::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    char* base = reinterpret_cast<char*>(&msg);
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(base + 0x1b)))
+    MSG_ITEM_UPGRADE& base = reinterpret_cast<MSG_ITEM_UPGRADE&>(msg);
+    if (!packet.get_short(base.m_targetSlot))
     {
         return LineFunc(0x228e,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_int(*reinterpret_cast<unsigned long*>(base + 0x1d)))
+    if (!packet.get_int(base.m_targetItemIdx))
     {
         return LineFunc(0x2290,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(base + 0x23)))
+    if (!packet.get_short(base.m_materialSlot))
     {
         return LineFunc(0x2292,
                         __PRETTY_FUNCTION__,
@@ -14831,12 +14873,13 @@ int Dispatcher_WarRoomWpPerMonster::process(CUser* user, MSG_BASE& msg, ParamBas
 int Dispatcher_WarRoomWpPerMonster::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081d5bcc：int@0xd → int@0x11 → ushort@0x15
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0xd)))
+    MSG_WARROOM_WP_PER_MONSTER& m =
+        reinterpret_cast<MSG_WARROOM_WP_PER_MONSTER&>(msg);
+    if (!packet.get_int(m.m_field0d))
         return LineFunc(0x397d, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0x11)))
+    if (!packet.get_int(m.m_field11))
         return LineFunc(0x3980, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(m + 0x15)))
+    if (!packet.get_short(m.m_killerUid))
         return LineFunc(0x3983, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }

@@ -3114,6 +3114,9 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item, INVEN_TYPE invenT
 // ============================================================================
 bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const
 {
+    // [§6.2 闭合 · b20] P167 149/149 归零；ORIG 在本 const 方法内走
+    // put_binary(const char*,int)（PKc 重载），expansion/expInfo 已常量化对齐
+    // 该 call 目标（同宽同槽，零扰动）。新鲜 .o 1072 vs ORIG 1073（gap 1）。
     InterfacePacketBuf& buf = reinterpret_cast<InterfacePacketBuf&>(packet);
     GameWorld* world;
     // 本方法为 const；ORIG 0x084fc6bc 对 expansion/expInfo 走 put_binary(const
@@ -5434,6 +5437,11 @@ void SIG_AVATAR_INSERT::setJewelSocket(const stAvatarEmblemInfo_t& emblem)
 
 // ============================================================================
 // CInventory::move_item（ORIG 0x08500688，_ZN10CInventory9move_itemE10INVEN_TYPEiS0_i）。
+// [§6.2 闭合 · b20] 帧 604=604 与 ORIG 全等；P167 调用点差集 80/80 归零
+// （0 MISSING / 0 EXTRA，CREATURE 分支接收者已按 ORIG 0x08501752 改直接成员
+// m_creatureMgr，删 2 处误加 GetCreatureMgrW 调用）；新鲜 .o insns 1279 vs
+// ORIG 1282（gap 3）。剩余 byte 层残差属 N82（4.1 不按 lifetime 复用栈槽）
+// 与跨版本寄存器物化，判「语义完成、N 封顶」。
 // 语义（docs/class_func_reports/CInventory/move_item.md 逐指令对照）：
 //   - 双端 CheckValidSlot 失败 → cMyTrace + 0x11；
 //   - 源为 0..2 且目的为 CREATURE 时 swap 两端（CREATURE 恒为源）；
@@ -5639,7 +5647,9 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
         if ((int)dstType == 3)
         {
             // ---- CREATURE ↔ CREATURE（首参为目的侧，与 ORIG 压栈序一致）----
-            if (GetCreatureMgrW()->SwapCreatureItem(
+            // ORIG 0x08501752 `mov 0x8(%ebp),%eax; add $0x6e8,%eax` = 直接取
+            // &m_creatureMgr 作接收者，不经 GetCreatureMgrW（P167 EXTRA 清零）。
+            if (m_creatureMgr.SwapCreatureItem(
                     &m_pCreatureSlot[dstSlot], dstSlot, (int)dstType,
                     &m_pCreatureSlot[slot], slot, (int)invenType))
             {
@@ -5652,7 +5662,7 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
             return 0;
         }
         // ---- CREATURE(src) → INVEN(dst) ----
-        if (GetCreatureMgrW()->SwapCreatureItem(
+        if (m_creatureMgr.SwapCreatureItem(
                 &m_invenItem[dstSlot], dstSlot, (int)dstType,
                 &m_pCreatureSlot[slot], slot, (int)invenType))
         {
@@ -5809,6 +5819,10 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
 int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                               ENUM_EQUIPSLOT equipSlot) const
 {
+    // [§6.2 闭合 · b20] P167 80/80 归零：本 const 方法 6 处 put_binary 已按
+    // ORIG 走 PKc（const char*）重载（含 pExpansion 常量化，同宽同槽零扰动）。
+    // 新鲜 .o 660 vs ORIG 658（gap -2）；帧 124 vs ORIG 112（+12B/3 槽）属
+    // N82 槽分配残差，判「语义完成、N 封顶」。
     InterfacePacketBuf* buf = (InterfacePacketBuf*)out;
     if (buf == 0)
     {
@@ -6623,6 +6637,10 @@ void CInventory::SendItemLockListCreature() const
 // ============================================================================
 int CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
 {
+    // [§6.2 闭合 · b20] P167 108/108 归零：3 处 put_binary 已对齐 ORIG 的
+    // PKc（const char*）重载（去 (char*) 强转 + expansion 常量化，零扰动）。
+    // 新鲜 .o 726 vs ORIG 728（gap 2）；帧 108 vs ORIG 96（+12B/3 槽）属
+    // N82 槽分配残差，判「语义完成、N 封顶」。
     if (m_pParent == 0)
     {
         cMyTrace trace(

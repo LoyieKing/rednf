@@ -50,6 +50,7 @@
 #include "Secu_HackLogCheckByParty.h"  // Secu_HackLogCheckByParty::DieMob / MSG_MONSTER_DIE
 #include "InterfacePacketBuf.h"
 #include "GameEnums.h"        // ENUM_DUNGEON_CLEAR_CONDITION_TYPE
+#include "CPartyExpBonusEvent.h"   // CPartyExpBonusEvent::getBonusRate（ORIG W 0x85bfe1a）
 
 namespace
 {
@@ -148,32 +149,6 @@ void CParty::SendSecretShopItemList(CUser* user)
 }
 
 // ============================================================================
-// CPartyExpBonusEvent::getBonusRate 内联体（ORIG W 0x85bfe1a）—— kill_monster 主循环
-// 内联依赖。CPartyExpBonusEvent 无权威头；此处按 ORIG 汇编语义以内部 helper 提供：
-//   经 vtable 槽 +0x34（IsEventing）判活（ORIG 传参 0），
-//   活 && memberCount>1 && !helpAbuse → (float)m_value(+0xc) / 100.0f，否则 0.0f。
-//   注意：ORIG 无 event==NULL 防护（GetRepeatEvent(0x18) 必然非空），此处加防御
-//   避免解引用空指针，正路径语义不变。
-// ============================================================================
-namespace
-{
-float partyExpBonusRate(void* event, int memberCount, bool helpAbuse)
-{
-    if (event == 0)
-        return 0.0f;
-    typedef bool (*IsEventingFn)(void*);
-    void** vtable = *reinterpret_cast<void***>(event);
-    IsEventingFn isEventing = reinterpret_cast<IsEventingFn>(vtable[0x34 / 4]);
-    if (!isEventing(event))
-        return 0.0f;
-    if (memberCount <= 1 || helpAbuse)
-        return 0.0f;
-    int value = *reinterpret_cast<int*>(reinterpret_cast<char*>(event) + 0xc);
-    return (float)value / 100.0f;
-}
-}  // namespace
-
-// ============================================================================
 // CParty::kill_monster —— ORIG T 0x085a27e8（kill_monster.md，0x1381 字节）。
 // 关键字段映射（汇编逐指令核对）：
 //   STKillMonsterData：uid=monsterIdx, mapIdx, dieReason=memberCount,
@@ -230,7 +205,6 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
 
     // ---- STKillMonsterData 载荷 + 随机掉落概率 buff ----
     STKillMonsterData data;
-    memset(&data, 0, sizeof(data));
     data.m_monsterUid = (unsigned short)monsterIdx;
     data.m_mapIndex = mapIdx;
     data.m_dieReason = (char)memberCount;
@@ -356,11 +330,12 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     else
         expRate = G_CDataManager()->m_serverParameter.m_expGroup368[memberCount - 1];
 
-    expRate += partyExpBonusRate(
-        GlobalData::s_event_manager->GetRepeatEvent(0x18),
-        memberCount, isHelpAbuseParty());
+    expRate +=
+        static_cast<CPartyExpBonusEvent*>(
+            GlobalData::s_event_manager->GetRepeatEvent(0x18))
+            ->getBonusRate(memberCount, isHelpAbuseParty());
 
-    float expWeight = (m_battleField.m_pDungeon != 0) ? m_battleField.m_pDungeon->get_exp_weight() : 1.0f;
+    float expWeight = m_battleField.m_pDungeon->get_exp_weight();
 
     unsigned int totalExp = getMonsterTotalExp(
         reward, roleType, field.get_dungeon_diff(), expWeight, expRate,
