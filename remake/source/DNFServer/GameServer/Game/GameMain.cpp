@@ -362,11 +362,14 @@ void RegistServerSchedule()
                                     (TIMER_MESSAGE)0x55, delay, 0, 0);
     }
 
-    // 0x59 / 0x5a / 0x5b / 0x61 / 0x66 / 0x89：固定 0 秒
-    static const int kMsgs0[] = { 0x59, 0x5a, 0x5b, 0x61, 0x66, 0x89 };
-    for (int i = 0; i < 6; ++i)
-        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                    (TIMER_MESSAGE)kMsgs0[i], 0, 0, 0);
+    // 0x59 / 0x5a / 0x5b / 0x61 / 0x66 / 0x89：ORIG 逐个独立 G_TimerQueue()->InsertTimer
+    // （非循环；循环只发 1 个 call 点，P167 缺 5）。
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x59, 0, 0, 0);
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x5a, 0, 0, 0);
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x5b, 0, 0, 0);
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x61, 0, 0, 0);
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x66, 0, 0, 0);
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x89, 0, 0, 0);
 
     if (IsLightServer())
     {
@@ -1403,11 +1406,17 @@ int check_argv(int argc, char** argv)
     char* shellsKey =
         reinterpret_cast<char*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x318);
     bool keyOk = ncl_check_key(shellsKey) != 0;
-    std::printf("lls_key :: %s\n", shellsKey);  // 格式串 0x8c182f2（ORIG rodata）
-    // ORIG 0x829eb66-0x829eb6f：keyOk 存入栈后 movzbl/xor/test 紧跟无条件
-    // jmp 0x829eb87——FAIL 路径（0x829eb71）无任何跳转引用，系死代码；
-    // 行为上永远打印 Check OK 并继续。此处保留调用与存储以对齐形态。
-    (void)keyOk;
+    // ORIG printf 再独立 G_CEnvironment()+0x318（P183 重物化，勿缓存 shellsKey）。
+    std::printf("lls_key :: %s\n",
+                reinterpret_cast<char*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x318));
+    // ORIG 0x829eb66-0x829eb6f：keyOk 存栈后 movzbl/xor/test 紧跟无条件
+    // jmp 0x829eb87——FAIL 路径（0x829eb71）无跳转引用，系 -O0 死块（P184），
+    // 源码保留 if(!keyOk){puts(FAIL);return 0;} 以发射该 puts。
+    if (!keyOk)
+    {
+        std::puts("[!] Server key Check FAIL");
+        return 0;
+    }
     std::puts("[!] Server key Check OK");
 
     const char* op = argv[2];

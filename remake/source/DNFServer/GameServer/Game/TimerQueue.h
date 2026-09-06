@@ -52,7 +52,9 @@ class TimerQueue
 public:
     // ORIG 类方法均 throw()（调用方无 EH 清理实证，见 InsertTimerInMilisecond
     // 0x8630e60 与 DispatchThread::dispatch 0x847e2d2）。
-    TimerQueue() throw();
+    // ORIG GlobalInstance<TimerQueue>::create(0x080f67e1) 发射 operator delete+
+    // _Unwind_Resume landing pad，证明本 ctor 编译期可抛（非 throw()）。§8.3 据证据修正。
+    TimerQueue();
     ~TimerQueue() throw();
 
     void InsertTimer(TimerEntry& entry) throw();

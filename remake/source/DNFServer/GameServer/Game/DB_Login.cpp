@@ -2717,8 +2717,12 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
     char playInfo[31];                       // ORIG local_5f[0x1f]
     if (db->get_n_rows() == 0)
     {
+        for (int i = 0; i < 0x1f; ++i)
+        {
+            playInfo[i] = 0;                 // ORIG 4.1 内联 memset(buf,0,0x1f)
+        }
         memset(playInfo, 0x30, 0x1e);        // '0'×30（初始 play_info 占位）
-        playInfo[30] = '1';                  // local_42 = 0x31
+        playInfo[29] = '1';                  // ORIG movb $0x31,-0x3e = buf+0x1d
         db->set_query(
             "inSert into churn_member_info(m_id,accrue_cera,play_info,last_reward_time,first_reward_time,server_id,charac_no,item_id,add_info,luck_point,last_update_time,second_reward_time) values(%s,0,'%s',0,0,0,0,0,0,0,0,0)",
             NumberToString(sig->m_accId, 0), playInfo);

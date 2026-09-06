@@ -45,7 +45,7 @@ bool TimerEntry::operator<(const TimerEntry& other) const throw()
     return !(thisLo < otherLo);  // thisLo >= otherLo → true
 }
 
-TimerQueue::TimerQueue() throw()
+TimerQueue::TimerQueue()   // 声明同步去 throw()：ORIG create landing pad 证据
 {
     m_map.clear();
 }

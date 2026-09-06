@@ -310,8 +310,8 @@ int CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
         return 0;
 
     IMatch* opponent = 0;
-    if (!(pWaitingRoomList_ != 0 && pWaitingRoomList_->Match(this, &opponent)) ||
-        opponent == 0) {
+    pWaitingRoomList_->Match(this, &opponent);   // ORIG 丢弃返回值，仅判 opponent==0
+    if (opponent == 0) {
         m_state = 2;
         _SendMatchStatePacket(1, 1);
         return 0;

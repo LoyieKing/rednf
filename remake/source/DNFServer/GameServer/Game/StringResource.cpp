@@ -33,15 +33,13 @@ static int parseStringLine(char* line, int* key, char** value)
         if (*p == '\r' || *p == '\n')
             return 0;                   // ORIG @0x8ad4931 共享 return-0 岛
         if (*p == ' ' || *p == '\t')
-        {
-            ++p;
-            continue;
-        }
-        break;
+            ++p;                        // 免 continue：p++ 作循环体尾 fall 回条件
+        else
+            break;
     }
-    if (*p == '\0')
-        return 0;                       // 全空白行（ORIG 同路径返回）
-    if (p[0] == '/' && p[1] == '/')     // ORIG "//" 注释 → return 0
+    // ORIG @0x8ad496d：*p==0（全空白行）与 "//" 注释共享同一 return-0 岛
+    //（`test; je island` + `//` 双 cmp 短落到同一 `mov $0` 块），故合并短路或。
+    if (*p == '\0' || (p[0] == '/' && p[1] == '/'))
         return 0;
 
     char* keyStart = p;
@@ -59,11 +57,9 @@ static int parseStringLine(char* line, int* key, char** value)
             return -1;                  // key 非 [0-9] 字符（ORIG 共享 -1 岛）
         ++p;
     }
-    if (valueStart == 0)
-        return -1;                      // 未发现 '>' 分隔
-    // ORIG @0x8ad49fe：空 key（valueStart-keyStart==1，即 '>' 紧跟或仅隔）
-    // 同样返回 -1（表达式与下一条重复计算，P48 无 CSE 照抄）。
-    if ((int)(valueStart - keyStart) == 1)
+    // ORIG @0x8ad49ec：valueStart==0（未找到 '>'）与空 key（len==1）共享
+    // 同一 return -1 岛（`cmpl $0; je` 短落到 -1 块），故用 || 合并。
+    if (valueStart == 0 || (int)(valueStart - keyStart) == 1)
         return -1;
 
     if ((int)(valueStart - keyStart) - 1 > 10)
@@ -72,7 +68,9 @@ static int parseStringLine(char* line, int* key, char** value)
     // value 内扫描：'\r'/'\n' 终结该行；"\n" 转义真实换行并左移补位。
     // ORIG @0x8ad4a4f 对 '\' 后非 'n' 一律不处理（两 jne 直落 i++，无删
     // 反斜杠逻辑）——此前 EXTRA 的删除循环系误读，已删。
-    p = valueStart;
+    // 不写 `p = valueStart;`：key 扫描 break 时 p 恰停在 valueStart（ORIG
+    // @0x8ad49b3 `mov %eax,-0x10` 后即复用 p），显式重载会多 3 条
+    //（mov %eax; mov %eax; jmp），现复用循环尾 p 值（见我们汇编 value 段入口）。
     while (*p)
     {
         if (*p == '\r' || *p == '\n')

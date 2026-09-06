@@ -1850,24 +1850,22 @@ void CGameManager::WarRoomAlloc()
 
 void CGameManager::WarRoomCountAdjustByChannelInfo()
 {
-    CDataManager* dm = (CDataManager*)G_CDataManager();
-    channel_script_t* script = (channel_script_t*)dm->GetChannelScript();
-    CEnvironment* env = G_CEnvironment();
-    unsigned int channelNo = env->get_channel_no();
-    // ORIG movzbl 读 env+0x378 = Server_Envir::m_serverGroup 低字节。
-    channel_info_t* info =
-        script->getChannelInfo((unsigned char)env->m_serverEnvir.m_serverGroup, channelNo);
+    channel_script_t* script = (channel_script_t*)G_CDataManager()->GetChannelScript();
+    // ORIG get_channel_no 与 getChannelInfo 各独立 G_CEnvironment()（P183 勿缓存 env）。
+    unsigned int channelNo = G_CEnvironment()->get_channel_no();
+    channel_info_t* info = script->getChannelInfo(
+        (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup, channelNo);
     for (int a = 0; a < 10; ++a)
     {
         for (int b = 0; b < 0x18; ++b)
         {
-            // ORIG 0x082a2a0a 内层：每轮 **一次** G_CDataManager，乘表与写表
-            // 共用同一 this（mov%eax,%esi callee 缓存）；旧形 dm2/dm3 各取一次。
-            CDataManager* dm3 = (CDataManager*)G_CDataManager();
+            // ORIG 内层每轮 **两次** G_CDataManager：iVar4(写表基, 先)→f→iVar5(读乘表)。
+            CDataManager* dmW = (CDataManager*)G_CDataManager();
             float f = info->m_gridPercent[a];  // ORIG *(float*)(info+8+(a+4)*4)
-            // 写表：dm+8+(b*10+a+0x223c)*4 = m_warRoomCount 扁平 [b*10+a]。
-            reinterpret_cast<int*>(dm3->m_warAreaCounter.m_warRoomCount)[b * 10 + a] =
-                (int)(dm3->m_warAreaCounter.m_counterTable[b] * f);
+            CDataManager* dmR = (CDataManager*)G_CDataManager();
+            // 写表：dmW+8+(b*10+a+0x223c)*4 = m_warRoomCount 扁平 [b*10+a]。
+            reinterpret_cast<int*>(dmW->m_warAreaCounter.m_warRoomCount)[b * 10 + a] =
+                (int)(dmR->m_warAreaCounter.m_counterTable[b] * f);
         }
     }
 }

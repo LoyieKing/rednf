@@ -147,6 +147,10 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
 // process_coin_send（ORIG 0x0810d4ae）
 // m_field1c!=0：事件币直加（GetEventCoin+add_info → SetEventCoin → 日志 →
 //               SaveMoneyCoin/SendCoin）；否则置 endurance=1 走 DB 邮件。
+// [N18a] ORIG @0x0810d4ae 尾段 ReqDBSendNewSystemMail 实参装载：4.1 将 mail.m_gold
+//   直落 scratch edx（characNo 留 eax），4.4-O0 恒把 characNo 从 eax 中转 edx 再
+//   用 eax 装 gold（多一条 `mov %eax,%edx`）。p167 调用点 19/19 CLEAR（0 miss/0
+//   extra），语义完整；scratch reg 方向属 4.1↔4.4 分配差异，删/加 cast 试错不可翻。
 // ============================================================================
 int CEventActionMng::process_coin_send(CUser* user, Action_SendMail& mail,
                                        Inven_Item& item)

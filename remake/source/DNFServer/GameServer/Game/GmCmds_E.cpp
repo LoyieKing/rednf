@@ -52,26 +52,10 @@
 #include "InterSelectPcroomDailyReward.h"
 
 // ---------------------------------------------------------------------------
-// 外部符号（本批禁改共享头）：
-//
-// ORIG T 0x084aeac6 _ZN11game_master12CBoosterTest11SendChatMsgEP5CUserPc
-//   —— CBoosterTest::SendChatMsg(CUser*, char*)（static 语义：实现不读 this）。
-//   归属 CBoosterTest 批次；此处仅声明对接。
-void game_master_CBoosterTest_SendChatMsg_Orig(void* user, char* msg)
-    asm("_ZN11game_master12CBoosterTest11SendChatMsgEP5CUserPc");
-
-// ORIG T 0x084af504 _ZN11game_master12CBoosterTest16makeFileContentsEP5CUserPcRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE
-//   —— CBoosterTest::makeFileContents(CUser*, char*, map<int,int>&)。仅声明。
-void game_master_CBoosterTest_makeFileContents_Orig(void* user, char* buf,
-                                                    std::map<int, int>* stat)
-    asm("_ZN11game_master12CBoosterTest16makeFileContentsEP5CUserPcRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
-
-// ORIG T 0x084aebf2 _ZN11game_master12CBoosterTest11printClientEP5CUserbPKcS4_
-//   —— CBoosterTest::printClient(CUser*, bool, const char*, const char*)。仅声明。
-void game_master_CBoosterTest_printClient_Orig(void* user, bool last,
-                                               const char* name, const char* body)
-    asm("_ZN11game_master12CBoosterTest11printClientEP5CUserbPKcS4_");
-
+// CBoosterTest 辅助静态成员（SendChatMsg/makeFileContents/printClient）已由
+// GameMasterCmd.h 声明为 game_master::CBoosterTest 的 static 成员，调用点直接
+// 真实成员调用（ORIG T 0x084aeac6/0x084af504/0x084aebf2；定义归 CBoosterTest 批）。
+// ---------------------------------------------------------------------------
 // ORIG T 0x081090fa _Z14StringToNumberPKc —— 全局工具：s ? strtoul(s,0,10) : 0。
 // 项目尚无定义点；weak 定义避免与他批冲突（若他处强定义则以彼为准）。
 __attribute__((weak)) int StringToNumber(const char* s);
@@ -82,19 +66,6 @@ __attribute__((weak)) int StringToNumber(const char* s)
         return 0;
     }
     return static_cast<int>(strtoul(s, 0, 10));
-}
-
-
-// ORIG W 0x0822b64c _ZNK12CDataManager22getVendingMachineTableEv
-//   return (char*)dm + 0xb424（&m_vendingMachine）。weak 定义防跨批冲突。
-__attribute__((weak)) std::vector<stVendingMachine_t>*
-CDataManager_getVendingMachineTable_Orig(const void* dm)
-    asm("_ZNK12CDataManager22getVendingMachineTableEv");
-__attribute__((weak)) std::vector<stVendingMachine_t>*
-CDataManager_getVendingMachineTable_Orig(const void* dm)
-{
-    return &const_cast<CDataManager*>(
-        static_cast<const CDataManager*>(dm))->m_vendingMachine;
 }
 
 // ORIG T 0x0815cf06 _ZN25DBUpdatePcroomDailyReward11makeRequestEP5CUser
@@ -220,8 +191,7 @@ void CMonsterDropTest::parse()
         CParty* party = static_cast<CParty*>(user->GetParty());
         if (party == 0)
         {
-            game_master_CBoosterTest_SendChatMsg_Orig(user,
-                                                      const_cast<char*>("Party가 없습니다"));
+            CBoosterTest::SendChatMsg(user, const_cast<char*>("Party가 없습니다"));
         }
         else
         {
@@ -713,7 +683,7 @@ void CMonsterDropTest_makeFileGoldContents_Orig(void* user, char* fileBuf,
         size_t addLen = strlen(line);
         if (used + addLen > 89999)
         {
-            game_master_CBoosterTest_SendChatMsg_Orig(user, const_cast<char*>("결과 파일 이어붙힘"));
+            CBoosterTest::SendChatMsg(user, const_cast<char*>("결과 파일 이어붙힘"));
             return;
         }
         strcat(fileBuf, line);
@@ -738,12 +708,11 @@ void CMonsterDropTest::execute()
     const char* err = CMonsterDropTest_checkCommandExecuteError_Orig(this, party);
     if (err != 0)
     {
-        game_master_CBoosterTest_SendChatMsg_Orig(user,
-                                                  const_cast<char*>(err));
+        CBoosterTest::SendChatMsg(user, const_cast<char*>(err));
         return;
     }
 
-    game_master_CBoosterTest_SendChatMsg_Orig(user, const_cast<char*>("Dungeon Monster Drop 결과체크를 시작합니다"));
+    CBoosterTest::SendChatMsg(user, const_cast<char*>("Dungeon Monster Drop 결과체크를 시작합니다"));
 
     if (m_count == 0)
     {
@@ -751,7 +720,7 @@ void CMonsterDropTest::execute()
     }
     char cnt[21];
     sprintf(cnt, "%d번 통계입니다", m_count);
-    game_master_CBoosterTest_SendChatMsg_Orig(user, cnt);
+    CBoosterTest::SendChatMsg(user, cnt);
 
     // ORIG +0x11f：落盘文件名缓冲进入循环前一次性清 255 字节
     //（后续仅由 sprintf 覆盖；非法 mode 无分支写它时仍是空串）。
@@ -791,7 +760,7 @@ header_done:
         if (mode == 2)
         {
             sprintf(fname, "passed_dungeon_drop_%d.txt", m_count);
-            game_master_CBoosterTest_makeFileContents_Orig(user, fileBuf, &drop);
+            CBoosterTest::makeFileContents(user, fileBuf, drop);
         }
         else if (mode == 3)
         {
@@ -801,14 +770,14 @@ header_done:
         else if (mode == 0)
         {
             sprintf(fname, "single_dungeon_drop_%d.txt", m_count);
-            game_master_CBoosterTest_makeFileContents_Orig(user, fileBuf, &drop);
+            CBoosterTest::makeFileContents(user, fileBuf, drop);
         }
 
         if (drop.empty())
         {
             loop = false;
         }
-        game_master_CBoosterTest_printClient_Orig(user, loop, fname, fileBuf);
+        CBoosterTest::printClient(user, loop, fname, fileBuf);
         memset(fileBuf, 0, sizeof(fileBuf));
     }
 
@@ -842,11 +811,10 @@ header_done:
                 }
             }
         }
-        game_master_CBoosterTest_printClient_Orig(user, true,
-                                                  "drop_grade_list.txt", out.c_str());
+        CBoosterTest::printClient(user, true, "drop_grade_list.txt", out.c_str());
     }
 
-    game_master_CBoosterTest_SendChatMsg_Orig(user, const_cast<char*>("Dungeon Monster Drop 결과체크가 완료되었습니다"));
+    CBoosterTest::SendChatMsg(user, const_cast<char*>("Dungeon Monster Drop 결과체크가 완료되었습니다"));
 }
 
 // ===========================================================================
@@ -1143,8 +1111,7 @@ void CRandomObjectTest::execute()
     const char* err = CRandomObjectTest_checkCommandExecuteError_Orig(this);
     if (err != 0)
     {
-        game_master_CBoosterTest_SendChatMsg_Orig(user,
-                                                  const_cast<char*>(err));
+        CBoosterTest::SendChatMsg(user, const_cast<char*>(err));
         return;
     }
 
@@ -1154,12 +1121,12 @@ void CRandomObjectTest::execute()
     }
     char cnt[21];
     sprintf(cnt, "%d번 통계입니다", m_count);
-    game_master_CBoosterTest_SendChatMsg_Orig(user, cnt);
+    CBoosterTest::SendChatMsg(user, cnt);
 
     std::map<int, int> stat;
     if (m_mode == 1)
     {
-        game_master_CBoosterTest_SendChatMsg_Orig(user, const_cast<char*>("vending machine 결과체크를 시작합니다"));
+        CBoosterTest::SendChatMsg(user, const_cast<char*>("vending machine 결과체크를 시작합니다"));
         CRandomObjectTest_getVendingMachineItem_Orig(this, &stat);
 
         char fileBuf[95000];
@@ -1170,17 +1137,17 @@ void CRandomObjectTest::execute()
         bool loop = true;
         while (loop)
         {
-            game_master_CBoosterTest_makeFileContents_Orig(user, fileBuf, &stat);
+            CBoosterTest::makeFileContents(user, fileBuf, stat);
             sprintf(fname, "etc_random_test_%d.txt", m_count);
             if (stat.empty())
             {
                 loop = false;
             }
-            game_master_CBoosterTest_printClient_Orig(user, loop, fname, fileBuf);
+            CBoosterTest::printClient(user, loop, fname, fileBuf);
             memset(fileBuf, 0, sizeof(fileBuf));
         }
 
-        game_master_CBoosterTest_SendChatMsg_Orig(user, const_cast<char*>("결과체크가 완료되었습니다"));
+        CBoosterTest::SendChatMsg(user, const_cast<char*>("결과체크가 완료되었습니다"));
     }
 }
 

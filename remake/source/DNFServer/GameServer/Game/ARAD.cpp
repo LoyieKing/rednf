@@ -498,7 +498,6 @@ bool Arad_DataManager::initAradData()
     {
         cMyTrace trace("initAradData", 0x4c, 9, true, true);
         trace("Fail");
-        delete ep;
         return false;
     }
     if (!__insertGameScript(ep))
@@ -517,7 +516,6 @@ bool Arad_DataManager::initAradData()
     {
         cMyTrace trace("initAradData", 0x5d, 9, true, true);
         trace("Fail");
-        delete st;
         return false;
     }
     if (!__insertGameScript(st))

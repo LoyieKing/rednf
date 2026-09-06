@@ -20,10 +20,19 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <list>
 
 class CUser;
 class IDispatcher;
 class CItem;                      // CBoosterTest 辅助签名
+class CParty;                     // CMonsterDropTest::checkCommandExecuteError 形参
+// ---- GM 测试命令成员签名所需的外部类型（各权威头见 GmCmds_E.cpp include）----
+struct map_item;                  // WarField.h（掉落项）
+struct map_monster;               // WarField.h（地图怪）
+struct MapInfo;                   // WarField.h（地图信息，含 m_monsterMap）
+struct stVendingMachineInfo_t;    // CDataManager.h（售货机栏）
+class  CMTRand;                   // PvPTypes.h（MT19937）
+struct Inven_Item;                // Inven_Item.h（背包项）
 #include "CItemAmplifier.h"       // ENUM_RARITY（getRarityStr 签名；幂等 guard）
 
 // ---- GM 测试角色状态注入（ORIG 全局命名空间类，CItemDropRateCmd 用） ----
@@ -597,17 +606,34 @@ public:
     CMonsterDropTest() {}              // ORIG W 0x082a861e（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084ace8a
     virtual void execute();                          // ORIG T 0x084acf98
-    void checkCommandExecuteError();                                       // 辅助（ORIG T 0x084ad82a，签名见报告）
+    // ---- 辅助成员签名（逐条对齐 ORIG mangled 实参编码；报告
+    //      docs/class_func_reports/game_master__CMonsterDropTest/）----
+    // ORIG mangled ...24checkCommandExecuteErrorEP6CParty → 带 CParty* 形参。
+    const char* checkCommandExecuteError(CParty* party);   // ORIG T 0x084ad82a
     void clear();                                       // 辅助（ORIG T 0x084b4096，签名见报告）
-    void getDungeonDropResult();                                       // 辅助（ORIG T 0x084ae0e2，签名见报告）
-    void makeFileGoldContents();                                       // 辅助（ORIG T 0x084ad6d6，签名见报告）
-    void makeGeneralItemDropList();                                       // 辅助（ORIG T 0x084ae734，签名见报告）
-    void makeGoldItemDropList();                                       // 辅助（ORIG T 0x084ae944，签名见报告）
-    void makeUpgradeDropList();                                       // 辅助（ORIG T 0x084ae14c，签名见报告）
-    void passedMapMonsterKill();                                       // 辅助（ORIG T 0x084adaf8，签名见报告）
-    void processDungeonDrop();                                       // 辅助（ORIG T 0x084ad8dc，签名见报告）
-    void processKillMonster();                                       // 辅助（ORIG T 0x084add20，签名见报告）
-    void singleMapMonsterKill();                                       // 辅助（ORIG T 0x084ad93a，签名见报告）
+    // 通用/金币掉落统计容器（默认 less/allocator，与 ORIG mangled 一致）。
+    typedef std::map<int, int> DropStat;
+    typedef std::map<int, DropStat> GradeStat;
+
+    void getDungeonDropResult(std::list<map_item>& items, DropStat& drop,
+                              GradeStat& grade);       // ORIG T 0x084ae0e2
+    // ORIG T 0x084ad6d6：报告实证 arg0=CUser*、不读 this ⇒ static。
+    static void makeFileGoldContents(CUser* user, char* fileBuf, DropStat& stat);
+    void makeGeneralItemDropList(std::list<map_item>& items,
+                                 DropStat& out);       // ORIG T 0x084ae734
+    void makeGoldItemDropList(std::list<map_item>& items,
+                              DropStat& out);          // ORIG T 0x084ae944
+    void makeUpgradeDropList(std::list<map_item>& items,
+                             GradeStat& out);          // ORIG T 0x084ae14c
+    void passedMapMonsterKill(CParty* party, DropStat& drop,
+                              GradeStat& grade);       // ORIG T 0x084adaf8
+    void processDungeonDrop(CParty* party, DropStat& drop,
+                            GradeStat& grade);         // ORIG T 0x084ad8dc
+    void processKillMonster(CParty* party, MapInfo& mapInfo, map_monster& mob,
+                            std::vector<bool>& flags, int killCnt,
+                            std::list<map_item>& items);  // ORIG T 0x084add20
+    void singleMapMonsterKill(CParty* party, DropStat& drop,
+                              GradeStat& grade);       // ORIG T 0x084ad93a
 
     int m_mode;                                      // +0x08（0=single/1=passed 保存/2=passed 统计/3=gold 统计）
     int m_count;                                     // +0x0c（统计次数，0 视作 10000）
@@ -642,11 +668,15 @@ public:
     CRandomObjectTest() {}             // ORIG W 0x082a8656（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084b0032
     virtual void execute();                          // ORIG T 0x084b0082
-    void checkCommandExecuteError();                                       // 辅助（ORIG T 0x084b02be，签名见报告）
+    // ---- 辅助成员签名（逐条对齐 ORIG mangled；报告 game_master__CRandomObjectTest/）----
+    // ORIG mangled ...24checkCommandExecuteErrorEv（无显式参）→ 普通成员，返 const char*。
+    const char* checkCommandExecuteError();          // ORIG T 0x084b02be
     void clear();                                       // 辅助（ORIG T 0x084b40ca，签名见报告）
-    void getVendingMachineInfo();                                       // 辅助（ORIG T 0x084b0444，签名见报告）
-    void getVendingMachineItem();                                       // 辅助（ORIG T 0x084b02e6，签名见报告）
-    void processVendingMachineItemLottery();                                       // 辅助（ORIG T 0x084b0550，签名见报告）
+    stVendingMachineInfo_t* getVendingMachineInfo(); // ORIG T 0x084b0444（Ev，返售货机栏指针）
+    void getVendingMachineItem(std::map<int, int>& out);  // ORIG T 0x084b02e6
+    void processVendingMachineItemLottery(CMTRand& rng,
+                                          const stVendingMachineInfo_t* info,
+                                          Inven_Item& item);  // ORIG T 0x084b0550
 
     int m_mode;                                      // +0x08
     int m_count;                                     // +0x0c

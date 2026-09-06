@@ -11831,10 +11831,14 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
         pPkt->m_12;
 
     int specialRestrictCode = 0;
+    CItemLimitEdition* edition = 0;                    // 前后半段共享（try 内赋值）
+    CItem* ci = 0;
     try
     {
-        CDataManager* dm = G_CDataManager();
-        if (!dm->getItemLimitEditionMgr()->updateItem(reqItemId, reqCount))
+        // ORIG 四处独立 G_CDataManager：updateItem / getItemInfo / find_item /
+        // GetRestrictCode。
+        if (!G_CDataManager()->getItemLimitEditionMgr()->updateItem(
+                reqItemId, reqCount))
             throw static_cast<ENUM_ERROR>(0x16);
         const unsigned char buyType = pPkt->m_16;
         if (buyType == '\x01')
@@ -11844,8 +11848,7 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
         if (buyType != '\0')
             throw static_cast<ENUM_ERROR>(1);
 
-        CItemLimitEdition* edition =
-            dm->getItemLimitEditionMgr()->getItemInfo(reqItemId);
+        edition = G_CDataManager()->getItemLimitEditionMgr()->getItemInfo(reqItemId);
         if (edition == 0)
             throw static_cast<ENUM_ERROR>(0x11);
 
@@ -11870,14 +11873,20 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
             (unsigned int)edition->getPriceWinPoint())
             throw static_cast<ENUM_ERROR>(0xc);
 
-        const int relatedItemIdx = edition->getRelateditem();
-        CItem* ci = 0;
-        if (relatedItemIdx != 1)
+        // ORIG 6 处独立 `_ZNK17CItemLimitEdition14getRelateditemEv`（无缓存）。
+        if (edition->getRelateditem() != 1)
         {
-            ci = G_CDataManager()->find_item(relatedItemIdx);
+            ci = G_CDataManager()->find_item(edition->getRelateditem());
             if (ci == 0)
                 throw static_cast<ENUM_ERROR>(0x11);
         }
+    }
+    catch (const ENUM_ERROR& e)   // ORIG try1 @ 084dbf3b→084dc2c4，catch @ 084dc2c7
+    {   // 前半段所有 ENUM_ERROR 抛出点收敛于此（SendCmdErrorPacket 0x100）。
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x100, (unsigned char)e & 0xff);
+        return 0;
+    }
+    {   // 后半段（ORIG try3 @ 084dc3da，不 throw；guard/packet 异常走清理 resume）：
 
         bool specialFlag = false;
         int specialValue = 0;
@@ -11887,17 +11896,20 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
         if (featuredIdx == 0)
         {
             isSpecial = GlobalData::s_pCeraShop->IsSpecialItem(
-                relatedItemIdx, specialValue, specialType, specialFlag);
+                edition->getRelateditem(), specialValue, specialType, specialFlag);
         }
         if (isSpecial)
-        {   // 特别物品借用 restrict code 作为 featured 字段
-            specialRestrictCode = dm->getItemList()->GetRestrictCode(relatedItemIdx);
+        {   // 特别物品借用 restrict code 作为 featured 字段。ORIG 直读
+            // CDataManager+0xc（m_itemList）成员再 GetRestrictCode（无 getItemList 调用）。
+            specialRestrictCode =
+                G_CDataManager()->m_itemList->GetRestrictCode(
+                    edition->getRelateditem());
         }
 
         user->resetUsedCera();
         Stream* stream = GlobalData::s_stream_pool->Acquire("InterDispatcher.cpp", 0x46d9);
         CStreamGuard guard(stream, false);
-        stCeraShopIPGRequest_t* reqBuf = guard.GetInBuffer<stCeraShopIPGRequest_t>();
+        stCeraShopIPGRequest_t* reqBuf = guard->GetInBuffer<stCeraShopIPGRequest_t>();
         stCeraShopIPGRequest_t& rq = *reqBuf;
 
         rq.m_productNo = static_cast<unsigned int>(pPkt->m_e);
@@ -11962,18 +11974,19 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
         }
 
         char uniqueNo[0x15] = { '\0' };
-        WongWork::CGenUniqueNo uniqueGen;   // 与 W6_CeraShopDeps 同形（ORIG 单参调用）
-        uniqueGen.GenUniqueNo(uniqueNo);
         if (edition->getPriceCera() == 0)
-        {   // vtable+0x18 = slot6 IPGOutputSimulation
+        {   // vtable+0x18 = slot6 IPGOutputSimulation。ORIG：GenUniqueNo 静态
+            // 直调（无构造），返回值作 IPG 实参。
             GlobalData::s_pIPGHelper->IPGOutputSimulation(
-                user, uidText, priceText, uniqueNo, itemNameText,
+                user, uidText, priceText,
+                WongWork::CGenUniqueNo::GenUniqueNo(uniqueNo), itemNameText,
                 user->getCurCharacName(), guard.Get());
         }
         else
         {   // vtable+0x14 = slot5 IPGOutput
             GlobalData::s_pIPGHelper->IPGOutput(
-                user, uidText, priceText, uniqueNo, itemNameText,
+                user, uidText, priceText,
+                WongWork::CGenUniqueNo::GenUniqueNo(uniqueNo), itemNameText,
                 user->getCurCharacName(), guard.Get());
         }
 
@@ -11985,11 +11998,6 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
         packet.put_int(edition->getTotalSellNum());
         packet.finalize(true);
         user->Send(packet);
-    }
-    catch (const ENUM_ERROR& e)                                        // ORIG catch handler
-    {   // SendCmdErrorPacket(0x100, low byte of exception value)
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x100, (unsigned char)e & 0xff);
-        return 0;
     }
     return 0;
 }
