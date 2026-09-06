@@ -720,17 +720,15 @@ bool CParty::IsClearedQuest(int questIdx)
 {
     for (int i = 0; i <= 3; i++)
     {
-        // [判据②] ORIG O@10-11 `test;je` 无 xor：==0 直分支形。
-        if (_checkValidUser(i) == 0)
+        // ORIG O@0x0f `test%al;je` 无 xor（bool 直测跳过 body ⇒ 嵌套 if 守卫）；
+        // 内部 isClearQuest `!=1` 用 xor（P194 聚合布尔物化）。
+        if (_checkValidUser(i))
         {
-            continue;
-        }
-        // [判据②+P148] ORIG `test;je` 无 xor（==0 直分支）+嵌套实参免
-        // quest 具名 spill。
-        if (m_member[i].m_pUser->getCurCharacQuestR()
-                ->isClearQuest(questIdx) == 0)
-        {
-            return false;
+            if (m_member[i].m_pUser->getCurCharacQuestR()
+                    ->isClearQuest(questIdx) == 0)
+            {
+                return false;
+            }
         }
     }
     return true;
@@ -1104,7 +1102,7 @@ unsigned char CParty::DestroyPassiveObject(int param)
     destroyed = static_cast<unsigned char>(
         reinterpret_cast<CBattle_Field*>(&m_battleField)
             ->DestroyPassiveObject(param));
-    if (destroyed)
+    if (destroyed != 0)   // ORIG O@0x25 movzbl reload+test（4.1 对 uchar!=0 重载回读）
     {
         if (reinterpret_cast<CBattle_Field*>(&m_battleField)
                 ->ClearCondition(
@@ -1129,7 +1127,8 @@ bool CParty::SetRidableObjectState(int state, eRidableObjectState type)
 
 // ORIG T 0x085ba906（OnTODRewardTimer.md）：0x2c 报文发送 TOD 结算奖励包，
 // EPLP 置 2、注册 0x15 层推进定时器后回到 state1，并注册 8 秒后的 0x2c 重投递。
-bool CParty::OnTODRewardTimer(TIMER_MESSAGE msg)   // CParty.h:592 bool（PSM 落，定义同步）
+bool CParty::OnTODRewardTimer(register TIMER_MESSAGE msg)   // CParty.h:592 bool（PSM 落，定义同步）
+                                                             // P85：register 形参恢复 ORIG mov;cmp 物化
 {
     if (msg == 0x2c)
     {

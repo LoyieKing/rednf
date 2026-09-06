@@ -738,6 +738,8 @@ void CUserCharacInfo::setCurCharac(_Charac_info* p)
     m_selected = p;
 }
 
+// ORIG 0x0864e2d8 `mov 0x10(%eax),%edx` 单段直落 %edx×2；4.4 恒 %eax→%edx 二段拷贝
+// （N18a 族），身位字节 shl/sar/and/or 逻辑逐条与 ORIG 全等，语义等价。
 void CUserCharacInfo::setCurCharGrowthType(char first, char second)
 {
     if (first > 6)
@@ -751,6 +753,8 @@ void CUserCharacInfo::setCurCharGrowthType(char first, char second)
 
 
 
+// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx×2；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
+// 同 setCurCharGrowthType（身位字节写逻辑逐条与 ORIG 一致）。
 void CUserCharacInfo::setCurCharChangingGrowthType(char first, char second)
 {
     if (first > 6)
@@ -2785,6 +2789,8 @@ void CUserCharacInfo::IncrementCurCharacTradeGoldDaily(unsigned int gold)
     CUR->m_reliablePerson.IncrementTradeGold(gold);
 }
 
+// ORIG `movzwl 0x121f(%edx),%edx;mov %edx,%ecx` 二段；4.4 折单步 `movzwl …,%ecx`
+// （N18a：4.4 恒折 mem→%reg→callee-saved 两段），寄存器分配差异，语义等价。
 void CUserCharacInfo::IncreasePowerWarPoint(short point)
 {
     if (m_selected)
@@ -3393,6 +3399,9 @@ int CUserCharacInfo::GetAssaultCount()
     return m_selected ? CUR->m_assaultCount : 0;
 }
 
+// ORIG 0x08645e5e：两处 `mov 0x10(%eax),%ecx` 单段直落 %ecx vs 4.4 %eax→%ecx 二段（N18a）；
+// 尾块 `if(m_chaosPoint<0)` 后 ORIG 直 fall-through 进 epilogue，4.4 发 jmp 中继 ×2
+// （P63/跨版本跳转布局）。全部 je/jle/jns 落点合规同 ORIG，无任一分支反转，语义等价。
 void CUserCharacInfo::GainCurCharacChaosExp(int exp)
 {
     if (!m_selected || CUR->m_chaosPoint <= 0)
@@ -3628,6 +3637,8 @@ void CUserCharacInfo::DecreaseRevengeDungeonTicket()
 }
 
 
+// ORIG `movzwl 0x121f(%edx),%edx;mov %edx,%ecx` 二段；4.4 折单步（N18a），语义等价。
+// 同 IncreasePowerWarPoint。
 void CUserCharacInfo::DecreasePowerWarPoint(short point)
 {
     if (m_selected)

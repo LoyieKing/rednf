@@ -2610,16 +2610,15 @@ short CUser::has_within_Mission() const
 
 void* CUser::getBlueMarble()
 {
-    // ORIG 0x8??：无 idx 槽——`movzwl mem,%eax; test %ax,%ax; js`（ushort 零装载+
-    // js 符号判、body fall-through）+ 二次装载 `movswl %ax,%ebx`（register int
-    // asm("ebx") 直落 callee-saved，技巧 2）；尾 `call;jmp merge` + `mov $0`
-    // 尾岛（goto 钉块序，技巧 23）。
+    // ORIG 0x8??：无 idx 槽——`movzwl mem,%eax; test %ax,%ax; js`（ushort 零装载
+    // + js 符号判、body fall-through）+ 二次装载 `movswl %ax,%ebx`。关键：short→int
+    // 的拓宽必须**作为普通实参直传**（隐式转换），4.4 才会在 %ax 上直接出 2 操作数
+    // movswl 并入 callee-saved %ebx（跨 G_CGameManaging 调用存活）；若写成
+    // `register int idx asm("ebx")` 中间变量则 4.4 退化成 cwtl+mov（probe s3 实证）。
+    // 尾 `call;jmp merge` + `mov $0` 尾岛（goto 钉块序，技巧 23）。
     if (m_field8d00c < 0)
         goto RET0;
-    {
-        register int idx asm("ebx") = m_field8d00c;
-        return G_CGameManager()->getBlueMarble(idx);
-    }
+    return G_CGameManager()->getBlueMarble(m_field8d00c);
 RET0:
     return 0;
 }
@@ -6277,11 +6276,13 @@ void CUser::OnDisconnect()
 {
     if (get_state() == 7)
     {
-        // ORIG 0x08??：pvpIdx 走 %ebx（`movswl %ax,%ebx` 单条——4.4 反产 cwtl+mov
-        // 双步，N18a）；pRoom 槽落 -0xc（无 short spill，技巧 21）。末段 ORIG 对
+        // ORIG 0x08??：pvpIdx 走 %ebx（`movswl %ax,%ebx` 单条跨 G_CGameManagerv
+        // 存活）。short→int 拓宽必须作为 GetPvp 首实参**直传**（隐式转换，同
+        // getBlueMarble probe s3）；`register int asm("ebx")` 中间变量反产 cwtl+mov。
+        // pRoom 槽落 -0xc（无 short spill，技巧 21）。末段 ORIG 对
         // GetInstanceAssaultMgr 结果**无判空**、%eax 直用（技巧 37）。
-        register int pvpIdx asm("ebx") = GetPvpIndex();
-        PvP_Room* pRoom = G_CGameManager()->GetPvp((int)pvpIdx, this, 0);
+        PvP_Room* pRoom =
+            G_CGameManager()->GetPvp(GetPvpIndex(), this, 0);
         if (pRoom != 0)
             pRoom->Disconnect(this);
     }
@@ -8843,6 +8844,10 @@ bool CUser::isCompetitionMercenary() const
         return false;
     if (!m_mercenaryMgr.CheckCharacIndex(static_cast<unsigned char>(idx)))
         return false;
+    // 残差（ndiff 4，跨版本 N）：末段 ORIG `mov -0xc(%ebp),%eax; mov 0x8(%ebp),%edx;
+    // add $0x6effc,%edx`（4.1 先载实参 RHS + mov+add 折成员基址）vs 4.4
+    // `mov 0x8(%ebp),%eax; lea 0x6effc(%eax),%edx`（成员对象地址 lea 单条 + 实参后算）；
+    // 同一地址两种物化形，4.1↔4.4 求值顺序+lea/add 等效（probe icm/lea 穷举至 N）。
     return m_mercenaryMgr.m_characs[idx].GetCompetitionState() == 1;
 }
 
@@ -12204,13 +12209,14 @@ void CUser::SetManagePoint(int point)
 void CUser::CalcurateManagePoint()
 {
     // ORIG 0x0868ffa0：total=-0x10（先声明远槽）/i=-0xc（int，`cmp -0xc,%eax; setg`
-    // 有符号比较）/level 无槽直落 %ebx（register asm("ebx")）。
+    // 有符号比较）/level 无槽直落 %ebx（`movzwl 0x27,%eax; movswl %ax,%ebx` 跨
+    // G_CDataManagerv 存活）。short→int 拓宽作为 GetPoint 实参**直传**（probe s3）；
+    // 经 `register int asm("ebx")` 中间形反产 cwtl+mov。
     int total = 0;
     for (int i = 0; i < (int)m_characList.size(); ++i)
     {
-        register int level asm("ebx") = (short)m_characList[i].m_level;
         total += G_CDataManager()->m_altarConfig.m_characManageScript->GetPoint(
-            (int)level);
+            m_characList[i].m_level);
     }
     SetManagePoint(total);
 }

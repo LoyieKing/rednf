@@ -2051,7 +2051,9 @@ LELSE:
 LOUT:
     if (G_GameWorld()->IsPvPSkilTreeChannel())
     {
-        // ORIG 0x081e5a2c+：cmp $0x0;setge %al;test %al,%al;jne skip（>=0 物化，跳 0xc 岛）。
+        // ORIG 0x081e5ad4：cmp $0x0;setge %al;test %al,%al;jne skip —— 4.1 将
+        // `grade>=0` 物化进 %al(setge)；4.4 裸 `>=0` 恒折 not;shr 符号位提取
+        // （register bool asm(al) 亦不触发 setge，P196 fold，记 N）。
         if (user->get_pvp_grade() >= 0)
             goto LPASS;
         return 0xc;
