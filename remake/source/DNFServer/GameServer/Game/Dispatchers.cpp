@@ -1542,7 +1542,9 @@ int Dispatcher_ExchangeSlot::process_packet(CUser* user, CMDPacketStruct::STBase
     if (pRes->m_nErrorCode != 0)
         return 0;
     // ORIG 0x081408xx：三地址各占独立寄存器 —— slot2(+0x24)→%ecx、slot1(+0x18)→%edx、
-    // &user->m_advanceAltar(+0x8df60)→%eax，均走 `lea disp(%base)` 形态。
+    // &user->m_advanceAltar(+0x8df60)→%eax。4.4 对 register asm 目标走 `add $imm,%eax;
+    // mov %eax,%ecx` 而非 ORIG 单 `lea disp(%eax),%ecx`（lea↔add fold，P196；去掉
+    // register 绑定反致地址落栈 60→64，retain 绑定位 60）。记 N。
     register CMDPacketStruct::_SetSlotData* a2 asm("ecx") =
         reinterpret_cast<CMDPacketStruct::_SetSlotData*>(pReq->m_slot2);
     register CMDPacketStruct::_SetSlotData* a1 asm("edx") =
@@ -9860,6 +9862,10 @@ int Dispatcher_Open_Guild_Board::process(CUser* user, MSG_BASE& msg, ParamBase& 
     BoardMsgView* const pm =
         reinterpret_cast<BoardMsgView*>(&msg);        // -0x1c
     (void)pp;
+    // 【batch-19 实测】register asm(edi/esi/ebx) 版帧与 ORIG 全等（push esi/edi、0x2c）
+    // 但多 3 条冗余符号扩展（movsbl %al,%eax;mov %eax,%edi + 用前再 mov %edi,%eax;
+    // movsbl %al,%edi 重物化，P196 语义 fold，register asm 无法压制）；自然局部版
+    // 帧 0x34 失配。保留 register 版（帧优先，N 档记）。
     register int page asm("edi") = (signed char)pm->m_page;
     register unsigned int guildkey asm("esi") = (unsigned int)user->get_charac_guildkey();
     register unsigned int characNo asm("ebx") = (unsigned int)user->getCurCharacNo();
@@ -13843,8 +13849,9 @@ int Dispatcher_PvpMissionHPPercent::read(PacketBuf& packet, MSG_BASE& msg)
     packet.get_byte(data.m_0d);
     if (data.m_0d == 0 || data.m_0d > 4)
     {
-        // ORIG 0x：块内第二次装载 + `movzbl %al,%ebx` 缓存跨两个 cMyTrace call
-        // 存活（技巧2/28：register 绑 %ebx；ORIG 因此 prologue 是 push %ebx + 帧 0x34）。
+        // 【batch-19 实测】register asm(ebx) 版帧/槽与 ORIG 全等(push %ebx,帧0x34)
+        // 但多 2 条 %eax 中转(movzbl %al,%eax;mov %eax,%ebx + mov %ebx,%eax 前送trace)；
+        // 自然局部版省2条却失 push%ebx/帧0x34/槽-0x10 平移。取 register 版记 N。
         register unsigned int cnt asm("ebx") = data.m_0d;
         cMyTrace trace(
             __PRETTY_FUNCTION__,
@@ -23305,7 +23312,10 @@ int Dispatcher_PartyTeleport::check_error(CUser* user, MSG_BASE& msg)
     int auraSlotCount = 0;
     if (!user->isGMUser())
     {
-        // 返回值>0 时直接作为错误码透传（光环头像占用槽位检查）
+        // 返回值>0 时直接作为错误码透传（光环头像占用槽位检查）。
+        // ORIG `call; mov %eax,-0x28` 存 raw %eax 无 movsbl；4.4 int=<char返回>
+        // 恒加 `movsbl %al,%eax`（register asm 亦无效）——4.1 信任 callee %eax
+        // 已符号扩展 vs 4.4 重推，P196 fold 记 N。
         int auraEquip = user->is_equip_aura_avatar('\0', auraSlotCount);
         if (auraEquip > 0)
         {

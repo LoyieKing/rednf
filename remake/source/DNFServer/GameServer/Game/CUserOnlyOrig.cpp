@@ -9912,7 +9912,12 @@ void CUser::SendTagCharacInfo()
     // 且判空为 `test;sete;test;jne` ==0 早退形。
     if (getTagCharacR() == 0)
         return;
-    if (static_cast<unsigned char>(getTagCharacR()->m_field14BC) != 1)
+    // ORIG O@0x2b..0x37：m_field14BC 真值取反 movzbl;xor$1;test;je（非
+    // !=1 的 cmp;setne）。
+    register unsigned char v asm("eax") =
+        static_cast<unsigned char>(getTagCharacR()->m_field14BC);
+    v ^= 1;
+    if (v)
     {
         getTagCharacW()->m_field14BC = 1;
     }

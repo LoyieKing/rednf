@@ -263,14 +263,14 @@ void CParty::send_to_alive_member(PacketGuard& packet)
 {
     for (int i = 0; i < 4; i++)
     {
-        if (!_checkValidUser(i))
+        // ORIG O@0x24 `test%al;je` 无 xor（bool 直测跳过 ⇒ 嵌套 if 守卫）。
+        if (_checkValidUser(i))
         {
-            continue;
-        }
-        // [判据①] ORIG O@10 `test;je` 无 xor：==0 直判形。
-        if (m_member[i].m_pUser->get_state() == 5 && m_battleData.m_arr54[i] != 0)
-        {
-            m_member[i].m_pUser->Send(packet);
+            if (m_member[i].m_pUser->get_state() == 5 &&
+                m_battleData.m_arr54[i] != 0)
+            {
+                m_member[i].m_pUser->Send(packet);
+            }
         }
     }
 }
@@ -875,15 +875,12 @@ bool CParty::checkUnLimitUsedCoinCondition(CDungeon const* dungeon)
     }
     // ORIG 无 ev 判空（虚调用直发，+0x024..0x031）；尾条件为有符号 >0
     // （+0x03b.. test/jle），忠实转写。
-    if (GlobalData::s_event_manager->GetRepeatEvent(0x5e)->IsEventing(0))
+    // ORIG O@0x76 `test%al; jle`：dim 按有符号 char 判 >0（值域≥0x80 分叉）。
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x5e)->IsEventing(0)
+        && static_cast<signed char>(
+               const_cast<CDungeon*>(dungeon)->get_dimension_possible()) > 0)
     {
-        // [判据②直分支形] ORIG O@36-42 `jle;mov$1;jmp;mov$0`，勿写表达式
-        // 返回（4.4 出 setne 物化）。
-        if (const_cast<CDungeon*>(dungeon)->get_dimension_possible() > 0)
-        {
-            return true;
-        }
-        return false;
+        return true;
     }
     return false;
 }
@@ -1061,21 +1058,22 @@ void CParty::RestartDungeon()
 bool CParty::isMonsterDrop_item(int monsterIdx)
 {
     map_item item;
-    // [ORIG 0x085a3b44 物化形] found 落 char 槽 -0x9，`cmpb $0;je` 直判
-    // （[N-类] 剩 8：4.4 对 bool 槽 `!`/`==0` 恒 movzbl;xor$1;test 归一化，
-    // 不出 4.1 的 cmpb $0,mem 直存比较——判据①②③全试，指令选择差）；
-    // 二段 m_count 真值取反 `movzbl;xor$1;test;je`（X2 判据③有消费者）。
-    bool found = reinterpret_cast<CBattle_Field*>(&m_battleField)
-                     ->get_field_item(monsterIdx, item);
-    if (!found)
+    // ORIG 0x085a3b44 物化形：found 落 char 槽 -0x9 后 `cmpb $0;je` 直判
+    // 需 unsigned char 声明（bool `!`/`==0` 出 movzbl;xor;test，4.1 vs 4.4
+    // 指令选择差）；二段 m_count 真值取反 `movzbl;xor$1;test;je`。
+    unsigned char found = reinterpret_cast<CBattle_Field*>(&m_battleField)
+                              ->get_field_item(monsterIdx, item);
+    // ORIG O@0x33..0x4b：found!=0 先 cmpb 直判（跳过 body → 返 1 岛），
+    // 体内 m_count 真值取反 movzbl;xor$1;test（asm al 钉位）；两 je 同达
+    // 返 1 岛。
+    if (found != 0)
     {
-        return true;
-    }
-    register unsigned char cnt asm("eax") = item.m_count;
-    cnt ^= 1;
-    if (cnt == 0)
-    {
-        return false;
+        register unsigned char cnt asm("eax") = item.m_count;
+        cnt ^= 1;
+        if (cnt != 0)
+        {
+            return false;
+        }
     }
     return true;
 }
@@ -1102,7 +1100,7 @@ unsigned char CParty::DestroyPassiveObject(int param)
     destroyed = static_cast<unsigned char>(
         reinterpret_cast<CBattle_Field*>(&m_battleField)
             ->DestroyPassiveObject(param));
-    if (destroyed != 0)   // ORIG O@0x25 movzbl reload+test（4.1 对 uchar!=0 重载回读）
+    if (destroyed)   // ORIG O@0x25 movzbl reload+test
     {
         if (reinterpret_cast<CBattle_Field*>(&m_battleField)
                 ->ClearCondition(

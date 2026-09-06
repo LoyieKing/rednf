@@ -379,6 +379,8 @@ void CUserCharacInfo::setSaveCharacOption(bool flag)
     m_saveCharacOption = flag;
 }
 
+// ORIG 0x0868e1f6 `mov 0x10(%eax),%ecx` 单段直落 %ecx（跨 fildll 浮算缓存 CUR）；
+// 4.4 恒 %eax→%ecx 二段拷贝（N18a 族）。浮算/写回/重读曲线全等，语义等价。同 setWeekendBonusExp。
 int CUserCharacInfo::setPremiumBonusExp(unsigned int exp, int percent)
 {
     if (m_selected)
@@ -2159,6 +2161,9 @@ void CUserCharacInfo::calcHelpAbuseRatio(unsigned int param, bool flag)
 
 
 
+// ORIG 0x08655bce 有符号除 `fatigue/10` 魔数段 `sar $0x1f,%eax;sub %eax,%edx` 直落 %edx；
+// 4.4 经 %ecx 中转 `mov %edx,%ecx;sub %eax,%ecx;mov %ecx,%eax;mov %eax,%edx`（N7/N18a
+// 寄存器路由），除运算与数组索引逐段全等，分支 je/jbe 落点合规，语义等价。
 void CUserCharacInfo::calcCurCharacSchoolPoint(int fatigue)
 {
     static const int point[24] = {
@@ -2216,6 +2221,8 @@ void CUserCharacInfo::add_guild_temp_exp(int exp)
 }
 
 
+// ORIG 0x08645cb1 身体 lea3 形态（mov member,%ecx;mov exp,%edx;lea），同 add_guild_today_exp；
+// 4.4 折 `mov …,%edx;add exp,%edx`（N4/跨版本指令形态），语义等价。
 void CUserCharacInfo::add_guild_exp(int exp)
 {
     if (m_selected && CUR->m_guildkey != 0)
@@ -2832,6 +2839,9 @@ void CUserCharacInfo::IncPowerWarAssaultCount()
 }
 
 
+// ORIG 0x086566e4：`movzwl 0x4f,%edx;mov %edx,%ecx` 二段（4.4 折单步 N18a）；两处比较
+// ORIG 直 `cmp -0xa(%ebp),%ax` 折返，4.4 先物化寄存器再 `cmp %ax,%dx`，jl/jle 落点相位同，
+// 无一分支反向，语义等价。
 void CUserCharacInfo::IncFatigueBatteryCharging(short value)
 {
     if (m_selected)
@@ -3651,6 +3661,9 @@ void CUserCharacInfo::DecreasePowerWarPoint(short point)
 }
 
 
+// ORIG 0x08656784：`movzwl 0x4f,%edx;mov %edx,%ecx` 二段（4.4 折单步 N18a）；第二条件
+// `mfat>old` ORIG 直 `cmp -0xa(%ebp),%ax;jle` 折返（跳返回侧），4.4 先物化 old 到 %eax 再
+// `cmp %ax,%dx`，jle 落点/相位同 ORIG，无一分支反向，语义等价。
 void CUserCharacInfo::DecFatigueBatteryCharging(short value)
 {
     if (m_selected)

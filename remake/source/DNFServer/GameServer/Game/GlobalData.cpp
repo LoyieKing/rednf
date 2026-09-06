@@ -1143,6 +1143,39 @@ extern "C" int FT_Done_FreeType(void* library)
     return 0;
 }
 
+// addFont 用 FreeType API（ORIG 0x087c4730/0x087c2f20/0x087bdd80）占位定义，
+// 豁免同 FT_Init_FreeType（本环境无 libfreetype；调用点 codegen 与 ORIG 一致，
+// 函数体属静态链入第三方库不参与 identical）。FT_ENCODING_UNICODE 以字面量
+// 0x756e6963（"cinu"）代入。
+extern "C" int FT_New_Face(void* library, const char* filepathname, long face_index,
+                           void** aface)
+{
+    (void)library;
+    (void)filepathname;
+    (void)face_index;
+    if (aface)
+    {
+        *aface = 0;
+    }
+    return 0;
+}
+
+extern "C" int FT_Set_Pixel_Sizes(void* face, unsigned int pixel_width,
+                                  unsigned int pixel_height)
+{
+    (void)face;
+    (void)pixel_width;
+    (void)pixel_height;
+    return 0;
+}
+
+extern "C" int FT_Select_Charmap(void* face, unsigned long encoding)
+{
+    (void)face;
+    (void)encoding;
+    return 0;
+}
+
 CaptchaGen::CaptchaGen()
     : m_library(0)   // ORIG 0x080de697：m_library 清零先于 vector/XorRand 成员
                      // ctor —— mem-init（声明序）而非 body 赋值。
@@ -1172,22 +1205,32 @@ CaptchaGen::~CaptchaGen()
 
 bool CaptchaGen::addFont(const char* font, int size)
 {
-    // ORIG：FT_New_Face -> FT_Set_Pixel_Sizes -> FT_Select_Charmap(UNICODE)，
-    // 任一失败返回 false；成功后把 face 句柄存入 m_faces。
-    // 本环境无 FreeType：校验字体文件可读，并把字体名句柄存入 m_faces。
-    FILE* f = fopen(font, "rb");
-    if (!f)
+    // ORIG 0x080de794（report 汇编+反编译 C 全读）：FT_New_Face(m_library, font, 0,
+    // &face) → 失败返 false → FT_Set_Pixel_Sizes(face, 0, size) → 失败返 false →
+    // FT_Select_Charmap(face, FT_ENCODING_UNICODE=0x756e6963) → 失败返 false →
+    // m_faces.push_back(face)（vector<void*>）→ 返 true。
+    // 原转写以 fopen/fclose/malloc/strcpy 假实现替代真 FT 序列（违 §4.1），已改为
+    // 忠实 ORIG；face 错误码 slot 落 -0xc 与 `cmpl $0,slot; je 成功` 逐指令对应。
+    void* face;       // ORIG local_18 @ -0x14（FT_New_Face 出参，未初始化）
+    int err = FT_New_Face(m_library, font, 0, &face);   // ORIG local_10 @ -0xc
+    if (err != 0)
     {
         return false;
     }
-    fclose(f);
-    char* handle = (char*)malloc(strlen(font) + 1);
-    if (!handle)
+    err = FT_Set_Pixel_Sizes(face, 0, (unsigned int)size);
+    if (err != 0)
     {
         return false;
     }
-    strcpy(handle, font);
-    m_faces.push_back(handle);
+    err = FT_Select_Charmap(face, 0x756e6963ul);
+    if (err != 0)
+    {
+        return false;
+    }
+    // ORIG +0x86..+0x8c：local_14 = local_18 显式拷贝（mov -0x14→-0x10）再
+    // push_back(&local_14) —— 两槽结构经具名拷贝复现，避免 4.4 copy-elision 合一槽。
+    void* toPush = face;   // ORIG local_14 @ -0x10
+    m_faces.push_back(toPush);
     return true;
 }
 
@@ -5204,23 +5247,30 @@ void Teleport::send_teleport_effect(CUser* user, int type)
 bool Teleport::move_area(CUser* user)
 {
     // ORIG 0x08283fb8：effect(1) → GameWorld::move_area(...) → effect(2)+
-    // update_next_end_cool_time。m_tp 字段直读（stPartyTelePort getters 归属
-    // CPartyTelePort 域未在本 TU）。
+    // update_next_end_cool_time。ORIG 经 stPartyTelePort getters 取 5 字段
+    // （add this+4 → mov %eax,(%esp) → call *_get_teleport_*），故此处调 getter
+    // 而非直读字段（P：getter 为 ORIG 真符号 CPartyTelePort.h 声明）。
     if (user == 0)
     {
         return false;
     }
     send_teleport_effect(user, 1);
-    const bool ok = G_GameWorld()->move_area(
-        user, (int)(unsigned char)m_tp.m_village, (int)(unsigned char)m_tp.m_areaIndex,
-        (int)m_tp.m_posx, (int)m_tp.m_posy,
-        (int)(unsigned char)m_tp.m_direction, true, 2, 0, 0);
-    if (ok)
+    // ORIG xor $0x1,%eax; test %al,%al; je（直测返回寄存器，无槽，P198）：
+    // 谓词整体内联进 if(!...)，禁提同名 bool 局部（反多 mov %al,-off; cmpb 两步）。
+    if (!G_GameWorld()->move_area(
+            user, (int)(unsigned char)m_tp.get_teleport_village(),
+            (int)(unsigned char)m_tp.get_teleport_area_index(),
+            // ORIG Ghidra sVar2/sVar3 = get_teleport_pos* 记作 short、以 (int)
+            // 直传 ⇒ movswl/cwtl 有符号拓宽（而非 getter 的 unsigned short movzwl）。
+            (int)(short)m_tp.get_teleport_posx(),
+            (int)(short)m_tp.get_teleport_posy(),
+            (int)(unsigned char)m_tp.get_teleport_direction(), true, 2, 0, 0))
     {
-        send_teleport_effect(user, 2);
-        update_next_end_cool_time(user);
+        return false;
     }
-    return ok;
+    send_teleport_effect(user, 2);
+    update_next_end_cool_time(user);
+    return true;
 }
 NPC_Teleport::NPC_Teleport()
 {
@@ -6875,41 +6925,46 @@ bool CheckInventoryEquipmentEmptyCount(CUser& user, int need)
 // ---- CheckInventoryEmptyCount —— T 0x0827108c（同名报告全文转写）-----------
 bool CheckInventoryEmptyCount(CUser& user, int need)
 {
-    const CInventory* inv = user.getCurCharacInvenR();
-    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)1, need))
+    // ORIG（0x0827108c，report 汇编+反编译 C 全读）：每次 check 前重调
+    // getCurCharacInvenR()；任一次 check 失败 → 直接 return false（ORIG「斜体」
+    // jne 直跳两处 `mov $0,%eax` 返回 0）；全部通过后再 `cmp need; jl` 查
+    // GetRemainCapacity(2,8) < need → return false，否则 return true。
+    // 原转写极性写反（!check→return true），据 Ghidra C 纠正为 !check→return false。
+    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)1, need))
     {
-        return true;
+        return false;
     }
-    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)2, need))
+    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)2, need))
     {
-        return true;
+        return false;
     }
-    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)3, need))
+    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)3, need))
     {
-        return true;
+        return false;
     }
-    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)10, need))
+    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)10, need))
     {
-        return true;
+        return false;
     }
-    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)9, need))
+    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)9, need))
     {
-        return true;
+        return false;
     }
-    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)5, need))
+    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)5, need))
     {
-        return true;
+        return false;
     }
-    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)6, need))
+    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)6, need))
     {
-        return true;
+        return false;
     }
-    if (!(inv->GetRemainCapacity((INVEN_TYPE)2, (Inven_Item::ITEM_TYPE)8) <
-          need))
+    // ORIG cmp 0xc(%ebp),%eax; jl —— remain < need 直返 false。
+    if (user.getCurCharacInvenR()->GetRemainCapacity((INVEN_TYPE)2,
+                                                     (Inven_Item::ITEM_TYPE)8) < need)
     {
-        return true;
+        return false;
     }
-    return false;
+    return true;
 }
 
 // ---- DeleteAllRentalItemInSameSectionForNewRent —— T 0x08271807 ------------
