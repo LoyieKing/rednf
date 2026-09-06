@@ -444,9 +444,15 @@ bool isExistNPCScript(const char* name)
 {
     // ORIG 0x089fae70：call loadRDARScriptFile 之后
     // `xor $0x1,%eax; test %al,%al; je +7; mov $0x0,%eax; jmp end; +7: mov $1,%eax`
-    // ⇒ 原码是 **取反返回**（技巧 1：`!boolcall()` 才产出 xor+testb+双常量岛；
-    //   写成 `? true : false` 会被 4.4 折成直返 %eax，少 6 条）。
-    return !loadRDARScriptFile(g_npcScriptBaseDirectory, name);
+    // ——je 目标岛是 `mov $1`：load 返 1 ⇒ xor 后 0 ⇒ je ⇒ 返回 1。即 **ORIG 恒等
+    // 透传 load 返回值**（早期转写判成 `return !call` 系极性问题，真 bug 修正）。
+    // 复现岛形用技巧 1/22：register bool asm("al") 绑 !call，再 `if (t) return
+    // false; return true;`（4.4 直返会被折掉 xor+岛 6 条）。
+    register bool t __asm__("al");
+    t = !loadRDARScriptFile(g_npcScriptBaseDirectory, name);
+    if (t)
+        return false;
+    return true;
 }
 
 // ============================================================================

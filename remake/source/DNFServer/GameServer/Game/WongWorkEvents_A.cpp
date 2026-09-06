@@ -547,7 +547,7 @@ void EventCommon::LoadCharacEventItem(unsigned int eventId,
 
     SigLoadEventItemView* sig =
         reinterpret_cast<SigLoadEventItemView*>(
-            guard.GetInBuffer<SIG_LOAD_EVENTITEM>());
+            guard.operator->()->GetInBuffer<SIG_LOAD_EVENTITEM>());
     sig->m_eventId = eventId;
     sig->m_characNo = characNo;
 

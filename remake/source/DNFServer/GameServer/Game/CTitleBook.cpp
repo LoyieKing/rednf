@@ -193,7 +193,8 @@ bool CTitleBook::loadData(CUser* pUser, char* pData)
 
 void CTitleBook::getData(char* pData) const
 {
-    std::memcpy(pData, (const char*)this + 0xc, 0x6b3a);
+    char* dst = pData;   // ORIG: 先将出参 pData 落 -0xc 局部槽再直传 (%esp)
+    std::memcpy(dst, (const char*)this + 0xc, 0x6b3a);
 }
 bool CTitleBook::_saveData(CUser* pUser)
 {

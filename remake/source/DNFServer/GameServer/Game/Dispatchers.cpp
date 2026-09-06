@@ -109,9 +109,11 @@ bool check_url(const char* url)
             // a..z → continue（fall 至循环尾 = i++）
         } else if ((unsigned char)*p > 0x2f && (unsigned char)*p <= 0x57) {
             // '0'..'W' → continue
-        } else if ((unsigned char)*p == 0x5f) {
-            // '_' → continue
-        } else {
+        } else if ((unsigned char)*p != 0x5f) {
+            // [N·块序] ORIG 0x082057d0 尾支 `cmp $0x5f; jne 拒绝; [fall] addl
+            // i++`（4.1 fall-through 放行）；4.4 恒把拒绝块排为 fall-through、
+            // 产 `je <i++岛>`——实测正向 `==0x5f{}`+else 与反向两种源形生成
+            // 完全相同（ndiff 5 不变）⇒ 块排序不可控，记 N。语义两侧等价。
             return false;
         }
     }
@@ -4542,15 +4544,16 @@ int Dispatcher_FairPvPScore::dispatch_sig(CUser* user, PacketBuf& packet)
     PacketGuard guard;
     if (mode == 1)
     {
-        CInventory* inven = (CInventory*)user->getCurCharacInvenR();
-        int slot = inven->check_item_exist(0xcf0);
+        // ORIG：每次操作重取 getCurCharacInvenR（P48 无 CSE）；数量字段
+        // 直读 +0x07（m_addInfo2，非 get_add_info 调用）。
+        int slot = user->getCurCharacInvenR()->check_item_exist(0xcf0);
         if (slot == -1)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x177, 0x11);
             return 0;
         }
-        Inven_Item item = inven->GetInvenSlot(1, slot);
-        if (item.get_add_info() < 1)
+        Inven_Item item = user->getCurCharacInvenR()->GetInvenSlot(1, slot);
+        if (item.m_addInfo2 < 1)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x177, 0x11);
             return 0;
@@ -7005,7 +7008,8 @@ int Dispatcher_BuyAutomatItem::dispatch_sig(CUser* user, PacketBuf& packet)
     **guard << (unsigned int)info.reserved;            // << unsigned int
     **guard << (short)info.purchaseType;               // << short
     **guard << (short)info.limitCount;                 // << short
-    MSG_BUY_CERASHOP_ITEM* out = guard.GetInBuffer<MSG_BUY_CERASHOP_ITEM>();
+    // ORIG：GetInBuffer 经 operator->（0x080c8c4e）后调用（P103）。
+    MSG_BUY_CERASHOP_ITEM* out = guard.operator->()->GetInBuffer<MSG_BUY_CERASHOP_ITEM>();
     memcpy(out, &buy, 0x3f84);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return 0;
@@ -25683,11 +25687,11 @@ int Dispatcher_FatigueAttendance::process(CUser* user, MSG_BASE& msg, ParamBase&
             err, 0);
     }
 
-    EventClassify::CEventScriptMng* mng =
-        (EventClassify::CEventScriptMng*)G_CDataManager()->get_event_script_mng();
-
-    unsigned char day = mng->get_today_time_day();          // +0x09d（uchar）
-    int recordType = mng->get_record_type(0x56);            // +0x0bd
+    // ORIG：每个使用点重取 G_CDataManager()->get_event_script_mng()（P48 无 CSE）。
+    unsigned char day = ((EventClassify::CEventScriptMng*)
+        G_CDataManager()->get_event_script_mng())->get_today_time_day(); // +0x09d
+    int recordType = ((EventClassify::CEventScriptMng*)
+        G_CDataManager()->get_event_script_mng())->get_record_type(0x56); // +0x0bd
 
     // ORIG 0x081daffa：get_ingame_event_history(recordType, history) 读历史
     std::pair<int, int> history;
@@ -25706,13 +25710,15 @@ int Dispatcher_FatigueAttendance::process(CUser* user, MSG_BASE& msg, ParamBase&
         user->get_server_fatigue_count(day));
     totalFatigue += user->get_fatigue_count_db(static_cast<int>(day));
 
-    EventClassify::CEventEntity* entity = mng->get_event_entity(0x56);   // +0x166
+    EventClassify::CEventEntity* entity = ((EventClassify::CEventScriptMng*)
+        G_CDataManager()->get_event_script_mng())->get_event_entity(0x56);   // +0x166
     if (entity == 0)
     {
         return 0;
     }
 
-    int todayTime = mng->get_today_time();
+    int todayTime = ((EventClassify::CEventScriptMng*)
+        G_CDataManager()->get_event_script_mng())->get_today_time();
     // ORIG：start > today || end < today → 不在活动期 → 7
     if (entity->get_event_start_time() > todayTime ||
         entity->get_event_end_time() < todayTime)
@@ -25735,14 +25741,18 @@ int Dispatcher_FatigueAttendance::process(CUser* user, MSG_BASE& msg, ParamBase&
     user->set_ingame_event_history(recordType, attendFlags, 0);
 
     *reinterpret_cast<unsigned int*>(pres + 0xc) = attendFlags;          // +0x24a
-    int nowTime = mng->get_today_time();
+    int nowTime = ((EventClassify::CEventScriptMng*)
+        G_CDataManager()->get_event_script_mng())->get_today_time();
     *reinterpret_cast<int*>(pres + 0x10) = nowTime;                      // +0x265
 
-    int passDay = mng->get_pass_day(entity->get_event_start_time(), nowTime);
+    int passDay = ((EventClassify::CEventScriptMng*)
+        G_CDataManager()->get_event_script_mng())
+        ->get_pass_day(entity->get_event_start_time(), nowTime);
     attendance->send_attend_reward_item(user, passDay);                  // T 0x0810e878
 
     // ORIG 0x081daffa：process_update_ingame_history(user) 后 reset_ingame_event_history_update()
-    mng->process_update_ingame_history(user);
+    ((EventClassify::CEventScriptMng*)G_CDataManager()->get_event_script_mng())
+        ->process_update_ingame_history(user);
     user->reset_ingame_event_history_update();
 
     int finalCondition = attendance->get_final_day_condition();

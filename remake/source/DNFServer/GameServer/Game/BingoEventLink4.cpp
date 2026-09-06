@@ -45,8 +45,8 @@
 //   _Z11setBit_UintRjbi T 0x088922d7：set ? |= : &=~
 bool isSetBit_Uint(unsigned int value, int bit)
 {
-    unsigned int mask = 1u << bit;
-    return (value & mask) != 0;
+    // ORIG: 恒寄存器 `1<<bit`（int 移位）并内联，无具名局部槽；`1u` 会差成 `shr`+分开。
+    return (value & (1 << bit)) != 0;
 }
 
 void setBit_Uint(unsigned int& value, bool set, int bit)

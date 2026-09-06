@@ -210,18 +210,19 @@ int CUser::compute_quest_basic_reward_exp(Quest* quest)
         penalty = compute_level_penalty(levelDelta);       // [0x866e439]
     }
 
-    int weight = questParam.getRewardWeight(               // [-0x1c movsbl char]
-        QuestParameterScript& questParam_weight = G_CDataManager()->m_questParameter;
+    // P48 no-CSE：ORIG 每处 use 各自 fresh G_CDataManager()（getRewardWeight +
+    // getRewardExp 两分支，共 3 次）。
+    int weight = G_CDataManager()->m_questParameter.getRewardWeight(  // [-0x1c movsbl char]
         static_cast<char>(quest->m_field102));
 
     int exp = 0;                                           // [-0x18]
     if (quest->m_field101 != 0 || quest->m_field130 != 0)
     {
-        exp = questParam.getRewardExp(get_charac_level()); // [0x866e4a8]
+        exp = G_CDataManager()->m_questParameter.getRewardExp(get_charac_level()); // [0x866e4a8]
     }
     else
     {
-        exp = questParam.getRewardExp(quest->m_levelMin);  // [0x866e4c9]
+        exp = G_CDataManager()->m_questParameter.getRewardExp(quest->m_levelMin);  // [0x866e4c9]
     }
 
     exp = exp * weight / 100;                              // [imul + div 0x64 sar5]

@@ -163,13 +163,18 @@ void Event_Upgrade_Jar::SettingRecipeNUpConunt(int materialIdx, upgrade_info_t& 
 // kind==2 → _getFailProb_NewNPC。kind==0 或其它不改 outProb。
 void Event_Upgrade_Jar::GetProbability(int materialIdx, unsigned int& outProb) const
 {
-    if (m_materialKind == 1)
+    // ORIG 0x080f4ee2：先显式 test kind;je 直跳到共同尾（m_materialKind!=0 外guard），
+    // 再 ==1 / ==2 分支。原 if==1 else-if==2 缺外 guard 的 test/je 5 条。
+    if (m_materialKind != 0)
     {
-        outProb = _getFailProb_Fortune(materialIdx, (unsigned int)m_materialIdx);
-    }
-    else if (m_materialKind == 2)
-    {
-        outProb = _getFailProb_NewNPC((unsigned int)m_materialIdx);
+        if (m_materialKind == 1)
+        {
+            outProb = _getFailProb_Fortune(materialIdx, (unsigned int)m_materialIdx);
+        }
+        else if (m_materialKind == 2)
+        {
+            outProb = _getFailProb_NewNPC((unsigned int)m_materialIdx);
+        }
     }
 }
 

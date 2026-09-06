@@ -75,9 +75,8 @@ int DB_InsertCeraItemHistory::makeRequest(int itemIdx,
                                           unsigned int receiverCharacNo,
                                           char flag)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xac1b);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xac1b),
+                       true);
     guard.operator*()->operator<<(0x2b1);          // SIG_INSERT_CERA_ITEM_HISTORY
     guard.operator*()->operator<<(-1);
     guard.operator*()->operator<<(itemIdx);

@@ -393,6 +393,7 @@ void CMonitorServerProxy::SendGameServerInfo(char* name, unsigned short port,
     pkt.m_channel = channel;
     pkt.m_type = 1;
     pkt.m_port = port;
-    strncpy(pkt.m_name, name, 0x10);
+    register char* dst __asm__("edx") = pkt.m_name;
+    strncpy(dst, name, 0x10);
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }

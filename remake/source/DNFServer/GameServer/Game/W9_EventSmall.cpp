@@ -71,11 +71,14 @@ void CTrcOnOffEvent::StartEvent(Word_Param)  // ORIG 0x08285b00
 
 bool CTrcOnOffEvent::IsEventing(CUser* user) const  // ORIG 0x08285ba4：透传基类
 {
-    // ORIG 0x08285ba4：第二参数恒传 0（NULL），不转发本函数形参。
-    if (CEventBase::IsEventing(static_cast<CUser*>(0)) == true)
-        return true;
-    else
+    // ORIG 0x08285ba4：第二参数恒传 0（NULL），不转发本函数形参。返回仍等于
+    // 基类结果，但 4.1 走「取反+反极性岛」：`call; xor $1; test; je +岛mov$1;
+    // mov $0` ⇒ 技巧 1/22 register bool asm("al") 绑 !call 后反向 if 复现。
+    register bool t __asm__("al");
+    t = !CEventBase::IsEventing(static_cast<CUser*>(0));
+    if (t)
         return false;
+    return true;
 }
 
 // ---- CFatigueBuffEvent ----

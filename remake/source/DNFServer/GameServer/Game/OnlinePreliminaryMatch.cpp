@@ -801,22 +801,23 @@ bool COnlinePreliminary::CheckUnusableEquipment(const Inven_Item* item)
     if (item->m_addInfo == 0)
         return true;
 
-    CDataManager& dm = *G_CDataManager();
-    CItem* found = dm.find_item(item->m_addInfo);
+    // P48 no-CSE：ORIG 每处 use 各自 fresh G_CDataManager()（find_item /
+    // CheckUnusableEquipmentInfo / CheckUnusableItem 共 3 次）；equipType 也
+    // 不在比较与实参间缓存（GetUsableEquipmentType 共 2 次）。
+    CItem* found = G_CDataManager()->find_item(item->m_addInfo);
     if (found == 0)
         return false;
     if (found->is_stackable())
         return false;
 
     CEquipItem* equip = static_cast<CEquipItem*>(found);
-    int equipType = equip->GetUsableEquipmentType();      // W 0x832e036
-    if (equipType == 0)
+    if (equip->GetUsableEquipmentType() == 0)             // W 0x832e036
         return true;
-    if (!dm.m_serverParameter.CheckUnusableEquipmentInfo((ENUM_UNUSABLE_EQUIPMENT_TYPE)equipType,
+    if (!G_CDataManager()->m_serverParameter.CheckUnusableEquipmentInfo((ENUM_UNUSABLE_EQUIPMENT_TYPE)equip->GetUsableEquipmentType(),
                                                          found->getUsableLevel()))
         return false;
     // ORIG 经虚表槽 +0xc（GetItemType）取类型后查 CheckUnusableItem
-    return dm.m_serverParameter.CheckUnusableItem(
+    return G_CDataManager()->m_serverParameter.CheckUnusableItem(
                  (ENUM_EQUIPMENTTYPE)found->GetItemType(),
                                                   (unsigned long)found->get_index());
 }
