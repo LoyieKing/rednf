@@ -400,16 +400,12 @@ void DB_LoadCharacHotKeyOption::makeRequest(int uid, unsigned int accId,
 // ----------------------------------------------------------------------------
 bool CHARAC_LOAD_MERCENARY::CheckCompetitionPeriodIndex(char periodIdx) const
 {
-    const std::vector<std::pair<int, float> >& vec =
-        G_CDataManager()->m_mercenarySystem.m_vec14;
-    bool bInvalid;
-    if (vec.empty())
-        bInvalid = true;
-    else if (static_cast<unsigned int>(static_cast<int>(periodIdx)) <= vec.size())
-        bInvalid = false;
-    else
-        bInvalid = true;
-    return !bInvalid;
+    // ORIG：G_CDataManager() 在 empty() 判与 size() 判两处各自重调（禁缓存，P183/P48）。
+    if (!G_CDataManager()->m_mercenarySystem.m_vec14.empty()
+        && static_cast<unsigned int>(static_cast<int>(periodIdx))
+               <= G_CDataManager()->m_mercenarySystem.m_vec14.size())
+        return true;
+    return false;
 }
 
 // ----------------------------------------------------------------------------
@@ -419,20 +415,19 @@ bool CHARAC_LOAD_MERCENARY::CheckCompetitionPeriodIndex(char periodIdx) const
 bool CHARAC_LOAD_MERCENARY::CheckCompetitionAreaIndex(char areaIdx,
                                                       int level) const
 {
-    const std::vector<stMercenaryCompetitionArea>& vec =
-        G_CDataManager()->m_mercenarySystem.m_vec40;
-    bool bInvalid;
-    if (vec.empty())
-        bInvalid = true;
-    else if (static_cast<unsigned int>(static_cast<int>(areaIdx)) <= vec.size())
-        bInvalid = false;
-    else
-        bInvalid = true;
-    if (bInvalid)
-        return false;
-    if (level < static_cast<int>(static_cast<short>(vec[static_cast<int>(areaIdx)].m_areaLevel)))
-        return false;
-    return true;
+    // ORIG：G_CDataManager() 在 empty()/size()/operator[] 三处各自重调（禁缓存，
+    // P183/P48）；经非 const CDataManager* 直访 m_vec40 选非 const operator[]。
+    if (!G_CDataManager()->m_mercenarySystem.m_vec40.empty()
+        && static_cast<unsigned int>(static_cast<int>(areaIdx))
+               <= G_CDataManager()->m_mercenarySystem.m_vec40.size())
+    {
+        if (level < static_cast<int>(static_cast<short>(
+                G_CDataManager()->m_mercenarySystem
+                    .m_vec40[static_cast<int>(areaIdx)].m_areaLevel)))
+            return false;
+        return true;
+    }
+    return false;
 }
 
 // ----------------------------------------------------------------------------
@@ -521,9 +516,9 @@ int CHARAC_LOAD_MERCENARY::GetCompetitionPeriodSecond(char periodIdx) const
     if (!CheckCompetitionPeriodIndex(periodIdx))
         return 0;
     int periodSec = G_CDataManager()->m_mercenarySystem.m_field0;
-    const std::vector<std::pair<int, float> >& vec =
-        G_CDataManager()->m_mercenarySystem.m_vec14;
-    return vec[static_cast<int>(periodIdx)].first * periodSec;
+    // 经非 const CDataManager* 直访 m_vec14，选 operator[](uint) 非 const 重载（const 甄别）。
+    return G_CDataManager()->m_mercenarySystem
+               .m_vec14[static_cast<int>(periodIdx)].first * periodSec;
 }
 
 // ----------------------------------------------------------------------------

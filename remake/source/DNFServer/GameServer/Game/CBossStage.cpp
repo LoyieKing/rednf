@@ -82,24 +82,25 @@ int CBossStage::handleMoveMap(unsigned short* mapIndex)
     if (_checkMemberDie())
         return 0;
 
-    CParty* party = getParty();
     // 已进行时长（秒）：(m_endTick - m_startTick) / 1000
     int playSec = (m_endTick - m_startTick) / 1000;
 
     for (int i = 0; i < 4; ++i)
     {
-        CUser* user = party->get_user(i);
-        if (user == 0 || !party->checkValidUser(i))
+        CUser* user = m_party->get_user(i);
+        if (user == 0 || !m_party->checkValidUser(i))
             continue;
 
-        CHackAnalyzer* analyzer = user->getHackAnalyzer();
         if (playSec <= 4)
-            analyzer->addServerHackCnt(user, (ENUM_HACKTYPE)0x19f, 1, 0, 0);
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, (ENUM_HACKTYPE)0x19f, 1, 0, 0);
         if (mapIndex[i] == 0)
-            analyzer->addServerHackCnt(user, (ENUM_HACKTYPE)0x19b, 1, 0, 0);
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, (ENUM_HACKTYPE)0x19b, 1, 0, 0);
         // ORIG this+0x9c8+i*4 逐 int 判零（CBossPlay::m_useItemCount[i]）
         if (m_useItemCount[i] == 0)
-            analyzer->addServerHackCnt(user, (ENUM_HACKTYPE)0xdd, 1, 0, 0);
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, (ENUM_HACKTYPE)0xdd, 1, 0, 0);
 
         // cUserHistoryLog 为 CUser 嵌套成员 m_historyLog（ORIG user+0x79700）
         user->m_historyLog.MapClear(mapIndex[i], playSec, 0);
@@ -114,7 +115,7 @@ int CBossStage::handleMoveMap(unsigned short* mapIndex)
 
     try
     {
-        CUser* manager = party->getManager();
+        CUser* manager = m_party->getManager();
         if (manager != 0 && manager->isGMUser())
         {
             // CUser GM 调试字段（"bossmap"/"bossdifficult" 指令写入，取走即清零）
@@ -150,7 +151,7 @@ int CBossStage::handleMoveMap(unsigned short* mapIndex)
         packet.put_byte(0);
         packet.put_byte((int)e);
         packet.finalize(true);
-        party->send_to_party(packet);
+        m_party->send_to_party(packet);
         return 0;
     }
 }
@@ -671,7 +672,20 @@ bool CBossStage::NormalPickupItem(CUser* user, unsigned int uid,
     if (script == 0)
         return false;
 
-    int routeKind = pickupRouteKind(script);
+    // ORIG 逐虚槽判定（is_stackable + GetItemType==9 / IsCreatureItem / IsAvatarItem）
+    int routeKind = 0;
+    if (script->is_stackable())
+    {
+        if (script->GetItemType() == 9)
+            routeKind = 7;
+    }
+    else
+    {
+        if (script->IsCreatureItem())
+            routeKind = 7;
+        else if (script->IsAvatarItem())
+            routeKind = 1;
+    }
     int slot = -1;
     if (!item.m_item.isAvatarItemType())
     {
@@ -715,7 +729,7 @@ bool CBossStage::NormalPickupItem(CUser* user, unsigned int uid,
     packet.put_short(slot);
     packet.put_byte(routeKind);
     packet.finalize(true);
-    getParty()->send_to_party(packet);
+    m_party->send_to_party(packet);
     return true;
 }
 
@@ -727,7 +741,7 @@ bool CBossStage::RandomPickupItem(CUser* user, unsigned int uid,
     char rolls[4] = { 0, 0, 0, 0 };
     int bestRoll = 0;
     CUser* winner = 0;
-    CParty* party = getParty();
+    CParty* party = m_party;
     for (int i = 0; i < 4; ++i)
     {
         CUser* member = party->get_user(i);
@@ -773,7 +787,20 @@ bool CBossStage::RandomPickupItem(CUser* user, unsigned int uid,
         return false;
     }
 
-    int routeKind = pickupRouteKind(script);
+    // ORIG 逐虚槽判定（is_stackable + GetItemType==9 / IsCreatureItem / IsAvatarItem）
+    int routeKind = 0;
+    if (script->is_stackable())
+    {
+        if (script->GetItemType() == 9)
+            routeKind = 7;
+    }
+    else
+    {
+        if (script->IsCreatureItem())
+            routeKind = 7;
+        else if (script->IsAvatarItem())
+            routeKind = 1;
+    }
     int slot = -1;
     if (!item.m_item.isAvatarItemType())
     {
@@ -885,8 +912,7 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
                 return false;
         }
 
-        // 构建 out（逐字段按 asm 宽度；out 由调用方默认构造已清零）
-        memset(&out, 0, sizeof(out));
+        // 构建 out（逐字段按 asm 宽度；无 memset，ORIG 逐字段写）
         out.m_item.m_field0 = 0;                          // byte +0x00 = 0
         out.m_item.m_field1 = tmp.m_field1;               // byte +0x11
         out.m_item.m_addInfo = tmp.m_addInfo;             // dword +0x12
@@ -905,7 +931,6 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
     }
     else
     {
-        memset(&out, 0, sizeof(out));
         out.m_item.m_field0 = 0;                          // byte +0x00 = 0
         out.m_item.m_field1 = 2;                          // byte +0x11 = 2
         out.m_item.m_addInfo = 0;                         // dword +0x12 = 0

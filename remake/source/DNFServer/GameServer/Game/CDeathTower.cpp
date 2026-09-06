@@ -1516,8 +1516,8 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
         }
         else
         {
-            CInventory* inven = (CInventory*)user->getCurCharacInvenR();
-            inven->GetInvenSlotByRef(1, slot, invenItem);
+            const CInventory* inven = user->getCurCharacInvenR();
+            invenItem = inven->GetInvenSlot(1, slot);
         }
         break;
     case 2: // cargo
@@ -1528,14 +1528,14 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
     }
     case 3: // avatar（ORIG GetInvenSlot space=0）
     {
-        CInventory* inven = (CInventory*)user->getCurCharacInvenR();
-        inven->GetInvenSlotByRef(0, slot, invenItem);
+        const CInventory* inven = user->getCurCharacInvenR();
+        invenItem = inven->GetInvenSlot(0, slot);
         break;
     }
     case 7: // creature（ORIG GetInvenSlot space=3）
     {
-        CInventory* inven = (CInventory*)user->getCurCharacInvenR();
-        inven->GetInvenSlotByRef(3, slot, invenItem);
+        const CInventory* inven = user->getCurCharacInvenR();
+        invenItem = inven->GetInvenSlot(3, slot);
         if (invenItem.m_field1 == 5)          // ITEM_TYPE_CREATURE_EQUIP → 拒绝
         {
             return false;
@@ -2087,7 +2087,7 @@ int CDeathTower::handleMoveMap()
             throw 1;
         }
 
-        PacketGuard packet;
+        CPacketHandler packet;
         packet.put_header(0, 0x8f);
         m_stage.makeStagePacket(packet);
         packet.finalize(true);
@@ -2763,13 +2763,15 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
                     int slot = -1;
                     if (rewardBase[j].m_addInfo == 0)
                     {
-                        // 金钱奖励：金额 = rewardBase[j].get_add_info()
-                        int addInfo = rewardBase[j].get_add_info();
+                        // 金钱奖励：金额 = rewardBase[j].get_add_info()（ORIG 三次调用）
                         CInventory* inven = (CInventory*)user->getCurCharacInvenW();
-                        int gained = inven->gain_money(addInfo, (eMoneyAddReason)5, true, 0);
-                        if (gained < addInfo)
+                        int gained = inven->gain_money(
+                            rewardBase[j].get_add_info(), (eMoneyAddReason)5, true, 0);
+                        if (gained < rewardBase[j].get_add_info())
                         {
-                            user->SendMoneyFullReason((ENUM_MONEY_FULL_REASON)0, addInfo, gained);
+                            user->SendMoneyFullReason(
+                                (ENUM_MONEY_FULL_REASON)0,
+                                rewardBase[j].get_add_info(), gained);
                         }
                         slot = 0;
                         CDungeon* dungeon = m_dungeonMgr.getDungeon();
@@ -2799,11 +2801,11 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
                     }
                 }
 
-                int exp = m_playData.getRewardExp(i);
-                // ORIG 0x084635b3：flag = (bool)exp
-                user->calcHelpAbuseRatio(exp, exp != 0);
+                // ORIG 0x084635b3：calcHelpAbuseRatio(exp, false)；gain_exp_sp 另取
+                user->calcHelpAbuseRatio(m_playData.getRewardExp(i), false);
                 int a = 0, b = 0;
-                if (user->gain_exp_sp(exp, a, b, (CUser::eExpAddReason)2, 0, false))
+                if (user->gain_exp_sp(m_playData.getRewardExp(i), a, b,
+                                      (CUser::eExpAddReason)2, 0, false))
                 {
                     user->SendNotiPacket((CUser::eSendTarget)2, (ENUM_NOTIPACKET)2, 1);
                 }

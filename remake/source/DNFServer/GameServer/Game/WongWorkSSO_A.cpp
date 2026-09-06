@@ -55,23 +55,12 @@ void WongWork::CSimpleSSO::reset()
     m_mysql = 0;
 }
 
-namespace
-{
-
-// ORIG 各 SQL 入口共用的表名局部（栈上 20 字节：memset 0x14 + memcpy 0xd）。
-void makeMemberLoginTable(char* buf)
-{
-    memset(buf, 0, 0x14);
-    memcpy(buf, "member_login", 0xd);
-}
-
-}  // namespace
-
 // ---- expireLoginTime(mId)  ORIG 0x08602b24
 void WongWork::CSimpleSSO::expireLoginTime(unsigned int mId)
 {
     char tableName[0x14];
-    makeMemberLoginTable(tableName);
+    memset(tableName, 0, 0x14);                // ORIG+0x006..+0x01c call memset
+    memcpy(tableName, "member_login", 0xd);    // ORIG+0x021..+0x037 call memcpy
     if (mId != 0)
     {
         char* idStr = NumberToString(mId, 0);
@@ -87,7 +76,8 @@ bool WongWork::CSimpleSSO::_getGameStartTime(unsigned int mId, long& loginTime,
                                              long& expireTime, stOutputData_t& out)
 {
     char tableName[0x14];
-    makeMemberLoginTable(tableName);
+    memset(tableName, 0, 0x14);       // ORIG +0x006..+0x01c call memset
+    memcpy(tableName, "member_login", 0xd);  // ORIG +0x021..+0x037 call memcpy
     char* idStr = NumberToString(mId, 0);
     m_mysql->set_query(
         "seLect login_time,expire_time,report_cnt,last_play_time,account_fail,"
@@ -275,7 +265,8 @@ bool WongWork::CSimpleSSO::_checkValiedPassword(char* pwd, char const* clientHas
 bool WongWork::CSimpleSSO::updateHumanCertify(unsigned int mId, int accountFail)
 {
     char tableName[0x14];
-    makeMemberLoginTable(tableName);
+    memset(tableName, 0, 0x14);                // ORIG call memset
+    memcpy(tableName, "member_login", 0xd);    // ORIG call memcpy
     int totalAccountFailInc = (accountFail != 0) ? 1 : 0;  // setne/movzbl
     char* idStr = NumberToString(mId, 0);
     m_mysql->set_query(
@@ -294,7 +285,8 @@ bool WongWork::CSimpleSSO::updateSSOExpireTime(unsigned int mId,
                                                const stUpdateSSOExpireTime_t& data)
 {
     char tableName[0x14];
-    makeMemberLoginTable(tableName);
+    memset(tableName, 0, 0x14);                // ORIG call memset
+    memcpy(tableName, "member_login", 0xd);    // ORIG call memcpy
     char* idStr = NumberToString(mId, 0);
 
     unsigned int reportCnt = data.m_reportCnt;             // +0x00
@@ -323,7 +315,8 @@ bool WongWork::CSimpleSSO::updateSSOExpireTime(unsigned int mId,
 bool WongWork::CSimpleSSO::updateSSOExpireTime(unsigned int mId, unsigned int loginTime)
 {
     char tableName[0x14];
-    makeMemberLoginTable(tableName);
+    memset(tableName, 0, 0x14);                // ORIG call memset
+    memcpy(tableName, "member_login", 0xd);    // ORIG call memcpy
     char* idStr = NumberToString(mId, 0);
     int lastPlayBase = GlobalData::s_systemTime_.getCurSec();  // 第一次 getCurSec
     int expireBase = GlobalData::s_systemTime_.getCurSec();    // 第二次 getCurSec
