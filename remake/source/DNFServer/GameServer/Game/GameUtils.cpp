@@ -114,19 +114,18 @@ void cMyTrace::operator()(const char* fmt, ...)
         Guard<Mutex> guard(&mutex);
         switch (m_flag)
         {
-        case 0: log->logNotice(buf); break;
-        case 1: log->logError(buf); break;
-        case 2: log->logDebug(buf); break;
-        case 3: log->logConsole(buf); break;
-        case 4: log->logMoney(buf); break;
-        case 5: log->logCritical(buf); break;
-        		case 8:
-			log->logSnapShot(buf);
-			log->logInit(m_field_d != 0, m_field_c != 0, buf);  // ORIG 0x854f520：第一参 m_field_d
-			break;
-		case 9:  // ORIG 跳表 0x8c9edf4 flag 9 → 0x854f92c：仅 logInit（无 SnapShot）
-			log->logInit(m_field_d != 0, m_field_c != 0, buf);
-			break;
+        case 0: CLog::instance()->logNotice(buf); break;
+        case 1: CLog::instance()->logError(buf); break;
+        case 2: CLog::instance()->logDebug(buf); break;
+        case 3: CLog::instance()->logConsole(buf); break;
+        case 4: CLog::instance()->logMoney(buf); break;
+        case 5: CLog::instance()->logCritical(buf); break;
+        case 8:
+            // ORIG case8 → logSnapShot 后无 break，落到 case9 共用唯一 logInit call site。
+            CLog::instance()->logSnapShot(buf);
+        case 9:
+            CLog::instance()->logInit(m_field_d != 0, m_field_c != 0, buf);
+            break;
         default:  // 6/7：ORIG 跳表指向收尾 0x854f95f，无日志输出
             break;
         }
