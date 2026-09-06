@@ -161,7 +161,9 @@ struct STEnchantSystemMapKey : public STEnchantSystemData
             return true;
         if (m_a != o.m_a)
             return false;
-        if (static_cast<unsigned char>(m_b) < static_cast<unsigned char>(o.m_b))
+        // ORIG 0x854b201: m_b(+0x4) 第二条比较 `cmp %al,%dl; jge`=有符号字节序；
+        // 原 (unsigned char) 版产 jae，m_b≥0x80 时与 ORIG 不一致。改 (signed char)。
+        if (static_cast<signed char>(m_b) < static_cast<signed char>(o.m_b))
             return true;
         if (static_cast<unsigned char>(m_b) != static_cast<unsigned char>(o.m_b))
             return false;

@@ -407,6 +407,7 @@ int BlueMarble::getRandomDungeon(int seat, BlueMarbleTileScript::Type type) cons
     {
         return 0;
     }
+    // 保持具名形：inline 直调实测反增 1（4.4 在取模表达式中仍需暂存槽）。
     int r = m_pRands[2].randInt();
     unsigned int idx = (unsigned int)r % (unsigned int)local.size();
     if (idx >= local.size())

@@ -300,11 +300,13 @@ bool importInGameAdvertisementEtcScript(InGameAdvertisementScript* s, const char
     }
     s->clear();
 
-    std::string token;
-    bool ok = false;
-    int idx = 0;
+    InGameAdvertisementScript* p = s;          // ORIG -0x14 arg 缓存
+    std::string token;                         // ORIG -0x18
+    bool run = true;                           // ORIG -0xd（token ctor 后写 1）
+    bool ok = false;                           // ORIG -0x19
+    int idx = 0;                               // ORIG -0xc prologue 初始化
 
-    for (;;)                                   // ORIG 4.1 while 落点形（check 在头）
+    for (;;)                                   // ORIG 4.1 复合条件拆两检查（xor 落点形）
     {
         if (!ScanType(token, true))
             break;
@@ -321,9 +323,11 @@ bool importInGameAdvertisementEtcScript(InGameAdvertisementScript* s, const char
                 {
                     break;
                 }
-                s->m_exposeConditionOfTeen[idx] = 0;
+                p->m_exposeConditionOfTeen[idx] = 0;   // ORIG movb$0,(edx,eax)
             }
         }
+        if (!run)                              // ORIG 体尾 run 检查（cmpb$0,-0xd）
+            break;
     }
     return true;
 }
