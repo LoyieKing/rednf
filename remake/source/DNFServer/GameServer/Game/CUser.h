@@ -3325,7 +3325,9 @@ public:
     void master_new_skill(stBuySkillInfo& info, bool flag);                    // 0x0866afa2
     bool master_new_skills(_Mastered_skill* skills,                          // 0x0866b53e
                            ENUM_SKILL_TREE_KIND kind);
-    void ChangeGrowType_GM(int a, int b);                                      // 0x0867b048
+    // 返回 int：ORIG 0x0867b048 尾 `mov eax,0x1;ret`、早退 mov eax,0（Model22 实证；
+    // 消费点 Arad:362/369 忽略值、CEventCharacterHandler:357 if 兼容，mangled 不变）
+    int ChangeGrowType_GM(int a, int b);                                       // 0x0867b048
     int AddItem(int itemIdx, int count, eItemAddReason reason,                 // 0x0867b6d4
                 ENUM_ITEMSPACE& space, int slot);
     void ReCalcChattingEmoticon();                                             // 0x08689a22

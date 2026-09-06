@@ -1868,9 +1868,9 @@ int CMailBoxHelper::ReqChangeLetterStat(CUser* user, int mailIdx, int state)
         }
     }
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("MailBox.cpp", 0x8f0), true);
-    guard << 0xc2;
-    guard << (int)user->GetUID();
-    SIG_LETTER_STAT* p = guard->GetInBuffer<SIG_LETTER_STAT>();
+    guard.operator*()->operator<<(0xc2);
+    guard.operator*()->operator<<((int)user->GetUID());
+    SIG_LETTER_STAT* p = guard.operator->()->GetInBuffer<SIG_LETTER_STAT>();
     p->m_characNo = (int)user->getCurCharacNo();
     p->m_mailIdx = mailIdx;
     p->m_state = (short)state;

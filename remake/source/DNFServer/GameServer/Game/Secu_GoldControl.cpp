@@ -23,11 +23,12 @@ struct SecuGoldView
 
 void DB_CheckCharacName::makeRequest(int uid, unsigned int accId, const char* charName, bool flag)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xa4f9);
-    CStreamGuard guard(stream, true);
-    guard << (int)0x2a2;
-    guard << uid;
-    SIG_CHECK_CHARAC_NAME* pkt = guard.GetInBuffer<SIG_CHECK_CHARAC_NAME>();
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xa4f9),
+                       true);
+    guard.operator*()->operator<<((int)0x2a2);   // op*(guard)→op<<(int)
+    guard.operator*()->operator<<(uid);          // op*(guard)→op<<(int)
+    SIG_CHECK_CHARAC_NAME* pkt =
+        guard.operator->()->GetInBuffer<SIG_CHECK_CHARAC_NAME>();
     *(unsigned int*)pkt = accId;
     if (charName != NULL && charName[0] != '\0')
     {

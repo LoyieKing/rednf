@@ -411,10 +411,10 @@ int TimerStamina::dispatch_sig(int p1, int p2, unsigned int p3)
     user->recover_stamina();
     user->IncCurCharacLuckPointUpdateTimeCount();
     const int updateCount = user->GetCurCharacLuckPointUpdateTimeCount();
-    CDataManager* data = G_CDataManager();
-    if (data->m_serverParameter.m_84 <= updateCount)
+    // P48 no-CSE：ORIG 每处 use 各自 fresh G_CDataManager()（m_84 / m_80 共 2 次）。
+    if (G_CDataManager()->m_serverParameter.m_84 <= updateCount)
     {
-        user->IncCurCharacLuckPoint(data->m_serverParameter.m_80);
+        user->IncCurCharacLuckPoint(G_CDataManager()->m_serverParameter.m_80);
         user->SetCurCharacLuckPointUpdateTimeCount(0);
     }
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, user->GetUID(),
@@ -1393,10 +1393,11 @@ int TimerUltimateNextRoundStart::dispatch_sig(int p1, int p2, unsigned int p3)
     }
     const int diff = field->getNextRoundRandomDifficulty();
     field->setUltimateDifficulty(static_cast<char>(diff));
-    const int roundOrder = static_cast<short>(field->m_bloodRound.getBloodRoundOrder());
-    if (roundOrder != field->getBloodMaxRound() - 1)
+    // P48 no-CSE：ORIG 两次 fresh getBloodRoundOrder()（比较用 + send 实参用）
+    if (static_cast<short>(field->m_bloodRound.getBloodRoundOrder()) != field->getBloodMaxRound() - 1)
     {
-        field->sendUltimateRandomDifficulty(roundOrder, diff);
+        field->sendUltimateRandomDifficulty(
+            static_cast<short>(field->m_bloodRound.getBloodRoundOrder()), diff);
     }
     field->startUltimateRound();
     return 1;

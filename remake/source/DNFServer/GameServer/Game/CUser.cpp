@@ -6567,14 +6567,16 @@ void CUser::master_new_skill(stBuySkillInfo& info, bool flag)
 // ORIG：GM 改成长类型。无角色/参数越界(0..5, 0..1) → 0 并 cerr 报错；
 // 否则 debugCheckGrowTypeSkill 校验 → set_grow_type(reason=2) →
 // _postCheckForceChangeGrowType 后处理，返回 1。
-void CUser::ChangeGrowType_GM(int a, int b)
+// 返回 int：ORIG 0x0867b048 尾 `mov eax,0x1; ret`、早退 `mov eax,0x0`
+// （Model22 桥清零实证；声明 CUser.h:3330 由 Main 代落）。
+int CUser::ChangeGrowType_GM(int a, int b)
 {
     if (getCurCharacR() == 0)
-        return;
+        return 0;
     if (a < 0 || a > 5 || b < 0 || b > 1)
     {
         std::cerr << "Invalid grow type , first :" << a << "second :" << b << std::endl;
-        return;
+        return 0;
     }
     int level = get_charac_level();
     // ORIG 0x0867b5f4：GetPremiumInfo() 转发后 getOverSkillLevel，不直读 m_premium
@@ -6584,6 +6586,7 @@ void CUser::ChangeGrowType_GM(int a, int b)
                                    get_charac_job(), a, b);
     set_grow_type((unsigned char)a, (unsigned char)b, 0, (eChangeGrowTypeReason)2);
     _postCheckForceChangeGrowType(this, a, b);
+    return 1;
 }
 
 // 0x0867b6d4

@@ -96,8 +96,8 @@ void WongWork::CDeathTowerRanking::registRanker(
 // ORIG T 0x08468594 (size 0x80) —— resetRanking.md
 void WongWork::CDeathTowerRanking::resetRanking()
 {
-    // asm: 外层 cmp $0x4/setle ⇒ i<=4；内层 cmp $0xc7/setbe ⇒ s<=199。
-    for (unsigned int i = 0; i < 5; ++i)
+    // asm: 外层 cmp $0x4/setle ⇒ i<=4（有符号，P2）；内层 cmp $0xc7/setbe ⇒ s<=199。
+    for (int i = 0; i < 5; ++i)
     {
         _getRankingTable(i)->clear();
         for (unsigned int s = 0; s < 200; ++s)

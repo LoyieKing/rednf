@@ -142,7 +142,7 @@ float expert_job::CAlchemist::GetItemUpgradeSuccessRate()
 // ============================================================================
 int getItemSellPrice(int price, int a, int b, bool flag)
 {
-    char sel = 0;
+    unsigned char sel = 0;
     if (flag)
     {
         sel = 2;

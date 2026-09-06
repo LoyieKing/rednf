@@ -50,7 +50,11 @@ Event_Upgrade_Jar::~Event_Upgrade_Jar()
 // 第一个参数 scriptDir 未使用（ORIG 仅用第二个）。
 bool Event_Upgrade_Jar::LoadScript(const char* /*scriptDir*/, const char* path)
 {
-    return importEventUpgradeJarScript(this, path) != 0;
+    // ORIG 0x080f49e0：importEventUpgradeJarScript(bool) 直返后保留 test %al,%al;je 分离
+    // （P101/P22：bool!=0 折叠为 call 直返，需 if 早返保留 test 块）。
+    if (!importEventUpgradeJarScript(this, path))
+        return 0;
+    return 1;
 }
 
 // ORIG 0x080f4bb0。条件：item[+0x02]==0x28be7d 且 item[+0x07]>=1。
@@ -112,7 +116,9 @@ void Event_Upgrade_Jar::CheckMaterialIndex(unsigned long index)
         return;
     }
 
-    for (unsigned int i = 0; i < m_materialIndices.size(); ++i)
+    // ORIG 0x080f4d20：循环比较为 (int)i < size()（Ghidra 明示），setg 有符号。
+    // 原 unsigned 生 seta 反符号（P196）。
+    for (int i = 0; i < (int)m_materialIndices.size(); ++i)
     {
         if (m_materialIndices[i] == index)
         {

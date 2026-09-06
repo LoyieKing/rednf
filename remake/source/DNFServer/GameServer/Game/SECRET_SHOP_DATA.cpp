@@ -70,11 +70,12 @@ int SECRET_SHOP_DATA::IsCompleteBuy()
 
 int SECRET_SHOP_DATA::IsOpen()
 {
-    if (m_openCode == 0 || m_openCode == 1000)
+    // ORIG: 两个 `je` 共指 return-0 岛（field==0 / ==1000），return-1 作 fall-through。
+    if (m_openCode != 0 && m_openCode != 1000)
     {
-        return 0;
+        return 1;
     }
-    return 1;
+    return 0;
 }
 
 void SECRET_SHOP_DATA::SetBuying(int idx, bool buy)

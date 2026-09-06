@@ -45,6 +45,7 @@
 #include "CInventory.h"         // CInventory/GetInvenRef/m_pEquipSlot/OS_API::snprintf/NumberToString
 #include "Inven_Item.h"         // Inven_Item（m_addInfo/m_addInfo2/reset）
 #include "CItem.h"              // CItem::IsAvatarItem(虚槽 vtbl+0x10)/getUsablePeriod
+#include "CStackableItem.h"     // CStackableItem::getStackableLimit（ORIG W 0x0822c9fc；is_stackable 守卫后下行转型真调用）
 #include "GameWorld.h"          // G_GameWorld/send_all/send_to_area/SendPowerUpList
 #include "PacketGuard.h"
 #include "LogManager.h"         // LogManager::logFormat
@@ -79,19 +80,21 @@ struct stBuySkillInfo
 };
 
 // ---------------------------------------------------------------------------
-// ORIG 返回 char 但当前权威头声明 void 的三个 CUser 方法——以 ORIG mangled
-// 直连取返回值口径（符号由其 owner TU 定义产出；owner 修正共享签名后可
-// 直接替换为成员调用）。同 DispDebugJoint4.cpp 先例。
-//   SetCharacLevel(int)           ORIG _ZN5CUser14SetCharacLevelEi
-//   SetSkillLevel(int,int)        ORIG _ZN5CUser13SetSkillLevelEii
-//   ChangeGrowType_GM(int,int)    ORIG _ZN5CUser18ChangeGrowType_GMEii
-// 另：CStackableItem::getStackableLimit ORIG W 0x0822c9fc（find_item 产物经
-// thunk 调用；CItem 无该非虚成员声明，按同 ABI 直连）。
+// b22 桥清零（P201 成员调用=栈参 shim 同形定理）：本 TU 原 extern"C" mangled
+// 直连四桥中三处已转真成员调用——
+//   SetCharacLevel   → user->SetCharacLevel(int)（CUser.h 权威 int 返回）
+//   SetSkillLevel    → user->SetSkillLevel(int,int)（返回型 void→int 经 Main
+//                      代落声明 + W7_UserOnlyC.cpp:457 定义同步，ORIG 尾
+//                      mov eax,0x1 实证）
+//   getStackableLimit→ static_cast<const CStackableItem*>(item)
+//                      ->getStackableLimit()（is_stackable 虚函数守卫保证下行
+//                      转型安全；ORIG 即以此 this 直调 CStackableItem 非虚成员）
+//   ChangeGrowType_GM  → user->ChangeGrowType_GM(int,int)（Main 代落声明
+//                      CUser.h:3330 int，定义 CUser.cpp:6572 同步；ORIG mangled
+//                      _ZN5CUser17ChangeGrowType_GMEii 中 E 为嵌套名终结符、
+//                      成员真名 ChangeGrowType_GM(17)）
+// 本 TU 四桥全清。
 // ---------------------------------------------------------------------------
-extern "C" int _ZN5CUser14SetCharacLevelEi(CUser* user, int level);
-extern "C" int _ZN5CUser13SetSkillLevelEii(CUser* user, int skillIdx, int level);
-extern "C" int _ZN5CUser17ChangeGrowType_GMEii(CUser* user, int kind, int value);
-extern "C" int _ZNK14CStackableItem17getStackableLimitEv(const CItem* item);
 
 // __PRETTY_FUNCTION__ / 日志字面串（照抄各报告原文）。
 static const char g_dbgCmdPrettyOn[] =
@@ -208,7 +211,7 @@ bool DisPatcher_DebugCommand::_debugCommandSetSkill(CUser* user, int skillIdx,
     bool isGm = user->isGMUser();               // +0x08
     if (isGm != 1)
         return false;
-    if (_ZN5CUser13SetSkillLevelEii(user, skillIdx, level) == 0)   // +0x38；ORIG test al
+    if (user->SetSkillLevel(skillIdx, level) == 0)   // +0x38；ORIG test al
         return false;
 
     char* accStr = NumberToString(user->get_acc_id(), 0);
@@ -270,9 +273,12 @@ bool DisPatcher_DebugCommand::_debugCommandAddItem(CUser* user,
     if (item != 0)                              // +0x7f
     {
         if (item->is_stackable() &&                              // +0x85 is_stackable
-            _ZNK14CStackableItem17getStackableLimitEv(item) < count)
+            static_cast<const CStackableItem*>(item)
+                    ->getStackableLimit() < count)
         {
-            count = _ZNK14CStackableItem17getStackableLimitEv(item);  // +0xaf 取上限
+            // +0xaf 取上限
+            count = static_cast<const CStackableItem*>(item)
+                        ->getStackableLimit();
         }
         if (item->IsAvatarItem())               // +0xbf vtbl+0x10 虚槽；avatar 类禁加
             return false;
@@ -321,7 +327,7 @@ bool DisPatcher_DebugCommand::_debugCommandSetGrowType(CUser* user, int kind,
         return false;                           // +0xe5 其余 kind 直接 ret 0
     }
 
-    if (_ZN5CUser17ChangeGrowType_GMEii(user, firstGrow, secondGrow) == 0)  // +0xef test al
+    if (user->ChangeGrowType_GM(firstGrow, secondGrow) == 0)  // +0xef test al
         return false;
 
     if (user->get_state() == 3)                 // +0x117
@@ -351,7 +357,7 @@ bool DisPatcher_DebugCommand::_debugCommandLevelUpDown(CUser* user, int delta)
     int candB = 200;                            // +0xbe $200
     // ORIG min<int>(&lv+delta, &$200) 取较小者 → SetCharacLevel
     int newLevel = std::min(candB, candA);
-    if (_ZN5CUser14SetCharacLevelEi(user, newLevel) != 1)   // +0xdc xor $1/test al 判成功
+    if (user->SetCharacLevel(newLevel) != 1)   // +0xdc xor $1/test al 判成功
         changed = false;
     if (changed)
     {

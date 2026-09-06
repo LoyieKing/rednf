@@ -339,11 +339,9 @@ int PvpUserTable::GradeFilter(int grade)
     {
         return 0x14;
     }
-    if (grade > 9)
-    {
-        return grade - 9;
-    }
-    return 0;
+    if (grade <= 9)        // ORIG: false-branch(return 0) 作 fall-through，grade-9 作跳岛
+        return 0;
+    return grade - 9;
 }
 
 void PvpUserTable::CheckDan()

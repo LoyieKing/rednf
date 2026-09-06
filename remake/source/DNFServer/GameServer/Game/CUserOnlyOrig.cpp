@@ -1329,12 +1329,11 @@ int CUser::check_multibox_error(int requiredEmptySlots)
     // IsCurCharacGhost/CheckInTrade/GetAssaultPlace/IsPVPChannel 四段已删
     // （ORIG 全 68 insn 内无对应 call，2026-09-05 CUserC8 objdump 全文核对）。
     register unsigned char r asm("eax");
-    bool hit = ((r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)1, requiredEmptySlots), r) ||
-         (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)2, requiredEmptySlots), r) ||
-         (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)3, requiredEmptySlots), r) ||
-         (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)10, requiredEmptySlots), r) ||
-         (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)5, requiredEmptySlots), r));
-    if (hit)
+    if ((r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)1, requiredEmptySlots), r) ||
+        (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)2, requiredEmptySlots), r) ||
+        (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)3, requiredEmptySlots), r) ||
+        (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)10, requiredEmptySlots), r) ||
+        (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)5, requiredEmptySlots), r))
         return 0x13;
     return 0;
 }

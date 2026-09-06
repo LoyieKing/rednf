@@ -1764,18 +1764,18 @@ int CPrivateStore::CheckTotalItemPrice()
         PrivateStoreItem& entry = m_items[i];
         if (entry.m_flag3d != 2)
             continue;
-        // ORIG +0x48 `cmpl $0x0,-0xc; sete %al; test %al,%al; je`：4.1 物化 ==
-        // 比较结果为 bool 再判（P22 技巧 22 register bool asm("al")，防 4.4 折
-        // cmpl;jne）。
-        register bool zero __asm__("al");
-        zero = (entry.m_field40 == 0);
-        if (zero)
+        if (entry.m_field40 == 0)
             return 0;
         CItem* pItem = 0;                          // ORIG +0x55 movl $0,-0xc
         register int addInfo asm("ebx");           // ORIG +0x5c..+0x62 mov 0x2(%eax),%eax; mov %eax,%ebx
         addInfo = (int)entry.m_item.m_addInfo;
         pItem = G_CDataManager()->find_item(addInfo);   // ORIG mov %ebx,0x4(%esp)
-        if (pItem == 0)
+        // ORIG +0x78 `cmpl $0x0,-0xc(%ebp); sete %al; test %al,%al; je`：4.1 把
+        // == 结果物化成 bool 再判（P22 技巧 22 register bool asm("al") 防 4.4
+        // 折成 cmpl;jne）。
+        register bool nullp __asm__("al");
+        nullp = (pItem == 0);
+        if (nullp)
             return 0;
         if (pItem->is_stackable())
         {

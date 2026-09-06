@@ -439,15 +439,20 @@ bool CheckStayTimeEvent::dispatch(int code, int uid, Stream* stream)
             int flag = 0;
             if (!db->get_int(0, flag))
                 throw "get_int";
-            if (flag != 0)
-                return 1;
-            // ORIG：update set_query 不检查，exec(true) 失败 throw
-            db->set_query(
-                "upDate event_stay_time_charac set reward_flag=1, reward_count=reward_count+1, mod_date=now() where m_id = %s",
-                NumberToString(sig->m_accId, 0));
-            if (!db->exec(true))
-                throw "update_exec";
-            sendStayTimeData(uid);
+            // ORIG 0x0815b5a1：`test; jne 0x2ce`（flag!=0 直跳 return 块），
+            // Ghidra `if (flag==0) { update } return 1`。原 `if(flag!=0)return 1`
+            // 被 4.4 反成 je+mov$1（+4 条）。改 flag==0 正入 update、return 1
+            // 统一走末尾（P59）。
+            if (flag == 0)
+            {
+                // ORIG：update set_query 不检查，exec(true) 失败 throw
+                db->set_query(
+                    "upDate event_stay_time_charac set reward_flag=1, reward_count=reward_count+1, mod_date=now() where m_id = %s",
+                    NumberToString(sig->m_accId, 0));
+                if (!db->exec(true))
+                    throw "update_exec";
+                sendStayTimeData(uid);
+            }
         }
         return 1;
     }

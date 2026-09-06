@@ -17528,9 +17528,10 @@ int Dispatcher_CheckAssaultMotionHack::dispatch_sig(CUser* user, PacketBuf& pack
     }
 
     // 职业 == 3，或 ==4 且初生 growtype == 2 → 系数 0.5，否则 0.8（截断转换）
-    const int job = user->get_charac_job();
+    // ORIG 每次测试重读 get_charac_job（P48 无 CSE）。
     const bool half =
-        (job == 3) || (job == 4 && user->getCurCharFirstGrowType() == 2);
+        (user->get_charac_job() == 3) ||
+        (user->get_charac_job() == 4 && user->getCurCharFirstGrowType() == 2);
     if (half)
         moveCnt = (unsigned int)((double)(unsigned long long)moveCnt * 0.5);
     else
@@ -21977,8 +21978,8 @@ int Dispatcher_EventCreateDnfRequest::dispatch_sig(CUser* user, PacketBuf& packe
     {
         return 0;
     }
-    int st = user->get_state();
-    if (st < 3 || st > 4)
+    // ORIG：<3 与 >4 各重读一次 get_state（P48 无 CSE）。
+    if (user->get_state() < 3 || user->get_state() > 4)
     {
         return 0;
     }
@@ -23592,15 +23593,17 @@ int Dispatcher_PartyTeleport::process(CUser* user, MSG_BASE& msg, ParamBase& par
         err = 0x13;
         return 0;
     }
-    CPartyTelePort* tp =
-        static_cast<CPartyTelePort*>(party->GetPartyTelePort());   // void* → 类视图
-    tp->set_teleport_data(req.m_field0d, req.m_field0e,
-                          static_cast<short>(req.m_field0f),
-                          static_cast<short>(req.m_field11),
-                          req.m_field13, '\0');
+    // ORIG：每次操作重取 GetPartyTelePort（P48 无 CSE）。
+    static_cast<CPartyTelePort*>(party->GetPartyTelePort())
+        ->set_teleport_data(req.m_field0d, req.m_field0e,
+                            static_cast<short>(req.m_field0f),
+                            static_cast<short>(req.m_field11),
+                            req.m_field13, '\0');
     int slot = static_cast<int>(party->GetMemberSlotNo(user));
-    tp->set_teleport_member_state(slot, 1);
-    tp->check_cur_teleport_state();
+    static_cast<CPartyTelePort*>(party->GetPartyTelePort())
+        ->set_teleport_member_state(slot, 1);
+    static_cast<CPartyTelePort*>(party->GetPartyTelePort())
+        ->check_cur_teleport_state();
     return 0;
 }
 
