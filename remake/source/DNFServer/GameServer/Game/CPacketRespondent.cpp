@@ -155,8 +155,8 @@ void CPacketRespondent::MakeNotipacketRenameCreature(const char* name, int len)
 {
     clear();
     put_header(0, 0x65);
-    unsigned short uid16 = (unsigned short)m_user->get_unique_id();
-    put_short((int)uid16);
+    // ORIG 0x8340738：call 结果寄存器直取 movzwl %ax ⇒ 无具名 uid16 局部（P0 槽律）。
+    put_short((int)(unsigned short)m_user->get_unique_id());
     put_int(len);
     put_str(name, len);
     finalize(true);
@@ -168,8 +168,8 @@ void CPacketRespondent::MakeNotipacketDiedCreature()
 {
     clear();
     put_header(0, 0x64);
-    unsigned short uid16 = (unsigned short)m_user->get_unique_id();
-    put_short((int)uid16);
+    // ORIG 0x8340738：call 结果寄存器直取 movzwl %ax ⇒ 无具名 uid16 局部（P0 槽律）。
+    put_short((int)(unsigned short)m_user->get_unique_id());
     finalize(true);
 }
 
@@ -210,8 +210,8 @@ void CPacketRespondent::MakeNotipacketEvoluteCreature(int slot)
     clear();
     put_header(0, 0x6a);
     put_byte(slot);
-    unsigned short uid16 = (unsigned short)m_user->get_unique_id();
-    put_short((int)uid16);
+    // ORIG 0x8340738：call 结果寄存器直取 movzwl %ax ⇒ 无具名 uid16 局部（P0 槽律）。
+    put_short((int)(unsigned short)m_user->get_unique_id());
     finalize(true);
 }
 
@@ -221,8 +221,8 @@ void CPacketRespondent::MakeNotipacketRevivalCreature()
 {
     clear();
     put_header(0, 0x6b);
-    unsigned short uid16 = (unsigned short)m_user->get_unique_id();
-    put_short((int)uid16);
+    // ORIG 0x8340738：call 结果寄存器直取 movzwl %ax ⇒ 无具名 uid16 局部（P0 槽律）。
+    put_short((int)(unsigned short)m_user->get_unique_id());
     finalize(true);
 }
 
@@ -243,8 +243,8 @@ void CPacketRespondent::MakeNotipacketResponseCreature()
 {
     clear();
     put_header(0, 0x68);
-    unsigned short uid16 = (unsigned short)m_user->get_unique_id();
-    put_short((int)uid16);
+    // ORIG 0x8340738：call 结果寄存器直取 movzwl %ax ⇒ 无具名 uid16 局部（P0 槽律）。
+    put_short((int)(unsigned short)m_user->get_unique_id());
     finalize(true);
 }
 
