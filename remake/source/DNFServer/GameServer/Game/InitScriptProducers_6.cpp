@@ -180,12 +180,12 @@ typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
 
 int getGrowTypeIndex(const char* name)
 {
+    int idx = -1;                     // ORIG 首指令 movl $0xffff,-0x20
     for (;;)
     {
         static GrowTypeMap __lookup;  // ORIG ...E8__lookup
         static SpinLock __init_lock;                             // ORIG ...E11__init_lock
         static bool __inited = false;                            // ORIG ...E8__inited
-        int idx;
         if (!__inited)
         {
             __init_lock.enter();

@@ -79,8 +79,12 @@ void CHackLog_OverDamage::GetDungeonLimitDamageAndHackType(
 {
     if (user == 0)
         return;
-    CParty* party = static_cast<CParty*>(user->GetParty());
-    if (party == 0 || party->m_battleField.m_pDungeon == 0)
+    // ORIG 0x0828679e-0x082868a0：guard 与**每处字段使用点都重新 call
+    // GetParty()+mov 0xcac**（共 5 次，无 party 局部缓存，P160/P172）；
+    // guard 的 dungeon 判空复用同一 call 的 eax（test 直连）。
+    if (user->GetParty() == 0)
+        return;
+    if (static_cast<CParty*>(user->GetParty())->m_battleField.m_pDungeon == 0)
         return;
     int level = user->get_charac_level();
     if (level < 1)
@@ -88,46 +92,40 @@ void CHackLog_OverDamage::GetDungeonLimitDamageAndHackType(
 
     int sectionIdx = 6;                       // ORIG local_30 初值
     double ratio = 1.0;                       // ORIG local_2c 初值
-    int lvDelta = level -
-                  party->m_battleField.m_pDungeon->get_min_level();   // ORIG local_20
+    int lvDelta = level - static_cast<CParty*>(user->GetParty())
+                           ->m_battleField.m_pDungeon->get_min_level();   // ORIG local_20
     if (lvDelta < 0)
         lvDelta = 0;
     double divisor = 1.0;                     // ORIG local_1c 初值
 
-    int dungeonIndex = party->m_battleField.m_pDungeon->get_index();
-    if (dungeonIndex != 11000)                // ORIG 0x2af8
+    int dungeonIndex = static_cast<CParty*>(user->GetParty())
+                               ->m_battleField.m_pDungeon->get_index();
+    // ORIG 0x0828684d-0x082868a2：switch(dungeonIndex) 二分树
+    // （cmp 0x2af8 双试 je/jg + cmp 0x64/0x2af9/0x2afe），**所有 case 汇聚
+    // 同一 LAB_0828692e 尾计算块**（旧形把 limit/type 算块复制了两份）。
+    switch (dungeonIndex)
     {
-        if (dungeonIndex == 100 || dungeonIndex == 0x2af9 ||
-            dungeonIndex == 0x2afe)
-        {
-            // ratio 保持初始 1.0 直达 LAB_0828692e
-            // （dungeonIndex==100 汇编落于中段分支会改写 ratio——见下）
-            if (dungeonIndex == 100)
-            {
-                // ratio 值未进入下方默认分支前的改写路径（ORIG +0x0eb..+0x10d
-                // 与默认分支共用同一 DUNGEON_RATIO 表查询形态）：
-                CBattle_Field& field =
-                    *reinterpret_cast<CBattle_Field*>(&party->m_battleField);
-                ratio = _S_KILL_MONSTER_OVER_DAMAGE_DUNGEON_RATIO[field.get_dungeon_diff()];
-            }
-            limit = static_cast<unsigned int>(
-                static_cast<long long>(
-                    static_cast<double>(_S_KILL_MONSTER_OVER_DAMAGE_CONST[sectionIdx]) *
-                    ratio * divisor));
-            type = static_cast<WongWork::ENUM_HACKTYPE>(
-                _S_KILL_MONSTER_OVER_DAMAGE_HACK_TYPE[sectionIdx]);
-            return;
-        }
+    case 100:
+        ratio = _S_KILL_MONSTER_OVER_DAMAGE_DUNGEON_RATIO[
+            reinterpret_cast<CBattle_Field*>(
+                &static_cast<CParty*>(user->GetParty())->m_battleField)->get_dungeon_diff()];
+        break;                              // → 尾（ORIG +0xeb..+0x0d jmp 19e）
+    case 11000:
+    case 0x2af9:
+    case 0x2afe:
+        break;                              // ratio/divisor 保持初值直达尾
+    default:
         divisor = static_cast<double>(lvDelta / 20);
         if (divisor < 1.0)
             divisor = 1.0;
         int lvKey = level - 1;
-        if (lvKey < 0)                        // movzbl/not/and 形态 = max(0)
+        if (lvKey < 0)                      // movzbl/not/and 形态 = max(0)
             lvKey = 0;
         sectionIdx = LEVEL_SECTION_TABLE[lvKey];
-        CBattle_Field& field =
-            *reinterpret_cast<CBattle_Field*>(&party->m_battleField);
-        ratio = _S_KILL_MONSTER_OVER_DAMAGE_DUNGEON_RATIO[field.get_dungeon_diff()];
+        ratio = _S_KILL_MONSTER_OVER_DAMAGE_DUNGEON_RATIO[
+            reinterpret_cast<CBattle_Field*>(
+                &static_cast<CParty*>(user->GetParty())->m_battleField)->get_dungeon_diff()];
+        break;
     }
 
     limit = static_cast<unsigned int>(
