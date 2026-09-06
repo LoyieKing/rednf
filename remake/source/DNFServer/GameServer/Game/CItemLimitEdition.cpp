@@ -48,11 +48,12 @@ void CItemLimitEdition::makeInfoPacket(PacketGuard& packet) const
     buf->put_int(m_curSellNum);                  // +0x48
     buf->put_int(m_totalSellNum);                // +0x1c
     buf->put_int(m_featuredIdx);                 // +0x20
-    // ORIG 0x085131bb..0x0851320b：售罄剩余时间 = sellEndTime - now（若 >0），否则 0。
-    int remain = 0;
-    if (GlobalData::s_systemTime_.getCurSec() < m_sellEndTime)
-        remain = m_sellEndTime - GlobalData::s_systemTime_.getCurSec();
-    buf->put_int(remain);                        // 剩余时间（原该位置 put_int(+0x28) 计算值）
+    // ORIG 0x085131bb..0x0851320b：售罄剩余时间逐分支各 fresh put_int（now>=sellEnd
+    // 则 put_int(0)，否则 put_int(sellEnd - now)）；非合并后单 put_int。
+    if (GlobalData::s_systemTime_.getCurSec() >= m_sellEndTime)
+        buf->put_int(0);                         // ORIG 85131e4
+    else
+        buf->put_int(m_sellEndTime - GlobalData::s_systemTime_.getCurSec()); // ORIG 851320b
     buf->put_int(m_field2c);                     // +0x2c
     buf->put_byte(m_condCharacJob);              // +0x30
     buf->put_short((int)m_condCharacLevelBegin); // +0x34

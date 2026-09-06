@@ -9016,10 +9016,22 @@ bool DB_LoadExpertJob::dispatch(int userIdx, int slot, Stream* stream)
         SIG_EXPERT_JOB* sig =
             guard.operator->()->GetInBuffer<SIG_EXPERT_JOB>();
         memset(sig, 0, 0x30);
-        if (!db->get_ushort(0, sig->m_giveupCount) ||
-            !db->get_int(1, sig->m_endurance) ||
-            !db->get_int(2, sig->m_enchantCount) ||
-            !db->get_binary(3, sig->m_recipeFlag, 0x1e))
+        if (!db->get_ushort(0, sig->m_giveupCount))
+        {
+            GlobalData::s_stream_pool->Free(guard);
+            return 0;
+        }
+        if (!db->get_int(1, sig->m_endurance))
+        {
+            GlobalData::s_stream_pool->Free(guard);
+            return 0;
+        }
+        if (!db->get_int(2, sig->m_enchantCount))
+        {
+            GlobalData::s_stream_pool->Free(guard);
+            return 0;
+        }
+        if (!db->get_binary(3, sig->m_recipeFlag, 0x1e))
         {
             GlobalData::s_stream_pool->Free(guard);
             return 0;
@@ -19006,7 +19018,8 @@ bool DB_MailBoxSendNewMailWithDBWork::dispatch(int userIdx, int slot,
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   E_SERVER_GROUP_NONE);
     DB_MailBoxSendNewMailView* sig =
-        stream->GetOutBuffer<DB_MailBoxSendNewMailView>();
+        reinterpret_cast<DB_MailBoxSendNewMailView*>(
+            stream->GetOutBuffer<SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK>());
     char mailBuf[0x168];
     memset(mailBuf, 0, sizeof(mailBuf));
     DB_MailSendDataView* buf = reinterpret_cast<DB_MailSendDataView*>(mailBuf);

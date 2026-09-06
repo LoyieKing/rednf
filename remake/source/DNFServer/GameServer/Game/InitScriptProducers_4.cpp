@@ -48,34 +48,14 @@
 #include "NpcScript.h"
 
 class STScriptFileList;
-int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
-                           const char* listPath, std::map<int, int>* map);
+// bool 视图声明（P22：ORIG init* 尾 xor $1,%eax;test %al 为 bool 取反形；
+// 返回类型不入 mangled，链接 STScriptFileList.cpp 的 int 定义恒 0/1，ABI 兼容）。
+bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
+                            const char* listPath, std::map<int, int>* map);
 
 // ---- STScriptFileList（布局权威：STScriptFileList.cpp 同名本地类，
 //      sizeof 0x18 = std::map<int,std::string>；ORIG ctor 0x088bacf8）----
 
-
-namespace
-{
-
-// ORIG 各 Init* 共同尾模式：strlen 后检查末字节，非 '\' 且非 '/' 则
-// memcpy(dir+strlen, "\\", 2)。空串直接跳过（对齐 STQuestScript.cpp 先例）。
-void AppendDirSeparator(char* dir)
-{
-    size_t len = strlen(dir);
-    if (len == 0)
-    {
-        return;
-    }
-    char last = dir[len - 1];
-    if (last != '\\' && last != '/')
-    {
-        dir[len] = '\\';
-        dir[len + 1] = '\0';
-    }
-}
-
-}  // namespace
 
 // ===================== 地图脚本域（InitMapScript）=====================
 
@@ -87,9 +67,19 @@ std::map<int, std::string> g_stMapScriptFileList;   // 布局同 STScriptFileLis
 bool InitMapScript(const char* dir, const char* list)
 {
     strncpy(g_szMapScriptBaseDirectory, dir, 0x100);
-    AppendDirSeparator(g_szMapScriptBaseDirectory);
-    return loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stMapScriptFileList),
-                                  g_szMapScriptBaseDirectory, list, 0) != 0;
+    // P49 禁 TU helper（原 AppendDirSeparator 属发明符号）：按 ORIG 汇编内联
+    // strlen×3 + memcpy 2B "\\"，无空串防御（ORIG len==0 读 buf[-1] 原始 UB，P140）。
+    if (g_szMapScriptBaseDirectory[strlen(g_szMapScriptBaseDirectory) - 1] != '\\' &&
+        g_szMapScriptBaseDirectory[strlen(g_szMapScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_szMapScriptBaseDirectory + strlen(g_szMapScriptBaseDirectory), "\\", 2);
+    }
+    if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stMapScriptFileList),
+                                g_szMapScriptBaseDirectory, list, 0))
+    {
+        return 0;
+    }
+    return 1;
 }
 
 // ORIG B 0x94ff2a0 [0x100] / B 0x94ff3a0 [0x18]
@@ -100,10 +90,18 @@ std::map<int, std::string> g_stPassiveObjectScriptFileList;   // 布局同 STScr
 bool InitPassiveObjectScript(const char* dir, const char* list)
 {
     strncpy(g_szPassiveObjectScriptBaseDirectory, dir, 0x100);
-    AppendDirSeparator(g_szPassiveObjectScriptBaseDirectory);
-    return loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stPassiveObjectScriptFileList),
-                                  g_szPassiveObjectScriptBaseDirectory,
-                                  list, 0) != 0;
+    if (g_szPassiveObjectScriptBaseDirectory[strlen(g_szPassiveObjectScriptBaseDirectory) - 1] != '\\' &&
+        g_szPassiveObjectScriptBaseDirectory[strlen(g_szPassiveObjectScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_szPassiveObjectScriptBaseDirectory + strlen(g_szPassiveObjectScriptBaseDirectory), "\\", 2);
+    }
+    if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stPassiveObjectScriptFileList),
+                                g_szPassiveObjectScriptBaseDirectory,
+                                list, 0))
+    {
+        return 0;
+    }
+    return 1;
 }
 
 // ORIG 0x08a3c5c2（0xbb 字节）：与 2 参数版同构，仅把 map 透传
@@ -112,10 +110,18 @@ bool InitPassiveObjectScript(const char* dir, const char* list)
 bool InitPassiveObjectScript(const char* dir, const char* list, std::map<int, int>* map)
 {
     strncpy(g_szPassiveObjectScriptBaseDirectory, dir, 0x100);
-    AppendDirSeparator(g_szPassiveObjectScriptBaseDirectory);
-    return loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stPassiveObjectScriptFileList),
-                                  g_szPassiveObjectScriptBaseDirectory,
-                                  list, map) != 0;
+    if (g_szPassiveObjectScriptBaseDirectory[strlen(g_szPassiveObjectScriptBaseDirectory) - 1] != '\\' &&
+        g_szPassiveObjectScriptBaseDirectory[strlen(g_szPassiveObjectScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_szPassiveObjectScriptBaseDirectory + strlen(g_szPassiveObjectScriptBaseDirectory), "\\", 2);
+    }
+    if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stPassiveObjectScriptFileList),
+                                g_szPassiveObjectScriptBaseDirectory,
+                                list, map))
+    {
+        return 0;
+    }
+    return 1;
 }
 
 // ===================== 地下城脚本域（InitDungeonScript）=============
@@ -129,9 +135,17 @@ std::map<int, std::string> g_questScriptFileList;       // ORIG 0x9500480（CLis
 bool InitDungeonScript(char* dir, char* list)
 {
     strncpy(g_szDungeonScriptBaseDirectory, dir, 0x100);
-    AppendDirSeparator(g_szDungeonScriptBaseDirectory);
-    return loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stDungeonScriptFileList),
-                                  g_szDungeonScriptBaseDirectory, list, 0) != 0;
+    if (g_szDungeonScriptBaseDirectory[strlen(g_szDungeonScriptBaseDirectory) - 1] != '\\' &&
+        g_szDungeonScriptBaseDirectory[strlen(g_szDungeonScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_szDungeonScriptBaseDirectory + strlen(g_szDungeonScriptBaseDirectory), "\\", 2);
+    }
+    if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stDungeonScriptFileList),
+                                g_szDungeonScriptBaseDirectory, list, 0))
+    {
+        return 0;
+    }
+    return 1;
 }
 
 // ===================== 技能脚本域（InitSkillScript）=================
@@ -148,7 +162,11 @@ std::map<int, std::string> g_staSkillScriptFileList[11];   // 元素布局同 ST
 bool InitSkillScript(const char* dir, const char* list)
 {
     strncpy(g_szSkillScriptBaseDirectory, dir, 0x100);
-    AppendDirSeparator(g_szSkillScriptBaseDirectory);
+    if (g_szSkillScriptBaseDirectory[strlen(g_szSkillScriptBaseDirectory) - 1] != '\\' &&
+        g_szSkillScriptBaseDirectory[strlen(g_szSkillScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_szSkillScriptBaseDirectory + strlen(g_szSkillScriptBaseDirectory), "\\", 2);
+    }
 
     STScriptFileList files;
     if (!loadRDARScriptListFile(&files, g_szSkillScriptBaseDirectory, list, 0))
@@ -190,7 +208,11 @@ bool InitEquipmentScript(const char* dir, const char* list,
                          const char* priceTable)
 {
     strncpy(g_szEquipmentScriptBaseDirectory, dir, 0x100);
-    AppendDirSeparator(g_szEquipmentScriptBaseDirectory);
+    if (g_szEquipmentScriptBaseDirectory[strlen(g_szEquipmentScriptBaseDirectory) - 1] != '\\' &&
+        g_szEquipmentScriptBaseDirectory[strlen(g_szEquipmentScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_szEquipmentScriptBaseDirectory + strlen(g_szEquipmentScriptBaseDirectory), "\\", 2);
+    }
 
     if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stEquipmentScriptFileList),
                                 g_szEquipmentScriptBaseDirectory, list, 0))
@@ -231,7 +253,11 @@ bool InitStackableScript(const char* dir, const char* list,
                          const char* priceTable)
 {
     strncpy(g_szStackableScriptBaseDirectory, dir, 0x100);
-    AppendDirSeparator(g_szStackableScriptBaseDirectory);
+    if (g_szStackableScriptBaseDirectory[strlen(g_szStackableScriptBaseDirectory) - 1] != '\\' &&
+        g_szStackableScriptBaseDirectory[strlen(g_szStackableScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_szStackableScriptBaseDirectory + strlen(g_szStackableScriptBaseDirectory), "\\", 2);
+    }
 
     if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stStackableScriptFileList),
                                 g_szStackableScriptBaseDirectory, list, 0))
@@ -272,17 +298,21 @@ bool InitCharacterScript(const char* dir, const char* list,
                          const char* expTable, const char* pvpPriceTable)
 {
     strncpy(g_szCharacterScriptBaseDirectory, dir, 0x100);
-    AppendDirSeparator(g_szCharacterScriptBaseDirectory);
+    if (g_szCharacterScriptBaseDirectory[strlen(g_szCharacterScriptBaseDirectory) - 1] != '\\' &&
+        g_szCharacterScriptBaseDirectory[strlen(g_szCharacterScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_szCharacterScriptBaseDirectory + strlen(g_szCharacterScriptBaseDirectory), "\\", 2);
+    }
 
     if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_stCharacterScriptFileList),
                                 g_szCharacterScriptBaseDirectory, list, 0))
-        return false;
+        return 0;
 
     for (int i = 0; i <= 199; ++i)          // ORIG cmpl $0xc7,setle
         STCharacterScript::naExpTable[i] = 0;
 
     if (!loadRDARScriptFile(g_szCharacterScriptBaseDirectory, expTable))
-        return false;
+        return 0;
     for (int i = 0; i <= 199; ++i)
         STCharacterScript::naExpTable[i] = ScanInt((bool*)0);
 
@@ -292,11 +322,11 @@ bool InitCharacterScript(const char* dir, const char* list,
             STCharacterScript::pvpPrices_[i] = 0;
         if (!loadRDARScriptFile(g_szCharacterScriptBaseDirectory,
                                 pvpPriceTable))
-            return false;
+            return 0;
         for (int i = 0; i <= 199; ++i)
             STCharacterScript::pvpPrices_[i] = ScanInt((bool*)0);
     }
-    return true;
+    return 1;
 }
 
 // ===================== 怪物脚本域（InitMonsterScript）===============

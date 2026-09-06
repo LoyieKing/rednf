@@ -211,7 +211,7 @@ bool DB_LoadCerashopAddRestrictType::dispatch(int /*param1*/, int param2,
         guard.operator*()->operator<<(0x341);   // SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE
         guard.operator*()->operator<<(param2);
         SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE* sig =
-            guard.GetInBuffer<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE>();
+            guard.operator->()->GetInBuffer<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE>();
         *(int*)sig = nRows;               // +0x00 count
         *(int*)((char*)sig + 4) = 0;      // +0x04 type = account
         for (int i = 0; i < nRows; ++i) {
@@ -248,7 +248,7 @@ bool DB_LoadCerashopAddRestrictType::dispatch(int /*param1*/, int param2,
         guard.operator*()->operator<<(0x341);
         guard.operator*()->operator<<(param2);
         SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE* sig =
-            guard.GetInBuffer<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE>();
+            guard.operator->()->GetInBuffer<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE>();
         *(int*)sig = nRows;               // +0x00 count
         *(int*)((char*)sig + 4) = 1;      // +0x04 type = charac
         for (int i = 0; i < nRows; ++i) {

@@ -140,8 +140,8 @@ int GenuineDamageUpgradeTable::getGenuineUpgradeDamage(ENUM_RARITY rarity, int a
         return 0;
     }
 
-    GenuineDamageUpgradeInfo& info = m_infos[key];   // operator[]（可插入默认行）
-    const int multiplier = useAlt ? info.m_b : info.m_a;
+    // P48 no-CSE：ORIG 三元两分支各 fresh m_infos[key]（operator[] 共 2 次）。
+    const int multiplier = useAlt ? m_infos[key].m_b : m_infos[key].m_a;
 
     float result =
         m_statWeightsByRarity[static_cast<int>(rarity)] *

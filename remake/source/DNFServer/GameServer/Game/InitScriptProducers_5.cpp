@@ -45,9 +45,10 @@
                                      //   其余重类型声明，仅借签名一致性）
 
 // ORIG 0x088bbd77 _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIii..
-// 定义 STScriptFileList.cpp（int：1=成功 / 0=失败；第 4 参未使用）。
-int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
-                           const char* listPath, std::map<int, int>* unused);
+// 定义 STScriptFileList.cpp（int：恒 0/1；第 4 参未使用）。bool 视图声明：
+// P22（ORIG init* 尾 xor $1,%eax;test %al 为 bool 取反形；返回不入 mangled）。
+bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
+                            const char* listPath, std::map<int, int>* unused);
 
 // ---- ORIG 全局（定义于各自权威 TU；本 TU extern 引用）----
 extern char g_expertJobScriptBaseDirectory[0x100];   // B 0x094f7660  CExpertJobList.cpp
@@ -90,23 +91,6 @@ std::map<std::string, STEquipmentAniScript>* g_mapEquipmentAniScript = 0;  // B 
 int CreatureScript::ExpTable_[0x63];
 
 // ============================================================================
-// 目录拷贝辅助（TU 内部 static；各 init* objdump 同构段合并，语义逐条对应：
-//   strncpy(dst, src, n); len=strlen(dst);
-//   if (dst[len-1] != 0x5c && dst[len-1] != 0x2f) memcpy(dst+len, "\\", 2);
-// 字面量 "\\" 取证：expertjob 0x8e13d1a / creature 0x8e1df2d /
-// aiCharacter 0x8e09826 / eventCharacter 0x8e12300 / itemShop 0x8e1a581 /
-// pvpMission 0x8e24a20 / pvpSkillTree 0x8e250c0 / chatEmoticon 0x8e0c560 /
-// independentDrop 0x8e14c80 / stageMap 0x8e061a1 / worldMap 0x8e2bd61 —— 均为 '\'。
-// ============================================================================
-static void CopyScriptBaseDirectory(char* dst, const char* src, int maxCopy)
-{
-    strncpy(dst, src, maxCopy);
-    int len = strlen(dst);
-    if (dst[len - 1] != 0x5c && dst[len - 1] != 0x2f)
-        memcpy(dst + len, "\\", 2);
-}
-
-// ============================================================================
 // initExpertJobScript —— ORIG 0x0896d830（init.md:524 +0x0a44 调用点，
 // 失败路径 TRACE "Load expertjob.lst fail" 0x1982 区）。
 //   strncpy(g_expertJobScriptBaseDirectory(0x94f7660), dir, 0x100) + 追加 '\\'
@@ -116,9 +100,18 @@ static void CopyScriptBaseDirectory(char* dst, const char* src, int maxCopy)
 // ============================================================================
 bool initExpertJobScript(char* dir, char* list)
 {
-    CopyScriptBaseDirectory(g_expertJobScriptBaseDirectory, dir, 0x100);
-    return loadRDARScriptListFile(&g_expertJobScriptFileList,
-                                  g_expertJobScriptBaseDirectory, list, 0) != 0;
+    strncpy(g_expertJobScriptBaseDirectory, dir, 0x100);
+    // P49 禁 TU helper（原 CopyScriptBaseDirectory 属发明符号）：内联 strlen×3
+    // + memcpy 2B "\\"（字面量 0x8e13d1a）；无空串防御（ORIG len==0 UB，P140）。
+    if (g_expertJobScriptBaseDirectory[strlen(g_expertJobScriptBaseDirectory) - 1] != '\\' &&
+        g_expertJobScriptBaseDirectory[strlen(g_expertJobScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_expertJobScriptBaseDirectory + strlen(g_expertJobScriptBaseDirectory), "\\", 2);
+    }
+    if (!loadRDARScriptListFile(&g_expertJobScriptFileList,
+                                g_expertJobScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -127,9 +120,16 @@ bool initExpertJobScript(char* dir, char* list)
 // ============================================================================
 bool initAICharacterScript(const char* dir, const char* list)
 {
-    CopyScriptBaseDirectory(g_aiCharacterScriptBaseDirectory, dir, 0x100);
-    return loadRDARScriptListFile(&g_aiCharacterScriptFileList,
-                                  g_aiCharacterScriptBaseDirectory, list, 0) != 0;
+    strncpy(g_aiCharacterScriptBaseDirectory, dir, 0x100);
+    if (g_aiCharacterScriptBaseDirectory[strlen(g_aiCharacterScriptBaseDirectory) - 1] != '\\' &&
+        g_aiCharacterScriptBaseDirectory[strlen(g_aiCharacterScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_aiCharacterScriptBaseDirectory + strlen(g_aiCharacterScriptBaseDirectory), "\\", 2);
+    }
+    if (!loadRDARScriptListFile(&g_aiCharacterScriptFileList,
+                                g_aiCharacterScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -138,9 +138,16 @@ bool initAICharacterScript(const char* dir, const char* list)
 // ============================================================================
 bool initEventCharacterScript(char* dir, char* list)
 {
-    CopyScriptBaseDirectory(g_eventCharacterScriptBaseDirectory, dir, 0x100);
-    return loadRDARScriptListFile(&g_eventCharacterScriptFileList,
-                                  g_eventCharacterScriptBaseDirectory, list, 0) != 0;
+    strncpy(g_eventCharacterScriptBaseDirectory, dir, 0x100);
+    if (g_eventCharacterScriptBaseDirectory[strlen(g_eventCharacterScriptBaseDirectory) - 1] != '\\' &&
+        g_eventCharacterScriptBaseDirectory[strlen(g_eventCharacterScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_eventCharacterScriptBaseDirectory + strlen(g_eventCharacterScriptBaseDirectory), "\\", 2);
+    }
+    if (!loadRDARScriptListFile(&g_eventCharacterScriptFileList,
+                                g_eventCharacterScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -150,9 +157,16 @@ bool initEventCharacterScript(char* dir, char* list)
 // ============================================================================
 bool initItemShopScript(char* dir, char* list)
 {
-    CopyScriptBaseDirectory(g_itemShopScriptBaseDirectory, dir, 0x100);
-    return loadRDARScriptListFile(&g_itemShopScriptFileList,
-                                  g_itemShopScriptBaseDirectory, list, 0) != 0;
+    strncpy(g_itemShopScriptBaseDirectory, dir, 0x100);
+    if (g_itemShopScriptBaseDirectory[strlen(g_itemShopScriptBaseDirectory) - 1] != '\\' &&
+        g_itemShopScriptBaseDirectory[strlen(g_itemShopScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_itemShopScriptBaseDirectory + strlen(g_itemShopScriptBaseDirectory), "\\", 2);
+    }
+    if (!loadRDARScriptListFile(&g_itemShopScriptFileList,
+                                g_itemShopScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -162,9 +176,16 @@ bool initItemShopScript(char* dir, char* list)
 // ============================================================================
 bool initPvpMissionSystem(char* dir, char* list)
 {
-    CopyScriptBaseDirectory(g_PvpMissionScriptBaseDirectory, dir, 0xff);
-    return loadRDARScriptListFile(&g_PvpMissionScriptFileList,
-                                  g_PvpMissionScriptBaseDirectory, list, 0) != 0;
+    strncpy(g_PvpMissionScriptBaseDirectory, dir, 0xff);
+    if (g_PvpMissionScriptBaseDirectory[strlen(g_PvpMissionScriptBaseDirectory) - 1] != '\\' &&
+        g_PvpMissionScriptBaseDirectory[strlen(g_PvpMissionScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_PvpMissionScriptBaseDirectory + strlen(g_PvpMissionScriptBaseDirectory), "\\", 2);
+    }
+    if (!loadRDARScriptListFile(&g_PvpMissionScriptFileList,
+                                g_PvpMissionScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -174,9 +195,16 @@ bool initPvpMissionSystem(char* dir, char* list)
 // ============================================================================
 bool initPvPSkillTreeScript(char* dir, char* list)
 {
-    CopyScriptBaseDirectory(g_pvpSkillTreeScriptBaseDirectory, dir, 0xff);
-    return loadRDARScriptListFile(&g_pvpSkillTreeScriptFileList,
-                                  g_pvpSkillTreeScriptBaseDirectory, list, 0) != 0;
+    strncpy(g_pvpSkillTreeScriptBaseDirectory, dir, 0xff);
+    if (g_pvpSkillTreeScriptBaseDirectory[strlen(g_pvpSkillTreeScriptBaseDirectory) - 1] != '\\' &&
+        g_pvpSkillTreeScriptBaseDirectory[strlen(g_pvpSkillTreeScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_pvpSkillTreeScriptBaseDirectory + strlen(g_pvpSkillTreeScriptBaseDirectory), "\\", 2);
+    }
+    if (!loadRDARScriptListFile(&g_pvpSkillTreeScriptFileList,
+                                g_pvpSkillTreeScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -186,9 +214,16 @@ bool initPvPSkillTreeScript(char* dir, char* list)
 // ============================================================================
 bool initChattingEmoticonScriptList(char* dir, char* list)
 {
-    CopyScriptBaseDirectory(g_ChattingEmoticonScriptBaseDirectory, dir, 0xff);
-    return loadRDARScriptListFile(&g_ChattingEmoticonScriptFileList,
-                                  g_ChattingEmoticonScriptBaseDirectory, list, 0) != 0;
+    strncpy(g_ChattingEmoticonScriptBaseDirectory, dir, 0xff);
+    if (g_ChattingEmoticonScriptBaseDirectory[strlen(g_ChattingEmoticonScriptBaseDirectory) - 1] != '\\' &&
+        g_ChattingEmoticonScriptBaseDirectory[strlen(g_ChattingEmoticonScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_ChattingEmoticonScriptBaseDirectory + strlen(g_ChattingEmoticonScriptBaseDirectory), "\\", 2);
+    }
+    if (!loadRDARScriptListFile(&g_ChattingEmoticonScriptFileList,
+                                g_ChattingEmoticonScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -198,9 +233,16 @@ bool initChattingEmoticonScriptList(char* dir, char* list)
 // ============================================================================
 int initIndependentDropScript(char* dir, char* list)
 {
-    CopyScriptBaseDirectory(g_independentDropScriptBaseDirectory, dir, 0xff);
-    return loadRDARScriptListFile(&g_independentDropScriptFileList,
-                                  g_independentDropScriptBaseDirectory, list, 0) != 0;
+    strncpy(g_independentDropScriptBaseDirectory, dir, 0xff);
+    if (g_independentDropScriptBaseDirectory[strlen(g_independentDropScriptBaseDirectory) - 1] != '\\' &&
+        g_independentDropScriptBaseDirectory[strlen(g_independentDropScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_independentDropScriptBaseDirectory + strlen(g_independentDropScriptBaseDirectory), "\\", 2);
+    }
+    if (!loadRDARScriptListFile(&g_independentDropScriptFileList,
+                                g_independentDropScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -209,9 +251,16 @@ int initIndependentDropScript(char* dir, char* list)
 // ============================================================================
 bool initStageMapScript(char* dir, char* list)
 {
-    CopyScriptBaseDirectory(g_stageMapScriptBaseDirectory, dir, 0x100);
-    return loadRDARScriptListFile(&g_stageMapScriptFileList,
-                                  g_stageMapScriptBaseDirectory, list, 0) != 0;
+    strncpy(g_stageMapScriptBaseDirectory, dir, 0x100);
+    if (g_stageMapScriptBaseDirectory[strlen(g_stageMapScriptBaseDirectory) - 1] != '\\' &&
+        g_stageMapScriptBaseDirectory[strlen(g_stageMapScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_stageMapScriptBaseDirectory + strlen(g_stageMapScriptBaseDirectory), "\\", 2);
+    }
+    if (!loadRDARScriptListFile(&g_stageMapScriptFileList,
+                                g_stageMapScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -227,14 +276,21 @@ bool initStageMapScript(char* dir, char* list)
 // ============================================================================
 bool initCreatureScript(const char* dir, const char* list, const char* expTable)
 {
-    CopyScriptBaseDirectory(g_creatureScriptBaseDirectory, dir, 0x100);
+    strncpy(g_creatureScriptBaseDirectory, dir, 0x100);
+    if (g_creatureScriptBaseDirectory[strlen(g_creatureScriptBaseDirectory) - 1] != '\\' &&
+        g_creatureScriptBaseDirectory[strlen(g_creatureScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_creatureScriptBaseDirectory + strlen(g_creatureScriptBaseDirectory), "\\", 2);
+    }
     if (!loadRDARScriptFile(g_creatureScriptBaseDirectory, expTable))
         return false;
     for (int i = 0; i <= 0x62; ++i)
         CreatureScript::ExpTable_[i] = ScanInt((bool*)0);
-    return loadRDARScriptListFile(
-               reinterpret_cast<STScriptFileList*>(&g_creatureScriptFileList),
-               g_creatureScriptBaseDirectory, list, 0) != 0;
+    if (!loadRDARScriptListFile(
+            reinterpret_cast<STScriptFileList*>(&g_creatureScriptFileList),
+            g_creatureScriptBaseDirectory, list, 0))
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -279,7 +335,12 @@ STWorldmapPattern2ND WorldMapScript::aWorldMapPatternTable2ND_[20];
 // ============================================================================
 bool initWorldMapScript(char* dir, char* list)
 {
-    CopyScriptBaseDirectory(g_worldMapScriptBaseDirectory, dir, 0x100);
+    strncpy(g_worldMapScriptBaseDirectory, dir, 0x100);
+    if (g_worldMapScriptBaseDirectory[strlen(g_worldMapScriptBaseDirectory) - 1] != '\\' &&
+        g_worldMapScriptBaseDirectory[strlen(g_worldMapScriptBaseDirectory) - 1] != '/')
+    {
+        memcpy(g_worldMapScriptBaseDirectory + strlen(g_worldMapScriptBaseDirectory), "\\", 2);
+    }
     if (!loadRDARScriptListFile(&g_worldMapScriptFileList,
                                 g_worldMapScriptBaseDirectory, list, 0))
         return false;

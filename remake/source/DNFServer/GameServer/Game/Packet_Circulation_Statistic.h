@@ -15,13 +15,17 @@ public:
     Packet_Circulation_Statistic()
         : PacketHeader(0x17cb, 0xd0)
     {
-        // [b22] ORIG ctor @0x086100f8 用单条 movl $0,0xa(this) 连同
-        // +0x0a..0x0d 一次清零——两独立 ushort 赋值会发两条 movw → DIFF。
-        // 无业务消费者单独读 m_channel/m_level，合并为 4 字节零清。
         m_channelLevel = 0;
         m_fieldCE = 0;
     }
-    unsigned int m_channelLevel; // +0x0a（= m_channel@+0x0a + m_level@+0x0c，ORIG 单 movl 清零）
+    // [b22] ORIG ctor @0x086100f8 用单条 movl $0,0xa(this) 连同 +0x0a..0x0d
+    // 一次清零——两独立 ushort 赋值发两条 movw → DIFF。union 保命名字段
+    // 访问（InsertCirculationStatistic 读 m_channel/m_level）又让 `m_channelLevel=0`
+    // 发单 movl。
+    union {
+        struct { unsigned short m_channel; unsigned short m_level; } fields;
+        unsigned int m_channelLevel;
+    };                             // +0x0a（m_channel@+0x0a + m_level@+0x0c）
     char m_data[0xc0];           // +0x0e（0x30 * sizeof(int) 统计值）
     unsigned short m_fieldCE;    // +0xce（ORIG ctor movw $0x0）
 } __attribute__((packed));

@@ -80,9 +80,9 @@ void CCirculationStatistic::InsertCirculationStatistic()
                 continue;
 
             Packet_Circulation_Statistic packet;
-            packet.m_channel =
+            packet.fields.m_channel =
                 static_cast<unsigned short>(G_CEnvironment()->get_channel_no());
-            packet.m_level = level;
+            packet.fields.m_level = level;
             memcpy(packet.m_data, stat.m_values[level],
                    0x30 * sizeof(int));
             CStatisticServerProxy* proxy =

@@ -13,7 +13,9 @@
 struct STPowerWarStatueRankerInfo
 {
 public:
-    unsigned char m_flag;       // +0x00（1=已加载）
+    // P196：CheckCompleteDBLoadStatueInfo ORIG `movzbl;xor $1;test;je`（bool 翻转直测），
+    // 须 bool（uchar 产 `cmp $1`）。仅置 0/1，语义等价；1 字节/偏移不变。
+    bool m_flag;                // +0x00（true=已加载）
     char m_pad01[3];            // +0x01..+0x03
     unsigned int m_characNo;    // +0x04
     char m_name[0x1e];          // +0x08（30B）
