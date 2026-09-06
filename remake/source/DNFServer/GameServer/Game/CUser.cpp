@@ -8982,36 +8982,39 @@ int CUser::update_pvp_point(int v)
         LogManager::logFormat(1, "user.cpp", __PRETTY_FUNCTION__,
                               0x36bc, "PVP Grade Incorrect %d",
                               getPVPResultRefR()->m_expPoint);
-        return 1;
     }
-    if (newGrade < getPVPResultRefR()->m_pvpGrade)
+    else
     {
-        // 降档保护：grade∈[10,15] 时按当前档下限回填积分。
-        int grade = getPVPResultRefR()->m_pvpGrade;
-        if (grade >= 10 && grade <= 0xf)
+        // ORIG 0x0865d9..：newGrade<1 时无早退，走 else 块（Ghidra C 结构）。
+        if (newGrade < getPVPResultRefR()->m_pvpGrade)
         {
-            getPVPResultRefW()->m_expPoint =
-                GlobalData::s_ref_pvp_grade->GetPvpPoint(grade) + 1;
-            newGrade = getPVPResultRefR()->m_pvpGrade;
+            // 降档保护：grade∈[10,15] 时按当前档下限回填积分。
+            int grade = getPVPResultRefR()->m_pvpGrade;
+            if (grade >= 10 && grade <= 0xf)
+            {
+                getPVPResultRefW()->m_expPoint =
+                    GlobalData::s_ref_pvp_grade->GetPvpPoint(grade) + 1;
+                newGrade = getPVPResultRefR()->m_pvpGrade;
+            }
         }
-    }
-    int oldGrade = getPVPResultRefR()->m_pvpGrade;
-    getPVPResultRefW()->m_pvpGrade = newGrade;
-    if (has_within_Mission() && getPVPResultRefR()->m_pvpGrade > oldGrade)
-        getPVPResultRefW()->m_pvpGrade = oldGrade;   // 任务中禁止升档
-    if (getPVPResultRefR()->m_pvpGrade != oldGrade)
-    {
-        PacketGuard packet;
-        getCurCharacQuestR()->get_quest_info(
-            reinterpret_cast<char*>(&packet));
-        if (G_GameWorld()->GetChannelType() != 0xf)
+        int oldGrade = getPVPResultRefR()->m_pvpGrade;
+        getPVPResultRefW()->m_pvpGrade = newGrade;
+        if (has_within_Mission() && getPVPResultRefR()->m_pvpGrade > oldGrade)
+            getPVPResultRefW()->m_pvpGrade = oldGrade;   // 任务中禁止升档
+        if (getPVPResultRefR()->m_pvpGrade != oldGrade)
         {
-            Remove_Mission((short)0x1e);
-            CMissionList_Charac* list = (CMissionList_Charac*)GetCharacExpandData(
-                (ENUM_CHARAC_EXPAND_TYPE)8);
-            list->MakeMissionList_JustKind(*this, 0x1e);
+            PacketGuard packet;
+            getCurCharacQuestR()->get_quest_info(
+                reinterpret_cast<char*>(&packet));
+            if (G_GameWorld()->GetChannelType() != 0xf)
+            {
+                Remove_Mission((short)0x1e);
+                CMissionList_Charac* list = (CMissionList_Charac*)GetCharacExpandData(
+                    (ENUM_CHARAC_EXPAND_TYPE)8);
+                list->MakeMissionList_JustKind(*this, 0x1e);
+            }
+            Send(packet);
         }
-        Send(packet);
     }
     return 1;
 }

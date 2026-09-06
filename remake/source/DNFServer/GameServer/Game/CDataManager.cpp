@@ -2090,7 +2090,7 @@ int CDataManager::init()
     int ver[5];
     // ORIG 的 5 个函数体作用域 int（按声明序取深→浅槽 -0x3c/-0x38/-0x34/-0x30/
     // -0x2c；两个循环计数器在子块里，故槽号更浅 -0x28/-0x24）。err 为多站点复用
-    // 的工作变量（ORIG 在 12+ 处 `movl $0x0,-0x38` 后 `if ((err = f()) != 0)`）。
+    // 的工作变量（ORIG 在 17 处 `movl $0x0,-0x38` 后接独立赋值+判定两段形）。
     int errDT, err, errPrem, errRO, errMerc;
 
     // ORIG:每站点独立调用 G_CEnvironment()(无 env 缓存)。
@@ -2354,9 +2354,7 @@ int CDataManager::init()
 
     // HellParty.etc（全局单例，返回 0=成功）。
     err = 0;
-    if ((err = importHellPartyScript(
-             "Etc/HellParty.etc",
-             *reinterpret_cast<stHellParty_t*>(Get_instance_stHellParty_t()))) != 0)
+    if ((err = importHellPartyScript( "Etc/HellParty.etc", *reinterpret_cast<stHellParty_t*>(Get_instance_stHellParty_t()))) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1ae8, 9, true, true)(
             "\t- importHellPartyScript Fail(%d)");
@@ -2365,8 +2363,7 @@ int CDataManager::init()
 
     // CharacLinkSystem.etc（返回 0=成功）。
     err = 0;
-    if ((err = importCharacLinkSystemScript("Etc/LinkSystem/CharacLinkSystem.etc",
-                                            m_characLink)) != 0)
+    if ((err = importCharacLinkSystemScript("Etc/LinkSystem/CharacLinkSystem.etc", m_characLink)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1af3, 9, true, true)(
             "\t- importCharacLinkSystemScript Fail(%d)");
@@ -2416,7 +2413,7 @@ int CDataManager::init()
         return 0;
     }
 
-    // questshop.etc（ORIG +0x10ba：`movl $0x0,-0x38` 后 `if ((err = call) != 0)`，
+    // questshop.etc（ORIG +0x10ba：`movl $0x0,-0x38` 后独立赋值+判定两段形，
     // TRACE 带 err 实参）。err 为函数体作用域变量，此处仅复位。
     err = 0;
     if ((err = importQuestShopScript("Etc/questshop.etc", m_questShop)) != 0)
@@ -2458,8 +2455,7 @@ int CDataManager::init()
         return 0;
     }
     err = 0;
-    if ((err = ImportLevelUpRewardItemScript("Event/LevelUpRewardItem.evt",
-                                             m_levelUpReward)) != 0)
+    if ((err = ImportLevelUpRewardItemScript("Event/LevelUpRewardItem.evt", m_levelUpReward)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1b8a, 9, true, true)(
             "\t- ImportLevelUpRewardItemScript Fail(%d)");
@@ -2469,23 +2465,20 @@ int CDataManager::init()
     // %eax,-0x38` + `setne` 形态，probe7 v7_c 实证），失败走
     // printf("ImportGrowthCapsuleScript Fail(%d)\n", err)（PLT 0x0807db60）。
     err = 0;
-    if ((err = ImportGrowthCapsuleScript("Event/GrowthCapsule.evt",
-                                        m_growthCapsule)) != 0)
+    if ((err = ImportGrowthCapsuleScript("Event/GrowthCapsule.evt", m_growthCapsule)) != 0)
     {
         printf("ImportGrowthCapsuleScript Fail(%d)\n", err);
         return 0;
     }
     err = 0;
-    if ((err = ImportNewAccountLeventUpToJobScript("Event/NewAccountLevelUpToJob.evt",
-                                                   m_newAccountLevelUp)) != 0)
+    if ((err = ImportNewAccountLeventUpToJobScript("Event/NewAccountLevelUpToJob.evt", m_newAccountLevelUp)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1ba7, 9, true, true)(
             "\t- NewAccountLevelUpToJob StackableReward Fail(%d)");
         return 0;
     }
     err = 0;
-    if ((err = ImportReturnUserRewardScript("Event/ReturnUserReward.evt",
-                                            m_returnUserReward)) != 0)
+    if ((err = ImportReturnUserRewardScript("Event/ReturnUserReward.evt", m_returnUserReward)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1bb0, 9, true, true)(
             "\t- ReturnUserReward Fail(%d)");
@@ -2567,8 +2560,7 @@ int CDataManager::init()
 
     // VillageAttacked.etc（返回 0=成功）。
     err = 0;
-    if ((err = importVillageAttackedScript("Etc/VillageAttacked.etc",
-                                           m_villageAttacked)) != 0)
+    if ((err = importVillageAttackedScript("Etc/VillageAttacked.etc", m_villageAttacked)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1c20, 9, true, true)(
             "\t- importVillageAttackedScript Fail(%d)");
@@ -2576,14 +2568,11 @@ int CDataManager::init()
     }
 
     // ActionPoint 两份（普通/GM；GetActionPointEtcParameter(bool) W 0x08122ace）。
-    // ORIG +0x19f4..+0x1a2a：每份各起一个 int err = 0（复用同一临时槽），
-    // 判定式 `if ((err = import(...)) != 0)`（store+cmpl+setne 形态），
-    // 访问器结果不经局部变量、直接由 %eax 落到实参槽（不留具名指针）。
+    // ORIG +0x19f4..+0x1a2a：每份各起 err 复位（复用同一临时槽），判定为
+    // store+cmpl+setne 两段形态；访问器结果不经局部变量、直接由 %eax 落到
+    // 实参槽（不留具名指针）。
     err = 0;
-    if ((err = APSystem::CActionPointEtcParameter::importActionPointSystemEtcScript(
-             "Etc/Chn_ActionPointSystem.etc",
-             *GetActionPointEtcParameter(false))
-         ) != 0)
+    if ((err = APSystem::CActionPointEtcParameter::importActionPointSystemEtcScript( "Etc/Chn_ActionPointSystem.etc", *GetActionPointEtcParameter(false))) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1c3a, 9, true, true)(
             "\t- importActionPointSystemEtcScript Chn_ActionPointSystem.etc Fail(%d)",
@@ -2591,10 +2580,7 @@ int CDataManager::init()
         return 0;
     }
     err = 0;
-    if ((err = APSystem::CActionPointEtcParameter::importActionPointSystemEtcScript(
-             "Etc/Chn_ActionPointSystem_GM.etc",
-             *GetActionPointEtcParameter(true))
-         ) != 0)
+    if ((err = APSystem::CActionPointEtcParameter::importActionPointSystemEtcScript( "Etc/Chn_ActionPointSystem_GM.etc", *GetActionPointEtcParameter(true))) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1c41, 9, true, true)(
             "\t- importActionPointSystemEtcScript Chn_ActionPointSystemGM.etc Fail(%d)",
@@ -2627,29 +2613,22 @@ int CDataManager::init()
     // int err（-0x38 槽，`cmpl $0,-0x38` 直接分支、无 setne ⇒ 形如
     // `err = f(); if (err != 0)`），失败均 printf("<fn> Fail(%d)\n", err) 后
     // ret0（PLT 0x0807db60 = printf）。
-    err = loadAdvanceAltarTimeLineParameter(m_stageTimeLine);
-    if (err != 0)
+    if ((err = loadAdvanceAltarTimeLineParameter(m_stageTimeLine)) != 0)
     {
         printf("loadAdvanceAltarTimeLineParameter Fail(%d)\n", err);
         return 0;
     }
-    err = m_altarShop.importAdvanceAltarShopParameter(
-        "Etc/AdvanceAltar/AdvanceAltarShop.etc");
-    if (err != 0)
+    if ((err = m_altarShop.importAdvanceAltarShopParameter( "Etc/AdvanceAltar/AdvanceAltarShop.etc")) != 0)
     {
         printf("importAdvanceAltarShopParameter Fail(%d)\n", err);
         return 0;
     }
-    err = m_altarReward.importAchievementRewardParameter(
-        "Etc/AdvanceAltar/AdvanceAltarAchievementReward.etc");
-    if (err != 0)
+    if ((err = m_altarReward.importAchievementRewardParameter( "Etc/AdvanceAltar/AdvanceAltarAchievementReward.etc")) != 0)
     {
         printf("importAchievementRewardParameter Fail(%d)\n", err);
         return 0;
     }
-    err = m_altarConfig.importConfigParameter(
-        "Etc/AdvanceAltar/AdvanceAltarConfig.etc");
-    if (err != 0)
+    if ((err = m_altarConfig.importConfigParameter( "Etc/AdvanceAltar/AdvanceAltarConfig.etc")) != 0)
     {
         printf("importConfigParameter Fail(%d)\n", err);
         return 0;

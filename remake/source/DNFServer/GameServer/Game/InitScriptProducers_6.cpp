@@ -1538,9 +1538,11 @@ bool importDimensionActivationData(const char* path,
     typedef std::map<const char*, int, less_TCHAR> DimSectionMap;
     typedef std::map<const char*, int, less_TCHAR> DimCoinDiffMap;
 
-    bool ok = false;                    // ORIG local_1a5（ScanInt 出错 flag）
-    std::string token;                  // ORIG local_1a0（节名）
-    std::string sub;                    // ORIG local_1a4（子串）
+    std::string token;                  // ORIG -0x19c（节名，ctor 首位）
+    std::string sub;                    // ORIG -0x1a0（子串）
+    bool ok = false;                    // ORIG -0x1a1（ScanInt 出错 flag，两串后写）
+    int dead0 = 0;                      // ORIG -0x1a8 prologue $0 写（dead，P31）
+    (void)dead0;
 
     if (out == 0)
     {
@@ -1730,8 +1732,8 @@ bool importDimensionActivationData(const char* path,
                                     std::vector<std::string> tokens;
                                     std::string delim(",");
                                     tokenizeStr(tmp, tokens, delim);
-                                    for (std::size_t k = 0;
-                                         k < tokens.size(); ++k)
+                                    for (int k = 0;
+                                         k < (int)tokens.size(); ++k)
                                     {
                                         int growIdx = getGrowTypeIndex(
                                             tokens.at(k).c_str());

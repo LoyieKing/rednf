@@ -1483,8 +1483,9 @@ void CStackableItem::get_multibox_default_item_arad(
     int count = 0;
     int flag = 0;
     int sum = 0;
-    unsigned int i = 0;
-    if (i < defaultItemListArad.size())
+    // ORIG 0x0850f4xx：`call vector::empty; test %al; je` 判空形（非 size()
+    // 比较，旧 `unsigned i=0; i<size()` 死码形已废）。
+    if (!defaultItemListArad.empty())
     {
         int rand = get_rand_int(100000);
         sum = 0;

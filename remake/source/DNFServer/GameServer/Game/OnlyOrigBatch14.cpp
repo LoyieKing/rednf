@@ -1464,6 +1464,10 @@ int ImportTileScript(STTileScript* script, const char* path)
         else if (token == "[pass type]")
         {
             script->m_collisions.clear();
+            // ORIG 089dcd87：clear 后即 `movl $0x0,-0xc(%ebp)` ——块级 int
+            // dead-init（后续无读；P31 帧对齐 dummy，非发明符号）。
+            int rowIdx = 0;
+            (void)rowIdx;
             // ORIG 089dcd8d：row vector<int> 在循环**外**构造一次（跨轮
             // 复用，loop top 089dcd92 直落 ScanInt）；行内 089dcdfb 显式
             // row.clear()；首个 ok 检查 fail → je 089dce1b 跳统一 dtor 岛
