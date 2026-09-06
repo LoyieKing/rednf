@@ -35,6 +35,8 @@
 #include "CWorldMap.h"
 #include "WorldMapScript.h"
 #include "NPCScript.h"
+#include "STCharacterScript.h"   // STCharacterScript 权威布局（CCharacList::init 真实 C1/D1）
+#include "NPCDynamicInfo.h"      // CNPCDynamicInfo 权威布局/ctor（CNPCDynamicInfoManager::add 真实 C1）
 #include "CChattingEmoticonList.h"
 #include "EquipmentParameterInfo.h"
 #include "STEquipmentScript.h"       // ImportEquipmentScript 声明（5 参）
@@ -71,26 +73,19 @@ const char* STFileListMapMirror::GetFileName(int idx) const
 // ---- ORIG B 全局脚本文件列表（对象模型，map<int,string>@+0；定义归属
 //      InitScriptProducers_4.cpp / InitScriptProducers_5.cpp，此处仅引用）----
 extern STFileListMapMirror g_stCharacterScriptFileList;   // B 0x94fe940
-extern STScriptFileList g_worldMapScriptFileList;         // B 0x9501000（NpcScript.h 类型；方法解析 ORIG 符号）
-extern STFileListMapMirror g_aiCharacterScriptFileList;    // B 0x94f6a20
-extern STScriptFileList g_stEquipmentScriptFileList;       // B 0x94fac00（ORIG 类型，GetFileName 解析 0x088bad4e）
-extern char g_worldMapScriptBaseDirectory[0x104];      // B（InitScripts_5 定义域）
+extern STScriptFileList g_worldMapScriptFileList;         // 0x9501000（NpcScript.h 类型；方法解析 ORIG 符号）
+extern STFileListMapMirror g_aiCharacterScriptFileList;    // 0x94f6a20
+extern STScriptFileList g_stEquipmentScriptFileList;       // 0x94fac00（ORIG 类型，GetFileName 解析 0x088bad4e）
+extern char g_worldMapScriptBaseDirectory[0x104];          // B（InitScripts_5 定义域）
 
-// ============================================================================
-// 外部真实符号 asm 标签桥（完整类型未在本 TU 建模的 W/T 符号；
-// 完整类型落地后由对应批次替换为正常调用并在交付报告销项）
-// ============================================================================
-
-// STCharacterScript（sizeof 0xc1c —— CCharacList::init ORIG 栈帧 local_c38[775] 实证）
-void sub_STCharacterScriptC1(void*) asm("_ZN17STCharacterScriptC1Ev");
-void sub_STCharacterScriptD1(void*) asm("_ZN17STCharacterScriptD1Ev");
-bool sub_ImportCharacterScript(void*, const char*)
-    asm("_Z21ImportCharacterScriptP17STCharacterScriptPKc");
+// ImportCharacterScript（ORIG T 0x08a0ce06，定义 ScriptDepsA.cpp）——CCharacList::init 真实调用。
+// §4.5 正解：普通 C++ 自由函数前置声明（非 extern "C"），include STCharacterScript.h 取真实类型。
+bool ImportCharacterScript(STCharacterScript* script, const char* path);
 
 // ---- STAICharacterCommonScript 权威布局视图（sizeof 0x1010 —— init 栈帧
 //      -0x104c..-0x3c 实证；CAICharacter::set 访问最远字段 +0x100c。
-//      sync_script.h 现存 8 字节占位与本视图冲突，故本 TU 不含该头，
-//      CSyncScript 相关一律走 asm 桥；占位修正归 sync_script 域批次）----
+//      sync_script.h 现存 8 字节占位与本视图冲突，故本 TU 不含该头。
+//      CAICharacter::set 符号由 sub_CAISet asm 别名提供（见下））----
 struct STAICharacterCommonScriptView
 {
     int m_field0;                                   // +0x000
@@ -112,29 +107,6 @@ struct STAICharacterCommonScriptView
     int m_animationJob;                             // +0x1010（ORIG clear 置 0xb）
 };  // sizeof 0x1014（ORIG STAICharacterCommonScript 布局视图）
 
-void sub_STAIScriptC1(void*) asm("_ZN25STAICharacterCommonScriptC1Ev");
-void sub_STAIScriptD1(void*) asm("_ZN25STAICharacterCommonScriptD1Ev");
-void sub_STAIScriptClear(void*) asm("_ZN25STAICharacterCommonScript5clearEv");
-bool sub_ImportAICharacterCommonScript(void*, const char*, bool)
-    asm("_Z29importAICharacterCommonScriptP25STAICharacterCommonScriptPKcb");
-
-// sync_script（仅指针域 + 成员方法桥）
-namespace sync_script { class CSyncScript; }
-sync_script::CSyncScript* sub_GetInstanceSyncScript()
-    asm("_ZN11sync_script21GetInstanceSyncScriptEv");
-bool sub_truncateAITable(void* self)
-    asm("_ZN11sync_script11CSyncScript31truncate_aicharacter_info_tableEv");
-bool sub_insertAIInfoToDB(void* self, int idx, const void* script)
-    asm("_ZN11sync_script11CSyncScript29insert_aicharacter_info_to_dbEiRK25STAICharacterCommonScript");
-
-// CAICharacterList::_add（T 0x0834a61c：m_charMap/m_byLevelList/m_byAPList
-// 登记 + cMyTrace 失败路径 —— 报告 _add.md；归属后续 AI 列表批次收尾）
-void sub_CAICharacterList_add(void* self, void* aiChar)
-    asm("_ZN16CAICharacterList4_addEP12CAICharacter");
-
-// NPC 动态信息 ctor（W 0x0858191c；CNPCDynamicInfo 完整类型归 NPC 动态域）
-void sub_CNPCDynamicInfoC1(void*, const void*) asm("_ZN15CNPCDynamicInfoC1EPK10CNPCScript");
-
 
 namespace DNFFLib { void Make_Dir(char* dir); }   // T 0x08108ad7
 
@@ -144,10 +116,6 @@ int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
    //   _PSt3mapIiiSt4lessIiESaISt4pairIKiiEEE；定义 STScriptFileList.cpp。
    // 旧本地声明 bool(void*,...) mangled 不匹配（Pv ≠ P16STScriptFileList），
    // 曾产生未解析引用——本批次统一为 ORIG 签名（ScriptFileAndGlobalsB2）。
-
-// ---- CCharacter 桥（destroy/set_data 为 T 符号，CCharacter.h 未声明）----
-void sub_CCharacterDestroy(void*) asm("_ZN10CCharacter7destroyEv");
-void sub_CCharacterSetData(void*, void*) asm("_ZN10CCharacter8set_dataEP17STCharacterScript");
 
 namespace ctors1
 {
@@ -484,14 +452,6 @@ bool isExistNPCScript(const char* name)
 // ============================================================================
 // CNPCDynamicInfoManager（ctor/dtor 0x083760f2W/0x08376106W；
 // getNPCInfo 0x08581948W；add 0x08580668 报告 CNPCDynamicInfoManager/add.md）
-// ============================================================================
-
-class CNPCDynamicInfo   // 完整类型归 NPC 动态域；本 TU 仅持指针
-{
-public:
-    char m_pad[0x10];
-};
-
 // sizeof 0x18（ctor 0x083760f2W 仅 map 构造）。
 class CNPCDynamicInfoManager
 {
@@ -520,10 +480,12 @@ bool CNPCDynamicInfoManager::add(const CNPCScript* script)
     unsigned int idx = const_cast<CNPCScript*>(script)->getIndex();
     if (getNPCInfo(idx) == 0)
     {
-        void* mem = ::operator new(0x10);
-        sub_CNPCDynamicInfoC1(mem, script);
-        m_map.insert(std::make_pair(idx,
-            reinterpret_cast<CNPCDynamicInfo*>(mem)));
+        // ORIG 0x08580668：operator new(0x10) 后直接 C1 构造，无空指针检查
+        // （GCC 4.4 -O0 平铺 `new X()` 恰为此形）。真实 ctor
+        // _ZN15CNPCDynamicInfoC1EPK10CNPCScript（NPCDynamicInfo.h 权威声明，
+        // 定义 CharacterAIA2.cpp W 0x0858191c）。§4.5 禁 extern "C" 桥。
+        CNPCDynamicInfo* info = new CNPCDynamicInfo(script);
+        m_map.insert(std::make_pair(idx, info));
         return true;
     }
     return false;
@@ -1114,7 +1076,7 @@ void CCharacList::destroy()
     for (int i = 0; i <= 0xa; ++i)
     {
         CCharacter* p = &m_characs[i];
-        sub_CCharacterDestroy(p);
+        p->destroy();   // ORIG 0x083494da：_ZN10CCharacter7destroyEv 真实调用（CCharacter.h 声明）
     }
 }
 
@@ -1123,9 +1085,9 @@ bool CCharacList::init()
     // ORIG 0x08349514：栈上构造 STCharacterScript(0xc1c)，遍历
     // g_stCharacterScriptFileList：ImportCharacterScript 失败 printf 返回 0；
     // 否则按脚本首字 job 下标 set_data 到 m_characs[idx]。
-    char scriptStorage[0xc1c];
-    void* script = scriptStorage;
-    sub_STCharacterScriptC1(script);
+    // 真实对象：编译器自动发 C1（0x08368348）于声明处、D1（0x08376362）于
+    // 作用域末尾，与 ORIG 单点 C1/D1 重定位精确对齐（§4.5 禁 extern "C" 桥）。
+    STCharacterScript script;
 
     bool result = true;
     for (std::map<int, std::string>::const_iterator it =
@@ -1135,16 +1097,14 @@ bool CCharacList::init()
         const char* name = it->second.c_str();
         if (name == 0)
             break;
-        if (!sub_ImportCharacterScript(script, name))
+        if (!ImportCharacterScript(&script, name))
         {
             printf("Charac Script Error: %s\n", name);
             result = false;
             break;
         }
-        int jobIdx = *static_cast<int*>(script);
-        sub_CCharacterSetData(&m_characs[jobIdx], script);
+        m_characs[script.m_job].set_data(&script);   // 真实成员调用 _ZN10CCharacter8set_dataEP17STCharacterScript
     }
-    sub_STCharacterScriptD1(script);
     return result;
 }
 
@@ -1184,6 +1144,14 @@ CAICharacterFull::CAICharacterFull()
 
 CAICharacterFull::~CAICharacterFull() {}
 
+// §4.5 例外：CAICharacter::set 符号经 asm 别名桥提供（保留）。
+// 无法转真实成员调用的原因：`STAICharacterCommonScript` 完整 0x1010 布局仅
+// 存在本 TU / CAICharacterList.cpp 的局部视图，sync_script.h 现存的 8 字节
+// 占位（m_field0+m_str4）与本 TU 冲突（本 TU 已 include sync_script.h），
+// 无法在此重定义全布局类型以产生精确 mangled `_ZN12CAICharacter3setEiRK25
+// STAICharacterCommonScript`。`CAICharacter` 亦无跨 TU 权威头。待 sync_script
+// 域统一 STAICharacterCommonScript 权威全布局 + 建 CAICharacter 权威头后，
+// 改真实成员定义。登记 b22 类建模单：STAICharacterCommonScript / CAICharacter。
 void sub_CAISet(void* self, int idx, const void* script)
     asm("_ZN12CAICharacter3setEiRK25STAICharacterCommonScript");
 

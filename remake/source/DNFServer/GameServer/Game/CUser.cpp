@@ -59,6 +59,7 @@
 #include "CFairPvPScore.h"           // slot7 fair_pvp::CFairPvPScore
 #include "CMissionList_Charac.h"     // slot8 CMissionList_Charac
 #include "CUserCharacInfo.h"         // CExpandEquipslot/CTitleBook 完整类型
+#include "CExpandEquipslot.h"        // CExpandEquipslot 权威虚表（getData @ vtable+8；GetDataFn 桥真实化）
 #include "DataManagerInitDepends.h"  // TOD_UserState
 #include "CQuestShop.h"              // CQuestShop
 #include "CKillMonsterInfo.h"        // CKillMonsterInfo
@@ -10155,12 +10156,9 @@ int CUser::CacheCharacterMemory()
     APSystem::CDBAndExchangeServerProc::GetActionPointFromMemory(
         *this, mem->m_actionPoint);
     CExpandEquipslot* expand = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xc);
-    // ORIG：调用 vtable 槽 +8（index 2 = CExpandEquipslot::getData）
-    // (**(code**)(*expand + 8))(expand, local_10 + 0x34884)。CExpandEquipslot 在本
-    // TU 仅前向声明，故按 ORIG 以 vtable 槽函数指针直调（非桩）。
-    typedef void (*GetDataFn)(void*, char*);
-    GetDataFn getData = *(GetDataFn*)(*(void**)expand + 8);
-    getData(expand, (char*)&mem->m_expand);
+    // 真实虚调用 CExpandEquipslot::getData(char*) @ vtable+8（CExpandEquipslot.h
+    // 权威 slot2）。§4.5 禁 typedef 槽指针直调。
+    expand->getData((char*)&mem->m_expand);
     advancealtar::DBAndExchangeServerProc::getFromMemory(
         *this, mem->m_altar);
     GetEtcInfo(&mem->m_etc);
@@ -10387,10 +10385,9 @@ void CUser::GetInventoryInfo(SIG_LOAD_INVENTORY* sig)
 {
     sig->m_result = 0;
     CExpandEquipslot* expand2 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)2);
-    typedef void (*GetDataFn)(void*, char*);
-    (*(GetDataFn*)(*(void**)expand2 + 8))(expand2, (char*)&sig->m_locks[0]);
+    expand2->getData((char*)&sig->m_locks[0]);   // 真实虚调用 getData @ vtable+8
     CExpandEquipslot* expand9 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)9);
-    (*(GetDataFn*)(*(void**)expand9 + 8))(expand9, (char*)&sig->m_expandEquip);
+    expand9->getData((char*)&sig->m_expandEquip);
 
     // X 族定稿（2026-09-05 CUserC8，判据②直分支/③消费者齐）：ORIG 0x864d534-
     // 0x864d5b3 为三段 `call; xor $0x1,%eax; test %al,%al; jne 共享FAIL岛` 的
@@ -10768,10 +10765,9 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     sig->m_curConditionEventRewardStep = GetCurConditionEventRewardStep();
     sig->m_properDungeonClearCount = GetProperDungeonClearCount();
 
-    typedef void (*GetDataFn)(void*, char*);
-    // expand type 6 → +0x40ce
+    // expand type 6 → +0x40ce（真实虚调用 getData @ vtable+8）
     CExpandEquipslot* e6 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)6);
-    (*(GetDataFn)((char*)*(void**)e6 + 8))(e6, (char*)sig->m_expandData6);
+    e6->getData((char*)sig->m_expandData6);
 
     sig->m_curVillageAttackCount = GetCurVillageAttackCount();
     sig->m_curRevengeDungeonCount = GetCurRevengeDungeonCount();
@@ -11374,9 +11370,9 @@ int CUser::delete_ontime_reward_list()
         trace("[ON_TIME_EVENT]delete_ontime_reward_list() error");
         return 0;
     }
-    // 虚表 +0x34：IsEventing(int)（PvP_Room.cpp 同型裸虚调用）
-    typedef int (*IsEventingFn)(CEventBase*, int);
-    if (!((IsEventingFn)(*(void**)(*(char**)ev + 0x34)))(ev, 0))
+    // 真实虚调用 CEventBase::IsEventing(CUser*) @ vtable+0x34（CGuildServerProxy.h
+    // 权威声明 slot13）。§4.5 禁 typedef 槽指针裸调；0 → 空 CUser*。
+    if (!ev->IsEventing(0))
         return 0;
     ((COnTimeEvent*)ev)->delete_reward_user(this);
     return 1;

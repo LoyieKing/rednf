@@ -25,19 +25,6 @@ static bool PowerManager_IsOverBirthDay(CUser* user)
 {
     return user != 0 && user->IsOverBirthDay();
 }
-
-static bool PowerManager_CheckPowerWarServer(int serverGroup, int channelNo)
-{
-    const std::vector<std::pair<int, int> >& servers =
-        G_CDataManager()->m_powerParameter.m_powerWarServerList;
-    for (std::vector<std::pair<int, int> >::const_iterator it = servers.begin();
-         it != servers.end(); ++it)
-    {
-        if (it->first == serverGroup && it->second == channelNo)
-            return true;
-    }
-    return false;
-}
 bool CPowerManager::IsPowerWarEventOn()
 {
     // ORIG 0x0847f910：重复事件 0x1e（PowerWar）经 vtable+0x34 判活，无空指针检查。
@@ -172,10 +159,13 @@ int CPowerManager::ProcessJoinPowerWar(CUser* user, char side)
     int enterLimit = 0;
     if (side == 1)  // 加入
     {
-        CEnvironment* env = G_CEnvironment();
-        int serverGroup = env->get_server_group();
-        int channelNo = env->get_channel_no();
-        if (!PowerManager_CheckPowerWarServer(serverGroup, channelNo))
+        // ORIG 直调 PowerParameterScript::checkPowerWarServer(a=+0x378 serverGroup,
+        // b=+0x1b0 channelNo)，G_CEnvironment() 每次重物化（P183）；禁指针缓存与
+        // 发明 helper（§4.1）。m_serverGroup 于 Server_Envir+0x1e0 ⇒ CEnvironment+0x378，
+        // m_channelNo 于 Server_Envir+0x18 ⇒ CEnvironment+0x1b0。
+        if (G_CDataManager()->m_powerParameter.checkPowerWarServer(
+                G_CEnvironment()->m_serverEnvir.m_serverGroup,
+                G_CEnvironment()->m_serverEnvir.m_channelNo) != 1)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xc3, 0x80);
             return 1;
@@ -211,8 +201,8 @@ int CPowerManager::ProcessJoinPowerWar(CUser* user, char side)
     }
     user->setCurrCharacJoinPower(side);
     char isOriginal = 0;
-    unsigned char powerSide = user->getPowerSide();
-    if (powerSide == 3 || powerSide == 4)
+    // ORIG 两次 getPowerSide()（cmp $3 / cmp $4 独立调用，P183 反向勿缓存）。
+    if (user->getPowerSide() == 3 || user->getPowerSide() == 4)
         isOriginal = 1;
     if (side == 1)
     {

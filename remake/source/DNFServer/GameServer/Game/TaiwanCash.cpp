@@ -354,13 +354,13 @@ int TaiwanCash::gift(unsigned long long uid, int price, int pay,
     trans.m_field0 = query.m_trans.m_field0;
     trans.m_tranNo = query.m_trans.m_tranNo;
 
+    // ORIG +0x0bf 直调 NumberToString(m_tranNo,0)（禁 snprintf 替代，P167 判据）。
     {
-        char tranBuf[32];
-        std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
-                      static_cast<unsigned long long>(trans.m_tranNo));
+        char* tranStr = NumberToString(
+            static_cast<unsigned long long>(trans.m_tranNo), 0);
         cMyTrace trace(__FUNCTION__, 0x95, 0);
         trace("[Taiwan, Billing] GiftQuery Account:%s, SendCharac:%s, RecvCharac:%s, Price:%d, Transaction:%s",
-              account, sendCharac, recvCharac, pay, tranBuf);
+              account, sendCharac, recvCharac, pay, tranStr);
     }
     return 0;
 }
@@ -381,11 +381,10 @@ int TaiwanCash::cancel(const BillTransaction& trans)
         return query.m_resultCode;
 
     {
-        char tranBuf[32];
-        std::snprintf(tranBuf, sizeof(tranBuf), "%llu",
-                      static_cast<unsigned long long>(trans.m_tranNo));
+        char* tranStr = NumberToString(
+            static_cast<unsigned long long>(trans.m_tranNo), 0);
         cMyTrace trace(__FUNCTION__, 0xb9, 0);
-        trace("[Taiwan, Billing] CancelQuery Transaction:%s", tranBuf);
+        trace("[Taiwan, Billing] CancelQuery Transaction:%s", tranStr);
     }
     return 0;
 }

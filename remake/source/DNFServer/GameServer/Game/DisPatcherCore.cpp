@@ -2775,7 +2775,7 @@ int DisPatcher_ResPeer::dispatch_sig(CUser* user, PacketBuf& packet)
         if (requestType != 6 && requestType != 8)
             return 0;
     }
-    else if ((char)recvType != requestType)
+    else if ((char)user->GetReceivedRequestType() != requestType)
     {
         return 0;
     }
@@ -2861,14 +2861,18 @@ int DisPatcher_ResPeer::dispatch_sig(CUser* user, PacketBuf& packet)
             break;
         }
 
-        int villSelf = user->getCurCharacVill();
-        int villPeer = target->getCurCharacVill();
         if (GlobalData::s_power_manager->IsPowerWarEventOn())
         {
-            if (villSelf == 7 && villPeer == 7)
+            // ORIG 6 次 `_ZNK getCurCharacVill` 内联（无缓存局部）；两个 0x13
+            // 错误包各带一个 clear(local_bc)。语义 = （双 7 且 power 侧异）∨
+            // （恰一 7）→ 拒；否则落到 LAB_081f12d8 组队逻辑。
+            signed char selfVill = user->getCurCharacVill();
+            bool bothSeven = selfVill == 7 && target->getCurCharacVill() == 7;
+            if (bothSeven)
             {
                 if (user->getPowerSide() != target->getPowerSide())
                 {
+                    pgParty.clear();
                     pgParty.put_header(1, 0xb);
                     pgParty.put_byte(0);
                     pgParty.put_byte(0x13);
@@ -2878,8 +2882,16 @@ int DisPatcher_ResPeer::dispatch_sig(CUser* user, PacketBuf& packet)
                     break;
                 }
             }
-            else if ((villSelf == 7) != (villPeer == 7))
+            else if ((user->getCurCharacVill() == 7 ||
+                      target->getCurCharacVill() != 7) &&
+                     (user->getCurCharacVill() != 7 ||
+                      target->getCurCharacVill() == 7))
             {
+                // 同7 / 同非7 → 通过（落到组队逻辑）
+            }
+            else
+            {
+                pgParty.clear();
                 pgParty.put_header(1, 0xb);
                 pgParty.put_byte(0);
                 pgParty.put_byte(0x13);
@@ -2891,38 +2903,54 @@ int DisPatcher_ResPeer::dispatch_sig(CUser* user, PacketBuf& packet)
         }
         else
         {
-            // ---- 混沌袭击时间窗四连检查（任一命中 → 0xfa 错误包）----
+            // ---- 混沌袭击时间窗：4 个独立 0xfa 4-arg（PacketGuard&）错误点 ----
             int curSec = GlobalData::s_systemTime_.getCurSec();
-            bool blocked =
-                (curSec < target->GetCurCharacChaosKillTime() + 600 &&
-                 expert_job::CAlchemist::GetAssaultPrevent(
-                     user, static_cast<bool*>(0))) ||
-                (curSec < user->GetCurCharacChaosKillTime() + 600 &&
-                 expert_job::CAlchemist::GetAssaultPrevent(
-                     target, static_cast<bool*>(0)));
-            CParty* selfParty = static_cast<CParty*>(user->GetParty());
-            if (!blocked && selfParty != 0 &&
-                selfParty->CheckMemberLastTryAssaultTime() &&
-                expert_job::CAlchemist::GetAssaultPrevent(
-                    target, static_cast<bool*>(0)))
-            {
-                blocked = true;
-            }
-            CParty* peerParty = static_cast<CParty*>(target->GetParty());
-            if (!blocked && peerParty != 0 &&
-                peerParty->CheckMemberLastTryAssaultTime() &&
+            if (curSec < target->GetCurCharacChaosKillTime() + 600 &&
                 expert_job::CAlchemist::GetAssaultPrevent(
                     user, static_cast<bool*>(0)))
-            {
-                blocked = true;
-            }
-            if (blocked)
             {
                 user->SendCmdPeerErrorPacket(
                     static_cast<ENUM_CMDPACKET>(0xb),
                     static_cast<ENUM_PEER_REQUEST_TYPE>(
                         static_cast<int>(requestType)),
-                    static_cast<unsigned char>(0xfa), pgRes);
+                    static_cast<unsigned char>(0xfa), pgParty);
+                break;
+            }
+            if (curSec < user->GetCurCharacChaosKillTime() + 600 &&
+                expert_job::CAlchemist::GetAssaultPrevent(
+                    target, static_cast<bool*>(0)))
+            {
+                user->SendCmdPeerErrorPacket(
+                    static_cast<ENUM_CMDPACKET>(0xb),
+                    static_cast<ENUM_PEER_REQUEST_TYPE>(
+                        static_cast<int>(requestType)),
+                    static_cast<unsigned char>(0xfa), pgParty);
+                break;
+            }
+            CParty* selfParty = static_cast<CParty*>(user->GetParty());
+            if (selfParty != 0 &&
+                selfParty->CheckMemberLastTryAssaultTime() &&
+                expert_job::CAlchemist::GetAssaultPrevent(
+                    target, static_cast<bool*>(0)))
+            {
+                user->SendCmdPeerErrorPacket(
+                    static_cast<ENUM_CMDPACKET>(0xb),
+                    static_cast<ENUM_PEER_REQUEST_TYPE>(
+                        static_cast<int>(requestType)),
+                    static_cast<unsigned char>(0xfa), pgParty);
+                break;
+            }
+            CParty* peerParty = static_cast<CParty*>(target->GetParty());
+            if (peerParty != 0 &&
+                peerParty->CheckMemberLastTryAssaultTime() &&
+                expert_job::CAlchemist::GetAssaultPrevent(
+                    user, static_cast<bool*>(0)))
+            {
+                user->SendCmdPeerErrorPacket(
+                    static_cast<ENUM_CMDPACKET>(0xb),
+                    static_cast<ENUM_PEER_REQUEST_TYPE>(
+                        static_cast<int>(requestType)),
+                    static_cast<unsigned char>(0xfa), pgParty);
                 break;
             }
         }
@@ -3021,8 +3049,10 @@ int DisPatcher_ResPeer::dispatch_sig(CUser* user, PacketBuf& packet)
         bool inviteeLoner = !user->CheckInParty() && target->CheckInParty();
         if (inviteeLoner)
         {
-            target->GetPartyIndex();                 // ORIG 直呼丢弃返回值
-            CParty* party = G_CGameManager()->GetParty();
+            // ORIG thunk：0x822fe4e=GetPartyIndex、0x80cc18e=G_CGameManager、
+            // 0x8294f32=GetParty(int)（movswl %ax,%esi 实参）。
+            CParty* party =
+                G_CGameManager()->GetParty(target->GetPartyIndex());
             if (party == 0)
             {
                 pgParty.clear();

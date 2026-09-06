@@ -11,11 +11,9 @@
 //   CHellPartyItemStatistic::SendHellPartyItemStatistic T 0x0860fcc0
 //   GetInstanceHellPartyItemStatistic                 T 0x0860fcb6
 //
-// CKillMonsterInfo 无权威头：完整类继承 charac_expand::CData（vptr+isSave 共 5
-// 字节，pack(1)），三个 std::map<uint,uchar> 子对象位于 +0x8/+0x20/+0x38
-// （ctor 报告 CKillMonsterInfo.md 实证）。本工程无该类声明点，故按 CPartyLink2.cpp
-// 的 CAICharacter 先例以"视图结构 + ORIG mangled asm 符号"提供定义；调用方
-// （CBattle_Field_kill_monster.cpp 的匿名 shim 声明、CParty 域）链接期解析到本 TU。
+// CKillMonsterInfo 权威头 CKillMonsterInfo.h（继承 charac_expand::CData，
+// 三个 std::map<uint,uchar> 子对象位于 +0x8/+0x20/+0x38，ctor 报告实证）；
+// 上述谓词/登记/难度标志均以真实成员函数定义（桥清零，b21 批次）。
 //
 // CHellPartyItemStatistic 同样无权威头；SendHellPartyItemStatistic 不访问任何
 // 成员（this 仅占位），单例 instance 为函数级 static（ORIG .bss _ZZ33...E8instance
@@ -46,32 +44,15 @@
 #include "SigTypes_C.h"           // SIG_LOAD_KILL_MONSTER_INFO
 
 // ============================================================================
-// CKillMonsterInfo 域 —— 视图布局（ORIG ctor 0x0854c9b4 实证）
+// CKillMonsterInfo 域 —— 桥清零：原 freestanding asm(_ZN…) shim 转为真实成员
+// 函数（权威头 CKillMonsterInfo.h，返回型 void→bool 按 ORIG 报告；mangled 不含
+// 返回型零 ABI 风险）。槽 map 经成员 m_bossKills/m_namedKills/m_apcBossKills
+// 直接访问（+0x8/+0x20/+0x38），与 ORIG add $0x8/0x20/0x38 同形。
 // ============================================================================
-namespace
-{
-
-struct KMIView
-{
-    void* m_vptr;                                         // +0x00（CData vptr）
-    unsigned char m_isSave;                               // +0x04（CData::m_bIsSave）
-    std::map<unsigned int, unsigned char> m_bossKills;      // +0x08（Boss=roleType 3）
-    std::map<unsigned int, unsigned char> m_namedKills;     // +0x20（Named）
-    std::map<unsigned int, unsigned char> m_apcBossKills;   // +0x38（APC Boss=roleType 8）
-};
-
-inline charac_expand::CData* kmiAsCData(void* self)
-{
-    return reinterpret_cast<charac_expand::CData*>(self);
-}
-
-}  // namespace
 
 // ---- GetDungeonDifficultyFlag —— ORIG T 0x0854d21a -------------------------
 // diff<=4 ? (1<<diff) : 0（shl %cl 位型实证；返回 int，写 map 值时按 byte 截断）。
-int KmiGetDungeonDifficultyFlagShim(void* /*self*/, unsigned char diff)
-    asm("_ZN16CKillMonsterInfo24GetDungeonDifficultyFlagEh");
-int KmiGetDungeonDifficultyFlagShim(void* /*self*/, unsigned char diff)
+int CKillMonsterInfo::GetDungeonDifficultyFlag(unsigned char diff)
 {
     if (diff > 4)
         return 0;
@@ -80,30 +61,23 @@ int KmiGetDungeonDifficultyFlagShim(void* /*self*/, unsigned char diff)
 
 // ---- CheckMonsterKill(map const&, mobIdx, diff) —— ORIG T 0x0854d0ea -------
 // find(mobIdx)!=end 且 (diffFlag & 记录值) 非 0 → true。
-bool KmiCheckMonsterKillShim(
-    void* /*self*/, std::map<unsigned int, unsigned char> const* kills,
-    unsigned int mobIdx, unsigned char diff)
-    asm("_ZN16CKillMonsterInfo16CheckMonsterKillERKSt3mapIjhSt4lessIjESaISt4pairIKjhEEEjh");
-bool KmiCheckMonsterKillShim(
-    void* /*self*/, std::map<unsigned int, unsigned char> const* kills,
+bool CKillMonsterInfo::CheckMonsterKill(
+    std::map<unsigned int, unsigned char> const& kills,
     unsigned int mobIdx, unsigned char diff)
 {
-    std::map<unsigned int, unsigned char>::const_iterator it = kills->find(mobIdx);
-    if (it == kills->end())
+    std::map<unsigned int, unsigned char>::const_iterator it =
+        kills.find(mobIdx);
+    if (it == kills.end())
         return false;
-    return (KmiGetDungeonDifficultyFlagShim(0, diff) & it->second) != 0;
+    return (GetDungeonDifficultyFlag(diff) & it->second) != 0;
 }
 
 // ---- RegisterMonsterKill(map&, mobIdx, diff, isAPC) —— ORIG T 0x0854d24c ---
 // diff>4 → false；isAPC ? CAICharacterList::get==0 拒绝 : find_monster==0 拒绝；
 // 已有记录 → flag |= diffFlag 并 alter()（charac_expand::CData::m_bIsSave=1）；
 // 否则 insert(make_pair(idx,diffFlag))，插入失败记日志返回 false，成功 alter()。
-bool KmiRegisterMonsterKillShim(
-    void* self, std::map<unsigned int, unsigned char>* kills,
-    unsigned int mobIdx, unsigned char diff, bool isAPC)
-    asm("_ZN16CKillMonsterInfo19RegisterMonsterKillERSt3mapIjhSt4lessIjESaISt4pairIKjhEEEjhb");
-bool KmiRegisterMonsterKillShim(
-    void* self, std::map<unsigned int, unsigned char>* kills,
+bool CKillMonsterInfo::RegisterMonsterKill(
+    std::map<unsigned int, unsigned char>& kills,
     unsigned int mobIdx, unsigned char diff, bool isAPC)
 {
     if (diff > 4)
@@ -122,16 +96,16 @@ bool KmiRegisterMonsterKillShim(
     }
 
     const unsigned char flag = static_cast<unsigned char>(
-        KmiGetDungeonDifficultyFlagShim(0, diff));
-    std::map<unsigned int, unsigned char>::iterator it = kills->find(mobIdx);
-    if (it != kills->end())
+        GetDungeonDifficultyFlag(diff));
+    std::map<unsigned int, unsigned char>::iterator it = kills.find(mobIdx);
+    if (it != kills.end())
     {
         it->second = static_cast<unsigned char>(it->second | flag);
-        kmiAsCData(self)->alter();
+        alter();
         return true;
     }
     std::pair<std::map<unsigned int, unsigned char>::iterator, bool> ins =
-        kills->insert(std::make_pair(mobIdx, flag));
+        kills.insert(std::make_pair(mobIdx, flag));
     if (!ins.second)
     {
         LogManager::logFormat(
@@ -142,7 +116,7 @@ bool KmiRegisterMonsterKillShim(
             static_cast<unsigned int>(diff));
         return false;
     }
-    kmiAsCData(self)->alter();
+    alter();
     return true;
 }
 
@@ -150,56 +124,35 @@ bool KmiRegisterMonsterKillShim(
 // Check/Register{BossKill,NamedKill,APCBossKill} 分别转发至 +0x8/+0x20/+0x38
 // 槽 map；Register 的 APC 标志按 ORIG：Boss=false、Named=false、APCBoss=true
 // （见各报告反编译 C）。槽地址由 this 直接偏移（与 ORIG add $0x8/0x20/0x38 同形）。
-// 槽地址由 this 直接偏移（与 ORIG add $0x8/0x20/0x38 同形；宏避免 O0 下
-// inline 辅助函数产生 ORIG 不存在的额外 call）。
-#define KMI_SLOT(self, off)                                                  \
-    (reinterpret_cast<std::map<unsigned int, unsigned char>*>(              \
-        reinterpret_cast<char*>(self) + (off)))
-bool KmiCheckBossKillShim(void* self, unsigned int mobIdx, unsigned char diff)
-    asm("_ZN16CKillMonsterInfo13CheckBossKillEjh");
-bool KmiCheckBossKillShim(void* self, unsigned int mobIdx, unsigned char diff)
+bool CKillMonsterInfo::CheckBossKill(unsigned int mobIdx, unsigned char diff)
 {
-    return KmiCheckMonsterKillShim(self, KMI_SLOT(self, 0x8), mobIdx, diff);
+    return CheckMonsterKill(m_bossKills, mobIdx, diff);
 }
 
-bool KmiRegisterBossKillShim(void* self, unsigned int mobIdx, unsigned char diff)
-    asm("_ZN16CKillMonsterInfo16RegisterBossKillEjh");
-bool KmiRegisterBossKillShim(void* self, unsigned int mobIdx, unsigned char diff)
+bool CKillMonsterInfo::RegisterBossKill(unsigned int mobIdx, unsigned char diff)
 {
-    return KmiRegisterMonsterKillShim(self, KMI_SLOT(self, 0x8), mobIdx, diff,
-                                     false);
+    return RegisterMonsterKill(m_bossKills, mobIdx, diff, false);
 }
 
-bool KmiCheckNamedKillShim(void* self, unsigned int mobIdx, unsigned char diff)
-    asm("_ZN16CKillMonsterInfo14CheckNamedKillEjh");
-bool KmiCheckNamedKillShim(void* self, unsigned int mobIdx, unsigned char diff)
+bool CKillMonsterInfo::CheckNamedKill(unsigned int mobIdx, unsigned char diff)
 {
-    return KmiCheckMonsterKillShim(self, KMI_SLOT(self, 0x20), mobIdx, diff);
+    return CheckMonsterKill(m_namedKills, mobIdx, diff);
 }
 
-bool KmiRegisterNamedKillShim(void* self, unsigned int mobIdx, unsigned char diff)
-    asm("_ZN16CKillMonsterInfo17RegisterNamedKillEjh");
-bool KmiRegisterNamedKillShim(void* self, unsigned int mobIdx, unsigned char diff)
+bool CKillMonsterInfo::RegisterNamedKill(unsigned int mobIdx, unsigned char diff)
 {
-    return KmiRegisterMonsterKillShim(self, KMI_SLOT(self, 0x20), mobIdx, diff,
-                                     false);
+    return RegisterMonsterKill(m_namedKills, mobIdx, diff, false);
 }
 
-bool KmiCheckAPCBossKillShim(void* self, unsigned int mobIdx, unsigned char diff)
-    asm("_ZN16CKillMonsterInfo16CheckAPCBossKillEjh");
-bool KmiCheckAPCBossKillShim(void* self, unsigned int mobIdx, unsigned char diff)
+bool CKillMonsterInfo::CheckAPCBossKill(unsigned int mobIdx, unsigned char diff)
 {
-    return KmiCheckMonsterKillShim(self, KMI_SLOT(self, 0x38), mobIdx, diff);
+    return CheckMonsterKill(m_apcBossKills, mobIdx, diff);
 }
 
-bool KmiRegisterAPCBossKillShim(void* self, unsigned int mobIdx,
-                                unsigned char diff)
-    asm("_ZN16CKillMonsterInfo19RegisterAPCBossKillEjh");
-bool KmiRegisterAPCBossKillShim(void* self, unsigned int mobIdx,
-                                unsigned char diff)
+bool CKillMonsterInfo::RegisterAPCBossKill(unsigned int mobIdx,
+                                           unsigned char diff)
 {
-    return KmiRegisterMonsterKillShim(self, KMI_SLOT(self, 0x38), mobIdx, diff,
-                                     true);
+    return RegisterMonsterKill(m_apcBossKills, mobIdx, diff, true);
 }
 
 // ============================================================================

@@ -119,19 +119,14 @@ struct EventATI
     static int CheckAlreadyGetATIItem(unsigned int uid, int itemNo);
     static void UpdateEventATIInfo(unsigned int uid, int itemNo);
     static void ArrangeATIEventItem(unsigned int mid, unsigned int serverId);
-
-private:
-    static MySQL* GetDBHandle()
-    {
-        return GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                 (ENUM_SERVER_GROUP)0);
-    }
 };
 
 // CheckAlreadyGetATIItem —— ORIG T 0x083f9f2e (size 0xd9)
 int EventATI::CheckAlreadyGetATIItem(unsigned int uid, int itemNo)
 {
-    MySQL* db = GetDBHandle();
+    // ORIG 直调 DBMgr::GetDBHandle(1,0)（禁 helper 包装遮蔽该 call，P167 判据）。
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
+                                                  (ENUM_SERVER_GROUP)0);
     switch (CWebEvent::GetItemType(2, itemNo))
     {
     case 2:
@@ -164,7 +159,8 @@ int EventATI::CheckAlreadyGetATIItem(unsigned int uid, int itemNo)
 // UpdateEventATIInfo —— ORIG T 0x083fa0ad (size 0x126)
 void EventATI::UpdateEventATIInfo(unsigned int uid, int itemNo)
 {
-    MySQL* db = GetDBHandle();
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
+                                                  (ENUM_SERVER_GROUP)0);
     switch (CWebEvent::GetItemType(2, itemNo))
     {
     case 2:
@@ -196,7 +192,8 @@ void EventATI::ArrangeATIEventItem(unsigned int mid, unsigned int serverId)
 {
     const char* kFunc =
         "void WongWork::EventATI::ArrangeATIEventItem(memberIdentificationNumber_t, unsigned int)";
-    MySQL* db = GetDBHandle();
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
+                                                  (ENUM_SERVER_GROUP)0);
     db->set_query(
         "seLect id,cera,cera_check,item_no,item_server_id,item_charac_no,item_check,"
         "avata_no1,avata_no2,avata_server_id,avata_charac_no,avata_check1,avata_check2 "
@@ -282,19 +279,13 @@ struct EventMuz
     static int CheckAlreadyGetMuzItem(unsigned int uid, int itemNo);
     static void UpdateEventMuzInfo(unsigned int uid, int itemNo);
     static void ArrangeMuzEventItem(unsigned int mid, unsigned int serverId);
-
-private:
-    static MySQL* GetDBHandle()
-    {
-        return GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                 (ENUM_SERVER_GROUP)0);
-    }
 };
 
 // CheckAlreadyGetMuzItem —— ORIG T 0x083fb047 (size 0xba)
 int EventMuz::CheckAlreadyGetMuzItem(unsigned int uid, int itemNo)
 {
-    MySQL* db = GetDBHandle();
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
+                                                  (ENUM_SERVER_GROUP)0);
     db->set_query("seLect item_check from event_muz_entry where id=%s",
                   NumberToString(uid, 0));
     if (!db->exec(true))
@@ -308,7 +299,8 @@ int EventMuz::CheckAlreadyGetMuzItem(unsigned int uid, int itemNo)
 // UpdateEventMuzInfo —— ORIG T 0x083fb105 (size 0x63)
 void EventMuz::UpdateEventMuzInfo(unsigned int uid, int itemNo)
 {
-    MySQL* db = GetDBHandle();
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
+                                                  (ENUM_SERVER_GROUP)0);
     db->set_query("upDate event_muz_entry set item_check=unix_timestamp(now()) where id=%s",
                   NumberToString(uid, 0));
     db->exec(true);
@@ -319,7 +311,8 @@ void EventMuz::ArrangeMuzEventItem(unsigned int mid, unsigned int serverId)
 {
     const char* kFunc =
         "void WongWork::EventMuz::ArrangeMuzEventItem(memberIdentificationNumber_t, unsigned int)";
-    MySQL* db = GetDBHandle();
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
+                                                  (ENUM_SERVER_GROUP)0);
     db->set_query(
         "seLect id,item_server_id,item_charac_no,item_no,item_check,item_cnt "
         "from event_muz_entry where m_id=%s and occ_check!=0 limit %d",

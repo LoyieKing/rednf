@@ -23,15 +23,17 @@ class CKillMonsterInfo : public charac_expand::CData
 public:
     CKillMonsterInfo();
     virtual ~CKillMonsterInfo();
-    void CheckBossKill(unsigned int, unsigned char);
-    void CheckNamedKill(unsigned int, unsigned char);
-    void CheckAPCBossKill(unsigned int, unsigned char);
-    void CheckMonsterKill(std::map<unsigned int, unsigned char, std::less<unsigned int>, std::allocator<std::pair<unsigned int const, unsigned char> > > const&, unsigned int, unsigned char);
-    void RegisterBossKill(unsigned int, unsigned char);
-    void RegisterNamedKill(unsigned int, unsigned char);
+    bool CheckBossKill(unsigned int, unsigned char);
+    bool CheckNamedKill(unsigned int, unsigned char);
+    bool CheckAPCBossKill(unsigned int, unsigned char);
+    // ORIG GetDungeonDifficultyFlag/map find 谓词均以 eax 传回 bool（报告反汇编
+    // mov $0x1/$0x0 / setne 实证）；mangled 不含返回型，改 bool 零 ABI 风险。
+    bool CheckMonsterKill(std::map<unsigned int, unsigned char, std::less<unsigned int>, std::allocator<std::pair<unsigned int const, unsigned char> > > const&, unsigned int, unsigned char);
+    bool RegisterBossKill(unsigned int, unsigned char);
+    bool RegisterNamedKill(unsigned int, unsigned char);
     int ConvertStructToMap(stMonsterInfo_t*, unsigned int, std::map<unsigned int, unsigned char, std::less<unsigned int>, std::allocator<std::pair<unsigned int const, unsigned char> > >&, bool);
-    void RegisterAPCBossKill(unsigned int, unsigned char);
-    void RegisterMonsterKill(std::map<unsigned int, unsigned char, std::less<unsigned int>, std::allocator<std::pair<unsigned int const, unsigned char> > >&, unsigned int, unsigned char, bool);
+    bool RegisterAPCBossKill(unsigned int, unsigned char);
+    bool RegisterMonsterKill(std::map<unsigned int, unsigned char, std::less<unsigned int>, std::allocator<std::pair<unsigned int const, unsigned char> > >&, unsigned int, unsigned char, bool);
     int GetDungeonDifficultyFlag(unsigned char);
     virtual void _reset();
     virtual bool loadData(CUser*, char*);

@@ -27,6 +27,7 @@
 
 #include "QuickParty.h"        // 必须先于 CDungeon.h/CParty.h（守卫惯例）
 #include "CParty.h"
+#include "CKillMonsterInfo.h"  // 击杀/奖励链 CKillMonsterInfo 六谓词（桥清零）
 #include "CDataManager.h"      // G_CDataManager/find_dungeon/getUltimateDungeonList
 #include "CDungeon.h"          // get_min_level/get_index/get_dimension_possible/…
 #include "CBattle_Field.h"     // bf 子对象视图
@@ -37,23 +38,6 @@
 #include "InterfacePacketBuf.h"
 #include "LogManager.h"
 #include "CQuickPartyRewardManager.h"  // QuickParty::RewardData_Param/Result
-
-// CKillMonsterInfo 六谓词（定义见 CKillMonsterInfo_chain.cpp，ORIG mangled 符号；
-// 本 TU 按 ORIG MemberRegisterKillMonster 调用形态引用）。
-bool KmiCheckBossKillShim(void* self, unsigned int mobIdx, unsigned char diff)
-    asm("_ZN16CKillMonsterInfo13CheckBossKillEjh");
-bool KmiRegisterBossKillShim(void* self, unsigned int mobIdx, unsigned char diff)
-    asm("_ZN16CKillMonsterInfo16RegisterBossKillEjh");
-bool KmiCheckAPCBossKillShim(void* self, unsigned int mobIdx, unsigned char diff)
-    asm("_ZN16CKillMonsterInfo16CheckAPCBossKillEjh");
-bool KmiRegisterAPCBossKillShim(void* self, unsigned int mobIdx,
-                                unsigned char diff)
-    asm("_ZN16CKillMonsterInfo19RegisterAPCBossKillEjh");
-bool KmiCheckNamedKillShim(void* self, unsigned int mobIdx, unsigned char diff)
-    asm("_ZN16CKillMonsterInfo14CheckNamedKillEjh");
-bool KmiRegisterNamedKillShim(void* self, unsigned int mobIdx,
-                              unsigned char diff)
-    asm("_ZN16CKillMonsterInfo17RegisterNamedKillEjh");
 
 namespace
 {
@@ -244,8 +228,9 @@ void CParty::MemberRegisterKillMonster(map_monster& monster, unsigned char flag)
                 continue;
             void* data = get_user(i)->GetCharacExpandData(
                 static_cast<ENUM_CHARAC_EXPAND_TYPE>(0xc));
-            if (!KmiCheckBossKillShim(data, mobIdx, flag))
-                KmiRegisterBossKillShim(data, mobIdx, flag);
+            CKillMonsterInfo* kmi = static_cast<CKillMonsterInfo*>(data);
+            if (!kmi->CheckBossKill(mobIdx, flag))
+                kmi->RegisterBossKill(mobIdx, flag);
         }
     }
     else if (monster.m_roleType == 8)
@@ -256,8 +241,9 @@ void CParty::MemberRegisterKillMonster(map_monster& monster, unsigned char flag)
                 continue;
             void* data = get_user(i)->GetCharacExpandData(
                 static_cast<ENUM_CHARAC_EXPAND_TYPE>(0xc));
-            if (!KmiCheckAPCBossKillShim(data, mobIdx, flag))
-                KmiRegisterAPCBossKillShim(data, mobIdx, flag);
+            CKillMonsterInfo* kmi = static_cast<CKillMonsterInfo*>(data);
+            if (!kmi->CheckAPCBossKill(mobIdx, flag))
+                kmi->RegisterAPCBossKill(mobIdx, flag);
         }
     }
     else if (monster.isNamedMonster())
@@ -268,8 +254,9 @@ void CParty::MemberRegisterKillMonster(map_monster& monster, unsigned char flag)
                 continue;
             void* data = get_user(i)->GetCharacExpandData(
                 static_cast<ENUM_CHARAC_EXPAND_TYPE>(0xc));
-            if (!KmiCheckNamedKillShim(data, mobIdx, flag))
-                KmiRegisterNamedKillShim(data, mobIdx, flag);
+            CKillMonsterInfo* kmi = static_cast<CKillMonsterInfo*>(data);
+            if (!kmi->CheckNamedKill(mobIdx, flag))
+                kmi->RegisterNamedKill(mobIdx, flag);
         }
     }
 }
