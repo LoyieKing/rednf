@@ -341,7 +341,9 @@ void CAccountCargo::SubMoney(unsigned int money)
         m_money = m_money - money;
 }
 
-int CAccountCargo::DepositMoney(unsigned int money)
+// CUser.h:820 声明已同步为 bool（caller 0x0822508c test %al 直判证据，
+// Main 代落头）；定义体返回类型随之改 bool，return 0/1 字面量语义不变。
+bool CAccountCargo::DepositMoney(unsigned int money)
 {
     CUser* user = m_pUser;
     ServiceRestrictManager* mgr = ARAD::Singleton<ServiceRestrictManager>::Get();

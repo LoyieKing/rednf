@@ -389,6 +389,7 @@ int createGlobalEffectInfo(std::vector<stGlobalEffect_t>& out,
 //   m_vec0/count1、m_vecC/count2、m_vec18/count3；
 //   若 source 仍有剩余元素：m_field24 = (tail==1)，m_field25 = (tail==2)（均读同一元素），
 //   且 extra!=0 时 m_vec28 = *extra。
+// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
 void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
                       std::vector<std::pair<int, int> >* extra)
 {
@@ -453,6 +454,7 @@ void LotteryInfo::clear()
     m_counts.clear();
 }
 // ORIG 0x89babc5：src 相邻元素配对填充 m_items，m_counts 每对补 1；奇数时 break
+// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
 void createLotteryInfo(LotteryInfo* info, std::vector<int>* source)
 {
     info->clear();
@@ -480,6 +482,7 @@ void createLotteryInfo(LotteryInfo* info, std::vector<int>* source)
 //     —— m_items.push_back({itemIdx,weight})，m_bonus.push_back({count,flag})
 //   b (vector<int>)：field8=b[0]，fieldc=b[1]
 //   c (vector<int>)：m_defaultCount/Idx/Num/Flag + m_items(stDefaultItem) 流
+// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
 void createStackableMultiBoxLotteryInfo(
     MultiBoxLotteryInfo* info,
     std::vector<std::vector<int> >* a, std::vector<int>* b,
@@ -782,6 +785,7 @@ int CStackableItem::check_able_To_use(int job, int level)
     return 0;
 }
 
+// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
 bool CStackableItem::check_change_job_type(char changeJob,
                                            char checkJob) const
 {
@@ -887,6 +891,7 @@ int CStackableItem::get_amplify_reinforce_count(int count)
     return bestKey;
 }
 
+// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
 void CStackableItem::get_limit_cube_item(std::pair<int, int>& out)
 {
     int itemIdx = 0;
@@ -1045,6 +1050,7 @@ void CStackableItem::make_item(Inven_Item& item) const
 
 // ===================== get_lotto_item（ORIG 0x850ebfc） =====================
 
+// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
 void CStackableItem::get_lotto_item(char* out)
 {
     Inven_Item* pItem = (Inven_Item*)out;
@@ -1096,6 +1102,7 @@ void CStackableItem::get_lotto_item(char* out)
 
 // ===================== verifyUsablePlace（ORIG 0x850e9f4） =====================
 
+// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
 bool CStackableItem::verifyUsablePlace(CUser* user)
 {
     if (m_usablePlaces.empty())
@@ -1412,6 +1419,7 @@ void CStackableItem::set_item(STStackableScript& script)
 
 // ===================== get_multibox_default_item（ORIG 0x850f136） =====================
 
+// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
 void CStackableItem::get_multibox_default_item(
     std::vector<std::pair<Inven_Item, bool> >* out)
 {
@@ -1521,6 +1529,7 @@ void CStackableItem::get_multibox_default_item_arad(
 
 // ===================== get_multibox_lottery_item（ORIG 0x850edda） =====================
 
+// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
 void CStackableItem::get_multibox_lottery_item(
     std::vector<std::pair<Inven_Item, bool> >* out)
 {
@@ -1670,14 +1679,15 @@ bool CStackableItem::IsExpAffect()
 CStackableItem::CoolTimeOption CStackableItem::GetCoolTimeOption()
 {
     CoolTimeOption opt;
-    opt.sec  = (unsigned short)((unsigned char)m_option2d8.m_field0 |
-                                ((unsigned char)m_option2d8.m_field1 << 8));
+    // ORIG 0x086946xx：`movzwl 0x2d8(%edx)` 16 位直读（非逐字节 shl/or 拼接）。
+    opt.sec  = *reinterpret_cast<unsigned short*>(&m_option2d8.m_field0);
     opt.flag = m_option2d8.m_field2;
     return opt;
 }
 
 // ORIG 0x086946f4 (W 非 const)：读 +0x2e4(+0x2e6)，effect 时长(秒)/标志
 // +0x2e4 为 CountinuousItemOption 子对象（m_option2e4：3 独立字节）。
+// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
 CStackableItem::CoolTimeOption CStackableItem::GetEffectItemOption()
 {
     CoolTimeOption opt;

@@ -1309,22 +1309,6 @@ struct GuildDbInfoView
 };
 typedef char guild_view_size_ok[(sizeof(GuildDbInfoView) == 0x4a) ? 1 : -1];
 
-// TOD_UserState::getEnterCount（ORIG _ZNK13TOD_UserState13getEnterCountEv T
-// 0x08643872：*(int*)(this+0x10)；类未建模，本地只读视图，同 CDungeon.cpp 惯例）。
-struct TodEnterCountView
-{
-    char m_pad0[0x10];
-    int m_enterCount;               // +0x10
-};
-
-// CCharacBloodDungeon::GetEnterCount（ORIG _ZNK18CCharacBloodDungeon13GetEnterCountEv
-// W 0x085bfe88：*(int*)(this+0x0c)；类未建模，本地只读视图）。
-struct BloodEnterCountView
-{
-    char m_pad0[0xc];
-    int m_enterCount;               // +0x0c
-};
-
 // SIG_FORBID_USER_TO_PLAY 前 9 字节写入视图（SigTypes.h 现为 0x100 pad 占位；
 // ORIG：memset 9 字节后 +0x00=characNo、+0x04=0、+0x05..0x08=0）。
 struct SigForbidUserToPlayBody
@@ -1442,19 +1426,18 @@ int CUser::make_basic_info(char* buf, char type)
         else
             pkt.put_byte((int)GetCurRevengeDungeonCount());
         pkt.put_byte((int)(char)getUltimateInoutValue(2));
-        const TodEnterCountView* tod =
-            (const TodEnterCountView*)GetCharacExpandData(
-                (ENUM_CHARAC_EXPAND_TYPE)0xd);
-        pkt.put_byte(tod->m_enterCount);
+        const TOD_UserState* tod = (const TOD_UserState*)GetCharacExpandData(
+            (ENUM_CHARAC_EXPAND_TYPE)0xd);
+        pkt.put_byte(tod->getEnterCount());
         int limit = (int)(char)G_CDataManager()->get_limit_inout_count(
             ENUM_BLOOD_TYPE_1);
-        const BloodEnterCountView* blood =
-            (const BloodEnterCountView*)GetCharacExpandData(
+        const CCharacBloodDungeon* blood =
+            (const CCharacBloodDungeon*)GetCharacExpandData(
                 (ENUM_CHARAC_EXPAND_TYPE)1);
-        if (limit - blood->m_enterCount < 0)
+        if (limit - blood->GetEnterCount() < 0)
             pkt.put_byte(0);
         else
-            pkt.put_byte(limit - blood->m_enterCount);
+            pkt.put_byte(limit - blood->GetEnterCount());
         ((CQuestShop*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xb))
             ->makePacket_BuyingStatusList(pg, false);
         pkt.put_byte(GetManageLevel());
@@ -1687,8 +1670,13 @@ int CUser::make_basic_info(char* buf, char type)
                 CStreamGuard guard(stream, true);
                 guard << 0x93;
                 guard << (int)GetUID();
+                // ORIG 0x0865b40b：GetInBuffer<SIG_FORBID_USER_TO_PLAY>()（真 SIG 类型
+                // 保证 mangled `GetInBufferI23SIG_FORBID_USER_TO_PLAYEEPT_v` 匹配）；
+                // 前 9 字节 payload 借 SigForbidUserToPlayBody 视图写。
+                SIG_FORBID_USER_TO_PLAY* sig =
+                    guard.GetInBuffer<SIG_FORBID_USER_TO_PLAY>();
                 SigForbidUserToPlayBody* body =
-                    guard.GetInBuffer<SigForbidUserToPlayBody>();
+                    (SigForbidUserToPlayBody*)sig;
                 memset(body, 0, 9);
                 body->m_characNo = (unsigned int)reinterpret_cast<CharacListElemView&>(m_characList[i]).m_characNo;
                 body->m_field04 = 0;

@@ -817,7 +817,9 @@ public:
     int GetItemCount();
 
     // ---- 金钱 ----
-    int DepositMoney(unsigned int money);
+    bool DepositMoney(unsigned int money);
+    // ORIG caller Dispatcher_DepositMoney::dispatch_sig 0x0822508c `test %al,%al; je`
+    // 直判 ⇒ bool 返回（int 下 4.4 产 setne 归一段；DispS18 证据/Main 代落 batch-18）
     bool WithdrawMoney(unsigned int money);
     int CheckMoneyLimit(unsigned int money);
     void AddMoney(unsigned int money);

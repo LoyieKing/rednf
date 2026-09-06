@@ -394,9 +394,11 @@ bool importAvatarRouletteListDetail(AvatarRoulette& out,
 // ============================================================================
 bool importAvatarRouletteList(char* path, AvatarRoulette& out)
 {
-    bool isType = false;
-    bool isInt = false;
-    std::string token;
+    std::string token;                  // ORIG ctor 首位（-0x14）
+    bool ok = false;                    // ORIG -0xd（token 后写）
+    bool isType = false;                // ORIG -0x15
+    bool isInt = false;                 // ORIG -0x16
+    (void)ok;
 
     if (!loadRDARScriptFile("", path))
     {
@@ -623,8 +625,7 @@ int importBloodDungeonScript(const char* path, stBloodDungeon_t& out)
         {
             for (int i = 0;; ++i)                   // 本表下标从 0 开始
             {
-                float v = ScanFloat(&ok);
-                out.m_rate[i] = v;
+                out.m_rate[i] = ScanFloat(&ok);     // ORIG fstps 成员直写、后查 ok
                 if (!ok) { break; }
             }
         }
@@ -648,8 +649,7 @@ int importBloodDungeonScript(const char* path, stBloodDungeon_t& out)
         }
         else if (token == "[reward gold weight]")
         {
-            float v = ScanFloat(&ok);
-            out.m_field330 = v;
+            out.m_field330 = ScanFloat(&ok);        // ORIG fstps 0x330(%eax) 直写
             if (!ok) { return 0x1942; }
         }
         else if (token == "[reward exp inout count weight]")

@@ -2050,10 +2050,7 @@ LOUT:
     if (G_GameWorld()->IsPvPSkilTreeChannel())
     {
         // ORIG 0x081e5a2c+：cmp $0x0;setge %al;test %al,%al;jne skip（>=0 物化，跳 0xc 岛）。
-        // （register int 钉 %eax 反产 not/shr 形——call 结果直进比较。）
-        register bool ge0 asm("al");
-        ge0 = (user->get_pvp_grade() >= 0);
-        if (ge0)
+        if (user->get_pvp_grade() >= 0)
             goto LPASS;
         return 0xc;
 LPASS:;
@@ -2310,9 +2307,15 @@ int Dispatcher_BlueMarble::check_error(CUser* user, MSG_BASE& msg)
     {
         return -4;
     }
-    // 【batch-17 S池 P48】ORIG 两臂各调一次 get_state（0x081e60xx
-    // `call get_state; cmp $0xb` + 再 `call get_state; cmp $5`）。
-    return (user->get_state() == 0xb || user->get_state() == 5) ? 0 : -5;
+    // 【batch-17 S池 P48+P84】ORIG 两臂各调一次 get_state，结果 mov$1/mov$0 物化
+    // 成 bool 再 test/je 选 return（0/0xfffffffb）。具名 bool 保物化岛。
+    register bool fail asm("al");
+    fail = !(user->get_state() == 0xb || user->get_state() == 5);
+    if (fail)
+    {
+        return -5;
+    }
+    return 0;
 }
 int Dispatcher_BlueMarble::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -4170,13 +4173,13 @@ void Dispatcher_BossDieCheck::send(CUser* user, ParamBase& param)
     packet.finalize(true);
     CParty* party =
         G_CGameManager()->GetParty((int)(short)user->GetPartyIndex());
-    if (party == 0)
+    if (party != 0)                          // ORIG cmpl$0;je（party==0 跳 user->Send，send_to_party fall-through）
     {
-        user->Send(packet);
+        party->send_to_party(packet);
     }
     else
     {
-        party->send_to_party(packet);
+        user->Send(packet);
     }
 }
 
@@ -4413,7 +4416,7 @@ int Dispatcher_DepositMoney::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
     CAccountCargo* cargo = user->GetAccountCargo();
-    if (cargo->DepositMoney(money) != 0)
+    if (cargo->DepositMoney(money))                        // ORIG test %al; je（CUser.h 已 bool 化）
     {
         // 【batch-17 S池 P183/两步物化】ORIG 0x08225090..0x082250d4：日志三值
         // 不是字面直传，而是**先默认构造一个 Inven_Item 临时**（`lea -0x4d;
@@ -20348,7 +20351,7 @@ int Dispatcher_FinishVillageMonsterFighting::dispatch_sig(CUser* user, PacketBuf
     {
         return 0;
     }
-    if (&packet == 0)
+    if (user == 0)                 // ORIG +0x05b：cmpl $0,0xc(%ebp)（user，非 &packet）
     {
         return LineFunc(0xdc66,
                         __PRETTY_FUNCTION__,
@@ -20361,8 +20364,9 @@ int Dispatcher_FinishVillageMonsterFighting::dispatch_sig(CUser* user, PacketBuf
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (party != 0)
     {
-        int result = party->OnFinishVillageMonsterFighting(user, false);
-        if (result != 0)
+        int result = 0;                                        // ORIG movl $0,-0xc（先零初始化）
+        result = party->OnFinishVillageMonsterFighting(user, false);
+        if (result != 0)                                       // 残余 setne/test=4.1 bool 物化（N，bool 局部膨胀槽）
         {
             user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x10c),
                                      static_cast<unsigned char>(result));
