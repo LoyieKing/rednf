@@ -21,7 +21,9 @@ public:
         // T() 构造后 vptr 指向 CNode vtable（虚函数槽与 T 相同、dtor 槽为 CNode
         // 自身），随后写 magic=0x8f21、bUse=0。缺此构造则 magic/bUse 为垃圾值，
         // Acquire/Get/Free/GetIndex 的 magic==0x8f21 检查运行时失效。
-        CNode() : T(), magic(0x8f21), bUse(0) {}
+        // CNode() 外联定义见文件尾部，供 CACHE_CHARACTER_TYPE 等池以显式特化
+        // 注入 ORIG 的 memset（0x3f85c）先行清零。
+        CNode();
         // ORIG 各池 CNode D1（非 POD T 的池如 CUser/CTradeSpace/CParty/
         // CDeathTower 实证 CNodeD1Ev W 符号）：隐式析构经 ~T() 链即满足，
         // 故不写用户定义析构——POD T 池（如 _IO_FILE）的 ORIG 不生成

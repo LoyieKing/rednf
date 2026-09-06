@@ -50,6 +50,10 @@ struct CeraShopCntView
 };
 
 // ============================================================================
+// b21 NEAR：逐指令语义与 ORIG 0x0844b0cc 全等；残余差异仅
+//   ① m_cnt 自增 N-86b 同算术多 codegen（lea $0x1 vs add $0x1，结果全同）
+//   ② cMyTrace/sig 局部栈槽偏移（lea -0x28 vs -0x40 帧布局产品）
+//   ③ 数据地址/call 目标【链接期解析，AE 归一】。语义完成，byte 层 N 封顶。
 // DB_UpdateCeraShopPurchaseCount::dispatch @ 0x0844b0cc
 // 逐指令转写：GetOutBuffer<SIG_CERASHOP_PURCHASE_COUNT> → null 则 trace(0xbbac)
 //   "ptrData is null." 返 false；_selectPurchaseCount(m_id, &purchase_cnt) 失败
@@ -91,7 +95,8 @@ bool DB_UpdateCeraShopPurchaseCount::dispatch(int userIdx, int slot, Stream* str
     }
     else
     {
-        reinterpret_cast<CeraShopCntView*>(sig)->m_cnt++;
+        reinterpret_cast<CeraShopCntView*>(sig)->m_cnt =
+            reinterpret_cast<CeraShopCntView*>(sig)->m_cnt + 1;
         _updatePurchaseCount(
             *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig) + 0x0),
             reinterpret_cast<CeraShopCntView*>(sig)->m_cnt);

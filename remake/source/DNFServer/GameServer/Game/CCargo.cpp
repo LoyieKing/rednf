@@ -504,36 +504,42 @@ int CCargo::MakeItemList(PacketGuard* packet) const
     return 1;
 }
 
+// b21 verdict=DIFF（N 布局残余）：调用点集与 ORIG 全等（put_short/int×/byte×/GetIntegratedPvPItemAttr/
+//   G_GameWorld/IsEnchantRevisionChannel/getAbilityType/getAbilityValue/G_CDataManager/
+//   make3rdChroniclePacket/put_packet×2，28=28）；仅余 4.1 把空槽块置函数尾由 `je` 跳入 vs 4.4
+//   内联 `jne` 后（块调度）及少量寄存器分配 (190/189)。禁 buf/world 引用局部（P0：ORIG 右值内联）。
+//   语义完成，byte 层 N 封顶。
 void CCargo::MakeItemPacket(PacketGuard* packet, int slot) const
 {
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)packet;
-    buf->put_short(slot);
+    ((InterfacePacketBuf*)packet)->put_short(slot);
     if (m_pItems[slot].m_addInfo == 0) {
-        buf->put_int(-1);
-        buf->put_int(0);
-        buf->put_byte(0);
-        buf->put_short(0);
-        buf->put_byte(0);
-        buf->put_int(0);
-        buf->put_byte(0);
-        buf->put_short(0);
-        buf->put_byte(0);
-        buf->put_packet(g_emptySlot);
+        ((InterfacePacketBuf*)packet)->put_int(-1);
+        ((InterfacePacketBuf*)packet)->put_int(0);
+        ((InterfacePacketBuf*)packet)->put_byte(0);
+        ((InterfacePacketBuf*)packet)->put_short(0);
+        ((InterfacePacketBuf*)packet)->put_byte(0);
+        ((InterfacePacketBuf*)packet)->put_int(0);
+        ((InterfacePacketBuf*)packet)->put_byte(0);
+        ((InterfacePacketBuf*)packet)->put_short(0);
+        ((InterfacePacketBuf*)packet)->put_byte(0);
+        ((InterfacePacketBuf*)packet)->put_packet(g_emptySlot);
     } else {
-        buf->put_int(m_pItems[slot].m_addInfo);
-        buf->put_int(m_pItems[slot].m_addInfo2);
-        buf->put_byte((int)GetIntegratedPvPItemAttr(m_pItems[slot]) & 0xff);
-        buf->put_short(m_pItems[slot].m_fieldb);
-        buf->put_byte(m_pItems[slot].m_field0);
-        GameWorld* world = G_GameWorld();
-        if (!world->IsEnchantRevisionChannel())
-            buf->put_int(m_pItems[slot].m_fieldd);
+        ((InterfacePacketBuf*)packet)->put_int(m_pItems[slot].m_addInfo);
+        ((InterfacePacketBuf*)packet)->put_int(m_pItems[slot].m_addInfo2);
+        ((InterfacePacketBuf*)packet)->put_byte(
+            (int)GetIntegratedPvPItemAttr(m_pItems[slot]) & 0xff);
+        ((InterfacePacketBuf*)packet)->put_short(m_pItems[slot].m_fieldb);
+        ((InterfacePacketBuf*)packet)->put_byte(m_pItems[slot].m_field0);
+        if (G_GameWorld()->IsEnchantRevisionChannel())
+            ((InterfacePacketBuf*)packet)->put_int(0);
         else
-            buf->put_int(0);
-        buf->put_byte(m_pItems[slot].m_amp.getAbilityType() & 0xff);
-        buf->put_short(m_pItems[slot].m_amp.getAbilityValue() & 0xffff);
+            ((InterfacePacketBuf*)packet)->put_int(m_pItems[slot].m_fieldd);
+        ((InterfacePacketBuf*)packet)->put_byte(
+            m_pItems[slot].m_amp.getAbilityType() & 0xff);
+        ((InterfacePacketBuf*)packet)->put_short(
+            m_pItems[slot].m_amp.getAbilityValue() & 0xffff);
         G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
             m_pParent, m_pItems[slot], packet);
-        buf->put_packet(m_pItems[slot]);
+        ((InterfacePacketBuf*)packet)->put_packet(m_pItems[slot]);
     }
 }

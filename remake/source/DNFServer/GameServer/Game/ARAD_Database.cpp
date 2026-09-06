@@ -554,6 +554,10 @@ int LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* param_2
 }
 
 // ORIG 0x0818bd67：member_punish_info 行集 → +0x3a54 起 stride 0x18 ×6 字段。
+// b21 verdict=DIFF（N-JMP 残余）：调用点集与 ORIG 全等（GetDBHandle/select/logFormat/
+//   get_int×3/get_uint×3/get_n_rows）；仅余 4.1 对每 get_* 失败独立 `mov -1; jmp exit`
+//   块 vs 4.4 jump-threading 折成共享 return 块（155/150，gap=5）。禁 pun 引用局部
+//   （P0：ORIG 右值内联，引局部占槽产生 EXTRA mov）。语义完成，byte 层 N 封顶。
 int LOGIN_QUERY::arad_sp_select_punish_user_info(SIG_LOGIN_DATA* data)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
@@ -579,13 +583,15 @@ int LOGIN_QUERY::arad_sp_select_punish_user_info(SIG_LOGIN_DATA* data)
     for (unsigned int row = 0; row < static_cast<unsigned int>(db->get_n_rows());
          ++row)
     {
-        SIG_LOGIN_PUNISH_INFO& pun = data->m_punishInfos[row];   // +0x3a54 stride 0x18
-        if (!db->get_int(0, pun.m_type) ||
-            !db->get_uint(1, reinterpret_cast<unsigned int&>(pun.m_field04)) ||
-            !db->get_int(2, pun.m_stdDropRate) ||
-            !db->get_int(3, pun.m_field0c) ||
-            !db->get_uint(4, reinterpret_cast<unsigned int&>(pun.m_field10)) ||
-            !db->get_uint(5, reinterpret_cast<unsigned int&>(pun.m_endTime)))
+        if (!db->get_int(0, data->m_punishInfos[row].m_type) ||
+            !db->get_uint(1, reinterpret_cast<unsigned int&>(
+                                 data->m_punishInfos[row].m_field04)) ||
+            !db->get_int(2, data->m_punishInfos[row].m_stdDropRate) ||
+            !db->get_int(3, data->m_punishInfos[row].m_field0c) ||
+            !db->get_uint(4, reinterpret_cast<unsigned int&>(
+                                 data->m_punishInfos[row].m_field10)) ||
+            !db->get_uint(5, reinterpret_cast<unsigned int&>(
+                                 data->m_punishInfos[row].m_endTime)))
         {
             return -1;
         }
