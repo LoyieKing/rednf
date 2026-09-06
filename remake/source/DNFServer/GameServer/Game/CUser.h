@@ -3660,7 +3660,9 @@ public:
     void UpdateCurrentCharacRentalInfo(const InstanceRentalSystem::RentOutput& output,
                                        int machineKey, bool clearFirst);   // ORIG T 0x08676e3c
     void UpdateDimensionInout();                                           // ORIG T 0x08651fba
-    int UpdateEquipslotFlag(char flag);                                    // ORIG T 0x0868aa54
+    // ORIG T 0x0868aa54：getCurEquipslotFlag 后直 ret 无 movzbl 规范化（P9）⇒ 返回 unsigned
+    // char；0x13/0x2 分支值域安全，唯一调用点 int=... 提升不判别负值（Dispatchers 20315）。
+    unsigned char UpdateEquipslotFlag(char flag);                          // ORIG T 0x0868aa54
     void UpdateMissionCondition(std::vector<short>& kinds, std::vector<int>& values); // ORIG T 0x086625c8
     void updatePcRoomPlayTime();                                           // ORIG T 0x0868f726
     void use_equipment(int slot);                                          // ORIG T 0x0865ede0

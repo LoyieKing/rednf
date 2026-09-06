@@ -1077,19 +1077,27 @@ int DisPatcher_UseCoin::usedCoinDungeonCheck(CUser* user, CParty* party)
 int DisPatcher_UseCoin::Dungeon_check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     (void)param;   // ORIG 第 3 参未消费（coin 读自 msg+0xd）
-    CParty* party = static_cast<CParty*>(user->GetParty());
-    if (party == 0)
+    // ORIG（report Ghidra C）调 GetParty **两次**：this_00 用于早期 ==0 return -1
+    // 且传给 usedCoinDungeonCheck；this_01 用于 dungeon 分支。源不得合并为一次缓存
+    // （合并会少一次 call，P196 反例拓扑）。
+    CParty* party0 = static_cast<CParty*>(user->GetParty());
+    if (party0 == 0)
     {
         return -1;
     }
+    CParty* party = static_cast<CParty*>(user->GetParty());
     CDungeon* dungeon = party->m_battleField.m_pDungeon;   // +0xcac
     if (party != 0 && dungeon != 0)
     {
         // CParty+0xb24 内嵌 CBattle_Field（局部视图 CPartyBattleFieldView）
         CBattle_Field* battleField =
             &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField;
-        // ORIG：bloodDungeonType>=1 且 bloodState>=3 → 0x13
-        if (dungeon->m_bloodDungeonType >= 1 && battleField->getBloodState() >= 3)
+        // ORIG：report Ghidra C `(char)this[0x89f] < 1` —— 对 +0x89f 字节做**有符号**
+        // 比较（movzbl 载入后 test %al; jle）。字段声明 unsigned char，若直写
+        // `m_bloodDungeonType >= 1` 4.4 产 `je`（==0 语义，对 ≥0x80 值分叉），故
+        // 按 ORIG 有符号语义 `(int)(signed char)field > 0`（P196 同宽字节符号序）。
+        if ((int)(signed char)dungeon->m_bloodDungeonType > 0 &&
+            battleField->getBloodState() >= 3)
         {
             return 0x13;
         }
@@ -1098,7 +1106,7 @@ int DisPatcher_UseCoin::Dungeon_check_error(CUser* user, MSG_BASE& msg, ParamBas
             return 0x13;
         }
     }
-    int err = usedCoinDungeonCheck(user, party);
+    int err = usedCoinDungeonCheck(user, party0);
     if (err == 0)
     {
         MSG_USE_COIN& req = *reinterpret_cast<MSG_USE_COIN*>(&msg);
@@ -11644,19 +11652,24 @@ int DIspatcher_OneDayLetheTicket::dispatch_sig(CUser* user, PacketBuf& /*packet*
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xd5), 1);
         return 0;
     }
-    bool blocked;
-    if (G_GameWorld()->IsPVPChannel())
-    {
-        blocked = !G_GameWorld()->IsPvPSkilTreeChannel();
-    }
-    else
-    {
-        blocked = false;
-    }
-    CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
-    if (blocked || lethe == 0 || lethe->ResetSkillReq(user) != true)
+    // ORIG（report Ghidra C）：blocked 判定为**早返**（AL 直测无槽，P198），
+    // 随后 GetPremiumLetheManager 空检、ResetSkillReq 各为独立早返——禁布尔局部
+    // 合并（合并致 blocked spill 到 -0xd 槽 + 条件合一，与 ORIG 三段独立早返不符）。
+    if (G_GameWorld()->IsPVPChannel() && !G_GameWorld()->IsPvPSkilTreeChannel())
     {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xd5), 1);
+        return 0;
+    }
+    CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
+    if (lethe == 0)
+    {
+        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xd5), 1);
+        return 0;
+    }
+    if (!lethe->ResetSkillReq(user))
+    {
+        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xd5), 1);
+        return 0;
     }
     return 0;
 }

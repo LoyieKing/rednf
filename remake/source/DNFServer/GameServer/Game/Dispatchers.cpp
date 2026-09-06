@@ -20890,6 +20890,9 @@ int Dispatcher_ImageCommunicationEquipmentUse::check_error(CUser* user, MSG_BASE
     }
     // ORIG 0x081e22bd：price 跨 call 缓存 %ebx（`mov (%eax),%ebx` 单级 deref），
     // 比较 `cmp %eax,%ebx; setg`（price>money 方向，技巧22/32 register asm）。
+    // 【batch-19 实测】register 版帧/槽与 ORIG 全等(push %ebx,0x14)但多指令：
+    // 装载经 %eax 中转 + setg<->setl fold(compare方向互换,P196 非真反)；
+    // 去 register 省指令(38→33)却失帧(push%ebx,0x28)。取 register 版记 N。
     register int price asm("ebx") =
         *(int*)G_CDataManager()->GetImageCommnicationData();
     if (price > user->getCurCharacMoney())

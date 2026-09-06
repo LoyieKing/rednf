@@ -7265,7 +7265,8 @@ void CUser::UpdateDimensionInout()
 // ---------------------------------------------------------------------------
 // 32. CUser::UpdateEquipslotFlag @0x0868aa54
 // ---------------------------------------------------------------------------
-int CUser::UpdateEquipslotFlag(char flag)
+unsigned char CUser::UpdateEquipslotFlag(char flag)   // P9：ORIG 两处 getCur
+                                                      // call 后无 movzbl ⇒ uchar
 {
     // ORIG 0x0868aa6b：`cmp $0x2c,%eax; setg %al; test %al,%al; je ae3(mov$0尾岛)`
     // ⇒ 技巧22 bool 绑 al 具名物化正向形
@@ -9827,8 +9828,8 @@ bool CUser::checkCharacLinkType(char linkPos, int slot)
         if (static_cast<int>(linkPos) + 1 >= slot) {
             return false;
         }
-        // ORIG `movzbl -0x1c,%eax; and $0x1; test %al`：-0x1c 系 4.1 uchar 型
-        // 回退）；4.4 arg 槽恒 movsbl + and 后 test %eax——3 行助记符残差封顶。
+        // ORIG `movzbl -0x1c,%eax; and $0x1; test %al` ⇒ linkPos 按 uchar
+        // 做位测试（cast → movzbl 直落）。
         if ((linkPos & 1) != 0) {
             return false;
         }
