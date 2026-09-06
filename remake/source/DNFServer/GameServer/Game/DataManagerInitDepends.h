@@ -174,7 +174,7 @@ bool importPowerParameterScript(class PowerParameterScript* s, const char* path)
 bool importQuestParameterScript(class QuestParameterScript* s, const char* path);
 bool importTitleBookEtcScript(const char* path, class stTitleBookInfo* out);
 bool importPVPChannelList(char* path, class live_server_info_t* info, int flag); // _Z20importPVPChannelListPcP18live_server_info_ti
-bool importChannelScript(class channel_script_t* script);                  // _Z19importChannelScriptP16channel_script_t
+int importChannelScript(class channel_script_t* script);                   // _Z19importChannelScriptP16channel_script_t（ORIG 0x88dc062 直返 raw int，P9）
 bool importEventAvatarListScript(class EventAvatarListScript* s, const char* path); // _Z27..
 bool importEventEtcScript(class EventEtcScript* s, const char* path);      // _Z20..
 bool importInGameEventInfoList(InGameEventInfoList* list, const char* path); // _Z25importInGameEventInfoListP19InGameEventInfoListPKc

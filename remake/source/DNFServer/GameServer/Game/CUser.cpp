@@ -1668,13 +1668,15 @@ int CUser::make_basic_info(char* buf, char type)
                 Stream* stream =
                     GlobalData::s_stream_pool->Acquire("user.cpp", 0x344c);
                 CStreamGuard guard(stream, true);
-                guard << 0x93;
-                guard << (int)GetUID();
+                // ORIG 0x0865c4f9/0x0865c524/0x0865c53e：`*guard << v`（operator*
+                // 链产生 deEv）+ `guard->GetInBuffer`（ptEv 链），P103/P132。
+                (*guard)->operator<<(0x93);
+                (*guard)->operator<<((int)GetUID());
                 // ORIG 0x0865b40b：GetInBuffer<SIG_FORBID_USER_TO_PLAY>()（真 SIG 类型
                 // 保证 mangled `GetInBufferI23SIG_FORBID_USER_TO_PLAYEEPT_v` 匹配）；
                 // 前 9 字节 payload 借 SigForbidUserToPlayBody 视图写。
                 SIG_FORBID_USER_TO_PLAY* sig =
-                    guard.GetInBuffer<SIG_FORBID_USER_TO_PLAY>();
+                    guard.operator->()->GetInBuffer<SIG_FORBID_USER_TO_PLAY>();
                 SigForbidUserToPlayBody* body =
                     (SigForbidUserToPlayBody*)sig;
                 memset(body, 0, 9);

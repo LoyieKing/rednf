@@ -370,8 +370,10 @@ int BlueMarble::getRandomDungeon(int seat, BlueMarbleTileScript::Type type) cons
 {
     std::vector<int> local;
     int level = m_users[seat].getUser()->get_charac_level();
-    BlueMarbleMapScript* map = m_pScript->getMap(getBlueMarbleMap());
-    if (map == 0)
+    // ORIG 0x080d741d-0x080d748a：getBlueMarbleMap()+getMap 链在判空与
+    // getTile 两处**各取一次**（无 map 局部缓存，P160/P172）；判空为
+    // 4.1 sete 双物化（test;je 直连不可复现，残差记录）。
+    if (m_pScript->getMap(getBlueMarbleMap()) == 0)
     {
         return 0;
     }
@@ -385,22 +387,21 @@ int BlueMarble::getRandomDungeon(int seat, BlueMarbleTileScript::Type type) cons
     {
         return 0;
     }
+    // ORIG 0x080d74ba-：type 三分支各自 sret 临时槽（-0x38/-0x2c/-0x20）
+    // 直写 `local = getXXXIndex(level)`（每分支一对 op=+D1），无跨分支
+    // 共享 tmp——旧 tmp 块形与 move 中转已废。
+    if (type == (BlueMarbleTileScript::Type)7)
     {
-        std::vector<int> tmp;
-        if (type == (BlueMarbleTileScript::Type)7)
-        {
-            tmp = m_pScript->m_info.getUniqueDungeonIndex(level);
-        }
-        else if (type == (BlueMarbleTileScript::Type)8 ||
-                 type == (BlueMarbleTileScript::Type)2)
-        {
-            tmp = m_pScript->m_info.getBossDungeonIndex(level);
-        }
-        else
-        {
-            tmp = m_pScript->m_info.getRandomDungeonIndex(level);
-        }
-        local = std::move(tmp);
+        local = m_pScript->m_info.getUniqueDungeonIndex(level);
+    }
+    else if (type == (BlueMarbleTileScript::Type)8 ||
+             type == (BlueMarbleTileScript::Type)2)
+    {
+        local = m_pScript->m_info.getBossDungeonIndex(level);
+    }
+    else
+    {
+        local = m_pScript->m_info.getRandomDungeonIndex(level);
     }
     if (local.size() == 0)
     {

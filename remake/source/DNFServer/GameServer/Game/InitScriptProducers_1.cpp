@@ -399,7 +399,7 @@ int applyChannelScript(channel_script_t* script)
 
 // ORIG T 0x088dc008：loadRDARScriptFile("","Etc/channel_info.etc") 门禁 +
 // LogManager 报错 + 转发 applyChannelScript 返回值。
-bool importChannelScript(channel_script_t* script)
+int importChannelScript(channel_script_t* script)
 {
     if (!loadRDARScriptFile("", "Etc/channel_info.etc"))
     {
@@ -407,7 +407,7 @@ bool importChannelScript(channel_script_t* script)
                               "importChannelScript - can't find channel_info.etc");
         return 0;
     }
-    return applyChannelScript(script) != 0;
+    return applyChannelScript(script);   // ORIG 直返 raw eax（P9）
 }
 
 // ---- Channel 类型名表（ORIG static _ZL19g_ChannelTypeString d 0x093f4e40，
@@ -524,8 +524,10 @@ bool ImportWorldDrop(WorldDropInfo* out, const char* path)
     std::string token;
     bool ok = false;
 
-    while (ScanType(token, true))
+    for (;;)                                   // ORIG 4.1 while 落点形（check 在头）
     {
+        if (!ScanType(token, true))
+            break;
         if (token != "[world drop]")
             continue;
 
@@ -577,8 +579,10 @@ int ImportSeriaBlessingScript(const char* path, stSeriaBlessingScript& out)
     std::string token;
     bool ok = false;
 
-    while (ScanType(token, true))
+    for (;;)                                   // ORIG 4.1 while 落点形（check 在头）
     {
+        if (!ScanType(token, true))
+            break;
         stSeriaBlessingScript::Value value;      // 每轮构造（ORIG 同；随即全覆盖）
 
         if (token != "[Seria Blessing]")
@@ -956,8 +960,10 @@ int ImportBroadCastItemScript(const char* path, stBroadCastItemScript& script)
     std::string token;
     bool ok = false;
 
-    while (ScanType(token, true))
+    for (;;)                                   // ORIG 4.1 while 落点形：check 在头
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[common items]")
         {
             while (true)

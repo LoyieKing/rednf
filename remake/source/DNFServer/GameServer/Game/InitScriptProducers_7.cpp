@@ -76,13 +76,16 @@ bool importEventAvatarListScript(EventAvatarListScript* s, const char* path)
     }
     s->clear();
 
+    EventAvatarListScript* p = s;              // ORIG -0x10 arg 缓存（insert 用）
     std::string token;
     bool seenEnd = false;
-    int value = -1;
+    int value;                                 // ORIG -0x24（prologue 无初始化）
     int unused0 = 0; (void)unused0;   // ORIG 栈槽 -0xc 同款死变量（-O0 保留存储）
 
-    while (ScanType(token, true))
+    for (;;)                                   // ORIG 4.1 while 落点形（check 在头）
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[avatar list]")
         {
             value = -1;
@@ -93,7 +96,7 @@ bool importEventAvatarListScript(EventAvatarListScript* s, const char* path)
                 {
                     break;
                 }
-                s->m_avatars.insert(value);
+                p->m_avatars.insert(value);
             }
         }
         else if (token == "[event avatar list end]")
@@ -235,9 +238,8 @@ bool importGrowthEquipmentScript(growthEquipmentScript* s, const char* path)
     std::string token;
     bool ok = false;
 
-    while (ScanType(token, true))
-    {
-        if (token == "[gift growth weapon box]")
+        while (ScanType(token, true))
+    {     if (token == "[gift growth weapon box]")
         {
             s->m_giftBox = ScanInt(&ok);
             if (!ok) { return true; }        // ORIG：失败跳出解析但仍返回 1
@@ -302,8 +304,10 @@ bool importInGameAdvertisementEtcScript(InGameAdvertisementScript* s, const char
     bool ok = false;
     int idx = 0;
 
-    while (ScanType(token, true))
+    for (;;)                                   // ORIG 4.1 while 落点形（check 在头）
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[in game advertisement expose condition of teen]")
         {
             for (;;)
@@ -340,8 +344,10 @@ bool importLimitItemUsageInfo(char* path, stLimitItemUsageInfoEx* out)
     std::string dateText;
     bool ok = false;
 
-    while (ScanType(token, true))
+    for (;;)                                   // ORIG 4.1 while 落点形（check 在头）
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[Limit Item Usage Info]")
         {
             for (;;)
@@ -439,8 +445,10 @@ bool importNPCRelationEventScript(const char* path, CNPCRelationEventManager* ou
     bool ok = false;
     int curIdx = 0;
 
-    while (ScanType(token, true))
+    for (;;)                                   // ORIG 4.1 while 落点形（check 在头）
     {
+        if (!ScanType(token, true))
+            break;
         curIdx = 0;
         if (token != "[NPC]")
         {

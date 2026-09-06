@@ -61,7 +61,10 @@ bool JobKey::operator<(const JobKey& rhs) const
         return true;
     if (m_job != rhs.m_job)
         return false;
-    return (int)(unsigned char)m_sub < (int)(unsigned char)rhs.m_sub;
+    // ORIG 0x84a63f2: 第二比较 `cmp %al,%dl; jge` 为有符号字节比较（jge 系）；
+    // 原 (unsigned char) 版本产 setb/jae，当 m_sub≥0x80 时与 ORIG 语义不一致
+    // （0x80..0xFF 有符号视为负）。改 (signed char) 复现 ORIG 有符号序。
+    return (signed char)m_sub < (signed char)rhs.m_sub;
 }
 
 // ---- ORIG 0x84a643a JobKey::JobKey(ENUM_CHARACTERJOB, unsigned char) -------
