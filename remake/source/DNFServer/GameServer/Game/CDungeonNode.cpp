@@ -30,7 +30,7 @@ MySQL* GetMySqLInstance()
 // +0x00..+0x34 逐 int 相加（跳过 0x2c/0x38 char 与 0x38 后 pad；m_f3c 不加）。
 // 定义归本 TU（Main 授权；声明已在 CUser.h）。
 // ============================================================================
-PlayInfo& PlayInfo::operator+=(const PlayInfo& other)
+void PlayInfo::operator+=(const PlayInfo& other)
 {
     m_f00 += other.m_f00;
     m_f04 += other.m_f04;
@@ -45,7 +45,6 @@ PlayInfo& PlayInfo::operator+=(const PlayInfo& other)
     m_f28 += other.m_f28;
     m_f30 += other.m_f30;
     m_f34 += other.m_f34;
-    return *this;
 }
 
 int CDungeonNode::InsertDB(const DungeonKey& key)

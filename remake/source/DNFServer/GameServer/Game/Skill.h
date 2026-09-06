@@ -25,13 +25,14 @@ public:
         m_skillUse = 0;
         m_useCount = 0;
     }
-    Skill& operator+=(const Skill& other)   // ORIG W 0x08486902
+    // ORIG W 0x08486902 尾无 `mov 0x8(%ebp),%eax`（不 reload this 作 return）⇒ 返回 void
+    // （Skill& 版尾多 1 条死 mov，T-CU5 定案；调用点均语句形不消费返回值）。
+    void operator+=(const Skill& other)
     {
         m_skillCount += other.m_skillCount;
         m_coolTime += other.m_coolTime;
         m_skillUse += other.m_skillUse;
         ++m_useCount;
-        return *this;
     }
 
     int m_skillCount;   // +0x00

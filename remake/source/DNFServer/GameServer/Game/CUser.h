@@ -1838,7 +1838,7 @@ public:
 
 
     void Reset();
-    PlayInfo& operator+=(const PlayInfo& other);  // ORIG W 0x0866e8（CDungeonSuccessNode::UpdateCharacter）
+    void operator+=(const PlayInfo& other);  // ORIG W 0x0866e8（CDungeonSuccessNode::UpdateCharacter）；尾无 this-reload⇒void（同 1871 Character 先例）
 
     int m_f00;          // +0x00
     int m_f04;          // +0x04

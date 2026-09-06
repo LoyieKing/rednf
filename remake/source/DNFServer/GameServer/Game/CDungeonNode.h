@@ -61,12 +61,11 @@ public:
         m_damageCount = 0;
         m_count = 0;
     }
-    Monster& operator+=(const Monster& other)   // W 0x08486996
+    void operator+=(const Monster& other)   // W 0x08486996：尾无 this-reload⇒void（Skill/PlayInfo 同族定案）
     {
         m_damageTotal += other.m_damageTotal;
         m_damageCount += other.m_damageCount;
         ++m_count;
-        return *this;
     }
 
     int m_damageTotal;   // +0x00
