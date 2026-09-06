@@ -883,7 +883,7 @@ bool Init(int argc, char** argv)
 // MainLoop() —— ORIG 0x829fa2b（0x305）：主循环每秒一轮。ORIG 局部为
 // 周期/计数器组：-0x34 每 30 轮 UpdateChannelUser+状态日志；-0x40 每 10 轮
 // 心跳（monitor/guild proxy 遍历，GetServerProxy(组号)）；-0x24 每 2 轮
-// 翻转 CmmChannelProxy 上报；-0x1c 每 0x12c 轮向 NETWORK_Q 投递心跳流包
+// 翻转 CmmChannelProxy 上报；-0x1c 每 0x12c 轮向 DISPATCH_Q 投递心跳流包
 // （Acquire("App.cpp", 0x2728) + << 0x30a << -1）。退出条件
 // !GlobalData::s_server_stop（@0x940bd64），返回 1。
 // ---------------------------------------------------------------------------
@@ -953,7 +953,7 @@ void MainLoop()
             CStreamGuard guard(s, true);
             **guard << 0x30a;
             **guard << -1;
-            GlobalData::s_msgq_mgr->put(MsgQueueMgr::NETWORK_Q, guard);
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
             cnt300 = 0;
         }
         ++cnt300;
