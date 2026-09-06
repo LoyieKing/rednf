@@ -20,6 +20,7 @@
 #include "GamePODTypes.h"
 #include "GameWorld.h"
 #include "STStackableScript.h"
+#include "CStackableItem.h"   // CStackableItem::m_pkg21c（+0x21c 具名字段）
 #include "LogManager.h"
 #include "RDARScriptStringManager.h"
 #include "DB_AvatarChangeOwner.h"
@@ -34,6 +35,20 @@ namespace
 {
 // ---- 本 TU 局部偏移读写助手（SIG 结构按 ORIG 偏移访问，见 SigTypes.h 注释） ----
 
+// RandomOption（Inven_Item::m_random.m_random，0xe 字节）的整块序列化视图。
+// ORIG SetMailBoxInfo 0x08552bd5/0x08552bde/0x08552be7/0x08552bf1：mail 条目
+// 的 m_field46/4a/4e/52 以 int/int/int/word 四写还原 RandomOption(+0x25..0x32)
+// 整块（非逐 uchar 子字段），故用具名子对象基址 + 本视图字段表达，消裸偏移。
+#pragma pack(push, 1)
+struct InvenRandBlobV
+{
+    int m_w0;              // RandomOption +0x00（← m_field46）
+    int m_w4;              // +0x04（← m_field4a）
+    int m_w8;              // +0x08（← m_field4e）
+    unsigned short m_wc;   // +0x0c（← m_field52）
+};
+#pragma pack(pop)
+static_assert(sizeof(InvenRandBlobV) == 0xe, "InvenRandBlobV == RandomOption size");
 
 #pragma pack(push, 1)
 struct MailBoxListV
@@ -807,26 +822,22 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
                 item.SetItemAttr(MB_ENTRY(i)->m_itemAttr);
                 item.m_fieldb = MB_ENTRY(i)->m_field33;
                 item.m_fieldd = MB_ENTRY(i)->m_field35;
-                *reinterpret_cast<int*>(
-                    reinterpret_cast<char*>(&item) + 0x15) = MB_ENTRY(i)->m_field39;
-                *reinterpret_cast<int*>(
-                    reinterpret_cast<char*>(&item) + 0x19) = MB_ENTRY(i)->m_field3d;
-                *reinterpret_cast<unsigned short*>(
-                    reinterpret_cast<char*>(&item) + 0x1d) =
+                // ORIG 0x08552b4d/0x08552b6e/0x08552b78：item+0x15/0x19/0x1d
+                // = amp guid（m_amp.m_guid，ORIG 0x8552b4a 逐条 mov 宽 int/int/word）。
+                item.m_amp.m_guid.m_serverId = MB_ENTRY(i)->m_field39;
+                item.m_amp.m_guid.m_datetime = MB_ENTRY(i)->m_field3d;
+                item.m_amp.m_guid.m_sequenceNo =
                     MB_ENTRY(i)->m_field41;
                 item.m_amp.assign(MB_ENTRY(i)->m_ampType, MB_ENTRY(i)->m_ampIdx);
-                *reinterpret_cast<unsigned int*>(
-                    reinterpret_cast<char*>(&item) + 0x1f) =
-                    (unsigned int)MB_ENTRY(i)->m_field46;
-                *reinterpret_cast<unsigned int*>(
-                    reinterpret_cast<char*>(&item) + 0x23) =
-                    (unsigned int)MB_ENTRY(i)->m_field4a;
-                *reinterpret_cast<unsigned int*>(
-                    reinterpret_cast<char*>(&item) + 0x27) =
-                    (unsigned int)MB_ENTRY(i)->m_field4e;
-                *reinterpret_cast<unsigned short*>(
-                    reinterpret_cast<char*>(&item) + 0x2b) =
-                    MB_ENTRY(i)->m_field52;
+                // RandomOption（&item.m_random.m_random = item+0x25，ORIG 0x8552bd5
+                // 实证 -0x34c）整块序列化恢复。旧偏移 0x1f/0x23/0x27/0x2b 系基址
+                // 漂移，按 ORIG 逐条 int/int/int/word 归位到 +0x25/0x29/0x2d/0x31。
+                InvenRandBlobV& randBlob =
+                    *reinterpret_cast<InvenRandBlobV*>(&item.m_random.m_random);
+                randBlob.m_w0 = MB_ENTRY(i)->m_field46;
+                randBlob.m_w4 = MB_ENTRY(i)->m_field4a;
+                randBlob.m_w8 = MB_ENTRY(i)->m_field4e;
+                randBlob.m_wc = MB_ENTRY(i)->m_field52;
                 item.m_upgradeSep.SetUpgradeSeparateAndTradeRestriction(
                     MB_ENTRY(i)->m_upgradeSep);
                 if (MB_ENTRY(i)->m_attachType == 4)
@@ -1135,8 +1146,7 @@ bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
                 std::vector<std::pair<int, int> > evItems;
                 CItem* proto = G_CDataManager()->find_item(itemIdx);
                 std::vector<STStackablePackageData>& vec =
-                    *reinterpret_cast<std::vector<STStackablePackageData>*>(
-                        reinterpret_cast<char*>(proto) + 0x21c); // 推断：+0x21c
+                    static_cast<CStackableItem*>(proto)->m_pkg21c;  // +0x21c
                 for (std::vector<STStackablePackageData>::iterator it = vec.begin();
                      it != vec.end(); ++it)
                     evItems.push_back(std::make_pair(it->m_field0, it->m_field4));
@@ -1338,21 +1348,21 @@ void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
     MAIL_MSG->m_fieldb = MAIL_IT->m_fieldb;
     MAIL_MSG->m_itemAttr = MAIL_IT->GetItemAttr();
     MAIL_MSG->m_fieldd = MAIL_IT->m_fieldd;
-    MAIL_MSG->m_field15 = *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(MAIL_IT) + 0x15);
-    MAIL_MSG->m_field19 = *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(MAIL_IT) + 0x19);
-    MAIL_MSG->m_field1d = *reinterpret_cast<const unsigned short*>(
-        reinterpret_cast<const char*>(MAIL_IT) + 0x1d);
+    // item+0x15/0x19/0x1d = amp guid（ORIG 0x08555756 逐条 int/int/word 读）。
+    MAIL_MSG->m_field15 = MAIL_IT->m_amp.m_guid.m_serverId;
+    MAIL_MSG->m_field19 = MAIL_IT->m_amp.m_guid.m_datetime;
+    MAIL_MSG->m_field1d = MAIL_IT->m_amp.m_guid.m_sequenceNo;
     MAIL_IT->m_amp.getValues(MAIL_MSG->m_ampType, MAIL_MSG->m_ampIdx);
-    MAIL_MSG->m_field25 = *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(MAIL_IT) + 0x25);
-    MAIL_MSG->m_field29 = *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(MAIL_IT) + 0x29);
-    MAIL_MSG->m_field2d = *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(MAIL_IT) + 0x2d);
-    MAIL_MSG->m_field31 = *reinterpret_cast<const unsigned short*>(
-        reinterpret_cast<const char*>(MAIL_IT) + 0x31);
+    // RandomOption（&item.m_random.m_random = item+0x25）整块序列化读出，
+    // ORIG 逐条 int/int/int/word 视图。
+    {
+        InvenRandBlobV const& randBlob =
+            *reinterpret_cast<InvenRandBlobV const*>(&MAIL_IT->m_random.m_random);
+        MAIL_MSG->m_field25 = randBlob.m_w0;
+        MAIL_MSG->m_field29 = randBlob.m_w4;
+        MAIL_MSG->m_field2d = randBlob.m_w8;
+        MAIL_MSG->m_field31 = randBlob.m_wc;
+    }
     MAIL_MSG->m_upgradeSep = MAIL_IT->m_upgradeSep.GetUpgradeSeparate();
     MAIL_MSG->m_isCreature = MAIL_IT->IsCreatureItemType() ? 1 : 0;
     MAIL_MSG->m_isAvatarSend = (MAIL_IT->m_field1 == 8) ? 1 : 0;

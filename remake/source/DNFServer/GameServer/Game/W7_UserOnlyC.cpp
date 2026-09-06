@@ -626,10 +626,10 @@ LimitItemUsage::LimitItemUsage()
     CommonTime* t = reinterpret_cast<CommonTime*>(this);
     t->SetCurTime();
     m_field10 = 0;
-    m_pad11[0] = 0;
-    m_pad11[1] = 0;
-    m_pad11[2] = 0;
-    m_pad11[3] = 0;
+    m_field11b[0] = 0;
+    m_field11b[1] = 0;
+    m_field11b[2] = 0;
+    m_field11b[3] = 0;
     m_field15 = 0;
     m_field19 = 0;
 }
@@ -658,7 +658,7 @@ bool LimitItemUsage::isUsable()
     const unsigned char state = m_field10;
     if (state == 2)
     {
-        if (m_field19 >= *reinterpret_cast<const int*>(m_pad11))
+        if (m_field19 >= m_field11)
             return false;
         return true;
     }
@@ -666,7 +666,7 @@ bool LimitItemUsage::isUsable()
     {
         if (isAnotherDay())
             m_field19 = 0;
-        if (m_field19 >= *reinterpret_cast<const int*>(m_pad11))
+        if (m_field19 >= m_field11)
             return false;
     }
     return true;

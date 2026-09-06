@@ -226,7 +226,7 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
         int first = (signed char)user->getCurCharFirstGrowType();
         int job = user->get_charac_job();
         PvPSkillTreeParameterScript* script =
-            (PvPSkillTreeParameterScript*)((char*)G_CDataManager() + 0xa800);
+            &G_CDataManager()->m_pvpSkillTree;
         int point = script->getPvPSkillPoint(job, first, second, grade, false);
         slot = (SkillSlot*)user->getCurCharacSkillW();
         slot->set_remain_sp_at_index(point, kind);

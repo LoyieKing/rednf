@@ -4001,8 +4001,10 @@ bool DB_UpdateLogout::dispatch(int userIdx, int slot, Stream* stream)
                           ((DB_UpdateLogoutSigView*)sig)->m_field1b,
                           ((DB_UpdateLogoutSigView*)sig)->m_field1f,
                           ((DB_UpdateLogoutSigView*)sig)->m_puUser ? 0 : 1,
-                          (char*)sig + 0x37, ((DB_UpdateLogoutSigView*)sig)->m_field23,
-                          (char*)sig + 0x43, (char*)sig + 0x47,
+                          ((DB_UpdateLogoutSigView*)sig)->m_field37,
+                          ((DB_UpdateLogoutSigView*)sig)->m_field23,
+                          ((DB_UpdateLogoutSigView*)sig)->m_field43,
+                          ((DB_UpdateLogoutSigView*)sig)->m_mac,
                           ((DB_UpdateLogoutSigView*)sig)->m_serverId,
                           NumberToString(((DB_UpdateLogoutSigView*)sig)->m_accId, 0));
         }
@@ -6914,13 +6916,28 @@ bool DB_SaveExpandEquipslot::_SaveCharacStat(unsigned int characNo,
 // ORIG 0x0840da96：GetOutBuffer<SIG_SAVE_EXPAND_CHARAC>；先 _SaveExpandEquipslot
 // 全绿再 _SaveCharacStat（charac_no=+0，STAT=+0x898）；任一步失败返 0。
 // 与基类 DBDispatcher::dispatch 不同，ORIG 无 slot 前置检查（GetDBHandle 直接）。
+#pragma pack(push, 1)
+// DB_SaveExpandEquipslot::dispatch 出站载荷视图（§4.3 裸偏移→具名字段）：
+// ORIG 0x0840da96 第二段实参 = sig+0x898；0x898 = sizeof(SIG_SAVE_EXPAND_EQUIPSLOT)
+// （SIG_SAVE_EXPAND_EQUIPSLOT.h static_assert），即 CExpandEquipslot.cpp:157 权威
+// SIG_SAVE_EXPAND_CHARAC 布局里 m_switch1(+0x898) 的起点。pad 仅表达布局、不参与写入（P99）。
+struct DB_SaveExpandCharacView
+{
+    char m_equip[0x898];                 // +0x000 SIG_SAVE_EXPAND_EQUIPSLOT 段
+    SIG_SAVE_EXPAND_CHARAC_STAT m_stat;  // +0x898（channel/expand 两 switch）
+    char m_pad89a[2];                    // +0x89a..0x89b（SIG_SAVE_EXPAND_CHARAC=0x89c）
+};
+#pragma pack(pop)
+static_assert(sizeof(DB_SaveExpandCharacView) == 0x89c,
+              "DB_SaveExpandCharacView ABI drift");
+
 bool DB_SaveExpandEquipslot::dispatch(int userIdx, int slot, Stream* stream)
 {
     SIG_SAVE_EXPAND_CHARAC* sig = stream->GetOutBuffer<SIG_SAVE_EXPAND_CHARAC>();
     if (!_SaveExpandEquipslot((SIG_SAVE_EXPAND_EQUIPSLOT*)sig))
         return 0;
     if (!_SaveCharacStat(((SIG_SAVE_EXPAND_EQUIPSLOT*)sig)->m_characNo,
-                         (SIG_SAVE_EXPAND_CHARAC_STAT*)((char*)sig + 0x898)))
+                         &((DB_SaveExpandCharacView*)sig)->m_stat))
         return 0;
     return 1;
 }
@@ -8727,6 +8744,23 @@ bool DB_ReqBlackCount::dispatch(int userIdx, int slot, Stream* stream)
 // get_compressed_blob_data(col2,0x210,0x16) → put 返 1。buf 两次 memset 语句
 // （ORIG gcc4.1 内联 rep stos；本工具链 gcc4.4 常 call memset，P4 工具链差异）。
 // ============================================================================
+#pragma pack(push, 1)
+// DB_LoadGameOption::dispatch 回包载荷视图（§4.3 裸偏移→具名字段）：
+// ORIG 0x0842f7f4 对 out+0x00/0x48/0x174/0x2a0 四子对象各 clear 一次，随后
+// uncompress_zip 目标 out+0x00(cap 0x48)/out+0x48(cap 600) 与
+// get_compressed_blob_data(col2, out+0x2a0, 0x210) —— 尺寸与 CGameOption.h
+// CETCOption(0x48)/CQuickChattingOption(0x12c)/CChattingEmoticonConfig(0x210)
+// 逐项吻合，合计 0x4b0 = sizeof(SIG_LOAD_GAME_OPTION)（SigTypes_C.h:644）。
+struct DB_GameOptionSigView
+{
+    CETCOption m_etc;                    // +0x000（0x48）
+    CQuickChattingOption m_quick[2];     // +0x048 / +0x174（0x12c×2 → +0x2a0）
+    CChattingEmoticonConfig m_emoticon;  // +0x2a0（0x210）
+};
+#pragma pack(pop)
+static_assert(sizeof(DB_GameOptionSigView) == 0x4b0,
+              "DB_GameOptionSigView ABI drift");
+
 bool DB_LoadGameOption::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
@@ -8747,9 +8781,9 @@ bool DB_LoadGameOption::dispatch(int userIdx, int slot, Stream* stream)
         SIG_LOAD_GAME_OPTION* out =
             guard.operator*()->GetInBuffer<SIG_LOAD_GAME_OPTION>();
         ((CETCOption*)out)->clear();
-        ((CQuickChattingOption*)((char*)out + 0x48))->clear();
-        ((CQuickChattingOption*)((char*)out + 0x174))->clear();
-        ((CChattingEmoticonConfig*)((char*)out + 0x2a0))->clear();
+        ((DB_GameOptionSigView*)out)->m_quick[0].clear();
+        ((DB_GameOptionSigView*)out)->m_quick[1].clear();
+        ((DB_GameOptionSigView*)out)->m_emoticon.clear();
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 1;
     }
@@ -8767,9 +8801,9 @@ bool DB_LoadGameOption::dispatch(int userIdx, int slot, Stream* stream)
     SIG_LOAD_GAME_OPTION* out =
         guard.operator*()->GetInBuffer<SIG_LOAD_GAME_OPTION>();
     ((CETCOption*)out)->clear();
-    ((CQuickChattingOption*)((char*)out + 0x48))->clear();
-    ((CQuickChattingOption*)((char*)out + 0x174))->clear();
-    ((CChattingEmoticonConfig*)((char*)out + 0x2a0))->clear();
+    ((DB_GameOptionSigView*)out)->m_quick[0].clear();
+    ((DB_GameOptionSigView*)out)->m_quick[1].clear();
+    ((DB_GameOptionSigView*)out)->m_emoticon.clear();
     char buf[0x2dc];
     {
         static const int compressedBufferSize = 0x62;  // ORIG _ZZ…DB_LoadGameOption…E20compressedBufferSize
@@ -8797,10 +8831,12 @@ bool DB_LoadGameOption::dispatch(int userIdx, int slot, Stream* stream)
         }
         unsigned int len1 = db->get_binary_length(1);
         unsigned int cap1 = 600;
-        if (!uncompress_zip((char*)out + 0x48, cap1, buf, len1))
+        if (!uncompress_zip((char*)&((DB_GameOptionSigView*)out)->m_quick[0],
+                            cap1, buf, len1))
             return 0;
     }
-    if (!get_compressed_blob_data(db, 2, (char*)out + 0x2a0, 0x210, 0x16))
+    if (!get_compressed_blob_data(
+            db, 2, (char*)&((DB_GameOptionSigView*)out)->m_emoticon, 0x210, 0x16))
         return 0;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
@@ -15167,7 +15203,7 @@ bool DB_SaveKillMonsterInfo::dispatch(int /*userIdx*/, int /*slot*/,
               0, sig->m_characNo);
         return 0;
     }
-    ok = put_compressed_blob_data(db, 1, (char*)sig + 0x1d4c, 30000,
+    ok = put_compressed_blob_data(db, 1, (char*)sig->m_named, 30000,
                                   &namedInfo);
     if (!ok)
     {
@@ -15176,7 +15212,7 @@ bool DB_SaveKillMonsterInfo::dispatch(int /*userIdx*/, int /*slot*/,
               1, sig->m_characNo);
         return 0;
     }
-    ok = put_compressed_blob_data(db, 2, (char*)sig + 0x927c, 0x1d4c,
+    ok = put_compressed_blob_data(db, 2, (char*)sig->m_apc, 0x1d4c,
                                   &apcBossInfo);
     if (!ok)
     {

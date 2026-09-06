@@ -340,6 +340,8 @@ void CAchievement::_checkComplete(unsigned int id)
     _sendEachAchieveReward(quest);
     _sendCompleteReward(quest, category, slot);
     _sendComplete(id, titleIdx, category, slot);
+    // CUser 冻结头 +0x79700 即 cUserHistoryLog（本地最小视图；本 TU 混 CTitleBook
+    // 冲突类不能并入 CUser.h，保持具名视图 + 文档化基址访问）
     ((cUserHistoryLog*)((char*)m_user + 0x79700))->AchievementComplete((int)id);
 }
 

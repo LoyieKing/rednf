@@ -487,7 +487,7 @@ void Area::set_area(int vill, TownAreaScript& script, STMapScript& mapScript)
 
     stAttackedMapInfo_t* attackedInfo = 0;
     std::vector<stAttackedMapInfo_t>* infoList =
-        (std::vector<stAttackedMapInfo_t>*)((char*)G_CDataManager() + 0x61a0);
+        &G_CDataManager()->m_villageAttacked.m_mapList;
     for (std::vector<stAttackedMapInfo_t>::iterator it = infoList->begin();
          it != infoList->end(); ++it)
     {

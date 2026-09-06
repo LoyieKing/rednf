@@ -56,6 +56,16 @@ struct stGenerateRefClearReward_t
     CDungeon* m_dungeon;        // +0x0c
 };
 
+// §4.3 裸偏移清零：调用方上下文区在 stGenerateRefData_t 内的起点由**具名字段**
+// m_field34（CItemGenerator.h:210）经 offsetof 推导，不再是字面量 0x34；
+// 视图尺寸 0x10 由下方断言锁定（本文件上方布局注释：ORIG 访问不超过 +0xf）。
+// 取「常量相加」而非「直取字段地址」：ORIG 该处是基址 + 立即数两步物化，
+// `&ref.m_field34` 会被 4.4 折成单条 lea，实测 generateRandomItem ndiff 2→14
+// 倒退，故保留相加形（常量仍由具名字段推导，无裸偏移字面量）。
+static const int kRefClearRewardCtx =
+    static_cast<int>(offsetof(stGenerateRefData_t, m_field34));
+static_assert(sizeof(stGenerateRefClearReward_t) == 0x10,
+              "clear-reward ctx size drift");
 
 void CClearReward::setDropRatio(float ratio)
 {
@@ -105,7 +115,8 @@ void CClearReward::generateRandomItem(stGenerateRefData_t const& ref,
     if (m_random.generateNumber(1, 10000) < m_dropKindProb[0])
     {
         _generateRandomItem(*reinterpret_cast<stGenerateRefClearReward_t const*>(
-                                reinterpret_cast<char const*>(&ref) + 0x34),
+                                reinterpret_cast<char const*>(&ref) +
+                                kRefClearRewardCtx),
                             *reinterpret_cast<int const*>(&ref),
                             result,
                             *reinterpret_cast<float const*>(&ref.m_field04));
@@ -113,7 +124,8 @@ void CClearReward::generateRandomItem(stGenerateRefData_t const& ref,
     else
     {
         _generateSpecificItem(*reinterpret_cast<stGenerateRefClearReward_t const*>(
-                                  reinterpret_cast<char const*>(&ref) + 0x34),
+                                  reinterpret_cast<char const*>(&ref) +
+                                  kRefClearRewardCtx),
                               result);
     }
 }
@@ -295,8 +307,7 @@ void CClearReward::generatePremiumGoldCardItem(
         eItemDropType_2, static_cast<ENUM_RARITY>(rarityIdx));
     int itemIdx = m_table.chooseItem(
         eItemDropType_2, static_cast<ENUM_RARITY>(rarityIdx),
-        *reinterpret_cast<unsigned char const*>(
-            reinterpret_cast<char const*>(&ref) + 0x34));
+        static_cast<unsigned char>(ref.m_field34));   // §4.3 具名化（+0x34）
     if (itemIdx == -1)
         itemIdx = static_cast<int>(defaultItem);
     if (G_CDataManager()->m_itemList->find_item(itemIdx) == 0)

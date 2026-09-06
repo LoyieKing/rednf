@@ -68,55 +68,63 @@ void CParty::increase_ancient_dungeon_ticket()
 {
     if (m_battleField.m_pDungeon == 0)
         return;
-    // movzbl 0x89c + xor $1 + jne：要求副本 +0x89c 字节 == 1
-    if ((char)m_battleField.m_pDungeon->m_89c != 1)
+    // movzbl 0x89c：要求副本 +0x89c 字节 == 1 才继续
+    if (m_battleField.m_pDungeon->m_89c != 1)
         return;
 
     // dungeon+0x7f4 = RequiredItem.m_0（道具 idx）；+0x7f8 = RequiredItem.m_4
     const int itemId = m_battleField.m_pDungeon->m_entryRequiredItem.m_itemIdx;
     const int createParam = m_battleField.m_pDungeon->m_entryRequiredItem.m_itemCount;
 
-    CDataManager* dataMgr = G_CDataManager();
-    if (dataMgr->find_item(itemId) == 0)   // find_item(int) const 0x0835fa32
+    // find_item 结果存槽 local，比较用 cmpl $0（ORIG -0x14）；G_CDataManager()
+    // 每次内联重取（P0：ORIG 无 dataMgr 局部，寄存器直传）。
+    CItem* found = G_CDataManager()->find_item(itemId);  // find_item(int) const 0x0835fa32
+    if (found == 0)
         return;
 
     Inven_Item item;                        // Inven_Item::Inven_Item W 0x080cb854
     item.m_addInfo = itemId;                // uStack_70/uStack_6e 两 short 写 = +0x02 int
-    dataMgr->m_itemList->create_item(       // CItemList::create_item T 0x08511fb8
+    G_CDataManager()->m_itemList->create_item(  // CItemList::create_item T 0x08511fb8
         (ENUM_ITEM_CREATE_TYPE)0, item, createParam);
 
     // create 后有效性判定：m_addInfo(+0x02) 与 get_add_info()(+0x07) 任一非零
-    if (!(item.m_addInfo != 0 || item.get_add_info() != 0))
-        return;
-
-    for (int i = 0; i < 4; ++i)             // cmpl $3/setle：i<=3 共 4 槽
+    // ORIG：bVar1 在寄存器物化（mov$1/jmp/mov$0 后 test%al），条件为
+    // (m_addInfo != 0) || (get_add_info() != 0)
+    if (item.m_addInfo != 0 || item.get_add_info() != 0)
     {
-        if (!checkValidUser(i))             // checkValidUser(int) W 0x08145868
-            continue;
-        CUser* user = m_member[i].m_pUser;
-        // insertItemIntoInventory(Inven_Item, eItemAddReason, bool, bool)
-        // 实参 (item, 0x38, 1, 1)；返回槽号符号扩展判负
-        int slot = user->getCurCharacInvenW()->insertItemIntoInventory(
-            item, (eItemAddReason)0x38, true, true);
-        if (slot < 0)
+        for (int i = 0; i < 4; ++i)         // cmpl $3/setle：i<=3 共 4 槽
         {
-            // 入包失败 → 系统邮件补发门票后重置栈上物品
-            char title[0x15];               // local_35[21]
-            strncpy(title,
-                    g_scriptStringManager_.findString(4, "game_server_msg_53", 0),
-                    0x14);
-            char body[0x100];               // local_172[256]
-            strncpy(body,
-                    g_scriptStringManager_.findString(4, "game_server_msg_154", 0),
-                    0xff);
-            WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-                title, item, 0, (unsigned int)user->getCurCharacNo(),
-                body, (int)strlen(body), 0, user->GetServerGroup(), false, false);
-            item.reset();                   // Inven_Item::reset W 0x080cb7d8
-        }
-        else
-        {
-            user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, slot);
+            if (!checkValidUser(i))         // checkValidUser(int) W 0x08145868
+                continue;
+            int slot = -1;                  // movl $0xffffffff,-0xc
+            // insertItemIntoInventory(Inven_Item, eItemAddReason, bool, bool)
+            // 实参 (item, 0x38, 1, 1)；返回槽号符号扩展判负
+            slot = m_member[i].m_pUser->getCurCharacInvenW()
+                       ->insertItemIntoInventory(
+                           item, (eItemAddReason)0x38, true, true);
+            if (slot < 0)
+            {
+                // 入包失败 → 系统邮件补发门票后重置栈上物品
+                char title[0x15];           // local_35[21]
+                strncpy(title,
+                        g_scriptStringManager_.findString(4, "game_server_msg_53", 0),
+                        0x14);
+                char body[0x100];           // local_172[256]
+                strncpy(body,
+                        g_scriptStringManager_.findString(4, "game_server_msg_154", 0),
+                        0xff);
+                WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                    title, item, 0,
+                    (unsigned int)m_member[i].m_pUser->getCurCharacNo(),
+                    body, (int)strlen(body), 0,
+                    m_member[i].m_pUser->GetServerGroup(), false, false);
+                item.reset();               // Inven_Item::reset W 0x080cb7d8
+            }
+            else
+            {
+                m_member[i].m_pUser->SendUpdateItem((CUser::eSendTarget)1,
+                                                    (ENUM_ITEMSPACE)0, slot);
+            }
         }
     }
 }
@@ -169,29 +177,32 @@ bool CParty::isGuildParty()
 // ---------------------------------------------------------------------------
 // isPremiumGoldCardReward —— ORIG T 0x085b11ee
 // 报告：docs/class_func_reports/CParty/isPremiumGoldCardReward.md
-//   mgr+(i*0x10)+0x4904/+0x4908/+0x490c/+0x4910），换算为 ev 平铺 int 下标：
-//   flat = (int*)&ev 起（+0x00）→ count=flat[1] 低半字，
-//   min=flat[2+i*4]、max=flat[3+i*4]、prob=flat[4+i*4]、reward=flat[5+i*4]。
+//   数据经 m_serverParameter(+0x68) m_premiumGoldCard4894(+0x4894) m_conds[i]
+//   （+0x08 起，步长 0x10）：count=m_conditionCount（short @+0x04，0x4900），
+//   元素 min=max=prob=reward 与原 ORIG 平铺 int 偏移 0x4904/+0x4910 一致。
 // ---------------------------------------------------------------------------
 bool CParty::isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& param)
 {
-    const int standardLevel = dungeon->get_standard_level();  // W 0x080f9810
-    CDataManager* mgr = G_CDataManager();
+    // ORIG 0x085b11ee：dungeon->get_standard_level() 结果存槽（local -0x28）；
+    // G_CDataManager() 每次取字段时重新调用（-O0 无 CSE，ORIG 每轮 loop 4 次重取），
+    // 无命名 mgr/ev 局部（P0 槽律）。字段经 m_serverParameter(+0x68)
+    // m_premiumGoldCard4894(+0x4894) m_conds[i]（+0x08 起，步长 0x10）。
+    const int standardLevel = dungeon->get_standard_level();   // W 0x080f9810
 
-    ServerParameterScript::stPremiumGoldCardEvent& ev =
-        mgr->m_serverParameter.m_premiumGoldCard4894;
-    int* const flat = reinterpret_cast<int*>(&ev);
-
-    // movzwl 0x4900 + cwtl：读低半字并有符号扩展为循环上限
+    // movzwl 0x4900 + cwtl：count = m_conditionCount（short @ +0x04）扩为 int 上限
     const int condCount =
-        (int)(short)*reinterpret_cast<const unsigned short*>(&flat[1]);
+        (int)G_CDataManager()->m_serverParameter.m_premiumGoldCard4894.m_conditionCount;
 
     for (int i = 0; i < condCount; ++i)
     {
-        const int minLevel = flat[2 + i * 4];
-        const int maxLevel = flat[3 + i * 4];
-        const int prob     = flat[4 + i * 4];
-        const unsigned int rewardItem = (unsigned int)flat[5 + i * 4];
+        const int minLevel =
+            G_CDataManager()->m_serverParameter.m_premiumGoldCard4894.m_conds[i].m_field0;
+        const int maxLevel =
+            G_CDataManager()->m_serverParameter.m_premiumGoldCard4894.m_conds[i].m_field4;
+        const int prob =
+            G_CDataManager()->m_serverParameter.m_premiumGoldCard4894.m_conds[i].m_field8;
+        const unsigned int rewardItem = (unsigned int)
+            G_CDataManager()->m_serverParameter.m_premiumGoldCard4894.m_conds[i].m_fieldc;
 
         if (minLevel < 1)
             return false;
@@ -199,7 +210,7 @@ bool CParty::isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& para
             return false;
         if (prob < 1)
             return false;
-        if (minLevel <= standardLevel && standardLevel <= maxLevel)
+        if (standardLevel >= minLevel && standardLevel <= maxLevel)
         {
             const int dice = get_rand_int(1000);   // get_rand_int T 0x086b1b87
             if (dice <= prob)

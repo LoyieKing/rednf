@@ -309,8 +309,7 @@ int CDungeonSuccessNode::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat)
     }
 
     std::map<JobKey, CSuccessJobNode>::iterator itJob =
-        m_jobMap.find(*reinterpret_cast<const JobKey*>(
-            reinterpret_cast<const char*>(stat) + 0x10));
+        m_jobMap.find(*reinterpret_cast<const JobKey*>(&stat->m_job));
     std::map<JobKey, CSuccessJobNode>::iterator eJob = m_jobMap.end();
     if (itJob != eJob)
     {

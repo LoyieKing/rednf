@@ -399,6 +399,10 @@ void CTitleBook::deleteTimeoutItem(
                 item->reset();
                 alter();
             }
+            // §4.3 跨TU隔离例外：本 TU CDataManager 为最小镜像类（仅 find_item）；
+            // 真定义 CDataManager.h:3665 `DeleteInvalidItemScript m_deleteInvalidItem; // +0xb658`。
+            // 镜像内补该字段会把其落 +0x00 而非 +0xb658 → 真实地址漂移 bug，故保留
+            // 具名视图 + 文档化基址访问（同 CItemLock/CMailBoxHelper 判例）。
             else if (reinterpret_cast<DeleteInvalidItemScript*>(
                          (char*)G_CDataManager() + 0xb658)
                          ->IsInvalidItem2Delete(item->m_addInfo))

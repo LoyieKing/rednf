@@ -1283,10 +1283,11 @@ int DisPatcher_SelectCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     }
     else
     {
-        const _Charac_info& info =
-            user->m_characList[static_cast<int>(static_cast<char>(req.m_slot))];
-        req.m_0e = info.m_field14b8;
-        req.m_12 = info.m_field14b7;
+        // P48：O0 无 CSE，ORIG 两字段各触发一次 vector::operator[] 调用（禁缓存 info）。
+        req.m_0e =
+            user->m_characList[static_cast<int>(static_cast<char>(req.m_slot))].m_field14b8;
+        req.m_12 =
+            user->m_characList[static_cast<int>(static_cast<char>(req.m_slot))].m_field14b7;
     }
 
     RequestDBCharac(user, req);
@@ -2126,9 +2127,9 @@ int DisPatcher_DeleteCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     Stream* stream =
         GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0xa4d);
     CStreamGuard guard(stream, true);
-    guard << 5;                                   // SIG 类型 5
-    guard << static_cast<int>(user->GetUID());
-    SIG_DELETE_CHARAC* sig = guard.GetInBuffer<SIG_DELETE_CHARAC>();
+    // ORIG 单 operator-> + 链式：guard-><< 5 返回 Stream&，<< UID 走 Stream::operator<<(int)；GetInBuffer 经 guard->。
+    *guard << 5 << static_cast<int>(user->GetUID());   // SIG 类型 5 + UID
+    SIG_DELETE_CHARAC* sig = guard->GetInBuffer<SIG_DELETE_CHARAC>();
     memset(sig, 0, 0x14);
     sig->m_accId = user->get_acc_id();
     sig->m_characNo = static_cast<unsigned int>(user->get_charac_no(slot));
@@ -2150,7 +2151,6 @@ int DisPatcher_DeleteCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    const _Charac_info& info = user->m_characList[static_cast<int>(slot)];
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0xa6e, 0);
@@ -2158,8 +2158,9 @@ int DisPatcher_DeleteCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
           __PRETTY_FUNCTION__,
           0xa6e,
           NumberToString(user->get_acc_id(), 0),
-          static_cast<int>(info.m_characNo),
-          reinterpret_cast<const char*>(info.m_name));
+          // P48：m_characNo/m_name 两字段各触发一次 vector::operator[]（禁缓存 info）。
+          static_cast<int>(user->m_characList[static_cast<int>(slot)].m_characNo),
+          reinterpret_cast<const char*>(user->m_characList[static_cast<int>(slot)].m_name));
     return 0;
 }
 

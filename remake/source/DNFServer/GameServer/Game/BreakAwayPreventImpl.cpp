@@ -209,14 +209,23 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
     int dayDiff =
         static_cast<int>(getDiffConnectDay(login->m_breakAwayLastRewardTime));
 
-    // 基类区未还原槽位【ORIG asm 直读，语义标推断】：
-    //   +0x0c short：断线回归天数比较上限；+0x302/+0x303、+0x308/+0x309
-    //   signed char：两奖励窗口的 diff-day 下界/上界。
-    short dayLimit = *reinterpret_cast<const short*>((char*)this + 0xc);
-    signed char winALow = *reinterpret_cast<const signed char*>((char*)this + 0x302);
-    signed char winAHigh = *reinterpret_cast<const signed char*>((char*)this + 0x303);
-    signed char winBLow = *reinterpret_cast<const signed char*>((char*)this + 0x308);
-    signed char winBHigh = *reinterpret_cast<const signed char*>((char*)this + 0x309);
+    // §4.3 具名化：+0x0c = 基类 SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER::m_fieldC
+    // （unsigned short，SigTypes_A.h:470）。ORIG T 0x0831ce78
+    // startBreakAwayPreventSystem 汇编 @+0x021..+0x029：
+    //   `mov 0x8(%ebp),%eax` / `movzwl 0xc(%eax),%eax` / `cwtl` /
+    //   `mov %eax,-0x10(%ebp)` ⇒ 无符号 16 位装载 + 显式 (short) 拓宽落 int 槽
+    //   （有槽 ⇒ 原码确有具名局部，P0），故写 `int dayLimit = (short)m_fieldC;`。
+    int dayLimit = (short)m_fieldC;
+    // §4.3 具名化（+0x302/0x303/0x308/0x309 裸偏移清零）：+0x2fc 起为
+    // m_keys[5]（STRewardDataKey 3 字节紧排，见 BreakAwayPreventSystem.h 布局
+    // 注释），故 +0x302/0x303 = m_keys[2].m_data[0]/[1]、+0x308/0x309 =
+    // m_keys[4].m_data[0]/[1]。ORIG T 0x0831ce78 对这四个字节是**无栈槽**的
+    // 内联直读（@0x0831cfad `movzx eax,BYTE PTR [eax+0x302]` + `movsx eax,al`
+    // 后紧接 `cmp eax,[ebp-0x14]`=dayDiff；另三点 +0x303/@0x0831cfc3、
+    // +0x308/@0x0831d0ae、+0x309/@0x0831d0c4 同形）⇒ 按 P0 原码无对应局部，
+    // 故读取写成条件内右值（原 `signed char winALow=…` 四个具名槽系重建侧
+    // 发明）；`(signed char)(unsigned char)` 双步保 movzx→movsx 有符号日界
+    // 语义（非 P196 反演）。实测 ndiff 263→186、verdict 桶不变。
 
     unsigned int firstReward = login->m_breakAwayRewardBoundA;   // +0x3f40
     unsigned int secondReward = login->m_breakAwayRewardBoundB;  // +0x3f44
@@ -234,7 +243,8 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
 
     // 区间 1：second < first（u32 比较）且 dayDiff ∈ [winA_low, win_a_high] → order 3。
     if (questFieldsIdle && secondReward < firstReward &&
-        winALow <= dayDiff && dayDiff <= winAHigh)
+        (signed char)(unsigned char)m_keys[2].m_data[0] <= dayDiff &&
+        dayDiff <= (signed char)(unsigned char)m_keys[2].m_data[1])
     {
         applyWindowReward(this, login, user, 2, true,
                           static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(3));
@@ -243,7 +253,8 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
 
     // 区间 2：first < second 且 dayDiff ∈ [winB_low, win_b_high] → 只置 reward 标志。
     if (questFieldsIdle && firstReward < secondReward &&
-        winBLow <= dayDiff && dayDiff <= winBHigh)
+        (signed char)(unsigned char)m_keys[4].m_data[0] <= dayDiff &&
+        dayDiff <= (signed char)(unsigned char)m_keys[4].m_data[1])
     {
         applyWindowReward(this, login, user, 4, false,
                           static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(0));
@@ -327,22 +338,22 @@ static const char* const kUvListDay4   = "000000000000000000111000001000";  // 0
 void CBreakAwayPreventSystem::GM_UpdateUvList(unsigned int accId,
                                               unsigned int day)
 {
-    memset((char*)this + 0x30b, 0, 0x1f);   // ORIG memset(this+0x30b,0,0x1f)
+    memset(m_tail, 0, 0x1f);   // ORIG memset(this+0x30b,0,0x1f)
     switch (day)                        // ORIG switch ebp+0x10
     {
     case 1:
     case 2:
     case 3:
-        memcpy((char*)this + 0x30b, kUvListDay123, 0x1f);   // ORIG 0x8c242c0
+        memcpy(m_tail, kUvListDay123, 0x1f);   // ORIG 0x8c242c0
         break;
     case 4:
-        memcpy((char*)this + 0x30b, kUvListDay4, 0x1f);     // ORIG 0x8c242e0
+        memcpy(m_tail, kUvListDay4, 0x1f);     // ORIG 0x8c242e0
         break;
     default:
         break;   // ORIG default 无 memcpy
     }
     DB_UpdateBreakAwayUvList::makeRequest(
-        accId, (char*)this + 0x30b);   // ORIG 0x0831cb3e
+        accId, m_tail);   // ORIG 0x0831cb3e
     CLocalChina_DB_BreakAwayReset::makeRequest(accId);   // ORIG static (no this) 0x0831cb49
 }
 // ---- StubS3A_deps 批 ----

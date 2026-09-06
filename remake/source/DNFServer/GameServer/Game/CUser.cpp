@@ -45,6 +45,7 @@
 #include "CMonitorServerProxy.h"  // SendNoticeCharLive（WorkPerTenMin）
 #include "CGuildServerProxy.h"    // SendPacket（WorkPerFiveMin）
 #include "InterfacePacketBuf.h"
+#include "cMyTraceNoop.h"  // SendCmdErrorPacket PAY_TYPE 命中 trace（ORIG 0x867c0ad/0x867c0c8）
 #include "CExpertJob.h"              // charac_expand::CDataMgr slot0 CCharacExpertJob（StubS3A ctor）
 #include "CExpertJobList.h"          // STExpertJobEtcScript（SetCharacLevel 专家职业经验）
 #include "nexon_packet.h"           // stLoginPacket（SendLogin/LogoutToPCRoomServer）
@@ -3205,6 +3206,9 @@ int CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PAY_TYPE 
     ((InterfacePacketBuf*)&packet)->put_byte(error);
     ((InterfacePacketBuf*)&packet)->put_byte((int)pay);   // ORIG 写 1 字节（put_int 会破坏包格式）
     ((InterfacePacketBuf*)&packet)->finalize(true);
+    // ORIG 0x867c0a0-0x867c0c8：finalize 后 cMyTraceNoop()("CmdID %d, nErrorCode %d", cmd, error)
+    // （format @0x8cefc8e；禁追踪 noop 空对象，临时 @-0x9）。1st=CmdID(cmd) 2nd=nErrorCode(error)。
+    cMyTraceNoop()("CmdID %d, nErrorCode %d", (int)cmd, (int)error);
     return Send(packet);
 }
 
@@ -8264,7 +8268,7 @@ void CUser::FatigueUp(int v)
         add_guild_temp_exp((weight * v) / 100);
     }
     decCurCharacFatigueGrownUpBuff((unsigned int)v);
-    if ((unsigned char)(*(char*)((char*)this + 0x8d03b) + 1) > 0x10)
+    if (static_cast<unsigned char>(m_guildDB.m_fundLevel) + 1 > 0x10)  // +0x8d03b = m_guildDB.m_fundLevel(+0x1b)
         reset_guild_temp_exp();
     processFatigueCharac(v);
 
@@ -8588,8 +8592,11 @@ int CUser::gainGuildSkillExp(int exp)
         job = get_charac_job();
         skill = G_CDataManager()->find_skill(job, 0xc9);
     }
-    register int gradeIdx asm("ebx") = (int)learned - 1;  // 初始化式（分离赋值形产 mov%ebx→%eax 两段自搬运）   // 残 2：4.4 ebx 绑定赋值绕 %ebx 旧值搬运
-    int weight = (skill->m_field108)[0].at(gradeIdx);
+    // ORIG 0x0864fbdc-0x86fbfd：gradeIdx（=learned-1）跨 operator[] call 存活于
+    // %ebx（callee-saved）；P200/P197② 直传形——拓宽表达式作 at() 实参直传，
+    // 4.4 即出 `movsbl -0x11; sub $1; mov %eax,%ebx` 并入 %ebx（禁 register-asm
+    // 中间变量：退化 cwtl+mov 两步，见 getBlueMarble/OnDisconnect probe s3）。
+    int weight = (skill->m_field108)[0].at((int)learned - 1);
     return (exp * weight) / 100;
 }
 
@@ -10570,17 +10577,19 @@ unsigned char CUser::getFlagPresentAvengerTitle() const  // 0x08697578：*(uchar
 }
 
 // ORIG 0x0868ddc2 _ZNK5CUser19GetAuraAvatarOptionER18stAuraAvatarOption
-// 读当前角色 _Charac_info+0x1281 的 3 个 int（ORIG 汇编；_Charac_info 布局在本 TU 不完整，
-// 用文档化偏移访问，见 CUserCharacInfo.h:13 说明）。
+// 读当前角色 _Charac_info+0x1281..+0x1289 三 int → option。ORIG 无 cur 局部：
+// getCurCharacR() 判定(0x868ddce)与拷贝(0x868dde2)各重调一次（P48，调用点差集归零）。
+// 记 N（跨版本 regmove，N18a 族）：4.1 O0 将 option 基址驻 %edx 单装载 +
+// `0x1281(%eax)` 索引三连；4.4 O0 对引用形参逐条重装载，register-asm 绑定反产
+// 冗余 regmove（probe 四形 21/23/26/28/30 均不达 24）——语义+调用点全对，残 +4。
 void CUser::GetAuraAvatarOption(stAuraAvatarOption& option) const
 {
-    const _Charac_info* cur = getCurCharacR();
-    if (cur != 0)
-    {
-        option.m_value0 = cur->m_auraValue0;
-        option.m_value1 = cur->m_auraValue1;
-        option.m_value2 = cur->m_auraValue2;
-    }
+    if (getCurCharacR() == 0)
+        return;
+    register const _Charac_info* cur asm("eax") = getCurCharacR();
+    option.m_value0 = cur->m_auraValue0;  // +0x1281
+    option.m_value1 = cur->m_auraValue1;  // +0x1285
+    option.m_value2 = cur->m_auraValue2;  // +0x1289
 }
 
 // ORIG 0x0868f03c _ZNK5CUser18GetCurCharacOptionER15CharacterOption

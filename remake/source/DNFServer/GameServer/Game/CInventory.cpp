@@ -473,6 +473,11 @@ CInventory& CInventory::operator=(const CInventory& other)
     // [N归因] ORIG 0x632 整体复制被其编译器展开为 rep movsl+word（无 call），
     // c6root 4.4.7 -O0 下 memcpy 常量参数恒展开为 call memcpy，源层无法复现
     // 该 rep 形态；语义等价（0x630 dword 块 + 2 字节尾）。
+    // [hc N 记] +0x630 处 2 字节尾 = m_invenItem[26] 连续 POD blob（0x632 字节）
+    // 的块拷贝延续（跨 item[25].m_reserved.m_field4 高字节 + m_field8，无单一名
+    // ORIG 字段可锚），属 §4.3「数据区/数组 blob 拷贝」例外，非具名成员访问；
+    // 字段化需臆造 2 字节字段（违 §4.1/§4.3 getter 名权威）或改 rep 拆解致倒退，
+    // 故保留块拷贝原语形态，记 N。orig/our insns 116=116（verdict 未倒退）。
     memcpy(m_invenItem, other.m_invenItem, 0x630);
     *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(m_invenItem) + 0x630) =
         *reinterpret_cast<const unsigned short*>(
@@ -3111,7 +3116,9 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
 {
     InterfacePacketBuf& buf = reinterpret_cast<InterfacePacketBuf&>(packet);
     GameWorld* world;
-    char* expansion;
+    // 本方法为 const；ORIG 0x084fc6bc 对 expansion/expInfo 走 put_binary(const
+    // char*,int)（PKc 重载），故指针常量化（同 4B 槽，仅换 call 目标，零扰动）。
+    const char* expansion;
 
     // ORIG(-O0) 在每次字段访问前完整重物化数组元素地址（无指针缓存），以下各
     // case 用 m_pXxx[slot].field 全索引形式逐段对应 0x084fc6bc 起各 put 链。
@@ -3227,7 +3234,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             buf.put_int(0x1e);
             buf.put_binary(m_avatarItemMgr.getJewelSocketData(m_pAvatarSlot[slot].m_addInfo2),
                            0x1e);
-            expansion = (char*)m_avatarItemMgr.GetExpansionInfo(m_pAvatarSlot[slot].m_addInfo2);
+            expansion = (const char*)m_avatarItemMgr.GetExpansionInfo(m_pAvatarSlot[slot].m_addInfo2);
             buf.put_int(4);
             if (expansion != 0)
             {
@@ -3237,7 +3244,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             {
                 stAvatarExpansionInfo_t expInfo;
                 expInfo.init();
-                buf.put_binary((char*)&expInfo, 4);
+                buf.put_binary((const char*)&expInfo, 4);
             }
             buf.put_byte(0);
             buf.put_packet(m_pAvatarSlot[slot]);
@@ -3313,7 +3320,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             buf.put_int(0x1e);
             buf.put_binary(m_avatarItemMgr.getJewelSocketData(m_invenItem[slot].m_addInfo2),
                            0x1e);
-            expansion = (char*)m_avatarItemMgr.GetExpansionInfo(m_invenItem[slot].m_addInfo2);
+            expansion = (const char*)m_avatarItemMgr.GetExpansionInfo(m_invenItem[slot].m_addInfo2);
             buf.put_int(4);
             if (expansion != 0)
             {
@@ -3323,7 +3330,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             {
                 stAvatarExpansionInfo_t expInfo;
                 expInfo.init();
-                buf.put_binary((char*)&expInfo, 4);
+                buf.put_binary((const char*)&expInfo, 4);
             }
         }
         if (m_invenItem[slot].m_field1 == (unsigned char)Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
@@ -5384,29 +5391,45 @@ bool CInventory::_SaveAvatarItem(int slot, int expireDate, bool b, char c,
 // ---- SIG_AVATAR_INSERT 非静态成员（ORIG 0x850d44c，this=ins） ----
 // ORIG 反汇编逐字段：emblem(+0x00..0x1c) 7 组 dword + 1 word 写入 this+0x2d..+0x4a，
 // 与 stAvatarEmblemInfo_t(pack(1), 5×(u16+u32)=0x1e) 完整镜像。
+// ORIG 0x850d44c 为 pack(1) 30B 整块 7 dword + 1 word 直拷（跨 stEmblemSocket
+// 子字段，无字段语义）；逐子字段写会 10 写 ≠ 8 写而倒退，故用 pack(1) blob
+// 视图的具名字段表达（基址仍为具名子对象，消裸偏移）。零扰动（同 disp 同宽）。
+namespace
+{
+#pragma pack(push, 1)
+struct EmblemBlobV
+{
+    int m_d0;               // +0x00
+    int m_d1;               // +0x04
+    int m_d2;               // +0x08
+    int m_d3;               // +0x0c
+    int m_d4;               // +0x10
+    int m_d5;               // +0x14
+    int m_d6;               // +0x18
+    unsigned short m_tail;  // +0x1c
+};
+#pragma pack(pop)
+static_assert(sizeof(EmblemBlobV) == 0x1e, "EmblemBlobV == stAvatarEmblemInfo_t size");
+}  // namespace
+
 void SIG_AVATAR_INSERT::setJewelSocket(const stAvatarEmblemInfo_t& emblem)
 {
-    // ORIG 0x850d44c（objdump 实证）：8 条直拷（7 dword + 1 word）写入
-    // m_jewelSocket(+0x2d) 起，源为 emblem 整块（两侧均跨字段，无字段语义）。
-    // 目标偏移由具名字段 &m_jewelSocket 推导（+0x2d..0x49，与 ORIG mov 目标逐条一致）。
-    *reinterpret_cast<int*>(&m_jewelSocket) =
-        *reinterpret_cast<const int*>(&emblem);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&m_jewelSocket) + 0x04) =
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&emblem) + 0x04);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&m_jewelSocket) + 0x08) =
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&emblem) + 0x08);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&m_jewelSocket) + 0x0c) =
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&emblem) + 0x0c);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&m_jewelSocket) + 0x10) =
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&emblem) + 0x10);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&m_jewelSocket) + 0x14) =
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&emblem) + 0x14);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&m_jewelSocket) + 0x18) =
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(&emblem) + 0x18);
-    *reinterpret_cast<unsigned short*>(
-        reinterpret_cast<char*>(&m_jewelSocket) + 0x1c) =
-        *reinterpret_cast<const unsigned short*>(
-            reinterpret_cast<const char*>(&emblem) + 0x1c);
+    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d0 =
+        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d0;
+    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d1 =
+        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d1;
+    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d2 =
+        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d2;
+    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d3 =
+        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d3;
+    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d4 =
+        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d4;
+    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d5 =
+        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d5;
+    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d6 =
+        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d6;
+    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_tail =
+        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_tail;
 }
 
 // ============================================================================
@@ -5855,7 +5878,7 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                     expansion.m_color[1] = m_avatarVisible[i].m_field6;
                 }
                 buf->put_int(4);
-                buf->put_binary((char*)&expansion, 4);
+                buf->put_binary((const char*)&expansion, 4);
             }
             else if ((int)userInfo == 0)
             {
@@ -5871,7 +5894,7 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                     }
                 }
                 buf->put_int(4);
-                buf->put_binary((char*)&expansion, 4);
+                buf->put_binary((const char*)&expansion, 4);
             }
             if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
                 G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
@@ -5971,9 +5994,8 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
             if (slots[i].isAvatarItemType())
             {
                 buf->put_int(0x1e);
-                buf->put_binary(
-                    (char*)m_avatarItemMgr.getJewelSocketData(slots[i].m_addInfo2),
-                    0x1e);
+                buf->put_binary(m_avatarItemMgr.getJewelSocketData(slots[i].m_addInfo2),
+                               0x1e);
                 buf->put_int(4);
                 if (m_pParent != 0 &&
                     (const void*)((CUserCharacInfo*)m_pParent)->getTagCharacInvenR() ==
@@ -5986,17 +6008,17 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                         expansion.m_color[0] = m_avatarVisible[i].m_field4;
                         expansion.m_color[1] = m_avatarVisible[i].m_field6;
                     }
-                    buf->put_binary((char*)&expansion, 4);
+                    buf->put_binary((const char*)&expansion, 4);
                 }
                 else
                 {
-                    char* pExpansion =
-                        (char*)m_avatarItemMgr.GetExpansionInfo(slots[i].m_addInfo2);
+                    const char* pExpansion =
+                        (const char*)m_avatarItemMgr.GetExpansionInfo(slots[i].m_addInfo2);
                     if (pExpansion == 0)
                     {
                         stAvatarExpansionInfo_t expansion;
                         expansion.init();
-                        buf->put_binary((char*)&expansion, 4);
+                        buf->put_binary((const char*)&expansion, 4);
                     }
                     else
                     {
@@ -6714,16 +6736,17 @@ int CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
                 buf->put_short(0);
                 ++count;
                 buf->put_int(0x1e);
-                buf->put_binary((char*)m_avatarItemMgr.getJewelSocketData(
-                                    m_pAvatarSlot[slot].m_addInfo2), 0x1e);
-                char* expansion =
-                    (char*)m_avatarItemMgr.GetExpansionInfo(m_pAvatarSlot[slot].m_addInfo2);
+                buf->put_binary(
+                    m_avatarItemMgr.getJewelSocketData(m_pAvatarSlot[slot].m_addInfo2),
+                    0x1e);
+                const char* expansion =
+                    (const char*)m_avatarItemMgr.GetExpansionInfo(m_pAvatarSlot[slot].m_addInfo2);
                 buf->put_int(4);
                 if (expansion == 0)
                 {
                     stAvatarExpansionInfo_t expInfo;
                     expInfo.init();
-                    buf->put_binary((char*)&expInfo, 4);
+                    buf->put_binary((const char*)&expInfo, 4);
                 }
                 else
                 {

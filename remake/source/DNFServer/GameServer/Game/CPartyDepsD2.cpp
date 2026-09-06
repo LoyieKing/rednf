@@ -605,14 +605,12 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
     m_field1ab8 = 0;
     bd(this).m_field4c = 0;                              // +0x378 dword 清零
 
-    // 地图游玩时长：now - enterTick(+0x344) - baseTick(+0x33c) → +0x334
-    unsigned long long nowTick = GlobalData::s_systemTime_.getCurTickCount();
-    unsigned long long enterTick =
-        (unsigned long long)bd(this).m_field1c << 32 | bd(this).m_field18;
-    unsigned long long baseTick =
-        (unsigned long long)bd(this).m_field14 << 32 | bd(this).m_field10;
-    unsigned long long playTime64 = (nowTick - enterTick) - baseTick;
-    unsigned int playTime = (unsigned int)playTime64;    // +0x334（消费均为低 32 位）
+    // 地图游玩时长：(u64)now - enterTick(+0x344/0x348) - baseTick(+0x33c/0x340)
+    // → 存回 +0x334/+0x338（ORIG 读 getCurTickCount 后零扩 edx,eax 走双 sub/sbb）。
+    bd(this).m_playedTime =
+        (unsigned long long)GlobalData::s_systemTime_.getCurTickCount()
+        - bd(this).m_enterTick - bd(this).m_baseTick;
+    const unsigned int playTime = bd(this).m_field8;     // +0x334（消费均为低 32 位）
 
     if (bf(this).IsVisitedCurrentMap())                  // W 0x085bf2e8
         return true;                                     // 已访问过 → 其余全部跳过
@@ -636,9 +634,8 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
         if (!checkValidUser(i))                          // W 0x08145868
             continue;
 
-        // 逐张进入型副本只统计座位匹配成员
-        if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->IsEnterEachMap() &&
-            (int)info.m_39 != i)
+        // 逐张进入型副本只统计座位匹配成员（ORIG 直接调 IsEnterEachMap，无空判）
+        if (m_battleField.m_pDungeon->IsEnterEachMap() && (int)info.m_39 != i)
             continue;
 
         MapInfo* lastMap = bf(this).GetLastMapInfo();    // T 0x0830eac8
@@ -659,13 +656,12 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
             const unsigned int quotient = (unsigned int)kill / sec;
             if (4 < quotient)
             {
-                int over = (int)quotient - 4;            // -0x3c
-                const int cap = 100;                     // -0x40
-                if (over > cap)
-                    over = cap;                          // std::min<unsigned>
+                unsigned int over = quotient - 4;        // -0x3c
+                const unsigned int cap = 100;            // -0x40
+                over = std::min<unsigned int>(over, cap);  // ORIG call _ZSt3minIjERKT_S2_S2_
                 memberUser(this, i)->getHackAnalyzer()->addServerHackCnt(
                     memberUser(this, i), (WongWork::ENUM_HACKTYPE)0x340,
-                    (unsigned int)over, 0, 0);
+                    over, 0, 0);
             }
         }
 
@@ -964,12 +960,10 @@ int CParty::check_dungeon_start(CDungeon const* dungeon, int& param)
                 param = i;
                 return 0xf8;
             }
-            // characR+0xec2 入场券计数
-            const unsigned char* characR =
-                reinterpret_cast<const unsigned char*>(user->getCurCharacR());
-            const signed char ticket =
-                *reinterpret_cast<const signed char*>(
-                    reinterpret_cast<const char*>(characR) + 0xec2);
+            // 入场券计数 = _Charac_info.m_ultimateInout[2]（+0xec2，CUserCharacInfo.h:441）
+            // ORIG check_dungeon_start 0859fa8f movzbl 0xec2（直读折入位移），signed 化后 movsbl
+            const signed char ticket = static_cast<signed char>(
+                user->getCurCharacR()->m_ultimateInout[2]);
             if (ticket < 1 && m_battleField.m_bloodState != 1)
             {
                 param = i;
@@ -1006,16 +1000,13 @@ bool CParty::getDungeonDropTestFlag()
 // ---------------------------------------------------------------------------
 // send_dungeon_fail_msg —— ORIG T 0x085b35f4
 // 报告：docs/class_func_reports/CParty/send_dungeon_fail_msg.md
-// 插入 TIMER_MESSAGE 0xe 定时器：+0xc4c（BF+0x128 槽）short 非 0 → 3 秒，
-// 否则 10 秒。ORIG 直读 this+0xc4c（无 bf() 调用）。
+// 插入 TIMER_MESSAGE 0xe 定时器：m_battleField.m_villageMonsterId（CParty+0xc4c
+// = BF+0x128）非 0 → 3 秒，否则 10 秒。ORIG 直读 this+0xc4c（无 bf() 调用）。
 // ---------------------------------------------------------------------------
-// [具名化进度] 剩 22：0xc4c = m_battleField+0x128 侧，待 MonC9
-// m_battleField→CBattle_Field rename 后复验（bd 侧已随 m_battleData 折叠）。
 void CParty::send_dungeon_fail_msg()
 {
     int seconds = 10;
-    if (*reinterpret_cast<unsigned short*>(
-            reinterpret_cast<char*>(this) + 0xc4c) != 0)
+    if (static_cast<unsigned short>(m_battleField.m_villageMonsterId) != 0)
         seconds = 3;
 
     const int key = gen_timer_key((TIMER_MESSAGE)0xe);
@@ -1391,7 +1382,8 @@ void CParty::MakeQuestRewardPacket(PacketGuard* packet, CUser* user)
         Quest* quest = G_CDataManager()->find_quest(questRef->m_quest[q]);
         if (quest == 0)
             continue;
-        short dungeonItemIdx = *(short*)((char*)questRef + 0x75da);
+        // +0x75da = UserQuest.m_authenData(+0x75d8) + 2 = m_characClass（CUser.h:1220）
+        short dungeonItemIdx = questRef->m_authenData.m_characClass;
         int dungeonIdx = bf(this).get_dungeon_index();
         if (!quest->check_clear_item(dungeonIdx, (int)dungeonItemIdx))
             continue;
@@ -1614,8 +1606,8 @@ int CParty::get_rate_level_difference()
 void TOD_UserState::ClearLayer()
 {
     reinterpret_cast<charac_expand::CData*>(this)->alter();
-    reinterpret_cast<TOD_Layer*>(reinterpret_cast<char*>(this) + 0x14)
-        ->increaseLayer();
+    // this+0x14 = m_todayLayer（DataManagerInitDepends.h:288）
+    reinterpret_cast<TOD_Layer*>(&m_todayLayer)->increaseLayer();
     m_lastClearTime = GlobalData::s_systemTime_.getCurSec();
 }
 

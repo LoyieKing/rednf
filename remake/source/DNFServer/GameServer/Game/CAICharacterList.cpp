@@ -205,8 +205,7 @@ bool CAICharacterList::init()
         // 时收集元素内嵌 stMonsterIndependentDrop_t（+0x08）。
         {
             std::vector<stIndependentDropInfo>& drops =
-                *(std::vector<stIndependentDropInfo>*)
-                    ((char*)G_CDataManager() + 0xa890);
+                G_CDataManager()->m_independentDrop.m_vecC;
             std::vector<stMonsterIndependentDrop_t> collected;
             for (unsigned int i = 0; i < drops.size(); ++i)
             {

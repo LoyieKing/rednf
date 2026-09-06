@@ -29,6 +29,12 @@
 // CItemLock.cpp 不 include CUser.h/CInventory.h：二者的联合依赖域含先行批次
 // 的 GCC4.4 assert/枚举缺口；此处仅镜像本 TU 调用的方法签名（声明），外部
 // 链接定义仍由权威 TU 提供，mangled ABI 完全一致。
+// [hc N 记 · b20] CUser 具名字段 m_historyLog（+0x79700）在权威 CUser.h 存在，
+// 但本 TU 为镜像隔离 TU（不 include CUser.h，否则与本文件镜像 `class CUser`
+// 重复定义 + 先行批次联合依赖缺口），故 cUserHistoryLog* 取址仍按 §4.3「跨 TU
+// 隔离」例外保留 `(cUserHistoryLog*)((char*)user + 0x79700)` 裸偏移形态，记 N。
+// 证据：CUser.h 内 `cUserHistoryLog m_historyLog;  // +0x79700`；ORIG 各取址点
+// lea 0x79700(%reg)。
 class CInventory
 {
 public:
@@ -356,7 +362,7 @@ int CItemLock::DoItemLock(CUser* user, int space, int slot)
     UpdateItem(user, item);
     SendRequestItemLock(user, space, slot);
 
-    cUserHistoryLog* history = (cUserHistoryLog*)((char*)user + 0x79700);
+    cUserHistoryLog* history = (cUserHistoryLog*)((char*)user + 0x79700);  // §4.3 例外（见顶注）
     history->ItemLockUsingLog(0, space, slot, item->m_addInfo,
                               item->m_addInfo2);
     return 1;
@@ -392,7 +398,7 @@ int CItemLock::DoItemUnlock(CUser* user, int space, int slot)
 
     SendRequestItemUnlock(user, space, slot, remain);
 
-    cUserHistoryLog* history = (cUserHistoryLog*)((char*)user + 0x79700);
+    cUserHistoryLog* history = (cUserHistoryLog*)((char*)user + 0x79700);  // §4.3 例外（见顶注）
     history->ItemLockUsingLog(1, space, slot, item->m_addInfo,
                               item->m_addInfo2);
     return 1;
@@ -423,7 +429,7 @@ int CItemLock::DoItemUnlockCancel(CUser* user, int space, int slot)
 
     SendRequestItemUnlockCancel(user, space, slot);
 
-    cUserHistoryLog* history = (cUserHistoryLog*)((char*)user + 0x79700);
+    cUserHistoryLog* history = (cUserHistoryLog*)((char*)user + 0x79700);  // §4.3 例外（见顶注）
     history->ItemLockUsingLog(2, space, slot, item->m_addInfo,
                               item->m_addInfo2);
     return 1;
@@ -528,7 +534,7 @@ void CItemLock::PopItemLock(CUser* user)
         m_lockTimer.DecreaseItemLockTimer();
         alter();
 
-        cUserHistoryLog* history = (cUserHistoryLog*)((char*)user + 0x79700);
+        cUserHistoryLog* history = (cUserHistoryLog*)((char*)user + 0x79700);  // §4.3 例外（见顶注）
         if (item != 0)
             history->ItemLockUsingLog(3, sendSpace, slotVal,
                                       item->m_addInfo, item->m_addInfo2);

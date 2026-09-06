@@ -49,6 +49,7 @@ void setBit_Uint(unsigned int& value, bool set, int bit);
 #include "CStreamGuard.h"            // CStreamGuard ctor/operator*/->/<</GetInBuffer
 #include "CSyncSlangFilter.h"        // CSyncSlangFilter::GetInstance / HasSlang
 #include "CUserCharacInfo.h"    // getCurCharac*/get_charac_*
+#include "CEquipItem.h"         // CEquipItem::m_itemType（DisJointAvatar +0x234）
 #include "CompoundEmblemDeps.h"      // LineFunc(int, char const*, int, unsigned)
 #include "CompoundEmblemDeps.h" // LineFunc(int, char const*, int, unsigned)
 #include "GameEnums.h"          // ENUM_SKILL_TREE_KIND / eItemDelReason / ENUM_CMDPACKET
@@ -3751,23 +3752,22 @@ int Dispatcher_SecurityLog::process(CUser* user, MSG_BASE& msg, ParamBase& param
     {
         accId = user->get_acc_id();
     }
-    const char* m = reinterpret_cast<const char*>(&msg);
-    if (*reinterpret_cast<const int*>(m + 0x15) != 0 &&
-        *reinterpret_cast<const int*>(m + 0x19) != 0)
+    const MSG_SECURITY_LOG_PACKET* m =
+        reinterpret_cast<const MSG_SECURITY_LOG_PACKET*>(&msg);
+    if (m->m_logCounts[1] != 0 && m->m_logCounts[2] != 0)  // msg+0x15 / +0x19
     {
         LogManager::logFormat(
             1, "PacketDispatcher_Impl_2.cpp",
             __PRETTY_FUNCTION__,
             0x9d0,
             "Delay check, mode:%d, value:%d, %d, %d, %d, %d, %d, m_id:%s",
-            *reinterpret_cast<const int*>(m + 0xd),
-            *reinterpret_cast<const int*>(m + 0x11),
-            *reinterpret_cast<const int*>(m + 0x15),
-            *reinterpret_cast<const int*>(m + 0x19),
-            *reinterpret_cast<const int*>(m + 0x1d),
-            *reinterpret_cast<const int*>(m + 0x21),
-            *reinterpret_cast<const int*>(m + 0x1d) -
-                *reinterpret_cast<const int*>(m + 0x19),
+            m->m_field0d,                                   // msg+0xd
+            (int)m->m_logCounts[0],                         // msg+0x11
+            (int)m->m_logCounts[1],                         // msg+0x15
+            (int)m->m_logCounts[2],                         // msg+0x19
+            (int)m->m_logCounts[3],                         // msg+0x1d
+            (int)m->m_logCounts[4],                         // msg+0x21
+            (int)m->m_logCounts[3] - (int)m->m_logCounts[2],
             NumberToString(accId, 0));
     }
     return 0;
@@ -3878,35 +3878,35 @@ int Dispatcher_UpgradeItem::dispatch_sig(CUser* user, PacketBuf& packet)
 
     MSG_ITEM_UPGRADE req;                            // ORIG ctor @0x0822dcea
 
-    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(req.m_padD + 0x0d)))   // +0x1a byte
+    if (!packet.get_byte(req.m_upgradeType))   // +0x1a byte
     {
         return LineFunc(
             0x9530,
             __PRETTY_FUNCTION__,
             0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(req.m_padD + 0x0e))) // +0x1b word（槽位）
+    if (!packet.get_short(req.m_targetSlot))   // +0x1b word（槽位）
     {
         return LineFunc(
             0x9532,
             __PRETTY_FUNCTION__,
             0, 0);
     }
-    if (!packet.get_int(*reinterpret_cast<unsigned long*>(req.m_padD + 0x10)))    // +0x1d dword
+    if (!packet.get_int(req.m_targetItemIdx))  // +0x1d dword
     {
         return LineFunc(
             0x9534,
             __PRETTY_FUNCTION__,
             0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(req.m_padD + 0x16))) // +0x23 word
+    if (!packet.get_short(req.m_materialSlot)) // +0x23 word
     {
         return LineFunc(
             0x9536,
             __PRETTY_FUNCTION__,
             0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(req.m_padD + 0x14))) // +0x21 word
+    if (!packet.get_short(req.m_ticketSlot))   // +0x21 word
     {
         return LineFunc(
             0x9539,
@@ -3947,7 +3947,7 @@ int Dispatcher_UpgradeItem::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
 
-    if (user->CheckItemLock(1, *reinterpret_cast<unsigned short*>(req.m_padD + 0x0e)))
+    if (user->CheckItemLock(1, req.m_targetSlot))
     {
         user->SendCmdErrorPacket2Byte((ENUM_CMDPACKET)0x53, 0xd5);
         return 0;
@@ -4251,9 +4251,8 @@ int Dispatcher_CodeCheckSum::read(PacketBuf& packet, MSG_BASE& msg) { return 0; 
 int Dispatcher_CollectItems::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     MSG_COLLECT_ITEMS& req = static_cast<MSG_COLLECT_ITEMS&>(msg);
-    char* pReq = reinterpret_cast<char*>(&req);
-    short& slot = *reinterpret_cast<short*>(pReq + 0xe);          // +0xe word
-    unsigned short& count = *reinterpret_cast<unsigned short*>(pReq + 0x10);
+    short& slot = req.m_itemIdx;              // +0xe word
+    unsigned short& count = req.m_count;      // +0x10
 
     if (user->get_state() != 3)
     {
@@ -4322,9 +4321,8 @@ int Dispatcher_CollectItems::process(CUser* user, MSG_BASE& msg, ParamBase& para
 {
     stCollectItems& out = static_cast<stCollectItems&>(param);
     MSG_COLLECT_ITEMS& req = static_cast<MSG_COLLECT_ITEMS&>(msg);
-    char* pReq = reinterpret_cast<char*>(&req);
-    short& slot = *reinterpret_cast<short*>(pReq + 0xe);          // +0xe word
-    unsigned short& count = *reinterpret_cast<unsigned short*>(pReq + 0x10);
+    short& slot = req.m_itemIdx;              // +0xe word
+    unsigned short& count = req.m_count;      // +0x10
 
     out.m_4 = check_error(user, msg, param);
     if (out.m_4 > 0)
@@ -4364,14 +4362,14 @@ int Dispatcher_CollectItems::process(CUser* user, MSG_BASE& msg, ParamBase& para
 int Dispatcher_CollectItems::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG：单一 req 基址槽 -0xc，用点 `mov -0xc,%eax; add $0xe/$0x10` 现址。
-    char* pReq = reinterpret_cast<char*>(&msg);
-    if (!packet.get_short(*reinterpret_cast<short*>(pReq + 0xe)))
+    MSG_COLLECT_ITEMS& req = reinterpret_cast<MSG_COLLECT_ITEMS&>(msg);
+    if (!packet.get_short(req.m_itemIdx))
     {
         return LineFunc(0x5a8f,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(pReq + 0x10)))
+    if (!packet.get_short(req.m_count))
     {
         return LineFunc(0x5a90,
                         __PRETTY_FUNCTION__,
@@ -4900,13 +4898,13 @@ int Dispatcher_MemberSecede::process(CUser* user, MSG_BASE& msg, ParamBase& para
 int Dispatcher_MemberSecede::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081cbb26：int@0x10（len）→ str@0x14（max 0x1e）
-    // P1：int 读取用 pack(1) 成员视图折叠单 disp（`mov 0x10(%eax),%eax`）；
-    // str 指针保持指针算术（ORIG 为 add $0x14 两步）。
-    struct __attribute__((packed)) LenView { char m_head[0x10]; int m_len; };
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0x10)))
+    // 单一局部槽 v（ORIG `mov 0x10(%ebp),%eax; mov %eax,-0xc` 两次回读：
+    // get_int 前 `mov -0xc;add $0x10`、get_str 前 `mov -0xc;mov 0x10(%eax)` +
+    // `mov -0xc;add $0x14`）。
+    MSG_MEMBER_SECEDE* v = reinterpret_cast<MSG_MEMBER_SECEDE*>(&msg);
+    if (!packet.get_int(v->m_nameLen))
         return LineFunc(0x2209, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_str(m + 0x14, 0x1e, ((LenView*)m)->m_len))
+    if (!packet.get_str(reinterpret_cast<char*>(v) + 0x14, 0x1e, v->m_nameLen))
         return LineFunc(0x220c, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -5322,32 +5320,44 @@ Dispatcher_AssertManager::~Dispatcher_AssertManager() {}
 int Dispatcher_AssertManager::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x0821e1f4：0x214 连续缓冲（Packet_Assert_Manager_Info 头 + 负载数据区）。
+    // 负载布局视图（ORIG Ghidra：category@+0xa / desc[256]@+0xe / field10e@+0x10e
+    // / field110@+0x110 / detail[0x100]@+0x114；总长 0x214 = sizeof 断言）。
+    struct __attribute__((packed)) AssertPayloadView
+    {
+        char m_head[0xa];
+        int m_category;             // +0x0a
+        char m_desc[0x100];         // +0x0e
+        unsigned short m_field10e;  // +0x10e
+        int m_field110;             // +0x110
+        char m_detail[0x100];       // +0x114
+    };
     char buffer[0x214];
     Packet_Assert_Manager_Info* header = new (buffer) Packet_Assert_Manager_Info();
     (void)header;
-    int& category = *reinterpret_cast<int*>(buffer + 0xa);
+    AssertPayloadView& view = *reinterpret_cast<AssertPayloadView*>(buffer);
+    int& category = view.m_category;
     if (!packet.get_int(category)) {
         return LineFunc(0xd275, __PRETTY_FUNCTION__, 0, 0);
     }
     if (category > 0xff) {
         return LineFunc(0xd279, __PRETTY_FUNCTION__, 0, 0);
     }
-    char* desc = buffer + 0xe;
+    char* desc = view.m_desc;
     if (!packet.get_binary(desc, category)) {
         return LineFunc(0xd27a, __PRETTY_FUNCTION__, 0, 0);
     }
-    unsigned short& field10e = *reinterpret_cast<unsigned short*>(buffer + 0x10e);
+    unsigned short& field10e = view.m_field10e;
     if (!packet.get_short(field10e)) {
         return LineFunc(0xd27d, __PRETTY_FUNCTION__, 0, 0);
     }
-    int& field110 = *reinterpret_cast<int*>(buffer + 0x110);
+    int& field110 = view.m_field110;
     if (!packet.get_int(field110)) {
         return LineFunc(0xd27f, __PRETTY_FUNCTION__, 0, 0);
     }
     if (field110 > 0xff || field110 < 0) {
         return LineFunc(0xd280, __PRETTY_FUNCTION__, 0, 0);
     }
-    char* detail = buffer + 0x114;
+    char* detail = view.m_detail;
     if (field110 > 0) {
         if (!packet.get_binary(detail, field110)) {
             return LineFunc(0xd283, __PRETTY_FUNCTION__, 0, 0);
@@ -5695,15 +5705,16 @@ int Dispatcher_EnchantByBead::process(CUser* user, MSG_BASE& msg, ParamBase& par
                         __PRETTY_FUNCTION__,
                         err, 0);
     }
-    const char* m = reinterpret_cast<const char*>(&msg);
+    const MSG_ENCHANT_BY_BEAD* m =
+        reinterpret_cast<const MSG_ENCHANT_BY_BEAD*>(&msg);
     int result = 0;
     // asm：msg+0xd movsbl、msg+0xe movswl、msg+0x10 movsbl、msg+0x12 movswl
     result = GlobalData::s_ExpertJobMgr->OnEnchantByBead(
         user,
-        static_cast<int>(static_cast<signed char>(m[0xd])),
-        static_cast<int>(*reinterpret_cast<const short*>(m + 0xe)),
-        static_cast<int>(static_cast<signed char>(m[0x10])),
-        static_cast<int>(*reinterpret_cast<const short*>(m + 0x12)));
+        static_cast<int>(m->m_field0d),
+        static_cast<int>(m->m_field0e),
+        static_cast<int>(m->m_field10),
+        static_cast<int>(m->m_field12));
     if (result != 0)
     {
         *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 4) = result;
@@ -5713,14 +5724,14 @@ int Dispatcher_EnchantByBead::process(CUser* user, MSG_BASE& msg, ParamBase& par
 int Dispatcher_EnchantByBead::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081d2218：byte@0xd → short@0xe → byte@0x10 → short@0x12，失败逐级 LineFunc
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_byte(*reinterpret_cast<char*>(m + 0xd)))
+    MSG_ENCHANT_BY_BEAD& m = reinterpret_cast<MSG_ENCHANT_BY_BEAD&>(msg);
+    if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_field0d)))
         return LineFunc(0x2f1c, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_short(*reinterpret_cast<short*>(m + 0xe)))
+    if (!packet.get_short(m.m_field0e))
         return LineFunc(0x2f1d, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_byte(*reinterpret_cast<char*>(m + 0x10)))
+    if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_field10)))
         return LineFunc(0x2f1f, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_short(*reinterpret_cast<short*>(m + 0x12)))
+    if (!packet.get_short(m.m_field12))
         return LineFunc(0x2f20, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -6447,7 +6458,8 @@ int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
     {
         return 0xe;
     }
-    if (!reinterpret_cast<SkillSlot*>(reinterpret_cast<char*>(&entry) + 0x892)->IsLoadStrikerSkill())
+    if (!reinterpret_cast<SkillSlot*>(reinterpret_cast<CharacInfoFields*>(&entry)->m_skill)
+             ->IsLoadStrikerSkill())                                        // +0x892
     {
         return 0x13;
     }
@@ -7182,8 +7194,8 @@ int Dispatcher_DisJointAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
             const_cast<char*>(user->getCurCharacInvenR()->GetAvatarItemMgrR()->getJewelSocketData(item.m_addInfo2)));
     int jewelTypeIndex = _selectJewelTypeIndex(jewelSocketData);
 
-    // +0x49c: pItem+0x234 == 9 → jewelTypeIndex = -1
-    if (*reinterpret_cast<const int*>(reinterpret_cast<const char*>(pItem) + 0x234) == 9)
+    // +0x49c: pItem+0x234(itemType) == 9 → jewelTypeIndex = -1
+    if (reinterpret_cast<CEquipItem*>(pItem)->m_itemType == 9)
     {
         jewelTypeIndex = -1;
     }
@@ -7877,13 +7889,12 @@ int Dispatcher_UserHistoryLog::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081da5d2：byte@0xd → int@0x10（len）→ str@0x14（max 0x100）
     // P1：int@0x10 成员视图折叠。
-    struct __attribute__((packed)) LenView { char m_head[0x10]; int m_len; };
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(m + 0xd)))
+    MSG_USER_HISTORY_LOG& m = reinterpret_cast<MSG_USER_HISTORY_LOG&>(msg);
+    if (!packet.get_byte(m.m_0d))
         return LineFunc(0x48a9, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0x10)))
+    if (!packet.get_int(m.m_10))
         return LineFunc(0x48ac, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_str(m + 0x14, 0x100, ((LenView*)m)->m_len))
+    if (!packet.get_str(m.m_14, 0x100, m.m_10))
         return LineFunc(0x48af, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -8597,10 +8608,16 @@ int Dispatcher_LimitNpcBuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& p
 int Dispatcher_LimitNpcBuyItem::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081e0f60：int@0xd → int@0x11
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<unsigned long*>(m + 0xd)))
+    struct __attribute__((packed)) BuyItemView
+    {
+        char m_head[0xd];
+        int m_field0d;     // +0x0d
+        int m_field11;     // +0x11
+    };
+    BuyItemView& v = reinterpret_cast<BuyItemView&>(msg);
+    if (!packet.get_int(*reinterpret_cast<unsigned long*>(&v.m_field0d)))
         return LineFunc(0x559a, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(m + 0x11)))
+    if (!packet.get_int(*reinterpret_cast<unsigned int*>(&v.m_field11)))
         return LineFunc(0x559d, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -9246,9 +9263,8 @@ int Dispatcher_ChangeLetterStat::process(CUser* user, MSG_BASE& msg, ParamBase& 
                  *(reinterpret_cast<int*>(&param) + 1), user->get_acc_id());
         return 0;
     }
-    mailIdx = *reinterpret_cast<int*>(reinterpret_cast<char*>(&msg) + 0xd);
-    letterStat = (int)(short)*reinterpret_cast<unsigned short*>(
-        reinterpret_cast<char*>(&msg) + 0x11);
+    mailIdx = reinterpret_cast<MSG_CHANGE_LETTER_STAT&>(msg).m_mailIdx;   // +0xd
+    letterStat = (int)reinterpret_cast<MSG_CHANGE_LETTER_STAT&>(msg).m_letterStat;  // +0x11 short
     result = WongWork::CMailBoxHelper::ReqChangeLetterStat(user, mailIdx, letterStat);
     *(reinterpret_cast<int*>(&param) + 1) = result;
     if (*(reinterpret_cast<int*>(&param) + 1) == 0)
@@ -9595,15 +9611,18 @@ int Dispatcher_Mercenary_Return::process(CUser* user, MSG_BASE& msg, ParamBase& 
     char* pResult = reinterpret_cast<char*>(&result);
     // ORIG: Return_Mercenary_Charac(user, *(uint*)(msg+0x10), m_result@+0xc 引用传入)
     // （ORIG 0x0868e692 声明 bool、实现 void 转发无 return，%al 残留直写 pResult+0x04）
+    struct MercView          // 自然对齐即达 m_field10@+0x10（0xd+1+2=16 已 4 对齐）
+    {
+        char m_head[0xd];
+        char m_field0d;          // +0x0d byte
+        char m_pad0e[2];         // +0x0e..+0x0f
+        unsigned int m_field10;  // +0x10
+    };
+    MercView& mv = reinterpret_cast<MercView&>(req);
     pResult[0x04] = static_cast<char>(
-        user->Return_Mercenary_Charac(
-            *reinterpret_cast<unsigned int*>(
-                reinterpret_cast<char*>(&msg) + 0x10),
-            result.m_result));                                  // +0x04 bool 归还成功
-    pResult[0x05] = req.m_pad[0];                               // +0x05 char 回显(msg+0xd)
-    *reinterpret_cast<int*>(pResult + 0x08) =
-        *reinterpret_cast<unsigned int*>(
-            reinterpret_cast<char*>(&msg) + 0x10);              // +0x08 int = msg+0x10
+        user->Return_Mercenary_Charac(mv.m_field10, result.m_result));
+    pResult[0x05] = mv.m_field0d;                               // +0x05 char 回显(msg+0xd)
+    *reinterpret_cast<int*>(pResult + 0x08) = mv.m_field10;     // +0x08 int = msg+0x10
     return 0;
 }
 
@@ -9612,11 +9631,18 @@ int Dispatcher_Mercenary_Return::read(PacketBuf& packet, MSG_BASE& msg)   // ORI
     // msg+0xd byte / msg+0x10 int；失败走 LineFunc(0x4e88/0x4e8a, pretty 名)。
     // ORIG 0x081dd904：arg2 直 `movl $<A>,0x4(%esp)`（rodata 地址立即数，非 static 指针二级）。
     // ORIG 0x81dd90a：顶部 char* m→-0xc 槽，两处地址均经槽 `mov -0xc`+add。
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_byte(*reinterpret_cast<char*>(m + 0xd)))
+    struct MercView          // 自然对齐即达 m_field10@+0x10（0xd+1+2=16 已 4 对齐）
+    {
+        char m_head[0xd];
+        char m_field0d;          // +0x0d byte
+        char m_pad0e[2];         // +0x0e..+0x0f
+        unsigned int m_field10;  // +0x10
+    };
+    MercView& m = reinterpret_cast<MercView&>(msg);
+    if (!packet.get_byte(m.m_field0d))
         return LineFunc(0x4e88, __PRETTY_FUNCTION__, 0, 0);
     // ORIG 0x81dd9?：`add $0x10,%eax` 单步地址（同一 m 槽现址）。
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(m + 0x10)))
+    if (!packet.get_int(m.m_field10))
         return LineFunc(0x4e8a, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -9878,7 +9904,7 @@ int Dispatcher_Open_Guild_Board::process(CUser* user, MSG_BASE& msg, ParamBase& 
 int Dispatcher_Open_Guild_Board::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG（帧 $0x18）：无指针物化槽 ⇒ 内联表达式（同 DonateGuildFund 口径）。
-    if (!packet.get_byte(*reinterpret_cast<char*>(reinterpret_cast<char*>(&msg) + 0xb2)))
+    if (!packet.get_byte(reinterpret_cast<MSG_GUILD_BOARD*>(&msg)->m_b2))  // +0xb2
     {
         return LineFunc(0x30aa, __PRETTY_FUNCTION__, 0, 0);
     }
@@ -10336,7 +10362,8 @@ int Dispatcher_SaveGameOption_1::process(CUser* user, MSG_BASE& msg, ParamBase& 
     {
         return -1;
     }
-    CETCOption& etc = *reinterpret_cast<CETCOption*>(reinterpret_cast<char*>(&msg) + 0x11);
+    CETCOption& etc =
+        reinterpret_cast<MSG_SAVE_GAME_OPTION_1&>(msg).m_option;      // +0x11
     if ((short)etc.getETCOption((ENUM_OPTION_ETC)1) !=
         (unsigned char)user->get_charac_visible_grow_avatar())
     {
@@ -10412,7 +10439,15 @@ int Dispatcher_SaveGameOption_2::process(CUser* user, MSG_BASE& msg, ParamBase& 
     CGameOption* gameOption = user->GetGameOptionRef();
     int characJob = user->get_charac_job();
     unsigned char hotKeyType = (unsigned char)user->GetCharacHotKeyType(characJob);
-    CHotkeyOption* hotkeyOption = reinterpret_cast<CHotkeyOption*>(reinterpret_cast<char*>(&param) + 0x11);
+    // ORIG 0x081ceeda `lea 0x11(%eax),%edx`（%eax=param）：ParamBase 派生物
+    // 在 +0x11 内嵌 CHotkeyOption（process.md:193/196/214 三处同点）。
+    struct __attribute__((packed)) HotkeyParamView
+    {
+        char m_head[0x11];
+        CHotkeyOption m_option;    // +0x11
+    };
+    CHotkeyOption* hotkeyOption =
+        &reinterpret_cast<HotkeyParamView*>(&param)->m_option;   // +0x11
     if (!gameOption->IsHotKeyOptionChanged(hotKeyType, *hotkeyOption)) {
         return 0;
     }
@@ -10983,12 +11018,11 @@ int Dispatcher_DeleteToBlackList::process(CUser* user, MSG_BASE& msg, ParamBase&
 int Dispatcher_DeleteToBlackList::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081cde36：int@0x10（len）→ str@0x14（max 0x1e）
-    // P1：int@0x10 成员视图折叠。
-    struct __attribute__((packed)) LenView { char m_head[0x10]; int m_len; };
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0x10)))
+    MSG_DELETE_TO_BLACKLIST& mref =
+        reinterpret_cast<MSG_DELETE_TO_BLACKLIST&>(msg);
+    if (!packet.get_int(mref.m_nameLen))
         return LineFunc(0x26ce, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_str(m + 0x14, 0x1e, ((LenView*)m)->m_len))
+    if (!packet.get_str(mref.m_characName, 0x1e, mref.m_nameLen))
         return LineFunc(0x26d1, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -11124,14 +11158,15 @@ int Dispatcher_GuildCargoPopItem::process(CUser* user, MSG_BASE& msg, ParamBase&
 int Dispatcher_GuildCargoPopItem::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081d1388：ushort@0xd → int@0xf → int@0x13 → byte@0x17
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(m + 0xd)))
+    MSG_GUILD_CARGO_POP_ITEM& m =
+        reinterpret_cast<MSG_GUILD_CARGO_POP_ITEM&>(msg);
+    if (!packet.get_short(m.m_field0d))
         return LineFunc(0x2d3b, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0xf)))
+    if (!packet.get_int(m.m_itemIdx))
         return LineFunc(0x2d3c, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0x13)))
+    if (!packet.get_int(m.m_field13))
         return LineFunc(0x2d3d, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(m + 0x17)))
+    if (!packet.get_byte(m.m_field17))
         return LineFunc(0x2d3e, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -11434,14 +11469,13 @@ int Dispatcher_SecretShopBuyItem::process(CUser* user, MSG_BASE& msg, ParamBase&
 int Dispatcher_SecretShopBuyItem::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081d25f8：int@0xd → int@0x11（须 >=1 否则 LineFunc 0x2f84）
-    // P1：0x11 处值读取（test 比较）用 pack(1) 视图折叠单 disp。
-    struct __attribute__((packed)) NumView { char m_head[0x11]; int m_num; };
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0xd)))
+    MSG_SECRET_SHOP_BUY_ITEM& m =
+        reinterpret_cast<MSG_SECRET_SHOP_BUY_ITEM&>(msg);
+    if (!packet.get_int(m.m_itemIdx))
         return LineFunc(0x2f80, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0x11)))
+    if (!packet.get_int(m.m_count))
         return LineFunc(0x2f81, __PRETTY_FUNCTION__, 0, 0);
-    if (((NumView*)m)->m_num < 1)
+    if (m.m_count < 1)
         return LineFunc(0x2f84, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -11556,10 +11590,17 @@ int Dispatcher_SetSubGuildMaster::dispatch_sig(CUser* user, PacketBuf& packet)
     char buffer[0x31];
     Packet_Monitor_Set_Sub_Guild_Master* header = new (buffer) Packet_Monitor_Set_Sub_Guild_Master();
     (void)header;
+    // +0x2c 标志字节（ORIG 负载裸偏移，header 仅 PacketHeader 未建字段）。
+    // char 对齐 1，packed 视图绑 char& 合规。
+    struct __attribute__((packed)) SubGMView
+    {
+        char m_head[0x2c];
+        char m_flag;             // +0x2c
+    };
     int& characNo = *reinterpret_cast<int*>(buffer + 0x6);
     int& guildKey = *reinterpret_cast<int*>(buffer + 0xa);
     char* name = buffer + 0xe;
-    char& flag = *reinterpret_cast<char*>(buffer + 0x2c);
+    char& flag = reinterpret_cast<SubGMView*>(buffer)->m_flag;
     characNo = user->get_charac_no(-1);
     guildKey = user->get_charac_guildkey();
     int nameLen = 0;
@@ -11737,14 +11778,14 @@ int Dispatcher_AchievementTrigger::process(CUser* user, MSG_BASE& msg,
 int Dispatcher_AchievementTrigger::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081d7dfc：uint@0xd → ushort@0x11 → ushort@0x13 → ushort@0x15
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(m + 0xd)))
+    MSG_ACHIEVEMENT_TRIGGER& m = reinterpret_cast<MSG_ACHIEVEMENT_TRIGGER&>(msg);
+    if (!packet.get_int(m.m_field0d))
         return LineFunc(0x4265, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(m + 0x11)))
+    if (!packet.get_short(m.m_field11))
         return LineFunc(0x4267, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(m + 0x13)))
+    if (!packet.get_short(m.m_field13))
         return LineFunc(0x4269, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(m + 0x15)))
+    if (!packet.get_short(m.m_field15))
         return LineFunc(0x426b, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -12098,12 +12139,12 @@ int Dispatcher_ChangeRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_ChangeRandomOption::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081dc8de：ushort@0xe → ushort@0x10 → byte@0x12
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(m + 0xe)))
+    MSG_CHANGE_RANDOM_OPTION& m = reinterpret_cast<MSG_CHANGE_RANDOM_OPTION&>(msg);
+    if (!packet.get_short(m.m_0e))
         return LineFunc(0x4cd8, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(m + 0x10)))
+    if (!packet.get_short(m.m_10))
         return LineFunc(0x4cdb, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(m + 0x12)))
+    if (!packet.get_byte(m.m_12))
         return LineFunc(0x4cde, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -12643,14 +12684,14 @@ int Dispatcher_GuildCargoMoveItem::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_GuildCargoMoveItem::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081d17ba：ushort@0xd → int@0x11 → short@0xf → int@0x15
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(m + 0xd)))
+    MSG_GUILD_CARGO_MOVE_ITEM& m = reinterpret_cast<MSG_GUILD_CARGO_MOVE_ITEM&>(msg);
+    if (!packet.get_short(m.m_field0d))
         return LineFunc(0x2dd2, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0x11)))
+    if (!packet.get_int(m.m_field11))
         return LineFunc(0x2dd4, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(m + 0xf)))
+    if (!packet.get_short(m.m_field0f))
         return LineFunc(0x2dd6, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0x15)))
+    if (!packet.get_int(m.m_field15))
         return LineFunc(0x2dd8, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -17842,7 +17883,8 @@ int Dispatcher_RequestCharacSkillInfo::process(CUser* user, MSG_BASE& msg, Param
     }
     int characIdx = (int)(char)mref.m_0d;
     _Charac_info& info = user->m_characList[characIdx];
-    SkillSlot* skillSlot = reinterpret_cast<SkillSlot*>(reinterpret_cast<char*>(&info) + 0x892);
+    SkillSlot* skillSlot = reinterpret_cast<SkillSlot*>(
+        reinterpret_cast<CharacInfoFields*>(&info)->m_skill);             // +0x892
     if (!skillSlot->IsLoadStrikerSkill())
     {
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x5b40),

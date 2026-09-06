@@ -28,6 +28,7 @@
 #include "CUser.h"
 #include "CDataManager.h"
 #include "CItem.h"
+#include "PacketTypes.h"     // MSG_ITEM_UPGRADE 完整类型（具名字段访问）
 #include "Inven_Item.h"
 #include "CEquipItem.h"
 #include "PacketGuard.h"
@@ -397,8 +398,8 @@ void CItemUpgrade_Separate::_NoticeUpgrade(const CUser* user, const Inven_Item& 
     pg.put_int(item.m_addInfo);
     pg.put_byte(item.GetUpgrade());
     pg.put_byte(item.m_upgradeSep.GetUpgradeSeparate());
-    reinterpret_cast<const RandomOption*>(reinterpret_cast<const char*>(&item) + 0x25)
-        ->put_packet_random_option(pg);
+    // Inven_Item+0x25 = m_random(+0x1f).m_random（RandomOption，+0x06）。
+    item.m_random.m_random.put_packet_random_option(pg);
     pg.finalize(true);
     G_GameWorld()->send_all(pg);
 }
@@ -410,21 +411,19 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
     CInventory* invenW = user->getCurCharacInvenW();
 
     Inven_Item item = invenW->GetInvenSlot(INVEN_TYPE_EQUIP,
-                                           static_cast<short>(*reinterpret_cast<const unsigned short*>(
-                                               reinterpret_cast<const char*>(msg) + 0x1b)));
+                                           static_cast<short>(msg->m_targetSlot));  // MSG_ITEM_UPGRADE +0x1b
     if (item.isEmpty())
     {
         return 4;
     }
-    if (*reinterpret_cast<const int*>(reinterpret_cast<const char*>(&item) + 2) !=
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(msg) + 0x1d))
+    if (item.m_addInfo !=        // Inven_Item +0x02
+        msg->m_targetItemIdx)    // MSG_ITEM_UPGRADE +0x1d
     {
         return 4;
     }
 
     Inven_Item matItem = invenW->GetInvenSlot(INVEN_TYPE_EQUIP,
-                                              static_cast<short>(*reinterpret_cast<const unsigned short*>(
-                                                  reinterpret_cast<const char*>(msg) + 0x23)));
+                                              static_cast<short>(msg->m_materialSlot));  // +0x23
     if (matItem.isEmpty())
     {
         return 0x16;
@@ -457,8 +456,7 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
 
     const bool success = _DoProcUpgrade(user, &item, &info);
 
-    const unsigned short matSlot = *reinterpret_cast<const unsigned short*>(
-        reinterpret_cast<const char*>(msg) + 0x23);
+    const unsigned short matSlot = msg->m_materialSlot;   // MSG_ITEM_UPGRADE +0x23
     CInventory* invenW2 = user->getCurCharacInvenW();
     if (invenW2->delete_item(INVEN_TYPE_EQUIP, matSlot, info.m_materialCnt,
                              static_cast<eItemDelReason>(0xc), true) == 0)
@@ -484,11 +482,10 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         static_cast<unsigned char>(item.m_upgradeSep.GetUpgradeSeparate());
     packet->put_byte(sepNow);
 
-    const unsigned short slot = *reinterpret_cast<const unsigned short*>(
-        reinterpret_cast<const char*>(msg) + 0x1b);
+    const unsigned short slot = msg->m_targetSlot;   // MSG_ITEM_UPGRADE +0x1b
     packet->put_short(slot);
 
-    if (*reinterpret_cast<const int*>(reinterpret_cast<const char*>(&item) + 2) != 0)
+    if (item.m_addInfo != 0)   // Inven_Item +0x02
     {
         invenW->update_item(INVEN_TYPE_EQUIP, slot, item);
     }
@@ -502,7 +499,7 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
     }
     else
     {
-        guildName = reinterpret_cast<const char*>(reinterpret_cast<const char*>(msg) + 0x28);
+        guildName = msg->m_28;   // MSG_ITEM_UPGRADE +0x28（guild 名串）
     }
     user->makeGuildItemSeparateUpgradMessage(guildName, sepOld, sepNow, success,
                                              item.GetUpgrade());

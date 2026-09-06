@@ -18,13 +18,8 @@
 #include "ItemGloballyUniqueIdentifierGenerator.h"  // itemGloballyUniqueIdentifier_t
 #include "TimeLog_.h"
 
-// CUser 冻结头（§8.2-3）未建模 m_characs 向量：@+0x796e8（ORIG 0x08682a92/
-// 0x08682ae0 operator[] 基址实证，std::vector<_Charac_info> 元素步距见
-// _Charac_info 字段 +0x26 访问）。P49：寻址助手用宏不用 static inline。
-// Main 在 CUser.h 落真实成员后本宏应替换为具名访问。
-#define CHARAC_VEC(user) \
-    (*reinterpret_cast<std::vector<_Charac_info>*>( \
-        reinterpret_cast<char*>(user) + 0x796e8))
+// CUser::m_characList @+0x796e8（std::vector<_Charac_info>；ORIG 0x08682a92/
+// 0x08682ae0 operator[] 基址实证）。具名成员访问（CUser.h 已建模）。
 
 // Inven_Item +0x25..0x32（ChronicleRandomOptionInfo::m_random 尾区，日志 14 个
 // %02X 字节）审计视图（P80）：ORIG 0x08682e84/0x0868340a 逐字段 `mov 0x18(%ebp),
@@ -1080,11 +1075,10 @@ void cUserHistoryLog::CharacAdd(int idx)
     // ORIG 栈上 TimeLog_ 局部对象调 setTime()（结果未用，保留以对齐字节）。
     TimeLog_ tl;
     tl.setTime();
-    // CUser 冻结头未建模 m_characs（@+0x796e8，vector<_Charac_info>，nm/反汇编
-    // 证据：ORIG 0x08682a92 operator[] 基址），表达式内联传递（P134——引用局部
-    // 会挤占 -0xc 槽并使实参装载序漂移）。
+    // CUser::m_characList @+0x796e8（ORIG 0x08682a92 operator[] 基址），
+    // 表达式内联传递（P134——引用局部会挤占 -0xc 槽并使实参装载序漂移）。
     m_user->LogHistory("Charac+,%d",
-        (int)CHARAC_VEC(m_user)[idx].m_field26);
+        (int)m_user->m_characList[idx].m_field26);
 }
 
 // ORIG _ZN15cUserHistoryLog9CharacDelEi @0x08682ae0（与 CharacAdd 同型，"Charac-,"）
@@ -1093,7 +1087,7 @@ void cUserHistoryLog::CharacDel(int idx)
     TimeLog_ tl;
     tl.setTime();
     m_user->LogHistory("Charac-,%d",
-        (int)CHARAC_VEC(m_user)[idx].m_field26);
+        (int)m_user->m_characList[idx].m_field26);
 }
 
 // ORIG _ZN15cUserHistoryLog6DiePvPE23ENUM_PVP_HISTORY_REASONjjiiiiPKc @0x08686490

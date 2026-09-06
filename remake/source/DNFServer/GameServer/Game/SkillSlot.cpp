@@ -3018,7 +3018,7 @@ int SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
     std::vector<std::pair<int, int> > giveVec;
     char secondGrow = m_parent->getCurCharSecondGrowType();
     char firstGrow = m_parent->getCurCharFirstGrowType();
-    CCharacter* chars = *(CCharacter**)((char*)G_CDataManager() + 0x14);
+    CCharacter* chars = (CCharacter*)G_CDataManager()->m_characList;
     char got = chars[m_parent->get_charac_job()].get_give_skill(
         firstGrow, secondGrow, giveVec, 0);
     if ((got ^ 1) != 0)

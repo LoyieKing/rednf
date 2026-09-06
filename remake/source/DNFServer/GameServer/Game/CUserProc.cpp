@@ -8,40 +8,10 @@
 #include <stdio.h>
 #include <string.h>
 
-// ---- 外部符号声明（对应 TU 翻译后移除） ----
-class PacketGuard
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
-};
-
-class InterfacePacketBuf
-{
-public:
-    bool put_header(int packetId, int packetSize);
-    bool put_binary(char* data, int len);
-    void finalize(bool isEncryptRequired);
-};
-
-class CUser
-{
-public:
-    void Send(PacketGuard& packet);
-};
-
 #include "CUserProc.h"   // APSystem::CUserProc / _ActionGroupIndex（唯一声明点）
-
-namespace APSystem
-{
-class CActionPointManager
-{
-public:
-    void GM_Set(CUser& user, unsigned int value);
-
-    char m_pad[0xcfc];  // +0x00
-};
-}
+#include "CUser.h"       // CUser 权威定义（m_actionPoint @+0x8d264）
+#include "InterfacePacketBuf.h"
+#include "PacketGuard.h"
 
 void APSystem::CUserProc::ClearActionAndSendtoUser(CUser* user,
                                                    _ActionGroupIndex group,
@@ -145,7 +115,7 @@ void APSystem::CUserProc::GM_Set(CUser* user, unsigned int value)
 {
     if (user != 0)
     {
-        CActionPointManager* mgr = (CActionPointManager*)((char*)user + 0x8d264);
+        APSystem::CActionPointManager* mgr = &user->m_actionPoint;
         mgr->GM_Set(*user, value);
         SendActionListState(*user);
     }

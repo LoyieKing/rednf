@@ -1269,7 +1269,7 @@ int CUser::check_locked_multibox_error(const CItem* opener, int openedCnt, bool 
 
     int slots = 2;
     if (doubleMode)
-        slots = (int)*(unsigned char*)((char*)G_CDataManager() + 0x877e) * 2;
+        slots = (int)G_CDataManager()->m_boosterGage.m_cMultiboxCount * 2;  // +0x877e = m_boosterGage.m_cMultiboxCount(+0x0e)
     int err = check_multibox_error(slots);
     return err == 0 ? 0 : err;
 }
@@ -1458,8 +1458,8 @@ unsigned int CUser::CheckGuildLevelUp(unsigned int& priceOut)
     if ((int)m_guildDB.m_fundLevel + 1 > 16)                 // +0x8d03b
         return 0x25;
     // ORIG 无 gps 槽：每个调用点重新 G_CDataManager()+0xa50c（P48）。
-    int param = ((GuildParameterScript*)((char*)G_CDataManager() + 0xa50c))
-                    ->getGuildLevelUpParam((int)m_guildDB.m_fundLevel + 1);
+    int param = G_CDataManager()->m_guildParameter
+                    .getGuildLevelUpParam((int)m_guildDB.m_fundLevel + 1);  // m_guildParameter +0xa50c
     if (param == 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x53c2, 5);   // P139 局部静态符号
@@ -1467,9 +1467,9 @@ unsigned int CUser::CheckGuildLevelUp(unsigned int& priceOut)
               (int)m_guildDB.m_fundLevel);
         return 0x22;
     }
-    unsigned short memberCnt = (*reinterpret_cast<const unsigned short*>(reinterpret_cast<const char*>(&m_guildDB) + 0x26)) /*+0x26 pad 区*/;    // +0x8d042（fields_A 建议名）
-    unsigned int price = ((GuildParameterScript*)((char*)G_CDataManager() + 0xa50c))
-                            ->getLevelupPrice((int)m_guildDB.m_fundLevel + 1, (int)memberCnt);
+    unsigned short memberCnt = m_guildDB.m_memberCount;  // ORIG 0x0866c38b movzwl 0x8d042(+0x22=m_memberCount)
+    unsigned int price = G_CDataManager()->m_guildParameter
+                            .getLevelupPrice((int)m_guildDB.m_fundLevel + 1, (int)memberCnt);
     if (m_guildDB.m_fundMoney < price)                       // +0x8d0c0
         return 0x16;
     priceOut = price;
@@ -4544,8 +4544,7 @@ int CUser::process_use_locked_multibox(int boxSlot, int keySlot,
     err = check_insert_lottery_reward(boxDef, lottery, dest);
     if (err != 0) return err;
 
-    int keyCount = *reinterpret_cast<int*>(   // 所需钥匙数；CStackableItem m_multiBox(+0x1e4) 内条目布局未建模
-            reinterpret_cast<char*>(boxDef) + 0x1f0);
+    int keyCount = static_cast<CStackableItem*>(boxDef)->m_multiBox.m_fieldc;  // +0x1f0 = m_multiBox(+0x1e4).m_fieldc(+0x0c)
     getCurCharacInvenW()->delete_item((INVEN_TYPE)1, boxSlot, 1,
                                       (eItemDelReason)3, true);
     getCurCharacInvenW()->delete_item((INVEN_TYPE)1, keySlot, keyCount,
@@ -4909,7 +4908,7 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
     if (!getCurCharacQuestR()->check_cond_clear(questId)) {
         return 0x16;
     }
-    Quest* q = ((QuestList*)(*(int*)((char*)G_CDataManager() + 0x18)))
+    Quest* q = G_CDataManager()->m_questList  // +0x18
                ->find_quest(questId);
     if (q == 0) return 0x15;
 
@@ -5671,7 +5670,7 @@ unsigned int CUser::SaveInventoryOnly()
     memcpy(inv->m_invenType3 /*invenRewardZone*/,
            getCurCharacInvenR()->GetInvenStart(3), 0x39aa);
     memcpy(inv->m_creatureTail,
-           (char*)getCurCharacInvenR() + 0x55a, 0xf4);
+           &getCurCharacInvenR()->m_invenItem[22], 0xf4);  // +0x55a = m_invenItem[22]
 
     m_characExpand.update(this, (ENUM_CHARAC_EXPAND_TYPE)9);
     removeRentalItemInfoFromInvenBuf(inv, 1);
@@ -10042,7 +10041,7 @@ int CUser::setTagCharacInven(TAG_CHARAC_INVEN_DATA* data)
     Inven_Item* invenRaw = getTagCharacInvenW();
     memcpy(reinterpret_cast<char*>(invenRaw) + 0x1c, data, 0x53e);
     CInventory* inven = reinterpret_cast<CInventory*>(invenRaw);
-    inven->SetClearAvatar(reinterpret_cast<unsigned long*>(data->m_pad1e43 + 0x21b5));  // +0x3ff8（布局未建模区）
+    inven->SetClearAvatar(reinterpret_cast<unsigned long*>(data->m_clearAvatar));  // +0x3ff8
     for (int i = 0; i < *reinterpret_cast<int*>(data->m_pad1e43); ++i) {  // +0x1e43 count（未建模）
         int invenSlot = 0;
         if (*reinterpret_cast<int*>(data->m_pad1e43 + 0x29 + i * 0x4b) != 0) {  // +0x1e6c（未建模）
@@ -10057,7 +10056,7 @@ int CUser::setTagCharacInven(TAG_CHARAC_INVEN_DATA* data)
             }
         }
     }
-    int capacity = *reinterpret_cast<int*>(data->m_pad1e43 + 0x21dd);  // +0x4020（未建模）
+    int capacity = static_cast<int>(data->m_cargoCapacity);  // +0x4020
     if (capacity == 0) {
         getTagCharacCargoW()->SetCapacity(8);
     }
@@ -10099,8 +10098,7 @@ int CUser::SetInventory(SIG_LOAD_INVENTORY* sig)
         }
     }
     CInventory* inven = getCurCharacInvenW();
-    reinterpret_cast<AvatarCoin*>(reinterpret_cast<char*>(inven) + 0x658)
-        ->Set(sig->m_avatarCoin);
+    inven->m_avatarCoin.Set(sig->m_avatarCoin);  // +0x658 = m_avatarCoin
     inven = getCurCharacInvenW();
     inven->set_money(money);
     inven = getCurCharacInvenW();
@@ -10156,8 +10154,7 @@ void CUser::SetLimitInfo(SIG_LIMIT_ITEM_INFO* info)
             for (int i = 0; i < info->m_count; ++i) {
                 if (info->m_entries[i].m_itemId == it->m_a) {
                     usage.m_field10 = it->m_kind;
-                    *reinterpret_cast<int*>(
-                        reinterpret_cast<char*>(&usage) + 0x11) = it->m_b;
+                    usage.m_field11 = it->m_b;  // +0x11
                     usage.m_field15 = it->m_a;
                     usage.m_field19 = info->m_entries[i].m_field0;
                     reinterpret_cast<CommonTime*>(&usage)
@@ -10169,8 +10166,7 @@ void CUser::SetLimitInfo(SIG_LIMIT_ITEM_INFO* info)
             }
             if (!matched) {
                 usage.m_field10 = it->m_kind;
-                *reinterpret_cast<int*>(
-                    reinterpret_cast<char*>(&usage) + 0x11) = it->m_b;
+                usage.m_field11 = it->m_b;  // +0x11
                 usage.m_field15 = it->m_a;
                 usage.m_field19 = 0;
                 reinterpret_cast<CommonTime*>(&usage)->SetCurTime();
@@ -10287,7 +10283,8 @@ void CUser::SendMail(bool certified)
         int rc = WongWork::CMailBoxHelper::ReqDBCheckReceiver(this, m_pad8e101 + 0x11, &check);
         if (rc == 0) {
             bool fatigueGift = false;                      // local_21
-            int itemId = *reinterpret_cast<int*>(m_pad8e101 + 0x39);      // +0x8e13a
+            int itemId = static_cast<int>(
+                reinterpret_cast<const MSG_MAILBOX_SEND*>(m_pad8e101)->m_itemId39);  // +0x39
             CItem* item = G_CDataManager()->find_item(itemId);
             if (item != 0) {
                 bool skip;
@@ -10304,7 +10301,7 @@ void CUser::SendMail(bool certified)
             if (itemId == 0) {
                 fatigueGift = true;
             }
-            IncrementTradeGold(*reinterpret_cast<unsigned int*>(m_pad8e101 + 0x2e),
+            IncrementTradeGold(reinterpret_cast<const MSG_MAILBOX_SEND*>(m_pad8e101)->m_gold2e,  // +0x2e
                                static_cast<int>(fatigueGift));
         }
         else {
@@ -10383,7 +10380,7 @@ int CUser::CreateCharac(SIG_CREATE_CHARAC* sig)
     info.m_field2b = 0;
     info.m_field29 = 0;
     info.m_stamina = 100;
-    reinterpret_cast<CommonTime*>(reinterpret_cast<char*>(&info) + 0x39)->SetCurTime();
+    reinterpret_cast<CommonTime*>(info.m_delReqTime)->SetCurTime();  // +0x39
     info.m_field33 = 0;
     info.m_field35 = static_cast<unsigned short>(DEFAULT_MAX_FATIGUE);
     info.m_field37 = 0;
@@ -10976,7 +10973,7 @@ void CUser::SendMultiMail(bool certified)
                 if (itemId == 0) {
                     fatigueGift = true;
                 }
-                IncrementTradeGold(*reinterpret_cast<unsigned int*>(block + 0x2f),
+                IncrementTradeGold(reinterpret_cast<MSG_MULTI_MAILBOX_SEND*>(block)->m_gold2f,  // +0x2f
                                    static_cast<int>(fatigueGift));
             }
         }

@@ -502,8 +502,9 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         m_field1aa0 = 1;
 
     // ---- 安全检测上报 + 广播 ----
-    reinterpret_cast<Secu_HackLogCheckByParty*>(
-        reinterpret_cast<char*>(this) + 0x1abc)->DieMob(&dieInfo, &mob);
+    // +0x1abc = m_padSecu 即 Secu_HackLogCheckByParty 子对象（CParty.h:790）
+    reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)
+        ->DieMob(&dieInfo, &mob);
 
     send_to_party(packet);
 
@@ -514,7 +515,8 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         InterfacePacketBuf* buf = (InterfacePacketBuf*)&bossPacket;
         buf->clear();
         buf->put_header(0, 0x32);
-        buf->put_int(*(int*)((char*)this + 0xccc));
+        // +0xccc = m_battleField(+0xb24) + 0x1a8 = m_apcKillCount（CBattle_Field.h:459）
+        buf->put_int(m_battleField.m_apcKillCount);
         buf->finalize(true);
         send_to_party(bossPacket);
     }

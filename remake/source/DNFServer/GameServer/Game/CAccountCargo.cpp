@@ -321,7 +321,7 @@ int CAccountCargo::GetItemCount()
 // ---- 金钱 ----
 int CAccountCargo::CheckMoneyLimit(unsigned int money)
 {
-    void* info = ((AccountCargoScript*)((char*)G_CDataManager() + 0xa7e0))->GetCurrUpgradeInfo(m_capacity);
+    void* info = G_CDataManager()->m_accountCargo.GetCurrUpgradeInfo(m_capacity);
     if (info == 0)
         return 0;
     if (*(unsigned int*)((char*)info + 4) < (unsigned int)(m_money + money))
@@ -493,8 +493,8 @@ void CAccountCargo::CreateAccountCargo(CUser* user)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x14);
         return;
     }
-    void* script = (char*)G_CDataManager() + 0xa7e0;
-    int reqLevel = *(int*)((char*)G_CDataManager() + 0xa7e0);
+    void* script = &G_CDataManager()->m_accountCargo;
+    int reqLevel = G_CDataManager()->m_accountCargo.m_reqLevel;
     const char* info = (const char*)user->getCurCharacR();
     if (*(short*)(info + 0x27) < reqLevel) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0xe);
@@ -516,7 +516,7 @@ void CAccountCargo::CreateAccountCargo(CUser* user)
         return;
     }
     Inven_Item item;
-    int itemIdx = *(int*)((char*)G_CDataManager() + 0xa7e4);
+    int itemIdx = G_CDataManager()->m_accountCargo.m_itemIdx;
     CInventory* inven = (CInventory*)user->getCurCharacInvenR();
     int slot = inven->GetInvenData(itemIdx, item);
     if (createInfo[2] != 0 &&
@@ -556,7 +556,7 @@ void CAccountCargo::UpgradeAccountCargo(CUser* user)
     }
     CAccountCargo* cargo = user->GetAccountCargo();
     int capacity = cargo->GetCapacity();
-    void* script = (char*)G_CDataManager() + 0xa7e0;
+    void* script = &G_CDataManager()->m_accountCargo;
     unsigned int* upgradeInfo =
         (unsigned int*)((AccountCargoScript*)script)->GetNextUpgradeInfo(capacity);
     if (upgradeInfo == 0) {
@@ -574,7 +574,7 @@ void CAccountCargo::UpgradeAccountCargo(CUser* user)
         return;
     }
     Inven_Item item;
-    int itemIdx = *(int*)((char*)G_CDataManager() + 0xa7e4);
+    int itemIdx = G_CDataManager()->m_accountCargo.m_itemIdx;
     CInventory* inven = (CInventory*)user->getCurCharacInvenR();
     int slot = inven->GetInvenData(itemIdx, item);
     if (upgradeInfo[2] != 0 &&

@@ -473,12 +473,11 @@ int CSecretShop::LotteryNpc(int dungeonIdx, int level, int price)
     int randVal = m_pRand->randInt(randomSeed);
     int npcIdx = 1000;
     register unsigned char fv asm("eax") =
-        (unsigned char)((SecretShopScript*)((char*)G_CDataManager() + 0xa700))
-            ->GetNpcByDungeonIdx(npcIdx, randVal, dungeonIdx);
+        (unsigned char)G_CDataManager()->m_secretShop
+            .GetNpcByDungeonIdx(npcIdx, randVal, dungeonIdx);
     fv ^= 1;
     if (fv)
-        ((SecretShopScript*)((char*)G_CDataManager() + 0xa700))
-            ->GetNpcByDungeonLev(npcIdx, randVal, level);
+        G_CDataManager()->m_secretShop.GetNpcByDungeonLev(npcIdx, randVal, level);
     if (npcIdx != 0 && npcIdx != 1000)
         m_statistic.RecordShow(npcIdx, dungeonIdx, price);
     return npcIdx;
@@ -487,7 +486,7 @@ int CSecretShop::LotteryNpc(int dungeonIdx, int level, int price)
 void CSecretShop::LotteryItems(std::vector<SALE_INFO>& out, int dungeonIdx,
                                int level, int price)
 {
-    SecretShopScript* script = (SecretShopScript*)((char*)G_CDataManager() + 0xa700);
+    SecretShopScript* script = &G_CDataManager()->m_secretShop;
     // m_pRand 即 PvPTypes.h 权威全局 CMTRand；GetItemByDungeonIdx/Lev 形参
     // ORIG 0x085faca2：event = s_event_manager->GetRepeatEvent(0x3a)
     // ->IsEventing((CUser*)0)（vtable slot 13），作 GetItemByDungeonIdx/Lev

@@ -457,7 +457,7 @@ int Store::user_sell_item(CUser* user, char invenType, short slot, short count)
         user->getHackAnalyzer()->addServerHackCnt(
             user, (WongWork::ENUM_HACKTYPE)hackLog.GetHackType(), 1, 0, 0);
     }
-    HistoryLog::WriteSellItem(*(FILE**)((char*)user + 0x796f8), price, count);
+    HistoryLog::WriteSellItem((FILE*)user->m_field796f8, price, count);
 
     return 0;
 }

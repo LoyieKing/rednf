@@ -65,7 +65,7 @@ inline int* memberUsedCoin(CParty* party)
 // （ORIG 未读其长度，端口参数被 min 截断使用【忠实转写】）。
 void CParty::ConnectP2P(CUser* user, char* ip, int port)
 {
-    if (m_state != 1)
+    if (get_state() != 1)
     {
         throw static_cast<ENUM_ERROR>(0x13);
     }
@@ -82,7 +82,7 @@ void CParty::ConnectP2P(CUser* user, char* ip, int port)
                     throw static_cast<ENUM_ERROR>(0x12);
                 }
                 m_member[i].m_fieldc = 1;
-                int copyLen = port < 4 ? port : 4;
+                int copyLen = std::min(port, 4);
                 memcpy(m_member[i].m_fielde, ip, copyLen);
             }
             if (m_member[i].m_fieldc != 1)
@@ -344,10 +344,7 @@ int CParty::getMemberMinLevel()
             continue;
         }
         int level = m_member[i].m_pUser->get_charac_level();
-        if (level < minLevel)
-        {
-            minLevel = level;
-        }
+        minLevel = std::min(minLevel, level);
     }
     return minLevel;
 }

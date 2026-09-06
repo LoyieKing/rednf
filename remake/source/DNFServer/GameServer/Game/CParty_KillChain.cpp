@@ -106,15 +106,18 @@ bool CParty::existSamePCRoomUser(unsigned int pcbangNo)
     int count = 0;
     for (int i = 0; i <= 3; ++i)
     {
-        if (!_checkValidUser(i))
-            continue;
-        unsigned int roomNo =
-            static_cast<unsigned int>(m_member[i].m_pUser->GetPCRoomNo());
-        if (roomNo == pcbangNo && roomNo != 0)
+        if (_checkValidUser(i))
         {
-            count += 1;
-            if (count > 1)
-                return true;
+            // ORIG 两次调用 GetPCRoomNo：uVar3==param_1 且 iVar4!=0。
+            if (static_cast<unsigned int>(
+                    m_member[i].m_pUser->GetPCRoomNo()) == pcbangNo
+                && static_cast<unsigned int>(
+                    m_member[i].m_pUser->GetPCRoomNo()) != 0)
+            {
+                count += 1;
+                if (count > 1)
+                    return true;
+            }
         }
     }
     return false;
@@ -122,10 +125,11 @@ bool CParty::existSamePCRoomUser(unsigned int pcbangNo)
 
 // ============================================================================
 // calDeadUserDungeonPenalty —— ORIG T 0x085ad9b4。
-// slot<0 → 0；memberCount(m_field9b8)>1 时 rate = float(记录[slot])/float(count-1)，
-// ORIG 语义：rate == 0.3f（.rodata 0x08cbbbe8 = 0.3f）→ 归零（fucompp+test
-// $0x45+sete 严格相等比较，非 <）。死亡计数表基址 this+0x10+(slot+0xe0)*4
-// （ORIG 寻址实证），位于 BattleData 占位区，按裸偏移访问。
+// slot<0 → 0；memberCount(m_battleData.m_field68c=CParty+0x9b8)>1 时
+// rate = float(记录[slot])/float(count-1)，ORIG 语义：rate == 0.3f
+// （.rodata 0x08cbbbe8 = 0.3f）→ 归零（fucompp+test $0x45+sete 严格相等比较，非 <）。
+// 死亡计数表基址 this+0x10+(slot+0xe0)*4（ORIG 寻址实证），位于 m_battleData
+// （+0x32c）内，超建模段按裸偏移访问。
 // ============================================================================
 float CParty::calDeadUserDungeonPenalty(int slot)
 {
@@ -133,8 +137,7 @@ float CParty::calDeadUserDungeonPenalty(int slot)
     if (slot < 0)
         return rate;
 
-    const int memberCount = *reinterpret_cast<int*>(
-        reinterpret_cast<char*>(this) + 0x9b8);
+    const int memberCount = m_battleData.m_field68c;
     if (memberCount > 1)
     {
         const int deadCnt = *reinterpret_cast<int*>(
@@ -273,16 +276,15 @@ void CParty::MemberRegisterKillMonster(map_monster& monster, unsigned char flag)
 
 // ============================================================================
 // getDungeonTypeKind —— ORIG T 0x085bdd2a。
-// 空=8；脚本 boss 图(dungeon+0x89c)!=0 → 1；维度可入 → 2；kind==1 → 3；
+// 空=8；脚本 boss 图(dungeon->m_89c)!=0 → 1；维度可入 → 2；kind==1 → 3；
 // 血轮 type1/type2 → 4/5；绝望塔 → 6；锦标赛 → 7；其余 0。
 // ============================================================================
 int CParty::getDungeonTypeKind(CDungeon const* dungeon)
 {
     if (dungeon == 0)
         return 8;
-    if (*reinterpret_cast<const signed char*>(
-            reinterpret_cast<const char*>(dungeon) + 0x89c)
-        != 0)
+    // m_89c（CDungeon.h:777，unsigned char）：ORIG movzbl 0x89c(%eax);test %al
+    if (dungeon->m_89c != 0)
         return 1;
     if (dungeon->get_dimension_possible() >= 1)
         return 2;
@@ -304,56 +306,59 @@ int CParty::getDungeonTypeKind(CDungeon const* dungeon)
 // 按 param(slot) 成员的 uniqueId 匹配记录槽（this+0x1808+i*8：short uniqueId /
 // int 计数）；kind==1 上限 30、kind==2 上限 50、kind==0 上限 10（param 与
 // dm+0x512e/0x512c 当日门槛双判定），且成员 m_field14(+0x8c)==0 时
-// AddDungeonClear(this+0xcb8 dungeonIdx, 3)。其余 kind 或未命中返回 false。
+// AddDungeonClear(m_battleField.m_dungeonIndex=CParty+0xcb8, 3)。其余 kind
+// 或未命中返回 false。
 // ============================================================================
 bool CParty::addDungeonClear(const CDungeon* dungeon, int param, int slot)
 {
-    const short uniqueId =
-        static_cast<short>(m_member[slot].m_pUser->get_unique_id());
-    const int dungeonIdx = *reinterpret_cast<int*>(
-        reinterpret_cast<char*>(this) + 0xcb8);
-
     for (int i = 0; i <= 3; ++i)
     {
-        char* record = reinterpret_cast<char*>(this) + 0x1808 + i * 8;
-        if (*reinterpret_cast<short*>(record) != uniqueId)
+        // 记录槽基址 this + (i+0x300)*8（= this+i*8+0x1800），uniqueId 位于 +8，
+        // 计数位于 +0xc（ORIG addDungeonClear 寻址实证）。
+        if (*reinterpret_cast<short*>(reinterpret_cast<char*>(this)
+                + (i + 0x300) * 8 + 8) !=
+            static_cast<short>(m_member[slot].m_pUser->get_unique_id()))
             continue;
 
         const int kind = getDungeonTypeKind(dungeon);
-        const int usedCount = *reinterpret_cast<int*>(record + 4);
         if (kind == 1)
         {
             if (param < static_cast<int>(*reinterpret_cast<
                     unsigned short*>(reinterpret_cast<char*>(G_CDataManager())
                     + 0x512e))
-                || usedCount > 0x1e || m_member[slot].m_field14 != 0)
-                                continue;
+                || *reinterpret_cast<int*>(
+                    reinterpret_cast<char*>(this) + (i + 0x300) * 8 + 0xc)
+                    > 0x1e
+                || m_member[slot].m_field14 != 0)
+                continue;
         }
         else if (kind == 2)
         {
             if (param < static_cast<int>(*reinterpret_cast<
                     unsigned short*>(reinterpret_cast<char*>(G_CDataManager())
                     + 0x512e))
-                || usedCount > 0x32 || m_member[slot].m_field14 != 0)
-                                continue;
-        }
-        else if (kind == 0)
-        {
-            if (param < static_cast<int>(*reinterpret_cast<
-                    unsigned short*>(reinterpret_cast<char*>(G_CDataManager())
-                    + 0x512c))
-                || usedCount > 10 || m_member[slot].m_field14 != 0)
-                                continue;
+                || *reinterpret_cast<int*>(
+                    reinterpret_cast<char*>(this) + (i + 0x300) * 8 + 0xc)
+                    > 0x32
+                || m_member[slot].m_field14 != 0)
+                continue;
         }
         else
         {
-            return false;
+            if (kind != 0)
+                return false;
+            if (param < static_cast<int>(*reinterpret_cast<
+                    unsigned short*>(reinterpret_cast<char*>(G_CDataManager())
+                    + 0x512c))
+                || *reinterpret_cast<int*>(
+                    reinterpret_cast<char*>(this) + (i + 0x300) * 8 + 0xc)
+                    > 10
+                || m_member[slot].m_field14 != 0)
+                continue;
         }
 
         return m_member[slot].m_pUser->AddDungeonClear(
-            *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0xcb8),
-            3);
-        (void)dungeonIdx;
+            m_battleField.m_dungeonIndex, 3);
     }
     return false;
 }
@@ -366,8 +371,7 @@ bool CParty::addDungeonClear(const CDungeon* dungeon, int param, int slot)
 // ============================================================================
 void CParty::DungeonPermission(int param)
 {
-    const int dungeonIdx = *reinterpret_cast<int*>(
-        reinterpret_cast<char*>(this) + 0xcb8);
+    const int dungeonIdx = m_battleField.m_dungeonIndex;
     CDungeon* dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
     if (dungeon == 0)
         return;

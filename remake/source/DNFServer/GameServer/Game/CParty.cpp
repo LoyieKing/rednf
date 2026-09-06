@@ -1391,12 +1391,16 @@ int CParty::get_blood_dungeon_admission_fee(CUser* user)
         reinterpret_cast<CCharacBloodDungeon*>(
             user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)1))
             ->GetEnterCount();
-    int level = user->get_charac_level();
-    ServerParameterScript* sps = &G_CDataManager()->m_serverParameter;
-    int price = sps->GetPriceAverage(level);
-    int inc = sps->GetAdmissionIncrease(enterCount);
-    int lotto = sps->GetLottoCost();
-    return lotto + price + (inc * price) / 100;
+    // P0：ORIG 仅 enterCount/-0x14、price/-0x10、half/-0xc 三具名槽；
+    // level(get_charac_level→%ebx)、inc(GetAdmissionIncrease→%ecx)、
+    // lotto(GetLottoCost→%eax) 均寄存器直传内联，无栈往返。三处独立
+    // G_CDataManager()（0859f78e/0859f7a7/0859f7de），re-fetch &m_serverParameter。
+    int price = G_CDataManager()->m_serverParameter.GetPriceAverage(
+        user->get_charac_level());
+    int half = (G_CDataManager()->m_serverParameter.GetAdmissionIncrease(enterCount) *
+                price) /
+               100;
+    return G_CDataManager()->m_serverParameter.GetLottoCost() + price + half;
 }
 
 int CParty::check_dungeon_start(CDungeon const* dungeon)
@@ -1488,23 +1492,27 @@ int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon)
 // ORIG 0x85ba804：村庄攻击/复仇模式进入检查。
 int CParty::CheckEnterVillageAttackRevenge(CDungeon const* dungeon)
 {
-    if (dungeon->m_villageAttackEventFlag == 0)
-        return 0;
-    int memberCount = get_member_count();
-    if (!GlobalData::s_revengeDungeonMgr->IsOpenRevengeDungeon())
-        return 0x15;
-    if (dungeon->m_maxAttackPartyMember < memberCount || memberCount < dungeon->m_minAttackPartyMember)
-        return 0xab;
-    for (int i = 0; i <= 3; ++i)
+    // 共享出口：flag==0 与循环完成共用末尾 `return 0`（ORIG +0xfb 单出口）。
+    if (dungeon->m_villageAttackEventFlag != 0)
     {
-        if (!checkValidUser(i))
-            continue;
-        CUser* u = get_user(i);
-        unsigned char cur = u->GetCurRevengeDungeonCount();
-        if (cur == 0 || (unsigned char)dungeon->m_maxRevengeCount < cur)
+        int memberCount = get_member_count();
+        if (!GlobalData::s_revengeDungeonMgr->IsOpenRevengeDungeon())
+            return 0x15;
+        if (dungeon->m_maxAttackPartyMember < memberCount ||
+            memberCount < dungeon->m_minAttackPartyMember)
+            return 0xab;
+        for (int i = 0; i <= 3; ++i)
         {
-            u->SetCurRevengeDungeonCount(0);
-            return 0xad;
+            // ORIG 085ba88d 直测 %al：checkValidUser==0 时跳过 → `== 0 continue`（非 `!`）。
+            if (checkValidUser(i) == 0)
+                continue;
+            unsigned char cur = get_user(i)->GetCurRevengeDungeonCount();
+            if (cur == 0 || (unsigned char)dungeon->m_maxRevengeCount < cur)
+            {
+                // ORIG 085ba8d0 对同一 i 二次调用 get_user（读/写各一次，无 u 缓存局部=P0）。
+                get_user(i)->SetCurRevengeDungeonCount(0);
+                return 0xad;
+            }
         }
     }
     return 0;

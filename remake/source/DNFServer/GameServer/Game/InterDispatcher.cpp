@@ -1864,7 +1864,9 @@ struct Inter_LoadInvenPktView
     unsigned int m_8;               // +0x08
     char m_padc[0x4024];  // +0xc..未消费
     int m_4030;                     // +0x4030
-    char m_pad4034[0x8ce8];  // +0x4034..未消费
+    char m_pad4034[0x10];           // +0x4034..未消费
+    Inven_Item m_4044;              // +0x4044 §4.3 字段化（Inven_Item 0x3d；拆 pad 保 sizeof 不变）
+    char m_pad4081[0x8c9b];  // +0x4081..未消费
     int m_cd1c;                     // +0xcd1c
     char m_padcd20[0x5b5c];  // +0xcd20..未消费
     int m_1287c;                    // +0x1287c
@@ -1938,7 +1940,7 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
         !user->setTagCharacInven(reinterpret_cast<TAG_CHARAC_INVEN_DATA*>(data + 0xc)))
         return 0x1892;
 
-    invenW->SetClearAvatar(reinterpret_cast<unsigned long*>(data + 0x14758));
+    invenW->SetClearAvatar(&pPkt->m_14758);   // §4.3 字段化：视图 m_14758(unsigned long) 取址，ORIG lea 0x14758(%eax)
     (void)tagIdx;
     {
         const int avatarCount = pPkt->m_cd1c;
@@ -1949,7 +1951,7 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
             int addInfo = 0;
             if (avatarItemIdx != 0)
             {
-                addInfo = GetItemIdByAddInfo(reinterpret_cast<Inven_Item*>(data + 0x4044),
+                addInfo = GetItemIdByAddInfo(&pPkt->m_4044,
                                              0x69, avatarItemIdx);
                 for (int j = 0; j < 10; ++j)
                 {
@@ -3673,12 +3675,14 @@ Inter_MonitorCallGuildMembers::~Inter_MonitorCallGuildMembers() {}
 struct Inter_MonitorCallGuildMembersPktView
 {
     char m_pad0[0xe];  // 未消费
+    // §4.3 N（记不回退）：+0x34 ST_Guild_Mem_Info* 数组基址——补 view 具名基址槽会使
+    // sizeof(view) 变化，触发本函数内对 view 尺寸敏感的立即数装载（movl $size），破坏 AE，故保留 reinterpret_cast。
     unsigned int m_e;         // +0x0e（unsigned→int 返回失配的 4 行 spill 形态）
     int m_12;                 // +0x12
     char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
     char m_pad17[0x16];  // 未消费
     unsigned char m_2d;       // +0x2d
-    int m_2e;                 // +0x2e
+    unsigned int m_2e;                 // +0x2e
     unsigned short m_32;      // +0x32
 };
 #pragma pack(pop)
@@ -3742,6 +3746,7 @@ Inter_MonitorCallGuildMembersNext::~Inter_MonitorCallGuildMembersNext() {}
 struct Inter_MonitorCallGuildMembersNextPktView
 {
     char m_pad0[0xe];  // +0x0..未消费
+    // §4.3 N：+0x17 ST_Guild_Mem_Info* 基址——补 view 基址槽改 sizeof(view) 触发尺寸敏感装载破 AE，保留 reinterpret_cast。
     unsigned int m_e;               // +0x0e（同上 unsigned→int 失配两步 spill 形态）
     int m_12;                       // +0x12
     unsigned char m_16;             // +0x16
@@ -3802,6 +3807,7 @@ Inter_MonitorCallGuildAllMembers::~Inter_MonitorCallGuildAllMembers() {}
 struct Inter_MonitorCallGuildAllMembersPktView
 {
     char m_pad0[0xe];  // 未消费
+    // §4.3 N：+0x34 ST_Guild_Mem_Info* 基址——同上，view 基址槽破坏 AE，保留 reinterpret_cast。
     unsigned int m_e;         // +0x0e（同上）
     int m_12;                 // +0x12
     char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
@@ -3874,6 +3880,7 @@ Inter_MonitorCallGuildAllMembersNext::~Inter_MonitorCallGuildAllMembersNext() {}
 struct Inter_MonitorCallGuildAllMembersNextPktView
 {
     char m_pad0[0xe];  // +0x0..未消费
+    // §4.3 N：+0x17 ST_Guild_Mem_Info* 基址——同上，view 基址槽破坏 AE，保留 reinterpret_cast。
     unsigned int m_e;               // +0x0e（同上 unsigned→int 失配两步 spill 形态）
     int m_12;                       // +0x12
     unsigned char m_16;             // +0x16
@@ -5373,7 +5380,7 @@ int Inter_MonitorCallMemberList::dispatch_sig(CUser* user, char* data, int /*len
         return 0;
     }
 
-    unsigned char* entry = reinterpret_cast<unsigned char*>(data + 0x12);
+    unsigned char* entry = &pPkt->m_12;   // §4.3 字段化：视图 m_12(uchar) 取址，ORIG lea 0x12(%eax)
     Inter_MonitorCallMemberListEntryWinView* pWin_entry = reinterpret_cast<Inter_MonitorCallMemberListEntryWinView*>(entry);
     PacketGuard packet;
     packet.put_header(1, 0x52);
@@ -5781,7 +5788,7 @@ int Inter_MailBox_Req_CheckReceiver::dispatch_sig(CUser* user, char* data, int /
         if (!GlobalData::s_pGMAccounts_->isGM(
                 sig->m_receiverAccId))
         {
-            if (*reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + 0x3fb9) == 0x4d)
+            if (sig->m_resultFlag == 0x4d)   // §4.3 字段化：SIG_MAILBOX_CHECK_RECEIVER::m_resultFlag @+0x3fb9
             {
                 SendErrorPacket(user, (ENUM_CMDPACKET)cmd, 0x4d);
                 return 0;
@@ -7648,7 +7655,9 @@ struct Inter_LoadDeathTowerBestRecordPktView
 //   （rec 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
 struct Inter_LoadDeathTowerBestRecordRecWinView
 {
-    char m_pad0[0x6c];  // 未消费
+    char m_pad0[0x10];  // 未消费
+    unsigned char m_10;         // +0x10 §4.3 成员数组基址槽（stDeathTowerRecordMemberInfo_t*）
+    char m_pad11[0x5b];  // 未消费
     int m_6c;                 // +0x6c
     unsigned int m_70;        // +0x70
 };
@@ -7669,7 +7678,7 @@ int Inter_LoadDeathTowerBestRecord::dispatch_sig(CUser* /*user*/, char* data, in
                 const unsigned int count = pWin_rec->m_6c;
                 const unsigned int accId = pPkt->m_4;
                 const stDeathTowerRecordMemberInfo_t* members =
-                    reinterpret_cast<const stDeathTowerRecordMemberInfo_t*>(rec + 0x10);
+                    reinterpret_cast<const stDeathTowerRecordMemberInfo_t*>(&pWin_rec->m_10);   // §4.3 具名槽替代 rec+0x10
                 WongWork::CDeathTowerRanking* table =
                     (WongWork::CDeathTowerRanking*)
                         WongWork::CDeathTowerRanking::getRankTable(j + 1);
@@ -7737,7 +7746,7 @@ int Inter_DeathTowerLoadTopRanker::dispatch_sig(CUser* /*user*/, char* data, int
             (WongWork::CDeathTowerRanking*)WongWork::CDeathTowerRanking::getRankTable(tableIdx);
         table->registRanker(
             towerIdx, key,
-            reinterpret_cast<const stDeathTowerRecordMemberInfo_t*>(rec + 0xfb0),
+            reinterpret_cast<const stDeathTowerRecordMemberInfo_t*>(&pWin_rec->m_padfb0),   // §4.3 具名槽替代裸偏移 rec+0xfb0
             playTime, stage);
     }
     return 0;
@@ -8165,7 +8174,7 @@ int Inter_NoticeGuildNameOnGuildCreate::dispatch_sig(CUser* /*user*/, char* data
 {
     Inter_NoticeGuildNameOnGuildCreatePktView* pPkt = reinterpret_cast<Inter_NoticeGuildNameOnGuildCreatePktView*>(data);
     STGuildProxy proxy;
-    memcpy(&proxy, (char*)pPkt + 0x16, 0x16);
+    memcpy(&proxy, pPkt->m_pad16, 0x16);   // §4.3 具名数组基址替代裸偏移 (char*)pPkt+0x16
     GlobalData::s_guild_proxy_mgr->GetServerProxy(
         (ENUM_SERVER_GROUP)pPkt->m_2d
         )->InsertGuildInfoProxy(
@@ -8183,7 +8192,7 @@ Inter_SecurityCardIssue::~Inter_SecurityCardIssue() {}
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
 struct Inter_SecurityCardIssuePktView
 {
-    char m_pad0[0x8c];  // 未消费
+    char m_pad0[0x8c];  // 未消费（N：+0x04/+0x25/+0x37/+0x5e 串区基址——拆 pad 建具名槽使 setSecurityCardInfo 多指针参装载重排、破坏 AE，保留 reinterpret_cast）
     int m_8c;                 // +0x8c
 };
 #pragma pack(pop)
@@ -12705,7 +12714,9 @@ struct Inter_GuildCargoPushItemPktView
     int m_23;                 // +0x23
     unsigned char m_27;       // +0x27
     unsigned short m_28;      // +0x28
-    char m_pad2a[0x22];  // 未消费
+    char m_pad2a[0x18];       // +0x2a..未消费
+    UpgradeSeparateInfo m_42; // +0x42 §4.3 字段化（1B class，ORIG 读 UpgradeSeparate）
+    char m_pad43[0x9];        // +0x43..未消费
     unsigned char m_4c;       // +0x4c
     unsigned short m_4d;      // +0x4d
 };
@@ -12763,8 +12774,7 @@ int Inter_GuildCargoPushItem::dispatch_sig(CUser* user, char* data, int /*len*/)
     // RandomOption ← msg+0x34（+0x25 = m_random.m_random 连续区）
     memcpy(&item.m_random.m_random, data + 0x34, sizeof(RandomOption));
     item.m_upgradeSep.SetUpgradeSeparate(
-        (*reinterpret_cast<UpgradeSeparateInfo*>(data + 0x42))
-            .GetUpgradeSeparate());
+        pPkt->m_42.GetUpgradeSeparate());
 
     const int slot = inven->insertItemIntoInventory(   // ORIG 0x08502d86
         item, (eItemAddReason)0x27, true, false);
@@ -12784,8 +12794,7 @@ int Inter_GuildCargoPushItem::dispatch_sig(CUser* user, char* data, int /*len*/)
             (int)pPkt->m_21,
             pPkt->m_23,
             (int)pPkt->m_1c,
-            (*reinterpret_cast<UpgradeSeparateInfo*>(data + 0x42))
-                .GetUpgradeSeparate());
+            pPkt->m_42.GetUpgradeSeparate());
     }
     return 0;
 }
@@ -12909,7 +12918,7 @@ Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemP
             pPkt->m_20,
             pPkt->m_22,
             pPkt->m_1b,
-            (*reinterpret_cast<UpgradeSeparateInfo*>(data + 0x41))
+            (*reinterpret_cast<UpgradeSeparateInfo*>(&pPkt->m_41))   // §4.3 具名字段取址替代裸偏移 data+0x41
                 .GetUpgradeSeparate());
     }
     else
@@ -12944,7 +12953,7 @@ Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemP
                 pPkt->m_20,
                 pPkt->m_22,
                 pPkt->m_1b,
-                (*reinterpret_cast<UpgradeSeparateInfo*>(data + 0x41))
+                (*reinterpret_cast<UpgradeSeparateInfo*>(&pPkt->m_41))   // §4.3 具名字段取址替代裸偏移 data+0x41
                     .GetUpgradeSeparate());
         }
     }
@@ -15875,7 +15884,7 @@ int Inter_UpdateSecuServiceState::dispatch_sig(CUser* user, char* data, int len)
             user,                                      // 0xc(%ebp)
             (unsigned char)pWin_msg->m_e,
             (unsigned char)pWin_msg->m_f,
-            reinterpret_cast<char*>(pWin_msg) + 0x10);
+            pWin_msg->m_pad10);   // §4.3 具名数组基址替代裸偏移 pWin_msg+0x10
     }
     return 0;
 }

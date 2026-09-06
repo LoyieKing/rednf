@@ -274,15 +274,13 @@ namespace
 
 inline CMTRand* upgradeRand(const WongWork::CItemUpgrade* self)
 {
-    return *reinterpret_cast<CMTRand* const*>(
-        reinterpret_cast<const char*>(self) + 0x4e8);
+    return self->m_rand;   // +0x4e8（CItemUpgrade 具名字段）
 }
 
 inline const unsigned long& randIntBound(
     const WongWork::CItemUpgrade* self, unsigned long& storage)
 {
-    storage = *reinterpret_cast<const unsigned long*>(
-        reinterpret_cast<const char*>(self) + 0x4ec);
+    storage = self->m_randMax;   // +0x4ec（CItemUpgrade 具名字段）
     return storage;
 }
 
@@ -290,8 +288,8 @@ inline const unsigned long& randIntBound(
 // WongWork::CItemUpgradeTable::getUpgradeInfoTable W 0x0854b382 即返回自身。
 inline const upgrade_table_t& embeddedTable(const WongWork::CItemUpgrade* self)
 {
-    return *reinterpret_cast<const upgrade_table_t*>(
-        reinterpret_cast<const char*>(self) + 0x04);
+    // CItemUpgrade 双基：CItemUpgradeTable 表区基 @+0x04（IItemUpgrade @+0x00）。
+    return *static_cast<const WongWork::CItemUpgradeTable*>(self);
 }
 
 // 表区子对象视图（+0x04）：ORIG ProcUpgrade 0x08547ca4 `add $0x4,%eax` +
@@ -300,8 +298,8 @@ inline const upgrade_table_t& embeddedTable(const WongWork::CItemUpgrade* self)
 inline const WongWork::CItemUpgradeTable* embeddedUpgradeTable(
     const WongWork::CItemUpgrade* self)
 {
-    return reinterpret_cast<const WongWork::CItemUpgradeTable*>(
-        reinterpret_cast<const char*>(self) + 0x04);
+    // CItemUpgrade 双基：CItemUpgradeTable 表区基 @+0x04。
+    return static_cast<const WongWork::CItemUpgradeTable*>(self);
 }
 
 }  // namespace
@@ -533,10 +531,9 @@ int CItemUpgrade::_ProcPortableUpgradeItem(const Inven_Item& material,
     {
         return 0x13;
     }
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&info) + 0x34) = 0;
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&info) + 0x30) = 1;
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&info) + 0x2c) =
-        material.m_addInfo;
+    info.m_discountBase = 0;            // +0x34（具名字段）
+    info.m_meterialCount = 1;           // +0x30（具名字段）
+    info.m_recipeItem = material.m_addInfo;  // +0x2c（具名字段）
     return 0;
 }
 
@@ -549,15 +546,12 @@ int CItemUpgrade::_ProcPortableUpgradeItem(const Inven_Item& material,
 bool CItemUpgrade::_DoProcUpgrade(CUser* user, Inven_Item* item,
                                   const upgrade_info_t* info)
 {
-    unsigned long range = *reinterpret_cast<const unsigned long*>(
-        reinterpret_cast<const char*>(this) + 0x4ec);
+    unsigned long range = (unsigned long)m_randMax;  // +0x4ec（具名字段）
 
     unsigned int prob =
-        *reinterpret_cast<const unsigned int*>(
-            reinterpret_cast<const char*>(info) + 0x20);
+        (unsigned int)info->m_prob20[0];   // info +0x20（失败概率，具名字段）
     GlobalData::s_pEvent_UpGrade_Jar->GetProbability(
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(info) +
-                                      0x2c),
+        info->m_recipeItem,   // info +0x2c（材料 item idx，具名字段）
         prob);
 
     if (prob != 0 &&
@@ -598,8 +592,7 @@ bool CItemUpgrade::_DoProcUpgrade(CUser* user, Inven_Item* item,
     {
         // W 0x0854b552：失败概率 -= 装备 +0x1d0 强化概率提升值。
         prob -= (unsigned)((CEquipItem*)equipScript)->getUpgradeProbIncrease();
-        if (*reinterpret_cast<const unsigned*>(
-                reinterpret_cast<const char*>(this) + 0x4ec) < prob)
+        if ((unsigned)m_randMax < prob)   // +0x4ec（具名字段）
         {
             prob = 0;
         }
@@ -1194,13 +1187,9 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
     {
         if (GlobalData::s_pEvent_UpGrade_Jar->isFortune())
         {
-            *reinterpret_cast<int*>(
-                const_cast<char*>(reinterpret_cast<const char*>(info) +
-                                  0x28)) = 1;
+            const_cast<upgrade_info_t*>(info)->m_prob20[2] = 1;  // info +0x28
         }
-        const int drop =
-            *reinterpret_cast<const int*>(
-                reinterpret_cast<const char*>(info) + 0x28);
+        const int drop = info->m_prob20[2];   // info +0x28（具名字段）
         const unsigned char up = item->GetUpgrade();
         bool toZero;
         if (drop >= (int)up)

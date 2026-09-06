@@ -732,7 +732,12 @@ struct LimitItemUsage
     char             m_pad0[0xc];  // +0x00
     int              m_fieldc;     // +0x0c
     unsigned char    m_field10;    // +0x10
-    char             m_pad11[0x4]; // +0x11
+    // 双观：C1 0x08695ef0 构造期 4 条独立 movb（字节形），SetLimitInfo 0x08688a5c 区
+    // 全宽 int 写 ⇒ union 保两形（P197① 同族）。
+    union {
+        int           m_field11;   // +0x11（int 观：SetLimitInfo/消费点）
+        unsigned char m_field11b[4]; // 字节观：ctor 四 movb
+    };
     int              m_field15;    // +0x15
     int              m_field19;    // +0x19
     // 2026-08-31：原 m_pad1d[3] 多余——ORIG 元素 sizeof 0x1d（new_allocator 29B），删。

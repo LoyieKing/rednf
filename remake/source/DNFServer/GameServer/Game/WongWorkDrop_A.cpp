@@ -204,9 +204,10 @@ void CObjectDrop::generateSpecificItem(stGenerateRefData_t const& ref,
                                        stGenerateResult_t& result)
 {
     // 调用方在 ref+0x34 dword 写入 list<pair<int,int>> 配置指针
+    //（§4.3 具名化：取具名字段 m_field34（CItemGenerator.h:210）的地址为基址）
     std::list<std::pair<int, int> > const* props =
         *reinterpret_cast<std::list<std::pair<int, int> > const* const*>(
-            reinterpret_cast<char const*>(&ref) + 0x34);
+            &ref.m_field34);
 
     for (int n = 0; n < i8_at(ref, 0x39); ++n)
     {
@@ -233,9 +234,10 @@ void CDungeonDrop::generateSpecificItem(stGenerateRefData_t const& ref,
                                         stGenerateResult_t& result)
 {
     // 调用方在 ref+0x34 dword 写入 vector<pair<int,int>> 配置指针
+    //（§4.3 具名化：基址取自具名字段 m_field34）
     std::vector<std::pair<int, int> > const* props =
         *reinterpret_cast<std::vector<std::pair<int, int> > const* const*>(
-            reinterpret_cast<char const*>(&ref) + 0x34);
+            &ref.m_field34);
 
     int pick = m_random.generateNumber(1, 10000);
     int acc = 0;
@@ -531,8 +533,7 @@ void CMonsterDrop::generateRandomItem(stGenerateRefData_t const& ref,
                 &m_special,
                 u8_at(ref, 0x34), static_cast<char>(i8_at(ref, 0x35)),
                 u8_at(ref, 0x36), u8_at(ref, 0x37), u8_at(ref, 0x38),
-                *reinterpret_cast<int const*>(
-                    reinterpret_cast<char const*>(&ref) + 0x3c),
+                ref.m_field3c,   // §4.3 具名化：+0x3c int 视图（CItemGenerator.h:224）
                 u8_at(ref, 0x41), ref.m_dropRate, result, done);
         }
     }
@@ -551,8 +552,7 @@ void CMonsterDrop::generateRandomItem(stGenerateRefData_t const& ref,
         _generateRandomItem(u8_at(ref, 0x34),
                             static_cast<char>(i8_at(ref, 0x35)),
                             u8_at(ref, 0x36), u8_at(ref, 0x37), u8_at(ref, 0x38),
-                            *reinterpret_cast<int const*>(
-                                reinterpret_cast<char const*>(&ref) + 0x3c),
+                            ref.m_field3c,   // §4.3 具名化：+0x3c int 视图
                             ref.m_dropRate, result, done);
 
         m_firstMobWeight = 1;
@@ -605,8 +605,8 @@ void CMonsterDrop::generateSpecificItem(stGenerateRefData_t const& ref,
     for (int n = 0; n < i8_at(ref, 0x3d); ++n)
         WM_Hell_generateSpecificItem(&m_hell, ref, result);
 
-    unsigned int aiIdx = *reinterpret_cast<unsigned int const*>(
-        reinterpret_cast<char const*>(&ref) + 0x38);   // dword@+0x38 上/index
+    // §4.3 具名化：dword@+0x38 上/index = m_rankBonusIndex（CItemGenerator.h:217）
+    unsigned int aiIdx = static_cast<unsigned int>(ref.m_rankBonusIndex);
     CAICharacter* ai = G_CDataManager()->m_aiCharacterList->get(aiIdx);
     if (ai == 0)
         return;

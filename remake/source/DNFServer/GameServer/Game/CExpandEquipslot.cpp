@@ -598,6 +598,8 @@ int CExpandEquipslot::EquipslotSwitch(CUser* pUser, char flag,
         if (slotItem2.m_addInfo != 0 ||
             m_equipSlot[0].m_addInfo != 0)
         {
+            // CUser 冻结头 +0x796f4 即 CCharacterView（本 TU 用本地最小 CUser 视图，
+            // 不能并入 CUser.h；保持具名视图 + 文档化基址访问）
             ((CCharacterView*)((char*)pUser + 0x796f4))
                 ->enableSaveCharacView();
             pUser->send_equip(10);

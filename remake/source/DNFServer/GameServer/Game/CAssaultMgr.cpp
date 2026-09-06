@@ -453,7 +453,9 @@ void CAssaulter::GiveupPanalty()
         {
             int chaos = m_user->GetCurCharacChaosPoint();
             int level = m_user->get_charac_level();
-            ServerParameterScript* sps = (ServerParameterScript*)((char*)G_CDataManager() + 0x68);
+            // §4.3 具名化：CDataManager::m_serverParameter 即 +0x68（CDataManager.h:3551，
+            // ServerParameterScript 尺寸 0x49f4；同形写法已见本文件 DieUser 邻域）。
+            ServerParameterScript* sps = &G_CDataManager()->m_serverParameter;
             ghostTime = sps->getAssaultGhostTime(level, chaos);
         }
         if (ghostTime != 0)
@@ -985,7 +987,9 @@ void CAssaulter::DieUser()             // ORIG T 0x82e6a40
     if (m_user != 0)
     {
         m_user->DieCurCharac(0, m_user);
-        ((CCharacterView*)((char*)m_user + 0x796f4))->enableSaveCharacView();
+        // §4.3 具名化：CUser::m_characterView @+0x796f4（CUser.h:2292 权威声明；
+        // 本 TU 其它处（如 giveGhostPenalty）已用 m_user->m_characterView 直访）。
+        m_user->m_characterView.enableSaveCharacView();
     }
 }
 
@@ -1503,7 +1507,7 @@ void CAssaultPlace::CloseAssault()
             int chaos = slotUser->GetCurCharacChaosPoint();
             int level = slotUser->get_charac_level();
             ServerParameterScript* sps =
-                (ServerParameterScript*)((char*)G_CDataManager() + 0x68);
+                &G_CDataManager()->m_serverParameter;   // §4.3 具名化（+0x68）
             ghostTime = sps->getAssaultGhostTime(level, chaos);
         }
 

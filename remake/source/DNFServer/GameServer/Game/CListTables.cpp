@@ -652,8 +652,7 @@ int CMonsterManager::load_monsters()
                 return 0;
             }
             std::vector<stIndependentDropInfo>& drops =
-                *(std::vector<stIndependentDropInfo>*)
-                    ((char*)G_CDataManager() + 0xa890);
+                G_CDataManager()->m_independentDrop.m_vecC;
             for (unsigned int i = 0; i < drops.size(); ++i)
             {
                 if (drops[i].m_field0 == 0 &&
