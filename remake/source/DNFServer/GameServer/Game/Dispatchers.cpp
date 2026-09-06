@@ -1974,9 +1974,10 @@ int Dispatcher_DieMobAll::dispatch_sig(CUser* user, PacketBuf& packet)
     // 勿用无参 GetParty()（会新建 party）。
     if (user->get_state() == 5)
     {
-        // ORIG：GetPartyIndex 返回值 movswl %ax,%ebx 单条 sext 入 %ebx 跨 G_CGameManager() 存活。
-        register int idx asm("ebx") = user->GetPartyIndex();
-        CParty* party = G_CGameManager()->GetParty(idx);
+        // ORIG：GetPartyIndex 短整返回值作普通实参直传（P200），
+        // `call GetPartyIndex; movswl %ax,%ebx` 单条 sext 跨 G_CGameManager() 存活于 %ebx。
+        // 禁 register asm/具名中间局部（退化 cwtl+mov 两步）。
+        CParty* party = G_CGameManager()->GetParty(user->GetPartyIndex());
         if (party == 0)
         {
             return LineFunc(0x6ef6,
@@ -26523,12 +26524,12 @@ int Dispatcher_SeriaRoom_Ani_Deco_Event::process(CUser* user, MSG_BASE& msg, Par
             err, 0);
     }
 
-    CDataManager* dcm = G_CDataManager();
     seriaRoom_AniDeco info = user->getSeriaRoomAniDecoInfo();   // +0x08d（4 字节值返回）
 
     // 进度上限：info.m_field2(有符号 word) >= maxAniDecoItem() → 0x14
     // （ORIG cmp %ax,%bx / setge：双方取低 16 位有符号比较）
-    if (static_cast<short>(info.m_field2) >= static_cast<short>(dcm->maxAniDecoItem()))
+    if (static_cast<short>(info.m_field2) >=
+        static_cast<short>(G_CDataManager()->maxAniDecoItem()))
     {
         res.m_4 = 0x14;
         return 0;
@@ -26543,7 +26544,7 @@ int Dispatcher_SeriaRoom_Ani_Deco_Event::process(CUser* user, MSG_BASE& msg, Par
                                                static_cast<int>(slot));
 
     // find_item(item idx) 缺定义 → 1
-    CItem* itemDef = dcm->find_item(slotItem.m_addInfo);
+    CItem* itemDef = G_CDataManager()->find_item(slotItem.m_addInfo);
     if (itemDef == 0)
     {
         res.m_4 = 1;
@@ -26559,8 +26560,8 @@ int Dispatcher_SeriaRoom_Ani_Deco_Event::process(CUser* user, MSG_BASE& msg, Par
 
     // 槽位有效性校验：(idx=info.m_field2, value=itemIdx)；假 → 0x17
     // （ORIG xor $1,%eax：真继续、假报错）
-    if (!dcm->invalidAniDecoItem(static_cast<int>(static_cast<short>(info.m_field2)),
-                                 slotItem.m_addInfo))
+    if (!G_CDataManager()->invalidAniDecoItem(
+            static_cast<int>(static_cast<short>(info.m_field2)), slotItem.m_addInfo))
     {
         res.m_4 = 0x17;
         return 0;

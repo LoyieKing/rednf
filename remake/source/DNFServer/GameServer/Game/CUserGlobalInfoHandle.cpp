@@ -37,7 +37,12 @@ int CUserGlobalInfoHandle::find_uniqueid()
 int CUserGlobalInfoHandle::get_uniqueid()
 {
     int idx = find_uniqueid();
-    if (idx == -1)
+    // ORIG 0x08??（get_uniqueid 汇编）：`cmpl $-1; sete %al; test %al,%al; je`
+    // ——4.1 把 == 结果物化成 bool 再判（P22 技巧 22：register bool asm("al")
+    // 阻止 4.4 折成 cmpl;jne）。
+    register bool failed __asm__("al");
+    failed = (idx == -1);
+    if (failed)
     {
         m_next = 1;
         idx = find_uniqueid();
