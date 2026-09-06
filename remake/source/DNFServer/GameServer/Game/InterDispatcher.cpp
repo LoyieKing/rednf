@@ -1668,7 +1668,7 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
         guard.operator*()->operator<<(-1);
         SIG_SAVE_SAME_MID_OTHER_CHAR_LOGIN_HACK* sig =
             guard->GetInBuffer<SIG_SAVE_SAME_MID_OTHER_CHAR_LOGIN_HACK>();
-        sig->m_curAccId = curAccId;
+        sig->m_curAccId = static_cast<unsigned int>(user->get_acc_id());
         sig->m_reqAccId = reqAccId;
         sig->m_characNo = pPkt->m_c;
         user->m_network.GetPeerIP2(sig->m_peerIp, 0x14);   // +0x0c

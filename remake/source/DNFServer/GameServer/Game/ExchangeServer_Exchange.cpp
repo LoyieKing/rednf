@@ -407,30 +407,23 @@ int CExchangeServer::OnRecvPacketCharacInfo(CSession* session,
     int idx = 0;                                      // -0x48
     int chNoArg = 0;                                  // -0x4c
     int characNo = 0;                                 // -0x50
+    bool localHit = false;                            // -0x1d
 
     if (!guard.get_int(errBook))                      // fail line 0x235
     {
-        errBook = 0x235;
-        CACHE_CHARACTER_TYPE cc;                      // goto-epilogue 构造序
-        return errBook;
+        return 0x235;
     }
     if (!guard.get_int(idx))
     {
-        errBook = 0x236;
-        CACHE_CHARACTER_TYPE cc;
-        return errBook;
+        return 0x236;
     }
     if (!guard.get_int(chNoArg))
     {
-        errBook = 0x237;
-        CACHE_CHARACTER_TYPE cc;
-        return errBook;
+        return 0x237;
     }
     if (!guard.get_int(characNo))
     {
-        errBook = 0x238;
-        CACHE_CHARACTER_TYPE cc;
-        return errBook;
+        return 0x238;
     }
 
     // ORIG：大对象置于栈帧 -0x3f8b5（sizeof(CACHE_CHARACTER_TYPE)=0x3f85c）
@@ -464,7 +457,10 @@ int CExchangeServer::OnRecvPacketCharacInfo(CSession* session,
               errBook, idx, mi2, mi1, chNoArg, characNo, fromChannel);
     }
 
-    const bool localHit = (errBook == 0x20);          // -0x1d
+    if (errBook == 0x20)
+    {
+        localHit = true;
+    }
 
     if (!ReturnCacheCharacter(errBook, idx, chNoArg, characNo, localHit,
                               session))

@@ -948,8 +948,8 @@ void MainLoop()
         {
             Stream* s = GlobalData::s_small_stream_pool->Acquire("App.cpp", 0x2728);
             CStreamGuard guard(s, true);
-            guard << 0x30a;
-            guard << -1;
+            **guard << 0x30a;
+            **guard << -1;
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::NETWORK_Q, guard);
             cnt300 = 0;
         }
@@ -1199,8 +1199,8 @@ void TerminateServers()
         GlobalData::s_stream_pool->Acquire((const char*)"App.cpp", 0x2e2a);
     {
         CStreamGuard guard(s, true);
-        guard << 0x3e;
-        guard << 0;
+        **guard << 0x3e;
+        **guard << 0;
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);
     }
 }
