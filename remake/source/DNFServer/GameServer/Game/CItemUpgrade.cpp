@@ -190,35 +190,33 @@ int CItemUpgrade::ProcAmplifyRandomUpgrade(CUser* user, Inven_Item& item,
     GetInstanceValueStatistic()->AddValueStatistic(
         (VALUE_STATISTIC_FIELD)0xe, user, 0);
 
-    unsigned char newUpgrade = item.GetUpgrade();
-    if (newUpgrade >= table->m_bodyView.m_named.m_noticeUpgradeLevel)
+    // ORIG 每处 use 各自重调 GetUpgrade（P48 无 CSE）：newCheck/0xc/DB/UpgradeItem/guild×2。
+    if (item.GetUpgrade() >= table->m_bodyView.m_named.m_noticeUpgradeLevel)
     {
         _NoticeUpgrade(user, item, true);
     }
 
-    unsigned char up2 = item.GetUpgrade();
-    if (0xc < up2)
+    if (0xc < item.GetUpgrade())
     {
         const char* characName = user->getCurCharacName();
         int characNo2 = user->getCurCharacNo();
         unsigned int itemId = ticket.m_addInfo;
         unsigned int envField = (unsigned int)G_CEnvironment()->m_serverEnvir.m_serverGroup;
         DB_ReqItemUpgradeLog::makeRequest(envField, itemId, characNo2,
-                                          characName, up2 & 0xff, true);
+                                          characName, item.GetUpgrade() & 0xff, true);
     }
 
-    unsigned char up3 = item.GetUpgrade();
     int itemIndex = itemScript->get_index();
-    user->m_historyLog.UpgradeItem(itemIndex, oldUpgrade, up3 & 0xff, true);
+    user->m_historyLog.UpgradeItem(itemIndex, oldUpgrade, item.GetUpgrade() & 0xff, true);
 
     if (itemScript->IsRandomOption())
     {
         const char* itemName = itemScript->GetItemName();
-        user->makeGuildItemUpgradMessage(itemName, oldUpgrade, up3 & 0xff, true);
+        user->makeGuildItemUpgradMessage(itemName, oldUpgrade, item.GetUpgrade() & 0xff, true);
     }
     else
     {
-        user->makeGuildItemUpgradMessage(msg, oldUpgrade, up3 & 0xff, true);
+        user->makeGuildItemUpgradMessage(msg, oldUpgrade, item.GetUpgrade() & 0xff, true);
     }
     return 0;
 }
@@ -264,6 +262,7 @@ int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
     if (ticket.m_addInfo2 < info.m_meterialCount)
         return 0x16;
 
+    // ORIG 0x085463d4：GetRepeatEvent(0x32) 调两次（IsEventing 判活 + GetReduceRate）。
     int discountGroup = 0;
     CEventBase* repeatEvent =
         GlobalData::s_event_manager->GetRepeatEvent(0x32);
@@ -272,7 +271,7 @@ int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
         !item.m_amp.hasAbility())
     {
         CReduceUpgradeItemPay* reduce =
-            (CReduceUpgradeItemPay*)repeatEvent;
+            (CReduceUpgradeItemPay*)GlobalData::s_event_manager->GetRepeatEvent(0x32);
         int rate = reduce->GetReduceRate();
         if (0 < rate)
         {
@@ -304,12 +303,11 @@ int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
                   (float)discountGroup);
     }
 
-    // 货币检查。
-    if (inven->get_money() < discountGroup)
+    // 货币检查（ORIG 429 行重新 getCurCharacInvenR，不复用 inven）。
+    if (user->getCurCharacInvenR()->get_money() < discountGroup)
         return 10;
 
-    unsigned char upgrade = item.GetUpgrade();
-    if (table.m_infos.size() <= upgrade)
+    if (table.m_infos.size() <= item.GetUpgrade())   // ORIG 436 行 GetUpgrade
         return 0xd;
     if (item.m_field1 != 1)
         return 0x13;
@@ -323,24 +321,30 @@ int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
     if (endurance != ((const CEquipItem*)itemScript)->get_endurance())
         return 7;
 
-    int rarity = itemScript->get_rarity();
+    int rarity = itemScript->get_rarity();           // ORIG 470 行 GetPenaltyType 实参
     // ORIG 0x8546600：读 table+(rarity+0x104)*4+0xc（intAtConst 减 0xc 内偏）。
-    int penTable = UPG_TBL_CINT(&table, (rarity + 0x104) * 4 + 0xc);
+    int penTable =
+        UPG_TBL_CINT(&table, (itemScript->get_rarity() + 0x104) * 4 + 0xc);
     if (penTable != -1)
     {
-        if (penTable <= (int)upgrade)
+        // ORIG 465 行内层比较再调一次 get_rarity（不复用外层 penTable 索引）。
+        if (UPG_TBL_CINT(&table, (itemScript->get_rarity() + 0x104) * 4 + 0xc) <=
+            (int)item.GetUpgrade())      // ORIG 464 行 GetUpgrade
             return 0x5f;
     }
 
-    int penalty = table.GetPenaltyType(upgrade, (ENUM_RARITY)rarity, &info);
+    int penalty = table.GetPenaltyType(item.GetUpgrade(),
+                                       (ENUM_RARITY)rarity, &info);
     if (penalty != 3)
         goto check_level;
     // 若 penalty 类型==3，预测结果物品数检查（InvenEmptycount+QuickEmptyCount）。
     // ORIG 0x8546695：predict = getPredictResultItemTypeCount(rarity)+1，hasAbility 再 +1；
     // predict==0 跳过检查；<predict 返回 0x15。
     {
-        int predict =
-            G_CDataManager()->m_disJoint->getPredictResultItemTypeCount(rarity) + 1;
+        int predict = G_CDataManager()->m_disJoint
+                          ->getPredictResultItemTypeCount(
+                              itemScript->get_rarity()) +
+                      1;
         if (item.m_amp.hasAbility())
             predict += 1;
         if (predict != 0 &&

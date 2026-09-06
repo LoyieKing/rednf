@@ -2506,10 +2506,14 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
             }
         }
         CParty* selfParty = static_cast<CParty*>(user->GetParty());
-        if (selfParty != 0 &&
-            (selfParty->get_member_count() > 3 ||
-             !selfParty->CanDoPartyActionAssalutState()))
-            return PEER_ERR3(user,requestType,0x13), 0;
+        // ORIG 两个独立 0x13 错误调用点（count>3 与 !CanDo 各一）。
+        if (selfParty != 0)
+        {
+            if (selfParty->get_member_count() > 3)
+                return PEER_ERR3(user,requestType,0x13), 0;
+            if (!selfParty->CanDoPartyActionAssalutState())
+                return PEER_ERR3(user,requestType,0x13), 0;
+        }
         if (user->CheckInParty() && target->CheckInParty())
             return PEER_ERR3(user,requestType,0x12), 0;
         if (!GlobalData::s_power_manager->IsPowerWarEventOn())
@@ -2672,22 +2676,12 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
         if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
                 user, static_cast<RestrictCategory::Enum>(1), 8))
             return PEER_ERR4(user,requestType,0xd1,pgRes), 0;
-        int secuErr = 0;
-        if (requestType == 5 || requestType == 7)
-            secuErr =
-                GlobalData::s_pSecuProtectionField->Check(
-                    user, static_cast<SECURITY_PROTCTION>(0x21));
-        else
-            secuErr =
-                GlobalData::s_pSecuProtectionField->CheckOpposite(
-                    user, static_cast<SECURITY_PROTCTION>(0x20), target);
+        int secuErr =
+            GlobalData::s_pSecuProtectionField->Check(
+                user, static_cast<SECURITY_PROTCTION>(0x21));
         if (secuErr != 0)
             return PEER_ERR4(user,requestType,secuErr & 0xff,pgRes), 0;
-        int expertOwner =
-            (requestType == 5 || requestType == 7)
-                ? target->GetCurCharacExpertJobType()
-                : user->GetCurCharacExpertJobType();
-        if (expertOwner != 1)
+        if (target->GetCurCharacExpertJobType() != 1)
             return PEER_ERR4(user,requestType,0x17,pgRes), 0;
         GlobalData::s_ExpertJobMgr->OnRequestPeer(
             user, target,
