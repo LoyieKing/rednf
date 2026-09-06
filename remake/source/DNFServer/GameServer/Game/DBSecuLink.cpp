@@ -116,15 +116,6 @@ public:
     static void makeRequest(int param1, unsigned int uid, int param3);  // _ZN...Eiji
 };
 
-namespace {
-
-void put_db_request(CStreamGuard& guard)
-{
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-}
-
-}  // namespace
-
 // ----------------------------------------------------------------------------
 // DB_CheckJoinGuild::makeRequest(int uid, SIG_CHECK_JOIN_GUILD* sig)
 // ORIG @ 0x0843cc06（报告 DB_CheckJoinGuild/makeRequest.md）：
@@ -156,15 +147,15 @@ void DB_CheckJoinGuild::makeRequest(int uid, SIG_CHECK_JOIN_GUILD* sig)
 void DB_DenyJoinGuild::makeRequest(int uid, unsigned int guildKey,
                                    unsigned int applicant)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x92b4);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x92b4),
+                       true);
 
-    guard << 0x21c;                     // op<<(int)
-    guard << static_cast<int>(uid);     // op<<(int)
-    guard << guildKey;                  // op<<(unsigned int)
-    guard << applicant;                 // op<<(unsigned int)
+    guard.operator*()->operator<<(0x21c);              // op*(guard)→op<<(int)
+    guard.operator*()->operator<<(static_cast<int>(uid));
+    guard.operator*()->operator<<(guildKey);           // op<<(unsigned int)
+    guard.operator*()->operator<<(applicant);          // op<<(unsigned int)
 
-    put_db_request(guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // ----------------------------------------------------------------------------

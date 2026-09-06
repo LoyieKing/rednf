@@ -21,6 +21,18 @@ public:
         // T() 构造后 vptr 指向 CNode vtable（虚函数槽与 T 相同、dtor 槽为 CNode
         // 自身），随后写 magic=0x8f21、bUse=0。缺此构造则 magic/bUse 为垃圾值，
         // Acquire/Get/Free/GetIndex 的 magic==0x8f21 检查运行时失效。
+        // 【b22 特批·终结】CACHE_CHARACTER_TYPE 池 CNodeC1（ORIG 0x8495dba，
+        // 18 insns）实证指令序：memset(this,0,0x3f85c) → call T()C1(0x8492262)
+        // → magic 写 → bUse 写。memset 先行于基 ctor 在 C++ 中不可复现（两难
+        // 论证经 b22 复核成立）：① 基类 ctor 恒先于派生 ctor 体任何语句，无合法
+        // 源表达式可插入先行 memset；② memset 置 ctor 体则反序抹掉 T() 七子对象
+        // ctor 写入，语义更错。替代路径「memset-only extern 特化（不调 T()）」
+        // 评估后否决：asm 仍 non-identical 且较现形多缺一个 ORIG 真 call；其
+        // 语义压缩为纯零态仅因消费方 AcquireCharacter(0x8490a8a) 在 Acquire 后
+        // 立即 memset(0x3f85c) 抹平而侥幸不可观测，非忠实建模；C++98 下嵌套类
+        // 成员特化需动通用 CNode 声明、波及全部 19 池（StaticPool 事故判例）。
+        // 现形（: T(), magic, bUse）= 距 ORIG 最近合法表达，残差固定 4 insns
+        // （memset call 序列），按特批结案，勿再开轮。
         CNode() : T(), magic(0x8f21), bUse(0) {}
         // ORIG 各池 CNode D1（非 POD T 的池如 CUser/CTradeSpace/CParty/
         // CDeathTower 实证 CNodeD1Ev W 符号）：隐式析构经 ~T() 链即满足，

@@ -21,9 +21,11 @@
 //   该类未交付前对应槽位返回 0（推断，见下方）。
 
 // 空 IMatch 子类（ORIG 构造函数仅调 IMatch::IMatch() 并写独立 vtable，对象尺寸 4）。
-class CNormalMatch     : public IMatch { public: CNormalMatch() : IMatch() {}     };
-class CLadderMatch     : public IMatch { public: CLadderMatch() : IMatch() {}     };
-class CTournamentMatch : public IMatch { public: CTournamentMatch() : IMatch() {} };
+// [b22] 删显式 : IMatch() 初始化列表——4.4 对带用户初始化列表的派生 ctor 先
+// 发 vptr=0 预清+重载 this（比 ORIG 4.1 多 2 条）；隐式基类构造路径消之。
+class CNormalMatch     : public IMatch { public: CNormalMatch() {}     };
+class CLadderMatch     : public IMatch { public: CLadderMatch() {}     };
+class CTournamentMatch : public IMatch { public: CTournamentMatch() {} };
 
 // 复杂匹配子系统：定义与构造逻辑未在本批次交付（属其它匹配域批次）。
 // 此处仅按 ORIG 符号名预留，避免与前向声明冲突。
