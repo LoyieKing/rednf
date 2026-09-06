@@ -466,7 +466,7 @@ public:
     int m_hellPosX;                        // +0x1c0
     int m_hellPosY;                        // +0x1c4
     char m_visitedGotoFlag;                // +0x1c8
-    char m_field1c9;                       // +0x1c9
+    char m_sealDoorItemsOk;                // +0x1c9（唯一写点 UseSealDoorItems @0x085a8038：全员通过=1/失败=0）
     char m_killedAllHellGroups;            // +0x1ca
     char m_field1cb;                       // +0x1cb
     char m_hellPartyDifficulty;            // +0x1cc
@@ -489,7 +489,7 @@ public:
     float m_hellPartyMapRate[5];           // +0x210
     float m_hellPartyItemRate[4];          // +0x224
     float m_hellPartyScriptRate;           // +0x234
-    int m_hellPartyLevel;                  // +0x238
+    int m_standardDimensionLevel;        // +0x238（B5 二名归一：ORIG CParty::setStandardDimensionLevel @0x0859f6c6 写 0xd5c=CParty 内嵌 BF+0x238；BF ctor 0x082a477c movl $0,0x238 归属；hell 消费点系 (char) 低字节读同槽）
     bool m_worldMapTowerArea;              // +0x23c
     char m_pad23d[3];                      // +0x23d
     std::vector<STAssignBloodSystem> m_bloodSystems;        // +0x240

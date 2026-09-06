@@ -461,8 +461,15 @@ template class GlobalInstance<CGameManager>;
 bool CGameManager::init()
 {
     m_pCraneMinigameMgr = new CraneMinigameManager;
-    // ORIG 0x8294213：init() 返回非 0 → 1；0 → 0（显式 bool 化）。
-    return !GetCraneMinigameManager()->init();   // ORIG xor $0x1 取反
+    // ORIG 0x08294231..：`call init; xor $0x1,%eax; test %al,%al; je mov1 /
+    // 非零→mov 0` 即 return (r==1)（真值归一，非取反——原实现 !r 语义写反，
+    // init 失败/成功与调用方判定相反，真实 BUG）。X1 形复现 xor 直落+0/1 物化。
+    register unsigned char v asm("eax") =
+        (unsigned char)GetCraneMinigameManager()->init();
+    v ^= 1;
+    if (v)
+        return 0;
+    return 1;
 }
 
 short CGameManager::getNextUID()
@@ -777,7 +784,7 @@ void CGameManager::CheckOutParty(CUser* user, bool flag)
         if (party != 0)
         {
             bool bVar1 = false;
-            CDungeon* dungeon = party->m_dungeon;  // ORIG *(party+0xcac)（CBattle_Field 区）
+            CDungeon* dungeon = party->m_battleField.m_pDungeon;  // ORIG *(party+0xcac)（CBattle_Field 区）
             if (dungeon != 0)
             {
                 bVar1 = dungeon->m_bloodDungeonType > 0;
@@ -796,10 +803,10 @@ void CGameManager::CheckOutParty(CUser* user, bool flag)
                 if (bVar2)
                     bVar1 = true;
             }
-            // +0xc7c：CParty::m_dungeonClearTracer（CParty.h 权威成员，BF+0x158）。
-            party->m_dungeonClearTracer.Trace(
+            // +0xc7c：CParty::m_battleField.m_dungeonClearTracer（CParty.h 权威成员，BF+0x158）。
+            party->m_battleField.m_dungeonClearTracer.Trace(
                 __PRETTY_FUNCTION__);
-            if (party->m_partyType != 1 && party->get_state() == 2)
+            if (party->m_battleField.m_bloodState != 1 && party->get_state() == 2)
             {
                 bVar2 = false;
                 if (dungeon != 0 && dungeon->m_entryRestrictFlag != 0)

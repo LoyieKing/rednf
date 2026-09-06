@@ -407,7 +407,7 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
         const char dimPossible = m_pDungeon->get_dimension_possible();
         refBlob[0x36] =
             dimPossible > 0
-                ? static_cast<char>(m_hellPartyLevel)
+                ? static_cast<char>(m_standardDimensionLevel)
                 : static_cast<char>(m_pDungeon->get_standard_level());  // +0x36
     }
     refBlob[0x35] = roleCvt;                                         // +0x35
@@ -474,7 +474,7 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
         const char dimPossible = m_pDungeon->get_dimension_possible();
         refBlob[0x35] =
             dimPossible > 0
-                ? static_cast<char>(m_hellPartyLevel)
+                ? static_cast<char>(m_standardDimensionLevel)
                 : static_cast<char>(m_pDungeon->get_standard_level());  // +0x35
     }
     refBlob[0x36] = static_cast<char>(get_dungeon_diff());           // +0x36

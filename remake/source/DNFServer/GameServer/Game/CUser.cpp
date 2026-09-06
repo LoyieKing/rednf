@@ -177,6 +177,7 @@ CPrivateStoreMgr* GetInstancePrivateStoreMgr();
 // ORIG 0x0822d0d8，符号 _ZN13CBattle_Field17get_dungeon_indexEv。完整类头
 // CBattle_Field.h 与 WarField.h 的 map_item/map_monster 重复类型冲突，属
 // FixMapMonsterReal/FixWarFieldTypes 域，此处仅声明所需方法）
+#ifndef DNF_GAME_CBATTLE_FIELD_H_
 class CBattle_Field
 {
 public:
@@ -184,6 +185,8 @@ public:
     char m_pad[0x128];            // +0x00..+0x127
     short m_villageMonsterId;     // +0x128（exceptedStateMoneyLog 读取，完整类 CBattle_Field.h:421）
 };
+#endif  // DNF_GAME_CBATTLE_FIELD_H_（batch-16：CParty.h 折叠后 BF 完整头可达，占位类需让位）
+
 
 // ---- 外部符号声明（对应 TU 翻译后移除） ----
 extern unsigned char _NS_PI_2ND_GetDefaultRandomHashKey();
@@ -998,9 +1001,9 @@ int CUser::getDungeonIdxAfterClear()
     CParty* party = (CParty*)GetParty();
     if (!party)
         return -1;
-    // CParty+0xb24 = BF 区内嵌视图（CParty.h m_padBattleField1@+0xb24 建模区）。
-    return reinterpret_cast<CBattle_Field*>(party->m_padBattleField1)
-        ->get_dungeon_index();
+    // CParty+0xb24 = BF 区内嵌视图（CParty.h m_battleField@+0xb24 建模区）。
+    return party->m_battleField.get_dungeon_index(
+        );
 }
 
 void CUser::resetMoneyLog()
@@ -5236,15 +5239,14 @@ bool CUser::exceptedStateMoneyLog()
     if (gp)
     {
         register bool bfNZ asm("al");
-        bfNZ = ((*reinterpret_cast<CBattle_Field*>(
-                    ((CParty*)GetParty())->m_padBattleField1)).m_villageMonsterId != 0);
+        bfNZ = ((*(&((CParty*)GetParty())->m_battleField)).m_villageMonsterId != 0);
         if (bfNZ)
             return true;
-        gp = (((CParty*)GetParty())->m_dungeon != 0);
+        gp = (((CParty*)GetParty())->m_battleField.m_pDungeon != 0);
         if (gp)
         {
             register unsigned char m89e asm("al");
-            m89e = ((CParty*)GetParty())->m_dungeon->m_89e;
+            m89e = ((CParty*)GetParty())->m_battleField.m_pDungeon->m_89e;
             if (m89e)
                 return true;
         }
@@ -6573,12 +6575,17 @@ void CUser::LogoutCachedCharacter(unsigned char param)
     SendMoenyLog();
     int cached = CacheCharacterMemory();   // 0/1；透传给 CMonitorServerProxy::SendLogout（ORIG uVar1）
 
+    // ORIG 0x0864cb66：前四值落远槽（-0x50..-0x44）、后三值 callee-saved
+    // （%edi/%esi/%ebx，push edi/esi/ebx prologue）——register asm 钉形（判据⑤）。
     unsigned int memberKey = (unsigned int)get_charac_memberkey();
     unsigned int guildKey = (unsigned int)get_charac_guildkey();
     unsigned int characNo = (unsigned int)get_charac_no(-1);
-    const char* name = getCurCharacName();
-    int channel = G_CEnvironment()->get_channel_no();
-    unsigned int accId = get_acc_id();
+    register const char* name asm("edi");
+    name = getCurCharacName();
+    register int channel asm("esi");
+    channel = G_CEnvironment()->get_channel_no();
+    register unsigned int accId asm("ebx");
+    accId = get_acc_id();
 
     CGuildServerProxy* guildProxy =
         GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup());
@@ -6646,18 +6653,21 @@ void CUser::ResetItemByScript(std::vector<std::pair<int, int> >& list)
 // 名字（行首 0x14 字节）。行大小 0x16（CChattingEmoticonConfigRow, pack(1)）。
 void CUser::SendChattingEmoticon()
 {
+    // ORIG 0x8689b90：GetGameOptionRef 结果**落槽 -0x10** 再作 this 调
+    // getEmoticonInfo（sret 就地构 cfg@-0x22c）；行地址**每使用点重算**
+    // （`imul $0x16` 段，无 row 缓存变量——strlen/put_str 各自 lea+imul）。
     PacketGuard packet;
     ((InterfacePacketBuf*)&packet)->put_header(0, 0x19b);
     ((InterfacePacketBuf*)&packet)->put_short(0x18);
-    CChattingEmoticonConfig cfg = GetGameOptionRef()->getEmoticonInfo();
+    CGameOption* go = GetGameOptionRef();
+    CChattingEmoticonConfig cfg = go->getEmoticonInfo();
     for (int i = 0; i < 0x18; ++i)
     {
-        const char* row = cfg.m_Row[i].m_data;   // 行 0x16B（m_data 0x14 + m_nCount）
         ((InterfacePacketBuf*)&packet)->put_short(i);
         ((InterfacePacketBuf*)&packet)->put_short(cfg.m_Row[i].m_nCount);
-        int len = (int)strlen(row);
-        ((InterfacePacketBuf*)&packet)->put_int(len);
-        ((InterfacePacketBuf*)&packet)->put_str(row, len);
+        ((InterfacePacketBuf*)&packet)->put_int((int)strlen(cfg.m_Row[i].m_data));
+        ((InterfacePacketBuf*)&packet)->put_str(cfg.m_Row[i].m_data,
+                                                (int)strlen(cfg.m_Row[i].m_data));
     }
     ((InterfacePacketBuf*)&packet)->finalize(true);
     Send(packet);

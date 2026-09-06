@@ -124,10 +124,10 @@ static void A2_SendGmMessage(CUser* user, const char* msg)
 
 static inline unsigned int A2_dungeonIndexOf(CParty* party)
 {
-    // CBattle_Field 位于 CParty+0xb24（m_padBattleField1 占位），dungeon index 取自
+    // CBattle_Field 位于 CParty+0xb24（m_battleField 占位），dungeon index 取自
     // CBattle_Field::get_dungeon_index（ORIG W 0x0822d0d8，定义 CBattle_Field.cpp）。
     return static_cast<unsigned int>(
-        reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1)->get_dungeon_index());
+        reinterpret_cast<CBattle_Field*>(&party->m_battleField)->get_dungeon_index());
 }
 
 // ============================================================================
@@ -250,7 +250,7 @@ bool Dispatcher_EPLPCommand::excludeEplpState(CUser* user)
     if (static_cast<TowerOfDespairMgr*>(GlobalData::s_pTowerOfDespairMgr)
             ->IsTowerOfDespairDungeon_ByIndex(
                 static_cast<int>(reinterpret_cast<CBattle_Field*>(
-                    &party->m_padBattleField1)->get_dungeon_index())))
+                    &party->m_battleField)->get_dungeon_index())))
         return false;
 
     if (user->getMoveSpace() == (UserSpace::T)1)   // 0x08690eca
@@ -258,7 +258,7 @@ bool Dispatcher_EPLPCommand::excludeEplpState(CUser* user)
 
     // ORIG: GlobalScriptTutorial::IsGlobalTutorialDungeon(idx)（0x08ab976a，静态成员）
     if (GlobalScriptTutorial::IsGlobalTutorialDungeon(
-            reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1)
+            reinterpret_cast<CBattle_Field*>(&party->m_battleField)
                 ->get_dungeon_index()))
         return false;
     return true;

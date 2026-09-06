@@ -144,7 +144,7 @@ void CSecretShopNpc::parse()
 
 // ORIG execute 0x084aba12：GM 用户处于 state 5（组队等待态，推断）时，把本人
 // 秘密商店数据的 npc id 改为参数值（限 1000/0x3ea/0x3eb/0x3ec 四个合法值），
-// 条件：无队伍，或队伍不在血色地下城中（party->m_dungeon == 0 或
+// 条件：无队伍，或队伍不在血色地下城中（party->m_battleField.m_pDungeon == 0 或
 // dungeon->m_bloodDungeonType == 0）。随后聊天通告 + 广播 0x114 npc 替换包。
 void CSecretShopNpc::execute()
 {
@@ -167,8 +167,8 @@ void CSecretShopNpc::execute()
     {
         return;
     }
-    if (party != 0 && party->m_dungeon != 0 &&
-        party->m_dungeon->m_bloodDungeonType > 0)
+    if (party != 0 && party->m_battleField.m_pDungeon != 0 &&
+        party->m_battleField.m_pDungeon->m_bloodDungeonType > 0)
     {
         return;
     }

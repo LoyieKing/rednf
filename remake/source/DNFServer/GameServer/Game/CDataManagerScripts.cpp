@@ -714,14 +714,21 @@ void DeleteInvalidItemScript::clearScript()
 
 bool DeleteInvalidItemScript::IsInvalidItem2Delete(int idx)
 {
-    return m_deleteMap.find(idx) != m_deleteMap.end();
+    // ORIG 0x08ac20e0：call operator== ; test %al,%al; je <mov $1> / mov $0;jmp —
+    // 0/1 物化 je 岛（test 有 je 消费者，判据③→②直分支 if 形，非 !(x) sete 归一）。
+    std::map<int, DeleteInvalidItemData>::iterator it = m_deleteMap.find(idx);
+    if (it == m_deleteMap.end())
+        return false;
+    return true;
 }
 
 // ORIG 0x8ac20f8：map.find(idx)；命中 → rewardIdx=data.m_field0、rewardCnt=data.m_field4。
 bool DeleteInvalidItemScript::GetRewardItemInfo(int idx, int& rewardIdx,
                                                 int& rewardCnt)
 {
-    std::map<int, DeleteInvalidItemData>::const_iterator it =
+    // ORIG 用非 const _Rb_tree_iterator（find/operator==/operator-> 全非 const 重载，
+    // 0x08ac238a/23dc/23f0）；const_iterator 会换 callee 并加宽 we-larger 9。
+    std::map<int, DeleteInvalidItemData>::iterator it =
         m_deleteMap.find(idx);
     if (it == m_deleteMap.end())
         return false;
@@ -1302,10 +1309,12 @@ void CNPCRelationEventManager::AddFavorItemInfo(
     if (it == m_npcEventMap.end())
         return;
 
+    // ORIG 0x890cf7x：node 物化局部槽后重读（operator-> 一次），item 栈构 push。
+    stNPCRelationEventInfo* node = it->second;
     stNPCEventItemInfo item;
     item.m_itemId = static_cast<int>(itemId);
     item.m_count = static_cast<int>(count);
-    it->second->m_favor[kind].m_items.push_back(item);
+    node->m_favor[kind].m_items.push_back(item);
 }
 
 // ---- CNPCRelationEventManager::AddRewardItemInfo（ORIG 0x890cfda：
@@ -1319,8 +1328,11 @@ void CNPCRelationEventManager::AddRewardItemInfo(
     if (it == m_npcEventMap.end())
         return;
 
-    it->second->m_favor[kind].m_rewardA = static_cast<int>(rewardA);
-    it->second->m_favor[kind].m_rewardB = static_cast<int>(rewardB);
+    // ORIG 0x890cfda：每写各发一次 operator->/寻址（47<55 引用绑定会过度折叠，
+    // node 两写形 57 最近）。
+    stNPCRelationEventInfo* node = it->second;
+    node->m_favor[kind].m_rewardA = static_cast<int>(rewardA);
+    node->m_favor[kind].m_rewardB = static_cast<int>(rewardB);
 }
 
 // ---- CNPCRelationEventManager::AddDislikeItemInfo（ORIG 0x890d07a：
@@ -1335,7 +1347,9 @@ void CNPCRelationEventManager::AddDislikeItemInfo(unsigned short idx,
     // push_back(EOi) 传 &temp（4.4 将 node 折进 %eax 不复现 ⇒ 余差属 N）。
     if (it == m_npcEventMap.end())
         return;
-    it->second->m_dislikeItems.push_back((int)itemId);
+    stNPCRelationEventInfo* node = it->second;
+    int item = static_cast<int>(itemId);
+    node->m_dislikeItems.push_back(item);
 }
 
 // ---- CNPCRelationEventManager::GetFavorIndex（ORIG 0x890d3d0：
@@ -1513,7 +1527,9 @@ int eventReward::importRewardTable(const char* dir, const char* file)
                                 dir, file, 0))
         return 0x77;
 
-    for (std::map<int, std::string>::const_iterator it = fileList.begin();
+    // fileList 为非 const 局部 ⇒ ORIG 用非 const iterator（const_iterator 换
+    // begin/end/operator++ callee 集致 we-larger 主因）。
+    for (std::map<int, std::string>::iterator it = fileList.begin();
          it != fileList.end(); ++it)
     {
         if (ImportRewardScript(dir, it->second.c_str()) == 0)
@@ -1544,26 +1560,42 @@ void DeleteInvalidItemScript::DeleteInvalidItemData::init()
 
 bool DeleteInvalidItemScript::loadScript()
 {
-    if (!loadRDARScriptFile("Etc/", "tw_DeleteInvalidItem.etc"))
+    // [X1 形] ORIG 7 检查点（load 0x08ac1e7c / ScanType 0x08ac1ec3 / ScanInt-ok×3
+    // 0x08ac1efb.. / ScanStr→ok 回读×2 0x08ac1fdd/0x08ac201a）均 xor$1+test 带分支
+    // 消费者形，逐点 register uchar 绑 %eax + ^=1 复现。
+    register unsigned char lr asm("eax") =
+        (unsigned char)loadRDARScriptFile("Etc/", "tw_DeleteInvalidItem.etc");
+    lr ^= 1;
+    if (lr)
         return false;
 
     std::string token;
     bool ok = false;
     DeleteInvalidItemData data;
-    while (ScanType(token, true))
+    for (;;)
     {
+        register unsigned char st asm("eax") = (unsigned char)ScanType(token, true);
+        st ^= 1;
+        if (st)
+            break;
         if (token == "[delete item]")
         {
             for (;;)
             {
                 int idx = ScanInt(&ok);
-                if (!ok)
+                register unsigned char aok asm("eax") = (unsigned char)ok;
+                aok ^= 1;
+                if (aok)
                     break;
                 int rewardIdx = ScanInt(&ok);
-                if (!ok)
+                register unsigned char bok asm("eax") = (unsigned char)ok;
+                bok ^= 1;
+                if (bok)
                     break;
                 int count = ScanInt(&ok);
-                if (!ok)
+                register unsigned char cok asm("eax") = (unsigned char)ok;
+                cok ^= 1;
+                if (cok)
                     break;
                 data.init();
                 data.m_field0 = idx;        // ORIG：data.f0=首个 int（与 key 同值）
@@ -1574,12 +1606,18 @@ bool DeleteInvalidItemScript::loadScript()
         }
         else if (token == "[send mail title]")
         {
-            if (!ScanStr(&m_field0))
+            ok = (bool)ScanStr(&m_field0);  // ORIG：先物化入 ok 槽再回读
+            register unsigned char tov asm("eax") = (unsigned char)ok;
+            tov ^= 1;
+            if (tov)
                 break;
         }
         else if (token == "[send mail content]")
         {
-            if (!ScanStr(&m_field4))
+            ok = (bool)ScanStr(&m_field4);
+            register unsigned char cov asm("eax") = (unsigned char)ok;
+            cov ^= 1;
+            if (cov)
                 break;
         }
     }

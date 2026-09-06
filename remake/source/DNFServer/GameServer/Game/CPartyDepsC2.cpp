@@ -66,15 +66,15 @@ struct BloodDungeonCountsView
 // ---------------------------------------------------------------------------
 void CParty::increase_ancient_dungeon_ticket()
 {
-    if (m_dungeon == 0)
+    if (m_battleField.m_pDungeon == 0)
         return;
     // movzbl 0x89c + xor $1 + jne：要求副本 +0x89c 字节 == 1
-    if ((char)m_dungeon->m_89c != 1)
+    if ((char)m_battleField.m_pDungeon->m_89c != 1)
         return;
 
     // dungeon+0x7f4 = RequiredItem.m_0（道具 idx）；+0x7f8 = RequiredItem.m_4
-    const int itemId = m_dungeon->m_entryRequiredItem.m_itemIdx;
-    const int createParam = m_dungeon->m_entryRequiredItem.m_itemCount;
+    const int itemId = m_battleField.m_pDungeon->m_entryRequiredItem.m_itemIdx;
+    const int createParam = m_battleField.m_pDungeon->m_entryRequiredItem.m_itemCount;
 
     CDataManager* dataMgr = G_CDataManager();
     if (dataMgr->find_item(itemId) == 0)   // find_item(int) const 0x0835fa32
@@ -135,7 +135,7 @@ bool CParty::isDungeonDifficultyInfromNotice(bool flag)
     if (flag)                                // param_1 为真直接不提示
         return false;
     // this+0xc4c = CBattle_Field(+0xb24)+0x128 = m_villageMonsterId(short)
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     if (bf.m_villageMonsterId != 0)
         return false;
     if (getManager()->getMoveSpace() == (UserSpace::T)1)   // getMoveSpace 0x08690eca
@@ -323,9 +323,9 @@ bool CParty::move_map(MSG_MOVE_MAP& info)
         return false;
     }
 
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
 
-    if (m_dungeon != 0 && m_dungeon->IsEnterEachMap())
+    if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->IsEnterEachMap())
     {   // 逐张进入型副本：直接改写当前座位号
         bf.SetCurSeatNo((int)(char)info.m_39);          // SetCurSeatNo W 0x082a43cc
     }
@@ -361,7 +361,7 @@ bool CParty::move_map(MSG_MOVE_MAP& info)
 
     checkMoveMapHackCnt(info);
 
-    if ((char)m_dungeon->m_bloodDungeonType < 1)
+    if ((char)m_battleField.m_pDungeon->m_bloodDungeonType < 1)
         bf.MakePacket(0x1d, &packet);       // MakePacket T 0x083090a4
     else
         bf.MakePacket(0xd3, &packet);
@@ -445,7 +445,7 @@ void CParty::set_random_reward(QuickParty::RandomBuffType type,
 // ---------------------------------------------------------------------------
 void CParty::useItem(CUser* user, Inven_Item const& item)
 {
-    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->onUseItem(user, item);
+    reinterpret_cast<CBattle_Field*>(&m_battleField)->onUseItem(user, item);
 }
 
 // ---------------------------------------------------------------------------

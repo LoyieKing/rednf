@@ -85,8 +85,8 @@ void CAlchemist::UseDelilah(CUser* user)
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (party != 0)
     {
-        reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24)
-            ->SetAssignNPCByPotion(true);
+        party->m_battleField.SetAssignNPCByPotion(
+            true);
     }
 }
 

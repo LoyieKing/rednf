@@ -6,7 +6,7 @@
 //     +0xae0→m_stageCur、+0xae4→m_stageMax、+0xae8→m_difficulty；
 //   CBossTower 自有段：+0xaf4→m_towerStartTick、+0xaf8→m_towerEndTick、
 //     +0xafc→m_prepareFinishFlag、+0xb00→m_dungeonLog；
-//   跨类：party+0xcd8→CParty::m_partyType、user+0x79700→CUser::m_historyLog、
+//   跨类：party+0xcd8→CParty::m_battleField.m_bloodState、user+0x79700→CUser::m_historyLog、
 //     manager+0x796cc→CUser::m_gmBossDifficulty。
 // getIdx 0x082aa728 读 +0xaf0；setIdx 0x082aa716 写 +0xaf0。
 // 虚表 _ZTVN8WongWork10CBossTowerE@0x08b70260 共 11 槽（vptr 相对偏移：
@@ -16,7 +16,7 @@
 #include <algorithm>   // std::min（generateRewardItem 上限链）
 #include <cstring>
 
-#include "CParty.h"     // get_user/get_member_count/getMemberNames/m_partyType(+0xcd8)
+#include "CParty.h"     // get_user/get_member_count/getMemberNames/m_battleField.m_bloodState(+0xcd8)
 #include "CUser.h"      // SendCmdErrorPacket/m_historyLog(+0x79700)/m_gmBossDifficulty
 #include "QuickParty.h" // 先于 CDungeon.h：QUICKPARTY_H 已定义则跳过其镜像块
 #include "CDungeon.h"   // GetDungeonName/getRandomTowerMaxStage/get_min_level 等
@@ -91,7 +91,7 @@ int CBossTower::handleLeaveUser(CUser* user)
     char memberNames[255] = "";               // ebp-0x11d（内联展开清零 0xff）
 
     const char partyTypeByte =
-        static_cast<char>(m_party->m_partyType);   // ORIG 读 +0xcd8 低字节
+        static_cast<char>(m_party->m_battleField.m_bloodState);   // ORIG 读 +0xcd8 低字节
     m_party->getMemberNames(memberNames);
 
     user->m_historyLog.LeaveDungeon(m_dungeon->GetDungeonName(), m_difficulty,
@@ -395,7 +395,7 @@ int CBossTower::checkStartGameCondition(unsigned char& flag, bool useItems)
         }
     }
 
-    if (party->m_partyType == 1)
+    if (party->m_battleField.m_bloodState == 1)
     {
         return 1;
     }
@@ -444,7 +444,7 @@ char CBossTower::handleStartGame(CParty* party, int towerIdx, char b,
 {
     if (dungeonType == static_cast<ENUM_DUNGEON_TYPE>(1))
         return 0;
-    if (party->m_partyType == 1)
+    if (party->m_battleField.m_bloodState == 1)
         return 0;
 
     m_expParamA = static_cast<int>(dungeonType);
@@ -494,11 +494,11 @@ char CBossTower::handleStartGame(CParty* party, int towerIdx, char b,
 
         member->m_historyLog.EnterDungeon(m_dungeon->GetDungeonName(),
                                           m_difficulty, memberNames,
-                                          m_party->m_partyType);
+                                          m_party->m_battleField.m_bloodState);
     }
 
     // ORIG：循环外单次调用（if/else 两分支，常量 0/1），非每成员调用
-    if (m_party->m_partyType == 1)
+    if (m_party->m_battleField.m_bloodState == 1)
         GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(towerIdx, 1);
     else
         GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(towerIdx, 0);
@@ -511,7 +511,7 @@ char CBossTower::handleStartGame(CParty* party, int towerIdx, char b,
     packet.put_header(0, 0x1e1);
     packet.put_int(towerIdx);
     packet.put_short(m_stageMax);
-    packet.put_byte(m_party->m_partyType);
+    packet.put_byte(m_party->m_battleField.m_bloodState);
     packet.put_byte(static_cast<int>(announceByte));
     packet.finalize(true);
     m_party->send_to_party(packet);
@@ -623,7 +623,7 @@ int CBossTower::handleEPLPCommand(int cmd)
             char memberNames[255] = "";           // ebp-0x110（内联清零 0xff）
 
             const char partyTypeByte =
-                static_cast<char>(m_party->m_partyType);   // 低字节 movsbl
+                static_cast<char>(m_party->m_battleField.m_bloodState);   // 低字节 movsbl
             m_party->getMemberNames(memberNames);
 
             for (int i = 0; i <= 3; ++i)
@@ -692,7 +692,7 @@ int CBossTower::SendELPLPacket()
 {
     CParty* party = m_party;
     bool ok = true;                            // ebp-0x11
-    if (party->m_partyType != 1)
+    if (party->m_battleField.m_bloodState != 1)
     {
         for (int i = 0; i <= 3; ++i)
         {
@@ -887,7 +887,7 @@ int CBossTower::InsertRewardItems()
 int CBossTower::onClearBossTower()
 {
     CParty* party = m_party;
-    if (party->m_partyType == 1)
+    if (party->m_battleField.m_bloodState == 1)
     {
         PacketGuard packet;
         packet.put_header(0, 0xfe);
@@ -994,7 +994,7 @@ int CBossTower::onChargeRequireItem(CUser* user)
 {
     if (user == 0)
         return 0;
-    if (m_party->m_partyType == 1)
+    if (m_party->m_battleField.m_bloodState == 1)
         return 1;
 
     if (m_dungeon->m_entryRequiredItem.m_enableFlag != 0)
@@ -1081,7 +1081,7 @@ int CBossTower::onReturnVillage()
         char memberNames[255] = "";            // ebp-0x120（内联展开清零 0xff）
 
         const char partyTypeByte =
-            static_cast<char>(m_party->m_partyType);   // 低字节 movsbl
+            static_cast<char>(m_party->m_battleField.m_bloodState);   // 低字节 movsbl
         m_party->getMemberNames(memberNames);
 
         for (int i = 0; i <= 3; ++i)

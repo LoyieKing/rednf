@@ -16,7 +16,7 @@
 #include "CHackLog_OverDamage.h"
 #include "CHackAnalyzer.h"   // WongWork::ENUM_HACKTYPE 权威枚举
 #include "CUser.h"
-#include "CParty.h"     // m_dungeon / m_padBattleField1 视图
+#include "CParty.h"     // m_dungeon / m_battleField 视图
 #include "CDungeon.h"   // get_min_level/get_index
 #include "CBattle_Field.h"   // get_dungeon_diff
 
@@ -80,7 +80,7 @@ void CHackLog_OverDamage::GetDungeonLimitDamageAndHackType(
     if (user == 0)
         return;
     CParty* party = static_cast<CParty*>(user->GetParty());
-    if (party == 0 || party->m_dungeon == 0)
+    if (party == 0 || party->m_battleField.m_pDungeon == 0)
         return;
     int level = user->get_charac_level();
     if (level < 1)
@@ -89,12 +89,12 @@ void CHackLog_OverDamage::GetDungeonLimitDamageAndHackType(
     int sectionIdx = 6;                       // ORIG local_30 初值
     double ratio = 1.0;                       // ORIG local_2c 初值
     int lvDelta = level -
-                  party->m_dungeon->get_min_level();   // ORIG local_20
+                  party->m_battleField.m_pDungeon->get_min_level();   // ORIG local_20
     if (lvDelta < 0)
         lvDelta = 0;
     double divisor = 1.0;                     // ORIG local_1c 初值
 
-    int dungeonIndex = party->m_dungeon->get_index();
+    int dungeonIndex = party->m_battleField.m_pDungeon->get_index();
     if (dungeonIndex != 11000)                // ORIG 0x2af8
     {
         if (dungeonIndex == 100 || dungeonIndex == 0x2af9 ||
@@ -107,7 +107,7 @@ void CHackLog_OverDamage::GetDungeonLimitDamageAndHackType(
                 // ratio 值未进入下方默认分支前的改写路径（ORIG +0x0eb..+0x10d
                 // 与默认分支共用同一 DUNGEON_RATIO 表查询形态）：
                 CBattle_Field& field =
-                    *reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1);
+                    *reinterpret_cast<CBattle_Field*>(&party->m_battleField);
                 ratio = _S_KILL_MONSTER_OVER_DAMAGE_DUNGEON_RATIO[field.get_dungeon_diff()];
             }
             limit = static_cast<unsigned int>(
@@ -126,7 +126,7 @@ void CHackLog_OverDamage::GetDungeonLimitDamageAndHackType(
             lvKey = 0;
         sectionIdx = LEVEL_SECTION_TABLE[lvKey];
         CBattle_Field& field =
-            *reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1);
+            *reinterpret_cast<CBattle_Field*>(&party->m_battleField);
         ratio = _S_KILL_MONSTER_OVER_DAMAGE_DUNGEON_RATIO[field.get_dungeon_diff()];
     }
 

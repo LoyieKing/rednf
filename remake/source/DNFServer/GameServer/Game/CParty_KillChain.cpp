@@ -61,7 +61,7 @@ namespace
 // bf 子对象视图（与 CPartyLink2.cpp 同惯例）。
 inline CBattle_Field& kcbf(CParty* p)
 {
-    return *reinterpret_cast<CBattle_Field*>(&p->m_padBattleField1);
+    return p->m_battleField;
 }
 
 }  // namespace

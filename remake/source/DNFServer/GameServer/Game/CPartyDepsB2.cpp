@@ -37,7 +37,7 @@
 #include "CGameManager.h"               // G_CGameManager / GetQuickPartyRewardManager /
                                         // GetSpecialItemRoutingManager
 #include "CBattle_Field.h"              // GetDungeon / IsFirstEnterDungeon / check_start_point /
-                                        // get_dungeon_diff / m_villageMonsterId / m_dungeonClearTracer
+                                        // get_dungeon_diff / m_villageMonsterId / m_battleField.m_dungeonClearTracer
 #include "GameWorld.h"                  // G_GameWorld / out_from_dungeon / send_all
 #include "CUser.h"                      // Send/make_basic_info/getHackAnalyzer/getMoveSpace/...
 #include "CUserCharacInfo.h"            // getCurCharacStamina/getCurCharacNo/... （经 CUser 继承）
@@ -134,7 +134,7 @@ void CParty::die_user(CUser* user)
             {
                 if (!m_tournamentVictory)
                 {
-                    if (m_partyType != 1)
+                    if (m_battleField.m_bloodState != 1)
                         send_dungeon_fail_msg();
                 }
             }
@@ -171,7 +171,7 @@ void CParty::finish_loading(CUser* user)
     // ORIG 两次独立 this+0xb24 计算（GetDungeon / IsFirstEnterDungeon），
     // 不保存 CBattle_Field 引用。
     CDungeon* dungeon =
-        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->GetDungeon();  // -0x10
+        reinterpret_cast<CBattle_Field*>(&m_battleField)->GetDungeon();  // -0x10
     int enterEachMap = 0;
     if (dungeon != 0)
     {
@@ -181,7 +181,7 @@ void CParty::finish_loading(CUser* user)
 
     if (enterEachMap)
     {
-        if (reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->IsFirstEnterDungeon())
+        if (reinterpret_cast<CBattle_Field*>(&m_battleField)->IsFirstEnterDungeon())
             check_allmember_loading(false);
         else
             check_allmember_loading(true);
@@ -217,7 +217,7 @@ bool CParty::checkDungeonDifficulty(char difficulty, CDungeon const* dungeon)
 // ============================================================================
 int CParty::_Send_TOD_APCInfo(int todLayerIdx)
 {
-    if (m_dungeon->isTowerOfDespairDungeon())           // +0xcac（ORIG 直取）
+    if (m_battleField.m_pDungeon->isTowerOfDespairDungeon())           // +0xcac（ORIG 直取）
     {
         TowerOfDespairMgr* todMgr =
             static_cast<TowerOfDespairMgr*>(GlobalData::s_pTowerOfDespairMgr);
@@ -512,12 +512,12 @@ DONE:
 // ============================================================================
 void CParty::giveup_game(CUser* user, bool a2, bool a3, bool a4)
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     Secu_HackLogCheckByParty& secu =
         *reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu);
 
     bool specialDungeon = false;                        // -0x3d local_41
-    CDungeon* dungeon = m_dungeon;                      // -0x3c (+0xcac)
+    CDungeon* dungeon = m_battleField.m_pDungeon;                      // -0x3c (+0xcac)
     if (dungeon != 0)
     {
         if ((char)dungeon->m_bloodDungeonType > 0)
@@ -547,7 +547,7 @@ void CParty::giveup_game(CUser* user, bool a2, bool a3, bool a4)
             allowPenalty = false;
     }
 
-    bool pvpMode = (m_partyType == 1);                  // -0x35 (+0xcd8)
+    bool pvpMode = (m_battleField.m_bloodState == 1);                  // -0x35 (+0xcd8)
 
     user->reset_level_before_dungeon();
 
@@ -660,7 +660,7 @@ AFTER_STATISTICS:
                     continue;
                 if (dungeon != 0)
                 {
-                    int partyType = m_partyType;
+                    int partyType = m_battleField.m_bloodState;
                     char* names = _getMemberNames(memberNames);
                     int diff = bf.get_dungeon_diff();
                     const char* dunName = dungeon->GetDungeonName();

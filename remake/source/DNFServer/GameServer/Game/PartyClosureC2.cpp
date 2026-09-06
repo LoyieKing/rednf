@@ -79,7 +79,7 @@ namespace
 
 // ---- 子对象视图宏（-O0 下函数形式会产生额外 call，ORIG 为 add $0xb24 内联直读，
 //      故用宏保持调用点内联展开） ----
-#define bf(p) (*reinterpret_cast<CBattle_Field*>(&((p)->m_padBattleField1)))
+#define bf(p) ((p)->m_battleField)   // batch-16 内嵌具名
 #define bd(p) ((p)->m_battleData)   // ORIG DWARF CParty+0x32c 具名化（本批专改）
 
 // CStatisticMgr +0x18 = CDungeonExpStatistic 子对象（本体即 map；
@@ -706,7 +706,7 @@ int CParty::do_after_dungeon_start(const CDungeon* dungeon, CUser* user)
     // ---- 血腥副本入场（dungeon->m_bloodDungeonType == 1） ----
     if (dungeon->m_bloodDungeonType == 1)
     {
-        if (m_partyType == 1)
+        if (m_battleField.m_bloodState == 1)
         {
             // 提示串：findString(表4,"game_server_msg_110") 作为 snprintf 格式串，
             // 单人模式费用参数为 0
@@ -765,7 +765,7 @@ int CParty::do_after_dungeon_start(const CDungeon* dungeon, CUser* user)
     // ---- 维度副本入场券（dimension possible>0） ----
     if (dungeon->get_dimension_possible() > 0)
     {
-        if (m_partyType == 1)
+        if (m_battleField.m_bloodState == 1)
             return 0;
         const char dimIdx = static_cast<char>(dungeon->get_dimension_possible() - 1);
         _Charac_info* charac = const_cast<_Charac_info*>(user->getCurCharacR());
@@ -774,7 +774,7 @@ int CParty::do_after_dungeon_start(const CDungeon* dungeon, CUser* user)
                                                   0xeb9 + dimIdx);
         if (ticketLeft < 1 && !user->isGMUser())
             return 0xad;
-        if (m_partyType != 1)
+        if (m_battleField.m_bloodState != 1)
         {
             user->subDemensionInoutValue(dimIdx);
             G_GameWorld()->send_party_info_to_all(this, 1);
@@ -782,13 +782,13 @@ int CParty::do_after_dungeon_start(const CDungeon* dungeon, CUser* user)
     }
 
     // ---- 终极副本（m_bloodDungeonType==2） ----
-    if (dungeon->m_bloodDungeonType == 2 && m_partyType != 1)
+    if (dungeon->m_bloodDungeonType == 2 && m_battleField.m_bloodState != 1)
         user->subUltimateInoutValue(2);
 
     // ---- 锦标赛入场包（0xe） ----
     if (dungeon->m_89c != 0 || dungeon->isTournamentDungeon())
     {
-        if (m_partyType == 1)
+        if (m_battleField.m_bloodState == 1)
             return 0;
         if (dungeon->m_entryRequiredItem.m_itemIdx == -1)
             return 0;
@@ -894,31 +894,31 @@ int CParty::do_after_dungeon_start(const CDungeon* dungeon, CUser* user)
 void CParty::OnDungeonClear(CUser* user, bool success)
 {
     // ---- 结算角色信息广播 ----
-    if (IsCollectDungeonStatistic() && m_partyType != 1)
+    if (IsCollectDungeonStatistic() && m_battleField.m_bloodState != 1)
     {
         if (user != 0 && user->getCurCharacR() != 0 &&
-            user->m_field8e074 != 0 && m_dungeon != 0)   // 旧 m_character.m_f40（+0x40）——布局修正后为 CUser 直属 +0x8e074
+            user->m_field8e074 != 0 && m_battleField.m_pDungeon != 0)   // 旧 m_character.m_f40（+0x40）——布局修正后为 CUser 直属 +0x8e074
         {
             SendDungeonCharacInfo(user, success);
         }
     }
 
     // ---- 经验统计（维度票充足 或 等级在标准±窗口内） ----
-    if (m_partyType == 1)
+    if (m_battleField.m_bloodState == 1)
     {
         // skip
     }
-    else if (m_dungeon != 0 && m_dungeon->get_dimension_possible() >= 1)
+    else if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->get_dimension_possible() >= 1)
     {
         reinterpret_cast<CStatisticMgrExpView*>(GlobalData::s_statisticMgr)
             ->m_dungeonExp.IncreaseDungeonExp(user->get_charac_level(),
                                               user->m_character.m_f28,
                                               user->m_character.m_f30);
     }
-    else if (m_dungeon != 0)
+    else if (m_battleField.m_pDungeon != 0)
     {
-        if (user->get_charac_level() >= m_dungeon->get_standard_level() - 5 &&
-            m_dungeon->get_standard_level() + 3 >= user->get_charac_level())
+        if (user->get_charac_level() >= m_battleField.m_pDungeon->get_standard_level() - 5 &&
+            m_battleField.m_pDungeon->get_standard_level() + 3 >= user->get_charac_level())
         {
             reinterpret_cast<CStatisticMgrExpView*>(GlobalData::s_statisticMgr)
                 ->m_dungeonExp.IncreaseDungeonExp(user->get_charac_level(),
@@ -938,10 +938,10 @@ void CParty::OnDungeonClear(CUser* user, bool success)
 
     // ---- 血腥副本统计包（0x1036/0x14） ----
     // ---- 血腥副本统计包（Packet_Blood_dungeon_statistic ctor W 0x085bee52） ----
-    if (user != 0 && m_dungeon != 0)
+    if (user != 0 && m_battleField.m_pDungeon != 0)
     {
         if (user->getCurCharacR() != 0 &&
-            static_cast<signed char>(m_dungeon->m_bloodDungeonType) > 0)
+            static_cast<signed char>(m_battleField.m_pDungeon->m_bloodDungeonType) > 0)
         {
             Packet_Blood_dungeon_statistic stat;
             stat.m_level = user->get_charac_level();    // +0x0e

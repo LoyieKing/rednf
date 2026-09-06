@@ -813,13 +813,7 @@ class CQuickPartySystemManager;
 class CGameManager;
 CGameManager* G_CGameManager();
 
-#if !defined(QUICKPARTY_H) && !defined(DNF_QUICKPARTY_SYSTEMMANAGER_FULL)
-namespace QuickParty
-{
-class CQuickPartySystemManager
-{
-public:
-    void init_quick_party_pool(const CDungeon* dungeon);
-};
-}
-#endif  // QuickParty.h 未含或未定义完整类时的本地最小声明
+/* batch-16：fallback 完整类定义删除（原为 include 图窄而设的本地最小声明；
+   CParty.h→CBattle_Field.h→CDungeon.h 新链下与 QuickParty.h:110 权威定义构成
+   redefinition（IpsC9 报告 PvP_Room 链）。需要成员调用者的 TU 请显式
+   #include "QuickParty.h"；前向声明仍在上方 namespace 块。 */

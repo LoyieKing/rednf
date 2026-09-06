@@ -48,13 +48,9 @@ public:
     int m_fieldc;        // +0x0c（ScanInt）
 };
 
-class STMonsterScript
-{
-public:
-    int m_index;         // +0x00（真实布局权威定义见 STMonsterScript.h，
-                         //  此处仅 DB 入库所需最小字段视图，名称与权威一致）
-    std::string m_name;  // +0x004 [name]
-};
+// batch-16：删除重复最小视图定义（§4.4 单声明点）。原视图与权威头 m_index/m_name
+// 完全一致；CParty.h→CBattle_Field.h 嵌入链使 GlobalData 等 TU 同时见到两定义。
+#include "STMonsterScript.h"  // STMonsterScript 权威定义（ActiveStaticInfo/CDataManager 无回环）
 
 namespace sync_script
 {

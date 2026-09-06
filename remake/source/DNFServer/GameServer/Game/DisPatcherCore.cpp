@@ -301,7 +301,7 @@ struct MSG_MAKE_PVP_ROOM
 #pragma pack(pop)
 
 // CParty +0xb24 内嵌 CBattle_Field 子对象局部视图（CParty.h 以
-// m_padBattleField1[0x158] 等 pad 占位、未引入 CBattle_Field 类型；Main 裁定
+// m_battleField[0x158] 等 pad 占位、未引入 CBattle_Field 类型；Main 裁定
 // 本组 TU 局部视图，与 CParty.cpp 同口径）。布局：pad 0xb24 + BF 0xcd0。
 struct CPartyBattleFieldView
 {
@@ -1082,7 +1082,7 @@ int DisPatcher_UseCoin::Dungeon_check_error(CUser* user, MSG_BASE& msg, ParamBas
     {
         return -1;
     }
-    CDungeon* dungeon = party->m_dungeon;   // +0xcac
+    CDungeon* dungeon = party->m_battleField.m_pDungeon;   // +0xcac
     if (party != 0 && dungeon != 0)
     {
         // CParty+0xb24 内嵌 CBattle_Field（局部视图 CPartyBattleFieldView）
@@ -4045,8 +4045,8 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
 
     if (party != 0)
     {
-        // CParty::m_partyType(+0xcd8)（CParty.h public 区，具名访问）
-        party->m_partyType = (int)(char)req.m_field11;
+        // CParty::m_battleField.m_bloodState(+0xcd8)（CParty.h public 区，具名访问）
+        party->m_battleField.m_bloodState = (int)(char)req.m_field11;
     }
 
     if (user->isDisguiseCharac())
@@ -4291,9 +4291,9 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
     // ---- 公共开团路径（ORIG +0xc1f）----
     if (party != 0)
     {
-        // ORIG 读 CParty::m_partyType(+0xcd8) 字段与 1 比较（非 GetPartyType() 方法计算值）
+        // ORIG 读 CParty::m_battleField.m_bloodState(+0xcd8) 字段与 1 比较（非 GetPartyType() 方法计算值）
         const bool skipFatigue = (hasDeathFlag != 0) ||
-                                 (party->m_partyType == 1) ||
+                                 (party->m_battleField.m_bloodState == 1) ||
                                  (checkBlueMarble(party) != 0) ||
                                  (dungeon->isNoFatigueDungeon() != 0);
         if (!skipFatigue)
@@ -4471,7 +4471,7 @@ bool DisPatcher_DeleteItem::exercise_mode(CUser* user, MSG_BASE& msg, ParamBase&
         }
     }
 
-    const bool skip = (party->m_partyType == 1) &&
+    const bool skip = (party->m_battleField.m_bloodState == 1) &&
                       (user->get_state() == 5 || limitNotOne);
     if (!skip)
     {
@@ -6060,11 +6060,15 @@ int DisPatcher_Compound::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (msg.m_type != '\x01' &&
-        user->CheckItemLock(1, static_cast<int>(msg.m_itemId)) != false)
+    // P168a-①②：&& 合写在 4.4 产值物化岛（mov$1/$0;test;je 5 行）；ORIG +0x199..
+    // 是两段直跳（`cmp $1,%al; je` + bool callee `test %al,%al; je` 裸形）→ 拆嵌套。
+    if (msg.m_type != '\x01')
     {
-        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x1b), 0xd5);
-        return 0;
+        if (user->CheckItemLock(1, static_cast<int>(msg.m_itemId)))
+        {
+            user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x1b), 0xd5);
+            return 0;
+        }
     }
     // ORIG +0x1c8..+0x1f5：右→左求值 count(movzwl 两段→%ecx)、type==1（`cmp $1,%al;
     // sete %al; movzbl %al,%edx` bool 物化经具名量传参，技9）、itemId(→%eax)；
@@ -6085,11 +6089,16 @@ int DisPatcher_Compound::dispatch_sig(CUser* user, PacketBuf& packet)
         user->Send(local_30);
         return 0;
     }
-    if (user != 0 && local_10 == 0)
+    // P168a-②直分支形：ORIG `cmpl $0,0xc; je; cmpl $0,-0xc; jne` 两段直跳，
+    // && 合写在 4.4 反产值物化岛（mov$1/$0;test;je）→ 拆嵌套。
+    if (user != 0)
     {
-        APSystem::CUserProc::ClearActionAndSendtoUser(
-            user, static_cast<APSystem::_ActionGroupIndex>(6), 0,
-            static_cast<ENUM_PACKETCLASS>(0));
+        if (local_10 == 0)
+        {
+            APSystem::CUserProc::ClearActionAndSendtoUser(
+                user, static_cast<APSystem::_ActionGroupIndex>(6), 0,
+                static_cast<ENUM_PACKETCLASS>(0));
+        }
     }
     return 0;
 }
@@ -7164,7 +7173,7 @@ int DisPatcher_QuestAction::dispatch_sig(CUser* user, PacketBuf& packet)
                                    static_cast<int>(sVar5));
                         return 0;
                     }
-                    if (local_20->m_partyType == 1)   // CParty.h:764 int m_partyType@+0xcd8
+                    if (local_20->m_battleField.m_bloodState == 1)   // CParty.h:764 int m_battleField.m_bloodState@+0xcd8
                     {
                         return 0;
                     }
@@ -8145,14 +8154,14 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
                 user->m_mcap.m_monsterDieHackCnt = 0;
                 user->getHackAnalyzer()->addServerHackCnt(
                     user, (WongWork::ENUM_HACKTYPE)0xcd, 1,
-                    (party->m_dungeon == 0) ? 0 :
-                    (party->m_dungeon->get_index() == 0x2afe ? 2 : 0), 0);
+                    (party->m_battleField.m_pDungeon == 0) ? 0 :
+                    (party->m_battleField.m_pDungeon->get_index() == 0x2afe ? 2 : 0), 0);
                 if (!party->checkBossRoom())
                 {
                     user->getHackAnalyzer()->addServerHackCnt(
                         user, (WongWork::ENUM_HACKTYPE)0xce, 1,
-                        (party->m_dungeon == 0) ? 0 :
-                        (party->m_dungeon->get_index() == 0x2afe ? 2 : 0),
+                        (party->m_battleField.m_pDungeon == 0) ? 0 :
+                        (party->m_battleField.m_pDungeon->get_index() == 0x2afe ? 2 : 0),
                         0);
                 }
             }
@@ -8203,7 +8212,7 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             if (die.m_killValue1 == 1)
             {
                 zeroHitBossDg =
-                    static_cast<CParty*>(attacker->GetParty())->m_dungeon
+                    static_cast<CParty*>(attacker->GetParty())->m_battleField.m_pDungeon
                         ->get_index() == 0x2afe;
             }
             if (zeroHitBossDg)
@@ -8227,8 +8236,8 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             unsigned int perHit =
                 die.m_damageList[i] / (unsigned int)die.m_hitCountList[i];
             if (limit < perHit &&
-                (party->m_dungeon == 0 ||
-                 party->m_dungeon->get_index() != 0x2afe))
+                (party->m_battleField.m_pDungeon == 0 ||
+                 party->m_battleField.m_pDungeon->get_index() != 0x2afe))
             {
                 attacker->getHackAnalyzer()->addServerHackCnt(
                     attacker, hackType, 1, 0, 0);
@@ -8931,7 +8940,7 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             // → find_dungeon；null 或 outIdx==-1 → logFormat 0xf14；否则
             // m_entryRestrictFlag && m_10∈{2,3,4} && !outB → 0x56 包 send_all 广播
             CBattle_Field* bf =
-                reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
+                &party->m_battleField;
             const int dungeonIdx = bf->get_dungeon_index();
             CDungeon* dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
             if (dungeon == 0 || outIdx == -1)
@@ -9223,15 +9232,15 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
             tower = user->getDeathTower();
         if (tower == 0)
         {
-            if (party->m_partyType == 1)
+            if (party->m_battleField.m_bloodState == 1)
             {
                 PacketGuard pgParty1;
                 USESTACK_ERR(pgParty1, 0);
                 return 0;
             }
-            if (party->m_dungeon != 0 &&
-                party->m_dungeon->isTowerOfDespairDungeon() &&
-                party->m_dungeon->limitOfStackableItemInTower())
+            if (party->m_battleField.m_pDungeon != 0 &&
+                party->m_battleField.m_pDungeon->isTowerOfDespairDungeon() &&
+                party->m_battleField.m_pDungeon->limitOfStackableItemInTower())
             {
                 CInventory* invR2 = static_cast<CInventory*>(const_cast<void*>(static_cast<const void*>(
                     reinterpret_cast<const CUserCharacInfo*>(user)
@@ -9251,7 +9260,7 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
                 {
                     int dungeonIndex =
                         reinterpret_cast<CBattle_Field*>(
-                            &party->m_padBattleField1)
+                            &party->m_battleField)
                             ->get_dungeon_index();
                     cMyTrace trace(
                         __PRETTY_FUNCTION__,
@@ -9263,8 +9272,8 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
                     return 0;
                 }
             }
-            if (party->m_dungeon != 0 &&
-                party->m_dungeon->isTournamentDungeon())
+            if (party->m_battleField.m_pDungeon != 0 &&
+                party->m_battleField.m_pDungeon->isTournamentDungeon())
             {
                 CInventory* invR3 = static_cast<CInventory*>(const_cast<void*>(static_cast<const void*>(
                     reinterpret_cast<const CUserCharacInfo*>(user)
@@ -9317,7 +9326,7 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
         {
             CDungeon* dg = tower->getCDungeonMGr()->getDungeon();
             if (dg->limitOfStackableItemInTower() &&
-                party->m_partyType != 1)
+                party->m_battleField.m_bloodState != 1)
             {
                 PacketGuard pgTower;
                 USESTACK_ERR(pgTower, 0);
@@ -9403,11 +9412,9 @@ int DisPatcher_MoveMap::check_error(CUser* user, MSG_BASE& msg)
     register bool invalid asm("al");
     invalid =
         ((int)req.m_y >=
-         reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24)
-             ->getMapHeight()) ||
+         party->m_battleField.getMapHeight()) ||
         ((int)req.m_x >=
-         reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24)
-             ->getMapWidth());
+         party->m_battleField.getMapWidth());
     if (invalid)
     {
         return 0xfffffffb;
@@ -9598,7 +9605,7 @@ void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& i
             // CParty.h 数据区已 public 化（Prod_CParty），恢复直接成员访问
             // （ORIG process 直读 party+0xcac m_dungeon，语义一致）。
             CDungeon* dungeon =
-                static_cast<CParty*>(member->GetParty())->m_dungeon;
+                static_cast<CParty*>(member->GetParty())->m_battleField.m_pDungeon;
             if (dungeon == 0)
             {
                 member->getHackAnalyzer()->addServerHackCnt(
@@ -9624,14 +9631,14 @@ void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& i
 
         CParty* memberParty = static_cast<CParty*>(member->GetParty());
         // CParty+0xb24 内嵌 CBattle_Field：经本 TU CPartyBattleFieldView 具名成员取
-        // （CParty.h m_padBattleField1 未建模 BF 类型，口径同 CParty.cpp）
+        // （CParty.h m_battleField 未建模 BF 类型，口径同 CParty.cpp）
         CBattle_Field& battleField =
             reinterpret_cast<CPartyBattleFieldView*>(memberParty)->m_battleField;
         if (!battleField.check_start_point() && slot > limit)
         {
             if ((double)slot <= 1.5 * (double)limit)   // 0x8bd6330=1.5
             {   // 单次记录
-                CDungeon* dungeon = memberParty->m_dungeon;  // CParty.h:757 @+0xcac
+                CDungeon* dungeon = memberParty->m_battleField.m_pDungeon;  // CParty.h:757 @+0xcac
                 if (dungeon == 0)
                 {
                     member->getHackAnalyzer()->addServerHackCnt(
@@ -9652,7 +9659,7 @@ void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& i
             {   // 超幅：同一记录重复 ×10（ORIG 循环 10 次，无 break）
                 for (int rep = 0; rep < 10; ++rep)
                 {
-                    CDungeon* dungeon = memberParty->m_dungeon;  // CParty.h:757 @+0xcac
+                    CDungeon* dungeon = memberParty->m_battleField.m_pDungeon;  // CParty.h:757 @+0xcac
                     if (dungeon == 0)
                     {
                         member->getHackAnalyzer()->addServerHackCnt(
@@ -9726,7 +9733,7 @@ DisPatcher_SetPlayResult::~DisPatcher_SetPlayResult() {}
 // ============================================================================
 // ORIG T 0x081f4ce6 _ZN24DisPatcher_SetPlayResult12dispatch_sigEP5CUserR9PacketBuf
 // （docs/class_func_reports/DisPatcher_SetPlayResult/dispatch_sig.md，1083 insn）
-// state==5 → party 校验（state==2 直接 0 / m_partyType==1 跳过）→ GameResultType
+// state==5 → party 校验（state==2 直接 0 / m_battleField.m_bloodState==1 跳过）→ GameResultType
 // 读包（Clear 后逐字段直写 party 结果区【wire 布局按 ORIG +0x17f4..0x1846】）→
 // 地图清除日志/金币/经验比率反作弊（0x1fb、0x78、0x75）/疲劳特化（job 3,4 且
 // growtype 2 → ×0.5 否则 ×0.8）/清副本 timer 注册/角色信息核对（0xe2、0xe3）/
@@ -9750,14 +9757,14 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
         return LineFunc(0x8155,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    if (party->m_partyType == 1)
+    if (party->m_battleField.m_bloodState == 1)
         return 0;
     // ORIG +0x99..+0xc4（前批缺段）：party 非空且 party+0xcac(dungeon) 非空且
     // dungeon+0x89f(m_bloodDungeonType) 有符号 >0 → 直接返 0。dungeon 独立具名槽
     // （ORIG -0x3c(%ebp)，技13）。
     if (party != 0)
     {
-        CDungeon* dungeon = party->m_dungeon;      // ORIG -0x3c(%ebp)
+        CDungeon* dungeon = party->m_battleField.m_pDungeon;      // ORIG -0x3c(%ebp)
         if (dungeon != 0)
         {
             if ((char)dungeon->m_bloodDungeonType > 0)   // ORIG `test %al,%al; jle`
@@ -9873,7 +9880,7 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     CBattle_Field& field =
-        *reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1);
+        *reinterpret_cast<CBattle_Field*>(&party->m_battleField);
     gameResult->m_field4 = field.get_dungeon_index();          // +0x17f8
     gameResult->m_field8 =
         static_cast<unsigned char>(field.get_dungeon_diff());  // +0x17fc
@@ -10050,8 +10057,8 @@ int DisPatcher_DropItem::check_error(CUser* user, MSG_BASE& msg, ParamBase& para
         return 0x13;
     }
     CParty* party = static_cast<CParty*>(user->GetParty());
-    if (party != 0 && party->m_dungeon != 0 &&
-        party->m_dungeon->m_bloodDungeonType != 0)
+    if (party != 0 && party->m_battleField.m_pDungeon != 0 &&
+        party->m_battleField.m_pDungeon->m_bloodDungeonType != 0)
     {
         return 0x13;
     }
@@ -10245,11 +10252,11 @@ int DisPatcher_UseEquip::check_error(CUser* user, MSG_BASE& msg)
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (party != 0)
     {
-        if (party->m_partyType == 1)                    // +0xcd8
+        if (party->m_battleField.m_bloodState == 1)                    // +0xcd8
         {
             return 0x13;
         }
-        CDungeon* dungeon = party->m_dungeon;           // +0xcac（ORIG -0xc）
+        CDungeon* dungeon = party->m_battleField.m_pDungeon;           // +0xcac（ORIG -0xc）
         if (dungeon != 0 && dungeon->m_bloodDungeonType != 0)  // +0x89f
         {
             return 0x13;

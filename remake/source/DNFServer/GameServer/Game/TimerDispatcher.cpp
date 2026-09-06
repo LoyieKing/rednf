@@ -1152,8 +1152,8 @@ int TimerBloodSmallRoundRegister::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if (!party->check_timer_key((TIMER_MESSAGE)0x16, p2))
         return 0;
-    reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24)
-        ->BloodSpawnTimerManager(false, true);   // ORIG：party+0xb24 即 CBattle_Field 子对象
+    party->m_battleField.BloodSpawnTimerManager(
+        false, true);   // ORIG：party+0xb24 即 CBattle_Field 子对象
     return 1;
 }
 
@@ -1350,8 +1350,8 @@ int TimerBloodCrazyMonster::dispatch_sig(int p1, int p2, unsigned int p3)
     {
         return 0;
     }
-    reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24)
-        ->BloodCrazyMonsterSpawnPacket();   // ORIG：party+0xb24 子对象
+    party->m_battleField.BloodCrazyMonsterSpawnPacket(
+        );   // ORIG：party+0xb24 子对象
     return 1;
 }
 
@@ -1381,12 +1381,12 @@ int TimerUltimateNextRoundStart::dispatch_sig(int p1, int p2, unsigned int p3)
     {
         return 0;
     }
-    if (party->m_dungeon == 0 ||
-        party->m_dungeon->get_blood_dungeon_type() != 2)
+    if (party->m_battleField.m_pDungeon == 0 ||
+        party->m_battleField.m_pDungeon->get_blood_dungeon_type() != 2)
     {
         return 0;
     }
-    CBattle_Field* field = reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);   // ORIG：party+0xb24 子对象
+    CBattle_Field* field = &party->m_battleField;   // ORIG：party+0xb24 子对象
     if (field->getUltimateDifficylty() != 0)
     {
         return 0;
@@ -2844,7 +2844,7 @@ int TimerElevatorDungeon::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     }
     // ORIG：CBattle_Field 嵌于 party+0xb24。
-    reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1)
+    reinterpret_cast<CBattle_Field*>(&party->m_battleField)
         ->check_elevator_timer();
     return 1;
 }

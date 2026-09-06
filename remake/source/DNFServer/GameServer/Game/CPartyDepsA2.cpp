@@ -249,7 +249,7 @@ void CParty::BloodHandleDieUser(CUser* user)
 
     if (check_allmember_die())
     {
-        if (m_partyType != 1)
+        if (m_battleField.m_bloodState != 1)
         {
             int key = gen_timer_key((TIMER_MESSAGE)0x22);
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
@@ -311,10 +311,10 @@ bool CParty::UseSealDoorItems(std::vector<int>& itemIds)
         while (it != itemIds.end())
         {
             int itemId = *it;
-            int minLevel = m_dungeon->get_min_level();
+            int minLevel = m_battleField.m_pDungeon->get_min_level();
             if (minLevel <= 0x2c)
             {
-                m_sealDoorItemsOk = 0;
+                m_battleField.m_sealDoorItemsOk = 0;
                 return false;
             }
 
@@ -342,14 +342,14 @@ bool CParty::UseSealDoorItems(std::vector<int>& itemIds)
             }
             else
             {
-                m_sealDoorItemsOk = 0;
+                m_battleField.m_sealDoorItemsOk = 0;
                 return false;
             }
             ++it;
         }
     }
 
-    m_sealDoorItemsOk = 1;
+    m_battleField.m_sealDoorItemsOk = 1;
     return result;
 }
 
@@ -523,10 +523,10 @@ void CParty::SetProperLevelDungeon(CUser* user)
     user->ClearProperLevelDungeonUser();
 
     if (G_CDataManager()->m_conditionDungeon.isEventDungeon(
-            m_dungeon->get_index()))
+            m_battleField.m_pDungeon->get_index()))
     {
-        int standardLevel = m_dungeon->get_standard_level();
-        int minLevel = m_dungeon->get_min_level();
+        int standardLevel = m_battleField.m_pDungeon->get_standard_level();
+        int minLevel = m_battleField.m_pDungeon->get_min_level();
         int zero = 0;
         int lower = std::max(minLevel, zero);
         int upperBound = standardLevel + 1;

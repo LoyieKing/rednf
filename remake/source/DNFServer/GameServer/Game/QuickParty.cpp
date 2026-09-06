@@ -24,7 +24,7 @@
 CGameManager* G_CGameManager();   // CDungeon.h 同声明
 
 // CParty +0xb24 内嵌 CBattle_Field 子对象局部视图（CParty.h 以
-// m_padBattleField1[0x158] 等 pad 占位、未引入 CBattle_Field 类型；Main 裁定
+// m_battleField[0x158] 等 pad 占位、未引入 CBattle_Field 类型；Main 裁定
 // 本组 TU 局部视图，与 CParty.cpp 口径一致）。布局：pad 0xb24 + BF 0xcd0。
 struct CPartyBattleFieldView
 {

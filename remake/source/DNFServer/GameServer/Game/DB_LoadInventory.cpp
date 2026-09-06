@@ -158,6 +158,8 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
 // ============================================================================
 bool DB_LoadInventory::SendResult(int userIdx, int slot, SIG_LOAD_INVENTORY* sig)
 {
+    char frame[0x10];      // ORIG 0840xxxx sub $0x28（4.1 转发帧留白）；4.4 叶折 0x18
+    (void)frame;
     return SendResult_forchina(userIdx, slot, sig);
 }
 
@@ -1097,34 +1099,34 @@ bool DB_LoadInventory::_GetTagCharacInven(unsigned int characNo,
     bool ok;
     db->set_query("seLect equipslot from inventory where charac_no = %d",
                   characNo);
-    ok = db->exec(true);
-    if (!ok)
+    // ORIG 08409xxx：exec/fetch 直 xor 判（无 -0x9 保存）
+    if (!db->exec(true))
     {
-        cMyTrace t("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
+        cMyTrace tt1("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
                    " TAG_CHARAC_INVEN_DATA*)", 0x23e2, 5);
-        t("DB_LoadInventory::_GetTagCharacInven, exec ERROR charac_no=%u",
+        tt1("DB_LoadInventory::_GetTagCharacInven, exec ERROR charac_no=%u",
           characNo);
         return 0;
     }
-    ok = db->fetch();
-    if (!ok)
+    if (!db->fetch())
     {
-        cMyTrace t("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
+        cMyTrace tt2("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
                    " TAG_CHARAC_INVEN_DATA*)", 0x23e8, 5);
-        t("DB_LoadInventory::_GetTagCharacInven, fetch ERROR charac_no=%u",
+        tt2("DB_LoadInventory::_GetTagCharacInven, fetch ERROR charac_no=%u",
           characNo);
         return 0;
     }
     // TAG_CHARAC_INVEN_DATA equipslot 区：ORIG `add $0x262` = 第 10 槽起。
     // ORIG 8409：col 入 -0x10 槽后传值（非字面量、无自增）。
     col = 0;
-    if (!get_compressed_blob_data(db, col,
+    ok = get_compressed_blob_data(db, col,
                                   reinterpret_cast<char*>(&out->m_items[10]),
-                                  0x2dc, 0x3d))
+                                  0x2dc, 0x3d);
+    if (!ok)
     {
-        cMyTrace t("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
+        cMyTrace tt3("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
                    " TAG_CHARAC_INVEN_DATA*)", 0x23f1, 5);
-        t("DB_LoadInventory::GetUserInven, get_compressed_blob_data ERROR"
+        tt3("DB_LoadInventory::GetUserInven, get_compressed_blob_data ERROR"
           " charac_no=%u", characNo);
         return 0;
     }
@@ -1175,14 +1177,18 @@ unsigned int DB_LoadInventory::GetItemLock(unsigned int characNo,
                                            stItemLockInfo* out)
 {
     static const int handleIdx = 3;
-    char buf[0x3cc];
-    memset(buf, 0, sizeof(buf));
-    unsigned int outLen = 0x3cc;
+    // ORIG 槽距：buf@-0x414、outLen 紧接其后 -0x48（4.1 声明序连排）；4.4 小变量
+    // 另置浅槽 → 用同结构体保证相邻。ok=-0x11（exec/fetch 保存读回位）。
+    struct Local { char buf[0x3cc]; unsigned int outLen; } local;
+    bool ok;
+    memset(local.buf, 0, 0x3cc);
+    local.outLen = 0x3cc;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect item_lock_info  from charac_item_lock_info"
                   " where charac_no=%u", characNo);
-    if (!db->exec(true))
+    ok = db->exec(true);
+    if (!ok)
     {
         cMyTrace t("static unsigned int DB_LoadInventory::GetItemLock(unsigned int,"
                    " stItemLockInfo*)", 0x2919, 5);
@@ -1193,7 +1199,8 @@ unsigned int DB_LoadInventory::GetItemLock(unsigned int characNo,
     {
         return 0;
     }
-    if (!db->fetch())
+    ok = db->fetch();
+    if (!ok)
     {
         cMyTrace t("static unsigned int DB_LoadInventory::GetItemLock(unsigned int,"
                    " stItemLockInfo*)", 0x2923, 5);
@@ -1201,7 +1208,9 @@ unsigned int DB_LoadInventory::GetItemLock(unsigned int characNo,
         return 0x2924;
     }
     unsigned int binLen = db->get_binary_length(0);
-    if (!db->get_binary(0, buf, 0x3cc))
+    // ORIG 第三实参 `mov -0x48,%eax` = outLen 变量（非字面量）。
+    ok = db->get_binary(0, local.buf, local.outLen);
+    if (!ok)
     {
         cMyTrace t("static unsigned int DB_LoadInventory::GetItemLock(unsigned int,"
                    " stItemLockInfo*)", 0x292a, 5);
@@ -1209,11 +1218,12 @@ unsigned int DB_LoadInventory::GetItemLock(unsigned int characNo,
           characNo);
         return 0x292b;
     }
-    if (!uncompress_zip(reinterpret_cast<char*>(out), outLen, buf, binLen))
+    if (!uncompress_zip(reinterpret_cast<char*>(out), local.outLen, local.buf,
+                        binLen))
     {
         return 0x292f;
     }
-    if ((outLen & 7) != 0 && outLen != 0)
+    if ((local.outLen & 7) != 0 && local.outLen != 0)
     {
         return 0x2931;
     }

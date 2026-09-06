@@ -29,7 +29,7 @@
 #include "MonsterIndependentDrop.h"        // CAICharacter 完整镜像（destroy 需 delete）
 
 // CParty +0xb24 内嵌 CBattle_Field 子对象局部视图（CParty.h 以
-// m_padBattleField1[0x158] 等 pad 占位、未引入 CBattle_Field 类型；
+// m_battleField[0x158] 等 pad 占位、未引入 CBattle_Field 类型；
 // 与 QuickParty.cpp/CParty.cpp 口径一致）。布局：pad 0xb24 + BF 0xcd0。
 struct CPartyBattleFieldView
 {
@@ -683,7 +683,7 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
 
     _onClear(isLast);
 
-    int partyState = m_party->m_partyType;
+    int partyState = m_party->m_battleField.m_bloodState;
     if (partyState == 1)
     {
         setTowerState((ENUM_TOWER_STATE)5);
@@ -1245,7 +1245,7 @@ void CDeathTower::_onStartDeathTower()
         CDungeon* dungeon = m_dungeonMgr.getDungeon();
         const char* dungeonName = dungeon->GetDungeonName();
         // CUser +0x79700：cUserHistoryLog（public 成员 m_historyLog）
-        // ORIG：EnterDungeon(dungeonName, 0, memberNames, m_party->m_partyType)
+        // ORIG：EnterDungeon(dungeonName, 0, memberNames, m_party->m_battleField.m_bloodState)
         user->m_historyLog.EnterDungeon(dungeonName, 0, memberNames,
                                         m_party->get_party_type());
 
@@ -1765,7 +1765,7 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
             m_playData.setMemberAlive(i, true);
             // ORIG 0x8463c5f：0xcd8 具名字段直读（无 call）；块序（范式17）：
             // !=1 的 Increment(…,false) 为 fall-through@8463c6a，==1 块殿后@8463c88。
-            if (m_party->m_partyType != 1)
+            if (m_party->m_battleField.m_bloodState != 1)
             {
                 GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(
                     dungeonIdx, false);
@@ -1788,7 +1788,7 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
         packet.put_header(0, 0x8e);
         packet.put_int(dungeonIdx);
         packet.put_short(m_dungeonMgr.getEndStage());
-        packet.put_byte(m_party->m_partyType);    // ORIG 0x8463d69：0xcd8 直读
+        packet.put_byte(m_party->m_battleField.m_bloodState);    // ORIG 0x8463d69：0xcd8 直读
         // 块序（范式17）：非 NULL→get_random_buff_type 为 fall-through@8463d87，
         // NULL→put 0xb 岛殿后@8463da5。
         if (m_party != NULL)
@@ -2540,7 +2540,7 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
     for (std::list<_mapItem>::const_iterator it = items.begin();
          it != items.end(); ++it)
     {
-        // ORIG 0x8461371：tower->m_party->m_partyType==1（单人）→ 跳过本图
+        // ORIG 0x8461371：tower->m_party->m_battleField.m_bloodState==1（单人）→ 跳过本图
         // 特殊被动物品生成（tower 参数即外层死亡塔实例）
         if (tower->m_party->get_party_type() == 1)
         {

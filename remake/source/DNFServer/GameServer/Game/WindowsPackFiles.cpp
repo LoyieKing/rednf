@@ -22,6 +22,13 @@ extern "C" void* memset(void*, int, std::size_t);
 // LoadClientFile —— _Z14LoadClientFilePmPPvPKc T @0x08572f3a（0xf2）
 // fopen("rb") → fseek END 取长 → new → fread(1) 成功即 1。
 // ---------------------------------------------------------------------------
+// [N 类标注] 0x08572f3a：66/65（差 1），P167 调用点 9/9 双向差集 0 ⇒ 纯指令形差：
+//  ① ORIG fread 返回值为 `cmp $0x1,%eax; setne %al; test %al,%al; je`（比较结果
+//     经 setne 物化后再分支，且结果不落槽），我方按具名 n 变量存槽后 `cmpl;je`
+//     （范式库 setcc-fold 负例的镜像变体：4.4 恒把该形折回存槽+整数比较）；
+//  ② ORIG new[] 返回值以 %edx 直载跨两句使用（无缓存槽），4.4 走 -0x10 槽存取；
+//  ③ fopen==0 的失败出口 ORIG 为 `je 远端 +0xeb` 单跳，4.4 生成 `jne 跳过 +
+//     mov $0 + jmp` 三句岛。三者皆编译器版本 RA/分支物化策略，源码侧不可控。
 bool LoadClientFile(unsigned long* outSize, void** outBuf, const char* path)
 {
     FILE* fp = fopen(path, "rb");
@@ -56,13 +63,21 @@ static int CompareWindowsExeConstantSectionsForSort(const void* lhs, const void*
         static_cast<WindowsExeConstantSection* const*>(lhs);
     WindowsExeConstantSection* const* b =
         static_cast<WindowsExeConstantSection* const*>(rhs);
-    unsigned long sa = (*a)->start;
-    unsigned long sb = (*b)->start;
-    if (sa < sb)
+    // ORIG 0x08572eef 逐条：两次比较**各自重读** `(*p)->start`（+0x12..+0x20 与
+    // +0x2b..+0x39 两组各 6 insns 的 mov/mov/mov/cmp），⇒ 无 sa/sb 缓存量；
+    // 尾部 `cmp; jne +0x44; mov $0; jmp; +0x44: mov $1` 即三目常量岛形。
+    if ((*a)->start < (*b)->start)
     {
         return -1;
     }
-    return (sa == sb) ? 0 : 1;
+    // 三目形被 4.4 折成 `setne+movzbl`（−3 insns，范式库 setcc-fold 负例的
+    // 比较结果变体）；改回显式 if + 常量返回即复现 ORIG `jne L; mov $0; jmp;
+    // L: mov $1` 双常量岛。
+    if ((*a)->start == (*b)->start)
+    {
+        return 0;
+    }
+    return 1;
 }
 
 // ===========================================================================

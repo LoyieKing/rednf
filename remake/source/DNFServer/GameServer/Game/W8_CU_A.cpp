@@ -246,9 +246,9 @@ int CUser::GetItemSerialChecker(unsigned short serialIdx, unsigned short serialV
     bool hit = false;
     CParty* p = static_cast<CParty*>(GetParty());
     if (p != NULL && p->isMonsterDrop_item(monsterIdx)) {
-        // 战场子对象视图（CParty+0xb24，占位期经 m_padBattleField1 访问）
+        // 战场子对象视图（CParty+0xb24，占位期经 m_battleField 访问）
         CBattle_Field& bf =
-            *reinterpret_cast<CBattle_Field*>(p->m_padBattleField1);
+            *&p->m_battleField;
         hit = (bf.m_visitedGotoFlag == 0) || (bf.m_hellMapIdx != bf.get_cur_map());
     }
     if (hit) {

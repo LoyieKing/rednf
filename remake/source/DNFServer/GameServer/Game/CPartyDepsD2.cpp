@@ -95,7 +95,7 @@ namespace
 // 会先 spill this 再 reload，比 ORIG 直接偏移算术更差（实测 0x826 -> 0x95c）。
 // 宏文本替换为 &p->m_memberOffset，直接产生 ORIG 的偏移寻址（check_allmember_loading 报告）。
 #define bd(p)         ((p)->m_battleData)   // ORIG DWARF CParty+0x32c 具名化
-#define bf(p)         (*reinterpret_cast<CBattle_Field*>(&(p)->m_padBattleField1))
+#define bf(p)         (*reinterpret_cast<CBattle_Field*>(&(p)->m_battleField))
 #define traceHack(p)  (*reinterpret_cast<CTraceMobDieHack*>(&(p)->m_pad210))
 #define memberUser(p,i) ((p)->m_member[(i)].m_pUser)
 
@@ -191,7 +191,7 @@ int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& f
         const signed char ticketCount =
             *reinterpret_cast<const signed char*>(
                 reinterpret_cast<const char*>(characR) + 0xeb8 + dimPossible);
-        if (ticketCount < 1 && m_partyType != 1 &&
+        if (ticketCount < 1 && m_battleField.m_bloodState != 1 &&
             !memberUser(this, i)->isGMUser())
         {
             flag = (unsigned char)i;
@@ -204,7 +204,7 @@ int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& f
 // ---------------------------------------------------------------------------
 // CheckEnterDimensionDungeon(CDungeon const*, unsigned char&, char) —— T 0x0859f36a
 // 报告：docs/class_func_reports/CParty/CheckEnterDimensionDungeon_0859f36a.md
-// 以 (m_partyType, mode, -1) 构造 DimensionPartyCount（ctor W 0x085beabe）询问
+// 以 (m_battleField.m_bloodState, mode, -1) 构造 DimensionPartyCount（ctor W 0x085beabe）询问
 // 可容纳入场；可容纳时要求队伍人数 > 计数字节，否则置 false 转发 bool 重载。
 // ---------------------------------------------------------------------------
 int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& flag,
@@ -212,9 +212,9 @@ int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& f
 {
     bool allowed = true;                                 // movb $1,-0xd
 
-    // ORIG 以 3 参构造 DimensionPartyCount((char)m_partyType, mode, -1)
+    // ORIG 以 3 参构造 DimensionPartyCount((char)m_battleField.m_bloodState, mode, -1)
     // （ctor W 0x085beabe），非默认构造+赋值
-    DimensionPartyCount count((char)m_partyType, mode, (char)-1);
+    DimensionPartyCount count((char)m_battleField.m_bloodState, mode, (char)-1);
 
     if (dungeon->get_dimension_member_count(count))      // T 0x0834d220
     {   // (signed char)count.m_2 <= memberCount → 不可入场
@@ -240,9 +240,9 @@ void CParty::CheckHackAverageHitCount()
 
     // 血之副本 / 维度副本 / 样本<=1 → 返回（asm +0x67..+0x83 组合条件）
     bool skip;
-    if (m_dungeon == 0)
+    if (m_battleField.m_pDungeon == 0)
         skip = false;
-    else if (m_dungeon->m_89c == 0 && m_dungeon->get_dimension_possible() < 1)
+    else if (m_battleField.m_pDungeon->m_89c == 0 && m_battleField.m_pDungeon->get_dimension_possible() < 1)
         skip = false;
     else
         skip = true;
@@ -507,9 +507,9 @@ void CParty::changeBattleDataOnMoveMap(bool firstVisit)
 bool CParty::canFatigueUp(unsigned char flag)
 {
     (void)flag;
-    if (m_partyType == 1)
+    if (m_battleField.m_bloodState == 1)
         return false;
-    if (m_dungeon == 0)
+    if (m_battleField.m_pDungeon == 0)
         return false;
     // [X2 形实测不适用] 0x085a8c88 O@19-34 为 `movzbl 0x89f; test; jne` /
     // `movzbl 0x87a; xor$1; test; je` / `call; xor$1; test; je`：具名化后
@@ -517,15 +517,15 @@ bool CParty::canFatigueUp(unsigned char flag)
     // register-asm ^=1 反加 movzbl（6→13 实测回退）。
     // [X2·callee/字段 xor-化] ORIG 0x085a8c88 O@24-34：`movzbl 0x87a;
     // xor$1,%eax; test; je` + `call; xor$1,%eax; test; je`。
-    if (m_dungeon->m_bloodDungeonType == 0)
+    if (m_battleField.m_pDungeon->m_bloodDungeonType == 0)
     {
         register unsigned char village asm("eax") =
-            m_dungeon->m_villageAttackEventFlag;
+            m_battleField.m_pDungeon->m_villageAttackEventFlag;
         village ^= 1;
         if (village)
         {
             register unsigned char nofat asm("eax") =
-                (unsigned char)m_dungeon->isNoFatigueDungeon();
+                (unsigned char)m_battleField.m_pDungeon->isNoFatigueDungeon();
             nofat ^= 1;
             if (nofat)
             {
@@ -580,7 +580,7 @@ void CParty::changePartyMemberInfoOnMoveMap(MSG_MOVE_MAP& info, bool firstVisit)
     // [X2/技巧22] ORIG 0x085a8e3c O@8-21：正向 `test;je` + callee 结果
     // mov$1/mov$0 立即数物化岛（%eax 直存，无槽 spill）。
     register bool eachMap asm("al") =
-        m_dungeon != 0 ? m_dungeon->IsEnterEachMap() : false;  // T 0x08365278
+        m_battleField.m_pDungeon != 0 ? m_battleField.m_pDungeon->IsEnterEachMap() : false;  // T 0x08365278
 
     if (eachMap)
     {
@@ -637,7 +637,7 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
             continue;
 
         // 逐张进入型副本只统计座位匹配成员
-        if (m_dungeon != 0 && m_dungeon->IsEnterEachMap() &&
+        if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->IsEnterEachMap() &&
             (int)info.m_39 != i)
             continue;
 
@@ -673,8 +673,8 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
 
         // 维度刷图频率检测前置条件（asm +0x3be..+0x40f 组合）
         bool dimTrack = false;
-        if (m_dungeon != 0 && m_dungeon->m_89c != 1 &&
-            m_dungeon->get_dimension_possible() == 0 &&
+        if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->m_89c != 1 &&
+            m_battleField.m_pDungeon->get_dimension_possible() == 0 &&
             prevAux != 0 && m_field1aa0 != 1)
         {
             dimTrack = true;
@@ -970,7 +970,7 @@ int CParty::check_dungeon_start(CDungeon const* dungeon, int& param)
             const signed char ticket =
                 *reinterpret_cast<const signed char*>(
                     reinterpret_cast<const char*>(characR) + 0xec2);
-            if (ticket < 1 && m_partyType != 1)
+            if (ticket < 1 && m_battleField.m_bloodState != 1)
             {
                 param = i;
                 return 0xf5;
@@ -1009,8 +1009,8 @@ bool CParty::getDungeonDropTestFlag()
 // 插入 TIMER_MESSAGE 0xe 定时器：+0xc4c（BF+0x128 槽）short 非 0 → 3 秒，
 // 否则 10 秒。ORIG 直读 this+0xc4c（无 bf() 调用）。
 // ---------------------------------------------------------------------------
-// [具名化进度] 剩 22：0xc4c = m_padBattleField1+0x128 侧，待 MonC9
-// m_padBattleField1→CBattle_Field rename 后复验（bd 侧已随 m_battleData 折叠）。
+// [具名化进度] 剩 22：0xc4c = m_battleField+0x128 侧，待 MonC9
+// m_battleField→CBattle_Field rename 后复验（bd 侧已随 m_battleData 折叠）。
 void CParty::send_dungeon_fail_msg()
 {
     int seconds = 10;
@@ -1066,7 +1066,7 @@ bool CParty::setStandardDimensionLevel(CDungeon const* dungeon)
         }
     }
     (void)nonGM;
-    m_standardDimensionLevel = levelSum / validCount;    // cdq/idivl
+    m_battleField.m_standardDimensionLevel = levelSum / validCount;    // cdq/idivl
     return true;
 }
 
@@ -1443,7 +1443,7 @@ int CParty::OnTimeoutBossDie(int monsterId, unsigned int characNo)
     CUser* user = GetMemberSlotNo(characNo);
     if (user == 0)
         return 0;
-    if (m_dungeon != 0 && m_dungeon->IsEnterEachMap())
+    if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->IsEnterEachMap())
         bf(this).SetCurSeatNo(get_party_seatno(user));
     std::vector<int> mobIds;
     MapInfo* mapInfo = bf(this).GetCurrentMapInfo();
@@ -1467,7 +1467,7 @@ int CParty::OnTimeoutBossDie(int monsterId, unsigned int characNo)
             cMyTrace trace(__PRETTY_FUNCTION__,
                            0x22ce, 0);
             trace("KILLBOSS2 server - monster id(%d) failed", mobIds[i]);
-            if (m_partyType == 1)
+            if (m_battleField.m_bloodState == 1)
             {
                 SetEPLPState(2);
                 unsigned int key = (unsigned int)gen_timer_key((TIMER_MESSAGE)0x15);
@@ -1479,18 +1479,18 @@ int CParty::OnTimeoutBossDie(int monsterId, unsigned int characNo)
                 packet.finalize(true);
                 send_to_party(packet);
             }
-            else if (m_dungeon != 0 && m_dungeon->m_bloodDungeonType < 1)
+            else if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->m_bloodDungeonType < 1)
             {
                 PacketGuard packet;
                 packet.put_header(0, 0x1f);
                 packet.finalize(true);
                 send_to_party(packet);
             }
-            else if (m_dungeon != 0)
+            else if (m_battleField.m_pDungeon != 0)
             {
                 bf(this).m_bloodReward.onFinishBloodRound(
                     true, (short)bf(this).m_bloodRound.getBloodRoundOrder(),
-                    this, m_dungeon);
+                    this, m_battleField.m_pDungeon);
                 unsigned int key = (unsigned int)gen_timer_key((TIMER_MESSAGE)0x22);
                 G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_partyIndex,
                                             (TIMER_MESSAGE)0x22, 5, (int)key, 0x22);
@@ -1571,7 +1571,7 @@ void CParty::cal_hellparty_value(int dungeonDiff, int rateLevelDiff, int memberC
     //   +0xb0c = bd.m_hellPartyValueTotal
     CBattle_Field& field = bf(this);
     float baseValue = field.m_hellPartyScriptRate;
-    if (m_dungeon->m_89c != 1)
+    if (m_battleField.m_pDungeon->m_89c != 1)
         baseValue = 0.0f;
     // ORIG 乘序（cal_hellparty_value.md +0x0a0..+0x0b3）：ratio3(fildl) 先乘
     // dungeonRate（fmuls -0x18），再乘 (mapRate+1+base+itemRate) 和，最后 +old。
@@ -1592,9 +1592,9 @@ void CParty::cal_hellparty_value(int dungeonDiff, int rateLevelDiff, int memberC
 // ---------------------------------------------------------------------------
 int CParty::get_rate_level_difference()
 {
-    if (m_dungeon == 0)
+    if (m_battleField.m_pDungeon == 0)
         return 0;
-    int diff = m_dungeon->get_standard_level() - getMemberMaxLevel();
+    int diff = m_battleField.m_pDungeon->get_standard_level() - getMemberMaxLevel();
     if (diff < 0)
         diff = -diff;
     if (diff < 0xb)
@@ -1704,7 +1704,7 @@ void CParty::ClearDungeon()
 {
     if (m_tournamentVictory != 0)
         return;
-    if (m_partyType != 1)
+    if (m_battleField.m_bloodState != 1)
     {
         unsigned int now = GlobalData::s_systemTime_.getCurTickCount();
         unsigned long long enterTick =
@@ -1715,21 +1715,21 @@ void CParty::ClearDungeon()
         bd(this).m_field0 = (unsigned int)elapsed;
         bd(this).m_field4 = (unsigned int)(elapsed >> 32);
         int memberCount = get_member_count();
-        if (m_dungeon != 0)
+        if (m_battleField.m_pDungeon != 0)
         {
             for (int slot = 0; slot < 4; ++slot)
             {
                 if (!_checkValidUser(slot))
                     continue;
                 CUser* user = m_member[slot].m_pUser;
-                if (m_dungeon->m_villageAttackEventFlag == 0)
+                if (m_battleField.m_pDungeon->m_villageAttackEventFlag == 0)
                 {
-                    if (m_dungeon->get_index() == 100)
+                    if (m_battleField.m_pDungeon->get_index() == 100)
                         APSystem::CUserProc::ClearActionAndSendtoUser(
                             user, (APSystem::_ActionGroupIndex)0x19, 0, (ENUM_PACKETCLASS)0);
-                    else if (m_dungeon->m_89c == 0)
+                    else if (m_battleField.m_pDungeon->m_89c == 0)
                     {
-                        if (m_dungeon->get_dimension_possible() > 0)
+                        if (m_battleField.m_pDungeon->get_dimension_possible() > 0)
                             APSystem::CUserProc::ClearActionAndSendtoUser(
                             user, (APSystem::_ActionGroupIndex)0x1c, 0, (ENUM_PACKETCLASS)0);
                     }
@@ -1746,11 +1746,11 @@ void CParty::ClearDungeon()
             }
         }
         PacketGuard packet;
-        if (m_dungeon->m_bloodDungeonType < 1)
+        if (m_battleField.m_pDungeon->m_bloodDungeonType < 1)
         {
-            if (!m_dungeon->isTowerOfDespairDungeon())
+            if (!m_battleField.m_pDungeon->isTowerOfDespairDungeon())
             {
-                if (!m_dungeon->isTournamentDungeon())
+                if (!m_battleField.m_pDungeon->isTournamentDungeon())
                 {
                     packet.put_header(0, 0x1f);
                     packet.finalize(true);
@@ -1874,7 +1874,7 @@ void CParty::ClearDungeon()
         else
         {
             bf(this).m_bloodReward.onFinishBloodRound(
-                true, (short)bf(this).m_bloodRound.getBloodRoundOrder(), this, m_dungeon);
+                true, (short)bf(this).m_bloodRound.getBloodRoundOrder(), this, m_battleField.m_pDungeon);
             unsigned int key = (unsigned int)gen_timer_key((TIMER_MESSAGE)0x22);
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_partyIndex,
                                         (TIMER_MESSAGE)0x22, 5, (int)key, 0x22);
@@ -1896,16 +1896,16 @@ void CParty::ClearDungeon()
                        (unsigned int)bd(this).m_field0) /
                       1000),
                 0);
-            if (m_dungeon->m_bloodDungeonType == 0 &&
-                !m_dungeon->isTowerOfDespairDungeon() &&
-                !m_dungeon->isTournamentDungeon())
+            if (m_battleField.m_pDungeon->m_bloodDungeonType == 0 &&
+                !m_battleField.m_pDungeon->isTowerOfDespairDungeon() &&
+                !m_battleField.m_pDungeon->isTournamentDungeon())
                 user->Send(packet);
             secretshop::SECRET_SHOP_DATA* shopData =
                 reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop);
             if (shopData->IsOpen() != 0)
             {
-                int level = m_dungeon->get_standard_level();
-                int dungeonIdx = m_dungeon->get_index();
+                int level = m_battleField.m_pDungeon->get_standard_level();
+                int dungeonIdx = m_battleField.m_pDungeon->get_index();
                 // +0x2a8+slot*0x1c = SECRET_SHOP_DATA.m_info[slot].m_retailer.m_sales
                 //（+0x2a4 SECRET_SHOP_DATA；m_info +0x04，SECRET_SHOP_INFO 0x1c）。
                 std::vector<secretshop::SALE_INFO>& shopItems =
@@ -1937,7 +1937,7 @@ void CParty::ClearDungeon()
             cal_hellparty_value(bf(this).get_dungeon_diff(),
                                 get_rate_level_difference(), memberCount - 1);
         }
-        m_dungeonClearTracer.Trace("void CParty::ClearDungeon()");
+        m_battleField.m_dungeonClearTracer.Trace("void CParty::ClearDungeon()");
         m_tournamentVictory = 1;
         QuickParty::RewardData_Param rewardParam(this);
         QuickParty::RewardData_Result rewardResult;
@@ -1960,7 +1960,7 @@ void CParty::ClearDungeon()
     packet.put_header(0, 0xfe);
     packet.finalize(true);
     send_to_party(packet);
-    m_dungeonClearTracer.Trace("void CParty::ClearDungeon()");
+    m_battleField.m_dungeonClearTracer.Trace("void CParty::ClearDungeon()");
     m_tournamentVictory = 1;
 }
 

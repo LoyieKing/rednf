@@ -371,8 +371,7 @@ void CInGameAdvertisementManager::WriteLog(CUser* user, char type, short val,
         party = static_cast<CParty*>(user->GetParty());
         if (party != 0)
         {
-            dungeon = reinterpret_cast<CBattle_Field*>(
-                          reinterpret_cast<char*>(party) + 0xb24)->GetDungeon();
+            dungeon = party->m_battleField.GetDungeon();
             if (dungeon != 0)
             {
                 dungeonIdx = dungeon->get_index();

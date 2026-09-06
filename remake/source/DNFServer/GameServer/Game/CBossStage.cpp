@@ -15,7 +15,7 @@
 #include "CMap.h"                   // CMap/_mapMonster/_mapItem 完整类型
 #include "CItemGenerator.h"         // WongWork::stGenerateRefData_t/stGenerateResult_t
 #include "CGenUniqueNo.h"           // WongWork::CGenUniqueNo::genIPGNo
-#include "CParty.h"                 // get_user/checkValidUser/getManager/m_partyType
+#include "CParty.h"                 // get_user/checkValidUser/getManager/m_battleField.m_bloodState
 #include "PacketGuard.h"
 #include "InterfacePacketBuf.h"
 #include "CDataManager.h"           // find_map/find_item/G_CDataManager
@@ -335,7 +335,7 @@ int CBossStage::handleKillMonster(CUser* user, unsigned short a,
         return 0;
 
     CParty* party = getParty();
-    if (party->get_party_type() == 1)   // CParty::m_partyType（PowerWar）
+    if (party->get_party_type() == 1)   // CParty::m_battleField.m_bloodState（PowerWar）
     {
         PacketGuard packet;
         packet.put_header(0, 0x26);
@@ -459,7 +459,7 @@ int CBossStage::KillMonsterGetExp(const map_monster& mob, unsigned int& exp)
         CUser* user = party->get_user(i);
         if (user == 0 || !party->checkValidUser(i))
             continue;
-        if (party->get_party_type() == 1)   // m_partyType==1（PowerWar）
+        if (party->get_party_type() == 1)   // m_battleField.m_bloodState==1（PowerWar）
             continue;
 
         G_CDataManager()->get_mob_reward(user->get_charac_level(), exp);

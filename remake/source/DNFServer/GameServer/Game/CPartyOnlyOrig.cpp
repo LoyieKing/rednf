@@ -788,7 +788,7 @@ int CParty::CheckEnterAncientDungeon(CDungeon const* dungeon)
     {
         return 1;
     }
-    if (m_partyType == 1)
+    if (m_battleField.m_bloodState == 1)
     {
         return 1;
     }
@@ -824,7 +824,7 @@ int CParty::checkLimitUsedCoinCondition(CDungeon const* dungeon)
 {
     if (dungeon == 0)
     {
-        int dungeonIdx = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+        int dungeonIdx = reinterpret_cast<CBattle_Field*>(&m_battleField)
                              ->get_dungeon_index();
         dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
         if (dungeon == 0)
@@ -840,7 +840,7 @@ int CParty::checkLimitUsedCoinCondition(CDungeon const* dungeon)
 
     int limitCoin = 0;
     if (dungeon->getLimitCoinDiff(
-            reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+            reinterpret_cast<CBattle_Field*>(&m_battleField)
                 ->get_dungeon_diff(),
             limitCoin) &&
         limitCoin != -1 && GetUsedCoinCount() >= limitCoin)
@@ -864,7 +864,7 @@ bool CParty::checkUnLimitUsedCoinCondition(CDungeon const* dungeon)
 {
     if (dungeon == 0)
     {
-        int dungeonIdx = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+        int dungeonIdx = reinterpret_cast<CBattle_Field*>(&m_battleField)
                              ->get_dungeon_index();
         dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
         if (dungeon == 0)
@@ -891,8 +891,8 @@ bool CParty::checkUnLimitUsedCoinCondition(CDungeon const* dungeon)
 // 未清完全部 hell 组时，对照已用硬币数判断是否越过本副本 hell 限额。
 int CParty::CheckHellCoinLimint(int param)
 {
-    if (CBattle_Field::IsEnableHellDungeon() && m_fieldCD4 == 1 &&
-        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+    if (CBattle_Field::IsEnableHellDungeon() && m_battleField.m_hellPartyMode == 1 &&
+        reinterpret_cast<CBattle_Field*>(&m_battleField)
                 ->IsKilledAllHellGruoups() != 1 &&
         GetUsedCoinCount() >= param)
     {
@@ -966,9 +966,9 @@ int CParty::CheckMemberLastTryAssaultTime()
 // 各维度 inout 槽 (dm 上限, 成员现值) 同加 delta 并截断到 dm 上限。
 void CParty::increase_dimension_inout_count(int param)
 {
-    if (m_dungeon != 0)
+    if (m_battleField.m_pDungeon != 0)
     {
-        if (m_dungeon->get_dimension_possible() == 0)
+        if (m_battleField.m_pDungeon->get_dimension_possible() == 0)
         {
             return;
         }
@@ -1047,12 +1047,12 @@ int CParty::GetExpPenaltyPercent(int a, int b) const
 // ORIG T 0x085a2246（RestartDungeon.md）：复位战场后以原 idx/diff 重开局。
 void CParty::RestartDungeon()
 {
-    int dungeonIdx = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+    int dungeonIdx = reinterpret_cast<CBattle_Field*>(&m_battleField)
                          ->get_dungeon_index();
     // ORIG：mov %eax,-0xc（int 槽），dungeon_start 前 movsbl %al 扩符号。
-    int diff = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+    int diff = reinterpret_cast<CBattle_Field*>(&m_battleField)
                    ->get_dungeon_diff();
-    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->reset_field();
+    reinterpret_cast<CBattle_Field*>(&m_battleField)->reset_field();
     dungeon_start(dungeonIdx, (char)diff, static_cast<ENUM_DUNGEON_TYPE>(0));
 }
 
@@ -1060,7 +1060,7 @@ void CParty::RestartDungeon()
 bool CParty::isMonsterDrop_item(int monsterIdx)
 {
     map_item item;
-    bool found = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+    bool found = reinterpret_cast<CBattle_Field*>(&m_battleField)
                      ->get_field_item(monsterIdx, item);
     if (!found || item.m_count == 0)
     {
@@ -1073,7 +1073,7 @@ bool CParty::isMonsterDrop_item(int monsterIdx)
 void CParty::kill_blood_monster(CUser* user, int monsterIdx,
                                 unsigned short* param)
 {
-    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+    reinterpret_cast<CBattle_Field*>(&m_battleField)
         ->kill_blood_monster(user, monsterIdx, param);
 }
 
@@ -1082,10 +1082,10 @@ void CParty::kill_blood_monster(CUser* user, int monsterIdx,
 unsigned char CParty::DestroyPassiveObject(int param)
 {
     unsigned char destroyed = static_cast<unsigned char>(
-        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+        reinterpret_cast<CBattle_Field*>(&m_battleField)
             ->DestroyPassiveObject(param));
     if (destroyed &&
-        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+        reinterpret_cast<CBattle_Field*>(&m_battleField)
             ->ClearCondition(static_cast<ENUM_DUNGEON_CLEAR_CONDITION_TYPE>(0),
                              param))
     {
@@ -1097,7 +1097,7 @@ unsigned char CParty::DestroyPassiveObject(int param)
 // ORIG T 0x085b9f28（SetRidableObjectState.md）：坐骑状态转发战场层（返回值穿透）。
 bool CParty::SetRidableObjectState(int state, eRidableObjectState type)
 {
-    return reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+    return reinterpret_cast<CBattle_Field*>(&m_battleField)
         ->SetRidableObjectState(state, type);
 }
 
@@ -1156,29 +1156,29 @@ int CParty::_Send_TOD_ClearReward()
     // P48/P157：size()/operator[] 每使用点独立求值（ORIG 循环条件每轮
     // reload this + call size，无缓存）。
     for (unsigned int i = 0;
-         i < reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+         i < reinterpret_cast<CBattle_Field*>(&m_battleField)
                  ->m_todReward.m_todMap.size();
          ++i)
     {
         packet.put_int(
-            reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+            reinterpret_cast<CBattle_Field*>(&m_battleField)
                 ->m_todReward.m_todMap[i].first);
         packet.put_int(
-            reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+            reinterpret_cast<CBattle_Field*>(&m_battleField)
                 ->m_todReward.m_todMap[i].second);
     }
     for (unsigned int i = 0;
          i < 9U -
-            reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+            reinterpret_cast<CBattle_Field*>(&m_battleField)
                 ->m_todReward.m_todMap.size();
          ++i)
     {
         packet.put_int(-1);
         packet.put_int(0);
     }
-    packet.put_int(reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+    packet.put_int(reinterpret_cast<CBattle_Field*>(&m_battleField)
                        ->m_todReward.m_todPos.first);
-    packet.put_int(reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+    packet.put_int(reinterpret_cast<CBattle_Field*>(&m_battleField)
                        ->m_todReward.m_todPos.second);
     packet.finalize(true);
     send_to_party(packet);

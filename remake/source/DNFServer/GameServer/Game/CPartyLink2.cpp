@@ -57,7 +57,7 @@ namespace
 // 子对象视图（与 CParty.cpp / CPartyDepsD2.cpp 同惯例）
 inline CBattle_Field& bf(CParty* p)
 {
-    return *reinterpret_cast<CBattle_Field*>(&p->m_padBattleField1);
+    return p->m_battleField;
 }
 inline BattleData& bd(CParty* p)
 {
@@ -192,7 +192,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     int memberCount = get_member_count();
 
     // ORIG：地图怪物分区进入时记录当前击杀者席位到 BF。
-    if (m_dungeon != 0 && m_dungeon->IsEnterEachMap())
+    if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->IsEnterEachMap())
         field.SetCurSeatNo(get_party_seatno(user));
 
     int avgMoneyPercent = 0;
@@ -321,15 +321,15 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
 
     // ---- 副本清图追踪 ----
     if (roleType == 3)
-        m_dungeonClearTracer.IncrementKilledBossCount();
-    m_dungeonClearTracer.IncrementKilledMonsterCount();
+        m_battleField.m_dungeonClearTracer.IncrementKilledBossCount();
+    m_battleField.m_dungeonClearTracer.IncrementKilledMonsterCount();
 
     // ---- 任务怪物登记（存活成员；live 标志 1；非 PvP 房） ----
     for (int i = 0; i < 4; ++i)
     {
         if (!_checkValidUser(i))
             continue;
-        if (m_battleData.m_arr54[i] != 1 || m_partyType == 1)
+        if (m_battleData.m_arr54[i] != 1 || m_battleField.m_bloodState == 1)
             continue;
         int questEnemyType = 1;
         if (mob.m_roleType > 4 && mob.m_roleType <= 8)
@@ -360,7 +360,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         GlobalData::s_event_manager->GetRepeatEvent(0x18),
         memberCount, isHelpAbuseParty());
 
-    float expWeight = (m_dungeon != 0) ? m_dungeon->get_exp_weight() : 1.0f;
+    float expWeight = (m_battleField.m_pDungeon != 0) ? m_battleField.m_pDungeon->get_exp_weight() : 1.0f;
 
     unsigned int totalExp = getMonsterTotalExp(
         reward, roleType, field.get_dungeon_diff(), expWeight, expRate,
@@ -392,13 +392,13 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     // ---- 逐成员经验分配（die[0xa22]==0 时执行） ----
     for (int i = 0; i < 4 && dieInfo.m_fieldA22 == 0; ++i)
     {
-        if (!_checkValidUser(i) || m_partyType == 1)
+        if (!_checkValidUser(i) || m_battleField.m_bloodState == 1)
             continue;
         CUser* member = m_member[i].m_pUser;
 
         // 未进入地图且非维度绕行 → 0 经验包
-        if (m_battleData.m_arr58[i] != 1 && m_dungeon != 0 &&
-            m_dungeon->m_bloodDungeonType == 0)   // +0x89f
+        if (m_battleData.m_arr58[i] != 1 && m_battleField.m_pDungeon != 0 &&
+            m_battleField.m_pDungeon->m_bloodDungeonType == 0)   // +0x89f
         {
             member->SendZeroExpPacket();
             continue;
@@ -406,18 +406,18 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
 
         unsigned int exp = 0;
         // 维度未启用进入限制的完整单人份额计算
-        if (m_dungeon != 0 &&
-            (m_dungeon->m_89e == 0 &&                     // +0x89e
+        if (m_battleField.m_pDungeon != 0 &&
+            (m_battleField.m_pDungeon->m_89e == 0 &&                     // +0x89e
              *(unsigned short*)((char*)this + 0xc4c) == 0))
         {
-            if (m_dungeon->get_index() == 100)
+            if (m_battleField.m_pDungeon->get_index() == 100)
             {
                 unsigned int mobReward = 0;
                 G_CDataManager()->get_mob_reward(member->get_charac_level(), mobReward);
                 unsigned int total = getMonsterTotalExp(
                     mobReward, roleType,
-                    *reinterpret_cast<int*>(&this->m_fieldCC4),   // +0xcc4（char 首字节起 4 字节块）
-                    m_dungeon->get_exp_weight(), expRate, false);
+                    *reinterpret_cast<int*>(&this->m_battleField.m_dungeonDiff),   // +0xcc4（char 首字节起 4 字节块）
+                    m_battleField.m_pDungeon->get_exp_weight(), expRate, false);
                 exp = total / (unsigned int)memberCount;
             }
             else
@@ -436,7 +436,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             G_CDataManager()->get_mob_reward(member->get_charac_level(), mobReward);
             unsigned int total = getMonsterTotalExp(
                 mobReward, roleType, field.get_dungeon_diff(),
-                m_dungeon->get_exp_weight(), expRate, false);
+                m_battleField.m_pDungeon->get_exp_weight(), expRate, false);
             exp = total / (unsigned int)memberCount;
         }
 
@@ -455,15 +455,15 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         exp = sumGainedEachExp(member, expData);
 
         // 帮助滥用比例（维度均未启用）
-        if (m_dungeon != 0 &&
-            m_dungeon->m_89e != 1 &&                    // +0x89e
+        if (m_battleField.m_pDungeon != 0 &&
+            m_battleField.m_pDungeon->m_89e != 1 &&                    // +0x89e
             *(unsigned short*)((char*)this + 0xc4c) == 0)
         {
             member->calcHelpAbuseRatio(exp, isHelpAbuseParty(member));
         }
 
         // 维度绕行：跳过蓝宝石倍率与经验发放
-        if (m_dungeon != 0 && m_dungeon->m_bloodDungeonType != 0)
+        if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->m_bloodDungeonType != 0)
             continue;                                    // +0x89f
 
         // ---- 蓝宝石/迷宫倍率 ----

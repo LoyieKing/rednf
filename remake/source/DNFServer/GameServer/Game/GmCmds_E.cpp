@@ -231,7 +231,7 @@ void CMonsterDropTest::parse()
                 std::vector<MapInfo>* passed =
                     static_cast<std::vector<MapInfo>*>(party->getPassedMapInfoList());
                 passed->clear();
-                CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
+                CBattle_Field* bf = &party->m_battleField;
                 MapInfo* cur = bf->GetCurrentMapInfo();
                 passed->push_back(*cur);
                 party->setDungeonMapSaving(true);
@@ -313,13 +313,13 @@ const char* CMonsterDropTest_checkCommandExecuteError_Orig(
         }
     }
 
-    CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
+    CBattle_Field* bf = &party->m_battleField;
     int idx = bf->get_dungeon_index();
     if (G_CDataManager()->find_dungeon(idx) == 0)
     {
         return "Dungeon에서 사용가능하지 않습니다";
     }
-    if (party->m_partyType == 1)
+    if (party->m_battleField.m_bloodState == 1)
     {
         return "연습모드 입니다";
     }
@@ -425,12 +425,12 @@ void CMonsterDropTest_processKillMonster_Orig(void* self, CParty* party,
     bool hellKilledAll = false;
     if (mob->m_hellPartyGroupIdx != 0)
     {
-        CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
+        CBattle_Field* bf = &party->m_battleField;
         bf->KillHellPartyGroupMonsterCnt(*mapInfo, *mob, hellKilledAll);
     }
 
     int memberCount = party->get_member_count();
-    CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
+    CBattle_Field* bf = &party->m_battleField;
     bf->_MakeDropItems(*items, *mapInfo, *mob,
                        static_cast<unsigned short>(0), memberCount, 100, killCnt,
                        hellKilledAll, *flags, 1.0f, premRate);
@@ -451,7 +451,7 @@ void CMonsterDropTest_singleMapMonsterKill_Orig(void* self, CParty* party,
     flags.push_back(true);
     flags.push_back(true);
 
-    CBattle_Field* bf = reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
+    CBattle_Field* bf = &party->m_battleField;
     MapInfo* cur = bf->GetCurrentMapInfo();
 
     for (unsigned int round = 0; round < static_cast<unsigned int>(

@@ -342,15 +342,15 @@ void CClearRewardTest::execute()
         return;
     }
     CParty* party = static_cast<CParty*>(user->GetParty());
-    if (party == 0 || party->m_dungeon == 0)
+    if (party == 0 || party->m_battleField.m_pDungeon == 0)
     {
         return;
     }
-    CDungeon* dungeon = party->m_dungeon;
+    CDungeon* dungeon = party->m_battleField.m_pDungeon;
 
-    // CBattle_Field 子对象位于 CParty+0xb24（占位期经 m_padBattleField1 视图访问）。
+    // CBattle_Field 子对象位于 CParty+0xb24（占位期经 m_battleField 视图访问）。
     CBattle_Field* battleField =
-        reinterpret_cast<CBattle_Field*>(party->m_padBattleField1);
+        &party->m_battleField;
     int diff = battleField->get_dungeon_diff();
 
     int standardLevel = 0;

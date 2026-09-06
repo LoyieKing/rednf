@@ -1791,7 +1791,6 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         id = (it != __lookup.end()) ? it->second : -1;
     }
     std::string token;
-    std::string token2;
     int v = 0;
     int k = 0;
     bool isType = false;
@@ -2064,11 +2063,11 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         ScanStr(&token);
         v = getCharacterJobToEnumValue(token);
         k = ScanInt((bool*)0);
-        ScanStr(&token2);
+        ScanStr(&token);
         int key = -1;
         if (info != 0)
         {
-            key = info->addString(token2);
+            key = info->addString(token);
         }
         int last = ScanInt((bool*)0);
         values.push_back(0x31);
@@ -2085,11 +2084,11 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
         ScanStr(&token);
         v = getCharacterJobToEnumValue(token);
         k = ScanInt((bool*)0);
-        ScanStr(&token2);
+        ScanStr(&token);
         int key = -1;
         if (info != 0)
         {
-            key = info->addString(token2);
+            key = info->addString(token);
         }
         int last = ScanInt((bool*)0);
         int extra = ScanInt((bool*)0);

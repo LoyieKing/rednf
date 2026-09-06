@@ -55,7 +55,7 @@ CBattle_Field::CBattle_Field()
     m_mapWidth         = m_mapHeight;       // +0x18c = (+0x190)
     m_ultimateDifficulty = 0;               // +0x2ab
     m_villageMonsterId = 0;                 // +0x128  movw $0x0（ushort）
-    m_hellPartyLevel   = 0;                 // +0x238
+    m_standardDimensionLevel   = 0;                 // +0x238
     m_bloodState       = 0;                 // +0x1b4
     m_worldMapTowerArea = 0;                // +0x23c
 
@@ -131,7 +131,7 @@ void CBattle_Field::reset_field()
 
     m_ridable.Clear();                      // +0xd0  CRidable::Clear()
 
-    m_field1c9          = 0;                // +0x1c9
+    m_sealDoorItemsOk          = 0;                // +0x1c9
     m_hellPartyRandom   = 0;                // +0x1ce
     m_hellPartyDropFlag = 0;                // +0x1cf
     std::memset(m_hellItemStatistic, 0, sizeof(m_hellItemStatistic)); // +0x1d0 (0x18)

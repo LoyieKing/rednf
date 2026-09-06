@@ -443,14 +443,14 @@ void CSpecialItemRoutingManager::processRouting(CParty* party)
 // m_villageAttackEventFlag==1 / isNoFatigueDungeon 任一命中 → false。ORIG 为 && 短链形态。
 bool CParty::IsUseFatigueDungeon()
 {
-    return m_partyType != 1 && m_dungeon != 0 && m_dungeon->m_bloodDungeonType == 0 &&
-           m_dungeon->m_villageAttackEventFlag != 1 && !m_dungeon->isNoFatigueDungeon();
+    return m_battleField.m_bloodState != 1 && m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->m_bloodDungeonType == 0 &&
+           m_battleField.m_pDungeon->m_villageAttackEventFlag != 1 && !m_battleField.m_pDungeon->isNoFatigueDungeon();
 }
 
 // ORIG T 0x085bea4a（无报告，objdump）：al 直接透传 check_grid_clear。
 bool CParty::CheckMapClear()
 {
-    return reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_grid_clear();
+    return reinterpret_cast<CBattle_Field*>(&m_battleField)->check_grid_clear();
 }
 
 // ORIG T 0x0830a0e8（无报告，objdump）：遍历当前图怪物表，存在 dropCnt==100

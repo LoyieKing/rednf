@@ -488,16 +488,18 @@ int PvP_Room::check_joinable(CUser* user)
 
 int PvP_Room::IsQuickJoinablePVPRoom(CUser* user)
 {
-    // P24：ORIG 内联实参（0x085d6c1c），getCurCharacNo 结果直传不落栈槽
-    // ORIG 085d6c22：call 后 test %eax;jne skip —— ==0 直判无归一（body 于 0 时入）。
-    if (check_joinable(user) == 0)
+    // P24：ORIG 内联实参（0x085d6c1c），getCurCharacNo 结果直传不落栈槽。
+    // ORIG 0x085d6c18 逐段：layer1 `call check_joinable; test%al; je L0`（==0 →
+    // 假出）；layer2 `call find…; xor$1; test%al; je L0`（==1 → 假出）；真值路
+    // `mov$1` 汇 L0 `mov$0`，尾 `test%al; je; mov$1/jmp; mov$0` 三层物化岛 ⇒
+    // 源形 = 短路 && + !bool-callee 裸取反（P168a ①）。
+    bool b = false;
+    if (check_joinable(user) != 0)
     {
-        if (user->find_pvp_masterid_walkingout_me(m_seats[7]->getCurCharacNo()) != 1)
-        {
-            return 1;
-        }
+        if (!user->find_pvp_masterid_walkingout_me(m_seats[7]->getCurCharacNo()))
+            b = true;
     }
-    return 0;
+    return b;
 }
 
 int PvP_Room::get_team(int seat)
@@ -578,22 +580,13 @@ int PvP_Room::get_pvp_team_cnt()
         for (int local_10 = 0; local_10 < 8; local_10 = local_10 + 1)
         {
             bool bVar1;
-            char cVar2;
             if (P_SEATS(local_10) == 0)
             {
                 bVar1 = false;
             }
             else
             {
-                cVar2 = (char)IsPvpObserver(local_10);
-                if (cVar2 == 1)
-                {
-                    bVar1 = false;
-                }
-                else
-                {
-                    bVar1 = true;
-                }
+                bVar1 = !IsPvpObserver(local_10);
             }
             if (bVar1)
             {
@@ -632,22 +625,13 @@ int PvP_Room::check_team_pvp()
         for (int local_10 = 0; local_10 < 8; local_10 = local_10 + 1)
         {
             bool bVar1;
-            char cVar2;
             if (P_SEATS(local_10) == 0)
             {
                 bVar1 = false;
             }
             else
             {
-                cVar2 = (char)IsPvpObserver(local_10);
-                if (cVar2 == 1)
-                {
-                    bVar1 = false;
-                }
-                else
-                {
-                    bVar1 = true;
-                }
+                bVar1 = !IsPvpObserver(local_10);
             }
             if (bVar1)
             {
@@ -728,24 +712,15 @@ bool PvP_Room::check_start_state()
             return 1;
         }
         bool bVar1;
-        char cVar2;
         if (P_SEATS(local_10) == 0)
         {
             bVar1 = false;
         }
         else
         {
-            cVar2 = (char)IsPvpObserver(local_10);
-            if (cVar2 == 1)
-            {
-                bVar1 = false;
-            }
-            else
-            {
-                bVar1 = true;
-            }
+            bVar1 = !IsPvpObserver(local_10);
         }
-        if ((bVar1) && (P_SEATSTATE(local_10) != 1))
+        if ((bVar1) && (!P_SEATSTATE(local_10)))
         {
             break;
         }
@@ -759,34 +734,16 @@ int PvP_Room::is_closeable_seat_state()
 {
     int local_18 = 0;
     int local_14 = 0;
-    int local_10 = 0;
-    do
+    for (int local_10 = 0; local_10 <= 7; local_10 = local_10 + 1)
     {
-        if (7 < local_10)
-        {
-            if ((local_18 == 1) && (local_14 < 2))
-            {
-                return 0;
-            }
-            return 1;
-        }
         bool bVar1;
-        char cVar2;
         if (P_SEATS(local_10) == 0)
         {
             bVar1 = false;
         }
         else
         {
-            cVar2 = (char)IsPvpObserver(local_10);
-            if (cVar2 == 1)
-            {
-                bVar1 = false;
-            }
-            else
-            {
-                bVar1 = true;
-            }
+            bVar1 = !IsPvpObserver(local_10);
         }
         if (bVar1)
         {
@@ -796,8 +753,12 @@ int PvP_Room::is_closeable_seat_state()
         {
             local_14 = local_14 + 1;
         }
-        local_10 = local_10 + 1;
-    } while (true);
+    }
+    if ((local_18 == 1) && (local_14 < 2))
+    {
+        return 0;
+    }
+    return 1;
 }
 
 int PvP_Room::get_recv_pvp_rank_count()
@@ -2006,23 +1967,20 @@ int PvP_Room::change_team(int seat, int team)
 
 int PvP_Room::select_new_manager()
 {
-    int local_8 = 0;
-    while (true)
+    for (int local_8 = 0; local_8 <= 7; local_8 = local_8 + 1)
     {
-        if (7 < local_8)
+        if (P_SEATS(local_8) != 0)
         {
-            return 0;
+            if (P_SEATS(local_8) != m_seats[7])
+            {
+                m_seats[7] = P_SEATS(local_8);
+                m_managerSeat = local_8;
+                P_SEATSTATE(local_8) = 0;
+                return 1;
+            }
         }
-        if ((P_SEATS(local_8) != 0) && (P_SEATS(local_8) != m_seats[7]))
-        {
-            break;
-        }
-        local_8 = local_8 + 1;
     }
-    m_seats[7] = P_SEATS(local_8);
-    m_managerSeat = local_8;
-    P_SEATSTATE(local_8) = 0;
-    return 1;
+    return 0;
 }
 
 int PvP_Room::change_manager_to_winner()
@@ -3036,14 +2994,7 @@ int PvP_Room::time_out(int* seats)
     if ((m_pvpBattleMode == 2) || (m_pvpBattleMode == 3))
     {
         lock();
-        if (local_3d == 1)
-        {
-            for (int local_24 = 0; local_24 < 8; local_24 = local_24 + 1)
-            {
-                P_WIN(local_24) = 0;
-            }
-        }
-        else
+        if (!local_3d)
         {
             int local_84[10];
             local_84[5] = 0;
@@ -3088,6 +3039,13 @@ int PvP_Room::time_out(int* seats)
                 }
             }
             m_userTable.SetWinTeam(local_38);
+        }
+        else
+        {
+            for (int local_24 = 0; local_24 < 8; local_24 = local_24 + 1)
+            {
+                P_WIN(local_24) = 0;
+            }
         }
         unlock();
     }

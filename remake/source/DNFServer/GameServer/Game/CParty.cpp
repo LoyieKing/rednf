@@ -121,7 +121,7 @@ CParty::CParty()
     new (&m_pad1dc) CPartyResultRecvFlag;
     new (&m_pad210) CTraceMobDieHack;
     new (&m_padShop) secretshop::SECRET_SHOP_DATA();
-    new (&m_padBattleField1) CBattle_Field();
+    new (&m_battleField) CBattle_Field();
     new (&m_padResult) GameResultSet();
     new (&m_padSecu) Secu_HackLogCheckByParty();
     new (&m_pad1ad0) CPartyTelePort();
@@ -129,7 +129,7 @@ CParty::CParty()
     for (int i = 0xb; i <= 0x2f; ++i)
         m_field148[i - 0xb] = 0;
     m_usedCoinCount = 0;
-    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->SetParty(this);
+    reinterpret_cast<CBattle_Field*>(&m_battleField)->SetParty(this);
     SetAssaultState(0);
     m_routingData.Reset();
     reinterpret_cast<CPartyTelePort*>(&m_pad1ad0)->init(this);
@@ -146,7 +146,7 @@ CParty::~CParty()
     reinterpret_cast<CPartyTelePort*>(&m_pad1ad0)->~CPartyTelePort();
     reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->~Secu_HackLogCheckByParty();
     reinterpret_cast<GameResultSet*>(&m_padResult)->~GameResultSet();
-    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->~CBattle_Field();
+    reinterpret_cast<CBattle_Field*>(&m_battleField)->~CBattle_Field();
     reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)->~SECRET_SHOP_DATA();
     reinterpret_cast<CTraceMobDieHack*>(&m_pad210)->~CTraceMobDieHack();
 }
@@ -222,7 +222,7 @@ CUser* CParty::get_user(int idx)
 
 int CParty::get_party_type() const
 {
-    return m_partyType;
+    return m_battleField.m_bloodState;
 }
 
 char CParty::getTitleIndex()
@@ -385,18 +385,18 @@ void* CParty::GetSecretShopData()
 bool CParty::checkBossRoom()
 {   // ORIG W 0x0822d8f6：al 透传 check_end_point 返回值（check_allmember_loading
     // 以 && 消费，原 void 声明与 ORIG 不符）
-    return reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_end_point();
+    return reinterpret_cast<CBattle_Field*>(&m_battleField)->check_end_point();
 }
 
 bool CParty::checkStartRoom()
 {   // ORIG 0x0826525e：al 直接透传 check_start_point 返回值
-    return reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_start_point();
+    return reinterpret_cast<CBattle_Field*>(&m_battleField)->check_start_point();
 }
 
 int CParty::DeleteDungeonDropItem(int idx)
 {   // ORIG W 0x0860b62a：转发 CBattle_Field::pickup_item 并透传其返回值
     // （processRouting 以 `0 < 返回值` 判定删除失败）。
-    return reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->pickup_item(idx);
+    return reinterpret_cast<CBattle_Field*>(&m_battleField)->pickup_item(idx);
 }
 
 int CParty::get_quick_party_index()
@@ -450,26 +450,26 @@ void CParty::setDungeonMapSaving(bool flag)
 }
 
 // ORIG 0x085be39a（_ZN6CParty25checkFreeRevivalConditionEPK8CDungeon）：
-// 1) m_partyType==1 → true；2) dungeon 为空时按战场 dungeon_index 找回；
+// 1) m_battleField.m_bloodState==1 → true；2) dungeon 为空时按战场 dungeon_index 找回；
 // 3) CDungeon::checkFreeRevivalCondition(diff) 命中 → true；
 // 4) 否则需维度副本（get_dimension_possible>0）且重复事件槽 0x5e 在进行中，
 //    再按 diff 查 CDimensionActivationEvent::checkFreeRevivalCondition。
 bool CParty::checkFreeRevivalCondition(CDungeon const* dungeon)
 {
-    if (m_partyType == 1)
+    if (m_battleField.m_bloodState == 1)
         return true;
 
     // ORIG 0x085be3e5：fallback 直接重写形参槽（mov %eax,0xc(%ebp)），无独立 dg 局部。
     if (dungeon == 0)
     {
-        int idx = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index();
+        int idx = reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index();
         dungeon = G_CDataManager()->find_dungeon(idx);
         if (dungeon == 0)
             return false;
     }
 
     if (dungeon->checkFreeRevivalCondition(
-            reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_diff()))
+            reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff()))
         return true;
 
     // ORIG 0x085be430：test %al;setle = 有符号字节比较（同 CPartyDepsB2 (signed char) 先例）。
@@ -483,7 +483,7 @@ bool CParty::checkFreeRevivalCondition(CDungeon const* dungeon)
             return false;
         return static_cast<CDimensionActivationEvent*>(event)
             ->checkFreeRevivalCondition(
-                reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+                reinterpret_cast<CBattle_Field*>(&m_battleField)
                     ->get_dungeon_diff());
     }
     return false;
@@ -721,9 +721,9 @@ void CParty::init()
             ->m_baseValue);   // ORIG init.md 0859ab9f `mov 0x8(%eax)` =
                               // stHellParty_t::m_baseValue（DataManagerInitDepends.h
                               // importHellPartyScript 0x8909857 [base value] 实证）
-    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->reset_hell_party_value();
+    reinterpret_cast<CBattle_Field*>(&m_battleField)->reset_hell_party_value();
     m_battleData.Reset();
-    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->reset_field();
+    reinterpret_cast<CBattle_Field*>(&m_battleField)->reset_field();
     reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->Clear();
     m_usedCoinCount = 0;
     m_hellWorldMap = 0;
@@ -764,7 +764,7 @@ void CParty::SetEPLPState(char state)
     m_eplpState = state;
     if (state == 2)
     {
-        		if (m_dungeon != 0)
+        		if (m_battleField.m_pDungeon != 0)
 		{
 			for (int i = 0; i <= 3; ++i)
 			{
@@ -772,7 +772,7 @@ void CParty::SetEPLPState(char state)
 					continue;
 				// ORIG：idx 值直落 callee-saved %ebx（`mov %eax,%ebx;
                 // mov %ebx,0x4(%esp)`），块作用域 register 复现。
-                { register int idx = m_dungeon->get_index();
+                { register int idx = m_battleField.m_pDungeon->get_index();
                   GetInstanceDungeonEntranceLog()->DecrementDungeonEntrance(idx, false); }
             }
         }
@@ -827,7 +827,7 @@ void CParty::SetPartyMemberCoinLimit(int limit)
 
 int CParty::getStandardDimensionLevel()
 {
-    return m_standardDimensionLevel;
+    return m_battleField.m_standardDimensionLevel;
 }
 
 bool CParty::isTournamentVictory()
@@ -931,7 +931,7 @@ unsigned int CParty::sumGainedEachExp(CUser* user, STGainedEachExpData const& da
     int seriaBonus = 0;                             // -0x28
     int weekendBonus = 0;                           // -0x24
 
-    if (!reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->isWorldMapTowerArea())
+    if (!reinterpret_cast<CBattle_Field*>(&m_battleField)->isWorldMapTowerArea())
     {
         // fildll(exp)*fldl 0x08cbbbd8（33 33 33 33 33 33 d3 3f = double 0.3）→ fistpl
         if (user->getCurCharacFatigueGrownUpBuff() != 0)
@@ -1097,7 +1097,7 @@ void CParty::battle_data_reset()
         m_member[i].m_pUser->set_charac_seria_buf_bonus_exp(0);
     }
     m_battleData.Reset();
-    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->reset_field();
+    reinterpret_cast<CBattle_Field*>(&m_battleField)->reset_field();
     m_state = 1;
     SetEPLPState(0);
     SetSelectedEPLPCmd(-1);
@@ -1260,14 +1260,14 @@ bool CParty::CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag
 // CWorldMap::IsInHellDungeon / CWorldMap::hasDeathTower。
 int CParty::checkInoutConditionDungeon()
 {
-    if (m_dungeon == 0)
+    if (m_battleField.m_pDungeon == 0)
         return 10;
     if (GetEPLPState() <= (char)1)
         return 10;
     for (int i = 0; i < 4; ++i)
     {
         CUser* u = get_user(i);
-        if (u == 0 || (char)m_dungeon->get_blood_dungeon_type() > 0)
+        if (u == 0 || (char)m_battleField.m_pDungeon->get_blood_dungeon_type() > 0)
             continue;
         if (u->getCurCharacTotalFatigue() ==
             u->getCurCharacTotalMaxFatigue())
@@ -1277,15 +1277,15 @@ int CParty::checkInoutConditionDungeon()
     Inven_Item items[4];
     int param[4] = { 0, 0, 0, 0 };
     memset(items, 0, sizeof(items));
-    if (CheckEnterAncientDungeon(m_dungeon, flag, items, param) == 1)
+    if (CheckEnterAncientDungeon(m_battleField.m_pDungeon, flag, items, param) == 1)
     {
-        int r = CheckEnterDimensionDungeon(m_dungeon);
+        int r = CheckEnterDimensionDungeon(m_battleField.m_pDungeon);
         if (r == 0xab || r == 0xad)
             return 4;
-        r = check_dungeon_start(m_dungeon);
+        r = check_dungeon_start(m_battleField.m_pDungeon);
         if (!(r != 10 && (r < 10 || 4 < r - 0xf3u)))
             return 7;
-        if (CheckEnterVillageAttackRevenge(m_dungeon) != 0)
+        if (CheckEnterVillageAttackRevenge(m_battleField.m_pDungeon) != 0)
             return 7;
         CWorldMap* worldMap = 0;
         int worldIdx = G_GameWorld()->GetWorldMapIndex(m_manager);
@@ -1293,7 +1293,7 @@ int CParty::checkInoutConditionDungeon()
         {
             worldMap = G_CDataManager()->m_worldMapList.find_world_map(worldIdx);
         }
-        CBattle_Field& bfView = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+        CBattle_Field& bfView = *reinterpret_cast<CBattle_Field*>(&m_battleField);
         bool hellDun = false;
         if ((worldMap != 0 &&
              worldMap->IsInHellDungeon() != 0 &&
@@ -1306,7 +1306,7 @@ int CParty::checkInoutConditionDungeon()
         {
             std::vector<int> vec;
             int sealR = CheckDestroyConditionSealDoor(
-                m_dungeon, vec, worldMap->m_field34);
+                m_battleField.m_pDungeon, vec, worldMap->m_field34);
             if (sealR == 1)
                 m_sealDoorFlag = 1;
             else
@@ -1315,10 +1315,10 @@ int CParty::checkInoutConditionDungeon()
                 return 8;
         }
         bool noFat = true;
-        if (m_partyType == 1 ||
+        if (m_battleField.m_bloodState == 1 ||
             (worldMap != 0 && worldMap->hasDeathTower() == 1) ||
-            m_dungeon->isNoFatigueDungeon() == 1 ||
-            m_dungeon->m_advanceAltarSurvivalFlag == 1)
+            m_battleField.m_pDungeon->isNoFatigueDungeon() == 1 ||
+            m_battleField.m_pDungeon->m_advanceAltarSurvivalFlag == 1)
         {
             noFat = false;
         }
@@ -1438,7 +1438,7 @@ int CParty::check_dungeon_start(CDungeon const* dungeon)
                     m_member[i].m_pUser->getCurCharacR());
             // ORIG 0859fa8f `movzbl 0xec2(%eax)` = m_ultimateInout[2]
             //（unsigned char 宽度修正，原 (char*) 为 movsbl 异形）
-            if (charac->m_ultimateInout[2] < '\x01' && m_partyType != 1)
+            if (charac->m_ultimateInout[2] < '\x01' && m_battleField.m_bloodState != 1)
                 return 0xf5;
         }
     }
@@ -1448,14 +1448,14 @@ int CParty::check_dungeon_start(CDungeon const* dungeon)
 int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon)
 {
     // ORIG 0x859f3fc
-    if (m_dungeon == 0 || m_dungeon->get_dimension_possible() <= 0)
+    if (m_battleField.m_pDungeon == 0 || m_battleField.m_pDungeon->get_dimension_possible() <= 0)
         return 0;
     int memberCount = get_member_count();
     int dimPossible = dungeon->get_dimension_possible();
     int dimIdx = (char)dimPossible - 1;
     DimensionPartyCount dpc;
-    dpc.m_0 = (char)m_partyType;
-    dpc.m_1 = m_fieldCC4;
+    dpc.m_0 = (char)m_battleField.m_bloodState;
+    dpc.m_1 = m_battleField.m_dungeonDiff;
     dpc.m_2 = -1;
     if (dungeon->get_dimension_member_count(dpc))
     {
@@ -1478,7 +1478,7 @@ int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon)
         // ORIG 0859f510 `movzbl 0xeb9(%eax,%edx,1)` = m_demensionInout[dimIdx]
         //（unsigned char 宽度修正）
         if (charac->m_demensionInout[dimIdx] < '\x01' &&
-            m_partyType != 1 &&
+            m_battleField.m_bloodState != 1 &&
             !m_member[i].m_pUser->isGMUser())
             return 0xad;
     }
@@ -1793,9 +1793,9 @@ int CParty::getMemberLevelGap()
 
 void CParty::increase_dungeon_coin_count(int param)
 {
-    if (m_dungeon == 0)
+    if (m_battleField.m_pDungeon == 0)
         return;
-    if (m_dungeon->m_87c == -1)
+    if (m_battleField.m_pDungeon->m_87c == -1)
         return;
     SetUsedCoinCount(param);
 }
@@ -2036,7 +2036,7 @@ void CParty::Reset_party_overlapped_drop_ratio()
 }
 void CParty::ReturnToVillage()
 {
-    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->setBloodState((ENUM_BLOOD_STATE)0);
+    reinterpret_cast<CBattle_Field*>(&m_battleField)->setBloodState((ENUM_BLOOD_STATE)0);
     PacketGuard packet;
     packet.put_header(0, 2);
     if (m_autoCreated == 0)
@@ -2048,14 +2048,14 @@ void CParty::ReturnToVillage()
         {
             if (_checkValidUser(i))
             {
-                if (m_dungeon != 0)
+                if (m_battleField.m_pDungeon != 0)
                 {
-                    int pt = m_partyType;
-                    int diff = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_diff();
-                    const char* dn = m_dungeon->GetDungeonName();
+                    int pt = m_battleField.m_bloodState;
+                    int diff = reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff();
+                    const char* dn = m_battleField.m_pDungeon->GetDungeonName();
                     m_member[i].m_pUser->m_historyLog.LeaveDungeon(dn, diff, names, pt);
                 }
-                if (m_dungeon != 0)
+                if (m_battleField.m_pDungeon != 0)
                 {
                     bool b;
                     if (!IsSinglePlay() || !m_manager->isDungeonClearHackCheck())
@@ -2092,14 +2092,14 @@ void CParty::ReturnToVillage()
     }
     else
     {
-        if (m_dungeon != 0)
+        if (m_battleField.m_pDungeon != 0)
         {
             char names2[0x40];   // ORIG rep stos 0x40（+0x32b）
             memset(names2, 0, 0x40);
-            int pt = m_partyType;
+            int pt = m_battleField.m_bloodState;
             char* n = _getMemberNames(names2);
-            int diff = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_diff();
-            const char* dn = m_dungeon->GetDungeonName();
+            int diff = reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff();
+            const char* dn = m_battleField.m_pDungeon->GetDungeonName();
             m_manager->m_historyLog.LeaveDungeon(dn, diff, n, pt);
             bool b;
             if (!IsSinglePlay() || !m_manager->isDungeonClearHackCheck())
@@ -2165,14 +2165,14 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
         int pos = user->GetUserPosInParty();
         reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(GetSecretShopData())->SetBuying(pos, false);
     }
-    if (m_dungeon != 0)
+    if (m_battleField.m_pDungeon != 0)
     {
         char names[0x100];
         memset(names, 0, 0x100);
-        int partyType = m_partyType;
+        int partyType = m_battleField.m_bloodState;
         char* memberNames = _getMemberNames(names);
-        int diff = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_diff();
-        const char* dname = m_dungeon->GetDungeonName();
+        int diff = reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff();
+        const char* dname = m_battleField.m_pDungeon->GetDungeonName();
         user->m_historyLog.LeaveDungeon(dname, diff, memberNames, partyType);
         bool b;
         if (!IsSinglePlay() || !user->isDungeonClearHackCheck())
@@ -2357,7 +2357,7 @@ bool CParty::CheckEnterAncientDungeon(CDungeon const* dungeon, unsigned char& fl
         return 1;
     if (dungeon->m_entryRequiredItem.m_enableFlag != 1)
         return 1;
-    if (m_partyType == 1)
+    if (m_battleField.m_bloodState == 1)
         return 1;
     for (int i = 0; i <= 3; ++i)
     {
@@ -2395,7 +2395,7 @@ bool CParty::CheckEnterAncientDungeon(CDungeon const* dungeon, unsigned char& fl
 }
 bool CParty::UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* items, int* param)
 {
-    if (m_partyType != 1 && dungeon->m_entryRequiredItem.m_enableFlag != 0)
+    if (m_battleField.m_bloodState != 1 && dungeon->m_entryRequiredItem.m_enableFlag != 0)
     {
         for (int i = 0; i <= 3; ++i)
         {
@@ -2874,7 +2874,7 @@ void CParty::game_start(CUser* user)
         int area = m_member[i].m_pUser->get_area(false);       // -0x1c
         bool mismatch = ((hostVill != vill) || (hostArea != area));
         if (mismatch && !is_quick_party() &&
-            reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+            reinterpret_cast<CBattle_Field*>(&m_battleField)
                     ->m_villageMonsterId == 0)                  // ORIG this+0xc4c
         {
             LogManager::logFormat(
@@ -2971,14 +2971,14 @@ void CParty::game_start(CUser* user)
 
     // ORIG this+0xd0c = CBattle_Field+0x1e8 = m_hellPartyRatio0（int，2026-09-03
     // 头类型修正；见 reset_hell_party_value/send_hellParty_value 报告）。
-    int hellDiv = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->m_hellPartyRatio0;
+    int hellDiv = reinterpret_cast<CBattle_Field*>(&m_battleField)->m_hellPartyRatio0;
     int hellVal = (int)(bd.m_hellPartyValueTotal * 100.0f / (float)hellDiv);
     basicPacket.put_int(hellVal);
 
     std::vector<int> hellQuests;                            // -0x70
     bool hellEnable =
         (m_hellWorldMap != 0 && m_hellWorldMap->IsInHellDungeon() &&
-         reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+         reinterpret_cast<CBattle_Field*>(&m_battleField)
              ->IsEnableHellDungeon());
     if (hellEnable)
     {
@@ -3025,7 +3025,7 @@ void CParty::game_start(CUser* user)
         basicPacket.put_byte(0);
     }
     if (deathTowerArea)
-        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+        reinterpret_cast<CBattle_Field*>(&m_battleField)
             ->setWorldMapTowerArea(deathTowerArea);
 
     basicPacket.finalize(true);
@@ -3041,7 +3041,7 @@ void CParty::game_start(CUser* user)
 // 其余为 GetDungeonIndex_isTOD/checkInoutConditionDungeon 透传。
 int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     BattleData& bd = m_battleData;
 
     resetMemberUseCoin();
@@ -3059,7 +3059,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
         return 0x15;
 
     PacketGuard packet;                                    // -0x84
-    int partyType = m_partyType;                           // -0x6c ← +0xcd8
+    int partyType = m_battleField.m_bloodState;                           // -0x6c ← +0xcd8
     SetPartyMemberCoinLimit(get_member_count() *
                             dungeon->GetPartyMemberCoinLimit());
     reinterpret_cast<CTraceMobDieHack*>(&m_pad210)->setDungeonDiff(type);
@@ -3305,7 +3305,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
     CEventBase* ev41 = GlobalData::s_event_manager->GetRepeatEvent(0x41);
     if (ev41->IsEventing(0) && IsReturnUserParty())
     {
-        premiumCard = isPremiumGoldCardReward(m_dungeon, cardItem) ? 1 : 0;
+        premiumCard = isPremiumGoldCardReward(m_battleField.m_pDungeon, cardItem) ? 1 : 0;
         if (premiumCard != 0)
         {
             SetPremiumGoldCardParty();
@@ -3353,7 +3353,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
         m_member[i].m_pUser->m_character.m_f20 = startCount;   // user+0x8e054
         m_member[i].m_pUser->m_field8e074 = 0;                 // user+0x8e074（CUser 直属字段；Layout_D 布局修正）
 
-        int stdLvl = m_dungeon->get_standard_level();
+        int stdLvl = m_battleField.m_pDungeon->get_standard_level();
         int muLvl = m_member[i].m_pUser->get_charac_level();
         bool properLevel =
             ((muLvl >= stdLvl - 5) && (muLvl <= stdLvl + 3));
@@ -3380,7 +3380,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
             bd.m_flag28[3] = 0;
         }
 
-        if (m_dungeon->get_dimension_possible() > 0)
+        if (m_battleField.m_pDungeon->get_dimension_possible() > 0)
         {
             bd.m_flag28[0] = 1;
             bd.m_flag28[1] = 1;
@@ -3435,7 +3435,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
 int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                      unsigned char& outUpgrade, bool& outStackable)
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
 
     char routingEligible = 1;                       // -0xe9
     CUser* winner = 0;                              // -0xe8
@@ -3456,7 +3456,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
         }
     }
 
-    if (m_dungeon != 0 && m_dungeon->IsEnterEachMap())
+    if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->IsEnterEachMap())
         bf.SetCurSeatNo(slotNo);
 
     map_item mi;                                    // -0x2bc
@@ -3521,7 +3521,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                     __PRETTY_FUNCTION__,
                     0x165c, 4);
                 trace("Dungeon(%d) drop money(%d) on %d' party member with difficulty %d",
-                      m_dungeon->m_index, money, get_member_count(),
+                      m_battleField.m_pDungeon->m_index, money, get_member_count(),
                       bf.get_dungeon_diff());
             }
             int share = mi.m_item.get_add_info() / liveCount;   // -0xc0
@@ -4344,7 +4344,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
               0x7d0, mi.m_item.get_add_info());
     }
 
-    int dropped = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+    int dropped = reinterpret_cast<CBattle_Field*>(&m_battleField)
                       ->drop_item(mi);           // ORIG CBattle_Field::drop_item(map_item)
     if (dropped == -1)
         return 0x16;
@@ -4423,22 +4423,20 @@ void CParty::insert_time_card_select_right_msg(int param)
 int CParty::set_play_result(CUser* user, GameResultSet& result)
 {
     int ret = 0;                                        // -0x10
-    // ORIG：嵌套 if（cmp;je→下一检 / movzbl flag;test;je→body），
-    // 循环体 `!_checkValidUser(i) → continue`（xor $1 形态）。
-    if (m_host == user)
+    // ORIG 0x085b2068：两段 guard 早退（各 `mov -0x10,%eax; jmp epilogue`），
+    // 非嵌套 if+单一尾 return——写 guard-return 形复现双读回块。
+    if (m_host != user)
+        return ret;
+    if (m_recvResultFlag)                               // +0x118
+        return ret;
+    for (int i = 0; i <= 3; ++i)                        // -0xc
     {
-        if (!m_recvResultFlag)                          // +0x118
-        {
-            for (int i = 0; i <= 3; ++i)                // -0xc
-            {
-                if (!_checkValidUser(i))
-                    continue;
-                m_member[i].m_pUser->setPlayingDungeonIndex(-1);
-            }
-            m_state = 3;                                // +0x6a（ORIG movb 直写）
-            m_recvResultFlag = true;                    // +0x118（ORIG movb 直写）
-        }
+        if (!_checkValidUser(i))
+            continue;
+        m_member[i].m_pUser->setPlayingDungeonIndex(-1);
     }
+    m_state = 3;                                        // +0x6a（ORIG movb 直写）
+    m_recvResultFlag = true;                            // +0x118（ORIG movb 直写）
     return ret;
 }
 
@@ -4713,15 +4711,15 @@ bool CParty::IsCompleteCardSelectOfMembers(eClearRewardCardType_t type)
 // ============================================================================
 void CParty::TournamentDungeonClear(bool flag)
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
-    if (m_dungeon == 0)                                 // +0xcac
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
+    if (m_battleField.m_pDungeon == 0)                                 // +0xcac
     {
         LogManager::logFormat(
             1, "party.cpp", __PRETTY_FUNCTION__, 0x45bc,
             "Tournament Dungeon is NULL");
         return;
     }
-    if (m_dungeon->isTournamentDungeon() != 1)
+    if (m_battleField.m_pDungeon->isTournamentDungeon() != 1)
     {
         LogManager::logFormat(
             1, "party.cpp", __PRETTY_FUNCTION__, 0x45c2,
@@ -4792,9 +4790,9 @@ void CParty::TournamentDungeonClear(bool flag)
 void CParty::MakeTournamentReward(CTournamentDungeonReward& reward)
 {
     bool victory = m_tournamentVictory;                 // +0x11a
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     int round = bf.GetTournamentCurRound();
-    reward.MakeReward(&m_dungeon->m_map8ac, &m_dungeon->m_itemRate8c4, round,
+    reward.MakeReward(&m_battleField.m_pDungeon->m_map8ac, &m_battleField.m_pDungeon->m_itemRate8c4, round,
                       victory);
 
     int dungIdx = bf.get_dungeon_index();
@@ -4913,7 +4911,7 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
                              MSG_MONSTER_DIE const& dieInfo)
 {
     IsCollectDungeonStatistic();
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     bool skip = false;
     if (bf.IsClearDungeon() || dieInfo.m_fieldA22 != 0)
         skip = true;
@@ -4952,11 +4950,11 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
                 if (memberParty != 0 && userParty != 0 && member != 0)
                 {
                     // ORIG OnKilledMonster.md 085b5c30/085b5c3d `mov 0xcac(%eax)` =
-                    // CParty::m_dungeon
+                    // CParty::m_battleField.m_pDungeon
                     CDungeon* mpDungeon =
-                        reinterpret_cast<CParty*>(memberParty)->m_dungeon;
+                        reinterpret_cast<CParty*>((memberParty))->m_battleField.m_pDungeon;
                     CDungeon* upDungeon =
-                        reinterpret_cast<CParty*>(userParty)->m_dungeon;
+                        reinterpret_cast<CParty*>((userParty))->m_battleField.m_pDungeon;
                     if (mpDungeon == 0 || upDungeon == 0)
                     {
                         if (member == user)
@@ -5034,7 +5032,7 @@ int CParty::OnFightVillageMonster(CUser* user, int param)
     {
         ret = 0;
         game_start(user);
-        CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+        CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
         int dungIdx = bf.get_dungeon_index();           // -0x30
         int diff = 0;                                   // -0x2c
         CDungeon* dungeon = G_CDataManager()->find_dungeon(dungIdx);   // -0x28
@@ -5133,7 +5131,7 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
 
     bool notClear;                                      // -0x42
     bool isClear;                                       // -0x41
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     if (!bf.check_grid_clear())
     {
         notClear = true;
@@ -5153,7 +5151,7 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
     giveup_game(user, false, isClear, flag);
     // ORIG OnFinishVillageMonsterFighting.md 085b9b12 `movw $0x0,0xc4c(%eax)` =
     // CBattle_Field(this+0xb24)+0x128 → m_villageMonsterId（short）
-    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->m_villageMonsterId = 0;
+    reinterpret_cast<CBattle_Field*>(&m_battleField)->m_villageMonsterId = 0;
     {
         PacketGuard ack;                                // -0x60
         ack.clear();
@@ -5215,21 +5213,21 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
 // ============================================================================
 void CParty::prepare_dungeon_clear()
 {
-    m_dungeonClearTracer.SetClearedDungeon(m_tournamentVictory != 0);
+    m_battleField.m_dungeonClearTracer.SetClearedDungeon(m_tournamentVictory != 0);
     // ORIG 0x85aa39a：bf 地址每次现取（mov 0x8 + add $0xb24），不建局部缓存槽。
-    m_dungeonClearTracer.SetEndPoint(
-        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_end_point());
-    if (!reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_grid_clear())
+    m_battleField.m_dungeonClearTracer.SetEndPoint(
+        reinterpret_cast<CBattle_Field*>(&m_battleField)->check_end_point());
+    if (!reinterpret_cast<CBattle_Field*>(&m_battleField)->check_grid_clear())
         return;
 
     for (int i = 0; i < 4; ++i)
     {
-        if (_checkValidUser(i) && m_partyType != 1)     // +0xcd8
+        if (_checkValidUser(i) && m_battleField.m_bloodState != 1)     // +0xcd8
         {
             CUser* user = m_member[i].m_pUser;
             UserQuest* quest = user->getCurCharacQuestW();
             quest->set_authen_data((QUEST_CONDITION)1,
-                                   reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_cur_map(),
+                                   reinterpret_cast<CBattle_Field*>(&m_battleField)->get_cur_map(),
                                    0);
             if (0 < user->m_fatigueGain)
             {
@@ -5252,11 +5250,11 @@ void CParty::prepare_dungeon_clear()
     }
 
     int mapIdx =
-        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->GetCurrentMapIndex();
-    if (reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+        reinterpret_cast<CBattle_Field*>(&m_battleField)->GetCurrentMapIndex();
+    if (reinterpret_cast<CBattle_Field*>(&m_battleField)
             ->ClearCondition((ENUM_DUNGEON_CLEAR_CONDITION_TYPE)1, mapIdx))
         ClearDungeon();
-    else if (reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_end_point())
+    else if (reinterpret_cast<CBattle_Field*>(&m_battleField)->check_end_point())
         ClearDungeon();
 }
 
@@ -5266,13 +5264,13 @@ void CParty::prepare_dungeon_clear()
 // ============================================================================
 void CParty::party_dungeon_fail()
 {
-    if (!(m_tournamentVictory == 0 && check_allmember_die() && m_dungeon != 0))
+    if (!(m_tournamentVictory == 0 && check_allmember_die() && m_battleField.m_pDungeon != 0))
         return;
 
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     BattleData& bd = m_battleData;
     char skipPanalty = 0;                               // -0x31
-    CDungeon* dungeon = m_dungeon;                      // -0x30
+    CDungeon* dungeon = m_battleField.m_pDungeon;                      // -0x30
     if (dungeon != 0)
     {
         // ORIG party_dungeon_fail.md 085b36cb `movzbl 0x89f(%eax)` =
@@ -5282,7 +5280,7 @@ void CParty::party_dungeon_fail()
             skipPanalty = 1;
     }
     // ORIG 085b36f0 `movzwl 0xc4c(%eax)` = m_villageMonsterId（非 0 判）
-    if (reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->m_villageMonsterId != 0)
+    if (reinterpret_cast<CBattle_Field*>(&m_battleField)->m_villageMonsterId != 0)
         skipPanalty = 1;
     if (dungeon != 0 &&
         (dungeon->get_dimension_possible() >= 1 ||
@@ -5330,7 +5328,7 @@ void CParty::party_dungeon_fail()
                 if (marble != 0)
                     marble->giveupDungeon(user);
             }
-            if (m_partyType != 1)
+            if (m_battleField.m_bloodState != 1)
             {
                 // ORIG 085b3952 `movzbl 0x85c` = m_entryRestrictFlag；
                 //      085b396e `movzbl 0x87a` = m_villageAttackEventFlag
@@ -5422,7 +5420,7 @@ void CParty::dungeon_clear()
             sendInoutConditionDungeon(
                 (RetryFailReason::T)checkInoutConditionDungeon());
             if (IsPremiumGoldCardParty())
-                sendPremiumGoldCardStatistic(m_dungeon->get_standard_level(),
+                sendPremiumGoldCardStatistic(m_battleField.m_pDungeon->get_standard_level(),
                                              memberCount, goldCardCount);
             CheckHackAverageHitCount();
             ClearMapHitCount();
@@ -5491,7 +5489,7 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
     {
         if (499999 < items[0].get_add_info())
         {
-            CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+            CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
             char log1[16];
             new (log1) cMyTrace(
                 __PRETTY_FUNCTION__,
@@ -5514,11 +5512,11 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
                                       (unsigned long)gained);
         GetInstanceValueStatistic()->AddValueStatistic(
             (VALUE_STATISTIC_FIELD)3, user, (unsigned int)gained);
-        if (m_dungeon != 0)
+        if (m_battleField.m_pDungeon != 0)
         {
             // ORIG _putItemIntoUser.md 085aae02 `movzbl 0x89e(%eax)` =
             // CDungeon::m_89e（unsigned char，金币流水分类标志）
-            if (m_dungeon->m_89e == 0)
+            if (m_battleField.m_pDungeon->m_89e == 0)
                 GetInstanceCirculationStatistic()->AddCirculationStatistic(
                     (CIRCULATION_STATISTIC_FIELD)1, user,
                     (unsigned int)gained);
@@ -5564,7 +5562,7 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
     int slot = ci->getCurCharacInvenW()->insertItemIntoInventory(items[1],
                                                                 (eItemAddReason)0xb,
                                                                 true, true);
-    bool isTournament = m_dungeon != 0 && m_dungeon->isTournamentDungeon() != 0;
+    bool isTournament = m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->isTournamentDungeon() != 0;
     if (slot < 1)
     {
         CEventBase* ev41 = GlobalData::s_event_manager->GetRepeatEvent(0x41);
@@ -5680,7 +5678,7 @@ void CParty::onBloodClear(bool flag, int param)
             (int)(playTime / 1000), 0);
         // ORIG 085b7d1f `movzbl 0x89f(%eax)` = CDungeon::m_bloodDungeonType
         //（unsigned char 宽度修正：原 *(char*) 为 movsbl 异形）
-        if (m_dungeon->m_bloodDungeonType == 1)   // 血图进度
+        if (m_battleField.m_pDungeon->m_bloodDungeonType == 1)   // 血图进度
         {
             APSystem::CUserProc::ClearActionAndSendtoUser(
                 m_member[param].m_pUser, (APSystem::_ActionGroupIndex)0x1a, 0,
@@ -5703,7 +5701,7 @@ void CParty::BloodClearRewardPacket(int a, int b, int c, Inven_Item const* items
                                     Inven_Item const* items3, int f,
                                     Inven_Item const* items4)
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     PacketGuard packet;
     packet.put_header(0, 0xd1);
     packet.put_byte(b);
@@ -5740,7 +5738,7 @@ void CParty::generateBloodRewardExp(int slot, int round, unsigned int baseExp,
     unsigned int exp = 0;                               // -0x20
     // ORIG generateBloodRewardExp.md 085b7edc `movzbl 0x89f(%eax)` =
     // CDungeon::m_bloodDungeonType（unsigned char 宽度修正：原 *(char*) movsbl）
-    if (m_dungeon->m_bloodDungeonType == 2)             // 最终轮
+    if (m_battleField.m_pDungeon->m_bloodDungeonType == 2)             // 最终轮
     {
         // ORIG 0x85b7ea2：round*baseExp 32 位无符号乘法（零扩展 64 位）→
         // fraw 先转 float（fildll/fstps），weight 后取（flds），
@@ -5798,7 +5796,7 @@ void CParty::generateBloodRewardExp(int slot, int round, unsigned int baseExp,
 
     channel_script_t* chScript =
         (channel_script_t*)G_CDataManager()->GetChannelScript();
-    unsigned int dungIdx = m_dungeon->get_index();
+    unsigned int dungIdx = m_battleField.m_pDungeon->get_index();
     CEnvironment* env = G_CEnvironment();
     unsigned int channelNo = (unsigned int)env->get_channel_no();
     // ORIG generateBloodRewardExp.md 085b824d `mov 0x378(%eax),%eax`（int dword
@@ -5838,7 +5836,7 @@ void CParty::generateBloodRewardExp(int slot, int round, unsigned int baseExp,
             param.m_serverEventExpRate, param.m_burningFatigueBonusExp);
     }
 
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     bf.m_bloodReward.setRewardExp(slot, bonusExp);
 }
 
@@ -5848,7 +5846,7 @@ void CParty::generateBloodRewardExp(int slot, int round, unsigned int baseExp,
 // ============================================================================
 void CParty::beginBloodClearProcess(bool flag)
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     if (bf.getBloodState() >= 3)
         return;
 
@@ -5873,7 +5871,7 @@ void CParty::beginBloodClearProcess(bool flag)
 
     // ORIG beginBloodClearProcess.md 085b76b1 `movzbl 0x89f(%eax)` =
     // CDungeon::m_bloodDungeonType（unsigned char 宽度修正）
-    if (flag && m_dungeon->m_bloodDungeonType == 2)
+    if (flag && m_battleField.m_pDungeon->m_bloodDungeonType == 2)
     {
         short maxRound = (short)bf.getBloodMaxRound();
         ultimatePoint =
@@ -5983,7 +5981,7 @@ void CParty::beginBloodClearProcess(bool flag)
 void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
                                      unsigned int param2, bool flag)
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     bf.m_bloodReward.setRewardItem(slot, round);
     for (int i = 0; i < round; ++i)                     // -0x3c
     {
@@ -6020,7 +6018,7 @@ void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
             bf.m_bloodReward.setRewarItemCopy(item, slot, i);
 
             int dungIdx =
-                m_dungeon != 0 ? m_dungeon->get_index() : 0;   // -0x2c
+                m_battleField.m_pDungeon != 0 ? m_battleField.m_pDungeon->get_index() : 0;   // -0x2c
             QuickParty::RewardData_Param rp(this);
             rp.m_param4 = dungIdx;
             QuickParty::RewardData_Result rr;
@@ -6042,7 +6040,7 @@ void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
             memcpy(&ref.m_rankBonusIndex, &oneF, sizeof(oneF));   // +0x38 float=1.0（位型）
             unsigned int zero = 0;
             memcpy(&ref.m_goldBase, &zero, sizeof(zero));    // +0x3c..0x3f = 0
-            int dungPtrBits = *(int*)&m_dungeon;
+            int dungPtrBits = *(int*)&m_battleField.m_pDungeon;
             memcpy(&ref.m_dungeon, &dungPtrBits, sizeof(dungPtrBits)); // +0x40
 
             WongWork::CItemGeneratorMgr* genMgr =
@@ -6066,7 +6064,7 @@ void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
 
     // ORIG 085b8a12 `movzbl 0x89f(%eax)` = CDungeon::m_bloodDungeonType
     //（unsigned char 宽度修正）
-    if (flag && m_dungeon->m_bloodDungeonType == 2)
+    if (flag && m_battleField.m_pDungeon->m_bloodDungeonType == 2)
     {
         int ultIdx = bf.m_bloodReward.getUltimateRewardItem();   // -0x24
         CItem* card = G_CDataManager()->find_item(ultIdx);       // -0x20
@@ -6089,7 +6087,7 @@ void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
 // ============================================================================
 bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     if (gen_timer_key(msg) == 0)
         return 0;
     if (bf.getBloodState() == 0)
@@ -6157,14 +6155,14 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                             putSlot = 0;
                             // ORIG 085b6e88 `movzbl 0x89f(%eax)` =
                             // CDungeon::m_bloodDungeonType（unsigned char 宽度修正）
-                            if (m_dungeon->m_bloodDungeonType == 1)
+                            if (m_battleField.m_pDungeon->m_bloodDungeonType == 1)
                                 GetInstanceCirculationStatistic()
                                     ->AddCirculationStatistic(
                                         (CIRCULATION_STATISTIC_FIELD)0xb,
                                         get_user(slot),
                                         (unsigned int)gained);
                             // ORIG 085b6ed8 `movzbl 0x89f(%eax)`（同上）
-                            else if (m_dungeon->m_bloodDungeonType == 2)
+                            else if (m_battleField.m_pDungeon->m_bloodDungeonType == 2)
                                 GetInstanceCirculationStatistic()
                                     ->AddCirculationStatistic(
                                         (CIRCULATION_STATISTIC_FIELD)0xc,
@@ -6308,7 +6306,7 @@ void CParty::set_clear_reward_exp_parameter(CUser* user, unsigned int exp,
 {
     CDataManager* dm = G_CDataManager();                    // -0x38 local_3c
     int dungeonIndex =
-        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index();
+        reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index();
     CDungeon* dungeon = dm->find_dungeon(dungeonIndex);     // -0x34 local_38
     ServerParameterScript* spScript = &dm->m_serverParameter;  // -0x30 local_34（+0x68）
 
@@ -6318,7 +6316,7 @@ void CParty::set_clear_reward_exp_parameter(CUser* user, unsigned int exp,
             1, "party.cpp",
             __PRETTY_FUNCTION__,
             0x294a, "Unknown Dungeon %d",
-            reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index());
+            reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index());
         return;
     }
     if (user == 0)
@@ -6501,7 +6499,7 @@ void CParty::clear_reward(int param)
 {
     CDataManager* dm = G_CDataManager();
     int dungIdx =
-        reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index();
+        reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index();
     CDungeon* dungeon = dm->find_dungeon(dungIdx);
     int memberCount = get_member_count();
 
@@ -6509,7 +6507,7 @@ void CParty::clear_reward(int param)
     {
         LogManager::logFormat(1, "party.cpp", __PRETTY_FUNCTION__,
                               0x2a07, "Unknown Dungeon %d",
-                              reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index());
+                              reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index());
         return;
     }
     if (memberCount < 1)
@@ -6522,12 +6520,12 @@ void CParty::clear_reward(int param)
     {
         LogManager::logFormat(1, "party.cpp", __PRETTY_FUNCTION__,
                               0x2a13, "TournamentDungeon(%d) can not call function",
-                              reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_index());
+                              reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index());
         return;
     }
 
     BattleData& bd = m_battleData;
-    CBattle_Field& bfView = *reinterpret_cast<CBattle_Field*>(&m_padBattleField1);
+    CBattle_Field& bfView = *reinterpret_cast<CBattle_Field*>(&m_battleField);
 
     // ORIG:local_ec(G_CDataManager 首调结果)复用于 find_dungeon/getRankBonusIndex/+0x68。
     int rankBonusIdx = dm->getRankBonusIndex(param);
@@ -6573,7 +6571,7 @@ void CParty::clear_reward(int param)
     ref.m_rateSlot = static_cast<char>(memberCount);
     ref.m_rankBonusIndex = rankBonusIdx;
     // ORIG 0x085ae447..0x085ae476：movw this+0x374→+0x3c、this+0x36c→+0x3e、
-    // 0→+0x40、this+0x370→+0x42（半字视图，随后第二遍 m_dungeon 整字写覆盖 +0x40..43）
+    // 0→+0x40、this+0x370→+0x42（半字视图，随后第二遍 m_battleField.m_pDungeon 整字写覆盖 +0x40..43）
     ref.m_goldBase = static_cast<unsigned short>(bd.m_field48);      // +0x3c
     ref.m_goldFactor = static_cast<unsigned short>(bd.m_killedMonster1);  // +0x3e
     ref.m_field40 = 0;                                               // +0x40
@@ -7261,7 +7259,7 @@ void CParty::clear_reward(int param)
         pkReward.finalize(true);
         user->Send(pkReward);
 
-        if (m_dungeon != 0 && user != 0 && m_partyType != 1 &&
+        if (m_battleField.m_pDungeon != 0 && user != 0 && m_battleField.m_bloodState != 1 &&
             user->getCurCharacR() != 0)
         {
             bool properDungeon = dungeon->m_bloodDungeonType == 0 &&
@@ -7284,7 +7282,7 @@ void CParty::clear_reward(int param)
                 }
             }
         }
-        if (m_dungeon != 0 && user != 0 && m_partyType != 1 &&
+        if (m_battleField.m_pDungeon != 0 && user != 0 && m_battleField.m_bloodState != 1 &&
             user->getCurCharacR() != 0)
         {
             bool properLevel = dungeon->m_bloodDungeonType == 0 &&

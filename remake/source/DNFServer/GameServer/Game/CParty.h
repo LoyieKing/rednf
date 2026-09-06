@@ -23,6 +23,7 @@
 
 #include "GameTypes.h"
 #include "GameEnums.h"   // ENUM_DUNGEON_MODE / eCoinSubReason 权威定义（不依赖 CUser.h 传递）
+#include "CBattle_Field.h"     // batch-16 内嵌（环已断：BF.h 对 CParty 仅前向）
 #include "Inven_Item.h"
 #include "BattleData.h"   // m_battleData 具名成员（ORIG DWARF CParty+0x32c）
 #include "CUser.h"
@@ -749,31 +750,16 @@ public:
     // 旧 CParty 侧 0x37c..0x38f 五 char[4] 与 0xb14 int[4] 实为 BattleData
     // 自身字段 m_arr50/m_arr54/m_arr58/m_arr5c/m_arr60/m_arr7e8 的双名）。
     BattleData m_battleData;               // +0x32c..0xb23
-    unsigned char m_padBattleField1[0x158];  // +0xb24（BF+0x000..0x157）
-    CDungeonClearTracer m_dungeonClearTracer;  // +0xc7c（BF+0x158；ORIG giveup_game
-                                               //   Trace((CDungeonClearTracer*)(this+0xc7c))）
-    unsigned char m_padc94[0x18];              // +0xc94（BF+0x170..0x187）
-    CDungeon* m_dungeon;                    // +0xcac（当前副本；increase_
-                                            //   dimension_inout_count 等直读）
-    unsigned char m_padcb0[0x14];           // +0xcb0
-    char m_fieldCC4;                        // +0xcc4（CheckEnterDimensionDungeon 直读，维度模式）
-    unsigned char m_padcc5[0xf];            // +0xcc5..0xcd3（BF 未建模区）
-    int m_fieldCD4;                         // +0xcd4（CheckHellCoinLimint 比较 ==1；
-                                            //   ORIG 语义名未证【推断：hell 币限开关】）
-    int m_partyType;                        // +0xcd8
-    unsigned char m_padcdc[0x11];           // +0xcdc
-    char m_sealDoorItemsOk;                 // +0xced（UseSealDoorItems：全员通过=1/失败=0）
-    unsigned char m_padcee[0x6e];           // +0xcee..0xd5b
-    int m_standardDimensionLevel;           // +0xd5c
-    //   0x17a8..0x17f3 位于内嵌 CBattle_Field 内部（BF+0xc84 m_todReward、
-    //   BF+0xc98 m_tournamentReward），由 CBattle_Field 构造/析构管理——
-    //   ORIG CPartyC1Ev/D1Ev 不直接构造/析构该区（实证：ORIG 析构仅
-    //   0x17f4/0x1844/0xb24/0x32c/0x2a4/0x210/0x1abc/0x1ad0/0x4c）。
-    //   曾把 m_todReward/m_tournamentReward 重复建模为 CParty 直接成员，
-    //   导致与 CBattle_Field 内嵌成员双重构造/析构（NEW 比 ORIG 多
-    //   vector<pair<int,int>>C1/D1、CTournamentDungeonRewardC1/D1）——已移除。
-    //   访问经 bf(this)->m_todReward.m_todMap / bf(this)->m_tournamentReward。
-    unsigned char m_padCBattleField2[0xa94];    // +0xd60..0x17f3（BF 余下全部占位）
+    // batch-16：BF 内嵌段具名化（B2/B5/0x1c9 会签终案）。
+    //   CParty+0xb24 = CBattle_Field 内嵌对象（ORIG CPartyC1/D1 对 0xb24 有构造/
+    //   析构调用实证；sizeof 0xcd0 → 0xb24+0xcd0=0x17f4=m_padResult 零空洞）。
+    //   CParty 层旧直名字段全部折入：m_dungeon→m_battleField.m_pDungeon；
+    //   m_partyType→m_battleField.m_bloodState（B2 双域票：单槽唯一名，CParty 域
+    //   语义=partyType 以消费点注释标注）；m_fieldCC4→m_dungeonDiff；
+    //   m_fieldCD4→m_hellPartyMode；m_standardDimensionLevel→同名归一(B5)；
+    //   m_sealDoorItemsOk→+0x1c9 同名落 BF.h；tracer/padc94/padcb0/padcc5/padcdc/
+    //   padcee/padCBattleField2 由 BF.h 既有/占位成员接管。
+    CBattle_Field m_battleField;             // +0xb24..0x17f3
     unsigned char m_padResult[0x50];    // +0x17f4 GameResultSet
     std::map<int, int> m_killMobCounter;   // +0x1844（ORIG DieMob dispatch_sig
                                            //   击杀计数 map，size 0x18 同位）

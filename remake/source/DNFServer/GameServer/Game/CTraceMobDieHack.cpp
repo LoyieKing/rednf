@@ -84,11 +84,11 @@ void CTraceMobDieHack::traceEnd(CUser* killer, CUser** users)
     long curSec = GlobalData::s_systemTime_.getCurSec();
     m_bTracing = false;
     if (killer == 0 || killer->GetParty() == 0 ||
-        ((CParty*)killer->GetParty())->m_dungeon == 0)
+        ((CParty*)killer->GetParty())->m_battleField.m_pDungeon == 0)
     {
         return;
     }
-    int dungeonIndex = ((CParty*)killer->GetParty())->m_dungeon->get_index();
+    int dungeonIndex = ((CParty*)killer->GetParty())->m_battleField.m_pDungeon->get_index();
     int specialDungeons[4];
     specialDungeons[0] = 1;
     specialDungeons[1] = 2;
@@ -111,7 +111,7 @@ void CTraceMobDieHack::traceEnd(CUser* killer, CUser** users)
             continue;
         }
         if (users[j]->get_charac_level() >
-            ((CParty*)users[j]->GetParty())->m_dungeon->get_standard_level() + 10)
+            ((CParty*)users[j]->GetParty())->m_battleField.m_pDungeon->get_standard_level() + 10)
         {
             continue;
         }
@@ -231,7 +231,7 @@ void CTraceMobDieHack::_collect(CUser** users, int param_2)
             continue;
         }
         if (users[i]->GetParty() == 0 ||
-            ((CParty*)users[i]->GetParty())->m_dungeon == 0)
+            ((CParty*)users[i]->GetParty())->m_battleField.m_pDungeon == 0)
         {
             continue;
         }
@@ -240,7 +240,7 @@ void CTraceMobDieHack::_collect(CUser** users, int param_2)
             continue;
         }
         int diff = users[i]->get_charac_level() -
-                   ((CParty*)users[i]->GetParty())->m_dungeon->get_standard_level();
+                   ((CParty*)users[i]->GetParty())->m_battleField.m_pDungeon->get_standard_level();
         if (diff > 5)
         {
             continue;

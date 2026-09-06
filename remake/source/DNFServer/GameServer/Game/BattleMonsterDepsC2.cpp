@@ -257,7 +257,7 @@ void CBattle_Field::add_monsters_current_map(std::list<_mapMonster>& mobList,
                     mob.m_level =
                         (m_pDungeon->get_dimension_possible() < 1)
                             ? static_cast<char>(ref.m_levelAdd)
-                            : static_cast<char>(m_hellPartyLevel);     // +0x238 低字节
+                            : static_cast<char>(m_standardDimensionLevel);     // +0x238 低字节
                 }
                 else
                 {
@@ -265,7 +265,7 @@ void CBattle_Field::add_monsters_current_map(std::list<_mapMonster>& mobList,
                         (m_pDungeon->get_dimension_possible() < 1)
                             ? static_cast<char>(m_pDungeon->get_standard_level() +
                                                 static_cast<char>(ref.m_field08))
-                            : static_cast<char>(m_hellPartyLevel);
+                            : static_cast<char>(m_standardDimensionLevel);
                     if (mob.m_level == 0)
                         mob.m_level = 1;
                     if (static_cast<unsigned char>(mob.m_level) > 200)
@@ -424,7 +424,7 @@ void CBattle_Field::add_monster_APC_AI(int& seq)
         mob.m_level =
             (m_pDungeon->get_dimension_possible() < 1)
                 ? static_cast<char>(ai->getLevel())
-                : static_cast<char>(m_hellPartyLevel);
+                : static_cast<char>(m_standardDimensionLevel);
         mob.m_dropCnt = arrange.m_camp;                                    // arrange+0x10 → +0x2c
         // mob+0x11(低)←posY、+0x12(高)←posX（ORIG 逐字节写）
         mob.m_field11 = static_cast<short>(
@@ -466,7 +466,7 @@ void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x
     mob.m_level =
         (m_pDungeon->get_dimension_possible() < 1)
             ? static_cast<char>(ai->getLevel())
-            : static_cast<char>(m_hellPartyLevel);
+            : static_cast<char>(m_standardDimensionLevel);
     mob.m_dropCnt = 100;
     mob.m_field11 = 0;   // +0x11/+0x12 双字节清零
 
@@ -706,7 +706,7 @@ void CBattle_Field::add_item_curr_map(int& itemUid, int& itemIdx)
                 if (m_pDungeon->get_dimension_possible() < 1)
                     lvl = static_cast<char>(m_pDungeon->get_standard_level());
                 else
-                    lvl = static_cast<char>(m_hellPartyLevel);
+                    lvl = static_cast<char>(m_standardDimensionLevel);
                 refRandom.m_field34 = lvl;
                 *reinterpret_cast<unsigned char*>(&refSpecific.m_rankBonusIndex) =
                     static_cast<unsigned char>(lvl);

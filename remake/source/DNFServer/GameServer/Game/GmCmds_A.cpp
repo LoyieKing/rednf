@@ -229,7 +229,7 @@ void CBloodMonsterListCmd::execute()
     // CBattle_Field 为 CParty+0xb24 嵌入子对象（CParty.h 占位，全项目同口径视图）。
     // ORIG 0x84a9e??：GetMapInfo() 返回 MapInfo*，取其 +0x0c m_monsterMap。
     CBattle_Field* battleField =
-        reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);
+        &party->m_battleField;
     std::map<int, map_monster>* monsters = &battleField->GetMapInfo()->m_monsterMap;
 
     for (std::map<int, map_monster>::iterator it = monsters->begin();

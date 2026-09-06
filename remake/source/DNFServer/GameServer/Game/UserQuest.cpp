@@ -421,7 +421,7 @@ int UserQuest::giveup_quest(int questIdx)
                         void* party = m_user->GetParty();
                         if (party != 0)
                         {
-                            void* maze = reinterpret_cast<CBattle_Field*>((char*)party + 0xb24)->getMaze();
+                            void* maze = reinterpret_cast<CBattle_Field*>(static_cast<char*>(party) + 0xb24)->getMaze();
                             if (maze != 0 &&
                                 reinterpret_cast<MazeQuestView*>(maze)->m_questIdx == questIdx)
                             {

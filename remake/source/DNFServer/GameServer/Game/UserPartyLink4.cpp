@@ -222,7 +222,7 @@ void CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
     drop.m_item.m_upgradeSep.SetUpgradeSeparate(
         invenItem.m_upgradeSep.GetUpgradeSeparate());  // +0x43
 
-    int slotIdx = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)
+    int slotIdx = reinterpret_cast<CBattle_Field*>(&m_battleField)
                       ->drop_item(drop);               // 按值传 0x54 字节
     if (slotIdx == -1)
         return;                                        // ORIG ret 0x16

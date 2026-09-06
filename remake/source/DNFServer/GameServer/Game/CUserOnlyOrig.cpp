@@ -4,7 +4,7 @@
 // /tmp/only_orig/CUser.txt 269 符号，2026-08-27）
 //
 // 六批转写草稿（/tmp/df_batches/onlyorig_cuser body_A..F，含 compound_item 的
-// m_padBattleField1 具名视图修正版）统一落库为单一 TU；声明并入 CUser.h 尾部
+// m_battleField 具名视图修正版）统一落库为单一 TU；声明并入 CUser.h 尾部
 // 「Wave6-CUser 新增声明」区。每函数逐份读取 docs/class_func_reports/CUser/<Func>.md
 // （## 汇编 + ## 反编译 C）或按 nm -S + objdump 忠实转写并标注地址。
 // thunk/依赖唯一 owner 见各函数头注释与 meta_*.tsv。
@@ -3446,7 +3446,7 @@ bool CUser::isSuccessCompound(int chance)
 //             CParty* party = (CParty*)GetParty();
 //             if (party != 0 && party->isMonsterDrop_item(monsterIdx)) {
 //                 CBattle_Field& bfRef =
-//                     *reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1);
+//                     *reinterpret_cast<CBattle_Field*>(&party->m_battleField);
 //                 cont = (bfRef.m_visitedGotoFlag == 0) ||
 //                        bfRef.m_hellMapIdx != bfRef.get_cur_map();
                 // [集成占位①替换说明] 宿主内嵌BF字段化后改为：

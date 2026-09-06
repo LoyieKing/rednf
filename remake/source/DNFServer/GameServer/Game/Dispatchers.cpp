@@ -1249,8 +1249,10 @@ void Dispatcher_StartGame::send(CUser* user, ParamBase& param)
 {
     // ORIG 0x813f92a
     struct _P4 { int m0; int m1; };   // +0x04 槽（ORIG mov 0x4(%eax) 寻址模拟）
-    ParamBase& p = param;
-    _P4& q = *reinterpret_cast<_P4*>(&p);
+    // 技巧36：ORIG 只 `mov 0x10(%ebp),%eax; mov %eax,-0x14(%ebp)` 单槽物化；
+    // 我方多一个 ParamBase& p 中转变量 ⇒ 多占 -0x18 并把 PacketGuard 挤到 -0x24
+    // （ORIG 是 -0x20），整帧位移。直接对形参取地址即可一并归位。
+    _P4& q = *reinterpret_cast<_P4*>(&param);
     if (q.m1 == 0)
     {
         StageControl::gotoStage(user);   // ORIG 0x0812fdd4 静态语义
@@ -1258,7 +1260,7 @@ void Dispatcher_StartGame::send(CUser* user, ParamBase& param)
     PacketGuard guard;
     guard.put_header(1, 0x23c);
     guard.put_byte(1);
-    guard.put_binary((char*)&p, 8);
+    guard.put_binary((char*)&q, 8);              // ORIG `mov -0x14(%ebp),%eax`（q 槽）
     if (q.m1 != 0)
     {
         guard.finalize(true);
@@ -1976,17 +1978,17 @@ int Dispatcher_DieMobAll::dispatch_sig(CUser* user, PacketBuf& packet)
                             0, 0);
         }
         // ORIG：field 地址无槽，就地 add $0xb24 传参（不落局部引用）
-        if (!reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1)
+        if (!reinterpret_cast<CBattle_Field*>(&party->m_battleField)
                 ->IsClearDungeon())   // ORIG xor $1,test al → 未清才进 body
         {
-            if (party->m_dungeon == 0)
+            if (party->m_battleField.m_pDungeon == 0)
             {
                 user->getHackAnalyzer()->addServerHackCnt(
                     user, static_cast<WongWork::ENUM_HACKTYPE>(0xcc), 1, 0, 0);
             }
             else
             {
-                if (static_cast<CParty*>(user->GetParty())->m_dungeon->get_index()
+                if (static_cast<CParty*>(user->GetParty())->m_battleField.m_pDungeon->get_index()
                     == 0x2afe)
                 {
                     user->getHackAnalyzer()->addServerHackCnt(
@@ -2096,21 +2098,26 @@ int Dispatcher_SkillInit::read(PacketBuf& packet, MSG_BASE& msg)
 }
 void Dispatcher_SkillInit::send(CUser* user, ParamBase& param)
 {
-    // ORIG 0x081e5aec
+    // ORIG 0x081e5aec：`test %eax,%eax; jne <guard 段>` —— 正常路径是 **fall-through**，
+    // SendCmdErrorPacket 上报体被摆在**函数物理尾**（技巧17/23：ORIG fall-through 块在前）。
+    // 我方原写 `if (m_4 != 0) { 上报; return; } <guard>` 使上报体占了 fall 位 ⇒ 整块顺序反转、
+    // ndiff 19。改成正向嵌套即复位。
     stSkillInit& p = static_cast<stSkillInit&>(param);
-    if (p.m_4 != 0)
+    if (p.m_4 == 0)
+    {
+        PacketGuard pkt;
+        pkt.put_header(1, 0x1ec);
+        pkt.put_byte(1);
+        pkt.put_byte((int)(char)p.m_8);
+        pkt.finalize(true);
+        user->Send(pkt);
+        user->send_skill_info();
+    }
+    else
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1ec,
                                  (unsigned char)(p.m_4 & 0xff));
-        return;
     }
-    PacketGuard pkt;
-    pkt.put_header(1, 0x1ec);
-    pkt.put_byte(1);
-    pkt.put_byte((int)(char)p.m_8);
-    pkt.finalize(true);
-    user->Send(pkt);
-    user->send_skill_info();
 }
 void Dispatcher_SkillInit::process_skill_init(CUser* user, ParamBase& param)
 {
@@ -2275,11 +2282,13 @@ int Dispatcher_BVHackInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 Dispatcher_BlueMarble::~Dispatcher_BlueMarble() {}
 int Dispatcher_BlueMarble::check_error(CUser* user, MSG_BASE& msg)
 {
+    // ORIG 0x081e60xx 入口即 `mov 0x10(%ebp),%eax; mov %eax,-0x14(%ebp)` —— msg 引用槽
+    // 在 user 判空**之前**物化（技巧13 声明位=落栈时机）；我方原放在判空之后 ⇒ 前 5 行错位。
+    const MSG_BLUE_MARBLE& req = static_cast<const MSG_BLUE_MARBLE&>(msg);
     if (user == 0)
     {
         return -1;
     }
-    const MSG_BLUE_MARBLE& req = static_cast<const MSG_BLUE_MARBLE&>(msg);
     if (req.m_0d == 6)
     {
         return 0;
@@ -2293,7 +2302,11 @@ int Dispatcher_BlueMarble::check_error(CUser* user, MSG_BASE& msg)
     {
         return -3;
     }
-    if (marble->getUserSlot(user) == -1)
+    // ORIG：`mov %eax,-0xc(%ebp); cmpl $-1,-0xc(%ebp); jne` —— 结果先落具名槽 -0xc、
+    // 再用 mem 作 src 直分支。我方把 call 结果内联比较（技巧37 免槽形）在此点位反被
+    // 4.4 折成 `cmp $-1,%eax; sete;test;je` 岛 ⇒ 此处必须建具名局部。
+    const int slot = marble->getUserSlot(user);
+    if (slot == -1)
     {
         return -4;
     }
@@ -3783,7 +3796,7 @@ int Dispatcher_Select_Card::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     // +0x0a8: 副本为 TowerOfDespair → 放弃
-    if (party->m_dungeon != 0 && party->m_dungeon->isTowerOfDespairDungeon())
+    if (party->m_battleField.m_pDungeon != 0 && party->m_battleField.m_pDungeon->isTowerOfDespairDungeon())
         return 0;
 
     // +0x0e4: 读 cardType（0..1 有效）
@@ -4058,8 +4071,7 @@ int Dispatcher_BossDieCheck::process(CUser* user, MSG_BASE& msg, ParamBase& para
 
     CParty* party =
         G_CGameManager()->GetParty((int)(short)user->GetPartyIndex());
-    CBattle_Field* field = reinterpret_cast<CBattle_Field*>(
-        reinterpret_cast<char*>(party) + 0xb24);           // party+0xc3c = BF+0x118
+    CBattle_Field* field = &party->m_battleField;           // party+0xc3c = BF+0x118
     std::vector<int>::iterator it = std::find(field->m_apcList.begin(),
                                               field->m_apcList.end(),
                                               bossSeq);
@@ -4132,16 +4144,19 @@ void Dispatcher_BossDieCheck::send(CUser* user, ParamBase& param)
     }
     PacketGuard packet;
     packet.put_header(0, 0x73);
-    if (out.m_4 == 0)
+    // ORIG 0x081dxxxx：`test %eax,%eax; je <跳走>` —— **失败块（put_byte 0/put_byte m_4）
+    // 才是 fall-through**，成功块在跳远侧（技巧17/23；与 SkillInit/RefundSkill::send 的
+    // 方向相反，故必须逐条看 ORIG 那条 je/jne，不能整族批量套）。
+    if (out.m_4 != 0)
+    {
+        packet.put_byte(0);
+        packet.put_byte(out.m_4);
+    }
+    else
     {
         packet.put_byte(1);
         packet.put_byte((unsigned char)out.m_8);
         packet.put_short((unsigned short)out.m_a);
-    }
-    else
-    {
-        packet.put_byte(0);
-        packet.put_byte(out.m_4);
     }
     packet.finalize(true);
     CParty* party =
@@ -8989,7 +9004,7 @@ int Dispatcher_TutorialLevelUp::process(CUser* user, MSG_BASE& msg, ParamBase& p
         return 0;
     }
     CBattle_Field& bf =
-        *reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);
+        *&party->m_battleField;
     if (bf.get_cur_map() != 0xee49 && bf.get_cur_map() != 0xee51 &&
         bf.get_cur_map() != 0xee58)
     {
@@ -10249,8 +10264,7 @@ int Dispatcher_SDC_Damage_Check::dispatch_sig(CUser* user, PacketBuf& packet)
         CParty* party2 = G_CGameManager()->GetParty((int)partyIdx);   // -0xc
         if (party2 != 0)
         {
-            CBattle_Field* field = reinterpret_cast<CBattle_Field*>(
-                reinterpret_cast<char*>(party2) + 0xb24);
+            CBattle_Field* field = &party2->m_battleField;
             field->SetDamagedPacketCnt(var->m_uid);           // +0x1ca
             field->SetDamageValue(var->m_uid, hackGate);
         }
@@ -11755,7 +11769,10 @@ int Dispatcher_Antibot_DPCallBack::read(PacketBuf& packet, MSG_BASE& msg) { retu
 Dispatcher_BiddingRoutingItem::~Dispatcher_BiddingRoutingItem() {}
 int Dispatcher_BiddingRoutingItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    int state = user->get_state();
+    // ORIG 0x0820xxxx：`call; cmp $0x5,%eax; je; cmp $0xc,%eax; je` —— 一次调用、
+    // 连续两次用 %eax 直接比较（免槽）。我方具名 int 局部使 4.4 spill 成
+    // `mov %eax,-0x14(%ebp); cmpl $5,-0x14(%ebp)` 两处（技巧28：register 钉 %eax 破 spill）。
+    register int state asm("eax") = user->get_state();
     if (state != 5 && state != 0xc)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x12d, 0x13);
@@ -17555,7 +17572,7 @@ int Dispatcher_DungeonEventStoryPause::dispatch_sig(CUser* user, PacketBuf& pack
         {
             // party+0xb24 内嵌 CBattle_Field：getMaze / GetCurrentMapIndex
             CBattle_Field* battleField =
-                reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);
+                &party->m_battleField;
             if (battleField->getMaze() != 0)
             {
                 int mapIndex = battleField->GetCurrentMapIndex();
@@ -18112,7 +18129,7 @@ int Dispatcher_Card_Select_Right_State::dispatch_sig(CUser* user, PacketBuf& pac
     if (party == 0)
         return LineFunc(0x9328, kPretty, 0, 0);
 
-    if (party->m_dungeon != 0 && party->m_dungeon->isTowerOfDespairDungeon())
+    if (party->m_battleField.m_pDungeon != 0 && party->m_battleField.m_pDungeon->isTowerOfDespairDungeon())
         return 0;
 
     if (!party->CheckRecvFromAllMember(user))
@@ -19089,7 +19106,7 @@ int Dispatcher_SelectUltimateDifficulty::dispatch_sig(CUser* user, PacketBuf& pa
         return 0;
     }
     CBattle_Field* battleField =
-        reinterpret_cast<CBattle_Field*>(reinterpret_cast<char*>(party) + 0xb24);
+        &party->m_battleField;
     if (2 < battleField->getBloodState())
     {
         return 0;
@@ -19109,7 +19126,7 @@ int Dispatcher_SelectUltimateDifficulty::dispatch_sig(CUser* user, PacketBuf& pa
                               (int)(signed char)difficulty);
         return 0;
     }
-    if (party->m_dungeon == 0 || party->m_dungeon->get_index() != 0x2aff)
+    if (party->m_battleField.m_pDungeon == 0 || party->m_battleField.m_pDungeon->get_index() != 0x2aff)
     {
         LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp",
                               __PRETTY_FUNCTION__,
@@ -19647,13 +19664,13 @@ int Dispatcher_BloodRoundUiPrepareFinish::dispatch_sig(CUser* user, PacketBuf& p
                         0, 0);
     }
     CParty* party = (CParty*)user->GetParty();
-    if (party == 0 || party->m_dungeon == 0)
+    if (party == 0 || party->m_battleField.m_pDungeon == 0)
     {
         return 0;
     }
-    CBattle_Field& field = *reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1);
+    CBattle_Field& field = *reinterpret_cast<CBattle_Field*>(&party->m_battleField);
     MapInfo* mi = field.GetMapInfo();
-    bool skip = (party->m_dungeon->m_bloodDungeonType < 1) ||
+    bool skip = (party->m_battleField.m_pDungeon->m_bloodDungeonType < 1) ||
                 (mi != 0 && mi->m_visited == 1);
     if (!skip)
     {
@@ -20790,16 +20807,18 @@ void Dispatcher_ImageCommunicationEquipmentUse::send(CUser* user, ParamBase& par
         static_cast<stImageCommunicationEquipmentUse&>(param);
     PacketGuard guard;
     guard.put_header(1, 0x1dc);
-    if (out.m_4 == 0)
+    // ORIG 0x081e22e6：`test %eax,%eax; je <跳走>` —— 失败块（put_byte 0 + put_byte m_4）
+    // 占 fall-through，成功块跳远（技巧17/23，与 BossDieCheck::send 同方向）。
+    if (out.m_4 != 0)
+    {
+        guard.put_byte(0);
+        guard.put_byte(out.m_4);
+    }
+    else
     {
         guard.put_byte(1);
         guard.put_int(out.m_8);
         guard.put_int(out.m_c);
-    }
-    else
-    {
-        guard.put_byte(0);
-        guard.put_byte(out.m_4);
     }
     guard.finalize(true);
     user->Send(guard);
@@ -24070,12 +24089,9 @@ struct RefundParamView
 void Dispatcher_RefundSkill::send(CUser* user, ParamBase& param)
 {
     RefundParamView& v = *reinterpret_cast<RefundParamView*>(&param);
-    if (v.m_err != 0) {                                         // +0x18 错误码
-        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x1ab),
-                                 static_cast<unsigned char>(v.m_err & 0xff));
-    }
-    else
-    {
+    // ORIG 0x081dabxx：`test %eax,%eax; jne <guard 段>` —— 正常（err==0）路径 fall-through，
+    // SendCmdErrorPacket 上报体在**函数物理尾**（技巧17/23，同 SkillInit::send）。
+    if (v.m_err == 0) {                                         // +0x18 错误码
         PacketGuard pg;
         pg.clear();
         pg.put_header(1, 0x1ab);
@@ -24090,6 +24106,10 @@ void Dispatcher_RefundSkill::send(CUser* user, ParamBase& param)
         pg.put_byte(static_cast<int>(v.m_count));               // +0x14
         pg.finalize(true);
         user->Send(pg);
+    }
+    else {
+        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x1ab),
+                                 static_cast<unsigned char>(v.m_err & 0xff));
     }
 }
 
@@ -24873,34 +24893,41 @@ int Dispatcher_Teleport::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 // ==== Dispatcher_Teleport::send (ORIG 0x081d087c) ====
 void Dispatcher_Teleport::send(CUser* user, ParamBase& param)
 {
+    // ORIG 0x081d087c 两处形：①`test %eax,%eax; jne <guard 段>` —— err==0 正常路径是
+    // fall-through、SendCmdErrorPacket 上报体在函数物理尾（技巧17/23，同 SkillInit/
+    // RefundSkill::send）；②读 m_10 时是 `movzbl 0x10(%eax),%eax; movsbl %al,%eax`
+    // 两段（技巧15 signedness 两步：字段零扩展后再符号扩展成 int），我方原写 unsigned
+    // 提升只到 movzbl ⇒ 少一段且语义应为有符号。
     stTeleportParam& out = static_cast<stTeleportParam&>(param);
     if (out.m_4 == static_cast<int>(0x7fffffff))
     {
         return;
     }
-    if (out.m_4 != 0)
+    if (out.m_4 == 0)
+    {
+        PacketGuard itemPacket;
+        itemPacket.put_header(0, 0xe);
+        itemPacket.put_byte(static_cast<int>(static_cast<signed char>(out.m_10)));
+        itemPacket.put_short(1);
+        user->getCurCharacInvenR()->MakeItemPacket(
+            static_cast<INVEN_TYPE>(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)static_cast<int>(static_cast<signed char>(out.m_10)))),
+            out.m_8, itemPacket);
+        itemPacket.finalize(true);
+        user->Send(itemPacket);
+
+        PacketGuard packet;
+        packet.put_header(1, 0xf1);
+        packet.put_byte(1);
+        packet.put_short(out.m_8);
+        packet.put_int(out.m_14);
+        packet.finalize(true);
+        user->Send(packet);
+    }
+    else
     {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xf1),
                                  static_cast<unsigned char>(out.m_4));
-        return;
     }
-    PacketGuard itemPacket;
-    itemPacket.put_header(0, 0xe);
-    itemPacket.put_byte(out.m_10);
-    itemPacket.put_short(1);
-    user->getCurCharacInvenR()->MakeItemPacket(
-        static_cast<INVEN_TYPE>(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)static_cast<int>(static_cast<char>(out.m_10)))),
-        out.m_8, itemPacket);
-    itemPacket.finalize(true);
-    user->Send(itemPacket);
-
-    PacketGuard packet;
-    packet.put_header(1, 0xf1);
-    packet.put_byte(1);
-    packet.put_short(out.m_8);
-    packet.put_int(out.m_14);
-    packet.finalize(true);
-    user->Send(packet);
 }
 
 
@@ -26813,7 +26840,7 @@ int Dispatcher_TournamentRewardSelect::process(CUser* user, MSG_BASE& msg, Param
     party->GetValidPartyMember(members);                     // T 0x085bd1dc
 
     CTournamentDungeonReward& reward =
-        reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1)->m_tournamentReward;   // +0x17bc
+        reinterpret_cast<CBattle_Field*>(&party->m_battleField)->m_tournamentReward;   // +0x17bc
     // 全员已选卡 → 0x7fffffff（isCardSelectComplete 第二参=卡组类型 2）
     if (reward.isCardSelectComplete(
             (ENUM_TOURNAMENT_REWARD_CARD_TYPE)2, members))
@@ -26846,7 +26873,7 @@ void Dispatcher_TournamentRewardSelect::send(CUser* user, ParamBase& param)
         if (party != 0)
         {
             CTournamentDungeonReward& reward =
-                reinterpret_cast<CBattle_Field*>(&party->m_padBattleField1)->m_tournamentReward;   // +0x17bc
+                reinterpret_cast<CBattle_Field*>(&party->m_battleField)->m_tournamentReward;   // +0x17bc
             reward.MakeSelectPacket(&guard);
             guard.finalize(true);
             party->send_to_party(guard);
@@ -27301,7 +27328,7 @@ bool Dispatcher_BuyCeraShopItem::useCountDownCoinInFreeCoinDungeon(
     {
         return false;
     }
-    CDungeon* dungeon = party->m_dungeon;
+    CDungeon* dungeon = party->m_battleField.m_pDungeon;
     if (dungeon == 0)
     {
         return false;
