@@ -258,7 +258,7 @@ void CMap::destory()
     // ORIG 0834ed1e：空体（push/mov/pop/ret，仅返回）。
 }
 
-bool CMap::checkFitInPathObject(int x, int y) const
+int CMap::checkFitInPathObject(int x, int y) const
 {
     return isInPathArea(x, y,
                         reinterpret_cast<const int (*)[2]>(m_pathArea1),

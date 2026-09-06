@@ -78,7 +78,9 @@ void WongWork::CSecurityCardCenter::init()
     static const unsigned char characterSet[] =
         "+<>?@#$&ABCDEFGHIJKLMNPQRSTUVWXYZ123456789";
     Initialize("n6;fw;vjfs0fuguf", 0x10, CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
-    for (int i = 0; i < 42; ++i)
+    // ORIG `cmp $0x29,%eax; setbe` = 无符号 `i<=41`（P2 setbe=unsigned）。
+    // 4.4 对 int 出 setle → 循环计数器改 unsigned 对齐 setbe。
+    for (unsigned int i = 0; i < 42; ++i)
     {
         m_characterSet.push_back(characterSet[i]);
     }
@@ -135,8 +137,9 @@ char* WongWork::CSecurityCardCenter::encryptString(char const* src, char* out)
 char* WongWork::CSecurityCardCenter::generateCertKey(char* out)
 {
     // ORIG T 0x085fe17e (size 0x3b)：rand∈[10000,99999] 格式化为 5 位数字串。
-    const int value = get_rand_int(89999) + 0x2710;
-    OS_API::snprintf(out, 6, "%d", value);
+    // P0/P183：ORIG 无 `value` 栈槽（call 结果经 %eax 直传 snprintf 出参槽），
+    // 具名局部导致 spill/reload 2 条 + 帧 +0x10 → 内联为表达式右值。
+    OS_API::snprintf(out, 6, "%d", get_rand_int(89999) + 0x2710);
     return out;
 }
 
@@ -327,8 +330,12 @@ int WongWork::CEventMgr::GetMoneyCharacCreate()
 bool WongWork::CEventMgr::IsPCRoomEventing()
 {
     // ORIG T 0x0848f0dc (size 0x64)：_IsEventing(2006-01-24 00 .. 2006-02-07 06,
-    // EVENT_PLAIN)。
-    return _IsEventing(0x7d6, 1, 0x18, 0, 0x7d6, 2, 7, 6, EVENT_PLAIN);
+    // EVENT_PLAIN)。ORIG 尾 `test %al,%al; je L; mov $1; jmp; L: mov $0` = 分支
+    // 物化返 bool（P56）；直 `return _IsEventing(...)` 被 4.4 直穿 %al → 改
+    // if(cond)return true; return false; 复现分支段。
+    if (_IsEventing(0x7d6, 1, 0x18, 0, 0x7d6, 2, 7, 6, EVENT_PLAIN))
+        return true;
+    return false;
 }
 
 // W7_BuildHarmonize 去重：IsChildrensDayEventing 唯一 owner 为 CEventMgr.cpp。

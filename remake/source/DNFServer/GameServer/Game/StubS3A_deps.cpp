@@ -277,21 +277,19 @@ bool CItemMakingSkill::loadData(CUser* pUser, char* pData)
 
 bool CItemMakingSkill::_saveData(CUser* pUser)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("CItemMakingSkill.cpp", 0x33);
-    CStreamGuard guard(stream, true);
-    guard << (int)0x26e;
-    guard << (int)pUser->GetUID();
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("CItemMakingSkill.cpp", 0x33),
+                       true);
+    guard.operator*()->operator<<((int)0x26e);       // op*(guard)→op<<(int)
+    guard.operator*()->operator<<((int)pUser->GetUID());
 
-    SIG_ITEM_MAKING_SKILL* sig =
-        guard.GetInBuffer<SIG_ITEM_MAKING_SKILL>();
-    // ORIG：memset(sig,0,0x1c)；characNo@+0；skills[11]@+4（ushort ×11）。
-    memset(sig, 0, 0x1c);
-    char* sigBuf = reinterpret_cast<char*>(sig);
+    // ORIG：GetInBuffer → 单变量 byte 寻址；memset 0x1c；characNo@+0；
+    // skills[11]@+4（ushort ×11）。单指针变量一个槽。
+    char* sigBuf = reinterpret_cast<char*>(
+        guard.operator->()->GetInBuffer<SIG_ITEM_MAKING_SKILL>());
+    memset(sigBuf, 0, 0x1c);
     *reinterpret_cast<int*>(sigBuf) = pUser->get_charac_no(-1);
     for (int i = 0; i <= 0xa; ++i)
-        *reinterpret_cast<unsigned short*>(sigBuf + 4 + i * 2) =
-            m_skillLevels[i];
+        reinterpret_cast<unsigned short*>(sigBuf + 4)[i] = m_skillLevels[i];
     // ORIG：MsgQueueMgr::put(DB_Q=2, guard) 提交 DB 队列（0x08545381）。
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;

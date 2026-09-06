@@ -944,11 +944,12 @@ int BlueMarble::giveupDungeon(CUser* user)
         }
         else
         {
-            // ORIG 0x080d95f3：map==0 物化 sete %al 后 `test;jne 出口`（body fall，
-            // 范式22 register bool 绑 al）。
+            // ORIG 0x080d95f3：map==0 物化 sete %al 后 `test al;jne 出口`（body fall，
+            // 范式22 register bool 绑 al + 范式23 正向 goto 阻 4.4 xor 取反）。
             register bool mapNull asm("al");
             mapNull = (m_pScript->getMap(getBlueMarbleMap()) == 0);
-            if (!mapNull)
+            if (mapNull)
+                goto T_OUT;
             {
                 BlueMarbleTileScript* tile = m_pScript->getMap(getBlueMarbleMap())->getTile(
                     (unsigned int)m_users[seat].getBoardZone());
@@ -964,6 +965,8 @@ int BlueMarble::giveupDungeon(CUser* user)
                     setUserState(seat, (BlueMarbleUserState::T)1);
                 }
             }
+T_OUT:
+            ;
         }
     }
 }

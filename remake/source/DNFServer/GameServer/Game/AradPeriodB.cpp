@@ -212,10 +212,8 @@ public:
 // ORIG T 0x0819537c（报告 ARAD__FnRewardMomoji/GetMailString.md 全文转写）。
 void ARAD::FnRewardMomoji::GetMailString(char* mailBuf, char* titleBuf)
 {
-    const char* title = g_scriptStringManager_.findString(4, "momiji_event_title", (bool*)0);
-    std::strncpy(titleBuf, title, 0x14);
-    const char* mail = g_scriptStringManager_.findString(4, "momiji_event_mail", (bool*)0);
-    std::strncpy(mailBuf, mail, 0xff);
+    std::strncpy(titleBuf, g_scriptStringManager_.findString(4, "momiji_event_title", (bool*)0), 0x14);
+    std::strncpy(mailBuf, g_scriptStringManager_.findString(4, "momiji_event_mail", (bool*)0), 0xff);
 }
 
 namespace ARAD {

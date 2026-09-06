@@ -134,10 +134,11 @@ void CPad::GenerateRandomShakeData()
 // ORIG T 0x085998ea：key 生成时间有效时刷新 keyIdx 与扰动数据。
 void CPad::GenerateRandomData()
 {
-    if (!isValidKeyGenTime())
-        return;
-    GenerateRandomKeyIdx();
-    GenerateRandomShakeData();
+    if (isValidKeyGenTime())
+    {
+        GenerateRandomKeyIdx();
+        GenerateRandomShakeData();
+    }
 }
 
 // ORIG T 0x0859984c：min(+0x2e, 0x1387)。

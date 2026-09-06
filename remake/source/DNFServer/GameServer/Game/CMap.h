@@ -130,7 +130,6 @@ struct STAICharacterMapArrangeData
     int m_roleType;  // +0x14（5..8）
     char m_posX;     // +0x18
     char m_posY;     // +0x19
-    char m_pad1a[2]; // +0x1a
     std::vector<int> m_championFeatures;       // +0x1c
     int m_npcIdx;                              // +0x28（Clear=-1）
     std::vector<unsigned char> m_collisionGroup; // +0x2c
@@ -542,7 +541,7 @@ public:
     int insert_monster(STAssignMonster monster, int area);
     void insert_condition_monster(STAssignMonster monster);
     int insert_item(int idx, int level, int prob, int cond);
-    bool checkFitInPathObject(int x, int y) const;
+    int checkFitInPathObject(int x, int y) const;
     int box_item_index(std::list<std::pair<int, int> > itemList) const;
     int CheckEntrance(int flag) const;
 
