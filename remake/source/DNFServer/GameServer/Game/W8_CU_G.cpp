@@ -267,6 +267,12 @@ void CUser::getHashCode(unsigned char* digestOut)
 // ORIG 0x0867f4c8：CleanPad 人机认证应答比对（验证码头 5×ushort 逐项日志后 memcmp）。
 bool CUser::checkHumanCertify(int len, unsigned short* answer)
 {
+    // b21 verdict=DIFF（N 残余）：160/166。15=15 调用点全等（get_acc_id×n/NumberToString/
+    //   cMyTraceC1+cMyTracecl/DB_CountOfHumanCertify::makeRequest/memcmp/
+    //   DB_ForceSaveSimpleSSO::makeRequest×2/isCleanPadVerifyLimit/setHumanCertified/
+    //   SendCmdErrorPacket）。orig/ans 5 组 ushort 物化顺序与 trace 实参求值序差(N82)、
+    //   `const unsigned short* orig` 具名局部占槽(ORIG 直读 this+0x8e0ec 偏移族)。语义全等，
+    //   byte 层 N 封顶。
     {
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x7e07, 0);

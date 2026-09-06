@@ -48,6 +48,11 @@ SendingAPC_Info::~SendingAPC_Info()
 
 void SendingAPC_Info::Set_APC_Info(TOD_Layer const& layer, _APCInfo const& info)
 {
+    // b21 verdict=DIFF（N 残余）：202/201（gap=1）。调用点全等（clear/put_header/put_byte×/
+    //   GetLayer/strlen×3/put_int×/put_str×3/finalize/cMyTraceC1+cMyTracecl）。包字段序
+    //   （userCharacNo/name/lv/job/grow/guild/pvp/abilities[0x16]/creature/creatureId）逐位核。
+    //   trace 实参物化两批局部槽且顺序差(N82)、GetLayer 结果寄存器、帧 push edi vs 栈。
+    //   语义完成，byte 层 N 封顶（近 identical）。
     m_buf.clear();
     m_userCharacNo = info.m_userCharacNo;
     m_buf.put_header(0, 0x15a);

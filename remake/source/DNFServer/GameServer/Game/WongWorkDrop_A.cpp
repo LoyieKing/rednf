@@ -127,20 +127,9 @@ inline void pushCreatedItem(int itemIdx, stGenerateResult_t& result)
 
 }  // namespace
 
-// ref blob 字节读取 helper（+0x34..+0x47 调用上下文区【推断语义】）
-inline unsigned char u8_at(stGenerateRefData_t const& ref, int off)
-{
-    return *reinterpret_cast<unsigned char const*>(
-        reinterpret_cast<char const*>(&ref) + off);
-}
-inline signed char i8_at(stGenerateRefData_t const& ref, int off)
-{
-    return *reinterpret_cast<signed char const*>(
-        reinterpret_cast<char const*>(&ref) + off);
-}
-
 // ===========================================================================
 // CWorldDrop::generateRandomItem — ORIG T 0x085383b8
+// b21 同族：+0x34/+0x35 改成员直读（m_field34/m_field35，语义同 u8_at）。
 // ===========================================================================
 void CWorldDrop::generateRandomItem(stGenerateRefData_t const& ref,
                                     stGenerateResult_t& result)
@@ -149,13 +138,13 @@ void CWorldDrop::generateRandomItem(stGenerateRefData_t const& ref,
     WorldDropInfo* slot;
     int roll = m_random.generateNumber(0, 100000);     // CGenerateRandomNumber(this+8)
 
-    if (u8_at(ref, 0x35) > 199)                        // ORIG movzbl cmp $0xc7 ja
+    if (static_cast<unsigned char>(ref.m_field35) > 199)  // ORIG movzbl cmp $0xc7 ja
         return;
 
-    if (u8_at(ref, 0x34) == 1)                         // warArea 分支
-        slot = &m_warAreaDrop[u8_at(ref, 0x35)];       // this+level*0x14+0xfcc
+    if (static_cast<unsigned char>(ref.m_field34) == 1)   // warArea 分支
+        slot = &m_warAreaDrop[static_cast<unsigned char>(ref.m_field35)];
     else
-        slot = &m_worldDrop[u8_at(ref, 0x35)];         // this+level*0x14+0x18
+        slot = &m_worldDrop[static_cast<unsigned char>(ref.m_field35)];
     // threshold = first × dropRate / 100（ORIG imul 0x51eb851f 魔 数除法，带符号）
     int prod = slot->m_first * ref.m_dropRate;
     int threshold;
@@ -181,17 +170,19 @@ void CWorldDrop::generateRandomItem(stGenerateRefData_t const& ref,
 
 // ===========================================================================
 // CObjectDrop::generateRandomItem — ORIG T 0x0853818a
+// b21 同族：u8_at/i8_at → m_field34/m_field35/m_rateSlot/m_pad37 成员直读（语义不变）。
 // ===========================================================================
 void CObjectDrop::generateRandomItem(stGenerateRefData_t const& ref,
                                      stGenerateResult_t& result)
 {
     bool done = false;                                  // local_21
-    for (int n = 0; n < i8_at(ref, 0x37); ++n)          // (char)(blob+0x37) 次数
+    for (int n = 0; n < static_cast<signed char>(ref.m_pad37); ++n)
     {
-        unsigned char type = u8_at(ref, 0x34);
+        unsigned char type = static_cast<unsigned char>(ref.m_field34);
         _generateRandomItem(type, 0,                    /* role 固定 '\0' */
                             type,                       /* dungeonLv 复位为同值 */
-                            u8_at(ref, 0x35), u8_at(ref, 0x36),
+                            static_cast<unsigned char>(ref.m_field35),
+                            static_cast<unsigned char>(ref.m_rateSlot),
                             0,                          /* context3c = NULL */
                             ref.m_dropRate, result, done);
     }
@@ -199,6 +190,7 @@ void CObjectDrop::generateRandomItem(stGenerateRefData_t const& ref,
 
 // ===========================================================================
 // CObjectDrop::generateSpecificItem — ORIG T 0x08538234
+// b21 同族：i8_at(0x39) → static_cast<signed char>(m_field39)（语义不变）。
 // ===========================================================================
 void CObjectDrop::generateSpecificItem(stGenerateRefData_t const& ref,
                                        stGenerateResult_t& result)
@@ -209,7 +201,7 @@ void CObjectDrop::generateSpecificItem(stGenerateRefData_t const& ref,
         *reinterpret_cast<std::list<std::pair<int, int> > const* const*>(
             &ref.m_field34);
 
-    for (int n = 0; n < i8_at(ref, 0x39); ++n)
+    for (int n = 0; n < static_cast<signed char>(ref.m_field39); ++n)
     {
         int pick = m_random.generateNumber(2, 10000);
         int acc = 0;
@@ -570,21 +562,24 @@ void CMonsterDrop::generateRandomItem(stGenerateRefData_t const& ref,
 }
 
 // ---- generateSpecificItem — ORIG T 0x08537070（虚槽 +0x0c）----
+// b21 同族：u8_at/i8_at 改成员直读；+0x43/+0x44 改为 ORIG 语义 (byte!=1)&&(byte!=1)（原 ==0 误）。
+//   残余：字节比较 codegen（ORIG xor$0x1 vs cmpb，N-86b 全同）+ AE。
 void CMonsterDrop::generateSpecificItem(stGenerateRefData_t const& ref,
                                         stGenerateResult_t& result)
 {
-    if (u8_at(ref, 0x41) != 0)
+    if (ref.m_field41 != 0)
     {
         // hell 旗标非零：地狱派对专用掉落
         WM_Hell_hellPartySpecificItem(&m_hell, ref, result);
         return;
     }
 
-    signed char difficulty = i8_at(ref, 0x3c);
+    signed char difficulty = static_cast<signed char>(ref.m_field3c_byte);
     if (difficulty <= 4)
     {
         CMonster* monster =
-            static_cast<CMonster*>(G_CDataManager()->find_monster(u8_at(ref, 0x35)));
+            static_cast<CMonster*>(G_CDataManager()->find_monster(
+                static_cast<unsigned char>(ref.m_field35)));
         if (monster == 0)
             return;
 
@@ -593,16 +588,18 @@ void CMonsterDrop::generateSpecificItem(stGenerateRefData_t const& ref,
         if (!script->m_independentDrops.empty())
             monster->generateIndependentItem(ref, result.m_dropItems);
 
-        Mon_generateDropAvatarItem(monster, u8_at(ref, 0x36),
-                                   u8_at(ref, 0x3e), result.m_dropItems);
+        Mon_generateDropAvatarItem(monster,
+                                   static_cast<unsigned char>(ref.m_rateSlot),
+                                   ref.m_field3e_byte, result.m_dropItems);
 
         script = static_cast<STMonsterScript*>(monster->getMonsterScript());
-        if (!script->m_catchItems.empty() && u8_at(ref, 0x45) != 0)
+        if (!script->m_catchItems.empty() && ref.m_field45 != 0)
             Mon_generateCatchMonsterItem(monster, result.m_dropItems);
 
-        if (u8_at(ref, 0x43) == 0 && u8_at(ref, 0x44) == 0)
+        // ORIG 0x08537254 movzbl 0x43; xor $0x1; je → 条件为 (byte!=1)&&(byte!=1)
+        if (ref.m_field43 != 1 && ref.m_field44_byte != 1)
         {
-            for (char c = 0; c < i8_at(ref, 0x3d); ++c)
+            for (char c = 0; c < static_cast<signed char>(ref.m_field3d); ++c)
                 _generateMonseterSpecificItem(monster, 0, result);
         }
         if (difficulty != 0)
@@ -611,7 +608,7 @@ void CMonsterDrop::generateSpecificItem(stGenerateRefData_t const& ref,
     }
 
     // 高难度：地狱派对普通 specific 循环 + AI Character 掉落
-    for (int n = 0; n < i8_at(ref, 0x3d); ++n)
+    for (int n = 0; n < static_cast<signed char>(ref.m_field3d); ++n)
         WM_Hell_generateSpecificItem(&m_hell, ref, result);
 
     // §4.3 具名化：dword@+0x38 上/index = m_rankBonusIndex（CItemGenerator.h:217）
@@ -621,7 +618,8 @@ void CMonsterDrop::generateSpecificItem(stGenerateRefData_t const& ref,
         return;
 
     ai->generateIndependentItem(ref, result.m_dropItems);
-    AI_generateDropAvatarItem(ai, u8_at(ref, 0x36), u8_at(ref, 0x3e),
+    AI_generateDropAvatarItem(ai, static_cast<unsigned char>(ref.m_rateSlot),
+                              ref.m_field3e_byte,
                               result.m_dropItems);
 }
 

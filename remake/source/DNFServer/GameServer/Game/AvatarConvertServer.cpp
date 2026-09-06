@@ -274,6 +274,14 @@ void AvatarConvertServer::StatisticsEmblemCreate(
 bool AvatarConvertServer::CheckCondition(CUser* user,
                                          arad::SigAradAvatarConvert* sig)
 {
+    // b21 verdict=DIFF（N 残余）：293/302。调用点全等（37=37：getCurCharacInvenR/W/
+    //   GetInvenRef/isEmpty/CheckItemLock/find_item/IsAvatarItem/isEnableAvatarFunc/
+    //   GetAvatarItemMgrR/GetExpireDate/get_grade/getConvertResult/GetInfo::size/
+    //   SendCmdErrorPacket×n/PRINT_ERROR×2/logFormat×n/getCurCharacNo）。语义逐条核对
+    //   （槽/ushort 零扩展、m_addInfo!=m_itemId、IsAvatarItem、isEnable 失败、期限检查、
+    //   getConvertResult==0、isSelect/selectNo 判定）。残余仅帧差(0x44 vs 0x54→N82 槽号)、
+    //   getCurCharacInvenR 前的 level 存 ebx(movzwl) vs cwtl(N 寄存器)、mgr/result 引用局
+    //   部占槽。语义完成，byte 层 N 封顶。
     const CInventory* invR = user->getCurCharacInvenR();
     const Inven_Item* ref = invR->GetInvenRef(2, (int)sig->m_slot);
     if ((ref == 0 || ref->isEmpty()))

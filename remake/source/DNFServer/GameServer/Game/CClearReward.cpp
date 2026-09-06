@@ -208,6 +208,12 @@ void CClearReward::_generateSpecificItem(stGenerateRefClearReward_t const& refCl
 void CClearReward::generateSpecificItem(stGenerateRefData_t const& ref,
                                         stGenerateResult_t& result)
 {
+    // b21 verdict=DIFF（N 残余）：151/169。7=7 调用点全等（G_CDataManager/GetExpBonusWeight/
+    //   getGoldGenTable/GetRandomRange/Inven_ItemC1/set_add_info/push_back）。FPU flds/fmuls/
+    //   fistpl(fldcw 0xc 截断)时序与 ORIG 全等，金币 sum/base/gold/piece 公式逐位核；rc=+0x34
+    //   基址可用性、m_serverParameter(+0x68)、m_common->getGoldGenTable 均核。已把 g0/g1/g2
+    //   具名局部内联进 sum 表达式(-3)；register rc 探针无效（Y14 反向）。残余仅 rc[.k] 基址
+    //   经栈槽+add vs ORIG 位移寻址、sum/baseCount 占槽(帧 0xb4 vs 0x84+ebx)。语义完成。
     unsigned char const* rc =
         reinterpret_cast<unsigned char const*>(&ref) + 0x34;
     // fA = 队伍加成表(档位-1)；fB = 金币加成表(档位)。
@@ -222,10 +228,10 @@ void CClearReward::generateSpecificItem(stGenerateRefData_t const& ref,
     int* goldTable = m_common->getGoldGenTable(rc[0]);
     int base = (goldTable[0] * 0xaf) / 1000;
     // ORIG 金币输入：ushort@+8(base) + (ushort@+0xe(dungeon 高 16 位)*2 + ushort@+0xa(factor))*2
-    unsigned short g0 = *reinterpret_cast<unsigned short const*>(rc + 8);
-    unsigned short g1 = *reinterpret_cast<unsigned short const*>(rc + 0xe);
-    unsigned short g2 = *reinterpret_cast<unsigned short const*>(rc + 0xa);
-    int sum = static_cast<int>(g0 + (g1 * 2 + g2) * 2);
+    int sum = static_cast<int>(
+        *reinterpret_cast<unsigned short const*>(rc + 8) +
+        (*reinterpret_cast<unsigned short const*>(rc + 0xe) * 2 +
+         *reinterpret_cast<unsigned short const*>(rc + 0xa)) * 2);
     int baseCount = rc[2];
     // ORIG 两处 fistpl 截断（fldcw 0xc），非 round。
     int gold = static_cast<int>(static_cast<float>((sum * base) / 2) * weight);

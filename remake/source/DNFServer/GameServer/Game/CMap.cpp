@@ -141,6 +141,10 @@ int isInArea(int x, int y, MapArea* area)
 
 void makePathArea(MapArea* areas, const int area1[][2], const int area2[][2])
 {
+    // b21 verdict=DIFF（N 残余）：257/229。无外部调用，纯算术；常量/字段偏移/除 2 均已核
+    //   （默认 0x78/0x6a/0x8c/0x28=ORIG 各分支 immediates；stride 0x1c）。残余仅 ORIG 入口
+    //   死存 4 常量槽(0x78/0x6a/0x8c/0x14) + 索引 i*0x1c 经 esi/ebx 多次换手 vs 我们紧致；
+    //   语义全等，byte 层 N 封顶。
     for (int i = 0; i < 4; ++i)
     {
         if (i == 0 || i == 1)

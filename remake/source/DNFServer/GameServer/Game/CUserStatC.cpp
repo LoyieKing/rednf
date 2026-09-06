@@ -74,10 +74,6 @@ int CUser::delete_item(char itemSpace, int position, unsigned long itemIdx,
     if ((unsigned long)slotItem.m_addInfo != itemIdx)
         return 0x11;
 
-    // signed char 符号扩展后按无符号 >7 判越界（含负值）→ 直接成功返回。
-    if ((unsigned int)(signed char)itemSpace > 7u)
-        return 0;
-
     switch (itemSpace)
     {
     case 0:  // INVEN_TYPE_EQUIP(1) 背包
