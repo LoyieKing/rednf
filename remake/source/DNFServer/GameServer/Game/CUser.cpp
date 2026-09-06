@@ -277,7 +277,9 @@ int CUser::AntibotSend(PacketBuf& packet)
     if (encReq)
         doEnc = encFailed;
     else
-        doEnc = encFailed || (packet.isEncryptRequired() != 0);
+        // ORIG 0x08648420：else 支 = isEncryptRequired()（encReq=false 时
+        // encFailed 恒 false，ORIG 汇编无 encFailed 参与）。
+        doEnc = (packet.isEncryptRequired() != 0);
     if (doEnc)
     {
         sendBuf.copy(packet);

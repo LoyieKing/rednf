@@ -4160,6 +4160,8 @@ unsigned int CUser::OnItemUnlockWaitTimeout(int expandIdx, int unused)
 {
     // ORIG 0x08646912：`movl $0x2,0x4(%esp)` 立即数 ⇒ 硬编常量 2（非 expandIdx 变量）；
     // 首 call 结果 %eax 跨步直落第二 call 首参槽（无具名 lock 槽，帧 0x18）
+    // ORIG 0x08646912：xor $0x1;test %al——gcc4.4 对 `^1` 返回前冗余 test。
+    // 本工具链 `^1`/`!` 均不产冗余 test（ndiff 1 死 test 残差，N 类）。
     return (unsigned int)(((item_lock::CItemLock*)
         GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)2))
         ->OnItemUnlockWaitTimeout(this) ^ 1);
@@ -9899,23 +9901,28 @@ void CUser::SendEventBringUpInfo()
 // 报告：docs/class_func_reports/CUser/SendTagCharacInfo.md
 // getTagCharacR()!=0：byte@+0x14bc 非 1 则 W 侧置 1；clear→put_header(0,0x19e)
 // →put_short(1)→MakeTagCharacInfo→finalize→Send。
+// （已改善 ndiff 39→3：m_field14BC 判断改重复调用 getTagCharacR() 不缓存
+// + ==0 早退形；残差为 `xor $0x1`（ORIG gcc4.4）vs `cmp $1;setne`（本工具链）
+// 跨版本 ISel 单条，见报告）
 // ---------------------------------------------------------------------------
 void CUser::SendTagCharacInfo()
 {
-    const _Charac_info* tagR = getTagCharacR();
-    if (tagR != 0) {
-        if (static_cast<unsigned char>(tagR->m_field14BC) != 1) {
-            _Charac_info* tagW = getTagCharacW();
-            tagW->m_field14BC = 1;
-        }
-        PacketGuard packet;
-        packet.clear();
-        packet.put_header(0, 0x19e);
-        packet.put_short(1);
-        MakeTagCharacInfo(packet);
-        packet.finalize(true);
-        Send(packet);
+    // ORIG 0x086903f8（SendTagCharacInfo.md）：getTagCharacR() 判空 + 取
+    // m_field14BC 重复调用两次（P84 多结果判断同一局部，ORIG 不缓存），
+    // 且判空为 `test;sete;test;jne` ==0 早退形。
+    if (getTagCharacR() == 0)
+        return;
+    if (static_cast<unsigned char>(getTagCharacR()->m_field14BC) != 1)
+    {
+        getTagCharacW()->m_field14BC = 1;
     }
+    PacketGuard packet;
+    packet.clear();
+    packet.put_header(0, 0x19e);
+    packet.put_short(1);
+    MakeTagCharacInfo(packet);
+    packet.finalize(true);
+    Send(packet);
 }
 
 // ---------------------------------------------------------------------------

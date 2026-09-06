@@ -260,6 +260,7 @@ int CBattle_Field::GetCurPosY()
     }
 }
 
+// N81 附族：m_pos[m_curSeatNo+6] 索引段同上（add vs lea 直落，不可复现）。
 MapInfo* CBattle_Field::GetLastMapInfo()
 {
     int x = -1;
@@ -277,6 +278,9 @@ MapInfo* CBattle_Field::GetLastMapInfo()
     return GetMapInfoFromPos(x, y, false);
 }
 
+// N81 附族：m_pos[m_curSeatNo+2] 索引段 `mov mem,%eax`+`lea` 合成 vs ORIG
+// `mov mem,%edx`+`add` 直落（同 GetCurPosX/Y，4.1 索引 regmove 落点，合法源码
+// 不可复现——负面结论同列）。
 void CBattle_Field::getCurPosXY(int& x, int& y)
 {
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap() &&
@@ -292,6 +296,7 @@ void CBattle_Field::getCurPosXY(int& x, int& y)
     }
 }
 
+// N81 附族：m_pos[m_curSeatNo+6] 索引段同上（add vs lea 直落，不可复现）。
 void CBattle_Field::getLastPosXY(int& x, int& y)
 {
     if (m_pDungeon->IsEnterEachMap() &&
@@ -308,6 +313,8 @@ void CBattle_Field::getLastPosXY(int& x, int& y)
     }
 }
 
+// N81 附族：m_pos[...+6]/[...+2] 索引段 + make_pair 传参同理（add vs lea 直落，
+// 不可复现）。
 void CBattle_Field::swap_curpos_xy(int x, int y)
 {
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap() &&
@@ -373,6 +380,8 @@ void CBattle_Field::set_dungeon_diff(register char diff)
 {
     // ORIG 0x830ed21：movzbl 0xc → cmp $0x4 → jbe(写) → push/pop 设 4 ——
     // clamp 到 ≤4 的 if 形态（直接在 diff 参数上，无局部 v；比较无符号）。
+    // （已改善 ndiff 18→11；残差为 ISel `movzbl mem` vs `mov32+copy`、
+    // `push/pop` vs `mov` 常量装载，合法源码不可复现。）
     if ((unsigned char)diff > 4)
         diff = 4;
     m_dungeonDiff = (unsigned char)diff;
@@ -691,6 +700,8 @@ int CBattle_Field::CBloodClearRewardData::getRewardExp(int idx)
     return m_rewardExp[idx];
 }
 
+// N18a 物化：m_rewardExp[idx] 地址计算 ORIG `lea 0x4(%edx),%ecx` vs 4.4
+// `add $0x4,%ecx`（ISel add/lea，合法源码不可复现）。
 void CBattle_Field::CBloodClearRewardData::setRewardExp(int idx, unsigned int exp)
 {
     m_rewardExp[idx] = exp;
@@ -847,6 +858,9 @@ int CBattle_Field::getRandomBuffDungeonType(int dungeonIdx)
 //   报告：docs/class_func_reports/CBattle_Field/setEplpWaitingTimer.md
 //   type 3/6 → 绝望之塔 timer(0x4d)；4/5 → party timer(0x25)；其余 → party
 //   timer(0x15)。秒数均 0x1e。
+//   （N 封顶：ndiff 93 残差为分支判定调度（cmp $4,jge vs $3,jle）+ 三段
+//   InsertTimer 链 esi/ebx 跨调用保存与帧差异，源码已按 ORIG 比较边界写 >=4，
+//   GCC 仍规范化，无法逐字节复现——见报告）
 // ============================================================================
 void CBattle_Field::setEplpWaitingTimer(register QuickParty::RandomBuffDungeon type)
 {

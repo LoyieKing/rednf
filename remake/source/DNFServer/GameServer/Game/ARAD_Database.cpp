@@ -68,7 +68,7 @@ int CREATE_QUERY::arad_sp_charater_name_check(MySQL* db, SIG_CREATE_CHARAC* sig,
     if (db->select("seLect delete_flag from %s.charac_info where charac_name='%s'",
                    dbName, sig->m_name) != 0)
     {
-        create_result_code(sig) = 2;
+        sig->m_resultCode = 2;                                                                                // +0x5344 直写（helper 外联消除）
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
             __PRETTY_FUNCTION__,
@@ -80,7 +80,7 @@ int CREATE_QUERY::arad_sp_charater_name_check(MySQL* db, SIG_CREATE_CHARAC* sig,
         return 0;                                   // 名字不存在，可直接创建
     }
 
-    create_result_code(sig) = 2;
+    sig->m_resultCode = 2;                                                                                // +0x5344 直写（helper 外联消除）
     int deleteFlag = 0;
     if (!db->get_int(0, deleteFlag))
     {
@@ -92,11 +92,11 @@ int CREATE_QUERY::arad_sp_charater_name_check(MySQL* db, SIG_CREATE_CHARAC* sig,
     }
     if (deleteFlag == 0)
     {
-        create_result_code(sig) = 1;                // 在用角色名占用
+        sig->m_resultCode = 1;                                                                                // +0x5344 直写（helper 外联消除）；在用角色名占用
     }
     else
     {
-        create_result_code(sig) = 3;                // 已删除角色名占用（可复用场景由上层定夺）
+        sig->m_resultCode = 3;                                                                                // +0x5344 直写（helper 外联消除）；已删除角色名占用（可复用场景由上层定夺）
     }
     return -1;
 }
@@ -152,7 +152,7 @@ int CREATE_QUERY::arad_sp_create_character_check(MySQL* db, SIG_CREATE_CHARAC* s
     }
     if (overLimit)
     {
-        create_result_code(sig) = 2;
+        sig->m_resultCode = 2;                                                                                // +0x5344 直写（helper 外联消除）
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
             __PRETTY_FUNCTION__,
@@ -242,7 +242,7 @@ int CREATE_QUERY::arad_sp_create_charac_stat(MySQL* db, SIG_CREATE_CHARAC* sig)
             "forbidden_due_to)  values(%d,100,0,0) ",
             sig->m_characNo) != 0)
     {
-        create_result_code(sig) = 2;
+        sig->m_resultCode = 2;                                                                                // +0x5344 直写（helper 外联消除）
         return -1;
     }
     return 0;
@@ -715,7 +715,9 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
     }
     if (enableFlag == 1)
     {
-        login_field<unsigned char>(data, 0x390e) = 1;
+        // ORIG：movb 直写 0x390e——即 SIG_LOGIN_DATA::m_passPadCertified
+        // （bool，具名化替代 login_field 外联 call）。
+        data->m_passPadCertified = true;
     }
     return 0;
 }
@@ -827,7 +829,10 @@ int LOGIN_QUERY::arad_sp_check_goblin_reward(SIG_LOGIN_DATA* data, char* sinceTi
         return -1;
     }
     db->get_n_rows();                                        // ORIG 丢弃行数
-    login_field<unsigned char>(data, 0x38e0) = 1;
+    // ORIG 0x0818c4f3+0x??：`movb $0x1,0x38e0(%data)` 直写——0x38e0 即
+    // SIG_LOGIN_DATA::m_passPadEnable（GoblinPad 启用标志，真名具名化；
+    // login_field helper 在此 GCC 不内联反产外联 call，改用具名字段直写）。
+    data->m_passPadEnable = true;
     data->m_passPadVersion = 2;
     return 0;
 }
