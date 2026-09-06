@@ -3617,7 +3617,11 @@ int CDataManager::init()
                 {
                     STEquipmentScript es;
                     es.m_strac = it->second.m_script->m_str668;
-                    es.m_param1c0 = eit->second;
+                    // ORIG 0x0835e4f8：`call operator->; add $0x4; mov %eax,-0x20`
+                    // 具名指针物化后两处复用（+0xc deref/…）——具名引用引导 4.4
+                    // 同形物化（段②站点对表首个试点）。
+                    EquipmentParameterInfo& rParam = eit->second;
+                    es.m_param1c0 = rParam;
                     sync_script::GetInstanceSyncScript()
                         ->insert_equiptment_item_to_db(
                             &es, (unsigned int)eit->first, 2, it->first);
