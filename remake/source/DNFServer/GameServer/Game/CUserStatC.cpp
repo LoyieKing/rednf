@@ -61,6 +61,9 @@ inline bool accountCargoResolveSlot(CAccountCargo* cargo, int& slot)
 // CUser::delete_item(char space, int position, unsigned long itemIdx,
 //                    int count, eItemDelReason reason)
 // ORIG 0x0866285c sz 0x25d。返回：0 成功 / 0x11 校验或删除失败 / 0x13 交易中。
+// b21 NEAR：语义与 ORIG 全等。修：移除冗余 >7u 守卫（原 movzbl+jbe+双判，与 switch 重复），
+//   交由 switch 的 default 统一越界（负值/8+）→ movsbl overflow 单判，163→160 指令。
+//   残余：ORIG 冗余 setne/test、switch 分支块序、jump 表/调用目标【AE】。
 // ============================================================================
 int CUser::delete_item(char itemSpace, int position, unsigned long itemIdx,
                        int count, eItemDelReason reason)

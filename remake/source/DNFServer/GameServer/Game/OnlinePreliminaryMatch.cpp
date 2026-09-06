@@ -1169,8 +1169,8 @@ void COnlinePreliminary::OnConnectP2P(CUser* user, PvP_Room* room,
             room->m_relayMgr.OnReady(s, true);            /* +0x620 子对象 */
     }
     room->start_pvp();                                    /* T 0x85d8c3a */
-    char buf[0x80];
-    room->make_state_info(buf);                           /* T 0x85dbd3a */
+    // ORIG：make_state_info 写入 st 自身缓冲（Ghidra local_38 复用），send_all(st)。
+    room->make_state_info(st);                            /* T 0x85dbd3a */
     G_GameWorld()->send_all(st);
 }
 
