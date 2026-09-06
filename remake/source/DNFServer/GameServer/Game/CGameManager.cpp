@@ -787,18 +787,20 @@ void CGameManager::CheckOutParty(CUser* user, bool flag)
             CDungeon* dungeon = party->m_battleField.m_pDungeon;  // ORIG *(party+0xcac)（CBattle_Field 区）
             if (dungeon != 0)
             {
-                bVar1 = dungeon->m_bloodDungeonType > 0;
+                // ORIG 0x08297ce2：cmp/jle+movb $1 分支直写（非 setne 物化，
+                // P56）；bVar2 为 dim>=1 || m_89c!=0 || !isTour 短路链
+                // （0x08297d0d test/jg 直接跳写点，结果**不入 char 局部**）。
+                if (dungeon->m_bloodDungeonType > 0)
+                    bVar1 = true;
                 if (((CDungeon*)dungeon)->isTowerOfDespairDungeon())
                     bVar1 = true;
             }
             bool bVar2 = false;
             if (dungeon != 0)
             {
-                char c = ((CDungeon*)dungeon)->get_dimension_possible();
-                if (c < 1 && dungeon->m_89c == 0 &&
+                if (((CDungeon*)dungeon)->get_dimension_possible() >= 1 ||
+                    dungeon->m_89c != 0 ||
                     !((CDungeon*)dungeon)->isTournamentDungeon())
-                    bVar2 = false;
-                else
                     bVar2 = true;
                 if (bVar2)
                     bVar1 = true;
@@ -1500,18 +1502,19 @@ void CGameManager::onTimeAdvanceAltar()
     while (it != m_stageMap.end())
     {
         advancealtar::StageControl* control = it->second;
-        if (control->onTimerStageTick() == 1)
+        // ORIG 0x08295dXX：`call onTimerStageTick; xor $0x1,%eax; test %al,%al;
+        // je <it++ 块>` —— `!tick` 为真落 erase、为假跳 it++（P9/P22 物化形，
+        // 非 cmp$1/sete；语义与 tick==1→keep 等价）。
+        if (!control->onTimerStageTick())
         {
-            it++;
+            // ORIG 0x08295eXX：无具名 eraseIt 拷贝对（省 mov 双 qword 4 条）——
+            // 后自增返回临时迭代器直接喂 erase（P135 pair 临时槽形）。
+            m_stageMap.erase(it++);
+            m_stagePool.Free(control);
         }
         else
         {
-            __gnu_cxx::hash_map<int, advancealtar::StageControl*,
-                __gnu_cxx::hash<int>, std::equal_to<int>,
-                std::allocator<advancealtar::StageControl*> >::iterator eraseIt = it;
             it++;
-            m_stageMap.erase(eraseIt);
-            m_stagePool.Free(control);
         }
     }
 }

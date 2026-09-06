@@ -221,39 +221,67 @@ void WongWork::CMCAPManager::resetExposedCount() { m_field10 = 0; }
 extern void _NS_PI_2ND_SendHash_SC(char* data, unsigned short len, CUser* user); // ORIG T 0x082751ee
 int CUser::AntibotSend(PacketBuf& packet)
 {
+    // ORIG T 0x0864809c 全文转写（报告 AntibotSend.md Ghidra C+asm 双段读完）：
+    // ①verify（vtable+0x34）先行，成功后才进加密缓冲段；②加密缓冲=**VLA +
+    // guard.clear + memset 500+len**（0x864822b/245：orig memset@plt=1、无
+    // vector——alloca 步进 `-(len+0x212)&0xfffffff0`）；③encrypt 返回 **非0=失败**
+    // → trace(0x807)+encFailed，**返回0=成功** → put_binary/Send 后 return
+    // （0x86483b0 早退，非我旧版 ==0 续跑）；④encrypt 调用实参求值序 get_len→
+    // get_packet→getAntibotKey（右→左）；⑤trace1 的 key/len 在 C1 **之前**求值；
+    // ⑥isEncryptRequired 缓存（encReq 真则二段不再调，0x864842b else 路）。
     char* base = packet.get_packet(0);
     unsigned short packetId = *(unsigned short*)(base + 1);
-    bool verified = false;
+    bool encReq = false;      // local_31
+    bool encFailed = false;   // local_32
     if (packet.isEncryptRequired())
     {
-        typedef int (*VerifyFn)(void*, int, unsigned short);        // vtable +0x34
+        encReq = true;
+        typedef int (*VerifyFn)(void*, int, unsigned short);   // vtable +0x34
         void* checker = GlobalData::s_antibotChecker_;
-        VerifyFn fn = *(VerifyFn*)((*(void***)checker)[0x34 / 4]);
-        verified = fn(checker, getAntibotKey(), packetId) != 0;
-    }
-    if (verified)
-    {
-        const int bufLen = packet.get_len() + 500;
-        std::vector<char> out(bufLen, 0);
-        typedef int (*EncryptFn)(void*, int, char*, int, char*, int*);  // +0x28
-        void* checker = GlobalData::s_antibotChecker_;
-        EncryptFn fn = *(EncryptFn*)((*(void***)checker)[0x28 / 4]);
-        int outLen = bufLen;
-        if (fn(checker, getAntibotKey(), packet.get_packet(0),
-               packet.get_len(), &out[0], &outLen) == 0)
+        VerifyFn vfn = *(VerifyFn*)((*(void***)checker)[0x34 / 4]);
+        if (vfn(checker, getAntibotKey(), packetId) != 0)
         {
-            PacketGuard guard;
+            const int bufLen = packet.get_len() + 500;   // local_6c
+            char buf[bufLen];                            // ORIG VLA（alloca 步进）
+            int outLen = bufLen;                         // local_24
+            PacketGuard guard;                           // local_68（块作用域，
+                                                       // dtor 于早退前 0x86483b5）
+            ((InterfacePacketBuf*)&guard)->clear();
+            memset(buf, 0, bufLen);
             ((InterfacePacketBuf*)&guard)->put_header(0, 0x231);
-            ((InterfacePacketBuf*)&guard)->put_binary(&out[0], bufLen);
-            ((InterfacePacketBuf*)&guard)->finalize(false);
-            Send(guard);
-            return 1;
+            typedef int (*EncryptFn)(void*, int, char*, int, char*, int*);  // +0x28
+            void* checker2 = GlobalData::s_antibotChecker_;
+            EncryptFn fn = *(EncryptFn*)((*(void***)checker2)[0x28 / 4]);
+            int bl = packet.get_len();          // 实参右→左：len 先算
+            char* pdata = packet.get_packet(0);
+            int key = getAntibotKey();
+            int r = fn(checker2, key, pdata, bl, buf, &outLen);
+            if (r != 0)
+            {
+                int tl = packet.get_len();      // trace 实参先于 C1（0x864832e/33b）
+                int tk = getAntibotKey();
+                cMyTrace trace("bool CUser::AntibotSend(PacketBuf&)", 0x807, 0);
+                trace("[RecvBufferForEncrypt] result : %d, PacketID : %d, "
+                      "Key : %d, Length : %d", r, (int)packetId, tk, tl);
+                encFailed = true;
+            }
+            else
+            {
+                ((InterfacePacketBuf*)&guard)->put_binary(buf, bufLen);
+                ((InterfacePacketBuf*)&guard)->finalize(false);
+                return Send(guard);   // 0x8648313 起 return = Send 返回值透传
+            }
         }
     }
     PacketBuf sendBuf;
     char* data = packet.get_packet(0);
     int len = packet.get_len();
-    if (verified || packet.isEncryptRequired())
+    bool doEnc;
+    if (encReq)
+        doEnc = encFailed;
+    else
+        doEnc = encFailed || (packet.isEncryptRequired() != 0);
+    if (doEnc)
     {
         sendBuf.copy(packet);
         sendBuf.encrypt_packet();
@@ -262,8 +290,13 @@ int CUser::AntibotSend(PacketBuf& packet)
         sendBuf.encFinalize();
     }
     _NS_PI_2ND_SendHash_SC(data, (unsigned short)len, this);
-    if (m_network.send_packet(data, len) < 0)
+    int sret = m_network.send_packet(data, len);
+    if (sret < 0)
     {
+        char* nm = (char*)getCurCharacName();     // 0x86484f7 先于 C1
+        cMyTrace trace("bool CUser::AntibotSend(PacketBuf&)", 0x834, 0);
+        trace("User %s - send_packet() fail length(ID:%d,LEN:%d),",
+              nm, (int)packetId, len);
         if (packetId != 199)
             DisConnSig((DISCONN_SIG)6, false, 0);
         return 0;

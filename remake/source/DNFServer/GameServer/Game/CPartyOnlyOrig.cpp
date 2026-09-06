@@ -1063,14 +1063,28 @@ void CParty::RestartDungeon()
 bool CParty::isMonsterDrop_item(int monsterIdx)
 {
     map_item item;
+    // [ORIG 0x085a3b44 物化形] found 落 char 槽 -0x9，`cmpb $0;je` 直判
+    // （[N-类] 剩 8：4.4 对 bool 槽 `!`/`==0` 恒 movzbl;xor$1;test 归一化，
+    // 不出 4.1 的 cmpb $0,mem 直存比较——判据①②③全试，指令选择差）；
+    // 二段 m_count 真值取反 `movzbl;xor$1;test;je`（X2 判据③有消费者）。
     bool found = reinterpret_cast<CBattle_Field*>(&m_battleField)
                      ->get_field_item(monsterIdx, item);
-    if (!found || item.m_count == 0)
+    if (!found)
     {
         return true;
     }
-    return false;
+    register unsigned char cnt asm("eax") = item.m_count;
+    cnt ^= 1;
+    if (cnt == 0)
+    {
+        return false;
+    }
+    return true;
 }
+
+// [N-类·帧布局] CParty::VoteLackUser（本 TU 声明对应定义在 CPartyDepsD2）
+// 剩 31 全为槽文本差（4.4 帧底保留区致 i/temp/iterator 槽整体深 4B）+
+// ebx/esi 角色互换（P78 禁追），语义已双证正确，勿再投预算。
 
 // ORIG T 0x085a3b6a（kill_blood_monster.md）：血轮击杀转发战场层。
 void CParty::kill_blood_monster(CUser* user, int monsterIdx,
@@ -1084,15 +1098,20 @@ void CParty::kill_blood_monster(CUser* user, int monsterIdx,
 // 时结算整场。
 unsigned char CParty::DestroyPassiveObject(int param)
 {
-    unsigned char destroyed = static_cast<unsigned char>(
+    // [ORIG 0x085a3b6a 物化形] 声明初始化 0 + call 后赋值两段（movb$0 再
+    // movzbl reload）+拆&&嵌套。
+    unsigned char destroyed = 0;
+    destroyed = static_cast<unsigned char>(
         reinterpret_cast<CBattle_Field*>(&m_battleField)
             ->DestroyPassiveObject(param));
-    if (destroyed &&
-        reinterpret_cast<CBattle_Field*>(&m_battleField)
-            ->ClearCondition(static_cast<ENUM_DUNGEON_CLEAR_CONDITION_TYPE>(0),
-                             param))
+    if (destroyed)
     {
-        ClearDungeon();
+        if (reinterpret_cast<CBattle_Field*>(&m_battleField)
+                ->ClearCondition(
+                    static_cast<ENUM_DUNGEON_CLEAR_CONDITION_TYPE>(0), param))
+        {
+            ClearDungeon();
+        }
     }
     return destroyed;
 }
@@ -1116,12 +1135,14 @@ bool CParty::OnTODRewardTimer(TIMER_MESSAGE msg)   // CParty.h:592 bool（PSM �
     {
         _Send_TOD_ClearReward();
         SetEPLPState(2);
-        int key15 = gen_timer_key(static_cast<TIMER_MESSAGE>(0x15));
+        // [判据⑤] ORIG O@19/O@41 两处 `mov%eax,%esi`：key 跨 InsertTimer
+        // call 钉 %esi（免槽 spill，SelectEPLPCommand 同款）。
+        register int key15 asm("esi") = gen_timer_key(static_cast<TIMER_MESSAGE>(0x15));
         G_TimerQueue()->InsertTimer(
             static_cast<TimerEntry::OBJ_TYPE>(1), GetPartyIndex(),
             static_cast<TIMER_MESSAGE>(0x15), 0x3c, key15, 0);
         set_state(1);
-        int key24 = gen_timer_key(static_cast<TIMER_MESSAGE>(0x24));
+        register int key24 asm("esi") = gen_timer_key(static_cast<TIMER_MESSAGE>(0x24));
         G_TimerQueue()->InsertTimer(
             static_cast<TimerEntry::OBJ_TYPE>(1), GetPartyIndex(),
             static_cast<TIMER_MESSAGE>(0x2c), 8, key24, 0x24);

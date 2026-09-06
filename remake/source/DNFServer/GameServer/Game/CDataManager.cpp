@@ -2344,7 +2344,8 @@ int CDataManager::init()
     }
 
     // BloodClearReward.etc（返回 0=成功）。
-    if (importBloodDungeonScript("Etc/BloodClearReward.etc", m_bloodDungeon) != 0)
+    err = 0;
+    if ((err = importBloodDungeonScript("Etc/BloodClearReward.etc", m_bloodDungeon)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1ae1, 9, true, true)(
             "\t- importBloodDungeonScript Fail(%d)");
@@ -2352,9 +2353,10 @@ int CDataManager::init()
     }
 
     // HellParty.etc（全局单例，返回 0=成功）。
-    if (importHellPartyScript(
-            "Etc/HellParty.etc",
-            *reinterpret_cast<stHellParty_t*>(Get_instance_stHellParty_t())) != 0)
+    err = 0;
+    if ((err = importHellPartyScript(
+             "Etc/HellParty.etc",
+             *reinterpret_cast<stHellParty_t*>(Get_instance_stHellParty_t()))) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1ae8, 9, true, true)(
             "\t- importHellPartyScript Fail(%d)");
@@ -2362,8 +2364,9 @@ int CDataManager::init()
     }
 
     // CharacLinkSystem.etc（返回 0=成功）。
-    if (importCharacLinkSystemScript("Etc/LinkSystem/CharacLinkSystem.etc",
-                                     m_characLink) != 0)
+    err = 0;
+    if ((err = importCharacLinkSystemScript("Etc/LinkSystem/CharacLinkSystem.etc",
+                                            m_characLink)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1af3, 9, true, true)(
             "\t- importCharacLinkSystemScript Fail(%d)");
@@ -2437,7 +2440,8 @@ int CDataManager::init()
             "\t- Load IndependentDrop.lst fail");
         return 0;
     }
-    if (m_independentDrop.ImportIndependentDrop("Etc/Independent_Drop.etc") != 0)
+    err = 0;
+    if ((err = m_independentDrop.ImportIndependentDrop("Etc/Independent_Drop.etc")) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1b63, 9, true, true)(
             "\t- importIndependent_DropScript Fail(%d)");
@@ -2446,14 +2450,16 @@ int CDataManager::init()
 
     // Event 脚本簇（SeriaBlessing/LevelUpReward/GrowthCapsule/NewAccountLevelUp/
     // ReturnUserReward/Bingo/BroadCastItem，全部返回 0=成功）。
-    if (ImportSeriaBlessingScript("Event/SeriaBlessing.evt", m_seriaBlessing) != 0)
+    err = 0;
+    if ((err = ImportSeriaBlessingScript("Event/SeriaBlessing.evt", m_seriaBlessing)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1b83, 9, true, true)(
             "\t- ImportSeriaBlessingScript Fail(%d)");
         return 0;
     }
-    if (ImportLevelUpRewardItemScript("Event/LevelUpRewardItem.evt",
-                                      m_levelUpReward) != 0)
+    err = 0;
+    if ((err = ImportLevelUpRewardItemScript("Event/LevelUpRewardItem.evt",
+                                             m_levelUpReward)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1b8a, 9, true, true)(
             "\t- ImportLevelUpRewardItemScript Fail(%d)");
@@ -2469,27 +2475,31 @@ int CDataManager::init()
         printf("ImportGrowthCapsuleScript Fail(%d)\n", err);
         return 0;
     }
-    if (ImportNewAccountLeventUpToJobScript("Event/NewAccountLevelUpToJob.evt",
-                                            m_newAccountLevelUp) != 0)
+    err = 0;
+    if ((err = ImportNewAccountLeventUpToJobScript("Event/NewAccountLevelUpToJob.evt",
+                                                   m_newAccountLevelUp)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1ba7, 9, true, true)(
             "\t- NewAccountLevelUpToJob StackableReward Fail(%d)");
         return 0;
     }
-    if (ImportReturnUserRewardScript("Event/ReturnUserReward.evt",
-                                     m_returnUserReward) != 0)
+    err = 0;
+    if ((err = ImportReturnUserRewardScript("Event/ReturnUserReward.evt",
+                                            m_returnUserReward)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1bb0, 9, true, true)(
             "\t- ReturnUserReward Fail(%d)");
         return 0;
     }
-    if (ImportBingoScript("Event/BingoEvent.evt", m_bingo) != 0)
+    err = 0;
+    if ((err = ImportBingoScript("Event/BingoEvent.evt", m_bingo)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1bbb, 9, true, true)(
             "\t- ImportBingoScript Fail(%d)");
         return 0;
     }
-    if (ImportBroadCastItemScript("Etc/BroadCastItem.etc", m_broadCastItem) != 0)
+    err = 0;
+    if ((err = ImportBroadCastItemScript("Etc/BroadCastItem.etc", m_broadCastItem)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1bcf, 9, true, true)(
             "\t- ImportBroadCastItemScript Fail(%d)");
@@ -2505,7 +2515,8 @@ int CDataManager::init()
     }
 
     // ItemMakingSkill.etc（返回 0=成功）。
-    if (ImportItemMakingSkill("Etc/ItemMakingSkill.etc", m_itemMakingSkill) != 0)
+    err = 0;
+    if ((err = ImportItemMakingSkill("Etc/ItemMakingSkill.etc", m_itemMakingSkill)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1be0, 9, true, true)(
             "\t- importItemMakingSkillScript Fail(%d)");
@@ -2555,8 +2566,9 @@ int CDataManager::init()
     }
 
     // VillageAttacked.etc（返回 0=成功）。
-    if (importVillageAttackedScript("Etc/VillageAttacked.etc",
-                                    m_villageAttacked) != 0)
+    err = 0;
+    if ((err = importVillageAttackedScript("Etc/VillageAttacked.etc",
+                                           m_villageAttacked)) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x1c20, 9, true, true)(
             "\t- importVillageAttackedScript Fail(%d)");

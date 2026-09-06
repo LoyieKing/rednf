@@ -2771,10 +2771,14 @@ double GuildParameterScript::getExpWeight(int guildLevel)
 // level∈[1,16] 返回 m_levelUpCost+(level-1)*8 的地址（按 int 口径），否则 0。
 int GuildParameterScript::getGuildLevelUpParam(int level)
 {
-    if (level <= 0 || 0x10 < level)
+    // ORIG 0x0897964b：双 guard 同落点 + 体 = base(lea 0x5c(this)) 物化后
+    // `(level-1)*8` 与 base lea 合并（P58 类型化指针消 load-copy）。
+    if (!(level > 0))
         return 0;
-    return reinterpret_cast<int>(
-        reinterpret_cast<const char*>(&m_levelUpCost[0]) + (level - 1) * 8);
+    if (!(level <= 0x10))
+        return 0;
+    const char* base = reinterpret_cast<const char*>(&m_levelUpCost[0]);
+    return reinterpret_cast<int>(base + (level - 1) * 8);
 }
 
 // ---- GuildParameterScript::getLevelupPrice（ORIG T 0x089797a4）----
