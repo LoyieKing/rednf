@@ -15270,7 +15270,7 @@ int Dispatcher_Compound_ExtreamItem::_reset()
         *reinterpret_cast<unsigned int*>(p + 0x88 + i * 4) = 0;
     }
     *reinterpret_cast<unsigned short*>(p + 6) = 0;
-    reinterpret_cast<Inven_Item*>(p + 0x90)->reset();
+    m_resultItem.reset();                                       // +0x90
     *reinterpret_cast<unsigned short*>(p + 4) = 0;
     p[0xcd] = 2;
     p[0xd4] = 2;
@@ -20133,8 +20133,8 @@ int Dispatcher_Exchange_Random_Item_Reward::process(CUser* user, MSG_BASE& msg, 
     }
     std::vector<std::pair<int, int> > materials;                       // -0x20
     out.m_4 = entity->verifyMaterialItemByRule(
-        user, *reinterpret_cast<std::vector<int>*>(
-                  reinterpret_cast<char*>(&msg) + 0x10),
+        user,
+        reinterpret_cast<MSG_EXCHANGE_RANDOM_ITEM_REWARD&>(msg).m_rewardItems,
         materials);
     if (out.m_4 != 0)
     {
@@ -20670,9 +20670,19 @@ int Dispatcher_SaveGameOption_QuickChatting::process(CUser* user, MSG_BASE& msgB
         guard.operator*()->operator<<(static_cast<int>(user->GetUID()));
         SIG_SAVE_GAME_OPTION_QUICKCHAT* sig = guard->GetInBuffer<SIG_SAVE_GAME_OPTION_QUICKCHAT>();
         char* buf = reinterpret_cast<char*>(sig);
+        // SIG_SAVE_GAME_OPTION_QUICKCHAT 共享头仅 m_pad[0x25c]；§8.3 本 TU 具名视图
+        // （证据=ORIG 0x081cf0xx：accId@0、快捷栏 A@4、快捷栏 B@0x130，各 0x12c）。
+        struct QuickChatSigView
+        {
+            int m_accId;                      // +0x000
+            CQuickChattingOption m_slotA;     // +0x004（sizeof 0x12c）
+            CQuickChattingOption m_slotB;     // +0x130
+        };
+        static_assert(sizeof(QuickChatSigView) == 0x25c, "QuickChatSigView size");
         *reinterpret_cast<int*>(buf + 0) = static_cast<int>(user->get_acc_id());
         gameOption->CopyQuickChatting(*reinterpret_cast<CQuickChattingOption*>(buf + 4), 0);
-        gameOption->CopyQuickChatting(*reinterpret_cast<CQuickChattingOption*>(buf + 0x130), 1);
+        gameOption->CopyQuickChatting(
+            reinterpret_cast<QuickChatSigView*>(sig)->m_slotB, 1);
         GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
         gameOption->resetFlag_QuickChatChnage();
     }
@@ -20687,10 +20697,10 @@ int Dispatcher_SaveGameOption_QuickChatting::read(PacketBuf& packet, MSG_BASE& m
     struct __attribute__((packed)) QuickChatView {
         char m_head[0xd];
         unsigned int m_len;      // +0x0d
+        unsigned char m_flag11;  // +0x11（get_byte 目标；MSG_QUICK_CHAT::m_11 同位）
     };
     QuickChatView* m = reinterpret_cast<QuickChatView*>(&msg);
-    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(
-            reinterpret_cast<char*>(m) + 0x11)))
+    if (!packet.get_byte(m->m_flag11))
         return LineFunc(0x290a, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(*reinterpret_cast<int*>(reinterpret_cast<char*>(m) + 0xd)) ||
         m->m_len >= 0x12d)
@@ -20875,7 +20885,7 @@ int Dispatcher_SDC_ActiveStatus_Damage_Check::dispatch_sig(CUser* user, PacketBu
             {
                 adjDamage = clientDamage;
             }
-            CBattle_Field* battleField = (CBattle_Field*)((char*)party + 0xb24);
+            CBattle_Field* battleField = &party->m_battleField;   // CParty +0xb24
             battleField->SetDamagedPacketCnt(*(int*)(data + 0x25));
             battleField->SetDamageValue(*(int*)(data + 0x25), adjDamage);
         }
@@ -22966,9 +22976,9 @@ int Dispatcher_MonstercardBind::get_bind_result(
     CInventory* invenR = const_cast<CInventory*>(user->getCurCharacInvenR());
     Inven_Item inven = invenR->GetInvenSlot(1, slot);
     CItem* card = G_CDataManager()->find_item(inven.m_addInfo);
-    // +0x330 推断：怪物卡绑定数据索引（同 check_error 注）。
-    const int cardDataIdx = *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(card) + 0x330);
+    // +0x330：怪物卡绑定数据索引（CStackableItem::m_int330，ORIG mov 0x330(%eax)）。
+    const int cardDataIdx =
+        reinterpret_cast<const CStackableItem*>(card)->m_int330;
     STExpertJobScript* script = static_cast<STExpertJobScript*>(
         G_CDataManager()->GetExpertJobScript(1));
     stMonsterCardBindRate rate;
@@ -23120,10 +23130,9 @@ int Dispatcher_MonstercardBind::check_error(CUser* user, MSG_BASE& msg)
         return 0x11;
     }
     {
-        // +0x330 推断：怪物卡绑定数据索引（ORIG mov 0x330(%eax),%eax；
-        // CItem.h 当前布局止于 +0x148，按任务规则偏移访问）。
-        const int bindInfoIdx = *reinterpret_cast<const int*>(
-            reinterpret_cast<const char*>(cardA) + 0x330);
+        // +0x330：怪物卡绑定数据索引（CStackableItem::m_int330；ORIG mov 0x330(%eax),%eax）
+        const int bindInfoIdx =
+            reinterpret_cast<const CStackableItem*>(cardA)->m_int330;
         if (bindInfoIdx == -1)
         {
             return 0x11;
@@ -27353,12 +27362,29 @@ void DB_SecurityCardRetransfer::makeRequest(
     **guard << (int)0x138;
     **guard << (int)type;
     SIG_SECURITY_CARD_RETRANSFER* sig = guard->GetInBuffer<SIG_SECURITY_CARD_RETRANSFER>();
-    *(unsigned int*)sig = secCardKey;                          // 0x0842c28a：sig+0x00
-    strncpy((char*)sig + 0x25, src1, 6);                       // 0x0842c295
-    strncpy((char*)sig + 0x04, src2, 0x21);                    // 0x0842c2b2
-    strncpy((char*)sig + 0x2b, src3, 0x27);                    // 0x0842c2cf
-    strncpy((char*)sig + 0x52, characName, 0xc);               // 0x0842c2ec
-    strncpy((char*)sig + 0x5e, targetName, 0x29);              // 0x0842c309
+    // 共享头 SIG_SECURITY_CARD_RETRANSFER 仅 m_pad[0x8c]（其它 TU 亦各持局部
+    // 视图）；§8.3 本 TU 具名视图，偏移/宽度证据=ORIG makeRequest @0x0842c28a
+    // ..0x0842c309 各 strncpy 立即数。
+    struct SecurityCardRetransferView
+    {
+        unsigned int m_secCardKey;   // +0x00
+        char m_src2[0x21];           // +0x04
+        char m_src1[6];              // +0x25
+        char m_src3[0x27];           // +0x2b
+        char m_characName[0xc];      // +0x52
+        char m_targetName[0x29];     // +0x5e
+        char m_padTail[5];           // +0x87..+0x8b
+    };
+    static_assert(sizeof(SecurityCardRetransferView) == 0x8c,
+                  "SecurityCardRetransferView size");
+#define SV (reinterpret_cast<SecurityCardRetransferView*>(sig))
+    SV->m_secCardKey = secCardKey;                             // 0x0842c28a
+    strncpy(SV->m_src1, src1, 6);                              // 0x0842c295
+    strncpy(SV->m_src2, src2, 0x21);                           // 0x0842c2b2
+    strncpy(SV->m_src3, src3, 0x27);                           // 0x0842c2cf
+    strncpy(SV->m_characName, characName, 0xc);                // 0x0842c2ec
+    strncpy(SV->m_targetName, targetName, 0x29);               // 0x0842c309
+#undef SV
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);  // 0x0842c320
 }
 
@@ -27506,8 +27532,7 @@ bool Dispatcher_BuyCeraShopItem::useCountDownCoinInFreeCoinDungeon(
     {
         return false;
     }
-    if (*reinterpret_cast<const unsigned char*>(
-            reinterpret_cast<const char*>(&msg) + 0x36) != 1)
+    if (msg.m_scalars.m_itemCount != 1)        // +0x36（movzbl 实证字段）
     {
         return false;
     }

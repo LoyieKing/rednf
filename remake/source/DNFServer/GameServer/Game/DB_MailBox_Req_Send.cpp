@@ -210,8 +210,10 @@ bool DB_MailBox_Req_Send::insertMailData(MySQL* db, const SIG_MAILBOX_SEND_NEW_M
         ((const SigMailboxSendNewMailView*)sigRaw)->m_isCreature,
         ((const SigMailboxSendNewMailView*)sigRaw)->m_isAvatarSend, letterId,
         ((const SigMailboxSendNewMailView*)sigRaw)->m_fieldd,
-        db->blob_to_str(0, (void*)((char*)sigRaw + 0x3a), 10),
-        db->blob_to_str(1, (void*)((char*)sigRaw + 0x47), 0xe),
+        db->blob_to_str(
+            0, (void*)&((const SigMailboxSendNewMailView*)sigRaw)->m_field15, 10),
+        db->blob_to_str(
+            1, (void*)&((const SigMailboxSendNewMailView*)sigRaw)->m_field25, 0xe),
         ((const SigMailboxSendNewMailView*)sigRaw)->m_upgradeSep,
         ((const SigMailboxSendNewMailView*)sigRaw)->m_cashShopFlag);
     return db->exec(true);

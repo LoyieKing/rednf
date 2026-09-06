@@ -9008,12 +9008,15 @@ int CUser::update_pvp_point(int v)
         // ORIG 0x0865d9..：newGrade<1 时无早退，走 else 块（Ghidra C 结构）。
         if (newGrade < getPVPResultRefR()->m_pvpGrade)
         {
-            // 降档保护：grade∈[10,15] 时按当前档下限回填积分。
-            int grade = getPVPResultRefR()->m_pvpGrade;
-            if (grade >= 10 && grade <= 0xf)
+            // 降档保护：grade∈[10,0xf] 时按当前档下限回填积分。
+            // P183：每处字段访问独立 getPVPResultRefR() 重物化（ORIG 3 处额外 R 调用），
+            // 禁用缓存变元（int grade 缓存即缺 3 call 语义缺口）。
+            if (getPVPResultRefR()->m_pvpGrade >= 10 &&
+                getPVPResultRefR()->m_pvpGrade <= 0xf)
             {
                 getPVPResultRefW()->m_expPoint =
-                    GlobalData::s_ref_pvp_grade->GetPvpPoint(grade) + 1;
+                    GlobalData::s_ref_pvp_grade->GetPvpPoint(
+                        getPVPResultRefR()->m_pvpGrade) + 1;
                 newGrade = getPVPResultRefR()->m_pvpGrade;
             }
         }

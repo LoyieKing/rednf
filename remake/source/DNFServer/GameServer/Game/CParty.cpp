@@ -4719,7 +4719,6 @@ bool CParty::IsCompleteCardSelectOfMembers(eClearRewardCardType_t type)
 // ============================================================================
 void CParty::TournamentDungeonClear(bool flag)
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     if (m_battleField.m_pDungeon == 0)                                 // +0xcac
     {
         LogManager::logFormat(
@@ -4729,20 +4728,26 @@ void CParty::TournamentDungeonClear(bool flag)
     }
     if (m_battleField.m_pDungeon->isTournamentDungeon() != 1)
     {
+        // P0：ORIG 085bd3aa 对 get_dungeon_index 重新 add $0xb24（不缓存 bf 指针）。
         LogManager::logFormat(
             1, "party.cpp", __PRETTY_FUNCTION__, 0x45c2,
-            "Dungeon(%d) is can not call function", bf.get_dungeon_index());
+            "Dungeon(%d) is can not call function",
+            m_battleField.get_dungeon_index());
         return;
     }
 
-    SaveCoin(flag ? (eCoinSubReason)1 : (eCoinSubReason)2);
+    // ORIG：两句式 if/else 各一次 SaveCoin（两个独立 call 岛），非三元表达式。
+    if (flag)
+        SaveCoin((eCoinSubReason)1);
+    else
+        SaveCoin((eCoinSubReason)2);
     PacketGuard packet;
     for (int slot = 0; slot < 4; ++slot)                // -0x18
     {
         if (_checkValidUser(slot))
         {
             Inven_Item items[2];                        // -0xa6
-            if (bf.m_tournamentReward.GetItemFromCard(
+            if (m_battleField.m_tournamentReward.GetItemFromCard(
                     ENUM_TOURNAMENT_REWARD_CARD_TYPE_0, slot, items, 2))
             {
                 _putItemIntoUser(m_member[slot].m_pUser, items, packet);
@@ -4751,7 +4756,7 @@ void CParty::TournamentDungeonClear(bool flag)
             {
                 for (int i = 0; i < 2; ++i)
                     items[i].reset();
-                if (bf.m_tournamentReward.GetItemFromCard(
+                if (m_battleField.m_tournamentReward.GetItemFromCard(
                         ENUM_TOURNAMENT_REWARD_CARD_TYPE_1, slot, items, 2))
                 {
                     _putItemIntoUser(m_member[slot].m_pUser, items, packet);

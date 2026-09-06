@@ -440,7 +440,7 @@ bool DB_AccountHack_CheckMyAccount::dispatch(int userIdx, int slot, Stream* stre
         GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     char name[0x3b] = { '\0' };
 
-    db->escape_string(name, reinterpret_cast<const char*>(sig) + 0x08);
+    db->escape_string(name, sig->m_name);   // +0x08
     db->set_query(
         "seLect m_id from charac_info where charac_name='%s' limit 1", name);
     if (!db->exec(true))

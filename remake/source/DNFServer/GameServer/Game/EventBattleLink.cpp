@@ -269,8 +269,8 @@ int CraneMinigameManager::sendItem(CUser* user, int slot)
 
     // ORIG +0x48/+0x5e：&mail 两次独立计算（P52 不落局部）；
     // +0x3b/+0x3f：movzwl 0x8 + movswl %ax（(int)(short)m_cnt）。
-    reinterpret_cast<Action_SendMail*>(reinterpret_cast<char*>(this) + 0x18)
-        ->set_item(item->m_itemIdx, static_cast<int>(static_cast<short>(item->m_cnt)));
+    this->m_sendMail.set_item(
+        item->m_itemIdx, static_cast<int>(static_cast<short>(item->m_cnt)));
 
     EventClassify::CEventActionMng actionMng;
     // ORIG 符号形参为全局 ::Action_SendMail（R15Action_SendMail）；仓库
@@ -278,7 +278,7 @@ int CraneMinigameManager::sendItem(CUser* user, int slot)
     // 问题），此处以精确 ORIG 符号 extern 调用保证链接正确。
     return _ZN13EventClassify15CEventActionMng24process_action_send_mailEP5CUserR15Action_SendMailb(
         &actionMng, user,
-        reinterpret_cast<Action_SendMail*>(reinterpret_cast<char*>(this) + 0x18), true);
+        &this->m_sendMail, true);
 }
 
 // ---------------------------------------------------------------------------

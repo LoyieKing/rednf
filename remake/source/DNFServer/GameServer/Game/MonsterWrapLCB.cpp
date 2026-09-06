@@ -109,10 +109,10 @@ void generateDropAvatarItem(const stEnamyDropAvatarInfo_t& info,
         return;
 
     // ② roll 轮次
-    const unsigned int rounds = *reinterpret_cast<const unsigned*>(base + 0x4);
+    const unsigned int rounds = (unsigned int)info.m_field04;
     for (unsigned int round = 0; round < rounds; ++round)
     {
-        const int r = get_rand_int(*reinterpret_cast<const int*>(base + 0x2c));
+        const int r = get_rand_int(info.m_field2c);
         std::vector<stEnamyDropAvatarElement_t>::const_iterator it =
             info.m_elements.begin();
         while (it != info.m_elements.end())
