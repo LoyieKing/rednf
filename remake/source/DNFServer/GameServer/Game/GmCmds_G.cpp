@@ -17,6 +17,7 @@
 #include "CMonitorServerProxy.h"    // CMonitorServerProxy::SendTcpPacket
 #include "CParty.h"                 // CParty::set_single_play/OnFightVillageMonster
 #include "CStreamGuard.h"           // CStreamGuard(Stream*, bool)/operator<<
+#include "CStackableItem.h"         // CStackableItem::IsReinforceTicket 等真成员
 #include "CTitleBook.h"             // CTitleBook::_gm_clear/sendList
 #include "CAchievement.h"           // CAchievement::_gm_init/adjust/sendList
 #include "CUser.h"                  // CUser/CUserCharacInfo/CAccountCargo/CCargo
@@ -60,27 +61,15 @@ extern void CDisjointer_get_disjoint_result_(
     asm("_ZN10expert_job11CDisjointer20get_disjoint_result_EP5CItemP10Inven_Item"
         "iR14DisJointResultbP5CUser");
 
-// OS_API::WriteLog(char const*, char const*, ...) ORIG T 0x0858c78a。
-namespace OS_API
-{
-int WriteLog(char const* tag, char const* fmt, ...)
-    asm("_ZN6OS_API8WriteLogEPKcS1_z");
-}  // namespace OS_API
-
 // DB_TestTradeRestrict::makeRequest(unsigned int) ORIG T 0x0844a132。
 extern void DB_TestTradeRestrict_makeRequest(unsigned int characNo)
     asm("_ZN20DB_TestTradeRestrict11makeRequestEj");
 
 // CStackableItem 非虚查询族（ORIG W：0x84b4222/0x84b4232/0x84b4242/0x84b4252；
-// 权威类声明尚未落地，按 thiscall 第一参显式桥接）。
-extern char CStackableItem_IsReinforceTicket(void* self)
-    asm("_ZN14CStackableItem17IsReinforceTicketEv");
-extern char CStackableItem_GetReinforceRate(void* self)
-    asm("_ZN14CStackableItem16GetReinforceRateEv");
-extern char CStackableItem_IsAmplifyReinforceTicket(void* self)
-    asm("_ZN14CStackableItem24IsAmplifyReinforceTicketEv");
-extern char CStackableItem_GetAmplifyReinforceRate(void* self)
-    asm("_ZN14CStackableItem23GetAmplifyReinforceRateEv");
+// 真成员已落地（CStackableItem.h + ItemUpgradeVtableB2.cpp），按真成员直调：
+//   IsReinforceTicket()/GetReinforceRate()/IsAmplifyReinforceTicket()/
+//   GetAmplifyReinforceRate()。调用点对 CItem* 经 static_cast<CStackableItem*>
+// 上转（单继承 +0x00，同 this，字节等价）。
 
 // ============================================================================
 // CVillageAttackedStartCmd 专用监控包（ORIG 全局类；
@@ -108,11 +97,6 @@ namespace game_master
 {
 
 namespace { struct IntSlotView { void* m_vptr; void* m_parser; int m_slot; }; }
-
-// CItem::is_stackable() const ORIG W（_Bool 返回；ORIG 调用点按 char 消费，
-// 以 char 返回的桥接保证 test %al 形态）。
-extern char CItem_is_stackable_char(void* self)
-    asm("_ZNK5CItem12is_stackableEv");
 
 // ============================================================================
 // CViewTutorialFlagCmd — ORIG ctor 0x082a80d0（sizeof=0x8）/ execute 0x084a927e
@@ -389,9 +373,8 @@ void CTitleBookNoClear::execute()
 // ============================================================================
 // CUpgradeCardDebug — ORIG ctor 0x082a883e（sizeof=0xc，int@+0x08）/
 // parse 0x084b1b5e / execute 0x084b1b96 / SendChatMsg 0x084b1e8a
-// ============================================================================
-
-// trim(args)；atoi → +0x08。
+namespace game_master
+{
 void CUpgradeCardDebug::parse()
 {
     trim(m_parser->m_args);
@@ -400,25 +383,14 @@ void CUpgradeCardDebug::parse()
 
 // ORIG SendChatMsg(CUser*, char*) @0x084b1e8a：strlen 后经
 // GameWorld::make_packet_chat_msg(type=2, NOTI=0xc) 发给本人。
-// 头中占位声明为无参 SendChatMsg()，与 ORIG 两参 ABI 不符；此处以
-// asm 标签按 ORIG 真实符号提供定义（self 未用，忠实 thiscall 布局）。
-}  // namespace game_master
-
-void CUpgradeCardDebug_SendChatMsg_Orig(
-    void* /*self*/, CUser* user, char* msg)
-    asm("_ZN11game_master17CUpgradeCardDebug11SendChatMsgEP5CUserPc");
-
-void CUpgradeCardDebug_SendChatMsg_Orig(
-    void* /*self*/, CUser* user, char* msg)
+// 头已按 ORIG 两参签名声明（GameMasterCmd.h）；以真成员定义承载 ORIG 符号。
+void CUpgradeCardDebug::SendChatMsg(CUser* user, char* msg)
 {
     PacketGuard packet;
     G_GameWorld()->make_packet_chat_msg(
         packet, user, msg, (int)strlen(msg), 2, (ENUM_NOTIPACKET)0xc);
     user->Send(packet);
 }
-
-namespace game_master
-{
 
 // 万次蒙特卡洛统计强化券成功率并向 GM 回播聊天消息。
 void CUpgradeCardDebug::execute()
@@ -460,19 +432,19 @@ void CUpgradeCardDebug::execute()
         break;
     }
 
-    if (CStackableItem_IsReinforceTicket(item))
+    if (static_cast<CStackableItem*>(item)->IsReinforceTicket())
     {
         signed char value =
-            (signed char)CStackableItem_GetReinforceRate(item);
+            (signed char)static_cast<CStackableItem*>(item)->GetReinforceRate();
         if (value < 0 || value > 100)
             rate = 0;
         else
             rate = (int)value;
     }
-    else if (CStackableItem_IsAmplifyReinforceTicket(item))
+    else if (static_cast<CStackableItem*>(item)->IsAmplifyReinforceTicket())
     {
         signed char value =
-            (signed char)CStackableItem_GetAmplifyReinforceRate(item);
+            (signed char)static_cast<CStackableItem*>(item)->GetAmplifyReinforceRate();
         if (value < 0 || value > 100)
             rate = 0;
         else
@@ -492,7 +464,7 @@ void CUpgradeCardDebug::execute()
     sprintf(msg,
             "아이템:%s(%d) 성공확률:%d  (%d번 성공, %d번 실패)\n",
             item->GetItemName(), item->get_index(), rate, success, failure);
-    CUpgradeCardDebug_SendChatMsg_Orig(this, GetUser(), msg);
+    SendChatMsg(GetUser(), msg);
 }
 
 // ============================================================================

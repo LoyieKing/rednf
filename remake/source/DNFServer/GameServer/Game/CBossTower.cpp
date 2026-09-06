@@ -480,11 +480,15 @@ CHECK:
     return 0;
 GMBLOCK:
     // ORIG：manager 存 -0x28 复用；GM 字节直写回 b 的字节槽（-0x13c）。
+    // 嵌套 if（非 &&）以复现 ORIG 双 je 落点形，避免 4.4 物化布尔。
     CUser* manager = party->getManager();
-    if (manager->isGMUser() && manager->m_gmBossDifficulty != 0)
+    if (manager->isGMUser())
     {
-        b = manager->m_gmBossDifficulty;   // GM 观战标记替换广播字节
-        manager->m_gmBossDifficulty = 0;
+        if (manager->m_gmBossDifficulty != 0)
+        {
+            b = manager->m_gmBossDifficulty;   // GM 观战标记替换广播字节
+            manager->m_gmBossDifficulty = 0;
+        }
     }
     // X1 形：RandomConsistMap 假 → 0。
     register unsigned char rcm asm("eax") =
@@ -497,14 +501,15 @@ DOPLAY:
     m_towerStartTick = GlobalData::s_systemTime_.getCurTickCount();
     m_towerEndTick = 0;
 
-    char memberNames[256] = "";              // ebp-0x138（内联展开清零 0x100）
+    char memberNames[256] = {0};             // ebp-0x138（内联展开清零 0x100）
     m_party->_getMemberNames(memberNames);
 
     for (int i = 0; i <= 3; ++i)
     {
         CUser* member = m_party->get_user(i);
-        bool valid = (member != 0) && (m_party->checkValidUser(i) == 1);
-        if (!valid)
+        bool invalid = (member == 0) ||
+                       (m_party->checkValidUser(i) != 1);
+        if (invalid)
             continue;
 
         m_dungeonLog.IncrementBossStageStart(

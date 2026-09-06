@@ -793,7 +793,7 @@ public:
     CUpgradeCardDebug() {}             // ORIG W 0x082a883e（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084b1b5e
     virtual void execute();                          // ORIG T 0x084b1b96
-    void SendChatMsg();                                       // 辅助（ORIG T 0x084b1e8a，签名见报告）
+    void SendChatMsg(CUser*, char*);                          // 辅助（ORIG T 0x084b1e8a；mangled EP5CUserPc，成员 this + CUser* + char*）
 
     int m_itemIdx;                              // +0x08（ORIG POD：道具 idx）
 };

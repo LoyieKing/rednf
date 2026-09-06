@@ -223,8 +223,12 @@ bool DB_Multi_MailBox_Req_Send::_sendResult(int slot, SIG_MAILBOX_CHECK_RECEIVER
 //    GetOutBuffer<SIG_QUERY_CHARAC_INFO>（首字节即角色名）→ escape_string →
 //    charac_info 查 7 列；exec 失败/无行/取行失败 → _sendResult(2,...)；
 //    delete_flag!=0 → _sendResult(0x15,...)；成功 → 读列 1..6 →
-//    _sendResult(0, slot, name, characNo, job, lev, growType, sex) → 返 1。
+//    _sendResult(0, slot, sig, characNo, job, lev, growType, sex) → 返 1
+//    （ORIG +0x377 第 3 参 name 传 sig=GetOutBuffer 指针，非转义缓冲）。
 //    注意 ORIG 对 get_n_rows()==0 有两次独立判定（P48 双调用），照写。
+//    verdict=NEAR（N82 残余）：助记符序列与 ORIG 全等（227=227，nop 豁免），
+//    仅余 4.1 vs 4.4 栈槽/帧（0xac vs 0x9c）错位；调用点差集 P167 CLEAR(22/22)。
+//    5 处返 1 用 goto 共享单一置位，消除 4 条冗余 mov $0x1（对齐 ORIG 单 mov 结尾）。
 // ============================================================================
 bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* stream)
 {
@@ -242,13 +246,13 @@ bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* strea
     if (!db->exec(true))
     {
         _sendResult(2, slot, 0, 0, 0, 0, 0, 0);
-        return 1;
+        goto done;
     }
 
     if (db->get_n_rows() == 0)
     {
         _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0);
-        return 1;
+        goto done;
     }
     // P48 双调用：ORIG（0x0843bec3 `setne %al; je 0843c0dd`）第二次判定是
     // `!= 0` 正向跳成功链、`== 0` 落入尾部 0x15 块（fallthrough）→ 按该形态
@@ -259,12 +263,12 @@ bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* strea
         if (!db->fetch() || !db->get_int(0, deleteFlag))
         {
             _sendResult(2, slot, 0, 0, 0, 0, 0, 0);
-            return 1;
+            goto done;
         }
         if (deleteFlag != 0)
         {
             _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0);
-            return 1;
+            goto done;
         }
 
         // 宽度对齐 ORIG（报告 0x0843c02a..0x0843c092）：列 2..6 callee =
@@ -277,6 +281,9 @@ bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* strea
         int growType = 0;
         int sex = 0;
         unsigned int mId = 0;
+        // ORIG（+0x2a0 `movl $0x0,-0x1c(%ebp)`）在此列初始化块多零写入一个 dummy
+        // 槽（只写不读，N82 遗留）。以同块内一个只写不读的局部复刻该条死 movl。
+        int pad_impl = 0;
         db->get_int(1, mId);
         db->get_int(2, characNo);
         db->get_int(3, job);
@@ -287,10 +294,11 @@ bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* strea
         // ORIG（0843c0bd mov -0x20(%ebp),%eax）：第 3 参 name 传的是 GetOutBuffer
         // 返回的 sig 指针，NOT 转义后的 name 缓冲（0843c0bb..0843c0bd 用 -0x20 槽）。
         _sendResult(0, slot, (const char*)sig, characNo, job, lev, growType, sex);
-        return 1;
+        goto done;
     }
 
     _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0);
+done:
     return 1;
 }
 

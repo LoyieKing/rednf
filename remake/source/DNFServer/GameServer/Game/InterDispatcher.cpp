@@ -56,6 +56,7 @@ char* NumberToString(unsigned int value, int radix);
 #include "nexon_cash.h"       // nexon::cash::MAX_NEXON_ID_LENTH
 #include "CPowerManager.h"     // PowerWar result consumers
 #include "CInventory.h"         // Inven_Item/RandomOption/CInventory 动作族 + user_creature::CCreatureMgr
+#include "CExpandEquipslot.h"   // CExpandEquipslot::loadData 虚槽转真调用（GetCharacExpandData(2/9)）
 #include "CAvatarItemMgr.h"     // WongWork::CAvatarItemMgr（jewel/expansion/tempKey）
 #include "CItemLimitEdition.h"  // CItemLimitEdition/Mgr（ImplementItemLimitEdition 批权威实现）
 #include "CCeraShop.h"          // WongWork::CCeraShop::IsSpecialItem
@@ -1809,7 +1810,7 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     int ComputeDaysScheduleTime(int hour, long lastTime, long curTime);  // ORIG 0x846c144（GameUtils.cpp）
     unsigned long StringToNumber(const char* s);          // ORIG T 0x081090fa（DNFFunctionLib.cpp 定义）
 
-    {   // antibot 用户信息上报（vtable+0x38 槽，类未建模同 AntibotSend 先例）
+    {   // antibot 用户信息上报（vtable+0x38 槽，类未建模——asm 桥残留保留，按 §8 协议待类建模后清理）
         user->fillUserInfo4Antibot();
         const char* userInfo = user->getUserInfo4Antibot();
         unsigned char payload[0x48];   // ORIG local_150/local_14c/acStack_148 连续区
@@ -2029,14 +2030,13 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
             }
         }
     }
-    // 扩展槽族槽表导入（两处 vtable+4 槽接口，类未建模先例按槽指针调用）：
-    typedef void (*LoadFn)(void*, CUser*, void*);
+    // 扩展槽族槽表导入（ORIG vptr+4 = CExpandEquipslot::loadData 虚槽；类型完整，转真调用）
     for (int section = 2; section <= 9; section += 7)
     {
-        void* expandData = user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)section);
-        LoadFn load = *(LoadFn*)((*(void***)expandData)[0x04 / 4]);
-        load(expandData, user,
-             data + ((section == 2) ? 0x14784 : 0x14aa4));
+        CExpandEquipslot* expandData =
+            (CExpandEquipslot*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)section);
+        expandData->loadData(user,
+                             data + ((section == 2) ? 0x14784 : 0x14aa4));
     }
     user->disableSaveInven();
     user->disableSaveCargo();
@@ -2805,7 +2805,7 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
     {
         unsigned int clientIp = 0;
         memcpy(&clientIp, &sa.sa_data[2], 4);
-        void* checker = GlobalData::s_antibotChecker_;
+        void* checker = GlobalData::s_antibotChecker_;          // antibiotic 类未建模——asm 桥残留（vtable+0x04 AddClient，按 §8 协议保留）
         typedef int (*AddClientFn)(void*, int, int, unsigned int,
                                    unsigned int, void*);
         AddClientFn addClient = *(AddClientFn*)((*(void***)checker)[0x04 / 4]);
@@ -2827,7 +2827,7 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         user->m_field8cf00 = 0;
         user->m_field4 = 0;
         user->m_field5 = 0;
-        typedef int (*P2PAddClientFn)(void*, unsigned int, int, unsigned int);
+        typedef int (*P2PAddClientFn)(void*, unsigned int, int, unsigned int);  // 同上残留：vtable+0x20 P2PAddClient
         P2PAddClientFn p2pAdd =
             *(P2PAddClientFn*)((*(void***)checker)[0x20 / 4]);
         const int p2pRet =
@@ -2858,7 +2858,7 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.finalize(true);
     user->Send(packet);
     user->m_field796f8 = 0;                    // ORIG 0x84c8854 Send 后清零
-    {   // ORIG vtable+0x2c 两参槽：真身类未建模（同 AntibotSend 先例按槽指针调用）
+    {   // ORIG vtable+0x2c 两参槽（IPGHelper IPGQuery）：类未建模——asm 桥残留保留，按 §8 协议待建模清理
         typedef void (*QueryFn)(void*, CUser*);
         void* helper = GlobalData::s_pIPGHelper;
         QueryFn query = *(QueryFn*)((*(void***)helper)[0x2c / 4]);
@@ -3161,7 +3161,7 @@ int Inter_IPGResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
         user->SendCashData(true);
     }
     else if (pPkt->m_1d == 6)
-    {   // 点数查询结果：经 CIPGHelper 虚槽 +0x2c 回填
+    {   // 点数查询结果：经 CIPGHelper 虚槽 +0x2c 回填（类未建模——asm 桥残留保留，按 §8 协议待建模清理）
         typedef void (*QueryFn)(void*, CUser*, int);
         void* helper = GlobalData::s_pIPGHelper;
         QueryFn query = *(QueryFn*)((*(void***)helper)[0x2c / 4]);
@@ -9543,9 +9543,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         }
         else
         {
-            const int delSlot =
-                item.isEquipableItemType() ? item.m_addInfo2 : restrictAmount;
-            if (!inven->delete_item((INVEN_TYPE)item.m_field0, slotNo, delSlot,
+            if (!inven->delete_item((INVEN_TYPE)item.m_field0, slotNo, pck.item_info.add_info,
                                     (eItemDelReason)0x19, true))
             {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x94, (PAY_TYPE)payType);
@@ -9563,7 +9561,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         }
     }
     user->SaveInventory();
-    memcpy(pck.owner_nexon_id, user->get_acc_name(), strlen(user->get_acc_name()));
+    strncpy(pck.owner_nexon_id, user->get_acc_name(), strlen(user->get_acc_name()));  // ORIG strncpy（END）
     GlobalData::s_auction_proxy->SendPacket(&pck);
     return 0;
 }
@@ -9706,7 +9704,7 @@ int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int
                 static_cast<unsigned int>(user->getCurCharacNo()));
             return 0;                                  // LAB_084d7407（guard 析构后返回）
         }
-        // vtable+0x3c（slot15 GetIPGMgr）
+        // vtable+0x3c（slot15 GetIPGMgr）：类未建模——asm 桥残留保留，按 §8 协议待建模清理
         typedef void* (*GetMgrFn)(void*, unsigned int);
         void* helper = GlobalData::s_pIPGHelper;
         mgr = reinterpret_cast<WongWork::IPG::CIPGMgr*>(
@@ -9827,7 +9825,7 @@ int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int
     packet.finalize(true);
     user->Send(packet);
     if (msg[0] == 1)
-    {   // vtable+0x2c（slot12 IPGQuery(CUser*)）
+    {   // vtable+0x2c（slot12 IPGQuery(CUser*)）：类未建模——asm 桥残留保留，按 §8 协议待建模清理
         typedef void (*QueryFn)(void*, CUser*);
         void* helper = GlobalData::s_pIPGHelper;
         QueryFn query = *(QueryFn*)((*(void***)helper)[0x2c / 4]);

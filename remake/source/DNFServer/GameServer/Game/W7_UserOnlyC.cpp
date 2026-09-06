@@ -537,12 +537,14 @@ void CUser::GiveItemsReturnUser()
 // m_returnUserReward.m_levelUp 表。
 void CUser::GiveEquipItemsReturnUser()
 {
+    // P48：ORIG 每次使用均重调 getCurCharFirstGrowType（两遍，见 Ghidra）。
     const int growType = getCurCharFirstGrowType();
     const int level = get_charac_level();
     const int key = getReturnUserLevelKey(level, growType);
 
+    const int growType2 = getCurCharFirstGrowType();
     const int job = get_charac_job();
-    LevelUpRewardItemTableKey tableKey(key, job, growType);
+    LevelUpRewardItemTableKey tableKey(key, job, growType2);
     LevelUpRewardItemData data;
     if (!G_CDataManager()->m_returnUserReward.m_levelUp.get_data(tableKey,
                                                                  data))
@@ -596,11 +598,12 @@ void CUser::SendCeraShopGiftStatisticLog(unsigned int arg1, unsigned int arg2,
 {
     Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0xa2c0);
     CStreamGuard guard(stream, true);
-    guard << 0x29c;
-    guard << static_cast<int>(GetUID());
+    // ORIG 每次写入均重调 operator*（P48），GetInBuffer 经 operator->。
+    (**guard) << 0x29c;
+    (**guard) << static_cast<int>(GetUID());
 
     SIG_STATISTIC_CERASHOP_GIFT_LOG* sig =
-        guard.GetInBuffer<SIG_STATISTIC_CERASHOP_GIFT_LOG>();
+        guard->GetInBuffer<SIG_STATISTIC_CERASHOP_GIFT_LOG>();
     unsigned char* raw = reinterpret_cast<unsigned char*>(sig);
     *reinterpret_cast<unsigned int*>(raw + 0x00) = m_accId;
     *reinterpret_cast<unsigned int*>(raw + 0x04) =
@@ -712,11 +715,12 @@ void CUserEventUtil::updateCharacterDayEvent(CUser* user, int day)
 {
     Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x9af5);
     CStreamGuard guard(stream, true);
-    guard << 0x16e;
-    guard << static_cast<int>(user->GetUID());
+    // ORIG 每次写入均重调 operator*（P48），GetInBuffer 经 operator->。
+    (**guard) << 0x16e;
+    (**guard) << static_cast<int>(user->GetUID());
 
     SIG_UPDATE_CHARACTER_DAY_EVENT* sig =
-        guard.GetInBuffer<SIG_UPDATE_CHARACTER_DAY_EVENT>();
+        guard->GetInBuffer<SIG_UPDATE_CHARACTER_DAY_EVENT>();
     unsigned char* raw = reinterpret_cast<unsigned char*>(sig);
     *reinterpret_cast<unsigned int*>(raw + 0x00) = user->get_acc_id();
     *reinterpret_cast<short*>(raw + 0x04) = static_cast<short>(day);

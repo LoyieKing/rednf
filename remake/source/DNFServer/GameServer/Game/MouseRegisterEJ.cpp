@@ -349,7 +349,7 @@ int DB_MouseRegister::convertPassPadInfo(unsigned int mid, char* mousepass,
         if (strncmp(ip, cipherHex, 0x24) != 0)
         {
             failCnt = failCnt + 1;
-            _updateFailCnt(mid, failCnt, ip);
+            _updateFailCnt(mid, failCnt, buf3);  // ORIG param_9=buf3（报告 +0x265）
             if (failCnt > 9)
             {
                 return 0x49;
@@ -360,16 +360,17 @@ int DB_MouseRegister::convertPassPadInfo(unsigned int mid, char* mousepass,
 
     failCnt = 0;
     cancelCnt2 = 0;
-    if (!_updateHistory(mid, 7, ip))
+    if (!_updateHistory(mid, 7, buf3))  // ORIG param_9=buf3（报告 +0x2ab）
     {
         return 1;
     }
     db->set_query(
         "upDate member_mousepass set enable_flag = '0' where m_id=%s",
         NumberToString(mid, 0));
-    register bool fail =
-        !(db->exec(true) && db->getAffectedRowCount() != 0);
-    if (fail)
+    // ORIG 尾：`exec;xor$1;test;jne(ret1); getAffected;or %edx,%eax;test;
+    // mov$1/mov$0; test %al; je` ⇒ 内联判定，无 bool 局部（`register bool`
+    // 会强占 ebx 使帧变大 +0x64/push ebx）。
+    if (!(db->exec(true) && db->getAffectedRowCount() != 0))
     {
         return 1;
     }

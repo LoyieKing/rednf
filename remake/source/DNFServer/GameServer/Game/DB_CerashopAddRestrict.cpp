@@ -58,14 +58,16 @@ void DB_LoadCerashopAddRestrictType::makeRequest(CUser* user)
 //   op==0（登记）：包体 0x340 | -1 | m_type | m_ipgNo | head[+4] | head[+8](long)
 //                  | m_pInfo[+0x10](long) | get_acc_id()
 //   op==1（删除）：同上，末字段为 getCurCharacNo()
-// 注：ORIG DBInputData 的第 0 个指针字段（head 记录，slot +0x00）在源 CUser.h 的
-// DBInputData 中未建模（仅 m_pInfo @ +0x04 与 m_pad[0xc]），本 TU 按 ORIG 槽位
-// 直接解释，保持 ABI 与 ORIG 字节布局一致。
+// 注：ORIG DBInputData 的第 0 个字段（slot +0x00，DBInputData::m_result）实际存
+// head 记录（paramDaily*）指针。m_result 建模为 int，本 TU 将其 reinterpret_cast 为
+// paramDaily* 解释 m_count(+4)/m_nextDate(+8)，保持 ABI 与 ORIG 字节布局一致。
 // ============================================================================
 void DB_SaveCerashopAddRestrictType::makeRequest(
     CUser* user, CerashopAddRestrict::DBInputData& data)
 {
-    if (data.m_pInfo->m_type == 0)
+    switch (data.m_pInfo->m_type)
+    {
+    case 0:
     {
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
             "CerashopAddRestrictType.cpp", 0x18c), true);
@@ -74,14 +76,15 @@ void DB_SaveCerashopAddRestrictType::makeRequest(
         guard.operator*()->operator<<((unsigned int)data.m_pInfo->m_type);
         guard.operator*()->operator<<(data.m_pInfo->m_ipgNo);
         guard.operator*()->operator<<((unsigned int)
-            (*reinterpret_cast<CerashopAddRestrict::paramDaily**>(&data))->m_count);
+            reinterpret_cast<CerashopAddRestrict::paramDaily*>(data.m_result)->m_count);
         guard.operator*()->operator<<((long)
-            (*reinterpret_cast<CerashopAddRestrict::paramDaily**>(&data))->m_nextDate);
+            reinterpret_cast<CerashopAddRestrict::paramDaily*>(data.m_result)->m_nextDate);
         guard.operator*()->operator<<((long)data.m_pInfo->m_end);
         guard.operator*()->operator<<(user->get_acc_id());
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        break;
     }
-    else if (data.m_pInfo->m_type == 1)
+    case 1:
     {
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
             "CerashopAddRestrictType.cpp", 0x19a), true);
@@ -90,12 +93,16 @@ void DB_SaveCerashopAddRestrictType::makeRequest(
         guard.operator*()->operator<<((unsigned int)data.m_pInfo->m_type);
         guard.operator*()->operator<<(data.m_pInfo->m_ipgNo);
         guard.operator*()->operator<<((unsigned int)
-            (*reinterpret_cast<CerashopAddRestrict::paramDaily**>(&data))->m_count);
+            reinterpret_cast<CerashopAddRestrict::paramDaily*>(data.m_result)->m_count);
         guard.operator*()->operator<<((long)
-            (*reinterpret_cast<CerashopAddRestrict::paramDaily**>(&data))->m_nextDate);
+            reinterpret_cast<CerashopAddRestrict::paramDaily*>(data.m_result)->m_nextDate);
         guard.operator*()->operator<<((long)data.m_pInfo->m_end);
         guard.operator*()->operator<<((unsigned int)user->getCurCharacNo());
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        break;
+    }
+    default:
+        break;
     }
 }
 

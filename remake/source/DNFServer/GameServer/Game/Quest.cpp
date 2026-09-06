@@ -141,22 +141,25 @@ char Quest::check_possible(const stSelectQuestParam& param) const
         }
     }
 
-    // 等号实测：改成 `<=` 会让本函数 ndiff 12→14 变差（-0x18 槽被前后三处
-    // 比较共用，改一处会连带改变 4.4 的 jcc 选择与装载序），故维持 `<`；
-    // ORIG 该点 `jge` 与我方 `jg` 的等号差属**跨点耦合残差**，标 N。
-    // 对照：同函数 m_levelMax 那处改 `>=` 是净收益（13→12），已保留。
+    // ORIG `mov 0x20;cmp;jle <pass>`：levelMin <= level 跳下一检查。
+    // 返回 0 条件 = levelMin > level ⇒ level < levelMin。与 Ghidra
+    // `if (iVar2 < this+0x20)` 一致。
     if (level < m_levelMin)
     {
         return 0;
     }
-    // ORIG @0x8352e…：`mov 0x28(%eax),%eax; cmp -0x14(%ebp),%eax; jle <ret0>`
-    // ⇒ 判定条件是 **m_levelMax <= level**（含等号），原写法 `m_levelMax < level`
-    // 少一个等号（重建语义误差一位）。写成 `>=` 后 4.4 产 `cmp; jle` 同形。
-    if (level >= m_levelMax)
+    // ORIG `mov 0x24;cmp;jge <pass>`：levelMax >= level 跳下一检查。
+    // 返回 0 条件 = levelMax < level ⇒ level > levelMax（严格大于，不含等号）。
+    // Ghidra `else if (this+0x24 < iVar2)` 一致。
+    if (level > m_levelMax)
     {
         return 0;
     }
-    if ((m_questCountLimit != 0) && (m_questCountLimit <= questCount))
+    // ORIG `mov 0x28;test;je <inner>; cmp;jle <inner>`：countLimit==0 或
+    // countLimit<=questCount 进内部检查；返回 0 条件 = countLimit>0 且
+    // countLimit > questCount。Ghidra `else if (this+0x28==0 || this+0x28<=iVar3)`
+    // 一致（原写法 `<=` 与 ORIG 反向，语义差一位，已反）。
+    if ((m_questCountLimit != 0) && (m_questCountLimit > questCount))
     {
         return 0;
     }
@@ -174,19 +177,22 @@ char Quest::check_possible(const stSelectQuestParam& param) const
             return 0;
         }
     }
-    if ((m_field13c == 0) || (m_field140 == -1))
+    // ORIG tail：`mov 13c;test;je <ret1>; mov 140;cmp -1;je <ret1>;`
+    // 两个 == 判定共享同一个 return 1 尾块（0x223）。前置 `if(13c!=0 && 140!=-1)`
+    // 逆置结构让 4.4 对两条件同发 je→共享块（probe p4 形态）。
+    if ((m_field13c != 0) && (m_field140 != -1))
     {
-        return 1;
-    }
-    if ((m_field13c == -1) || (m_field13c == expertJobType))
-    {
-        if (expertJobLevel < m_field140)
+        if ((m_field13c == -1) || (m_field13c == expertJobType))
         {
-            return 0;
+            if (expertJobLevel < m_field140)
+            {
+                return 0;
+            }
+            return 1;
         }
-        return 1;
+        return 0;
     }
-    return 0;
+    return 1;
 }
 
 char Quest::check_power_side(char side)

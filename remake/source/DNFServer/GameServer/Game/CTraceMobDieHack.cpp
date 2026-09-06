@@ -94,15 +94,13 @@ void CTraceMobDieHack::traceEnd(CUser* killer, CUser** users)
     specialDungeons[1] = 2;
     specialDungeons[2] = 0x29;
     specialDungeons[3] = 0x21;
-    unsigned int i = 0;
-    do
+    for (unsigned int i = 0; i <= 3; ++i)
     {
         if (specialDungeons[i] == dungeonIndex)
         {
             return;
         }
-        ++i;
-    } while (i <= 3);
+    }
     for (int j = 0; j <= 3; ++j)
     {
         if (users[j] == 0 || users[j]->getCurCharacR() == 0 ||

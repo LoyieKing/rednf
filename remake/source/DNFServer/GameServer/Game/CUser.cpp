@@ -4734,7 +4734,7 @@ const char* CUser::GetSsnString()
     return m_accName + 0x96;
 }
 
-char CUser::getSex()
+int CUser::getSex()   // 返回 int（CUser.h 判据同源）
 {
     const char* ssn = GetSsnString();
     if (strlen(ssn) < 0xd)

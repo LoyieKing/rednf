@@ -2584,7 +2584,10 @@ public:
     char* GetUserName();
     char* GetUserEMail();
     const char* GetSsnString();
-    char getSex();
+    // ORIG getSex 体 `mov $0xffffffff,%eax`（int 宽三态 -1/0/1）+ 调用侧 `test %eax,%eax`
+    // 全宽判（ADeepX3 证据 0x…checkCondition 两处 sete/cmp）⇒ 返回 int；
+    // mangled 不含返回型零 ABI 险，全消费点 -1/0/1 比较源兼容（operator+= 判例族）。
+    int getSex();
     void* GetCSHashSet();
     char* GetGuildName();
     unsigned char GetGuildLevel();

@@ -295,8 +295,7 @@ int DATABASE::ITEM_QUERY::arad_sp_buy_item_check(ARAD_DATAS::BuyItemInfo& info)
             "ARAD_DATAS::BuyItemInfo&)", 0x454, "%s", "Database null!!");
         return -1;
     }
-    char quarter[5];
-    quarter[0] = quarter[1] = quarter[2] = quarter[3] = quarter[4] = 0;
+    char quarter[5] = {0};  // ORIG `movl $0; movb $0` 两写消 5 字节零
     GetQuarterOfYear(quarter);
     if (info.checkType == 1)
     {
@@ -310,7 +309,7 @@ int DATABASE::ITEM_QUERY::arad_sp_buy_item_check(ARAD_DATAS::BuyItemInfo& info)
         db->set_query(
             "select count(*) from prod_sale_entry_%s where  ipg_no = %d and "
             " m_id = %d",
-            quarter, info.mid, info.ipgNo);
+            quarter, info.ipgNo, info.mid);
     }
     if (!db->exec(true))
     {
