@@ -2362,14 +2362,6 @@ int DisPatcher_RecoverStamina::process(CUser* user, MSG_BASE& msg, ParamBase& pa
      0)
 
 #include "CPrivateStoreMgr.h"  // private_store::GetInstancePrivateStoreMgr
-typedef int (*DispatchBig5_AssaultPreventFn)(CUser*, bool*);
-static inline int DispatchBig5_callAssaultPrevent(CUser* user)
-{
-    DispatchBig5_AssaultPreventFn fn =
-        reinterpret_cast<DispatchBig5_AssaultPreventFn>(
-            &expert_job::CAlchemist::GetAssaultPrevent);
-    return fn(user, 0);
-}
 DisPatcher_ReqPeer::~DisPatcher_ReqPeer() {}
 // ============================================================================
 // ORIG T 0x081eed08 _ZN18DisPatcher_ReqPeer12dispatch_sigEP5CUserR9PacketBuf
@@ -2383,8 +2375,11 @@ DisPatcher_ReqPeer::~DisPatcher_ReqPeer() {}
 // ============================================================================
 int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    int st = user->get_state();
-    if (st != 3 && st != 6 && st != 8)
+    // ORIG top gate：三次独立 get_state reload（==3/==6/==8 各自 `call
+    // _ZN5CUser9get_stateEv`），不缓存 `st`——调用点计数须为 3。
+    if (user->get_state() != 3 &&
+        user->get_state() != 6 &&
+        user->get_state() != 8)
     {
         return 0;
     }
@@ -2406,7 +2401,6 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
                         0, 0);
 
     static char soloCtx[0x14];                   // ORIG local_54 上下文【推断】
-    memset(soloCtx, 0, sizeof(soloCtx));
     const MSG_REQ_TO_PEER& soloRef =
         *reinterpret_cast<const MSG_REQ_TO_PEER*>(soloCtx);
 
@@ -2455,8 +2449,8 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
     }
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
-        int tst = target->get_state();
-        if (tst == 6 || tst == 7)
+        // ORIG 两次独立 reload（==6 / ==7）。
+        if (target->get_state() == 6 || target->get_state() == 7)
             return PEER_ERR3(user,requestType,0x13), 0;
     }
     if (target->IsBusyDisjointStore())
@@ -2490,12 +2484,26 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
             return PEER_ERR3(user,requestType,3), 0;
         if (GlobalData::s_power_manager->IsPowerWarEventOn())
         {
-            int villSelf = user->getCurCharacVill();
-            int villPeer = target->getCurCharacVill();
-            if ((villSelf == 7 && villPeer == 7 &&
-                 user->getPowerSide() != target->getPowerSide()) ||
-                (villSelf == 7) != (villPeer == 7))
+            // ORIG 6 次 `_ZNK getCurCharacVill` 内联（无缓存局部）；语义等价于
+            // （双 7 且 power 侧异）∨（恰一 7）→ 拒 0x13。逐调用点展开匹配计数。
+            signed char selfVill = user->getCurCharacVill();
+            bool bothSeven = selfVill == 7 && target->getCurCharacVill() == 7;
+            if (bothSeven)
+            {
+                if (user->getPowerSide() != target->getPowerSide())
+                    return PEER_ERR3(user,requestType,0x13), 0;
+            }
+            else if ((user->getCurCharacVill() == 7 ||
+                      target->getCurCharacVill() != 7) &&
+                     (user->getCurCharacVill() != 7 ||
+                      target->getCurCharacVill() == 7))
+            {
+                // 同 7 / 同非 7 → 通过
+            }
+            else
+            {
                 return PEER_ERR3(user,requestType,0x13), 0;
+            }
         }
         CParty* selfParty = static_cast<CParty*>(user->GetParty());
         if (selfParty != 0 &&
@@ -2507,7 +2515,10 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
         if (!GlobalData::s_power_manager->IsPowerWarEventOn())
         {
             int curSec = GlobalData::s_systemTime_.getCurSec();
-            if (DispatchBig5_callAssaultPrevent(user))
+            // ORIG 三处 `_ZN10expert_job10CAlchemist17GetAssaultPreventEP5CUserPb`
+            // 第二参为 (bool*)0x0。
+            if (expert_job::CAlchemist::GetAssaultPrevent(
+                    user, static_cast<bool*>(0)))
             {
                 if (curSec < target->GetCurCharacChaosKillTime() + 600)
                     return PEER_ERR3(user,requestType,0xfa), 0;
@@ -2518,11 +2529,13 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
                     return PEER_ERR3(user,requestType,0xfa), 0;
             }
             if (curSec < user->GetCurCharacChaosKillTime() + 600 &&
-                DispatchBig5_callAssaultPrevent(target))
+                expert_job::CAlchemist::GetAssaultPrevent(
+                    target, static_cast<bool*>(0)))
                 return PEER_ERR3(user,requestType,0xfa), 0;
             if (selfParty != 0 &&
                 selfParty->CheckMemberLastTryAssaultTime() &&
-                DispatchBig5_callAssaultPrevent(target))
+                expert_job::CAlchemist::GetAssaultPrevent(
+                    target, static_cast<bool*>(0)))
                 return PEER_ERR3(user,requestType,0xfa), 0;
         }
         unsigned short spareShort = 0;           // ORIG local_62 覆盖式读
@@ -2544,11 +2557,17 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
     }
     case 1:
     {
+        // ORIG local_28 延迟错误码：非交易态先试同 state 直连成功包，失败累计
+        // 码值后统一 fall-through 发包。两处 `Get()+isRestricted`、两处
+        // `get_state`、两处 `CheckInTrade`。
+        int errCode = 1;
         bool restricted =
             ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
-                user, static_cast<RestrictCategory::Enum>(1), 6) ||
-            ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
-                target, static_cast<RestrictCategory::Enum>(1), 6);
+                user, static_cast<RestrictCategory::Enum>(1), 6);
+        if (!restricted)
+            restricted =
+                ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
+                    target, static_cast<RestrictCategory::Enum>(1), 6);
         if (restricted)
             return PEER_ERR3(user,requestType,0xd1), 0;
         int secuErr =
@@ -2564,23 +2583,28 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
         if (target->isBlackUser(
                 static_cast<unsigned int>(user->get_charac_no(-1))))
             return PEER_ERR3(user,requestType,0x4d), 0;
-        if (target->CheckInTrade())
-            PEER_ERR3(user,requestType,0x12);
-        else if (user->get_state() == target->get_state())
+        if (!target->CheckInTrade())
         {
-            pgRes.put_header(0, 7);
-            pgRes.put_short(user->get_unique_id() & 0xffff);
-            pgRes.put_byte(1);
-            pgRes.put_int(static_cast<int>(cookie));
-            pgRes.put_int(
-                static_cast<int>(user->getCurCharacCreateTime()));
-            pgRes.finalize(true);
-            target->Send(pgRes);
-            target->SetReceivedRequestType(requestType);
-            return 0;
+            if (user->get_state() == target->get_state())
+            {
+                pgRes.put_header(0, 7);
+                pgRes.put_short(user->get_unique_id() & 0xffff);
+                pgRes.put_byte(1);
+                pgRes.put_int(static_cast<int>(cookie));
+                pgRes.put_int(
+                    static_cast<int>(user->getCurCharacCreateTime()));
+                pgRes.finalize(true);
+                target->Send(pgRes);
+                target->SetReceivedRequestType(requestType);
+                return 0;
+            }
+            errCode = 0x13;
         }
-        else
-            PEER_ERR3(user,requestType,0x13);
+        if (target == 0)
+            errCode = 3;
+        else if (target->CheckInTrade())
+            errCode = 0x12;
+        PEER_ERR3(user,requestType,errCode & 0xff);
         break;
     }
     case 2:
@@ -2643,9 +2667,7 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
         break;
     }
     case 5:
-    case 6:
     case 7:
-    case 8:
     {
         if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
                 user, static_cast<RestrictCategory::Enum>(1), 8))
@@ -2666,6 +2688,26 @@ int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
                 ? target->GetCurCharacExpertJobType()
                 : user->GetCurCharacExpertJobType();
         if (expertOwner != 1)
+            return PEER_ERR4(user,requestType,0x17,pgRes), 0;
+        GlobalData::s_ExpertJobMgr->OnRequestPeer(
+            user, target,
+            static_cast<ENUM_PEER_REQUEST_TYPE>(
+                static_cast<int>(requestType)),
+            pgRes);
+        break;
+    }
+    case 6:
+    case 8:
+    {
+        if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
+                user, static_cast<RestrictCategory::Enum>(1), 8))
+            return PEER_ERR4(user,requestType,0xd1,pgRes), 0;
+        int secuErr =
+            GlobalData::s_pSecuProtectionField->CheckOpposite(
+                user, static_cast<SECURITY_PROTCTION>(0x20), target);
+        if (secuErr != 0)
+            return PEER_ERR4(user,requestType,secuErr & 0xff,pgRes), 0;
+        if (user->GetCurCharacExpertJobType() != 1)
             return PEER_ERR4(user,requestType,0x17,pgRes), 0;
         GlobalData::s_ExpertJobMgr->OnRequestPeer(
             user, target,
@@ -2859,20 +2901,24 @@ int DisPatcher_ResPeer::dispatch_sig(CUser* user, PacketBuf& packet)
             int curSec = GlobalData::s_systemTime_.getCurSec();
             bool blocked =
                 (curSec < target->GetCurCharacChaosKillTime() + 600 &&
-                 DispatchBig5_callAssaultPrevent(user)) ||
+                 expert_job::CAlchemist::GetAssaultPrevent(
+                     user, static_cast<bool*>(0))) ||
                 (curSec < user->GetCurCharacChaosKillTime() + 600 &&
-                 DispatchBig5_callAssaultPrevent(target));
+                 expert_job::CAlchemist::GetAssaultPrevent(
+                     target, static_cast<bool*>(0)));
             CParty* selfParty = static_cast<CParty*>(user->GetParty());
             if (!blocked && selfParty != 0 &&
                 selfParty->CheckMemberLastTryAssaultTime() &&
-                DispatchBig5_callAssaultPrevent(target))
+                expert_job::CAlchemist::GetAssaultPrevent(
+                    target, static_cast<bool*>(0)))
             {
                 blocked = true;
             }
             CParty* peerParty = static_cast<CParty*>(target->GetParty());
             if (!blocked && peerParty != 0 &&
                 peerParty->CheckMemberLastTryAssaultTime() &&
-                DispatchBig5_callAssaultPrevent(user))
+                expert_job::CAlchemist::GetAssaultPrevent(
+                    user, static_cast<bool*>(0)))
             {
                 blocked = true;
             }

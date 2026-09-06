@@ -123,11 +123,12 @@ int CItemUpgrade::enableAmplifyRandomUpgrade(CUser* user, Inven_Item& item,
 
     const upgrade_table_t* table =
         GlobalData::s_itemAmplifier_->getUpgradeInfoTable();
-    upgrade_info_t info;
-    std::memset(&info, 0, sizeof(info));
+    upgrade_info_t info;              // ORIG +0x04f 直调 upgrade_info_t ctor（禁另加 memset）
     int characLevel = user->get_charac_level();
     if (_GetUpgradeInfo(&item, itemScript, *table, &info, characLevel) != 1)
         return 0xd;
+    // ORIG +0x0a4 死存 GetUpgrade(item)：4.1 保留该次调用（result→local_20 & 0xff）。
+    (void)item.GetUpgrade();
     if (itemScript->IsImpossibleAmplify())
         return 0x13;
 
@@ -136,7 +137,8 @@ int CItemUpgrade::enableAmplifyRandomUpgrade(CUser* user, Inven_Item& item,
         return ret;
 
     int ticketIdx2 = ticket.m_addInfo;
-    CItem* ticketScript = dm->find_item(ticketIdx2);
+    // ORIG +0x143 第二次 G_CDataManager()（不复用函数头 dm）。
+    CItem* ticketScript = G_CDataManager()->find_item(ticketIdx2);
     if (ticketScript == 0)
         return 4;
     if (!ticketScript->is_stackable())
@@ -412,7 +414,10 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ENCHANT* msg, PacketGuard* packet
     if (slotA.m_addInfo != msg->m_0f)
         return 4;
 
-    Inven_Item material = invenW->GetInvenSlot(1, msg->m_13);
+    // ORIG ProcUpgrade_0854a1ba 554 行：Inven_Item::Inven_Item(&material) 先
+    // 默认构造，再 GetInvenSlot 返回临时 + 拷贝赋值（4.1 无 copy-elision）。两段式必写。
+    Inven_Item material;
+    material = invenW->GetInvenSlot(1, msg->m_13);
     if (material.isEmpty())
         return 0x16;
 
@@ -441,14 +446,20 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ENCHANT* msg, PacketGuard* packet
 
     bool doEnchant = isDoEnchant(slotA, ((CStackableItem*)materialScript)->m_chars30d);
 
-    if (!invenW->delete_item(INVEN_TYPE_EQUIP, msg->m_13, 1, (eItemDelReason)0xc, true))
+    // ORIG ProcUpgrade_0854a1ba 605/611 行：delete_item 与 material2 的 GetInvenSlot
+    // 各自重新调用 getCurCharacInvenW()（不复用函数头的 invenW/local_34）。
+    if (!user->getCurCharacInvenW()->delete_item(
+            INVEN_TYPE_EQUIP, msg->m_13, 1, (eItemDelReason)0xc, true))
         return 0x11;
 
     packet->put_byte(1);
     packet->put_short(msg->m_13);
-    Inven_Item material2 = invenW->GetInvenSlot(1, msg->m_13);
+    Inven_Item material2 = user->getCurCharacInvenW()->GetInvenSlot(1, msg->m_13);
     packet->put_short((int)(material2.get_add_info() & 0xffff));
-    packet->put_byte(doEnchant ? 1 : 0);
+    if (doEnchant)
+        packet->put_byte(1);   // ORIG 619 行
+    else
+        packet->put_byte(0);   // ORIG 616 行
 
     int ret = 0;
     if (doEnchant)

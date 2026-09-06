@@ -880,17 +880,26 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
     }
 
     int sellPrice = 0;                            // ORIG local_20
-    bool moneyOnly = false;                       // 金币输出分支
     if (type == 0 && slot == 0)
     {
-        moneyOnly = true;
+        // 金币输出（type==0 && slot==0；set_add_info+ResetItemAttr 成对）
+        out.m_item.m_field0 = 0;                  // byte +0x00 = 0
+        out.m_item.m_field1 = 2;                  // byte +0x11 = 2
+        out.m_item.m_addInfo = 0;                 // dword +0x12 = 0
+        out.m_item.m_fieldb = 0;                  // word +0x1b = 0
+        out.m_item.set_add_info(count);
+        out.m_item.ResetItemAttr();
     }
     else if (*(int*)(&tmp.m_addInfo) == 0)        // dword@tmp+2 == 0 → 纯金币
     {
-        moneyOnly = true;
+        out.m_item.m_field0 = 0;                  // byte +0x00 = 0
+        out.m_item.m_field1 = 2;                  // byte +0x11 = 2
+        out.m_item.m_addInfo = 0;                 // dword +0x12 = 0
+        out.m_item.m_fieldb = 0;                  // word +0x1b = 0
+        out.m_item.set_add_info(count);
+        out.m_item.ResetItemAttr();
     }
-
-    if (!moneyOnly)
+    else
     {
         const CItem* script =
             G_CDataManager()->find_item(tmp.m_addInfo);
@@ -929,15 +938,6 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
             const_cast<Inven_Item&>(tmp), script, (short)count, false,
             sellPrice);
     }
-    else
-    {
-        out.m_item.m_field0 = 0;                          // byte +0x00 = 0
-        out.m_item.m_field1 = 2;                          // byte +0x11 = 2
-        out.m_item.m_addInfo = 0;                         // dword +0x12 = 0
-        out.m_item.m_fieldb = 0;                          // word +0x1b = 0
-        out.m_item.set_add_info(count);
-        out.m_item.ResetItemAttr();
-    }
 
     // 删除段
     char deleted = 0;
@@ -948,12 +948,11 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
     }
     else if (type == 0)
     {
-        CInventory* invenW = user->getCurCharacInvenW();
         if (slot == 0)
-            deleted = (char)(invenW->use_money(
+            deleted = (char)(user->getCurCharacInvenW()->use_money(
                 count, (eMoneySubReason)6, true) ? 1 : 0);
         else
-            deleted = (char)(invenW->delete_item(
+            deleted = (char)(user->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)1, slot, count, (eItemDelReason)6, true) ? 1 : 0);
     }
     else if (type == 3)

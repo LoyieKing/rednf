@@ -10804,8 +10804,8 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     {
         // SIG_LOAD_ETC 新结构：tag 区为 TAG_CHARAC_ETC_DATA（2 行 × 0x198）。
         ((SkillSlot*)getTagCharacSkillR())->get_skill_slot(
-            reinterpret_cast<char*>(sig->m_tagEtc.m_rows[0].m_skills),
-            reinterpret_cast<char*>(sig->m_tagEtc.m_rows[1].m_skills), 0x198);
+            reinterpret_cast<char*>(sig->m_tagEtc.m_skillSlot),
+            reinterpret_cast<char*>(sig->m_tagEtc.m_skillCombo), 0x198);
     }
 
     // ORIG 0x0867794c：expand type 0xa → mix+0xd6fc（0xd6fc - 0xc9c0）。

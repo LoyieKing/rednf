@@ -1198,8 +1198,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             char* tagSkillBuf = user->getTagCharacSkillW();
             SkillSlot* skillW = reinterpret_cast<SkillSlot*>(tagSkillBuf);
             (void)skillW;
-            			skillW->set_skill_slot((char*)&sig->m_tagEtc.m_rows[0],
-			                       (char*)&sig->m_tagEtc.m_rows[1], 0x198);
+            			skillW->set_skill_slot((char*)&sig->m_tagEtc.m_skillSlot,
+			                       (char*)&sig->m_tagEtc.m_skillCombo, 0x198);
         }
         if (tagIdx == -1)
             sig->m_mixedRegion[0xd3b] = 0;

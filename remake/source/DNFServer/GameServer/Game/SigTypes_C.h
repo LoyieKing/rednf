@@ -285,12 +285,16 @@ static_assert(sizeof(TAG_CHARAC_INVEN_DATA) == 0x4024, "TAG_CHARAC_INVEN_DATA AB
 #pragma pack(push, 1)
 struct TAG_CHARAC_ETC_DATA
 {
-    struct Row
-    {
-        _Mastered_skill m_skills[0xcb];  // +0x00（0x196）
-        char m_pad[2];                   // +0x196（行步长 0x198）
-    };
-    Row m_rows[2];                       // 2×0x198 = 0x330
+    // 平铺双数组（CU20C 判例）：嵌套 Row 使 4.4 发射 Row::Row() 包装调用，
+    // ORIG C1 0x0848f7dc 是外层 2 轮 × 内层 _Mastered_skill ctor[0xcb] 直调；
+    // 平铺后 4.4 O0 同样逐元素内联 ctor 循环，P167 对齐。sizeof 0x330 不变。
+    // 残余（Main 定）：ORIG 双环共享**一个** ctor call-site（外环步进 0x198），
+    // 4.4 对两平铺成员各发一条循环=+1 EXTRA 静态调用点（N82 级代码生成形差；
+    // 单数组 408 元素形又丢外层嵌套结构，两难取平铺：消 Row::Row() 发明符号优先）。
+    _Mastered_skill m_skillSlot[0xcb];   // +0x000（0x196）
+    char m_padSlot[2];                   // +0x196
+    _Mastered_skill m_skillCombo[0xcb];  // +0x198（0x196）
+    char m_padCombo[2];                  // +0x32e
 
     TAG_CHARAC_ETC_DATA() { clear(); }   // ORIG C1 0x0848f7dc
     void clear();              // ORIG W 0x822edf4
