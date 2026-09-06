@@ -214,6 +214,11 @@ int Arad_Dispatcher_BuyItemCheck_Impl::inter_dispatch(CUser* user,
 int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch(int code, int uid,
                                                    Stream* stream)
 {
+    // [b21] 修正真 bug：MsgQueueMgr::put 旧用 DB_Q(=2)，ORIG 传 $0x1 改 DISPATCH_Q
+    //   （同族 DB 派发器归队队列 idx 1，与 DBInsertGiveBoxEventReward dispatch 同案）。
+    //   残余 N82：BuyItemInfo 五字段 Stream::operator>> 寻址 4.4 用 add/寄存器形 vs
+    //   ORIG lea(+off)；日志/__PRETTY 字符串地址为 .o 重定位产物（链接期解析）。语义
+    //   闭合封 N。
     // ORIG 0x0818eb0c：读 BuyItemInfo ← stream；GetOutBuffer<MSG_BUY_CERASHOP_ITEM>；
     // arad_sp_buy_item_check 通过后组装 PURCHASE_COUNT_CHECK 内部包入 DB 队列。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)7,
@@ -240,9 +245,11 @@ int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch(int code, int uid,
     if (DATABASE::ITEM_QUERY::arad_sp_buy_item_check(info) != 0)
         return -1;
 
-    Stream* out = GlobalData::s_stream_pool->Acquire(
-        "localjapan/Arad_Dispatcher_BuyItemCheck_Impl.cpp", 0x71);
-    CStreamGuard guard(out, true);
+    // P134：Acquire 内联进 CStreamGuard ctor 消中间槽（ORIG 直 `mov %eax,0x4`）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire(
+            "localjapan/Arad_Dispatcher_BuyItemCheck_Impl.cpp", 0x71),
+        true);
     guard.operator*()->operator<<(code);
     guard.operator*()->operator<<(uid);
     typedef ARAD::INTERNAL_PACKET::PURCHASE_COUNT_CHECK PurchaseCountCheck;
@@ -262,7 +269,7 @@ int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch(int code, int uid,
     {
         *(char*)chk = info.buyable;
         memcpy((char*)chk + 1, msg, 0x3f84);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
     return 0;
 }

@@ -332,6 +332,11 @@ CBuyItembyGold::CBuyItembyGold(CSecretShopStatistic& statistic)
 bool CBuyItembyGold::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
                              int count)
 {
+    // [b21 N] 语义已闭合：err-outer/sale-inner 双守卫、CheckLimit、money、InsertItem、
+    // use_money/SendSecretShopBuyItem/LogValueStatistic/BuyItem/RecordPrice 调用链与实参
+    // （total/remain/slot/&info.m_shopper/*GetSecretShopData/getDungeonIdxAfterClear）逐条
+    // 对齐 ORIG。残余 P197-④ 类：CheckLimit 返 `xor $1` 直测 vs 4.4 `sete` 物化；money
+    // 比较 `cmp mem,reg` vs `mov;cmp reg`；RecordPrice 实参求值寄存器缓存序。无子母，封 N。
     SALE_INFO* sale = info.m_retailer.GetSaleInfo(itemIdx);
     unsigned int err = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0x42);
     if (err != 0)

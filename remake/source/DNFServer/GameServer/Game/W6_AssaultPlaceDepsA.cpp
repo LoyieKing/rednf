@@ -266,10 +266,8 @@ bool CAssaultPlace::StartAssault()
         if (m_parties[1].m_field00 != 0)
             ((CParty*)m_parties[1].m_field00)->SetAssaultState('\a');
         if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
-            CPowerWarLog* log = GlobalData::s_power_manager->GetPowerWarLog();
-            log->IncStartFailureCount();
-            log = GlobalData::s_power_manager->GetPowerWarLog();
-            log->IncP2PBadCountFailure();
+            GlobalData::s_power_manager->GetPowerWarLog()->IncStartFailureCount();
+            GlobalData::s_power_manager->GetPowerWarLog()->IncP2PBadCountFailure();
         }
         m_state = 7;
         CloseAssault();
@@ -283,10 +281,8 @@ bool CAssaultPlace::StartAssault()
         if (m_parties[1].m_field00 != 0)
             ((CParty*)m_parties[1].m_field00)->SetAssaultState('\x06');
         if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
-            CPowerWarLog* log = GlobalData::s_power_manager->GetPowerWarLog();
-            log->IncStartFailureCount();
-            log = GlobalData::s_power_manager->GetPowerWarLog();
-            log->IncP2PBadCountFailure();
+            GlobalData::s_power_manager->GetPowerWarLog()->IncStartFailureCount();
+            GlobalData::s_power_manager->GetPowerWarLog()->IncP2PBadCountFailure();
         }
         EndAssault();
         return false;
@@ -316,8 +312,7 @@ bool CAssaultPlace::StartAssault()
         0xb4, m_field104 /*+0x104*/, m_authenValue /*+0x108*/);
 
     if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
-        CPowerWarLog* log = GlobalData::s_power_manager->GetPowerWarLog();
-        log->IncStartSuccessCount();
+        GlobalData::s_power_manager->GetPowerWarLog()->IncStartSuccessCount();
         cMyTrace trace1(__PRETTY_FUNCTION__,
                         0x897, 0);
         trace1("POWER WAR START SUCCESS");

@@ -297,26 +297,24 @@ bool CUser::st_monstorkill::Check(unsigned int nowTick, unsigned short nx,
 
     ++m_count;                                            // ORIG 82304dd: (+0xc)+1
 
-    if ((short)m_minX > (short)nx)                        // 82304e9: 旧值>新值才更新（保 min）
+    if ((int)(short)m_minX - (int)(short)nx > 0)          // 82304e9: movswl/cwtl 32位有符号差
         m_minX = nx;
-    if ((short)m_minY > (short)ny)                        // 8230521
+    if ((int)(short)m_minY - (int)(short)ny > 0)          // 8230521
         m_minY = ny;
-    if ((short)m_maxX < (short)nx)                        // 823053d: 旧值<新值才更新（保 max）
+    if ((int)(short)m_maxX - (int)(short)nx < 0)          // 823053d: 旧值<新值才更新（保 max）
         m_maxX = nx;
-    if ((short)m_maxY < (short)ny)                        // 823055f
+    if ((int)(short)m_maxY - (int)(short)ny < 0)          // 823055f
         m_maxY = ny;
 
-    short dx = (short)((unsigned short)m_maxX - (unsigned short)m_minX);  // 8230577: sub %ax,%cx
-    short dy = (short)((unsigned short)m_maxY - (unsigned short)m_minY);  // 8230594
+    m_deltaX = (short)((unsigned short)m_maxX - (unsigned short)m_minX);  // 8230577: 16位差直存 +0x10
+    m_deltaY = (short)((unsigned short)m_maxY - (unsigned short)m_minY);  // 8230594 16位差直存 +0x12
 
-    short absDx = dx >= 0 ? dx : (short)-dx;              // 82305b9: sar/xor/sub 绝对化
-    short absDy = dy >= 0 ? dy : (short)-dy;
-    m_deltaX = absDx;
-    m_deltaY = absDy;
+    m_deltaX = (short)std::abs((int)(short)m_deltaX);     // 82305b9: cwtl/sar31/xor/sub 绝对化回写
+    m_deltaY = (short)std::abs((int)(short)m_deltaY);     // 82305c9
 
-    if ((short)m_deltaX >= (short)(int)(unsigned short)xLim)   // 82305e6..93: jge → true
+    if ((int)(short)m_deltaX >= (int)xLim)                // 82305e6..93: jge → true
         return true;
-    if ((short)m_deltaY < (short)(int)(unsigned short)yLim)    // 82305ff..05: jl → false
+    if ((int)(short)m_deltaY < (int)yLim)                 // 82305ff..05: jl → false
         return false;
     return true;
 }

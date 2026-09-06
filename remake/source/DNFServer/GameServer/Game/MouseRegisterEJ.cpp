@@ -625,8 +625,8 @@ void DB_MouseRegister::_sendResult(unsigned int mid, int param2, int param3,
 int DB_MouseRegister::dispatch(int param1, int param2, Stream* stream)
 {
     // ORIG 栈槽：0x8=this 0xc=param1(未用) 0x10=param2 0x14=stream。
-    char buf7c[36];        // encryptAES_ 密文缓冲（-0x78）
     char buf58[36];        // 明文缓冲（-0x54）
+    char buf7c[36];        // encryptAES_ 密文缓冲（-0x78）
     MySQL* db;             // -0x18（仅赋值未消费，ORIG 同）
     SIG_MOUSE_REGISTER* out;   // -0x14
     int ret;               // -0x10
@@ -654,15 +654,24 @@ int DB_MouseRegister::dispatch(int param1, int param2, Stream* stream)
     }
     switch (out->m_pkgType)
     {
+    case 1:
+        ret = _registNewPassword(out->m_accId, buf7c, buf2c, param2);
+        if (ret == 0)
+        {
+            reinterpret_cast<SIG_MR_WRITEVIEW*>(out)->m_field1a = 1;
+            reinterpret_cast<SIG_MR_WRITEVIEW*>(out)->m_field1f = 0;
+            reinterpret_cast<SIG_MR_WRITEVIEW*>(out)->m_field1b = 0;
+            memcpy(out->m_padPassword, buf7c, 0x24);
+        }
+        break;
     case 2:
         ret = _modifyPassword(out->m_accId, buf7c, buf2c, param2,
-                              out->m_advideChangePwd != 0);
+                              out->m_advideChangePwd);
         if (ret == 0)
         {
             memcpy(out->m_padPassword, buf7c, 0x24);
-            SIG_MR_WRITEVIEW* w = reinterpret_cast<SIG_MR_WRITEVIEW*>(out);
-            w->m_field1f = 0;
-            w->m_field1b = 0;
+            reinterpret_cast<SIG_MR_WRITEVIEW*>(out)->m_field1f = 0;
+            reinterpret_cast<SIG_MR_WRITEVIEW*>(out)->m_field1b = 0;
         }
         break;
     case 3:
@@ -670,17 +679,6 @@ int DB_MouseRegister::dispatch(int param1, int param2, Stream* stream)
         if (ret == 0)
         {
             memset(out->m_padPassword, 0, 0x24);
-        }
-        break;
-    case 1:
-        ret = _registNewPassword(out->m_accId, buf7c, buf2c, param2);
-        if (ret == 0)
-        {
-            SIG_MR_WRITEVIEW* w = reinterpret_cast<SIG_MR_WRITEVIEW*>(out);
-            w->m_field1a = 1;
-            w->m_field1f = 0;
-            w->m_field1b = 0;
-            memcpy(out->m_padPassword, buf7c, 0x24);
         }
         break;
     }
@@ -803,6 +801,6 @@ void CExpertJobStatistic::UpdateExpertJob()
         guard.operator*()->operator<<(static_cast<int>(it->first.m_itemIdx04));
         guard.operator*()->operator<<(it->second);
     }
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
     m_counts.clear();
 }

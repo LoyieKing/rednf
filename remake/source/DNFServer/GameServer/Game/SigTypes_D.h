@@ -331,7 +331,7 @@ struct SIG_MOUSE_REGISTER
     char m_padPassword[0x24];          // +0x23 Sanicova::CPad::getPassword 快照（memcpy 0x24）
     char m_field47;                    // +0x47 ORIG 无读写证据（0x23+0x24 与 0x48 间的保留字节）
     char m_webAddress[0x10];           // +0x48 CUser::getWebAddress（strncpy 0x10）
-    char m_advideChangePwd;            // +0x58 getAdvideChangePwd 单字节
+    bool m_advideChangePwd;            // +0x58 getAdvideChangePwd 单字节（ORIG bool）
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_MOUSE_REGISTER) == 0x59, "SIG_MOUSE_REGISTER ABI drift");

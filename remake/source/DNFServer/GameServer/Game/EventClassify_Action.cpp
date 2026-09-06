@@ -248,6 +248,11 @@ int CEventActionMng::process_gold_mail_send(CUser* user, Action_SendMail& mail)
 // ============================================================================
 // process_mail_send（ORIG 0x0810da1c）
 // citem 为空回 0x11；avatar 物品不入邮件（仅清局部缓冲），其余走 DB 邮件。
+// [b21] 分支极性修复：IsAvatarItem 测试改 `if (IsAvatarItem()) {avatar 死缓冲} else
+//   {DB 邮件}`，对齐 ORIG `test %al,%al; je <DB>` 块序。title[256]={0}/sender[30]={0}
+//   预清、findString(4,toTString)=strncpy、ReqDBSendNewSystemMail 九参（gold/no/
+//   title/strlen/mailPad/coin/server_group/b/b）逐条对齐。残余 N82：ReqDBSend 实参
+//   装载信封序寄存器分配异；`add $C`/`A $C` 归一伪差。无子母，封 N。
 // ============================================================================
 int CEventActionMng::process_mail_send(CUser* user, Action_SendMail& mail,
                                        Inven_Item& item, CItem const* citem)
@@ -262,7 +267,16 @@ int CEventActionMng::process_mail_send(CUser* user, Action_SendMail& mail,
     std::strncpy(title, g_scriptStringManager_.findString(
                      4, toTString(mail.m_field34), 0), 0xff);
 
-    if (citem->IsAvatarItem() == 0)
+    // ORIG 分支极性：`test %al,%al; je <DB-mail>` —— avatar（IsAvatarItem 非 0）为
+    // if-body，DB-mail 为 else；反写匹配 ORIG 块序。
+    if (citem->IsAvatarItem())
+    {
+        // avatar 分支：ORIG 仅清零 0x18 字节局部缓冲并置 0 一个 int
+        // 后返回 0（无 DB 请求）。mailPad/dummy 均为忠实还原的死存储。
+        char mailPad[24] = {0};
+        int dummy = 0;
+    }
+    else
     {
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
             sender, item,
@@ -271,13 +285,6 @@ int CEventActionMng::process_mail_send(CUser* user, Action_SendMail& mail,
             title, (int)std::strlen(title),
             (unsigned int)(signed char)mail.m_coin,
             user->GetServerGroup(), false, false);
-    }
-    else
-    {
-        // avatar 分支：ORIG 仅清零 0x18 字节局部缓冲并置 0 一个 int
-        // 后返回 0（无 DB 请求）。mailPad/dummy 均为忠实还原的死存储。
-        char mailPad[24] = {0};
-        int dummy = 0;
     }
     return 0;
 }

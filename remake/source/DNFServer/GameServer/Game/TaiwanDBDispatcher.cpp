@@ -474,7 +474,9 @@ void CheckStayTimeEvent::sendStayTimeData(int uid)
         guard.operator->()->GetInBuffer<Taiwan::SigStayTimeEvent>();
     if (sig != 0)
     {
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        // [b21] ORIG put @0x815b735 movl $0x1=DISPATCH_Q（QueueSweep21 回扫实证）；
+        // 非 DB_Q(2)——同族 DB 派发器归队队列 idx 1。
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
 }
 
@@ -710,6 +712,12 @@ void DBSelectMobileAuthRewardTw::makeRequest(CUser* user)
 // logFormat(0x2cd) 返 0。成功返 1。
 bool DBSelectMobileAuthRewardTw::dispatch(int code, int uid, Stream* stream)
 {
+    // [b21 N] 语义闭合：msg-null/handle-null throw、set_query(不查返)+exec→select_exec、
+    // get_n_rows()==0 → INSERT+ok=false+trace(0x2be)、else ok=true+trace(0x2c3)、
+    // makeRequest(uid, m_id, ok)、return 1、catch logFormat(0x2cd) 返 0——逐条对齐 ORIG。
+    //   注意 set_query 两处均为裸调用不查返（ORIG 仅 check exec，同族 GiveBox 已修）。
+    //   残余 N82/N86：ORIG 逐用 `*(uint*)sig` 直读（无 mId 命名缓存），4.4 存 mId 局部；
+    //   throw 字符串/typeinfo 地址 .o 重定位产物。无子母，封 N。
     try
     {
         bool ok = true;
@@ -859,27 +867,23 @@ bool DBUpdatePcroomDailyReward::dispatch(int code, int uid, Stream* stream)
         if (db == 0)
             throw "handle null";
         char remain = sig->m_remain;
-        if (!db->set_query(
-                "seLect m_id from pcroom_daily_reward_tw where m_id=%s",
-                NumberToString(sig->m_id, 0)))
-            throw "select_exec";
+        db->set_query("seLect m_id from pcroom_daily_reward_tw where m_id=%s",
+                      NumberToString(sig->m_id, 0));
         if (!db->exec(1))
             throw "select_exec";
         if (db->get_n_rows() == 0)
         {
-            if (!db->set_query(
-                    "inSert into pcroom_daily_reward_tw(m_id, occ_date, remain_reward_count) values('%s', now(), %d)",
-                    NumberToString(sig->m_id, 0), (int)remain))
-                throw "insert_exec";
+            db->set_query(
+                "inSert into pcroom_daily_reward_tw(m_id, occ_date, remain_reward_count) values('%s', now(), %d)",
+                NumberToString(sig->m_id, 0), (int)remain);
             if (!db->exec(1))
                 throw "insert_exec";
         }
         else
         {
-            if (!db->set_query(
-                    "upDate pcroom_daily_reward_tw set occ_date=now(), remain_reward_count=%d where m_id = %s",
-                    NumberToString(sig->m_id, 0), (int)remain))
-                throw "update_exec";
+            db->set_query(
+                "upDate pcroom_daily_reward_tw set occ_date=now(), remain_reward_count=%d where m_id = %s",
+                NumberToString(sig->m_id, 0), (int)remain);
             if (!db->exec(1))
                 throw "update_exec";
         }
@@ -1022,16 +1026,19 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
             if (!db->get_binary(0, reinterpret_cast<SigHeroMissionDataView*>(&data)->m_data, 0x100))
                 throw "get_binary";
         }
-        Stream* out = GlobalData::s_stream_pool->Acquire(
-            "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x3ea);
-        CStreamGuard guard(out, true);
+        // [b21] ORIG put @0x815daf3 movl $0x1=DISPATCH_Q（QueueSweep21 回扫实证）；
+        // 非 DB_Q(2)。Acquire 内联进 ctor（P134）消中间槽。
+        CStreamGuard guard(
+            GlobalData::s_stream_pool->Acquire(
+                "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x3ea),
+            true);
         Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0x12, uid);
         Taiwan::SigLoadHeroMissionData* outSig =
             guard.operator->()->GetInBuffer<Taiwan::SigLoadHeroMissionData>();
         if (outSig == 0)
             throw "stream_alloc";
         memcpy(outSig, &data, 0x104);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 1;
     }
     catch (const char* e)

@@ -543,10 +543,9 @@ bool DB_Load::Select(_CharacAdvanceAltarDbData& data)
         short unlockFlag = 0;
         if (!mysql->get_short(col++, unlockFlag))                     // [0x080fddec get_short(int,short&)]
             return false;
-        // ORIG：`movzwl` 零扩展 unlockFlag → `test/jle` → `movb $0x1/$0x0, 0x20(%eax)`
-        //（故负值也判真；原 `>= 1` 判定与 ORIG 不等价）。
-        view.m_isUnlockStageEffect =
-            (static_cast<unsigned short>(unlockFlag) > 0) ? 1 : 0;
+        // ORIG：`movzwl` 零扩展 unlockFlag → `test %ax,%ax; jle`（有符号16位 ≤0→0，
+        // 即 0x8000..0xFFFF 负值判 0，1..0x7fff 判 1）→ `movb $0x1/$0x0,0x20`。
+        view.m_isUnlockStageEffect = (unlockFlag > 0) ? 1 : 0;
 
         std::memset(g_StrStageBuffer, 0, kMaxStrBuffer);
         std::memset(g_StrSlotBuffer, 0, kMaxStrBuffer);

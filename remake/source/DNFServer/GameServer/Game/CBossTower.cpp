@@ -364,8 +364,6 @@ int CBossTower::checkStartGameCondition(unsigned char& flag, bool useItems)
     int itemParams[4];                         // ebp-0x44 起 0x10 字节清零
     memset(itemParams, 0, sizeof(itemParams));
 
-    CParty* party = m_party;
-
     if (m_dungeon == 0 || !m_dungeon->IsOpenScheduleDungeon())
     {
         cMyTrace trace("bool WongWork::CBossTower::checkStartGameCondition("
@@ -377,14 +375,14 @@ int CBossTower::checkStartGameCondition(unsigned char& flag, bool useItems)
         packet.put_byte(0);
         packet.put_int(0x15);
         packet.finalize(true);
-        party->send_to_party(packet);
+        m_party->send_to_party(packet);
         return 0;
     }
 
     for (int i = 0; i <= 3; ++i)
     {
-        CUser* member = party->get_user(i);
-        if (member == 0 || !party->checkValidUser(i))
+        CUser* member = m_party->get_user(i);
+        if (member == 0 || !m_party->checkValidUser(i))
             continue;
         if (member->get_charac_level() < m_dungeon->get_min_level())
         {
@@ -398,17 +396,17 @@ int CBossTower::checkStartGameCondition(unsigned char& flag, bool useItems)
             packet.put_byte(0);
             packet.put_int(0xe);
             packet.finalize(true);
-            party->send_to_party(packet);
+            m_party->send_to_party(packet);
             return 0;
         }
     }
 
-    if (party->m_battleField.m_bloodState == 1)
+    if (m_party->m_battleField.m_bloodState == 1)
     {
         return 1;
     }
 
-    if (!party->CheckEnterAncientDungeon(m_dungeon, flag, items, itemParams))
+    if (!m_party->CheckEnterAncientDungeon(m_dungeon, flag, items, itemParams))
     {
         PacketGuard packet;
         packet.put_header(1, 0x10);
@@ -416,19 +414,19 @@ int CBossTower::checkStartGameCondition(unsigned char& flag, bool useItems)
         packet.put_int(0x11);
         packet.put_byte(static_cast<unsigned char>(flag));
         packet.finalize(true);
-        party->send_to_party(packet);
+        m_party->send_to_party(packet);
         return 0;
     }
 
     if (useItems &&
-        !party->UseAncientDungeonItems(m_dungeon, items, itemParams))
+        !m_party->UseAncientDungeonItems(m_dungeon, items, itemParams))
     {
         PacketGuard packet;
         packet.put_header(1, 0x10);
         packet.put_byte(0);
         packet.put_int(1);
         packet.finalize(true);
-        party->send_to_party(packet);
+        m_party->send_to_party(packet);
         return 0;
     }
     return 1;

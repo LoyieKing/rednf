@@ -319,13 +319,13 @@ bool CAssaultPlace::_CheckPowerWarInPlayer(ENUM_POWER_SIDE_TYPE side,
                                            int& aliveCnt)
 {
     for (int i = 0; i <= 7; ++i) {
-        if (!m_assaulters[i].Empty()) {
+        if (m_assaulters[i].Empty())
+            continue;
+        {
             CUser* u = m_assaulters[i].GetUser();
-            bool joinable = (u != 0 && u->isJoinPowerWar());
-            if (joinable) {
+            if (u != 0 && u->isJoinPowerWar()) {
                 if (winner == 1) {
-                    if (static_cast<signed char>(u->getPowerSide())
-                        == static_cast<signed char>(side)) {
+                    if (u->getPowerSide() == side) {
                         if (m_assaulters[i].GetState() == 5)
                             aliveCnt++;
                         winCnt++;
@@ -337,8 +337,7 @@ bool CAssaultPlace::_CheckPowerWarInPlayer(ENUM_POWER_SIDE_TYPE side,
                         u->setPowerWarHP(100);              // 0x64
                     }
                 } else {
-                    if (static_cast<signed char>(u->getPowerSide())
-                        == static_cast<signed char>(side)) {
+                    if (u->getPowerSide() == side) {
                         loseCnt++;
                         m_assaulters[i].DieUser();
                         u->setPowerWarHP(100);
@@ -351,8 +350,7 @@ bool CAssaultPlace::_CheckPowerWarInPlayer(ENUM_POWER_SIDE_TYPE side,
                     }
                 }
                 PacketGuard packet;
-                unsigned short hp = u->getPowerWarHP();
-                _MakeChangeHp(&packet, i, hp & 0xffff);
+                _MakeChangeHp(&packet, i, u->getPowerWarHP() & 0xffff);
                 _SendPacketToVill(packet);
             }
         }
@@ -631,11 +629,18 @@ void CAssaultPlace::TimeoutCompleteLoad()
 // ---------------------------------------------------------------------------
 
 // ORIG T 0x82ed752 ChangeHp(CUser*, int)
+// [b21 N·P198-②/P197-④] 语义已闭合：`pwVill = IsPowerWarEventOn() && getCurCharacVill()==7`
+//   短路判定 ORIG(4.1) 直测 `test %al,%al; je`（无槽），4.4-O0 恒把中间结果
+//   `mov %al,-off; cmpb` 物化（P197-④ 源形不可择）；末段 allDead 循环 `GetState()!=8`
+//   反亦 `setne` 物化 vs ORIG `cmp $8; jne`；循环回边 `jmp;nop` 合并差（N82）。逐调用
+//   逐分支语义逐一相等（_GetUserIndex/m_assaulters[idx].ChangeHp/_MakeChangeHp/Send 三叉/
+//   CloseAssault 段全对齐），封 N。
 void CAssaultPlace::ChangeHp(CUser* user, int hp)
 {
     int idx = _GetUserIndex(user, true);
-    bool changed = m_assaulters[idx].ChangeHp(hp);
-    if (changed) {
+    // P198-②：ORIG 对 CAssaulter::ChangeHp 返回 `test %al,%al; je` 寄存器直测（无槽）；
+    // `bool changed` 具名会额外 `mov %al,-off; cmpb $0,-off`，内联直测对齐。
+    if (m_assaulters[idx].ChangeHp(hp)) {
         PacketGuard packet;
         _MakeChangeHp(&packet, idx, hp);
         bool pwVill = GlobalData::s_power_manager->IsPowerWarEventOn()
