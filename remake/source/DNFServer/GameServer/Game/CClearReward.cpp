@@ -214,9 +214,9 @@ void CClearReward::generateSpecificItem(stGenerateRefData_t const& ref,
     float fA = m_partyBonus[rc[2] - 1];
     float fB = m_dungeonGoldBonus[rc[1]];
     int rankIdx = ref.m_rankBonusIndex;
-    ServerParameterScript* sp =
-        reinterpret_cast<ServerParameterScript*>(
-            reinterpret_cast<char*>(G_CDataManager()) + 0x68);
+    // §4.3 具名化：脚本区 = CDataManager::m_serverParameter（+0x68，
+    // CDataManager.h:3551；同 CAssaultMgr.cpp 判例）。
+    ServerParameterScript* sp = &G_CDataManager()->m_serverParameter;
     float weight = (1.0f + sp->GetExpBonusWeight(
         static_cast<eRankBonusIndex>(rankIdx))) * (fB * fA);
     int* goldTable = m_common->getGoldGenTable(rc[0]);
@@ -252,9 +252,9 @@ void CClearReward::power_war_dungeon_gold_clear_reward(
     float fA = m_partyBonus[rc[2] - 1];
     float fB = m_dungeonGoldBonus[rc[1]];
     int rankIdx = ref.m_rankBonusIndex;
-    ServerParameterScript* sp =
-        reinterpret_cast<ServerParameterScript*>(
-            reinterpret_cast<char*>(G_CDataManager()) + 0x68);
+    // §4.3 具名化：脚本区 = CDataManager::m_serverParameter（+0x68，
+    // CDataManager.h:3551；同 CAssaultMgr.cpp 判例）。
+    ServerParameterScript* sp = &G_CDataManager()->m_serverParameter;
     float weight = (1.0f + sp->GetExpBonusWeight(
         static_cast<eRankBonusIndex>(rankIdx))) * (fB * fA);
     int* goldTable = m_common->getGoldGenTable(static_cast<unsigned char>(level));
@@ -512,8 +512,8 @@ int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)
     {
         int luck = GetLuckPoint();
         int lp = 0;
-        ServerParameterScript* sp = reinterpret_cast<ServerParameterScript*>(
-            reinterpret_cast<char*>(G_CDataManager()) + 0x68);
+        ServerParameterScript* sp =  // §4.3 具名化（m_serverParameter @+0x68）
+            &G_CDataManager()->m_serverParameter;
         sp->getLuckPoint(luck, lp);
         int neg = -GetTenThousandPercentage(table[2] - table[1], lp);
         int unique = 0;

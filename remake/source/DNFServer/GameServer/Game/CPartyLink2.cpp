@@ -250,8 +250,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             user, (WongWork::ENUM_HACKTYPE)0x25f, 1, 0, 0);
 
     // ---- 成员击杀回调 + 击杀角色统计 ----
-    map_monster mobCopy(mob);
-    OnKilledMonster(user, (int)reward, mobCopy, dieInfo);
+    OnKilledMonster(user, (int)reward, mob, dieInfo);
 
     char roleType = CBattleFieldConvertAPCRoleType2MonsterRoleTypeShim(
         &field, mob.m_roleType);
@@ -268,9 +267,17 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         ++bd(this).m_killedMonster0;
         ++bd(this).m_field4c;
         int expLimit = G_CDataManager()->m_serverParameter.m_4968;
+        // ORIG 未缓存 GetCurrentMap，null/字段检查各重新取（P0 右值内联）。
         CMap* curMap = field.GetCurrentMap();
-        if (curMap != 0 && curMap->m_f0 != 0)
-            expLimit = curMap->m_f0;
+        if (curMap != 0)
+        {
+            curMap = field.GetCurrentMap();
+            if (curMap->m_f0 != 0)
+            {
+                curMap = field.GetCurrentMap();
+                expLimit = curMap->m_f0;
+            }
+        }
         if (expLimit == 0 || bd(this).m_field4c <= expLimit)
             ++bd(this).m_field48;
     }
@@ -354,9 +361,10 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
 
     // ---- PvP 胜点（角色类型 4+，怪物掉率 100/200） ----
     int winPoint = 0;
-    if (mob.m_roleType > 4 && G_CDataManager()->m_aiCharacterList != 0)
+    CDataManager* dm = G_CDataManager();
+    if (mob.m_roleType > 4 && dm->m_aiCharacterList != 0)
     {
-        CAICharacter* aiChar = G_CDataManager()->m_aiCharacterList->get(reward);
+        CAICharacter* aiChar = dm->m_aiCharacterList->get(reward);
         if (aiChar != 0 &&
             (mob.m_dropCnt == 100 || mob.m_dropCnt == 200))
         {
@@ -380,6 +388,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         }
 
         unsigned int exp = 0;
+        int characLevel = member->get_charac_level();  // ORIG 每成员仅取一次（P0 标量局部）
         // 维度未启用进入限制的完整单人份额计算
         if (m_battleField.m_pDungeon != 0 &&
             (m_battleField.m_pDungeon->m_89e == 0 &&                     // +0x89e
@@ -388,7 +397,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             if (m_battleField.m_pDungeon->get_index() == 100)
             {
                 unsigned int mobReward = 0;
-                G_CDataManager()->get_mob_reward(member->get_charac_level(), mobReward);
+                G_CDataManager()->get_mob_reward(characLevel, mobReward);
                 unsigned int total = getMonsterTotalExp(
                     mobReward, roleType,
                     *reinterpret_cast<int*>(&this->m_battleField.m_dungeonDiff),   // +0xcc4（char 首字节起 4 字节块）
@@ -398,7 +407,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             else
             {
                 float penalty = G_CDataManager()->BaseExpPenalty(
-                    member->get_charac_level(), (int)(unsigned char)mob.m_level);
+                    characLevel, (int)(unsigned char)mob.m_level);
                 int memberPenalty = MemberPenaltyRate();
                 exp = (unsigned int)LINK2_ROUND(
                     (float)totalExp * penalty * (float)memberPenalty /
@@ -408,7 +417,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         else
         {
             unsigned int mobReward = 0;
-            G_CDataManager()->get_mob_reward(member->get_charac_level(), mobReward);
+            G_CDataManager()->get_mob_reward(characLevel, mobReward);
             unsigned int total = getMonsterTotalExp(
                 mobReward, roleType, field.get_dungeon_diff(),
                 m_battleField.m_pDungeon->get_exp_weight(), expRate, false);
@@ -491,7 +500,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         buf->clear();
         buf->put_header(0, 0x32);
         // +0xccc = m_battleField(+0xb24) + 0x1a8 = m_apcKillCount（CBattle_Field.h:459）
-        buf->put_int(m_battleField.m_apcKillCount);
+        buf->put_byte(m_battleField.m_apcKillCount);
         buf->finalize(true);
         send_to_party(bossPacket);
     }

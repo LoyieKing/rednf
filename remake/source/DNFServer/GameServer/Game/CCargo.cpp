@@ -44,7 +44,7 @@ void CCargo::SetCapacity(int capacity)
 
 void CCargo::SetInventoryMemory(InventoryMemory* memory)
 {
-    m_pItems = (Inven_Item*)((char*)memory + 0x9d07);
+    m_pItems = memory->m_items4;   // InventoryMemory +0x9d07
 }
 
 // ---- reset @ 0x850b0c2 ----

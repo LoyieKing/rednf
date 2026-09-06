@@ -81,13 +81,24 @@ bool DB_SaveInven::dispatch(int userIdx, int slot, Stream* stream)
 bool DB_SaveInven::_saveCharacInvenExpand(SIG_SAVE_INVENTORY* sig) const
 {
     static const int handleIdx = 3;
+    // §4.3 裸偏移清零：五段压缩快照的起点全部落在 SIG_SAVE_INVENTORY 的具名
+    // 成员上（SigTypes_E.h:106-112，sizeof(Inven_Item)==0x3d 由
+    // SIG_SAVE_EXPAND_EQUIPSLOT 0x24×0x3d==0x894 实证）：
+    //   cargo  +0x895d = m_cargo（长度 sourceCargoSize 0x2438 → +0xad95 =
+    //          m_avatarCoin，首尾皆具名闭合）
+    //   jewel  +0x40ac = m_invenType1 + sourceInvenSize(0x3b55)/0x3d = 下标 249
+    //          （珠宝区紧接背包快照之后；ORIG T 0x08416b38 @报告 const 版）
     char cargo[0x2b82] = { 0 };
     unsigned int cargoLen = 0x2b82;
-    if (compress_zip(cargo, cargoLen, (char*)sig + 0x895d, ARAD::DATABASE::sourceCargoSize) != 1)
+    if (compress_zip(cargo, cargoLen, (char*)sig->m_cargo,
+                     ARAD::DATABASE::sourceCargoSize) != 1)
         return false;
     char jewel[0x120f] = { 0 };
     unsigned int jewelLen = 0x120f;
-    if (compress_zip(jewel, jewelLen, (char*)sig + 0x40ac, ARAD::DATABASE::sourceJewelSize) != 1)
+    if (compress_zip(jewel, jewelLen,
+                     (char*)&sig->m_invenType1[
+                         ARAD::DATABASE::sourceInvenSize / sizeof(Inven_Item)],
+                     ARAD::DATABASE::sourceJewelSize) != 1)
         return false;
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx, E_SERVER_GROUP_NONE);
@@ -117,15 +128,24 @@ bool DB_SaveInven::SaveInven(SIG_SAVE_INVENTORY* sig)
     unsigned int inventoryLen = 0x473e;
     unsigned int creatureLen = 0x1d36;
 
+    // §4.3 续：equipslot +0x019 = m_invenType0、inventory +0x557 =
+    // m_invenType1、creature +0x710b = m_invenType3[140]
+    //（(0x710b-0x4faf)/0x3d == 140 整除实证；sourceCreatureSize 0x184e =
+    //  102×0x3d ⇒ 覆盖 m_invenType3[140..237] + m_creatureTail[0..3]，
+    //  末址 0x8959 == &m_cargoCapacity，三段首尾与具名字段精确闭合）。
     if (sig->m_saveFlag == 0 || sig->m_saveFlag == 2)
     {
         try
         {
-            if (compress_zip(equipslot, equipslotLen, (char*)sig + 0x19, ARAD::DATABASE::sourceEquipSize) != 1)
+            if (compress_zip(equipslot, equipslotLen, (char*)sig->m_invenType0,
+                             ARAD::DATABASE::sourceEquipSize) != 1)
                 throw (unsigned int)0x4427;
-            if (compress_zip(inventory, inventoryLen, (char*)sig + 0x557, ARAD::DATABASE::sourceInvenSize) != 1)
+            if (compress_zip(inventory, inventoryLen, (char*)sig->m_invenType1,
+                             ARAD::DATABASE::sourceInvenSize) != 1)
                 throw (unsigned int)0x4429;
-            if (compress_zip(creature, creatureLen, (char*)sig + 0x710b, ARAD::DATABASE::sourceCreatureSize) != 1)
+            if (compress_zip(creature, creatureLen,
+                             (char*)&sig->m_invenType3[140],
+                             ARAD::DATABASE::sourceCreatureSize) != 1)
                 throw (unsigned int)0x4430;
         }
         catch (unsigned int e)

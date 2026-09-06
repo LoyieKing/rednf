@@ -5708,27 +5708,39 @@ void CParty::BloodClearRewardPacket(int a, int b, int c, Inven_Item const* items
                                     Inven_Item const* items3, int f,
                                     Inven_Item const* items4)
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     PacketGuard packet;
     packet.put_header(0, 0xd1);
     packet.put_byte(b);
-    packet.put_byte(bf.getBloodMaxRound());
+    // P0：ORIG 085b8c38 `add $0xb24,%eax` 直接取 &m_battleField 调 getBloodMaxRound，
+    // 不缓存 bf 指针（无槽往返）。
+    packet.put_byte(m_battleField.getBloodMaxRound());
     packet.put_byte(c);
-    const Inven_Item* groups[4] = {items1, items2, items3, items4};
-    int counts[4] = {c, d, e, f};
-    for (int g = 0; g < 4; ++g)
+    // ORIG：四组独立顺序循环（counter 分槽 -0x18/-0x14/-0x10/-0xc，非 2D 数组合并）。
+    for (int i = 0; i < c; ++i)
     {
-        if (g > 0)
-            packet.put_byte(counts[g]);
-        for (int i = 0; i < counts[g]; ++i)
-        {
-            packet.put_int(
-                // ORIG BloodClearRewardPacket.md 085b8c75/7b `imul $0x3d +
-                // mov 0x2(%eax)`：Inven_Item pack(1) sizeof==0x3d（Inven_Item.h
-                // 头注释），+0x02 → m_addInfo；类型化索引与 ORIG 同形
-                groups[g][i].m_addInfo);
-            packet.put_int(groups[g][i].get_add_info());
-        }
+        packet.put_int(
+            // ORIG BloodClearRewardPacket.md 085b8c75/7b `imul $0x3d +
+            // mov 0x2(%eax)`：Inven_Item pack(1) sizeof==0x3d，+0x02 → m_addInfo。
+            items1[i].m_addInfo);
+        packet.put_int(items1[i].get_add_info());
+    }
+    packet.put_byte(d);
+    for (int i = 0; i < d; ++i)
+    {
+        packet.put_int(items2[i].m_addInfo);
+        packet.put_int(items2[i].get_add_info());
+    }
+    packet.put_byte(e);
+    for (int i = 0; i < e; ++i)
+    {
+        packet.put_int(items3[i].m_addInfo);
+        packet.put_int(items3[i].get_add_info());
+    }
+    packet.put_byte(f);
+    for (int i = 0; i < f; ++i)
+    {
+        packet.put_int(items4[i].m_addInfo);
+        packet.put_int(items4[i].get_add_info());
     }
     packet.finalize(true);
     m_member[a].m_pUser->Send(packet);

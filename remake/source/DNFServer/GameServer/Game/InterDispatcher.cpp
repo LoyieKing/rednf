@@ -2767,11 +2767,11 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_byte(G_CDataManager()->GetUpgradeRevisionPvPChannel());
     packet.put_byte(user->isTournamentAccount() ? 1 : 0);
     packet.put_int(user->get_acc_id());
-    CEnvironment* env = G_CEnvironment();
-    packet.put_int(strlen(env->m_serverEnvir.m_relayIP));
-    packet.put_str(env->m_serverEnvir.m_relayIP, 0x10);
-    packet.put_int(env->m_serverEnvir.m_relayTCPPort);
-    packet.put_int(env->m_serverEnvir.m_relayUDPPort);
+    // P48/P0：ORIG 6 次独立 G_CEnvironment()（strlen/put_str 双臂各一，TCPPort/UDPPort 各一）。
+    packet.put_int(strlen(G_CEnvironment()->m_serverEnvir.m_relayIP));
+    packet.put_str(G_CEnvironment()->m_serverEnvir.m_relayIP, 0x10);
+    packet.put_int(G_CEnvironment()->m_serverEnvir.m_relayTCPPort);
+    packet.put_int(G_CEnvironment()->m_serverEnvir.m_relayUDPPort);
     int sex = user->getSex();
     if (sex == -1)
         sex = 1;
@@ -2799,7 +2799,7 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
                                    unsigned int, void*);
         AddClientFn addClient = *(AddClientFn*)((*(void***)checker)[0x04 / 4]);
         const int antibotRet =
-            addClient(checker, env->getProcessSequence(), 0,
+            addClient(checker, G_CEnvironment()->getProcessSequence(), 0,   // P48 独立求值
                       (unsigned int)user->get_acc_id(),
                       user->getClientVersion(), ipBuf);
         (void)clientIp;
@@ -2809,7 +2809,7 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
                 __PRETTY_FUNCTION__,
                 0x211b, 0);
             t("AddClient ProcessSequence : %d, qq_id : %s, ClientVersion : %d, return : %d",
-              env->getProcessSequence(),
+              G_CEnvironment()->getProcessSequence(),   // P48 独立求值
               NumberToString((unsigned int)user->get_acc_id(), 0),
               user->getClientVersion(), antibotRet);
         }
@@ -2828,7 +2828,7 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
                 __PRETTY_FUNCTION__,
                 0x212c, 0);
             t("P2PAddClient ProcessSequence : %d, qq_id : %s, ClientVersion : %d, return : -1",
-              env->getProcessSequence(),
+              G_CEnvironment()->getProcessSequence(),   // P48 独立求值
               NumberToString((unsigned int)user->get_acc_id(), 0),
               user->getClientVersion(), p2pRet);
         }
@@ -2854,13 +2854,14 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         query(helper, user);
     }
     const unsigned short uniqueId = (unsigned short)user->get_unique_id();
-    const unsigned int uid = user->GetUID();
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0, (int)uid,
+    // P48：ORIG 两独立 GetUID 调用点（InsertTimer 与 makeRequest 各一），禁缓存 uid。
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0, (int)user->GetUID(),
                                 (TIMER_MESSAGE)0, 300, uniqueId, 0);
     _NS_NonClient_Request(user);
     user->SetLastLoginCharacNo(characNoMsg);
     user->SetLastLoginChannelNo(channelNoMsg);
-    DB_LoadDnfHackLog::makeRequest(uid, (unsigned int)user->get_acc_id());
+    DB_LoadDnfHackLog::makeRequest((unsigned int)user->GetUID(),
+                                   (unsigned int)user->get_acc_id());
     return 0;
 }
 

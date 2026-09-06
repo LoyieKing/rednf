@@ -698,11 +698,15 @@ int DisPatcher_Login::dispatch_sig(CUser* user, PacketBuf& packet)
     packet.get_byte(logInOutState);
     user->SetLogInOutState(logInOutState);
 
-    authData = reinterpret_cast<Taiwan::GarenaAuthData*>(user->getGarenaAuthData());
-    char* userIdStr = NumberToString(authData->getUid(), 0);
+    // P48/P0：ORIG 本区两个独立 getGarenaAuthData 求值点（getUid / getTimeStamp 各一）。
+    char* userIdStr = NumberToString(
+        reinterpret_cast<Taiwan::GarenaAuthData*>(
+            user->getGarenaAuthData())->getUid(), 0);
     strncpy(login->m_userId, userIdStr, 0x18);          // +0x00
     memset(login->m_pad18, 0, 0x84);                    // +0x18 清零区
-    login->m_timeStamp = authData->getTimeStamp();      // +0x3a30
+    login->m_timeStamp =
+        reinterpret_cast<Taiwan::GarenaAuthData*>(
+            user->getGarenaAuthData())->getTimeStamp(); // +0x3a30
 
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
         login->m_gcNo =
@@ -4058,6 +4062,24 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
         return 0;
     }
 
+    // ORIG +0x0fc~+0x1be（asm 权威，Ghidra C 未渲染该支）：msg[0x11]==1 ⇒ 全队
+    // get_user(i≤3)→logFormat(0x198a "[HackUser]...")→leave_user(3)→DisConnSig(0x18,1,0)。
+    if (static_cast<unsigned char>(req.m_field11) == 1)
+    {
+        for (int i = 0; i <= 3; ++i)
+        {
+            CUser* member = party->get_user(i);
+            if (member != 0)
+            {
+                LogManager::logFormat(
+                    1, "PacketDispatcher_Impl_1.cpp", kPretty, 0x198a,
+                    "[HackUser] dungeon hack user. (mid:%u)", member);
+                party->leave_user(member, (ENUM_PARTY_INFO_TYPE)3);
+                member->DisConnSig((DISCONN_SIG)0x18, true, 0);
+            }
+        }
+    }
+
     if (party != 0)
     {
         // CParty::m_battleField.m_bloodState(+0xcd8)（CParty.h public 区，具名访问）
@@ -4152,9 +4174,10 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
                     {
                         continue;
                     }
-                    CUser* member = party->get_user(i);
-                    member->getHackAnalyzer()->addServerHackCnt(
-                        member, (WongWork::ENUM_HACKTYPE)0x1f8, 1u, 0u, 0u);
+                    // P48：ORIG 本区两次独立 get_user(i)（首实参一次、getHackAnalyzer 一次）。
+                    CUser* hackArg = party->get_user(i);
+                    party->get_user(i)->getHackAnalyzer()->addServerHackCnt(
+                        hackArg, (WongWork::ENUM_HACKTYPE)0x1f8, 1u, 0u, 0u);
                 }
                 out.m_8 = 8;
                 return 0;
@@ -4182,8 +4205,8 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
         return 0;
     }
 
-    const int kind = dungeon->getDungeonKind();
-    if (kind == 1)
+    // P48：ORIG 两处独立 getDungeonKind（==1 与 ==3 各一）。
+    if (dungeon->getDungeonKind() == 1)
     {
         // ---- 死亡之塔 ----
         if (party == 0)
@@ -4212,7 +4235,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
         out.m_4 = 0x7fffffff;
         return 0;
     }
-    if (kind == 3)
+    if (dungeon->getDungeonKind() == 3)
     {
         // ---- BossTower（ORIG 此处不判空直接取成员数，保持一致）----
         const int memberCount = party->get_member_count();

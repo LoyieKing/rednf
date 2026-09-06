@@ -410,7 +410,7 @@ void CBattle_Field::BloodMonsterSpawnPacket(int cnt, int time, short smallRound,
             packet.put_byte(3);
         else
             packet.put_byte(0);
-        if (m_pDungeon != 0 && *(char*)((char*)m_pDungeon + 0x89f) == 2)
+        if (m_pDungeon != 0 && m_pDungeon->m_bloodDungeonType == 2)
             packet.put_byte(0x46);
         else
             packet.put_byte(0x3c);

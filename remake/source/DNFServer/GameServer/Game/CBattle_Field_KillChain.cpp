@@ -331,8 +331,7 @@ void CBattle_Field::_MakeNotiPacketDieMonster(
             {
                 CEquipItem* equip = static_cast<CEquipItem*>(found);
                 const unsigned char slot =
-                    *reinterpret_cast<const unsigned char*>(
-                        reinterpret_cast<const char*>(&mi) + 0x1b);
+                    (unsigned char)mi.m_item.m_fieldb;  // &mi+0x10(m_item)+0x0b
                 const int period = equip->getAvatarPeriod(slot);
                 packet.put_int(period * 0x15180);
                 emblem.init();
@@ -340,8 +339,7 @@ void CBattle_Field::_MakeNotiPacketDieMonster(
             }
         }
         packet.put_short(
-            static_cast<unsigned int>(*reinterpret_cast<const unsigned short*>(
-                reinterpret_cast<const char*>(&mi) + 0x1b)));
+            static_cast<unsigned int>(mi.m_item.m_fieldb));
         packet.put_byte(mi.m_item.m_amp.getAbilityType());
         packet.put_short(mi.m_item.m_amp.getAbilityValue());
         packet.put_packet(mi.m_item);

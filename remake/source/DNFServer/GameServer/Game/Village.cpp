@@ -56,10 +56,12 @@ void Village::destroy()
         if (m_pAreas)
         {
             int count = ((int*)m_pAreas)[-1];
-            Area* pEnd = (Area*)((char*)m_pAreas + count * 0x98);
+            // §4.3 具名化：Area 步长由真实尺寸给出（sizeof(Area)==0x98 探针
+            // 实证，Area.h 权威布局），不再写字面量 0x98。
+            Area* pEnd = m_pAreas + count;
             while (pEnd != m_pAreas)
             {
-                pEnd = (Area*)((char*)pEnd - 0x98);
+                pEnd = pEnd - 1;   // §4.3（同上，负向遍历）
                 pEnd->~Area();
             }
             ::operator delete[]((char*)m_pAreas - 4);

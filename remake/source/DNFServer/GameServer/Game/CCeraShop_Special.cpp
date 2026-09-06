@@ -1238,6 +1238,11 @@ bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& fl
         outValue = 8;
         return true;
 
+    case 17:                      // ORIG 0x08324a1e `param_1 < 0x12` 区间：0x11 → (3,7)
+        outType = 3;
+        outValue = 7;
+        return true;
+
     case 18:
         outType = 2;
         outValue = 9;
@@ -1328,6 +1333,12 @@ bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& fl
         flag = true;
         return true;
 
+    case 46:                      // ORIG `param_1 < 0x2f` 区间：0x2e → (2,0x1a,true)
+        outType = 2;
+        outValue = 0x1a;
+        flag = true;
+        return true;
+
     case 47:
         outType = 2;
         outValue = 0x1b;
@@ -1337,6 +1348,13 @@ bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& fl
     case 50:
     case 2660235:
     case 2660236:
+    // ORIG 0x08324a1e: param_1 in [0x39,0x3f) 落 LAB_08324edd → (7,0x10)。
+    case 57:
+    case 58:
+    case 59:
+    case 60:
+    case 61:
+    case 62:
         outType = 7;
         outValue = 0x10;
         return true;
@@ -1367,6 +1385,11 @@ bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& fl
         outType = 2;
         outValue = 0x1f;
         flag = true;
+        return true;
+
+    case 195:                     // ORIG `param_1 < 0xc4` 区间：0xc3 → (9,0)
+        outType = 9;
+        outValue = 0;
         return true;
 
     case 196:
@@ -1473,6 +1496,13 @@ bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& fl
         outType = 2;
         outValue = 0x21;
         flag = true;
+        return true;
+
+    // ORIG `param_1 - 0x2897c8 < 2` 区间：0x2897c8/0x2897c9 → (0xb,8)
+    case 2660296:
+    case 2660297:
+        outType = 0xb;
+        outValue = 8;
         return true;
 
     case 2660358:

@@ -394,9 +394,9 @@ bool CKillMonsterInfo::_saveData(CUser* pUser)
     pSig->m_characNo = pUser->get_charac_no(-1);
     ConvertMapToStrcut(m_bossKills, (stMonsterInfo_t*)pSig, 0x5dc);
     ConvertMapToStrcut(m_namedKills,
-                       (stMonsterInfo_t*)((char*)pSig + 0x1d4c), 6000);
+                       pSig->m_named, 6000);
     ConvertMapToStrcut(m_apcBossKills,
-                       (stMonsterInfo_t*)((char*)pSig + 0x927c), 0x5dc);
+                       pSig->m_apc, 0x5dc);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;
 }
