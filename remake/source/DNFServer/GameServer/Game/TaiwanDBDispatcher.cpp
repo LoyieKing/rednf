@@ -988,13 +988,13 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
                                                       (ENUM_SERVER_GROUP)0);
         if (db == 0)
             throw "handle_null";
-        int serverGroup = G_CEnvironment()->get_server_group();
         unsigned int characNo = reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0;
-        // ORIG 0x0815d7a8：set_query 返回值不检查（call 后直接 exec）；
+        // ORIG 0x0815d7a8：G_CEnvironment()+get_server_group() 供 set_query
+        // （返回值不检查）；0x0815d82c 插行时再调一次（两次独立调用，P167 判据）。
         // 仅 exec(1) 失败才 throw "exec_select"。
         db->set_query(
             "seLect mission from event_hero_mission_data where server_group=%d and charac_no=%u",
-            serverGroup, characNo);
+            G_CEnvironment()->get_server_group(), characNo);
         if (!db->exec(1))
             throw "exec_select";
         Taiwan::SigLoadHeroMissionData data;
@@ -1004,7 +1004,7 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
         {
             db->set_query(
                 "inSert into event_hero_mission_data values(%d,%u,'',now())",
-                serverGroup, characNo);
+                G_CEnvironment()->get_server_group(), characNo);
             if (!db->exec(1))
                 throw "exec_insert";
             memset(reinterpret_cast<SigHeroMissionDataView*>(&data)->m_data, 0, 0x100);

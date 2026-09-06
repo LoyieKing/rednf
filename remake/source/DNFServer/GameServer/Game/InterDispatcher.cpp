@@ -1667,7 +1667,7 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
         guard.operator*()->operator<<(0x9d);
         guard.operator*()->operator<<(-1);
         SIG_SAVE_SAME_MID_OTHER_CHAR_LOGIN_HACK* sig =
-            guard.GetInBuffer<SIG_SAVE_SAME_MID_OTHER_CHAR_LOGIN_HACK>();
+            guard->GetInBuffer<SIG_SAVE_SAME_MID_OTHER_CHAR_LOGIN_HACK>();
         sig->m_curAccId = curAccId;
         sig->m_reqAccId = reqAccId;
         sig->m_characNo = pPkt->m_c;
@@ -1720,17 +1720,22 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
         pPkt->m_128);
     {   // 扩展槽状态域 msg+0x12b：<0 或 >3 归零
         const signed char exSlot = pPkt->m_12b;
-        user->SetCurExpEquipSlotStat((exSlot < 0 || exSlot > 3) ? 0 : exSlot);
+        // ORIG 两个独立 SetCurExpEquipSlotStat 调用点（越界 → 0，否则 → 原值）。
+        if (exSlot < 0 || exSlot > 3)
+            user->SetCurExpEquipSlotStat(0);
+        else
+            user->SetCurExpEquipSlotStat(exSlot);
     }
     {   // 公会代理信息拉取
-        const int guildKey = user->get_charac_guildkey();
-        if (guildKey != 0)
+        // ORIG get_charac_guildkey 两次独立调用（非 GM 门判 + 代理查找实参）。
+        if (user->get_charac_guildkey() != 0)
         {
             STGuildProxy proxy;                        // ORIG 默认构造局部
             CGuildServerProxy* proxyMgr =
                 GlobalData::s_guild_proxy_mgr->GetServerProxy(
                     user->GetServerGroup());
-            if (proxyMgr->GetGuildInfoProxy(guildKey, proxy))
+            if (proxyMgr->GetGuildInfoProxy(
+                    user->get_charac_guildkey(), proxy))
                 user->SetGuildInfoProxy(proxy);
         }
     }
@@ -1781,7 +1786,8 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     {
         const long lastPlayTick = user->getCurCharacLastPlayTick();
         if (CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-                                   lastPlayTick, nowSec))
+                                   lastPlayTick,
+                                   GlobalData::s_systemTime_.getCurSec()))
         {
             user->setCurCharacTradeGoldDaily(0);
         }
@@ -1817,13 +1823,15 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
                &payload[0], 0x48);
     }
     {   // PowerWar 未连接天数扣点链（lastPlayTickPowerWar = curCharac +0x7b long）
-        long lastPlayTickPw = 0;
-        memcpy(&lastPlayTickPw,
-               reinterpret_cast<const char*>(user->getCurCharacR()) + 0x7b,
-               sizeof(lastPlayTickPw));
-        if (lastPlayTickPw != 0)
+        // ORIG 4 次 `_ZNK getCurCharacR`（门判 + 读 +0x7b + trace 两处）、
+        // 2 次 getCurSec（扣点判定 + trace）。+0x7b 直接 long 读，非 memcpy。
+        if (*reinterpret_cast<const int*>(
+                reinterpret_cast<const char*>(user->getCurCharacR()) + 0x7b) != 0)
         {
             const long cur = GlobalData::s_systemTime_.getCurSec();
+            const long lastPlayTickPw =
+                *reinterpret_cast<const long*>(
+                    reinterpret_cast<const char*>(user->getCurCharacR()) + 0x7b);
             const int days = ComputeDaysScheduleTime(
                 G_CEnvironment()->m_serverEnvir.m_fatigueTime, lastPlayTickPw, cur);
             // ORIG 读 CDataManager +0xa6b4（powerwar point per day；
@@ -1840,8 +1848,10 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
                 trace("POWERWAR POINT DECREASE : user:%d, last_play_tme:%d, "
                       "current_time:%d, Unconnected Days:%d, Per Day Point : %d, "
                       "Decrease powerwar point:%d",
-                      *(const int*)(user->getCurCharacR()),
-                      (int)lastPlayTickPw,
+                      *reinterpret_cast<const int*>(
+                          reinterpret_cast<const char*>(user->getCurCharacR())),
+                      *reinterpret_cast<const int*>(
+                          reinterpret_cast<const char*>(user->getCurCharacR()) + 0x7b),
                       (int)GlobalData::s_systemTime_.getCurSec(),
                       days, perDayPoint, days * perDayPoint);
             }

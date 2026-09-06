@@ -120,7 +120,8 @@ bool DB_SaveCerashopAddRestrictType::dispatch(int /*param1*/, int /*param2*/,
     *stream >> nextDate;
     *stream >> endDate;
 
-    if (type == 0) {
+    switch (type) {
+    case 0: {
         unsigned int mId = 0;   // -0x28
         *stream >> mId;
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
@@ -142,7 +143,9 @@ bool DB_SaveCerashopAddRestrictType::dispatch(int /*param1*/, int /*param2*/,
             if (!db->exec(true))
                 return false;
         }
-    } else if (type == 1) {
+        break;
+    }
+    case 1: {
         unsigned int characNo = 0;   // -0x2c
         *stream >> characNo;
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
@@ -164,6 +167,8 @@ bool DB_SaveCerashopAddRestrictType::dispatch(int /*param1*/, int /*param2*/,
             if (!db->exec(true))
                 return false;
         }
+        break;
+    }
     }
     return true;
 }

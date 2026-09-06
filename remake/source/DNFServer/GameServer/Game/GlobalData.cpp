@@ -2552,8 +2552,8 @@ void AcceptThread::dispatch(void* arg)
                                         m_acceptFlag = false;
                                     }
                                 }
-                                int used = G_CGameManager()->userPoolSize() -
-                                           G_CGameManager()->userPoolRemain();
+                                int used = G_CGameManager()->m_userPool.Size() -
+                                           G_CGameManager()->m_userPool.Remain();
                                 if (m_acceptFlag || used >= env->m_serverEnvir.m_maxUserNum)
                                 {
                                     char* lockIp = inet_ntoa(peerAddr.sin_addr);

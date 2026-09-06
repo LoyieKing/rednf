@@ -195,12 +195,13 @@ bool DB_ReqChangeCharacName::dispatch(int userIdx, int slot, Stream* stream)
     char name_buf[60] = { '\0' };   // 转义缓冲区（ORIG rep stos 清零 60 字节）
     db->escape_string(name_buf, sig->m_name);
 
-    // env+0x68 = m_dbConnInfo（经 get_db_conn_info accessor 具名访问）。
+    // env+0x68 = m_dbConnInfo：ORIG 直访成员（经 G_CEnvironment()+0x68 做
+    // map::operator[] this，无 accessor call），故禁 get_db_conn_info() accessor。
     typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DbConnMap;
     ENUM_DB_HANDLE_IDX connIdx = DB_HANDLE_2;   // ORIG 栈上局部初始值 2
     int ret = _hasSameCharacName(
         db,
-        G_CEnvironment()->get_db_conn_info()[connIdx].m_db,
+        G_CEnvironment()->m_dbConnInfo[connIdx].m_db,
         name_buf);
     if (ret != 0)
     {

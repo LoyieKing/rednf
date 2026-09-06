@@ -38,6 +38,7 @@
 #include "Arad_DataManager.h"
 #include "ServerParameterScript.h"
 #include "DisPatcherCore.h"
+#include "CEventScriptMng.h"      // EventClassify::CEventScriptMng（桥清零）
 #include "CEnvironment.h"
 #include "DNFFunctionLib.h"
 
@@ -68,17 +69,10 @@ struct CPartyBattleFieldView
 // 外部函数桥（头文件未声明的 ORIG 符号；不改共享头，按 mangled 名链接）
 // ---------------------------------------------------------------------------
 
-// ORIG T 0x0810cc70 EventClassify::CEventScriptMng::test_process_change_day(int)
-extern "C" void _ZN13EventClassify15CEventScriptMng23test_process_change_dayEi(
-    EventClassify::CEventScriptMng* self, int day);
-
-
-// ORIG T 0x0858efde DisPatcher_DebugCommand::_debugCommandSetLevel(CUser*, int)
-// （返回值调用点未用，int 为推断）
-extern "C" int _ZN23DisPatcher_DebugCommand21_debugCommandSetLevelEP5CUseri(
-    DisPatcher_DebugCommand* self, CUser* user, int level);
-
 // ORIG W 0x084b410e CAICharacter::getIndepentDropItem() const（sret 返回 vector）
+// §4.5 例外：CAICharacter 权威镜像头 MonsterIndependentDrop.h 未建模这两个 W 访问器
+// （getIndepentDropItem/GetName），CAICharacter 建模属 Wide21A2 邻域（CCreature/
+// CDeathTower），故按原生 extern "C" 保留（目标确无权威头声明）。
 extern "C" void _ZNK12CAICharacter19getIndepentDropItemEv(
     std::vector<stMonsterIndependentDrop_t>* ret, const CAICharacter* self);
 // ORIG W 0x084b4138 CAICharacter::GetName() const
@@ -380,7 +374,7 @@ void CInGameEventSetDay::execute()
     EventClassify::CEventScriptMng* mng =
         static_cast<EventClassify::CEventScriptMng*>(
             G_CDataManager()->get_event_script_mng());
-    _ZN13EventClassify15CEventScriptMng23test_process_change_dayEi(mng, day);
+    mng->test_process_change_day(day);
 }
 
 // ===========================================================================
@@ -639,9 +633,7 @@ void CLevelUp::execute()
         return;
     }
     DisPatcher_DebugCommand dispatcher;                       // local_14
-    _ZN23DisPatcher_DebugCommand21_debugCommandSetLevelEP5CUseri(&dispatcher,
-                                                                 user,
-                                                                 GmD_CLevelUp_getLevel(this));
+    dispatcher._debugCommandSetLevel(user, GmD_CLevelUp_getLevel(this));
 }
 
 // ===========================================================================

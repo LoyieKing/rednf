@@ -900,7 +900,7 @@ void MainLoop()
             G_GameWorld()->UpdateChannelUser();
             int curUser = G_GameWorld()->get_UserCount_InWorld();
             int remain =
-                G_CGameManager()->userPoolSize() - G_CGameManager()->userPoolRemain();
+                G_CGameManager()->m_userPool.Size() - G_CGameManager()->m_userPool.Remain();
             if (lastUserCount != curUser || remain != lastRemain)
             {
                 ProcessServerStatusLog();

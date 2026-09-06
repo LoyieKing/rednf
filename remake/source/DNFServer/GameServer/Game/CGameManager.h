@@ -565,9 +565,12 @@ public:
         bool operator()(std::pair<const unsigned int, CUser*>& p) ;
         short m_uniqueId;
     };
-    int userPoolRemain() { return m_userPool.Remain(); }  // MainLoop 心跳条件用
-    int userPoolSize() { return m_userPool.Size(); }      // MainLoop 心跳条件用（ORIG 实例调用）
+    // ORIG MainLoop 直调 StaticPool<CUser,600>::Size()/Remain()（+0x4c m_userPool），
+    // 故不设 userPool* 发明 wrapper（§4.1）；MainLoop/ProcessServerStatusLog/
+    // AcceptThread::dispatch 以 friend 直访私有池。广播 2026-09-06 批准。
     friend void ProcessServerStatusLog();  // ORIG 0x80ede91 访问私有池（GameMain.cpp 定义）
+    friend void MainLoop();                 // ORIG 0x829fa2b 直访私有池（GameMain.cpp 定义）
+    friend class AcceptThread;              // GlobalData.cpp AcceptThread::dispatch 直访私有池
     // ORIG _Z7getUserj @0x084bb9cf 直访 m_userByAccId2（反汇编 `call G_CGameManager;
     // lea 0x244(%eax),%edx` 无 getter call，证明成员直读）——广播 2026-09-05 无异议。
     friend CUser* getUser(unsigned int uid);
