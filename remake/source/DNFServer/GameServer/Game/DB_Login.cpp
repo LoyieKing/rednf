@@ -15,6 +15,7 @@
 #include "DB_Login.h"
 
 #include <string.h>
+#include <cstring>      // std::strrchr（ORIG 用 _ZSt7strrchrPci 而非全局 strrchr）
 #include <stdlib.h>
 #include <time.h>
 
@@ -673,13 +674,14 @@ bool DB_Login::GetPunishUserInfo(SIG_LOGIN_DATA* sig)
     {
         return true;   // ORIG 0x8410d7d：exec 失败视为无惩罚数据，正常继续
     }
-    int nRows = db->get_n_rows();
-    if (nRows == 0)
+    // P48 no-CSE：ORIG 三处各自 fresh get_n_rows()（判零 / m_punishInfoCount /
+    // 循环上界）。
+    if (db->get_n_rows() == 0)
     {
         return true;
     }
-    sig->m_punishInfoCount = nRows;              // +0x3a50
-    for (unsigned int i = 0; i < nRows; ++i)
+    sig->m_punishInfoCount = db->get_n_rows();   // +0x3a50
+    for (unsigned int i = 0; i < db->get_n_rows(); ++i)
     {
         SIG_LOGIN_PUNISH_INFO& e = sig->m_punishInfos[i];   // stride 0x18 @0x3a54
         if (!db->fetch()) return false;

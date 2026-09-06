@@ -10694,8 +10694,10 @@ bool DB_AuctionSubMoney::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xb551), true);
     guard.operator*()->operator<<(0x309);
     guard.operator*()->operator<<(slot);
+    // [b22] GetInBuffer 走 operator->（ORIG ptEv + GetInBuffer），非 operator*
+    // （P132：operator-> 链保留，P167 显示 pt-1/de+1 实缺）。
     SIG_AUCTION_MONEY_SUB* out =
-        guard.operator*()->GetInBuffer<SIG_AUCTION_MONEY_SUB>();
+        guard.operator->()->GetInBuffer<SIG_AUCTION_MONEY_SUB>();
     out->m_count = mId;
     out->m_arg04 = sig->m_arg04;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);

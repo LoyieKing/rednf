@@ -204,9 +204,10 @@ int PVP_CHANNEL::is_common_channel()
 // check_Login_server_group @ 0x08197781
 int PVP_CHANNEL::check_Login_server_group(SIG_LOGIN_DATA* data)
 {
-    G_GameWorld()->GetChannelType();  // ORIG 读取后丢弃
-    bool allPvp = is_all_pvp_channel() != 0;
-    if (!allPvp)
+    // P0/P194：ORIG `mov %eax,-0xc`（GetChannelType 结果落具名局部）+ `call
+    // is_all_pvp_channel; xor$1; test; je`（X1 形直测，去 `!=0` 物化）。
+    int channelType = G_GameWorld()->GetChannelType();
+    if (!is_all_pvp_channel())
     {
         data->m_channelRestrictField = 0;
     }
