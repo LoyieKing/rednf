@@ -2310,8 +2310,9 @@ int Dispatcher_BlueMarble::check_error(CUser* user, MSG_BASE& msg)
     {
         return -4;
     }
-    int state = user->get_state();
-    return (state == 0xb || state == 5) ? 0 : -5;
+    // 【batch-17 S池 P48】ORIG 两臂各调一次 get_state（0x081e60xx
+    // `call get_state; cmp $0xb` + 再 `call get_state; cmp $5`）。
+    return (user->get_state() == 0xb || user->get_state() == 5) ? 0 : -5;
 }
 int Dispatcher_BlueMarble::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -3970,11 +3971,15 @@ int Dispatcher_AgreeEnchant::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return 0;
     }
-    if (job->GetType() != 1)
+    if (user->GetCurCharacExpertJob()->GetType() != 1)
     {
         return 0;
     }
-    expert_job::CEnchanter* enchanter = static_cast<expert_job::CEnchanter*>(job);
+    // 【batch-17 S池】ORIG 第 3 次 GetCurCharacExpertJob：转 CEnchanter 的源
+    // 也重新取一次（0x081dxxxx `call GetCurCharacExpertJob; mov (%eax); ...`），
+    // 复用 job 局部会少 1 call。
+    expert_job::CEnchanter* enchanter =
+        static_cast<expert_job::CEnchanter*>(user->GetCurCharacExpertJob());
     enchanter->OnAgreeEnchant(user, cmd);
     return 0;
 }
@@ -11309,7 +11314,7 @@ int Dispatcher_PutItemForEnchant::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return 0;
     }
-    if (job->GetType() != 1)
+    if (user->GetCurCharacExpertJob()->GetType() != 1)
     {
         return LineFunc(0xa74b,
                         __PRETTY_FUNCTION__,
@@ -12249,7 +12254,7 @@ int Dispatcher_CloseDisjointStore::check_error(CUser* user, MSG_BASE& msg, Param
         {
             return 0x13;
         }
-        if (job->GetType() != 3)
+        if (user->GetCurCharacExpertJob()->GetType() != 3)
         {
             return 0x13;
         }
@@ -13582,8 +13587,11 @@ int Dispatcher_FightVillageMonster::dispatch_sig(CUser* user, PacketBuf& packet)
     if (world->IsIntegratedPvPBaseChannel()) {
         return 0;
     }
-    int serverType = G_CEnvironment()->m_serverEnvir.m_serverType;
-    if (serverType == 1 || serverType == 2) {
+    // 【batch-17 S池 P48/P183】ORIG 两个比较臂各调一次 G_CEnvironment
+    // （0x08203xx `call G_CEnvironment` ×2 + `cmp $1/$2`），缓存 serverType
+    // 会少 1 call（实测 -5~7 insn）。
+    if (G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
+        G_CEnvironment()->m_serverEnvir.m_serverType == 2) {
         return 0;
     }
     if (user == 0) {
@@ -20323,8 +20331,10 @@ int Dispatcher_FinishVillageMonsterFighting::dispatch_sig(CUser* user, PacketBuf
     {
         return 0;
     }
-    int serverType = G_CEnvironment()->m_serverEnvir.m_serverType;
-    if (serverType == 1 || serverType == 2)
+    // 【batch-17 S池 P48/P183】ORIG 0x0822286b/0x0822287b：**两臂各调一次**
+    // G_CEnvironment 再读 +0x1a8，缓存 serverType 少 1 call。
+    if (G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
+        G_CEnvironment()->m_serverEnvir.m_serverType == 2)
     {
         return 0;
     }
@@ -27285,6 +27295,12 @@ int Dispatcher_GuildCargoMoveItem::check_error(CUser* user, MSG_BASE& msg,
 
 int Dispatcher_ChangeEmotion::isVaildEmotionValue(short value)
 {
+    // 【batch-17 实测记录，勿再改写】三形对比（ORIG 54）：
+    //   A 缓存 vector 引用 + for(it=begin(); it!=end(); ++it)      → 45（gap +9，最优）
+    //   B 两迭代器先默认构造 + begin/end 各重发 G_CDataManager     → 64（gap -10）
+    //   C 声明即初始化 + 双臂重发 G_CDataManager                   → 居中但差集仍缺
+    // ⇒ 该函数残 9 insn 属 4.1 out-of-line STL 实例发射差（N89 族，
+    //   docs/function_audit/N89_EXCLUSION*.tsv 判据），非源码可闭合；保留 A 形。
     const std::vector<int>& tags = G_CDataManager()->m_emotionTags.m_tags;
     for (std::vector<int>::const_iterator it = tags.begin(); it != tags.end(); ++it)
     {

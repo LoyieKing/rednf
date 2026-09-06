@@ -177,7 +177,7 @@ static_assert(offsetof(CDungeonListLayoutMirror, m_dungeonMap) == 0x00,
 struct stDBLogItem
 {
     unsigned int m_itemIdx;  // +0x00
-    int m_time;              // +0x04
+    long m_time;             // +0x04（ia32 4B；importDBLogItem ConvertStringToTime(Ss,Rl) 直绑 &+4）
     int m_value;             // +0x08
 };
 

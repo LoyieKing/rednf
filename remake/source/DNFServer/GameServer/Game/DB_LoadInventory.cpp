@@ -454,6 +454,9 @@ bool DB_LoadInventory::GetUserAvatar(SIG_LOAD_INVENTORY* sig)
 
 // ============================================================================
 // DB_LoadInventory::_GetUserAvatar @0x0840be8a（static bool）
+// §6.2 收口注记：语义/列序/行号（含 0x270f 修正）与 ORIG 全对齐；AE 天花板=
+// N82 三证（4.1 块作用域 cMyTrace 首现→深槽 vs 4.4 恒首现→浅槽，20 fail 岛
+// 16B 槽相位不可源级翻转；岛内容文本同形）。按 Main batch-17 裁定按语义收口。
 // user_items 15 列（limit 0x73）。AvatarDetailInfo 条目步长 0x4b：
 //   +0 ui_id / +4 expire / +8 reg / +0xc ipgAgencyNo(0x18) / +0x25 clearAvatarId
 //   / +0x29 jewelSocket(0x1e) / +0x47 color1 / +0x49 color2。
@@ -538,7 +541,7 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
         {
             cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
                        " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       9999, 5);
+                       0x270f, 5);          // ORIG 0840c1fc（原 9999 占位清除）
             t("DB_LoadInventory::GetUserAvatar, get_int(3) ERROR charac_no=%u",
               characNo);
             return 0;

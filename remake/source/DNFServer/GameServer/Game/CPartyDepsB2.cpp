@@ -324,8 +324,8 @@ int CParty::checkInoutConditionDungeon(CDungeon const* dungeon,
     if (dungeon == 0)
         return 1;
 
-    PacketGuard packet;                                 // -0x28
-    unsigned char ancientFlag = 0;                      // -0x29
+    PacketGuard packet;                                 // ORIG -0x28
+    unsigned char ancientFlag = 0;                      // -0x29（ORIG 先存 flag 后构 packet）
     Inven_Item ancientItems[4];                         // -0x140（元素步长 0x3d）
     memset(ancientItems, 0, 0xf4);                      // ORIG ctor 后整体清零
     int itemParams[4];                                  // -0x3c

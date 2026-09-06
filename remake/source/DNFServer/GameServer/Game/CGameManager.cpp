@@ -1055,11 +1055,10 @@ PvP_Room* CGameManager::FindQuickJoinablePvPRoom(bool quick, CUser* user)
         PvP_Room* room = it->second;
         if (room != 0 && room->get_pvp_battle_mode() != 6)
         {
-            bool ok = true;
-            if ((quick && room->IsExistPassword() == 1) ||
-                room->IsQuickJoinablePVPRoom(user) == 0)
-                ok = false;
-            if (ok)
+            // ORIG 0x082a3257-082a3291 极性已核：(quick && pwd) || !joinable →
+            // 拒绝；等价 De Morgan：两检查都通过才 return。
+            if (!(quick && room->IsExistPassword() == 1) &&
+                room->IsQuickJoinablePVPRoom(user) != 0)
                 return room;
         }
         ++it;
@@ -1862,9 +1861,10 @@ void CGameManager::WarRoomCountAdjustByChannelInfo()
     {
         for (int b = 0; b < 0x18; ++b)
         {
-            CDataManager* dm2 = (CDataManager*)G_CDataManager();
-            float f = info->m_gridPercent[a];  // ORIG *(float*)(info+8+(a+4)*4)
+            // ORIG 0x082a2a0a 内层：每轮 **一次** G_CDataManager，乘表与写表
+            // 共用同一 this（mov%eax,%esi callee 缓存）；旧形 dm2/dm3 各取一次。
             CDataManager* dm3 = (CDataManager*)G_CDataManager();
+            float f = info->m_gridPercent[a];  // ORIG *(float*)(info+8+(a+4)*4)
             // 写表：dm+8+(b*10+a+0x223c)*4 = m_warRoomCount 扁平 [b*10+a]。
             reinterpret_cast<int*>(dm3->m_warAreaCounter.m_warRoomCount)[b * 10 + a] =
                 (int)(dm3->m_warAreaCounter.m_counterTable[b] * f);

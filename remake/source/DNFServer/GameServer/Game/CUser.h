@@ -3274,7 +3274,9 @@ public:
     long GetRevivalTime();
     void SetUseAPCPotionTime(long time);
     long GetUseAPCPotionTime();
-    WongWork::CUserPremium* GetPremiumInfoW();
+    // ORIG W 0x0863be94（弱符号⇒头内 inline；RecoverFatigue 0x57ca4/0x57cd3 实证
+    // 调用点全内联 this+0x7121c 无 call，CUserD17 请求/Main 代落 batch-17）
+    WongWork::CUserPremium* GetPremiumInfoW() { return &m_premium; }
     // ORIG T 0x0864d90a：从 m_list711ec（+0x711ec）删除 state。
     void RemoveRestrictedGoods(int state);
     // ORIG T 0x0867ceae：全部角色 m_needCheckOverEquipItem（+0xe3b）置 1。

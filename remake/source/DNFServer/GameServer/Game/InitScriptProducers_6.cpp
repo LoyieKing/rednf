@@ -1304,83 +1304,97 @@ loop_exit:
 // ============================================================================
 bool importDBLogItem(char* path, std::vector<stDBLogItem>* out)
 {
-    bool ok = false;
-    std::string token;
-    std::string str;
-
+    // ORIG T 0x0890dbba（204 条；单出口 ebx 形——4.1 把所有失败/EOF 路径 merge
+    // 到共享 dtor+return 链，4.4 的多 return 形会复制 3 组 string dtor ≈ +52。
+    // 本形以 result 局部 + goto done 复现共享出口）。外层每轮消耗两个节头：
+    // head1=[dblog buyitem]（flag 0）内层循环、head2=[dblog getitem]（flag 1）
+    // 内层循环；内层 ScanInt 断流回下一节头/主循环顶；ScanStr/时间转换失败
+    // 整体 false；两处 EOF 均 true。ConvertStringToTime 的 by-value 串参以块级
+    // 临时物化、dtor 先于结果测试（ORIG +0x106..+0x11b 序）。
     if (!loadRDARScriptFile("", path))
     {
         return false;
     }
 
+    bool result = true;
+    std::string token;                 // ORIG -0x20
+    std::string str;                   // ORIG -0x24
+    bool ok = false;                   // ORIG -0x25
+
     for (;;)
     {
         if (!ScanType(token, true))
         {
-            return true;
-        }
-
-        int flag = 0;
-        if (token != "[dblog buyitem]")
-        {
-            // 未命中 buyitem 时 ORIG 直接进入第二个节头判定（同轮二次 ScanType）
-            ;
+            break;
         }
 
         if (token == "[dblog buyitem]")
         {
-            flag = 0;
             for (;;)
             {
-                stDBLogItem item;                   // memset(this,0,0xc)
+                stDBLogItem item;                  // ORIG memset(&item,0,0xc)
                 memset(&item, 0, sizeof(item));
-                int id = ScanInt(&ok);
+                int id = ScanInt(&ok);             // 结果先落槽再判（ORIG +0xb6）
                 item.m_itemIdx = static_cast<unsigned int>(id);
-                if (!ok) { break; }
+                if (ok != true) { break; }
                 if (!ScanStr(&str))
                 {
-                    return false;
+                    result = false;
+                    goto done;
                 }
-                std::string tmp(str);
-                if (!ConvertStringToTime(tmp, *(long*)&item.m_time))
+                bool convOk;
                 {
-                    return false;
+                    std::string tmp(str);          // by-value 参物化（ORIG -0x1c）
+                    convOk = (ConvertStringToTime(tmp, item.m_time) == 1);
                 }
-                item.m_value = flag;                // -0x2c=0（memset 冗余写）
+                if (!convOk)
+                {
+                    result = false;
+                    goto done;
+                }
+                item.m_value = 0;                  // +0x08 memset 冗余重写 0
                 out->push_back(item);
             }
         }
 
         if (!ScanType(token, true))
         {
-            return true;
+            break;
         }
 
         if (token == "[dblog getitem]")
         {
-            flag = 1;
             for (;;)
             {
                 stDBLogItem item;
                 memset(&item, 0, sizeof(item));
                 int id = ScanInt(&ok);
                 item.m_itemIdx = static_cast<unsigned int>(id);
-                if (!ok) { break; }                 // ORIG 此路径回最外层
+                if (ok != true) { break; }
                 if (!ScanStr(&str))
                 {
-                    return false;
+                    result = false;
+                    goto done;
                 }
-                std::string tmp(str);
-                if (!ConvertStringToTime(tmp, *(long*)&item.m_time))
+                bool convOk;
                 {
-                    return false;
+                    std::string tmp(str);
+                    convOk = (ConvertStringToTime(tmp, item.m_time) == 1);
                 }
-                item.m_value = flag;                // -0x38=1
+                if (!convOk)
+                {
+                    result = false;
+                    goto done;
+                }
+                item.m_value = 1;                  // +0x08 写 1
                 out->push_back(item);
             }
         }
     }
+done:
+    return result;
 }
+
 
 // ============================================================================
 // importDailyScheduleEtcScript —— ORIG T 0x0891826c
@@ -1948,45 +1962,45 @@ bool importEquipmentGradeSampleInfo(const char* path,
         {
             for (;;)
             {
-                unsigned int v = static_cast<unsigned int>(ScanInt(&ok));
-                if (!ok) { break; }
-                out->m_grade[0].push_back(v);
+                int v0 = ScanInt(&ok);
+                if (ok != true) { break; }
+                out->m_grade[0].push_back((unsigned int)v0);   // int->uint 转换临时槽（ORIG 两段）
             }
         }
         else if (token == "[grade_1]")
         {
             for (;;)
             {
-                unsigned int v = static_cast<unsigned int>(ScanInt(&ok));
-                if (!ok) { break; }
-                out->m_grade[1].push_back(v);
+                int v1 = ScanInt(&ok);
+                if (ok != true) { break; }
+                out->m_grade[1].push_back((unsigned int)v1);   // int->uint 转换临时槽（ORIG 两段）
             }
         }
         else if (token == "[grade_2]")
         {
             for (;;)
             {
-                unsigned int v = static_cast<unsigned int>(ScanInt(&ok));
-                if (!ok) { break; }
-                out->m_grade[2].push_back(v);
+                int v2 = ScanInt(&ok);
+                if (ok != true) { break; }
+                out->m_grade[2].push_back((unsigned int)v2);   // int->uint 转换临时槽（ORIG 两段）
             }
         }
         else if (token == "[grade_3]")
         {
             for (;;)
             {
-                unsigned int v = static_cast<unsigned int>(ScanInt(&ok));
-                if (!ok) { break; }
-                out->m_grade[3].push_back(v);
+                int v3 = ScanInt(&ok);
+                if (ok != true) { break; }
+                out->m_grade[3].push_back((unsigned int)v3);   // int->uint 转换临时槽（ORIG 两段）
             }
         }
         else if (token == "[grade_4]")
         {
             for (;;)
             {
-                unsigned int v = static_cast<unsigned int>(ScanInt(&ok));
-                if (!ok) { break; }
-                out->m_grade[4].push_back(v);
+                int v4 = ScanInt(&ok);
+                if (ok != true) { break; }
+                out->m_grade[4].push_back((unsigned int)v4);   // int->uint 转换临时槽（ORIG 两段）
             }
         }
     }

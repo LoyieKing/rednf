@@ -1140,6 +1140,9 @@ bool DB_LoadEtc::getComboSkill(MySQL* db, unsigned int accId, int count,
 
 // ============================================================================
 // DB_LoadEtc::GetUserSkill @0x084075d2 —— 主 skill 行 + tag 双槽位 blob。
+// §6.2 语义收口：12 列 get/blob 链、col 槽（-0x10）col++ 形、fail 岛行号
+// （0x1d50..0x1df1）与 ORIG 对齐；AE 天花板=N82 trace 槽方向三证（Main
+// batch-17 裁定按语义收口，不投纯文本序差）。
 // 列序 12 列，目标偏移照汇编；n_rows==0 且 PvP 技能树频道时补插一行。
 // 错误行号 0x1d50/0x1d5d/0x1d69/0x1d71/0x1d98/0x1dac/0x1db2/0x1dea/0x1df1。
 // ============================================================================
@@ -1433,62 +1436,68 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
     {
         return true;
     }
-    if (!(db->getAffectedRowCount() == 1))                   // longlong == 1
+    if (db->getAffectedRowCount() != 1)   // ORIG 08406f6a：longlong !=1 → xor/xor/or/sete 物化
     {
         return true;
     }
 
-    int col = 1;
-    if (!db->get_int(0, sig->m_todFirstLayerStartDate))      // +0xd71c
+    int col = 0;                          // ORIG 08406f85 movl $0,-0x10
+    bool ok = false;                      // ORIG 08406f8c movb $0,-0x9 每步 get 同槽保存
+    ok = db->get_int(col++, sig->m_todFirstLayerStartDate);  // +0xd71c
+    if (!ok)
     {                                                        // first_layer_start_date
-        cMyTrace trace(__PRETTY_FUNCTION__,
+        cMyTrace tt1(__PRETTY_FUNCTION__,
                        0x1b77, 5);
-        trace("TOD : select from charac_tower_despair charac_no=%u",
+        tt1("TOD : select from charac_tower_despair charac_no=%u",
               sig->m_characNo);
         return false;
     }
-    ++col;
-    if (!db->get_int(col++, sig->m_todTodayEnterCount))      // +0xd720
+    ok = db->get_int(col++, sig->m_todTodayEnterCount);      // +0xd720
+    if (!ok)
     {                                                        // today_enter_count
-        cMyTrace trace(__PRETTY_FUNCTION__,
+        cMyTrace tt2(__PRETTY_FUNCTION__,
                        0x1b7f, 5);
-        trace("TOD select from charac_tower_despair charac_no=%u",
+        tt2("TOD select from charac_tower_despair charac_no=%u",
               sig->m_characNo);
         return false;
     }
     unsigned short layerVal = 0;
-    if (!db->get_ushort(col++, layerVal))                    // last_clear_layer(ushort)
+    ok = db->get_ushort(col++, layerVal);                    // last_clear_layer(ushort)
+    if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
+        cMyTrace tt3(__PRETTY_FUNCTION__,
                        0x1b88, 5);
-        trace("[@TOD] select from charac_tower_despair charac_no=%d",
+        tt3("[@TOD] select from charac_tower_despair charac_no=%d",
               sig->m_characNo);
         return false;
     }
     TOD_Layer layer(layerVal);                               // ORIG TOD_Layer C1(T)@0x085fe7b4
     sig->m_todLastClearLayer = layer.m_layer;                // +0xd724（movw）
-    if (!db->get_short(col++,
-                       *reinterpret_cast<short*>(&sig->m_todEnterCountByWeek)))
+    ok = db->get_short(col++,
+                       *reinterpret_cast<short*>(&sig->m_todEnterCountByWeek));
+    if (!ok)
     {                                                        // enter_count_by_week
-        cMyTrace trace(__PRETTY_FUNCTION__,
+        cMyTrace tt4(__PRETTY_FUNCTION__,
                        0x1b92, 5);
-        trace("[@TOD] select from charac_tower_despair charac_no=%d",
+        tt4("[@TOD] select from charac_tower_despair charac_no=%d",
               sig->m_characNo);
         return false;
     }
-    if (!db->get_int(col++, sig->m_todDate))                 // +0xd728
+    ok = db->get_int(col++, sig->m_todDate);                 // +0xd728
+    if (!ok)
     {                                                        // m_date
-        cMyTrace trace(__PRETTY_FUNCTION__,
+        cMyTrace tt5(__PRETTY_FUNCTION__,
                        0x1b9a, 5);
-        trace("[@TOD] select from charac_tower_despair charac_no=%d",
+        tt5("[@TOD] select from charac_tower_despair charac_no=%d",
               sig->m_characNo);
         return false;
     }
-    if (!db->get_int(col, sig->m_todLastClearDate))          // +0xd72c
+    ok = db->get_int(col, sig->m_todLastClearDate);           // +0xd72c
+    if (!ok)
     {                                                        // last_clear_date
-        cMyTrace trace(__PRETTY_FUNCTION__,
+        cMyTrace tt6(__PRETTY_FUNCTION__,
                        0x1ba2, 5);
-        trace("[@TOD] select from charac_tower_despair charac_no=%d",
+        tt6("[@TOD] select from charac_tower_despair charac_no=%d",
               sig->m_characNo);
         return false;
     }

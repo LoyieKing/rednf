@@ -229,17 +229,16 @@ int CUser::AntibotSend(PacketBuf& packet)
     // （0x86483b0 早退，非我旧版 ==0 续跑）；④encrypt 调用实参求值序 get_len→
     // get_packet→getAntibotKey（右→左）；⑤trace1 的 key/len 在 C1 **之前**求值；
     // ⑥isEncryptRequired 缓存（encReq 真则二段不再调，0x864842b else 路）。
-    char* base = packet.get_packet(0);
-    unsigned short packetId = *(unsigned short*)(base + 1);
+    unsigned short packetId =
+        *(unsigned short*)(packet.get_packet(0) + 1);
     bool encReq = false;      // local_31
     bool encFailed = false;   // local_32
     if (packet.isEncryptRequired())
     {
         encReq = true;
         typedef int (*VerifyFn)(void*, int, unsigned short);   // vtable +0x34
-        void* checker = GlobalData::s_antibotChecker_;
-        VerifyFn vfn = *(VerifyFn*)((*(void***)checker)[0x34 / 4]);
-        if (vfn(checker, getAntibotKey(), packetId) != 0)
+        if ((*(VerifyFn*)((*(void***)GlobalData::s_antibotChecker_)[0x34 / 4]))(
+                GlobalData::s_antibotChecker_, getAntibotKey(), packetId) != 0)
         {
             const int bufLen = packet.get_len() + 500;   // local_6c
             char buf[bufLen];                            // ORIG VLA（alloca 步进）
@@ -250,12 +249,10 @@ int CUser::AntibotSend(PacketBuf& packet)
             memset(buf, 0, bufLen);
             ((InterfacePacketBuf*)&guard)->put_header(0, 0x231);
             typedef int (*EncryptFn)(void*, int, char*, int, char*, int*);  // +0x28
-            void* checker2 = GlobalData::s_antibotChecker_;
-            EncryptFn fn = *(EncryptFn*)((*(void***)checker2)[0x28 / 4]);
-            int bl = packet.get_len();          // 实参右→左：len 先算
-            char* pdata = packet.get_packet(0);
-            int key = getAntibotKey();
-            int r = fn(checker2, key, pdata, bl, buf, &outLen);
+            // 实参右→左求值：get_len→get_packet→getAntibotKey（P24/実参序）
+            int r = (*(EncryptFn*)((*(void***)GlobalData::s_antibotChecker_)[0x28 / 4]))(
+                GlobalData::s_antibotChecker_, getAntibotKey(),
+                packet.get_packet(0), packet.get_len(), buf, &outLen);
             if (r != 0)
             {
                 int tl = packet.get_len();      // trace 实参先于 C1（0x864832e/33b）
@@ -2719,13 +2716,13 @@ void CUser::RecoverFatigue(int value)
     _Charac_info* cur = getCurCharacW();
     if (cur != 0)
     {
-        bool ev2On = (ev2 != 0) && ev2->IsEventing((CUser*)0);
-        if (ev2On)
+        if (ev2 != 0 && ev2->IsEventing((CUser*)0))
         {
-            int factor =
-                reinterpret_cast<CMaxFatigueFactorEvent*>(ev2)->GetMaxFatigueFactor();
             cur->m_field35 =
-                (unsigned short)(factor * DEFAULT_MAX_FATIGUE / 100);
+                (unsigned short)(
+                    reinterpret_cast<CMaxFatigueFactorEvent*>(ev2)
+                        ->GetMaxFatigueFactor()
+                    * DEFAULT_MAX_FATIGUE / 100);
         }
         else
         {
@@ -2733,70 +2730,72 @@ void CUser::RecoverFatigue(int value)
         }
         if (IsHavePremiumAdvantage())
         {
-            WongWork::CUserPremium* premium = GetPremiumInfoW();
-            if (ev2On)
+            if (ev2 != 0 && ev2->IsEventing((CUser*)0))
             {
                 // base = (short)(factor*DEFAULT/100) - (short)DEFAULT
-                int factor2 =
-                    reinterpret_cast<CMaxFatigueFactorEvent*>(ev2)->GetMaxFatigueFactor();
-                short base = (short)(factor2 * DEFAULT_MAX_FATIGUE / 100)
+                short base = (short)(
+                        reinterpret_cast<CMaxFatigueFactorEvent*>(ev2)
+                            ->GetMaxFatigueFactor()
+                        * DEFAULT_MAX_FATIGUE / 100)
                            - (short)DEFAULT_MAX_FATIGUE;
-                unsigned int rate =
-                    (unsigned short)premium->GetAdvantageFatigueRate();
-                int v = (int)(rate * DEFAULT_MAX_FATIGUE / 100)
-                      + (int)((unsigned short)base * rate / 100);
-                setCurCharacMaxPremiumFatigue((unsigned short)v);
+                setCurCharacMaxPremiumFatigue(
+                    (unsigned short)(
+                        (unsigned short)GetPremiumInfoW()->GetAdvantageFatigueRate()
+                            * DEFAULT_MAX_FATIGUE / 100
+                      + (unsigned short)base
+                            * (unsigned short)GetPremiumInfoW()->GetAdvantageFatigueRate()
+                            / 100));
             }
             else
             {
-                unsigned int mf = getCurCharacMaxFatigue();
-                unsigned int rate =
-                    (unsigned short)premium->GetAdvantageFatigueRate();
-                int v = (int)(mf * rate / 100);
-                setCurCharacMaxPremiumFatigue((unsigned short)v);
+                setCurCharacMaxPremiumFatigue(
+                    (unsigned short)(
+                        (unsigned short)getCurCharacMaxFatigue()
+                            * (unsigned short)GetPremiumInfoW()->GetAdvantageFatigueRate()
+                            / 100));
             }
         }
     }
 
     // ORIG：事件 0x57 活跃（ORIG 无空检查）→ m_maxFatigue += DataManager 0x51c；
     // rate!=0 且 PC 房 → premium = rate*DEFAULT/100 + 0x51c，否则 rate*DEFAULT/100。
-    CEventBase* ev57 = GlobalData::s_event_manager->GetRepeatEvent(0x57);
-    if (ev57->IsEventing((CUser*)0))
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x57)->IsEventing((CUser*)0))
     {
         _Charac_info* curW = getCurCharacW();
-        unsigned short base = curW->m_field35;
-        base += *reinterpret_cast<const unsigned short*>(
+        curW->m_field35 = (unsigned short)(
             // dm+0x51c = SPS(+0x68)+0x4b4 = m_weekendBouns4b4.m_bonusFatiguePercent
-            &G_CDataManager()->m_serverParameter.m_weekendBouns4b4.m_bonusFatiguePercent);
-        curW->m_field35 = base;
-        WongWork::CUserPremium* premium = GetPremiumInfoW();
-        if (premium->GetAdvantageFatigueRate() != 0 && GetPCRoomNo() != 0)
+            curW->m_field35
+            + *reinterpret_cast<const unsigned short*>(
+                &G_CDataManager()->m_serverParameter.m_weekendBouns4b4
+                     .m_bonusFatiguePercent));
+        if (GetPremiumInfoW()->GetAdvantageFatigueRate() != 0
+            && GetPCRoomNo() != 0)
         {
-            unsigned int rate =
-                (unsigned short)premium->GetAdvantageFatigueRate();
-            int v = (int)(rate * DEFAULT_MAX_FATIGUE / 100)
+            setCurCharacMaxPremiumFatigue(
+                (unsigned short)(
+                    (unsigned short)GetPremiumInfoW()->GetAdvantageFatigueRate()
+                        * DEFAULT_MAX_FATIGUE / 100
                   + *reinterpret_cast<const unsigned short*>(
-                        &G_CDataManager()->m_serverParameter.m_weekendBouns4b4.m_bonusFatiguePercent);
-            setCurCharacMaxPremiumFatigue((unsigned short)v);
+                        &G_CDataManager()->m_serverParameter.m_weekendBouns4b4
+                             .m_bonusFatiguePercent)));
         }
         else
         {
-            unsigned int rate =
-                (unsigned short)premium->GetAdvantageFatigueRate();
-            int v = (int)(rate * DEFAULT_MAX_FATIGUE / 100);
-            setCurCharacMaxPremiumFatigue((unsigned short)v);
+            setCurCharacMaxPremiumFatigue(
+                (unsigned short)(
+                    (unsigned short)GetPremiumInfoW()->GetAdvantageFatigueRate()
+                        * DEFAULT_MAX_FATIGUE / 100));
         }
     }
     else
     {
         if (IsHavePremiumAdvantage())
         {
-            WongWork::CUserPremium* premium = GetPremiumInfoW();
-            unsigned int mf = getCurCharacMaxFatigue();
-            unsigned int rate =
-                (unsigned short)premium->GetAdvantageFatigueRate();
-            int v = (int)(mf * rate / 100);
-            setCurCharacMaxPremiumFatigue((unsigned short)v);
+            setCurCharacMaxPremiumFatigue(
+                (unsigned short)(
+                    (unsigned short)getCurCharacMaxFatigue()
+                        * (unsigned short)GetPremiumInfoW()->GetAdvantageFatigueRate()
+                        / 100));
         }
     }
     resetCurCharacUsedFatigue();
@@ -4555,11 +4554,6 @@ void CUser::SetUseAPCPotionTime(long time)
 long CUser::GetUseAPCPotionTime()
 {
     return m_field8d1e0;
-}
-
-WongWork::CUserPremium* CUser::GetPremiumInfoW()
-{
-    return &m_premium;
 }
 
 void CUser::SetDailyBadge(short* badge)
@@ -6606,39 +6600,38 @@ void CUser::LogoutCachedCharacter(unsigned char param)
     // Guild/Monitor 代理 Logout → param==0 双开检测 UDP Logout → PC 房通知 →
     // 清 ontime 奖励 → HeroMission 存档。
     SendMoenyLog();
-    // ORIG 0x864cb66：CacheCharacterMemory 返回 al **直落 byte 槽 -0x19**（uchar
-    // 物化非 int 槽）——uchar 类型还原。
-    unsigned char cached = (unsigned char)CacheCharacterMemory();  // 0/1
+    unsigned char cached = (unsigned char)CacheCharacterMemory();
 
-    // ORIG 0x0864cb66：前四值落远槽（-0x50..-0x44）、后三值 callee-saved
-    // （%edi/%esi/%ebx，push edi/esi/ebx prologue）——register asm 钉形（判据⑤）。
+    // ORIG 0x0864cb66：Guild 段与 Monitor 段各自完整重新取参（P48 no-CSE），
+    // 无 GetServerProxy 判空——直接解引用调用 SendLogout（P140/P171 照抄）。
     unsigned int memberKey = (unsigned int)get_charac_memberkey();
     unsigned int guildKey = (unsigned int)get_charac_guildkey();
     unsigned int characNo = (unsigned int)get_charac_no(-1);
-    register const char* name asm("edi");
-    name = getCurCharacName();
-    register int channel asm("esi");
-    channel = G_CEnvironment()->get_channel_no();
-    register unsigned int accId asm("ebx");
-    accId = get_acc_id();
-
+    char* name = (char*)getCurCharacName();
+    int channel = G_CEnvironment()->get_channel_no();
+    unsigned int accId = get_acc_id();
     CGuildServerProxy* guildProxy =
         GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup());
-    if (guildProxy != 0)
-        guildProxy->SendLogout(accId, channel, (char*)name, characNo,
-                               guildKey, memberKey, param);
+    guildProxy->SendLogout(accId, channel, name, characNo,
+                           guildKey, memberKey, param);
 
+    memberKey = (unsigned int)get_charac_memberkey();
+    guildKey = (unsigned int)get_charac_guildkey();
+    characNo = (unsigned int)get_charac_no(-1);
+    name = (char*)getCurCharacName();
+    channel = G_CEnvironment()->get_channel_no();
+    accId = get_acc_id();
     CMonitorServerProxy* monProxy =
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetServerGroup());
-    if (monProxy != 0)
-        monProxy->SendLogout(accId, channel, (char*)name, characNo,
-                             guildKey, memberKey, (int)param,
-                             cached);
+    monProxy->SendLogout(accId, channel, name, characNo,
+                         guildKey, memberKey, (int)param, cached);
 
     if (param == 0)
     {
-        int dcGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;   // §4.3 具名(env+0x378)
-        GlobalData::s_double_check_proxy->SendLogout(accId, channel, dcGroup);
+        CEnvironment* env = G_CEnvironment();
+        int dcGroup = env->m_serverEnvir.m_serverGroup;   // §4.3 具名(env+0x378)
+        int ch = G_CEnvironment()->get_channel_no();       // ORIG 二次取 env
+        GlobalData::s_double_check_proxy->SendLogout(get_acc_id(), ch, dcGroup);
     }
 
     if (getCurCharacR() != 0)
@@ -8344,14 +8337,18 @@ void CUser::FatigueUp(int v)
                     (getCurCharacMaxPremiumFatigue() & 0xffff);
             }
         }
+        // ORIG 0x086565b0（P48 no-CSE）：getCurCharacMaxFatigue 在条件与赋值处
+        // 各自重取，不缓存 maxFatigue 局部。
         unsigned int curFatigue = (unsigned int)getCurCharacFatigue() & 0xffff;
-        unsigned int maxFatigue = getCurCharacMaxFatigue() & 0xffff;
-        unsigned int newFatigue =
-            (int)(curFatigue + v) > (int)maxFatigue ? maxFatigue : curFatigue + v;
-        setCurCharacFatigue((int)newFatigue);
+        int newFatigue;
+        if ((int)(getCurCharacMaxFatigue() & 0xffff) < (int)(curFatigue + v))
+            newFatigue = (int)(getCurCharacMaxFatigue() & 0xffff);
+        else
+            newFatigue = (int)(curFatigue + v);
+        setCurCharacFatigue(newFatigue);
         IncCurCharacLuckPoint(
             // ORIG 0x086564a2 `mov 0xe0(%eax)`（4B int；SPS +0x78=m_78）
-            (newFatigue - curFatigue) * G_CDataManager()->m_serverParameter.m_78);
+            (newFatigue - (int)curFatigue) * G_CDataManager()->m_serverParameter.m_78);
         if (refill != 0)
         {
             gainCurCharacFatigue((unsigned int)refill);
@@ -8869,8 +8866,9 @@ int CUser::update_pvp_point(int v)
         }
         if (getPVPResultRefR()->m_pvpGrade < 10)
             return 1;
-        CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x36);
-        if (event != 0 && event->IsEventing((CUser*)0))
+        // ORIG 0x0865d0bb：GetRepeatEvent(0x36) 后直接解引用 IsEventing，无判空。
+        if (GlobalData::s_event_manager->GetRepeatEvent(0x36)
+                ->IsEventing((CUser*)0))
         {
             int grade = getPVPResultRefR()->m_pvpGrade;
             if (grade >= 10 && grade <= 0x13)
