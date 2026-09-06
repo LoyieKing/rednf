@@ -683,7 +683,8 @@ void CMonsterDropTest_makeFileGoldContents_Orig(void* user, char* fileBuf,
         size_t addLen = strlen(line);
         if (used + addLen > 89999)
         {
-            CBoosterTest::SendChatMsg(user, const_cast<char*>("결과 파일 이어붙힘"));
+            CBoosterTest::SendChatMsg(static_cast<CUser*>(user),
+                                      const_cast<char*>("결과 파일 이어붙힘"));
             return;
         }
         strcat(fileBuf, line);
