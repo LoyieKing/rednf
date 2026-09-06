@@ -1157,35 +1157,12 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
 namespace
 {
 
-// upgrade_info_t 元素内偏移直访（头文件镜像约定：+0x00..+0x2b 不具名混合区，
-// +0x2c/+0x30/+0x34 具名字段，+0x38..+0x6b 尾区；写入点全部来自报告汇编）。
-inline int& infoInt(upgrade_info_t& info, int off)
-{
-    if (off == 0x2c)
-    {
-        return info.m_recipeItem;
-    }
-    if (off == 0x30)
-    {
-        return info.m_meterialCount;
-    }
-    if (off == 0x34)
-    {
-        return info.m_discountBase;
-    }
-    // upgrade_info_t +0x00 区已按 ORIG C1 @0x0854b282 写域分段具名
-    // （m_prob00[8] + m_prob20[3]，连续 0x2c 字节）；此处按字节偏移取视图。
-    return *(int*)(reinterpret_cast<char*>(&info.m_prob00[0]) + off);
-}
-inline float& infoFloat(upgrade_info_t& info, int off)
-{
-    return *(float*)(reinterpret_cast<char*>(&info.m_prob00[0]) + off);
-}
-inline int& infoIntTail(upgrade_info_t& info, int off)   // +0x38..+0x6b 放大区
-{
-    return *(int*)(reinterpret_cast<char*>(&info.m_w38[0]) + off - 0x38);
-}
-
+// upgrade_info_t 的表行写入改为**真实字段下标直访**（batch-15 N-I 延伸）：
+// 原匿名 namespace 的 inline helper infoInt/infoFloat/infoIntTail 在 c6root gcc
+// 4.4.7 `-O0` 下每个使用点都发 call（实测本函数因此比 ORIG 多 45 insn），
+// 而 ORIG 0x08900e4x 区是 `call ScanInt` 后 2-3 条直写目标槽。偏移→字段映射
+// 按 upgrade_info_t 已建分段具名成员（m_prob00[8]/m_prob20[3]/+0x2c..34 三项/
+// m_w38[5]/m_w4c[4]/m_w5c[4]，合计恰 0x6c）。
 }  // namespace
 
 int importUpgradeTable(const char* path, upgrade_table_t* table)
@@ -1214,72 +1191,72 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                 for (;;)
                 {
                     upgrade_info_t info;
-                    infoFloat(info, 0x00) =
+                    info.m_prob00[0] =
                         static_cast<float>(ScanInt(&ok));
                     if (!ok)
                     {
                         break;
                     }
-                    infoFloat(info, 0x04) = ScanFloat(&ok);
+                    info.m_prob00[1] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    infoFloat(info, 0x14) = ScanFloat(&ok);
+                    info.m_prob00[5] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    infoFloat(info, 0x08) = ScanFloat(&ok);
+                    info.m_prob00[2] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    infoFloat(info, 0x18) = ScanFloat(&ok);
+                    info.m_prob00[6] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    infoFloat(info, 0x0c) = ScanFloat(&ok);
+                    info.m_prob00[3] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    infoInt(info, 0x10) = 0;
-                    infoInt(info, 0x1c) = ScanInt(&ok);
-                    infoInt(info, 0x20) = ScanInt(&ok);
-                    infoInt(info, 0x24) = ScanInt(&ok);
-                    infoInt(info, 0x28) = ScanInt(&ok);
-                    infoInt(info, 0x2c) = ScanInt(&ok);
-                    infoInt(info, 0x30) = 0;
-                    infoFloat(info, 0x48) =
+                    info.m_prob00[4] = 0;
+                    info.m_prob00[7] = ScanInt(&ok);
+                    info.m_prob20[0] = ScanInt(&ok);
+                    info.m_prob20[1] = ScanInt(&ok);
+                    info.m_prob20[2] = ScanInt(&ok);
+                    info.m_recipeItem = ScanInt(&ok);
+                    info.m_meterialCount = 0;
+                    info.m_w38[4] =
                         static_cast<float>(ScanInt(&ok));
                     if (!ok)
                     {
                         break;
                     }
-                    infoFloat(info, 0x5c) = 0.0f;
-                    infoFloat(info, 0x50) = ScanFloat(&ok);
+                    info.m_w5c[0] = 0.0f;
+                    info.m_w4c[1] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    infoFloat(info, 0x60) = ScanFloat(&ok);
+                    info.m_w5c[1] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    infoFloat(info, 0x54) = ScanFloat(&ok);
+                    info.m_w4c[2] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    infoFloat(info, 0x64) = ScanFloat(&ok);
+                    info.m_w5c[2] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    infoFloat(info, 0x58) = ScanFloat(&ok);
+                    info.m_w4c[3] = ScanFloat(&ok);
                     if (!ok)
                     {
                         break;
@@ -1290,9 +1267,14 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
             else if (token == "[amplification const]")
             {
                 size_t index = 0;
+                ok = true;                    // ORIG local_cb = true（入循环前置真）
                 for (;;)
                 {
-                    if (index >= table->m_infos.size())   // ORIG 无 empty() 调用（P140）
+                    // ORIG 条件本体是 `ok == false || size() <= index` 的合并短路
+                    // （0x08901020 起 + bool 汇聚岛）。ok 复位为 true 的语义已补（下方）；
+                    // 汇聚岛在 4.4 下改命名 bool 反而多 12 insn（实测 1165→1177），
+                    // 故保留直判形，岛形差记 N3/setcc-fold。
+                    if (index >= table->m_infos.size())
                     {
                         break;
                     }
@@ -1302,11 +1284,11 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
                     {
                         if (i == 0)
                         {
-                            infoIntTail(info, 0x38) = 0;
+                            info.m_w38[i] = 0;
                         }
                         else
                         {
-                            infoIntTail(info, 0x38 + i * 4) = ScanInt(&ok);
+                            info.m_w38[i] = ScanInt(&ok);
                         }
                         if (!ok)
                         {
@@ -1565,13 +1547,21 @@ int importUpgradeTable(const char* path, upgrade_table_t* table)
             {
                 for (;;)
                 {
-                    int level;
-                    if (!ScanInt(&level))
+                    // ORIG 0x08901e81 起：每轮循环头先 `local_d9 = false` 复位 ok，
+                    // 数值走 **ScanInt(bool*)/ScanFloat(bool*) 的返回值通道**
+                    // （Ghidra `local_e0 = (float)ScanInt(&local_d9)`、
+                    // `lVar8 = (longdouble)ScanFloat(&local_d9)`），ok 仅作
+                    // 「!= true → 退出/返回 0」判定。此前写成 ScanInt(int*) 的
+                    // 出参通道（P170：mangled 参数类型须 nm 实查），使本函数
+                    // 引用了 ORIG 未调用的 _Z7ScanIntPi。
+                    ok = false;
+                    int level = ScanInt(&ok);
+                    if (ok != true)
                     {
                         break;
                     }
                     float weight = ScanFloat(&ok);
-                    if (!ok)
+                    if (ok != true)
                     {
                         return 0;
                     }

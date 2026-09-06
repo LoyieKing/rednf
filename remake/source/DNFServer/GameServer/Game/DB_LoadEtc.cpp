@@ -903,17 +903,26 @@ bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC* sig)
 // ============================================================================
 bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
 {
+    // ORIG 槽形：ok=-0x19 保存、srcLen=-0x18/-0x14/-0x10/-0xc（各列命名槽）、
+    // outLen 各块独立槽 -0x34/-0x38/-0x3c/-0x40。
+    bool ok;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect general_section, specific_section, despair, event from"
                   " charac_titlebook where charac_no=%u", sig->m_characNo);
-    if (!db->exec(true))
+    ok = db->exec(true);
+    if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x19c0, 5);
-        trace("LoadTitleBook(), exec() ERROR charac_no=%u", sig->m_characNo);
+        cMyTrace tr1(__PRETTY_FUNCTION__, 0x19c0, 5);
+        tr1("LoadTitleBook(), exec() ERROR charac_no=%u", sig->m_characNo);
         return false;
     }
-    if (db->get_n_rows() == 0 || !db->fetch())
+    if (db->get_n_rows() == 0)
+    {
+        return false;
+    }
+    ok = db->fetch();
+    if (!ok)
     {
         return false;
     }
@@ -928,10 +937,10 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         {
             return false;
         }
-        unsigned int outLen = 0x10ae;
-        int srcLen = db->get_binary_length(0);
-        if (!uncompress_zip(sig->m_titlebookGeneral, outLen, blob,
-                            static_cast<unsigned int>(srcLen)))
+        unsigned int outLen1 = 0x10ae;
+        int srcLen1 = db->get_binary_length(0);
+        if (!uncompress_zip(sig->m_titlebookGeneral, outLen1, blob,
+                            static_cast<unsigned int>(srcLen1)))
         {
             return false;
         }
@@ -943,10 +952,10 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         {
             return false;
         }
-        unsigned int outLen = 0x2fa8;
-        int srcLen = db->get_binary_length(1);
-        if (!uncompress_zip(sig->m_titlebookSpecific, outLen, blob,
-                            static_cast<unsigned int>(srcLen)))
+        unsigned int outLen2 = 0x2fa8;
+        int srcLen2 = db->get_binary_length(1);
+        if (!uncompress_zip(sig->m_titlebookSpecific, outLen2, blob,
+                            static_cast<unsigned int>(srcLen2)))
         {
             return false;
         }
@@ -958,10 +967,10 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         {
             return false;
         }
-        unsigned int outLen = 0x1c98;
-        int srcLen = db->get_binary_length(2);
-        if (!uncompress_zip(sig->m_titlebookDespair, outLen, blob,
-                            static_cast<unsigned int>(srcLen)))
+        unsigned int outLen3 = 0x1c98;
+        int srcLen3 = db->get_binary_length(2);
+        if (!uncompress_zip(sig->m_titlebookDespair, outLen3, blob,
+                            static_cast<unsigned int>(srcLen3)))
         {
             return false;
         }
@@ -973,10 +982,10 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         {
             return false;
         }
-        unsigned int outLen = 0x0e4c;
-        int srcLen = db->get_binary_length(3);
-        if (!uncompress_zip(sig->m_titlebookEvent, outLen, blob,
-                            static_cast<unsigned int>(srcLen)))
+        unsigned int outLen4 = 0x0e4c;
+        int srcLen4 = db->get_binary_length(3);
+        if (!uncompress_zip(sig->m_titlebookEvent, outLen4, blob,
+                            static_cast<unsigned int>(srcLen4)))
         {
             return false;
         }

@@ -6573,7 +6573,9 @@ void CUser::LogoutCachedCharacter(unsigned char param)
     // Guild/Monitor 代理 Logout → param==0 双开检测 UDP Logout → PC 房通知 →
     // 清 ontime 奖励 → HeroMission 存档。
     SendMoenyLog();
-    int cached = CacheCharacterMemory();   // 0/1；透传给 CMonitorServerProxy::SendLogout（ORIG uVar1）
+    // ORIG 0x864cb66：CacheCharacterMemory 返回 al **直落 byte 槽 -0x19**（uchar
+    // 物化非 int 槽）——uchar 类型还原。
+    unsigned char cached = (unsigned char)CacheCharacterMemory();  // 0/1
 
     // ORIG 0x0864cb66：前四值落远槽（-0x50..-0x44）、后三值 callee-saved
     // （%edi/%esi/%ebx，push edi/esi/ebx prologue）——register asm 钉形（判据⑤）。
@@ -6597,8 +6599,8 @@ void CUser::LogoutCachedCharacter(unsigned char param)
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetServerGroup());
     if (monProxy != 0)
         monProxy->SendLogout(accId, channel, (char*)name, characNo,
-                             guildKey, memberKey, param,
-                             (unsigned char)(cached ? 1 : 0));
+                             guildKey, memberKey, (int)param,
+                             cached);
 
     if (param == 0)
     {

@@ -11791,7 +11791,13 @@ int Dispatcher_BiddingRoutingItem::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
     CSpecialItemRoutingManager* routing = G_CGameManager()->GetSpecialItemRoutingManager();
-    if (!routing->ArriveMemberSelection(user, party, selection))
+    // X1 位点（台账 ours_only=sete1,test1）：ORIG 此处是单段 `xor $0x1,%eax;
+    // testb %al,%al; je` 岛，而 4.4 对 `!intcallee()` 恒折成 `test;sete %al;test`
+    // 两段 ⇒ 用「绑 %eax 具名 unsigned char + ^= 1」形复现（判据见 X 族五级序）。
+    register unsigned char arriveBad asm("eax") =
+        (unsigned char)routing->ArriveMemberSelection(user, party, selection);
+    arriveBad ^= 1;
+    if (arriveBad)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x12d, 0x13);
         return 0;
