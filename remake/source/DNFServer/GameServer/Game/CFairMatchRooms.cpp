@@ -1002,6 +1002,9 @@ void CFairMatch::UpdateScore(PvP_Room* room, PlayerInfoThird& info,
         MissionClearCondition_Parameter cond(
             static_cast<PVP_BATTLE_MODE>(
                 GetPlayCountPerOneTeam() == 1 ? 2 : 3));
+        // ORIG 0x8565900：Update_GameOver_event 前二次取 GetKillCount（local_48）。
+        const int killCnt2 = relay.GetKillCount(seat);
+        (void)killCnt2;
         missions->Update_GameOver_event(*user, cond);
         GiveTrainingSeal(user, win != 0);
     }

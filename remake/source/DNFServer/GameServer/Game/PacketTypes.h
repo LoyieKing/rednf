@@ -945,7 +945,8 @@ public:
                                   //  CheckMoveMapFitInPathHackCnt 第 3 实参）
     unsigned int m_field13;       // +0x13（同上第 4 实参）
     unsigned char m_field17;      // +0x17（==1 时 CParty::move_map 先 checkLayeredMap）
-    char m_pad18[2];              // +0x18..+0x19
+    // ORIG 0x081c4b7a `movzwl 0x18(%eax),%ecx` 2B 读（A822Y 证，CheckTrapBitsHackCnt %7 判据）
+    unsigned short m_trapBits;    // +0x18..+0x19（trap 位图，%7 整除性 hack 检查）
     unsigned char m_1a;           // +0x1a（ORIG process 校验 ==1 跳过 0x25a hack 记数）
     unsigned short m_1b[4];       // +0x1b..+0x22（[0]=mapIndex：CBossTowerFunc::
                                   //   MoveMap 以 (ushort*)(msg+0x1b) 传入；

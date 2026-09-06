@@ -5839,12 +5839,14 @@ void CParty::generateBloodRewardExp(int slot, int round, unsigned int baseExp,
     CEventBase* ev8 = GlobalData::s_event_manager->GetRepeatEvent(8);
     CPCRoomBurningEvent* pcr = static_cast<CPCRoomBurningEvent*>(ev8);
     if (pcr->IsEventing(user))
-        param.m_pcRoomBurningRate = (float)(pcr->GetExpFactor() / 100);
+        param.m_pcRoomBurningRate = (float)(static_cast<CPCRoomBurningEvent*>(
+            GlobalData::s_event_manager->GetRepeatEvent(8))->GetExpFactor() / 100);
 
     CEventBase* ev3 = GlobalData::s_event_manager->GetRepeatEvent(3);
     CExpDoubleEvent* expDouble = static_cast<CExpDoubleEvent*>(ev3);
     if (expDouble->IsEventing(0))
-        param.m_expDoubleRate = (float)(expDouble->GetExpFactor() / 100.0f);
+        param.m_expDoubleRate = (float)(static_cast<CExpDoubleEvent*>(
+            GlobalData::s_event_manager->GetRepeatEvent(3))->GetExpFactor() / 100.0f);
 
     CBurningFatigueEvent* fatigue =
         static_cast<CBurningFatigueEvent*>(
@@ -5864,7 +5866,7 @@ void CParty::generateBloodRewardExp(int slot, int round, unsigned int baseExp,
     // CEnvironment.h 权威布局）。原 movzbl 单字节读为宽度异形，修正为
     // int 读后截断，与 ORIG 指令序列一致。
     unsigned char channelType =
-        static_cast<unsigned char>(env->m_serverEnvir.m_serverGroup);
+        static_cast<unsigned char>(G_CEnvironment()->m_serverEnvir.m_serverGroup);
     param.m_serverChannelRate =
         chScript->getBonusRate(channelType, channelNo, dungIdx);
 

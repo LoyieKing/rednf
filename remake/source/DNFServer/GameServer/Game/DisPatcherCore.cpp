@@ -9625,14 +9625,13 @@ int DisPatcher_MoveMap::read(PacketBuf& packet, MSG_BASE& msg)
 void DisPatcher_MoveMap::CheckTrapBitsHackCnt(CUser* user, MSG_MOVE_MAP& info)
 {
     // ORIG 为 0x2493 魔数除法序列：q=v/7 后 r=v-q*7，r!=0 即非整除
-    // PacketTypes.h（冻结）该处仍是 char m_pad18[2]；ORIG 以 2B（movzwl）读取
-    // → 具名成员上的同宽度 ushort 视图；已列「待落 ushort m_trapBits」清单给 Main。
+    // PacketTypes.h MSG_MOVE_MAP::m_trapBits（ushort@+0x18，Main 已代落）真成员直读。
     // ORIG 0x081c4b7a：`mov 0x10(%ebp),%eax; movzwl 0x18(%eax),%ecx` —— 具名 ushort
     // 成员单级装载 + 值绑 %ecx 跨 imul/mov 存活（register asm，无栈槽）。
     // 注：4.4 恒产 `movzwl mem,%eax; mov %eax,%ecx` 两步（N18a 变体，int 绑定会
     // 连带把 % 序列换成 32 位版更差）；保留 ushort 绑定使 divseq 保持 16 位 HImode 形。
     register unsigned short trapBits asm("ecx") =
-        reinterpret_cast<MoveMapMsgView*>(&info)->m_18;
+        info.m_trapBits;
     // ORIG 81c4bb5：`je` 直落 epilogue + cond 尾无 jmp（4.1 线程化）；4.4 恒保留
     // 空 return bb + 双 jmp（jump-threading 反向），无源码形可翻 → N 类天花板。
     if (trapBits % 7 == 0)

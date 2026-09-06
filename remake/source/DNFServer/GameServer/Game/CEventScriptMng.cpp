@@ -312,15 +312,28 @@ void CEventScriptMng::process_level_up_reward_recv_level(
 void CEventScriptMng::inc_user_fatigue(CUser* user,
                                        unsigned int fatigue)
 {
+    // ORIG 顺序：先 is_eventing(0x199)（bool 经 xor $1 取反，jne 早退），
+    // 再 get_event_entity(0x199)；userType 用 unsigned char（movzbl 零扩展
+    // 后 int 级 test/cmp 分派），case 0 直接累加 / case 1 需 GetPCRoomNo()。
+    if (!is_eventing(0x199))
+        return;
     CFatigueQuantity* entity =
         static_cast<CFatigueQuantity*>(get_event_entity(0x199));
-    if (entity == 0 || !is_eventing(0x199))
+    if (entity == 0)
         return;
 
-    const char userType = entity->get_user_type();
-    if (userType == 0 ||
-        (userType == 1 && user->GetPCRoomNo() != 0))
+    // movzbl（零扩展）后 int 级 test/cmp 分派（switch 布局：case0 je/case1 je/
+    // 缺省 jmp 出口，userType 留在寄存器不入栈）。case 1 需 GetPCRoomNo()。
+    switch ((unsigned char)entity->get_user_type())
+    {
+    case 0:
         user->IncCurCharacUsedFatigueQuantity(fatigue);
+        break;
+    case 1:
+        if (user->GetPCRoomNo() != 0)
+            user->IncCurCharacUsedFatigueQuantity(fatigue);
+        break;
+    }
 }
 
 // ORIG 0x810c1ea：礼物疲劳事件验证通过后发送奖励。
@@ -520,19 +533,21 @@ void CEventScriptMng::update_time_values(int hour)
     time_t now = GlobalData::s_systemTime_.getCurSec();
     time_t prev = now - 0x15180;
     struct tm localT, prevT;
-    localtime_r(&now, &localT);
-    localtime_r(&prev, &prevT);
+    // ORIG 保存 localtime_r 返回的指针局部（-0x14=&localT / -0x10=&prevT），
+    // 后续经指针成员访问（==&localT/+0x8 tm_hour 等），非每次 lea 重求址。
+    struct tm* localTp = localtime_r(&now, &localT);
+    struct tm* prevTp = localtime_r(&prev, &prevT);
 
-    if (localT.tm_hour < 0 || hour <= localT.tm_hour)
+    if (localTp->tm_hour < 0 || hour <= localTp->tm_hour)
     {
-        m_todayTimeDay = static_cast<unsigned char>(localT.tm_mday);
-        m_todayTime = localT.tm_year * 10000 + (localT.tm_mon + 1) * 100
+        m_todayTimeDay = static_cast<unsigned char>(localTp->tm_mday);
+        m_todayTime = localTp->tm_year * 10000 + (localTp->tm_mon + 1) * 100
                       + 19000000 + static_cast<unsigned char>(m_todayTimeDay);
     }
     else
     {
-        m_todayTimeDay = static_cast<unsigned char>(prevT.tm_mday);
-        m_todayTime = prevT.tm_year * 10000 + (prevT.tm_mon + 1) * 100
+        m_todayTimeDay = static_cast<unsigned char>(prevTp->tm_mday);
+        m_todayTime = prevTp->tm_year * 10000 + (prevTp->tm_mon + 1) * 100
                       + 19000000 + static_cast<unsigned char>(m_todayTimeDay);
     }
 }
