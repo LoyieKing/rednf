@@ -6697,6 +6697,7 @@ bool CheckRentableEnvironmentAtChannelType(CUser& /*user*/)
 }
 
 // ---- GetSelectionIndex —— T 0x082711f7（同名报告全文转写）------------------
+EventRewardSection* GetRewardSection(int idx, int type);   // 定义见下方
 bool GetSelectionIndex(CUser& user, int& outIndex, int type)
 {
     const _Charac_info* cur = user.getCurCharacR();
@@ -6718,18 +6719,11 @@ bool GetSelectionIndex(CUser& user, int& outIndex, int type)
         selIdx = (int)cur->m_level;
     }
 
-    int chosen = selIdx > 0 ? selIdx : 0;              // std::max(0, idx)
+    // ORIG：std::max<int>(0, selIdx)（模板调用，非 ?: cmov），再统一经
+    // GetRewardSection(idx, type) 三分支分派（ORIG 不在此内联 type 分支）。
+    int chosen = std::max(0, selIdx);
 
-    EventRewardSection* section = 0;
-    if (type == 1)
-    {
-        section = G_CDataManager()->m_pcBangRentar.getSectionData(chosen);
-    }
-    else if (type == 2)
-    {
-        section =
-            G_CDataManager()->m_dimensionAct.m_rewardData.getSectionData(chosen);
-    }
+    EventRewardSection* section = GetRewardSection(chosen, type);
     if (section == 0)
     {
         return false;

@@ -2138,13 +2138,15 @@ void user_creature::CCreature::SetStomach(int stomachValue)
 // ============================================================================
 void user_creature::CCreatureItem::Set(user_creature::CCreatureItem* src)
 {
-    m_itemId = src->m_itemId;
-    m_creatureItemType = src->m_creatureItemType;
-    m_uid = src->m_uid;
-    m_slotNo = src->m_slotNo;
-    m_noCharge = src->m_noCharge;
-    m_stat = src->m_stat;
-    m_expireTime = src->m_expireTime;
+    // ORIG 0x0833ef20：经 getter 逐字段读 src（-O0 产生 call），且
+    // m_expireTime(+0x18) 置 0 而非拷贝（蛋→宠物项复制，新宠无到期时间）。
+    m_itemId = src->GetItemId();
+    m_creatureItemType = src->GetCreatureItemType();
+    m_uid = src->GetUid();
+    m_slotNo = src->GetSlotNo();
+    m_noCharge = src->GetNoCharge();
+    m_stat = src->GetStat();
+    m_expireTime = 0;
 }
 
 // ============================================================================

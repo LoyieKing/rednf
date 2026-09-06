@@ -307,9 +307,11 @@ public:
     // m_rewards[type][idx]（(cat*13+idx+0x70)*4 寻址实证），否则返回 0。
     IRewardType* get_reward_type_object(ENUM_REWARD_TYPE type, unsigned int idx)
     {
-        if ((int)type < 2 && idx < 0xd)
-            return m_rewards[(int)type][idx];
-        return 0;
+        // P196：ORIG `cmp $1; jg(返0)` + `cmpl $0xc; jbe(数组)` 前置 false 岛；
+        // 正形使越界返 0 作快 path，数组访问 fall-through。
+        if ((int)type > 1 || idx > 0xc)
+            return 0;
+        return m_rewards[(int)type][idx];
     }
 
     // ORIG T 0x0826d8a2：type∈[0,1]、diff∈[0,3] 时查 m_minCounts[type][diff]，

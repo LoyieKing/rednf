@@ -632,6 +632,7 @@ bool CQuickPartySystemManager::regist_quick_party(
                                               firstMatchingCnt);
     if (qp == 0)
         return false;
+    // P197-N-cap：push_quick_party_in_pool 返 bool，`==1` 被 fold（无物化）；改 exec 返回类型属越界，记 N-cap。
     return push_quick_party_in_pool(key, data, party, outCount, qp, true);
 }
 

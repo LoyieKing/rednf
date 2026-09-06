@@ -7669,7 +7669,6 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
     {
         return;
     }
-    memset(basePrefix, 0, sizeof(basePrefix));
     for (int idx = 0; idx < 4; ++idx)
     {
         if (!party->checkValidUser(idx))
@@ -7683,8 +7682,8 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
         }
         if (idx == 0)
         {   // 记录基准：job/growType/IP 网络前缀/技能三槽
-            char peerIp[16];
-            memset(peerIp, 0, sizeof(peerIp));
+            char peerIpBuf[16];
+            char* peerIp = peerIpBuf;   // char* 静态类型命中 std::strrchr(char*,int) 非const重载
             member->m_network.GetPeerIP2(peerIp, 0x10);
             if (strlen(peerIp) <= 8)
             {
@@ -7701,7 +7700,9 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
             }
             size_t fullLen = strlen(peerIp);
             size_t dotLen = strlen(dot);
-            strncpy(basePrefix, peerIp, fullLen - dotLen);
+            size_t prefLen = fullLen - dotLen;
+            strncpy(basePrefix, peerIp, prefLen);
+            basePrefix[prefLen] = 0;   // 无 memset：显式 null 终止（mov，非 call）
             // 现声明为 const char*（ORIG 实返回 SkillSlot*），按位转写
             SkillSlot* skill = reinterpret_cast<SkillSlot*>(
                 const_cast<char*>(member->getCurCharacSkillR()));
@@ -7727,7 +7728,6 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
                 break;
             }
             char peerIp[16];
-            memset(peerIp, 0, sizeof(peerIp));
             member->m_network.GetPeerIP2(peerIp, 0x10);
             if (strncmp(basePrefix, peerIp, strlen(basePrefix)) != 0)
             {
@@ -8979,22 +8979,20 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                         __PRETTY_FUNCTION__,
                         out.m_errNo, user->get_acc_id());
     }
-    WongWork::CHackAnalyzer* hack = user->getHackAnalyzer();  // thunk 0x80f995a
     if (req.m_17 != 1)
     {
-        hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x3bb, 1, 0, 0);
+        user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x3bb, 1, 0, 0);
     }
     if (req.m_15 % 7 != 0)
     {
-        hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x12f, 1, req.m_11, req.m_13);
+        user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x12f, 1, req.m_11, req.m_13);
     }
     // [BLOCKED 依赖缺失] cUserHistoryLog::SetItemXYPos（ORIG W 0x0822f084
     // _ZN15cUserHistoryLog12SetItemXYPosEtt）无头文件声明且全仓无定义：
     // 待补齐后于 addServerHackCnt(0x12f) 之后调用
     // user->m_historyLog.SetItemXYPos(req.m_1a, req.m_1c)。
     user->m_historyLog.SetItemXYPos(req.m_1a, req.m_1c);   // ORIG 0x81c3731
-    int state = user->get_state();
-    if (state == 5)
+    if (user->get_state() == 5)
     {
         CParty* party = (CParty*)user->GetParty();
         if (party != 0)
@@ -9013,12 +9011,12 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                  *reinterpret_cast<const unsigned short*>(
                      &user->m_mcap.m_timeChkDiffB) > 0x1f4))
             {
-                hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x130, 1, 0, 0);
+                user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x130, 1, 0, 0);
             }
             // ORIG 0x81c3809..0x81c387d：GetItemSerialChecker(m_1a, m_1c, m_0d)==2 → 计 0x131
             if (user->GetItemSerialChecker(req.m_1a, req.m_1c, req.m_0d) == 2)
             {
-                hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x131, 1, 0, 0);
+                user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x131, 1, 0, 0);
             }
             // ORIG 0x81c3882..0x81c38a0：IsRoutingState → m_errNo=0xd8
             if (party->IsRoutingState())
@@ -9042,7 +9040,7 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                 if (checkGetItemPacket(user->getBackupSeed(),
                                        req.m_11, req.m_13) == 0)
                 {
-                    hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x12e, 1, 0, 0);
+                    user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x12e, 1, 0, 0);
                 }
             }
             // ORIG 0x81c39b1..0x81c3b2b：CBattle_Field(party+0xb24).get_dungeon_index()
@@ -9076,7 +9074,7 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         out.m_errNo = 0x7fffffff;
         return 0;
     }
-    if (state == 10)
+    if (user->get_state() == 10)
     {
         WongWork::CDeathTower* tower = user->getDeathTower();  // thunk 直调 0x86552a4
         if (tower != 0)
@@ -9093,7 +9091,7 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         out.m_errNo = 0x7fffffff;
         return 0;
     }
-    if (state == 0xc)
+    if (user->get_state() == 0xc)
     {
         // ORIG 0x81c3bdf..0x81c3c19：CBossTowerFunc::GetItem(user, m_0d, m_0f==1,
         // (char)m_10)，随后无条件置 m_errNo=0x7fffffff（asm +0x659）
@@ -9102,7 +9100,7 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         out.m_errNo = 0x7fffffff;
         return 0;
     }
-    if (state == 8)
+    if (user->get_state() == 8)
     {
         WarRoom* room = G_CGameManager()->GetWarRoom(
             user->GetWarRoomIndex());  // thunk 0x822fe84/0x80cc18e/0x82a25d0

@@ -124,8 +124,8 @@ unsigned char RandomOption::get_option_index(ENUM_RANDOM_OPTION_NUMBER num)
     {
         return m_fielda.m_field0;
     }
-    const unsigned char* self = reinterpret_cast<const unsigned char*>(this);
-    return self[(int)num * 3];
+    // P0：去 self 局部（ORIG 保持 this 在寄存器 movzbl (%eax,%ecx,1)）。直接内联 cast。
+    return reinterpret_cast<const unsigned char*>(this)[(int)num * 3];
 }
 
 void RandomOption::set_first_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v)

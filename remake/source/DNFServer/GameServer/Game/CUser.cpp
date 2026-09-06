@@ -13,7 +13,6 @@
 #include "CSwitchLog.h"   // CUser::SetPvpIndex（ORIG 0x08669ee8 pvp@log）
 #include "HistoryLog.h"  // CUser::master_new_skill WriteLearnSkill（ORIG 0x0866b4d7）
 #include "CUser.h"
-#include "CUser.h"
 #include "W6_HackPunishDeps.h"   // onUpdateHackCount：CAutoPunishRuleHackTypeMgr::checkMaxHackCntOver / WongWork::HackTypeInfo_t
 
 #include "CUser.h"
@@ -10049,9 +10048,10 @@ STGuildDBInfoOnly::STGuildDBInfoOnly()
     m_subMasterCnt = 0;             // +0x2d
     m_guildSkillPoint = 0;          // +0x42
     m_skillLearnCnt = 0;            // +0x44
-    // ORIG 此处循环 16× call STGuildSkill::C1Ev（+0x45 步长 5；STGuildSkill ctor =
-    // m_skillId=0xffffffff + m_skillLevel=0xff，即每 5 字节全 0xff）。CUser.h 冻结
-    // m_skills 为 char[0x50]，以等宽 memset 表达构造；随后被下方 memset 覆盖清零。
+    // ORIG 此处循环 16× call STGuildSkill::C1Ev（+0x45 步长 5；ctor 写
+    // m_field0=-1 + m_field4=0xff，即每 5 字节全 0xff）。m_skills 为 char[0x50]，
+    // 无法直接 in-band ctor 调用（§8.2 冻结头），以等宽 memset 表达；随后被
+    // 下方 memset 覆盖清零——该循环净效果为零，属 N 封顶的表示差异。
     for (int i = 0xf; i != -1; --i)
         memset(m_skills + i * 5, 0xff, 5);
     m_field95 = 0;                  // +0x95

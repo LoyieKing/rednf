@@ -531,7 +531,9 @@ int CEventScriptMng::get_pass_day(int yyyymmdd1, int yyyymmdd2)
 void CEventScriptMng::update_time_values(int hour)
 {
     time_t now = GlobalData::s_systemTime_.getCurSec();
-    time_t prev = now - 0x15180;
+    // ORIG 对 now 与 prev 各独立调一次 getCurSec()（两次 call），
+    // prev = getCurSec() - 0x15180，不复用 now 结果。
+    time_t prev = GlobalData::s_systemTime_.getCurSec() - 0x15180;
     struct tm localT, prevT;
     // ORIG 保存 localtime_r 返回的指针局部（-0x14=&localT / -0x10=&prevT），
     // 后续经指针成员访问（==&localT/+0x8 tm_hour 等），非每次 lea 重求址。

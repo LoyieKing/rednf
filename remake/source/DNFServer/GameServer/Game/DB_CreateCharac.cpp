@@ -166,7 +166,7 @@ bool DB_CreateCharac::_createCharacQuest(unsigned int characNo)
                                                   E_SERVER_GROUP_NONE);
     db->set_query("inSert into new_charac_quest(charac_no, clear_quest) values(%u,'')",
                   characNo);
-    return db->exec(true);
+    return db->exec(true);        // P197-N-cap：exec 返 bool，`==1` fold；改返回类型属越界
 }
 
 // ===========================================================================
@@ -188,7 +188,7 @@ bool DB_CreateCharac::_createCharacDungeon(unsigned int accId)
         db->set_query("inSert into member_dungeon (m_id,dungeon) values (%s,'')",
                       NumberToString(accId, 0));
     }
-    return db->exec(true);
+    return db->exec(true);        // P197-N-cap：exec 返 bool，`==1` fold；改返回类型属越界
 }
 
 // ===========================================================================

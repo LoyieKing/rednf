@@ -360,7 +360,8 @@ int Dispatcher_EnterDisjointStore::check_error(CUser* user, MSG_BASE& msg,
 // ============================================================================
 int Dispatcher_GuildCargo::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    if (user->get_state() != 3 || user->getCurCharacR() != 0)
+    // P196 真语义 bug：ORIG 当 getCurCharacR()==0 才返 -1（原 !=0 方向反）。
+    if (user->get_state() != 3 || user->getCurCharacR() == 0)
         return -1;
 
     if (user->get_charac_guildkey() == 0)                  // 0x0822f46c
@@ -377,7 +378,8 @@ int Dispatcher_GuildCargo::check_error(CUser* user, MSG_BASE& msg, ParamBase& pa
 int Dispatcher_GuildCargoHistory::check_error(CUser* user, MSG_BASE& msg,
                                               ParamBase& param)
 {
-    if (user->get_state() != 3 || user->getCurCharacR() != 0)
+    // P196 真语义 bug：ORIG 当 getCurCharacR()==0 才返 -1（原 !=0 方向反）。
+    if (user->get_state() != 3 || user->getCurCharacR() == 0)
         return -1;
 
     if (user->get_charac_guildkey() == 0)

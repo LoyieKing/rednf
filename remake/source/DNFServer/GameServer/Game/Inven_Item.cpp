@@ -171,6 +171,8 @@ void UpgradeSeparateInfo::SetUpgradeSeparate(unsigned char value)
     m_field = (unsigned char)((m_field & 0xe0) | (value & 0x1f));
 }
 
+// ORIG `shr $5;and $1` 直返 0/1（无 setne）；bool 返回致 `and $0x20;test;setne`。
+// 改 int 返回类型虽可闭合但波及全部调用点头声明，风险>收益；按 P197④ setne 物化 N-cap 记。
 bool UpgradeSeparateInfo::IsTradeRestriction() const
 {
     return (m_field >> 5) & 1;

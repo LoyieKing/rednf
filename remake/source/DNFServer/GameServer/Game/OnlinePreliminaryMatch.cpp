@@ -497,8 +497,6 @@ int COnlinePreliminary::CheckJoinable(PvP_Room* room, CUser* user)
         }
     case 1:                     // 各 case 独立 body 才触发 4.4 O0 出表
         return 4;               // （cmp $5;ja;mov table(%eax,4);jmp *%eax，
-    case 2:                     //  表 @0x8ca230c）；fall-through 合并会使
-        return 4;               //  4.4 退回比较链
     case 3:
         return 0;
     case 4:

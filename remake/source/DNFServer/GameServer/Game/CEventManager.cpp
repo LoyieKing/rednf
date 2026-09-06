@@ -396,17 +396,17 @@ bool CEventManager::LoadEventFromDB()
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     CEnvironment* env = G_CEnvironment();
     db->set_query(
-        "SELECT event_type, parameter1, parameter2 FROM dnf_event_log "
-        "WHERE end_time=0 AND server_id IN (0,%d) AND unix_timestamp()>=start_time "
-        "ORDER BY start_time",
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(env) + 0x378));
+        "seLect event_type, parameter1, parameter2 from dnf_event_log where "
+        "end_time = 0 and server_id in (0,%d) and unix_timestamp() >= start_time "
+        "order by start_time",
+        env->m_serverEnvir.m_serverGroup);
+    cMyTrace traceEnter(__PRETTY_FUNCTION__, 0x296, 9, true, true);
+    traceEnter("[!] Load Event From DB");
     if (!db->exec(true))
         return false;
     const int rows = db->get_n_rows();
-    for (int i = 0; i < rows; ++i)
+    for (int i = 0; i < rows && db->fetch(); ++i)
     {
-        if (!db->fetch())
-            return false;
         int type = 0;
         unsigned short p1 = 0;
         unsigned short p2 = 0;
@@ -418,6 +418,9 @@ bool CEventManager::LoadEventFromDB()
         param.m_field2 = p2;
         if (!TriggerEventStart(type, param))
             return false;
+        cMyTrace traceRow(__PRETTY_FUNCTION__, 0x305, 9, true, true);
+        traceRow("\t- Event Code(%d) , Parameter1(%d), Parameter2(%d)",
+                 type, (int)p1, (int)p2);
     }
     return true;
 }

@@ -71,9 +71,8 @@ MySQL* CLogGameChannel::GetLogTargetDB()
 // ORIG 0x08550456
 void CLogGameChannel::ReqSaveLog()
 {
-    Stream* pStream = GlobalData::s_stream_pool->Acquire("LogGameChannel.cpp",
-                                                         0x20);
-    CStreamGuard guard(pStream, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("LogGameChannel.cpp", 0x20), true);
     guard.operator*()->operator<<(0x79);
     guard.operator*()->operator<<(-1);
 
@@ -81,12 +80,13 @@ void CLogGameChannel::ReqSaveLog()
         guard->GetInBuffer<SIG_SAVE_LOGGAMECHANNEL>();
     memset(pSig, 0, 0x3b);
 
-    CEnvironment* env = G_CEnvironment();
-    pSig->m_game = (char)env->get_server_group();
-    pSig->m_chGroup = (short)env->get_channel_no();
-    pSig->m_no = env->get_gc_no();
-    strcpy(pSig->m_channel, env->get_channel_name());
-    strcpy(pSig->m_ip, env->get_server_ip());
+    pSig->m_game = (char)G_CEnvironment()->m_serverEnvir.m_serverGroup;
+    pSig->m_chGroup = (short)G_CEnvironment()->m_serverEnvir.m_channelNo;
+    pSig->m_no = G_CEnvironment()->m_serverEnvir.m_gcNo;
+    memcpy(pSig->m_channel, G_CEnvironment()->m_serverEnvir.m_channelName,
+           strlen(G_CEnvironment()->m_serverEnvir.m_channelName));
+    memcpy(pSig->m_ip, G_CEnvironment()->m_serverEnvir.m_serverIP,
+           strlen(G_CEnvironment()->m_serverEnvir.m_serverIP));
     pSig->m_now = (short)m_currentUser;
     pSig->m_new = (short)m_inUser;
     pSig->m_out = (short)m_outUser;

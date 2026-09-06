@@ -661,11 +661,11 @@ int WarAreaCounter::GetWarRoomCountFirstIndex(int idx)
             "WarAreaCounter GetWarRoomCountFirstIndex error idx(%d)", idx);
         return 0;
     }
-    int cur = m_curHourIdx;
     int sum = 0;
     for (int j = 0; j < idx; ++j)
     {
-        sum += m_warRoomCount[cur][j];
+        // ORIG: 循环内直读 m_curHourIdx（不 hoist 到局部槽，P0）。
+        sum += m_warRoomCount[m_curHourIdx][j];
     }
     return sum;
 }
@@ -681,11 +681,11 @@ int WarAreaCounter::GetWarRoomCountLastIndex(int idx)
             "WarAreaCounter GetWarRoomCountLastIndex error idx(%d)", idx);
         return 0;
     }
-    int cur = m_curHourIdx;
     int sum = 0;
     for (int j = 0; j <= idx; ++j)
     {
-        sum += m_warRoomCount[cur][j];
+        // ORIG: 循环内直读 m_curHourIdx（P0）；尾部 sub $0x1（真语义 bug：返 sum-1）。
+        sum += m_warRoomCount[m_curHourIdx][j];
     }
-    return sum;
+    return sum - 1;
 }
