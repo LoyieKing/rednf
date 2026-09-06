@@ -1471,7 +1471,9 @@ public:
     std::map<unsigned int, InfoDaily*> m_infoMap;   // +0x00
 };
 
-class Manager : public ARAD::ScriptInterface
+// ORIG C1 0x080e09bc：ScriptInterface C1 → ARAD::Singleton<Manager>::Singleton() → vptr → 清
+// +0x8..0x18 → ScriptLoader(+4)。空基 EBO 不动 sizeof/vptr（S22A 证，Singleton 族第 3 例）。
+class Manager : public ARAD::ScriptInterface, public ARAD::Singleton<CerashopAddRestrict::Manager>
 {
 public:
     Manager();

@@ -798,6 +798,7 @@ bool WindowsDataFileFamily::LoadWindowsDataFile(const char* path,
 bool WindowsDataFileFamily::GenerateRange(unsigned long* outStart,
                                           unsigned long* outLen)   // 0x08575230
 {
+    bool clipped = false;   // ORIG prologue 后即预清 -0x9（P198①：声明/预清在 IsEmpty 前）
     if (m_files.empty())
     {
         return false;
@@ -807,12 +808,11 @@ bool WindowsDataFileFamily::GenerateRange(unsigned long* outStart,
         static_cast<unsigned long>(rand()) %
             (static_cast<unsigned long>(m_randMax) + 1U);
 
-    bool clipped = false;
+    // ORIG: clip+置位同在单一 if 块（ja 直跳输出区）；拆两 if 会被 GCC 合并出错序中间测试。
     if (m_maxSize <= m_scanOffset + span)
-        clipped = true;
-    if (clipped)
     {
         span = m_maxSize - m_scanOffset;
+        clipped = true;
     }
     *outStart = m_scanOffset;
     *outLen = span;

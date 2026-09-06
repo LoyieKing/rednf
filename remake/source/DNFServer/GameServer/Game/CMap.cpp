@@ -260,12 +260,11 @@ void CMap::destory()
 
 int CMap::checkFitInPathObject(int x, int y) const
 {
-    // ORIG 0x…：第一参 `lea 0x4c(%eax),%edx` 单步直落 %edx；第二参
-    // `add $0x2c,%eax`。register asm("edx") 钉目标寄存器复现 lea 单段
-    // （NEAR_POOL CBattle_Field::GetCurPosX 技巧28 先例）。
-    register const int (*pa1)[2] asm("edx") =
-        reinterpret_cast<const int (*)[2]>(m_pathArea1);
-    return isInPathArea(x, y, pa1,
+    // [A·可攻未闭合] ORIG 第一参 `lea 0x4c(%eax),%edx` 单段直落；4.4 裸形恒
+    // `add+mov` 两段（ndiff 3）。实测 register asm("edx") 钉形反劣化（3→9，
+    // 实参求值序被重排），已回滚。bool→int 修复（P159）已消尾部 setne 归一。
+    return isInPathArea(x, y,
+                        reinterpret_cast<const int (*)[2]>(m_pathArea1),
                         reinterpret_cast<const int (*)[2]>(m_pathArea2));
 }
 

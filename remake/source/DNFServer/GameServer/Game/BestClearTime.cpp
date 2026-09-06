@@ -169,10 +169,13 @@ bool BestClearTime::_saveData(CUser* pUser)
     Stream* stream =
         GlobalData::s_big_stream_pool->Acquire("BestClearTime.cpp", 0x16);
     CStreamGuard guard(stream, true);
-    guard << (int)0x300;
-    guard << (int)pUser->GetUID();
+    // ORIG 0x080c8616：`(*guard)->operator<<(x)`（operator* de() + operator<<）
+    // 与 `guard->GetInBuffer`（operator-> pt()）标识调用形态，勿改为直接成员调用
+    // （直接 `guard << x` 会省略 ORIG 的 de() 调用）。
+    (*guard)->operator<<((int)0x300);
+    (*guard)->operator<<((int)pUser->GetUID());
 
-    SIG_BEST_CLEAR_TIME* sig = guard.GetInBuffer<SIG_BEST_CLEAR_TIME>();
+    SIG_BEST_CLEAR_TIME* sig = guard->GetInBuffer<SIG_BEST_CLEAR_TIME>();
     bool ok = (sig != 0);
     if (ok)
     {

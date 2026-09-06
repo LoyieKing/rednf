@@ -26,7 +26,10 @@
 #include "SyncScriptDeps.h"                               // toMbcs/toTString
 #include "Tick.h"                                         // verify() 计时
 
-static const char* k_srcFile = "../../Include/FilePack/Pack.cpp";
+// [b22] char*→char[]：ORIG 在所有 fprintf 错误串将该源文件串作立即数直压
+// （@0x8e2e7d0），char* 全局指针会 deref（每处 +1 mov）；char[] 在实参处衰减为
+// 地址立即数，与 ORIG 同形（P26/P183 型）。
+static const char k_srcFile[] = "../../Include/FilePack/Pack.cpp";
 
 // ---------------------------------------------------------------------------
 // Pack.cpp 域静态数据（ORIG .data/.bss）

@@ -16,6 +16,8 @@
 #include <map>
 #include <string>
 
+#include "Arad_DataManager.h"   // ARAD::Singleton<T>（ServiceRestrictManager 基类，ORIG C1 调 Singleton C1）
+
 class CUser;
 class InterfaceServicePolicy;
 
@@ -30,7 +32,7 @@ enum Enum
 };
 }
 
-class ServiceRestrictManager
+class ServiceRestrictManager : public ARAD::Singleton<ServiceRestrictManager>
 {
 public:
     ServiceRestrictManager();

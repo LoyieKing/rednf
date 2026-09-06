@@ -73,6 +73,11 @@ int CUdpHandler::InitServerSocket(int port)
             puts("Cannot assign requested address");
             break;
         default:
+            // 残差（N，probe /tmp/p16probe.cpp 实证）：ORIG 4.1 把本判断合入
+            // switch 决策树尾（`cmp $0x63; je` 后 `test %eax,%eax; je 尾`，复用
+            // 树值 %eax，default 体后置 `jmp`）；4.4 恒把 default 体单排为独立
+            // BB 并重载槽 `cmpl $0x0,-0xc(%ebp); je`。嵌套 `!(err==0)` 与
+            // register asm(eax) 形均只移位不变 cmp 源，块放置不可由源形控制。
             if (err != 0)
             {
                 printf("Could not bind UDP receive port. Error= %d , strerror = %s\n",

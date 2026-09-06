@@ -56,6 +56,8 @@ bool CSimpleLog::OpenFile(char const* path)
         return 0;
     }
     m_fp = fopen(path, "ab");
+    // ORIG 0x0854fabc：fopen 后 `test;sete;test;je` 寄存器内物化；4.4 直折 jne，
+    // 具名 bool 局部反 spill 槽+扩帧（-0x9/0x28）⇒ N73-N78 梳（跨版本 bool 物化）。
     if (m_fp == 0) {
         return 0;
     }

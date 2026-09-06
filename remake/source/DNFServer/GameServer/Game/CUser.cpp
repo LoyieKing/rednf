@@ -240,10 +240,14 @@ int CUser::AntibotSend(PacketBuf& packet)
     {
         encReq = true;
         // §4.5 例外：s_antibotChecker_（GlobalData.h `void*`）承自外部
-        // CreateAntiServerObj，antibot 类未在本仓建模（vtable 槽位
-        // VerifyFn=+0x34 / EncryptFn=+0x28）。登记 b22 类建模单：antibot
-        // （SDS 反外挂插件，需外部 SDK 接口定义）。禁 typedef 槽指针调用
-        // 无可行替代（类型缺失即无法真实虚调用）。
+        // 【b22 终判·第三方】CreateAntiServerObj(ORIG 0x082a6539 W) 反汇编实证
+        // = strlen/strncat/memcpy 拼路径 → dlopen → dlsym → call *%eax：checker
+        // 对象来自运行时加载的外部 .so（反外挂 SDK），其 C++ 类/构造/vtable 均
+        // 不在 df_game_r 编译单元内 ⇒ 本仓建模该类无从取证（未知槽的签名不可
+        // 声明、§4.1 禁造），typedef 槽指针直调即 ORIG 行为的忠实表达——建模
+        // 收益评估否决，此案终结。全族七槽用法同源：VerifyFn+0x34/EncryptFn+
+        // 0x28/Fn3+0x08/Fn1+0x24/ReportFn+0x38/AddClient+0x04/P2PAddClient+
+        // 0x20（本文件 :7746 与 PacketDispatcher/InterDispatcher 各点同判）。
         typedef int (*VerifyFn)(void*, int, unsigned short);   // vtable +0x34
         if ((*(VerifyFn*)((*(void***)GlobalData::s_antibotChecker_)[0x34 / 4]))(
                 GlobalData::s_antibotChecker_, getAntibotKey(), packetId) != 0)

@@ -379,9 +379,9 @@ bool CExchangeServer::ForwardRequestCharac_forchina(int a, int b,
                                               0x1f4));
     }
 
-    sGuard << a;
-    sGuard << b;
-    sGuard.put_binary(data, len);
+    sGuard.operator*()->operator<<(a);       // deEv → op<<(int)
+    sGuard.operator*()->operator<<(b);       // deEv → op<<(int)
+    sGuard.operator->()->put_binary(data, len);  // ptEv → put_binary
 
     GlobalData::s_msgq_mgr->put(QIdx(2), sGuard);
     return true;

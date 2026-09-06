@@ -24,8 +24,11 @@ public:
         return false;
     }
 
-    int m_job;           // +0x00
-    unsigned char m_sub; // +0x04
+    int m_job;         // +0x00
+    // P196：ORIG operator< 0x084865e2 对 m_sub 用 `movzbl;cmp;JGE`（有符号
+    // 8 位比较），signed char 使 comparand 走有符号序；m_sub 值域 0..5 不
+    // 涉 ≥0x80 分叉，语义等价。mangled 不变。
+    signed char m_sub; // +0x04
 };
 // sizeof 0x08（int + uchar + 3 pad）
 

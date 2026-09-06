@@ -6103,7 +6103,7 @@ void Dispatcher_MouseRegister::doPassPadReplay(CUser* user, char* answer,
         packet.put_header(1, 0xa7);
         packet.put_byte(0);
         packet.put_byte(0x87);
-        packet.put_byte(pad->getFailCnt());
+        packet.put_byte(user->getPad()->getFailCnt());   // P48：第二次独立 getPad()
         packet.finalize(true);
         user->Send(packet);
 
@@ -6178,9 +6178,10 @@ int Dispatcher_MouseRegister::dispatch_sig(CUser* user, PacketBuf& packet)
         Stream* stream =
             GlobalData::s_stream_pool->Acquire("PacketDispatcher_Secu.cpp", 0x2ba);
         CStreamGuard guard(stream, true);
-        guard << (int)0xa3;
-        guard << (int)user->GetUID();
-        SIG_MOUSE_REGISTER* sig = guard.GetInBuffer<SIG_MOUSE_REGISTER>();
+        // ORIG：写入经 operator*（0x080c8c46）、GetInBuffer 经 operator->（P103）。
+        **guard << (int)0xa3;
+        **guard << (int)user->GetUID();
+        SIG_MOUSE_REGISTER* sig = guard.operator->()->GetInBuffer<SIG_MOUSE_REGISTER>();
         sig->m_accId = user->get_acc_id();
         sig->m_pkgType = (unsigned int)pkgType;
         strncpy(sig->m_password1, (char*)decPwd1, 7);
@@ -18834,8 +18835,10 @@ int Dispatcher_CompleteLoadAfterAssault::process(CUser* user, MSG_BASE& msg, Par
 int Dispatcher_CompleteLoadAfterAssault::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_Enchant_3rdChronicleItem::~Dispatcher_Enchant_3rdChronicleItem() {}
-extern "C" int _ZN8WongWork12CItemUpgrade11ProcUpgradeEP5CUserP11MSG_ENCHANTP11PacketGuard(
-    void* self, CUser* user, void* msg, void* packet);
+// b22 桥清零（P201，Model22）：WongWork::CItemUpgrade::ProcUpgrade 原 extern"C"
+// mangled 直连桥转真成员调用。CDataManager.h:3024 权威虚槽声明、定义
+// CItemUpgrade.cpp:410；ORIG 0x081d3808 调用即 devirt 直调 call 同 mangled，
+// 真调用同形。
 
 int Dispatcher_Enchant_3rdChronicleItem::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -18898,8 +18901,7 @@ int Dispatcher_Enchant_3rdChronicleItem::process(CUser* user, MSG_BASE& msg, Par
     PacketGuard pg;                                              // try 域 @081d37e3..081d3846
     pg.put_header(1, 0x173);
 
-    out.m_4 = _ZN8WongWork12CItemUpgrade11ProcUpgradeEP5CUserP11MSG_ENCHANTP11PacketGuard(
-        G_CDataManager()->m_itemUpgrade, user, &req, &pg);
+    out.m_4 = G_CDataManager()->m_itemUpgrade->ProcUpgrade(user, &req, &pg);
 
     if (out.m_4 == 0)
     {
@@ -21888,7 +21890,7 @@ int Dispatcher_AradJumpingCharacter::dispatch_sig(CUser* user, PacketBuf& packet
         "localjapan/Arad_PacketDispatcher.cpp", 0x5c8);
     CStreamGuard guard(stream, true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2d, (int)user->GetUID());
-    guard.put_binary((void*)&sig, 0x11);
+    guard.operator->()->put_binary((void*)&sig, 0x11);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);
     return 0;
 }
@@ -22111,8 +22113,8 @@ int Dispatcher_RequestPrcoomDayilyReward::dispatch_sig(CUser* user, PacketBuf& p
     {
         return 0;
     }
-    int st = user->get_state();
-    if (st < 3 || st > 4)
+    // ORIG：<3 与 >4 各重读一次 get_state（P48 无 CSE）。
+    if (user->get_state() < 3 || user->get_state() > 4)
     {
         return 0;
     }
@@ -27396,8 +27398,11 @@ int computeHpDamageSDC(STComputeDamageVariable* v, void* /*unusedArg2*/, void* d
 
 // ---- Packet_Mannerless_User_Accusation ctor ----
 // ORIG W _ZN33Packet_Mannerless_User_AccusationC1Ev @0x0822c1e6（0xaf）。
-// PacketHeader(type=0x1b66, size=0x15f) 经 asm 桥（ORIG W _ZN12PacketHeaderC1Ett @0x08110b70）。
-extern "C" void _ZN12PacketHeaderC1Ett(void* self, unsigned short type, unsigned short size);
+// b22 桥清零（P201，Model22）：PacketHeader(type=0x1b66,size=0x15f) 原 extern"C"
+// mangled 桥（ORIG W _ZN12PacketHeaderC1Ett @0x08110b70）转 placement new 真构造
+// ——本 TU 编译视图为 SigTypes_E.h POD 承载（+0x00..0x05 m_pad0、m_uid@+0x06 与
+// ORIG connNo 覆区），不可继承 PacketHeader（字段偏移整体漂移即破坏 16396 消费
+// 点布局），placement new 于 +0 真调 ctor，写区/参序与 ORIG 逐字节同形。
 
 // ORIG W 0x0822c1ca（_ZN 非 const）：(unsigned)type <= 2。
 bool Packet_Mannerless_User_Accusation::isNeedTypeForChattingMsg(int type)   // ORIG 静态：无 this
@@ -27420,7 +27425,7 @@ Packet_Mannerless_User_Accusation::Packet_Mannerless_User_Accusation()
 {
     // ORIG 0x0822c1f6：this 装载(mov 0x8(%ebp),%eax)先于两常量 spill 落位。
     register void* self asm("eax") = this;
-    _ZN12PacketHeaderC1Ett(self, 0x1b66, 0x15f);               // 0x0822c202
+    new (self) PacketHeader(0x1b66, 0x15f);                     // 0x0822c202
     m_characNo = -1;                                           // 0x0822c20a：+0xa = -1
     m_type = 0;                                                // 0x0822c214：+0xe = 0
     m_serverGroup = 4;                                         // 0x0822c21e：+0x12 = 4

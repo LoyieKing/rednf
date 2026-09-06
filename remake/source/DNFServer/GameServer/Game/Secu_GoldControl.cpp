@@ -243,18 +243,20 @@ void Secu_GoldControl::AddAuctionMoney(unsigned int value)
         m_total.m_auctionAdd += value;
         m_total.m_count[0]++;
 
-        XNuclear::CHades* hades = (XNuclear::CHades*)m_pUser->getHades();
-        hades->GoldPlus(value, (XNuclear::ENUM_GOLD_CONTROL_REASON)2);
+        // ORIG 0x828793f/0x828794a：getHades() 三次 fresh call（P0 不缓存）。
+        ((XNuclear::CHades*)m_pUser->getHades())->
+            GoldPlus(value, (XNuclear::ENUM_GOLD_CONTROL_REASON)2);
         // GoldTracking
         char ipBuf[16];
-        hades->GetIP(ipBuf);
+        ((XNuclear::CHades*)m_pUser->getHades())->GetIP(ipBuf);
 
         unsigned short fatigue = m_pUser->getCurCharacUsedFatigue();
         unsigned int accId = m_pUser->get_acc_id();
 
         // ORIG 0x828793f..0x828794a：GoldTracking(type=4, money=accId, ip=ipBuf,
         // param4=value, fatigue=fatigue)
-        hades->GoldTracking(4, accId, ipBuf, value, fatigue);
+        ((XNuclear::CHades*)m_pUser->getHades())->
+            GoldTracking(4, accId, ipBuf, value, fatigue);
     }
 }
 

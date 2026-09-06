@@ -57,11 +57,12 @@
 
 // ---------------------------------------------------------------------------
 
-// ORIG 0x0810cf32 T _ZN13EventClassify15CEventActionMng24process_action_send_mailEP5CUserR15Action_SendMailb
-// （形参为全局 ::Action_SendMail；EventClassify_Action.h 镜像类型与 ORIG
-// mangled 分歧，见 sendItem 注释——以精确 ORIG 符号 extern 调用）。
-extern "C" int _ZN13EventClassify15CEventActionMng24process_action_send_mailEP5CUserR15Action_SendMailb(
-    void* mng, CUser* user, Action_SendMail* mail, bool flag);
+// b22 桥清零（P201，Model22）：ORIG 0x0810cf32
+// _ZN13EventClassify15CEventActionMng24process_action_send_mailEP5CUserR15Action_SendMailb
+// 原 extern"C" mangled 直连桥转真成员调用——EventClassify_Action.h:28 权威声明
+// 形参即全局 ::Action_SendMail（InGameEventScripts.h 唯一定义，R15 编码=全局
+// 作用域，与 ORIG mangled 逐字符一致），定义 EventClassify_Action.cpp:35。旧
+// 「镜像类型分歧」注记已随头修正失效。
 // §1 BingoEvent —— reqBingoQuizMark / sendMaxMatchLineReward（ORIG 0x080ca262 /
 // 0x080ca622）。类布局（ORIG ctor 0x080c9984）：+0x0c 为 boost::shared_ptr<CBingo>
 // 槽（getBingoSystem 0x080c9fea 返回该地址，operator-> 解引用得 CBingo*）。
@@ -273,12 +274,7 @@ int CraneMinigameManager::sendItem(CUser* user, int slot)
         item->m_itemIdx, static_cast<int>(static_cast<short>(item->m_cnt)));
 
     EventClassify::CEventActionMng actionMng;
-    // ORIG 符号形参为全局 ::Action_SendMail（R15Action_SendMail）；仓库
-    // EventClassify_Action.h 的命名空间内镜像类型与 ORIG mangled 分歧（既有
-    // 问题），此处以精确 ORIG 符号 extern 调用保证链接正确。
-    return _ZN13EventClassify15CEventActionMng24process_action_send_mailEP5CUserR15Action_SendMailb(
-        &actionMng, user,
-        &this->m_sendMail, true);
+    return actionMng.process_action_send_mail(user, this->m_sendMail, true);
 }
 
 // ---------------------------------------------------------------------------

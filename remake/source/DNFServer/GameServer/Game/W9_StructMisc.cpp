@@ -153,10 +153,12 @@ bool TOD_UserState::_saveData(CUser* pUser)
     Stream* stream = GlobalData::s_stream_pool->Acquire("TOD_UserState.cpp",
                                                         0x58);
     CStreamGuard guard(stream, true);
-    guard << 0x278;
-    guard << static_cast<int>(pUser->GetUID());
+    // ORIG：`(*guard)->operator<<(x)`（operator* de()）与 `guard->GetInBuffer`
+    // （operator-> pt()）标识调用形态，勿改为直接成员调用。
+    (*guard)->operator<<(0x278);
+    (*guard)->operator<<(static_cast<int>(pUser->GetUID()));
     SIG_REQUEST_TOD_USER_STATE* sig =
-        guard.GetInBuffer<SIG_REQUEST_TOD_USER_STATE>();
+        guard->GetInBuffer<SIG_REQUEST_TOD_USER_STATE>();
     bool ok = (sig != 0);
     if (ok)
     {

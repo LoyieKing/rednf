@@ -4600,7 +4600,8 @@ void CEventStayTime::RewardGoGoFighter::operator()(CUser* user)
     CStreamGuard guard(((StreamPool*)0x940bd6c)->Acquire("GameWorld.cpp", 0x1e),
                        true);
     Taiwan::internal_stream(guard, static_cast<TaiwanInternalPack::T>(5), user->GetUID());
-    Taiwan::SigStayTimeEvent* evt = guard.GetInBuffer<Taiwan::SigStayTimeEvent>();
+    Taiwan::SigStayTimeEvent* evt =
+        guard.operator->()->GetInBuffer<Taiwan::SigStayTimeEvent>();
     if (evt != 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x24, 0);
