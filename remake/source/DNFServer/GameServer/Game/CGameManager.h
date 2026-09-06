@@ -412,6 +412,16 @@ class Avatar_Item;
 namespace IPG { struct SIPGData; }
 }
 
+// ---- DynamicPool<CEgg/CCreature>::CNode 显式特化声明（b22） ----
+// 明确特化须声明在模板所在（全局）命名空间；定义在 CGameManager.cpp
+// （写 CNode vptr 0x8c2f478/0x8c2f490 + magic/bUse）。声明前置使所有 include
+// 本头的 TU 引用该特化而非实例化通用无-vptr CNode 模板，对齐 ORIG 弱符号
+// CNodeC1/D1（仅 CEgg/CCreature 两实例存在，PacketBuf 等无）。
+template <> DynamicPool<user_creature::CEgg>::CNode::CNode();
+template <> DynamicPool<user_creature::CEgg>::CNode::~CNode();
+template <> DynamicPool<user_creature::CCreature>::CNode::CNode();
+template <> DynamicPool<user_creature::CCreature>::CNode::~CNode();
+
 // ---- 管理器最小声明（本批只做指针持有 + new/delete）----
 class CraneMinigameManager;
 class CAuctionAveragePrice;

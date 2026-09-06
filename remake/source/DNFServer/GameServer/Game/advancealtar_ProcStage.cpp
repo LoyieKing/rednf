@@ -513,7 +513,8 @@ void ProcStage::procTimeLine()
     {
         if (m_summonObjectMs.isEndSummon())
         {
-            if (!makeCurrentPhaseSummonObject())
+            bool made = makeCurrentPhaseSummonObject();
+            if (!made)
             {
                 m_state = State::S_N4;
             }
@@ -622,7 +623,11 @@ void ProcStage::resetAll()
 // ORIG T 0x0812f70c：stageType==1 && survivalFirst!=0。
 bool ProcStage::isSurvivalModeFirstRound() const
 {
-    return getStageType() == 1 && m_survivalFirst != 0;
+    register bool r __asm__("al");
+    r = (getStageType() == 1 && m_survivalFirst != 0);
+    if (r)
+        return true;
+    return false;
 }
 
 // ORIG T 0x0812f74c：stageType==1 时 survivalFirst=0。

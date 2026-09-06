@@ -168,13 +168,14 @@ void CUser::set_growth_power_exp_reward(int level)
     }
     else                                                      // +0xbb5 分支
     {
-        STGrowthPowerData& gp = G_CDataManager()->m_growthPower;
-        const int idx = gp.get_idx_break_away_section(level); // +0xca
-        const std::size_t sz = gp.m_vecC.size();              // +0xdf（dm+0x871c）
+        // P48 no-CSE：ORIG 每处 use 各自 fresh G_CDataManager()（+0xca/+0xdf/+0x135
+        // 共 3 处，加 if 分支 m_seriaBlessing 1 处 = 4 次调用）。
+        const int idx = G_CDataManager()->m_growthPower.get_idx_break_away_section(level); // +0xca
+        const std::size_t sz = G_CDataManager()->m_growthPower.m_vecC.size();  // +0xdf
         if (idx >= 0 && static_cast<std::size_t>(idx) < sz &&                  // +0xeb/+0xf3
             !is_growth_power_exp_reward_right())             // +0xfb
         {
-            m_reward.m_reward = gp.m_vecC[idx].m_reward;  // +0x135 int 写（m_reward 已 STExpReward 化）
+            m_reward.m_reward = G_CDataManager()->m_growthPower.m_vecC[idx].m_reward;  // +0x135
         }
         else
         {

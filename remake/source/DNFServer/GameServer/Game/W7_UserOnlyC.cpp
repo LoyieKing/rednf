@@ -452,7 +452,9 @@ bool CUser::Parsing(int received)
 // ---- CUser::SetSkillLevel（ORIG T 0x0867b51c，报告 SetSkillLevel.md）----
 // ============================================================================
 
-void CUser::SetSkillLevel(int skillIdx, int level)
+// 返回 int：ORIG 0x0867b51c 尾 `mov eax,0x1; ret`（成功）/早退 `mov eax,0x0`
+// （runnable 假 / skill==0）——Model22 桥清零证据；签名与 CUser.h 同步（Main 代落）。
+int CUser::SetSkillLevel(int skillIdx, int level)
 {
     bool runnable = true;
     if (*reinterpret_cast<const unsigned char*>(
@@ -461,12 +463,12 @@ void CUser::SetSkillLevel(int skillIdx, int level)
         runnable = (getCurCharacR() == 0);
     }
     if (!runnable)
-        return;
+        return 0;
 
     const int job = get_charac_job();
     CSkill* skill = G_CDataManager()->find_skill(job, skillIdx);
     if (skill == 0)
-        return;
+        return 0;
 
     const char secondGrow = getCurCharSecondGrowType();
     if (secondGrow < 1)
@@ -487,6 +489,7 @@ void CUser::SetSkillLevel(int skillIdx, int level)
     const int treeIdx = GetCurCharacSkillTreeIndex();
     reinterpret_cast<SkillSlot*>(getCurCharacSkillW())->growtype_skill(job, skillIdx, level,
                                          (ENUM_SKILL_TREE_KIND)treeIdx);
+    return 1;
 }
 
 // ============================================================================
