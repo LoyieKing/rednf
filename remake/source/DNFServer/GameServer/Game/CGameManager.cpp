@@ -417,6 +417,35 @@ void WongWork::CMailBox::setMailIterator()
 
 
 // ============================================================================
+// DynamicPool<CEgg/CCreature>::CNode —— 多态 T 的 CNode vptr 重写（显式特化）
+// ============================================================================
+// ORIG CNodeC1/D1（df_game_r）：基类 T() 之后先把 vptr 改写为 CNode 自身虚表
+// （CEgg CNode `_ZTVN11DynamicPoolIN13user_creature4CEggEE5CNodeE@0x08c2f470`+8
+//  =0x08c2f478；CCreature CNode `@0x08c2f488`+8=0x08c2f490），再写 magic/bUse。
+// 真虚建模不可行（实证：-O0 true-virtual 的 vptr 写为 `movl $0x8`+R_386_32 重定位，
+// 恒为小偏移而非硬编 0x8c2f478；AE 口径不归一立即数）→ 手动常量按 ORIG 槽序写回。
+template <> DynamicPool<user_creature::CEgg>::CNode::CNode()
+{
+    this->m_vptr = 0x08c2f478;
+    m_type = 0x8f21;
+    m_inUse = 0;
+}
+template <> DynamicPool<user_creature::CEgg>::CNode::~CNode()
+{
+    this->m_vptr = 0x08c2f478;
+}
+template <> DynamicPool<user_creature::CCreature>::CNode::CNode()
+{
+    this->m_vptr = 0x08c2f490;
+    m_type = 0x8f21;
+    m_inUse = 0;
+}
+template <> DynamicPool<user_creature::CCreature>::CNode::~CNode()
+{
+    this->m_vptr = 0x08c2f490;
+}
+
+// ============================================================================
 // 显式实例化（本 TU 池成员使用）
 // ============================================================================
 template class StaticPool<CUser, 600>;

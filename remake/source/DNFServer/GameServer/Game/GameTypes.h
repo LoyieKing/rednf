@@ -110,7 +110,10 @@ class DynamicPool
 public:
     struct CNode : public T
     {
-        CNode() : m_type(0x8f21), m_inUse(0) {}
+        // 声明后外联定义（见下方），供多态 T（CEgg/CCreature）以显式特化注入
+        // CNode vptr 重写（ORIG 在基类 T() 后先写 CNode 虚表再写 magic/bUse）。
+        CNode();
+        ~CNode();
 
         int m_type;    // +0x28（池类型魔数 0x8f21）
         char m_inUse;  // +0x2c（池占用计数）
@@ -286,6 +289,19 @@ void DynamicPool<T>::SetPoolSize(unsigned short baseSize, unsigned short maxSize
 {
     m_baseSize = baseSize;
     m_maxSize = maxSize;
+}
+
+// ---- DynamicPool<T>::CNode 外联构造/析构（多态 T 的 vptr 重写由显式特化注入）----
+template <class T>
+DynamicPool<T>::CNode::CNode()
+{
+    m_type = 0x8f21;
+    m_inUse = 0;
+}
+
+template <class T>
+DynamicPool<T>::CNode::~CNode()
+{
 }
 
 template <class T>
