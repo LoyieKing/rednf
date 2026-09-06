@@ -188,12 +188,14 @@ void CPacketRespondent::MakeNotipacketGainExpCreature(int exp, int level,
     if (growFlag)
     {
         put_byte(1);
-        // movzwl 高半字 + cwtl：取 exp bit[16..31] 并作 16 位有符号扩展。
-        unsigned short high16 =
-            (unsigned short)(((unsigned int)exp >> 16) & 0xffff);
-        put_int((int)(short)high16);
+        // ORIG 0x83407bd：int 全宽落槽 -0xc 后，movzwl -0xa(%ebp)（同址 u.w[1]）
+        // + cwtl + 写回参数槽 0xc ⇒ 推断源为 union 拆半惯用形（P0：shr/独立 16 位槽均形不符）。
+        union { int all; unsigned short w[2]; unsigned char b[4]; } u;
+        u.all = exp;
+        exp = (int)(short)u.w[1];
+        put_int(exp);
         put_byte(0xa);
-        put_byte((int)((unsigned int)exp & 0xff));
+        put_byte((int)u.b[0]);
     }
     else
     {
@@ -293,12 +295,14 @@ void CPacketRespondent::MakeNotipacketCreatureItemList(
         if (creature->IsGrowCreature())
         {
             put_byte(1);
-            int exp = creature->GetExp();
-            unsigned short high16 =
-                (unsigned short)(((unsigned int)exp >> 16) & 0xffff);
-            put_int((int)(short)high16);
+            // ORIG 0x8340b1f：GetExp 结果全宽落槽 -0x28，movzwl -0x26（u.w[1]）+ movswl
+            // 直扩进 %edx 作实参（无独立局部、无写回）⇒ union 拆半惯用形（同 GainExp，
+            // 彼处因 exp= 赋参数槽而呈 cwtl+mov 0xc 形）。
+            union { int all; unsigned short w[2]; unsigned char b[4]; } u;
+            u.all = creature->GetExp();
+            put_int((int)(short)u.w[1]);
             put_byte(0xa);
-            put_byte((int)((unsigned int)exp & 0xff));
+            put_byte((int)u.b[0]);
         }
         else
         {
