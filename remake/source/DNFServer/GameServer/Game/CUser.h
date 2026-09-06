@@ -1,5 +1,6 @@
 struct CONTINUOUS_ITEM_INFO;
 struct SIG_LIMIT_ITEM_INFO;
+class WarRoom;               // 仅指针引用（GetWarRoom 返回，与 GetParty 的 CParty 同法）
 struct MSG_REQ_TO_PEER;
 struct stEquipCondition;
 struct competition_reward_result;
@@ -2963,7 +2964,7 @@ public:
     CParty* GetParty();   // 体即 return G_CGameManager()->GetParty(idx)（CParty* 透传，
                           // void* 系历史规避写法；调用点 cast 变冗余 no-op，用户令修正）
     int GetUserPosInParty();      // 0x08688638
-    void* GetWarRoom();
+    WarRoom* GetWarRoom();   // 体即 G_CGameManager()->GetWarRoom(idx) 透传（与 GetParty 同法修正）
     void set_growth_power_exp_reward(int reward);
     STExpReward get_growth_power_exp_reward();   // ORIG sret 结构返回（仅填 m_reward dword）
     unsigned short getCurCharacTotalFatigue() const;
