@@ -102,20 +102,20 @@ const char* StringDictionary::addString(const char* s)
     const int need = static_cast<int>(len) + 1;
 
     unsigned char* ret = 0;
-    if (m_curRemain < need)
+    if (m_curRemain >= need)
     {
-        int cap = (need > kBufSize) ? need : kBufSize;
+        ret = reinterpret_cast<unsigned char*>(m_curPtr);
+        m_curPtr += need;
+        m_curRemain -= need;
+    }
+    else
+    {
+        int cap = std::max(need, kBufSize);
         unsigned char* ptr = new unsigned char[cap];
         blocks_.push_back(ptr);
         m_curPtr = reinterpret_cast<int>(ptr) + need;
         m_curRemain = cap - need;
         ret = ptr;
-    }
-    else
-    {
-        ret = reinterpret_cast<unsigned char*>(m_curPtr);
-        m_curPtr += need;
-        m_curRemain -= need;
     }
 
     memcpy(ret, s, need);

@@ -1517,8 +1517,7 @@ void WarRoom::HandleSetSeatState(CUser* user, int seat, ENUM_SEAT_STATE state)
 
 int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
 {
-    int st = GetState();
-    if ((st != 3) && (st != 4) && (m_state != 5))
+    if ((GetState() != 3) && (GetState() != 4) && (m_state != 5))
         return 0x13;
     int slot = GetUserSlot(user);
     if (slot < 0)

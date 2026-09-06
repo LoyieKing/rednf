@@ -4949,10 +4949,10 @@ void GiveItemReturnUser(CUser* user)
     def->make_item(item);
     item.set_add_info(1);
 
-    const int dungeonIdx = user->getCurCharacLastPlayDungeonIndex();
-    if (dungeonIdx != 0)
+    if (user->getCurCharacLastPlayDungeonIndex() != 0)
     {
-        CDungeon* dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
+        CDungeon* dungeon =
+            G_CDataManager()->find_dungeon(user->getCurCharacLastPlayDungeonIndex());
         if (dungeon != 0)
         {
             char buf[0x100];
