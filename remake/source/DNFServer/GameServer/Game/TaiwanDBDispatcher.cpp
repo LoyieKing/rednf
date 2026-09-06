@@ -784,12 +784,12 @@ bool DBSelectPcroomDailyReward::dispatch(int code, int uid, Stream* stream)
                                                       (ENUM_SERVER_GROUP)0);
         if (db == 0)
             throw "handle null";
-        int fatigueTime = G_CEnvironment()->m_serverEnvir.m_fatigueTime;
-        if (!db->set_query(
-                "seLect m_id, remain_reward_count, unix_timestamp(occ_date) FROM pcroom_daily_reward_tw WHERE m_id=%s",
-                NumberToString(*reinterpret_cast<unsigned int*>(sig), 0),
-                fatigueTime))
-            throw "select_exec";
+        // ORIG 0x0815cb49：G_CEnvironment()+0x37c 供 set_query（不检查返回值）；
+        // 0x0815cd86 再调一次供 CheckDailyScheduleTime（两次独立 G_CEnvironment）。
+        db->set_query(
+            "seLect m_id, remain_reward_count, unix_timestamp(occ_date) FROM pcroom_daily_reward_tw WHERE m_id=%s",
+            NumberToString(*reinterpret_cast<unsigned int*>(sig), 0),
+            G_CEnvironment()->m_serverEnvir.m_fatigueTime);
         if (!db->exec(1))
             throw "select_exec";
         if (db->get_n_rows() == 0)
@@ -809,7 +809,8 @@ bool DBSelectPcroomDailyReward::dispatch(int code, int uid, Stream* stream)
                 throw "get_int 1";
             if (!db->get_int(2, reward))
                 throw "get_int 2";
-            if (CheckDailyScheduleTime(fatigueTime, reward,
+            if (CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
+                                       reward,
                                        GlobalData::s_systemTime_.getCurSec()))
             {
                 InterSelectPcroomDailyReward::makeRequest(uid, yesterday, 4);

@@ -2364,6 +2364,9 @@ public:
     class _379
     {
     public:
+        // §8 判据（Bridge21B）：asm 别名必须保留——ORIG 类名首字符为 '.'
+        // （nm 086454d8 `_ZN5CUser5._3795resetEv`），GCC 无法声明 `class ._379`，
+        // 自然 mangled `5_379` 缺点不匹配 ⇒ 编译器 mangling 必要性，非 §4.5 违例。
         void reset() asm("_ZN5CUser5._3795resetEv");
         bool m_field0;     // +0x00
         bool m_field1;     // +0x01

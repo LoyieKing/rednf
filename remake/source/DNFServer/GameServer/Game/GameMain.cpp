@@ -988,8 +988,8 @@ int main(int argc, char** argv)
     }
     char pidFile[0x1e];
     std::memset(pidFile, 0, sizeof(pidFile));
-    std::snprintf(pidFile, sizeof(pidFile), "./pid/%s.pid",
-                  G_CEnvironment()->get_file_name());
+    std::sprintf(pidFile, "./pid/%s.pid",
+                 G_CEnvironment()->get_file_name());
     if (std::remove(pidFile) == -1)
         std::printf("FAIL TO DELETE PID FILE ERROR: %s\n",
                     std::strerror(errno));

@@ -44,32 +44,13 @@
 #include "Packet_Monitor_Event_End.h"
 #include "Packet_Guild_Debug.h"
 #include "CEnvironment.h"
+#include "DB_EventGrowthWeaponReset.h"            // makeRequest（桥清零）
+#include "DB_EventUpdateGrowthWeaponTimepiece.h"  // makeRequest（桥清零）
 
 #include <stdlib.h>
 
 namespace game_master
 {
-
-// ---- ORIG 真实符号原型（本 TU 仅声明，不提供定义；asm 标签对齐 ORIG mangled）----
-
-// expert_job::CExpertJobMgr::AcquireExpertJob(ENUM_EXPERT_JOB_TYPE) —— T 0x0849e1dc
-expert_job::CExpertJob* gmShimAcquireExpertJob(expert_job::CExpertJobMgr* /*self*/,
-                                               ENUM_EXPERT_JOB_TYPE /*type*/)
-    asm("_ZN10expert_job13CExpertJobMgr16AcquireExpertJobE20ENUM_EXPERT_JOB_TYPE");
-
-// expert_job::CDisjointer::OnCreateDisjointStore(CUser*, char const*, int, int, int)
-// —— T 0x085d2d08（调用方不使用返回值）
-void gmShimOnCreateDisjointStore(expert_job::CDisjointer* /*self*/, CUser* /*user*/,
-                                 char const* /*name*/, int /*a*/, int /*x*/, int /*y*/)
-    asm("_ZN10expert_job11CDisjointer21OnCreateDisjointStoreEP5CUserPKciii");
-
-// DB_EventGrowthWeaponReset::makeRequest(unsigned int) —— T 0x08449980
-void gmShimDbGrowthWeaponReset(unsigned int /*accId*/)
-    asm("_ZN25DB_EventGrowthWeaponReset11makeRequestEj");
-
-// DB_EventUpdateGrowthWeaponTimepiece::makeRequest(unsigned int, short, int) —— T 0x084497ea
-void gmShimDbGrowthWeaponTimepiece(unsigned int /*accId*/, short /*timepiece*/, int /*flag*/)
-    asm("_ZN35DB_EventUpdateGrowthWeaponTimepiece11makeRequestEjsi");
 
 // ========================================================================
 // CCraneNeedMaterial —— sizeof=0x8，无数据字段。
@@ -94,16 +75,15 @@ void CCraneNeedMaterial::execute()
 void CCreateDisjointStoreCmd::execute()
 {
     expert_job::CExpertJob* job =
-        gmShimAcquireExpertJob(GlobalData::s_ExpertJobMgr,
-                               static_cast<ENUM_EXPERT_JOB_TYPE>(3));
+        GlobalData::s_ExpertJobMgr->AcquireExpertJob(
+            static_cast<ENUM_EXPERT_JOB_TYPE>(3));
     CUser* user = GetUser();
     user->SetCurCharacExpertJob(job);
 
     unsigned int x = user->get_posX() & 0xffff;
     unsigned int y = user->get_posY() & 0xffff;
-    gmShimOnCreateDisjointStore(static_cast<expert_job::CDisjointer*>(job),
-                                user, "test", 500,
-                                static_cast<int>(x), static_cast<int>(y));
+    static_cast<expert_job::CDisjointer*>(job)->OnCreateDisjointStore(
+        user, "test", 500, static_cast<int>(x), static_cast<int>(y));
 }
 
 // ========================================================================
@@ -347,14 +327,14 @@ void CGrowhWeaponEvent::execute()
         data->m_eventFlag = 0;
         data->m_field10 = 0;
         data->m_fieldc = 0;
-        gmShimDbGrowthWeaponReset(user->get_acc_id());
+        DB_EventGrowthWeaponReset::makeRequest(user->get_acc_id());
     }
     else
     {
         int timepiece = m_timepiece;
         data->m_field10 = static_cast<short>(timepiece);
         data->m_fieldc = 0;
-        gmShimDbGrowthWeaponTimepiece(
+        DB_EventUpdateGrowthWeaponTimepiece::makeRequest(
             user->get_acc_id(),
             static_cast<short>((unsigned short)data->m_field10), 0);
     }

@@ -90,6 +90,9 @@ struct stTitleRewardBasis
     }
     ~stTitleRewardBasis()
     {
+        // §4.5/§8 判据（Bridge21B）：m_data 为非虚 void* 基指针（stTitleRewardBasis
+        // 无虚表 sizeof 0xc），vtable+0xC 虚 deleting-dtor 分发无法以真实 delete 表达
+        // （派生奖赏 vtable 未建模=b22 单）；运行期导入域 data 恒空（no-op）。保留直调。
         if (m_data != 0)
         {
             // ORIG：mov (%eax),%eax; add $0xc,%eax; call *(%eax) —— 虚删除。
