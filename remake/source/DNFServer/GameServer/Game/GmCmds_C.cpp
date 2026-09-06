@@ -121,8 +121,9 @@ void CDeleteGuild::execute()
     {
         return;
     }
-    unsigned int guildkey = static_cast<unsigned int>(user->get_charac_guildkey());
-    if (guildkey == 0)
+    // P48 no-CSE：ORIG 三处各自 fresh get_charac_guildkey()（if 判零 / guard<< /
+    // notice.m_guildKey）。
+    if (static_cast<unsigned int>(user->get_charac_guildkey()) == 0)
     {
         return;
     }
@@ -130,10 +131,11 @@ void CDeleteGuild::execute()
     // 向 DB 队列发解散流：0x1df + (uid, characNo, guildkey)。
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("GameMaster.cpp", 0x68d), true);
-    guard << 0x1df;
-    guard << user->GetUID();
-    guard << user->getCurCharacNo();
-    guard << guildkey;
+    // ORIG：`(*guard)->operator<<(x)`（operator* de()）标识调用形态。
+    (*guard)->operator<<(0x1df);
+    (*guard)->operator<<(user->GetUID());
+    (*guard)->operator<<(user->getCurCharacNo());
+    (*guard)->operator<<(static_cast<unsigned int>(user->get_charac_guildkey()));
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 
     user->set_guild_create_right(0);
@@ -145,7 +147,8 @@ void CDeleteGuild::execute()
     user->Send(packet);
 
     Packet_Monitor_Notice_Guild_Dismiss notice;
-    notice.m_guildKey = guildkey;
+    notice.m_guildKey =
+        static_cast<unsigned int>(user->get_charac_guildkey());
     CGuildServerProxy* proxy =
         GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
     proxy->SendPacket(reinterpret_cast<char*>(&notice), 0xe);

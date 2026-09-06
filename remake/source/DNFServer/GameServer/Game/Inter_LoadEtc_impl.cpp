@@ -593,11 +593,11 @@ bool Inter_LoadEtc::RequestDBEventArad(CUser* user)
     arad::SigLoadRewardEventItem sigEventItem;
     sigEventItem.set(user->get_acc_id());           // ORIG W 0x081866b6
 
-    Stream* stream = GlobalData::s_stream_pool->Acquire("InterDispatcher.cpp", 0x1193);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("InterDispatcher.cpp", 0x1193),
+                       true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard,
         ARAD::ENUM_INTERNALPACKET_JPN(0x26), (int)user->GetUID());
-    guard.put_binary(&sigEventItem, sizeof(sigEventItem));   // ORIG put_binary 0x56
+    guard.operator->()->put_binary(&sigEventItem, sizeof(sigEventItem));  // ptEv→0x56
     bool ok = GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return ok != false;
 }

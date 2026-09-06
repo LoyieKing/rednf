@@ -473,10 +473,7 @@ bool DB_LoadRewardMedal::dispatch(int a, int b, Stream* stream)
     {
         return false;
     }
-    // P191/P198：ORIG 0x081248e3 对 Select 用 `test %al,%al; je +0x87`（直测、
-    // 免 xor，落点=共享 return-0 尾块）；`!Select(...)` 4.4 反产 xor+独立
-    // mov$0;jmp 岛。`==0` 直测形态匹配（DBDispatcher 首检 ORIG 才用 xor+岛）。
-    if (Select(*sig) == 0)
+    if (!Select(*sig))
     {
         return false;
     }

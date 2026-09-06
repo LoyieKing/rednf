@@ -20,7 +20,7 @@ public:
 
     DBUpdatePcroomDailyReward() throw();
     virtual ~DBUpdatePcroomDailyReward();
-    void makeRequest(CUser*);
+    static void makeRequest(CUser*);   // ORIG 静态性铁判（__PRETTY_FUNCTION__ + 无 this）
     virtual bool dispatch(int, int, Stream*);   // ORIG T 0x0815d024
 };
 

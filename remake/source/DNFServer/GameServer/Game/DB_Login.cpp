@@ -515,8 +515,10 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
 bool DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
-    char* mid = NumberToString(sig->m_accId, 0);
-    db->set_query("seLect message_flag from charac_link_message where m_id=%s", mid);
+    // P48 no-CSE：ORIG 三处各自 fresh NumberToString()（两条 set_query + cMyTrace）
+    // 与两处 fresh get_n_rows()。
+    db->set_query("seLect message_flag from charac_link_message where m_id=%s",
+                  NumberToString(sig->m_accId, 0));
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
@@ -524,10 +526,10 @@ bool DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
                               0x2f54, "LINK_LOG : charac_link_message DB ERROR!!");
         return false;
     }
-    int nRows = db->get_n_rows();
-    if (nRows == 0)
+    if (db->get_n_rows() == 0)
     {
-        db->set_query("inSert into charac_link_message(m_id,message_flag) values(%s,0)", mid);
+        db->set_query("inSert into charac_link_message(m_id,message_flag) values(%s,0)",
+                      NumberToString(sig->m_accId, 0));
         if (!db->exec(true))
         {
             LogManager::logFormat(1, "DBThread.cpp",
@@ -536,7 +538,7 @@ bool DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
         }
         return false;
     }
-    if (nRows == 1)
+    if (db->get_n_rows() == 1)
     {
         if (db->fetch())
         {
@@ -2262,12 +2264,12 @@ int DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
     // ORIG：双 16 字节缓冲，当前 ip 与旧登录 ip(+0x4114)
     strcpy(oldIp, SGB(sig, 0x4114));
 
-    char* dotCur = strrchr(curIp, '.');          // 截掉最后一段（去端口化前缀）
+    char* dotCur = std::strrchr(curIp, '.');     // 截掉最后一段（去端口化前缀）
     if (dotCur != 0)
     {
         *dotCur = '\0';
     }
-    char* dotOld = strrchr(oldIp, '.');
+    char* dotOld = std::strrchr(oldIp, '.');
     if (dotOld != 0)
     {
         *dotOld = '\0';

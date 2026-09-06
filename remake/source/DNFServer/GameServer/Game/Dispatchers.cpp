@@ -22154,8 +22154,7 @@ int Dispatcher_RequestPrcoomDayilyReward::dispatch_sig(CUser* user, PacketBuf& p
         user->SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_0, slot);
         user->m_field8ec32 = (char)(user->m_field8ec32 - 1);
         InterSelectPcroomDailyReward::SendPacket(user);
-        DBUpdatePcroomDailyReward req;
-        req.makeRequest(user);
+        DBUpdatePcroomDailyReward::makeRequest(user);   // ORIG static（无 ctor/dtor）
     }
     return 0;
 }

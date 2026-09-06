@@ -32,6 +32,7 @@
 #include "CSystemTime.h"
 #include "CRijndael.h"
 #include "CEnvironment.h"           // IMethod::GetBlockSize / Pad、G_CEnvironment
+#include "TaiwanCash.h"             // WongWork::IPG::CIPGHelper 权威类（b22 IPGInput 真调用）
 #include "Inven_Item.h"
 
 #include <string.h>
@@ -49,18 +50,15 @@ namespace OS_API
 using namespace GlobalData;
 
 // ----------------------------------------------------------------------------
-// IPG helper 低层分发表桥。
-// §4.5 例外：ORIG RecvInfoFromDB 0x086c1383..13f2 以 **handle-of-handle** 调用
-// vtable 槽 0（首参传 &s_pIPGHelper，非对象本身）。权威 CIPGHelper（TaiwanCash.h）
-// 槽 0 = IPGInput(CUser*,…) 首参为 CUser*，与 handle-of-handle 首参不匹配，
-// 无法安全转真实成员调用（转 string 会传错首参改语）。登记 b22：WongWork__IPG
-// RecvInfoFromDB 权威分发签名核对后再定。与 GlobalData.cpp 的 +0x10/+0x14/+0x18
-// 槽位取法同族；此处仅按汇编指令序转写调用形态。
+// b22 桥清零（P201 + 真修，Model22）：原「handle-of-handle」§4.5 例外经 ORIG
+// 0x086c1383..13f2 逐指令复核**推翻**——`mov eax,ds:0x941f734; mov eax,[eax]`
+// 取 [s_pIPGHelper] 所指对象 vptr 的槽 0，`mov edx,ds:0x941f734; mov [esp],edx`
+// 首参传 **s_pIPGHelper 值（对象 this）**，非旧注所称 &变量地址；旧桥
+// `fn(&s_pIPGHelper, ...)` 系首参错位真 bug（IPGInput 以 this 解引用对象字段，
+// 传 handle 槽地址=越界语义）。正解：TaiwanCash.h:436 权威虚槽 0
+// IPGInput(CUser*, const char*×5, void*)（T 0x080ffb0a，定义 W6_IPGDeps.cpp:515）
+// 真成员调用，与 GlobalData.cpp:3465 IPGOutputConfirm 真调用先例同族。
 // ----------------------------------------------------------------------------
-typedef void (*IPGBridgeFn)(void* handle, class CUser* user, char const* codeStr,
-                            char const* countStr, char const* uniqueNoStr,
-                            char const* eventName, char const* characName,
-                            void* stream);
 
 // ============================ WongWork::CSecurityCardCenter =================
 
@@ -481,10 +479,9 @@ unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemI
         const char* codeStr = _GetEventIPGCode((int)eventIdx);
         if (codeStr != 0)
         {
-            IPGBridgeFn fn = (IPGBridgeFn)(*(void**)(*(char**)(&s_pIPGHelper)));
-            fn(&s_pIPGHelper, user, codeStr, countStr, uniqueNoOut,
-               _GetEventString((int)eventIdx), user->getCurCharacName(),
-               guard.Get());
+            s_pIPGHelper->IPGInput(user, codeStr, countStr, uniqueNoOut,
+                                   _GetEventString((int)eventIdx),
+                                   user->getCurCharacName(), guard.Get());
         }
         else
         {

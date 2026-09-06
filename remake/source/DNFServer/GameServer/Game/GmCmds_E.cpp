@@ -68,42 +68,6 @@ __attribute__((weak)) int StringToNumber(const char* s)
     return static_cast<int>(strtoul(s, 0, 10));
 }
 
-// ORIG T 0x0815cf06 _ZN25DBUpdatePcroomDailyReward11makeRequestEP5CUser
-//   （Dispatchers.cpp 标注「未建模」，此处按 objdump 全量转写；weak 定义）。
-//   流程：SmallStreamPool.Acquire("local",0x325) → CStreamGuard(st,true) →
-//   Taiwan::internal_stream(guard, pack 0xe, GetUID()) → GetInBuffer<MSG>()；
-//   null 则 cMyTrace 报错；否则 MSG.acc_id(+0)/state(+4 byte) 后投递 DB_Q。
-//   静态性铁判（makeRequest.md）：Ghidra 反编译注释 __PRETTY_FUNCTION__ =
-//   "static void DBUpdatePcroomDailyReward::makeRequest(CUser*)"；prolog 后
-//   仅见 0x8(%ebp) 唯一栈参=CUser*（+0x03c/+0x0b2），无 this ⇒ ORIG 为 static。
-//   以自由函数桥接（DBUpdatePcroomDailyReward.h 成员声明非本批属主，不改动）。
-__attribute__((weak)) void DBUpdatePcroomDailyReward_makeRequest_Orig(CUser* user)
-    asm("_ZN25DBUpdatePcroomDailyReward11makeRequestEP5CUser");
-__attribute__((weak)) void DBUpdatePcroomDailyReward_makeRequest_Orig(CUser* user)
-{
-    StreamPool* pool = GlobalData::s_stream_pool;
-    Stream* st = pool->Acquire("local", 0x325);
-    CStreamGuard guard(st, true);
-    Taiwan::internal_stream(guard,
-                            static_cast<TaiwanInternalPack::T>(0xe),
-                            user->GetUID());
-    DBUpdatePcroomDailyReward::MSG* msg =
-        guard.GetInBuffer<DBUpdatePcroomDailyReward::MSG>();
-    if (msg == 0)
-    {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x32b, 0);
-        trace("[Taiwan, Pcroom] msg is null");
-    }
-    else
-    {
-        msg->m_id = user->get_acc_id();
-        msg->m_remain = user->m_field8ec32;
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    }
-}
-
 namespace game_master
 {
 
@@ -810,7 +774,7 @@ void CPcroomRewardReset::execute()
 {
     CUser* user = GetUser();
     user->m_field8ec32 = 4;
-    DBUpdatePcroomDailyReward_makeRequest_Orig(user);
+    DBUpdatePcroomDailyReward::makeRequest(user);   // 真 static 调用（桥已删）
     InterSelectPcroomDailyReward::SendPacket(user);
     char* idStr = NumberToString(user->get_acc_id(), 0);
     cMyTrace trace(__PRETTY_FUNCTION__,

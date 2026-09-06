@@ -1157,7 +1157,17 @@ CAICharacterFull::~CAICharacterFull() {}
 // 无法在此重定义全布局类型以产生精确 mangled `_ZN12CAICharacter3setEiRK25
 // STAICharacterCommonScript`。`CAICharacter` 亦无跨 TU 权威头。待 sync_script
 // 域统一 STAICharacterCommonScript 权威全布局 + 建 CAICharacter 权威头后，
-// 改真实成员定义。登记 b22 类建模单：STAICharacterCommonScript / CAICharacter。
+// 改真实成员定义。
+// 【b22 建模评估·维持例外】统一权威头专项核账发现本域四视图（本 TU 两 view/
+// CAICharacterList 0x1014/sync_script 占位/CharacterAIA2 完整类）存在未裁决
+// 的头部偏移矛盾：ORIG C1 0x088c8a78 首指令 `movl $0x8e0a1f0,(%eax)` 实证
+// vptr@+0x00（多态），而三个消费视图以 +0x00 作 m_field0/int 承载；且
+// +0x04 槽在 sync_script.cpp:921 按 std::string(m_str4) 消费、在
+// CharacterAIA2 类视角为 int——视图仅靠"各自函数不触矛盾字段"维持二进制
+// 兼容。统一即需逐字段重校四视图+迁移 sync_script.h 全部 10+ 消费 TU 与
+// CharacterAIA2/S22x 在途工作面，非本单粒度可收口；盲改任何一处即静默偏移
+// 错位。判定：asm 别名桥保留为终判，域统一另开 AI script 专项单（本注释即
+// 其工单输入）。
 void sub_CAISet(void* self, int idx, const void* script)
     asm("_ZN12CAICharacter3setEiRK25STAICharacterCommonScript");
 
