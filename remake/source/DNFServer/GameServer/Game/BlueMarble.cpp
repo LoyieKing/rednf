@@ -1026,13 +1026,14 @@ int BlueMarble::finishBlueMarble(int seat)
 
 int BlueMarble::setResultItem(int seat, Inven_Item& item)
 {
+    // ORIG 0x080d7eb5-：每处 `(*rewards)[g]` 均从 this+0x38+0xa4 重新算
+    // 基址再 call vector::operator[]（4 组 5 条装载链，无 rewards 指针
+    // 局部缓存——旧缓存形每位省 2 条即 we-short 主因，P172 去缓存）。
     int grade = m_users[seat].getGrade();
-    std::vector<BlueMarbleRewardInfo>* rewards =
-        &m_pScript->m_info.m_rewardList;
     if (grade == 1)
     {
-        item.m_addInfo = (*rewards)[1].m_a;
-        item.m_addInfo2 = (*rewards)[1].m_b;
+        item.m_addInfo = m_pScript->m_info.m_rewardList[1].m_a;
+        item.m_addInfo2 = m_pScript->m_info.m_rewardList[1].m_b;
     }
     else
     {
@@ -1040,19 +1041,19 @@ int BlueMarble::setResultItem(int seat, Inven_Item& item)
         {
             if (grade == 2)
             {
-                item.m_addInfo = (*rewards)[2].m_a;
-                item.m_addInfo2 = (*rewards)[2].m_b;
+                item.m_addInfo = m_pScript->m_info.m_rewardList[2].m_a;
+                item.m_addInfo2 = m_pScript->m_info.m_rewardList[2].m_b;
             }
             else if (grade == 3)
             {
-                item.m_addInfo = (*rewards)[3].m_a;
-                item.m_addInfo2 = (*rewards)[3].m_b;
+                item.m_addInfo = m_pScript->m_info.m_rewardList[3].m_a;
+                item.m_addInfo2 = m_pScript->m_info.m_rewardList[3].m_b;
             }
         }
         else if (grade == 0)
         {
-            item.m_addInfo = (*rewards)[0].m_a;
-            item.m_addInfo2 = (*rewards)[0].m_b;
+            item.m_addInfo = m_pScript->m_info.m_rewardList[0].m_a;
+            item.m_addInfo2 = m_pScript->m_info.m_rewardList[0].m_b;
         }
     }
 }

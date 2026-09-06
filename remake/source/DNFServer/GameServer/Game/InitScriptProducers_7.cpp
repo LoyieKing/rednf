@@ -306,10 +306,8 @@ bool importInGameAdvertisementEtcScript(InGameAdvertisementScript* s, const char
     bool ok = false;                           // ORIG -0x19
     int idx = 0;                               // ORIG -0xc prologue 初始化
 
-    for (;;)                                   // ORIG 4.1 复合条件拆两检查（xor 落点形）
+    while (run && ScanType(token, true))       // ORIG 4.1 复合条件：run 检查在体尾
     {
-        if (!ScanType(token, true))
-            break;
         if (token == "[in game advertisement expose condition of teen]")
         {
             for (;;)
@@ -326,8 +324,6 @@ bool importInGameAdvertisementEtcScript(InGameAdvertisementScript* s, const char
                 p->m_exposeConditionOfTeen[idx] = 0;   // ORIG movb$0,(edx,eax)
             }
         }
-        if (!run)                              // ORIG 体尾 run 检查（cmpb$0,-0xd）
-            break;
     }
     return true;
 }
@@ -361,7 +357,7 @@ bool importLimitItemUsageInfo(char* path, stLimitItemUsageInfoEx* out)
                 {
                     break;                                   // 回主循环
                 }
-                const int a = ScanInt(&ok);
+                const char a = (char)ScanInt(&ok);   // ORIG mov%al,-0x1d（char 槽）
                 if (!ok)
                 {
                     return false;
