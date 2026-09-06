@@ -2655,17 +2655,19 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
     char name[0x1e];
     char targetName[0x1e];   // case9 ORIG local_248：调级目标的零填充副本
     int len = 0;
-    short wLen = 0;
+    unsigned short wLen = 0;   // ORIG get_short(unsigned short&)（_ZN9PacketBuf9get_shortERt）
     int extra = 0;
     CUser* target = 0;
-    GameWorld* world = G_GameWorld();
     switch (cmd)
     {
     case 0:  // 切换 GM 模式（无参数）
         if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
         {
-            user->SetGameMasterMode(
-                GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1);
+            // ORIG 0x81fa420：if/else 两次字面 SetGameMasterMode（mode==1→false，否则 true）
+            if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1)
+                user->SetGameMasterMode(false);
+            else
+                user->SetGameMasterMode(true);
             GlobalData::s_GM_Manager->TurnGmMode(user->get_acc_id());
         }
         break;
@@ -2677,7 +2679,7 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             resp.put_int(len);
             resp.put_str(announce, len);
             resp.finalize(true);
-            world->send_all(resp);
+            G_GameWorld()->send_all(resp);
             // ORIG 0x8939：全服广播后记日志
             cMyTrace trace(__PRETTY_FUNCTION__, 0x8939, 0);
             trace("GMC %s \n", announce);
@@ -2691,7 +2693,8 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             resp.put_int(len);
             resp.put_str(announce, len);
             resp.finalize(true);
-            world->send_to_area(user->getCurCharacVill(), user->get_area(false), resp);
+            G_GameWorld()->send_to_area(
+                user->getCurCharacVill(), user->get_area(false), resp);
             // ORIG 0x894a：区域广播后记日志
             cMyTrace trace(__PRETTY_FUNCTION__, 0x894a, 0);
             trace("GMZ %s \n", announce);
@@ -2721,8 +2724,8 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
             packet.get_int(len) && packet.get_str(name, 0x1e, len))
         {
-            target = world->find_user_from_world_byaccid(
-                world->GetIDUserInIDMap(name));
+            target = G_GameWorld()->find_user_from_world_byaccid(
+                G_GameWorld()->GetIDUserInIDMap(name));
             if (target == 0)
             {
                 user->Send(reject);
@@ -2749,15 +2752,15 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         {
             // ORIG local_7c：分钟→秒钳制（<1→60s；>=0x5a0→0x15180=1 天）
             int sec = (len < 0x5a0) ? ((len < 1) ? 0x3c : len * 0x3c) : 0x15180;
-            target = world->find_user_from_world_byaccid(
-                world->GetIDUserInIDMap(name));
+            target = G_GameWorld()->find_user_from_world_byaccid(
+                G_GameWorld()->GetIDUserInIDMap(name));
             if (target == 0)
             {
                 user->Send(reject);
             }
             else
             {
-                world->DisableChat(name, sec);
+                G_GameWorld()->DisableChat(name, sec);
                 // ORIG 0x89b8：定时器入队日志（%d=目标 characNo）
                 {
                     cMyTrace trace(__PRETTY_FUNCTION__, 0x89b8, 0);
@@ -2797,15 +2800,15 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             packet.get_str(name, 0x1e, extra))
         {
             int sec = (len < 0x5a0) ? ((len < 1) ? 0x3c : len * 0x3c) : 0x15180;
-            target = world->find_user_from_world_byaccid(
-                world->GetIDUserInIDMap(name));
+            target = G_GameWorld()->find_user_from_world_byaccid(
+                G_GameWorld()->GetIDUserInIDMap(name));
             if (target == 0)
             {
                 user->Send(reject);
             }
             else if (target->get_state() == 3)
             {
-                world->DisableMove(name, sec);
+                G_GameWorld()->DisableMove(name, sec);
                 // ORIG 0x89fe：定时器入队日志
                 {
                     cMyTrace trace(__PRETTY_FUNCTION__, 0x89fe, 0);
@@ -2869,8 +2872,8 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             // （原实现误 memset(name) 致目标永远查不到。）
             memset(targetName, 0, sizeof(targetName));
             strncpy(targetName, name, (size_t)extra);
-            target = world->find_user_from_world_byaccid(
-                world->GetIDUserInIDMap(targetName));
+            target = G_GameWorld()->find_user_from_world_byaccid(
+                G_GameWorld()->GetIDUserInIDMap(targetName));
             if (target == 0)
             {
                 user->Send(reject);
@@ -2928,8 +2931,8 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             packet.get_int(len) && packet.get_short(wLen) &&
             packet.get_int(extra) && packet.get_str(name, 0x1e, extra))
         {
-            target = world->find_user_from_world_byaccid(
-                world->GetIDUserInIDMap(name));
+            target = G_GameWorld()->find_user_from_world_byaccid(
+                G_GameWorld()->GetIDUserInIDMap(name));
             if (target == 0)
             {
                 user->Send(reject);
@@ -2968,24 +2971,32 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
             packet.get_int(len) && packet.get_str(name, 0x1e, len))
         {
-            target = world->find_user_from_world_byaccid(
-                world->GetIDUserInIDMap(name));
-            CParty* party = (target != 0) ? (CParty*)target->GetParty() : 0;
-            if (party == 0)
+            target = G_GameWorld()->find_user_from_world_byaccid(
+                G_GameWorld()->GetIDUserInIDMap(name));
+            if (target == 0)
             {
                 user->Send(reject);
             }
             else
             {
-                party->set_charac_live(target, (ENUM_USER_DUNGEON_STATE)1);
-                resp.put_int(len);
-                resp.put_str(name, len);
-                resp.finalize(true);
-                user->Send(resp);
-                target->Send(resp);
-                // ORIG 0x8ae2
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x8ae2, 0);
-                trace("GM(%s) revive %s \n", user->getCurCharacName(), name);
+                // ORIG 0x2680：target 有 party 才干活；无 party 独立再发 reject
+                CParty* party = (CParty*)target->GetParty();
+                if (party == 0)
+                {
+                    user->Send(reject);
+                }
+                else
+                {
+                    party->set_charac_live(target, (ENUM_USER_DUNGEON_STATE)1);
+                    resp.put_int(len);
+                    resp.put_str(name, len);
+                    resp.finalize(true);
+                    user->Send(resp);
+                    target->Send(resp);
+                    // ORIG 0x8ae2
+                    cMyTrace trace(__PRETTY_FUNCTION__, 0x8ae2, 0);
+                    trace("GM(%s) revive %s \n", user->getCurCharacName(), name);
+                }
             }
         }
         break;
@@ -2994,8 +3005,8 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
             packet.get_int(len) && packet.get_str(name, 0x1e, len))
         {
-            target = world->find_user_from_world_byaccid(
-                world->GetIDUserInIDMap(name));
+            target = G_GameWorld()->find_user_from_world_byaccid(
+                G_GameWorld()->GetIDUserInIDMap(name));
             if (target == 0)
             {
                 user->Send(reject);
@@ -3021,8 +3032,8 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             packet.get_int(len) && packet.get_int(extra) &&
             packet.get_str(name, 0x1e, extra))
         {
-            target = world->find_user_from_world_byaccid(
-                world->GetIDUserInIDMap(name));
+            target = G_GameWorld()->find_user_from_world_byaccid(
+                G_GameWorld()->GetIDUserInIDMap(name));
             if (target == 0)
             {
                 user->Send(reject);
@@ -3032,9 +3043,11 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
                 Stream* stream = GlobalData::s_stream_pool->Acquire(
                     "PacketDispatcher_Impl_1.cpp", 0x8b28);
                 CStreamGuard guard(stream, true);
-                guard << 0x93;
-                guard << (int)user->GetUID();
-                SIG_FORBID_USER_TO_PLAY* sig = guard.GetInBuffer<SIG_FORBID_USER_TO_PLAY>();
+                // ORIG：*guard → operator*（0x80c8c46），GetInBuffer 走 operator->（0x80c8c4e）。
+                **guard << 0x93;
+                **guard << (int)user->GetUID();
+                SIG_FORBID_USER_TO_PLAY* sig =
+                    guard->GetInBuffer<SIG_FORBID_USER_TO_PLAY>();
                 memset(sig, 0, 9);
                 gm_pkt::SigForbidPlayBody* body =
                     (gm_pkt::SigForbidPlayBody*)sig;
@@ -11947,6 +11960,8 @@ void Dispatcher_Cancel_Quick_Party::send(CUser* user, ParamBase& param)
 Dispatcher_ChangeRandomOption::~Dispatcher_ChangeRandomOption() {}
 int Dispatcher_ChangeRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
+    // §6.2 语义完成：P167 调用点差集双零（73/73）；orig511/our537，gap-26 为
+    // 后端帧/槽分配冗余（N82 残余），非缺语义 → byte 层 N 封顶。
     MSG_CHANGE_RANDOM_OPTION* local_38 = (MSG_CHANGE_RANDOM_OPTION*)&msg;
     Inven_Item* local_34;                // -0x30：GetInvenRef 结果
     CItem* local_30;                     // -0x2c：find_item 结果
@@ -15500,14 +15515,22 @@ int Dispatcher_GatheringPartyStatus::dispatch_sig(CUser* user, PacketBuf& packet
     for (unsigned short i = 0; (unsigned int)i < (unsigned int)recv.m_tryNum; ++i)
     {
         RecvTryEntry& e = recv.m_tryEntries[i];
-        if (!packet.get_byte(e.m_a) || !packet.get_byte(e.m_b) ||
-            !packet.get_binary((char*)e.m_bin, 4) ||
-            !packet.get_int(e.m_val))
-        {
+        if (!packet.get_byte(e.m_a))                       // ORIG 0x9b09
             return LineFunc(0x9b09,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        }
+        if (!packet.get_byte(e.m_b))                       // ORIG 0x9b0a
+            return LineFunc(0x9b0a,
+                            __PRETTY_FUNCTION__,
+                            0, 0);
+        if (!packet.get_binary((char*)e.m_bin, 4))         // ORIG 0x9b0b
+            return LineFunc(0x9b0b,
+                            __PRETTY_FUNCTION__,
+                            0, 0);
+        if (!packet.get_int(e.m_val))                      // ORIG 0x9b0c
+            return LineFunc(0x9b0c,
+                            __PRETTY_FUNCTION__,
+                            0, 0);
     }
 
     if (!packet.get_short(recv.m_partyNum))
@@ -15515,40 +15538,65 @@ int Dispatcher_GatheringPartyStatus::dispatch_sig(CUser* user, PacketBuf& packet
                         __PRETTY_FUNCTION__,
                         0, 0);
 
-    const bool isPvp = G_GameWorld()->IsPVPChannel();
-    if (isPvp ? ((unsigned int)recv.m_partyNum > 8)
-              : ((unsigned int)recv.m_partyNum > 4))
+    // ORIG 双分支：PVP 通道 cmp 8 + MAX_PVP_MEM（0x9b1c/0x9b1d），
+    // 非 PVP 通道 cmp 4 + PARTY_PLAYER_MAX（0x9b24/0x9b25）。
+    if (G_GameWorld()->IsPVPChannel())
     {
-        LogManager::logFormat(
-            1, "PacketDispatcher_Impl_1.cpp",
-            __PRETTY_FUNCTION__,
-            isPvp ? 0x9b1c : 0x9b24,
-            isPvp ? "recv_pk_party_status.party_num > MAX_PVP_MEM\n"
-                  : "recv_pk_party_status.party_num > PARTY_PLAYER_MAX\n");
-        return LineFunc(isPvp ? 0x9b1d : 0x9b25,
-                        __PRETTY_FUNCTION__,
-                        0, 0);
+        if ((unsigned int)recv.m_partyNum > 8)
+        {
+            LogManager::logFormat(
+                1, "PacketDispatcher_Impl_1.cpp",
+                __PRETTY_FUNCTION__,
+                0x9b1c, "recv_pk_party_status.party_num > MAX_PVP_MEM\n");
+            return LineFunc(0x9b1d,
+                            __PRETTY_FUNCTION__,
+                            0, 0);
+        }
+    }
+    else
+    {
+        if ((unsigned int)recv.m_partyNum > 4)
+        {
+            LogManager::logFormat(
+                1, "PacketDispatcher_Impl_1.cpp",
+                __PRETTY_FUNCTION__,
+                0x9b24, "recv_pk_party_status.party_num > PARTY_PLAYER_MAX\n");
+            return LineFunc(0x9b25,
+                            __PRETTY_FUNCTION__,
+                            0, 0);
+        }
     }
 
     for (unsigned short i = 0; (unsigned int)i < (unsigned int)recv.m_partyNum; ++i)
     {
         RecvPartyEntry& p = recv.m_partyEntries[i];
-        if (!packet.get_byte(p.m_flag) || !packet.get_int(p.m_accId) ||
-            !packet.get_int(p.m_id2) || !packet.get_binary((char*)p.m_tag, 4))
-        {
+        if (!packet.get_byte(p.m_flag))                    // ORIG 0x9b2e
             return LineFunc(0x9b2e,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        }
+        if (!packet.get_int(p.m_accId))                    // ORIG 0x9b36
+            return LineFunc(0x9b36,
+                            __PRETTY_FUNCTION__,
+                            0, 0);
+        if (!packet.get_int(p.m_id2))                      // ORIG 0x9b3e
+            return LineFunc(0x9b3e,
+                            __PRETTY_FUNCTION__,
+                            0, 0);
+        if (!packet.get_binary((char*)p.m_tag, 4))         // ORIG 0x9b47
+            return LineFunc(0x9b47,
+                            __PRETTY_FUNCTION__,
+                            0, 0);
     }
 
 
     Stream* stream =
         GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x9b4e);
     CStreamGuard guard(stream, true);
-    guard << (int)0x8e;
-    guard << (int)-1;
-    SIG_PARTY_STATUS* sig = guard.GetInBuffer<SIG_PARTY_STATUS>();
+    // ORIG：*guard → operator*（0x80c8c46 返回 this）后 .operator<<，
+    // 故源码为 **guard << op；GetInBuffer 走 operator->（0x80c8c4e）。
+    **guard << (int)0x8e;
+    **guard << (int)-1;
+    SIG_PARTY_STATUS* sig = guard->GetInBuffer<SIG_PARTY_STATUS>();
     memset(sig, 0, sizeof(SIG_PARTY_STATUS));   // ORIG memset(sig, 0, 0x1c8)
 
     user->m_network.GetPeerIP2(sig->m_ip, 0x10);
@@ -15659,6 +15707,8 @@ void Dispatcher_ItemHyperLinkMessage::send(CUser* user, ParamBase& param)
 int Dispatcher_ItemHyperLinkMessage::process(CUser* user, MSG_BASE& msg,
                                              ParamBase& param)
 {
+    // §6.2 语义完成：P167 调用点差集双零（60/60）；orig583/our583，gap0，
+    // 残余为寄存器/槽分配文本差（N82），非缺语义 → byte 层 N 封顶。
     stItemHyperLinkMessage& outParam =
         static_cast<stItemHyperLinkMessage&>(param);
     MSG_ITEM_HYPER_LINK_MESSAGE& m =

@@ -84,14 +84,15 @@ bool CUser::_check_level_up(int expAdd, int& sp, int& sfp,
         int bottom = G_CDataManager()->get_level_exp(get_charac_level());  // -0x2c
         int top = G_CDataManager()->get_level_exp(nextLevel);              // -0x28
 
-        int exp = get_charac_exp();
-        if (exp < bottom || exp > top)                        // +0x110 区间不一致
+        // ORIG：区间不一致条件对 get_charac_exp 各重调一次，trace 内再次重调
+        // （共 3 次，缓存违反 P183/P48）。
+        if (get_charac_exp() < bottom || get_charac_exp() > top)   // +0x110 区间不一致
         {
             cMyTrace trace(
                 __PRETTY_FUNCTION__,
                 0x403b, 5);
             trace("%s is Level(%d) and Exp(%d) Inconsistency(bottom(%d), top(%d))",
-                  getCurCharacName(), get_charac_level(), exp, bottom, top);
+                  getCurCharacName(), get_charac_level(), get_charac_exp(), bottom, top);
             setCurCharacExp(bottom);                          // +0x1bd 钳回下界
         }
 
@@ -136,11 +137,11 @@ bool CUser::_check_level_up(int expAdd, int& sp, int& sfp,
                                      getCurCharacExp());
 
             // 金币加成：GetGoldBonus(level)!=0 时入账并刷新物品列表。
-            int level = get_charac_level();
-            if (m_premium.GetGoldBonus(level) != 0)           // +0x358 判定
+            // （get_charac_level 在条件与入账各重调一次，禁缓存）
+            if (m_premium.GetGoldBonus(get_charac_level()) != 0)   // +0x358 判定
             {
                 CInventory* inven = getCurCharacInvenW();     // +0x382
-                inven->gain_money(m_premium.GetGoldBonus(level),      // +0x3a6
+                inven->gain_money(m_premium.GetGoldBonus(get_charac_level()),  // +0x3a6
                                   static_cast<eMoneyAddReason>(0xd), true, 0);
                 SendUpdateItemList(eSendTarget_1, ENUM_ITEMSPACE_0, 0);
             }
@@ -172,8 +173,14 @@ bool CUser::_check_level_up(int expAdd, int& sp, int& sfp,
             {
                 bool open =
                     G_CDataManager()->m_serverParameter.isDungeonOpen(0x2aff);
-                G_GameWorld()->send_user_dungeon_inout_message(this, 0x2aff,
-                                                               open);
+                // ORIG：open 真假两分支各自重调 G_GameWorld 并独立
+                // send_user_dungeon_inout_message（禁缓存，P183/P48）。
+                if (open)
+                    G_GameWorld()->send_user_dungeon_inout_message(this, 0x2aff,
+                                                                   true);
+                else
+                    G_GameWorld()->send_user_dungeon_inout_message(this, 0x2aff,
+                                                                   false);
             }
 
             makeGuildLevelUpMessage(get_charac_level());      // 公会升级公告

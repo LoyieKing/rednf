@@ -1076,11 +1076,12 @@ void CUser::SetEquipment(int slot, void* invenData, int size, void* outData)
         bool expired = false;
         if (it.m_addInfo != 0)
         {
-            int addInfo = it.get_add_info();
-            if (addInfo >= 1)
+            // ORIG：get_add_info() 在 `<1` 判与 `<=tick` 判两处各自重调，缓存违反 P183/P48。
+            if (it.get_add_info() >= 1)
             {
                 int now = OS_API::GetDateTimeTick();
-                expired = (now > addInfo);
+                if (now > it.get_add_info())
+                    expired = true;
             }
         }
         if (expired)

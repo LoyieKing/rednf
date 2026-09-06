@@ -1891,17 +1891,27 @@ int CUser::SendUpdateItemList(eSendTarget target, ENUM_ITEMSPACE space, int slot
     ((InterfacePacketBuf*)&packet)->put_byte((int)space);
     ((InterfacePacketBuf*)&packet)->put_short(1);
     // ORIG 0x0867c65a：空间→INVEN_TYPE 映射（1→2、7→3、3→0、其余→1）；
-    // 失败返回 0（不发包），成功 finalize + SendPacket 返回 1。
-    INVEN_TYPE type;
+    // 每分支独立重调 getCurCharacInvenR（访问器结果禁缓存，战术 P183/P48）；
+    // MakeItemPacket != 1 → 返回 0（不发包），否则 finalize + SendPacket 返回 1。
     switch (space)
     {
-    case 1: type = (INVEN_TYPE)2; break;
-    case 7: type = (INVEN_TYPE)3; break;
-    case 3: type = (INVEN_TYPE)0; break;
-    default: type = (INVEN_TYPE)1; break;
+    case 1:
+        if (getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)2, slot, packet) != 1)
+            return 0;
+        break;
+    case 7:
+        if (getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)3, slot, packet) != 1)
+            return 0;
+        break;
+    case 3:
+        if (getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)0, slot, packet) != 1)
+            return 0;
+        break;
+    default:
+        if (getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, slot, packet) != 1)
+            return 0;
+        break;
     }
-    if (getCurCharacInvenR()->MakeItemPacket(type, slot, packet) == 0)
-        return 0;
     ((InterfacePacketBuf*)&packet)->finalize(true);
     return SendPacket(target, packet);
 }
@@ -2586,7 +2596,9 @@ void CUser::gainCurCharacFatigue(int value)
         maxPrefatigue = getCurCharacMaxPremiumFatigue() & 0xffff;
 
     unsigned int prefatigue = getCurCharacPremiumFatigue() & 0xffff;
-    unsigned int premiumVal = prefatigue < maxPrefatigue ? prefatigue : maxPrefatigue;
+    // ORIG 0x864f854 调用 std::min<int>(int const&, int const&)（外部函数调用，
+    // 非三元/内联）——写显式 std::min<int> 以产出同符号调用点。
+    int premiumVal = std::min<int>(prefatigue, maxPrefatigue);
     int remain = (int)premiumVal - value;
     if (remain < 0)
     {
@@ -3118,13 +3130,17 @@ int CUser::Send(PacketGuard& packet)
                               name, (int)packetId);
         return 0;
     }
+    // ORIG 0x086486e5/0x086486ea：两个死 PacketBuf::at() 直调（结果丢弃，P184 死直调保留）
+    pBuf->at(0);
+    pBuf->at(1);
     unsigned short packetId = *((unsigned short*)pBuf->get_packet(1));
     unsigned char area = pBuf->at(0);
     GetPacketName((ENUM_PACKETCLASS)area, packetId);
     unsigned char b = pBuf->at(1);
     if (b != 6)
     {
-        m_pad8cf0c[0] = b;
+        // ORIG 块内 at(1)/at(0) 各重调一次，非复用 b/area
+        m_pad8cf0c[0] = pBuf->at(1);
         m_pad8cf0c[1] = pBuf->at(0);
     }
     return AntibotSend(*pBuf);
@@ -5764,14 +5780,17 @@ void CUser::send_pvp_record()
 {
     PacketGuard packet;
     packet.put_header(0, 0x30);
-    const PvpResultType* result = getPVPResultRefR();
-    packet.put_int(result->m_totalWinCount);
-    packet.put_int(result->m_totalLoseCount);
-    packet.put_int(result->m_expPoint);
-    packet.put_int(GlobalData::s_ref_pvp_grade->GetPvpCurrRankPoint(result->m_pvpGrade));
-    packet.put_int(GlobalData::s_ref_pvp_grade->GetPvpNextRankPoint(result->m_pvpGrade));
-    packet.put_byte(result->m_pvpGrade);
-    packet.put_byte(*(unsigned char*)&result->m_todayWinCount);
+    // ORIG：getPVPResultRefR 每处 put 独立重调 7 次——访问器结果禁缓存
+    // （战术 P183/P48）。
+    packet.put_int(getPVPResultRefR()->m_totalWinCount);
+    packet.put_int(getPVPResultRefR()->m_totalLoseCount);
+    packet.put_int(getPVPResultRefR()->m_expPoint);
+    packet.put_int(GlobalData::s_ref_pvp_grade
+                       ->GetPvpCurrRankPoint(getPVPResultRefR()->m_pvpGrade));
+    packet.put_int(GlobalData::s_ref_pvp_grade
+                       ->GetPvpNextRankPoint(getPVPResultRefR()->m_pvpGrade));
+    packet.put_byte(getPVPResultRefR()->m_pvpGrade);
+    packet.put_byte(*(unsigned char*)&getPVPResultRefR()->m_todayWinCount);
     packet.finalize(true);
     Send(packet);
 }
@@ -9387,18 +9406,24 @@ int CUser::SendUpdateItem(eSendTarget target, ENUM_ITEMSPACE space, int slot)
     if (item->isAvatarItemType())
     {
         ((InterfacePacketBuf*)&packet)->put_int(0x1e);
-        const WongWork::CAvatarItemMgr* mgr = getCurCharacInvenR()
-                                                  ->GetAvatarItemMgrR();
-        const char* socketData = mgr->getJewelSocketData(item->get_add_info());
+        // P183：ORIG 对 get_add_info 各次访问独立重物化 getCurCharacInvenR()
+        // ->GetAvatarItemMgrR()（socket 一次、expansion 再一次），禁 mgr 缓存。
+        const char* socketData =
+            getCurCharacInvenR()->GetAvatarItemMgrR()
+                ->getJewelSocketData(item->get_add_info());
         ((InterfacePacketBuf*)&packet)->put_binary(socketData, 0x1e);
-        char* expansion =
-            (char*)mgr->GetExpansionInfo(item->get_add_info());
+        const char* expansion =
+            static_cast<const char*>(
+                getCurCharacInvenR()->GetAvatarItemMgrR()
+                    ->GetExpansionInfo(item->get_add_info()));
         ((InterfacePacketBuf*)&packet)->put_int(4);
         if (expansion == 0)
         {
             stAvatarExpansionInfo_t init4;
             init4.init();
-            ((InterfacePacketBuf*)&packet)->put_binary((char*)&init4, 4);
+            // ORIG 3 处 put_binary 均走 const 重载（asm 0815096a）。
+            ((InterfacePacketBuf*)&packet)->put_binary(
+                reinterpret_cast<const char*>(&init4), 4);
         }
         else
         {
@@ -9902,20 +9927,23 @@ int CUser::SaveInventory()
     Stream* stream =
         GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x1828);
     CStreamGuard guard(stream, true);
-    guard << (int)0x23;          // SIG_SAVE_INVENTORY
-    guard << (int)GetUID();
+    // ORIG：每条 << 前 call operator*()，GetInBuffer 前 operator->()（P167 缺 3）。
+    guard.operator*()->operator<<((int)0x23);          // SIG_SAVE_INVENTORY
+    guard.operator*()->operator<<((int)GetUID());
 
-    SIG_SAVE_INVENTORY* sig = guard.GetInBuffer<SIG_SAVE_INVENTORY>();
+    SIG_SAVE_INVENTORY* sig =
+        guard.operator->()->GetInBuffer<SIG_SAVE_INVENTORY>();
     memset(sig, 0, 0xad99);
     _GetSaveInvenBase(sig);
     sig->m_saveFlag = 0;
 
-    const CInventory* inven = getCurCharacInvenR();
-    memcpy(sig->m_invenType0, inven->GetInvenStart(0), 0x53e);
-    memcpy(sig->m_invenType1, inven->GetInvenStart(1), 0x4a58);
-    memcpy(sig->m_invenType3, inven->GetInvenStart(3), 0x39aa);
+    // P183：ORIG 每块背包独立 getCurCharacInvenR() 重物化（4 处），禁 inven 缓存。
+    memcpy(sig->m_invenType0, getCurCharacInvenR()->GetInvenStart(0), 0x53e);
+    memcpy(sig->m_invenType1, getCurCharacInvenR()->GetInvenStart(1), 0x4a58);
+    memcpy(sig->m_invenType3, getCurCharacInvenR()->GetInvenStart(3), 0x39aa);
     // CInventory +0x55a = &m_invenItem[22]（ORIG 原始偏移；宠物尾 4 项）
-    memcpy(sig->m_creatureTail, &inven->m_invenItem[22], 0xf4);
+    memcpy(sig->m_creatureTail,
+           &getCurCharacInvenR()->m_invenItem[22], 0xf4);
 
     CInventory::RemoveKCItem(sig->m_invenType0, sig->m_invenType1);
     if (get_state() == 10)
@@ -9923,9 +9951,11 @@ int CUser::SaveInventory()
         CInventory::RemoveFPItem(sig->m_invenType0, sig->m_invenType1);
     }
 
-    const CCargo* cargo = getCurCharacCargoR();
-    sig->m_cargoCapacity = cargo->GetCapacity();
-    memcpy(sig->m_cargo, cargo->get_cargo_start(), ARAD::DATABASE::sourceCargoSize);
+    // P183：ORIG 两次独立 getCurCharacCargoR()（GetCapacity 一次、get_cargo_start
+    // 再一次），禁 CCargo* 缓存变元。
+    sig->m_cargoCapacity = getCurCharacCargoR()->GetCapacity();
+    memcpy(sig->m_cargo, getCurCharacCargoR()->get_cargo_start(),
+           ARAD::DATABASE::sourceCargoSize);
 
     m_characExpand.update(this, (ENUM_CHARAC_EXPAND_TYPE)9);
     removeRentalItemInfoFromInvenBuf(sig, 1);
@@ -10069,13 +10099,15 @@ void CUser::_UpdateUserInfo4Guild()
 
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x793f);
     CStreamGuard guard(s, true);
-    guard << (int)0x63;                       // header
-    guard << (int)-1;
-    guard << (int)get_charac_guildkey();
-    guard << (unsigned int)get_acc_id();
-    guard << (int)getCurCharacNo();
-    guard << (int)getCurCharacGrowType();
-    guard << (int)get_charac_level();
+    // ORIG：每处写经 guard.operator*()->operator<<(…) 显式代理链（operator* 调用点
+    // 补齐；SetCharacInfo/SaveInventory 判例）。
+    guard.operator*()->operator<<((int)0x63);                       // header
+    guard.operator*()->operator<<((int)-1);
+    guard.operator*()->operator<<((int)get_charac_guildkey());
+    guard.operator*()->operator<<((unsigned int)get_acc_id());
+    guard.operator*()->operator<<((int)getCurCharacNo());
+    guard.operator*()->operator<<((int)getCurCharacGrowType());
+    guard.operator*()->operator<<((int)get_charac_level());
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
 }
 
@@ -10095,7 +10127,9 @@ int CUser::CacheCharacterMemory()
     if (get_state() < 3)
         return 0;
 
-    unsigned int characNo = (unsigned int)getCurCharacNo();   // 即 *curR 首字段（ORIG）
+    // ORIG 0x0864c8..：characNo = *((uint*)getCurCharacR()) 直读首字段 m_characNo
+    //（P167：再次 getCurCharacR，勿经 getCurCharacNo() 访问器）。
+    unsigned int characNo = (unsigned int)getCurCharacR()->m_characNo;
     int characIdx = get_charac_idx(characNo);
     if (characIdx < 0)
     {
@@ -10324,25 +10358,27 @@ bool CUser::GetCharacInfo(SIG_LOAD_CHARAC* sig) const
 // ORIG T 0x0864d646：填充 SIG_LOAD_INVENTORY 的背包/金币/装备镜像/cargo/avatar 区。
 int CUser::GetInventory(SIG_LOAD_INVENTORY* sig)
 {
-    const CInventory* inven = getCurCharacInvenR();
-    sig->m_money = inven->get_money();
-    sig->m_coin = inven->GetCoin();
-    sig->m_payCoin = inven->GetPayCoin();
-    sig->m_eventCoin = inven->GetEventCoin();
-    inven->GetInvenData(1, &sig->m_invenType1, 0x4a58);
-    inven->GetInvenData(2, &sig->m_invenType2, 0x1905);
-    inven->GetInvenData(3, &sig->m_invenType3, 0x39aa);
+    // P183：ORIG 每字段访问独立 getCurCharacInvenR()/getCurCharacCargoR() 重物化
+    //（P167 缺 getCurCharacInvenR×11 + getCurCharacCargoR×1），禁指针缓存。
+    sig->m_money = getCurCharacInvenR()->get_money();
+    sig->m_coin = getCurCharacInvenR()->GetCoin();
+    sig->m_payCoin = getCurCharacInvenR()->GetPayCoin();
+    sig->m_eventCoin = getCurCharacInvenR()->GetEventCoin();
+    getCurCharacInvenR()->GetInvenData(1, &sig->m_invenType1, 0x4a58);
+    getCurCharacInvenR()->GetInvenData(2, &sig->m_invenType2, 0x1905);
+    getCurCharacInvenR()->GetInvenData(3, &sig->m_invenType3, 0x39aa);
     // 装备镜像 = CInventory::m_invenItem 前 22 项（0x53e B）
-    memcpy(&sig->m_equipMirror, inven->m_invenItem, 0x53e);
+    memcpy(&sig->m_equipMirror, getCurCharacInvenR()->m_invenItem, 0x53e);
     // creature tail：m_invenType3 区内 +0x38b6 跨条目 0xf4 B（源 m_invenItem[22..25]，
     // ORIG 0x0864d646 忠实保留跨对齐写）。
-    memcpy((char*)&sig->m_invenType3 + 0x38b6, &inven->m_invenItem[22], 0xf4);
-    inven->GetClearAvatar((unsigned long*)&sig->m_clearAvatar);
-    const CCargo* cargo = getCurCharacCargoR();
-    sig->m_cargoCapacity = (unsigned int)cargo->GetCapacity();
-    cargo->get_cargo(&sig->m_cargo);
-    sig->m_avatarCoin = inven->m_avatarCoin.Get();   // CInventory::m_avatarCoin@+0x658
-    sig->m_inventoryCapacity = inven->get_inventory_capacity();
+    memcpy((char*)&sig->m_invenType3 + 0x38b6,
+           &getCurCharacInvenR()->m_invenItem[22], 0xf4);
+    getCurCharacInvenR()->GetClearAvatar((unsigned long*)&sig->m_clearAvatar);
+    sig->m_cargoCapacity =
+        (unsigned int)getCurCharacCargoR()->GetCapacity();
+    getCurCharacCargoR()->get_cargo(&sig->m_cargo);
+    sig->m_avatarCoin = getCurCharacInvenR()->m_avatarCoin.Get();   // CInventory::m_avatarCoin@+0x658
+    sig->m_inventoryCapacity = getCurCharacInvenR()->get_inventory_capacity();
     return 1;
 }
 
@@ -10641,10 +10677,13 @@ void CUser::GetCurCharacOption(CharacterOption& option) const
 bool CUser::GetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo) const
 {
     skill->m_field04 = 0;
-    SkillSlot* slot = (SkillSlot*)getCurCharacSkillR();
-    slot->get_remain_sp(&skill->m_remainSpTree1, &skill->m_remainSpTree2,
+    // ORIG：getCurCharacSkillR 在 get_remain_sp/get_skill_slot/getComboSkillSaveData
+    // 三处各自重调——访问器结果禁缓存（战术 P183/P48）。
+    ((SkillSlot*)getCurCharacSkillR())
+        ->get_remain_sp(&skill->m_remainSpTree1, &skill->m_remainSpTree2,
                         &skill->m_remainSfpTree1, &skill->m_remainSfpTree2);
-    slot->get_skill_slot((char*)skill->m_skillSlotTree1,
+    ((SkillSlot*)getCurCharacSkillR())
+        ->get_skill_slot((char*)skill->m_skillSlotTree1,
                          (char*)skill->m_skillSlotTree2, 0x198);
     STSkillCommandData::STCommand cmds[50];
     memset(cmds, 0, sizeof(cmds));
@@ -10652,7 +10691,7 @@ bool CUser::GetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo) const
     memcpy(skill->m_commands, cmds, sizeof(cmds));
     // ORIG 0x0864de1e `movzbl 0xa850(%eax)`（unsigned char 宽实证）
     skill->m_field411 = G_CDataManager()->m_pvpSkillTree.m_field50;
-    slot->getComboSkillSaveData(combo);
+    ((SkillSlot*)getCurCharacSkillR())->getComboSkillSaveData(combo);
     return 1;
 }
 
@@ -10716,7 +10755,8 @@ STSkillCommandData::STCommand* CUser::get_skill_command_buf()
 int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
 {
     sig->m_field8 = 0;
-    memcpy((char*)&sig->m_pvpResult, getPVPResultR(), 0x84);   // PvpResultType::Get（0x85d5924）为 0x21 dword memcpy
+    // ORIG 0x08677979：PvpResultType::Get(source, dest) 成员直调，非裸 memcpy。
+    getPVPResultR()->Get(sig->m_pvpResult);
     GetRecord(sig);
     GetContinuousItemInfo(sig);
     GetLimitItemUsage(sig);
@@ -10739,8 +10779,9 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     sig->m_totalPcRoomPlayTime = getTotalPcRoomPlayTime();
     sig->m_pcRoomPlayTimeRewardCnt = getPcRoomPlayTimeRewardCnt();
     sig->m_curCharacUsedGiftFatigueQuantity = GetCurCharacUsedGiftFatigueQuantity();
-    // ORIG 调 std::bitset<32>::set()（无参，全部 32 位置 1 → 0xffffffff）。
-    sig->m_bitset = 0xffffffff;
+    // ORIG 调 std::bitset<32>::set()（无参，全部 32 位置 1 → 0xffffffff）；
+    // 直接赋值会经 bitset(unsigned long) ctor（EXTRA）而非 set()。
+    sig->m_bitset.set();
 
     // skill 区（+0xc9c0）+ combo（+0x14aaa）
     GetSkill((SIG_LOAD_SKILL*)sig->m_mixedRegion, (SIG_COMBO_SKILL*)sig->m_comboSkill);
@@ -12070,18 +12111,20 @@ void CUser::send_RedeemInfo()
 // ============================================================================
 void CUser::calc_lev_stat(_Additioal_info& info)
 {
-    CCharacter* chars = G_CDataManager()->m_characList->m_characs;
-    info.add(*(const _Additioal_info*)&chars[get_charac_job()]);
+    // ORIG：G_CDataManager() 在基础 add/get_growtype_stat×(3) 四处各自重调，
+    // getCurCharFirstGrowType 重调两次——访问器结果禁缓存（战术 P183/P48）。
+    info.add(*(const _Additioal_info*)
+        &G_CDataManager()->m_characList->m_characs[get_charac_job()]);
 
-    const void* statBase =
-        chars[get_charac_job()].get_growtype_stat(0, 0);            // 无成长
-    int firstGrow = (signed char)getCurCharFirstGrowType();
-    const void* statFirst =
-        chars[get_charac_job()].get_growtype_stat(firstGrow, 0);    // 一转
+    const void* statBase = G_CDataManager()->m_characList
+        ->m_characs[get_charac_job()].get_growtype_stat(0, 0);          // 无成长
+    const void* statFirst = G_CDataManager()->m_characList
+        ->m_characs[get_charac_job()]
+            .get_growtype_stat((signed char)getCurCharFirstGrowType(), 0);  // 一转
     int secondGrow = (signed char)getCurCharSecondGrowType();
-    const void* statSecond =
-        chars[get_charac_job()].get_growtype_stat(firstGrow,
-                                                  secondGrow);      // 二转
+    const void* statSecond = G_CDataManager()->m_characList
+        ->m_characs[get_charac_job()].get_growtype_stat(
+            (signed char)getCurCharFirstGrowType(), secondGrow);        // 二转
 
     for (int level = 1; get_charac_level() > level; ++level)
     {
@@ -12401,11 +12444,12 @@ void CUser::UpdateCurCharacVisibleToCharacViewMemory()
         }
         else
         {
-            int clearIdx = inven->GetClearAvatar(i);
-            if (clearIdx == 0)
+            // ORIG：GetClearAvatar(i) 在 if 条件与 else 分支各自重调，结果禁缓存
+            // （战术 P183/P48）。
+            if (inven->GetClearAvatar(i) == 0)
                 vis.m_field0 = inven->m_invenItem[i].m_addInfo;
             else
-                vis.m_field0 = clearIdx;
+                vis.m_field0 = inven->GetClearAvatar(i);
 
             // ORIG key = item+0x07（m_addInfo2）；GetExpansionInfo 返回 {short,short}
             const WongWork::CAvatarItemMgr* mgr = inven->GetAvatarItemMgrR();

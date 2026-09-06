@@ -331,9 +331,20 @@ void CUser::_onChangeGrowType(unsigned char newFirst, unsigned char secondGrew,
         bool on = ev->IsEventing((CUser*)0);                      // vtable+0x34 槽（send-flag 判定）
         if (on && reason != (eChangeGrowTypeReason)0x1)
         {
-            unsigned int achievementType = (secondGrew == 0) ? 10u : 11u;
-            DB_InsertArchieveEventLog::makeRequest(get_acc_id(), getCurCharacNo(),
-                                                   (SIG_INSERT_ACHIEVE_EVENT::ENUM_ACHIEVE_TYPE)achievementType);
+            // ORIG：makeRequest 两分支独立，每分支各自重调 getCurCharacNo/get_acc_id
+            // （访问器结果禁缓存，战术 P183/P48）。
+            if (secondGrew == 0)
+            {
+                DB_InsertArchieveEventLog::makeRequest(
+                    get_acc_id(), getCurCharacNo(),
+                    (SIG_INSERT_ACHIEVE_EVENT::ENUM_ACHIEVE_TYPE)10u);
+            }
+            else
+            {
+                DB_InsertArchieveEventLog::makeRequest(
+                    get_acc_id(), getCurCharacNo(),
+                    (SIG_INSERT_ACHIEVE_EVENT::ENUM_ACHIEVE_TYPE)0xb);
+            }
         }
     }
 
@@ -360,10 +371,11 @@ void CUser::_onChangeGrowType(unsigned char newFirst, unsigned char secondGrew,
         (GlobalData::s_systemTime_.getCurSec() <= 0x46e1bbd0u);
     if (premiumOn && reason != (eChangeGrowTypeReason)0x1 && secondGrew == 0)
     {
-        CInventory* inven = getCurCharacInvenW();
-        Inven_Item& ref = *inven->GetInvenRef(0, 0xb);
-        unsigned int idx = ref.m_addInfo;                   // Inven_Item+0x02
-        if ((idx - 0x65d6u) < 5u)
+        // ORIG：const 引用读 accessor（getCurCharacInvenR + GetInvenRef 均为 const
+        // 重载）——const 重载甄别。
+        const CInventory* inven = getCurCharacInvenR();
+        const Inven_Item& ref = *inven->GetInvenRef(0, 0xb);
+        if ((ref.m_addInfo - 0x65d6u) < 5u)
         {
             char msg[256];
             strncpy(msg, g_scriptStringManager_.findString(4, "game_server_msg_07", 0), 0xff);
@@ -714,24 +726,35 @@ void CUser::_processCharacterDayEvent(unsigned int oldFatigue, unsigned int addF
             return;
     }
     int itemId; int addCount;
-    const char* msgKey;
+    char body[256];
     if (dayA == dayB)                       // 同日跨周
-    { itemId = 0x1d5e; addCount = 1; msgKey = "game_server_msg_75"; }
+    {
+        itemId = 0x1d5e; addCount = 1;
+        strncpy(body, g_scriptStringManager_.findString(4, "game_server_msg_75", 0), 0xff);
+    }
     else if (dayA == 0 && dayB == 1)
-    { itemId = 0x1d5c; addCount = 2; msgKey = "game_server_msg_71"; }
+    {
+        itemId = 0x1d5c; addCount = 2;
+        strncpy(body, g_scriptStringManager_.findString(4, "game_server_msg_71", 0), 0xff);
+    }
     else if (dayA == 1 && dayB == 2)
-    { itemId = 0x1d5c; addCount = 4; msgKey = "game_server_msg_72"; }
+    {
+        itemId = 0x1d5c; addCount = 4;
+        strncpy(body, g_scriptStringManager_.findString(4, "game_server_msg_72", 0), 0xff);
+    }
     else if (dayA == 2 && dayB == 3)
-    { itemId = 0x1d5c; addCount = 6; msgKey = "game_server_msg_73"; }
+    {
+        itemId = 0x1d5c; addCount = 6;
+        strncpy(body, g_scriptStringManager_.findString(4, "game_server_msg_73", 0), 0xff);
+    }
     else if (dayA == 3 && dayB == 4)
     {
-        itemId = 0x1d5d; addCount = 1; msgKey = "game_server_msg_74";
+        itemId = 0x1d5d; addCount = 1;
+        strncpy(body, g_scriptStringManager_.findString(4, "game_server_msg_74", 0), 0xff);
         CUserEventUtil::updateCharacterDayEvent(this, 1);
     }
     else return;
 
-    char body[256];
-    strncpy(body, g_scriptStringManager_.findString(4, msgKey, 0), 0xff);
     char title[21];
     strncpy(title, g_scriptStringManager_.findString(4, "game_server_msg_70", 0), 0x14);
     Inven_Item gift;
@@ -761,12 +784,18 @@ void CUser::_processFatigueBuffEvent(unsigned int oldFatigue, unsigned int addFa
     int zoneB = (int)(total / DIV);
     if (zoneA == zoneB) return;
     itemId = 0x1d95;
-    const char* key = 0;
-    if (zoneA == 1 && zoneB == 2)      { addCount = 10; key = "game_server_msg_84"; }
-    else if (zoneA == 2 && zoneB == 3) { addCount = 20; key = "game_server_msg_85"; }
-    else return;
     char body[256];
-    strncpy(body, g_scriptStringManager_.findString(4, key, 0), 0xff);
+    // ORIG：findString 调用点逐分支独立（每分支一 findString+strncpy），
+    // 不合并入 key 变量——访问器/查表结果禁缓存（战术 P183/P48）。
+    if (zoneA == 1 && zoneB == 2) {
+        addCount = 10;
+        strncpy(body, g_scriptStringManager_.findString(4, "game_server_msg_84", 0), 0xff);
+    }
+    else if (zoneA == 2 && zoneB == 3) {
+        addCount = 20;
+        strncpy(body, g_scriptStringManager_.findString(4, "game_server_msg_85", 0), 0xff);
+    }
+    else return;
     char title[21];
     strncpy(title, g_scriptStringManager_.findString(4, "game_server_msg_83", 0), 0x14);
     Inven_Item gift;
@@ -1111,24 +1140,25 @@ bool CUser::CalLevelUpItemCheck(unsigned long itemId)
 // ---------------------------------------------------------------------------
 bool CUser::CalLevelUpItemState(char& state, int& needExp, int fromLevel, int toLevel)
 {
-    static const char* PRETTY = "bool CUser::CalLevelUpItemState(char&, int&, int, int)";
     if (get_charac_level() < fromLevel || get_charac_level() > toLevel)
         return false;
     state = 1;
     int luExp = get_level_up_exp(get_charac_level());
     int lvTop = G_CDataManager()->get_level_exp(get_charac_level());
     needExp = luExp + (lvTop - get_charac_exp());
-    bool wrong = (needExp < 0);
+    // ORIG：wrong/success 两分支各自独立重调 getCurCharacNo/get_acc_id/NumberToString
+    // 并各自构造 cMyTrace（访问器结果禁缓存，战术 P183/P48）。
+    if (needExp < 0)
     {
-        unsigned int charno = getCurCharacNo();
-        char* mid = NumberToString(get_acc_id(), 0);
-        cMyTrace trace(PRETTY, wrong ? 0xa0d7 : 0xa0da, 0);
-        if (wrong)
-            trace("Level_up_item:wrong value(%d) m_id(%s),charno(%u)", needExp, mid, charno);
-        else
-            trace("Level_up_item:success value(%d) m_id(%s),charno(%u)", needExp, mid, charno);
+        cMyTrace trace("bool CUser::CalLevelUpItemState(char&, int&, int, int)", 0xa0d7, 0);
+        trace("Level_up_item:wrong value(%d) m_id(%s),charno(%u)", needExp,
+              NumberToString(get_acc_id(), 0), getCurCharacNo());
+        return false;
     }
-    return !wrong;
+    cMyTrace trace("bool CUser::CalLevelUpItemState(char&, int&, int, int)", 0xa0da, 0);
+    trace("Level_up_item:success value(%d) m_id(%s),charno(%u)", needExp,
+          NumberToString(get_acc_id(), 0), getCurCharacNo());
+    return true;
 }
 
 // >>> W7-BLOCKED CUser::ChangeGrowType_Item —— _postCheckForceChangeGrowType 等调用依赖 owner 待定；clear_all_skills_both 链
@@ -7224,7 +7254,9 @@ void CUser::UpdateDimensionInout()
     Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1bd0);
     CStreamGuard guard(stream, true);
     guard.operator*()->operator<<(0x14f);
-    guard.operator*()->operator<<(GetUID());
+    // ORIG 08652030 call operator<<(int)：传参为 int（GetUID 返回 uint，须显式转 int
+    // 选中 operator<<(int) 重载——否则误落 operator<<(unsigned int)，const 重载甄别）。
+    guard.operator*()->operator<<(static_cast<int>(GetUID()));
 
     SIG_UPDATE_DIMENSION* sig = guard->GetInBuffer<SIG_UPDATE_DIMENSION>();
     memset(sig, 0, 0x10);
@@ -10040,8 +10072,10 @@ int CUser::setTagCharacInven(TAG_CHARAC_INVEN_DATA* data)
     }
     Inven_Item* invenRaw = getTagCharacInvenW();
     memcpy(reinterpret_cast<char*>(invenRaw) + 0x1c, data, 0x53e);
-    CInventory* inven = reinterpret_cast<CInventory*>(invenRaw);
-    inven->SetClearAvatar(reinterpret_cast<unsigned long*>(data->m_clearAvatar));  // +0x3ff8
+    // ORIG：getTagCharacInvenW 在 memcpy/SetClearAvatar(ulong*)/循环内
+    // SetClearAvatar(i,idaf) 三处各自重调——访问器结果禁缓存（战术 P183/P48）。
+    reinterpret_cast<CInventory*>(getTagCharacInvenW())
+        ->SetClearAvatar(reinterpret_cast<unsigned long*>(data->m_clearAvatar));  // +0x3ff8
     for (int i = 0; i < *reinterpret_cast<int*>(data->m_pad1e43); ++i) {  // +0x1e43 count（未建模）
         int invenSlot = 0;
         if (*reinterpret_cast<int*>(data->m_pad1e43 + 0x29 + i * 0x4b) != 0) {  // +0x1e6c（未建模）
@@ -10051,7 +10085,8 @@ int CUser::setTagCharacInven(TAG_CHARAC_INVEN_DATA* data)
             for (int j = 0; j < 10; ++j) {
                 if (data->m_items[j].m_addInfo2 ==
                     *reinterpret_cast<int*>(data->m_pad1e43 + 4 + i * 0x4b)) {  // +0x1e47（未建模）
-                    inven->SetClearAvatar(j, invenSlot);
+                    reinterpret_cast<CInventory*>(getTagCharacInvenW())
+                        ->SetClearAvatar(j, invenSlot);
                 }
             }
         }
@@ -10116,8 +10151,10 @@ int CUser::SetInventory(SIG_LOAD_INVENTORY* sig)
     inven = getCurCharacInvenW();
     memcpy(reinterpret_cast<char*>(inven) + 0x55a, inven3 + 0x38b6, 0xf4);
     for (int i = 0x17; i < 0x1a; ++i) {
+        // ORIG：循环内对 getCurCharacInvenW 重调两次（一次算目的地指针，一次取
+        // GetCreatureMgrW 的 this）——访问器结果禁缓存（战术 P183/P48）。
         CInventory* invenW = getCurCharacInvenW();
-        user_creature::CCreatureMgr* mgr = invenW->GetCreatureMgrW();
+        user_creature::CCreatureMgr* mgr = getCurCharacInvenW()->GetCreatureMgrW();
         mgr->LoadArtifact(i,
             reinterpret_cast<Inven_Item*>(reinterpret_cast<char*>(invenW) + i * 0x3d + 0x1c));
     }
