@@ -98,6 +98,18 @@ public:
 };                                       // sizeof 0xcf1
 typedef char _assert_sig_load_action_point_size[(sizeof(_SIG_LOAD_ACTION_POINT) == 0xcf1) ? 1 : -1];
 
+// 【batch-17 三联动结论（§6.2 口径，UpC11 实测复核）】
+//   copy ctor 0x08895ebc / operator= 0x0889603a 的逐成员拷贝集合已完全对齐：
+//   [+0x00 dword][+0x04 dword][+0x08 word][+0x0a byte][+0x0c word][+0x0e]
+//   [+0x0f][+0x10] → vector(+0x14) → [+0x20 dword] → string(+0x24) →
+//   string(+0x28) → [+0x2c byte] → **止于 +0x2c**；+0x2d..+0x2f 全区域零引用
+//   （工单原记"copy ctor 拷 0x2d/0x2f"系 CCMC8 把 OURS 反产行的 + 前缀误读，
+//   已双向复核修正）。据此删除 m_pad2d[3]（隐式拷贝会拆成 movzwl 0x2d +
+//   movzbl 0x2f，+4~6 insn；类有效对齐 4 ⇒ 自动补齐，sizeof 0x30 断言不变）。
+//   残余 copy 84/74、assign 61/54 的 10 条差 = ORIG 从 +0x0c 起每成员重载
+//   0xc(%ebp)/0x8(%ebp) 的 4 条形，而 4.4 全程寄存器缓存（N18a/N76 命中，
+//   非语义、不可源码控制）⇒ 判语义完成、byte 层封顶。
+//   import 侧（0x08894996）现 794/798（gap -4），取数/写入粒度见各消费行注释。
 // 元素布局（importActionPointSystemEtcScript 0x08894996 汇编实证，sizeof 0x30）：
 //   B+0x00 ushort / B+0x02 int(IsValidActionGroupIndex 参数) / B+0x06 byte[5]
 //   （写 -(char)v；其中 +8/+9 槽随后被独立扫描覆写）/ B+0x0c word（map 键）/
@@ -139,7 +151,11 @@ struct CActionPointEx
     std::string m_str24;             // +0x24
     std::string m_str28;             // +0x28
     unsigned char m_field2c;         // +0x2c
-    char m_pad2d[3];                 // +0x2d
+    // +0x2d..+0x2f 是**不参与拷贝的尾隙**：ORIG copy ctor(0x08895ebc) 与
+    // operator=(0x0889603a) 的逐成员序列都止于 `movzbl 0x2c / mov %dl,0x2c`，
+    // 全区域 objdump 无任何 0x2d/0x2f 引用。声明显式 char[3] 会被隐式拷贝
+    // 拆成 movzwl 0x2d + movzbl 0x2f 两段（+4 insn，P26 同源）；类有效对齐为 4
+    // （含 int/vector/string 成员）⇒ 编译器自动补齐至 sizeof 0x30，下方断言守住。
 };                                   // sizeof 0x30
 typedef char _assert_action_point_record_size[
     (sizeof(CActionPointEx::ActionPointRecord) == 0x12) ? 1 : -1];

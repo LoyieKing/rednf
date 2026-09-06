@@ -2489,6 +2489,9 @@ int Dispatcher_ComboSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 // skillIdx...}；checkComboSkillIndex 校验通过才收技能列表；逐项插入
 // m_comboMap(kind → vector<int>)。任何 get 失败按行号走 LineFunc；
 // 外层 get_short 失败/循环耗尽均归 LineFunc(0x30c)。
+// 【batch-17 X1 池收口（§6.2）】orig 213 / ours 210（gap 3）：调用点差集
+//   25↔25 **归零**（残差 8/8 全为 pair/vector 的 C2/D2 ↔ C1/D1 同体符号名
+//   对称差）；残 3 为迭代器/临时对象落槽步序（N82）⇒ 语义完成。
 int Dispatcher_ComboSkill::read(PacketBuf& packet, MSG_BASE& msg)
 {
     MSG_COMBO_SKILL& req = static_cast<MSG_COMBO_SKILL&>(msg);
@@ -3511,6 +3514,10 @@ void Dispatcher_BingoReward::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_CranePickUp::~Dispatcher_CranePickUp() {}
+// 【batch-17 X1 池收口（§6.2）】orig 185 / ours 192（gap -7）：调用点差集
+//   33↔33 **归零**（残差全是 PacketGuard/cMyTrace 的 C2/D2 ↔ C1/D1 同体
+//   符号名对称差）；多出的 7 insn 为 4.4 的 EH cleanup 与守卫落槽
+//   （N83/N82 族）⇒ 语义完成、byte 层封顶。
 int Dispatcher_CranePickUp::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x0821d508（docs/class_func_reports/Dispatcher_CranePickUp/dispatch_sig.md）
@@ -22957,6 +22964,9 @@ int Dispatcher_MonstercardBind::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_MonstercardBind::check_error (ORIG 0x081d8de2 T) ====
+// 【batch-17 X1 池收口（§6.2）】orig 235 / ours 229（gap 6）：调用点差集
+//   27↔27、indirect 0↔0 **归零**；残 6 为 4.1 的寄存器重载/岛步序（N76/N82）
+//   ⇒ 语义完成、byte 层封顶，勿再改写。
 int Dispatcher_MonstercardBind::check_error(CUser* user, MSG_BASE& msg)
 {
     if (user == 0)
@@ -23455,6 +23465,10 @@ bool GetSelectionIndex(CUser& user, int& outIndex, int type);
 // ==== Dispatcher_PcRoomRentItem::check_error (ORIG 0x081e5762) ====
 int Dispatcher_PcRoomRentItem::check_error(CUser* user, MSG_BASE& msg)
 {
+    // 【实测记录 batch-17】改写为 `invalid = (state != 3) || (characR == 0)`
+    // 命名 bool + `if (invalid) return 3;` 可让首跳方向与 ORIG 一致（jne），但
+    // 4.4 会把 bool 落槽再 `mov; cmpb` 回读（70/71）；保持合取原形为 70/70，
+    // 故此处保留 && 形，方向差记 N76/N18a（勿再改写）。
     if (user->get_state() == 3 && user->getCurCharacR() != 0)
     {
         // ①ORIG 0x081e577x：msg 引用槽在 state/characR 判定**之后**才物化
@@ -23475,10 +23489,18 @@ int Dispatcher_PcRoomRentItem::check_error(CUser* user, MSG_BASE& msg)
             return 8;
         }
         // type==2：重复租借事件(0x5e)未进行中 → 错误。vptr+0x34 槽 = IsEventing。
-        if (static_cast<signed char>(req.m_0e) == 2 &&
-            !GlobalData::s_event_manager->GetRepeatEvent(0x5e)->IsEventing((CUser*)0))
+        // 【batch-17 DispC8 交接项】必须写**嵌套独立 if**：ORIG 0x081e57f5..0x081e5835
+        // 是 `cmp $0x2,%al; jne 尾` + `call IsEventing; xor $0x1,%eax; test%al;
+        // je 尾` + `mov $0x8,%eax; jmp end`，即两个条件各自 jcc 直跳、**无 bool
+        // 汇聚**；写成 `A && !call()` 会让 4.4 生成 `mov$1/jmp/mov$0` 汇聚岛
+        // （实测多 7 insn，70/75 → 70/70 的达成点）。
+        if (static_cast<signed char>(req.m_0e) == 2)
         {
-            return 8;
+            if (!GlobalData::s_event_manager->GetRepeatEvent(0x5e)
+                     ->IsEventing((CUser*)0))
+            {
+                return 8;
+            }
         }
         return 0;
     }

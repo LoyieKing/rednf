@@ -1877,17 +1877,18 @@ void CGameManager::WarRoomCountManage(int hourIndex)
     cMyTrace tr0(__PRETTY_FUNCTION__, 0x306f, 0);
     tr0("WarRoomCountManage Start");
     int current[10];
-    memset(current, 0, 10);  // ORIG：仅清 10 字节
+    // ORIG 0x082a2776：`mov $0xa,%edx; rep stos` = **10 个 dword（40 字节）全清**
+    // （旧注"仅清 10 字节"误，current[2..9] 曾留未初始化——真 bug）。
+    memset(current, 0, sizeof(current));
     int total = 0;
     for (int area = 0; area < 10; ++area)
     {
         int n = 0;
-        for (;;)
+        // ORIG 0x082a2818 COND：peek 返回值**不入槽**，直接 `cmp -0x44(n),%eax;
+        // setg;test;jne`（我们旧形 int need=… 多两条槽 store/load）。
+        while (((CDataManager*)G_CDataManager())
+                   ->m_warAreaCounter.GetWarRoomCountAtPeekTime(area) > n)
         {
-            void* dm = G_CDataManager();
-            int need = ((CDataManager*)dm)->m_warAreaCounter.GetWarRoomCountAtPeekTime(area);
-            if (need <= n)
-                break;
             WarRoom* room = GetWarRoom(total++);
             if (room == 0)
             {
@@ -1993,17 +1994,16 @@ void CGameManager::WarRoomCountManage(int hourIndex)
 void CGameManager::WarRoomCountManageTest(int hourIndex)
 {
     int current[10];
-    memset(current, 0, 10);  // ORIG：仅清 10 字节
+    // 同 WarRoomCountManage：ORIG rep stos 清 10 dword（40B），旧 10 字节为真 bug。
+    memset(current, 0, sizeof(current));
     int total = 0;
     for (int area = 0; area < 10; ++area)
     {
         int n = 0;
-        for (;;)
+        // 同 WarRoomCountManage：peek 直连 cmp，无 need 槽（ORIG 0x082a2dXX 孪生段）。
+        while (((CDataManager*)G_CDataManager())
+                   ->m_warAreaCounter.GetWarRoomCountAtPeekTime(area) > n)
         {
-            void* dm = G_CDataManager();
-            int need = ((CDataManager*)dm)->m_warAreaCounter.GetWarRoomCountAtPeekTime(area);
-            if (need <= n)
-                break;
             WarRoom* room = GetWarRoom(total++);
             if (room == 0)
             {

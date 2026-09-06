@@ -61,7 +61,12 @@ upgrade_table_t::upgrade_table_t()
     }
     UPG_TBL_I32(this, 0x93) = 0;              // +0x258 强化等级下限
     m_floatMap.clear();
-    memset(m_zero4b4, 0, sizeof(m_zero4b4));
+    // 逐条直写：ORIG 0x089003a0 域是 4 条 `movl $0,0x4b4+4i(%eax)`，走 memset()
+    // 会多出 ORIG 不存在的 memset 符号（P183 反向：库调用回退为物化）。
+    m_zero4b4[0] = 0;
+    m_zero4b4[1] = 0;
+    m_zero4b4[2] = 0;
+    m_zero4b4[3] = 0;
 }
 
 // ===================== CItemAmplifier =====================

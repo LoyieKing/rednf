@@ -102,7 +102,7 @@ public:
     void end_pvp_result();
     int send_pvp_end();
     bool CheckPassword(const char* password, int len);
-    unsigned char IsExistPassword();
+    unsigned char IsExistPassword();   // P9：ORIG 体 6 条 `movzbl +0x604,%eax;ret` 无 setne 归一 ⇒ uchar 直返；caller xor$1 系调用点 !call() 裸形（P168a③），非返回类型信号
     bool IsEndPvpBattle();
     unsigned char IsInsertTimerRecvPvpRank();
     int is_closeable_seat_state();
