@@ -81,14 +81,20 @@ bool CPacketRespondent::SendAll()
 // 否则比较 Village::get_gate_area(village) == area。
 bool CPacketRespondent::IsGateArea(CUser* user, int area)
 {
-    GameWorld* world = G_GameWorld();
+    // ORIG 0x834025c：两指针槽 -0x10/-0xc 先置 0（探针实证：声明+后续独立赋值形才生成
+    // 两条 init，`T* p=f()` 合并形缺 init）。条件的 sete/test/je 物化形系 4.1.2 O0
+    // 对槽比零的产物（探针实证 4.4-O0 槽比恒出 cmp/jne 直跳，无法源形复现；
+    // 不可改 call 内联比较——ORIG cmp 读槽、每 call 仅一次，内联=双调用真 bug）。
+    GameWorld* world = 0;
+    Village* village = 0;
+    world = G_GameWorld();
     if (world == 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x281, 5);
         trace("G_GameWorld call failed");
         return false;
     }
-    Village* village = world->getUserVillage(user);
+    village = world->getUserVillage(user);
     if (village == 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x287, 5);
@@ -110,9 +116,11 @@ void CPacketRespondent::SendAccordingToPlace()
     }
     else
     {
-        int area = m_user->get_area(false);
-        int vill = (int)(signed char)m_user->getCurCharacVill();
-        Broadcast(vill, area);
+        // ORIG 0x83404b8：area 结果 `mov %eax,%ebx` 寄存器缓存（跨两次 call 存活），
+        // vill 从 getCurCharacVill 返回值直转实参（无槽）⇒ 推断源用 gcc 语句表达式
+        // 惯用形 `({int r=f(); r;})`（4.1.2 -O0 免落槽）。实参装载序 area→0x8、vill→0x4。
+        Broadcast((int)(signed char)m_user->getCurCharacVill(),
+                  ({ int r = m_user->get_area(false); r; }));
     }
 }
 
