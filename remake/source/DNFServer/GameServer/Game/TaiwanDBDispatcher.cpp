@@ -924,20 +924,18 @@ bool DBInsertGiveBoxEventReward::dispatch(int code, int uid, Stream* stream)
         tm2.tm_min = 0;
         tm2.tm_sec = 0;
         time_t now = mktime(&tm2);
-        if (tm.tm_hour < G_CEnvironment()->m_serverEnvir.m_fatigueTime)
+        if (tm.tm_hour < tm2.tm_hour)
             now -= 0x15180;
-        if (!db->set_query(
+        db->set_query(
                 "seLect m_id from event_1306_account_reward_2nd where m_id=%s and occ_date > FROM_UNIXTIME(%d)",
-                NumberToString(sig->m_accId, 0), (int)now))
-            throw "select_exec";
+                NumberToString(sig->m_accId, 0), (int)now);
         if (!db->exec(1))
             throw "select_exec";
         if (db->get_n_rows() == 0)
         {
-            if (!db->set_query(
+            db->set_query(
                     "inSert into event_1306_account_reward_2nd (m_id , charac_no , occ_date ) values (%s , %u , now())",
-                    NumberToString(sig->m_accId, 0), (unsigned int)sig->m_characNo))
-                throw "insert_exec";
+                    NumberToString(sig->m_accId, 0), (unsigned int)sig->m_characNo);
             if (!db->exec(1))
                 throw "insert_exec";
             Stream* out = GlobalData::s_stream_pool->Acquire(
@@ -950,7 +948,7 @@ bool DBInsertGiveBoxEventReward::dispatch(int code, int uid, Stream* stream)
                 throw "stream";
             outSig->m_accId = sig->m_accId;
             outSig->m_characNo = sig->m_characNo;
-            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         }
         return 1;
     }

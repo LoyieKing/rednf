@@ -791,9 +791,44 @@ int DB_CreateCharac::SendResult(int userIdx, int slot, SIG_CREATE_CHARAC* sig)
 
 // ===========================================================================
 // MakeInsertCharacInfo — 报告 @0x080ec2a0
-// charac_info 一行 INSERT；job 数据区（+0x26..+0x74 尚未建模字段）按原始
-// movzwl/cwtl/movl 语义以 helper 读取，参数顺序与格式串逐项对应。
+// charac_info 一行 INSERT。job 数据区（+0x26..+0x74）按 ORIG 位移寻址复现：
+// 经 pack(1) 视图成员访问（reinterpret_cast<视图*> 后 .成员），使 4.4-O0 收敛为
+// 直接位移载入 `mov off(%eax),%eax`（与 ORIG 逐条一致），避免 pointer-cast 索引
+// 退化成 `add $off;mov (%eax)`。字节偏移 +0x26..+0x74 与 SIG_CREATE_CHARAC 对齐。
 // ===========================================================================
+
+#pragma pack(push, 1)
+// MakeInsertCharacInfo job 数据视图：相对 sig 基址 +0x26..+0x74（pack 1，非对齐）。
+struct MiciJobView
+{
+    unsigned char m_pre[0x26];      // sig+0x00..+0x25（本函数不用）
+    unsigned int  m_maxHp;          // +0x26
+    unsigned int  m_maxMp;          // +0x2a
+    unsigned short m_phyAttack;     // +0x2e
+    unsigned short m_phyDefense;    // +0x30
+    unsigned short m_magAttack;     // +0x32
+    unsigned short m_magDefense;    // +0x34
+    unsigned char m_elementResist[8];   // +0x36
+    unsigned char m_specProperty[0x22]; // +0x3e
+    unsigned int  m_invenWeight;    // +0x60
+    short m_hpRegen;                // +0x64
+    short m_mpRegen;                // +0x66
+    unsigned int  m_moveSpeed;      // +0x68
+    unsigned short m_attackSpeed;   // +0x6c
+    unsigned short m_castSpeed;     // +0x6e
+    short m_hitRecovery;            // +0x70
+    short m_jump;                   // +0x72
+    unsigned int  m_expertJob;      // +0x74
+};
+#pragma pack(pop)
+
+// 判例（ADeepY4[3]）：DIFF(N封)，gap +1（orig 154 / our 155）。已收：blob_to_str 调用序
+// 归位（先 col=1 spec 后 col=0 elem，ORIG +0xaf/+0xd7）+ job 数据区改 pack(1) 具名视图
+// 成员访问（reinterpret_cast<视图*>后 .成员），4.4-O0 收敛为直接位移载入 `mov off(%eax)`
+// （pointer-cast 索引的 `add $off;mov (%eax)` 形全部消失），168→155。残余 = 1 条：ORIG
+// 用 callee-saved %edi 承载 maxHP（+0x26，跨 NumberToString/set_query 实参布建存活，
+// 故 push/pop %edi），我们落栈槽回读（N82 寄存器分配差）；实参布建 ORIG 用 %eax、我们用
+// %edx（寄存器文本差，_NEAR_）。语义/callsite 完整。
 void DB_CreateCharac::MakeInsertCharacInfo(MySQL* db, SIG_CREATE_CHARAC* sig,
                                            char const* escapedName)
 {
@@ -801,31 +836,28 @@ void DB_CreateCharac::MakeInsertCharacInfo(MySQL* db, SIG_CREATE_CHARAC* sig,
     int sex = (signed char)sig->m_ssnCheckFail;           // +0x534c ← ORIG %esi（sex 列位）
     int fatigueMax = DEFAULT_MAX_FATIGUE;
 
-    // job 数据区（ORIG 原始偏移 +0x26..+0x74）现经 m_field26/m_jobData 具名
-    // 锚点读取，字节语义不变（m_jobData 即 "同表 +2..0x51" 的 80 字节区）。
-    unsigned int expertJob   = *reinterpret_cast<const unsigned int*>(&sig->m_jobData[0x4c]);            // +0x74
-    int jumpValue            = *reinterpret_cast<const short*>(&sig->m_jobData[0x4a]);           // +0x72
-    int hitRecovery          = *reinterpret_cast<const short*>(&sig->m_jobData[0x48]);           // +0x70
-    unsigned int castSpeed   = (unsigned int)*reinterpret_cast<const unsigned short*>(&sig->m_jobData[0x46]);  // +0x6e
-    unsigned int attackSpeed = (unsigned int)*reinterpret_cast<const unsigned short*>(&sig->m_jobData[0x44]);  // +0x6c
-    unsigned int moveSpeed   = *reinterpret_cast<const unsigned int*>(&sig->m_jobData[0x40]);            // +0x68
-    int mpRegenShort         = *reinterpret_cast<const short*>(&sig->m_jobData[0x3e]);           // +0x66
-    int hpRegenShort         = *reinterpret_cast<const short*>(&sig->m_jobData[0x3c]);           // +0x64
-    unsigned int invenWeight = *reinterpret_cast<const unsigned int*>(&sig->m_jobData[0x38]);            // +0x60
+    MiciJobView const* jv = reinterpret_cast<MiciJobView const*>(sig);
+    unsigned int expertJob   = static_cast<unsigned int>(jv->m_expertJob);      // +0x74
+    int jumpValue            = static_cast<int>(jv->m_jump);                    // +0x72
+    int hitRecovery          = static_cast<int>(jv->m_hitRecovery);             // +0x70
+    unsigned int castSpeed   = static_cast<unsigned int>(jv->m_castSpeed);      // +0x6e
+    unsigned int attackSpeed = static_cast<unsigned int>(jv->m_attackSpeed);    // +0x6c
+    unsigned int moveSpeed   = static_cast<unsigned int>(jv->m_moveSpeed);      // +0x68
+    int mpRegenShort         = static_cast<int>(jv->m_mpRegen);                 // +0x66
+    int hpRegenShort         = static_cast<int>(jv->m_hpRegen);                 // +0x64
+    unsigned int invenWeight = static_cast<unsigned int>(jv->m_invenWeight);    // +0x60
+    // 第一次 blob_to_str(col=1, sig+0x3e, 0x22) → spec_property '%s'（ORIG 调用序在前）
+    char const* specPropertyBlob =
+        db->blob_to_str(1, const_cast<unsigned char*>(jv->m_specProperty), 0x22);
     // 第二次 blob_to_str(col=0, sig+0x36, 8) → element_resist '%s'
     char const* elementResistBlob =
-        db->blob_to_str(0, const_cast<unsigned char*>(&sig->m_jobData[0x0e]), 8);
-    // 第一次 blob_to_str(col=1, sig+0x3e, 0x22) → spec_property '%s'
-    char const* specPropertyBlob =
-        db->blob_to_str(1, const_cast<unsigned char*>(&sig->m_jobData[0x16]), 0x22);
-    unsigned int magDefense = (unsigned int)*reinterpret_cast<const unsigned short*>(&sig->m_jobData[0x0c]);   // +0x34
-    unsigned int magAttack  = (unsigned int)*reinterpret_cast<const unsigned short*>(&sig->m_jobData[0x0a]);   // +0x32
-    unsigned int phyDefense = (unsigned int)*reinterpret_cast<const unsigned short*>(&sig->m_jobData[0x08]);   // +0x30
-    unsigned int phyAttack  = (unsigned int)*reinterpret_cast<const unsigned short*>(&sig->m_jobData[0x06]);   // +0x2e
-    unsigned int maxMP      = *reinterpret_cast<const unsigned int*>(&sig->m_jobData[0x02]);                  // +0x2a
-    // +0x26 的 4 字节读跨 m_field26(ushort) 与 m_jobData[0..1]，以 m_field26 锚点。
-    unsigned int maxHP      = *reinterpret_cast<const unsigned int*>(
-        &sig->m_field26);
+        db->blob_to_str(0, const_cast<unsigned char*>(jv->m_elementResist), 8);
+    unsigned int magDefense = static_cast<unsigned int>(jv->m_magDefense);      // +0x34
+    unsigned int magAttack  = static_cast<unsigned int>(jv->m_magAttack);       // +0x32
+    unsigned int phyDefense = static_cast<unsigned int>(jv->m_phyDefense);      // +0x30
+    unsigned int phyAttack  = static_cast<unsigned int>(jv->m_phyAttack);       // +0x2e
+    unsigned int maxMP      = static_cast<unsigned int>(jv->m_maxMp);           // +0x2a
+    unsigned int maxHP      = static_cast<unsigned int>(jv->m_maxHp);           // +0x26
 
     db->set_query(
         "inSert into charac_info (m_id,charac_name,job,sex,maxHP,maxMP,phy_attack,"

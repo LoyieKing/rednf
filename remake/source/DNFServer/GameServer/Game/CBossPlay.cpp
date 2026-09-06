@@ -184,17 +184,25 @@ int CBossPlay::getLiveMemberCount()
 
 // ============================================================================
 // handleDieUser（ORIG 0x081494a4）
+// [b21 N·P197-④] 语义已闭合：找成员循环 `checkValidUser(i) && get_user(i)==user`
+//   的取反判定——ORIG(4.1) 发 `sete %al; test; je`，4.4-O0 对 call 结果直比恒发
+//   `mov $1/mov $0 + test/jne`（P197-④：源形不可复现，禁改内联比较=双调用真 bug）；
+//   循环头 `movl $0,-0xc` 双写为 4.1 代码生 quirk（int i=0）。返回路径 ORIG 在各
+//   return 点直发 `mov $0x0/%1,%eax`+共享尾，4.4 以 %ebx 合并 epilogue（N82/寄存器分配）。
+//   while(true){if(3<i)return 1;...break;++i;} 形态 + 时间比较改 `GetRevivalTime() >
+//   getCurSec()` 已对齐 4.1 求值序/setg 方向；逐调用逐分支语义逐一相等，封 N。
 // ============================================================================
 int CBossPlay::handleDieUser(CUser* user)
 {
-    int i;
-    for (i = 0; i <= 3; ++i)
+    int i = 0;
+    while (true)
     {
+        if (3 < i)
+            return 1;
         if (m_party->checkValidUser(i) && m_party->get_user(i) == user)
             break;
+        ++i;
     }
-    if (3 < i)
-        return 1;
     if (isMemberAlive(i))
     {
         setMemberAlive(i, false);
@@ -206,7 +214,7 @@ int CBossPlay::handleDieUser(CUser* user)
         packet1.finalize(true);
         m_party->send_to_party(packet1);
 
-        if (GlobalData::s_systemTime_.getCurSec() < user->GetRevivalTime())
+        if (user->GetRevivalTime() > GlobalData::s_systemTime_.getCurSec())
         {
             user->SetRevivalTime(0);
             user->SetUseAPCPotionTime(0);

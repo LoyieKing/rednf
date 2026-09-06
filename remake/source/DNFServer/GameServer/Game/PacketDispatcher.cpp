@@ -729,6 +729,12 @@ int PacketDispatcher::dispatch(int userId, char* data, int len)
 }
 
 // ORIG 0x8594922 逐指令转写。
+// 判例（ADeepY4[2]）：DIFF，callsite P167 40/40 双零（0 missing/0 extra）、gap +1
+//   （orig 300 / our 301）。P167 判语义完整；残余净为 4.1.2 特有 `cmpl $0,槽; setne %al;
+//   test; je` 槽比零物化三处（antibot 检查 / doErrorDispatcher !=0 / dispatch_template!=0，
+//   P197④ 记 N，4.4-O0 对槽比恒出 cmp/jne 直跳，源形不可复现）+ 寄存器/栈槽分配差（esi/ebx
+//   _NEAR_）+ logFormat 字符串常量布局噪声。已收：去 checker/fn 命名局部（寄存器形）、
+//   denyChannel 布尔内联、ChecksumHead 结构直读 head+7（去 2 个 spill mov），gap 311→301。
 int PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
                                  unsigned short cmd, char* data, int len,
                                  ENUM_PACKETCLASS packetClass2, unsigned short flag)
@@ -737,10 +743,10 @@ int PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
     log_recv_packet(user, packetClass, cmd, data, len);
 
     typedef int (*CheckFn)(void*, unsigned int, unsigned short);  // vtbl+0x30
-    void* checker = GlobalData::s_antibotChecker_;
-    CheckFn fn = *reinterpret_cast<CheckFn*>(
-        (*reinterpret_cast<void***>(checker))[0x30 / 4]);
-    if (fn(checker, (unsigned int)user->getAntibotKey(), cmd) != 0 && flag != 0x25c)
+    if ((*reinterpret_cast<CheckFn*>(
+             (*reinterpret_cast<void***>(GlobalData::s_antibotChecker_))[0x30 / 4]))(
+             GlobalData::s_antibotChecker_, (unsigned int)user->getAntibotKey(), cmd) != 0 &&
+        flag != 0x25c)
     {
         LogManager::logFormat(
             1, "PacketDispatcher.cpp",
@@ -759,25 +765,18 @@ int PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
     if (0xd < len && flag == 0x25c)
     {
         unsigned int serverCrc = Encryption::crc32N(data + 0xb, len - 0xb);
-        // 线格式视图：协议头 +7 处为校验和 dword（pack(1)，非对齐）
-#pragma pack(push, 1)
-        struct ChecksumHeadView
-        {
-            char m_pad[7];
-            unsigned int m_crc;
-        };
-#pragma pack(pop)
         char head[0xd];
         memcpy(head, data, 0xd);
-        ChecksumHeadView* hv = reinterpret_cast<ChecksumHeadView*>(head);
-        _NS_PI_2ND_MakeChecksumTo1Byte2(serverCrc, hv->m_crc);
-        if (hv->m_crc != serverCrc)
+        // 线格式视图：协议头 +7 处为校验和 dword（非对齐）。
+        unsigned int clientCrc = *reinterpret_cast<unsigned int*>(head + 7);
+        _NS_PI_2ND_MakeChecksumTo1Byte2(serverCrc, clientCrc);
+        if (clientCrc != serverCrc)
         {
             LogManager::logFormat(
                 1, "PacketDispatcher.cpp",
                 __PRETTY_FUNCTION__,
                 0xa37, "Check Sum Error: server(%d), client(%d), mid(%s)",
-                serverCrc, hv->m_crc,
+                serverCrc, clientCrc,
                 NumberToString(user->get_acc_id(), 0));
             user->DisConnSig((DISCONN_SIG)0xd, true, 0);
             return 0;
@@ -788,9 +787,9 @@ int PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
     packet.bind_packet(data, len);
     user->setLastPacketID((int)cmd);
 
-    bool denyChannel = (G_GameWorld()->GetChannelType() == 7 ||
-                        G_GameWorld()->IsIntegratedPvPBaseChannel());
-    if (denyChannel && DenyPacket((int)cmd))
+    if ((G_GameWorld()->GetChannelType() == 7 ||
+         G_GameWorld()->IsIntegratedPvPBaseChannel()) &&
+        DenyPacket((int)cmd))
         return 1;
 
     unsigned int tick0 = 0;

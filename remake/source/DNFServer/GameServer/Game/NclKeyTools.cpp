@@ -186,16 +186,23 @@ int ncl_encrypt_key(char* out, char* mac, char* date1, char* date2)
 //   8 轮解密：mac[i2++]←key[k++] -9、date1[i]←-8、mac[i2++]←-7、date2[i]←-9，
 //   i 奇数时 k++（跳过 checksum 位）；循环后 mac←-5、mac←-4；各串补 '\0'。
 //   返回 strlen(key)。
+// 判例（ADeepY4[1]）：IDENTICAL_AE。槽-局部双向对应律（P0）——原码仅 6 具名局部
+//   （macIdx/to/from/first/sum/expected），译出确定性变量时复用 from→k、to→循环计数
+//   （Ghidra local_18/local_14 复用），删多余具名 k/i 局部与双初始化；尾串终止位 ORIG
+//   用变量 to(=8)/macIdx，非常量下标（Ghidra param_3/param_4[local_14]）；初始化序
+//   from→to→macIdx。跳表 rodata 地址经 AE 归一，判 identical_ae。
 int ncl_decrypt_key(char* key, char* mac, char* date1, char* date2)
 {
     if (ncl_check_digit_str(key) != 0x28)
     {
         return -1;
     }
+    int expected;
+    int sum;
     int first = key[0] - '0';
     int from;
     int to;
-    int expected;
+    int macIdx;
     switch (first)
     {
     case 0:
@@ -226,40 +233,41 @@ int ncl_decrypt_key(char* key, char* mac, char* date1, char* date2)
     default:
         return -1;
     }
-    int sum = 0;
-    for (int i = from; i < to; ++i)
+    sum = 0;
+    for (; from < to; ++from)
     {
-        sum += key[i] - '0';
+        sum += key[from] - '0';
     }
     if (sum % 10 != expected)
     {
         return -1;
     }
 
-    int k = 1;
-    int macIdx = 0;
-    for (int i = 0; i <= 7; ++i)
+    from = 1;
+    to = 0;
+    macIdx = 0;
+    for (; to < 8; ++to)
     {
         mac[macIdx++] = static_cast<char>(
-            ncl_char_plus(key[k++], 9) + '0');
-        date1[i] = static_cast<char>(
-            ncl_char_plus(key[k++], 8) + '0');
+            ncl_char_plus(key[from++], 9) + '0');
+        date1[to] = static_cast<char>(
+            ncl_char_plus(key[from++], 8) + '0');
         mac[macIdx++] = static_cast<char>(
-            ncl_char_plus(key[k++], 7) + '0');
-        date2[i] = static_cast<char>(
-            ncl_char_plus(key[k++], 9) + '0');
-        if (i & 1)
+            ncl_char_plus(key[from++], 7) + '0');
+        date2[to] = static_cast<char>(
+            ncl_char_plus(key[from++], 9) + '0');
+        if (to & 1)
         {
-            ++k;
+            ++from;
         }
     }
     mac[macIdx++] = static_cast<char>(
-        ncl_char_plus(key[k++], 5) + '0');
+        ncl_char_plus(key[from++], 5) + '0');
     mac[macIdx++] = static_cast<char>(
-        ncl_char_plus(key[k++], 4) + '0');
+        ncl_char_plus(key[from++], 4) + '0');
     mac[macIdx] = '\0';
-    date1[8] = '\0';
-    date2[8] = '\0';
+    date1[to] = '\0';
+    date2[to] = '\0';
     return static_cast<int>(std::strlen(key));
 }
 

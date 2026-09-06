@@ -1124,7 +1124,11 @@ void COnlinePreliminary::OnConnectP2PTimeout(PvP_Room* room)
     OnEndFight(room);                                     /* vtable+0x40 虚调实证 */
 }
 
-/* ORIG T 0x08561b80 */
+// ORIG T 0x08561b80
+// b21 NEAR：语义与 ORIG 全等。真修：原 make_state_info(buf) 写独立 buf 但 send_all(st) 发 st
+//   包（发送了空状态包）——ORIG 复用 st 自身缓冲（`(char*)local_38`），改为
+//   make_state_info((char*)&st) 后 send_all(st)，帧 -0x80。
+//   残余：虚表调用寄存器（mov %edx vs %eax）、movzbl vs and $0xff、nop 对齐（N-86b）+ AE。
 void COnlinePreliminary::OnConnectP2P(CUser* user, PvP_Room* room,
                                       char* addr, int len)
 {
@@ -1169,8 +1173,9 @@ void COnlinePreliminary::OnConnectP2P(CUser* user, PvP_Room* room,
             room->m_relayMgr.OnReady(s, true);            /* +0x620 子对象 */
     }
     room->start_pvp();                                    /* T 0x85d8c3a */
-    // ORIG：make_state_info 写入 st 自身缓冲（Ghidra local_38 复用），send_all(st)。
-    room->make_state_info(st);                            /* T 0x85dbd3a */
+    // ORIG：make_state_info 写入 st 自身缓冲（Ghidra local_38 复用，ORIG `(char*)local_38`），
+    // send_all(st) 发送同一包。
+    room->make_state_info(reinterpret_cast<char*>(&st));  /* T 0x85dbd3a */
     G_GameWorld()->send_all(st);
 }
 

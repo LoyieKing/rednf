@@ -1242,6 +1242,10 @@ int CUserPremium::LoadPremiumInfo(const char* path)
 //   循环 j=0..0x10 加 u16[j] @ 0x18+2j（即 m_field18[17]）；
 //   收尾依次 +0x3a(int)、+0x3e、+0x40、+0x42(int)、+0x46、+0x48、+0x4a、+0x4c、+0x4e(int)。
 //   u16 均为零扩展后 mod 2^16 运算（movzwl/add/mov），unsigned short 成员天然良构。
+// [b21 N-86b] 语义已闭合：ORIG(4.1) 对 16 位和用 `lea (%edx,%eax,1)`+`mov %eax,%edx`
+//   寄存器舞（0x3e/0x40/0x4a/0x4c 四 union 字段），4.4 恒发 `add %eax,%edx` 直形——
+//   同算术收形源码不可择（N-86b probe 实证恒内存直形）；循环体寄存器分配同理。
+//   逐字段语义逐一相等，封 N。
 void _Additioal_info::add(const _Additioal_info& other)
 {
     m_field00 += other.m_field00;
@@ -1268,6 +1272,10 @@ void _Additioal_info::add(const _Additioal_info& other)
 // subtract（ORIG W _ZN15_Additioal_info8subtractERKS_ @0x08693d04）：与 add 同构、
 //   逐字段相减——唯 ORIG 对 m_field4c 与 m_field4e 两字段仍执行加法
 //   （lea (%edx,%eax,1) 与 add %eax,%edx 指令实证），忠实保留该行为。
+// [b21 N-86b] 语义已闭合：与 add 同族——ORIG(4.1) 16 位差经
+//   `mov %eax,%edx`+`lea/sub` 寄存器中途（含 mov %ebx,%eax 回转），4.4 恒发直接
+//   `sub %ax,%cx`/`add %eax,%edx` 形；0x4c/0x4e 加法特例已忠实保留。逐字段语义
+//   逐一相等，封 N。
 void _Additioal_info::subtract(const _Additioal_info& other)
 {
     m_field00 -= other.m_field00;
