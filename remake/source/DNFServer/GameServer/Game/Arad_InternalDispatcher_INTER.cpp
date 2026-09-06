@@ -401,7 +401,7 @@ int Arad_INTER_kAvatarHiddenOptionChange::dispatch_sig(CUser* user, char* body, 
         if (user == 0)
             break;
 
-        arad::SigAvatarHiddenOptionChange* sig = (arad::SigAvatarHiddenOptionChange*)len;
+        arad::SigAvatarHiddenOptionChange* sig = (arad::SigAvatarHiddenOptionChange*)body;
         if (sig == 0)
         {
             LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
@@ -415,11 +415,9 @@ int Arad_INTER_kAvatarHiddenOptionChange::dispatch_sig(CUser* user, char* body, 
             break;
         }
 
-        AvatarFixedHiddenOptionServer* server =
-            Singleton<AvatarFixedHiddenOptionServer>::Get();
-        if (!server->CheckCondition(user, sig))
+        if (!Singleton<AvatarFixedHiddenOptionServer>::Get()->CheckCondition(user, sig))
             break;
-        if (!server->ChangeHiddenOption(user, sig))
+        if (!Singleton<AvatarFixedHiddenOptionServer>::Get()->ChangeHiddenOption(user, sig))
             break;
         PacketGuard packet;
         packet.clear();

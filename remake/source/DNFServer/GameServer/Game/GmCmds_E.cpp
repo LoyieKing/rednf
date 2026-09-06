@@ -1010,7 +1010,7 @@ stVendingMachineInfo_t* CRandomObjectTest_getVendingMachineInfo_Orig(void* self)
 stVendingMachineInfo_t* CRandomObjectTest_getVendingMachineInfo_Orig(void* self)
 {
     std::vector<stVendingMachine_t>* table =
-        CDataManager_getVendingMachineTable_Orig(G_CDataManager());
+        G_CDataManager()->getVendingMachineTable();
 
     std::vector<stVendingMachine_t>::iterator mit = table->begin();
     while (true)
