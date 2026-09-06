@@ -7230,6 +7230,8 @@ bool DB_LoadKillMonsterInfo::dispatch(int userIdx, int slot, Stream* stream)
 // 常量：school_match_* 三成员 ORIG D 0x093abb60/64/68（.data 初值 1/2/5，
 // 定义归 OnlinePreliminaryMatch.cpp）；时段 0x48f26550<curSec<=0x48f8fccf
 // 为 ORIG 字面（周末加成历史区间）。
+// （N 封顶：sz 0xe33 超大函数，ndiff 1344 残差为 school_info 本地类 C1 帧、
+// 地址重物化(P183) + 大量浮点/移位物化，见报告 dispatch.md）
 // ============================================================================
 #pragma pack(push, 1)
 struct DB_UpdatePvPResultHeadView      // 载荷 +0x00 起
@@ -8934,6 +8936,8 @@ bool DB_UpdateItemLock::dispatch(int userIdx, int slot, Stream* stream)
 //   否则 fetch 失败返 0；成功再组包（0x81c2）→ memset 0x30 →
 //   get_ushort(0,+4)/get_int(1,+8)/get_int(2,+0xc)/get_binary(3,+0x10,0x1e)，
 //   任一失败 StreamPool::Free(guard) 返 0；全成 put(DISPATCH_Q) 返 1。
+// （N 封顶：ndiff 176 残差为 CStreamGuard try/catch EH 区域 + guard 帧布局
+// （-0x20 vs -0x28）+ 嵌套失败各 Free 的汇聚差异，见报告 dispatch.md）
 bool DB_LoadExpertJob::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
@@ -10706,6 +10710,8 @@ bool DB_DeletePvPBuddy::dispatch(int userIdx, int slot, Stream* stream)
 // GetInBuffer<SIG_IP_MONITOR_PUNISH>：+0=count、+4..+0xc83=item 数组
 // （行步长 0x20：ip[0x10]/type/m_id_cnt/start_time/end_time）、+0xc84=flag
 // （首包 1 后续 0）→ put(DISPATCH_Q)。行缓冲 memset 0xc80、组包 memcpy 0xc80。
+// （N 封顶：ndiff 263 残差为 lea/shl/add 地址重物化(P183) + cMyTrace 独立
+// 槽(N82) + xor 极性，见报告 dispatch.md）
 // ============================================================================
 bool DB_BlackIPMonitor::dispatch(int userIdx, int slot, Stream* stream)
 {
@@ -16564,11 +16570,15 @@ bool DB_AutoPunishedSecondUserData::dispatch(int userIdx, int slot,
             reinterpret_cast<DB_AutoPunishedSecondUserSetView*>(
                 guard->GetInBuffer<SIG_SECOND_USER_DATA_SET>());
         memset(out, 0, sizeof(*out));
-        out->m_punished = req->m_punished;
+        // ORIG 0x0843a4fd 失败分支逐字段（report dispatch.md）：
+        // out+0x14=req+0x10、out+0=req goldLo、out+0x4=req goldHi、
+        // out+0x8=0、out+0xc=0、out+0x10=1（punished 硬编码 1，非 req）。
+        out->m_mId = req->m_punished;
         out->m_goldLo = req->m_goldLo;
         out->m_goldHi = req->m_goldHi;
         out->m_tradeCnt = 0;
-        out->m_mId = req->m_mId;
+        out->m_pad0c = 0;
+        out->m_punished = 1;
         // ORIG 0x0843a5e8(+0x186)：put 队列 = DISPATCH_Q(1)，非 DB_Q(2)
         // （两分支同；见 report dispatch.md 反汇编 movl $0x1,0x4(%esp)）。
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
@@ -16587,12 +16597,16 @@ bool DB_AutoPunishedSecondUserData::dispatch(int userIdx, int slot,
         reinterpret_cast<DB_AutoPunishedSecondUserSetView*>(
             guard->GetInBuffer<SIG_SECOND_USER_DATA_SET>());
     memset(out, 0, sizeof(*out));
-    out->m_punished = req->m_punished;
+    // ORIG 0x0843a4fd 成功分支逐字段（report dispatch.md）：
+    // out+0x14=req+0x10、out+0=req goldLo、out+0x4=req goldHi、
+    // out+0x8=tradeGold 低 32（DB col1）、out+0xc=tradeGold 高 32、
+    // out+0x10=tradeCnt+1。
+    out->m_mId = req->m_punished;
     out->m_goldLo = req->m_goldLo;
     out->m_goldHi = req->m_goldHi;
-    out->m_tradeCnt = tradeCnt + 1;
-    out->m_mId = req->m_mId;
-    *(unsigned long long*)&out->m_goldLo = tradeGold;   // +0x08/+0x0c
+    out->m_tradeCnt = (unsigned int)(tradeGold & 0xffffffffULL);
+    out->m_pad0c = (unsigned int)(tradeGold >> 32);
+    out->m_punished = tradeCnt + 1;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
 }
@@ -18297,6 +18311,8 @@ bool DB_EventUpdateGrowthWeaponCharac::dispatch(int userIdx, int slot,
 // BEST_RECORD{+0 count=get_n_rows, +4 characNo}。逐行 fetch：tower_index/
 // member_info_i/stage_i/play_time_i 写入行视图（行步长 0x1b0，type 标记
 // 1..4）。任一步失败返 0；成功 put(DISPATCH_Q) 返 1。
+// （N 封顶：ndiff 458 残差为 imul/add 地址重物化(P183) + 帧布局，见报告
+// dispatch.md）
 // ============================================================================
 bool DB_GetDeathTowerBestRecord::dispatch(int userIdx, int slot, Stream* stream)
 {
@@ -18933,6 +18949,8 @@ bool DB_LoadPowerWarStatueRanker::dispatch(int userIdx, int slot,
 // +0x2f=identity、+0x58=1；其余无附件（+0x2a=0、+0x33=0 已清零）。
 // insertMailData(db, buf) 失败 throw 0x6891；sendResult(slot,0,sig+0x24,0)
 // 失败 throw 0x6894。成功返 1；catch(unsigned int) → 日志（省略）→ 返 1。
+// （N 封顶：ndiff 171 残差为局部栈槽分配差异 + EH/catch 布局，见报告
+// dispatch.md）
 // ============================================================================
 bool DB_MailBoxSendNewMailWithDBWork::dispatch(int userIdx, int slot,
                                                Stream* stream)
@@ -19053,6 +19071,8 @@ bool DB_PassPadUpdateCancelCnt::dispatch(int userIdx, int slot, Stream* stream)
 // 任一失败返 0；OS_API::snprintf(ipBuf,0x10,"%s.0",ipStr) →
 // inet_addr 写 +0x04+i*8、start 写 +0x08+i*8、end 写 +0x09+i*8。
 // put(DISPATCH_Q) 返 1。
+// （N 封顶：ndiff 89 残差为帧 -4 偏移 + seta/setl 符号比较极性 + P183
+// 地址重物化，见报告 dispatch.md）
 // ============================================================================
 bool DB_ReloadAutoPunishRuleBackIP::dispatch(int userIdx, int slot,
                                              Stream* stream)
@@ -19107,6 +19127,8 @@ bool DB_ReloadAutoPunishRuleBackIP::dispatch(int userIdx, int slot,
 // → hackSubType==0 时 hackSubCnt=0，写条目（ushort hackType/cnt/
 // hackSubType/hackSubCnt/applyFlag + uint ipCnt/etcLo），m_count++；
 // 否则跳过该行。put(DISPATCH_Q) 返 1。
+// （N 封顶：ndiff 394 残差为 lea/movzwl/shl/add 地址重物化(P183) + 帧偏移，
+// 见报告 dispatch.md）
 // ============================================================================
 bool DB_ReloadAutoPunishRuleHackType::dispatch(int userIdx, int slot,
                                                Stream* stream)

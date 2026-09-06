@@ -3460,31 +3460,29 @@ int Dispatcher_BingoReward::process(CUser* user, MSG_BASE& msg, ParamBase& param
     // *(int*)user->getBingoData()；>0：logFormat(0x19a,"Dispatcher Check_Error No(%d)")
     // + LineFunc(0x19b)；<1 且 >=0：getBingoData()+6/+5 置 1，取 repeat 事件 0x6a
     // 非空则 sendMaxMatchLineReward(*user) + sendDecorationObjectCnt(1)，恒返 0。
-    int err = check_error(user, msg);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 4) = err;
+    stBingoReward& p = static_cast<stBingoReward&>(param);              // -0x10（ORIG 缓存 param）
+    p.m_result = check_error(user, msg);                                // P0 无 err 局部，直存后重读
     if (user != 0)
     {
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 8) =
-            *reinterpret_cast<int*>(user->getBingoData());
+        p.m_bingoData = *reinterpret_cast<int*>(user->getBingoData());
     }
-    if (err > 0)
+    if (p.m_result > 0)
     {
         return 0;
     }
-    if (err < 0)
+    if (p.m_result < 0)
     {
         LogManager::logFormat(
             1, "PacketDispatcher_Impl_2.cpp",
             __PRETTY_FUNCTION__,
             0x19a, "Dispatcher Check_Error No(%d)",
-            *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 4));
+            p.m_result);
         return LineFunc(0x19b,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    char* data = reinterpret_cast<char*>(user->getBingoData());
-    data[6] = 1;
-    data[5] = 1;
+    reinterpret_cast<unsigned char*>(user->getBingoData())[6] = 1;      // P48 无 CSE：两次独立 getBingoData
+    reinterpret_cast<unsigned char*>(user->getBingoData())[5] = 1;
     BingoEvent* event =
         reinterpret_cast<BingoEvent*>(GlobalData::s_event_manager->GetRepeatEvent(0x6a));
     if (event != 0)
@@ -5735,16 +5733,15 @@ int Dispatcher_GenCeraTicket::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user->get_state() < 3 || user->getCurCharacR() == 0) {
         return LineFunc(0x91f0, __PRETTY_FUNCTION__, 0, 0);
     }
-    int randSeed = get_rand_int(0xffff);
-    Stream* stream = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x91f5);
-    CStreamGuard guard(stream, true);
-    guard << 0x49;
-    guard << (int)user->GetUID();
-    guard << user->get_acc_id();
-    guard << randSeed;
-    WongWork::CGenUniqueNo uniqueGen;
+    int randSeed = get_rand_int(0xffff);                        // -0xc
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "PacketDispatcher_Impl_1.cpp", 0x91f5), true);           // P134 内联 Acquire
+    **guard << 0x49;                                             // ORIG operator* 链
+    **guard << (int)user->GetUID();
+    **guard << user->get_acc_id();
+    **guard << randSeed;
     char uniqueNo[32];
-    guard << uniqueGen.GenUniqueNo(uniqueNo);
+    **guard << WongWork::CGenUniqueNo::GenUniqueNo(uniqueNo);   // static（无 this，无 C1 构造）
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
     return 0;
 }
@@ -18803,17 +18800,16 @@ void Dispatcher_Enchant_3rdChronicleItem::send(CUser* user, ParamBase& param)
 Dispatcher_GoblinPadRequestCryptKey::~Dispatcher_GoblinPadRequestCryptKey() {}
 int Dispatcher_GoblinPadRequestCryptKey::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    Sanicova::CPad* pad = user->getPad();
-    pad->GenerateRandomData();
+    user->getPad()->GenerateRandomData();                     // P48/P183：每次 use 重调 getPad
     PacketGuard response;
     response.put_header(1, 0xe2);
     response.put_byte(1);
-    response.put_short(pad->GetKeyIdx(0) & 0xffff);
-    response.put_short(pad->GetKeyIdx(1) & 0xffff);
-    response.put_byte(pad->GetShakeData(0) & 0xff);
-    response.put_byte(pad->GetShakeData(1) & 0xff);
-    response.put_byte(pad->GetShakeData(2) & 0xff);
-    response.put_byte(pad->GetShakeData(3) & 0xff);
+    response.put_short(static_cast<unsigned short>(user->getPad()->GetKeyIdx(0)));
+    response.put_short(static_cast<unsigned short>(user->getPad()->GetKeyIdx(1)));
+    response.put_byte(static_cast<unsigned char>(user->getPad()->GetShakeData(0)));
+    response.put_byte(static_cast<unsigned char>(user->getPad()->GetShakeData(1)));
+    response.put_byte(static_cast<unsigned char>(user->getPad()->GetShakeData(2)));
+    response.put_byte(static_cast<unsigned char>(user->getPad()->GetShakeData(3)));
     response.finalize(true);
     user->Send(response);
     return 0;
@@ -20399,8 +20395,9 @@ int Dispatcher_GrowthWeaponEventUseMaterial::check_error(CUser* user, MSG_BASE& 
     {
         return 0x11;
     }
-    char* ed = static_cast<char*>(user->getGrowthWeaponEventdata());
-    if (*reinterpret_cast<int*>(ed + 4) != user->get_charac_no(-1))
+    if (*reinterpret_cast<int*>(
+            static_cast<char*>(user->getGrowthWeaponEventdata()) + 4) !=
+        user->get_charac_no(-1))                                    // P48 无 CSE：每字段重调
     {
         return 3;
     }
@@ -20414,12 +20411,14 @@ int Dispatcher_GrowthWeaponEventUseMaterial::check_error(CUser* user, MSG_BASE& 
     {
         serverGroup = user->GetServerGroup();
     }
-    if (static_cast<signed short>(*reinterpret_cast<unsigned short*>(ed + 0x12)) !=
+    if (static_cast<signed short>(*reinterpret_cast<unsigned short*>(
+            static_cast<char*>(user->getGrowthWeaponEventdata()) + 0x12)) !=
         serverGroup)
     {
         return 3;
     }
-    if (static_cast<signed short>(*reinterpret_cast<unsigned short*>(ed + 0x10)) >=
+    if (static_cast<signed short>(*reinterpret_cast<unsigned short*>(
+            static_cast<char*>(user->getGrowthWeaponEventdata()) + 0x10)) >=
         G_CDataManager()->get_GrowthWeaponMaterialMax())
     {
         return 0x11;
@@ -20996,12 +20995,14 @@ int Dispatcher_GrowthWeaponEventChangeInfinity::check_error(CUser* user, MSG_BAS
     {
         return 0xd5;
     }
-    unsigned char* eventData = static_cast<unsigned char*>(user->getGrowthWeaponEventdata());
-    if (*reinterpret_cast<int*>(eventData + 0x04) != user->get_charac_no(-1))
+    if (*reinterpret_cast<int*>(
+            static_cast<unsigned char*>(user->getGrowthWeaponEventdata()) + 0x04) !=
+        user->get_charac_no(-1))                                    // P48 无 CSE：每字段重调
     {
         return 3;
     }
-    if (*reinterpret_cast<int*>(eventData + 0x0c) != 0)
+    if (*reinterpret_cast<int*>(
+            static_cast<unsigned char*>(user->getGrowthWeaponEventdata()) + 0x0c) != 0)
     {
         return 3;
     }
@@ -21015,11 +21016,13 @@ int Dispatcher_GrowthWeaponEventChangeInfinity::check_error(CUser* user, MSG_BAS
         // ORIG *(int*)(G_CEnvironment()+0x378)（SPremiumInfo.h:33 同址证据：目标服务器代码）
         serverGroup = *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x378);
     }
-    if ((int)*reinterpret_cast<short*>(eventData + 0x12) != serverGroup)
+    if ((int)*reinterpret_cast<short*>(
+            static_cast<unsigned char*>(user->getGrowthWeaponEventdata()) + 0x12) != serverGroup)
     {
         return 3;
     }
-    if (*reinterpret_cast<short*>(eventData + 0x10)
+    if (*reinterpret_cast<short*>(
+            static_cast<unsigned char*>(user->getGrowthWeaponEventdata()) + 0x10)
         < (short)G_CDataManager()->get_GrowthWeaponMaterialMax())
     {
         return 0x11;

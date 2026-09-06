@@ -2033,17 +2033,16 @@ void Inter_LoadInven::_CheckOverEquipItem(CUser* user)
             (ENUM_EQUIPMENTTYPE)slot);   // ORIG 传槽号（0..0x15）
         const int maxEquip = user->GetCurCharacMaxEquipLevel();
         const int levelGap = maxEquip - user->get_charac_level();
-        if (overLevel < levelGap)
-            overLevel = levelGap;                       // std::max 形态折叠（等价）
+        overLevel = std::max(overLevel, levelGap);       // ORIG +0x0f5 call std::max<int>(int&,int&)
 
-        const int characLevel = user->get_charac_level();
-        bool needMove = false;
-        if (ci->check_low_level(characLevel + overLevel))
+        // ORIG 3 次 get_charac_level（O0 不 CSE）：levelGap + check_low_level + GetUsableMaxLevel
+        bool needMove = false;                          // bVar1
+        if (ci->check_low_level(user->get_charac_level() + overLevel))
             needMove = true;
         else if (ci->GetAttachType() == 5)
         {
             CEquipItem* equip = static_cast<CEquipItem*>(ci);
-            if (equip->GetUsableMaxLevel() < characLevel)
+            if (equip->GetUsableMaxLevel() < user->get_charac_level())
                 needMove = true;
         }
         if (!needMove)
@@ -2051,7 +2050,8 @@ void Inter_LoadInven::_CheckOverEquipItem(CUser* user)
 
         if (ci->IsAvatarItem())                         // vtable+0x10 槽
         {   // 化身位 → 移入 avatar 仓空槽
-            const int emptySlot = inven->get_empty_slot((INVEN_TYPE)2, (Inven_Item::ITEM_TYPE)8);
+            const int emptySlot =
+                inven->get_empty_slot((INVEN_TYPE)2, (Inven_Item::ITEM_TYPE)8);
             if (emptySlot != -1)
                 inven->move_item((INVEN_TYPE)0, slot, (INVEN_TYPE)2, emptySlot);
         }
@@ -2059,7 +2059,8 @@ void Inter_LoadInven::_CheckOverEquipItem(CUser* user)
         {
             inven->ResetSlot(0, slot);                  // 仓库重置 → 回背包并邮寄兜底
             const bool insertFailed =
-                (inven->insertItemIntoInventory(item, (eItemAddReason)0xe, false, false) & 0x80000000) == 0;
+                (inven->insertItemIntoInventory(item, (eItemAddReason)0xe, false, false)
+                 & 0x80000000) == 0;
             if (!insertFailed)
             {
                 WongWork::CMailBoxHelper::ReqDBSendNewMail(
@@ -13410,9 +13411,9 @@ int Inter_VillageAttackedCountdown::dispatch_sig(CUser* /*user*/, char* data, in
     Inter_VillageAttackedCountdownPktView* pPkt = reinterpret_cast<Inter_VillageAttackedCountdownPktView*>(data);
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
-        CEnvironment* env = G_CEnvironment();
-        if (env->m_serverEnvir.m_serverType != 1 &&
-            env->m_serverEnvir.m_serverType != 2)
+        // ORIG 0x84dfb03/33：G_CEnvironment() 短路双调（O0 不 CSE）。==1||==2 → 不广播。
+        if (!(G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
+              G_CEnvironment()->m_serverEnvir.m_serverType == 2))
         {
             PacketGuard packet;
             packet.clear();
@@ -13445,9 +13446,9 @@ int Inter_VillageAttackedUpdate::dispatch_sig(CUser* /*user*/, char* data, int /
     Inter_VillageAttackedUpdatePktView* pPkt = reinterpret_cast<Inter_VillageAttackedUpdatePktView*>(data);
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
-        CEnvironment* env = G_CEnvironment();
-        if (env->m_serverEnvir.m_serverType != 1 &&
-            env->m_serverEnvir.m_serverType != 2)
+        // ORIG 0x84dfc08/38：G_CEnvironment() 短路双调（O0 不 CSE）。==1||==2 → 不广播。
+        if (!(G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
+              G_CEnvironment()->m_serverEnvir.m_serverType == 2))
         {
             PacketGuard packet;
             packet.clear();
@@ -16251,9 +16252,9 @@ int Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig(CUser* /*user*/, char* dat
         (int)pPkt->m_b);
     packet.put_short(
         (int)(unsigned short)pPkt->m_c);
-    const size_t msgLen = strlen(pPkt->m_f);
-    packet.put_int((int)msgLen);
-    packet.put_str(pPkt->m_f, (int)msgLen);
+    // ORIG 0x84e5cae/0x84e5ccb：strlen 双调（put_int/put_str 各算一次，O0 不 CSE）
+    packet.put_int((int)strlen(pPkt->m_f));
+    packet.put_str(pPkt->m_f, (int)strlen(pPkt->m_f));
     const unsigned int linkLen =
         (unsigned int)pPkt->m_166;
     packet.put_int((int)linkLen);

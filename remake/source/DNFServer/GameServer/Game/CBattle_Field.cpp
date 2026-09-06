@@ -371,7 +371,11 @@ unsigned char CBattle_Field::IsEnableHellDungeon()
 
 void CBattle_Field::set_dungeon_diff(register char diff)
 {
-    m_dungeonDiff = ((unsigned char)diff > 4) ? 4 : (unsigned char)diff;
+    // ORIG 0x830ed21：movzbl 0xc → cmp $0x4 → jbe(写) → push/pop 设 4 ——
+    // clamp 到 ≤4 的 if 形态（直接在 diff 参数上，无局部 v；比较无符号）。
+    if ((unsigned char)diff > 4)
+        diff = 4;
+    m_dungeonDiff = (unsigned char)diff;
 }
 
 bool CBattle_Field::setBloodState(ENUM_BLOOD_STATE state)
@@ -851,7 +855,9 @@ void CBattle_Field::setEplpWaitingTimer(register QuickParty::RandomBuffDungeon t
 
     if (type <= 5)
     {
-        if (type > 3)
+        // ORIG 0x0830ac7a：cmp $0x5,jg + cmp $0x4,jge（type∈{4,5} party
+        // timer），比较边界写 >=4 而非 >3 以复现 jge。
+        if (type >= 4)
         {
             register unsigned int key = static_cast<unsigned int>(
                 m_party->gen_timer_key((TIMER_MESSAGE)0x25));
