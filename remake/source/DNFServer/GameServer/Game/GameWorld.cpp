@@ -2191,10 +2191,11 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
         if (flag && !IsPVPChannel())
         {
             int now = GlobalData::s_systemTime_.getCurSec();
-            int before = user->getBeforeAreaTime();
-            if (before != 0)
+            // ORIG 0x086c61b5/0x086c61cd（P0/P48 去缓存）：条件臂与体各独立调用
+            // getBeforeAreaTime() 一次，不缓存到具名局部（缓存则少 1 call 点，P167 差集 -1）。
+            if (user->getBeforeAreaTime() != 0)
             {
-                if (now - before < 3)
+                if (now - user->getBeforeAreaTime() < 3)
                 {
                     if (CHackLog_InvalidAreaMove::IsInvalidMovableArea(
                             curVill, curArea, vill, area) &&
@@ -2252,7 +2253,9 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
     if (destVillage != NULL)
     {
         int destArea = area;
-        if (IsSchoolPvPChannel() && vill == 2 && area == 4)
+        // ORIG 0x086c6a1d..（P167 差集 -1 G_GameWorld）：ORIG 经 G_GameWorld() 取
+        // 单例后再调 IsSchoolPvPChannel()，而非直接用 this —— 忠实保留跨调用形。
+        if (G_GameWorld()->IsSchoolPvPChannel() && vill == 2 && area == 4)
         {
             user->GetSchoolNo();
             destArea = g_schoolMgr.GetSchoolArea(0);
@@ -2270,13 +2273,23 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
         else if (vill == 8 && (area == 0 || area == 1 ||
                                area == 2 || area == 3))
         {
-            unsigned int guildKey = user->get_charac_guildkey();
-            destArea = g_guildAgitMgr->GetGuildAgitAreaIndex(guildKey, area);
+            // ORIG 0x086c6ab0..（P0/P48 去缓存 + 循环内重调形）：area 4 值各成一
+            // 独立 if-branch，每支各调 get_charac_guildkey() + GetGuildAgitAreaIndex()
+            // 一次；cMyTrace 的 Guild(%d) 实参第 5 次独立调用 get_charac_guildkey()
+            // （不缓存到具名局部）。P167 差集 -4/-3 根因。
+            if (area == 0)
+                destArea = g_guildAgitMgr->GetGuildAgitAreaIndex(user->get_charac_guildkey(), 0);
+            else if (area == 1)
+                destArea = g_guildAgitMgr->GetGuildAgitAreaIndex(user->get_charac_guildkey(), 1);
+            else if (area == 2)
+                destArea = g_guildAgitMgr->GetGuildAgitAreaIndex(user->get_charac_guildkey(), 2);
+            else if (area == 3)
+                destArea = g_guildAgitMgr->GetGuildAgitAreaIndex(user->get_charac_guildkey(), 3);
             cMyTrace trace(
                 __PRETTY_FUNCTION__,
                 0x88e, 0);
             trace("Move Guild Agit Area User(%d) Guild(%d) dest area(%d), virtual area(%d) ",
-                  user->getCurCharacNo(), guildKey, area, destArea);
+                  user->getCurCharacNo(), user->get_charac_guildkey(), area, destArea);
             if (destArea < 0)
             {
                 destArea = area;

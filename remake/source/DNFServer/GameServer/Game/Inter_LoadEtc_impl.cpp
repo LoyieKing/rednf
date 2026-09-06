@@ -1180,9 +1180,13 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             exp6->loadData(user, sig->m_expandData6);
             CDataAlias* exp8 = static_cast<CDataAlias*>(user->GetCharacExpandData(
                 ENUM_CHARAC_EXPAND_TYPE(8)));
+            // [hc 收] ORIG 0x084bb9e2..：sig->m_mixedRegion 为 SIG_LOAD_ETC 载荷
+            // 线格式缓冲（§5.3 序列化缓冲豁免），+0x415 为该 expand-data 的固定布局
+            // 偏移；loadData(user, ptr) 取地址直传，偏移为承载格式固有，seek 无漏。
             exp8->loadData(user, sig->m_mixedRegion + 0x415);
             CDataAlias* expD = static_cast<CDataAlias*>(user->GetCharacExpandData(
                 ENUM_CHARAC_EXPAND_TYPE(0xd)));
+            // [hc 收] +0xd58 同承载体 0xd 型 expand-data 布局偏移（§5.3 豁免）。
             expD->loadData(user, sig->m_mixedRegion + 0xd58);
             break;
         }
@@ -1203,6 +1207,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
         {
             CDataAlias* expB = static_cast<CDataAlias*>(user->GetCharacExpandData(
                 ENUM_CHARAC_EXPAND_TYPE(0xb)));
+            // [hc 收] +0xbe7 / +0xd3c 同承载体 0xb/0xa 型 expand-data 布局偏移
+            // （§5.3 线格式序列化缓冲豁免，ORIG loadData 实参即固定偏移）。
             expB->loadData(user, sig->m_mixedRegion + 0xbe7);
             CDataAlias* expA = static_cast<CDataAlias*>(user->GetCharacExpandData(
                 ENUM_CHARAC_EXPAND_TYPE(10)));
@@ -1671,6 +1677,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 }
             }
 
+            // [hc 收] +0x330 为 SIG_LIMIT_ITEM_INFO 在该 SIG_LOAD_ETC 承载体缓冲
+            // 中的固定布局偏移；经 view 类型 cast 直读（§5.3 序列化缓冲豁免）。
             user->SetLimitInfo(reinterpret_cast<SIG_LIMIT_ITEM_INFO*>(
                 sig->m_pad2308 + 0x330));
             user->SendLoginToPCRoomServer();

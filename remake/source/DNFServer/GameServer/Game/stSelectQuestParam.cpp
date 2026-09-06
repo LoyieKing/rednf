@@ -39,5 +39,5 @@ stSelectQuestParam::stSelectQuestParam(CUser* user)
     m_field1c = user->GetCurCharacExpertJobType();
     m_field20 = user->GetCurExpertJobLevel(user->GetCurCharacExpertJobExp());
     UserQuest* questR = user->getCurCharacQuestR();
-    m_field24 = *(int*)((char*)questR + 0x75f0);
+    m_field24 = questR->m_authenData.m_urgentQuest;
 }

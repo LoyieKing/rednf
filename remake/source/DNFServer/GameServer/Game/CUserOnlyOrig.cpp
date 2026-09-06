@@ -11495,8 +11495,10 @@ void CUser::SetCharacInfo(int count, char* data)
         {
             Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0xcb3);
             CStreamGuard guard(s, true);
-            guard << 0x33;
-            guard << (int)GetUID();
+            // ORIG 每条 << 前 call operator*()（0x080c8c46），P167 缺 2 处 operator*
+            // （CStreamGuard::operator<< 成员直调不产 operator*，须显式 operator*()-> 代理链形）。
+            guard.operator*()->operator<<((int)0x33);
+            guard.operator*()->operator<<((int)GetUID());
             guard->put_binary(scratch, 0x70c);
             GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
         }

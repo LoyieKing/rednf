@@ -1061,6 +1061,8 @@ int DB_Login::_getRewardInfo(SIG_LOGIN_DATA* sig)
 void DB_Login::_LoadDNFEventEntry(unsigned int mid, vecDNFEventEntry_t& out)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
+    // [hc 收] G_CEnvironment()+0x378 = Server_Envir::m_serverGroup（Ordb dnf_event_entry
+    // server_id 字段；与 WarRoom::ClearReward/DB_UpdateLogin 同源 +0x378 访问）。
     unsigned int serverId =
         *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x378);
     db->set_query(
@@ -2308,6 +2310,8 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
     for (int i = 0;
          i < sig->m_characCount && i < 0x24; ++i)
     {
+        // [hc 收] sig->m_characData 为 SIG_LOGIN_DATA 角色视图数组（步长 0x94），
+        // +0x1a 即槽内等级(short)字段裸偏移（§5.3 线格式序列化缓冲豁免）。
         short level = *reinterpret_cast<short*>(sig->m_characData + i * 0x94 + 0x1a);       // 槽内 charac 等级(short)
         if (*reinterpret_cast<short*>(reinterpret_cast<char*>(G_CDataManager()) + 0xa8e0) <= level)
         {

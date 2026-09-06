@@ -1183,14 +1183,15 @@ LAB_085d6dde:
             local_70.put_int((int)P_SEATS(local_3c)->get_acc_id());
             local_70.put_byte(P_SEATS(local_3c)->m_network.get_nat_type());
             local_70.put_int(P_SEATS(local_3c)->m_network.get_mtu());
-            const void* r = P_SEATS(local_3c)->getCurCharacR();
-            if (r == 0)
+            // ORIG 0x085d709d..0x085d70c3（P48/P0 去缓存）：条件臂与 else 臂各自
+            // 独立调用 getCurCharacR() 一次，不缓存到具名局部（缓存则单 call 不同形）。
+            if (P_SEATS(local_3c)->getCurCharacR() == 0)
             {
                 local_70.put_byte(0);
             }
             else
             {
-                local_70.put_byte(*(unsigned char*)((const char*)r + 0x75));
+                local_70.put_byte(*(unsigned char*)((const char*)P_SEATS(local_3c)->getCurCharacR() + 0x75));
             }
         }
     }
@@ -1281,14 +1282,15 @@ LAB_085d6dde:
     local_70.put_int((int)user->get_acc_id());
     local_70.put_byte(user->m_network.get_nat_type());
     local_70.put_int(user->m_network.get_mtu());
-    const void* r2 = user->getCurCharacR();
-    if (r2 == 0)
+    // ORIG 0x085d..（P48/P0 去缓存）：条件臂与 else 臂各自独立调用
+    // getCurCharacR() 一次（Ghidra C 双臂 getter），不缓存到具名局部。
+    if (user->getCurCharacR() == 0)
     {
         local_70.put_byte(0);
     }
     else
     {
-        local_70.put_byte(*(unsigned char*)((const char*)r2 + 0x75));
+        local_70.put_byte(*(unsigned char*)((const char*)user->getCurCharacR() + 0x75));
     }
     local_70.finalize(true);
     send_to_pvp(local_70);
@@ -3157,20 +3159,6 @@ int PvP_Room::pvp_reward()
                 if (ev->IsEventing((CUser*)0) != 0 &&
                     IsPvpObserver(local_5c) == 0)
                 {
-                    Packet_Server_Match_data local_a1;
-                    local_a1.m_serverGroup = (char)(long)local_58->GetServerGroup();
-                    if (P_WIN(local_5c) == 0)
-                    {
-                        local_a1.m_lose = 1;
-                    }
-                    else
-                    {
-                        local_a1.m_win = 1;
-                    }
-                    CStatisticServerProxy* proxy =
-                        GlobalData::s_statistic_proxy_mgr->GetServerProxy(
-                            (ENUM_SERVER_GROUP)(long)local_58->GetServerGroup());
-                    proxy->SendPacket((char*)&local_a1, 0xd);
                     bVar15 = true;
                 }
                 else
@@ -3181,6 +3169,26 @@ int PvP_Room::pvp_reward()
             else
             {
                 bVar15 = false;
+            }
+            // ORIG 0x085daa76..（P167 缺 getCurCharacR 同族）：bVar15 由 integrated
+            // 频道 eventing 判定独立算出；发包块整体包在 `bVar15 && GetServerGroup()!=0`
+            // 条件内（条件臂 + 块内 m_serverGroup + GetServerProxy = 3 次独立调用，P0/P48）。
+            if (bVar15 && local_58->GetServerGroup() != 0)
+            {
+                Packet_Server_Match_data local_a1;
+                local_a1.m_serverGroup = (char)(long)local_58->GetServerGroup();
+                if (P_WIN(local_5c) == 0)
+                {
+                    local_a1.m_lose = 1;
+                }
+                else
+                {
+                    local_a1.m_win = 1;
+                }
+                CStatisticServerProxy* proxy =
+                    GlobalData::s_statistic_proxy_mgr->GetServerProxy(
+                        (ENUM_SERVER_GROUP)(long)local_58->GetServerGroup());
+                proxy->SendPacket((char*)&local_a1, 0xd);
             }
             unsigned int local_84 = 0;
             if (((local_5d == 0) || (P_WIN(local_5c) == 0)) ||
@@ -3319,11 +3327,14 @@ int PvP_Room::pvp_reward()
                     local_38 = local_38 + (iVar9 * 5 * local_38) / 100;
                 }
                 PvpResultType* w = local_58->getPVPResultRefW();
-                int old = local_58->get_pvp_result_oldexp_point();
-                w->m_expPoint = old + local_38;
+                // ORIG 0x085dc1ce..（P0/P48 去缓存）：w->m_expPoint 与 LogHistory 的
+                // 第 3 参各自独立调用 get_pvp_result_oldexp_point()，不缓存到具名局部
+                // （缓存则少 1 call 点，P167 差集 -1 根因）。
+                w->m_expPoint = local_58->get_pvp_result_oldexp_point() + local_38;
                 local_94.put_int(local_38);
                 const PvpResultType* r = local_58->getPVPResultRefR();
-                local_58->LogHistory("PvPExp,%d,%d,%d", r->m_expPoint, old,
+                local_58->LogHistory("PvPExp,%d,%d,%d", r->m_expPoint,
+                                     local_58->get_pvp_result_oldexp_point(),
                                      local_38);
             }
             int sVar4 = local_58->has_within_Mission();

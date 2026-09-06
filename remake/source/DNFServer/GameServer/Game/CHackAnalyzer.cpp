@@ -443,6 +443,9 @@ void CHackAnalyzer::_analyzeEquipmentUpgradeHack(unsigned short const* table)
     const CInventory* inv = ((CUser*)m_baseHackType)->getCurCharacInvenR();
     for (int i = 0; i < 0x16; ++i)
     {
+        // [hc 收] ORIG 0x080f7e18..：inv 为 CInventory 起始 +0x3d 步长 Inven_Item
+        // 槽数组、+0x1c 为背包 ptr 槽区基址裸偏移跳入槽项；语义承载 = 槽序列
+        // （§5.3 未建模子对象占位 / 序列化缓冲豁免，GetUpgrade 具名访问槽内字段）。
         const Inven_Item* item =
             (const Inven_Item*)((char const*)inv + i * 0x3d + 0x1c);
         unsigned short upgrade = item->GetUpgrade();
@@ -582,7 +585,8 @@ void CHackAnalyzer::addServerHackCnt(CUser* user, ENUM_HACKTYPE type,
         int memberCount = party->get_member_count();
         if (!CheckHackRateByPartyCount(type, memberCount))
             return;
-        // ORIG：party+0xcac 为 CDungeon*，party+0xb24 为 CBattle_Field。
+        // [hc 收] ORIG：party+0xcac 为 CDungeon*，party+0xb24 为 CBattle_Field
+        // （§8.3 未建模子对象占位址跳，get_standard_level/get_dungeon_diff 具名消费）。
         char* pc = (char*)party;
         CDungeon* dungeon = *(CDungeon**)(pc + 0xcac);
         if (dungeon != 0)

@@ -81,7 +81,7 @@ void Secu_DungeonAverageCheck::setKillMonsterInfo(const MSG_MONSTER_DIE* info,
             unsigned int upper2 = (unsigned int)(int)(0.5f + avg2 + adj2);
             unsigned int lower2 = (unsigned int)(int)(avg2 - adj2);
 
-            if (*(int*)((char*)m_party + 0x1874) > 0 &&
+            if (m_party->m_mapHitCount > 0 &&
                 lower1 <= info->m_killValue1 && info->m_killValue1 <= upper1)
             {
                 rec.m_hackCntE6 += 1;
@@ -95,7 +95,7 @@ void Secu_DungeonAverageCheck::setKillMonsterInfo(const MSG_MONSTER_DIE* info,
                     analyzer->addServerHackCnt(userArg, (WongWork::ENUM_HACKTYPE)0xe6, 1, 0, 0);
                 }
             }
-            if (*(int*)((char*)m_party + 0x1874) > 0 &&
+            if (m_party->m_mapHitCount > 0 &&
                 lower2 <= info->m_killValue2 && info->m_killValue2 <= upper2)
             {
                 rec.m_hackCntE7 += 1;

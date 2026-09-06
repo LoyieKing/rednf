@@ -284,11 +284,14 @@ int GrowthEquipEvent::SendInfinityGrowthWeapon(CUser* user, const Inven_Item* it
     user->getCurCharacInvenW()->update_item((INVEN_TYPE)invenType, slot, newItem);
     user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)space, slot);
 
-    char* data = static_cast<char*>(user->getGrowthWeaponEventdata());
-    short timepiece = *reinterpret_cast<short*>(data + 0x10);
+    // GrowthWeaponEvent 具名视图（CUser.h，getGrowthWeaponEventdata 返回 &m_growthWeapon）；
+    // +0x10 = m_field10（short），+0x0c = m_fieldc。
+    GrowthWeaponEvent* data = static_cast<GrowthWeaponEvent*>(
+        user->getGrowthWeaponEventdata());
+    short timepiece = data->m_field10;
     DB_EventUpdateGrowthWeaponTimepiece::makeRequest(user->get_acc_id(), timepiece,
                                                      rewardIdx);
-    *reinterpret_cast<int*>(data + 0xc) = rewardIdx;
+    data->m_fieldc = (unsigned int)rewardIdx;
     return 0;
 }
 

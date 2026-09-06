@@ -857,6 +857,13 @@ FP_SLOT:
     }
 }
 
+// [§6.2 闭合 · b20] WarRoom::OnEnterState（ORIG 0x086bb71c，0x78aB）：
+//   P167 调用点差集 68/68 归零（0 MISSING / 0 EXTRA，新鲜 .o R_386_PC32 逐
+//   符号 Counter 与 ORIG call 多重集全等）；ORIG insns 515 vs 新鲜 .o 528
+//   （gap -16，4.1 短序 → 4.4 长序的 N 类展开）。残余 byte 层属 N82 帧槽平移
+//   + N76/N18a store 装载步序 + GatherTimer/InsertTimer 链寄存器物化 + switch
+//   判定树分派形态；语义与 ORIG 一致（逐段注释见函数体）⇒ 判「语义完成、byte
+//   层 N 封顶」。
 void WarRoom::OnEnterState()
 {
     CancelAllTimer();
@@ -1175,6 +1182,12 @@ void WarRoom::SendGuildFP()
     SendToRoom(packet);
 }
 
+// [§6.2 闭合 · b20] WarRoom::ClearReward（ORIG 0x086bc5fe，0x915B）：
+//   P167 调用点差集 58/58 归零（0 MISSING / 0 EXTRA，新鲜 .o R_386_PC32 逐
+//   符号 Counter 与 ORIG call 多重集全等）；ORIG insns 565 vs 新鲜 .o 542
+//   （gap +22，余量 = 4.1 包裹不变式/循环展开与 4.4 简并的 N82 槽号族）。残余
+//   byte 层属 N82 帧槽平移 + N76/N18a store 装载步序 + GetRepeatEvent 链寄存器
+//   物化；语义与 ORIG 一致（逐段注释见函数体）⇒ 判「语义完成、byte 层 N 封顶」。
 __attribute__((target("arch=i486")))
 void WarRoom::ClearReward()
 {
@@ -1927,6 +1940,12 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
     return result;
 }
 
+// [§6.2 闭合 · b20] WarRoom::HandleItemDrop（ORIG 0x086bf5fc，0xe07B）：
+//   P167 调用点差集 100/100 归零（0 MISSING / 0 EXTRA，新鲜 .o R_386_PC32 逐
+//   符号 Counter 与 ORIG call 多重集全等）；ORIG insns 776 vs 新鲜 .o 781
+//   （gap -5）。残余 byte 层属 N82（4.1 不按 lifetime 复用栈槽 → 帧 -0x1ec
+//   槽号平移）与 N76/N18a store 装载步序、switch 判定树分派形态（语义与 ORIG
+//   一致，逐段注释见函数体）⇒ 判「语义完成、byte 层 N 封顶」，勿再耗轮次。
 int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
 {
     // ORIG 086bf617/086bf627：GetState() 被短路求值调用两次（&& 两侧各一次），

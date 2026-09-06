@@ -190,9 +190,8 @@ void CMonsterDrop_Hell::hellPartySpecificItem(stGenerateRefData_t const& ref,
 {
     int extraCount = 0;
 
-    // aiIdx = *(uint*)&ref[0x38]；list = CDataManager.m_aiCharacterList(+0x869c)
-    unsigned int aiIdx = *reinterpret_cast<unsigned int const*>(
-        reinterpret_cast<char const*>(&ref) + 0x38);
+    // aiIdx = ref.m_rankBonusIndex(+0x38)；list = CDataManager.m_aiCharacterList(+0x869c)
+    unsigned int aiIdx = (unsigned int)ref.m_rankBonusIndex;
     CAICharacterList* list =
         G_CDataManager()->m_aiCharacterList;          // +0x869c（头注释实证）
     CAICharacter* ai = list->get(aiIdx);   // ORIG get(idx)：map find
@@ -230,8 +229,7 @@ void CMonsterDrop_Hell::hellPartySpecificItem(stGenerateRefData_t const& ref,
     }
 
     // ORIG 0x08535b08 以 movzbl 读 +0x40 仅测低字节（非 dword 非空判据）。
-    if (*reinterpret_cast<unsigned char const*>(
-            reinterpret_cast<char const*>(&ref) + 0x40) != 0)
+    if (u8_at(ref, 0x40) != 0)
     {
         for (int i = 0; i < extraCount; ++i)
             generateSpecificItem(ref, result);         // ORIG vtable 槽 +0xc 直呼

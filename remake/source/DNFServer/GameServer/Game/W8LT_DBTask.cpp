@@ -5953,6 +5953,9 @@ bool DB_SaveRank::dispatch(int userIdx, int slot, Stream* stream)
 // ORIG 0x8417510：循环 i < sig->m_count（+0x04），每行 0x50 步长：
 // inSert charac_best_record(charac_no,dungeon_no,difficulty,style,technic,
 // attacked,rank)；inSert exec 失败改 upDate 同键；upDate 也失败返 0。
+// [hc 收] (char*)sig + i*0x50 视图族：sig 为 SIG_SAVE_RANK 载荷线格式缓冲，
+// 每行 0x50 步长字段经 DB_SaveRankRowView/StatsView 视图类型 cast 直读
+// （§5.3 序列化缓冲豁免；ORIG 基址重算每字段同形）。
 bool DB_SaveRank::SaveRankAll(SIG_SAVE_RANK* sig)
 {
     // 声明序 db→i 与 ORIG 栈槽对应（-0x20/-0x1c）；无 row/sv 局部，
@@ -6235,6 +6238,13 @@ bool DB_UpdateQuest::dispatch(int userIdx, int slot, Stream* stream)
 // +0x75d4 标志为 0 走无 clear_quest SQL，否则压缩串作 clear_quest='%s' 首占位；
 // 40 个 play/trigger 字段 + urgentQuestIndex(+0x75d5) + quest_notify blob
 // (blob_to_str(1, sig+0x75d9, 0x28)) + charac_no；exec 成功且 affected!=0 返 true。
+// [§6.2 闭合 · b20] DB_UpdateQuest::_updateQuests（ORIG 0x08418c1c，0x956B）：
+//   P167 调用点差集 11/11 归零（0 MISSING / 0 EXTRA，新鲜 .o R_386_PC32 逐
+//   符号 Counter 与 ORIG call 多重集全等，含 compress_zip/logFormat/getAffected
+//   链）；ORIG insns 520 vs 新鲜 .o 519（gap +1）。残余 byte 层属 N82 帧槽平移
+//   + 40 个 play/trigger 字段 set_query 实参栈槽序的跨版本排布；语义与 ORIG
+//   一致（upDate new_charac_quest 两分支 SQL + blob_to_str 载荷，见函数体注释）
+//   ⇒ 判「语义完成、byte 层 N 封顶」。
 bool DB_UpdateQuest::_updateQuests(SIG_UPDATE_QUEST* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);

@@ -50,6 +50,7 @@ void setBit_Uint(unsigned int& value, bool set, int bit);
 #include "CSyncSlangFilter.h"        // CSyncSlangFilter::GetInstance / HasSlang
 #include "CUserCharacInfo.h"    // getCurCharac*/get_charac_*
 #include "CEquipItem.h"         // CEquipItem::m_itemType（DisJointAvatar +0x234）
+#include "RandomOptionScript.h" // RandomOptionScript::m_providerModified154（ChangeRandomOption +0x154）
 #include "CompoundEmblemDeps.h"      // LineFunc(int, char const*, int, unsigned)
 #include "CompoundEmblemDeps.h" // LineFunc(int, char const*, int, unsigned)
 #include "GameEnums.h"          // ENUM_SKILL_TREE_KIND / eItemDelReason / ENUM_CMDPACKET
@@ -2222,10 +2223,9 @@ int Dispatcher_AskRematch::dispatch_sig(CUser* user, PacketBuf& packet)
     if (room->m_matching == 0)
         return 0;
     matched = room->m_matching;
-    // ORIG vtable+0x68 槽直调（IMatch::OnAskRematch(CUser*, int)，MatchRoomList.h 已声明；
-    // m_matching 为 int 存储口径，直调形态与 DisPatcherCore.cpp EndPvPResult 同款）。
-    (*(int (**)(void*, void*, int))(*reinterpret_cast<char**>(matched) + 0x68))(
-        reinterpret_cast<void*>(matched), user, (int)rematchFlag);
+    // 真实虚调用：IMatch::OnAskRematch 在镜像声明序落 +0x68（MatchRoomList.h:78），
+    // 与 ORIG 0x68 槽一致（§8.5 删函数指针桥→真实虚调）。matched 局部 int 存储口径不变。
+    ((IMatch*)matched)->OnAskRematch(user, (int)rematchFlag);
     return 0;
 }
 int Dispatcher_AskRematch::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
@@ -12063,8 +12063,12 @@ int Dispatcher_ChangeRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase
     // static local：ORIG __cxa_guard(0x0930???)/CRandomOptionItemHandle C1 + __cxa_atexit
     static random_option::CRandomOptionItemHandle handle;
     random_option::CRandomOptionItemHandle* pHandle = &handle;
+    // GetRandomOption() 返回 RandomOptionScript*（GlobalData.cpp:4059 T 0x085f0eb0），
+    // ORIG `add $0x154`（0x085f0eb0 后 0x081dce5f）= RandomOptionScript::m_providerModified154
+    // （CModifiedRandomOptionGive，基类 CRandomOptionGive 偏移 0，隐式上转）。
     pHandle->set_random_option_give(
-        (CRandomOptionGive*)((char*)random_option::GetRandomOption() + 0x154));  // ORIG 0x085f0eb0/0x085f0ea2
+        &reinterpret_cast<RandomOptionScript*>(
+            random_option::GetRandomOption())->m_providerModified154);
 
     int uVar12 = local_30->GetRandomOptionGrade();       // vtable +0x50 槽虚调用
     int uVar10 = local_30->getItemGroupName();
@@ -14303,8 +14307,7 @@ int Dispatcher_SaveCharacterOption::process(CUser* user, MSG_BASE& msg, ParamBas
     }
     user->setSaveCharacOption(true);
     MSG_SAVE_CHARACTER_OPTION& req = static_cast<MSG_SAVE_CHARACTER_OPTION&>(msg);
-    user->SetCurCharacOption(*reinterpret_cast<CharacterOption*>(
-        reinterpret_cast<char*>(&req) + 0x11));
+    user->SetCurCharacOption(req.m_option);            // +0x11 CharacterOption
     return 0;
 }
 int Dispatcher_SaveCharacterOption::read(PacketBuf& packet, MSG_BASE& msg)
@@ -14944,7 +14947,7 @@ int Dispatcher_AuctionBuyItemApiece::dispatch_sig(CUser* user, PacketBuf& packet
         return LineFunc(0xc501, __PRETTY_FUNCTION__, 0, 0);
     }
     // pck+0x26 = 竞拍单价/件数 int
-    if (!packet.get_int(*reinterpret_cast<int*>(reinterpret_cast<char*>(&pck) + 0x26)))
+    if (!packet.get_int(*reinterpret_cast<int*>(pck.m_body.m_count)))
     {
         return LineFunc(0xc502, __PRETTY_FUNCTION__, 0, 0);
     }
@@ -16990,7 +16993,7 @@ int Dispatcher_AuctionAskAveragePrice::dispatch_sig(CUser* user, PacketBuf& pack
             }
         }
 
-        reinterpret_cast<ROI_Category*>(body + 0x22)->_sort();
+        pck.m_roi._sort();   // +0x22（GA 头 ROI_Category m_roi）
 
         unsigned char tail = 0;
         if (packet.get_byte(tail) != 1)
@@ -17561,6 +17564,16 @@ int Dispatcher_ConnectP2PAfterAssault::process(CUser* user, MSG_BASE& msg, Param
 int Dispatcher_ConnectP2PAfterAssault::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_DeathTowerStageCommand::~Dispatcher_DeathTowerStageCommand() {}
+// §8.3 TU 视图：ORIG 08208cb2 `add $0xb58,%eax` → stMapMonsterKillChecker_t::init
+// （dispatch_sig.md:150/262-264）。CDeathTower.h（共享）未具名该内嵌成员——其
+// m_timerKeys[10]@+0xb3c 占 0xb3c..0xb64 与本区重叠，建模疑似缺陷已 hub 报 Main 核。
+// 本 TU 以视图把 +0xb58 表达为具名成员，避免越界改共享头。
+namespace {
+struct DTChkView {
+    char m_head[0xb58];
+    WongWork::CDeathTower::stMapMonsterKillChecker_t m_killChecker;   // +0xb58
+};
+}
 int Dispatcher_DeathTowerStageCommand::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     unsigned short local_22[4];          // -0x1e：4 个玩家用时（ushort）
@@ -17624,7 +17637,7 @@ int Dispatcher_DeathTowerStageCommand::dispatch_sig(CUser* user, PacketBuf& pack
                     }
                     CUser* pCVar7b = local_14->get_user(local_c);
                     WongWork::CDeathTower* iVar4b = pCVar7b->getDeathTower();
-                    ((WongWork::CDeathTower::stMapMonsterKillChecker_t*)((char*)iVar4b + 0xb58))->init();
+                    reinterpret_cast<DTChkView*>(iVar4b)->m_killChecker.init();   // +0xb58
                     WongWork::CDeathTower::CStage* pCVar6b = local_18->getCStage();
                     uVar9 = (unsigned int)pCVar6b->getStageClearTime();
                     unsigned short uVar1 = local_22[local_c];
@@ -17656,7 +17669,9 @@ int Dispatcher_Delete_GuildBoard_Text::process(CUser* user, MSG_BASE& msg, Param
 int Dispatcher_Delete_GuildBoard_Text::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG（帧 $0x18）：读 unsigned int(msg+0x89)，无指针物化槽 ⇒ 内联。
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&msg) + 0x89)))
+    // msg+0x89 = MSG_GUILD_BOARD::m_info(+0xd, pack1) 的 STGuildBoardDBInfo::m_7c(+0x7c)。
+    if (!packet.get_int(*reinterpret_cast<unsigned int*>(
+            &reinterpret_cast<MSG_GUILD_BOARD&>(msg).m_info.m_7c)))
     {
         return LineFunc(0x3101, __PRETTY_FUNCTION__, 0, 0);
     }
@@ -21489,12 +21504,13 @@ int Dispatcher_P2PHolePunchingSuccessRateStatistics::process(CUser* user, MSG_BA
 int Dispatcher_P2PHolePunchingSuccessRateStatistics::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x0825feda：byte@0xd → uint@0xe → uint@0x12
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(m + 0xd)))
+    MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE& m =
+        reinterpret_cast<MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE&>(msg);
+    if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_0d)))    // +0x0d byte
         return LineFunc(0xb3d, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(m + 0xe)))
+    if (!packet.get_int(m.m_0e))                                // +0x0e int
         return LineFunc(0xb40, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(m + 0x12)))
+    if (!packet.get_int(m.m_12))                                // +0x12 int
         return LineFunc(0xb43, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }

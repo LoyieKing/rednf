@@ -58,6 +58,7 @@ typedef std::map<int, int> MapII;
 #include "CDataManager.h"
 #include "CDimensionActivationEvent.h"
 #include "CBattle_Field.h"
+#include "CEquipItem.h"   // CEquipItem::m_itemType@+0x234（drop_item 丢弃限制）
 #include "W9_EventSmall.h"        // CCharacBloodDungeon::GetEnterCount
                                   //（get_blood_dungeon_admission_fee /
                                   //  beginBloodClearProcess ORIG call 085bfe88）
@@ -4238,13 +4239,12 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
         if (item->get_rarity() > 2)
             return 0xd;
 
+        // ORIG drop_item.md 085a6a1f/085a6a2d `mov 0x234(%eax)`（int dword）。
+        // +0x234 = CEquipItem::m_itemType（CEquipItem.h:210，单继承 CItem 偏移 0）。
         if (src.isEquipableItemType() &&
-            // 保留裸读：ORIG drop_item.md 085a6a1f/085a6a2d `mov 0x234(%eax)`
-            //（int dword）。0x234 超出 CItem 基类建模域（CItem.h 至 +0x144），
-            // 派生类该区无字段命名证据 → §4.3 不编造。
-            (*(int*)(reinterpret_cast<const char*>(item) + 0x234) == 0xb ||
-             *(int*)(reinterpret_cast<const char*>(item) + 0x234) < 10))
-            return 0x17;   // ORIG 直读 item+0x234（CItem 头未建模区）
+            (static_cast<const CEquipItem*>(item)->m_itemType == 0xb ||
+             static_cast<const CEquipItem*>(item)->m_itemType < 10))
+            return 0x17;
 
         Inven_Item& dst = mi.m_item;
         mi.m_count = 0;
@@ -5513,6 +5513,17 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
                 // CBattle_Field+0x194 → m_dungeonIndex（int）
                 bf.m_dungeonIndex, items[0].get_add_info(),
                 get_member_count(), bf.get_dungeon_diff());
+            // ORIG 085aacc3~085aad47：第二条 cMyTrace(0x2337) 日志
+            // "User(%s) Charac(%s) gain money(%d), old money is %d."。
+            char log2[16];
+            new (log2) cMyTrace(__PRETTY_FUNCTION__, 0x2337, 4);
+            (*reinterpret_cast<cMyTrace*>(log2))(
+                "User(%s) Charac(%s) gain money(%d), old money is %d.",
+                NumberToString(user->get_acc_id(), 0),
+                user->getCurCharacName(), items[0].get_add_info(),
+                reinterpret_cast<CUserCharacInfo*>(user)
+                    ->getCurCharacInvenR()
+                    ->get_money());
         }
         CInventory* inven =
             reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacInvenW();
@@ -5553,8 +5564,9 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
         ++count;
     }
 
-    int space = items[1].GetItemSpace();
-    if (pktType != space)
+    // P0：ORIG 085aaf5f/085aafeb `GetItemSpace(param_2+0x3d)` 两处独立调用，
+    // 不缓存 space 局部（条件比较一次 + 重初始化 put_byte 一次）。
+    if (pktType != items[1].GetItemSpace())
     {
         if (0 < count)
         {
@@ -5565,8 +5577,7 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
         count = 0;
         packet.clear();
         packet.put_header(0, 0xe);
-        pktType = space;
-        packet.put_byte(pktType);
+        packet.put_byte(items[1].GetItemSpace());
         countIdx = packet.get_index();
         packet.put_short(count);
     }
@@ -5580,20 +5591,40 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
     {
         CEventBase* ev41 = GlobalData::s_event_manager->GetRepeatEvent(0x41);
         bool ev41ing = ev41->IsEventing(0);
-        bool hasItem = items[1].m_addInfo != 0 && items[1].m_addInfo != -1;
-        const char* senderKey = 0;
-        if (ev41ing && hasItem && !isTournament)
-            senderKey = g_scriptStringManager_.findString(
-                4, "game_server_msg_155", 0);       // 活动期获得
-        else if (!ev41ing && hasItem && isTournament)
-            senderKey = g_scriptStringManager_.findString(
-                4, "game_server_msg_250", 0);       // 锦标赛背包已满退还
-        if (senderKey != 0 &&
+        // P167：ORIG 两分支各一次完整邮件块（findString-155 + find_item +
+        // ReqDBSendNewSystemMail；以及 findString-250 + find_item + ReqDBSend），
+        // 计数 2/2/2 —— 拆开写而非 senderKey 合并。
+        bool bMail155 = ev41ing && items[1].m_addInfo != 0 &&
+                        items[1].m_addInfo != -1 && !isTournament;
+        if (bMail155 &&
             G_CDataManager()->find_item(items[1].m_addInfo) != 0)
         {
-            char title[21];                         // -0x89
-            strncpy(title, senderKey, 0x14);
+            char title[21];                         // -0x89（msg_155 活动线）
+            strncpy(title, g_scriptStringManager_.findString(
+                               4, "game_server_msg_155", 0),
+                    0x14);
             char bodyText[256];                     // -0x19e
+            strncpy(bodyText,
+                    g_scriptStringManager_.findString(4, "game_server_msg_104", 0),
+                    0xff);
+            unsigned int serverGroup =
+                (unsigned int)user->GetServerGroup();
+            unsigned int characNo =
+                (unsigned int)ci->getCurCharacNo();
+            WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                title, items[1], 0, characNo, bodyText,
+                (int)strlen(bodyText), 8,
+                (ENUM_SERVER_GROUP)serverGroup, false, false);
+        }
+        else if (items[1].m_addInfo != 0 && items[1].m_addInfo != -1 &&
+                 isTournament &&
+                 G_CDataManager()->find_item(items[1].m_addInfo) != 0)
+        {
+            char title[21];                         // -0x9a（msg_250 锦标赛线）
+            strncpy(title, g_scriptStringManager_.findString(
+                               4, "game_server_msg_250", 0),
+                    0x14);
+            char bodyText[256];
             strncpy(bodyText,
                     g_scriptStringManager_.findString(4, "game_server_msg_104", 0),
                     0xff);
@@ -6290,16 +6321,21 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
             return 0;
         if (get_member_count() < 1)
             return 0;
-        bool clearOk = bf.check_grid_clear() && bf.check_end_point() &&
-                       bf.m_bloodReward.isBloodClear();
+        // P48：ORIG 085b7512/085b7583 对 check_grid_clear/check_end_point/isBloodClear
+        // 在 not-all-dead 与 all-dead 两支各独立计算一次（不缓存 clearOk 局部）。
         if (!check_allmember_die())
         {
-            if (clearOk)
+            if (bf.check_grid_clear() && bf.check_end_point() &&
+                bf.m_bloodReward.isBloodClear())
                 beginBloodClearProcess(true);
         }
         else
         {
-            beginBloodClearProcess(clearOk);
+            if (bf.check_grid_clear() && bf.check_end_point() &&
+                bf.m_bloodReward.isBloodClear())
+                beginBloodClearProcess(true);
+            else
+                beginBloodClearProcess(false);
         }
     }
     return 1;

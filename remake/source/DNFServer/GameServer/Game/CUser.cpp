@@ -14,6 +14,7 @@
 #include "HistoryLog.h"  // CUser::master_new_skill WriteLearnSkill（ORIG 0x0866b4d7）
 #include "CUser.h"
 #include "CUser.h"
+#include "W6_HackPunishDeps.h"   // onUpdateHackCount：CAutoPunishRuleHackTypeMgr::checkMaxHackCntOver / WongWork::HackTypeInfo_t
 
 #include "CUser.h"
 #include "MoneyLogPacket.h"   // CUser::SendMoenyLog（ORIG 0x0868f472 载荷 0x1e）
@@ -6711,6 +6712,11 @@ void CUser::SendChattingEmoticon()
 // ---- UpdateData uses DB request classes declared in W8LT_DBTask.h ----
 // The declarations are real dispatcher types; makeRequest definitions remain
 // in W8LT_DBTask.cpp and this TU only invokes them.
+// §6.2 闭合：P167 调用点差集 CLEAR (0/0, 271=271)。修复：hack 计数循环
+// 守卫+取值双读 getServerHackCnt（3×getHackAnalyzer/2×getServerHackCnt）；
+// SIG_OBJECT_BRING_UP m_serverGroup 改内联 m_serverEnvir.m_serverGroup（ORIG
+// 直读 +0x378 &0xff，无 get_server_group() 调用）。verdict orig1246/our1293，
+// 残余 gap 属 N82/-O0 帧差异，逐块 vs Ghidra C 全对齐。
 
 // 各 isSaveXxx 脏块经 StreamPool+CStreamGuard 组包投递队列 2 后 disable。
 void CUser::UpdateData()
@@ -6944,9 +6950,10 @@ void CUser::UpdateData()
         SIG_OBJECT_BRING_UP* sig = guard.operator->()->GetInBuffer<SIG_OBJECT_BRING_UP>();
         sig->m_accId = get_acc_id();
         sig->m_characNo = getCurCharacNo();
-        // ORIG：+0x08 = *(G_CEnvironment()+0x378) & 0xff（= m_serverEnvir.m_serverGroup
-        // 低字节，即 get_server_group()；SigTypes_D.h 同注）。
-        sig->m_serverGroup = (unsigned char)G_CEnvironment()->get_server_group();
+        // ORIG：+0x08 = *(G_CEnvironment()+0x378) & 0xff = m_serverEnvir.m_serverGroup
+        // 低字节。P167：ORIG 为内联字段直读（无 get_server_group() 调用），
+        // 故用 m_serverEnvir.m_serverGroup 内联访问，勿经 get_server_group() 访问器。
+        sig->m_serverGroup = (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup;
         sig->m_usedMaterialCnt = getCurUseBringUpMaterialCount();
         sig->m_rewardFlag = 0;           // ORIG：+0x0d 恒 0
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
@@ -6965,13 +6972,17 @@ void CUser::UpdateData()
     // ORIG +0xee8：hack 类型区间 [0x65,0xfa0] 服务器计数落库并复位。
     for (int hackType = 0x65; hackType <= 0xfa0; ++hackType)
     {
-        int hackCnt = getHackAnalyzer()->getServerHackCnt(
-            (WongWork::ENUM_HACKTYPE)hackType);
-        if (hackCnt != 0)
+        // ORIG 0x086541dd：守卫读一次 getServerHackCnt（iVar25 != 0），进入后
+        // 再读第二次作为 ReqDBSaveHackInfo 实参（3 次 getHackAnalyzer / 2 次
+        // getServerHackCnt，P167 缺口），勿缓存单次计数。
+        if (getHackAnalyzer()->getServerHackCnt(
+                (WongWork::ENUM_HACKTYPE)hackType) != 0)
         {
             WongWork::CHackAnalyzer::ReqDBSaveHackInfo(
                 get_acc_id(), (unsigned int)get_charac_no(-1),
-                (unsigned short)hackType, GetETC((short)hackType), hackCnt);
+                (unsigned short)hackType, GetETC((short)hackType),
+                getHackAnalyzer()->getServerHackCnt(
+                    (WongWork::ENUM_HACKTYPE)hackType));
             getHackAnalyzer()->resetServerHackCnt(
                 (WongWork::ENUM_HACKTYPE)hackType);
         }
@@ -8185,9 +8196,14 @@ void CUser::FatigueUp(int v)
     unsigned short prevFatigue =
         (unsigned short)getCurCharacUsedFatigue();
 
-    if (getCurCharacR() != 0 && getUserBreakAwayRewardLuckPoint() > 0)
+    // ORIG 0x08655c88：getUserBreakAwayRewardLuckPoint 仅调一次，结果缓存到槽
+    // 供 IncCurCharacLuckPoint 复用（asm +0x033 mov %eax,-0xc(%ebp) + +0x03f 重载）。
+    // 逗号操作符短路形匹配 ORIG `iVar8=getUserBreakAwayRewardLuckPoint(),0<iVar8`。
+    int luckPoint;
+    if (getCurCharacR() != 0 &&
+        (luckPoint = getUserBreakAwayRewardLuckPoint(), luckPoint > 0))
     {
-        IncCurCharacLuckPoint(getUserBreakAwayRewardLuckPoint());
+        IncCurCharacLuckPoint(luckPoint);
         setUserBreakAwayRewardLuckPoint(0);
         setUsedBreakAwayLuckPoint(true);
     }
@@ -8890,8 +8906,10 @@ int CUser::update_pvp_point(int v)
         if (GlobalData::s_event_manager->GetRepeatEvent(0x36)
                 ->IsEventing((CUser*)0))
         {
-            int grade = getPVPResultRefR()->m_pvpGrade;
-            if (grade >= 10 && grade <= 0x13)
+            // P183：ORIG 两次独立 getPVPResultRefR() 重物化（asm +0x106/+0x119），
+            // 禁 int grade 缓存变元。
+            if (getPVPResultRefR()->m_pvpGrade >= 10 &&
+                getPVPResultRefR()->m_pvpGrade <= 0x13)
                 v = (int)(0.5f * (float)v);
         }
         v = (int)(0.9f * (float)v);
@@ -11583,114 +11601,75 @@ void CUser::SendClientCrashDownLogToLogDB(int reason)
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
 }
 
-// —— onUpdateHackCount 依赖的未建模符号函数指针桥 ——
-// WongWork::CMCAPManager::getPointPerHackType  ORIG W 0x08695025
-// WongWork::CMCAPManager::incPoint             ORIG T 0x084eb53e
-// WongWork::CMCAPManager::getPoint             ORIG W 0x0822eea4
-// XNuclear::CHades::AddHackTypeCnt             ORIG T 0x084b9328
-// CAutoPunishRuleHackTypeMgr::checkMaxHackCntOver ORIG T 0x08695360
-// CHackAnalyzer::getServerHackAccumulatedCnt   ORIG W 0x0822eef6
-// CHackAnalyzer::getServerHackCnt              ORIG W 0x08695086
-// CUser::setHackUser                           ORIG T 0x0867f748
-// cUserHistoryLog::HackDetected                ORIG T 0x08685320
-// WongWork::CHackAnalyzer::setUserP            ORIG T 0x080f79c0
-
-// 局部栈上视图（不参与 ODR）：HackTypeInfo_t 16 字节
-struct HackTypeInfoView
-{
-    unsigned short m_typeA;    // +0x00
-    unsigned short m_pad02;    // +0x02
-    unsigned short m_typeB;    // +0x04（==3 触发二次检查）
-    unsigned short m_typeC;    // +0x06
-    unsigned int   m_extra;    // +0x08
-    unsigned int   m_pad0c;    // +0x0c
-};
-typedef int  (*McapGetPointPerHackTypeFn)(WongWork::ENUM_HACKTYPE);
-typedef void (*McapIncPointFn)(WongWork::CMCAPManager*, int);
-typedef unsigned int (*McapGetPointFn)(WongWork::CMCAPManager*);
-typedef void (*HadesAddHackTypeCntFn)(void*, WongWork::ENUM_HACKTYPE,
-                                      unsigned int, unsigned int, unsigned int);
-typedef int (*CheckMaxHackCntOverFn)(WongWork::CAutoPunishRuleHackTypeMgr*,
-                                     WongWork::ENUM_HACKTYPE, unsigned int,
-                                     WongWork::CHackAnalyzer*, void*,
-                                     void*, void*, void*, char*);
-typedef unsigned int (*GetServerHackAccumulatedCntFn)(
-    WongWork::CHackAnalyzer*, WongWork::ENUM_HACKTYPE);
-typedef unsigned int (*GetServerHackCntFn)(
-    WongWork::CHackAnalyzer*, WongWork::ENUM_HACKTYPE);
-typedef void (*SetHackUserFn)(CUser*, unsigned int, unsigned int,
-                              unsigned int, unsigned int, unsigned short,
-                              unsigned int);
-typedef void (*HistHackDetectedFn)(cUserHistoryLog*, unsigned int,
-                                   unsigned int, unsigned int, unsigned int,
-                                   unsigned int, unsigned int);
-typedef void (*SetUserPFn)(WongWork::CHackAnalyzer*, CUser*);
-
-static void s_user_setHackUserFromInfo(
-    CUser* user, const HackTypeInfoView& info,
-    GetServerHackAccumulatedCntFn getAccCnt)
-{
-    unsigned int cntB = getAccCnt(user->getHackAnalyzer(),
-                                  (WongWork::ENUM_HACKTYPE)info.m_typeB);
-    unsigned int cntA = getAccCnt(user->getHackAnalyzer(),
-                                  (WongWork::ENUM_HACKTYPE)info.m_typeA);
-    ((SetHackUserFn)0x0867f748)(user, info.m_typeA, cntA, info.m_typeB,
-                                cntB, info.m_typeC, info.m_extra);
-}
-
 // ORIG T 0x0867fd0a sz0x3bb：MCAP 扣减率 → hades 计数 → checkMaxHackCntOver 处置
-// → HackDetected 历史记录。
+// → HackDetected 历史记录。全部依赖已建模为真实 C++ 符号（§5.3 去 asm 桥）：
+// CMCAPManager::getPointPerHackType/incPoint/getPoint、CHades::AddHackTypeCnt、
+// CHackAnalyzer::setUserP/getServerHackCnt/getServerHackAccumulatedCnt、
+// CAutoPunishRuleHackTypeMgr::checkMaxHackCntOver、CUser::setHackUser、
+// HackTypeInfo_t 真实 ctor（清零）、cUserHistoryLog::HackDetected。
+// 结构 vs Ghidra C（onUpdateHackCount.md）逐段对齐，HackTypeInfo_t 字段语义
+// （m_type1/m_type2→setHackUser a/c、m_value2/m_value3→type/param6）照抄。
 void CUser::onUpdateHackCount(WongWork::ENUM_HACKTYPE type, int count,
                               unsigned int a, unsigned int b)
 {
-    McapGetPointPerHackTypeFn getPer =
-        (McapGetPointPerHackTypeFn)0x08695025;
-    McapIncPointFn incPoint = (McapIncPointFn)0x084eb53e;
-    McapGetPointFn getPoint = (McapGetPointFn)0x0822eea4;
-    HadesAddHackTypeCntFn addCnt = (HadesAddHackTypeCntFn)0x084b9328;
-    CheckMaxHackCntOverFn checkMax = (CheckMaxHackCntOverFn)0x08695360;
-    GetServerHackAccumulatedCntFn getAccCnt =
-        (GetServerHackAccumulatedCntFn)0x0822eef6;
-    GetServerHackCntFn getCnt = (GetServerHackCntFn)0x08695086;
-    HistHackDetectedFn hackDetected = (HistHackDetectedFn)0x08685320;
-
-    incPoint(&m_mcap, getPer(type) * count);
-    if (getPoint(&m_mcap) > 1000)
-        setStdDropRate(100 - (int)(getPoint(&m_mcap) / 100));
+    m_mcap.incPoint(
+        WongWork::CMCAPManager::getPointPerHackType(type) * count);
+    if (m_mcap.getPoint() > 1000)
+        setStdDropRate(100 - (int)(m_mcap.getPoint() / 100));
 
     char ip[16];
     if (!isHackUserTimer())
     {
-        addCnt(getHades(), type, (unsigned int)count, a, b);
-        ((SetUserPFn)0x080f79c0)(getHackAnalyzer(), this);
+        getHades()->AddHackTypeCnt((unsigned long)type, (unsigned long)count,
+                                   a, b);
+        getHackAnalyzer()->setUserP(this);
         m_network.GetPeerIP2(ip, 0x10);
 
-        HackTypeInfoView info;
-        memset(&info, 0, sizeof(info));  /*推断*/  // HackTypeInfo_t ctor 仅清零
-        if (checkMax(GlobalData::g_autoPunishRuleHackTypeMgr, type,
-                     getAccCnt(getHackAnalyzer(), type), getHackAnalyzer(),
-                     &info, &m_lookOuts1, &m_ipCounters,
-                     &m_lookOuts2, ip))
+        // ORIG：HackTypeInfo_t::HackTypeInfo_t 真实 ctor 清零（非 memset）。
+        WongWork::HackTypeInfo_t info;
+        if (GlobalData::g_autoPunishRuleHackTypeMgr->checkMaxHackCntOver(
+                type,
+                (unsigned int)getHackAnalyzer()->getServerHackAccumulatedCnt(type),
+                getHackAnalyzer(), info,
+                m_lookOuts1, m_ipCounters, m_lookOuts2, ip))
         {
-            s_user_setHackUserFromInfo(this, info, getAccCnt);
+            setHackUser((unsigned int)info.m_type1,
+                        (unsigned int)getHackAnalyzer()->
+                            getServerHackAccumulatedCnt(
+                                (WongWork::ENUM_HACKTYPE)info.m_type1),
+                        (unsigned int)info.m_type2,
+                        (unsigned int)getHackAnalyzer()->
+                            getServerHackAccumulatedCnt(
+                                (WongWork::ENUM_HACKTYPE)info.m_type2),
+                        info.m_value2, info.m_value3);
         }
-        if (info.m_typeB == 3)
+        if (info.m_type2 == 3)
         {
-            HackTypeInfoView info2;
-            memset(&info2, 0, sizeof(info2));
-            if (checkMax(GlobalData::g_autoPunishRuleHackTypeMgr, type,
-                         getAccCnt(getHackAnalyzer(), type), getHackAnalyzer(),
-                         &info2, &m_lookOuts1,
-                         &m_ipCounters, &m_lookOuts2, ip))
+            WongWork::HackTypeInfo_t info2;
+            if (GlobalData::g_autoPunishRuleHackTypeMgr->checkMaxHackCntOver(
+                    type,
+                    (unsigned int)getHackAnalyzer()->getServerHackAccumulatedCnt(type),
+                    getHackAnalyzer(), info2,
+                    m_lookOuts1, m_ipCounters, m_lookOuts2, ip))
             {
-                s_user_setHackUserFromInfo(this, info2, getAccCnt);
+                setHackUser((unsigned int)info2.m_type1,
+                            (unsigned int)getHackAnalyzer()->
+                                getServerHackAccumulatedCnt(
+                                    (WongWork::ENUM_HACKTYPE)info2.m_type1),
+                            (unsigned int)info2.m_type2,
+                            (unsigned int)getHackAnalyzer()->
+                                getServerHackAccumulatedCnt(
+                                    (WongWork::ENUM_HACKTYPE)info2.m_type2),
+                            info2.m_value2, info2.m_value3);
             }
         }
     }
 
-    hackDetected(&m_historyLog, type, (unsigned int)count,
-                 getCnt(getHackAnalyzer(), type),
-                 getAccCnt(getHackAnalyzer(), type), a, b);
+    m_historyLog.HackDetected(
+        (unsigned int)type, (unsigned int)count,
+        (unsigned int)getHackAnalyzer()->getServerHackCnt(type),
+        (unsigned int)getHackAnalyzer()->getServerHackAccumulatedCnt(type),
+        a, b);
 }
 
 // ORIG _ZN5CUser14setStdDropRateEi @ 0x0828715c (W)：

@@ -569,8 +569,10 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
     if (nPlayerCountPerOneTeam_ == 1) {
         Stream* st = GlobalData::s_stream_pool->Acquire("MatchingSystem.cpp", 0x4a8);
         CStreamGuard guard(st, true);
-        (*&guard).operator<<(0x136);
-        (*&guard).operator<<(-1);
+        // ORIG 每次写经显式 operator*() 调用（同 TimerDispatcher 代理链形）；
+        // 直 deref/shim 会丢 2 处 operator*() call（P167 缺失）。
+        guard.operator*()->operator<<((int)0x136);
+        guard.operator*()->operator<<((int)-1);
         guard.operator->()->put_binary(pkt, 0x80);
         GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
     } else {

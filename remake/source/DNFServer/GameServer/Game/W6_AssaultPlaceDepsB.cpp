@@ -174,8 +174,7 @@ void CAssaultPlace::_MakeUserUdpIpPort(PacketGuard* p)
         if (ch == 0)
             p->put_byte(0);
         else
-            p->put_byte(*reinterpret_cast<const unsigned char*>(
-                reinterpret_cast<const char*>(ch) + 0x75));   // m_stamina @+0x75
+            p->put_byte(ch->m_stamina);   // +0x75 疲劳值（movzbl 0x75）
         count++;
     }
     p->put_byte(countIdx, count);
