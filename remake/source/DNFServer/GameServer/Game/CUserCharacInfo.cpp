@@ -95,12 +95,14 @@ void CUserCharacInfo::subtractCurCharacExp(int exp)
 }
 
 
+// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
 void CUserCharacInfo::subUltimateInoutValue(char index)
 {
     CUR->m_saveBloodInout = 1;
     --CUR->m_ultimateInout[index];
 }
 
+// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
 void CUserCharacInfo::subDemensionInoutValue(char index)
 {
     if (index > 5 || index < 0)
@@ -210,6 +212,7 @@ void CUserCharacInfo::set_charac_visible_values(char values)
 }
 
 
+// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
 void CUserCharacInfo::set_charac_visible_teleport_(bool flag)
 {
     if (m_selected)
@@ -219,6 +222,7 @@ void CUserCharacInfo::set_charac_visible_teleport_(bool flag)
 }
 
 
+// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
 void CUserCharacInfo::set_charac_visible_grow_avatar(bool flag)
 {
     if (m_selected)
@@ -311,6 +315,7 @@ void CUserCharacInfo::setWeekendBonusFatigue(unsigned short value)
 }
 
 
+// ORIG `mov 0x10(%eax),%ecx` 单段直落 %ecx；4.4 恒 %eax→%ecx 二段拷贝（N18a 族），语义等价。
 void CUserCharacInfo::setWeekendBonusExp(unsigned int exp, int percent)
 {
     if (m_selected)
@@ -343,6 +348,7 @@ void CUserCharacInfo::setUpgradeSeparateFalseFlag(char flag)
 }
 
 
+// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
 void CUserCharacInfo::setUltimateInoutValue(char index, char value)
 {
     CUR->m_saveBloodInout = 1;
@@ -474,6 +480,7 @@ void CUserCharacInfo::setDisguiseCharac(bool flag, unsigned char kind,
 }
 
 
+// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
 void CUserCharacInfo::setDemensionInoutValue(char index, char value)
 {
     if (index > 5 || index < 0)
@@ -1572,6 +1579,7 @@ unsigned short CUserCharacInfo::getDisguiseIndex()
     return m_selected ? CUR->m_disguiseIndex : 0;
 }
 
+// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
 unsigned char CUserCharacInfo::getDemensionInoutValue(char index)
 {
     if (index > 5 || index < 0)
@@ -2188,6 +2196,8 @@ void CUserCharacInfo::add_member_pay_tex_fatigue_to_upper(int fatigue)
 }
 
 
+// ORIG 身体 `mov m_guildTodayExp,%ecx;mov exp,%edx;lea (%ecx,%edx,1),%edx`（lea3 更宽）；
+// 4.4 折 `mov m,..,%edx;add exp,%edx`（N4/跨版本指令形态），语义等价。同例 add_guild_exp。
 void CUserCharacInfo::add_guild_today_exp(int exp)
 {
     if (m_selected && CUR->m_guildkey != 0)

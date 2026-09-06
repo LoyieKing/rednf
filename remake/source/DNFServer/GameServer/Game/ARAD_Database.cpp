@@ -104,6 +104,10 @@ int CREATE_QUERY::arad_sp_charater_name_check(MySQL* db, SIG_CREATE_CHARAC* sig,
 // ORIG 0x0818ad8b：取 @@identity 作为新 charac_no 写 +0x5348。
 int CREATE_QUERY::arad_sp_get_characer_index(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
+    // ORIG 0x0818ad91：函数头 `movl $0x0,-0xc(%ebp)` 死槽写（原码遗留未用局部，
+    //   P197③/ P171 照抄）；加死局部复现。
+    int index = 0;
+    (void)index;
     if (db->select("seLect @@identity") != 0)
     {
         LogManager::logFormat(
@@ -348,6 +352,10 @@ int CREATE_QUERY::arad_sp_create_skill(MySQL* db, SIG_CREATE_CHARAC* sig)
 // ORIG 0x0818b5f4：inSert into pvp_result。
 int CREATE_QUERY::arad_sp_create_pvp(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
+    // ORIG 0x0818b5fa：函数头 `movl $0x198,-0xc(%ebp)` 死槽写（原码遗留未用局部，
+    //   P171 照抄），加死局部复现。
+    int queryId = 0x198;
+    (void)queryId;
     if (db->insert("inSert into pvp_result (charac_no) values(%u)",
                    sig->m_characNo) != 0)
     {
@@ -365,8 +373,12 @@ int CREATE_QUERY::arad_sp_create_dungeon_point(MySQL*, SIG_CREATE_CHARAC*)
 // ORIG 0x0818b642：inSert into charac_dungeon 空记录。
 int CREATE_QUERY::arad_sp_create_charac_dungeon(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
+    // ORIG 0x0818b648：先 `movl $0x0,-0xc`（双槽置 0/P197③）再用具名局部 characNo
+    // 经槽传递（mov 0x5348→-0xc 再重读入参），非直读成员。
+    int characNo = 0;
+    characNo = sig->m_characNo;
     if (db->insert("inSert into charac_dungeon(charac_no, dungeon) values(%d, '')",
-                   sig->m_characNo) != 0)
+                   characNo) != 0)
     {
         return -1;
     }
@@ -740,7 +752,11 @@ int LOGIN_QUERY::arad_sp_delete_member_mouspass(SIG_LOGIN_DATA* data)
     {
         return -1;
     }
-    return db->getAffectedRowCount() == 0 ? -1 : 0;
+    // ORIG 0x0818c6ab：64 位行数 or %edx,%eax 判零后走 sete 物化
+    // （sete %al; test %al,%al; je），源用 if(x==0) return -1 而非三目（三目 O0 直出 jne）。
+    if (db->getAffectedRowCount() == 0)
+        return -1;
+    return 0;
 }
 
 // ORIG 0x0818c6c4：upDate member_mousepass.fail_cnt。
@@ -828,7 +844,10 @@ int LOGIN_QUERY::arad_sp_check_goblin_reward(SIG_LOGIN_DATA* data, char* sinceTi
             799, "%s", "arad_sp_check_goblin_reward fail");
         return -1;
     }
-    db->get_n_rows();                                        // ORIG 丢弃行数
+    // ORIG 0x0818c5e7-0x0818c5f1：`call get_n_rows; test %eax,%eax; mov...` ——
+    // 单次调用后紧跟无效 test（Z 标志随后被 mov 覆盖，无分支消费），即原码空体
+    // if(get_n_rows()){} 的 O0 残留（探针实证 if(x){} 恒出 call+test）。存储无条件。
+    if (db->get_n_rows()) {}
     // ORIG 0x0818c4f3+0x??：`movb $0x1,0x38e0(%data)` 直写——0x38e0 即
     // SIG_LOGIN_DATA::m_passPadEnable（GoblinPad 启用标志，真名具名化；
     // login_field helper 在此 GCC 不内联反产外联 call，改用具名字段直写）。

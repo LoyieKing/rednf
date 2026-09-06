@@ -20,7 +20,9 @@ struct stPartyTelePort
     // ⇒ direction 是 unsigned char；0x085bb88c `mov %dl,-0x3c(%ebp)`（1 字节
     // store）与 0x085bf68e `movzbl`（1 字节读）双向实证。
     unsigned char m_direction;
-    char m_pad2[3];
+    // ORIG set_party_teleport 0x08283d98 整结构赋值只拷 4+4+2=10 字节（两 dword+一 word
+    // 覆盖 direction+1 pad）⇒ sizeof=0xa，pad2 仅 1 字节（CU19B 证）。
+    char m_pad2[1];
 };
 
 class CParty;

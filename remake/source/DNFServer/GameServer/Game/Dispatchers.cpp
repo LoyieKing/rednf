@@ -97,16 +97,18 @@ bool check_url(const char* url)
         // 指针加法经 (unsigned long) 往返（技巧26）阻断 4.4 的 lea 折叠，
         // 得到 ORIG 的 2 条 `mov/add` 形（lea (%edx,%eax,1) 三条不可接受）。
         p = (const char*)((unsigned long)url + i);
-        if ((unsigned char)*p > 0x60 && (unsigned char)*p <= 0x7a)   // a..z
-            continue;
-        // ORIG 0x82057d0 控制流：c<=0x2f → jbe 0x57f8（该处检 c==0x5f，
-        // c<=0x2f 时恒不成立 → 拒绝）；0x30..0x57（数字/大写/部分标点）→ 允许。
-        if ((unsigned char)*p > 0x2f && (unsigned char)*p <= 0x57)   // '0'..'W'
-            continue;
-        // ORIG 0x82057f8：`cmp $0x5f,%al; jne <i++岛>` —— '_' 路径 fall 进
-        // `mov $0x0` 拒绝岛？不：ORIG 拒绝岛紧跟 jne 之后（fall），i++ 岛被跳。
-        // 技巧17：把「允许」写成空 then + else return false，使 4.4 的块序与之一致。
-        if ((unsigned char)*p == 0x5f) {
+        // ORIG 0x82057d0 控制流（if-else-if 链，三支均落共享 i++）：
+        //   cmp $0x60; jbe 57e4                 ；c<=0x60 走下支
+        //   cmp $0x7a; jbe 5802 (i++)           ；a..z 放行
+        // 57e4: cmp $0x2f; jbe 57f8             ；c<=0x2f 走下支
+        //        cmp $0x57; jbe 5802 (i++)      ；0..W 放行
+        // 57f8: cmp $0x5f; jne 5808 (拒绝)      ；'_' fall 进 i++，他字符拒绝
+        if ((unsigned char)*p > 0x60 && (unsigned char)*p <= 0x7a) {
+            // a..z → continue（fall 至循环尾 = i++）
+        } else if ((unsigned char)*p > 0x2f && (unsigned char)*p <= 0x57) {
+            // '0'..'W' → continue
+        } else if ((unsigned char)*p == 0x5f) {
+            // '_' → continue
         } else {
             return false;
         }

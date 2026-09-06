@@ -250,7 +250,7 @@ public:
     // T）：槽物为蛋（ITEM_TYPE 5）时把它转成孵化蛋。返回非 0 表示成功。
     // 注：ORIG 调用方（_processCreature / check_insert_lottery_reward）
     // 以 Inven_Item* 为唯一实参（无 this），故为 static。
-    static int SetEggItem(Inven_Item* item);
+    static bool SetEggItem(Inven_Item* item);   // ORIG 调用点 P22 `xor$1` ⇒ bool（P9 返回 0/1 全宽 mov 同 int）
 };
 class CCreatureMgr
 {

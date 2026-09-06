@@ -1989,6 +1989,11 @@ int PvP_Room::change_manager_to_winner()
     // is_last_win!=true skip 的 jne 分落 +0x15c/+0x15d 两独立 landing（其间
     // 1 条 nop/重叠指令布局产物），4.4 合并共享出口+中继 jmp。bVar 常量岛/
     // !=1→xor 物化/嵌套实参消槽三形已应用，141→83。）
+    // [batch-19 N 封顶 ndiff=1] 再实测三形均不优于双 continue：
+    // ① 合并 `if (seat!=0 && is_last_win(i)==true)` → 84 insn（丢 `xor$1`
+    //   物化且中继仍在）；② 纯嵌套 `if(seat){if(==true){body}}` → 79 insn
+    //   （极性翻 test/je，丢 ORIG `xor$1;jne`）；③ `!is_last_win(i)` 替
+    //   `!= true` → 83 insn 逐条同（xor$1 保留），无增益。
     if (m_seats[7] == 0)
     {
         return 0;
@@ -2251,6 +2256,8 @@ void PvP_Room::revengeMission(bool flag)
             // 直落 %edx（技巧2 register 直落型），再统一 spill 到 0x8(%esp)。
             // 4.4 对「成员→%eax 后再挪 %edx 槽」恒物化两步（N18a 族：4.1 可单步
             // 直落任意硬寄存器，4.4 fold 仅到首寄存器），register asm 反产更差形。
+            // [batch-19 复核] `static_cast`↔C 式 `(PVP_BATTLE_MODE)` 两种写法实测
+            // 输出全等（45 insn），中转步与 cast 形式无关 ⇒ N18a 封顶，ndiff=3。
             mission->Update_Revenge_event(*P_SEATS(local_10),
                                           static_cast<PVP_BATTLE_MODE>(m_pvpBattleMode),
                                           flag);
@@ -2296,7 +2303,8 @@ int PvP_Room::CheckPvPMapMode(CUser* user, int mapNo, bool& flag)
     // ORIG 085dd9xx：bool 型 cVar1（call 结果 al 直存 byte 槽、无归一）；
     // !cVar1 判定走 movzbl+xor $1 的 4.1 取反形。
     bool cVar1 = IsDeathMatchMap(mapNo, flag);   // bool 形：后两处 !cVar1 的 movzbl+xor 物化与 ORIG 同；
-    // 差仅入口 mov%al 直存 vs 4.4 test;setne 归一（N bool ABI），净差 -2 优于 uchar 形 +4
+    // 差仅入口 mov%al 直存 vs 4.4 test;setne 归一（N bool ABI），净差 -2 优于 uchar 形 +4，
+    // char 形实测 ndiff 12（!cVar1 折成 cmpb/jne，丢 movzbl+xor+je 四段×2）
     if ((cVar1 != 0) && (!flag) && (m_pvpBattleMode == 4))
     {
         return 1;

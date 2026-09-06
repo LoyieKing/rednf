@@ -1348,8 +1348,10 @@ public:
         _slot_String(const _slot_String&);
         _slot_String& operator=(const _slot_String&);
         ~_slot_String();
-        unsigned char m_slot;   // +0x00
-        unsigned char m_b;      // +0x01
+        // ORIG 0x8239f16/0x8239e66：C1/op= 首 2 字节走一次 16 位字拷贝（movzwl/movw）
+        // ⇒ 源为单一 unsigned short（两 byte 分立字段 O0 必出两次 byte 拷贝，形不符）。
+        // 消费点仅经 reinterpret_cast<short*>（Dispatchers 21123/21154），同 2 字节无歧义。
+        unsigned short m_slot;  // +0x00
         std::string m_str;      // +0x02
     } __attribute__((packed));
 
@@ -1545,7 +1547,8 @@ public:
     int m_2c;                 // +0x2c
     int m_30;                 // +0x30
     int m_34;                 // +0x34（ctor = -1）
-    stPartyTelePort m_tp;     // +0x38（sizeof 0xc，ctor 调 reset()）
+    stPartyTelePort m_tp;     // +0x38（sizeof 现 0xa：ORIG set_party_teleport 0x08283d98 仅拷 10 字节）
+    char m_pad42[2];          // +0x42（m_tp 收缩补位，保持 m_44 于已验证 +0x44）
     int m_44;                 // +0x44
 };  // 总长 0x48 真实布局
 #pragma pack(pop)

@@ -326,6 +326,14 @@ void CBossTower::_destroy()
 // m_dungeon(+0x9f0) = find_dungeon(dungeonIdx)；party/dungeon 判空 → 0；
 // m_party(+0x04) = party；m_stageMax(+0xae4) = getRandomTowerMaxStage()；
 // m_prepareFinishFlag(+0xafc) = 0；返回 1。
+// [batch-19 N18a 封顶 ndiff=5] 唯一结构残差 = ORIG +0x57 三段冗余 regmove
+// （`call`→`mov %eax,%edx`→`mov 0x8(%ebp),%eax`→`mov %edx,0xae4(%eax)`）；
+// 同函数 +0x1a 的 m_dungeon 落槽处 ORIG 只 3 条（`mov this,%edx;mov %eax,`
+// `0x9f0(%edx)`）⇒ 4.1 在同一 store 模板上两种分配，源码侧无法定向。
+// 实测否决：① `register int` 无约束 → ndiff 11（4.4 选 %ebx ⇒ 多
+// push/pop + `add $0x14,%esp` 帧形全变）；② `register int asm("edx")` →
+// ndiff 5（复现 `mov %eax,%edx` 但反出 `mov %edx,%eax; mov this,%edx`
+// 三步，净 0 且违 P78）。维持直赋值。
 // ----------------------------------------------------------------------------
 int CBossTower::InitBossTower(CParty* party, int dungeonIdx)
 {
@@ -581,6 +589,12 @@ int CBossTower::handleFinishLoading(CUser* user)
 // ORIG T 0x08142cde _ZN8WongWork10CBossTower15_onTimerProcessE13TIMER_MESSAGEj：
 // msg 0xa3 → onClearBossTower()；0xa4 → onReturnVillage()；0xa5 →
 // onReadyTimerCheck()；其余忽略。第二参数未使用。
+// [batch-19 N 封顶 ndiff=3] 残余 = 末级比较极性：ORIG `cmp $0xa3,%eax;`
+// `jne exit` + 体 fall-through，4.4 恒 `je body; jmp exit`（switch 尾 case
+// 与空 default 汇入同一出口时 4.4 不 reverse 最后比较）。实测否决三形：
+// ① 去 default → 3（同）；② if-else 链 → 11（4.4 折 `cmpl $imm,mem` 丢
+// `mov 0xc(%ebp),%eax` 三级 + jne 正向）；③ `register` 形参 + if-else →
+// 20（cmp 用寄存器但 body 全 fall-through，块序反）。switch+default 形最优。
 // ----------------------------------------------------------------------------
 void CBossTower::_onTimerProcess(TIMER_MESSAGE msg, unsigned int a)
 {
@@ -724,20 +738,27 @@ int CBossTower::SendELPLPacket()
 // 逐有效成员：bonusExp/extraFlag 局部清零后 gain_exp_sp(m_rewardExp[i], ...,
 // eExpAddReason 2, 0, false)；成功时 SendNotiPacket(eSendTarget 2,
 // ENUM_NOTIPACKET 2, 1)。恒返 1。
+// [batch-19 AE] 4→0：两处 P0 形订正——
+//  ① ORIG +0x53 起 `xor$1;test%al,%al;jne +0xe2` 直测 %eax（choose 无槽）⇒
+//    成员有效性判定必为 `if (member==0 || checkValidUser(i)!=1) continue;`
+//    内联形；写 `bool invalid = ...;` 具名 bool 局部 ⇒ 4.4 多
+//    `mov %al,-0xa; cmpb $0,-0xa` 两段（+2/−1）。
+//  ② ORIG +0x60 `movb $0x0,-0x9(%ebp)` 在 gain_exp_sp call **之前** ⇒ 原码
+//    `bool gained = false;` 后接 `gained = member->gain_exp_sp(...)` 两句；
+//    合写成 `bool gained = call();` 丢预清行（−1）。
 // ----------------------------------------------------------------------------
 int CBossTower::InsertRewardExp()
 {
     for (int i = 0; i <= 3; ++i)
     {
         CUser* member = m_party->get_user(i);
-        bool invalid = (member == 0) ||
-                       (m_party->checkValidUser(i) != 1);
-        if (invalid)
+        if ((member == 0) || (m_party->checkValidUser(i) != 1))
             continue;
 
         int bonusExp = 0;                        // ebp-0x18
         int extraFlag = 0;                       // ebp-0x1c
-        bool gained = member->gain_exp_sp(
+        bool gained = false;
+        gained = member->gain_exp_sp(
             m_rewardExp[i], bonusExp, extraFlag,
             (CUser::eExpAddReason)2, 0, false);
         if (gained)

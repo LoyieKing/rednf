@@ -7749,9 +7749,13 @@ int CUser::send_itemspace(int space)
         break;
     }
     case 0xc:
-        if (IsExistAccountCargo() == 0)
-            return 1;
-        return GetAccountCargo()->SendItemList();
+        // ORIG 0x865dc90 段：`call IsExistAccountCargo; test %al,%al; je <ret1岛>`——
+        // 真支 fall-through 直取成员对象地址（`mov 0x8(%ebp),%eax; add $0x6effc,%eax`）
+        // 调 m_accountCargo.SendItemList()，⇒ 原码是成员对象直调而非 GetAccountCargo()
+        // （此处 4.1 头文件内联的 getter 已在我们 TU 外联，多出一次 call）。
+        if (IsExistAccountCargo())
+            return m_accountCargo.SendItemList();
+        return 1;
     default:
         return 0;
     }
@@ -8732,41 +8736,42 @@ void CUser::gain_sp(int v)
 // 0x0866aad2 gain_sfp：SFP 双树（2/3），v==0 直接返回，clamp 0x7fffffff。
 void CUser::gain_sfp(int v)
 {
-    if (v == 0)
-        return;
-    // ORIG 0x866aad2：v==0 守卫后**两段展开**（同 gain_sp 法：cap=INT_MAX-v 每段
-    // 先算、else 支重呼 SkillR+get_remain_sfp、无 remain/slot 缓存变量）。
-    if (0x7fffffff - v <
-        ((SkillSlot*)getCurCharacSkillR())
-            ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)2))
+    // ORIG 0x866aad2 守卫是正向 `if (v != 0) {…}`（同已 identical 的 gain_sp 形）：
+    // 写 `if (v == 0) return;` 早返形会让 4.4 在末支 else 的 call 后多发一条
+    // `jmp END`（早返块的 exit 边强制跳转），正向块形则自然 fall-through。
+    // 两段展开：cap=INT_MAX-v 每段先算、else 支重呼 SkillR+get_remain_sfp、无缓存变量。
+    if (v != 0)
     {
-        ((SkillSlot*)getCurCharacSkillW())
-            ->set_remain_sfp_at_index(0x7fffffff, (ENUM_SKILL_TREE_KIND)2);
-    }
-    else
-    {
-        ((SkillSlot*)getCurCharacSkillW())
-            ->set_remain_sfp_at_index(
-                ((SkillSlot*)getCurCharacSkillR())
-                    ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)2) + v,
-                (ENUM_SKILL_TREE_KIND)2);
-    }
-    if (0x7fffffff - v <
-        ((SkillSlot*)getCurCharacSkillR())
-            ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)3))
-    {
-        ((SkillSlot*)getCurCharacSkillW())
-            ->set_remain_sfp_at_index(0x7fffffff, (ENUM_SKILL_TREE_KIND)3);
-    }
-    else
-    {
-        // 残 1 = 末支 call 后 `jmp END`（4.4 尾块 fall 选择与 4.1 相反，纯块布局
-        // 不可源码控制——同 OnDisconnect 尾岛 N 族）。
-        ((SkillSlot*)getCurCharacSkillW())
-            ->set_remain_sfp_at_index(
-                ((SkillSlot*)getCurCharacSkillR())
-                    ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)3) + v,
-                (ENUM_SKILL_TREE_KIND)3);
+        if (0x7fffffff - v <
+            ((SkillSlot*)getCurCharacSkillR())
+                ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)2))
+        {
+            ((SkillSlot*)getCurCharacSkillW())
+                ->set_remain_sfp_at_index(0x7fffffff, (ENUM_SKILL_TREE_KIND)2);
+        }
+        else
+        {
+            ((SkillSlot*)getCurCharacSkillW())
+                ->set_remain_sfp_at_index(
+                    ((SkillSlot*)getCurCharacSkillR())
+                        ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)2) + v,
+                    (ENUM_SKILL_TREE_KIND)2);
+        }
+        if (0x7fffffff - v <
+            ((SkillSlot*)getCurCharacSkillR())
+                ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)3))
+        {
+            ((SkillSlot*)getCurCharacSkillW())
+                ->set_remain_sfp_at_index(0x7fffffff, (ENUM_SKILL_TREE_KIND)3);
+        }
+        else
+        {
+            ((SkillSlot*)getCurCharacSkillW())
+                ->set_remain_sfp_at_index(
+                    ((SkillSlot*)getCurCharacSkillR())
+                        ->get_remain_sfp_at_index((ENUM_SKILL_TREE_KIND)3) + v,
+                    (ENUM_SKILL_TREE_KIND)3);
+        }
     }
 }
 
@@ -10957,26 +10962,25 @@ bool CUser::HasCurCharacRentalItem(int type) const
 // ORIG W 0x08230172 sz0x3b：guildkey!=0 且当前角色==m_guildDB+0x17（master）。
 bool CUser::IsGuildMaster()
 {
-    // ORIG 0x8230183-0x82301a6：test;je + cmp;jne 双跳共享 mov $0 尾岛，命中 fall→mov $1
-    // （技巧 11 正向嵌套合并假路径；`==0`/goto 形反产 sete 物化）。
-    if (get_charac_guildkey())
-        if (getCurCharacNo() == m_guildDB.m_masterNo)
-            return true;
-    return false;
+    // ORIG 0x8230183-0x82301a6：`call;test %eax,%eax;je` + `cmp %edx,%eax;jne` 双跳
+    // 共享 mov $0 尾岛。4.4 对"call 结果寄存器直比"恒物化 setne/sete（P197④），
+    // 嵌套 if / `==0` / goto 形均反产 sete；只有把短路 && 直接作为 bool 返回值
+    // （return a && b）时，两个条件分支才直落 0/1 常量岛 ⇒ 与 ORIG 全等。
+    return get_charac_guildkey() && (getCurCharacNo() == m_guildDB.m_masterNo);
 }
 
 // ORIG T 0x0866c414 sz0x55：m_guildDB+0x2e 起 5 个 int 副会长表。
 bool CUser::IsSubGuildMaster()
 {
-    // ORIG 0x866c424-0x866c446：无 subs 具名槽（内联 cast decay 形 `add $0x23410,%edx;
-    // mov 0xe(%eax,%edx,4),%ebx`）+ 技巧 22 register bool 物化 cmp;sete;test;je。
+    // ORIG 0x866c424-0x866c446：表按 pack(1) 的 `int m_subMasterData[5]`（+0x2e 非对齐）
+    // 建模后，4.4 与 4.1 同形折成 `add $0x23410,%edx; mov 0xe(%eax,%edx,4),%ebx`
+    // （成员基址 0x8d040=4*0x23410 折进 scaled 变址、余 0xe 作 disp；probe s3 实证）；
+    // 之前把头里建成 char[0x14]+reinterpret_cast ⇒ 基址 0x8d04e 不可 4 整除，4.4 退化成
+    // base+shl 双步。技巧 22 register bool 物化 cmp;sete;test;je 命中。
     for (int i = 0; i < 5; ++i)
     {
-        // ORIG 0x866c424-0x866c430 `add $0x23410,%edx; mov 0xe(%eax,%edx,4)` = 4.1 的
-        // 非 4 整除 disp scaled 分解形；4.4 恒 base+shl 双步（N 类）。技巧 22 register
-        // bool 物化 cmp;sete;test;je 命中。
         register bool hit asm("al");
-        hit = (reinterpret_cast<const int*>(m_guildDB.m_subMasterData)[i] == getCurCharacNo());
+        hit = (m_guildDB.m_subMasterData[i] == getCurCharacNo());
         if (hit)
             return true;
     }

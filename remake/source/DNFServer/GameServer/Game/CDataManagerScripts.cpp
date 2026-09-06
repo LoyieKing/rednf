@@ -542,8 +542,9 @@ int CNPCScriptList::getFavorLevel(unsigned short favorExp) const
 // m_favorExp[level]（level 0 返 0），越界（>3）返 getMaxFavorValue()。
 unsigned int CNPCScriptList::getFavorLevelValue(unsigned int level) const
 {
-    // 帧对齐：ORIG 0x8581751 sub $0x18。
-    char pad[8];
+    // 【N】ORIG 0x8581751 `sub $0x18`，我们 O0 下 `sub $0x14`（未用数组局部不占槽，
+    //   加 char pad[8] 无法抬帧，曾试行无效去之）；返回 ushort 恒产双 movzwl
+    //   （0x858177d ORIG 单条 movzwl），4.4 双扩 artifact。语义与 ORIG 全等。
     if (level > 3)
         return getMaxFavorValue();
     if (level == 0)
@@ -915,7 +916,11 @@ int _getIntegratedPvPItemAttr(const Inven_Item& item)
 //   G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0 → _getIntegratedPvPItemAttr(item)
 //   否则 → item.GetItemAttr()
 // ============================================================================
-int GetIntegratedPvPItemAttr(const Inven_Item& item)
+// ORIG 0x84fc5ff：返回类型为 byte（函数体只经最后 call 的 %eax/%al 透传，
+//   else 分支 `call GetItemAttr; leave; ret` 无 movzbl 扩宽）。声明 unsigned char
+//   ⇒ 两分支均不透传扩展（true 支 int 直落、else 支 byte 无扩），byte 全等 ORIG。
+//   调用方（CAccountCargo/CCargo/CTitleBook）均 `(int)Get...(item)&0xff`，低字节一致。
+unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item)
 {
     if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
         G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
@@ -1090,6 +1095,8 @@ void stBloodDungeon_t::clear()
 {
     // ORIG 0x8370b02：循环(unsigned≤199)置 1.0f → +0x334 clear → +0x320=1 →
     // +0x330=1.0f → memset(+0x324,0,0xc) → memset(+0x340,0,0x18) → +0x358 clear。
+    //   【N】循环条件 ORIG `mov -0xc,%eax; cmp $0xc7,%eax`（先载入寄存器），
+    //   4.4 O0 恒折 `cmpl $0xc7,-0xc(%ebp)`（mem 直比），语义全等，register 形差。
     for (unsigned int i = 0; i <= 199; ++i)
         m_rate[i] = 1.0f;
     m_vec334.clear();
@@ -1110,6 +1117,8 @@ stDeathTower_t::stDeathTower_t()
     m_apcExpWeight = 0.0f;        // ORIG +0x00 位清零（float 语义：import [apc exp weight] fstps 实证）
     m_monsterExpWeight = 0.0f;    // float 语义（[monster exp weight] fstps）
     m_rewardGoldWeight = 1.0f;
+    //   【N】循环条件 ORIG `mov -0xc,%eax; cmp $0xc7,%eax`（先载入寄存器），
+    //   4.4 O0 恒折 `cmpl $0xc7,-0xc(%ebp)`（mem 直比），语义全等，register 形差。
     for (unsigned int i = 0; i < 200; ++i)
     {
         m_rewardExpWeight[i] = 1.0f;          // this+0x04+i*4

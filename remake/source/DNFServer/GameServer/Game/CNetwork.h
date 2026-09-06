@@ -125,6 +125,12 @@ int CNetwork<N1, N2>::get_socket()
 template <int N1, int N2>
 void CNetwork<N1, N2>::disconnect()
 {
+    // ORIG 各 disconnect 实例（0x82fdf61 等）：m_lastRecvTick/m_recvGapTick(+4/+8)
+    // 以 8 字节整清（mov %eax; movl $0,0x4(%eax); movl $0,0x8(%eax) 复用 eax）。
+    // 【N】O0 下两分离 int 成员赋各自重载 this 致多 1 条 mov（our_insns 28 vs ORIG 27）；
+    // 类型 pun（&m_lastRecvTick 的 8B 写）出 add+两 store 形而非 ORIG 单基址复用，均不匹配。
+    // 唯一单基址复用形需真 unsigned long long 成员（会改 m_lastRecvTick/m_recvGapTick 名，
+    // 波及 ExchangeServer_Session.cpp/W7_UserOnlyC.cpp 的 64 位拆分写），本批记 N。
     m_lastRecvTick = 0;
     m_recvGapTick = 0;
     shutdown(m_sock, 0);

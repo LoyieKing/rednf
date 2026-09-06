@@ -363,51 +363,59 @@ bool CAssaultMgr::OnEvadeAssaultPlace(CUser* user)   // 恒返 1；ORIG 调用�
 }
 
 // ===========================================================================
-// 六个超时入口（四份 + AfterAssault 两份）——模式均为取场次转派 + catch 吞。
-// ORIG 地址随注释；恒返 1。
+// 四个超时入口——模式均为取场次转派 + catch 吞 + 恒返 1。
+// ORIG 地址随注释；place 具名局部（P0 槽往返：mov -0x10）后转派。
 // ===========================================================================
-void CAssaultMgr::OnTimeoutConnectP2P(unsigned int id, int authenValue)
+int CAssaultMgr::OnTimeoutConnectP2P(unsigned int id, int authenValue)
 {
     try
     {
-        _GetAssaultPlace(id, authenValue)->TimeoutConnectP2P();
+        CAssaultPlace* place = _GetAssaultPlace(id, authenValue);
+        place->TimeoutConnectP2P();
     }
     catch (ENUM_ERROR)
     {
-    }                                                   // ORIG T 0x082efa52
+    }
+    return 1;                                            // ORIG T 0x082efa52
 }
 
-void CAssaultMgr::OnTimeoutEndAssault(unsigned int id, int authenValue)
+int CAssaultMgr::OnTimeoutEndAssault(unsigned int id, int authenValue)
 {
     try
     {
-        _GetAssaultPlace(id, authenValue)->TimeoutEndAssault();
+        CAssaultPlace* place = _GetAssaultPlace(id, authenValue);
+        place->TimeoutEndAssault();
     }
     catch (ENUM_ERROR)
     {
-    }                                                   // ORIG T 0x082efaa8
+    }
+    return 1;                                            // ORIG T 0x082efaa8
 }
 
-void CAssaultMgr::OnTimeoutCloseAssault(unsigned int id, int authenValue)
+int CAssaultMgr::OnTimeoutCloseAssault(unsigned int id, int authenValue)
 {
     try
     {
-        _GetAssaultPlace(id, authenValue)->TimeoutCloseAssault();
+        CAssaultPlace* place = _GetAssaultPlace(id, authenValue);
+        place->TimeoutCloseAssault();
     }
     catch (ENUM_ERROR)
     {
-    }                                                   // ORIG T 0x082efafe
+    }
+    return 1;                                            // ORIG T 0x082efafe
 }
 
-void CAssaultMgr::OnTimeoutCompleteLoad(unsigned int id, int authenValue)
+int CAssaultMgr::OnTimeoutCompleteLoad(unsigned int id, int authenValue)
 {
     try
     {
-        _GetAssaultPlace(id, authenValue)->TimeoutCompleteLoad();
+        CAssaultPlace* place = _GetAssaultPlace(id, authenValue);
+        place->TimeoutCompleteLoad();
     }
     catch (ENUM_ERROR)
     {
-    }                                                   // ORIG T 0x082ef818
+    }
+    return 1;                                            // ORIG T 0x082ef818
 }
 
 // ===========================================================================

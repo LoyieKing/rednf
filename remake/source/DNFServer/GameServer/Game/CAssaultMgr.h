@@ -464,10 +464,10 @@ public:
     void ForcedMoveAtPowerWarPlace(CUser* user);         // ORIG T 0x082ed672
     static void NotifyGhostTime(CUser* user, int a, int ghostTime);
                                                          // ORIG T 0x082eff42
-    void OnTimeoutEndAssault(unsigned int a, int b);               // ORIG 0x82efaa8
-    void OnTimeoutCloseAssault(unsigned int a, int b);             // ORIG 0x82efafe
-    void OnTimeoutConnectP2P(unsigned int a, int b);               // ORIG 0x82efa52
-    void OnTimeoutCompleteLoad(unsigned int a, int b);             // ORIG 0x82ef818
+    int OnTimeoutEndAssault(unsigned int a, int b);               // ORIG 0x82efaa8（ORIG 返回恒 1）
+    int OnTimeoutCloseAssault(unsigned int a, int b);             // ORIG 0x82efafe（ORIG 返回恒 1）
+    int OnTimeoutConnectP2P(unsigned int a, int b);               // ORIG 0x82efa52（ORIG 返回恒 1）
+    int OnTimeoutCompleteLoad(unsigned int a, int b);             // ORIG 0x82ef818（ORIG 返回恒 1）
     int OnTimeoutConnectP2PAfterAssault(unsigned int a, int b);   // ORIG 0x82ef9d8（ORIG 返回恒 1，成功路径 eax=1）
     void OnTimeoutCompleteLoadAfterAssault(unsigned int a, int b); // ORIG 0x82ef86e
     void FreeAssaultPlace(int id, CAssaultPlace* place);          // ORIG T 0x82edb6a

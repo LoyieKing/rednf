@@ -1169,6 +1169,10 @@ bool CDBMsgSender::RecvMail(Inven_Item* item, int characNo, int slot,
     memset(buf, 0, 0x74);
     // ORIG 0x833ff71：lea 0x4(%eax),%edx 临时 this；arg2 经 %eax（0xc 形参晚装）。
     // register 绑 %eax 挤 item 到 %eax，令 4.4 复现 lea→%edx 装填序。
+    // [batch-19 N 封顶 ndiff=4] 去掉 asm("eax") 绑定实测 → ndiff 8（装填序
+    // 翻成 `add $4,%eax` + 形参先载，双处劣化）；保留绑定后残差 = P30 型
+    // `lea 0x4(%eax),%edx` vs `mov -0xc,%edx; add $0x4,%edx`（穷举 add-vs-lea
+    // 不可翻）+ 3 处 N82 槽号（-0x2c/-0x38、-0x34/-0x28）。
     register Inven_Item* itemAx asm("eax") = item;
     reinterpret_cast<Inven_Item_Compatible*>(&buf->m_item)->setCopy(*itemAx);
     buf->m_addInfo2 = item->m_addInfo2;               // ← item+0x07
@@ -1194,6 +1198,9 @@ bool CDBMsgSender::SendMail(Inven_Item* item, int characNo, int slot, int reason
     SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
     memset(buf, 0, 0x74);
     // ORIG 0x833febb：lea 临时 this（无 compat 槽）。同 RecvMail 的 %eax 钉法。
+    // [batch-19 N 封顶 ndiff=4] 同 RecvMail：去 asm("eax") 实测 → ndiff 8；
+    // 保留后残差 = P30 lea/add + 装载序，另 +0x2b 处 ORIG `xor$1;test;je`
+    // 常量岛在 4.4 折成 `mov %eax,%ebx` 直落（bool^1 直落形）。
     register Inven_Item* itemAx asm("eax") = item;
     reinterpret_cast<Inven_Item_Compatible*>(&buf->m_item)->setCopy(*itemAx);
     buf->m_addInfo2 = item->m_addInfo2;               // ← item+0x07
@@ -1323,7 +1330,7 @@ bool CDBMsgSender::InsertCreatureItem(CUser* user, Inven_Item* item, int slot,
 //           写回 item->m_addInfo 并置 item->m_field0 = 1；
 //   均返回 1。
 // ============================================================================
-int CCreatureItemConverter::SetEggItem(Inven_Item* item)
+bool CCreatureItemConverter::SetEggItem(Inven_Item* item)
 {
     // ORIG 0x08336eae：入口无 null 检查（直 `mov 0x2(%eax),%eax`），删臆造判空。
     CItem* found = G_CDataManager()->find_item(item->m_addInfo);
@@ -1335,6 +1342,11 @@ int CCreatureItemConverter::SetEggItem(Inven_Item* item)
     // ORIG：`mov -0x14,%eax; mov %eax,-0x10(%ebp); mov -0x10(%ebp),%eax; call`
     // equip 具名槽 -0x10；subType 无槽，switch 三级下探 cmp1;je;cmp2;je;test
     // （技巧 34 直写 switch）。
+    // [batch-19 N 封顶 ndiff=1] ORIG +0x61 的 `test %eax,%eax` 是**死指令**：
+    // 其后紧跟无条件 `jmp +0xa7`（= `mov $1,%eax` 出口），flags 无消费者 ⇒
+    // 4.1 为 `case 0:`/`default:` 同体生成的合并比较残留。实测：补
+    // `case 0: break;` 后 4.4 直接折叠该比较（仍 64 insn，ndiff 不变）⇒
+    // 源码层无法保留死 test，封顶。
     CEquipItem* equip = static_cast<CEquipItem*>(found);
     switch (equip->get_sub_type())
     {

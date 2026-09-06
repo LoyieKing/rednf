@@ -22,8 +22,8 @@ void cal_end_time(CUser*, long&, long&, long, int, bool, int);
 int get_target_server(int type);
 // 0x827d127
 void send_db(CUser*, int, long, long, int);
-// 0x827d29d
-int is_notify(CUser*, int);
+// 0x827d29d （P9：ORIG sete %al 直返无 movzbl ⇒ unsigned char）
+unsigned char is_notify(CUser*, int);
 // 0x827d2df
 void write_log(CUser*, int);
 }

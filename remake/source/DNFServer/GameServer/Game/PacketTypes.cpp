@@ -391,19 +391,18 @@ SendMercenaryReturnResult::SendMercenaryReturnResult()
 {  // ORIG C1：competition_reward_result 出线构造于 +0xc（成员自动构造承担）
 }
 
-// ORIG _slot_String 成员函数（0x8236xxx 实证）：string@+2，两 byte 拷贝语义
+// ORIG _slot_String 成员函数（0x8239e66/0x8239f16 实证）：word@+0、string@+2。
+//   copy ctor / op= 首 2 字节均走一次 16 位字拷贝（movzwl (%eax),%edx; mov %dx,(%eax)），
+//   m_slot 现为单一 unsigned short（PacketTypes.h 代落），两连并行字拷贝即 byte-identical。
 MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON::_slot_String::_slot_String() {}
 MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON::_slot_String::_slot_String(const _slot_String& o)
-    : m_str(o.m_str)
+    : m_slot(o.m_slot), m_str(o.m_str)
 {
-    m_slot = o.m_slot;
-    m_b = o.m_b;
 }
 MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON::_slot_String&
 MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON::_slot_String::operator=(const _slot_String& o)
 {
     m_slot = o.m_slot;
-    m_b = o.m_b;
     m_str = o.m_str;
     return *this;
 }

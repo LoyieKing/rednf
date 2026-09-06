@@ -874,8 +874,10 @@ public:
 
     char m_pad0[4];         // +0x00..0x03（ctor 不触碰区）
     HWSpec m_specs[255];    // +0x04..0xbf7（ORIG ctor 0x0822b8b0 循环构造，0xff × 0xc = 0xbf4）
-    char m_birthDay;        // +0xbf8（0x711d4 IsOverBirthDay）
-    char m_birthMonth;      // +0xbf9（0x711d5 IsOverBirthDay）
+    // ORIG IsOverBirthDay 0x0867ec66：三处 movzbl（无符号展宽）；值域来自客户端串
+    // atoi 可 ≥0x80，char 有符号读与 ORIG 分叉（P196 真 bug 型，CU19B probe 实证 uchar 全等）。
+    unsigned char m_birthDay;    // +0xbf8（0x711d4 IsOverBirthDay）
+    unsigned char m_birthMonth;  // +0xbf9（0x711d5 IsOverBirthDay）
     char m_padbfa[2];       // +0xbfa..0xbfb
     bool m_gmUserFlag;      // +0xbfc（0x711d8 isGMUser；ORIG movzbl 直返，bool 实证）
     char m_padbfd[0xc00 - 0xbfd];  // +0xbfd..0xbff
@@ -1297,7 +1299,9 @@ struct STGuildDBInfoOnly
     unsigned char m_guildRank;        // +0x28
     unsigned int m_fundExp;           // +0x29
     unsigned char m_subMasterCnt;     // +0x2d
-    char m_subMasterData[0x14];       // +0x2e
+    // ORIG IsSubGuildMaster 0x0866c424 折出 `0xe(%eax,%edx,4)` 索引形⇒ 元素必须为 int
+    // （char[]+cast 恒出 base+shl 双步）；sizeof 0x14 不变，消费点仅 CUser.cpp。
+    int m_subMasterData[5];           // +0x2e（pack(1) 区非对齐 int 副会长表）
     unsigned short m_guildSkillPoint; // +0x42
     unsigned char m_skillLearnCnt;    // +0x44
     char m_skills[0x50];              // +0x45（16×STGuildSkill 5B）

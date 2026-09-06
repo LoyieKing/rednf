@@ -836,7 +836,7 @@ void premium_helper_function::send_db(CUser* user, int type, long start, long en
 
 // ---- is_notify —— ORIG 0x0827d29d ----
 // premium 项存在且 m_state==2（等待开始）时返回 1。
-int premium_helper_function::is_notify(CUser* user, int type)
+unsigned char premium_helper_function::is_notify(CUser* user, int type)
 {
     // ORIG 0x0827d29d：链式内联（GetPremiumInfo 结果不入槽）；m_type 槽直读
     // 单次，m_state==2 用 == 直比（三目会折 cmp 双物化，异形）。
@@ -2130,7 +2130,7 @@ void CCeraShop::_sendPremiumPacket(CUser* user, int a, int type, int remainSec)
     PacketGuard packet;
     packet.put_header(0, 0x42);
     packet.put_short(a);
-    packet.put_byte((unsigned char)type);
+    packet.put_byte(type);          // ORIG 全宽装载（mov 0x14(%ebp)），禁 uchar cast（生 movzbl）
     packet.put_int(remainSec);
     packet.finalize(true);
     user->Send(packet);

@@ -287,10 +287,11 @@ struct STBreakAwaySection         // ORIG C1 0x822afb0（清零）；get_break_a
     // ORIG 0x822afb0：movb $0,+0x2 → 重读 movzbl +0x2,%dl 落 +0x1 →
     // 再重读 movzbl +0x1,%dl 落 +0x0（逐跳复制形，非链式 =0）。
     STBreakAwaySection() { m_field2 = 0; m_field1 = m_field2; m_field0 = m_field1; }
-    char m_field0;                // +0x00
+    unsigned char m_field0;       // +0x00
     unsigned char m_field1;       // +0x01（ORIG get_break_away_section_data/low_level
                                   //  对 m_field1 的 movzbl 零扩展实证 ⇒ 无符号比较）
-    char m_field2;                // +0x02
+    unsigned char m_field2;       // +0x02（ORIG C1 0x822afb0 `movzbl 0x2(%eax),%edx`
+                                  //  零扩展 ⇒ 无符号；char 曾致内联 ctor 出两段 mov 中转）
 };
 // ORIG C1 0x891b762（4×int 逐个清零）/ D1 0x893c682（trivial ret）。
 // importCharacLinkSystemScript（0x8909529）按 +0x00/+0x04/+0x08/+0x0c 连续 ScanInt。
