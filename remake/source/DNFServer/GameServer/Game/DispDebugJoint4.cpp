@@ -61,28 +61,12 @@ void _Z25_check_disjoint_need_slot(CUser* user, CItem* item,
                                    expert_job::CDisjointer* disjointer)
     asm("_Z25_check_disjoint_need_slotP5CUserP5CItemR10Inven_ItemPN10expert_job11CDisjointerE");
 
-// ORIG 为 vptr[0] 虚槽调用：ORIG CDisjointer vtable 0x8cc0828 slot0 =
-// OnStartMission(CUser*, CUser*)（nm 实证）。本仓库 CExpertJob.h 虚表布局未按
-// ORIG 接口序重排（重排共享虚表超本批次范围），故按 ORIG mangled 直连非虚调
-// 用，语义一致。实参序 = ORIG 虚调用 (job, targetUser, requestUser)。
-extern "C" void _ZN10expert_job11CDisjointer14OnStartMissionEP5CUserS2_(
-    expert_job::CExpertJob* job, CUser* target, CUser* request);
-
-// ORIG W 0x082347ec _ZN10expert_job11CDisjointer19get_disjoint_resultEP5CItemP10Inven_ItemR14DisJointResultP5CUser
-extern "C" int _ZN10expert_job11CDisjointer19get_disjoint_resultEP5CItemP10Inven_ItemR14DisJointResultP5CUser(
-    expert_job::CDisjointer* job, CItem* item, Inven_Item* invenItem,
-    DisJointResult& result, CUser* requestUser);
-
-// ORIG T 0x085d31a0 _ZN10expert_job11CDisjointer17complete_disjointEP5CUserR11PacketGuard
-extern "C" void _ZN10expert_job11CDisjointer17complete_disjointEP5CUserR11PacketGuard(
-    expert_job::CDisjointer* job, CUser* requestUser, PacketGuard& packet);
-
-// ORIG T 0x0868ff04 _ZN5CUser21CalcurateUserMaxLevelEv（CUser.h 未声明，禁改）
-extern "C" void _ZN5CUser21CalcurateUserMaxLevelEv(CUser* user);
-
-// ORIG T 0x0868e704 _ZN5CUser22SetMercenaryInfoPacketER11PacketGuard（同上）
-extern "C" void _ZN5CUser22SetMercenaryInfoPacketER11PacketGuard(
-    CUser* user, PacketGuard& packet);
+// b22 桥清零（§8 协议，Model22）：原 extern"C" 五桥全清——
+//   CDisjointer::{OnStartMission,get_disjoint_result,complete_disjoint} 三桥
+//   声明在本 TU 无调用点（真实 _disjoint 逻辑在 DisPatcherCore.cpp:6320/6358/
+//   6495 已是成员真调用，CExpertJob.h 权威声明），按 §8-4 删无语用桥声明；
+//   CUser::CalcurateUserMaxLevel / CUser::SetMercenaryInfoPacket 二桥转真成员
+//   调用（CUser.h:2633-2634 已声明，零新声明）。
 
 // ORIG _disjoint 内 logFormat/__PRETTY_FUNCTION__ 原文（报告 0x87b7/0x87bd 行）
 static const char g_disjointPrettyFunction[] =
@@ -135,14 +119,14 @@ char DisPatcher_DebugCommand::_debugCommandSetLevel(CUser* user, int level)
     if (!changed)                                // +0x14e test local_1d
         return 0;
 
-    _ZN5CUser21CalcurateUserMaxLevelEv(user);    // +0x158（extern 直连）
+    user->CalcurateUserMaxLevel();               // +0x158
 
     // +0x163 雇佣兵信息包：header(1,0x1ba)/byte(1)/SetMercenaryInfoPacket/
     // finalize(true)/Send
     PacketGuard mercenaryPacket;                 // -0x38 local_3c
     mercenaryPacket.put_header(1, 0x1ba);
     mercenaryPacket.put_byte(1);
-    _ZN5CUser22SetMercenaryInfoPacketER11PacketGuard(user, mercenaryPacket);
+    user->SetMercenaryInfoPacket(mercenaryPacket);
     mercenaryPacket.finalize(true);
     user->Send(mercenaryPacket);
 

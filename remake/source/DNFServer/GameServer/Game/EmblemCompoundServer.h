@@ -81,10 +81,12 @@ namespace arad { struct SigAradEmblemCompound; }
 class CUser;
 
 class EmblemCompoundServer : public ARAD::SCRIPT::EmblemCompound,
+                            public ARAD::Singleton<EmblemCompoundServer>,
                             public ARAD::ScriptInterface
 {
 public:
-    EmblemCompoundServer();   // ORIG 0x0819155e：脚本基(+4) → ScriptInterface(+0) → vtable
+    EmblemCompoundServer();   // ORIG 0x0819155e：脚本基(+4) → Singleton(+0) →
+                              //   → ScriptInterface(+0) → vtable（[b22] 补 Singleton 基调用）
     ~EmblemCompoundServer();  // ORIG 0x08191594：vtable + 脚本基 dtor
 
     virtual bool Load();      // ORIG 0x081915ba：cMyTrace + return loadScript()==0

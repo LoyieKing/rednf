@@ -142,7 +142,15 @@ public:
         int m_a;    // +0x00
         int m_b;    // +0x04
         bool operator<(const NAT_TYPE_PEER_TO_PEER& rhs) const
-            { return m_a < rhs.m_a || (m_a == rhs.m_a && m_b < rhs.m_b); }
+        {
+            // P56 分支岛：ORIG `jge;mov$1;jmp` 独立 return-1 岛，
+            // `||` 短路合并成共享 `jl` 岛 (ndiff4)，显式 if 还原。
+            if (m_a < rhs.m_a)
+                return true;
+            if (m_a == rhs.m_a && m_b < rhs.m_b)
+                return true;
+            return false;
+        }
     };
     struct RESULT_COUNT  // 8 字节（ctor 0x08610294；IncreaseNatType 按 +0/+4 自增）
     {

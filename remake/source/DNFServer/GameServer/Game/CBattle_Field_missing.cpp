@@ -182,32 +182,40 @@ void CBattle_Field::reset_field()
 // 从 CDataManager 的 hellparty 脚本值（float 数组）拷贝各组比例；分母 10000.0f。
 void CBattle_Field::reset_hell_party_value()
 {
-    const float* s = static_cast<const float*>(
-        G_CDataManager()->get_hellparty_script_values());
-    // 前三个字段 ORIG（reset_hell_party_value.md 0x0830a595/0x0830a5ae/
-    // 0x0830a5c7）为整数 mov 拷贝 dword（script[0]/[+4]/[+0xc]），字段是 int；
-    // 此处以 reinterpret 位拷贝保持 mov 语义（float→int 转换会引入 flds/fistp）。
-    const int* si = reinterpret_cast<const int*>(s);
+    // ORIG（reset_hell_party_value.md 0x0830a583..0x0830a6f7）P48 no-CSE：
+    // 每个字段/数组元素各自 fresh G_CDataManager()->get_hellparty_script_values()，
+    // 共 9 对 G_CDataManager/get_hellparty_script_values 调用（6 固定 + 3 循环整组）。
+    // 前三个字段为整数 mov 拷贝 dword（script[0]/[+4]/[+0xc]），字段是 int；
+    // 以 reinterpret 位拷贝保持 mov 语义（float→int 转换会引入 flds/fistp）。
 
     // —— 固定比例字段 ——
-    m_hellPartyRatio0 = si[0];              // +0x1e8 = script[0]（int mov）
-    m_hellPartyRatio1 = si[1];              // +0x1ec = script[+4]（int mov）
-    m_hellPartyRatio3 = si[3];              // +0x1f4 = script[+0xc]（int mov）
-    m_hellPartyRatio4 = s[4] / 10000.0f;    // +0x1f8 = script[0x10]/10000
-    m_hellPartyRatio5 = s[5] / 10000.0f;    // +0x1fc = script[0x14]/10000
-    m_hellPartyScriptRate = s[19] / 10000.0f; // +0x234 = script[0x4c]/10000
+    m_hellPartyRatio0 = reinterpret_cast<const int*>(
+        G_CDataManager()->get_hellparty_script_values())[0];   // +0x1e8
+    m_hellPartyRatio1 = reinterpret_cast<const int*>(
+        G_CDataManager()->get_hellparty_script_values())[1];   // +0x1ec
+    m_hellPartyRatio3 = reinterpret_cast<const int*>(
+        G_CDataManager()->get_hellparty_script_values())[3];   // +0x1f4
+    m_hellPartyRatio4 = static_cast<const float*>(
+        G_CDataManager()->get_hellparty_script_values())[4] / 10000.0f;  // +0x1f8
+    m_hellPartyRatio5 = static_cast<const float*>(
+        G_CDataManager()->get_hellparty_script_values())[5] / 10000.0f;  // +0x1fc
+    m_hellPartyScriptRate = static_cast<const float*>(
+        G_CDataManager()->get_hellparty_script_values())[19] / 10000.0f; // +0x234
 
     // —— m_hellPartyDungeonRate[4]（+0x200）= script[6..9]/10000 ——
     for (int i = 0; i < 4; ++i)
-        m_hellPartyDungeonRate[i] = s[6 + i] / 10000.0f;
+        m_hellPartyDungeonRate[i] = static_cast<const float*>(
+            G_CDataManager()->get_hellparty_script_values())[6 + i] / 10000.0f;
 
     // —— m_hellPartyMapRate[5]（+0x210）= script[10..14]/10000 ——
     for (int i = 0; i < 5; ++i)
-        m_hellPartyMapRate[i] = s[10 + i] / 10000.0f;
+        m_hellPartyMapRate[i] = static_cast<const float*>(
+            G_CDataManager()->get_hellparty_script_values())[10 + i] / 10000.0f;
 
     // —— m_hellPartyItemRate[4]（+0x224）= script[15..18]/10000 ——
     for (int i = 0; i < 4; ++i)
-        m_hellPartyItemRate[i] = s[15 + i] / 10000.0f;
+        m_hellPartyItemRate[i] = static_cast<const float*>(
+            G_CDataManager()->get_hellparty_script_values())[15 + i] / 10000.0f;
 }
 // ============================================================================
 // == 血轮（Blood Dungeon）链 —— ORIG 报告逐指令转写（2026-08-25 批次）      ==

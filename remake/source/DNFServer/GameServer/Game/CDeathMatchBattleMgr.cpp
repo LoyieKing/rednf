@@ -77,17 +77,17 @@ void CDeathMatchBattleMgr::IncreaseDeathCount(int userIdx)
 // ==== ORIG 085df524 ====
 int CDeathMatchBattleMgr::getKillCount(int userIdx)
 {
-    if (userIdx > 7)
-        return 0;
-    return m_killCount[userIdx];
+    if (userIdx <= 7)
+        return m_killCount[userIdx];
+    return 0;
 }
 
 // ==== ORIG 085df540 ====
 int CDeathMatchBattleMgr::getDeathCount(int userIdx)
 {
-    if (userIdx > 7)
-        return 0;
-    return m_deathCount[userIdx];
+    if (userIdx <= 7)
+        return m_deathCount[userIdx];
+    return 0;
 }
 
 // ==== ORIG 085defcc ====

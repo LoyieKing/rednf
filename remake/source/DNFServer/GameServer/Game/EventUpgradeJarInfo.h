@@ -77,7 +77,7 @@ public:
     Event_Upgrade_Jar();                                        // ORIG 0x080f49b8 C1
     ~Event_Upgrade_Jar();                                       // ORIG 0x080f49cc D1
 
-    bool LoadScript(const char* scriptDir, const char* path);    // 0x080f49e0
+    int LoadScript(const char* scriptDir, const char* path);     // 0x080f49e0（P9：bool→int，无 xor 物化）
     bool check_requiredRecipe(const Inven_Item& item) const;     // 0x080f4bb0
     unsigned int _getFailProb_Fortune(int materialIdx, unsigned int upgrade) const; // 0x080f4be0
     unsigned int _getFailProb_NewNPC(unsigned int idx) const;    // 0x080f4c8e

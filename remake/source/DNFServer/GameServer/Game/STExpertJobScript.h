@@ -138,7 +138,6 @@ public:
         unsigned short m_field4;  // +0x04
         unsigned short m_field6;  // +0x06
         unsigned short m_field8;  // +0x08
-        unsigned char  m_fieldA;  // +0x0a
     };
     // 自助分解材料信息（对象 +0x30 区；Clear 以其 clear() 调用实证）。sizeof 0xc。
     struct stSelfDisjoinMaterialInfo

@@ -7,7 +7,9 @@ class CShutdowManager
 {
 public:
     CShutdowManager();
-    ~CShutdowManager() {}
+    // 析构为隐式 trivial：ORIG GetInstanceShutdowManager@0x82a6fbb 单例
+    // static CShutdowManager 的 assembly 只有 ctor 调用、无 __cxa_atexit
+    // 注册 ⇒ ORIG 析构是 trival；用户声明空 dtor 会触发 atexit 注册致 diff。
 
     unsigned int SendLastMsgDBQueue(class CUser* user);   // ORIG 0x82a37c8，恒返回 1
     void SendShutdownSignal();   // ORIG 0x82a35a6 T（定义在 GameMain.cpp）

@@ -491,7 +491,8 @@ int CSecretShop::LotteryNpc(int dungeonIdx, int level, int price)
 void CSecretShop::LotteryItems(std::vector<SALE_INFO>& out, int dungeonIdx,
                                int level, int price)
 {
-    SecretShopScript* script = &G_CDataManager()->m_secretShop;
+    // P48 no-CSE：ORIG 每处 use 各自 fresh G_CDataManager()（GetItemByDungeonIdx /
+    // GetItemByDungeonLev 各一处，共 2 次）。
     // m_pRand 即 PvPTypes.h 权威全局 CMTRand；GetItemByDungeonIdx/Lev 形参
     // ORIG 0x085faca2：event = s_event_manager->GetRepeatEvent(0x3a)
     // ->IsEventing((CUser*)0)（vtable slot 13），作 GetItemByDungeonIdx/Lev
@@ -509,8 +510,8 @@ void CSecretShop::LotteryItems(std::vector<SALE_INFO>& out, int dungeonIdx,
                 *reinterpret_cast<void**>(ev) + 0x34);
         event = fn(ev, 0) != 0;
     }
-    if (!script->GetItemByDungeonIdx(m_pRand, out, dungeonIdx, level, event))
-        script->GetItemByDungeonLev(m_pRand, out, dungeonIdx, price, event);
+    if (!G_CDataManager()->m_secretShop.GetItemByDungeonIdx(m_pRand, out, dungeonIdx, level, event))
+        G_CDataManager()->m_secretShop.GetItemByDungeonLev(m_pRand, out, dungeonIdx, price, event);
 }
 
 void CSecretShop::CheckLottery()

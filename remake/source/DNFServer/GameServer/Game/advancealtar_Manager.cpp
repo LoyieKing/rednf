@@ -158,7 +158,9 @@ bool Manager::finishLoad(CUser* user)  // ORIG T 0x08130eb2（返回值域仅 0/
     StageControl* control = user->getAdvanceAltar();
     if (control == 0)
     {
-        return 0;
+        return 0;   // ORIG 0x08130ecc：`je +0xe7` 直跳函数尾 return-0 岛；C++
+                    // goto 不可跨 PacketGuard 初始化，4.4 只能内联该 return 0，
+                    // 块序差异归 P16/P112 封账（goto 落点岛因 jumps-over-init 不可用）。
     }
     if (!user->m_advanceAltar.isAvailableTciket())
     {

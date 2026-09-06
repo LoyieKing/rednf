@@ -12800,9 +12800,10 @@ int Dispatcher_GuildCargoPushItem::process(CUser* user, MSG_BASE& msg, ParamBase
     CItem* item = dataMgr->find_item(slotItem.m_addInfo);
 
     // ---- ORIG 0x081d11c9..0x081d1305（Fix7_I 恢复真实调用）----
+    // ORIG is_stackable 读两次（P48）：一次存 bool、一次作分支判据。
     const bool isStackable = item->is_stackable();
     const int stackLimit =
-        isStackable ? static_cast<CStackableItem*>(item)->getStackableLimit() : 1;
+        item->is_stackable() ? static_cast<CStackableItem*>(item)->getStackableLimit() : 1;
 
     Packet_Guild_Check_Guild_Cargo_Push_Item pkt;            // ctor 0x0822bec2
     pkt.m_guildKey = (unsigned int)user->get_charac_guildkey();   // +0xa

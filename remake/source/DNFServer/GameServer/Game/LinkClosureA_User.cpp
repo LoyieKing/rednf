@@ -210,8 +210,8 @@ int CUser::compute_quest_basic_reward_exp(Quest* quest)
         penalty = compute_level_penalty(levelDelta);       // [0x866e439]
     }
 
-    QuestParameterScript& questParam = G_CDataManager()->m_questParameter;
     int weight = questParam.getRewardWeight(               // [-0x1c movsbl char]
+        QuestParameterScript& questParam_weight = G_CDataManager()->m_questParameter;
         static_cast<char>(quest->m_field102));
 
     int exp = 0;                                           // [-0x18]
