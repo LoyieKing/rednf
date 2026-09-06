@@ -101,7 +101,7 @@ const char* StringDictionary::addString(const char* s)
     const size_t len = strlen(s);
     const int need = static_cast<int>(len) + 1;
 
-    unsigned char* ret = 0;
+    unsigned char* ret;
     if (m_curRemain >= need)
     {
         ret = reinterpret_cast<unsigned char*>(m_curPtr);
@@ -113,7 +113,7 @@ const char* StringDictionary::addString(const char* s)
         int cap = std::max(need, kBufSize);
         unsigned char* ptr = new unsigned char[cap];
         blocks_.push_back(ptr);
-        m_curPtr = reinterpret_cast<int>(ptr) + need;
+        m_curPtr = reinterpret_cast<int>(ptr + need);
         m_curRemain = cap - need;
         ret = ptr;
     }

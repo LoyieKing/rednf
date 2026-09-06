@@ -180,29 +180,6 @@ bool CBreakAwayPreventSystem::updateUvList(SIG_LOGIN_DATA const* login)
 }
 
 // ---- startBreakAwayPreventSystem（ORIG 0x0831ce78）-------------------------
-namespace {
-
-// 三窗口共用奖励判定：accure_cera<0 → luck_point==0 时置 reward=false；
-// 否则 selectReward(keyIdx,...) 成功后置 reward=true，order 给定时回写序号。
-void applyWindowReward(CBreakAwayPreventSystem* sys,
-                       SIG_LOGIN_DATA const* login, CUser* user,
-                       int keyIndex, bool writeOrder, ENUM_BREAK_AWAY_REWARD_ORDER order)
-{
-    if (login->m_breakAwayAccureCera < 0)
-    {
-        if (login->m_breakAwayLuckPoint == 0)
-            user->setBreakAwayRewardData(false);
-        return;
-    }
-    if (!sys->selectReward(keyIndex, login->m_breakAwayAccureCera, user))
-        return;
-    user->setBreakAwayRewardData(true);
-    if (writeOrder)
-        user->setBreakAwayRewardOrder(order);
-}
-
-} // namespace
-
 void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
     SIG_LOGIN_DATA const* login, CUser* user)
 {
@@ -236,8 +213,19 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
     if (login->m_breakAwayLastRewardTime == 0 || dayLimit <= dayDiff)
     {
         if (calBreakAwayUserPoint())
-            applyWindowReward(this, login, user, 0, true,
-                              static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(1));
+        {   // ORIG 内联（applyWindowReward key=0 order=1 writeOrder）
+            if (login->m_breakAwayAccureCera < 0)
+            {
+                if (login->m_breakAwayLuckPoint == 0)
+                    user->setBreakAwayRewardData(false);
+            }
+            else if (selectReward(0, login->m_breakAwayAccureCera, user))
+            {
+                user->setBreakAwayRewardData(true);
+                user->setBreakAwayRewardOrder(
+                    static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(1));
+            }
+        }
         return;
     }
 
@@ -246,8 +234,17 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
         (signed char)(unsigned char)m_keys[2].m_data[0] <= dayDiff &&
         dayDiff <= (signed char)(unsigned char)m_keys[2].m_data[1])
     {
-        applyWindowReward(this, login, user, 2, true,
-                          static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(3));
+        if (login->m_breakAwayAccureCera < 0)
+        {   // ORIG 内联（applyWindowReward key=2 order=3 writeOrder）
+            if (login->m_breakAwayLuckPoint == 0)
+                user->setBreakAwayRewardData(false);
+        }
+        else if (selectReward(2, login->m_breakAwayAccureCera, user))
+        {
+            user->setBreakAwayRewardData(true);
+            user->setBreakAwayRewardOrder(
+                static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(3));
+        }
         return;
     }
 
@@ -256,8 +253,15 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
         (signed char)(unsigned char)m_keys[4].m_data[0] <= dayDiff &&
         dayDiff <= (signed char)(unsigned char)m_keys[4].m_data[1])
     {
-        applyWindowReward(this, login, user, 4, false,
-                          static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(0));
+        if (login->m_breakAwayAccureCera < 0)
+        {   // ORIG 内联（applyWindowReward key=4 无 order 写）
+            if (login->m_breakAwayLuckPoint == 0)
+                user->setBreakAwayRewardData(false);
+        }
+        else if (selectReward(4, login->m_breakAwayAccureCera, user))
+        {
+            user->setBreakAwayRewardData(true);
+        }
     }
 }
 

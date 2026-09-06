@@ -7691,7 +7691,10 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
                 multiBox = 0;
                 break;
             }
-            char* dot = std::strrchr(peerIp, '.');   // ORIG _ZSt7strrchr（std:: 限定，匹配 mangled）
+            // peerIp 静态类型 char* → 命中 std::strrchr(char*,int) 非 const 重载
+            // （mangled _ZSt7strrchrPci，匹配 ORIG）；指针间接 call 会被 p167 计为丢失，
+            // 故直接调用（数组退化 const char* 会误选 ::strrchr plain）。
+            char* dot = std::strrchr(peerIp, '.');
             if (dot == 0)
             {
                 sameIp = 0;
@@ -12494,7 +12497,7 @@ int Dispatcher_AddSocketToAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
 
-    std::vector<int>& socketTypes = stackable->m_vec3a0;
+    const std::vector<int>& socketTypes = stackable->m_vec3a0;
     if (socketTypes.empty())
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xd1, 0x16);
@@ -12516,13 +12519,14 @@ int Dispatcher_AddSocketToAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
 
     // ---- 主路径：avatar key 门禁 → 徽章写槽 → 删宝石 → DB 同步 → 回包 ----
     const int avatarKey = avatarItem.m_addInfo2;                      // ORIG -0x9e 槽
+    // ORIG 0x0821aa8x：IsTempKey 判定前有一次 GetAvatarItemMgrW（结果丢弃，call site 保留）。
+    inven->GetAvatarItemMgrW();
     if (WongWork::CAvatarItemMgr::IsTempKey(avatarKey))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xd1, 0x11);
         return 0;
     }
-    WongWork::CAvatarItemMgr* mgr = inven->GetAvatarItemMgrW();
-    if (mgr->isSocketAvatar(avatarKey))
+    if (inven->GetAvatarItemMgrW()->isSocketAvatar(avatarKey))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xd1, 0x13);
         return 0;
@@ -12532,10 +12536,11 @@ int Dispatcher_AddSocketToAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
     emblem.init();
     if (source != 0 && source->IsAvatarItem())
         equip->getAvatarSocket(-1, emblem);
-    mgr->setEmblemSocketData(avatarKey, emblem);
+    inven->GetAvatarItemMgrW()->setEmblemSocketData(avatarKey, emblem);
 
-    if (!inven->delete_item((INVEN_TYPE)1, (int)msg.m_slotB, 1,
-                            (eItemDelReason)0x1b, true))
+    if (!user->getCurCharacInvenW()->delete_item(
+            (INVEN_TYPE)1, (int)msg.m_slotB, 1,
+            (eItemDelReason)0x1b, true))
         return 0x11;
 
     DB_UpdateAvatarJewelSlot::makeRequest(

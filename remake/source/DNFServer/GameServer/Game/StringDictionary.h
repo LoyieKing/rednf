@@ -60,7 +60,7 @@ public:
 
     std::vector<unsigned char*>             blocks_;     // +0x00
     int                                     m_curPtr;    // +0x0c
-    int                                     m_curRemain; // +0x10
+    unsigned int                            m_curRemain; // +0x10（ORIG addString 无符号 jb 比较）
     std::vector<StringEntity>               entities_;   // +0x14
     std::vector<StringEntity>::iterator     buckets_[0x101]; // +0x20
 };
