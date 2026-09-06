@@ -432,10 +432,13 @@ void CUser::_onChangeGrowType(unsigned char newFirst, unsigned char secondGrew,
 // ---------------------------------------------------------------------------
 void CUser::_onQuestClear(int questId, int /*opt*/)
 {
-    EventClassify::CEventScriptMng* mng = static_cast<EventClassify::CEventScriptMng*>(
-        G_CDataManager()->get_event_script_mng());
-    if (mng->is_eventing(0x193))
-        mng->process_add_quest_count_db(this, questId);
+    // ORIG：G_CDataManager()->get_event_script_mng() 在 is_eventing 判与
+    // process_add_quest_count_db 两处各自重调（禁缓存，P183/P48）。
+    if (static_cast<EventClassify::CEventScriptMng*>(
+            G_CDataManager()->get_event_script_mng())->is_eventing(0x193))
+        static_cast<EventClassify::CEventScriptMng*>(
+            G_CDataManager()->get_event_script_mng())
+            ->process_add_quest_count_db(this, questId);
 
     if (questId == 0x987)
     {
@@ -841,9 +844,12 @@ void CUser::_saveConditionEventInfo(unsigned int value, short a2, short a3)
     {
         Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x8556);
         CStreamGuard guard(s, true);
-        guard << 0x19f;
-        guard << (int)GetUID();
-        SIG_SAVE_CONDITION_EVENT* sigBody = guard.GetInBuffer<SIG_SAVE_CONDITION_EVENT>();
+        // ORIG：guard.operator*()->operator<< 两次 + guard.operator->()->GetInBuffer
+        // 显式代理链（operator*/operator-> 调用点补齐）。
+        guard.operator*()->operator<<((int)0x19f);
+        guard.operator*()->operator<<((int)GetUID());
+        SIG_SAVE_CONDITION_EVENT* sigBody =
+            guard.operator->()->GetInBuffer<SIG_SAVE_CONDITION_EVENT>();
         sigBody->m_value = value;                 // +0x00 uint
         sigBody->m_a2 = a2;                       // +0x04 short
         sigBody->m_a3 = a3;                       // +0x06 short
@@ -3577,9 +3583,11 @@ void CUser::IncrementTradeGold(unsigned int gold, int mode)
                 Stream* s =
                     GlobalData::s_stream_pool->Acquire("user.cpp", 0x408);
                 CStreamGuard guard(s, true);
-                guard << (int)0xd0;
-                guard << (int)GetUID();
-                guard << (unsigned int)get_acc_id();
+                // ORIG：guard.operator*()->operator<<(…) 显式代理链（operator* 调用点
+                // 补齐；SetCharacInfo/SaveInventory 判例）。
+                guard.operator*()->operator<<((int)0xd0);
+                guard.operator*()->operator<<((int)GetUID());
+                guard.operator*()->operator<<((unsigned int)get_acc_id());
                 GlobalData::s_msgq_mgr->put(
                     (MsgQueueMgr::QUEUE_IDX)2, guard);
             }
@@ -7157,12 +7165,14 @@ void CUser::UpdateCharacLinkBonus(unsigned int exp, unsigned int gold,
 {
     Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1c11);
     CStreamGuard guard(stream, true);
-    guard << 0x14c;
-    guard << GetUID();
-    guard << state;
-    guard << exp;
-    guard << gold;
-    guard << static_cast<unsigned int>(bonusState);
+    // ORIG：guard.operator*()->operator<< 六处显式代理链；GetUID 传 int（选
+    // operator<<(int)，否则误落 unsigned 重载——const 甄别）。
+    guard.operator*()->operator<<((int)0x14c);
+    guard.operator*()->operator<<((int)GetUID());
+    guard.operator*()->operator<<(state);
+    guard.operator*()->operator<<(exp);
+    guard.operator*()->operator<<(gold);
+    guard.operator*()->operator<<(static_cast<unsigned int>(bonusState));
     GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
 
     setCharacLinkBonusExp(0);

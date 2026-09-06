@@ -9156,10 +9156,11 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user->GetAssaultPlace() == 0 &&
         (user->get_state() == 3 || user->get_state() == 6))
     {
-        CInventory* invR = static_cast<CInventory*>(const_cast<void*>(static_cast<const void*>(
-            reinterpret_cast<const CUserCharacInfo*>(user)
-                ->getCurCharacInvenR())));
-        Inven_Item* ref =
+        // ORIG 4 处均调 const 重载 _ZNK10CInventory11GetInvenRefEii：
+        // getCurCharacInvenR() 返 const CInventory*，const 命中重载。
+        const CInventory* invR = reinterpret_cast<const CUserCharacInfo*>(user)
+            ->getCurCharacInvenR();
+        const Inven_Item* ref =
             invR->GetInvenRef(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)itemSpace),
                               (int)slotNo);
         if (ref == 0)
@@ -9280,10 +9281,9 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
                 party->m_battleField.m_pDungeon->isTowerOfDespairDungeon() &&
                 party->m_battleField.m_pDungeon->limitOfStackableItemInTower())
             {
-                CInventory* invR2 = static_cast<CInventory*>(const_cast<void*>(static_cast<const void*>(
-                    reinterpret_cast<const CUserCharacInfo*>(user)
-                        ->getCurCharacInvenR())));
-                Inven_Item* ref2 =
+                const CInventory* invR2 = reinterpret_cast<const CUserCharacInfo*>(user)
+                    ->getCurCharacInvenR();
+                const Inven_Item* ref2 =
                     invR2->GetInvenRef(
                         GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)itemSpace),
                         (int)slotNo);
@@ -9313,10 +9313,9 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
             if (party->m_battleField.m_pDungeon != 0 &&
                 party->m_battleField.m_pDungeon->isTournamentDungeon())
             {
-                CInventory* invR3 = static_cast<CInventory*>(const_cast<void*>(static_cast<const void*>(
-                    reinterpret_cast<const CUserCharacInfo*>(user)
-                        ->getCurCharacInvenR())));
-                Inven_Item* ref3 =
+                const CInventory* invR3 = reinterpret_cast<const CUserCharacInfo*>(user)
+                    ->getCurCharacInvenR();
+                const Inven_Item* ref3 =
                     invR3->GetInvenRef(
                         GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)itemSpace),
                         (int)slotNo);
@@ -9374,10 +9373,9 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     {
-        CInventory* invRFin = static_cast<CInventory*>(const_cast<void*>(static_cast<const void*>(
-            reinterpret_cast<const CUserCharacInfo*>(user)
-                ->getCurCharacInvenR())));
-        Inven_Item* refFin =
+        const CInventory* invRFin = reinterpret_cast<const CUserCharacInfo*>(user)
+            ->getCurCharacInvenR();
+        const Inven_Item* refFin =
             invRFin->GetInvenRef(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)itemSpace),
                                  (int)slotNo);
         if (refFin == 0)

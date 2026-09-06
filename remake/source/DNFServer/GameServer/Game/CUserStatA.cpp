@@ -71,13 +71,13 @@ void CUser::_update_charac_stat(bool add)
         static_cast<const _Additioal_info*>(
             characTable[job].get_growtype_stat(firstGrow, secondGrow));
 
-    _Additioal_info* addInfo =                             // +0x66/+0x82 call getCurCharacAddInfoW
-        static_cast<_Additioal_info*>(getCurCharacAddInfoW());
-
+    // ORIG：getCurCharacAddInfoW 在 add/subtract 两分支各自重调（禁缓存，P183/P48）。
     if (add)                                               // +0x5a cmpb param
-        addInfo->add(*stat);                               // +0x75 _Additioal_info::add 0x08146300
+        static_cast<_Additioal_info*>(getCurCharacAddInfoW())
+            ->add(*stat);                                  // +0x75 _Additioal_info::add 0x08146300
     else
-        addInfo->subtract(*stat);                          // +0x91 _Additioal_info::subtract 0x08693d04
+        static_cast<_Additioal_info*>(getCurCharacAddInfoW())
+            ->subtract(*stat);                             // +0x91 _Additioal_info::subtract 0x08693d04
 }
 
 // ============================================================================

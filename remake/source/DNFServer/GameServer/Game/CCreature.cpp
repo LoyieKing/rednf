@@ -108,8 +108,8 @@ bool CCreature::SaveCreatureItem(Inven_Item* item,
     info->m_exp = m_exp;                           // ← +0x30
     info->m_uid = m_uid;                           // ← +0x0c
     m_saveFlag = m_stomach.IsSaveStomach((CREATURE_STATE)m_state) ? 1 : 0;
-    item->m_addInfo = m_itemId;                    // *(int*)(item+2)（ORIG mov %edx,0x2(%eax)）
-    info->m_slotNo = m_slotNo;                     // GetSlotNo（W 0x833efca）
+    item->m_addInfo = reinterpret_cast<CCreatureItem*>(this)->GetItemId();
+    info->m_slotNo = reinterpret_cast<CCreatureItem*>(this)->GetSlotNo();
     info->m_creatureItemType = (unsigned char)m_creatureItemType;  // 低字节 +0x08
     strncpy(info->m_name, m_name, 0xc);            // ← +0x1c，12B（ORIG call strncpy PLT）
     info->m_noCharge = m_noCharge;                 // +0x14 byte → +0x26
@@ -166,7 +166,8 @@ bool CCreature::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
                                    info->m_uid))
         return false;
     Inven_Item* slotItem =
-        user->getCurCharacInvenW()->GetInvenRef(3, m_slotNo);
+        user->getCurCharacInvenW()->GetInvenRef(
+            3, reinterpret_cast<CCreatureItem*>(this)->GetSlotNo());
     slotItem->set_add_info(m_uid);
     m_saveFlag = m_stomach.IsSaveStomach((CREATURE_STATE)m_state) ? 1 : 0;
     return true;
@@ -240,7 +241,8 @@ bool CCreature::EvoluteMulty(CUser* user, int creatureId)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x843, 5);
         trace("cannot evolute because it haven't creature script uid(%d), "
-              "creature id(%d) \n", user->get_unique_id() & 0xffff, m_itemId);
+              "creature id(%d) \n", user->get_unique_id() & 0xffff,
+              reinterpret_cast<CCreatureItem*>(this)->GetItemId());
         return false;
     }
     if (!m_script->isEvoluationCreature(creatureId))
@@ -255,9 +257,10 @@ bool CCreature::EvoluteMulty(CUser* user, int creatureId)
     Inven_Item* slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
     if (slotItem == 0)
         return false;
-    slotItem->m_addInfo = m_itemId;          // *(int*)(ref+2) = 新宠物物品 idx
+    slotItem->m_addInfo = reinterpret_cast<CCreatureItem*>(this)->GetItemId();
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
-    if (!sender.EvoluteCreature(m_uid, m_itemId))
+    if (!sender.EvoluteCreature(reinterpret_cast<CCreatureItem*>(this)->GetUid(),
+                                reinterpret_cast<CCreatureItem*>(this)->GetItemId()))
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x866, 5);
         trace("cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
@@ -279,7 +282,8 @@ bool CCreature::ItemEvolute(CUser* user, int itemIdx)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x89b, 5);
         trace("cannot evolute because it haven't creature script uid(%d), "
-              "creature id(%d) \n", user->get_unique_id() & 0xffff, m_itemId);
+              "creature id(%d) \n", user->get_unique_id() & 0xffff,
+              reinterpret_cast<CCreatureItem*>(this)->GetItemId());
         return false;
     }
     int evolutionCreatureId = m_script->GetItemEvolutionCreatureId(itemIdx);
@@ -293,9 +297,10 @@ bool CCreature::ItemEvolute(CUser* user, int itemIdx)
     Inven_Item* slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
     if (slotItem == 0)
         return false;
-    slotItem->m_addInfo = m_itemId;
+    slotItem->m_addInfo = reinterpret_cast<CCreatureItem*>(this)->GetItemId();
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
-    if (!sender.EvoluteCreature(m_uid, m_itemId))
+    if (!sender.EvoluteCreature(reinterpret_cast<CCreatureItem*>(this)->GetUid(),
+                                reinterpret_cast<CCreatureItem*>(this)->GetItemId()))
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x8bb, 5);
         trace("cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
@@ -321,7 +326,8 @@ bool CCreature::EventEvolute(CUser* user, int creatureId, int slot)
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x10cc, 5);
         trace("cannot event evolute because it haven't creature script uid(%d), "
-              "creature id(%d) \n", user->get_unique_id() & 0xffff, m_itemId);
+              "creature id(%d) \n", user->get_unique_id() & 0xffff,
+              reinterpret_cast<CCreatureItem*>(this)->GetItemId());
         return false;
     }
     int baseCreatureId = GetCreatureId(creatureId);   // +0x85 call
@@ -331,10 +337,14 @@ bool CCreature::EventEvolute(CUser* user, int creatureId, int slot)
         return false;
     int nextItemId = nextScript->GetItemId();
 
-    bool recalcExp = !nextScript->IsItemGrowCreature() && m_isGrow != 1;
-    if (recalcExp)
+    // ORIG：连用两段 xor$1/test 守卫链物化 bool 后 if（P198 ①；不落槽直测）。
+    // exp 高 16 位→(int)(short)：先用全宽槽保存 m_exp，再读槽+2 高半字
+    // movzwl+cwtl（P197 ① union 拆半）。
+    if (!nextScript->IsItemGrowCreature() && m_isGrow != 1)
     {
-        short progress = (short)((unsigned int)m_exp >> 16);   // movzwl+cwtl
+        union { int all; unsigned short w[2]; } expSplit;
+        expSplit.all = m_exp;
+        int progress = (int)(short)expSplit.w[1];
         int step = nextScript->GetGrowItemCountforLevelUp();   // thunk 0x833f356
         if (step == 0)
             step = 0x19;
@@ -355,9 +365,11 @@ bool CCreature::EventEvolute(CUser* user, int creatureId, int slot)
     Inven_Item* slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
     if (slotItem == 0)
         return false;
-    slotItem->m_addInfo = m_itemId;
+    slotItem->m_addInfo = reinterpret_cast<CCreatureItem*>(this)->GetItemId();
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
-    if (!sender.EventEvoluteCreature(m_uid, m_itemId, m_exp))
+    if (!sender.EventEvoluteCreature(
+            reinterpret_cast<CCreatureItem*>(this)->GetUid(),
+            reinterpret_cast<CCreatureItem*>(this)->GetItemId(), m_exp))
     {
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1104, 5);

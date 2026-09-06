@@ -1165,14 +1165,13 @@ void CDeathTower::_onClear(bool isLast)
 
     for (int i = 0; i <= 3; ++i)
     {
-        if (m_party->checkValidUser(i))
-        {
-            CUser* user = m_party->get_user(i);
-            user->setChattingMessageCount(0);
-            // CUser +0x79700：cUserHistoryLog（public 成员 m_historyLog，CUser.h 2197）
-            user->m_historyLog.DungeonClearInfo((int)isLast, playTime / 1000);
-
-        }
+        CUser* user = m_party->get_user(i);
+        if (user == 0 || !m_party->checkValidUser(i))
+            continue;
+        user = m_party->get_user(i);   // ORIG 二次取 user（null 判定与使用分离）
+        user->setChattingMessageCount(0);
+        // CUser +0x79700：cUserHistoryLog（public 成员 m_historyLog，CUser.h 2197）
+        user->m_historyLog.DungeonClearInfo((int)isLast, playTime / 1000);
     }
 }
 void CDeathTower::_onFinishDeathTower()
@@ -1200,23 +1199,20 @@ void CDeathTower::_onFinishDeathTower()
 void CDeathTower::_onFinishStage()
 {
     m_stage.onFinishStage();
-    unsigned int clearTime = m_stage.getStageClearTime();
-    m_playData.addPlayTime(clearTime);
+    m_playData.addPlayTime(m_stage.getStageClearTime());
 
     for (int i = 0; i <= 3; ++i)
     {
-        if (m_party->checkValidUser(i))
+        CUser* user = m_party->get_user(i);
+        if (user == 0 || !m_party->checkValidUser(i))
+            continue;
+        if (m_stage.getStageClearTime() <= 0x176f)   // ORIG cmp $0x176f,setbe（5999）
         {
-            CUser* user = m_party->get_user(i);
-            if (clearTime <= 0x176f)   // ORIG cmp $0x176f,setbe（5999，非 6000）
-            {
-                CHackAnalyzer* hack = user->getHackAnalyzer();
-                hack->addServerHackCnt(user, (WongWork::ENUM_HACK_TYPE)0x19a, 1u, 0u, 0u);
-            }
-            int stageMapIdx = m_stage.getStageMapIndex();
-            UserQuest* quest = user->getCurCharacQuestW();
-            quest->set_authen_data((QUEST_CONDITION)1, stageMapIdx, 0);
+            CHackAnalyzer* hack = user->getHackAnalyzer();
+            hack->addServerHackCnt(user, (WongWork::ENUM_HACK_TYPE)0x19a, 1u, 0u, 0u);
         }
+        UserQuest* quest = user->getCurCharacQuestW();
+        quest->set_authen_data((QUEST_CONDITION)1, m_stage.getStageMapIndex(), 0);
     }
 }
 
@@ -1458,12 +1454,12 @@ void CDeathTower::deathTowerCardStatistic(int count, CUser* user, const Inven_It
         int itemId = item->m_addInfo;
         if (itemId == 0)
         {
-            int addInfo = item->get_add_info();
             GetInstanceValueStatistic()->AddValueStatistic(
-                (VALUE_STATISTIC_FIELD)0xb, user, (unsigned int)addInfo);
+                (VALUE_STATISTIC_FIELD)0xb, user,
+                (unsigned int)item->get_add_info());
             GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
                 (DEATHTOWER_VALUE_STATISTIC_FIELD)8, (char)isNotTowerOfDespair,
-                (char)level, (unsigned int)addInfo);
+                (char)level, (unsigned int)item->get_add_info());
         }
         else
         {
@@ -1471,11 +1467,12 @@ void CDeathTower::deathTowerCardStatistic(int count, CUser* user, const Inven_It
             if (citem)
             {
                 int price = 0;
-                Inven_Item itemCopy = *item;
-                G_Store()->GetSellItemPrice(itemCopy, (const CItem*)citem, (short)count, false, price);
+                G_Store()->GetSellItemPrice(
+                    const_cast<Inven_Item&>(*item), (const CItem*)citem,
+                    (short)count, false, price);
                 GetInstanceValueStatistic()->AddValueStatistic(
                     (VALUE_STATISTIC_FIELD)0xc, user, (unsigned int)price);
-                if (citem->GetAttachType() == 3)     // ORIG vptr 虚调用 ==3
+                if (citem->GetItemType() == 3)   // ORIG vptr+0xc 虚调用 GetItemType==3
                 {
                     GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
                         (DEATHTOWER_VALUE_STATISTIC_FIELD)2, (char)isNotTowerOfDespair,
@@ -2596,23 +2593,19 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
 
 int CDeathTower::handleUseStackable(CUser* user, ENUM_ITEMSPACE itemSpace, unsigned short slot)
 {
-    int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)itemSpace);
-    CInventory* inven = (CInventory*)user->getCurCharacInvenR();
-    Inven_Item* item = inven->GetInvenRef(invenType, slot);
+    const CInventory* inven = user->getCurCharacInvenR();
+    const Inven_Item* item = inven->GetInvenRef(
+        GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)itemSpace), slot);
     if (!item)
     {
         return 0;
     }
 
-    CDungeon* dungeon = m_dungeonMgr.getDungeon();
-    if (dungeon->limitOfStackableItemInTower())
+    if (m_dungeonMgr.getDungeon()->limitOfStackableItemInTower() &&
+        ((item->m_addInfo < 0x1964 || item->m_addInfo > 6999) &&
+         item->m_addInfo != 0x18))
     {
-        // ORIG：Inven_Item +0x02 即 m_addInfo（itemId）
         unsigned int itemId = (unsigned int)item->m_addInfo;
-        if (!((itemId < 0x1964 || itemId > 6999) && itemId != 0x18))
-        {
-            return 1;
-        }
         if (itemId < 0x19)
         {
             if (itemId != 10)
