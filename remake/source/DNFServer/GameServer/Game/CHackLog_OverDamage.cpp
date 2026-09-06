@@ -77,17 +77,24 @@ WongWork::ENUM_HACKTYPE CHackLog_OverDamage::GetBossTowerOverDamageHackType()
 void CHackLog_OverDamage::GetDungeonLimitDamageAndHackType(
     CUser* user, unsigned int& limit, WongWork::ENUM_HACKTYPE& type)
 {
-    if (user == 0)
-        return;
-    // ORIG 0x0828679e-0x082868a0：guard 与**每处字段使用点都重新 call
-    // GetParty()+mov 0xcac**（共 5 次，无 party 局部缓存，P160/P172）；
-    // guard 的 dungeon 判空复用同一 call 的 eax（test 直连）。
-    if (user->GetParty() == 0)
-        return;
-    if (static_cast<CParty*>(user->GetParty())->m_battleField.m_pDungeon == 0)
-        return;
-    int level = user->get_charac_level();
-    if (level < 1)
+    // ORIG 0x0828679e-0x082868a0：4 条件单出口 bool 汇聚（3 guard 各自
+    // `je <mov$0,eax>`，通过则 `mov$1,eax`，尾 `test%al; je ret`）；
+    // 每使用点重 call GetParty()+mov 0xcac（P160 去缓存）。
+    bool bOk = false;
+    int level = 0;
+    if (user != 0)
+    {
+        if (user->GetParty() != 0)
+        {
+            if (static_cast<CParty*>(user->GetParty())->m_battleField.m_pDungeon != 0)
+            {
+                level = user->get_charac_level();
+                if (level >= 1)
+                    bOk = true;
+            }
+        }
+    }
+    if (!bOk)
         return;
 
     int sectionIdx = 6;                       // ORIG local_30 初值

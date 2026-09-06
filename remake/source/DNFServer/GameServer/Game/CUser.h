@@ -2960,7 +2960,8 @@ public:
     int make_basic_info(char* buf, char type);             // ORIG 0x0865a44e（Ghidra undefined4，返回 1）
     unsigned short get_unique_id() const;   // ORIG 单 movzwl（返回 unsigned short，读 m_field704a8）
     int get_pvp_WinningRate_relateMission() const;  // ORIG 0x86626e0
-    void* GetParty();
+    CParty* GetParty();   // 体即 return G_CGameManager()->GetParty(idx)（CParty* 透传，
+                          // void* 系历史规避写法；调用点 cast 变冗余 no-op，用户令修正）
     int GetUserPosInParty();      // 0x08688638
     void* GetWarRoom();
     void set_growth_power_exp_reward(int reward);
