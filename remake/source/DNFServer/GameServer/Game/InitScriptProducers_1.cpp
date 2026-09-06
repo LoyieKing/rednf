@@ -521,45 +521,37 @@ bool ImportWorldDrop(WorldDropInfo* out, const char* path)
         return false;
     }
 
-    std::string token;
-    bool ok = false;
+    std::string token;                         // ORIG local_1c
+    int dead18 = 0; (void)dead18;              // ORIG local_18 prologue $0 写
+    bool ok = false;                           // ORIG local_1d
 
-    for (;;)                                   // ORIG 4.1 while 落点形（check 在头）
+    while (ScanType(token, true))              // ORIG 复合 while（xor 落点）
     {
-        if (!ScanType(token, true))
-            break;
-        if (token != "[world drop]")
-            continue;
-
-        while (true)
+        if (token == "[world drop]")
         {
-            int slot = ScanInt(&ok);
-            if (!ok)
-                break;
-
-            WorldDropInfo& entry = out[slot];
-            entry.m_first = ScanInt(&ok);        // +0x00 首扫描值（无 ok 检查，忠实）
-            entry.m_total = 0;                   // +0x10
-
-            for (int j = 0; j <= 255; ++j)
+            int slot;
+            while ((slot = ScanInt(&ok), ok == true))   // ORIG 逗号条件
             {
-                int itemIdx = ScanInt(&ok);
-                if (itemIdx == -1)
-                    break;
-
-                int rate = ScanInt(&ok);
-                entry.m_total += rate;
-
-                WorldDropItemChunck chunk;       // 栈上相邻两 int 构成 8 字节元素
-                chunk.m_itemIdx = itemIdx;
-                chunk.m_rate = rate;
-                entry.m_chunks.push_back(chunk);
-
-                if (!ok)
-                    break;
+                out[slot].m_first = ScanInt(&ok);       // +0x00（无 ok 检查，忠实）
+                out[slot].m_total = 0;                  // +0x10
+                int n = 0;                              // ORIG local_10
+                WorldDropItemChunck chunk;              // ORIG local_28/local_24 相邻槽
+                bool inRange = false;                   // ORIG setle 物化槽（&& 左操作数）
+                while ((inRange = (n < 0x100), inRange) &&
+                       (chunk.m_itemIdx = ScanInt(&ok),
+                        chunk.m_itemIdx != -1))         // ORIG && 短路+逗号
+                {
+                    chunk.m_rate = ScanInt(&ok);        // ORIG local_24
+                    out[slot].m_total += chunk.m_rate;  // ORIG 每次重算 slot*0x14（无缓存）
+                    out[slot].m_chunks.push_back(chunk);
+                    if (ok != true)
+                    {
+                        break;
+                    }
+                    n = n + 1;
+                }
+                out[slot].m_first = out[slot].m_total;  // 收敛写回
             }
-
-            entry.m_first = entry.m_total;       // 收敛写回（所有出口一致）
         }
     }
     return true;
@@ -888,23 +880,40 @@ int LoadRewardDataByNoType(stStepRewardStackableItemScript& script, std::string 
 {
     (void)endTag;
 
-    std::string token;   // ORIG 局部 string（构造/析构，无观察效应）
-    bool ok = false;
+    int step;                                    // ORIG -0xc
+    std::string deadTok; (void)deadTok;          // ORIG -0x10 默认 ctor 死串（prologue 首 ctor）
+    bool ok = false;                             // ORIG local_15
+    StackableItemData data;                      // ORIG local_20 函数级 ctor
+    std::vector<StackableItemData> vec;          // ORIG local_2c 函数级 vector（每轮 clear）
+    int result = 0;                              // ORIG uVar1（ebx 携带，4.4 槽化）
 
-    while (true)
+    for (;;)
     {
-        StackableItemData data;                  // 每轮重置（ORIG ctor+clear 等价）
-        int step = ScanInt(&ok);
-        if (!ok)
-            return 0;
-
+        step = 0;                                // ORIG prologue-of-body $0 写
+        data.clear();                            // ORIG StackableItemData::clear
+        vec.clear();                             // ORIG vector::clear
+        step = ScanInt(&ok);
+        if (ok != true)
+        {
+            result = 0;
+            goto done;
+        }
         data.m_field0 = ScanInt(&ok);
-        if (!ok) return 0x3662;
+        if (ok != true)
+        {
+            result = 0x3662;
+            goto done;
+        }
         data.m_field4 = ScanInt(&ok);
-        if (!ok) return 0x3666;
-
+        if (ok != true)
+        {
+            result = 0x3666;
+            goto done;
+        }
         script.set_data(step, data);
     }
+done:
+    return result;
 }
 
 // ORIG T 0x089179eb。首成员 clear 后按三段分发至共享 loader；loader 非 0 即透传。

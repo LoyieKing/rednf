@@ -1064,9 +1064,10 @@ int BlueMarble::insertItem(int seat, Inven_Item& item, eItemAddReason reason)
     int addInfo = item.m_addInfo2;
     G_CDataManager()->m_itemList->create_item(ENUM_ITEM_CREATE_TYPE_0, item,
                                               addInfo);
-    CInventory* inven =
-        (CInventory*)m_users[seat].getUser()->getCurCharacInvenW();
-    int ret = inven->insertItemIntoInventory(item, reason, true, false);
+    // ORIG 0x080d80xx：链式直调（getCurCharacInvenW 返回值 %edx 直接作
+    // this 压栈，无 inven 局部槽——旧缓存形多 1 条 reload）。
+    int ret = ((CInventory*)m_users[seat].getUser()->getCurCharacInvenW())
+                  ->insertItemIntoInventory(item, reason, true, false);
     if (ret < 0)
     {
         char local_2e[30];

@@ -435,14 +435,16 @@ bool importNPCRelationEventScript(const char* path, CNPCRelationEventManager* ou
     {
         return false;
     }
-    if (out == NULL)
+
+    std::string sub;                           // ORIG local_50（本窗保持函数级：4.4 per-round dtor 复制 +24）
+    std::string token;                         // ORIG local_44（ctor 首位）
+    std::string deadStr;                       // ORIG local_48（prologue ctor、尾 dtor，全程无用的死串）
+    int dead40 = 0; (void)dead40;              // ORIG local_40 prologue $0 写
+    bool ok = false;                           // ORIG local_49（-0x45）
+    if (out == NULL)                           // ORIG 判空在 ok 初始化之后
     {
         return false;
     }
-
-    std::string token;
-    std::string sub;
-    bool ok = false;
     int curIdx = 0;
 
     for (;;)                                   // ORIG 4.1 while 落点形（check 在头）
@@ -475,7 +477,7 @@ bool importNPCRelationEventScript(const char* path, CNPCRelationEventManager* ou
                 continue;
             }
 
-            const bool favorKind =
+            const int favorKind =              // ORIG ebx 寄存器物化（int 形免 spill）
                 (sub == "[good]") || (sub == "[soso]") || (sub == "[bad]");
             if (!favorKind)
             {
@@ -541,7 +543,7 @@ bool importNPCRelationEventScript(const char* path, CNPCRelationEventManager* ou
                     out->AddRewardItemInfo(static_cast<unsigned short>(curIdx), favor,
                                            static_cast<unsigned int>(a),
                                            static_cast<unsigned int>(b));
-                    break;                      // ORIG：reward 仅一条即回子循环
+                    continue;                     // ORIG LAB_0890d75a：bVar2=true 回内层
                 }
                 else
                 {
