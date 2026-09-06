@@ -6984,6 +6984,8 @@ int DB_ReqQueryCharacInfo::_getGiftRecvCount(unsigned int mId)
 // get_n_rows()==0 两次独立判定（P48 双调用）→ _sendResult(0x15,...)；
 // fetch/get_int(0) 失败 → _sendResult(2,...)；delete_flag!=0 → 0x15；
 // 成功 → 读列 1..6（m_id/charac_no/job/lev/grow_type/sex）→
+// 成功路径 _getGiftRecvCount 前有 local_58[0x14] "member_login" 写后死存储
+// （memset+memcpy 后未读，还原 ORIG 帧 sub $0xdc）→
 // _getGiftRecvCount(m_id) 作尾参 → _sendResult(0, slot, sig, ...) → 返 1。
 bool DB_ReqQueryCharacInfo::dispatch(int userIdx, int slot, Stream* stream)
 {
@@ -7039,6 +7041,13 @@ bool DB_ReqQueryCharacInfo::dispatch(int userIdx, int slot, Stream* stream)
     db->get_int(4, lev);
     db->get_int(5, growType);
     db->get_int(6, sex);
+
+    // ORIG 0x08426c0e(+0x37a) 实证：local_58[0x14] 缓冲区 memset+memcpy
+    // "member_login" 后从未读取（写后死存储，-0x54(%ebp) 仅作 memset/memcpy
+    // 目标）。为逐字节还原 ORIG 帧布局（sub $0xdc）与这两次调用保留之。
+    char memberLogin[0x14];
+    memset(memberLogin, 0, 0x14);
+    memcpy(memberLogin, "member_login", 0xd);
 
     int giftCnt = _getGiftRecvCount(mId);
     _sendResult(0, slot, (const char*)sig, characNo, job, lev, growType, sex,
@@ -9326,29 +9335,30 @@ bool DB_UpdateCreatureItemList::dispatch(int userIdx, int slot, Stream* stream)
 }
 
 // ============================================================================
-// ORIG 实证（0x0841fff8 反汇编）：buf 参数预期已含首字段（调用方预填），
-// isFirst==1 时追加 "," 并清标志，isFirst==0 时 strncat 追加字段内容；
-// 与 NEW 此前 strcpy 覆盖语义相反，已按 ORIG 改回（GetField 输出 ",f1f2.."）。
+// ORIG 实证（0x0841fff8 反汇编）：tmp[100] 先于检查零初始化（P165 物理展开序），
+// va_start 在 (mask&flag) 检查前；isFirst==true 仅清标志，isFirst==false 时
+// 前置 ","（ORIG 以 2 字节 local_e 存 "," 并 strlen 之，movzwl 物化→N 残差），
+// 两分支均落入共同尾：strncat(buf,tmp,strlen(tmp))。
 // ============================================================================
 void AddFieldString(bool& isFirst, char* buf, int mask, int flag,
                     const char* fmt, ...)
 {
-    if ((mask & flag) == 0)
-        return;
     char tmp[100] = { '\0' };
     va_list ap;
     va_start(ap, fmt);
+    if ((mask & flag) == 0)
+        return;
     vsprintf(tmp, fmt, ap);
     va_end(ap);
     if (isFirst)
     {
         isFirst = false;
-        strncat(buf, ",", 1);
     }
     else
     {
-        strncat(buf, tmp, strlen(tmp));
+        strncat(buf, ",", strlen(","));
     }
+    strncat(buf, tmp, strlen(tmp));
 }
 
 // ============================================================================
@@ -10606,18 +10616,20 @@ bool DB_WriteGeoReject::dispatch(int userIdx, int slot, Stream* stream)
 // 报告：docs/class_func_reports/DB_AuctionSubMoney/dispatch.md。
 // DB_HANDLE_2；escape_string(m_name) 后按角色名查 m_id（exec/fetch/get_int
 // 任一失败返 0）→ 组包（0x309/slot，写 m_count=m_id、m_arg04=sig+4）→
-// put(DISPATCH_Q) 返 1。
+// put(DISPATCH_Q) 返 1。（gap=-1，ndiff=3：唯一残差是 m_count=mId 处
+// `mov -0x28,%edx`（ORIG）vs `mov -0x28,%eax;mov %eax,%edx`（OURS）——
+// N18a 寄存器调度单跳，源码不可强制，见 report dispatch.md）
 // ============================================================================
 bool DB_AuctionSubMoney::dispatch(int userIdx, int slot, Stream* stream)
 {
-    char buf[0x3b] = { '\0' };
-    unsigned int mId = 0;
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xb551), true);
+    // ORIG 0x08448530 语句序（P165 物理展开）：GetOutBuffer → mId=0 →
+    // GetDBHandle → buf[0x3b] 零初始化（GCC 对 0x3b 错位缓冲按 &1/&2/rep 分块）。
     SIG_AUCTION_MONEY_SUB* sig =
         stream->GetOutBuffer<SIG_AUCTION_MONEY_SUB>();
+    unsigned int mId = 0;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
+    char buf[0x3b] = { '\0' };
     db->escape_string(buf, sig->m_name);
     db->set_query("seLect m_id from charac_info where charac_name='%s' limit 1",
                   buf);
@@ -10627,11 +10639,15 @@ bool DB_AuctionSubMoney::dispatch(int userIdx, int slot, Stream* stream)
         return 0;
     if (!db->get_int(0, mId))
         return 0;
+    // ORIG 0x0844866c(+0x13c)：CStreamGuard 在 get_int 之后才构造（前移会改
+    // 帧布局与语句序，P165 物理展开序），非函数顶部。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xb551), true);
     guard.operator*()->operator<<(0x309);
     guard.operator*()->operator<<(slot);
     SIG_AUCTION_MONEY_SUB* out =
         guard.operator*()->GetInBuffer<SIG_AUCTION_MONEY_SUB>();
-    out->m_count = (int)mId;
+    out->m_count = mId;
     out->m_arg04 = sig->m_arg04;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
@@ -11580,7 +11596,11 @@ bool DB_AvatarChangeStat::dispatch(int userIdx, int slot, Stream* stream)
                 out->m_regDate = (int)regV;
                 out->m_expireDate = (int)expV;
                 out->m_abilityNo = (unsigned char)abilityV;
-                memcpy(out->m_jewelSocket, &emblem, 0x1e);
+                // ORIG 0x08400bd6(+0x578)（report dispatch.md）：emblem(stAvatarEmblemInfo_t
+                // 0x1e) → m_jewelSocket(+0x2f) 为 8 条直拷（7 dword + 1 word），
+                // 非 memcpy（同 SIG_AVATAR_INSERT::setJewelSocket 镜像法）。
+                *reinterpret_cast<stAvatarEmblemInfo_t*>(out->m_jewelSocket) =
+                    emblem;
                 out->m_hiddenOption = (short)hiddenV;
                 out->m_field2d = zero;
                 GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
@@ -16549,7 +16569,9 @@ bool DB_AutoPunishedSecondUserData::dispatch(int userIdx, int slot,
         out->m_goldHi = req->m_goldHi;
         out->m_tradeCnt = 0;
         out->m_mId = req->m_mId;
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        // ORIG 0x0843a5e8(+0x186)：put 队列 = DISPATCH_Q(1)，非 DB_Q(2)
+        // （两分支同；见 report dispatch.md 反汇编 movl $0x1,0x4(%esp)）。
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 0;
     }
     db->fetch();
@@ -16571,7 +16593,7 @@ bool DB_AutoPunishedSecondUserData::dispatch(int userIdx, int slot,
     out->m_tradeCnt = tradeCnt + 1;
     out->m_mId = req->m_mId;
     *(unsigned long long*)&out->m_goldLo = tradeGold;   // +0x08/+0x0c
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
 }
 
@@ -16921,12 +16943,14 @@ bool DB_SaveCharacSlotExtend::dispatch(int userIdx, int slot, Stream* stream)
         NumberToString(sig->m_mId, 0));
     if (!(db->exec(true) && db->getAffectedRowCount() != 0))
     {
+        unsigned int slotEffect = sig->m_slotEffect;
+        unsigned int slotLimit = sig->m_slotLimit;
+        const char* idStr = NumberToString(sig->m_mId, 0);
         cMyTrace trace(
             __PRETTY_FUNCTION__,
             0xa1f5, 5);
         trace("upDate charac_view set slot_effect_count(%u), charac_slot_limit(%u) failed at m_id(%u)",
-              (unsigned int)sig->m_slotEffect, (unsigned int)sig->m_slotLimit,
-              sig->m_mId);
+              slotEffect, slotLimit, idStr);
         return 0;
     }
     return 1;
@@ -18345,7 +18369,8 @@ bool DB_GetDeathTowerBestRecord::dispatch(int userIdx, int slot, Stream* stream)
 // modify_type=0xf（仅 INSERT history）；否则 modify_type=0x10（先 UPDATE
 // reward_time=unix_timestamp(now()) 且 exec&&受影响行数非 0，失败返 0，再
 // INSERT history）。INSERT history（表名 %Y%m）exec 失败或受影响行数==0
-// 返 0；成功返 1。
+// 返 0；成功返 1。（gap=0；残差为 field5 分支 je/jne 极性 + 物理块序 ——
+// N 类布局码，见 report dispatch.md）
 // ============================================================================
 bool DB_GoblinPadUpdateReward::dispatch(int userIdx, int slot, Stream* stream)
 {
@@ -18362,27 +18387,38 @@ bool DB_GoblinPadUpdateReward::dispatch(int userIdx, int slot, Stream* stream)
     if (!(db->exec(true) && db->get_n_rows() != 0 && db->fetch()))
         return 0;
     char mousepass[0x24];
-    memset(mousepass, 0, sizeof(mousepass));
     if (!db->get_str(0, mousepass, 0x24))
         return 0;
-    int modifyType = (sig->m_field4 == 2 || sig->m_field5 == 0) ? 0xf : 0x10;
-    char ym[10];
-    memset(ym, 0, sizeof(ym));
-    time_t curSec = (time_t)GlobalData::s_systemTime_.getCurSec();
-    struct tm tmBuf;
-    localtime_r(&curSec, &tmBuf);
-    strftime(ym, 10, "%Y%m", &tmBuf);
-    if (modifyType == 0x10)
+    // ORIG 0x0842413c：getCurSec/localtime_r/strftime/NumberToString 在
+    // m_field4==2||m_field5==0 与否则两分支内各自重复（独立 ym 缓冲
+    // local_2e/local_1e，见 report dispatch.md），非合并共享 —— 逐分支保留。
+    if (sig->m_field4 == 2 || sig->m_field5 == 0)
     {
+        char ym[10] = { 0 };
+        time_t curSec = (time_t)GlobalData::s_systemTime_.getCurSec();
+        struct tm tmBuf;
+        localtime_r(&curSec, &tmBuf);
+        strftime(ym, 10, "%Y%m", &tmBuf);
+        db->set_query(
+            "inSert into member_mousepass_history_%s (occ_time, m_id, pre_mousepass, modify_type, ip_info, port_info) values (now(),%s,'%s',%d,'%s','')",
+            ym, NumberToString(sig->m_mId, 0), mousepass, 0xf, sig->m_ip);
+    }
+    else
+    {
+        char ym[10] = { 0 };
+        time_t curSec = (time_t)GlobalData::s_systemTime_.getCurSec();
+        struct tm tmBuf;
+        localtime_r(&curSec, &tmBuf);
+        strftime(ym, 10, "%Y%m", &tmBuf);
         db->set_query(
             "upDate member_mousepass set reward_time = unix_timestamp(now()) where m_id=%s and enable_flag = '1'",
             NumberToString(sig->m_mId, 0));
         if (!(db->exec(true) && db->getAffectedRowCount() != 0))
             return 0;
+        db->set_query(
+            "inSert into member_mousepass_history_%s (occ_time, m_id, pre_mousepass, modify_type, ip_info, port_info) values (now(),%s,'%s',%d,'%s','')",
+            ym, NumberToString(sig->m_mId, 0), mousepass, 0x10, sig->m_ip);
     }
-    db->set_query(
-        "inSert into member_mousepass_history_%s (occ_time, m_id, pre_mousepass, modify_type, ip_info, port_info) values (now(),%s,'%s',%d,'%s','')",
-        ym, NumberToString(sig->m_mId, 0), mousepass, modifyType, sig->m_ip);
     if (!(db->exec(true) && db->getAffectedRowCount() != 0))
         return 0;
     return 1;

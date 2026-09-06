@@ -8279,7 +8279,8 @@ void CUser::FatigueUp(int v)
     }
     // ---- repeat 事件 1：幸运点 * v ----
     CEventBase* ev1 = GlobalData::s_event_manager->GetRepeatEvent(1);
-    if (ev1 != 0 && ev1->IsEventing((CUser*)0))
+    // ORIG 0x0865619f：GetRepeatEvent(1) 后直接 IsEventing，无判空。
+    if (ev1->IsEventing((CUser*)0))
     {
         IncCurCharacLuckPoint(
             // ORIG 0x086561bc `mov 0xe4(%eax)`（4B int；SPS +0x7c=m_7c）
@@ -8289,7 +8290,8 @@ void CUser::FatigueUp(int v)
     }
     // ---- repeat 事件 10：非活跃时走常规上限/燃烧/premium 结算 ----
     CEventBase* ev10 = GlobalData::s_event_manager->GetRepeatEvent(10);
-    if (ev10 == 0 || !ev10->IsEventing(this))
+    // ORIG 0x086561ff：GetRepeatEvent(10) 后直接 IsEventing，无判空。
+    if (!ev10->IsEventing(this))
     {
         if ((short)getCurCharacFatigue() == -1)
         {
@@ -8305,7 +8307,8 @@ void CUser::FatigueUp(int v)
         unsigned short refill = 0;
         CEventBase* burn =
             GlobalData::s_event_manager->GetRepeatEvent(0xf);
-        if (burn != 0 && burn->IsEventing((CUser*)0))
+        // ORIG 0x086562d7：GetRepeatEvent(0xf) 后直接 IsEventing，无判空。
+        if (burn->IsEventing((CUser*)0))
         {
             refill = static_cast<CBurningFatigueEvent*>(burn)->getRefillFatigue(
                 getCurCharacUsedFatigue(), (unsigned short)v);

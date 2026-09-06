@@ -3396,12 +3396,11 @@ int Dispatcher_TryEnchant::dispatch_sig(CUser* user, PacketBuf& packet)
     default:
         return LineFunc(0xa732, __PRETTY_FUNCTION__, 0, 0);
     }
-    expert_job::CExpertJob* curJob = user->GetCurCharacExpertJob();
-    if (curJob->GetType() != 1)
+    if (user->GetCurCharacExpertJob()->GetType() != 1)      // P48 无 CSE：GetType 前新 call
     {
         return LineFunc(0xa737, __PRETTY_FUNCTION__, 0, 0);
     }
-    static_cast<expert_job::CEnchanter*>(curJob)->OnTryEnchant(user, msg);
+    static_cast<expert_job::CEnchanter*>(user->GetCurCharacExpertJob())->OnTryEnchant(user, msg);
     return 0;
 }
 int Dispatcher_TryEnchant::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
@@ -5551,28 +5550,32 @@ int Dispatcher_Clear_Used_QP::process(CUser* user, MSG_BASE& msg, ParamBase& par
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
+    STQuestShopParam& req = static_cast<STQuestShopParam&>(param);   // -0x18（ORIG 缓存 param 引用）
+    MSG_BASE& msgRef = msg;                                           // -0x14（dead 缓存，ORIG 槽位）
+    (void)msgRef;
     CQuestShop* shop =
         (CQuestShop*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xb);
     if (shop == 0)
     {
-        static_cast<STQuestShopParam&>(param).m_4 = 1;
+        req.m_4 = 1;
         return 0;
     }
     int ret = (int)shop->clearUsedQp(user);
     if (ret != 0)
     {
-        static_cast<STQuestShopParam&>(param).m_4 = ret;
+        req.m_4 = ret;
+        return 0;                                     // ORIG +0xbb mov$0; jmp（分叉 materialize）
     }
     return 0;
 }
 int Dispatcher_Clear_Used_QP::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_Clear_Used_QP::send(CUser* user, ParamBase& param)
 {
-    int err = *(int*)((char*)&param + 4);
-    PacketGuard guard;
-    guard.put_header(1, 400);
-    if (err == 0)
+    STQuestShopParam& req = static_cast<STQuestShopParam&>(param);   // -0xc（ORIG 缓存 param 地址）
+    if (req.m_4 == 0)
     {
+        PacketGuard guard;                                            // -0x18（仅 err==0 分支构造）
+        guard.put_header(1, 400);
         guard.put_byte(1);
         guard.put_int(user->getCurCharacInvenR()->get_money());
         guard.finalize(true);
@@ -5584,10 +5587,10 @@ void Dispatcher_Clear_Used_QP::send(CUser* user, ParamBase& param)
     {
         // ORIG 0x081d69ca：err!=0 时发送独立的第二个包（新 PacketGuard + put_header(1,400)），
         // 原实现复用 guard 导致第二包缺失 header（真语义差，已修）。
-        PacketGuard guard2;
+        PacketGuard guard2;                                           // -0x24
         guard2.put_header(1, 400);
         guard2.put_byte(0);
-        guard2.put_short(err);
+        guard2.put_short(req.m_4);
         guard2.finalize(true);
         user->Send(guard2);
     }
@@ -13080,20 +13083,19 @@ int Dispatcher_SecurityCardDisuse::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    WongWork::CSecurityCard* card = user->getSecurityCard();
-    if (!card->isActivate())
+    if (!user->getSecurityCard()->isActivate())
     {
         return LineFunc(0xa5e3,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!card->isCertified())
+    if (!user->getSecurityCard()->isCertified())
     {
         return LineFunc(0xa5e6,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if ((unsigned int)card->getFailCnt() > 2)              // cmp $0x2; seta（无符号 >2）
+    if ((unsigned int)user->getSecurityCard()->getFailCnt() > 2)   // cmp $0x2; seta（无符号 >2）
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa5, 0x7a);
         return 0;
@@ -13104,7 +13106,7 @@ int Dispatcher_SecurityCardDisuse::dispatch_sig(CUser* user, PacketBuf& packet)
     guard.finalize(true);
     user->Send(guard);
     DB_SecurityCardDisuse::makeRequest(user->get_acc_id());
-    card->init();                                          // 0x085fdd68
+    user->getSecurityCard()->init();                       // 0x085fdd68
     return 0;                                              // guard 析构 0x0858de80
 }
 
@@ -17133,30 +17135,30 @@ Dispatcher_Break_Away_Quest_Check::~Dispatcher_Break_Away_Quest_Check() {}
 // 已 hub 通知 Main；不写猜测实现。】
 int Dispatcher_Break_Away_Quest_Check::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_BREAK_AWAY& req = static_cast<MSG_BREAK_AWAY&>(msg);
-    if (req.m_checkFlag == 0)                                   // msg+0x0d byte
+    stBreakAwayParam& res = static_cast<stBreakAwayParam&>(param);  // -0x10（ORIG 缓存 param）
+    MSG_BREAK_AWAY& req = static_cast<MSG_BREAK_AWAY&>(msg);        // -0xc（ORIG 缓存 msg）
+    if (req.m_checkFlag != 0)                                   // msg+0x0d byte（ORIG 正例 fall-through）
+    {
+        if (user->getBreakAwayDungeonClearCnt() == 0)
+        {
+            GlobalData::s_BreakAwaySys->giveBreakAwayDungeonClearReward(user);  // ORIG 0x0831d164
+        }
+        else
+        {
+            res.m_resultCode = 1;                               // param+0x04 = 1
+        }
+    }
+    else
     {
         user->setBreakAwayDungeonClearCnt(-1);                  // CUser::setBreakAwayDungeonClearCnt(-1)
         user->setBreakAwayQuestTime(0);                         // CUser::setBreakAwayQuestTime(0)
 
-        Stream* stream = GlobalData::s_stream_pool->Acquire(
-            "PacketDispatcher_Impl_1.cpp", 0x31d9);             // StreamPool::Acquire 0x0828fa86
-        CStreamGuard guard(stream, true);                       // CStreamGuard C1 0x080c8c26
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "PacketDispatcher_Impl_1.cpp", 0x31d9), true);      // CStreamGuard C1 0x080c8c26（P134 内联 Acquire）
         **guard << (int)0x144;                                   // operator<<(int) 0x080c8c56
         **guard << (unsigned int)user->GetUID();                 // operator<<(unsigned int) 0x080e2292
         **guard << (unsigned int)user->get_acc_id();             // 同上
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);  // MsgQueueMgr::put 0x08570fde
-        // guard 析构（RAII）
-        return 0;
-    }
-
-    if (user->getBreakAwayDungeonClearCnt() == 0)
-    {
-        GlobalData::s_BreakAwaySys->giveBreakAwayDungeonClearReward(user);  // ORIG 0x0831d164（NEEDS_DECL）
-    }
-    else
-    {
-        static_cast<stBreakAwayParam&>(param).m_resultCode = 1; // param+0x04 = 1
     }
     return 0;
 }
@@ -19943,8 +19945,10 @@ int Dispatcher_CallPartyMemberRealtimeInfo::process(CUser* user, MSG_BASE& msg, 
 int Dispatcher_CallPartyMemberRealtimeInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_CallPartyMemberRealtimeInfo::send(CUser* user, ParamBase& param)
 {
-    CParty* party = (CParty*)user->GetParty();
     PacketGuard guard;
+    PacketGuard unused;                            // -0x24（ORIG 第二个 PacketGuard，构造后不使用）
+    (void)unused;
+    CParty* party = (CParty*)user->GetParty();
     guard.put_header(1, 0xa9);
     if (party == 0)
     {
@@ -21887,11 +21891,10 @@ int Dispatcher_AvartarHiddenOptionChange::dispatch_sig(CUser* user, PacketBuf& p
     {
         return 0;
     }
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localjapan/Arad_PacketDispatcher.cpp", 0x659);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "localjapan/Arad_PacketDispatcher.cpp", 0x659), true);   // P134 内联 Acquire，无 stream 局部
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2e, (int)user->GetUID());
-    guard.put_binary((void*)&sig, 6);
+    guard->put_binary((void*)&sig, 6);                            // P103 operator-> 链
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);
     return 0;
 }
@@ -23266,8 +23269,7 @@ int Dispatcher_PartyTeleport::check_error(CUser* user, MSG_BASE& msg)
     {
         return 0x13;
     }
-    GameWorld* world = G_GameWorld();
-    if (world->IsPVPChannel() || world->IsPvPSkilTreeChannel())
+    if (G_GameWorld()->IsPVPChannel() || G_GameWorld()->IsPvPSkilTreeChannel())
     {
         return 0x13;
     }
@@ -23307,7 +23309,7 @@ int Dispatcher_PartyTeleport::check_error(CUser* user, MSG_BASE& msg)
     }
     for (int i = 0; i < 4; ++i)                          // P2：i<=3 有符号循环
     {
-        if (!party->checkValidUser(i))
+        if (party->checkValidUser(i) == 0)
         {
             continue;
         }
@@ -26240,18 +26242,18 @@ void Dispatcher_RequestIngameAdvertisement::sendRewardItemSystemMail(
         return;
     }
 
-    CDataManager* dm = G_CDataManager();
-    if (dm->find_item(static_cast<int>(itemIdx)) == 0)
+    CItem* find = G_CDataManager()->find_item(static_cast<int>(itemIdx));   // -0xc（CItem* 指针槽）
+    if (find == 0)
     {
         return;
     }
 
     Inven_Item item;                                        // ORIG C1 W 0x080cb854
     item.m_addInfo = static_cast<int>(itemIdx);             // +0x02（item idx）
-    dm->m_itemList->create_item(ENUM_ITEM_CREATE_TYPE_0, item, count);
+    G_CDataManager()->m_itemList->create_item(ENUM_ITEM_CREATE_TYPE_0, item, count);
 
     // RDAR 字符串：发件人名（≤0x1d）/ 正文（≤0xff），strncpy 不手动补 NUL（同 ORIG）
-    char sender[0x1d];
+    char sender[0x1e];                                      // ORIG local [30] @ -0x2a
     strncpy(sender,
             g_scriptStringManager_.findString(4, "game_server_msg_295", 0),
             0x1d);
@@ -27443,8 +27445,8 @@ int Dispatcher_Enchant_3rdChronicleItem::check_state(CUser* user, PacketBuf& /*p
 void Dispatcher_ModItemAttr::_SendResult(CUser* user, unsigned short resultType,
                                          unsigned short matSlot, unsigned short equipSlot)
 {
-    Inven_Item item =
-        user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)1, (int)matSlot);
+    Inven_Item item;                                        // ORIG 先 C1 构造（-0x51），再成员拷贝
+    item = user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)1, (int)matSlot);
 
     PacketGuard packet;
     packet.put_header(1, 0x54);

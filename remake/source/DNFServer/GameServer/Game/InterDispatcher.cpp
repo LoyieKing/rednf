@@ -2617,11 +2617,14 @@ public:
 
 void DB_LoadDnfHackLog::makeRequest(int uid, unsigned int accId)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5abf);
-    CStreamGuard guard(stream, true);
+    // ORIG 0x084224ce：Acquire 结果从未落栈槽（P0 右值内联），无 Stream* 具名局部。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5abf), true);
     guard.operator*()->operator<<(0x106);
     guard.operator*()->operator<<(uid);
-    SIG_LOAD_DNF_HACK_LOG* sig = guard.GetInBuffer<SIG_LOAD_DNF_HACK_LOG>();
+    // P103：ORIG 先调 operator-> 再 GetInBuffer（Ghidra C 明确 pCVar2=operator->(local_18);
+    // local_10=GetInBuffer<T>(pCVar2)）。
+    SIG_LOAD_DNF_HACK_LOG* sig =
+        guard.operator->()->GetInBuffer<SIG_LOAD_DNF_HACK_LOG>();
     *reinterpret_cast<unsigned int*>(sig) = accId;   // ORIG *(uint*)local_10 = param_2
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)4, guard);
 }
@@ -2954,15 +2957,16 @@ Inter_ReloadIngameAdvertisement::~Inter_ReloadIngameAdvertisement() {}
 // 报告 docs/class_func_reports/Inter_ReloadIngameAdvertisement/dispatch_sig.md 全文转写。
 int Inter_ReloadIngameAdvertisement::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    CInGameAdvertisementManager* mgr = InGameADManagerInstance();
-    mgr->InitADExposeInfo();
-    int count = 0;
-    while (count < 200 &&
-           *reinterpret_cast<int*>(data + count * 0x84c + 0x210) != -1)
+    // ORIG：InitADExposeInfo 前 local_14=param_3（-0x10）；循环体每迭代重调 Instance
+    // （不缓存局部，asm +0x4c call）；-1 检查在循环体顶部（break）、计数器 setle 在底部。
+    InGameADManagerInstance()->InitADExposeInfo();
+    int count;
+    for (count = 0; count < 200; ++count)
     {
-        mgr->InsertADExposeInfo(
+        if (*reinterpret_cast<int*>(data + count * 0x84c + 0x210) == -1)
+            break;                                       // ORIG +0x3c je（顶部门槛）
+        InGameADManagerInstance()->InsertADExposeInfo(
             *reinterpret_cast<stInGameADExposeCondition*>(data + count * 0x84c));
-        ++count;
     }
     cMyTrace trace(
         __PRETTY_FUNCTION__,
@@ -7146,11 +7150,12 @@ struct Inter_ReqQueryCharacInfoPktView
 
 int Inter_ReqQueryCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_ReqQueryCharacInfoPktView* pPkt = reinterpret_cast<Inter_ReqQueryCharacInfoPktView*>(data);
     if (user->get_state() <= 2)                      // asm cmp $0x2; setle
         return 0;
 
-    if (pPkt->m_20 != 0)   // msg+0x20 错误码
+    // local_10 = param_3 在 state 守卫后才赋值（ORIG +0x027 mov 0x10(%ebp),-0xc）
+    Inter_ReqQueryCharacInfoPktView* pPkt = reinterpret_cast<Inter_ReqQueryCharacInfoPktView*>(data);
+    if (pPkt->m_20 != 0)                             // asm +0x033 test je 主块（错误分支落盘）
     {
         user->SendCmdErrorPacket(
             (ENUM_CMDPACKET)0x8b,
@@ -7162,9 +7167,9 @@ int Inter_ReqQueryCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
     PacketGuard packet;
     packet.put_header(1, 0x8b);
     packet.put_byte(1);
-    const int nameLen = static_cast<int>(strlen(data));   // msg+0x00 角色名
-    packet.put_int(nameLen);
-    packet.put_str(data, nameLen);
+    packet.put_int(static_cast<int>(strlen(reinterpret_cast<const char*>(pPkt))));
+    packet.put_str(reinterpret_cast<const char*>(pPkt),
+                   static_cast<int>(strlen(reinterpret_cast<const char*>(pPkt))));
     packet.put_short(                                // msg+0x2a short（cwtl 符号扩展）
         static_cast<int>(pPkt->m_2a));
     packet.put_byte(                                 // msg+0x28（movsbl）
@@ -8754,9 +8759,9 @@ int Inter_NoticePowerWarInfo::dispatch_sig(CUser* /*user*/, char* data, int /*le
 
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
-        CEnvironment* env = G_CEnvironment();
-        if (env->m_serverEnvir.m_serverType != 1 &&
-            env->m_serverEnvir.m_serverType != 2)
+        // ORIG 0x84d4e58：G_CEnvironment() 短路双调（O0 不 CSE）。==1||==2 → 不广播。
+        if (!(G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
+              G_CEnvironment()->m_serverEnvir.m_serverType == 2))
         {
             PacketGuard packet;
             packet.put_header(0, 0xbc);
@@ -17408,6 +17413,8 @@ int Inter_SelectAllowProxyUser::dispatch_sig(CUser* user, char* data, int /*len*
 
 
 // ======== Inter_NpcLimitBuyItemInfo（B1：生命周期/reset；业务方法待类型域补齐） ========
+// ctor 与 ORIG 逐指令同构（base vptr + pair@8 + Inven_Item@0x1d/0x5a + reset），
+// 唯一残余 4.4 多出的 EH 清理块（push esi/ebx + _Unwind_Resume 落盘），跨 GCC 结构性不可复现。
 Inter_NpcLimitBuyItemInfo::Inter_NpcLimitBuyItemInfo()
 {
     reset();
