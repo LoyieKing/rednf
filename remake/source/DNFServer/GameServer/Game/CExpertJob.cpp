@@ -86,6 +86,8 @@ CExpertJob::~CExpertJob() {}
 int CExpertJob::GetType() { return m_type; }
 
 // ORIG 0x849f148：*(int*)(this+0x04) = type。
+// [B24D判词 N] 语义正确：m_type=(int)type；diff=mov 0xc(%ebp),%edx 与 mov 0x8(%ebp),%eax
+//   装载序互换（GCC4.1 vs 4.4），7/7 纯 lowering 表示差异，语义等价。
 void CExpertJob::SetType(ENUM_EXPERT_JOB_TYPE type) { m_type = (int)type; }
 
 // ORIG 0x85d3d7e：IObject 基类构造 -> Rectangle(+0x04) -> CUser*+0x14 清零 ->

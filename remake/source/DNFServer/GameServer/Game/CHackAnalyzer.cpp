@@ -85,6 +85,9 @@ CHackAnalyzer::~CHackAnalyzer() {}
 
 ENUM_HACKTYPE CHackAnalyzer::getBaseHackType() { return (ENUM_HACKTYPE)m_field7a08; }
 
+// [B24D判词 N] 语义正确：m_field7a08=(int)t（写 this+0x7a08）；diff=mov 0xc(%ebp),%edx
+//   与 mov 0x8(%ebp),%eax 装载序互换（GCC4.1 vs 4.4），7/7 纯 lowering，语义等价。
+//   report NO 由 nm/objdump diff 兜底。
 void CHackAnalyzer::setBaseHackType(ENUM_HACKTYPE t) { m_field7a08 = (int)t; }
 
 void CHackAnalyzer::setUserP(CUser* user)
@@ -829,6 +832,11 @@ bool Secu_AccountHacking::isSameAccountCharacter(char const* name)
 void Secu_AccountHacking::setPatten(AccountHackingType::T t, char const* name,
                                     unsigned int a, unsigned int b)
 {
+    // [B24D判词 N] 语义正确：m_flag[t] 已标记早返、m_userP 判空早返、m_flag[t]=1；
+    //   aSpill/bSpill 局部缓存（ORIG -0x10/-0xc 槽）；a==0 → DB_SelectCharacMid::
+    //   makeRequest，否则 addServerHackCnt。diff=ORIG cmpl 0x14(%ebp) 直测参数槽 vs
+    //   我方 cmpl -0x10(%ebp) 测局部副本（b 参槽 vs 局部槽，P0 槽分配），73/73 纯
+    //   lowering，语义等价。
     // ORIG T 0x0827903c（setPatten.md）：未标记且已绑定用户时置位，随后按 a
     // 选择 DB 直查或经分析器加计数。
     if (m_flag[(int)t])

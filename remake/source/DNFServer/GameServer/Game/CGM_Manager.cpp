@@ -19,6 +19,9 @@ CGMRecord::~CGMRecord()
 
 // ORIG 符号: _ZN11CGM_Manager4IsGmEj @ 0x829948c
 // readGuard(m_lock)；find 结果与 end() 用 operator== 比较，相等（命中）返回 true。
+// [B24D判词 N] 语义正确：readGuard+find，it==end() 返回 true 否则 false（ORIG
+//   operator==）；diff=mov $0x0/mov $0x1 分支汇聚顺序互换（GCC4.1 vs 4.4），
+//   55/55 纯 lowering，语义等价。
 bool CGM_Manager::IsGm(unsigned int accId)
 {
     readGuard<rwLock> guard(&m_lock);
@@ -30,6 +33,9 @@ bool CGM_Manager::IsGm(unsigned int accId)
 
 // ORIG 符号: _ZN11CGM_Manager10TurnGmModeEj @ 0x829917c
 // readGuard(m_lock)；find 未命中返回 0；否则经 operator[] 翻转 +0 模式字节并返回新值。
+// [B24D判词 N] 语义正确：readGuard+find 未命中 0，operator[] 翻转 0/1 返回新模式；
+// diff=ORIG movzbl(%eax),%ebx 直存 vs 我方 movzbl(%eax),%eax;mov %eax,%ebx（多1条，
+//   P 寄存器分配），81/82 纯 lowering，语义等价。
 unsigned char CGM_Manager::TurnGmMode(unsigned int accId)
 {
     readGuard<rwLock> guard(&m_lock);
@@ -45,6 +51,9 @@ unsigned char CGM_Manager::TurnGmMode(unsigned int accId)
 
 // ORIG 符号: _ZN11CGM_Manager16GetCurrentGmModeEj @ 0x8299276
 // readGuard(m_lock)；find 未命中返回 0；否则经 operator[] 读 +0 模式字节。
+// [B24D判词 N] 语义正确：readGuard+find 未命中 0，operator[] 读 +0 字节；
+// diff=movzbl(%eax),%ebx vs 我方 movzbl(%eax),%eax（寄存器分配），60/61 纯 lowering，
+//   语义等价。
 char CGM_Manager::GetCurrentGmMode(unsigned int accId)
 {
     readGuard<rwLock> guard(&m_lock);

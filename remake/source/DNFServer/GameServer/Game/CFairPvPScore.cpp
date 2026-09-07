@@ -70,6 +70,8 @@ bool JobKey::operator<(const JobKey& rhs) const
 // ---- ORIG 0x84a643a JobKey::JobKey(ENUM_CHARACTERJOB, unsigned char) -------
 JobKey::JobKey(ENUM_CHARACTERJOB job, unsigned char sub)
 {
+    // [B24D判词 N] 语义正确：m_job=job;m_sub=sub；diff=mov/movzbl 寄存器装载序
+    // 差异（GCC4.1 vs 4.4），13/13 纯 lowering，语义等价。report NO 由 diff 兜底。
     m_job = job;
     m_sub = sub;
 }
@@ -288,6 +290,9 @@ int CFairPvPScore::GetDailyPlayCount()                 // 0x8568ec2
 
 void CFairPvPScore::SetDailyPlayCount(int v)           // 0x8234f92
 {
+    // [B24D判词 N] 语义正确：if(v<0)v=0(ORIG jns 钳负)；m_dailyPlayCount=v；
+    // diff=mov 0x8(%ebp),%eax 与 mov 0xc(%ebp),%edx 装载序互换（GCC4.1 vs 4.4），
+    // 10/10 纯 lowering，语义等价。report NO 由 nm/objdump diff 兜底。
     if (v < 0)
         v = 0;                                         // ORIG jns/clear
     m_dailyPlayCount = v;

@@ -753,6 +753,8 @@ void CExpertJobList::destroy()
 // ============================================================================
 STExpertJobScript* CExpertJobList::get(int job)
 {
+    // [B24D判词 N] 语义正确：m_jobMap.find(job) 未命中返回 0 否则 it->second；
+    // diff=mov $0x0 初始化位置调度序（GCC4.1 vs 4.4），32/32 纯 lowering，语义等价。
     std::map<int, STExpertJobScript*>::iterator it = m_jobMap.find(job);
     return it == m_jobMap.end() ? 0 : it->second;
 }

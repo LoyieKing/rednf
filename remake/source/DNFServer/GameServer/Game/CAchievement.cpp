@@ -831,7 +831,7 @@ bool CAchievement::loadData(CUser* pUser, char* pData)
             std::make_pair(in->m_entries[i].m_id, in->m_entries[i]));
     }
     m_user = pUser;
-    _verifyAchievement((unsigned int)this);
+    _verifyAchievement((unsigned int)in->m_saveTime);
     return 1;
 }
 

@@ -195,6 +195,12 @@ bool CUsedFatigueGiveItem::getIsCharacEvent(bool& out) const
     return true;
 }
 
+// [B24D判词 N] 语义正确：m_usedFatigue==0/GetCurCharacUsedGiftFatigueQuantity==0 早返；
+//   step=used-fatigue；入口 m_fatigueLimit>=0 && limit<=step 早返；do-while 循环判
+//   used>step + limit 界，++step 后 step%used!=0 跳过，否则 process_action_send_mail，
+//   成功后 logFormat(m_id/charac_no/reward)。全程不缓存脚本指针（与 ORIG 同）。
+//   diff=ORIG 多处句尾 `jmp;nop;jmp;nop` 合并跳转链 vs 我方 `jmp;nop;jmp`，105/108
+//   循环/跳转 lowering 表示差异，语义等价。
 void CUsedFatigueGiveItem::sendEventItemFromFatigue(CUser* user, unsigned int fatigue)
 {
     // ORIG 0x81105f6：按已用疲劳档位周期发放奖励邮件。

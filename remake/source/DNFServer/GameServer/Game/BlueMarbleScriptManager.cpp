@@ -66,9 +66,9 @@ BlueMarbleTileScript* BlueMarbleScriptManager::getTile(int zone)
 
 // ORIG T 0x088d6622：直接以 m_info（this+0x30）调 importScript(dir, file)，
 // 返回值透传。
-bool BlueMarbleScriptManager::initBlueMarbleInfo(const char* dir, const char* file)
+int BlueMarbleScriptManager::initBlueMarbleInfo(const char* dir, const char* file)
 {
-    return m_info.importScript(dir, file) != 0;
+    return m_info.importScript(dir, file);
 }
 
 // ORIG T 0x088d626e：loadRDARScriptListFile(&m_tileFileList, dir, list, 0)

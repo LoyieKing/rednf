@@ -85,6 +85,9 @@ STGuildProxy::STGuildProxy(const char* name, unsigned char lev,
 }
 
 // ORIG 强符号（0x0846d818 T）：头文件仅声明，此处给出非内联定义。
+// [B24D判词 N] 语义正确：string ip/udp/tcp 三参 → m_ip=ip + map C1 + CNetwork C1 +
+//   CUdpHandler C1。diff=EH 清理 landing pad 我方多分离一 `jmp` 跳转（4.1 vs 4.4），
+//   61/60 纯 lowering 表示差异，语义等价。
 CGuildServerProxy::CGuildServerProxy(std::string ip, int udpPort, int tcpPort)
     : m_ip(ip), m_udpPort(udpPort), m_guildInfoMap(), m_tcpPort(tcpPort),
       m_tcp(), m_udp()
@@ -800,6 +803,9 @@ void CGuildServerProxy::SendGuildBoardDelete(unsigned int boardNo,
                                              unsigned int guildKey,
                                              unsigned int charNo)
 {
+    // [B24D判词 N] 语义正确：构包 Packet_Guild_Request_Guild_Board_Delete 填
+    //   charNo/guildKey/boardNo 后 SendTcpPacket；diff=mov 0x14(%ebp)/mov 0x10(%ebp)
+    //   装载序互换（GCC4.1 vs 4.4），22/22 纯 lowering，语义等价。
     Packet_Guild_Request_Guild_Board_Delete pkt;
     pkt.m_charNo = charNo;
     pkt.m_guildKey = guildKey;

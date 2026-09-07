@@ -36,8 +36,9 @@ static int getSocketCount(const stAvatarEmblemInfo_t* emblem)
     int count = 0;
     for (int i = 0; i <= 4; ++i)
     {
-        if (emblem->stEmblemSocket[i].emblemSocketType_ != 0)
-            ++count;
+        if (emblem->stEmblemSocket[i].emblemSocketType_ == 0)
+            break;
+        ++count;
     }
     return count;
 }

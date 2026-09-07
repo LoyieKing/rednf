@@ -63,7 +63,7 @@ bool ScriptManager::DestroyScript()
     return true;
 }
 
-bool ScriptManager::RegistScript(ScriptInterface* s, int priority)
+void ScriptManager::RegistScript(ScriptInterface* s, int priority)
 {
     // ORIG 0x81a136c：find 已存在（重复注册）→
     // printf("Arad_ScriptManager::RegistScript() Duplicate Class : Line(%d)\n", priority) + exit(0)；
@@ -71,11 +71,10 @@ bool ScriptManager::RegistScript(ScriptInterface* s, int priority)
     if (m_scripts.find(s) == m_scripts.end())
     {
         m_scripts.insert(s);
-        return true;
+        return;
     }
-    printf("Arad_ScriptManager::RegistScript() Duplicate Class : Line(%d)\n", priority);
+    printf("Arad_ScriptManager::RegistScript() Duplicate Class : Line(%d)", priority);
     exit(0);
-    return false;
 }
 
 void ScriptManager::Init()

@@ -100,7 +100,7 @@ public:
     // ORIG 0x81a12f8：遍历 set 逐个 Unload()，返回 1。
     bool DestroyScript();
     // ORIG 0x81a136c：插入脚本；重复插入时 cMyTrace 报错，Returns success/fail。
-    bool RegistScript(ScriptInterface* s, int priority);
+    void RegistScript(ScriptInterface* s, int priority);
     // ORIG 0x81a13f6：注册各 ARAD 脚本单例（AvatarFixedHiddenOptionServer 等，未建模）。
     void Init();
 

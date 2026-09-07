@@ -279,6 +279,9 @@ void CEventScriptMng::process_add_fatigue_count(CUser* user, int count)
 }
 
 // ORIG 0x810bf00：活动 0x193 的任务计数命中时累加一次物品计数。
+// [B24D判词 N] 语义正确：user!=0 → get_event_entity(0x193)→is_event_quest→
+//   IncCurCharacEventAddItemCount(1)。diff=ORIG 句尾 `jmp;nop`（4.1 合并跳转+对齐）
+//   我方直接 leave;ret，27/25 纯 lowering/对齐表示差异，语义等价。
 void CEventScriptMng::process_add_quest_count_db(CUser* user, int questId)
 {
     if (user != 0)
@@ -354,6 +357,9 @@ bool CEventScriptMng::send_gift_fatigue_item(
 }
 
 // ORIG 0x810c270：商城奖励活动开启时更新目标商品计数。
+// [B24D判词 N] 语义正确：is_eventing(0x19a)→get_event_entity(0x19a)→
+//   updateTargetGoodsCount(user,goodsId,request)。diff=ORIG 句尾 `jmp;nop;jmp`（4.1
+//   合并跳转+对齐）我方单 jmp，32/30 纯 lowering/对齐表示差异，语义等价。
 void CEventScriptMng::update_purchase_target_item_count(
     CUser* user, unsigned int goodsId, stCeraShopIPGRequest_t* request)
 {

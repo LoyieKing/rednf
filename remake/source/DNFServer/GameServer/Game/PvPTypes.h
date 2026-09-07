@@ -257,7 +257,7 @@ public:
     //   18initBlueMarbleInfoEPKcS1_
     bool initTileList(const char* dir, const char* list);
     bool initMapList(const char* dir, const char* list);
-    bool initBlueMarbleInfo(const char* dir, const char* file);
+    int initBlueMarbleInfo(const char* dir, const char* file);
     void clear();
     int getMapTotalCount();
     // ORIG _ZN23BlueMarbleScriptManager6getMapEi（0x088d66b6 T）：m_maps(+0xd4) find，未命中 0。

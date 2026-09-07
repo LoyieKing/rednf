@@ -232,6 +232,9 @@ bool CEventCharacterHandler::_MasterNewSkill(CUser* user, int skillIdx, int coun
     // ORIG 0x0848e7d6：skill 两段式（入口 movl $0,-0x18 预清）；job 内联
     // rvalue 经 %ebx 跨 G_CDataManager call（P197②）；getCurCharacSkillR
     // 两独立重调（+0x5a/+0x8e，P48）。
+    // [B24D判词 N] 语义正确：find_skill→get_group+get_skillslot_no+buf→
+    //   m_count=(char)(count-(buf[slot*2+1]))→<=0早返→master_new_skill。diff=
+    //   ORIG movzbl 0x1(%eax) disp内联 vs 我方 add$1+movzbl（多1条），lowering。
     const CSkill* skill = 0;
     skill = (const CSkill*)G_CDataManager()->find_skill(user->get_charac_job(),
                                                         skillIdx);

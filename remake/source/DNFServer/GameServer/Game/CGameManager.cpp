@@ -1318,6 +1318,10 @@ void CGameManager::returnDeathTower(WongWork::CDeathTower* tower)
     }
 }
 
+// [B24D判词 N] 语义正确：checkInDeathTower 以 (bool)(x^1) 判断复现 xor$1；
+//   checkIn==1 跳过；else getDeathTower(idx)→onLeaveUser(x^1)→logFormat(0x123a)。
+//   diff=句尾合并跳转链我方多一 `jmp;nop` 对（4.1 vs 4.4 对齐），57/55 纯
+//   lowering/对齐表示差异，语义等价。
 void CGameManager::checkOutDeathTower(CUser* user)
 {
     // ORIG 族形态：外层空 then+else；内层 `x!=1` 以 (bool)(x^1) 真值判断复现

@@ -457,7 +457,7 @@ public:
     // catch(int) 尾同落点；mangled 不含返回类型，调用点零改动）。
     int OnMoveArea(CUser* user);                         // ORIG 0x82ef610
     int OnLeaveAssaultPlace(CUser* user, bool flag);    // ORIG 0x82ef176
-    void SendPacket(CUser* user, bool flag, PacketGuard* packet);
+    int SendPacket(CUser* user, bool flag, PacketGuard* packet);
                                                          // ORIG 0x82efb54
     CAssaultPlace* _GetAssaultPlace(unsigned int id);    // ORIG 0x82ed9fe
     void SetAssaultChannel(bool flag);                   // ORIG W SetAssaultChannelEb
