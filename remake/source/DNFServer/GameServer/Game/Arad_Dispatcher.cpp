@@ -98,11 +98,11 @@ bool Arad_Dispatcher_Manager::open()
 
 bool Arad_Dispatcher_Manager::register_dispatcher(Arad_Dispatcher* d)
 {
-    // ORIG 0x0818fe98：code=dispathc_code()；inter[code]=d；db[code]=d；返回 0。
-    const int code = d->dispathc_code();
-    m_interDispatchers[code] = d;
-    m_dbDispatchers[code] = d;
-    return false;
+    // ORIG 0x0818fe98：dispathc_code() 两次调用（ORIG 无 code 栈局部，两次重取）；
+    // inter[code]=d；db[code]=d；返回 0。
+    m_interDispatchers[d->dispathc_code()] = d;
+    m_dbDispatchers[d->dispathc_code()] = d;
+    return 0;
 }
 
 bool Arad_Dispatcher_Manager::unregister_dispatcher(int code)
