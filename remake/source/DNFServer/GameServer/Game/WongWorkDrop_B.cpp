@@ -363,17 +363,27 @@ namespace {
 
 typedef std::map<int, ItemFarmingData> FarmingMap;   // 元素步长与 ORIG map 一致
 
-std::vector<std::pair<int, float> >* equipGradeRates()
-{
-    return reinterpret_cast<std::vector<std::pair<int, float> >*>(
-        reinterpret_cast<char*>(G_CDataManager()) + 0x540);
-}
+}  // namespace
 
-// generateEquipGrade/generateUpgrade 共用的比率查表（双 size 检查 + 三分支
-// 夹逼），factor 初值 1.0f，命中相等项以最后一次扫描为准（ORIG 循环语义）。
-inline float lookupGradeRatio(std::vector<std::pair<int, float> > const* rates,
-                              int levelDelta)
+// ---- generateEquipGrade — ORIG T 0x08533932 -------------------------------
+// grades {0x5aa7,0xfa6,0x6a23,0x5df0,0x7270}；weights 全 1000，total=5000；
+// w[0] 截断缩放后 total 修正为 5000-w0+w0'，randInt(&total) 落累计权重槽。
+int GenerateRandomUpgrade::generateEquipGrade(int levelDelta)
 {
+    static const int grades[5] = { 0x5aa7, 0xfa6, 0x6a23, 0x5df0, 0x7270 };
+    int weights[5] = { 1000, 1000, 1000, 1000, 1000 };
+    int total = 5000;
+
+    // P167/§4.1：ORIG 直接 G_CDataManager()+0x540 取 rates，无 equipGradeRates helper
+    std::vector<std::pair<int, float> > const* rates =
+        reinterpret_cast<std::vector<std::pair<int, float> > const*>(
+            reinterpret_cast<char*>(G_CDataManager()) + 0x540);
+    if (rates->empty())
+        return 0x5aa7;
+    if (rates->empty())                      // ORIG 双重空检照抄
+        return 0x5aa7;
+
+    // P167/§4.1：ORIG 内联三元+循环查表，无 lookupGradeRatio helper
     float factor = 1.0f;
     int last = static_cast<int>(rates->size()) - 1;
     if ((*rates)[0].first < levelDelta)
@@ -388,27 +398,6 @@ inline float lookupGradeRatio(std::vector<std::pair<int, float> > const* rates,
                 factor = (*rates)[i].second;
         }
     }
-    return factor;
-}
-
-}  // namespace
-
-// ---- generateEquipGrade — ORIG T 0x08533932 -------------------------------
-// grades {0x5aa7,0xfa6,0x6a23,0x5df0,0x7270}；weights 全 1000，total=5000；
-// w[0] 截断缩放后 total 修正为 5000-w0+w0'，randInt(&total) 落累计权重槽。
-int GenerateRandomUpgrade::generateEquipGrade(int levelDelta)
-{
-    static const int grades[5] = { 0x5aa7, 0xfa6, 0x6a23, 0x5df0, 0x7270 };
-    int weights[5] = { 1000, 1000, 1000, 1000, 1000 };
-    int total = 5000;
-
-    std::vector<std::pair<int, float> > const* rates = equipGradeRates();
-    if (rates->empty())
-        return 0x5aa7;
-    if (rates->empty())                      // ORIG 双重空检照抄
-        return 0x5aa7;
-
-    float factor = lookupGradeRatio(rates, levelDelta);
 
     int weightOld = weights[0];
     weights[0] = static_cast<int>(static_cast<float>(weights[0]) * factor);
@@ -439,10 +428,28 @@ int GenerateRandomUpgrade::generateUpgrade(ENUM_RARITY rarity, int levelDelta)
     if (it->second.m_active == 0)              // pair.second + ItemFarmingData+0xc
         return 0;
 
-    std::vector<std::pair<int, float> > const* rates = equipGradeRates();
+    // P167/§4.1：ORIG 直接 G_CDataManager()+0x540 取 rates，无 helper
+    std::vector<std::pair<int, float> > const* rates =
+        reinterpret_cast<std::vector<std::pair<int, float> > const*>(
+            reinterpret_cast<char*>(G_CDataManager()) + 0x540);
     float factor = 1.0f;
     if (!rates->empty())
-        factor = lookupGradeRatio(rates, levelDelta);
+    {
+        // P167/§4.1：内联三元+循环查表（无 lookupGradeRatio helper）
+        int last = static_cast<int>(rates->size()) - 1;
+        if ((*rates)[0].first < levelDelta)
+            factor = (*rates)[0].second;
+        else if ((*rates)[last].first > levelDelta)
+            factor = (*rates)[last].second;
+        else
+        {
+            for (int i = 0; i <= last; ++i)
+            {
+                if ((*rates)[i].first == levelDelta)
+                    factor = (*rates)[i].second;
+            }
+        }
+    }
 
     ItemFarmingData entry = it->second;         // ORIG ItemFarmingData copy ctor
 
