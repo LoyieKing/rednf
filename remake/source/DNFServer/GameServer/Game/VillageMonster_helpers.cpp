@@ -161,6 +161,10 @@ struct Packet_VillageMonsterFightResult
 //                ->SendTcpPacket((char*)&pkt, 0x2b);
 //            PacketGuard pg: clear; put_header(0,0xf9); put_byte(flag);
 //                finalize(true); party->send_to_party(pg);
+// [B24D判词 N] 语义正确：pkt 全部清零 + header 0x1772/0x2b + 循环填 uid/characNo(4) +
+//   OnEvent()&&flag→IncVillageAttackCount + m_flag=flag + SendTcpPacket 0x2b + PacketGuard
+//   0xf9 发送。差异=ORIG 用 ctor W 0x86b4b84 一次性 memset 全结构，我方显式
+//   memset(m_pad4)+双循环清0（多 ~27 条），纯 lowering 表示差异，语义等价。
 // ============================================================================
 void CVillageMonster::SendVillageMonsterFightResult(CUser* user, bool flag)
 {

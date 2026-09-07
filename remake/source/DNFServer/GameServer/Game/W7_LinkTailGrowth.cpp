@@ -19,6 +19,12 @@
 #include "STExpReward.h"
 #include "PacketGuard.h"
 
+// [B24D判词 N] 语义正确：事件(0x5d)开启→IsEventing 双调用→seria is_possible_lv→
+//   set_growth_power_exp_reward_right(true)+breakAway section 判定；breakAway||seria
+//   →PacketGuard(0x178,3 byte)+Send；未开启→breakAway 判定→同包(byte 1,1)+
+//   set_growth_power_exp_reward_right(true)。尾部两路径汇合均
+//   set_growth_power_exp_reward(get_charac_level())。差异=O0 vptr 取表/寄存器分配/
+//   jmp 布局 vs ORIG，纯 lowering 表示差异，语义等价。
 void CUser::decide_growth_power_reward_system()
 {
     bool breakAwayFlag = false;                     // -0xe（local_12）

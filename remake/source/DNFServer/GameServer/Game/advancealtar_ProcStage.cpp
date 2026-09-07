@@ -89,6 +89,10 @@ void CharacData::reset()
 //   m_gage += ROUND(系数(+0x636c) * level 表(+0x636c+level*4) / base)；
 //   两分支尾均调 sendTestCheckGage()（ORIG 空函数）。
 // ----------------------------------------------------------------------------
+// [B24D判词 N] 语义正确：maxGage = *(cfg->m_strPtr) * cfg 表(level+4)；
+//   m_gage<maxGage → m_gage += ROUND(rate*level表/base) 否则 m_gage=maxGage；
+//   分支尾均 sendTestCheckGage()。差异=fldcw ROUND 物化(fadd 0.5f+fistp) vs ORIG
+//   fistp 舍入、imul/cmp 寄存器序、分支 jl vs jge，纯 lowering 表示差异，语义等价。
 void CharacData::upGage()
 {
     // CDataManager 配置区基址具名化：+0x6364 = CDataManager::m_altarConfig（ConfigParameter）。

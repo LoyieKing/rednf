@@ -465,6 +465,11 @@ int CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int ti
 // ===========================================================================
 // OnTimeoutCompleteLoadAfterAssault —— ORIG T 0x082ef86e (0x169)
 // TimerCompleteLoadAfterAssaultTimeout 回调主体（LfAssaultPlace 只交付了 registNextTimer）。
+// [B24D判词 N] 语义正确：G_CGameManager GetParty 判空 throw 0x1 + check_timer_key(0x2a)
+//   ==false throw 0x17 + TimeoutCompleteAfterAssault 真则 PacketGuard(header 1,0xf8,
+//   byte 1, finalize) → party send_to_party；catch-all。差异=CParty.h:416 声明 int
+//   （他方属主），(char)/bool ABI 表示导出 setne 物化岛 vs ORIG testb %al，bool ABI
+//   跨版本豁免（W6_AssaultMgrDeps.cpp:435 同批已录纯表示差），语义等价。
 // ===========================================================================
 void CAssaultMgr::OnTimeoutCompleteLoadAfterAssault(unsigned int partyIndex, int timerKey)
 {

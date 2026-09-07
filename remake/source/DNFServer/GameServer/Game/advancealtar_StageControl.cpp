@@ -17,6 +17,11 @@ namespace advancealtar
 //   ProcStage::ProcStage(this+4, characData@this+0x98)（T 0x812dc18）+
 //   CharacData::CharacData(this+0x98)（T 0x812d024）。
 // 子对象以字节槽持有（advancealtar.h 布局注释），此处 placement 构造；
+// [B24D判词 N] 语义正确：m_index=-1 + ProcStage(*characData)@+0x04 +
+//   CharacData@+0x98 placement 构造（槽宽恰成 0x94/0x28）。差异=advancealtar.h↔
+//   ProcStage.h include 环致字节槽 placement new → GCC 生成 operator new +
+//   test/je + EH landing pad（多 ~28 条）vs ORIG 真成员直构；P67 EH 表示差异
+//   （b22 判词 N 族已述），可观察语义等价。
 StageControl::StageControl()
 {
     m_index = -1;
@@ -141,8 +146,12 @@ CharacData* StageControl::getCharacData()
 // ----------------------------------------------------------------------------
 // ORIG T 0x081300f6（docs/class_func_reports/advancealtar__StageControl/
 // sendStageInfo.md 全文）：getUser 判空直接返回；put_header(0,0x209) +
-// put_binary({stageIndex, stageDifficulty}, 8) + finalize(true) → Send。
+//   put_binary({stageIndex, stageDifficulty}, 8) + finalize(true) → Send。
 // ----------------------------------------------------------------------------
+// [B24D判词 DONE_AE] 语义正确：getUser 判空返回 + _NotiAdvanceAltarStageInfo(8B)+
+//   put_header(0,0x209)+put_binary(&body,8)+finalize(true)+Send。已改用与 ORIG 同源
+//   struct 写法（去 body[]+memcpy 二次拷贝，68/68 指令对齐）；仅剩 call/符号地址
+//   AE 占位差异。
 void StageControl::sendStageInfo()
 {
     CUser* user = reinterpret_cast<CharacData*>(m_characData)->getUser();
@@ -151,17 +160,17 @@ void StageControl::sendStageInfo()
         return;
     }
 
-    char body[8];
-    int stageIndex =
+    // ORIG 用 _NotiAdvanceAltarStageInfo（memset 0,8 的 ctor + 两 int 直赋），
+    // 栈上两 int 连续成 8B payload；P48 去 body[]+memcpy 的二次拷贝形。
+    NOTIPacketStruct::_NotiAdvanceAltarStageInfo body;
+    body.m_stageIndex =
         reinterpret_cast<ProcStage*>(m_procStage)->getStageIndex();
-    int difficulty =
+    body.m_stageDifficulty =
         reinterpret_cast<ProcStage*>(m_procStage)->getStageDifficulty();
-    std::memcpy(body, &stageIndex, 4);
-    std::memcpy(body + 4, &difficulty, 4);
 
     PacketGuard guard;
     guard.put_header(0, 0x209);
-    guard.put_binary(body, 8);
+    guard.put_binary(reinterpret_cast<char*>(&body), 8);
     guard.finalize(true);
     user->Send(guard);
 }
