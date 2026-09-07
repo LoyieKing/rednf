@@ -190,6 +190,10 @@ const char CRijndael::sm_chain0[0x10] = {0, 0, 0, 0, 0, 0, 0, 0,
 
 CRijndael::CRijndael()
 {
+    // [B24D判词 N] 语义正确：基类 IMethod 构造 + m_bInit/m_blockSize/m_keyLength/
+    //   m_mode/m_padding 初始化 + 多段 memset(m_key...m_temp3) + m_rounds=0。
+    //   P167 差集 ORIG IMethodC1(完整构造) vs 我方 IMethodC2(基类构造)——C1/C2
+    //   mangling 差异，基类构造逻辑相同，非语义缺口。diff=lowering。
     m_bInit = false;
     m_blockSize = 0x10;
     m_keyLength = 0;
