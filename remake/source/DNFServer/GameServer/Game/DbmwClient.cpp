@@ -29,6 +29,41 @@ DbmwClient::DbmwClient()
     memset(m_query, 0, sizeof(m_query));
 }
 
+// ORIG T _ZN10DbmwClientD1Ev/D2Ev @0x081204be（0x3c）：
+// m_connected(+0x02)=0 → close(m_sock(+0x08)) → m_initialized(+0x01)=0 → m_sock=-1
+// → operator delete(m_recvBuf(+0x2c))。【Main 补定义：ORIG 4.1 -O0 无条件发射，历轮误删】
+DbmwClient::~DbmwClient()
+{
+    m_connected = false;
+    close(m_sock);
+    m_initialized = false;
+    m_sock = -1;
+    delete[] m_recvBuf;
+}
+
+// ORIG T _ZN10DbmwClient9set_queryEPKcz @0x081204fa（0xec）：fmt 空返 false；
+// memset(m_query,0,0x1001) → vsprintf → m_queryLen=strlen；越界（>0xfff 或 <=7）
+// printf("QueryLength Size ERROR QUERY_SIZE-%d MAX",len) 返 false；否则
+// strncasecmp(m_query,"select",6)==0 → m_isSelect=1/0，返 true。
+bool DbmwClient::set_query(const char* fmt, ...)
+{
+    if (fmt == 0)
+        return false;
+    memset(m_query, 0, 0x1001);
+    va_list args;
+    va_start(args, fmt);
+    vsprintf(m_query, fmt, args);
+    va_end(args);
+    m_queryLen = strlen(m_query);
+    if (m_queryLen > 0xfff || m_queryLen <= 7)
+    {
+        printf("QueryLength Size ERROR QUERY_SIZE-%d MAX", (int)m_queryLen);
+        return false;
+    }
+    m_isSelect = (strncasecmp(m_query, "select", 6) == 0);
+    return true;
+}
+
 unsigned int DbmwClient::Init()
 {
     // ORIG @0x081205e6：未初始化时 socket(AF_INET=2, SOCK_STREAM=1, 0)；

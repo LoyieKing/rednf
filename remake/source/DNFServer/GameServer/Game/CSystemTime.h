@@ -10,6 +10,8 @@
 // ============================================================================
 
 #include <sys/time.h>
+#include <time.h>
+#include <stdio.h>
 
 class CSystemTime
 {
@@ -19,7 +21,17 @@ public:
 
     int getCurSec();
     unsigned int getCurTickCount();
-    char* getCurDate();
+    // ORIG W 0x0823445e（头内联发射）：static __thread buf 随 inline 函数以 W 形
+    // 发射 `_ZZN11CSystemTime10getCurDateEvE3buf`（0xff 字节 TLS）——.cpp 定义会使
+    // buf 落 .tbss 局部符号致仅ORIG 缺失（Main 按 nm 实证内联化）。
+    char* getCurDate()
+    {
+        static __thread char buf[0x100];
+        struct tm t;
+        struct tm* p = localtime_r((const time_t*)&m_sec, &t);
+        sprintf(buf, "%04d-%02d-%02d", p->tm_year + 1900, p->tm_mon + 1, p->tm_mday);
+        return buf;
+    }
     void update();
 
     int m_sec;              // +0x00

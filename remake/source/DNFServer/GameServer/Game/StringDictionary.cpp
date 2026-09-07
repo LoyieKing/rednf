@@ -25,12 +25,12 @@
 #include <cctype>
 #include <cstring>
 
-namespace
-{
 // ORIG getStringHashValue 为文件局部 static（0x8ab21f8，nm t）。
+//   文件级 `static`（非匿名 namespace）：mangled 恰为 _ZL18getStringHashValuePKc
+//   与 ORIG 一致（匿名 namespace 会错发 _ZN12_GLOBAL__N_1…，Main 修正）。
 //   hash = 0; for each non-null byte c: hash = hash*65599 + (signed char)c;
 //   return hash.
-unsigned int getStringHashValue(const char* s)
+static unsigned int getStringHashValue(const char* s)
 {
     unsigned int hash = 0;
     for (; *s != '\0'; ++s)
@@ -40,7 +40,6 @@ unsigned int getStringHashValue(const char* s)
     }
     return hash;
 }
-}  // namespace
 
 // ----------------------------------------------------------------------------
 // StringDictionary::StringDictionary()（0x8ab2240）

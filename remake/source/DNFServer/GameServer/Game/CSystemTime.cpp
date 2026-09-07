@@ -27,15 +27,7 @@ unsigned int CSystemTime::getCurTickCount()
     return m_msec;
 }
 
-char* CSystemTime::getCurDate()
-{
-    static __thread char buf[0x100];
-    struct tm t;
-    struct tm* p = localtime_r((const time_t*)&m_sec, &t);
-
-    sprintf(buf, "%04d-%02d-%02d", p->tm_year + 1900, p->tm_mon + 1, p->tm_mday);
-    return buf;
-}
+// getCurDate：定义已移入 CSystemTime.h 内联（ORIG W 形，buf 随发）。
 
 void CSystemTime::update()
 {

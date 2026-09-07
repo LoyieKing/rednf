@@ -143,6 +143,9 @@ public:
 //      zone 部分走基类构造；4参构造 ORIG W 0x85cb72c）----
 struct PrivateStorePos : public PrivateStoreZone
 {
+    // 定义=CPrivateStoreMgr.cpp inline（W 发射随使用点）；ORIG W 0x85cb6f6/0x85cb72c。
+    // 注：ORIG CreatePrivateStore 0x085c58ab 用 4 参 ctor（我方现形缺该构造步，
+    // 已登记修复单——勿再删定义）。
     PrivateStorePos();
     PrivateStorePos(unsigned char a, unsigned char b, short field2, short field4);
     void clear();

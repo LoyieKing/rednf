@@ -469,12 +469,11 @@ bool CPrivateStore::CreatePrivateStore(unsigned char zoneA, unsigned char zoneB,
         return false;
     }
 
-    PrivateStorePos registeredPos;
-    registeredPos.m_a = zoneA;
-    registeredPos.m_b = zoneB;
-    registeredPos.m_field2 = (unsigned short)posX;
-    registeredPos.m_field4 = (unsigned short)posY;
-    m_pos = registeredPos;
+    // ORIG 0x085c5879-0x085c58bd：4 参 ctor（W 0x85cb72c 调用发射）构造临时，
+    // 再 6 字节拷入 m_pos(+0x24 int 段/+0x28 short 段)——恢复原构造步形并复原
+    // 历轮因定义未使用而丢失的 W 符号。
+    PrivateStorePos regPos(zoneA, zoneB, posX, posY);
+    m_pos = regPos;
 
     m_users.clear();
     ResetItems();
