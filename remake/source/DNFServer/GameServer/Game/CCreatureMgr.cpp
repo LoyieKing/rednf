@@ -925,7 +925,7 @@ int CCreatureMgr::GetCreatureItem(SIG_LOAD_INVENTORY* sig) const
         SIG_CREATURE_ITEM_DETAIL_INFO* dst =
             reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(sig->m_creature) + count;
         dst->m_slotNo = item->m_itemId;        // 条目 +0x00（序列化未建模的占位写）
-        dst->m_expireTime = item->m_expireTime;  // 条目 +0x28
+        dst->m_expireTime = item->getExpireTime();  // 条目 +0x28（P167：ORIG 调 getExpireTime 方法）
     }
     sig->m_creatureCount = count;
 

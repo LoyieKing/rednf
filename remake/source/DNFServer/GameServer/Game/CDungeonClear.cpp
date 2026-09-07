@@ -183,21 +183,16 @@ void CDungeonClear::toString(std::string& out, int nUnknown) const
         return;
 
     bool first = true;
-    char buf[256] = {0};
 
     for (std::map<short, char>::const_iterator it = m_map.begin();
          it != m_map.end(); ++it)
     {
-        if (first)
-        {
-            snprintf(buf, sizeof(buf), "%d|%d", (int)it->first, (int)it->second);
-            first = false;
-        }
-        else
-        {
-            snprintf(buf, sizeof(buf), ",%d|%d", (int)it->first, (int)it->second);
-        }
-        out += buf;
+        // P167/Ghidra：ORIG 用 out.resize(outlen+64) + out.c_str() 直接作 OS_API::snprintf 目标
+        out.resize(out.size() + 64);
+        char* dst = const_cast<char*>(out.c_str()) + out.size() - 64;
+        int w = OS_API::snprintf(dst, 64, "%s%d|%d", first ? "" : ",", (int)it->first, (int)it->second);
+        out.resize(out.size() - 64 + (unsigned int)w);
+        first = false;
     }
 }
 

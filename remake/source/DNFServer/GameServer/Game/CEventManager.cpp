@@ -88,7 +88,11 @@ void CDelivery::attach(int type, CEventBase* event)
 {
     if (!checkAddress(type))
         return;
-    std::list<CEventBase*>& events = m_eventMap[type];
+    // P167/Ghidra：ORIG 用 map.find(type) —— type 不存在则不 attach（不 operator[] 建默认空 list）
+    std::map<int, std::list<CEventBase*> >::iterator it = m_eventMap.find(type);
+    if (it == m_eventMap.end())
+        return;
+    std::list<CEventBase*>& events = it->second;
     if (std::find(events.begin(), events.end(), event) == events.end())
         events.push_back(event);
 }
@@ -521,7 +525,8 @@ bool CEventTable::VerifyEventTable(std::vector<int>& out)
             continue;
         if (dup)
             return false;
-        found[idx] = 1;
+        // P167：ORIG 用 map::insert(make_pair(idx,1))（首值保留），非 operator[]
+        found.insert(std::make_pair(idx, 1));
     }
 
     for (int i = 0; i < GetEventTableCount(); ++i)
