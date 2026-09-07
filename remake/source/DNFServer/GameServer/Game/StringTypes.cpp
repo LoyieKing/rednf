@@ -2,6 +2,7 @@
 // 依据 docs/class_func_reports/{StringData,CharStringData,WideStringData,
 // CharString,WideString,_lt_global_gt_(left/right/mid/ss_vsprintf)} 各报告逐函数转写。
 #include "StringTypes.h"
+#include <new>   // placement new：vformat 就地覆盖重建（ORIG this->C1 形，4.4 禁 p->Class::Class()）
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -674,30 +675,30 @@ CharString CharString::pattern(const char* pattern, int count)
     return CharString(newData);
 }
 
-CharString CharString::format(const char* formatStr, ...)
+CharString& CharString::format(const char* formatStr, ...)
 {
     va_list argList;
     va_start(argList, formatStr);
-    int length = vsnprintf(reinterpret_cast<char*>(0), 0, formatStr, argList);
-    if (length == 0)
-    {
-        va_end(argList);
-        return CharString();
-    }
-    CharStringData* newData = CharStringData::create(length);
-    ss_vsprintf(newData->getBuffer(), length + 1, formatStr, argList);
+    this->vformat(formatStr, argList);
     va_end(argList);
-    return CharString(newData);
+    return *this;
 }
 
-CharString CharString::vformat(const char* formatStr, va_list argList)
+// ORIG T 0x08ad8b9e：length==0 → this->C1Ev()（**就地默认构造覆盖**，旧 data 不 detach——
+// ORIG 体实证无 ~CharString/D1 调用）；否则 create(length)+ss_vsprintf 后 this->C1EP14CharStringData
+// 就地覆盖；尾 return *this。
+CharString& CharString::vformat(const char* formatStr, va_list argList)
 {
     int length = vsnprintf(reinterpret_cast<char*>(0), 0, formatStr, argList);
     if (length == 0)
-        return CharString();
+    {
+        new (this) CharString();
+        return *this;
+    }
     CharStringData* newData = CharStringData::create(length);
     ss_vsprintf(newData->getBuffer(), length + 1, formatStr, argList);
-    return CharString(newData);
+    new (this) CharString(newData);
+    return *this;
 }
 
 int CharString::tokenize(const CharString& str, std::vector<CharString>* tokenVector)
@@ -1416,30 +1417,28 @@ WideString WideString::pattern(const wchar_t* pattern, int count)
     return WideString(newData);
 }
 
-WideString WideString::format(const wchar_t* formatStr, ...)
+WideString& WideString::format(const wchar_t* formatStr, ...)
 {
     va_list argList;
     va_start(argList, formatStr);
-    int length = vswprintf(reinterpret_cast<wchar_t*>(0), 0, formatStr, argList);
-    if (length == 0)
-    {
-        va_end(argList);
-        return WideString();
-    }
-    WideStringData* newData = WideStringData::create(length);
-    ss_vswprintf(newData->getBuffer(), length + 1, formatStr, argList);
+    this->vformat(formatStr, argList);
     va_end(argList);
-    return WideString(newData);
+    return *this;
 }
 
-WideString WideString::vformat(const wchar_t* formatStr, va_list argList)
+// CharString::vformat 同形（ORIG T 0x08adbc88）。
+WideString& WideString::vformat(const wchar_t* formatStr, va_list argList)
 {
     int length = vswprintf(reinterpret_cast<wchar_t*>(0), 0, formatStr, argList);
     if (length == 0)
-        return WideString();
+    {
+        new (this) WideString();
+        return *this;
+    }
     WideStringData* newData = WideStringData::create(length);
     ss_vswprintf(newData->getBuffer(), length + 1, formatStr, argList);
-    return WideString(newData);
+    new (this) WideString(newData);
+    return *this;
 }
 
 int WideString::tokenize(const WideString& str, std::vector<WideString>* tokenVector)

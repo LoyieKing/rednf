@@ -48,7 +48,7 @@ void StringResourceDelayedItem::makeCacheStr()
     if (get(&out)) {
         m_cacheStr = *out;
     } else {
-        m_cacheStr = CharString::format("getStr(%d) == none", m_id);
+        { CharString tmp; m_cacheStr = tmp.format("getStr(%d) == none", m_id); }  // format 成员化
     }
     m_pCache = m_cacheStr.c_str();
 }

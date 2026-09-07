@@ -258,13 +258,25 @@ void CDeathTower::CPacketHandler::makeDisplayRangking(unsigned int tableType,
     put_header(0, 0x90);
     put_int((int)clearTime);                       // ebp+0x18 → param_4
     put_int((int)stage);                           // ebp+0x14 → param_3
-    put_byte(flag ? 1 : 0);                        // ebp+0x1c → param_5
+    put_byte(static_cast<unsigned int>(flag));     // ORIG movzbl -0xc 直零扩（bool slot 信任）
     put_int((int)playTime);                        // ebp+0x24 → param_7
-    const unsigned int towerIdx = CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
-    CDeathTowerRanking* table =
-        (CDeathTowerRanking*)CDeathTowerRanking::getRankTable(tableType);
-    table->makeMyBestRecordPacket(towerIdx, key, *this);   // ORIG 0x08468b8e
-    table->makeTopRankerRecordPacket(towerIdx, *this);     // ORIG 0x08468c68
+    // ORIG 0x084601da：两记录段各自重调 makeDungeonIdx2TowerIdx +
+    // getRankTable（P48 无跨句缓存；this 经 %esi、towerIdx 经 %ebx 跨 call）。
+    {
+        // P179：ORIG towerIdx 跨 getRankTable call 经 %ebx（push %ebx 由此），
+        // 4.4 具名 const 落槽致每用点 +1 重载。register 形还原。
+        register unsigned int towerIdx1 __asm__("ebx");
+        towerIdx1 = CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
+        // getRankTable 结果 %eax 直传 this 实参槽（命名指针会强制落槽回读）。
+        ((CDeathTowerRanking*)CDeathTowerRanking::getRankTable(tableType))
+            ->makeMyBestRecordPacket(towerIdx1, key, *this);     // ORIG 0x08468b8e
+    }
+    {
+        register unsigned int towerIdx2 __asm__("ebx");
+        towerIdx2 = CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
+        ((CDeathTowerRanking*)CDeathTowerRanking::getRankTable(tableType))
+            ->makeTopRankerRecordPacket(towerIdx2, *this);       // ORIG 0x08468c68
+    }
     finalize(true);
 }
 

@@ -165,7 +165,7 @@ bool StringResource::loadFromString(char* text, int length, CharString* error)
                 // 忽略解析失败继续（@0x87 je →val 检查）。
                 if (error != 0)
                 {
-                    CharString msg;     // -0x2c 具名临时 + aSER + 具析构
+                    CharString msg;     // -0x2c（ORIG 对此局部为 trivial 构造不发 C1）
                     msg.format("Parse error : line:%d reason:%d", lineNo, r);
                     *error = msg;
                     return false;
@@ -484,7 +484,7 @@ CharString app::getStr(int id)
     const CharString* entry;        // ORIG 无初始化槽（@0x8ad54d6 直接取址传参）
     if (app::stringResource()->get(id, &entry))
         return *entry;
-    return CharString::format("getStr(%d) == none", id);
+    { CharString tmp; return tmp.format("getStr(%d) == none", id); }  // format 成员化（ORIG this 形）
 }
 
 // ---------------------------------------------------------------------------

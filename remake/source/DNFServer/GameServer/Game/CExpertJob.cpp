@@ -381,7 +381,7 @@ int CCharacExpertJob::set_recipe(int index)
 
 // learnRecipe 0x0832b3c0：GetRecipeInfoIndex(recipeIndex)；index<0 → 0；
 // GetRecipeInfo(index) 为空 → 0；recipeInfo->m_field8 <= param+2 才 set_recipe + alter。
-int CCharacExpertJob::learnRecipe(unsigned long recipeIndex, STExpertJobScript* script,
+bool CCharacExpertJob::learnRecipe(unsigned long recipeIndex, STExpertJobScript* script,
                                   int param)
 {
     int idx = -1;                                   // ORIG：-1 初始化

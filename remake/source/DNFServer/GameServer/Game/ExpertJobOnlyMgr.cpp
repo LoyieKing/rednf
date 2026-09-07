@@ -194,15 +194,25 @@ int CAlchemist::OnUseStackableItem(CUser* user, unsigned long itemUniqueId,
                 // exp/level/learnRecipe 结果全程 %eax/%ebx 无槽（帧 sub $0x24，
                 // 仅 -0xc 一个 script 局部）⇒ 实参右起内联（exp→level→expand→
                 // uid/script 落槽，与 ORIG call 序一致）。
-                if (!((CCharacExpertJob*)user->GetCharacExpandData(
-                          (ENUM_CHARAC_EXPAND_TYPE)0))
-                         ->learnRecipe(itemUniqueId, script,
-                                       user->GetCurExpertJobLevel(
-                                           user->GetCurCharacExpertJobExp())))
+                // [b23S3C] P191 极性（learnRecipe 返回 bool 后复查）：ORIG 0x85d17d5
+                // `test %al,%al; je +0xeb`（false 跳转到 return 0xd 岛、成功路径
+                // fall-through）⇒ 正向 if + else(return) 形（负形 if(!x) 使 4.4 产
+                // xor $1 折叠，多 1 条）。
+                if (((CCharacExpertJob*)user->GetCharacExpandData(
+                         (ENUM_CHARAC_EXPAND_TYPE)0))
+                        ->learnRecipe(
+                            itemUniqueId, script,
+                            user->GetCurExpertJobLevel(
+                                user->GetCurCharacExpertJobExp())))
+                {
+                    ((CCharacExpertJob*)user->GetCharacExpandData(
+                        (ENUM_CHARAC_EXPAND_TYPE)0))
+                        ->SendExpertJobInfo(user);
+                }
+                else
+                {
                     return 0xd;
-                ((CCharacExpertJob*)user->GetCharacExpandData(
-                    (ENUM_CHARAC_EXPAND_TYPE)0))
-                    ->SendExpertJobInfo(user);
+                }
             }
         }
 
