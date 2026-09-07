@@ -89,9 +89,9 @@ public:
         packet.put_byte(0);                                        // ORIG +0x29 call put_byte
         for (int i = 0; i <= 2; ++i)                               // ORIG +0xcd cmpl $0x2; setle（while 前置 jmp +0x35）
         {
-            if (!((const RandomOptionField*)((int)this + i * 3))->empty())  // ORIG +0x43 add 0x8(%ebp),%eax（i*3 先算，this 后 mem 加）
+            if (!((const RandomOptionField*)&((const unsigned char*)this)[i * 3])->empty())  // ORIG +0x43 add-add 3i + add this mem（&p[i*3] 形，探针 h1 实证）
             {
-                packet.put_byte(((const RandomOptionField*)((int)this + i * 3))->m_field0);  // ORIG +0x61 movzbl (%eax,%ecx,1),%eax
+                packet.put_byte(((const RandomOptionField*)((int)this + i * 3))->m_field0);  // ORIG +0x61 movzbl (%eax,%ecx,1),%eax；4.4 无双寄存器 movzbl 寻址（N）
                 packet.put_byte(((const RandomOptionField*)((int)this + i * 3 + 1))->m_field0);  // ORIG +0x83 lea; add $0x1
                 packet.put_byte(((const RandomOptionField*)((int)this + i * 3 + 2))->m_field0);  // ORIG +0xaa lea; add $0x2
                 ++count;                                           // ORIG +0xc5 addl $0x1,-0x10
@@ -146,9 +146,15 @@ public:
     void IncUpgradeSeparate();   // ORIG W 0x0811ed32：低 5 位 +1（模 32），保留高位
     void SetUpgradeSeparate(unsigned char value);
     void SetUpgradeSeparateAndTradeRestriction(unsigned char value); // ORIG 0x085574bc (W)
-    bool IsTradeRestriction() const;
+    unsigned char IsTradeRestriction() const;
 
-    unsigned char m_field;   // +0x00
+    // +0x00（upgrade:bit0-4 / restriction:bit5 / 保留:bit6-7）。位域证据同上
+    // （IsTradeRestriction 0x8110b0a、SetUpgradeSeparate 0x84e906a 位域装填形）。
+    union
+    {
+        unsigned char m_field;
+        struct { unsigned char m_lo:5, m_flag:1, m_hi:2; } m_bits;
+    };
 };
 
 class ReservedCapacity
@@ -175,15 +181,15 @@ public:
     unsigned char GetUpgrade() const;
     void SetUpgrade(unsigned char upgrade);
     void IncUpgrade();
-    unsigned char GetItemAttr() const;
+    int GetItemAttr() const;
     void SetItemAttr(unsigned char attr);
-    unsigned char GetReSealCount() const;
+    int GetReSealCount() const;
     void SetReSealCount(unsigned char count);
     unsigned char GetTradeLimitCount() const;
     void SetTradeLimitCount(unsigned char count);
     bool isAvatarItemType() const;
     bool IsCreatureItemType() const;
-    bool isEquipableItemType() const;
+    int isEquipableItemType() const;   // ORIG 0x85f77ca 调用点 int 语义（P22 反向），Lane19
     bool isEmpty() const;
     void setCopy(const Inven_Item& other);
     int getPackedCode1() const;
@@ -213,7 +219,16 @@ public:
     bool m_field0;                 // +0x00（ORIG bool：movzbl;xor $0x1;test %al,%al 惯用式，WarRoom::HandleItemDrop 0x086bfad7）
     unsigned char m_field1;            // +0x01（ITEM_TYPE）
     unsigned int m_addInfo;            // +0x02（item idx；_CheckUsableExpertJobEquipment 0x084c4ba3 find_item(int) 两步 spill 需 unsigned 成员）
-    unsigned char m_attr;              // +0x06（upgrade:bit0-4 / reseal:bit5-7）
+    // +0x06（upgrade:bit0-4 / reseal:bit5-7）。ORIG setter 汇编为位域装填形
+    // （SetUpgrade 0x80f0ffc 双 and 截断、SetReSealCount and $0x7+shl $0x5、
+    // IncUpgrade 读侧+装填侧双截断），标量写法不可复现（probe6/u2/r5/i3 实证
+    // 真实位域成员与 ORIG 逐条全等）；union 标量别名保持外部 m_attr 使用点不变。
+    union
+    {
+        unsigned char m_attr;
+        struct { unsigned char m_attrLo:5, m_attrHi:3; } m_attrBits;
+        struct { unsigned char m_attrAll:8; } m_attrAll;
+    };
     int m_addInfo2;                    // +0x07（set_add_info / get_add_info）
     unsigned short m_fieldb;           // +0x0b（endurance）
     union
@@ -244,7 +259,9 @@ public:
     void setCopy(const Inven_Item& item);        // ORIG _ZN21Inven_Item_Compatible7setCopyERK10Inven_Item W 0x833f38e
     void makeInvenItem(Inven_Item& item);        // ORIG _ZN21Inven_Item_Compatible13makeInvenItemER10Inven_Item W 0x833f418
 
-    unsigned char m_field0;     // +0x00（← item+0x00）
+    bool m_field0;              // +0x00（← item+0x00；ORIG setCopy/makeInvenItem
+                                //   0x833f38e/0x833f418 首字段 movzbl+mov %dl 直拷
+                                //   无 setne ⇒ bool→bool 赋值形，uchar 会生物化）
     unsigned char m_type;       // +0x01（ITEM_TYPE，← item+0x01）
     unsigned char m_field2[2];  // +0x02..0x03（填充：ORIG m_itemIdx 在 +0x04）
     int m_itemIdx;              // +0x04（← item+0x02）

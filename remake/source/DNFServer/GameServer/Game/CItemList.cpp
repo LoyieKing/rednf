@@ -2082,9 +2082,10 @@ bool CCompound_ExtreamDun_Item::_AddItem(CEquipItem& item)          // ORIG 0x83
     {
         return false;
     }
+    // ORIG 槽：entry@-0x1c、entry2@-0x14（连排声明复现槽序）。
     OUTPUT_ITEM_STR entry(item.getUsableLevel(), item.get_index());
-    m_data.m_resultItems[cat].push_back(static_cast<OUTPUT_ITEM_STR&&>(entry));
     OUTPUT_ITEM_STR entry2(item.getUsableLevel(), item.get_index());
+    m_data.m_resultItems[cat].push_back(static_cast<OUTPUT_ITEM_STR&&>(entry));
     m_data.m_bindItems[item.getItemGroupName()][cat].push_back(
         static_cast<OUTPUT_ITEM_STR&&>(entry2));
     return true;

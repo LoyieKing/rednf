@@ -38,23 +38,31 @@ BattleData::~BattleData()
 {
 }
 
+// ORIG 0x82a4e90 头部清零为 4.1 dest 缓存形：每对字段一次 this 载入+双 store
+//（0x0..0x24 五对、0x2c..0x48 四对、0x4c 单、0x28..0x2b 字节逐条、0x68c 单）。
+// 4.4 函数体逐条重载 this 不可造（探针 /tmp/l0_probe2.cpp 逐句/链式/逗号三形
+// 实测全不复现）——经 8 字节清零视图折叠复现（探针 /tmp/l0_probe4.cpp ResetG
+// 与 /tmp/l0_probe3.cpp ResetF 同形实证）。视图仅表达布局，字段语义仍以头内
+// m_fieldN/m_killedMonsterN 为权威。
+namespace {
+struct BattleDataZeroView {
+    long long a[5];   // +0x00 m_field0/4 .. m_field20/24
+    char pad28[4];    // +0x28 m_flag28[0..3]（字节域另逐字节清）
+    long long b[4];   // +0x2c m_field2c/30 .. m_killedMonster2/m_field48
+    int c;            // +0x4c m_field4c
+};
+} // namespace
+
 void BattleData::Reset()
 {
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
-    m_fieldc = 0;
-    m_field10 = 0;
-    m_field14 = 0;
-    m_field18 = 0;
-    m_field1c = 0;
-    m_field20 = 0;
-    m_field24 = 0;
-    m_field2c = 0;
-    m_field30 = 0;
-    m_field34 = 0;
-    m_field38 = 0;
-    m_killedMonster0 = 0;
+    ((BattleDataZeroView*)this)->a[0] = 0;
+    ((BattleDataZeroView*)this)->a[1] = 0;
+    ((BattleDataZeroView*)this)->a[2] = 0;
+    ((BattleDataZeroView*)this)->a[3] = 0;
+    ((BattleDataZeroView*)this)->a[4] = 0;
+    ((BattleDataZeroView*)this)->b[0] = 0;   // 0x2c/0x30 成对
+    ((BattleDataZeroView*)this)->b[1] = 0;   // 0x34/0x38 成对
+    m_killedMonster0 = 0;                    // ORIG 0x3c..0x4c 各独立单 store
     m_killedMonster1 = 0;
     m_killedMonster2 = 0;
     m_field48 = 0;
@@ -147,5 +155,5 @@ char BattleData::IsClearEventDungeonRoom(int param_1, unsigned short roomIdx) co
     {
         return 0;
     }
-    return m_eventClear[param_1 * 3 + roomIdx].m_clearFlag;
+    return m_eventClear[roomIdx + param_1 * 3].m_clearFlag;
 }

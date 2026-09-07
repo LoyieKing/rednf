@@ -150,7 +150,7 @@ public:
     bool  getIsCharacEvent(bool& out) const;         // 0x81107ea
     char  get_user_type() const;                     // 0x8110eec（ZNK，读脚本 +0xc）
     void  sendEventItemFromFatigue(CUser*, unsigned int);  // 0x81105f6
-    int   verifyApplyUser(CUser*);                   // 0x8110756
+    bool  verifyApplyUser(CUser*);                   // 0x8110756
 protected:
     InGameEventScript* m_script1c;                   // +0x1c
 };
@@ -351,7 +351,7 @@ public:
     void process_add_quest_count_db(CUser* user, int questId);
     void process_level_up_reward_recv_level(CUser* user, int level, int growType);
     void inc_user_fatigue(CUser* user, unsigned int fatigue);
-    bool send_gift_fatigue_item(CUser* user, unsigned int fatigue);
+    void send_gift_fatigue_item(CUser* user, unsigned int fatigue);
     void update_purchase_target_item_count(CUser* user, unsigned int goodsId, stCeraShopIPGRequest_t* request);
     bool send_purchase_bonus_mail(CUser* user, unsigned int goodsId);
     bool send_bring_up_item_fatigue(CUser* user, int fatigue);

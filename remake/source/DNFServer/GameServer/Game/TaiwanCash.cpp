@@ -52,7 +52,7 @@ bool PurchaseQuery::execQuery(MySQL& db)
 // ---- getResult —— ORIG 0x0817460e：任一步失败抛 int 错误码
 //（0x187=set_query / 0x18a=exec / 0x18d=fetch / 400=get_ulonglong / 0x193=get_int）。
 // ORIG 含 catch：LogManager 记录异常后返回 0（行号 0x199）。----
-int PurchaseQuery::getResult(MySQL& db)
+bool PurchaseQuery::getResult(MySQL& db)
 {
     try
     {

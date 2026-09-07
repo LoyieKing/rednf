@@ -46,8 +46,6 @@ enum ENUM_TITLE_BOOK_CATEGORY
 
 // ENUM_TITLE_BOOK_INFO_TYPE 定义于 GameEnums.h。
 
-// 各类称号槽上限（ORIG .rodata 0x8ae5a98：{0x46, 0xc8, 0x78, 0x3c}）
-extern const int TITLE_BOOK_MAX[4];
 
 // ---- 称号元素（0x20 字节） ----
 struct stTitleElement
@@ -93,12 +91,16 @@ struct stTitleRewardBasis
         // §4.5/§8 判据（Bridge21B）：m_data 为非虚 void* 基指针（stTitleRewardBasis
         // 无虚表 sizeof 0xc），vtable+0xC 虚 deleting-dtor 分发无法以真实 delete 表达
         // （派生奖赏 vtable 未建模=b22 单）；运行期导入域 data 恒空（no-op）。保留直调。
+        // ORIG D1 0x08aa9652：两次独立判空嵌套；vptr/vfn 全程寄存器直传，无中间槽。
         if (m_data != 0)
         {
-            // ORIG：mov (%eax),%eax; add $0xc,%eax; call *(%eax) —— 虚删除。
-            typedef void (*DeletingDtor)(void*);
-            void** vptr = *reinterpret_cast<void***>(m_data);
-            reinterpret_cast<DeletingDtor>(vptr[3])(m_data);
+            if (m_data != 0)
+            {
+                // ORIG：mov (%eax),%eax; add $0xc,%eax; mov (%eax),%edx; call *%edx —— 虚删除。
+                typedef void (*DeletingDtor)(void*);
+                reinterpret_cast<DeletingDtor>(
+                    (*reinterpret_cast<void***>(m_data))[3])(m_data);
+            }
         }
         m_data = 0;
     }

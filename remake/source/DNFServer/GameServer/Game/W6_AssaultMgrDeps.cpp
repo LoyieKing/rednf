@@ -447,7 +447,7 @@ int CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int ti
         {
             // ORIG 调用点 test %al,%al（窄返回视 char，CParty.h 现声明 int 属他方
             // 属主，此处显式 (char) 复现 testb）。
-            if (static_cast<char>(party->TimeoutCompleteAfterAssault()) != 0)
+            if (party->TimeoutCompleteAfterAssault())
             {
                 party->ClearBadP2PUser();
             }

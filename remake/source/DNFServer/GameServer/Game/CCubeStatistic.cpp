@@ -84,11 +84,10 @@ int CCubeStatistic::sendCubeStatistic(int itemIndex, int count, CUser* user,
     pkt.m_itemCount = count;
     pkt.m_type = (unsigned char)field;
 
-    CStatisticServerProxy* proxy =
-        GlobalData::s_statistic_proxy_mgr->GetServerProxy(
-            user->GetServerGroup());
-    if (proxy)
-        proxy->SendPacket((char*)&pkt, 0x17);
+    // ORIG 0x861002e 区：GetServerProxy 返回直传 0x4(%esp) 无判空无槽
+    // （P140/P52 链式单语句；&pkt 跨 GetServerProxy 调用缓存 %ebx）。
+    GlobalData::s_statistic_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendPacket((char*)&pkt, 0x17);
     return 1;
 }
 

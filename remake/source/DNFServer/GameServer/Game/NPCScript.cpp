@@ -209,7 +209,7 @@ const int IMPORT_FAIL  = 0;
 // 深水区（长尾 keyword 的次要字段、静态 lookup 表优化）以语义等价形式实现，
 // 已在对应分支标注「推断」。
 // ----------------------------------------------------------------------------
-int importNpcScript(NpcScript* npc, char const* path)
+bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 xor $1 取反 ⇒ bool（P22）
 {
     if (!loadRDARScriptFile(g_npcScriptBaseDirectory, path))
     {
@@ -1013,12 +1013,14 @@ struct isSameItem
 //   return ret == 1;
 bool CNPCScript::load(char const* path)
 {
-    int ret = importNpcScript(&m_npcScript, path);
-    if (ret == 1)
+    // ORIG：importNpcScript 结果寄存器直测（xor $1/test，无 ret 槽）；
+    // 尾 mov $0x1 常量返回（bool 导入成功即 1，P56 形）。
+    if (!importNpcScript(&m_npcScript, path))
     {
-        m_resultCopy = *reinterpret_cast<unsigned int*>(&m_npcScript);
+        return false;
     }
-    return ret == 1;
+    m_resultCopy = m_npcScript.m_scriptFileIndex;  // ORIG mov 0x4(%eax) disp 直读首 int
+    return true;
 }
 
 // ORIG 0x86d2736: m_roleMap.find(role) != end()（CNPCScript+0x50 = NpcScript+0x4c）。
@@ -1059,12 +1061,12 @@ bool CNPCScript::isKeyItem(unsigned long key, unsigned int id) const
 // ORIG 0x85811a4: +0x670 字符串 == "item" -> 1；=="quest" -> 2；否则 0。
 int CNPCScript::getPeriodRewardType() const
 {
-    const std::string& t = m_npcScript.m_favorableRelationShip.m_durationReward.m_name;
-    if (t == "item")
+    // P48/P183：无 name 指针槽，每分支完整成员访问重取（ORIG add $0x674 重算）。
+    if (m_npcScript.m_favorableRelationShip.m_durationReward.m_name == "item")
     {
         return 1;
     }
-    if (t == "quest")
+    if (m_npcScript.m_favorableRelationShip.m_durationReward.m_name == "quest")
     {
         return 2;
     }

@@ -63,10 +63,10 @@ void WongWork::CSimpleSSO::expireLoginTime(unsigned int mId)
     memcpy(tableName, "member_login", 0xd);    // ORIG+0x021..+0x037 call memcpy
     if (mId != 0)
     {
-        char* idStr = NumberToString(mId, 0);
-        int curSec = GlobalData::s_systemTime_.getCurSec();
+        register char* idStr = NumberToString(mId, 0);
         m_mysql->set_query("upDate %s set expire_time=%d where m_id=%s",
-                           tableName, curSec, idStr);
+                           tableName, GlobalData::s_systemTime_.getCurSec(),
+                           idStr);
         m_mysql->exec(true);
     }
 }
@@ -163,14 +163,14 @@ bool WongWork::CSimpleSSO::checkValidPassword_Jpn(unsigned int mId, char const* 
 {
     unsigned int v1 = 0;
     unsigned int v2 = 0;
-    getGameStartTime(mId, *reinterpret_cast<long*>(&v2),
-                     *reinterpret_cast<long*>(&v1), out);
+    getGameStartTime(mId, *reinterpret_cast<long*>(&v1),
+                     *reinterpret_cast<long*>(&v2), out);
     if (GlobalData::s_GM_Manager->IsGm(mId))
     {
         if (strncmp(a, b, 0x84) == 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x2e, 0);
-            trace("[!]GM User Check Password Sucess=> m_id(%d)", mId);
+            cMyTrace(__PRETTY_FUNCTION__, 0x2e, 0)(
+                "[!]GM User Check Password Sucess=> m_id(%d)", mId);
         }
     }
     return true;

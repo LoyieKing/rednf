@@ -135,8 +135,8 @@ void RandomOption::set_first_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char 
     {
         m_fielda.m_field1 = v;
     }
-    unsigned char* self = reinterpret_cast<unsigned char*>(this);
-    self[(int)num * 3 + 1] = v;
+    // P0：ORIG 无 self 局部槽，this 寄存器直读
+    reinterpret_cast<unsigned char*>(this)[(int)num * 3 + 1] = v;
 }
 
 void RandomOption::set_second_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v)
@@ -146,8 +146,7 @@ void RandomOption::set_second_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char
     {
         m_fielda.m_field2 = v;
     }
-    unsigned char* self = reinterpret_cast<unsigned char*>(this);
-    self[(int)num * 3 + 2] = v;
+    reinterpret_cast<unsigned char*>(this)[(int)num * 3 + 2] = v;
 }
 
 DifferentWeightValue::DifferentWeightValue()

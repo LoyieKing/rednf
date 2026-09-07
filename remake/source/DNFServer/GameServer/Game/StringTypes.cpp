@@ -241,27 +241,22 @@ bool CharString::isWhiteSpace() const
 
 unsigned int CharString::getHash() const
 {
-    unsigned int value;
-    bool empty = isEmpty();
-    if (!empty)
+    // ORIG：isEmpty 结果直接 test %al（bool 返回值不物化），空串走 mov $0,%eax
+    // 常量岛提前 return；value=0 初始化在检查之后落槽。
+    if (isEmpty())
+        return 0;
+    unsigned int value = 0;
+    const char* str = buffer_;
+    while (true)
     {
-        value = 0;
-        const char* str = buffer_;
-        while (true)
-        {
-            char c = *str;
-            str = str + 1;
-            if (c == '\0')
-                break;
-            value = ((value << 6) + (value << 16)) - value + static_cast<int>(c);
-        }
-        if (value == 0)
-            value = 1;
+        char c = *str;
+        str = str + 1;
+        if (c == '\0')
+            break;
+        value = ((value << 6) + (value << 16)) - value + static_cast<int>(c);
     }
-    else
-    {
-        value = 0;
-    }
+    if (value == 0)
+        value = 1;
     return value;
 }
 
@@ -987,27 +982,22 @@ bool WideString::isWhiteSpace() const
 
 unsigned int WideString::getHash() const
 {
-    unsigned int value;
-    bool empty = isEmpty();
-    if (!empty)
+    // ORIG：isEmpty 结果直接 test %al（bool 返回值不物化），空串走 mov $0,%eax
+    // 常量岛提前 return；value=0 初始化在检查之后落槽。
+    if (isEmpty())
+        return 0;
+    unsigned int value = 0;
+    const wchar_t* str = buffer_;
+    while (true)
     {
-        value = 0;
-        const wchar_t* str = buffer_;
-        while (true)
-        {
-            int c = *str;
-            str = str + 1;
-            if (c == 0)
-                break;
-            value = ((value << 6) + (value << 16)) - value + c;
-        }
-        if (value == 0)
-            value = 1;
+        int c = *str;
+        str = str + 1;
+        if (c == 0)
+            break;
+        value = ((value << 6) + (value << 16)) - value + c;
     }
-    else
-    {
-        value = 0;
-    }
+    if (value == 0)
+        value = 1;
     return value;
 }
 
@@ -1644,7 +1634,9 @@ bool WideString::isuspace(wchar_t ch)
 bool WideString::isupunct(wchar_t ch)
 {
     // ORIG 0x08adcb50：条件为「不是 Unicode 标点」，命中返回 false，否则 true。
-    if (((((((((((ch < 0x21) || (0x23 < ch)) && ((ch < 0x25 || (0x2a < ch)))) &&
+    // 极性反演（P196）：ORIG true 常量岛在前（mov $1;jmp 在 mov $0 之前），
+    // 需 if 条件 = 「是标点」命中 → return true。
+    if (!(((((((((((ch < 0x21) || (0x23 < ch)) && ((ch < 0x25 || (0x2a < ch)))) &&
             ((((((ch < 0x2c || (0x2f < ch)) && (ch != 0x3a)) && ((ch != 0x3b && (ch != 0x3f)))) &&
               (ch != 0x40)) &&
              (((ch < 0x5b || (0x5d < ch)) &&
@@ -1693,10 +1685,10 @@ bool WideString::isupunct(wchar_t ch)
               (((((ch < 0xff0c || (0xff0f < ch)) && (ch != 0xff1a)) &&
                 (((ch != 0xff1b && (ch != 0xff1f)) &&
                  (((ch != 0xff20 && ((ch < 0xff3b || (0xff3d < ch)))) && (ch != 0xff3f)))))) &&
-               (((ch != 0xff5b && (ch != 0xff5d)) && ((ch < 0xff5f || (0xff65 < ch)))))))))))))) {
-        return false;
-    }
+               (((ch != 0xff5b && (ch != 0xff5d)) && ((ch < 0xff5f || (0xff65 < ch))))))))))))))) {
     return true;
+    }
+        return false;
 }
 
 // ---- <global> 自由函数 ----

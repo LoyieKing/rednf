@@ -24,12 +24,17 @@ CSwitchLog::CSwitchLog(const char* name, int line, int level, int flagIndex)
     m_flagIndex = flagIndex;
 }
 
-void CSwitchLog::SetLogWriteFlag(int flag)
+void CSwitchLog::SetLogWriteFlag(register int flag)
 {
-    if (flag == 0)
+    switch (flag)
+    {
+    case 0:
         log_write_[0] = 0;
-    else if (flag == 1)
+        break;
+    case 1:
         log_write_[0] = 1;
+        break;
+    }
 }
 
 void CSwitchLog::operator()(const char* fmt, ...)

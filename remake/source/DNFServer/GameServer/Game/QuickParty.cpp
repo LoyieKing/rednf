@@ -62,11 +62,7 @@ void CQuickParty::init()
     m_dungeonDiff = (char)0xff;
     m_poolIndex = (char)0xff;
     for (int msg = 0x9d; msg <= 0x9e; ++msg)
-    {
-        int idx = msg - 0x9d + 4;
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(this) + 0x0c +
-                                idx * 4) = 0;
-    }
+        m_timerKeyCnt[msg - 0x9d] = 0;
     m_isChangeQuickPartyCount = 0;
 }
 
@@ -81,14 +77,15 @@ void CQuickParty::set_change_quick_party_count(bool flag)
 }
 
 // delete_party_index @0x0826980e：遍历 m_partyIndex[0..3]，命中则置 -1 并返回。
-void CQuickParty::delete_party_index(int partyIdx)
+bool CQuickParty::delete_party_index(int partyIdx)
 {
     for (int i = 0; i < 4; ++i) {
         if (m_partyIndex[i] == partyIdx) {
             m_partyIndex[i] = -1;
-            return;
+            return true;
         }
     }
+    return false;
 }
 
 // get_quick_party_count @0x082698be：累加各登记 party 的当前成员数。
@@ -100,7 +97,11 @@ int CQuickParty::get_quick_party_count()
             continue;
         CParty* party = G_CGameManager()->GetParty(m_partyIndex[i]);
         if (party != 0)
-            total += party->get_member_count();
+        {
+            // ORIG：get_member_count 结果落具名槽 -0xc 后再累加
+            int memberCount = party->get_member_count();
+            total += memberCount;
+        }
     }
     return total;
 }
@@ -290,20 +291,22 @@ CParty* CQuickParty::get_party_object(int idx)
 {
     if (idx < 0 || idx > 3)
         return 0;
-    if (m_partyIndex[idx] == -1)
-        return 0;
-    return G_CGameManager()->GetParty(m_partyIndex[idx]);
+    if (m_partyIndex[idx] != -1)
+    {
+        // ORIG：GetParty 结果落具名槽 -0xc；m_partyIndex[idx] 两次完整下标读（P48/P52）
+        CParty* party = G_CGameManager()->GetParty(m_partyIndex[idx]);
+        if (party != 0)
+            return party;
+    }
+    return 0;
 }
 
 // gen_timer_key @0x08269680：计数数组位于 +0x0c 起、槽下标 (msg-0x9d)+4；
 // 先自增再返回新值。msg=0x9e 对应 +0x20 槽。
 int CQuickParty::gen_timer_key(TIMER_MESSAGE msg)
 {
-    int idx = static_cast<int>(msg) - 0x9d;
-    int* slot = reinterpret_cast<int*>(
-        reinterpret_cast<char*>(this) + 0x0c + (idx + 4) * 4);
-    ++(*slot);
-    return *slot;
+    // ORIG：计数数组 @+0x1c，槽下标 (int)msg-0x9d，先自增再返回新值
+    return ++m_timerKeyCnt[static_cast<int>(msg) - 0x9d];
 }
 
 // get_matching_quick_party_master_unique_id @0x08269936：
@@ -378,11 +381,11 @@ void CQuickParty::send_matching_update_quick_party(char poolIdx,
 void CQuickPartySystemManager::insert_timer_waiting_party_matching(
     CQuickParty* qp)
 {
-    unsigned int key = static_cast<unsigned int>(
-        qp->gen_timer_key((TIMER_MESSAGE)0x9e));
-    int idx = qp->get_quick_party_index();
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, idx,
-                                (TIMER_MESSAGE)0x9e, 0x14, key, 0x9e);
+    // ORIG：gen_timer_key→%ebx、get_quick_party_index→%esi callee-saved 缓存（P24 内联实参）
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
+                                qp->get_quick_party_index(),
+                                (TIMER_MESSAGE)0x9e, 0x14,
+                                qp->gen_timer_key((TIMER_MESSAGE)0x9e), 0x9e);
 }
 
 // remove_quick_party_in_pool —— ORIG 0x0826aa9a。
@@ -496,17 +499,13 @@ namespace QuickParty
 // ---- get_timer_key @0x08269668：读 timer key 计数数组槽（与 gen_timer_key 同址）----
 int CQuickParty::get_timer_key(TIMER_MESSAGE msg)
 {
-    return *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(this) + 0x0c +
-        (static_cast<int>(msg) - 0x9d + 4) * 4);
+    return m_timerKeyCnt[static_cast<int>(msg) - 0x9d];
 }
 
 // ---- check_timer_key @0x082696b0：槽值与给定 key 相等判断 ----
 bool CQuickParty::check_timer_key(TIMER_MESSAGE msg, int key)
 {
-    return *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(this) + 0x0c +
-        (static_cast<int>(msg) - 0x9d + 4) * 4) == key;
+    return key == m_timerKeyCnt[static_cast<int>(msg) - 0x9d];
 }
 
 // ---- set_party_index @0x0826978c：写入首个空槽（-1），全满则丢弃 ----
@@ -608,25 +607,28 @@ CQuickParty* CQuickPartySystemManager::pop_quick_party_in_pool(
         qp->set_first_matching_cnt(static_cast<char>(firstMatchingCnt));
         return qp;
     }
-
-    qp = find_quick_party_in_pool(data.m_lists[slotIdx]);
-    if (qp == 0)
+    else
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x352, 5);
-        trace("QUICK_PARTY_LOG : NO INTENDED ROUTINE!!");
-        qp = G_CGameManager()->GetQuickParty();
+        qp = find_quick_party_in_pool(data.m_lists[slotIdx]);
         if (qp == 0)
-            return 0;
-        qp->set_party_index(partyIdx);
-        outCount = firstMatchingCnt;
-        qp->set_first_matching_cnt(static_cast<char>(firstMatchingCnt));
-        return qp;
+        {
+            cMyTrace trace(
+                __PRETTY_FUNCTION__,
+                0x352, 5);
+            trace("QUICK_PARTY_LOG : NO INTENDED ROUTINE!!");
+            qp = G_CGameManager()->GetQuickParty();
+            if (qp == 0)
+                return 0;
+            qp->set_party_index(partyIdx);
+            outCount = firstMatchingCnt;
+            qp->set_first_matching_cnt(static_cast<char>(firstMatchingCnt));
+        }
+        else
+        {
+            qp->set_party_index(partyIdx);
+            outCount = qp->get_quick_party_count();
+        }
     }
-
-    qp->set_party_index(partyIdx);
-    outCount = qp->get_quick_party_count();
     return qp;
 }
 
@@ -645,7 +647,9 @@ bool CQuickPartySystemManager::regist_quick_party(
     if (qp == 0)
         return false;
     // P197-N-cap：push_quick_party_in_pool 返 bool，`==1` 被 fold（无物化）；改 exec 返回类型属越界，记 N-cap。
-    return push_quick_party_in_pool(key, data, party, outCount, qp, true);
+    if (!push_quick_party_in_pool(key, data, party, outCount, qp, true))
+        return false;
+    return true;
 }
 
 // ---- check_match_proper_party @0x08269e34：匹配前置校验，返回 ENUM_ERROR ----
@@ -923,11 +927,11 @@ CParty* CQuickPartySystemManager::make_quick_party(CQuickParty* qp)
 // InsertTimer(objType=1, partyIdx, msg=0x2d, period=0x5a, key, msg)。 ----
 void CQuickPartySystemManager::insert_timer_waiting_start_game(CParty* party)
 {
-    unsigned int key =
-        static_cast<unsigned int>(party->gen_timer_key((TIMER_MESSAGE)0x2d));
-    int partyIdx = party->GetPartyIndex();
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, partyIdx,
-                                (TIMER_MESSAGE)0x2d, 0x5a, key,
+    // ORIG：gen_timer_key→%esi、GetPartyIndex→%ebx callee-saved 缓存（P24 内联实参）
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
+                                party->GetPartyIndex(),
+                                (TIMER_MESSAGE)0x2d, 0x5a,
+                                party->gen_timer_key((TIMER_MESSAGE)0x2d),
                                 static_cast<TIMER_MESSAGE>(0x2d));
 }
 
@@ -952,7 +956,8 @@ void CQuickPartySystemManager::start_game(CQuickParty* qp)
         return;
     }
 
-    CParty* merged = make_quick_party(qp);
+    CParty* merged = 0;
+    merged = make_quick_party(qp);
     if (merged == 0)
     {
         LogManager::logFormat(

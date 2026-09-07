@@ -2353,7 +2353,7 @@ WongWork::CHackAnalyzer* CUser::getHackAnalyzer()
     return &m_hackAnalyzer;
 }
 
-unsigned char CUser::getGmQuestFlag()
+bool CUser::getGmQuestFlag()
 {
     return m_gameOption.m_gmQuestFlag;
 }
@@ -4998,7 +4998,7 @@ void CUser::SetProgLogout()
     m_clientSpec.m_progLogout = 1;   // 字段已 bool 化（ORIG IsProgLogout@0x82a6796 movzbl 直返）；&-cast 反而多余
 }
 
-unsigned char CUser::isRestingUser()
+bool CUser::isRestingUser()
 {
     return m_mcap.m_field544;   // ORIG movzbl 直返（无 test/setne）
 }

@@ -170,7 +170,7 @@ bool CEgg::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
     m_creatureItemType = (int)(char)info->m_creatureItemType;  // movsbl +0x24
     m_expireTime = info->m_expireTime;                          // +0x18 ← info+0x28
     item->m_field0 = 1;             // *item = (Inven_Item)0x1（首字节置 1）
-    m_noCharge = (info->m_noCharge != 0) ? 1 : 0;               // setne → +0x14
+    m_noCharge = (info->m_noCharge != 0);                       // setne → +0x14
     m_stat = info->m_stat;          // +0x15 ← info+0x27
 
     // ORIG call CCreatureMgr::RegisterCreatureItem(this, info->m_uid)；
@@ -180,7 +180,8 @@ bool CEgg::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
         return false;
 
     // 回填 CREATURE 区槽物：ref = getCurCharacInvenW(user)->GetInvenRef(3, slotNo)
-    Inven_Item* ref =
+    Inven_Item* ref = 0;
+    ref =
         user->getCurCharacInvenW()->GetInvenRef(
             3, reinterpret_cast<CCreatureItem*>(this)->GetSlotNo());
     ref->m_field0 = 1;              // ORIG movb $0x1,(%eax)
@@ -239,7 +240,7 @@ void CDBMsgSender::Cancel()
 // ============================================================================
 
 // 【objdump】ORIG _ZN13user_creature12CDBMsgSender11ChangeOwnerEP10Inven_Itemiiiiii
-// W 0x0833ffe8：差异体——
+// W 0x081fae8a：差异体——
 //   +0x51(byte)=p3(reason)；+0x48=p1(characNo)；hdr|=0x30；+0x2c=p2(slot)；
 //   +0x64=1；+0x68=p4(mapSize)；+0x6c=p5；+0x70=p6；返 1。
 bool CDBMsgSender::ChangeOwner(Inven_Item* item, int characNo, int slot,
@@ -249,9 +250,8 @@ bool CDBMsgSender::ChangeOwner(Inven_Item* item, int characNo, int slot,
         return false;
     SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
     memset(buf, 0, 0x74);
-    Inven_Item_Compatible* compat =
-        (Inven_Item_Compatible*)(void*)buf->m_item;   // buf+0x04
-    compat->setCopy(*item);
+    register char* compatEax asm("eax") = (char*)buf;
+    reinterpret_cast<Inven_Item_Compatible*>(compatEax + 4)->setCopy(*item);
     buf->m_addInfo2 = item->m_addInfo2;               // ← item+0x07
     buf->m_reason = (unsigned char)reason;            // +0x51
     buf->m_characNo = characNo;                       // +0x48
@@ -265,7 +265,7 @@ bool CDBMsgSender::ChangeOwner(Inven_Item* item, int characNo, int slot,
 }
 
 // 【objdump】ORIG _ZN13user_creature12CDBMsgSender12ChangeSlotNoEP10Inven_Itemiii
-// W 0x083400a4：差异体——
+// W 0x081faf4c：差异体——
 //   +0x51(byte)=p3(reason)；+0x48=p1(characNo)；hdr|=0x20；+0x2c=p2(slot)；
 //   +0x64=2；返 1（无 +0x68 区写入）。
 bool CDBMsgSender::ChangeSlotNo(Inven_Item* item, int characNo, int slot,
@@ -275,9 +275,8 @@ bool CDBMsgSender::ChangeSlotNo(Inven_Item* item, int characNo, int slot,
         return false;
     SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
     memset(buf, 0, 0x74);
-    Inven_Item_Compatible* compat =
-        (Inven_Item_Compatible*)(void*)buf->m_item;   // buf+0x04
-    compat->setCopy(*item);
+    register char* compatEax asm("eax") = (char*)buf;
+    reinterpret_cast<Inven_Item_Compatible*>(compatEax + 4)->setCopy(*item);
     buf->m_addInfo2 = item->m_addInfo2;               // ← item+0x07
     buf->m_reason = (unsigned char)reason;            // +0x51
     buf->m_characNo = characNo;                       // +0x48
@@ -287,23 +286,22 @@ bool CDBMsgSender::ChangeSlotNo(Inven_Item* item, int characNo, int slot,
     return true;
 }
 
-// 【objdump】ORIG _ZN13user_creature12CDBMsgSender13AuctionRegistEP10Inven_Itemiiii
-// W 0x08340144：差异体——
+// ORIG _ZN13user_creature12CDBMsgSender13AuctionRegistEP10Inven_Itemiiii
+// W 0x081faff2：差异体——
 //   +0x48=p1(characNo)；hdr|=0x100（or $0x1,%dh）；+0x53=1；+0x64=5；
-//   +0x68=p4(mapSize)；返 1。p2(@0x14)/p3(@0x18) 在汇编中未被使用（保留形参）。
+//   +0x51(byte)=p3(@0x18)；+0x68=p4(mapSize)；返 1。p2(@0x14) 未被使用。
 bool CDBMsgSender::AuctionRegist(Inven_Item* item, int characNo, int unused14,
-                                 int unused18, int mapSize)
+                                 int reason18, int mapSize)
 {
     (void)unused14;   // ORIG 未读
-    (void)unused18;   // ORIG 未读
     if (m_stream == 0)
         return false;
     SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
     memset(buf, 0, 0x74);
-    Inven_Item_Compatible* compat =
-        (Inven_Item_Compatible*)(void*)buf->m_item;   // buf+0x04
-    compat->setCopy(*item);
+    register char* compatEax asm("eax") = (char*)buf;
+    reinterpret_cast<Inven_Item_Compatible*>(compatEax + 4)->setCopy(*item);
     buf->m_addInfo2 = item->m_addInfo2;               // ← item+0x07
+    buf->m_reason = (unsigned char)reason18;          // +0x51 ← p3(@0x18)
     buf->m_characNo = characNo;                       // +0x48
     buf->m_hdr |= 0x100;                              // or $0x1,%dh
     buf->m_field53 = 1;                               // +0x53

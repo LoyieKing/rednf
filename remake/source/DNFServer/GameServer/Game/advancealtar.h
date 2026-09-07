@@ -90,6 +90,18 @@ struct _BuyItem {
     int m_field0; int m_field4; short m_short8; short m_short10;            // 12 字节
 };  // 12 字节
 
+// ORIG 枚举 advancealtar::RidableId::T（mangled NS_9RidableId1TE）。报告仅实证
+// 值 1 为有效坐骑：Dispatcher_StartGame/send 以常量 1 调用
+// setCurrentAdvanceAltarData(RidableId::T)；isValidRidableId 仅判 ==1。
+// 枚举器名为重建命名「推断」（ORIG 枚举器名不可从二进制恢复）。
+struct RidableId
+{
+    enum T
+    {
+        RIDEABLE = 1,
+    };
+};
+
 // _RidableBase（AdvanceAltarData 基类，+0x00；仅前 0x21 序列化，ORIG ctor 置 0）。
 // pack(1)：ORIG `_RidableBaseC1Ev`（W 0x0848f464，size 0x23）体为
 // `memset(this,0,0x21)`，成员末字段 m_field20 止于 +0x20（uchar），故真实
@@ -102,7 +114,9 @@ struct _BuyItem {
 struct _RidableBase
 {
     _RidableBase() { std::memset(this, 0, 0x21); }
-    int m_ridableId;         // +0x00（refillTicketFree 0x813159a 判定槽位坐骑）
+    RidableId::T m_ridableId; // +0x00（refillTicketFree 0x813159a 判定槽位坐骑；
+                              //   setCurrentAdvanceAltarData 0x08131254 `cmp 0xc(%ebp),%eax`
+                              //   枚举直比形态实证：int 字段恒产 mov %eax,%edx 中转，探针 cmpA/cmpE）
     int m_ticket;            // +0x04（付费票数；refillTicketFree/gmSetTicket 写入）
     // ---- +0x08..+0x20 计数区（OnlyOrig_Altar.AltarMgr 按
     //      decTicket/gmSetStar/buyItem/clearStage/resetStar 报告写点具名化；
@@ -119,18 +133,6 @@ struct _RidableBase
     unsigned char m_field20; // +0x20（setNextStage 0x081331d4 推进新幕时置 1；语义【推断】）
 };                           // pack(1) sizeof 0x21（ORIG ctor memset 0x21）
 #pragma pack(pop)
-
-// ORIG 枚举 advancealtar::RidableId::T（mangled NS_9RidableId1TE）。报告仅实证
-// 值 1 为有效坐骑：Dispatcher_StartGame/send 以常量 1 调用
-// setCurrentAdvanceAltarData(RidableId::T)；isValidRidableId 仅判 ==1。
-// 枚举器名为重建命名「推断」（ORIG 枚举器名不可从二进制恢复）。
-struct RidableId
-{
-    enum T
-    {
-        RIDEABLE = 1,
-    };
-};
 
 // ORIG T 0x8898ff0（_ZN12advancealtar16isValidRidableIdENS_9RidableId1TE）：
 // ridableId == RidableId::RIDEABLE。定义在 LinkGlobalsB2.cpp（唯一定义点）。
@@ -276,7 +278,8 @@ struct _CharacAdvanceAltarDbData
     // 整体 memset(this,0,0x51c) —— 等价于单次全清零。
     _CharacAdvanceAltarDbData() { std::memset(this, 0, sizeof(*this)); }
     unsigned int m_characNo;         // +0x00
-    _AdvanceAltarDbData m_db;        // +0x04
+    _AdvanceAltarDbData m_db[1];     // +0x04（ORIG getCharacAdvanceAltarDbData
+                                     //   0x8131710 以 stride 0x518 数组寻址实证）
 };                                   // sizeof 0x51c
 #pragma pack(pop)
 
@@ -367,7 +370,7 @@ public:
     static int dieMob(CUser* user, unsigned short mobSeq, unsigned short param,
                       const MSG_MONSTER_DIE& msg);     // ORIG T 0x08130bb8（undefined4 恒返 1【推断 int】）
     static void leaveUser(CUser* user);                // ORIG T 0x081310b2：out_from_dungeon + 0x2 make_basic_info 包广播
-    static void pause(CUser* user, bool flag);  // ORIG T 0x0813105c：Dispatcher_Pause::process_packet 调用（定义归 advancealtar_Manager.cpp [跨片协调]）
+    static int pause(CUser* user, bool flag);  // ORIG T 0x0813105c：返回 undefined4（pause 结果透传，两失败分支 mov $0）；Dispatcher_Pause::process_packet 调用（定义归 advancealtar_Manager.cpp [跨片协调]）
 };
 
 // ORIG T 0x0812cfa6 _ZN12advancealtar9isOnEventEv：s_event_manager->GetRepeatEvent(0x77)

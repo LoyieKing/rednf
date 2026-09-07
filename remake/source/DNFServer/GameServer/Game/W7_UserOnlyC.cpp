@@ -75,14 +75,16 @@ bool CPacketTimeChecker::check()
 {
     ++m_count;
     long now = time(0);
-    if (now - m_lastTime >= validSecond_)
+    // P59 极性：ORIG jge→后置赋值块，fall-through 为节流判断块。
+    if (now - m_lastTime < validSecond_)
+    {
+        if (m_count > validCount_)
+            return false;
+    }
+    else
     {
         m_lastTime = now;
         m_count = 0;
-    }
-    else if (m_count > validCount_)
-    {
-        return false;
     }
     return true;
 }
@@ -127,8 +129,8 @@ int CPacketVerifier::UpdatePacket(const _header& hdr)
         return 3;
 
     // 拍卖类包（id 0xb9..0xc2）独立计数窗口。
-    unsigned int id = hdr.m_id;
-    if ((unsigned int)(id - 0xb9) <= 8)
+    // P0：ORIG 无 id 槽，movzwl 后直接 sub/cmp。
+    if ((unsigned int)(hdr.m_id - 0xb9) <= 8)
     {
         ++m_auctionCount;
         if (m_auctionCount > m_nAuctionVaridCount)
@@ -500,14 +502,14 @@ int CUser::SetSkillLevel(int skillIdx, int level)
 // ORIG T 0x0869230a：等级段映射。
 int CUser::getReturnUserLevelKey(int level, int mode)
 {
-    if (mode != 0)
+    if (mode == 0)
     {
+        if (level <= 9) return 5;
+        if (level <= 0xe) return 10;
         if (level <= 0x13) return 0xf;
     }
     else
     {
-        if (level <= 9) return 5;
-        if (level <= 0xe) return 10;
         if (level <= 0x13) return 0xf;
     }
     if (level <= 0x1d) return 0x14;
@@ -637,13 +639,10 @@ void CUser::SendCeraShopGiftStatisticLog(unsigned int arg1, unsigned int arg2,
 // ORIG C1/C2 0x08695ef0：CommonTime 子对象刷新当前时间，其余字段清零。
 LimitItemUsage::LimitItemUsage()
 {
-    CommonTime* t = reinterpret_cast<CommonTime*>(this);
-    t->SetCurTime();
+    reinterpret_cast<CommonTime*>(this)->SetCurTime();   // P134 内联实参
     m_field10 = 0;
-    m_field11b[0] = 0;
-    m_field11b[1] = 0;
-    m_field11b[2] = 0;
-    m_field11b[3] = 0;
+    // fresh ORIG C1 为 movl $0,0x11（int 宽清零；旧"四 movb"注记作废，P196）。
+    m_field11 = 0;
     m_field15 = 0;
     m_field19 = 0;
 }
@@ -656,27 +655,28 @@ LimitItemUsage::~LimitItemUsage()
 // ORIG W 0x08688fba，报告 LimitItemUsage/isAnotherDay.md。
 bool LimitItemUsage::isAnotherDay()
 {
-    const long serverSchedule = static_cast<long>(
-        *reinterpret_cast<const int*>(reinterpret_cast<const char*>(
-                                          G_CEnvironment()) + 0x37c));
-    const CommonTime* ct = reinterpret_cast<const CommonTime*>(this);
-    const long createTime = static_cast<long>(*ct);   // operator long()
-    const long curSec =
-        static_cast<long>(GlobalData::s_systemTime_.getCurSec());
-    return CheckDailyScheduleTime(serverSchedule, createTime, curSec);
+    // 具名字段单步 mov disp（P0：ORIG 无中间槽/地址算术）。
+    // P0：ORIG 仅 serverSchedule/createTime 两槽；curSec 为内联右值直传。
+    const long serverSchedule =
+        static_cast<long>(G_CEnvironment()->m_serverEnvir.m_fatigueTime);
+    const long createTime = static_cast<long>(
+        *reinterpret_cast<const CommonTime*>(this));   // operator long()
+    return CheckDailyScheduleTime(
+        serverSchedule, createTime,
+        static_cast<long>(GlobalData::s_systemTime_.getCurSec()));
 }
 
 // ORIG W 0x08695f68。
 bool LimitItemUsage::isUsable()
 {
-    const unsigned char state = m_field10;
-    if (state == 2)
+    // P0：ORIG 三处 movzbl 直读字段，无 state 缓存槽。
+    if (m_field10 == 2)
     {
         if (m_field19 >= m_field11)
             return false;
         return true;
     }
-    if (state == 0 || state == 1)
+    if (m_field10 == 0 || m_field10 == 1)
     {
         if (isAnotherDay())
             m_field19 = 0;
@@ -731,9 +731,8 @@ void CUserEventUtil::updateCharacterDayEvent(CUser* user, int day)
 
     SIG_UPDATE_CHARACTER_DAY_EVENT* sig =
         guard->GetInBuffer<SIG_UPDATE_CHARACTER_DAY_EVENT>();
-    unsigned char* raw = reinterpret_cast<unsigned char*>(sig);
-    *reinterpret_cast<unsigned int*>(raw + 0x00) = user->get_acc_id();
-    *reinterpret_cast<short*>(raw + 0x04) = static_cast<short>(day);
+    sig->m_accId = user->get_acc_id();
+    sig->m_day = static_cast<short>(day);
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }

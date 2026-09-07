@@ -468,7 +468,7 @@ int UserQuest::set_trigger(int questIdx, char type, bool bIncrement)
 
             if (type == 1)
             {
-                m_trigger[i] = m_trigger[i] + 1;
+                ++m_trigger[i];   // b25c：++ 形 4.4 单次装载 i（探针 probe_inc s3），ORIG 同构
             }
             else
             {
@@ -839,20 +839,25 @@ void UserQuest::ResetUrgentQuestWaitingList()
     }
 
     quest2 = G_CDataManager()->find_quest(m_authenData.m_urgentQuest);
-    if (quest2 == 0)
+    // b25c 翻案：ORIG 4.1 把 quest2==0 的 return 块外置在后（je 落点岛），
+    // 且槽序 quest2/-0x18 i/-0x14 quest/-0x10 levelLimit/-0xc。if/else 反转
+    // 写法（探针 /tmp/probe_blk.cpp v_origform）4.4 下槽序与块排布逐条同构；
+    // if(q==0){return} 早退内联形两者皆反。
+    if (quest2 != 0)
+    {
+        int levelLimit = quest2->m_levelMax;
+        if (levelLimit > UrgentQuestLevelLimit::kEndLvl)
+        {
+            levelLimit = UrgentQuestLevelLimit::kEndLvl;
+        }
+        if (m_user->get_charac_level() + 1 > levelLimit)
+        {
+            m_authenData.m_urgentQuest = -1;
+        }
+    }
     {
         m_authenData.m_urgentQuest = -1;
         return;
-    }
-
-    int levelLimit = quest2->m_levelMax;
-    if (levelLimit > UrgentQuestLevelLimit::kEndLvl)
-    {
-        levelLimit = UrgentQuestLevelLimit::kEndLvl;
-    }
-    if (m_user->get_charac_level() + 1 > levelLimit)
-    {
-        m_authenData.m_urgentQuest = -1;
     }
 }
 

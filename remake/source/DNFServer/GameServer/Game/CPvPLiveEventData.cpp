@@ -110,7 +110,7 @@ bool CPvPLiveEventData::_saveData(CUser* user)
     guard.operator*();
     guard << 0x1e1;
     guard.operator*();
-    guard << user->GetUID();
+    guard << user->GetUID();   // P197② 语句表达式实测不升格 ebx（4.4 恒直存 outgoing 槽）
     guard.operator*();
     guard << (char)user->GetServerGroup();   // ORIG lsEc（movsbl 符号扩展，写 1 字节）
     guard.operator*();

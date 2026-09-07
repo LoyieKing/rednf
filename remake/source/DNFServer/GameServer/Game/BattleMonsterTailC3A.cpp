@@ -273,9 +273,11 @@ int CBattle_Field::getAddChampionMobCnt()
         break;
     }
 
-    // CMap+0x12c 非 1 时按密度掷点追加一只（ORIG movzbl/xor $1/test 的布尔判反形态）。
-    if (!m_pMap->m_12c &&
-        (baseCnt * 100 / (m_mapHeight * m_mapWidth) > get_rand_int(100)))
+    // CMap+0x12c 非 1 时按密度掷点追加一只。ORIG setg 物化→密度比较独立
+    // register bool 物化（P194）。
+    register bool denser asm("al") =
+        (baseCnt * 100 / (m_mapHeight * m_mapWidth) > get_rand_int(100));
+    if (!m_pMap->m_12c && denser)
     {
         championCnt += 1;
     }

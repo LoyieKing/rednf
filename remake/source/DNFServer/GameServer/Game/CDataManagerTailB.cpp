@@ -32,13 +32,7 @@ bool CDataManager::IsAvailablePvPChannel(int grade)
     {
         return true;
     }
-    // ORIG 0x0819ee10/1e：`jg`(m_minGrade>grade) 与 `jl`(m_maxGrade<grade) 各自直跳
-    // 共享尾 return-false 岛，return true 为 fall-through，false 块经 jmp 跳越
-    // （CNRD 落点岛形，P133）。合并 || 被 4.4 折成 max 侧反向 jge；拆成两条独立
-    // if 又各产 false 块（不共享）→ goto 落点岛让两侧共指一 false 块。
-    if (m_pvpChannel.m_minGrade > grade)
-        goto unavailable;
-    if (m_pvpChannel.m_maxGrade < grade)
+    if (m_pvpChannel.m_minGrade > grade || m_pvpChannel.m_maxGrade < grade)
         goto unavailable;
     return true;
 unavailable:

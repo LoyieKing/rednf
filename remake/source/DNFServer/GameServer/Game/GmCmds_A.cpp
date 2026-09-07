@@ -475,9 +475,11 @@ char const* CBoosterTest::getRarityStr(ENUM_RARITY rarity)
 void CBoosterTest::SendChatMsg(CUser* user, char* msg)
 {
     PacketGuard packet;
-    GameWorld* gw = G_GameWorld();
-    gw->make_packet_chat_msg(packet, user, msg, static_cast<int>(strlen(msg)),
-                             2, static_cast<ENUM_NOTIPACKET>(0xc));
+    // ORIG：strlen 先求值物化 %ebx 跨 G_GameWorld call；gw 经 eax 直通 receiver，
+    // 无具名 gw 槽（Ghidra C 顺序 strlen→G_GameWorld→make_packet_chat_msg）。
+    G_GameWorld()->make_packet_chat_msg(
+        packet, user, msg, static_cast<int>(strlen(msg)), 2,
+        static_cast<ENUM_NOTIPACKET>(0xc));
     user->Send(packet);
 }
 
@@ -513,7 +515,7 @@ void CBoosterTest::printClient(CUser* user, bool more, char const* name, char co
 bool CBoosterTest::is_gold_lottery_item(int idx)
 {
     Inven_Item lotto;
-    G_CDataManager()->getItemList()->get_lotto_item(idx, reinterpret_cast<char*>(&lotto));
+    G_CDataManager()->m_itemList->get_lotto_item(idx, reinterpret_cast<char*>(&lotto));
     return lotto.m_addInfo == 0 &&
            lotto.m_addInfo2 > 0;
 }
@@ -954,10 +956,8 @@ void CBingoGmTest::resetData()
     {
         return;
     }
-    BingoData* data = static_cast<BingoData*>(user->getBingoData());
-    data->clear();
-    data = static_cast<BingoData*>(user->getBingoData());
-    *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(data) + 6) = 1;
+    static_cast<BingoData*>(user->getBingoData())->clear();
+    static_cast<BingoData*>(user->getBingoData())->m_needSave = true;
     user->sendBingoData();
 }
 
@@ -1004,9 +1004,9 @@ void CBingoGmTest::reqValue()
             static_cast<BingoData*>(user->getBingoData())->m_pad4);
         if (gained > 0)
         {
-            // [b23S3C] ORIG +0x0f5 reg 形 clamp（读槽→cmp reg→合并 eax→写回），
-            // `if(gained>3) gained=3;` 4.4 恒出内存形；三目试复现统一写回。
-            gained = gained > 3 ? 3 : gained;
+            // [b23S3C] ORIG +0x0f5 分支形 clamp（读槽→cmp reg→jle→mov $3→写回）。
+            if (gained > 3)
+                gained = 3;
             static_cast<BingoData*>(user->getBingoData())->m_pad4 =
                 static_cast<char>(newValue);
             for (int i = 0; i < gained; ++i)

@@ -296,7 +296,7 @@ public:
     unsigned char IsVisitedCurrentMap();                               // 085bf2e8
     bool SetDamagedPacketCnt(int uid);                        // 08308f4e
     int check_movemap_range(int x, int y);                    // 08307b2a
-    int isWorldMapTowerArea();                                       // 085bf31c ORIG 直返 movzbl 无规范化(P9)，调用点 4.1 式 xor 物化
+    bool isWorldMapTowerArea();                                      // 085bf31c（P9/P22：bool 字段+bool 返回=ORIG movzbl 直返单条；调用点 xor 物化需 bool 返回）
     void set_visited_map_goto(int x, int y);                  // 08308a24
     void setEplpWaitingTimer(QuickParty::RandomBuffDungeon type);  // 0830ac7a
     void set_monster_ability();                               // 083026da

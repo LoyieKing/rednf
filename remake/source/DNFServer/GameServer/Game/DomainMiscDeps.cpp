@@ -75,14 +75,16 @@ void TimerNPCMoodChange::registNextTimer(long /*sec*/)
 // ===========================================================================
 int RegenerationROI::_0_Load_RegenerationRandomOptionItem()
 {
-    int err = importRegenerationRandomOptionScript(
+    int err = 0;                                            // ORIG movl $0,-0xc 预清
+    err = importRegenerationRandomOptionScript(
         m_regenerator, "Etc/RandomOption/RegenerationRandomOption.etc");
-    if (err == 0)
+    register bool fail asm("al") = (bool)(err != 0);        // ORIG cmp/setne/test 形
+    if (fail)                                               // ORIG je +0x18
     {
-        return 0;
+        printf("Fail to Load Random Option Item Regenerator Line : %d\n", err);
+        return err;
     }
-    printf("Fail to Load Random Option Item Regenerator Line : %d\n", err);
-    return err;
+    return 0;
 }
 
 // ===========================================================================

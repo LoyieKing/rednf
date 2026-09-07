@@ -602,7 +602,7 @@ void PacketBuf::encrypt_packet()
                             (unsigned char*)buffer, (int*)&bufferSize);
         m_size = m_size + (PKT_BODY_OFF - m_size) + bufferSize;
 
-        if (bufferSize > 0)
+        if ((int)bufferSize > 0)   // ORIG test;jle 形（signed 比较）
         {
             memcpy(m_ptr + PKT_BODY_OFF, buffer, bufferSize);
         }

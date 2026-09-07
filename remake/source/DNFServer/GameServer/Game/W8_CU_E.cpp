@@ -194,10 +194,11 @@ void CUser::initTPSkill()
     // ORIG 0x0868fdbc：直接读 getCurCharacR()->m_field7b(+0x7b) 与
     // 0x500723d0 比较（setl），不经 getCurCharacLastPlayTick（NEW 曾用
     // <= 0x500723cf，等价但字节不同）。
-    if (getCurCharacR()->m_field7b < (int)0x500723d0)
+    // P0：ORIG 有 threshold 槽（movl $0x500723d0,-0xc 预置）；SkillSlot 右值直传。
+    int tpSkillLimit = (int)0x500723d0;
+    if (getCurCharacR()->m_field7b < tpSkillLimit)
     {
-        SkillSlot* slot = (SkillSlot*)getCurCharacSkillW();
-        slot->initialize_sfp_skill();
+        ((SkillSlot*)getCurCharacSkillW())->initialize_sfp_skill();
         send_skill_info();
     }
 }
@@ -208,21 +209,17 @@ void CUser::initAllSkill()
 {
     // ORIG 0x0868fc46：直接读 getCurCharacR()->m_field7b(+0x7b) 与
     // 0x50c79ed0 比较（setl），不经 getCurCharacLastPlayTick 转发。
-    if (getCurCharacR()->m_field7b < (int)0x50c79ed0)
+    // P0：ORIG threshold 槽预置（movl $0x50c79ed0）；SkillSlot 每次右值直调。
+    int allSkillLimit = (int)0x50c79ed0;
+    if (getCurCharacR()->m_field7b < allSkillLimit)
     {
-        SkillSlot* slot = (SkillSlot*)getCurCharacSkillW();
-        slot->clear_all_skills((ENUM_SKILL_TREE_KIND)0);
-        slot = (SkillSlot*)getCurCharacSkillW();
-        slot->set_parent(this);
-        slot = (SkillSlot*)getCurCharacSkillW();
-        slot->InitSkill(false, (ENUM_SKILL_TREE_KIND)0);
+        ((SkillSlot*)getCurCharacSkillW())->clear_all_skills((ENUM_SKILL_TREE_KIND)0);
+        ((SkillSlot*)getCurCharacSkillW())->set_parent(this);
+        ((SkillSlot*)getCurCharacSkillW())->InitSkill(false, (ENUM_SKILL_TREE_KIND)0);
 
-        slot = (SkillSlot*)getCurCharacSkillW();
-        slot->clear_all_skills((ENUM_SKILL_TREE_KIND)1);
-        slot = (SkillSlot*)getCurCharacSkillW();
-        slot->set_parent(this);
-        slot = (SkillSlot*)getCurCharacSkillW();
-        slot->InitSkill(true, (ENUM_SKILL_TREE_KIND)1);
+        ((SkillSlot*)getCurCharacSkillW())->clear_all_skills((ENUM_SKILL_TREE_KIND)1);
+        ((SkillSlot*)getCurCharacSkillW())->set_parent(this);
+        ((SkillSlot*)getCurCharacSkillW())->InitSkill(true, (ENUM_SKILL_TREE_KIND)1);
 
         if (isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
         {
@@ -271,8 +268,8 @@ int CUser::get_skill_count()
 // 9. void CUser::set_skill_slot(char* data1, char* data2, int size) @0x08662aba
 void CUser::set_skill_slot(char* data1, char* data2, int size)
 {
-    SkillSlot* slot = (SkillSlot*)getCurCharacSkillW();
-    slot->set_skill_slot(data1, data2, size);
+    // P0：ORIG 无 slot 槽，getCurCharacSkillW 结果直传（%eax→(%esp)）。
+    ((SkillSlot*)getCurCharacSkillW())->set_skill_slot(data1, data2, size);
 }
 
 // ---------------------------------------------------------------------------

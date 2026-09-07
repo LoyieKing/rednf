@@ -258,10 +258,12 @@ void CUser::getHashCode(unsigned char* digestOut)
 {
     md5_context ctx;
     md5_starts(&ctx);
-    unsigned int bytes =
-        static_cast<unsigned int>(m_characList.size()) * 0x14d1u;
-    unsigned char* head = reinterpret_cast<unsigned char*>(&m_characList[0]);
-    md5_update(&ctx, head, static_cast<int>(bytes));
+    // P0/P134：ORIG 无 bytes/head 槽（imul 结果 ebx 跨 call 缓存、operator[]
+    // 结果 eax 直传），实参嵌套求值（R2L：size()*0x14d1 先物化，[0] 后算）。
+    md5_update(&ctx,
+               reinterpret_cast<unsigned char*>(&m_characList[0]),
+               static_cast<int>(
+                   static_cast<unsigned int>(m_characList.size()) * 0x14d1u));
     md5_finish(&ctx, digestOut);
 }
 
@@ -759,13 +761,20 @@ unsigned char CUser::getInformNoticeFlag(int idx)
 
 void CUser::handleInformNoticeFlag(unsigned int bitIndex)
 {
+    // P133：ORIG 三守卫各自 jne/je 直跳统一失败出口（bit>7 → byte 计算 →
+    // byte>0xf → check），独立 if 不可合并短路。
     unsigned int bit = bitIndex & 7;
+    if (bit > 7)
+        return;
     unsigned int byte = bitIndex >> 3;
-    if (bit < 8 && byte < 16 &&
-        checkInformNoticeFlag(bit, byte))
+    if (byte > 0xf)
+        return;
+    // ORIG test;je→失败出口（body fall-through），正向条件。
+    if (checkInformNoticeFlag(bit, byte))
     {
-        m_informNoticeFlags[byte] |=
-            static_cast<unsigned char>(1 << bit);
+        // ORIG lea (%ebx,%edx,1) 加法形 ⇒ 源码 +（位不重叠与 | 等价）。
+        m_informNoticeFlags[byte] =
+            static_cast<unsigned char>(m_informNoticeFlags[byte] + (1 << bit));
         enableSaveInformNoticeFlag();
     }
 }

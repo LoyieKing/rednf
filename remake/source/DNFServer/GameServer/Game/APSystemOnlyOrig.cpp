@@ -100,14 +100,12 @@ bool uncompress_zip(char* out, unsigned int& outLen, const char* in, unsigned in
     unsigned long raw =
         static_cast<unsigned long>(*reinterpret_cast<const unsigned int*>(in)) &
         0x3fffffff;
-    if (uncompress(reinterpret_cast<unsigned char*>(out), &raw,
-                   reinterpret_cast<const unsigned char*>(in + 4),
-                   static_cast<unsigned long>(inLen)) != 0)
-    {
-        outLen = static_cast<unsigned int>(raw);
-        return false;
-    }
+    int ret = uncompress(reinterpret_cast<unsigned char*>(out), &raw,
+                         reinterpret_cast<const unsigned char*>(in + 4),
+                         static_cast<unsigned long>(inLen));
     outLen = static_cast<unsigned int>(raw);
+    if (ret != 0)
+        return false;
     return true;
 }
 
@@ -191,8 +189,7 @@ bool DB_LoadActionPoint::dispatch(int a, int b, Stream* stream)
         return false;
     }
     bool ok = Select(*sig);
-    SendResult(a, b, *sig, ok);
-    return true;
+    return SendResult(a, b, *sig, ok);
 }
 
 // ParseActionClearState —— 报告全文转写。ORIG T 0x08123f50。this 未使用。
@@ -322,7 +319,7 @@ bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
 }
 
 // SendResult —— 报告全文转写。ORIG T 0x08124156。
-int DB_LoadActionPoint::SendResult(int a, int b, _SIG_LOAD_ACTION_POINT& sig, bool ok)
+bool DB_LoadActionPoint::SendResult(int a, int b, _SIG_LOAD_ACTION_POINT& sig, bool ok)
 {
     if (ok)
     {
@@ -475,12 +472,11 @@ bool DB_LoadRewardMedal::dispatch(int a, int b, Stream* stream)
     {
         return false;
     }
-    if (!Select(*sig))
+    if (Select(*sig))
     {
-        return false;
+        return SendResult(a, b, *sig);
     }
-    SendResult(a, b, *sig);
-    return true;
+    return false;
 }
 
 // Select —— 报告全文转写。ORIG T 0x08124910。
@@ -552,11 +548,11 @@ bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
 }
 
 // SendResult —— 报告全文转写。ORIG T 0x08124b8e。
-int DB_LoadRewardMedal::SendResult(int a, int b, _SIG_LOAD_REWARD_MEDAL& sig)
+bool DB_LoadRewardMedal::SendResult(int a, int b, _SIG_LOAD_REWARD_MEDAL& sig)
 {
-    Stream* s = GlobalData::s_stream_pool->Acquire(
-        "localchina/localchina_ActionPointSystem_Dispatcher.cpp", 0x1c0);
-    CStreamGuard guard(s, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                           "localchina/localchina_ActionPointSystem_Dispatcher.cpp", 0x1c0),
+                       true);
     guard.operator*()->operator<<(a);
     guard.operator*()->operator<<(b);
     guard.operator->()->put_binary(&sig, 0x13);

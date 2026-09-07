@@ -388,8 +388,8 @@ public:
     ~Quest();
 
     // 接收条件 / 检测
-    char exposeQuest() const;
-    char check_possible(const stSelectQuestParam& param) const;
+    bool exposeQuest() const;   // b25c Lane21：ORIG 0x822b5e2 movzbl 直返无规范化；调用点 !exposeQuest() 需 bool 直判
+    bool check_possible(const stSelectQuestParam& param) const;   // 同上，ORIG 尾 mov$0/1 常量岛
     char check_power_side(char side);
     bool checkPossibleJob(ENUM_CHARACTERJOB job) const;
     bool _isNeededCheckGrowType(ENUM_CHARACTERJOB job) const;
@@ -451,7 +451,7 @@ public:
     std::vector<RewardItemInfo> m_rewardItems; // +0xec
     int m_fieldF8;                             // +0xf8
     int m_fieldFC;                             // +0xfc
-    char m_exposeQuest;                        // +0x100
+    bool m_exposeQuest;                        // +0x100（ORIG movzbl 读，0/1 值域）
     char m_field101;                           // +0x101
     char m_field102;                           // +0x102
     char m_pad103;                             // +0x103

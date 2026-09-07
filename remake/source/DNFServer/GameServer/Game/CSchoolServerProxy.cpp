@@ -12,8 +12,7 @@ CSchoolServerProxy::CSchoolServerProxy(std::string ip, int port)
 
 bool CSchoolServerProxy::Init()
 {
-    const int result = m_udpHandler.InitClientSocket();
-    if (result == -1) {
+    if (m_udpHandler.InitClientSocket() == -1) {
         LogManager::logFormat(1, "DF_SchoolServerProxy.cpp",
                               __PRETTY_FUNCTION__, 0x3c,
                               "[CSchoolServerProxy::Init] Can't init udp client socket\n");

@@ -16,9 +16,8 @@ void DB_EventUpdateGrowthWeaponCharac::makeRequest(unsigned int accId,
                                                    unsigned int characNo,
                                                    int addInfo, short serverGroup)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xb914);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xb914), true);
     guard.operator*()->operator<<(0x314);
     guard.operator*()->operator<<(-1);
     guard.operator*()->operator<<(accId);       // operator<<(unsigned int) 0x080e2292

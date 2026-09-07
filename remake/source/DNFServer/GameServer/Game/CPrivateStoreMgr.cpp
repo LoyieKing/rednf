@@ -1628,21 +1628,20 @@ bool CPrivateStore::CheckValidItem(PrivateStoreItem& item, int prevAddInfo2)
         return false;
 
     int attachType = info->GetAttachType();
-    if (attachType != 0)
+    if (attachType == 0)
+        ;    // ORIG je +0x92：放行继续
+    else if (attachType == 3)
     {
-        if (attachType == 3)
-        {
-            if ((int)item.m_item.m_field0 != 1)
-                return false;
-        }
-        else
-        {
-            if (attachType != 7)
-                return false;
-            if (!item.m_item.GetTradeLimitCount())
-                return false;
-        }
+        if ((int)item.m_item.m_field0 != 1)
+            return false;
     }
+    else if (attachType == 7)
+    {
+        if (!item.m_item.GetTradeLimitCount())
+            return false;
+    }
+    else
+        return false;    // ORIG default 失败岛（85c9dd6）在 7 分支体之后
 
     if (IsCreatureItemType((unsigned int)(unsigned char)item.m_item.m_field1))
         return false;
@@ -1651,8 +1650,12 @@ bool CPrivateStore::CheckValidItem(PrivateStoreItem& item, int prevAddInfo2)
     if (info->IsCreatureItem())
         return false;
 
-    if (info->is_stackable() && (int)item.m_item.m_addInfo2 < prevAddInfo2)
-        return false;   // asm：cur>=prev 才继续
+    // ORIG 短路直跳形（test;je cont; cmp;jge cont; mov$0）——勿用 && 汇聚形
+    if (info->is_stackable())
+    {
+        if ((int)item.m_item.m_addInfo2 < prevAddInfo2)
+            return false;
+    }
 
     switch ((signed char)item.m_field46)
     {
@@ -1853,8 +1856,8 @@ bool CPrivateStore::GetItemPrice(CItem const* item, PrivateStoreItem& storeItem,
             m_errorHandler.Do(0x11);
             return false;
         }
-        int priceSnapshot = outPrice;   // ORIG 先取旧值再 Product 覆写
-        if (COperator<int>::Product(priceSnapshot, count, outPrice) != 1)
+        // ORIG 无中转槽：arg1 直载 *outPrice 旧值（4.1 前端不落临时）
+        if (COperator<int>::Product(outPrice, count, outPrice) != 1)
         {
             m_errorHandler.Do(1);
             return false;
@@ -1873,9 +1876,13 @@ bool CPrivateStore::GetItemPrice(CItem const* item, PrivateStoreItem& storeItem,
         }
     }
 
+    // ORIG choose 双岛形：jg → mov$1；else Do(1) → mov$0
     if (outPrice <= 0)
+    {
         m_errorHandler.Do(1);
-    return outPrice > 0;
+        return false;
+    }
+    return true;
 }
 
 // ---- GetCommissionPercent（ORIG T 0x85c9b8c，报告 GetCommissionPercent.md 全文）----
@@ -2096,6 +2103,8 @@ void CCharacterControllerPrivate::GetStartPoint(CUser* user, PrivateStorePos& po
     pos.m_field4 = 0xbe;
     pos.m_a = 0;
     pos.m_b = 0;
+    GameWorld* world = 0;    // P197③ ORIG movl $0x0,-0x10/-0xc 双槽预置（位于 pos 写后）
+    Village* village = 0;
     if (user == 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x183, 5);
@@ -2103,15 +2112,17 @@ void CCharacterControllerPrivate::GetStartPoint(CUser* user, PrivateStorePos& po
         return;
     }
     pos.m_a = (unsigned char)user->getCurCharacVill();
-    GameWorld* world = G_GameWorld();
-    if (world == 0)
+    world = G_GameWorld();
+    register bool world0 asm("al") = (world == 0);  // P194 sete;test;je 物化岛
+    if (world0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x18b, 5);
         trace("G_GameWorld call failed");
         return;
     }
-    Village* village = world->getUserVillage(user);
-    if (village == 0)
+    village = world->getUserVillage(user);
+    register bool village0 asm("al") = (village == 0);  // P194
+    if (village0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x190, 5);
         trace("G_GameWorld call failed");  // ORIG 原样复用该文案（0x8cbd0cf）
@@ -2229,8 +2240,10 @@ void CPrivateStoreMgr::GetStoreBuyer(IBuyer** out, CUser* user, unsigned short s
     CUser* sellerUser = 0;
     // ORIG：参数直落（mov %ax,-0x1c 单槽），无具名中转。
     sellerUser = G_GameWorld()->find_from_world(sellerIndex);
-    // ORIG +0x2d 死 cmpl（flags 存活至 call 前被 mov 序列保留）：逗号算符复现。
-    GetStoreBuyer(out, user, (sellerUser != 0, sellerUser));
+    // ORIG +0x2d 死 cmpl $0x0,-0xc(%ebp)（无 jcc）：4.1 遗留。4.4 前端对一切
+    // discarded null 检查整块消除（探针 /tmp/l6p/p.cpp,q.cpp：if(p){}/p!=0;/
+    // (void)(p!=0)/while(p==0)break 全无纯 cmp 形）→ N 封顶，仅此 1 条差。
+    GetStoreBuyer(out, user, sellerUser);
 }
 
 // ORIG T 0x85caa8a（报告 Enter.md 逐指令）：委托 LoadPrivateStore(user)，恒返 1。

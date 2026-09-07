@@ -198,7 +198,10 @@ public:
     std::vector<int> m_checkTypes;                        // +0x14（resetHackInfo clear）
     int m_field20;                                        // +0x20（收集起始秒）
     int m_field24;                                        // +0x24（采集结束秒）
-    char m_cntRegion[0x7a08 - 0x28];                      // +0x28 计数区（ctor memset 段）
+    int m_serverHackCntA[0xf3c];                          // +0x28 A 表（ctor memset 段前半；
+                                                          //   0x28=8+8*4 ⇒ add $0x8 拆分）
+    int m_serverHackCntB[0xf3c];                          // +0x3d18 B 表（0x3d18=8+0xf44*4 ⇒
+                                                          //   add $0xf44 拆分）
     int m_field7a08;                                      // +0x7a08
     std::map<int, int> m_exceptionCntMap;                 // +0x7a0c
     std::vector<int> m_checkRateHackTypes;                // +0x7a24（AddCheckRateHackTypeList 填充）

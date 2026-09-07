@@ -111,7 +111,7 @@ int DoSuperFastHash(unsigned char* data, unsigned int len, unsigned int& hash)
 // SuperFastHash 后取 4 字节摘要逐字节 xor 再 xor 种子。
 unsigned char MakeHash(unsigned char* data, unsigned int len, unsigned char seed)
 {
-    unsigned int hash = 0;
+    unsigned int hash;   // ORIG 无 init store（DoSuperFastHash 出参槽直传）
     DoSuperFastHash(data, len, hash);
     unsigned char* digest = reinterpret_cast<unsigned char*>(&hash);
     return static_cast<unsigned char>(digest[0] ^ digest[1] ^ digest[2] ^
@@ -228,7 +228,8 @@ void SetUserManagerToolIP(CUser* user, SIG_UPDATE_LOGOUT* sig)
 unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
                                   unsigned char seed)
 {
-    unsigned int h = 0;
+    // ORIG h 槽无预清（DoSuperFastHash 覆写）。
+    unsigned int h;
     DoSuperFastHash(data, len, h);
     unsigned char* p = reinterpret_cast<unsigned char*>(&h);
     unsigned char v = static_cast<unsigned char>(

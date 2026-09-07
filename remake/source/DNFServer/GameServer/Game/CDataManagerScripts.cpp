@@ -542,8 +542,8 @@ int CNPCScriptList::getFavorLevel(unsigned short favorExp) const
 // m_favorExp[level]（level 0 返 0），越界（>3）返 getMaxFavorValue()。
 unsigned int CNPCScriptList::getFavorLevelValue(unsigned int level) const
 {
-    // 【N】ORIG 0x8581751 `sub $0x18`，我们 O0 下 `sub $0x14`（未用数组局部不占槽，
-    //   加 char pad[8] 无法抬帧，曾试行无效去之）；返回 ushort 恒产双 movzwl
+    // 【N】ORIG 0x8581751 `sub $0x18`，我们 `sub $0x14`（char pad[8]/double
+    //   framePad+(void)& 两探针均无法抬帧）；返回 ushort 恒产双 movzwl
     //   （0x858177d ORIG 单条 movzwl），4.4 双扩 artifact。语义与 ORIG 全等。
     if (level > 3)
         return getMaxFavorValue();
@@ -2674,15 +2674,20 @@ pvp_channel_info_t::pvp_channel_info_t()
 bool STExpertJobScript::isBoundaryExpValue(int exp)
 {
     // ORIG 0x849f423 push %ebx + 0x849f430 mov 0xc(%ebp),%ebx：exp 跨 call 驻
-    // callee-saved 寄存器（技巧2）；i 槽 -0xc 先初始化（0x849f42b）。
+    // callee-saved 寄存器；i 槽 -0xc 先初始化（0x849f42b）。
     size_t i = 0;
-    register int e asm("ebx") = exp;
     for (; i < m_expVec.size(); ++i)
     {
+        // ORIG exp→ebx 装载位于循环体首条（每轮重装载），4.4 对函数级
+        // register 局部恒前置单次装载（N88 位置差）；体内声明复现逐轮装载。
+        register int e = exp;
         if (m_expVec[i].m_exp == e)
             return true;
     }
     return false;
+    // 残差 ndiff 2（32=32）定性：exp→ebx 逐轮装载已由体内声明复现；
+    // `cmp %eax,%ebx`（ORIG，dst=exp 局部）vs `cmp %ebx,%eax`（4.4 恒
+    // dst=call 结果方）= N22，probe 穷举不可翻。
 }
 
 // STExpertJobScript::GetLevel（TSV 修复发明符号：_ZN17STExpertJobScript8GetLevelEj，ORIG 0x08693ba0）。
@@ -2780,14 +2785,15 @@ double GuildParameterScript::getExpWeight(int guildLevel)
 // level∈[1,16] 返回 m_levelUpCost+(level-1)*8 的地址（按 int 口径），否则 0。
 int GuildParameterScript::getGuildLevelUpParam(int level)
 {
-    // ORIG 0x0897964b：双 guard 同落点 + 体 = base(lea 0x5c(this)) 物化后
-    // `(level-1)*8` 与 base lea 合并（P58 类型化指针消 load-copy）。
-    if (!(level > 0))
+    if (level <= 0 || level > 0x10)
         return 0;
-    if (!(level <= 0x10))
-        return 0;
-    const char* base = reinterpret_cast<const char*>(&m_levelUpCost[0]);
-    return reinterpret_cast<int>(base + (level - 1) * 8);
+    // 残差 N4：4.4 对 this+0x5c 与 (level-1)*8 组合恒生 add 链（mov;add$0x5c;
+    // mov;sub;shl;add），4.1 为 lea 0x5c(base),%edx 物化+lea (edx,eax,1)；
+    // &arr[i-1] 下标型 / level*8-8 / register idx 三探针均不可翻 lea 形。
+    // [b25c复验] 现 16=16 条数全等、仅 lea/add 形差（ORIG lea 0x5c(%eax),%edx
+    // + lea (%edx,%eax,1) vs OURS add 链），条数差 0，N4 判词维持。
+    return reinterpret_cast<int>(reinterpret_cast<const char*>(m_levelUpCost)
+                                 + level * 8 - 8);
 }
 
 // ---- GuildParameterScript::getLevelupPrice（ORIG T 0x089797a4）----

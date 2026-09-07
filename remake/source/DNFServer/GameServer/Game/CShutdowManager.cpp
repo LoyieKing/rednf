@@ -55,8 +55,12 @@ unsigned int CShutdowManager::SendLastMsgDBQueue(CUser* user)
 bool CShutdowManager::WaitUntilExitThread()
 {
     std::printf("WaitUntilExitThread (%d)\n", (int)(unsigned char)m_flag);
-    if ((unsigned char)m_flag != 0)
+    register unsigned char v asm("eax") = m_flag;
+    v ^= 1;
+    if (v)
+    {
         return true;
+    }
     // ORIG 0x82a396e 逐条转写：按地址序 join 7 个线程全局（s_dispatch_thr →
     // s_udp_thr → s_monitor_tcp_thr → s_db_thr → s_db_thr_for_logDB →
     // s_accept_thr → s_net_thr），每次 join 后 puts 对应描述串。
@@ -108,10 +112,9 @@ void CShutdowManager::EnableShutdown(bool on)
 //   GlobalData::s_server_stop = 1。
 void CShutdowManager::OnAllUserLogout()
 {
-    // ORIG +0x0b-0x13 `movzbl; xor $1; test %al; jne <尾 ret>`——4.1 对
-    // `!char(∈{0,1})` 的 xor 守卫形；4.4 恒出 test/je 直跳（P197④/setcc-fold
-    // 系，源形不可复现，(m_flag^1) 实测走 sete 更长）。判 N 保留直跳。
-    if (!m_flag)
+    register unsigned char v2 asm("eax") = m_flag;
+    v2 ^= 1;
+    if (v2)
     {
         return;
     }

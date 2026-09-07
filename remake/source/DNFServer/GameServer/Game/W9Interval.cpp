@@ -10,11 +10,12 @@
 //   lhs.start < rhs.start → -1；相等 → 0；大于 → 1。
 static int CompareIntervalForSort(const void* lhs, const void* rhs)
 {
-    const long ls = *static_cast<const long*>(lhs);
-    const long rs = *static_cast<const long*>(rhs);
-    if (ls < rs)
+    // P0：ORIG 槽存的是指针（-0x8/-0x4），使用点解引用 → 指针局部非值局部。
+    const long* lp = static_cast<const long*>(lhs);
+    const long* rp = static_cast<const long*>(rhs);
+    if (*lp < *rp)
         return -1;
-    if (ls == rs)
+    if (*lp == *rp)
         return 0;
     return 1;
 }

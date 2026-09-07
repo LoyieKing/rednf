@@ -315,7 +315,11 @@ struct SIG_MERCENARY_DB_DATA
 
 struct SIG_MILEAGE_STRUCT
 {
-    char m_pad[0xc];
+    // Lane9 字段化（§8.3）：ORIG CUser::LoadMileage 0x086507b0 三写实证
+    // (0)=acc_id、(4)=characNo、(8)=0；布局/sizeof 不变。
+    unsigned int m_accId;      // +0x00
+    unsigned int m_characNo;   // +0x04
+    unsigned int m_mileage;    // +0x08
 };
 
 // SIG_MOUSE_REGISTER（0x59）—— ORIG 权威布局
@@ -415,7 +419,7 @@ struct SIG_ONLINE_PRELIMINARY_TEAM
 {
     int            m_teamId;         // +0x00（COnlinePreliminaryTeam::m_field04）
     char           m_teamName[0x10]; // +0x04 队名（strncpy 0xf + 终止位）
-    int            m_rating;         // +0x14 rating 位模式（成员 m_field08 int，ORIG movl 4B 直拷无 cvt）
+    float          m_rating;         // +0x14 rating 位模式（成员 float，ORIG movl 4B 直拷无 cvt）
     int            m_winCount;       // +0x18 movl
     int            m_loseCount;      // +0x1c movl
 };

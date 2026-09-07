@@ -85,7 +85,7 @@ void COnlinePreliminaryTeam::Reset()
     m_field00 = 0;
     m_field04 = 0;
     memset(m_field14, 0, 0x10);
-    m_field08 = 0;
+    m_rating08 = 0;
     m_winCount = 0;
     m_loseCount = 0;
     m_playCountMap.clear();
@@ -112,14 +112,14 @@ void COnlinePreliminaryTeam::IncreaseLoseCount()
 void COnlinePreliminaryTeam::SetRating(float rating)
 {
     // ORIG 内联 float→int 位拷贝（mov），不调 memcpy（我们 17→ORIG 9）
-    m_field08 = *reinterpret_cast<int*>(&rating);
+    m_rating08 = rating;
     m_hasWinFlag = 1;
 }
 
 // ORIG W 0x08568eee GetRating() const【推断：objdump】：flds *(float*)(this+8)。
 float COnlinePreliminaryTeam::GetRating() const
 {
-    return *reinterpret_cast<const float*>(&m_field08);   // ORIG flds *(float*)(this+8)（9 insns，不 memcpy）
+    return m_rating08;   // ORIG flds *(float*)(this+8)
 }
 
 // ---- CurrentUserCount 族：全部操作 *(int*)(this+0x0)，无标志写入 ----
@@ -205,7 +205,7 @@ void COnlinePreliminaryTeam::saveData()
 // call 重定位未解析 + 数据地址（--no-compile 读未 relink .o），relink 后转 AE。
 bool COnlinePreliminaryTeam::_saveTeam()
 {
-    if (m_hasWinFlag != 1)
+    if (!m_hasWinFlag)
         return true;
 
     CStreamGuard guard(
@@ -219,7 +219,7 @@ bool COnlinePreliminaryTeam::_saveTeam()
     SIG_ONLINE_PRELIMINARY_TEAM* t =
         guard->GetInBuffer<SIG_ONLINE_PRELIMINARY_TEAM>();
     t->m_teamId = m_field04;
-    t->m_rating = m_field08;
+    t->m_rating = m_rating08;
     t->m_winCount = m_winCount;
     t->m_loseCount = m_loseCount;
 
@@ -281,16 +281,17 @@ void COnlinePreliminaryTeam::_saveTeamMatchList()
 
 // ORIG T 0x085882b8：data[0]→teamId(+0x4)；strncpy(name,data+4,0xf)；
 // data[0x14]→rating(+0x8)、data[0x18]→win、data[0x1c]→lose；返回 1。
-void COnlinePreliminaryTeam::loadDataPreliminaryTeam(char* data)
+int COnlinePreliminaryTeam::loadDataPreliminaryTeam(char* data)
 {
     // 签名保持 char*（ORIG mangled …EPc）；data 即 TEAM 序列化缓冲布局。
     SIG_ONLINE_PRELIMINARY_TEAM* d =
         reinterpret_cast<SIG_ONLINE_PRELIMINARY_TEAM*>(data);
     m_field04 = d->m_teamId;
     strncpy(m_field14, d->m_teamName, 0xf);
-    m_field08 = static_cast<int>(d->m_rating);
+    m_rating08 = d->m_rating;
     m_winCount = d->m_winCount;
     m_loseCount = d->m_loseCount;
+    return 1;
 }
 
 // ORIG T 0x0858831a：data 布局 int matchCount@+4 + 每 8 字节记录

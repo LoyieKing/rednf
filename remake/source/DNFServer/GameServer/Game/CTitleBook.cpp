@@ -27,15 +27,17 @@
 // 其余/越界(>0x12)→6。原 GameStubs.cpp 定义迁移。
 int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space)
 {
+    int result = 6;
     switch (space) {
-    case (ENUM_ITEMSPACE)0:   return 1;
-    case (ENUM_ITEMSPACE)1:   return 2;
-    case (ENUM_ITEMSPACE)2:   return 4;
-    case (ENUM_ITEMSPACE)3:   return 0;
-    case (ENUM_ITEMSPACE)7:   return 3;
-    case (ENUM_ITEMSPACE)0x12: return 5;
-    default:  return 6;
+    case (ENUM_ITEMSPACE)3:   result = 0; break;
+    case (ENUM_ITEMSPACE)1:   result = 2; break;
+    case (ENUM_ITEMSPACE)0:   result = 1; break;
+    case (ENUM_ITEMSPACE)7:   result = 3; break;
+    case (ENUM_ITEMSPACE)2:   result = 4; break;
+    case (ENUM_ITEMSPACE)0x12: result = 5; break;
+    default:  result = 6; break;
     }
+    return result;
 }
 // ---- ORIG 真实符号（自由函数 / 跨类方法，普通 C++ 声明，无 extern "C" 桥） ----
 // _checkTimeoutItem（ORIG 0x867cf8d T）定义于 CDataManagerScripts.cpp。
@@ -127,7 +129,8 @@ public:
 };
 
 
-const int TITLE_BOOK_MAX[4] = { 0x46, 0xc8, 0x78, 0x3c };
+// ORIG _ZL14TITLE_BOOK_MAX @0x8e2e484：TU-local static（P204③）
+static const int TITLE_BOOK_MAX[4] = { 0x46, 0xc8, 0x78, 0x3c };
 
 // ---- CDataManager 称号表（+0xa788 stTitleBookInfo，0x58 字节） ----
 struct CTitleBookInfoRaw
@@ -203,8 +206,8 @@ bool CTitleBook::_saveData(CUser* pUser)
     **guard << 0x285;
     **guard << (int)pUser->GetUID();
     stTitleBook_Save* pData = guard->GetInBuffer<stTitleBook_Save>();
-    bool bRet = (pData != 0);
-    if (bRet)
+    if (pData == 0)
+        return 0;
     {
         std::memset(pData, 0, 0x6b3e);
         pData->m_characNo = pUser->get_charac_no(-1);
@@ -217,7 +220,7 @@ bool CTitleBook::_saveData(CUser* pUser)
                     0xe4c);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
-    return bRet;
+    return 1;
 }
 void CTitleBook::_reset()
 {
@@ -247,18 +250,21 @@ Inven_Item CTitleBook::getTitleSlotR(ENUM_TITLE_BOOK_CATEGORY category,
 bool CTitleBook::findItemLock(unsigned char lock, ENUM_ITEMSPACE& space,
                               int& slot) const
 {
-    for (int category = 0; category < 4; ++category)
+    int category = 0;
+    for (;;)
     {
         for (int i = 0; i < TITLE_BOOK_MAX[category]; ++i)
         {
-            const Inven_Item* item = m_category[category] + i;
-            if (item->m_amp.GetLock() == lock)
+            if (m_category[category][i].m_amp.GetLock() == lock)
             {
                 space = (ENUM_ITEMSPACE)(category + 0x13);
                 slot = i;
                 return 1;
             }
         }
+        if (++category <= 3)
+            continue;
+        return 0;
     }
     return 0;
 }
@@ -726,9 +732,9 @@ Inven_Item* CTitleBook::_getTitle(ENUM_TITLE_BOOK_CATEGORY category, int slot)
 
 Inven_Item CTitleBook::_getTitleR(ENUM_TITLE_BOOK_CATEGORY category, int slot)
 {
-    Inven_Item out;
-    std::memmove(&out, m_category[(int)category] + slot, 0x3d);
-    return out;
+    // ORIG 0x8641db0：无 out 构造（POD 聚合返回=单 memmove 0x3d）；Inven_Item
+    // 现含 union 位域后 out 声明会引入构造调用（新头基线实测）。
+    return m_category[(int)category][slot];
 }
 
 void CTitleBook::_insertTitle(ENUM_TITLE_BOOK_CATEGORY category, int slot,

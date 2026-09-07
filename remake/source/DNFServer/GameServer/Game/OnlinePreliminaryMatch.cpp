@@ -171,6 +171,8 @@ void CEloRating::calc(float& ratingSelf, float& ratingOther,
         score = 0.5f;
     else if ((int)sys == 2)
         score = 1.0f;
+    else if ((int)sys == 0)
+        score = 0.0f;
 
     lose = 1.0f - score;
     ratingSelf  = ra + (float)k * (score - ea);
@@ -274,13 +276,11 @@ int COnlinePreliminary::_PutInRoom(CUser* user, PvP_Room* room, bool observer)
         pkt.put_byte(err);
         pkt.finalize(true);
         user->Send(pkt);
+        return seat;
     }
-    else
-    {
-        room->make_seat_info((char*)(PacketGuard*)&pkt, seat);  // T 0x85db9e2
-        G_GameWorld()->send_all(pkt);
-        G_GameWorld()->goto_pvp(user);
-    }
+    room->make_seat_info((char*)(PacketGuard*)&pkt, seat);  // T 0x85db9e2
+    G_GameWorld()->send_all(pkt);
+    G_GameWorld()->goto_pvp(user);
     return seat;
 }
 
@@ -499,12 +499,13 @@ int COnlinePreliminary::CheckJoinable(PvP_Room* room, CUser* user)
                 return 4;
             return 0;
         }
-    case 1:                     // 各 case 独立 body 才触发 4.4 O0 出表
-        return 4;               // （cmp $5;ja;mov table(%eax,4);jmp *%eax，
-    case 3:
+    case 3:                     /* 叶岛序（P46：叶排放=case 书写序，跳表
+                                 * @8ca230c：3→0 岛、1/4/5→共享 4 岛、
+                                 * 2/default→共享 4 岛） */
         return 0;
+    case 1:                     /* 1/4/5 标签叠放：4.1 同体 case 合并共享岛
+                                 * （跳表 1/4/5→同一块），4.4 需显式叠放 */
     case 4:
-        return 4;
     case 5:
         return 4;
     default:
@@ -1198,11 +1199,10 @@ float COnlinePreliminary::GetGap(IMatch* other)
     /* ORIG @08561a14 float 局部 0.0f 两段物化到 -0x8【技巧43】；具名指针
      * 中转 other→-0x4(@08561a1c)【技巧13】；首 call 结果 fstps -0x14、次
      * call 结果免 spill 直接 fsubrs(@08561a4b) */
-    float theirs = 0.0f;
+    float theirs = 0.0f;   // ORIG -0x8 死局部（写 0 后未被读）
     COnlinePreliminary* o = static_cast<COnlinePreliminary*>(other);
-    const float mine = _GetRating(static_cast<ENUM_SCHOOL_MATCH_TEAM>(0));
-    theirs = o->_GetRating(static_cast<ENUM_SCHOOL_MATCH_TEAM>(0));
-    return fabsf(mine - theirs);
+    return fabsf(_GetRating(static_cast<ENUM_SCHOOL_MATCH_TEAM>(0))
+                 - o->_GetRating(static_cast<ENUM_SCHOOL_MATCH_TEAM>(0)));
 }
 
 /* ORIG T 0x085620c8：仅 team0 前四席视图，占用且 state==1 才有效 */

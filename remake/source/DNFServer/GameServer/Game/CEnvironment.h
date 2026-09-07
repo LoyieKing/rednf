@@ -68,7 +68,7 @@ public:
     static const char sm_chain0[8];
 
     unsigned char m_key[0x10];    // +0x18
-    unsigned char m_iv[0x10];     // +0x28
+    unsigned int m_iv[4];         // +0x28（同布局 0x10B；uint[4] 下标供 BytesToWord 实参 lea 一次成址）
     unsigned char m_chain[8];     // +0x38
     unsigned char m_chain2[8];    // +0x40
 };

@@ -221,31 +221,31 @@ CharString replace(const CharString& str, const char* pat, int patLength,
     wordDelta = targetLength - patLength;
     nowLength = strLength;
     newLength = wordDelta * replaceCount + strLength;
-    if (newLength != 0)
+    if (newLength == 0)
     {
-        newData = CharStringData::createTerminated(newLength);
-        newBuffer = newData->getBuffer();
-        i2 = 0;
-        ni = 0;
-        while (i2 < strLength)
-        {
-            if (i2 > strLength - patLength ||
-                memcmp(strBuffer + i2, pat, patLength) != 0)
-            {
-                newBuffer[ni] = strBuffer[i2];
-                ++ni;
-                ++i2;
-            }
-            else
-            {
-                memcpy(newBuffer + ni, target, targetLength);
-                i2 += patLength;
-                ni += targetLength;
-            }
-        }
-        return CharString(newData);
+        return CharString();
     }
-    return CharString();
+    newData = CharStringData::createTerminated(newLength);
+    newBuffer = newData->getBuffer();
+    i2 = 0;
+    ni = 0;
+    while (i2 < strLength)
+    {
+        if (i2 <= strLength - patLength &&
+            memcmp(strBuffer + i2, pat, patLength) == 0)
+        {
+            memcpy(newBuffer + ni, target, targetLength);
+            i2 += patLength;
+            ni += targetLength;
+        }
+        else
+        {
+            newBuffer[ni] = strBuffer[i2];
+            ++ni;
+            ++i2;
+        }
+    }
+    return CharString(newData);
 }
 
 // _Z7replaceRK10CharStringPKcS3_ 0x08ad7bd7

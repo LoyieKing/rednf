@@ -35,10 +35,10 @@ struct comoboSkillData
 #pragma pack(push, 1)
 struct SIG_COMBO_SKILL
 {
-    int m_characNo;                  // +0x00
+    unsigned int m_characNo;         // +0x00（unsigned：SkillSlot getComboSkillSaveData ORIG 0x08608ba6 存储中转节奏实证）
     unsigned char m_tree1Count;      // +0x04
     unsigned char m_tree2Count;      // +0x05
-    int m_job;                       // +0x06
+    unsigned int m_job;              // +0x06（unsigned：同上，0x08608bba 中转实证）
     comoboSkillData m_tree1Data[6];  // +0x0a
     comoboSkillData m_tree2Data[6];  // +0x5e
 

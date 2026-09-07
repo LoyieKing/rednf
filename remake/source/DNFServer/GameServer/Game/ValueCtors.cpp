@@ -92,11 +92,10 @@ bool stSeriaBlessingScript::FindOneByLv::operator()(
         if (p.second.m_minLv == m_lv)
             return true;
     }
-    if (p.second.m_minLv > m_lv)
-        return false;
-    if (m_lv >= p.second.m_maxLv)
-        return false;
-    return true;
+    // b25c：ORIG 两 if 共享后置 mov$0 块（jg/jge 同落 +0x4e）；4.4 对独立
+    // if-return 内联 mov$0。!(A||B) 形（探针 /tmp/probe_fob.cpp f2）复现共享
+    // 块布局，残差仅块4 cmp 操作数序反转（N22 族）。
+    return !(p.second.m_minLv > m_lv || m_lv >= p.second.m_maxLv);
 }
 
 // ---------------------------------------------------------------------------
@@ -114,13 +113,19 @@ void stLevelUpRewardItemScript::GetGrowUpRewardItemFunctor::operator()(
     const std::pair<const LevelUpRewardItemTableKey,
                     LevelUpRewardItemData>& p) const
 {
-    if (m_key->m_grow != p.first.m_grow)
-        return;
-    if (m_key->m_job != p.first.m_job)
-        return;
-    if ((int)p.first.m_lv > (int)m_key->m_lv)
-        return;
-    m_out->push_back(p.second);
+    // b25c：ORIG 四早退共享出口（jne/jne/jg 同落 +0x59），平铺 if-return 在
+    // 4.4 生 4 个 jmp 中继（P63）。正向嵌套形共享函数尾；ORIG 块3 为 16 位
+    // cmp+jg（无 cast 直接比较，4.1 宽度行为，4.4 整型提升恒 32 位 → N 残差）。
+    if (m_key->m_grow == p.first.m_grow)
+    {
+        if (m_key->m_job == p.first.m_job)
+        {
+            if (p.first.m_lv > m_key->m_lv)
+            {
+                m_out->push_back(p.second);
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

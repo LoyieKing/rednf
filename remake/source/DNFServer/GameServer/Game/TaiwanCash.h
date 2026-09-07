@@ -59,7 +59,7 @@ public:
 
     bool setQuery(MySQL& db);    // ORIG 0x081745aa：call usp_purchase('%s','%s',%u,%u,@out_tran,@out_code)
     bool execQuery(MySQL& db);   // ORIG 0x081745f2：return db.exec(true)（processBilling 检查返回值）
-    int getResult(MySQL& db);    // ORIG 0x0817460e：select @out_tran,@out_code；失败抛 int 错误码
+    bool getResult(MySQL& db);   // ORIG 0x0817460e：select @out_tran,@out_code；失败抛 int 错误码
 
 private:
     const char* m_account;       // +0x00
@@ -153,11 +153,13 @@ public:
     {
         Guard<Mutex> guard(&m_mutex);
         increaseRequest();
-        if (!query.setQuery(m_mysql))
-            return false;
-        if (!query.execQuery(m_mysql))
-            return false;
-        return query.getResult(m_mysql) != 0;  // getResult 失败路径以 int 异常上抛
+        // 嵌套正向形：4.4 出 test;je 链 + 共享后置失败块（ORIG 0x08173f0c 同形）。
+        if (query.setQuery(m_mysql)) {
+            if (query.execQuery(m_mysql)) {
+                return query.getResult(m_mysql);  // ORIG 透传形（bool 化后 mov %eax,%ebx）
+            }
+        }
+        return false;
     }
 
 private:

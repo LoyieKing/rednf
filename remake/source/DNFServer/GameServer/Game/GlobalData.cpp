@@ -2987,7 +2987,9 @@ WongWork::CGMAccounts::~CGMAccounts()
 }
 bool WongWork::CGMAccounts::isGM(unsigned int mid)
 {
-    WongWork::CGMAccounts::stGMInfo_t key(mid, 3);
+    WongWork::CGMAccounts::stGMInfo_t key;   // POD 无用户 ctor（ORIG nm 无 C1）
+    key.mid = mid;
+    key.type = 3;
     std::list<WongWork::CGMAccounts::stGMInfo_t>::iterator it =
         std::find(m_gmList.begin(), m_gmList.end(), key);
     return it != m_gmList.end();
@@ -5760,7 +5762,7 @@ CmmChannelProxy* GlobalData::s_channel_proxy = 0;
 CRijndael* GlobalData::s_pcryptRijndael_CharacView_ = 0;
 CRijndael* GlobalData::s_pcryptRijndael_Password_ = 0;
 CRijndael* GlobalData::s_pcryptRijndael_MousePassword_ = 0;
-Cipher* GlobalData::s_secu_cipher_keystring_manager_[0x4e20] = {0};
+GlobalData::SecuCipherKeyRec GlobalData::s_secu_cipher_keystring_manager_[0x4e20] = {0};
 CTEA* GlobalData::s_pcryptTEA_MousePassword_ = 0;
 CTEA* GlobalData::s_pcryptTEA_SecurityCard_ = 0;
 // [b22判词·N-工具名碰撞+编译器生成] idx9 __tcf_0 是本 TU 静态数组 g_SPremiumInfo[0x6a]

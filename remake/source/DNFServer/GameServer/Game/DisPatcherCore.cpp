@@ -1494,7 +1494,7 @@ void DisPatcher_SelectCharac::RequestDBInventory(CUser* user, MSG_CHARAC_SELECT&
 // ORIG T 0x081c7c1c（RequestDBInventory_forchina.md）：SIG 8 → CACHE_INVENTORY；
 // BigStreamPool；memset 0x1544c 后 acc/charac/tagInven 清理/+0x8←MSG.m_0e。
 // 尾部两分支均返回 1（ORIG esi 未初始化路径经 test ebx 归一为恒真）。
-void DisPatcher_SelectCharac::RequestDBInventory_forchina(CUser* user,
+int DisPatcher_SelectCharac::RequestDBInventory_forchina(CUser* user,
                                                           MSG_CHARAC_SELECT& msg)
 {
     CStreamGuard guard(
@@ -1517,10 +1517,12 @@ void DisPatcher_SelectCharac::RequestDBInventory_forchina(CUser* user,
     if (user->IsValidLastLoginCharac())
     {
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)5, guard);
+        return 1;
     }
     else
     {
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        return 1;
     }
 }
 
@@ -6632,16 +6634,13 @@ int DisPatcher_ChangeSkill::check_error(CUser* user, MSG_BASE& msg)
         goto L_checkNe;
     }
 L_checkEq:
-    if (pReq->m_head[0xd] == 1)
-    {
-        return 0x13;
-    }
-    goto L_ret0;
-L_checkNe:
     if (pReq->m_head[0xd] != 1)
-    {
-        return 0x13;
-    }
+        goto L_ret0;
+    return 0x13;
+L_checkNe:
+    if (pReq->m_head[0xd] == 1)
+        goto L_ret0;
+    return 0x13;
 L_ret0:
     return 0;
 }
@@ -11816,7 +11815,6 @@ int DIspatcher_OneDayLetheTicket::dispatch_sig(CUser* user, PacketBuf& /*packet*
     if (!lethe->ResetSkillReq(user))
     {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xd5), 1);
-        return 0;
     }
     return 0;
 }
@@ -11852,10 +11850,10 @@ int Dispatcer_polic_one_to_one_chat_disable::dispatch_sig(CUser* user, PacketBuf
         if (user->isGMUser())
         {
             pkt.m_gmId = user->getCurCharacNo();
-            register char* pkb asm("ebx") = reinterpret_cast<char*>(&pkt);  // ORIG lea -0x38,%ebx
-            CMonitorServerProxy* proxy =
-                GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
-            proxy->SendTcpPacket(pkb, sizeof(pkt));
+            // ORIG：GetServerProxy 返回值寄存器直传 SendTcpPacket（无 proxy 具名槽）。
+            // P52/P200：&pkt 作实参直传，跨 GetServerGroup/GetServerProxy 存活 → 4.4 落 %ebx。
+            GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
+                ->SendTcpPacket(reinterpret_cast<char*>(&pkt), sizeof(pkt));
         }
     }
     return 0;

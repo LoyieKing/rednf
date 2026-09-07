@@ -62,8 +62,11 @@ void BitsetToStr(const std::bitset<256>& bitset, unsigned char* out)
 {
     for (int i = 0; i < 32; ++i)
     {
+        // ORIG 槽序 j(-0x10)、byte(-0x11)、i(-0xc)：j 先于 byte 初始化（P28/P191
+        // 双 init 形），内层循环槽往返 movzbl/lea 形。
+        int j = 0;
         unsigned char byte = 0;
-        for (int j = 0; j < 8; ++j)
+        for (j = 0; j < 8; ++j)
             byte += (unsigned char)(bitset[i * 8 + j] << j);
         out[i] = byte;
     }
@@ -693,9 +696,12 @@ int CMissionList_Charac::getNewMission(CUser& user, int kind)
         (CMission*)G_CDataManager()->find_mission(kind);
     if (mission)
     {
-        ClearMissionKind(user, (short)mission->GetMissionKind());
+        // ORIG kind 落槽 -0xc（P0 具名局部；槽序 mission=-0x10 先、kind=-0xc 后）。
+        int missionKind = mission->GetMissionKind();
+        ClearMissionKind(user, (short)missionKind);
     }
-    return 0;
+    // ORIG 尾无 mov $0x0（call ClearMissionKind 后直接 leave;ret）：源码无 return，
+    // 返回值自然沿 ClearMissionKind 的 eax 掉出（4.1 实证）。
 }
 
 // ============================================================================
@@ -795,17 +801,17 @@ void CMissionList_Charac::setIssue(bool isNewbie, bool isDaily)
     {
         m_field148 = (short)(m_field148 * 2);
         m_field148 = (short)((unsigned short)m_field148 +
-                             (unsigned short)isNewbie);
+                             (unsigned short)(isNewbie ? 1 : 0));
     }
     else
     {
         m_field14a = (short)(m_field14a * 2);
         m_field14a = (short)((unsigned short)m_field14a +
-                             (unsigned short)isNewbie);
+                             (unsigned short)(isNewbie ? 1 : 0));
     }
     m_field14c = (short)(m_field14c * 2);
     m_field14c = (short)((unsigned short)m_field14c +
-                         (unsigned short)isNewbie);
+                         (unsigned short)(isNewbie ? 1 : 0));
 }
 
 // ============================================================================
@@ -814,8 +820,9 @@ void CMissionList_Charac::setIssue(bool isNewbie, bool isDaily)
 
 bool CMissionList_Charac::isClearMission(int index) const
 {
-    if ((index >= 0) && (index < 0x100) &&
-        (m_clearedFlags[(unsigned int)index] != 0))
+    // bitset::operator[] 已返回 bool，`!= 0` 触发隐式规范化岛（4.4 多 5 行）；
+    // ORIG test %al 直测（P32 bool 直写）。
+    if ((index >= 0) && (index < 0x100) && m_clearedFlags[(unsigned int)index])
     {
         return 1;
     }

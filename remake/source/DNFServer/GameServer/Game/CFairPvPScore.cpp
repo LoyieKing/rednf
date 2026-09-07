@@ -64,7 +64,9 @@ bool JobKey::operator<(const JobKey& rhs) const
     // ORIG 0x84a63f2: 第二比较 `cmp %al,%dl; jge` 为有符号字节比较（jge 系）；
     // 原 (unsigned char) 版本产 setb/jae，当 m_sub≥0x80 时与 ORIG 语义不一致
     // （0x80..0xFF 有符号视为负）。改 (signed char) 复现 ORIG 有符号序。
-    return (signed char)m_sub < (signed char)rhs.m_sub;
+    if ((signed char)m_sub < (signed char)rhs.m_sub)
+        return true;
+    return false;
 }
 
 // ---- ORIG 0x84a643a JobKey::JobKey(ENUM_CHARACTERJOB, unsigned char) -------
@@ -102,9 +104,8 @@ void CFairPvPScore::_reset()
 // ---- ORIG 0x84a57fe _saveData(CUser*) --------------------------------------
 bool CFairPvPScore::_saveData(CUser* pUser)
 {
-    Stream* pStream =
-        GlobalData::s_stream_pool->Acquire("FairPvPScore.cpp", 0x10a);
-    CStreamGuard guard(pStream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("FairPvPScore.cpp", 0x10a),
+                       true);
 
     **guard << 0x261;                       // SIG_FAIR_PVP_SCORE 头
     **guard << (int)pUser->GetUID();

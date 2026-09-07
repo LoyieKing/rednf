@@ -167,15 +167,14 @@ unsigned char UpgradeSeparateInfo::GetUpgradeSeparate() const
 
 void UpgradeSeparateInfo::SetUpgradeSeparate(unsigned char value)
 {
-    // ORIG 0x84e906a：低 5 位写入 value & 0x1f，保留高 3 位（bit5=IsTradeRestriction）
-    m_field = (unsigned char)((m_field & 0xe0) | (value & 0x1f));
+    // ORIG 0x84e906a：位域 m_lo 装填（value 截断 and + 装填截断 and 双截断形）。
+    m_bits.m_lo = value;
 }
 
-// ORIG `shr $5;and $1` 直返 0/1（无 setne）；bool 返回致 `and $0x20;test;setne`。
-// 改 int 返回类型虽可闭合但波及全部调用点头声明，风险>收益；按 P197④ setne 物化 N-cap 记。
-bool UpgradeSeparateInfo::IsTradeRestriction() const
+// ORIG 0x8110b0a：8 条形 = 位域 m_flag:1 读取 + unsigned char 返回（probe u1 全等）。
+unsigned char UpgradeSeparateInfo::IsTradeRestriction() const
 {
-    return (m_field >> 5) & 1;
+    return m_bits.m_flag;
 }
 
 ReservedCapacity::ReservedCapacity()
@@ -233,17 +232,18 @@ unsigned char Inven_Item::GetUpgrade() const
 
 void Inven_Item::SetUpgrade(unsigned char upgrade)
 {
-    m_attr = (unsigned char)((m_attr & 0xe0) | (upgrade & 0x1f));
+    m_attrBits.m_attrLo = upgrade;
 }
 
 void Inven_Item::IncUpgrade()
 {
-    m_attr = (unsigned char)((m_attr & 0xe0) | (((m_attr & 0x1f) + 1) & 0x1f));
+    // ORIG 0x854b4be：读侧截断留在 eax、this 重载 edx（probe i4 ++ 形全等）。
+    m_attrBits.m_attrLo++;
 }
 
-unsigned char Inven_Item::GetItemAttr() const
+int Inven_Item::GetItemAttr() const
 {
-    return m_attr;
+    return m_attrAll.m_attrAll;
 }
 
 void Inven_Item::SetItemAttr(unsigned char attr)
@@ -251,14 +251,15 @@ void Inven_Item::SetItemAttr(unsigned char attr)
     m_attr = attr;
 }
 
-unsigned char Inven_Item::GetReSealCount() const
+int Inven_Item::GetReSealCount() const
 {
-    return (m_attr & 0xe0) >> 5;
+    // ORIG 0x822b456：movzbl 0x6 → shr $0x5,%al（位域 hi:3 读）
+    return m_attrBits.m_attrHi;
 }
 
 void Inven_Item::SetReSealCount(unsigned char count)
 {
-    m_attr = (unsigned char)((m_attr & 0x1f) | ((count & 0x7) << 5));
+    m_attrBits.m_attrHi = count;
 }
 
 unsigned char Inven_Item::GetTradeLimitCount() const
@@ -268,20 +269,18 @@ unsigned char Inven_Item::GetTradeLimitCount() const
 
 void Inven_Item::SetTradeLimitCount(unsigned char count)
 {
-    m_attr = (unsigned char)((m_attr & 0x1f) | ((count & 0x7) << 5));
+    m_attrBits.m_attrHi = count;
 }
 
 // ORIG _Z23DecreaseTradeLimitCountR10Inven_Item T 0x0812013c：
-// cVar1 = GetTradeLimitCount()；非 0 时 SetTradeLimitCount(cVar1-1)，返回 cVar1!=0。
+// ORIG 块序 jne 进主流程/false 块直落 = 早退形（P16）。
 bool DecreaseTradeLimitCount(Inven_Item& item)
 {
     unsigned char count = item.GetTradeLimitCount();
-    if (count != 0)
-    {
-        item.SetTradeLimitCount(count - 1);
-        return true;
-    }
-    return false;
+    if (count == 0)
+        return false;
+    item.SetTradeLimitCount(count - 1);
+    return true;
 }
 
 bool Inven_Item::isAvatarItemType() const
@@ -294,7 +293,7 @@ bool Inven_Item::IsCreatureItemType() const
     return m_field1 == 5 || m_field1 == 7 || m_field1 == 6;
 }
 
-bool Inven_Item::isEquipableItemType() const
+int Inven_Item::isEquipableItemType() const
 {
     return m_field1 == 1 || m_field1 == 5 || m_field1 == 6 ||
            m_field1 == 8;
@@ -330,7 +329,8 @@ void Inven_Item::setCopy(const Inven_Item& other)
 
 int Inven_Item::getPackedCode1() const
 {
-    int code = 0;
+    // ORIG 0x850d102：全程 or %eax,mem 形需 code 为 unsigned int（probe p2 全等）。
+    unsigned int code = 0;
     if (m_field0 != 0)
     {
         code |= 1;

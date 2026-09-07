@@ -76,10 +76,30 @@ bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx);
 // ============================================================================
 bool IsContainedLetter(SIG_MAILBOX_LIST* list, int letterId)
 {
-    int i;
-    for (i = 0; i < SIG_I32(list, SIG_OFF_POSTAL_COUNT); ++i)
+    // 视图（P82/P95）：ORIG count 读为单 disp（mov 0x794(%eax)）、条目为
+    // m_postals[i].m_letterId（+0x50 基址 +0xc disp 拆段）。
+    #pragma pack(push, 1)
+    struct PostalEntry
     {
-        if (SIG_I32(list, i * 0x61 + 0x5c) == letterId)
+        unsigned char m_pad[0xc];
+        int m_letterId;
+        unsigned char m_tail[0x61 - 0x10];
+    };
+    struct ListView
+    {
+        unsigned char m_pad[0x50];
+        PostalEntry m_postals[0x12];
+    };
+    struct CountView
+    {
+        unsigned char m_pad[0x794];
+        int m_count;
+    };
+    #pragma pack(pop)
+    int i;
+    for (i = 0; i < ((CountView*)list)->m_count; ++i)
+    {
+        if (((ListView*)list)->m_postals[i].m_letterId == letterId)
             return 1;
     }
     return 0;
@@ -119,7 +139,11 @@ bool CompareLetterIndex(const SIG_LETTER_INFO& a, const SIG_LETTER_INFO& b)
 {
     // ORIG 0x0841d12f：`return uint_a < uint_b;`（GCC4.1 生成 a<b→1; a==b→setb; a>b→0
     // 三分支）。`if(x)return 1; return 0` 隔成两分支（缺失 a==b 的 setb 路径）。
-    return *(const unsigned int*)&a < *(const unsigned int*)&b;
+    if (*(const unsigned int*)&a < *(const unsigned int*)&b)
+        return 1;
+    if (*(const unsigned int*)&a == *(const unsigned int*)&b)
+        return *(const unsigned int*)&a < *(const unsigned int*)&b;
+    return 0;
 }
 
 // ============================================================================

@@ -797,7 +797,7 @@ bool CStackableItem::check_change_job_type(char changeJob,
     {
         return 1;
     }
-    return m_arad148.m_field4 == changeJob;
+    return (char)m_arad148.m_field4 == changeJob;
 }
 
 void CStackableItem::getBoosterItem(
@@ -1680,7 +1680,7 @@ CStackableItem::CoolTimeOption CStackableItem::GetCoolTimeOption()
 {
     CoolTimeOption opt;
     // ORIG 0x086946xx：`movzwl 0x2d8(%edx)` 16 位直读（非逐字节 shl/or 拼接）。
-    opt.sec  = *reinterpret_cast<unsigned short*>(&m_option2d8.m_field0);
+    opt.sec  = m_option2d8.m_sec16;
     opt.flag = m_option2d8.m_field2;
     return opt;
 }
@@ -1691,7 +1691,7 @@ CStackableItem::CoolTimeOption CStackableItem::GetCoolTimeOption()
 CStackableItem::CoolTimeOption CStackableItem::GetEffectItemOption()
 {
     CoolTimeOption opt;
-    opt.sec  = *reinterpret_cast<unsigned short*>(&m_option2e4.m_field0);
+    opt.sec  = m_option2e4.m_sec16;
     opt.flag = m_option2e4.m_field2;
     return opt;
 }

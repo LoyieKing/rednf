@@ -31,9 +31,7 @@ public:
 stQuestTriggerState_t::stQuestTriggerState_t()
 {
     // ORIG：movl $0x0,(%eax); movl $0x0,0x4(%eax) —— 按 8 字节（2×int）整块清零
-    int* p = reinterpret_cast<int*>(this);
-    p[0] = 0;
-    p[1] = 0;
+    *(long long*)this = 0;
 }
 
 stQuestTriggerState_t& stQuestTriggerState_t::operator=(int const& v)

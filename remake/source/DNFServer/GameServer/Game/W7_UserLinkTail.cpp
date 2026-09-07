@@ -27,12 +27,9 @@ void CUser::SetChildrensDayEventValue(int slot, int targetItem, int period)
 {
     if (slot > 9)
         return;
-    unsigned char state = m_childrensDayEventState;   // +0x8e098
-    state |= static_cast<unsigned char>(1u << slot);
-    m_childrensDayEventState = state;
-
-    m_childrensDaySlots[slot] = targetItem;    // +0x8e09c + slot*4
-    m_childrensDayPeriods[slot] = period;      // +0x8e0c4 + slot*4
+    m_childrensDayEventState |= 1u << slot;    // P0：ORIG 全寄存器无 state 槽
+    m_childrensDaySlots[slot] = targetItem;
+    m_childrensDayPeriods[slot] = period;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,9 +52,7 @@ int CUser::GetChildrensDayEventTargetItemSlot(int idx)
 {
     if (idx > 9)
         return -1;
-    return *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(this) + 0x8e09c
-        + static_cast<unsigned int>(idx) * 4);
+    return m_childrensDaySlots[idx];           // P30 [i+K] 两步寻址源形
 }
 
 // ---------------------------------------------------------------------------
@@ -68,16 +63,14 @@ int CUser::GetChildrensDayEventTargetItemPeriod(int idx)
 {
     if (idx > 9)
         return -1;
-    return *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(this) + 0x8e0c4
-        + static_cast<unsigned int>(idx) * 4);
+    return m_childrensDayPeriods[idx];
 }
 
 // ---------------------------------------------------------------------------
 // CUser::GetPowerWarPartyVictory() T 0x0868856c
 // 队伍存在用队伍连胜，否则角色连胜（报告转写）。
 // ---------------------------------------------------------------------------
-unsigned short CUser::GetPowerWarPartyVictory()
+int CUser::GetPowerWarPartyVictory()
 {
     CParty* party = reinterpret_cast<CParty*>(GetParty());
     if (party == 0)

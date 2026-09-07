@@ -251,14 +251,14 @@ int IBuyRule::CheckLimit(SECRET_SHOP_INFO& info, int itemIdx, int count, int& re
     BUY_INFO* buy = info.m_shopper.GetBuyInfo(itemIdx);
     if (sale == 0)
         return 0;
-    if (buy == 0) {
-        if (sale->m_limit < count)
-            return 0;
-        remain = sale->m_limit - count;
-    } else {
+    if (buy != 0) {
         if (sale->m_limit < buy->m_count + count)
             return 0;
         remain = sale->m_limit - (buy->m_count + count);
+    } else {
+        if (sale->m_limit < count)
+            return 0;
+        remain = sale->m_limit - count;
     }
     return 1;
 }
@@ -316,8 +316,8 @@ void IBuyRule::LogValueStatistic(CUser* user, unsigned int value)
     // ORIG 0x85fb886：
     // GetInstanceValueStatistic()->AddValueStatistic(
     //     (VALUE_STATISTIC_FIELD)0xd, user, value)
-    CValueStatistic* s = GetInstanceValueStatistic();
-    s->AddValueStatistic((VALUE_STATISTIC_FIELD)0xd, user, value);
+    GetInstanceValueStatistic()->AddValueStatistic((VALUE_STATISTIC_FIELD)0xd,
+                                                   user, value);
 }
 
 // ---- CBuyItembyGold（金币购买规则） ----
@@ -500,17 +500,15 @@ void CSecretShop::LotteryItems(std::vector<SALE_INFO>& out, int dungeonIdx,
     // 定义在 CGuildServerProxy.h（与 GMAccounts.h 重定义冲突不可同时包含），
     // 按 DB_Login.cpp 先例：GetRepeatEvent 用前置 CEventManager 的成员声明，
     // IsEventing 经 vtable+0x34 槽直调（ORIG 指令形态）。
-    CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x3a);
-    bool event = false;
-    if (ev != 0)
+    typedef bool (*IsEventingFn)(CEventBase*, int);
+    register CEventBase* ev asm("eax") =
+        GlobalData::s_event_manager->GetRepeatEvent(0x3a);
+    bool event = (*reinterpret_cast<IsEventingFn*>(
+                      *reinterpret_cast<void**>(ev) + 0x34))(ev, 0);
+    if (G_CDataManager()->m_secretShop.GetItemByDungeonIdx(m_pRand, out, dungeonIdx, level, event))
     {
-        typedef bool (*IsEventingFn)(CEventBase*, int);
-        IsEventingFn fn =
-            *reinterpret_cast<IsEventingFn*>(
-                *reinterpret_cast<void**>(ev) + 0x34);
-        event = fn(ev, 0) != 0;
     }
-    if (!G_CDataManager()->m_secretShop.GetItemByDungeonIdx(m_pRand, out, dungeonIdx, level, event))
+    else
         G_CDataManager()->m_secretShop.GetItemByDungeonLev(m_pRand, out, dungeonIdx, price, event);
 }
 
@@ -635,7 +633,7 @@ void CSecretShop::SendSecretShopStatistic()
 // 0x08a82b34）。依赖链：GetItems -> CopyItem/IsExistItem/GetDomainRate，GetLevelIdx，
 // GetItemByEvent -> GetItems。全部按 class_func_reports/SecretShopScript 忠实转写。
 // ============================================================================
-char SecretShopScript::GetItemByDungeonIdx(CMTRand* rand,
+bool SecretShopScript::GetItemByDungeonIdx(CMTRand* rand,
                                            std::vector<secretshop::SALE_INFO>& out,
                                            int dungeonIdx, int level, bool event)
 {
@@ -657,7 +655,7 @@ char SecretShopScript::GetItemByDungeonIdx(CMTRand* rand,
     return 0;
 }
 
-char SecretShopScript::GetItemByDungeonLev(CMTRand* rand,
+bool SecretShopScript::GetItemByDungeonLev(CMTRand* rand,
                                            std::vector<secretshop::SALE_INFO>& out,
                                            int dungeonIdx, int level, bool event)
 {
@@ -769,14 +767,11 @@ int SecretShopScript::GetLevelIdx(int level)
 
 int SecretShopScript::GetRandItemPrice(int price)
 {
-    int r = rand();
-    int m = r % 3;
+    int m = rand() % 3;
     if (m == 0)
-        return price + (int)((double)m_priceVarPercent / 100.0 *
-                             (double)price + 0.5);
+        return price + (int)((double)price * ((double)m_priceVarPercent / 100.0));
     if (m == 1)
-        return price - (int)((double)m_priceVarPercent / 100.0 *
-                             (double)price + 0.5);
+        return price - (int)((double)price * ((double)m_priceVarPercent / 100.0));
     return price;
 }
 

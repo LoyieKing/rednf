@@ -1,7 +1,8 @@
 // HdrCreate3: ORIG exported symbols, first .h declaration. Evidence: nm ORIG + docs/class_func_reports/STRDCharacterStatusClient/
 // STRDCharacterStatusClient：ORIG 导出 operator=(STRDCharacterStatus const&) T @0x08a0cab8；
 // 布局由双向 operator= 汇编（0x08a0c942 / 0x08a0cab8）逐偏移互证：
-//   +0x00/+0x04  int hpMax/mpMax（dword 直拷）
+//   +0x00/+0x04  hpMax/mpMax（dword 直拷；与 Status 侧符号性不一致，双向 op= 均生
+//                mov %eax,%edx 中转 @0x08a0c942/0x08a0cab8 ⇒ 一侧 unsigned）
 //   +0x08..+0x14  uint phys/mag 攻防 4 项（ushort 零扩展）
 //   循环 i<=3   +0x18+4i   int[4] 元素耐性（ushort 符号扩展 movzwl+movswl）
 //   循环 k<=16  +0x28+4k   int[17] 状态耐性（同上）
@@ -19,8 +20,8 @@ struct STRDCharacterStatusClient
 {
     STRDCharacterStatusClient& operator=(STRDCharacterStatus const&);  // ORIG T @0x08a0cab8
 
-    int m_hpMax;                 // +0x00
-    int m_mpMax;                 // +0x04
+    unsigned int m_hpMax;        // +0x00（与 Status 侧 int 类型不一致，op= 中转实证）
+    unsigned int m_mpMax;        // +0x04
     unsigned int m_physAttack;   // +0x08
     unsigned int m_physDefense;  // +0x0c
     unsigned int m_magAttack;    // +0x10
@@ -30,7 +31,7 @@ struct STRDCharacterStatusClient
     int m_inventoryLimit;        // +0x6c
     int m_hpRegen;               // +0x70
     int m_mpRegen;               // +0x74
-    int m_moveSpeed;             // +0x78
+    unsigned int m_moveSpeed;    // +0x78（同上，双向 op= 中转实证）
     unsigned int m_attackSpeed;  // +0x7c
     unsigned int m_castSpeed;    // +0x80
     int m_hitRecovery;           // +0x84

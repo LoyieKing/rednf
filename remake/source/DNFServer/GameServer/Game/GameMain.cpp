@@ -191,6 +191,7 @@ void Timer_EventManagement::RegistNextTimer(int intervalMs)
 void Timer_DungeonStatisticEntrance_Hour::RegistNextTimer()
 {
     // ORIG 0x863b9fa：msg=0xab，间隔 3600s
+    int interval = 0xe10;   // ORIG -0xc 槽预置（写而不读的 dead local，帧形证据）
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
                                 (TIMER_MESSAGE)0xab, 0xe10, 0, 0);
 }
@@ -209,12 +210,14 @@ void TimerDeathTowerTopRankerReload::registNextTimer(long ms)
         localtime_r(&ms, &t);
         t.tm_hour = 4;
         t.tm_min = get_rand_int(0x12c) + 0x1e;
+        t.tm_sec = 0;   // ORIG 0x86378af：movl $0x0,-0x3c(%ebp)（真语义：清残留秒）
         ms = mktime(&t);
     }
     int delay = static_cast<int>(ms) - s_systemTime_.getCurSec();
-    delay = std::max(delay, 1);
+    // ORIG 0x86378f5：std::max 结果直接入 ebx 实参（mov (%eax),%ebx），无回写 delay 槽
+    //（P24 内联实参形）。
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)6, 0,
-                                (TIMER_MESSAGE)0x73, delay, 0, 0);
+                                (TIMER_MESSAGE)0x73, std::max(delay, 1), 0, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1234,7 +1237,9 @@ int regist_signals()
 // make_dir(char*) —— ORIG _Z8make_dirPc 0x829ee83：opendir 探测，不存在则 mkdir 0777。
 void make_dir(char* path)
 {
-    if (opendir(path) == 0)
+    // ORIG 0x829ee94：opendir 结果存 -0xc 槽（具名局部），cmpl/jne 直判。
+    int ret = (int)opendir(path);
+    if (ret == 0)
     {
         mkdir(path, 0777);
     }
@@ -1260,7 +1265,11 @@ bool check_cfg_file()
     std::sprintf(path, "./cfg/%s.cfg",
                  G_CEnvironment()->get_file_name());
     std::printf("\t- cfg path: %s\n", path);
-    return access(path, F_OK) == 0;
+    // ORIG 0x829ea35：test/sete 物化 + mov$1/mov$0 块选择（P56 勿直 return 表达式）。
+    bool exist = access(path, F_OK) == 0;
+    if (exist)
+        return true;
+    return false;
 }
 
 // check_pid_file() —— ORIG 0x829e948（0x82 字节）：pid 文件存在→true。
@@ -1271,7 +1280,10 @@ bool check_pid_file()
     std::sprintf(path, "./pid/%s.pid",
                  G_CEnvironment()->get_file_name());
     std::printf("\t- pid path: %s\n", path);
-    return access(path, F_OK) == 0;
+    bool exist = access(path, F_OK) == 0;
+    if (exist)
+        return true;
+    return false;
 }
 
 // ncl_check_key(char*) 真实实现（ORIG 0x8572cb5：decrypt → MAC/日期区间校验）
@@ -1578,14 +1590,6 @@ char* SelectKeyString(int* outKey, int* outValue)
 // （ORIG 记录 stride 0x10：+0 Cipher*、+4/+8 int 键索引）；
 // 首轮经 guard 记录总钥长；重复填充选中密钥串至总钥长后 Initialize。
 // 尾部 cMyTrace 输出耗时（文案「推断」）。
-struct SecuCipherKeyRec  // ORIG BSS 0x940be80 起 16 字节记录
-{
-    Cipher* cipher;  // +0x00
-    int keyId;       // +0x04
-    int tblId;       // +0x08
-    char pad[4];     // +0x0c
-};
-
 void InitCipherKeyString()
 {
     int t0 = static_cast<int>(s_systemTime_.getCurSec());
@@ -1593,9 +1597,7 @@ void InitCipherKeyString()
 
     for (int i = 0; i <= 0x1387; ++i)
     {
-        SecuCipherKeyRec* rec = reinterpret_cast<SecuCipherKeyRec*>(
-            reinterpret_cast<char*>(GlobalData::s_secu_cipher_keystring_manager_)
-            + i * 0x10);
+        GlobalData::SecuCipherKeyRec* rec = &GlobalData::s_secu_cipher_keystring_manager_[i];
         rec->cipher = new Cipher;
         if (needed_key_length == 0)
             needed_key_length = rec->cipher->GetTotalKeyLength();

@@ -58,7 +58,7 @@ public:
                                   const CDungeon* dungeon);   // ORIG 0x08149e20
     virtual bool _checkMemberDie();                            // ORIG 0x08149382
     virtual int checkAllMemberReady(int);                      // ORIG 0x081493fe
-    virtual int handleDieUser(CUser* user);                    // ORIG 0x081494a4
+    virtual int handleDieUser(CUser* user);                    // ORIG 0x081494a4（bool 化实测使 4.4 epilogue 走 %ebx 合并+调用点 setne 物化回归，维持 int）
     virtual int handleLeaveUser(CUser* user);                  // ORIG 0x08149724
 
     // ---- 非虚成员 ----

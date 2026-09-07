@@ -44,10 +44,10 @@ int CAssaultPlace::_GetTeamCount(ENUM_ASSAULT_TEAM team)
 void CAssaultPlace::_GetTeamCount(int* counts, ENUM_ASSAULT_STATE state)
 {
     for (int i = 0; i < 8; ++i) {
-        if (!m_assaulters[i].Empty()) {
+        if (m_assaulters[i].Empty()) {
+        } else {
             if ((int)m_assaulters[i].GetState() == (int)state) {
-                counts[(int)m_assaulters[i].GetTeam()] =
-                    counts[(int)m_assaulters[i].GetTeam()] + 1;
+                ++counts[(int)m_assaulters[i].GetTeam()];
             }
         }
     }
@@ -91,8 +91,9 @@ void CAssaultPlace::_MakeEndAssault(PacketGuard* p)
 // ---------------------------------------------------------------------------
 bool CAssaultPlace::_IsProcsssChaos()
 {
-    CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x20);
-    return event->IsEventing((CUser*)0) == false;
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x20)->IsEventing((CUser*)0))
+        return false;
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,18 +203,14 @@ void CAssaultPlace::ClearBadP2PUser()
 void CAssaultPlace::_ChangeDieState(int index)
 {
     m_assaulters[index].SetState((ENUM_ASSAULT_STATE)6);
-    CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x20);
-    if (event->IsEventing((CUser*)0))
-        return;
-    if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
-        if (((CUserCharacInfo*)m_assaulters[index].GetUser())->getCurCharacVill()
-            == 7)
-        {
-            return;  // bVar1=false：不离场
-        }
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x20)->IsEventing((CUser*)0)) {
+    } else {
+        // die = IsPowerWarEventOn() ? (vill != 7) : true
+        if (GlobalData::s_power_manager->IsPowerWarEventOn()
+                ? ((CUserCharacInfo*)m_assaulters[index].GetUser())->getCurCharacVill() != 7
+                : true)
+            m_assaulters[index].DieUser();
     }
-    // bVar1=true：
-    m_assaulters[index].DieUser();
 }
 
 // ---------------------------------------------------------------------------
@@ -355,12 +352,12 @@ bool CAssaultPlace::StartAssault()
 void CAssaultPlace::EndAssault()
 {
     for (int i = 0; i < 8; ++i) {
-        if (!m_assaulters[i].Empty()) {
+        if (m_assaulters[i].Empty()) {
+        } else {
             m_assaulters[i].SetState((ENUM_ASSAULT_STATE)7);
             PacketGuard packet;
             _MakeEndAssault(&packet);
-            CUser* user = m_assaulters[i].GetUser();
-            user->Send(packet);
+            ((CUser*)m_assaulters[i].GetUser())->Send(packet);
         }
     }
 
@@ -598,21 +595,17 @@ void CAssaultPlace::RevivalUser(CUser* user, int& result)
 void CAssaultPlace::EvadeAssaultPlace(CUser* user)
 {
     if ((unsigned int)(m_state - 2) > 1u) {
-        int nowSec = (int)GlobalData::s_systemTime_.getCurSec();
-        if (nowSec - m_abuseSec > 5)
+        if ((int)GlobalData::s_systemTime_.getCurSec() - m_abuseSec > 5)
             throw (ENUM_ERROR)0x13;
     }
     if (m_checkUser /*+0x134*/ == user)
         throw (ENUM_ERROR)0x13;
 
     int idx = _GetUserIndex(user, true);
-    ENUM_ASSAULT_TEAM team =
-        m_assaulters[idx].GetTeam();
-    if ((int)team != m_winTeam /*+0x124*/)
+    if ((int)m_assaulters[idx].GetTeam() != m_winTeam /*+0x124*/)
         throw (ENUM_ERROR)0x13;
 
-    idx = _GetUserIndex(user, true);
-    LeaveAssaultPlace(idx, true, true);
+    LeaveAssaultPlace(_GetUserIndex(user, true), true, true);
 }
 
 // ---------------------------------------------------------------------------

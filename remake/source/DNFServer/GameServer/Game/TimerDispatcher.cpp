@@ -2045,14 +2045,14 @@ bool TimerDungeonDataStatistic::RegistNextTimer()
     pt->tm_hour = 5;
     pt->tm_min = 0;
     pt->tm_sec = 0;
-    // ORIG 0x086368a7-0x086368e1：chn 全程 %ecx、x=chn/15 存 %ebx（sign 修正后）、
-    // 3x=%edx；`mov %edx,%eax; shl $4` =48x；`sub %edx,%eax` =45x；
-    // tm_min = chn-45x（Ghidra %0x1e 系 magic 误判，行为差在 chn≥15）。
+    // ORIG 0x086368a7-0x086368e1：chn 全程 %ecx、x=chn/30（0x88888889+sar4 魔数）
+    // 存 %ebx（sign 修正后）、2x=%edx；`shl $4; sub %edx` =30x；
+    // tm_min = chn-30x = chn%30（P196：旧 /15*45 形在 chn≥15 分叉系误判）。
     // register 绑定消 spill 槽（pt/-0x18 等槽序归位）。
     register int chn asm("ecx") = G_CEnvironment()->m_serverEnvir.m_channelNo; // +0x1b0
-    register int x asm("ebx") = chn / 15;
-    register int x3 asm("edx") = x * 3;
-    pt->tm_min = chn - (x3 * 16 - x3);
+    register int x asm("ebx") = chn / 30;
+    register int x2 asm("edx") = x * 2;
+    pt->tm_min = chn - (x2 * 16 - x2);
     int target = static_cast<int>(mktime(pt));
     if (pt->tm_hour <= curHour)
         target += 0x15180;
@@ -2428,11 +2428,10 @@ void TimerUpdatePvPGrade::registNextTimer(long sec)
     sec = static_cast<long>(mktime(&timeInfo));   // ORIG mov %eax,0x8(%ebp) 回写参数槽
     // ORIG 0x086373f2：getCurSec 两独立重调（P48）；delay 无槽经 %ebx 跨
     // G_TimerQueue call（P179 register 形，禁栈槽——否则 tm 帧偏移+4 全错位）。
-    register int delay;
-    if (sec - (long)GlobalData::s_systemTime_.getCurSec() > 0)
-        delay = (int)(sec - (long)GlobalData::s_systemTime_.getCurSec());
-    else
-        delay = 1;
+    register int delay =
+        (sec - (long)GlobalData::s_systemTime_.getCurSec() > 0)
+            ? (int)(sec - (long)GlobalData::s_systemTime_.getCurSec())
+            : 1;
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                 (TIMER_MESSAGE)0x6c, delay, 0, 0);
 }

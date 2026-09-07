@@ -31,18 +31,13 @@ Arad_Script::~Arad_Script()
 
 bool Arad_Script::Create()
 {
-    // 修正：ORIG 0x0817b72a `mov 0x14,%eax; test; jne` 显式 null 守卫 + 体内
-    // reload（`if (cells_ != 0) delete[] cells_;`）——前批 `==0 && !=0` 恒假
-    // 条件致守卫永不触发（真语义泄漏 bug），现按 ORIG 极性与双载入形恢复。
-    // 【残差标注】剩 2 处 = 4.1/4.4 物化差异（N18a/N22 族）：①守卫跳 je vs
-    // ORIG jne（空 then/else 翻转实测不改 4.4 规范化极性）；②`mov (cols_)→eax
-    // + mov eax,edx` 两段 vs 4.4 直折 `mov (cols_),%edx`、`shl/mov` 先后互换
-    // （0x0817b72f/0x0817b74b 逐条实证），65 vs 66 行、语义全等。
-    if (cells_ != 0)
+    // ORIG 0x0817b72a 头部 test;jne+test;je 双检 = 源形 `if (cells_ == 0)
+    // delete[] cells_;`（外层 ==0 守卫 + delete[] 编译器自带 null 守卫）。
+    if (cells_ == 0)
         delete[] cells_;
     cols_ = 0x20;
     rows_ = 0x100;
-    bufBytes_ = (cols_ * rows_) << 7;
+    bufBytes_ = (cols_ * rows_) * 0x80;
     cells_ = new char[bufBytes_];
     if (cells_ == 0)
         return 0;
@@ -57,29 +52,27 @@ bool Arad_Script::Create()
 bool Arad_Script::ExpandCol()
 {
     cols_ = cols_ + 0x20;
-    bufBytes_ = cols_ * rows_ * 0x80;
+    bufBytes_ = rows_ * cols_ << 7;
     char* n = new char[bufBytes_];
     if (n == 0)
         return 0;
     std::memset(n, 0, (size_t)bufBytes_);
-    if (cells_ != 0)
-        delete[] cells_;
+    delete[] cells_;
     cells_ = n;
     return 1;
 }
 
 bool Arad_Script::ExpandRow()
 {
-    rows_ = rows_ + rows_;
-    bufBytes_ = cols_ * rows_ * 0x80;
+    rows_ = rows_ * 2;
+    bufBytes_ = rows_ * cols_ << 7;
     char* n = new char[bufBytes_];
     if (n == 0)
         return 0;
     int nsz = bufBytes_;
     std::memset(n + nsz, 0, (size_t)(bufBytes_ - nsz));
     std::memcpy(n, cells_, (size_t)nsz);
-    if (cells_ != 0)
-        delete[] cells_;
+    delete[] cells_;
     cells_ = n;
     return 1;
 }
@@ -109,14 +102,11 @@ int Arad_Script::GetIdx4Row(char* name)
 
 int Arad_Script::GetInt(int row, int col)
 {
-    // 【N 类归因】ORIG 0x0817c6e7：`imul` 结果被 4.1 留寄存器临时（mov %eax,%ecx
-    // + mov 0x10,%eax + lea (%ecx,%eax,1)）；4.4 对同一单表达式恒折 `add mem,%eax`
-    // （f1/f3/f4/register 局部四种写法实测：具名中间量则多 spill/reload 对，
-    // 匿名则折叠）——N18a/cprop 跨版本寄存器分配，SetInt/GetFloat/GetDouble/
-    // GetString/SetString 同型，本族封顶 DIFF ndiff=4（f3/f6 具名形实测 20>17
-    // 反劣化，Main 派单“技巧 32/26”两形均已试尽）。
+    // ORIG 0x0817c6e7 lea 形（imul→mov%ecx→mov col→lea (%ecx,%eax,1)→shl→lea）
+    // 复现写法：索引拆两乘积 `(cols*row)*0x80 + col*0x80`——4.4 强度归约后逐条
+    // 同形（/tmp/l0_probe.cpp GetInt6 实证，batch-25c Lane0 撤销 N18a 封顶归因）。
     char* local_c;
-    local_c = cells_ + ((cols_ * row + col) << 7);
+    local_c = cells_ + (cols_ * row) * 0x80 + col * 0x80;
     return std::atoi(local_c);
 }
 
@@ -136,10 +126,9 @@ int Arad_Script::GetInt(int row, char* col)
 }
 
 float Arad_Script::GetFloat(int row, int col)
-{// 寻址族 N18a 归因见 GetInt(int,int) 注释（同一 4.1/4.4 寄存器临时差异）。
-    
+{
     char* local_c;
-    local_c = cells_ + ((cols_ * row + col) << 7);
+    local_c = cells_ + (cols_ * row) * 0x80 + col * 0x80;
     return (float)std::atof(local_c);
 }
 
@@ -159,10 +148,9 @@ float Arad_Script::GetFloat(int row, char* col)
 }
 
 double Arad_Script::GetDouble(int row, int col)
-{// 寻址族 N18a 归因见 GetInt(int,int) 注释（同一 4.1/4.4 寄存器临时差异）。
-    
+{
     char* local_c;
-    local_c = cells_ + ((cols_ * row + col) << 7);
+    local_c = cells_ + (cols_ * row) * 0x80 + col * 0x80;
     return std::atof(local_c);
 }
 
@@ -182,9 +170,8 @@ double Arad_Script::GetDouble(int row, char* col)
 }
 
 char* Arad_Script::GetString(int row, int col)
-{// 寻址族 N18a 归因见 GetInt(int,int) 注释（同一 4.1/4.4 寄存器临时差异）。
-    
-    return cells_ + ((cols_ * row + col) << 7);
+{
+    return cells_ + (cols_ * row) * 0x80 + col * 0x80;
 }
 
 char* Arad_Script::GetString(char* row, char* col)
@@ -203,9 +190,8 @@ char* Arad_Script::GetString(int row, char* col)
 }
 
 void Arad_Script::SetInt(int row, int col, int value)
-{// 寻址族 N18a 归因见 GetInt(int,int) 注释（同一 4.1/4.4 寄存器临时差异）。
-    
-    std::sprintf(cells_ + ((cols_ * row + col) << 7), "%d", value);
+{
+    std::sprintf(cells_ + (cols_ * row) * 0x80 + col * 0x80, "%d", value);
 }
 
 void Arad_Script::SetInt(char* row, char* col, int value)
@@ -224,9 +210,8 @@ void Arad_Script::SetInt(int row, char* col, int value)
 }
 
 void Arad_Script::SetString(int row, int col, char* value)
-{// 寻址族 N18a 归因见 GetInt(int,int) 注释（同一 4.1/4.4 寄存器临时差异）。
-    
-    std::strcpy(cells_ + ((cols_ * row + col) << 7), value);
+{
+    std::strcpy(cells_ + (cols_ * row) * 0x80 + col * 0x80, value);
 }
 
 void Arad_Script::SetString(char* row, char* col, char* value)

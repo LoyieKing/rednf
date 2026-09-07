@@ -93,8 +93,9 @@ bool CSimpleLog::_WriteLog(char const* msg)
             return 0;
         }
     }
-    if (&m_dt != &dt) {
-        memcpy(&m_dt, &dt, 7);
+    register DateTime* pDt asm("eax") = &m_dt;
+    if (pDt != &dt) {
+        memcpy(pDt, &dt, 7);
     }
     fprintf(m_fp, "%s\r\n", msg);
     fflush(m_fp);

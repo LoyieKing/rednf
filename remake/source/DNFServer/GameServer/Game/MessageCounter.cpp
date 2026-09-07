@@ -66,13 +66,19 @@ bool MessageKey::operator<(const MessageKey& rhs) const
 {
     if (m_id < rhs.m_id)
         return true;
-    if (m_id != rhs.m_id)
-        return false;
-    unsigned int t = (unsigned char)m_type;
-    unsigned int r = (unsigned char)rhs.m_type;
-    if (t < r)
-        return true;
-    return m_size < rhs.m_size;
+    if (m_id == rhs.m_id)
+    {
+        // uchar/ushort 成员直接比较（ORIG 单 movzbl/movzwl，无 uint 中转槽）；
+        // == 守卫形使 4.4 生成 jne 直跳共享 ret0 块（P63 共享出口）。
+        if (m_type < rhs.m_type)
+            return true;
+        if (m_type == rhs.m_type)
+        {
+            if (m_size < rhs.m_size)
+                return true;
+        }
+    }
+    return false;
 }
 // ===================== CTimeInterval（基类） =====================
 

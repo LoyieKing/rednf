@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdarg>
 #include <cstring>
 #include <cwchar>
 
@@ -128,7 +129,12 @@ extern int ss_vsprintf(char* buffer, size_t count, const char* format, char* arg
 template <size_t N>
 int ss_sprintf(char (&buffer)[N], const char* format, ...)
 {
-    return ss_vsprintf(buffer, N, format, reinterpret_cast<char*>(&format + 1));
+    // ORIG：va_list ap 局部（槽往返）+ 返回值具名局部（P0）
+    va_list ap;
+    va_start(ap, format);
+    int ret = ss_vsprintf(buffer, N, format, reinterpret_cast<char*>(ap));
+    va_end(ap);
+    return ret;
 }
 
 RDARScriptStringManager::RDARScriptStringManager()
@@ -338,7 +344,11 @@ void RDARScriptStringManager::setTableValue(int table, int key, const char* valu
 {
     // ORIG 0x8aa5d98
     if (static_cast<unsigned>(table) < dictionaries_.size())
-        dictionaries_[table]->setValue(key, value);
+    {
+        // ORIG：operator[] 结果落具名槽 -0xc 后解引用（P0 有槽往返）
+        StringDictionary*& dict = dictionaries_[table];
+        dict->setValue(key, value);
+    }
 }
 
 bool RDARScriptStringManager::loadStringFile(std::istream* in, const char* path,

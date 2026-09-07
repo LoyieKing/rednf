@@ -215,13 +215,11 @@ CEventScriptMng::~CEventScriptMng()
 bool CEventScriptMng::is_eventing(int key)
 {
     // ORIG 0x810ba36：正条件包裹（js/jg 均跳尾部 return 0），
-    // operator[] 后空槽同样返回 false。
+    // operator[] 后直虚调用（P140：ORIG 无判空，0x810ba36 段
+    // call operator[] → mov (%eax),%eax → vptr+0x8 直 call *%edx）。
     if (key >= 0 && key <= 0x19c)
     {
-        CEventEntity* entity = m_entities[key];
-        if (entity == 0)
-            return false;
-        return entity->is_eventing();
+        return m_entities[key]->is_eventing();
     }
     return false;
 }
@@ -340,23 +338,22 @@ void CEventScriptMng::inc_user_fatigue(CUser* user,
 }
 
 // ORIG 0x810c1ea：礼物疲劳事件验证通过后发送奖励。
-bool CEventScriptMng::send_gift_fatigue_item(
+void CEventScriptMng::send_gift_fatigue_item(
     CUser* user, unsigned int fatigue)
 {
-    // [B24D判词 N] 语义正确：is_eventing(0x65)+entity 判空+verifyApplyUser+
-    //   IncCurCharacUsedGiftFatigueQuantity+entity->sendEventItemFromFatigue；
-    //   P167 调用点差集 5/5 CLEAR；diff=lowering。
+    // ORIG 形：三段独立守卫（P133；ORIG 每段 jne/je 直跳统一尾部出口，
+    // 无 bool 汇聚）；verifyApplyUser bool 直测（test %al）；尾部无返回值。
     if (!is_eventing(0x65))
-        return false;
-
+        return;
     CUsedFatigueGiveItem* entity =
         static_cast<CUsedFatigueGiveItem*>(get_event_entity(0x65));
-    if (entity == 0 || entity->verifyApplyUser(user) == 0)
-        return false;
-
-    user->IncCurCharacUsedGiftFatigueQuantity(fatigue);
-    entity->sendEventItemFromFatigue(user, fatigue);
-    return true;
+    if (entity == 0)
+        return;
+    if (entity->verifyApplyUser(user))
+    {
+        user->IncCurCharacUsedGiftFatigueQuantity(fatigue);
+        entity->sendEventItemFromFatigue(user, fatigue);
+    }
 }
 
 // ORIG 0x810c270：商城奖励活动开启时更新目标商品计数。
@@ -409,12 +406,16 @@ bool CEventScriptMng::send_bring_up_item_fatigue(
 // ORIG 0x810c3a4：网吧事件初始化通知。
 void CEventScriptMng::send_pc_room_play_init_time(CUser* user)
 {
-    CPcRoomPlayTime* entity;
-    if (!is_eventing(0x5c)
-        || (entity = static_cast<CPcRoomPlayTime*>(get_event_entity(0x5c))) == 0
-        || entity->verifyUserPcRoomPlayEvent(user) != 0)
+    // ORIG 形：三段独立守卫（P133）+ verify int 返回 `== 0` 直比
+    // （probe pr6.cpp h1 实证 4.4 出 test %eax; sete %al; test %al 同形）。
+    if (!is_eventing(0x5c))
         return;
-    user->sendNotiPcRoomPlayTime();
+    CPcRoomPlayTime* entity =
+        static_cast<CPcRoomPlayTime*>(get_event_entity(0x5c));
+    if (entity == 0)
+        return;
+    if (entity->verifyUserPcRoomPlayEvent(user) == 0)
+        user->sendNotiPcRoomPlayTime();
 }
 
 // ORIG 0x810c40e：包 0x176 —— put_header(0,0x176)、put_int(m_todayTime)、
@@ -450,13 +451,22 @@ void CEventScriptMng::send_event_init_data(CUser* user, bool flag)
 // ORIG 0x810b0cc：0x191→0 / 0x192→1 / 0x19c→2，其它 -1。
 int CEventScriptMng::get_convert_to_user_confirmflag(int key)
 {
+    // P46：稀疏 switch 叶块序=case 书写序（0,1,2 与 ORIG 0x810b0cc 块序
+    // 一致）；4.4 决策树根取中值 0x192（与 ORIG 首比较同）。
+    // ORIG 有 v 槽（-0x4）：初值 -1 + 各 case 槽写 + 尾 mov -0x4,%eax 回读。
     int v = -1;
-    if (key == 0x192)
-        v = 1;
-    else if (key == 0x19c)
-        v = 2;
-    else if (key == 0x191)
+    switch (key)
+    {
+    case 0x191:
         v = 0;
+        break;
+    case 0x192:
+        v = 1;
+        break;
+    case 0x19c:
+        v = 2;
+        break;
+    }
     return v;
 }
 

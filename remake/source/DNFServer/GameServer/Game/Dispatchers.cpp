@@ -6291,12 +6291,12 @@ int Dispatcher_MouseRegister::dispatch_sig(CUser* user, PacketBuf& packet)
     // 各 xor$1/test（P48 独立、无局部缓存物化）。
     Sanicova::CPad* padCipher = user->getPad();   // P48 双臂各自调用
     Cipher& cipher = *GlobalData::s_secu_cipher_keystring_manager_
-        [(padCipher->GetSelectedCipherIdx() & 0xffff) * 4];
+        [padCipher->GetSelectedCipherIdx() & 0xffff].cipher;
     const bool firstOk = cipher.Decrypt(cryptoType, bufView.m_encPwd, encLen,
                                         decPwd1, &decLen1);
     Sanicova::CPad* padCipher2 = user->getPad();
     Cipher& cipher2 = *GlobalData::s_secu_cipher_keystring_manager_
-        [(padCipher2->GetSelectedCipherIdx() & 0xffff) * 4];
+        [padCipher2->GetSelectedCipherIdx() & 0xffff].cipher;
     const bool secondOk = cipher2.Decrypt(cryptoTypeCopy, bufView.m_encPwdCopy,
                                           encLenCopy, decPwd2, &decLen2);
     // ORIG 0x263df1..：两次 Decrypt 返回各 xor$1/test；首次 jne 汇聚「1」、
@@ -24553,7 +24553,7 @@ int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBas
     WongWork::CSecurityCard* card = user->getSecurityCard();
     Sanicova::CPad* pad = user->getPad();
     Cipher* cipher = GlobalData::s_secu_cipher_keystring_manager_
-        [(pad->GetSelectedCipherIdx() & 0xffff) * 4];
+        [pad->GetSelectedCipherIdx() & 0xffff].cipher;
 
     const bool cardActive = (card->isActivate() && m.m_secuType == 0);
     const bool padActive = (pad->isActivate() && m.m_secuType == 1);

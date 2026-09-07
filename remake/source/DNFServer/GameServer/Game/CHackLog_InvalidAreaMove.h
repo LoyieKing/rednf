@@ -9,15 +9,15 @@ class CHackLog_InvalidAreaMove
 public:
     // 供 GameWorld.cpp IsInvalidMovableArea 流程引用的外部谓词
     static int  GetHackType();
-    static char IsGentEntranceInWestCoast(int a, int b);
-    static char IsWestCostEntranceInGent(int a, int b);
-    static char IsMovingBetweenWestCoastAndGent(int a, int b, int c, int d);
-    static char IsMovingAboutPowerWar(int a, int b);
-    static char IsMovingInGuildAgit(int a, int b);
-    static char IsExceptionMove(int a, int b, int c, int d);
-    static char IsMovingBetweenSeriaRoomAndGuildAgit(int a, int b, int c, int d);
+    static bool IsGentEntranceInWestCoast(int a, int b);
+    static bool IsWestCostEntranceInGent(int a, int b);
+    static bool IsMovingBetweenWestCoastAndGent(int a, int b, int c, int d);
+    static bool IsMovingAboutPowerWar(int a, int b);
+    static bool IsMovingInGuildAgit(int a, int b);
+    static bool IsExceptionMove(int a, int b, int c, int d);
+    static bool IsMovingBetweenSeriaRoomAndGuildAgit(int a, int b, int c, int d);
     static bool checkSeriaRoom(int a, int b);   // ORIG 0x08284250 调用处 test %al;je 无 setne ⇒ bool（char/int 必物化 setne）
-    static char IsInvalidMovableArea(int a, int b, int c, int d);
+    static bool IsInvalidMovableArea(int a, int b, int c, int d);
     static char isMovableRoute(int a, int b, int c, int d, int e, int f);
 
 private:

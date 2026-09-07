@@ -1208,11 +1208,16 @@ const char* const kCommandNames[607] = {
 // ORIG 0x082a2112：class 0/1 分派，其他 → "?"（0x8c18c22）。
 char* GetPacketName(ENUM_PACKETCLASS packetClass, unsigned short packetId)
 {
-    if (packetClass == (ENUM_PACKETCLASS)0)
+    // ORIG test/je/je/jmp 链 + packetId 入口截断槽 ⇒ switch 形（探针 e12 实证）
+    switch (packetClass)
+    {
+    case (ENUM_PACKETCLASS)0:
         return GetNotifyPacketName((ENUM_NOTIPACKET)packetId);
-    if (packetClass == (ENUM_PACKETCLASS)1)
+    case (ENUM_PACKETCLASS)1:
         return GetCommandPacketName((ENUM_CMDPACKET)packetId);
-    return const_cast<char*>("Undefined Packet Class");
+    default:
+        return const_cast<char*>("Undefined Packet Class");
+    }
 }
 
 // ORIG 0x082a2150：越界 → NONAME。
@@ -2093,8 +2098,8 @@ static const char* const NAMES[852] = {
     """",
 };
     static const char* const NONAME = "???";
-    const int id = (int)type;
-    if (id < 0 || id > 0x353)
+    // ORIG 无 id 槽（P0 律 ⇒ 内联右值）：直接用 type（去具名局部）
+    if (type < 0 || type > 0x353)
         return const_cast<char*>(NONAME);
-    return const_cast<char*>(NAMES[id]);
+    return const_cast<char*>(NAMES[type]);
 }

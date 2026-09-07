@@ -2076,24 +2076,16 @@ int CCreatureScript::GET_BTypeCreature()
 const char* getElementName(ENUM_ELEMENT element)
 {
     static char buffer[0x10];
-    switch (element)
-    {
-    case 0:
+    if (element == 0)
         strncpy(buffer, "[fire element]", 0x10);
-        break;
-    case 1:
-        strncpy(buffer, "[water element]", 0x10);
-        break;
-    case 2:
+    else if (element == 1)
+        memcpy(buffer, "[water element]", 0x10);
+    else if (element == 2)
         strncpy(buffer, "[dark element]", 0x10);
-        break;
-    case 3:
-        strncpy(buffer, "[light element]", 0x10);
-        break;
-    default:
+    else if (element == 3)
+        memcpy(buffer, "[light element]", 0x10);
+    else
         strncpy(buffer, "[no element]", 0x10);
-        break;
-    }
     return buffer;
 }
 

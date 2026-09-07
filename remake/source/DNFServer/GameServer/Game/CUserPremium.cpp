@@ -947,12 +947,14 @@ void CUserPremium::RecalcAdditionalInfo(CUser const* user)
     // `mov -0x10(%ebp),%eax` + disp 重读（故此处用单局部指针）。
     const _Additioal_info* addInfo =
         static_cast<const _Additioal_info*>(user->getCurCharacAddInfoR());
+    // probe p16/m1：4.4 乘法 L2R 求值——ORIG 先 *(addInfo 槽) 后 m_8bd ⇒ 左操作数
+    // 必为 addInfo->field（原写 m_additionalBase 在左=先读 m_8bd，反序）。
     m_additionalInfo.m_field00 = static_cast<int>(
-        (static_cast<unsigned int>(m_additionalBase.m_field00) *
-         static_cast<unsigned int>(addInfo->m_field00)) / 100U);
+        (static_cast<unsigned int>(addInfo->m_field00) *
+         static_cast<unsigned int>(m_additionalBase.m_field00)) / 100U);
     m_additionalInfo.m_field04 = static_cast<int>(
-        (static_cast<unsigned int>(m_additionalBase.m_field04) *
-         static_cast<unsigned int>(addInfo->m_field04)) / 100U);
+        (static_cast<unsigned int>(addInfo->m_field04) *
+         static_cast<unsigned int>(m_additionalBase.m_field04)) / 100U);
     m_additionalInfo.m_field08 = static_cast<unsigned short>(
         (static_cast<int>(addInfo->m_field08) *
          static_cast<int>(m_additionalBase.m_field08)) / 100);
@@ -981,8 +983,8 @@ void CUserPremium::RecalcAdditionalInfo(CUser const* user)
         (static_cast<short>(addInfo->m_field40) *
          static_cast<short>(m_additionalBase.m_field40)) / 100);
     m_additionalInfo.m_field42 = static_cast<int>(
-        (static_cast<unsigned int>(m_additionalBase.m_field42) *
-         static_cast<unsigned int>(addInfo->m_field42)) / 100U);
+        (static_cast<unsigned int>(addInfo->m_field42) *
+         static_cast<unsigned int>(m_additionalBase.m_field42)) / 100U);
     m_additionalInfo.m_field46 = static_cast<unsigned short>(
         (static_cast<int>(addInfo->m_field46) *
          static_cast<int>(m_additionalBase.m_field46)) / 100);
@@ -1044,12 +1046,13 @@ void CUserPremium::GetPremiumInfoList(std::vector<SUserPremiumInfo>& list, int t
 
 SUserPremiumInfo* CUserPremium::GetPremiumInfo(int type) const
 {
-    SUserPremiumInfo* entries = const_cast<SUserPremiumInfo*>(m_entries);
+    // P0：ORIG 无局部槽（sub 0，`add 0x8(%ebp),%eax`）——原码内联右值直返，
+    // 禁 entries 具名局部（4.4 恒落 -0x4 槽差帧）。
     // ORIG：仅 type<0x6a 且 type!=0x270f 时按下标偏移；其余（含
     // 9999 和正向越界值）均返回 entries[0]，负值仍按原始负偏移。
     if (type < 0x6a && type != 0x270f)
-        return entries + type;
-    return entries;
+        return const_cast<SUserPremiumInfo*>(m_entries) + type;
+    return const_cast<SUserPremiumInfo*>(m_entries);
 }
 
 int CUserPremium::GetReturnItemRate(int type) const
@@ -1314,17 +1317,21 @@ void _Additioal_info::operator+=(const _Additioal_info& other)
 // g_SPremiumInfo 行；越界返回 0。
 unsigned int WongWork::CUserPremium::GetAddIndependentDropRate(int level, unsigned int type)
 {
+    // ORIG 0x830ed48：平铺早退形（je/js/jle bad 直跳共享 mov$0 出口）；
+    // type-1 落 uchar 槽 -0x9（mov %al,-0x9;movzbl -0x9 回读，P0 具名局部）
+    // ORIG je 0x5a bad 块（4.4 对 ==0 恒 jne 反形，goto 保留 je 极性）
+    // idx 前置声明（C++98 goto 跨初始化禁令；赋值仍 mov %al,-0x9 单步）
+    unsigned char idx;
     if (type == 0)
+        goto L0;
+    if (type > 4)
         return 0;
-    if (type <= 4)
-    {
-        if (level < 0)
-            return 0;
-        if (level <= 0x69)
-        {
-            return g_SPremiumInfo[level].m_independentDropRates[type - 1];
-        }
+    if (level < 0)
         return 0;
-    }
+    if (level > 0x69)
+        return 0;
+    idx = static_cast<unsigned char>(type - 1);
+    return g_SPremiumInfo[level].m_independentDropRates[idx];
+L0:
     return 0;
 }

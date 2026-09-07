@@ -189,6 +189,8 @@ bool CHellPartyItemStatistic::SendHellPartyItemStatistic(
     CStatisticServerProxy* proxy =
         GlobalData::s_statistic_proxy_mgr->GetServerProxy(
             static_cast<ENUM_SERVER_GROUP>(0));
+    // ORIG lea -0x32(%ebp),%ebx 跨 GetServerProxy call 缓存；register 形实测
+    // 反退化（50→54），4.4 恒直装（N7/N18a 族）。
     proxy->SendPacket(reinterpret_cast<char*>(&packet), 0x2a);
     return true;
 }

@@ -106,8 +106,9 @@ unsigned int CPartyTelePort::get_teleport_member_state(int idx)
     {
         return (unsigned int)-1;
     }
-    unsigned char* members = (unsigned char*)m_party->GetMember();
-    return members[idx * 0x18 + 0x12];
+    // ORIG 0x85bc26x：GetMember() 结果寄存器缓存 + `movzbl 0x12(%eax)` disp 折叠
+    // ⇒ 源形为 cMember 成员直访（无指针局部、无手算偏移），字段 uchar 零扩展。
+    return m_party->GetMember()[idx].m_field12;
 }
 
 void CPartyTelePort::set_teleport_member_state(int idx, char state)
@@ -124,8 +125,8 @@ void CPartyTelePort::set_teleport_member_state(int idx, char state)
     {
         return;
     }
-    unsigned char* members = (unsigned char*)m_party->GetMember();
-    members[idx * 0x18 + 0x12] = state;
+    // ORIG 0x85bb94x：同上 cMember 成员直访（lea 基址+变址单段、0x12 折叠入 store disp）。
+    m_party->GetMember()[idx].m_field12 = state;
 }
 
 unsigned char CPartyTelePort::get_teleport_village()
@@ -205,14 +206,14 @@ void CPartyTelePort::reset_teleport_data()
 
 char CPartyTelePort::check_cur_teleport_state()
 {
-    char result;
+    // ORIG 0x85bbb1x：null 路径 mov $0,%eax 直返（无 result 槽写入）⇒ 源形为
+    // 直接 return 0，result 局部仅存活于 else 域。
     if (m_party == 0)
     {
-        result = 0;
+        return 0;
     }
-    else
+    char result = 1;
     {
-        result = 1;
         for (int i = 0; i <= 3; ++i)
         {
             if (m_party->checkValidUser(i) != 1)

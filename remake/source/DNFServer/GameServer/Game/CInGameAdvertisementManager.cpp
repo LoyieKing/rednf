@@ -76,7 +76,8 @@ stInGameADExposeCondition* CAdvertisementExposeInfo::getExposeCondition()
 CInGameAdvertisementManager::CInGameAdvertisementManager()
 {
     time_t now = time(0);
-    m_rand = new CMTRand(*(unsigned long*)&now);
+    // ORIG lea &now 早于 operator new：time_t → const unsigned long& 临时绑定形。
+    m_rand = new CMTRand(now);
 }
 
 // ORIG W _ZN27CInGameAdvertisementManagerD1Ev @0x080fca7c：delete m_rand(+0x18)
@@ -262,14 +263,14 @@ bool CInGameAdvertisementManager::checkCondition(CUser* user,
     {
         if (static_cast<unsigned char>(info->getExposeCondition()->m_pad0[1]) == 0)
         {
-            if (*(ageTbl + user->GetAge()) == 1)
+            if (ageTbl[user->GetAge()] == 1)
             {
                 return false;
             }
         }
         else
         {
-            if (*(ageTbl + user->GetAge()) == 0)
+            if (ageTbl[user->GetAge()] == 0)
             {
                 return false;
             }
@@ -365,7 +366,9 @@ bool CInGameAdvertisementManager::CheckIngameAdvertisementCondition(
     {
         return false;
     }
-    info = vec.at(RandNum(n));
+    // ORIG 尾部 rep movsl 0x18f×4：operator[] 内联后对齐已知，聚合赋值内联；
+    // at() 边界检查路径会展开成通用逐段拷贝。
+    info = vec[static_cast<unsigned int>(RandNum(n))];
     return true;
 }
 

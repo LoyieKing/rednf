@@ -127,11 +127,10 @@ public:
     char m_pad44[0x6c - 0x44];
     float m_bonusWeightByEquipType[12];           // +0x6c..0x97（[bonus weight by equipment
                                                   //      type]，equip type 10..21）
-    int m_purifyMatItem;                          // +0x9c（[purify material] 第 1 值）
-    int m_purifyOnlyMatItem;                      // +0xa0（[purify only material] 第 1 值）
-    int m_purifyMatCount;                         // +0xa4（[purify material] 第 2 值）
-    int m_purifyOnlyMatCount;                     // +0xa8（[purify only material] 第 2 值；
-                                                  //      名称序「推断」，偏移实证）
+    // ORIG getter 以类内 int 数组寻址（arr[i] ⇒ idx+0x24 + disp8 形），
+    // 故按行各声明为 int[2]：item 行 [0]=[purify material] item、[1]=only。
+    int m_purifyMatItem[2];                       // +0x9c..0xa0
+    int m_purifyMatCount[2];                      // +0xa4..0xa8（名称序「推断」，偏移实证）
     // 强化投资表（ORIG ctor 0x082aa510 依次构造 3 个；尺寸 0x14 各）
     __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>
         m_investMap[3];                           // +0xac,+0xc0,+0xd4
@@ -227,14 +226,14 @@ public:
     // union 不得嵌套类型声明 ⇒ 用具名 union 成员 m_bodyView）。
     union UpgradeBodyView
     {
-        char m_body[0x434 - 0x00c];
+        char m_body[0x404 - 0x00c];   // 0x404 起切出为类成员 m_penalty（见下）
         // dword 下标视图（P30 关键形）：ORIG 对「基址 + 含常数下标」的表访问发
         //   `mov idx,%edx ; add $K,%edx ; movl $imm,(%eax,%edx,4)`
         // 两步（upgrade_table_t::C1 @0x089000ca 12 个初始化循环、importUpgradeTable
         // 写点、get_upgrade_info 16 行缩放全为该形）；用字节偏移表达式
         // （m_body + off）会被 4.4 折成 lea/shl/add 链（N81）。数组长度 0x428/4。
-        float m_f32[(0x434 - 0x00c) / 4];
-        int m_i32[(0x434 - 0x00c) / 4];
+        float m_f32[(0x404 - 0x00c) / 4];
+        int m_i32[(0x404 - 0x00c) / 4];
         struct UpgradeTableNamed
         {
             char m_pad00c[0x234 - 0x00c];   // +0x00c..+0x233（脚本行区，按
@@ -258,9 +257,15 @@ public:
                                             //   importUpgradeTable [upgrade base
                                             //   grade] 行 CItemAmplifier.cpp:56
                                             //   `intAt((i+0x94)*4+0xc)` i=0..5。
-            char m_pad274[0x434 - 0x274];   // +0x274..+0x433（其余脚本行区）
+            char m_pad274[0x404 - 0x274];   // +0x274..+0x403（其余脚本行区）
         } m_named;
     } m_bodyView;
+    // GetPenaltyType 表：ORIG `add $0x100,%edx; mov 0x4(%eax,%edx,4)` 两步形
+    // 需要**非 union** 的基 0x404 int 数组（union 成员访问 gcc 必拆 0xfc/0x14，
+    // inv8~inv13 实证；inv7/inv9 普通成员发 0x100/4 精确复现）。
+    // 原 union 0x404..0x433 区切出为独立成员，总尺寸/偏移不变（union 0x3f8 +
+    // m_penalty 0x30 = 0x428）。UPG_TBL_I32 中 k>=0x100 的下标寻址不受影响。
+    int m_penalty[12];                    // +0x404..+0x433 按 rarity 的惩罚表
     ST3rdChronicleDestructionResult m_destruction;    // +0x434（ORIG C1 0x089000ca 直构；
                                                       //   内部 m_vec @+0x490 = 旧 m_resultItems）
     std::map<int, float> m_floatMap;                  // +0x49c（[cost weight by upgrade level]）
@@ -282,13 +287,13 @@ public:
                        const upgrade_info_t* info) const;
 };
 
-static_assert(sizeof(upgrade_table_t::UpgradeBodyView) == 0x434 - 0x00c,
+static_assert(sizeof(upgrade_table_t::UpgradeBodyView) == 0x404 - 0x00c,
               "upgrade_table_t::UpgradeBodyView ABI drift");
 static_assert(sizeof(upgrade_table_t::MachineFrameInfo) == 0x14,
               "upgrade_table_t::MachineFrameInfo ABI drift");
 static_assert(
     sizeof(upgrade_table_t::UpgradeBodyView::UpgradeTableNamed) ==
-        0x434 - 0x00c,
+        0x404 - 0x00c,
     "upgrade_table_t::UpgradeBodyView::UpgradeTableNamed ABI drift");
 static_assert(offsetof(upgrade_table_t::UpgradeBodyView::UpgradeTableNamed,
                        m_noticeUpgradeLevel) == 0x234 - 0x00c,
@@ -308,6 +313,8 @@ static_assert(offsetof(upgrade_table_t::UpgradeBodyView::UpgradeTableNamed,
 static_assert(offsetof(upgrade_table_t::UpgradeBodyView::UpgradeTableNamed,
                        m_additionalMinUpgrade) == 0x258 - 0x00c,
               "upgrade_table_t +0x258 view offset drift");
+static_assert(offsetof(upgrade_table_t, m_penalty) == 0x404,
+              "upgrade_table_t m_penalty offset drift");
 static_assert(offsetof(upgrade_table_t, m_destruction) == 0x434,
               "upgrade_table_t m_destruction offset drift");
 

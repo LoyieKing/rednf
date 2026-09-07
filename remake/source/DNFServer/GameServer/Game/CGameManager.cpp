@@ -600,7 +600,9 @@ void CGameManager::insertUserByAccID(CUser* user)
     unsigned int accId2 = user->get_acc_id();
     if (accId2 == 0)
     {
-        const char* name = user->get_acc_name();
+        // P52/P87：ORIG get_acc_name 值入 %ebx 跨 cMyTrace ctor 调用保活
+        //（call; mov %eax,%ebx），具名局部落槽双 store→改 register 形。
+        register const char* name asm("ebx") = user->get_acc_name();
         cMyTrace tr(__PRETTY_FUNCTION__, 0x91d, 5);
         tr("[QQID_ERROR]CGameManager::insertUserByAccID  qq_id:%s", name);
     }
@@ -807,60 +809,60 @@ void CGameManager::PutParty(CParty* party)
 
 void CGameManager::CheckOutParty(CUser* user, bool flag)
 {
-    if (user->CheckInParty() == 1)
+    // 探针 /tmp/l4_cop_probe.cpp：f1 裸 (bool)(x^1) goto 形=xor;test;jne；
+    // f2c (char)字段>0=movzbl;test;jle（P196 有符号）；f4 get_state()==2 裸形
+    // =cmp;sete;test;je。三空块 4.1 [nop;jmp] 尾不可复现（N，同 deathTower 族）。
+    if ((bool)(user->CheckInParty() ^ 1)) goto end;
     {
         CParty* party = GetParty(user->GetPartyIndex());
-        if (party != 0)
+        if (party == 0) goto end;
         {
             bool bVar1 = false;
             CDungeon* dungeon = party->m_battleField.m_pDungeon;  // ORIG *(party+0xcac)（CBattle_Field 区）
             if (dungeon != 0)
             {
-                // ORIG 0x08297ce2：cmp/jle+movb $1 分支直写（非 setne 物化，
-                // P56）；bVar2 为 dim>=1 || m_89c!=0 || !isTour 短路链
-                // （0x08297d0d test/jg 直接跳写点，结果**不入 char 局部**）。
-                if (dungeon->m_bloodDungeonType > 0)
+                if ((char)dungeon->m_bloodDungeonType > 0)
                     bVar1 = true;
                 if (((CDungeon*)dungeon)->isTowerOfDespairDungeon())
                     bVar1 = true;
             }
-            bool bVar2 = false;
             if (dungeon != 0)
             {
-                if (((CDungeon*)dungeon)->get_dimension_possible() >= 1 ||
+                if ((char)((CDungeon*)dungeon)->get_dimension_possible() > 0 ||
                     dungeon->m_89c != 0 ||
-                    !((CDungeon*)dungeon)->isTournamentDungeon())
-                    bVar2 = true;
-                if (bVar2)
+                    ((CDungeon*)dungeon)->isTournamentDungeon())
                     bVar1 = true;
             }
-            // +0xc7c：CParty::m_battleField.m_dungeonClearTracer（CParty.h 权威成员，BF+0x158）。
             party->m_battleField.m_dungeonClearTracer.Trace(
                 __PRETTY_FUNCTION__);
-            if (party->m_battleField.m_bloodState != 1 && party->get_state() == 2)
+            if (party->m_battleField.m_bloodState != 1)
             {
-                bVar2 = false;
-                if (dungeon != 0 && dungeon->m_entryRestrictFlag != 0)
-                    bVar2 = true;
-                bool bVar3 = false;
-                if (dungeon != 0 && dungeon->m_villageAttackEventFlag != 0)
-                    bVar3 = true;
-                if (!bVar1 && bVar2 && bVar3)
-                    user->giveup_panalty();
+                if (party->get_state() == 2)
+                {
+                    bool bVar2 = false;
+                    if (dungeon != 0 && dungeon->m_entryRestrictFlag != 0)
+                        bVar2 = true;
+                    bool bVar3 = false;
+                    if (dungeon != 0 && dungeon->m_villageAttackEventFlag != 0)
+                        bVar3 = true;
+                    if (!bVar1 && bVar2 && bVar3)
+                        user->giveup_panalty();
+                }
             }
-            party->leave_user(user, (ENUM_PARTY_INFO_TYPE)2);
         }
+        party->leave_user(user, (ENUM_PARTY_INFO_TYPE)2);
     }
+end:
+    ;
 }
 
-unsigned int CGameManager::CheckOutQuickParty(CParty* party, bool flag)
+bool CGameManager::CheckOutQuickParty(CParty* party, bool flag)
 {
-    // ORIG 0x082983fc：ret 无独立槽（call 结果 %eax 直接 xor+test 返回）；
-    // party==0 路径落 nop→ret，返回值 = 函数顶部 bool 形参 spill 的 %eax 残值
-    unsigned int ret;
+    // ORIG 0x082983fc：then 分支 xor$1,%eax 直返（探针 f1 形同构）；
+    // party==0 沿 eax 残值（flag spill）返回且无 movzbl（4.1 spill 策略，残差 N）。
     if (party != 0)
-        ret = (unsigned int)G_CGameManager()->GetQuickPartySystemManager()->cancel_quick_party(party, flag, 0) ^ 1;
-    return ret;
+        return G_CGameManager()->GetQuickPartySystemManager()->cancel_quick_party(party, flag, 0) ^ 1;
+    return flag;
 }
 
 // ============================================================================
@@ -1324,35 +1326,26 @@ void CGameManager::returnDeathTower(WongWork::CDeathTower* tower)
 //   lowering/对齐表示差异，语义等价。
 void CGameManager::checkOutDeathTower(CUser* user)
 {
-    // ORIG 族形态：外层空 then+else；内层 `x!=1` 以 (bool)(x^1) 真值判断复现
-    // xor$1;test;je skip（x==1 跳过），非 `!=1` 物化比较（cmp$1;je;mov1;mov0）
-    if ((bool)(user->checkInDeathTower() ^ 1))
-    {
-    }
-    else
-    {
-        WongWork::CDeathTower* tower = getDeathTower(user->getDeathTowerIndex());
-        // X1 形（XOR_FAMILY.tsv，probe /tmp/xg2.cpp 形 B 实证）：`(char)(x^1)`
-        // 仍被 4.4 物化成 `cmp $0x1,%al; je; mov $1; jmp; mov $0` 五段，
-        // ORIG 只要 `call onLeaveUser; xor $0x1,%eax; test %al,%al; je`。
-        // 绑 %eax 的具名 uchar + 显式 ^=1 才能直落单段 xor。
-        // 短路拆成嵌套 if：4.4 下 `if (a) { if (b) }` 与 `if (a && b)` 同形，
-        // 且避免 `&&` 把 uchar 真值重新规范化。
-        if (tower != 0)
+    // P63 goto 形：checkIn!=1 直跳出口。4.4 对空 then 块穿透（消 nop;jmp），
+    // ORIG 4.1 空块 [nop;jmp 出口] 不可复现（跨版本块排布 N，B24D 判词在册）；
+    // goto 形消多余尾部中继，为本源码形态最优近似（53/55）。
+    WongWork::CDeathTower* tower;
+    if ((bool)(user->checkInDeathTower() ^ 1)) goto end;
+    tower = getDeathTower(user->getDeathTowerIndex());
+    if (tower != 0)
         {
             register unsigned char left asm("eax") = (unsigned char)tower->onLeaveUser(user);
             left ^= 1;
             if (left)
-        {
-            LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x123a,
-                                  "DeathTower checkOutDeathTower ID[%d] ACCID[%s]",
-                                  tower->getIdx(),
-                                  NumberToString(user->get_acc_id(), 0));
+            {
+                LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x123a,
+                                      "DeathTower checkOutDeathTower ID[%d] ACCID[%s]",
+                                      tower->getIdx(),
+                                      NumberToString(user->get_acc_id(), 0));
+            }
         }
-        }
-        return;
-    }
-    return;
+end:
+    ;
 }
 
 WongWork::CBossTower* CGameManager::getBossTower()
@@ -1414,14 +1407,11 @@ void CGameManager::returnBossTower(WongWork::CBossTower* tower)
 
 void CGameManager::checkOutBossTower(CUser* user)
 {
-    // ORIG 族形态：空 then + else（xor$1;test;jne）
-    if ((bool)(user->checkInBossTower() ^ 1))
-    {
-    }
-    else
-    {
-        WongWork::CBossTower* tower = getBossTower(user->getBossTowerIndex());
-        if (tower != 0)
+    // P63 goto 形（同 checkOutDeathTower）：空 then 块 4.4 穿透，N 封顶；
+    WongWork::CBossTower* tower;
+    if ((bool)(user->checkInBossTower() ^ 1)) goto end;
+    tower = getBossTower(user->getBossTowerIndex());
+    if (tower != 0)
         {
             // **虚槽仲裁（多点联立，非单点）**：ORIG 此处是
             // `mov (%eax),%eax; add $0x14,%eax; mov (%eax),%edx; call *%edx`。
@@ -1434,8 +1424,8 @@ void CGameManager::checkOutBossTower(CUser* user)
             // ⇒ 原注释「+0x14 = checkAllMemberReady」把 **vtable 数组下标**当成
             // **vptr 偏移**，实际被调的是 **CBossTower::handleLeaveUser(CUser*)**。
             // 头文件虚声明顺序本身与 ORIG 完全一致，无需改布局（零 ABI 风险）。
-            // X1 形（probe /tmp/xg2.cpp 形 B）：`(bool)(x^1)` 在 4.4 仍产
-            // `cmp $0x1,%al; setne %al; test`，ORIG 是 `call *%edx; xor $0x1,%eax`。
+            // X1 形（probe /tmp/xg2.cpp 形 B）：裸 (bool)(x^1) 产 cmp$1;setne，
+            // 绑 %eax 才直落 xor；残差 call *%eax vs ORIG *%edx 属 N7 寄存器名族。
             register unsigned char left asm("eax") = (unsigned char)tower->handleLeaveUser(user);
             left ^= 1;
             if (left)
@@ -1446,9 +1436,8 @@ void CGameManager::checkOutBossTower(CUser* user)
                                       NumberToString(user->get_acc_id(), 0));
             }
         }
-        return;
-    }
-    return;
+end:
+    ;
 }
 
 advancealtar::StageControl* CGameManager::getAdvanceAltar()
@@ -1510,11 +1499,20 @@ void CGameManager::returnAdvanceAltar(advancealtar::StageControl* control)
 
 void CGameManager::checkOutAdvanceAltar(CUser* user)
 {
-    if (user != 0 && user->checkInAdvanceAltar() == 1)
+    // P133 独立守卫 + X1 register 形（xor 物化）+ P63 goto 尾（空块 4.4 穿透，N 残差）。
+    advancealtar::StageControl* control;
+    if (user == 0) goto end;
     {
-        advancealtar::StageControl* control =
-            getAdvanceAltar(user->getAdvanceAltarIndex());
-        if (control != 0 && control->leaveUser() != 1)
+        register unsigned char in asm("eax") = (unsigned char)user->checkInAdvanceAltar();
+        in ^= 1;
+        if (in) goto end;
+    }
+    control = getAdvanceAltar(user->getAdvanceAltarIndex());
+    if (control == 0) goto end;
+    {
+        register unsigned char left asm("eax") = (unsigned char)control->leaveUser();
+        left ^= 1;
+        if (left)
         {
             LogManager::logFormat(1, "App.cpp",
                                   __PRETTY_FUNCTION__, 0x11ef,
@@ -1523,6 +1521,8 @@ void CGameManager::checkOutAdvanceAltar(CUser* user)
                                   NumberToString(user->get_acc_id(), 0));
         }
     }
+end:
+    ;
 }
 
 void CGameManager::onTimeAdvanceAltar()

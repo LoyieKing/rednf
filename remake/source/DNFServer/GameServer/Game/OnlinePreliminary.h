@@ -133,7 +133,7 @@ public:
     // 填充 +0x24 map<int,PlayCountInfoEx>。
     int loadDataPreliminaryTeamMatchList(char* data);
     // ORIG T（报告 loadDataPreliminaryTeam）：data 头部填充本队基础字段。
-    void loadDataPreliminaryTeam(char* data);
+    int loadDataPreliminaryTeam(char* data);
 
     void IncreaseWinCount();                        // README 地址为准
     void IncreaseLoseCount();
@@ -153,13 +153,13 @@ public:
 
     int m_field00;                    // +0x00（teamId；GetTeamId）
     int m_field04;                    // +0x04
-    int m_field08;                    // +0x08
+    float m_rating08;                 // +0x08（ORIG float 位模式成员，SetRating/GetRating 位拷贝）
     int m_winCount;                   // +0x0c
     int m_loseCount;                  // +0x10
     char m_field14[0x10];             // +0x14..0x23（队名缓冲）
     std::map<int, PlayCountInfoEx> m_playCountMap;  // +0x24（0x18）
-    unsigned char m_hasWinFlag;       // +0x3c
-    unsigned char m_hasLoseFlag;      // +0x3d
+    bool m_hasWinFlag;                // +0x3c（ORIG xor$1 取反守卫实证 bool）
+    bool m_hasLoseFlag;               // +0x3d
 };  // sizeof 0x40
 
 // ---- COnlinePreliminaryMember（CData 派生成员数据） ----

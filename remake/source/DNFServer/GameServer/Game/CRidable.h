@@ -25,7 +25,7 @@ struct DungeonRidableObject : RidableObject
     // 再置 +0x18 m_state=0 ⇒ 派生自 RidableObject，派生侧只初始化 m_state。
     DungeonRidableObject() : m_state(0) {}
 
-    DungeonRidableObject& operator=(RidableObject other);  // ORIG 0x830e9d8
+    void operator=(RidableObject other);  // ORIG 0x830e9d8（尾无 mov this,eax ⇒ void，P129）
 
     // 基类 RidableObject 占 +0x00..+0x14（m_x,m_y,m_field0c,m_field10,m_field14,m_field18）
     int m_state;    // +0x18（eRidableObjectState）

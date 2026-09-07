@@ -284,7 +284,12 @@ bool Manager::Load()
     // ORIG 0x080e0e08：printf("[!] Loading CeraShop Add Restrict Script ...") 后
     // 调 ScriptLoader::LoadScript()；非 0 返回 0，否则 1。
     printf("[!] Loading CeraShop Add Restrict Type script - ");  // ORIG 串无 \n，仅尾随空格（带 \n 会被 GCC 转 puts）
-    return m_loader.LoadScript() == 0;
+    // ORIG 尾：test %eax; setne %al; test %al; je → mov$1 / mov$0 常量岛
+    //（P194 register-bool 物化形，条件落 %al 不落槽）。
+    register unsigned char nz asm("al") = (m_loader.LoadScript() != 0);
+    if (nz)
+        return 0;
+    return 1;
 }
 
 int Manager::Destroy()
@@ -332,7 +337,10 @@ void Manager::UpdateBuyableRestrictItem(CUser* user, unsigned int ipgNo,
     if (!ARAD::Singleton<Manager>::Get()->FindIpgNo(ipgNo))
         return;
     DBInputData data;
-    if (ARAD::Singleton<Manager>::Get()->InputBuyInfo(user, ipgNo, itemIdx, data) != 0) {
+    // ORIG 调用点 test %al,%al（int callee 的 al 直测，P3/P194 调用点收窄）。
+    register unsigned char ok asm("eax") =
+        (unsigned char)ARAD::Singleton<Manager>::Get()->InputBuyInfo(user, ipgNo, itemIdx, data);
+    if (ok) {
         // DB 请求经 DB_CerashopAddRestrict.cpp 的真实成员函数投递（ORIG 0x080e17ba）。
         DB_SaveCerashopAddRestrictType::makeRequest(user, data);
         // ORIG 直接调 static SendSyncPacket（无 this、无 Get()；注释 0x817915c 实证）

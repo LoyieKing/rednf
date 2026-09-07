@@ -58,11 +58,7 @@ inline std::vector<std::pair<int, int> >& get_recipe_materials(CItem* recipe)
 // m_item==0 || m_itemIndex==0 || m_user==0 → 1，否则 0。（无独立报告）
 bool ExpertJobMaterial::Empty()
 {
-    if (m_item == 0)
-        return true;
-    if (m_itemIndex == 0)
-        return true;
-    return m_user == 0;
+    return m_item == 0 || m_itemIndex == 0 || m_user == 0;
 }
 
 // ORIG _ZN10expert_job17ExpertJobMaterial7SetDataEP5CUsertt @0x0849bf08。
@@ -71,26 +67,25 @@ bool ExpertJobMaterial::Empty()
 int ExpertJobMaterial::SetData(CUser* user, unsigned short area,
                                unsigned short slot)
 {
-    if (area == 0)
-    {
-        Inven_Item* invenRef = user->GetCurCharacInventoryRef(area, slot);
-        if (invenRef == 0)
-            return 0x15;
-        if (invenRef->m_addInfo == 0)
-            return 0x15;
+    if (area != 0)
+        return 0x15;
 
-        m_itemIndex = static_cast<unsigned int>(invenRef->m_addInfo);
-        m_item = reinterpret_cast<unsigned int>(
-            G_CDataManager()->find_item(invenRef->m_addInfo));
-        if (reinterpret_cast<CItem*>(m_item) == 0)
-            return 0x15;
+    Inven_Item* invenRef = user->GetCurCharacInventoryRef(area, slot);
+    if (invenRef == 0)
+        return 0x15;
+    if (invenRef->m_addInfo == 0)
+        return 0x15;
 
-        m_user = reinterpret_cast<unsigned int>(user);
-        m_slot = slot;
-        m_field0e = area; // ORIG 0x0849bfbc 写 area（-0x1c(%ebp)）到 +0xe
-        return 0;
-    }
-    return 0x15;
+    m_itemIndex = static_cast<unsigned int>(invenRef->m_addInfo);
+    m_item = reinterpret_cast<unsigned int>(
+        G_CDataManager()->find_item(invenRef->m_addInfo));
+    if (reinterpret_cast<CItem*>(m_item) == 0)
+        return 0x15;
+
+    m_user = reinterpret_cast<unsigned int>(user);
+    m_slot = slot;
+    m_field0e = area; // ORIG 0x0849bfbc 写 area（-0x1c(%ebp)）到 +0xe
+    return 0;
 }
 
 // ORIG _ZN10expert_job17ExpertJobMaterial8IsRecipeEv @0x0849c114：
@@ -136,14 +131,13 @@ int ExpertJobMaterial::IsRight()
     if (Empty())
         return 0x11;
 
-    CUser* user = reinterpret_cast<CUser*>(m_user);
-    if (user->getCurCharacR() == 0)
+    if (reinterpret_cast<CUser*>(m_user)->getCurCharacR() == 0)
         return 3;
     if (m_field0e != 0)
         return 0x11;
 
     Inven_Item* invenRef =
-        user->GetCurCharacInventoryRef(m_field0e, m_slot);
+        reinterpret_cast<CUser*>(m_user)->GetCurCharacInventoryRef(m_field0e, m_slot);
     if (invenRef == 0)
         return 0x11;
     if (static_cast<unsigned int>(invenRef->m_addInfo) != m_itemIndex)
@@ -192,17 +186,18 @@ int ExpertJobMaterial::IsExistMaterialOfRecipe()
     if (Empty())
         return 0x11;
 
-    int recipeErr = IsRecipe();
+    int recipeErr = 0;
+    recipeErr = IsRecipe();   // ORIG 0x849c17b 前置 movl $0x0,-0xc 预清（P198-①）
     if (recipeErr != 0)
         return recipeErr;
 
-    CUser* user = reinterpret_cast<CUser*>(m_user);
-    if (user->getCurCharacR() == 0)
+    if (reinterpret_cast<CUser*>(m_user)->getCurCharacR() == 0)
         return 3;
 
-    CItem* recipe = reinterpret_cast<CItem*>(m_item);
-    if (!user->getCurCharacInvenR()->CheckNeedItemList(
-            get_recipe_materials(recipe)))
+    // ORIG 0x849c1cb：materials 经 lea 0x174(%eax) 内联（P49：勿经 static inline helper）；
+    // 0x849c1ea xor $1/test %al 为 4.1 bool 物化（4.4 恒折 test 方向，N18b，探针实证）。
+    if (!reinterpret_cast<CUser*>(m_user)->getCurCharacInvenR()->CheckNeedItemList(
+            reinterpret_cast<CStackableItem*>(m_item)->m_recipe174.m_vec0))
         return 0x15;
     return 0;
 }

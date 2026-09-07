@@ -260,7 +260,7 @@ int CBossStage::handlePickupItem(CUser* user, int itemUID, bool flag,
 // ---- handleDropItem（ORIG 0x0814ff4a）----
 // 丢弃：dropItem 成功 → 取 +0xa34 序号（-1 回执失败包）→ MapInfo::Add_Item →
 // 0x28 广播包 → 0x32 成功回执给丢弃者；失败/越限 → 0x32 失败回执。
-int CBossStage::handleDropItem(CUser* user, int a, int b, char c, int d, int e)
+bool CBossStage::handleDropItem(CUser* user, int a, int b, char c, int d, int e)
 {
     if (e < 0)
         return 0;
@@ -383,16 +383,17 @@ int CBossStage::handleKillMonster(CUser* user, unsigned short a,
 // ---- moveNextStage（ORIG 0x0814d1b6）----
 // 怪物清空（monsterMap.empty()）且 m_stageCur < m_stageMax（无符号比较）
 // 时 m_stageCur+=1 进入下一层。
+// [N18a 封顶] 残差仅 0x814d1dd `mov 0xae0(%eax),%edx` 单步直落；4.4 恒折
+// `mov %eax; mov %eax,%edx` 两步（N18a：单段 regmove 不可复现），其余 27 条逐条同形。
 bool CBossStage::moveNextStage()
 {
     if (!m_stageData.m_monsterMap.empty())
         return false;
-    if ((unsigned int)m_stageCur < (unsigned int)m_stageMax)
-    {
-        m_stageCur += 1;
-        return true;
-    }
-    return false;
+    // ORIG 0x0814d1ee `jb` 跳增块、mov$0 fall-through：条件写作 >= 早退布局。
+    if ((unsigned int)m_stageCur >= (unsigned int)m_stageMax)
+        return false;
+    m_stageCur += 1;
+    return true;
 }
 
 // ---- randomMapIndex（ORIG 0x0814f4fc）----
@@ -1352,15 +1353,17 @@ bool CBossStage::RandomConsistMap(CUser& user)
         return false;
 
 
-    if (user.isGMUser() && user.m_gmBossMapIndex != 0)
+    // ORIG 0x0814f462/46f 两条件各自 test/je 直落 L66，无 choose 岛：嵌套 if。
+    if (user.isGMUser())
+        if (user.m_gmBossMapIndex != 0)
     {
         mapIdx = user.m_gmBossMapIndex;
         user.m_gmBossMapIndex = 0;
     }
 
     CMap* map = static_cast<CMap*>(G_CDataManager()->find_map(mapIdx));
-    const bool failed = (map == 0) || !consistMap(map);
-    if (failed)
+    // ORIG 0x0814f4a3..b3 choose 岛无 bool 槽（mov$1/jmp/mov$0 + 统一 test）。
+    if (map == 0 || !consistMap(map))
         return false;
     // ORIG this+0x9e8 = m_startTick
     m_startTick = (int)GlobalData::s_systemTime_.getCurTickCount();

@@ -167,7 +167,7 @@ void makePathArea(MapArea* areas, const int area1[][2], const int area2[][2])
     }
 }
 
-int isInPathArea(int x, int y, const int (*area1)[2], const int (*area2)[2])
+bool isInPathArea(int x, int y, const int (*area1)[2], const int (*area2)[2])
 {
     MapArea areas[4];
     makePathArea(areas, area1, area2);
@@ -258,7 +258,7 @@ void CMap::destory()
     // ORIG 0834ed1e：空体（push/mov/pop/ret，仅返回）。
 }
 
-int CMap::checkFitInPathObject(int x, int y) const
+bool CMap::checkFitInPathObject(int x, int y) const
 {
     // [A·可攻未闭合] ORIG 第一参 `lea 0x4c(%eax),%edx` 单段直落；4.4 裸形恒
     // `add+mov` 两段（ndiff 3）。实测 register asm("edx") 钉形反劣化（3→9，

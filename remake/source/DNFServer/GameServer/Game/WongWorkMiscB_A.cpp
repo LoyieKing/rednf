@@ -73,9 +73,6 @@ void Avatar_Item::setColor(short color1, short color2)
 //   起始 +0x21）；socketType(u16)==0 → return 0；否则写入 itemIdx 并 return 1。
 int Avatar_Item::updateEmblemSocket(unsigned int grade, unsigned int itemId)
 {
-    if (grade >= sizeof(m_emblemInfo.stEmblemSocket) /
-                     sizeof(m_emblemInfo.stEmblemSocket[0]))
-        return 0;
     if (m_emblemInfo.stEmblemSocket[grade].emblemSocketType_ == 0)
         return 0;
     m_emblemInfo.stEmblemSocket[grade].emblemItemIdx_ = (int)itemId;
@@ -169,6 +166,7 @@ void CCompoundAvatar::tagCompoundInfo::clear()
     m_slot        = 100;      // 0x64
     m_errorFlag   = 0;
     m_fieldD6     = 0;
+    m_type        = 0;
     m_resultSlot  = 0xffff;
     m_results.clear();
 }
@@ -266,9 +264,9 @@ void CCompoundAvatar::ProcCompound(CUser* user, const MSG_COMPOUND_AVATAR* msg)
 // W 0x08694a64（非 const）：this+0x8bc 字节非 0 → level*level*100，否则 0。
 int CUserPremium::GetGoldBonus(int level)
 {
-    if (((const unsigned char*)this)[0x8bc] == 0)
-        return 0;
-    return level * level * 100;
+    if (m_field8bc != 0)
+        return level * level * 100;
+    return 0;
 }
 
 // ---------------------------------------------------------------------------

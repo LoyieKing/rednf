@@ -105,6 +105,14 @@ struct MSG_EPLP_COMMAND_A2
     unsigned char m_subCmd;   // +0x0e：子命令字节
 };
 
+// ParamBase+0x0e 的 ushort uid 视图（ORIG movzwl 0xe(%eax) disp 直读，
+// 指针具名槽往返：EnterDisjointStore/RequestDisjointItem check_error 共用）。
+struct __attribute__((packed)) ParamUidView_A2
+{
+    char m_pad00[0xe];
+    unsigned short m_uid;
+};
+
 // GM 消息包（oldGmRoutine 内联展开模式，ORIG 多处重复同一序列）：
 // put_header(0,0xc) / put_byte(0) / put_short(0) / put_byte(0) / put_int(len) /
 // put_str(msg,len) / finalize(true) / Send。
@@ -224,12 +232,13 @@ void Dispatcher_EPLPCommand::_SendEPLPError(CParty* party, unsigned char subCmd,
 
 void Dispatcher_EPLPCommand::_BroadCastPacket(CParty* party, MSG_EPLP_COMMAND& msg)
 {
-    MSG_EPLP_COMMAND_A2& m = reinterpret_cast<MSG_EPLP_COMMAND_A2&>(msg);
     PacketGuard guard;
     guard.put_header(1, 0x4b);
     guard.put_byte(1);                       // 类型 1：广播
-    guard.put_byte(static_cast<int>(m.m_cmd));     // msg+0x0d
-    guard.put_byte(static_cast<int>(m.m_subCmd));  // msg+0x0e
+    guard.put_byte(static_cast<int>(         // msg+0x0d（ORIG 参数槽直读）
+        reinterpret_cast<MSG_EPLP_COMMAND_A2&>(msg).m_cmd));
+    guard.put_byte(static_cast<int>(         // msg+0x0e
+        reinterpret_cast<MSG_EPLP_COMMAND_A2&>(msg).m_subCmd));
     guard.finalize(true);
     party->send_to_party(guard);
 }
@@ -335,18 +344,18 @@ int Dispatcher_EnchantByBead::check_error(CUser* user, MSG_BASE& msg, ParamBase&
 int Dispatcher_EnterDisjointStore::check_error(CUser* user, MSG_BASE& msg,
                                                ParamBase& param)
 {
-    if (user->get_state() <= 2 || user->getCurCharacR() == 0)
+    if ((user->get_state() <= 2) ? true : (user->getCurCharacR() == 0))
         return -1;
 
-    unsigned short uid = *reinterpret_cast<unsigned short*>(
-        reinterpret_cast<char*>(&param) + 0xe);
-    CUser* target = G_GameWorld()->find_from_world(uid);   // 0x086c4b9c
+    ParamUidView_A2* pUid = reinterpret_cast<ParamUidView_A2*>(&msg);  // ORIG mov 0x10(%ebp) 即 msg
+    CUser* target = G_GameWorld()->find_from_world(pUid->m_uid);   // 0x086c4b9c
     if (target == 0)
         return 0x15;
 
     if (target->GetCurCharacExpertJobType() != 3)          // 0x0822f894
         return 0x13;
-    expert_job::CExpertJob* job = target->GetCurCharacExpertJob();  // 0x0822f8d4
+    expert_job::CExpertJob* job = 0;                               // ORIG movl $0,-0xc 声明预清
+    job = target->GetCurCharacExpertJob();                         // 0x0822f8d4
     if (job == 0)
         return 0x13;
     if (job->GetType() != 3)                               // 0x08234796
@@ -366,9 +375,9 @@ int Dispatcher_GuildCargo::check_error(CUser* user, MSG_BASE& msg, ParamBase& pa
 
     if (user->get_charac_guildkey() == 0)                  // 0x0822f46c
         return 100;
-    if (user->IsExistGuildAgit())                          // 0x082301d8
-        return 0;
-    return 0xb5;
+    if (!user->IsExistGuildAgit())                         // 0x082301d8（ORIG xor$1 形）
+        return 0xb5;
+    return 0;
 }
 
 // ============================================================================
@@ -384,9 +393,9 @@ int Dispatcher_GuildCargoHistory::check_error(CUser* user, MSG_BASE& msg,
 
     if (user->get_charac_guildkey() == 0)
         return 100;
-    if (user->IsExistGuildAgit())
-        return 0;
-    return 0xb5;
+    if (!user->IsExistGuildAgit())
+        return 0xb5;
+    return 0;
 }
 
 // ============================================================================
@@ -422,17 +431,15 @@ int Dispatcher_PrecheckSoloTeleport::check_error(CUser* user, MSG_BASE& msg,
 int Dispatcher_RequestDisjointItem::check_error(CUser* user, MSG_BASE& msg,
                                                 ParamBase& param)
 {
-    if (user->get_state() <= 2 || user->getCurCharacR() == 0)
+    if ((user->get_state() <= 2) ? true : (user->getCurCharacR() == 0))
         return -1;
 
-    ServiceRestrictManager* mgr =
-        ARAD::Singleton<ServiceRestrictManager>::Get();    // 0x081625e6
-    if (mgr->isRestricted(user, RestrictCategory::Enum(1), 0x13))
+    if (ARAD::Singleton<ServiceRestrictManager>::Get()     // 0x081625e6（结果直传）
+            ->isRestricted(user, RestrictCategory::Enum(1), 0x13))
         return 0xd1;
 
-    unsigned short uid = *reinterpret_cast<unsigned short*>(
-        reinterpret_cast<char*>(&param) + 0xe);
-    CUser* target = G_GameWorld()->find_from_world(uid);
+    ParamUidView_A2* pUid = reinterpret_cast<ParamUidView_A2*>(&msg);  // ORIG mov 0x10(%ebp) 即 msg
+    CUser* target = G_GameWorld()->find_from_world(pUid->m_uid);
     if (target == 0)
         return 3;
     return 0;

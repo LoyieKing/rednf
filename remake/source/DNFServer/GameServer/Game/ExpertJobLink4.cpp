@@ -159,8 +159,8 @@ int CAlchemist::OnTeleportCharacter(CUser* user, int vill, int area, int x,
     if (useGate)
     {
         area = G_GameWorld()->get_gate_area(vill);
-        // ORIG 0x085d1453：shr $0x1f; test; je 形式（符号位检查）。
-        if (((unsigned int)area >> 31) != 0)
+        // ORIG 0x085d1453：shr $0x1f; test; je（4.1 符号位形；4.4 恒折 cmpl/jns，N86b）。
+        if (area < 0)
             return 0;
 
         if (!G_GameWorld()->get_area_center_point(vill, area, x, y))
@@ -457,10 +457,15 @@ CExpertJob* CExpertJobMgr::AcquireExpertJob(ENUM_EXPERT_JOB_TYPE type)
 CExpertJob* CExpertJobFactory::AcquireExpertJob(ENUM_EXPERT_JOB_TYPE type)
 {
     CExpertJob* acquired = 0;
-    if (type == (ENUM_EXPERT_JOB_TYPE)1)
+    switch (type)
+    {
+    case (ENUM_EXPERT_JOB_TYPE)1:
         acquired = m_enchanterPool.Acquire();
-    else if (type == (ENUM_EXPERT_JOB_TYPE)3)
+        break;
+    case (ENUM_EXPERT_JOB_TYPE)3:
         acquired = m_disjointerPool.Acquire();
+        break;
+    }
 
     if (acquired != 0)
     {
@@ -482,11 +487,15 @@ void CExpertJobFactory::FreeExpertJob(CExpertJob* job)
 {
     if (job == 0)
         return;
-    int type = job->GetType();
-    if (type == 1)
+    switch (job->GetType())
+    {
+    case 1:
         m_enchanterPool.Free((CEnchanter*)job);
-    else if (type == 3)
+        break;
+    case 3:
         m_disjointerPool.Free((CDisjointer*)job);
+        break;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -539,18 +548,16 @@ void CDisjointer::Reset() { m_machine.reset(); }
 // targetUser=分解机主人；requestUser=发起请求者。
 void CDisjointer::OnStartMission(CUser* targetUser, CUser* requestUser)
 {
-    bool lackMoney = false;
+    register bool lackMoney asm("eax") = false;
     if (targetUser != requestUser)
     {
-        int money = requestUser->getCurCharacMoney();
-        if (money < m_machine.get_cost())
+        if (requestUser->getCurCharacMoney() < m_machine.get_cost())
             lackMoney = true;
     }
     if (lackMoney)
         throw static_cast<ENUM_ERROR>(0x15);
 
-    int cost = m_machine.get_cost();
-    if (!targetUser->CheckMoney(cost))   // ORIG CheckMoney 返 1 为足额
+    if (!targetUser->CheckMoney(m_machine.get_cost()))   // ORIG CheckMoney 返 1 为足额
     {
         send_error(targetUser, 10);
         // ORIG vptr+0x4 虚槽 = slot1 OnCloseMission(机主, 0)
@@ -849,12 +856,12 @@ std::vector<int>* GetPredictDisjointItems(CUser* user, CItem* item,
                                           Inven_Item& invenItem,
                                           expert_job::CDisjointer* disjointer)
 {
-    if (disjointer == 0)
+    if (disjointer != 0)
+        return disjointer->GetPredictResult(user, item, &invenItem);
+    else
     {
-        int rarity = item->get_rarity();
-        return G_CDataManager()->m_disJoint->GetPredictResult(rarity);
+        return G_CDataManager()->m_disJoint->GetPredictResult(item->get_rarity());
     }
-    return disjointer->GetPredictResult(user, item, &invenItem);
 }
 
 // ---- DisJoint::getPredictResultItemTypeCount（ORIG T 0x08473148，
@@ -910,7 +917,8 @@ int DisPatcher_DisJointItem::_checkDisjointableItem(const Inven_Item& item,
 
     if (itemObj->IsImpossibleDisjoint())   // ORIG vptr+0x38（IsImpossibleDisjoint，非 CharacCargo）
         return 0x13;
-    if (itemObj->GetAttachType() == 2)
+    int attachType = itemObj->GetAttachType();
+    if (attachType == 2)
         return 0x11;
     return 0;
 }

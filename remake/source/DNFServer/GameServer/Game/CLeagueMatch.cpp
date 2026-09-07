@@ -180,7 +180,10 @@ CUser* CLeagueMatch::GetUser(unsigned int idx)   // ORIG T 0x0855e5e4
 {
     if (idx > 3)
         return 0;
-    if (m_teamA.m_players[idx].m_flag == 0)
+    // ORIG movzbl;xor $1;test %al;je <主流程>：X1 register 形复现（probe_xor f2）。
+    register unsigned char flagChk asm("eax") = m_teamA.m_players[idx].m_flag;
+    flagChk ^= 1;
+    if (flagChk)
         return 0;
     return m_teamA.m_players[idx].m_user;
 }
@@ -284,7 +287,9 @@ int CLeagueMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
         return 0;
     }
 
-    int err = _CheckMatchable(room);
+    // ORIG movl $0x0,-0xc 预清（P198③ 声明=0+独立赋值两句式）。
+    int err = 0;
+    err = _CheckMatchable(room);
     if (err != 0) {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(199),
                                  static_cast<unsigned char>(err & 0xff));
@@ -295,9 +300,10 @@ int CLeagueMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
         _RegisterWaitingRoom(room);
 
     m_state = 1;
-    long auth = m_authValue;
-    int roomIdx = room->get_index();
-    TimerStartMatching::registNextTimer(10, roomIdx, static_cast<int>(auth));
+    // ORIG mov 0x18(%eax),%ebx 跨 get_index call 缓存（P87 register 局部）；
+    // get_index 结果右值直传实参（P0 无槽）。
+    register long auth asm("ebx") = m_authValue;
+    TimerStartMatching::registNextTimer(10, room->get_index(), static_cast<int>(auth));
     _SendMatchStatePacket(0, 1);
     return 1;
 }
@@ -977,7 +983,10 @@ int CLeagueMatch::addBadge(PlayerInfo* info, ENUM_BADGE_TYPE badgeType,
     // 分支岛非三目物化）；三分支各复制完整 findString+snprintf call 序列
     // （ORIG 三独立岛，非选串指针汇聚）；值表达式 (int)*msgFlag+count 右→左
     // 求值先于 findString（ORIG ebx 先算）。
-    if (info->m_flag != 1)
+    // ORIG movzbl;xor $1;test %al;je <main>：X1 register 形复现（probe_xor f2）。
+    register unsigned char flagChk asm("eax") = info->m_flag;
+    flagChk ^= 1;
+    if (flagChk)
         return 0;
     if (info->m_user == 0)
         return 0;

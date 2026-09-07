@@ -240,7 +240,7 @@ public:
                      int mapSize, int field6c, int field70);
     // ORIG _ZN13user_creature12CDBMsgSender12ChangeSlotNoEP10Inven_Itemiii W 0x083400a4
     bool ChangeSlotNo(Inven_Item* item, int characNo, int slot, int reason);
-    // ORIG _ZN13user_creature12CDBMsgSender13AuctionRegistEP10Inven_Itemiiii W 0x08340144（p2/p3 未读）
+    // ORIG _ZN13user_creature12CDBMsgSender13AuctionRegistEP10Inven_Itemiiii W 0x081faff2（p2 未读；p3 低字节→+0x51）
     bool AuctionRegist(Inven_Item* item, int characNo, int unused14,
                        int unused18, int mapSize);
     void Cancel();   // ORIG _ZN13user_creature12CDBMsgSender6CancelEv W 0x0833f994：三路按池归还并置空
@@ -475,7 +475,7 @@ public:
     int GetPartyIdx(CParty* party);
     void PutParty(CParty* party);
     void CheckOutParty(CUser* user, bool flag);
-    unsigned int CheckOutQuickParty(CParty* party, bool flag);
+    bool CheckOutQuickParty(CParty* party, bool flag);
 
     // ---- 交易 ----
     CTradeSpace* GetTradeSpace();

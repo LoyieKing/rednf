@@ -10,11 +10,9 @@
 
 ROI_Category::ROI_Category()
 {
-    // ORIG 0x0822ac10: movl $0x0,(%eax) / 0x4(%eax) / 0x8(%eax) —— 三个 dword 清零。
-    unsigned int* dw = reinterpret_cast<unsigned int*>(this);
-    dw[0] = 0;
-    dw[1] = 0;
-    dw[2] = 0;
+    // ORIG 0x0822ac10: 前两 movl 共享基址（8 字节整块），第三重读 this —— long long 块清 + 第三 dword
+    *(long long*)this = 0;
+    m_dw8 = 0;                       // ORIG movl $0,0x8(%eax)（disp 折叠）
 }
 
 // ORIG 0x0822ac30：记录 i 的 key=m_keys[i]，mark=m_marks[i]。
@@ -23,30 +21,32 @@ ROI_Category::ROI_Category()
 //               if(k0>k1){swap k0,k1 & m0,m1}
 void ROI_Category::_sort()
 {
+    unsigned short tmpKey;
+    unsigned char tmpMark;
     if (static_cast<short>(m_keys[0]) > static_cast<short>(m_keys[1])) // ORIG jle 有符号比较
     {
-        unsigned short tmpKey = m_keys[0];       // -0x4(%ebp)
+        tmpKey = m_keys[0];                       // ORIG 共用 -0x4(%ebp)
         m_keys[0] = m_keys[1];
         m_keys[1] = tmpKey;
-        unsigned char tmpMark = m_marks[0];      // -0x1(%ebp)
+        tmpMark = m_marks[0];                     // ORIG 共用 -0x1(%ebp)
         m_marks[0] = m_marks[1];
         m_marks[1] = tmpMark;
     }
     if (static_cast<short>(m_keys[1]) > static_cast<short>(m_keys[2])) // ORIG jle 有符号比较
     {
-        unsigned short tmpKey = m_keys[1];       // -0x4(%ebp)
+        tmpKey = m_keys[1];
         m_keys[1] = m_keys[2];
         m_keys[2] = tmpKey;
-        unsigned char tmpMark = m_marks[1];      // -0x1(%ebp)
+        tmpMark = m_marks[1];
         m_marks[1] = m_marks[2];
         m_marks[2] = tmpMark;
     }
     if (static_cast<short>(m_keys[0]) > static_cast<short>(m_keys[1])) // ORIG jle 有符号比较
     {
-        unsigned short tmpKey = m_keys[0];       // -0x4(%ebp)
+        tmpKey = m_keys[0];
         m_keys[0] = m_keys[1];
         m_keys[1] = tmpKey;
-        unsigned char tmpMark = m_marks[0];      // -0x1(%ebp)
+        tmpMark = m_marks[0];
         m_marks[0] = m_marks[1];
         m_marks[1] = tmpMark;
     }

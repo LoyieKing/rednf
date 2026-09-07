@@ -58,8 +58,11 @@ bool CParty::hasPCRoomPlayer()
 {
     for (int i = 0; i <= 3; ++i)
     {
-        if (_checkValidUser(i)
-            && m_member[i].m_pUser->isAffectedPremium(
+        // ORIG 0x85b4a7f 域：两独立守卫（xor;test;jne continue → call;test;je
+        // skip）——合并 && 违 P133（汇聚 setne 形）。
+        if (!_checkValidUser(i))
+            continue;
+        if (m_member[i].m_pUser->isAffectedPremium(
                 static_cast<ENUM_PREMIUM_TYPE>(0xc)))
             return true;
     }
@@ -273,7 +276,9 @@ int CParty::getDungeonTypeKind(CDungeon const* dungeon)
     // m_89c（CDungeon.h:777，unsigned char）：ORIG movzbl 0x89c(%eax);test %al
     if (dungeon->m_89c != 0)
         return 1;
-    if (dungeon->get_dimension_possible() >= 1)
+    // ORIG 0x85bdd40 test %al;setg —— 有符号字节 >0 比较（(signed char) 先例同
+    // CPartyDepsB2:550/CPartyOnlyOrig:881）；uchar 直 >=1 会折 setne。
+    if ((signed char)dungeon->get_dimension_possible() > 0)
         return 2;
     if (dungeon->getDungeonKind() == 1)
         return 3;

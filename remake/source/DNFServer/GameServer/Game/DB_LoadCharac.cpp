@@ -374,7 +374,11 @@ bool DB_LoadCharac::_UpdateSchoolCharac(SIG_LOAD_CHARAC* sig)
         (int)sig->m_characData.m_schoolNo,        // school_id
         NumberToString(sig->m_accId, 0),          // m_id
         sig->m_characNo);                         // charac_no
-    return db->exec(true);
+    register bool fail __asm__("al");   // ORIG xor$1/test/je<mov$1 岛>（P194）
+    fail = !db->exec(true);
+    if (fail)
+        return false;
+    return true;
 }
 
 // ============================================================================

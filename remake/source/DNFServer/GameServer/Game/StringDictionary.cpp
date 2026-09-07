@@ -109,11 +109,11 @@ const char* StringDictionary::addString(const char* s)
     }
     else
     {
-        int cap = std::max(need, kBufSize);
+        unsigned int cap = std::max(need, kBufSize);
         unsigned char* ptr = new unsigned char[cap];
         blocks_.push_back(ptr);
         m_curPtr = (int)ptr + need;
-        m_curRemain = cap - need;
+        m_curRemain = cap - static_cast<unsigned int>(need);
         ret = ptr;
     }
 
@@ -209,11 +209,8 @@ int StringDictionary::getCount() const
 // ----------------------------------------------------------------------------
 const char* StringDictionary::getKey(int index) const
 {
-    if (index < 0 || index >= static_cast<int>(entities_.size()))
-    {
-        return 0;
-    }
-    return entities_[index].key;
+    return (index >= 0 && index < static_cast<int>(entities_.size()))
+               ? entities_[index].key : 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -222,11 +219,8 @@ const char* StringDictionary::getKey(int index) const
 // ----------------------------------------------------------------------------
 const char* StringDictionary::getValue(int index) const
 {
-    if (index < 0 || index >= static_cast<int>(entities_.size()))
-    {
-        return 0;
-    }
-    return entities_[index].value;
+    return (index >= 0 && index < static_cast<int>(entities_.size()))
+               ? entities_[index].value : 0;
 }
 
 // ----------------------------------------------------------------------------

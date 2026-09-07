@@ -228,8 +228,9 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
 // ---------------------------------------------------------------------------
 int fnEnumDungeonClear(short dungeonIdx, char diff, char* userData)
 {
+    // ORIG：lea 0x4→写回形参槽 + 旧值解引用（后缀 ++ 语义，4.1 发射写回）。
     InterfacePacketBuf* buf =
-        *reinterpret_cast<InterfacePacketBuf**>(userData);
+        *reinterpret_cast<InterfacePacketBuf**>(userData++);
     buf->put_short(static_cast<int>(dungeonIdx));
     buf->put_byte(static_cast<int>(diff));
     return 1;

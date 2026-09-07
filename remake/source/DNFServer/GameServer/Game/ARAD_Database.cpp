@@ -41,12 +41,13 @@ inline unsigned int& create_result_code(SIG_CREATE_CHARAC* sig)
     return sig->m_resultCode;    // +0x5344（W6TB_DbCreateCharac 已具名化）
 }
 // 【ABI 镜像】POD 区未建模单值字段直访（SIG_LOGIN_DATA 在 SigTypes.h 仅 char m_pad[0x4358]；
-// SIG_CREATE_CHARAC 内散列属性同样适用）
-template <typename T, typename P>
-inline T& login_field(P base, unsigned int off)
-{
-    return *reinterpret_cast<T*>(reinterpret_cast<char*>(base) + off);
-}
+// SIG_CREATE_CHARAC 内散列属性同样适用）。
+// 宏而非模板函数：ORIG(4.1) 对该访问无外联 call 且无形参槽往返
+//（mov 0x3914(%eax),%eax 单条实证 0x0818c6c4），函数形（含 always_inline）
+// 在 4.4-O0 下均发射 call 或 base/off 槽。指针加法生 add+mov 两步，须用
+// 类型化数组下标折叠单条 disp。
+#define LOGIN_FIELD(T, base, off) \
+    (reinterpret_cast<T*>(base)[(off) / sizeof(T)])
 
 } // namespace
 
@@ -65,8 +66,9 @@ namespace DATABASE
 int CREATE_QUERY::arad_sp_charater_name_check(MySQL* db, SIG_CREATE_CHARAC* sig,
                                               char const* dbName)
 {
-    if (db->select("seLect delete_flag from %s.charac_info where charac_name='%s'",
-                   dbName, sig->m_name) != 0)
+    int rc = db->select("seLect delete_flag from %s.charac_info where charac_name='%s'",
+                        dbName, sig->m_name);
+    if (rc != 0)
     {
         sig->m_resultCode = 2;                                                                                // +0x5344 直写（helper 外联消除）
         LogManager::logFormat(
@@ -75,30 +77,29 @@ int CREATE_QUERY::arad_sp_charater_name_check(MySQL* db, SIG_CREATE_CHARAC* sig,
             0x1f, "%s", "select error");
         return -1;
     }
-    if (db->get_n_rows() == 0)
-    {
-        return 0;                                   // 名字不存在，可直接创建
-    }
-
-    sig->m_resultCode = 2;                                                                                // +0x5344 直写（helper 外联消除）
     int deleteFlag = 0;
-    if (!db->get_int(0, deleteFlag))
+    if (db->get_n_rows() != 0)
     {
-        LogManager::logFormat(
-            1, "localjapan/Arad_DB_Query.cpp",
-            __PRETTY_FUNCTION__,
-            0x28, "%s", "Parsing Error of Selected Field");
+        sig->m_resultCode = 2;                                                                            // +0x5344 直写（helper 外联消除）
+        if (!db->get_int(0, deleteFlag))
+        {
+            LogManager::logFormat(
+                1, "localjapan/Arad_DB_Query.cpp",
+                __PRETTY_FUNCTION__,
+                0x28, "%s", "Parsing Error of Selected Field");
+            return -1;
+        }
+        if (deleteFlag != 0)
+        {
+            sig->m_resultCode = 3;                                                                        // +0x5344 直写（helper 外联消除）；已删除角色名占用（可复用场景由上层定夺）
+        }
+        else
+        {
+            sig->m_resultCode = 1;                                                                        // +0x5344 直写（helper 外联消除）；在用角色名占用
+        }
         return -1;
     }
-    if (deleteFlag == 0)
-    {
-        sig->m_resultCode = 1;                                                                                // +0x5344 直写（helper 外联消除）；在用角色名占用
-    }
-    else
-    {
-        sig->m_resultCode = 3;                                                                                // +0x5344 直写（helper 外联消除）；已删除角色名占用（可复用场景由上层定夺）
-    }
-    return -1;
+    return 0;                                   // 名字不存在，可直接创建
 }
 
 // ORIG 0x0818ad8b：取 @@identity 作为新 charac_no 写 +0x5348。
@@ -138,8 +139,9 @@ int CREATE_QUERY::arad_sp_get_characer_index(MySQL* db, SIG_CREATE_CHARAC* sig)
 // ORIG 0x0818aea2：count(delete_flag=0 角色)>=0x24 → 槽位上限错误码2。
 int CREATE_QUERY::arad_sp_create_character_check(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
-    if (db->select("seLect count(*) from charac_info where m_id=%d and delete_flag=0",
-                   sig->m_accId) != 0)
+    int rc = db->select("seLect count(*) from charac_info where m_id=%d and delete_flag=0",
+                        sig->m_accId);
+    if (rc != 0)
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
@@ -149,12 +151,7 @@ int CREATE_QUERY::arad_sp_create_character_check(MySQL* db, SIG_CREATE_CHARAC* s
     }
 
     int count = 0;
-    bool overLimit = true;
-    if (db->get_int(0, count))
-    {
-        overLimit = (count >= 0x24);                 // ORIG !(get_ok && count<0x24)
-    }
-    if (overLimit)
+    if (!db->get_int(0, count) || count >= 0x24)
     {
         sig->m_resultCode = 2;                                                                                // +0x5344 直写（helper 外联消除）
         LogManager::logFormat(
@@ -200,21 +197,21 @@ int CREATE_QUERY::arad_sp_create_character(MySQL* db, SIG_CREATE_CHARAC* sig)
         db->blob_to_str(1, reinterpret_cast<char*>(sig) + 0x3e, 0x22);
 
     // 【ABI 镜像】charac 主属性打包区（+0x26..+0x79 内散列整型，按报告字节宽读取）
-    unsigned int maxHP   = login_field<unsigned int>(sig, 0x26);      // %d
-    unsigned int maxMP   = login_field<unsigned int>(sig, 0x2a);      // %u
-    unsigned int phyAtk  = login_field<unsigned short>(sig, 0x2e);    // %d(zero-extend)
-    unsigned int phyDef  = login_field<unsigned short>(sig, 0x30);
-    unsigned int magAtk  = login_field<unsigned short>(sig, 0x32);
-    unsigned int magDef  = login_field<unsigned short>(sig, 0x34);
-    unsigned int invenWt = login_field<unsigned int>(sig, 0x60);
-    int hpRegen          = static_cast<short>(login_field<unsigned short>(sig, 0x64));
-    int mpRegen          = static_cast<short>(login_field<unsigned short>(sig, 0x66));
-    unsigned int moveSpd = login_field<unsigned int>(sig, 0x68);
-    unsigned int atkSpd  = login_field<unsigned short>(sig, 0x6c);
-    unsigned int castSpd = login_field<unsigned short>(sig, 0x6e);
-    int hitRecov         = static_cast<short>(login_field<unsigned short>(sig, 0x70));
-    int jump             = static_cast<short>(login_field<unsigned short>(sig, 0x72));
-    unsigned int chaWt   = login_field<unsigned int>(sig, 0x74);
+    unsigned int maxHP   = LOGIN_FIELD(unsigned int, sig, 0x26);      // %d
+    unsigned int maxMP   = LOGIN_FIELD(unsigned int, sig, 0x2a);      // %u
+    unsigned int phyAtk  = LOGIN_FIELD(unsigned short, sig, 0x2e);    // %d(zero-extend)
+    unsigned int phyDef  = LOGIN_FIELD(unsigned short, sig, 0x30);
+    unsigned int magAtk  = LOGIN_FIELD(unsigned short, sig, 0x32);
+    unsigned int magDef  = LOGIN_FIELD(unsigned short, sig, 0x34);
+    unsigned int invenWt = LOGIN_FIELD(unsigned int, sig, 0x60);
+    int hpRegen          = static_cast<short>(LOGIN_FIELD(unsigned short, sig, 0x64));
+    int mpRegen          = static_cast<short>(LOGIN_FIELD(unsigned short, sig, 0x66));
+    unsigned int moveSpd = LOGIN_FIELD(unsigned int, sig, 0x68);
+    unsigned int atkSpd  = LOGIN_FIELD(unsigned short, sig, 0x6c);
+    unsigned int castSpd = LOGIN_FIELD(unsigned short, sig, 0x6e);
+    int hitRecov         = static_cast<short>(LOGIN_FIELD(unsigned short, sig, 0x70));
+    int jump             = static_cast<short>(LOGIN_FIELD(unsigned short, sig, 0x72));
+    unsigned int chaWt   = LOGIN_FIELD(unsigned int, sig, 0x74);
 
     if (db->insert(
             "inSert into charac_info "
@@ -583,14 +580,19 @@ int LOGIN_QUERY::arad_sp_select_punish_user_info(SIG_LOGIN_DATA* data)
     for (unsigned int row = 0; row < static_cast<unsigned int>(db->get_n_rows());
          ++row)
     {
-        if (!db->get_int(0, data->m_punishInfos[row].m_type) ||
-            !db->get_uint(1, reinterpret_cast<unsigned int&>(
-                                 data->m_punishInfos[row].m_field04)) ||
-            !db->get_int(2, data->m_punishInfos[row].m_stdDropRate) ||
-            !db->get_int(3, data->m_punishInfos[row].m_field0c) ||
-            !db->get_uint(4, reinterpret_cast<unsigned int&>(
-                                 data->m_punishInfos[row].m_field10)) ||
-            !db->get_uint(5, reinterpret_cast<unsigned int&>(
+        if (!db->get_int(0, data->m_punishInfos[row].m_type))
+            return -1;
+        if (!db->get_uint(1, reinterpret_cast<unsigned int&>(
+                                 data->m_punishInfos[row].m_field04)))
+            return -1;
+        if (!db->get_int(2, data->m_punishInfos[row].m_stdDropRate))
+            return -1;
+        if (!db->get_int(3, data->m_punishInfos[row].m_field0c))
+            return -1;
+        if (!db->get_uint(4, reinterpret_cast<unsigned int&>(
+                                 data->m_punishInfos[row].m_field10)))
+            return -1;
+        if (!db->get_uint(5, reinterpret_cast<unsigned int&>(
                                  data->m_punishInfos[row].m_endTime)))
         {
             return -1;
@@ -621,15 +623,17 @@ int LOGIN_QUERY::arad_sp_select_punish_second_user(SIG_LOGIN_DATA* data)
         return -1;
     }
 
+    int occTime = 0;                           // ORIG select 前双预清槽（-0x10/-0x11）
     char punishFlag = 0;                       // ORIG 不回写 sig，仅做判定
     db->get_uint(0, data->m_totalHackUserTradeCnt);           // trade_cnt
     // trade_gold：ORIG 按 8 字节 long 槽读取（覆盖 m_totalHackUserTradeGold 与高位槽）
     db->get_ulonglong(
         1, *reinterpret_cast<unsigned long long*>(&data->m_totalHackUserTradeGold));
     db->get_byte(2, punishFlag);
-    int occTime = 0;                           // ORIG 读入后未使用，保留调用
     db->get_int(3, occTime);
-    return punishFlag == 0 ? -1 : 0;
+    if (punishFlag != 0)
+        return 0;
+    return -1;
 }
 
 // ORIG 0x0818c0e0：member_mousepass（GoblinPad）加载。
@@ -695,7 +699,7 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
     // 该类 call 结果 bool 判定恒 materialize 到栈槽 `mov %al,-off; movzbl; xor; test`
     // （P198-②/P197-④：源形不可复现，内联也出同样栈槽，禁改比较=双调用真 bug）。
     // 逐 getter 列/目标偏移/错误日志行号已与 ORIG 逐一核对，语义闭合，封 N。
-    if (!db->get_int(1, login_field<int>(data, 0x3914)))     // fail_cnt
+    if (!db->get_int(1, LOGIN_FIELD(int, data, 0x3914)))     // fail_cnt
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
@@ -703,7 +707,7 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
             0x2d5, "%s", "Mouse PassPad Fail Count Parsing error");
         return -1;
     }
-    if (!db->get_int(2, login_field<int>(data, 0x3918)))     // cancel_cnt
+    if (!db->get_int(2, LOGIN_FIELD(int, data, 0x3918)))     // cancel_cnt
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
@@ -719,7 +723,7 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
             0x2e0, "%s", "VersionInfo Parsing error");
         return -1;
     }
-    if (!db->get_uint(4, login_field<unsigned int>(data, 0x3910))) // validity_time
+    if (!db->get_uint(4, LOGIN_FIELD(unsigned int, data, 0x3910))) // validity_time
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
@@ -783,7 +787,7 @@ int LOGIN_QUERY::arad_sp_update_fail_record(SIG_LOGIN_DATA* data)
         return -1;
     }
     if (db->select("upDate member_mousepass set fail_cnt=%d where m_id=%d",
-                   login_field<unsigned int>(data, 0x3914),
+                   data->m_passPadFailCnt,
                    data->m_accId) != 0)
     {
         return -1;

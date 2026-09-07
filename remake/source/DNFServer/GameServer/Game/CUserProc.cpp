@@ -115,8 +115,8 @@ void APSystem::CUserProc::GM_Set(CUser* user, unsigned int value)
 {
     if (user != 0)
     {
-        APSystem::CActionPointManager* mgr = &user->m_actionPoint;
-        mgr->GM_Set(*user, value);
+        // P0：ORIG `lea 0x8d264(%eax),%edx` 单步出参无槽——禁 mgr 具名局部
+        user->m_actionPoint.GM_Set(*user, value);
         SendActionListState(*user);
     }
 }

@@ -18,11 +18,19 @@ public:
 
         bool operator<(const PvP_Key& other) const
         {
-            if (m_a != other.m_a)
+            if (m_a < other.m_a)
             {
-                return m_a < other.m_a;
+                return true;
             }
-            return m_b < other.m_b;
+            if (m_a == other.m_a)
+            {
+                if (m_b < other.m_b)
+                {
+                    return true;
+                }
+                return false;
+            }
+            return false;
         }
     };
 

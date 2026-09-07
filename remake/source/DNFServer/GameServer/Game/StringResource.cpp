@@ -518,19 +518,17 @@ char* CStringManager::getStr(int id)
     static __thread char errorMsg[32];
     if (!is_sr_loaded)
     {
-        // ORIG @0x30-0x48 双岛：成功才写 is_sr_loaded（失败不写），loaded 值
-        // 跨 err 析构于 callee-saved 聚合（具名 bool，P102/P158）。
-        bool loaded = false;
+        // ORIG @0x30-0x48 双岛：return 0 在 err 作用域内 → 失败路径与正常路径
+        // 合流到共享析构 cleanup（ebx=0/esi=0 vs esi=1，test %esi 决定走向）。
         {
             CharString err;
             if (loadString(&err))
             {
                 is_sr_loaded = true;
-                loaded = true;
             }
+            else
+                return 0;
         }
-        if (!loaded)
-            return 0;
     }
 
     const CharString* entry;              // ORIG 无初始化（直接取址传参）

@@ -117,8 +117,9 @@ TOD_Layer TOD_UserState::getTodayEnterLayer() const
     // ORIG：return *(const TOD_Layer*)(this+0x14) + 1
     //   （经 TOD_Layer::operator+(int)，sret 链与 ORIG 一致）；
     //   this+0x14 = TOD_UserState 内嵌 m_data.m_todayLayer（Sec 批 SIG 内嵌化，
-    //   字段本体即 TOD_Layer，直接拷贝构造等价原 ushort 构造）。
-    return TOD_Layer(m_data.m_todayLayer) + 1;
+    //   字段本体即 TOD_Layer。ORIG 0x864383e 单 call：operator+ 的 sret 直通
+    //   本函数外层 sret（0x8(%ebp)），无临时/二段拷贝 ⇒ 源形为成员直 + 1。
+    return m_data.m_todayLayer + 1;
 }
 
 // ============================================================================

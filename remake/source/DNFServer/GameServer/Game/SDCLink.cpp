@@ -200,7 +200,8 @@ float getDamageInflictPassiveObject(STComputeDamageVariable* v, void* passiveObj
 //    elem==4：依次 test 0xa/0xb/0xc/0xd（m_elemEnable[0..3]），任一非零返 0，否则 1；
 //    其它：movzbl 0xa(%edx,%eax) → m_elemEnable[elem] != 0。
 // ============================================================================
-int isValidAttackInfoElement(STComputeDamageVariable* v, int elem)
+// 返回 bool：ORIG 尾 setne %al 直返无 movzbl 规范化（P9）
+bool isValidAttackInfoElement(STComputeDamageVariable* v, int elem)
 {
     if (elem == 4)
     {

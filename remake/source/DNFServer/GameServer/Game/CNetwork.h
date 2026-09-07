@@ -75,8 +75,16 @@ public:
 
     // ---- 对象布局（全部 public，ORIG 直访成员）----
     int m_sock;               // +0x00
-    unsigned int m_lastRecvTick; // +0x04（Parsing 记录最后收包 tick；ORIG CUser+0xe4）
-    unsigned int m_recvGapTick;  // +0x08（recvGap；ORIG CUser+0xe8；disconnect 清零原为 8 字节整清，两 int 分别清等价）
+    // +0x04..+0x0b（ORIG disconnect 0x82fdf61 以 8 字节整清：单基址 + 两 store；
+    // Lane6 探针实证：u64 标量视图赋 0 单表达式复现，匿名 struct 保有两具名成员，
+    // 布局/偏移/sizeof 不变，ExchangeServer_Session/W7_UserOnlyC 拆分写不受影响）
+    union {
+        unsigned long long m_lastRecvGapPair;   // u64 整清视图
+        struct {
+            unsigned int m_lastRecvTick;        // +0x04（Parsing 记录最后收包 tick；ORIG CUser+0xe4）
+            unsigned int m_recvGapTick;         // +0x08（recvGap；ORIG CUser+0xe8）
+        };
+    };
     int m_field0c;            // +0x0c
     int m_field10;            // +0x10（ctor 清零）
     char m_field14;           // +0x14（ctor 清零）
@@ -125,14 +133,9 @@ int CNetwork<N1, N2>::get_socket()
 template <int N1, int N2>
 void CNetwork<N1, N2>::disconnect()
 {
-    // ORIG 各 disconnect 实例（0x82fdf61 等）：m_lastRecvTick/m_recvGapTick(+4/+8)
-    // 以 8 字节整清（mov %eax; movl $0,0x4(%eax); movl $0,0x8(%eax) 复用 eax）。
-    // 【N】O0 下两分离 int 成员赋各自重载 this 致多 1 条 mov（our_insns 28 vs ORIG 27）；
-    // 类型 pun（&m_lastRecvTick 的 8B 写）出 add+两 store 形而非 ORIG 单基址复用，均不匹配。
-    // 唯一单基址复用形需真 unsigned long long 成员（会改 m_lastRecvTick/m_recvGapTick 名，
-    // 波及 ExchangeServer_Session.cpp/W7_UserOnlyC.cpp 的 64 位拆分写），本批记 N。
-    m_lastRecvTick = 0;
-    m_recvGapTick = 0;
+    // ORIG 0x82fdf61 族：+4/+8 以 8 字节整清，单基址 eax 复用两 store ——
+    // 源形即 u64 标量视图单表达式赋 0（探针 /tmp/l6/probe.cpp disconnectA 逐条一致）。
+    m_lastRecvGapPair = 0;
     shutdown(m_sock, 0);
     close(m_sock);
     m_sock = -1;

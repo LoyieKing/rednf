@@ -13,7 +13,10 @@ public:
 
     unsigned short m_keys[3];    // +0..+5
     unsigned char  m_pad6[2];    // +6..+7
-    unsigned char  m_marks[3];   // +8..+a
+    union {                      // +8..+b（sizeof 不变；ORIG ctor 第三 dword 清零视图）
+        unsigned char  m_marks[3];   // +8..+a
+        unsigned int   m_dw8;
+    };
 };
 
 #endif  // DNF_GAME_ROI_CATEGORY_H_

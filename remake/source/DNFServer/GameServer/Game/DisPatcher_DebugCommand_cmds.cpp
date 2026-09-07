@@ -499,19 +499,16 @@ bool DisPatcher_DebugCommand::_debugCommandAddAvatar(CUser* user,
 bool DisPatcher_DebugCommand::_debugCommandPVPRankSet(CUser* user,
                                                       MSG_DEBUG_COMMAND& msg)
 {
-    bool isGm = user->isGMUser();
-    if (isGm != 1)
+    if (!user->isGMUser())
         return false;
 
-    unsigned int rank = (unsigned int)(unsigned char)msg.m_arg; // +0x22 movzbl [0xe]
-    if (rank > 0x25)                                            // jbe → ≤0x25 通过
+    if ((unsigned char)msg.m_arg > 0x25)                        // +0x22 movzbl [0xe] 字节比较
         return false;
 
-    int nextPoint = GlobalData::s_ref_pvp_grade->GetPvpNextRankPoint((int)rank);
-    PvpResultType* result = user->getPVPResultW();
-    result->m_expPoint = nextPoint;                             // +0x5a 写 +8
-    result = user->getPVPResultW();
-    result->m_pvpGrade = rank;                                  // +0x72 写 +0x14
+    int nextPoint = GlobalData::s_ref_pvp_grade->GetPvpNextRankPoint(
+        (unsigned char)msg.m_arg);
+    user->getPVPResultW()->m_expPoint = nextPoint;              // +0x5a 写 +8（getPVPResultW 直用）
+    user->getPVPResultW()->m_pvpGrade = (unsigned char)msg.m_arg;  // +0x72 写 +0x14 二次独立读取
     G_GameWorld()->send_AllBasicInfo(user);                     // +0x87
     return true;
 }
@@ -564,7 +561,7 @@ bool DisPatcher_DebugCommand::_debugCommandInvisible(CUser* user,
     G_GameWorld()->send_all_excepted_user(packet, user);        // +0x7f 广播排除自己
     user->SendNotiPacket(static_cast<CUser::eSendTarget>(1),    // +0xa2 SendNotiPacket(1,2,0)
                          static_cast<ENUM_NOTIPACKET>(2), 0);
-    char* name = const_cast<char*>(user->getCurCharacName());
+    register const char* name = user->getCurCharacName();       // 跨 cMyTrace ctor 缓存（P87/P37）
     cMyTrace trace(g_dbgCmdPrettyInvisible, 0x5c, 0);
     trace("GM(%s) is invisible \n", name);
     return true;
@@ -606,8 +603,7 @@ bool DisPatcher_DebugCommand::_debugCommandVisible(CUser* user,
 bool DisPatcher_DebugCommand::_debugCommandSetBlackCount(CUser* user,
                                                          MSG_DEBUG_COMMAND& msg)
 {
-    bool isGm = user->isGMUser();
-    if (isGm != 1)
+    if (!user->isGMUser())
         return false;
 
     user->setCurrCharacBlackCount((unsigned int)msg.m_arg);     // +0x34 setBlackCount(msg[0xe])
@@ -627,8 +623,7 @@ bool DisPatcher_DebugCommand::_debugCommandSetBlackCount(CUser* user,
 bool DisPatcher_DebugCommand::_debugCommandPowerwarPointUp(CUser* user,
                                                            MSG_DEBUG_COMMAND& msg)
 {
-    bool isGm = user->isGMUser();
-    if (isGm != 1)
+    if (!user->isGMUser())
         return false;
 
     Packet_Guild_Change_Power_War_Point pkt;                    // ctor(0x6a4,0x2d)
@@ -636,10 +631,8 @@ bool DisPatcher_DebugCommand::_debugCommandPowerwarPointUp(CUser* user,
     pkt.m_losePoint = 0;                                        // pkt+0x2c = 0
     pkt.m_powerSide = user->getPowerSide();                     // pkt+0x0a ← getPowerSide
     pkt.m_characNo[0] = user->get_charac_no(-1);                // pkt+0x0b dword ← charac_no(-1)
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(
-            static_cast<ENUM_SERVER_GROUP>(0));
-    proxy->SendPowerWarPoint(pkt);                              // +0x7a SendPowerWarPoint
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(
+        static_cast<ENUM_SERVER_GROUP>(0))->SendPowerWarPoint(pkt);  // +0x7a
     return true;
 }
 
@@ -649,8 +642,7 @@ bool DisPatcher_DebugCommand::_debugCommandPowerwarPointUp(CUser* user,
 bool DisPatcher_DebugCommand::_debugCommandUserPowerwarPointUp(
     CUser* user, MSG_DEBUG_COMMAND& msg)
 {
-    bool isGm = user->isGMUser();
-    if (isGm != 1)
+    if (!user->isGMUser())
         return false;
 
     user->IncreasePowerWarPoint((short)msg.m_arg);              // +0x37 Increase(short(msg[0xe]))
@@ -670,12 +662,10 @@ bool DisPatcher_DebugCommand::_debugCommandUserPowerwarPointUp(
 bool DisPatcher_DebugCommand::_debugCommandInitUserPowerwarPoint(
     CUser* user, MSG_DEBUG_COMMAND& /*msg*/)
 {
-    bool isGm = user->isGMUser();
-    if (isGm != 1)
+    if (!user->isGMUser())
         return false;
 
-    short cur = user->GetUserPowerWarPoint();                   // +0x27 GetUserPowerWarPoint
-    user->DecreasePowerWarPoint(cur);                           // +0x3c Decrease(cur)
+    user->DecreasePowerWarPoint(user->GetUserPowerWarPoint());  // +0x27/+0x3c 直扩实参
     PacketGuard packet;                                         // -0x14
     packet.put_header(0, 2);                                    // +0x5c header(0,2)
     packet.put_byte(0);
@@ -695,11 +685,9 @@ bool DisPatcher_DebugCommand::_debugCommandClearInven(CUser* user,
     // 主背包槽 9..0x137 全清零（equip 动态槽数组 +0x650 = m_pEquipSlot）
     for (int i = 9; i <= 0x137; ++i)
     {
-        CInventory* invW = user->getCurCharacInvenW();
-        invW->m_pEquipSlot[i].reset();                          // Inven_Item::reset stride 0x3d
+        user->getCurCharacInvenW()->m_pEquipSlot[i].reset();    // Inven_Item::reset stride 0x3d
     }
-    bool ok = user->send_itemspace(0) == 1 ? true : false;      // +0x43 send_itemspace(INVENTORY=0)
-    if (!ok)
+    if (!user->send_itemspace(0))                               // +0x43 send_itemspace(INVENTORY=0)
     {
         LogManager::logFormat(
             1, "DisPatcher_DebugCommand_First.h",
@@ -707,8 +695,9 @@ bool DisPatcher_DebugCommand::_debugCommandClearInven(CUser* user,
             "DisPatcher_DebugCommand::_debugCommandClearInven, pUser(%s)->"
             "send_itemspace( ENUM_ITEMSPACE_INVENTORY ) return FAILED",
             NumberToString(user->get_acc_id(), 0));
+        return false;
     }
-    return ok;
+    return true;
 }
 
 // ===========================================================================
@@ -836,11 +825,9 @@ bool DisPatcher_DebugCommand::_debugCommandPowerUpOn(CUser* user,
 // ===========================================================================
 bool DisPatcher_DebugCommand::_debugCommandPowerWarStart(CUser* user)
 {
-    unsigned int accId = user->get_acc_id();
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(
-            static_cast<ENUM_SERVER_GROUP>(0));
-    proxy->SendPowerWarStart(accId);
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(
+        static_cast<ENUM_SERVER_GROUP>(0))
+        ->SendPowerWarStart(user->get_acc_id());
     return true;
 }
 
@@ -849,11 +836,9 @@ bool DisPatcher_DebugCommand::_debugCommandPowerWarStart(CUser* user)
 // ===========================================================================
 bool DisPatcher_DebugCommand::_debugCommandPowerWarEnd(CUser* user)
 {
-    unsigned int accId = user->get_acc_id();
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(
-            static_cast<ENUM_SERVER_GROUP>(0));
-    proxy->SendPowerWarEnd(accId);
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(
+        static_cast<ENUM_SERVER_GROUP>(0))
+        ->SendPowerWarEnd(user->get_acc_id());
     return true;
 }
 
@@ -895,7 +880,7 @@ int DoUserDefineCommand(CUser* user, int cmd, const char* arg)
         command->SetParser(&parser);                             // ORIG 0x820bb17
         GlobalData::s_GameMasterMgr->HandleRequest(command);     // ORIG 0x820bb2b
     }
-    return 0;
+    // ORIG 尾 ret 无 eax 写（返回值未定义，调用方不使用）——不写 return。
 }
 
 // ===========================================================================
@@ -913,8 +898,7 @@ void SendVillageAttackedGMCommand(CUser* user, int state)
     pkt.m_characNo =
         static_cast<unsigned int>(user->get_charac_no(-1));      // ORIG 0x820bb96（get_charac_no(0xffffffff)）
     pkt.m_field16 = static_cast<unsigned int>(state);            // ORIG 0x820bba1（-0xc）
-    CMonitorServerProxy* proxy =
-        GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-            user->GetServerGroup());                             // ORIG 0x820bbbf（mgr 0x940be28）
-    proxy->SendTcpPacket(reinterpret_cast<char*>(&pkt), 0x1a);   // ORIG 0x820bbd3
+    GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+        user->GetServerGroup())->SendTcpPacket(                  // ORIG 0x820bbbf（&pkt 跨调用物化 ebx）
+        reinterpret_cast<char*>(&pkt), 0x1a);                    // ORIG 0x820bbd3
 }

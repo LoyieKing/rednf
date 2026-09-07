@@ -392,7 +392,8 @@ void CItemUpgrade_Separate::_NoticeUpgrade(const CUser* user, const Inven_Item& 
     PacketGuard pg;
     pg.put_header(0, 0x56);
     pg.put_byte(10);
-    pg.put_byte(success ? 1 : 0);
+    // ORIG movzbl -0x1c,%eax 直装参：bool 隐式转 int 即零扩展（三目反生岛）。
+    pg.put_byte(success);
     pg.put_short(user->get_unique_id());
     pg.put_int(item.m_addInfo);
     pg.put_byte(item.GetUpgrade());

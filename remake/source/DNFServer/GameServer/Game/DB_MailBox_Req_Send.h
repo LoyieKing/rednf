@@ -51,7 +51,7 @@ public:
     static bool insertMailData(MySQL* db, const SIG_MAILBOX_SEND_NEW_MAIL* sig);
 
     // ORIG 0x0841f75a（static；调用点不传 this，返回 1）
-    static int sendResult(int userIdx, int slot, int mailIdx,
+    static bool sendResult(int userIdx, int slot, int mailIdx,
                           ENUM_SERVER_GROUP group);
 };
 

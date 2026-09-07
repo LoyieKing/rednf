@@ -109,11 +109,18 @@ void GlobalScriptTutorial::LoadEquipmentTag(ENUM_CHARACTERJOB& job)
 void GlobalScriptTutorial::LoadDungeonIndex(ENUM_CHARACTERJOB& job)
 {
     if (static_cast<int>(job) == 11) return;
-    int index;
-    while (ScanInt(&index))
     {
-        m_data[static_cast<int>(job)].setDungeonIndex(static_cast<unsigned int>(index));
+    int index;
+        for (;;)
+{
+            if (!ScanInt(&index))
+                goto done;
+            m_data[static_cast<int>(job)].setDungeonIndex(
+                static_cast<unsigned int>(index));
     }
+    }
+done:
+    ;
 }
 
 void GlobalScriptTutorial::LoadSkillTag(ENUM_CHARACTERJOB& job)
@@ -164,12 +171,18 @@ void GlobalScriptTutorial::clearScript()
 
 TutorialData* GlobalScriptTutorial::getData(int index)
 {
-    if (index < 0 || index >= 11 || m_data[index].getDungeonIndex() == 0)
+    if (!(index < 11 && index >= 0))
         return 0;
-    return &m_data[index];
+    {
+        register bool isZero asm("al") = m_data[index].getDungeonIndex() == 0;
+        if (isZero)
+            return 0;
+        return &m_data[index];
+    }
 }
 
-bool GlobalScriptTutorial::IsGlobalTutorialDungeon(unsigned int dungeon)
+bool GlobalScriptTutorial::IsGlobalTutorialDungeon(
+    register unsigned int dungeon)
 {
     if (dungeon == 0xdb2)
         return true;

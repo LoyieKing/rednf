@@ -98,9 +98,8 @@ void CCreateDisjointStoreCmd::execute()
 // （布局注记 CUser.h：+0x6effc CAccountCargo）走同一实现路径。
 void CDeleteAccountCargo::execute()
 {
-    CUser* user = GetUser();
-    CAccountCargo* cargo = &user->m_accountCargo;
-    cargo->DeleteAccountCargo(user);
+    // ORIG：GetUser 结果经 eax 直通 DeleteAccountCargo 实参槽（无 user/cargo 具名槽）。
+    CAccountCargo::DeleteAccountCargo(GetUser());
 }
 
 // ========================================================================
@@ -231,9 +230,11 @@ void CEndEvent::execute()
     }
     Packet_Monitor_Event_End packet;
     packet.m_eventCode = static_cast<unsigned int>(m_eventCode);
-    CMonitorServerProxy* proxy =
-        GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendTcpPacket(reinterpret_cast<char*>(&packet), 0xe);
+    // ORIG：GetServerProxy 结果 eax 直通 receiver（无 proxy 具名槽）；packet 基址
+    // 跨 call 物化 %ebx（4.1 跨 call 缓存习惯，X register 复现）。
+    register char* pPkt asm("ebx") = reinterpret_cast<char*>(&packet);
+    GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendTcpPacket(pPkt, 0xe);
 }
 
 // ========================================================================

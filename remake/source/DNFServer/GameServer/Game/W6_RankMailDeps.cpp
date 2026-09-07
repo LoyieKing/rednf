@@ -179,14 +179,14 @@ void WongWork::CDeathTowerRanking::registBestRecord(
 WongWork::CDeathTowerRanking::RankTable*
 WongWork::CDeathTowerRanking::_getRankingTable(unsigned int idx)
 {
-    return &m_rankingTables[idx];
+    return m_rankingTables + idx;
 }
 
 // ORIG W 0x08469dae (size 0x1e) —— 同构，基址 0x1234 == m_bestTables。
 WongWork::CDeathTowerRanking::BestMap*
 WongWork::CDeathTowerRanking::_getBestRecordTable(unsigned int idx)
 {
-    return &m_bestTables[idx];
+    return m_bestTables + idx;
 }
 
 // ============================================================================

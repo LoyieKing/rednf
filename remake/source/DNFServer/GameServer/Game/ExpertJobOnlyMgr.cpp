@@ -93,12 +93,12 @@ void CAlchemist::UseDelilah(CUser* user)
 // ---- UseRevivalItem（报告 UseRevivalItem.md，ORIG T 0x085d1694 sz 0x7d）----
 void CAlchemist::UseRevivalItem(CUser* user)
 {
-    int curSec = GlobalData::s_systemTime_.getCurSec();
-    user->SetRevivalTime(curSec + 0x4b0);
-    long revivalTime = user->GetRevivalTime();
-    unsigned int uid = user->GetUID();
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0, uid, (TIMER_MESSAGE)0x82,
-                                0x4b0, revivalTime, 0);
+    // ORIG：getCurSec 经全局符号直载；revivalTime/uid 以 esi/ebx 跨调用缓存
+    //（P24 内联实参形，禁具名局部）。
+    user->SetRevivalTime(GlobalData::s_systemTime_.getCurSec() + 0x4b0);
+    G_TimerQueue()->InsertTimer(
+        (TimerEntry::OBJ_TYPE)0, user->GetUID(), (TIMER_MESSAGE)0x82, 0x4b0,
+        user->GetRevivalTime(), 0);
 }
 
 // ---- GetQuestItemDropRate（报告，ORIG T 0x085d12ee sz 0x71）----
@@ -269,10 +269,10 @@ int CDisjointer::OnEnterDisjointStore(CUser* user)
     packet.put_byte(1);
     packet.put_byte(get_disjoint_machine_grade() + 1);
     packet.put_int(get_disjoint_cost());
-    CUser* owner = m_machine.get_user();
-    CCharacExpertJob* expand = (CCharacExpertJob*)owner->GetCharacExpandData(
-        (ENUM_CHARAC_EXPAND_TYPE)0);
-    packet.put_int(expand->get_disjoint_machine_endurance());
+    // ORIG：owner/expand 无槽，链式内联（P52 单语句）。
+    packet.put_int(((CCharacExpertJob*)m_machine.get_user()->GetCharacExpandData(
+                        (ENUM_CHARAC_EXPAND_TYPE)0))
+                       ->get_disjoint_machine_endurance());
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -491,7 +491,10 @@ void CExpertJobMgr::OnResponsePeer(CUser* requester, CUser* peerTarget,
                                    int cookie, ENUM_PEER_REQUEST_TYPE type,
                                    PacketGuard& packet)
 {
-    unsigned int err = IsAvailableRequestPeer(requester, peerTarget, type, packet);
+    // ORIG 0x849e368：err 预清槽（movl $0x0,-0x10）+ 独立赋值（P197-③ 两句式）；
+    // 0x849e39d setne %al 判定物化（4.4 恒折槽比零，P197-④/N-88）。
+    unsigned int err = 0;
+    err = IsAvailableRequestPeer(requester, peerTarget, type, packet);
     if (err != 0)
     {
         requester->SendCmdPeerErrorPacket((ENUM_CMDPACKET)0xb, type,
@@ -779,19 +782,23 @@ int CCharacExpertJob::SendExpertJobInfo(CUser* user)
         {
             for (int i = 0; i < 0xf0; ++i)
             {
-                if (get_recipe(i) == 1)
-                {
-                    // [b23S3C] P197③/P198①：ORIG 0x0832b556 先
-                    // `movl $0x0,-0xc(%ebp)` 再 GetRecipeInfo ⇒ 两句式。
-                    stRecipeInfo* info = 0;
-                    info = script->GetRecipeInfo(i);
-                    if (info != 0 &&
-                        *reinterpret_cast<const int*>(info->m_pad) != 0)
-                    {
-                        packet.put_int(*reinterpret_cast<const int*>(info->m_pad));
-                        ++count;
-                    }
-                }
+                // ORIG 0x0832b54f xor $1/test %al/jne（bool 物化 continue，X1 自救）；
+                // 0x0832b5a0/a3/a6 三个 nop;jmp continue 块 = 嵌套 if-continue 结构。
+                register unsigned char recipeOk asm("eax") =
+                    (unsigned char)get_recipe(i);
+                recipeOk ^= 1;
+                if (recipeOk)
+                    continue;
+                // [b23S3C] P197③/P198①：ORIG 0x0832b556 先 `movl $0x0,-0xc(%ebp)`
+                // 再 GetRecipeInfo ⇒ 两句式。
+                stRecipeInfo* info = 0;
+                info = script->GetRecipeInfo(i);
+                if (info == 0)
+                    continue;
+                if (*reinterpret_cast<const int*>(info->m_pad) == 0)
+                    continue;
+                packet.put_int(*reinterpret_cast<const int*>(info->m_pad));
+                ++count;
             }
         }
         packet.put_byte(countIndex, count);   // 回填 recipe 计数

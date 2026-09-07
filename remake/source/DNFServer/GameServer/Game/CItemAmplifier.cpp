@@ -213,20 +213,18 @@ void CItemAmplifier::_generateOption(const CItem* item,
 
 
 // ===================== 净化材料查询（ORIG W 0x08234d20 / 0x08234cd4 / 0x08234cfa） =====================
-// 两行净化材料在 stAmplifyItemScript_t 中连续布局：
-//   type 0 = m_purifyMatItem(+0x9c)/m_purifyMatCount(+0xa4)（[purify material]）
-//   type 1 = m_purifyOnlyMatItem(+0xa0)/m_purifyOnlyMatCount(+0xa8)（[purify only material]）
-// 以具名字段首地址的连续视图访问，等价于 ORIG 的 *(int*)(amp + 0x9c + i*4) 表查找。
+// 两行净化材料在 stAmplifyItemScript_t 中按 int[2] 行布局（ORIG 表查找即
+// 类内 int 数组寻址 arr[type]，gcc 拆 idx+0x24 + disp8 0xc/0x4 形）：
+//   type 0 = m_purifyMatItem[0](+0x9c)/m_purifyMatCount[0](+0xa4)（[purify material]）
+//   type 1 = m_purifyMatItem[1](+0xa0)/m_purifyMatCount[1](+0xa8)（[purify only material]）
 
 // ORIG 0x08234d20：i∈[0,1]，表项 == itemIdx 则返回 i；否则 -1。
 int CItemAmplifier::getPurifyMaterialType(int itemIdx) const
 {
     for (int i = 0; i <= 1; ++i)
     {
-        if ((&m_script.m_purifyMatItem)[i] == itemIdx)  // +0x9c，与 m_purifyOnlyMatItem 连续
-        {
+        if (m_script.m_purifyMatItem[i] == itemIdx)  // +0x9c 表查找
             return i;
-        }
     }
     return -1;
 }
@@ -236,7 +234,7 @@ int CItemAmplifier::getPurifyMaterialItemIdx(int type) const
 {
     if (type >= 0 && type <= 1)
     {
-        return (&m_script.m_purifyMatItem)[type];
+        return m_script.m_purifyMatItem[type];
     }
     return 0;
 }
@@ -246,7 +244,7 @@ int CItemAmplifier::getPurifyMaterialItemCount(int type) const
 {
     if (type >= 0 && type <= 1)
     {
-        return (&m_script.m_purifyMatCount)[type];
+        return m_script.m_purifyMatCount[type];
     }
     return 0;
 }
@@ -293,36 +291,32 @@ int CItemAmplifier::enableInvestAmplifyOption(
     const Inven_Item& inven,
     ENUM_ITEM_AMPLIFY_INVEST_TYPE type) const
 {
-    const stAmplifyOption_t& amp = inven.m_amp;
-
-    if (type == ENUM_ITEM_AMPLIFY_INVEST_TYPE_1)
+    switch (type)
     {
-        if (amp.hasAbility())
+    case ENUM_ITEM_AMPLIFY_INVEST_TYPE_2:
+        break;
+    case ENUM_ITEM_AMPLIFY_INVEST_NONE:
+        if (inven.m_amp.hasAbility())
         {
-            if (inven.GetUpgrade())
-            {
-                return 0x12;
-            }
-            return 0;
+            return 0x14;
         }
-        return 0x15;
-    }
-    if (type == ENUM_ITEM_AMPLIFY_INVEST_TYPE_2)
-    {
-        return 0;
-    }
-    if (type != ENUM_ITEM_AMPLIFY_INVEST_NONE)
-    {
+        if (inven.GetUpgrade())
+        {
+            return 0x12;
+        }
+        break;
+    case ENUM_ITEM_AMPLIFY_INVEST_TYPE_1:
+        if (!inven.m_amp.hasAbility())
+        {
+            return 0x15;
+        }
+        if (inven.GetUpgrade())
+        {
+            return 0x12;
+        }
+        break;
+    default:
         return 1;
-    }
-
-    if (amp.hasAbility())
-    {
-        return 0x14;
-    }
-    if (inven.GetUpgrade())
-    {
-        return 0x12;
     }
     return 0;
 }
@@ -468,8 +462,10 @@ int upgrade_table_t::get_upgrade_info(upgrade_info_t* out,
 int upgrade_table_t::GetPenaltyType(unsigned char upgrade, ENUM_RARITY rarity,
                                     const upgrade_info_t* info) const
 {
-    int th = UPG_TBL_I32(this, rarity + 0xfe);   // +0x404.. 按 rarity 的惩罚表基
-    if (th == -1 || (int)upgrade < th)
-        return *(const int*)((const char*)info + 0x24);
-    return 3;
+    // ORIG 两条件各自重读表项（无 th 局部），upgrade 物化 byte 后 movzbl；
+    // 表 = +0x404 基 int 数组按 rarity 直接下标（两步 add/disp 形）。
+    // 分支形为「反条件 return 3 前置」（pen2 实验：cmp;jl → then 后置）。
+    if (m_penalty[rarity] != -1 && (int)upgrade >= m_penalty[rarity])
+        return 3;
+    return info->m_prob20[1];   // +0x24：ORIG `mov 0x24(%eax),%eax` 单条访存
 }

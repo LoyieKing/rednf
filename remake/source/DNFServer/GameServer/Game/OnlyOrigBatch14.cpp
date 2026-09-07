@@ -377,7 +377,8 @@ void PrintLetter(SIG_LETTER_INFO)
 }
 
 // ORIG T 0x08104884 _Z11SetSockNonbim：ioctl(fd, FIONBIO=0x5421, &arg) == 0。
-bool SetSockNonb(int fd, unsigned long arg)
+// 返回 int（ORIG 尾 sete %al;movzbl %al,%eax 加宽形，bool 返回 4.4 不加宽）。
+int SetSockNonb(int fd, unsigned long arg)
 {
     unsigned long on = arg;
     return ioctl(fd, 0x5421, &on) == 0;
@@ -392,8 +393,14 @@ bool IsDamageActiveStatus(int status)
     bool ret = false;
     if ((unsigned int)status <= 0xb)
     {
-        if (((1 << status) & 0xac4) != 0)
+        // bit 具名局部阻断 4.4 位折叠（N6：直写恒折 (0xac4>>s)&1 的
+        // sar+and$1 反演形）；残差：bit 槽 store/load 2 条 + 边界比较
+        // mov+cmp vs ORIG cmpl 槽直比（4.4 恒先载寄存器）。
+        int bit = 1 << status;
+        if ((bit & 0xac4) != 0)
             ret = true;
+        else
+            ret = false;
     }
     return ret;
 }
@@ -447,12 +454,20 @@ unsigned int Rand_r(unsigned int* seed)
         return Rand_r(&staticSeed);
     }
     unsigned int next = *seed;
-    next = next * 0x41c64e6d + 0x3039;
+    // 拆句 *=/+= 复现 ORIG addl $K,-off 内存加与 shll mem 内存移
+    // （4.4 对 x=x*C+K 单表达式恒寄存器加；x=x^e 恒折内存 xor，
+    // ORIG 寄存器 xor 3 条不可复现，N 残差）。
+    next *= 0x41c64e6d;
+    next += 0x3039;
     unsigned int result = (next >> 16) & 0x7ff;
-    next = next * 0x41c64e6d + 0x3039;
-    result = (result << 10) ^ ((next >> 16) & 0x3ff);
-    next = next * 0x41c64e6d + 0x3039;
-    result = (result << 10) ^ ((next >> 16) & 0x3ff);
+    next *= 0x41c64e6d;
+    next += 0x3039;
+    result <<= 10;
+    result = result ^ ((next >> 16) & 0x3ff);
+    next *= 0x41c64e6d;
+    next += 0x3039;
+    result <<= 10;
+    result = result ^ ((next >> 16) & 0x3ff);
     *seed = next;
     return result;
 }
@@ -4884,19 +4899,19 @@ long GetSlicedInterval(long* out1, long* out2, long* out3, long* out4,
         *out2 = firstLen;
         count = 1;
     }
-    if (step + firstLen < total)
+    if (firstLen + step < total)
     {
         if (count == 0)
         {
-            *out1 = step + firstLen;
-            *out2 = total - (step + firstLen);
+            *out1 = firstLen + step;
+            *out2 = total - (firstLen + step);
         }
         else
         {
-            *out3 = step + firstLen;
-            *out4 = total - (step + firstLen);
+            *out3 = firstLen + step;
+            *out4 = total - (firstLen + step);
         }
-        ++count;
+        count += 1;
     }
     return count;
 }
@@ -4920,8 +4935,8 @@ bool DecreaseTradeLimitCountByUser(CUser& user, int space, int slot)
     {
         return false;
     }
-    CInventory* inven = user.getCurCharacInvenW();
-    Inven_Item* item = inven->GetInvenRef(space, slot);
+    // ORIG getCurCharacInvenW 结果寄存器直传（无槽，P0 内联右值）。
+    Inven_Item* item = user.getCurCharacInvenW()->GetInvenRef(space, slot);
     if (item == 0)
     {
         return false;

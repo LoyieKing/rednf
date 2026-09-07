@@ -136,7 +136,7 @@ void CParty::increase_ancient_dungeon_ticket()
 bool CParty::isDungeonDifficultyInfromNotice(bool flag)
 {
     // this+0x74 = m_manager（CUserCharacInfo 基类方法直呼）
-    if (m_manager->getMemberDungeonFlag() != 0)      // W 0x085bfaec
+    if (m_manager->getMemberDungeonFlag())           // W 0x085bfaec（bool 直判：ORIG test;je 单物化）
         return false;
     if (m_manager->getCurCharacTutorialFlag() == 0)  // W 0x085bfb44：新手教程
         return false;                                // 未完成（==0）不提示
@@ -158,12 +158,15 @@ bool CParty::isDungeonDifficultyInfromNotice(bool flag)
 bool CParty::isGuildParty()
 {
     bool result = false;     // local_19
-    int guildKey = -1;       // local_14
-    for (int i = 0; i <= 3; ++i)
+    // ORIG 槽序（-0x15 result / -0x14 key / -0x10 guildKey / -0xc i）⇒ 声明序
+    // result→key→guildKey→i（P28），key 为循环外具名局部、循环体内赋值。
+    int key;                 // -0x14
+    int guildKey = -1;       // -0x10
+    for (int i = 0; i <= 3; ++i)   // -0xc
     {
         if (!_checkValidUser(i))            // _ZN6CParty15_checkValidUserEi 0x85b4d12
             continue;
-        int key = m_member[i].m_pUser->get_charac_guildkey();  // W 0x0822f46c
+        key = m_member[i].m_pUser->get_charac_guildkey();  // W 0x0822f46c
         if (key == 0)
             return false;
         if (key != guildKey && guildKey != -1)
@@ -204,6 +207,10 @@ bool CParty::isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& para
         const unsigned int rewardItem = (unsigned int)
             G_CDataManager()->m_serverParameter.m_premiumGoldCard4894.m_conds[i].m_fieldc;
 
+        // ORIG 0x85b128e 域：三 guard jle 直跳尾部 nop;jmp 中继岛（共享 return 0），
+        // 4.4 对循环内 if-return 恒内联 fail 块+jg 反转块排布（探针/probe9 族 +
+        // goto/guard-continue 两形实测更差），维持嵌套形（83=83 条数基线），
+        // 残差为跨版本 CFG 块排布 N 族。
         if (minLevel < 1)
             return false;
         if (maxLevel < 1)
@@ -440,7 +447,7 @@ void CParty::set_random_reward(QuickParty::RandomBuffType type,
         return;
     if (m_field1ae8 == 0xb)                 // BASIC_REWARD_CARD_GOLD 占用时跳过
         return;
-    if (m_field1ae8 != (int)type)
+    if (m_field1ae8 != type)
         return;
 
     QuickParty::IRewardType* obj =

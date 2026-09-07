@@ -645,7 +645,7 @@ public:
     unsigned char get_dimension_possible() const;  // ORIG 单 movzbl（826b93x）
     unsigned char get_dimension_min_partymem() const;
     unsigned char limitOfStackableItemInTower() const;
-    unsigned char isNoFatigueDungeon() const;      // ORIG 单 movzbl（822b4e4）
+    bool isNoFatigueDungeon() const;               // b25c Lane21 bool 化：ORIG 0x822b4de 单 movzbl 直返无规范化，xor 直判调用点需 bool callee
     int GetType_DungeonInHeritance() const;
     bool isTowerOfDespairDungeon() const;
     unsigned char getQuestNpcDungeon() const;      // ORIG 单 movzbl
@@ -740,7 +740,7 @@ public:
     unsigned char m_hasTowerItemDrop;                       // +0x6b5（同名访问器）
     int m_towerMaxClearRewardItemNum;                       // +0x6b8（同名访问器）
     std::vector<DimensionPartyCount> m_dimensionPartyCount; // +0x6bc
-    unsigned char m_noFatigueFlag;          // +0x6c8（isNoFatigueDungeon）
+    bool m_noFatigueFlag;                   // +0x6c8（isNoFatigueDungeon；bool 化配对，布局不变）
     bool m_riskFlag;                        // +0x6c9（isRiskDungeon；bool 化配单
                                             //      movzbl 返回，布局不变）
     int m_partyMemberCoinLimit;             // +0x6cc（GetPartyMemberCoinLimit）

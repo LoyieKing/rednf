@@ -196,8 +196,9 @@ void CClearReward::_generateRandomItem(stGenerateRefClearReward_t const& refClea
 void CClearReward::_generateSpecificItem(stGenerateRefClearReward_t const& refClear,
                                          stGenerateResult_t& result)
 {
-    int roll = m_random.generateNumber(4, 100);
-    int itemIdx = refClear.m_dungeon->get_clear_item(roll);
+    // ORIG generateNumber 结果不落槽（P0 内联右值，P134 嵌套实参形）：
+    // mov 0xc(%ebp),%edx; mov 0xc(%edx),%edx; mov %eax,0x4(%esp); mov %edx,(%esp)。
+    int itemIdx = refClear.m_dungeon->get_clear_item(m_random.generateNumber(4, 100));
     if (itemIdx == -2)
         return;
     Inven_Item inv;

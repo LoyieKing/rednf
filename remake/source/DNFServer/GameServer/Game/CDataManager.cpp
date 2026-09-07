@@ -404,11 +404,11 @@ unsigned int CDataManager::GetSpAtLevelUp(int level) const
     {
         return 0;
     }
-    // ORIG 0x8360cb8：SP-at-level-up 表首项位于 +0xda94；与
-    // set_reward_sp 共用同一具名 ABI 视图，按 level-1 取表项。
-    // ORIG 地址 = this+4*level+0xDA90（`add $0x36a2; mov 0x8(,,4)` 两段拆分，
-    // 4.4 恒折为 add $0x36a4; sub $1 形，N1 拆分点不可复现）。
-    return ((const CDataManagerRewardSpView*)this)->m_spAtLevelUp[level - 1];
+    // ORIG 0x8360cb8：SP-at-level-up 表基址 +0xda90；与
+    // set_reward_sp 共用同一具名 ABI 视图。
+    // 地址 = this+4*level+0xDA90（0x8360cda `mov 0x8(%eax,%edx,4)`
+    // edx=level+0x36a2 ⇒ 数组基址 0xDA90；4.4 恒折 add/sub 拆分，N1）。
+    return ((const CDataManagerRewardSpView*)this)->m_spAtLevelUp[level];
 }
 
 unsigned int CDataManager::GetMoneyLimitPerLevel(int level, const char* serverGroup) const
@@ -436,6 +436,8 @@ void CDataManager::get_mob_reward(int level, unsigned int& out) const
         out = 0;
         return;
     }
+    // 残差 N18a/N7：4.4 对 base+index 寻址 load 目标恒 %eax 再中转 %edx，
+    // 4.1 复用 index 寄存器 %edx 直落；普通/register 局部两探针均不可翻。
     out = m_mobReward[level];
 }
 
@@ -954,16 +956,21 @@ bool ChattingEmoticonBase::isCommonEmoticon(const CUser& user) const
 void ChattingEmoticonBase::AddPremiumIndex(register int index)
 {
     // ORIG 0x80e5dde：特定 index 映射到 premium 槽位集合。
-    if (index < 0x2898bf)
-        return;
-    if (index <= 0x2898c0)
+    // 残差 9 条定性（34→33）：①ORIG `cmp $0x2898bf; jl`，4.4 对
+    // `0x2898be < index` 恒折叠 `cmp $0x2898be; jle`（比较常量 canonicalize，
+    // `>=imm`/`imm<x`/`!(x<imm)`/`x-imm>=0` 四 probe 全败=N18b 族）；
+    // ②ORIG 判断链前置（cmp 0x2898c0 jle→53块；cmp 0x2898c2 jg→end；
+    // jmp→57块），4.4 恒 53 块内联于判断后（=N88 块序），源形不可翻。
+    // insert 调用本身两分支槽位/实参/调用全等。
     {
-        m_set.insert(0x53);
-        return;
+        if (0x2898be < index)
+        {
+            if (index < 0x2898c1)
+                m_set.insert(0x53);
+            else if (index < 0x2898c3)
+                m_set.insert(0x57);
+        }
     }
-    if (index > 0x2898c2)
-        return;
-    m_set.insert(0x57);
 }
 
 // ---- CChattingEmoticonList（ORIG find_emoticon 0x80e581c / ReCalc 0x80e5880）----

@@ -39,7 +39,14 @@ bool CCharacInformNotice::checkInformNoticeFlag(unsigned int bit, unsigned int b
         return false;
     if (byteIdx >= InformNotice::kInformNoticeIndex)
         return false;
-    return ((m_flags[byteIdx] >> bit) & 1) == 0;
+    // ORIG: m_flags[byteIdx] 落槽 -0x5（P0 具名局部）→ sar/and 后 xor $0x1 取反
+    //（X2 register-uchar 形，不落槽）→ test/je + mov$1/mov$0 常量岛。
+    unsigned char v = m_flags[byteIdx];
+    register unsigned char t asm("eax") = (unsigned char)((v >> bit) & 1);
+    t ^= 1;
+    if (t)
+        return 1;
+    return 0;
 }
 
 // ORIG T 0x080e4806：flag&7=bit，flag>>3=byte；check 真则置位并 alter。
@@ -51,10 +58,13 @@ void CCharacInformNotice::handleInformNoticeFlag(unsigned int flag)
     unsigned int byteIdx = flag >> 3;
     if (byteIdx >= InformNotice::kInformNoticeIndex)
         return;
-    if (!checkInformNoticeFlag(bit, byteIdx))
-        return;
-    m_flags[byteIdx] = (unsigned char)(m_flags[byteIdx] + (1u << bit));
-    alter();
+    // ORIG: call check; test %al,%al; je 尾（bool callee 正判无 xor；X 族①裸形）。
+    if (checkInformNoticeFlag(bit, byteIdx)) {
+        m_flags[byteIdx] = (unsigned char)(m_flags[byteIdx] + (1u << bit));
+        alter();
+    }
+    // 残差 N：①ORIG movzbl→edx→ebx / lea→edx→ecx 两段物化为 N18a 反向折叠
+    //（4.4 恒单段不可造）；②ORIG 三出口 nop;jmp 独立块 4.4 合并同布局空块。
 }
 
 // ORIG T 0x080e48ec：movzbl 0x5(%edx,%eax,1),%eax 直返（P9：返回 unsigned char，单条零扩展）。

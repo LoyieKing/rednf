@@ -19,7 +19,7 @@ class CDataManager;
 class CMap;
 
 int get_rand_int(int range);
-int isInPathArea(int x, int y, const int (*area1)[2], const int (*area2)[2]);
+bool isInPathArea(int x, int y, const int (*area1)[2], const int (*area2)[2]);
 CDataManager* G_CDataManager();
 
 
@@ -541,7 +541,7 @@ public:
     int insert_monster(STAssignMonster monster, int area);
     void insert_condition_monster(STAssignMonster monster);
     int insert_item(int idx, int level, int prob, int cond);
-    int checkFitInPathObject(int x, int y) const;
+    bool checkFitInPathObject(int x, int y) const;
     int box_item_index(std::list<std::pair<int, int> > itemList) const;
     int CheckEntrance(int flag) const;
 

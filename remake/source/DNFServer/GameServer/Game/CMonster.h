@@ -35,7 +35,6 @@ public:
     int m_weight;               // +0x1d24（ORIG new CMonster sizeof 0x1d28，无尾部成员）
 
 private:
-    char m_pad0[4];
     int m_index;
     std::vector<std::pair<int, int> > m_specialItemLists[4];
     int m_specialItemWeight;

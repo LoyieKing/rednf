@@ -119,7 +119,7 @@ namespace EventClassify
 
 // 共同查找路径（两报告一致）：this->m_script1c(+0x1c) 为 LevelUpRewardScript*
 // （事件记录类型 0x194 实体专用）；脚本 +0x10 为 map<int,Condition_LevelUp>，
-// find 键=job；命中项 value 基址 +5 字节（即 m_filter[1]）为 growType 过滤。
+// find 键=job；命中项 value 基址 +5 字节（即 m_filter1）为 growType 过滤。
 
 // ============ check_recv_level（报告转写） ============
 // 参数映射（调用点 CEventScriptMng::process_level_up_reward）：
@@ -134,8 +134,8 @@ int CLevelUpReward::check_recv_level(int level, int job, int growType, bool flag
     if (it != static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.end())
     {
         // value 基址 +5 字节过滤：先零扩展比 0xff（通配），再有符号扩展比 growType。
-        if (it->second.m_filter[1] == static_cast<unsigned char>(0xff)
-            || static_cast<int>(static_cast<signed char>(it->second.m_filter[1]))
+        if (it->second.m_filter1 == static_cast<unsigned char>(0xff)
+            || static_cast<int>(static_cast<signed char>(it->second.m_filter1))
                == growType)
         {
             for (int i = 0; static_cast<int>(it->second.m_items.size()) > i; ++i)
@@ -165,8 +165,8 @@ int CLevelUpReward::set_reward_item(int level, int job, int growType)
         static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.find(job);
     if (it != static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.end())
     {
-        if (it->second.m_filter[1] == static_cast<unsigned char>(0xff)
-            || static_cast<int>(static_cast<signed char>(it->second.m_filter[1]))
+        if (it->second.m_filter1 == static_cast<unsigned char>(0xff)
+            || static_cast<int>(static_cast<signed char>(it->second.m_filter1))
                == growType)
         {
             for (int i = 0; static_cast<int>(it->second.m_items.size()) > i; ++i)

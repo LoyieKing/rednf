@@ -120,7 +120,8 @@ bool CQueryCounter::LoadQueryTable()
         return false;
     }
     int nRows = mysql->get_n_rows();
-    for (int i = 0; i < nRows; i = i + 1)
+    int i = 0;    // P191 ORIG -0xc 双 init 形
+    for (i = 0; i < nRows; i = i + 1)
     {
         int qid = 0;
         memset(query, 0, 0x6001);

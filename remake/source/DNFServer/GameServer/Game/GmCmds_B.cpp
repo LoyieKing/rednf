@@ -226,24 +226,26 @@ void CCharacStatCmd::execute()
 void CChoiceItem::parse()
 {
     trim(m_parser->m_args);
-    int parsed = atoi(m_parser->m_args.c_str());
-    m_itemIdx = parsed;
+    m_itemIdx = atoi(m_parser->m_args.c_str());
 }
 
 // ORIG execute 0x084b0a6e。
 void CChoiceItem::execute()
 {
-    if (m_itemIdx != 0)
+    if (m_itemIdx == 0)
     {
-        CItem* item = G_CDataManager()->find_item(m_itemIdx);
-        if (item == 0 || item->is_stackable())
-        {
-            return;                                       // 可堆叠/未知物品不设置
-        }
-        G_CDataManager()->setChoiceItem(true, (unsigned int)m_itemIdx);
+        G_CDataManager()->setChoiceItem(false, 0xffffffffu);
         return;
     }
-    G_CDataManager()->setChoiceItem(false, 0xffffffffu);
+    CItem* item = G_CDataManager()->find_item(m_itemIdx);
+    // ORIG：bad = (item==0 || is_stackable) bool 汇聚（mov$1 落 +0x61 fall，mov$0
+    // 为 je 岛），if(!bad) 才 setChoiceItem(true, idx)。
+    register unsigned char bad asm("eax") = (item == 0) || item->is_stackable();
+    if (bad)
+        goto done;
+    G_CDataManager()->setChoiceItem(true, (unsigned int)m_itemIdx);
+done:
+    ;
 }
 
 // ===========================================================================
@@ -265,17 +267,17 @@ void CClearInventoryCmd::execute()
     CUser* user = GetUser();
     for (int slot = 3; slot <= 0x137; ++slot)
     {
-        CInventory* inven = user->getCurCharacInvenW();
-        inven->m_pEquipSlot[slot].reset();                // ORIG Inven_Item::reset(base+i*0x3d)
+        // ORIG：getCurCharacInvenW 结果经 eax 直通 +0x650 读，无具名 inven 槽。
+        user->getCurCharacInvenW()->m_pEquipSlot[slot].reset();
     }
     if (user->send_itemspace(0) != 1)                     // ENUM_ITEMSPACE_INVENTORY=0
     {
-        char* acc = NumberToString(user->get_acc_id(), 0);
+        // P44：NumberToString 即时求值直压 0x14(%esp)，无 acc 具名槽。
         LogManager::logFormat(
             1, "GameMaster.cpp",
             __PRETTY_FUNCTION__, 0x63b,
             "CClearInventoryCmd::execute, pUser(%s)->send_itemspace( ENUM_ITEMSPACE_INVENTORY ) return FAILED",
-            acc);
+            NumberToString(user->get_acc_id(), 0));
     }
 }
 

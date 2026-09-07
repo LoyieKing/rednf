@@ -462,11 +462,11 @@ public:
 
 bool Inter_LoadEtc::SetRankRecord(CUser* user, SIG_LOAD_ETC* sig)
 {
-    GameResultType* records = sig->m_records;
+    // ORIG 0x84c2a98：无 records 局部槽，sig->m_records[i] 每轮直算（P0/P183）。
     for (int i = 0; i < sig->m_recordCount; ++i)
     {
-        records[i].m_field0 = 1;
-        user->update_record(records[i]);            // ORIG T 0x08676876
+        sig->m_records[i].m_field0 = 1;
+        user->update_record(sig->m_records[i]);     // ORIG T 0x08676876
     }
     return true;
 }
@@ -486,14 +486,21 @@ inline SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD* asLetheResult(void* p)
 
 int Inter_LoadEtc::_fnEnumQuestClear(unsigned int questIdx, char* ctx)
 {
-    // ORIG：ctx 双槽 (InterfacePacketBuf** buf, int** count)（_fnEnumQuestClear.md）
+    // ORIG 0x84c2b08：static（0x8=questIdx 无 this）；ctx 参数槽原地自增
+    // （lea 0x4; mov →0xc(%ebp) 后读旧值），源码 = 读旧值 + ctx+=4 两条语句。
     InterfacePacketBuf* buf = *reinterpret_cast<InterfacePacketBuf**>(ctx);
-    int* count = *reinterpret_cast<int**>(ctx + sizeof(InterfacePacketBuf*));
+    ctx += 4;
+    int* count = *reinterpret_cast<int**>(ctx);
+    ctx += 4;
     Quest* quest = G_CDataManager()->find_quest((int)questIdx);
-    if (quest != 0 && quest->check_clear_send() != 0)
+    // ORIG 两 je 直跳同出口（嵌套 if 消 && 汇聚 bool 岛，P197④ 反向）。
+    if (quest != 0)
     {
-        buf->put_short((int)(questIdx & 0xffff));
-        ++(*count);
+        if (quest->check_clear_send() != 0)
+        {
+            buf->put_short((int)questIdx);   // ORIG 直传完整 int（截断在 put_short 内）
+            ++(*count);
+        }
     }
     return 1;
 }
@@ -793,27 +800,33 @@ void Inter_LoadEtc::giveBreakAwayReward(CUser* user)
 
 void Inter_LoadEtc::processGrowthWeaponEvent(CUser& user)
 {
-    CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(100);
-    if (!ev->IsEventing(0))
-        return;
-    GrowthEquipEvent* growth = static_cast<GrowthEquipEvent*>(
-        GlobalData::s_event_manager->GetRepeatEvent(100));
-    if (growth == 0)
-        return;
-    growth->GiftGrowthWeaponBox(user);                  // ORIG T 0x080f7050
-    growth->SendGrowthWeaponEventInfo(user);            // ORIG T 0x080f7226
+    // ORIG 0x84e834a：首次 IsEventing 判定全链无槽（GetRepeatEvent 返回值
+    // 寄存器直传 vtable 调用，P134/P183），growth 槽仅第二次调用后出现。
+    // 正向嵌套消 ! 的 xor 物化（P194 反向）。
+    if (GlobalData::s_event_manager->GetRepeatEvent(100)->IsEventing(0))
+    {
+        GrowthEquipEvent* growth = static_cast<GrowthEquipEvent*>(
+            GlobalData::s_event_manager->GetRepeatEvent(100));
+        if (growth != 0)
+        {
+            growth->GiftGrowthWeaponBox(user);                  // ORIG T 0x080f7050
+            growth->SendGrowthWeaponEventInfo(user);            // ORIG T 0x080f7226
+        }
+    }
 }
 
 void Inter_LoadEtc::processGrowthCreatureEvent(CUser& user)
 {
-    CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x67);
-    if (!ev->IsEventing(0))
-        return;
-    GiveGrowCreatureEvent* growth = static_cast<GiveGrowCreatureEvent*>(
-        GlobalData::s_event_manager->GetRepeatEvent(0x67));
-    if (growth == 0)
-        return;
-    growth->SendGrowthCreatureEventInfo(user);          // ORIG T 0x081b6b70
+    // 同 processGrowthWeaponEvent（ORIG 0x84e838c 同构）。
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x67)->IsEventing(0))
+    {
+        GiveGrowCreatureEvent* growth = static_cast<GiveGrowCreatureEvent*>(
+            GlobalData::s_event_manager->GetRepeatEvent(0x67));
+        if (growth != 0)
+        {
+            growth->SendGrowthCreatureEventInfo(user);      // ORIG T 0x081b6b70
+        }
+    }
 }
 
 void Inter_LoadEtc::processSeriaRoomAniDecoEvent(seriaRoom_AniDeco info, CUser& user)

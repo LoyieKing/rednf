@@ -101,11 +101,12 @@ static float g_repairRate = 0.0f;
 int getEquipmentRepairPrice(int baseCost, int curEndurance, int maxEndurance,
                             int growthGrade, bool flag, float rate)
 {
-    if (maxEndurance == 0 || curEndurance == maxEndurance)
+    if (maxEndurance == 0 || maxEndurance == curEndurance)
         return 0;
 
-    int base = ((growthGrade + 5) * baseCost) / 10;
-    float price = (float)base * g_repairRate / (float)maxEndurance * (float)(maxEndurance - curEndurance);
+    float price = 0;
+    price = (float)(((growthGrade + 5) * baseCost) / 10)
+            * g_repairRate / (float)maxEndurance * (float)(maxEndurance - curEndurance);
     price *= rate;
     return (int)price;
 }

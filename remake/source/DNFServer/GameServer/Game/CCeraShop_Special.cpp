@@ -234,12 +234,13 @@ void SpecialItemHandler::respond_special_item_booster_selection(
 void SpecialItemHandler::respond_special_item_cerapoint_giftcard(
     int, const STSpecailItem_Param& param, STSpecailItem_Result&)
 {
-    // ORIG 0x827de4e：无局部槽，实参 RTL 现取（helper 在 vtable 载入后
-    // reload），vtable+0xc 裸槽派发保留（IPGHelper 该槽未建模）。
-    typedef void (*Fn)(void*, void*, int, int, int, int);
-    Fn fn = *reinterpret_cast<Fn*>(
-        *reinterpret_cast<char**>(GlobalData::s_pIPGHelper) + 0xc);
-    fn(GlobalData::s_pIPGHelper, param.m_user, param.m_value, 2, 0, 0);
+    // ORIG 0x827de4e：vtable+0xc 载入→%ebx 跨实参求值存活（P52 单表达式形）。
+    // IPGHelper 该槽未建模，保留裸槽派发。
+    // [N7 封顶] 单表达式后 4.4 分配 vtable 项→%eax、value→%ebx、user→%ecx，
+    // ORIG 为 ebx/ecx/edx——纯寄存器名互换（N7 不可翻）；帧 0x24+push%ebx 已复现。
+    (*reinterpret_cast<void (***)(void*, void*, int, int, int, int)>(
+        GlobalData::s_pIPGHelper))[3](GlobalData::s_pIPGHelper, param.m_user,
+                                      param.m_value, 2, 0, 0);
 }
 
 // ---- respond_special_item_charac_slot_extend —— ORIG 0x0827c0c2 ----
@@ -782,8 +783,14 @@ void premium_helper_function::cal_end_time(CUser* user, long& start, long& end,
 {
     if (bActive)
     {
-        WongWork::CUserPremium* premium = user->GetPremiumInfo();
-        WongWork::SUserPremiumInfo* info = premium->GetPremiumInfo(type);
+        // ORIG 0x827d03c：外层 GetPremiumInfo 返回经出参槽直传，仅内层结果
+        // 具名槽 -0xc（P52/P0）。
+        // [N 封顶] 残差：① g_SPremiumInfo[type] 访问 ORIG `mov &g_SPremiumInfo
+        // +0x8(%eax)` 全局 disp 折叠，4.4 恒先算 elem 基址再 mov 0x8(%eax)；
+        // ② 尾比较 ORIG `cmp %eax,%edx;jle` vs 4.4 `cmp %eax,%ecx;jge`（N22
+        // 操作数方向不可翻）。链式调用已闭合。
+        WongWork::SUserPremiumInfo* info =
+            user->GetPremiumInfo()->GetPremiumInfo(type);
         if (info->m_type == type)
         {
             end = (long)info->m_end + (long)term * 0x15180;
@@ -851,6 +858,9 @@ unsigned char premium_helper_function::is_notify(CUser* user, int type)
 // type==0x53/0x57：重算+发表情；type==8：组 2 包并广播 basic_info。
 void premium_helper_function::write_log(CUser* user, int type)
 {
+    // [N18a/b 封顶] ORIG 0x827d2e7 `mov 0xc(%ebp),%eax` 一次载入寄存器三次
+    // cmp 复用 + body 置后 je 同目标；4.4 恒 `cmpl $imm,mem` 直比 + 第二条件
+    // jne 直落 body（N18a 载入复用/N18b 直比不可翻）。语义逐分支相等。
     if (type == 0x53 || type == 0x57)
     {
         user->ReCalcChattingEmoticon();
@@ -1930,9 +1940,10 @@ void CCeraShop::SaveFeaturedIdx(CUser* user, int restrictCode, int curSec, int d
 {
     if (restrictCode == 0)
         return;
-    int characNo = user->get_charac_no(-1);
-    unsigned int accId = user->get_acc_id();
-    DB_SaveFeaturedGoodsIdx::makeRequest(accId, characNo, restrictCode, curSec, d);
+    // ORIG 0x8325a50：characNo 跨 call 存 %ebx、accId eax 直传出参槽（P24/P52
+    // 单表达式实参形，无具名槽）。
+    DB_SaveFeaturedGoodsIdx::makeRequest(user->get_acc_id(), user->get_charac_no(-1),
+                                         restrictCode, curSec, d);
 }
 
 // ============================================================================
@@ -2133,8 +2144,7 @@ void CCeraShop::_sendCargoUpgradePacket(CUser* user, int type)
     PacketGuard packet;
     packet.put_header(0, 0x42);
     packet.put_short(type);
-    int cap = user->getCurCharacCargoR()->GetCapacity();
-    packet.put_short(cap);
+    packet.put_short(user->getCurCharacCargoR()->GetCapacity());  // ORIG 无具名槽（P0 右值内联直传）
     packet.finalize(true);
     user->Send(packet);
 }
@@ -2148,8 +2158,7 @@ void CCeraShop::_sendCharacSlotExtendPacket(CUser* user, int type)
     PacketGuard packet;
     packet.put_header(0, 0x42);
     packet.put_short(type);
-    unsigned char slotLimit = user->getCharacSlotLimit();
-    packet.put_byte(slotLimit & 0xff);
+    packet.put_byte(user->getCharacSlotLimit() & 0xff);  // ORIG 无具名槽（P0）
     packet.finalize(true);
     user->Send(packet);
 }
@@ -2163,8 +2172,7 @@ void CCeraShop::_sendInventoryUpgradePacket(CUser* user, int type)
     PacketGuard packet;
     packet.put_header(0, 0x42);
     packet.put_short(type);
-    int cap = user->getCurCharacInvenR()->get_inventory_capacity();
-    packet.put_short(cap);
+    packet.put_short(user->getCurCharacInvenR()->get_inventory_capacity());  // ORIG 无具名槽（P0）
     packet.finalize(true);
     user->Send(packet);
 }

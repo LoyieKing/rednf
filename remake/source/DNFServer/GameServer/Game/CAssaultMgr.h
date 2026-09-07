@@ -319,7 +319,7 @@ public:
     Point2d m_posBase;              // +0x110（ORIG ctor 调 Point2d::C1 于 this+0x110；
                                     //   Reset 以 Point2d(0,0) 写回；图标包 put_short 分量）
     Point2dRaw m_pos;               // +0x118（IsArea 比较 x/y；_SendPacketToArea 门槛）
-    char m_teamFlag[2];             // +0x120..+0x121（_DelUser EndPvP flag 按 team 读）
+    bool m_teamFlag[2];             // +0x120..+0x121（_DelUser EndPvP 第2参 mangled b 直传 movzbl 实证）
     int m_winTeam;                  // +0x124（CloseAssault 获胜队比较）
     char m_chaosFlags[2];           // +0x128..+0x129（_SeparateTeam/_ProcessChaos 每队 chaos 标志）
     char m_pad12a[2];               // +0x12a..+0x12b

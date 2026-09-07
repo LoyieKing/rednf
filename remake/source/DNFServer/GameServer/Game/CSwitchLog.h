@@ -15,7 +15,7 @@ class CSwitchLog
 public:
     CSwitchLog(const char* name, int line, int level, int flagIndex);
     void operator()(const char* fmt, ...);
-    static void SetLogWriteFlag(int flag);
+    static void SetLogWriteFlag(register int flag);
 
 private:
     const char* m_name;    // +0x00

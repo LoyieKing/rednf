@@ -32,7 +32,7 @@ public:
     bool Select(_SIG_LOAD_ACTION_POINT& sig);                           // ORIG T 0x08123b9e
     bool ParseActionClearState(char* text, _ActionPoint* table,
                                unsigned int count);                     // ORIG T 0x08123f50
-    int SendResult(int a, int b, _SIG_LOAD_ACTION_POINT& sig, bool ok); // ORIG T 0x08124156
+    bool SendResult(int a, int b, _SIG_LOAD_ACTION_POINT& sig, bool ok); // ORIG T 0x08124156
 
 private:
     // 对象尺寸 4：仅 vptr。
@@ -48,7 +48,7 @@ public:
     void makeRequest(int uid, unsigned int characNo);                   // ORIG T 0x0812487a 空体
     virtual bool dispatch(int a, int b, Stream* stream);                 // ORIG T 0x08124882
     bool Select(_SIG_LOAD_REWARD_MEDAL& sig);                           // ORIG T 0x08124910
-    int SendResult(int a, int b, _SIG_LOAD_REWARD_MEDAL& sig);          // ORIG T 0x08124b8e
+    bool SendResult(int a, int b, _SIG_LOAD_REWARD_MEDAL& sig);         // ORIG T 0x08124b8e
 
 private:
 };

@@ -148,9 +148,7 @@ void CharacAdvanceAltarManager::getCharacAdvanceAltarDbData(_CharacAdvanceAltarD
     // ORIG 循环 local_10 <= 0（一次），m_data 按 stride 0xd0 取第 i 行
     for (int local_10 = 0; local_10 <= 0; ++local_10)
     {
-        m_data[local_10].get(*reinterpret_cast<_AdvanceAltarDbData*>(
-            reinterpret_cast<char*>(&out.m_db) +
-            static_cast<unsigned>(local_10) * sizeof(_AdvanceAltarDbData)));
+        m_data[local_10].get(out.m_db[local_10]);
     }
 }
 
@@ -226,17 +224,16 @@ int CharacAdvanceAltarManager::getCurrentRidableId() const
 // 否则 *(int*)(cur+4) + *(int*)(cur+8) > 0（免费票 + 现持票）。
 bool CharacAdvanceAltarManager::isAvailableTciket() const
 {
-    const AdvanceAltarData* cur = m_currentAdvanceAltarData;
-    if (cur == 0)
+    if (m_currentAdvanceAltarData == 0)
     {
         return false;
     }
     // ORIG 4 字节读 +0x04 / +0x08 两票池（DB 列对照：+0x04=ticket_free、
     // +0x08=ticket_cera，见 _RidableDbHead；_RidableBase 现有成员名与该列名
     // 相反，属命名口径问题，本批只去裸偏移不改共享成员名）。
-    const int freeTickets = cur->m_ticket;
-    const int heldTickets = cur->m_freeTicket;
-    return (freeTickets + heldTickets) > 0;
+    // ORIG 无任何槽：指针逐次重读、和与比较全寄存器直算（P0/P183）。
+    return (m_currentAdvanceAltarData->m_ticket +
+            m_currentAdvanceAltarData->m_freeTicket) > 0;
 }
 
 // ORIG T 0x0813131a（isEnterStage.md 全文）：current 空 → 0；在
@@ -311,9 +308,10 @@ bool CharacAdvanceAltarManager::getTowerInfo(int towerIdx, int& outValue,
 // ORIG T 0x0813eb38：opcode 0x1a | uid | memcpy 0x51c → DB_Q。
 void DB_Update::makeRequest(int uid, const _CharacAdvanceAltarDbData& data)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localglobal/global_AdvanceAltar_Dispatcher.cpp", 0x1d9);
-    CStreamGuard guard(stream, true);
+    // ORIG 无 stream 具名槽：Acquire 结果经 eax 直传 CStreamGuard（P0/P89）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                           "localglobal/global_AdvanceAltar_Dispatcher.cpp", 0x1d9),
+                       true);
     guard.operator*()->operator<<(0x1a);
     guard.operator*()->operator<<(uid);
     _CharacAdvanceAltarDbData* sig =
@@ -578,9 +576,10 @@ bool DB_Load::SendResult(int uid, int uniqueId, _CharacAdvanceAltarDbData& data,
 {
     if (!ok)
         return true;
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localglobal/global_AdvanceAltar_Dispatcher.cpp", 0x1bf);
-    CStreamGuard guard(stream, true);
+    // ORIG 无 stream 具名槽：Acquire 结果经 eax 直传（P0/P89）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                           "localglobal/global_AdvanceAltar_Dispatcher.cpp", 0x1bf),
+                       true);
     guard.operator*()->operator<<(uid);
     guard.operator*()->operator<<(uniqueId);
     guard.operator->()->put_binary(&data, 0x51c);
@@ -597,9 +596,10 @@ bool DB_Load::parseStage(char* str, _Stage* out, int count)
     if (str == 0 || out == 0)
         return false;
     char* saveOuter = 0;
-    int row = 0;
-    for (char* line = strtok_r(str, "|", &saveOuter);
-         line != 0 && row < count; line = strtok_r(0, "|", &saveOuter), ++row)
+    char* line = strtok_r(str, "|", &saveOuter);
+    int row = 0;   // 4.4 将该零初始化提升至 strtok_r 前（P112/N82 族），源形无解
+    for (; line != 0 && row < count;
+         line = strtok_r(0, "|", &saveOuter), ++row)
     {
         char* saveInner = 0;
         char* field = strtok_r(line, ",", &saveInner);
@@ -812,7 +812,7 @@ bool DB_Update::update(const _CharacAdvanceAltarDbData& data)
         //（update.md 0x0813ec5e：`movzbl 0x517` 取 m_update、`mov 0x4/0x8/0xc/0x10/0x14`
         //  取 m_head 前 5 列、`movswl 0x18`、`movzwl 0x1a`、`movzbl 0x20`、
         //  数组指针 `add $0x21/0x1b1/0x229/0x481`）。
-        const _AdvanceAltarDbData& db = data.m_db;
+        const _AdvanceAltarDbData& db = data.m_db[0];
         const _RidableDbHead& view = db.m_head();
         const _Stage* stages = db.m_stages;
         const _Slot* slots = db.m_slots;

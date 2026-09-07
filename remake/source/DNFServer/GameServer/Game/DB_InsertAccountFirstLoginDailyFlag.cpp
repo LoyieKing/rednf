@@ -23,9 +23,8 @@
 void DB_InsertAccountFirstLoginDailyFlag::makeRequest(int p1, unsigned int p2,
                                                       unsigned int p3, int p4)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x953d);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x953d), true);
     guard.operator*()->operator<<(0x342);
     guard.operator*()->operator<<(p1);
     guard.operator*()->operator<<(p2);

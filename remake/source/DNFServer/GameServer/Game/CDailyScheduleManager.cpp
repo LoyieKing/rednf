@@ -297,11 +297,17 @@ int CDailyScheduleManager::CheckScheduleState(const _DailySchedule& entry,
     const std::time_t end = mktime(&tm);
 
     if (entry.m_startSec <= cur && cur <= entry.m_endSec &&
-        (entry.m_wday == wday || entry.m_wday == 7) &&
-        start <= cur && cur <= end)
+        (wday == entry.m_wday || entry.m_wday == 7) &&
+        cur >= start && cur <= end)
     {
         result = 1;
     }
+    // 残差 ndiff 10（136→132）定性：
+    // ①N18a×2：ORIG GetRepeatEvent 实参 `mov (%eax),%eax; mov %eax,%edx`
+    // 双段 regmove，4.4 恒折 `mov (%eax),%edx` 单段（两处 call 前同形）；
+    // ②N18b：`wday == entry.m_wday` ORIG 出 m_wday→edx、wday→eax 双物化
+    // `cmp %eax,%edx`，4.4 恒折 `cmp -0x18(%ebp),%eax`（正反向写法均试）。
+    // `cur >= start` 方向翻转已收（cmp start,cur+jg → cmp cur/start+jl 对齐）。
 
     if (result == 0)
         out = 0;

@@ -243,30 +243,20 @@ bool CCreature::vaildItemExp(int itemIdx)
 // 达到 MaxLevel → 0。
 bool CCreature::GainExp(int exp, CUser* user)
 {
-    // ORIG 0x8337923..：m_level 缓存 %ebx 跨 call 存活（callee-saved，0x8337936
-    // `mov 0x2c(%eax),%ebx`）；两比较 sete/setne 物化于 %al（技巧 22），
-    // GetTypeSelectEvolutionLevel 二次独立 call（无 level 槽）。
-    register int lvlBx asm("ebx");
-    register bool v asm("al");
     if (m_script == 0)
         return false;
-    v = (m_script->GetTypeSelectEvolutionLevel() != -1);
-    if (v)
+    if (m_script->GetTypeSelectEvolutionLevel() != -1)
     {
-        lvlBx = m_level;
-        v = (lvlBx >= m_script->GetTypeSelectEvolutionLevel());
-        if (v)
+        if (m_level >= m_script->GetTypeSelectEvolutionLevel())
             return false;
     }
-    lvlBx = m_level;
-    v = (lvlBx >= m_script->GetMaxLevel());
-    // ORIG 0x83379a0+：setge true → fall `mov0;jmp end`（return false 早退），
-    // 假路径 je→isGrow 分流区（`if(!v)` 反产 xor）。
-    if (v)
+    if (m_level >= m_script->GetMaxLevel())
         return false;
-    if (m_isGrow == 1)
-        return GainExpCreature(exp, user);
-    return GainItemExpCreature(exp, user);
+    // ORIG 0x833797e：movzbl;xor$1;test;je <GainExpCreature>，fall=GainItemExp
+    // （P194 X1 块序：xor 物化 (m_isGrow!=1)，je 是 ==1 成功分支）。
+    if (m_isGrow != 1)
+        return GainItemExpCreature(exp, user);
+    return GainExpCreature(exp, user);
 }
 
 // ============================================================================
@@ -1204,13 +1194,10 @@ bool CDBMsgSender::RecvMail(Inven_Item* item, int characNo, int slot,
     SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
     memset(buf, 0, 0x74);
     // ORIG 0x833ff71：lea 0x4(%eax),%edx 临时 this；arg2 经 %eax（0xc 形参晚装）。
-    // register 绑 %eax 挤 item 到 %eax，令 4.4 复现 lea→%edx 装填序。
-    // [batch-19 N 封顶 ndiff=4] 去掉 asm("eax") 绑定实测 → ndiff 8（装填序
-    // 翻成 `add $4,%eax` + 形参先载，双处劣化）；保留绑定后残差 = P30 型
-    // `lea 0x4(%eax),%edx` vs `mov -0xc,%edx; add $0x4,%edx`（穷举 add-vs-lea
-    // 不可翻）+ 3 处 N82 槽号（-0x2c/-0x38、-0x34/-0x28）。
-    register Inven_Item* itemAx asm("eax") = item;
-    reinterpret_cast<Inven_Item_Compatible*>(&buf->m_item)->setCopy(*itemAx);
+    // 【asm("eax") 绑定违规清零】batch-19 曾以 register asm 换 ndiff 8→4，
+    // 硬约束禁 asm 绑定已移除；compat 局部形探针使 buf 槽 -0xc→-0x10 全帧
+    // 错位（N82）反劣；裸形残差 = P30 lea/add 装载序 + N82 槽号 3 处。
+    reinterpret_cast<Inven_Item_Compatible*>(&buf->m_item)->setCopy(*item);
     buf->m_addInfo2 = item->m_addInfo2;               // ← item+0x07
     buf->m_reason = (unsigned char)reason;            // +0x51
     buf->m_characNo = characNo;                       // +0x48
@@ -1233,12 +1220,10 @@ bool CDBMsgSender::SendMail(Inven_Item* item, int characNo, int slot, int reason
         return false;
     SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
     memset(buf, 0, 0x74);
-    // ORIG 0x833febb：lea 临时 this（无 compat 槽）。同 RecvMail 的 %eax 钉法。
-    // [batch-19 N 封顶 ndiff=4] 同 RecvMail：去 asm("eax") 实测 → ndiff 8；
-    // 保留后残差 = P30 lea/add + 装载序，另 +0x2b 处 ORIG `xor$1;test;je`
-    // 常量岛在 4.4 折成 `mov %eax,%ebx` 直落（bool^1 直落形）。
-    register Inven_Item* itemAx asm("eax") = item;
-    reinterpret_cast<Inven_Item_Compatible*>(&buf->m_item)->setCopy(*itemAx);
+    // ORIG 0x833febb：lea 临时 this（无 compat 槽）。
+    // 【asm("eax") 绑定违规清零】同 RecvMail 回裸形（compat 局部形 N82 反劣）；
+    // 另 +0x2b 处 ORIG `xor$1;test;je` 常量岛在 4.4 折成 bool^1 直落形。
+    reinterpret_cast<Inven_Item_Compatible*>(&buf->m_item)->setCopy(*item);
     buf->m_addInfo2 = item->m_addInfo2;               // ← item+0x07
     buf->m_reason = (unsigned char)reason;            // +0x51
     buf->m_characNo = characNo;                       // +0x48

@@ -446,7 +446,11 @@ struct SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD
 
 struct SIG_UPDATE_CHARACTER_DAY_EVENT
 {
-    char m_pad[0x8];
+    // 具名化（Lane22，ORIG updateCharacterDayEvent 0x08688230 写侧实证：
+    // +0x00 uint ← get_acc_id()，+0x04 short ← (short)day；sizeof 0x8 不变）。
+    unsigned int m_accId;     // +0x00
+    short m_day;              // +0x04
+    char m_pad6[2];           // +0x06..0x07（未写区）
 };
 
 // 具名化（HdrFieldC，尾字段）：sizeof 0x14d8 不变。
@@ -628,9 +632,9 @@ struct STAdvanceAltarLayerStatData
     unsigned short m_padE;         // +0x0e（补齐至 0x10；自然布局由对齐插入）
 
     // ORIG W C1/C2 @0x081573ea：movw 0@+0 / movl 0@+4 / movw 0@+8 / movw 0@+0xa /
-    // movw 0@+0xc（+0xe pad 不写，14 字节清零）。
+    // movw 0@+0xc（+0x2 空洞与 +0xe pad 不清，实证 0x81573ea）。
     STAdvanceAltarLayerStatData()
-        : m_itemType(0), m_field2(0), m_itemIndex(0), m_itemLevel(0),
+        : m_itemType(0), m_itemIndex(0), m_itemLevel(0),
           m_useCount(0), m_useStar(0)
     {
     }

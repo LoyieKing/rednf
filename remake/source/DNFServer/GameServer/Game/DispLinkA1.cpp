@@ -143,8 +143,7 @@ void Dispatcher_CallGuildCreateRight::send_packet_guildcreateright(
     packet.put_header(0, 0xe);
     packet.put_byte(0);
     packet.put_short(1);
-    const CInventory* inv = user->getCurCharacInvenR();
-    inv->MakeItemPacket((INVEN_TYPE)1, 0, packet);
+    user->getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, 0, packet);
     packet.finalize(true);
     user->Send(packet);
 }
@@ -215,8 +214,7 @@ int Dispatcher_Client_Spec_Statistic::read(PacketBuf& packet, MSG_BASE& msg)
     packet.get_byte(*reinterpret_cast<unsigned char*>(p + 0xd));
     packet.get_byte(*reinterpret_cast<unsigned char*>(p + 0xe));
     packet.get_byte(*reinterpret_cast<unsigned char*>(p + 0xf));
-    const int count = *reinterpret_cast<unsigned char*>(p + 0xf);
-    for (int i = 0; i < count; ++i) {
+    for (int i = 0; i < (int)reinterpret_cast<unsigned char (&)[0x10]>(*p)[0xf]; ++i) {  // ORIG movzbl 0xf(%eax)
         packet.get_byte(
             *reinterpret_cast<unsigned char*>(p + 0x12 + i * 0xc));
         packet.get_int(*reinterpret_cast<unsigned int*>(p + 0x16 + i * 0xc));
@@ -292,9 +290,7 @@ int Dispatcher_CreateDisjointStore::check_error(CUser* user, MSG_BASE& msg,
 {
     (void)msg;
     (void)param;
-    if (user->get_state() <= 2)
-        return -1;
-    if (user->getCurCharacR() != 0)
+    if ((user->get_state() <= 2) ? true : (user->getCurCharacR() == 0))
         return -1;
     if (user->GetCurCharacExpertJobType() != 3)
         return -2;

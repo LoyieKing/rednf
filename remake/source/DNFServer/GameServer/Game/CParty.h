@@ -241,7 +241,7 @@ public:
         char m_fieldc;    // +0x0c
         char m_fieldd;    // +0x0d
         char m_fielde[4]; // +0x0e
-        char m_field12;   // +0x12
+        unsigned char m_field12;   // +0x12（get_teleport_member_state ORIG movzbl 零扩展实证）
         int m_field14;    // +0x14
     };
 
@@ -413,7 +413,7 @@ public:
     void send_loadingcheck_msg();
     void resetFinishLoadingVar();
     bool CanDoPartyActionAssalutState();
-    int TimeoutCompleteAfterAssault();
+    bool TimeoutCompleteAfterAssault();   // b25c Lane21：ORIG 尾 mov$1 常量岛（0x859a34e+0x12c），调用侧 test%al
     void SelectEPLPCommand(int cmd);   // ORIG 0x85a22a8：SetEPLPState(3)+
                                        // InsertTimer(1,idx,0x14,cmd,key,0)
     bool check_timer_key(TIMER_MESSAGE msg, int param);

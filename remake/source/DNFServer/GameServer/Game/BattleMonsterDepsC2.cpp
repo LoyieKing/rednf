@@ -110,12 +110,11 @@ CMap* CBattle_Field::getMap(int mapIndex)
     CMap* map = static_cast<CMap*>(G_CDataManager()->find_map(mapIndex));
     if (map == NULL)
     {
-        MapInfo* info = GetCurrentMapInfo();
         LogManager::logFormat(
             1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x4a7,
             "Find Map[%d] Error(In Map Maker)(%d/%d) [Map Kind : %s]",
             GetCurrentMapInfo()->m_mapIndex, m_curX, m_curY,
-            info->m_layeredMap ? "layeredMap" : "generalMap");
+            GetCurrentMapInfo()->m_layeredMap ? "layeredMap" : "generalMap");
         return NULL;
     }
     if (get_dungeon_diff() == 4 && map->m_b4 != 0)
@@ -124,12 +123,11 @@ CMap* CBattle_Field::getMap(int mapIndex)
         map = static_cast<CMap*>(G_CDataManager()->find_map(map->m_b4));
         if (map == NULL)
         {
-            MapInfo* info = GetCurrentMapInfo();
             LogManager::logFormat(
                 1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x4c4,
                 "Find Map[%d] Error(In Map Maker)(%d/%d) [Map Kind : %s]",
                 GetCurrentMapInfo()->m_mapIndex, m_curX, m_curY,
-                info->m_layeredMap ? "layeredMap" : "generalMap");
+                GetCurrentMapInfo()->m_layeredMap ? "layeredMap" : "generalMap");
             return NULL;
         }
     }
@@ -345,16 +343,16 @@ void CBattle_Field::add_monsters_current_map(std::list<_mapMonster>& mobList,
 void CBattle_Field::add_monster_hell_party(map_monster& mob, bool& killedAll,
                                            int& uid, int& seq)
 {
-    (void)killedAll;               // ORIG 未使用该引用
-    if (m_hellPartyActive == 0)                                          // +0x1b8
-        return;
-    std::map<unsigned short, STHellPartyGroupOrder>* groups =
-        static_cast<std::map<unsigned short, STHellPartyGroupOrder>*>(
-            G_CDataManager()->get_hellparty_groupOrder_map(
-                GetCurrentMapInfo()->m_mapIndex));
-    if (groups == NULL)
-        return;
-    add_hell_party_monster(mob, uid, seq, groups);
+    // P63/P133：ORIG 双 je 共享统一出口（+0x64）——嵌套 if 共享出口消 jmp 中继。
+    if (m_hellPartyActive != 0)                                          // +0x1b8
+    {
+        std::map<unsigned short, STHellPartyGroupOrder>* groups =
+            static_cast<std::map<unsigned short, STHellPartyGroupOrder>*>(
+                G_CDataManager()->get_hellparty_groupOrder_map(
+                    GetCurrentMapInfo()->m_mapIndex));
+        if (groups != NULL)
+            add_hell_party_monster(mob, uid, seq, groups);
+    }
 }
 
 // ORIG 0x08301bf6：血战系统/阶段时间自 CMap 复制到本对象后转调 add_blood_monster。
@@ -801,9 +799,7 @@ void CBattle_Field::moveMap_4_Log(int x, int y, const GridScript* gs)
 {
     if (gs == NULL)
         return;
-    const unsigned int layeredCount =
-        static_cast<unsigned int>(gs->m_layeredMapIndexes.size());        // gs+0x1c
-    MapInfo* info = GetMapInfoFromPos(m_curX, m_curY, false);
+    // P44/P52：layeredCount/info 无槽——R2L 实参即时求值，值升 callee-saved。
     LogManager::logFormat(
         1, "battle_field.cpp",
         __PRETTY_FUNCTION__, 0x115b,
@@ -812,7 +808,8 @@ void CBattle_Field::moveMap_4_Log(int x, int y, const GridScript* gs)
         "gs->layeredMapIndex(%d)\n",
         m_dungeonIndex, m_curX, m_curY,
         static_cast<unsigned int>(gs->m_mapCandidates.size()),
-        info->m_layeredMap ? "layeredMap" : "generalMap", layeredCount);
+        GetMapInfoFromPos(m_curX, m_curY, false)->m_layeredMap ? "layeredMap" : "generalMap",
+        static_cast<unsigned int>(gs->m_layeredMapIndexes.size()));       // gs+0x1c
 }
 
 // ORIG 0x083079ba：终点位 boss 房条件未满足时报错码 7。

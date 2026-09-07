@@ -12,10 +12,22 @@ int CHackLog_InvalidAreaMove::GetHackType()
     return 0x1f5;
 }
 
+// ORIG 0x082861b6
+//   _ZN24CHackLog_InvalidAreaMove31IsMovingBetweenWestCoastAndGentEiiii
+//   if (IsGentEntranceInWestCoast(a,b) && IsWestCostEntranceInGent(c,d)) return 1;
+//   if (IsWestCostEntranceInGent(a,b) && IsGentEntranceInWestCoast(c,d)) return 1;
+//   return 0;
+bool CHackLog_InvalidAreaMove::IsMovingBetweenWestCoastAndGent(int a, int b, int c, int d)
+{
+    // ORIG 直连形：单表达式 return 不物化 0/1（同 IsMovingBetweenSeriaRoomAndGuildAgit）。
+    return (IsGentEntranceInWestCoast(a, b) && IsWestCostEntranceInGent(c, d)) ||
+           (IsWestCostEntranceInGent(a, b) && IsGentEntranceInWestCoast(c, d));
+}
+
 // ORIG 0x082862d0
 //   _ZN24CHackLog_InvalidAreaMove25IsGentEntranceInWestCoastEii
 //   a == 3 && b == 6
-char CHackLog_InvalidAreaMove::IsGentEntranceInWestCoast(int a, int b)
+bool CHackLog_InvalidAreaMove::IsGentEntranceInWestCoast(int a, int b)
 {
     return (a == 3 && b == 6) ? 1 : 0;
 }
@@ -23,23 +35,9 @@ char CHackLog_InvalidAreaMove::IsGentEntranceInWestCoast(int a, int b)
 // ORIG 0x082862ee
 //   _ZN24CHackLog_InvalidAreaMove24IsWestCostEntranceInGentEii
 //   a == 6 && b == 0
-char CHackLog_InvalidAreaMove::IsWestCostEntranceInGent(int a, int b)
+bool CHackLog_InvalidAreaMove::IsWestCostEntranceInGent(int a, int b)
 {
     return (a == 6 && b == 0) ? 1 : 0;
-}
-
-// ORIG 0x082861b6
-//   _ZN24CHackLog_InvalidAreaMove31IsMovingBetweenWestCoastAndGentEiiii
-//   if (IsGentEntranceInWestCoast(a,b) && IsWestCostEntranceInGent(c,d)) return 1;
-//   if (IsWestCostEntranceInGent(a,b) && IsGentEntranceInWestCoast(c,d)) return 1;
-//   return 0;
-char CHackLog_InvalidAreaMove::IsMovingBetweenWestCoastAndGent(int a, int b, int c, int d)
-{
-    if (IsGentEntranceInWestCoast(a, b) && IsWestCostEntranceInGent(c, d))
-        return 1;
-    if (IsWestCostEntranceInGent(a, b) && IsGentEntranceInWestCoast(c, d))
-        return 1;
-    return 0;
 }
 
 // ORIG 0x08286222
@@ -47,19 +45,17 @@ char CHackLog_InvalidAreaMove::IsMovingBetweenWestCoastAndGent(int a, int b, int
 //   if (IsHendonMyre(a) && IsWarfare(b)) return 1;
 //   if (IsWarfare(a) && IsHendonMyre(b)) return 1;
 //   return 0;
-char CHackLog_InvalidAreaMove::IsMovingAboutPowerWar(int a, int b)
+bool CHackLog_InvalidAreaMove::IsMovingAboutPowerWar(int a, int b)
 {
-    if (IsHendonMyre(a) && IsWarfare(b))
-        return 1;
-    if (IsWarfare(a) && IsHendonMyre(b))
-        return 1;
-    return 0;
+    // ORIG 直连形：单表达式 return。
+    return (IsHendonMyre(a) && IsWarfare(b)) ||
+           (IsWarfare(a) && IsHendonMyre(b));
 }
 
 // ORIG 0x08286330
 //   _ZN24CHackLog_InvalidAreaMove19IsMovingInGuildAgitEii
 //   a == 8 && a == b
-char CHackLog_InvalidAreaMove::IsMovingInGuildAgit(int a, int b)
+bool CHackLog_InvalidAreaMove::IsMovingInGuildAgit(int a, int b)
 {
     return (a == 8 && a == b) ? 1 : 0;
 }
@@ -69,7 +65,7 @@ char CHackLog_InvalidAreaMove::IsMovingInGuildAgit(int a, int b)
 //   任一四元组匹配即返回 1：
 //   (6,0,6,4) (6,4,6,0) (3,8,3,0) (3,0,3,8) (3,1,2,0)
 //   (2,0,3,1) (2,2,2,5) (2,5,2,2) (2,1,2,5) (2,5,2,1)
-char CHackLog_InvalidAreaMove::IsExceptionMove(int a, int b, int c, int d)
+bool CHackLog_InvalidAreaMove::IsExceptionMove(int a, int b, int c, int d)
 {
     if ((a == 6 && b == 0 && c == 6 && d == 4) ||
         (a == 6 && b == 4 && c == 6 && d == 0) ||
@@ -90,13 +86,11 @@ char CHackLog_InvalidAreaMove::IsExceptionMove(int a, int b, int c, int d)
 //   if (IsSeriaRoom(a,b) && IsGuildAgit(c)) return 1;
 //   if (IsGuildAgit(a) && IsSeriaRoom(c,d)) return 1;
 //   return 0;
-char CHackLog_InvalidAreaMove::IsMovingBetweenSeriaRoomAndGuildAgit(int a, int b, int c, int d)
+bool CHackLog_InvalidAreaMove::IsMovingBetweenSeriaRoomAndGuildAgit(int a, int b, int c, int d)
 {
-    if (IsSeriaRoom(a, b) && IsGuildAgit(c))
-        return 1;
-    if (IsGuildAgit(a) && IsSeriaRoom(c, d))
-        return 1;
-    return 0;
+    // ORIG 直连形：A 后 je、B 后 jne return1——单表达式 return 才不物化 0/1。
+    return (IsSeriaRoom(a, b) && IsGuildAgit(c)) ||
+           (IsGuildAgit(a) && IsSeriaRoom(c, d));
 }
 
 // ORIG 0x08285e14
@@ -116,19 +110,16 @@ bool CHackLog_InvalidAreaMove::checkSeriaRoom(int a, int b)
 //     IsMovingInGuildAgit(a,c)
 //     IsExceptionMove(a,b,c,d)
 //     IsMovingBetweenSeriaRoomAndGuildAgit(a,b,c,d)
-char CHackLog_InvalidAreaMove::IsInvalidMovableArea(int a, int b, int c, int d)
+bool CHackLog_InvalidAreaMove::IsInvalidMovableArea(int a, int b, int c, int d)
 {
-    if (IsMovingBetweenWestCoastAndGent(a, b, c, d))
-        return 0;
-    if (IsMovingAboutPowerWar(a, c))
-        return 0;
-    if (IsMovingInGuildAgit(a, c))
-        return 0;
-    if (IsExceptionMove(a, b, c, d))
-        return 0;
-    if (IsMovingBetweenSeriaRoomAndGuildAgit(a, b, c, d))
-        return 0;
-    return 1;
+    // ORIG xor 链形：谓词 bool 声明 + 全链取反 if（call;xor $0x1;test;je 连锁 + 尾物化块）。
+    if (!IsMovingBetweenWestCoastAndGent(a, b, c, d) &&
+        !IsMovingAboutPowerWar(a, c) &&
+        !IsMovingInGuildAgit(a, c) &&
+        !IsExceptionMove(a, b, c, d) &&
+        !IsMovingBetweenSeriaRoomAndGuildAgit(a, b, c, d))
+        return 1;
+    return 0;
 }
 
 // ORIG 0x08285efe

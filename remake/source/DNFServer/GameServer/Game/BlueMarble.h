@@ -53,7 +53,7 @@ public:
     int setBlueMarbleMap();
     int getMovePosition(int seat) const;
     int setMovePosition(int seat, int pos);
-    int getVisitZone(int seat) const;
+    bool getVisitZone(int seat) const;
     int setVisitZone(int zone);
     int getDungeonIndex(int seat) const;
     int setDungeonIndex(int seat, int dungeon);

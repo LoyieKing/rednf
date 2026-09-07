@@ -147,7 +147,8 @@ long getNextScheduleTime(int hour, long time)
     return getPrevScheduleTime(hour, time + daySec);
 }
 
-// ORIG T 0x0889209d：返回 1 当 (a&1)==0 或 ((b+c)&1)==0；二者皆奇数返回 0。
+// ORIG T 0x0889209d：a 与 b+c 奇偶相异返回 1（XOR；ORIG 偶偶路径
+// movzbl-xor-test 双测 fall→mov$0 实证，旧注释"任一偶数即 1"有误）。
 int checkGetItemPacket(int a, int b, int c)
 {
     const int sum = b + c;
@@ -155,9 +156,9 @@ int checkGetItemPacket(int a, int b, int c)
     const bool oddSum = (sum & 1) != 0;
     if (oddA && oddSum)
         return 0;
-    if (!oddA)
+    if (oddA)
         return 1;
-    if (!oddSum)
+    if (oddSum)
         return 1;
     return 0;
 }

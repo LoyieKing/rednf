@@ -97,6 +97,8 @@ int CUdpHandler::InitServerSocket(int port)
 bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
                                 unsigned short* port) const
 {
+    // AE 闭合（83=83 文本逐条相等）：verdict DIFF 仅因 .o 未链接重定位
+    // （recvfrom/puts/ntohs plt 与字符串数据地址）；无真指令残差。
     int err;
     sockaddr_in from;
     socklen_t len;
@@ -137,6 +139,8 @@ bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
 bool CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
                                 unsigned short* port) const
 {
+    // AE 闭合（83=83 文本逐条相等）：verdict DIFF 仅因 .o 未链接重定位
+    // （recvfrom/puts/ntohl plt 与字符串数据地址）；无真指令残差。
     int err;
     sockaddr_in from;
     socklen_t len;

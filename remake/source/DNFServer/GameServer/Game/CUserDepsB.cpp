@@ -397,9 +397,9 @@ int CUser::getCurCharacInvenCheckSum() const
 {
     if (getCurCharacR() == 0)                      // W 0x08120432
         return 0;
-    int seed = m_checkSumSeed;                     // mov 0x796e0(%eax)
-    int winPoint = getPVPResultR()->m_winPoint;    // getPVPResultR +0x58
-    return getCurCharacInvenR()->makeCheckSum(winPoint, seed);  // T 0x0850ae7a
+    register int seed asm("esi") = m_checkSumSeed;               // mov 0x796e0(%eax); 跨 call 缓存 esi
+    register int winPoint asm("ebx") = getPVPResultR()->m_winPoint;  // getPVPResultR +0x58; 缓存 ebx
+    return getCurCharacInvenR()->makeCheckSum(winPoint, seed);   // T 0x0850ae7a
 }
 
 // ----------------------------------------------------------------------------
@@ -409,10 +409,9 @@ int CUser::getCurCharacSkillCheckSum() const
 {
     if (getCurCharacR() == 0)
         return 0;
-    int seed = m_checkSumSeed;
-    const SkillSlot* skill =
-        reinterpret_cast<const SkillSlot*>(getCurCharacSkillR());
-    return skill->makeCheckSum(seed);              // T 0x086066f2
+    register int seed asm("ebx") = m_checkSumSeed; // ORIG: seed 跨 call 缓存 ebx
+    return reinterpret_cast<const SkillSlot*>(getCurCharacSkillR())
+        ->makeCheckSum(seed);                      // T 0x086066f2
 }
 
 // ============================================================================
@@ -572,16 +571,14 @@ CLevelRewardTable* CLevelRewardTableMgr::GetProperLevelRewardTableR(int) const
 // 元素为 0 → 空槽终止返回 false；元素 ==1 → 有起始奖励。
 bool CLevelRewardTableMgr::IsHaveStartLevelReward()
 {
-    for (int i = 0; i <= 0x45; ++i)
+    int i = 0;
+    while (i <= 0x45)
     {
-        const int entry =
-            *reinterpret_cast<const int*>(
-                *reinterpret_cast<char**>(reinterpret_cast<char*>(this) + 4) +
-                i * 4);
-        if (entry == 0)
-            break;
-        if (entry == 1)
+        if (m_table->m_levelKeys[i] == 0)
+            return false;
+        if (m_table->m_levelKeys[i] == 1)
             return true;
+        ++i;
     }
     return false;
 }

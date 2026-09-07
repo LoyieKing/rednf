@@ -1168,8 +1168,8 @@ int importAmplifyItem(const char* path, stAmplifyItemScript_t& out)
             if (!ok) return 0x1d98;
             const int count = ScanInt(&ok);
             if (!ok) return 0x1d9b;
-            out.m_purifyMatItem = item;
-            out.m_purifyMatCount = count;
+            out.m_purifyMatItem[0] = item;
+            out.m_purifyMatCount[0] = count;
         }
         else if (token == "[purify only material]")
         {
@@ -1177,8 +1177,8 @@ int importAmplifyItem(const char* path, stAmplifyItemScript_t& out)
             if (!ok) return 0x1da8;
             const int count = ScanInt(&ok);
             if (!ok) return 0x1dab;
-            out.m_purifyOnlyMatItem = item;
-            out.m_purifyOnlyMatCount = count;
+            out.m_purifyMatItem[1] = item;
+            out.m_purifyMatCount[1] = count;
         }
         else if (token == "[invest option]")
         {
@@ -1282,9 +1282,10 @@ void STRDCharacterStatus::Clear()
     m_physDefense = 0;
     m_magAttack = 0;
     m_magDefense = 0;
-    for (int i = 0; i < 4; ++i)
+    int i = 0;
+    for (i = 0; i < 4; ++i)   // ORIG 双 init（声明=0 + for 独立 init，同槽 -0x4）
         m_elemResist[i] = 0;
-    for (int i = 0; i < 17; ++i)
+    for (i = 0; i < 17; ++i)
         m_activeResist[i] = 0;
     m_inventoryLimit = 0;
     m_hpRegen = 0;
@@ -1354,17 +1355,17 @@ STRDCharacterStatusClient& STRDCharacterStatusClient::operator=(
     m_magAttack = s.m_magAttack;
     m_magDefense = s.m_magDefense;
     for (int i = 0; i < 4; ++i)
-        m_elemResist[i] = s.m_elemResist[i];
+        m_elemResist[i] = (short)s.m_elemResist[i];   // ORIG movzwl+movswl 符号扩展
     for (int i = 0; i < 17; ++i)
-        m_activeResist[i] = s.m_activeResist[i];
+        m_activeResist[i] = (short)s.m_activeResist[i];
     m_inventoryLimit = s.m_inventoryLimit;
-    m_hpRegen = s.m_hpRegen;
-    m_mpRegen = s.m_mpRegen;
+    m_hpRegen = (short)s.m_hpRegen;
+    m_mpRegen = (short)s.m_mpRegen;
     m_moveSpeed = s.m_moveSpeed;
     m_attackSpeed = s.m_attackSpeed;
     m_castSpeed = s.m_castSpeed;
-    m_hitRecovery = s.m_hitRecovery;
-    m_jumpPower = s.m_jumpPower;
+    m_hitRecovery = (short)s.m_hitRecovery;
+    m_jumpPower = (short)s.m_jumpPower;
     m_weight = s.m_weight;
     m_field52 = s.m_field52;
     m_field53 = s.m_field53;
@@ -1391,7 +1392,8 @@ void STCharacterScript::STSecondGrowTypeData::clear()
 {
     for (int i = 0; i < 2; ++i)
     {
-        (i == 0 ? m_statusA : m_statusB).Clear();
+        // ORIG imul $0x57 直接寻址 ⇒ 数组下标形（CCharacter.cpp 同款先例）
+        (&m_statusA)[i].Clear();
         m_skills[i].clear();
         m_etc[i].clear();
     }

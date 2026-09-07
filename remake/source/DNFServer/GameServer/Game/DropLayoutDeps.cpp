@@ -654,7 +654,8 @@ int CMonsterDrop::loadScript(char const* path, char const* hell, char const* spe
     // ORIG T 0x085380fa：虚槽调单参版 → +0x238ac Hell → 第三参非空才装 Special。
     if (loadScript(path) != 0)
         return 0x715;
-    int err = m_hell.loadScript(hell);
+    int err = 0;                                  // ORIG movl $0,-0xc 预清
+    err = m_hell.loadScript(hell);
     if (err != 0)
         return err;
     if (special != 0)
@@ -977,9 +978,8 @@ int* CGeneratorCommonData::getGoldGenTable(unsigned char level)
     {
         ret = m_goldGenTable[lv];
     }
-    CAutoMarketConditionsControl* market =
-        G_CDataManager()->GetAutoMarketContitionsControl();
-    ret.m_base = market->GetGoldDropAmountRate((int)lv, ret.m_base);
+    ret.m_base = G_CDataManager()->GetAutoMarketContitionsControl()->GetGoldDropAmountRate(
+        (int)lv, ret.m_base);
     return &ret.m_base;
 }
 

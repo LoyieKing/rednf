@@ -236,21 +236,23 @@ int CraneMinigameManager::getItemCnt(int slot)
 bool CraneMinigameManager::isPickSuccess(short slot, int pickIdx)
 {
     CraneItemInfo* item = reinterpret_cast<CraneMinigameScript*>(this)->getItem(slot);
+    // ORIG +0x32：`cmp pickIdx,%eax; je +0x3b` —— ==成立跳 rand 段、
+    // 不等 fall 内联 mov $0x0;jmp 尾叶（探针 p25：if(!=) return false
+    // 独立守卫形才出 je 正向 + fall 0 岛；else-return 嵌套形 4.4 翻转 jne）。
+    // 外层 item!=0 守卫（ORIG +0x27 je +0x5c 直落共享尾叶）。
     if (item != 0)
     {
-        if (item->m_itemIdx == pickIdx)
-        {
-            // ORIG +0x42..+0x55：get_rand_int(100) 结果落 -0xc 槽，
-            // cmp ratio,rand；jl → 尾 mov $0；否则 mov $1 中继。
-            int rand = get_rand_int(100);
-            if (item->m_pickRatio >= rand)
-            {
-                return true;
-            }
-        }
-        else
+        if (item->m_itemIdx != pickIdx)
         {
             return false;   // ORIG +0x34 内联 mov $0; jmp（itemIdx 不匹配）
+        }
+        // ORIG +0x42..+0x55：get_rand_int(100) 结果落 -0xc 槽，
+        // cmp ratio,rand；jl → 共享尾 mov $0 叶（失败 fall 出块）；
+        // 成立 fall 内联 mov $1;jmp 尾叶（P47 三目布局反向）。
+        int rand = get_rand_int(100);
+        if (item->m_pickRatio >= rand)
+        {
+            return true;
         }
     }
     return false;   // ORIG 尾 mov $0（item==0 / rand 失败共享出口）
@@ -261,14 +263,14 @@ bool CraneMinigameManager::isPickSuccess(short slot, int pickIdx)
 int CraneMinigameManager::sendItem(CUser* user, int slot)
 {
     CraneItemInfo* item = reinterpret_cast<CraneMinigameScript*>(this)->getItem(static_cast<short>(slot));
-    if (item == 0)
-    {
+    // ORIG +0x22/+0x36：`if (item == 0 || m_cnt == 0xffff) return 0x15;`
+    // ——合并短路（第一臂 je 直落 0x15 尾叶，第二臂 jne 跳 body、fall 内联
+    // 0x15 + jmp 尾叶；探针 p16 同源码形 4.4 出 je 共享岛 = 条件段同形）。
+    // 残余 2 条（ORIG 尾段 call 后 `jmp 尾叶; mov $0x15,%eax` 岛 vs 4.4 fall
+    // 直达）= 4.1 尾段 jump-threading 排布，4.4 恒 fall（p16/p19/p20 探针族
+    // 全败）——「跨版本 jmp 岛 vs jump-threading」豁免族，见范式库 N 表。
+    if (item == 0 || item->m_cnt == 0xffff)
         return 0x15;
-    }
-    if (item->m_cnt == 0xffff)
-    {
-        return 0x15;
-    }
 
     // ORIG +0x48/+0x5e：&mail 两次独立计算（P52 不落局部）；
     // +0x3b/+0x3f：movzwl 0x8 + movswl %ax（(int)(short)m_cnt）。

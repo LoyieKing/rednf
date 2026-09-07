@@ -176,25 +176,23 @@ void Manager::dieCharac(CUser* user)
 bool Manager::finishLoad(CUser* user)  // ORIG T 0x08130eb2（返回值域仅 0/1，bool 化安全）
 {
     StageControl* control = user->getAdvanceAltar();
-    if (control == 0)
+    if (control != 0)
     {
-        return 0;   // ORIG 0x08130ecc：`je +0xe7` 直跳函数尾 return-0 岛；C++
-                    // goto 不可跨 PacketGuard 初始化，4.4 只能内联该 return 0，
-                    // 块序差异归 P16/P112 封账（goto 落点岛因 jumps-over-init 不可用）。
-    }
-    if (!user->m_advanceAltar.isAvailableTciket())
-    {
+        if (!user->m_advanceAltar.isAvailableTciket())
+        {
+            return 1;
+        }
+
+        control->getProcStage()->setState(ProcStage::State::S_N1);
+
+        PacketGuard guard;
+        guard.put_header(0, 0x1e);
+        guard.put_int(0);
+        guard.finalize(true);
+        user->Send(guard);
         return 1;
     }
-
-    control->getProcStage()->setState(ProcStage::State::S_N1);
-
-    PacketGuard guard;
-    guard.put_header(0, 0x1e);
-    guard.put_int(0);
-    guard.finalize(true);
-    user->Send(guard);
-    return 1;
+    return 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -204,20 +202,17 @@ bool Manager::finishLoad(CUser* user)  // ORIG T 0x08130eb2（返回值域仅 0/
 // ----------------------------------------------------------------------------
 void Manager::giveUpGame(CUser* user)
 {
-    if (user == 0)
+    if (user != 0)
     {
-        return;
+        StageControl* control = user->getAdvanceAltar();
+        if (control != 0)
+        {
+            control->getProcStage()->setState(ProcStage::State::S_N6);
+            Timer_StageControl::RegistTimerEPLP(control->getIndex(),
+                                                StageEndType::END_N2);
+            HistoryLog::dungeonClearInfo(*user, *control, false);
+        }
     }
-    StageControl* control = user->getAdvanceAltar();
-    if (control == 0)
-    {
-        return;
-    }
-
-    control->getProcStage()->setState(ProcStage::State::S_N6);
-    Timer_StageControl::RegistTimerEPLP(control->getIndex(),
-                                        StageEndType::END_N2);
-    HistoryLog::dungeonClearInfo(*user, *control, false);
 }
 
 
@@ -256,19 +251,20 @@ void Manager::eplp(CUser* user, EplpType::T type)
 
 // ---- ORIG T 0x0813105c（advancealtar__Manager/pause.md 全文）。ORIG 返回
 //      undefined4（ProcStage::pause 结果）；协调口径 void，返回值丢弃。----
-void Manager::pause(CUser* user, bool flag)
+int Manager::pause(CUser* user, bool flag)
 {
     if (user == 0)
     {
-        return;
+        return 0;
     }
     StageControl* control = user->getAdvanceAltar();
-    if (control == 0)
+    if (control != 0)   // ORIG control 分支 je 前跳尾部 body（4.4 !=0 包裹复现）
     {
-        return;
+        // ORIG 无 procStage 槽无 flag 规范化（P0）：getProcStage 结果经 (%esp)
+        // 出参槽直传，flag 压参单条 movzbl（bool→bool 无 test/setne）。
+        return control->getProcStage()->pause(flag);
     }
-    ProcStage* procStage = control->getProcStage();
-    procStage->pause(flag ? true : false);
+    return 0;
 }
 
 // ---- ORIG T 0x08130bb8（advancealtar__Manager/dieMob.md 全文 + 汇编逐块核对）----
@@ -366,13 +362,13 @@ void Manager::leaveUser(CUser* user)
 // ---- ORIG T 0x0813375c（advancealtar__CharacAdvanceAltarManager/gmSetTicket.md）----
 void CharacAdvanceAltarManager::gmSetTicket(int ticket)
 {
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
-    if (cur == 0)
+    // ORIG 无槽无调用：this+0 成员逐次重读（P0/P183）。
+    if (m_currentAdvanceAltarData == 0)
     {
         return;
     }
-    cur->m_ticket = ticket;                       // ORIG *(cur+4)=param
-    cur->m_update = 1;                            // ORIG *(cur+0xcc)=1
+    m_currentAdvanceAltarData->m_ticket = ticket;  // ORIG *(cur+4)=param
+    m_currentAdvanceAltarData->m_update = 1;       // ORIG *(cur+0xcc)=1
 }
 
 // ---- ORIG T 0x081313b6（decTicket.md）：先扣 m_ticket，不足扣 m_freeTicket；
@@ -516,18 +512,18 @@ void CharacAdvanceAltarManager::setUnlockBuyItem(AdvanceAltarShopType::T shopTyp
 // ---- ORIG T 0x08132cb8（setDefaultBuyItem.md）：清对应 shop 表后全量重放。----
 void CharacAdvanceAltarManager::setDefaultBuyItem(AdvanceAltarShopType::T type)
 {
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
-    if (cur == 0)
+    if (m_currentAdvanceAltarData == 0)   // ORIG 内联 *(int*)this 判空，无 call W thunk
     {
         return;
     }
-    std::map<int, _BuyItem>* items = cur->getBuyItemMap(type);
+    std::map<int, _BuyItem>* items = m_currentAdvanceAltarData->getBuyItemMap(type);
     if (items == 0)
     {
         return;
     }
     items->clear();
-    setUnlockBuyItem(type, 0, 0);
+    int stageIdx = 0;   // ORIG -0xc 槽：int 局部 = 0 传第 3 参（P0 有槽⇒有局部）
+    setUnlockBuyItem(type, stageIdx, 0);
 }
 
 // ---- ORIG T 0x08132d20 后续：本函数自上一提交块起沿用同一文件命名空间；
@@ -888,14 +884,15 @@ int CharacAdvanceAltarManager::resetStar(CUser* user, CMDPacketStruct::ResetStar
 // ---- ORIG T 0x08133720（gmSetStar.md）：当前星=v、星池点=基数+v、update=1。----
 void CharacAdvanceAltarManager::gmSetStar(int star)
 {
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
-    if (cur == 0)
+    // ORIG 无槽无调用：this+0 成员逐次重读（P0/P183）。
+    if (m_currentAdvanceAltarData == 0)
     {
         return;
     }
-    cur->m_curStar = star;
-    cur->m_starPoint = cur->m_starPoolBase + star;
-    cur->m_update = 1;
+    m_currentAdvanceAltarData->m_curStar = star;
+    m_currentAdvanceAltarData->m_starPoint =
+        m_currentAdvanceAltarData->m_starPoolBase + star;
+    m_currentAdvanceAltarData->m_update = 1;
 }
 
 // ---- ORIG T 0x08131426（checkAndCreateDefaultRidable.md 全文）----
@@ -1053,7 +1050,7 @@ AdvanceAltarData* CharacAdvanceAltarManager::getAdvanceAltarDataByIndex(int idx)
         return 0;
     }
     return reinterpret_cast<AdvanceAltarData*>(
-        reinterpret_cast<char*>(this) + 4 + idx * sizeof(AdvanceAltarData));
+        reinterpret_cast<char*>(this) + idx * sizeof(AdvanceAltarData) + 4);
 }
 
 // ---- ORIG T 0x08131254（setCurrentAdvanceAltarData.md 全文）----
@@ -1065,15 +1062,13 @@ bool CharacAdvanceAltarManager::setCurrentAdvanceAltarData(RidableId::T ridableI
     }
     for (int i = 0; i <= 0; ++i)
     {
-        AdvanceAltarData* data =
-            reinterpret_cast<AdvanceAltarData*>(reinterpret_cast<char*>(this) + 4 + i * sizeof(AdvanceAltarData));
-        if (data->m_ridableId == ridableId)
+        if (m_data[i].m_ridableId == ridableId)   // 自然数组寻址：ORIG imul $0xd0 字节乘
         {
-            m_field0 = reinterpret_cast<int>(data);   // ORIG *(int*)this = &data[i]
+            m_currentAdvanceAltarData = &m_data[i];
             return true;
         }
     }
-    m_field0 = 0;
+    m_currentAdvanceAltarData = 0;
     return false;
 }
 
@@ -1089,10 +1084,7 @@ void CharacAdvanceAltarManager::set(const _CharacAdvanceAltarDbData& db)
 {
     for (int i = 0; i < 1; ++i)
     {
-        AdvanceAltarData* data =
-            reinterpret_cast<AdvanceAltarData*>(reinterpret_cast<char*>(this) + 4 + i * sizeof(AdvanceAltarData));
-        data->set(*reinterpret_cast<const _AdvanceAltarDbData*>(
-            reinterpret_cast<const char*>(&db) + 4 + i * sizeof(_AdvanceAltarDbData)));
+        m_data[i].set(db.m_db[i]);
     }
 }
 

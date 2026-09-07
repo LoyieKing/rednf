@@ -40,11 +40,26 @@ bool CItemDictionary::_saveData(CUser* user)
     return true;
 }
 // ORIG 0x0811d7e0：memcpy(out+4, this+5, 0x1388)，无空检查。
-void CItemDictionary::getData(char* out) const { std::memcpy(out + 4, m_data, kBinaryLength); }
-int CItemDictionary::getGainItemCount() const {
+// ORIG out 参数先物化到局部（-0xc）再回读 +4 ⇒ 源码经局部指针。
+void CItemDictionary::getData(char* out) const
+{
+    char* dst = out;
+    std::memcpy(dst + 4, m_data, kBinaryLength);
+}
+int CItemDictionary::getGainItemCount() const
+{
     int count = 0;
-    for (unsigned int i = 0; i < kBinaryLength; ++i)
-        for (unsigned int bit = 0; bit < kItemDictionaryBit; ++bit) count += (m_data[i] >> bit) & 1;
+    for (int i = 0; i < static_cast<int>(kBinaryLength); ++i)   // ORIG setle（有符号）
+    {
+        unsigned char byte = m_data[i];   // ORIG byte 物化局部（-0x9）
+        for (int bit = 0; bit <= 7; ++bit)   // ORIG cmpl $0x7;setle（有符号 <=7）
+        {
+            if ((byte >> bit) & 1)
+            {
+                ++count;
+            }
+        }
+    }
     return count;
 }
 // ORIG 0x0811dba6（ret $0x4 克隆；逐条转写）：遍历位图（+0x5 起），置位处
@@ -88,9 +103,11 @@ bool CItemDictionary::getItemCheckFlag(unsigned int item, unsigned int flag) con
         return 1;
     }
     unsigned char v = m_data[index];   // ORIG 局部（栈 -0x9）
-    if ((v >> bit) & 1)
-        return 1;
-    return 0;
+    if (!(v >> bit & 1))   // ORIG xor $0x1 取反形
+    {
+        return 0;
+    }
+    return 1;
 }
 
 // ORIG 0x0811db60：最后一个非零字节下标+1（无非零字节返回 0）。
@@ -108,7 +125,8 @@ int CItemDictionary::getLengthBinary() const
 bool CItemDictionary::loadData(CUser*, char* data)
 {
     _reset();
-    std::memcpy(m_data, data + 4, kBinaryLength);
+    char* p = data;   // ORIG data 物化到局部（-0xc）再回读 +4
+    std::memcpy(m_data, p + 4, kBinaryLength);
     return true;
 }
 // ORIG 0x0811dce6：向用户发送单项词典标记（接口包 0x181：byte=1 + int item）。
@@ -150,11 +168,17 @@ void CItemDictionary::setGainItemFlag(CUser* user, unsigned int item)
         return;
     CItem* ci = G_CDataManager()->find_item(static_cast<int>(item));
     if (ci != 0 && ci->is_stackable())
+    {
         return;
+    }
     std::map<int, int>::iterator it =
         G_CDataManager()->m_mapA928.find(static_cast<int>(item));
-    if (it != G_CDataManager()->m_mapA928.end())
-        setItemCheckFlag(user, item, static_cast<unsigned int>(it->second));
+    if (it == G_CDataManager()->m_mapA928.end())   // ORIG call eq;jne 早退形
+    {
+        return;
+    }
+    const unsigned int flag = static_cast<unsigned int>(it->second);
+    setItemCheckFlag(user, item, flag);
 }
 // ORIG 0x0811d9d7：user==0 直接返回；index=flag>>3、bit=flag&7 越界（
 // index∉[0,0x1387] 或 bit∉[0,7]）→ logFormat 后返回；getItemCheckFlag(-1,flag)
@@ -184,5 +208,10 @@ void CItemDictionary::setItemCheckFlag(CUser* user, unsigned int item,
             static_cast<unsigned char>(m_data[index] + (1 << bit));
         sendItemDictionaryInfo(user, item);
         alter();
+        return;
     }
+    else
+    {
+    }
+    return;
 }

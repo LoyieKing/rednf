@@ -186,7 +186,7 @@ private:
     bool SetPvpRecord(CUser* user, SIG_LOAD_ETC* sig);       // ORIG T 0x084c2964
     bool SetRankRecord(CUser* user, SIG_LOAD_ETC* sig);      // ORIG T 0x084c2a98
     void _checkUserDisadvantage(CUser* user);                // ORIG T 0x084c2760
-    int  _fnEnumQuestClear(unsigned int questIdx, char* ctx);// ORIG T 0x084c2b08
+    static int _fnEnumQuestClear(unsigned int questIdx, char* ctx);// ORIG T 0x084c2b08（ORIG 汇编 0x8=questIdx 无 this，P88 static）
     void processAttendAnceEvent(SIG_ATTENDANCE_EVENT* sig, CUser& user);  // ORIG T 0x084e807e
     void processCheckInvalidExpPerLevel(CUser& user);        // ORIG T 0x084e84f6
     void processGrowthCreatureEvent(CUser& user);            // ORIG T 0x084e83c2

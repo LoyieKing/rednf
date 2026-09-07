@@ -122,9 +122,10 @@ int CCeraShop::LogError(const stErrorLogInput_t& input) const
     sig.m_field4 = input.m_field4;
     sig.m_field14 = input.m_field8;
     sig.m_field10 = input.m_field10;
+    // ORIG 0x08320408：call G_CEnvironment → mov 0x378(%eax),%eax（dword 读
+    // = m_serverEnvir.m_serverGroup）→ movzbl %al 截断；具名访问复现单 disp 读。
     sig.m_field8 = static_cast<unsigned char>(
-        *reinterpret_cast<const unsigned char*>(
-            reinterpret_cast<const char*>(G_CEnvironment()) + 0x378));
+        G_CEnvironment()->m_serverEnvir.m_serverGroup);
     sig.m_fieldc = G_CEnvironment()->get_channel_no();
     sig.m_field18 = input.m_fieldc;
 
@@ -1380,17 +1381,14 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
 
 // ---------------------------------------------------------------------------
 // ORIG W 0x08179fb4 _ZNK5CItem21isCerashopPackageItemEv：逐指令转写。
-// 【N 标注】ORIG 两臂 `cmp $imm,%eax; je/jne` 直分支常量岛；4.4 O0 恒折
-// sete+test（setcc-fold 负例命中）⇒ 每臂 +2 insn，26 vs 32，语义完成豁免。
+// 【翻案 b25c】旧 N 标注（setcc-fold）过时：单 return 短路链（P45）探针
+// /tmp/probe_short.cpp q2 定论 4.4 与 ORIG 逐字同构（cmp;je 共享真岛 +
+// cmp;jne + mov$1/mov$0），if-return 链才折 setcc。26/26 全等。
 // 经 vtable 槽 +0x0c 虚方法（子类型索引，与 CI_SubType 先例同型）连续两次
 // 调用，返回值 ==0xe 或 ==0xf 判定礼包类目 → true，否则 false。
 // ---------------------------------------------------------------------------
 bool CItem::isCerashopPackageItem() const
 {
     // vtable +0x0c = GetItemType()（_GetItemType 批次实证 make_item@+0x08 后继槽）。
-    if (GetItemType() == 0x0e)
-        return true;
-    if (GetItemType() == 0x0f)
-        return true;
-    return false;
+    return GetItemType() == 0x0e || GetItemType() == 0x0f;
 }

@@ -189,9 +189,6 @@ public:
         unsigned int mid;    // +0x00
         unsigned int type;   // +0x04
 
-        stGMInfo_t() : mid(0), type(0) {}
-        stGMInfo_t(unsigned int m, unsigned int t) : mid(m), type(t) {}
-
         // ORIG W 0x08109610：仅比较 mid（+0x00），不比较 type。
         bool operator==(const stGMInfo_t& o) const
         {

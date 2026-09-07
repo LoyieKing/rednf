@@ -50,8 +50,8 @@ SkillUseItem::SkillUseItem()
 void SkillUseItem::clear()
 {
     m_index = -1;
-    m_useLevel[0] = 0;
-    m_useLevel[1] = 0;
+    for (int i = 0; i <= 1; ++i)
+        m_useLevel[i] = 0;
 }
 
 SkillLevelFeature::SkillLevelFeature()

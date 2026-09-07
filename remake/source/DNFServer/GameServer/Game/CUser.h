@@ -894,6 +894,9 @@ public:
 };
 
 // ORIG _header —— 网络包头（13 字节，0x8647a54 memcpy 实证）：
+// pack(1) 代落（batch-25c Lane22 实证：CPacketVerifier::UpdatePacket ORIG 读 movzwl 0x1(%eax)=m_id，
+// 无 pack 时自然对齐 m_id 落 +0x2、sizeof=16 ⇒ 全字段错位 bug 级）。
+#pragma pack(push, 1)
 struct _header
 {
     unsigned char m_class;     // +0x00（ENUM_PACKETCLASS）
@@ -903,6 +906,8 @@ struct _header
     unsigned int m_checksum;   // +0x07
     unsigned short m_seq;      // +0x0b（client sequence）
 };
+#pragma pack(pop)
+static_assert(sizeof(_header) == 13, "ORIG packet header is 13 bytes (0x8647a54 memcpy)");
 
 // ORIG W 0x8696d5c/0x8696d74/0x8696dd8；sizeof 0x8。
 class CPacketTimeChecker
@@ -1383,18 +1388,18 @@ public:
     int m_lastGenTime30;            // +0x30（isValidKeyGenTime/init 写当前秒）
     char m_shake34[4];              // +0x34..0x37（GenerateRandomShakeData）
     int m_failCnt38;                // +0x38（getFailCnt/setFailCnt/init 清零）
-    unsigned char m_advidePwd;      // +0x3c（是否建议改密；getAdvideChangePwd）
-    unsigned char m_changedPwd;     // +0x3d（是否已改密；setChangedPwd）
+    bool m_advidePwd;               // +0x3c（是否建议改密；getAdvideChangePwd；ORIG 0x084ebdb2 P33 bool 截断形实证）
+    bool m_changedPwd;              // +0x3d（是否已改密；setChangedPwd；ORIG 0x085999e8 同上）
     // ORIG _ZN8Sanicova4CPad12setCheckTimeEl W 0x084ebe20：写 +0x28（m_checkTime28）。
     void setCheckTime(long t);
     void setPassword(char* pwd);      // ORIG W 0x0828713a _ZN8Sanicova4CPad11setPasswordEPc（写 +0x00 0x24 串区）
     char m_pad3e[2];                // +0x3e..0x3f
     int m_requestState40;           // +0x40（setRequestState/getRequestState/init）
     int m_cancelCnt44;              // +0x44（getCancelCnt/incCancelCnt/setCancelCnt）
-    unsigned char getAdvideChangePwd();     // W 0x08265302：读 +0x3c
+    bool getAdvideChangePwd();              // W 0x08265302：读 +0x3c（movzbl 直返=bool 直返形）
     void setAdvideChangePwd(bool flag);     // W 0x084ebdb2：写 +0x3c
     void setChangedPwd(bool flag);          // W 0x085999e8：写 +0x3d
-    unsigned char getChangedPwd();          // W 0x084ebdca：读 +0x3d（movzbl 直返）
+    bool getChangedPwd();                   // W 0x084ebdca：读 +0x3d（movzbl 直返）
     void SendChagePwdReward(CUser* user);       // T 0x085997b8
     void SendChagePwdRewardMail(CUser* user);   // T 0x0859981e
     // ---- MouseRegister/SecurityCardAuthRpy 批次补齐（ORIG nm 核实）----
@@ -1453,7 +1458,9 @@ public:
 
     int m_result;         // +0x00（InputBuyInfo 写入结果：1=已登记）
     InfoDaily* m_pInfo;   // +0x04
-    char m_pad[0xc];
+    // ORIG UpdateBuyableRestrictItem 0x080e0d14 栈槽跨 -0x10..-0x1 = sizeof 0x10
+    //（Lane2R 2026-09-08，原 0xc 使调用点 data 槽漂至 -0x1c、帧 0x48 vs ORIG 0x38）。
+    char m_pad[0x8];
 };
 
 class ScriptLoader
@@ -2676,7 +2683,7 @@ public:
     void SetBuyingGold(bool flag);
     unsigned char GetFirstLogin();   // ORIG movzbl 直返
     void SetProgLogout();
-    unsigned char isRestingUser();   // ORIG movzbl 直返
+    bool isRestingUser();            // ORIG movzbl 直返；调用侧 0x8288dd5 test%al 直测（P73/P168a①）
     void InitReceivedRequestType();
     bool isBreakAwayDungeonClear();
     bool isUsedBreakAwayLuckPoint();
@@ -2926,7 +2933,7 @@ public:
                       ENUM_DBLOG_ITEM_TYPE value);
     int addAvatarItem(unsigned long itemIdx, char param2, char param3,
                       const char* ipgAgency, eAvatarItemAddReason reason);
-    unsigned char getGmQuestFlag();
+    bool getGmQuestFlag();
     int GetCurExpertJobLevel(int exp);
     WongWork::CUserPremium* GetPremiumInfo() const;
     // ORIG W 0x0830edaa _ZN5CUser36getAddIndependentDropRateFromPremiumE17ENUM_PREMIUM_TYPEj
@@ -3384,7 +3391,7 @@ public:
     void incPcRoomPlayTimeRewardCnt();                                       // 0x08110dd0 W
     int getLinkCharacNo(char index);                                         // 0x0869736e W
     int isCharacLinkBonusSetting(char index);   // ORIG 0x084ecd52 尾 movzbl 0x124f(%eax),%eax;ret 直返无归一⇒int（bool 反产 test;setne，CUOC7 P9/技巧33）
-    unsigned short GetPowerWarPartyVictory();                                // 0x0868856c T
+    int GetPowerWarPartyVictory();                                           // 0x0868856c T（ORIG 定义尾自带 movzwl 扩展，调用点直存）
     int getQuestPoint();                                                     // 0x0868ad52 T
     int getReturnUserLevelKey(int level, int mode);                          // 0x0869230a T
     CParty* GetUserListByParty(std::vector<CUser*>& out);                    // 0x0868056a T

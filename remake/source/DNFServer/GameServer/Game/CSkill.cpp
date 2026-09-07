@@ -44,24 +44,24 @@ void CSkill::reform_ui_group_no(int& uiGroupNo, bool flag, int count)
         uiGroupNo = 3;
         return;
     }
-    if (uiGroupNo < 0)
+    switch (uiGroupNo)
     {
-        return;
-    }
-    if (uiGroupNo <= 3)
-    {
-        if (count <= 2)
-        {
-            uiGroupNo = 1;
-        }
-        else
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+        if (count > 2)
         {
             uiGroupNo = 0;
         }
-    }
-    else if (uiGroupNo == 4)
-    {
+        else
+        {
+            uiGroupNo = 1;
+        }
+        break;
+    case 4:
         uiGroupNo = 2;
+        break;
     }
 }
 

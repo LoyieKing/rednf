@@ -19072,7 +19072,7 @@ bool DB_MailBoxSendNewMailWithDBWork::dispatch(int userIdx, int slot,
             throw (unsigned int)0x6891;
         if (!DB_MailBox_Req_Send::sendResult(slot, 0, sig->m_field24,
                                              (ENUM_SERVER_GROUP)0))
-            throw (unsigned int)0x6894;
+            throw (unsigned int)0x6894;   // ORIG xor$1/test%al vs 4.4 sete 物化，跨版本残差
     }
     catch (unsigned int e)
     {

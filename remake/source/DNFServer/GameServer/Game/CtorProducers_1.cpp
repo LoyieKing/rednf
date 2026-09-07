@@ -669,8 +669,8 @@ int CLevelRewardTable::GetProperLevelIndex(unsigned int level)
     for (int i = 0; i <= 0x45; ++i)
     {
         if (m_levelKeys[i] == 0)
-            return -1;
-        if (m_levelKeys[i] == static_cast<int>(level))
+            break;
+        if (m_levelKeys[i] == level)
             return i;
     }
     return -1;

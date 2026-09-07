@@ -153,16 +153,18 @@ unsigned int stMapMonsterKillChecker_t::getUseSkillMaterialTime() { return m_use
 
 int stMapMonsterKillChecker_t::dieMonster(unsigned int tick, unsigned int limit)
 {
-    if (m_lastMobDieTime == 0 || tick - m_lastMobDieTime > limit)
-    {
-        m_uncontinuallyMobDieCnt = 0;
-    }
-    else
+    // ORIG 0x830e74e..0x830e78a 逐条核对：m_lastMobDieTime=tick 仅在超限
+    // 重置分支内（0x830e77d），cnt++ 分支 fall 后直 return；<= 极性使 4.4
+    // 复现 cnt++ fall / 重置块后置的块序。
+    if (tick - m_lastMobDieTime <= limit)
     {
         m_uncontinuallyMobDieCnt++;
     }
-    m_lastMobDieTime = tick;
-    m_dieCnt++;
+    else
+    {
+        m_uncontinuallyMobDieCnt = 0;
+        m_lastMobDieTime = tick;
+    }
     return m_uncontinuallyMobDieCnt;
 }
 
@@ -564,10 +566,9 @@ void CDeathTower::attachParty(CParty* party)
         // 非 party 形参槽。
         if (m_party->checkValidUser(i))
         {
-            // ORIG 0x8462a61：movswl %ax,%ebx sext 直落 %ebx。
-            register int idx asm("ebx");
-            idx = (short)m_idx;
-            m_party->get_user(i)->setDeathTowerIndex((short)idx);
+            // ORIG 0x8462a61：movswl %ax,%ebx sext 直落 %ebx（P200：短整表达式
+            // 作普通实参直传并跨 get_user call 存活，禁 asm 绑定/中间局部）。
+            m_party->get_user(i)->setDeathTowerIndex((short)m_idx);
         }
     }
     setTowerState((ENUM_TOWER_STATE)1);
@@ -1153,7 +1154,8 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
 }
 void CDeathTower::_onClear(bool isLast)
 {
-    unsigned int playTime;
+    int playTime = 0;   // ORIG +0x00c 头部 movl $0,-0x14（P197③ 声明=0）；
+                        // /1000 为 signed magic 削减（imul/sar/sub @0x8467f2a）⇒ int
     if (isLast)
     {
         playTime = m_playData.getPlayTime();
@@ -1165,7 +1167,8 @@ void CDeathTower::_onClear(bool isLast)
 
     for (int i = 0; i <= 3; ++i)
     {
-        CUser* user = m_party->get_user(i);
+        CUser* user = 0;              // ORIG +0x04d 循环体首 movl $0,-0xc（P197③）
+        user = m_party->get_user(i);
         if (user == 0 || !m_party->checkValidUser(i))
             continue;
         user = m_party->get_user(i);   // ORIG 二次取 user（null 判定与使用分离）

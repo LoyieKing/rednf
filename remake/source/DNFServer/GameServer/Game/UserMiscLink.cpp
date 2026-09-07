@@ -239,14 +239,13 @@ unsigned int CUser::Redeem_Item(int redeemId)
 int CUser::get_pvp_exp_of_week()
 {
     // ORIG 0x08230100：getPVPResultRefR 每字段访问各取一次（P48 无缓存，
-    // 结果经 %ebx 跨字段读）。条件反写 `!= -1` ⇒ ORIG 直发 `jne` 跳 else(减形)，
-    // ==-1 返 expPoint 形为 jne 未取之 fall-through（勿用 sete/test 两跳）。
-    if (CUserCharacInfo::getPVPResultRefR()->m_field10 != -1)
-    {
-        return CUserCharacInfo::getPVPResultRefR()->m_expPoint
-               - CUserCharacInfo::getPVPResultRefR()->m_field10;
-    }
-    return CUserCharacInfo::getPVPResultRefR()->m_expPoint;
+    // 结果经 %ebx 跨字段读）。ORIG `cmp $-1; jne 后置减形岛` + fall expPoint。
+    // 【b25c】4.4 对 if(call链值==K) 恒物化 sete（探针 probe_tern2 u1），
+    // 三目形才直分支（u3 与 ORIG 逐条同构）。
+    return CUserCharacInfo::getPVPResultRefR()->m_field10 == -1
+               ? CUserCharacInfo::getPVPResultRefR()->m_expPoint
+               : CUserCharacInfo::getPVPResultRefR()->m_expPoint
+                     - CUserCharacInfo::getPVPResultRefR()->m_field10;
 }
 
 // ===========================================================================
@@ -678,14 +677,13 @@ bool CRandomOptionItemHandle::change_option(unsigned long itemIdx, ENUM_RARITY r
 // ===========================================================================
 bool IsAuctionServerDisconnected(unsigned char payType)
 {
-    // ORIG 0x082138f2：两个 if(!running)return true 共享单一 return-1 块（jne/je 不对称），
-    // 4.4 各自的 return-1 内联为 mov1;jmp 反极性（N-JMP/N 布防），合并 && 反而扩帧 ⇒ 维持嵌套。
+    // ORIG 0x082138f2：第一检查 `xor;test;jne 后置 mov$1 岛`（真跳岛）、第二检查
+    // `xor;test;je mov$0`（假跳岛）不对称。【b25c】if-return 形 4.4 反极性内联；
+    // goto 落点岛形（探针 /tmp/probe_goto.cpp g1）复现 ORIG 两检查排布。
     if (payType == 0)
     {
         if (!GlobalData::s_auction_proxy->IsRunning())
-        {
-            return true;
-        }
+            goto disconnected;
     }
     if (payType == 1)
     {
@@ -695,6 +693,8 @@ bool IsAuctionServerDisconnected(unsigned char payType)
         }
     }
     return false;
+disconnected:
+    return true;
 }
 
 // ===========================================================================

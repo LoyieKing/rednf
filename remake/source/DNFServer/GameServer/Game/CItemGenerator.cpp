@@ -224,10 +224,8 @@ bool CLuckPoint::UseLuckPoint(CUser* user, int itemType, int rarity, int grade)
         return false;
     if (rarity != 2)
         return false;
-    int level = user->get_charac_level();
-    int diff = grade - level;
     int rate = G_CDataManager()->m_serverParameter.getLuckPointDeductionRate(
-        user->get_charac_level(), (diff ^ (diff >> 31)) - (diff >> 31));
+        user->get_charac_level(), abs(grade - user->get_charac_level()));
     user->DecCurCharacLuckPoint(rate);
     return true;
 }

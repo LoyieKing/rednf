@@ -160,7 +160,7 @@ public:
 
     bool setQuery(MySQL& db);             // ORIG T 0x08174012：恒 true
     bool execQuery(MySQL& db);            // ORIG T 0x0817401c：恒 true
-    int getResult(MySQL& db);             // ORIG T 0x08174026：恒 1
+    bool getResult(MySQL& db);            // ORIG T 0x08174026：恒 1
 
 
     friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
@@ -178,7 +178,7 @@ public:
 
     bool setQuery(MySQL& db);             // ORIG T 0x08174052
     bool execQuery(MySQL& db);            // ORIG T 0x08174076：db.exec(true)
-    int getResult(MySQL& db);             // ORIG T 0x08174092
+    bool getResult(MySQL& db);            // ORIG T 0x08174092
 
 
     friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
@@ -197,7 +197,7 @@ public:
 
     bool setQuery(MySQL& db);             // ORIG T 0x081742bc
     bool execQuery(MySQL& db);            // 与其它 Query 同型 db.exec(true)
-    int getResult(MySQL& db);             // ORIG T 0x081742fc
+    bool getResult(MySQL& db);            // ORIG T 0x081742fc
 
 
     friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
@@ -218,7 +218,7 @@ public:
 
     bool setQuery(MySQL& db);             // ORIG T 0x08174866
     bool execQuery(MySQL& db);
-    int getResult(MySQL& db);             // ORIG T 0x081748d6
+    bool getResult(MySQL& db);            // ORIG T 0x081748d6
 
 
     friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
@@ -242,7 +242,7 @@ public:
 
     bool setQuery(MySQL& db);             // ORIG T 0x08174aec
     bool execQuery(MySQL& db);
-    int getResult(MySQL& db);             // ORIG T 0x08174b44
+    bool getResult(MySQL& db);            // ORIG T 0x08174b44
 
 
     friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
@@ -260,7 +260,7 @@ public:
 
     bool setQuery(MySQL& db);             // ORIG T 0x08174d08
     bool execQuery(MySQL& db);
-    int getResult(MySQL& db);             // ORIG T 0x08174d60
+    bool getResult(MySQL& db);            // ORIG T 0x08174d60
 
 
     friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
@@ -279,7 +279,7 @@ public:
 
     bool setQuery(MySQL& db);             // ORIG T 0x08174f52
     bool execQuery(MySQL& db);
-    int getResult(MySQL& db);             // ORIG T 0x08174fc6
+    bool getResult(MySQL& db);            // ORIG T 0x08174fc6
 
 
     friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
@@ -303,7 +303,7 @@ public:
 
     bool setQuery(MySQL& db);             // ORIG T 0x08175224
     bool execQuery(MySQL& db);
-    int getResult(MySQL& db);             // ORIG T 0x081752cc
+    bool getResult(MySQL& db);            // ORIG T 0x081752cc
 
 
     friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）

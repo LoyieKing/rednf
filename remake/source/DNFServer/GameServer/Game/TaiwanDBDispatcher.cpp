@@ -474,9 +474,9 @@ bool CheckStayTimeEvent::dispatch(int code, int uid, Stream* stream)
 // GetInBuffer<Taiwan::SigStayTimeEvent> 非空时 MsgQueueMgr::put(DB_Q, guard)。
 void CheckStayTimeEvent::sendStayTimeData(int uid)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x192);
-    CStreamGuard guard(stream, true);
+    // P89：单一视图表达式（合并 stream 局部）
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x192), true);
     Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0x5, uid);
     Taiwan::SigStayTimeEvent* sig =
         guard.operator->()->GetInBuffer<Taiwan::SigStayTimeEvent>();
@@ -493,9 +493,9 @@ void CheckStayTimeEvent::sendStayTimeData(int uid)
 // 时 init()、set(a, c)（第三参 b 未用）、MsgQueueMgr::put(DB_Q, guard)。
 void DBUpdateExitTime::makeRequest(unsigned int a, int b, unsigned int c)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x1b9);
-    CStreamGuard guard(stream, true);
+    // P89：单一视图表达式（合并 stream 局部）
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x1b9), true);
     Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0x8, a);
     Taiwan::SigUpdateExitTime* sig =
         guard.operator->()->GetInBuffer<Taiwan::SigUpdateExitTime>();
@@ -621,9 +621,9 @@ void DBInsertCreateDnfUserInfo::makeRequest(int a, unsigned int b)
     }
     if (!skip)
     {
-        Stream* stream = GlobalData::s_stream_pool->Acquire(
-            "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x261);
-        CStreamGuard guard(stream, true);
+        // P89：单一视图表达式（合并 stream 局部）
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x261), true);
         Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0xb, a);
         DBInsertCreateDnfUserInfo::MSG* sig =
             guard.operator->()->GetInBuffer<DBInsertCreateDnfUserInfo::MSG>();
@@ -693,9 +693,9 @@ void DBSelectMobileAuthRewardTw::makeRequest(CUser* user)
 {
     if (user->m_field8ec31 != 0)
         return;
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x294);
-    CStreamGuard guard(stream, true);
+    // P89：单一视图表达式（合并 stream 局部）
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x294), true);
     Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0xc, user->GetUID());
     DBSelectMobileAuthRewardTw::MSG* sig =
         guard.operator->()->GetInBuffer<DBSelectMobileAuthRewardTw::MSG>();
@@ -1153,9 +1153,9 @@ bool LoadGeolocation::dispatch(int code, int uid, Stream* stream)
 // null→throw "stream" → setData → put(Q1)。
 void LoadGeolocation::sendCountryData(Taiwan::SigLoadGeolocation& data)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x144);
-    CStreamGuard guard(stream, true);
+    // P89：单一视图表达式（合并 stream 局部）
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x144), true);
     Taiwan::internal_stream(guard, (TaiwanInternalPack::T)4, -1);
     Taiwan::SigLoadGeolocation* out =
         guard->GetInBuffer<Taiwan::SigLoadGeolocation>();   // ORIG via operator->

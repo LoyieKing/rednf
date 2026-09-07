@@ -25,14 +25,15 @@ public:
     ~GameServerDemonManager();                     // ORIG D1/D2 0x080f621c (T)
 
     // LinkClosureD 具名字段（ORIG C1/SetNoticeMessage 偏移实证，sizeof 0x101）。
-    unsigned char m_prohibitFlag;   // +0x00
+    bool m_prohibitFlag;            // +0x00（IsProhibitConnectState 直返无 setne
+                                    // 且调用点 test %al ⇒ bool getter 直返 bool 字段，P32）
     unsigned char m_noticeLen;      // +0x01
     char m_notice[0xff];            // +0x02..0x100
     char const* GetNoticeMessage();        // ORIG W 0x0863bff6
     void SetNoticeMessage(unsigned char, char*);   // ORIG T 0x080f6280
     void SetUserProhibitFlag(bool);        // ORIG T 0x080f6222
-    bool IsProhibitConnectState();        // ORIG W 0x084ed404（调用点 0x084e7b9a
-                                          // test %al,je 无 setne = bool ABI）
+    bool IsProhibitConnectState();        // ORIG W 0x084ed404（movzbl 直返无 setne +
+                                          // 调用点 test %al 无 setne = bool ABI，P32）
     void Notice10MinShutDownMessage();     // ORIG T 0x080f623a
 };
 

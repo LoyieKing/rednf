@@ -35,7 +35,7 @@
 // `xor $0x1,%eax; test %al,%al; jne` —— 只测低字节，char 值域的 ==1 判据；
 // ORIG 本体(0x0808c8b5) 两条返回 `mov $0x0,%eax`/`mov $0x1,%eax` 严格 0/1。
 // mangled 不含返回类型 ⇒ ABI 无影响（Main 授权，batch-23 S 线）。
-char _NS_MakeHash_(char* data, short len, int& out);
+bool _NS_MakeHash_(char* data, short len, int& out);
 char PI_GetType_CS(char type, short cmd);
 int PI_GetHackTypes(short hackType) __asm__("_Z14PI_GetHackTypes");
 void PIAddServerHackCnt(CUser* user, WongWork::ENUM_HACKTYPE type, int count);
@@ -182,7 +182,7 @@ void _NS_PI_Check_CMD(ENUM_PACKETCLASS packetClass, unsigned short cmd,
 // ===========================================================================
 // [b23S3C] ORIG 尾 `mov $0x1,%eax; leave; ret`+调用点 xor$0x1 直测低字节 ⇒ 返回 char；
 // 体 ORIG 单 call _Z3md5PhiS_（0x80b3d57），勿展开 starts/update/finish 三 call。
-char _NS_MakeHash_(char* data, short len, int& out)
+bool _NS_MakeHash_(char* data, short len, int& out)
 {
     if (len <= 0 || len > 0x190)
         return 0;
@@ -220,15 +220,14 @@ void _NS_MakeHash_(char* data, unsigned short len, unsigned int& out)
 // ===========================================================================
 char PI_GetType_CS(char type, short cmd)
 {
-    if (type != 1)
-        return 0;
-
-    switch (cmd)
+    switch (type)
     {
+        case 1:
+            switch (cmd)
+            {
         case 0x11b: return 1;
         case 0x11c: return 2;
         case 0x11e: return 3;
-        case 0x1f:  return 10;
         case 0x91:  return 0x21;
         case 0x29:  return 0x23;
         case 0x108: return 0x24;
@@ -242,8 +241,11 @@ char PI_GetType_CS(char type, short cmd)
         case 0x152: return 0x2e;
         case 0x16f: return 0x31;
         case 0x14e: return 0x32;
-        default:    return 0;
+                case 0x1f:  return 10;
+            }
+            break;
     }
+    return 0;
 }
 
 // ===========================================================================
@@ -254,13 +256,11 @@ char PI_GetType_CS(char type, short cmd)
 // ===========================================================================
 int PI_GetHackTypes(short hackType)
 {
-    int v = hackType;
-    if (static_cast<unsigned int>(v) > 0x36u)
+    if (static_cast<unsigned int>(hackType) > 0x36u)
         return 0x514;
 
-    switch (v)
+    switch (hackType)
     {
-        case 0:  return 0x514;
         case 1:  return 0x515;
         case 2:  return 0x516;
         case 3:  return 0x517;
@@ -327,17 +327,21 @@ int PI_GetHackTypes(short hackType)
 // ===========================================================================
 void PIAddServerHackCnt(CUser* user, WongWork::ENUM_HACKTYPE type, int count)
 {
-    if (static_cast<int>(type) == 0x524 && user->CheckInParty())
+    if (static_cast<int>(type) == 0x524)
     {
-        CParty* party = static_cast<CParty*>(user->GetParty());
-        if (party != 0 && party->get_member_count() > 1)
+        if (user->CheckInParty())
         {
-            return;
+        CParty* party = static_cast<CParty*>(user->GetParty());
+        if (party != 0)
+        {
+            register bool skip = party->get_member_count() > 1;
+            if (skip)
+                return;
+        }
         }
     }
-    int etcValue = user->SetETC(static_cast<short>(type), count);
     user->getHackAnalyzer()->addServerHackCnt(user, type, 1u,
-        static_cast<unsigned int>(etcValue), 0u);
+        static_cast<unsigned int>(user->SetETC(static_cast<short>(type), count)), 0u);
 }
 // ===========================================================================
 // HP_GetHackType  ORIG T 0x82756cf（jump table .rodata 0x8bfefc8，41 项）
@@ -403,19 +407,16 @@ int HIP_GetHackType(unsigned char type)
 {
     switch (type)
     {
-        case 0:  return 0x5dc;
         case 1:  return 0x5dd;
         case 2:  return 0x5de;
         case 3:  return 0x5df;
         case 4:  return 0x5e0;
-        case 5:  return 0x5dc;
         case 6:  return 0x5e2;
         case 7:  return 0x5e3;
         case 8:  return 0x5e4;
         case 9:  return 0x641;
         case 10: return 0x642;
         case 11: return 0x643;
-        case 12: return 0x5dc;
         case 13: return 0x646;
         case 14: return 0x647;
         case 15: return 0x648;
@@ -446,9 +447,8 @@ int _NS_IPScan(CUser* user, PacketBuf& packet)
     if (!packet.get_byte(a))
         return 1;
 
-    int hackType = HIP_GetHackType(a);
     user->getHackAnalyzer()->addServerHackCnt(
-        user, static_cast<WongWork::ENUM_HACKTYPE>(hackType), 1, 0, 0);
+        user, static_cast<WongWork::ENUM_HACKTYPE>(HIP_GetHackType(a)), 1, 0, 0);
     return 0;
 }
 
@@ -483,7 +483,7 @@ int _NS_ProcessScan(CUser* user, PacketBuf& packet)
 // ===========================================================================
 int _NS_PacketIntegrity(CUser* user, PacketBuf& packet)
 {
-    unsigned char a = 0, b = 0, c = 0, d = 0;
+    unsigned char a, b, c, d;
     if (!packet.get_byte(a))
         return 1;
     if (!packet.get_byte(b))
@@ -495,8 +495,7 @@ int _NS_PacketIntegrity(CUser* user, PacketBuf& packet)
     if (user == 0)
         return 4;
 
-    int value = static_cast<int>(d % 5) + static_cast<int>(b % 5) * 10 +
-                static_cast<int>(a % 5) * 100;
+    int value = d % 10 + (b % 10) * 10 + (a % 10) * 100;
     int hackType = PI_GetHackTypes(static_cast<short>(c));
     PIAddServerHackCnt(user, static_cast<WongWork::ENUM_HACKTYPE>(hackType),
                        value);
@@ -510,18 +509,17 @@ int _NS_PacketIntegrity(CUser* user, PacketBuf& packet)
 // ===========================================================================
 int _NS_MI_RecvMemoryIntegrityModulation(CUser* user, PacketBuf& packet)
 {
-    char a = 0, b = 0;
+    char a, b;
     if (!packet.get_byte(a))
         return 1;
     if (!packet.get_byte(b))
         return 2;
 
-    int hackType = MI_GetHackType(a);
-    int etc = user->SetETC(static_cast<short>(hackType),
-                           static_cast<int>(static_cast<signed char>(b)));
+    unsigned int hackType = static_cast<unsigned int>(MI_GetHackType(a));
     user->getHackAnalyzer()->addServerHackCnt(
         user, static_cast<WongWork::ENUM_HACKTYPE>(hackType), 1,
-        static_cast<unsigned int>(etc), 0);
+        static_cast<unsigned int>(user->SetETC(static_cast<short>(hackType),
+            static_cast<int>(static_cast<signed char>(b)))), 0);
     return 0;
 }
 
@@ -537,34 +535,35 @@ int _NS_NonClient_GetResponse(CUser* user, PacketBuf& packet)
         return 0;
 
     user->SetNonClientFlag(true);
-    int randInt = 0;
+    int randInt;
     if (!packet.get_int(randInt))
         return 1;
-    char result = 0;
+    char result;
     if (!packet.get_byte(result))
         return 2;
 
-    if (result == 0)
+    switch (result)
     {
-        int local = user->GetNonClientRandInt();
-        int hash = 0;
-        if (!_NS_MakeHash_(reinterpret_cast<char*>(&local), 4, hash))
-            return 0;
-        if (hash != randInt)
+        case 0:
         {
-            user->getHackAnalyzer()->addServerHackCnt(
-                user, static_cast<WongWork::ENUM_HACKTYPE>(0x33b), 1, 0, 0);
+            int local = user->GetNonClientRandInt();
+            int hash;
+            if (!_NS_MakeHash_(reinterpret_cast<char*>(&local), 4, hash))
+                return 0;
+            if (hash != randInt)
+            {
+                user->getHackAnalyzer()->addServerHackCnt(
+                    user, static_cast<WongWork::ENUM_HACKTYPE>(0x33b), 1, 0, 0);
+            }
+            break;
         }
-    }
-    else if (result == 1)
-    {
-        user->getHackAnalyzer()->addServerHackCnt(
-            user, static_cast<WongWork::ENUM_HACKTYPE>(0x33d), 1, 0, 0);
-    }
-    else
-    {
-        user->getHackAnalyzer()->addServerHackCnt(
-            user, static_cast<WongWork::ENUM_HACKTYPE>(0x33e), 1, 0, 0);
+        case 1:
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, static_cast<WongWork::ENUM_HACKTYPE>(0x33d), 1, 0, 0);
+            break;
+        default:
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, static_cast<WongWork::ENUM_HACKTYPE>(0x33e), 1, 0, 0);
     }
     return 0;
 }
@@ -576,11 +575,11 @@ int _NS_NonClient_GetResponse(CUser* user, PacketBuf& packet)
 int _NS_PI_2ND_RecvPacketIntegrityModulation_C2C(CUser* user,
                                                  PacketBuf& packet)
 {
-    unsigned short a = 0;
+    unsigned short a;
     if (!packet.get_short(a))
         return 1;
 
-    int v = static_cast<int>(a) + 0xe11;
+    unsigned int v = a + 0xe11;
     if (v > 0xf9e)
         v = 0xf9f;
     user->getHackAnalyzer()->addServerHackCnt(
@@ -595,14 +594,14 @@ int _NS_PI_2ND_RecvPacketIntegrityModulation_C2C(CUser* user,
 int _NS_PI_2ND_RecvPacketIntegrityModulation_S2C(CUser* user,
                                                  PacketBuf& packet)
 {
-    unsigned char a = 0;
-    unsigned short b = 0;
+    unsigned char a;
+    unsigned short b;
     if (!packet.get_byte(a))
         return 1;
     if (!packet.get_short(b))
         return 2;
 
-    int hackType = _NS_PI_2ND_GetHackType(1, a, b);
+    unsigned int hackType = static_cast<unsigned int>(_NS_PI_2ND_GetHackType(1, a, b));
     user->getHackAnalyzer()->addServerHackCnt(
         user, static_cast<WongWork::ENUM_HACKTYPE>(hackType), 1, 0, 0);
     return 0;
@@ -1894,9 +1893,10 @@ int _NS_PI_2ND_GetHackTypeEnum(unsigned char type, short cmd)
 // ===========================================================================
 int _NS_PI_2ND_GetHackType(unsigned int type, unsigned char b, unsigned short c)
 {
+    unsigned int e =
+        static_cast<unsigned int>(_NS_PI_2ND_GetHackTypeEnum(b, static_cast<short>(c)));
     unsigned int v =
-        2 * (static_cast<unsigned int>(_NS_PI_2ND_GetHackTypeEnum(b, static_cast<short>(c))) +
-             0x3e8u) +
+        2 * (e + 0x3e8u) +
         type;
     if (v > 0xe0e)
         return 0xe0f;

@@ -95,12 +95,12 @@ Quest::~Quest()
 {
 }
 
-char Quest::exposeQuest() const
+bool Quest::exposeQuest() const
 {
     return m_exposeQuest;
 }
 
-char Quest::check_possible(const stSelectQuestParam& param) const
+bool Quest::check_possible(const stSelectQuestParam& param) const
 {
     int job = param.m_job;
     int firstGrow = param.m_firstGrow;
@@ -441,6 +441,9 @@ bool Quest::isRepeatableQuest() const
 
 int Quest::get_appearmap(int mapA, int mapB) const
 {
+    // ORIG：m_percent 在 mapA 判定后、get_rand_int 前物化 %ebx 跨 call，
+    // 尾 setge。register 局部声明前置即被 4.4 提前物化（+2 条、edx/eax
+    // 交换，N7 族），分支内声明不可行（&& 短路），残差 N 封顶。
     if (m_appearMap.m_mapB == -1)
     {
         if ((m_appearMap.m_mapA == mapA) &&

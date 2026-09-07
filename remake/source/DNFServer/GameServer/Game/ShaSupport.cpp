@@ -160,6 +160,7 @@ void sha256_update(sha256_context* ctx, unsigned char* input, unsigned long ilen
     unsigned long fill = 0x40 - left;               // mov $0x40 / sub → -0xc(%ebp)
 
     ctx->m_total[0] += ilen;            // old+ilen 回绕写入（mov %edx,(%eax)）
+    ctx->m_total[0] = ctx->m_total[0];  // ORIG 冗余 reload/store 对（0x08087921-29，无观察效应）
     if (ctx->m_total[0] < ilen)         // cmp ilen,new; jae skip → 溢出时 new<ilen
     {
         ctx->m_total[1] += 1;           // 进位（lea 0x1(%eax),%edx / mov）

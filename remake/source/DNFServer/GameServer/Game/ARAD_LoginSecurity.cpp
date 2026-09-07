@@ -148,12 +148,8 @@ bool PVP_CHANNEL::is_integrated_pvp_channel()
 // is_broadcast_channel @ 0x08197684（与 is_all_pvp_channel 同语义实现）
 int PVP_CHANNEL::is_broadcast_channel()
 {
-    // 正向直判形（判据②：ORIG `test; je` 直分支无 bool 物化——`!integrated`
-    // 负形会产 setne/movzbl/xor 岛，实测 ndiff20；等价改写为德摩根正向）。
     int channelType = G_GameWorld()->GetChannelType();
-    if (is_integrated_pvp_channel())
-        return 1;
-    if (channelType == 7)
+    if (is_integrated_pvp_channel() || channelType == 7)
         return 1;
     return 0;
 }
@@ -161,12 +157,8 @@ int PVP_CHANNEL::is_broadcast_channel()
 // is_all_pvp_channel @ 0x081976c7
 int PVP_CHANNEL::is_all_pvp_channel()
 {
-    // 正向直判形（判据②：ORIG `test; je` 直分支无 bool 物化——`!integrated`
-    // 负形会产 setne/movzbl/xor 岛，实测 ndiff20；等价改写为德摩根正向）。
     int channelType = G_GameWorld()->GetChannelType();
-    if (is_integrated_pvp_channel())
-        return 1;
-    if (channelType == 7)
+    if (is_integrated_pvp_channel() || channelType == 7)
         return 1;
     return 0;
 }
@@ -193,11 +185,8 @@ int PVP_CHANNEL::is_common_channel()
     // P22/技巧 1：bool callee 的 `!call()` 天然产 `xor $0x1,%eax; test %al,%al`
     // （ORIG 0x0819775x je 消费者形），负形比正向翻转少一跳。
     int channelType = G_GameWorld()->GetChannelType();
-    if (!is_integrated_pvp_channel())
-    {
-        if (channelType != 7)
-            return 1;
-    }
+    if (!is_integrated_pvp_channel() && channelType != 7)
+        return 1;
     return 0;
 }
 
@@ -636,7 +625,7 @@ int Arad_Dispatcher_Login_Impl::punish_user_check(SIG_LOGIN_DATA* data)
     long curSec = GlobalData::s_systemTime_.getCurSec();
 
     int index = 0;
-    while (true)
+    do
     {
         if (data->m_punishInfoCount <= index)
         {
@@ -670,7 +659,8 @@ int Arad_Dispatcher_Login_Impl::punish_user_check(SIG_LOGIN_DATA* data)
             }
         }
         ++index;
-    }
+    } while (data->m_punishInfoCount > index);
+    return 1;
 }
 
 }  // namespace ARAD

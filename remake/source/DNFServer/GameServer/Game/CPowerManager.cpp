@@ -300,6 +300,9 @@ void CPowerManager::LoadRankerInfo()
 }
 bool CPowerManager::CheckCompleteDBLoadStatueInfo()
 {
+    // ORIG 0x847f1bf 尾部 addl;mov slot;cmp;setbe 含 mov slot,%eax —— 探针
+    // /tmp/l6/probe5.cpp 三形（do-while/++i/i++）4.4 恒折 cmpl $2,mem（N18b 族
+    // mem 操作数比较折叠），源形不可复现，维持 for（残差 1 insn）。
     for (unsigned int i = 0; i <= 2; ++i)
         if (m_rankings[i].m_flag != 1)
             return 0;
@@ -327,11 +330,7 @@ void CPowerManager::SetPowerWarUserRankingInfo(unsigned int* charNos)
     // ORIG 0x0847ebec：characNo==0 -> 置 flag，否则写 +0x2c 并发 DB 消息 0x166。
     for (int i = 0; i < 3; ++i)
     {
-        if (charNos[i] == 0)
-        {
-            m_rankings[i].m_flag = 1;
-        }
-        else
+        if (charNos[i] != 0)
         {
             m_rankings[i].m_characNo = charNos[i];
             CStreamGuard guard(
@@ -340,6 +339,10 @@ void CPowerManager::SetPowerWarUserRankingInfo(unsigned int* charNos)
             **guard << -1;
             **guard << m_rankings[i].m_characNo;   // unsigned int → operator<<(uint)（ORIG P167）
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        }
+        else
+        {
+            m_rankings[i].m_flag = 1;
         }
     }
 }
@@ -516,6 +519,7 @@ int CPowerManager::GetPowerWarPointInChannel(char side)
 
 int CPowerManager::GetRankingByCharacNo(unsigned int charNo)
 {
+    // N18b 族同上（mov slot,%eax 不可复现），维持 for。
     for (unsigned int i = 0; i <= 2; ++i)
         if (m_rankings[i].m_characNo == charNo)
             return (int)i + 1;

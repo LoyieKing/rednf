@@ -41,7 +41,7 @@ int Global::CBossTowerFunc::DieMob(CUser* user, unsigned short mobSeq,
 {
     WongWork::CBossTower* tower = user->getBossTower();
     if (tower != 0)
-        tower->handleKillMonster(user, mobSeq, param, msg, out);
+        tower->handleKillMonster(user, mobSeq, param, msg, 0);  // ORIG 第5实参=$0
     return 1;
 }
 
@@ -76,11 +76,12 @@ void Secu_HackLogCheck::DieMob(const MSG_MONSTER_DIE* msg)
 int PvPDieUserRevive(int p1, int p2, unsigned int p3, int p4)
 {
     (void)p3;
-    int key = p4 + 0x33;
-    PvP_Room* room = G_CGameManager()->GetPvp(p1, static_cast<CUser*>(0), key);
+    // P134/P24：p4+0x33 两次均作内联实参（首用跨 G_CGameManager call 由
+    // callee-saved 缓存，二次用点重物化），勿具名局部（会多槽丢 push ebx）。
+    PvP_Room* room = G_CGameManager()->GetPvp(p1, static_cast<CUser*>(0), p4 + 0x33);
     if (room == 0)
         return 0;
-    if (!room->CheckTimerKey((TIMER_MESSAGE)p4, p2))
+    if (!room->CheckTimerKey((TIMER_MESSAGE)(p4 + 0x33), p2))
         return 0;
     room->HandleTimerUserRevive(p4);
     return 1;
@@ -95,9 +96,9 @@ int GetItemIdByAddInfo(Inven_Item* items, int count, int addInfo)
 {
     for (int i = 0; i < count; ++i)
     {
-        Inven_Item& it = items[i];
-        if (it.m_addInfo2 == addInfo && it.m_addInfo2 != 0)
-            return it.m_addInfo;
+        // P183：ORIG 每次访问重发 imul $0x3d 全链（无 it 指针槽，P0）。
+        if (items[i].m_addInfo2 == addInfo && items[i].m_addInfo2 != 0)
+            return items[i].m_addInfo;
     }
     return 0;
 }
@@ -341,23 +342,22 @@ char Secu_MonsterCheck::Check224()
         if (dt <= 0x3e8)
         {
             m_field18 += 1;
-            if (m_field18 < 5 || m_field18 > 0xa)
-            {
-                if (m_field18 > 0xa)
-                {
-                    m_field1a = 3;
-                    if (m_user != 0)
-                    {
-                        m_user->getHackAnalyzer()->addServerHackCnt(
-                            m_user, static_cast<WongWork::ENUM_HACKTYPE>(0xe0),
-                            3, 0, 0);
-                    }
-                    result = 0;
-                }
-            }
-            else
+            // ORIG 块排布：两 cmp 直跳 else（P133 合并短路 fall-through =
+            // v=1 块），v=3 在 else-if；反向嵌套 if 形会把 v=1 块挤到尾部。
+            if (m_field18 > 4 && m_field18 <= 0xa)
             {
                 m_field1a = 1;
+            }
+            else if (m_field18 > 0xa)
+            {
+                m_field1a = 3;
+                if (m_user != 0)
+                {
+                    m_user->getHackAnalyzer()->addServerHackCnt(
+                        m_user, static_cast<WongWork::ENUM_HACKTYPE>(0xe0),
+                        3, 0, 0);
+                }
+                result = 0;
             }
         }
         else
@@ -390,23 +390,21 @@ char Secu_MonsterCheck::Check225()
         if (dt <= 1999)
         {
             m_field24 += 1;
-            if (m_field24 < 5 || m_field24 > 0xa)
-            {
-                if (m_field24 > 0xa)
-                {
-                    m_field26 = 3;
-                    if (m_user != 0)
-                    {
-                        m_user->getHackAnalyzer()->addServerHackCnt(
-                            m_user, static_cast<WongWork::ENUM_HACKTYPE>(0xe1),
-                            3, 0, 0);
-                    }
-                    result = 0;
-                }
-            }
-            else
+            // 同 Check224：ORIG v=1 块在 fall-through，v=3 在 else-if。
+            if (m_field24 > 4 && m_field24 <= 0xa)
             {
                 m_field26 = 1;
+            }
+            else if (m_field24 > 0xa)
+            {
+                m_field26 = 3;
+                if (m_user != 0)
+                {
+                    m_user->getHackAnalyzer()->addServerHackCnt(
+                        m_user, static_cast<WongWork::ENUM_HACKTYPE>(0xe1),
+                        3, 0, 0);
+                }
+                result = 0;
             }
         }
         else

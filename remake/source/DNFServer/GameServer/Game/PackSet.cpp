@@ -142,11 +142,10 @@ static pack_ret_t _encrypt(unsigned int key, unsigned char* buffer, unsigned int
         key ^= XOR_KEY;
     }
     unsigned int* p = reinterpret_cast<unsigned int*>(buffer);
-    unsigned int* e = reinterpret_cast<unsigned int*>(buffer + (size & 0xfffffffcu));
+    unsigned int* e = p + (size >> 2);        // ORIG shr+shl+add p 槽形态
     for (; p != e; ++p)
     {
-        unsigned int v = *p;
-        *p = ((v >> 0x1a) | (v << 6)) ^ key;
+        *p = (((*p) >> 0x1a) | ((*p) << 6)) ^ key;   // ORIG ror$26 单读：rotate 识别消 v 槽
         if (g_AdditionalKey != 0u)
         {
             *p ^= g_AdditionalKey;
@@ -211,7 +210,8 @@ static pack_ret_t _fread_str(std::string& dst, FILE* fp)
     {
         return PACK_ERROR;
     }
-    unsigned int len = 0;
+    // ORIG 无 len 预清槽（fread 失败路径 len 未初始化为原码遗留，P171）。
+    unsigned int len;
     fread(&len, 4, 1, fp);
     if (len > 0x103u)
     {
@@ -625,7 +625,7 @@ IPackFileProcess::~IPackFileProcess()       // D1 @0x08ac76a8（D2 别名）
     {
         if (s_common_buffer_ != 0 && s_common_buffer_ != 0)
         {
-            delete[] s_common_buffer_;
+            operator delete[]((void*)s_common_buffer_);   // 4.4 delete[] 自带判空，显式调用保 ORIG 双 test 形
         }
         s_common_buffer_ = 0;
         s_common_buffer_size_ = 0;
@@ -639,18 +639,14 @@ unsigned char* IPackFileProcess::getCommonBuffer()              // @0x08ac7734
 
 unsigned char* IPackFileProcess::getCommonBuffer(unsigned int needSize)  // @0x08ac773e
 {
-    if (s_common_buffer_size_ < needSize)
+    if (!(needSize <= s_common_buffer_size_))   // ORIG cmp %eax,mem; jbe 方向
     {
         if (s_common_buffer_ != 0 && s_common_buffer_ != 0)
         {
-            delete[] s_common_buffer_;
+            operator delete[]((void*)s_common_buffer_);
         }
         s_common_buffer_ = new unsigned char[needSize];
-        s_common_buffer_size_ = needSize;
-        if (s_common_buffer_ == 0)
-        {
-            s_common_buffer_size_ = 0;
-        }
+        s_common_buffer_size_ = (s_common_buffer_ != 0) ? needSize : 0;   // ORIG 三元 je/两臂形
     }
     return s_common_buffer_;
 }
@@ -1384,11 +1380,12 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
 
 FILE* PackSet::pack_file()     // 0x08ac7608
 {
-    if (!(static_cast<bool>(m_bUseEncryptedFile) ^ true))     // !flag == false 即 flag 真
+    if (!m_bUseEncryptedFile)
     {
-        fprintf(stdout, "%s\n", "_C_DNF_SCRIPT_CRYPTER_ is turned on!!");
-        fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x677, __FUNCTION__);
+        return m_packFile;
     }
+    fprintf(stdout, "%s\n", "_C_DNF_SCRIPT_CRYPTER_ is turned on!!");
+    fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x677, __FUNCTION__);
     return m_packFile;
 }
 

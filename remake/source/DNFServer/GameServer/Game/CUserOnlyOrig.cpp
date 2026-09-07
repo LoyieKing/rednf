@@ -935,10 +935,13 @@ void CUser::AddCurCharacMercenaryInfo()
     // ORIG 0x0868e5bb-0x0868e5c0：再调 getCurCharacR，(unsigned short) 显式 cast
     // 单条 `movzwl 0x27(%eax),%ebx` 直落 callee-saved（技巧2；m_level 字段 short，
     // ORIG 此点 movzwl=源码 cast，CUser.h:520 注释同例）
-    register unsigned short lv asm("ebx") = (unsigned short)getCurCharacR()->m_level;
+    // probe p5/f14：register short asm("bx") 产 `movzwl mem,%ebx` 单段直落
+    //（ORIG 同形；register ushort + 显式比较 cast 反生两段）；比较侧 (short)(short)
+    // 复现 ORIG `cmp %ax,%bx; setl`（16 位 signed）。
+    register short lv asm("bx") = (unsigned short)getCurCharacR()->m_level;
     // ORIG 0x0868e5d0：`cmp %ax,%bx; setl %al; test; jne`——16 位寄存器比较+bool
     // 物化（技巧22），limit 侧 movzwl 0xa8e0(%eax) 同型免槽
-    if (static_cast<bool>(lv < G_CDataManager()->m_mercenarySystem.m_field4))
+    if (static_cast<bool>((short)lv < (short)G_CDataManager()->m_mercenarySystem.m_field4))
         return;
 
     CHARAC_LOAD_MERCENARY info;
@@ -3624,10 +3627,12 @@ void CUser::LoadMileage()
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x18f2), true);
     guard.operator*()->operator<<((int)0x1fd); // 流类型
     guard.operator*()->operator<<((int)GetUID());
-    char* sig = (char*)guard.operator->()->GetInBuffer<SIG_MILEAGE_STRUCT>();
-    *(unsigned int*)(sig + 0) = get_acc_id();
-    *(unsigned int*)(sig + 4) = getCurCharacNo();
-    *(unsigned int*)(sig + 8) = 0;             // mileage 由 DB 侧维护
+    SIG_MILEAGE_STRUCT* u = guard.operator->()->GetInBuffer<SIG_MILEAGE_STRUCT>();
+    // 具名字段 disp 折叠形（ORIG `mov -0xc,%edx; mov (%edx)` / `mov %eax,0x4(%edx)` /
+    // `movl $0x0,0x8(%eax)`）
+    u->m_accId = get_acc_id();
+    u->m_characNo = getCurCharacNo();
+    u->m_mileage = 0;                          // mileage 由 DB 侧维护
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
 }
 
@@ -5761,10 +5766,10 @@ void CUser::SaveMileage()
     guard.operator*()->operator<<((int)GetUID());  // ORIG 同型
     // ORIG 0x08650636/0x08650642：Acquire 结果免槽直落 ctor 实参、guard -0x14、
     // sig -0xc（删 s 中转后 4.4 帧对齐 ORIG）；store 段 LHS 地址预载差 = N76
-    char* sig = (char*)guard.operator->()->GetInBuffer<SIG_MILEAGE_STRUCT>();  // ORIG ptEv 链
-    *(unsigned int*)(sig + 0) = get_acc_id();
-    *(unsigned int*)(sig + 4) = getCurCharacNo();
-    *(unsigned int*)(sig + 8) = GetMileage();
+    SIG_MILEAGE_STRUCT* sig = guard.operator->()->GetInBuffer<SIG_MILEAGE_STRUCT>();  // ORIG ptEv 链
+    sig->m_accId = get_acc_id();
+    sig->m_characNo = getCurCharacNo();
+    sig->m_mileage = GetMileage();
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
 }
 
@@ -7012,14 +7017,14 @@ void CUser::StartRecvEventWaiting()
     m_mcap.m_recvEventWaiting = false;                // CMCAPManager +0x18（CUser+0x8e408）
 
     // ORIG 0x0867f1fe：`movl $0x1e,-0xc(%ebp)` 顶部落槽；uid/uidw 跨 call 直落 %esi/%ebx
-    // 为 4.1 regmove 专属（4.4 asm 绑定恒先归一 %eax 再 copy，实测+2 行）→ 具名槽形。
+    // P24 内联实参形尝试（4.4 若直落 callee-saved 即闭合；否则 4.1 regmove 专属 N）。
     int delay = 0x1e;
-    unsigned short uid  = static_cast<unsigned short>(get_unique_id());
-    unsigned int   uidw = GetUID();
     G_TimerQueue()->InsertTimer(static_cast<TimerEntry::OBJ_TYPE>(2),
-                                uidw,
+                                GetUID(),
                                 static_cast<TIMER_MESSAGE>(0x67),
-                                delay, static_cast<int>(uid), 0u);
+                                delay,
+                                static_cast<int>(static_cast<unsigned short>(get_unique_id())),
+                                0u);
 }
 
 // ---------------------------------------------------------------------------
@@ -7164,6 +7169,9 @@ void CUser::UpdateCharacLinkBonus(unsigned int exp, unsigned int gold,
                                   unsigned int state,
                                   ENUM_CHARAC_LINK_BONUS_STATE bonusState)
 {
+    // P0：ORIG 头 `mov 0x18(%ebp),%eax; mov %eax,-0xc(%ebp)`——bonusState 拷入
+    // 具名局部槽，末次 operator<< 从槽重读（0x14/0x10 形参直读不受影响）
+    unsigned int bs = static_cast<unsigned int>(bonusState);
     Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1c11);
     CStreamGuard guard(stream, true);
     // ORIG：guard.operator*()->operator<< 六处显式代理链；GetUID 传 int（选
@@ -7173,7 +7181,7 @@ void CUser::UpdateCharacLinkBonus(unsigned int exp, unsigned int gold,
     guard.operator*()->operator<<(state);
     guard.operator*()->operator<<(exp);
     guard.operator*()->operator<<(gold);
-    guard.operator*()->operator<<(static_cast<unsigned int>(bonusState));
+    guard.operator*()->operator<<(bs);
     GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
 
     setCharacLinkBonusExp(0);
@@ -9879,8 +9887,8 @@ bool CUser::checkCharacLinkType(char linkPos, int slot)
             return false;
         }
         // ORIG `movzbl -0x1c,%eax; and $0x1; test %al` ⇒ linkPos 按 uchar
-        // 做位测试（cast → movzbl 直落）。
-        if ((linkPos & 1) != 0) {
+        // 做位测试（probe p2/f7：`% 2` 源形 4.4 产 movzbl;and$1;test %al，ORIG 同形）。
+        if (linkPos % 2 != 0) {
             return false;
         }
         if (m_characList[linkPos + 1].m_characLinkType != 3) {
@@ -9891,7 +9899,7 @@ bool CUser::checkCharacLinkType(char linkPos, int slot)
         if (static_cast<int>(linkPos) - 1 < 0) {
             return false;
         }
-        if ((linkPos & 1) == 0) {
+        if (linkPos % 2 == 0) {
             return false;
         }
         if (m_characList[linkPos - 1].m_characLinkType != 2) {

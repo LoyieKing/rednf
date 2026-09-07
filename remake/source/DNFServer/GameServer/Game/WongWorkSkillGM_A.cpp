@@ -176,11 +176,11 @@ bool CSkillChanger::_fnEnumQuestClear(unsigned int questIdx, char* args)
 void CSkillChanger::_CountQuestSPBook(const CUser* user, int& a, int& b,
                                       int& c, int& d)
 {
-    UserQuest* quests = user->getCurCharacQuestR();
-    CQuestClear* cleared = &quests->m_cleared;    // UserQuest+0x0004 子对象
-    cleared->enumQuestClear(&_fnEnumQuestClear, &a, &b, &c, &d,
-                            static_cast<CSkillChanger*>(this),
-                            const_cast<CUser*>(user));
+    // ORIG 无槽：getCurCharacQuestR 结果直存 eax、+0x4 经 lea 内联（P0/P183）。
+    (&user->getCurCharacQuestR()->m_cleared)
+        ->enumQuestClear(&_fnEnumQuestClear, &a, &b, &c, &d,
+                         static_cast<CSkillChanger*>(this),
+                         const_cast<CUser*>(user));
 }
 
 // ============================================================================
@@ -203,7 +203,10 @@ int CGMAccounts::appendGM(unsigned int /*mid*/, unsigned int /*type*/)
 // 并记 "./log/Init" 文件日志 "GM List Add mid:%s"。
 void CGMAccounts::AppendGM_Sys(unsigned int mid, char type)
 {
-    CGMAccounts::stGMInfo_t info(mid, static_cast<unsigned int>(static_cast<int>(type)));
+    // ORIG：POD 直接赋值（stGMInfo_t 无用户 ctor，ORIG nm 无 C1 符号）。
+    CGMAccounts::stGMInfo_t info;
+    info.mid = mid;
+    info.type = static_cast<unsigned int>(static_cast<int>(type));
     m_gmList.push_back(info);
 
     char* midStr = NumberToString(mid, 0);   // ORIG radix 参数为 0

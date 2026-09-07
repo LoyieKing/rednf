@@ -102,9 +102,8 @@ namespace _SDC
 {
 bool isObjectType(int objectType, int code)
 {
-    // ORIG 0x080950e8：仅 sete —— (code & objectType) == code
-    unsigned int andv = (unsigned int)(code & objectType);
-    return andv == (unsigned int)code;
+    // ORIG 0x080950e8：无帧无槽，and 后直接 cmp 参数（P0 单表达式）。
+    return (objectType & code) == code;
 }
 
 // ORIG T 0x0808d074：type<0xc 且 (1<<type & 0xac4)!=0（位 2/6/7/9/11）。
@@ -120,16 +119,26 @@ int isSyncActiveStatus(int type)
 
 float SDCActiveStatusSyncCommon::getActiveStatusPower1(int idx, int level)
 {
-    return GetUniformVelocityFloatSDC(ACTIVESTATUS_POWER1[idx * 2],
-                                      ACTIVESTATUS_POWER1[idx * 2 + 1],
-                                      level - 1, ACTIVESTATUS_MAXLEVEL - 1);
+    // P31/P184：ORIG entry 双死 init 槽 -0x14=0/-0x10=1（照抄）；
+    // float 结果具名局部两段物化（fstps → 自拷贝 → flds）。
+    int deadA = 0;
+    int deadB = 1;
+    (void)deadA; (void)deadB;
+    float v = GetUniformVelocityFloatSDC(ACTIVESTATUS_POWER1[idx * 2],
+                                         ACTIVESTATUS_POWER1[idx * 2 + 1],
+                                         level - 1, ACTIVESTATUS_MAXLEVEL - 1);
+    return v;
 }
 
 float SDCActiveStatusSyncCommon::getActiveStatusPower2(int idx, int level)
 {
-    return GetUniformVelocityFloatSDC(ACTIVESTATUS_POWER2[idx * 2],
-                                      ACTIVESTATUS_POWER2[idx * 2 + 1],
-                                      level - 1, ACTIVESTATUS_MAXLEVEL - 1);
+    int deadA = 0;
+    int deadB = 1;
+    (void)deadA; (void)deadB;
+    float v = GetUniformVelocityFloatSDC(ACTIVESTATUS_POWER2[idx * 2],
+                                         ACTIVESTATUS_POWER2[idx * 2 + 1],
+                                         level - 1, ACTIVESTATUS_MAXLEVEL - 1);
+    return v;
 }
 
 float SDCActiveStatusSyncCommon::getActiveStatusEtcParameter(int idx, int level,
@@ -253,7 +262,11 @@ int SDCActiveStatusSyncCommon::getDiseaseDamage(
 int SDCActiveStatusSyncCommon::getBleedingDamageServer(
     STSDCActiveStatusSyncDataSend* d)
 {
-    return static_cast<int>(1.5f * static_cast<float>(d->m_baseDamage));
+    // P0：ORIG int 中转槽 -0x14 + float 具名局部 -0x4（fildl→fstps→flds 两段）。
+    int rawDamage = d->m_baseDamage;
+    float dmg = static_cast<float>(rawDamage);
+    dmg = dmg * 1.5f;
+    return static_cast<int>(dmg);
 }
 
 int SDCActiveStatusSyncCommon::getBleedingDamageClient(
@@ -262,7 +275,9 @@ int SDCActiveStatusSyncCommon::getBleedingDamageClient(
     int tickA = d->m_durationTick / 500;
     int tickB = 1;
     int tick = std::max(tickB, tickA);          // ORIG std::max(tickB, tickA) 序保持
-    return static_cast<int>(static_cast<float>(d->m_baseDamage) / static_cast<float>(tick));
+    // P0：ORIG float 具名局部槽 -0xc（fdivrp → fstps → flds 两段物化）。
+    float dmg = static_cast<float>(d->m_baseDamage) / static_cast<float>(tick);
+    return static_cast<int>(dmg);
 }
 
 // ORIG 0x0808d4b4/0x0808d50e 共用 x87 取整宏（每 push_back 前 12 步内联序列，

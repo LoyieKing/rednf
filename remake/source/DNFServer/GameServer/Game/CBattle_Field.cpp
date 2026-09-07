@@ -225,7 +225,7 @@ void CBattle_Field::setWorldMapTowerArea(bool flag)
     m_worldMapTowerArea = flag;
 }
 
-int CBattle_Field::isWorldMapTowerArea()
+bool CBattle_Field::isWorldMapTowerArea()
 {
     return m_worldMapTowerArea;
 }

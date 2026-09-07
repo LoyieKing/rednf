@@ -1671,12 +1671,8 @@ int yyFlexLexer::yy_get_next_buffer()
  */
     yy_state_type yyFlexLexer::yy_try_NUL_trans( yy_state_type yy_current_state )
 {
-	register int yy_is_jam;
-    
-	yy_current_state = yy_NUL_trans[yy_current_state];
-	yy_is_jam = (yy_current_state == 0);
-
-	return yy_is_jam ? 0 : yy_current_state;
+	/* ORIG 0x08ad1b50：无 jam 判定，直接返回查表结果（P140）。 */
+	return yy_NUL_trans[yy_current_state];
 }
 
     void yyFlexLexer::yyunput( int c, register char* yy_bp)

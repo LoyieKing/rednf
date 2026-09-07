@@ -13,20 +13,14 @@
 // ORIG @0x08120454：+0=+1=+2=0、-4=0、+8=-1、new(0x200)、
 // +0x1038=0、memset(+0x34,0,0x1001)。
 DbmwClient::DbmwClient()
-    : m_isSelect(false),
-      m_initialized(false),
+    : m_initialized(false),
       m_connected(false),
-      m_pad03(0),
-      m_reconnectCount(0),
       m_sock(-1),
-      m_timeout(),
-      m_recvBuf(0),
-      m_affectedRow(0),
+      m_recvBuf(new char[0x200]),
       m_queryLen(0)
 {
-    memset(m_field0c, 0, sizeof(m_field0c));
-    m_recvBuf = new char[0x200];
     memset(m_query, 0, sizeof(m_query));
+    m_reconnectCount = 0;
 }
 
 // ORIG T _ZN10DbmwClientD1Ev/D2Ev @0x081204be（0x3c）：
@@ -91,23 +85,35 @@ void DbmwClient::SetServerAddress(const char* ip, unsigned short port)
 bool DbmwClient::SendHeader(char type, int bodyLen)
 {
     // ORIG @0x08120654：18 字节头 {0x15,type,len+0x12,12B zero} 后 send。
-    unsigned char header[0x12];
-    header[0] = 0x15;
-    header[1] = (unsigned char)type;
-    int total = bodyLen + 0x12;
-    *reinterpret_cast<int*>(&header[2]) = total;
-    *reinterpret_cast<int*>(&header[6]) = 0;
-    *reinterpret_cast<int*>(&header[10]) = 0;
-    *reinterpret_cast<int*>(&header[14]) = 0;
+    // ORIG 逐字段直 disp store（total 槽即 header+2）→ 具名视图结构。
+    struct __attribute__((packed)) {
+        unsigned char b0;
+        unsigned char b1;
+        int total;
+        int z2;
+        int z3;
+        int z4;
+    } header;
+    header.b0 = 0x15;
+    header.b1 = (unsigned char)type;
+    header.total = bodyLen + 0x12;
+    header.z2 = 0;
+    header.z3 = 0;
+    header.z4 = 0;
 
-    ssize_t sent = ::send(m_sock, header, sizeof(header), 0);
-    return sent > 0;
+    ssize_t sent = ::send(m_sock, &header, 0x12, 0);
+    if (sent <= 0)
+        return false;
+    return true;
 }
 
 bool DbmwClient::RegistToMiddleware()
 {
     static const char REGIST_GO = 0;  // ORIG _ZZN10DbmwClient18RegistToMiddlewareEvE9REGIST_GO
-    return SendHeader(REGIST_GO, 0);
+    int zero = REGIST_GO;             // ORIG 0x81206cc：movl $0x0,-0xc 槽中转（bodyLen 侧）
+    if (!SendHeader(REGIST_GO, zero))
+        return false;
+    return true;
 }
 
 bool DbmwClient::ReceiveRegistAck()
@@ -205,13 +211,16 @@ unsigned int DbmwClient::Connect()
     if (m_connected)
         return (unsigned int)-96;
 
-    sockaddr* addr = reinterpret_cast<sockaddr*>(&m_addr);
-    if (::connect(m_sock, addr, sizeof(sockaddr_in)) == -1)
+    if (::connect(m_sock, reinterpret_cast<sockaddr*>(&m_addr),
+                  sizeof(sockaddr_in)) == -1)
     {
-        if (errno != EINPROGRESS)              // ORIG 0x8120a63：cmp $0x73（EINPROGRESS=115）
+        if (errno == EINPROGRESS)              // ORIG 0x8120a63：cmp $0x73（EINPROGRESS=115）jne -97 块
+        {
+            if (!Regist())
+                return (unsigned int)-95;      // 0xffffffa1
+        }
+        else
             return (unsigned int)-97;          // 0xffffff9f
-        if (!Regist())
-            return (unsigned int)-95;          // 0xffffffa1
     }
     else
     {
@@ -246,14 +255,12 @@ int DbmwClient::ReadData(char* dst, int len)
     // ORIG 槽：got@-0x14 < remain@-0x10 < cur@-0xc（4.4 先声明→低槽，
     // 声明序 got→remain→cur）。
     ssize_t got;
-    size_t remain = (size_t)len;
+    int remain = len;
     char* cur = dst;
-    // ORIG 0x08120b32：外 while(true) + 顶 `if ((int)remain<1) return len`；
-    // recv==0 break 后 return len-remain（底部 setg 守卫 + 入口 jmp 布局）。
-    while (true)
+    // ORIG 0x08120b32：while (remain > 0) 底部 setg 守卫 + 入口 jmp；
+    // recv==0 直接 return len-remain（循环内非 break）。
+    while (remain > 0)
     {
-        if ((int)remain < 1)
-            return len;
         got = ::recv(m_sock, cur, remain, 0);
         if (got < 0)
         {
@@ -268,11 +275,11 @@ int DbmwClient::ReadData(char* dst, int len)
             return -1;
         }
         if (got == 0)
-            break;
+            return len - (int)remain;
         cur += got;
-        remain -= (size_t)got;
+        remain -= got;
     }
-    return len - (int)remain;
+    return len;
 }
 
 bool DbmwClient::DoQuery()
@@ -397,14 +404,14 @@ bool DbmwClient::Reconnect()
 {
     // ORIG @0x08121156。
     ++m_reconnectCount;
-    bool ok = (Connect() == 0);
-    if (!ok)
+    if (Connect() != 0)
     {
         LogManager::logFormat(
             1, "localchina/DbmwClient.cpp", __FUNCTION__, 0x2cd,
             "AccountDBMW Reconnect() Error!! Query(%s)", m_query);
+        return false;
     }
-    return ok;
+    return true;
 }
 
 int DbmwClient::exec()
@@ -414,19 +421,20 @@ int DbmwClient::exec()
     if (m_isSelect)
         return 0;
 
-    bool needReconnect = !(IsInitialized() && IsConnected());
-    if (needReconnect && !Reconnect())
-        return 0;
+    if (!(IsInitialized() && IsConnected()))
+    {
+        if (!Reconnect())
+            return 0;
+    }
 
     if (!DoQuery())
     {
-        needReconnect = !(IsInitialized() && IsConnected());
-        if (needReconnect)
+        if (!(IsInitialized() && IsConnected()))
         {
             LogManager::logFormat(1, "localchina/DbmwClient.cpp", __FUNCTION__,
                                   0x2f4,
-                                  "AccountDBMW exec() reconnect fail Query(%s)",
-                                  m_query);
+                                  "AccountDBMW DoQuery() Error!! Query(%s) line(%d)",
+                                  m_query, 0x2f4);
             if (!Reconnect())
                 return -1;
             if (!DoQuery())
@@ -438,18 +446,21 @@ int DbmwClient::exec()
     int received = DoReceive();
     if (received == 0)
     {
-        needReconnect = !(IsInitialized() && IsConnected());
-        if (needReconnect)
+        if (!(IsInitialized() && IsConnected()))
         {
             LogManager::logFormat(1, "localchina/DbmwClient.cpp", __FUNCTION__,
                                   0x306,
-                                  "AccountDBMW exec() reconnect fail Query(%s)",
-                                  m_query);
+                                  "AccountDBMW DoReceive() Error!! Query(%s) line(%d)",
+                                  m_query, 0x306);
             if (!Reconnect())
                 return 0;
         }
+        return 0;
     }
-    return received;
+    if (received == 1)
+        return -2;
+    if (received == 2)
+        return 1;
 }
 
 long long DbmwClient::getAffectedRowCount()
@@ -473,13 +484,13 @@ void DbmwClient::Error(int level, int useErrno, char* fmt, ...)
     vsprintf(buf, fmt, args);
     va_end(args);
 
-    if (useErrno == 0)
+    if (useErrno != 0)
     {
-        strcat(buf, "\n");
+        sprintf(buf + strlen(buf), ": %s\n", strerror(savedErrno));
     }
     else
     {
-        sprintf(buf + strlen(buf), ": %s\n", strerror(savedErrno));
+        strcat(buf, "\n");
     }
     fputs(buf, stderr);
     errno = savedErrno;

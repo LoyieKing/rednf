@@ -50,8 +50,8 @@ int CSpecialItemRoutingManager::StartRouting(CUser* user, Inven_Item& item,
 // msg 0x2b, sec 0x23, key, 0)。
 void CSpecialItemRoutingManager::insertTimer(CParty* party)
 {
-    int timerKey = party->gen_timer_key((TIMER_MESSAGE)0x2b);
-    int partyIndex = party->GetPartyIndex();
+    register int timerKey asm("esi") = party->gen_timer_key((TIMER_MESSAGE)0x2b);
+    register int partyIndex asm("ebx") = party->GetPartyIndex();
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, partyIndex,
                                 (TIMER_MESSAGE)0x2b, 0x23, timerKey, 0);
 }
@@ -70,21 +70,9 @@ void CSpecialItemRoutingManager::ProcessGiveUp(CParty* party)
     if (party == 0)
         return;
 
-    bool routable;
-    if (!party->IsRoutingState() || !party->HasAllMemberSelection())
-    {
-        routable = false;
-    }
-    else
-    {
-        char state = party->GetFirstValidMemberState();
-        if (state == 5)
-            routable = true;
-        else
-            routable = (party->GetFirstValidMemberState() == 0xc);
-    }
-
-    if (routable)
+    if (party->IsRoutingState() && party->HasAllMemberSelection()
+        && (party->GetFirstValidMemberState() == 5
+            || party->GetFirstValidMemberState() == 0xc))
         processRouting(party);
 }
 
@@ -109,17 +97,16 @@ int CSpecialItemRoutingManager::ProcessTimeOut(CParty* party)
     }
     else
     {
-        char state = party->GetFirstValidMemberState();
-        if (state == 5 || state == 0xc)
-        {
-            party->SetRoutingTimerOver();
-            if (party->HasAllMemberSelection())
-                processRouting(party);
-        }
-        else
+        register int state asm("eax");
+        state = party->GetFirstValidMemberState();
+        if (state != 5 && state != 0xc)
         {
             party->SetEndRouting();
+            return 1;
         }
+        party->SetRoutingTimerOver();
+        if (party->HasAllMemberSelection())
+            processRouting(party);
     }
     return 1;
 }
@@ -131,9 +118,9 @@ int CSpecialItemRoutingManager::ProcessTimeOut(CParty* party)
 int CSpecialItemRoutingManager::ArriveMemberSelection(CUser* user, CParty* party,
                                                       char sel)
 {
-    char state = party->GetMemberRoutingState(user);          // ORIG 0x085ba150
+    int state = party->GetMemberRoutingState(user);           // ORIG 0x085ba150
     if (state != 0)
-        return 0;
+        goto FAIL;
     if (sel == 0)
         party->SetMemberRoutingState(user, 1);                // ORIG 0x085ba0d8
     else if (sel == 1)
@@ -143,5 +130,6 @@ int CSpecialItemRoutingManager::ArriveMemberSelection(CUser* user, CParty* party
         cancelTimer(party);
         processRouting(party);
     }
-    return 1;
+FAIL:
+    return 0;
 }

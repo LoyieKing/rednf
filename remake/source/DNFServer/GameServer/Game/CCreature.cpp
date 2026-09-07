@@ -83,10 +83,14 @@ bool CCreature::Die(CUser* user)
 //（CheckDiedCreature.md）：IsDieCreature 为真时先 Die(user)，返回判定结果。
 bool CCreature::CheckDiedCreature(CUser* user)
 {
-    bool died = IsDieCreature();
-    if (died)
+    // ORIG: call IsDieCreature; test %al,%al; je 返 0 岛（bool callee 裸形，
+    // 无落槽局部）；Die 后 mov$1/jmp/mov$0 常量岛。
+    if (IsDieCreature())
+    {
         Die(user);
-    return died;
+        return 1;
+    }
+    return 0;
 }
 
 // ============================================================================
@@ -139,20 +143,24 @@ bool CCreature::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
     m_creatureItemType = (int)(char)info->m_creatureItemType;  // movsbl 符号扩展
     m_stomach.SetStomachValue((float)info->m_stomachValue);
     strncpy(m_name, info->m_name, 0xc);            // → +0x1c，12B（ORIG call strncpy PLT）
-    if (m_isGrow == 1)
+    // ORIG 8338657：xor $0x1 取反形（X1：bool 字段 register 取反，movzbl+test+je
+    // 共享 else 块在后）；高 16 位提取走 union 拆半（P197①：整字落槽 -0x10 →
+    // movzwl -0xe + cwtl 符号扩展直传 GetExpLevel）。
+    register unsigned char isNotGrow asm("eax") = m_isGrow;
+    isNotGrow ^= 1;
+    if (isNotGrow)
     {
-        // ORIG 8338663：m_isGrow==1 → GetExpLevel(高 16 位进度) + flag=0
-        short progress = (short)((unsigned int)m_exp >> 16);
-        m_level = GetExpLevel((int)progress);
+        union { int all; unsigned short w[2]; } u;
+        u.all = m_exp;
+        m_level = GetExpLevel((int)(short)u.w[1]);
         info->m_growExpFlag = 0;
     }
     else
     {
-        // ORIG 8338665：m_isGrow==0 → GetExpLevel(全量 m_exp) + flag=1
         m_level = GetExpLevel(m_exp);
         info->m_growExpFlag = 1;
     }
-    info->m_isMaxLevel = isMaxLevel() ? 1 : 0;
+    info->m_isMaxLevel = isMaxLevel();
     m_noCharge = (info->m_noCharge != 0) ? 1 : 0;
     m_stat = info->m_stat;
     m_expireTime = info->m_expireTime;
@@ -160,8 +168,13 @@ bool CCreature::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
         m_stomach.Resume();
     SetState(user, CREATURE_STATE_2);
     m_saveFlag = 1;
-    if (info->m_slotNo == 0xee && !mgr->Equip(this))   // 0xee=装备槽编码（0xd8+0x16）
-        return false;
+    // ORIG：两独立守卫共享失败出口（cmp;jne L + call;xor;test;je L，P133 独立守卫形；
+    // 合并 && 会致 4.4 布尔汇聚 mov$1/jmp/mov$0 岛）。
+    if (info->m_slotNo == 0xee)                        // 0xee=装备槽编码（0xd8+0x16）
+    {
+        if (!mgr->Equip(this))
+            return false;
+    }
     if (!mgr->RegisterCreatureItem(reinterpret_cast<CCreatureItem*>(this),
                                    info->m_uid))
         return false;
@@ -169,6 +182,8 @@ bool CCreature::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
         user->getCurCharacInvenW()->GetInvenRef(
             3, reinterpret_cast<CCreatureItem*>(this)->GetSlotNo());
     slotItem->set_add_info(m_uid);
+    // 残差 N76：ORIG `mov %al,0x31(%edx)` RHS 值先载；4.4 恒 LHS 地址先载
+    //（mov %eax,%edx 中转 + mov 0x14(%ebp),%eax），probe 全试不可翻。
     m_saveFlag = m_stomach.IsSaveStomach((CREATURE_STATE)m_state) ? 1 : 0;
     return true;
 }
@@ -188,9 +203,15 @@ bool CCreature::RenameCreature(const char* name)
 // ORIG _ZN13user_creature9CCreature19IsEvolutionCreatureEi T 0x83388ec。
 bool CCreature::IsEvolutionCreature(int creatureId)
 {
-    if (m_script == 0)
-        return false;
-    return m_script->GetEvolutionCreatureId() == creatureId;
+    // ORIG: test m_script; je 返 0 岛；body 内 sete %al → test %al → je 共享
+    // 返 0 块（X 族 bool 物化，register-bool 落 al 不落槽）。
+    if (m_script != 0)
+    {
+        register bool eq asm("al") = (m_script->GetEvolutionCreatureId() == creatureId);
+        if (eq)
+            return 1;
+    }
+    return 0;
 }
 
 // ORIG _ZN13user_creature9CCreature24IsEvolutionCreatureMultyEi T 0x8338922。

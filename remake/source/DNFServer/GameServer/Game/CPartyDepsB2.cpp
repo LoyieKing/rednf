@@ -159,21 +159,24 @@ void CParty::finish_loading(CUser* user)
     {
         if (m_member[i].m_pUser != user)
             continue;
-        if (m_battleData.m_arr50[i] != 0)        // ORIG: movzbl 0x37c; test; jne 循环尾
-            continue;
+        // ORIG 0x85b161b: movzbl 0x37c; test; jne +0x126（nop;leave）——
+        // 直落函数出口，是 return 非 continue（continue 应跳 +0x88 addl）。
+        if (m_battleData.m_arr50[i] != 0)
+            return;
         m_battleData.m_arr50[i] = 1;
         // ORIG 0x085b15e0 域：`movzbl 0xb10(%edx,%eax,1); xor $0x1,%eax; test; je`
         // 具名 m_arr7e4 消裸偏移后 scale 单段 ✓；裸 `!field` 4.4 产 test;jne 缺
         // xor ⇒ X2 判据③有消费者，register uchar 绑 %eax + `^=1` 形。
         register unsigned char fv asm("eax") = m_battleData.m_arr7e4[i];
         fv ^= 1;
-        // 【二次核验】goto 展平 probe 反产 3 jmp；嵌套形 5 行残差为 4.4 CFG
-        // 块布局（双 jmp 汇聚 + bool setne 归一）产品，维持最优 5 行嵌套。
-        if (fv)
-        {
-            if (OnStartMapFinishLoading(user))
-                m_battleData.m_arr7e4[i] = 1;
-        }
+        // 【三次改写】ORIG 0x85b170a 域为平铺 continue 链：xor;test;je 循环尾 →
+        // call;test;je 循环尾 → movb 直落 addl（无 jmp/nop 汇聚中继）。
+        // 嵌套 if 形 4.4 产双 jmp+nop 中继（P63）；平铺 continue 形逐条同构。
+        if (!fv)
+            continue;
+        if (!OnStartMapFinishLoading(user))
+            continue;
+        m_battleData.m_arr7e4[i] = 1;
     }
 
     // ORIG 两次独立 this+0xb24 计算（GetDungeon / IsFirstEnterDungeon），

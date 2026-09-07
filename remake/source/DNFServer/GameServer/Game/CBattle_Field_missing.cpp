@@ -761,7 +761,9 @@ void CBattle_Field::startUltimateRound()
 {
     const short roundOrder = (short)m_bloodRound.getBloodRoundOrder();
     const short smallRoundOrder = (short)m_bloodRound.getBloodSmallRoundOrder();
-    (void)m_bloodRound.getBloodLastSmallRoundOrder();
+    // ORIG 第三次 call 结果死存槽 -0xe（-O0 无条件发射具名局部写入，P204 口径）。
+    const short lastSmallRoundOrder = (short)m_bloodRound.getBloodLastSmallRoundOrder();
+    (void)lastSmallRoundOrder;
     int nextDiff = getNextRoundDifficulty(roundOrder);
     if (nextDiff != 1)
     {
@@ -826,9 +828,10 @@ void CBattle_Field::CBloodClearRewardData::setRewardItemAddInfo(float rate,
                                                                 int rewardIdx,
                                                                 int itemIdx)
 {
-    Inven_Item& item = m_reward[rewardIdx].m_item[itemIdx];
-    int newAdd = (int)((float)item.get_add_info() * rate);
-    item.set_add_info(newAdd);
+    // P183：ORIG 0x85bf1ae/0x85bf1f3 两段完整 imul 链重算地址，无引用缓存。
+    // ORIG fildl/fistpl 复用同槽 -0xc：无中间局部嵌套形。
+    m_reward[rewardIdx].m_item[itemIdx].set_add_info(
+        (int)((float)m_reward[rewardIdx].m_item[itemIdx].get_add_info() * rate));
 }
 
 // ---------------------------------------------------------------------------

@@ -34,8 +34,10 @@ struct STQuickPartyPoolMap_Key
     bool operator<(const STQuickPartyPoolMap_Key& rhs) const
     {
         if (m_dungeonIndex < rhs.m_dungeonIndex) return true;
-        if (rhs.m_dungeonIndex < m_dungeonIndex) return false;
-        return (unsigned char)m_dungeonDiff < (unsigned char)rhs.m_dungeonDiff;
+        if (m_dungeonIndex != rhs.m_dungeonIndex) return false;
+        // 4.4 对 unsigned char 比较恒生 jb（ORIG jge）；movzbl 零扩展值域 0..255 语义等价，N18b 封顶
+        if ((unsigned char)m_dungeonDiff >= (unsigned char)rhs.m_dungeonDiff) return false;
+        return true;
     }
 
     short m_dungeonIndex;        // +0x00
@@ -90,7 +92,7 @@ public:
     int get_dungeon_diff();              // W @0x0826b7b4 (+0x18, ORIG movsbl 符号扩展)
     int get_quick_party_count();         // T @0x082698be
     void set_change_quick_party_count(bool flag);  // W @0x0826b7f0 (+0x24)
-    void delete_party_index(int partyIdx);         // T @0x0826980e
+    bool delete_party_index(int partyIdx);         // T @0x0826980e（命中置 -1 返 true，否则 false）
     void destroy();                      // T @0x082695ca
 
 private:
@@ -101,8 +103,7 @@ private:
     short m_dungeonIndex;                // +0x16
     char m_dungeonDiff;                  // +0x18
     char m_poolIndex;                    // +0x19
-    int m_field1c;                       // +0x1c（timer key 计数数组槽 0，gen_timer_key 实证）
-    int m_field20;                       // +0x20（timer key 计数数组槽 1，msg 0x9e 用）
+    int m_timerKeyCnt[2];                // +0x1c（timer key 计数数组，下标 (int)msg-0x9d；get/check/gen_timer_key 实证）
     bool m_isChangeQuickPartyCount;          // +0x24（ORIG 改快速组队人数标记；movzbl 按 bool 读取）
     unsigned char m_pad25[3];
 };                                       // sizeof = 0x28

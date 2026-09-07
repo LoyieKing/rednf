@@ -70,10 +70,7 @@ void FN_DeleteGameScript::operator()(
     if (p.second != 0)
     {
         p.second->clearScriptData();
-        if (p.second != 0)
-        {
-            delete p.second;
-        }
+        delete p.second;
         p.second = 0;
     }
 }

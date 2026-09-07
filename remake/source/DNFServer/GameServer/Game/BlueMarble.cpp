@@ -244,7 +244,7 @@ int BlueMarble::setMovePosition(int seat, int pos)
     m_users[seat].setBoardZone(pos, getMaxBoardSize());
 }
 
-int BlueMarble::getVisitZone(int seat) const
+bool BlueMarble::getVisitZone(int seat) const
 {
     std::set<int>::const_iterator it = m_set.find(seat);
     if (it == m_set.end())
@@ -525,64 +525,72 @@ int BlueMarble::checkUserConditionEnterBlueMarble(CUser* user)
         leaveUser(user);
         return 0x12;
     }
-    if (user->get_state() == 3)
+    // ORIG +0x95 `cmp $3; setne %al; test; je <体>` / +0xcd `cmp $1; sete %al;
+    // test; je <体>`：guard 物化形（P194 反形），真→fall 0x17 岛，假→je 入体。
+    register bool st3ne asm("al") = (user->get_state() != 3);
+    if (st3ne)
     {
-        if (user->checkInBlueMarble())
-        {
-            return 0x17;
-        }
-        if (user->getMoveSpace() != (UserSpace::T)1)
-        {
-            // P48 去缓存：ORIG +0x0e7/+0x0ff 对上下界各独立重调 get_charac_level
-            //（两次调用，不缓存进 level 局部）。
-            if (user->get_charac_level() < m_pScript->m_info.m_enterLevel ||
-                m_pScript->m_info.m_enterMaxLevel < user->get_charac_level())
-            {
-                return 0x17;
-            }
-            if ((int)user->getBlueMarbleEnterCount() >=
-                m_pScript->m_info.m_enterCount)
-            {
-                return 0x17;
-            }
-            if (user->getCurCharacVill() == 7)
-            {
-                return 0x17;
-            }
-            if (private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(user))
-            {
-                return 0x17;
-            }
-            if (user->IsBusyDisjointStore())
-            {
-                return 0x17;
-            }
-            if (user->IsCurCharacGhost())
-            {
-                return 0x17;
-            }
-            if (user->CheckInTrade())
-            {
-                return 0x17;
-            }
-            if (user->isCompetitionMercenary())
-            {
-                return 0x17;
-            }
-            if (user->CheckInParty())
-            {
-                CParty* party = (CParty*)user->GetParty();
-                if (party != 0)
-                {
-                    party->send_invite_bluemarble(user->get_unique_id() & 0xffff);
-                    G_CGameManager()->CheckOutParty(user, false);
-                }
-            }
-            return 0;
-        }
         return 0x17;
     }
+    if (user->checkInBlueMarble())
+    {
+        return 0x17;
+    }
+    // ORIG +0xcd `cmp $1; sete %al; test; je <体>`：==1 物化，je 入体、
+    // fall 0x17 岛——goto 形唯一复现（P194）。
+    register bool mv1 asm("al") = (user->getMoveSpace() == (UserSpace::T)1);
+    if (mv1)
+        goto L_MOVE_OK;
     return 0x17;
+L_MOVE_OK:
+    // P48 去缓存：ORIG +0x0e7/+0x0ff 对上下界各独立重调 get_charac_level
+    //（两次调用，不缓存进 level 局部）；第二条件 call 在前（P134）。
+    register bool outOfRange asm("al") =
+        user->get_charac_level() < m_pScript->m_info.m_enterLevel ||
+        user->get_charac_level() > m_pScript->m_info.m_enterMaxLevel;
+    if (outOfRange)
+    {
+        return 0x17;
+    }
+    if ((int)user->getBlueMarbleEnterCount() >=
+        m_pScript->m_info.m_enterCount)
+    {
+        return 0x17;
+    }
+    if (user->getCurCharacVill() == 7)
+    {
+        return 0x17;
+    }
+    if (private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(user))
+    {
+        return 0x17;
+    }
+    if (user->IsBusyDisjointStore())
+    {
+        return 0x17;
+    }
+    if (user->IsCurCharacGhost())
+    {
+        return 0x17;
+    }
+    if (user->CheckInTrade())
+    {
+        return 0x17;
+    }
+    if (user->isCompetitionMercenary())
+    {
+        return 0x17;
+    }
+    if (user->CheckInParty())
+    {
+        CParty* party = (CParty*)user->GetParty();
+        if (party != 0)
+        {
+            party->send_invite_bluemarble(user->get_unique_id() & 0xffff);
+            G_CGameManager()->CheckOutParty(user, false);
+        }
+    }
+    return 0;
 }
 
 void BlueMarble::checkBlueMarbleUserConfirm(CUser* user)

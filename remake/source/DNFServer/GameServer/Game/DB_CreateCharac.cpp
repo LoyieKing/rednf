@@ -166,7 +166,12 @@ bool DB_CreateCharac::_createCharacQuest(unsigned int characNo)
                                                   E_SERVER_GROUP_NONE);
     db->set_query("inSert into new_charac_quest(charac_no, clear_quest) values(%u,'')",
                   characNo);
-    return db->exec(true);        // P197-N-cap：exec 返 bool，`==1` fold；改返回类型属越界
+    // ORIG 尾岛（技巧 1/22 同 isExistNPCScript）：xor$1/test/je<mov$1 岛> = 透传 exec。
+    register bool fail __asm__("al");
+    fail = !db->exec(true);
+    if (fail)
+        return false;
+    return true;
 }
 
 // ===========================================================================
@@ -188,7 +193,12 @@ bool DB_CreateCharac::_createCharacDungeon(unsigned int accId)
         db->set_query("inSert into member_dungeon (m_id,dungeon) values (%s,'')",
                       NumberToString(accId, 0));
     }
-    return db->exec(true);        // P197-N-cap：exec 返 bool，`==1` fold；改返回类型属越界
+    // ORIG 尾岛（技巧 1/22 同 isExistNPCScript）：透传 exec 返回值。
+    register bool fail2 __asm__("al");
+    fail2 = !db->exec(true);
+    if (fail2)
+        return false;
+    return true;
 }
 
 // ===========================================================================
@@ -277,7 +287,7 @@ bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig,
     localTime.tm_hour = 0;
     localTime.tm_min = 0;
     localTime.tm_sec = 0;
-    time_t dayStart = mktime(&localTime);
+    nowSec = mktime(&localTime);   // ORIG mktime 结果写回 -0x20 同槽
 
     unsigned int count = 0;
     unsigned int lastAccessTime = 0;
@@ -652,10 +662,12 @@ bool DB_CreateCharac::_CreateNewCharacStat(SIG_CREATE_CHARAC* sig)
         sig->m_characNo);
     if (!db->exec(true))
     {
+        register const char* accIdStr __asm__("ebx");   // ORIG 跨 C1 call 保活（P87）
+        accIdStr = NumberToString(sig->m_accId, 0);
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x10fb, 5);
         trace("DB_CreateCharac::_CreateNewCharacStat, exec() ERROR m_id=%s",
-              NumberToString(sig->m_accId, 0));
+              accIdStr);
         sig->m_resultCode = 2;
         return false;
     }
@@ -777,7 +789,12 @@ bool DB_CreateCharac::CreatePvP(unsigned int characNo)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
     db->set_query("inSert into pvp_result (charac_no) values(%u)", characNo);
-    return db->exec(true);
+    bool ok = db->exec(true);   // ORIG -0xd bool 槽 + xor$1 岛（P22/P194）
+    register bool fail __asm__("al");
+    fail = !ok;
+    if (fail)
+        return false;
+    return true;
 }
 
 // ===========================================================================

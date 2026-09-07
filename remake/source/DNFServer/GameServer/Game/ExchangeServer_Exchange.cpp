@@ -73,6 +73,10 @@ void CExchangeServer::Reset()
 {
     m_flag38 = false;
     m_flag39 = false;
+    // N92：ORIG `mov 0x8(%ebp),%edx; mov %eax,0x3c(%edx)`（返回值留 eax 直 store）；
+    // 4.4.7 对 call 返回 long(time_t=__SLONGWORD_TYPE)→unsigned int 字段的 store 恒物化
+    // `mov %eax,%edx` 中转（+1 条）。直赋值/取址解引用/static_cast/C cast/加0/局部槽/
+    // helper 返回 unsigned/三目 9 形探针全败（/tmp/l13/probe_reset*.o），不可翻。
     m_resetTime3c = (unsigned int)time(NULL);
 }
 
@@ -225,7 +229,14 @@ bool CExchangeServer::SendRequestCharacInfo(int a, int b, int serverId,
     guard.put_int(extraLen);                       // ORIG: put_int(len) 后紧跟 binary
     guard.put_binary((char*)extra, extraLen);
     guard.finalize(false);
-    return TrySend(serverId, guard);
+    if (TrySend(serverId, guard))
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -263,14 +274,9 @@ bool CExchangeServer::SendResponseCharacInfo(int a, int b, void* data,
 // 写 a、b、binary(data) 后投递 MsgQueueMgr idx=1（DISPATCH_Q）。
 // 注：ORIG 返回值取 MsgQueueMgr::put 尾部 eax（`mov %eax,%ebx` 整字直传，非规范化），
 // 本函数返回 put 的结果（权威头 MsgQueueMgr::put 声明 bool，转发 Stream* 版返回值）。
-// [b22判词·N] ORIG 95 insn vs 重建 93：残余唯一真差异是第二 else 分支入口
-// `cmpl $0xfff,-0xc(%ebp); jle Big`——total 已 >0xfff 才落入该分支，此重测恒不跳转，
-// 是 gcc4.1.2 对 `if(<=0xfff)…else if(<=0x3fff)…` 的冗余比较物化；4.4.7 直接复用
-// 前次比较结果生成单条 `cmpl $0x3fff; jg`。合法源码无法在不引入恒假条件的情况下复现
-// 该死代码，属跨版本结构性伪影，不可复现，语义等价。其余差异（call 目标占位、
-// mov 0x0 数据地址、字符串立即数）为 --no-compile 未 relink 的 .o 重定位假阳性
-// （§6.3），relink 后指向 CStreamGuard deEv/ptEv/lsEi/Set/C1/D1、三池 Acquire、
-// MsgQueueMgr put 与 "ExchangeServer.cpp" 字面量，转 AE。
+// 判词：else if 写成 (total > 0xfff && total <= 0x3fff) 复现 ORIG 第二分支入口的
+// 冗余重测 `cmpl $0xfff; jle`（4.1 不消除短路链中已知条件，4.4 复用前次比较结果
+// 需显式保留 && 前项）。check_tu 实测 identical 口径。
 // ---------------------------------------------------------------------------
 bool CExchangeServer::SendResponseCharacInfo_forchina(int a, int b,
                                                       void* data, int len)
@@ -282,7 +288,7 @@ bool CExchangeServer::SendResponseCharacInfo_forchina(int a, int b,
         sGuard.Set(GlobalData::s_small_stream_pool->Acquire("ExchangeServer.cpp",
                                                 0x17a));
     }
-    else if (total <= 0x3fff)
+    else if (total > 0xfff && total <= 0x3fff)
     {
         sGuard.Set(GlobalData::s_stream_pool->Acquire("ExchangeServer.cpp", 0x17e));
     }
@@ -937,14 +943,18 @@ Stream* CExchangeServer::GetMessage()
 // FreeMessage                              ORIG 0x8493648
 // 按 Stream.m_poolType(+0x20) 归还池；flag==0 直接放弃。
 // ORIG 各越限分支打日志后仍归还原池。
-// 注：头声明 void，ORIG 尾部 eax=0/1（归 false/true），无调用方消费，
-// 行为主体已完整保留。
+// 判词：返回类型 bool（ORIG 尾 `mov $0x1,%eax`、stream==0 路径 `mov $0x0,%eax`，
+// 4.1 不为 void 生成返回值链；ExchangeServer.h 已广播改型，调用点 Infra:572 忽略返回值）。
+// [N82] 三块 cMyTrace 栈槽两难：ORIG(4.1) 首声明 case1→-0x3c（向低分配），4.4 首声明
+// →-0x1c（向高分配）。保持 case 线性序 1,0,2 与 ORIG 逐块对齐后残差仅 case1/case2
+// 共 4 条 lea 槽号；改 case 序可对槽号但整块线性错位反劣——"装载序 vs 槽号"两难，
+// 按 N82 一律记 N，不可两全。
 // ---------------------------------------------------------------------------
-void CExchangeServer::FreeMessage(Stream* stream, int flag)
+bool CExchangeServer::FreeMessage(Stream* stream, int flag)
 {
     if (stream == 0)
     {
-        return;                                       // ORIG: 返回 false 不释放
+        return false;                                 // ORIG: mov $0x0,%eax 后走公共尾
     }
 
     const int len = stream->length();
@@ -983,7 +993,7 @@ void CExchangeServer::FreeMessage(Stream* stream, int flag)
     default:
         break;                                        // ORIG: 其它类型直接返回
     }
-    return;
+    return true;
 }
 
 // ---------------------------------------------------------------------------

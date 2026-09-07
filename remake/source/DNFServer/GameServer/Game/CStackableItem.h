@@ -114,9 +114,17 @@ public:
     CountinuousItemOption();
     void clear();
 
-    unsigned char m_field0;  // +0x00
-    unsigned char m_field1;  // +0x01
-    unsigned char m_field2;  // +0x02
+    union {
+        struct {
+            unsigned char m_field0;  // +0x00
+            unsigned char m_field1;  // +0x01
+            unsigned char m_field2;  // +0x02
+        };
+        struct __attribute__((packed)) {   // pack 保类对齐 1（m_option1b9 奇偏移不漂移）
+            unsigned short m_sec16;  // +0x00 16位视图（Lane7 GetCoolTimeOption
+                                     // ORIG 0x86946db movzwl 0x2d8(%edx) 实证）
+        };
+    };
 };   // sizeof 3
 
 // ---- AvatarOptionChangeType（ORIG W 0x08513b6e C1 / 0x08513b48 clear；sizeof 3）----

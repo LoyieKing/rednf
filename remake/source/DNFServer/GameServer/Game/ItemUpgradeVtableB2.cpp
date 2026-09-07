@@ -318,7 +318,11 @@ unsigned short CItemUpgrade::_getUpgradeCountByUpgradeItem(
 {
     short count = 0;
     // ORIG 0x08548e7c：hasAbility 每用点重取（P48，%al 直测）。
-    if (!target.m_amp.hasAbility())
+    // ORIG 为正向 `test %al,%al; jne`（P59）：then 空 else 才是 switch。
+    if (target.m_amp.hasAbility())
+    {
+    }
+    else
     {
         switch (material.m_addInfo)
         {
@@ -326,9 +330,9 @@ unsigned short CItemUpgrade::_getUpgradeCountByUpgradeItem(
             case 0x1c6a: count = 10; break;
             case 0x1c6b: count = 12; break;
             case 0x1c69: count = 7;  break;
+            case 0x1e3f: count = 3;  break;
             case 0x1e40: count = 5;  break;
             case 0x1e86: count = 13; break;
-            case 0x1e3f: count = 3;  break;
             default:     count = 0;  break;
         }
     }
@@ -381,7 +385,12 @@ unsigned char CItemUpgrade::_getUpgradeRateByUpgradeItem(
 {
     char rate = 0;
     // ORIG 0x08549018：hasAbility 每用点重取（P48，结果 %al 直测无槽）。
-    if (!target.m_amp.hasAbility())
+    // ORIG 0x0854901b 为正向 `test %al,%al; jne`（P59）：then 为空 else 才是
+    // switch，负向 ! 形会多出 xor $0x1 且 je 反向。
+    if (target.m_amp.hasAbility())
+    {
+    }
+    else
     {
         // ORIG 0x0854901d..0x08549059 是 switch 二分决策树（首比较 0x1d29、
         // `sub $0x1c69; cmp $0x2; ja` 小区间、0x1e3f/0x1e40 jb/jbe、0x1e86），

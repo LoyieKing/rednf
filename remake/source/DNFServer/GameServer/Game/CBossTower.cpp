@@ -68,6 +68,8 @@ int CBossTower::handleDieUser(CUser* user)
     if (_checkMemberDie())
     {
         onFinishStage();
+        // [N 封顶] ORIG 0x08143ac0 movzbl+xor$1+test/je；4.4 对 !=1 恒 `cmp $1`
+        // （含 ^1 写法被前端 fold），P197-④ 族无源形可复现。
         if (m_prepareFinishFlag != 1)
             _onPrepareFinishTower(false);
     }
@@ -172,9 +174,13 @@ BODY:
 }
 
 // ORIG T 0x08143e5e：转发 CBossStage::handleDropItem，结果 ==1 → 1 否则 0。
-int CBossTower::handleDropItem(CUser* user, int a, int b, char c, int d, int e)
+bool CBossTower::handleDropItem(CUser* user, int a, int b, char c, int d, int e)
 {
-    return CBossStage::handleDropItem(user, a, b, c, d, e) ? 1 : 0;
+    bool ret = CBossStage::handleDropItem(user, a, b, c, d, e);
+    // ORIG 0x08143ea3 movzbl+xor$1+test/je：bool 槽取反物化（P158 形）。
+    if (!ret)
+        return 0;
+    return 1;
 }
 
 // ORIG T 0x08143ebc：
@@ -182,6 +188,11 @@ int CBossTower::handleDropItem(CUser* user, int a, int b, char c, int d, int e)
 //   的 std::map<int,map_monster> 取 empty()（_M_node_count@map+0x14 即
 //   this+0xa14），为空时 onFinishStage()；且 (uint)m_stageMax(+0xae4) <=
 //   (uint)m_stageCur(+0xae0) 时 _onPrepareFinishTower(true)；返回 1。
+// [N 封顶] 残差三处：① 调用点 CBossStage::handleKillMonster 后 ORIG `mov
+// %al,-0x9;movzbl;xor$1;test/je` bool 槽物化，4.4 对 int callee 恒
+// `test%eax;sete;test`（P197-④/N18b）；bool 化被调已实测致其大函数帧
+// 0x3bc→0x3cc 全槽漂移回归，不可行；② ORIG 0x8143f38 `mov 0xae0(%eax),%edx`
+// 直落 vs 4.4 两步（N18a）；③ ORIG 帧 0x44 vs 0x34（bool 槽差，随①）。
 int CBossTower::handleKillMonster(CUser* user, unsigned short a, unsigned short b,
                                   const MSG_MONSTER_DIE& die, int* d)
 {
@@ -205,12 +216,15 @@ int CBossTower::handleKillMonster(CUser* user, unsigned short a, unsigned short 
 //   server_rarity != client 参数时 trace（ORIG __PRETTY_FUNCTION__ 文本，
 //   600,5）；user 非空且 rarity==3 时 m_dungeonLog.IncrementBossPickUpItem
 //   (*user, (uchar)m_stageCur, (uchar)m_difficulty)；返回 1。
+// [N 封顶] 残差两处：① ORIG 0x08143dbb `mov %al,-0x9;movzbl;xor$1;test/je`
+// bool 槽物化——需被调 CBossStage::handlePickupItem bool 化，实测致其大 body
+// 全帧槽漂移回归（0x-d0 系→0x-2c 系），不可行；4.4 对 int callee 恒
+// `test%eax;sete`（P197-④）。② serverRarity 槽 -0x9 vs ORIG -0x1d（随①布局）。
+// 首条件 choose 岛已复现。
 int CBossTower::handlePickupItem(CUser* user, int a, bool b, char c)
 {
-    bool routingBlocked = true;
-    if (m_party != 0)
-        routingBlocked = m_party->IsRoutingState();
-    if (routingBlocked)
+    // ORIG 0x08143d5a choose 岛（mov$1/jmp/mov$0+test，无 bool 槽）：短路链。
+    if (m_party != 0 && m_party->IsRoutingState())
     {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x2e), 0xd8);
         return 0;
@@ -614,6 +628,11 @@ int CBossTower::handleFinishLoading(CUser* user)
 void CBossTower::_onTimerProcess(TIMER_MESSAGE msg, unsigned int a)
 {
     (void)a;   // ORIG 忽略第二参数
+    // [N 封顶 ndiff=3] ORIG 0x08142cde 末级比较 `cmp $0xa3; jne exit`+Ready 体
+    // fall-through；4.4 对 switch 恒 `je body;jmp end` 不反转末比较。
+    // batch-19 实测否决三形（去 default / if-else 链 / register 形参）；
+    // 本轮补测 goto 链两形（register 局部落 %ebx+push/pop 反劣；普通形参
+    // 4.4 折 `cmpl $imm,mem` 丢 `mov 0xc(%ebp),%eax`）同不通，维持 switch。
     switch (msg)
     {
     case (TIMER_MESSAGE)0xa4:
@@ -1032,20 +1051,22 @@ int CBossTower::onChargeRequireItem(CUser* user)
 
     if (m_dungeon->m_entryRequiredItem.m_enableFlag != 0)
     {
+        CItem* itemData = 0;                        // ORIG 0x8145316 `movl $0x0,-0x10` 先于 item ctor（P191/P198③ 双 init）
         Inven_Item item;                               // ebp-0x4d
 
-        CItem* itemData = G_CDataManager()->find_item(
+        itemData = G_CDataManager()->find_item(
             m_dungeon->m_entryRequiredItem.m_itemIdx);
         if (itemData == 0)
             return 0;
 
         itemData->make_item(item);                     // 虚槽 vptr+0x08
-        item.m_addInfo = m_dungeon->m_entryRequiredItem.m_itemIdx;   // item+0x02
         item.m_addInfo2 = m_dungeon->m_entryRequiredItem.m_itemCount;  // item+0x07
+        item.m_addInfo = m_dungeon->m_entryRequiredItem.m_itemIdx;   // item+0x02（ORIG 0x8145341 先 +0x07 后 +0x02）
 
-        const int slot =
-            user->getCurCharacInvenW()->insertItemIntoInventory(
-                item, (eItemAddReason)4, true, true);
+        int slot = -1;                                 // ORIG 0x8145337 `movl $0xffffffff,-0xc` 预置
+
+        slot = user->getCurCharacInvenW()->insertItemIntoInventory(
+            item, (eItemAddReason)4, true, true);
         if (slot >= 0)
         {
             user->SendUpdateItemList(CUser::eSendTarget_1,

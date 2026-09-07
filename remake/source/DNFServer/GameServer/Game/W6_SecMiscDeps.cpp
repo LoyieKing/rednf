@@ -171,22 +171,18 @@ char* WongWork::CSecurityCardCenter::generateServerKey(char* out)
 
 bool WongWork::CSecurityCardCenter::checkPhoneNumber(char const* phone) const
 {
-    // ORIG T 0x085fe444 (size 0x52)：至多扫 12 位（下标 <=0xb），遇 '\0' 提前
-    // 合格返回；出现非 '0'..'9' 字符即 false；扫满 12 位亦 true。
-    for (unsigned int i = 0; ; ++i)
+    // ORIG T 0x085fe444 (size 0x52)：i<=0xb 为循环条件；'\0' 提前 break 共享
+    // return-1 出口（je→尾块+loop 尾 jmp 对）；数字判定单式
+    // 9U < (unsigned)(schar)c - 0x30U（jbe 即无符号序，涵盖 c<'0'）。
+    for (unsigned int i = 0; i <= 0xb; ++i)
     {
-        if (i > 0xb)
+        if (phone[i] != '\0')
         {
+            if (9U < (unsigned)((int)(signed char)phone[i] - 0x30U))
+                return false;
+        }
+        else
             break;
-        }
-        if (phone[i] == '\0')
-        {
-            break;
-        }
-        if ((int)(signed char)phone[i] - 0x30 > 9 || phone[i] < '0')
-        {
-            return false;
-        }
     }
     return true;
 }
@@ -346,8 +342,11 @@ char WongWork::CWebEvent::m_strEventName[10][0x12] = {
     "", "", "Yegam", "ATI Coupon", "DNF Guide book",
     "Everland", "Muz", "King of Alttle", "Free Charge Combo", "" };
 
-char WongWork::CWebEvent::m_strEventIPGCode[10][0xb] = {
-    "", "", "", "IP00000001", "IP00000002", "", "", "", "", "" };
+// 一维化（Main 批准）：槽 3/4 非空。33 个 '\0' 前缀 = 槽 0..2 空置，
+// "IP00000001"+"\0" 占槽 3（偏移 33..43），"IP00000002" 占槽 4（44..54），余自动补 0。
+char WongWork::CWebEvent::m_strEventIPGCode[10 * 0xb] =
+    "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"
+    "IP00000001\0IP00000002";
 
 char const* WongWork::CWebEvent::_GetEventString(int idx)
 {
@@ -365,16 +364,19 @@ char const* WongWork::CWebEvent::_GetEventString(int idx)
 char const* WongWork::CWebEvent::_GetEventIPGCode(int idx)
 {
     // ORIG T 0x086c1bd4 (size 0x4d)：idx>9 或槽首字节为 0 时返回 NULL；
-    // stride 0xb。
-    if (idx <= 9)
+    // stride 0xb。ORIG 形：p 预置槽（idx>9 分支 mov -0x4,%eax 读槽），
+    // body 两处独立完整地址计算（movzbl 直用内联地址；return 处重算），
+    // 条件 jle→body（fall-through = idx>9）。
+    char const* p = 0;
+    if (idx > 9)
     {
-        const char* slot = &m_strEventIPGCode[0][0] + idx * 0xb;
-        if (*slot != '\0')
-        {
-            return slot;
-        }
+        return p;
     }
-    return 0;
+    if (m_strEventIPGCode[idx * 0xb] == '\0')
+    {
+        return 0;
+    }
+    return m_strEventIPGCode + idx * 0xb;
 }
 
 int WongWork::CWebEvent::_GetATIAvatarAbility(int itemIdx)
@@ -416,8 +418,9 @@ bool WongWork::CWebEvent::ReqSaveEventItem(unsigned int p1, unsigned int p2,
     // ORIG T 0x086c1910 (size 0x11d)：Acquire 流 → <<0x4c(SIG) → <<-1 →
     // GetInBuffer<SIG_SAVE_EVENTITEM> 按 asm 偏移填参 → MsgQueueMgr put(DB_Q)
     // → guard 析构 → return 1。
-    Stream* stream = s_stream_pool->Acquire("WebEvent.cpp", 0xa0);
-    CStreamGuard guard(stream, true);
+    // ORIG 实参内联（Acquire 结果直传构造，无 stream 局部槽）；bool 直写
+    // 字节（movzbl+store，P136）。
+    CStreamGuard guard(s_stream_pool->Acquire("WebEvent.cpp", 0xa0), true);
     guard.operator*()->operator<<(0x4c);
     guard.operator*()->operator<<(-1);
     SIG_SAVE_EVENTITEM* sig =
@@ -428,7 +431,7 @@ bool WongWork::CWebEvent::ReqSaveEventItem(unsigned int p1, unsigned int p2,
     sig->m_field10 = p4;
     sig->m_field08 = p5;
     sig->m_field14 = p6;
-    sig->m_field18 = last ? 1 : 0;
+    sig->m_field18 = last;
     s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;
 }

@@ -60,7 +60,7 @@ public:
 
 // ===================== set_reward_sp =====================
 // ORIG 0x08360bde：导入 Etc/spTable.etc 至局部 stSpPerLevelTable；
-// 导入失败返回 0。成功时将 +0xDA94 表清零后自 index1 起回填表值
+// 导入失败返回 0。成功时将 +0xDA90 表清零后自 index1 起回填表值
 // （index0 恒为 0），返回 1。逐次重读 this（与 O0 成员访问一致）。
 int CDataManager::set_reward_sp()
 {
@@ -69,6 +69,9 @@ int CDataManager::set_reward_sp()
     {
         return 0;
     }
+    // 残差 N（N18a/N7 族）：两循环 4.4 寄存器指派与 store 序与 4.1 异形
+    // （首循环 mov this 先于 mov i、常量拆 0x36a4+disp4；第二循环 ebx=this/
+    // esi=i 且表值滞留 eax），int 循环变量探针反致 setle 破坏 setbe，不可翻。
     for (int i = 0; i < 0x60; ++i)
     {
         ((CDataManagerRewardSpView*)this)->m_spAtLevelUp[i] = 0;

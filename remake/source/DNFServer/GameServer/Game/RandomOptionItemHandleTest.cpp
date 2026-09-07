@@ -21,8 +21,9 @@ namespace random_option
 
 // ORIG C1 0x0822cb70：mov this 一次缓存后连发两 store（P29 初始化列表形态）。
 CRandomOptionItemHandleTest::CRandomOptionItemHandleTest()
-    : m_slot0(0), m_slot4(0)
 {
+    // ORIG 0x0822cb70：一次 this 读共享两 store（8 字节整块）
+    *(long long*)this = 0;
 }
 
 void CRandomOptionItemHandleTest::test_regist_auction(CUser* /*user*/) {}  // ORIG 纯 ret
@@ -43,8 +44,8 @@ void CRandomOptionItemHandleTest::test_reset() {}      // ORIG 纯 ret
 long long CRandomOptionItemHandleTest::_get_auction_id()
 {
     // ORIG 布局：or/test/je(DB) —— 非空缓存直落返回，DB 链后置（if-else 排布）。
-    if ((reinterpret_cast<unsigned int>(m_slot0)
-         | reinterpret_cast<unsigned int>(m_slot4)) != 0)
+    if ((reinterpret_cast<unsigned int>(m_slot4)
+         | reinterpret_cast<unsigned int>(m_slot0)) != 0)
     {
         return *(long long*)this;
     }

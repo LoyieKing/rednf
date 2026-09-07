@@ -52,7 +52,7 @@ public:
 
 unsigned int DBCommon::GetIdentity(MySQL* db)
 {
-    unsigned int identity = 0;
+    unsigned int identity;  // ORIG 无预清 store（仅 get_uint 出参写回）
     db->set_query("seLect @@identity");
     if (!db->exec(true))
         return 0;
@@ -146,7 +146,7 @@ int EventATI::CheckAlreadyGetATIItem(unsigned int uid, int itemNo)
                       NumberToString(uid, 0));
         break;
     default:
-        return 0;
+        break;  // ORIG default 落入 exec 段（Ghidra C 证实无 return 0）
     }
     if (!db->exec(true))
         return 0;

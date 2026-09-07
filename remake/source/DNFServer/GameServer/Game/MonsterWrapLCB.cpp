@@ -56,9 +56,8 @@ void CAICharacter::generateDropAvatarItem(unsigned char rarity, unsigned char gr
 void CMonster::generateDropAvatarItem(unsigned char rarity, unsigned char grade,
                                       std::vector<Inven_Item>& out) const
 {
-    STMonsterScript* script =
-        static_cast<STMonsterScript*>(getMonsterScript());
-    ::generateDropAvatarItem(script->m_dropAvatarInfo, rarity, grade, out);
+    // ORIG 无 call：this+0x60+0xc98=+0xcf8 直算（成员直访折叠，无 script 槽）。
+    ::generateDropAvatarItem(m_script.m_dropAvatarInfo, rarity, grade, out);
 }
 
 // ----------------------------------------------------------------------------
@@ -66,9 +65,9 @@ void CMonster::generateDropAvatarItem(unsigned char rarity, unsigned char grade,
 //   call getMonsterScript(this) 后 lea 0x70(script) 取 m_catchItems 转发。
 void CMonster::generateCatchMonsterItem(std::vector<Inven_Item>& out) const
 {
-    STMonsterScript* script =
-        static_cast<STMonsterScript*>(getMonsterScript());
-    ::generateCatchMonsterItem(script->m_catchItems, out);
+    // P134：ORIG call 后结果寄存器直用（lea 0x70(%eax)），无 script 局部槽。
+    ::generateCatchMonsterItem(
+        static_cast<STMonsterScript*>(getMonsterScript())->m_catchItems, out);
 }
 
 // ----------------------------------------------------------------------------

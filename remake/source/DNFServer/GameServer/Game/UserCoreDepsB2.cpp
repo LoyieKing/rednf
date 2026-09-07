@@ -448,11 +448,15 @@ void CSpecialItemRoutingManager::processRouting(CParty* party)
 // ---------------------------------------------------------------------------
 
 // ORIG T 0x085be9c8（无报告，objdump）：+0xcd8==1 / 无副本(+0xcac) / m_bloodDungeonType!=0 /
-// m_villageAttackEventFlag==1 / isNoFatigueDungeon 任一命中 → false。ORIG 为 && 短链形态。
+// m_villageAttackEventFlag==1 / isNoFatigueDungeon 任一命中 → false。
+// 【b25c】ORIG 为两层布尔汇聚：内层三条件物化临时 bool（+0x6b inner false /
+// +0x70 test 汇聚 / +0x7b outer false），源码拆具名内层临时复现（P0/P84）。
 bool CParty::IsUseFatigueDungeon()
 {
-    return m_battleField.m_bloodState != 1 && m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->m_bloodDungeonType == 0 &&
-           m_battleField.m_pDungeon->m_villageAttackEventFlag != 1 && !m_battleField.m_pDungeon->isNoFatigueDungeon();
+    bool baseOk = m_battleField.m_bloodState != 1 && m_battleField.m_pDungeon != 0;
+    return baseOk && m_battleField.m_pDungeon->m_bloodDungeonType == 0 &&
+           m_battleField.m_pDungeon->m_villageAttackEventFlag != 1 &&
+           !m_battleField.m_pDungeon->isNoFatigueDungeon();
 }
 
 // ORIG T 0x085bea4a（无报告，objdump）：al 直接透传 check_grid_clear。

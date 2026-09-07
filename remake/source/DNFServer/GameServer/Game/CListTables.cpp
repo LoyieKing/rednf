@@ -90,8 +90,8 @@ class Quest
 public:
     Quest();
     ~Quest();
-    char exposeQuest() const;
-    char check_possible(const stSelectQuestParam& param) const;
+    bool exposeQuest() const;
+    bool check_possible(const stSelectQuestParam& param) const;
     char check_power_side(char side);
     void set_quest(QuestScript script);
     char m_pad0[0x8];
@@ -1130,7 +1130,7 @@ int QuestList::Check_Quest(Quest* quest, stSelectQuestParam& param,
     return 0;
 }
 
-int QuestList::check_ahead_quest(int questIdx,
+bool QuestList::check_ahead_quest(int questIdx,
                                  const WongWork::CQuestClear& clear)
 {
     Quest* quest = find_quest(questIdx);
@@ -1166,7 +1166,7 @@ int QuestList::check_ahead_quest(int questIdx,
     return 1;
 }
 
-int QuestList::check_anti_quest(int questIdx,
+bool QuestList::check_anti_quest(int questIdx,
                                 const WongWork::CQuestClear& clear)
 {
     Quest* quest = find_quest(questIdx);
@@ -1200,7 +1200,7 @@ int QuestList::check_anti_quest(int questIdx,
     return 1;
 }
 
-int QuestList::check_clear(int questIdx, const WongWork::CQuestClear& clear)
+bool QuestList::check_clear(int questIdx, const WongWork::CQuestClear& clear)
 {
     if (questIdx < 30000)
     {

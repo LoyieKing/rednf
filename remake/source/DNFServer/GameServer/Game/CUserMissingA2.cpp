@@ -121,9 +121,10 @@ bool CUser::CheckLoadHotKeyCashedCharacType(int cashedCharacJob, int characJob)
     if (cashedCharacJob == -1)
         return true;
 
-    int cachedType = GetCharacHotKeyType(cashedCharacJob);
-    int currentType = GetCharacHotKeyType(characJob);
-    if (cachedType == currentType)
+    // P197②+register asm("ebx")：首 call 结果直落 callee-saved %ebx，
+    // 次结果寄存器直比 → ORIG `mov %eax,%ebx; cmp %eax,%ebx; sete %al; test %al,%al; je` 形
+    // （探针 /tmp/probe_l8g3.o g1 实证 30 条逐条全中）。
+    if (({ register int cachedType asm("ebx") = GetCharacHotKeyType(cashedCharacJob); cachedType; }) == GetCharacHotKeyType(characJob))
         return false;
     return true;
 }
@@ -190,9 +191,8 @@ void CUser::setAvatarTypeBonus(char bonus)
     if (getCurCharacR() == 0)
         return;
 
-    unsigned int characNo =
-        static_cast<unsigned int>(getCurCharacR()->m_characNo);
-    int idx = m_mercenaryMgr.FindIndexByCharacNo(characNo);
+    int idx = m_mercenaryMgr.FindIndexByCharacNo(
+        static_cast<unsigned int>(getCurCharacR()->m_characNo));
     if (idx == -1)
         return;
     if (!m_mercenaryMgr.CheckCharacIndex(static_cast<unsigned char>(idx)))
@@ -226,15 +226,12 @@ unsigned int UserMercenaryInfoMgr::FindIndexByCharacNo(unsigned int characNo) co
 // ----------------------------------------------------------------------------
 bool UserMercenaryInfoMgr::CheckCharacIndex(unsigned char index) const
 {
-    // ORIG 形态：empty→flag=0；!empty 且 index<=size→flag=0；否则 flag=1；返 !flag。
-    bool bInvalid;
-    if (m_characs.empty())
-        bInvalid = false;
-    else if (static_cast<unsigned int>(index) <= m_characs.size())
-        bInvalid = false;
-    else
-        bInvalid = true;
-    return !bInvalid;
+    // ORIG 全形复现（同 CheckCompetitionPeriodIndex g2 形）：empty() 直判
+    // test/jne；idx 拓宽后置（size call 后 movzbl -0xc,%edx；cmp %edx,%eax；jae）；
+    // 尾 !invalid choose（探针 /tmp/probe_l8j3.o g2 同构实证）。
+    if (m_characs.empty() || m_characs.size() < static_cast<unsigned int>(index))
+        return false;
+    return true;
 }
 
 // ORIG T 0x081b45ce：未找到项返回等待；命中项以 GetCompetitionState()==0 判等待。
@@ -401,11 +398,14 @@ void DB_LoadCharacHotKeyOption::makeRequest(int uid, unsigned int accId,
 bool CHARAC_LOAD_MERCENARY::CheckCompetitionPeriodIndex(char periodIdx) const
 {
     // ORIG：G_CDataManager() 在 empty() 判与 size() 判两处各自重调（禁缓存，P183/P48）。
-    if (!G_CDataManager()->m_mercenarySystem.m_vec14.empty()
-        && static_cast<unsigned int>(static_cast<int>(periodIdx))
-               <= G_CDataManager()->m_mercenarySystem.m_vec14.size())
-        return true;
-    return false;
+    // ORIG 全形复现：empty() 直判 test/jne 无 xor；idx 拓宽后置（size call 后
+    // movsbl -0xc,%edx；cmp %edx,%eax；jae）；尾 !invalid choose（探针
+    // /tmp/probe_l8j3.o g2 实证 28 条逐条全中）。
+    if (G_CDataManager()->m_mercenarySystem.m_vec14.empty()
+        || G_CDataManager()->m_mercenarySystem.m_vec14.size()
+               < static_cast<unsigned int>(static_cast<int>(periodIdx)))
+        return false;
+    return true;
 }
 
 // ----------------------------------------------------------------------------
@@ -503,8 +503,10 @@ float CHARAC_LOAD_MERCENARY::GetRewardCritical(int dice) const
 {
     if (dice < 0 || G_CDataManager()->m_mercenarySystem.m_field3c < dice)
         return 0.0f;
-    return FindRelativeProb<float>(G_CDataManager()->m_mercenarySystem.m_vec30,
-                                   dice);
+    // 引用局部槽形：ORIG `call; add $0xa90c,%eax; mov %eax,-0xc` + 传参三步
+    // （探针 /tmp/probe_l8h3.o 实证 30 条逐条全中，含大偏移 add 形）。
+    const std::vector<std::pair<int, float> >& probs = G_CDataManager()->m_mercenarySystem.m_vec30;
+    return FindRelativeProb<float>(probs, dice);
 }
 
 // ----------------------------------------------------------------------------
@@ -515,7 +517,11 @@ int CHARAC_LOAD_MERCENARY::GetCompetitionPeriodSecond(char periodIdx) const
 {
     if (!CheckCompetitionPeriodIndex(periodIdx))
         return 0;
-    int periodSec = G_CDataManager()->m_mercenarySystem.m_field0;
+    // 跨 call 值 register esi 缓存 + idx 直传拓宽 → push %esi/帧 0x20/char 槽 -0xc 全对齐
+    // （探针 /tmp/probe_l8i2.o g2 实证）。残余 N：`mov 0xa8dc(%eax),%esi` 内存直落
+    // callee-saved 4.4 恒经 %eax 两步（N18a 反向）；`imul %esi,%eax` 4.4 恒
+    // mov(%eax),%edx;mov %esi,%eax;imul %edx,%eax 三步。
+    register int periodSec asm("esi") = G_CDataManager()->m_mercenarySystem.m_field0;
     // 经非 const CDataManager* 直访 m_vec14，选 operator[](uint) 非 const 重载（const 甄别）。
     return G_CDataManager()->m_mercenarySystem
                .m_vec14[static_cast<int>(periodIdx)].first * periodSec;
@@ -588,13 +594,18 @@ void CHARAC_LOAD_MERCENARY::save_complete()
 int CHARAC_LOAD_MERCENARY::GetRewardGold(CUser* user,
                                          competition_reward_result& result) const
 {
+    // 引用局部槽形：ORIG `call; add $0xa8e4,%eax; mov %eax,-0x3c` 首句缓存
+    // （同 GetRewardCritical 探针形）。
+    const std::vector<std::pair<int, std::pair<int, int> > >& vec =
+        G_CDataManager()->m_mercenarySystem.m_vec8;
     std::pair<int, int> basePair = Find_max_value_lower_N<std::pair<int, int> >(
-        m_level, G_CDataManager()->m_mercenarySystem.m_vec8);
+        m_level, vec);
     int base = basePair.first;
     float period = GetPeriodBonus();
     float avatar = GetAvatarBonus();
     int term = GetCompetitionPeriodTerm(0);
-    int gold = (int)((float)term * (float)base * period * avatar + 0.01f);
+    // 乘序按 ORIG x87 折叠序：fildl base→fmuls period→fildl term→fmulp→fmuls avatar
+    int gold = (int)(base * period * term * avatar + 0.01f);
 
     static CMTRand probabilityRewardItem;
     unsigned long range =
@@ -613,7 +624,7 @@ int CHARAC_LOAD_MERCENARY::GetRewardGold(CUser* user,
         SendMessageToCUser(user, buffer);
     }
     int nCritical = (int)((float)gold * critical + 0.01f);
-    result.m_0 = (int)((float)term * (float)base * period * critical + 0.01f);
+    result.m_0 = (int)(base * period * term * critical + 0.01f);
     result.m_4 = nCritical - result.m_0;
     return nCritical;
 }
@@ -1014,6 +1025,9 @@ int CUser::Competition_Mercenary_Charac(unsigned int slot, char modeA, char mode
 // ----------------------------------------------------------------------------
 void CUser::updateBingoData()
 {
+    // 语义闭合（ndiff 43/44 残 1 条定性）：ORIG `mov (%eax),%esi` 为 m_needSave
+    // 内存加载直落 callee-saved %esi；4.4 恒经 %eax 中转两步（N18a 反向，
+    // 与前序 getCurCharacInvenCheckSum `mov 0x58(%eax),%ebx` 同型，探针族全败）。
     if (static_cast<BingoData*>(getBingoData())->m_needSave)
     {
         DB_UpdateBingoEvent::makeRequest(

@@ -273,16 +273,20 @@ bool CQuickPartyRewardManager::init()
     return true;
 }
 
-// ORIG 0x0826d91a（报告 set_rand_buff_total_prob.md）：对 m_probs 行 0..10 按
-// 列求和写入行 11（每列总概率）。
+// ORIG 0x0826d91a：按列求和后写回 m_probs[row][col]——row 声明在外层、循环后泄漏
+// 值 11（ORIG 写回段载 -0x8 运行时形 shl3/sub/add，非 0x61 常量折叠，P171 照抄）。
 void CQuickPartyRewardManager::set_rand_buff_total_prob()
 {
-    for (int col = 0; col < 7; ++col)
+    // 声明序=槽序（col=-0x10/total=-0xc/row=-0x8）；row 泄漏值 11 后写回
+    int col;
+    int total;
+    int row;
+    for (col = 0; col < 7; ++col)
     {
-        int total = 0;
-        for (int row = 0; row < 11; ++row)
+        total = 0;
+        for (row = 0; row < 11; ++row)
             total += m_probs[row][col];
-        m_probs[11][col] = total;
+        m_probs[row][col] = total;
     }
 }
 // ORIG T 0x0826d8a2（报告 getRequireQuickPartyMinCount.md）：

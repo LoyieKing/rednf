@@ -9,7 +9,8 @@
 
 void itemGloballyUniqueIdentifier_t::reset()
 {
-    for (int i = 0; i <= 9; ++i)
+    // ORIG 0x85139e8：循环变量为 char（movsbl 读/addb 自增/cmpb $9 判界）。
+    for (char i = 0; i <= 9; ++i)
         reinterpret_cast<char*>(this)[i] = 0;
 }
 

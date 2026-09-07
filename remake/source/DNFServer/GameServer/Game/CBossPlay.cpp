@@ -136,13 +136,17 @@ void CBossPlay::InitPlayUser(int questCond, int towerIdx)
 // ============================================================================
 bool CBossPlay::_checkMemberDie()
 {
-    unsigned int i;
+    // ORIG 0x08149396 双 init（P191 配套）；条件链 test/je 直落 mov$1/mov$0
+    // 岛（无 xor 物化 → 正向 && 短路）；尾块 i==4 双岛 return（P56）。
+    unsigned int i = 0;
     for (i = 0; i < 4; ++i)
     {
-        if (m_party->checkValidUser(i) == 0 || !isMemberAlive(i))
+        if (m_party->checkValidUser(i) && isMemberAlive(i))
             break;
     }
-    return i == 4;
+    if (i == 4)
+        return true;
+    return false;
 }
 
 // ============================================================================
@@ -235,6 +239,9 @@ int CBossPlay::handleDieUser(CUser* user)
 
 // ============================================================================
 // handleLeaveUser（ORIG 0x08149724）
+// [N18b 封顶] ORIG 0x08149771 对 get_user(i)==user（call 结果 vs 形参比较）生成
+// `cmp 0xc(%ebp),%eax; sete %al; test` 物化；4.4 恒折直 cmp+jne 双岛，无源码写法
+// 可产 sete（N18b 判据），其余 128 条逐条同形。
 // ============================================================================
 int CBossPlay::handleLeaveUser(CUser* user)
 {

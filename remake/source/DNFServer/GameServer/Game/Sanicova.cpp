@@ -91,7 +91,7 @@ char CPad::getVersionInfo() { return m_version26; }       // ORIG W 0x084ebdee
 void CPad::setVersionInfo(char v) { m_version26 = v; }    // ORIG W 0x084ebdd6
 
 // ORIG W 0x08265302：返回 +0x3c 字节（是否建议改密）。
-unsigned char CPad::getAdvideChangePwd()
+bool CPad::getAdvideChangePwd()
 {
     return m_advidePwd;
 }
@@ -103,7 +103,7 @@ void CPad::setAdvideChangePwd(bool flag)
 }
 
 // ORIG W 0x084ebdca：movzbl 0x3d(%eax) 直返 +0x3d 字节。
-unsigned char CPad::getChangedPwd()
+bool CPad::getChangedPwd()
 {
     return m_changedPwd;
 }
@@ -111,11 +111,12 @@ unsigned char CPad::getChangedPwd()
 // ORIG T 0x085998a6：当前秒距上次生成 >20s 判有效并刷新时间戳。
 bool CPad::isValidKeyGenTime()
 {
-    int cur = GlobalData::s_systemTime_.getCurSec();
-    bool valid = (cur - m_lastGenTime30) > 0x14;
-    if (valid)
+    if ((GlobalData::s_systemTime_.getCurSec() - m_lastGenTime30) > 0x14)
+    {
         m_lastGenTime30 = GlobalData::s_systemTime_.getCurSec();
-    return valid;
+        return true;
+    }
+    return false;
 }
 
 // ORIG T 0x08599918：+0x2e = get_rand_int(5000)。
@@ -127,7 +128,8 @@ void CPad::GenerateRandomKeyIdx()
 // ORIG T 0x08599946：+0x34[i] = get_rand_int(200)+20，i∈[0,4)。
 void CPad::GenerateRandomShakeData()
 {
-    for (int i = 0; i < 4; ++i)
+    int i = 0;
+    for (i = 0; i < 4; ++i)
         m_shake34[i] = (char)(get_rand_int(200) + 0x14);
 }
 
@@ -152,10 +154,9 @@ unsigned short CPad::GetSelectedCipherIdx()
 // 步长 16 字节；idx==0 取 +4 槽、否则取 +8 槽 → manager[key*4+1/2]）。
 int CPad::GetKeyIdx(int idx)
 {
-    unsigned int key = m_keyIdx2e;
     if (idx == 0)
-        return (int)GlobalData::s_secu_cipher_keystring_manager_[key * 4 + 1];
-    return (int)GlobalData::s_secu_cipher_keystring_manager_[key * 4 + 2];
+        return GlobalData::s_secu_cipher_keystring_manager_[m_keyIdx2e].keyId;
+    return GlobalData::s_secu_cipher_keystring_manager_[m_keyIdx2e].tblId;
 }
 
 // ORIG T 0x08599936：读 +0x34[idx] 字节。
@@ -268,7 +269,7 @@ void CUser::sendBackSecurityAuthRequest()
 
     int cipherKey = (int)algo;
     Cipher* cipher =
-        GlobalData::s_secu_cipher_keystring_manager_[cipherIdx * 4];
+        GlobalData::s_secu_cipher_keystring_manager_[cipherIdx].cipher;
     cipher->Encrypt(cipherKey, (unsigned char*)question, 8, encrypted,
                     &encryptedLen);
     char certFlag = card->getCertFlag();            // -0x1d

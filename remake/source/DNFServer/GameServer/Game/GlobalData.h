@@ -220,7 +220,14 @@ extern CmmChannelProxy* s_channel_proxy;                     // 0940be5c
 extern CRijndael* s_pcryptRijndael_CharacView_;              // 0940be60
 extern CRijndael* s_pcryptRijndael_Password_;                // 0940be64
 extern CRijndael* s_pcryptRijndael_MousePassword_;           // 0940be68
-extern Cipher* s_secu_cipher_keystring_manager_[0x4e20];     // 0940be80
+struct SecuCipherKeyRec  // ORIG BSS 0x940be80 起 16 字节记录（0x940be80..0x941f700 = 0x4e20×0x10）
+{
+    Cipher* cipher;  // +0x00
+    int keyId;       // +0x04（Sanicova::CPad::GetKeyIdx(0) 读）
+    int tblId;       // +0x08（Sanicova::CPad::GetKeyIdx(1) 读）
+    char m_padC[4];  // +0x0c
+};
+extern SecuCipherKeyRec s_secu_cipher_keystring_manager_[0x4e20];  // 0940be80
 extern CTEA* s_pcryptTEA_MousePassword_;                     // 0941f700
 extern CTEA* s_pcryptTEA_SecurityCard_;                      // 0941f704
 extern WongWork::CSimpleSSO* s_psimpleSSO;                   // 0941f708
@@ -323,7 +330,7 @@ public:
     static char const* _GetEventIPGCode(int idx);                            // ORIG T 0x086c1bd4
 
     static char m_strEventName[10][0x12];        // _ZN8WongWork9CWebEvent14m_strEventNameE
-    static char m_strEventIPGCode[10][0xb];      // _ZN8WongWork9CWebEvent17m_strEventIPGCodeE
+    static char m_strEventIPGCode[10 * 0xb];        // _ZN8WongWork9CWebEvent17m_strEventIPGCodeE（一维，ORIG 0x86c1bd4 movzbl disp 证实）
 };
 
 } // namespace WongWork

@@ -435,6 +435,8 @@ void CConditionEventManager::ProcessCheckStepUp(CUser* user, short step)
     int field0 = G_CDataManager()->m_conditionEvent.m_field0;
     if ((int)step != field0)
         return;
+    // 残差 N86b：ORIG movswl+cmpl $0x2（全宽扩展比），4.4 对 (int)short==常量
+    // 恒折 cmpw $0x2（16 位直比，同值域等价），多形态不可择。
     if ((int)step == 2)
         _processProperDungeonClearEvent(user, step);
 }

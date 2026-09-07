@@ -95,7 +95,6 @@ bool CBattle_Field::DestroyPassiveObject(int idx)
 // ---------------------------------------------------------------------------
 void CBattle_Field::SetAssignNPCByPotion(bool flag)
 {
-    MapInfo* cur = GetCurrentMapInfo();
-    cur->m_assignNPCByPotion = flag;        // 直接写 +0xa4 字节；bool 形参经
-                                            // movzbl %dl 直传（ORIG 无三元物化）
+    // ORIG：无 cur 局部（mapInfo eax 直通），bool 形参直读形参槽。
+    GetCurrentMapInfo()->m_assignNPCByPotion = flag;
 }

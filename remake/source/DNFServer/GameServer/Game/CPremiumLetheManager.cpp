@@ -182,25 +182,25 @@ void CPremiumLetheManager::_resetSkill(CUser* user)
         flag = user->GetOneDayLetheFlag2ND();
     }
     if (flag != USE_LETHE_STATE)
+        goto FAIL_TRACE;    // ORIG jne 尾置 else 块（4.4 threading 会前移，goto 阻断）
+    if (!user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x93, 0);
-        trace("ONE_DAY_LETHE : CAN'T USE INIT STATE");
     }
     else
     {
-        if (!user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
-        {
-        }
-        else
-        {
-            InitSkill(user, true,
-                      (ENUM_SKILL_TREE_KIND)user->GetCurCharacSkillTreeIndex());
-            PacketGuard guard;
-            guard.put_header(1, 0xd5);
-            guard.put_byte(1);
-            guard.finalize(true);
-            user->Send(guard);
-        }
+        InitSkill(user, true,
+                  (ENUM_SKILL_TREE_KIND)user->GetCurCharacSkillTreeIndex());
+        PacketGuard guard;
+        guard.put_header(1, 0xd5);
+        guard.put_byte(1);
+        guard.finalize(true);
+        user->Send(guard);
+    }
+    return;
+FAIL_TRACE:
+    {
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x93, 0);
+        trace("ONE_DAY_LETHE : CAN'T USE INIT STATE");
     }
 }
 

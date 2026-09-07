@@ -901,6 +901,8 @@ dnf_service(game
         "${SVC_DIR}/SlangFilter.cpp|-O0"
         "${SVC_DIR}/DNFLexWrapperHelpers.cpp"
         "${SVC_DIR}/DNFLexCore.cpp|-O2 -std=gnu++98"
+        "${SVC_DIR}/DNFLexWrapper.cpp|-O2 -std=gnu++98"
+        "${SVC_DIR}/DNFLexWrapperStream.cpp|-O2 -std=gnu++98"
     LIBS
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libgcc_eh.a

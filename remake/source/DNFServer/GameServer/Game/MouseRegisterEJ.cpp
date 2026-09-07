@@ -64,12 +64,19 @@ public:
     static void makeRequest(int param1, unsigned int uid, int param3);
 };
 
+// 写入视图（P82 族）：+0x00 uid / +0x04 param3，使 4.4 折叠为单条 disp store。
+struct SIG_CSR_WRITEVIEW
+{
+    unsigned int m_uid;
+    int m_param3;
+};
+
 void DB_CancelRestingUserRestrict::makeRequest(unsigned int uid, int param2)
 {
     // ORIG T 0x0843741e：Acquire(__PRETTY_FUNCTION__,0x8389) → <<0x195 <<param2
     // → GetInBuffer<SIG_RESTING_USER_RESTRICT> 写 uid@+0 → put DB_Q。
-    Stream* s = GlobalData::s_stream_pool->Acquire(__PRETTY_FUNCTION__, 0x8389);
-    CStreamGuard guard(s, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire(__PRETTY_FUNCTION__, 0x8389), true);
     **guard << 0x195;
     **guard << param2;
     SIG_RESTING_USER_RESTRICT* sig =
@@ -82,14 +89,14 @@ void DB_CheckSecuReward::makeRequest(int param1, unsigned int uid, int param3)
 {
     // ORIG T 0x08444408：Acquire(__PRETTY_FUNCTION__,0xab34) → <<0x2ab <<param1
     // → GetInBuffer 写 uid@+0 param3@+4 → put DB_Q。
-    Stream* s = GlobalData::s_stream_pool->Acquire(__PRETTY_FUNCTION__, 0xab34);
-    CStreamGuard guard(s, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire(__PRETTY_FUNCTION__, 0xab34), true);
     **guard << 0x2ab;
     **guard << param1;
     SIG_CHECK_USER_SECU_REWARD* sig =
         guard->GetInBuffer<SIG_CHECK_USER_SECU_REWARD>();
-    *reinterpret_cast<unsigned int*>(sig) = uid;
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + 4) = param3;
+    reinterpret_cast<SIG_CSR_WRITEVIEW*>(sig)->m_uid = uid;
+    reinterpret_cast<SIG_CSR_WRITEVIEW*>(sig)->m_param3 = param3;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -222,14 +229,12 @@ int DB_MouseRegister::_updateFailCnt(unsigned int mid, int failCnt, char* ip)
     grade->set_query(
         "upDate member_security_grade set goblin_fail_cnt=%d where m_id=%s",
         failCnt, NumberToString(mid, 0));
-    register bool fail =
-        !(grade->exec(true) && grade->getAffectedRowCount() != 0);
-    if (fail)
+    if (!(grade->exec(true) && grade->getAffectedRowCount() != 0))
     {
         grade->set_query(
             "inSert into member_security_grade(m_id, goblin_fail_cnt) values(%s, %d)",
             NumberToString(mid, 0), failCnt);
-        return grade->exec(true) ? 0 : 1;
+        return !grade->exec(true);
     }
     return 0;
 }
@@ -259,9 +264,7 @@ bool DB_MouseRegister::_updateHistory(unsigned int mid, int modifyType, char* ip
         "inSert into member_mousepass_history_%s (occ_time, m_id, pre_mousepass,"
         " modify_type, ip_info, port_info) values (now(),%s,'%s',%d,'%s','')",
         ym, NumberToString(mid, 0), prevMousepass, modifyType, ip);
-    register bool fail =
-        !(db->exec(true) && db->getAffectedRowCount() != 0);
-    if (fail)
+    if (!(db->exec(true) && db->getAffectedRowCount() != 0))
     {
         return false;
     }
@@ -495,9 +498,7 @@ int DB_MouseRegister::_registNewPassword(unsigned int mid, const char* pwd,
     grade->set_query(
         "upDate member_security_grade set goblin_pass_mod=now() where m_id=%s",
         NumberToString(mid, 0));
-    register bool fail =
-        !(grade->exec(true) && grade->getAffectedRowCount() != 0);
-    if (fail)
+    if (!(grade->exec(true) && grade->getAffectedRowCount() != 0))
     {
         grade->set_query(
             "inSert into member_security_grade(m_id, goblin_pass_mod)"
@@ -575,9 +576,7 @@ int DB_MouseRegister::_unregistPassword(unsigned int mid, char* ip)
     }
     db->set_query("deLete from member_mousepass where m_id=%s",
                   NumberToString(mid, 0));
-    register bool fail =
-        !(db->exec(true) && db->getAffectedRowCount() != 0);
-    if (fail)
+    if (!(db->exec(true) && db->getAffectedRowCount() != 0))
     {
         return 0x15;
     }
@@ -587,9 +586,7 @@ int DB_MouseRegister::_unregistPassword(unsigned int mid, char* ip)
         "upDate member_security_grade set goblin_pass_mod='0000-00-00 00:00:00'"
         " where m_id=%s",
         NumberToString(mid, 0));
-    register bool fail2 =
-        !(grade->exec(true) && grade->getAffectedRowCount() != 0);
-    if (fail2)
+    if (!(grade->exec(true) && grade->getAffectedRowCount() != 0))
     {
         grade->set_query(
             "inSert into member_security_grade(m_id, goblin_pass_mod)"

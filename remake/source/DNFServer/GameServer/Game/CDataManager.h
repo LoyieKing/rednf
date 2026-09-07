@@ -573,9 +573,14 @@ struct stUnlimitChallengeKey
     unsigned char m_b;    // +0x02（字节写入：段常量 0..6）
     bool operator<(const stUnlimitChallengeKey& o) const
     {
-        // ORIG 0x0891b454：movzwl 判 +0 ushort，相等再 movzbl 判 +2 字节（嵌套短路）。
+        // ORIG 0x0891b454：嵌套 if（m0!= 的 return 0 块排在 m2 段之后，
+        // m2>= 的 return 0 带显式 jmp end —— 仅嵌套形可复现此块序）。
         if (m_a < o.m_a) return true;
-        if (m_a == o.m_a && m_b < o.m_b) return true;
+        if (m_a == o.m_a)
+        {
+            if (m_b < o.m_b) return true;
+            return false;
+        }
         return false;
     }
 };
@@ -694,10 +699,15 @@ struct LevelUpRewardItemTableKey
     // ORIG W 0x081b8830 逐字段 setl（有符号）比较；字段本身无符号加载。
     bool operator<(const LevelUpRewardItemTableKey& o) const
     {
-        // ORIG W 0x081b8830：逐字段 setl（有符号）比较但字段为无符号加载（movzbl/movzwl）。
-        if (m_job != o.m_job) return m_job < o.m_job;
-        if (m_grow != o.m_grow) return m_grow < o.m_grow;
-        return m_lv < o.m_lv;
+        // ORIG W 0x081b8830：!= 段 jne 直跳共享重载段（嵌套 if(==) 布局），
+        // 尾段 setcc+pop 直落；字段为无符号加载（movzbl/movzwl）。
+        if (m_job == o.m_job)
+        {
+            if (m_grow == o.m_grow)
+                return m_lv < o.m_lv;
+            return m_grow < o.m_grow;
+        }
+        return m_job < o.m_job;
     }
 };
 
@@ -2302,9 +2312,9 @@ public:
     ~SecretShopScript();
     char GetNpcByDungeonIdx(int& out, int a, int b);
     char GetNpcByDungeonLev(int& out, int a, int b);
-    char GetItemByDungeonIdx(CMTRand* rand, std::vector<secretshop::SALE_INFO>& out,
+    bool GetItemByDungeonIdx(CMTRand* rand, std::vector<secretshop::SALE_INFO>& out,
                              int dungeonIdx, int level, bool event);
-    char GetItemByDungeonLev(CMTRand* rand, std::vector<secretshop::SALE_INFO>& out,
+    bool GetItemByDungeonLev(CMTRand* rand, std::vector<secretshop::SALE_INFO>& out,
                              int dungeonIdx, int level, bool event);
     void clear();
     // ORIG 0x8a82804：对每个 key 组累加 m_rate，总和 !=10000 时打印告警。
@@ -2948,9 +2958,9 @@ public:
     void destroy();
     int load_list();
     void insert_NPC(int npcIdx);
-    int check_ahead_quest(int questIdx, const WongWork::CQuestClear& clear);
-    int check_anti_quest(int questIdx, const WongWork::CQuestClear& clear);
-    int check_clear(int questIdx, const WongWork::CQuestClear& clear);
+    bool check_ahead_quest(int questIdx, const WongWork::CQuestClear& clear);   // b25c Lane21：ORIG 尾 mov$0/1 无 setne（0x8354fc8），调用点 ! 直判
+    bool check_anti_quest(int questIdx, const WongWork::CQuestClear& clear);   // 同上（0x835511e）
+    bool check_clear(int questIdx, const WongWork::CQuestClear& clear);   // b25c Lane21：ORIG 尾 mov$0/1 无 setne，调用点 !check_clear 需 bool 直判
     bool select_mail_quest(std::list<int>& out,
                            const WongWork::CQuestClear& clear,
                            const stSelectQuestParam& param);
@@ -3344,7 +3354,7 @@ struct SecurityReward
 // 使用具名成员，禁止在调用点重新拼接裸偏移。
 struct CDataManagerRewardSpView
 {
-    char m_unmodeledBeforeSp[0xda94];
+    char m_unmodeledBeforeSp[0xda90];
     unsigned int m_spAtLevelUp[0x60];
 };
 

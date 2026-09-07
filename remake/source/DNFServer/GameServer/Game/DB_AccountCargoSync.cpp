@@ -25,8 +25,8 @@
 // ============================================================================
 bool DB_UpgradeAccountCargo::dispatch(int userIdx, int slot, Stream* stream)
 {
-    Stream* s = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8bfb);
-    CStreamGuard guard(s, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8bfb), true);
     (*guard)->operator<<(userIdx);
     (*guard)->operator<<(slot);
     SIG_UPGRADE_ACCOUNT_CARGO_RESULT* result =
@@ -61,9 +61,8 @@ bool DB_UpgradeAccountCargo::dispatch(int userIdx, int slot, Stream* stream)
 void DB_CreateAccountCargo::makeRequest(int param_1, unsigned int param_2,
                                         unsigned int param_3)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8bef);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8bef), true);
     guard.operator*()->operator<<(0x1ee);                 // SIG_CREATE_ACCOUNT_CARGO
     guard.operator*()->operator<<(param_1);
     guard.operator*()->operator<<(param_2);
@@ -77,9 +76,8 @@ void DB_CreateAccountCargo::makeRequest(int param_1, unsigned int param_2,
 // ============================================================================
 void DB_DeleteAccountCargo::makeRequest(int param_1, unsigned int param_2)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8c38);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8c38), true);
     guard.operator*()->operator<<(0x1f0);                 // SIG_DELETE_ACCOUNT_CARGO
     guard.operator*()->operator<<(param_1);
     guard.operator*()->operator<<(param_2);
@@ -93,9 +91,8 @@ void DB_DeleteAccountCargo::makeRequest(int param_1, unsigned int param_2)
 void DB_UpgradeAccountCargo::makeRequest(int param_1, unsigned int param_2,
                                          unsigned int param_3)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8c1d);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8c1d), true);
     guard.operator*()->operator<<(0x1ef);                 // SIG_UPGRADE_ACCOUNT_CARGO
     guard.operator*()->operator<<(param_1);
     guard.operator*()->operator<<(param_2);
@@ -111,9 +108,8 @@ void DB_UpgradeAccountCargo::makeRequest(int param_1, unsigned int param_2,
 void DB_GuildExpBookDelete::makeRequest(unsigned int param_1, int param_2,
                                         ENUM_SERVER_GROUP param_3)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x902a);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x902a), true);
     guard.operator*()->operator<<(0x209);                 // SIG_GUILD_EXP_BOOK_DELETE
     guard.operator*()->operator<<(-1);
     guard.operator*()->operator<<(param_1);
@@ -130,9 +126,8 @@ void DB_InsertRandomOptionItemInform::makeRequest(int param_1,
                                                   unsigned int param_2,
                                                   unsigned char param_3)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xa488);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xa488), true);
     guard.operator*()->operator<<(0x299);                 // SIG_INSERT_RANDOM_OPTION_ITEM_INFORM
     guard.operator*()->operator<<(param_1);
     guard.operator*()->operator<<(param_2);
@@ -150,17 +145,15 @@ void DB_InsertRandomOptionItemInform::makeRequest(int param_1,
 void DB_PassPadUpdateFailCnt::makeRequest(unsigned int param_1,
                                           unsigned int param_2, char* param_3)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5f31);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5f31), true);
     guard.operator*()->operator<<(0xa4);                  // SIG_SECURITY_CARD_UPDATE_FAIL_CNT
     guard.operator*()->operator<<(-1);
     SIG_SECURITY_CARD_UPDATE_FAIL_CNT* sig =
         guard.operator->()->GetInBuffer<SIG_SECURITY_CARD_UPDATE_FAIL_CNT>();
-    char* p = (char*)sig;
-    *(unsigned int*)(p + 0x0) = param_1;   // accId (m_id)
-    *(unsigned int*)(p + 0x4) = param_2;   // failCnt
-    strncpy(p + 0x8, param_3, 0x10);       // web address (ip_info)
+    sig->m_mId = param_1;   // accId (m_id)
+    sig->m_cnt = param_2;   // failCnt
+    strncpy(sig->m_webAddr, param_3, 0x10);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -174,17 +167,15 @@ void DB_PassPadUpdateCancelCnt::makeRequest(unsigned int param_1,
                                             unsigned int param_2,
                                             char* param_3)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5f5e);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5f5e), true);
     guard.operator*()->operator<<(0xa5);                  // SIG_SECURITY_CARD_UPDATE_CANCEL_CNT
     guard.operator*()->operator<<(-1);
     SIG_SECURITY_CARD_UPDATE_FAIL_CNT* sig =
         guard.operator->()->GetInBuffer<SIG_SECURITY_CARD_UPDATE_FAIL_CNT>();
-    char* p = (char*)sig;
-    *(unsigned int*)(p + 0x0) = param_1;   // accId
-    *(unsigned int*)(p + 0x4) = param_2;   // cancelCnt
-    strncpy(p + 0x8, param_3, 0x10);       // web address
+    sig->m_mId = param_1;   // accId
+    sig->m_cnt = param_2;   // cancelCnt
+    strncpy(sig->m_webAddr, param_3, 0x10);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -195,16 +186,14 @@ void DB_PassPadUpdateCancelCnt::makeRequest(unsigned int param_1,
 void DB_SecurityCardUpdateCancelCnt::makeRequest(unsigned int param_1,
                                                  unsigned int param_2)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6f25);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6f25), true);
     guard.operator*()->operator<<(0x102);                 // SIG_SECURITY_CARD_UPDATE_CANCEL_CNT
     guard.operator*()->operator<<(-1);
     SIG_SECURITY_CARD_UPDATE_FAIL_CNT* sig =
         guard.operator->()->GetInBuffer<SIG_SECURITY_CARD_UPDATE_FAIL_CNT>();
-    char* p = (char*)sig;
-    *(unsigned int*)(p + 0x0) = param_1;   // accId
-    *(unsigned int*)(p + 0x4) = param_2;   // cancelCnt
+    sig->m_mId = param_1;   // accId
+    sig->m_cnt = param_2;   // cancelCnt
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 

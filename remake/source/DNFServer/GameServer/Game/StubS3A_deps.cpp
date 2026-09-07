@@ -73,10 +73,16 @@ int CUser::IsAbleItemUnlock(int space, int slot, int& outSec) const
     unsigned char lock = item->m_amp.GetLock();
     if (lock == 0)
         return 0x13;
-    item_lock::CItemLock* expand = reinterpret_cast<item_lock::CItemLock*>(
-        GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)2));
-    int r = expand->IsAbleItemUnlock(lock, outSec);
-    return r;
+    // ORIG 0x08646c5f：result 声明点预清 0（movl $0x0,-0xc），随后独立赋值；
+    // lock 于声明点直落 callee-saved %ebx 跨 GetCharacExpandDataR 存活；
+    // expand 结果免槽直用（技巧22/37）。
+    int result = 0;
+    if (((item_lock::CItemLock*)GetCharacExpandDataR(
+             (ENUM_CHARAC_EXPAND_TYPE)2))
+            ->IsAbleItemUnlock(lock, outSec)
+        != 0)
+        return result;
+    return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,10 +97,15 @@ int CUser::IsAbleItemUnlockCancel(int space, int slot) const
     unsigned char lock = item->m_amp.GetLock();
     if (lock == 0)
         return 0x13;
-    item_lock::CItemLock* expand = reinterpret_cast<item_lock::CItemLock*>(
-        GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)2));
-    int r = expand->IsAbleItemUnlockCancel(lock);
-    return r;
+    // ORIG 0x08646d02：result 声明点预清 0 + 独立赋值；lock 直落 %ebx 跨调用；
+    // expand 结果免槽直用（同 IsAbleItemUnlock 形）。
+    int result = 0;
+    if (((item_lock::CItemLock*)GetCharacExpandDataR(
+             (ENUM_CHARAC_EXPAND_TYPE)2))
+            ->IsAbleItemUnlockCancel(lock)
+        != 0)
+        return result;
+    return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -291,12 +302,11 @@ bool CItemMakingSkill::_saveData(CUser* pUser)
     guard.operator*()->operator<<((int)0x26e);       // op*(guard)→op<<(int)
     guard.operator*()->operator<<((int)pUser->GetUID());
 
-    // ORIG：GetInBuffer → 单变量 byte 寻址；memset 0x1c；characNo@+0；
-    // skills[11]@+4（ushort ×11）。单指针变量一个槽。
-    char* sigBuf = reinterpret_cast<char*>(
-        guard.operator->()->GetInBuffer<SIG_ITEM_MAKING_SKILL>());
+    // ORIG：GetInBuffer 结果落唯一槽 -0x10（sigBuf）→ memset 0x1c →
+    // get_charac_no(-1) 返回值经 %edx 直存 *(int*)sigBuf（值先地址后，无 callee-saved
+    // 缓存）。skills[11]@+4（ushort ×11）循环内槽直读重物化。
+    char* sigBuf = (char*)guard.operator->()->GetInBuffer<SIG_ITEM_MAKING_SKILL>();
     memset(sigBuf, 0, 0x1c);
-    // [b24ab] §4.3 视图具名字段 + 数组索引（ORIG `mov %cx,0x4(%eax,%edx,2)` 索引寻址）
     reinterpret_cast<ItemMakingSkillReqView*>(sigBuf)->m_characNo =
         pUser->get_charac_no(-1);
     for (int i = 0; i <= 0xa; ++i)

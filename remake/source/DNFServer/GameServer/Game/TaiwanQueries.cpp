@@ -354,7 +354,7 @@ EntranceQuery::EntranceQuery() : m_field0(0), m_resultCode(0) {}
 
 bool EntranceQuery::setQuery(MySQL&) { return true; }     // ORIG 0x08174012
 bool EntranceQuery::execQuery(MySQL&) { return true; }    // ORIG 0x0817401c
-int EntranceQuery::getResult(MySQL&) { return 1; }        // ORIG 0x08174026
+bool EntranceQuery::getResult(MySQL&) { return 1; }        // ORIG 0x08174026
 
 // ---- BalanceQuery ---------------------------------------------------------
 
@@ -376,7 +376,7 @@ bool BalanceQuery::execQuery(MySQL& db)
 }
 
 // ORIG T 0x08174092
-int BalanceQuery::getResult(MySQL& db)
+bool BalanceQuery::getResult(MySQL& db)
 {
     try
     {
@@ -422,7 +422,7 @@ bool BalancePointQuery::execQuery(MySQL& db)
 }
 
 // ORIG T 0x081742fc
-int BalancePointQuery::getResult(MySQL& db)
+bool BalancePointQuery::getResult(MySQL& db)
 {
     try
     {
@@ -476,7 +476,7 @@ bool GiftQuery::execQuery(MySQL& db)
 }
 
 // ORIG T 0x081748d6
-int GiftQuery::getResult(MySQL& db)
+bool GiftQuery::getResult(MySQL& db)
 {
     try
     {
@@ -524,7 +524,7 @@ bool ConfirmQuery::execQuery(MySQL& db)
 }
 
 // ORIG T 0x08174b44
-int ConfirmQuery::getResult(MySQL& db)
+bool ConfirmQuery::getResult(MySQL& db)
 {
     try
     {
@@ -570,7 +570,7 @@ bool CancelQuery::execQuery(MySQL& db)
 }
 
 // ORIG T 0x08174d60
-int CancelQuery::getResult(MySQL& db)
+bool CancelQuery::getResult(MySQL& db)
 {
     try
     {
@@ -619,7 +619,7 @@ bool ChargeQuery::execQuery(MySQL& db)
 }
 
 // ORIG T 0x08174fc6
-int ChargeQuery::getResult(MySQL& db)
+bool ChargeQuery::getResult(MySQL& db)
 {
     try
     {
@@ -673,7 +673,7 @@ bool CeraPointQuery::execQuery(MySQL& db)
 }
 
 // ORIG T 0x081752cc
-int CeraPointQuery::getResult(MySQL& db)
+bool CeraPointQuery::getResult(MySQL& db)
 {
     try
     {
@@ -809,7 +809,9 @@ bool GarenaCheckTimeStamp(unsigned int nowA, unsigned int nowB,
         return true;
     if (nowA != serverC)
         return false;
-    return !(serverD + 300 < nowB); // jb：无符号 <
+    if (serverD + 300 < nowB)       // jb：无符号 <（ORIG 分支常量岛，setcc 折叠仅 return 表达式形）
+        return false;
+    return true;
 }
 
 // ORIG T 0x08471c74

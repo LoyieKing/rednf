@@ -107,8 +107,8 @@ int CLevelUpReward::send_reward_from_recv_level(CUser* user, int level,
     if (it == static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.end())
         return 1;
 
-    if (it->second.m_filter[1] != 0xff &&
-        static_cast<int>(static_cast<signed char>(it->second.m_filter[1])) != curGrowType)
+    if (it->second.m_filter1 != 0xff &&
+        static_cast<int>(static_cast<signed char>(it->second.m_filter1)) != curGrowType)
         return 1;
 
     for (int i = 0; i < (int)it->second.m_items.size(); ++i)
@@ -144,30 +144,32 @@ bool CUsedFatigueGiveItem::is_eventing()
 
 // ORIG T 0x08110756：脚本 job 过滤（-1 通配），随后按 [user type] 分派：
 //   0=全适用；1=仅 premium（ENUM_PREMIUM_TYPE 0xc）；其它=不适用。
-int CUsedFatigueGiveItem::verifyApplyUser(CUser* user)
+bool CUsedFatigueGiveItem::verifyApplyUser(CUser* user)
 {
     // ORIG 0x08110756：job 门（-1 通配；两次独立重载 m_script1c，无具名指针/值槽，
     // P0 律）；user type 经 get_user_type() 取值。[b22判词·N-BOOL] ORIG 中
     // 不匹配标志经 eax 两段式流转（mov $1/$0,%eax; test %al; je）不留栈槽，
     // C++ bool 必物化槽位，寄存器流转为编译器结构不可源码复现，语义等价。
-    bool jobMismatch = false;
+    // 重写：去具名 bool（4.4 必槽），改直接 return 链消 setne/cmpb 物化。
     if (static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_jobType >= 0)
     {
         if (static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_jobType
                 != user->get_charac_job())
-            jobMismatch = true;
+            return false;
     }
-    if (jobMismatch)
-        return 0;
 
     switch (static_cast<unsigned char>(get_user_type()))
     {
         case 0:
-            return 1;
+            return true;
         case 1:
-            return user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0xc)) ? 1 : 0;
+            // ORIG case1 汇聚形（call; test %al; je; mov$1; jmp; mov$0）：
+            // if-return 形复现（具名 bool 透传为 4.4 直传=形不符）。
+            if (user->isAffectedPremium(static_cast<ENUM_PREMIUM_TYPE>(0xc)))
+                return true;
+            return false;
         default:
-            return 0;
+            return false;
     }
 }
 

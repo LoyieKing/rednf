@@ -370,11 +370,10 @@ void CInGameEventSetDay::parse()
 // ORIG execute 0x084b0a08：event_script_mng->test_process_change_day(day)。
 void CInGameEventSetDay::execute()
 {
-    const int day = ((const GmDFld<int>*)this)->f08;
-    EventClassify::CEventScriptMng* mng =
-        static_cast<EventClassify::CEventScriptMng*>(
-            G_CDataManager()->get_event_script_mng());
-    mng->test_process_change_day(day);
+    // ORIG：this+8 物化 %ebx 跨 2 call；mng 结果 eax 直通 receiver，无具名槽。
+    static_cast<EventClassify::CEventScriptMng*>(
+        G_CDataManager()->get_event_script_mng())
+        ->test_process_change_day(((const GmDFld<int>*)this)->f08);
 }
 
 // ===========================================================================
@@ -409,7 +408,10 @@ inline std::set<int>& indAiSet(CIndependentDrop* self)
 void CIndependentDrop::parse()
 {
     trim(m_parser->m_args);
-    indAllFlag(this) = (m_parser->m_args == "all") ? true : false;
+    if (m_parser->m_args == "all")
+        ((GmDID*)this)->all = 1;
+    else
+        ((GmDID*)this)->all = 0;
 }
 
 // ORIG execute 0x084b0b4e。
@@ -574,8 +576,10 @@ void CIndependentDropByForce::parse()
 {
     ((GmDFld<bool>*)this)->f08 = 0;
     trim(m_parser->m_args);
-    ((GmDFld<bool>*)this)->f08 =
-        (m_parser->m_args == "on") ? 1 : 0;
+    if (m_parser->m_args == "on")
+        ((GmDFld<bool>*)this)->f08 = 1;
+    else
+        ((GmDFld<bool>*)this)->f08 = 0;
 }
 
 // ORIG execute 0x084b1fda：回显开关状态并写入发起者 setForceDropFlag。

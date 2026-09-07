@@ -23,8 +23,8 @@ static const int BUY_FEE = 1000;
 
 bool CRedeemItem::_isFPItem(const Inven_Item& item) const
 {
-    int itemId = item.m_addInfo;
-    return itemId > 0x1963 && itemId <= 0x1b57;
+    // ORIG：无局部槽，两次完整读 0x2(%eax)，无符号 jbe/ja（P48 双读）
+    return item.m_addInfo > 0x1963 && item.m_addInfo <= 0x1b57;
 }
 
 // ORIG 0x085f76f0：空物品/FP 物品/固定 ID 表/物品不存在/低稀有度可升级
@@ -54,20 +54,12 @@ bool CRedeemItem::isAddableFilter(const Inven_Item& item)
     CItem* ci = G_CDataManager()->find_item(item.m_addInfo);
     if (ci == 0)
         return 0;
-    bool bVar2;
-    if (!item.isEquipableItemType() || ci->get_rarity() != 0 ||
-        item.GetUpgrade() != 0)
-    {
-        bVar2 = false;
-    }
-    else
-    {
-        bVar2 = true;
-    }
-    if (bVar2)
+    // ORIG 0x85f77e4：三条件常量岛汇聚（mov$1/jmp/mov$0）后 test 直判
+    if (item.isEquipableItemType() && ci->get_rarity() == 0 &&
+        item.GetUpgrade() == 0)
         return 0;
     // ORIG 0x085f77f4 调用 CItem::IsBanRedeemItem()（非内联，生成 call）
-    if (ci->IsBanRedeemItem() != 0)
+    if (ci->IsBanRedeemItem())
         return 0;
     return 1;
 }

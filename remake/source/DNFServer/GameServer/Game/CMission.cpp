@@ -636,9 +636,14 @@ int CMission_revenge::Update(MissionInfo& info,
         }
         return 0;
     default:
+    {
+        // ORIG 变参在 cMyTraceNoop ctor call 前求值并跨 call 保活 %ebx（P87）：
+        // movzwl;movswl %ax,%ebx → ctor → op()。
+        register int streakVal asm("ebx") = (int)info.m_streak;
         cMyTraceNoop log;
-        log("[@missionSystem] : revenge ??? : %d", (int)info.m_streak);
+        log("[@missionSystem] : revenge ??? : %d", streakVal);
         return 0;
+    }
     }
 }
 

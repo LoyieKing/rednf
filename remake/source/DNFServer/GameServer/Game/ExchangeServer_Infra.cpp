@@ -69,11 +69,10 @@ CEpoll<CSession>::~CEpoll()
 //   session->SetTriggerSessionEventType(type); fd=session->GetSocket();
 //   return EpollHandler::SetEpoll(session, fd, false) == 0;
 template <>
-int CEpoll<CSession>::RegisterSession(CSession* session, int type)
+bool CEpoll<CSession>::RegisterSession(CSession* session, int type)
 {
     session->SetTriggerSessionEventType(type);
-    int fd = session->GetSocket();
-    return SetEpoll(static_cast<void*>(session), fd, false) == 0;
+    return SetEpoll(static_cast<void*>(session), session->GetSocket(), false) == 0;
 }
 
 // UnregisterSession 0x8496d5a（disasm 5576-5590）：
@@ -124,10 +123,11 @@ bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
             {
                 // 监听 socket：OnAccept 返回新建会话指针（池 Acquire），非 fd。
                 // P197③双槽置0：ORIG OnAccept 前 `movl $0x0,-0x10` 预清。
-                CSession* accepted = 0;
-                accepted = session->OnAccept();
-                if (accepted != 0)
-                    RegisterSession(accepted, 0x7);
+                // P15 赋值即条件：ORIG `cmpl;setne;test` 物化仅 4.4 在
+                // `(x = expr) != 0` 赋值表达式比较处复现（槽比较写法被简化）。
+                int accepted = 0;
+                if ((accepted = reinterpret_cast<int>(session->OnAccept())) != 0)
+                    RegisterSession(reinterpret_cast<CSession*>(accepted), 0x7);
             }
             else if ((session->GetTriggerSessionEventType() & 0x1) != 0)
             {
@@ -137,14 +137,14 @@ bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
 
         if (events[i].events & 0x4)       // EPOLLOUT
         {
+            int sendRet = 0;              // ORIG OUT 块入口 `movl $0x0,-0xc`
             if ((session->GetTriggerSessionEventType() & 0x10) != 0)
             {
                 ok = session->OnConnect();
                 if (ok)
                     session->SetTriggerSessionEventType(0x7);
             }
-            int sendRet = 0;
-            if ((session->GetTriggerSessionEventType() & 0x2) != 0)
+            else if ((session->GetTriggerSessionEventType() & 0x2) != 0)
             {
                 sendRet = session->OnSend();
                 if (sendRet < 0)
@@ -154,7 +154,8 @@ bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
 
         if (events[i].events & 0x18)      // EPOLLERR|EPOLLHUP
         {
-            if (!session->OnError())
+            ok = session->OnError();      // ORIG `mov %al,-0x1d` 覆写 ok 槽
+            if (!ok)
             {
                 UnregisterSession(session);
                 session->Disconnect();
@@ -222,7 +223,7 @@ bool CSessionManager<CSession, PacketGuard, CEpoll>::WaitForSessionEvent(
 // TryListen 0x8495570：CSession::Listen(port,ip)→0 返 false；
 // 成功 RegisterSession(this,session,8) 后原样返回。
 template <>
-int CSessionManager<CSession, PacketGuard, CEpoll>::TryListen(
+bool CSessionManager<CSession, PacketGuard, CEpoll>::TryListen(
     int port, const char* ip)
 {
     CSession* session = 0;
@@ -259,7 +260,7 @@ template bool CSessionManager<CSession, PacketGuard, CEpoll>
     ::TrySend(CSession*, PacketGuard&);
 template bool CSessionManager<CSession, PacketGuard, CEpoll>
     ::WaitForSessionEvent(int);
-template int CSessionManager<CSession, PacketGuard, CEpoll>
+template bool CSessionManager<CSession, PacketGuard, CEpoll>
     ::TryListen(int, const char*);
 template bool CSessionManager<CSession, PacketGuard, CEpoll>
     ::TryConnect(const char*, int);
@@ -505,10 +506,9 @@ char* GetServerIP()
 
 // GetServerPORT ORIG 0x848f2a3：G_CEnvironment()->get_exchange_server_port()
 // （int 截 ushort 返回，ORIG movswl/mov %dx 同宽度语义）。
-unsigned short GetServerPORT()
+int GetServerPORT()
 {
-    return static_cast<unsigned short>(
-        G_CEnvironment()->get_exchange_server_port());
+    return G_CEnvironment()->get_exchange_server_port();
 }
 
 // ============================================================================
@@ -541,7 +541,8 @@ void CExchangeServerThread::dispatch(void* arg)
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0x451, 0);
-    trace("Exchange Server Thread start! %d");
+    trace("Exchange Server Thread start! %d",
+          static_cast<int>(sizeof(CACHE_CHARACTER_TYPE)));
 
     if (!m_exchangeServer.PreparePassiveSocket())
     {
@@ -563,13 +564,15 @@ void CExchangeServerThread::dispatch(void* arg)
 
     while (!GlobalData::s_server_stop)         // 标志 @0x0940bd64
     {
-        Stream* msg = m_exchangeServer.GetMessage();
-        if (msg != 0)
+        // P15 赋值即条件（同 WaitForEvent OnAccept 判据）。
+        int msg = 0;
+        if ((msg = reinterpret_cast<int>(m_exchangeServer.GetMessage())) != 0)
         {
             // flag 取流缓冲首 dword（ORIG mov (%eax) 后作为 FreeMessage 第三参）。
-            int flag = *reinterpret_cast<int*>(msg->get_buffer());
-            m_exchangeServer.DispatchMessage(msg);
-            m_exchangeServer.FreeMessage(msg, flag);
+            int flag = *reinterpret_cast<int*>(
+                reinterpret_cast<Stream*>(msg)->get_buffer());
+            m_exchangeServer.DispatchMessage(reinterpret_cast<Stream*>(msg));
+            m_exchangeServer.FreeMessage(reinterpret_cast<Stream*>(msg), flag);
         }
         m_exchangeServer.GetNetworkEvent();
         OS_API::Sleep(0xa);                        // ORIG 10ms 节拍

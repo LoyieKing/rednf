@@ -24,8 +24,8 @@ void CActionPointEtcParameter::ClearData()
 bool APSystem::CActionPointEtcParameter::IsValidTodayRewardItem(
     _SIG_LOAD_ACTION_POINT::_TodayRewardItem item)
 {
-    int value = item.m_itemIdx;  // ORIG 0x08894976：param<0 || param>3 → false
-    return value >= 0 && value <= 3;
+    // ORIG 0x08894976：value 无槽（test %eax/js + 寄存器 cmp/jg 直判，P0 右值内联）。
+    return item.m_itemIdx >= 0 && item.m_itemIdx <= 3;
 }
 }
 
@@ -43,8 +43,9 @@ void stAvatarEmblemInfo_t::init()
 
 void stAvatarExpansionInfo_t::init()
 {
-    m_color[0] = 0;
-    m_color[1] = 0;
+    // ORIG 0x083422d：for(i=0;i<=1;++i) 循环写 movw $0,(%eax,%edx,2)（P25 setle 形）。
+    for (int i = 0; i <= 1; ++i)
+        m_color[i] = 0;
 }
 
 

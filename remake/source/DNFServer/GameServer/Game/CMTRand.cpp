@@ -121,12 +121,12 @@ unsigned long CMTRand::mixBits(const unsigned long& x,
 unsigned long CMTRand::twist(const unsigned long& a, const unsigned long& b,
                              const unsigned long& c) const
 {
+    // ORIG mov (%eax),%ebx 单步缓存 + 全程 %ebx 累计；4.4 register asm 形实测
+    // 反退化（27→35，edx/eax 双流重排），4.4 恒槽化（N2 族）。
     unsigned long y = a;
     y ^= mixBits(b, c) >> 1;
-    if (loBit(c) != 0)
-    {
-        y ^= MT_MATRIX_A;
-    }
+    // ORIG neg+and+xor 无分支形：(0-t)&mask 复现。
+    y ^= (0UL - loBit(c)) & MT_MATRIX_A;
     return y;
 }
 
@@ -139,6 +139,7 @@ int CMTRand::randInt()
 
     --m_left;
 
+    // ORIG mov (%eax),%ebx 跨段缓存；4.4 register 形反退化（40→54），N 封顶。
     unsigned long y = *m_next++;
     y ^= (y >> 11);
     y ^= (y << 7) & 0x9d2c5680UL;

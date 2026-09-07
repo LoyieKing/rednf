@@ -78,13 +78,15 @@ void ncl_make_mac(char* out)
 // （rodata 0x8ca6a1a="%04d%02d%02d"；tm 字段经返回指针访问，P43）。
 void ncl_make_date(char* out)
 {
-    time_t t = std::time(0);
+    // ORIG：time(&t)（传指针，P43）；tm 字段直读结构槽（非经 p 指针）。
+    time_t t;
+    std::time(&t);
     struct tm tmBuf;
     struct tm* p = localtime_r(&t, &tmBuf);
     if (p != 0)
     {
         std::sprintf(out, "%04d%02d%02d",
-                     p->tm_year + 1900, p->tm_mon + 1, p->tm_mday);
+                     tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday);
     }
 }
 

@@ -248,7 +248,9 @@ bool APSystem::CSyncScript::TruncateDescTable()
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)2, (ENUM_SERVER_GROUP)0);
     db->set_query("trUncate table charac_action_point_desc");
-    return db->exec(true) == 1;
+    // ORIG 0x08122676：exec 结果 eax 直 `xor $0x1;test` bool 取反岛（P84 注）；
+    // ==1 形生 movzbl 槽往返 +4。
+    return !db->exec(true);
 }
 
 // ORIG 0x0812268c（249 insn）：G_CDataManager()->GetActionPointEtcParameter(false)
@@ -369,7 +371,7 @@ bool SyncScript::truncateItemDescTable()
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)3, (ENUM_SERVER_GROUP)0);
     db->set_query("trUncate table charac_advance_altar_item_desc");
-    return db->exec(true) == 1;
+    return !db->exec(true);
 }
 
 // ORIG 0x08134132：见头注。type==1→+0x10 vec；type==2→+0x1c vec；type==0→+0x04 vec；

@@ -442,10 +442,12 @@ void* CParty::GetUserSecretShop(CUser* user)
 {
     int slot = GetUserPosition(user);
     // [Ghidra 0x085b9e80 双证] 命中区间写正向 `0<=slot<=3`（ORIG js/jg 双
-    // 跳共享 0 岛）；偏移为 **8**+slot*0x1c（this+0x2a8，原 4 系差 4B bug）。
+    // 跳共享 0 岛）；ORIG 总偏移 = this+0x2a0+8+slot*0x1c = **0x2a8**+slot*0x1c
+    //（m_padShop @+0x2a4 ⇒ 表达式内偏移 4；前人误将区域基址 0x2a0 当 m_padShop
+    // 基址写成 8，实产 0x2ac 差 4B）。
     if (slot >= 0 && slot <= 3)
     {
-        return &m_padShop[8 + slot * 0x1c];
+        return &m_padShop[4 + slot * 0x1c];
     }
     return 0;
 }
@@ -672,7 +674,7 @@ bool CParty::CheckRecvFromAllMember(CUser* user)
 // ORIG T 0x0859a34e（TimeoutCompleteAfterAssault.md）：+0x118 守卫非 0 时
 // 复位并返回 0；为 0 时按未回包成员逐个踢出（trace 后 leave_user type2），
 // 返回 1（ORIG 主路径不写 +0x118；调用方 CAssaultMgr 两处均 test %al 消费返回值）。
-int CParty::TimeoutCompleteAfterAssault()
+bool CParty::TimeoutCompleteAfterAssault()
 {
     if (m_recvResultFlag != 0)
     {
@@ -949,6 +951,9 @@ int CParty::CheckMemberLastTryAssaultTime()
         {
             continue;
         }
+        // ORIG 0x85bcb2e 域：info 槽(-0x14) 物化 → getCurSec(-0x10) → killTime；
+        // 4.4 R→L/寄存器分配异构（单表达式形实测 48 insn 更差，见Lane6探针轮），
+        // 残差为槽序/求值序 N82 族，维持双语句最优 43 基线。
         int curSec = GlobalData::s_systemTime_.getCurSec();
         int lastKillTime =
             reinterpret_cast<CUserCharacInfo*>(m_member[i].m_pUser)

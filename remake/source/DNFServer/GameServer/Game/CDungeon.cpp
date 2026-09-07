@@ -43,7 +43,7 @@ int CDungeon::getDungeonKind() const
     return m_dungeonKind;
 }
 
-unsigned char CDungeon::isNoFatigueDungeon() const
+bool CDungeon::isNoFatigueDungeon() const
 {
     return m_noFatigueFlag;
 }

@@ -953,6 +953,7 @@ int CUser::exchange_interspace_expand(int fromSpace, int fromSlot,
         || getCurExpandEquipslotSwitch() != expandSwitchReq)
         return 1;
 
+    int unusedSlot = 0;
     if (getCurChannelEquipslotSwitch() == 0 && getCurExpandEquipslotSwitch() == 0)
         return change_equip_expand(fromSpace, fromSlot, toSpace, toSlot, outSlot);
 

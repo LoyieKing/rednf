@@ -61,7 +61,9 @@ public:
     unsigned long getThreadID();           // 0x082a4218（读 +8，非 const）
     static void* dispatch_proxy(void* p)   // 0x08630c1a（读虚表+0xc，以 (p,p) 调用）
     {
-        static_cast<ThreadInterface*>(p)->dispatch(p);
+        // ORIG 0x08630c20：p 先存 -0xc 槽（具名局部，P0），this 从槽读、arg 重读形参槽。
+        ThreadInterface* self = static_cast<ThreadInterface*>(p);
+        self->dispatch(p);
         return 0;
     }
 

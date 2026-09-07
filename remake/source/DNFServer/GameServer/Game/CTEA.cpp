@@ -27,10 +27,13 @@ void IMethod::BytesToWord(unsigned char const* src, unsigned int& dst)
 }
 void IMethod::WordToBytes(unsigned int src, unsigned char* dst)
 {
-    dst[0] = (unsigned char)(src >> 24);
-    dst[1] = (unsigned char)(src >> 16);
-    dst[2] = (unsigned char)(src >> 8);
-    dst[3] = (unsigned char)src;
+    *dst = (unsigned char)(src >> 24);
+    ++dst;
+    *dst = (unsigned char)(src >> 16);
+    ++dst;
+    *dst = (unsigned char)(src >> 8);
+    ++dst;
+    *dst = (unsigned char)src;
 }
 
 CTEA::CTEA()
@@ -219,7 +222,7 @@ int CTEA::Initialize(const char* key, int keyLen, const char* otherKey,
     bool sameChain = false;
     if (m_bInit)
     {
-        if (std::memcmp(m_chain2, otherKey, m_blockSize) == 0)
+        if (std::memcmp(m_chain, otherKey, m_blockSize) == 0)
             sameChain = true;
         if (std::memcmp(m_key, buf, m_keyLength) == 0)
             sameKey = true;
@@ -237,10 +240,10 @@ int CTEA::Initialize(const char* key, int keyLen, const char* otherKey,
         return 0x6fffffff;
 
     std::memcpy(m_key, buf, m_keyLength);
-    IMethod::BytesToWord(buf + 0x0, *(unsigned int*)(m_iv + 0x0));
-    IMethod::BytesToWord(buf + 0x4, *(unsigned int*)(m_iv + 0x4));
-    IMethod::BytesToWord(buf + 0x8, *(unsigned int*)(m_iv + 0x8));
-    IMethod::BytesToWord(buf + 0xc, *(unsigned int*)(m_iv + 0xc));
+    IMethod::BytesToWord(buf + 0x0, m_iv[0]);
+    IMethod::BytesToWord(buf + 0x4, m_iv[1]);
+    IMethod::BytesToWord(buf + 0x8, m_iv[2]);
+    IMethod::BytesToWord(buf + 0xc, m_iv[3]);
     m_bInit = true;
     return 0x6fffffff;
 }

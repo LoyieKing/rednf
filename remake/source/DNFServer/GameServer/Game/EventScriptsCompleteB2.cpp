@@ -2005,7 +2005,7 @@ scan_done:
 //   - 职业分支内子标签 ScanType 失败 → ebx=0 → 销毁局部、退出本节回主循环
 //     （不是返回假！此前重建误写 return false，已修正）；
 //   - [/level up] → ebx=0 退出本节；未知 token → ebx=1 继续节内；
-//   - 职业命中后子 token 不比较、直接丢弃；cond.m_filter[0]=立即数职业号，
+//   - 职业命中后子 token 不比较、直接丢弃；cond.m_filter0=立即数职业号，
 //     filter[1]=(char)ScanInt(&ok)；reward 循环三 ScanInt 短路检查（任一失败
 //     即跳出到 insert），随后两 ScanStr + push_back；
 //   - insert 键经 pair<char&,Condition_LevelUp&> 模板推导（ORIG 符号
@@ -2054,8 +2054,8 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter[0] = 0;
-                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        cond.m_filter0 = 0;
+                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
                         for (;;)
                         {
                             item.m_level = ScanInt(&result);
@@ -2068,7 +2068,7 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                             ScanStr(&item.m_content);
                             cond.m_items.push_back(item);
                         }
-                        char key = static_cast<char>(cond.m_filter[0]);
+                        char key = static_cast<char>(cond.m_filter0);
                         std::map<int, Condition_LevelUp>::value_type entry(key, cond);
                         script->m_conditions.insert(entry);
                     }
@@ -2079,8 +2079,8 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter[0] = 1;
-                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        cond.m_filter0 = 1;
+                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
                         for (;;)
                         {
                             item.m_level = ScanInt(&result);
@@ -2093,7 +2093,7 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                             ScanStr(&item.m_content);
                             cond.m_items.push_back(item);
                         }
-                        char key = static_cast<char>(cond.m_filter[0]);
+                        char key = static_cast<char>(cond.m_filter0);
                         std::map<int, Condition_LevelUp>::value_type entry(key, cond);
                         script->m_conditions.insert(entry);
                     }
@@ -2104,8 +2104,8 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter[0] = 2;
-                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        cond.m_filter0 = 2;
+                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
                         for (;;)
                         {
                             item.m_level = ScanInt(&result);
@@ -2118,7 +2118,7 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                             ScanStr(&item.m_content);
                             cond.m_items.push_back(item);
                         }
-                        char key = static_cast<char>(cond.m_filter[0]);
+                        char key = static_cast<char>(cond.m_filter0);
                         std::map<int, Condition_LevelUp>::value_type entry(key, cond);
                         script->m_conditions.insert(entry);
                     }
@@ -2129,8 +2129,8 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter[0] = 3;
-                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        cond.m_filter0 = 3;
+                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
                         for (;;)
                         {
                             item.m_level = ScanInt(&result);
@@ -2143,7 +2143,7 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                             ScanStr(&item.m_content);
                             cond.m_items.push_back(item);
                         }
-                        char key = static_cast<char>(cond.m_filter[0]);
+                        char key = static_cast<char>(cond.m_filter0);
                         std::map<int, Condition_LevelUp>::value_type entry(key, cond);
                         script->m_conditions.insert(entry);
                     }
@@ -2154,8 +2154,8 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter[0] = 4;
-                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        cond.m_filter0 = 4;
+                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
                         for (;;)
                         {
                             item.m_level = ScanInt(&result);
@@ -2168,7 +2168,7 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                             ScanStr(&item.m_content);
                             cond.m_items.push_back(item);
                         }
-                        char key = static_cast<char>(cond.m_filter[0]);
+                        char key = static_cast<char>(cond.m_filter0);
                         std::map<int, Condition_LevelUp>::value_type entry(key, cond);
                         script->m_conditions.insert(entry);
                     }
@@ -2179,8 +2179,8 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter[0] = 5;
-                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        cond.m_filter0 = 5;
+                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
                         for (;;)
                         {
                             item.m_level = ScanInt(&result);
@@ -2193,7 +2193,7 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                             ScanStr(&item.m_content);
                             cond.m_items.push_back(item);
                         }
-                        char key = static_cast<char>(cond.m_filter[0]);
+                        char key = static_cast<char>(cond.m_filter0);
                         std::map<int, Condition_LevelUp>::value_type entry(key, cond);
                         script->m_conditions.insert(entry);
                     }
@@ -2204,8 +2204,8 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter[0] = 6;
-                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        cond.m_filter0 = 6;
+                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
                         for (;;)
                         {
                             item.m_level = ScanInt(&result);
@@ -2218,7 +2218,7 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                             ScanStr(&item.m_content);
                             cond.m_items.push_back(item);
                         }
-                        char key = static_cast<char>(cond.m_filter[0]);
+                        char key = static_cast<char>(cond.m_filter0);
                         std::map<int, Condition_LevelUp>::value_type entry(key, cond);
                         script->m_conditions.insert(entry);
                     }
@@ -2229,8 +2229,8 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter[0] = 7;
-                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        cond.m_filter0 = 7;
+                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
                         for (;;)
                         {
                             item.m_level = ScanInt(&result);
@@ -2243,7 +2243,7 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                             ScanStr(&item.m_content);
                             cond.m_items.push_back(item);
                         }
-                        char key = static_cast<char>(cond.m_filter[0]);
+                        char key = static_cast<char>(cond.m_filter0);
                         std::map<int, Condition_LevelUp>::value_type entry(key, cond);
                         script->m_conditions.insert(entry);
                     }
@@ -2254,8 +2254,8 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter[0] = 8;
-                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        cond.m_filter0 = 8;
+                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
                         for (;;)
                         {
                             item.m_level = ScanInt(&result);
@@ -2268,7 +2268,7 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                             ScanStr(&item.m_content);
                             cond.m_items.push_back(item);
                         }
-                        char key = static_cast<char>(cond.m_filter[0]);
+                        char key = static_cast<char>(cond.m_filter0);
                         std::map<int, Condition_LevelUp>::value_type entry(key, cond);
                         script->m_conditions.insert(entry);
                     }
@@ -2279,8 +2279,8 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter[0] = 9;
-                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        cond.m_filter0 = 9;
+                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
                         for (;;)
                         {
                             item.m_level = ScanInt(&result);
@@ -2293,7 +2293,7 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                             ScanStr(&item.m_content);
                             cond.m_items.push_back(item);
                         }
-                        char key = static_cast<char>(cond.m_filter[0]);
+                        char key = static_cast<char>(cond.m_filter0);
                         std::map<int, Condition_LevelUp>::value_type entry(key, cond);
                         script->m_conditions.insert(entry);
                     }
@@ -2304,8 +2304,8 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter[0] = 0xa;
-                        cond.m_filter[1] = static_cast<unsigned char>(ScanInt(&result));
+                        cond.m_filter0 = 0xa;
+                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
                         for (;;)
                         {
                             item.m_level = ScanInt(&result);
@@ -2318,7 +2318,7 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                             ScanStr(&item.m_content);
                             cond.m_items.push_back(item);
                         }
-                        char key = static_cast<char>(cond.m_filter[0]);
+                        char key = static_cast<char>(cond.m_filter0);
                         std::map<int, Condition_LevelUp>::value_type entry(key, cond);
                         script->m_conditions.insert(entry);
                     }

@@ -1238,6 +1238,8 @@ void CCompressedBlob::resize(int needSize)                   // 0x0844e02a
     {
         if (m_buf != 0)
         {
+            // ORIG 0x844e040 二次 test 系 4.1 jump-threading 产物（test1 失败直达
+            // new 段），4.4 无线程化 + 尾 jmp/nop 岛，跨版本豁免。
             delete[] m_buf;
             m_buf = 0;
         }

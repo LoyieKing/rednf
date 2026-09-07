@@ -17,9 +17,11 @@ struct itemGloballyUniqueIdentifier_t
 {
     void reset();
     // 字段布局由三个 SetXxx 反汇编实证：
-    void SetServerId(int id)                    { m_serverId = id; }
-    void SetDatetime(int dt)                    { m_datetime = dt; }
-    void SetSequenceNo(unsigned short seq)      { m_sequenceNo = seq; }
+    // ORIG 0x8894782/8894798/88947b2：LHS 地址物化进栈槽（probe17 引用局部形
+    // 逐条全等，含 sub $0x10/$0x14 帧与槽序）；直写形少 this 槽往返。
+    void SetServerId(int id)                    { int& r = m_serverId; r = id; }
+    void SetDatetime(int dt)                    { int& r = m_datetime; r = dt; }
+    void SetSequenceNo(unsigned short seq)      { unsigned short& r = m_sequenceNo; r = seq; }
 
     int            m_serverId;                  // +0x00
     int            m_datetime;                  // +0x04

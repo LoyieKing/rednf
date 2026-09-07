@@ -67,7 +67,9 @@ private:
 // memcpy(…, +0x210, 0x63c) / rep movsl 0x18f 实证；内部字段未还原，pad 视图）。
 struct stNotifyIngameADInfo
 {
-    char m_pad[0x63c];
+    // ORIG construct/_M_insert_aux 尾 rep movsl 0x18f×4 ⇒ 结构对齐 4（int 视图，
+    // 尺寸仍 0x63c；char[0x63c] 会对齐 1 使 gcc 展开通用逐段拷贝）。
+    int m_pad[0x18f];
 };
 class CUser;
 

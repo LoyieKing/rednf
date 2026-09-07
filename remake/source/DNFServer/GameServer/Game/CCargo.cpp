@@ -146,22 +146,26 @@ int CCargo::GetCargoData(int itemIdx, Inven_Item& out) const
 int CCargo::insert_item(const Inven_Item& item)
 {
     int slot = 0;
-    if (!item.isEquipableItemType()) {
+    // ORIG 调用点 `call; xor $0x1,%eax; test %al,%al; je`（int callee 的 bool 取反物化，
+    // X1 调用点自救形）。
+    register unsigned char eq asm("eax") = (unsigned char)item.isEquipableItemType();
+    eq ^= 1;
+    if (eq) {
         for (; slot < 0x98; ++slot) {
             if (_AddStackItem(item, slot) >= 0)
                 return slot;
         }
     }
     slot = 0;
-    for (;;) {
-        if (slot > 0x97)
-            return -1;
+    // ORIG 尾置条件 for（setle 形，与第一循环同构）。
+    for (; slot < 0x98; ++slot) {
         if (m_pItems[slot].m_addInfo == 0)
-            break;
-        ++slot;
+        {
+            _AddItem(item, slot);
+            return slot;
+        }
     }
-    _AddItem(item, slot);
-    return slot;
+    return -1;
 }
 
 void CCargo::_AddItem(const Inven_Item& item, int slot)
@@ -243,21 +247,30 @@ int CCargo::insert_item_special_slot(Inven_Item& item, int slot)
 {
     if (!IsOperatorable(slot))
         return -2;
-    if (!item.isEquipableItemType()) {
-        if (m_pItems[slot].m_addInfo == item.m_addInfo) {
-            int ret = _AddStackItem(item, slot);
-            if (ret >= 0)
-                return slot;
-            if (ret == -10)
-                return -1;
-        } else {
-            for (int i = 0; i < 0x98; ++i) {
-                int ret = _tryAddStackItem(item, i);
-                if (ret >= 0)
+    // ORIG 调用点 xor $0x1 形（int callee 取反，X1 调用点自救）。
+    register unsigned char eq asm("eax") = (unsigned char)item.isEquipableItemType();
+    eq ^= 1;
+    if (eq) {
+        // ORIG 块排布：cmp je 正跳到 then 体（物理在后）；声明序决定槽
+        // ret1(-0xc) → ret2(-0x10) → i(-0x14)。
+        // 4.4 同层变量按声明逆序分配槽（先声明 → 深地址），故逆序声明。
+        int i;
+        int ret2;
+        int ret1;
+        if (m_pItems[slot].m_addInfo != item.m_addInfo) {
+            for (i = 0; i < 0x98; ++i) {
+                ret2 = _tryAddStackItem(item, i);
+                if (ret2 >= 0)
                     return i;
-                if (ret == -10)
+                if (ret2 == -10)
                     return -1;
             }
+        } else {
+            ret1 = _AddStackItem(item, slot);
+            if (ret1 >= 0)
+                return slot;
+            if (ret1 == -10)
+                return -1;
         }
     }
     if (m_pItems[slot].m_addInfo == 0) {
@@ -354,12 +367,16 @@ int CCargo::check_item_exist(int itemIdx) const
 
 int CCargo::get_empty_slot() const
 {
+    // 残差 N82 族：ORIG 帧 0x28/slot@-0xc vs 4.4 帧 0x18/slot@-0x4（槽号平移，
+    // 助记符序列相同）；4.4 对死局部不保槽（pad/volatile/double 探针全败）。
     int slot = 0;
-    while (slot < 0x98 && m_pItems[slot].m_addInfo != 0)
-        ++slot;
-    if (!IsOperatorable(slot))
-        return -1;
-    return slot;
+    for (; slot < 0x98; ++slot) {
+        if (m_pItems[slot].m_addInfo == 0)
+            break;
+    }
+    if (IsOperatorable(slot))
+        return slot;
+    return -1;
 }
 
 int CCargo::_GetItemCount()
@@ -392,14 +409,14 @@ int CCargo::FindItemLock(unsigned char lock, ENUM_ITEMSPACE& space, int& slot) c
 {
     space = (ENUM_ITEMSPACE)2;
     slot = 0;
-    for (;;) {
-        if (slot > 0x97)
-            return 0;
+    // ORIG 尾置 while（jmp cond 先行，cond 读 *param_3 后 setle/test），
+    // 增量以 *param_3 = *param_3 + 1 两步写回（lea 0x1 形）。
+    while (slot <= 0x97) {
         if (m_pItems[slot].m_amp.GetLock() == lock)
-            break;
-        ++slot;
+            return 1;
+        slot = slot + 1;
     }
-    return 1;
+    return 0;
 }
 
 // ORIG 0x850c64c：m_capacity==0 时仍允许升级（仅当 m_capacity>capacity 才拒绝）。
@@ -432,11 +449,18 @@ int CCargo::_CompareSlot(const void* a, const void* b)
         return -1;
     if (ta > tb)
         return 1;
-    if (ta == 9999)
-        return 0;
-    if (ia->m_addInfo == ib->m_addInfo)
-        return 0;
-    return (unsigned int)ia->m_addInfo < (unsigned int)ib->m_addInfo ? -1 : 1;
+    // ORIG 尾块：ta==9999 与 addInfo 相等共享 mov$0 返回块（je 正跳），
+    // 4.1 identical-return 合并 ⇒ 源码用嵌套 if 形态（探针 /tmp/p_cs2.cpp）。
+    // 残差 N：4.1 尾块串联 jmp 跳板（mov$1→+0xa1→+0xa8→end 两级中继）4.4 直达，
+    // 助记符序列 58/60，语义逐分支全等。
+    if (ta != 9999) {
+        if (ia->m_addInfo != ib->m_addInfo) {
+            if ((unsigned int)ia->m_addInfo < (unsigned int)ib->m_addInfo)
+                return -1;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 void CCargo::sort()

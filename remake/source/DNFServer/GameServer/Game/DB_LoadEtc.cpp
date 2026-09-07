@@ -997,7 +997,13 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
 void DB_LoadEtc::LoadComboSkillInfo(SIG_LOAD_ETC* sig)
 {
     // ORIG: 直读 sig+0x14ab0（mov 0x14ab0(%eax)，直接折叠反偏移），无意引局部槽（P0）。
-    if (reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill)->m_job != 9)
+    // 局部视图使 4.4 折叠单 disp（P82/P95：数组退化 cast 会拆 add+mov）。
+    struct ComboJobView
+    {
+        char m_pad[0x14ab0];
+        unsigned int m_job;   // = m_comboSkill + 6（SIG_COMBO_SKILL::m_job，4B 装载）
+    };
+    if (((ComboJobView*)sig)->m_job != 9)
     {
         return;
     }

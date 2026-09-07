@@ -231,8 +231,11 @@ struct STRDCharacterStatusRate
         m_head[7] = 1.0f;
         m_head[8] = 1.0f;
         m_head[9] = 1.0f;
-        for (int i = 0; i <= 3; ++i) m_mid28[i] = 1.0f;
-        for (int k = 0; k <= 16; ++k) m_mid38[k] = 1.0f;
+        // P191：4.1 循环变量双初始化（`movl $0x0,-0x4`×2）⇒ `int i=0;`+`for(i=0;…)` 两段
+        int i = 0;
+        for (i = 0; i <= 3; ++i) m_mid28[i] = 1.0f;
+        int k = 0;
+        for (k = 0; k <= 16; ++k) m_mid38[k] = 1.0f;
         m_tail[0] = 1.0f;
         m_tail[1] = 1.0f;
         m_tail[2] = 1.0f;

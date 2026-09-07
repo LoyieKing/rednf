@@ -74,7 +74,7 @@ public:
     bool OnRecv();                       // ORIG 0x849030e
     int OnSend();                        // ORIG 0x8490364（-1=失败）
     bool OnError();                      // ORIG 0x84903ee
-    int Send(PacketGuard& guard);        // ORIG 0x84906d0
+    bool Send(PacketGuard& guard);       // ORIG 0x84906d0（PRETTY 串 "bool ...Send(PacketGuard&)" 实证）
     int Parsing(int recvLen);            // ORIG 0x8490074（HEADER_SIZE 包解析）
     // ORIG 两函数调用约定未传 this（TryListen/TryConnect 仅压 port/ip），
     // 实为静态成员；ORIG 返回寄存器承载新分配的 session 指针（0=失败）。
@@ -101,7 +101,7 @@ public:
     ~CEpoll();
 
     bool WaitForEvent(int timeoutMs);                 // ORIG 0x8495f0a
-    int RegisterSession(SESSION* session, int fd);    // ORIG 0x84964ca
+    bool RegisterSession(SESSION* session, int fd);   // ORIG 0x84964ca（4.1 sete%al 无规范化）
     bool UnregisterSession(SESSION* session);         // ORIG 0x8496d5a（返 !ResetEpoll 物化）
 };
 
@@ -118,7 +118,7 @@ public:
     CSessionManager();
     ~CSessionManager();
 
-    int TryListen(int port, const char* ip);          // ORIG 0x8495570（尾直通 RegisterSession int 返回）
+    bool TryListen(int port, const char* ip);         // ORIG 0x8495570（尾直通不规范化；消费点 xor/test bool 链）
     bool TryConnect(const char* ip, int port);        // ORIG 0x8495506
     void TryDisconnect(SESSION* session);             // ORIG 0x8496236
     bool TrySend(SESSION* session, PACKETGUARD& g);   // ORIG 0x84953b2
@@ -207,7 +207,7 @@ public:
     int OnRecvMessageCharacInfo(Stream* stream, int a, int b);    // 0x849341c
     bool DispatchMessage(Stream* stream);                         // 0x8493530
     Stream* GetMessage();                          // ORIG 0x849362a
-    void FreeMessage(Stream* stream, int flag);    // ORIG 0x8493648
+    bool FreeMessage(Stream* stream, int flag);    // ORIG 0x8493648
     bool SendExchangeServerInfo();                 // ORIG 0x84937ba（dispatch 消费返回值）
     bool PreparePassiveSocket();                   // ORIG 0x8493856
 
@@ -257,7 +257,7 @@ bool CacheCharacterMemory(int characNo, CACHE_CHARACTER_TYPE* mem);// 0x848f258
 
 int GetServerChannelNo();            // ORIG 0x848f27b
 char* GetServerIP();                 // ORIG 0x848f28e
-unsigned short GetServerPORT();      // ORIG 0x848f2a3（返回宽度以报告为准）
+int GetServerPORT();                 // ORIG 0x848f2a3（调用点直取 eax 无 movzwl 实证 int 返回）
 
 // ---- 命中率统计 ------------------------------------------------------------
 class CExchangeServerHitRate

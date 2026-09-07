@@ -144,12 +144,11 @@ bool MySQL::open(char* host, char* db, char* user, char* passwd)
     strcpy(m_passwd, passwd);
     if (mysql_real_connect(m_dbHandle, host, user, passwd, db, 0xcea, 0, 0x400) == 0)
     {
-        int err = mysql_errno(m_dbHandle);
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x10a, 9, true, true);
-        trace("\n\t- mysql_real_connect(ip:%s, port:%d, name:%s, id:%s error='%d') fail",
-              host, 0xcea, db, user, err);
-        cMyTrace trace2(__PRETTY_FUNCTION__, 0x10e, 5);
-        trace2("[%s][%d]", __PRETTY_FUNCTION__, 0x10e);
+        register int err = mysql_errno(m_dbHandle);  // P87：ORIG ebx 跨 C1 调用缓存
+        cMyTrace(__PRETTY_FUNCTION__, 0x10a, 9, true, true)(
+            "\n\t- mysql_real_connect(ip:%s, port:%d, name:%s, id:%s error='%d') fail",
+            host, 0xcea, db, user, err);
+        cMyTrace(__PRETTY_FUNCTION__, 0x10e, 5)("[%s][%d]", __PRETTY_FUNCTION__, 0x10e);
         return false;
     }
     return true;
@@ -168,12 +167,11 @@ bool MySQL::open(char* host, unsigned int port, char* db, char* user, char* pass
     strcpy(m_passwd, passwd);
     if (mysql_real_connect(m_dbHandle, host, user, passwd, db, port, 0, 0) == 0)
     {
-        int err = mysql_errno(m_dbHandle);
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x138, 9, true, true);
-        trace("\n\t- mysql_real_connect(ip:%s, port:%d, name:%s, id:%s error='%d') fail",
-              host, port, db, user, err);
-        cMyTrace trace2(__PRETTY_FUNCTION__, 0x13c, 5);
-        trace2("[%s][%d]", __PRETTY_FUNCTION__, 0x13c);
+        register int err = mysql_errno(m_dbHandle);  // P87
+        cMyTrace(__PRETTY_FUNCTION__, 0x138, 9, true, true)(
+            "\n\t- mysql_real_connect(ip:%s, port:%d, name:%s, id:%s error='%d') fail",
+            host, port, db, user, err);
+        cMyTrace(__PRETTY_FUNCTION__, 0x13c, 5)("[%s][%d]", __PRETTY_FUNCTION__, 0x13c);
         return false;
     }
     return true;

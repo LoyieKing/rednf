@@ -287,8 +287,9 @@ int CFairMatch::_FindTeam(CUser* user)
 {
     for (int t = 0; t < 2; ++t) {
         for (int i = 0; i < 4; ++i) {
-            PlayerInfoThird& s = m_teams[t].m_players[i];
-            if (s.m_flag != 0 && s.m_user != 0 && s.m_user == user)
+            if (m_teams[t].m_players[i].m_flag != 0 &&
+                m_teams[t].m_players[i].m_user != 0 &&
+                m_teams[t].m_players[i].m_user == user)
                 return t;
         }
     }
@@ -500,25 +501,23 @@ int CFairMatch::_CheckMovableRoom(IMatch* other, PvP_Room* /*room*/,
     }
     CUser* member = 0;
     for (int i = 0; i < 4; ++i) {
-        member = other->GetUser(static_cast<unsigned>(i));
-        if (member != 0) break;
+        if ((member = other->GetUser(static_cast<unsigned>(i))) != 0) break;
     }
-    if (member == 0) {
+    if (member != 0) {
+        *out = reinterpret_cast<PvP_Room*>(member->GetPVPRoom());
+        if (*out != 0) return 1;
+        cMyTrace trace(
+            __PRETTY_FUNCTION__,
+            0xc64, 0);
+        trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0xc64);
+        return 0;
+    } else {
         cMyTrace trace(
             __PRETTY_FUNCTION__,
             0xc5d, 0);
         trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0xc5d);
         return 0;
     }
-    *out = reinterpret_cast<PvP_Room*>(member->GetPVPRoom());
-    if (*out == 0) {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xc64, 0);
-        trace("error file(%s) line(%d)", "MatchingSystem.cpp", 0xc64);
-        return 0;
-    }
-    return 1;
 }
 
 // _PullOutRoom ORIG T 0x856633ce?（README 0x085633ce）报告同名 md
@@ -579,8 +578,7 @@ PvP_Room* CFairMatch::_MakeRoom(CUser* user)
     PacketGuard pkt;
     pkt.put_header(1, 0x35);
 
-    CGameManager* mgr = G_CGameManager();
-    PvP_Room* room = mgr->GetPvp();
+    PvP_Room* room = G_CGameManager()->GetPvp();
     if (room == 0) {
         pkt.put_byte(0);
         pkt.put_byte(4);
@@ -596,17 +594,15 @@ PvP_Room* CFairMatch::_MakeRoom(CUser* user)
         static_cast<char>(m_roomInfo.byte4),
         const_cast<char*>(m_roomInfo.title.c_str()),
         m_roomInfo.short6,
-        m_roomInfo.byte8 != 0,
+        m_roomInfo.byte8,
         m_roomInfo.passwd.c_str(),
         static_cast<int>(m_roomInfo.passwd.length()),
         static_cast<PVP_BATTLE_MODE>(2));
-    {
-        CSwitchLog log("PvP_Room* fair_pvp::CFairMatch::_MakeRoom(CUser*)",
-                       0xba0, 0, 0);
-        log("pvp@log %s,%s,room(%d),%d,%d",
-            user->get_acc_name(), user->getCurCharacName(),
-            room->get_index(), room->get_pvp_battle_mode(), result);
-    }
+    CSwitchLog log("PvP_Room* fair_pvp::CFairMatch::_MakeRoom(CUser*)",
+                   0xba0, 0, 0);
+    log("pvp@log %s,%s,room(%d),%d,%d",
+        user->get_acc_name(), user->getCurCharacName(),
+        room->get_index(), room->get_pvp_battle_mode(), result);
 
     if (result < 1) {
         pkt.clear();
@@ -1336,13 +1332,10 @@ void CFairMatch::OnConnectP2PTimeout(PvP_Room* room)
 {
     if (m_field04 == 4) {
         _SendMatchStatePacket(4, 2);
-        const int mgrTeam = room->get_manager_team();
+        int mgrTeam = room->get_manager_team();
         _ReturnTeam(room, mgrTeam, 0);
         if (mgrTeam != 1) {
-            unsigned* dst = reinterpret_cast<unsigned*>(&m_teams[0]);
-            const unsigned* src =
-                reinterpret_cast<const unsigned*>(&m_teams[1]);
-            for (int n = 0x12; n != 0; --n) *dst++ = *src++;
+            m_teams[0] = m_teams[1];
         }
         m_teams[0].refresh();
         m_teams[1].reset();

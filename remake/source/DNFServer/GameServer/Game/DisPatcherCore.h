@@ -66,7 +66,7 @@ public:
     // （本 TU 家族；报告 checkPvpEnterCharacter.md 在，定义待落地 → U 引用合规）
     bool checkPvpEnterCharacter(CUser* user, MSG_CHARAC_SELECT& msg);
     // ---- ORIG helper（T 符号；定义见 DisPatcherCore.cpp，报告 docs/class_func_reports/）----
-    void RequestDBInventory_forchina(CUser* user, MSG_CHARAC_SELECT& msg);  // 0x081c7c1c
+    int RequestDBInventory_forchina(CUser* user, MSG_CHARAC_SELECT& msg);   // 0x081c7c1c
     int RequestDBCharac(CUser* user, MSG_CHARAC_SELECT const& msg);   // 0x081c6ca0
     int RequestBlackCount(CUser* user, MSG_CHARAC_SELECT& msg);       // 0x081c79f2
     void RequestDBInventory(CUser* user, MSG_CHARAC_SELECT& msg);     // 0x081c6ee6（ORIG 返回 void）

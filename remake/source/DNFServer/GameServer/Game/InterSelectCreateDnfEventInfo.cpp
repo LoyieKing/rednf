@@ -36,16 +36,8 @@ void InterSelectCreateDnfEventInfo::Reward::operator()(CUser* user)
     PacketGuard guard;
     guard.put_header(0, 0x22d);
     guard.put_short(m_rate);
-    bool bVar1;
-    if (!user->GetEventCreateDnfReward() || m_flag == 0)
-    {
-        bVar1 = false;
-    }
-    else
-    {
-        bVar1 = true;
-    }
-    if (bVar1)
+    // ORIG：条件 test 直判无 bool 物化槽（movzbl+test 直进分支）。
+    if (user->GetEventCreateDnfReward() != 0 && m_flag != 0)
     {
         guard.put_byte(1);
     }

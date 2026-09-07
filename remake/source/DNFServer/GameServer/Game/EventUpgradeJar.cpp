@@ -58,7 +58,11 @@ int Event_Upgrade_Jar::LoadScript(const char* /*scriptDir*/, const char* path)
 // ORIG 0x080f4bb0。条件：item[+0x02]==0x28be7d 且 item[+0x07]>=1。
 bool Event_Upgrade_Jar::check_requiredRecipe(const Inven_Item& item) const
 {
-    return item.m_addInfo == 0x28be7d && item.m_addInfo2 > 0;
+    if (!(item.m_addInfo == 0x28be7d))
+        return false;
+    if (item.m_addInfo2 <= 0)
+        return false;
+    return true;
 }
 
  // ORIG 0x080f4be0。Fortune 分支：在 m_materialIndices 中查 materialIdx，命中则在对应的
@@ -182,11 +186,18 @@ void Event_Upgrade_Jar::GetProbability(int materialIdx, unsigned int& outProb) c
 // → 返回 false；否则 true。
 bool Event_Upgrade_Jar::CheckMaxLuckyLevel(Inven_Item& item, unsigned long upgrade)
 {
-    if (m_materialIndices.size() > 1 &&
-        m_materialIndices[1] == upgrade &&
-        (unsigned int)item.GetUpgrade() >= (unsigned int)m_upgradeMax)
+    register bool c1 asm("al") = (m_materialIndices.size() > 1);
+    if (c1)
     {
-        return false;
+        register bool c2 asm("al") = (m_materialIndices[1] == upgrade);
+        if (c2)
+        {
+            register bool c3 asm("al") = ((unsigned int)item.GetUpgrade() >= (unsigned int)m_upgradeMax);
+            if (c3)
+            {
+                return false;
+            }
+        }
     }
     return true;
 }

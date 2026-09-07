@@ -25,14 +25,13 @@ void setBit_Byte(unsigned char& value, bool set, int bit)
     }
     else
     {
-        value = static_cast<unsigned char>(value & ~(1u << bit));
+        value = static_cast<unsigned char>(value & ~static_cast<unsigned char>(1u << bit));
     }
 }
 
 bool isSetBit_Byte(unsigned char value, int bit)
 {
-    unsigned char mask = static_cast<unsigned char>(1u << bit);
-    return (value & mask) != 0;
+    return static_cast<unsigned char>(1u << bit) & value;
 }
 
 void setBit_Word(unsigned short& value, bool set, int bit)
@@ -43,14 +42,13 @@ void setBit_Word(unsigned short& value, bool set, int bit)
     }
     else
     {
-        value = static_cast<unsigned short>(value & ~(1u << bit));
+        value = static_cast<unsigned short>(value & ~static_cast<unsigned short>(1u << bit));
     }
 }
 
 bool isSetBit_Word(unsigned short value, int bit)
 {
-    unsigned short mask = static_cast<unsigned short>(1u << bit);
-    return (value & mask) != 0;
+    return static_cast<unsigned short>(1u << bit) & value;
 }
 
 bool SameBuffer(unsigned char* a, unsigned long size, unsigned char* b)

@@ -70,16 +70,17 @@ tagCompoundAvatarTable::~tagCompoundAvatarTable() {}  // ORIG 0x08334330：vecto
 tagCompoundAvatar*
 tagCompoundAvatarTable::getCompoundAvatarInfo(int idx) const
 {
-    if (idx > 0 && static_cast<int>(m_avatars.size()) > idx)
-    {
-        const tagCompoundAvatar* entry =
-            &m_avatars.at(static_cast<unsigned int>(idx));
-        if (entry->m_idx == idx)
-        {
-            return const_cast<tagCompoundAvatar*>(entry);
-        }
-    }
-    return 0;
+    // ORIG: (idx<1)||(size()<=idx) bool 物化岛（mov$1/jmp/mov$0 落 al，P194 register 形）
+    // → test/je；body 内 at() 落槽 -0xc，*entry==idx je 正跳 return-块。
+    register bool invalid asm("al") =
+        (idx < 1) || (static_cast<int>(m_avatars.size()) <= idx);
+    if (invalid)
+        return 0;
+    const tagCompoundAvatar* entry =
+        &m_avatars.at(static_cast<unsigned int>(idx));
+    if (entry->m_idx != idx)
+        return 0;
+    return const_cast<tagCompoundAvatar*>(entry);
 }
 
 // ============================ WongWork::CCompoundAvatar ============================

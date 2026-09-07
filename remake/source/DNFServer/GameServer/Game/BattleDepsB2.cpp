@@ -658,10 +658,11 @@ void CBattle_Field::onUseItem(CUser* user, const Inven_Item& item)
 
     if (item.m_addInfo == 0xbdd)                 // +0x02 dword（技能材料物品）
     {
-        unsigned int now = GlobalData::s_systemTime_.getCurTickCount();
-        mapInfo->m_killChecker1.setUseSkillMaterial(now);   // +0x4c
-        now = GlobalData::s_systemTime_.getCurTickCount();
-        mapInfo->m_killChecker2.setUseSkillMaterial(now);   // +0x64
+        // P0：ORIG tick 无槽（call 结果 eax 直通实参），内联右值。
+        mapInfo->m_killChecker1.setUseSkillMaterial(
+            GlobalData::s_systemTime_.getCurTickCount());   // +0x4c
+        mapInfo->m_killChecker2.setUseSkillMaterial(
+            GlobalData::s_systemTime_.getCurTickCount());   // +0x64
     }
 
     if ((unsigned char)item.m_field1 == 2)

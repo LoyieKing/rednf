@@ -111,11 +111,12 @@ void CItemLockTimer::IncreaseItemLockTimer(CUser* user)
 {
     if (m_count == 0)
     {
-        int characNo = user->getCurCharacNo();
-        unsigned int uid = user->GetUID();
-        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0, (int)uid,
+        // ORIG：getCurCharacNo→%esi、GetUID→%ebx 跨 G_TimerQueue call 缓存，
+        // 实参内联复现（P24/P52，禁具名局部槽）。
+        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0,
+                                    (int)user->GetUID(),
                                     (TIMER_MESSAGE)0x88, CHECK_ITEM_LOCK_TIME,
-                                    0, (unsigned int)characNo);
+                                    0, (unsigned int)user->getCurCharacNo());
     }
     ++m_count;
 }
@@ -131,11 +132,12 @@ void CItemLockTimer::NextItemLockTimer(CUser* user)
 {
     if (m_count != 0)
     {
-        int characNo = user->getCurCharacNo();
-        unsigned int uid = user->GetUID();
-        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0, (int)uid,
+        // ORIG：getCurCharacNo→%esi、GetUID→%ebx 跨 G_TimerQueue call 缓存，
+        // 实参内联复现（P24/P52，禁具名局部槽）。
+        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0,
+                                    (int)user->GetUID(),
                                     (TIMER_MESSAGE)0x88, CHECK_ITEM_LOCK_TIME,
-                                    0, (unsigned int)characNo);
+                                    0, (unsigned int)user->getCurCharacNo());
     }
 }
 
@@ -238,12 +240,11 @@ void CItemLock::UpdateItem(CUser* user, Inven_Item* item)
 void CItemLock::SendItemLockList(CUser* user)
 {
     PacketGuard packet;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->clear();
-    buf->put_header(0, 0xfb);
-    int countIndex = buf->get_index();
+    packet.clear();
+    packet.put_header(0, 0xfb);
+    int countIndex = packet.get_index();
     int count = 0;
-    buf->put_short(0);
+    packet.put_short(0);
 
     for (std::vector<stItemLockRef>::iterator it = m_lockList.begin();
          it != m_lockList.end(); ++it)
@@ -274,22 +275,22 @@ void CItemLock::SendItemLockList(CUser* user)
                 else if (ref.m_space == 0x12)
                     outSpace = 3;
             }
-            buf->put_byte(outSpace);
-            buf->put_short(ref.m_slot);
-            buf->put_byte(state);
+            packet.put_byte(outSpace);
+            packet.put_short(ref.m_slot);
+            packet.put_byte(state);
             if (state == 2)
             {
                 int remain = remainSec + ITEM_UNLOCK_WAITING_TIME -
                              GlobalData::s_systemTime_.getCurSec();
                 if (remain < 0)
                     remain = 0;
-                buf->put_int(remain);
+                packet.put_int(remain);
             }
             ++count;
         }
     }
-    buf->put_byte(countIndex, count);
-    buf->finalize(true);
+    packet.put_byte(countIndex, count);
+    packet.finalize(true);
     user->Send(packet);
     m_lockList.clear();
 }
@@ -603,12 +604,11 @@ void CItemLock::VerifyItemLock(CUser* user)
 void CItemLock::SendItemUnlock(CUser* user, int space, int slot)
 {
     PacketGuard packet;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->clear();
-    buf->put_header(0, 0xfc);
-    buf->put_byte(space);
-    buf->put_short(slot);
-    buf->finalize(true);
+    packet.clear();
+    packet.put_header(0, 0xfc);
+    packet.put_byte(space);
+    packet.put_short(slot);
+    packet.finalize(true);
     user->Send(packet);
 }
 
@@ -617,12 +617,11 @@ void CItemLock::SendItemUnlock(CUser* user, int space, int slot)
 void CItemLock::SendRequestItemLock(CUser* user, int space, int slot)
 {
     PacketGuard packet;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->put_header(1, 0x10f);
-    buf->put_byte(1);
-    buf->put_byte(space);
-    buf->put_short(slot);
-    buf->finalize(true);
+    packet.put_header(1, 0x10f);
+    packet.put_byte(1);
+    packet.put_byte(space);
+    packet.put_short(slot);
+    packet.finalize(true);
     user->Send(packet);
 }
 
@@ -632,13 +631,12 @@ void CItemLock::SendRequestItemUnlock(CUser* user, int space, int slot,
                                       int remainSec)
 {
     PacketGuard packet;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->put_header(1, 0x110);
-    buf->put_byte(1);
-    buf->put_byte(space);
-    buf->put_short(slot);
-    buf->put_int(remainSec);
-    buf->finalize(true);
+    packet.put_header(1, 0x110);
+    packet.put_byte(1);
+    packet.put_byte(space);
+    packet.put_short(slot);
+    packet.put_int(remainSec);
+    packet.finalize(true);
     user->Send(packet);
 }
 
@@ -647,12 +645,11 @@ void CItemLock::SendRequestItemUnlock(CUser* user, int space, int slot,
 void CItemLock::SendRequestItemUnlockCancel(CUser* user, int space, int slot)
 {
     PacketGuard packet;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->put_header(1, 0x111);
-    buf->put_byte(1);
-    buf->put_byte(space);
-    buf->put_short(slot);
-    buf->finalize(true);
+    packet.put_header(1, 0x111);
+    packet.put_byte(1);
+    packet.put_byte(space);
+    packet.put_short(slot);
+    packet.finalize(true);
     user->Send(packet);
 }
 

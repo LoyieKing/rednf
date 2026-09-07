@@ -112,7 +112,6 @@ void CRelayBattleMgr::OnLeaveRoom(int seat)
 
 void CRelayBattleMgr::OnDiePlayer(int victimSeat, int killerSeat, bool bTime)
 {
-    bool flag = bTime;
     if (victimSeat >= 0 && victimSeat < 8)
     {
         m_battles[victimSeat].m_state = 3;
@@ -121,15 +120,14 @@ void CRelayBattleMgr::OnDiePlayer(int victimSeat, int killerSeat, bool bTime)
     {
         ++m_battles[killerSeat].m_killCount;
     }
-    if (flag && m_state == 1)
+    if (bTime && m_state == 1)
     {
         m_state = 2;
         m_lastFightStartTime = GlobalData::s_systemTime_.getCurSec();
-        int cur = m_lastFightStartTime;
-        int roomIdx = m_pRoom->get_index();
-        TimerQueue* tq = G_TimerQueue();
-        tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1, roomIdx,
-                                    (TIMER_MESSAGE)0x63, 3000, cur, 0);
+        G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1,
+                                                m_pRoom->get_index(),
+                                                (TIMER_MESSAGE)0x63, 3000,
+                                                m_lastFightStartTime, 0);
     }
 }
 
@@ -144,12 +142,11 @@ void CRelayBattleMgr::OnChangeTeam(int seat, int team)
 
 void CRelayBattleMgr::OnReady(int seat, bool ready)
 {
-    bool flag = ready;
     if (seat < 0)
         return;
     if (seat > 7)
         return;
-    m_battles[seat].m_state = flag ? 1 : 0;
+    m_battles[seat].m_state = ready ? 1 : 0;
 }
 
 void CRelayBattleMgr::OnRequestFight(int seat)
@@ -158,7 +155,9 @@ void CRelayBattleMgr::OnRequestFight(int seat)
         return;
     if (seat > 7)
         return;
-    if (!m_battles[seat].m_requestFight)
+    register unsigned char v asm("eax") = m_battles[seat].m_requestFight;
+    v ^= 1;
+    if (v)
     {
         m_battles[seat].m_requestFight = 1;
         IncreaseChangeSequenceCount(m_battles[seat].m_team);
@@ -182,11 +181,10 @@ void CRelayBattleMgr::OnStart()
             ++m_readyCount;
         }
     }
-    int cur = m_lastFightStartTime;
-    int roomIdx = m_pRoom->get_index();
-    TimerQueue* tq = G_TimerQueue();
-    tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1, roomIdx,
-                                (TIMER_MESSAGE)0x63, 7000, cur, 0);
+    G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1,
+                                            m_pRoom->get_index(),
+                                            (TIMER_MESSAGE)0x63, 7000,
+                                            m_lastFightStartTime, 0);
 }
 
 void CRelayBattleMgr::OnFight()
@@ -250,7 +248,7 @@ void CRelayBattleMgr::IncreaseChangeSequenceCount(int team)
     ++m_changeSeqCount[team];
     if (m_changeSeqCount[team] > 3)
     {
-        int v = m_changeSeqCount[team];
+        register int v asm("ebx") = m_changeSeqCount[team];
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x13de, 0);
         trace("ERROR ChangeSequenceCount overflow (%d)", v);
@@ -267,7 +265,7 @@ void CRelayBattleMgr::DecreaseChangeSequenceCount(int team)
     --m_changeSeqCount[team];
     if (m_changeSeqCount[team] < 0)
     {
-        int v = m_changeSeqCount[team];
+        register int v asm("ebx") = m_changeSeqCount[team];
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x13ea, 0);
         trace("ERROR ChangeSequenceCount underflow (%d)", v);
@@ -330,10 +328,14 @@ void CRelayBattleMgr::ArrangeNoChangeSequence(std::vector<int>& seq, int team,
 {
     for (int i = 0; i < 8; ++i)
     {
-        if (m_battles[i].m_team == team && m_battles[i].m_state == 1 &&
-            !m_battles[i].m_requestFight)
+        if (m_battles[i].m_team == team && m_battles[i].m_state == 1)
         {
-            m_battles[i].m_seq = (short)seq[outIdx++];
+            register unsigned char v asm("eax") = m_battles[i].m_requestFight;
+            v ^= 1;
+            if (v)
+            {
+                m_battles[i].m_seq = (short)seq[outIdx++];
+            }
         }
     }
 }
@@ -362,17 +364,17 @@ int CRelayBattleMgr::GetNextPlayer(int team)
     {
         if (m_battles[i].m_team == team)
         {
-            if (m_battles[i].m_state == 1)
+            switch (m_battles[i].m_state)
             {
+            case 2:
+                return -1;
+            case 1:
                 if (bestSeq < m_battles[i].m_seq)
                 {
                     bestSeq = m_battles[i].m_seq;
                     best = i;
                 }
-            }
-            else if (m_battles[i].m_state == 2)
-            {
-                return -1;
+                break;
             }
         }
         ++i;

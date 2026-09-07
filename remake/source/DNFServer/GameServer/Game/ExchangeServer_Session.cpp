@@ -10,10 +10,10 @@
 // IExchangeServer 虚槽序（vtable 派生 0x8c7a1d0 / 抽象 0x8c7a1e8）：
 //   +0 DispatchPacket(CSession*,char*,int) / +4 UnregisterExchangeServer(int)
 //   +8 AllocSession() / +12 FreeSession(CSession*) / +16 DispatchMessage(Stream*)
-// 全局 exchange_server_E(0x943d9f4, B) 在 ORIG 存的是内嵌 server 子对象地址
-// （thread this+0xc），即已是 IExchangeServer* 视角指针；ORIG 反汇编
-// `mov (%eax),%eax` 为函数级编译产物中的二次解引（thread*→server 子对象），
-// 本 TU 以 GetExchangeServerInterface() 显式表达该转换。
+// 全局 exchange_server_E(0x943d9f4, B) 在 ORIG 直接承载 IExchangeServer*：
+// 五函数切片实证全部虚调用均为「全局指针值直作 this、*P 作 vptr」单层解引
+// （Listen 0x84907e0 / Connect 0x84908a9 / OnConnect 0x84905da /
+//   Parsing 0x849016a / OnAccept），无二次解引层。
 //
 // 无 BLOCKED 函数。
 // ============================================================================
@@ -39,13 +39,9 @@ namespace exchange_server
 {
 
 
-// ORIG：全局指针经二次解引得到 IExchangeServer 子对象（thread 内嵌子对象地址）。
-static IExchangeServer* ES()
-{
-    // ORIG：mov 0x943d9f4,%eax ; mov (%eax),%eax —— thread 句柄解引到
-    // IExchangeServer 视角的内嵌子对象（this+0xc）。
-    return (IExchangeServer*)(*(char**)CSession::exchange_server_);
-}
+// ORIG：虚调用点全部内联装载全局（mov 0x943d9f4,%eax），无 helper call。
+// 用宏保持 -O0 内联形（P49：static 函数 -O0 生真实 call，与 ORIG 不符）。
+#define ES() ((IExchangeServer*)CSession::exchange_server_)
 
 // ---------------------------------------------------------------------------
 // ctor — ORIG 0x848ffd0 size 0x53：
@@ -169,7 +165,7 @@ int CSession::Parsing(int recvLen)
                 moved = -2;                   // -0xc 占位（与 0 判定无关则恒进 trace）
                 if (dispatched == false)
                 {
-                    cMyTrace("DispatchPacket", 0x197, 0)(
+                    cMyTrace(__PRETTY_FUNCTION__, 0x197, 0)(
                         "DispatchPacket() error line number(%d)", 407);
                 }
 
@@ -256,10 +252,11 @@ bool CSession::OnRecv()
 // ---------------------------------------------------------------------------
 int CSession::OnSend()
 {
-    int ret = CNetwork<95000, 450000>::send_packet();
-    if (ret < 0)                              // ORIG shr $0x1f + test——仅负值成立
+    // ORIG 0x8490364：call send_packet 后 shr $0x1f,%eax 直测符号位，无局部槽
+    // （P0 槽-局部律：寄存器直传 ⇒ 内联右值）。
+    if (CNetwork<95000, 450000>::send_packet() < 0)
     {
-        cMyTrace("OnSend", 0x1e4, 0)("OnSend() Socket[%d] Error(%s)",
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e4, 0)("OnSend() Socket[%d] Error(%s)",
             GetSocket(), strerror(errno));
         return -1;
     }
@@ -270,7 +267,7 @@ int CSession::OnSend()
 // ---------------------------------------------------------------------------
 bool CSession::OnError()
 {
-    cMyTrace("OnError", 0x1ec, 0)("ExchangeServer OnError() Socket[%d] Error(%s)",
+    cMyTrace(__PRETTY_FUNCTION__, 0x1ec, 0)("ExchangeServer OnError() Socket[%d] Error(%s)",
         GetSocket(), strerror(errno));
     return false;
 }
@@ -286,14 +283,14 @@ CSession* CSession::OnAccept()
     int fd = accept(GetSocket(), (sockaddr*)&addr, &addrlen);
     if (fd < 0)
     {
-        cMyTrace("OnAccept", 0x1f7, 0)("Accept Socket[%d] Error(%s)",
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f7, 0)("Accept Socket[%d] Error(%s)",
             fd, strerror(errno));
         return 0;                             // mov $0,%eax
     }
 
     unsigned short port = ntohs(addr.sin_port);
     char* ip = inet_ntoa(addr.sin_addr);
-    cMyTrace("session_pool_", 0x1fa, 0)(
+    cMyTrace(__PRETTY_FUNCTION__, 0x1fa, 0)(
         "Accepted other game server ip(%s), port(%d), sock(%d)",
         ip, (int)port, fd);
 
@@ -305,7 +302,7 @@ CSession* CSession::OnAccept()
     }
     else
     {
-        cMyTrace("session_pool_", 0x202, 0)("session_pool_.Acquire() error");
+        cMyTrace(__PRETTY_FUNCTION__, 0x202, 0)("session_pool_.Acquire() error");
     }
     return session;                           // ORIG 尾：mov -0xc,%eax
 }
@@ -323,9 +320,11 @@ bool CSession::OnConnect()
         guard.put_header(1, 0x82);
         guard.put_int(GetServerChannelNo());
         guard.put_int((int)inet_addr(GetServerIP()));
-        guard.put_short((int)GetServerPORT());
+        guard.put_short(GetServerPORT());
         guard.finalize(false);          // ORIG 0x8490681：Send 前 finalize，否则 Send 判定未封包不发
-        return Send(guard) != 0;        // ORIG 0x8490693：mov %eax,%ebx（Send 返回值）
+        // ORIG 0x8490698：mov %eax,%ebx 跨 dtor 存活后 mov %ebx,%eax 透传（bool→bool，
+        // 无 test/setne 规范化——Send 真实返回 bool，PRETTY_FUNCTION 串实证）。
+        return Send(guard);
     }
     return true;                        // ORIG 0x84906c2：mov $1,%ebx
 }
@@ -333,22 +332,29 @@ bool CSession::OnConnect()
 // ---------------------------------------------------------------------------
 // Send — ORIG 0x84906d0 size 0x97
 // ---------------------------------------------------------------------------
-int CSession::Send(PacketGuard& guard)
+bool CSession::Send(PacketGuard& guard)
 {
+    // ORIG 0x84906d0：test %al,%al + je（正向 if，logFormat 块为 je 目标后置，
+    // P32：!f() 会生 xor $1 物化而 ORIG 无）。send_packet 失败路径独立 mov$0;jmp
+    // 出口不经 logFormat。
     if (guard.is_finallized())
     {
-        int len = guard.get_len();
-        char* data = guard.get_packet(0);
-        int ret = send_packet(data, len);
+        // ORIG 0x84906f1：get_len 结果升格 %ebx 跨 get_packet 调用存活（P52），
+        // get_packet 结果进 eax 直接入参槽不落栈槽——单语句右到左实参求值形。
+        int ret = send_packet(guard.get_packet(0), guard.get_len());
         if (ret < 0)
         {
-            LogManager::logFormat(1, "ExchangeServerNetwork.h",
-                "Send(PacketGuard&)", 0x228,
-                "Packet.is_finallized return false");
             return 0;
         }
     }
-    return 1;
+    else
+    {
+        LogManager::logFormat(1, "ExchangeServerNetwork.h",
+            "Send(PacketGuard&)", 0x228,
+            "Packet.is_finallized return false");
+        return 0;
+    }
+    return 1;                                 // ORIG L1: mov $1（块在 logFormat 后）
 }
 
 // ---------------------------------------------------------------------------
@@ -361,7 +367,7 @@ CSession* CSession::Listen(int port, const char* ip)
     // 直接 !返回值 判断（ORIG xor $0x1,%eax; test %al,%al 形态）。
     if (!CNetwork<95000, 450000>::CreateListenSocket(sock, port, ip))
     {
-        cMyTrace("CreateListenSocket", 0x236, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x236, 0)(
             "CreateListenSocket failed - %s", strerror(errno));
         return 0;
     }
@@ -371,8 +377,9 @@ CSession* CSession::Listen(int port, const char* ip)
     if (session != 0)
     {
         session->set_socket(sock, true);
+        return session;                       // ORIG mov -0xc,%eax + jmp 岛
     }
-    return session;                            // ORIG mov -0xc,%eax
+    return 0;                                  // ORIG 0x849081e: mov $0,%eax（je 目标后置块）
 }
 
 // ---------------------------------------------------------------------------
@@ -384,9 +391,12 @@ CSession* CSession::Connect(const char* ip, int port)
     // CreateConnectionSocket 为静态成员（ORIG 同）；返回非 0=失败码。
     const int ok = CNetwork<95000, 450000>::CreateConnectionSocket(sock, ip, port);
 
-    if (ok != 0)
+    // ORIG 0x849084c：cmpl 槽后 setne %al + test %al,%al + je（P194 sete 物化形，
+    // 4.4 对槽比零恒折直跳，须 register bool(al) 强制物化）。
+    register bool failed asm("eax") = (ok != 0);
+    if (failed)
     {
-        cMyTrace("CreateConnectionSocket", 0x24b, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x24b, 0)(
             "CreateConnectionSocket failed - %s", strerror(errno));
         return 0;
     }
@@ -396,8 +406,9 @@ CSession* CSession::Connect(const char* ip, int port)
     if (session != 0)
     {
         session->set_socket(sock, true);
+        return session;
     }
-    return session;
+    return 0;                                  // ORIG 0x84908e7: mov $0,%eax
 }
 
 // ---------------------------------------------------------------------------
@@ -405,7 +416,7 @@ CSession* CSession::Connect(const char* ip, int port)
 // ---------------------------------------------------------------------------
 void CSession::Disconnect()
 {
-    cMyTrace("Disconnect", 0x25e, 0)("Disconnect Exchange Server");
+    cMyTrace(__PRETTY_FUNCTION__, 0x25e, 0)("Disconnect Exchange Server");
 
     if (CSession::exchange_server_ != 0)
     {
