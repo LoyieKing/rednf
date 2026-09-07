@@ -853,7 +853,8 @@ public:
     TimerLightServerNotice();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerLightServerNotice();
-    static bool RegistNextTimer(int count);   // ORIG T 0x08636c14（恒返 1，al）
+    bool RegistNextTimer(int count);   // ORIG T 0x08636c14（恒返 1，al；读 0xc(%ebp)
+                                       // 为参 ⇒ this@0x8 非 static 成员）
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。

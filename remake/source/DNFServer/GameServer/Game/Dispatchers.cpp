@@ -5281,8 +5281,10 @@ int Dispatcher_UpgradeCargo::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
 
-    const CCargo* cargoR = user->getCurCharacCargoR();
-    if (!cargoR->isUpgradable(cargoR->GetCapacity() + 0x10))
+    // P48 去缓存每用点重取：ORIG 0x82a2a（isUpgradable 的 receiver 与
+    // GetCapacity 源各独立重调 getCurCharacCargoR，共 4 次；不缓存进具名局部）。
+    if (!user->getCurCharacCargoR()->isUpgradable(
+            user->getCurCharacCargoR()->GetCapacity() + 0x10))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x198, 0x13);
         return 0;
@@ -13739,32 +13741,36 @@ int Dispatcher_FightVillageMonster::read(PacketBuf& packet, MSG_BASE& msg) { ret
 Dispatcher_GuildAttendanceInfo::~Dispatcher_GuildAttendanceInfo() {}
 int Dispatcher_GuildAttendanceInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    int guildkey;
-    unsigned int characNo;
     char local_11;
-    unsigned short len;
-    unsigned int serverGroup;
-    CGuildServerProxy* proxy;
+    MSG_BASE* local_10;
 
     (void)param;
+    // [b24ab] ORIG 入口 `mov 0x10(%ebp),-0xc`：缓存 msg（2nd 参，0x10）到 local_10，
+    // 后续 local_10[0xd] 读 char（Ghidra 误标 param_3，实证为 msg）
+    local_10 = &msg;
     if (user->get_state() <= 2)
         return 0;
-    guildkey = user->get_charac_guildkey();
-    if (guildkey == 0)
+    // [b24ab] P48：ORIG 直测寄存器（sete）不落槽 ⇒ guildkey 非具名局部，
+    // 守卫与字段写各重取（get_charac_guildkey 两次实调用）。
+    if (user->get_charac_guildkey() == 0)
         return 0;
     // ORIG ctor Packet_Guild_Attendance_Info(local_23) @0x0822c384（W，唯一导出符号）。
     Packet_Guild_Attendance_Info local_23;
-    *(reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&local_23) + 0x4)) =
-        (unsigned int)guildkey;
-    characNo = (unsigned int)user->getCurCharacNo();
-    *(reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&local_23) + 0x8)) =
-        characNo;
-    local_11 = *(reinterpret_cast<char*>(&msg) + 0xd);
-    len = *reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(&local_23) + 0x2);
-    serverGroup = (unsigned int)user->GetServerGroup();
-    proxy = GlobalData::s_guild_proxy_mgr->GetServerProxy(
-        (ENUM_SERVER_GROUP)serverGroup);
-    proxy->SendTcpPacket(reinterpret_cast<char*>(&local_23), len);
+    // [b24ab] ORIG 直写 +0xa/+0xe（-0x15/-0x11）：包字段用真实成员
+    // m_fieldA/m_fieldB（此前裸偏移 +4/+8 偏移错误）。
+    local_23.m_fieldA = (unsigned int)user->get_charac_guildkey();
+    // [b24ab] P134：getCurCharacNo 直写 m_fieldB，无中间槽（ORIG 直 store -0x11）
+    local_23.m_fieldB = (unsigned int)user->getCurCharacNo();
+    local_11 = *(reinterpret_cast<const char*>(local_10) + 0xd);
+    // [b24ab] P197②：ORIG 将 len(→%esi) 与 &local_23(→%ebx) register 缓存跨
+    // GetServerProxy 存活；proxy 结果直用 %eax（GetServerProxy 内联为
+    // SendTcpPacket receiver，无 proxy 槽）。
+    register unsigned short local_21 = *reinterpret_cast<unsigned short*>(
+        reinterpret_cast<char*>(&local_23) + 0x2);
+    register char* const packet = reinterpret_cast<char*>(&local_23);
+    GlobalData::s_guild_proxy_mgr
+        ->GetServerProxy((ENUM_SERVER_GROUP)user->GetServerGroup())
+        ->SendTcpPacket(packet, local_21);
     return 0;
 }
 int Dispatcher_GuildAttendanceInfo::read(PacketBuf& packet, MSG_BASE& msg)
@@ -14748,8 +14754,8 @@ int Dispatcher_UseSharedEffectItem::dispatch_sig(CUser* user, PacketBuf& packet)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xff, 1);
         return 0;
     }
-    CInventory* inven = user->getCurCharacInvenW();
-    Inven_Item item = inven->GetInvenSlot(1, (int)slot);
+    // P48 去缓存：ORIG 对 getCurCharacInvenW 两次独立重调（GetInvenSlot/delete_item）。
+    Inven_Item item = user->getCurCharacInvenW()->GetInvenSlot(1, (int)slot);
     if (item.isEmpty())
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xff, 0x16);
@@ -14773,7 +14779,8 @@ int Dispatcher_UseSharedEffectItem::dispatch_sig(CUser* user, PacketBuf& packet)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xff, 0x11);
         return 0;
     }
-    if (inven->delete_item((INVEN_TYPE)1, (int)slot, 1, (eItemDelReason)3, true) != 1)
+    if (user->getCurCharacInvenW()->delete_item(
+            (INVEN_TYPE)1, (int)slot, 1, (eItemDelReason)3, true) != 1)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xff, 1);
         return 0;
@@ -24707,9 +24714,11 @@ int Dispatcher_StackableActionUse::check_error(CUser* user, MSG_BASE& msg)
     }
 
     short slot = req.m_0d;                               // +0x0d 槽位
-    // ORIG 0x0825e3xx：经 getCurCharacInvenRefR（_ZNK…21getCurCharacInvenRefREv）取背包。
-    const CInventory* inven = reinterpret_cast<const CInventory*>(user->getCurCharacInvenRefR());
-    Inven_Item item = inven->GetInvenSlot(1, static_cast<int>(slot));
+    // ORIG 0x0825e3xx：GetInvenSlot 用 getCurCharacInvenR、try_use_item 用
+    // getCurCharacInvenRefR（两不同 accessor，不缓存为一处）。
+    Inven_Item item = reinterpret_cast<const CInventory*>(
+                          user->getCurCharacInvenR())
+                          ->GetInvenSlot(1, static_cast<int>(slot));
     unsigned int itemIdx = static_cast<unsigned int>(item.m_addInfo);   // +0x02
 
     CItem* itemDef = G_CDataManager()->find_item(static_cast<int>(itemIdx));
@@ -24728,8 +24737,10 @@ int Dispatcher_StackableActionUse::check_error(CUser* user, MSG_BASE& msg)
     {
         return 0x13;
     }
-    int ret = inven->try_use_item(static_cast<int>(slot), 1,
-                                  static_cast<int>(static_cast<char>(req.m_0f)));
+    int ret = reinterpret_cast<const CInventory*>(
+                  user->getCurCharacInvenRefR())
+                  ->try_use_item(static_cast<int>(slot), 1,
+                                 static_cast<int>(static_cast<char>(req.m_0f)));
     if (ret != 0)
     {
         return ret;

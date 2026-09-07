@@ -182,7 +182,10 @@ int CCargo::_AddStackItem(const Inven_Item& item, int slot)
             int cur = m_pItems[slot].get_add_info();
             int inc = item.get_add_info();
             if (checkStackableLimit((unsigned long)m_pItems[slot].m_addInfo, cur + inc)) {
-                m_pItems[slot].m_addInfo2 = m_pItems[slot].m_addInfo2 + inc;
+                // P48 去缓存：ORIG +0x0f3 对最后 += 的加数独立重调
+                // item.get_add_info（不复用 inc）。
+                m_pItems[slot].m_addInfo2 =
+                    m_pItems[slot].m_addInfo2 + item.get_add_info();
             } else {
                 return -10;
             }

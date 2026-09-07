@@ -134,10 +134,10 @@ CharString remove(const CharString& str, int pos, int removeLength)
         return CharString();
     CharStringData* newData =
         CharStringData::createTerminated(str.length() - removeLength);
-    const char* src = str.c_str();
-    char* buf = newData->getBuffer();
-    memcpy(buf, src, pos);
-    memcpy(buf + pos, src + pos + removeLength,
+    // [b24ab] P48：ORIG 无 src/buf 具名局部，getBuffer/c_str 每用点重取
+    // （两次 getBuffer、两次 c_str、两次 length 实调用）
+    memcpy(newData->getBuffer(), str.c_str(), pos);
+    memcpy(newData->getBuffer() + pos, str.c_str() + pos + removeLength,
            str.length() - pos - removeLength);
     return CharString(newData);
 }
@@ -151,10 +151,9 @@ WideString remove(const WideString& str, int pos, int removeLength)
         return WideString();
     WideStringData* newData =
         WideStringData::createTerminated(str.length() - removeLength);
-    const wchar_t* src = str.c_str();
-    wchar_t* buf = newData->getBuffer();
-    memcpy(buf, src, pos * sizeof(wchar_t));
-    memcpy(buf + pos, src + pos + removeLength,
+    // [b24ab] P48：ORIG 无 src/buf 具名局部，getBuffer/c_str 每用点重取
+    memcpy(newData->getBuffer(), str.c_str(), pos * sizeof(wchar_t));
+    memcpy(newData->getBuffer() + pos, str.c_str() + pos + removeLength,
            (str.length() - pos - removeLength) * sizeof(wchar_t));
     return WideString(newData);
 }

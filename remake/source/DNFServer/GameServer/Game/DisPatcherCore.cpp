@@ -11527,14 +11527,17 @@ ST_Guild_War_Rank_Info::ST_Guild_War_Rank_Info()
 Packet_Notice_Guild_War_Info::Packet_Notice_Guild_War_Info()
     : PacketHeader(0x414, 0x15c)
 {
-    // ORIG 循环直接 call ST_Guild_War_Rank_InfoC1（无 _ZnwjPv，数组成员隐式构造）；
+    // ORIG +0x2f 循环：esI=9 起向下 `while(esi!=-1){ ctor; ebx+=0x21; esi--; }`
+    // ＝ 10 次构造（+0x12..0x15c 填满，m_rankInfo[0x14a]=10×0x21）。
     // gcc 4.4 拒绝显式构造调用语法，placement new 多出 _ZnwjPv（标准 no-op），
     // 语义等价 → 豁免该调用差异。
-    // 具名成员：Packet_Notice_Guild_War_Info::m_rankInfo@+0x12（9×stride 0x21）
-    char* base = m_rankInfo;
-    for (int i = 0; i < 9; ++i)
+    char* pos = m_rankInfo;
+    int i = 9;
+    while (i != -1)
     {
-        new (base + i * 0x21) ST_Guild_War_Rank_Info();
+        new (pos) ST_Guild_War_Rank_Info();
+        pos += 0x21;
+        i = i - 1;
     }
 }
 
@@ -12309,9 +12312,16 @@ int DispatcherResetRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase& 
     // 再铸卷轴校验：GetInvenSlot(invenR,1,scrollSlot)，idx 三选一且数量 > 0
     Inven_Item scroll = user->getCurCharacInvenR()->GetInvenSlot(
         (INVEN_TYPE)1, (int)req.m_scrollSlot);
+    // ORIG 0x81dd557/0x81dd598：数量校验与 id 三选一校验各为独立 if+SendCmdErrorPacket
+    //（两次 0x15 错误块，不合并）。
+    if (scroll.m_addInfo2 <= 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1c8, 0x15);
+        return 0;
+    }
     const int scrollIdx = scroll.m_addInfo;
-    if (!((scrollIdx == 0xf) || (scrollIdx == 0x381) || (scrollIdx == (int)0x292090f2)) ||
-        scroll.m_addInfo2 <= 0)
+    if (!((scrollIdx == 0xf) || (scrollIdx == 0x381) ||
+          (scrollIdx == (int)0x292090f2)))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1c8, 0x15);
         return 0;

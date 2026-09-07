@@ -482,22 +482,26 @@ bool setCompoundAvatarData(tagCompoundAvatar* avatar, ENUM_EQUIPMENTTYPE equip)
 // 权重累计入 m_cube.m_field0c[e]，pair 入 m_cube.m_vecs[e]。type==0x16 → ret0。
 bool setCompoundRareAvatarData(tagCompoundAvatar* avatar, ENUM_EQUIPMENTTYPE equip)
 {
-    const int idx = static_cast<int>(equip);
-    if (idx == 0x16)
+    // [b24ab] P48/P0：ORIG 直读 0xc(%ebp)（param_2），无 idx 具名槽；ken禁
+    // bool 预清（ScanInt 恒写 ok）。loop 条件式 `(item=ScanInt(&ok)), ok`。
+    if (static_cast<int>(equip) == 0x16)
         return false;
-
-    bool ok = false;
+    bool ok;
+    int item;
     while (true)
     {
-        const int item = ScanInt(&ok);
+        item = ScanInt(&ok);
         if (!ok)
             break;
         const int weight = ScanInt(&ok);
         if (!ok)
             return false;
-        avatar->m_cube.m_field0c[idx] += weight;
-        avatar->m_cube.m_vecs[idx].push_back(
-            std::make_pair(item, avatar->m_cube.m_field0c[idx]));
+        avatar->m_cube.m_field0c[static_cast<int>(equip)] += weight;
+        // [b24ab] ORIG `_ZNSt4pairIiiEC1IRiRjEEOT_OT0_`（converting ctor,
+        // int&/unsigned&）+ push_back(EOS1_) ⇒ 直构 pair 非 make_pair（P192）
+        avatar->m_cube.m_vecs[static_cast<int>(equip)].push_back(
+            std::pair<int, int>(item,
+                                avatar->m_cube.m_field0c[static_cast<int>(equip)]));
     }
     return true;
 }

@@ -116,7 +116,9 @@ void CShutdowManager::OnAllUserLogout()
         return;
     }
     cMyTrace trace(__PRETTY_FUNCTION__, 0x323b, 0);
-    trace("Send message to monitor for logout all user.");
+    // ORIG +0x03c `movl $"ALL USER LOGOUT COMPLETE\n"`——日志第二点：消息串须与
+    // ORIG 逐字节一致（原"Send message to monitor for logout all user."是错误串）。
+    trace("ALL USER LOGOUT COMPLETE\n");
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
                            (const char*)"App.cpp", 0x323d),
                        true);

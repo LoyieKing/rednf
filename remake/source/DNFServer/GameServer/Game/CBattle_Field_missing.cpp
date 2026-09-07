@@ -842,11 +842,12 @@ void CBattle_Field::CBloodClearRewardData::onFinishBloodRound(
         setBloodClear(true);
     m_bloodRound = (int)round;
     m_endTick = GlobalData::s_systemTime_.getCurTickCount();
-    unsigned int clearTime = getBloodRoundClearTime();
-    addPlayTime(clearTime);
+    // P48 去缓存每用点重取：ORIG 0x8306fc4 对 getBloodRoundClearTime 两次独立
+    // 重调（+0x50 addPlayTime / +0x94 historyBloodRoundClear），不缓存。
+    addPlayTime(getBloodRoundClearTime());
     const char* dungeonName = dungeon->GetDungeonName();
     unsigned int playTime = getPlayTime();
-    party->historyBloodRoundClear(m_bloodRound, clearTime / 1000,
+    party->historyBloodRoundClear(m_bloodRound, getBloodRoundClearTime() / 1000,
                                   playTime / 1000, dungeonName);
 }
 

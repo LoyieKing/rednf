@@ -22,6 +22,7 @@
 #include "HistoryLog.h"               // HistoryLog::WriteBuyItem/WriteSellItem
 #include "DB_AvatarChangeOwner.h"     // avatar 过户 DB 请求
 #include "DisPatcherCore.h"           // DisPatcher_LeaveParty（CreatePrivateStore 离队）
+#include "PCK_AUCTION_OPEN_PRIVATE_STORE_GA.h"  // 权威 PCK_AUCTION_OPEN_PRIVATE_STORE_GA（ORIG W 0x85cb374）
 
 
 #include <algorithm>
@@ -30,25 +31,9 @@
 // ORIG T _Z26IsTradeLimitAttachTypeItemRK10Inven_Item @0x081201dc（定义在 CMailBoxHelper TU）。
 bool IsTradeLimitAttachTypeItem(Inven_Item const& item);
 
-// AuctionPacket.h 与 Game 侧 Inven_Item.h 存在同名结构（RandomOption* 等），
-// 无法在同一 TU 共存；此处按 ORIG 布局镜像 PCK_AUCTION_OPEN_PRIVATE_STORE_GA
-// （nsl::PACKET_HEADER 18B + m_id@18/character_num@22/character_ids[36]@26，
-// sizeof 0xaa；ctor 等价 AuctionPacket.h 权威版 PACKET_CTOR_BODY(0,0xb,0xaa)，
-// ORIG W 0x85cb374）。权威定义见 ServerLab/Auction/.../AuctionPacket.h。
-namespace
-{
-struct OpenPrivateStoreGaMirror : public nsl::PACKET_HEADER
-{
-    unsigned int m_id;        // @18
-    int character_num;        // @22
-    int character_ids[36];    // @26
-
-    OpenPrivateStoreGaMirror()
-    {
-        PACKET_CTOR_BODY(0, 0xb, 0xaa);
-    }
-};
-}  // namespace
+// PCK_AUCTION_OPEN_PRIVATE_STORE_GA → 归一化到权威共享头 PCK_AUCTION_OPEN_PRIVATE_STORE_GA.h
+//（eliminate 伪镜像 OpenPrivateStoreGaMirror，统一符号 /_ZN33PCK_AUCTION_OPEN_PRIVATE_STORE_GAC1Ev/）。
+// ClosePrivateStoreGaMirror 仍留（close 包无权威头，见下）。
 
 // PCK_AUCTION_CLOSE_PRIVATE_STORE_GA 镜像：ORIG W 0x85cb3dc
 // PACKET_CTOR_BODY(0, 0xc, 0x16)（memset 0x16→setCategory(0)→setPacketID(0xc)→setSize(0x16)），
@@ -368,7 +353,7 @@ int CPrivateStore::RecreatePrivateStore(SIG_PRIVATE_STORE* sig)
 
     if (GlobalData::s_auction_proxy->IsRunning())
     {
-        OpenPrivateStoreGaMirror packet;
+        PCK_AUCTION_OPEN_PRIVATE_STORE_GA packet;
         packet.m_id = (unsigned int)m_pSeller->get_acc_id();
         packet.character_num = m_pSeller->get_charac_count();
         for (int i = 0; i < packet.character_num; ++i)
@@ -522,7 +507,7 @@ bool CPrivateStore::CreatePrivateStore(unsigned char zoneA, unsigned char zoneB,
 
     if (GlobalData::s_auction_proxy->IsRunning())
     {
-        OpenPrivateStoreGaMirror auctionPacket;
+        PCK_AUCTION_OPEN_PRIVATE_STORE_GA auctionPacket;
         auctionPacket.m_id = (unsigned int)m_pSeller->get_acc_id();
         auctionPacket.character_num = m_pSeller->get_charac_count();
         for (int i = 0; i < auctionPacket.character_num; ++i)

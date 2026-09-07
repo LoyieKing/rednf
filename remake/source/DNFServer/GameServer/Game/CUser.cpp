@@ -9765,27 +9765,32 @@ void CUser::ProcPremiumFatigue()
 {
     if (getCurCharacR() == 0)
         return;
-    if (!IsHavePremiumAdvantage())
-        return;
-    // ORIG 0x0867cbe4：直读 m_premium(+0x7121c)，不调 GetPremiumInfoW
-    const bool pcRoomPremium =
-        GlobalData::s_event_manager->GetRepeatEvent(0x57)->IsEventing(0) &&
-        // GetAdvantageFatigueRate 每用点重取（P48）；&m_premium 经 %ebx 跨 call
-        m_premium.GetAdvantageFatigueRate() != 0 && GetPCRoomNo() != 0;
-    const int premiumProduct =
-        static_cast<int>(static_cast<unsigned short>(
-            m_premium.GetAdvantageFatigueRate())) *
-        DEFAULT_MAX_FATIGUE;
-    unsigned int maxPremiumFatigue =
-        static_cast<unsigned int>(premiumProduct / 100);
-    if (pcRoomPremium)
+    // ORIG 0x0867cbe4：正向 `if (IsHavePremiumAdvantage())` 包体（Ghidra
+    // `if (cVar2 != '\0')`，产 `test %al;je <ret>`；不写早退 `==0` 形以免 xor）。
+    if (IsHavePremiumAdvantage())
     {
-        maxPremiumFatigue += *reinterpret_cast<const unsigned short*>(
-            // dm+0x51c = SPS(+0x68)+0x4b4 = m_weekendBouns4b4.m_bonusFatiguePercent
-            &G_CDataManager()->m_serverParameter.m_weekendBouns4b4.m_bonusFatiguePercent);
+        // P48 双分支各自重取 GetAdvantageFatigueRate（不缓存）；pcRoom 命中才加
+        // dm+0x51c 周末加成。
+        if (GlobalData::s_event_manager->GetRepeatEvent(0x57)->IsEventing(0) &&
+            m_premium.GetAdvantageFatigueRate() != 0 && GetPCRoomNo() != 0)
+        {
+            setCurCharacMaxPremiumFatigue(
+                static_cast<unsigned short>(
+                    (short)((static_cast<int>(static_cast<unsigned short>(
+                                m_premium.GetAdvantageFatigueRate())) *
+                            DEFAULT_MAX_FATIGUE) / 100) +
+                    G_CDataManager()->m_serverParameter
+                        .m_weekendBouns4b4.m_bonusFatiguePercent));
+        }
+        else
+        {
+            setCurCharacMaxPremiumFatigue(
+                static_cast<unsigned short>(
+                    (static_cast<int>(static_cast<unsigned short>(
+                         m_premium.GetAdvantageFatigueRate())) *
+                     DEFAULT_MAX_FATIGUE) / 100));
+        }
     }
-    setCurCharacMaxPremiumFatigue(
-        static_cast<unsigned short>(maxPremiumFatigue));
 }
 // ORIG T 0x0868866e（报告 docs/class_func_reports/CUser/isSecurityServiceUsed.md）：
 // 安全键盘激活 或 安全卡激活 或 secuGrade(+0x8e97f) 非零 → 已启用安全服务。

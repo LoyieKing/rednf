@@ -598,8 +598,9 @@ bool Inter_LoadEtc::RequestDBEventArad(CUser* user)
     ARAD::DISPATCHER::make_internal_stream_jpn(guard,
         ARAD::ENUM_INTERNALPACKET_JPN(0x26), (int)user->GetUID());
     guard.operator->()->put_binary(&sigEventItem, sizeof(sigEventItem));  // ptEv→0x56
-    bool ok = GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    return ok != false;
+    // [b24ab] ORIG `mov %eax,%ebx` 直接返回 put 结果（32 位），非 bool `ok!=false`
+    // （后者多 mov%al/movzbl 规范化 + 帧扩容）
+    return GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 bool Inter_LoadEtc::SetPvpRecord(CUser* user, SIG_LOAD_ETC* sig)

@@ -205,11 +205,9 @@ bool CMissionList_Charac::_saveData(CUser* pUser)
         pData->m_missionList[kind].m_streak =
             m_missionList[kind].m_streak;
     }
-    {
-        std::string clearedStr;
-        BitsetToStr(m_clearedFlags, clearedStr);
-        std::memcpy(pData->m_cleared, clearedStr.data(), 0x20);
-    }
+    // ORIG +0x14f：BitsetToStr(m_clearedFlags, m_cleared) 直接写 unsigned char*
+    //（Ph 重载），无 std::string 中间层（原实现错误引出了 string ctor/dtor/data）。
+    BitsetToStr(m_clearedFlags, pData->m_cleared);
     pData->m_field144 = m_field148;
     pData->m_field146 = m_field14a;
     pData->m_field148 = m_field14c;

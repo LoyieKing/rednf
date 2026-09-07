@@ -84,9 +84,9 @@ PCK_AUCTION_CLOSE_PRIVATE_STORE_GA::PCK_AUCTION_CLOSE_PRIVATE_STORE_GA()
 PCK_AUCTION_OPEN_PRIVATE_STORE_GA::PCK_AUCTION_OPEN_PRIVATE_STORE_GA()
 {
     memset(this, 0, 0xaa);
-    m_header.setCategory(0);
-    m_header.setPacketID(0xb);
-    m_header.setSize(0xaa);
+    setCategory(0);     // 继承 nsl::PACKET_HEADER（m_header 成员已归一为基类）
+    setPacketID(0xb);
+    setSize(0xaa);
 }
 
 // ============================================================================

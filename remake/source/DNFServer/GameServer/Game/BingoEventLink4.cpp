@@ -305,9 +305,13 @@ void CUser::sendBingoData()
         GlobalData::s_event_manager->GetRepeatEvent(0x6a));
     if (event != 0)
     {
-        // ORIG：getBingoSystem → shared_ptr deref → getToday 链式内联
-        //（mov (%eax),%eax 后直传，无 CBingo* 具名槽）。
-        today = (*reinterpret_cast<CBingo**>(event->getBingoSystem()))->getToday();
+        // ORIG +0x03b：getBingoSystem → boost::shared_ptr<CBingo>::operator->()（内部
+        // pt()）→ getToday 链式内联。用 shared_ptr 的 operator-> 复现 pt() 调用，
+        // 不裸转换 CBingo** 绕过。
+        today = reinterpret_cast<boost::shared_ptr<CBingo>*>(
+                    event->getBingoSystem())
+                    ->operator->()
+                    ->getToday();
     }
 
     PacketGuard packet;

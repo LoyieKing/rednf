@@ -213,8 +213,12 @@ int DbmwClient::ReadData(char* dst, int len)
     ssize_t got;
     size_t remain = (size_t)len;
     char* cur = dst;
-    while ((int)remain >= 1)
+    // ORIG 0x08120b32：外 while(true) + 顶 `if ((int)remain<1) return len`；
+    // recv==0 break 后 return len-remain（底部 setg 守卫 + 入口 jmp 布局）。
+    while (true)
     {
+        if ((int)remain < 1)
+            return len;
         got = ::recv(m_sock, cur, remain, 0);
         if (got < 0)
         {
@@ -229,11 +233,11 @@ int DbmwClient::ReadData(char* dst, int len)
             return -1;
         }
         if (got == 0)
-            return len - (int)remain;           // ORIG 0x08120be6: break 路径就地算 len-remain
+            break;
         cur += got;
         remain -= (size_t)got;
     }
-    return len;   // ORIG +0xdd：条件失败路径直返 len（remain∈{0}，语义不变）
+    return len - (int)remain;
 }
 
 bool DbmwClient::DoQuery()

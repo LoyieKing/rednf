@@ -239,13 +239,14 @@ unsigned int CUser::Redeem_Item(int redeemId)
 int CUser::get_pvp_exp_of_week()
 {
     // ORIG 0x08230100：getPVPResultRefR 每字段访问各取一次（P48 无缓存，
-    // 结果经 %ebx 跨字段读），缓存形少 7 条。
-    if (CUserCharacInfo::getPVPResultRefR()->m_field10 == -1)
+    // 结果经 %ebx 跨字段读）。条件反写 `!= -1` ⇒ ORIG 直发 `jne` 跳 else(减形)，
+    // ==-1 返 expPoint 形为 jne 未取之 fall-through（勿用 sete/test 两跳）。
+    if (CUserCharacInfo::getPVPResultRefR()->m_field10 != -1)
     {
-        return CUserCharacInfo::getPVPResultRefR()->m_expPoint;
+        return CUserCharacInfo::getPVPResultRefR()->m_expPoint
+               - CUserCharacInfo::getPVPResultRefR()->m_field10;
     }
-    return CUserCharacInfo::getPVPResultRefR()->m_expPoint
-           - CUserCharacInfo::getPVPResultRefR()->m_field10;
+    return CUserCharacInfo::getPVPResultRefR()->m_expPoint;
 }
 
 // ===========================================================================

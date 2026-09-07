@@ -7,10 +7,12 @@ PacketGuard::PacketGuard()
 {
     for (int i = 0; i < 9; ++i)
     {
-        PacketPool* pool = GlobalData::s_packet_pool_list[i];
-        if (pool && pool->getThreadID() == pthread_self())
+        // [b24ab] P48：ORIG 无 pool 具名局部、无空判，逐点取 list[i]；线程比较
+        // 走 pthread_equal（非 ==）。
+        if (pthread_equal(GlobalData::s_packet_pool_list[i]->getThreadID(),
+                          pthread_self()) != 0)
         {
-            m_pool = pool;
+            m_pool = GlobalData::s_packet_pool_list[i];
             break;
         }
     }
@@ -20,9 +22,10 @@ PacketGuard::PacketGuard()
     }
     else
     {
-        LogManager::logFormat(1, "PacketGuard.cpp", __FUNCTION__, 0x3e5,
-                              "PacketPool is Not Exist (%d)",
-                              (int)pthread_self());
+        LogManager::logFormat(1, "packet_buf.cpp", __PRETTY_FUNCTION__, 0x3e5,
+                              "[PacketPool Acquire err - pool_type_err] "
+                              "thread_id(%08x)",
+                              (unsigned int)pthread_self());
     }
 }
 
@@ -49,10 +52,11 @@ PacketGuard::~PacketGuard()
         if (m_external != 1)   // ORIG this[8]（bool 字节, xor$1/test 形）
         {
             LogManager::logFormat(
-                1, "packet_buf.cpp", "PacketGuard::~PacketGuard()", 0x3f8,
+                1, "packet_buf.cpp", __PRETTY_FUNCTION__, 0x3f8,
                 "[PacketPool Free err - pool_type_err] pool_type(%08x), packet_idx(%d)",
                 pthread_self(), get()->get_index());
         }
     }
-    AcquirePacketBuf(0);   // = InterfacePacketBuf::~InterfacePacketBuf
+    // [b24ab] 基类 ~InterfacePacketBuf 由编译器自动收尾（ORIG +0x9e call 0858e29a，
+    // 非 AcquirePacketBuf(0)→ 后者多 this,0 两参数 + 多余 call）
 }

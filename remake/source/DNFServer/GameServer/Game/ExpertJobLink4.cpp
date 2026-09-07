@@ -1021,9 +1021,13 @@ void _check_disjointable_item_state(CUser* user, int slot, int invenType,
         if (ticketLevel == -1)
             throw static_cast<ENUM_ERROR>(1);   // ORIG：门槛 -1 直接抛 1
 
-        int portableLimit =
-            ((STExpertJobScript*)G_CDataManager()->GetExpertJobScript(3))
-                ->GetPortableDisjointPossibleLevel(ticketLevel);
+        // ORIG +0x21c：经 expert_job::CDisjointer::GetScript()（缓存单例）取脚本，
+        // 非裸 G_CDataManager()->GetExpertJobScript(3)。
+        int portableLimit = expert_job::CDisjointer::GetScript()
+                                ->GetPortableDisjointPossibleLevel(ticketLevel);
+        // ORIG +0x234：portableLimit==-1 亦抛 1（原实现漏该判据）。
+        if (portableLimit == -1)
+            throw static_cast<ENUM_ERROR>(1);
 
         CItem* itemObj = G_CDataManager()->find_item(item.m_addInfo);
         if (itemObj == 0)

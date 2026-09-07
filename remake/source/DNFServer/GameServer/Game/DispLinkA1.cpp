@@ -356,7 +356,12 @@ void Dispatcher_DisJointAvatar::SendDisjointAvatarInfo(CItem const* pItem)
     packet.m_gradeIdx = gradeIdx;
     packet.m_subType = pItem->GetItemType();
     packet.m_flag = 1;
-    statisticProxyGroup0()->SendPacket(reinterpret_cast<char*>(&packet), 0x28);
+    // 伪 helper 归一（战术四式）：ORIG 0x08218996 内联
+    // GetServerProxy(s_statistic_proxy_mgr, 0) → SendPacket(buf, 0x28)，
+    // 不引入统计代理伪 helper。
+    GlobalData::s_statistic_proxy_mgr
+        ->GetServerProxy((ENUM_SERVER_GROUP)0)
+        ->SendPacket(reinterpret_cast<char*>(&packet), 0x28);
 }
 
 // ============================================================================

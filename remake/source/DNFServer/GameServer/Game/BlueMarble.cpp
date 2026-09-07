@@ -533,9 +533,10 @@ int BlueMarble::checkUserConditionEnterBlueMarble(CUser* user)
         }
         if (user->getMoveSpace() != (UserSpace::T)1)
         {
-            int level = user->get_charac_level();
-            if (level < m_pScript->m_info.m_enterLevel ||
-                level > m_pScript->m_info.m_enterMaxLevel)
+            // P48 去缓存：ORIG +0x0e7/+0x0ff 对上下界各独立重调 get_charac_level
+            //（两次调用，不缓存进 level 局部）。
+            if (user->get_charac_level() < m_pScript->m_info.m_enterLevel ||
+                m_pScript->m_info.m_enterMaxLevel < user->get_charac_level())
             {
                 return 0x17;
             }

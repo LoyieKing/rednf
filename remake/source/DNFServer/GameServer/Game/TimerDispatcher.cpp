@@ -2149,20 +2149,24 @@ int TimerLightServerNotice::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int p3
 // ORIG T 0x08636c14（_ZN22TimerLightServerNotice15RegistNextTimerEi）
 bool TimerLightServerNotice::RegistNextTimer(int idx)
 {
-    int curSec = GlobalData::s_systemTime_.getCurSec();
+    // ORIG：localtime_r 返回值 pt 具名存槽 -0x18，字段读写全经 pt 指针
+    // （`mov -0x18,%eax; mov %edx,0x8(%eax)` 形），非 cur 折叠；curSec 槽 -0x1c。
+    // G_CDataManager()+0xa4 的 vector operator[] 按 P48 每用点重取（tm_hour/tm_min
+    // 各自独立 operator[] + G_CDataManager 调用），禁缓存 notice 引用。
+    time_t curSec = static_cast<time_t>(GlobalData::s_systemTime_.getCurSec());
     tm cur;
-    localtime_r(reinterpret_cast<time_t*>(&curSec), &cur);
-    int prevHour = cur.tm_hour;
-    const stLightServerNotice_t& notice = G_CDataManager()->m_serverParameter.m_light3c[idx];
-    cur.tm_hour = notice.m_hour;
-    cur.tm_min = notice.m_min;
-    cur.tm_sec = 0;
-    int next = static_cast<int>(mktime(&cur));
-    if (cur.tm_hour <= prevHour)
+    tm* pt = localtime_r(&curSec, &cur);
+    int prevHour = pt->tm_hour;
+    // P48：两处各自主调用 G_CDataManager()+0xa4 operator[]（ORIG 双调用）。
+    pt->tm_hour = G_CDataManager()->m_serverParameter.m_light3c[idx].m_hour;
+    pt->tm_min = G_CDataManager()->m_serverParameter.m_light3c[idx].m_min;
+    pt->tm_sec = 0;
+    int next = static_cast<int>(mktime(pt));
+    if (pt->tm_hour <= prevHour)
     {
         next += 0x15180;
     }
-    int delay = next - curSec;
+    int delay = static_cast<int>(next - curSec);
     G_TimerQueue()->InsertTimer(static_cast<TimerEntry::OBJ_TYPE>(2), 0,
                                 static_cast<TIMER_MESSAGE>(0x68), delay, idx, 0);
     return 1;
@@ -2419,12 +2423,12 @@ void TimerUpdatePvPGrade::registNextTimer(long sec)
     timeInfo.tm_sec = 0;
     sec = static_cast<long>(mktime(&timeInfo));   // ORIG mov %eax,0x8(%ebp) 回写参数槽
     // ORIG 0x086373f2：getCurSec 两独立重调（P48）；delay 无槽经 %ebx 跨
-    // G_TimerQueue call（P179 register 形）；`test/jle` 直跳 else ⇒ 负条件写法。
-    int delay;
-    if (sec - (long)GlobalData::s_systemTime_.getCurSec() <= 0)
-        delay = 1;
-    else
+    // G_TimerQueue call（P179 register 形，禁栈槽——否则 tm 帧偏移+4 全错位）。
+    register int delay;
+    if (sec - (long)GlobalData::s_systemTime_.getCurSec() > 0)
         delay = (int)(sec - (long)GlobalData::s_systemTime_.getCurSec());
+    else
+        delay = 1;
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                 (TIMER_MESSAGE)0x6c, delay, 0, 0);
 }
@@ -3015,31 +3019,37 @@ TimerGeneratePowerUpNotiTime::~TimerGeneratePowerUpNotiTime() {}
 // m_powerParameter.m_vec20（+0xa628+0x20）。
 int TimerGeneratePowerUpNotiTime::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    std::vector<int>* table = &G_CDataManager()->m_powerParameter.m_vec20;
-    const int cnt = static_cast<int>(table->size());
-    CPowerManager* pm = GlobalData::s_power_manager;
-    int remain = pm->GetPowerUpRemainTime();
-    unsigned int period = static_cast<unsigned int>(pm->GetPowerUpTimerPeriod());
-    bool active = true;
-    if (!pm->IsPowerWarEventOn() || cnt == 0)
-        active = false;
-    if (active && static_cast<int>(period) < cnt)
+    // ORIG 0x0863835a：size/GetPowerUpRemainTime/GetPowerUpTimerPeriod 均由 fresh
+    // G_CDataManager()/s_power_manager 直取（P48 去缓存 pm/table）。两 bool 不可合并：
+    // bVar1 门内块（IsPowerWarEventOn && cnt!=0，register 态即用），bVar2（槽 -0xd）
+    // 门尾 registNextTimer，仅内块 cnt<=period+1 清 0——不受事件门影响（原实现误用
+    // 单 active 使事件关时漏 registNextTimer，语义 bug）。
+    const int cnt =
+        static_cast<int>(G_CDataManager()->m_powerParameter.m_vec20.size());
+    int remain = GlobalData::s_power_manager->GetPowerUpRemainTime();
+    unsigned int period = static_cast<unsigned int>(
+        GlobalData::s_power_manager->GetPowerUpTimerPeriod());
+    bool bVar2 = true;
+    if ((GlobalData::s_power_manager->IsPowerWarEventOn() && cnt != 0) &&
+        static_cast<int>(period) < cnt)
     {
         remain -= 5;
-        pm->SetPowerUpRemainTime(remain);
-        const int notiSec = (*table)[period];
+        GlobalData::s_power_manager->SetPowerUpRemainTime(remain);
+        const int notiSec =
+            G_CDataManager()->m_powerParameter.m_vec20[static_cast<int>(period)];
         if (remain <= notiSec)
         {
             send_noti_time(notiSec);
-            pm->SetPowerUpTimerPeriod(static_cast<int>(period) + 1);
+            GlobalData::s_power_manager->SetPowerUpTimerPeriod(
+                static_cast<int>(period) + 1);
             if (cnt <= static_cast<int>(period) + 1)
             {
-                active = false;
-                pm->SetPowerUpTimerPeriod(0);
+                bVar2 = false;
+                GlobalData::s_power_manager->SetPowerUpTimerPeriod(0);
             }
         }
     }
-    if (active)
+    if (bVar2)
         registNextTimer(5);
     return 1;
 }

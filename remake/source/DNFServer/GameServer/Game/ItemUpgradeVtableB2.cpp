@@ -411,15 +411,15 @@ unsigned char CItemUpgrade::_getUpgradeRateByUpgradeItem(
         CStackableItem* stack = (CStackableItem*)script;
         if (stack->IsReinforceTicket())
         {
-            // ORIG `movsbl` 到 int 槽后 cmpl 判定，末了 movb 落 char ⇒ int 中转。
-            const int value = (char)stack->GetReinforceRate();
+            // ORIG +0x0cb 用 `cmpb` 字节直接判定（char 槽 -0xd 存 rate），非 int。
+            char value = (char)stack->GetReinforceRate();
             if (value < 0 || 100 < value)
             {
                 rate = 0;
             }
             else
             {
-                rate = (char)value;
+                rate = value;
             }
         }
         else if (stack->IsAmplifyReinforceTicket())

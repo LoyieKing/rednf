@@ -1301,9 +1301,13 @@ void CAssaultPlace::_MakeUserState(PacketGuard* packet)
     {
         if (m_assaulters[i].Empty())
             continue;
-        CUser* slotUser = m_assaulters[i].GetUser();
-        packet->put_short((int)(slotUser->get_unique_id() & 0xffff));
-        packet->put_byte(slotUser->GetUserState());
+        // P48 去缓存每用点重取：ORIG 0x82e8c5a 对 GetUser() 两次独立重调
+        //（+0x079 unique_id / +0x0a4 GetUserState），不缓存进具名局部。
+        packet->put_short((int)(m_assaulters[i].GetUser()->get_unique_id()
+                                & 0xffff));
+        // ORIG +0x0a9 GetUserState 结果先借 edx（mov %eax,%edx）再重载 this
+        // 于 %eax；本地实现为 eax/edx 换位（寄存器分配 N-residual，语义等价）。
+        packet->put_byte(m_assaulters[i].GetUser()->GetUserState());
         ++count;
     }
     packet->put_byte(index, count);

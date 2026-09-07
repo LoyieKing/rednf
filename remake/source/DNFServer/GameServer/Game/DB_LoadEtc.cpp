@@ -2121,13 +2121,17 @@ bool DB_LoadEtc::LoadEventServerMessageInfo(SIG_LOAD_ETC* sig)
         }
 
         // ORIG 89058e6..9cb：每个写点独立重算 sig + written*0x58 + base（P157 逐字段
-        // operator[] 重读，不缓存 entry 指针）；strlen/strcpy 结果直存。
+        // operator[] 重读，不缓存 entry 指针）；strlen 结果直存 + strncpy 限长拷贝。
         sig->m_eventMessages[written].m_kind = (unsigned char)kind;       // +0x00
         sig->m_eventMessages[written].m_index = (unsigned char)msgIndex;  // +0x01
         sig->m_eventMessages[written].m_messageLen = strlen(message);     // +0x04
-        strcpy(sig->m_eventMessages[written].m_message, message);         // +0x08
+        // ORIG +0x2bf/+0x30f 用 strncpy(dst,src,strlen(src))，且 n 独立重调
+        // strlen（P48 去缓存，不复用 m_messageLen）。
+        strncpy(sig->m_eventMessages[written].m_message, message,
+                strlen(message));                                        // +0x08
         sig->m_eventMessages[written].m_nameLen = strlen(name);           // +0x3c
-        strcpy(sig->m_eventMessages[written].m_name, name);               // +0x40
+        strncpy(sig->m_eventMessages[written].m_name, name,
+                strlen(name));                                            // +0x40
         sig->m_eventMessages[written].m_updateTime = updateTime;          // +0x54
         ++written;
     }

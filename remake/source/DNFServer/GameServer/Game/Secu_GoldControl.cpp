@@ -20,6 +20,17 @@ struct SecuGoldView
     user_gold_info m_cur;       // +0x40
     user_gold_info m_backup;    // +0x7c
 };
+// 协议视图（W8LT_DBTask.cpp 同型）：+0x00=accId、+0x04=char_name 串、
+// +0x22=flag 字节（§4.3 具名字段直写，ORIG `mov %dl,0x22(%eax)` 直接寻址）
+#pragma pack(push, 1)
+struct DB_CheckCharacNameReqView
+{
+    unsigned int m_accId;       // +0x00
+    char m_charName[0x1e];      // +0x04
+    unsigned char m_flag;       // +0x22
+    unsigned char m_pad23;      // +0x23
+};
+#pragma pack(pop)
 
 void DB_CheckCharacName::makeRequest(int uid, unsigned int accId, const char* charName, bool flag)
 {
@@ -29,12 +40,14 @@ void DB_CheckCharacName::makeRequest(int uid, unsigned int accId, const char* ch
     guard.operator*()->operator<<(uid);          // op*(guard)→op<<(int)
     SIG_CHECK_CHARAC_NAME* pkt =
         guard.operator->()->GetInBuffer<SIG_CHECK_CHARAC_NAME>();
-    *(unsigned int*)pkt = accId;
+    reinterpret_cast<DB_CheckCharacNameReqView*>(pkt)->m_accId = accId;
     if (charName != NULL && charName[0] != '\0')
     {
-        strncpy((char*)pkt + 4, charName, 0x1e);
+        strncpy(reinterpret_cast<DB_CheckCharacNameReqView*>(pkt)->m_charName,
+                charName, 0x1e);
     }
-    *((char*)pkt + 0x22) = (char)flag;
+    reinterpret_cast<DB_CheckCharacNameReqView*>(pkt)->m_flag =
+        (unsigned char)flag;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 void Secu_GoldControl::Init(CUser* user)
@@ -250,8 +263,9 @@ void Secu_GoldControl::AddAuctionMoney(unsigned int value)
         char ipBuf[16];
         ((XNuclear::CHades*)m_pUser->getHades())->GetIP(ipBuf);
 
-        unsigned short fatigue = m_pUser->getCurCharacUsedFatigue();
-        unsigned int accId = m_pUser->get_acc_id();
+        // [b24ab] P197②：ORIG fatigue(→%esi)/accId(→%ebx) callee-saved 缓存跨 getHades
+        register unsigned short fatigue = m_pUser->getCurCharacUsedFatigue();
+        register unsigned int accId = m_pUser->get_acc_id();
 
         // ORIG 0x828793f..0x828794a：GoldTracking(type=4, money=accId, ip=ipBuf,
         // param4=value, fatigue=fatigue)

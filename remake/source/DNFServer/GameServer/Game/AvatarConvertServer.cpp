@@ -201,6 +201,7 @@ void AvatarConvertServer::Test()
 #include "CStreamGuard.h"
 #include "StreamPool.h"
 #include "MoreTypes.h"          // arad::SigAradAvatarConvert 完整定义
+#include "Packet_Avater_Disjoint_Statistic.h"  // 统计包权威布局（ORIG W C1 0x08110bae）
 // DB_UpdateAvatarHistory —— ORIG makeRequest T @0x0844536a。
 // 权威定义在 CompoundDeathLCB.cpp（LinkClosureB.CompoundDeath 批），
 // 此处仅经 DB_UpdateAvatarHistory.h 引用，避免多重定义。
@@ -220,20 +221,23 @@ CStatisticServerProxy* getStatisticProxy0()
 void AvatarConvertServer::StatisticsAvatarDisjoint(const CItem* item,
                                                    int isRechargeStone)
 {
-    // Packet_Avater_Disjoint_Statistic（0x28）：头(0x17a2,0x28) + flag@0xa
-    // + rarityCalc@0xe + GetType@0x12 + byte1@0x16 + isRechargeStone@0x17。
-    unsigned char pkt[0x28];
-    std::memset(pkt, 0, sizeof(pkt));
-    pkt[0] = (unsigned char)(0x17a2 & 0xff);
-    pkt[1] = (unsigned char)((0x17a2 >> 8) & 0xff);
-    pkt[2] = 0x28;
-    *reinterpret_cast<int*>(&pkt[0xa]) = 1;
-    *reinterpret_cast<int*>(&pkt[0xe]) =
-        item->get_rarity() == 2 ? 2 : item->get_grade() - 1;
-    *reinterpret_cast<int*>(&pkt[0x12]) = item->GetItemType();
-    pkt[0x16] = 1;
-    *reinterpret_cast<int*>(&pkt[0x17]) = isRechargeStone;
-    getStatisticProxy0()->SendPacket(reinterpret_cast<char*>(pkt), 0x28);
+    // ORIG 0x08193136：Packet_Avater_Disjoint_Statistic（W C1 0x08110bae）构造
+    // 于 -0x34；m_field0a=1 先行；gradeIdx 具名临时 + if/else 两段（sete 物化 +
+    // 槽往返写回 +0x0e）；m_pad17 ← isRechargeStone（4 字节写 +0x17）；代理内联。
+    Packet_Avater_Disjoint_Statistic packet;
+    packet.m_field0a = 1;
+    int gradeIdx = 0;
+    if (item->get_rarity() == 2)
+        gradeIdx = 2;
+    else
+        gradeIdx = item->get_grade() - 1;
+    packet.m_gradeIdxA = gradeIdx;
+    packet.m_subTypeA = item->GetItemType();
+    packet.m_flagA = 1;
+    packet.m_pad17 = static_cast<unsigned int>(isRechargeStone);
+    GlobalData::s_statistic_proxy_mgr
+        ->GetServerProxy((ENUM_SERVER_GROUP)0)
+        ->SendPacket(reinterpret_cast<char*>(&packet), 0x28);
 }
 
 void AvatarConvertServer::StatisticsEmblemCreate(

@@ -17,6 +17,15 @@
 #include "CraneMinigameManager.h"  // CraneMinigameManager::startUseMaterial 声明
 #include "Quest.h"           // Quest::m_intDataList（+0x2c）
 
+#pragma pack(push, 1)
+// SIG_ITEM_MAKING_SKILL 协议视图（§4.3）：+0=characNo、+4=skills[11] ushort
+struct ItemMakingSkillReqView
+{
+    int m_characNo;                  // +0x00
+    unsigned short m_skills[0xb];    // +0x04（11 项）
+};
+#pragma pack(pop)
+
 // ---------------------------------------------------------------------------
 // 1. CUser::IsAbleItemLock(int,int) const —— ORIG T 0x08646a9c
 //    报告 docs/class_func_reports/CUser/IsAbleItemLock.md 全文转写。
@@ -287,9 +296,11 @@ bool CItemMakingSkill::_saveData(CUser* pUser)
     char* sigBuf = reinterpret_cast<char*>(
         guard.operator->()->GetInBuffer<SIG_ITEM_MAKING_SKILL>());
     memset(sigBuf, 0, 0x1c);
-    *reinterpret_cast<int*>(sigBuf) = pUser->get_charac_no(-1);
+    // [b24ab] §4.3 视图具名字段 + 数组索引（ORIG `mov %cx,0x4(%eax,%edx,2)` 索引寻址）
+    reinterpret_cast<ItemMakingSkillReqView*>(sigBuf)->m_characNo =
+        pUser->get_charac_no(-1);
     for (int i = 0; i <= 0xa; ++i)
-        *reinterpret_cast<unsigned short*>(sigBuf + 4 + i * 2) =
+        reinterpret_cast<ItemMakingSkillReqView*>(sigBuf)->m_skills[i] =
             m_skillLevels[i];
     // ORIG：MsgQueueMgr::put(DB_Q=2, guard) 提交 DB 队列（0x08545381）。
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);

@@ -69,7 +69,7 @@ public:
     // _ZN22DB_InsertEventStageLog11makeRequestER19SIG_EVENT_STAGE_LOG T 0x0844920e
     DB_InsertEventStageLog() {}                    // ORIG C1 0x844ff4a (sz 0x4: base ctor+vptr only)
     virtual bool dispatch(int userIdx, int slot, Stream* stream);
-    static bool makeRequest(SIG_EVENT_STAGE_LOG& sig);
+    static void makeRequest(SIG_EVENT_STAGE_LOG& sig);   // ORIG void（无 mov $1 前的 ret）
 };
 
 // _ZN28DB_EventSaveGiveGrowCreature11makeRequestEjRN30SIG_GIVE_GROWTH_CREATURE_EVENT15eventCharacInfoE
