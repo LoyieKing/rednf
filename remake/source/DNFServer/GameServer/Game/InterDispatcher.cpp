@@ -7191,6 +7191,12 @@ struct Inter_ReqQueryCharacInfoPktView
 };
 #pragma pack(pop)
 
+// [b22判词·N-EH] 正常路径指令序列与 ORIG 逐条一致（get_state 门/m_20 错误分支/
+// PacketGuard+put_header/put_byte/strlen×2/put_int/put_str/put_short/put_byte×4/
+// finalize/Send/dtor 全齐）。残余 diff 仅为编译器 EH 产物：ORIG 用共享
+// `mov $0x0,%eax` 出口 + landing-pad 内 `_Unwind_Resume` 后再接无条件 dtor，
+// gcc 对本函数选 %ebx 缓存返回值 0；返回值寄存器与 cleanup 块布局为跨版本
+// 编译器结构，源码不可复现，语义等价。
 int Inter_ReqQueryCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)                      // asm cmp $0x2; setle

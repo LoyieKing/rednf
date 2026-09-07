@@ -393,6 +393,11 @@ bool DB_CreateCharac::_checkCharacName(MySQL* db, char const* dbTable,
 // ===========================================================================
 // _checkCreateEventCharacter — 报告 @0x084013b2
 // 硬编码 2009-11-20..2010-01-03(+1s) 事件窗；窗内要求非事件角色标志为 0。
+// [b22判词·N族块布局] 31/31 助记符集与语义逐条对齐：窗口双 getCurSec 右值内联
+// （无 nowSec/inWindow 槽，P0/P183）、flag 判定 0x24、rc4=4@0x5344 两条独立
+// return-false 路径。残余差异仅 return false/return true 三尾块的物理排列序
+// （ORIG: flag!=0-rc4 → 窗外-rc4 → flag==0-ret1；我们: flag!=0-rc4 → ret1 →
+// 窗外-rc4），系编译器块布局 N 族，同指令数、语义等价，结构不可复现。
 // ===========================================================================
 bool DB_CreateCharac::_checkCreateEventCharacter(SIG_CREATE_CHARAC* sig)
 {
@@ -421,6 +426,11 @@ bool DB_CreateCharac::_checkCreateEventCharacter(SIG_CREATE_CHARAC* sig)
 // ===========================================================================
 // _updateCreateEventCharacter — 报告 @0x08401428
 // 同事件窗内置 member_login.event_charac_flag=1 并回写角色标志。
+// [b22判词·N族块布局] 52/52 助记符集与语义逐条对齐：窗口右值内联（P0/P183）、
+// GetDBHandle(6,0)+NumberToString(m_accId)+set_query+exec(true)、失败 rc4=2@0x5344
+// 成功 flag=1@0x24 返 1、窗外 rc4=4 返 0。残余差异仅窗外 rc4=4 块物理位置
+// （ORIG 置于函数尾部；我们置于窗口判后），系编译器块布局 N 族，同指令数、
+// 语义等价，结构不可复现。
 // ===========================================================================
 bool DB_CreateCharac::_updateCreateEventCharacter(SIG_CREATE_CHARAC* sig)
 {

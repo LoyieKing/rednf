@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include <cstring>
+#include <new>  // placement new（_AdvanceAltarDbData ctor 就地构造 +0x00 的 _RidableBase）
 
 #include "TimerQueue.h"  // TIMER_MESSAGE（StageControl::onTimer 参数；权威枚举，随 TimerDispatcher 批次增长）
 #include "advancealtar_StageDifficulty.h"  // StageDifficulty::T（Manager::selectStage 参数，ORIG mangled NS_15StageDifficulty1TE）
@@ -192,7 +193,7 @@ struct _AdvanceAltarDbData
     // call _RidableBaseC1Ev（非编造符号，ORIG nm 实证 W 0x0848f464 size 0x23）。
     _AdvanceAltarDbData()
     {
-        reinterpret_cast<_RidableBase *>(&m_ridable)->_RidableBase::_RidableBase();
+        ::new (static_cast<void *>(m_ridable)) _RidableBase();
         std::memset(this, 0, sizeof(*this));
     }
     union

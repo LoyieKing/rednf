@@ -415,7 +415,7 @@ struct SIG_ONLINE_PRELIMINARY_TEAM
 {
     int            m_teamId;         // +0x00（COnlinePreliminaryTeam::m_field04）
     char           m_teamName[0x10]; // +0x04 队名（strncpy 0xf + 终止位）
-    unsigned int   m_rating;         // +0x14 rating float 位模式（成员 int 容器 4B 直拷）
+    int            m_rating;         // +0x14 rating 位模式（成员 m_field08 int，ORIG movl 4B 直拷无 cvt）
     int            m_winCount;       // +0x18 movl
     int            m_loseCount;      // +0x1c movl
 };

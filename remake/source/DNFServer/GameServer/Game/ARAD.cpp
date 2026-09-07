@@ -602,14 +602,13 @@ template class Singleton<ScriptManager>;
 int notifyOpenMessageDialog(CUser* user, int a, int b,
                             const AradServerStateMessage& msg)
 {
-    // ORIG 0x81978dd：user 判空返回 0；PacketGuard 组 0x21a 头 + 两 int + 12 字节
-    // AradServerStateMessage，finalize(true) 后 Send。ORIG 另读一次
-    // CSystemTime::getCurSec() 存栈但未使用（死存储），此处省略不影响可观察行为。
     if (user == 0)
         return 0;
     PacketGuard guard;
-    // ORIG 0x8197907：getCurSec() 死存储（存栈未用），保留以字节一致
-    GlobalData::s_systemTime_.getCurSec();
+    // ORIG 0x8197907：getCurSec() 结果存 -0xc(%ebp) 栈槽后未再读（P0 具名死局部，
+    // ORIG 原码含该存储语句；-O0 下保留槽与 store，与 ORIG 一致）。
+    int curSec = GlobalData::s_systemTime_.getCurSec();
+    (void)curSec;
     guard.put_header(0, 0x21a);
     guard.put_int(a);
     guard.put_int(b);

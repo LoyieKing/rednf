@@ -917,34 +917,30 @@ void Inter_LoadEtc::_checkUserDisadvantage(CUser* user)
     }
 }
 
-bool Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
+int Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
 {
     user->SetOneDayLetheFlag((unsigned char)sig->m_backupSkill[0x198]);  // +0x2b95（backupSkill 尾哨）
     CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
     if (lethe == 0)
         return false;
 
-    bool useLethe = false;
-    unsigned char flag = (unsigned char)sig->m_backupSkill[0x198];
-    if (user->isAffectedPremium(ENUM_PREMIUM_TYPE(0x21)) ||
-        flag == CPremiumLetheManager::USE_LETHE_STATE ||
-        flag == CPremiumLetheManager::SKILL_CONFIRM_STATE)
-        useLethe = true;
-
-    if (useLethe)
+    // ORIG 实证：use = !premium && (f==USE || f==CONFIRM)；flag/use 均无栈槽
+    if (!user->isAffectedPremium(ENUM_PREMIUM_TYPE(0x21)) &&
+        ((unsigned char)sig->m_backupSkill[0x198] == CPremiumLetheManager::USE_LETHE_STATE ||
+         (unsigned char)sig->m_backupSkill[0x198] == CPremiumLetheManager::SKILL_CONFIRM_STATE))
     {
         if (!lethe->BackToPre(user, reinterpret_cast<_Mastered_skill*>(
                 sig->m_backupSkill), ENUM_SKILL_TREE_KIND(0)))
             return 0x40c6;
 
-        if (flag != CPremiumLetheManager::SKILL_CONFIRM_STATE)
+        if ((unsigned char)sig->m_backupSkill[0x198] != CPremiumLetheManager::SKILL_CONFIRM_STATE)
         {
             err = 1;
             user->SetIsInitSkillFlag(false);
         }
 
-        Stream* stream = GlobalData::s_stream_pool->Acquire("InterDispatcher.cpp", 0x40d2);
-        CStreamGuard guard(stream, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("InterDispatcher.cpp", 0x40d2),
+                           true);
         guard << 0x15c;
         guard << (int)user->GetUID();
         SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD* out =
@@ -961,9 +957,8 @@ bool Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
     }
     else
     {
-        unsigned char flag2 = sig->m_oneDayLetheFlag;
         if (user->isAffectedPremium(ENUM_PREMIUM_TYPE(0x21)) &&
-            flag2 == CPremiumLetheManager::NOT_USE_LETHE_STATE)
+            (unsigned char)sig->m_oneDayLetheFlag == CPremiumLetheManager::NOT_USE_LETHE_STATE)
         {
             lethe->BackupSkill(user, ENUM_SKILL_TREE_KIND(0));
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));
@@ -975,7 +970,7 @@ bool Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
                                         (unsigned)job, 0, eSkillSaveReason(0));
         }
         else if (user->isAffectedPremium(ENUM_PREMIUM_TYPE(0x21)) &&
-                 flag2 == CPremiumLetheManager::SKILL_CONFIRM_STATE)
+                 (unsigned char)sig->m_oneDayLetheFlag == CPremiumLetheManager::SKILL_CONFIRM_STATE)
         {
             lethe->BackupSkill(user, ENUM_SKILL_TREE_KIND(0));
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));
@@ -990,34 +985,30 @@ bool Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
     return false;
 }
 
-bool Inter_LoadEtc::ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& err)
+int Inter_LoadEtc::ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& err)
 {
     user->SetOneDayLetheFlag2ND((unsigned char)sig->m_backupSkill2ND[0x198]);  // +0x2d2f
     CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
     if (lethe == 0)
         return false;
 
-    bool useLethe = false;
-    unsigned char flag = (unsigned char)sig->m_backupSkill2ND[0x198];
-    if (user->isAffectedPremium(ENUM_PREMIUM_TYPE(0x21)) ||
-        flag == CPremiumLetheManager::USE_LETHE_STATE ||
-        flag == CPremiumLetheManager::SKILL_CONFIRM_STATE)
-        useLethe = true;
-
-    if (useLethe)
+    // ORIG 实证同 1 号：use = !premium && (f==USE || f==CONFIRM)；无 flag/use 槽
+    if (!user->isAffectedPremium(ENUM_PREMIUM_TYPE(0x21)) &&
+        ((unsigned char)sig->m_backupSkill2ND[0x198] == CPremiumLetheManager::USE_LETHE_STATE ||
+         (unsigned char)sig->m_backupSkill2ND[0x198] == CPremiumLetheManager::SKILL_CONFIRM_STATE))
     {
         if (!lethe->BackToPre(user, reinterpret_cast<_Mastered_skill*>(
                 sig->m_backupSkill2ND), ENUM_SKILL_TREE_KIND(1)))
             return 0x4111;
 
-        if (flag != CPremiumLetheManager::SKILL_CONFIRM_STATE)
+        if ((unsigned char)sig->m_backupSkill2ND[0x198] != CPremiumLetheManager::SKILL_CONFIRM_STATE)
         {
             err = 1;
             user->SetIsInitSkillFlag2ND(false);
         }
 
-        Stream* stream = GlobalData::s_stream_pool->Acquire("InterDispatcher.cpp", 0x411d);
-        CStreamGuard guard(stream, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("InterDispatcher.cpp", 0x411d),
+                           true);
         guard << 0x15c;
         guard << (int)user->GetUID();
         SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD* out =
@@ -1034,9 +1025,8 @@ bool Inter_LoadEtc::ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& e
     }
     else
     {
-        unsigned char flag2 = sig->m_oneDayLetheFlag2ND;
         if (user->isAffectedPremium(ENUM_PREMIUM_TYPE(0x21)) &&
-            flag2 == CPremiumLetheManager::NOT_USE_LETHE_STATE)
+            (unsigned char)sig->m_oneDayLetheFlag2ND == CPremiumLetheManager::NOT_USE_LETHE_STATE)
         {
             lethe->BackupSkill(user, ENUM_SKILL_TREE_KIND(1));
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));
@@ -1048,7 +1038,7 @@ bool Inter_LoadEtc::ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& e
                                         (unsigned)job, 1, eSkillSaveReason(0));
         }
         else if (user->isAffectedPremium(ENUM_PREMIUM_TYPE(0x21)) &&
-                 flag2 == CPremiumLetheManager::SKILL_CONFIRM_STATE)
+                 (unsigned char)sig->m_oneDayLetheFlag2ND == CPremiumLetheManager::SKILL_CONFIRM_STATE)
         {
             lethe->BackupSkill(user, ENUM_SKILL_TREE_KIND(1));
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));

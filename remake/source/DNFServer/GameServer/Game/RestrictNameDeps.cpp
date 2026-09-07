@@ -121,7 +121,10 @@ bool isWideStrInUnicodeRange(const wchar_t* str)
 {
     IsNoneUnicodeRange pred;
     size_t len = wcslen(str);
-    return !std::any_of(str, str + len, pred);
+    // P0：ORIG 把 any_of 结果物化到 bool 槽 -0x9（mov %al,-0x9(%ebp) 后
+    // cmpb/je 分支取反），故用具名局部而非右值内联。
+    bool found = std::any_of(str, str + len, pred);
+    return !found;
 }
 
 // ORIG T 0x08ac2d6c sz 0x78（isUtf8StrInUnicodeRange.md 全文）：

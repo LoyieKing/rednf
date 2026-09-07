@@ -134,7 +134,9 @@ void CItemDictionary::sendItemDictionaryInfoTotal(CUser* user)
     else
     {
         guard.put_int(length);
-        guard.put_binary(reinterpret_cast<const char*>(m_data), length);
+        // ORIG 0x0811de24 → _ZN18InterfacePacketBuf10put_binaryEPci（非 const 重载，
+        // W 0x0811df08）；传 const 会选到 PKci（0x0815096a）错目标。
+        guard.put_binary(reinterpret_cast<char*>(m_data), length);
     }
     guard.finalize(true);
     user->Send(guard);

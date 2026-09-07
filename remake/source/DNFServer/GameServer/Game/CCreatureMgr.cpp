@@ -424,7 +424,8 @@ bool CCreature::Evolute(CUser* user)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x743, 5);
         trace("cannot evolute because it haven't creature script uid(%d), "
-              "creature id(%d) \n", user->get_unique_id() & 0xffff, m_itemId);
+              "creature id(%d) \n", user->get_unique_id() & 0xffff,
+              reinterpret_cast<CCreatureItem*>(this)->GetItemId());
         return false;
     }
     int evolutionCreatureId = m_script->GetEvolutionCreatureId();
@@ -438,9 +439,11 @@ bool CCreature::Evolute(CUser* user)
     Inven_Item* slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
     if (slotItem == 0)
         return false;
-    slotItem->m_addInfo = m_itemId;          // *(int*)(ref+2) = 新宠物物品 idx
+    slotItem->m_addInfo = reinterpret_cast<CCreatureItem*>(this)->GetItemId();
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
-    if (!sender.EvoluteCreature(m_uid, m_itemId))   // ORIG CCreatureItem::GetUid/GetItemId（镜像同址具名字段）
+    if (!sender.EvoluteCreature(
+            reinterpret_cast<CCreatureItem*>(this)->GetUid(),
+            reinterpret_cast<CCreatureItem*>(this)->GetItemId()))
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x763, 5);
         trace("cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
@@ -464,7 +467,8 @@ bool CCreature::SelectEvolute(CUser* user)
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x6a2, 5);
         trace("cannot selectevolute because it haven't creature script uid(%d), "
-              "creature id(%d) \n", user->get_unique_id() & 0xffff, m_itemId);
+              "creature id(%d) \n", user->get_unique_id() & 0xffff,
+              reinterpret_cast<CCreatureItem*>(this)->GetItemId());
         return false;
     }
     int targetCreatureId;
@@ -482,9 +486,11 @@ bool CCreature::SelectEvolute(CUser* user)
     Inven_Item* slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
     if (slotItem == 0)
         return false;
-    slotItem->m_addInfo = m_itemId;
+    slotItem->m_addInfo = reinterpret_cast<CCreatureItem*>(this)->GetItemId();
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
-    if (!sender.EvoluteCreature(m_uid, m_itemId))   // ORIG CCreatureItem::GetUid/GetItemId（镜像同址具名字段）
+    if (!sender.EvoluteCreature(
+            reinterpret_cast<CCreatureItem*>(this)->GetUid(),
+            reinterpret_cast<CCreatureItem*>(this)->GetItemId()))
     {
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x6c9, 5);

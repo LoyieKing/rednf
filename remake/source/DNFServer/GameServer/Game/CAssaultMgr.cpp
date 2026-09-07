@@ -1080,9 +1080,14 @@ bool CStaticDisposition::MoveUser(CForcedMoveCharacter* fm)  // ORIG 0x82e65ee
     return m_mats[idx].MoveUser(fm);
 }
 
+// [b23S3C] A：真修 counts[j*4]→counts[j]（原越界读）、P48 内层每次重读 counts[j]、
+// icon 字段拆两句对齐 this 重载 store；残余 = N86(4.1 临时+拷贝 vs 4.4 直构形)
+// + N87(ARP 索引 add/lea vs 折叠位移) + CDispositionC1vsC2 基构造（跨版本），
+// fresh .o 复验 our=154/orig=158，调用点差集仅 C1/C2 同名差，语义等价。
 CStaticDisposition::CStaticDisposition(CUser** users, int* counts) // ORIG 0x82e62aa
 {
-    m_iconPos = ASSAULT_RECT_ICON_POINT;
+    m_iconPos.m_x = ASSAULT_RECT_ICON_POINT.m_x;
+    m_iconPos.m_y = ASSAULT_RECT_ICON_POINT.m_y;
     for (int j = 0; j <= 1; ++j)
     {
         // [b23S3C] counts[j]（非 j*4；int* 天然乘 4 字节）；P48 每循环迭代重读

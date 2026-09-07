@@ -464,10 +464,14 @@ bool CQuickPartySystemManager::push_quick_party_in_pool(
 
     unsigned short masterUid =
         qp->get_matching_quick_party_master_unique_id();
+    bool changed = false;
     int totalCount = qp->get_quick_party_count();
-    bool changed =
-        (static_cast<int>(qp->get_first_matching_cnt()) < totalCount)
-        || qp->is_change_quick_party_count();
+    int firstCnt = static_cast<int>(qp->get_first_matching_cnt());
+    if (firstCnt < totalCount ||
+        static_cast<char>(qp->is_change_quick_party_count()) != '\0')
+    {
+        changed = true;
+    }
     qp->send_matching_update_quick_party(static_cast<char>(count), masterUid,
                                          changed);
     return true;

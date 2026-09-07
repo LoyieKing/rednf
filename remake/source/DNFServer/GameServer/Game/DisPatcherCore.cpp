@@ -4558,9 +4558,14 @@ bool DisPatcher_DeleteItem::exercise_mode(CUser* user, MSG_BASE& msg, ParamBase&
     bool limitNotOne = false;
     if (tower != 0)
     {
-        CDungeon* dungeon = tower->getCDungeonMGr()->getDungeon();
-        limitNotOne = (dungeon->limitOfStackableItemInTower() != 1);
-        if (dungeon->limitOfStackableItemInTower() != 0)
+        // [b23S3C] P48 去缓存：ORIG +0x077/+0x09d 两次独立求值
+        // getCDungeonMGr()->getDungeon()->limitOfStackable（无 dungeon 局部）；
+        // !=1 用 `if(x) r=true` 形（P194）给出 ORIG xor $0x1 编码。
+        if (tower->getCDungeonMGr()->getDungeon()->limitOfStackableItemInTower() != 1)
+        {
+            limitNotOne = true;
+        }
+        if (tower->getCDungeonMGr()->getDungeon()->limitOfStackableItemInTower() != 0)
         {
             for (int i = 0; i < (int)(signed char)req.m_count; ++i)
             {
@@ -4579,22 +4584,22 @@ bool DisPatcher_DeleteItem::exercise_mode(CUser* user, MSG_BASE& msg, ParamBase&
         }
     }
 
-    const bool skip = (party->m_battleField.m_bloodState == 1) &&
-                      (user->get_state() == 5 || limitNotOne);
-    if (!skip)
+    // [b23S3C] ORIG +0x151..+0x183 用分支岛 `if(cond){body;return 1;}return 0;`
+    // （P56/P198），无 skip 布尔物化——禁中间局部，直接 if 包裹 body 并 return。
+    if ((party->m_battleField.m_bloodState == 1) &&
+        (user->get_state() == 5 || limitNotOne))
     {
-        return false;
+        out.m_9 = 0;
+        out.m_8 = req.m_itemSpace;
+        for (int i = 0; i < (int)(signed char)req.m_count; ++i)
+        {
+            out.m_slotsD2[i] = req.m_position[i];
+            out.m_counts19c[i] = req.m_countArr[i];
+            out.m_slotsA[i] = req.m_opType[i];
+        }
+        return true;
     }
-
-    out.m_9 = 0;
-    out.m_8 = req.m_itemSpace;
-    for (int i = 0; i < (int)(signed char)req.m_count; ++i)
-    {
-        out.m_slotsD2[i] = req.m_position[i];
-        out.m_counts19c[i] = req.m_countArr[i];
-        out.m_slotsA[i] = req.m_opType[i];
-    }
-    return true;
+    return false;
 }
 int DisPatcher_DeleteItem::restricted_check(CUser* user, MSG_BASE& /*msg*/)
 {

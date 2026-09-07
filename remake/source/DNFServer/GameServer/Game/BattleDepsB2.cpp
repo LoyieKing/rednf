@@ -637,8 +637,7 @@ void CBattle_Field::checkLayeredMap(int x, int y)
         return;
 
     const GridScript* grid = &maze->getGridR(x, y);
-    bool hasLayered = (grid != NULL && grid->m_layeredMapIndexes.size() != 0);
-    if (hasLayered)
+    if (grid != NULL && grid->m_layeredMapIndexes.size() != 0)
     {
         if ((int)grid->m_layeredMapIndexes.size() > getLayeredMapIndex() + 1)
             setLayeredMapIndex();

@@ -178,8 +178,8 @@ public:
 private:
     friend class CSkillTreeParam;   // ORIG SetSkillTree 0x84ef55c 普通成员调用 private 辅助
     // ---- ORIG 辅助方法（docs/class_func_reports/Inter_LoadEtc）----
-    bool ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err);
-    bool ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& err);
+    int ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err);   // ORIG 返 0x40c6 非布尔
+    int ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& err);  // ORIG 返 0x4111
     bool RequestDBEventArad(CUser* user);                    // ORIG T 0x084c266e
     bool SendResult(CUser* user);                            // ORIG T 0x084c2b82
     bool SetFatigue(CUser* user);                            // ORIG T 0x084c311a

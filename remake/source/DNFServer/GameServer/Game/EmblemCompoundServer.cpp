@@ -286,6 +286,8 @@ bool EmblemCompoundServer::IsResultSelectable(int grade)
 bool EmblemCompoundServer::CheckCondition(CUser* user,
                                           arad::SigAradEmblemCompound* sig)
 {
+    // [b23S3C] N：帧/寄存器分配差（ORIG push esi/sub 0x30 vs 0x34）+ grade
+    // 有符号扩展比较（movswl/cwtl 物化）非本件可复现，语义等价已核（详见 b22_s3_verdicts.tsv）
     if (!GetEmblemInfo(user, sig, 0))
         return false;
     if (!GetEmblemInfo(user, sig, 1))
