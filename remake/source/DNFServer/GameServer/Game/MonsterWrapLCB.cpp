@@ -122,12 +122,12 @@ void generateDropAvatarItem(const stEnamyDropAvatarInfo_t& info,
             {
                 Inven_Item item;
                 item.m_addInfo = it->m_field0;              // ORIG 写 +0x02 视图
-                G_CDataManager()->getItemList()->create_item(
+                G_CDataManager()->m_itemList->create_item(
                     (ENUM_ITEM_CREATE_TYPE)1, item, 1);
                 out.push_back(item);
                 break;                                      // 不推进迭代器（ORIG jmp +0x170）
             }
-            ++it;
+            it++;
         }
     }
 }

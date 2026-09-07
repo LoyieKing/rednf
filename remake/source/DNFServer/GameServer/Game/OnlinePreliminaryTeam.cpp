@@ -506,7 +506,7 @@ void COnlinePreliminaryMemberMatchList::IncreasePeerPlayCount(
     CharacterInServer key(serverId, uniqueId);
     std::map<CharacterInServer, PlayCountInfo>::iterator it =
         m_peerMap.find(key);
-    if (it == m_peerMap.end())
+    if (!(it != m_peerMap.end()))
     {
         if (m_peerMap.size() > 999)
         {
@@ -518,7 +518,8 @@ void COnlinePreliminaryMemberMatchList::IncreasePeerPlayCount(
                   static_cast<unsigned int>(m_peerMap.size()));
             return;
         }
-        m_peerMap.insert(std::make_pair(key, PlayCountInfo(1, true)));
+        m_peerMap.insert(std::make_pair(CharacterInServer(serverId, uniqueId),
+                                        PlayCountInfo(1, true)));
     }
     else
     {

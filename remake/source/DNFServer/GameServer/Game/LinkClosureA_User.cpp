@@ -263,9 +263,8 @@ int CUser::compute_quest_basic_reward_gold(Quest* quest)
         return 0;                                          // [0x866e608]
     }
 
-    QuestParameterScript& questParam = G_CDataManager()->m_questParameter;
-    std::vector<RewardItemInfo>::iterator it = quest->m_titleReward.begin();
-    std::vector<RewardItemInfo>::iterator end = quest->m_titleReward.end();
+    std::vector<RewardItemInfo>::const_iterator it = quest->m_titleReward.begin();
+    std::vector<RewardItemInfo>::const_iterator end = quest->m_titleReward.end();
 
     do                                                     // [do-while P25]
     {
@@ -278,23 +277,19 @@ int CUser::compute_quest_basic_reward_gold(Quest* quest)
             break;
         }
         ++it;
-    } while (it != end);                                   // [尾判回环]
-    if (it == end)
-    {
-        return 0;
-    }
+    } while (!(it == end));                                // [尾判回环，ORIG operator==]
 
     int levelDelta = get_charac_level() - quest->m_levelMin; // [-0x18]
     int penalty = 100;                                     // [-0x14]
     int gold = 0;                                          // [-0x10]
     if (quest->m_field130 == 1)
     {
-        gold = questParam.getRewardGold(get_charac_level());
+        gold = G_CDataManager()->m_questParameter.getRewardGold(get_charac_level());
     }
     else
     {
         penalty = compute_level_penalty(levelDelta);       // [0x866e713]
-        gold = questParam.getRewardGold(quest->m_levelMin);// [0x866e732]
+        gold = G_CDataManager()->m_questParameter.getRewardGold(quest->m_levelMin);
     }
 
     return gold * penalty / 100 * quest->m_field104 / 100; // [两段 imul/div]

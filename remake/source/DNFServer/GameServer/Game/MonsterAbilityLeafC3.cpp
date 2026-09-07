@@ -337,34 +337,6 @@ float STMonsterParameterCategory::getValueFloat() const
     return static_cast<float>(m_field8) / 100.0f;
 }
 
-namespace
-{
-// 类别 id → ActiveStaticInfo 字段映射；ORIG 跳转表 0x8e07f80 共 14 项
-// （id≤0xd 有效，越界返回 0 表示忽略）。id6 指 +0x158、id12 指 +0xac、
-// id10/id13 同指 +0x04，与 ORIG 表项一致。
-int* categoryField(ActiveStaticInfo* info, int id)
-{
-    switch (id)
-    {
-    case 0: return &info->m_statBase4;       // +0x120
-    case 1: return &info->m_statBase3;       // +0x118
-    case 2: return &info->m_attack;          // +0x18
-    case 3: return &info->m_magicAttack;     // +0x20
-    case 4: return &info->m_defense;         // +0x28
-    case 5: return &info->m_magicDefense;    // +0x30
-    case 6: return &info->m_statBase11;      // +0x158
-    case 7: return &info->m_statBase12;      // +0x160
-    case 8: return &info->m_statBase13;      // +0x168
-    case 9: return &info->m_statBase14;      // +0x170
-    case 10: return &info->m_hpBase;         // +0x04
-    case 11: return &info->m_statBase6;      // +0x130
-    case 12: return &info->m_attr17Base[13]; // +0xac
-    case 13: return &info->m_hpBase;         // +0x04
-    default: return 0;
-    }
-}
-}  // namespace
-
 // ---------------------------------------------------------------------------
 // upgradeAbilityByMonsterParameterCategory — ORIG 0x88b7f36。
 // 先扫描是否存在 id==13（hasCat13）；再逐条目：解析目标字段后——
@@ -391,7 +363,26 @@ void upgradeAbilityByMonsterParameterCategory(
          j < categories->size(); ++j)
     {
         const STMonsterParameterCategory& cat = (*categories)[j];
-        int* target = categoryField(info, cat.m_field0);
+        // P167：ORIG 为内联 switch（无需独立 helper，§4.1），字段映射直接内联。
+        int* target = 0;
+        switch (cat.m_field0)
+        {
+        case 0:  target = &info->m_statBase4;       break; // +0x120
+        case 1:  target = &info->m_statBase3;       break; // +0x118
+        case 2:  target = &info->m_attack;          break; // +0x18
+        case 3:  target = &info->m_magicAttack;     break; // +0x20
+        case 4:  target = &info->m_defense;         break; // +0x28
+        case 5:  target = &info->m_magicDefense;    break; // +0x30
+        case 6:  target = &info->m_statBase11;      break; // +0x158
+        case 7:  target = &info->m_statBase12;      break; // +0x160
+        case 8:  target = &info->m_statBase13;      break; // +0x168
+        case 9:  target = &info->m_statBase14;      break; // +0x170
+        case 10: target = &info->m_hpBase;          break; // +0x04
+        case 11: target = &info->m_statBase6;       break; // +0x130
+        case 12: target = &info->m_attr17Base[13];  break; // +0xac
+        case 13: target = &info->m_hpBase;          break; // +0x04
+        default: target = 0;                         break;
+        }
         if (target == 0)
             continue;
         if (hasCat13 && isChampion && cat.m_field0 == 10)

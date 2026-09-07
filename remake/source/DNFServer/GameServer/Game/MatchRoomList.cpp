@@ -107,7 +107,7 @@ bool CLeagueMatchRoomList::DelRoom(IMatch* room)
 
 bool CLeagueMatchRoomList::Match(IMatch* me, IMatch** out)
 {
-    if (m_roomMap.empty())
+    if (m_roomMap.size() == 0)
         return false;
     bool found = false;
     float bestGap = 0.0f;
@@ -169,7 +169,7 @@ bool CMultiMatchRoomList::AddRoom(IMatch* room)
     }
     int playCount = room->GetPlayerCount();
     std::map<int, CWaitingRoomList>::iterator it = m_roomMap.find(playCount);
-    if (it == m_roomMap.end()) {
+    if (!(it != m_roomMap.end())) {
         LogManager::logFormat(1, "MatchingSystem.cpp",
             __PRETTY_FUNCTION__, 0x11ff,
             "error find line(%d), playCount(%d)", 0x11ff,

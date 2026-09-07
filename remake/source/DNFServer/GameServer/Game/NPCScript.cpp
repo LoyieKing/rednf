@@ -1167,9 +1167,12 @@ Inven_Item CNPCScript::getGiftRewardItem(ENUM_NPC_MOOD mood,
             {
                 break;
             }
-            result.m_addInfo = e.m_a;
-            G_CDataManager()->getItemList()->create_item(
-                ENUM_ITEM_CREATE_TYPE_0, result, e.m_b);
+            // P167：ORIG 在 create_item 前重新 at() 取值（第二次 at 调用）
+            const stFavorableRelationShip_t::stRewardItemElement_t& e2 =
+                slot.m_byDir[change].at(i);
+            result.m_addInfo = e2.m_a;
+            G_CDataManager()->m_itemList->create_item(
+                ENUM_ITEM_CREATE_TYPE_0, result, e2.m_b);
             break;
         }
     }
