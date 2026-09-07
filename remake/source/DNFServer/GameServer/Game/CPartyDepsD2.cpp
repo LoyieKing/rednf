@@ -598,6 +598,14 @@ void CParty::changePartyMemberInfoOnMoveMap(MSG_MOVE_MAP& info, bool firstVisit)
 // 报告：docs/class_func_reports/CParty/checkMoveMapHackCnt.md
 // 反汇编分支边界（+0x57d..+0x5fc）语义：
 //   c==0 → 直接到任务豁免段；sec%5==0 → c>sec/5 记疑；sec%5!=0 → c>=sec/5 记疑。
+// §6.2 巨件核销：P167 33/33 [0缺0多]；gap 645→629（修前 611）；真修 1 处：
+//   任务豁免三段各自独立 call getCurCharacQuestR（修前具名 UserQuest* 缓存
+//   合并为 1 call → P167 MISSING 2，P48 反向实证）。
+//   残差归因 N 类（详见 docs/asm_translation_patterns.md 负例表）：N82 全帧
+//   槽复用差（0x6c vs 0x8c）、P183 反向 m_mapHitCount 重读 vs -0x50 缓存、
+//   kill 的 -0x46 槽缓存 vs ORIG 逐次 movzwl 重读、N-88/setne 物化假象
+//   （IsVisitedCurrentMap xor$1 vs setne）、P196 折向（info.m_39 movsbl vs
+//   movzbl：槽位值域 0..3 无 ≥0x80 分叉，非真反）——语义与调用序列零缺口。
 // ---------------------------------------------------------------------------
 bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
 {
@@ -708,17 +716,18 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
         if (!suspectBoundary)
         {
             // 任务豁免：(0x10d3,idx 0xb,diff 2)/(0x10d4,0xc,2)/(0x10d8,0xf,diff>0)
-            UserQuest* questR = memberUser(this, i)->getCurCharacQuestR();
             bool exempt = false;
-            if (questR->IsDoingQuest(0x10d3) &&
+            // P48：ORIG 三段豁免各自独立 call getCurCharacQuestR（0 缓存），
+            // 具名 UserQuest* 局部会合并为单次 call → P167 MISSING 2。
+            if (memberUser(this, i)->getCurCharacQuestR()->IsDoingQuest(0x10d3) &&
                 bf(this).get_dungeon_index() == 0xb &&
                 bf(this).get_dungeon_diff() == 2)
                 exempt = true;
-            else if (questR->IsDoingQuest(0x10d4) &&
+            else if (memberUser(this, i)->getCurCharacQuestR()->IsDoingQuest(0x10d4) &&
                      bf(this).get_dungeon_index() == 0xc &&
                      bf(this).get_dungeon_diff() == 2)
                 exempt = true;
-            else if (questR->IsDoingQuest(0x10d8) &&
+            else if (memberUser(this, i)->getCurCharacQuestR()->IsDoingQuest(0x10d8) &&
                      bf(this).get_dungeon_index() == 0xf &&
                      bf(this).get_dungeon_diff() > 0)
                 exempt = true;

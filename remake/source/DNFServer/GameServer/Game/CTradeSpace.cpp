@@ -512,6 +512,13 @@ bool CTradeSpace::checkTrade()
 //   - item 循环条件：槽非空在前、owner 判空在后（+0x23f-0x253）
 //   - 四分支失败 trace 各独立字符串（0x6af/0x6b9/0x6c3/0x6d8），
 //     characNo 先于 trace 构造求值（链式，P37）
+// §6.2 巨件核销：P167 35/35 [0缺0多]；gap 5→4；真修：P191 trader 双初始化
+//   （int trader=0; + for(trader=0;…) 复现 ORIG +0x189/+0x190 双 movl，O533/N529）。
+//   残差 4 条归因 N 类（详见 docs/asm_translation_patterns.md 负例表）：
+//   [dead-store] +0x253 gain_money 返回值 mov %eax,-0x20 死存，4.4 对未读
+//     局部恒不占槽（技巧31 负结论），源码不可复现 +1；
+//   [跨版本空体岛] +0x756/+0x759 两条失败路径各挂 nop;jmp;nop 中继
+//     （负例表「空 else nop;jmp 岛 vs jump-threading」行），4.4 恒直达自增 +3。
 bool CTradeSpace::checkCancelTrade()
 {
     if (m_pTraders[0]->getCurCharacR() == 0 ||
@@ -530,7 +537,9 @@ bool CTradeSpace::checkCancelTrade()
     copy[0].setCopy(*m_pTraders[0]->getCurCharacInvenRefR());
     copy[1].setCopy(*m_pTraders[1]->getCurCharacInvenRefR());
     int count = 0;
-    for (int trader = 0; trader <= 1; ++trader) {
+    // ORIG +0x189/+0x190：trader 声明置 0 + for init 双写（P191 双初始化形）
+    int trader = 0;
+    for (trader = 0; trader <= 1; ++trader) {
         count = 0;
         for (int s = 3; s <= 0x1a; ++s) {
             if (m_slotsData[trader][s].m_item.m_addInfo != 0)
@@ -615,6 +624,10 @@ bool CTradeSpace::checkCancelTrade()
 //     同一源码布局 avatar 直落；等长块序差（diff 锚定重排）。
 //   [N18b] put_short(count) 前 count 槽值：ORIG 预载 ecx 后 `mov %ecx,E`
 //     （+0x241/+0x2ea），4.4 即时 `mov S,%eax; mov %eax,E` +1×2。
+// §6.2 巨件核销：P167 47/47 [0缺0多]；gap −11→−11（O803/N814）；
+//   残差归因 N 类（详见 docs/asm_translation_patterns.md 负例表）：上述
+//   [setcc-fold]/[jump-threading 块序重排 @@-337,28+329,189/-403,157+556,25]/[N18b]
+//   结构性等价残差，P167 调用点 multiset 全等、语义逐分支对照完整，N 封顶。
 bool CTradeSpace::cancel_trade_for_china(CUser* user)
 {
     PacketGuard packet[2];                      // -0x58
@@ -1339,6 +1352,11 @@ bool CTradeSpace::proceed_trade()
 //   type==0 其余    → 背包物品；type==1 → 头像；type==3 → 装备栏；
 //   type==7         → 宠物。取物校验 → delete_item 扣除 → add_item 入槽 →
 //   checkTrade/checkCancelTrade 成功发包、失败回滚归还。
+// §6.2 巨件核销：P167 227/227 [0缺0多]；gap 0→0（O2021/N2021 等长）；
+//   残差归因 N 类（详见 docs/asm_translation_patterns.md 负例表）：
+//   [tail-merge]/[setcc-fold]/[jump-threading] + [N82 全帧槽号错位]
+//   （ndiff 796 与语义完成度反向；槽集/调用点 multiset 全等，语义逐分支对照
+//   完整），N 封顶。
 int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
 {
     if (IsLocked())
@@ -1761,6 +1779,10 @@ int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
 //     物化（mov mem,%edx; movzbl; cmp reg,reg），4.4 恒折 cmp MEM,reg。
 //   [N76] newAddInfo 减法：ORIG +0xc49-0xc4f store-then-sub mem，4.4 折
 //     reg-sub。语义一致。
+// §6.2 巨件核销：P167 160/160 [0缺0多]；gap 0→0（O1767/N1767 等长）；
+//   残差归因 N 类（详见 docs/asm_translation_patterns.md 负例表）：
+//   [setcc-fold]/[N18b]/[N76] + [N82 全帧槽号错位]（ndiff 650 与语义完成度
+//   反向；槽集/调用点 multiset 全等，语义逐分支对照完整），N 封顶。
 // ============================================================================
 int CTradeSpace::remove_item(CUser* user, int trade_slot_no, int type,
                              int target_slot, int count)

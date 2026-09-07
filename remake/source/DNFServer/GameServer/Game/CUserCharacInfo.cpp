@@ -1627,7 +1627,7 @@ unsigned char CUserCharacInfo::getCurEquipslotFlag()
 
 _Charac_info* CUserCharacInfo::getCurCharacW() { return m_selected; }
 
-unsigned char CUserCharacInfo::getCurCharacVillPrev() const
+signed char CUserCharacInfo::getCurCharacVillPrev() const
 {
     return m_selected ? CUR->m_villPrev : 0;
 }

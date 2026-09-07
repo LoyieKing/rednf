@@ -808,7 +808,8 @@ public:
     // ---- 村庄 / 战斗区 / PvP / 混沌 ----
     signed char getCurCharacVill() const;
     unsigned char getCurCharacVill4Save() const;
-    unsigned char getCurCharacVillPrev() const;
+    // ORIG move_area 调用点 0x086c60e9 生 movsbl ⇒ 返回 signed char（P9/P11）
+    signed char getCurCharacVillPrev() const;
     void setCurCharacVill(char vill);
     unsigned char isJoinPowerWar() const;
     void setCurrCharacJoinPower(char power);

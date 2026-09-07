@@ -6748,6 +6748,10 @@ void CUser::SendChattingEmoticon()
 // 直读 +0x378 &0xff，无 get_server_group() 调用）。verdict orig1246/our1293，
 // 残余 gap 属 N82/-O0 帧差异，逐块 vs Ghidra C 全对齐。
 
+// §6.2 巨件核销：P167 271/271 [0缺0多]；gap 1246→1293（our+47）；残差归因 N82
+// （4.1 无 lifetime 槽复用 ⇒ 全帧槽号错位，ndiff 941 与语义完成度反向）+
+// CStreamGuard 链式写法的槽物化差；EXTRA=0 已排除多发语义（任务书关注点），
+// 语义完整仅剩 codegen 差，N 封顶（详见 docs/asm_translation_patterns.md 负例表）。
 // 各 isSaveXxx 脏块经 StreamPool+CStreamGuard 组包投递队列 2 后 disable。
 void CUser::UpdateData()
 {
@@ -8217,6 +8221,9 @@ bool CUser::CheckQuestMonster(int a, int b, ENUM_QUEST_ENEMY_TYPE type)
         }
     }
 }
+// §6.2 巨件核销：P167 100/100 [0缺0多]；gap 616→634（our+18）；残差归因 N82
+// 槽号错位 + esm 访问器重物化族（P112），语义完整仅剩 codegen 差，N 封顶
+// （详见 docs/asm_translation_patterns.md 负例表）。
     // 0x08655c60 主分支（FatigueUp.md）：v==0→1；BreakAway 幸运点先结算；
 void CUser::FatigueUp(int v)
 {
@@ -8921,6 +8928,9 @@ bool CUser::isCompetitionMercenary() const
 // ORIG：PvP 积分增减。负值：事件(0x36)进行且 grade∈[10,19] 半额（0.5f）→ 0.9f →
 // GetPvPPenaltyRevision 三级衰减；整合 PvP 基础渠道 ×70%；0xf 频道超档按
 // GetPvPChannelGradePenalty 衰减；任务内限制升降档；重算 grade 并在变更时
+// §6.2 巨件核销：P167 102/102 [0缺0多]；gap 641→645（our+4）；残差归因 N82
+// 槽号错位族（x87 ROUND 岛跨版本形态差），语义完整仅剩 codegen 差，N 封顶
+// （详见 docs/asm_translation_patterns.md 负例表）。
 // 重发任务信息包并重建 0x1e 任务列表。
 int CUser::update_pvp_point(int v)
 {

@@ -3440,12 +3440,16 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
 }
 
 // ---- CParty::get_item（ORIG T 0x85a3b98）----
+// §6.2 巨件核销：P167 264/264 [0缺0多]；gap 2499→2；残差归因 N82（ORIG push %edi+槽基
+// 错位）+ N18b/X1a（`!=1` 比较 4.4 恒折 cmp$1，ORIG xor$1+test 共 12 处不可翻）。
+// 真修：①金币循环非 winner 臂原多发一次 Inven_Item::get_add_info()（EXTRA +1）——
+// ORIG 85a410f 循环外把 share 拷入 -0xb4 副本槽、三目 else 臂读副本，补 noBonusGain 局部；
+// ②删 `CBattle_Field& bf` 缓存槽（P183），9 处调用展开为 m_battleField 直调，
+// 复现 ORIG 每次 lea 0xb24(%eax) 重物化。
 // 返回 1=拾取成功；0=失败（错误码经 1/0x2e 包下发）。
 int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                      unsigned char& outUpgrade, bool& outStackable)
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
-
     char routingEligible = 1;                       // -0xe9
     CUser* winner = 0;                              // -0xe8
     int weights[4] = { 0, 0, 0, 0 };                // -0x234
@@ -3466,10 +3470,10 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
     }
 
     if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->IsEnterEachMap())
-        bf.SetCurSeatNo(slotNo);
+        m_battleField.SetCurSeatNo(slotNo);
 
     map_item mi;                                    // -0x2bc
-    char found = bf.get_field_item(itemIdx, mi);    // -0xd9
+    char found = m_battleField.get_field_item(itemIdx, mi);    // -0xd9
 
     if (found == 0)
     {
@@ -3485,8 +3489,8 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
         if (!IsAutoCreated() && get_member_count() != 1)
         {
             bool visited =
-                (!bf.check_start_point()) || bf.IsVisitedCurrentMap();   // -0xc9
-            if (!visited || !bf.is_last_field_item(itemIdx))
+                (!m_battleField.check_start_point()) || m_battleField.IsVisitedCurrentMap();   // -0xc9
+            if (!visited || !m_battleField.is_last_field_item(itemIdx))
             {
                 WongWork::CHackAnalyzer* hack = user->getHackAnalyzer();
                 hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x12d, 1, 0, 0);
@@ -3531,11 +3535,12 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                     0x165c, 4);
                 trace("Dungeon(%d) drop money(%d) on %d' party member with difficulty %d",
                       m_battleField.m_pDungeon->m_index, money, get_member_count(),
-                      bf.get_dungeon_diff());
+                      m_battleField.get_dungeon_diff());
             }
             int share = mi.m_item.get_add_info() / liveCount;   // -0xc0
             int rem = mi.m_item.get_add_info() % liveCount;     // -0xbc
             base = share + rem;                                 // -0xb8
+            int noBonusGain = share;                            // -0xb4（ORIG 85a410f：非 winner 臂读 share 副本槽，循环内不再调 get_add_info）
 
             packet.put_header(0, 0x27);
             packet.put_short(itemIdx);
@@ -3552,7 +3557,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                 }
                 packet.put_byte(1);
 
-                gain = (m_member[i].m_pUser == user) ? base : base - (mi.m_item.get_add_info() % liveCount);
+                gain = (m_member[i].m_pUser == user) ? base : noBonusGain;
                 if (base > 499999)
                 {
                     cMyTrace trace(
@@ -3691,7 +3696,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
             packet.finalize(true);
             send_to_party(packet);
             int picked = 0;
-            picked = bf.pickup_item(itemIdx);
+            picked = m_battleField.pickup_item(itemIdx);
             if (picked >= 1)
             {
                 packet.put_header(1, 0x2e);
@@ -3875,7 +3880,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
             packet.finalize(true);
             send_to_party(packet);
             int picked = 0;
-            picked = bf.pickup_item(itemIdx);
+            picked = m_battleField.pickup_item(itemIdx);
             if (picked >= 1)
             {
                 packet.put_header(1, 0x2e);
@@ -4102,7 +4107,7 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
     GetInstanceValueStatistic()->AddValueStatistic((VALUE_STATISTIC_FIELD)2,
                                                    winner,
                                                    (unsigned int)sellPrice);
-    int picked = bf.pickup_item(itemIdx);                // -0xd0
+    int picked = m_battleField.pickup_item(itemIdx);                // -0xd0
     if (picked >= 1)
     {
         cMyTrace trace(
@@ -4150,6 +4155,15 @@ int CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
 }
 
 // ---- CParty::drop_item（ORIG T 0x85a63f4）----
+// §6.2 巨件核销：P167 108/108 [0缺0多]；gap 863→7；残差归因 N82（槽基错位）+
+// N18b/X1a（比较物化）+ map_item 整块 rep movsl 传参形（N78 族跨版本）。
+// 真修 5 处：①删 src.reset()（EXTRA：ORIG 仅 Inven_ItemC1 无 reset 调用）；
+// ②t==2 delete 分支 const_cast<CCargo*>(getCurCharacCargoR()) → getCurCharacCargoW()
+//（MISSING getCurCharacCargoW / EXTRA R 各 1，ORIG 85a6dba）；
+// ③堆叠超限条件 m_addInfo2→m_addInfo（ORIG 85a7010 读 -0x11a=mi+0x12=+0x02 字段，
+// 极性/字段错位真 bug）；④trace 第 3 参 get_add_info()→m_addInfo2 直读（ORIG 85a7042
+// 读 -0x115 槽不 call，EXTRA get_add_info+1）；⑤尾包补 put_int(mi.m_item.m_fieldd)
+//（MISSING put_int，ORIG 85a71e2 读 m_item+0xd，位于 put_short(m_fieldb) 之后）。
 // 返回 0=成功；0xd=稀有度限制；0x11=删除/扣款失败；0x13=交易中；
 // 0x16=落物失败；0x17=禁止丢弃；0xd1=服务限制；-1=item 查表失败。
 int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
@@ -4169,7 +4183,6 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
 
     map_item mi;                                   // -0x12c
     Inven_Item src;                                // -0xd5
-    src.reset();
 
     char t = (char)type;
     if (t == 2)
@@ -4267,8 +4280,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
 
     if (t == 2)
     {
-        CCargo* cargoW = const_cast<CCargo*>(user->getCurCharacCargoR());
-        if (!cargoW->delete_item(slot, count, (eItemDelReason)6))
+        if (!user->getCurCharacCargoW()->delete_item(slot, count, (eItemDelReason)6))
         {
             cMyTrace trace(__PRETTY_FUNCTION__,
                            0x1ac6, 5);
@@ -4343,13 +4355,13 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
                                                        user, (unsigned int)count);
     }
 
-    if (!src.isEquipableItemType() && mi.m_item.m_addInfo2 != 0 &&
+    if (!src.isEquipableItemType() && mi.m_item.m_addInfo != 0 &&
         mi.m_item.get_add_info() > 0x7d0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x1b0c, 4);
         trace("drop item(%d) stack size over %d add_info(%d)", mi.m_item.m_addInfo,
-              0x7d0, mi.m_item.get_add_info());
+              0x7d0, mi.m_item.m_addInfo2);
     }
 
     int dropped = reinterpret_cast<CBattle_Field*>(&m_battleField)
@@ -4367,6 +4379,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
     packet.put_byte(mi.m_item.GetItemAttr());
     packet.put_int(mi.m_item.get_add_info());
     packet.put_short(mi.m_item.m_fieldb);
+    packet.put_int(mi.m_item.m_fieldd);
     packet.put_byte(mi.m_item.m_amp.getAbilityType());
     packet.put_short(mi.m_item.m_amp.getAbilityValue());
     packet.put_packet(mi.m_item);
@@ -5492,6 +5505,17 @@ void CParty::dungeon_clear()
 // CParty::_putItemIntoUser —— ORIG 0x85aab84：双槽奖励发放（items[0] 金币/
 // 主物、items[1] 装备），含背包失败邮件退还与幸运点扣减。
 // ============================================================================
+// §6.2 巨件核销：P167 126/126 [0缺0多]；gap 739→+21（our 760）；残差归因 N82
+//（槽基错位）+ N80/N83（cMyTrace 日志段跨版本求值/构造形）。
+// 真修 7 处：①put_binary 重载选错 ×3——(char*) 强转选中非 const 版
+// put_binary(char*,int)，ORIG 全为 put_binary(const char*,int)（PKc），改 (const char*)
+// /删强转走完整链；②金币日志段合并回单 if（误拆双 if 多发一次 get_add_info 条件）；
+// ③删 placement new×2（_ZnwjPv/_ZdlPvS_/_Unwind_Resume EXTRA），改 cMyTrace 临时
+// 链式（P37）；④删 oldMoney 死局部（EXTRA get_money+1）；⑤金币尾包 put_int(get_money)
+// 改 getCurCharacInvenR() 完整链（MISSING R，ORIG 85aae9b）；⑥avatar 段 avMgrR 缓存
+// 展开（P183）：getJewelSocketData/GetExpansionInfo 各走 R→GetAvatarItemMgrR 完整链
+//（MISSING R/GetAvatarItemMgrR 各 1）；⑦金币尾包补第 4 个 put_byte(0)
+//（MISSING put_byte，ORIG 85aaf37，put_short(0) 之后 put_packet 之前）。
 int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet)
 {
     int count = 0;                                      // -0x48
@@ -5506,22 +5530,16 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
     {
         if (499999 < items[0].get_add_info())
         {
-            CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
-            char log1[16];
-            new (log1) cMyTrace(
-                __PRETTY_FUNCTION__,
-                0x232d, 4);
-            (*reinterpret_cast<cMyTrace*>(log1))(
+            // P37 临时链式：ORIG 无 placement new（N83）/无 D1 残留
+            cMyTrace(__PRETTY_FUNCTION__, 0x232d, 4)(
                 "Dungeon(%d) reward money(%d) on %d' party member with difficulty %d",
                 // ORIG _putItemIntoUser.md 085aac58 `mov 0xcb8(%eax)` =
                 // CBattle_Field+0x194 → m_dungeonIndex（int）
-                bf.m_dungeonIndex, items[0].get_add_info(),
-                get_member_count(), bf.get_dungeon_diff());
+                m_battleField.m_dungeonIndex, items[0].get_add_info(),
+                get_member_count(), m_battleField.get_dungeon_diff());
             // ORIG 085aacc3~085aad47：第二条 cMyTrace(0x2337) 日志
             // "User(%s) Charac(%s) gain money(%d), old money is %d."。
-            char log2[16];
-            new (log2) cMyTrace(__PRETTY_FUNCTION__, 0x2337, 4);
-            (*reinterpret_cast<cMyTrace*>(log2))(
+            cMyTrace(__PRETTY_FUNCTION__, 0x2337, 4)(
                 "User(%s) Charac(%s) gain money(%d), old money is %d.",
                 NumberToString(user->get_acc_id(), 0),
                 user->getCurCharacName(), items[0].get_add_info(),
@@ -5531,7 +5549,6 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
         }
         CInventory* inven =
             reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacInvenW();
-        int oldMoney = inven->get_money();
         int gained = inven->gain_money(items[0].get_add_info(),
                                        (eMoneyAddReason)5, true, false);
         if (gained < items[0].get_add_info())
@@ -5557,13 +5574,16 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
 
         packet.put_short(0);
         packet.put_int(0);
-        packet.put_int(inven->get_money());
+        packet.put_int(reinterpret_cast<CUserCharacInfo*>(user)
+                           ->getCurCharacInvenR()
+                           ->get_money());
         packet.put_byte(0);
         packet.put_short(0);
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_byte(0);
         packet.put_short(0);
+        packet.put_byte(0);
         packet.put_packet(g_emptySlot);
         ++count;
     }
@@ -5659,21 +5679,22 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
         if (ref->isAvatarItemType())
         {
             packet.put_int(0x1e);
-            const WongWork::CAvatarItemMgr* avMgrR =
-                ci->getCurCharacInvenR()->GetAvatarItemMgrR();
             packet.put_binary(
-                (char*)avMgrR->getJewelSocketData(ref->get_add_info()), 0x1e);
-            void* expInfo = const_cast<WongWork::CAvatarItemMgr*>(avMgrR)
+                ci->getCurCharacInvenR()->GetAvatarItemMgrR()->getJewelSocketData(
+                    ref->get_add_info()),
+                0x1e);
+            void* expInfo = ci->getCurCharacInvenR()
+                                ->GetAvatarItemMgrR()
                                 ->GetExpansionInfo(ref->get_add_info());
             packet.put_int(4);
             if (expInfo == 0)
             {
                 stAvatarExpansionInfo_t init0;
                 init0.init();
-                packet.put_binary((char*)&init0, 4);
+                packet.put_binary((const char*)&init0, 4);
             }
             else
-                packet.put_binary((char*)expInfo, 4);
+                packet.put_binary((const char*)expInfo, 4);
         }
         packet.put_byte(0);
         packet.put_packet(*ref);
@@ -6147,17 +6168,22 @@ void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
 // CParty::onBloodRewardTimer —— ORIG 0x85b6a48：0x22/0x23/0x24/0x25 血轮
 // 定时器状态机（奖励包→物品/经验发放→收尾）。
 // ============================================================================
+// §6.2 巨件核销：P167 88/88 [0缺0多]；gap 766→46；残差归因 N82（帧 0x1cc vs 0x1ec
+// 全帧槽基错位）+ P168a③b（checkValidUser bool callee 调用侧 xor$1 物化，跨版本
+// 不可翻）+ 分支布局镜像（jne/je 块序）。
+// 真修：0x24 分支体内 8 处 get_user(slot) → m_member[slot].m_pUser 内联读
+//（ORIG 仅两处循环条件 call get_user，体内 11 处 add $0x78 数组寻址，EXTRA +8）；
+// 删 `CBattle_Field& bf` 缓存槽（P183），bf 21 处调用展开 m_battleField 直调。
 bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
 {
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
     if (gen_timer_key(msg) == 0)
         return 0;
-    if (bf.getBloodState() == 0)
+    if (m_battleField.getBloodState() == 0)
         return 0;
 
     if ((int)msg == 0x23)
     {
-        if (bf.getBloodState() < 3)
+        if (m_battleField.getBloodState() < 3)
             return 0;
         for (int slot = 0; slot < 4; ++slot)            // -0x3c
         {
@@ -6167,36 +6193,36 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                 // count(0)…param_10=item(3)，0→3 升序（先 group0 后 group3）。
                 BloodClearRewardPacket(
                     slot,
-                    bf.m_bloodReward.getCurrentBloodRound(),
-                    bf.m_bloodReward.getRewardItemCount(0),
-                    bf.m_bloodReward.getRewardItem(0),
-                    bf.m_bloodReward.getRewardItemCount(1),
-                    bf.m_bloodReward.getRewardItem(1),
-                    bf.m_bloodReward.getRewardItemCount(2),
-                    bf.m_bloodReward.getRewardItem(2),
-                    bf.m_bloodReward.getRewardItemCount(3),
-                    bf.m_bloodReward.getRewardItem(3));
+                    m_battleField.m_bloodReward.getCurrentBloodRound(),
+                    m_battleField.m_bloodReward.getRewardItemCount(0),
+                    m_battleField.m_bloodReward.getRewardItem(0),
+                    m_battleField.m_bloodReward.getRewardItemCount(1),
+                    m_battleField.m_bloodReward.getRewardItem(1),
+                    m_battleField.m_bloodReward.getRewardItemCount(2),
+                    m_battleField.m_bloodReward.getRewardItem(2),
+                    m_battleField.m_bloodReward.getRewardItemCount(3),
+                    m_battleField.m_bloodReward.getRewardItem(3));
             }
         }
-        bf.setBloodState((ENUM_BLOOD_STATE)4);
+        m_battleField.setBloodState((ENUM_BLOOD_STATE)4);
         int key = gen_timer_key((TIMER_MESSAGE)0x24);
         G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, GetPartyIndex(),
                                     (TIMER_MESSAGE)0x24, 8, key, 0x24);
     }
     else if ((int)msg == 0x24)
     {
-        if (bf.getBloodState() < 4)
+        if (m_battleField.getBloodState() < 4)
             return 0;
         for (int slot = 0; slot < 4; ++slot)            // -0x38
         {
             if (!(get_user(slot) == 0 || !checkValidUser(slot)))
             {
                 CUserCharacInfo* ci =
-                    reinterpret_cast<CUserCharacInfo*>(get_user(slot));
-                for (int i = 0; i < bf.m_bloodReward.getRewardItemCount(slot);
+                    reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser);
+                for (int i = 0; i < m_battleField.m_bloodReward.getRewardItemCount(slot);
                      ++i)                               // -0x30
                 {
-                    Inven_Item* item = bf.m_bloodReward.getRewardItem(slot) + i;
+                    Inven_Item* item = m_battleField.m_bloodReward.getRewardItem(slot) + i;
                     int putSlot = -1;                   // -0x28
                     // ORIG onBloodRewardTimer.md 085b6d92/98 `imul $0x3d +
                     // mov 0x2(%eax)`：Inven_Item(sizeof 0x3d)+0x02 → m_addInfo
@@ -6210,7 +6236,7 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                                                   (eMoneyAddReason)5, true,
                                                   false);
                             if (gained < item->get_add_info())
-                                get_user(slot)->SendMoneyFullReason(
+                                m_member[slot].m_pUser->SendMoneyFullReason(
                                     (ENUM_MONEY_FULL_REASON)0,
                                     (unsigned long)item->get_add_info(),
                                     (unsigned long)gained);
@@ -6221,14 +6247,14 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                                 GetInstanceCirculationStatistic()
                                     ->AddCirculationStatistic(
                                         (CIRCULATION_STATISTIC_FIELD)0xb,
-                                        get_user(slot),
+                                        m_member[slot].m_pUser,
                                         (unsigned int)gained);
                             // ORIG 085b6ed8 `movzbl 0x89f(%eax)`（同上）
                             else if (m_battleField.m_pDungeon->m_bloodDungeonType == 2)
                                 GetInstanceCirculationStatistic()
                                     ->AddCirculationStatistic(
                                         (CIRCULATION_STATISTIC_FIELD)0xc,
-                                        get_user(slot),
+                                        m_member[slot].m_pUser,
                                         (unsigned int)gained);
                         }
                         else
@@ -6258,7 +6284,7 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                                             4, "game_server_msg_154", 0),
                                         0xff);
                                 unsigned int serverGroup =
-                                    (unsigned int)get_user(slot)->GetServerGroup();
+                                    (unsigned int)m_member[slot].m_pUser->GetServerGroup();
                                 unsigned int characNo = (unsigned int)
                                     ci->getCurCharacNo();
                                 WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
@@ -6281,12 +6307,12 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                         ci->getCurCharacInvenR()->MakeItemPacket(
                             invenType, putSlot, packet);
                         packet.finalize(true);
-                        get_user(slot)->Send(packet);
+                        m_member[slot].m_pUser->Send(packet);
                     }
                 }
 
                 unsigned int rewardExp =
-                    (unsigned int)bf.m_bloodReward.getRewardExp(slot);   // -0x34
+                    (unsigned int)m_battleField.m_bloodReward.getRewardExp(slot);   // -0x34
                 if (1000000 < rewardExp)
                 {
                     LogManager::logFormat(
@@ -6298,14 +6324,14 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                 }
                 int sp = 0;                             // -0x40
                 int sfp = 0;                            // -0x44
-                if (get_user(slot)->gain_exp_sp(
+                if (m_member[slot].m_pUser->gain_exp_sp(
                         (int)rewardExp, sp, sfp, (CUser::eExpAddReason)2, 0,
                         false))
-                    get_user(slot)->SendNotiPacket((CUser::eSendTarget)2,
+                    m_member[slot].m_pUser->SendNotiPacket((CUser::eSendTarget)2,
                                                    (ENUM_NOTIPACKET)2, 1);
             }
         }
-        bf.setBloodState((ENUM_BLOOD_STATE)5);
+        m_battleField.setBloodState((ENUM_BLOOD_STATE)5);
         SetEPLPState(2);
         int key = gen_timer_key((TIMER_MESSAGE)0x25);
         G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, GetPartyIndex(),
@@ -6323,7 +6349,7 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
     }
     else if ((int)msg == 0x22)
     {
-        if (bf.getBloodState() < 2)
+        if (m_battleField.getBloodState() < 2)
             return 0;
         if (get_member_count() < 1)
             return 0;
@@ -6331,14 +6357,14 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
         // 在 not-all-dead 与 all-dead 两支各独立计算一次（不缓存 clearOk 局部）。
         if (!check_allmember_die())
         {
-            if (bf.check_grid_clear() && bf.check_end_point() &&
-                bf.m_bloodReward.isBloodClear())
+            if (m_battleField.check_grid_clear() && m_battleField.check_end_point() &&
+                m_battleField.m_bloodReward.isBloodClear())
                 beginBloodClearProcess(true);
         }
         else
         {
-            if (bf.check_grid_clear() && bf.check_end_point() &&
-                bf.m_bloodReward.isBloodClear())
+            if (m_battleField.check_grid_clear() && m_battleField.check_end_point() &&
+                m_battleField.m_bloodReward.isBloodClear())
                 beginBloodClearProcess(true);
             else
                 beginBloodClearProcess(false);

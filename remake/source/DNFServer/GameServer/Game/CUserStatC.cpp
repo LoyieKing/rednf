@@ -120,6 +120,9 @@ int CUser::delete_item(char itemSpace, int position, unsigned long itemIdx,
 
 // ============================================================================
 // CUser::exchange_interspace(...)
+// §6.2 巨件核销：P167 265/265 [0缺0多]；gap 2638→2627（our-11）；残差归因
+// N82 槽号错位 + Inven_Item 拷贝物化差族，语义完整仅剩 codegen 差，N 封顶
+// （详见 docs/asm_translation_patterns.md 负例表）。
 // ORIG 0x0865f7b0 sz 0x2d47。参数（报告语义）：fromSpace/fromSlot/fromItemIdx/
 //   addInfo(数量或强化附加)/toSpace/toSlot/toItemIdx/outSlot。
 // 返回：0 成功 / 1 参数域不支持 / 4 目标槽不可用 / 0x11 通用失败 /

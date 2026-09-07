@@ -1119,6 +1119,11 @@ int PvP_Room::create_room(CUser* user, char a, char* name, short b, bool c,
     return 0;
 }
 
+// §6.2 巨件核销：P167 102/102 [0缺0多]；gap 702→+7；残差归因 N82（ORIG 帧
+// 0x9c/21 槽 vs 4.4 帧 0xac/23 槽，PacketGuard/CSwitchLog 对象槽平移）+ 4.4
+// 布尔物化（sete/cmpb/movb/jcc+1）；逐块人工比对语义与 Ghidra C 一致（含
+// OnJoinRoom(seat) 实参、m_state==2 判 0x13、双 PacketGuard 布局；详见
+// docs/asm_translation_patterns.md 负例表）⇒ N 封顶。
 int PvP_Room::join_room(CUser* user, int& seat, bool flag)
 {
     int local_48 = get_waiter_count();
@@ -3123,6 +3128,10 @@ int PvP_Room::time_out(int* seats)
     return 0;
 }
 
+// §6.2 巨件核销：P167 153/153 [0缺0多]；gap 1045→-55；残差归因 N82（ORIG 帧
+// 0xfc/36 槽 vs 4.4 帧 0x140/55 槽全帧平移，edi/esi/ebx 与 esi/ebx 寄存器分配
+// 差）+ N88 装载序 + 少量 4.4 布尔物化（jcc+5）；逐块人工比对语义与 Ghidra C
+// 一致（详见 docs/asm_translation_patterns.md 负例表）⇒ N 封顶。
 int PvP_Room::pvp_reward()
 {
     int local_dc[8];

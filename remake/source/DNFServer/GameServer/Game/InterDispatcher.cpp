@@ -1651,6 +1651,8 @@ struct Inter_LoadCharacPktView
 };
 #pragma pack(pop)
 
+// §6.2 巨件核销：P167 106/106 [0缺0多]；gap -16→-16；残差归因 N82（4.4 槽复用全帧错位，
+// 详见 docs/asm_translation_patterns.md 负例表）。batch-20「Inter 巨兽」已核销，本次维持。
 int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_LoadCharacPktView* pPkt = reinterpret_cast<Inter_LoadCharacPktView*>(data);
@@ -2687,6 +2689,13 @@ struct Inter_MonitorLoginOKPktView
 };
 #pragma pack(pop)
 
+// §6.2 巨件核销：P167 139/139 [0缺0多]；gap -36→-24；残差归因 N82（详见
+// docs/asm_translation_patterns.md 负例表）。真修 3 处：
+// ① getpeername 目标改对齐具名 struct 成员读 sa.ip（消非对齐 punning 引发的 memcpy call；
+//    ORIG 单条 mov 4B 整装 @0x084c8738）；
+// ② 删多余 memset(&sa,0,sizeof(sa))（ORIG sockaddr 槽不清零）；
+// ③ ipBuf 清零改显式 memset(ipBuf,0,0x4c)（复现 ORIG call memset @0x084c8500；
+//    `={'\0'}` 在 4.4-O0 内联 rep stos 形不符）。
 int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MonitorLoginOKPktView* pPkt = reinterpret_cast<Inter_MonitorLoginOKPktView*>(data);
@@ -2799,17 +2808,18 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_byte(user->getPad()->isCertified() ? 1 : 0);
     packet.put_byte(user->isRestingUser() ? 1 : 0);
 
-    unsigned char ipBuf[0x4c] = { '\0' };
+    unsigned char ipBuf[0x4c];
+    memset(ipBuf, 0, 0x4c);                        // ORIG call memset 0x4c（rep stos 内联形≠ORIG）
     socklen_t saLen = sizeof(sockaddr);
-    sockaddr sa;
-    memset(&sa, 0, sizeof(sa));
-    const int ret = getpeername(user->m_network.get_socket(), &sa, &saLen);
+    struct SockAddrIp { unsigned short family; unsigned char pad[2]; unsigned int ip; unsigned char rest[10]; } sa;
+    const int ret = getpeername(user->m_network.get_socket(),
+                                reinterpret_cast<sockaddr*>(&sa), &saLen);
     if (ret != 0)
         return 0x2114;                                 // socket 取 IP 失败
 
     {
         unsigned int clientIp = 0;
-        memcpy(&clientIp, &sa.sa_data[2], 4);
+        clientIp = sa.ip;                        // ORIG mov -0xbc→-0xc4 单条 4B 整装
         void* checker = GlobalData::s_antibotChecker_;          // antibiotic 类未建模——asm 桥残留（vtable+0x04 AddClient，按 §8 协议保留）
         typedef int (*AddClientFn)(void*, int, int, unsigned int,
                                    unsigned int, void*);
@@ -9213,6 +9223,8 @@ struct Inter_AuctionResultAskRegistedItemNumPktView
 };
 #pragma pack(pop)
 
+// §6.2 巨件核销：P167 111/111 [0缺0多]；gap 24→24；残差归因 N82（4.4 槽复用全帧错位，
+// 详见 docs/asm_translation_patterns.md 负例表）。batch-20「Inter 巨兽」已核销，本次维持。
 int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AuctionResultAskRegistedItemNumPktView* pPkt = reinterpret_cast<Inter_AuctionResultAskRegistedItemNumPktView*>(data);
@@ -11817,6 +11829,8 @@ struct Inter_ItemLimitEdition_ReplyPktView
 };
 #pragma pack(pop)
 
+// §6.2 巨件核销：P167 106/106 [0缺0多]；gap -39→-39；残差归因 N82（4.4 槽复用全帧错位，
+// 详见 docs/asm_translation_patterns.md 负例表）。batch-20「Inter 巨兽」已核销，本次维持。
 int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ItemLimitEdition_ReplyPktView* pPkt = reinterpret_cast<Inter_ItemLimitEdition_ReplyPktView*>(data);
@@ -12868,6 +12882,8 @@ struct Inter_GuildCargoPopItemPktView
 };
 #pragma pack(pop)
 
+// §6.2 巨件核销：P167 42/42 [0缺0多]；gap -7→-7；残差归因 N82（4.4 槽复用全帧错位，
+// 详见 docs/asm_translation_patterns.md 负例表）。
 int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
 Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemPktView*>(data);

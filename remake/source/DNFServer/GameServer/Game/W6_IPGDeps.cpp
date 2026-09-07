@@ -192,8 +192,15 @@ void CIPGMgr::CIPGWorker::dispatch(void* /*arg*/)
 // ---------------------------------------------------------------------------
 // ProcIPGSyncForTaiwan —— ORIG T 0x081048c6 (0x992)。switch(data->m_type)：
 // 0=charge、2=purchase、3=cancel、4=getBalance、5=confirm、6=ceraPoint、
-// 其余（含 1）记日志。cash 取 *(m_mgr->getBillingCash())。载荷按命令族视图访问
+// 其余（含 1）记日志。cash 取 m_mgr->m_billingCash（ORIG 6 处均直接解引用
+// m_mgr(+0xc)→+0xec，无 getBillingCash call）。载荷按命令族视图访问
 // （m_cmd.m_input / m_output / m_cancel / m_point / m_query，见 TaiwanCash.h）。
+// §6.2 巨件核销（b25）：P167 修前 50/56 [多6 getBillingCash]→修后 50/50
+// [0缺0多]；gap 0→0（orig 601 / our 601 指令数相等）；修法：6 处
+// getBillingCash() 调用改 m_mgr->m_billingCash 直接成员访问（ORIG 本函数
+// 内联解引用 +0xec，访问器不产生 call；TaiwanCash.cpp 的 out-of-line 定义
+// 保留供 0x08175f94 等真实 call 点使用）。残差为 N82 槽序/ndiff 951 字节层
+// 排布（详见 docs/asm_translation_patterns.md 负例表）。
 // ---------------------------------------------------------------------------
 SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
 {
@@ -205,7 +212,7 @@ SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
     {
         Taiwan::BillTransaction tran;   // -0x68..-0x5c
         SIPGDataInputView* in = &data->m_cmd.m_input;
-        Taiwan::TaiwanCash* cash = m_mgr->getBillingCash();
+        Taiwan::TaiwanCash* cash = m_mgr->m_billingCash;   // ORIG 直接解引用 +0xec
         int rc = cash->charge(data->m_account,
                               in->m_serviceType,
                               0,
@@ -241,7 +248,7 @@ SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
         SIPGDataOutputView* out = &data->m_cmd.m_output;
         int pay = atoi(out->m_pay);            // ebx
         int price = atoi(out->m_price);        // eax
-        Taiwan::TaiwanCash* cash = m_mgr->getBillingCash();
+        Taiwan::TaiwanCash* cash = m_mgr->m_billingCash;
         int rc = cash->purchase(0ULL, price, pay,
                                 data->m_accName,
                                 out->m_recvCharac,
@@ -283,7 +290,7 @@ SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
         const SIPGDataCancelView* cv = &data->m_cmd.m_cancel;
         tran.m_field0 = cv->m_tranField0;
         tran.m_tranNo = cv->m_tranNo;
-        m_mgr->getBillingCash()->cancel(tran);
+        m_mgr->m_billingCash->cancel(tran);
         break;
     }
 
@@ -291,7 +298,7 @@ SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
     {
         int bal = 0;    // -0x34
         int point = 0;  // -0x30
-        int rc = m_mgr->getBillingCash()->getBalance(data->m_accName, bal, point);
+        int rc = m_mgr->m_billingCash->getBalance(data->m_accName, bal, point);
         if (rc != 0)
         {
             LogManager::logFormat(1, "IPGMgr.cpp", __PRETTY_FUNCTION__, 0x243,
@@ -323,13 +330,13 @@ SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
         const SIPGDataCancelView* cv = &data->m_cmd.m_cancel;
         tran.m_field0 = cv->m_tranField0;
         tran.m_tranNo = cv->m_tranNo;
-        m_mgr->getBillingCash()->confirm(tran);
+        m_mgr->m_billingCash->confirm(tran);
         break;
     }
 
     case 6:  // IPG_TYPE_POINT：ceraPoint；A 型命令位不回包
     {
-        Taiwan::TaiwanCash* cash = m_mgr->getBillingCash();
+        Taiwan::TaiwanCash* cash = m_mgr->m_billingCash;
         SIPGDataPointView* pt = &data->m_cmd.m_point;
         int rc = cash->ceraPoint(data->m_accName,
                                  data->m_gameCode,

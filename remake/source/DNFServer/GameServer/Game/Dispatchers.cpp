@@ -2580,29 +2580,10 @@ void Dispatcher_ComboSkill::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_GM_Command::~Dispatcher_GM_Command() {}
-// ---- GM 命令监控包/信号局部视图（仅本 TU 使用；ORIG W
-//      Packet_Monitor_Notice_Message 0x822bbd6 / Packet_Forbid_Chat_By_Monitor
-//      0x822bc70，均为清零构造的定长缓冲）----
+// ---- GM 命令信号局部视图（仅本 TU 使用）----
 namespace gm_pkt
 {
 #pragma pack(push, 1)
-// 监控服通知：+0x0a 长度字节、+0x0b 文本（总长 0x10b）
-struct MonitorNoticeMessage
-{
-    MonitorNoticeMessage() { memset(this, 0, sizeof(*this)); }
-    unsigned char m_pad[0x0a];
-    unsigned char m_len;
-    char m_msg[0x100];
-};
-// 禁言监控包：+0x0a 秒数(int)、+0x12 名字（总长 0x30）
-struct ForbidChatByMonitor
-{
-    ForbidChatByMonitor() { memset(this, 0, sizeof(*this)); }
-    unsigned char m_pad[0x0a];
-    int m_seconds;
-    unsigned char m_pad2[4];
-    char m_name[0x1e];
-};
 // SIG_FORBID_USER_TO_PLAY 前 9 字节视图（ORIG memset 9B 后按 +0/+4/+5 写）
 struct SigForbidPlayBody
 {
@@ -2613,6 +2594,21 @@ struct SigForbidPlayBody
 #pragma pack(pop)
 }  // namespace gm_pkt
 
+#include <algorithm>                          // case9 std::min（ORIG 080df90e 库调用）
+// 显式路径:Game 同名空壳优先级会遮蔽 -I（CAuction.cpp 同案）
+#include "../../../shared/packet/include/Packet_Monitor_Notice_Message.h"   // ORIG 真类（W ctor 0x0822bbd6，case3 GMS）
+#include "../../../shared/packet/include/Packet_Forbid_Chat_By_Monitor.h"   // ORIG 真类（W ctor 0x0822bc70，case5 禁言）
+
+// §6.2 巨件核销：P167 344/344 [0缺0多]；gap 2058→1960；残差归因 N82
+// （帧/槽号全帧错位+两守卫源语句顺序）+ N78（sub $0x51c vs $0x43c 帧），语义完整
+// （详见 docs/asm_translation_patterns.md 负例表）。真修：
+// ① case3/5 监控包 gm_pkt::MonitorNoticeMessage/ForbidChatByMonitor 发明符号迁 ORIG
+//   真类 Packet_Monitor_Notice_Message(ctor 0x0822bbd6)/Packet_Forbid_Chat_By_Monitor
+//   (ctor 0x0822bc70)（显式路径 include 避 Game 同名空壳，CAuction.cpp 同案）；
+// ② case4/5/6/9/0xb/0xc/0xd 补 ORIG 30B 零填充查表副本 memset+strncpy（P0 槽律）；
+// ③ case9 升降级循环 if(nextLv>200) 内联化改回真实 std::min 库调用（ORIG 080df90e）；
+// ④ 各 case get_int/get_str 返回值按 ORIG 不测试（bool 返回仅 get_byte 检查）；
+// ⑤ 始段 accIdStr 命名缓存按 P0 内联为实参右值。
 // ORIG 0x81fa19e：GM 命令分发（cmd=0..0xd）。校验链 user!=0/getCurCharacR!=0/
 // get_byte 成功；失败走 LineFunc 断言路径（返回 0）。响应包 header 0x6e：
 // local_1d0 = put_byte(1)+put_byte(cmd)+payload；local_1c4 = 固定拒绝包
@@ -2631,9 +2627,8 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     {
-        const char* accIdStr = NumberToString(user->get_acc_id(), 0);
         cMyTrace trace(__PRETTY_FUNCTION__, 0x8908, 0);
-        trace("GM Command : %s", accIdStr);
+        trace("GM Command : %s", NumberToString(user->get_acc_id(), 0));
     }
 
     unsigned char cmd = 0;
@@ -2660,6 +2655,8 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
     char announce[0x100];
     char name[0x1e];
     char targetName[0x1e];   // case9 ORIG local_248：调级目标的零填充副本
+    char lookupName[0x1e];   // ORIG case4/5/6/0xb/0xc/0xd 各自的 30B 零填充查表副本
+    //（P0 槽律：ORIG 每分支 memset(+strncpy) 槽往返实证，非内联右值）
     int len = 0;
     unsigned short wLen = 0;   // ORIG get_short(unsigned short&)（_ZN9PacketBuf9get_shortERt）
     int extra = 0;
@@ -2678,10 +2675,15 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         }
         break;
     case 1:  // 全服公告 GMC <str>
+        // ORIG 守卫链：GmMode==1 与 GetGmLevel>0 各自 test/jne；get_int/get_str 返回值
+        // 不测试（0x81fa4eb 只读 len 槽判 0）。
         if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
-            packet.get_int(len) && packet.get_str(announce, 0x100, len) && len != 0)
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
         {
+            packet.get_int(len);
+            packet.get_str(announce, 0x100, len);
+            if (len != 0)
+            {
             resp.put_int(len);
             resp.put_str(announce, len);
             resp.finalize(true);
@@ -2689,13 +2691,17 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             // ORIG 0x8939：全服广播后记日志
             cMyTrace trace(__PRETTY_FUNCTION__, 0x8939, 0);
             trace("GMC %s \n", announce);
+            }
         }
         break;
     case 2:  // 本区域公告 GMZ <str>
         if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
-            packet.get_int(len) && packet.get_str(announce, 0x100, len) && len != 0)
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
         {
+            packet.get_int(len);
+            packet.get_str(announce, 0x100, len);
+            if (len != 0)
+            {
             resp.put_int(len);
             resp.put_str(announce, len);
             resp.finalize(true);
@@ -2704,34 +2710,42 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             // ORIG 0x894a：区域广播后记日志
             cMyTrace trace(__PRETTY_FUNCTION__, 0x894a, 0);
             trace("GMZ %s \n", announce);
+            }
         }
         break;
     case 3:  // 监控服公告 GMS <str>（resp 仅 finalize 不发送，ORIG 同）
         if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
-            packet.get_int(len) && packet.get_str(announce, 0x100, len) && len != 0)
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
         {
+            packet.get_int(len);
+            packet.get_str(announce, 0x100, len);
+            if (len != 0)
+            {
             resp.put_int(len);
             resp.put_str(announce, len);
             resp.finalize(true);
-            gm_pkt::MonitorNoticeMessage noti;
+            Packet_Monitor_Notice_Message noti;   // ORIG ctor 0x0822bbd6：PacketHeader(0x9dc,0x10b)+memset(m_text)
             noti.m_len = (unsigned char)len;
-            strncpy(noti.m_msg, announce, len);
+            strncpy(noti.m_text, announce, len);   // ORIG strncpy 到 +0xb（m_text）
             CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy(
                 user->GetServerGroup());
             proxy->SendTcpPacket((char*)&noti, 0x10b);
             // ORIG 0x8966：监控公告发送后记日志
             cMyTrace trace(__PRETTY_FUNCTION__, 0x8966, 0);
             trace("GMS %s \n", announce);
+            }
         }
         break;
     case 4:  // 踢人 expel <name>
         if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
-            packet.get_int(len) && packet.get_str(name, 0x1e, len))
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
         {
+            packet.get_int(len);
+            packet.get_str(name, 0x1e, len);
+            memset(lookupName, 0, sizeof(lookupName));
+            strncpy(lookupName, name, (size_t)len);
             target = G_GameWorld()->find_user_from_world_byaccid(
-                G_GameWorld()->GetIDUserInIDMap(name));
+                G_GameWorld()->GetIDUserInIDMap(lookupName));
             if (target == 0)
             {
                 user->Send(reject);
@@ -2752,14 +2766,17 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         break;
     case 5:  // 禁言 forbid chat <mins> <nameLen> <name>
         if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
-            packet.get_int(len) && packet.get_int(extra) &&
-            packet.get_str(name, 0x1e, extra))
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
         {
+            packet.get_int(len);
+            packet.get_int(extra);
+            packet.get_str(name, 0x1e, extra);
             // ORIG local_7c：分钟→秒钳制（<1→60s；>=0x5a0→0x15180=1 天）
             int sec = (len < 0x5a0) ? ((len < 1) ? 0x3c : len * 0x3c) : 0x15180;
+            memset(lookupName, 0, sizeof(lookupName));
+            strncpy(lookupName, name, (size_t)extra);
             target = G_GameWorld()->find_user_from_world_byaccid(
-                G_GameWorld()->GetIDUserInIDMap(name));
+                G_GameWorld()->GetIDUserInIDMap(lookupName));
             if (target == 0)
             {
                 user->Send(reject);
@@ -2784,9 +2801,10 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
                 resp.finalize(true);
                 user->Send(resp);
                 target->Send(resp);
-                // ORIG Packet_Forbid_Chat_By_Monitor：+0x0a=秒、+0x12=名
-                gm_pkt::ForbidChatByMonitor moni;
-                moni.m_seconds = sec;
+                // ORIG Packet_Forbid_Chat_By_Monitor：ctor 0x0822bc70（PacketHeader(0x9dd,0x30)
+                // + memset(m_name)），m_secs=秒、m_name=名（m_padE 无写入，头注释同证）
+                Packet_Forbid_Chat_By_Monitor moni;
+                moni.m_secs = sec;
                 strncpy(moni.m_name, name, (size_t)extra);
                 CMonitorServerProxy* proxy =
                     GlobalData::s_monitor_proxy_mgr->GetServerProxy(
@@ -2801,13 +2819,16 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         break;
     case 6:  // 禁移动 forbid move <mins> <nameLen> <name>（仅 state==3 生效）
         if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
-            packet.get_int(len) && packet.get_int(extra) &&
-            packet.get_str(name, 0x1e, extra))
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
         {
+            packet.get_int(len);
+            packet.get_int(extra);
+            packet.get_str(name, 0x1e, extra);
             int sec = (len < 0x5a0) ? ((len < 1) ? 0x3c : len * 0x3c) : 0x15180;
+            memset(lookupName, 0, sizeof(lookupName));
+            strncpy(lookupName, name, (size_t)extra);
             target = G_GameWorld()->find_user_from_world_byaccid(
-                G_GameWorld()->GetIDUserInIDMap(name));
+                G_GameWorld()->GetIDUserInIDMap(lookupName));
             if (target == 0)
             {
                 user->Send(reject);
@@ -2870,10 +2891,11 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         break;
     case 9:  // 调级 setlevel <level> <nameLen> <name>
         if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
-            packet.get_int(len) && packet.get_int(extra) &&
-            packet.get_str(name, 0x1e, extra))
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
         {
+            packet.get_int(len);
+            packet.get_int(extra);
+            packet.get_str(name, 0x1e, extra);
             // ORIG local_248：调级目标用零填充副本查表；回包/日志仍用读入文本 name。
             // （原实现误 memset(name) 致目标永远查不到。）
             memset(targetName, 0, sizeof(targetName));
@@ -2892,15 +2914,17 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
                 while (diff < 0)
                 {
                     int nextLv = target->get_charac_level() - 1;
-                    if (nextLv > 200) nextLv = 200;
-                    result = target->SetCharacLevel(nextLv);
+                    int lvCap = 200;
+                    result = target->SetCharacLevel(
+                        std::min(lvCap, nextLv));
                     ++diff;
                 }
                 while (diff > 0)
                 {
                     int nextLv = target->get_charac_level() + 1;
-                    if (nextLv > 200) nextLv = 200;
-                    result = target->SetCharacLevel(nextLv);
+                    int lvCap = 200;
+                    result = target->SetCharacLevel(
+                        std::min(lvCap, nextLv));
                     --diff;
                 }
                 if (result != 0)
@@ -2933,12 +2957,16 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         break;
     case 10:  // 发物品 grant item <itemIdx> <count> <nameLen> <name>
         if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
-            packet.get_int(len) && packet.get_short(wLen) &&
-            packet.get_int(extra) && packet.get_str(name, 0x1e, extra))
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
         {
+            packet.get_int(len);
+            packet.get_short(wLen);
+            packet.get_int(extra);
+            packet.get_str(name, 0x1e, extra);
+            memset(lookupName, 0, sizeof(lookupName));
+            strncpy(lookupName, name, (size_t)extra);
             target = G_GameWorld()->find_user_from_world_byaccid(
-                G_GameWorld()->GetIDUserInIDMap(name));
+                G_GameWorld()->GetIDUserInIDMap(lookupName));
             if (target == 0)
             {
                 user->Send(reject);
@@ -2974,11 +3002,14 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         break;
     case 0xb:  // 复活 revive <name>
         if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
-            packet.get_int(len) && packet.get_str(name, 0x1e, len))
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
         {
+            packet.get_int(len);
+            packet.get_str(name, 0x1e, len);
+            memset(lookupName, 0, sizeof(lookupName));
+            strncpy(lookupName, name, (size_t)len);
             target = G_GameWorld()->find_user_from_world_byaccid(
-                G_GameWorld()->GetIDUserInIDMap(name));
+                G_GameWorld()->GetIDUserInIDMap(lookupName));
             if (target == 0)
             {
                 user->Send(reject);
@@ -3008,11 +3039,14 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         break;
     case 0xc:  // 重置疲劳 reset fatigue <name>
         if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
-            packet.get_int(len) && packet.get_str(name, 0x1e, len))
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
         {
+            packet.get_int(len);
+            packet.get_str(name, 0x1e, len);
+            memset(lookupName, 0, sizeof(lookupName));
+            strncpy(lookupName, name, (size_t)len);
             target = G_GameWorld()->find_user_from_world_byaccid(
-                G_GameWorld()->GetIDUserInIDMap(name));
+                G_GameWorld()->GetIDUserInIDMap(lookupName));
             if (target == 0)
             {
                 user->Send(reject);
@@ -3034,12 +3068,15 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         break;
     case 0xd:  // 封号 forbid play <days> <nameLen> <name>（发 SIG_FORBID_USER_TO_PLAY 到 DB 队列）
         if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0 &&
-            packet.get_int(len) && packet.get_int(extra) &&
-            packet.get_str(name, 0x1e, extra))
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
         {
+            packet.get_int(len);
+            packet.get_int(extra);
+            packet.get_str(name, 0x1e, extra);
+            memset(lookupName, 0, sizeof(lookupName));
+            strncpy(lookupName, name, (size_t)extra);
             target = G_GameWorld()->find_user_from_world_byaccid(
-                G_GameWorld()->GetIDUserInIDMap(name));
+                G_GameWorld()->GetIDUserInIDMap(lookupName));
             if (target == 0)
             {
                 user->Send(reject);
@@ -6118,12 +6155,25 @@ void Dispatcher_MouseRegister::doPassPadReplay(CUser* user, char* answer,
 }
 
 // ==== Dispatcher_MouseRegister::dispatch_sig (ORIG 0x082637fe) ====
+// §6.2 巨件核销：P167 89/89 [0缺0多]；gap 636→662（+26 全帧 N82 槽号错位，本帧
+// 4096×2 解密缓冲使 4.4 vs 4.1 槽分配天然漂移）；残差归因 N82（帧/槽号+寄存器），
+// 语义完整（详见 docs/asm_translation_patterns.md 负例表）。真修：
+// ① pkgType==3 分支补 operator* ×2→operator<< ×2→operator-> 写入链（P103/P5，
+//   原简写致 P167 -2operator*/-1operator->）；主成功路径同形补齐；
+// ② 删我方多缺 memset(&bufView)（ORIG 无——m_encPwd 由 get_binary、m_encPwdCopy
+//   由 memcpy 覆盖，pkgType 槽不被读）；
+// ③ 始段删 user==0 守卫（ORIG 无，get_state 两次独立调用双 je 同目标，P133）；
+// ④ cryptoType 三守卫 !(a&&b&&c) 还原为 ORIG 独立 ==0/>0xd/==5 判（P133）；
+// ⑤ Decrypt 双调用返回处理还原 ORIG「首次 jne 汇聚1、次次 je 汇聚0」单出口发错
+//   （P48 独立无 setne 物化）；
+// ⑥ checkValiedPassword ×2 还原 bool 汇聚物化（xor$1/test 首项 jne 尾项 je，P22）。
 // PacketDispatcher_Secu.cpp 密保卡注册链：包类型分发 → 解密双密码 → shake 减扰
 // → checkValiedPassword ×2 → 写 SIG_MOUSE_REGISTER 进 DB_Q。
 int Dispatcher_MouseRegister::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    if (user == 0 ||
-        !(user->get_state() == 3 || user->get_state() == 2))
+    // ORIG 0x26380a..：无 user==0 守卫；get_state==3 / ==2 两次独立调用，
+    // 双 je 同一目标（P133 独立守卫）。
+    if (!(user->get_state() == 3 || user->get_state() == 2))
     {
         return LineFunc(0x27c,
                         __PRETTY_FUNCTION__,
@@ -6174,7 +6224,8 @@ int Dispatcher_MouseRegister::dispatch_sig(CUser* user, PacketBuf& packet)
         Stream* stream =
             GlobalData::s_stream_pool->Acquire("PacketDispatcher_Secu.cpp", 0x2ba);
         CStreamGuard guard(stream, true);
-        // ORIG：写入经 operator*（0x080c8c46）、GetInBuffer 经 operator->（P103）。
+        // ORIG 0x263ac8..：写入经 operator*（0x080c8c46）×2 → operator<< ×2 →
+        // GetInBuffer 经 operator->（P103），与主成功路径同形。
         **guard << (int)0xa3;
         **guard << (int)user->GetUID();
         SIG_MOUSE_REGISTER* sig = guard.operator->()->GetInBuffer<SIG_MOUSE_REGISTER>();
@@ -6197,7 +6248,8 @@ int Dispatcher_MouseRegister::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!(cryptoType != 0 && cryptoType <= 0xd && cryptoType != 5))
+    // ORIG 0x263c75..：三条独立守卫（==0 或 >0xd 或 ==5）双 jcc 同一目标（P133）。
+    if (cryptoType == 0 || cryptoType > 0xd || cryptoType == 5)
     {
         return LineFunc(0x2e3,
                         __PRETTY_FUNCTION__,
@@ -6212,7 +6264,8 @@ int Dispatcher_MouseRegister::dispatch_sig(CUser* user, PacketBuf& packet)
         unsigned char m_encPwdCopy[32];      // +0x21 (-0x68) memcpy 副本 / Decrypt 源 2
     };
     MouseRegDecryptBuf bufView;              // 局部视图（取址用）
-    memset(&bufView, 0, sizeof(bufView));    // 清 type/copy 区避免残留栈值入帧
+    // ORIG 无 memset(&bufView)：m_encPwd 由 get_binary 覆盖、m_encPwdCopy 由 memcpy
+    // 覆盖（+1 memset 为我方多缺调用，P167 EXTRA；pkgType 槽不被读）。
 
     int encLen = 0;      // ORIG -0x38
     int encLenCopy = 0;  // ORIG -0x34
@@ -6232,16 +6285,22 @@ int Dispatcher_MouseRegister::dispatch_sig(CUser* user, PacketBuf& packet)
     cryptoTypeCopy = cryptoType;
     memcpy(bufView.m_encPwdCopy, bufView.m_encPwd, encLen);
 
+    // ORIG 0x263d8e..：解密入口即 Cipher::Decrypt(int,uchar const*,int,uchar*,int*)
+    // （T 0x0809751e，ORIG 报告调用实证），索引 shl $0x4 直读全局表（ORIG 4×
+    // sizeof(Cipher*)，当前头即 Cipher* 表——勿再乘 sizeof）；两次调用返回 eax
+    // 各 xor$1/test（P48 独立、无局部缓存物化）。
     Sanicova::CPad* padCipher = user->getPad();   // P48 双臂各自调用
-    Cipher* cipher = GlobalData::s_secu_cipher_keystring_manager_
+    Cipher& cipher = *GlobalData::s_secu_cipher_keystring_manager_
         [(padCipher->GetSelectedCipherIdx() & 0xffff) * 4];
-    const bool firstOk = cipher->Decrypt(cryptoType, bufView.m_encPwd, encLen,
-                                         decPwd1, &decLen1);
+    const bool firstOk = cipher.Decrypt(cryptoType, bufView.m_encPwd, encLen,
+                                        decPwd1, &decLen1);
     Sanicova::CPad* padCipher2 = user->getPad();
-    Cipher* cipher2 = GlobalData::s_secu_cipher_keystring_manager_
+    Cipher& cipher2 = *GlobalData::s_secu_cipher_keystring_manager_
         [(padCipher2->GetSelectedCipherIdx() & 0xffff) * 4];
-    const bool secondOk = cipher2->Decrypt(cryptoTypeCopy, bufView.m_encPwdCopy,
-                                           encLenCopy, decPwd2, &decLen2);
+    const bool secondOk = cipher2.Decrypt(cryptoTypeCopy, bufView.m_encPwdCopy,
+                                          encLenCopy, decPwd2, &decLen2);
+    // ORIG 0x263df1..：两次 Decrypt 返回各 xor$1/test；首次 jne 汇聚「1」、
+    // 次次 je 汇聚「0」——单 SendCmdErrorPacket 在汇聚点（test al 后）发一次。
     if (!firstOk || !secondOk)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x74, 1);
@@ -6254,7 +6313,8 @@ int Dispatcher_MouseRegister::dispatch_sig(CUser* user, PacketBuf& packet)
         decPwd2[i] -= user->getPad()->GetShakeData(i);
     }
 
-    // P48：两次独立 checkValiedPassword 调用，短路逻辑按 ORIG 形态。
+    // ORIG 0x263f26..：P48 两次独立调用；P22 布尔取反——每 call 后 xor$1/test，
+    // 首项 jne 汇聚「1」、尾项 je 汇聚「0」，再统一 test al 分流。
     const bool bad = !checkValiedPassword((char*)decPwd1) ||
                      !checkValiedPassword((char*)decPwd2);
     if (bad)
@@ -6267,9 +6327,10 @@ int Dispatcher_MouseRegister::dispatch_sig(CUser* user, PacketBuf& packet)
     Stream* stream =
         GlobalData::s_stream_pool->Acquire("PacketDispatcher_Secu.cpp", 0x346);
     CStreamGuard guard(stream, true);
-    guard << (int)0xa3;
-    guard << (int)user->GetUID();
-    SIG_MOUSE_REGISTER* sig = guard.GetInBuffer<SIG_MOUSE_REGISTER>();
+    // ORIG 0x263fbe..：operator* ×2 → operator<< ×2 → operator->（P103）。
+    **guard << (int)0xa3;
+    **guard << (int)user->GetUID();
+    SIG_MOUSE_REGISTER* sig = guard.operator->()->GetInBuffer<SIG_MOUSE_REGISTER>();
     sig->m_accId = user->get_acc_id();
     sig->m_pkgType = (unsigned int)pkgType;
     strncpy(sig->m_password1, (char*)decPwd1, 7);
@@ -15425,6 +15486,8 @@ int Dispatcher_Compound_ExtreamItem::read(PacketBuf& packet, MSG_BASE& msg) { re
 Dispatcher_GatheringPartyStatus::~Dispatcher_GatheringPartyStatus() {}
 int Dispatcher_GatheringPartyStatus::dispatch_sig(CUser* user, PacketBuf& packet)
 {
+    // §6.2 语义完成：P167 调用点差集双零（59/59）；orig531/our490，gap-41 为
+    // 后端帧/槽分配冗余（N82 残余），非缺语义 → byte 层 N 封顶。
     // ORIG 0x08203878：组队状态收集进 DB（PacketDispatcher_Impl_1.cpp）。
     // 接收端包体为 pack(1) 结构（sizeof==0x1b4，与 ORIG memset 尺寸一致）：
 #pragma pack(push, 1)

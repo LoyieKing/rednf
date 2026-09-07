@@ -2066,6 +2066,13 @@ int GameWorld::check_move_area(CUser* user, int vill, int area, int x, int y,
 bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
                           bool flag, int param, int prevVill, int prevArea)
 {
+    // §6.2 巨件核销：P167 127/127 [0缺0多]；gap 864→872（残差 8 条）；残差归因 N 类
+    // （isMovableRoute 调用侧 4.1 xor$1 取反物化 vs 4.4 jne 直跳；
+    //   teleport_state==1 的 4.1 sete 物化 vs 4.4 jne；cMyTrace/logFormat 变参求值序；
+    //   详见 docs/asm_translation_patterns.md 负例表）。逐块人工比对完成，语义零缺口。
+    // 真修四处：①teleport_state==1 比较物化；②elapsed 具名局部（P0 槽 -0x2c）；
+    // ③buf[5] 清零 movl+movb（P202①）；④getCurCharacVillPrev 返回 signed char
+    // （ORIG 调用点 movsbl，头已同步）。
     PacketGuard errorPacket;
 
     if (!GlobalData::s_timeGate_->isOpen() &&
@@ -2131,10 +2138,14 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
     int curArea = user->get_area(false);
     bool teleport = false;
     CParty* party = (CParty*)user->GetParty();
-    if (party != NULL &&
-        ((CPartyTelePort*)party->GetPartyTelePort())->get_teleport_state())
+    // ORIG @0x086c5ea2：party!=0 守卫后内层 state==1（char 比较物化 sete 为
+    // 4.1 特有，4.4 直 jne，N 类）。
+    if (party != NULL)
     {
-        teleport = true;
+        if (((CPartyTelePort*)party->GetPartyTelePort())->get_teleport_state() == 1)
+        {
+            teleport = true;
+        }
     }
     if (param == 2)
     {
@@ -2195,17 +2206,18 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
             // getBeforeAreaTime() 一次，不缓存到具名局部（缓存则少 1 call 点，P167 差集 -1）。
             if (user->getBeforeAreaTime() != 0)
             {
-                if (now - user->getBeforeAreaTime() < 3)
+                // ORIG @0x086c61d7..：差值落 -0x2c 槽（P0 ⇒ 具名局部 elapsed），
+                // cmpl $0x2 后 jg 走失败汇聚（&& 短路链首条件）。
+                int elapsed = now - user->getBeforeAreaTime();
+                if (elapsed <= 2 &&
+                    CHackLog_InvalidAreaMove::IsInvalidMovableArea(
+                        curVill, curArea, vill, area) &&
+                    !CHackLog_InvalidAreaMove::isMovableRoute(
+                        prevVill2, prevArea2, curVill, curArea, vill, area) &&
+                    prevVill2 != vill && prevArea2 != area)
                 {
-                    if (CHackLog_InvalidAreaMove::IsInvalidMovableArea(
-                            curVill, curArea, vill, area) &&
-                        !CHackLog_InvalidAreaMove::isMovableRoute(
-                            prevVill2, prevArea2, curVill, curArea, vill, area) &&
-                        prevVill2 != vill && prevArea2 != area)
-                    {
-                        user->getHackAnalyzer()->addServerHackCnt(
-                            user, (WongWork::ENUM_HACK_TYPE)0x1fc, 1, 0, 0);
-                    }
+                    user->getHackAnalyzer()->addServerHackCnt(
+                        user, (WongWork::ENUM_HACK_TYPE)0x1fc, 1, 0, 0);
                 }
             }
             user->setBeforeAreaTime(now);
@@ -2227,7 +2239,7 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
                         curArea, vill, area);
                     int hackA = 0;
                     int hackB = 0;
-                    char buf[8] = {0};
+                    char buf[5] = {0};
                     if (prevVill >= 0 && prevVill <= 10 &&
                         prevArea >= 0 && prevArea <= 10)
                     {

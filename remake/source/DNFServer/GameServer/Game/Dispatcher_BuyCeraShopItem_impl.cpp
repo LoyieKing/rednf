@@ -78,8 +78,10 @@ extern char* NumberToString(unsigned int value, int radix);
 // 已删除；证据 docs/class_func_reports/Dispatcher_BuyCeraShopItem/dispatch_sig.md
 // ORIG 汇编 0x081fd396..0x081fe4b7。
 //
-// 【§6.2 验收标注 2026-09-05】o=1002 n=1011（gap 116→|9|）；调用点差集 96/96 归零
-// （仅 cMyTrace/PacketGuard C1↔C2、D1↔D2 ORIG 同址别名形态差）；msg 基址 -0x4008、
+// 【§6.2 巨件核销】P167 96/96 [0缺0多]；gap 116→-9；残差归因 N82
+// （o=1002 n=1011；调用点差集 96/96 归零，仅 cMyTrace/PacketGuard C1↔C2、D1↔D2
+// ORIG 同址别名形态差）
+// ；msg 基址 -0x4008、
 // 槽 msg+0x0d/0x0f/0x36/0x39 绝对位与 ORIG 全同，帧 0x7fb0↔0x7fbc（push %edi 差）。
 // 残余 9 指令与行级 hunk 为 N82 槽号/寄存器分配 + eh 清理复用形态 ⇒ 判语义完成、
 // byte 层 N 封顶。

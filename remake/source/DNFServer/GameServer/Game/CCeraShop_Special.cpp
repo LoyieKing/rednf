@@ -1207,6 +1207,13 @@ int CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long 
 // ============================================================================
 // IsSpecialItem —— ORIG 0x08324a1e (T)
 // 固定商品表：itemId → (type, value, flag)；表外回退 CDataManager 物品类型判定。
+// §6.2 巨件核销：P167 3/3 [0缺0多]；gap -25→-63；残差归因 N46/N86 + N7
+// （稀疏 switch 决策树 4.1/4.4 划分算法结构性差：ORIG 首层 0x334 vs 4.4 首层
+//   0x2e8，cmp 值序列两侧树形不同、条数 85/83；虚调用 callee 寄存器
+//   call *%edx↔*%eax 与载荷序差。case 集与 (type,value,flag) 映射同 Ghidra C
+//   逐一核对一致。真修：默认路径 GetItemType() 由缓存 1 次改回 ORIG 的 5 次
+//   独立虚调用（0x08257b..0x08325 +0xd5b/+0xd83/+0xdb8/+0xdcf/+0xe0c 实证，
+//   P0：多 call ⇒ 源码无缓存）。
 // ============================================================================
 bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& flag)
 
@@ -1679,22 +1686,23 @@ bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& fl
     CItem* item = G_CDataManager()->find_item(itemIdx);
     if (item != 0 && item->is_stackable())
     {
-        int type = item->GetItemType();
-        if (type == 0x26)
+        // ORIG +0xd5b..+0xe0c：GetItemType() 虚调用独立 5 次（无具名缓存，P0），
+        // 0xf/0x10 双臂为 `(t==0xf)||(t==0x10)` 两次独立调用短路。
+        if (item->GetItemType() == 0x26)
             return false;
-        if (type == 0xe)
+        if (item->GetItemType() == 0xe)
         {
             outType = 5;
             flag = true;
             return true;
         }
-        if (type == 0xf || type == 0x10)
+        if (item->GetItemType() == 0xf || item->GetItemType() == 0x10)
         {
             outType = 6;
             flag = true;
             return true;
         }
-        if (type == 0x22)
+        if (item->GetItemType() == 0x22)
         {
             outType = 0xc;
             return true;

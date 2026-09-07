@@ -473,6 +473,14 @@ struct BlackListNoticeView {          // = Packet_Monitor_Notice_Black_List（0x
 };
 #pragma pack(pop)
 
+// §6.2 巨件核销：P167 1245/1245 [0缺0多]；gap 6348−6406=−58；残差归因 N82
+// （ORIG 每 case 独占 char* d 槽不复用（帧 0x32c）vs 4.4 复用 ⇒ 全帧槽号错位，
+// ndiff 10742 与完成度反向；详见 docs/asm_translation_patterns.md 负例表）。
+// 三件套：①gap −58；②调用差集零（ORIG 1245 call 全配对，含 0x9de put idx5、
+// 0xfa5/0x1b63/0x1b64/0x1b65 DB_Q(idx2)、0xb54 双 DB makeRequest、0x3ff/0x2712/
+// 0x2713 cMyTrace、0x27f9/0x27fa make_internal_stream_jpn、0xfe6 条件 <<）；
+// ③逐块比对 ~115 case：sig/<<常量/put_binary 长度/字段偏移(+0x29,+0xd,+0xf,+0x12
+// 等视图核实)/队列 idx/返回 0|1 与 ORIG 反编译 C 全同，无 MISSING/EXTRA，判 N 封顶。
 bool CDispatchServerPacket::dispatchPacket(char* data)
 {
     // ORIG 0x8473660：上游服务器包按首 short(sig) 重写头并转投 DISPATCH_Q。
@@ -2541,6 +2549,11 @@ struct GAPassThruView {               // case 0x2718..0x271b 转发
 // `need > size`（setg）/`need <= size`（setle）两独立读取；计数/长度实参
 // 每写点重读（P48）；case3 八条明细为逐条非循环写；case0 条件逐臂重读包体。
 // ---------------------------------------------------------------------------
+// §6.2 巨件核销：P167 259/259 [0缺0多]；gap 1338−1349=−11；残差归因 N82
+// （全帧槽号错位；详见 docs/asm_translation_patterns.md 负例表）。
+// 三件套：①gap −11；②调用差集零（含 case2 价格双循环、case3 8 条逐写、
+// case7/8/9 resize 双检 setg/setle、case0xe 单件购买、default logFormat 全配对）；
+// ③逐 case 比对：sig(0xf0..0xf9,0x20d)/字段序/字面量与 ORIG 反编译 C 全同，判 N 封顶。
 bool CDispatchServerPacket::dispatchAuctionPacket(char* data)
 {
     unsigned int packetId = (int)((nsl::PACKET_HEADER*)data)->getPacketID();
@@ -2882,6 +2895,12 @@ bool CDispatchServerPacket::dispatchAuctionPacket(char* data)
 // …0xd → 0x2718..0x271b → 0xe（OWNER_IS_VIP 在转发分支之后）→ default；
 // 0xa 为 ORIG 静默空 case（决策树 jb→nop 实测）。
 // ---------------------------------------------------------------------------
+// §6.2 巨件核销：P167 309/309 [0缺0多]；gap 1614−1621=−7；残差归因 N82
+// （全帧槽号错位；详见 docs/asm_translation_patterns.md 负例表）。
+// 三件套：①gap −7；②调用差集零（含 case7/8/9 resize 双检与 put_binary、
+// case5 strncpy、case0xe strcpy、0x2718..0x271b put_binary 转发全配对）；
+// ③逐 case 比对：sig(0xf0..0xfa,0x2a5..0x2a8,0x2da)/字段序/case0 先 result 后
+// flag（case0xc 反序先 flag）/0xa 空 case/default logFormat 与 ORIG 全同，判 N 封顶。
 bool CDispatchServerPacket::dispatchPointPacket(char* data)
 {
     unsigned int packetId = (int)((nsl::PACKET_HEADER*)data)->getPacketID();

@@ -334,6 +334,9 @@ bool CEventManager::TriggerEventEnd(int idx)
 //   119 CEventAdvanceAltarOpen 116 CAradRyosikaEvent 155 Arad_MomijiEvent
 //   158 LevelupSupportEvent 159 CEventStayTime 160 CEventCreateDnf
 //   165 EventGiveMeBox
+// §6.2 巨件核销：P167 153/153 [0缺0多]；gap 927→927；残差归因 N 类
+// （4.1 bool 取反物化 xor$1/test/je+块序 fall-else 在前 vs 4.4 test%al+jne，
+// 详见 docs/asm_translation_patterns.md 负例表；try/catch joiner 与槽位一致）。
 bool CEventManager::InitEventManager()
 {
     try
@@ -393,7 +396,12 @@ bool CEventManager::InitEventManager()
     {
         return false;
     }
-    return LoadEventFromDB();
+    // ORIG @0x08115950：call 后 xor $0x1/test/je→mov$1（x 真）+ fall mov$0。
+    // 4.4 对 bool 返回物化 test%al+jne（无 xor1），==true/三目均被前端折叠成
+    // 直传（922）；此形条数 927=927 且分支语义/块集一致，残余归 N 类跨版本物化。
+    if (LoadEventFromDB())
+        return true;
+    return false;
 }
 
 bool CEventManager::LoadEventFromDB()

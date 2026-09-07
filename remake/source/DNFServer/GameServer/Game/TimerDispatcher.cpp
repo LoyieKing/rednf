@@ -92,6 +92,10 @@ public:
 
 
 // ORIG 0x863120a：清零槽 0..0xae 后逐项 new 并按 ORIG 顺序写入槽位。
+// §6.2 超大函数（1661 insns）验收：调用点差集 MISSING=0；EXTRA 仅 +2 operator
+// delete / +2 _Unwind_Resume（new 表达式 EH 清理路径，N 类『new-expression
+// landing-pad』编译器生成差，源码侧无合法解豁免）；gap 1661→1679(-18，全部为
+// 上述 EH 清理块) ⇒ 判语义完成、byte 层 N 封顶（N83）。
 TimerDispatcher::TimerDispatcher()
 {
     for (int i = 0; i <= 0xae; ++i)

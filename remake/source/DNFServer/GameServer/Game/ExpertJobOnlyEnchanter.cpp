@@ -446,9 +446,10 @@ void CEnchanter::SetPeerRequestType(ENUM_PEER_REQUEST_TYPE type)
 // 前置费用门禁 → 材料/配方校验 → _DrawEnchant 结算 → 目标物品 addInfo 写
 // 怪物卡索引 → 双向结果包 → 费用转移/材料消耗 → 结算包与历史日志。
 // 返回 0=成功，其余为 ORIG 错误码（0x11/0x15/0x14 等）。
-// 【§6.2 判定】P167 调用点差集归零（0 MISSING / 0 EXTRA）、gap=0（553/553），
-// 仅余 byte 层 N82（帧/槽号偏移：ORIG sub $0x60 局部基 vs OURS -0x80 全帧 +32B
-// 位移）与分支极性/寄存器物化的控制流形状差；语义完成、byte 层封顶，勿再耗 ndiff 轮次。
+// §6.2 巨件核销（b25 复验）：P167 76/76 [0缺0多]；gap 0→0（orig 553 /
+// our 553 指令数相等）；残差归因 N82（帧/槽号偏移：ORIG sub $0x60 vs OURS
+// +32B 位移）+ 分支极性/寄存器物化控制流形状差（详见
+// docs/asm_translation_patterns.md 负例表）。语义完成、byte 层 N 封顶。
 // ---------------------------------------------------------------------------
 int CEnchanter::_DoEnchant(ENUM_TRY_ENCHANT_TYPE type)
 {

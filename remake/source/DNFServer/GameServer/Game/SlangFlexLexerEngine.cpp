@@ -6203,6 +6203,13 @@ static int yy_flex_strlen (yyconst char * );
 
 /** The main scanner function which does all the work.
  */
+// §6.2 巨件核销：P167 7/7 [0缺0多]；gap 3999→4008（残差 8 条 + 尾 nop 1）；残差归因
+// N 类（详见 docs/asm_translation_patterns.md 负例表）：①yy_c/yy_act 匹配循环
+// 4.1 落栈槽 vs 4.4 %edi 寄存器化（3 处 movzbl 槽往返差）；②yy_get_previous_action
+// 段 call *%ecx/*%eax 寄存器互换（N7）；③yy_cp/yy_bp 4.1 寄存器直持 vs 4.4 槽中转；
+// ④yyFlexLexer 基类成员布局 flex 库头版本差（yytext_ptr/yy_c_buf_p 偏移 0x4c/0x50
+// vs ORIG 0x4/0x30，全 TU 读写自洽、行为等价，属库头结构性差异）。DFA 表驱动逻辑、
+// accept/EOB/EOF 分支逐块人工比对一致，算法语义零缺口。
 YY_DECL
 {
 	register yy_state_type yy_current_state;

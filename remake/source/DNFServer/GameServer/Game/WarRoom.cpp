@@ -1182,10 +1182,12 @@ void WarRoom::SendGuildFP()
     SendToRoom(packet);
 }
 
-// [§6.2 闭合 · b20] WarRoom::ClearReward（ORIG 0x086bc5fe，0x915B）：
+// [§6.2 核销 · b25] WarRoom::ClearReward（ORIG 0x086bc5fe，0x915B）：
 //   P167 调用点差集 58/58 归零（0 MISSING / 0 EXTRA，新鲜 .o R_386_PC32 逐
-//   符号 Counter 与 ORIG call 多重集全等）；ORIG insns 565 vs 新鲜 .o 542
-//   （gap +22，余量 = 4.1 包裹不变式/循环展开与 4.4 简并的 N82 槽号族）。残余
+//   符号 Counter 与 ORIG call 多重集全等）；ORIG insns 565 vs 新鲜 .o 566
+//   （gap +1）。b25 回扫真修：补 avatarExp/creatureExp 两段 baseExp×rate
+//   完整乘算赋值（ORIG 0x086bc398/0x086bc461 fildll+fmuls+fistpll），原重建
+//   缺失该两段、仅剩 max(·,1) 比较 —— 奖励值语义真 bug 已修。残余
 //   byte 层属 N82 帧槽平移 + N76/N18a store 装载步序 + GetRepeatEvent 链寄存器
 //   物化；语义与 ORIG 一致（逐段注释见函数体）⇒ 判「语义完成、byte 层 N 封顶」。
 __attribute__((target("arch=i486")))
@@ -1248,6 +1250,11 @@ void WarRoom::ClearReward()
             serverRate = serverRate / 100.0f;
             serverExp = (int)(long long)(
                 (float)(unsigned long long)baseExp * serverRate);
+            // ORIG 0x086bc398/0x086bc461：avatar/creature 奖励先按 baseExp×rate
+            // 完整乘算落槽（fildll+fmuls+fistpll），再在 rate!=0 时 max(·,1)。
+            // 原重建缺两段乘法赋值（仅剩 max 比较），b25 §6.2 回扫补齐。
+            avatarExp = (unsigned int)(long long)(
+                (float)(unsigned long long)baseExp * avatarRate);
             if (avatarRate != 0.0)
             {
                 maxRef[0] = 1;
@@ -1255,6 +1262,8 @@ void WarRoom::ClearReward()
             }
             eventExp = (int)(long long)(
                 (float)(unsigned long long)baseExp * expFactor);
+            creatureExp = (unsigned int)(long long)(
+                (float)(unsigned long long)baseExp * creatureRate);
             if (creatureRate != 0.0)
             {
                 maxRef[1] = 1;

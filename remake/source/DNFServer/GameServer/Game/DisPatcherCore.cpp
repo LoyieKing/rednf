@@ -483,6 +483,9 @@ int DisPatcher_CheckConn::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase&
 
 DisPatcher_Login::DisPatcher_Login() throw() : m_field4(0) {}   // ORIG C1：基类 C1 后写 *(this+0x4)=0；throw() 同头声明
 DisPatcher_Login::~DisPatcher_Login() {}
+// §6.2 巨件核销：P167 168/168 [0缺0多]；gap 986→986/990；残差归因 N82/P112
+// （槽复用策略 + 块排布，diff 形态计数对称无缺类，详见
+// docs/asm_translation_patterns.md 负例表）。无真修条目。
 int DisPatcher_Login::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x081e8c78 静态局部 garenaToken（801B，BSS 无初始化；每次调用 memset 清零）
@@ -2378,6 +2381,9 @@ DisPatcher_ReqPeer::~DisPatcher_ReqPeer() {}
 // 3=战争房间、4=袭击请求、5/7 与 6/8=expert_job。成功尾部统一
 // SetReceivedRequestType(target, reqType)。MSG_REQ_TO_PEER 仅作 SoloPlay
 // 拒绝包上下文（类型未建模，零缓冲视图【推断】）。
+// §6.2 巨件核销：P167 194/194 [0缺0多]；gap 1379→1379/1387；残差归因 N82/P112
+// （4.1 不复用槽 vs 4.4 复用 + 块排布，diff 形态计数对称无缺类，详见
+// docs/asm_translation_patterns.md 负例表）。无真修条目。
 // ============================================================================
 int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -4112,6 +4118,9 @@ int DisPatcher_SelectDungeon::checkBlueMarble(CParty* party)
 }
 
 // ORIG 0x081c8102 T process（process.md 全文转写，含汇编分支次序）。
+// §6.2 巨件核销：P167 95/95 [0缺0多]；gap 810→810/830；残差归因 N82/P112。
+// 真修 1 条：死块 [HackUser] logFormat(0x198a) 误传 member 指针 → 按 ORIG
+// +0x13e 改 member->get_acc_id()（补齐缺失的 _ZNK5CUser10get_acc_idEv 调用点）。
 int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     static const char* const kPretty =
@@ -4149,7 +4158,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
             {
                 LogManager::logFormat(
                     1, "PacketDispatcher_Impl_1.cpp", kPretty, 0x198a,
-                    "[HackUser] dungeon hack user. (mid:%u)", member);
+                    "[HackUser] dungeon hack user. (mid:%u)", member->get_acc_id());
                 party->leave_user(member, (ENUM_PARTY_INFO_TYPE)3);
                 member->DisConnSig((DISCONN_SIG)0x18, true, 0);
             }
@@ -4679,6 +4688,9 @@ void DisPatcher_DeleteItem::send(CUser* user, ParamBase& param)
 
 
 // ORIG 0x081c1dda T process（process.md 全文转写）。
+// §6.2 巨件核销：P167 61/61 [0缺0多]；gap 31→1；残差归因 N82/P112。
+// 真修 1 条：GetInvenSlot 返回 4.4 直构缺 ORIG +0x25e~+0x327 的 17 条逐字段
+// 拷贝（sret 匿名槽→具名局部）→ 改两段式（slotItem 收 sret + 拷贝入 item）。
 int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     static const char* const kPretty =
@@ -4756,8 +4768,11 @@ int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         }
 
         const int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(char)req.m_itemSpace);
-        Inven_Item item = ((CInventory*)user->getCurCharacInvenR())
-                              ->GetInvenSlot(invenType, (int)req.m_position[i]);
+        // ORIG +0x25e~+0x327：GetInvenSlot 先 sret 到匿名槽(-0xa9)，再逐字段
+        // 拷入具名局部 item(-0xe6)；4.4 直构缺 17 条拷贝 ⇒ 两段式复现。
+        Inven_Item slotItem = ((CInventory*)user->getCurCharacInvenR())
+                                  ->GetInvenSlot(invenType, (int)req.m_position[i]);
+        Inven_Item item = slotItem;
 
         if (delKind == 3)
         {
@@ -5786,6 +5801,9 @@ int DisPatcher_ExtendAvatar::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 int DisPatcher_ExtendAvatar::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232c4c W _ZN23DisPatcher_ExtendAvatar7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现；ORIG dispatch_sig(0x081eddec) 同样为纯 ret（报告 docs/class_func_reports/DisPatcher_ExtendAvatar/dispatch_sig.md），该分发器整体为空壳
 
 DisPatcher_SellItem::~DisPatcher_SellItem() {}
+// §6.2 巨件核销：P167 77/77 [0缺0多]；gap 515→515/522；残差归因 N82/P112
+// （diff 形态计数对称无缺类，详见 docs/asm_translation_patterns.md 负例表）。
+// 无真修条目。
 int DisPatcher_SellItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     char invenType;                     // -0x45
@@ -6289,6 +6307,9 @@ void _check_disjointable_item_state(CUser* user, int slot, int invenType,
 void _check_disjoint_need_slot(CUser* user, CItem* item, Inven_Item& invenItem,
                                expert_job::CDisjointer* disjointer);
 
+// §6.2 巨件核销：P167 98/98 [0缺0多]；gap 811→811/818；残差归因 N82/P112
+// （diff 形态计数对称无缺类，详见 docs/asm_translation_patterns.md 负例表）。
+// 无真修条目。
 int DisPatcher_DisJointItem::_disjoint(CUser* user, int slot, int type,
                                        ENUM_CMDPACKET cmd, CUser* targetUser,
                                        unsigned short region)
@@ -9148,6 +9169,9 @@ DisPatcher_UseStack::~DisPatcher_UseStack() {}
 // → 可堆叠使用地点 → 组队/TOD/锦标赛限定（错误包 header(1,0x2f) 系列尾部）
 // → use_stackable 落地。
 // ============================================================================
+// §6.2 巨件核销：P167 208/208 [0缺0多]；gap 1320→1320/1321；残差归因 N82/P112
+// （diff 形态计数对称无缺类，详见 docs/asm_translation_patterns.md 负例表）。
+// 无真修条目（batch-20 半程核销语义未回退）。
 int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     short slotNo = 0;                            // ORIG local_6e（get_short(short&)/movswl 实证）
@@ -12978,6 +13002,9 @@ int Dispatcher_ChangeCharacName::dispatch_sig(CUser* user, PacketBuf& packet)
 // ============================================================================
 #include "CGM_Manager.h"
 
+// §6.2 巨件核销：P167 117/117 [0缺0多]；gap 761→761/777；残差归因 N82/P112
+// （diff 形态计数对称无缺类，详见 docs/asm_translation_patterns.md 负例表）。
+// 无真修条目。
 int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     static const char* const kPretty =

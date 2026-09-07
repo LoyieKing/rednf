@@ -2528,6 +2528,16 @@ void MonitorTcpThread::dispatch(void* arg)
 // 用户池用量（Size-Remain、m_maxUserNum）拒绝/放行连接；放行时
 // CGameManager::createUser → InitOnAccept → s_accept_que 入队（NetworkThread
 // 消费）。IsProhibitConnectState / 监控 IP / LOCK STATE 分流拒绝包。
+// §6.2 巨件核销（b25）：P167 修前 93/89 [缺4 G_CEnvironment]→修后 93/93
+// [0缺0多]；gap 516→-6（our 524 超 6）；修法：①env 局部缓存去缓存化，
+// 5 处恢复每处独立 G_CEnvironment() 调用（P183 反向，-O0 无 CSE）；
+// ②FD_ZERO 改旧 glibc 宏手写展开（fd_set* + unsigned i 双局部逐 __fd_mask
+// 清零；新 glibc 宏生 rep stos 形不符）；③FD_SET/FD_ISSET 实参 (unsigned)
+// cast 消除有符号除 cmovs 修正链；④remain 预清两句式（P197③）；
+// ⑤monitoring-ip strcmp 条件极性 ==0 {close;continue;} 复现 ORIG sete
+// 物化 + fail fall-through（P59）。残差归因 P22 xor$1 物化 / setcc-fold /
+// N7-N82 寄存器分配 / P63 jmp 中继（详见 docs/asm_translation_patterns.md
+// 负例表）。
 // ---------------------------------------------------------------------------
 void AcceptThread::dispatch(void* arg)
 {
@@ -2590,15 +2600,23 @@ void AcceptThread::dispatch(void* arg)
                     }
                     socklen_t addrLen = 0x10;
                     fd_set readfds;
-                    FD_ZERO(&readfds);
-                    FD_SET(listenSocket, &readfds);
+                    // ORIG 0857ce75..+0x283：FD_ZERO 展开=旧 glibc 宏循环
+                    // （fd_set* 局部 + unsigned i 局部，逐 __fd_mask 清零）；
+                    // 新 glibc 宏展开为 rep stos，须手写旧宏形。
+                    {
+                        unsigned int i;
+                        fd_set* fds = &readfds;
+                        for (i = 0; i < sizeof(fd_set) / sizeof(__fd_mask); ++i)
+                            __FDS_BITS(fds)[i] = 0;
+                    }
+                    FD_SET((unsigned)listenSocket, &readfds);
                     struct timeval timeout;
                     timeout.tv_sec = 1;
                     timeout.tv_usec = 0;
                     int selRet = select(listenSocket + 1, &readfds, 0, 0,
                                         &timeout);
                     if (selRet >= 0 &&
-                        FD_ISSET(listenSocket, &readfds))
+                        FD_ISSET((unsigned)listenSocket, &readfds))
                     {
                         struct sockaddr_in peerAddr;
                         int conn = accept(listenSocket,
@@ -2614,35 +2632,43 @@ void AcceptThread::dispatch(void* arg)
                         else
                         {
                             char* peerIp = inet_ntoa(peerAddr.sin_addr);
+                            // ORIG +0x38b：sete 物化 + 相等路径 fall-through
+                            // close+循环尾（P59 fail 前置），故条件极性 ==0。
                             if (strcmp(
                                     G_CEnvironment()->get_system_monitoring_ip(),
-                                    peerIp) != 0)
+                                    peerIp) == 0)
                             {
-                                CEnvironment* env = G_CEnvironment();
-                                if (env->m_serverEnvir.m_acceptLockDBQueueCount != 0)
+                                close(conn);
+                                continue;
+                            }
+                            {
+                                if (G_CEnvironment()->m_serverEnvir.m_acceptLockDBQueueCount != 0)
                                 {
-                                    int remain = (int)GlobalData::s_msgq_mgr->remain(
+                                    // ORIG +0x3bc：槽预清 0 后再存（两句式，P197③）
+                                    int remain = 0;
+                                    remain = (int)GlobalData::s_msgq_mgr->remain(
                                         MsgQueueMgr::DB_Q);
                                     if (m_acceptFlag == 0 &&
                                         remain >=
-                                            env->m_serverEnvir.m_acceptLockDBQueueCount)
+                                            G_CEnvironment()->m_serverEnvir.m_acceptLockDBQueueCount)
                                     {
                                         m_acceptFlag = true;
                                     }
                                     else if (m_acceptFlag &&
                                              remain <
-                                                 env->m_serverEnvir.m_acceptUnlockDBQueueCount)
+                                                 G_CEnvironment()->m_serverEnvir.m_acceptUnlockDBQueueCount)
                                     {
                                         m_acceptFlag = false;
                                     }
                                 }
                                 int used = G_CGameManager()->m_userPool.Size() -
                                            G_CGameManager()->m_userPool.Remain();
-                                if (m_acceptFlag || used >= env->m_serverEnvir.m_maxUserNum)
+                                if (m_acceptFlag || used >=
+                                    G_CEnvironment()->m_serverEnvir.m_maxUserNum)
                                 {
                                     char* lockIp = inet_ntoa(peerAddr.sin_addr);
                                     if (strcmp("192.168.30.146", lockIp) != 0 &&
-                                        env->m_serverEnvir.m_maxUserNum + 5 <= used)
+                                        G_CEnvironment()->m_serverEnvir.m_maxUserNum + 5 <= used)
                                     {
                                         PacketGuard guard;
                                         guard.put_header(1, 1);
@@ -2699,10 +2725,6 @@ void AcceptThread::dispatch(void* arg)
                                         }
                                     }
                                 }
-                            }
-                            else
-                            {
-                                close(conn);
                             }
                         }
                     }

@@ -6238,13 +6238,11 @@ bool DB_UpdateQuest::dispatch(int userIdx, int slot, Stream* stream)
 // +0x75d4 标志为 0 走无 clear_quest SQL，否则压缩串作 clear_quest='%s' 首占位；
 // 40 个 play/trigger 字段 + urgentQuestIndex(+0x75d5) + quest_notify blob
 // (blob_to_str(1, sig+0x75d9, 0x28)) + charac_no；exec 成功且 affected!=0 返 true。
-// [§6.2 闭合 · b20] DB_UpdateQuest::_updateQuests（ORIG 0x08418c1c，0x956B）：
-//   P167 调用点差集 11/11 归零（0 MISSING / 0 EXTRA，新鲜 .o R_386_PC32 逐
-//   符号 Counter 与 ORIG call 多重集全等，含 compress_zip/logFormat/getAffected
-//   链）；ORIG insns 520 vs 新鲜 .o 519（gap +1）。残余 byte 层属 N82 帧槽平移
-//   + 40 个 play/trigger 字段 set_query 实参栈槽序的跨版本排布；语义与 ORIG
-//   一致（upDate new_charac_quest 两分支 SQL + blob_to_str 载荷，见函数体注释）
-//   ⇒ 判「语义完成、byte 层 N 封顶」。
+// §6.2 巨件核销（b20 首判，b25 复验）：P167 11/11 [0缺0多]；gap 1→1；
+//   残差归因 N82（帧槽平移）+ 40 个 play/trigger 字段 set_query 实参栈槽序
+//   跨版本排布（详见 docs/asm_translation_patterns.md 负例表）。
+//   语义与 ORIG 一致（upDate new_charac_quest 两分支 SQL + blob_to_str 载荷）
+//   ⇒ 语义完成、byte 层 N 封顶。
 bool DB_UpdateQuest::_updateQuests(SIG_UPDATE_QUEST* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
@@ -7256,8 +7254,10 @@ bool DB_LoadKillMonsterInfo::dispatch(int userIdx, int slot, Stream* stream)
 // 常量：school_match_* 三成员 ORIG D 0x093abb60/64/68（.data 初值 1/2/5，
 // 定义归 OnlinePreliminaryMatch.cpp）；时段 0x48f26550<curSec<=0x48f8fccf
 // 为 ORIG 字面（周末加成历史区间）。
-// （N 封顶：sz 0xe33 超大函数，ndiff 1344 残差为 school_info 本地类 C1 帧、
-// 地址重物化(P183) + 大量浮点/移位物化，见报告 dispatch.md）
+// §6.2 巨件核销：P167 29/29 [0缺0多]；gap 104→104；残差归因 N82/N86/P183
+// 组（badge 循环 slotv 缓存形 928 vs 全表达式形 1046 vs ORIG 1033 不可命中；
+// fetch 条件合并形 928 vs break 形 942 同不可命中；帧 0x16c vs 0x17c；
+// 语义逐块对照完整，详见 docs/asm_translation_patterns.md 负例表）
 // ============================================================================
 #pragma pack(push, 1)
 struct DB_UpdatePvPResultHeadView      // 载荷 +0x00 起

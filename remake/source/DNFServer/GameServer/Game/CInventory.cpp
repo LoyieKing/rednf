@@ -5450,6 +5450,12 @@ void SIG_AVATAR_INSERT::setJewelSocket(const stAvatarEmblemInfo_t& emblem)
 //     剩余天数、装备时清 m_field0 并 seal_Item 日志、0xd1 服务限制分支；
 //   - EQUIP↔EQUIP / AVATAR↔AVATAR 三段交换；AVATAR 分支 MoveClearAvatar/
 //     SendAvatarEvent(0x32)；CREATURE 走 CCreatureMgr::SwapCreatureItem。
+// [§6.2 巨件核销 · b25] 真修 1 处：EQUIP→AVATAR 段 find_item 后 ORIG 有
+// vtbl+0x10(IsAvatarItem)==1 通过 + vtbl+0x14(IsCreatureItem)!=0 拒绝两次虚调用
+// （CEquipItem vtable 0x08c96e28 槽 4/5 实证），重建漏写 IsCreatureItem 拒绝分支
+// ⇒ 间接虚调用 12→13 与 ORIG 对齐、P167 80/80 保持归零；新鲜 .o 1290 vs 1282，
+// 残差归因 N82（槽 -0x20 复用 2 次）+ N80（cMyTrace 变参先物化 edi/esi/ebx）
+// + N6（位测 fold）+ 跨版本块排布，判「语义完成、N 封顶」。
 // ============================================================================
 int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, int dstSlot)
 {
@@ -5780,6 +5786,10 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
             {
                 return 0x11;
             }
+            if (pItem->IsCreatureItem())
+            {
+                return 0x11;
+            }
             int equipable = IsEquipable(m_pParent, pItem, slot);
             if (equipable != 0)
             {
@@ -5815,6 +5825,11 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
 // base+0x295（槽 10 m_amp 起始，ORIG 以 UpgradeSeparateInfo::GetUpgradeSeparate
 // 单字节读取器跨类型读取）。槽位基址：userInfo==2 或 equipSlot==0 → m_invenItem，
 // 否则 CExpandEquipslot::getExpandEquipslotW(equipSlot)（GetCharacExpandData(9)）。
+// [§6.2 巨件核销 · b25] 无真修。P167 80/80 保持归零（0 缺 0 多）；新鲜 .o 659 vs
+// ORIG 658（gap -1）。残差归因：N6 位测 fold（ORIG `(1<<slot)&0x3ff400` shl 形 vs
+// 重建 `(0x3ff400>>slot)&1` sar 形，位测语义等价）、ORIG jl/ja vs 重建 jle/jbe
+// 比较方向 fold（slotNo 值域 ≤0x15 无 ≥0x80 歧义，非 P196 真反）、N1 lea/add
+// 折叠、xor $1 flag 物化与跨版本块排布，判「语义完成、N 封顶」。
 // ============================================================================
 int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                               ENUM_EQUIPSLOT equipSlot) const
@@ -6634,6 +6649,11 @@ void CInventory::SendItemLockListCreature() const
 //   CREATURE(3)：space 7，遍历 m_pCreatureSlot[0..0xf1]，ITEM_TYPE 5 宠补
 //     GetRemainDate。
 // 各分支回填 short 计数后 finalize 返回 1。
+// [§6.2 巨件核销 · b25] 无真修。P167 108/108 保持归零（0 缺 0 多）；新鲜 .o
+// 726 vs ORIG 728（gap 2）。残差归因：N18a（ORIG `mov %eax,%edx` regmove 中转
+// 出参 4.1 形不可造）、N82（全帧槽号平移 0x10 + push edi +4，帧 0x6c vs 0x60）、
+// ORIG `lea 0x3(%eax),%edx` vs 重建 `add $0x3,%eax`（N1 族）与 4.1 尾部
+// jmp 中继岛布局，判「语义完成、N 封顶」。
 // ============================================================================
 int CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
 {

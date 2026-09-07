@@ -691,10 +691,19 @@ void CAssaultPlace::ChangeHp(CUser* user, int hp)
 // ---------------------------------------------------------------------------
 
 // ORIG T 0x82ebda6 DieUser(int, int, MSG_DIE_ASSAULT_PLAYER&)
+// §6.2 巨件核销（b25）：P167 修前 61/66 [多4 PartyInfo::Get 多1 memset]→
+// 修后 61/61 [0缺0多]；gap 15→-2（orig 531 / our 533）；修法：①killerName
+// memset 改 `= {0}` 初始化形（复现 ORIG 字节/字/双字对齐手工清零展开，
+// N-78b 回扫）；②m_parties[i].Get() 改 m_parties[i].m_field00 直读（ORIG
+// 内联解引用无 call）；③商比较加 (int) 复现 ORIG divl+jle 有符号比较
+// （P196 无符号反）；④hack 命名局部删除（ORIG getHackAnalyzer 返回值
+// 直传入参无槽）；⑤pw bool 局部删除（ORIG && 汇聚条件内联无槽）；
+// ⑥side/winnerType 改 int 槽（ORIG movsbl 物化后 dword 存）。残差归因
+// N82 帧槽（0xdc vs 0xcc）+ P63 jmp/nop 中继（详见
+// docs/asm_translation_patterns.md 负例表）。
 void CAssaultPlace::DieUser(int victimIdx, int killerIdx, MSG_DIE_ASSAULT_PLAYER& msg)
 {
-    char killerName[0x15];
-    memset(killerName, 0, sizeof(killerName));   // ORIG 0x15 字节手工清零展开
+    char killerName[0x15] = { 0 };               // ORIG 0x15 字节初始化清零展开（非 memset call）
 
     if (m_state != 4)
         throw (ENUM_ERROR)0x13;
@@ -715,12 +724,12 @@ void CAssaultPlace::DieUser(int victimIdx, int killerIdx, MSG_DIE_ASSAULT_PLAYER
         strncpy(killerName, m_assaulters[killerIdx].GetCharacName(), 0x14);
         if (killer != 0 && msg.m_damage != 0) {
             if (msg.m_damage == 1) {
-                WongWork::CHackAnalyzer* hack = killer->getHackAnalyzer();
-                hack->addServerHackCnt(killer, static_cast<WongWork::ENUM_HACKTYPE>(0x7d), 1, 0, 0);
+                killer->getHackAnalyzer()->addServerHackCnt(
+                    killer, static_cast<WongWork::ENUM_HACKTYPE>(0x7d), 1, 0, 0);
             }
-            if (msg.m_attackCount / msg.m_damage > 100000) {     // divl(无符号); cmp $0x186a0; ja
-                WongWork::CHackAnalyzer* hack = killer->getHackAnalyzer();
-                hack->addServerHackCnt(killer, static_cast<WongWork::ENUM_HACKTYPE>(0x7e), 1, 0, 0);
+            if ((int)(msg.m_attackCount / msg.m_damage) > 100000) {  // ORIG divl + jle（有符号比较，P196）
+                killer->getHackAnalyzer()->addServerHackCnt(
+                    killer, static_cast<WongWork::ENUM_HACKTYPE>(0x7e), 1, 0, 0);
             }
         }
     } else {
@@ -731,11 +740,10 @@ void CAssaultPlace::DieUser(int victimIdx, int killerIdx, MSG_DIE_ASSAULT_PLAYER
     }
 
     if (victim != 0) {
-        bool pw = victim->getCurCharacVill() == 7
-                  && GlobalData::s_power_manager->IsPowerWarEventOn();
         cUserHistoryLog* hist =
             &victim->m_historyLog;                             // +0x79700
-        if (pw) {
+        if (victim->getCurCharacVill() == 7
+            && GlobalData::s_power_manager->IsPowerWarEventOn()) {
             hist->DiePvP((ENUM_PVP_HISTORY_REASON)2,
                          msg.m_damage, msg.m_attackCount,
                          (int)(short)msg.m_field08, (int)(short)msg.m_field0a,
@@ -775,17 +783,17 @@ void CAssaultPlace::DieUser(int victimIdx, int killerIdx, MSG_DIE_ASSAULT_PLAYER
         && victim->getCurCharacVill() == 7
         && GlobalData::s_power_manager->IsPowerWarEventOn()) {
         int winCnt = 0, loseCnt = 0, aliveCnt = 0;
-        signed char side = 0;
+        int side = 0;          // ORIG local_28 int 槽（movsbl 物化后 dword 存）
         int winnerType = 0;
         if (killerIdx >= 0 && killerIdx <= 7) {
-            side = static_cast<signed char>(killer->getPowerSide());
+            side = (int)(signed char)killer->getPowerSide();
             winnerType = 1;
         } else {
-            side = static_cast<signed char>(victim->getPowerSide());
+            side = (int)(signed char)victim->getPowerSide();
             winnerType = 2;
         }
-        if (_CheckPowerWarInPlayer(static_cast<ENUM_POWER_SIDE_TYPE>(side),
-                                   static_cast<ENUM_POWER_WAR_WINNER_OR_LOSER>(winnerType),
+        if (_CheckPowerWarInPlayer((ENUM_POWER_SIDE_TYPE)side,
+                                   (ENUM_POWER_WAR_WINNER_OR_LOSER)winnerType,
                                    winCnt, loseCnt, aliveCnt)) {
             if (winnerType == 1)
                 _SendPowerWarPointToGuildServer(killer,
@@ -813,10 +821,11 @@ void CAssaultPlace::DieUser(int victimIdx, int killerIdx, MSG_DIE_ASSAULT_PLAYER
     }
 
     m_state = 5;
-    if ((reinterpret_cast<CParty*>(m_parties[0].Get())) != 0)
-        (reinterpret_cast<CParty*>(m_parties[0].Get()))->SetAssaultState('\x05');
-    if ((reinterpret_cast<CParty*>(m_parties[1].Get())) != 0)
-        (reinterpret_cast<CParty*>(m_parties[1].Get()))->SetAssaultState('\x05');
+    // ORIG 直读 m_parties[i].m_field00（+0x12c/+0x130），无 Get() call
+    if ((reinterpret_cast<CParty*>(m_parties[0].m_field00)) != 0)
+        (reinterpret_cast<CParty*>(m_parties[0].m_field00))->SetAssaultState('\x05');
+    if ((reinterpret_cast<CParty*>(m_parties[1].m_field00)) != 0)
+        (reinterpret_cast<CParty*>(m_parties[1].m_field00))->SetAssaultState('\x05');
     EndAssault();
 }
 

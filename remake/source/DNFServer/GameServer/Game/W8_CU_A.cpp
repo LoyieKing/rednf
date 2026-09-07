@@ -261,6 +261,12 @@ int CUser::GetItemSerialChecker(unsigned short serialIdx, unsigned short serialV
 // 6) CUser::lottery_item(int slot) @0x086733a2 —— 使用槽上 lottery 物品开奖。
 //    金币奖励 / avatar / 生物蛋 / 强化三档概率（ServerParameterScript 内嵌表）/ 
 //    useCost 扣款通知 / 主响应包 / 全服强化播报。全程照报告转写。
+//    §6.2 巨件核销：P167 200/200 [0缺0多]；gap 1315→1330；残差归因 N 类
+//    （N82 全帧槽平移 0x18/0x10 + 槽复用差、N-88/setne 物化假象（ORIG
+//    cmpl/setne/test vs 4.4 cmp 直跳，P197④ 探针同型）、N22 比较方向反演
+//    （get_rand_int 三段 seta↔setb 同语义折向）、bool 聚合变量槽物化
+//    （movb/-0x51 槽 vs ORIG 寄存器 test）、short 形参槽中转（movswl 经
+//    -0x22 中转）——语义与调用序列逐块比对零缺口，byte 层 N 封顶。
 // ===========================================================================
 int CUser::lottery_item(int slot)
 {
