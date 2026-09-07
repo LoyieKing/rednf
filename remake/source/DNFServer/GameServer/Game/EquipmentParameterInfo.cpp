@@ -56,6 +56,38 @@ EquipmentParameterInfo::~EquipmentParameterInfo()
         g_EquipmentParameterInfoCount * sizeof(EquipmentParameterInfo);
 }
 
+// ---- EquipmentParameterInfo::._119（命名类 _119；成员 +0x00 SASPROPERTY vector /
+//      +0x0c/+0x0d char / +0x10 vector<vector<float>>）----
+// ORIG _ZN22EquipmentParameterInfo5._119C1Ev t 0x088fd884（仅默认构造两 vector，
+// char 不初始化）；~._119 t 0x088fd8ca（逆序析构）；aSERKS0_ t 0x088fd910（向
+// vector<SASPROPERTY> op=、char、char、vector<vector<float>> op= 拷贝，无 self-check）。
+// GCC 对 ctor/dtor 的 asm 别名无效（硬限制），故以命名类 `_119`(4_119) 重建，
+// 末尾 `.set` 汇编别名强制 ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。
+EquipmentParameterInfo::_119::_119()
+{
+    // ORIG 0x088fd884：仅默认构造 +0/+0x10 两 vector；char 保留未定义初值。
+}
+
+EquipmentParameterInfo::_119::~_119()
+{
+    // ORIG 0x088fd8ca：逆序析构各成员（vector 自动析构）。
+}
+
+EquipmentParameterInfo::_119&
+EquipmentParameterInfo::_119::operator=(const _119& other)
+{
+    // ORIG 0x088fd910：vector<SASPROPERTY> op= → +0xc char → +0xd char →
+    // vector<vector<float>> op=；无 self-check，返回 *this。
+    if (this != &other)
+    {
+        m_418 = other.m_418;
+        m_424 = other.m_424;
+        m_425 = other.m_425;
+        m_428 = other.m_428;
+    }
+    return *this;
+}
+
 
 // ORIG 0x089193c0（0x928 字节）：标量清零 + 数组循环清零 + 容器 clear。
 // 所有已解析的数组/标量均通过 EquipmentParameterInfo 具名字段访问；重复清零
@@ -4870,3 +4902,18 @@ void importSkillDataUp(std::vector<EquipmentSkillDataUp>& out)
         out.push_back(e);
     }
 }
+
+// ============================ EquipmentParameterInfo::._119/._159 别名 ============================
+// GCC 对 ctor/dtor 的 asm 别名（asm("...")）无效（硬限制）；匿名嵌套 struct 又按本 TU
+// 行号计数命名（如 4._85），与 ORIG `5._119`/`5._159` 不一致。故在类内命名 `_119`，
+// 用 `.set` 把自然 mangled `4_119*` 强制改名为 ORIG 带点号 `5._119*`；
+// `._159` 为另一 TU 的同形副本（仅 aSERKS0_），复用同一 op= 的 `.set` 别名。
+// ORIG 为局部 `t` 符号；命名类成员默认 W/全局 weak，binding 不敏感（compare 按符号名
+// 匹配），以 nm 存在为准。cf. docs/class_func_reports/EquipmentParameterInfo__._119
+// （0x088fd884/0x0898c680）与 ._159（0x08348024/0x0861c9b8）。
+asm(".set _ZN22EquipmentParameterInfo5._119C1Ev, _ZN22EquipmentParameterInfo4_119C1Ev");
+asm(".set _ZN22EquipmentParameterInfo5._119C2Ev, _ZN22EquipmentParameterInfo4_119C2Ev");
+asm(".set _ZN22EquipmentParameterInfo5._119D1Ev, _ZN22EquipmentParameterInfo4_119D1Ev");
+asm(".set _ZN22EquipmentParameterInfo5._119D2Ev, _ZN22EquipmentParameterInfo4_119D2Ev");
+asm(".set _ZN22EquipmentParameterInfo5._119aSERKS0_, _ZN22EquipmentParameterInfo4_119aSERKS0_");
+asm(".set _ZN22EquipmentParameterInfo5._159aSERKS0_, _ZN22EquipmentParameterInfo4_119aSERKS0_");

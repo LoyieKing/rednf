@@ -94,13 +94,20 @@ public:
             float m_additionalRate[6];        // +0x5b0（组 i 第二浮点）→ 止于 0x5c8
         };
     };
-    struct
+    // [additional result] 组元素。ORIG 为匿名嵌套结构 → GCC 自动命名
+    // DisjointScript::._381（符号 _ZN14DisjointScript5._381C1Ev t 0x08348088）。
+    // GCC 无法声明 `class ._381`；命名类 `_381` 自然 mangled `4_381` 缺点号不匹配。
+    // asm 标签对 ctor/dtor 无效（GCC 硬限制），故 ctor/dtor 在 CtorProducers_2.cpp
+    // 显式定义 + `.set` 汇编别名强制 ORIG 带点号符号（编译器 mangling 必要性，非 §4.5 违例）。
+    class _381
     {
-        int m_count;                 // +0x00（[additional result] 组计数）
-        std::vector<int> m_items;    // +0x04
-    } m_additional[6];               // +0x5c8（[additional result]，步长 0x10；
-                                     //      匿名嵌套 → GCC 命名 DisjointScript::._381，
-                                     //      C1/D1 与 ORIG 0x08348088/0x0834809e 同形）
+    public:
+        _381();    // ORIG _ZN14DisjointScript5._381C1Ev t 0x08348088（仅构造 +0x04 vector<int>）
+        ~_381();   // ORIG _ZN14DisjointScript5._381D1Ev t 0x0834809e（逆序析构）
+        int m_count;               // +0x00（[additional result] 组计数）
+        std::vector<int> m_items;  // +0x04
+    } m_additional[6];             // +0x5c8（[additional result]，步长 0x10
+                                   //  （int 对齐 4，vector 迭代器 3×4=12；sizeof 0x10）
 };  // sizeof == 0x628
 
 class DisJoint : public DisjointScript

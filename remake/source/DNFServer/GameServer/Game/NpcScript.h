@@ -250,12 +250,17 @@ public:
     unsigned short m_dialogDayGap1;                   // +0x00a（abs 0x17a）
     unsigned short m_dialogDayGap2;                   // +0x00c（abs 0x17c）
     // +0x00e pad 2
-    // ORIG +0x010 为匿名嵌套类型实例（Ghidra 伪名 ._140/._199，隐式 C1/D1 即
-    // ORIG 符号 _ZN25stFavorableRelationShip_t5._14x/D1Ev；2026-08-28 EmptyStubs6
-    // 由两个独立成员合并为未命名类型实例，GCC 生成 stFavorableRelationShip_t::._N
-    // 隐式 ctor/dtor（t 本地符号），布局不变）。
-    struct
+    // ORIG +0x010 为匿名嵌套类型实例（Ghidra 伪名 ._140/._199；ORIG 符号
+    // _ZN25stFavorableRelationShip_t5._140C1/D1 t 0x089fb8b6/0x089fb8fc 与
+    // ._199D1/D2 t 0x0858046c）。GCC 无法声明 `class ._140`；改名 `_140` 自然
+    // mangled `4_140` 缺点号不匹配。ctor/dtor 在 FavorableRelationDeps.cpp
+    // 显式定义 + `.set` 汇编别名强制 ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。
+    // 布局不变：成员经 m_fav. 前缀访问（现有调用方已用 m_fav.m_moodChanges/.m_keyItems）。
+    class _140
     {
+    public:
+        _140();     // ORIG _ZN25stFavorableRelationShip_t5._140C1Ev t 0x089fb8b6（构造两 vector<pair>）
+        ~_140();    // ORIG _ZN25stFavorableRelationShip_t5._140D1Ev t 0x089fb8fc（逆序析构）
         std::vector<std::pair<ENUM_NPC_MOOD, unsigned int> > m_moodChanges;   // +0x010（abs 0x180）
         std::vector<std::pair<unsigned long, unsigned int> > m_keyItems; // +0x01c（abs 0x18c）
     } m_fav;                                              // +0x010（sizeof 0x18）

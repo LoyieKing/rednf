@@ -87,6 +87,17 @@ Inven_Item CMailBox::CMail::GetPackageItem() const { return m_package.m_item; }
 // ORIG 0x0855750a (W)
 unsigned int CMailBox::CMail::GetSenderCharacNo() const { return m_senderCharacNo; }
 
+// ---- CMailBox::CMail::._398（命名类 _398；成员 +0x00 unsigned int m_packageMoney /
+//      +0x04 Inven_Item m_item）----
+// ORIG _ZN8WongWork8CMailBox5CMail5._398C1Ev t 0x085519cc (0x16)：构造 packageMoney=0
+// 与 Inven_Item 默认构造。GCC 对 ctor/dtor 的 asm 别名无效（硬限制），故以命名类
+// `_398`(4_398) 重建，末尾 `.set` 汇编别名强制 ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。
+CMailBox::CMail::_398::_398()
+{
+    // ORIG 0x085519cc：m_packageMoney 清零 + Inven_Item 默认构造（成员自动构造）。
+    m_packageMoney = 0;
+}
+
 // ORIG 0x0855759c (W)：m_packageType == 1
 bool CMailBox::CMail::isAvatarPackage() const { return m_packageType == 1; }
 
@@ -389,3 +400,13 @@ int CCreatureMgr::getRemainTempPeriod(int uid, int nowSec) const
 }
 
 }  // namespace user_creature
+
+// ============================ CMailBox::CMail::._398 别名 ============================
+// GCC 对 ctor/dtor 的 asm 别名（asm("...")）无效（硬限制）；匿名嵌套 struct 又按本 TU
+// 行号计数命名（如 4._N），与 ORIG `5._398` 不一致。故在类内命名 `_398`，
+// 用 `.set` 把自然 mangled `4_398*` 强制改名为 ORIG 带点号 `5._398*`。
+// ORIG 为局部 `t` 符号；命名类成员默认 W/全局 weak，binding 不敏感（compare 按符号名
+// 匹配），以 nm 存在为准。cf. docs/class_func_reports/WongWork__CMailBox__CMail
+// （0x085519cc C1/C2，无 D1/D2）。
+asm(".set _ZN8WongWork8CMailBox5CMail5._398C1Ev, _ZN8WongWork8CMailBox5CMail4_398C1Ev");
+asm(".set _ZN8WongWork8CMailBox5CMail5._398C2Ev, _ZN8WongWork8CMailBox5CMail4_398C2Ev");

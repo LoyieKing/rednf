@@ -160,4 +160,35 @@ stFavorableRelationShip_t::stPeriodRewardInfo::~stPeriodRewardInfo()
 {
 }
 
+// ---- stFavorableRelationShip_t::._140（命名类 _140；成员 +0x0 vector<pair<ENUM_NPC_MOOD,uint>>、
+//      +0xc vector<pair<ulong,uint>>）----
+// ORIG _ZN25stFavorableRelationShip_t5._140C1Ev t 0x089fb8b6（默认构造两 vector<pair>）；
+// ._140D1Ev t 0x089fb8fc（先 this+0xc 后 this 逆序析构）。
+// ._199 为另一 TU 的同形副本（仅 D1/D2 @0x0858046c），复用同布局的 .set 别名。
+// GCC 对 ctor/dtor 的 asm 别名无效（硬限制），故以命名类 `_140`(4_140) 重建，
+// 末尾 `.set` 汇编别名强制 ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。
+stFavorableRelationShip_t::_140::_140()
+{
+    // ORIG 0x089fb8b6：仅默认构造 +0x0/+0xc 两 vector<pair>；成员含 vector 自动构造。
+}
+
+stFavorableRelationShip_t::_140::~_140()
+{
+    // ORIG 0x089fb8fc：先 this+0xc 后 this 逆序析构（vector 自动析构，序列与隐式一致）。
+}
+
+// ============================ stFavorableRelationShip_t::._140/._199 别名 ============================
+// GCC 对 ctor/dtor 的 asm 别名（asm("...")）无效（硬限制）；匿名嵌套 struct 又按本 TU
+// 行号计数命名（如 4._N），与 ORIG `5._140`/`5._199` 不一致。故在类内命名 `_140`，
+// 用 `.set` 把自然 mangled `4_140*` 强制改名为 ORIG 带点号 `5._140*`；
+// `._199` 为另一 TU 的同形副本（仅 D1/D2），复用同布局析构的 `.set` 别名。
+// ORIG 为局部 `t` 符号；命名类成员默认 W/全局 weak，binding 不敏感（compare 按符号名
+// 匹配），以 nm 存在为准。cf. docs/class_func_reports/stFavorableRelationShip_t__._140
+// （0x089fb8b6/0x089fb8fc）与 ._199（0x0858046c）。
+asm(".set _ZN25stFavorableRelationShip_t5._140C1Ev, _ZN25stFavorableRelationShip_t4_140C1Ev");
+asm(".set _ZN25stFavorableRelationShip_t5._140C2Ev, _ZN25stFavorableRelationShip_t4_140C2Ev");
+asm(".set _ZN25stFavorableRelationShip_t5._140D1Ev, _ZN25stFavorableRelationShip_t4_140D1Ev");
+asm(".set _ZN25stFavorableRelationShip_t5._140D2Ev, _ZN25stFavorableRelationShip_t4_140D2Ev");
+asm(".set _ZN25stFavorableRelationShip_t5._199D1Ev, _ZN25stFavorableRelationShip_t4_140D1Ev");
+asm(".set _ZN25stFavorableRelationShip_t5._199D2Ev, _ZN25stFavorableRelationShip_t4_140D2Ev");
 

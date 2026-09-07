@@ -136,7 +136,19 @@ public:
         unsigned int m_mailIndex;       // +0x00（Init 清零；AddNewMail ← input+0x00）
         unsigned int m_senderCharacNo;  // +0x04
         char m_senderName[0x20];        // +0x08（strncpy 0x1d）
-        struct { unsigned int m_packageMoney; Inven_Item m_item; } m_package;  // +0x28（CMail ._398 子对象；ORIG add $0x28 调 ._398C1→Inven_ItemC1）
+        // +0x28 CMail ._398 子对象（ORIG add $0x28 调 ._398C1 → Inven_ItemC1）。
+        // ORIG 符号 _ZN8WongWork8CMailBox5CMail5._398C1/C2Ev t 0x085519cc（构造
+        // packageMoney 零 + Inven_Item 默认构造）。GCC 无法声明 `class ._398`；
+        // 改名 `_398` 自然 mangled `4_398` 缺点号不匹配。ctor 在 CMailBox.cpp
+        // 显式定义 + `.set` 汇编别名强制 ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。
+        // 成员访问不变（现有调用方已用 m_package.m_packageMoney/.m_item）。
+        class _398
+        {
+        public:
+            _398();   // ORIG _ZN8WongWork8CMailBox5CMail5._398C1Ev t 0x085519cc
+            unsigned int m_packageMoney;  // +0x00
+            Inven_Item m_item;            // +0x04（Inven_Item 默认构造）
+        } m_package;                      // +0x28（._398 子对象；sizeof 0x44 = 4+0x40 Inven_Item）
         long m_period;                  // +0x6c（到期秒；GetPeriod/IsTimeOver）
         int m_packageType;              // +0x70（1=avatar / 2=creature / 0=无）
         unsigned char m_unlimit;        // +0x74（isUnlimit）

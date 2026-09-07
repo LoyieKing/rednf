@@ -52,6 +52,21 @@ DisjointSkillScript::DisjointSkillScript()
     clear();
 }
 
+// ---- DisjointScript::._381（命名类 _381；成员 +0x00 int m_count / +0x04 vector<int> m_items）----
+// ORIG ctor _ZN14DisjointScript5._381C1Ev t 0x08348088 (0x16)：仅构造 +4 vector<int>；
+// dtor _ZN14DisjointScript5._381D1Ev t 0x0834809e：逆序析构 vector。
+// GCC 对 ctor/dtor 的 asm 别名无效（硬限制），故自然名 `_381`(4_381) 处重建原 ctor/dtor，
+// 末尾 `.set` 汇编别名强制 ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。布局不变。
+DisjointScript::_381::_381()
+{
+    // ORIG 0x08348088：仅默认构造 members（vector 初值由自动构造完成）。
+}
+
+DisjointScript::_381::~_381()
+{
+    // ORIG 0x0834809e：逆序析构各成员（vector 自动析构）。
+}
+
 DisjointScript::DisjointScript()
 {
     // ORIG 0x08375d4c：成员容器自动构造（含 6×匿名 _381@+0x5c8 循环调其 C1），
@@ -393,3 +408,14 @@ bool SDCActiveStatusSyncServer::loadActiveStatusScript()
     // ORIG T 0x0808e13c：尾透传 return importActiveStatusTable("Etc/ActiveStatusTable_ex.etc")。
     return importActiveStatusTable("Etc/ActiveStatusTable_ex.etc");
 }
+
+// ============================ DisjointScript::._381 别名 ============================
+// GCC 对 ctor/dtor 的 asm 别名（asm("...")）无效（硬限制）；对匿名嵌套 struct 又按
+// 本 TU/行号计数命名（如 4._44），与 ORIG `5._381` 不一致。故在 DisjointScript 类内
+// 命名 `_381`，用 `.set` 把自然 mangled `4_381*` 强制改名为 ORIG 带点号 `5._381*`。
+// ORIG 为局部 `t` 符号：命名类成员默认 W/全局 weak，binding 不敏感（compare 按符号名匹配），
+// 以 nm 存在为准。cf. docs/class_func_reports/DisJoint 匿名 ._381（0x08348088/0x0834809e）。
+asm(".set _ZN14DisjointScript5._381C1Ev, _ZN14DisjointScript4_381C1Ev");
+asm(".set _ZN14DisjointScript5._381C2Ev, _ZN14DisjointScript4_381C2Ev");
+asm(".set _ZN14DisjointScript5._381D1Ev, _ZN14DisjointScript4_381D1Ev");
+asm(".set _ZN14DisjointScript5._381D2Ev, _ZN14DisjointScript4_381D2Ev");
