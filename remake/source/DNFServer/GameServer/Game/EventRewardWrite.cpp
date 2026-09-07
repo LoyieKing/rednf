@@ -175,7 +175,7 @@ bool eventReward::rewardWriteUserEquip(Inven_Item* item, rewardKey key, int coun
     std::vector<itemData>& vec = fit->second;
     if (vec.empty())
         return 0;
-    for (std::vector<itemData>::iterator vit = vec.begin(); vit != vec.end(); ++vit)
+    for (std::vector<itemData>::iterator vit = vec.begin(); vit != vec.end(); vit++)
     {
                 // ORIG +0x11a..+0x134：*vit 取 m_itemIdx（ebx 跨 G_CDataManager 调用存活）
         // 直接嵌套实参；citem 判空后 +0x157 再 *vit 一次写 inven.m_addInfo。

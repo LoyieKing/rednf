@@ -3581,7 +3581,7 @@ void GameWorld::CancelPowerUp()
 {
     std::vector<CUser*> list;
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
-         it != m_UserInWorld.end(); ++it)
+         it != m_UserInWorld.end(); it++)
     {
         CUser* user = it->second;
         if (user->IsPowerUp())
