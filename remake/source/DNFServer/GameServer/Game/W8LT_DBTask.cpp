@@ -10888,7 +10888,7 @@ bool DB_CheckAddFriend::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xc05e), true);
     guard.operator*()->operator<<(0x33e);
     guard.operator*()->operator<<(slot);
-    out = (DB_CheckAddFriendView*)guard.operator*()
+    out = (DB_CheckAddFriendView*)guard.operator->()
               ->GetInBuffer<SIG_CHECK_ADD_FRIEND>();
     if (out != 0)
     {

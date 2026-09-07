@@ -88,9 +88,9 @@ void CInGameAdvertisementManager::CheckFailMultiBoxLottery(
     // ORIG：迭代器 for 循环（begin/end/++/de）
     bool allAdItems = false;
     for (std::vector<std::pair<Inven_Item, bool> >::iterator it =
-             rewardList.begin(); it != rewardList.end(); ++it) {
+             rewardList.begin(); it != rewardList.end(); it++) {
         const unsigned int idx =
-            static_cast<unsigned int>(it->first.m_addInfo);
+            static_cast<unsigned int>((*it).first.m_addInfo);
         if (idx != 0x1e3cu && idx != 0x1e3du && idx != 0x1e3eu) {
             allAdItems = false;                              // ORIG +0xd1 置零后跳出
             break;
