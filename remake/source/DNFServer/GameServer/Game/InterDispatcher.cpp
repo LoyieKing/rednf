@@ -1926,9 +1926,9 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (user->getCurCharacR() == 0)
         return 0x1841;
 
-    CInventory* invenW = user->getCurCharacInvenW();
-    invenW->set_inventory_capacity(
-        pPkt->m_1533c);
+    // P48 去缓存：ORIG 每用点重取 getCurCharacInvenW；set_inventory_capacity 走 InvenR
+    // （ORIG (CInventory*)getCurCharacInvenR 丢 const 调非 const 方法）。
+    const_cast<CInventory*>(user->getCurCharacInvenR())->set_inventory_capacity(pPkt->m_1533c);
     {   // 背包校验：失败断连（ORIG _Z16_verifyInventory W 0x084f0145）
         CExpandEquipslot* expandData =
             user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)2);
@@ -1941,9 +1941,8 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
         }
     }
 
-    user_creature::CCreatureMgr* creatureMgr = invenW->GetCreatureMgrW();
-    creatureMgr->Reset();
-    invenW->GetCreatureMgrW()->SetUser(user);
+    user->getCurCharacInvenW()->GetCreatureMgrW()->Reset();
+    user->getCurCharacInvenW()->GetCreatureMgrW()->SetUser(user);
     {
         const int creatureCount = pPkt->m_1287c;
         for (int i = 0; i < creatureCount; ++i)
@@ -1954,7 +1953,7 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
             SIG_CREATURE_ITEM_DETAIL_INFO* detail =
                 reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(
                     data + 0x12880 + i * 0x38);
-            invenW->GetCreatureMgrW()->LoadCreatureItem(item, detail);
+            user->getCurCharacInvenW()->GetCreatureMgrW()->LoadCreatureItem(item, detail);
         }
         const int tempPeriodCount = pPkt->m_15340;
         for (int i = 0; i < tempPeriodCount; ++i)
@@ -1963,7 +1962,7 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
                 // 权威槽：SIG_LOAD_INVENTORY::m_tempPeriods[0x14] @+0x15344
                 //（= (0x2a68*8+4)，元素 8 字节 = sizeof(SIG_POSTAL_CREATURE_TEMP_PERIOD)）。
                 &reinterpret_cast<SIG_LOAD_INVENTORY*>(data)->m_tempPeriods[i];
-            invenW->GetCreatureMgrW()->LoadCreatureTempPeriod(period);
+            user->getCurCharacInvenW()->GetCreatureMgrW()->LoadCreatureTempPeriod(period);
         }
     }
     if (!user->SetInventory(reinterpret_cast<SIG_LOAD_INVENTORY*>(data)))
@@ -1976,7 +1975,8 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
         !user->setTagCharacInven(reinterpret_cast<TAG_CHARAC_INVEN_DATA*>(data + 0xc)))
         return 0x1892;
 
-    invenW->SetClearAvatar(&pPkt->m_14758);   // §4.3 字段化：视图 m_14758(unsigned long) 取址，ORIG lea 0x14758(%eax)
+    user->getCurCharacInvenW()->SetClearAvatar(
+        &pPkt->m_14758);   // §4.3 字段化：视图 m_14758(unsigned long) 取址，ORIG lea 0x14758(%eax)
     (void)tagIdx;
     {
         const int avatarCount = pPkt->m_cd1c;
@@ -1994,13 +1994,13 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
                     if (*reinterpret_cast<int*>(data + j * 0x3d + 0xa3a8) ==
                         *reinterpret_cast<int*>(data + i * 0x4b + 0xcd20))
                     {
-                        invenW->SetClearAvatar(j, addInfo);
+                        user->getCurCharacInvenW()->SetClearAvatar(j, addInfo);
                     }
                 }
             }
             AvatarDetailInfo* detail = reinterpret_cast<AvatarDetailInfo*>(
                 data + i * 0x4b + 0xcd20);
-            invenW->GetAvatarItemMgrW()->RegistItem(*detail, false);
+            user->getCurCharacInvenW()->GetAvatarItemMgrW()->RegistItem(*detail, false);
         }
     }
     {   // maxEquipLevel msg+0x15448 非 0 时设置
@@ -2013,15 +2013,15 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
     user->EnableCharacInfo((CACHE_SECTION)1);
     if (G_GameWorld()->GetChannelType() == 7)
     {   // 战场频道强制卸下强化
-        Inven_Item* ref = invenW->GetInvenRef(0, 10);
+        Inven_Item* ref = user->getCurCharacInvenW()->GetInvenRef(0, 10);
         ref->SetUpgrade(0);
         for (int slot = 0xb; slot < 0x16; ++slot)
         {
-            invenW->GetInvenRef(0, slot)->SetUpgrade(0);
+            user->getCurCharacInvenW()->GetInvenRef(0, slot)->SetUpgrade(0);
         }
         for (int slot = 3; slot < 0x39; ++slot)
         {
-            Inven_Item* it = invenW->GetInvenRef(1, slot);
+            Inven_Item* it = user->getCurCharacInvenW()->GetInvenRef(1, slot);
             if (it->m_field1 == '\x01')
             {
                 if (G_CDataManager()->find_item(it->m_addInfo) != 0)
@@ -2032,12 +2032,16 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
         }
     }
     // 扩展槽族槽表导入（ORIG vptr+4 = CExpandEquipslot::loadData 虚槽；类型完整，转真调用）
-    for (int section = 2; section <= 9; section += 7)
+    // P48：ORIG 两独立显式调用（section 2 / 9），非循环（循环合并发明 helper 形）。
     {
-        CExpandEquipslot* expandData =
-            (CExpandEquipslot*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)section);
-        expandData->loadData(user,
-                             data + ((section == 2) ? 0x14784 : 0x14aa4));
+        CExpandEquipslot* e2 =
+            user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)2);
+        e2->loadData(user, data + 0x14784);
+    }
+    {
+        CExpandEquipslot* e9 =
+            user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9);
+        e9->loadData(user, data + 0x14aa4);
     }
     user->disableSaveInven();
     user->disableSaveCargo();

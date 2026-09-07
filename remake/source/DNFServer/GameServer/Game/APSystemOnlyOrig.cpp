@@ -148,11 +148,6 @@ bool compress_zip(char* out, unsigned int& outLen, const char* in, unsigned int 
 namespace APSystem
 {
 
-inline MySQL* ap_db_handle()   // 两类 Select/Update 均取 GetDBHandle(s_db_mgr,2,0)
-{
-    return GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
-}
-
 // ============================================================================
 // POD 生命周期（objdump 转写）
 // ============================================================================
@@ -245,7 +240,8 @@ bool DB_LoadActionPoint::ParseActionClearState(char* text, _ActionPoint* table,
 // Select —— 报告全文转写。ORIG T 0x08123b9e。
 bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
 {
-    MySQL* db = ap_db_handle();
+    // 伪 helper 归一（P49-P50）：ORIG 直接调 DBMgr::GetDBHandle，勿经 inline 中继
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     int dailyHour =
         G_CEnvironment()->m_serverEnvir.m_fatigueTime;   // +0x37c
     int dailyTime = getDailyInitializeTime(dailyHour, 0, 0);
@@ -282,24 +278,30 @@ bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
         }
         sig.m_apSum = apSumTmp;
     }
-    int col = 1;
-    for (int i = 0; i < 5; ++i)             // 五个 ubyte → sig+8..+0xc
-    {
-        unsigned char flag = 0;
-        if (!db->get_ubyte(col++, flag))
-        {
-            return false;
-        }
-        *(&sig.m_isRewardMedal + i) = (flag != 0) ? 1 : 0;
-    }
+    // ORIG 手动展开 5 次 get_ubyte（col 递增 1..5，P48：禁 for 循环合并成单调用点）
+    unsigned char flag0 = 0;
+    if (!db->get_ubyte(1, flag0)) return false;
+    sig.m_isRewardMedal = (flag0 != 0) ? 1 : 0;
+    unsigned char flag1 = 0;
+    if (!db->get_ubyte(2, flag1)) return false;
+    sig.m_isRewardItem[0] = (flag1 != 0) ? 1 : 0;
+    unsigned char flag2 = 0;
+    if (!db->get_ubyte(3, flag2)) return false;
+    sig.m_isRewardItem[1] = (flag2 != 0) ? 1 : 0;
+    unsigned char flag3 = 0;
+    if (!db->get_ubyte(4, flag3)) return false;
+    sig.m_isRewardItem[2] = (flag3 != 0) ? 1 : 0;
+    unsigned char flag4 = 0;
+    if (!db->get_ubyte(5, flag4)) return false;
+    sig.m_isRewardItem[3] = (flag4 != 0) ? 1 : 0;
 
-    int blobLen = db->get_binary_length(col);   // >0x7ff 拒绝（cmpl $0x7ff;jbe 继续）
+    int blobLen = db->get_binary_length(6);     // 第 7 列 ap_clear_state；>0x7ff 拒绝
     if (!(blobLen <= 0x7ff))
     {
         return false;
     }
     memset(g_szZipAP_CLEAR_STATE, 0, ConstMaxZipAP_CLEAR_STATE);
-    if (!db->get_binary(col, g_szZipAP_CLEAR_STATE, blobLen))
+    if (!db->get_binary(6, g_szZipAP_CLEAR_STATE, blobLen))
     {
         return false;
     }
@@ -383,7 +385,8 @@ void DB_UpdateActionPoint::MakeActionClearStateString(std::string& out,
 // Update —— 报告全文转写。ORIG T 0x08124386。
 bool DB_UpdateActionPoint::Update(bool bExpireDate, const _SIG_LOAD_ACTION_POINT& sig)
 {
-    MySQL* db = ap_db_handle();
+    // 伪 helper 归一：ORIG 直接调 DBMgr::GetDBHandle
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     struct tm dateTm;
     if (bExpireDate)   // localTime(now-0x15180)
     {
@@ -484,7 +487,8 @@ bool DB_LoadRewardMedal::dispatch(int a, int b, Stream* stream)
 // Select —— 报告全文转写。ORIG T 0x08124910。
 bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
 {
-    MySQL* db = ap_db_handle();
+    // 伪 helper 归一：ORIG 直接调 DBMgr::GetDBHandle
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     int dailyHour =
         G_CEnvironment()->m_serverEnvir.m_fatigueTime;   // +0x37c
     int dailyTime = getDailyInitializeTime(dailyHour, 0, 0);

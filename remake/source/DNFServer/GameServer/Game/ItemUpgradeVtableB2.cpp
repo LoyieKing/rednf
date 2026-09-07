@@ -550,6 +550,7 @@ bool CItemUpgrade::_DoProcUpgrade(CUser* user, Inven_Item* item,
 
     unsigned int prob =
         (unsigned int)info->m_prob20[0];   // info +0x20（失败概率，具名字段）
+    unsigned int adj[3];                   // ORIG local_74（两 std::max 共用）
     GlobalData::s_pEvent_UpGrade_Jar->GetProbability(
         info->m_recipeItem,   // info +0x2c（材料 item idx，具名字段）
         prob);
@@ -559,16 +560,14 @@ bool CItemUpgrade::_DoProcUpgrade(CUser* user, Inven_Item* item,
     {
         const float effect =
             GlobalData::s_globalEffectManager_->getEffectValue(3);
-        // ORIG：shifted = fistp(range*effect)；delta = shifted - range；
-        //       prob = max(prob - delta, 0)（有符号钳零）。
-        const int shifted = (int)((float)(int)range * effect);  // fistp
-        const int delta = shifted - (int)range;
-        int adjusted = (int)prob - delta;
-        if (adjusted < 0)
-        {
-            adjusted = 0;
-        }
-        prob = (unsigned int)adjusted;
+        // ORIG：local_74[0]=prob-delta; local_74[1]=0; prob=*std::max(&[1],&[0])，
+        // 即 prob = max(prob - delta, 0)（P40 形式：std::max 两调用点）。
+        const int delta =
+            (int)((float)(int)range * effect) - (int)range;   // fistp 四舍五入
+        adj[0] = prob - (unsigned int)delta; // local_74[0]
+        adj[1] = 0;                          // local_74[1]
+        // ORIG mangled _ZSt3maxIjERKT_S2_S2_（std::max<unsigned int> const-ref 传元素）
+        prob = std::max(adj[1], adj[0]);
     }
 
     if (prob != 0 &&
@@ -576,13 +575,11 @@ bool CItemUpgrade::_DoProcUpgrade(CUser* user, Inven_Item* item,
     {
         const int reduced =
             (int)((float)expert_job::CAlchemist::GetItemUpgradeSuccessRate() *
-                  (float)(int)range);  // fistp 四舍五入
-        int adjusted = (int)prob - reduced;
-        if (adjusted < 0)
-        {
-            adjusted = 0;
-        }
-        prob = (unsigned int)adjusted;
+                  (float)(int)range);       // fistp 四舍五入
+        // ORIG：local_74[2]=prob-reduced; local_68=0; prob=*std::max(&local_68,&[2])
+        adj[2] = prob - (unsigned int)reduced;   // local_74[2]
+        unsigned int zero = 0;                   // local_68
+        prob = std::max(zero, adj[2]);           // local_68 与 local_74[2]
     }
 
     const CInventory* invenR = ((CUserCharacInfo*)user)->getCurCharacInvenR();

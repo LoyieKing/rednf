@@ -442,33 +442,39 @@ void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
         aliveCnt = winCnt;                       // ORIG: param_6 = param_4
     }
 
-    int multiple = G_CDataManager()->m_powerParameter.m_powerWarPointMultiple;
     unsigned char winPoint;
-    if (multiple * (winCnt - aliveCnt) > 0xff) {          // imul; cmp $0xff; setg
+    // P48/P183：ORIG 每次读取 multiplicand 均重调 G_CDataManager 并读
+    // m_powerParameter(+0xa67c)（+0xf5/+0x11b/+0x16a/+0x187/+0x1a2/+0x1f1 六点），
+    // 禁具名缓存。
+    if (G_CDataManager()->m_powerParameter.m_powerWarPointMultiple *
+            (winCnt - aliveCnt) > 0xff) {                 // imul; cmp $0xff; setg
         LogManager::logFormat(
             1, "Assault.cpp",
             __PRETTY_FUNCTION__,
             0xf62,
             "Power War Point Computer Error( winCnt : %d, winAliveCnt : %d , multiple n : %d)",
-            winCnt, aliveCnt, multiple);
+            winCnt, aliveCnt,
+            G_CDataManager()->m_powerParameter.m_powerWarPointMultiple);
         winPoint = 0xff;
     } else {
         winPoint = static_cast<unsigned char>(
-            static_cast<char>(multiple) *
+            static_cast<char>(G_CDataManager()->m_powerParameter.m_powerWarPointMultiple) *
             (static_cast<char>(winCnt) - static_cast<char>(aliveCnt)));
     }
     unsigned char losePoint;
-    if (multiple * loseCnt > 0xff) {
+    if (G_CDataManager()->m_powerParameter.m_powerWarPointMultiple * loseCnt > 0xff) {
         LogManager::logFormat(
             1, "Assault.cpp",
             __PRETTY_FUNCTION__,
             0xf6a,
             "Power War Point Computer Error( winCnt : %d, winAliveCnt : %d , multiple n : %d )",
-            winCnt, aliveCnt, multiple);
+            winCnt, aliveCnt,
+            G_CDataManager()->m_powerParameter.m_powerWarPointMultiple);
         losePoint = 0xff;                        // movb $0xff
     } else {
         losePoint = static_cast<unsigned char>(
-            static_cast<char>(multiple) * static_cast<char>(loseCnt));
+            static_cast<char>(G_CDataManager()->m_powerParameter.m_powerWarPointMultiple) *
+            static_cast<char>(loseCnt));
     }
 
     int bonus = _VictoryBonus(user, side);
@@ -580,13 +586,15 @@ void CAssaultPlace::TimeoutCompleteLoad()
                 }
                 for (int j = 0; j <= 7; ++j) {
                     if (!m_assaulters[j].Empty()) {
-                        CUser* uj = m_assaulters[j].GetUser();
+                        // ORIG 蓝/红两分支各调一次 GetUser（P48 静态调用点各一）
                         if (m_assaulters[j].GetTeam() == 0) {
                             cMyTrace t(__PRETTY_FUNCTION__, 0xa20, 0);
-                            t("BLUE TEAM : %s", uj->getCurCharacName());
+                            t("BLUE TEAM : %s",
+                              m_assaulters[j].GetUser()->getCurCharacName());
                         } else {
                             cMyTrace t(__PRETTY_FUNCTION__, 0xa22, 0);
-                            t("RED TEAM : %s", uj->getCurCharacName());
+                            t("RED TEAM : %s",
+                              m_assaulters[j].GetUser()->getCurCharacName());
                         }
                     }
                 }
@@ -610,10 +618,11 @@ void CAssaultPlace::TimeoutCompleteLoad()
     for (int i = 0; ; ++i) {
         if (i > 7) {
             DoConnectP2P();
-            if ((reinterpret_cast<CParty*>(m_parties[0].Get())) != 0)
-                (reinterpret_cast<CParty*>(m_parties[0].Get()))->SetAssaultState('\x03');
-            if ((reinterpret_cast<CParty*>(m_parties[1].Get())) != 0)
-                (reinterpret_cast<CParty*>(m_parties[1].Get()))->SetAssaultState('\x03');
+            // ORIG 直读 m_parties[i].m_field00（空判定 +0x12c/0x130 指针），不走 Get()
+            if ((reinterpret_cast<CParty*>(m_parties[0].m_field00)) != 0)
+                (reinterpret_cast<CParty*>(m_parties[0].m_field00))->SetAssaultState('\x03');
+            if ((reinterpret_cast<CParty*>(m_parties[1].m_field00)) != 0)
+                (reinterpret_cast<CParty*>(m_parties[1].m_field00))->SetAssaultState('\x03');
             return;                              // ORIG return 1（void 化丢弃）
         }
         if (!m_assaulters[i].Empty() && m_assaulters[i].GetState() != 2) {

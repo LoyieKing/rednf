@@ -1958,10 +1958,12 @@ bool CCreatureScript::validEventEvlouteCreature(int creatureId)
 // ORIG 0x833f1e0：遍历 +8 向量，命中返回 true。
 bool CCreatureScript::isEvoluationCreature(int creatureId)
 {
-    for (std::vector<int>::const_iterator it = m_vec8.begin();
-         it != m_vec8.end(); ++it)
+    // ORIG 0x___：先把 this+0x8（m_vec8）拷贝到局部 vector（copy ctor），
+    // 再以 size()+operator[] 遍历（P175）——非 begin/end 迭代器。
+    std::vector<int> copied = m_vec8;
+    for (unsigned int i = 0; i < copied.size(); ++i)
     {
-        if (*it == creatureId)
+        if (copied[i] == creatureId)
         {
             return true;
         }

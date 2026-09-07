@@ -38,8 +38,21 @@ PacketGuard::PacketGuard(PacketBuf* packetBuf)
 
 PacketGuard::~PacketGuard()
 {
-    PacketBuf* packet = get();
-    if (packet && !m_external && m_pool)
-        m_pool->Free(packet);
-    AcquirePacketBuf(0);
+    // ORIG 0x0858de70：m_pool==0 且 m_external!=1 → 打池类型错误日志（get()+
+    // get_index+pthread_self）；否则 m_pool->Free(get())。基类 dtor 收尾。
+    if (m_pool)   // ORIG 正条件：test %eax; je <log>，Free 落 fall-through
+    {
+        m_pool->Free(get());
+    }
+    else
+    {
+        if (m_external != 1)   // ORIG this[8]（bool 字节, xor$1/test 形）
+        {
+            LogManager::logFormat(
+                1, "packet_buf.cpp", "PacketGuard::~PacketGuard()", 0x3f8,
+                "[PacketPool Free err - pool_type_err] pool_type(%08x), packet_idx(%d)",
+                pthread_self(), get()->get_index());
+        }
+    }
+    AcquirePacketBuf(0);   // = InterfacePacketBuf::~InterfacePacketBuf
 }

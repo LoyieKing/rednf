@@ -22,7 +22,7 @@ public:
     {
         // ORIG 0x08610132：memset → 三手动逐字节循环（+0xa/+0x2b ≤0x20、
         // +0x4c ≤0x38），4.1 未用 memset 而发循环形。
-        int i;
+        int i = 0;   // ORIG P191：声明=0 + for 里再 =0（`movl $0` ×2）
         for (i = 0; i <= 0x20; ++i)
             m_tableName[i] = '\0';
         for (i = 0; i <= 0x20; ++i)
