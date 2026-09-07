@@ -30,6 +30,7 @@
 // getSocketCount —— ORIG l 0x08190699 _ZL14getSocketCountPK20stAvatarEmblemInfo_t
 // （文件局部静态）。遍历 5 个徽章槽（每槽 6 字节，取首 ushort emblemSocketType_），
 // 非零计数。ORIG 不判空（调用方经 getJewelSocketData 保证非空），忠实转写。
+// [b24F] DONE：改 break 结构复现 ORIG 双出口循环（指令序列一致）。
 // ============================================================================
 static int getSocketCount(const stAvatarEmblemInfo_t* emblem)
 {

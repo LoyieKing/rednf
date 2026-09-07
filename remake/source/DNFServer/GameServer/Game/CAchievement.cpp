@@ -831,6 +831,8 @@ bool CAchievement::loadData(CUser* pUser, char* pData)
             std::make_pair(in->m_entries[i].m_id, in->m_entries[i]));
     }
     m_user = pUser;
+    // [b24F] DONE：_verifyAchievement 参数 (unsigned int)this→in->m_saveTime
+    //（ORIG 0x828c956 mov -0x10(%ebp);mov 0x1804(%eax),%eax 传 in->m_saveTime）。
     _verifyAchievement((unsigned int)in->m_saveTime);
     return 1;
 }

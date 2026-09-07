@@ -76,6 +76,7 @@ struct AssignNpc
     int m_pad0c;    // +0x0c
     int m_x;        // +0x10
     int m_y;        // +0x14
+    int m_z;        // +0x18（权威 CMap.h 定义：sizeof 0x1c）
 };
 
 struct TownPath
@@ -83,6 +84,7 @@ struct TownPath
     char m_pad0[0x1c];  // +0x00
     int m_field1c;      // +0x1c
     int m_field20;      // +0x20
+    std::vector<int> m_conds;   // +0x24（[quest condition] 列表；权威 CMap.h 定义）
 };
 
 

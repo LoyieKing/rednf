@@ -65,9 +65,10 @@ int CAvatarItemMgr::_AssignTempKey()
     if (m_tempKeyCounter == 0x7fffffff)
         m_tempKeyCounter = 0;
     m_tempKeyCounter++;
+    int counter = m_tempKeyCounter;   // ORIG -0xc 槽往返（读→存→读）
     // ORIG 0x082f9e02：成员读后经 -0xc 槽往返再传 _MakeTempKey（P0 具名局部），
     // 帧 0x28；4.4 折叠该 read→temp→read 往返且帧缩至 0x18/槽 -0x4 ⇒ N76-N82 梳。
-    return _MakeTempKey(m_tempKeyCounter);
+    return _MakeTempKey(counter);
 }
 
 Avatar_Item* CAvatarItemMgr::_FindItem(int key) const

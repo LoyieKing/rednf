@@ -149,6 +149,7 @@ void CAssaultPlace::ForcedMoveAtPowerWarPlace(CUser* user)
 // CAssaultMgr::ForcedMoveAtPowerWarPlace —— ORIG T 0x082ed672（报告全文转写）：
 //   try { CAassaultPlace::ForcedMoveAtPowerWarPlace(user); } catch(...) {}——
 //   landing pad 取异常指针入局部后 __cxa_end_catch 吞掉。
+// [b24F] DONE：catch 形参 void*→int（ORIG 解引用 (%eax),%eax = 值类型捕获）。
 // ============================================================================
 void CAssaultMgr::ForcedMoveAtPowerWarPlace(CUser* user)
 {
