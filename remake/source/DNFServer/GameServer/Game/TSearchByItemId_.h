@@ -12,7 +12,13 @@ class TSearchByItemId_
 {
 public:
     TSearchByItemId_();   // W 0x0822e694（定义 ValueCtors.cpp）
-    char m_pad0[0x9];     // +0x00..0x08
+    // [b23S3C] m_pad0 拆字段：ORIG 0x082159fc get_int→+0x00、get_byte×3→+0x04/05/06、
+    // get_short→+0x07（+0x09 起为 ROI_Category）。
+    unsigned int m_itemId;    // +0x00（ORIG get_int(unsigned int&) 实参 Rj 实证）
+    unsigned char m_b1e;      // +0x04
+    unsigned char m_b1f;      // +0x05
+    unsigned char m_b20;      // +0x06（itemKeys 个数 ≤0x14）
+    short m_s21;              // +0x07
     ROI_Category m_roi;   // +0x09
 };  // sizeof 0x15（packed：ROI_Category@+0x9 奇数偏移，随 ORIG）
 #pragma pack(pop)

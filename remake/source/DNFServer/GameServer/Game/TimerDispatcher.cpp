@@ -2418,12 +2418,13 @@ void TimerUpdatePvPGrade::registNextTimer(long sec)
     timeInfo.tm_min = 0;
     timeInfo.tm_sec = 0;
     sec = static_cast<long>(mktime(&timeInfo));   // ORIG mov %eax,0x8(%ebp) 回写参数槽
-    const int curSec = GlobalData::s_systemTime_.getCurSec();
+    // ORIG 0x086373f2：getCurSec 两独立重调（P48）；delay 无槽经 %ebx 跨
+    // G_TimerQueue call（P179 register 形）；`test/jle` 直跳 else ⇒ 负条件写法。
     int delay;
-    if (sec - curSec > 0)
-        delay = static_cast<int>(sec - curSec);
-    else
+    if (sec - (long)GlobalData::s_systemTime_.getCurSec() <= 0)
         delay = 1;
+    else
+        delay = (int)(sec - (long)GlobalData::s_systemTime_.getCurSec());
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                 (TIMER_MESSAGE)0x6c, delay, 0, 0);
 }

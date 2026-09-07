@@ -319,6 +319,9 @@ public:
 #include "Packet_Monitor_Member_Enter_Reply.h"   // ORIG 0x13 字节（D3）
 #include "Packet_Request_BlackList.h"            // D3 黑名单请求包
 #include "Packet_Delete_To_BlackList.h"          // ORIG 栈对象 0x2c（D3）
+// [b23S3C] Dispatcher_AuctionSearchByItemKey 迁真类（ORIG ctor 0x0822e6aa/0x0822ea84）：
+#include "PCK_AUCTION_SEARCH_BY_ITEMKEY_GA.h"
+#include "PCK_AUCTION_SEARCH_BY_ITEMKEY_GP.h"
 #include "Packet_Guild_Cargo_History_Request.h"  // ORIG W ctor 0x0822be8a（D3）
 #include "Packet_Stat_Compatibility_Index.h"     // ORIG W ctor 0x0822c61e（D3）
 #include "Packet_Monitor_Request_Member_Enter.h" // ORIG W ctor 0x0822b9ce（D3）
@@ -17053,45 +17056,11 @@ int Dispatcher_AuctionAskAveragePrice::read(PacketBuf& packet, MSG_BASE& msg) { 
 Dispatcher_AuctionSearchByItemKey::~Dispatcher_AuctionSearchByItemKey() {}
 // ============================================================================
 // ORIG 0x082159fc（docs/class_func_reports/Dispatcher_AuctionSearchByItemKey/dispatch_sig.md）
-// 包布局依 ORIG ctor 0x0822e6aa(GA)/0x0822ea84(GP) 反汇编还原：
-//   PACKET_HEADER(0x12) + memset(0,0x81) + setCategory(0x06 GA / 0x12 GP)
-//   + setPacketID(0x06) + setSize(0x81)；TSearchByItemId_C 子对象 ctor（0x0822e694）
-//   位于 memset 之前，其内容被 memset 覆盖（等效无操作）。
-
-// 权威布局（PCK_AUCTION_SEARCH_BY_ITEMKEY_GA/GP.h 目前为空壳）落地后应替换本 TU
-// 本地镜像；字段偏移 +0x12 uid、+0x16 characNo、+0x1a int、+0x1e/1f/20 byte、
-// +0x21 short、ROI_Category@+0x23(0xc)、itemKeys[0x14]@+0x31。
-// ============================================================================
-#pragma pack(push, 1)
-struct DspAuctionSearchByItemKeyPck : public nsl::PACKET_HEADER
-{
-    DspAuctionSearchByItemKeyPck(int category)
-    {
-        memset(this, 0, 0x81);
-        setCategory(category);           // GA: 0x06 / GP: 0x12（ORIG ctor 常量）
-        setPacketID(0x06);
-        setSize(0x81);
-    }
-
-    unsigned int uid;                    // +0x12
-    unsigned int characNo;               // +0x16
-    unsigned int field1a;                // +0x1a（TSearchByItemId_C +0x00）
-    unsigned char b1e;                   // +0x1e
-    unsigned char b1f;                   // +0x1f
-    unsigned char b20;                   // +0x20
-    unsigned short s21;                  // +0x21
-    unsigned short roiKey0;              // +0x23（ROI_Category）
-    unsigned short roiKey2;              // +0x25
-    unsigned short roiKey4;              // +0x27
-    unsigned char pad29[0x6];            // +0x29..+0x2e
-    unsigned char b2f;                   // +0x2f
-    unsigned char b30;                   // +0x30
-    unsigned int itemKeys[0x14];         // +0x31
-};                                       // sizeof 0x81
-#pragma pack(pop)
-
 int Dispatcher_AuctionSearchByItemKey::dispatch_sig(CUser* user, PacketBuf& packet)
 {
+    // [b23S3C] 迁真类 PCK_AUCTION_SEARCH_BY_ITEMKEY_GA/GP（ORIG ctor 0x0822e6aa/
+    // 0x0822ea84，P167 实证原 TU 镜像 ctor DspAuctionSearchByItemKeyPckC1Ei 为发明
+    // 符号违 §4.1）；roi keys 经 m_search.m_roi.m_keys（ORIG get_short(Rt&)×2 形）。
     unsigned char channel;               // local_2d -0x29
     int channelIdx;                      // local_1c -0x18
     bool fail;                           // bVar1
@@ -17126,111 +17095,116 @@ int Dispatcher_AuctionSearchByItemKey::dispatch_sig(CUser* user, PacketBuf& pack
     if (channelIdx == 1)
     {
         // ---- 金币拍卖（GP；ORIG ctor 0x0822ea84，category 0x12）----
-        DspAuctionSearchByItemKeyPck pck(0x12);
-        pck.uid = user->GetUID();
-        pck.characNo = user->getCurCharacNo();
-        if (!packet.get_int((unsigned int&)pck.field1a))            // +0x1a
+        PCK_AUCTION_SEARCH_BY_ITEMKEY_GP pck;
+        pck.m_uid = user->GetUID();
+        pck.m_characNo = user->getCurCharacNo();
+        if (!packet.get_int(pck.m_search.m_itemId))                 // +0x1a
             return LineFunc(0xc6c0,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_byte(pck.b1e))                              // +0x1e
+        if (!packet.get_byte(pck.m_search.m_b1e))                   // +0x1e
             return LineFunc(0xc6c1,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_byte(pck.b1f))                              // +0x1f
+        if (!packet.get_byte(pck.m_search.m_b1f))                   // +0x1f
             return LineFunc(0xc6c2,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_byte(pck.b20))                              // +0x20
+        if (!packet.get_byte(pck.m_search.m_b20))                   // +0x20
             return LineFunc(0xc6c3,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_short((short&)pck.s21))                     // +0x21
+        if (!packet.get_short(*reinterpret_cast<unsigned short*>(
+                &pck.m_search.m_s21)))                              // +0x21（ORIG GP 段 get_short(Rt&)）
             return LineFunc(0xc6c4,
                             __PRETTY_FUNCTION__,
                             0, 0);
         // +0x2bf：itemKey 数量 ≤ 0x14
-        if (0x14 < pck.b20)
+        if (0x14 < pck.m_search.m_b20)
             return LineFunc(0xc6c7,
                             __PRETTY_FUNCTION__,
                             0, 0);
         {
             unsigned int key;                                       // local_34 -0x30
-            for (int i = 0; i < (int)(unsigned int)pck.b20; i = i + 1)
+            for (int i = 0; i < (int)(unsigned int)pck.m_search.m_b20; i = i + 1)
             {
                 if (!packet.get_int((unsigned int&)key))
                     return LineFunc(0xc6cc,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
-                pck.itemKeys[i] = key;
+                pck.m_itemKeys[i] = key;
             }
         }
-        GlobalData::s_cera_auction_proxy->SendPacket((nsl::PACKET_HEADER*)&pck);
+        GlobalData::s_cera_auction_proxy->SendPacket(&pck.m_header);
     }
     else
     {
         // ---- 点券拍卖（GA；ORIG ctor 0x0822e6aa，category 0）----
-        DspAuctionSearchByItemKeyPck pck(0);
-        pck.uid = user->GetUID();
-        pck.characNo = user->getCurCharacNo();
-        if (!packet.get_int((unsigned int&)pck.field1a))            // +0x1a
+        PCK_AUCTION_SEARCH_BY_ITEMKEY_GA pck;
+        pck.m_uid = user->GetUID();
+        pck.m_characNo = user->getCurCharacNo();
+        if (!packet.get_int(pck.m_search.m_itemId))                 // +0x1a
             return LineFunc(0xc6e1,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_byte(pck.b1e))                              // +0x1e
+        if (!packet.get_byte(pck.m_search.m_b1e))                   // +0x1e
             return LineFunc(0xc6e2,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_byte(pck.b1f))                              // +0x1f
+        if (!packet.get_byte(pck.m_search.m_b1f))                   // +0x1f
             return LineFunc(0xc6e3,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_byte(pck.b20))                              // +0x20
+        if (!packet.get_byte(pck.m_search.m_b20))                   // +0x20
             return LineFunc(0xc6e4,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_short((short&)pck.s21))                     // +0x21
+        if (!packet.get_short(*reinterpret_cast<unsigned short*>(
+                &pck.m_search.m_s21)))                              // +0x21（GA 段 ORIG Rt&）
             return LineFunc(0xc6e5,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (0x14 < pck.b20)
+        if (0x14 < pck.m_search.m_b20)
             return LineFunc(0xc6e8,
                             __PRETTY_FUNCTION__,
                             0, 0);
         {
             unsigned int key;                                       // local_38 -0x34
-            for (int i = 0; i < (int)(unsigned int)pck.b20; i = i + 1)
+            for (int i = 0; i < (int)(unsigned int)pck.m_search.m_b20; i = i + 1)
             {
                 if (!packet.get_int((unsigned int&)key))
                     return LineFunc(0xc6ed,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
-                pck.itemKeys[i] = key;
+                pck.m_itemKeys[i] = key;
             }
         }
-        if (!packet.get_short((short&)pck.roiKey0))                 // +0x23
+        if (!packet.get_short(*reinterpret_cast<short*>(
+                &pck.m_search.m_roi.m_keys[0])))                    // +0x23（ORIG 0x08215fd0 get_short(Rs&)）
             return LineFunc(0xc6f3,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_short((short&)pck.roiKey2))                 // +0x25
+        if (!packet.get_short(*reinterpret_cast<short*>(
+                &pck.m_search.m_roi.m_keys[1])))                    // +0x25（ORIG 0x08216018 Rs&）
             return LineFunc(0xc6f5,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_short((short&)pck.roiKey4))                 // +0x27
+        if (!packet.get_short(*reinterpret_cast<short*>(
+                &pck.m_search.m_roi.m_keys[2])))                    // +0x27（ORIG 0x08216060 Rs&）
             return LineFunc(0xc6f7,
                             __PRETTY_FUNCTION__,
                             0, 0);
         // +0x699：ROI_Category::_sort（this = 包+0x23）
-        ((ROI_Category*)((char*)&pck + 0x23))->_sort();
-        if (!packet.get_byte(pck.b2f))                              // +0x2f
+        pck.m_search.m_roi._sort();
+        if (!packet.get_byte(pck.m_b2f))                            // +0x2f
             return LineFunc(0xc6fd,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_byte(pck.b30))                              // +0x30
+        if (!packet.get_byte(pck.m_b30))                            // +0x30
             return LineFunc(0xc6fe,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        GlobalData::s_auction_proxy->SendPacket((nsl::PACKET_HEADER*)&pck);
+        GlobalData::s_auction_proxy->SendPacket(&pck.m_header);
     }
 
     // +0x751：GM 延迟 trace（static gmList[5]，ORIG _ZL6gmList d @0x093701d8）
@@ -17420,16 +17394,32 @@ int Dispatcher_CharacSlotExtendEffect::process(CUser* user, MSG_BASE& msg, Param
 {
     (void)msg;
     stCharacSlotExtendEffect& param = *reinterpret_cast<stCharacSlotExtendEffect*>(&paramBase);
-    // [b23S3C] ORIG 0x081d7fb6：state==2 才处理；count>=limit → trace+m_4=0x12（条件
-    // 极性对调复现 ORIG `setae;test;je send` 前置 trace fall-through 布局，P191）；
-    // Acquire 直落 guard ctor 实参（去 stream 槽）；op*/op-> 显式解引用（S23A 统一口径，
-    // ORIG 3 处前置 call）；去 buf alias 中转变量（ORIG 直接 `mov -0x1c,%edx` 槽基）。
+    // [b23S3C] N：调用点级两试均劣化（极性对调+guard 链式版 fresh .o ndiff 145 > HEAD
+    // 132，同口径基线 /tmp/tu_DispatchersBase.o）——ORIG trace 段参数在 cMyTrace ctor
+    // 前以 edi/esi/ebx 跨 call 缓存、send 段 stream/sig 走纯寄存器直传，4.4 恒落槽
+    // （N18a/N76/setcc 布局差），语义已核无缺口。保留 HEAD 形。
     if (user->get_state() != 2)
     {
         param.m_4 = 7;
         return 0;
     }
-    if (user->getSlotEffectCount() >= user->getCharacSlotLimit())
+    // ORIG 0x081d7fb6：state==2 才处理；slotEffectCount < characSlotLimit 时扩槽并入 DB_Q。
+    if (user->getSlotEffectCount() < user->getCharacSlotLimit())
+    {
+        user->setSlotEffectCount(user->getCharacSlotLimit());
+        param.m_8 = static_cast<unsigned char>(user->getSlotEffectCount());
+        param.m_9 = static_cast<unsigned char>(user->getCharacSlotLimit());
+        Stream* stream = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x429a);
+        CStreamGuard guard(stream, true);
+        guard << 0x28a;
+        guard << -1;
+        char* buf = reinterpret_cast<char*>(guard->GetInBuffer<SIG_EXTEND_CHARAC_SLOT>());
+        *reinterpret_cast<int*>(buf + 0) = static_cast<int>(user->get_acc_id());
+        buf[4] = static_cast<char>(user->getSlotEffectCount());
+        buf[5] = static_cast<char>(user->getCharacSlotLimit());
+        GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
+    }
+    else
     {
         unsigned char limit = user->getCharacSlotLimit();
         unsigned char count = user->getSlotEffectCount();
@@ -17439,21 +17429,7 @@ int Dispatcher_CharacSlotExtendEffect::process(CUser* user, MSG_BASE& msg, Param
         trace("CharacSlotExtendEffect m_id(%s), SlotEffectCount(%u), CharacSlotLimit(%u)",
               id, (unsigned int)(count & 0xff), (unsigned int)(limit & 0xff));
         param.m_4 = 0x12;
-        return 0;
     }
-    user->setSlotEffectCount(user->getCharacSlotLimit());
-    param.m_8 = static_cast<unsigned char>(user->getSlotEffectCount());
-    param.m_9 = static_cast<unsigned char>(user->getCharacSlotLimit());
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x429a), true);
-    guard.operator*()->operator<<(0x28a);
-    guard.operator*()->operator<<(-1);
-    SIG_EXTEND_CHARAC_SLOT* sig =
-        guard.operator->()->GetInBuffer<SIG_EXTEND_CHARAC_SLOT>();
-    *reinterpret_cast<int*>(sig) = static_cast<int>(user->get_acc_id());
-    reinterpret_cast<char*>(sig)[4] = static_cast<char>(user->getSlotEffectCount());
-    reinterpret_cast<char*>(sig)[5] = static_cast<char>(user->getCharacSlotLimit());
-    GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
     return 0;
 }
 int Dispatcher_CharacSlotExtendEffect::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
@@ -19625,13 +19601,17 @@ int Dispatcher_UseCreatureEvolutionItem::process(CUser* user,
     }
 
     CStackableItem* stackable = static_cast<CStackableItem*>(itemInfo);
-    int creatureIdx =
-        user->getCurCharacInvenW()->GetCreatureMgrW()->GetCreatureIndex();
-    if (creatureIdx != stackable->m_int360)
+    // [b23S3C] ORIG 0x08228bcc：本比较无 creatureIdx 槽（P0——`call; mov 0x360(%edx),%edx;
+    // cmp %edx,%eax; setne;test;je` call 结果直比，P197④ 4.4 同出 setne）；链式三 call
+    // 直传。残余 = ORIG 三段 cMyTrace 实参 call 在 ctor 前（4.1 跨 ctor hoist，4.4 不可
+    // 复现）+ ebx/esi/edi 跨 call 缓存 vs 4.4 槽 ⇒ 布局封顶 N。
+    if (user->getCurCharacInvenW()->GetCreatureMgrW()->GetCreatureIndex()
+        != stackable->m_int360)
     {
         cMyTrace local_38(__PRETTY_FUNCTION__, 0xe62f, 0);
         local_38("Dispatcher_UseCreatureEvolutionItem cur_creatureid(%d) != item_base_creature_id(%d) charac_no(%d)\n",
-                 creatureIdx, stackable->m_int360, user->getCurCharacNo());
+                 user->getCurCharacInvenW()->GetCreatureMgrW()->GetCreatureIndex(),
+                 stackable->m_int360, user->getCurCharacNo());
         return 7;
     }
 

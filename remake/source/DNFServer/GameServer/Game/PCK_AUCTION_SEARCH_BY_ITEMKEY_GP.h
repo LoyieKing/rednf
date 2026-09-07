@@ -15,9 +15,14 @@ public:
     // ORIG W 0x0822ea84
     PCK_AUCTION_SEARCH_BY_ITEMKEY_GP();   // 定义 ValueCtors.cpp
 
-    nsl::PACKET_HEADER m_header;   // +0x00
-    char m_pad12[0x8];             // +0x12..0x19
-    TSearchByItemId_ m_search;     // +0x1a
+    // [b23S3C] 字段化依据同 GA 头（GP 段 local_a7/local_a3 + itemKeys 循环写点）。
+    nsl::PACKET_HEADER m_header;     // +0x00
+    unsigned int m_uid;              // +0x12
+    unsigned int m_characNo;         // +0x16
+    TSearchByItemId_ m_search;       // +0x1a..0x2e
+    unsigned char m_b2f;             // +0x2f
+    unsigned char m_b30;             // +0x30
+    unsigned int m_itemKeys[0x14];   // +0x31..0x80
 };  // sizeof 0x81
 #pragma pack(pop)
 

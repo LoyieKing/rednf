@@ -206,12 +206,14 @@ int DbmwClient::ReadData(char* dst, int len)
 {
     // ORIG @0x08120b32：循环 recv 凑满 len；EINTR 重试；EOF 提前返回已读数；
     // 错误记日志返回 -1。
-    // ORIG 槽：cur@-0x10、remain@-0xc（cur 后声明；4.4 反序分配）。
-    char* cur = dst;
+    // ORIG 槽：got@-0x14 < remain@-0x10 < cur@-0xc（4.4 先声明→低槽，
+    // 声明序 got→remain→cur）。
+    ssize_t got;
     size_t remain = (size_t)len;
+    char* cur = dst;
     while ((int)remain >= 1)
     {
-        ssize_t got = ::recv(m_sock, cur, remain, 0);
+        got = ::recv(m_sock, cur, remain, 0);
         if (got < 0)
         {
             if (errno == EINTR)
@@ -225,11 +227,11 @@ int DbmwClient::ReadData(char* dst, int len)
             return -1;
         }
         if (got == 0)
-            break;                              // 对端关闭 → 返回已读数
+            return len - (int)remain;           // ORIG 0x08120be6: break 路径就地算 len-remain
         cur += got;
         remain -= (size_t)got;
     }
-    return len - (int)remain;
+    return len;   // ORIG +0xdd：条件失败路径直返 len（remain∈{0}，语义不变）
 }
 
 bool DbmwClient::DoQuery()
