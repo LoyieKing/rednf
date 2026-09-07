@@ -1864,12 +1864,9 @@ void CCreatureScript::Set(CreatureScript* src)
     m_field0 = src->m_evolutionQuestId;
     m_field4 = src->m_evolutionCreatureId;
 
-    // ORIG 无 clear：目标 vector 假定空，按 size()+ix 索引循环拷贝。
-    int n8 = (int)src->m_evolutionMultyId.size();
-    for (int i = 0; i < n8; ++i)
-    {
-        m_vec8.push_back(src->m_evolutionMultyId[i]);
-    }
+    // ORIG 0x833c...：vector operator= 整体复制（P167 证实 ORIG 用整体
+    // operator= 而非逐元素 size/ix/push_back；目标 vector 假定非空由 operator= 内部）。
+    m_vec8 = src->m_evolutionMultyId;
 
     m_field14 = src->m_evolutionLevel;
     m_field18 = src->m_maxLevel;

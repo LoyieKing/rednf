@@ -91,9 +91,14 @@ std::string inet_n2a(struct in_addr addr)
 
 namespace {
 
-// 两份 encryptAES 的共同本体（ORIG 两处独立同型指令体，本文件以 helper 承载一次）。
-char* encryptAES_impl(CRijndael* cipher, char* inData, char* outHex)
+// 占位注释：ARAD::encryptAES 独立实现见下（不设 helper，ORIG 两处独立指令体）。
+
+}  // namespace
+
+char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
 {
+    // ORIG 0x0819e997：与 ARAD_CRYPT::encryptAES 指令体相同，仅 logFormat 文案不同
+    // （localjapan/Arad_OS.cpp、"char* ARAD::encryptAES(CRijndael*, char*, char*)"、0x52）。
     unsigned char enc[132];
     size_t srcLen = strlen(inData);
     size_t paddedLen;
@@ -121,13 +126,6 @@ char* encryptAES_impl(CRijndael* cipher, char* inData, char* outHex)
         "[%s][%d][%s]", "char* ARAD::encryptAES(CRijndael*, char*, char*)", 0x52,
         "Encrypt Error");
     return NULL;
-}
-
-}  // namespace
-
-char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
-{
-    return encryptAES_impl(cipher, inData, outHex);
 }
 
 namespace ARAD_CRYPT {

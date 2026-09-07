@@ -496,7 +496,9 @@ bool ARAD_ITEM::arad_process_item(CUser* user, Inven_Item const& item)
     // ORIG 构造序：items vector → sysTime → GetRestrictCode。
     std::vector<Inven_Item> items;
     const int secTime = GlobalData::s_systemTime_.getCurSec();  // getCurSec()
-    const int restrictSrc = G_CDataManager()->getItemList()->GetRestrictCode(
+    // P167：ORIG 直接读 G_CDataManager()+0xc（m_itemList）调 GetRestrictCode，
+    // 不经 getItemList()（后者 -O0 未内联反产外联 call）
+    const int restrictSrc = G_CDataManager()->m_itemList->GetRestrictCode(
         item.m_addInfo);
 
     WongWork::CCeraShop::stCeraShopItemParam_t param;

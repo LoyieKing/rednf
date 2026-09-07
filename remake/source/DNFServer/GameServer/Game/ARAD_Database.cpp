@@ -881,7 +881,8 @@ int LOGIN_QUERY::arad_sp_load_event_entry(
         return -1;
     }
 
-    int serverGroup = G_CEnvironment()->get_server_group();   // ORIG env+0x378
+    // P0：Ghidra C 直接读 env+0x378（=m_serverEnvir.m_serverGroup），勿经 get_server_group helper
+    int serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;
     if (!db->set_query(
             "seLect event_id,unix_timestamp(occ_date),server_id,charac_no,"
             "unix_timestamp(obtain_date) from dnf_event_entry where m_id=%d "
@@ -891,10 +892,11 @@ int LOGIN_QUERY::arad_sp_load_event_entry(
         return -1;
     }
 
+    // P0：Ghidra C 中 entry（local_2c）为函数级局部，循环外声明一次复用（免每轮 dtor）
+    DB_Login::tagDNFEventEntry entry;
     for (unsigned int row = 0; row < static_cast<unsigned int>(db->get_n_rows());
          ++row)
     {
-        DB_Login::tagDNFEventEntry entry;
         // P0：Ghidra C 无 occDate/serverId/characNo/obtainDate 中间局部 ——
         // 5 个 get_int 直接写 tagDNFEventEntry 各字段（+0/+8/+0xc/+0x10/+0x14）
         if (db->get_int(0, entry.m_eventId) &&
@@ -938,7 +940,7 @@ int LOGIN_QUERY::arad_sp_select_member_brodcast(
     unsigned int characNo = 0;
     unsigned int serverId = 0;
     DBMgr::stUserDBInfo_t userInfo;
-    memset(&userInfo, 0, sizeof(userInfo));   // ORIG 仅写首成员，其余栈值不定
+    // P0：Ghidra C 无 memset —— get_uint(0) 直接写 stUserDBInfo_t 首成员
     if (!db->get_uint(0, reinterpret_cast<unsigned int&>(userInfo.m_userDBIdx)) ||
         !db->get_uint(1, characNo) ||
         !db->get_uint(2, serverId) ||
@@ -959,8 +961,9 @@ int LOGIN_QUERY::arad_sp_select_member_brodcast(
     {
         GlobalData::s_db_mgr->addUserDBInfo(userIdx, userInfo);
     }
-    login_field<unsigned int>(data, 0x39ac) = characNo;
-    login_field<unsigned int>(data, 0x39a8) = serverId;
+    // P0：Ghidra C 直接偏移写 —— 0x39ac/0x39a8 对应具名字段（login_field 外联 call 需免）
+    data->m_tournamentAccountFlag = characNo;
+    data->m_tournamentServerGroup = serverId;
     return 0;
 }
 

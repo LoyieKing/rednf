@@ -330,7 +330,8 @@ bool ARAD::Arad_EventPeriodDataManager::eventReward(ENUM_REPEAT_EVENT_CODE event
     SearchEventPeriod pred(eventCode);                 // ORIG SearchEventPeriodC1
     typename std::vector<SCRIPT::SRewardPeriodData>::iterator it =
         std::find_if(m_rewardPeriodList.begin(), m_rewardPeriodList.end(), pred);
-    if (it == m_rewardPeriodList.end())
+    // ORIG 生成 __gnu_cxx::operator!=（find_if 尾部 it != end 判定）
+    if (!(it != m_rewardPeriodList.end()))
         return false;
 
     // ORIG 0x819ad0b：elem+0xc(begin) <= time && elem+0x10(end) > time

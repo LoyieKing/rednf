@@ -44,15 +44,13 @@ void Arad_EventPeriodDataManager::clearScriptData()
 
 bool Arad_EventPeriodDataManager::isApplied(ENUM_REPEAT_EVENT_CODE eventCode, unsigned int time)
 {
-    std::vector<ARAD::SCRIPT::SEventPeriodData>::const_iterator it;
-    for (it = m_eventPeriodList.begin(); it != m_eventPeriodList.end(); ++it)
-    {
-        if (it->m_eventCode == static_cast<unsigned int>(eventCode))
-        {
-            return (it->m_beginTime <= time) && (time < it->m_endTime);
-        }
-    }
-    return false;
+    // P167：ORIG 用 SearchEventPeriod 谓词 + find_if（非 const iterator）
+    SearchEventPeriod pred(eventCode);
+    std::vector<ARAD::SCRIPT::SEventPeriodData>::iterator it =
+        std::find_if(m_eventPeriodList.begin(), m_eventPeriodList.end(), pred);
+    if (!(it != m_eventPeriodList.end()))
+        return false;
+    return (it->m_beginTime <= time) && (time < it->m_endTime);
 }
 
 bool Arad_EventPeriodDataManager::isRunning(ENUM_REPEAT_EVENT_CODE eventCode)
@@ -116,7 +114,8 @@ bool Arad_EventPeriodDataManager::checkCreateTime(
     SearchEventPeriod pred(eventCode);
     std::vector<SCRIPT::SEventPeriodData>::iterator it =
         std::find_if(m_eventPeriodList.begin(), m_eventPeriodList.end(), pred);
-    if (it == m_eventPeriodList.end())
+    // P167：ORIG 生成 operator!=
+    if (!(it != m_eventPeriodList.end()))
     {
         return false;
     }

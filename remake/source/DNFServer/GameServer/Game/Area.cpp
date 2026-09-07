@@ -352,7 +352,7 @@ void Area::send_area_users(CUser* user)
     packet.put_short((int)m_UsersInArea.size());
 
     for (std::map<unsigned short, CUser*>::iterator it = m_UsersInArea.begin();
-         it != m_UsersInArea.end(); ++it)
+         it != m_UsersInArea.end(); it++)
     {
         CUser* u = it->second;
         if (u->IsCurCharacVisible() || u == user)
