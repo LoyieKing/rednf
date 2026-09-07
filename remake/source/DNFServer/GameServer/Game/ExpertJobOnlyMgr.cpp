@@ -178,25 +178,31 @@ int CAlchemist::OnUseStackableItem(CUser* user, unsigned long itemUniqueId,
     if (item->is_stackable())
     {
         // vtbl+0xc = GetItemType()==3 且对象 +0x199 字节非零 → 可学 recipe。
-        // +0x199 位于 CStackableItem 未建模区段【ORIG 裸字节判读】。
         if (((const CStackableItem*)item)->GetItemType() == 3 &&
-            *(const unsigned char*)(reinterpret_cast<const char*>(item) + 0x199) != 0)
+            // [b23S3C] §4.3 字段化：+0x199 = CStackableItem::m_recipe174(+0x174)
+            // .m_field25(+0x25)（CStackableItem.h RecipeInfo 布局注释实证），
+            // 裸偏移 `add $0x199 + movzbl` 形 ⇒ 具名成员直读（ORIG movzbl 0x199）。
+            ((const CStackableItem*)item)->m_recipe174.m_field25 != 0)
         {
             STExpertJobScript* script =
                 (STExpertJobScript*)G_CDataManager()->GetExpertJobScript(
                     user->GetCurCharacExpertJobType());
             if (script != 0)
             {
-                int exp = user->GetCurCharacExpertJobExp();
-                int level = user->GetCurExpertJobLevel(exp);
-                CCharacExpertJob* expand = GetSelfExpand(user);
-                bool learned = expand->learnRecipe(itemUniqueId, script, level);
-                if (!learned)
-                {
+                // [b23S3C] §4.1 反发明符号 + P0/P48 去缓存：ORIG 0x085d17a4/0xb6
+                // 两次直调 CUser::GetCharacExpandData(0)（无本域 helper），
+                // exp/level/learnRecipe 结果全程 %eax/%ebx 无槽（帧 sub $0x24，
+                // 仅 -0xc 一个 script 局部）⇒ 实参右起内联（exp→level→expand→
+                // uid/script 落槽，与 ORIG call 序一致）。
+                if (!((CCharacExpertJob*)user->GetCharacExpandData(
+                          (ENUM_CHARAC_EXPAND_TYPE)0))
+                         ->learnRecipe(itemUniqueId, script,
+                                       user->GetCurExpertJobLevel(
+                                           user->GetCurCharacExpertJobExp())))
                     return 0xd;
-                }
-                expand = GetSelfExpand(user);
-                expand->SendExpertJobInfo(user);
+                ((CCharacExpertJob*)user->GetCharacExpandData(
+                    (ENUM_CHARAC_EXPAND_TYPE)0))
+                    ->SendExpertJobInfo(user);
             }
         }
 
@@ -215,14 +221,22 @@ int CAlchemist::OnUseStackableItem(CUser* user, unsigned long itemUniqueId,
     // 固定道具唯一 id 分派（分支序照 ORIG 汇编比较树）：
     //   0x28e7cf / 0x27ac54 / 0x29f287 / 0x29f2ed → UseRevivalItem
     //   0x27acda → UseDelilah；其余不处理。
-    if (itemUniqueId == 0x28e7cfUL || itemUniqueId == 0x27ac54UL ||
-        itemUniqueId == 0x29f287UL || itemUniqueId == 0x29f2edUL)
+    // [b23S3C] ORIG 0x085d185c 起 `mov 0xc(%ebp),%eax` 一次载入后以
+    // 0x28e7cf 为中枢二分（cmp/je、cmp/ja、cmp/je、cmp/je、jmp、cmp/je、cmp/jne）
+    // ⇒ 原码是 switch(itemUniqueId)（或然链形会逐次 cmp 内存实参且无线性载入）。
+    switch (itemUniqueId)
     {
+    case 0x28e7cfUL:
+    case 0x27ac54UL:
+    case 0x29f287UL:
+    case 0x29f2edUL:
         UseRevivalItem(user);
-    }
-    else if (itemUniqueId == 0x27acdaUL)
-    {
+        break;
+    case 0x27acdaUL:
         UseDelilah(user);
+        break;
+    default:
+        break;
     }
     return 0;
 }

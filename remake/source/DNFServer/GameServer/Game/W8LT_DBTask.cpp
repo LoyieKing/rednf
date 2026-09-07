@@ -18049,6 +18049,9 @@ struct DB_AutoPunishBlackIpView
         unsigned int m_ip;     // +0x04（inet_addr 结果）
         unsigned char m_start; // +0x08
         unsigned char m_end;   // +0x09
+        char m_pad0a[2];       // +0x0a..0x0b [b23S3C] ORIG 0x0842d027 `mov %eax,0x4(%edx,%ebx,8)`
+                               //  scaled 寻址实证步长 8（原缺尾 pad ⇒ sizeof 6，4.4 出
+                               //  `add/add/add` i*6 链，索引偏移全错 = 真 bug）
     } m_entries[0x7d0];
 };
 #pragma pack(pop)
@@ -19148,19 +19151,23 @@ bool DB_ReloadAutoPunishRuleBackIP::dispatch(int userIdx, int slot,
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7059), true);
     guard.operator*()->operator<<(0x108);
     guard.operator*()->operator<<(-1);
+    // [b23S3C] ORIG 0x0842cee3 形：get_n_rows 结果直 `mov %eax,%edx; mov %dx,(%eax)`
+    // 落 out+0（无 rowCount 具名槽，P0/P48），且循环条件 ORIG 0x0842d043 **每轮重取**
+    // get_n_rows 并按无符号比较（`cmp -0xc(%ebp),%eax; seta`）⇒ i 改 unsigned int、
+    // 界改内联 call；ipStr ORIG 清零 15 字节（`movl×3 + movw + movb`）⇒ 数组改 0xf。
     DB_AutoPunishBlackIpView* out = reinterpret_cast<DB_AutoPunishBlackIpView*>(
         guard->GetInBuffer<SIG_AUTO_PUNISH_RULE_BLACK_IP>());
-    int rowCount = db->get_n_rows();
-    out->m_count = (unsigned short)rowCount;
-    for (int i = 0; i < rowCount; ++i)
+    out->m_count = (unsigned short)db->get_n_rows();
+    for (unsigned int i = 0; i < (unsigned int)db->get_n_rows(); ++i)
     {
         if (!db->fetch())
             return 0;
-        char ipStr[0xc] = {};
+        char ipStr[0xf] = {};
+        unsigned int startIp = 0;   // [b23S3C] ORIG 0x0842cf37/-0x30,-0x34 两清零在
+        unsigned int endIp = 0;     // get_str 之前（4.1 初始化前置）⇒ 声明上移
+
         if (!db->get_str(0, ipStr, 0xc))
             return 0;
-        unsigned int startIp = 0;
-        unsigned int endIp = 0;
         if (!db->get_uint(1, startIp))
             return 0;
         if (!db->get_uint(2, endIp))

@@ -796,15 +796,20 @@ int CParty::CheckEnterAncientDungeon(CDungeon const* dungeon)
         {
             continue;
         }
-        CInventory const* inv =
+        // [b23S3C] P48 去缓存：ORIG 两用点各自 call getCurCharacInvenR
+        // （+0x163 / +0x1b4 两次独立 call，结果 eax 直落实参槽无 inv 槽）。
+        slots[i] =
             reinterpret_cast<CUserCharacInfo*>(m_member[i].m_pUser)
-                ->getCurCharacInvenR();
-        slots[i] = inv->check_item_exist(dungeon->m_entryRequiredItem.m_itemIdx);
+                ->getCurCharacInvenR()
+                ->check_item_exist(dungeon->m_entryRequiredItem.m_itemIdx);
         if (slots[i] == -1)
         {
             return 0;
         }
-        items[i] = inv->GetInvenSlot(1, slots[i]);
+        items[i] =
+            reinterpret_cast<CUserCharacInfo*>(m_member[i].m_pUser)
+                ->getCurCharacInvenR()
+                ->GetInvenSlot(1, slots[i]);
         if (items[i].m_addInfo2 < dungeon->m_entryRequiredItem.m_itemCount)
         {
             return 0;

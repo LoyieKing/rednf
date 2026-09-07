@@ -81,26 +81,53 @@ void GrowthEquipEvent::SendGrowthWeaponEventInfo(CUser& user)
     PacketGuard packet;
     packet.put_header(0, 0x1b9);
 
-    int serverGroup;
-    if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
-        serverGroup = G_CEnvironment()->get_server_group();
-    else
+    // [b23S3C] ORIG 0x080f7226 形差（本件真语义缺口 gap 5）：
+    // ①`movl $0x0,-0xc(%ebp)` 预清 ⇒ serverGroup 写 `= 0` + 分支内独立赋值（P198①两句式）；
+    // ②getGrowthWeaponEventdata() ORIG 5 次重取（+0x6a/+0xab/+0xbd/+0x10e/+0x12b），
+    //   无 `data` 具名指针槽 ⇒ P48 每用点重取；字段经 GrowthWeaponEvent（CUser.h:1797）
+    //   具名访问出单条 disp（原 `*(int*)(data+0xc)` 下标形多 1 条 add，帧亦多 0x10）；
+    // ③+0x12/+0x10 为 short 字段：`movzwl 0x12(%eax); movswl %ax,%edx` = 具名 short 成员
+    //   与 int 局部比较的直传拓宽形（P200）。
+    // [b23S3C] 续：①serverGroup 判定改正向 `if (IsIntegratedPvPBaseChannel())`（ORIG
+    // fall-through = GetServerGroup 支，`test %al,%al; je <env>` 无 xor 归一，P191 极性）；
+    // ②env 支 ORIG `call G_CEnvironment; mov 0x378(%eax),%eax` 直读字段 ⇒ 改
+    //   m_serverEnvir.m_serverGroup（+0x198+0x1e0），不发 get_server_group() call
+    //   （同 CBossPlay.cpp:301 先例）；③selected 去 bool 具名槽（ORIG 结果只占 %eax、
+    //   `test %al,%al` 直测）⇒ 内联进 if/else 两 put_byte call。
+    // 残余 3：`movzwl+movswl %ax,%edx; cmp %eax,%edx` vs 4.4 `movzwl+cwtl; cmp MEM,%eax`
+    // = 负例 N18a/N22（单段 regmove/内存直比不可翻）。
+    int serverGroup = 0;
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+    {
         serverGroup = (int)user.GetServerGroup();
+    }
+    else
+    {
+        serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x378
+    }
 
-    char* data = static_cast<char*>(user.getGrowthWeaponEventdata());
-    if (*(int*)(data + 0x0c) != 0)
+    if (static_cast<GrowthWeaponEvent*>(user.getGrowthWeaponEventdata())->m_fieldc != 0)
     {
         packet.put_byte(2);
     }
     else
     {
-        bool selected =
-            (user.get_charac_no(-1) == *(int*)(data + 0x04)) &&
-            (*(short*)(data + 0x12) == (short)serverGroup);
-        packet.put_byte(selected ? 1 : 0);
+        if ((user.get_charac_no(-1) ==
+             static_cast<GrowthWeaponEvent*>(user.getGrowthWeaponEventdata())->m_field4) &&
+            (serverGroup ==
+             static_cast<GrowthWeaponEvent*>(user.getGrowthWeaponEventdata())->m_field12))
+        {
+            packet.put_byte(1);
+        }
+        else
+        {
+            packet.put_byte(0);
+        }
     }
-    packet.put_int(*(int*)(data + 0x08));
-    packet.put_short((int)*(short*)(data + 0x10));
+    packet.put_int(
+        static_cast<GrowthWeaponEvent*>(user.getGrowthWeaponEventdata())->m_field8);
+    packet.put_short(
+        static_cast<GrowthWeaponEvent*>(user.getGrowthWeaponEventdata())->m_field10);
     packet.finalize(true);
     user.Send(packet);
 }

@@ -109,7 +109,7 @@ public:
     bool IsAllMoreThanGrade(int grade);
     bool is_last_win(int seat);
     bool IsPvpObserver(int seat);
-    int check_winner();
+    bool check_winner();   // ORIG 体尾 movw $0,%ax（bool 规范化）；[b23S3C] P9/P159
     int check_recv_pvp_rank();
     int check_team_pvp();
     int set_recv_pvp_rank_flag(CUser* user);

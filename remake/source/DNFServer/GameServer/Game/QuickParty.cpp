@@ -170,7 +170,7 @@ void CQuickPartySystemManager::init_quick_party_pool(const CDungeon* dungeon)
 
 // cancel_quick_party @0x0826a386：把 party 从其所属 CQuickParty 中注销，
 // 剩余成员>1 且非解散(flag=true)时重新入池；EPLP 等待态且 flag 时重掷等待 timer。
-int CQuickPartySystemManager::cancel_quick_party(CParty* party, bool flag, CUser* user)
+bool CQuickPartySystemManager::cancel_quick_party(CParty* party, bool flag, CUser* user)
 {
     int qpIndex = party ? party->get_quick_party_index() : -1;
     if (party == 0 || qpIndex == -1) {
@@ -1003,17 +1003,16 @@ int CQuickPartySystemManager::direct_entrance_quick_party(CUser* user)
         return 1;
 
     int count = qp->get_quick_party_count();
-    signed char firstMatchingCnt = 0;
-    {
-        char raw = qp->get_first_matching_cnt();
-        firstMatchingCnt = static_cast<signed char>(raw);
-    }
+    // [b23S3C] ORIG 0x0826a762 `call get_first_matching_cnt` 出现两次（+0xb4/+0xd8，
+    // 均紧跟 `mov -0x14(%ebp),%eax` 重取 qp），无 firstMatchingCnt 具名槽（P0/P48）
+    // ⇒ 删缓存局部与 raw 中转块，改每用点重取 + (int) 直比 count。
     // 队伍未满且正好等于首次匹配人数：直接拒绝入场。
-    if (count < 2 && firstMatchingCnt == count)
+    if (count < 2 && static_cast<int>(qp->get_first_matching_cnt()) == count)
         return 0xf5;
 
     // 已到匹配目标人数且无人数变动：解除队列并通知散队。
-    if (firstMatchingCnt >= count && !qp->is_change_quick_party_count())
+    if (static_cast<int>(qp->get_first_matching_cnt()) >= count &&
+        !qp->is_change_quick_party_count())
     {
         CParty* target = qp->get_party_object();
         if (target == 0)

@@ -96,45 +96,51 @@ bool CEpoll<CSession>::UnregisterSession(CSession* session)
 template <>
 bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
 {
+    // [b23S3C] P48 去缓存：errno 两比较点各重取（ORIG 两次 __errno_location
+    // call、无 err 槽）；EINTR 分支不写 n=0（ORIG 保持负数走空循环）；events[i]
+    // .events 掩码每用点重取（ORIG 无 mask 槽，8 条/用点×5）；无 evOk 中间局部
+    // ——各 handler 结果直接覆写 allAlive 槽 -0x1d（ORIG `mov %al,-0x1d`×3，
+    // 非 && 汇聚岛）；循环头 `movl $0,-0x14` 死置零 ⇒ 原码有名局部初始化。
     epoll_event* events = GetEpollEvents();
     int epfd = GetEpollFD();
     int n = epoll_wait(epfd, events, 0x258, timeoutMs);
     if (n < 0)
     {
-        int err = errno;                  // *__errno_location()
-        if (err != EINTR && err != 0)
+        if (errno != EINTR && errno != 0)
             return false;
-        n = 0;                            // EINTR / errno==0 → 空遍历继续
     }
 
     bool ok = true;
     for (int i = 0; i < n; ++i)
     {
         CSession* session = static_cast<CSession*>(events[i].data.ptr);
-        unsigned int mask = static_cast<unsigned int>(events[i].events);
-        bool evOk = true;
+        int regFlags = 0;                 // ORIG 循环头死置零槽（-0x14）
+        (void)regFlags;
+        ok = true;                        // ORIG 循环头 `movb $0x1,-0x1d` 每轮重置
 
-        if ((mask & 0x1) != 0)            // EPOLLIN
+        if (events[i].events & 0x1)       // EPOLLIN
         {
             if ((session->GetTriggerSessionEventType() & 0x8) != 0)
             {
                 // 监听 socket：OnAccept 返回新建会话指针（池 Acquire），非 fd。
-                CSession* accepted = session->OnAccept();
+                // P197③双槽置0：ORIG OnAccept 前 `movl $0x0,-0x10` 预清。
+                CSession* accepted = 0;
+                accepted = session->OnAccept();
                 if (accepted != 0)
                     RegisterSession(accepted, 0x7);
             }
             else if ((session->GetTriggerSessionEventType() & 0x1) != 0)
             {
-                evOk = session->OnRecv();
+                ok = session->OnRecv();
             }
         }
 
-        if ((mask & 0x4) != 0)            // EPOLLOUT
+        if (events[i].events & 0x4)       // EPOLLOUT
         {
             if ((session->GetTriggerSessionEventType() & 0x10) != 0)
             {
-                evOk = session->OnConnect();
-                if (evOk)
+                ok = session->OnConnect();
+                if (ok)
                     session->SetTriggerSessionEventType(0x7);
             }
             int sendRet = 0;
@@ -142,16 +148,13 @@ bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
             {
                 sendRet = session->OnSend();
                 if (sendRet < 0)
-                    evOk = false;
+                    ok = false;
             }
         }
 
-        ok = evOk && ok;
-
-        if ((mask & 0x18) != 0)           // EPOLLERR|EPOLLHUP
+        if (events[i].events & 0x18)      // EPOLLERR|EPOLLHUP
         {
-            bool errOk = session->OnError();
-            if (!errOk)
+            if (!session->OnError())
             {
                 UnregisterSession(session);
                 session->Disconnect();

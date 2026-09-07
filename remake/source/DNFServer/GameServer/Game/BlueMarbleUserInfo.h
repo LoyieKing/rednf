@@ -37,22 +37,9 @@ enum T
 }
 
 // ---- BuffInfo（0xc）/ TileIndexInfo（0x8，内嵌于 BlueMarbleUserInfo） ----
-class BuffInfo
-{
-public:
-    void reset();   // ORIG _ZN8BuffInfo5resetEv（m_exp=m_gold=m_drop=1）
-    int m_exp;   // +0x00
-    int m_gold;  // +0x04
-    int m_drop;  // +0x08
-};
-
-class TileIndexInfo
-{
-public:
-    void reset();   // ORIG _ZN13TileIndexInfo5resetEv（m_dungeon=m_item=0）
-    int m_dungeon;         // +0x00
-    unsigned int m_item;   // +0x04
-};
+// 唯一声明点统一至 BlueMarblePOD.h（§4.4；含用户 ctor——ORIG C1 0x080d9ec0/
+// 0x080d9f04 实证成员构造须发 call）。本头唯一消费者 = BlueMarbleUserInfo.cpp。
+#include "BlueMarblePOD.h"
 
 class BlueMarbleUserInfo
 {

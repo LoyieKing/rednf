@@ -253,6 +253,8 @@ int CUser::get_pvp_exp_of_week()
 int GrowthEquipEvent::SendInfinityGrowthWeapon(CUser* user, const Inven_Item* item,
                                                int space, int slot) const
 {
+    // [b23S3C] ORIG 序言 +0x00b 无条件构造 Inven_Item（先于 reward 判定）——声明即构造位置
+    Inven_Item newItem;
     int rewardIdx = G_CDataManager()->get_GrowthWeaponEventReward(item->m_addInfo);
     int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space);
     if (rewardIdx == 0)
@@ -260,7 +262,6 @@ int GrowthEquipEvent::SendInfinityGrowthWeapon(CUser* user, const Inven_Item* it
         return 0x17;
     }
 
-    Inven_Item newItem;
     CItem* pItem = G_CDataManager()->find_item(rewardIdx);
     if (pItem != 0)
     {
@@ -273,7 +274,9 @@ int GrowthEquipEvent::SendInfinityGrowthWeapon(CUser* user, const Inven_Item* it
             (unsigned char)((newItem.m_upgradeSep.m_field & 0xe0) |
                             (item->m_upgradeSep.m_field & 0x1f));
         newItem.m_fieldd = item->m_fieldd;
-        std::memcpy(&newItem.m_amp, &item->m_amp, 4);
+        // [b23S3C] P167：ORIG +0x11 是 `mov 0x11(%eax),%eax; mov %eax,-0x3c(%ebp)` 具名 dword 直拷
+        // （CCreatureMgr.cpp:2045 同形先例），非 memcpy ⇒ 消除 EXTRA call memcpy
+        *reinterpret_cast<int*>(&newItem.m_amp) = *reinterpret_cast<const int*>(&item->m_amp);
     }
 
     if (!user->getCurCharacInvenW()->delete_item(
@@ -286,14 +289,14 @@ int GrowthEquipEvent::SendInfinityGrowthWeapon(CUser* user, const Inven_Item* it
     user->getCurCharacInvenW()->update_item((INVEN_TYPE)invenType, slot, newItem);
     user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)space, slot);
 
-    // GrowthWeaponEvent 具名视图（CUser.h，getGrowthWeaponEventdata 返回 &m_growthWeapon）；
-    // +0x10 = m_field10（short），+0x0c = m_fieldc。
-    GrowthWeaponEvent* data = static_cast<GrowthWeaponEvent*>(
-        user->getGrowthWeaponEventdata());
-    short timepiece = data->m_field10;
+    // [b23S3C] P48：ORIG getGrowthWeaponEventdata() 双臂各重取（+0x216/+0x243），无 data 槽；
+    // P200 short→int movswl 直入 callee-saved %ebx
+    short timepiece = static_cast<GrowthWeaponEvent*>(
+                          user->getGrowthWeaponEventdata())->m_field10;
     DB_EventUpdateGrowthWeaponTimepiece::makeRequest(user->get_acc_id(), timepiece,
                                                      rewardIdx);
-    data->m_fieldc = (unsigned int)rewardIdx;
+    static_cast<GrowthWeaponEvent*>(user->getGrowthWeaponEventdata())->m_fieldc =
+        (unsigned int)rewardIdx;
     return 0;
 }
 

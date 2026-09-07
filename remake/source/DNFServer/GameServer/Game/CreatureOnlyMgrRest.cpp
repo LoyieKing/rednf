@@ -37,17 +37,20 @@
 
 namespace user_creature
 {
-void user_creature::CCreatureMgr::SetStomach(int stomachValue)
+int user_creature::CCreatureMgr::SetStomach(int stomachValue)
 {
     if (m_equippedCreature != 0)
     {
         m_equippedCreature->SetStomach(stomachValue);
-        int uid = m_equippedCreature->m_uid;   // CCreatureItem 基区 +0x0c
         CPacketRespondent pkt(m_user, 0, 0);
-        int state = m_equippedCreature->GetStomach();
-        pkt.MakeNotipacketCreatureState(uid, state);
+        // ORIG 0x08339ee0 求值序：ctor 后先 GetStomach()→%ebx，再
+        // CCreatureItem::GetUid() call（+0x69，W 0x833efbe 外联）→参数 (uid,stomach)。
+        pkt.MakeNotipacketCreatureState(
+            reinterpret_cast<CCreatureItem*>(m_equippedCreature)->GetUid(),
+            m_equippedCreature->GetStomach());
         pkt.Send();
     }
+    return 1;
 }
 
 
@@ -218,10 +221,13 @@ int CCreatureMgr::GetCreatureIndex()
 bool CCreatureMgr::LoadCreatureItem(Inven_Item* item,
                                     SIG_CREATURE_ITEM_DETAIL_INFO* detail)
 {
-    signed char type = (signed char)detail->m_creatureItemType;   // detail+0x24
-    CCreatureItemFactory* factory = GetInstanceCreatureItemFactory();
-    CCreatureItem* newItem = factory->AcquireCreatureItem(
-        (user_creature::CREATURE_ITME_TYPE)(signed char)detail->m_creatureItemType);
+    // [b23S3C] P48 去缓存：ORIG 0x833b7be 第二次独立 call
+    // GetInstanceCreatureItemFactory（FreeCreatureItem 前），工厂指针无具名槽
+    // ⇒ 两调用点各自直调（缓存局部会少一次 call，p167 差集可见）。
+    CCreatureItem* newItem =
+        GetInstanceCreatureItemFactory()->AcquireCreatureItem(
+            (user_creature::CREATURE_ITME_TYPE)
+                (int)(signed char)detail->m_creatureItemType);   // detail+0x24
     if (newItem == 0)
         return false;
 
@@ -229,44 +235,48 @@ bool CCreatureMgr::LoadCreatureItem(Inven_Item* item,
     {
         if (m_tempExpireDelta == 0)
         {
-            detail->m_expireTime = 0;                              // detail+0x28
+            // [b23S3C] ORIG 0x833b6d8：+0x28 写入值取自 this+0x2c（四条形），
+            // 非立即数 0 ⇒ 直赋成员。
+            detail->m_expireTime = m_tempExpireDelta;              // detail+0x28
         }
         else
         {
-            detail->m_expireTime =
-                m_tempExpireDelta + OS_API::GetDateTimeTick();
+            // [b23S3C] P0 律：ORIG `call; mov %eax,-0x1c(%ebp)` 后 `add -0x1c`
+            // ⇒ tick 为具名局部（合写表达式则成员先载、无槽，形序不符）。
+            unsigned int tick = OS_API::GetDateTimeTick();
+            detail->m_expireTime = m_tempExpireDelta + tick;
         }
         setTempExpireTime(-1);
     }
     UnRegistTempPeriod(detail->m_uid);   // ORIG ebp+0x10→detail+0x04
 
-    bool ok;
-    if (type == 1)
+    // [b23S3C] ORIG 0x833b727：`mov (%eax),%eax; add $0x8,%eax; mov (%eax),%edx;
+    // …call *%edx` 单次 vtable 槽 +8 间接分派（蛋/宠由对象自身 vptr 决定），
+    // 原码无 type==1 判定、无 bool ok 槽（返回寄存器 xor 直测）。本镜像无虚表，
+    // 按 §4.5 先例（CCreatureMgr.cpp 0x833f5bc / CParty.cpp 0x85b9ffd 同形）
+    // 用 typedef 槽指针直调；实参右起（m_user→detail→item→mgr→newItem）与
+    // ORIG 装槽序逐条一致。
+    typedef bool (*LoadCreatureItemSlot)(CCreatureItem*, CCreatureMgr*,
+                                         Inven_Item*,
+                                         SIG_CREATURE_ITEM_DETAIL_INFO*,
+                                         CUser*);
+    if ((*reinterpret_cast<LoadCreatureItemSlot*>(
+              *reinterpret_cast<int*>(newItem) + 8))(
+            newItem, this, item, detail, m_user) != 1)
     {
-        ok = reinterpret_cast<CCreature*>(newItem)->LoadCreatureItem(
-            this, item, detail, m_user);
-    }
-    else
-    {
-        // BLOCKED 定义侧：ORIG CEgg::LoadCreatureItem T 0x08338fac 尚无实现/声明
-        // （声明需求已列入 decl 文件）。调用照常写出。
-        ok = reinterpret_cast<CEgg*>(newItem)->LoadCreatureItem(
-            this, item, detail, m_user);
-    }
-
-    if (!ok)
-    {
-        cMyTrace trace(
-            "bool user_creature::CCreatureMgr::LoadCreatureItem("
-            "Inven_Item*, SIG_CREATURE_ITEM_DETAIL_INFO*)", 0xd36, 5);
-        trace("LoadCreatureItem() failed %d,%d,%d\n",
-              m_user->get_unique_id() & 0xffff,
-              static_cast<int>(item->m_addInfo),
-              item->m_addInfo2);
-        factory->FreeCreatureItem(newItem);
+        // [b23S3C] 临时对象直调形：ORIG 0x833b774 起 vararg（item+7→%edi、
+        // item+2→%esi、uid→%ebx）在 ctor call 之前求值，trace 对象落 -0x30 匿名槽。
+        cMyTrace(__PRETTY_FUNCTION__, 0xd36, 5)(
+            "LoadCreatureItem() failed %d,%d,%d\n",
+            m_user->get_unique_id() & 0xffff,
+            static_cast<int>(item->m_addInfo),
+            item->m_addInfo2);
+        GetInstanceCreatureItemFactory()->FreeCreatureItem(newItem);
         return false;
     }
 
+    // P194 X1 探针实测：写 `((uchar)flag ^ 1) != 0` 4.4 仍出 `cmp $0x1,%al`
+    // （ndiff 不变），xor 形不可源码复现 ⇒ 保留自然 `!= 1` 形（记 N）。
     if (detail->m_growExpFlag != 1 &&          // detail+0x30
         detail->m_creatureItemType == 1)       // detail+0x24
     {

@@ -604,20 +604,21 @@ bool Inter_LoadEtc::RequestDBEventArad(CUser* user)
 
 bool Inter_LoadEtc::SetPvpRecord(CUser* user, SIG_LOAD_ETC* sig)
 {
-    PvpResultType* pvp = &sig->m_pvpResult;
-    if (!user->SetPvpRecord(*pvp))
+    // [b23S3C] P183/P0：ORIG &sig->m_pvpResult 直落实参槽（add $0x340;mov %eax,0x4(%esp)），无 pvp 指针槽
+    if (!user->SetPvpRecord(sig->m_pvpResult))
     {
         user->disableSavePvP();
         return false;
     }
     user->disableSavePvP();
 
-    int lossGrade = GlobalData::s_ref_pvp_grade->getPvPExpLossGrade();
-    int minPoint = GlobalData::s_ref_pvp_grade->GetPvpPoint(lossGrade);
-    const PvpResultType* cur = user->getPVPResultRefR();
-    // ORIG：!(cur+0x14 < lossGrade || cur+8 <= minPoint) 才进日切扣减分支（无 null 检查）
-    bool apply = !(cur->m_pvpGrade < lossGrade || cur->m_expPoint <= minPoint);
-    if (apply)
+    // [b23S3C] P48/P0：ORIG getPvPExpLossGrade/getPVPResultRefR 双臂各重取（+0x4b/+0x68、
+    // +0x7d/+0x8f），minPoint 是唯一具名槽 -0x10；apply 分支岛内联（P56/P198，寄存器直测无槽）
+    int minPoint = GlobalData::s_ref_pvp_grade->GetPvpPoint(
+                       GlobalData::s_ref_pvp_grade->getPvPExpLossGrade());
+    if (!(user->getPVPResultRefR()->m_pvpGrade <
+                  GlobalData::s_ref_pvp_grade->getPvPExpLossGrade() ||
+          user->getPVPResultRefR()->m_expPoint <= minPoint))
     {
         long now = GlobalData::s_systemTime_.getCurSec();
         long lastPlay = user->getCurCharacLastPlayTick();
@@ -625,7 +626,9 @@ bool Inter_LoadEtc::SetPvpRecord(CUser* user, SIG_LOAD_ETC* sig)
         {
             PvpResultType* w = user->getPVPResultRefW();
             int dec = GlobalData::s_ref_pvp_grade->getPvPExpLossExp();
-            w->m_expPoint = std::max(minPoint, w->m_expPoint - dec);
+            // [b23S3C] P48：ORIG 读源 m_expPoint 用第 3 次独立 getPVPResultRefR(+0xec)，写回用 RefW
+            w->m_expPoint = std::max(minPoint,
+                                     user->getPVPResultRefR()->m_expPoint - dec);
         }
     }
     return true;
@@ -863,26 +866,25 @@ void Inter_LoadEtc::_checkUserDisadvantage(CUser* user)
     if (user->IsGameMasterMode())
         return;
 
-    ServiceRestrictManager* restrictMgr =
-        ARAD::Singleton<ServiceRestrictManager>::Get();
-    if (!restrictMgr || !restrictMgr->isRestricted(RestrictCategory::Enum(3), 1))
+    // [b23S3C] P48/§4.1：ORIG Get() 结果 %eax 直落 isRestricted 实参槽（+0x2f），
+    // 无 restrictMgr 槽、无 null 检查（原 null 检查系伪造行为）
+    if (!ARAD::Singleton<ServiceRestrictManager>::Get()
+             ->isRestricted(RestrictCategory::Enum(3), 1))
         return;
     if (user->getCurCharacR() == 0)
         return;
 
-    bool invalid = false;
+    // [b23S3C] P56/P198：ORIG 直测条件内联（xor$1/test/jne），无 invalid bool 槽
     if (user->get_charac_level() < 0x14 || user->getStdDropRate() == 0)
-        invalid = true;
-    if (invalid)
         return;
 
     // 遍历 0..29999 任务清除位（CQuestClear 区位于 questR+4，含 m_user 头）
     char hasClearedQuest = 0;
-    for (unsigned int i = 0; i < 30000; ++i)
+    // [b23S3C] P196：ORIG 边界 `cmpl $0x752f; setle`（有符号）⇒ i 必须 int（原 unsigned→setbe 真 bug）；
+    // P48/P0：ORIG 每臂 getCurCharacQuestR→add$4 直落实参，无 questR/cleared 具名槽
+    for (int i = 0; i < 30000; ++i)
     {
-        UserQuest* questR = user->getCurCharacQuestR();
-        WongWork::CQuestClear* cleared = &questR->m_cleared;
-        if (cleared->isClearedQuest(i))
+        if ((user->getCurCharacQuestR()->m_cleared).isClearedQuest((unsigned int)i))
         {
             hasClearedQuest = 1;
             break;
@@ -906,10 +908,10 @@ void Inter_LoadEtc::_checkUserDisadvantage(CUser* user)
     int hundredBase = 100;
     penalty = std::min(hundredBase, penalty);           // min(penalty, 100)
     penalty = 100 - penalty;                            // 100 - min
-    int dropRate = user->getStdDropRate();
-    penalty = std::min(penalty, dropRate);              // 再与当前掉率取小
+    // [b23S3C] P48：ORIG getStdDropRate 双臂各重取（+0x16a 入 min、+0x18f 入比较，无 dropRate 槽）
+    penalty = std::min(penalty, user->getStdDropRate());   // 再与当前掉率取小
 
-    if (dropRate != penalty)
+    if (user->getStdDropRate() != penalty)
     {
         DB_SaveUserHandicap::makeRequest(user->get_acc_id(), 0x9c41, 0x65,
                                          penalty, 3, 0);

@@ -1004,10 +1004,9 @@ void CBingoGmTest::reqValue()
             static_cast<BingoData*>(user->getBingoData())->m_pad4);
         if (gained > 0)
         {
-            if (gained > 3)
-            {
-                gained = 3;
-            }
+            // [b23S3C] ORIG +0x0f5 reg 形 clamp（读槽→cmp reg→合并 eax→写回），
+            // `if(gained>3) gained=3;` 4.4 恒出内存形；三目试复现统一写回。
+            gained = gained > 3 ? 3 : gained;
             static_cast<BingoData*>(user->getBingoData())->m_pad4 =
                 static_cast<char>(newValue);
             for (int i = 0; i < gained; ++i)

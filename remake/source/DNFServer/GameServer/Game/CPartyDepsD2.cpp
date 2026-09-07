@@ -1605,9 +1605,10 @@ int CParty::get_rate_level_difference()
 void TOD_UserState::ClearLayer()
 {
     reinterpret_cast<charac_expand::CData*>(this)->alter();
-    // this+0x14 = m_todayLayer（DataManagerInitDepends.h:288）
-    reinterpret_cast<TOD_Layer*>(&m_todayLayer)->increaseLayer();
-    m_lastClearTime = GlobalData::s_systemTime_.getCurSec();
+    // [b23S3C] S23A.Sec TOD_UserState→内嵌 m_data（SIG_REQUEST_TOD_USER_STATE）
+    // 迁移遗漏点修复（本 TU 编译红→绿；字段偏移经头 316-319 注释实证）。
+    reinterpret_cast<TOD_Layer*>(&m_data.m_todayLayer)->increaseLayer();
+    m_data.m_lastClearTime = GlobalData::s_systemTime_.getCurSec();
 }
 
 // ---------------------------------------------------------------------------

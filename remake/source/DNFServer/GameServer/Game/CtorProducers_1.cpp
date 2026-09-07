@@ -613,11 +613,13 @@ CLevelRewardTable::CLevelRewardTable()
     // ORIG 0x086975fe：i∈[0,0x45] 清 levelKeys[i]，名字槽(+0x14c8+21i)/留言槽
     // (+0x1a86+0x100i) 首字节 memcpy '1'（0x31，来自 rodata "127.0.0.1" 首字符，
     // 非 '\0'）；双层清空 primary(@+0x118)/secondary(@+0xaf0) 两块。
+    // [b23S3C] 名字/留言槽 ORIG 出 call memcpy(len 1)（4.1 对 1 字节常量拷贝
+    // 不内联；`= '1'` 直存产 movb 缺两条 call 形），改 memcpy("1",1) 直调。
     for (int i = 0; i <= 0x45; ++i)
     {
         m_levelKeys[i] = 0;
-        m_nameStrings[21 * i] = '1';
-        m_messages[0x100 * i] = '1';
+        memcpy(m_nameStrings + 21 * i, "1", 1);
+        memcpy(m_messages + 0x100 * i, "1", 1);
     }
     for (int j = 0; j < 9; ++j)
         for (int l = 0; l <= 0x45; ++l)

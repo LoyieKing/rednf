@@ -205,11 +205,15 @@ void SetUserManagerToolIP(CUser* user, SIG_UPDATE_LOGOUT* sig)
     if (static_cast<unsigned int>(prefixLen) > 0xc)
         return;
 
-    int suffixLen = static_cast<int>(std::strlen(dot + 1));
+    // [b23S3C] P48：后缀起点用 ipBuf+prefixLen+1 表达式（ORIG 两使用点各自
+    // `mov 0xc;lea 0x27;mov -0x10;add$1;lea(,%eax,1)` 重取 5 条；dot+1 缓存形
+    // 少 3 条/处，非 ORIG 表达式）。
+    int suffixLen =
+        static_cast<int>(std::strlen(sig->m_ipBuf + prefixLen + 1));
     if (static_cast<unsigned int>(suffixLen) > 4)
         return;
     std::strncpy(sig->m_ipPrefix, sig->m_ipBuf, prefixLen);
-    std::strncpy(sig->m_ipSuffix, dot + 1, suffixLen);
+    std::strncpy(sig->m_ipSuffix, sig->m_ipBuf + prefixLen + 1, suffixLen);
     sig->m_ipDword = user->m_mcap.m_field24;  // +0x8e414
 }
 

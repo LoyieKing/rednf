@@ -484,40 +484,25 @@ void CTestTradeRestrict::execute()
     // ---- 循环 1：m_pEquipSlot 数组（0x39 槽）----
     for (int i = 0; i < 0x39; ++i)
     {
-        const CInventory* rInv = user->getCurCharacInvenR();
-        const Inven_Item* slotsR = rInv->m_pEquipSlot;
-        if (slotsR[i].m_addInfo != 0 &&
-            slotsR[i].m_field1 == 1)                // ITEM_TYPE_EQUIP
-        {
-            Inven_Item* slotsW =
-                user->getCurCharacInvenW()->m_pEquipSlot;
-            slotsW[i].m_upgradeSep.m_field |= 0x20;  // 交易限制位
-        }
+        // ORIG 每用点 fresh 取 getter/基址（P48），右值表达式寻址（P0 无具名）
+        if (user->getCurCharacInvenR()->m_pEquipSlot[i].m_addInfo != 0 &&
+            user->getCurCharacInvenR()->m_pEquipSlot[i].m_field1 == 1)
+            user->getCurCharacInvenW()->m_pEquipSlot[i].m_upgradeSep.m_field |= 0x20;
     }
 
     // ---- 循环 2：inventory 对象内嵌数组（0x1a 槽，m_invenItem）----
     for (int i = 0; i < 0x1a; ++i)
     {
-        const CInventory* rInv = user->getCurCharacInvenR();
-        if (rInv->m_invenItem[i].m_addInfo != 0 &&
-            rInv->m_invenItem[i].m_field1 == 1)    // ITEM_TYPE_EQUIP
-        {
-            CInventory* invW = user->getCurCharacInvenW();
-            invW->m_invenItem[i].m_upgradeSep.m_field |= 0x20;
-        }
+        if (user->getCurCharacInvenR()->m_invenItem[i].m_addInfo != 0 &&
+            user->getCurCharacInvenR()->m_invenItem[i].m_field1 == 1)
+            user->getCurCharacInvenW()->m_invenItem[i].m_upgradeSep.m_field |= 0x20;
     }
 
     // ---- 循环 3：m_pAvatarSlot 数组（0x69 槽，仅判 itemIndex）----
     for (int i = 0; i < 0x69; ++i)
     {
-        const CInventory* rInv = user->getCurCharacInvenR();
-        const Inven_Item* slotsR = rInv->m_pAvatarSlot;
-        if (slotsR[i].m_addInfo != 0)
-        {
-            Inven_Item* slotsW =
-                user->getCurCharacInvenW()->m_pAvatarSlot;
-            slotsW[i].m_upgradeSep.m_field |= 0x20;  // 交易限制位
-        }
+        if (user->getCurCharacInvenR()->m_pAvatarSlot[i].m_addInfo != 0)
+            user->getCurCharacInvenW()->m_pAvatarSlot[i].m_upgradeSep.m_field |= 0x20;
     }
 
     // ---- 循环 4：角色仓库 CCargo（0x98 槽）----

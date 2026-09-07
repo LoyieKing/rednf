@@ -992,8 +992,8 @@ void CFairMatch::UpdateScore(PvP_Room* room, PlayerInfoThird& info,
         PlayerInfoThird& cap = m_teams[teamIdx].m_players[0];
         CFairPvPScore* score = reinterpret_cast<CFairPvPScore*>(
             user->GetCharacExpandData(static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)));
-        score->UpdateScore(static_cast<int>(cap.m_job),
-                           cap.m_growType & 0xf,
+        score->UpdateScore(static_cast<int>(cap.m_kind.m_job),
+                           cap.m_kind.m_grow & 0xf,
                            static_cast<int>(playCount),
                            win, lose, result, killCnt);
 

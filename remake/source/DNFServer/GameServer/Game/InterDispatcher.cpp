@@ -616,7 +616,8 @@ int Inter_Disconnect::dispatch_sig(CUser* user, char* data, int /*len*/)
     const unsigned int uid = user->GetUID();
     if (user->m_mcap.IsSaveCleanPadPoint())
     {
-        DB_SaveCleanpadPoint::makeRequest(user->m_mcap.getPoint(), accId);
+        // [b23S3C] P48：ORIG 此处二次 call get_acc_id（uVar6 缓存供尾部三件，本点重新取）。
+        DB_SaveCleanpadPoint::makeRequest(user->m_mcap.getPoint(), user->get_acc_id());
         user->m_mcap.disableCleanPadPoint();
     }
     G_CGameManager()->user_disconnect(user);
@@ -5642,7 +5643,8 @@ int Inter_AvatarInsert::dispatch_sig(CUser* user, char* data, int /*len*/)
     mgr->AssignAvatarItemKey(item.m_addInfo2, (int)addInfoKey);
     item.m_addInfo2 = (int)addInfoKey;
 
-    invenW->update_item((INVEN_TYPE)2, slot, item);
+    // [b23S3C] P48：ORIG update_item 前重新 call getCurCharacInvenW（共 2 次），不复用 invenW。
+    user->getCurCharacInvenW()->update_item((INVEN_TYPE)2, slot, item);
     return 0;
 }
 

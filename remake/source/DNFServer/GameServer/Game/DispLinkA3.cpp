@@ -100,29 +100,35 @@ int Dispatcher_SecretShopOpenClose::check_error(CUser* user, MSG_BASE& msg, Para
 // ============================================================================
 int Dispatcher_SecurityCardAuthCancel::process(CUser* user)
 {
-    WongWork::CSecurityCard* card = user->getSecurityCard();
-    if (card->isActivate() != 0)
+    // [b23S3C] P48：ORIG getSecurityCard ×5 / getPad ×5 每用点独立重取
+    // （p167 MISSING 各 -4 即此），card/pad 无具名槽。
+    if (user->getSecurityCard()->isActivate() != 0)
     {
-        card->setRequestState(WongWork::CSecurityCard::eRequestStateNone);
-        card->incCancelCnt();
-        unsigned int cancelCnt = (unsigned int)card->getCancelCnt();
-        unsigned int accId = user->get_acc_id();
-        DB_SecurityCardUpdateCancelCnt::makeRequest(accId, cancelCnt);
-        (void)card->getCancelCnt();                       // ORIG 尾部读（结果丢弃）
+        user->getSecurityCard()->setRequestState(
+            WongWork::CSecurityCard::eRequestStateNone);
+        user->getSecurityCard()->incCancelCnt();
+        DB_SecurityCardUpdateCancelCnt::makeRequest(
+            user->get_acc_id(),
+            (unsigned int)user->getSecurityCard()->getCancelCnt());
+        // [b23S3C] ORIG +0x08c：尾部 getCancelCnt 后 `cmp $0x9,%eax` 死比较
+        // （结果弃置、无分支）⇒ 比较表达式语句形。
+        if (user->getSecurityCard()->getCancelCnt() == 9)  // ORIG cmp $9（死比较岛）
+        {
+        }
     }
     else
     {
-        Sanicova::CPad* pad = user->getPad();
-        if (pad->isActivate() != 0)
+        if (user->getPad()->isActivate() != 0)
         {
-            pad->setRequestState(Sanicova::CPad::eRequestStateNone);
-            pad->incCancelCnt();
-            char const* webAddress = user->getWebAddress();
-            unsigned int cancelCnt = (unsigned int)pad->getCancelCnt();
-            unsigned int accId = user->get_acc_id();
-            DB_PassPadUpdateCancelCnt::makeRequest(accId, cancelCnt,
-                                                   (char*)webAddress);
-            (void)pad->getCancelCnt();                    // ORIG 尾部读（结果丢弃）
+            user->getPad()->setRequestState(Sanicova::CPad::eRequestStateNone);
+            user->getPad()->incCancelCnt();
+            DB_PassPadUpdateCancelCnt::makeRequest(
+                user->get_acc_id(),
+                (unsigned int)user->getPad()->getCancelCnt(),
+                (char*)user->getWebAddress());
+            if (user->getPad()->getCancelCnt() == 9)      // ORIG +0x12d cmp $9（死）
+            {
+            }
         }
     }
     return 1;

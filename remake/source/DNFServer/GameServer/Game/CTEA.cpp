@@ -187,36 +187,63 @@ int CTEA::ResetChain()
     return 0x6fffffff;
 }
 
-int CTEA::Initialize(const char* key, int keyLen, const char* iv, int ivLen, int mode)
+// [b23S3C] ORIG T 0x080c339c 全量重转写：旧形为猜测版（缺 +0x14 写/双 memcmp 复用
+// 判定/BytesToWord×4），参数语义照 ORIG：第 3 参是与 m_chain2 比较的另一 key，
+// 第 4/5 参分别落 +0x10/+0x14 并做 0..2 值域守卫。
+int CTEA::Initialize(const char* key, int keyLen, const char* otherKey,
+                     int mode1, int mode2)
 {
     if (key == 0)
         return 0x70000001;
     if (keyLen < 1)
         return 0x70000002;
-    if (mode < 0 || mode > 2)
+    if (mode1 < 0 || mode1 > 2)
         return 0x70000003;
-    m_mode = mode;
-    // key 循环填充到 16 字节（ORIG：local_28[i] = key[i % keyLen]）
-    unsigned char cycled[0x10];
+    if (mode2 < 0 || mode2 > 2)
+        return 0x70000004;
+
+    m_mode = mode1;
+    m_padding = mode2;
+
+    // 循环填充 buf（ORIG -0x24；圈计数用 this->m_keyLength，取模用 keyLen）。
+    unsigned char buf[0x10];
+    int i = 0;
     int src = 0;
-    for (int i = 0; i < 0x10; ++i)
+    for (; i < m_keyLength; src = (src + 1) % keyLen)
     {
-        cycled[i] = (unsigned char)key[src];
-        src = (src + 1) % keyLen;
+        buf[i] = (unsigned char)key[src];
+        ++i;   // [b23S3C] ORIG 0x84 i++ 在体内、src 取模在增补段（装载序实证）
     }
-    std::memcpy(m_key, cycled, sizeof(m_key));
-    if (iv && ivLen > 0)
+
+    bool sameKey = false;
+    bool sameChain = false;
+    if (m_bInit)
     {
-        std::memcpy(m_iv, iv, ivLen < 0x10 ? ivLen : 0x10);
-        std::memcpy(m_chain, iv, ivLen < 0x10 ? ivLen : 0x10);
+        if (std::memcmp(m_chain2, otherKey, m_blockSize) == 0)
+            sameChain = true;
+        if (std::memcmp(m_key, buf, m_keyLength) == 0)
+            sameKey = true;
+    }
+    if (sameChain)
+    {
+        std::memcpy(m_chain2, m_chain, m_blockSize);
     }
     else
     {
-        std::memset(m_iv, 0, sizeof(m_iv));
-        std::memset(m_chain, 0, sizeof(m_chain));
+        std::memcpy(m_chain, otherKey, m_blockSize);
+        std::memcpy(m_chain2, otherKey, m_blockSize);
     }
+    if (sameKey)
+        return 0x6fffffff;
+
+    std::memcpy(m_key, buf, m_keyLength);
+    IMethod::BytesToWord(buf + 0x0, *(unsigned int*)(m_iv + 0x0));
+    IMethod::BytesToWord(buf + 0x4, *(unsigned int*)(m_iv + 0x4));
+    IMethod::BytesToWord(buf + 0x8, *(unsigned int*)(m_iv + 0x8));
+    IMethod::BytesToWord(buf + 0xc, *(unsigned int*)(m_iv + 0xc));
     m_bInit = true;
     return 0x6fffffff;
 }
+
 
 const char CTEA::sm_chain0[8] = {0, 0, 0, 0, 0, 0, 0, 0};

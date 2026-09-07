@@ -936,7 +936,7 @@ int PvP_Room::check_acquire_guild_point()
     }
     return 0;
 }
-int PvP_Room::check_winner()
+bool PvP_Room::check_winner()
 {
     // ORIG 0x085d98ea（274 条；本侧 290，+16 全为 N 类形态差，台账豁免）：
     //  - 帧调整 4.1 `add $0xffffff80,%esp`（负常量折叠）vs 4.4 `sub $0x90`；
@@ -1314,12 +1314,22 @@ LAB_085d6dde:
 
 int PvP_Room::leave_room(CUser* user, bool& flag)
 {
-    int local_24;
+    // [b23S3C] P37/P52 日志形：ORIG ctor 前 6 值分两路物化 —— waiter/flag/mode
+    // 落槽 -0x44/-0x40/-0x3c（具名局部），index/name/acc 经 callee-saved
+    // edi/esi/ebx 跨 ctor 调用缓存（register 形）；varargs 装载序
+    // ebx=acc,esi=name,edi=index,槽 mode/flag/waiter。
+    // P16/P56：fail 分支直接 `return -1`（ORIG mov$-1;jmp epilogue，
+    // 非槽写-1再共享尾读 —— 旧形多 1 条即 sheet gap=-1 来源）。
+    int local_44 = get_waiter_count();
+    int local_40 = flag;
+    int local_3c = get_pvp_battle_mode();
+    register int roomIndex = get_index();
+    register const char* characName = user->getCurCharacName();
+    register const char* accName = user->get_acc_name();
     {
         CSwitchLog local_34(__PRETTY_FUNCTION__, 0x6c2, 0, 0);   // ORIG 同文（P139）
-        local_34("pvp@log %s,%s,room(%d),%d,%d,%d", user->get_acc_name(),
-                 user->getCurCharacName(), m_index, m_pvpBattleMode, flag ? 1 : 0,
-                 get_waiter_count());
+        local_34("pvp@log %s,%s,room(%d),%d,%d,%d", accName, characName,
+                 roomIndex, local_3c, local_40, local_44);
     }
     lock();
     if (m_seats[7] == user)
@@ -1327,12 +1337,11 @@ int PvP_Room::leave_room(CUser* user, bool& flag)
         select_new_manager();
         flag = true;
     }
-    local_24 = get_user_seat(user);
+    int local_24 = get_user_seat(user);
     if (local_24 < 0)
     {
-        local_24 = -1;
+        return -1;
     }
-    else
     {
         if (get_state() == 2)
         {
@@ -1351,7 +1360,9 @@ int PvP_Room::leave_room(CUser* user, bool& flag)
         user->getHackAnalyzer()->resetHackInfo();
         if (m_state == 2)
         {
-            if (check_winner() != 0)
+            // [b23S3C] P9/P159：check_winner 头改 bool（ORIG 体尾 movw $0,%ax），
+            // 调用点裸形即复现 ORIG test %al 直判。
+            if (check_winner())
             {
                 pvp_request_pvp_rank();
             }

@@ -959,46 +959,71 @@ int CLeagueMatch::_CheckSchool(PvP_Room* room, CUser* user)   // ORIG T 0x0855ce
 int CLeagueMatch::addBadge(PlayerInfo* info, ENUM_BADGE_TYPE badgeType,
                            unsigned char* msgFlag, bool extra)   // ORIG T 0x0855e7ee
 {
-    do {
-        if (!info->m_flag)    // ORIG movzbl 0xc + xor $1（flag==0 → 返回 0）
-            break;
-        if (info->m_user == 0)
-            break;
-        if (info->m_user->getCurCharacR() == 0)
-            break;
+    // [b23S3C] 直返形（ORIG 各 guard return-0 body fall-through）；flag 判定
+    // 为 `== 1`（ORIG xor$1：flag∉{0,1} 值域下 ==1 才过，`!flag` 语义差）；
+    // 红蓝合计去 sum 具名局部（ORIG 无槽：movswl/cwtl/lea 直比 cmp $9,%eax）；
+    // count 双句式 `int count=0; if(extra)++count`（ORIG `movl $0; cmpb; addl$1`
+    // 分支岛非三目物化）；三分支各复制完整 findString+snprintf call 序列
+    // （ORIG 三独立岛，非选串指针汇聚）；值表达式 (int)*msgFlag+count 右→左
+    // 求值先于 findString（ORIG ebx 先算）。
+    if (info->m_flag != 1)
+        return 0;
+    if (info->m_user == 0)
+        return 0;
+    if (info->m_user->getCurCharacR() == 0)
+        return 0;
 
-        if (badgeType == 0) {
-            if (info->m_user->GetDailyBadge(ENUM_BADGE_TYPE_0) > 9)
-                break;
-        } else {
-            int sum = info->m_user->GetDailyBadge(static_cast<ENUM_BADGE_TYPE>(1)) +
-                      info->m_user->GetDailyBadge(static_cast<ENUM_BADGE_TYPE>(2));
-            if (sum > 9)
-                break;
-        }
+    if (badgeType == 0) {
+        // ORIG `mov 0x10(%ebp),%edx` 传形参变量本身（非 $0 立即数）。
+        if (info->m_user->GetDailyBadge(badgeType) > 9)
+            return 0;
+    } else {
+        if (info->m_user->GetDailyBadge(static_cast<ENUM_BADGE_TYPE>(1)) +
+            info->m_user->GetDailyBadge(static_cast<ENUM_BADGE_TYPE>(2)) > 9)
+            return 0;
+    }
 
-        info->m_user->AddDailyBadge(badgeType);
-        *msgFlag = 1;
-        // ORIG：count 初 0，仅 extra 加 1（不读 *msgFlag）。
-        int count = extra ? 1 : 0;
+    info->m_user->AddDailyBadge(badgeType);
+    *msgFlag = 1;
+    // ORIG：count 初 0，仅 extra 加 1（不读 *msgFlag）。
+    int count = 0;
+    if (extra)
+        ++count;
 
-        char textBuf[0x100] = { '\0' };   // P4：ORIG rep stos 内联清零
-        const char* key = (badgeType == 1) ? "school_red_badge_msg"
-                        : (badgeType == 2) ? "school_blue_badge_msg"
-                                           : "school_green_badge_msg";
-        const char* fmt = g_scriptStringManager_.findString(4, key, (bool*)0);
-        OS_API::snprintf(textBuf, 0xff, fmt, count);
+    char textBuf[0x100] = { '\0' };   // P4：ORIG rep stos 内联清零
+    // switch 分发（ORIG 比较值入 %eax 三段 cmp+je、无 default → case 尾 jmp 汇入；
+    // 4.4 if-else 链折 `cmpl $K,mem`，switch 保寄存器装载形）。
+    switch (badgeType) {
+    case (ENUM_BADGE_TYPE)1:
+        OS_API::snprintf(textBuf, 0xff,
+                         (const char*)g_scriptStringManager_.findString(
+                             4, "school_red_badge_msg", (bool*)0),
+                         (int)*msgFlag + count);
+        break;
+    case (ENUM_BADGE_TYPE)2:
+        OS_API::snprintf(textBuf, 0xff,
+                         (const char*)g_scriptStringManager_.findString(
+                             4, "school_blue_badge_msg", (bool*)0),
+                         (int)*msgFlag + count);
+        break;
+    case ENUM_BADGE_TYPE_0:
+        OS_API::snprintf(textBuf, 0xff,
+                         (const char*)g_scriptStringManager_.findString(
+                             4, "school_green_badge_msg", (bool*)0),
+                         (int)*msgFlag + count);
+        break;
+    default:
+        break;
+    }
 
-        PacketGuard pkt;
-        pkt.put_header(0, 0xc);
-        pkt.put_byte(0);
-        pkt.put_short(0);
-        pkt.put_byte(0);
-        pkt.put_int((int)strlen(textBuf));
-        pkt.put_str(textBuf, (int)strlen(textBuf));
-        pkt.finalize(true);
-        info->m_user->Send(pkt);
-        return 1;
-    } while (0);
-    return 0;
+    PacketGuard pkt;
+    pkt.put_header(0, 0xc);
+    pkt.put_byte(0);
+    pkt.put_short(0);
+    pkt.put_byte(0);
+    pkt.put_int((int)strlen(textBuf));
+    pkt.put_str(textBuf, (int)strlen(textBuf));
+    pkt.finalize(true);
+    info->m_user->Send(pkt);
+    return 1;
 }

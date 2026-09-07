@@ -178,16 +178,22 @@ int BingoEvent::reqBingoMark(StackableAction::input_param& param)
     {
         return 0x13;
     }
-    BingoData* data = static_cast<BingoData*>(param.m_user->getBingoData());
+    // [b23S3C] ORIG 0x080c9ff6 `call getBingoData` 共 8 次（+0x39/+0xc4/+0xd7/+0x10b/
+    // +0x129/+0x13b/+0x172/+0x1ee），无 `data` 具名指针槽 ⇒ P48 每用点重取；
+    // 字段访问一律经 BingoData* 出单条 disp 形（`movb $0x1,0x6(%eax)`/`movzbl 0x4(%eax)`/
+    // `mov %dl,0x4(%eax)`）。calNewValue 的 &m_eventId ORIG 落 %ebx 跨 operator-> 存活
+    // （P197②），残余记 N。
     // +0x04（连线数，signed char）> 2 即已达 3 次标记上限。
-    if (static_cast<signed char>(data->m_pad4) > 2)
+    if (static_cast<signed char>(
+            static_cast<BingoData*>(param.m_user->getBingoData())->m_pad4) > 2)
     {
         return 0x7;
     }
     // CStackableItem +0x3a0 = m_vec3a0（vector<int>），第 0 项为请求标记号（推断）。
-    std::vector<int>* itemVec =
-        &reinterpret_cast<CStackableItem*>(param.m_item)->m_vec3a0;
-    int markNo = (*itemVec)[0];
+    // [b23S3C] ORIG `add $0x3a0,%eax; mov %eax,(%esp)` 直落 operator[] 的 this 实参，
+    // 无 itemVec 具名槽（P0/P48）⇒ 索引表达式内联；同时少一槽使 PacketGuard 帧基
+    // 由 -0x30 回到 ORIG 的 -0x2c。
+    int markNo = reinterpret_cast<CStackableItem*>(param.m_item)->m_vec3a0[0];
     if (markNo < 1 || markNo > 0x32)
     {
         return 0x17;
@@ -197,19 +203,23 @@ int BingoEvent::reqBingoMark(StackableAction::input_param& param)
     {
         return 0x13;
     }
-    unsigned int oldBoard = data->m_eventId;
-    int newLines = m_bingo->calNewValue(data->m_eventId, randValue);
-    if (data->m_eventId != oldBoard)
+    unsigned int oldBoard =
+        static_cast<BingoData*>(param.m_user->getBingoData())->m_eventId;
+    int newLines = m_bingo->calNewValue(
+        static_cast<BingoData*>(param.m_user->getBingoData())->m_eventId, randValue);
+    if (static_cast<BingoData*>(param.m_user->getBingoData())->m_eventId != oldBoard)
     {
-        data->m_needSave = true;                       // +0x06
-        int diff = newLines - static_cast<signed char>(data->m_pad4);
+        static_cast<BingoData*>(param.m_user->getBingoData())->m_needSave = true;
+        int diff = newLines - static_cast<signed char>(
+            static_cast<BingoData*>(param.m_user->getBingoData())->m_pad4);
         if (diff > 0)
         {
             if (diff > 3)
             {
                 diff = 3;
             }
-            data->m_pad4 = static_cast<char>(newLines);
+            static_cast<BingoData*>(param.m_user->getBingoData())->m_pad4 =
+                static_cast<char>(newLines);
             for (int i = 0; i < diff; ++i)
             {
                 sendOneMatchLineReward(*param.m_user);
@@ -220,7 +230,8 @@ int BingoEvent::reqBingoMark(StackableAction::input_param& param)
     packet.clear();
     packet.put_header(0, 0x1c3);
     packet.put_byte(randValue);
-    packet.put_int(static_cast<int>(data->m_eventId));
+    packet.put_int(static_cast<int>(
+        static_cast<BingoData*>(param.m_user->getBingoData())->m_eventId));
     packet.finalize(true);
     param.m_user->Send(packet);
     return 0;

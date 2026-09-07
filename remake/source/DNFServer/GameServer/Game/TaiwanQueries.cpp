@@ -818,20 +818,43 @@ void GarenaAuthPCRoom(CUser* user)
     if (user == 0)
         return;
 
+    // [b23S3C] ORIG 调用点为头内联字段直写（+0x01d movl $1,-0x15 = result、
+    // +0x024 movb $1、+0x028 movb $0xb、+0x03d mov -0x11 = patchTime、
+    // put_binary 长度 movzwl +0x2 = len），非 setter call；TaiwanQueries.h 为
+    // S23A 避让头，本地 pack(1) 视图复现（偏移出自该类各 setter 注记与 ctor
+    // 0x0822be14 清零区实证）。字段化终态报 Main 代落。
+    struct F {
+        unsigned short m_type;         // +0x00
+        unsigned short m_len;          // +0x02
+        char m_headPad4[0x0e];         // +0x04..+0x11（含 uid/accId 清零区）
+        unsigned int m_result;         // +0x12
+        unsigned int m_patchTime;      // +0x16
+        unsigned char m_mobileAuth;    // +0x1a
+        unsigned char m_gcaType;       // +0x1b
+        char m_pad1c[4];               // +0x1c..+0x1f
+    };
+    // （C++98 union 禁带 ctor 成员；4.4 不融合 cast 视图写 ⇒ 5 行为
+    // N18a/N82 族封顶，字段化终态待 Main 代落 TaiwanQueries.h。）
     Packet_Pcroom_Response resp;
-    resp.setResult(1);
-    resp.setMobileAuth(1);
-    resp.setGcaType(0xb);
-    resp.setPatchTime(static_cast<unsigned int>(time(0)) + 0x93a80);
+    reinterpret_cast<F*>(&resp)->m_result = 1;
+    reinterpret_cast<F*>(&resp)->m_mobileAuth = 1;
+    reinterpret_cast<F*>(&resp)->m_gcaType = 0xb;
+    reinterpret_cast<F*>(&resp)->m_patchTime =
+        static_cast<unsigned int>(time(0)) + 0x93a80;
 
     int uid = static_cast<int>(user->GetUID());
     int accId = static_cast<int>(user->get_acc_id());   // ORIG 读取未再使用
 
-    Stream* st = GlobalData::s_stream_pool->Acquire("DF_PCRoomServerProxy.cpp", 0x1ab);
-    CStreamGuard guard(st, true);
-    guard << 0x17e;   // ORIG: operator<<(int) 后经 operator*() 再 <<（无副作用）
-    guard << uid;
-    guard.put_binary(&resp, static_cast<int>(resp.getLen()));
+    // [b23S3C] P48/P0：Acquire 右值直落 ctor 实参（无 stream 槽，ORIG +0x081）；
+    // 写流两跳 `(*guard)->operator<<`（deEv 080c8c46 + lsEi 080c8c56 各一次，
+    // +0x090/+0x0ae）；put_binary 走 operator->（ptEv +0x0d2）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DF_PCRoomServerProxy.cpp", 0x1ab),
+        true);
+    (*guard)->operator<<(0x17e);
+    (*guard)->operator<<(uid);
+    guard.operator->()->put_binary(
+        &resp, reinterpret_cast<F*>(&resp)->m_len);
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     (void)accId;

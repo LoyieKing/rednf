@@ -436,8 +436,8 @@ pack_ret_t IndexEntry::get_content(PackSet* owner, hash_t code, unsigned char* d
     }
 
     *content_size = 0;
-    FILE* fp = owner->pack_file();
-    if (fp == 0)
+    // [b23S3C] P198②：ORIG 直测 call 返回寄存器（test/sete 形，无 fp 槽）——谓词内联，勿提具名局部。
+    if (owner->pack_file() == 0)
     {
         fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x145, __FUNCTION__);
         return PACK_ERROR;
@@ -449,6 +449,7 @@ pack_ret_t IndexEntry::get_content(PackSet* owner, hash_t code, unsigned char* d
         return PACK_ERROR;
     }
 
+    // [b23S3C] ORIG je/jne 块布局为 codegen 选择（反条件实测 +3 反劣化），保持自然语义形。
     if (content_ == 0)
     {
         if (type_ == ENTRY_FILE)

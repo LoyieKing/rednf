@@ -422,7 +422,10 @@ bool AvatarFixedHiddenOptionServer::CheckCondition(
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 0x16);
         return false;
     }
-    if (m_script.isMaterialItemIndex((int)material.m_addInfo))
+    // [b23S3C] ORIG +0x162 call Singleton::Get(); add $4 → m_script 再调成员
+    // （P48 使用点重取单例），m_script 直成员调会少一发 call（p167 实证）。
+    if (ARAD::Singleton<AvatarFixedHiddenOptionServer>::Get()
+            ->m_script.isMaterialItemIndex((int)material.m_addInfo))
     {
         Inven_Item avatar;
         avatar = invW->GetInvenSlot(2, (int)sig->m_avatarSlot);

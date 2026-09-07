@@ -717,31 +717,20 @@ bool DisPatcher_DebugCommand::_debugCommandClearInven(CUser* user,
 bool DisPatcher_DebugCommand::_debugCommandClearAvtInven(CUser* user,
                                                          MSG_DEBUG_COMMAND& /*msg*/)
 {
-    int i = 0;                                                  // -0xc
-    do {
-        if (0x68 < i)                                           // 槽 0..0x68 结束
+    // [b23S3C] GmCmds_B CClearAvatarInvenCmd::execute(0x084aafb0) 同族：
+    // 尾检循环（ORIG 头仅 -0xc i 预清+jmp tail，`i<=0x68` setle 形）；
+    // 两读位各独立 getCurCharacInvenR、delete/event 各独立 W（P48）；
+    // delete_item 直测 xor$1 形（bool 返）；NumberToString 直落实参槽；
+    // send_itemspace 循环外尾段（xor$1 需 bool——CUser.h 冻结，报 Main）。
+    for (int i = 0; i <= 0x68; ++i)
+    {
+        if (user->getCurCharacInvenR()->m_pAvatarSlot[i].m_addInfo != 0)
         {
-            bool ok = user->send_itemspace(1) == 1;             // +0x150 AVATAR=1
-            if (!ok)
-            {
-                LogManager::logFormat(
-                    1, "DisPatcher_DebugCommand_First.h",
-                    g_dbgCmdPrettyClearAvtInven, 0x417,
-                    "DisPatcher_DebugCommand::_debugCommandClearAvtInven, pUser(%s)->"
-                    "send_itemspace( ENUM_ITEMSPACE_AVATAR ) return FAILED",
-                    NumberToString(user->get_acc_id(), 0));
-            }
-            return ok;
-        }
-        CInventory* invR = user->getCurCharacInvenW();
-        if (invR->m_pAvatarSlot[i].m_addInfo != 0)              // +0x32 读 item+2
-        {
-            int avatarUid = invR->m_pAvatarSlot[i].m_addInfo2;  // +0x5a 读 item+7
-            CInventory* invW = user->getCurCharacInvenW();
-            bool ok = invW->delete_item(                        // +0x92 delete(2,i,1,reason3,true)
-                           static_cast<INVEN_TYPE>(2), i, 1,
-                           static_cast<eItemDelReason>(3), true) == 1;
-            if (!ok)
+            int avatarUid =
+                user->getCurCharacInvenR()->m_pAvatarSlot[i].m_addInfo2;
+            if (!user->getCurCharacInvenW()->delete_item(
+                    static_cast<INVEN_TYPE>(2), i, 1,
+                    static_cast<eItemDelReason>(3), true))
             {
                 LogManager::logFormat(
                     1, "DisPatcher_DebugCommand_First.h",
@@ -751,10 +740,21 @@ bool DisPatcher_DebugCommand::_debugCommandClearAvtInven(CUser* user,
                     NumberToString(user->get_acc_id(), 0));
                 return false;
             }
-            invW->SendAvatarEvent(0x36, avatarUid, 1, i + 0xa, 0);  // +0x12a
+            user->getCurCharacInvenW()->SendAvatarEvent(0x36, avatarUid, 1,
+                                                        i + 0xa, 0);
         }
-        ++i;
-    } while (true);
+    }
+    if (user->send_itemspace(1) != 1)
+    {
+        LogManager::logFormat(
+            1, "DisPatcher_DebugCommand_First.h",
+            g_dbgCmdPrettyClearAvtInven, 0x417,
+            "DisPatcher_DebugCommand::_debugCommandClearAvtInven, pUser(%s)->"
+            "send_itemspace( ENUM_ITEMSPACE_AVATAR ) return FAILED",
+            NumberToString(user->get_acc_id(), 0));
+        return false;
+    }
+    return true;
 }
 
 // ===========================================================================

@@ -274,7 +274,8 @@ dnf_service(game
         ${SVC_DIR}/W9Interval.cpp
         ${SVC_DIR}/W9HeroCondition.cpp   # line 121: HeroMissionCondition/Base 域实现
         ${SVC_DIR}/W9_StructMisc.cpp     # line 122: stRankSystemInfo/RecoveryInfo/stCeraShopBonusItemInfo_t/TOD_UserState 生命周期（W9_StructMisc 批）
-        ${SVC_DIR}/WindowsPackFiles.cpp # line 123: WindowsExe/DataFile/PackFile 校验族+CBitManager/CObfuscator/CCompressedBlob/LoadClientFile（W9_WinExe 批）
+        ${SVC_DIR}/CBitManager.cpp     # line 123 前置：CBitManager 位流工具族（ORIG 0x0831c09c..0x0831c3af 独立 TU，自 WindowsPackFiles.cpp 拆出以恢复 CObfuscator ctor 的 ORIG EH landing pad）
+        ${SVC_DIR}/WindowsPackFiles.cpp # line 123: WindowsExe/DataFile/PackFile 校验族+CObfuscator/CCompressedBlob/LoadClientFile（W9_WinExe 批）
         ${SVC_DIR}/advancealtar_misc.cpp
         ${SVC_DIR}/StringResource.cpp
         ${SVC_DIR}/StringTypes.cpp      # CharString/WideString 方法实现（HEAD 曾有登记，误删后补回）

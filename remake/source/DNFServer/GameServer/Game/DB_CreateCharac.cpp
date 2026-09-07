@@ -352,40 +352,43 @@ bool DB_CreateCharac::_checkCharacName(MySQL* db, char const* dbTable,
     }
 
     int deleted = 0;
-    int nRows = db->get_n_rows();
-    if (nRows == 0)
+    if (db->get_n_rows() == 0)
     {
         return true;
     }
     sig->m_resultCode = 2;
-    bool badFetch = !db->fetch() || !db->get_int(0, deleted);
-    if (!badFetch)
+    // [b23S3C] P48 去缓存：无 nRows/badFetch 具名槽（ORIG rows 直判 + log 点
+    // 二次 call；短路双 xor 直判无 al 落槽）；deleted!=0 反形（ORIG `test;je
+    // gc块`、rc3 作 body，P191）；rowCnt/qs 在 ctor 前求值（ORIG +0x10c/
+    // +0x17d call 位于 ctor 之前），值跨 ctor 4.1 落 %ebx/%esi 寄存器缓存
+    // （4.4 槽=1 条差，N18a）。
+    if (!db->fetch() || !db->get_int(0, deleted))
+        return false;
+    if (deleted != 0)
     {
-        if (deleted == 0)
+        sig->m_resultCode = 3;
+    }
+    else
+    {
+        if (G_CEnvironment()->get_gc_no() == 0x3f2)
         {
-            if (G_CEnvironment()->get_gc_no() == 0x3f2)
+            int rowCnt = db->get_n_rows();
+            cMyTrace trace(
+                __PRETTY_FUNCTION__,
+                0xd6a, 5);
+            trace("already charac_name(%s) row(%d)", sig->m_name, rowCnt);
+            // DAT_08c42c04 = "사이토"（ORIG 字符串常量）
+            static const char BASELINE_NAME[] = "\xec\x82\xac\xec\x9d\xb4\xed\x86\xa0";
+            if (strcmp(sig->m_name, BASELINE_NAME) == 0)
             {
-                cMyTrace trace(
+                const char* qs = db->GetQueryString();
+                cMyTrace queryTrace(
                     __PRETTY_FUNCTION__,
-                    0xd6a, 5);
-                trace("already charac_name(%s) row(%d)", sig->m_name, nRows);
-                // DAT_08c42c04 = "사이토"（ORIG 字符串常量）
-                static const char BASELINE_NAME[] = "\xec\x82\xac\xec\x9d\xb4\xed\x86\xa0";
-                if (strcmp(sig->m_name, BASELINE_NAME) == 0)
-                {
-                    cMyTrace queryTrace(
-                        __PRETTY_FUNCTION__,
-                        0xd6d, 5);
-                    queryTrace("already charac_name query(%s)",
-                               db->GetQueryString());
-                }
+                    0xd6d, 5);
+                queryTrace("already charac_name query(%s)", qs);
             }
-            sig->m_resultCode = 1;
         }
-        else
-        {
-            sig->m_resultCode = 3;
-        }
+        sig->m_resultCode = 1;
     }
     return false;
 }

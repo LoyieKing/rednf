@@ -447,31 +447,38 @@ void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x
     {
         return;
     }
-    const int rate = m_pDungeon->getAICharacterAppearRate();
-    if (rate == 0 || get_rand_int(100) >= rate)
-        return;
+    // [b23S3C] P48 双取：ORIG getAICharacterAppearRate() 每判各调一次
+    // （非空检查 1 次、rand 比较 1 次存 %ebx 跨 get_rand_int call）；
+    // EXTRA map_monster C1ERKS/D1 = 4.4 Add_Mob 大对象 by-value caller
+    // 复制（P67 跨版本 ABI 豁免）。
+    if (m_pDungeon->getAICharacterAppearRate() != 0
+        && m_pDungeon->getAICharacterAppearRate() > get_rand_int(100))
+    {
+        CAICharacter* ai =
+            G_CDataManager()->m_aiCharacterList->getByLevel(
+                static_cast<unsigned int>(m_pDungeon->get_standard_level()));
+        if (ai == NULL)
+            return;
 
-    CAICharacter* ai =
-        G_CDataManager()->m_aiCharacterList->getByLevel(
-            static_cast<unsigned int>(m_pDungeon->get_standard_level()));
-    if (ai == NULL)
-        return;
+        std::memset(&mob, 0, sizeof(map_monster));  // ORIG 显式 memset 0x34c
+        mob.m_mobId = 0x40;
+        mob.m_mobIndex = ai->getIdx();
+        mob.m_instId = uid;
+        uid = mob.m_instId + 1;
+        mob.m_roleType = 5;
+        // [b23S3C] P47：ORIG 真臂 fall-through（dim>0 读 +0x238），getLevel
+        // 在 je 臂；m_field11 short=0 产单 movw（ORIG 0x11/0x12 双 movb，
+        // 字段拆分属 Monster 域批次）。
+        mob.m_level =
+            (m_pDungeon->get_dimension_possible() > 0)
+                ? static_cast<char>(m_standardDimensionLevel)
+                : static_cast<char>(ai->getLevel());
+        mob.m_dropCnt = 100;
+        mob.m_field11 = 0;
 
-    std::memset(&mob, 0, sizeof(map_monster));      // 同上：ORIG 显式 memset 0x34c
-    mob.m_mobId = 0x40;
-    mob.m_mobIndex = ai->getIdx();
-    mob.m_instId = uid;
-    uid = mob.m_instId + 1;
-    mob.m_roleType = 5;
-    mob.m_level =
-        (m_pDungeon->get_dimension_possible() < 1)
-            ? static_cast<char>(ai->getLevel())
-            : static_cast<char>(m_standardDimensionLevel);
-    mob.m_dropCnt = 100;
-    mob.m_field11 = 0;   // +0x11/+0x12 双字节清零
-
-    map_monster tmp(mob);
-    GetCurrentMapInfo()->Add_Mob(tmp);
+        map_monster tmp(mob);
+        GetCurrentMapInfo()->Add_Mob(tmp);
+    }
 }
 
 // ORIG 0x083022a8：从候选表中随机抽 count 只追加为宝箱怪（每轮一次 rand 取槽）。

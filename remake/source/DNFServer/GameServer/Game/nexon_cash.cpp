@@ -288,6 +288,9 @@ bool TCPSocket::connect(const char* host, unsigned short port)
 bool TCPSocket::connect_nonb(const char* host, unsigned short port,
                              timeval timeout)
 {
+    // [b23S3C] P48：ORIG connect 错误链对 errno 每判重取 __errno_location()
+    // （4 次独立 call，&& 短路）；成功路径单一共享尾（result==0 跳过 select
+    // 块直达 memcpy）——旧形 result==0 早返回造成 EXTRA memcpy+1。
     struct sockaddr_in adrs;
     memset(&adrs, 0, sizeof(adrs));
     adrs.sin_family = 2;
@@ -298,39 +301,38 @@ bool TCPSocket::connect_nonb(const char* host, unsigned short port,
 
     setOptNonBlock();
 
-    int result = ::connect(m_socket,
-                           reinterpret_cast<struct sockaddr*>(&adrs), len);
-    if (result < 0)
+    int result;
+    int local_24 = 0;   // [b23S3C] P31：ORIG +0x6a `movl $0,-0x24` dead 槽
+                        // （Ghidra local_24 无消费），缺它使 adrs/len/result
+                        // 全体高 4（-0x38 vs -0x3c）。
+    result = ::connect(m_socket,
+                       reinterpret_cast<struct sockaddr*>(&adrs), len);
+    // [b23S3C] ORIG 短路首项 shr $0x1f 物化形源不可翻（4.4 对 `result<0`/
+    // `(result>>31)!=0` 恒折 cmp/jns，N76 族）；FD_ZERO 手写位循环实测更差
+    // （4.4 数组写折 shl+add，N81）且 rep stos 形为 N78 跨版本，保留宏形。
+    if (result < 0 && errno != 0x73 /*EINPROGRESS*/ &&
+        errno != EINTR && errno != EAGAIN && errno != EAGAIN)
+        return false;
+    if (result != 0)
     {
-        int e = errno;
-        if (!(e == 0x73 /*EINPROGRESS*/ || e == EINTR || e == EAGAIN ||
-              e == EAGAIN))
+        fd_set writeSet;
+        FD_ZERO(&writeSet);
+        FD_SET(m_socket, &writeSet);
+
+        result = ::select(m_socket + 1, 0, &writeSet, 0, &timeout);
+        if (result < 0 && errno != EINTR)
+            return false;
+        if (result <= 0)
+            return false;
+
+        int soError = 0;
+        socklen_t optLen = 4;
+        if (::getsockopt(m_socket, 1 /*SOL_SOCKET*/, 4 /*SO_ERROR*/,
+                         &soError, &optLen) < 0)
+            return false;
+        if (soError != 0)
             return false;
     }
-    if (result == 0)
-    {
-        memcpy(&m_peerAdrs, &adrs.sin_addr, 4);
-        m_peerPort = adrs.sin_port;
-        return true;
-    }
-
-    fd_set writeSet;
-    FD_ZERO(&writeSet);
-    FD_SET(m_socket, &writeSet);
-
-    result = ::select(m_socket + 1, 0, &writeSet, 0, &timeout);
-    if (result < 0 && errno != EINTR)
-        return false;
-    if (result <= 0)
-        return false;
-
-    int soError = 0;
-    socklen_t optLen = 4;
-    if (::getsockopt(m_socket, 1 /*SOL_SOCKET*/, 4 /*SO_ERROR*/,
-                     &soError, &optLen) < 0)
-        return false;
-    if (soError != 0)
-        return false;
 
     memcpy(&m_peerAdrs, &adrs.sin_addr, 4);
     m_peerPort = adrs.sin_port;

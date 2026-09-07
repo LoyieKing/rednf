@@ -128,12 +128,13 @@ int Dispatcher_RegisterToBlackList::process(CUser* user, MSG_BASE& msg, ParamBas
             }
         }
 
-        ENUM_SERVER_GROUP group = user->GetServerGroup();
+        // [b23S3C] P48：ORIG 两代理点各调 user->GetServerGroup() 一次（p167
+        // MISSING -1 即此），无 group 槽。
         CMonitorServerProxy* monitor =
-            GlobalData::s_monitor_proxy_mgr->GetServerProxy(group);
+            GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
         monitor->SendPacket(reinterpret_cast<char*>(&packet), 0x2c);
         CGuildServerProxy* guild =
-            GlobalData::s_guild_proxy_mgr->GetServerProxy(group);
+            GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
         guild->SendPacket(reinterpret_cast<char*>(&packet), 0x2c);
         return 0;
     }

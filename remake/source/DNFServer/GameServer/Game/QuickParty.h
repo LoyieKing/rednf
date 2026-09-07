@@ -140,7 +140,11 @@ public:
     void insert_timer_waiting_party_matching(CQuickParty* qp);  // T @0x0826acea
     void start_game(CQuickParty* qp);                              // T @0x0826b58a
     bool start_game(CQuickParty* qp, const STQuickPartyPoolMap_Key& key);  // T @0x0826a972
-    int cancel_quick_party(CParty* party, bool flag, CUser* user);  // ORIG 返回 0/1
+    // [b23S3C] 返回 int→char：ORIG 0x0826a386 尾返 0/1 且调用点（direct_entrance
+    // 0x0826a8a6、TimerDispatcher 等）一律 `test %al,%al` 直测低字节，无 int→bool
+    // 物化（`test %eax,%eax; setne %al`）；mangled 不含返回类型 ⇒ 符号不变。
+    // 实测 char 仍产 `test %al,%al; setne %al; test` 两级归一，bool 才出单条直测。
+    bool cancel_quick_party(CParty* party, bool flag, CUser* user);  // ORIG 返回 0/1
     bool remove_quick_party_in_pool(CQuickParty* qp, const STQuickPartyPoolMap_Key& key);   // T @0x0826aa9a（后续批次实现）
     bool push_quick_party_in_pool(const STQuickPartyPoolMap_Key& key, STQuickPartyPoolMap_Data& data,
                                   CParty* party, int count, CQuickParty* qp, bool flag);    // T @0x0826afb4（后续批次实现）

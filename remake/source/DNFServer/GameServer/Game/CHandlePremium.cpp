@@ -74,39 +74,47 @@ void CHandlePremium::handleNotifyPremiumInfo(CUser* user, int type, int remainSe
 // 定时 + handleNotifyPremiumInfo/handlePremiumEffect + 租赁物品包。
 void CHandlePremium::handleSetUserPCRoom(CUser* user, long start, long end)
 {
-    char affected = user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc) ? 1 : 0;
+    // [b23S3C] P48 去缓存：无 remain 槽——ORIG 每使用点重取 (end-curSec)（7 条/处
+    // ×5）；InsertTimer 实参全内联（4.1 右→左求值序 acc_id→diff→uid→G_TQ 实证，
+    // 具名局部改序即偏差）；affected bool 槽 movb 直落（ORIG `mov %al,-0x1d` 无
+    // 三目物化）+ `if (!affected)` 让 effect 块走 body、timer 块成 je 岛（P191）；
+    // put_byte 双分支常实参复制（ORIG 两 call 序列，非 setne 汇聚）。
+    bool affected = user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc);
     handleSetUserPremium(user, (ENUM_PREMIUM_TYPE)0xc, start, end, 0, true);
     int curSec = GlobalData::s_systemTime_.getCurSec();
-    int remain = (int)(end - curSec);
-    if (remain < 0x93a80 && 600 < remain)
+    if ((int)(end - curSec) < 0x93a80 && 600 < (int)(end - curSec))
     {
-        unsigned int accId = user->get_acc_id();
-        unsigned int uid = user->GetUID();
-        G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, (int)uid,
-                                    (TIMER_MESSAGE)7, remain - 600, 0xc, accId);
+        G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, (int)user->GetUID(),
+                                    (TIMER_MESSAGE)7,
+                                    (int)(end - curSec) - 600, 0xc,
+                                    user->get_acc_id());
     }
     if (user->get_state() > 2)
     {
-        handleNotifyPremiumInfo(user, 0xc, remain);
-        if (affected == 1)
-        {
-            if (remain < 0x93a80 && 600 < remain)
-            {
-                unsigned int accId = user->get_acc_id();
-                unsigned int uid = user->GetUID();
-                G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, (int)uid,
-                                            (TIMER_MESSAGE)4, remain, 0xc, accId);
-            }
-        }
-        else
+        handleNotifyPremiumInfo(user, 0xc, (int)(end - curSec));
+        if (!affected)
         {
             handlePremiumEffect(user, (ENUM_PREMIUM_TYPE)0xc);
             user->SendNotiPacket((CUser::eSendTarget)0, (ENUM_NOTIPACKET)2, 0);
         }
+        else
+        {
+            if ((int)(end - curSec) < 0x93a80 && 600 < (int)(end - curSec))
+            {
+                G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0,
+                                            (int)user->GetUID(),
+                                            (TIMER_MESSAGE)4,
+                                            (int)(end - curSec), 0xc,
+                                            user->get_acc_id());
+            }
+        }
     }
     PacketGuard packet;
     packet.put_header(0, 0x1aa);
-    packet.put_byte(user->HasCurCharacRentalItem(1) ? 1 : 0);
+    if (user->HasCurCharacRentalItem(1))
+        packet.put_byte(1);
+    else
+        packet.put_byte(0);
     packet.finalize(true);
     user->Send(packet);
 }

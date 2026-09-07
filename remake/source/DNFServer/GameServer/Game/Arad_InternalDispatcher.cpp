@@ -934,7 +934,12 @@ bool Dispatcher_AvartarRoulette::checkWorkState(CUser* user,
 bool Dispatcher_AradJumpingCharacter::checkWorkState(CUser* user,
                                                      ::arad::SigAradJumpingCharacter& sig)
 {
-    unsigned char jumpKind = (unsigned char)sig.m_eventKind;      // ORIG movzbl +9
+    // [b23S3C] P48：m_eventKind 三用点各重取（ORIG 无 jumpKind 槽）；hasLevel
+    // 声明预清提前至函数头（ORIG `movb $0,-0x15` 在 Check call 前）；isEmpty
+    // 正形早返（ORIG test;je else 岛）。残余 N 封顶：`Inven_Item item =
+    // GetInvenSlot()` 4.4 copy-elision 直构 sret（N86，ORIG 4.1 先 ctor+temp+
+    // 15 mov 逐字段拷贝）；各 err-return 岛位 4.4 jump-threading 差。
+    bool hasLevelOver0x3b = false;                                // ORIG -0x15
     int secuErr = GlobalData::s_pSecuProtectionField->Check(
         user, (SECURITY_PROTCTION)0x2a);
     if (secuErr != 0)
@@ -943,8 +948,7 @@ bool Dispatcher_AradJumpingCharacter::checkWorkState(CUser* user,
         return false;
     }
 
-    bool hasLevelOver0x3b = false;                                // ORIG -0x15
-    if (jumpKind == 2)
+    if (sig.m_eventKind == 2)
     {
         for (std::size_t i = 0; i < user->m_characList.size(); ++i)
         {
@@ -969,29 +973,28 @@ bool Dispatcher_AradJumpingCharacter::checkWorkState(CUser* user,
     }
 
     CInventory* inv = user->getCurCharacInvenW();
-    Inven_Item item = inv->GetInvenSlot(1, (int)(unsigned short)sig.m_itemIndex);
-    if (!item.isEmpty())
+    Inven_Item item;                 // ORIG `call Inven_ItemC1Ev` 默认构造
+    item = inv->GetInvenSlot(1, (int)(unsigned short)sig.m_itemIndex);
+    if (item.isEmpty())
     {
-        if (jumpKind == 1)
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
+        return false;
+    }
+    if (sig.m_eventKind == 1)
+    {
+        if (item.m_addInfo != 0x28d468)
         {
-            if (item.m_addInfo != 0x28d468)
-            {
-                user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
-                return false;
-            }
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
+            return false;
         }
-        else
+        return true;
+    }
+    if (sig.m_eventKind == 2)
+    {
+        if (item.m_addInfo != 0x28d469)
         {
-            if (jumpKind != 2)
-            {
-                user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
-                return false;
-            }
-            if (item.m_addInfo != 0x28d469)
-            {
-                user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
-                return false;
-            }
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
+            return false;
         }
         return true;
     }

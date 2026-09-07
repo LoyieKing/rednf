@@ -352,12 +352,19 @@ void EventEverland::ArrangeEverlandEventItem(unsigned int mid, unsigned int serv
 
     int outCount = 0;
     unsigned int row = 0;
-    while (row < (unsigned int)db->get_n_rows() && db->fetch())
+    // [b23S3C] ORIG 0x083fad60 循环形 = 尾测 while：进入前 `movl $0x0,-0x10(%ebp);
+    // jmp <tail>`，体首 `mov -0x18(%ebp),%eax; call fetch;
+    // xor $0x1,%eax; test %al,%al; jne <exit>`（P194 xor 直测），尾 `call get_n_rows;
+    // cmp -0x10(%ebp),%eax; seta %al; test %al,%al; jne <body>` 后才回体 ⇒ fetch 先于
+    // 行数界判定（原 `while (row < n && fetch())` 短路序相反，丢体首 call）。
+    while (row < (unsigned int)db->get_n_rows())
     {
+        if (!db->fetch())
+            break;
         unsigned int id = 0;               // col0
-        unsigned int srv = 0;              // col1
+        int srv = 0;                       // col1
         int charac_no = 0;                 // col2
-        unsigned int coin = 0;             // col3
+        int coin = 0;                      // col3
         int coin_check = 0;                // col4
         db->get_int(0, id);
         db->get_int(1, srv);

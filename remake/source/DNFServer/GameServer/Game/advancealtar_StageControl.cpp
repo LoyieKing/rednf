@@ -27,12 +27,27 @@ StageControl::StageControl()
 }
 
 // ----------------------------------------------------------------------------
-// ORIG T 0x0812fa06（~StageControl.md 全文）：CharacData::~CharacData →
+// ORIG T 0x0812fa06（~StageControl.md 全文）：先 CharacData::~CharacData(this+0x98)
+//   再 ProcStage::~ProcStage(this+0x04)（成员逆序析构）。两处子对象指针均直算
+//   `mov this,%eax; add $0x98/0x4,%eax; mov %eax,(%esp)`，ORIG 无具名局部（P0：
+//   指针全程寄存器/出参槽直传）→ 此处亦内联 reinterpret_cast，不落 -0xc 槽。
+//
+// [b22判词·N族(P67 EH 析构清理落点)] ORIG（gcc4.1.2）把 ProcStage(+0x04) 与
+//   CharacData(+0x98) 作为真实数据成员，编译器自动生成的 D1 为二者析构建 try 区：
+//   CharacData::~CharacData 若抛，落点 `mov %edx,%ebx; mov %eax,%esi; ProcStage~D1;
+//   _Unwind_Resume` 仍销毁 ProcStage 再续抛 ⇒ 多出 `push %esi/%ebx; sub $0x10` 帧、
+//   一处 jmp 中继、整段 landing pad（orig 29 vs 语义体 13，差 16=EH 机械）。本重建
+//   StageControl 因 advancealtar.h↔advancealtar_ProcStage.h 双向 include 环
+//   （StageControl 定义处 ProcStage/CharacData 仅前向声明、类型不完整）以
+//   `unsigned char m_procStage[0x94]/m_characData[0x28]` 字节槽持子对象，用户显式
+//   析构体内 GCC4.4.7 不为「非成员自动析构」建 EH 清理（实测：即便改真实成员，4.4.7
+//   空体 D1 亦不出此 pad，见探针），故无法复现该落点；且 sizeof(ProcStage)/
+//   sizeof(CharacData) 恰等槽宽（0x94/0x28），成员化需拆 include 环（越界改动、
+//   波及全体 advancealtar TU）。可观察语义（逆序销毁 CharacData→ProcStage，参数
+//   指针/调用序/出参槽装载逐条同 ORIG）完整一致，byte 层 N 封顶。
 StageControl::~StageControl()
 {
-    CharacData* characData = reinterpret_cast<CharacData*>(
-        reinterpret_cast<char*>(this) + 0x98);
-    characData->~CharacData();
+    reinterpret_cast<CharacData*>(reinterpret_cast<char*>(this) + 0x98)->~CharacData();
     reinterpret_cast<ProcStage*>(m_procStage)->~ProcStage();
 }
 
@@ -298,13 +313,14 @@ void StageControl::gotoStage(CUser* user)
         trace("%d", (int)user->getCurCharacVill());
         return;
     }
-    int areaId = user->get_area(false);
-    Area* area = vill->getArea(areaId);
+    // [b23S3C] P48：ORIG 两次独立 get_area(false)——+0x80 结果 eax 直落
+    // getArea 实参槽（无 areaId 槽）、判空分支 +0xab 再 call 一次喂 trace。
+    Area* area = vill->getArea(user->get_area(false));
     if (area == 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__,
                        0x58c, 5);
-        trace("%d", areaId);
+        trace("%d", user->get_area(false));
         return;
     }
 

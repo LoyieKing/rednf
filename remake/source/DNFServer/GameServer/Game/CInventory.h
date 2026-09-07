@@ -221,7 +221,10 @@ public:
     void SetItemId(int itemId) { m_itemId = itemId; }           // W 0x833efb0
     int GetCreatureItemType();                                  // W 0x833ef98（定义 CCreatureMgr.cpp，ORIG 外联调用形态）
     void SetCreatureItemType(CREATURE_ITME_TYPE type);   // ORIG W 0x833efe2（外联 CreatureOnlySimple.cpp；ORIG 无 int 版符号）
-    int GetUid() { return m_uid; }                              // W 0x833efbe
+    int GetUid();                                               // W 0x833efbe（外联定义
+                                                                //   CreatureOnlySimple.cpp；
+                                                                //   SetStomach 0x08339ee0+0x69
+                                                                //   实证调用点为 call）
     int GetSlotNo() { return m_slotNo; }                        // W 0x833efca
     unsigned char GetNoCharge();   // ORIG W 0x833efd6（movzbl +0x14）；外联定义 CreatureOnlySimple.cpp
     unsigned char GetStat();       // ORIG W 0x833eff0（movzbl +0x15）
@@ -312,7 +315,7 @@ public:
     bool Evolute(int a, int b, bool flag);                             // ORIG T 0x0833beb4 _ZN13user_creature12CCreatureMgr7EvoluteEiib
 
     // ---- OnlyOrig_CreatureJob 批追加（定义 CreatureOnlyMgrRest.cpp）----
-    void SetStomach(int stomachValue);                                 // ORIG T 0x08339ee0
+    int SetStomach(int stomachValue);                                  // ORIG T 0x08339ee0（尾 `mov $1,%eax` 恒返 1）
     bool ChangeOwner(Inven_Item* item, int slotFrom, int mapSizeHint,  // ORIG T 0x0833ad34
                      int param_4, int param_5);
     int ItemEvolute(int itemIdx);                                      // ORIG T 0x0833d6c2

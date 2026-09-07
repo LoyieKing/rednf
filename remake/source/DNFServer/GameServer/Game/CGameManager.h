@@ -433,6 +433,7 @@ namespace QuickParty
 {
 class CQuickPartySystemManager;
 class CQuickPartyRewardManager;
+class CQuickParty;
 }
 
 enum ENUM_CHARAC_LINK_ACTION_TYPE
@@ -581,6 +582,8 @@ public:
     friend void ProcessServerStatusLog();  // ORIG 0x80ede91 访问私有池（GameMain.cpp 定义）
     friend void MainLoop();                 // ORIG 0x829fa2b 直访私有池（GameMain.cpp 定义）
     friend class AcceptThread;              // GlobalData.cpp AcceptThread::dispatch 直访私有池
+    friend class QuickParty::CQuickParty;   // ORIG destroy 0x082695ca 直访 +0x1cc pool
+                                            //   /+0x2d4 hash_map（P48 直调形恢复，S23B 广播）
     // ORIG _Z7getUserj @0x084bb9cf 直访 m_userByAccId2（反汇编 `call G_CGameManager;
     // lea 0x244(%eax),%edx` 无 getter call，证明成员直读）——广播 2026-09-05 无异议。
     friend CUser* getUser(unsigned int uid);

@@ -1355,18 +1355,24 @@ static const int CREATECHARACTEREQUIP[22] =
 // Reset 后填 acc/charac/school/tag 区；双职业热键装载；队列 5(有效上次登录)/2(DB_Q)。
 int DisPatcher_SelectCharac::RequestDBCharac(CUser* user, MSG_CHARAC_SELECT const& msg)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x173d);
-    CStreamGuard guard(stream, true);
-    guard << 7;
-    guard << static_cast<int>(user->GetUID());
+    // [b23S3C] ORIG 帧 0x20 仅 guard -0x14/sig -0xc 两槽：Acquire 右值直落 ctor
+    // 实参（无 stream 槽）；guard 写流 4 处均 `(*guard)->operator<<`（deEv call
+    // 080c8c46 + lsEi call 080c8c56，P48 每次重取 operator*）；GetInBuffer 走
+    // operator-> 链（ptEv 080c8c4e，P103）；双 job 无具名槽（ebx 跨 call 缓存，
+    // +0x192）⇒ 嵌套实参直调。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x173d),
+        true);
+    (*guard)->operator<<(7);
+    (*guard)->operator<<(static_cast<int>(user->GetUID()));
     user->DisableCharacInfo(CACHE_CHARAC);
     if (user->IsValidLastLoginCharac())
     {
-        guard << user->GetLastLoginChannelNo();
-        guard << user->GetLastLoginCharacNo();
+        (*guard)->operator<<(user->GetLastLoginChannelNo());
+        (*guard)->operator<<(user->GetLastLoginCharacNo());
     }
-    SIG_LOAD_CHARAC* sig = guard.GetInBuffer<SIG_LOAD_CHARAC>();
+    SIG_LOAD_CHARAC* sig =
+        guard.operator->()->GetInBuffer<SIG_LOAD_CHARAC>();
     sig->m_characData.Reset();                    // CHARAC_DATA::Reset W 0x822ec9e
     sig->m_accId = user->get_acc_id();
     sig->m_characNo = static_cast<unsigned int>(
@@ -1375,10 +1381,10 @@ int DisPatcher_SelectCharac::RequestDBCharac(CUser* user, MSG_CHARAC_SELECT cons
     sig->m_tagCharacData.clear();                 // TAG_CHARAC_DATA::clear W 0x822ed84
     sig->m_tagCharacNo = msg.m_0e;
     sig->m_strikerSkillIndex = msg.m_12;
-    const int jobSelected = user->get_character_job(sig->m_characNo);
-    const int jobLastLogin = user->get_character_job(
-        static_cast<unsigned int>(user->GetLastLoginCharacNo()));
-    user->LoadCharacTypeHotKey(jobLastLogin, jobSelected);
+    user->LoadCharacTypeHotKey(
+        user->get_character_job(
+            static_cast<unsigned int>(user->GetLastLoginCharacNo())),
+        user->get_character_job(sig->m_characNo));
     if (user->IsValidLastLoginCharac())
     {
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)5, guard);
