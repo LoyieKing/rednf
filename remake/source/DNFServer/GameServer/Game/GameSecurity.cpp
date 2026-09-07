@@ -785,8 +785,10 @@ int _NS_PI_2ND_GetHackTypeEnum(unsigned char type, short cmd)
 // ===========================================================================
 int _NS_PI_2ND_GetHackType(unsigned int type, unsigned char b, unsigned short c)
 {
-    int v = 2 * (_NS_PI_2ND_GetHackTypeEnum(b, static_cast<short>(c)) + 0x3e8)
-            + static_cast<int>(type);
+    unsigned int v =
+        2 * (static_cast<unsigned int>(_NS_PI_2ND_GetHackTypeEnum(b, static_cast<short>(c))) +
+             0x3e8u) +
+        type;
     if (v > 0xe0e)
         return 0xe0f;
     return v;

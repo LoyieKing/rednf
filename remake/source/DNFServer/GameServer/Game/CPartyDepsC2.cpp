@@ -142,9 +142,9 @@ bool CParty::isDungeonDifficultyInfromNotice(bool flag)
         return false;                                // 未完成（==0）不提示
     if (flag)                                // param_1 为真直接不提示
         return false;
-    // this+0xc4c = CBattle_Field(+0xb24)+0x128 = m_villageMonsterId(short)
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
-    if (bf.m_villageMonsterId != 0)
+    // this+0xc4c = CBattle_Field(+0xb24)+0x128 = m_villageMonsterId(short)。
+    // 直接成员访问，编译器以 this 基址直寻 0xc4c（ORIG `movzwl 0xc4c(%eax)`）。
+    if (m_battleField.m_villageMonsterId != 0)
         return false;
     if (getManager()->getMoveSpace() == (UserSpace::T)1)   // getMoveSpace 0x08690eca
         return false;

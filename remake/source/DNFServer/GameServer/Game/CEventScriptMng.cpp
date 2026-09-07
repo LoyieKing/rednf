@@ -343,6 +343,9 @@ void CEventScriptMng::inc_user_fatigue(CUser* user,
 bool CEventScriptMng::send_gift_fatigue_item(
     CUser* user, unsigned int fatigue)
 {
+    // [B24D判词 N] 语义正确：is_eventing(0x65)+entity 判空+verifyApplyUser+
+    //   IncCurCharacUsedGiftFatigueQuantity+entity->sendEventItemFromFatigue；
+    //   P167 调用点差集 5/5 CLEAR；diff=lowering。
     if (!is_eventing(0x65))
         return false;
 

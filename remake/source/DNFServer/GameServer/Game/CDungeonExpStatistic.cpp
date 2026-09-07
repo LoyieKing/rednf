@@ -27,6 +27,8 @@ AdditionalDungeonInfo::~AdditionalDungeonInfo()
 
 void CDungeonExpStatistic::InsertDatabase()
 {
+    // [B24D判词 N] 语义正确：m_map 判空早返+逐记录构包+DB insert 全链；
+    //   P167 调用点差集 31/31 CLEAR；diff=地址/EH lowering。
     if (m_map.size() == 0)
         return;
     // e1/e2/e3 按 ORIG 栈槽分配序（gcc4.1 由低到高 e3/e2/e1）倒序声明，

@@ -20,7 +20,10 @@ struct STExpReward
     // union 双视图：m_reward 整字（get_growth_power_exp_reward 按 dword 读
     // CUser+0x8d24d 整体返回）；m_reward8/m_field4/m_field5/m_powerUp 字节视图
     // （InitScriptProducers [exp reward] 解析逐字节写 +0x00..+0x03）。
-    STExpReward() { m_reward = 0; }
+    // ORIG C1/C2 0x085bed52：级联清零 +0x0..+0x3（movb $0,0x3 → movzbl 传递
+    // → movb 高位逐个下移）。`m_reward = 0` 生成单 movl；逐字节赋值复现
+    // 4.1 的 movzbl 级联链。
+    STExpReward() { m_reward8 = 0; m_field4 = 0; m_field5 = 0; m_powerUp = 0; }
 
     union
     {

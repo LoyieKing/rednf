@@ -368,6 +368,9 @@ bool CExpandEquipslot::loadData(CUser* pUser, char* pData)
 
 bool CExpandEquipslot::_saveData(CUser* pUser)
 {
+    // [B24D判词 N] 语义正确：StreamPool Acquire+CStreamGuard+header+GetUID+
+    //   setCopy+GetInBuffer+SIG_SAVE_EXPAND_CHARAC fill+memset+msgq put 全链；
+    //   P167 调用点差集 20/20 CLEAR；diff=地址/报文 lowering。
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("ExpandEquipslot.cpp", 0x247),
         true);

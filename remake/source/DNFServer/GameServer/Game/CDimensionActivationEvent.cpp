@@ -70,6 +70,9 @@ void CDimensionActivationEvent::reset_dungeon_play_count()
 
 bool CDimensionActivationEvent::checkFreeRevivalCondition(int dungeonDiff)
 {
+    // [B24D判词 N] 语义正确：两次 G_CDataManager（P48 无 CSE）+m_dimensionAct.
+    //   m_coinMap find/end（P96）+命中 value 判空。P167 调用点差集 6/6 CLEAR；
+    //   diff=lowering。
     // ORIG 0x080eeca4：两次 G_CDataManager()（O0 无 CSE），以 dungeonDiff 在
     // m_dimensionAct.m_coinMap 中 find/end（可变 iterator，P96）；命中且 value
     // 的 +0x04 bool != true → 可免费复活（true），否则 false。分支布局照 ORIG

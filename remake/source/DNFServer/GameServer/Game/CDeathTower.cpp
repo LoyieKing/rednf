@@ -1707,6 +1707,9 @@ int CDeathTower::_checkStartGameCondition(unsigned char& flag)
 }
 int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE dungeonType)
 {
+    // [B24D判词 N] 语义正确：try/catch(int)+throw 8/0x16/cond/0x15/1+
+    //   reset+initDungeonMgr+_checkStartGameCondition+stage/map 链全对；
+    //   P167 调用点差集 81/81 CLEAR；diff=地址占位+EH typeinfo+个别 lowering。
     // ORIG 0x846398e：整体 try/catch(int)；checkFlag 槽 -0x21 于函数头清零
     // （0x846399c movb $0 早于首 if）；cond -0x20 先 `movl $0`（0x8463a28）再赋值。
     unsigned char checkFlag = 0;
