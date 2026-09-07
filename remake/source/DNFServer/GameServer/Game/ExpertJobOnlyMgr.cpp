@@ -533,7 +533,6 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
 {
     (void)param2;
     (void)param4;
-    CDataManager* dm = G_CDataManager();
 
     Inven_Item* beadRef = user->getCurCharacInvenW()->GetInvenRef(1, beadSlot);
     if (beadRef == 0)
@@ -546,24 +545,25 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
         return 0x11;
     }
 
-    // 租赁两连查（ORIG 0x82702dc；kind=1/kind=2 任一命中 → 0x11）
+    // 租赁两连查（ORIG 0x82702dc 实证：查的是 ringRef 的 m_addInfo，kind=1/2）
     if (GlobalData::s_rentalSystem->CheckRentableItem(
-            1, (unsigned int)beadRef->m_addInfo))
+            1, (unsigned int)ringRef->m_addInfo))
     {
         return 0x11;
     }
     if (GlobalData::s_rentalSystem->CheckRentableItem(
-            2, (unsigned int)beadRef->m_addInfo))
+            2, (unsigned int)ringRef->m_addInfo))
     {
         return 0x11;
     }
 
-    CItem* beadItem = dm->find_item(beadRef->m_addInfo);
+    // P48：ORIG G_CDataManager() 每用点 fresh（无 dm 槽）
+    CItem* beadItem = G_CDataManager()->find_item(beadRef->m_addInfo);
     if (beadItem == 0)
     {
         return 0x11;
     }
-    CItem* ringItem = dm->find_item(ringRef->m_addInfo);
+    CItem* ringItem = G_CDataManager()->find_item(ringRef->m_addInfo);
     if (ringItem == 0)
     {
         return 0x11;
@@ -575,7 +575,7 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
 
     // 怪物卡主表链（ORIG 序）：cardId→masterItem→EnableWorld 校验
     int cardId = ((CStackableItem*)beadItem)->GetMonsterCardId();
-    CItem* masterItem = dm->find_item(cardId);
+    CItem* masterItem = G_CDataManager()->find_item(cardId);
     if (masterItem == 0)
     {
         return 0x11;
