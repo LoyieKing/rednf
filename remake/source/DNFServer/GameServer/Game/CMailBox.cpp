@@ -119,8 +119,9 @@ void CMailBox::CMail::MakePacket(PacketGuard* packet, long nowSec,
     if (isAvatarPackage())
     {
         CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
-        inv->GetAvatarItemMgrR()->GetRemainDate(m_package.m_item.m_addInfo2,
-                                                (int)nowSec);
+        // ORIG 8551b25/8551b34：GetRemainDate 返回即 put_int（avatar 分支也 put）
+        packet->put_int(inv->GetAvatarItemMgrR()->GetRemainDate(
+            m_package.m_item.m_addInfo2, (int)nowSec));
     }
     else
     {
@@ -150,14 +151,16 @@ void CMailBox::CMail::MakePacket(PacketGuard* packet, long nowSec,
 
     if (isAvatarPackage())
     {
-        CInventory* inv = const_cast<CInventory*>(user->getCurCharacInvenR());
-        const WongWork::CAvatarItemMgr* mgr = inv->GetAvatarItemMgrR();
         int uid = m_package.m_item.m_addInfo2;
 
         packet->put_int(0x1e);
-        packet->put_binary(mgr->getJewelSocketData(uid), 0x1e);
+        // ORIG 8551c6d/8551cab：getCurCharacInvenR/GetAvatarItemMgrR 各点重取（P48 去缓存）
+        packet->put_binary(const_cast<CInventory*>(user->getCurCharacInvenR())
+                               ->GetAvatarItemMgrR()->getJewelSocketData(uid),
+                           0x1e);
 
-        const void* exp = mgr->GetExpansionInfo(uid);
+        const void* exp = const_cast<CInventory*>(user->getCurCharacInvenR())
+                              ->GetAvatarItemMgrR()->GetExpansionInfo(uid);
         packet->put_int(4);
         if (exp == 0)
         {
@@ -174,9 +177,7 @@ void CMailBox::CMail::MakePacket(PacketGuard* packet, long nowSec,
     if (!isUnlimit())
     {
         long remain = m_period - nowSec;
-        if (remain < 1)
-            remain = 1;
-        packet->put_int((int)remain);
+        packet->put_int(std::max<int>((int)remain, 1));      // ORIG 8551d65 std::max<int>
     }
     else
     {

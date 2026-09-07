@@ -1716,8 +1716,10 @@ public:
 
     CUser* m_user;              // +0x00
     unsigned char m_active223;  // +0x04（init223 置 1 / Reset 清零）
-    unsigned char m_active224;  // +0x05
-    unsigned char m_active225;  // +0x06
+    // ORIG init224/225 0x…：`movzbl 0x5; xor $1; test; je`（P22 ⇒ bool，uchar+!=1 出 cmp$1 反）；
+    // A822W 取证，LC_Misc 条件形同步（!m_active 裸测）。
+    bool m_active224;           // +0x05
+    bool m_active225;           // +0x06
     unsigned short m_field08;   // +0x08 Check223 上次击杀数快照
     unsigned short m_field0a;   // +0x0a Check223 上次 x
     unsigned short m_field0c;   // +0x0c Check223 上次 y

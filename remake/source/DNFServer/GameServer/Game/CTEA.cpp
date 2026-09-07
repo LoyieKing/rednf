@@ -44,67 +44,112 @@ void CTEA::Signature(char* szSignature)
     sha.FinalDigest(szSignature);
 }
 
+// ---- ORIG _ZN4CTEA12EncryptBlockEPKhPh（0x080c3724）TEA 分组加密核心 ----
+int CTEA::EncryptBlock(unsigned char const* src, unsigned char* dst)
+{
+    unsigned int v0;
+    unsigned int v1;
+    BytesToWord(src, v0);
+    BytesToWord(src + 4, v1);
+    const unsigned int* key = reinterpret_cast<const unsigned int*>(m_key);
+    unsigned int sum = 0;
+    const unsigned int delta = 0x9e3779b9;
+    for (int n = 0; n < 32; ++n)
+    {
+        sum += delta;
+        v0 += ((v1 << 4) + key[0]) ^ (v1 + sum) ^ ((v1 >> 5) + key[1]);
+        v1 += ((v0 << 4) + key[2]) ^ (v0 + sum) ^ ((v0 >> 5) + key[3]);
+    }
+    WordToBytes(v0, dst);
+    WordToBytes(v1, dst + 4);
+    return 0;
+}
+
+// ---- ORIG _ZN4CTEA12DecryptBlockEPKhPh（0x080c3804）TEA 分组解密核心 ----
+int CTEA::DecryptBlock(unsigned char const* src, unsigned char* dst)
+{
+    unsigned int v0;
+    unsigned int v1;
+    BytesToWord(src, v0);
+    BytesToWord(src + 4, v1);
+    const unsigned int* key = reinterpret_cast<const unsigned int*>(m_key);
+    unsigned int sum = 0xc6ef3720;
+    const unsigned int delta = 0x9e3779b9;
+    for (int n = 0; n < 32; ++n)
+    {
+        v1 -= ((v0 << 4) + key[2]) ^ (v0 + sum) ^ ((v0 >> 5) + key[3]);
+        v0 -= ((v1 << 4) + key[0]) ^ (v1 + sum) ^ ((v1 >> 5) + key[1]);
+        sum -= delta;
+    }
+    WordToBytes(v0, dst);
+    WordToBytes(v1, dst + 4);
+    return 0;
+}
+
+// ---- ORIG _ZN4CTEA7EncryptEPKcPcj（0x080c38e4）：CBC 链式，三模式 ----
 int CTEA::Encrypt(const char* szIn, char* szOut, size_t iLength)
 {
     if (!m_bInit)
         return 0x70000005;
-    if (iLength == 0 || iLength % 8 != 0)
+    if (iLength == 0 || iLength % m_blockSize != 0)
         return 0x7000000a;
-    // TEA 简单实现（算法正确即可）：逐 8 字节块，标准 TEA 加密
-    const unsigned int delta = 0x9e3779b9;
-    for (size_t i = 0; i + 8 <= iLength; i += 8)
+    const char* src = szIn;
+    char* out = szOut;
+    size_t blocks = iLength / m_blockSize;
+    for (size_t i = 0; i < blocks; ++i)
     {
-        unsigned int v0 = (unsigned char)szIn[i] | ((unsigned int)(unsigned char)szIn[i+1] << 8) |
-                          ((unsigned int)(unsigned char)szIn[i+2] << 16) | ((unsigned int)(unsigned char)szIn[i+3] << 24);
-        unsigned int v1 = (unsigned char)szIn[i+4] | ((unsigned int)(unsigned char)szIn[i+5] << 8) |
-                          ((unsigned int)(unsigned char)szIn[i+6] << 16) | ((unsigned int)(unsigned char)szIn[i+7] << 24);
-        unsigned int sum = 0;
-        for (int n = 0; n < 32; ++n)
+        if (m_mode == 1)
         {
-            sum += delta;
-            v0 += ((v1 << 4) + m_key[0]) ^ (v1 + sum) ^ ((v1 >> 5) + m_key[1]);
-            v1 += ((v0 << 4) + m_key[2]) ^ (v0 + sum) ^ ((v0 >> 5) + m_key[3]);
+            IMethod::Xor((char*)m_chain2, src);                // m_chain2(+0x40)
+            EncryptBlock(m_chain2, (unsigned char*)out);
+            memcpy(m_chain2, out, m_blockSize);
         }
-        szOut[i]   = (char)(v0 & 0xff);
-        szOut[i+1] = (char)((v0 >> 8) & 0xff);
-        szOut[i+2] = (char)((v0 >> 16) & 0xff);
-        szOut[i+3] = (char)((v0 >> 24) & 0xff);
-        szOut[i+4] = (char)(v1 & 0xff);
-        szOut[i+5] = (char)((v1 >> 8) & 0xff);
-        szOut[i+6] = (char)((v1 >> 16) & 0xff);
-        szOut[i+7] = (char)((v1 >> 24) & 0xff);
+        else if (m_mode == 2)
+        {
+            EncryptBlock(m_chain2, (unsigned char*)out);
+            IMethod::Xor(out, src);
+            memcpy(m_chain2, out, m_blockSize);
+        }
+        else
+        {
+            EncryptBlock((unsigned char const*)src, (unsigned char*)out);
+        }
+        src += m_blockSize;
+        out += m_blockSize;
     }
     return 0x6fffffff;
 }
 
+// ---- ORIG _ZN4CTEA7DecryptEPKcPcj（0x080c3afe）：CBC 链式，三模式 ----
 int CTEA::Decrypt(const char* szIn, char* szOut, size_t iLength)
 {
     if (!m_bInit)
         return 0x70000005;
-    if (iLength == 0 || iLength % 8 != 0)
+    if (iLength == 0 || iLength % m_blockSize != 0)
         return 0x7000000a;
-    const unsigned int delta = 0x9e3779b9;
-    for (size_t i = 0; i + 8 <= iLength; i += 8)
+    const char* src = szIn;
+    char* out = szOut;
+    size_t blocks = iLength / m_blockSize;
+    for (size_t i = 0; i < blocks; ++i)
     {
-        unsigned int v0 = (unsigned char)szIn[i] | ((unsigned int)(unsigned char)szIn[i+1] << 8) |
-                          ((unsigned int)(unsigned char)szIn[i+2] << 16) | ((unsigned int)(unsigned char)szIn[i+3] << 24);
-        unsigned int v1 = (unsigned char)szIn[i+4] | ((unsigned int)(unsigned char)szIn[i+5] << 8) |
-                          ((unsigned int)(unsigned char)szIn[i+6] << 16) | ((unsigned int)(unsigned char)szIn[i+7] << 24);
-        unsigned int sum = delta * 32;
-        for (int n = 0; n < 32; ++n)
+        if (m_mode == 1)
         {
-            v1 -= ((v0 << 4) + m_key[2]) ^ (v0 + sum) ^ ((v0 >> 5) + m_key[3]);
-            v0 -= ((v1 << 4) + m_key[0]) ^ (v1 + sum) ^ ((v1 >> 5) + m_key[1]);
-            sum -= delta;
+            DecryptBlock((unsigned char const*)src, (unsigned char*)out);
+            IMethod::Xor(out, (const char*)m_chain2);
+            memcpy(m_chain2, src, m_blockSize);
         }
-        szOut[i]   = (char)(v0 & 0xff);
-        szOut[i+1] = (char)((v0 >> 8) & 0xff);
-        szOut[i+2] = (char)((v0 >> 16) & 0xff);
-        szOut[i+3] = (char)((v0 >> 24) & 0xff);
-        szOut[i+4] = (char)(v1 & 0xff);
-        szOut[i+5] = (char)((v1 >> 8) & 0xff);
-        szOut[i+6] = (char)((v1 >> 16) & 0xff);
-        szOut[i+7] = (char)((v1 >> 24) & 0xff);
+        else if (m_mode == 2)
+        {
+            EncryptBlock(m_chain2, (unsigned char*)out);
+            IMethod::Xor(out, src);
+            memcpy(m_chain2, src, m_blockSize);
+        }
+        else
+        {
+            DecryptBlock((unsigned char const*)src, (unsigned char*)out);
+        }
+        src += m_blockSize;
+        out += m_blockSize;
     }
     return 0x6fffffff;
 }

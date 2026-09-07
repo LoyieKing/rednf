@@ -1118,10 +1118,14 @@ CDynamicDisposition::CDynamicDisposition(CUser** users, int* counts) // ORIG 0x8
                  + ((unsigned short)m_users[1]->get_posX() >> 1);
     m_anchor.m_y = (unsigned short)m_users[0]->get_posY()
                  + ((unsigned short)m_users[1]->get_posY() >> 1);
-    Point2d p0(m_users[0]->get_posX(), m_users[0]->get_posY());
-    Point2d p1(m_users[1]->get_posX(), m_users[1]->get_posY());
-    m_matrices[0].MakeCandidatePoint(p0, p1);
-    m_matrices[1].MakeCandidatePoint(p0, p1);
+    // ORIG 82e6101..82e6208：每个 MakeCandidatePoint 各自构造 Point2d（P48 去缓存），
+    // m_matrices[0] 用 (users[1],users[0])、m_matrices[1] 用 (users[0],users[1])。
+    m_matrices[0].MakeCandidatePoint(
+        Point2d(m_users[1]->get_posX(), m_users[1]->get_posY()),
+        Point2d(m_users[0]->get_posX(), m_users[0]->get_posY()));
+    m_matrices[1].MakeCandidatePoint(
+        Point2d(m_users[0]->get_posX(), m_users[0]->get_posY()),
+        Point2d(m_users[1]->get_posX(), m_users[1]->get_posY()));
 }
 
 CAssaultPlaceFactory::CAssaultPlaceFactory() {}   // ORIG C1 0x82f0f96

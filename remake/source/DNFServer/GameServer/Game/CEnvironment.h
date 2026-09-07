@@ -35,6 +35,10 @@ public:
     // G7 分组模式辅助（实现属加密库 TU：CRijndael.cpp）
     void Xor(char* buff, const char* chain);
     void SetMode(int iMode);
+    // ORIG _ZN7IMethod11BytesToWordEPKhRj / _ZN7IMethod11WordToBytesEjPh
+    // （CTEA EncryptBlock/DecryptBlock 字节↔字组转换；实现属 ServerLib/Method.cpp）
+    void BytesToWord(unsigned char const* src, unsigned int& dst);
+    void WordToBytes(unsigned int src, unsigned char* dst);
     // ORIG 非虚成员（_ZN7IMethod12GetBlockSizeEPj T 0x080b4416 /
     //   _ZN7IMethod3PadEPciPj T 0x080b44a6；定义在 DBMW/Method.cpp）。
     int GetBlockSize(unsigned int* outError);
@@ -56,6 +60,9 @@ public:
     virtual int Decrypt(const char* szIn, char* szOut, size_t iLength);
     virtual int ResetChain();
     int Initialize(const char* key, int keyLen, const char* iv, int ivLen, int mode);
+    // ORIG _ZN4CTEA12EncryptBlockEPKhPh/_ZN4CTEA12DecryptBlockEPKhPh（TEA 分组核心）
+    int EncryptBlock(unsigned char const* src, unsigned char* dst);
+    int DecryptBlock(unsigned char const* src, unsigned char* dst);
     static const char sm_chain0[8];
 
     unsigned char m_key[0x10];    // +0x18

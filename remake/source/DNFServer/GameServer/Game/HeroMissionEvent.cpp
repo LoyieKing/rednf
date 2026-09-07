@@ -59,7 +59,8 @@ bool HeroMissionEvent::findMissionValue(CUser* user,
                                         HeroMissionCondition::MissionNo::T mission,
                                         HeroMissionValue*& out)
 {
-    if (!m_isEventing)
+    // ORIG 0x0816802e `call *%edx`：虚调用 CEventBase::IsEventing(NULL)（§4.5）。
+    if (!IsEventing(0))
         return false;
     if (mission <= 0 || mission >= 7)
         return false;
@@ -92,7 +93,8 @@ void HeroMissionEvent::processMission(CUser* user,
                                       HeroMissionCondition::MissionNo::T mission,
                                       unsigned int param)
 {
-    if (!m_isEventing)
+    // ORIG 0x081672dd `call *%edx`：虚调用 CEventBase::IsEventing(NULL)（§4.5）。
+    if (!IsEventing(0))
         return;
 
     if (user == 0)
@@ -141,7 +143,8 @@ void HeroMissionEvent::processMission(CUser* user,
 // ============================================================================
 void HeroMissionEvent::loadEventData(CUser* user)
 {
-    if (m_isEventing == 0)   // 镜像等价 ORIG IsEventing(NULL)（vptr+0x34 → movzbl +0x08）
+    // ORIG 0x081670be `call *%edx`：虚调用 CEventBase::IsEventing(NULL)（§4.5）。
+    if (IsEventing(0) == 0)
         return;
     if (user == 0)
     {
@@ -186,7 +189,9 @@ void HeroMissionEvent::setMissionValue(CUser* user,
                                        HeroMissionCondition::MissionNo::T mission,
                                        unsigned int value)
 {
-    if (!m_isEventing)   // ORIG call *(vptr+0x34)(this, 0) == IsEventing(NULL)
+    // ORIG 0x8167226：`mov (%eax);add $0x34;call *%edx` = 虚调用 IsEventing(NULL)。
+    // 继承 CEventBase 后以真实虚调用复现（§4.5 正解），非直接读 m_isEventing。
+    if (!IsEventing(0))
         return;
 
     if (user == 0)
@@ -966,7 +971,8 @@ bool HeroMissionEvent::loadScript()
 // ============================================================================
 void HeroMissionEvent::setEventData(CUser* user, char const* data)
 {
-    if (m_isEventing == 0)      // ORIG: 虚 IsEventing(0)==1 才继续
+    // ORIG 0x08166775 `call *%edx`：虚调用 CEventBase::IsEventing(NULL)（§4.5）。
+    if (IsEventing(0) == 0)
     {
         return;
     }
@@ -1114,7 +1120,8 @@ void HeroMissionEvent::resetMissionForGm(CUser* user,
 // ============================================================================
 void HeroMissionEvent::saveEventData(CUser* user, bool removeData)
 {
-    if (m_isEventing == 0)   // 镜像等价 ORIG IsEventing(NULL)（vptr+0x34）
+    // ORIG 0x08166d5e `call *%edx`：虚调用 CEventBase::IsEventing(NULL)（§4.5）。
+    if (IsEventing(0) == 0)
     {
         return;
     }

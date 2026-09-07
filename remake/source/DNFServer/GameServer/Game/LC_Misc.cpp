@@ -236,7 +236,9 @@ void Secu_MonsterCheck::init224(const MSG_MONSTER_DIE* msg)
     // `GlobalData::s_systemTime_.getCurTickCount()` 调用，4.4 会为跨 call 存活
     // 的 `act` 额外插一条 spill `mov`，反而多出一条。init223 无 call 故能闭合。
     // ⇒ X2 第二前提：**判断与 body 之间不得有 call**（否则 %eax 绑定值需 spill）。
-    if (m_active224 != 1)
+    // CUser.h 已落 bool；bool+`!field` 复现 ORIG `xor $1;test %al`（P22），
+    // 且从内存重取无跨 getCurTickCount call spill。
+    if (!m_active224)
     {
         m_field12 = msg->m_mobSeq;       // +0x12 ← msg+0x0d
         m_field14 = GlobalData::s_systemTime_.getCurTickCount();
@@ -250,7 +252,8 @@ void Secu_MonsterCheck::init224(const MSG_MONSTER_DIE* msg)
 void Secu_MonsterCheck::init225(const MSG_MONSTER_DIE* msg)
 {
     // X2 形不适用，同 init224（body 内有 getCurTickCount 调用 ⇒ 多一条 spill mov）。
-    if (m_active225 != 1)
+    // CUser.h 已落 bool；bool+`!field` 复现 ORIG `xor $1;test %al`（P22）。
+    if (!m_active225)
     {
         m_field1c = msg->m_mobSeq;       // +0x1c ← msg+0x0d
         m_field20 = GlobalData::s_systemTime_.getCurTickCount();
@@ -330,7 +333,9 @@ char Secu_MonsterCheck::Check224()
     if (m_field12 == m_curKillCount)
         return 1;
     char result = 1;
-    if (m_active224 != 0)
+    // CUser.h 已落 bool；bare `if(field)` 复现 ORIG `movzbl;test %al`（8 位，
+    // `!=0` 对 bool 会生 movzbl+movzbl+testl 异形）。
+    if (m_active224)
     {
         int dt = m_setTick - m_field14;
         if (dt <= 0x3e8)
@@ -378,7 +383,8 @@ char Secu_MonsterCheck::Check225()
     if (m_field1c == m_curKillCount)
         return 1;
     char result = 1;
-    if (m_active225 != 0)
+    // CUser.h 已落 bool；bare `if(field)` 复现 ORIG 8 位 test。
+    if (m_active225)
     {
         int dt = m_setTick - m_field20;
         if (dt <= 1999)

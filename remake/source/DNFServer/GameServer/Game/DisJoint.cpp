@@ -82,11 +82,15 @@ int DisJoint::_GetAdditionalItemInfo(int rarity)
 void DisJoint::_GetAdditionalItem(const CItem* item, int& outIdx, int& outCount)
 {
     outIdx = _GetAdditionalItemInfo(item->get_rarity());
-    if (outIdx != 0)
+    // ORIG 0x084732de `test %eax;setne %al;test %al;je`：outIdx!=0 物化为
+    // register bool（P194 setne 形），非直接 if(outIdx!=0)（那会少 setne+test）。
+    register bool nonzero asm("al") = (outIdx != 0);
+    if (nonzero)
     {
         // ORIG：m_item 先落 -0x18 再乘 100 落 -0x14，随后才 call get_rand_int。
-        const int w = m_additionalConst[item->get_rarity()].m_item;
-        const int weight = w * 100;
+        int w = m_additionalConst[item->get_rarity()].m_item;
+        int weight = w;
+        weight *= 100;
         if (get_rand_int(10000) < weight)
         {
             // ORIG 中间 float 槽：fstps/flds 往返后 fistpl 截断。

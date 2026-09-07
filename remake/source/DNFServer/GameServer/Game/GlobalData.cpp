@@ -3587,8 +3587,9 @@ void ItemVendingMachine::BillingRecord(CUser* user, int a3, int a4, int a5,
     Stream* stream = GlobalData::s_stream_pool->Acquire("localjapan/AppendVendingMachine.cpp",
                                                         0x730);
     CStreamGuard guard(stream, true);
-    guard << (int)0xb0;              // SIG opcode
-    guard << user->GetUID();
+    // ORIG BillingRecord.md：operator*() 各 << 前重取 + operator<<(int)（P48/CStreamGuard 形态）
+    (*guard.operator*()) << (int)0xb0;           // SIG opcode（operator*() 取 this）
+    (*guard.operator*()) << (int)user->GetUID();
 
     // 0x10e 字节记录（B = ORIG 帧 -0x13b(%ebp)，memset 0x10e 实证；
     // 以下偏移全部按 ORIG 汇编 0x0817991e 逐条核对）
@@ -3618,12 +3619,13 @@ void ItemVendingMachine::BillingRecord(CUser* user, int a3, int a4, int a5,
     char yy[3], mm[3], dd[3];
     memset(yy, 0, 3); memset(mm, 0, 3); memset(dd, 0, 3);
     // 汇编 strncpy 布局：yy←ssn+0(2)、mm←ssn+2(2)、dd←ssn+4(2)、cent←ssn+6(1)
-    memcpy(yy, ssnPart + 0, 2);
-    memcpy(mm, ssnPart + 2, 2);
-    memcpy(dd, ssnPart + 4, 2);
+    // ORIG strncpy（非 memcpy）拆分 yy/mm/dd/cent
+    strncpy(yy, ssnPart + 0, 2);
+    strncpy(mm, ssnPart + 2, 2);
+    strncpy(dd, ssnPart + 4, 2);
     char centBuf[2];
     memset(centBuf, 0, 2);
-    centBuf[0] = ssnPart[6];
+    strncpy(centBuf, ssnPart + 6, 1);
     int cent = atoi(centBuf);
     // ORIG 0x08179bcd 起：sprintf 直接写入记录 B+0x56（无独立局部缓冲），
     // 世纪类型写 B+0x52。
@@ -3678,7 +3680,7 @@ void ItemVendingMachine::BillingRecord(CUser* user, int a3, int a4, int a5,
     rec.m_tranNoHigh = (int)(unsigned int)(uid >> 32);           // ORIG -0x32 = 0x2c(%ebp)
     rec.m_buyType = payFlag;                                     // ORIG -0x2e = 0x30(%ebp)
 
-    guard.put_binary(reinterpret_cast<char*>(&rec), 0x10e);
+    guard.operator->()->put_binary(reinterpret_cast<char*>(&rec), 0x10e);
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
 
     // PuUser 标志：ORIG 08179e56..08179e73（BillingRecord.md）`call GetPuUser;

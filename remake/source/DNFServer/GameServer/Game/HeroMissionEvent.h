@@ -5,9 +5,9 @@
 // ARAD::Singleton<HeroMissionEvent>::Singleton() 再 CEventBase::CEventBase()
 // 并写 vptr；镜像字段无法生成 vtable 与基类构造调用）。
 // ============================================================================
-// 本头不继承 CEventBase（避免引入 CGuildServerProxy.h 大依赖链），以布局
-// 镜像字段保持 ORIG ABI；判活读 +0x08 标志，等价 ORIG IsEventing(NULL)
-// （ORIG vptr+0x34 = CEventBase::IsEventing，实现即 movzbl +0x08）。
+// 本头继承 CEventBase（见下类声明）。判活经虚调用 IsEventing(NULL)
+// （vptr+0x34，ORIG 各方法 entry 实证 `mov (%eax);add $0x34;call *%edx`），
+// 读 CEventBase 保护成员 m_isEventing（+0x08 标志）。
 // ============================================================================
 
 #include <map>
