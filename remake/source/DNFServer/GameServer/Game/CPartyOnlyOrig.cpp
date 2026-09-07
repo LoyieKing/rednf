@@ -1010,7 +1010,7 @@ int CParty::GetExpPenaltyPercent(int a, int b) const
 {
     if (a < 20)
     {
-        int diff = a - b > 0 ? a - b : b - a;
+        unsigned int diff = a - b > 0 ? a - b : b - a;
         if (5 < diff && diff < 10)
         {
             return (10 - diff) * 20;
@@ -1026,12 +1026,12 @@ int CParty::GetExpPenaltyPercent(int a, int b) const
         {
             return (a * 100) / b;
         }
-        int diff = a - b;
+        unsigned int diff = a - b;
         if (5 < diff && diff < 10)
         {
             return (10 - diff) * 20;
         }
-        if (diff > 9)
+        if (9 < (a - b))
         {
             return 5;
         }
