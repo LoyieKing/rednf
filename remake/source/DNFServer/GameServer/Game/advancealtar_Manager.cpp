@@ -264,9 +264,8 @@ int Manager::dieMob(CUser* user, unsigned short mobSeq, unsigned short param,
     {
         return 1;
     }
-    ProcStage* procStage = control->getProcStage();
-
-    bool killed = procStage->dieMob(mobSeq, param, msg);
+    // ORIG 8130c04..8130e5c：getProcStage 每用点重取（P48 去缓存，共 9 处）
+    bool killed = control->getProcStage()->dieMob(mobSeq, param, msg);
     if (killed)
     {
         PacketGuard packet;
@@ -282,36 +281,36 @@ int Manager::dieMob(CUser* user, unsigned short mobSeq, unsigned short param,
     }
 
     StageEndType::T endType = StageEndType::END_N1;
-    if (!procStage->isEndStage(endType))
+    if (!control->getProcStage()->isEndStage(endType))
     {
         return 1;
     }
-    if (!procStage->isRewardState())
+    if (!control->getProcStage()->isRewardState())
     {
         return 1;
     }
 
     if (endType == StageEndType::END_N0)
     {   // ORIG local_18==0：全清死亡分支
-        if (procStage->getStageType() == 1)
+        if (control->getProcStage()->getStageType() == 1)
         {
-            procStage->setState(ProcStage::State::S_N5);
-            procStage->clearStageAndReward();   // [跨片] clearStage 链定义归 AltarProc 批
+            control->getProcStage()->setState(ProcStage::State::S_N5);
+            control->getProcStage()->clearStageAndReward();   // [跨片] clearStage 链定义归 AltarProc 批
             Timer_StageControl::RegistTimerClearReward(control->getIndex(), endType);
             // HistoryLog::dungeonClearInfo(true) 分支 ORIG 无（该段属 endType==3）
         }
         else
         {
-            procStage->setState(ProcStage::State::S_N6);
+            control->getProcStage()->setState(ProcStage::State::S_N6);
             Timer_StageControl::RegistTimerEPLP(control->getIndex(), endType);
             HistoryLog::dungeonClearInfo(*user, *control, false);
         }
     }
     else if (endType == StageEndType::END_N3)
     {   // ORIG local_18==3：全阶段完成
-        if (procStage->endProcAllKillMonster())
+        if (control->getProcStage()->endProcAllKillMonster())
         {
-            procStage->setState(ProcStage::State::S_N5);
+            control->getProcStage()->setState(ProcStage::State::S_N5);
             Timer_StageControl::RegistTimerClearReward(control->getIndex(), endType);
             HistoryLog::dungeonClearInfo(*user, *control, true);
         }

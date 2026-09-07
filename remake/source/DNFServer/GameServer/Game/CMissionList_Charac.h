@@ -74,7 +74,7 @@ public:
     int getNewMission(CUser& user, int kind);
 
     // ---- 发送 ----
-    void Send_MissionList(CUser& user);
+    int Send_MissionList(CUser& user);   // ORIG @0x85e52a8 尾 mov $1,%ebx 恒返 1（P159）
     void Send_Cleared_Mission_List(CUser& user,
                                    const std::vector<int>& clearList);
     void Send_Fail_Mission(CUser& user, short index);

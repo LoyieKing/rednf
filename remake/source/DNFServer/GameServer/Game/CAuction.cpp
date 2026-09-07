@@ -151,7 +151,7 @@ class CAuctionServerProxy : public BaseServerProxy
 {
 public:
     CAuctionServerProxy(char* ip, int port, char* name);
-    virtual ~CAuctionServerProxy();
+    ~CAuctionServerProxy();
 
     virtual void OnDisconnect();
     virtual bool Parsing(int recvLen);
@@ -227,7 +227,7 @@ class CCeraAuctionServerProxy : public BaseServerProxy
 {
 public:
     CCeraAuctionServerProxy(char* ip, int port, char* name);
-    virtual ~CCeraAuctionServerProxy();
+    ~CCeraAuctionServerProxy();
 
     virtual void OnDisconnect();
     virtual bool Parsing(int recvLen);

@@ -336,13 +336,9 @@ char Secu_MonsterCheck::Check224()
         if (dt <= 0x3e8)
         {
             m_field18 += 1;
-            if (m_field18 > 4)
+            if (m_field18 < 5 || m_field18 > 0xa)
             {
-                if (m_field18 <= 0xa)
-                {
-                    m_field1a = 1;
-                }
-                else
+                if (m_field18 > 0xa)
                 {
                     m_field1a = 3;
                     if (m_user != 0)
@@ -353,6 +349,10 @@ char Secu_MonsterCheck::Check224()
                     }
                     result = 0;
                 }
+            }
+            else
+            {
+                m_field1a = 1;
             }
         }
         else
@@ -384,13 +384,9 @@ char Secu_MonsterCheck::Check225()
         if (dt <= 1999)
         {
             m_field24 += 1;
-            if (m_field24 > 4)
+            if (m_field24 < 5 || m_field24 > 0xa)
             {
-                if (m_field24 <= 0xa)
-                {
-                    m_field26 = 1;
-                }
-                else
+                if (m_field24 > 0xa)
                 {
                     m_field26 = 3;
                     if (m_user != 0)
@@ -401,6 +397,10 @@ char Secu_MonsterCheck::Check225()
                     }
                     result = 0;
                 }
+            }
+            else
+            {
+                m_field26 = 1;
             }
         }
         else

@@ -1990,13 +1990,16 @@ void SetPvPSkillTree(CUser* user, const _Mastered_skill* skill,
         const_cast<char*>(user->getCurCharacSkillR()));
     skillR->calcUsedSP(skill, usedSp, usedSfp);
 
-    int pvpGrade = user->get_pvp_grade();
-    int secondGrow = (int)(char)user->getCurCharSecondGrowType();
-    int firstGrow = (int)(char)user->getCurCharFirstGrowType();
-    int job = user->get_charac_job();
+    // ORIG：grade/secondGrow/firstGrow/job 三个计算点各自重取（P48 去缓存）；
+    // getCurCharacSkillR 亦两处调用（calcUsedSP 后 get_remain_sp_at_index 前重新 GetInBuffer）。
     int pvpPoint = G_CDataManager()->m_pvpSkillTree.getPvPSkillPoint(
-        job, firstGrow, secondGrow, pvpGrade, false);
+        user->get_charac_job(),
+        (int)(char)user->getCurCharFirstGrowType(),
+        (int)(char)user->getCurCharSecondGrowType(),
+        user->get_pvp_grade(), false);
 
+    skillR = reinterpret_cast<SkillSlot*>(
+        const_cast<char*>(user->getCurCharacSkillR()));
     int remainSp = skillR->get_remain_sp_at_index(kind);
     int avail = pvpPoint - (usedSp + remainSp);      // ORIG -0x20
     int giveIdx;                                     // ORIG -0x1c
@@ -2013,7 +2016,10 @@ void SetPvPSkillTree(CUser* user, const _Mastered_skill* skill,
     {
         // ORIG getGivePvPSkillPoint 实参压栈序：job, first, second, grade
         int givePoint = G_CDataManager()->m_pvpSkillTree.getGivePvPSkillPoint(
-            job, firstGrow, secondGrow, pvpGrade);
+            user->get_charac_job(),
+            (int)(char)user->getCurCharFirstGrowType(),
+            (int)(char)user->getCurCharSecondGrowType(),
+            user->get_pvp_grade());
         if (givePoint != 0)
         {
             SkillSlot* skillW = reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW());
@@ -2030,12 +2036,11 @@ void SetPvPSkillTree(CUser* user, const _Mastered_skill* skill,
         skillW->clear_all_skills(kind);
         skillW = reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW());
         skillW->set_parent(user);
-        pvpGrade = user->get_pvp_grade();
-        secondGrow = (int)(char)user->getCurCharSecondGrowType();
-        firstGrow = (int)(char)user->getCurCharFirstGrowType();
-        job = user->get_charac_job();
         int givePoint = G_CDataManager()->m_pvpSkillTree.getGivePvPSkillPoint(
-            job, firstGrow, secondGrow, pvpGrade);
+            user->get_charac_job(),
+            (int)(char)user->getCurCharFirstGrowType(),
+            (int)(char)user->getCurCharSecondGrowType(),
+            user->get_pvp_grade());
         if (givePoint == 0)
         {
             user->givePvPSkillTree(0, false, giveIdx);

@@ -695,7 +695,7 @@ int CMissionList_Charac::getNewMission(CUser& user, int kind)
 // 发送
 // ============================================================================
 
-void CMissionList_Charac::Send_MissionList(CUser& user)
+int CMissionList_Charac::Send_MissionList(CUser& user)
 {
     PacketGuard packet;
     packet.put_header(0, 0x140);
@@ -723,9 +723,8 @@ void CMissionList_Charac::Send_MissionList(CUser& user)
             {
                 packet.put_short((int)m_missionList[kind].m_count);
             }
-            int missionIdx = (int)m_missionList[kind].m_index;
-            CMission* mission =
-                (CMission*)G_CDataManager()->find_mission(missionIdx);
+            CMission* mission = (CMission*)G_CDataManager()->find_mission(
+                (int)m_missionList[kind].m_index);
             if (!mission)
             {
                 m_missionList[kind].clear();
@@ -745,7 +744,7 @@ void CMissionList_Charac::Send_MissionList(CUser& user)
         }
     }
     packet.put_byte(index, count);
-    std::string buf;
+    unsigned char buf[0x20];
     BitsetToStr(m_clearedFlags, buf);
     for (int i = 0; i < 0x20; ++i)
     {
@@ -753,6 +752,7 @@ void CMissionList_Charac::Send_MissionList(CUser& user)
     }
     packet.finalize(true);
     user.Send(packet);
+    return 1;
 }
 
 void CMissionList_Charac::Send_Cleared_Mission_List(
