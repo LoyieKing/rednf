@@ -238,23 +238,21 @@ int CBossPlay::handleDieUser(CUser* user)
 // ============================================================================
 int CBossPlay::handleLeaveUser(CUser* user)
 {
-    int i;
+    int i = 0;
     for (i = 0; i <= 3; ++i)
     {
         if (m_party->checkValidUser(i) && m_party->get_user(i) == user)
         {
             if (m_memberField[i] == 0 && user->get_state() == 0xc)
             {
-                CHackAnalyzer* hack = user->getHackAnalyzer();
-                hack->addServerHackCnt(user, (ENUM_HACKTYPE)0x13a, 1, 0, 0);
+                user->getHackAnalyzer()->addServerHackCnt(user, (ENUM_HACKTYPE)0x13a, 1, 0, 0);
             }
             m_party->leave_user(user, (ENUM_PARTY_INFO_TYPE)2);
             setMemberAlive(i, false);
         }
     }
 
-    GameWorld* world = G_GameWorld();
-    world->out_from_dungeon(user);
+    G_GameWorld()->out_from_dungeon(user);
 
     PacketGuard packet;
     packet.put_header(0, 2);
@@ -262,7 +260,7 @@ int CBossPlay::handleLeaveUser(CUser* user)
     packet.put_short(1);
     user->make_basic_info((char*)&packet, '\0');
     packet.finalize(true);
-    world->send_all(packet, user);
+    G_GameWorld()->send_all(packet, user);
     return 1;
 }
 

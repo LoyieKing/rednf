@@ -500,22 +500,21 @@ int Inter_LoadEtc::_fnEnumQuestClear(unsigned int questIdx, char* ctx)
 
 bool Inter_LoadEtc::SetFatigue(CUser* user)
 {
-    const _Charac_info* cur = user->getCurCharacR();
-    if (cur == 0)
+    if (user->getCurCharacR() == 0)
         return false;
 
-    long now = GlobalData::s_systemTime_.getCurSec();
     if (!CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-                                cur->m_field7b, now))     // +0x7b lastPlayTick
+                                user->getCurCharacR()->m_field7b,
+                                GlobalData::s_systemTime_.getCurSec()))     // +0x7b
         return true;
 
     int days = 0;
-    if (cur->m_field7b != 0)
+    if (user->getCurCharacR()->m_field7b != 0)
     {
-        long t = GlobalData::s_systemTime_.getCurSec();
         days = ComputeDaysScheduleTime(
             G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-            cur->m_field7b, t);
+            user->getCurCharacR()->m_field7b,
+            GlobalData::s_systemTime_.getCurSec());
     }
 
     short charging =
@@ -527,7 +526,7 @@ bool Inter_LoadEtc::SetFatigue(CUser* user)
         trace("FATIGUE BATTERY : charno(%d) days(%d), lastplaytick(%d), "
               "curTick(%d), charging(%d), cur charging(%d)",
               (int)user->getCurCharacNo(), days,
-              (unsigned)cur->m_field7b,
+              (unsigned)user->getCurCharacR()->m_field7b,
               (unsigned)GlobalData::s_systemTime_.getCurSec(),
               (int)charging,
               (int)user->GetFatigueBatteryCharging());
