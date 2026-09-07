@@ -254,7 +254,9 @@ bool CEventCharacterHandler::_MasterNewSkill(CUser* user, int skillIdx, int coun
     stBuySkillInfo info;
     info.m_field0 = 0;
     info.m_skillIdx = (char)skillIdx;
-    info.m_count = (char)((char)count - (char)buf[slotNo * 2 + 1]);
+    // ORIG +0xc5：`add -0xc(buf),%eax; movzbl 0x1(%eax)`——(buf+2*slotNo) 先行、
+    // +1 留 disp。buf[slotNo*2+1] 被 4.4 折成 add$1+add base 两步。
+    info.m_count = (char)((char)count - (char)((buf + slotNo * 2)[1]));
     if ((signed char)info.m_count <= 0)
     {
         return false;

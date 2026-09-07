@@ -34,8 +34,9 @@ void CMoveCharacCmd::parse()
 // ORIG execute 0x084a8d02。
 void CMoveCharacCmd::execute()
 {
-    GameWorld* gw = G_GameWorld();
-    CUser* target = gw->find_user_by_charac_name(m_str0.c_str());
+    // P48：ORIG 每用点 fresh G_GameWorld()（find/move_area/send_to_area 各调）
+    CUser* target =
+        G_GameWorld()->find_user_by_charac_name(m_str0.c_str());
     if (target == 0)
     {
         return;
@@ -49,24 +50,21 @@ void CMoveCharacCmd::execute()
     unsigned int x = target->get_posX() & 0xffff;
     unsigned int y = target->get_posY() & 0xffff;
 
-    // 与发起 GM 同 vill 且同 area 则原地 set_position，否则跨区 move_area。
-    bool needMove = true;
+    // ORIG(0x084a8dd4)：同 vill && 同 area → set_position，否则 move_area；
+    // GetUser()/G_GameWorld() 每用点 fresh（P48），无 self/needMove 命名槽。
+    // ORIG(0x084a8dd4)：同 vill && 同 area → set_position，否则 move_area。
     CUser* self = GetUser();
     if (static_cast<int>(self->getCurCharacVill()) == vill &&
         self->get_area(false) == area)
     {
-        needMove = false;
+        self->set_position(static_cast<unsigned short>(x),
+                           static_cast<unsigned short>(y), 0);
     }
-    if (needMove)
+    else
     {
         G_GameWorld()->move_area(self, vill, area,
                                  static_cast<int>(x), static_cast<int>(y),
                                  0, false, 0, 0, 0);
-    }
-    else
-    {
-        self->set_position(static_cast<unsigned short>(x),
-                           static_cast<unsigned short>(y), 0);
     }
 
     PacketGuard packet;

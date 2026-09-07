@@ -305,9 +305,9 @@ void CUser::sendBingoData()
         GlobalData::s_event_manager->GetRepeatEvent(0x6a));
     if (event != 0)
     {
-        CBingo* bingo =
-            *reinterpret_cast<CBingo**>(event->getBingoSystem());
-        today = bingo->getToday();
+        // ORIG：getBingoSystem → shared_ptr deref → getToday 链式内联
+        //（mov (%eax),%eax 后直传，无 CBingo* 具名槽）。
+        today = (*reinterpret_cast<CBingo**>(event->getBingoSystem()))->getToday();
     }
 
     PacketGuard packet;
@@ -316,7 +316,10 @@ void CUser::sendBingoData()
     packet.put_byte(static_cast<int>(static_cast<char>(today)));
     packet.put_int(static_cast<int>(
         static_cast<BingoData*>(getBingoData())->m_eventId));
-    packet.put_byte(static_cast<BingoData*>(getBingoData())->m_isWin ? 1 : 0);
+    // ORIG (uint)*(byte*)(iVar2+5) movzbl 直读 +0x05；bool `?1:0` 会产 setcc 归一。
+    packet.put_byte(static_cast<int>(
+        static_cast<unsigned char>(
+            static_cast<BingoData*>(getBingoData())->m_isWin)));
     packet.finalize(true);
     Send(packet);
 }
