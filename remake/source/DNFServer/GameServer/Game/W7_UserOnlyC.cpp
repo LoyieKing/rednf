@@ -252,8 +252,8 @@ void _NS_PI_2ND_RecvHash_CS(char* packet, CUser* user, unsigned int recvSize)
         static_cast<std::set<std::pair<unsigned char, unsigned short> >*>(
             user->GetCSHashSet());
 
-    const std::pair<unsigned char, unsigned short> entry(cls, index);
-    const bool firstSeen = (seen->find(entry) == seen->end());
+    // P167：ORIG 用 make_pair<uchar&,ushort&> + find(...) != end（operator!= 判定存在）
+    const bool existing = (seen->find(std::make_pair(cls, index)) != seen->end());
 
     const unsigned int hashDword =
         *reinterpret_cast<const unsigned int*>(packet + 7);
@@ -275,11 +275,13 @@ void _NS_PI_2ND_RecvHash_CS(char* packet, CUser* user, unsigned int recvSize)
     }
     else
     {
-        record = !firstSeen;
+        record = existing;
     }
     if (!record)
         return;
 
+    // record 时 insert 用与 find 相同的 pair 键
+    const std::pair<unsigned char, unsigned short> entry(cls, index);
     const unsigned int hackType =
         _NS_PI_2ND_GetHackType(hackPackId, cls,
                                static_cast<unsigned short>(index));
@@ -456,13 +458,12 @@ bool CUser::Parsing(int received)
 // （runnable 假 / skill==0）——Model22 桥清零证据；签名与 CUser.h 同步（Main 代落）。
 int CUser::SetSkillLevel(int skillIdx, int level)
 {
-    bool runnable = true;
+    // P167/Ghidra：仅 hack 标志(0x711d8)==1 且 getCurCharacR() != 0 才进入处理，
+    // 否则返 0（原源码 runnable 逻辑与 ORIG 相反——真语义 bug）。
     if (*reinterpret_cast<const unsigned char*>(
-            reinterpret_cast<const char*>(this) + 0x711d8) == 1)
-    {
-        runnable = (getCurCharacR() == 0);
-    }
-    if (!runnable)
+            reinterpret_cast<const char*>(this) + 0x711d8) != 1)
+        return 0;
+    if (getCurCharacR() == 0)
         return 0;
 
     const int job = get_charac_job();
