@@ -20,9 +20,15 @@ public:
 
     StatisticsPacket() : PacketHeader(0x2720, 0x89)
     {
-        memset(m_tableName, 0, sizeof(m_tableName));
-        memset(m_fieldName, 0, sizeof(m_fieldName));
-        memset(m_key, 0, sizeof(m_key));
+        // ORIG 0x08610132：memset → 三手动逐字节循环（+0xa/+0x2b ≤0x20、
+        // +0x4c ≤0x38），4.1 未用 memset 而发循环形。
+        int i;
+        for (i = 0; i <= 0x20; ++i)
+            m_tableName[i] = '\0';
+        for (i = 0; i <= 0x20; ++i)
+            m_fieldName[i] = '\0';
+        for (i = 0; i <= 0x38; ++i)
+            m_key[i] = '\0';
         m_value = 0;
     }
 } __attribute__((packed));

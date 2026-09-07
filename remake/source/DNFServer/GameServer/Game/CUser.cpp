@@ -9768,13 +9768,13 @@ void CUser::ProcPremiumFatigue()
     if (!IsHavePremiumAdvantage())
         return;
     // ORIG 0x0867cbe4：直读 m_premium(+0x7121c)，不调 GetPremiumInfoW
-    WongWork::CUserPremium* premium = &m_premium;
     const bool pcRoomPremium =
         GlobalData::s_event_manager->GetRepeatEvent(0x57)->IsEventing(0) &&
-        premium->GetAdvantageFatigueRate() != 0 && GetPCRoomNo() != 0;
+        // GetAdvantageFatigueRate 每用点重取（P48）；&m_premium 经 %ebx 跨 call
+        m_premium.GetAdvantageFatigueRate() != 0 && GetPCRoomNo() != 0;
     const int premiumProduct =
         static_cast<int>(static_cast<unsigned short>(
-            premium->GetAdvantageFatigueRate())) *
+            m_premium.GetAdvantageFatigueRate())) *
         DEFAULT_MAX_FATIGUE;
     unsigned int maxPremiumFatigue =
         static_cast<unsigned int>(premiumProduct / 100);

@@ -317,8 +317,8 @@ unsigned short CItemUpgrade::_getUpgradeCountByUpgradeItem(
     const Inven_Item& target, const Inven_Item& material, ENUM_ERROR& err)
 {
     short count = 0;
-    const bool amplify = target.m_amp.hasAbility();
-    if (!amplify)
+    // ORIG 0x08548e7c：hasAbility 每用点重取（P48，%al 直测）。
+    if (!target.m_amp.hasAbility())
     {
         switch (material.m_addInfo)
         {
@@ -353,7 +353,7 @@ unsigned short CItemUpgrade::_getUpgradeCountByUpgradeItem(
         }
         else if (stack->IsAmplifyReinforceTicket())
         {
-            if (!amplify)
+            if (!target.m_amp.hasAbility())
             {
                 err = (ENUM_ERROR)0x13;
                 return 0;
@@ -380,8 +380,8 @@ unsigned char CItemUpgrade::_getUpgradeRateByUpgradeItem(
     const Inven_Item& target, const Inven_Item& material, ENUM_ERROR& err)
 {
     char rate = 0;
-    const bool amplify = target.m_amp.hasAbility();
-    if (!amplify)
+    // ORIG 0x08549018：hasAbility 每用点重取（P48，结果 %al 直测无槽）。
+    if (!target.m_amp.hasAbility())
     {
         // ORIG 0x0854901d..0x08549059 是 switch 二分决策树（首比较 0x1d29、
         // `sub $0x1c69; cmp $0x2; ja` 小区间、0x1e3f/0x1e40 jb/jbe、0x1e86），
@@ -424,7 +424,7 @@ unsigned char CItemUpgrade::_getUpgradeRateByUpgradeItem(
         }
         else if (stack->IsAmplifyReinforceTicket())
         {
-            if (!amplify)
+            if (!target.m_amp.hasAbility())
             {
                 err = (ENUM_ERROR)0x13;
                 return 0;

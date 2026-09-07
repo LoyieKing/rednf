@@ -809,8 +809,6 @@ int CBossTower::InsertRewardItems()
         if (invalid)
             continue;
 
-        CInventory* invenW = member->getCurCharacInvenW();
-
         for (int j = 0; j < m_memberReward[i].m_count; ++j)
         {
             Inven_Item& reward = m_memberReward[i].m_items[j];
@@ -820,22 +818,22 @@ int CBossTower::InsertRewardItems()
             int slotResult = -1;
             if (reward.m_addInfo == 0)
             {
-                // 金币奖励：m_addInfo2 为金额
-                const int money = reward.get_add_info();
-                const int gained = invenW->gain_money(
-                    money, (eMoneyAddReason)5, true, 0);
-                if (gained < money)
+                // 金币奖励：m_addInfo2 为金额（ORIG 三次 get_add_info 各用点重取，P48）
+                const int gained = member->getCurCharacInvenW()->gain_money(
+                    reward.get_add_info(), (eMoneyAddReason)5, true, 0);
+                if (gained < reward.get_add_info())
                 {
                     member->SendMoneyFullReason(
                         (ENUM_MONEY_FULL_REASON)0,
-                        static_cast<unsigned long>(money),
+                        static_cast<unsigned long>(reward.get_add_info()),
                         static_cast<unsigned long>(gained));
                 }
                 slotResult = 0;
             }
             else
             {
-                slotResult = invenW->insertItemIntoInventory(
+                // ORIG else 分支重取 getCurCharacInvenW（与金币分支各一次，P48）
+                slotResult = member->getCurCharacInvenW()->insertItemIntoInventory(
                     reward, (eItemAddReason)0xb, true, true);
             }
 
@@ -845,7 +843,6 @@ int CBossTower::InsertRewardItems()
                 packet.put_header(0, 0xe);
                 packet.put_byte(reward.GetItemSpace());
                 packet.put_short(1);
-                packet.put_int(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)reward.GetItemSpace()));
                 member->getCurCharacInvenR()->MakeItemPacket(
                     (INVEN_TYPE)GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)reward.GetItemSpace()),
                     slotResult, packet);
@@ -855,7 +852,7 @@ int CBossTower::InsertRewardItems()
             else
             {
                 // 背包满 → 邮件补发
-                char uniqueNo[0x18] = "";          // ebp-0x64（内联展开清零 0x18）
+                char uniqueNo[0x18] = {0};         // ebp-0x64（ORIG .rodata 清零模板）
 
                 CItem* itemData =
                     G_CDataManager()->find_item(reward.m_addInfo);

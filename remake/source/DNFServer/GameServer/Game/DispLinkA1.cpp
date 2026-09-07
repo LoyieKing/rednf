@@ -346,7 +346,14 @@ void Dispatcher_DisJointAvatar::SendDisjointAvatarInfo(CItem const* pItem)
 {
     Packet_Avater_Disjoint_Statistic packet;
     packet.m_field0a = 1;
-    packet.m_gradeIdx = pItem->get_rarity() == 2 ? 2 : pItem->get_grade() - 1;
+    // ORIG 0x08218996：gradeIdx 具名临时 + if/else 两段（sete 物化 + 槽往返
+    // 后写回 +0x0e）；m_field0a=1 先行、m_flag=1 后行。
+    int gradeIdx = 0;
+    if (pItem->get_rarity() == 2)
+        gradeIdx = 2;
+    else
+        gradeIdx = pItem->get_grade() - 1;
+    packet.m_gradeIdx = gradeIdx;
     packet.m_subType = pItem->GetItemType();
     packet.m_flag = 1;
     statisticProxyGroup0()->SendPacket(reinterpret_cast<char*>(&packet), 0x28);

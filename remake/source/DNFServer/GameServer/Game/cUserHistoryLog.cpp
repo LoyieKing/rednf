@@ -1470,22 +1470,24 @@ void cUserHistoryLog::CeraPoint(ENUM_CERAPOINT_LOG_TYPE type, unsigned int amoun
 void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int param4,
                             unsigned char loginType, int param6)
 {
-    int region;                                  // local_60 回归分类
+    // 声明序=栈槽序（P28）：region/money 先声明得 -0x5c/-0x58 槽，余者顺延。
+    int region = 0;                              // local_60 回归分类（ORIG 顶部零初始化）
+    int money = 0;                               // ORIG 亦先零初始化后覆写（+0x019/+0x05d）
     int upgradeFirst = 0;                        // local_58（首件强化）
     int firstItemId = 0;                         // local_54（10 号槽 itemId）
     int upgradeSum = 0;                          // local_50（其余件强化和）
     int rareCount = 0;                           // local_4c（rarity 0/1 计数）
     int petCount = 0;                            // local_48（invenType=2 计数）
 
-    const CInventory* invenR = m_user->getCurCharacInvenR();  // ORIG 读路径（InvenR）
-    int money = reinterpret_cast<CInventory*>(
-                    reinterpret_cast<char*>(const_cast<_Charac_info*>(m_user->getCurCharacR()))
-                    + 0xda)->get_money();
+    money = reinterpret_cast<CInventory*>(
+                reinterpret_cast<char*>(const_cast<_Charac_info*>(m_user->getCurCharacR()))
+                + 0xda)->get_money();
 
     for (int slot = 10; slot < 0x14; ++slot)
     {
-        const Inven_Item* it = invenR->GetInvenRef(0, slot);
-        if (it == 0 || *(const int*)&it->m_addInfo == 0)
+        // ORIG 每循环迭代重复 getCurCharacInvenR（P48 去缓存，禁循环外缓存）
+        const Inven_Item* it = m_user->getCurCharacInvenR()->GetInvenRef(0, slot);
+        if (it == 0 || it->m_addInfo == 0)
             continue;
         if (slot == 10)
         {
@@ -1497,20 +1499,28 @@ void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int 
             upgradeSum += it->GetUpgrade() & 0xff;
         }
         CItem* item = G_CDataManager()->find_item(it->m_addInfo);
-        if (item != 0 && (item->get_rarity() == 0 || item->get_rarity() == 1))
-            ++rareCount;
+        if (item != 0)
+        {
+            // ORIG 单次 get_rarity 缓存后判 0/1（P183 反向警告：二次访问须具名缓存）
+            int rarity = item->get_rarity();
+            if (rarity == 0 || rarity == 1)
+                ++rareCount;
+        }
     }
     for (int slot = 0; slot < 0x74; ++slot)
     {
-        const Inven_Item* it = invenR->GetInvenRef(2, slot);
-        if (it != 0 && *(const int*)&it->m_addInfo != 0)
+        // ORIG 每循环迭代重复 getCurCharacInvenR（P48 去缓存）
+        const Inven_Item* it = m_user->getCurCharacInvenR()->GetInvenRef(2, slot);
+        if (it != 0 && it->m_addInfo != 0)
             ++petCount;
     }
 
     // +0x7b 处回归用户标记【推断：ORIG *(int*)(charac+0x7b)，该字段未具名】
-    const _Charac_info* ch = m_user->getCurCharacR();
-    int returnUserFlag = *reinterpret_cast<const int*>(reinterpret_cast<const char*>(ch) + 0x7b);
-    if (returnUserFlag == 0 && m_user->GetFirstLogin())
+    int returnUserFlag = *reinterpret_cast<const int*>(
+        reinterpret_cast<const char*>(m_user->getCurCharacR()) + 0x7b);
+    // ORIG 先取 GetFirstLogin 落字节槽(-0x39)再判（勿内联 bool 物化）
+    unsigned char isFirstLogin = m_user->GetFirstLogin();
+    if (returnUserFlag == 0 && isFirstLogin != 0)
         region = 0;
     else if (loginType == 0 && returnUserFlag != 0)
         region = 1;
@@ -1518,13 +1528,12 @@ void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int 
         region = 2;
     else if (loginType == 2 && returnUserFlag != 0)
         region = 3;
-    else
-        region = -1;   // ORIG 未初始化路径保持全零默认 → 与 ORIG 一致的 local_60 初值
+    // else：ORIG 无 else 写，region 保持初值 0（勿补 -1）
 
     int expertJobLevel = 0;                      // local_3c
-    int expertJobType = m_user->GetCurCharacExpertJobType();  // 返回值亦入 %d
     STExpertJobScript* script =
-        reinterpret_cast<STExpertJobScript*>(G_CDataManager()->GetExpertJobScript(expertJobType));
+        reinterpret_cast<STExpertJobScript*>(
+            G_CDataManager()->GetExpertJobScript(m_user->GetCurCharacExpertJobType()));
     if (script != 0)
         expertJobLevel = script->GetLevel((unsigned)m_user->GetCurCharacExpertJobExp());
 
@@ -1534,5 +1543,6 @@ void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int 
         m_user->get_charac_job(), m_user->get_charac_level(),
         (int)m_user->getCurCharFirstGrowType(), (int)m_user->getCurCharSecondGrowType(),
         region, money, upgradeFirst, firstItemId, upgradeSum, rareCount, petCount,
-        expertJobType, expertJobLevel, reinterpret_cast<void*>(m_user));
+        m_user->GetCurCharacExpertJobType(), expertJobLevel,
+        reinterpret_cast<void*>(m_user));
 }

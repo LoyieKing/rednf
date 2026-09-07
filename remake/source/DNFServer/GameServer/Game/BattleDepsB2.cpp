@@ -238,17 +238,18 @@ MazeScript* CBattle_Field::GetAppropriateMaze(ENUM_DUNGEON_DIFFICULTY diff) cons
 //   [i]=1..5 返回 i，否则 0（下标 0 槽不参与）。
 int CBattle_Field::GetHellPartyDifficulty(ENUM_DUNGEON_TYPE type)
 {
-    char ratios[6] = { 0, 0, 0, 0, 0, 0 };
-    stHellParty_t* vals =
-        static_cast<stHellParty_t*>(G_CDataManager()->get_hellparty_script_values());
-
+    // ORIG 0x082ffa2e：ratios `{0}` 单零聚合标量（P202① movl+movw 两写）+
+    // get_hellparty_script_values 各分支独立重调（P48）。
+    char ratios[6] = { 0 };
     if ((int)type == 1)
     {
-        memcpy(ratios, vals->m_field84, 6);
+        memcpy(ratios, static_cast<stHellParty_t*>(
+                   G_CDataManager()->get_hellparty_script_values())->m_field84, 6);
     }
     else
     {
-        memcpy(ratios, vals->m_field7e, 6);
+        memcpy(ratios, static_cast<stHellParty_t*>(
+                   G_CDataManager()->get_hellparty_script_values())->m_field7e, 6);
         if (m_party != NULL)
             m_party->increase_hell_party_ratio(ratios);
     }

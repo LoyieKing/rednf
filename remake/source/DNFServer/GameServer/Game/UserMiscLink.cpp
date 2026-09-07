@@ -238,12 +238,14 @@ unsigned int CUser::Redeem_Item(int redeemId)
 // ===========================================================================
 int CUser::get_pvp_exp_of_week()
 {
-    const PvpResultType* result = CUserCharacInfo::getPVPResultRefR();
-    if (result->m_field10 == -1)
+    // ORIG 0x08230100：getPVPResultRefR 每字段访问各取一次（P48 无缓存，
+    // 结果经 %ebx 跨字段读），缓存形少 7 条。
+    if (CUserCharacInfo::getPVPResultRefR()->m_field10 == -1)
     {
-        return result->m_expPoint;
+        return CUserCharacInfo::getPVPResultRefR()->m_expPoint;
     }
-    return result->m_expPoint - result->m_field10;
+    return CUserCharacInfo::getPVPResultRefR()->m_expPoint
+           - CUserCharacInfo::getPVPResultRefR()->m_field10;
 }
 
 // ===========================================================================

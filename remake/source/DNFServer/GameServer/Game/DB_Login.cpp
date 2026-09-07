@@ -2324,25 +2324,27 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
         short level = *reinterpret_cast<short*>(sig->m_characData + i * 0x94 + 0x1a);       // 槽内 charac 等级(short)
         if (*reinterpret_cast<short*>(reinterpret_cast<char*>(G_CDataManager()) + 0xa8e0) <= level)
         {
-            unsigned int characNo = *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94);
+            // P183：ORIG 每次使用均由 sig 重新展开 charac_no（sig+0xe0 视图）与
+            // mercenary 基址，禁具名缓存。
             dbBonus->set_query(
                 "seLect mercenary_start_time,mercenary_finish_time,mercenary_area,mercenary_period from charac_link_bonus where charac_no=%u",
-                characNo);
+                *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94));
             if (!dbBonus->exec(true))
             {
                 return 0;
             }
 
-            CHARAC_LOAD_MERCENARY& merc = sig->m_mercenaries[outIdx];
-            merc.Reset();
-            strncpy(merc.m_name,
+            sig->m_mercenaries[outIdx].Reset();
+            strncpy(sig->m_mercenaries[outIdx].m_name,
                     sig->m_characData + i * 0x94 + 4, 0x1e);        // 角色名
-            merc.m_characNo = characNo;
-            merc.m_level = *reinterpret_cast<short*>(sig->m_characData + i * 0x94 + 0x1a);
+            sig->m_mercenaries[outIdx].m_characNo =
+                *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94);
+            sig->m_mercenaries[outIdx].m_level =
+                *reinterpret_cast<short*>(sig->m_characData + i * 0x94 + 0x1a);
 
             dbItems->set_query(
                 "seLect slot,it_id from user_items where charac_no=%u and expire_date>now() and stat=0 order by slot limit 8",
-                characNo);
+                *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94));
             if (!dbItems->exec(true))
             {
                 // ORIG（反编译 C）：exec 失败即跳过本角色的物品装载与
@@ -2361,7 +2363,7 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
                         cMyTrace trace(__PRETTY_FUNCTION__,
                                        0x3ea2, 5);
                         trace("DB_Login::GetMercenarySystemInfo %d ERROR Charac_no=%u", 0x3ea2,
-                              characNo);
+                              *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94));
                         break;
                     }
                     int gotSlot = 0;
@@ -2370,7 +2372,7 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
                         cMyTrace trace(__PRETTY_FUNCTION__,
                                        0x3ea8, 5);
                         trace("DB_Login::GetMercenarySystemInfo %d ERROR Charac_no=%u", 0x3ea8,
-                              characNo);
+                              *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94));
                         return 0;
                     }
                     if (!dbItems->get_int(1, itemId))
@@ -2378,32 +2380,32 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
                         cMyTrace trace(__PRETTY_FUNCTION__,
                                        0x3eae, 5);
                         trace("DB_Login::GetMercenarySystemInfo %d ERROR charac_no=%u", 0x3eae,
-                              characNo);
+                              *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94));
                         return 0;
                     }
                     if (gotSlot != expectSlot)
                     {
-                        merc.m_avatarBonus = 0;   // 连续槽位破坏标志（+0x32）
+                        sig->m_mercenaries[outIdx].m_avatarBonus = 0;   // 连续槽位破坏标志（+0x32）
                         break;
                     }
-                    merc.m_avatarItems[expectSlot] = itemId;
+                    sig->m_mercenaries[outIdx].m_avatarItems[expectSlot] = itemId;
                 }
             }
             else
             {
-                merc.m_avatarBonus = 0;
+                sig->m_mercenaries[outIdx].m_avatarBonus = 0;
             }
             if (dbBonus->getAffectedRowCount() == 0)
             {
                 dbBonus->set_query(
                     "inSert into charac_link_bonus (charac_no,mercenary_start_time,mercenary_finish_time,mercenary_area,mercenary_period) values(%u,0,0,-1,-1)",
-                    characNo);
+                    *reinterpret_cast<unsigned int*>(sig->m_characData + i * 0x94));
                 if (dbBonus->exec(true))
                 {
-                    merc.m_field28 = 0;                 // mercenary_start_time(+0x28)
-                    merc.m_field2c = 0;                 // mercenary_finish_time(+0x2c)
-                    merc.m_field30 = 0xff;              // mercenary_area(+0x30)
-                    merc.m_field31 = 0xff;              // mercenary_period(+0x31)
+                    sig->m_mercenaries[outIdx].m_field28 = 0;      // mercenary_start_time(+0x28)
+                    sig->m_mercenaries[outIdx].m_field2c = 0;      // mercenary_finish_time(+0x2c)
+                    sig->m_mercenaries[outIdx].m_field30 = 0xff;   // mercenary_area(+0x30)
+                    sig->m_mercenaries[outIdx].m_field31 = 0xff;   // mercenary_period(+0x31)
                     outIdx += 1;
                     sig->m_mercenaryCount += 1;
                 }
@@ -2411,10 +2413,13 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
             else
             {
                 bool ok = dbBonus->fetch();
-                if (ok) ok = dbBonus->get_int(0, merc.m_field28);
-                if (ok) ok = dbBonus->get_int(1, merc.m_field2c);
-                if (ok) ok = dbBonus->get_byte(2, reinterpret_cast<char&>(merc.m_field30));
-                if (ok) ok = dbBonus->get_byte(3, reinterpret_cast<char&>(merc.m_field31));
+                // ORIG 这两处 get_int 走 _ZN5MySQL7get_intEiRj（unsigned int&，
+                // ORIG 0x80e22ae；m_field28/m_field2c 同为 +0x28/+0x2c 的 4 字节，
+                // 与报告 uint* 视图口径一致）。
+                if (ok) ok = dbBonus->get_int(0, reinterpret_cast<unsigned int&>(sig->m_mercenaries[outIdx].m_field28));
+                if (ok) ok = dbBonus->get_int(1, reinterpret_cast<unsigned int&>(sig->m_mercenaries[outIdx].m_field2c));
+                if (ok) ok = dbBonus->get_byte(2, reinterpret_cast<char&>(sig->m_mercenaries[outIdx].m_field30));
+                if (ok) ok = dbBonus->get_byte(3, reinterpret_cast<char&>(sig->m_mercenaries[outIdx].m_field31));
                 if (ok)
                 {
                     outIdx += 1;
