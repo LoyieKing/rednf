@@ -133,6 +133,8 @@ InfoDaily* ScriptLoader::GetRestrictInfo(unsigned int ipgNo)
 
 bool ScriptLoader::FindIpgNo(unsigned int ipgNo)
 {
+    // ORIG 0x8abf70a（Ghidra C）：`return it == end() ? 0 : 1`，即 `find() != end()`
+    // （未找到=1）。GCC4.1 以 operator==+分支实现、4.4 内联，指令形态异（N 类）。
     return m_infoMap.find(ipgNo) != m_infoMap.end();
 }
 

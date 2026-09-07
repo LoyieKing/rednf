@@ -43,7 +43,7 @@ BlueMarbleScriptManager* BlueMarbleScriptManager::getInsance()
 // ORIG 0x088d66b6 T：m_maps（this+0xd4）find，未命中返回 0。
 BlueMarbleMapScript* BlueMarbleScriptManager::getMap(int idx)
 {
-    std::map<int, BlueMarbleMapScript*>::const_iterator it = m_maps.find(idx);
+    std::map<int, BlueMarbleMapScript*>::iterator it = m_maps.find(idx);
     return it != m_maps.end() ? it->second : 0;
 }
 
@@ -56,7 +56,7 @@ int BlueMarbleScriptManager::getMapTotalCount()
 // ORIG 0x088d6646 T：m_tiles（this+0xbc）find，未命中返回 0。
 BlueMarbleTileScript* BlueMarbleScriptManager::getTile(int zone)
 {
-    std::map<int, BlueMarbleTileScript*>::const_iterator it = m_tiles.find(zone);
+    std::map<int, BlueMarbleTileScript*>::iterator it = m_tiles.find(zone);
     return it != m_tiles.end() ? it->second : 0;
 }
 

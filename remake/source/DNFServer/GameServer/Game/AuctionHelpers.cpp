@@ -11,13 +11,10 @@
 
 bool IsPriceError(int price, int limit)
 {
-    if (price < -1 || limit < -1)
+    // ORIG 单布尔形态（Ghidra 等）：`(a<-1||b<-1) || (b!=-1 && b<=a)`。
+    if ((price < -1 || limit < -1) || (limit != -1 && price >= limit))
         return 1;
-    if (limit == -1)
-        return 0;
-    if (price < limit)
-        return 0;
-    return 1;
+    return 0;
 }
 
 bool IsValidMultiplyResult(int a, int b)
