@@ -138,8 +138,12 @@ void CAssaultPlace::DoConnectP2P()
 // ---------------------------------------------------------------------------
 void CAssaultPlace::_BackupPartyInfo(CParty* party, ENUM_ASSAULT_TEAM team)
 {
-    // asm 对 party==0 与 !=0 都调 PartyInfo::Set（参数不同路径同型）。
-    m_parties[team].Set(party);
+    // ORIG 双路各发一次 PartyInfo::Set（0x82e806f/0x82e8090）：显式 if/else
+    // 物化两 call（4.4 -O0 不合并两路 ⇒ 逐条同）。
+    if (party != NULL)
+        m_parties[team].Set(party);
+    else
+        m_parties[team].Set(NULL);
 }
 
 // ---------------------------------------------------------------------------
@@ -673,33 +677,31 @@ void CAssaultPlace::_SendHoldVictory(CUser* userA, CUser* userB, int winTeam)
 // ---------------------------------------------------------------------------
 int CAssaultPlace::_VictoryBonus(CUser* user, char side)
 {
-    CUser* enemy = 0;
-    int penalty = 0;
-    int victoryPenaltyValue = 0;
+    // [b23S3C] P0 槽映射：ORIG 预清 6 槽（低→高 -0x20..-0xc）=
+    // myVictory/penaltyValue/breakBonus/winCount/enemy/循环 i；删 dead local
+    // enemySideChecked 与 powerParam/slotUser/penaltyOut 缓存槽（P48 每用点重取
+    // GetUser()，ORIG 循环体 3 次 call GetUser、侧写结果经 callee-saved %ebx 跨调）。
+    int myVictory = 0;
+    int penaltyValue = 0;
     int breakBonus = 0;
     int winCount = 0;
-    int myVictory = 0;
-    int enemySideChecked = 0;
+    CUser* enemy = 0;
 
-    for (int i = 0; i < 8; ++i) {
-        CUser* slotUser = m_assaulters[i].GetUser();
-        if (slotUser != 0) {
-            if (((CUser*)user)->getPowerSide()
-                != ((CUser*)slotUser)->getPowerSide())
-            {
-                enemy = slotUser;
-                break;
-            }
+    for (int i = 0; i <= 7; ++i) {
+        if (m_assaulters[i].GetUser() == 0)
+            continue;
+        if (((CUser*)user)->getPowerSide()
+            != ((CUser*)m_assaulters[i].GetUser())->getPowerSide())
+        {
+            enemy = (CUser*)m_assaulters[i].GetUser();
+            break;
         }
     }
 
-    if (((CUser*)user)->getPowerSide() == (unsigned char)side) {
+    if (((CUser*)user)->getPowerSide() == side) {
         myVictory = ((CUser*)user)->GetPowerWarPartyVictory();
-        PowerParameterScript* powerParam =
-            &G_CDataManager()->m_powerParameter;  // G_CDataManager()+0xa628
-        stVictoryPenalty penaltyOut = powerParam->GetPenalty(myVictory);
-        victoryPenaltyValue = penaltyOut.m_fieldC;
-
+        penaltyValue = G_CDataManager()->m_powerParameter
+                           .GetPenalty(myVictory).m_fieldC;
         if (enemy != 0) {
             winCount = ((CUser*)enemy)->GetPowerWarPartyVictory();
             if (winCount > 4) {
@@ -708,23 +710,20 @@ int CAssaultPlace::_VictoryBonus(CUser* user, char side)
                 _SendHoldVictory(user, enemy, winCount);
             }
         }
-        _SendVictoryBonus(user, myVictory, victoryPenaltyValue, winCount,
-                          breakBonus);
+        _SendVictoryBonus(user, myVictory, penaltyValue, winCount, breakBonus);
     } else if (enemy != 0) {
         myVictory = ((CUser*)enemy)->GetPowerWarPartyVictory();
-        stVictoryPenalty penaltyOut =
-            G_CDataManager()->m_powerParameter.GetPenalty(myVictory);
-        victoryPenaltyValue = penaltyOut.m_fieldC;
-
+        penaltyValue = G_CDataManager()->m_powerParameter
+                           .GetPenalty(myVictory).m_fieldC;
         winCount = ((CUser*)user)->GetPowerWarPartyVictory();
         if (winCount > 4) {
-            breakBonus = G_CDataManager()->m_powerParameter.GetBreakBonus(winCount);
+            breakBonus = G_CDataManager()->m_powerParameter.GetBreakBonus(
+                winCount);
             _SendHoldVictory(enemy, user, winCount);
         }
-        _SendVictoryBonus(enemy, myVictory, victoryPenaltyValue, winCount,
-                          breakBonus);
+        _SendVictoryBonus(enemy, myVictory, penaltyValue, winCount, breakBonus);
     }
-    return victoryPenaltyValue + breakBonus;
+    return breakBonus + penaltyValue;
 }
 
 // ---------------------------------------------------------------------------

@@ -18,7 +18,7 @@
 
 // ---------------------------------------------------------------------------
 // PI 安全域函数（ORIG 符号经 nm 核实；真实定义在本 TU 后段）：
-//   bool _NS_MakeHash_(char*, short, int&)
+//   char _NS_MakeHash_(char*, short, int&)
 //       _Z13_NS_MakeHash_PcsRi            T 0x808c8b5（报告 _lt_global_gt_/_NS_MakeHash_.md）
 //   void _NS_MakeHash_(char*, unsigned short, unsigned int&)
 //       _Z13_NS_MakeHash_PctRj            T 0x0808c976（报告 _NS_MakeHash__0808c976.md，薄包装）
@@ -31,7 +31,11 @@
 //       注意：ORIG 符号不带参数编码（非 _Z15..v），但函数体读取调用方压栈的
 //       short（0x8(%ebp)，0x82758e9 处 mov 0x8(%ebp),%eax → jump table）。
 //       用 asm 标签把带 short 形参的声明指到 ORIG 原始符号，保持压参行为。
-bool _NS_MakeHash_(char* data, short len, int& out);
+// 返回类型 char（非 bool/int）：ORIG 调用点 _NS_PI_MakeHash_NOTI(0x82746f3) 为
+// `xor $0x1,%eax; test %al,%al; jne` —— 只测低字节，char 值域的 ==1 判据；
+// ORIG 本体(0x0808c8b5) 两条返回 `mov $0x0,%eax`/`mov $0x1,%eax` 严格 0/1。
+// mangled 不含返回类型 ⇒ ABI 无影响（Main 授权，batch-23 S 线）。
+char _NS_MakeHash_(char* data, short len, int& out);
 char PI_GetType_CS(char type, short cmd);
 int PI_GetHackTypes(short hackType) __asm__("_Z14PI_GetHackTypes");
 void PIAddServerHackCnt(CUser* user, WongWork::ENUM_HACKTYPE type, int count);
@@ -171,21 +175,20 @@ void _NS_PI_Check_CMD(ENUM_PACKETCLASS packetClass, unsigned short cmd,
 
 // ===========================================================================
 // _NS_MakeHash_  ORIG T 0x808c8b5（报告 _lt_global_gt_/_NS_MakeHash_.md）
-// len 越界（<=0 或 >0x190）返回 false；否则 MD5 后按 ORIG 逐字节 xor 折叠：
+// len 越界（<=0 或 >0x190）返回 0；否则一步 md5() 后按 ORIG 逐字节 xor 折叠：
 //   d[0] ^= d[8]^d[10]^d[13] ^ 0x81   d[1] ^= d[5]^d[9]^d[12]  ^ 0x78
 //   d[2] ^= d[4]^d[6]^d[14]  ^ 0x1a   d[3] ^= d[7]^d[11]^d[15] ^ 0xbf
 // 结果以小端 dword 写 *out（ORIG mov (%eax),%edx 读 4 字节）。
 // ===========================================================================
-bool _NS_MakeHash_(char* data, short len, int& out)
+// [b23S3C] ORIG 尾 `mov $0x1,%eax; leave; ret`+调用点 xor$0x1 直测低字节 ⇒ 返回 char；
+// 体 ORIG 单 call _Z3md5PhiS_（0x80b3d57），勿展开 starts/update/finish 三 call。
+char _NS_MakeHash_(char* data, short len, int& out)
 {
     if (len <= 0 || len > 0x190)
-        return false;
+        return 0;
 
     unsigned char digest[16];
-    md5_context ctx;
-    md5_starts(&ctx);
-    md5_update(&ctx, reinterpret_cast<unsigned char*>(data), len);
-    md5_finish(&ctx, digest);
+    md5(reinterpret_cast<unsigned char*>(data), len, digest);
 
     digest[0] = static_cast<unsigned char>(digest[0] ^ digest[8] ^ digest[10] ^
                                            digest[13] ^ 0x81);
@@ -196,9 +199,9 @@ bool _NS_MakeHash_(char* data, short len, int& out)
     digest[3] = static_cast<unsigned char>(digest[3] ^ digest[7] ^ digest[11] ^
                                            digest[15] ^ 0xbf);
 
-    out = static_cast<int>(digest[0]) | (static_cast<int>(digest[1]) << 8) |
-          (static_cast<int>(digest[2]) << 16) | (static_cast<int>(digest[3]) << 24);
-    return true;
+    // ORIG lea digest,%eax; mov (%eax),%edx; mov %edx,(out) —— 小端 dword 直读，非逐字节 or。
+    out = *reinterpret_cast<int*>(digest);
+    return 1;
 }
 
 // ---------------------------------------------------------------------------

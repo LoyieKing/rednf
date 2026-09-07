@@ -54,6 +54,7 @@
 #include "InGameEventScripts.h"         // ::Action_SendMail
 #include "GlobalData.h"
 #include "LogManager.h"
+#include "BingoEvent.h"                 // BingoEvent 权威头（m_bingo: shared_ptr<CBingo> @+0x0c）
 
 // ---------------------------------------------------------------------------
 
@@ -67,14 +68,8 @@
 // 0x080ca622）。类布局（ORIG ctor 0x080c9984）：+0x0c 为 boost::shared_ptr<CBingo>
 // 槽（getBingoSystem 0x080c9fea 返回该地址，operator-> 解引用得 CBingo*）。
 // ---------------------------------------------------------------------------
-class BingoEvent
-{
-public:
-    int reqBingoQuizMark(CUser& user, int quizValue);          // ORIG T 0x080ca262
-    void sendMaxMatchLineReward(CUser& user);                  // ORIG T 0x080ca622
-    void sendOneMatchLineReward(CUser& user);                  // ORIG T 0x080ca3d4（定义 BingoEventLink4.cpp）
-};
-
+// BingoEvent 权威头（BingoEvent.h）：成员 `boost::shared_ptr<CBingo> m_bingo` @+0x0c，
+// 方法声明 reqBingoQuizMark/sendMaxMatchLineReward/sendOneMatchLineReward 齐全。
 class CBingo
 {
 public:
@@ -120,41 +115,48 @@ int CBingo::getQuizIndex()
 // reqBingoQuizMark @ 0x080ca262（reqBingoQuizMark.md 汇编逐分支转写）。
 int BingoEvent::reqBingoQuizMark(CUser& user, int quizValue)
 {
-    // 本地布局镜像类（P144）无具名成员；+0x0c = boost::shared_ptr<CBingo> 槽
-    // （getBingoSystem ORIG 0x080c9fea 返回该地址）。镜像类布局访问。
-    CBingo* bingo = *reinterpret_cast<CBingo**>(reinterpret_cast<char*>(this) + 0xc);
-
-    if (bingo->getQuizValue() != quizValue)
+    // [b23S3C] ORIG 0x080ca262 逐 call 位实证的三处形差（本件真语义缺口 gap 20）：
+    // ①m_bingo 是 boost::shared_ptr<CBingo>，ORIG 每用点 `add $0xc; call
+    //   _ZNK5boost10shared_ptrI6CBingoEptEv`（W @0x080ce766）共 3 次 ⇒ 改真实成员
+    //   `m_bingo->`（原镜像类 reinterpret 缓存 `bingo` 局部丢 2 次 call）；
+    // ②user.getBingoData() ORIG 7 次重取（isSetBit/旧值/calNewValue 入参/新值比较/
+    //   写 +6/读 +4/写 +4），无 `data` 具名缓存槽 ⇒ P48 每用点重取；
+    // ③字段访问经 BingoData（CUser.h:1785）出单条 disp 形（`movb $0x1,0x6(%eax)` /
+    //   `movzbl 0x4(%eax)`），原 `data[6]` 下标形多 1 条 add；
+    // ④越界判 ORIG `cmpl $0x0;jns; cmpl $0x31;jle` = 死条件 `idx<0 && idx>0x31`
+    //   （原 `||` 写成短路或在 idx<0 时误返 0x13，真语义 bug）⇒ 改 &&。
+    if (m_bingo->getQuizValue() != quizValue)
     {
         return 0x17;
     }
 
-    int idx = bingo->getQuizIndex();
-    // 汇编 +0x4a..+0x54：idx<0 或 idx>0x31（越界）→ 0x13。
-    if (idx < 0 || idx > 0x31)
+    int idx = m_bingo->getQuizIndex();
+    if (idx < 0 && idx > 0x31)
     {
         return 0x13;
     }
 
-    unsigned char* data = static_cast<unsigned char*>(user.getBingoData());
-    if (isSetBit_Uint(*reinterpret_cast<unsigned int*>(data), idx))
+    if (isSetBit_Uint(static_cast<BingoData*>(user.getBingoData())->m_eventId, idx))
     {
         return 0x12;
     }
 
-    unsigned int oldBoard = *reinterpret_cast<unsigned int*>(data);
-    int newLines = bingo->calNewValue(*reinterpret_cast<unsigned int*>(data), 0);
-    if (*reinterpret_cast<unsigned int*>(data) != oldBoard)
+    unsigned int oldBoard = static_cast<BingoData*>(user.getBingoData())->m_eventId;
+    int newLines = m_bingo->calNewValue(
+        static_cast<BingoData*>(user.getBingoData())->m_eventId, 0);
+    if (static_cast<BingoData*>(user.getBingoData())->m_eventId != oldBoard)
     {
-        data[6] = 1;  // +0x06 标记（sendBingoData/isWin 区）
-        int diff = newLines - static_cast<int>(static_cast<signed char>(data[4]));
+        static_cast<BingoData*>(user.getBingoData())->m_needSave = true;
+        int diff = newLines - static_cast<int>(static_cast<signed char>(
+            static_cast<BingoData*>(user.getBingoData())->m_pad4));
         if (diff > 0)
         {
             if (diff > 3)
             {
                 diff = 3;
             }
-            data[4] = static_cast<unsigned char>(newLines);
+            static_cast<BingoData*>(user.getBingoData())->m_pad4 =
+                static_cast<char>(newLines);
             for (int i = 0; i < diff; ++i)
             {
                 sendOneMatchLineReward(user);

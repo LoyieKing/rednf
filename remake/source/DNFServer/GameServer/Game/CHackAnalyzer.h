@@ -172,8 +172,9 @@ public:
     void _analyzeMonsterDieHack();                     // ORIG T 0x080f7eb6
     void analyzeMonsterDieHack();                      // ORIG W 0x080f7cb6
     void _reportIncurrectReport();                     // ORIG W 0x080f8032
-    void ValidateFixMobDiePos(CUser* user, unsigned short mobId,
-                              unsigned short x, unsigned short y);
+    static void ValidateFixMobDiePos(CUser* user, unsigned short mobId,
+                                     unsigned short x, unsigned short y);
+    // ORIG 0x080f908c 栈布局：user@0x8、mobId/x/y@0xc/0x10/0x14、this 不入栈 → static
     void onUpdateHackCount(CUser* user, ENUM_HACKTYPE type, int a,
                            unsigned int b, unsigned int c);   // ORIG T 0x080f8c4e（Eijj：第3参 int）
 

@@ -4,7 +4,8 @@
 #include <vector>
 #include <map>
 #include <cstring>
-#include <new>  // placement new（_AdvanceAltarDbData ctor 就地构造 +0x00 的 _RidableBase）
+// _AdvanceAltarDbData ctor 的 +0x00 _RidableBase 现为真实成员（编译器前置发
+// call _RidableBaseC1Ev），不再用 placement new，故本头不依赖 <new>。
 
 #include "TimerQueue.h"  // TIMER_MESSAGE（StageControl::onTimer 参数；权威枚举，随 TimerDispatcher 批次增长）
 #include "advancealtar_StageDifficulty.h"  // StageDifficulty::T（Manager::selectStage 参数，ORIG mangled NS_15StageDifficulty1TE）
@@ -89,15 +90,23 @@ struct _BuyItem {
     int m_field0; int m_field4; short m_short8; short m_short10;            // 12 字节
 };  // 12 字节
 
-// _RidableBase（AdvanceAltarData 基类，+0x00；仅前 0x21 序列化，ORIG ctor 置 0）
+// _RidableBase（AdvanceAltarData 基类，+0x00；仅前 0x21 序列化，ORIG ctor 置 0）。
+// pack(1)：ORIG `_RidableBaseC1Ev`（W 0x0848f464，size 0x23）体为
+// `memset(this,0,0x21)`，成员末字段 m_field20 止于 +0x20（uchar），故真实
+// 尺寸 = 0x21（非 0x24）。本结构同时作为：
+//   ① AdvanceAltarData 的基类（该类非 pack，map 成员自然对齐到 4 → maps 落
+//      +0x24，ORIG 一致，见下方 offsetof 断言）；
+//   ② _AdvanceAltarDbData 的 +0x00 首成员（外层 pack(1) 使 m_stages 紧跟
+//      0x21，ORIG ctor 先 `call _RidableBaseC1Ev` 再构造子对象数组，见该 ctor）。
+#pragma pack(push, 1)
 struct _RidableBase
 {
     _RidableBase() { std::memset(this, 0, 0x21); }
     int m_ridableId;         // +0x00（refillTicketFree 0x813159a 判定槽位坐骑）
     int m_ticket;            // +0x04（付费票数；refillTicketFree/gmSetTicket 写入）
-    // ---- +0x08..+0x23 计数区（OnlyOrig_Altar.AltarMgr 按
+    // ---- +0x08..+0x20 计数区（OnlyOrig_Altar.AltarMgr 按
     //      decTicket/gmSetStar/buyItem/clearStage/resetStar 报告写点具名化；
-    //      字段语义名【推断】，偏移与总尺寸 0x24 不变）----
+    //      字段语义名【推断】，偏移 0x21 止）----
     int m_freeTicket;        // +0x08（decTicket 第二票源：m_ticket<1 时扣减）
     int m_curStar;           // +0x0c（gmSetStar 主写点；=当前星）
     int m_starPoolBase;      // +0x10（gmSetStar：m_totalStar = 本值 + v）
@@ -108,9 +117,8 @@ struct _RidableBase
     short m_field1c;         // +0x1c（无报告写点）
     short m_field1e;         // +0x1e（无报告写点）
     unsigned char m_field20; // +0x20（setNextStage 0x081331d4 推进新幕时置 1；语义【推断】）
-    char m_pad21[3];         // +0x21..+0x23（ctor memset 覆盖；8B 保总尺寸 0x24）
-
-};
+};                           // pack(1) sizeof 0x21（ORIG ctor memset 0x21）
+#pragma pack(pop)
 
 // ORIG 枚举 advancealtar::RidableId::T（mangled NS_9RidableId1TE）。报告仅实证
 // 值 1 为有效坐骑：Dispatcher_StartGame/send 以常量 1 调用
@@ -187,20 +195,25 @@ struct _AdvanceAltarDbData
     //   +0x9d  30× call _ZN12advancealtar7_RewardC1Ev     (@0x081344be，步长 0x5，base+0x481；
     //          循环 mov $0x1d,%esi 递减至 -1 ⇒ 0x1d+1 = 30 个元素，见 m_rewards 注释)
     //   +0xc1  memset(this, 0, 0x518)（最后执行，覆盖上述全部子对象 ctor 的写入）
-    // m_ridable 为 +0x00 的 0x21 字节扁平视图（不成员化 _RidableBase：后者 sizeof 0x24
-    // 会把 m_stages 推到 +0x24，与 ORIG 的 +0x21 冲突，见下方 offsetof 断言），故按
-    // C++98 显式构造调用形式在 +0x00 就地构造 _RidableBase，编译器发出真实
-    // call _RidableBaseC1Ev（非编造符号，ORIG nm 实证 W 0x0848f464 size 0x23）。
+    // m_ridable 是 +0x00 的真实 _RidableBase 成员（pack(1) sizeof 0x21）：外层
+    // _AdvanceAltarDbData 亦 pack(1)，故紧随的 m_stages 落在 +0x21（pack(1) 取消
+    // 成员间对齐补齐），与 ORIG 布局一致；且 _RidableBase 有用户 ctor，作为真实
+    // 数据成员其构造由编译器在成员初始化阶段自动前置发出
+    // `call _RidableBaseC1Ev`（非 placement-new → 无 _ZnwjPv 假 operator new 调用，
+    // ORIG nm 实证 W 0x0848f464 size 0x23）。原「union{char[0x21]; _RidableDbHead} +
+    // placement new」写法被 4.4.7 编成运行期 operator new(size,void*)+空检查且落后
+    // 于子对象数组构造，verdict DIFF，故弃用。DB 行头具名视图改由下方 m_head() 提供
+    // （与 _RidableBase 逐字节同布局，见 _RidableDbHead 定义处的指令级取证）。
     _AdvanceAltarDbData()
     {
-        ::new (static_cast<void *>(m_ridable)) _RidableBase();
         std::memset(this, 0, sizeof(*this));
     }
-    union
-    {
-        char m_ridable[0x21];        // +0x00（旧基名保留：整块 0x21 扁平视图）
-        _RidableDbHead m_head;       // +0x00（DB 行头具名字段视图）
-    };
+    _RidableBase m_ridable;          // +0x00（真实成员；ctor 前置构造，memset 0x21）
+    // DB 行头具名视图：_RidableDbHead 与 _RidableBase 的 pack(1) 逐字段偏移/宽度
+    // 完全一致（取证见 _RidableDbHead 定义），故以 reinterpret 引用暴露同一 0x21 区。
+    _RidableDbHead& m_head() { return *reinterpret_cast<_RidableDbHead*>(&m_ridable); }
+    const _RidableDbHead& m_head() const
+    { return *reinterpret_cast<const _RidableDbHead*>(&m_ridable); }
     _Stage m_stages[0x32];           // +0x21（50）
     _Slot  m_slots[0xc];             // +0x1b1（12）
     _BuyItem m_buyItems[0x32];       // +0x229（50）
@@ -212,19 +225,38 @@ struct _AdvanceAltarDbData
 };                                   // sizeof 0x518
 #pragma pack(pop)
 
-// ---- _RidableDbHead / _AdvanceAltarDbData 行头布局断言（ORIG 证据见上）----
+// ---- _RidableBase / _RidableDbHead / _AdvanceAltarDbData 行头布局断言（ORIG 证据见上）----
+// _RidableBase 现是 _AdvanceAltarDbData 的 +0x00 首成员，_RidableDbHead 通过
+// m_head() reinterpret 暴露同一 0x21 区，故两者的字段偏移必须逐一相等；据此
+// 直接断言 _RidableBase 各字段偏移（即 ORIG Select.md/update.md 指令实证的写读
+// 偏移），并断言 _RidableDbHead 视图各同名列字段偏移与之相同。
+static_assert(sizeof(_RidableBase) == 0x21,
+              "_RidableBase ABI drift (ORIG ctor memset 0x21)");
 static_assert(sizeof(_RidableDbHead) == 0x21,
               "_RidableDbHead ABI drift (ORIG db head size 0x21)");
-static_assert(offsetof(_AdvanceAltarDbData, m_head.m_ticketFree) == 0x04,
-              "_AdvanceAltarDbData m_head.m_ticketFree offset drift");
-static_assert(offsetof(_AdvanceAltarDbData, m_head.m_starGame) == 0x0c,
-              "_AdvanceAltarDbData m_head.m_starGame offset drift");
-static_assert(offsetof(_AdvanceAltarDbData, m_head.m_starUsable) == 0x14,
-              "_AdvanceAltarDbData m_head.m_starUsable offset drift");
-static_assert(offsetof(_AdvanceAltarDbData, m_head.m_starResetCount) == 0x1a,
-              "_AdvanceAltarDbData m_head.m_starResetCount offset drift");
-static_assert(offsetof(_AdvanceAltarDbData, m_head.m_isUnlockStageEffect) == 0x20,
-              "_AdvanceAltarDbData m_head.m_isUnlockStageEffect offset drift");
+static_assert(offsetof(_RidableBase, m_ticket) == 0x04,
+              "_RidableBase m_ticket(+0x04=ticket_free) offset drift");
+static_assert(offsetof(_RidableBase, m_freeTicket) == 0x08,
+              "_RidableBase m_freeTicket(+0x08=ticket_cera) offset drift");
+static_assert(offsetof(_RidableBase, m_curStar) == 0x0c,
+              "_RidableBase m_curStar(+0x0c=star_game) offset drift");
+static_assert(offsetof(_RidableBase, m_starPoint) == 0x14,
+              "_RidableBase m_starPoint(+0x14=star_usable) offset drift");
+static_assert(offsetof(_RidableBase, m_resetCount) == 0x1a,
+              "_RidableBase m_resetCount(+0x1a=star_reset_count) offset drift");
+static_assert(offsetof(_RidableBase, m_field20) == 0x20,
+              "_RidableBase m_field20(+0x20=is_unlock_stage_effect) offset drift");
+// _RidableDbHead 视图列名 ↔ _RidableBase 同偏移成员名对齐核验（m_head() 合法性依据）：
+static_assert(offsetof(_RidableDbHead, m_ticketFree) == offsetof(_RidableBase, m_ticket),
+              "_RidableDbHead/_RidableBase view aliasing mismatch @0x04");
+static_assert(offsetof(_RidableDbHead, m_starUsable) == offsetof(_RidableBase, m_starPoint),
+              "_RidableDbHead/_RidableBase view aliasing mismatch @0x14");
+static_assert(offsetof(_RidableDbHead, m_starResetCount) == offsetof(_RidableBase, m_resetCount),
+              "_RidableDbHead/_RidableBase view aliasing mismatch @0x1a");
+static_assert(offsetof(_RidableDbHead, m_isUnlockStageEffect) == offsetof(_RidableBase, m_field20),
+              "_RidableDbHead/_RidableBase view aliasing mismatch @0x20");
+static_assert(offsetof(_AdvanceAltarDbData, m_ridable) == 0x00,
+              "_AdvanceAltarDbData m_ridable offset drift");
 static_assert(offsetof(_AdvanceAltarDbData, m_stages) == 0x21,
               "_AdvanceAltarDbData m_stages offset drift");
 static_assert(offsetof(_AdvanceAltarDbData, m_slots) == 0x1b1,

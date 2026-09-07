@@ -2259,31 +2259,37 @@ int DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
     }
     sig->m_ingameHackItemFlag = false;           // +0x4124 ip 变更标志清零
 
+    // [b23S3C] P48/§3.2②：偏移地址用 SGBC 宏直算（ORIG 每用点 `mov 0xc;add $imm`
+    // 2 条）；SGB always_inline 实参 off 仍落槽（+3 条/处、帧 0x58→0x78），
+    // 非模板参数化不可免；truthy 直判去 `!=0`（ORIG test%al je 无 setne 物化）。
+    // dot 声明先于双缓冲（ORIG 预清序 -0x10(dot) → curIp → oldIp）。
+    char* dot = 0;
     char curIp[16] = {0};
     char oldIp[16] = {0};
-    strcpy(curIp, SGB(sig, OFF_LOGIN_IP));
+    strcpy(curIp, SGBC(sig, OFF_LOGIN_IP));
     // ORIG：双 16 字节缓冲，当前 ip 与旧登录 ip(+0x4114)
-    strcpy(oldIp, SGB(sig, 0x4114));
+    strcpy(oldIp, SGBC(sig, 0x4114));
 
-    char* dotCur = strrchr(curIp, '.');          // 截掉最后一段（去端口化前缀）
-    if (dotCur != 0)
+    // 单 dot 变量两次复用（ORIG 两 strrchr 结果同写 -0x10 槽）。
+    dot = strrchr(curIp, '.');                   // 截掉最后一段（去端口化前缀）
+    if (dot != 0)
     {
-        *dotCur = '\0';
+        *dot = '\0';
     }
-    char* dotOld = strrchr(oldIp, '.');
-    if (dotOld != 0)
+    dot = strrchr(oldIp, '.');
+    if (dot != 0)
     {
-        *dotOld = '\0';
+        *dot = '\0';
     }
     if (strcmp(curIp, oldIp) != 0)
     {
-        if (SGB(sig, 0x4114)[0] != 0)
+        if (SGBC(sig, 0x4114)[0])
         {
             sig->m_ingameHackItemFlag = true;
         }
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
         db->set_query("upDate login_common set login_ip='%s' where m_id=%u",
-                      SGB(sig, OFF_LOGIN_IP),
+                      SGBC(sig, OFF_LOGIN_IP),
                       sig->m_accId);
         if (!db->exec(true))
         {

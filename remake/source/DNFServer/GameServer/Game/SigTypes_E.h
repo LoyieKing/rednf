@@ -843,7 +843,10 @@ static_assert(offsetof(SIG_REQUEST_PVP_MISSION_LIST, m_field148) == 0x148, "SIG_
 #pragma pack(push, 1)
 struct SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD
 {
-    int m_accID;                     // +0x00
+    // unsigned int：ORIG 0x085c48d6 存 acc_id 为 `mov -0xc(%ebp),%edx; mov %eax,(%edx)`
+    // 2 条形（无符号转换节点）；CUser::get_acc_id() 返回 unsigned int（CUser.h:2911）。
+    // 声明为 int 时 4.4.7 会插入值搬运使 store 变 3 条（实测见 b23 O_MiscC idx8）。
+    unsigned int m_accID;            // +0x00
     int m_characNo;                  // +0x04
     char m_pad08[4];                 // +0x08
     unsigned char m_state;           // +0x0c

@@ -125,7 +125,11 @@ public:
 
     // ORIG T 0x081913f6 _ZN...21UpdateAvatarEnduranceEN5CUser11eSendTargetEPS0_s：
     // 组 0x220 包（uid/slot/item_idx/endur）经 SendPacket 上报；slot 限 0..9。
-    void UpdateAvatarEndurance(CUser::eSendTarget target, CUser* user, short slot);
+    // [b23S3C] ORIG 0x081913f6 callee 读 0x10(%ebp)=slot（static 3 参形：
+    // target@0x8/user@0xc/slot@0x10），GmReduceEndurance 调用点仅压 3 槽无 this
+    // （0x081912c7 movl $1,(%esp)）⇒ static。mangled 不含 this，签名不变。
+    static void UpdateAvatarEndurance(CUser::eSendTarget target, CUser* user,
+                                      short slot);
     // ORIG 0x08190dea / 0x08190eae：不触碰 this（静态），经 DB 队列发耐久保存流。
     static void SaveAvatarEnduranceUnit(arad::SigAradAvatarEnduranceSave& save);
     static void SaveAvatarEnduranceUnit(int key, int value);

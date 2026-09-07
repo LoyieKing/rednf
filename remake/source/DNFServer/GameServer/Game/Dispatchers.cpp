@@ -11003,35 +11003,30 @@ int Dispatcher_DeleteToBlackList::check_error(CUser* user, MSG_BASE& msg)
 }
 int Dispatcher_DeleteToBlackList::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_DELETE_TO_BLACKLIST& mref = static_cast<MSG_DELETE_TO_BLACKLIST&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
-    // ORIG 0x081cdf0a
-    int err = check_error(user, msg);
-    *(int*)((char*)&param + 4) = err;
-    if (err > 0)
-    {
+    // [b23S3C] ORIG 0x081cdf0a：param 指针首行物化（-0x10 槽，P0 律）；check_error
+    // 结果值留 %edx、base 从槽载 %eax 直存 m_4（StartGame@1231 孪生形）；两判定回读
+    // p->m_4（UpdateContract@19525 孪生）；mref 入 err==0 段（ORIG +0x7e 才物化 -0xc）；
+    // proxy 链式右值 + P48 每用点重取 group（ORIG 两次 GetServerGroup call）。
+    stDeleteToBlackListParam* const p = static_cast<stDeleteToBlackListParam*>(&param);
+    register int ec asm("edx") = check_error(user, msg);
+    register stDeleteToBlackListParam* dst asm("eax") = p;
+    dst->m_4 = ec;
+    if (p->m_4 >= 1)
         return 0;
-    }
-    if (err < 0)
+    if (p->m_4 < 0)
+        return LineFunc(0x26ea, __PRETTY_FUNCTION__, p->m_4, user->get_acc_id());
     {
-        return LineFunc(0x26ea,
-                        __PRETTY_FUNCTION__,
-                        err, user->get_acc_id());
+        MSG_DELETE_TO_BLACKLIST& mref =
+            static_cast<MSG_DELETE_TO_BLACKLIST&>(msg);   // ORIG -0xc
+        Packet_Delete_To_BlackList packet;                // ORIG local_40
+        // accId → packet.m_accId(+0x0a)；name → m_name(+0x0e)（ORIG C1 memset 区实测）。
+        packet.m_accId = user->get_acc_id();
+        strncpy(packet.m_name, mref.m_characName, mref.m_nameLen);
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+            (ENUM_SERVER_GROUP)user->GetServerGroup())->SendPacket((char*)&packet, 0x2c);
+        GlobalData::s_guild_proxy_mgr->GetServerProxy(
+            (ENUM_SERVER_GROUP)user->GetServerGroup())->SendPacket((char*)&packet, 0x2c);
     }
-
-    // Packet_Delete_To_BlackList local_40（ORIG 栈对象 sizeof 0x2c；字段为裸偏移）
-    Packet_Delete_To_BlackList packet;
-    // ORIG 实测 2026-08-30：accId → packet+0x0a（C1 memset 区 +0x0e 起 0x1e 之前）；
-    // name → packet+0x0e（C1 memset 的 0x1e 字节区）。NEW 曾误写 +0x06/+0x0a（覆盖 connNo/accId），已修正。
-    *(unsigned int*)((char*)&packet + 0x0a) = user->get_acc_id();
-    strncpy((char*)&packet + 0x0e,
-            (const char*)((char*)&msg + 0x14),
-            (size_t)mref.m_nameLen);
-
-    ENUM_SERVER_GROUP group = (ENUM_SERVER_GROUP)user->GetServerGroup();
-    CMonitorServerProxy* monitor = GlobalData::s_monitor_proxy_mgr->GetServerProxy(group);
-    monitor->SendPacket((char*)&packet, 0x2c);
-    CGuildServerProxy* guild = GlobalData::s_guild_proxy_mgr->GetServerProxy(group);
-    guild->SendPacket((char*)&packet, 0x2c);
     return 0;
 }
 int Dispatcher_DeleteToBlackList::read(PacketBuf& packet, MSG_BASE& msg)
@@ -13431,38 +13426,19 @@ int Dispatcher_BuyPrivateStoreItem::read(PacketBuf& packet, MSG_BASE& msg) { ret
 Dispatcher_CallGuildAllMembers::~Dispatcher_CallGuildAllMembers() {}
 int Dispatcher_CallGuildAllMembers::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    // ORIG 0x081ffb1a
-    int result = 0;
-    if (user->get_state() > 2)
+    // [b23S3C] ORIG 0x081ffb1a 无 result 栈槽（P0 律）：bad = (state<=2 || characR==0)
+    // 的 || 短路 + 早返在 4.4 恰产 mov$1/mov$0 常量岛 + test%al；二段 guildkey()!=0
+    // 出 test;setne;test;je（probe /tmp/r1probe/p.cpp w3 逐行证实）。链式右值使
+    // guildkey→esi、characNo→ebx 跨 call 缓存与 ORIG 同形。
+    if (user->get_state() <= 2 || user->getCurCharacR() == 0)
+        return LineFunc(0x93cd, __PRETTY_FUNCTION__, 0, 0);
+    if (user->get_charac_guildkey() != 0)
     {
-        if (user->getCurCharacR() != 0)
-        {
-            // state>2 且当前角色存在 → 允许发送
-            int guildkey = user->get_charac_guildkey();
-            if (guildkey != 0)
-            {
-                unsigned int characNo = (unsigned int)user->getCurCharacNo();
-                ENUM_SERVER_GROUP group = (ENUM_SERVER_GROUP)user->GetServerGroup();
-                CGuildServerProxy* proxy =
-                    GlobalData::s_guild_proxy_mgr->GetServerProxy(group);
-                proxy->SendPacketCallGuildAllMembers(characNo, (unsigned int)guildkey);
-            }
-            result = 0;
-        }
-        else
-        {
-            result = 1;
-        }
-    }
-    else
-    {
-        result = 1;
-    }
-    if (result)
-    {
-        return LineFunc(0x93cd,
-                        __PRETTY_FUNCTION__,
-                        0, 0);
+        GlobalData::s_guild_proxy_mgr->GetServerProxy(
+            (ENUM_SERVER_GROUP)user->GetServerGroup())
+            ->SendPacketCallGuildAllMembers(
+                (unsigned int)user->getCurCharacNo(),
+                (unsigned int)user->get_charac_guildkey());
     }
     return 0;
 }
@@ -16535,41 +16511,37 @@ int Dispatcher_SeriaRoom_Deco_Event::check_error(CUser* user, MSG_BASE& msg)
 }
 int Dispatcher_SeriaRoom_Deco_Event::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    stSeriaRoomDecoEvent& p = static_cast<stSeriaRoomDecoEvent&>(param);
-    int err = check_error(user, msg);
-    p.m_4 = err;
-    if (p.m_4 >= 1)
-    {
-        return 0;
-    }
-    if (p.m_4 < 0)
-    {
-        return LineFunc(0x6010,
-                        __PRETTY_FUNCTION__,
-                        p.m_4, 0);
-    }
+    // [b23S3C] ORIG 0x081e5cde：req(-0x18)/p(-0x14) 两引用先物化；check_error 直存
+    // p.m_4（ORIG 2 条 `mov -0x14,%edx; mov %eax,0x4(%edx)`，无 err 槽 P0）；GCD/代理
+    // 每用点重取（P48：ORIG 两次 getCurCharacInvenR/G_CDataManager call）；vaild 判定
+    // ORIG `xor $1;test%al;je` ==1 直测（P194）；deleteFlag 预清两句式保留死块。
     MSG_SERIAROOM_DECO_EVENT& req = static_cast<MSG_SERIAROOM_DECO_EVENT&>(msg);
-    int slot = (int)req.m_decoEventId;
-    CInventory* inven = (CInventory*)user->getCurCharacInvenR();
-    Inven_Item item = inven->GetInvenSlot(1, slot);
-    CDataManager* dataMgr = G_CDataManager();
-    CItem* pItem = dataMgr->find_item(item.m_addInfo);
-    if (pItem == 0)
+    stSeriaRoomDecoEvent& p = static_cast<stSeriaRoomDecoEvent&>(param);
+    p.m_4 = check_error(user, msg);
+    if (p.m_4 >= 1)
+        return 0;
+    if (p.m_4 < 0)
+        return LineFunc(0x6010, __PRETTY_FUNCTION__, p.m_4, 0);
+    Inven_Item item = user->getCurCharacInvenR()->GetInvenSlot(
+        1, (unsigned int)req.m_decoEventId);
+    if (G_CDataManager()->find_item(item.m_addInfo) == 0)
     {
         p.m_4 = 0x11;
         return 0;
     }
-    if (dataMgr->getVaildEventItem(item.m_addInfo))
+    if (G_CDataManager()->getVaildEventItem(item.m_addInfo) != 1)
     {
-        p.m_8 = req.m_decoEventId;
-        bool deleteFlag = false;
-        if (deleteFlag)
-        {
-            user->getCurCharacInvenW()->delete_item((INVEN_TYPE)1, slot, 1, (eItemDelReason)3, true);
-        }
+        p.m_4 = 0x17;
         return 0;
     }
-    p.m_4 = 0x17;
+    p.m_8 = req.m_decoEventId;
+    bool deleteFlag = false;
+    if (deleteFlag)
+    {
+        user->getCurCharacInvenW()->delete_item(
+            (INVEN_TYPE)1, (unsigned int)req.m_decoEventId, 1,
+            (eItemDelReason)3, true);
+    }
     return 0;
 }
 int Dispatcher_SeriaRoom_Deco_Event::read(PacketBuf& packet, MSG_BASE& msg)

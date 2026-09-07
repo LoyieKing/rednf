@@ -34,27 +34,34 @@
 // （get_GiftGrowthWeaponBox 0x836561c 读同一偏移，CDataManager.h 布局 +0x4bac+0x18），
 // 用具名字段替代裸偏移。
 // ============================================================================
+// [b23判词·N-PTR] P167 调用点差集 CLEAR（13/13）：ORIG 无 CSE，getGrowthWeaponEventdata()
+// 调 3 次（已内联，不缓存 data）、serverGroup 走 [G_CEnvironment()+0x378] 直读成员（无
+// get_server_group() call）。残余 gap+2 = ORIG 指针成员写用 `mov reg,DISP(base)` 直存，
+// gcc 4.4 对 `*(T*)(void*+off)=v` 折成 `lea DISP(base),r; mov reg,(r)`（#2/#3 各 +1），
+// 跨版本指针写形不可源码复现，语义等价。
 void GrowthEquipEvent::SelectGrowthWeapon(CUser& user, int itemId, int addInfo)
 {
     // ORIG +0x1b sete：仅本活动道具（== itemId）进入主体。
     if (G_CDataManager()->m_growthWeapon.m_giftBox == itemId)
     {
-        // 用户活动数据块（CUser::getGrowthWeaponEventdata 返回 void*，内部布局：
-        // +0x00 状态字节 / +0x04 已选角色 charac_no / +0x08 已选道具 idx /
-        // +0x0c 礼包已领取标志 / +0x10 short 沙漏相关 / +0x12 short serverGroup）。
-        char* data = static_cast<char*>(user.getGrowthWeaponEventdata());
+        // 用户活动数据块（CUser::getGrowthWeaponEventdata 返回 void*，未建模布局：
+        // +0x04 已选角色 charac_no / +0x08 已选道具 idx / +0x12 short serverGroup）。
+        // P48：ORIG 无 CSE，getGrowthWeaponEventdata() 调 3 次，每次结果寄存器直传
+        // （首处 ebx 跨 get_charac_no 存活 → 单表达式右值内联，不命名 data 局部）。
+        *(int*)(static_cast<char*>(user.getGrowthWeaponEventdata()) + 0x04) =
+            user.get_charac_no(-1);
+        *(int*)(static_cast<char*>(user.getGrowthWeaponEventdata()) + 0x08) = addInfo;
 
-        *(int*)(data + 0x04) = user.get_charac_no(-1);  // +0x2c get_charac_no(-1)
-        *(int*)(data + 0x08) = addInfo;
-
-        // 渠道组：整合 PvP 基础渠道用用户所属 server group，否则取环境
-        // m_serverEnvir.m_serverGroup（+0x378，经 get_server_group()）
-        int serverGroup;
+        // 渠道组：整合 PvP 基础渠道用用户 server group，否则直读环境
+        // m_serverEnvir.m_serverGroup（ORIG [G_CEnvironment()+0x378]，无 get_server_group() call）。
+        // ORIG 先置局部 0（mov [ebp-0xc],0），再 if/else 覆盖。
+        int serverGroup = 0;
         if (G_GameWorld()->IsIntegratedPvPBaseChannel())
             serverGroup = (int)user.GetServerGroup();
         else
-            serverGroup = G_CEnvironment()->get_server_group();
-        *(short*)(data + 0x12) = (short)serverGroup;
+            serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;
+        *(short*)(static_cast<char*>(user.getGrowthWeaponEventdata()) + 0x12) =
+            (short)serverGroup;
 
         DB_EventUpdateGrowthWeaponCharac::makeRequest(
             user.get_acc_id(), (unsigned int)user.get_charac_no(-1),

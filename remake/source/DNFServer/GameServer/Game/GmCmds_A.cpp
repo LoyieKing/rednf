@@ -80,19 +80,14 @@ extern char* RECIPE_NAMES[];
 extern char* EQUIP_NAMES[];
 
 // ---------------------------------------------------------------------------
-// BingoEvent / CBingo（ORIG 全局命名空间类；source 尚无定义 TU，仅按符号原型
-// 声明所需成员。mangled 由最小类定义自然导出）。
-class BingoEvent
-{
-public:
-    void* getBingoSystem();                        // ORIG T 0x080c9fea：返回 boost::shared_ptr<CBingo> 实例地址
-    void sendOneMatchLineReward(CUser& user);      // ORIG T 0x080ca3d4
-};
-class CBingo
-{
-public:
-    int calNewValue(unsigned int& board, int idx); // ORIG T 0x080cad4c
-};
+// [b23S3C] P201 桥转真：BingoEvent/CBingo 改 include 权威头
+// （BingoEvent.h：getBingoSystem/sendOneMatchLineReward；CBingoTest.h：
+//  CBingo::calNewValue(unsigned int&, int)），reqValue 调用点
+//  boost::shared_ptr<CBingo>::operator-> 真调用（ORIG +0x8f call 080ce766）。
+// ---------------------------------------------------------------------------
+#include "BingoEvent.h"
+#include "CBingoTest.h"
+#include <boost/shared_ptr.hpp>
 
 namespace game_master
 {
@@ -190,11 +185,11 @@ void CAddItemPollutionCmd::execute()
 {
     if (m_itemIdx == -1)
     {
-        int start = GlobalData::s_systemTime_.getCurSec();
-        int end = GlobalData::s_systemTime_.getCurSec();
-        WongWork::CHandlePremium::handleSetUserPCRoom(GetUser(),
-                                                      static_cast<long>(start),
-                                                      static_cast<long>(end) + 0x15180);
+        // ORIG：getCurSec→lea +0x15180 直传，start/end 无栈槽（右值内联）
+        WongWork::CHandlePremium::handleSetUserPCRoom(
+            GetUser(),
+            static_cast<long>(GlobalData::s_systemTime_.getCurSec()),
+            static_cast<long>(GlobalData::s_systemTime_.getCurSec()) + 0x15180);
     }
 
     int limit = 100;
@@ -983,18 +978,24 @@ void CBingoGmTest::reqValue()
         return;
     }
 
-    signed char lines = static_cast<signed char>(
-        static_cast<BingoData*>(user->getBingoData())->m_pad4);
-    if (lines > 2)
+    // [b23S3C] ORIG +0x48 单次 getBingoData→movzbl+cmp$2,setg 寄存器直测（无
+    // lines 具名槽）；+0x74 每次 calNewValue 第 1 实参 = 独立 getBingoData() 的
+    // bd 指针直传 uint&（ORIG mov %eax,%ebx；无 board 拷贝槽 -0x30）；
+    // receiver 链 shared_ptr::operator-> 真调用（+0x8f）。
+    if (static_cast<signed char>(
+            static_cast<BingoData*>(user->getBingoData())->m_pad4) > 2)
     {
         return;
     }
 
-    int oldBoard = *reinterpret_cast<int*>(user->getBingoData());
-    void* sharedBoard = event->getBingoSystem();          // boost::shared_ptr<CBingo>*
-    CBingo* bingo = *reinterpret_cast<CBingo**>(sharedBoard);
-    unsigned int board = static_cast<unsigned int>(oldBoard);
-    int newValue = bingo->calNewValue(board, m_subCmd);
+    int oldBoard = static_cast<int>(
+        static_cast<BingoData*>(user->getBingoData())->m_eventId);
+    int newValue = (*reinterpret_cast<boost::shared_ptr<CBingo>*>(
+                        event->getBingoSystem()))
+                       ->calNewValue(
+                           static_cast<BingoData*>(user->getBingoData())
+                               ->m_eventId,
+                           m_subCmd);
 
     if (*reinterpret_cast<int*>(user->getBingoData()) != oldBoard)
     {

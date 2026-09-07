@@ -483,14 +483,22 @@ copy_rest:
 // 权威布局见 DataManagerInitDepends.h；IncreaseEnterCount/getEnterCount/
 // getTodayEnterLayer/TOD_Layer::GetLayer 均为 ORIG 真实符号）。
 
-// ORIG T 0x0864388a（报告缺失，按 objdump 逐指令转写；定义暂寄本 TU）。
+// ORIG T 0x0864388a（报告 TOD_UserState/IncreaseEnterCount.md）：enterCount(+0x10)
+// 与 lastEnterLayer(+0x16) 各自 ++、lastEnterTime(+0x18)=getCurSec；当日层槽
+// (+0x14) 按 ORIG 是内嵌 TOD_Layer——判 0 走真实 call TOD_Layer::GetLayer
+// (W 0x0822ec40, this+0x14)，非字段直读。（Sec 批：TOD_UserState +0x8 段已内嵌
+// SIG_REQUEST_TOD_USER_STATE，m_todayLayer 本体即 TOD_Layer，直调免 cast。）
+// [b22判词·跨版本] 残余 1 insn：ORIG 4.1 对 ushort 回写生成 `add $0x1,%eax;
+// mov %eax,%edx`，4.4 恒融合为 `lea 0x1(%eax),%edx`（三变体实测均 lea，见
+// 范式库跨版本豁免表 movzwl 段）；`movl $0x0,(%esp)` 系 .o R_386_32 数据地址
+// reloc 占位（§6.3），relink 后即 &GlobalData::s_systemTime_。语义等价。
 void TOD_UserState::IncreaseEnterCount()
 {
-    m_enterCount = m_enterCount + 1;
-    m_lastEnterLayer = m_lastEnterLayer + 1;
-    m_lastEnterTime = GlobalData::s_systemTime_.getCurSec();
-    if (m_todayLayer == 0)
-        m_firstEnterTime = GlobalData::s_systemTime_.getCurSec();
+    m_data.m_enterCount = m_data.m_enterCount + 1;
+    m_data.m_lastEnterLayer = m_data.m_lastEnterLayer + 1;
+    m_data.m_lastEnterTime = GlobalData::s_systemTime_.getCurSec();
+    if (m_data.m_todayLayer.GetLayer() == 0)
+        m_data.m_firstEnterTime = GlobalData::s_systemTime_.getCurSec();
     ((charac_expand::CData*)this)->alter();
 }
 
@@ -907,10 +915,15 @@ stSecondEventMonster_t::~stSecondEventMonster_t()
 // STMonsterTypeSpawnProb / STDeadTowerData / STWarRoomData / RequiredItem
 // ============================================================================
 
+// ORIG W 0x088f2c64（报告缺失兜底：nm 定址+objdump 切片；清单给
+// docs/class_func_reports/CCharacter/clear.md 系撞名报告，签名为
+// _ZN10CCharacter5clearEv，已按 §6.3 弃用）：clear 整体 memset(this,0,0x10)。
+// [b22判词·跨版本] 残余 1 序差：4.4 填 memset 出参槽先于取 this，4.1 先生成
+// `mov 0x8(%ebp),%eax`（指令集相同仅两 mov 对调，三变体实测 4.4 无法复现前序）；
+// call 目标 reloc 即 memset（§6.3 占位假阳性）。语义等价。
 void STMonsterTypeSpawnProb::clear()
 {
-    for (int i = 0; i < 4; ++i)
-        m_probability[i] = 0;
+    memset(this, 0, sizeof(STMonsterTypeSpawnProb));
 }
 
 STMonsterTypeSpawnProb::STMonsterTypeSpawnProb()

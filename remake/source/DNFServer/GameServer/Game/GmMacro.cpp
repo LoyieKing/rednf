@@ -139,24 +139,28 @@ void CMacro::SendPacket(char const* data, int len)      // 0x084a8924
 {
     int total = len + 8;
     CStreamGuard guard(true);
-    Stream* s = 0;
-    if (total <= 0xfff)
+    // P0：ORIG 无 Stream* 槽——Set(pool->Acquire(...)) 三支各自内联直传。
+    // 第二分支首条 `cmpl $0xfff/-0xc; jle big` 为外层已判后的死重测（P171 照抄），
+    // 对应源形 `total < 0x1000 || total > 0x3fff`。
+    if (total < 0x1000)
     {
-        s = GlobalData::s_small_stream_pool->Acquire("GameMaster.cpp", 0xed);
+        guard.Set(GlobalData::s_small_stream_pool->Acquire("GameMaster.cpp", 0xed));
     }
-    else if (total <= 0x3fff)
+    else if (total < 0x1000 || total > 0x3fff)
     {
-        s = GlobalData::s_stream_pool->Acquire("GameMaster.cpp", 0xf1);
+        guard.Set(GlobalData::s_big_stream_pool->Acquire("GameMaster.cpp", 0xf5));
     }
     else
     {
-        s = GlobalData::s_big_stream_pool->Acquire("GameMaster.cpp", 0xf5);
+        guard.Set(GlobalData::s_stream_pool->Acquire("GameMaster.cpp", 0xf1));
     }
-    guard.Set(s);
-    guard << 0;                                          // 包头占位（ORIG operator<< int）
-    guard << static_cast<int>(m_user->GetUID());
-    guard.put_binary(const_cast<char*>(data), len);
-    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);  // ORIG QUEUE_IDX=1
+    // ORIG 每 << 先 operator*（+0xc7/+0xf0），uid 经 %ebx 跨 call 直传无槽。
+    // CStreamGuard::operator* 返回 this 指针（CStreamGuard.h:27-28）；链式显式调用
+    // 令 op<< 的 this=operator* 返回值（%eax→(%esp)），对齐 ORIG +0xf0/+0x10f。
+    guard.operator*()->operator<<(0);
+    guard.operator*()->operator<<(m_user->GetUID());
+    guard.operator->()->put_binary(const_cast<char*>(data), len);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
 }
 
 } // namespace game_master

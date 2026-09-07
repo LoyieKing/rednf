@@ -3,6 +3,11 @@
 //   importCreatureScript / ImportAttackInfoScript 及 g_creatureScriptFileList 全局。
 //   依据 docs/class_func_reports/_lt_global_gt_/importCreatureScript.md、
 //   ImportAttackInfoScript.md 与 AttackInfo/*.md。
+// b22 判词·P93/P154（§6.3）：`__tcf_0` 为编译器生成的通用静态析构名，本 TU 与
+// CDeathTower/CShutdowManager 域均有同名符号。compare 工具按名取到 ORIG
+// 0x0828f940（CDeathTowerRanking::getRankTable 静态表 s_tables[4] 的数组析构，
+// 属 WongWorkDeathTower TU）——索引伪差集，非本 TU 实现缺口；真实 teardown 由
+// CDeathTower.cpp getRankTable 的 `static CDeathTowerRanking s_tables[4]` 生成。
 // ============================================================================
 #include "CreatureScript.h"
 

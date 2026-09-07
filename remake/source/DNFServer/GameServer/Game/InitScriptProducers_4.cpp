@@ -31,6 +31,15 @@
 // MonsterBaseParameter / DungeonPartyBalance / DungeonHoldBalance /
 // stLimitSlowDown 为 ORIG DWARF 类型名，本 TU 首次落地定义（已与
 // FixMiscStubs.STMonsterImport / STEquipmentImport 协调无 ODR 冲突）。
+// ---------------------------------------------------------------------------
+// [b22判词·N族/索引伪差集 P93·P154 同族] __tcf_0（<global>）：本 TU 文件作用域带
+// 非平凡析构全局（g_staSkillScriptFileList[11] map 数组、各 g_st*ScriptFileList、
+// std::vector/std::map 全局）的 GCC 合成 atexit cleanup，无独立可写源码函数体，
+// 指令完全由本 TU 全局对象集合与构造序决定。ORIG 二进制内 `__tcf_0` 同名 local 数百枚
+// （每含全局对象 TU 一枚），compare 工具按名取到 0x0828f940（WongWork::CDeathTowerRanking
+// 域另一 TU，与本 TU 全局无关）→ 逐条 DIFF 系索引伪差集（§6.3 撞名族），非实现缺口。
+// 本 .o __tcf_0 已按本 TU 全局集合正确合成析构循环（0x108/0x18 = 11 元素对位
+// g_staSkillScriptFileList）。语义等价，不可源码复现，保留判词。
 // ============================================================================
 
 #include <map>

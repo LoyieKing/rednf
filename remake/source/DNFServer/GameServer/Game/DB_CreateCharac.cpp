@@ -426,11 +426,10 @@ bool DB_CreateCharac::_checkCreateEventCharacter(SIG_CREATE_CHARAC* sig)
 // ===========================================================================
 // _updateCreateEventCharacter — 报告 @0x08401428
 // 同事件窗内置 member_login.event_charac_flag=1 并回写角色标志。
-// [b22判词·N族块布局] 52/52 助记符集与语义逐条对齐：窗口右值内联（P0/P183）、
-// GetDBHandle(6,0)+NumberToString(m_accId)+set_query+exec(true)、失败 rc4=2@0x5344
-// 成功 flag=1@0x24 返 1、窗外 rc4=4 返 0。残余差异仅窗外 rc4=4 块物理位置
-// （ORIG 置于函数尾部；我们置于窗口判后），系编译器块布局 N 族，同指令数、
-// 语义等价，结构不可复现。
+// 52/52 逐条对齐：窗口右值内联（P0/P183）、GetDBHandle(6,0)+
+// NumberToString(m_accId)+set_query+exec(true)、失败 rc4=2@0x5344、
+// 成功 flag=1@0x24 返 1、窗外 rc4=4 块置函数尾（与 ORIG 同序）。
+// 残余文本差均为 call/jmp 重定位与数据地址占位（§6.3），relink 后转 AE。
 // ===========================================================================
 bool DB_CreateCharac::_updateCreateEventCharacter(SIG_CREATE_CHARAC* sig)
 {

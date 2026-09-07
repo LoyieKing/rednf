@@ -6,5 +6,5 @@
 Packet_Delete_To_BlackList::Packet_Delete_To_BlackList()
     : PacketHeader(0x2c, 0x5dd)   // ORIG _ZN12PacketHeaderC1Ett
 {
-    memset(m_data + 0x4, 0, 0x1e);   // ORIG memset(this+0xe, 0, 0x1e)
+    memset(m_name, 0, 0x1e);   // ORIG memset(this+0xe, 0, 0x1e)
 }

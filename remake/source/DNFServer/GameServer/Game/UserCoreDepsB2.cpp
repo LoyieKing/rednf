@@ -261,20 +261,28 @@ void Secu_MonsterCheck::Reset()
 // （报告 CSpecialItemRoutingManager/ProcessFailEtc.md）：路由开启且首个有效
 // 成员状态 ∈ {5, 0xc} 时广播 0x11a 失败包（byte 0/失败码/路由 uniqueId）、
 // 取消计时器并结束路由。
+// [b22判词·N-EH布局] orig87/our86 唯一真差：ORIG 编译器在 SetEndRouting 之后为成功路径
+// 生成「call ~PacketGuard; jmp <epilogue>」，故 _Unwind_Resume 前多一条独立 nop（87 条）；
+// 4.4.7 让成功路径 jmp 到共享 epilogue、~PacketGuard 只落 epilogue 一次（86 条）。函数体
+// 主调用序列逐条同 ORIG：IsRoutingState → GetFirstValidMemberState×2（5/0xc 短路，布尔留
+// %al 无槽）→ PacketGuard::C1 → put_header(0,0x11a) → put_byte(0) → put_byte(failCode)
+// → put_int(GetRoutingItemUniqueID) → finalize(true) → send_to_party → cancelTimer →
+// SetEndRouting → ~PacketGuard（+EH 岛 _Unwind_Resume）。P167 实测 16=16 call 集归零。语义等价。
 // ---------------------------------------------------------------------------
 void CSpecialItemRoutingManager::ProcessFailEtc(CParty* party, int failCode)
 {
     if (party != 0)
     {
-        // ORIG：IsRoutingState 为假则跳过两次状态读取；5 或 0xc 任一命中即可路由。
-        bool routable = false;
-        if (party->IsRoutingState())
-            routable = (party->GetFirstValidMemberState() == 5 ||
-                        party->GetFirstValidMemberState() == 0xc);
-        if (routable)
+        // ORIG（idx102 报告）：IsRoutingState 为假则跳过状态读取；5 或 0xc 任一
+        // 命中即可路由。布尔全程寄存器（test %al,%al; je），故谓词内联不具名局部
+        // （P0 无槽局部）。
+        if (party->IsRoutingState() &&
+            (party->GetFirstValidMemberState() == 5 ||
+             party->GetFirstValidMemberState() == 0xc))
         {
             PacketGuard packet;
             packet.put_header(0, 0x11a);
+            packet.put_byte(0);      // ORIG put_byte(local_18,0)
             packet.put_byte(failCode);
             packet.put_int((int)party->GetRoutingItemUniqueID());
             packet.finalize(true);

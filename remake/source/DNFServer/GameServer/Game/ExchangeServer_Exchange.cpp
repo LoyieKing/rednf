@@ -261,8 +261,16 @@ bool CExchangeServer::SendResponseCharacInfo(int a, int b, void* data,
 // SendResponseCharacInfo_forchina          ORIG 0x849176e
 // 三档池取流（total=len+8：<=0xfff Small / <=0x3fff Default / else Big），
 // 写 a、b、binary(data) 后投递 MsgQueueMgr idx=1（DISPATCH_Q）。
-// 注：ORIG 返回值取 MsgQueueMgr::put 尾部 eax；重建 put 为 void 转发，
-// 此处按成功路径返回 true（ORIG 观测值不可考证项，见交付清单）。
+// 注：ORIG 返回值取 MsgQueueMgr::put 尾部 eax（`mov %eax,%ebx` 整字直传，非规范化），
+// 本函数返回 put 的结果（权威头 MsgQueueMgr::put 声明 bool，转发 Stream* 版返回值）。
+// [b22判词·N] ORIG 95 insn vs 重建 93：残余唯一真差异是第二 else 分支入口
+// `cmpl $0xfff,-0xc(%ebp); jle Big`——total 已 >0xfff 才落入该分支，此重测恒不跳转，
+// 是 gcc4.1.2 对 `if(<=0xfff)…else if(<=0x3fff)…` 的冗余比较物化；4.4.7 直接复用
+// 前次比较结果生成单条 `cmpl $0x3fff; jg`。合法源码无法在不引入恒假条件的情况下复现
+// 该死代码，属跨版本结构性伪影，不可复现，语义等价。其余差异（call 目标占位、
+// mov 0x0 数据地址、字符串立即数）为 --no-compile 未 relink 的 .o 重定位假阳性
+// （§6.3），relink 后指向 CStreamGuard deEv/ptEv/lsEi/Set/C1/D1、三池 Acquire、
+// MsgQueueMgr put 与 "ExchangeServer.cpp" 字面量，转 AE。
 // ---------------------------------------------------------------------------
 bool CExchangeServer::SendResponseCharacInfo_forchina(int a, int b,
                                                       void* data, int len)
@@ -284,12 +292,14 @@ bool CExchangeServer::SendResponseCharacInfo_forchina(int a, int b,
                                               0x182));
     }
 
-    sGuard << a;
-    sGuard << b;
-    sGuard.put_binary(data, len);
+    // ORIG 显式走 CStreamGuard::operator*()（deEv，返回 this 指针）再在其上调
+    // operator<<(int)（lsEi）；put_binary 走 operator->()（ptEv）——P103 链不可省略。
+    sGuard.operator*()->operator<<(a);
+    sGuard.operator*()->operator<<(b);
+    sGuard.operator->()->put_binary(data, len);
 
-    GlobalData::s_msgq_mgr->put(QIdx(1), sGuard);
-    return true;
+    // ORIG mov %eax,%ebx：直接返回 MsgQueueMgr::put 的结果（非硬编码 true）。
+    return GlobalData::s_msgq_mgr->put(QIdx(1), sGuard);
 }
 
 // ---------------------------------------------------------------------------

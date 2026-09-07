@@ -94,14 +94,28 @@ void CPvPLiveEventData::getData(char* pData) const
     // 播放计数不在此序列化，由 _saveData 走 CStreamGuard 落库。
 }
 
+// [b23判词·N-GUARD] P167 调用点差集 CLEAR（19/19）：ORIG 每处 operator<< 前调
+// CStreamGuard::operator*()（deEv）并复用返回 %eax 作 operator<< 的 this。Game/CStreamGuard.h
+// 的 operator* 返回 CStreamGuard*（指针），本工程无法 `*guard<<x` 链式复用 eax ⇒ 用显式
+// `guard.operator*(); guard<<x;` 弃值形（Main 统一口径）。残余 gap+3 = 弃值调用无法把
+// operator* 结果留 %eax 直传 operator<<（多 %ebx 缓存/重装载），跨工具链 guard ABI 形不可复现，语义等价。
 bool CPvPLiveEventData::_saveData(CUser* user)
 {
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("PvPLiveEventData.cpp", 0x1e), true);
+    // ORIG 每处先调 CStreamGuard::operator*()（deEv）再 operator<<。
+    // Game/CStreamGuard.h 的 operator* 返回 CStreamGuard*（this 指针）⇒ `*guard << x`
+    // 形在指针上左移非法（本地 Stream& 版 guard 类的 `*guard<<` 不可移植到此 TU）；
+    // 等价发射形=显式调用弃值 + guard 成员 <<（Main 修链，同 GmMacro 案）。
+    guard.operator*();
     guard << 0x1e1;
+    guard.operator*();
     guard << user->GetUID();
+    guard.operator*();
     guard << (char)user->GetServerGroup();   // ORIG lsEc（movsbl 符号扩展，写 1 字节）
+    guard.operator*();
     guard << user->getCurCharacNo();
+    guard.operator*();
     guard << m_playCount;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;

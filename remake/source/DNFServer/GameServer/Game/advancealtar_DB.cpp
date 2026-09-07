@@ -95,7 +95,7 @@ void AdvanceAltarData::getBuyItem(const std::map<int,_BuyItem>& m, _BuyItem* out
 void AdvanceAltarData::get(_AdvanceAltarDbData& out) const
 {
     out.m_update = m_update;                          // +0x517 = this[0xcc]
-    std::memcpy(out.m_ridable, this, 0x21);           // 前 0x21（_RidableBase 扁平区）
+    std::memcpy(&out.m_ridable, this, 0x21);          // 前 0x21（_RidableBase 扁平区）
 
     int local_10 = 0;
     for (std::map<int,_Stage>::const_iterator it = m_stages.begin();
@@ -511,7 +511,7 @@ bool DB_Load::Select(_CharacAdvanceAltarDbData& data)
         _AdvanceAltarDbData* dbRow = reinterpret_cast<_AdvanceAltarDbData*>(
             reinterpret_cast<char*>(&data.m_db) +
             static_cast<unsigned>(row) * sizeof(_AdvanceAltarDbData));
-        _RidableDbHead& view = dbRow->m_head;
+        _RidableDbHead& view = dbRow->m_head();
         int col = 0;
 
         int ridableId = 0;
@@ -813,7 +813,7 @@ bool DB_Update::update(const _CharacAdvanceAltarDbData& data)
         //  取 m_head 前 5 列、`movswl 0x18`、`movzwl 0x1a`、`movzbl 0x20`、
         //  数组指针 `add $0x21/0x1b1/0x229/0x481`）。
         const _AdvanceAltarDbData& db = data.m_db;
-        const _RidableDbHead& view = db.m_head;
+        const _RidableDbHead& view = db.m_head();
         const _Stage* stages = db.m_stages;
         const _Slot* slots = db.m_slots;
         const _BuyItem* buyItems = db.m_buyItems;

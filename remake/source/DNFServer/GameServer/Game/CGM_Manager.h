@@ -37,7 +37,7 @@ public:
     bool IsGm(unsigned int accId);
     unsigned char TurnGmMode(unsigned int accId);   // ORIG 0x0829917c，返回切换后的模式
     char GetCurrentGmMode(unsigned int accId);      // ORIG T 0x08299276（Batch8 实现，补声明）
-    bool LoadGmListFromDb();   // ORIG T 0x08299530
+    char LoadGmListFromDb();   // ORIG T 0x08299530（Ghidra char __thiscall，返回 ok 原文）
     void SetGmLevel(unsigned int accId, int level);   // ORIG T 0x0829932a
     bool LoadGmDataFromDb(unsigned int accId);        // ORIG T 0x08299740
 

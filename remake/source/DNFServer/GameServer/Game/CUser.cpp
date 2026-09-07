@@ -439,9 +439,9 @@ int UserMercenaryInfoMgr::AddCharac(CHARAC_LOAD_MERCENARY& info)
             info.m_avatarBonus = 0;
             break;
         }
-        const int grade = equip->get_grade();
-        if (grade < static_cast<int>(static_cast<signed char>(info.m_avatarBonus)))
-            info.m_avatarBonus = static_cast<unsigned char>(grade);
+        // [b23S3C] P48/P0：ORIG get_grade 双臂各重取一次（+0xb5/+0xc9，无 grade 槽）
+        if (equip->get_grade() < static_cast<int>(static_cast<signed char>(info.m_avatarBonus)))
+            info.m_avatarBonus = static_cast<unsigned char>(equip->get_grade());
     }
     m_characs.push_back(info);
     return 1;
@@ -6034,9 +6034,12 @@ void CUser::send_aura_avatar_option()
     for (int idx = 0; idx < 3; ++idx) {
         packet.put_byte((char)idx);
         int now = GlobalData::s_systemTime_.getCurSec();
-        const _Charac_info* cur = getCurCharacR();
-        int expire = (&cur->m_auraValue0)[idx];
-        packet.put_int(now < expire ? expire - now : 0);
+        // [b23S3C] P48/P0：ORIG 双臂各重取 getCurCharacR（无 cur/expire 槽），
+        // if/else 分支岛（P56/P198），put_int 两分支各一次
+        if (now < (&getCurCharacR()->m_auraValue0)[idx])
+            packet.put_int((&getCurCharacR()->m_auraValue0)[idx] - now);
+        else
+            packet.put_int(0);
     }
     packet.finalize(true);
     Send(packet);

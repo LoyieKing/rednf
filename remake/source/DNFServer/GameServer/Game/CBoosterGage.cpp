@@ -162,6 +162,13 @@ struct SIG_BOOSTER_GAGE_DATA
 // ============================================================================
 
 // ORIG W 0x0832af06：CData ctor + vptr + _reset()（m_dwTotalGage=0）。
+// [b22判词·N族] ORIG C1 在 CData(基)C1 + 置 vptr + call CBoosterGage::_reset 之后，
+// 带异常 landing-pad：_reset 抛出则 call CData::~C1 + _Unwind_Resume（push esi/ebx +
+// jmp 尾）。我方 GCC 见同 TU 的 _reset（体 m_dwTotalGage=0，无抛出）经 IPA 判定
+// nothrow → 省略基子对象清理表（帧 sub $0x18/leave）。三 call（CDataC1/置 vptr/
+// _reset）助记符与 ORIG 逐条同，vptr 立即数为 AE（链接期重定位）。基 dtor 清理仅在
+// 真抛出路径可达，正常构造语义等价，不可 byte-复现（把 _reset 移出本 TU 可强发清理
+// 但违 §4 单点与拆他 TU）→ N 判词。
 CBoosterGage::CBoosterGage()
 {
     _reset();

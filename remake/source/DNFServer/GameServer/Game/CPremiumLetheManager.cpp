@@ -355,7 +355,10 @@ void CPremiumLetheManager::_update(CUser* user, unsigned char state,
                                                           0x125),
                        true);
     **guard << 0x15c;
-    **guard << user->GetUID();
+    // (int)：CUser::GetUID() 返回 unsigned int（CUser.h:2910），不加转换会选中
+    // operator<<(unsigned int)；ORIG 0x085c48b2 调用点为 operator<<(int)
+    // （P167 调用点差集实证 ORIG lsEi×2 / 修复前 lsEi+lsEj）。
+    **guard << (int)user->GetUID();
     SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD* result =
         guard->GetInBuffer<SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD>();
     result->m_accID = user->get_acc_id();

@@ -50,13 +50,23 @@ static IExchangeServer* ES()
 // ---------------------------------------------------------------------------
 // ctor — ORIG 0x848ffd0 size 0x53：
 // 基类构造后清零 +0x851a0/+0x851a4、+0xc 置 1。
-// ORIG 栈上临时 CNetwork 构造后立即析构为无操作产物，省略并注释。
+// ORIG 基类构造后先在栈上建一个局部 CNetwork 临时并立即析构（lea -0x851a8;
+// C1;D1，对 *this 无副作用）。该临时对可观察行为无任何影响，且重建引入后 4.4
+// 工具链会为具备非平凡析构的临时额外生成 EH landing pad（push esi/ebx +
+// _Unwind_Resume），反而比 ORIG 4.1 的 20 条多出 15 条指令，因此按 N 族跨版本
+// 结构性差异省略（语义等价，字节层 N 封顶）。
+// [b22判词·N] ORIG 0x848ffd0 基类 ctor 后于栈帧内建匿名 CNetwork<95000,450000>
+// 临时（lea -0x851a8;C1;C1;D1）并因此撑出 sub $0x851b8 巨型帧；该临时对 *this
+// 无可观察副作用，且 4.4 工具链会为非平凡析构临时额外出 EH landing pad，复现
+// 反而指令膨胀。+0xc 写 movb $0x1 低字节（m_field0c 为基类 int，仅低字节被用作
+// 标志），4.4 对 char* 取址成员写产 add+movb 而非 ORIG 的 disp(%eax) 单条——属
+// 跨版本寻址伪影。三者均不可源码复现，语义等价（帧/临时/寻址 N 封顶）。
 // ---------------------------------------------------------------------------
 CSession::CSession()
 {
     m_triggerEventType = 0;
     m_channelNo = 0;
-    *(char*)&m_field0c = 1;   // ORIG movb $0x1,0xc(%eax)（Fix18_E：仅写低字节）
+    *(char*)&m_field0c = 1;   // ORIG movb $0x1,0xc(%eax)（仅写低字节）
 }
 
 // D1 — ORIG 0x8495662 size 0x13，仅调基类析构（隐式空体一致）。

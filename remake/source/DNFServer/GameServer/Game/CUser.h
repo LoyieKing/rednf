@@ -805,7 +805,7 @@ public:
     // ORIG 0x0828ad72/0x0828b0b2：静态成员（仅用第一实参 CUser*，无 this 访问）。
     static void CreateAccountCargo(CUser* user);
     static void UpgradeAccountCargo(CUser* user);
-    void DeleteAccountCargo(CUser* user);
+    static void DeleteAccountCargo(CUser* user);  // ORIG 0x0828b4ec this 不入栈（S23A_DB 取证；Main 代落，mangled 不变）
     static void SendNotifyRecipe(CUser* user, int slot, bool flag);  // ORIG 无 this（0x828b3d0 参数自 +8 起）
 
     // ---- 槽位 / 物品 ----

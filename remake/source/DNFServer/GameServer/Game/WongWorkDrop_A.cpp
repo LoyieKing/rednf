@@ -501,11 +501,23 @@ void CMonsterDrop::_generateMonseterSpecificItem(CMonster const* monster,
                                                  char idxType,
                                                  stGenerateResult_t& result)
 {
-    int roll = m_random.generateNumber(2, 10000);
-    int itemIdx = Mon_drop_item_index2(monster, static_cast<unsigned int>(idxType),
-                                       roll);
+    // ORIG 0x08536fce：itemIdx 两段式预置 -2（movl $-2,-0xc 后重赋）；
+    // roll 无槽——generateNumber 结果 %eax 直传 0x8(%esp)（P0）；
+    // pushCreatedItem helper 遮蔽 ORIG 内联体（Wide21B makeMemberLoginTable
+    // 同案），本点展开：Inven_Item C1 → m_addInfo 槽回读 → itemList
+    // create_item(1, inv, 1) → vector push_back(inv)。
+    int itemIdx = -2;
+    itemIdx = Mon_drop_item_index2(monster,
+                                   static_cast<unsigned int>(idxType),
+                                   m_random.generateNumber(2, 10000));
     if (itemIdx != -2)
-        pushCreatedItem(itemIdx, result);
+    {
+        Inven_Item inv;
+        inv.m_addInfo = itemIdx;
+        G_CDataManager()->m_itemList->create_item(
+            static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
+        result.m_dropItems.push_back(inv);
+    }
 }
 
 // ---- generateRandomItem — ORIG T 0x08536da8（虚槽 +0x08）----

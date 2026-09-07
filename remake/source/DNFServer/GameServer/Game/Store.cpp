@@ -125,43 +125,36 @@ Store* G_Store()
 int Store::GetSellItemPrice(Inven_Item& item, const CItem* pItem, short count,
                             bool flag, int& outPrice)
 {
-    if (item.isEquipableItemType())
+    // ORIG(0x08618ea0)：先判 !isEquipable(异路)，装备路 itemType 双比较。
+    if (item.isEquipableItemType() == 0)
     {
-        // 装备类：检查 itemType 是否允许出售
-        const CEquipItem* pEquip = static_cast<const CEquipItem*>(pItem);
-        int itemType = pEquip->m_itemType;
-        if (itemType == 0xb || itemType < 10)
+        if ((int)item.get_add_info() >= (int)count)
         {
-            return 0x17;
+            if (count > 0)
+            {
+                short cnt = count;
+                outPrice = cnt * getItemSellPrice(pItem->GetSellPrice(), 0, 0,
+                                                  pItem->IsRandomOption());
+                return 0;
+            }
         }
-
-        unsigned short endurance = item.m_fieldb;
-        int maxEndurance = pEquip->get_endurance();
-        if (maxEndurance < (int)endurance)
-        {
-            item.m_fieldb = (unsigned short)maxEndurance;
-        }
-
-        bool isRandom = pItem->IsRandomOption();
-        int curEnd = item.m_fieldb;
-        int sellPrice = pItem->GetSellPrice();
-        outPrice = getItemSellPrice(sellPrice, curEnd, maxEndurance, isRandom);
+        return 0x11;
     }
-    else
+    const CEquipItem* pEquip = static_cast<const CEquipItem*>(pItem);
+    if (pEquip->m_itemType > 9 && pEquip->m_itemType != 0xb)
     {
-        // 非装备类：校验数量
-        int addInfo = item.get_add_info();
-        if (addInfo < count || count < 1)
+        if ((int)pEquip->get_endurance() >= (int)count)
+            item.m_fieldb = (unsigned short)pEquip->get_endurance();
+        if (count > 0)
         {
-            return 0x11;
+            outPrice = getItemSellPrice(pItem->GetSellPrice(), item.m_fieldb,
+                                        pEquip->get_endurance(),
+                                        pItem->IsRandomOption());
+            return 0;
         }
-
-        bool isRandom = pItem->IsRandomOption();
-        int sellPrice = pItem->GetSellPrice();
-        int price = getItemSellPrice(sellPrice, 0, 0, isRandom);
-        outPrice = count * price;
+        return 0x11;
     }
-    return 0;
+    return 0x17;
 }
 
 // ---------------------------------------------------------------------------

@@ -1564,10 +1564,14 @@ int PvP_Room::set_seat_state(CUser* user, int seat, ENUM_SEAT_STATE state,
     }
     int local_24;
     {
+        // ORIG(4.1) 实参先求值（后四入槽/前三入寄存器）→ ctor 后推参，保形直写
+        int wc = get_waiter_count();                    // -0x44
+        int st = (int)state;                            // -0x40
+        int mode = get_pvp_battle_mode();               // -0x3c
+        int idx = get_index();                          // ORIG %edi（指针类右值直传不入槽）
         CSwitchLog local_34(__PRETTY_FUNCTION__, 0x594, 0, 0);   // ORIG 同文（P139）
         local_34("pvp@log %s,%s,room(%d),%d,%d,%d,%d", user->get_acc_name(),
-                 user->getCurCharacName(), m_index, m_pvpBattleMode, seat, (int)state,
-                 get_waiter_count());
+                 user->getCurCharacName(), idx, mode, seat, st, wc);
     }
     if (state == ENUM_SEAT_STATE_0xfe)
     {

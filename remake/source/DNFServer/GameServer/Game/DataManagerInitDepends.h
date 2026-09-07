@@ -265,6 +265,7 @@ bool ImportSecurityReward(SecurityReward* out);   // _Z20ImportSecurityRewardP14
 //      原此处镜像删除；TOD_UserState 保留本头）。----
 #include "TowerOfDespairMgr.h"
 #include "CBoosterGage.h"               // charac_expand::CData（TOD_UserState 基类）
+#include "SigTypes_D.h"                 // SIG_REQUEST_TOD_USER_STATE（TOD_UserState 内嵌数据成员）
 
 // ORIG TOD_UserState（角色扩展数据 0xd 槽对象；布局按报告逐字段建模；
 // ORIG vtable 0x08cec600 槽序 = charac_expand::CData 完全一致
@@ -309,14 +310,13 @@ public:
     virtual void _reset();                                // ORIG T 0x086437ec
 
     // 数据区（+0x08..+0x1f = ORIG 内嵌 SIG_REQUEST_TOD_USER_STATE 同布局；
-    // loadData/_saveData/_reset 全部按此段操作）。
-    int m_field8;                   // +0x08（_reset 清零；loadData 首写入；语义未证【推断】）
-    int m_firstEnterTime;           // +0x0c（当日首次进入时间；IncreaseEnterCount 写）
-    int m_enterCount;               // +0x10（getEnterCount / ResetDaily 清零）
-    unsigned short m_todayLayer;    // +0x14（getTodayEnterLayer 读口径；TOD_Layer::resetLayer 触达）
-    unsigned short m_lastEnterLayer;// +0x16（IncreaseEnterCount 递增）
-    int m_lastEnterTime;            // +0x18（IncreaseEnterCount 每次写入当前秒）
-    int m_lastClearTime;            // +0x1c（getLastClearTime）
+    // loadData/_saveData/_reset 全部按此段操作）。ORIG ctor 0x8643460 实证本段是
+    // 一个内嵌 SIG_REQUEST_TOD_USER_STATE 子对象（this+0x8），其 C1 0x08491f68 构造
+    // 当日层 TOD_Layer(0)，故以真实成员建模（非平铺标量），令 ctor 发 call SIG::C1。
+    SIG_REQUEST_TOD_USER_STATE m_data;   // +0x08（m_characNo@+0/m_firstEnterTime@+4/
+                                          // m_enterCount@+8/m_todayLayer@+c/
+                                          // m_lastEnterLayer@+e/m_lastEnterTime@+10/
+                                          // m_lastClearTime@+14）
 };
 
 // ---- ORIG CLevelRewardTable(0x6088)/CLevelRewardTableMgr(0x14) 权威

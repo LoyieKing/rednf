@@ -907,6 +907,8 @@ dnf_service(game
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
         ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/zlib32/lib/libz.a
+        # libGeoIP 链接桩（ORIG NEEDED libGeoIP.so.1；桩 SONAME 同名，GeoIP_* 保持 U 与 ORIG 一致）
+        ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/geoip_stub/libGeoIP.so.1
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/mysqlclient/libmysqlclient.a
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/yassl/libyassl.a
     LINK_FLAGS

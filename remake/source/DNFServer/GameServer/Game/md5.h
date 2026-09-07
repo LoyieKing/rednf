@@ -22,4 +22,7 @@ void md5_starts(md5_context* ctx);
 void md5_update(md5_context* ctx, unsigned char* data, int len);
 void md5_finish(md5_context* ctx, unsigned char* out);
 
+// ORIG 符号：_Z3md5PhiS_ @0x080b3d57（一步式 md5，尾部 memset 清 ctx 后 leave/ret 不置 %eax ⇒ void）。
+void md5(unsigned char* data, int len, unsigned char* digest);
+
 #endif  // DNF_GAME_MD5_H_

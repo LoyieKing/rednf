@@ -9,6 +9,12 @@
 #include "Statuepredicate.h"
 #include "CDataManager.h"   // pieceQuestRewardStatus 完整定义
 
+// [b22判词·N族] ORIG C1 0x8a6c186 在置 3 成员前先 call
+// _ZNSt14unary_functionI22pieceQuestRewardStatusbEC1Ev（0x8a6c180，trivial 空基类
+// ctor）并以 sub $0x18 预留其调用帧；我方 GCC 视 std::unary_function 为空基类、
+// ctor 平凡 → 省略该 call 与对应帧（P0：函数体无额外局部）。三成员 mov 与 ORIG
+// 完全同址同序（+0x0/+0x4/+0x8）。空基类 ctor 无副作用，语义等价，不可复现
+// （需以非平凡基类才能强制发 call，会改类语义）。
 Statuepredicate::Statuepredicate(pieceQuestRewardStatus status)
     : std::unary_function<pieceQuestRewardStatus, bool>(),
       m_appendageType(status.m_appendageType),

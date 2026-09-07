@@ -19,19 +19,15 @@ enum eRidableObjectState { eRidableObjectState_0 = 0 };
 
 // DungeonRidableObject（map 值类型；ORIG 0x830e9ba ctor：前 6 int 走 RidableObject
 // ctor（全 -1），state=0；operator=(RidableObject) W 0x830e9d8 拷贝前 6 字段）。
-struct DungeonRidableObject
+struct DungeonRidableObject : RidableObject
 {
-    DungeonRidableObject() : m_x(-1), m_y(-1), m_field0c(-1), m_field10(-1),
-                             m_field14(-1), m_field18(0xc8), m_state(0) {}
+    // ORIG ctor 0x830e9ba：先 call RidableObject::C1（基类置前 6 int：前 5 个 -1、+0x14=0xc8），
+    // 再置 +0x18 m_state=0 ⇒ 派生自 RidableObject，派生侧只初始化 m_state。
+    DungeonRidableObject() : m_state(0) {}
 
     DungeonRidableObject& operator=(RidableObject other);  // ORIG 0x830e9d8
 
-    int m_x;        // +0x00
-    int m_y;        // +0x04
-    int m_field0c;  // +0x08（SetRidableObject 的 map key）
-    int m_field10;  // +0x0c
-    int m_field14;  // +0x10
-    int m_field18;  // +0x14
+    // 基类 RidableObject 占 +0x00..+0x14（m_x,m_y,m_field0c,m_field10,m_field14,m_field18）
     int m_state;    // +0x18（eRidableObjectState）
 };
 class CRidable

@@ -117,14 +117,27 @@ bool IsNoneUnicodeRange::operator()(wchar_t ch) const
 //   0x08ac3253）→ 取反返回。any_of 实例 ORIG W _ZSt6any_ofIPKw
 //   N23restrict_inputting_name18IsNoneUnicodeRangeEEbT_S4_T0_ @0x08ac3253
 //   （c6root libstdc++ 4.4.7 bits/stl_algo.h:778 有该模板，可实例化）。
+//
+// [b22判词·N-EMPTYCLS-SRA] 残余 3 条结构差：ORIG 从 pred 栈槽 reload
+// （`movzbl -0x11(%ebp),%edx` + `mov %dl,0x8(%esp)`，prologue `sub $0x28`、
+// epilogue `leave`），c6root g++ 4.4.7 则把 1 字节空类实参做标量替换留在 %ebx
+// （`push %ebx` + `sub $0x24` + `mov %bl,0x8(%esp)` + add/pop 序列）。已实测该
+// 行为与谓词 ctor 是否外联、是否加 volatile 均无关（probe：类内/类外 ctor、
+// volatile 三种写法均编成 %bl），属编译器版本差异，无法由 C++ 源码复现；
+// 三个 call 目标（IsNoneUnicodeRange::C1 / wcslen / std::any_of<PKw,…>）、
+// 槽位（pred -0x11、len -0x10、found -0x9）与分支形态均与 ORIG 一致，
+// 结构不可复现，语义等价。
 bool isWideStrInUnicodeRange(const wchar_t* str)
 {
     IsNoneUnicodeRange pred;
     size_t len = wcslen(str);
-    // P0：ORIG 把 any_of 结果物化到 bool 槽 -0x9（mov %al,-0x9(%ebp) 后
-    // cmpb/je 分支取反），故用具名局部而非右值内联。
+    // P0：ORIG 把 any_of 结果物化到 bool 槽 -0x9（mov %al,-0x9(%ebp)），
+    // 再以 cmpb $0,-0x9 / je 两支各 mov $0/$1 返回 → 源码为 if 展开形态
+    // （`return !found;` 会被 4.4.7 编成 movzbl+xor，与 ORIG 分支形态不符）。
     bool found = std::any_of(str, str + len, pred);
-    return !found;
+    if (found)
+        return false;
+    return true;
 }
 
 // ORIG T 0x08ac2d6c sz 0x78（isUtf8StrInUnicodeRange.md 全文）：

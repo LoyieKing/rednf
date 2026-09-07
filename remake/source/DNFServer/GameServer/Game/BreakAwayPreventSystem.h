@@ -111,7 +111,7 @@ public:
     void loadDbData(SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER* data);
     // T 0x0831ce5e：转发 DB_UpdateBreakAwayAccruedCera::makeRequest。
     void updateUsedCera(unsigned int accId, unsigned int cera);
-    void GM_UpdateUvList(unsigned int accId, unsigned int day);   // ORIG T 0x0831ca5a（oldGmRoutine SetBreak）
+    int GM_UpdateUvList(unsigned int accId, unsigned int day);   // ORIG T 0x0831ca5a（oldGmRoutine SetBreak）；尾 mov $0x1,%eax 返 1
     // T 0x0831cb56：登录 UV 名单维护；返回值即 ORIG EBX/EAX（bool 0/1，
     // InterDispatcher 原 asm 桥 extern char 同语义）。
     bool updateUvList(SIG_LOGIN_DATA const* login);

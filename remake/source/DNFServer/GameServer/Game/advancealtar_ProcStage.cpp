@@ -1375,17 +1375,27 @@ void HistoryLog::buyItem(AdvanceAltarShopType::T shopType, int a, short b,
 
 // ----------------------------------------------------------------------------
 // ORIG T 0x0812cf54（docs/class_func_reports/advancealtar/getMemberNames.md 全文）：
-// 双参非空时 sprintf(buf, "\"%s\",\"%s\",\"N/A\",\"N/A\",\"N/A\"", name, name)。
+//   +0x07 `cmpl $0,0x8; je end` + +0x0d `cmpl $0,0xc; je end` ⇒ 两独立判空守卫
+//   （P133：非合并 || ——合并生 setne/test 汇聚形，与此 test-mem/jcc 形不符）；
+//   +0x19 `call getCurCharacName; mov %eax,%ebx`（第 1 次结果缓存 ebx）
+//   +0x26 `call getCurCharacName`（第 2 次，eax）⇒ 两次独立 getCurCharacName
+//   （P48 O0 无 CSE：Ghidra 双臂同 getter = 源码两次内联调用，禁命名局部缓存，
+//   否则少一条 call + ebx 缓存）。sprintf 实参右→左：末参(第 2 个 %s)=先算的
+//   ebx(call1)，首参(第 1 个 %s)=后算的 eax(call2)；故两实参均内联 getCurCharacName()。
 // ----------------------------------------------------------------------------
 namespace advancealtar
 {
 void getMemberNames(CUser* user, char* buf)
 {
-    if (user == 0 || buf == 0)
+    if (user == 0)
     {
         return;
     }
-    const char* name = user->getCurCharacName();
-    sprintf(buf, "\"%s\",\"%s\",\"N/A\",\"N/A\",\"N/A\"", name, name);
+    if (buf == 0)
+    {
+        return;
+    }
+    sprintf(buf, "\"%s\",\"%s\",\"N/A\",\"N/A\",\"N/A\"",
+            user->getCurCharacName(), user->getCurCharacName());
 }
 }  // namespace advancealtar

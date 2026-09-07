@@ -204,11 +204,17 @@ unsigned char CBitManager::GetBit(int idx, int bitLo, int bitHi) // 0x0831c2fc
 // ===========================================================================
 CObfuscator::CObfuscator()                                   // 0x08585888
 {
-    // ORIG 0x08585888：base CBitManager ctor → 局部临时 CBitManager ctor/dtor
-    // （0x085858a1/0x085858ac）。ORIG 4.1 对 temp ctor call 点带 EH landing pad
-    // （+0x2b..+0x41 dtor+Unwind_Resume，"new-expression landing-pad 抑制"反例
-    // 族：4.4 判定半构造对象无需 cleanup 不发 landing，14 vs 30 的 16 条全在
-    // 此块 + push esi/ebx 帧差），正常路径指令逐条同形。
+    // [b22判词·N-EH] 语义已按 ORIG 0x08585888 还原：base CBitManager ctor →
+    // 局部临时 CBitManager ctor(0x085858a1)/dtor(0x085858ac)，正常路径 12 条
+    // 指令逐条同形。残余 29 vs 14 的 15 条差额全在 ORIG 的 EH landing pad
+    // （+0x2b..+0x41：temp 半构造时析构基类子对象 + _Unwind_Resume）及其连带的
+    // push %esi/%ebx + sub $0x20 帧差，不可源码级复现：本仓 c6root g++ 4.4.7 对
+    // 同 TU 内可见空体的 CBitManager::~CBitManager(){} 推导 nothrow 故不发
+    // cleanup；4.1 无此推导。实测（-m32 -O0 -std=gnu++0x -fno-enforce-eh-specs）
+    // 仅当 CBitManager ctor/dtor 在本 TU 内只声明不定义时，可逐条复现 ORIG 29
+    // 条形（含 landing pad 与 -0x18(%ebp) 槽），但那要把 CBitManager 全部方法
+    // 迁出本 TU、牵动其它件归属，超本件范围（已向 Main 上报）。动态异常规范
+    // throw(int)/throw(...) 在 -fno-enforce-eh-specs 下实测均不影响该推导。
     CBitManager temp;
 }
 

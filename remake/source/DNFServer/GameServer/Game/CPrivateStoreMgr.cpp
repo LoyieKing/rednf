@@ -538,8 +538,9 @@ bool CPrivateStore::CreatePrivateStore(unsigned char zoneA, unsigned char zoneB,
 // 释放卖家表项并 Clear。sendFail=false 且条目退还失败时中止。
 bool CPrivateStore::RemovePrivateStore(bool sendFail)
 {
+    // ORIG(0x085c60xx)：判空先于 Set，失败返路径不经过 Set；仅通过后才 Set。
+    // 两真语义：sendFail 为 false 返回 false（非 true）；锁列表用 R 版（const 链）。
     m_errorHandler.Set(m_pSeller, 1, 0x59);
-
     if (m_pSeller == 0)
         return false;
     if (m_pParent == 0)
@@ -563,15 +564,7 @@ bool CPrivateStore::RemovePrivateStore(bool sendFail)
         }
         else
         {
-            if (!RecallPrivateStoreItem())
-            {
-                SavePrivateStore();
-                m_pSeller->UpdateData();
-                m_errorHandler.Do(0x16);
-                if (!sendFail)
-                    return false;
-            }
-            else
+            if (RecallPrivateStoreItem())
             {
                 SavePrivateStore();
                 m_pSeller->UpdateData();
@@ -579,6 +572,14 @@ bool CPrivateStore::RemovePrivateStore(bool sendFail)
                 m_pSeller->send_itemspace(1);
                 m_pSeller->getCurCharacInvenR()->SendItemLockListInven();
                 m_pSeller->getCurCharacInvenR()->SendItemLockListAvatar();
+            }
+            else
+            {
+                SavePrivateStore();
+                m_pSeller->UpdateData();
+                m_errorHandler.Do(0x16);
+                if (sendFail)
+                    return false;
             }
         }
 
@@ -1123,8 +1124,12 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
         return false;
     }
 
-    PrivateStoreItem& storeItem = m_items[slot];
-    if ((int)storeItem.GetState() != 3)
+    // [b23S3C] P48 两次独立 operator[]：ORIG 0x169 首次结果 eax 直读 +0x3d（无
+    // 槽），0x1ee 二次 call 结果才落 -0x18 槽（后续全经 -0x18）⇒ 状态判定用完整
+    // 下标表达式，绑定延后到 itemInfo 预清（0x1d7 movl $0,-0x1c 两段式）之后。
+    // [b23S3C] ORIG 0x16e movzbl 0x3d(%eax) 直读字段（-O0 下 GetState call 是
+    // 本仓 out-of-line 化的产物；ORIG 此处无 GetState call，p167 EXTRA 实证）。
+    if ((int)m_items[slot].m_flag3d != 3)
     {
         m_errorHandler.Do(1);
         return false;
@@ -1135,7 +1140,9 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
         return false;
     }
 
-    CItem* itemInfo = G_CDataManager()->find_item((int)storeItem.m_item.m_addInfo);
+    CItem* itemInfo = 0;
+    PrivateStoreItem& storeItem = m_items[slot];
+    itemInfo = G_CDataManager()->find_item((int)storeItem.m_item.m_addInfo);
     if (itemInfo == 0)
     {
         m_errorHandler.Do(0x11);
@@ -1284,8 +1291,10 @@ bool CPrivateStore::IsAreaNearEntranceDungeon(CUser* user)
             trace("G_GameWorld call failed");
             return false;
         }
-        int curArea = user->get_area(false);
-        if (!gameWorld->check_valid_area((int)user->getCurCharacVill(), curArea))
+        // [b23S3C] P48 去缓存：ORIG get_area 结果 eax→%ebx 跨 getCurCharacVill
+        // call 直落 0x8(%esp) 实参槽（0x0d5-0x0f8），无 curArea 槽 ⇒ 右值直传。
+        if (!gameWorld->check_valid_area((int)user->getCurCharacVill(),
+                                         user->get_area(false)))
         {
             // ORIG 复用 "G_GameWorld call failed" 文案（报告行 84 字面实证）。
             cMyTrace trace(__PRETTY_FUNCTION__, 0x23f, 5);

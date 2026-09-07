@@ -183,6 +183,10 @@ bool CEgg::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
 
 // ORIG _ZN13user_creature4CEgg16SaveCreatureItemEP10Inven_ItemP29SIG_CREATURE_ITEM_DETAIL_INFOP5CUser
 // T 0x083390c8（SaveCreatureItem.md 全汇编转写）：蛋条目序列化；恒返 1。
+// 首写经 GetItemId()（外联 call，见 CCreatureItem::GetItemId 定义）。残余
+// [b22判词·N82]：ORIG 帧 `sub $0x18` vs 4.4 `sub $0x4`（帧槽预留宽窄），+0x14
+// 字节 ORIG 经 `movzbl;mov%eax,%edx` 双寄存路由 vs 4.4 直 `movzbl 至 edx`，
+// 均槽/寄存器分配差、语义等价、源码层不可复现。
 bool CEgg::SaveCreatureItem(Inven_Item* item,
                             SIG_CREATURE_ITEM_DETAIL_INFO* info, CUser* user)
 {

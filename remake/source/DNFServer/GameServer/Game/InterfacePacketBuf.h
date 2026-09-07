@@ -16,7 +16,13 @@ public:
     InterfacePacketBuf();
     ~InterfacePacketBuf();
 
-    void AcquirePacketBuf(PacketBuf* packetBuf);
+    // 不抛异常（throw()）—— ORIG 实证：同 TU 内 PacketGuard::PacketGuard()
+    // (0x0858dd4c) 带 EH landing pad（+0xdc call ~InterfacePacketBuf /
+    // _Unwind_Resume），而 PacketGuard::PacketGuard(PacketBuf*) (0x0858de4a,
+    // size 0x36) **无任何 cleanup**。基类 ~InterfacePacketBuf 非平凡
+    // （ORIG W 0x858e29a），若本方法可抛则参数版 ctor 必生成 cleanup ⇒
+    // ORIG 里本方法必然声明为不抛（否则两者不可同时成立）。
+    void AcquirePacketBuf(PacketBuf* packetBuf) throw();
     bool bind_packet(char* packet, int size);
     void clear();
     void finalize(bool isEncryptRequired);

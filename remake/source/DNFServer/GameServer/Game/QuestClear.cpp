@@ -24,6 +24,13 @@ CQuestClear::CQuestClear()
     // STClearedQuest::C1Ev（步长 1，每次置对象首字节 0）后调 clear()。
     // STClearedQuest::C1Ev 仅置首字节 0（ORIG 0x0848f768：movb $0,(%eax)），
     // 逐字节循环净效果与之一致（m_cleared 为 unsigned char[0x7530]）。
+    // [b22判词·N族] ORIG 循环体每元素 `mov %ebx,(%esp); call STClearedQuestC1Ev`
+    // （步长 1），我方 m_cleared 建模为 unsigned char[0x7530]（STClearedQuest 为
+    // 1 字节 {uchar}，布局/0x7530 计数一致），循环体退化 `movb $0,(%edx,%eax,1)`
+    // 单字节写。两者写入地址集/次数/净效果（0x7530 字节全 0）逐元素等价；要 byte-
+    // 复现 per-element call 需把 m_cleared 改 STClearedQuest[0x7530] 并给已验
+    // isClearedQuest/setClearedQuest/resetClearedQuests/getClearedQuestNum 等 6 处
+    // 直返/直写字节访问加 `.m_cleared`，为 ctor 循环形冒回归险不值得 → 取字节循环。
     for (register int i = 0x752f; i != -1; --i)
         m_cleared[i] = 0;
     clear();

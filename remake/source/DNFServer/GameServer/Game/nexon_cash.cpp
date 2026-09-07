@@ -1663,6 +1663,14 @@ int NCashImpl::chargeCash(char* sessionKey, unsigned char h1, unsigned char h2,
 // NexonCash（薄包装）
 // ===========================================================================
 
+// [b22判词·N族] ORIG 0x81ae1b0 对 `new NCashImpl(...)` 生成异常清理 landing pad：
+// Ghidra 标注 try/CatchHandler@0x81ae21b（构造抛 → operator delete(m_impl) →
+// _Unwind_Resume，0x81ae21b..0x81ae232 共 9 insns）。本 TU 内 NCashImpl ctor 定义可见
+// （0x081acfdc 体在同文件 1150 行），我方 GCC 判定其不抛 → `new NCashImpl(...)` 正常
+// 路径不再合成 catch 块（our_insns 41 vs ORIG 50，差集恰为该 9 insns）。正常（无异常）
+// 路径逐条 IDENTICAL（参数搬运/new(0x450)/构造实参压栈/存 m_impl 全等），差异仅在异常
+// 回退路径，属编译器异常表代码生成差异，不可经标准 C++98 源码复现（§4.1 禁伪
+// noexcept/hack）。语义等价：正常构造行为一致。
 NexonCash::NexonCash(const char* serverAdrs, short port, char paramB,
                      short fieldC, short fieldD)
 {

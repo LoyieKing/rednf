@@ -400,12 +400,14 @@ namespace expert_job
 // ---- OnLeaveUser（报告，ORIG T 0x0849e214 sz 0x41）----
 void CExpertJobMgr::OnLeaveUser(CUser* user)
 {
-    CExpertJob* job = user->GetCurCharacExpertJob();
-    if (job != 0)
-    {
-        // ORIG 虚调用 vptr+4（本域 vtable 业务槽 1 = OnCloseMission）。
-        job->OnCloseMission(user, ENUM_CLOSE_MISSION_TYPE_1);
-    }
+    // ORIG 0x0849e214：getter 两次独立调用、返回值不出具名槽（P0 律）；
+    // 虚调用实参用第二次返回值。虚调用 vptr+4 = 业务槽 1 OnCloseMission。
+    // [b22判词·N-REG] 非空判断 ORIG 为 `test;setne;test;je` bool 惯用法且
+    // 虚调用指针走 %edx/%ecx 暂存，gcc 新版直接 `cmpl $0`+单寄存器复用；
+    // 寄存器/惯用法选择为编译器结构，不可源码复现，语义等价。
+    if (user->GetCurCharacExpertJob())
+        user->GetCurCharacExpertJob()->OnCloseMission(
+            user, ENUM_CLOSE_MISSION_TYPE_1);
 }
 
 // ---- IsAvailableRequestPeer（报告，ORIG T 0x0849e55e sz 0xad）----
@@ -730,28 +732,35 @@ int CCharacExpertJob::SendExpertJobInfo(CUser* user)
     PacketGuard packet;
     packet.put_header(0, 0xcd);
     packet.put_byte(m_giveupCount);
-    int jobType = user->GetCurCharacExpertJobType();
-    packet.put_byte(jobType);
-
-    if (jobType == 3)
+    // [b23S3C] P48 去缓存 + P0 律：ORIG 0x0832b44d/0x61/0xbb 三处独立 call
+    // GetCurCharacExpertJobType（put_byte 实参、switch 判定、GetExpertJobScript
+    // 实参），判定比较一律走 %eax 无 -off 槽 ⇒ 原码无 jobType 具名局部；
+    // 决策树 `cmp $3;je / cmp $3;jg / cmp $1;jl / cmp $4;jne` 为 switch(1,2,3,4)
+    // 分派形（旧 `>=1 && <=4` 范围测形不同）。
+    packet.put_byte(user->GetCurCharacExpertJobType());
+    switch (user->GetCurCharacExpertJobType())
     {
-        packet.put_int(m_enchantCount + 1);
-        packet.put_int(m_endurance);
-    }
-    else if (jobType >= 1 && jobType <= 4)
+    case 1:
+    case 2:
+    case 4:
     {
         int count = 0;
         int countIndex = packet.get_index();
-        packet.put_byte(0);
-        STExpertJobScript* script =
-            (STExpertJobScript*)G_CDataManager()->GetExpertJobScript(jobType);
+        packet.put_byte(count);   // 先占位写 0（ORIG 0xa3 读 -0x18 槽，非立即数）
+        // [b23S3C] 第三处独立重取（ORIG 0x0832b4bb→0xc7 结果入 %ebx 作第 2 实参）。
+        STExpertJobScript* script = (STExpertJobScript*)G_CDataManager()
+                                        ->GetExpertJobScript(
+                                            user->GetCurCharacExpertJobType());
         if (script != 0)
         {
             for (int i = 0; i < 0xf0; ++i)
             {
                 if (get_recipe(i) == 1)
                 {
-                    stRecipeInfo* info = script->GetRecipeInfo(i);
+                    // [b23S3C] P197③/P198①：ORIG 0x0832b556 先
+                    // `movl $0x0,-0xc(%ebp)` 再 GetRecipeInfo ⇒ 两句式。
+                    stRecipeInfo* info = 0;
+                    info = script->GetRecipeInfo(i);
                     if (info != 0 &&
                         *reinterpret_cast<const int*>(info->m_pad) != 0)
                     {
@@ -762,6 +771,14 @@ int CCharacExpertJob::SendExpertJobInfo(CUser* user)
             }
         }
         packet.put_byte(countIndex, count);   // 回填 recipe 计数
+        break;
+    }
+    case 3:
+        packet.put_int(m_enchantCount + 1);
+        packet.put_int(m_endurance);
+        break;
+    default:
+        break;
     }
     packet.finalize(true);
     user->Send(packet);

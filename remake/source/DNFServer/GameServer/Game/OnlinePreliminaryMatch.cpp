@@ -198,6 +198,10 @@ int COnlinePreliminary::nextAuthValue_ = 0;
 // ---------------------------------------------------------------------------
 
 /* ORIG ctor T 0x0855fefe */
+// [b22判词·N族] ORIG new(0x1c) 后、C1 call 前有 6 条 value-init 标量置零
+// （+0x00/08/0c/10/14/18），GCC4.1 语义；4.4 视 user-provided ctor 类免置零直调。
+// placement-new+try 实测反引入 operator new(void*,ptr) call + EH spill，C++98
+// 无法复现该置零序列，语义等价（残差 6 insns），按 N 族结案，勿再开轮。
 COnlinePreliminary::COnlinePreliminary()
 {
     if (pWaitingRoomList_ == 0)

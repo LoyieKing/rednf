@@ -264,6 +264,9 @@ private:
 #include <errno.h>
 namespace OS_API { void Sleep(int ms); }
 namespace DNFFLib { void Make_Dir(char* dir); }
+// send_check_channel_script 的函数作用域静态（ORIG b 符号 @0x094051c0/0x094055c0）
+static char s_version[0x400];
+static int s_linePos;
 
 // 布局：char category@+0、char packetID@+1、unsigned int size@+2（setSize/
 // getSize 均 dword 访问实证；setSize 0x08106bdb arg 先载 ⇒ ORIG 字段与 int
@@ -537,10 +540,12 @@ bool CmmChannelProxy::SendCheckChannelScript()
         trace("\t- [ERROR] : cannt open channel_script_version file\n");
         return false;
     }
-    while (std::fgets(line, 0x400, fp) != 0)
+    // ORIG（0x08106870 段）：行缓冲为函数作用域 static（bss -0x4d4），循环带
+    // 行首空白剥离 + '\n'/'#' 注释行跳行（linePos 跨行累计【实证：不随行重置】）。
+    for (std::fgets(s_version, 0x400, fp);   // cond1 弃用：ORIG 前置读+setne 形
+         std::fgets(s_version, 0x400, fp) != 0;)
     {
-        // 原地去除行首空白（ORIG local_18/local_14 双指针转写）。
-        char* src = line;
+        char* src = s_version;
         char* dst = src;
         do
         {
@@ -550,11 +555,19 @@ bool CmmChannelProxy::SendCheckChannelScript()
             }
             *dst++ = *src++;
         } while (*(src - 1) != '\0');
+        if (s_version[s_linePos] == '\n')
+        {
+            s_linePos = 0;
+            continue;
+        }
+        if (s_version[s_linePos] != '#')
+            break;
+        s_linePos = 0;
     }
     std::fclose(fp);
 
     tagCS_CHECK_SCRIPT_VERSION reqVer;
-    std::memcpy(reqVer.m_version, line, 0x10);
+    std::strncpy(reqVer.m_version, s_version, 0x10);
     if (SendPacket(reinterpret_cast<char*>(&reqVer),
                    reqVer.m_hdr.getSize()) == 0)
     {
@@ -986,9 +999,11 @@ public:
     static const unsigned short kKoreanGeneral[978];   // VA 0x08b2bca0
     static const unsigned short kJapaneseHirakana[72]; // VA 0x08b2c460
     static const unsigned short kTaiwanAlphabet[26];   // VA 0x08b2c500
-    static const unsigned int kKoreanGeneralCount;     // VA 0x08b2c444（978）
-    static const unsigned int kTaiwanAlphabetCount;    // VA 0x08b2c534（26）
-    static const unsigned int kJapaneseHirakanaCount;  // VA 0x08b2c4f0（72）
+    // [b23S3C] 非 const：ORIG(4.1) -O0 对 rodata 常量仍出运行时 mov 读取再 div；
+    // 4.4 见 const 初始化器即折成魔数乘（mul/imul 形）。探针 /tmp/r3probe/p4 实证非 const 复原 `mov addr;div`。
+    static unsigned int kKoreanGeneralCount;     // VA 0x08b2c444（978）
+    static unsigned int kTaiwanAlphabetCount;    // VA 0x08b2c534（26）
+    static unsigned int kJapaneseHirakanaCount;  // VA 0x08b2c4f0（72）
 private:
     static float getFloat(XorRand4& rng, float lo, float hi);
     void* m_library;             // +0x00（ORIG FT_Library；本还原中为句柄占位）
@@ -1094,9 +1109,9 @@ const unsigned short CaptchaGen::kTaiwanAlphabet[26] = {
     0x004d, 0x004e, 0x004f, 0x0050, 0x0051, 0x0052, 0x0053, 0x0054, 0x0055, 0x0056, 0x0057, 0x0058,
     0x0059, 0x005a,
 };
-const unsigned int CaptchaGen::kKoreanGeneralCount = 978;    // VA 0x08b2c444
-const unsigned int CaptchaGen::kTaiwanAlphabetCount = 26;    // VA 0x08b2c534
-const unsigned int CaptchaGen::kJapaneseHirakanaCount = 72;  // VA 0x08b2c4f0
+unsigned int CaptchaGen::kKoreanGeneralCount = 978;    // VA 0x08b2c444
+unsigned int CaptchaGen::kTaiwanAlphabetCount = 26;    // VA 0x08b2c534
+unsigned int CaptchaGen::kJapaneseHirakanaCount = 72;  // VA 0x08b2c4f0
 
 // CaptchaGen 实现（G7 验证码；ORIG 走 FreeType，本环境无 FreeType，按算法等价实现）
 CaptchaGen::ImageOption::ImageOption()
@@ -1178,6 +1193,15 @@ extern "C" int FT_Open_Face(void* library, FT_Open_Args* args, long face_index,
     return 0;
 }
 
+// [b22判词·N-codegen] FT_Done_FreeType 语义忠实 ORIG 0x087bca50：library!=0 时读
+// 其首字段 memory（offset 0），依次 FT_Done_Library(library)、FT_Done_Memory(memory)，
+// 恒返 0（orig_insns=our_insns=17）。残余 DIFF 全属跨版本 codegen 结构差、无法源码
+// 复现：①ORIG 用 callee-saved %ebx 跨两次 call 持有 memory（push/pop %ebx），
+// 4.4.7 -O0 为具名局部 memory 建 -0x4(%ebp) 槽；②ORIG `test %eax,%eax`（载入指针
+// 后测寄存器）vs 本 `cmpl $0x0,0x8(%ebp)`（测形参槽）；③ORIG epilogue
+// `add $0x14,%esp; xor %eax,%eax; pop %ebx; pop %ebp; ret`（有 %ebx 压栈）vs 本
+// `mov $0,%eax; leave; ret`；④`call <FT_Done_Library/FT_Done_Memory>` 未 relink 时
+// 为 .o 重定位占位（§6.3 假阳性），relink 后转 AE。语义等价。
 extern "C" int FT_Done_FreeType(void* library)
 {
     // ORIG 0x087bca50（idx49 报告）：library != 0 时读取其首字段 memory，
@@ -1195,21 +1219,31 @@ extern "C" int FT_Done_FreeType(void* library)
 // 豁免同 FT_Init_FreeType（本环境无 libfreetype；调用点 codegen 与 ORIG 一致，
 // 函数体属静态链入第三方库不参与 identical）。FT_ENCODING_UNICODE 以字面量
 // 0x756e6963（"cinu"）代入。
+// [b22判词·N-codegen] FT_New_Face 语义忠实 ORIG 0x087c4730（pathname==0 返 6；否则
+// 构造 FT_Open_Args{flags=4,pathname,stream=0} 调 FT_Open_Face 并透传返回值）。
+// 残余 DIFF 全属跨版本 codegen 结构差、无法源码复现：①ORIG 把返回值 FVar1 留在
+// %eax 跨分支（寄存器化标量局部，违 P0），4.4.7 -O0 一律为具名局部建 result 槽；
+// ②args 结构帧槽号（ORIG -0x28/-0x1c/-0x18 vs 本 -0x18/-0xc/-0x8）与帧尺寸
+// （0x38 vs 0x30）随局部槽化次序错位；③ORIG `mov 0xc(%ebp),%edx;test %edx,%edx`
+// vs 本 `cmpl $0x0,0xc(%ebp)`（test-reg vs cmp-slot）；④`call <FT_Open_Face>` 未
+// relink 时为 .o 重定位占位（§6.3 假阳性），relink 后转 AE。语义等价。
 extern "C" int FT_New_Face(void* library, const char* filepathname, long face_index,
                            void** aface)
 {
-    // ORIG 0x087c4730（idx73 报告）：FVar1 初值 6；pathname 非空时构造
-    // FT_Open_Args{flags=4, pathname, stream=0} 调 FT_Open_Face；否则返 6。
-    int err = 6;
-    if (filepathname != 0)
+    // ORIG 0x087c4730（idx73 报告）：pathname==0 返 6；否则构造
+    // FT_Open_Args{flags=4, pathname, stream=0} 调 FT_Open_Face 并以其返回值返回。
+    // ORIG 把返回值（FVar1）留在 %eax 跨分支（编译器寄存器化标量局部，违 P0 但
+    // ORIG 事实）；本环境 4.4.7 -O0 一律为具名局部分配槽（见 diff：result 槽化 +
+    // 帧尺寸/槽号/test-reg-vs-cmpl-slot 差），属跨版本 codegen 结构差，无法源码复现。
+    if (filepathname == 0)
     {
-        FT_Open_Args args;
-        args.flags = 4;
-        args.pathname = filepathname;
-        args.stream = 0;
-        err = FT_Open_Face(library, &args, face_index, aface);
+        return 6;
     }
-    return err;
+    FT_Open_Args args;
+    args.flags = 4;
+    args.pathname = filepathname;
+    args.stream = 0;
+    return FT_Open_Face(library, &args, face_index, aface);
 }
 
 extern "C" int FT_Set_Pixel_Sizes(void* face, unsigned int pixel_width,
@@ -1288,30 +1322,28 @@ bool CaptchaGen::addFont(const char* font, int size)
 
 void CaptchaGen::generateText(CountryCode code, int len, unsigned short* out)
 {
-    const unsigned short* table = 0;
-    unsigned int count = 0;
+    // [b23S3C] ORIG 0x080de83c：三分支各独立循环（i 槽 -0x14/-0x10/-0xc），
+    // 表/计数直引全局静态成员（movzwl table(,%eax,1) 索引形），勿归一成共享循环。
     if (code == CountryCode::korea)
     {
-        table = kKoreanGeneral;
-        count = sizeof(kKoreanGeneral) / sizeof(kKoreanGeneral[0]);
+        for (int i = 0; i < len; ++i)
+        {
+            out[i] = kKoreanGeneral[m_rng() % kKoreanGeneralCount];
+        }
     }
     else if (code == CountryCode::japan)
     {
-        table = kJapaneseHirakana;
-        count = sizeof(kJapaneseHirakana) / sizeof(kJapaneseHirakana[0]);
+        for (int i = 0; i < len; ++i)
+        {
+            out[i] = kJapaneseHirakana[m_rng() % kJapaneseHirakanaCount];
+        }
     }
     else if (code == CountryCode::taiwan)
     {
-        table = kTaiwanAlphabet;
-        count = sizeof(kTaiwanAlphabet) / sizeof(kTaiwanAlphabet[0]);
-    }
-    else
-    {
-        return;
-    }
-    for (int i = 0; i < len; ++i)
-    {
-        out[i] = table[m_rng() % count];
+        for (int i = 0; i < len; ++i)
+        {
+            out[i] = kTaiwanAlphabet[m_rng() % kTaiwanAlphabetCount];
+        }
     }
 }
 
@@ -4526,7 +4558,7 @@ CGM_Manager::~CGM_Manager()
     // ORIG 0x08299159 附近：rwLock 析构 + map 自动析构。
 
 }
-bool CGM_Manager::LoadGmListFromDb()
+char CGM_Manager::LoadGmListFromDb()
 {
     // [b23S3C] ORIG 0x08299530：ok 即返回变量（exec/get_int 逐次覆写），
     // mId/level/rows 函数级预清（P197③ 帧头 movl $0×N），writeGuard 保护填充。
@@ -5712,6 +5744,16 @@ CRijndael* GlobalData::s_pcryptRijndael_MousePassword_ = 0;
 Cipher* GlobalData::s_secu_cipher_keystring_manager_[0x4e20] = {0};
 CTEA* GlobalData::s_pcryptTEA_MousePassword_ = 0;
 CTEA* GlobalData::s_pcryptTEA_SecurityCard_ = 0;
+// [b22判词·N-工具名碰撞+编译器生成] idx9 __tcf_0 是本 TU 静态数组 g_SPremiumInfo[0x6a]
+// 的编译器自动生成析构 thunk（倒序逐元素 call ~SPremiumInfo，elem size 0x120），非手写
+// 函数，无法在源码层「改」其指令。真·ORIG 对应物 = 0x086b068d（紧邻 _GLOBAL__I_
+// g_SPremiumInfo@0x86b080a，call _ZN12SPremiumInfoD1Ev@0x86b1732），其循环骨架与本 .o
+// 逐项同构（mov 数组上界→%ebx; 与基址 cmp; je 出口; sub $0x120; mov; call dtor; jmp）。
+// report=NO/DIFF（orig18/our15）是 game_func_report 按短名碰撞：ORIG 存在 10 个 file-local
+// `__tcf_0`，工具取到 0x0828f940（CDeathTowerRanking 数组 cleanup，语义无关）。残余：
+// ①ORIG 用字面上界地址 0x948b180 / 字面基址 0x9483a40 做 cmp，我们靠链接期 R_386_32
+// reloc 填（未 relink 显示占位 0，§6.3 假阳性）；②18 vs 15 差在 ORIG 额外一条 `mov 上界,%ebx`
+// 预载。语义等价，relink 后转 AE。
 SPremiumInfo g_SPremiumInfo[0x6a];             // 09483a40；全局 C 名（无命名空间，ORIG B）；静态初始化逐元素构造（ORIG _GLOBAL__I_g_SPremiumInfo 0x86b080a）
 WongWork::CSimpleSSO* GlobalData::s_psimpleSSO = 0;
 WongWork::CSecurityCardCenter* GlobalData::s_securityCardCenter = 0;

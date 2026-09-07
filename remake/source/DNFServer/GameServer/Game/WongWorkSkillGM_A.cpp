@@ -33,13 +33,20 @@ namespace WongWork
 // ============================================================================
 bool CSkillChanger::CheckCondition(const CUser* user)
 {
-    const int level = user->get_charac_level();
-    unsigned int levelExp =
-        static_cast<unsigned int>(G_CDataManager()->get_level_exp(level));
-    unsigned int nextLevelExp =
-        static_cast<unsigned int>(G_CDataManager()->get_level_exp(level + 1));
-    unsigned int curExp = static_cast<unsigned int>(user->getCurCharacExp());
-    return !((curExp < levelExp) || (nextLevelExp < curExp));
+    // ORIG 0x08609d10：get_charac_level ×2、G_CDataManager ×2、
+    // getCurCharacExp 两条件各取一次（P48 无 CSE）；结果槽 -0xc/-0x10。
+    unsigned int levelExp = static_cast<unsigned int>(
+        G_CDataManager()->get_level_exp(user->get_charac_level()));
+    unsigned int nextLevelExp = static_cast<unsigned int>(
+        G_CDataManager()->get_level_exp(user->get_charac_level() + 1));
+    // 双物化岛：bVar1 = (c1||c2) 经 mov$1/mov$0，再 `return !bVar1` 二次物化
+    // （+0x76 test %al;je / +0x7a mov$0 / +0x81 mov$1）。register bool 强制。
+    register bool b __asm__("al");
+    b = (user->getCurCharacExp() < levelExp)
+        || (nextLevelExp < user->getCurCharacExp());
+    if (b)
+        return false;
+    return true;
 }
 // ============================================================================
 // ORIG T 0x08609d9c CountElixer(CUser*)：重置四组数据（8/组首）、置就绪标志，

@@ -133,6 +133,10 @@ int TeamInfo::size() const       // ORIG T 0x0855cd26
 
 // ORIG C1/C2 0x0855cd74：IMatch ctor → PVP_ROOM_INFO@+8 → 懒建 pWaitingRoomList_
 // （new 0x1c 置零后 C1 0x08568fb0）→ 引用计数自增。
+// [b22判词·N族] ORIG new(0x1c) 后、C1 call 前有 6 条 value-init 标量置零
+// （+0x00/08/0c/10/14/18），GCC4.1 语义；4.4 视 user-provided ctor 类免置零直调。
+// placement-new+try 实测反引入 operator new(void*,ptr) call + EH spill，C++98
+// 无法复现该置零序列，语义等价（残差 6 insns），按 N 族结案，勿再开轮。
 CLeagueMatch::CLeagueMatch()
 {
     if (pWaitingRoomList_ == 0)

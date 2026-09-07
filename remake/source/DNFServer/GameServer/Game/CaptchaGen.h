@@ -66,9 +66,10 @@ public:
     static const unsigned short kKoreanGeneral[978];   // VA 0x08b2bca0
     static const unsigned short kJapaneseHirakana[72]; // VA 0x08b2c460
     static const unsigned short kTaiwanAlphabet[26];   // VA 0x08b2c500
-    static const unsigned int kKoreanGeneralCount;     // VA 0x08b2c444（978）
-    static const unsigned int kTaiwanAlphabetCount;    // VA 0x08b2c534（26）
-    static const unsigned int kJapaneseHirakanaCount;  // VA 0x08b2c4f0（72）
+    // 非 const：防 4.4 常量折叠（对齐 ORIG 运行时读 rodata 值做 div，见 GlobalData.cpp 注）
+    static unsigned int kKoreanGeneralCount;     // VA 0x08b2c444（978）
+    static unsigned int kTaiwanAlphabetCount;    // VA 0x08b2c534（26）
+    static unsigned int kJapaneseHirakanaCount;  // VA 0x08b2c4f0（72）
 private:
     static float getFloat(XorRand4& rng, float lo, float hi);
     void* m_library;             // +0x00（ORIG FT_Library；本还原中为句柄占位）

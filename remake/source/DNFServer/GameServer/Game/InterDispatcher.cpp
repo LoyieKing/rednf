@@ -7008,11 +7008,13 @@ int Inter_SaveClientHackLog::dispatch_sig(CUser* /*user*/, char* data, int /*len
             penalty += 0x14;
     }
 
-    const int stdDropRate = target->getStdDropRate();
+    // [b23S3C] P48：ORIG 两次 getStdDropRate（local_20[2] 落槽供 min 取址；
+    // 比较点重新 call 入寄存器 iVar5），勿具名缓存复用。
     penalty = std::min(100, penalty);                // std::min(&local_20[1],&local_20[0])
     int rate = 100 - penalty;                        // local_20[0] = 100 - *min
+    int stdDropRate = target->getStdDropRate();      // local_20[2]
     rate = std::min(rate, stdDropRate);              // std::min(&local_20[0],&local_20[2])
-    if (stdDropRate != rate)
+    if (target->getStdDropRate() != rate)
     {
         DB_SaveUserHandicap::makeRequest(
             target->get_acc_id(), 0x9c41, 0x65, rate, 3, 0);
@@ -7217,7 +7219,8 @@ int Inter_ReqQueryCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_header(1, 0x8b);
     packet.put_byte(1);
     packet.put_int(static_cast<int>(strlen(reinterpret_cast<const char*>(pPkt))));
-    packet.put_str(reinterpret_cast<const char*>(pPkt),
+    // ORIG put_str(char*,int)（Pc 非 const 重载）：实参 cast 成 char* 精确选中该重载。
+    packet.put_str(reinterpret_cast<char*>(pPkt),
                    static_cast<int>(strlen(reinterpret_cast<const char*>(pPkt))));
     packet.put_short(                                // msg+0x2a short（cwtl 符号扩展）
         static_cast<int>(pPkt->m_2a));
@@ -17454,8 +17457,12 @@ int Inter_SelectAllowProxyUser::dispatch_sig(CUser* user, char* data, int /*len*
 
 
 // ======== Inter_NpcLimitBuyItemInfo（B1：生命周期/reset；业务方法待类型域补齐） ========
-// ctor 与 ORIG 逐指令同构（base vptr + pair@8 + Inven_Item@0x1d/0x5a + reset），
-// 唯一残余 4.4 多出的 EH 清理块（push esi/ebx + _Unwind_Resume 落盘），跨 GCC 结构性不可复现。
+// [b22判词·N-EH] Inter_NpcLimitBuyItemInfo::C1Ev（ORIG 0x084e6502，报告汇编+Ghidra C 全读）
+// 主体逐指令同构 ORIG：ISigDispatcher::C1 → 置 vptr(&vtable+0x8) → pair<int,int>@+8::C1
+// → Inven_Item@+0x1d::C1 → Inven_Item@+0x5a::C1 → this->reset()。orig25/our40 全差在
+// 4.4.7 对 4 个可能抛的 sub-ctor 生成 EH cleanup 块（push %esi/%ebx + `jmp <landing>` +
+// ~C1 pair + _Unwind_Resume，15 条），ORIG 编译器同位置无任何 landing pad。函数体不可
+// 复现（编译器版本决策），语义等价。
 Inter_NpcLimitBuyItemInfo::Inter_NpcLimitBuyItemInfo()
 {
     reset();

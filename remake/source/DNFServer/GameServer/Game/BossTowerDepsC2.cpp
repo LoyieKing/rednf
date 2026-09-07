@@ -172,12 +172,12 @@ void CAssaultMgr::ForcedMoveAtPowerWarPlace(CUser* user)
 // ============================================================================
 int TOD_UserState::getEnterCount() const
 {
-    return m_enterCount;      // ORIG：*(int*)(this+0x10)
+    return m_data.m_enterCount;      // ORIG：*(int*)(this+0x10)
 }
 
 int TOD_UserState::getLastClearTime() const
 {
-    return m_lastClearTime;   // ORIG：*(int*)(this+0x1c)
+    return m_data.m_lastClearTime;   // ORIG：*(int*)(this+0x1c)
 }
 
 // ============================================================================

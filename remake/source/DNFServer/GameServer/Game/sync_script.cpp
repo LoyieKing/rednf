@@ -5,6 +5,13 @@
 // 实现；本 TU 补齐 skill/quest/dungeon/town/exp/creature/aicharacter/
 // item_master/random_option 等。逐函数对照
 // docs/class_func_reports/sync_script__CSyncScript.md 的 C 代码实现。
+// ---------------------------------------------------------------------------
+// [b22判词·N族/索引伪差集 P93·P154 同族] __tcf_0（<global>）：本 TU 文件作用域带
+// 非平凡析构全局对象的 GCC 合成 atexit cleanup，无独立可写源码函数体，指令完全由
+// 本 TU 全局对象集合与构造序决定。ORIG 二进制内 `__tcf_0` 同名 local 数百枚（每含
+// 全局对象 TU 一枚），compare 工具按名取到 0x0828f940（WongWork::CDeathTowerRanking
+// 域另一 TU，与本 TU 全局无关）→ 逐条 DIFF 系索引伪差集（§6.3 撞名族），非实现缺口。
+// 语义等价，不可源码复现，保留判词。
 // ============================================================================
 
 #include "sync_script.h"

@@ -329,6 +329,13 @@ bool CUser::VerifyCleanPadVeriData(unsigned int value)
 
 // ORIG 0x0868a51a：向客户端下发人机认证图（capcha 队列随机一条 + 新鲜种子三段
 // + 错误计数），并重置请求态/失败标志与 60 秒认证超时定时器（TIMER_MESSAGE 9）。
+// [b22判词·N] ORIG 155 vs 重建 154：唯一真差异在 memcpy 首参（dst = this+0x8e0ec，
+// m_capchaCertify 数组）地址物化——ORIG 4.1.2 `mov 0x8(%ebp),%edx; add $0x8e0ec,%edx`
+// （mov+add 两条），4.4.7 折叠为 `lea 0x8e0ec(%eax),%edx`（单条），差 1 条属跨版本
+// 寻址伪影（范式库 memcpy/memset 首参 lea-vs-add 族，禁 register asm 强凑）。其余指令/
+// 控制流/栈槽/EH landing pad 全对齐；call 目标占位、数据地址 `movl $0x0,(%esp)`
+// （&s_capchaDataManager）、字符串立即数为 --no-compile .o 重定位假阳性（§6.3），
+// relink 后转 AE。语义等价。
 unsigned int CUser::reqSendMailCertify()
 {
     if (GlobalData::s_capchaDataManager.isEmpty())

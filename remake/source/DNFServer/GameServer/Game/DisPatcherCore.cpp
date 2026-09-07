@@ -8373,7 +8373,9 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             user->getHackAnalyzer()->addServerHackCnt(
                 user, (WongWork::ENUM_HACKTYPE)0xca, 1, 0, 0);
         }
-        user->getHackAnalyzer()->ValidateFixMobDiePos(
+        // [b23S3C] S23A idx94 实证 ValidateFixMobDiePos 为 static（ORIG 0x080f908c
+        // this 不入栈）：去 getHackAnalyzer() 前缀，消 EXTRA call。
+        WongWork::CHackAnalyzer::ValidateFixMobDiePos(
             user, (unsigned short)monsterIdxOut,
             die.m_killPairA24, die.m_killPairA26);
         break;
@@ -8452,7 +8454,7 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
         tower->handleKillMonster(
             user, (unsigned short)die.m_mobSeq,
             (unsigned short)die.m_fieldF, die, &monsterIdxOut);
-        user->getHackAnalyzer()->ValidateFixMobDiePos(
+        WongWork::CHackAnalyzer::ValidateFixMobDiePos(
             user, (unsigned short)monsterIdxOut,
             die.m_killPairA24, die.m_killPairA26);
         break;
@@ -11252,11 +11254,13 @@ int DisPatcher_AddFriend::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 // 否则 sig[+4]=!isGM(acc_id)、strncpy(sig+5, msg+0x11, 0x1e)、MsgQueueMgr put(DB_Q)；返 0。
 int DisPatcher_AddFriend::process_packet_jpn(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    static const char* const kFile = "PacketDispatcher_Impl_1.cpp";
-    static const char* const kPretty =
-        "int DisPatcher_AddFriend::process_packet_jpn(CUser*, MSG_BASE&, ParamBase&)";
-    MSG_ADD_FRIEND& req = *reinterpret_cast<MSG_ADD_FRIEND*>(&msg);
     stAddFriendParam& out = static_cast<stAddFriendParam&>(param);
+    // [b23S3C] ORIG 槽集 {-0x10 req, -0x14 out, -0x1c guard, -0xc sig}；
+    // kFile/kPretty 各用点均字符串立即数（无 static 局部指针槽）；
+    // Acquire 结果直落 ctor 0x4(%esp)（无 stream 局部，P0 寄存器直传）；
+    // 写流为 operator* + operator<< 两 call 链（+0x0c7/+0x0ef 各一次），
+    // GetInBuffer 走 operator-> 链（+0x10c/+0x114，P103）——GmCmds_C
+    // CDeleteGuild DONE 同族形。
 
     out.m_field4 = check_error(user, msg);
     if (out.m_field4 > 0)
@@ -11265,26 +11269,32 @@ int DisPatcher_AddFriend::process_packet_jpn(CUser* user, MSG_BASE& msg, ParamBa
     }
     if (out.m_field4 < 0)
     {
-        LogManager::logFormat(1, kFile, kPretty, 0x20d8,
-                              "Dispatcher_Impl Check_Error No(%d)", out.m_field4);
+        LogManager::logFormat(
+            1, "PacketDispatcher_Impl_1.cpp",
+            "int DisPatcher_AddFriend::process_packet_jpn(CUser*, MSG_BASE&, ParamBase&)",
+            0x20d8, "Dispatcher_Impl Check_Error No(%d)", out.m_field4);
         return 0x20d9;
     }
 
-    Stream* stream = GlobalData::s_stream_pool->Acquire(kFile, 0x20ed);
-    CStreamGuard guard(stream, true);
-    guard << 0x33e;                              // inter-server SIG 消息号
-    guard << static_cast<int>(user->GetUID());   // ORIG 与上一行同为 operator<<(int)
-    SIG_CHECK_ADD_FRIEND* sig = guard.GetInBuffer<SIG_CHECK_ADD_FRIEND>();
+    MSG_ADD_FRIEND& req = *reinterpret_cast<MSG_ADD_FRIEND*>(&msg);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x20ed),
+        true);
+    (*guard)->operator<<(0x33e);                 // inter-server SIG 消息号
+    (*guard)->operator<<(static_cast<int>(user->GetUID()));
+    SIG_CHECK_ADD_FRIEND* sig =
+        guard.operator->()->GetInBuffer<SIG_CHECK_ADD_FRIEND>();
     if (sig == 0)
     {
         out.m_field4 = 1;
     }
     else
     {
-        const bool notGM = !GlobalData::s_pGMAccounts_->isGM(user->get_acc_id());
-        sig->m_notGmFlag = static_cast<char>(notGM ? 1 : 0);      // sig+0x04
+        // ORIG +0x153 分支岛 mov$0/mov$1（非 setne 归一），直落 sig+0x04。
+        sig->m_notGmFlag =
+            GlobalData::s_pGMAccounts_->isGM(user->get_acc_id()) ? 0 : 1;
         strncpy(sig->m_characName,                               // sig+0x05..0x22
-                reinterpret_cast<STFriendReqView*>(&msg)->m_name, // msg+0x11
+                reinterpret_cast<STFriendReqView*>(&req)->m_name, // msg+0x11
                 0x1e);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);    // QUEUE_IDX 2=DB_Q
     }

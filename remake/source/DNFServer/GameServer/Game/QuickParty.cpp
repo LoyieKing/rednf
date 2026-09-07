@@ -105,20 +105,22 @@ int CQuickParty::get_quick_party_count()
     return total;
 }
 
-// destroy @0x082695ca：归还 StaticPool 槽位并输出释放日志（cMyTrace 细节按推断简化）。
 void CQuickParty::destroy()
 {
-    // ORIG 0x082695ca 逐条转写：PutQuickParty 归还后，取活跃 QUICK 파티数
-    // （hash_map::size）与 pool 占用数（Size()-Remain()），cMyTrace(0x32,0) 输出。
+    // ORIG 0x082695ca：G_CGameManager 四独立重调（P48）+ 成员直调——
+    // +0x2d4 hash_map::size→ebx；+0x1cc StaticPool Size→esi、Remain→eax、
+    // sub ⇒ esi=Size-Remain（占用数）。原经 GetActive*/GetOccupied* wrapper
+    // 遮蔽直调形（LinkClosureB GetDBHandle 同案），已展开。
     G_CGameManager()->PutQuickParty(this);
-    CGameManager* mgr = G_CGameManager();
-    int registeredCnt = mgr->GetActiveQuickPartyCnt();          // ebx: map size
-    int occupiedCnt = mgr->GetOccupiedQuickPartyPoolCnt();      // esi: Size-Remain
+    unsigned int registeredCnt =
+        static_cast<unsigned int>(G_CGameManager()->m_quickPartyMap.size());
+    int occupiedCnt = G_CGameManager()->m_quickPartyPool.Size()
+                      - static_cast<int>(
+                            G_CGameManager()->m_quickPartyPool.Remain());
     cMyTrace trace("void QuickParty::CQuickParty::destroy()", 0x32, 0);
-    // ORIG fmt @0x8bf5380（GBK）：
-    // "QUICK_PARTY_LOG : QUICK 快捷组队 解除。 QUICK 快捷队<%d>, 剩余 QUICK 快捷队<%d>"
+    // ORIG fmt @0x8bf5380（GBK，objdump -s .rodata 实证逐字节一致）
     trace("QUICK_PARTY_LOG : QUICK \xc6\xc4\xc6\xbc\xc7\xd8\xc1\xa6 \xb5\xcb\xb4\xcf\xb4\xd9. QUICK \xc6\xc4\xc6\xbc\xbc\xf6<%d>, \xb5\xee\xb7\xcf QUICK \xc6\xc4\xc6\xbc\xbc\xf6<%d>",
-          occupiedCnt, registeredCnt);
+          occupiedCnt, static_cast<int>(registeredCnt));
 }
 
 // [moved] GetActiveQuickPartyCnt/GetOccupiedQuickPartyPoolCnt 定义移至 CGameManager.cpp（避免陷入 namespace QuickParty）。
@@ -419,6 +421,10 @@ bool CQuickPartySystemManager::remove_quick_party_in_pool(
 // 正常路径：写 qp 的 dungeon/pool 字段并挂入对应档位 list、按需插等待 timer、
 // 广播 0x180 匹配更新包；异常路径（qp 空/档位越界）：逐 party 清数据并发 0x17f
 // 解散包后 destroy，记日志返回 false。
+// [b23判词·N-XVAL] P167 调用点差集 CLEAR（25/25）：ORIG `list<int>::push_back(int&&)`
+// （EOi）——源码以 static_cast<int&&>(qpIndex) 生成 xvalue 精确命中该重载（原 const& 形选错）。
+// 残余 gap+2 = gcc 4.4 对 xvalue 实参多一次 `mov %eax,-N(%ebp); mov -N(%ebp),%eax` 存回读
+// 往返 + 帧槽 -0x2c→-0x30 位移（N82），跨版本求值/帧结构不可源码复现，语义等价。
 bool CQuickPartySystemManager::push_quick_party_in_pool(
     const STQuickPartyPoolMap_Key& key, STQuickPartyPoolMap_Data& data,
     CParty* party, int count, CQuickParty* qp, bool flag)
@@ -457,7 +463,9 @@ bool CQuickPartySystemManager::push_quick_party_in_pool(
         party->set_quick_party_index(qp->get_quick_party_index());
 
     int qpIndex = qp->get_quick_party_index();
-    data.m_lists[count].push_back(qpIndex);
+    // ORIG 存 qpIndex 于 -0x20(%ebp) 后 lea 取址传 push_back(int&&)（EOi）⇒ 源码
+    // 以 static_cast<int&&>(qpIndex) 生成 xvalue 精确命中 list<int>::push_back(int&&)。
+    data.m_lists[count].push_back(static_cast<int&&>(qpIndex));
 
     if (flag)
         insert_timer_waiting_party_matching(qp);

@@ -301,8 +301,9 @@ void AvatarRechargeServer::GmReduceEndurance(CUser* user, short slot,
 {
     if (slot < 0 || slot > 9)
         return;
-    CInventory* invenW = user->getCurCharacInvenW();
-    Inven_Item* item = invenW->GetInvenRef(0, (int)slot);
+    // [b23S3C] P48 去缓存：ORIG getCurCharacInvenW 结果 eax 直落实参槽
+    // （0x32 mov %eax,(%esp); call GetInvenRef），无 invenW 槽 ⇒ 右值直调。
+    Inven_Item* item = user->getCurCharacInvenW()->GetInvenRef(0, (int)slot);
     if (item == 0 || item->isEmpty())
         return;
 
@@ -310,10 +311,13 @@ void AvatarRechargeServer::GmReduceEndurance(CUser* user, short slot,
         (const stAvatarEmblemInfo_t*)
             user->getCurCharacInvenR()->GetAvatarItemMgrR()->getJewelSocketData(
                 item->m_addInfo2);
-    const int sockets = getSocketCount(socketData);
-    const int limit = ARAD::Singleton<AvatarRechargeServer>::Get()
-                          ->m_script.getAvatarRecharageLimit();
-    const int maxEndurance = limit * sockets;
+    // [b23S3C] ORIG 无 sockets/limit 槽（getSocketCount→%ebx 跨 call 缓存 +
+    // getLimit 返回 eax 直 imul），仅乘积落 -0x14 ⇒ 合并为单局部；调用顺序
+    // getSocketCount 先、Singleton::Get 后（左→右求值同 ORIG）。
+    const int maxEndurance =
+        getSocketCount(socketData) *
+        ARAD::Singleton<AvatarRechargeServer>::Get()
+            ->m_script.getAvatarRecharageLimit();
 
     int newEndur = (int)item->m_fieldSplit.m_avatarEndur + (int)delta;
     if (newEndur < 0)
@@ -322,11 +326,14 @@ void AvatarRechargeServer::GmReduceEndurance(CUser* user, short slot,
         newEndur = maxEndurance;
     item->m_fieldSplit.m_avatarEndur = (unsigned short)newEndur;
 
-    ARAD::Singleton<AvatarRechargeServer>::Get()->UpdateAvatarEndurance((CUser::eSendTarget)1, user, slot);   // static 化后无 this，经单例调成员
+    // [b23S3C] ORIG 0x111 直压 3 参（target/user/slot）无 Get() call ⇒ static 调。
+    UpdateAvatarEndurance((CUser::eSendTarget)1, user, slot);
     SaveAvatarEnduranceUnit(item->m_addInfo2,
                             (int)(unsigned short)item->m_fieldSplit.m_avatarEndur);
 
-    char message[] = "succ avatar Endurance change";
+    // [b23S3C] ORIG -0xc 槽存串指针两条（movl $str; mov →0x4 esp）⇒ char*
+    // 具名局部（P0 槽往返），非 char 数组逐字节初始化。
+    char* message = (char*)"succ avatar Endurance change";
     ARAD::notifySystemMessage(user, message);
 }
 
@@ -453,10 +460,15 @@ int AvatarRechargeServer::GetRateFromEmblemGrade(int grade)
 // → DB_Q。不触碰 this，与 ORIG 一致保持静态。
 void AvatarRechargeServer::SaveAvatarEnduranceUnit(arad::SigAradAvatarEnduranceSave& save)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("localjapan/Arad_EmblemReformServer.cpp", 0x10f);
-    CStreamGuard guard(stream, true);
+    // ORIG（idx66 报告）：Acquire 结果直传 CStreamGuard ctor 出参槽（P0 无具名
+    // 局部）；make_internal_stream_jpn 后经 operator->() 再 put_binary。
+    // [b23S3C] 在途复验：fresh .o 52=52（norm），仅 put_binary 实参装载寄存器/时刻
+    // 差（P75 跨版本形），方向正确保留。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("localjapan/Arad_EmblemReformServer.cpp", 0x10f),
+        true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x31, 0xffffffff);
-    guard.put_binary((char*)&save, 8);
+    guard->put_binary((char*)&save, 8);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 

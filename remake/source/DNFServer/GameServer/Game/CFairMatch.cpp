@@ -36,7 +36,7 @@ bool CFairMatch::bMatchable_ = true;
 // fair_pvp::PlayerInfoThird
 // ---------------------------------------------------------------------------
 
-// ORIG 仅清 +0x00/+0x04(1B)/+0x08/+0x0c；+0x05 m_job、+0x06 m_growType 不初始化。
+// ORIG 仅清 +0x00/+0x04(1B)/+0x08/+0x0c；+0x05 的 CharacterKind m_kind 不初始化。
 void PlayerInfoThird::reset()
 {
     m_user = 0;
@@ -75,8 +75,8 @@ int TeamInfoThird::add(CUser* user)
         PlayerInfoThird& slot = m_players[i];
         slot.m_flag = 1;
         slot.m_user = user;
-        slot.m_job = (unsigned char)user->get_charac_job();
-        slot.m_growType = user->getCurCharacGrowType();
+        slot.m_kind.m_job = (unsigned char)user->get_charac_job();
+        slot.m_kind.m_grow = user->getCurCharacGrowType();
         slot.m_pvpGrade = user->get_pvp_grade();
         slot.m_rating = user->GetRating();
         return 1;

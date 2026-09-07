@@ -91,8 +91,9 @@ int CUser::ChangeGrowType_Item(int newFirst, short slotNo)
         return 1;
     }
 
-    char firstGrow = CUserCharacInfo::getCurCharFirstGrowType();
-    if (firstGrow == 0 || firstGrow == (char)newFirst)
+    // [b23S3C] P48/P0：ORIG 双臂各重取 getCurCharFirstGrowType（+0x39/+0x48 两 call，无 firstGrow 槽）
+    if (CUserCharacInfo::getCurCharFirstGrowType() == 0 ||
+        CUserCharacInfo::getCurCharFirstGrowType() == newFirst)
     {
         return 0x13;
     }
@@ -111,8 +112,9 @@ int CUser::ChangeGrowType_Item(int newFirst, short slotNo)
     addSkillOnCreateCharacter((_Mastered_skill*)(getCurCharacSkillW() + 0x1de), job);
 
     int beforeGrow = (int)CUserCharacInfo::getCurCharFirstGrowType();
-    unsigned char secondGrow = (unsigned char)CUserCharacInfo::getCurCharSecondGrowType();
-    set_grow_type((unsigned char)newFirst, secondGrow, 0,
+    // [b23S3C] P183/P0：ORIG secondGrow 无槽，movzbl %al 直入 0x8(%esp) 实参
+    set_grow_type((unsigned char)newFirst,
+                  (unsigned char)CUserCharacInfo::getCurCharSecondGrowType(), 0,
                   (eChangeGrowTypeReason)1);
     adjust_charac_stat();
     unsigned int characNo = (unsigned int)get_charac_no(-1);

@@ -521,7 +521,7 @@ bool Inter_LoadEtc::SetFatigue(CUser* user)
         if (charging > 0)
         {
             user->IncFatigueBatteryCharging(charging);
-            int curCharging = (short)user->GetFatigueBatteryCharging();
+            int curCharging = user->GetFatigueBatteryCharging();
             cMyTrace(__PRETTY_FUNCTION__, 0x139a, 0)(
                 "FATIGUE BATTERY : charno(%d) days(%d), lastplaytick(%d), "
                 "curTick(%d), charging(%d), cur charging(%d)",
@@ -532,7 +532,7 @@ bool Inter_LoadEtc::SetFatigue(CUser* user)
                 curCharging);
         }
 
-        if ((short)user->GetFatigueBatteryCharging() > 0)
+        if (user->GetFatigueBatteryCharging() > 0)
         {
             short decAmount = GlobalData::s_fatigueBatteryHandle_->ActiveFatigueBattery(user);
             if (decAmount != 0)
@@ -542,7 +542,7 @@ bool Inter_LoadEtc::SetFatigue(CUser* user)
                     "FATIGUE BATTERY ACTIVE: charno(%d) , descFatigueAmount(%d), "
                     "cur charging(%d)",
                     (int)user->getCurCharacNo(), (int)decAmount,
-                    (int)(short)user->GetFatigueBatteryCharging());
+                    (int)user->GetFatigueBatteryCharging());
             }
         }
 

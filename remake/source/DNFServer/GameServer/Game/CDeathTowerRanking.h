@@ -147,11 +147,13 @@ public:
             unsigned int m_key;      // +0x00（characNo key 槽）
         };
         char m_memberData[4][30];    // +0x04（ctor 循环清零）
-        char m_pad7c[3][4];          // +0x7c（+0x7c/80/84 三条 byte lane）
+        unsigned char m_pad7c[3][4]; // +0x7c（+0x7c/80/84 三条 byte lane；ORIG _makeRecordPacket
+                                     // 0x8468d4a/d6a movzbl ⇒ 无符号）
         unsigned int m_stage;        // +0x88
         unsigned int m_playTime;     // +0x8c
         unsigned char m_flag90;      // +0x90（ctor 置 0；塔榜首槽此位=“有纪录”）
-        int m_field94;               // +0x94（ctor 置 -1；表级纪录此位=存故名次）
+        unsigned int m_field94;      // +0x94（ctor 置 -1；表级纪录此位=存故名次；ORIG
+                                     // _makeRecordPacket 0x8468dc6 两 mov = unsigned→int 转换形）
     };
     typedef __gnu_cxx::hash_map<unsigned int, stBestRecord_t,
                                 __gnu_cxx::hash<unsigned int>,

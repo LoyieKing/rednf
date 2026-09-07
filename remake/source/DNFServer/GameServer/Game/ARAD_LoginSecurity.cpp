@@ -229,43 +229,38 @@ int PVP_CHANNEL::check_Login_server_group(SIG_LOGIN_DATA* data)
 
 bool pvp_grade_check(CUser* user)
 {
-    static const char kFunc[] =
-        "bool ARAD::pvp_grade_check(CUser*)";
-
-    bool channelTargeted = false;
-    {
-        int channelType = G_GameWorld()->GetChannelType();
-        channelTargeted = (channelType == 8 || channelType == 13);
-    }
-    if (!channelTargeted)
+    // [b23S3C] P48 去缓存：GetChannelType 两比较点各重取；G_CDataManager 每用点
+    // 重取直落实参（ORIG 无 mgr 槽）；log 块求值序 max→min→charac_no（ORIG
+    // 0x0819ec65 起）；尾块 get_pvp_grade 重取（ORIG 0x0819ed16，grade 非跨块
+    // 局部）；__PRETTY_FUNCTION__ 直实参（ORIG movl $__ZZ…PRETTY）。
+    if (G_GameWorld()->GetChannelType() != 8 &&
+        G_GameWorld()->GetChannelType() != 13)
     {
         return true;
     }
 
     int level = user->get_charac_level();
-    CDataManager* mgr = G_CDataManager();
-    if (level < mgr->GetMinLevelPvPChannel() ||
-        level > mgr->GetMaxLevelPvPChannel())
+    if (level < G_CDataManager()->GetMinLevelPvPChannel() ||
+        level > G_CDataManager()->GetMaxLevelPvPChannel())
     {
-        int minLevel = G_CDataManager()->GetMinLevelPvPChannel();
         int maxLevel = G_CDataManager()->GetMaxLevelPvPChannel();
+        int minLevel = G_CDataManager()->GetMinLevelPvPChannel();
         int characNo = user->get_charac_no(-1);
-        cMyTrace trace(kFunc, 0x12b, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x12b, 5);
         trace("User Level charac_no[%d] charac_level[%d] pvpchannelLev[%d][%d]",
               characNo, level, minLevel, maxLevel);
         return false;
     }
 
-    int grade = user->get_pvp_grade();
-    if (G_CDataManager()->IsAvailablePvPChannel(grade))
+    if (G_CDataManager()->IsAvailablePvPChannel(user->get_pvp_grade()) == 1)
     {
         return true;
     }
 
     int characNo = user->get_charac_no(-1);
-    cMyTrace trace(kFunc, 0x135, 5);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x135, 5);
     trace("User grade Error charac_no[%d] charac_pvp_grade[%d]",
-          characNo, grade);
+          characNo, user->get_pvp_grade());
     return false;
 }
 
@@ -335,54 +330,60 @@ int Arad_Dispatcher_Login_Impl::inter_dispatch(CUser* /*user*/,
 int Arad_Dispatcher_Login_Impl::account_password_check(
     SIG_LOGIN_DATA* data, char* clientPwd)
 {
-    static const char kFunc[] =
-        "int ARAD::Arad_Dispatcher_Login_Impl::account_password_check("
-        "SIG_LOGIN_DATA*, char*)";
+    // [b23S3C] P48 去缓存：m_accId 各用点重取（ORIG 无 userIdx 槽）；改调
+    // getGameStartTime 薄转发（ORIG call 0x086031f6，bool 返回 xor 直测 P22，
+    // 头声明同步改 bool）；函数头补 time(0) 落槽（ORIG +0x00b）；两 long 预清
+    // 在 out ctor 前（ORIG +0x01a 序）；字段回写按 ORIG 序 3954/3960/3950/
+    // 3958/3968/3964/39a2/39dc/395c；39dc 手改内联 cast（SGF 模板 4.4 不实参
+    // 内联，call 多出）；GM 分支 strncmp 失败走 body、真值直返岛（P191 极性）。
+    time_t nowSec = time(0);
+    (void)nowSec;
 
-    unsigned int userIdx = data->m_accId;
-
-    WongWork::CSimpleSSO::stOutputData_t out;
     long loginTime = 0;
     long expireTime = 0;
-    // ORIG 调 getGameStartTime(0x086031f6)；其为 _getGameStartTime 的薄转发，
-    // 成败由 bool 返回承载 —— 此处直接调用真实 bool 符号 _getGameStartTime。
-    bool ok = GlobalData::s_psimpleSSO->_getGameStartTime(
-        userIdx, loginTime, expireTime, out);
-    if (!ok)
+    WongWork::CSimpleSSO::stOutputData_t out;
+    if (!GlobalData::s_psimpleSSO->getGameStartTime(
+            data->m_accId, loginTime, expireTime, out))
     {
-        cMyTrace trace(kFunc, 0x16a, 5);
-        trace("get game start time error : user_idx[%d]", userIdx);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x16a, 5);
+        trace("get game start time error : user_idx[%d]", data->m_accId);
         return -1;
     }
 
-    if (GlobalData::s_GM_Manager->IsGm(userIdx))
+    if (GlobalData::s_GM_Manager->IsGm(data->m_accId))
     {
         // GM 口令核对：SIG_LOGIN_DATA::m_pad18（+0x18，0x84 字节 memset 清零区）
         // 即服务端 GM 口令串槽。
-        const char* serverPwd = reinterpret_cast<const char*>(data->m_pad18);
-        if (strncmp(clientPwd, serverPwd, 0x84) == 0)
+        if (strncmp(clientPwd,
+                    reinterpret_cast<const char*>(data->m_pad18), 0x84) != 0)
         {
-            return 0;
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x176, 5);
+            trace("gm user password error user_id[%d]", data->m_accId);
+            return -1;
         }
-        cMyTrace trace(kFunc, 0x176, 5);
-        trace("gm user password error user_id[%d]", userIdx);
-        return -1;
+        return 0;
     }
 
     // 普通登录：out（sizeof 0x48）各字段落位到 SIG_LOGIN_DATA 固定 SSO 槽。
-    data->m_accountFail = out.m_accountFail;             // -0x78 (+0x04)
-    data->m_totalAccountFail = out.m_totalAccountFail;        // -0x74 (+0x08)
-    data->m_lastPlayTime = out.m_lastPlayTime;            // -0x7c (+0x00)
-    data->m_reportMannerlessUserCount = out.m_reportCnt;               // -0x70 (+0x0c)
-    data->m_reliablePersonFlag = out.m_reliableFlag;           // byte (-0x6c/+0x10)
-    data->m_overTradeGoldCount = out.m_tradeGoldDaily; // -0x68 (+0x14)
-    data->m_tutorialSkipable = out.m_tutorialSkipable;  // byte (-0x40/+0x3c)
-    SGF<unsigned char>(data, 0x39dc) = out.m_securityFlag;      // byte (-0x50/+0x2c)
-    data->m_dungeonGainedGold = static_cast<int>(out.m_dungeonGainGold);  // -0x4c/+0x30
+    data->m_totalAccountFail = out.m_totalAccountFail;   // +0x3954 (out+0x08)
+    data->m_reportMannerlessUserCount = out.m_reportCnt; // +0x3960 (out+0x0c)
+    data->m_accountFail = out.m_accountFail;             // +0x3950 (out+0x04)
+    data->m_lastPlayTime = out.m_lastPlayTime;           // +0x3958 (out+0x00)
+    data->m_overTradeGoldCount = out.m_tradeGoldDaily;   // +0x3968 (out+0x14)
+    data->m_reliablePersonFlag = out.m_reliableFlag;     // +0x3964 byte (out+0x10)
+    data->m_tutorialSkipable = out.m_tutorialSkipable;   // +0x39a2 byte (out+0x3c)
+    {
+        // P1 字段视图（同 DB_Login::getSecurityCardInfo 手法）：ORIG `mov %dl,
+        // 0x39dc(%eax)` base+disp 直写；cast+add 形产 lea 中转多出。
+        struct VSecValid { char m_pad[0x39dc]; unsigned char m_valid; };
+        ((VSecValid*)data)->m_valid = out.m_securityFlag;  // byte (out+0x2c)
+    }
+    data->m_dungeonGainedGold = static_cast<int>(out.m_dungeonGainGold);  // +0x395c
 
     long curSec = GlobalData::s_systemTime_.getCurSec();
-    int fatigueSchedule = G_CEnvironment()->m_serverEnvir.m_fatigueTime;
-    if (CheckDailyScheduleTime(fatigueSchedule, out.m_lastPlayTime, curSec))
+    if (CheckDailyScheduleTime(
+            G_CEnvironment()->m_serverEnvir.m_fatigueTime,
+            out.m_lastPlayTime, curSec))
     {
         data->m_dungeonGainedGold = 0;
     }

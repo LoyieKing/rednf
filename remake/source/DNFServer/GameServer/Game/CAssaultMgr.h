@@ -478,8 +478,10 @@ public:
     void FrocedCloseAssaults();                          // ORIG T 0x82ed5f4
     int GetRequestAssaultNeedMoney(CUser* attacker, CUser* target);   // ORIG T 0x82edc86
     int OnRequestAssault(CUser* attacker, CUser* target, int* result); // ORIG T 0x82edfba
-    void AvailableAssault(CUser* user, CUser const* source);
-                                                         // ORIG T 0x82f0022（校验失败以 ENUM_ERROR 异常上抛）
+    static void AvailableAssault(CUser* user, CUser const* source);
+                                                        // ORIG T 0x82f0022（校验失败以 ENUM_ERROR 异常上抛）
+                                                        // static：ORIG 体仅 0x8/0xc 两实参槽、
+                                                        // 调用点 0x082eeb12 无 this 压参（P88，[b23S3C]）
     bool OnChangeHp(CUser* user, int hp);                // ORIG T 0x82ef570（batch-4 DispC bool 化，W6_AssaultMgrDeps.cpp 定义为 bool；git 事故回退修正）
     bool OnAbuseUser(CUser* user);                       // ORIG T 0x82efc54 尾 mov $0x1,%eax；同上
     int OnConnectP2P(CUser* user, char* ip, int len);    // ORIG T 0x82ef27a

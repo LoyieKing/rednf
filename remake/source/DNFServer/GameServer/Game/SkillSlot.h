@@ -146,7 +146,7 @@ public:
     void SkillInitialize(CUser* user, int kind, bool flag);
     void _ResetSkillPoint(CUser* user, ENUM_SKILL_TREE_KIND kind);
     void _ResetSFPoint(CUser* user, ENUM_SKILL_TREE_KIND kind);
-    int _GetUserItemCount(const CUser* user);
+    void _GetUserItemCount(const CUser* user);  // [b23S3C] ORIG 0x0860a34a leave;ret 无返回值
     void _ApplyUserData(CUser* user, ENUM_SKILL_TREE_KIND kind);
     void _CountSkillBook(Inven_Item& item);
     // ORIG 0x0860a1e6：计算角色总 SP（基础 + 任务点）。

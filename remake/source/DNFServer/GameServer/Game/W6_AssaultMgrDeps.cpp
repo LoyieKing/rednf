@@ -63,11 +63,10 @@ inline int userIdPlaceId(CUser* user)
 // `CAlchemist::GetAssaultPrevent(user, flag)`，无需成员函数指针 ABI 转接。
 // （DisPatcherCore.cpp 已同型直呼。）
 
-// PowerWarOn：ORIG 内联形（s_power_manager 判活）。
-inline bool PowerWarOn()
-{
-    return GlobalData::s_power_manager->IsPowerWarEventOn();
-}
+// PowerWarOn：ORIG 各调用点均为 3 条内联形（s_power_manager 装载+call
+// IsPowerWarEventOn），无独立符号；P49 —— -O0 下 inline 函数仍发真 call，
+// 必须宏展开（[b23S3C]）。
+#define PowerWarOn() (GlobalData::s_power_manager->IsPowerWarEventOn())
 
 // CDataManager 内尚未具名化的三个 int 标量（+0x600/+0x604/+0x608，
 // importBloodDungeon 区；字段化归 CDataManager 域批次，本批按裸偏移忠实读取）。
@@ -271,20 +270,16 @@ int CAssaultMgr::OnDieUser(CUser* user, int index, MSG_DIE_ASSAULT_PLAYER& msg)
 // ===========================================================================
 void CAssaultMgr::AvailableAssault(CUser* user, CUser const* source)
 {
-    unsigned int minAgeErrorCode = 0;                   // -0x14(%ebp)
-    CParty* party = 0;                                  // -0x10(%ebp)
-    int ageLimitFlag = 0xf;                             // -0xc(%ebp)
+    // [b23S3C] P0/P183 槽映射：ORIG 仅 3 槽 -0x14(errorOut，lea 直发三处 out 参、
+    // get_unique_id 复用)/-0x10(party)/-0xc(ageLimit=0xf)；删 minAgeOut/
+    // partyAgeOut/partyLevelOut/ageOk/partyAgeOk/partyLevelOk/vill 缓存槽
+    // （P48 调用点级直传+直判），bool 汇聚改嵌套 if。
+    int errorOut = 0;                                   // -0x14
+    CParty* party = 0;                                  // -0x10
+    int ageLimitFlag = 0xf;                             // -0xc
 
-    bool powerWarVillagePath = false;
-    if (PowerWarOn())
-    {
-        signed char vill = user->getCurCharacVill();
-        if (vill == 0x7)
-        {
-            powerWarVillagePath = true;
-        }
-    }
-    if (powerWarVillagePath)
+    // [b23S3C] 短路 && 直跳形（嵌套 if 反产 setcc 物化）。
+    if (PowerWarOn() && user->getCurCharacVill() == 7)
     {
         ageLimitFlag = 0xc;
     }
@@ -294,18 +289,15 @@ void CAssaultMgr::AvailableAssault(CUser* user, CUser const* source)
         party = static_cast<CParty*>(user->GetParty());
     }
 
-    int minAgeOut = static_cast<int>(minAgeErrorCode);
-    bool ageOk = user->CheckLimitMiniumAge(ageLimitFlag, minAgeOut) != 0;
-    if (!ageOk)
+    if (user->CheckLimitMiniumAge(ageLimitFlag, errorOut) == 0)
     {
         throw static_cast<ENUM_ERROR>(0x5f);
     }
-    minAgeErrorCode = static_cast<unsigned int>(minAgeOut);
 
     // 等级门槛：level>29 才放行，否则同源/异源两种错误码。
     if (user->get_charac_level() <= 0x1d)
     {
-        minAgeErrorCode = static_cast<unsigned int>(user->get_unique_id()) & 0xffff;
+        errorOut = user->get_unique_id();
         if (user == source)
         {
             throw static_cast<ENUM_ERROR>(0xd);
@@ -315,17 +307,20 @@ void CAssaultMgr::AvailableAssault(CUser* user, CUser const* source)
 
     if (party != 0)
     {
-        int partyAgeOut = static_cast<int>(minAgeErrorCode);
-        bool partyAgeOk = party->is_limit_minimum_age(ageLimitFlag, partyAgeOut) != 0;
-        if (!partyAgeOk)
+        // [b23S3C] P168a X2：is_limit_minimum_* 为 int callee（ORIG eax=0/1），
+        // `==0` 裸形产 test;sete 岛，ORIG 是 `xor $1,%eax; test %al; je` ⇒
+        // register uchar asm("eax") 异或直测（P194 if(v)=失败分支）。
+        register unsigned char ageBad asm("eax");
+        ageBad = (unsigned char)party->is_limit_minimum_age(ageLimitFlag, errorOut);
+        ageBad ^= 1;
+        if (ageBad)
         {
             throw static_cast<ENUM_ERROR>(0x5f);
         }
-        minAgeErrorCode = static_cast<unsigned int>(partyAgeOut);
-
-        int partyLevelOut = static_cast<int>(minAgeErrorCode);
-        bool partyLevelOk = party->is_limit_minimum_level(0x1e, partyLevelOut) != 0;
-        if (!partyLevelOk)
+        register unsigned char lvlBad asm("eax");
+        lvlBad = (unsigned char)party->is_limit_minimum_level(0x1e, errorOut);
+        lvlBad ^= 1;
+        if (lvlBad)
         {
             if (user == source)
             {
@@ -333,7 +328,6 @@ void CAssaultMgr::AvailableAssault(CUser* user, CUser const* source)
             }
             throw static_cast<ENUM_ERROR>(0xff);
         }
-        minAgeErrorCode = static_cast<unsigned int>(partyLevelOut);
     }
     // ORIG 函数自然收尾（leave/ret），无返回值语义。
 }
@@ -435,6 +429,13 @@ int CAssaultMgr::OnConnectP2PAfterAssault(CUser* user, char* ip, int len)
 
 // ===========================================================================
 // OnTimeoutConnectP2PAfterAssault —— ORIG T 0x082ef9d8 (0x79)
+// [b22判词·跨版本bool ABI] ORIG 4.1 对 bool 局部分支生成
+// `mov $0x1/je 岛/mov $0x0` 物化双岛（7 insn），4.4 恒为 `setne %al`（实测
+// 显式 if/else true/false、三元等全部写法均归 setne，范式库跨版本豁免表
+// bool ABI 行）；另 TimeoutCompleteAfterAssault 在 CParty.h 声明 int（他方
+// 属主），以 (char) 显式截断复现 ORIG 调用点 testb %al。catch(int) 后
+// landing pad（cmp $1/je/Resume/begin_catch 存槽/end_catch）与 party@-0x10、
+// e@-0xc 槽位均逐条一致。残余仅物化岛形差，语义等价。
 // ===========================================================================
 int CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int timerKey)
 {
@@ -444,15 +445,19 @@ int CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int ti
         CParty* party = G_CGameManager()->GetParty(static_cast<int>(partyIndex));
         if (party != 0)
         {
-            if (party->TimeoutCompleteAfterAssault() != 0)
+            // ORIG 调用点 test %al,%al（窄返回视 char，CParty.h 现声明 int 属他方
+            // 属主，此处显式 (char) 复现 testb）。
+            if (static_cast<char>(party->TimeoutCompleteAfterAssault()) != 0)
             {
                 party->ClearBadP2PUser();
             }
         }
     }
-    catch (...)
+    catch (int)                             // ORIG landing pad `cmp $0x1,%edx; je`+
+                                            // _Unwind_Resume 分支 = 定类型 catch(int)，
+                                            // 非 catch(...)（其无 selector 匹配）。
     {
-        // ORIG catch-all（__cxa_begin_catch 后仅 end_catch）。
+        // ORIG 仅 begin_catch → 存值到槽 → end_catch，不消费。
     }
     return 1;   // ORIG 所有路径 eax=1
 }

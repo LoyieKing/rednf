@@ -3163,7 +3163,7 @@ int CUserCharacInfo::GetFinishPoint()
 }
 
 
-unsigned short CUserCharacInfo::GetFatigueBatteryCharging()
+short CUserCharacInfo::GetFatigueBatteryCharging()
 {
     return m_selected ? CUR->m_fatigueBattery : 0;
 }

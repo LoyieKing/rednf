@@ -701,7 +701,7 @@ public:
     unsigned short getCurCharacFatigue() const;
     void setCurCharacFatigue(int fatigue);
     unsigned short getCurCharacMaxFatigue() const;
-    unsigned short GetFatigueBatteryCharging();
+    short GetFatigueBatteryCharging();   // ORIG cwtl+setg 实证 signed(0x13a4 块测试)
     void IncFatigueBatteryCharging(short value);
     void DecFatigueBatteryCharging(short value);
     unsigned short getCurCharacUsedFatigue();

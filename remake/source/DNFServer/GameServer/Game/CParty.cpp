@@ -4637,18 +4637,19 @@ bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
     {
         APSystem::CUserProc::ClearActionAndSendtoUser(
             user, (APSystem::_ActionGroupIndex)8, 0, (ENUM_PACKETCLASS)0);
-        if (reward.m_addInfo != 0)
+        int itemId = reward.m_addInfo;
+        if (itemId != 0)
         {
-            CItem* item = G_CDataManager()->find_item(reward.m_addInfo);
+            CItem* item = G_CDataManager()->find_item(itemId);
             if (item != 0)
             {
                 int rarity = item->get_rarity();
-                if (rarity >= 0 && rarity <= 4)
-                {
-                    APSystem::CUserProc::ClearActionAndSendtoUser(
-                        user, (APSystem::_ActionGroupIndex)0x15, 0,
-                        (ENUM_PACKETCLASS)0);
-                }
+                if (rarity != 0 && rarity != 1 && rarity != 2 &&
+                    rarity != 3 && rarity != 4)
+                    return true;                        // ORIG 非稀有→跳过 0x15 仍返 1
+                APSystem::CUserProc::ClearActionAndSendtoUser(
+                    user, (APSystem::_ActionGroupIndex)0x15, 0,
+                    (ENUM_PACKETCLASS)0);
             }
         }
     }

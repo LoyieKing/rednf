@@ -168,10 +168,28 @@ bool CCreature::IsDieCreature()
 void CCreature::SetState(CUser* user, CREATURE_STATE state)
 {
     float stomachValue = m_stomach.GetStomachValue((CREATURE_STATE)m_state, m_isGrow);
-    if (m_state == (int)state || (int)state != 1 || m_isGrow == 0)
+    // [b23S3C] P191/P194 极性：ORIG 0x8337192/0x195、0x833719b/0x19f、
+    // 0x83371ac/0x1ae 三条判定全部「假则前跳」到 0x0d4 复活测试块，定时器分支走
+    // fall-through ⇒ 原码先判 timer 条件（&& 短路正向形），else 内再判复活条件；
+    // 旧 || 负形使 4.4 产出 xor $0x1（bool==0 折叠）+ 块序倒置。语义等价。
+    if ((int)state != m_state && (int)state == 1 && m_isGrow != 0)
+    {
+        // 切入战斗态（state 1）：按 60 秒 × 饱食度系数插入复活定时器
+        // （常量 .rodata 0x8c2f460 = double 60.0；TIMER_MESSAGE 0x5c）。
+        // [b23S3C] P0 律/P48 去缓存：ORIG 0x83371d7/0x8a/0x98 三个 call 结果只进
+        // %esi/%edi/%ebx，无 -off 槽 ⇒ 原码无 characNo/uniqueId 具名局部，
+        // 直落 InsertTimer 实参（求值序右起：characNo→uid→GetUID→G_TimerQueue，
+        // 与 ORIG 一致）；sec 走 -0x1c 槽（fistpl 实证）保留具名。
+        int sec = (int)(60.0 * stomachValue);
+        G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, user->GetUID(),
+                                    (TIMER_MESSAGE)0x5c, sec,
+                                    user->get_unique_id(),
+                                    user->getCurCharacNo());
+    }
+    else
     {
         // 进入 state 3 且非同值切换：死亡宠复活流程（ORIG 0x08337269 起）。
-        if (m_state != (int)state && (int)state == 3 && m_isGrow != 0)
+        if ((int)state != m_state && (int)state == 3 && m_isGrow != 0)
         {
             if (IsDieCreature())
             {
@@ -180,21 +198,13 @@ void CCreature::SetState(CUser* user, CREATURE_STATE state)
                 pkt.SendAll();
                 m_stomach.SetStomachValue(1.0f);
                 pkt.clear();  // InterfacePacketBuf::clear（复用包对象重填状态包）
-                pkt.MakeNotipacketCreatureState(m_uid, 1);
+                // [b23S3C] ORIG 0x8337269→0x83372c9：状态包 uid 实参来自
+                // CCreatureItem::GetUid(this) 调用（非 m_uid 直读）⇒ 补真调用。
+                pkt.MakeNotipacketCreatureState(
+                    reinterpret_cast<CCreatureItem*>(this)->GetUid(), 1);
                 pkt.Send();
             }
         }
-    }
-    else
-    {
-        // 切入战斗态（state 1）：按 60 秒 × 饱食度系数插入复活定时器
-        // （常量 .rodata 0x8c2f460 = double 60.0；TIMER_MESSAGE 0x5c）。
-        int sec = (int)(60.0 * stomachValue);
-        int characNo = user->getCurCharacNo();
-        int uniqueId = user->get_unique_id();
-        G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, user->GetUID(),
-                                    (TIMER_MESSAGE)0x5c, sec, uniqueId,
-                                    (unsigned int)characNo);
     }
     m_state = (int)state;
     m_saveFlag = 1;
@@ -422,10 +432,14 @@ bool CCreature::Evolute(CUser* user)
 {
     if (m_script == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x743, 5);
-        trace("cannot evolute because it haven't creature script uid(%d), "
-              "creature id(%d) \n", user->get_unique_id() & 0xffff,
-              reinterpret_cast<CCreatureItem*>(this)->GetItemId());
+        // [b23S3C] ORIG 0x8338250：operator() 实参 0x8(%esp)=%esi(get_unique_id)、
+        // 0xc(%esp)=%ebx(GetItemId)，即 vararg 序为 (uid, itemId)；交换实参只改
+        // 求值次序、日志字段错位，属语义倒退 ⇒ 恢复 (uid, itemId)。
+        cMyTrace(__PRETTY_FUNCTION__, 0x743, 5)(
+            "cannot evolute because it haven't creature script uid(%d), "
+            "creature id(%d) \n",
+            user->get_unique_id() & 0xffff,
+            reinterpret_cast<CCreatureItem*>(this)->GetItemId());
         return false;
     }
     int evolutionCreatureId = m_script->GetEvolutionCreatureId();
@@ -435,8 +449,14 @@ bool CCreature::Evolute(CUser* user)
         GetInstanceCreatureScriptMgr()->FindCreatureScript(evolutionCreatureId);
     if (nextScript == 0)
         return false;
-    SetItemId(nextScript->GetItemId());
-    Inven_Item* slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
+    // [b23S3C] P0 律：ORIG -0x10(%ebp) 存 CCreatureScript::GetItemId 结果后回读
+    // 入参 ⇒ 原码为具名中间局部（缺它整帧上移 4，全函数槽号错位）。
+    int nextItemId = nextScript->GetItemId();
+    SetItemId(nextItemId);
+    // [b23S3C] P197③：ORIG 0x83382c7 先 `movl $0x0,-0xc(%ebp)` 再取 InvenRef
+    // ⇒ 声明置 0 + 独立赋值两段式。
+    Inven_Item* slotItem = 0;
+    slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
     if (slotItem == 0)
         return false;
     slotItem->m_addInfo = reinterpret_cast<CCreatureItem*>(this)->GetItemId();
@@ -445,8 +465,8 @@ bool CCreature::Evolute(CUser* user)
             reinterpret_cast<CCreatureItem*>(this)->GetUid(),
             reinterpret_cast<CCreatureItem*>(this)->GetItemId()))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x763, 5);
-        trace("cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
+        cMyTrace(__PRETTY_FUNCTION__, 0x763, 5)(
+            "cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
         return false;
     }
     sender.Send();
@@ -464,26 +484,36 @@ bool CCreature::SelectEvolute(CUser* user)
 {
     if (m_script == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x6a2, 5);
-        trace("cannot selectevolute because it haven't creature script uid(%d), "
-              "creature id(%d) \n", user->get_unique_id() & 0xffff,
-              reinterpret_cast<CCreatureItem*>(this)->GetItemId());
+        // [b23S3C] ORIG 0x8337e60/0x6d：vararg（GetItemId→%ebx、uid→%esi）在 ctor
+        // call 之前求值、trace 对象占 -0x38 匿名槽 ⇒ 临时对象直调形（同 Evolute，
+        // 具名 trace 局部会挪槽位并改求值次序）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x6a2, 5)(
+            "cannot selectevolute because it haven't creature script uid(%d), "
+            "creature id(%d) \n",
+            user->get_unique_id() & 0xffff,
+            reinterpret_cast<CCreatureItem*>(this)->GetItemId());
         return false;
     }
-    int targetCreatureId;
-    if (m_field4d < 5)
-        targetCreatureId = m_script->GET_BTypeCreature();
-    else
+    // [b23S3C] P197③：ORIG 0x8337ebd 分支前先 `movl $0x0,-0x18(%ebp)` ⇒ 声明置 0
+    // + 各分支独立赋值（合并初始化式会丢预清行）。
+    int targetCreatureId = 0;
+    // [b23S3C] P191 极性：ORIG 0x8337ecd `cmp $0x4,%al; jbe +0x9a`(BType 为跳转目标)，
+    // AType 走 fall-through ⇒ 先写 `> 4` 分支（等价 A/B 选择，块序对齐）。
+    if (m_field4d > 4)
         targetCreatureId = m_script->GET_ATypeCreature();
+    else
+        targetCreatureId = m_script->GET_BTypeCreature();
     if (targetCreatureId == -1)
         return false;
     CCreatureScript* nextScript =
         GetInstanceCreatureScriptMgr()->FindCreatureScript(targetCreatureId);
     if (nextScript == 0)
         return false;
-    SetItemId(nextScript->GetItemId());
-    Inven_Item* slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
+    // [b23S3C] 同 Evolute：P0 律 -0x10 具名中间局部 + P197③ -0xc 预清两句式。
+    int nextItemId = nextScript->GetItemId();
+    SetItemId(nextItemId);
+    Inven_Item* slotItem = 0;
+    slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
     if (slotItem == 0)
         return false;
     slotItem->m_addInfo = reinterpret_cast<CCreatureItem*>(this)->GetItemId();
@@ -492,9 +522,9 @@ bool CCreature::SelectEvolute(CUser* user)
             reinterpret_cast<CCreatureItem*>(this)->GetUid(),
             reinterpret_cast<CCreatureItem*>(this)->GetItemId()))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x6c9, 5);
-        trace("cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
+        // [b23S3C] 同上：ORIG 0x8338012 ctor 前求 uid→%ebx，trace 落 -0x28 匿名槽。
+        cMyTrace(__PRETTY_FUNCTION__, 0x6c9, 5)(
+            "cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
         return false;
     }
     sender.Send();

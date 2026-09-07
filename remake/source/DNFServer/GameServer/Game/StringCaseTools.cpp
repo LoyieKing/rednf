@@ -88,11 +88,18 @@ CharString reverse(const CharString& str)
     if (str.length() == 0)
         return CharString();
     CharStringData* newData = CharStringData::createTerminated(str.length());
-    const int len = str.length();
+    // ORIG：索引用缓存 strLength(-0x18)，循环测试重读 str.length()（iVar4）。
+    const int strLength = str.length();
     const char* src = str.c_str();
     char* buf = newData->getBuffer();
-    for (int i = 0; i < len; ++i)
-        buf[i] = src[len - 1 - i];
+    // 循环条件 `str.length() > i`（ORIG test 重读 length 且 `cmp i,length; setg`），
+    // 体索引 `src[strLength - i - 1]` = (strLength-i)-1（ORIG esi 中介形）。
+    int i = 0;
+    while (str.length() > i)
+    {
+        buf[i] = src[strLength - i - 1];
+        ++i;
+    }
     return CharString(newData);
 }
 
@@ -102,11 +109,15 @@ WideString reverse(const WideString& str)
     if (str.length() == 0)
         return WideString();
     WideStringData* newData = WideStringData::createTerminated(str.length());
-    const int len = str.length();
+    const int strLength = str.length();
     const wchar_t* src = str.c_str();
     wchar_t* buf = newData->getBuffer();
-    for (int i = 0; i < len; ++i)
-        buf[i] = src[len - 1 - i];
+    int i = 0;
+    while (str.length() > i)
+    {
+        buf[i] = src[strLength - i - 1];
+        ++i;
+    }
     return WideString(newData);
 }
 

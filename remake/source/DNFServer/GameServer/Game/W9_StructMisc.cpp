@@ -54,13 +54,13 @@ TOD_UserState::~TOD_UserState() {}
 // LinkFinal2 核销）：仅写当日层 +0x14 = layer.m_layer（objdump 逐指令转写）。
 void TOD_UserState::setEnterLayer(const TOD_Layer& layer)
 {
-    m_todayLayer = layer.m_layer;   // ORIG movzwl (%edx); mov %dx,0x14(%eax)
+    m_data.m_todayLayer = layer;    // ORIG movzwl (%edx); mov %dx,0x14(%eax)
 }
 
 // ORIG T 0x08643624：enterCount=0 + CData::alter()
 void TOD_UserState::ResetDaily()
 {
-    m_enterCount = 0;
+    m_data.m_enterCount = 0;
     alter();
 }
 
@@ -68,24 +68,23 @@ void TOD_UserState::ResetDaily()
 // lastEnterLayer(+0x16)/lastEnterTime(+0x18)/lastClearTime(+0x1c)。
 void TOD_UserState::_reset()
 {
-    m_field8 = 0;
-    m_firstEnterTime = 0;
-    m_enterCount = 0;
+    m_data.m_characNo = 0;
+    m_data.m_firstEnterTime = 0;
+    m_data.m_enterCount = 0;
     // ORIG 以 TOD_Layer(this+0x14)::resetLayer 调用（即 today 层视图重置），
     // 随后立即清 +0x16；此序与汇编一致。
-    reinterpret_cast<TOD_Layer*>(&m_todayLayer)->resetLayer();
-    m_lastEnterLayer = 0;
-    m_lastEnterTime = 0;
-    m_lastClearTime = 0;
+    m_data.m_todayLayer.resetLayer();
+    m_data.m_lastEnterLayer = 0;
+    m_data.m_lastEnterTime = 0;
+    m_data.m_lastClearTime = 0;
 }
 
-// ORIG T 0x08643460：charac_expand::CData ctor 后写本类 vptr，再内嵌构造
-// SIG_REQUEST_TOD_USER_STATE —— 后者对数据区 +0xc（即本类 m_todayLayer）
-// 以 TOD_Layer(0) 初始化（ORIG SIG C1 0x08491f68 实证，其余字段不动）。
+// ORIG T 0x8643460：charac_expand::CData ctor 后写本类 vptr，再 call
+// SIG_REQUEST_TOD_USER_STATE::C1(this+0x8)（0x08491f68）——其构造对数据区
+// +0xc（即内嵌 m_data.m_todayLayer）以 TOD_Layer(0) 初始化，其余字段不动。
+// 以真实内嵌成员 m_data 建模 ⇒ 编译器发 call SIG::C1，与 ORIG 汇编同构。
 TOD_UserState::TOD_UserState()
 {
-    const TOD_Layer zeroLayer(0);
-    *reinterpret_cast<TOD_Layer*>(&m_todayLayer) = zeroLayer;
 }
 // ORIG T 0x086435ca const：
 //   pData+0xe←this+0x16 / pData+0xc←this+0x14 / pData+4←this+0xc /
@@ -95,12 +94,12 @@ void TOD_UserState::getData(char* pData) const
 {
     SIG_REQUEST_TOD_USER_STATE& out =
         *reinterpret_cast<SIG_REQUEST_TOD_USER_STATE*>(pData);
-    out.m_firstEnterTime = m_firstEnterTime;// +0x04
-    out.m_enterCount = m_enterCount;        // +0x08
-    out.m_todayLayer = m_todayLayer;        // +0x0c
-    out.m_lastEnterLayer = m_lastEnterLayer;// +0x0e
-    out.m_lastEnterTime = m_lastEnterTime;  // +0x10
-    out.m_lastClearTime = m_lastClearTime;  // +0x14
+    out.m_firstEnterTime = m_data.m_firstEnterTime;      // +0x04
+    out.m_enterCount = m_data.m_enterCount;              // +0x08
+    out.m_todayLayer = m_data.m_todayLayer;              // +0x0c
+    out.m_lastEnterLayer = m_data.m_lastEnterLayer;      // +0x0e
+    out.m_lastEnterTime = m_data.m_lastEnterTime;        // +0x10
+    out.m_lastClearTime = m_data.m_lastClearTime;        // +0x14
 }
 
 // ORIG T 0x086434fc：先虚调 _reset()，拷入 6 dword 数据区；
@@ -111,13 +110,13 @@ bool TOD_UserState::loadData(CUser* pUser, char* pData)
     _reset();
     SIG_REQUEST_TOD_USER_STATE& in =
         *reinterpret_cast<SIG_REQUEST_TOD_USER_STATE*>(pData);
-    m_field8 = in.m_characNo;               // ORIG *(this+8)=*(param_2)
-    m_firstEnterTime = in.m_firstEnterTime;
-    m_enterCount = in.m_enterCount;
-    m_todayLayer = in.m_todayLayer.GetLayer();
-    m_lastEnterLayer = in.m_lastEnterLayer;
-    m_lastEnterTime = in.m_lastEnterTime;
-    m_lastClearTime = in.m_lastClearTime;
+    m_data.m_characNo = in.m_characNo;               // ORIG *(this+8)=*(param_2)
+    m_data.m_firstEnterTime = in.m_firstEnterTime;
+    m_data.m_enterCount = in.m_enterCount;
+    m_data.m_todayLayer = in.m_todayLayer;
+    m_data.m_lastEnterLayer = in.m_lastEnterLayer;
+    m_data.m_lastEnterTime = in.m_lastEnterTime;
+    m_data.m_lastClearTime = in.m_lastClearTime;
 
     const long curSec = GlobalData::s_systemTime_.getCurSec();
     const long lastPlayTick = pUser->getCurCharacLastPlayTick();
@@ -126,11 +125,11 @@ bool TOD_UserState::loadData(CUser* pUser, char* pData)
     {
         ResetDaily();
     }
-    if (m_lastEnterLayer != 0)
+    if (m_data.m_lastEnterLayer != 0)
     {
-        if (static_cast<unsigned int>(m_lastEnterTime) < 0x4e275df1u)
+        if (static_cast<unsigned int>(m_data.m_lastEnterTime) < 0x4e275df1u)
         {
-            m_lastEnterLayer = 0;
+            m_data.m_lastEnterLayer = 0;
         }
         alter();
     }
@@ -164,12 +163,12 @@ bool TOD_UserState::_saveData(CUser* pUser)
     {
         memset(sig, 0, sizeof(*sig));
         sig->m_characNo = pUser->get_charac_no(-1);
-        sig->m_todayLayer = m_todayLayer;           // ORIG save 顺序：sig+0xc=+0x14
-        sig->m_lastEnterLayer = m_lastEnterLayer;   // sig+0xe=+0x16
-        sig->m_firstEnterTime = m_firstEnterTime;   // sig+4=+0xc
-        sig->m_enterCount = m_enterCount;           // sig+8=+0x10
-        sig->m_lastEnterTime = m_lastEnterTime;     // sig+0x10=+0x18
-        sig->m_lastClearTime = m_lastClearTime;     // sig+0x14=+0x1c
+        sig->m_todayLayer = m_data.m_todayLayer;           // ORIG save 顺序：sig+0xc=+0x14
+        sig->m_lastEnterLayer = m_data.m_lastEnterLayer;   // sig+0xe=+0x16
+        sig->m_firstEnterTime = m_data.m_firstEnterTime;   // sig+4=+0xc
+        sig->m_enterCount = m_data.m_enterCount;           // sig+8=+0x10
+        sig->m_lastEnterTime = m_data.m_lastEnterTime;     // sig+0x10=+0x18
+        sig->m_lastClearTime = m_data.m_lastClearTime;     // sig+0x14=+0x1c
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);   // ORIG put(Q2)
     }
     return ok;

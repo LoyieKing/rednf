@@ -77,13 +77,14 @@ void CCreateDisjointStoreCmd::execute()
     expert_job::CExpertJob* job =
         GlobalData::s_ExpertJobMgr->AcquireExpertJob(
             static_cast<ENUM_EXPERT_JOB_TYPE>(3));
-    CUser* user = GetUser();
-    user->SetCurCharacExpertJob(job);
-
-    unsigned int x = user->get_posX() & 0xffff;
-    unsigned int y = user->get_posY() & 0xffff;
+    // ORIG 0x084a9720：GetUser 四独立重调（P48 无 CSE）；posY/posX 值经
+    // %esi/%ebx 跨 call 直传（P0 无槽），movzwl=(unsigned short) 拓宽直传；
+    // 实参 R2L：y(+0x40) → x(+0x50) → user(+0x66)。
+    GetUser()->SetCurCharacExpertJob(job);
     static_cast<expert_job::CDisjointer*>(job)->OnCreateDisjointStore(
-        user, "test", 500, static_cast<int>(x), static_cast<int>(y));
+        GetUser(), "test", 500,
+        static_cast<int>(static_cast<unsigned short>(GetUser()->get_posX())),
+        static_cast<int>(static_cast<unsigned short>(GetUser()->get_posY())));
 }
 
 // ========================================================================

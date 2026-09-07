@@ -339,6 +339,10 @@ bool COnlinePreliminaryMember::loadData(CUser* /*pUser*/, char* pData)
 // ORIG T 0x08585fd6：流（"OnlinePreliminaryData.cpp",0x21）：<<0x1e7、<<uid；
 // SIG_ONLINE_PRELIMINARY_MEMBER(0x14)：+0=u16 ServerGroup、+4=curCharacNo、
 // +8=rating(位)、+0xc=win、+0x10=lose；put(DB_Q)；返回 1。
+// 逐条对齐 ORIG：GetInBuffer 经 `guard->`（operator-> ptEv + GetInBuffer 两 call）、
+// characNo 用 int 直赋（getCurCharacNo 返回 int，ORIG movl 4B 无 cvt，免符号转换
+// 物化 mov）。残余 --no-compile 下仅链接期 call 重定位未解析 + 数据地址（s_stream_pool/
+// s_msgq_mgr），relink 后转 AE，指令 85=85 全等。
 bool COnlinePreliminaryMember::_saveData(CUser* pUser)
 {
     CStreamGuard guard(

@@ -805,15 +805,26 @@ void PacketBuf::put_packet(const Inven_Item& item)
 // _NS_MakeHash_（ORIG 0x808c8b5，真实定义 GameSecurity.cpp）折叠为 4 字节，
 // 以小端 put_int 写包尾；len 越界（<=0 或 >0x190）时不写。
 // （ORIG 直接 call _Z13_NS_MakeHash_PcsRi——本 TU 不再本地复制其折叠规则。）
+// ORIG 实证（docs/class_func_reports/_lt_global_gt_/_NS_PI_MakeHash_NOTI.md）：
+//   -18 base(char*) / -12 未使用的 ushort / -10 region(char*) /
+//   -0a len(**short** 槽：`mov %ax,-0xa` + `movswl` 读回)/ -1c hash(int，
+//    **无初始化 store**)；调用点为 `_NS_MakeHash_(region, len, hash) == 1`
+//    （`xor $0x1,%eax; test %al,%al` ⇒ 返回类型为窄类型 + 显式 ==1 比较）。
 // ===========================================================================
 
-bool _NS_MakeHash_(char* data, short len, int& out);
+// 权威定义 GameSecurity.cpp（ORIG T 0x0808c8b5）；返回类型 char 与其同步：
+// ORIG 本调用点为 `xor $0x1,%eax; test %al,%al; jne`（只测低字节 ⇒ char 值域
+// 的显式 ==1 判据），ORIG 体内两条返回 `mov $0x0/$0x1,%eax` 严格 0/1。
+char _NS_MakeHash_(char* data, short len, int& out);
 
-static bool ns_make_hash_pcs(const char* data, short len, int& out)
-{
-    return _NS_MakeHash_(const_cast<char*>(data), len, out);
-}
-
+// [b22判词·N] 残余唯一 diff：ORIG 为 `xor $0x1,%eax; test %al,%al; jne`（==1 被
+//   融合成 xor），gcc 4.4.7 -O0 恒出 `cmp $0x1,%al; sete %al; test %al,%al; je`
+//   —— xor 融合需 -O1 combine 阶段，实测 13 种源码写法（==1/!=1/char 具名局部/
+//   unsigned char 化/(x^1)==0/!((x^1))/signed char/int 返回/== '\x01' 等）无一命中。
+//   返回类型已按 Main 授权改 char（GameSecurity.cpp 定义同步；实测该 TU 逐函数
+//   verdict 零倒退），值域 0/1 下与 ORIG 语义完全等价；ORIG 尾部多一对
+//   `jmp/nop` 跳板是该分支融合的布局副产物（§6.1 nop 豁免同类）。
+//   ⇒ 指令选择层 N 族，不可源码复现，语义等价。
 void _NS_PI_MakeHash_NOTI(PacketBuf* packet)
 {
     if (packet == 0)
@@ -823,11 +834,10 @@ void _NS_PI_MakeHash_NOTI(PacketBuf* packet)
     char* base = packet->get_packet(0);
     // ORIG：读取包首 +1 处的 ushort 字段（本函数内不使用，仅为对齐 ORIG 读取行为）
     unsigned short headerField = *(unsigned short*)(base + PKT_SIZE_OFF);
-    (void)headerField;
-    const char* region = base + PKT_BODY_OFF;
-    int idx = packet->get_index() - PKT_BODY_OFF;
-    int hash = 0;
-    if (ns_make_hash_pcs(region, (short)idx, hash))
+    char* region = base + PKT_BODY_OFF;
+    short idx = packet->get_index() - PKT_BODY_OFF;
+    int hash;
+    if (_NS_MakeHash_(region, idx, hash) == 1)
     {
         packet->put_int(hash);
     }

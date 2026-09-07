@@ -831,34 +831,39 @@ TimerClearDungeonScoreScoll::TimerClearDungeonScoreScoll() {}
 TimerClearDungeonScoreScoll::~TimerClearDungeonScoreScoll() {}
 int TimerClearDungeonScoreScoll::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    // ORIG 0x086345f2：GetParty(p1) + check_timer_key(0x12, p2)。
+    // [b23S3C] P48 去缓存：get_user 每调用点重取×3；fatigue/max 结果寄存器直比；
+    // 判定链拆早返岛（fresh .o 134/134 零差）。
+    // ORIG 0x086345f2：GetParty(p1) + check_timer_key(0x12, p2)（用 p2 非 p3）。
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)0x12, p2) ||
-        party->get_dungeon_clear_state() != 3)
-    {
+    if (party == 0)
         return 0;
-    }
-    PacketGuard packet;
-    packet.put_header(1, 0x49);
-    packet.put_byte(1);
-    for (int i = 0; i < 4; ++i)
+    if (!party->check_timer_key((TIMER_MESSAGE)0x12, p2))
+        return 0;
+    if (party->get_dungeon_clear_state() == 0x03)
     {
-        CUser* user = party->get_user(i);
-        if (user == 0)
+        PacketGuard packet;
+        packet.put_header(1, 0x49);
+        packet.put_byte(1);
+        for (int i = 0; i <= 3; ++i)
         {
-            packet.put_short(-1);
+            // ORIG 0x08634696：get_user ×3（每次调用点重取，P183 去缓存）。
+            if (party->get_user(i) == 0)
+                packet.put_short(-1);
+            else
+            {
+                if (party->get_user(i)->getCurCharacTotalFatigue() ==
+                    party->get_user(i)->getCurCharacTotalMaxFatigue())
+                    packet.put_short(0);
+                else
+                    packet.put_short(1);
+            }
         }
-        else
-        {
-            packet.put_short(user->getCurCharacTotalFatigue() ==
-                             user->getCurCharacTotalMaxFatigue() ? 0 : 1);
-        }
+        packet.finalize(true);
+        party->send_to_party(packet);
+        party->set_dungeon_clear_state(0x04);
+        party->insert_time_dungeon_score_scroll_msg(0x1e);
+        party->insert_time_card_select_msg(0x04);
     }
-    packet.finalize(true);
-    party->send_to_party(packet);
-    party->set_dungeon_clear_state(4);
-    party->insert_time_dungeon_score_scroll_msg(0x1e);
-    party->insert_time_card_select_msg(4);
     return 1;
 }
 
@@ -4064,10 +4069,12 @@ Timer_TournamentDugeonClearStateNotiReward::Timer_TournamentDugeonClearStateNoti
 Timer_TournamentDugeonClearStateNotiReward::~Timer_TournamentDugeonClearStateNotiReward() {}
 int Timer_TournamentDugeonClearStateNotiReward::dispatch_sig(int p1, int p2, unsigned int p3)
 {
+    // [b23S3C] check_timer_key 第二实参为 p2（非 p3，ORIG 0x0863b318）；P48 去缓存
+    // get_user 每调用点重取×3（fresh .o 133/133 零差）。
     CParty* party = G_CGameManager()->GetParty(p1);
     if (party == 0)
         return 0;
-    if (!party->check_timer_key((TIMER_MESSAGE)0x2e, p3))
+    if (!party->check_timer_key((TIMER_MESSAGE)0x2e, p2))  // ORIG 0x0863b318：用 p2（0x10(%ebp)），非 p3
         return 0;
     if (party->GetTournamentDungeonClearState() == 0x01)
     {
@@ -4077,16 +4084,16 @@ int Timer_TournamentDugeonClearStateNotiReward::dispatch_sig(int p1, int p2, uns
         packet.put_byte(1);
         for (int i = 0; i <= 3; ++i)
         {
-            CUser* user = party->get_user(i);
-            if (user == 0)
+            if (party->get_user(i) == 0)
             {
                 packet.put_byte(-1);
             }
             else
             {
-                unsigned short fatigue = user->getCurCharacTotalFatigue();
-                unsigned short maxFatigue = user->getCurCharacTotalMaxFatigue();
-                if (fatigue == maxFatigue)
+                // ORIG 0x0863b40a：get_user ×3（每次调用点重取，P183 去缓存）；
+                // 结果寄存器直比（sete）。
+                if (party->get_user(i)->getCurCharacTotalFatigue() ==
+                    party->get_user(i)->getCurCharacTotalMaxFatigue())
                     packet.put_byte(0);
                 else
                     packet.put_byte(1);

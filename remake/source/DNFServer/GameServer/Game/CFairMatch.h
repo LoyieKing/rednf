@@ -25,6 +25,7 @@
 #include "SchoolMatchEnums.h" // ENUM_SCHOOL_MATCH_TEAM / ENUM_ELO_RATING_SYSTEM
 #include "CFairPvPScore.h"    // JobKey（本域共享类型）
 #include "CCompoundAvatar.h"   // ENUM_CHARACTERJOB（守卫幂等）
+#include "CDataManager.h"      // CharacterKind（PlayerInfoThird +0x05 具名子对象）
 
 class CUser;
 class PacketGuard;
@@ -41,15 +42,17 @@ static const int maxRematchCount_ = 3;
 // ---- PlayerInfoThird（单队员视图，stride 0x10；add/del/refresh 推导） ----
 struct PlayerInfoThird
 {
-    // ORIG W C1/C2 0x8568fda：仅构造 +0x05 的 CharacterKind（清零 job/growType
-    // 两字节，call _ZN13CharacterKindC1Ev @0x8568652）；其余字段不初始化。
-    PlayerInfoThird() { m_job = 0; m_growType = 0; }
+    // ORIG W C1/C2 0x8568fda：仅构造 +0x05 的 CharacterKind 子对象（编译器发
+    // call _ZN13CharacterKindC1Ev @0x8568652，清零 m_job/m_grow 两字节）；
+    // 其余字段不初始化。成员具名为 CharacterKind 后隐式 ctor 调用与 ORIG 同形。
+    // [b22判词·AE] 指令序列与 ORIG 逐行同（9=9）；唯一残差 call CharacterKindC1Ev
+    // 为 --no-compile 读未 relink .o 的重定位占位，relink 后转 AE；非语义差。
+    PlayerInfoThird() : m_kind() {}
     void reset();                                   // ORIG 经 TeamInfoThird::reset 调用
 
     CUser*        m_user;      // +0x00
     bool          m_flag;      // +0x04（ORIG CheckRematch 0x08565d04 +0x5e `xor $0x1,%eax` 取反实证 bool，P22/P73）
-    unsigned char m_job;       // +0x05
-    unsigned char m_growType;  // +0x06
+    CharacterKind m_kind;      // +0x05（{ m_job@+0x05, m_grow@+0x06 }，ORIG C1 实证）
     int           m_pvpGrade;  // +0x08
     float         m_rating;    // +0x0c
 };  // sizeof 0x10

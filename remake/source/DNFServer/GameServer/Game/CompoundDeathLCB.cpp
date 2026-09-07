@@ -62,14 +62,17 @@ int getItemIndex(const std::vector<std::pair<int, int> >& vec, int bound);
 void DB_UpdateAvatarHistory::makeRequest(unsigned int characNo, int avatarUid,
                                          char* ipgNo)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xac3b);
-    CStreamGuard guard(stream, true);
-    guard.operator*()->operator<<(0x2b0);
-    guard.operator*()->operator<<(-1);
-    guard.operator*()->operator<<(static_cast<int>(characNo));
-    guard.operator*()->operator<<(avatarUid);
-    guard.operator*()->put_binary(ipgNo, 0x18);
+    // P0：Acquire 返回值右值内联进 ctor（ORIG %eax 直通，无 stream 栈槽）。
+    // 每个 operator<< 前有独立 operator*(deEv)；put_binary 前是 operator->(ptEv)
+    // ——仓内惯用显式代理链（user-defined operator* 返回指针，*guard << v 不可编译）。
+    // characNo 为 uint → 选中 lsEj（0x080e2292）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xac3b), true);
+    guard.operator*()->operator<<((int)0x2b0);
+    guard.operator*()->operator<<((int)-1);
+    guard.operator*()->operator<<(characNo);       // lsEj
+    guard.operator*()->operator<<(avatarUid);      // lsEi
+    guard.operator->()->put_binary(ipgNo, 0x18);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -864,8 +867,9 @@ void CDeathTowerRanking::_makeRecordPacket(const stBestRecord_t& record,
         // record+i*0x1e+4 两级寻址 + call），put_str 用第二次结果（P48/P183）。
         packet.put_int(
             static_cast<int>(strlen(record.m_memberData[i])));
+        // ORIG 0x8468d37 调 const 重载 put_str(PKci)@0x0822b770（非 Pci 版）。
         packet.put_str(
-            const_cast<char*>(record.m_memberData[i]),
+            record.m_memberData[i],
             static_cast<int>(strlen(record.m_memberData[i])));
         packet.put_byte(record.m_pad7c[1][i]);                // +0x80..+0x83
         packet.put_byte(record.m_pad7c[2][i]);                // +0x84..+0x87

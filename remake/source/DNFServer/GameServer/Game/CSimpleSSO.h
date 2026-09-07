@@ -58,7 +58,10 @@ public:
                             char const* clientPwd, stOutputData_t& out);  // ORIG T 0x086028c6（返回 bool）
     bool checkValidPassword_Jpn(unsigned int mId, char const* a, char const* b,
                                 stOutputData_t& out);  // ORIG T 0x081b25ec
-    void getGameStartTime(unsigned int mId, long& loginTime, long& expireTime,
+    // [b23S3C] bool 返回：ORIG 调用点 0x0818f7a3 call 后 `xor $0x1,%eax; test %al`
+    // 直测转发结果（薄转发体 0x086031f6 末 call _getGameStartTime; leave; ret 透传
+    // %eax），void 声明无法表达该测试。
+    bool getGameStartTime(unsigned int mId, long& loginTime, long& expireTime,
                           stOutputData_t& out);  // ORIG T 0x086031f6（薄转发 _getGameStartTime）
     bool _getGameStartTime(unsigned int mId, long& loginTime, long& expireTime,
                            stOutputData_t& out);  // ORIG T 0x08602da6

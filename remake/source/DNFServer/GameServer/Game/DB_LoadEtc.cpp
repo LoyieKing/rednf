@@ -1515,6 +1515,7 @@ bool DB_LoadEtc::LoadVillageAttackInfo(SIG_LOAD_ETC* sig)
 
     long cur = GlobalData::s_systemTime_.getCurSec();        // ORIG localtime 单线程域
     struct tm* ptm = localtime(&cur);
+    time_t baseDay;                                          // ORIG 槽 -0x18 位次
     int fatigueHour = G_CEnvironment()->m_serverEnvir.m_fatigueTime;  // +0x37c
     if (ptm->tm_hour < fatigueHour)
     {
@@ -1522,13 +1523,13 @@ bool DB_LoadEtc::LoadVillageAttackInfo(SIG_LOAD_ETC* sig)
         cur -= 0x15180;
         ptm = localtime(&cur);
     }
-    time_t baseDay = mktime(ptm);
+    baseDay = mktime(ptm);
     (void)baseDay;
 
     char occDate[12];
     memset(occDate, 0, sizeof(occDate));
-    snprintf(occDate, sizeof(occDate), "%04d-%02d-%02d",
-             ptm->tm_year + 0x76c, ptm->tm_mon + 1, ptm->tm_mday);
+    sprintf(occDate, "%04d-%02d-%02d",
+            ptm->tm_year + 0x76c, ptm->tm_mon + 1, ptm->tm_mday);
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3,
                                                   (ENUM_SERVER_GROUP)0);
@@ -1549,7 +1550,7 @@ bool DB_LoadEtc::LoadVillageAttackInfo(SIG_LOAD_ETC* sig)
         sig->m_curRevengeDungeonCount = 0;                   // +0xc9ad
         return false;
     }
-    int fetched = db->fetch() ? 1 : 0;                       // fetch 返回值 &0xff
+    int fetched = db->fetch();                              // ORIG movzbl %al → int 槽
     if (fetched == 0)
     {
         return false;

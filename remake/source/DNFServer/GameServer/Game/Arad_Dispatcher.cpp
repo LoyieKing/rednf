@@ -31,6 +31,20 @@
 typedef char AradDispatcherManagerSizeAssert[
     sizeof(ARAD::Arad_Dispatcher_Manager) == 0x354 * 4 * 2 ? 1 : -1];
 
+// ---------------------------------------------------------------------------
+// 本 TU 实例化：GlobalInstance<ARAD::Arad_Dispatcher_Manager>::create()  @0x0818e956
+// （报告 docs/class_func_reports/StrikerScript/create.md 属撞名——其 `## 反编译 C` 段为
+// StrikerScript::create@0x8a9dc70，与本符号无关；verdict 以 nm 精确切片的 ORIG 汇编为权威，
+// §6.3）。
+// [b23判词·跨版本 N（new-expression landing-pad 抑制）+ AE 假阳性] 双检（两次
+// `mov m_p,%eax; test; jne`）、`movl $0x1aa0` → new → Manager ctor → `mov %ebx,%eax;
+// mov %eax,m_p` → `jmp` + `nop` 岛与 ORIG 正常路径逐条相等；37−24=13 条差额全部落在
+// ctor 抛异常的清理岛（operator delete + _Unwind_Resume）及其连带的 push %edi/%esi 与
+// 帧 0x1c/0x14（根因同 open()，见其判词：基类 ctor/dtor 本 TU 可见空定义 ⇒ 4.4 推断
+// nothrow 抑制 landing pad，/tmp 探针 A/B/C/D 实证）。另有 3 处 m_p 数据地址与
+// 2 处 call 目标显示为 .o 重定位占位（§6.3 假阳性），relink 后转 IDENTICAL_AE。
+// ---------------------------------------------------------------------------
+
 namespace ARAD
 {
 
@@ -90,6 +104,13 @@ Arad_Dispatcher_Manager::~Arad_Dispatcher_Manager()
 bool Arad_Dispatcher_Manager::open()
 {
     // ORIG 0x0818fe38：operator new(8) → BuyItemCheck_Impl ctor → 注册 → return 0。
+    // [b23判词·跨版本 N（new-expression landing-pad 抑制）] ORIG 比本函数多 13 条，全部
+    // 属于 ctor 抛异常时的清理岛（`jmp` 进 `mov %edx,%esi; mov %eax,%edi; operator delete;
+    // _Unwind_Resume`）及其连带的 `push %edi/%esi` + 帧 0x2c/槽 -0x1c。/tmp 探针（同
+    // toolchain 4.4.7 -m32 -O0，A/B/C/D 四变体）实证：当基类 Arad_Dispatcher 的
+    // ctor/dtor 在**本 TU 有可见空定义**时，4.4 推断 Impl ctor 不抛 ⇒ landing pad 被抑制
+    // （gnu++98/gnu++0x 同结果），4.1 保守生成 ⇒ 不可源码复现。正常路径（new(8)→ctor→
+    // 存槽/取回→inst()→register_dispatcher→mov $0x0,%eax）逐条与 ORIG 相等，语义等价。
     Arad_Dispatcher_BuyItemCheck_Impl* impl =
         new Arad_Dispatcher_BuyItemCheck_Impl();
     GlobalInstance<Arad_Dispatcher_Manager>::inst()->register_dispatcher(impl);
@@ -100,6 +121,9 @@ bool Arad_Dispatcher_Manager::register_dispatcher(Arad_Dispatcher* d)
 {
     // ORIG 0x0818fe98：dispathc_code() 两次调用（ORIG 无 code 栈局部，两次重取）；
     // inter[code]=d；db[code]=d；返回 0。
+    // [b23判词·AE假阳性] 20/20 归一化逐条相等（含 `lea 0x354(%edx),%ecx` 第二组寻址形——
+    // 两组指针数组连续声明使 db 基址折为 this+0xD50）；残余 2 处 call 目标显示为
+    // .o 重定位占位（§6.3 假阳性），relink 后转 IDENTICAL_AE。
     m_interDispatchers[d->dispathc_code()] = d;
     m_dbDispatchers[d->dispathc_code()] = d;
     return 0;

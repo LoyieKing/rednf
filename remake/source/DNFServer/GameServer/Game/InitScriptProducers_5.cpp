@@ -29,6 +29,15 @@
 //   baseDir, list, NULL)，返回值 !=0 即 true。
 //   注意：strncpy 长度按函数区分（多数 0x100；pvpMission/pvpSkillTree/
 //   ChatEmoticon/IndependentDrop 为 0xff），逐函数忠实保留。
+// ---------------------------------------------------------------------------
+// [b22判词·N族/索引伪差集 P93·P154 同族] __tcf_0（<global>）：本 TU 文件作用域带
+// 非平凡析构全局（WorldMapScript::aWorldMapPatternTable_[3][10] 图案表、各
+// g_*ScriptFileList STScriptFileList 全局）的 GCC 合成 atexit cleanup，无独立可写
+// 源码函数体，指令完全由本 TU 全局对象集合与构造序决定。ORIG 二进制内 `__tcf_0`
+// 同名 local 数百枚（每含全局对象 TU 一枚），compare 工具按名取到 0x0828f940
+// （WongWork::CDeathTowerRanking 域另一 TU，与本 TU 全局无关）→ 逐条 DIFF 系索引
+// 伪差集（§6.3 撞名族），非实现缺口。本 .o __tcf_0 已按本 TU 全局集合正确合成析构
+// 循环（0x4b0/0x28 对位图案表元素尺寸）。语义等价，不可源码复现，保留判词。
 // ============================================================================
 
 #include <map>

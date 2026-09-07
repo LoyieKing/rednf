@@ -523,7 +523,7 @@ void CHackAnalyzer::ValidateFixMobDiePos(CUser* user, unsigned short mobId,
         {0xdcbb, 0x552, 0x552,  0xfb,  0xfb },
         {0,      0,     0,      0,     0    },
     };
-    static short FixMobInfoSize = 11;
+    static unsigned short FixMobInfoSize = 11;   // ORIG 0x936fa44 movzwl 零扩展（unsigned）
 
     for (int i = 0; i < FixMobInfoSize - 1; ++i)
     {
@@ -534,7 +534,8 @@ void CHackAnalyzer::ValidateFixMobDiePos(CUser* user, unsigned short mobId,
                 y < FixMobInfo[i].m_yMin ||
                 FixMobInfo[i].m_yMax < y)
             {
-                addServerHackCnt(user, (ENUM_HACKTYPE)0xd2, 1, 0, 0);
+                user->getHackAnalyzer()->addServerHackCnt(
+                    user, (ENUM_HACKTYPE)0xd2, 1, 0, 0);
                 return;
             }
             if (mobId != 0xd6ed)
@@ -543,7 +544,8 @@ void CHackAnalyzer::ValidateFixMobDiePos(CUser* user, unsigned short mobId,
                 return;
             if (FixMobInfo[i].m_xMax == x)
                 return;
-            addServerHackCnt(user, (ENUM_HACKTYPE)0xd2, 1, 0, 0);
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, (ENUM_HACKTYPE)0xd2, 1, 0, 0);
             return;
         }
     }
