@@ -1731,6 +1731,8 @@ int CCreatureMgr::GetOverSkillExtraGold(int gold) const
             return gold * 5 / 100;
     }
 RET0:
+    // N 封顶：残差 1 条 = 4.4 在 return gold*5/100 块尾 jmp 后对 RET0 块的
+    // 单字节对齐 nop（ORIG 无）；合并条件/块重排均劣化（54 条），不可翻。
     return 0;
 }
 

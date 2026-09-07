@@ -473,6 +473,9 @@ void CUserCharacInfo::setDisguiseIndex(unsigned short index)
 void CUserCharacInfo::setDisguiseCharac(bool flag, unsigned char kind,
                                         unsigned short index)
 {
+    // [N] 指令序逐条全等，唯 spill 槽平移：ORIG -0xc/-0x10/-0x14（帧 0x28）vs
+    // 4.4 -0x4/-0x8/-0xc（帧 0x14，4.4 参数 spill 槽紧贴 ebp 恒形）——跨版本
+    // 槽分配豁免（ndiff 14 封顶）。
     if (m_selected)
     {
     CUR->m_isDisguiseCharac = flag;
@@ -2115,6 +2118,8 @@ void CUserCharacInfo::getExpBonusPoint(ExpBonusPointResult& out)
 
 int CUserCharacInfo::calc_disp_help_abuse_ratio(int param)
 {
+    // [N] 逐条指令序全等，唯槽号整体平移（-0x30↔-0x38 等 +8/0x10，帧 0x58 vs
+    // 0x68）——4.4 fildll 8 字节槽对齐布局恒形，跨版本槽分配豁免（ndiff 28 封顶）。
     int levelUpExp = get_level_up_exp(get_charac_level());
     float helpRate =
         (float)((double)getCurCharacDungeonHelpAbuseExp() / (double)levelUpExp);
@@ -2365,8 +2370,9 @@ void CUserCharacInfo::SetPowerWarLastPlayTime(long t)
 void CUserCharacInfo::SetOverTradeGoldCount(unsigned int count)
 {
     // ORIG：`mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx; mov %edx,0xd0(%eax)`
-    // base 先载（技巧 27 LHS 显式 this 翻转装载序）。
-    this->m_overTradeGoldCount = count;
+    // LHS(this) 先载。字段已改 unsigned（头同步）与形参 Ej 同型直赋无转换节点，
+    // 4.4 出 LHS 先=ORIG 同形（N76 翻案：无转换→LHS 先，有转换→RHS 先）。
+    m_overTradeGoldCount = count;
 }
 
 void CUserCharacInfo::SetOpencoin(char value)

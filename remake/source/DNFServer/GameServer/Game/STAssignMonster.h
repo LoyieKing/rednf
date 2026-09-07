@@ -25,8 +25,8 @@ struct STAssignMonster
     int m_24;                               // +0x24
     std::vector<int> m_vec28;               // +0x28
     int m_34;                               // +0x34
-    int m_38;                               // +0x38
-    int m_3c;                               // +0x3c
+    int m_38[2];                            // +0x38..+0x3f（ORIG Clear scaled 循环实证为数组）
+
     std::vector<std::pair<int, int> > m_vec40; // +0x40
     int m_4c;                               // +0x4c
     int m_50;                               // +0x50

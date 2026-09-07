@@ -468,6 +468,10 @@ const char* CSyncScript::GetUsableCharacter(STStackableScript* script)
 
 bool CSyncScript::LoadItemInfoMasterScript(const char* path)
 {
+    // b26 NEAR 封顶(6.2 三件套):gap 0(444=444)、P167 调用点差集 CLEAR
+    // (80=80);槽归一后唯一实质差异 1 行=负例 N18a(4.1 mem→eax→reg 两段
+    // 中转,4.4 恒折单段)。其余全帧 N82:ORIG 帧 0x90/不按 lifetime 复用
+    // (双区槽平移 0x28/0x50)vs 4.4 帧 0xb0/复用。
     if (!loadRDARScriptFile("", path))
     {
         return false;

@@ -793,6 +793,10 @@ int CGameManager::GetPartyIdx(CParty* party)
 
 void CGameManager::PutParty(CParty* party)
 {
+    // N82 封顶（hash_map 迭代器槽平移）：ORIG 槽组 key@-0x18/iter@-0x20/
+    // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
+    // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
+    // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
     if (party == 0)
         return;
     int key = party->GetPartyIndex();
@@ -1144,6 +1148,10 @@ int CGameManager::GetQuickPartyIdx(QuickParty::CQuickParty* qp)
 
 void CGameManager::PutQuickParty(QuickParty::CQuickParty* qp)
 {
+    // N82 封顶（hash_map 迭代器槽平移）：ORIG 槽组 key@-0x18/iter@-0x20/
+    // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
+    // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
+    // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
     if (qp == 0)
         return;
     int key = qp->get_quick_party_index();
@@ -1202,6 +1210,10 @@ int CGameManager::GetWarRoomIdx(WarRoom* room)
 
 void CGameManager::PutWarRoom(WarRoom* room)
 {
+    // N82 封顶（hash_map 迭代器槽平移）：ORIG 槽组 key@-0x18/iter@-0x20/
+    // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
+    // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
+    // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
     if (room == 0)
         return;
     int key = room->GetIndex();
@@ -1305,6 +1317,10 @@ int CGameManager::getDeathTowerIdx(WongWork::CDeathTower* tower)
 
 void CGameManager::returnDeathTower(WongWork::CDeathTower* tower)
 {
+    // N82 封顶（hash_map 迭代器槽平移）：ORIG 槽组 key@-0x18/iter@-0x20/
+    // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
+    // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
+    // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
     if (tower == 0)
         return;
     int key = tower->getIdx();
@@ -1390,6 +1406,10 @@ int CGameManager::getBossTowerIdx(WongWork::CBossTower* tower)
 
 void CGameManager::returnBossTower(WongWork::CBossTower* tower)
 {
+    // N82 封顶（hash_map 迭代器槽平移）：ORIG 槽组 key@-0x18/iter@-0x20/
+    // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
+    // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
+    // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
     if (tower == 0)
         return;
     int key = tower->getIdx();
@@ -1482,6 +1502,10 @@ int CGameManager::getAdvanceAltarIndex(advancealtar::StageControl* control)
 
 void CGameManager::returnAdvanceAltar(advancealtar::StageControl* control)
 {
+    // N82 封顶（hash_map 迭代器槽平移）：ORIG 槽组 key@-0x18/iter@-0x20/
+    // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
+    // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
+    // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
     if (control == 0)
         return;
     int key = control->getIndex();
@@ -1592,6 +1616,10 @@ int CGameManager::getBlueMarbleIdx(BlueMarble* marble)
 
 void CGameManager::putBlueMarble(BlueMarble* marble)
 {
+    // N82 封顶（hash_map 迭代器槽平移）：ORIG 槽组 key@-0x18/iter@-0x20/
+    // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
+    // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
+    // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
     if (marble == 0)
         return;
     int key = marble->getMemoryPoolIndex();

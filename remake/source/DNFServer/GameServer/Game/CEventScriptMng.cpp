@@ -80,13 +80,10 @@ InGameEventScript* InGameEventScriptLoader::insertEventScript(
 InGameEventScript* InGameEventScriptLoader::getEventScript(int id,
                                                            const std::string& name)
 {
-    // ORIG：find 与 end 各存一个栈槽，!= 判定后命中走 operator->，
-    // 未命中把 importInGameEventScript 结果直接作为 insertEventScript 实参。
-    // （本实现与 ORIG 仅迭代器栈槽分配对调，语义/调用序一致。）
-    std::map<std::string, InGameEventScript*>::iterator it =
-        m_scripts.find(name);
     std::map<std::string, InGameEventScript*>::iterator endIt =
         m_scripts.end();
+    std::map<std::string, InGameEventScript*>::iterator it =
+        m_scripts.find(name);
     if (it != endIt)
         return it->second;
 

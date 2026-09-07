@@ -43,8 +43,8 @@ void PvpUserTable::Clear()
     {
         for (int idx = 0; idx < 8; ++idx)
         {
-            m_users[team][idx].user = 0;
-            m_users[team][idx].flag = 0;
+            m_users[idx][team].user = 0;
+            m_users[idx][team].flag = 0;
         }
     }
     m_winTeam = -1;

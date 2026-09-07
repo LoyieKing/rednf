@@ -221,6 +221,9 @@ int CLeagueMatch::OnCreateRoom(CUser* user)    // ORIG T 0x0855d104
     return 0;
 }
 
+// 【N7 封顶】b26 lane19：虚调用 callee 寄存器 %ecx↔%eax 互换（ORIG
+// mov (%eax),%ecx+call *%ecx vs 4.4 mov (%eax),%eax+call *%eax，16 条逐条
+// 长度/助记符全等），临时/引用/限定名不可翻，语义同。
 void CLeagueMatch::OnDestroyRoom(CUser* /*user*/)   // ORIG T 0x0855d168
 {
     m_state = 0;
@@ -405,6 +408,9 @@ void CLeagueMatch::OnEndFight(PvP_Room* room)
 }
 
 // ORIG T 0x0855e4c4。ORIG 返回 1。
+// 【N7 封顶】b26 lane19：虚调用 callee 寄存器 %ecx↔%eax 互换 + 实参装载序
+// 跨版本差（ORIG 先槽 -0x10 后形参 0x10，4.4 反序——N80 族不可翻），33 条
+// 长度/助记符全等。
 int CLeagueMatch::OnWalkOut(PvP_Room* room, int seat)
 {
     int team = room->get_team(seat);
@@ -728,6 +734,8 @@ int CLeagueMatch::GetSchoolNo()              // ORIG T 0x0855f9aa
 }
 
 // ORIG W 0x08568834：call *(vptr+0x90) 并返回其值 ≡ GetSchoolNo()。
+// 【N7 封顶】b26 lane19：虚调用 callee 寄存器 %edx↔%eax 互换（12 条逐条全等
+// 仅寄存器名差），N7 判据命中。
 int CLeagueMatch::GetIndentification()
 {
     return GetSchoolNo();

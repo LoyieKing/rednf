@@ -14,6 +14,8 @@ public:
     unsigned int m_addExp;    // +0x12（WorkPerFiveMin：get_guild_exp / get_guild_today_exp；SendIncreaseGuildExp param_3）
     char m_notify;            // +0x16（Guild 接收端：非 0 → SendGuildInfoToMembers；SendIncreaseGuildExp param_4；WorkPerFiveMin 不写）
     char m_expType;           // +0x17（0=一般经验 / 1=SendIncreaseGuildExp / 2=今日经验；接收端按 0/1/2 选经验上限 max1/max2）
+    int m_field18;            // +0x18（未消费；ORIG packetSize 0x1c 实证 @0x846f3xx C1，
+                              //   SendIncreaseGuildExp pkt 槽 -0x24=-(0x1c+8)）
     Packet_Monitor_Increase_Guild_Exp() : PacketHeader(0x40e, 0x1c),
         m_expType(0)
     {

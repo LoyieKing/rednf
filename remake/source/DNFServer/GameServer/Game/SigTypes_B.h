@@ -645,8 +645,9 @@ struct SIG_JOIN_GUILD_INFO
 // +4 mailIdx(int)；dispatch 读 *(short*)(sig+8) 作 state 判 0）。
 struct SIG_LETTER_STAT
 {
-    int m_characNo;     // +0x00
-    int m_mailIdx;      // +0x04
+    int m_characNo;     // +0x00（保持 int：ORIG 该行地址先载，与 4.4 同型一致；
+                        //   b26L17 实测异型化反翻）
+    unsigned int m_mailIdx;   // +0x04（同上）
     short m_state;      // +0x08（dispatch 读取判 0）
     char m_padA[2];     // +0x0a（对齐尾）
 };

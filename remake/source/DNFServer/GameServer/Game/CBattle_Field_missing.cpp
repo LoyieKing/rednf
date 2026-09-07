@@ -82,6 +82,17 @@ CBattle_Field::~CBattle_Field()
 {
 }
 
+// ================= CBattle_Field::GetEnableHellDungeon() — ORIG 0822cf26 =================
+// 定义置于本 TU（与调用者分离）：4.4 unit-at-a-time 对 TU 内可见 callee 省略
+// outgoing 帧（sub $0x10/槽-0x4），ORIG 4.1 恒发 sub $0x18/槽-0xc（探针 p6/p7）。
+char* CBattle_Field::GetEnableHellDungeon()
+{
+    // mov $0x93701ec,%eax; ret（POD 无 guard 的函数局部
+    // static，V 符号 _ZZN13CBattle_Field20GetEnableHellDungeonEvE19enable_hell_dungeon）。
+    static char enable_hell_dungeon;
+    return &enable_hell_dungeon;
+}
+
 // ================= CBattle_Field::pickup_item(int) — ORIG 0x0830daee =================
 // 在当前地图的 itemMap 中查找 uid；找到则 erase 并返回 0，否则返回 0x15(21)。
 int CBattle_Field::pickup_item(int uid)
@@ -149,7 +160,7 @@ void CBattle_Field::reset_field()
     // —— 血/奖励系统 ——
     reset_blood_values();                          // +0x00  reset_blood_values() 08306d86
     m_bloodRound.reset_blood_values();             // +0x2ac CBloodRound::reset_blood_values() 08306d66
-    m_bloodState2 = 0;                             // +0x2b4
+    m_bloodState2 = (ENUM_BLOOD_STATE)0;           // +0x2b4
     m_bloodReward.reset();                         // +0x2b8 CBloodClearRewardData::reset() 08306ee0
     m_todReward.reset_tod();                       // +0xc84 CTowerOfDespairRewardData::reset_tod() 083071a6
 

@@ -31,6 +31,9 @@ STPvPGuild::STPvPGuild()
 PvP_GuildWar_Log::PvP_GuildWar_Log()
     : m_startTime(0)
 {
+    // ORIG `sub $0x10`：int 局部撑帧（P0 槽律）。
+    int slot;
+    (void)slot;
 }
 
 PvP_GuildWar_Log::~PvP_GuildWar_Log()

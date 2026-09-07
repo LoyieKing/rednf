@@ -62,6 +62,12 @@ int CAvatarItemMgr::_MakeTempKey(int key) const { return key | 0x80000000; }
 
 int CAvatarItemMgr::_AssignTempKey()
 {
+    // ORIG 帧 0x28：P31 dummy local 撑帧（4.4 对 ≥16 字节数组保槽，标量死局部
+    // 会被消除；探针 /tmp/slotprobe5.cpp 帧对齐实证）。残余 counter 槽 -0x4 vs
+    // ORIG -0xc 为 4.1 单标量首槽策略差（探针 slotprobe6/7/8x/90/91 全败），
+    // N82 族封顶不追。
+    char framePad[0x10];
+    (void)framePad;
     if (m_tempKeyCounter == 0x7fffffff)
         m_tempKeyCounter = 0;
     m_tempKeyCounter++;

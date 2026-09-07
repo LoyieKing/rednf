@@ -70,7 +70,7 @@ public:
     {
         ItemInfo(int itemIndex, int itemCount)
             : m_itemIndex(itemIndex), m_itemCount((unsigned short)itemCount) {}
-        int            m_itemIndex;   // +0x00
+        unsigned int   m_itemIndex;   // +0x00（ORIG C1 store 展开序 RHS 先 ⇒ 字段与形参异型（uint=int 转换先算 RHS）；c6root 探针 l8_probe13 K 变体实证）
         unsigned short m_itemCount;   // +0x04
     };
 
@@ -99,7 +99,7 @@ public:
     {
         ItemInfo(int itemIndex, int itemCount)
             : m_itemIndex(itemIndex), m_itemCount((unsigned short)itemCount) {}
-        int            m_itemIndex;   // +0x00
+        unsigned int   m_itemIndex;   // +0x00（ORIG C1 0x08ab5a5e store 展开序 RHS 先 ⇒ 字段与形参异型；c6root 探针 l8_probe13 K 变体实证）
         unsigned short m_itemCount;   // +0x04
     };
 

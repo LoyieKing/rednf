@@ -2082,8 +2082,9 @@ struct stWarPoint
     {
         memset(this, 0, 0x10);   // ORIG: memset(this,0,0x10)
     }
-    int m_0;       // +0x00
-    int m_pts[3];  // +0x04..+0x0f
+    // ORIG 布局：int m_pts[4] 从 +0 起（HandleWpPerMonster 0x86ba1ea 读
+    // 0x4(pair*,%edx,4)=second+0+4i；ImportWarAreaCounter 写 4 int 占满 0x10）。
+    int m_pts[4];  // +0x00..+0x0f
 };
 
 class WarAreaCounter
@@ -3354,8 +3355,9 @@ struct SecurityReward
 // 使用具名成员，禁止在调用点重新拼接裸偏移。
 struct CDataManagerRewardSpView
 {
-    char m_unmodeledBeforeSp[0xda90];
-    unsigned int m_spAtLevelUp[0x60];
+    char m_pad8[8];                 // 表名义基址锚点：ORIG 访问 disp 0x8
+    unsigned int m_sp8[0x3702];     // 下标 0x36a2+level ⇒ this+8+(0x36a2+level)*4
+                                    // = this+0xDA90+level*4（0x36a2+0x60=0x3702）
 };
 
 class CDataManager

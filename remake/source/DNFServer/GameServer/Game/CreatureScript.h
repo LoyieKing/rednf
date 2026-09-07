@@ -219,7 +219,9 @@ public:
     float m_damageIncreaseRate;        // +0x04
     int m_absoluteDamage;              // +0x08
     int m_damageBonus;                 // +0x0c
-    int m_attackType;                  // +0x10
+    ENUM_ATTACKTYPE m_attackType;      // +0x10（N76 反形同型化：与 setAttackType
+                                       // 形参同型 → 4.4 LHS 地址先载 = ORIG 0x88908b8 形；
+                                       // 偏移/sizeof 不变）
     int m_weaponDamageApply;           // +0x14
     float m_humanActiveStatusRate;     // +0x18
     int m_damageReaction;              // +0x1c

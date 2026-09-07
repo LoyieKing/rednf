@@ -160,7 +160,8 @@ public:
 
 private:
     int m_index;                        // +0x000
-    int m_pvpBattleMode;                // +0x004
+    unsigned int m_pvpBattleMode;       // +0x004（N76 异型化:与 int 形参 set_pvp_mode
+                                        //  异型使 4.4 store 出 ORIG 实参先载形）
     char m_mode8;                       // +0x008
 #pragma pack(push, 1)
     union

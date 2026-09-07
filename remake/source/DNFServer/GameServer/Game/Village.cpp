@@ -28,6 +28,7 @@
 #include "Area.h"             // Area（0x98 权威头）
 #include "STQuestScript.h"    // TownScript（0x44 权威头）
 #include "CMap.h"             // STMapScript（0x37c 权威头）
+#include "CSchoolMgr.h"       // CBelong 完整类型（本 TU 承载其 C1 定义）
 
 #include <map>
 #include <new>
@@ -292,4 +293,11 @@ int Village::GetUserCount(int area) const
     if (area < 0 || area >= m_areaCount)
         return 0;
     return m_pAreas[area].GetUserCount();
+}
+
+// CBelong::CBelong 定义置于本 TU（与消费调用者分离）：4.4 unit-at-a-time
+// 对 TU 内可见 callee 塌缩 outgoing 帧（CSchoolMemberC1 sub $0x4），
+// ORIG 4.1 恒发 sub $0x18（探针 p6/p7 实证同族）。
+CBelong::CBelong()
+{
 }

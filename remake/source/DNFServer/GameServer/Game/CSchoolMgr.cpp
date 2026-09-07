@@ -33,24 +33,6 @@ class CUser;
 
 
 // ---------------------------------------------------------------------------
-// CBelong / CSchoolMember（send_group 的归属对象；IsRight 为纯虚）
-// ---------------------------------------------------------------------------
-class CBelong
-{
-public:
-    CBelong();
-    virtual bool IsRight(CUser* user) = 0;
-};
-
-class CSchoolMember : public CBelong
-{
-public:
-    CSchoolMember(CUser* user);             // 0x085690b6 W
-    virtual bool IsRight(CUser* user);      // 0x085690dc W
-
-    CUser* m_user;   // +0x04
-};
-
 // CSchoolArea / CSchoolMgr 类声明见 CSchoolMgr.h（唯一声明点）
 
 // ============================================================================
@@ -122,10 +104,6 @@ int CSchoolArea::GetAreaIndex(unsigned int schoolNo)
 // ============================================================================
 // CBelong / CSchoolMember 实现
 // ============================================================================
-
-CBelong::CBelong()
-{
-}
 
 CSchoolMember::CSchoolMember(CUser* user)
     : CBelong(), m_user(user)

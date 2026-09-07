@@ -234,10 +234,8 @@ STStackableScript::~STStackableScript()
              it != m_module4bc.end(); ++it)
         {
             if (it->second != 0)
-            {
                 delete it->second;
-                it->second = 0;
-            }
+            it->second = 0;   // ORIG +0x79：赋 0 在 if 之外（两次 je 同落 +0x79）
         }
         m_module4bc.clear();
     }

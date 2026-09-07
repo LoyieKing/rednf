@@ -3,6 +3,8 @@
 // 语义与 Guild/DNFGuild.cpp 的 Guild 域实现一致（同 mangled 名，Game 服务补齐）。
 #include "DnfItemInfo.h"
 
+#include "Inven_Item.h"   // ChronicleRandomOptionInfo（本文件唯一定义点）
+
 // ORIG ctor 0x84e910a：UpgradeSeparateInfo C1@+0x2b（0x80cb332）、
 // ReservedCapacity C1@+0x2c（0x80cb36c）由编译器成员构造自动生成，函数体仅调 reset()。
 DnfItemInfo::DnfItemInfo()
@@ -26,4 +28,25 @@ void DnfItemInfo::reset()
     m_opt.reset();        // call RandomOption::reset
     m_up.reset();         // call UpgradeSeparateInfo::reset
     m_res.reset();        // call ReservedCapacity::reset
+}
+
+// ORIG 0x822abea W：委托两 STEnchantedSkillOption::reset + m_field2 清零 +
+// RandomOption::reset。定义置于本 TU（callee reset 均定义于 Inven_Item.cpp）：
+// caller TU 不含 callee 定义体 ⇒ 4.4 unit-at-a-time 不塌缩 outgoing 帧，
+// 保持 ORIG 的 sub $0x18（NL4 实证）。
+void ChronicleRandomOptionInfo::reset()
+{
+    m_skill0.reset();
+    m_skill1.reset();
+    m_field2 = 0;
+    m_random.reset();
+}
+
+// RandomOptionSeed::reset（ORIG W 0x080cb2cc，m_field=0）：定义原在
+// Inven_Item.cpp，迁入本 TU（RandomOption::reset 的 callee 之一）——
+// RandomOption::reset 所在 TU 不再含全部 callee 定义体 ⇒ 4.4 unit-at-a-time
+// 不塌缩 outgoing 帧，保持 ORIG sub $0x18（NL4/NL3 unit-at-a-time 实证）。
+void RandomOptionSeed::reset()
+{
+    m_field = 0;
 }

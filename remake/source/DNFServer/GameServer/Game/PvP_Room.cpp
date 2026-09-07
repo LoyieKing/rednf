@@ -1407,6 +1407,7 @@ CUser* PvP_Room::destroy_room(int idx)
 
 int PvP_Room::Disconnect(CUser* user)
 {
+    // 残余为 N7 互换（虚调用 callee 寄存器跨版本分配，见 get_user_list 注释）。
     // ORIG 0x085dd754：for 预跳+setle 检查；命中座（seat==user）后
     // **无条件** return 1（ClearPvPRoom 仅在 !WalkOut 时执行，return 1 在
     // if 外——旧版把 return 1 放进 if 内属语义偏差，已修正）。
@@ -1440,6 +1441,7 @@ int PvP_Room::SendWalkOut(int seat, ENUM_WALKOUT_TYPE walkoutType)
 bool PvP_Room::WalkOut(CUser* user, int seat, ENUM_SEAT_STATE state,
                       ENUM_WALKOUT_TYPE walkoutType)
 {
+    // 残余为 N7 互换（虚调用 callee 寄存器跨版本分配，见 get_user_list 注释）。
     PacketGuard local_20;
     CUser* local_24 = 0;
     bool local_25 = false;
@@ -1893,6 +1895,8 @@ void PvP_Room::get_room_info(PVP_ROOM_INFO* out)
 
 void PvP_Room::get_user_list(void* out)
 {
+    // N7 封顶：ORIG 虚表槽函数指针落 %ecx、receiver 链 %eax；4.4 恒 eax/edx 形，
+    // 临时/引用/限定名均无效（负例表 N7）。
     ((IMatch*)m_matching)->GetUserList(out);
 }
 
@@ -2132,6 +2136,7 @@ int PvP_Room::VoteLackUser(CUser* user, int vote)
 
 int PvP_Room::OnConnectP2PPvPTimeout()
 {
+    // 残余 2 行 N7 互换（虚调用 callee 寄存器跨版本分配，见 get_user_list 注释）。
     if (!check_start_state())
     {
         ((IMatch*)m_matching)->OnConnectP2PTimeout(this);
@@ -2209,6 +2214,7 @@ int PvP_Room::CancelAllTimer()
 
 int PvP_Room::end_pvp()
 {
+    // N7 封顶（虚调用 callee 寄存器互换，见 get_user_list 注释）。
     ((IMatch*)m_matching)->OnEndFight(this);
 }
 
@@ -2368,8 +2374,9 @@ int PvP_Room::set_pvp_mode(CUser* user, int mode)
     }
     lock();
     int iVar1 = m_pvpBattleMode;
-    // ORIG 085d84ee: arg 先载（%edx）再 this（%eax）写回。int==int 全等在 4.4 恒
-    // 出 this-先形；改成员类型为 enum 需跨 TU 全面 cast，风险不对称 ⇒ 保持 N 形。
+    // ORIG 085d84ee: arg 先载（%edx）再 this（%eax）写回。N76 异型化翻案
+    // （NL7/NL8 新定律）：m_pvpBattleMode int→unsigned int（private，正数
+    // == 比较，无符号性语义差），4.4 异型 store 出实参先载形，ndiff 2→0。
     m_pvpBattleMode = mode;
     if (mode == 1)
     {
@@ -2505,6 +2512,8 @@ int PvP_Room::GetCandidateMapIndexList(std::vector<int>& out)
 
 int PvP_Room::insert_timer_recv_pvp_rank()
 {
+    // 残余 4 行 N7 互换：gen_timer_key 结果与 m_index 的 callee-saved 缓存
+    // ORIG 用 ebx/esi、4.4 反序（同 VoteLackUser 判例），封顶。
     if (m_isInsertTimerRecvPvpRank != 0)
     {
         return 1;
@@ -2629,6 +2638,7 @@ bool PvP_Room::IsThereSameGuildMember()
 
 int PvP_Room::get_extra_win_point(int team)
 {
+    // N7 封顶（虚调用 callee 寄存器互换，见 get_user_list 注释）。
     return ((IMatch*)m_matching)->GetExtraWinPoint(team);
 }
 
@@ -3587,6 +3597,8 @@ int PvP_Room::SetPVPResult(int seat, const PvpResultType& result)
     // （lea 0x1c(seat),*4 后 mov 0x8(disp) → +0x78；+0x24 → +0x98）。
     // ORIG 085dc040/085dc043：js/jg 各落独立空块岛（nop;jmp end / nop;fall end），
     // 双 goto 保块（同 check_recv_pvp_rank 已验证模式）。
+    // 残差仅 outgoing-args reserve 跨版本尺寸差（ORIG sub $0x4 vs 4.4 $0x14），
+    // 指令序列全等，N 封顶。
     if (seat < 0)
         goto SET_RES_RANGE;
     if (seat > 7)

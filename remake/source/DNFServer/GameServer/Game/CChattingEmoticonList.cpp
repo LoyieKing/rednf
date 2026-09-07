@@ -208,6 +208,8 @@ int ChattingEmoticon_byLevel::GetEndArrayIndex() const { return 0x17; }
 
 bool ChattingEmoticon_byLevel::isCommonEmoticon(const CUser& user) const
 {
+    // [b26N7] 虚调用 callee 寄存器：ORIG(4.1) vfn→%edx，4.4 恒 call *%eax；
+    // 探针 /tmp/nl29/n7probe.cpp 实证不可翻，ndiff 12 全由此封顶。
     (void)user;
     return 1;
 }
@@ -263,6 +265,8 @@ ChattingEmoticonBase* CChattingEmoticonList::Factory(
 // ============================================================================
 bool CChattingEmoticonList::Load_list()
 {
+    // [b26L17 判词 N7] 唯一残差：1 处虚调用 callee 装载 %eax↔%edx 互换
+    //   （244/244 助记符全等）。
     const char* path = 0;                                  // ORIG -0xc
     std::map<int, std::string>::iterator it =
         g_ChattingEmoticonScriptFileList.m_fileMap.begin();  // ORIG -0x68

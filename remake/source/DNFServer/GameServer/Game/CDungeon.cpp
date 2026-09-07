@@ -256,7 +256,9 @@ unsigned char CDungeon::get_dimension_possible() const
 
 bool CDungeon::isTowerOfDespairDungeon() const
 {
-    // ORIG 0x0822b4fa：return GetType_DungeonInHeritance() == 1
+    // ORIG 0x0822b4fa：return GetType_DungeonInHeritance() == 1。
+    // ORIG `sub $0x18` 为 4.1 保守帧；4.4 精确帧 $0x4，dead pad≤0x10 被吸收、
+    // ≥0x11 跳 $0x24，$0x18 不可达（N 跨版本帧深族）。
     return GetType_DungeonInHeritance() == 1;
 }
 
@@ -786,16 +788,6 @@ GridScript::GridScript()
     clear();
 }
 
-void RidableObject::clear()
-{
-    // ORIG 0x830e47c：前 5 个字段写 -1，+0x14（m_field18）写 0xc8（200）。
-    m_x = -1;
-    m_y = -1;
-    m_field0c = -1;
-    m_field10 = -1;
-    m_field14 = -1;
-    m_field18 = 0xc8;
-}
 RidableObject::RidableObject()
 {
     clear();
@@ -821,13 +813,6 @@ RidableScript::~RidableScript()
 {
 }
 
-void DungeonClearCondition::clear()
-{
-    m_0 = 0;
-    m_4 = 0;
-    m_8 = 0;
-}
-
 DungeonClearCondition::DungeonClearCondition()
 {
     clear();
@@ -835,6 +820,15 @@ DungeonClearCondition::DungeonClearCondition()
 
 DungeonClearCondition::~DungeonClearCondition()
 {
+}
+
+void DungeonClearCondition::clear()
+{
+    // 定义置于 ctor 之后：4.4 对"被调函数定义未前置"的 ctor 帧发 sub $0x18，
+    // 与 ORIG 0x088f29f4 帧形一致（探针 /tmp/near7/p7-p8）。
+    m_0 = 0;
+    m_4 = 0;
+    m_8 = 0;
 }
 
 // ============================================================================
@@ -1031,16 +1025,18 @@ STWarRoomData::~STWarRoomData()
 {
 }
 
+RequiredItem::RequiredItem()
+{
+    clear();
+}
+
+// clear 定义移到 ctor 之后（NL7 实证：callee 后置时 4.4 unit-at-a-time 不塌缩
+// ctor outgoing，保持 ORIG sub $0x18）。
 void RequiredItem::clear()
 {
     m_itemIdx = -1;
     m_itemCount = 0;
     m_enableFlag = 0;
-}
-
-RequiredItem::RequiredItem()
-{
-    clear();
 }
 void advancealtar::ClearRewardData::clear()
 {

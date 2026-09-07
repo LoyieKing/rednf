@@ -222,13 +222,13 @@ void CTestDisjointCmd::execute()
                 CDisjointer_get_disjoint_result_(
                     samples[s], (Inven_Item*)0, grade, result, false,
                     (CUser*)0);
-                // 参数序（objdump 栈槽 0x10/0x14/0x18/0x1c）：
-                // result+0x18(f[6]) / +0x00(f[0]) / +0x1c(f[7]) / +0x08(f[2])
+                // 参数序（ORIG result@-0x68 下位移实测 +0x14/+0x00/+0x18/+0x04）：
+                // f[5] / f[0] / f[6] / f[1]
                 OS_API::WriteLog("disjoint_result",
                                  "%d;%d;%d;%d;%d;%d\n",
                                  samples[s]->get_rarity(), grade,
-                                 result.m_f[6], result.m_f[0],
-                                 result.m_f[7], result.m_f[2]);
+                                 result.m_f[5], result.m_f[0],
+                                 result.m_f[6], result.m_f[1]);
             }
         }
     }

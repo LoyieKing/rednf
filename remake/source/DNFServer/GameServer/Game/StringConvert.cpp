@@ -44,7 +44,8 @@ CharString convertToCharString(const wchar_t* src, unsigned int srcLength);
 // ---------------------------------------------------------------------------
 static __thread char gMbcsBuffer[10][0x1000];
 static __thread int gMbcsBufferIndex;
-static __thread wchar_t gUnicodeBuffer[10][0x4000];
+// ORIG shl $0xe：槽字节步长 0x4000 = wchar_t[0x1000]（0x08adea54 实证）。
+static __thread wchar_t gUnicodeBuffer[10][0x1000];
 static __thread int gUnicodeBufferIndex;
 static __thread char gTCharBuffer[10][0x1000];
 static __thread int gTCharBufferIndex;

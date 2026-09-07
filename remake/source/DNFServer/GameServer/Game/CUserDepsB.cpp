@@ -427,14 +427,9 @@ int CUser::GetServerGroupToPvP() const
     return G_CEnvironment()->m_serverEnvir.m_serverGroup;
 }
 
-// ORIG W 0x086978c0：四字段清零（server group 位为 0xffffffff）。
-DeliveryMsg::DeliveryMsg()
-{
-    m_type = 0;
-    m_accId = 0;
-    m_characNo = 0;
-    m_serverGroup = -1;
-}
+// DeliveryMsg::DeliveryMsg（ORIG W 0x086978c0，四字段清零）定义在
+// CtorProducers_1.cpp（NL4 unit-at-a-time 塌缩机制：同 TU 可见 callee 使
+// BuyItemDeliveryMsgC1 outgoing 帧塌缩 sub $0x4，ORIG sub $0x18）。
 
 // ORIG W 0x086978ec：四参顺序写 +0x00..+0x0c。
 void DeliveryMsg::setBaseData(int type, unsigned int accId, int characNo,
@@ -466,6 +461,9 @@ LevelUpRewardItemTableKey::LevelUpRewardItemTableKey(int level, int job,
 bool stLevelUpRewardItemScript::get_data(const LevelUpRewardItemTableKey& key,
                                          LevelUpRewardItemData& out)
 {
+    // b26 N 封顶（P112 族槽序镜像）：残差仅 find 迭代器槽与 end() 临时槽互换
+    // （ORIG -0x10/-0xc vs 我们 -0xc/-0x10）——4.1 临时从 ebp 向下分配、4.4 从
+    // esp 向上，完全镜像；先声明 it/e 又触发默认 ctor 调用（P50 陷阱）不可用。
     std::map<LevelUpRewardItemTableKey, LevelUpRewardItemData>::iterator it =
         m_map0.find(key);
     if (it == m_map0.end())

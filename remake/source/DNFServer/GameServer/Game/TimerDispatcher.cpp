@@ -3411,6 +3411,8 @@ int Timer_UpdateOnlinePreliminaryTeam::dispatch_sig(int p1, int p2, unsigned int
         goto RET1;
     }
     goto RET0B;
+    // [N 封顶] 三岛块序与 ORIG 逐岛对齐（rFalse→null→ret1）；4.4 对 je/jmp 目标
+    // 岛前发 1 字节 nop（跨版本 jump-threading/空岛填充），共享 RET0 形更劣化块序。
 RET0A:
     return 0;
 RET0B:
@@ -3689,8 +3691,10 @@ Timer_FairPvPRematch::~Timer_FairPvPRematch() {}
 // ===== Timer_FairPvPRematch =====
 // dispatch_sig ORIG _ZN20Timer_FairPvPRematch12dispatch_sigEiij @0x0863a430 (0x97B)
 
-int Timer_FairPvPRematch::dispatch_sig(int p1, int p2, unsigned int /*p3*/)
+int Timer_FairPvPRematch::dispatch_sig(int p1, int p2, unsigned int p3)
 {
+    // [b26N7] 尾部虚调用 callee 寄存器 ORIG vfn→%ecx/参数 eax,edx vs 4.4 恒
+    // vfn→%eax（N7 探针实证），ndiff 12 封顶。
     PvP_Room* room = G_CGameManager()->GetPvp(p1, (CUser*)0, (int)0x3e);
     if (room == 0)
     {

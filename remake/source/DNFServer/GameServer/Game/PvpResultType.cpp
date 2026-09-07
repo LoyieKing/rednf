@@ -43,8 +43,10 @@ void PvpResultType::AddNewResult(const PvpResultType& other)
 {
     if (m_count == 0)
     {
-        int savedWinPoint = m_winPoint;
+        unsigned savedWinPoint = m_winPoint;
         Set(other);
+        // N76 封顶：此 store ORIG 4.1 值先（mov -0x1c,%edx 后 mov 0x8,%eax），
+        // 4.4 恒 LHS 地址先载，probe 全试不可翻（负例表 N76）。
         m_winPoint = savedWinPoint;
     }
     else
@@ -122,4 +124,24 @@ int PvpResultType::GetTotalScore() const
 {
     return m_avg[11] + m_avg[12] + m_avg[13] + m_avg[14] + m_field6c +
            m_field70 + m_field74 + m_field78;
+}
+// ============================================================================
+// PvpResultSet（G2-4 PvP 结果集合，PvpResultType 派生薄封装）
+// 三个薄封装定义原在 PvpResultSet.cpp——ORIG outgoing sub $0x4 为 4.1 对同 TU
+// callee（PvpResultType C1/D1/Clear）的精确分配；跨 TU 时 4.4 保守分配 0x18。
+// 迁入本 TU（include PvpResultSet.h）后 unit-at-a-time 已知 callee，恢复 0x4。
+// ============================================================================
+#include "PvpResultSet.h"
+
+PvpResultSet::PvpResultSet()
+{
+}
+
+PvpResultSet::~PvpResultSet()
+{
+}
+
+void PvpResultSet::Clear()
+{
+    PvpResultType::Clear();
 }

@@ -3110,6 +3110,8 @@ struct Inter_MonitorCeraUpdatePktView
 
 int Inter_MonitorCeraUpdate::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    // [b26N7] 尾部虚调用 callee 寄存器 ORIG vfn→%ecx vs 4.4 恒 %eax（N7 探针
+    // 实证）；ndiff 14 封顶。
     Inter_MonitorCeraUpdatePktView* pPkt = reinterpret_cast<Inter_MonitorCeraUpdatePktView*>(data);
     register unsigned int accId = pPkt->m_a;   // ORIG 0x084ceaa2 mov 0xa(%eax),%ebx（callee-saved 跨 call 缓存）
     CUser* target = G_CGameManager()->GetUserByAccId(accId);   // ORIG 0x084ceab6 结果落 -0xc 具名槽
@@ -10299,10 +10301,11 @@ int Inter_PvPChannelUserCount::dispatch_sig(CUser* /*user*/, char* data, int /*l
         (unsigned int)CLeagueMatch::GetPlayCountPerOneTeam() & 0xff;
     pPkt->m_26 =
         (unsigned int)CLeagueMatch::GetBattleMode() & 0xff;
-    // ORIG 0x084d82bc `mov -0xc(%ebp),%ebx`：缓存形 %ebx 跨 call 传参
-    // （0x084d82de `mov %ebx,0x4(%esp)`），帧 push %ebx/sub 0x24。
-    // RHS 经 pPkt 局部槽装载（ORIG -0xc(%ebp) 即 pPkt 槽）在 4.4 恒两段
-    // `mov -0xc(%ebp),%eax; mov %eax,%ebx`（N18a），取 data 直读单段形。
+    // ORIG 0x084d82bc `mov -0xc(%ebp),%ebx`：ebx 从 pPkt 局部槽装载后跨 call
+    // 传参（0x084d82de `mov %ebx,0x4(%esp)`），帧 push %ebx/sub 0x24。
+    // N22 族封顶：4.4 对 asm 绑定 init 恒拷贝传播直读参数槽 `mov 0x10(%ebp),%ebx`；
+    // volatile 指针/两步赋值/asm memory、+m 屏障 4 形 probe（l8_probe8-12，
+    // c6root 4.4.7）均不可复现单段槽读（屏障后反而两段 eax 中转）。
     register char* pCached asm("ebx") = data;
     GlobalData::s_monitor_proxy_mgr->GetServerProxy(
         (ENUM_SERVER_GROUP)pPkt->m_1e
@@ -11262,6 +11265,8 @@ int Inter_PowerWarProcessInfo::dispatch_sig(CUser* user, char* data, int /*len*/
     // 实测本函数 ORIG 为 register 形态（`mov 0xe(%eax),%ebx`+`cmp %eax,%ebx`，
     // dst 是 %ebx）⇒ 用 register 局部且 call 作左操作数。
     register unsigned int charIdMsg = pPkt->m_e;
+    // N22 封顶：ORIG `cmp %eax,%ebx`（dst=register 局部）；4.4 恒 dst=call 结果
+    // （`cmp %ebx,%eax`），书写序交换无效（!= 交换律规范化），probe 不可翻。
     if (user->get_charac_no(-1) != charIdMsg)
         return 0;
 
@@ -12352,6 +12357,8 @@ struct Inter_LoadNoCacheDataPktView
 
 int Inter_LoadNoCacheData::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [b26N7] 尾部虚调用 callee 寄存器 ORIG vfn→%ecx vs 4.4 恒 %eax（N7 探针
+    // 实证）；ndiff 14 封顶。
     // ORIG 0x084dd1ee：正向嵌套合并假路径（P11/P133）+ setne/sete 布尔物化（技巧22 al）
     if (user != 0)                                   // ORIG +0x06 cmpl $0x0,0xc; je tail
     {
@@ -14288,6 +14295,8 @@ Inter_LoadPvPLiveEventData::~Inter_LoadPvPLiveEventData() {}
 // 报告 docs/class_func_reports/Inter_LoadPvPLiveEventData/dispatch_sig.md 全文转写。
 int Inter_LoadPvPLiveEventData::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [b26N7] 尾部虚调用 callee 寄存器 ORIG vfn→%ecx vs 4.4 恒 %eax（N7 探针
+    // 实证）；ndiff 12 封顶。
     if (user->get_state() <= 2)
         return 0;
     if (user->getCurCharacR() == 0)
@@ -14533,6 +14542,8 @@ Inter_LoadOnlinePreliminaryMember::~Inter_LoadOnlinePreliminaryMember() {}
 // 报告 docs/class_func_reports/Inter_LoadOnlinePreliminaryMember/dispatch_sig.md 全文转写。
 int Inter_LoadOnlinePreliminaryMember::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [b26N7] 尾部虚调用 callee 寄存器 ORIG vfn→%ecx vs 4.4 恒 %eax（N7 探针
+    // 实证）；ndiff 12 封顶。
     if (user->get_state() <= 2)
         return 0;
     if (user->getCurCharacR() == 0)
@@ -14561,6 +14572,8 @@ Inter_LoadOnlinePreliminaryMemberMatchList::~Inter_LoadOnlinePreliminaryMemberMa
 // 报告 docs/class_func_reports/Inter_LoadOnlinePreliminaryMemberMatchList/dispatch_sig.md 全文转写。
 int Inter_LoadOnlinePreliminaryMemberMatchList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [b26N7] 尾部虚调用 callee 寄存器 ORIG vfn→%ecx vs 4.4 恒 %eax（N7 探针
+    // 实证）；ndiff 12 封顶。
     if (user->get_state() <= 2)
         return 0;
     if (user->getCurCharacR() == 0)
@@ -15802,13 +15815,7 @@ int Inter_PunishCancel::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_BroadcastMsg::~Inter_BroadcastMsg() {}
 // ORIG 0x084e4c2a T dispatch_sig —— 少年频道公告组播。
 // 报告 docs/class_func_reports/Inter_BroadcastMsg/dispatch_sig.md 全文转写。
-// ORIG CBelong 最小镜像（完整定义在各消费 TU 内部；本 TU 同布局供
-// CUserTeen/send_group 使用——InterWave1 批；vtable 槽0=IsRight，无虚析构，与 ORIG 一致）
-class CBelong
-{
-public:
-    virtual char IsRight(CUser* user) = 0;
-};
+// CBelong 唯一声明点 = CSchoolMgr.h（本 TU 已 include；NL4 合并铁律迁移）。
 
 // ORIG CUserTeen（CBelong 派生，C1 W 0x084f07d0 / IsRight W；BroadcastMsg 消费；
 // 定义属主未落地，U 引用合规——InterWave1 批）
@@ -15816,7 +15823,7 @@ class CUserTeen : public CBelong
 {
 public:
     CUserTeen();
-    char IsRight(CUser* user);
+    bool IsRight(CUser* user);   // bool 化随 CBelong::IsRight 权威签名（mangled 不编码返回类型）
 };
 
 // ORIG CUserTeen::CUserTeen() W 0x084f07d0：调 CBelong() 后重置 vptr（正常 C++ 生成）。
@@ -15827,7 +15834,7 @@ CUserTeen::CUserTeen() {}
 //   ORIG 0x084f07ac `xor $0x1,%eax`; 07af `test`; 07b1 `je`; 07b3 fall
 //   `mov $0x0,%eax`+`jmp`; je 目标 07ba `mov $0x1,%eax`。直接 return !call()
 //   缺这四行物化（技巧10 形）。
-char CUserTeen::IsRight(CUser* user)
+bool CUserTeen::IsRight(CUser* user)
 {
     // ORIG +0x06：无 `movl $0x0,-0xc(%ebp)` ⇒ 局部不初始化（仅取址传引用）；
     int dummy;

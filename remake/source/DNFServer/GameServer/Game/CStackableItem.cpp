@@ -786,6 +786,8 @@ int CStackableItem::check_able_To_use(int job, int level)
 }
 
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
+// P182/N82 封顶（b26 Lane27）：29 条指令全等，仅帧 0x28 vs 0x10（4.4 outgoing/
+// slack 多 24B）连带 2 char 槽平移（-0xc/-0x10 vs -0x4/-0x8）；帧策略跨版本差。
 bool CStackableItem::check_change_job_type(char changeJob,
                                            char checkJob) const
 {

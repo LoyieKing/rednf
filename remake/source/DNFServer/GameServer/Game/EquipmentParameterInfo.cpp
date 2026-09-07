@@ -78,13 +78,10 @@ EquipmentParameterInfo::_119::operator=(const _119& other)
 {
     // ORIG 0x088fd910：vector<SASPROPERTY> op= → +0xc char → +0xd char →
     // vector<vector<float>> op=；无 self-check，返回 *this。
-    if (this != &other)
-    {
-        m_418 = other.m_418;
-        m_424 = other.m_424;
-        m_425 = other.m_425;
-        m_428 = other.m_428;
-    }
+    m_418 = other.m_418;
+    m_424 = other.m_424;
+    m_425 = other.m_425;
+    m_428 = other.m_428;
     return *this;
 }
 
@@ -276,6 +273,8 @@ void EquipmentParameterInfo::clear()
 }
 
 // ORIG 0x089c2e98：遍历查找 str 已存在的 key（无则 size()+1），m[key]=str 后返回 key。
+// 残差（3 条）：ORIG 4.1 对内层 if(b) 做块旋转（deref 后 jmp 岛 + b 复测回跳 L3），
+// 4.4 恒将 b 守卫前置于比较块，源形不可翻（同 N 族块排布）。
 int EquipmentParameterInfo::addString(std::string str)
 {
     int key = -1;
@@ -286,9 +285,9 @@ int EquipmentParameterInfo::addString(std::string str)
         std::map<int, std::string>::iterator e = m_descMap1c4.end();
         while (it != e && (b ^= 1))
         {
-            std::pair<const int, std::string>& p = *it;
             if (b)
             {
+                std::pair<const int, std::string>& p = *it;
                 if (p.second == str)
                 {
                     key = p.first;

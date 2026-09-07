@@ -42,6 +42,7 @@ void CDimensionActivationEvent::EndEvent()
 void CDimensionActivationEvent::StartEvent(Word_Param param)
 {
     // ORIG 0x080eeb4a：忽略参数，经 vtable+0x08 转调 StartEvent()。
+    // [N7 封顶] 虚调用 callee 寄存器 %edx(ORIG)↔%eax(4.4) 互换。
     (void)param;
     StartEvent();
 }
@@ -77,6 +78,8 @@ bool CDimensionActivationEvent::checkFreeRevivalCondition(int dungeonDiff)
     // m_dimensionAct.m_coinMap 中 find/end（可变 iterator，P96）；命中且 value
     // 的 +0x04 bool != true → 可免费复活（true），否则 false。分支布局照 ORIG
     // 两个独立条件直跳统一失败出口（P133），bool 返回单出口。
+    // [N82/P112 封顶] ORIG 槽序 it=-0x10(深) e=-0xc 与 4.4 相反；e 赋值形引入
+    // -0x1c 临时+op= 调用劣化，迭代器无默认构造不可延后初始化 ⇒ 槽互换 4 行封顶。
     std::map<int, DimensionCoinInfo>::iterator it = G_CDataManager()->m_dimensionAct.m_coinMap.find(dungeonDiff);
     std::map<int, DimensionCoinInfo>::iterator e = G_CDataManager()->m_dimensionAct.m_coinMap.end();
     if (it != e)

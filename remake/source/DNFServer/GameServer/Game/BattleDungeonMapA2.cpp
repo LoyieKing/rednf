@@ -549,6 +549,9 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
 // 按 CMap::get_map_type() 选择容器：0 → m_map1a4[idx]；2 → m_dummyMap4a4[idx]
 // 并置 m_624=1；其余 → m_dummyMap324[idx]。direction 位 1/2/4/8 各插入一条
 // pair(方向键, CMap*)。三段结构按 ORIG 原样展开。
+// N82 封顶（b26 Lane27）：347 条助记符序列全等、语义/调用点差集归零；残余
+// 102 行全为 4.1 不复用槽（各分支独立 key@-0xbc/-0xac/-0x9c…）vs 4.4 生命周期
+// 复用（-0x68/-0x60/-0x58…）+ call/jmp 目标显示差。ND82 槽策略跨版本不可翻。
 void CDungeon::InsertMap(int idx, int direction, CMap* map)
 {
     if (map->get_map_type() == 0)
@@ -628,6 +631,9 @@ void CDungeon::InsertMap(int idx, int direction, CMap* map)
 
 // ---- insertStart(int, CMap*) —— ORIG 0x0834be5a（insertStart.md 全文） ----
 // 以 CMap::get_index() 为键把起始地图插入 m_maplist[idx]（hash_map @+0x64）。
+// P112/N82 封顶：助记符全等，仅 key/value/insert-sret-dest 三槽分配位互换
+//（4.1 key@-0xc/value@-0x14/dest@-0x20 vs 4.4 -0x18/-0x20/-0x14）；嵌套实参形、
+// 具名接收 r 形均劣化（+5 条 N86），穷举后封顶。
 void CDungeon::insertStart(int idx, CMap* map)
 {
     std::multimap<int, CMap*>::value_type value(map->get_index(), map);

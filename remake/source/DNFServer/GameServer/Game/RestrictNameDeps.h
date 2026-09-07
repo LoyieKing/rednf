@@ -32,7 +32,7 @@ public:
     // importUnicodeRangeDataEPKcPSt6vectorISt4pairIiiESaIS5_EE @0x08ac2eca
 
     static std::vector<std::pair<int, int> > unicodeRangeDataList_;   // B 0x09501830
-    static char isLoaded_;                            // B 0x0950183c
+    static bool isLoaded_;                           // B 0x0950183c（bool 化：ORIG C1 xor$1/je 测试形 + mov %al 直存实证）
 };
 
 struct IsNoneUnicodeRange : public RestrictInputtingNameData

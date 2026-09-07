@@ -624,6 +624,8 @@ int SkillSlot::check_skill_mastered(int skillIdx, int level, int group,
     return 0;
 }
 
+/* P182/N82 封顶（b26 Lane27）：46 条指令全等，仅帧 0x38 vs 0x24（4.4 outgoing/
+ * slack 多 20B）连带 slot 槽平移（-0xc vs -0x4）；帧策略跨版本差。 */
 int SkillSlot::check_skill_mastered(_Mastered_skill* buf, int skillIdx,
                                     int level, int group) const
 {
@@ -775,7 +777,7 @@ int SkillSlot::get_skillslot_no(_Mastered_skill* buf, int skillIdx, int group,
     return -1;
 }
 
-int SkillSlot::checkComboSkillInsertQuickSlot(int skillIdx) const
+bool SkillSlot::checkComboSkillInsertQuickSlot(int skillIdx) const
 {
     if (m_parent == 0)
     {

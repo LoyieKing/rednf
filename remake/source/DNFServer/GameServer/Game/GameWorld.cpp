@@ -312,6 +312,10 @@ void GameWorld::InsertChannel(int gcNo, ENUM_SERVER_GROUP group)
 
 void GameWorld::DeleteChannel(int gcNo, ENUM_SERVER_GROUP group)
 {
+    // N82/P112 封顶：指令序/call 序/EH 清理段逐条全等（78/78），残差全为
+    // guard/buf/trace 槽序（4.1 声明正序 buf→guard→trace；4.4 实测声明逆序
+    // 分配，trace 构造时机不可前移，buf 提前声明已试无收益）。帧 0x40/0x30
+    // 同源。
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("world.cpp", 0x11bc),
                        true);
     **guard << 0x2f;
@@ -1415,21 +1419,15 @@ void GameWorld::send_to_vill(int vill, PacketGuard& packet)
     }
 }
 
-// ORIG CBelong 最小镜像（df_game_r send_group 0x86c93d…：vtable 槽0=IsBelong(CUser*)
-// 返回 char，`call *%edx; test %al,%al; je`）；与 Area.cpp:375 同口径（weak 符号跨 TU 合并）。
-class CBelong
-{
-public:
-    virtual char IsBelong(CUser* user) = 0;
-};
-
+// CBelong 唯一声明点=CSchoolMgr.h（b26 NL4 上移；ORIG send_group 0x86c93d 调
+// vtable 槽0，`call *%edx; test %al,%al; je`）。
 void GameWorld::send_group(PacketGuard& packet, CBelong* belong)
 {
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
          it != m_UserInWorld.end(); it++)
     {
         CUser* user = it->second;
-        if (user->get_state() > 2 && belong->IsBelong(user))
+        if (user->get_state() > 2 && belong->IsRight(user))
         {
             user->Send(packet);
         }
@@ -2887,6 +2885,10 @@ unsigned int GameWorld::WhenIsTheEndOfForbiddenMove(const char* name)
 
 unsigned int GameWorld::GetLeftTimeOfForbiddenChat(const char* name)
 {
+    // N89 封顶（与 IsForbiddenChat/IsForbiddenMove 同根因）：ORIG 4.1 对
+    // `std::string str(name)` 发 allocator 临时 SaIcEC1Ev/D1Ev call（槽
+    // -0x2d），4.4 判 trivial 省略 ⇒ str/it/end/trace 槽组连锁平移；指令数
+    // 147/147 与 call 序全等，槽组不可翻（显式 allocator 形 4.4 仍省略）。
     // ORIG 0x086ce73c：64-bit end/diff（有符号比较）；经 G_GameWorld() 调 WhenIsTheEnd
     if (name == 0)
     {
@@ -3137,6 +3139,9 @@ void GameWorld::ResetAllCoins()
 
 void GameWorld::ResetAllCleadpadPoint()
 {
+    // N82/P112 封顶：残差全为 it/end临时/ppEi/cMyTrace/user 槽排布跨版本差
+    //（ORIG it=-0x2c,trace=-0x20；4.4 it 族占低位、trace=-0x24），逐条指令
+    // 与调用序全等，槽号集不等；声明序/提前声明均已试，不可翻。
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
          it != m_UserInWorld.end(); it++)
     {

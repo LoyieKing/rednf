@@ -81,6 +81,9 @@ int DisJoint::_GetAdditionalItemInfo(int rarity)
 // ============================================================================
 void DisJoint::_GetAdditionalItem(const CItem* item, int& outIdx, int& outCount)
 {
+    // [b26N1] m_additionalWeight[rarity] 大偏移寻址：ORIG(4.1) 拆 add $0x150 进
+    // scaled idx + disp 0x10；4.4 恒折 add $0x154 单步（N1 族折叠方向不可翻），
+    // 其余全等，ndiff 12 封顶。
     outIdx = _GetAdditionalItemInfo(item->get_rarity());
     // ORIG 0x084732de `test %eax;setne %al;test %al;je`：outIdx!=0 物化为
     // register bool（P194 setne 形），非直接 if(outIdx!=0)（那会少 setne+test）。

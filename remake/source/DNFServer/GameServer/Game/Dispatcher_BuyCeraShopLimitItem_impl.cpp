@@ -52,8 +52,11 @@ int Dispatcher_BuyCeraShopLimitItem::_checkUserState(CUser* user) const
         return 0x13;
     if (user->CheckInTrade())
         return 0x13;
-    register bool isInInterval = (GlobalData::s_systemTime_.getCurSec()
-                                  - user->getLastItemLimitEditionBuyTime() < 0x1e);
+    // ORIG 0x0821f7b2 setle %al；4.4 默认物化到 %bl（探针 p7：X2 形
+    // register bool asm("al") 钉回 %al，逐条同形）。
+    register bool isInInterval asm("al") =
+        (GlobalData::s_systemTime_.getCurSec()
+         - user->getLastItemLimitEditionBuyTime() < 0x1e);
     return isInInterval ? 9 : 0;
 }
 

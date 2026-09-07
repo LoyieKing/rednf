@@ -23,7 +23,7 @@ namespace restrict_inputting_name
 {
 
 std::vector<std::pair<int, int> > RestrictInputtingNameData::unicodeRangeDataList_;
-char RestrictInputtingNameData::isLoaded_ = 0;
+bool RestrictInputtingNameData::isLoaded_ = false;
 
 // ORIG W 0x08ac2eca sz 0x29e 忠实转写（成员版；结构与 throw/catch/logFormat
 // 路径全保留）：外层 for(;;)：seek 循环丢 token 直至 "[allow unicode range]"；
@@ -84,9 +84,9 @@ RestrictInputtingNameData::RestrictInputtingNameData()
 {
     static const char* scriptPath =
         "etc\\RestrictNameUnicodeRangeTable.etc";  // .rodata 0x08e2e68c 实测
-    if (!isLoaded_)                                // ORIG movzbl+xor $1/test
+    if (!isLoaded_)                                // ORIG movzbl+xor$1/test/je
     {
-        isLoaded_ = (char)(unsigned char)this->importUnicodeRangeData(
+        isLoaded_ = this->importUnicodeRangeData(
             scriptPath, &unicodeRangeDataList_);
     }
 }
@@ -108,7 +108,8 @@ bool RestrictInputtingNameData::isInRange(wchar_t ch) const
 
 bool IsNoneUnicodeRange::operator()(wchar_t ch) const
 {
-    return !isInRange(ch);
+    bool notInRange = !isInRange(ch);
+    return notInRange;
 }
 
 // ORIG T 0x08ac2de4（isWideStrInUnicodeRange.md 全文）：
@@ -155,13 +156,14 @@ bool isUtf8StrInUnicodeRange(const char* str)
 // G_CDataManager()->hasSpecialCharacter / hasPreventString / hasPreventStringName 三连。
 bool checkValidCharacName(const char* name)
 {
-    if (G_CDataManager()->hasSpecialCharacter(name))
+    // ORIG 0x0820582b 实证：三检查任一命中 ⇒ 非法（返回 false）；全不命中 ⇒
+    // 名字有效（返回 true）。汇聚段 test/je 岸 = (A||B||C) 物化后 if 消费。
+    bool invalid = G_CDataManager()->hasSpecialCharacter(name) ||
+                   G_CDataManager()->hasPreventString(name) ||
+                   G_CDataManager()->hasPreventStringName(name);
+    if (invalid)
         return false;
-    if (G_CDataManager()->hasPreventString(name))
-        return false;
-    if (G_CDataManager()->hasPreventStringName(name))
-        return true;
-    return false;
+    return true;
 }
 
 // ORIG 函数无正常退出路径（外层 for(;;) 永不离开；正常返回仅经 catch→return false）。

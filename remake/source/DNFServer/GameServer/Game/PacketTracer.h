@@ -22,7 +22,7 @@ private:
     struct LogEntry
     {
         char m_flag; // +0x00（ORIG 存 %dl/%cl 低字节）
-        int m_value; // +0x04
+        unsigned int m_value; // +0x04（int→unsigned 异型化：N76 store 载入序可翻，NL7 判例；偏移/sizeof 不变）
     };               // 步长 8
 
     unsigned int m_tcpCount; // +0x00（ORIG %10 用无符号魔数除法）

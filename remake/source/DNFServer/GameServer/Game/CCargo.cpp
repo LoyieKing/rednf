@@ -101,6 +101,9 @@ bool CCargo::IsOperatorable(int idx) const
 
 Inven_Item* CCargo::GetCargoRef(int idx) const
 {
+    // ORIG 0x850b38c `sub $0x18`：dead pad 撑帧（技巧31）。
+    char framePad[0x10];
+    (void)framePad;
     if (!IsOperatorable(idx))
         return 0;
     return &m_pItems[idx];
@@ -108,6 +111,8 @@ Inven_Item* CCargo::GetCargoRef(int idx) const
 
 Inven_Item* CCargo::GetCargoRef(int idx)
 {
+    double framePad[2];              // ORIG sub $0x18：+0x10 帧撑（P190 double 对齐撑帧）
+    (void)&framePad[0];
     if (!IsOperatorable(idx))
         return 0;
     return &m_pItems[idx];
@@ -351,6 +356,8 @@ void CCargo::update_item(int idx, const Inven_Item& item)
 // ---- 查询 ----
 int CCargo::check_slot_empty(int idx) const
 {
+    char framePad[0x10];
+    (void)framePad;
     if (!IsOperatorable(idx))
         return 0;
     return m_pItems[idx].m_addInfo == 0 ? 1 : 0;
@@ -419,13 +426,18 @@ int CCargo::FindItemLock(unsigned char lock, ENUM_ITEMSPACE& space, int& slot) c
     return 0;
 }
 
-// ORIG 0x850c64c：m_capacity==0 时仍允许升级（仅当 m_capacity>capacity 才拒绝）。
+// ORIG 0x850c656：m_capacity==0 或 m_capacity>capacity 拒绝；仅 m_capacity<capacity
+// 升级（==拒绝）。ORIG 汇编 test/je→mov$0 + Ghidra C 双证，旧注释语义相反。
 int CCargo::UpgradeCargo(int capacity)
 {
-    if (m_capacity != 0 && m_capacity > capacity) return 0;
-    if (m_capacity >= capacity) return 0;
-    m_capacity = capacity;
-    return 1;
+    if (m_capacity == 0 || m_capacity > capacity)
+        return 0;
+    if (m_capacity < capacity)
+    {
+        m_capacity = capacity;
+        return 1;
+    }
+    return 0;
 }
 
 // ORIG 0x850c698：同上判定，capacity<=0x98 才可升。

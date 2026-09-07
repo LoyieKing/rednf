@@ -334,8 +334,7 @@ void PIAddServerHackCnt(CUser* user, WongWork::ENUM_HACKTYPE type, int count)
         CParty* party = static_cast<CParty*>(user->GetParty());
         if (party != 0)
         {
-            register bool skip = party->get_member_count() > 1;
-            if (skip)
+            if (party->get_member_count() > 1)
                 return;
         }
         }

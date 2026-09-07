@@ -37,6 +37,7 @@ void CFatigueAttendance::StartEvent()
 // （读取以 movswl 符号扩展，变参 %d 求值序 = ORIG esi/ebx）。
 void CFatigueAttendance::StartEvent(Word_Param param)
 {
+    // N7 封顶：唯一残差=虚调用 callee 寄存器互换（N7，探针 /tmp/l22p/vprobe*.cpp）。
     m_addInfo.m_info0 = param.m_duration;
     m_addInfo.m_info1 = param.m_field2;
     this->StartEvent();

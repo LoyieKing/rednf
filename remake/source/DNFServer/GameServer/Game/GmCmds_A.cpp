@@ -1045,6 +1045,8 @@ void CBillingRechargeCommand::parse()
 void CBillingRechargeCommand::execute()
 {
     CUser* user = GetUser();
+    // b26 NEAR 封顶:三处虚调用 vtable 项寄存器 ORIG %ecx vs 4.4 %eax(N7),
+    // 连锁实参/数据寄存器名互换,余逐条相等。
     // ORIG（P157 逐点重取形）：每个调用表达式独立重读 s_pIPGHelper → 取 vptr →
     // add 槽 → deref fn，随后再读一次 helper 作首实参；禁 vtable 缓存局部
     //（缓存少发 ORIG 的逐点 fetch 行且引入额外栈槽）。

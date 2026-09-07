@@ -56,7 +56,11 @@ public:
 class PlayerInfoSecond
 {
 public:
-    void reset();              // ORIG W 0x8568850
+    /* ORIG W 0x8568850（weak ⇒ 头内 inline 定义）。类内 inline 使 4.4 对
+     * TeamInfoSecond::reset 的调用按"外部 callee"帧策略分配（探针
+     * /tmp/p26_slot5.cpp probeI 实证帧 0x28/i=-0xc，与 ORIG 一致；
+     * 类外定义时 4.4 塌缩帧 0x14/i=-0x4，probeC2 实证）。 */
+    void reset() { m_user = 0; m_flag = 0; }
 
     /*+0x00*/ CUser*        m_user;
     /*+0x04*/ unsigned char m_flag;

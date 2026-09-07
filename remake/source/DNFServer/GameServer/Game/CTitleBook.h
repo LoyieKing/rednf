@@ -104,6 +104,10 @@ struct stTitleRewardBasis
         }
         m_data = 0;
     }
+    /* D1 残差 N7 封顶（b26 NL26）：唯一差异为 vfn 寄存器互换——ORIG
+     * `mov (%eax),%edx; call *%edx` vs 4.4 恒 `mov (%eax),%eax; call *%eax`
+     * （临时/引用/限定名均无效，负例表 N7；game_func_report CAchievement.cpp
+     * 实测仅剩此行差）。后续批次勿再耗轮次。 */
 
     int m_type;             // +0x00（change=0 / emotion=1 / postal=3 / 基类=4）
     unsigned char m_flag4;  // +0x04（C1 置 0）

@@ -12,7 +12,8 @@ class Packet_Request_Guild_Create : public PacketHeader {
 public:
     unsigned int m_charNo;      // +0xa
     char m_guildName[0x17];     // +0xe
-    char m_extra[0xc];          // +0x25
+    char m_extra[0xd];          // +0x25（ORIG packetSize 0x32 实证 @0x846fa60 C1；
+                                //   memset 0xd 恰全覆盖）
     Packet_Request_Guild_Create() : PacketHeader(0x43f, 0x32)
     {
     // 2026-08-16 修正：ORIG ctor（0x846fa60）先 memset +0x25(0xd) 再 memset

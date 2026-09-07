@@ -75,11 +75,8 @@ bool CPacketHelper::scan(unsigned char* dst, int count)
 
 // ---- stHeader --------------------------------------------------------------
 
-// ORIG 0x086941cc (sz 0x1b): magic=0xaa; length=0; cmd=0
-stHeader::stHeader()
-    : m_magic(0xaa), m_length(0), m_cmd(0)
-{
-}
+// stHeader::stHeader 定义已迁 CUser.cpp 尾部（unit-at-a-time outgoing 塌缩
+// 修复：本 TU 可见 callee 体使 stPacketC1 outgoing 塌缩 0x4，ORIG sub $0x18）。
 
 // ORIG 0x086941e8 (sz 0x22): m_length = htons(length);
 void stHeader::SetLength(unsigned short length)

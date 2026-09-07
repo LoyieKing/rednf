@@ -141,14 +141,13 @@ bool ItemVendingMachine::LoadPurcahseBonusScript()
 // （ORIG fistpl -0x1c）。栈槽序依 ORIG：weight(-0x24)/rate(-0x1c)/goods(-0xc)，
 // 4 个未用 dummy 撑出中间空隙（P31 帧差对齐）。+0x0c 读用 P1 组件视图折叠。
 struct VendingItemListView { char m_pad[0xc]; CItemList* m_list; };  // CDataManager+0x0c 视图
+// [b26-NL28] GetFinalProbability：删 4 个无 ORIG 证据的编造局部后帧 sub $0x38=ORIG；
+//   残差=rate/weight 槽位平移（4.1 把 FPU cw 临时夹在具名槽之间，4.4 恒置槽区尾部，
+//   N82 族源形不可消除），封顶。
 int ItemVendingMachine::GetFinalProbability(int goodsIdx)
 {
     float weight;
-    int x;
     int rate;
-    int y;
-    int z;
-    int w;
     CCeraShopGoods* goods;
     goods = reinterpret_cast<CCeraShopGoods*>(G_CDataManager()->FindGoods(goodsIdx));
     weight = goods->GetBonusWeight();

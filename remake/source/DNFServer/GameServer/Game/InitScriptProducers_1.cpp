@@ -850,6 +850,8 @@ void stStepRewardStackableItemScript::clear()
 // ORIG W 0x0891bd0e：find 命中则向既有 vector push_back，否则新建单元素 vector 插入。
 void stStepRewardStackableItemScript::set_data(int step, StackableItemData& data)
 {
+    // b26 N 封顶（P112 族槽序镜像，同 CUserDepsB get_data）：残差仅 find
+    // 迭代器槽与 end() 临时槽互换（ORIG -0x38/-0x34 vs 我们 -0x34/-0x38）。
     std::map<int, std::vector<StackableItemData> >::iterator it = m_map0.find(step);
     if (it == m_map0.end())
     {
@@ -863,11 +865,8 @@ void stStepRewardStackableItemScript::set_data(int step, StackableItemData& data
     }
 }
 // ---- StackableItemData（ORIG C1 0x0891bccc / clear 0x0891bce0，W）----
-void StackableItemData::clear()
-{
-    m_field0 = -1;   // +0x00 movl $0xffffffff
-    m_field4 = 0;    // +0x04
-}
+// clear() 定义在 CtorProducers_1.cpp（NL4 unit-at-a-time 塌缩机制：callee 同 TU
+// 可见时 4.4 将本 ctor outgoing 帧塌缩 sub $0x4，ORIG 0x86b4144 域族 sub $0x18）。
 
 StackableItemData::StackableItemData()
 {

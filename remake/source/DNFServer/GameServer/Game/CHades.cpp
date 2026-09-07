@@ -124,6 +124,9 @@ bool CHades::needLogin()
 {
     // ORIG 将缓存值保持在 callee-saved 寄存器（push %ebx）并经 setne/test 判定，
     // register 限定符诱导相同分配形态。
+    // b26 N 封顶（N22）：残差仅 cmp %eax,%ebx / setne %al / test %al vs
+    // cmp %ebx,%eax / setne %bl / test %bl——call 结果与缓存值比较方向 4.4
+    // 恒反，交换源码操作数（cached != f()）实测不可翻。
     register int cached = m_connSec;
     register bool differ =
         (GlobalData::s_hades_proxy->GetHadesSocketConnSec() != cached);

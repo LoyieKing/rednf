@@ -2,6 +2,8 @@
 // 新 TU：需在 source/cmake/game/CMakeLists.txt 登记（宿主收口）。
 #include "TutorialData.h"
 
+#include "GlobalScriptTutorial.h"   // GlobalScriptTutorial::getData（ORIG 同 TU 域 0x08ab5xxx-0x08ab9xxx；被调前置定义使 4.4 帧收窄为 sub $0x4，与 ORIG 0x08ab971e 一致）
+
 #include <cstddef>
 
 static_assert(sizeof(TutorialData) == 0x148,
@@ -60,6 +62,20 @@ void TutorialData::setDungeonIndex(unsigned int index)
 int TutorialData::getDungeonIndex()
 {
     return static_cast<int>(m_dungeonIndex);
+}
+
+// ORIG _ZN20GlobalScriptTutorial7getDataEi @0x08ab971e（报告 getData.md 已读）
+// 越界返回 0；m_data[index].getDungeonIndex()==0 返回 0，否则返回该元素地址。
+TutorialData* GlobalScriptTutorial::getData(int index)
+{
+    if (!(index < 11 && index >= 0))
+        return 0;
+    {
+        register bool isZero asm("al") = m_data[index].getDungeonIndex() == 0;
+        if (isZero)
+            return 0;
+        return &m_data[index];
+    }
 }
 
 // ---- 对话数据 ----------------------------------------------------------

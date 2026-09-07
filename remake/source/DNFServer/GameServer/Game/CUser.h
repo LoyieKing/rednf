@@ -819,7 +819,7 @@ public:
     int CheckSlotEmpty(int slot);
     int GetSpecificItemSlot(int itemIdx);
     int CheckStackLimit(int slot, int itemIdx, int count);
-    int CheckValidSlot(int slot) const;
+    bool CheckValidSlot(int slot) const;   // ORIG xor$1 直判链（NL3 实证，mangled 不变）
     int GetItemCount();
 
     // ---- 金钱 ----
@@ -1394,7 +1394,7 @@ public:
     void setCheckTime(long t);
     void setPassword(char* pwd);      // ORIG W 0x0828713a _ZN8Sanicova4CPad11setPasswordEPc（写 +0x00 0x24 串区）
     char m_pad3e[2];                // +0x3e..0x3f
-    int m_requestState40;           // +0x40（setRequestState/getRequestState/init）
+    ENUM_REQUEST_STATE m_requestState40;  // +0x40（setRequestState/getRequestState/init；b26 NL13 同型化翻案：ORIG 0x0822efcc this-先 store 实证）
     int m_cancelCnt44;              // +0x44（getCancelCnt/incCancelCnt/setCancelCnt）
     bool getAdvideChangePwd();              // W 0x08265302：读 +0x3c（movzbl 直返=bool 直返形）
     void setAdvideChangePwd(bool flag);     // W 0x084ebdb2：写 +0x3c

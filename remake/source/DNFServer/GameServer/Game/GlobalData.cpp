@@ -1297,6 +1297,7 @@ bool CaptchaGen::addFont(const char* font, int size)
     // m_faces.push_back(face)（vector<void*>）→ 返 true。
     // 原转写以 fopen/fclose/malloc/strcpy 假实现替代真 FT 序列（违 §4.1），已改为
     // 忠实 ORIG；face 错误码 slot 落 -0xc 与 `cmpl $0,slot; je 成功` 逐指令对应。
+    void* toPush;     // ORIG local_14 @ -0x10（声明提前占浅槽；赋值仍在尾部）
     void* face;       // ORIG local_18 @ -0x14（FT_New_Face 出参，未初始化）
     int err = FT_New_Face(m_library, font, 0, &face);   // ORIG local_10 @ -0xc
     if (err != 0)
@@ -1315,7 +1316,7 @@ bool CaptchaGen::addFont(const char* font, int size)
     }
     // ORIG +0x86..+0x8c：local_14 = local_18 显式拷贝（mov -0x14→-0x10）再
     // push_back(&local_14) —— 两槽结构经具名拷贝复现，避免 4.4 copy-elision 合一槽。
-    void* toPush = face;   // ORIG local_14 @ -0x10
+    toPush = face;         // ORIG local_14 @ -0x10
     m_faces.push_back(toPush);
     return true;
 }

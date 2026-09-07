@@ -1220,14 +1220,17 @@ int RegenerationROI::RegenVer_get_option_quantity(int lo, int hi)
         total += m_regenerator.m_vec30[i];
     }
 
+    /* ORIG 槽复用（/tmp/p26_reg.cpp probeV2 实证逐槽一致）：4.1 把 randInt
+     * 返回值 r 写回 total 槽（lifetime 不重叠）；独立具名 r 会让 4.4 多占
+     * 一槽、全帧槽号错位。 */
     unsigned long bound = (unsigned long)total;
-    int r = m_regeneratorPtr->randInt(bound);
+    total = m_regeneratorPtr->randInt(bound);
 
     int acc = 0;
     for (int i = lo - 1; i < hi; ++i)
     {
         acc += m_regenerator.m_vec30[i];
-        if (r <= acc)
+        if (total <= acc)
         {
             return i + 1;
         }

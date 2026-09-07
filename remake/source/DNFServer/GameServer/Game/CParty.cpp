@@ -4725,6 +4725,10 @@ bool CParty::IsCompleteCardSelectOfMembers(eClearRewardCardType_t type)
             {
                 return false;
             }
+            else
+            {
+                continue;   // ORIG +0x98 nop 块（4.1/4.4 continue 空块产物）
+            }
         }
     }
     return true;

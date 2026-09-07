@@ -793,10 +793,20 @@ struct SIG_SAVE_CHATTING_EMOTICON
     char m_pad[0x214];
 };
 
+// pack(1)：m_a@+0x0a/m_b@+0x0e 非对齐（dispatch 读序实证）。
+#pragma pack(push, 1)
 struct SIG_SAVE_CLIENT_HACK_LOG
 {
-    char m_pad[0x12];
+    // ORIG 写序具名化（ReqDBSaveHackInfo 0x080f8f62 / dispatch 读序
+    // W8LT_DBTask SIG_SAVE_CLIENT_HACK_LOG_VIEW 同布局佐证）。
+    unsigned int m_uid;          // +0x00
+    unsigned int m_type;         // +0x04
+    unsigned short m_cnt;        // +0x08
+    int m_a;                     // +0x0a
+    int m_b;                     // +0x0e
 };
+static_assert(sizeof(SIG_SAVE_CLIENT_HACK_LOG) == 0x12, "SIG_SAVE_CLIENT_HACK_LOG");
+#pragma pack(pop)
 
 struct SIG_SAVE_CONDITION_EVENT
 {

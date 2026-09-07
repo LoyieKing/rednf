@@ -16,6 +16,9 @@
 #include <stdio.h>
 #include <time.h>
 
+static const unsigned long MT_UPPER_MASK = 0x80000000UL;
+static const unsigned long MT_LOWER_MASK = 0x7fffffffUL;
+
 class CMTRand
 {
 public:
@@ -35,9 +38,12 @@ private:
     void initialize(unsigned long s);
     void reload();
 
-    unsigned long hiBit(const unsigned long& x) const;
-    unsigned long loBit(const unsigned long& x) const;
-    unsigned long loBits(const unsigned long& x) const;
+    // ORIG hiBit/loBit/loBits 均为 W 0x080cb97c/0x080cb98c/0x080cb99a =
+    // 类内 inline 定义（P147 口径）；类外定义致 mixBits outgoing 0x8 ≠
+    // ORIG 0x14（探针 p4/p5 实测类内 0x14 / 类外 0x8）。
+    unsigned long hiBit(const unsigned long& x) const { return x & MT_UPPER_MASK; }
+    unsigned long loBit(const unsigned long& x) const { return x & 1UL; }
+    unsigned long loBits(const unsigned long& x) const { return x & MT_LOWER_MASK; }
     unsigned long mixBits(const unsigned long& x,
                           const unsigned long& y) const;
     unsigned long twist(const unsigned long& a, const unsigned long& b,
@@ -52,8 +58,6 @@ private:
 static const int MT_N = 624;
 static const int MT_M = 397;
 static const unsigned long MT_MATRIX_A = 0x9908b0dfUL;
-static const unsigned long MT_UPPER_MASK = 0x80000000UL;
-static const unsigned long MT_LOWER_MASK = 0x7fffffffUL;
 
 CMTRand::CMTRand(const unsigned long& s)
 {
@@ -95,21 +99,6 @@ void CMTRand::reload()
 
     m_left = MT_N;
     m_next = m_mt;
-}
-
-unsigned long CMTRand::hiBit(const unsigned long& x) const
-{
-    return x & MT_UPPER_MASK;
-}
-
-unsigned long CMTRand::loBit(const unsigned long& x) const
-{
-    return x & 1UL;
-}
-
-unsigned long CMTRand::loBits(const unsigned long& x) const
-{
-    return x & MT_LOWER_MASK;
 }
 
 unsigned long CMTRand::mixBits(const unsigned long& x,

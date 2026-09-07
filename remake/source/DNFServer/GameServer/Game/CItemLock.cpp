@@ -450,6 +450,9 @@ int CItemLock::OnItemUnlockWaitTimeout(CUser* user)
 void CItemLock::PushItemLock(CUser* user, unsigned char lock,
                              stItemLockInfo* info)
 {
+    // [b26N82] 尾部 make_pair/pair 移动构造/insert 返回临时三者槽布局：
+    // ORIG tmp-0x14/value-0x20/ret-0x28 vs 4.4 tmp-0x28/value-0x14/ret-0x1c，
+    // 声明序/两段式/pad 均不可翻（N82 族），其余全等，ndiff 12 封顶。
     if (info->m_state == 0)
     {
         m_lockStack.push(lock);

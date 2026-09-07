@@ -19,15 +19,15 @@ public:
 
     static void SendSignal(int signal, void* data, int len);
 
-    void BreakJar(unsigned int a, unsigned int b, int c);
-    void Composition(unsigned int a, unsigned int b, int c);
-    void Decomposition(unsigned int a, unsigned int b, int c);
-    void UseCoin(unsigned int a, unsigned int b, int c);
-    void PvpPlay(unsigned int a, unsigned int b, int c, int d);
-    void RankResult(unsigned int a, unsigned int b, int c, int d, int e,
+    static void BreakJar(unsigned int a, unsigned int b, int c);      // ORIG 参数槽 a@0x8 起、无 this（static mangled 同形）
+    static void Composition(unsigned int a, unsigned int b, int c);
+    static void Decomposition(unsigned int a, unsigned int b, int c);
+    static void UseCoin(unsigned int a, unsigned int b, int c);
+    static void PvpPlay(unsigned int a, unsigned int b, int c, int d);
+    static void RankResult(unsigned int a, unsigned int b, int c, int d, int e,
                     int f, int g, GameResultType& result);
-    void DungeonClear(unsigned int a, unsigned int b, int c, int d, int e, int f);
-    void DungeonGiveUp(unsigned int a, unsigned int b, int c, int d, int e, int f);
+    static void DungeonClear(unsigned int a, unsigned int b, int c, int d, int e, int f);
+    static void DungeonGiveUp(unsigned int a, unsigned int b, int c, int d, int e, int f);
     static void DungeonFail(int dungeonIdx);   // ORIG 调用点无 this（CParty::giveup_game 0x85b2d1c 仅压 1 参）→ 静态成员
     static void UseShusiaService(int value);   // ORIG 调用点无 this（serviceOfShusia@0x8657ac8 仅压 1 参）→ 静态成员
     static void PVPPlay2(int a, int b, int c);

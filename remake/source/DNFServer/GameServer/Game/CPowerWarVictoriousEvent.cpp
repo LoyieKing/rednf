@@ -26,6 +26,7 @@ CPowerWarVictoriousEvent::~CPowerWarVictoriousEvent()
 // （时长 = m_victoriousRewardTime × 0x3c 分钟）并打日志。
 void CPowerWarVictoriousEvent::StartEvent()
 {
+    // [N7 封顶] IsEventing 虚调用 callee 寄存器 %edx(ORIG)↔%eax(4.4) 互换。
     if (!IsEventing(0))
     {
         SetEventFlag(true);
@@ -42,6 +43,8 @@ void CPowerWarVictoriousEvent::StartEvent()
 // ORIG 0x08268a68：同 StartEvent()（ORIG 未写 m_param）。
 void CPowerWarVictoriousEvent::StartEvent(Word_Param param)
 {
+    // [N7 封顶] ORIG 虚调用 funcptr→%edx、this→%eax；4.4 恒 funcptr→%eax
+    // （探针 /tmp/nl24p p1/p2 三源形全败），寄存器名差封顶。
     if (!IsEventing(0))
     {
         SetEventFlag(true);
@@ -58,6 +61,7 @@ void CPowerWarVictoriousEvent::StartEvent(Word_Param param)
 // ORIG 0x08268b4a：IsEventing(0) 为真时清事件标志、清零 m_param（movw×2）并打日志。
 void CPowerWarVictoriousEvent::EndEvent()
 {
+    // [N7 封顶] IsEventing 虚调用 callee 寄存器 %edx(ORIG)↔%eax(4.4) 互换。
     if (IsEventing(0))
     {
         SetEventFlag(false);

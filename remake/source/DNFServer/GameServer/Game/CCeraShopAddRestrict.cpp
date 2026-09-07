@@ -334,6 +334,9 @@ int Manager::CheckBuyableProduct(CUser* user, unsigned int ipgNo,
 void Manager::UpdateBuyableRestrictItem(CUser* user, unsigned int ipgNo,
                                         unsigned int itemIdx)
 {
+    // [b26L17 判词 N82] data(DBInputData 0x10)槽基：ORIG -0x10 vs 4.4 -0x18
+    //   （4.4 恒 -(sizeof+8)；packed/普通对齐探针同形，4.1 例外不可翻），
+    //   38/38 助记符全等。
     if (!ARAD::Singleton<Manager>::Get()->FindIpgNo(ipgNo))
         return;
     DBInputData data;

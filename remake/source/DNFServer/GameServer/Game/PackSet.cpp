@@ -217,7 +217,7 @@ static pack_ret_t _fread_str(std::string& dst, FILE* fp)
     {
         return PACK_ERROR;
     }
-    char buf[256];
+    char buf[256] __attribute__((aligned(8)));   // ORIG 槽 -0x110（8 对齐放置；aligned(4)/(8)/(16) 探针实测仅 8 命中 0x8ac37f5）
     fread(buf, len, 1, fp);
     buf[len] = '\0';
     dst = toTString(buf);
@@ -233,7 +233,7 @@ static pack_ret_t _mread_str(std::string& dst, unsigned char*& mem)
     {
         return PACK_ERROR;
     }
-    char buf[256];
+    char buf[256] __attribute__((aligned(8)));   // 同 _fread_str（ORIG 槽 -0x110 @0x8ac3882）
     memcpy(buf, mem, len);
     mem += len;
     buf[len] = '\0';

@@ -71,7 +71,7 @@ struct stQuestTargetCharacter_t
                m_secondGrow == o.m_secondGrow;
     }
 
-    int m_job;        // +0x00
+    ENUM_CHARACTERJOB m_job;  // +0x00（ORIG C1 store 展开序 this 先 ⇒ 字段与形参同型，非 int）
     int m_firstGrow;  // +0x04
     int m_secondGrow; // +0x08
 };

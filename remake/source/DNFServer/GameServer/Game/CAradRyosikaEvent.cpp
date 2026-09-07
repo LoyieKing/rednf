@@ -40,6 +40,7 @@ void CAradRyosikaEvent::StartEvent()
 //   m_field10 = param.m_field2，然后经 vptr+8 虚调 StartEvent()。
 void CAradRyosikaEvent::StartEvent(Word_Param param)
 {
+    // N7 封顶：唯一残差=虚调用 callee 寄存器互换（N7，探针 /tmp/l22p/vprobe*.cpp）。
     m_field0c = param.m_duration;
     m_field10 = param.m_field2;
     StartEvent();

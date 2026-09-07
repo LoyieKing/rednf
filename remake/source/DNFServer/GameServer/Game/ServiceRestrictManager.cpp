@@ -159,6 +159,8 @@ bool AuthMobileRestrictPolicy::isApply(int param)                   // ORIG 0816
 
 void AuthMobileRestrictPolicy::printRestrict()                      // ORIG 0816d866
 {
+    // [b26N82] cMyTrace 槽分配方向跨版本相反（同 SecurityRestrictPolicy 判词），
+    // ndiff 12 封顶。
     unsigned int i;
     cMyTrace trace1(__PRETTY_FUNCTION__, 0x8d, 9, true, true);
     trace1("\tMobile Auth Begin");
@@ -236,6 +238,8 @@ bool CreateCharacterRestrictPolicy::isApply(int param)              // ORIG 0816
 
 void CreateCharacterRestrictPolicy::printRestrict()                 // ORIG 0816df6c
 {
+    // [b26N82] cMyTrace 槽分配方向跨版本相反（同 SecurityRestrictPolicy 判词），
+    // ndiff 12 封顶。
     cMyTrace trace1(__PRETTY_FUNCTION__, 0x125, 9, true, true);
     trace1("\tCreate Character Begin");
     for (unsigned int i = 0; i < m_svc.size(); ++i)

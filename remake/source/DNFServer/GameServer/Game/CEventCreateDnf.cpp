@@ -27,11 +27,6 @@ void CEventCreateDnf::setState(State::T state)
     m_state = state;
 }
 
-int CEventCreateDnf::GetState()
-{
-    return static_cast<int>(m_state);
-}
-
 unsigned short CEventCreateDnf::GetRate()
 {
     return m_rate;

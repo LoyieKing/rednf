@@ -1020,16 +1020,16 @@ bool CUser::CheckMoney(int money)
 {
     // ORIG 0x866af2f/0x866af3c：accName→%esi、level→%ebx 跨 call 缓存（push esi/ebx
     // 帧 0x20）；limit@-0x10、curMoney@-0xc；尾 `cmp -0x10,%eax; jg F; mov $1; jmp;
-    // F: mov $0` 直分支岛（技巧 23 goto 钉序，<=+setle 折叠反形）。
+    // F: mov $0` 直分支岛。4.4 goto-RET0 形在 label 前恒插 1 字节 nop 填充（探针
+    // nl11_probe1/2 实证），if/else return 形无 nop（仅 cmp 操作数序 4.4 恒折反向）。
     register const char* accName asm("esi") = get_acc_name();
     register int level asm("ebx") = get_charac_level();
     int limit = G_CDataManager()->GetMoneyLimitPerLevel(level, accName);
     int curMoney = getCurCharacMoney();
-    if (curMoney + money > limit)
-        goto RET0;
-    return true;
-RET0:
-    return false;
+    if (curMoney + money <= limit)
+        return true;
+    else
+        return false;
 }
 
 int CUser::getDungeonIdxAfterClear()
@@ -1852,6 +1852,9 @@ void CUser::AddDBLogItem(unsigned int itemIdx, unsigned int type,
     // 槽序实证（2026-09-05 CUserC8 修正前批方向）：ORIG info=-0x14（近，5 处
     // lea -0x14）/it=-0x20（远）——4.4 后声明占近槽（技巧 21 正用）：info 声明
     // 置于 for-init 之后。
+    // 残差 N82/P112 族：4.1 it=-0x14/info=-0x20 vs 4.4 it=-0x20/info=-0x1c，
+    // begin() sret 槽分配跨版本恒差；dead 前置/后置只整体平移不换相对序
+    // （nl11_probe6 实证），源形不可复现。
     for (std::vector<_DBLogItemInfo>::iterator it = m_dbLogItems.begin();
          it != m_dbLogItems.end(); it++)
     {
@@ -5219,6 +5222,9 @@ void CUser::SetMileage(int mileage)
 // ORIG _ZN5CUser12AddMoneyPlusEi T 0x0868f266：当日滚窗 m_money[0]+=value，m_money[2]=now。
 void CUser::AddMoneyPlus(int value)
 {
+    // 残差 N81 附注族（4.4 恒形）：尾句 `+=` 的 load 4.4 恒 eax 中转+mov 转发+
+    // add mem 直加（ORIG 4.1 mem→ecx 直载+value→eax+add eax,ecx）。穷举 +=/自加
+    // 表达式/操作数交换/引用局部/寄存器复刻（nl11_probe4/5/7）均不可翻。
     if (exceptedStateMoneyLog())
     {
         return;
@@ -5232,6 +5238,7 @@ void CUser::AddMoneyPlus(int value)
 // ORIG _ZN5CUser13AddMoneyMinusEi T 0x0868f310：当日滚窗 m_money[1]+=value，m_money[2]=now。
 void CUser::AddMoneyMinus(int value)
 {
+    // 残差 N81 附注族，同 AddMoneyPlus（load 中转寄存器 4.4 恒 eax）。
     if (exceptedStateMoneyLog())
     {
         return;
@@ -6703,6 +6710,9 @@ void CUser::ReCalcChattingEmoticon()
 // +4 到期秒；到期则压 (space,0)。
 void CUser::ResetItemByScript(std::vector<std::pair<int, int> >& list)
 {
+    // 残差 P75/N80 族（跨版本实参装载中转寄存器差）：两处 operator[](i) 的
+    // 实参 i 装载 ORIG 4.1 经 %edx 中转入 0x4(%esp)，4.4 恒 %eax。求值序/槽位/
+    // 调用全同，仅中转寄存器名差，源形不可复现。
     std::vector<stResetItemInfo::ResetItem>* items =
         G_CDataManager()->GetResetItemInfo();
     int now = GlobalData::s_systemTime_.getCurSec();
@@ -12481,7 +12491,48 @@ void CUser::UpdateCurCharacVisibleToCharacViewMemory()
                 const short* expansion = static_cast<const short*>(info);
                 vis.m_field4 = expansion[0];
                 vis.m_field6 = expansion[1];
-            }
         }
     }
+            }
+
+
+
+}
+// ---- CPacketTimeChecker（ORIG W 0x8696d5c reset / 0x8696d74 check）----
+// 定义置于本 TU（与 W7_UserOnlyC.cpp 中 CPacketVerifier::Init 调用者分离）：
+// 4.4 unit-at-a-time 对 TU 内可见 callee 塌缩 outgoing 帧（sub $0x4），
+// ORIG 4.1 恒发 sub $0x18（探针 /tmp/nl4p/p6.cpp vs p7.cpp 同族实证）。
+void CPacketTimeChecker::reset()
+{
+    m_lastTime = 0;
+    m_count = 0;
+}
+
+bool CPacketTimeChecker::check()
+{
+    ++m_count;
+    long now = time(0);
+    // P59 极性：ORIG jge→后置赋值块，fall-through 为节流判断块。
+    if (now - m_lastTime < validSecond_)
+    {
+        if (m_count > validCount_)
+            return false;
+    }
+    else
+    {
+        m_lastTime = now;
+        m_count = 0;
+    }
+    return true;
+}
+
+// ============================================================================
+// nexon_packet::stHeader::stHeader（ORIG 0x086941cc W，magic=0xaa; length=0;
+// cmd=0）。定义原在 nexon_packet.cpp，迁入本 TU（stPacketC1 的 callee）——
+// stPacketC1 所在 TU 不再含 callee 定义体 ⇒ 4.4 unit-at-a-time 不塌缩 outgoing
+// 帧，保持 ORIG sub $0x18（NL4/NL3 unit-at-a-time 实证）。
+// ============================================================================
+nexon_packet::stHeader::stHeader()
+    : m_magic(0xaa), m_length(0), m_cmd(0)
+{
 }

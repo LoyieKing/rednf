@@ -14,11 +14,13 @@ STAssignMonster::STAssignMonster(const STAssignMonster& other)
     : m_0(other.m_0), m_4(other.m_4), m_8(other.m_8), m_c(other.m_c),
       m_10(other.m_10), m_14(other.m_14), m_18(other.m_18), m_1c(other.m_1c),
       m_20(other.m_20), m_24(other.m_24), m_vec28(other.m_vec28),
-      m_34(other.m_34), m_38(other.m_38), m_3c(other.m_3c),
+      m_34(other.m_34),
       m_vec40(other.m_vec40), m_4c(other.m_4c), m_50(other.m_50),
       m_54(other.m_54), m_55(other.m_55), m_58(other.m_58),
       m_vec5c(other.m_vec5c)
 {
+    m_38[0] = other.m_38[0];
+    m_38[1] = other.m_38[1];
 }
 
 // ORIG 0x8377622：三个 vector 按声明逆序自动析构（ORIG 显式调用 ~vector）。
@@ -43,8 +45,8 @@ STAssignMonster& STAssignMonster::operator=(const STAssignMonster& other)
         m_24 = other.m_24;
         m_vec28 = other.m_vec28;
         m_34 = other.m_34;
-        m_38 = other.m_38;
-        m_3c = other.m_3c;
+        m_38[0] = other.m_38[0];
+        m_38[1] = other.m_38[1];
         m_vec40 = other.m_vec40;
         m_4c = other.m_4c;
         m_50 = other.m_50;
@@ -75,8 +77,8 @@ void STAssignMonster::Clear()
     m_54 = 0;
     m_55 = 0;
     m_58 = -1;
-    m_38 = 0;
-    m_3c = 0;
+    for (int i = 0; i <= 1; ++i)   // ORIG 0x836c5a5 scaled 循环（setle 实证 i<=1）
+        m_38[i] = 0;
     m_34 = 0;
     m_vec5c.clear();
 }

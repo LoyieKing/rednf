@@ -1309,6 +1309,8 @@ void _Additioal_info::subtract(const _Additioal_info& other)
 //   无引用返回（ORIG 函数尾未装载 this 到 eax）。
 void _Additioal_info::operator+=(const _Additioal_info& other)
 {
+    // [N] 转发 add：ORIG sub $0x18 vs 4.4 sub $0x8——4.1 outgoing 区恒多预留
+    // 0x14，跨版本帧豁免（ndiff 2 封顶）。
     add(other);
 }
 

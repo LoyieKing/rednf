@@ -40,7 +40,7 @@ namespace SCRIPT
 //   +0x08 m_endTime    生效结束时间（不含）
 struct SEventPeriodData
 {
-    unsigned int m_eventCode;
+    int m_eventCode;    // ORIG C1Eijj 首参 int；op== 0x088b4388 cmp 无无符号判别（b26 NL10）
     unsigned int m_beginTime;
     unsigned int m_endTime;
     // ORIG W 0x088b4368：C1(i,j,j) 三字段直存。【objdump】

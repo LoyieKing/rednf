@@ -13,6 +13,8 @@ Uncopyable::~Uncopyable() {}
 static void YieldProcessor() {}
 
 // ---- SpinLock ----
+// C1/D1 残差为 outgoing-args reserve 跨版本尺寸差（ORIG sub $0x18 vs 4.4 $0x4，
+// 指令序列全等），N 封顶。
 SpinLock::SpinLock() : Uncopyable() { m_lock = 0; }
 SpinLock::~SpinLock() {}
 

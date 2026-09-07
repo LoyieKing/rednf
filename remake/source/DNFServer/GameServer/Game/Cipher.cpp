@@ -50,6 +50,7 @@ int ICryptoGraph::GetApiType() const
 Cipher::Cipher()
     : m_totalKeyLength(0)
 {
+    // [N7 封顶] push_back 元素 GetKeySize() 虚调用 callee 寄存器 %edx(ORIG)↔%eax(4.4)。
     m_graphs.reserve(CRYPTO_GRAPH_MAX);
     for (int i = 0; i < CRYPTO_GRAPH_MAX; ++i)
     {
@@ -116,6 +117,8 @@ void Cipher::AdjustDataSize(int key, int* size) const
 int Cipher::Encrypt(int key, const unsigned char* src, int srcLen,
                     unsigned char* dst, int* dstLen)
 {
+    // [N7 封顶] m_graphs[type]->Encrypt 虚调用：ORIG funcptr→%ecx/实参链→%edx，
+    // 4.4 互换（funcptr→%edx/实参→%ecx），寄存器分配跨版本差。
     if (srcLen < 1)
     {
         *dstLen = 0;
@@ -138,6 +141,7 @@ int Cipher::Encrypt(int key, const unsigned char* src, int srcLen,
 int Cipher::Decrypt(int key, const unsigned char* src, int srcLen,
                     unsigned char* dst, int* dstLen)
 {
+    // [N7 封顶] 同 Encrypt：m_graphs[type]->Decrypt 虚调用寄存器互换。
     if (srcLen < 1)
     {
         *dstLen = 0;

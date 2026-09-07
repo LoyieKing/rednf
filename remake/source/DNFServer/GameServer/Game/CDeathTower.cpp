@@ -1999,8 +1999,6 @@ bool CDeathTower::CStage::peekItem(int idx, map_item& item)
     // 转换（0x8152fa2 两次 call）⇒ 源以 const_iterator 具名持有。
     std::map<int, map_item>::const_iterator it = m_mapInfo.m_itemMap.find(idx);
     std::map<int, map_item>::const_iterator itEnd = m_mapInfo.m_itemMap.end();
-    unsigned int gapPad;  // 范式31：4B dead pad（槽深对齐尝试；4.1/4.4 temp 槽序相反为残余差）
-    (void)gapPad;
     if (it == itEnd)
     {
         return false;
@@ -2353,8 +2351,6 @@ bool CDeathTower::CStage::pickupItem(int idx, map_item& item)
     // 转换 ⇒ const_iterator 具名；erase@0x8152c18 arg=&idx（key 版）。
     std::map<int, map_item>::const_iterator it = m_mapInfo.m_itemMap.find(idx);
     std::map<int, map_item>::const_iterator itEnd = m_mapInfo.m_itemMap.end();
-    unsigned int gapPad;  // 范式31：4B pad（对齐 peekItem 同法）
-    (void)gapPad;
     if (it == itEnd)
     {
         return false;

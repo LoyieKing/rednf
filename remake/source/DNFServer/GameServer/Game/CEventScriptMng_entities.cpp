@@ -70,6 +70,8 @@ void CLevelUpReward::do_action(CUser* user)
  void CLevelUpReward::set_event_data(int key, InGameEventScript* script)
 {
     // ORIG 0x810e168：call vtable+0x18（set_event_record_type(key)），再写 +0x1c。
+    /* N7 封顶（b26 NL26）：唯一残差为虚调用 vfn/this/key 寄存器分配差
+     * （ORIG vfn=ecx,this=eax vs 4.4 vfn=eax,this=edx），负例表 N7。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -182,6 +184,7 @@ std::string& CUsedFatigueGiveItem::get_db_table_name()
 void CUsedFatigueGiveItem::set_event_data(int key, InGameEventScript* script)
 {
     // ORIG 0x81105be。
+    /* N7 封顶（b26 NL26）：同 CLevelUpReward::set_event_data 判词。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -262,6 +265,7 @@ bool CAttendance::is_eventing()
 void CAttendance::set_event_data(int key, InGameEventScript* script)
 {
     // ORIG 0x810eadc。
+    /* N7 封顶（b26 NL26）：同 CLevelUpReward::set_event_data 判词。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -386,6 +390,7 @@ bool CPcRoomPlayTime::is_eventing()
 void CPcRoomPlayTime::set_event_data(int key, InGameEventScript* script)
 {
     // ORIG 0x8110872。
+    /* N7 封顶（b26 NL26）：同 CLevelUpReward::set_event_data 判词。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -422,6 +427,7 @@ CAccountFirstLogin::CAccountFirstLogin()
 void CAccountFirstLogin::set_event_data(int key, InGameEventScript* script)
 {
     // ORIG 0x810deda。
+    /* N7 封顶（b26 NL26）：同 CLevelUpReward::set_event_data 判词。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -474,6 +480,7 @@ void CAccountFirstLogin::do_action(int flags, CUser* user, std::bitset<32u> /*bs
 void CAddItemCountDB::set_event_data(int key, InGameEventScript* script)
 {
     // ORIG 0x810e064。
+    /* N7 封顶（b26 NL26）：同 CLevelUpReward::set_event_data 判词。 */
     set_event_record_type(key);
     m_script1c = script;
 }

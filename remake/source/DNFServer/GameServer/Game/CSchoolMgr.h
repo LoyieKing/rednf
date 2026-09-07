@@ -17,6 +17,26 @@
 class CUser;
 
 // ---------------------------------------------------------------------------
+// CBelong（send_group 归属对象抽象基类）与 CSchoolMember
+// （CBelong(+0 vptr) + CUser*，sizeof 8；IsRight 覆写纯虚。0x085690b6 W）
+// ---------------------------------------------------------------------------
+class CBelong
+{
+public:
+    CBelong();
+    virtual bool IsRight(CUser* user) = 0;
+};
+
+class CSchoolMember : public CBelong
+{
+public:
+    CSchoolMember(CUser* user);             // 0x085690b6 W
+    virtual bool IsRight(CUser* user);      // 0x085690dc W
+
+    CUser* m_user;   // +0x04
+};
+
+// ---------------------------------------------------------------------------
 // CSchoolArea（学院分区：area 号映射 + 空闲区号栈）
 // ---------------------------------------------------------------------------
 class CSchoolArea

@@ -1903,6 +1903,9 @@ int DES3_KeySchedule(unsigned char* key, unsigned long keyLen,
 // ORIG 0x080adf6c / 0x080adfbc：EDE 三块顺序调用
 void DES3_Encrypt(void* rkArea, unsigned char* block)
 {
+    // [b26N帧] ORIG(4.1) 同 TU callee outgoing 策略帧 0x28/rk@-0xc；4.4 同 TU
+    // 定义使 outgoing 塌缩帧 0x18/rk@-0x4（探针 des3p3/p4 实证，源形不可翻）。
+    // DES/3DES 算法类按 §6 只保算法正确，豁免。
     unsigned char* rk = (unsigned char*)rkArea;
     DES_Encrypt(rk, block);
     DES_Decrypt(rk + 0x80, block);
@@ -1911,6 +1914,7 @@ void DES3_Encrypt(void* rkArea, unsigned char* block)
 
 void DES3_Decrypt(void* rkArea, unsigned char* block)
 {
+    // [b26N帧] 同 DES3_Encrypt：outgoing 帧 0x28 vs 0x18 跨版本差，豁免。
     unsigned char* rk = (unsigned char*)rkArea;
     DES_Decrypt(rk + 0x100, block);   // D(K3)
     DES_Encrypt(rk + 0x80, block);    // E(K2)

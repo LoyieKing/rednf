@@ -1089,6 +1089,9 @@ int DB_LoadInventory::_getCharacInvenExpand(SIG_LOAD_INVENTORY* sig) const
 // TAG_CHARAC_INVEN_DATA+0x262（cap 0x2dc，记录 0x3d）。错误行号 0x23e2/0x23e8/
 // 0x23f1。
 // ============================================================================
+    // N(新候选)封顶：三个兄弟 if 块内 cMyTrace 槽深分配方向跨版本相反
+    // （4.1 先声明者深：ORIG tt1 -0x44/tt2 -0x34/tt3 -0x24；4.4 反向：
+    // 我方 tt1 -0x24/tt3 -0x44）。探针 /tmp/l22p/scope_probe.cpp 两形不可翻。
 bool DB_LoadInventory::_GetTagCharacInven(unsigned int characNo,
                                           TAG_CHARAC_INVEN_DATA* out)
 {

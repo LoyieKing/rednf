@@ -257,7 +257,7 @@ public:
                              int group) const;
     int check_skill_list(int job, std::vector<std::pair<int, int> > list,
                          int level) const;
-    int checkComboSkillInsertQuickSlot(int skillIdx) const;
+    bool checkComboSkillInsertQuickSlot(int skillIdx) const;
     bool checkMoveComboSkillSlot(unsigned char slot1, unsigned char slot2);
     void calcReturnSpSfpPerOneSkill(int& sp, int& sfp, int level,
                                     const _Mastered_skill* buf, int slot,

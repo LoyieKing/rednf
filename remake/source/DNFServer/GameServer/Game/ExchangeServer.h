@@ -83,8 +83,9 @@ public:
     void Disconnect();                   // ORIG 0x84908f2
 
 private:
-    unsigned int m_triggerEventType;     // +0x851a0
-    unsigned int m_channelNo;            // +0x851a4
+    int m_triggerEventType;              // +0x851a0（int：形参 Ei 同型直赋，
+                                         // 4.4 无转换赋值 LHS 先=ORIG 实证）
+    int m_channelNo;                     // +0x851a4（同上）
 };
 
 // ---------------------------------------------------------------------------
@@ -222,7 +223,8 @@ private:
     unsigned int m_resetTime3c;          // +0x3c（Reset 置 time(0)）
     ExchangeServerInfo m_localInfo;      // +0x40
     std::map<int, ExchangeServerInfo> m_serverMap;   // +0x50（sizeof 0x18）
-    int m_serverType68;                  // +0x68
+    EXCHANGE_SERVER_TYPE m_serverType68;  // +0x68（枚举字段：SetServerType 枚举
+                                          // 直赋无转换=ORIG LHS 先实证；宽度同 int）
     StaticPool<CSession, 300> m_sessionPool;          // +0x6c
 };
 

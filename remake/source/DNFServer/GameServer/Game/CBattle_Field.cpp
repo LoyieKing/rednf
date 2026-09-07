@@ -341,14 +341,6 @@ int CBattle_Field::getBloodState()
     return m_bloodState2;
 }
 
-char* CBattle_Field::GetEnableHellDungeon()
-{
-    // ORIG 0822cf26：mov $0x93701ec,%eax; ret（POD 无 guard 的函数局部
-    // static，V 符号 _ZZN13CBattle_Field20GetEnableHellDungeonEvE19enable_hell_dungeon）。
-    static char enable_hell_dungeon;
-    return &enable_hell_dungeon;
-}
-
 void CBattle_Field::SetEnableHellDungeon(bool flag)
 {
     char* p = GetEnableHellDungeon();
@@ -440,9 +432,9 @@ MapInfo* CBattle_Field::getLayeredMapInfoIndex(int idx)
     }
 
     MapInfo info;
-    key = getLayeredMapKeyValue(idx);
-    m_mapInfo.insert(std::make_pair(key, info));
-    it = m_mapInfo.find(key);
+    int key2 = getLayeredMapKeyValue(idx);
+    m_mapInfo.insert(std::make_pair(key2, info));
+    it = m_mapInfo.find(key2);
     return &it->second;
 }
 

@@ -58,10 +58,12 @@ void CAccountCargo::Clear()
 
 void CAccountCargo::ResetSlot(int slot)
 {
-    // X1 形（XOR_FAMILY.tsv，probe 实证）：被调 `CheckValidSlot` 返回 int，
-    // 4.4 对 `if (intcall())` 恒产两段 `test %eax,%eax; setne %al; test`；
-    // ORIG 是单段 `call; xor $0x1,%eax; test %al,%al; jne end; body`。
-    // 绑 %eax 的具名 unsigned char + 显式 `^= 1` + `if (!v)` 可精确复现（形 B）。
+    // X1 形（XOR_FAMILY.tsv，probe 实证）：ORIG 为 `xor $1; test %al,%al;
+    // jne end; body: … ; jmp end`（body 后显式 jmp 尾岛）；裸形 4.4 产 je 直跳
+    // body 无尾 jmp（ResetSlot ndiff 回退实证）——保持 X1 register 形。
+    // N 封顶：ORIG 尾部 `call reset; jmp end; nop` 为 4.1 保留尾 jmp 岛（负例表
+    // 「空 else nop;jmp 岛 vs jump-threading」）；4.4 对紧邻出口恒折叠，探针
+    // /tmp/probeD.cpp 显式 goto 也被折叠，语义等价封顶。
     register unsigned char v asm("eax") = (unsigned char)CheckValidSlot(slot);
     v ^= 1;
     if (!v)
@@ -94,11 +96,11 @@ char CAccountCargo::IsAlter()
 }
 
 // ---- 槽位访问 ----
-int CAccountCargo::CheckValidSlot(int slot) const
+bool CAccountCargo::CheckValidSlot(int slot) const
 {
     if (slot < 0 || (int)m_capacity <= slot || 0x37 < slot)
-        return 0;
-    return 1;
+        return false;
+    return true;
 }
 
 Inven_Item CAccountCargo::GetSlot(int slot)
@@ -114,22 +116,17 @@ Inven_Item CAccountCargo::GetSlot(int slot)
 
 Inven_Item* CAccountCargo::GetSlotRef(int slot)
 {
-    // 技巧 31：ORIG 帧 `sub $0x18,%esp`（4.1 为 call outgoing 区 + 对齐保守分配），
-    // 4.4 只给 0x8 ⇒ 用 4 个 dead int 局部精确撑满 16B。
+    // 技巧 31：ORIG 帧 sub $0x18，4.4 裸形只给 0x8 ⇒ 4 个 dead int 撑满 16B
+    //（无指令，仅占槽）。
     unsigned int g0, g1, g2, g3;
-    register unsigned char v asm("eax") = (unsigned char)CheckValidSlot(slot);
-    v ^= 1;
-    // X1 + 落点岛（技巧 24）：ORIG `xor $1; test %al,%al; je BODY;
-    // mov $0x0,%eax; jmp end; BODY: movb $0x1,0xd64(%eax); …`
-    // ⇒ **return 0 走 fall-through，命中路径跳走**。
-    if (!v) goto BODY;
-    return 0;
-BODY:
     (void)g0; (void)g1; (void)g2; (void)g3;
-    {
-        m_alter = 1;
-        return &m_slots[slot];
-    }
+    // P168a ① 裸形（CheckValidSlot 返回 bool）：`if(!call()) return 0;`
+    // 4.4 直产 `call; xor$1; test %al,%al; je BODY; mov $0x0,%eax; jmp end; BODY: …`
+    // 与 ORIG 逐条同形（探针 /tmp/probeB.cpp ka 实证，无 nop 残差）。
+    if (!CheckValidSlot(slot))
+        return 0;
+    m_alter = 1;
+    return &m_slots[slot];
 }
 
 // ---- 插入条件 / 插入 / 删除 / 移动 ----
@@ -264,13 +261,10 @@ int CAccountCargo::GetEmptySlot()
 
 int CAccountCargo::CheckSlotEmpty(int slot)
 {
-    register unsigned char v asm("eax") = (unsigned char)CheckValidSlot(slot);
-    v ^= 1;
-    // 再叠落点岛（技巧 24）：ORIG `xor $1; test %al,%al; je BODY; mov $0,%eax;
-    // jmp end; BODY: …` —— **return 0 走 fall-through、命中路径跳走**。
-    if (!v) goto BODY;
-    return 0;
-BODY:
+    // P168a ① 裸形（CheckValidSlot 返回 bool）：ORIG `xor $1; test %al,%al;
+    // je BODY; mov $0,%eax; jmp end; BODY: …` —— return 0 块在前、命中路径跳走。
+    if (!CheckValidSlot(slot))
+        return 0;
     return m_slots[slot].m_addInfo == 0 ? 1 : 0;
 }
 

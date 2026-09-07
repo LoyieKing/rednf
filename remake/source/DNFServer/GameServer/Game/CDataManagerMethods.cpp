@@ -74,11 +74,11 @@ int CDataManager::set_reward_sp()
     // esi=i 且表值滞留 eax），int 循环变量探针反致 setle 破坏 setbe，不可翻。
     for (int i = 0; i < 0x60; ++i)
     {
-        ((CDataManagerRewardSpView*)this)->m_spAtLevelUp[i] = 0;
+        ((CDataManagerRewardSpView*)this)->m_sp8[0x36a2 + i] = 0;
     }
     for (unsigned long i = 1; i < 0x60; ++i)
     {
-        ((CDataManagerRewardSpView*)this)->m_spAtLevelUp[i] = table[i];
+        ((CDataManagerRewardSpView*)this)->m_sp8[0x36a2 + i] = table[i];
     }
     return 1;
 }

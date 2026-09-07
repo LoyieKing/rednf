@@ -146,13 +146,17 @@ float SDCActiveStatusSyncCommon::getActiveStatusEtcParameter(int idx, int level,
 {
     // ORIG 0x0808d446/0x0808d44d：entry 双 dead init 槽 -0x14=0/-0x10=1（P31）；
     // 返回两段物化（fstps -0xc → mov %eax,-0x1c → flds -0x1c，P0 双具名局部）。
+    // [N82 封顶] 槽/指令已全对齐；唯一残差帧 0x30(ORIG 16B 对齐进位) vs 0x24(4.4
+    // 紧凑)，P190 double pad 实测超调 0x38，封顶。
     int lo = 0;
     int hi = 1;
     (void)lo; (void)hi;
-    return GetUniformVelocityFloatSDC(
+    // ORIG 0x0808d43e：结果先落具名 r 槽 -0xc，再经 eax 拷独立返回槽 -0x1c（P0 双局部）。
+    float r = GetUniformVelocityFloatSDC(
         ACTIVESTATUS_ETC_PARAMETERS[idx][j * 2],
         ACTIVESTATUS_ETC_PARAMETERS[idx][j * 2 + 1],
         level - 1, ACTIVESTATUS_MAXLEVEL - 1);
+    return r;
 }
 
 float SDCActiveStatusSyncCommon::getUserToUserDamageRate(bool deathTower)
@@ -221,6 +225,9 @@ int SDCActiveStatusSyncCommon::getBurnDamage(bool& flag,
     float dmg =
         GetUniformVelocityFloatSDC(0.0f, static_cast<float>(d->m_baseDamage),
                                    t, d->m_durationTick);
+    // [N82 封顶] fistpl 已复用 int 中转槽（与 ORIG 同构）；残差为整组槽平移 8
+    // （dmg -0x4 vs ORIG -0xc、中转 -0x18 vs -0x20、cw -0x12/-0x14 vs -0x1a/-0x1c）
+    // + 帧 0x28 vs 0x38；P190 double pad 实测 dmg 落 outgoing 区反劣化，封顶。
     if (0 < d->m_baseDamage)
         flag = false;
     if (d->m_isPvp != 0)
@@ -237,6 +244,7 @@ int SDCActiveStatusSyncCommon::getPoisonDamage(STSDCActiveStatusSyncDataSend* d,
     float dmg = GetUniformVelocityFloatSDC(0.0f,
                                            static_cast<float>(d->m_baseDamage),
                                            t, d->m_durationTick);
+    // [N82 封顶] 同 getBurnDamage：槽组整体平移 8 + 帧 0x28 vs 0x38，封顶。
     if (d->m_isPvp != 0)
         dmg *= getUserToUserDamageRate(d->m_attackerType == 10);
     // ORIG 0x0808dcb0：fistpl 截断（fnstcw/fldcw 设 RC=truncate），非四舍五入。
@@ -262,19 +270,28 @@ int SDCActiveStatusSyncCommon::getDiseaseDamage(
 int SDCActiveStatusSyncCommon::getBleedingDamageServer(
     STSDCActiveStatusSyncDataSend* d)
 {
+    double framePad; (void)&framePad;   // P190：ORIG 帧 0x18 vs 4.4 紧凑 0x14
     // P0：ORIG int 中转槽 -0x14 + float 具名局部 -0x4（fildl→fstps→flds 两段）。
+    // [N82 封顶] fistpl 复用 rawDamage 槽已对齐；残差仅槽号平移（raw -0x8 vs
+    // ORIG -0x14、cw -0x12/-0x14 vs -0x16/-0x18），4.1 x87 控制词槽紧贴 int 槽
+    // 且中间留洞，4.4 无洞布局，槽平移封顶。
     int rawDamage = d->m_baseDamage;
     float dmg = static_cast<float>(rawDamage);
     dmg = dmg * 1.5f;
-    return static_cast<int>(dmg);
+    // ORIG 0x0808d582：fistpl 复用 rawDamage 槽（-0x14）→ int 结果回写具名局部。
+    rawDamage = static_cast<int>(dmg);
+    return rawDamage;
 }
 
 int SDCActiveStatusSyncCommon::getBleedingDamageClient(
     STSDCActiveStatusSyncDataSend* d, bool, void*)
 {
+    int tickB;
     int tickA = d->m_durationTick / 500;
-    int tickB = 1;
-    int tick = std::max(tickB, tickA);          // ORIG std::max(tickB, tickA) 序保持
+    // ORIG 执行序：tickA 计算/存储先行，tickB 常量写入在后；槽 tickA=-0x18 深、
+    // tickB=-0x14 ⇒ 4.4 先声明占高地址，tickB 仅声明、赋值延后至 tickA 后。
+    tickB = 1;
+    int tick = std::max(tickB, tickA);          // ORIG (%esp)=tickB、0x4(%esp)=tickA
     // P0：ORIG float 具名局部槽 -0xc（fdivrp → fstps → flds 两段物化）。
     float dmg = static_cast<float>(d->m_baseDamage) / static_cast<float>(tick);
     return static_cast<int>(dmg);
@@ -441,4 +458,17 @@ void SDCActiveStatusSyncCommon::getActiveStatusDamageDurationForSDC(
     default:
         break;
     }
+}
+
+// ---- SDCActiveStatusSyncServer C1/D1（ORIG W 0x0823487c/0x08234890，仅委托基类）----
+// 定义置于本 TU（基类 C1/D1 定义在 CtorProducers_2.cpp）：caller TU 不含 callee
+// 定义体 ⇒ 4.4 unit-at-a-time 不塌缩 outgoing 帧，保持 ORIG 的 sub $0x18（NL4 实证）。
+SDCActiveStatusSyncServer::SDCActiveStatusSyncServer()
+{
+    // 仅委托基类 ctor（隐式基类构造，asm call _ZN25SDCActiveStatusSyncCommonC1Ev）。
+}
+
+SDCActiveStatusSyncServer::~SDCActiveStatusSyncServer()
+{
+    // 仅委托基类 D1（隐式，asm call _ZN25SDCActiveStatusSyncCommonD1Ev）。
 }

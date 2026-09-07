@@ -8,6 +8,14 @@
 #include <time.h>
 #include <pthread.h>
 
+// getInt32 置于 TU 首个成员函数定义前：4.4 对未定义 callee 保守 outgoing
+// 恰为 ORIG 帧 0x18（定义于 getUInt32 后会精确继承 callee 帧 0x10+4=0x14，
+// 与 ORIG 槽差 4；XorRand8 大帧函数定义在前时保守值升至 0x28）。
+int XorRand4::getInt32()
+{
+    return (int)getUInt32();
+}
+
 XorRand8::XorRand8()
 {
     m_counter = 0;
@@ -50,13 +58,6 @@ unsigned long long XorRand8::min() const
 unsigned long long XorRand8::max() const
 {
     return 0xffffffffffffffffULL;
-}
-
-unsigned long long XorRand8::getStaticUInt64(unsigned long long seed)
-{
-    unsigned char* c = (unsigned char*)&seed;
-    return ms_table0[c[0]] ^ ms_table1[c[1]] ^ ms_table2[c[2]] ^ ms_table3[c[3]] ^
-           ms_table4[c[4]] ^ ms_table5[c[5]] ^ ms_table6[c[6]] ^ ms_table7[c[7]];
 }
 
 long long XorRand8::getStaticInt64(unsigned long long seed)
@@ -479,12 +480,6 @@ unsigned int XorRand4::getUInt32()
     unsigned int v = m_counter++;
     unsigned char* c = (unsigned char*)&v;
     return ms_table0[c[0]] ^ ms_table1[c[1]] ^ ms_table2[c[2]] ^ ms_table3[c[3]];
-}
-
-int XorRand4::getInt32()
-{
-    unsigned int u;
-    return (int)getUInt32();
 }
 
 unsigned int XorRand4::operator()()

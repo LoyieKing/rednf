@@ -228,10 +228,10 @@ public:
     long                    m_retryCount;    // +0x14 data→exe 轮换计数器
     int                     m_curDataFamily; // +0x18 data 家族轮转游标
     unsigned char           m_loaded;        // +0x1c（ORIG this[0x1c] byte）
-    long                    m_exeMin;        // +0x20
-    long                    m_exeMax;        // +0x24
-    long                    m_dataMin;       // +0x28
-    long                    m_dataMax;       // +0x2c
+    unsigned long           m_exeMin;        // +0x20（与形参 long 异型化：SetExeCheckingOption
+    unsigned long           m_exeMax;        // +0x24  ORIG store 序 RHS 先 0x085756ce，
+    unsigned long           m_dataMin;       // +0x28  探针 p8 W2 实证；调用点按 unsigned 消费）
+    unsigned long           m_dataMax;       // +0x2c
 
 private:
     WindowsCodeProtectorServer(const WindowsCodeProtectorServer&);

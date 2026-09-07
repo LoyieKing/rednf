@@ -509,6 +509,7 @@ dnf_service(game
         ${SVC_DIR}/Quest.cpp
         ${SVC_DIR}/QuickParty.cpp
         ${SVC_DIR}/CQuickPartyRewardManager.cpp
+        ${SVC_DIR}/QuickPartyRewardBaseCtors.cpp
         ${SVC_DIR}/EffectData.cpp
         ${SVC_DIR}/QuestTriggerState.cpp
         ${SVC_DIR}/CPartyResultRecvFlag.cpp

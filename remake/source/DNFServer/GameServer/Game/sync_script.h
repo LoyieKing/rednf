@@ -152,9 +152,12 @@ public:
     struct SWEAPONTYPE
     {
         // ORIG C1/C2：_ZN...SWEAPONTYPEC1E17ENUM_CHARACTERJOBi，双成员初始化。
-        SWEAPONTYPE() : m_job(0), m_idx(0) {}
+        // b26:N76 反形定律(NL7/NL8 实证)——store 载入序由「字段与形参同型/异型」
+        // 决定。ORIG 首对 store 为 this 地址先 ⇒ 字段须与形参同型,m_job 改
+        // ENUM_CHARACTERJOB(宽度不变,布局/mangled 不变)。
+        SWEAPONTYPE() : m_job((ENUM_CHARACTERJOB)0), m_idx(0) {}
         SWEAPONTYPE(ENUM_CHARACTERJOB job, int idx) : m_job(job), m_idx(idx) {}
-        int m_job;    // +0x00
+        ENUM_CHARACTERJOB m_job;    // +0x00
         int m_idx;    // +0x04
         bool operator<(const SWEAPONTYPE& o) const
         {

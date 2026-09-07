@@ -113,6 +113,7 @@ long long CTimeInterval::GetTimeInterval()      // W 空覆盖 @0x08570182
 CUnixTimeInterval::CUnixTimeInterval() : CTimeInterval()
 {
     // ORIG C1 仅调基类 ctor + 换 vptr；m_last 清零由 ORIG value-init 在调用点内联（gcc4.1）
+    // [N] 帧差 sub $0x18 vs $0x4：4.1 -O0 outgoing 区恒预留 +0x14，跨版本豁免（ndiff 2 封顶）。
 }
 
 // ORIG @0x08570236：gettimeofday(&this->m_last, 0)。

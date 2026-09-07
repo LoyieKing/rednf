@@ -118,8 +118,8 @@ struct stMapMonsterKillChecker_t
     unsigned int m_useSkillMaterialTime;   // +0x00
     unsigned int m_lastMobDieTime;         // +0x04
     int m_uncontinuallyMobDieCnt;          // +0x08
-    int m_dieCnt;                          // +0x0c
-    int m_field10;                         // +0x10
+    unsigned int m_dieCnt;                 // +0x0c（ORIG setter store 展开序 this 先 ⇒ 与形参 unsigned 同型）
+    unsigned int m_field10;                // +0x10（同上；checkLongTermMobDie 无符号差运算）
     int m_field14;                         // +0x14
     void init();                           // ORIG 081512ec
     void initMonsterInfo();                // ORIG W 0x830e71c

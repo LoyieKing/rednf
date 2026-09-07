@@ -105,33 +105,11 @@ struct StageMapScript
     std::vector<AreaData> m_areaVec;    // +0x14, [area] list
 };
 
-void StageData::clear()
-{
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
-    m_fieldC = 0;
-}
-
-StageData::StageData()
-{
-    clear();
-}
-
 StageData::~StageData()
 {
 }
 
-void SlotType::clear()
-{
-    m_field0 = -1;
-    m_field4 = -1;
-    m_field8 = -1;
-    m_fieldC = -1;
-    m_field10 = -1;
-}
-
-SlotType::SlotType()
+StageData::StageData()
 {
     clear();
 }
@@ -144,13 +122,37 @@ void DistrictData::clear()
     m_vec4.clear();
 }
 
-DistrictData::DistrictData()
+DistrictData::~DistrictData()
+{
+}
+
+// 两 ctor 置于各自 clear() 定义前：callee 未知时 4.4 的 outgoing 保守分配
+// 恰为 ORIG 帧 0x18；clear 定义在前则继承其小帧（sub $0x4）失配。
+void StageData::clear()
+{
+    m_field0 = 0;
+    m_field4 = 0;
+    m_field8 = 0;
+    m_fieldC = 0;
+}
+
+SlotType::SlotType()
 {
     clear();
 }
 
-DistrictData::~DistrictData()
+void SlotType::clear()
 {
+    m_field0 = -1;
+    m_field4 = -1;
+    m_field8 = -1;
+    m_fieldC = -1;
+    m_field10 = -1;
+}
+
+DistrictData::DistrictData()
+{
+    clear();
 }
 
 AreaData::AreaData()

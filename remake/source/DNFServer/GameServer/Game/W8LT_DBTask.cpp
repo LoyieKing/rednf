@@ -3759,6 +3759,8 @@ bool DB_LoadDungeonClear::AradLoadMemberDungeonClear(SIG_LOAD_DUNGEON_CLEAR* sig
 
 // ORIG 0x8419a76：member 加载失败则回退全量：charac_info JOIN charac_dungeon
 // 取全部 dungeon 串，逐行拼入 m_clearData（逗号分隔），总长超 0x1800 即错。
+// N22 封顶（ndiff1）：`cmp %eax,%ebx`（ORIG，dst=局部）vs `cmp %ebx,%eax`（4.4
+// 恒 dst=call 结果方）；其余为跳表 R_386_32 重定位归一项。NL6 2026-09-08。
 bool DB_LoadDungeonClear::AradLoadDungeonClear(SIG_LOAD_DUNGEON_CLEAR* sig)
 {
     if (AradLoadMemberDungeonClear(sig))
@@ -4406,6 +4408,8 @@ int DBTask::RegistDispatcher()
 // ---------------------------------------------------------------------------
 bool DBTask::UnregistDispatcher()
 {
+    // [b26N7] 循环内虚调用 callee 寄存器 ORIG vfn→%ecx vs 4.4 恒 %eax（N7
+    // 探针实证）；其余全等，ndiff 12 封顶。
     for (int i = 0; i <= DISPATCHER_COUNT - 1; ++i)
     {
         if (m_dispatchers[i] != 0)
@@ -5560,6 +5564,8 @@ bool DB_SaveEventItem::_UpdateEventYegamInfo(int id, int type)
 // 不存在则 insert，存在则 update stack_count。
 bool DB_SaveEventItem::_HardCodeEventItems(SIG_SAVE_EVENTITEM* sig)
 {
+    // [N] 唯一真差 = ORIG je 目标块首 1 条对齐 nop（+0x1e，4.1 布局产物）；
+    // 4.4 -O0 不产块首 nop，源码不可控（ndiff 24 全为该偏移错位连锁，封顶）。
     static const int handleIdx = 3;
     if (sig->m_field0c != 0x65ae)
     {
@@ -11762,6 +11768,9 @@ bool DB_ChangeLetterStat::dispatch(int userIdx, int slot, Stream* stream)
 void DB_ChangeLetterStat::makeRequest(int userIdx, int slot, int characNo,
                                       int mailIdx, int state)
 {
+    // [b26L17 翻案 N76→identical] m_mailIdx int→unsigned int（SigTypes_B.h，
+    //   字段↔形参异型化 → 4.4 值先载=ORIG 0x14(%ebp) 形）；m_characNo 保持
+    //   int（该行 ORIG 地址先，实测异型化反翻）。69/69 逐条相等。
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6454), true);
     guard.operator*()->operator<<((int)userIdx);

@@ -56,12 +56,6 @@ static const float kDefRateMul01 = 0.01f;   // 0x08b12f54
 static const float kDefRateDrFloorDiv = 400.0f;  // 0x08b12f60
 static const float kCritRollScale = 100.0f; // 0x08b12f64
 
-// int 字段被 ORIG 以 flds 按 float 位模式读取的视图（严格别名：gcc4.4 -O0 下安全）
-static inline float fview(const int& x)
-{
-    return *reinterpret_cast<const float*>(&x);
-}
-
 // ============================================================================
 // 1) _Z24getAbilityConvertRateSDCPv23ENUM_CONVERT_TABLE_TYPE @0x080950fb (0x13)
 //    sub $0x4,%esp; mov $0x3f800000,-0x4; flds -0x4; leave; ret
@@ -125,13 +119,13 @@ float getCreatureDamageRateFromIndex(int index)
 }
 
 // _Z24getDamageInflictCreatureP23STComputeDamageVariable @0x08095508 (0xd9)：
-// m_char1B5 门控；dmg=fview(m_field000)*(rate(m_char1B7,m_char1B8,(int)m_d1AA))*m_f02B
+// m_char1B5 门控；dmg=m_field000*(rate(m_char1B7,m_char1B8,(int)m_d1AA))*m_f02B
 // *FromModule(m_objTypeByte)；objTypeByte==9 再 *FromIndex(m_char1B9)。
 float getDamageInflictCreature(STComputeDamageVariable* v)
 {
     if (v->m_char1B5 == 0)
         return 0.0f;
-    float dmg = fview(v->m_field000);
+    float dmg = v->m_field000;
     int lv = static_cast<int>(v->m_d1AA);   // fldcw 截断模式
     dmg = dmg * getDamageRateCreature(
                       static_cast<int>(static_cast<signed char>(v->m_char1B7)),
@@ -150,13 +144,13 @@ float getDamageInflictCreature(STComputeDamageVariable* v)
 // getAbilityConvertRateSDC 表类型 3/5/0。
 float getDamageInflictCollisionObject(STComputeDamageVariable* v, void* collisionObject)
 {
-    float dmg = fview(v->m_field000);
+    float dmg = v->m_field000;
     if (v->m_char004 != 0)
     {
         if (v->m_damageType == 0 || v->m_damageType == 2)
-            dmg = dmg + fview(v->m_field02F);
+            dmg = dmg + v->m_field02F;
         else if (v->m_damageType == 1)
-            dmg = dmg + fview(v->m_field033);
+            dmg = dmg + v->m_field033;
     }
     dmg = dmg * (v->m_f006 * kDamageRateMul01 + 1.0f);
     if (v->m_damageType == 0)
@@ -178,7 +172,7 @@ float getDamageInflictCollisionObject(STComputeDamageVariable* v, void* collisio
         dmg = dmg * (g_magicalDamageRateConst_ / s2 + 1.0f);
     }
     dmg = dmg * getAbilityConvertRateSDC(collisionObject, CONVERT_TABLE_0);
-    dmg = fview(v->m_f047) * dmg + fview(v->m_f047);
+    dmg = v->m_f047 * dmg + dmg;
     return dmg;
 }
 
@@ -186,12 +180,13 @@ float getDamageInflictCollisionObject(STComputeDamageVariable* v, void* collisio
 // m_char1B5 && m_char1B6 → Creature(v)；否则 CollisionObject(v, passiveObject)。
 float getDamageInflictPassiveObject(STComputeDamageVariable* v, void* passiveObject)
 {
+    float r;
     if (v->m_char1B5 != 0 && v->m_char1B6 != 0)
     {
-        float r = getDamageInflictCreature(v);
+        r = getDamageInflictCreature(v);
         return r;
     }
-    float r = getDamageInflictCollisionObject(v, passiveObject);
+    r = getDamageInflictCollisionObject(v, passiveObject);
     return r;
 }
 
@@ -205,10 +200,10 @@ bool isValidAttackInfoElement(STComputeDamageVariable* v, int elem)
 {
     if (elem == 4)
     {
-        if (v->m_elemEnable[0] || v->m_elemEnable[1] ||
-            v->m_elemEnable[2] || v->m_elemEnable[3])
-            return 0;
-        return 1;
+        if (!(v->m_elemEnable[0] || v->m_elemEnable[1] ||
+              v->m_elemEnable[2] || v->m_elemEnable[3]))
+            return true;
+        return false;
     }
     return v->m_elemEnable[elem] != 0;
 }
@@ -220,8 +215,11 @@ bool isValidAttackInfoElement(STComputeDamageVariable* v, int elem)
 // ============================================================================
 int getComputeDamageBasisLevelAttacker(STComputeDamageVariable* v, bool useAttackerLevel)
 {
-    if (useAttackerLevel && _SDC::isObjectType(v->m_attackerObjType, 0x111))
-        return (signed char)v->m_char1B4;
+    if (useAttackerLevel)
+    {
+        if (_SDC::isObjectType(v->m_attackerObjType, 0x111))
+            return (signed char)v->m_char1B4;
+    }
     return (signed char)v->m_char1B3;
 }
 
@@ -262,7 +260,7 @@ void getDefenseRateDamager(float& outDefenseRate, float& outReduceS1,
         dr = static_cast<float>(v->m_field093);                       // fildl 0x93
         dr = (static_cast<float>(v->m_field097) * kDefRateMul01 + 1.0f) * dr;  // 0x97
         redConst = g_physicalReduceRateConst_;                        // mov 0x93f5d18
-        s1 = fview(v->m_field09B) * kDefRateMul01;                    // flds 0x9b（float 位模式）
+        s1 = v->m_field09B * kDefRateMul01;                           // flds 0x9b
         if (v->m_objTypeByte == 9)                                    // 0x1b2
             s1 *= getAbilityConvertRateSDC(defender, static_cast<ENUM_CONVERT_TABLE_TYPE>(8));
     }
@@ -271,7 +269,7 @@ void getDefenseRateDamager(float& outDefenseRate, float& outReduceS1,
         dr = static_cast<float>(v->m_field09F);                       // fildl 0x9f
         dr = (static_cast<float>(v->m_field0A3) * kDefRateMul01 + 1.0f) * dr;  // 0xa3
         redConst = g_magicalReduceRateConst_;                         // mov 0x93f5d30
-        s1 = fview(v->m_field0A7) * kDefRateMul01;                    // flds 0xa7
+        s1 = v->m_field0A7 * kDefRateMul01;                           // flds 0xa7
         if (v->m_objTypeByte == 9)
             s1 *= getAbilityConvertRateSDC(defender, static_cast<ENUM_CONVERT_TABLE_TYPE>(0xA));
     }
@@ -336,7 +334,7 @@ bool checkIsCriticalSDC(STComputeDamageVariable* v, float* dmg, unsigned int* ra
     }
 
     if (_SDC::isObjectType(v->m_defenderObjType, 0x11))   // 0x1c2
-        crit -= fview(v->m_field0CF);               // flds 0xcf（float 位模式）
+        crit -= v->m_field0CF;                      // flds 0xcf
 
     // 0x08095b6a：roll = SDC_Rand(randState) % 10000（有符号 rem，0x68db8bad/0x2710 序列）
     const int roll = static_cast<int>(SDC_Rand(randState) % 10000u);
@@ -347,7 +345,7 @@ bool checkIsCriticalSDC(STComputeDamageVariable* v, float* dmg, unsigned int* ra
         float critMul = g_criticalDamageDefaultRate_;     // mov 0x936e4ac（=1.5f 初值）
         if (_SDC::isObjectType(v->m_attackerObjType, 0x11))
             critMul *= v->m_f06F;                   // flds 0x6f
-        critMul += fview(v->m_field073);            // flds 0x73（float 位模式）
+        critMul += v->m_field073;                   // flds 0x73
         *dmg *= critMul;
         v->m_isCritical = 1;                        // movb $1,0x1ce
     }

@@ -505,7 +505,7 @@ public:
     char m_bloodCrazyType;                 // +0x2aa
     char m_ultimateDifficulty;             // +0x2ab
     CBloodRound m_bloodRound;              // +0x2ac
-    int m_bloodState2;                     // +0x2b4
+    ENUM_BLOOD_STATE m_bloodState2;        // +0x2b4（类型修正：ORIG setBloodState 载入顺序实证）
     CBloodClearRewardData m_bloodReward;   // +0x2b8
     CTowerOfDespairRewardData m_todReward; // +0xc84
     CTournamentDungeonReward m_tournamentReward;  // +0xc98

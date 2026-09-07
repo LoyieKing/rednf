@@ -665,7 +665,17 @@ struct SIG_SAVE_PC_ROOM_RENT_INFO
     int  m_field8;      // +0x08
 
     SIG_SAVE_PC_ROOM_RENT_INFO() { clear(); }   // ORIG W 0x848f98e（内联，转调 clear）
-    void clear();                               // ORIG W 0x0848f9a2
+    /* ORIG W 0x0848f9a2（weak ⇒ 头内 inline 定义）。类内 inline 使调用方
+     * （ITEM::clear 等）按"外部 callee"帧策略分配栈帧，与 ORIG 一致
+     * （/tmp/p26_slot4.cpp probeH 实证；类外定义时 4.4 塌缩帧）。 */
+    void clear()
+    {
+        m_itemIndex = 0;
+        m_field4 = 0;
+        m_field5 = 0;
+        m_inEquip = 0;
+        m_field8 = -1;
+    }
 };
 struct SIG_SAVE_PC_ROOM_RENT_ITEM
 {
@@ -691,7 +701,17 @@ struct SIG_SAVE_DIMENSION_RENT_INFO
     char m_field7;      // +0x07
 
     SIG_SAVE_DIMENSION_RENT_INFO() { clear(); }   // ORIG W 0x848f9d0（内联，转调 clear）
-    void clear();                                 // ORIG W 0x0848f9e4
+    /* ORIG W 0x0848f9e4（weak ⇒ 头内 inline 定义）。类内 inline 使调用方
+     * （ITEM::clear 等）按"外部 callee"帧策略分配栈帧，与 ORIG 一致
+     * （NL26 probeH 实证；类外定义时 4.4 塌缩帧）。 */
+    void clear()
+    {
+        m_itemIndex = 0;
+        m_field4 = 0;
+        m_field5 = 0;
+        m_inEquip = 0;
+        m_field7 = 0;
+    }
 };
 struct SIG_SAVE_DIMENSION_RENT_ITEM
 {

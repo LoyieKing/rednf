@@ -486,8 +486,8 @@ void CGuildServerProxy::SendGuildCreate(unsigned int charNo, char* guildName,
 {
     Packet_Request_Guild_Create pkt;
     pkt.m_charNo = charNo;
-    // ORIG @846e323：memcpy 源是第三参 masterName
-    memcpy(pkt.m_guildName, masterName, 0x16);
+    // ORIG @846e323：memcpy 源是第二参 guildName（0x10(%ebp)）
+    memcpy(pkt.m_guildName, guildName, 0x16);
     memset(&pkt.m_extra[0], 0, 0xd);   // m_extra@+0x25（线格式 0xd 清尾）
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }
@@ -686,8 +686,8 @@ void CGuildServerProxy::SendIncreaseGuildExp(unsigned int charNo, unsigned int g
 {
     Packet_Monitor_Increase_Guild_Exp pkt;
     // ORIG @846ece2：param_1 → m_guildKey(+0xe)，param_2 → m_charNo(+0xa)
-    pkt.m_guildKey = charNo;
     pkt.m_charNo = guildKey;
+    pkt.m_guildKey = charNo;
     pkt.m_addExp = addExp;
     pkt.m_expType = 1;
     pkt.m_notify = notify;
@@ -737,13 +737,17 @@ void CGuildServerProxy::SendUpgradeGuildAgit(unsigned int guildKey, unsigned int
 
 void CGuildServerProxy::SendGuildExpLimit()
 {
+    // [b26L17 判词 N94] 循环 m_levelUpCost[i][1]（ORIG @846ee9c：add $0x14aa;
+    //   mov 0x1c(%eax,%edx,8)）；4.4 仅当大常量 %8==0 才拆 scaled-index
+    //   （0xa56c%8=4 恒折单条 mov 大 disp，probeA/C/G 探针），语义正确形
+    //   保留，43→42 差 1 条。
     Packet_Guild_Exp_Limit pkt;
     pkt.m_channel = G_CEnvironment()->get_channel_no();
-    pkt.m_guildExpLimit8 = G_CDataManager()->m_guildParameter.m_levelUpCost[8][0];
-    pkt.m_guildExpLimit16 = G_CDataManager()->m_guildParameter.m_levelUpCost[16][0];
+    pkt.m_guildExpLimit8 = G_CDataManager()->m_guildParameter.m_levelUpCost[8][1];
+    pkt.m_guildExpLimit16 = G_CDataManager()->m_guildParameter.m_levelUpCost[16][1];
     for (int i = 0; i < 0x11; i++)
     {
-        pkt.m_guildExpLimit[i] = G_CDataManager()->m_guildParameter.m_levelUpCost[i][0];
+        pkt.m_guildExpLimit[i] = G_CDataManager()->m_guildParameter.m_levelUpCost[i][1];
     }
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }
@@ -762,6 +766,8 @@ void CGuildServerProxy::SendApplyOriginalPowerSide(unsigned int charNo,
 void CGuildServerProxy::OnBuyItem(CUser* user, CItem const* item,
                                   unsigned int powerWarPoint, unsigned int pp)
 {
+    // [b26L17 判词 N7] 唯一残差：两处虚调用 callee 装载 %eax↔%edx 互换
+    //   （ORIG vtable 槽→edx、实参→eax；4.4 恒反）。118/118 助记符全等。
     if (item->GetGuildPowerWarPoint() != 0)   // vtable+0x28（槽 10）
     {
         user->DecreaseGuildPowerWarPoint(powerWarPoint);
@@ -803,12 +809,10 @@ void CGuildServerProxy::SendGuildBoardDelete(unsigned int boardNo,
                                              unsigned int guildKey,
                                              unsigned int charNo)
 {
-    // [B24D判词 N] 语义正确：构包 Packet_Guild_Request_Guild_Board_Delete 填
-    //   charNo/guildKey/boardNo 后 SendTcpPacket；diff=mov 0x14(%ebp)/mov 0x10(%ebp)
-    //   装载序互换（GCC4.1 vs 4.4），22/22 纯 lowering，语义等价。
     Packet_Guild_Request_Guild_Board_Delete pkt;
-    pkt.m_charNo = charNo;
-    pkt.m_guildKey = guildKey;
+    // ORIG @846f0c1：0x10(guildKey)→+0x12、0x14(charNo)→+0xe（字段命名与参数交叉，按 ORIG）
+    pkt.m_charNo = guildKey;
+    pkt.m_guildKey = charNo;
     pkt.m_boardNo = boardNo;
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }

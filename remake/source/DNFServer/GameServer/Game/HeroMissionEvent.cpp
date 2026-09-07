@@ -185,6 +185,7 @@ void HeroMissionEvent::loadEventData(CUser* user)
 // 判活：ORIG vptr+0x34 = CEventBase::IsEventing(NULL)，实现即读 +0x08 标志
 //（本头布局镜像注释同证）。
 // ---------------------------------------------------------------------------
+    // N7 封顶：唯一残差=虚调用 callee 寄存器互换（N7，探针 /tmp/l22p/vprobe*.cpp）。
 void HeroMissionEvent::setMissionValue(CUser* user,
                                        HeroMissionCondition::MissionNo::T mission,
                                        unsigned int value)
@@ -218,6 +219,9 @@ void HeroMissionEvent::setMissionValue(CUser* user,
 // ============================================================================
 void HeroMissionEvent::StartEvent()
 {
+    // N(新候选)封顶：if/else 两臂 cMyTrace 槽深分配方向跨版本相反
+    // （4.1 先声明者深：ORIG fail -0x28/succ -0x18；4.4 先声明者浅：我方反）。
+    // 探针 /tmp/l22p/scope_probe.cpp：兄弟块/嵌套两形均不可翻。
     if (!loadScript())
     {
         cMyTrace tr(__PRETTY_FUNCTION__, 0x1fe, 5);
@@ -238,6 +242,7 @@ void HeroMissionEvent::StartEvent()
 // ============================================================================
 void HeroMissionEvent::StartEvent(Word_Param param)
 {
+    // N7 封顶：唯一残差=虚调用 callee 寄存器互换（N7，探针 /tmp/l22p/vprobe*.cpp）。
     StartEvent();
 }
 

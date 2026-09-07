@@ -786,6 +786,8 @@ bool DB_CreateCharac::CreateSkill(SIG_CREATE_CHARAC* sig)
 // ===========================================================================
 bool DB_CreateCharac::CreatePvP(unsigned int characNo)
 {
+    // [N] 槽位差 db@-0xc/ok@-0xd（4.1）vs -0x10/-0x9（4.4 outgoing 顶对齐固定布局，
+    // 探针 l5p9 不可翻）；xor$1 岛与槽化 bool 往返两侧同形（ndiff 10 封顶）。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
     db->set_query("inSert into pvp_result (charac_no) values(%u)", characNo);
@@ -809,6 +811,7 @@ bool DB_CreateCharac::GetCharacNo(SIG_CREATE_CHARAC* sig)
     {
         return false;
     }
+    // [N76] ORIG rhs(-0xc 槽) 先载 vs 4.4 LHS 先载，probe 全试不可翻（ndiff 2 封顶）。
     sig->m_characNo = identity;
     return true;
 }

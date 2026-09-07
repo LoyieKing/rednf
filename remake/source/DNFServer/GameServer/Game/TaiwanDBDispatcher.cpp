@@ -267,6 +267,8 @@ TaiwanDBDispatcher::~TaiwanDBDispatcher()
 void TaiwanDBDispatcher::FnDelete::operator()(
     std::pair<const TaiwanInternalPack::T, TaiwanInterfaceDBDispatcher*>& item)
 {
+    /* N7 封顶（b26 NL26）：唯一残差为虚 deleting-dtor 调用的 callee 寄存器
+     * 互换（ORIG vfn=%edx vs 4.4 恒 %eax，临时/引用/限定名均无效）。 */
     delete item.second;   // ORIG @0x0815dfce：test+je + vtable D0 调用
 }
 
@@ -490,13 +492,14 @@ void CheckStayTimeEvent::sendStayTimeData(int uid)
 
 // ORIG 0x0815b89a（static）：Acquire(file, 0x1b9) → CStreamGuard(true) →
 // internal_stream(guard, 0x8, a) → GetInBuffer<Taiwan::SigUpdateExitTime> 非空
-// 时 init()、set(a, c)（第三参 b 未用）、MsgQueueMgr::put(DB_Q, guard)。
+// 时 init()、internal_stream 第三参传 b（ORIG 0xc(%ebp) 实证）、set(a, c)、
+// MsgQueueMgr::put(DB_Q, guard)。
 void DBUpdateExitTime::makeRequest(unsigned int a, int b, unsigned int c)
 {
     // P89：单一视图表达式（合并 stream 局部）
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
         "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x1b9), true);
-    Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0x8, a);
+    Taiwan::internal_stream(guard, (TaiwanInternalPack::T)0x8, b);
     Taiwan::SigUpdateExitTime* sig =
         guard.operator->()->GetInBuffer<Taiwan::SigUpdateExitTime>();
     if (sig != 0)

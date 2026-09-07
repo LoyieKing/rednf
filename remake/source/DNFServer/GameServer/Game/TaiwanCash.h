@@ -41,7 +41,13 @@ namespace Taiwan
 // ---- Taiwan::BillTransaction —— 计费事务句柄（0xc 字节 POD）----
 struct BillTransaction
 {
-    void init();            // ORIG 0x08175540（W）：清零 12 字节
+    // ORIG W 0x08175540：类内 inline（调用方 PurchaseQuery/GiftQuery/setQuery
+    // ctor 帧 0x28 依此形；callee 类外定义时 4.4 调用方帧塌缩，NL26 probeH 实证）。
+    void init()
+    {
+        *(char*)this = 0;
+        m_tranNo = 0;
+    }
 
     int m_field0;           // +0x00（init 清零；getResult 不写此字段）
     unsigned long long m_tranNo;  // +0x04（usp_purchase @out_tran 回传的事务号）

@@ -100,6 +100,7 @@ void CFatigueBuffEvent::EndEvent()           // ORIG 0x0811bcc0
 }
 
 void CFatigueBuffEvent::StartEvent(Word_Param)  // ORIG 0x0811bca6：虚调用 slot2（StartEvent()）
+    // N7 封顶：唯一残差=虚调用 callee 寄存器互换（N7，探针 /tmp/l22p/vprobe*.cpp）。
 {
     StartEvent();
 }
@@ -123,6 +124,7 @@ void CWeekendBonusEvent::EndEvent()          // ORIG 0x08117626
 }
 
 void CWeekendBonusEvent::StartEvent(Word_Param)  // ORIG 0x0811760c：虚调用 slot2（StartEvent()）
+    // N7 封顶：唯一残差=虚调用 callee 寄存器互换（N7，探针 /tmp/l22p/vprobe*.cpp）。
 {
     StartEvent();
 }
@@ -253,14 +255,18 @@ void CCharacBloodDungeon::ResetDaily()       // ORIG 0x832a5b6
     t->tm_sec = 0;
 }
 
-void CCharacBloodDungeon::IncPoint(int delta)        // ORIG 0x85bfed2 (W)
+void CCharacBloodDungeon::IncPoint(int delta)       // ORIG 0x85bfed2 (W)
 {
+    // b26 N 封顶（N18a 反向）：ORIG 4.1 为「mem→edx 单段 + param→eax + add reg,reg」；
+    // 4.4 恒出「mem→eax、mov %eax,%edx 中转 + add mem,%edx」。+=/=delta+/++/
+    // register 形参/具名局部 4 源形探针 /tmp/incp 均不可复现 ORIG 序。
     charac_expand::CData::alter();
     m_point += delta;
 }
 
 void CCharacBloodDungeon::IncUseGold(int gold)       // ORIG 0x85bfef6 (W)
 {
+    // b26 N 封顶（N18a 反向，同 IncPoint）。
     charac_expand::CData::alter();
     m_useGold += gold;
 }

@@ -8,6 +8,9 @@
 #include "PacketDesign.h"
 #include "ROI_Category.h"
 
+#pragma pack(push, 1)
+// ORIG ctor `add $0x22,%eax`（ROI_Category ctor 实参）实证 m_roi@+0x22；
+// ROI_Category 类对齐 4 会把 m_roi 推到 0x24，外层须 pack(1)（sizeof 0x2f 不变）。
 struct PCK_AUCTION_ASK_AVERAGE_PRICE_GA : public nsl::PACKET_HEADER
 {
     char m_pad1[0x10];        // +0x12..+0x21
@@ -19,5 +22,6 @@ struct PCK_AUCTION_ASK_AVERAGE_PRICE_GA : public nsl::PACKET_HEADER
         PACKET_CTOR_BODY(0x0, 0x1, 0x2f);
     }
 };
+#pragma pack(pop)
 
 #endif  // GAME_PCK_AUCTION_ASK_AVERAGE_PRICE_GA_H_

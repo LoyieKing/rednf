@@ -55,9 +55,14 @@ void CSecurityCard::setCertFlag(char flag)
 }
 
 // W 0x0822ef64：int 参数写入 +0x44。
+namespace {
+struct CSecurityCard44View { char m_pad[0x44]; int m_requestState44; };
+}
 void CSecurityCard::setRequestState(ENUM_REQUEST_STATE state)
 {
-    m_requestState44 = static_cast<int>(state);
+    // P95 视图访问复现 ORIG「先 this 后值」装载序（探针 /tmp/setter_probe.cpp）。
+    reinterpret_cast<CSecurityCard44View*>(this)->m_requestState44 =
+        static_cast<int>(state);
 }
 
 // W 0x0822ef72：movzbl 0x31; cmp $0x1; jne L; mov $1; jmp; L: mov $0 —— 分支式 bool 返回。

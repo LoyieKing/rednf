@@ -10,36 +10,6 @@ Inven_Item g_emptySlot;
 
 // ===================== stAmplifyOption_t（ORIG 0x80cb75c 族） =====================
 
-void stAmplifyOption_t::reset()
-{
-    m_abilityType = 0;
-    m_abilityValue = 0;
-    m_lock = 0;
-}
-
-bool stAmplifyOption_t::isIdentified() const
-{
-    // ORIG 0x081507bc：not 后 shr $0x7,%al（8 位逻辑右移，无 setne）。& 0x80 形式保持
-    // 字节移位；原 (uchar)>>7 被 4.4 升格 sar$7+test+setne（N87 移位升格）。
-    return ((~m_abilityType) & 0x80) != 0;
-}
-
-bool stAmplifyOption_t::hasAbility() const
-{
-    return m_abilityType != 0;
-}
-
-// ORIG W 0x0822b3d8：返回 bool = !isIdentified()（已识别→false 不改动）。
-bool stAmplifyOption_t::identify()
-{
-    if (isIdentified())
-    {
-        return false;
-    }
-    m_abilityType &= 0x7f;
-    return true;
-}
-
 unsigned char stAmplifyOption_t::getAbilityType() const
 {
     if (!hasAbility())
@@ -60,6 +30,36 @@ unsigned short stAmplifyOption_t::getAbilityValue() const
         return 0;
     }
     return m_abilityValue;
+}
+
+void stAmplifyOption_t::reset()
+{
+    m_abilityType = 0;
+    m_abilityValue = 0;
+    m_lock = 0;
+}
+
+// ORIG W 0x0822b3d8：返回 bool = !isIdentified()（已识别→false 不改动）。
+bool stAmplifyOption_t::identify()
+{
+    if (isIdentified())
+    {
+        return false;
+    }
+    m_abilityType &= 0x7f;
+    return true;
+}
+
+bool stAmplifyOption_t::isIdentified() const
+{
+    // ORIG 0x081507bc：not 后 shr $0x7,%al（8 位逻辑右移，无 setne）。& 0x80 形式保持
+    // 字节移位；原 (uchar)>>7 被 4.4 升格 sar$7+test+setne（N87 移位升格）。
+    return ((~m_abilityType) & 0x80) != 0;
+}
+
+bool stAmplifyOption_t::hasAbility() const
+{
+    return m_abilityType != 0;
 }
 
 void stAmplifyOption_t::_setAbility(unsigned char type, unsigned short value,
@@ -113,10 +113,9 @@ void RandomOptionField::reset()
     m_field2 = 0;
 }
 
-void RandomOptionSeed::reset()
-{
-    m_field = 0;
-}
+// RandomOptionSeed::reset 定义已迁 DnfItemInfo.cpp（unit-at-a-time outgoing
+// 塌缩修复：本 TU 可见 callee 体使 RandomOption::reset outgoing 塌缩 0x4，
+// ORIG sub $0x18；挪走后 4.4 恢复 0x18）。
 
 void RandomOption::reset()
 {
@@ -134,14 +133,6 @@ bool RandomOption::empty()
     if (m_field0.m_field0 == 0)
         return true;
     return false;
-}
-
-void ChronicleRandomOptionInfo::reset()
-{
-    m_skill0.reset();
-    m_skill1.reset();
-    m_field2 = 0;
-    m_random.reset();
 }
 
 // ORIG W 0x080cb332：构造后调 reset()（位域清零）。
@@ -262,6 +253,24 @@ void Inven_Item::SetReSealCount(unsigned char count)
     m_attrBits.m_attrHi = count;
 }
 
+// ORIG _Z23DecreaseTradeLimitCountR10Inven_Item T 0x0812013c：
+// ORIG 块序 jne 进主流程/false 块直落 = 早退形（P16）。
+// unit-at-a-time 规避（实证 /tmp/ii_half7.cpp）：本函数须置于
+// GetTradeLimitCount/SetTradeLimitCount 外联定义之前，否则 4.4 删
+// framePad 槽塌缩帧 0x28→0x18、count 槽 -0x9→-0x1。
+bool DecreaseTradeLimitCount(Inven_Item& item)
+{
+    // ORIG 帧 0x28、count 槽 -0x9（count 前有 8 字节 dead 槽）；
+    // 4.4 删 dead local，用被引用 double 撑回（探针 /tmp/dtlp/a.cpp 逐条同形）。
+    double framePad;
+    (void)&framePad;
+    unsigned char count = item.GetTradeLimitCount();
+    if (count == 0)
+        return false;
+    item.SetTradeLimitCount(count - 1);
+    return true;
+}
+
 unsigned char Inven_Item::GetTradeLimitCount() const
 {
     return (m_attr & 0xe0) >> 5;
@@ -270,17 +279,6 @@ unsigned char Inven_Item::GetTradeLimitCount() const
 void Inven_Item::SetTradeLimitCount(unsigned char count)
 {
     m_attrBits.m_attrHi = count;
-}
-
-// ORIG _Z23DecreaseTradeLimitCountR10Inven_Item T 0x0812013c：
-// ORIG 块序 jne 进主流程/false 块直落 = 早退形（P16）。
-bool DecreaseTradeLimitCount(Inven_Item& item)
-{
-    unsigned char count = item.GetTradeLimitCount();
-    if (count == 0)
-        return false;
-    item.SetTradeLimitCount(count - 1);
-    return true;
 }
 
 bool Inven_Item::isAvatarItemType() const

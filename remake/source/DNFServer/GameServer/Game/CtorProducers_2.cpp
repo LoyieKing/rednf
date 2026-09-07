@@ -37,19 +37,21 @@
 
 
 // ---- DisjointSkillScript（ORIG W 0x084735fe/0x084735d2；布局 4×int）----
-void DisjointSkillScript::clear()
-{
-    // ORIG 0x084735d2：{0xb, 0, 0, 4} 四连写。
-    m_field00 = 0xb;
-    m_field04 = 0;
-    m_field08 = 0;
-    m_field0c = 4;
-}
-
 DisjointSkillScript::DisjointSkillScript()
 {
     // ORIG 0x084735fe：仅调用 clear()。
     clear();
+}
+
+void DisjointSkillScript::clear()
+{
+    // ORIG 0x084735d2：{0xb, 0, 0, 4} 四连写。
+    // 定义置于 ctor 之后：4.4 对"被调函数本 TU 未定义"的 ctor 帧发 sub $0x18，
+    // 与 ORIG 0x084735fe 帧形一致（探针 /tmp/near7/p7-p8）。
+    m_field00 = 0xb;
+    m_field04 = 0;
+    m_field08 = 0;
+    m_field0c = 4;
 }
 
 // ---- DisjointScript::._381（命名类 _381；成员 +0x00 int m_count / +0x04 vector<int> m_items）----
@@ -391,16 +393,6 @@ SDCActiveStatusSyncCommon::SDCActiveStatusSyncCommon()
 SDCActiveStatusSyncCommon::~SDCActiveStatusSyncCommon()
 {
     // ORIG W 0x08234876：空体 ret。
-}
-
-SDCActiveStatusSyncServer::SDCActiveStatusSyncServer()
-{
-    // ORIG W 0x0823487c：仅委托基类 ctor（隐式基类构造，asm call _ZN25SDCActiveStatusSyncCommonC1Ev）。
-}
-
-SDCActiveStatusSyncServer::~SDCActiveStatusSyncServer()
-{
-    // ORIG W 0x08234890：仅委托基类 D1（隐式，asm call _ZN25SDCActiveStatusSyncCommonD1Ev）。
 }
 
 bool SDCActiveStatusSyncServer::loadActiveStatusScript()

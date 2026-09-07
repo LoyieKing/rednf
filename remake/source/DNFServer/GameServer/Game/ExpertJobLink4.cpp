@@ -501,6 +501,12 @@ void CExpertJobFactory::FreeExpertJob(CExpertJob* job)
 // ---------------------------------------------------------------------------
 // CDisjointMachine getter（ORIG W 0x85d3e06 / 0x082347e0 / 0x85d3e12）
 // ---------------------------------------------------------------------------
+// get_disjoint_cost（ORIG W 0x085d3e50）
+int CDisjointer::get_disjoint_cost() const
+{
+    return m_machine.get_cost();
+}
+
 int CDisjointMachine::get_cost() const { return m_field1c; }       // +0x1c
 CUser* CDisjointMachine::get_user() const { return m_user; }       // +0x14
 char CDisjointMachine::get_grade() const { return m_field20; }     // +0x20 movzbl
@@ -604,12 +610,6 @@ void CDisjointer::OnCloseMission(CUser* user, ENUM_CLOSE_MISSION_TYPE type)
 bool CDisjointer::isMine(CUser* user)
 {
     return m_machine.get_user() == user;
-}
-
-// get_disjoint_cost（ORIG W 0x085d3e50）
-int CDisjointer::get_disjoint_cost() const
-{
-    return m_machine.get_cost();
 }
 
 // complete_disjoint（报告 complete_disjoint.md，ORIG T 0x085d31a0 sz 0x42d）。

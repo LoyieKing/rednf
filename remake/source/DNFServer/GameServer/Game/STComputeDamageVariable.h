@@ -134,7 +134,7 @@ public:
         m_f1F8 = 0.0f;
     }
 
-    /* 0x000 */ int    m_field000;          // ctor: 0
+    /* 0x000 */ float  m_field000;          // ctor: 0；ORIG C1 edx 中转形+调用点 flds 直读实证 float
     /* 0x004 */ unsigned char m_char004;    // ctor: 0；computeHpDamageSDC 读作 bool（攻击方等级基准开关）
     /* 0x005 */ unsigned char m_damageType; // ctor: 0；0=物理/1=魔法，switch 值
     /* 0x006 */ float  m_f006;              // ctor: 1.0f；final *= (m_f006*0.01f + 1)
@@ -142,8 +142,8 @@ public:
     /* 0x00E */ unsigned char m_char00E;    // ctor: 0；门控魔防/防御率路径
     /* 0x00F */ float  m_f00F[7];           // [0]=0.0f, [1..3]=1.0f, [4..6]=1.0f（暴击率表 0x1f/0x23/0x27 槽）
     /* 0x02B */ float  m_f02B;              // ctor: 1.0f
-    /* 0x02F */ int    m_field02F;          // ctor: 0
-    /* 0x033 */ int    m_field033;          // ctor: 0
+    /* 0x02F */ float  m_field02F;          // ctor: 0；ORIG C1 edx 中转形实证 float
+    /* 0x033 */ float  m_field033;          // ctor: 0；ORIG C1 edx 中转形实证 float
     /* 0x037 */ float  m_f037;              // ctor: 1.0f；物理分支第二乘子 (m_f037*0.01f+1)
     /* 0x03B */ float  m_f03B;              // ctor: 1.0f；魔法分支第二乘子 (m_f03B*0.01f+1)
     /* 0x03F */ float  m_f03F;              // ctor: 0；物理力量 s2（CONVERT_TABLE_3）
@@ -159,17 +159,17 @@ public:
     /* 0x067 */ int    m_field067;          // ctor: 0；魔法 final 附加
     /* 0x06B */ float  m_f06B;              // ctor: 1.0f；dmg *= m_f06B
     /* 0x06F */ float  m_f06F;              // ctor: 1.0f
-    /* 0x073 */ int    m_field073;          // ctor: 0
+    /* 0x073 */ float  m_field073;          // ctor: 0；ORIG C1 edx 中转形实证 float
     /* 0x077 */ float  m_f077;              // ctor: 1.0f；!=1.0f 时 dmg *= m_f077
     /* 0x07B */ int    m_field07B;          // ctor: 0；!=0 时 dmg += (float)m_field07B
     /* 0x07F */ int    m_elemAbility[4];    // ctor 循环 0；元素减益表输入
     /* 0x08F */ float  m_f08F;              // ctor: 1.0f；元素减益乘子
     /* 0x093 */ int    m_field093;          // ctor: 0
     /* 0x097 */ int    m_field097;          // ctor: 1
-    /* 0x09B */ int    m_field09B;          // ctor: 0
+    /* 0x09B */ float  m_field09B;          // ctor: 0；ORIG C1 edx 中转形实证 float
     /* 0x09F */ int    m_field09F;          // ctor: 0
     /* 0x0A3 */ int    m_field0A3;          // ctor: 1
-    /* 0x0A7 */ int    m_field0A7;          // ctor: 0
+    /* 0x0A7 */ float  m_field0A7;          // ctor: 0；ORIG C1 edx 中转形实证 float
     /* 0x0AB */ float  m_f0AB;              // ctor: 0；物理力量 s1（CONVERT_TABLE_4）
     /* 0x0AF */ float  m_f0AF;              // ctor: 0；魔法力量 s1（CONVERT_TABLE_6）
     /* 0x0B3 */ float  m_f0B3;              // ctor: 1.0f；final 附加乘子
@@ -179,7 +179,7 @@ public:
     /* 0x0C3 */ float  m_magicReduceRate;   // ctor: 0；魔法 dmg -= dmg*rate
     /* 0x0C7 */ int    m_physMDefAdd;       // ctor: 0；物理魔防加值
     /* 0x0CB */ int    m_magicMDefAdd;      // ctor: 0；魔法魔防加值
-    /* 0x0CF */ int    m_field0CF;          // ctor: 0
+    /* 0x0CF */ float  m_field0CF;          // ctor: 0；ORIG C1 edx 中转形实证 float
     /* 0x0D3 */ unsigned char m_char0D3;    // ctor: 0；门控 f[4]（0x1f）暴击率乘子
     /* 0x0D4 */ unsigned char m_char0D4;    // ctor: 0；门控 f[5]（0x23）
     /* 0x0D5 */ unsigned char m_char0D5;    // ctor: 0；门控 f[6]（0x27）

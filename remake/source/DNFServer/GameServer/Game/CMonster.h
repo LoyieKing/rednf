@@ -30,9 +30,9 @@ public:
     void drop_item_index(unsigned int index) const;
     void drop_item_index(unsigned int index, int randomValue) const;
     unsigned int get_specialItem_list_size(unsigned int index) const;
-    // ORIG ConsistMap 0x086b8d97 以 `mov 0x1d24(%edx),%edx` 直读权重（成员偏移
-    // 访问而非 getter），故 m_weight 公开；仅访问权限变化，布局/sizeof 不变。
-    int m_weight;               // +0x1d24（ORIG new CMonster sizeof 0x1d28，无尾部成员）
+    // ORIG +0x00：set_monster 未写、语义未建模的 4 字节占位（m_index 依 ORIG
+    // set_monster this+0x4=script+0x0 固定于 +0x4，故类首必须有此槽）。
+    int m_pad000;
 
 private:
     int m_index;
@@ -44,9 +44,11 @@ private:
     int m_independentDropCount;        // +0x58（ORIG set_monster ← script+0x3ec）
     int m_catchItemCount;              // +0x5c（ORIG set_monster ← script+0x3f0）
     STMonsterScript m_script;          // 真实布局（sizeof 0x1cc4，本批次重建）
-    // 脚本区之后到权重表的保留字节：脚本区起点 0x60、m_weight 固定 0x1d24，
-    // 保留量随真实 STMonsterScript 尺寸收缩（原两段 reserved 合并）。
-    char m_scriptReserved[0x1d24 - 0x60 - sizeof(STMonsterScript)];
+public:
+    // ORIG ConsistMap 0x086b8d97 以 `mov 0x1d24(%edx),%edx` 直读权重（成员偏移
+    // 访问而非 getter），故 m_weight 公开。m_script@0x60(sizeof 0x1cc4) 后直接
+    // 落 +0x1d24，无保留区。
+    int m_weight;               // +0x1d24（ORIG new CMonster sizeof 0x1d28，无尾部成员）
 };
 
 #endif

@@ -49,7 +49,8 @@ EXCHANGE_SERVER_TYPE CExchangeServer::GetServerType()
 
 void CExchangeServer::SetServerType(EXCHANGE_SERVER_TYPE type)
 {
-    m_serverType68 = (int)type;
+    // 枚举字段=枚举形参同型直赋（无转换节点）：4.4 LHS 先载=ORIG 实证。
+    m_serverType68 = type;
 }
 
 // ---------------------------------------------------------------------------
@@ -265,6 +266,8 @@ bool CExchangeServer::SendResponseCharacInfo(int a, int b, void* data,
 bool CExchangeServer::SendResponseCharacInfo(int a, int b, void* data,
                                              int len)
 {
+    // [N] 纯转发件：ORIG sub $0x38 vs 4.4 sub $0x28——4.1 outgoing 区恒多预留
+    // 0x10，跨版本帧豁免（同 ForwardRequestCharac，ndiff 2 封顶）。
     return SendResponseCharacInfo_forchina(a, b, data, len);
 }
 
@@ -412,6 +415,8 @@ bool CExchangeServer::ForwardRequestCharac_forchina(int a, int b,
 bool CExchangeServer::ForwardRequestCharac(int a, int b, void* data,
                                            int len)
 {
+    // [N] 纯转发件：ORIG sub $0x38 vs 4.4 sub $0x28——4.1 outgoing 区恒多预留
+    // 0x10，跨版本帧豁免（ndiff 2 封顶）。
     return ForwardRequestCharac_forchina(a, b, data, len);
 }
 

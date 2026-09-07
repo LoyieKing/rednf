@@ -38,6 +38,26 @@
 #include "STCharacterScript.h"   // STCharacterScript 权威布局（CCharacList::init 真实 C1/D1）
 #include "NPCDynamicInfo.h"      // CNPCDynamicInfo 权威布局/ctor（CNPCDynamicInfoManager::add 真实 C1）
 #include "CChattingEmoticonList.h"
+#include "CGuildServerProxy.h"   // DeliveryMsg 权威声明（迁入定义 NL6）
+
+// ---- 迁入定义（NL6，outgoing 帧塌缩规避；NL4 unit-at-a-time 机制实证）----
+
+// ORIG W 0x0891bce0：两 int 字段清零。原 InitScriptProducers_1.cpp。
+void StackableItemData::clear()
+{
+    m_field0 = -1;   // +0x00 movl $0xffffffff
+    m_field4 = 0;    // +0x04
+}
+
+// ORIG W 0x086978c0：四字段清零（server group 位为 0xffffffff）。
+// 原 CUserDepsB.cpp（BuyItemDeliveryMsgC1 调用点 outgoing 帧 0x18 依赖此迁移）。
+DeliveryMsg::DeliveryMsg()
+{
+    m_type = 0;
+    m_accId = 0;
+    m_characNo = 0;
+    m_serverGroup = -1;
+}
 #include "EquipmentParameterInfo.h"
 #include "STEquipmentScript.h"       // ImportEquipmentScript 声明（5 参）
 #include "DNFLexWrapper.h"           // loadRDARScriptFile/ScanType/ScanInt/loadRDARScriptListFile

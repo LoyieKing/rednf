@@ -35,24 +35,6 @@ void CCalcCharacStat::InitializeStat(_Additioal_info* out, int job)
     out->clear();
     switch (job)
     {
-    case 1:                                   // +0x0db 分支
-        out->m_field00 = 0x708;               // +0x00
-        out->m_field04 = 0x5dc;               // +0x04
-        out->m_field08 = 0x3c;                // +0x08
-        out->m_field0a = 0x3c;                // +0x0a
-        out->m_field0c = 0x32;                // +0x0c
-        out->m_field0e = 0x32;                // +0x0e
-        out->m_field10[2] = 0xff38;           // +0x14
-        out->m_field10[3] = 200;              // +0x16
-        out->m_field3a = 300000;              // +0x3a
-        out->m_field40 = 0x82;                // +0x40
-        out->m_field42 = 0x238c;              // +0x42
-        out->m_field46 = 0x251c;              // +0x46
-        out->m_field48 = 10000;               // +0x48
-        out->m_field4a = 6000;                // +0x4a
-        out->m_field4c = 0x125c;              // +0x4c
-        out->m_field4e = 500000;              // +0x4e
-        break;
     case 0:                                   // +0x042 分支
         out->m_field00 = 0x5dc;
         out->m_field04 = 0x5dc;
@@ -70,6 +52,24 @@ void CCalcCharacStat::InitializeStat(_Additioal_info* out, int job)
         out->m_field4a = 6000;
         out->m_field4c = 0x10cc;
         out->m_field4e = 680000;
+        break;
+    case 1:                                   // +0x0db 分支
+        out->m_field00 = 0x708;
+        out->m_field04 = 0x5dc;
+        out->m_field08 = 0x3c;
+        out->m_field0a = 0x3c;
+        out->m_field0c = 0x32;
+        out->m_field0e = 0x32;
+        out->m_field10[2] = 0xff38;
+        out->m_field10[3] = 200;
+        out->m_field3a = 300000;
+        out->m_field40 = 0x82;
+        out->m_field42 = 0x238c;
+        out->m_field46 = 0x251c;
+        out->m_field48 = 10000;
+        out->m_field4a = 6000;
+        out->m_field4c = 0x125c;
+        out->m_field4e = 500000;
         break;
     case 2:                                   // +0x174 分支
         out->m_field00 = 0x4e2;

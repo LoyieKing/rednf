@@ -256,7 +256,8 @@ void CGameMasterCharacter::sendServerState(CUser*, char const*)   // 0x084b42b6
 }
 
 CGameMasterCharacterItemDropRate::CGameMasterCharacterItemDropRate()  // 0x084b4434
-{
+{   // N 封顶：ORIG 帧 0x18 vs 4.4 恒 0x4（跨版本 outgoing 帧策略，豁免表族）；
+    // double/char[]/显式基类调用等 6 形探针穷举，0x18 不可达。
 }
 
 void CGameMasterCharacterItemDropRate::sendServerState(

@@ -101,7 +101,7 @@ static_assert(offsetof(SigSystemMultiMailView, m_items) == 0x126, "items zone ba
 struct SigMailboxSendReplyView
 {
     int m_field00;
-    int m_field04;
+    unsigned int m_field04;   // 与形参 userIdx(int) 异型（NL7 定律）：4.4 RHS 先载翻 ORIG 形
     int m_field08;
 };
 

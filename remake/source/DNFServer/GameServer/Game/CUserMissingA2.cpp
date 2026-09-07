@@ -598,6 +598,8 @@ int CHARAC_LOAD_MERCENARY::GetRewardGold(CUser* user,
     // （同 GetRewardCritical 探针形）。
     const std::vector<std::pair<int, std::pair<int, int> > >& vec =
         G_CDataManager()->m_mercenarySystem.m_vec8;
+    unsigned long range;    // ORIG 槽 -0x40（高地址）：4.4 POD 槽逆序分配，
+                            // 提前声明使其落 basePair sret 槽之后
     std::pair<int, int> basePair = Find_max_value_lower_N<std::pair<int, int> >(
         m_level, vec);
     int base = basePair.first;
@@ -608,8 +610,8 @@ int CHARAC_LOAD_MERCENARY::GetRewardGold(CUser* user,
     int gold = (int)(base * period * term * avatar + 0.01f);
 
     static CMTRand probabilityRewardItem;
-    unsigned long range =
-        static_cast<unsigned long>(G_CDataManager()->m_mercenarySystem.m_field3c);
+    range = static_cast<unsigned long>(
+        G_CDataManager()->m_mercenarySystem.m_field3c);
     int criticalDice = probabilityRewardItem.randInt(range);
     float critical = GetRewardCritical(criticalDice);
     if (user->isGMUser())

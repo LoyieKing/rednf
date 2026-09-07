@@ -3,6 +3,10 @@
 // 依据 docs/class_func_reports/Statistics.md + ORIG 反汇编逐函数转录。
 // 本类只做消息打包并转发给 SendSignal（ORIG 中 SendSignal 为空实现，
 // 实际投递由后续层完成）。
+// [b26-NL28] 8 个上报方法 ORIG 为 static（参数槽 a@0x8 起无 this，mangled 同形），
+//   头已同步加 static（Main 批准）。RankResult 由此落 AE。
+//   其余 7 件 NEAR 残差=帧 0xc + char 槽对齐差（4.1 紧密槽 vs 4.4 八对齐/出参区
+//   复用策略，N82 族，源形不可消除），已封顶勿再耗轮次。
 // ============================================================================
 
 #include <string.h>

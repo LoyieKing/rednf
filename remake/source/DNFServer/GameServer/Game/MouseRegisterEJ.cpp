@@ -736,8 +736,16 @@ CExpertJobStatistic::~CExpertJobStatistic() {}
 // ORIG ctor W 0x08610720：直接落两字段。
 CExpertJobStatistic::ExpertJobKey::ExpertJobKey(ENUM_EXPERT_JOB_TYPE type,
                                                 unsigned long itemIdx)
-    : m_field00(type), m_itemIdx04(itemIdx)
 {
+    // P95：ORIG 0x8610720 首句先载 this 后载 type（enum 参数）；4.4 直初始化值先。
+    // 具名视图复现（m_field00 = +0x00）。
+    struct EJKeyView
+    {
+        int m_field00;
+        unsigned long m_itemIdx04;
+    };
+    ((EJKeyView*)this)->m_field00 = type;
+    ((EJKeyView*)this)->m_itemIdx04 = itemIdx;
 }
 
 // ORIG operator< W 0x086106da：int 有符号前置序 + unsigned long 无符号次序。

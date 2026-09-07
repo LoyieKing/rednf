@@ -1083,8 +1083,8 @@ void CParty::sub_hellparty_value()
     // （0x32c+0x7e0=0xb0c、0xb24+0x1f8=0xd1c、0xb24+0x1ec=0xd10）。
     // [待 CParty 具名化专改]（Main 裁决转 MonC9：m_padBattleData→BattleData
     // m_battleData 后 4.4 或折叠单段位移）。
-    float value = bf(this).m_hellPartyRatio4 *
-                  bd(this).m_hellPartyValueTotal;                        // flds×2 fmulp
+    float value = bd(this).m_hellPartyValueTotal *
+                  bf(this).m_hellPartyRatio4;              // flds×2 fmulp（交换律等价，复现 ORIG 压栈序）
     if (D2_ROUND(value) < bf(this).m_hellPartyRatio1)                    // fistpl/jge
     {
         value = static_cast<float>(bf(this).m_hellPartyRatio1);          // fildl
@@ -1288,7 +1288,7 @@ bool CParty::OnTimerWalkOutLackUser()   // CParty.h:657 bool（PSM 落，定义�
 // ---------------------------------------------------------------------------
 void CParty::IncreaseSetPlayResultCount(CUser* user)
 {
-    int slot = (int)GetMemberSlotNo(user);
+    int slot = GetMemberSlotNo(user);
     if (slot >= 0)
         m_member[slot].m_field4 = 1;
 }

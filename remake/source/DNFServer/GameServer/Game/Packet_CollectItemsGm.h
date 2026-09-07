@@ -1,6 +1,6 @@
 // HdrCreate3: ORIG exported symbols, first .h declaration. Evidence: nm ORIG 0x0822c7c0 (C1 W), nm-only.
 // LinkFinal2: ctor inline 化 —— ORIG _ZN20Packet_CollectItemsGmC1Ev W @0x0822c7c0 objdump 逐指令转写：
-// PacketHeader(0x17, 0x27eb)；+0x0a byte=0；+0x0b/+0x0f/+0x13 各 4B 清零。
+// PacketHeader(0x27eb, 0x17)；+0x0a byte=0；+0x0b/+0x0f/+0x13 各 4B 清零。
 #ifndef DNF_GAME_PACKET_COLLECTITEMSGM_H_
 #define DNF_GAME_PACKET_COLLECTITEMSGM_H_
 
@@ -12,7 +12,7 @@ class Packet_CollectItemsGm : public PacketHeader
 {
 public:
     Packet_CollectItemsGm()   // ORIG W @0x0822c7c0
-        : PacketHeader(0x17, 0x27eb)
+        : PacketHeader(0x27eb, 0x17)   // packetId=0x27eb、size=0x17（ORIG C1 0x4(%esp)=0x27eb 实证）
     {
         m_pad0a = 0;
         m_a = 0;   // +0x0b

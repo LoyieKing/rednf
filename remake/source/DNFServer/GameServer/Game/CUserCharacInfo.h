@@ -555,7 +555,9 @@ public:
     WongWork::CDungeonClear m_dungeonClear;        // +0xb4（0x18）
     bool m_reliablePerson;         // +0xcc
     char m_padcd[3];               // +0xcd..0xcf
-    int m_overTradeGoldCount;      // +0xd0
+    unsigned int m_overTradeGoldCount;  // +0xd0（unsigned：SetOverTradeGoldCount
+                                        // 形参 Ej unsigned 同型直赋，4.4 无转换
+                                        // 赋值 LHS 先载=ORIG 0x84ec04a 实证）
     bool m_saveCharacOption;       // +0xd4
     char m_padd5[3];               // +0xd5..0xd7
     long m_characStartPlayTick;    // +0xd8

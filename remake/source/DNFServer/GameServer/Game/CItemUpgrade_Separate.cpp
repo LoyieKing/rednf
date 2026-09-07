@@ -224,11 +224,16 @@ namespace WongWork
 // new CMTRand(time) 存 +0x18c → 100 次 randInt(m_randRange) 热身。
 CItemUpgrade_Separate::CItemUpgrade_Separate()
 {
+    // 判词 N（batch-26 lane14）：ORIG time 临时@-0x24/range@-0x20 vs 4.4
+    // 临时固定浅槽 -0x20、具名 range 深槽 -0x24 —— 4.4 call 结果临时不随
+    // 声明序挪槽（具名化 seed 可对槽但 lea 延后至 new 之后成 DIFF，更差）；
+    // 帧/指令数等齐，2 行槽号差 N 封顶（0x0811e0be）。
     m_randRange = 100000;
+    unsigned long range;
     m_rand = new CMTRand(static_cast<unsigned long>(time(0)));
     for (int i = 0; i < 100; ++i)
     {
-        unsigned long range = m_randRange;
+        range = m_randRange;
         m_rand->randInt(range);
     }
 }

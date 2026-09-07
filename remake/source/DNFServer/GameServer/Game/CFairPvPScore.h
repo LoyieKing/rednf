@@ -97,7 +97,9 @@ public:
     int m_field44;              // +0x44（resultKind==3 计数）
     int m_winStreak;            // +0x48（cnt0!=0&&cnt1==0 连胜链长）
     int m_bestWinStreak;        // +0x4c
-    int m_dailyPlayCount;       // +0x50
+    unsigned int m_dailyPlayCount;       // +0x50（与 SetDailyPlayCount(int) 形参异型化，
+                                         // NL7 判据：4.4 store 展开序翻 RHS 先=ORIG 形；
+                                         // ORIG jns 钳负后 v≥0，无符号读取无语义差）
     int m_field54;              // +0x54（上次结算时间）
 
     unsigned char m_lastTrainingSealCount;        // +0x58

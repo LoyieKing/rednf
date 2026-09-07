@@ -82,14 +82,18 @@ void CRequestDisjointCmd::parse()
 // 0xffff=目标区域通配（推断））。
 void CRequestDisjointCmd::execute()
 {
-    char const* name = m_str0.c_str();   // ORIG 先取名字符串再取 GameWorld
+    register char const* name = m_str0.c_str();   // ORIG ebx 缓存跨 G_GameWorld
     CUser* target = G_GameWorld()->find_user_by_charac_name(name);
     if (target != 0)
     {
-        CUser* self = GetUser();
-        DisPatcher_DisJointItem::_disjoint(self, 9, 0,
+        int type = 9;
+        DisPatcher_DisJointItem::_disjoint(GetUser(), type, 0,
                                            static_cast<ENUM_CMDPACKET>(0x1c),
                                            target, 0xffff);
+    }
+    else
+    {
+        return;
     }
 }
 
@@ -226,17 +230,18 @@ void CSetGuildFund::parse()
 
 // ORIG execute 0x084ac6a0：向发起者所在公会代理发送加 fund 请求
 // SendAddGuildFund(characNo, guildKey, amount, eFundType_GM)。
+// 【NEAR 封顶】助记符序列已逐条相同；残余仅 guildKey/characNo 的
+// esi/ebx 寄存器互换（4.4 按初始化序线性分配，无法跳位复现）。
 void CSetGuildFund::execute()
 {
     CUser* user = GetUser();
-    unsigned int amount = static_cast<unsigned int>(m_fund);
-    unsigned int guildKey =
-        static_cast<unsigned int>(user->get_charac_guildkey());
-    unsigned int characNo = static_cast<unsigned int>(user->get_charac_no(-1));
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendAddGuildFund(characNo, guildKey, amount,
-                            Packet_Add_Guild_Fund::eFundType_GM);
+    register int amount = m_fund;
+    register int characNo;
+    register int guildKey = user->get_charac_guildkey();
+    characNo = user->get_charac_no(-1);
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendAddGuildFund(characNo, guildKey, amount,
+                           Packet_Add_Guild_Fund::eFundType_GM);
 }
 
 // ===========================================================================
@@ -283,6 +288,8 @@ void CSetMultiboxFailCnt::execute()
 // ORIG ctor 0x082a80b4：基类 ctor → 自身 vptr；+0x08 标量未初始化。
 
 // ORIG parse 0x084a921a：trim(args)；+0x08 = atoi(args)（教程标记）。
+// 【N 封顶】4.1 在 atoi 前提前物化 this 入 edx（mov 0x8(%ebp),%edx;
+// mov %eax,0x8(%edx)）；4.4 恒暂存 atoi 结果入 edx 再取 this（+1 条）。
 void CSetTutorialFlagCmd::parse()
 {
     trim(m_parser->m_args);
@@ -290,10 +297,12 @@ void CSetTutorialFlagCmd::parse()
 }
 
 // ORIG execute 0x084a9252：GetUser()->RewardTutorial(flag)。
+// 【NEAR 封顶】助记符序列已逐条相同（含 4.1 中转 mov %eax,%ebx）；
+// 残余仅帧尺寸 sub $0x24 vs 4.4 sub $0x14（N82 出参区差）。
 void CSetTutorialFlagCmd::execute()
 {
-    CUser* user = GetUser();
-    user->RewardTutorial(m_flag);
+    register int flag = m_flag;
+    GetUser()->RewardTutorial(flag);
 }
 
 // CStartEvent（sizeof=0x14）
@@ -344,10 +353,9 @@ void CStartEvent::execute()
     packet.m_field1 = static_cast<unsigned int>(m_eventId);
     packet.m_field2 = m_param1;
     packet.m_field3 = m_param2;
-
-    CMonitorServerProxy* proxy =
-        GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x12);
+    register Packet_Monitor_Event_Start* pPkt = &packet;
+    GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendTcpPacket(reinterpret_cast<char*>(pPkt), 0x12);
 }
 
 // ===========================================================================

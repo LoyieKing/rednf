@@ -21,7 +21,7 @@ void CPad::init()
     m_certified25 = 0;
     memset(m_pad, 0, sizeof(m_pad));           // ORIG memset(this,0,0x24)
     m_failCnt38 = 0;                           // +0x38（dword）
-    m_requestState40 = 0;                      // +0x40
+    m_requestState40 = Sanicova::CPad::eRequestStateNone;  // +0x40（ORIG setRequestState(0)）
     m_cancelCnt44 = 0;                         // +0x44
     m_pad2c[0] = 0;                            // +0x2c（字节）
     m_version26 = 0;                           // +0x26
@@ -71,6 +71,9 @@ int CPad::getRequestState() const { return m_requestState40; }  // ORIG W 0x0822
 
 void CPad::setRequestState(ENUM_REQUEST_STATE state)      // ORIG W 0x0822efcc
 {
+    // ORIG 0822efcc: this-先 store（mov 0x8,%eax; mov 0xc,%edx; 写回）。
+    // N76 同型化翻案（NL7 定律）：m_requestState40 int→ENUM_REQUEST_STATE
+    // （CUser.h Main 代落；st10 探针实证同型 store 出 this-先形），落 identical。
     m_requestState40 = state;
 }
 
@@ -187,6 +190,8 @@ void CPad::SendChagePwdReward(CUser* user)
 // ORIG T 0x0859981e：置密改与建议标记为 0（发奖邮件已由上层处理）。
 void CPad::SendChagePwdRewardMail(CUser* user)
 {
+    // N 封顶：outgoing-args reserve 跨版本尺寸差（ORIG sub $0x18 vs 4.4 $0x8），
+    // 指令序列全等（同 SetPVPResult/SpinLockC1 判例）。
     setChangedPwd(false);
     setAdvideChangePwd(false);
 }

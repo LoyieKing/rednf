@@ -14,7 +14,7 @@ public:
     // ORIG makeRequest 0x08161218 写 +0x0(int m_id)/+0x4(bool received)。
     struct Msg
     {
-        int m_id;          // +0x00
+        unsigned int m_id;  // +0x00（与形参 memberId 同型；NL7 定律试形）
         bool m_received;   // +0x04
     };
 

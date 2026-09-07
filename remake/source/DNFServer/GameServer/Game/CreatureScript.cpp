@@ -220,7 +220,7 @@ void AttackInfo::clear()
     m_damage = 0.0f;
     m_absoluteDamage = 0;
     m_damageBonus = 0;
-    m_attackType = 0;
+    m_attackType = (AttackInfo::ENUM_ATTACKTYPE)0;
     m_weaponDamageApply = 0;
     m_humanActiveStatusRate = 1.0f;
     m_damageReaction = 1;
@@ -322,6 +322,7 @@ bool AttackInfo::isValidElement(ENUM_ELEMENT element)
 // ORIG 0x88908b8：m_attackType(+0x10) = type。
 void AttackInfo::setAttackType(ENUM_ATTACKTYPE type)
 {
+    // N76：4.4 恒 RHS 值先载（this-> 形探针无效），ORIG LHS-this 先载序不可翻。
     m_attackType = type;
 }
 
@@ -1331,11 +1332,11 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                         bool isType;          // -0x3cd
                         ScanTypeOrStr(isType, token, true);
                         if (token == "[physic]")
-                            info->m_attackType = 0;
+                            info->m_attackType = (AttackInfo::ENUM_ATTACKTYPE)0;
                         else if (token == "[magic]")
-                            info->m_attackType = 1;
+                            info->m_attackType = (AttackInfo::ENUM_ATTACKTYPE)1;
                         else if (token == "[ignore defense]")
-                            info->m_attackType = 2;
+                            info->m_attackType = (AttackInfo::ENUM_ATTACKTYPE)2;
                         break;
                     }
                     __lookup.insert(LookupMap::value_type("[attack type]",
@@ -1898,6 +1899,8 @@ void CCreatureScript::Set(CreatureScript* src)
 // ORIG 0x833cad8：find(m_set34, creatureId)；命中返回 creatureId，否则 0。
 int CCreatureScript::GetItemEvolutionCreatureId(int creatureId)
 {
+    // N7/实参装载序封顶：两栈参载入次序 ORIG 与 4.4 相反（槽 -0x10/-0xc），
+    // 指令集全等；同表达式实参序跨版本差（patterns"实参求值序"条）不可源码复现。
     std::set<int>::const_iterator it = m_set34.find(creatureId);
     if (it != m_set34.end())
     {

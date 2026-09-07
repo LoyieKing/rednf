@@ -146,6 +146,8 @@ CVillageMonsterArea::CVillageMonsterArea(int a, int b, int c, int d,
     m_field2c = b;                       // +0x2c
     m_monsterList = *monsters;           // +0x1c vector 拷贝
     m_areaList = areas;                  // +0x18
+    // N76 封顶（ndiff1）：ORIG 0x86b3752 此句先备值(c→edx)后载 this；4.4 对 int 参数
+    // mem→mem store 恒 LHS-first，探针直成员/视图/链式/中间量全不可翻（enum 参数才值先）。
     m_field34 = c;                       // +0x34
     m_field38 = d;                       // +0x38
     m_field30 = 0;                       // +0x30
@@ -182,9 +184,11 @@ void CVillageMonsterMgr::InsertVillageMonster(int a, int b, int c, int d,
                                               std::vector<MapArea>* areas)
 {
     // ORIG 0x86b4144：构造区域后以 Zone(a,b) 为键插入 m_areas。
-    CVillageMonsterArea area(a, b, c, d, monsters, areas);
-    Zone zone((unsigned char)a, (unsigned char)b);
-    m_areas.insert(std::make_pair(zone, area));
+    // P210（本件实证）：全临时内联形使 4.4 栈槽排布复现 ORIG（area -0x48 / zone
+    // -0xa / mkpair -0x88 / pair_cc -0xc8 / insert 返回 -0xd0）；具名局部形 4.4 将
+    // 具名对象压帧底（-0xd0/-0x92），逐条错位。
+    m_areas.insert(std::make_pair(Zone((unsigned char)a, (unsigned char)b),
+                                  CVillageMonsterArea(a, b, c, d, monsters, areas)));
 }
 
 // ============================================================================
@@ -488,7 +492,13 @@ void CVillageMonsterMgr::OnDestroyVillageMonster(ENUM_VILLAGE_ATTACKED_REWARD re
     }
     m_field04 = 0;
     m_field00 = 0;
-    m_field20 = (int)reward;
+    // P95：ORIG 0x86b43d4 末段 store 先载 this 后载 reward；具名视图复现。
+    struct CVMgrRewardView
+    {
+        char m_head[0x20];
+        int  m_field20;
+    };
+    ((CVMgrRewardView*)this)->m_field20 = (int)reward;
     PacketGuard packet;
     packet.clear();
     packet.put_header(0, 0xf2);

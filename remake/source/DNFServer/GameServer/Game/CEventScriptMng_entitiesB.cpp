@@ -40,6 +40,8 @@ CFatigueQuantity::~CFatigueQuantity()
 // 然后把绑定脚本存到 +0x1c。
 void CFatigueQuantity::set_event_data(int key, InGameEventScript* script)
 {
+    /* N7 封顶（b26 NL26）：唯一残差为虚调用 vfn/this/key 寄存器分配差
+     * （ORIG vfn=ecx,this=eax vs 4.4 vfn=eax,this=edx），负例表 N7。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -71,6 +73,7 @@ CExchangeRandomItemReward::~CExchangeRandomItemReward()
 // ORIG 0x0810eb06：同 CFatigueQuantity 模式。
 void CExchangeRandomItemReward::set_event_data(int key, InGameEventScript* script)
 {
+    /* N7 封顶（b26 NL26）：同 CFatigueQuantity::set_event_data 判词。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -89,6 +92,7 @@ CAvatarDisjointRandomReward::~CAvatarDisjointRandomReward()
 // ORIG 0x0810f37a：同 CFatigueQuantity 模式。
 void CAvatarDisjointRandomReward::set_event_data(int key, InGameEventScript* script)
 {
+    /* N7 封顶（b26 NL26）：同 CFatigueQuantity::set_event_data 判词。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -107,6 +111,7 @@ CObjectBringUp::~CObjectBringUp()
 // ORIG 0x0810fcb2：同 CFatigueQuantity 模式。
 void CObjectBringUp::set_event_data(int key, InGameEventScript* script)
 {
+    /* N7 封顶（b26 NL26）：同 CFatigueQuantity::set_event_data 判词。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -174,6 +179,7 @@ CPurchaseCashItemBonus::~CPurchaseCashItemBonus()
 // ORIG 0x0810f996：同 CFatigueQuantity 模式。
 void CPurchaseCashItemBonus::set_event_data(int key, InGameEventScript* script)
 {
+    /* N7 封顶（b26 NL26）：同 CFatigueQuantity::set_event_data 判词。 */
     set_event_record_type(key);
     m_script1c = script;
 }

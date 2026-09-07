@@ -36,15 +36,6 @@ bool CFairMatch::bMatchable_ = true;
 // fair_pvp::PlayerInfoThird
 // ---------------------------------------------------------------------------
 
-// ORIG 仅清 +0x00/+0x04(1B)/+0x08/+0x0c；+0x05 的 CharacterKind m_kind 不初始化。
-void PlayerInfoThird::reset()
-{
-    m_user = 0;
-    m_flag = 0;
-    m_pvpGrade = 0;
-    m_rating = 0.0f;
-}
-
 // ---------------------------------------------------------------------------
 // fair_pvp::TeamInfoThird
 // ---------------------------------------------------------------------------
@@ -57,12 +48,23 @@ TeamInfoThird::TeamInfoThird()
 }
 
 // ORIG reset 0x8562582：清玩家数组后 m_field00=0、m_field04=2。
+// reset 置于 PlayerInfoThird::reset 定义前：callee 未知时 4.4 outgoing 保守
+// 分配恰为 ORIG 帧 0x28（定义在后则继承 callee 小帧 0x14，槽号连带漂移）。
 void TeamInfoThird::reset()
 {
     for (int i = 0; i < 4; ++i)
         m_players[i].reset();
     m_field00 = 0;
     m_field04 = 2;
+}
+
+// ORIG 仅清 +0x00/+0x04(1B)/+0x08/+0x0c；+0x05 的 CharacterKind m_kind 不初始化。
+void PlayerInfoThird::reset()
+{
+    m_user = 0;
+    m_flag = 0;
+    m_pvpGrade = 0;
+    m_rating = 0.0f;
 }
 
 // ORIG add 0x85625c6：首个空位（m_flag==0）写入；满返 0，成功返 1。

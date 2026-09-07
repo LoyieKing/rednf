@@ -17,7 +17,15 @@ public:
     unsigned long long min() const;        // _ZNK8XorRand83minEv
     unsigned long long max() const;        // _ZNK8XorRand83maxEv
     static long long getStaticInt64(unsigned long long seed);        // _ZN8XorRand814getStaticInt64Ey
-    static unsigned long long getStaticUInt64(unsigned long long seed);  // _ZN8XorRand815getStaticUInt64Ey
+    // ORIG W（0x08adfec6）：类内 inline，调用方帧 0x28/参槽 -0x10/-0xc 依此形
+    //（NL26 probeH 同机制实证：callee 类外定义时 4.4 调用方帧塌缩）。
+    static unsigned long long getStaticUInt64(unsigned long long seed)
+    {
+        unsigned char* c = (unsigned char*)&seed;
+        return ms_table0[c[0]] ^ ms_table1[c[1]] ^ ms_table2[c[2]] ^
+               ms_table3[c[3]] ^ ms_table4[c[4]] ^ ms_table5[c[5]] ^
+               ms_table6[c[6]] ^ ms_table7[c[7]];
+    }  // _ZN8XorRand815getStaticUInt64Ey
     static long long getStaticInt64();     // _ZN8XorRand814getStaticInt64Ev
     static unsigned long long getStaticUInt64();  // _ZN8XorRand815getStaticUInt64Ev
 private:

@@ -207,12 +207,12 @@ int CSharedServerMessageManager::CSharedServerMessageAdapter::GetMappedEventID(i
         std::pair<int, int>* pPair = &(*it);
         if (pPair == 0)
         {
-            ++it;
+            it++;
             continue;
         }
         if (pPair->first == nIndex)
             return pPair->second;
-        ++it;
+        it++;
     }
     return -1;
 }
@@ -222,9 +222,10 @@ bool CSharedServerMessageManager::CSharedServerMessageAdapter::IsOnIndex(int nIn
     std::vector<int>::iterator it = m_pInfo->m_vecIndex.begin();
     while (it != m_pInfo->m_vecIndex.end())
     {
-        if (*it == nIndex)
+        int nVal = *it;
+        if (nVal == nIndex)
             return true;
-        ++it;
+        it++;
     }
     return false;
 }
@@ -343,9 +344,10 @@ stSERVER_MESSAGE* CSharedServerMessageManager::getCurMessage(int nIndex)
     std::vector<stSERVER_MESSAGE>::iterator it = m_event.m_vecMsg.begin();
     while (it != m_event.m_vecMsg.end())
     {
-        if (it->m_index == nIndex)
-            return &(*it);
-        ++it;
+        stSERVER_MESSAGE* p = &(*it);
+        if (p->m_index == nIndex)
+            return p;
+        it++;
     }
     return 0;
 }
@@ -371,13 +373,14 @@ void CSharedServerMessageManager::DeleteSpecificMessage(int nIndex)
     std::vector<stSERVER_MESSAGE>::iterator it = m_event.m_vecMsg.begin();
     while (it != m_event.m_vecMsg.end())
     {
-        if (it->m_index == nIndex)
+        stSERVER_MESSAGE* p = &(*it);
+        if (p->m_index == nIndex)
         {
             m_event.m_vecMsg.erase(it);
             --m_event.m_count;
             return;
         }
-        ++it;
+        it++;
     }
 }
 

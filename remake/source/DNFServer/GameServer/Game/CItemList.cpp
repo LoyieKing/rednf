@@ -1396,6 +1396,8 @@ CCeraShopGoods* CItemList::FindGoods(int goodsIdx)
 {
     __gnu_cxx::hash_map<int, CCeraShopGoods*>::iterator it;
     __gnu_cxx::hash_map<int, CCeraShopGoods*>::iterator e = m_goodsMap.end();
+    // [b26N7b] it/e 槽分配方向 4.1(深→浅) vs 4.4(浅→深) 相反；换声明序虽对齐
+    // 槽号但使 C1Ev/end call 序倒转 AE 判 DIFF 倒退，故保持 ORIG 声明序封 NEAR。
     it = m_goodsMap.find(goodsIdx);
     if (it == e)
     {

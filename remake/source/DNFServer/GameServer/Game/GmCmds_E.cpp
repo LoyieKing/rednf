@@ -229,15 +229,17 @@ const char* CMonsterDropTest::checkCommandExecuteError(CParty* party)
 }
 
 // ORIG processDungeonDrop(CParty*, map&, map2&) 0x084ad8dc：按 mode 分派击杀模拟。
+// 【N 封顶】4.1 else-if 链把 then 块中置（test; je→single 块）且 else-if
+// 条件复用 eax 残值；4.4 then 恒 fall-through 且重读 m_mode（+2 条），
+// 无源形可同时复现块中置与寄存器复用。
 void CMonsterDropTest::processDungeonDrop(CParty* party, DropStat& drop,
                                           GradeStat& grade)
 {
-    int mode = m_mode;
-    if (mode == 0)
+    if (m_mode == 0)
     {
         singleMapMonsterKill(party, drop, grade);
     }
-    else if (static_cast<unsigned int>(mode) - 2u < 2u)
+    else if (static_cast<unsigned int>(m_mode - 2) < 2u)
     {
         passedMapMonsterKill(party, drop, grade);
     }
@@ -747,10 +749,10 @@ void CPcroomPremiumCmd::parse()
 void CPcroomPremiumCmd::execute()
 {
     int curSec = GlobalData::s_systemTime_.getCurSec();
-    int dur = m_duration;
-    CUser* user = GetUser();
-    WongWork::CHandlePremium::handleSetUserPCRoom(user, curSec,
-                                                  static_cast<long>(dur) + curSec);
+    int end = m_duration + curSec;
+    register int regEnd = end;
+    register int regCur = curSec;
+    WongWork::CHandlePremium::handleSetUserPCRoom(GetUser(), regCur, regEnd);
 }
 
 // ===========================================================================
@@ -760,6 +762,9 @@ void CPcroomPremiumCmd::execute()
 // ORIG ctor 0x082a89e2：基类 ctor → 自身 vptr，无数据成员。
 
 // ORIG parse 0x084b3d12：仅读 m_parser 判存（mov/test/ret），无副作用。
+// 【N 封顶】ORIG 保留 dead test 无分支；4.4 对空 if 恒消除 test
+// （探针 A1-A8 实证：空体/空语句/显式转换全删，asm barrier 形加 je），
+// 无合规源形可复现，ndiff 1（test 行）。
 void CPcroomRewardReset::parse()
 {
     if (m_parser)
@@ -776,7 +781,7 @@ void CPcroomRewardReset::execute()
     user->m_field8ec32 = 4;
     DBUpdatePcroomDailyReward::makeRequest(user);   // 真 static 调用（桥已删）
     InterSelectPcroomDailyReward::SendPacket(user);
-    char* idStr = NumberToString(user->get_acc_id(), 0);
+    register char* idStr = NumberToString(user->get_acc_id(), 0);
     cMyTrace trace(__PRETTY_FUNCTION__,
                    0x1852, 0);
     trace("[GMCommand] Pcroom daily reward reset m_id:%s", idStr);
@@ -826,13 +831,13 @@ void CPowerWarStraightVictory::execute()
 {
     CUser* user = GetUser();
     CParty* party = static_cast<CParty*>(user->GetParty());
-    if (party == 0)
+    if (party != 0)
     {
-        user->setStraightVictories(m_straight);
+        party->setStraightVictories(m_straight);
     }
     else
     {
-        party->setStraightVictories(m_straight);
+        user->setStraightVictories(m_straight);
     }
 }
 
@@ -866,12 +871,9 @@ void CRandomObjectTest::parse()
 // ORIG checkCommandExecuteError() 0x084b02be：count ∉ [0,100000] 报错。
 const char* CRandomObjectTest::checkCommandExecuteError()
 {
-    int count = m_count;
-    if (count < 0x186a1 && count >= 0)
-    {
-        return 0;
-    }
-    return "0 ~ 100000번 통계까지만 지원됩니다";
+    if (m_count > 0x186a0 || m_count < 0)
+        return "0 ~ 100000번 통계까지만 지원됩니다";
+    return 0;
 }
 
 // ORIG getVendingMachineInfo 0x084b0444：找 vending 表首个 m_id==1 条目中

@@ -51,6 +51,8 @@ int CArtifact::GetCreatureMinimumLevel()
 
 float CArtifact::GetExperienceAmount()
 {
+    // N82/P112 封顶：float 临时槽 ORIG -0x1c（帧 0x38），4.4 聚拢 -0xc（帧 0x28），
+    // 指令序列/调用全等，跨版本槽分配差不可源码复现。
     if (m_pItem == 0)
         return 0.0f;
     if (m_pItem->is_stackable())

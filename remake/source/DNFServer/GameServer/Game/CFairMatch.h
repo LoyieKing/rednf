@@ -167,7 +167,8 @@ public:  // 布局字段（偏移契约固定，勿增删；语义随实现标�
     /*+0x0b4*/ int m_fieldB4;
     /*+0x0b8*/ int m_fieldB8;
     /*+0x0bc*/ int m_fieldBC;
-    /*+0x0c0*/ int m_fieldC0;         // ctor 清零
+    /*+0x0c0*/ IMatch* m_fieldC0;     // ctor 清零（next match 槽；指针与 SetNextMatch
+                                      // 形参同型=真类型化，NL7 判据 N76 翻形）
 };
 
 }  // namespace fair_pvp

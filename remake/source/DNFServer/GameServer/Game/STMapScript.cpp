@@ -594,17 +594,19 @@ STQuestAnimation::STQuestAnimation()        // ORIG 0x089e83d2
     Clear();
 }
 // ---- STAssignPassiveObject（ORIG C1 0x089e8440 / Clear 0x089e8414，W）----
+STAssignPassiveObject::STAssignPassiveObject()
+{
+    Clear();
+}
+
 void STAssignPassiveObject::Clear()
 {
+    // 定义置于 ctor 之后：4.4 对"被调函数定义未前置"的 ctor 帧发 sub $0x18，
+    // 与 ORIG 0x089e8440 帧形一致（探针 /tmp/near7/p7-p8）。
     m_0 = -1;       // +0x00 movl $0xffffffff
     m_4 = 0;        // +0x04
     m_8 = 0;        // +0x08
     m_c = 0;        // +0x0c
-}
-
-STAssignPassiveObject::STAssignPassiveObject()
-{
-    Clear();
 }
 
 void BackAniScript::clear()                 // ORIG 0x089e884a
@@ -2030,8 +2032,8 @@ bool ImportMapScript(STMapScript* script, const char* path)
                 else if (sub == "[zone defence]")
                 {
                     script->m_vecMonster[i].m_34 = 1;
-                    script->m_vecMonster[i].m_38 = ScanInt(static_cast<bool*>(0));
-                    script->m_vecMonster[i].m_3c = ScanInt(static_cast<bool*>(0));
+                    script->m_vecMonster[i].m_38[0] = ScanInt(static_cast<bool*>(0));
+                    script->m_vecMonster[i].m_38[1] = ScanInt(static_cast<bool*>(0));
                 }
                 else if (sub == "[roaming]")
                 {
@@ -3283,8 +3285,8 @@ bool ExportMapScript(STMapScript* script, const char* path)
                 fwrite("`[normal]`\n", 1, 0xb, file);
             else if (script->m_vecMonster[i].m_34 == 1)
                 fprintf(file, "%s %d %d\n", "`[zone defence]`",
-                        script->m_vecMonster[i].m_38,
-                        script->m_vecMonster[i].m_3c);
+                        script->m_vecMonster[i].m_38[0],
+                        script->m_vecMonster[i].m_38[1]);
             else if (script->m_vecMonster[i].m_34 == 2)
             {
                 int wayCount = static_cast<int>(

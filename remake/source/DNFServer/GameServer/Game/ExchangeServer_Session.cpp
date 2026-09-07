@@ -77,7 +77,8 @@ int CSession::GetSocket()                       // ORIG 0x8490024 尾调 get_soc
 
 void CSession::SetChannelNo(int channelNo)      // ORIG 0x848ffbe
 {
-    m_channelNo = (unsigned int)channelNo;
+    // int 字段 + int 形参同型直赋（无转换节点）：4.4 LHS 先载=ORIG 实证。
+    m_channelNo = channelNo;
 }
 
 int CSession::GetChannelNo()                    // ORIG 0x848ffb0
@@ -87,12 +88,15 @@ int CSession::GetChannelNo()                    // ORIG 0x848ffb0
 
 void CSession::SetTriggerSessionEventType(int type)   // ORIG 0x8490038
 {
-    m_triggerEventType = (unsigned int)type;
+    // int 字段 + int 形参同型直赋（无转换节点）：4.4 LHS 先载=ORIG 实证。
+    m_triggerEventType = type;
 }
 
 void CSession::AddTriggerSessionEventType(int type)   // ORIG 0x849004a（|=）
 {
-    m_triggerEventType |= (unsigned int)type;
+    // int 字段 |= int 形参（无转换节点）：4.4 与 ORIG 逐条同形（原 N18a 判词
+    // 在 unsigned 字段+cast 异型下成立；同型化后翻 identical）。
+    m_triggerEventType |= type;
 }
 
 int CSession::GetTriggerSessionEventType()            // ORIG 0x8490066
@@ -313,6 +317,7 @@ CSession* CSession::OnAccept()
 bool CSession::OnConnect()
 {
     // vtable+0x10（slot5）GetServerType()；sete 比较返回值==1(EXCHANGE_SERVER_SLAVE)。
+    // [N7] ES() 虚调用槽寄存器 %eax↔%edx 互换（4.4 恒形），源码不可翻（ndiff 12）。
     if ((int)ES()->GetServerType() == 1)
     {
         PacketGuard guard;
@@ -363,6 +368,7 @@ bool CSession::Send(PacketGuard& guard)
 CSession* CSession::Listen(int port, const char* ip)
 {
     int sock;                                 // -0x20(%ebp)
+    // [N7] AllocSession 虚调用槽寄存器 %eax↔%edx 互换（4.4 恒形），源码不可翻（ndiff 14）。
     // ORIG：静态调用 CreateListenSocket(&sock, port, ip)（无对象/无 this）；
     // 直接 !返回值 判断（ORIG xor $0x1,%eax; test %al,%al 形态）。
     if (!CNetwork<95000, 450000>::CreateListenSocket(sock, port, ip))
@@ -388,6 +394,7 @@ CSession* CSession::Listen(int port, const char* ip)
 CSession* CSession::Connect(const char* ip, int port)
 {
     int sock;                                 // -0x24(%ebp)
+    // [N7] AllocSession 虚调用槽寄存器 %eax↔%edx 互换（4.4 恒形），源码不可翻（ndiff 14）。
     // CreateConnectionSocket 为静态成员（ORIG 同）；返回非 0=失败码。
     const int ok = CNetwork<95000, 450000>::CreateConnectionSocket(sock, ip, port);
 

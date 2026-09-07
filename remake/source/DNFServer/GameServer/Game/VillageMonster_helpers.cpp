@@ -115,7 +115,14 @@ int CVillageMonster::OnKillVillageMonster(CUser* user, int a, int b, int c, bool
 // ============================================================================
 void CVillageMonster::OnChangeState(ENUM_VILLAGE_MONSTER_STATE state)
 {
-    m_state = state;
+    // P95：ORIG 0x86b35a0 首句 store 先载 this 后载 state；4.4 直成员赋值先备值。
+    // 具名视图复现（仅表达布局；m_state = CVillageMonster +0x14）。
+    struct CVMonsterStateView
+    {
+        char m_head[0x14];
+        int  m_state;
+    };
+    ((CVMonsterStateView*)this)->m_state = state;
     PacketGuard pg;
     pg.clear();
     pg.put_header(0, 0xf0);
@@ -267,5 +274,11 @@ int village_attacked::CVillageMonsterMgr::GetRewardType()
 // ORIG W 0x0847dd44：m_field20 = reward（单赋值）。
 void village_attacked::CVillageMonsterMgr::SetRewardType(ENUM_VILLAGE_ATTACKED_REWARD reward)
 {
-    m_field20 = reward;
+    // P95：ORIG 先载 this 后载 reward；具名视图复现（m_field20 = +0x20）。
+    struct CVMgrRewardView
+    {
+        char m_head[0x20];
+        int  m_field20;
+    };
+    ((CVMgrRewardView*)this)->m_field20 = reward;
 }

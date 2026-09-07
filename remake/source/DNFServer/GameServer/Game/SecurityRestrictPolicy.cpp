@@ -104,6 +104,10 @@ bool SecurityRestrictPolicy::isApply(int param)
 // ORIG 0x0816dbe8：cMyTrace 三段 + 循环打印每条限制。
 void SecurityRestrictPolicy::printRestrict()
 {
+    // [b26N82] 三个 cMyTrace 对象槽分配方向相反：ORIG(4.1) 函数级声明序深→浅
+    // （trace1 -0x3c/trace3 -0x1c）、块内临时夹中 -0x2c；4.4 函数级浅→深、块内
+    // 最深（trace1 -0x1c/trace3 -0x2c/trace2 -0x3c）。声明序不可逆（构造点=指
+    // 令序），探针 /tmp/nl29/trprobe.cpp 实证不可翻，ndiff 12 封顶。
     cMyTrace trace1(__PRETTY_FUNCTION__, 0xd7, 9, true, true);
     trace1("\tSecurity Restrict Begin");
     unsigned int i = 0;

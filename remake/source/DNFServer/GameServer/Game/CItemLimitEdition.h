@@ -107,6 +107,13 @@ private:
     int              m_curSellNum;            // +0x48（curSellNum）
 };
 
+// P95 具名视图（updateCurSellNum 0x084e970e 先 this 后值 lowering）：仅表达布局。
+struct CItemLimitEditionView
+{
+    char m_head[0x48];
+    int  m_curSellNum;
+};
+
 class CItemLimitEditionMgr
 {
 public:

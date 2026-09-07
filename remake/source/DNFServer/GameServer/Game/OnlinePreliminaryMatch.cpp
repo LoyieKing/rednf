@@ -51,12 +51,6 @@ int PvPGlobalEnvironmentVariable::school_match_elo_k2_ = 3;
 // PlayerInfoSecond —— ORIG W 0x8568850
 // ---------------------------------------------------------------------------
 
-void PlayerInfoSecond::reset()
-{
-    m_user = 0;
-    m_flag = 0;
-}
-
 // ---------------------------------------------------------------------------
 // TeamInfoSecond
 // ---------------------------------------------------------------------------
@@ -69,14 +63,13 @@ void PlayerInfoSecond::reset()
 void TeamInfoSecond::reset()
 {
     /* ORIG 帧 0x28(@0855fdc3) / 循环变量槽 -0xc(@0855fdcf)：两个死槽在 i
-     * 之前占用 -0x4/-0x8（asm "m" 引用强制分配且不出机器指令），pad 撑帧
-     * 【技巧31】 */
-    char padA[28];
-    int gapA, gapB;
+     * 之前占用 -0x4/-0x8。4.4 死 pad 不占槽，改 double framePad 撑帧
+     * （P190/技巧31 系，/tmp/p26_slot.cpp probeC 实证同形 0x28/i=-0xc）。 */
+    double framePad;
     m_teamId = 0;
     for (int i = 0; i < 4; ++i)
         m_seats[i].reset();
-    (void)padA; (void)gapA; (void)gapB;
+    (void)&framePad;
 }
 
 /* ORIG add T 0x855fdfe */
@@ -363,6 +356,8 @@ PvP_Room* COnlinePreliminary::_MakeRoom(CUser* user)
  * mov 0x8(%ebp),%edx→0x4(%esp)(@+0x17)：实参为 this（与 CFairMatch 同族
  * 0x08563a32 一致），room 形参未用；具名 list 中转致 4.4 多 -0xc 槽【技巧
  * 36】→ 直调 */
+/* N7 封顶（ndiff 全为寄存器换名 eax/ecx/edx）：4.4 间接 call 目标恒 %eax、
+ * 4.1 用 ecx——源码不可控（负例表 N7）。NL6 2026-09-08 */
 void COnlinePreliminary::_RegisterWaitingRoom(PvP_Room* /*room*/)
 {
     pWaitingRoomList_->AddRoom(this);
@@ -526,7 +521,7 @@ RET1:
     return 1;
 }
 
-/* ORIG T 0x085623ec */
+/* ORIG T 0x085623ec；N7 封顶（虚调用寄存器换名，见 _RegisterWaitingRoom 注） */
 bool COnlinePreliminary::CheckMatchable(IMatch* other)
 {
     /* ORIG 槽序 selfUser@-0x14 / otherUser@-0x10 / 共享 i@-0xc(@08562434
@@ -862,7 +857,7 @@ int COnlinePreliminary::OnCreateRoom(CUser* user)
     return 0;                                     /* ORIG mov $0x0,%eax（0x8560b83） */
 }
 
-/* ORIG T 0x08560b8a */
+/* ORIG T 0x08560b8a；N7 封顶（虚调用寄存器换名，见 _RegisterWaitingRoom 注） */
 void COnlinePreliminary::OnDestroyRoom(CUser* /*user*/)
 {
     m_field04 = 0;
@@ -876,7 +871,8 @@ void COnlinePreliminary::OnJoinRoom(CUser* user)
         m_teams[0].add(user);
 }
 
-/* ORIG T 0x08560cd2：第 4 参为离场者队伍组值（OnWalkOut 以 get_team(seat) 传入）*/
+/* ORIG T 0x08560cd2：第 4 参为离场者队伍组值（OnWalkOut 以 get_team(seat) 传入）；
+ * N7 封顶（虚调用寄存器换名，见 _RegisterWaitingRoom 注） */
 void COnlinePreliminary::OnLeaveRoom(CUser* user, PvP_Room* room,
                                      int teamGroup, int /*b*/)
 {
@@ -1054,7 +1050,8 @@ void COnlinePreliminary::OnEndFight(PvP_Room* room)
     m_teams[1].reset();
 }
 
-/* ORIG T 0x08561f8c（vtable+0x2c＝OnLeaveRoom 级联）。ORIG 返回 1。 */
+/* ORIG T 0x08561f8c（vtable+0x2c＝OnLeaveRoom 级联）。ORIG 返回 1。
+ * N7 封顶（虚调用寄存器换名，见 _RegisterWaitingRoom 注） */
 int COnlinePreliminary::OnWalkOut(PvP_Room* room, int a)
 {
     int team = room->get_team(a);

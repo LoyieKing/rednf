@@ -404,11 +404,12 @@ unsigned int CDataManager::GetSpAtLevelUp(int level) const
     {
         return 0;
     }
-    // ORIG 0x8360cb8：SP-at-level-up 表基址 +0xda90；与
-    // set_reward_sp 共用同一具名 ABI 视图。
-    // 地址 = this+4*level+0xDA90（0x8360cda `mov 0x8(%eax,%edx,4)`
-    // edx=level+0x36a2 ⇒ 数组基址 0xDA90；4.4 恒折 add/sub 拆分，N1）。
-    return ((const CDataManagerRewardSpView*)this)->m_spAtLevelUp[level];
+    // ORIG 0x8360cb8：SP-at-level-up 表基址 +0xda90；与 set_reward_sp 共用
+    // 同一具名 ABI 视图。ORIG 0x8360cda `mov 0x8(%eax,%edx,4)`，edx=level+0x36a2
+    // ⇒ 名义基址 this+8、两步下标 0x36a2+level（P205 拆形族）。
+    // 残差 1 条：4.4 恒先载 this 地址再求下标（N76 load 侧地址先物化，
+    // register 钉 edx/交换加数均无效），ORIG 为 edx=level+0x36a2 先行。
+    return ((const CDataManagerRewardSpView*)this)->m_sp8[level + 0x36a2];
 }
 
 unsigned int CDataManager::GetMoneyLimitPerLevel(int level, const char* serverGroup) const
@@ -977,7 +978,7 @@ void ChattingEmoticonBase::AddPremiumIndex(register int index)
 ChattingEmoticonBase* CChattingEmoticonList::find_emoticon(int idx)
 {
     std::map<int, ChattingEmoticonBase*>::iterator it = m_map.find(idx);
-    if (it == m_map.end())
+    if (m_map.end() == it)   // ORIG @0x80e5850：eq 调用对象=end 槽(arg0=-0xc)
         return 0;
     return it->second;
 }
@@ -1066,6 +1067,9 @@ void CDataManager::ReCalcEmoticonConf(CChattingEmoticonConfig& config, const CUs
 //     遍历 emoticons：find_emoticon(emoticons[i]) 未命中跳过；
 //     命中且 !isUsable(user)（vtable+0x08 虚调用，bool 取反 P22）
 //     → result.push_back(emoticons[i])。
+//   N7 封顶：虚调用侧 4.4 vptr→%eax/obj→%edx（ORIG vptr→%edx/obj→%eax，
+//   call *%edx↔*%eax 互换）；fn_diff_tu 归一残差仅此 5 行，跨版本寄存器分配
+//   差无源码解（负例 N7 族），语义等价封顶。
 // ---------------------------------------------------------------------------
 std::vector<int> CDataManager::IsUsableEmoticons(const CUser& user,
                                                  const std::vector<int>& emoticons)
@@ -1247,6 +1251,9 @@ CDataManager::~CDataManager()
 
 void CDataManager::destroy()
 {
+    // N7 封顶：delete 链中唯一虚析构调用（+0x86f4 vptr+4 间接 call）两侧
+    // vptr/obj 寄存器互换（ORIG edx/eax vs 4.4 eax/edx，N7 族）；其余 307 条
+    // 归一后逐条相等（fn_diff_tu 实证）。语义等价封顶。
     if (m_disJoint)
     {
         delete m_disJoint;
@@ -2047,9 +2054,11 @@ bool CDataManager::InitLoginState(ENUM_SERVER_GROUP serverGroup, int channelNo)
     // ORIG 0x08360306：get_operation_type 无缓存、多次重调（P48 双臂双调 =
     // 源码多处独立调用）；op!=1 时 result 无赋值（ORIG +0xa7 je 直落 +0xf4
     // 返未初始化槽，忠实保留 UB 形）；内层 channelNo!=1 → result=true。
+    bool result;
+    // result 声明前置（4.4 槽序随声明序）：hdb 落 -0xc、result 落 -0xd，
+    // 与 ORIG 槽布局一致（原序 hdb 落 -0x10/result -0x9，N82 槽平移）。
     MySQL* hdb = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)6,
                                                    (ENUM_SERVER_GROUP)0);
-    bool result;
     if (G_CEnvironment()->get_operation_type() == 0 ||
         G_CEnvironment()->get_operation_type() == 2)
     {

@@ -664,24 +664,6 @@ template Taiwan::SigSaveHeroMissionData* CStreamGuard::GetInBuffer<Taiwan::SigSa
 //   DIMENSION_INFO::clear@0x0848f9e4：+0 int=0 / +4..+7 byte=0。
 //   ITEM::clear 0x8694c9a：for i<=0 调 INFO::clear(&entry[i])。
 //   ITEM::clear 0x8694cd2：for i<=0xa 调 INFO::clear（entry[11] 不动）。
-void SIG_SAVE_PC_ROOM_RENT_INFO::clear()
-{
-    m_itemIndex = 0;
-    m_field4 = 0;
-    m_field5 = 0;
-    m_inEquip = 0;
-    m_field8 = -1;
-}
-
-void SIG_SAVE_DIMENSION_RENT_INFO::clear()
-{
-    m_itemIndex = 0;
-    m_field4 = 0;
-    m_field5 = 0;
-    m_inEquip = 0;
-    m_field7 = 0;
-}
-
 // C1 类外定义（头文件仅声明）：生成 ORIG 导出符号
 // _ZN26SIG_SAVE_PC_ROOM_RENT_ITEMC1Ev（0x8491cbe，仅构造 entry[0]）/
 // _ZN28SIG_SAVE_DIMENSION_RENT_ITEMC1Ev（0x8491cf2，构造 entry[0..10]）。
@@ -690,14 +672,22 @@ SIG_SAVE_DIMENSION_RENT_ITEM::SIG_SAVE_DIMENSION_RENT_ITEM() {}
 
 void SIG_SAVE_PC_ROOM_RENT_ITEM::clear()      // ORIG W 0x8694c9a
 {
+    /* ORIG 帧 0x28/循环变量槽 -0xc：4.1 死 28B pad 槽经 double framePad
+     * 撑帧复现（P190/技巧31 系，/tmp/p26_slot.cpp probeC 实证同形）。 */
+    double framePad;
     for (int i = 0; i <= 0; ++i)
         m_entry[i].clear();
+    (void)&framePad;
 }
 
 void SIG_SAVE_DIMENSION_RENT_ITEM::clear()    // ORIG W 0x8694cd2
 {
+    /* ORIG 帧 0x28/循环变量槽 -0xc：4.1 死 28B pad 槽经 double framePad
+     * 撑帧复现（P190/技巧31 系，NL26 probeC 同族实证）。 */
+    double framePad;
     for (int i = 0; i <= 10; ++i)
         m_entry[i].clear();
+    (void)&framePad;
 }
 
 

@@ -16,6 +16,8 @@ namespace game_master
 
 void IGameMaster::HandleRequest(CCommand* cmd)  // 0x082a7ed6
 {
+    // b26 NEAR 封顶:虚调用 vtable 项寄存器 ORIG 4.1 用 %ecx、4.4 恒 %eax
+    // (负例 N7,临时/引用/限定名均不可翻),余逐条相等。
     if (m_next != 0)
     {
         m_next->HandleRequest(cmd);             // ORIG：虚调用 vtable[0]
@@ -27,6 +29,7 @@ void IGameMaster::HandleRequest(CCommand* cmd)  // 0x082a7ed6
 void CSeniorGameMaster::HandleRequest(CCommand* cmd)  // 0x084a8c44
 {
     // 链尾：校验通过即执行，失败静默丢弃。
+    // b26 NEAR 封顶:N7(虚调用 callee 寄存器 %ecx↔%eax 互换)。
     if (cmd->HasSeniorPermission())             // ORIG：vtable[3]，test %al
     {
         cmd->executeTemplate();
@@ -37,6 +40,7 @@ void CSeniorGameMaster::HandleRequest(CCommand* cmd)  // 0x084a8c44
 
 void CJuniorGameMaster::HandleRequest(CCommand* cmd)  // 0x084a8c06
 {
+    // b26 NEAR 封顶:N7(虚调用 callee 寄存器 %edx↔%eax 互换)。
     if (cmd->HasJuniorPermission())             // ORIG：vtable[2]，test %al
     {
         cmd->executeTemplate();
@@ -62,6 +66,7 @@ CUser* CCommand::GetUser()                      // 0x084b3fba
 
 void CCommand::executeTemplate()                // 0x084b3f90
 {
+    // b26 NEAR 封顶:N7(两处虚调用 callee 寄存器 %edx↔%eax 互换)。
     parse();                                    // ORIG：先 vtable[1]
     execute();                                  // 后 vtable[0]
 }
@@ -167,6 +172,7 @@ IDispatcher* CGameMasterMgr::GetDispatcher(int code)   // 0x084a8a9a
 
 void CGameMasterMgr::HandleRequest(CCommand* cmd)      // 0x084a8c6e
 {
+    // b26 NEAR 封顶:N7(虚调用 callee 寄存器 %ecx↔%eax 互换)。
     m_junior->HandleRequest(cmd);                       // ORIG：junior vtable[0]
 }
 

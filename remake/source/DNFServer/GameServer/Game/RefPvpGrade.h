@@ -41,7 +41,8 @@ struct stPvpRefTable_t
     struct stPvPGradeExp_t
     {
         int a; // +0x00
-        int b; // +0x04
+        unsigned int b; // +0x04（unsigned：C1Eij 第二形参 y 同型直赋，
+                        // ORIG 第二 store this 先载=无转换实证）
 
         // ORIG _ZN15stPvpRefTable_t15stPvPGradeExp_tC1Ev @ 0x0891b114
         // movl $0,(%eax); movl $0,0x4(%eax)——函数体逐句清零（P29：非初始化列表形态）
@@ -53,6 +54,7 @@ struct stPvpRefTable_t
 
         // ORIG _ZN15stPvpRefTable_t15stPvPGradeExp_tC1Eij @ 0x0891b0fe
         // mov 0xc(%ebp)→(%eax); mov 0x10(%ebp)→0x4(%eax)——逐字段重读 this 赋值
+        // [N] 第二 store ORIG this 先载 vs 4.4 恒 rhs 先（探针 l5p7 三写法同形，ndiff 2 封顶）。
         stPvPGradeExp_t(int x, unsigned y)
         {
             a = x;

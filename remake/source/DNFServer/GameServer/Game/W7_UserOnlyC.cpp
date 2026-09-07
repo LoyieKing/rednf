@@ -64,30 +64,7 @@ short _NS_PI_2ND_GetPacketIndex(char* packet);       // 定义 PIHash.cpp
 
 int CPacketTimeChecker::validCount_ = 100;     // D 0x093ace48
 int CPacketTimeChecker::validSecond_ = 1;      // D 0x093ace4c
-
-void CPacketTimeChecker::reset()
-{
-    m_lastTime = 0;
-    m_count = 0;
-}
-
-bool CPacketTimeChecker::check()
-{
-    ++m_count;
-    long now = time(0);
-    // P59 极性：ORIG jge→后置赋值块，fall-through 为节流判断块。
-    if (now - m_lastTime < validSecond_)
-    {
-        if (m_count > validCount_)
-            return false;
-    }
-    else
-    {
-        m_lastTime = now;
-        m_count = 0;
-    }
-    return true;
-}
+// reset/check 定义迁至 CUser.cpp（unit-at-a-time outgoing 塌缩修复）。
 
 // ============================================================================
 // ---- CPacketVerifier（ORIG 0x8696fe0 C1 / 0x8696de4 Init / 0x8696e58

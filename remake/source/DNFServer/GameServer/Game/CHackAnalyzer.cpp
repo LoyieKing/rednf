@@ -40,15 +40,6 @@ static float _S_HACK_RATIO_COEF_100F = 100.0f;  // 非 const：ORIG flds 内存�
 namespace WongWork
 {
 
-struct SIG_SAVE_CLIENT_HACK_LOG
-{
-    unsigned int m_uid;
-    unsigned int m_type;
-    unsigned short m_cnt;
-    int m_a;
-    int m_b;
-};
-
 // 计数区寻址（ORIG 实测：A 表槽 = this + (t-0x65)*4 + 0x28，即
 // m_cntRegion(=this+0x28) + (t-0x65)*4；B 表槽 = this + (t-0x65+0xf44)*4 + 8，
 // 即 m_cntRegion + (t-0x65+0xf44)*4 + 8 - 0x28。getServerHackCnt 0x08695086 /
@@ -83,10 +74,15 @@ CHackAnalyzer::~CHackAnalyzer() {}
 
 ENUM_HACKTYPE CHackAnalyzer::getBaseHackType() { return (ENUM_HACKTYPE)m_field7a08; }
 
-// [B24D判词 N] 语义正确：m_field7a08=(int)t（写 this+0x7a08）；diff=mov 0xc(%ebp),%edx
-//   与 mov 0x8(%ebp),%eax 装载序互换（GCC4.1 vs 4.4），7/7 纯 lowering，语义等价。
-//   report NO 由 nm/objdump diff 兜底。
-void CHackAnalyzer::setBaseHackType(ENUM_HACKTYPE t) { m_field7a08 = (int)t; }
+// 旧判词 N（装载序互换）已翻案：P95 视图访问复现 ORIG「先 this 后值」序
+//   （探针 /tmp/setter_probe.cpp S2::set 逐条同形，ORIG 0x080f9856）。
+namespace {
+struct CHackAnalyzer7a08View { char m_pad[0x7a08]; int m_field7a08; };
+}
+void CHackAnalyzer::setBaseHackType(ENUM_HACKTYPE t)
+{
+    reinterpret_cast<CHackAnalyzer7a08View*>(this)->m_field7a08 = (int)t;
+}
 
 void CHackAnalyzer::setUserP(CUser* user)
 {
@@ -222,50 +218,51 @@ void CHackAnalyzer::AddCheckRateHackTypeList()
 {
     // ORIG 0x080f8550：前 18 项压入 m_checkRateHackTypes(+0x7a24)，
     // 后 24 项压入 m_vec7a30(+0x7a30)；均为栈上 int 变量逐值 push_back。
-    int v;
-    v = 0x84; m_checkRateHackTypes.push_back(v);
-    v = 0xdc; m_checkRateHackTypes.push_back(v);
-    v = 0x138; m_checkRateHackTypes.push_back(v);
-    v = 0x139; m_checkRateHackTypes.push_back(v);
-    v = 0x86; m_checkRateHackTypes.push_back(v);
-    v = 0xde; m_checkRateHackTypes.push_back(v);
-    v = 0x1a4; m_checkRateHackTypes.push_back(v);
-    v = 0x1a5; m_checkRateHackTypes.push_back(v);
-    v = 0x1a7; m_checkRateHackTypes.push_back(v);
-    v = 0xdf; m_checkRateHackTypes.push_back(v);
-    v = 0xe0; m_checkRateHackTypes.push_back(v);
-    v = 0xe1; m_checkRateHackTypes.push_back(v);
-    v = 0x1a4; m_checkRateHackTypes.push_back(v);
-    v = 0x1a5; m_checkRateHackTypes.push_back(v);
-    v = 0x1a7; m_checkRateHackTypes.push_back(v);
-    v = 0xdf; m_checkRateHackTypes.push_back(v);
-    v = 0xe0; m_checkRateHackTypes.push_back(v);
-    v = 0xe1; m_checkRateHackTypes.push_back(v);
-
-    v = 0x84; m_vec7a30.push_back(v);
-    v = 0xca; m_vec7a30.push_back(v);
-    v = 0xcd; m_vec7a30.push_back(v);
-    v = 0xce; m_vec7a30.push_back(v);
-    v = 0xd0; m_vec7a30.push_back(v);
-    v = 0xd1; m_vec7a30.push_back(v);
-    v = 0xd7; m_vec7a30.push_back(v);
-    v = 0xd8; m_vec7a30.push_back(v);
-    v = 0xd9; m_vec7a30.push_back(v);
-    v = 0xda; m_vec7a30.push_back(v);
-    v = 0xdb; m_vec7a30.push_back(v);
-    v = 0xdc; m_vec7a30.push_back(v);
-    v = 0x138; m_vec7a30.push_back(v);
-    v = 0x139; m_vec7a30.push_back(v);
-    v = 0x193; m_vec7a30.push_back(v);
-    v = 0x19e; m_vec7a30.push_back(v);
-    v = 0x86; m_vec7a30.push_back(v);
-    v = 0xde; m_vec7a30.push_back(v);
-    v = 0x1a4; m_vec7a30.push_back(v);
-    v = 0x1a5; m_vec7a30.push_back(v);
-    v = 0x1a7; m_vec7a30.push_back(v);
-    v = 0xdf; m_vec7a30.push_back(v);
-    v = 0xe0; m_vec7a30.push_back(v);
-    v = 0xe1; m_vec7a30.push_back(v);
+// P0 推定：ORIG 42 个独立栈槽（-0xb0..-0xc 各用一次）= 42 个具名局部；
+// 4.4 首声明占最浅槽 ⇒ 声明序倒排（v42..v1）使 v1 落 -0xb0 与 ORIG 同序。
+    int v42, v41, v40, v39, v38, v37, v36, v35, v34, v33, v32, v31, v30, v29, v28, v27, v26, v25, v24, v23, v22, v21, v20, v19, v18, v17, v16, v15, v14, v13, v12, v11, v10, v9, v8, v7, v6, v5, v4, v3, v2, v1;
+    v1 = 0x84; m_checkRateHackTypes.push_back(v1);
+    v2 = 0xdc; m_checkRateHackTypes.push_back(v2);
+    v3 = 0x138; m_checkRateHackTypes.push_back(v3);
+    v4 = 0x139; m_checkRateHackTypes.push_back(v4);
+    v5 = 0x86; m_checkRateHackTypes.push_back(v5);
+    v6 = 0xde; m_checkRateHackTypes.push_back(v6);
+    v7 = 0x1a4; m_checkRateHackTypes.push_back(v7);
+    v8 = 0x1a5; m_checkRateHackTypes.push_back(v8);
+    v9 = 0x1a7; m_checkRateHackTypes.push_back(v9);
+    v10 = 0xdf; m_checkRateHackTypes.push_back(v10);
+    v11 = 0xe0; m_checkRateHackTypes.push_back(v11);
+    v12 = 0xe1; m_checkRateHackTypes.push_back(v12);
+    v13 = 0x1a4; m_checkRateHackTypes.push_back(v13);
+    v14 = 0x1a5; m_checkRateHackTypes.push_back(v14);
+    v15 = 0x1a7; m_checkRateHackTypes.push_back(v15);
+    v16 = 0xdf; m_checkRateHackTypes.push_back(v16);
+    v17 = 0xe0; m_checkRateHackTypes.push_back(v17);
+    v18 = 0xe1; m_checkRateHackTypes.push_back(v18);
+    v19 = 0x84; m_vec7a30.push_back(v19);
+    v20 = 0xca; m_vec7a30.push_back(v20);
+    v21 = 0xcd; m_vec7a30.push_back(v21);
+    v22 = 0xce; m_vec7a30.push_back(v22);
+    v23 = 0xd0; m_vec7a30.push_back(v23);
+    v24 = 0xd1; m_vec7a30.push_back(v24);
+    v25 = 0xd7; m_vec7a30.push_back(v25);
+    v26 = 0xd8; m_vec7a30.push_back(v26);
+    v27 = 0xd9; m_vec7a30.push_back(v27);
+    v28 = 0xda; m_vec7a30.push_back(v28);
+    v29 = 0xdb; m_vec7a30.push_back(v29);
+    v30 = 0xdc; m_vec7a30.push_back(v30);
+    v31 = 0x138; m_vec7a30.push_back(v31);
+    v32 = 0x139; m_vec7a30.push_back(v32);
+    v33 = 0x193; m_vec7a30.push_back(v33);
+    v34 = 0x19e; m_vec7a30.push_back(v34);
+    v35 = 0x86; m_vec7a30.push_back(v35);
+    v36 = 0xde; m_vec7a30.push_back(v36);
+    v37 = 0x1a4; m_vec7a30.push_back(v37);
+    v38 = 0x1a5; m_vec7a30.push_back(v38);
+    v39 = 0x1a7; m_vec7a30.push_back(v39);
+    v40 = 0xdf; m_vec7a30.push_back(v40);
+    v41 = 0xe0; m_vec7a30.push_back(v41);
+    v42 = 0xe1; m_vec7a30.push_back(v42);
 }
 
 void CHackAnalyzer::ReqDBSaveHackInfo(unsigned int uid, unsigned int type,
@@ -422,6 +419,12 @@ void CHackAnalyzer::_analyzeSpeedHack(unsigned int ms)
         _addHackInfo(REPORT_4_HACK_FLAG_SPEED, (ENUM_HACKTYPE)0x3c1, ratio);
     }
 }
+
+// 判词 N（batch-26 lane14）：ORIG numMs@-0x20/CW@-0x22/-0x24 vs 4.4 numMs@-0x18
+//   /CW@-0x1a/-0x1c —— ORIG numMs 与 elapsed 间存在 8 字节死局部（4.1 -O0 保留
+//   死局部槽实证；探针 slotprobe5/6/7/8x/90/91 + volatile/aligned(16)/声明序三法
+//   帧膨胀或无效），帧 0x38 两侧等齐、助记符序列全等，纯 4.1 保留死局部槽位策略，
+//   N 封顶不追（0x080f7cca）。
 
 void CHackAnalyzer::_analyzeDifficultyHack(char level)
 {
@@ -843,11 +846,8 @@ bool Secu_AccountHacking::isSameAccountCharacter(char const* name)
 void Secu_AccountHacking::setPatten(AccountHackingType::T t, char const* name,
                                     unsigned int a, unsigned int b)
 {
-    // [B24D判词 N] 语义正确：m_flag[t] 已标记早返、m_userP 判空早返、m_flag[t]=1；
-    //   aSpill/bSpill 局部缓存（ORIG -0x10/-0xc 槽）；a==0 → DB_SelectCharacMid::
-    //   makeRequest，否则 addServerHackCnt。diff=ORIG cmpl 0x14(%ebp) 直测参数槽 vs
-    //   我方 cmpl -0x10(%ebp) 测局部副本（b 参槽 vs 局部槽，P0 槽分配），73/73 纯
-    //   lowering，语义等价。
+    // ORIG：a 缓存到 -0x10、b 缓存到 -0xc，但 cmpl $0x0 直测参数槽 0x14
+    // （aSpill 声明保留缓存，比较直读形参 a）。
     // ORIG T 0x0827903c（setPatten.md）：未标记且已绑定用户时置位，随后按 a
     // 选择 DB 直查或经分析器加计数。
     if (m_flag[(int)t])
@@ -862,7 +862,7 @@ void Secu_AccountHacking::setPatten(AccountHackingType::T t, char const* name,
     unsigned int aSpill = a;
     unsigned int bSpill = b;
 
-    if (aSpill == 0)
+    if (a == 0)
     {
         // ORIG：getMatchingHacktype 缓存 ebx 后再求 GetUID（P24 实参序），
         // 不引入具名中间变量。

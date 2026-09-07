@@ -295,6 +295,8 @@ bool CAssaultPlace::ExistUser(CUser* user)
 
 bool CAssaultPlace::GetTeam(CUser* user, ENUM_ASSAULT_TEAM& team)
 {
+    // b26 NEAR 封顶:outgoing 帧尺寸差(ORIG 0x28 vs 4.4 0x14,负例表
+    // 「outgoing 帧」跨版本族)+循环变量槽连锁平移(-0xc↔-0x4),余逐条相等。
     // ORIG T 0x82e6cdc：cmp+sete+test 三连接（技巧22 register bool al）。
     // 技巧31：i 槽 ORIG 在 -0xc（近侧 8B 为 4.1 未引用 temp）⇒ 后置 dead pad
     // 撑出同槽位（(void)pad 置于末次使用之后，技巧31 规则1）。
@@ -908,9 +910,7 @@ bool MapArea::include(int x, int y)
     // ORIG 0x82f0298：四条件共用尾岛 `mov $0,%eax`（技巧24），true 路径
     // `mov $1; jmp 尾` 在岛前。4 个独立 goto 在 4.4 各产 nop 中继块 ⇒
     // 合并为单 || 短路链，跳边直指共享 false 块。
-    if (m_x > x || m_x + m_w < x || m_y > y)
-        goto RET0;
-    if (m_y + m_h < y)
+    if (m_x > x || m_x + m_w < x || m_y > y || m_y + m_h < y)
         goto RET0;
     return true;
 RET0:
@@ -1252,6 +1252,8 @@ CAssaultPlace::CAssaultPlace()
 
 CAssaultPlace::~CAssaultPlace()
 {
+    // b26 NEAR 封顶:outgoing 帧尺寸差(ORIG 0x4 vs 4.4 0x14;单 1 参 call,
+    // 4.4 outgoing 恒 0x10 对齐),指令流逐条相等。
 }
 
 // ORIG T 0x82e6d3a：m_pos.x/y 非零才向所在区域广播。

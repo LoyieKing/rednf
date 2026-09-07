@@ -14,8 +14,8 @@ struct stMapMonsterKillChecker_t
     unsigned int m_useSkillMaterialTime;   // +0x00
     unsigned int m_lastMobDieTime;         // +0x04
     int m_uncontinuallyMobDieCnt;          // +0x08
-    int m_dieCnt;                          // +0x0c
-    int m_field10;                         // +0x10
+    unsigned int m_dieCnt;                 // +0x0c（与 WarField.h 权威同步：同型赋值保 ORIG store 展开序）
+    unsigned int m_field10;                // +0x10（同上）
     int m_field14;                         // +0x14
     void init();                           // ORIG W 0x81512ec
     void setUseSkillMaterial(unsigned int tick);   // ORIG W 0x830e72c
@@ -72,7 +72,7 @@ int stMapMonsterKillChecker_t::checkLongTermMobDie(unsigned int tick,
 //   mov %edx,0xc(%eax)                        → 写 +0x0c（m_dieCnt 槽）
 void stMapMonsterKillChecker_t::setUncontinuallyMobDieCnt(unsigned int cnt)
 {
-    m_dieCnt = static_cast<int>(cnt);
+    m_dieCnt = cnt;   // 字段已 unsigned（WarField.h），同型赋值保 ORIG store 展开序
 }
 
 struct stMapPlayInfo_t

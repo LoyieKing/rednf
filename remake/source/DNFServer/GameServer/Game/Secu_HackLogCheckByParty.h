@@ -50,6 +50,9 @@ struct SecKillMonsterInfo
 {
     SecKillMonsterInfo() : m_monsterId(0), m_count(0), m_sumValue1(0),
                            m_sumValue2(0), m_hackCntE6(0), m_hackCntE7(0) {}
+    // N76 族封顶（方向相反判例）：成员 store 4.1 LHS 地址先载 vs 4.4 RHS 值
+    // 先载；探针 /tmp/l22p/ctor_probe*.cpp 4 形（初始化列表/体赋值/显式
+    // this->/cast）4.4 全部值先载，不可翻（ndiff 8）。
     SecKillMonsterInfo(unsigned int monsterId, unsigned int count,
                        unsigned int v1, unsigned int v2)
         : m_monsterId(monsterId), m_count((int)count), m_sumValue1((int)v1),

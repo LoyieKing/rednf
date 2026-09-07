@@ -301,11 +301,13 @@ public:
     {
                 // ORIG 两参 ctor @0x081a41e8（W，mangled _ZN30Arad_OnePlusCardEvent_ItemList4DataC1Etm，
         // 形参 (unsigned short, unsigned long)）；ORIG 无默认 ctor 符号。
+        // itemIndex store：ORIG 4.1 RHS(形参)先载 vs 4.4 恒 LHS(this)先载（N76 探针族，
+        // 函数体赋值形亦不可翻）——NDIFF 2 封顶。
         Data(unsigned short w, unsigned long i) : webId(w), itemIndex(i) {}
         // ORIG operator== @0x081a420a（W）：std::find 实例化调用，仅比 webId。
         bool operator==(const Data& rhs) { return webId == rhs.webId; }
         unsigned short webId;     // +0x00
-        int itemIndex;            // +0x04
+        unsigned int itemIndex;   // +0x04（与形参 unsigned long 同宽异型，NL7 定律）
     };
 
     Arad_OnePlusCardEvent_ItemList();
@@ -358,9 +360,9 @@ public:
     {
         // ORIG 调 memset(this,0,0x10)；初始化列表会被 gcc 展开为逐条 movl。
         RankData() { memset(this, 0, sizeof(RankData)); }
-        int itemIndex;    // +0x00
-        int itemCount;    // +0x04
-        int itemIndex2;   // +0x08
+        int itemIndex;    // +0x00（parsing 0x81a3d30: "item_index" -> d+0）
+        int itemIndex2;   // +0x04（parsing: "item_index2" -> -0x34=d+4 实证）
+        int itemCount;    // +0x08（parsing: "item_count" -> -0x30=d+8 实证）
         int itemCount2;   // +0x0c
     };
 

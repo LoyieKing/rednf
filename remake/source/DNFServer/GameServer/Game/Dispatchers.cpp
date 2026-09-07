@@ -1378,14 +1378,14 @@ int Dispatcher_SummonUnit::process_packet(CUser* user, CMDPacketStruct::STBaseRe
     advancealtar::StageControl* stage = user->getAdvanceAltar();   // ORIG T 0x08655262
     if (stage != 0)
     {
-        if (pReq->m_nGageLevel != characDataGetGageLevel(getCharacData(stage)))
+        if (pReq->m_nGageLevel != stage->getCharacData()->getGageLevel())
         {                                                  // [objdump 0x8140650] err=3
             pRes->m_nErrorCode = 3;
             return 0;
         }
-        pRes->m_nErrorCode = characDataSummonSlotUnit(
-            getCharacData(stage), pReq->m_bySlotType, pReq->m_nUnitId);
-        pRes->m_nGage = characDataGetGage(getCharacData(stage));
+        pRes->m_nErrorCode = stage->getCharacData()->summonSlotUnit(
+            pReq->m_bySlotType, pReq->m_nUnitId);
+        pRes->m_nGage = stage->getCharacData()->getGage();
     }
     return 0;
 }
@@ -5627,9 +5627,11 @@ int Dispatcher_Clear_Used_QP::process(CUser* user, MSG_BASE& msg, ParamBase& par
         req.m_4 = 1;
         return 0;
     }
-    int ret = (int)shop->clearUsedQp(user);
+    unsigned int ret = (unsigned int)shop->clearUsedQp(user);
     if (ret != 0)
     {
+        // N76 封顶：ORIG store 展开序 RHS(ret 槽) 先载、LHS(this) 后载；4.4 恒
+        // LHS 先（int=int 同型无转换可借），probe 全试不可翻（范式库 N76）。
         req.m_4 = ret;
         return 0;                                     // ORIG +0xbb mov$0; jmp（分叉 materialize）
     }

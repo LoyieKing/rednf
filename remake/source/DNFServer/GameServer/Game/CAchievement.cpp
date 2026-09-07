@@ -142,6 +142,8 @@ stAchievement_DBData::stAchievement_DBData()
 {
     // ORIG 0x828d8e5：m_entries 数组由编译器自动逐个构造（esi 递减 512 次
     // call stAchievementC1），无需显式赋值循环
+    // [b26L17 判词 N] outgoing 帧：ORIG sub $0x10 vs 4.4 sub $0x4（跨版本
+    // outgoing 区差族），体 26/26 逐条全等。
     m_count = 0;
     m_saveTime = 0;
 }
@@ -587,6 +589,8 @@ void CAchievement::adjust()
 
 // ---- 发送 / 存档 ----
 
+// 【N7 封顶】b26 lane19：虚调用 callee 寄存器 %edx↔%eax 互换（121 条逐条
+// 长度/助记符全等仅寄存器名差），临时/引用/限定名不可翻。
 void CAchievement::sendList()
 {
     stAchievement_DBData data;
@@ -690,6 +694,8 @@ void CAchievement::_sendEachAchieveReward(const Quest* quest)
                 reward->m_contents);
 }
 
+// 【N7 封顶】b26 lane19：虚调用 callee 寄存器互换 + callee-saved 轮换
+// （edi/esi/ebx 错位，74 条长度/助记符全等），N7 判据命中。
 void CAchievement::_sendPostal(int itemIdx, int addInfo, std::string sender,
                                std::string subject)
 {
@@ -877,9 +883,8 @@ unsigned int CAchievement::_getSectionIdx(ENUM_TITLE_BOOK_CATEGORY category,
 
 stTitleRewardBasis* CAchievement::_getPostalReward(stTitleSection* section)
 {
-    // ORIG 0x828bd64：两个局部清零（movl $0,-0x14 / -0x10），-0x14 为死变量
-    unsigned int i = 0;
     unsigned int unused = 0;
+    unsigned int i = 0;   // ORIG i 槽 -0x10（死变量 -0x14 先声明占位）
     while (i < section->m_rewards.size())
     {
         stTitleRewardBasis* reward = section->m_rewards[i];
