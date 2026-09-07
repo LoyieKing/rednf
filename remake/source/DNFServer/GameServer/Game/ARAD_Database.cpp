@@ -895,20 +895,14 @@ int LOGIN_QUERY::arad_sp_load_event_entry(
          ++row)
     {
         DB_Login::tagDNFEventEntry entry;
-        int occDate = 0;
-        int serverId = 0;
-        int characNo = 0;
-        int obtainDate = 0;
+        // P0：Ghidra C 无 occDate/serverId/characNo/obtainDate 中间局部 ——
+        // 5 个 get_int 直接写 tagDNFEventEntry 各字段（+0/+8/+0xc/+0x10/+0x14）
         if (db->get_int(0, entry.m_eventId) &&
-            db->get_int(1, occDate) &&
-            db->get_int(2, serverId) &&
-            db->get_int(3, characNo) &&
-            db->get_int(4, obtainDate))
+            db->get_int(1, entry.m_occDate) &&
+            db->get_int(2, entry.m_serverId) &&
+            db->get_int(3, entry.m_characNo) &&
+            db->get_int(4, entry.m_obtainDate))
         {
-            entry.m_occDate = occDate;
-            entry.m_serverId = serverId;
-            entry.m_characNo = characNo;
-            entry.m_obtainDate = obtainDate;
             out.push_back(entry);
         }
     }

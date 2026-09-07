@@ -218,9 +218,9 @@ bool DB_LoadActionPoint::ParseActionClearState(char* text, _ActionPoint* table,
         if (col != 0)
         {
             table[row].m_groupIndex = atoi(col);                     // *(int*)+2
-            const _ActionGroupIndex groupChk =
-                (_ActionGroupIndex)table[row].m_groupIndex;
-            if (!APSystem::CActionPointEtcParameter::IsValidActionGroupIndex(groupChk))
+            // P0：Ghidra C 无 groupChk 中间局部 —— IsValidActionGroupIndex 参数直接读字段
+            if (!APSystem::CActionPointEtcParameter::IsValidActionGroupIndex(
+                    (_ActionGroupIndex)table[row].m_groupIndex))
             {
                 return false;
             }
@@ -326,9 +326,9 @@ int DB_LoadActionPoint::SendResult(int a, int b, _SIG_LOAD_ACTION_POINT& sig, bo
 {
     if (ok)
     {
-        Stream* s = GlobalData::s_stream_pool->Acquire(
-            "localchina/localchina_ActionPointSystem_Dispatcher.cpp", 0xb1);
-        CStreamGuard guard(s, true);
+        // P0：ORIG 无 Stream* 中间局部 —— Acquire 返回值直传 CStreamGuard ctor
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "localchina/localchina_ActionPointSystem_Dispatcher.cpp", 0xb1), true);
         guard.operator*()->operator<<(a);
         guard.operator*()->operator<<(b);
         guard.operator->()->put_binary(&sig, 0xcf1);
@@ -336,9 +336,8 @@ int DB_LoadActionPoint::SendResult(int a, int b, _SIG_LOAD_ACTION_POINT& sig, bo
     }
     else
     {
-        Stream* s = GlobalData::s_stream_pool->Acquire(
-            "localchina/localchina_ActionPointSystem_Dispatcher.cpp", 0xbc);
-        CStreamGuard guard(s, true);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "localchina/localchina_ActionPointSystem_Dispatcher.cpp", 0xbc), true);
         guard.operator*()->operator<<(0x12);
         guard.operator*()->operator<<(b);
         guard.operator->()->put_binary(&sig, 0xcf1);
@@ -491,15 +490,14 @@ bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     int dailyHour =
         G_CEnvironment()->m_serverEnvir.m_fatigueTime;   // +0x37c
-    int dailyTime = getDailyInitializeTime(dailyHour, 0, 0);
-    int yesterdaySec = dailyTime - 0x93a80;
+    time_t dailyTime = getDailyInitializeTime(dailyHour, 0, 0);
+    time_t yesterdaySec = dailyTime - 0x93a80;
 
-    time_t today = dailyTime;
-    time_t prev = yesterdaySec;
     struct tm tmToday;
     struct tm tmYesterday;
-    localtime_r(&today, &tmToday);
-    localtime_r(&prev, &tmYesterday);
+    // P0：Ghidra C 无 today/prev 中间局部 —— localtime_r 直接取 dailyTime 槽地址
+    localtime_r(&dailyTime, &tmToday);
+    localtime_r(&yesterdaySec, &tmYesterday);
     char strToday[ConstOCC_DATELength];
     char strYesterday[ConstOCC_DATELength];
     sprintf(strToday, "%04d-%02d-%02d", tmToday.tm_year + 1900, tmToday.tm_mon + 1,
@@ -511,7 +509,9 @@ bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
         G_CDataManager()->GetActionPointEtcParameter(CActionPointManager::_IsGMOn != 0)->m_medalRewards;
 
     unsigned int minAp = 99999;
-    for (unsigned int i = 0; i < medals.size(); ++i)
+    // P0：Ghidra C 具名局部 local_1c = size(medals)（ORIG 循环外缓存 size 一次）
+    std::size_t medalCount = medals.size();
+    for (unsigned int i = 0; i < medalCount; ++i)
     {
         if (static_cast<int>(medals[i].m_field00) < static_cast<int>(minAp))
         {
@@ -526,7 +526,9 @@ bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
     {
         return false;
     }
-    if (db->get_n_rows() < 1)
+    // P0：Ghidra C 具名局部 local_14 = get_n_rows()
+    int nRows = db->get_n_rows();
+    if (nRows < 1)
     {
         return false;
     }
@@ -539,7 +541,7 @@ bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
         return false;
     }
     {
-        unsigned int apSumTmp = 0;               // packed 同上
+        unsigned int apSumTmp = 0;               // packed 成员不可绑引用，经临时转写
         if (!db->get_uint(1, apSumTmp))
         {
             return false;

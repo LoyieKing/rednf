@@ -129,13 +129,18 @@ int ExceptionItem::parsing(char* data)
     Arad_Script script;
     if (!script.Load(data, "material_exception_item"))
         return 0x27;
-    int rows = script.GetRowNum();
-    if (rows == 0)
+    if (script.GetRowNum() == 0)
         return 0x2a;
-    for (int r = 0; r < rows; ++r)
+    // ORIG 循环每轮重调 GetRowNum
+    int r = 0;
+    while (true)
     {
+        if (script.GetRowNum() <= r)
+            break;
         int idx = script.GetInt(r, "material_exception_item_index");
-        m_exceptionItemIndex[idx] = idx;   // map<int,int> 置索引
+        if (!m_exceptionItemIndex.insert(std::make_pair(idx, idx)).second)
+            return 0x33;   // ORIG insert 失败（.second==0）→ 0x33
+        ++r;
     }
     return 0;
 }
@@ -158,11 +163,13 @@ int PurchaseLimitItem::parsing(char* data)
     Arad_Script script;
     if (!script.Load(data, "purchase_limit_item"))
         return 0x4c;                  // ORIG 0x81a21ab：Load 失败返 0x4c
-    int rows = script.GetRowNum();
-    if (rows == 0)
+    if (script.GetRowNum() == 0)
         return 0x4f;                  // ORIG 0x81a21cc：无行返 0x4f
-    for (int r = 0; r < rows; ++r)
+    int r = 0;
+    while (true)
     {
+        if (script.GetRowNum() <= r)   // ORIG 每轮重调 GetRowNum
+            break;
         Info info;
         unsigned int idx = (unsigned int)script.GetInt(r, "Item_Index");
         info.purchaseType = (unsigned short)script.GetInt(r, "purchase_Type");
@@ -171,6 +178,7 @@ int PurchaseLimitItem::parsing(char* data)
         // 插入失败（已存在）返 0x5c。
         if (!m_purchaseLimitMap.insert(std::make_pair(idx, info)).second)
             return 0x5c;
+        ++r;
     }
     return 0;
 }
@@ -196,16 +204,24 @@ int AradBonusItem::parsing(char* data)
 {
     Arad_Script script;
     if (!script.Load(data, "bonus_item"))
-        return 0x27;
-    int rows = script.GetRowNum();
-    for (int r = 0; r < rows; ++r)
+        return 0x79;
+    if (script.GetRowNum() == 0)
+        return 0x7c;
+    int r = 0;
+    while (true)
     {
+        if (script.GetRowNum() <= r)   // ORIG 每轮重调 GetRowNum
+            break;
         Data d;
-        d.itemId = script.GetInt(r, "item_id");
+        // P167：ORIG make_pair<unsigned&,Data&> 第一参为 unsigned int 局部，
+        // 经 pair<unsigned,Data> 转换构造 pair<const int,Data> 插入 map<int,Data>。
+        unsigned int itemIdx = (unsigned int)script.GetInt(r, "item_id");
+        d.itemId = (int)itemIdx;
         d.bonusType = (unsigned short)script.GetInt(r, "bonus_type");
         d.bonusValue = script.GetInt(r, "bonus_value");
-        // ORIG 0x81a238a：insert(make_pair)（重复 key 不覆盖），非 operator[]。
-        m_bonusMap.insert(std::make_pair(d.itemId, d));
+        if (!m_bonusMap.insert(std::make_pair(itemIdx, d)).second)
+            return 0x88;   // ORIG insert 失败（.second==0）→ 0x88
+        ++r;
     }
     return 0;
 }

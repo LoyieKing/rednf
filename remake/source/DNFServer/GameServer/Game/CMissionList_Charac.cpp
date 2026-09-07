@@ -348,16 +348,25 @@ void CMissionList_Charac::Update_RecvPacket_event(
                             if (mission)
                 {
                     int kind = mission->GetMissionKind();
+                    bool hackUser;
                     // ORIG 0x85e5caa：kind 6/0x15 执行 check_mission_kind，
-                    // 其它 kind 记 HackUser 日志。
-                    if ((kind == 6) || (kind == 0x15))
+                    // 其它 kind 记 HackUser 日志；ORIG 短路二次 GetMissionKind
+                    // + 两分支内各重取（P167 定 4 调用位点，复现需逐位点对齐）。
+                    if ((kind == 6) ||
+                        ((kind = mission->GetMissionKind()) == 0x15))
+                        hackUser = false;
+                    else
+                        hackUser = true;
+                    if (hackUser)
                     {
-                        check_mission_kind(kind, user, param, values);
+                        cMyTrace trace(__PRETTY_FUNCTION__, 0x704, 5);
+                        trace("[@missionSystem] HackUser! send [%d kind]\n",
+                              mission->GetMissionKind());
                     }
                     else
                     {
-                        cMyTrace trace(__PRETTY_FUNCTION__, 0x704, 5);
-                        trace("[@missionSystem] HackUser! send [%d kind]\n", kind);
+                        check_mission_kind(mission->GetMissionKind(), user,
+                                           param, values);
                     }
                 }
         }
