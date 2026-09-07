@@ -1320,8 +1320,8 @@ int send_chat_msg(char* msg, int len)
 // 读进程 pid 文件（pid/%s.pid，%s = get_file_name()），向 pid 发 SIGUSR1(10)。
 void send_suspend_signal()
 {
-    char buf[0x1e];
     int pid;
+    char buf[0x1e];
     int r;
     FILE* f;
     memset(buf, 0, sizeof(buf));
@@ -1361,8 +1361,8 @@ void printGameServerInfo(bool /*detail*/)
 // 与 send_suspend_signal 同构，向 pid 文件记录的进程发 SIGTERM(12)。
 void CShutdowManager::SendShutdownSignal()
 {
-    char buf[0x1e];
     int pid;
+    char buf[0x1e];
     int r;
     FILE* f;
     memset(buf, 0, sizeof(buf));

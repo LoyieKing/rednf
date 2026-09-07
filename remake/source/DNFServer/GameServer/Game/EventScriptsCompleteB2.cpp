@@ -862,14 +862,10 @@ bool importPcBangPlayTimeScript(PcBangPlayTimeScript* script, char const* path)
                 }
                 else
                 {
-                    // ORIG +0x4d5 值先物化经 %edx 再重载 this 存 +0xc；4.4 对
-                    // register 局部固定分配 %ebx（+0x4d5 `mov %eax,%edx` vs 本
-                    // 形 `mov %eax,%ebx`，等长等助记符仅寄存器名差 = N7/N18a/P78
-                    // 结构性天花板 → NEAR 豁免，ORIG 0x08985601..+0x4da 实证；
-                    // 普通赋值会被 4.4 折为 LHS 地址先行形反而 DIFF，uint 中转
-                    // 则多一条 `mov %ebx,%edx`）。
-                    register int v = ScanInt((bool*)0);
-                    script->m_playTime = v;
+                    // ORIG +0x4d5 值先物化经 %edx 再重载 this 存 +0xc。
+                    // m_playTime int→unsigned 异型化（P211，InGameEventScripts.h
+                    // 180 行）触发 4.4 转换中转，store 展开翻为 RHS 先 = ORIG 形。
+                    script->m_playTime = ScanInt((bool*)0);
                     break;
                 }
             }

@@ -335,10 +335,10 @@ int importBoosterGage(char* path, BoosterGageData* out)
         }
         else if (token == "[booster point]")
         {
+            bool okBp = false;                     // ORIG 每轮 movb $0,-0x14
             BoosterPoint bp;                       // ORIG -0x19..-0x15 固定槽
             for (;;)
             {
-                bool okBp = false;                 // ORIG 每轮 movb $0,-0x14
                 bp.m_dwItemIdx = (unsigned long)ScanInt(&okBp);   // →-0x19
                 if (!okBp)
                     break;

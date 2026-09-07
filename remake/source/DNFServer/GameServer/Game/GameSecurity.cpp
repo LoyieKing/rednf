@@ -663,6 +663,26 @@ void checkNewMemberHacklog(unsigned int hackType, CUser* user,
 //     ORIG 源码未写这些 case，与越界共用 return 0；
 //   · cmd→枚举映射逐项对账一致。
 // ===========================================================================
+// ===========================================================================
+// _NS_PI_2ND_GetHackType  ORIG W 0x8277359：v = 2*(enum + 0x3e8) + type，
+// 上限 0xe0f（jbe 保持）。
+// 【P210】定义前置：调用者须在 _NS_PI_2ND_GetHackTypeEnum 定义之前，
+// 否则 4.4 按 callee 帧精确继承 outgoing，0x38 保守大帧塌缩为 0x20。
+// ===========================================================================
+int _NS_PI_2ND_GetHackTypeEnum(unsigned char type, short cmd);
+
+int _NS_PI_2ND_GetHackType(unsigned int type, unsigned char b, unsigned short c)
+{
+    unsigned int e =
+        static_cast<unsigned int>(_NS_PI_2ND_GetHackTypeEnum(b, static_cast<short>(c)));
+    unsigned int v =
+        2 * (e + 0x3e8u) +
+        type;
+    if (v > 0xe0e)
+        return 0xe0f;
+    return v;
+}
+
 int _NS_PI_2ND_GetHackTypeEnum(unsigned char type, short cmd)
 {
     if (type == 1)
@@ -1885,24 +1905,6 @@ int _NS_PI_2ND_GetHackTypeEnum(unsigned char type, short cmd)
     }
     return 0;
 }
-
-// ===========================================================================
-// _NS_PI_2ND_GetHackType  ORIG W 0x8277359：v = 2*(enum + 0x3e8) + type，
-// 上限 0xe0f（jbe 保持）。
-// ===========================================================================
-int _NS_PI_2ND_GetHackType(unsigned int type, unsigned char b, unsigned short c)
-{
-    unsigned int e =
-        static_cast<unsigned int>(_NS_PI_2ND_GetHackTypeEnum(b, static_cast<short>(c)));
-    unsigned int v =
-        2 * (e + 0x3e8u) +
-        type;
-    if (v > 0xe0e)
-        return 0xe0f;
-    return v;
-}
-
-
 // ============================================================================
 // OnlyOrigBatch11 落地：_NS_HS_NoResponseToHackLog —— ORIG T 0x08274f31
 // user->getHackAnalyzer()->addServerHackCnt(user, 0x33c, 1, 0, 0)

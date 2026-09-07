@@ -368,8 +368,10 @@ int CNetwork<N1, N2>::CreateConnectionBlockSocket(int& sock, const char* ip, int
 template <int N1, int N2>
 bool CNetwork<N1, N2>::CreateListenSocket(int& sock, int port, const char* ip)
 {
+    // ORIG 槽向 addr@-0x20 / opt@-0x10；4.4 聚合优先低槽（N82附），opt 未初始化前置试翻。
+    int opt;
     sockaddr_in addr;
-    int opt = 0xea60;
+    opt = 0xea60;
     int ret = 0;
 
     sock = socket(AF_INET, SOCK_STREAM, 0);

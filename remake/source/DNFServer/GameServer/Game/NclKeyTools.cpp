@@ -38,8 +38,11 @@ int ncl_char_plus(char c, int n)
 // 非法时 len=-1 并跳出；jbe 对应 (unsigned)(c-'0') <= 9。
 int ncl_check_digit_str(char* s)
 {
+    // ORIG 槽向：len@-0xc（浅）、i@-0x10（深）；4.4 先声明占深槽，
+    // 故 i 声明前置（未初始化无指令序影响，P210 附/N93 平铺版复现）。
+    int i;
     int len = static_cast<int>(std::strlen(s));
-    for (int i = 0; i < len; ++i)
+    for (i = 0; i < len; ++i)
     {
         if ((unsigned int)(s[i] - '0') > 9)
         {
@@ -63,8 +66,9 @@ void ncl_make_mac(char* out)
     std::memcpy(ifr.ifr_name, "eth0", 5);
     ioctl(sock, SIOCGIFHWADDR, &ifr);
     close(sock);
+    int i;
     int off = 0;
-    for (int i = 0; i <= 5; ++i)
+    for (i = 0; i <= 5; ++i)
     {
         std::sprintf(out + off, "%03d",
                      static_cast<unsigned char>(ifr.ifr_hwaddr.sa_data[i]));

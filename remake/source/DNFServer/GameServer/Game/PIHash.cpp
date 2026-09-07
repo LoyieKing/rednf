@@ -14,6 +14,19 @@
 #include <cstring>
 #include <cstdlib>
 
+int DoSuperFastHash(unsigned char* data, unsigned int len, unsigned int& hash);
+
+// ---- MakeHash 前置（P210 callee 定义顺序定律：调用者定义须在 DoSuperFastHash
+// 定义之前，否则 4.4 按 callee 帧精确继承 outgoing，0x38 保守大帧塌缩为 0x20）----
+unsigned char MakeHash(unsigned char* data, unsigned int len, unsigned char seed)
+{
+    unsigned int hash;   // ORIG 无 init store（DoSuperFastHash 出参槽直传）
+    DoSuperFastHash(data, len, hash);
+    unsigned char* digest = reinterpret_cast<unsigned char*>(&hash);
+    return static_cast<unsigned char>(digest[0] ^ digest[1] ^ digest[2] ^
+                                      digest[3] ^ seed);
+}
+
 // ---- DoSuperFastHash ORIG @ 0x0808ca7a ----
 int DoSuperFastHash(char* data, unsigned int len, unsigned int& hash)
 {
@@ -105,17 +118,6 @@ int DoSuperFastHash(unsigned char* data, unsigned int len, unsigned int& hash)
     h = h ^ (h * 0x2000000);
     hash = h + (h >> 6);
     return 1;
-}
-
-// ---- MakeHash ORIG @ 0x0808c311 ----
-// SuperFastHash 后取 4 字节摘要逐字节 xor 再 xor 种子。
-unsigned char MakeHash(unsigned char* data, unsigned int len, unsigned char seed)
-{
-    unsigned int hash;   // ORIG 无 init store（DoSuperFastHash 出参槽直传）
-    DoSuperFastHash(data, len, hash);
-    unsigned char* digest = reinterpret_cast<unsigned char*>(&hash);
-    return static_cast<unsigned char>(digest[0] ^ digest[1] ^ digest[2] ^
-                                      digest[3] ^ seed);
 }
 
 // ---- _NS_PI_2ND_GetPacketIndex ORIG @ 0x082772a9 ----

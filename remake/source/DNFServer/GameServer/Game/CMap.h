@@ -365,9 +365,7 @@ struct BackGroundEffectBlock
 struct STDialog
 {
     std::string m_name;       // +0x00
-    bool m_onStart;           // +0x04
-    bool m_onComplete;        // +0x05
-    bool m_flag06;            // +0x06（clear 一并清零，用途未证）
+    bool m_flag[3];           // +0x04..+0x06（ORIG clear 循环索引清零；[0]=on start、[1]=on complete）
 
     STDialog();
     void clear();
@@ -410,8 +408,8 @@ struct STItemGenerateInfo
 struct STAssignItem
 {
     int m_field00;   // +0x00
-    int m_field04;   // +0x04
-    int m_field08;   // +0x08
+    // +0x04..+0x08：ORIG copy 成对 8 字节视图拷贝（P206），建模为 2×int 聚合。
+    struct Pair { int a[2]; } m_pair04;   // a[0]=+0x04、a[1]=+0x08
     int m_field0c;   // +0x0c
     int m_field10;   // +0x10
     int m_field14;   // +0x14

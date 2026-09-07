@@ -189,7 +189,7 @@ public:
     void SetTradeLimitCount(unsigned char count);
     bool isAvatarItemType() const;
     bool IsCreatureItemType() const;
-    int isEquipableItemType() const;   // ORIG 0x85f77ca 调用点 int 语义（P22 反向），Lane19
+    bool isEquipableItemType() const;  // ORIG 0x85f77ca 调用点 test %al（0x868e07a xor$1），本体 0x08150812 mov$1/mov$0 bool 形
     bool isEmpty() const;
     void setCopy(const Inven_Item& other);
     int getPackedCode1() const;

@@ -82,7 +82,7 @@ public:
         {
             stExpertJobAdditionalExp();
             float m_field0;  // +0x00
-            int m_field4;    // +0x04
+            unsigned int m_field4;    // +0x04（P211 异型化：int→uint 翻 store 序，同宽偏移不变）
         };
 
         struct stExpertCompoundResultVariation

@@ -291,7 +291,7 @@ bool Inven_Item::IsCreatureItemType() const
     return m_field1 == 5 || m_field1 == 7 || m_field1 == 6;
 }
 
-int Inven_Item::isEquipableItemType() const
+bool Inven_Item::isEquipableItemType() const
 {
     return m_field1 == 1 || m_field1 == 5 || m_field1 == 6 ||
            m_field1 == 8;

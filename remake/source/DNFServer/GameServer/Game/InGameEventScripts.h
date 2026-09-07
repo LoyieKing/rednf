@@ -177,7 +177,11 @@ public:
     ~PcBangPlayTimeScript();
 
     std::string    m_dbTableName;   // +0x08（[db table]）
-    int            m_playTime;      // +0x0c（[play time]；C1 写 0）
+    unsigned int   m_playTime;      // +0x0c（[play time]；C1 写 0）。int→unsigned
+                                     // 异型化（P211）：importPcBangPlayTimeScript
+                                     // store 处 ORIG 有 mov %eax,%edx 中转，同宽
+                                     // 4B 偏移不变；ScanInt(int) 隐式转 unsigned
+                                     // 位模式与 ORIG int 拷贝一致。
     unsigned char  m_numberOfTime;  // +0x10（[number of time]；C1 写 1）
     unsigned char  m_pad11;         // +0x11
     unsigned short m_startTag;      // +0x12（[start tag]；C1 写 0x20）

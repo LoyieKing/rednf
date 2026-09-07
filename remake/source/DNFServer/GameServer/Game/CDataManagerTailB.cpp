@@ -605,6 +605,10 @@ bool CDataManager::hasSpecialCharacterExceptSpace(const char* name)
 void CDataManager::get_createCharacterGift(
     int idx, createChracScript::rewardInfoList& out) const
 {
+    // P212 候选实验（NL31）：defaultKey 无初始化提前声明（4.4"先声明深"，
+    // 槽 -0x2c；it 随后 -0x28），赋值留 ORIG 原位——第二段全对齐，
+    // 残差 20 全为第一段槽基 4B 平移（N95 族）+key 分区（N82附）。
+    int defaultKey;
     std::map<int, createChracScript::rewardInfoList>::const_iterator it =
         m_createChrac.m_map0.find(idx);
     if (it != m_createChrac.m_map0.end())
@@ -614,7 +618,7 @@ void CDataManager::get_createCharacterGift(
                           it->second.m_list.end());
     }
 
-    const int defaultKey = 0xb;
+    defaultKey = 0xb;
     it = m_createChrac.m_map0.find(defaultKey);
     if (it != m_createChrac.m_map0.end())
     {

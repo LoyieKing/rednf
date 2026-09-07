@@ -221,13 +221,10 @@ bool STExpertJobScript::GetMonsterCardBindRate(int key,
     if (it == m_monsterCardBindRateMap.end())
     {
         stMonsterCardBindRate zeroed;
-        // ORIG 以单 dword 拷贝整体（sizeof==4）
-        *reinterpret_cast<unsigned int*>(&out) =
-            *reinterpret_cast<const unsigned int*>(&zeroed);
+        out = zeroed;   // ORIG miss：C1→dword 槽拷 out→return 0
         return false;
     }
-    *reinterpret_cast<unsigned int*>(&out) =
-        *reinterpret_cast<const unsigned int*>(&it->second);
+    out = it->second;   // ORIG hit：pt→mov 0x4(%eax)→store out
     return true;
 }
 
@@ -239,11 +236,10 @@ bool STExpertJobScript::GetMonsterCardBindRate(int key,
 stEnduranceRepairCost*
 STExpertJobScript::_GetEnduranceRepairCost(unsigned int grade)
 {
-    const std::vector<stEnduranceRepairCost>::size_type n =
-        m_enduranceRepairCost.size();
-    if (n <= grade - 1u)            // 无符口径：grade=0 → 0xffffffff 恒真
+    if (m_enduranceRepairCost.size() <= grade - 1u)  // 无符：grade=0 → 0xffffffff 恒真
         return 0;
-    return &m_enduranceRepairCost.at(grade - 1u);
+    stEnduranceRepairCost* c = &m_enduranceRepairCost.at(grade - 1u);
+    return c;
 }
 
 // ----------------------------------------------------------------------------

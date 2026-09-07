@@ -556,8 +556,8 @@ void AssignNpc::clear()                     // ORIG 0x089e87ee
 }
 
 STAssignItem::STAssignItem(const STAssignItem& other)   // ORIG 0x083ef750
-    : m_field00(other.m_field00), m_field04(other.m_field04),
-      m_field08(other.m_field08), m_field0c(other.m_field0c),
+    : m_field00(other.m_field00), m_pair04(other.m_pair04),
+      m_field0c(other.m_field0c),
       m_field10(other.m_field10), m_field14(other.m_field14),
       m_field18(other.m_field18), m_field1c(other.m_field1c),
       m_field20(other.m_field20), m_generateInfos(other.m_generateInfos)
@@ -658,9 +658,8 @@ BackGroundEffectBlock::BackGroundEffectBlock()  // ORIG 0x089e897e
 void STDialog::clear()                      // ORIG 0x089e8a5e
 {
     m_name.clear();
-    m_onStart = false;                      // byte +0x04..+0x06 循环清零
-    m_onComplete = false;
-    m_flag06 = false;
+    for (int i = 0; i < 3; ++i)             // ORIG movb $0,0x4(%edx,%eax,1) 循环
+        m_flag[i] = false;
 }
 
 STDialog::STDialog()                        // ORIG 0x089e8a1c
@@ -673,95 +672,9 @@ STDialog::STDialog()                        // ORIG 0x089e8a1c
 // ===========================================================================
 
 STMapScript::STMapScript()                  // ORIG C1 0x0836cc94
-    : m_index(),
-      m_list4(),
-      m_c(),
-      m_recoveryObjects(),
-      m_listAnimation(),
-      m_listQuestAnimation(),
-      m_listPassiveObject(),
-      m_vecMonster(),
-      m_vecConditionMonster(),
-      m_championRate(),
-      m_listItem(),
-      m_listSpecialPassive(),
-      m_vecNpc(),
-      m_element(),
-      m_vecTile(),
-      m_vecExtendedTile(),
-      m_sightScroll(),
-      m_vecBackAni(),
-      m_vecBackGroundEffect(),
-      m_vecBlockEffect(),
-      m_vecDialog(),
-      m_startPathDir(),
-      m_blockPath(),
-      m_tileOptionUpper(),
-      m_vecTownMovableArea(),
-      m_vecVirtualMovableArea(),
-      m_vecGuildAgitEntrance(),
-      m_pathgatePos(),
-      m_pathgateRange(),
-      m_dungeonStartArea(),
-      m_summonStartArea(),
-      m_178(),
-      m_17c(),
-      m_vec180(),
-      m_openingBgm(),
-      m_openingBgmParam(),
-      m_vecSound(),
-      m_str1a0(),
-      m_str1a4(),
-      m_str1a8(),
-      m_sortBottom(),
-      m_str1b0(),
-      m_playerCountMin(),
-      m_playerCountMax(),
-      m_pvpStartArea(),
-      m_pvpByPartySlot(),
-      m_keepStateAxisX(),
-      m_keepStateAxisY(),
-      m_keepStateAxisZ(),
-      m_24c(),
-      m_vecMonsterSpawnPos(),
-      m_vecAICharacter(),
-      m_apcRandomPoint(),
-      m_mapLoadingImagePath(),
-      m_270(),
-      m_274(),
-      m_vecEventMonsterPos(),
-      m_maxMonsterDropException(),
-      m_vecBloodSystem(),
-      m_vecBloodPhaseTime(),
-      m_vecDefenseSystem(),
-      m_vecDefensePhaseTime(),
-      m_tournamentMonsters(),
-      m_tournamentStartPos1(),
-      m_tournamentStartPos2(),
-      m_vecStaticStartPos(),
-      m_vecStaticStartPos2(),
-      m_limitPlayerMoveAreas(),
-      m_vecAttackedMonster(),
-      m_maxMonsterCountException(),
-      m_328(),
-      m_32c(),
-      m_timeLine(),
-      m_str34c(),
-      m_moveLayeredType(),
-      m_zposUnder(),
-      m_allDeadCasePassable(),
-      m_screenEdgeLeft(),
-      m_screenEdgeRight(),
-      m_screenEdgeTop(),
-      m_screenEdgeBottom(),
-      m_blockUseActiveSkill(),
-      m_blockUseStackableItem(),
-      m_fixChampion(),
-      m_pad36f(),
-      m_str370(),
-      m_visibleMinimap(),
-      m_visibleTownMinimap()
 {
+    // ORIG C1：仅隐式成员构造（非平凡类 C1 按声明序），无标量写；
+    // 标量清零全部由 body 的 Clear() 完成（P0 槽律同源）。
     Clear();
 }
 
@@ -782,20 +695,16 @@ STMapScript::STMapScript(const STMapScript& other)      // ORIG C1 0x0837e698
       m_element(other.m_element),                       // param_1[0x1b]
       m_vecTile(other.m_vecTile),                       // vector<string>@0x70
       m_vecExtendedTile(other.m_vecExtendedTile),       // vector<string>@0x7c
-      m_sightScroll(),                                  // 0x22..0x27 见下
-      m_vecBackAni(other.m_vecBackAni),                 // vector@0xa0
+            m_vecBackAni(other.m_vecBackAni),                 // vector@0xa0
       m_vecBackGroundEffect(other.m_vecBackGroundEffect), // vector@0xac
       m_vecBlockEffect(other.m_vecBlockEffect),         // vector@0xb8
       m_vecDialog(other.m_vecDialog),                   // vector@0xc4
       m_startPathDir(other.m_startPathDir),             // param_1[0x34]
-      m_blockPath(),                                    // bytes 0xd4..0xd7 见下
-      m_tileOptionUpper(other.m_tileOptionUpper),       // byte @0xd8
+            m_tileOptionUpper(other.m_tileOptionUpper),       // byte @0xd8
       m_vecTownMovableArea(other.m_vecTownMovableArea), // TownPath@0xdc
       m_vecVirtualMovableArea(other.m_vecVirtualMovableArea), // MapArea@0xe8
       m_vecGuildAgitEntrance(other.m_vecGuildAgitEntrance),   // TownPath@0xf4
-      m_pathgatePos(),                                  // words 0x40..0x4f 见下
-      m_pathgateRange(),
-      m_dungeonStartArea(other.m_dungeonStartArea),     // MapArea@0x140
+                  m_dungeonStartArea(other.m_dungeonStartArea),     // MapArea@0x140
       m_summonStartArea(other.m_summonStartArea),       // MapArea@0x15c
       m_178(other.m_178),                               // param_1[0x5e]
       m_17c(other.m_17c),                               // param_1[0x5f]
@@ -810,13 +719,11 @@ STMapScript::STMapScript(const STMapScript& other)      // ORIG C1 0x0837e698
       m_str1b0(other.m_str1b0),                         // string@0x6c(0x1b0)
       m_playerCountMin(other.m_playerCountMin),         // param_1[0x6d]/[0x6e] 成对
       m_playerCountMax(other.m_playerCountMax),
-      m_pvpStartArea(),                                 // 5×MapArea 循环拷贝
-      m_pvpByPartySlot(other.m_pvpByPartySlot),         // byte @0x92(0x248)
+            m_pvpByPartySlot(other.m_pvpByPartySlot),         // byte @0x92(0x248)
       m_keepStateAxisX(other.m_keepStateAxisX),         // u16 @0x249 成对
       m_keepStateAxisY(other.m_keepStateAxisY),
       m_keepStateAxisZ(other.m_keepStateAxisZ),         // byte @0x24b
-      m_24c(0),                                         // copy 未复制（Ghidra 视角）
-      m_vecMonsterSpawnPos(other.m_vecMonsterSpawnPos), // vector@0x94(0x250)
+            m_vecMonsterSpawnPos(other.m_vecMonsterSpawnPos), // vector@0x94(0x250)
       m_vecAICharacter(other.m_vecAICharacter),         // vector@0x97(0x25c)
       m_apcRandomPoint(other.m_apcRandomPoint),         // param_1[0x9a]
       m_mapLoadingImagePath(other.m_mapLoadingImagePath), // string@0x9b(0x26c)
@@ -899,8 +806,11 @@ void STMapScript::Clear()                   // ORIG T 0x0836c688（顺序保持�
     m_element = 4;                          // param_1[0x1b]=4
     m_vecTile.clear();                      // vector<string>::clear(+0x1c)
     m_vecExtendedTile.clear();              // vector<string>::clear(+0x1f)
-    for (int r = 0; r < 2; ++r)             // ORIG 0x0836c7f7：2×3 嵌套循环
-        for (int c = 0; c < 3; ++c)         // （外 -0x20≤1、内 -0x1c≤2）写回
+    // ORIG 0x0836c7f7：2×3 嵌套循环（外 -0x20≤1 双 init；内层 c 槽驻留 + body
+    // 缓存 %ebx 为 4.1 寻址寄存器分配，4.4 不缓存 → 残余 N，助记符已全同）。
+    int r = 0;
+    for (r = 0; r < 2; ++r)
+        for (int c = 0; c < 3; ++c)
             m_sightScroll[r * 3 + c] = 100; //  0x20+r*3+c word 基 0x22..0x27
     m_vecBackAni.clear();                   // vector<BackAniScript>::clear(+0x28)
     m_vecBackGroundEffect.clear();          // vector<BackGroundEffect>::clear(+0x2b)
@@ -2454,12 +2364,12 @@ bool ImportMapScript(STMapScript* script, const char* path)
                     return false;                           // 0x4d62
                 if (when == "on start")
                 {
-                    dlg.m_onStart = 1;                      // -0x5c4（dlg+4）
+                    dlg.m_flag[0] = 1;                      // -0x5c4（dlg+4）
                     script->m_vecDialog.push_back(dlg);     // vector(+0xc4)
                 }
                 else if (when == "on complete")
                 {
-                    dlg.m_onComplete = 1;                   // -0x5c3（dlg+5）
+                    dlg.m_flag[1] = 1;                      // -0x5c3（dlg+5）
                     script->m_vecDialog.push_back(dlg);
                 }
                 else
@@ -3326,7 +3236,7 @@ bool ExportMapScript(STMapScript* script, const char* path)
              it != script->m_listItem.end(); it++)
         {
             fprintf(file, "%d %d %d %d %d %d %d %d %d %d",
-                    (*it).m_field00, (*it).m_field04, (*it).m_field08,
+                    (*it).m_field00, (*it).m_pair04.a[0], (*it).m_pair04.a[1],
                     (*it).m_field0c, (*it).m_field10, (*it).m_field14,
                     (*it).m_field18, (*it).m_field1c, (*it).m_field20,
                     static_cast<int>((*it).m_generateInfos.size()));

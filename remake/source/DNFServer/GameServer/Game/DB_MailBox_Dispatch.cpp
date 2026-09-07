@@ -241,6 +241,20 @@ bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* strea
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, (ENUM_SERVER_GROUP)0);
     SIG_QUERY_CHARAC_INFO* sig = stream->GetOutBuffer<SIG_QUERY_CHARAC_INFO>();
 
+    // P212 候选实验（NL31）：块内局部全部提头声明（未初始化），初始化语句
+    // 留在 ORIG 原位——4.4 全头部声明时槽分配与 4.1 同为"先声明深"单调。
+    // 声明序=ORIG 槽深序（get_int 列序≠声明序；ORIG movl 序 -0x2c,-0x30,
+    // -0x34,-0x38,-0x1c(dummy),-0x3c,-0x40 ⇒ job,lev,growType,characNo,
+    // pad_impl,sex,mId）。
+    int deleteFlag;
+    int job;
+    int lev;
+    int growType;
+    int characNo;
+    int pad_impl;
+    int sex;
+    unsigned int mId;
+
     char name[0x3c] = { '\0' };
     db->escape_string(name, sig->m_name);
     db->set_query(
@@ -262,7 +276,7 @@ bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* strea
     // 转写（行为与两连 `==0` 块等价；块形状影响 verdict 序列）。
     if (db->get_n_rows() != 0)
     {
-        int deleteFlag = 0;
+        deleteFlag = 0;
         if (!db->fetch() || !db->get_int(0, deleteFlag))
         {
             _sendResult(2, slot, 0, 0, 0, 0, 0, 0);
@@ -278,15 +292,15 @@ bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* strea
         // MySQL::get_int(int, int&)@0x0811692c → 局部须为 int（原 unsigned int
         // 会绑 0x080e22ae 转发重载，callee 不符）；列 1 m_id callee @0x080e22ae
         // = get_int(int, unsigned int&) → mId 保持 unsigned int。
-        int characNo = 0;
-        int job = 0;
-        int lev = 0;
-        int growType = 0;
-        int sex = 0;
-        unsigned int mId = 0;
         // ORIG（+0x2a0 `movl $0x0,-0x1c(%ebp)`）在此列初始化块多零写入一个 dummy
         // 槽（只写不读，N82 遗留）。以同块内一个只写不读的局部复刻该条死 movl。
-        int pad_impl = 0;
+        job = 0;
+        lev = 0;
+        growType = 0;
+        characNo = 0;
+        pad_impl = 0;
+        sex = 0;
+        mId = 0;
         db->get_int(1, mId);
         db->get_int(2, characNo);
         db->get_int(3, job);

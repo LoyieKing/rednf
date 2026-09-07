@@ -96,7 +96,7 @@ public:
     MSG_BINGO_QUIZ();
     // ORIG C1 0x0822dc66：+0xd int 清零（其余未出线）
     int m_0d __attribute__((packed));  // +0x0d
-    char m_pad11[0xfc];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 class MSG_BLUE_MARBLE : public MSG_BASE
@@ -105,7 +105,7 @@ public:
     MSG_BLUE_MARBLE();
     // ORIG C1：+0xd byte 清零
     char m_0d;                // +0x0d（ORIG get_byte(char&)）
-    char m_pad0e[0xff];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 class MSG_BLUE_MARBLE_CONFIRM_INFO : public MSG_BASE
@@ -115,7 +115,7 @@ public:
     // ORIG C1：+0xd byte 清零、+0xe word=-1
     unsigned char m_0d;       // +0x0d
     unsigned short m_0e;      // +0x0e（ctor = -1）
-    char m_pad10[0xfd];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -138,7 +138,7 @@ class MSG_BREAK_AWAY : public MSG_BASE
 public:
     MSG_BREAK_AWAY();
     unsigned char m_checkFlag;  // +0x0d（read get_byte 写入；0=走重置/通知分支）
-    char m_pad0e[0xff];
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -192,7 +192,7 @@ public:
     MSG_CHANGE_ANOTHER_SKILL_TREE();
     // ORIG C1：+0xd byte = 0xff（未选中的技能树哨兵）
     char m_0d;                // +0x0d（ORIG get_byte(char&)：按有符号 char 读）
-    char m_pad0e[0xff];       // 保持占位总长 0x10d
+    // pad removed
 };
 // ORIG 布局（ctor 0x0822e0cc 直写实证 + Dispatcher_AvatarOptionChange/read.md）：
 // +0x0d short 消耗品槽位 / +0x0f int 消耗品 itemIdx / +0x13 short 目标 avatar 槽位 /
@@ -207,7 +207,6 @@ public:
     unsigned short m_avatarSlot;    // +0x13（ctor -1）
     int m_equipItemIdx;             // +0x15（ctor -1）
     unsigned char m_option;         // +0x19（ctor 0xff）
-    char m_pad1a[0x10d - 0x1a];     // 保持占位总长 0x10d
 };
 #pragma pack(pop)
 
@@ -247,7 +246,7 @@ public:
     unsigned short m_0e;      // +0x0e
     unsigned short m_10;      // +0x10
     unsigned char m_12;       // +0x12
-    char m_pad13[0xfa];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -280,7 +279,7 @@ public:
     // ORIG C1：+0xd int 清零、memset(this+0x11,0,0x17)
     int m_0d;                 // +0x0d
     char m_11[0x17];          // +0x11..+0x27（ctor memset 全零）
-    char m_pad28[0xe5];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -327,7 +326,7 @@ public:
     MSG_COMBO_SKILL_EXTENSION_QUICK_SLOT_RESET();
     // ORIG C1：+0xd byte 清零
     unsigned char m_0d;       // +0x0d
-    char m_pad0e[0xff];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -539,7 +538,7 @@ public:
     unsigned char m_0d;       // +0x0d
     unsigned short m_0e;      // +0x0e（= m_10）
     unsigned short m_10;      // +0x10（ctor = 0）
-    char m_pad12[0xfb];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -550,7 +549,7 @@ public:
     MSG_FATIGUE_ATTENDANCE();
     // ORIG C1：+0xd int 清零
     int m_0d;                 // +0x0d
-    char m_pad11[0xfc];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -615,7 +614,7 @@ public:
     // ORIG C1：+0xd/+0x11 int 各清零
     int m_0d;                 // +0x0d
     int m_11;                 // +0x11
-    char m_pad15[0xf8];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -626,7 +625,7 @@ public:
     // ORIG C1：+0xd byte 清零、memset(this+0xe,0,5)
     unsigned char m_0d;       // +0x0d
     char m_0e[5];             // +0x0e..+0x12（ctor 全零）
-    char m_pad13[0xfa];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -670,7 +669,7 @@ public:
     MSG_GUILD_BOARD();
     STGuildBoardDBInfo m_info;       // +0xd..+0xb1（pack 后真落 0xd；ORIG add $0xd 实证）
     unsigned char m_b2;              // +0xb2（ORIG C1 清零）
-    char m_padB3[0x5a];              // +0xb3（保持原总长 0x10d）
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -737,7 +736,7 @@ public:
     // ORIG C1：+0xd int = 0x80（notice 类型哨兵）
     int m_noticeFlag;         // +0x0d 通知 flag（ctor = 0x80 哨兵；Dispatcher_InformNotice/read.md
                               //  get_int@msg+0xd；process handleInformNoticeFlag）
-    char m_pad11[0xfc];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -749,7 +748,7 @@ public:
     // ORIG C1：+0xd int = 0x80
     int m_noticeFlag;         // +0x0d 通知 flag（ctor = 0x80；Dispatcher_InformNotice_2nd/read.md
                               //  get_int@msg+0xd；process CCharacInformNotice::handleInformNoticeFlag）
-    char m_pad11[0xfc];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -813,7 +812,7 @@ public:
     unsigned short m_25;      // +0x25
     unsigned char m_27;       // +0x27
     char m_28[0x81];          // +0x28..+0xa8（ctor memset 全零）
-    char m_padA9[0x64];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -827,10 +826,10 @@ public:
     short m_field0e;          // +0x0e 广告日志参数【推断】（get_short@msg+0xe）
     signed char m_field10;    // +0x10 标志字节【推断】（get_byte@msg+0x10）
     unsigned int m_field11;   // +0x11 计数值【推断】（get_int@msg+0x11）
-    char m_gap15[0xf8];       // +0x15..（ORIG 未出线；总长保持 0x10d）
+    // pad removed
 };
 #pragma pack(pop)
-static_assert(sizeof(MSG_LOG_INGAME_ADVERTISEMENT) == 0x10d, "MSG_LOG_INGAME_ADVERTISEMENT size");
+static_assert(sizeof(MSG_LOG_INGAME_ADVERTISEMENT) == 0x15, "MSG_LOG_INGAME_ADVERTISEMENT size");
 #pragma pack(push, 1)
 class MSG_MAILBOX_EXTRACT_ITEM : public MSG_BASE
 {
@@ -894,7 +893,7 @@ public:
     unsigned short m_0d;      // +0x0d（= m_0f）
     unsigned short m_0f;      // +0x0f（= m_11）
     unsigned short m_11;      // +0x11（ctor = 0）
-    char m_pad13[0xfa];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -1046,10 +1045,10 @@ public:
     unsigned short m_field0f; // +0x0f
     unsigned short m_field11; // +0x11
     unsigned char m_field13;  // +0x13
-    char m_gap14[0xf9];       // +0x14..（ORIG 未出线；总长保持 0x10d）
+    // pad removed
 };
 #pragma pack(pop)
-static_assert(sizeof(MSG_PARTY_TELEPORT) == 0x10d, "MSG_PARTY_TELEPORT size");
+static_assert(sizeof(MSG_PARTY_TELEPORT) == 0x14, "MSG_PARTY_TELEPORT size");
 
 #pragma pack(push, 1)
 class MSG_PARTY_TELEPORT_CONFIRM : public MSG_BASE
@@ -1058,10 +1057,10 @@ public:
     MSG_PARTY_TELEPORT_CONFIRM();
     unsigned char m_confirmFlag;  // +0x0d 队伍传送确认/应答标志【推断】
                                   //（Dispatcher_PartyTeleportConfirm/read.md get_byte@msg+0xd）
-    char m_gap0e[0xff];           // +0x0e..（ORIG 未出线；总长保持 0x10d）
+    // pad removed
 };
 #pragma pack(pop)
-static_assert(sizeof(MSG_PARTY_TELEPORT_CONFIRM) == 0x10d, "MSG_PARTY_TELEPORT_CONFIRM size");
+static_assert(sizeof(MSG_PARTY_TELEPORT_CONFIRM) == 0xe, "MSG_PARTY_TELEPORT_CONFIRM size");
 
 #pragma pack(push, 1)
 class MSG_PURIFY_ITEM : public MSG_BASE
@@ -1073,7 +1072,7 @@ public:
     int m_0f;                 // +0x0f
     unsigned short m_13;      // +0x13
     int m_15;                 // +0x15
-    char m_pad19[0xf4];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -1109,7 +1108,7 @@ public:
     // ORIG C1：+0xd/+0xe byte 清零
     unsigned char m_0d;       // +0x0d
     unsigned char m_0e;       // +0x0e
-    char m_pad0f[0xfe];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -1133,7 +1132,7 @@ public:
     char m_padD;
     unsigned short m_0e;      // +0x0e
     unsigned char m_10;       // +0x10（ctor = 0xff）
-    char m_pad11[0xfc];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -1146,7 +1145,7 @@ public:
     unsigned char m_11;       // +0x11
     unsigned char m_12;       // +0x12
     unsigned char m_13;       // +0x13
-    char m_pad14[0xf9];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -1193,10 +1192,10 @@ public:
     short m_field0e;          // +0x0e【推断】（get_short@msg+0xe）
     int m_nameLen;            // +0x10 新名字字节长度（get_int@msg+0x10；get_str len 参数）
     char m_name[0xd];         // +0x14..+0x20 新生物名称（get_str(buf,0xd,len)@msg+0x14；ctor memset 全零）
-    char m_gap21[0xec];       // +0x21..（ORIG 未出线；总长保持 0x10d）
+    char m_gap21[0x3];       // +0x21..（ORIG 未出线；总长保持 0x10d）
 };
 #pragma pack(pop)
-static_assert(sizeof(MSG_RENAME_CREATURE) == 0x10d, "MSG_RENAME_CREATURE size");
+static_assert(sizeof(MSG_RENAME_CREATURE) == 0x24, "MSG_RENAME_CREATURE size");
 
 class MSG_RENT_ITEM : public MSG_BASE
 {
@@ -1206,7 +1205,7 @@ public:
     unsigned char m_0d;       // +0x0d
     unsigned char m_0e;       // +0x0e
     char m_0f[2];             // +0x0f..+0x10（ctor memset 全零）
-    char m_pad11[0xfc];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -1226,7 +1225,7 @@ public:
     MSG_REQUEST_CHARAC_SKILL_INFO();
     // ORIG C1：+0xd byte = 0xff（无请求哨兵）
     unsigned char m_0d;       // +0x0d
-    char m_pad0e[0xff];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -1252,7 +1251,7 @@ public:
     char m_11[0x17];          // +0x11..+0x27（ctor memset 全零）
     int m_28;                 // +0x28
     char m_2c[0x1a];          // +0x2c..+0x45（ctor memset 全零）
-    char m_pad46[0xc7];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -1263,10 +1262,10 @@ public:
     MSG_REQUEST_INGAME_ADVERTISEMENT();
     short m_field0d;          // +0x0d 广告请求类型【推断】
                               //（Dispatcher_RequestIngameAdvertisement/read.md get_short@msg+0xd）
-    char m_gap0f[0xfe];       // +0x0f..（ORIG 未出线；总长保持 0x10d）
+    // pad removed
 };
 #pragma pack(pop)
-static_assert(sizeof(MSG_REQUEST_INGAME_ADVERTISEMENT) == 0x10d, "MSG_REQUEST_INGAME_ADVERTISEMENT size");
+static_assert(sizeof(MSG_REQUEST_INGAME_ADVERTISEMENT) == 0xf, "MSG_REQUEST_INGAME_ADVERTISEMENT size");
 
 #pragma pack(push, 1)
 class MSG_REQUEST_MEMBER_ENTER : public MSG_BASE
@@ -1303,7 +1302,7 @@ public:
     // 无 pack 时 m_0d 被对齐到 +0xe —— 与 ORIG 偏移不符）
     unsigned short m_0d;      // +0x0d
     unsigned char m_0f;       // +0x0f
-    char m_pad10[0xfd];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -1374,7 +1373,7 @@ public:
     MSG_SAVE_QUEST_NOTIFY();
     // ORIG C1：memset(this+0xd,0,0x28)
     char m_0d[0x28];          // +0x0d..+0x34（ctor memset 全零）
-    char m_pad35[0xd8];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 
@@ -1449,10 +1448,10 @@ public:
                               //（Dispatcher_SecurityLog/read.md get_int→局部→回写 msg+0xd）
     unsigned int m_logCounts[5];  // +0x11..+0x24 五个安全日志计数【推断】
                               //（read 循环 5 次 get_int @msg+0x11/0x15/0x19/0x1d/0x21）
-    char m_gap25[0xe8];       // +0x25..（ORIG 未出线；总长保持 0x10d）
+    // pad removed
 };
 #pragma pack(pop)
-static_assert(sizeof(MSG_SECURITY_LOG_PACKET) == 0x10d, "MSG_SECURITY_LOG_PACKET size");
+static_assert(sizeof(MSG_SECURITY_LOG_PACKET) == 0x25, "MSG_SECURITY_LOG_PACKET size");
 
 class MSG_SECU_RPY : public MSG_BASE
 {
@@ -1483,7 +1482,7 @@ public:
     // ORIG C1：+0xd byte = 0xff、+0xe byte 清零
     unsigned char m_0d;       // +0x0d（ctor = 0xff）
     unsigned char m_0e;       // +0x0e
-    char m_pad0f[0xfe];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -1527,7 +1526,7 @@ class MSG_SKILL_COMMAND : public MSG_BASE
 {
 public:
     MSG_SKILL_COMMAND();
-    char m_pad[0x100];
+    char m_pad[0x191];
 };
 
 class MSG_SKILL_INIT : public MSG_BASE
@@ -1536,7 +1535,7 @@ public:
     MSG_SKILL_INIT();
     // ORIG C1：+0xd byte 清零
     char m_0d;                // +0x0d（ORIG get_byte(char&)）
-    char m_pad0e[0xff];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -1599,7 +1598,7 @@ class MSG_TEMP_STRUCT : public MSG_BASE
 {
 public:
     MSG_TEMP_STRUCT();
-    char m_pad[0x100];
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -1650,7 +1649,7 @@ public:
     unsigned char m_useFlag;   // +0x0d 是否使用服务的布尔开关【推断】（read get_byte@msg+0xd；process setne）
     unsigned char m_selectIdx; // +0x0e 选择的服务索引【推断】（read get_byte@msg+0xe；
                                //  process 传 cUserHistoryLog::SelectCubeForPremiumService）
-    char m_gap0f[0xfe];        // +0x0f..（ORIG 未出线；总长保持 0x10d）
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -1719,7 +1718,7 @@ public:
     char m_padD;
     unsigned short m_0e;      // +0x0e
     unsigned short m_10;      // +0x10
-    char m_pad12[0xfb];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -1731,10 +1730,10 @@ public:
                               //  process GetInvenSlot(1, slotA)）
     unsigned int m_itemIdx;   // +0x0f 限定魔方物品索引（get_int@msg+0xf）
     short m_slotB;            // +0x13 目标槽位B（get_short@msg+0x13；GetInvenSlot(1, slotB)）
-    char m_gap15[0xf8];       // +0x15..（ORIG 未出线；总长保持 0x10d）
+    // pad removed
 };
 #pragma pack(pop)
-static_assert(sizeof(MSG_USE_LIMIT_CUBE) == 0x10d, "MSG_USE_LIMIT_CUBE size");
+static_assert(sizeof(MSG_USE_LIMIT_CUBE) == 0x15, "MSG_USE_LIMIT_CUBE size");
 
 class MSG_USE_RENAME_CARD : public MSG_BASE
 {
@@ -1743,7 +1742,7 @@ public:
     // ORIG C1：+0xe word 清零（+0xd 未出线）
     char m_padD;
     unsigned short m_0e;      // +0x0e
-    char m_pad10[0xfd];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 #pragma pack(push, 1)
@@ -1819,7 +1818,7 @@ public:
     MsgRequestAssaultPrice();
     // ORIG C1：+0xd word = -1（未定价哨兵）
     short m_0d;               // +0x0d（ctor = -1）
-    char m_pad0f[0xfe];       // 保持占位总长 0x10d
+    // pad removed
 };
 #pragma pack(pop)
 #pragma pack(pop)
@@ -1831,7 +1830,7 @@ public:
     // ORIG C1：+0xd/+0xe byte = 0xff（未选择哨兵）
     unsigned char m_0d;       // +0x0d
     unsigned char m_0e;       // +0x0e
-    char m_pad0f[0xfe];       // 保持占位总长 0x10d
+    // pad removed
 };
 
 // ---------------------------------------------------------------------------
@@ -1885,7 +1884,7 @@ public:
     InformNoticeData();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class InformNoticeData2nd : public ParamBase
@@ -1894,7 +1893,7 @@ public:
     InformNoticeData2nd();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class LimitNpcBuyItem : public ParamBase
@@ -1942,7 +1941,7 @@ public:
     unsigned char m_4;       // +0x04
     short m_6;               // +0x06（自然对齐）
     int m_8;                 // +0x08
-    char m_pad0c[0x38];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class STQuestShopParam : public ParamBase
@@ -1960,7 +1959,7 @@ public:
     STUdateItemParam();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class ScanBotByDllParam : public ParamBase
@@ -2044,7 +2043,7 @@ public:
     TempParam();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class saveQuestNotifyParam : public ParamBase
@@ -2052,7 +2051,7 @@ class saveQuestNotifyParam : public ParamBase
 public:
     saveQuestNotifyParam();
     int m_errorCode;   // +0x04（Dispatcher_SaveQuestNotify::process 写入 check_error 结果）
-    char m_pad08[0x3c];
+    // pad removed
 };
 
 // stAddFriendParam：ORIG _ZN16stAddFriendParamC1Ev 0x8230f64 —— ParamBase(vfptr@0)
@@ -2081,9 +2080,9 @@ public:
     int m_result;             // +0x04 结果码（Dispatcher_BingoQuiz/process.md 0x0825e9e6/0x0825eaa8）
     unsigned int m_bingoData; // +0x08 CUser::getBingoData() 首 dword（BingoData*）【推断】
                               //（process.md 0x0825eaba-0x0825eabf）
-    char m_gap0c[0x38];       // +0x0c..（ORIG 未出线；总长保持 0x44）
+    char m_gap0c[0x4];       // +0x0c..（ORIG 未出线；总长保持 0x44）
 };
-static_assert(sizeof(stBingoQuiz) == 0x44, "stBingoQuiz size");
+static_assert(sizeof(stBingoQuiz) == 0x10, "stBingoQuiz size");
 
 class stBingoReward : public ParamBase
 {
@@ -2102,7 +2101,7 @@ public:
     stBlueMarble();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class stBlueMarbleConfirmInfo : public ParamBase
@@ -2111,7 +2110,7 @@ public:
     stBlueMarbleConfirmInfo();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class stBossDieCheckParam : public ParamBase
@@ -2132,7 +2131,7 @@ class stBreakAwayParam : public ParamBase
 public:
     stBreakAwayParam();
     int m_resultCode;  // +0x04（process：突破检查未完成时写 1；send 读之回包）
-    char m_pad08[0x3c];
+    // pad removed
 };
 
 class stCallMemberListParam : public ParamBase
@@ -2151,9 +2150,9 @@ public:
     int m_result;             // +0x04 check_error 结果码
                               //（Dispatcher_ChangeAnotherSkillTree/process.md 0x081d1ff2/0x081d200b）
     unsigned char m_skillTreeIndex;  // +0x08 SetCurCharacSkillTreeIndex 参数回写 0/1（0x081d2062）
-    char m_gap09[0x3b];       // +0x09..（ORIG 未出线；总长保持 0x44）
+    char m_gap09[0x3];       // +0x09..（ORIG 未出线；总长保持 0x44）
 };
-static_assert(sizeof(stChangeAnotherSkillTree) == 0x44, "stChangeAnotherSkillTree size");
+static_assert(sizeof(stChangeAnotherSkillTree) == 0xc, "stChangeAnotherSkillTree size");
 
 class stChangeAvatarOption : public ParamBase
 {
@@ -2164,9 +2163,9 @@ public:
     unsigned short m_srcSlot;     // +0x08 变更源 avatar 槽（msg+0xd 回写；0x081e09db）
     unsigned short m_dstSlot;     // +0x0a 目标槽（msg+0x13 回写；0x081e09e6）
     unsigned char m_optionValue;  // +0x0c 变更后 avatar option 字节（msg[0x19] 回写；0x081e09f4）
-    char m_gap0d[0x37];           // +0x0d..（ORIG 未出线；总长保持 0x44）
+    char m_gap0d[0x3];           // +0x0d..（ORIG 未出线；总长保持 0x44）
 };
-static_assert(sizeof(stChangeAvatarOption) == 0x44, "stChangeAvatarOption size");
+static_assert(sizeof(stChangeAvatarOption) == 0x10, "stChangeAvatarOption size");
 
 class stChangeEmotionParam : public ParamBase
 {
@@ -2213,7 +2212,7 @@ public:
     // ORIG C1：+0x04 byte 清零
     unsigned char m_spec;    // +0x04 客户端 spec 类型字节（msg[0xd] 拷入；ORIG C1 清零；
                              //  Dispatcher_Client_Spec_Statistic/process.md 0x081ce724）
-    char m_gap05[0x3f];      // +0x05..（ORIG 未出线，0xbf8 字节 memcpy 目标在 CUser 缓冲不在 param；总长保持 0x44）
+    char m_gap05[0x3];      // +0x05..（ORIG 未出线，0xbf8 字节 memcpy 目标在 CUser 缓冲不在 param；总长保持 0x44）
 };
 
 class stCloseDisjointStoreParam : public ParamBase
@@ -2258,7 +2257,7 @@ public:
     stComboSkillExtensionQuickSlotReset();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class stCreateDisjointStoreParam : public ParamBase
@@ -2388,7 +2387,7 @@ public:
     unsigned int m_recordType;   // +0x08 msg+0xd 拷入：ingame event history record type（0x081db014）
     unsigned int m_historyBits;  // +0x0c setBit 置位后 get_ingame_event_history 位图回写（0x081db244）
     int m_todayTime;             // +0x10 CEventScriptMng::get_today_time() 写入（0x081db265）
-    char m_gap14[0x30];          // +0x14..（ORIG 未出线；总长保持 0x44）
+    char m_gap14[0x4];          // +0x14..（ORIG 未出线；总长保持 0x44）
 };
 
 class stFinishLoadParam : public ParamBase
@@ -2441,7 +2440,7 @@ public:
     stGrowthPowerParam();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class stGuildBoardParam : public ParamBase
@@ -2450,7 +2449,7 @@ public:
     stGuildBoardParam();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class stGuildCargoHistoryParam : public ParamBase
@@ -2549,7 +2548,7 @@ public:
     stLogIngameAdvertisement();
     int m_result;            // +0x04 check_error 结果码（Dispatcher_LogIngameAdvertisement/process.md
                              //  0x081e4e1d；msg+0xd..0x14 直接传 WriteLog 不回写 param）
-    char m_gap08[0x3c];      // +0x08..（ORIG 未出线；总长保持 0x44）
+    // pad removed
 };
 
 class stMailboxExtractParam : public ParamBase
@@ -2711,14 +2710,14 @@ public:
     stOpenCeraPackage();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x145];      // ORIG 实证用到 +0x148（Dispatcher_CeraPackageOpen read），总长 0x149
+    char m_pad08[0x4];      // ORIG 实证用到 +0x148（Dispatcher_CeraPackageOpen read），总长 0x149
 };
 
 class stPartyTeleport : public ParamBase
 {
 public:
     stPartyTeleport();
-    char m_pad[0x40];
+    char m_pad[0xc];
 };
 
 class stPartyTeleportConfirm : public ParamBase
@@ -2728,14 +2727,14 @@ public:
     // ORIG：+0x04 int m_result、+0x08 unsigned char m_bConfirm（构造体见 PacketTypes.cpp）
     int m_result;              // +0x04
     unsigned char m_bConfirm;  // +0x08
-    char m_pad[0x3b];          // 保持占位总长 0x44
+    char m_pad[0x3];          // 保持占位总长 0x44
 };
 
 class stQuickChatParam : public ParamBase
 {
 public:
     stQuickChatParam();
-    char m_pad[0x40];
+    // pad removed
 };
 
 class stQuickPartyParam : public ParamBase
@@ -2744,14 +2743,14 @@ public:
     stQuickPartyParam();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class stRefundSkill : public ParamBase
 {
 public:
     stRefundSkill();
-    char m_pad[0x40];
+    char m_pad[0x18];
 };
 
 class stRegenROIResult : public ParamBase
@@ -2785,7 +2784,7 @@ public:
     stRenameCreature();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class stRentItemParam : public ParamBase
@@ -2822,7 +2821,7 @@ public:
     stRequestAssaultPrice();
     int m_4;                  // +0x04（check_error 结果；ORIG 实证）
     int m_8;                  // +0x08（突袭费用；ORIG 实证）
-    char m_pad0c[0x38];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class stRequestBlackListParam : public ParamBase
@@ -2837,7 +2836,7 @@ class stRequestCharacSkillInfo : public ParamBase
 public:
     stRequestCharacSkillInfo();
     int m_4;             // +0x04 错误码（send 读低字节）
-    char m_pad08[0x3c];
+    // pad removed
 };
 
 class stRequestDisjointItemParam : public ParamBase
@@ -2883,7 +2882,7 @@ class stRightOfChangeGrowType : public ParamBase
 {
 public:
     stRightOfChangeGrowType();
-    char m_pad[0x40];
+    char m_pad[0x4];
 };
 
 class stSaveCharacOption : public ParamBase
@@ -2892,7 +2891,7 @@ public:
     stSaveCharacOption();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class stSecretShopBuyItemParam : public ParamBase
@@ -2917,7 +2916,7 @@ class stSecurityLogParam : public ParamBase
 {
 public:
     stSecurityLogParam();
-    char m_pad[0x40];
+    // pad removed
 };
 
 class stSelectCharac : public ParamBase
@@ -2942,7 +2941,7 @@ class stSelectStriker : public ParamBase
 {
 public:
     stSelectStriker();
-    char m_pad[0x40];
+    char m_pad[0x4];
 };
 
 class stSendClearedMission : public ParamBase
@@ -2985,7 +2984,7 @@ public:
     stSkillCommandParam();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class stSkillInit : public ParamBase
@@ -2995,7 +2994,7 @@ public:
     // ORIG C1：+0x04 int、+0x08 byte 清零
     int m_4;                 // +0x04
     unsigned char m_8;       // +0x08
-    char m_pad09[0x3b];       // 保持占位总长 0x44
+    char m_pad09[0x3];       // 保持占位总长 0x44
 };
 
 class stSoloTeleportParam : public ParamBase
@@ -3006,7 +3005,7 @@ public:
     int m_4;                 // +0x04
     int m_8;                 // +0x08
     int m_c;                 // +0x0c
-    char m_pad10[0x34];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class stStackableActionUse : public ParamBase
@@ -3042,7 +3041,7 @@ class stTournamentRewardSelect : public ParamBase
 {
 public:
     stTournamentRewardSelect();
-    char m_pad[0x40];
+    char m_pad[0x4];
 };
 
 class stTournamentRewardSelectState : public ParamBase
@@ -3060,7 +3059,7 @@ public:
     int m_4;                 // +0x04
     unsigned char m_8;       // +0x08
     unsigned char m_9;       // +0x09
-    char m_pad0a[0x3a];       // 保持占位总长 0x44
+    char m_pad0a[0x2];       // 保持占位总长 0x44
 };
 
 class stUpgradeDisjointMachineParam : public ParamBase
@@ -3086,7 +3085,7 @@ public:
     stUseDye();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class stUseLimitCube : public ParamBase
@@ -3099,7 +3098,7 @@ public:
     int m_8;                 // +0x08
     int m_c;                 // +0x0c
     short m_10;              // +0x10
-    char m_pad12[0x32];      // 保持占位总长 0x44
+    char m_pad12[0x2];      // 保持占位总长 0x44
 };
 
 class stUseRenameCard : public ParamBase
@@ -3108,7 +3107,7 @@ public:
     stUseRenameCard();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-    char m_pad08[0x3c];       // 保持占位总长 0x44
+    // pad removed
 };
 
 class stUseSkillParam : public ParamBase

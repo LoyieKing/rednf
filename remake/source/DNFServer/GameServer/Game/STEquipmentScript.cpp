@@ -4729,8 +4729,8 @@ static bool GetExpertJobResultVariation(STItemScript* item)
         return false;
     bool ok = true;
     item->m_expertJob.m_variation.m_field0 = ScanFloat(&ok);
-    if (ok)
-        return true;
+    if (!ok)
+        return ok;   // ORIG：xor$1 测试 !ok，!ok 分支 movzbl 返回
     item->m_expertJob.m_variation.m_field4 = ScanFloat(&ok);
     return ok;
 }
@@ -4762,7 +4762,7 @@ static bool GetExpertJobAdditionalGainExp(STItemScript* item)
         return false;
     bool ok = true;
     item->m_expertJob.m_additionalExp.m_field0 = ScanFloat(&ok);
-    if (ok != 1)          // P196 真语义 bug：ORIG ok==1 才进 ScanInt，另一路返 ok（当前极性反、返常量1错）
+    if (!ok)              // ORIG：xor$1 测试 !ok，!ok 分支 movzbl 返 ok
         return ok;
     item->m_expertJob.m_additionalExp.m_field4 = ScanInt(&ok);
     return ok;
