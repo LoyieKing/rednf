@@ -484,7 +484,9 @@ CharString app::getStr(int id)
     const CharString* entry;        // ORIG 无初始化槽（@0x8ad54d6 直接取址传参）
     if (app::stringResource()->get(id, &entry))
         return *entry;
-    { CharString tmp; return tmp.format("getStr(%d) == none", id); }  // format 成员化（ORIG this 形）
+    CharString ret;
+    ret.format("getStr(%d) == none", id);
+    return ret;   // NRVO：无临时/无 aSER（ORIG 本函数即 sret+局部形）
 }
 
 // ---------------------------------------------------------------------------

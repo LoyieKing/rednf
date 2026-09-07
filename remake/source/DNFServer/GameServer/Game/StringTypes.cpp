@@ -679,6 +679,10 @@ CharString& CharString::format(const char* formatStr, ...)
 {
     va_list argList;
     va_start(argList, formatStr);
+    // N 封顶注：ORIG 0x08ad8afa 体内联 vsnprintf+双 placement-C1 直发形依赖 4.1.2 非平凡
+    // union 扩展（单条 call C1Ev，零 operator-new 噪声）；4.4.7 拒 union 且 placement new
+    // 经本类 operator new[](size_t, void*) 产 `_ZnwjPv`+null 检查双噪声（实测 61 vs 53）。
+    // 委托 vformat=语义等价最小形；字节级同形属类层专批（b25 trivial 化）一并解。
     this->vformat(formatStr, argList);
     va_end(argList);
     return *this;
@@ -1421,7 +1425,7 @@ WideString& WideString::format(const wchar_t* formatStr, ...)
 {
     va_list argList;
     va_start(argList, formatStr);
-    this->vformat(formatStr, argList);
+    this->vformat(formatStr, argList);   // CharString::format 同案（N 封顶，b25 类层批）
     va_end(argList);
     return *this;
 }

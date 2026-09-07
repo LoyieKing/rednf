@@ -2431,7 +2431,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
         user->deleteDailyStackableItem(vecC, 0x39, 0x68);
     }
     user->deleteSpecificItem(vecA, vecB);
-    if (user->send_itemspace(0xc) != 1)
+    if (!user->send_itemspace(0xc))
     {
         LogManager::logFormat(1, "App.cpp",
                               __PRETTY_FUNCTION__, 0xf58,
@@ -2439,7 +2439,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
                               NumberToString(user->get_acc_id(), 0));
         return 0;
     }
-    if (user->send_itemspace(0) != 1)
+    if (!user->send_itemspace(0))
     {
         LogManager::logFormat(1, "App.cpp",
                               __PRETTY_FUNCTION__, 0xf5f,
@@ -2447,7 +2447,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
                               NumberToString(user->get_acc_id(), 0));
         return 0;
     }
-    if (user->send_itemspace(1) != 1)
+    if (!user->send_itemspace(1))
     {
         LogManager::logFormat(1, "App.cpp",
                               __PRETTY_FUNCTION__, 0xf64,
@@ -2455,7 +2455,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
                               NumberToString(user->get_acc_id(), 0));
         return 0;
     }
-    if (user->send_itemspace(2) != 1)
+    if (!user->send_itemspace(2))
     {
         LogManager::logFormat(1, "App.cpp",
                               __PRETTY_FUNCTION__, 0xf69,
@@ -2463,7 +2463,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
                               NumberToString(user->get_acc_id(), 0));
         return 0;
     }
-    if (user->send_itemspace(7) != 1)
+    if (!user->send_itemspace(7))
     {
         LogManager::logFormat(1, "App.cpp",
                               __PRETTY_FUNCTION__, 0xf7a,

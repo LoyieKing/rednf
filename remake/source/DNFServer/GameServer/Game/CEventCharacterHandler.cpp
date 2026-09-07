@@ -229,18 +229,23 @@ void CEventCharacterHandler::_SetClearedQuest(CUser* user)
 
 bool CEventCharacterHandler::_MasterNewSkill(CUser* user, int skillIdx, int count)
 {
-    int job = user->get_charac_job();
-    const CSkill* skill = G_CDataManager()->find_skill(job, skillIdx);
+    // ORIG 0x0848e7d6：skill 两段式（入口 movl $0,-0x18 预清）；job 内联
+    // rvalue 经 %ebx 跨 G_CDataManager call（P197②）；getCurCharacSkillR
+    // 两独立重调（+0x5a/+0x8e，P48）。
+    const CSkill* skill = 0;
+    skill = (const CSkill*)G_CDataManager()->find_skill(user->get_charac_job(),
+                                                        skillIdx);
     if (skill == 0)
     {
         return false;
     }
 
     int group = skill->get_group();
-    SkillSlot* slot = user->getCurCharacSkillR();
-    int slotNo = slot->get_skillslot_no(skillIdx, group,
-                                        ENUM_SKILL_TREE_KIND_0, true);
-    unsigned char* buf = (unsigned char*)slot->get_skillslot_buf(ENUM_SKILL_TREE_KIND_0);
+    int slotNo = ((SkillSlot*)user->getCurCharacSkillR())->get_skillslot_no(
+        skillIdx, group, ENUM_SKILL_TREE_KIND_0, true);
+    unsigned char* buf = (unsigned char*)
+        ((SkillSlot*)user->getCurCharacSkillR())->get_skillslot_buf(
+            ENUM_SKILL_TREE_KIND_0);
     if (buf == 0)
     {
         return false;
