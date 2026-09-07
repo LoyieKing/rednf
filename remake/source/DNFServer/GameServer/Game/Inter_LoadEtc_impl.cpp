@@ -503,53 +503,54 @@ bool Inter_LoadEtc::SetFatigue(CUser* user)
     if (user->getCurCharacR() == 0)
         return false;
 
-    if (!CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-                                user->getCurCharacR()->m_field7b,
-                                GlobalData::s_systemTime_.getCurSec()))     // +0x7b
-        return true;
-
-    int days = 0;
-    if (user->getCurCharacR()->m_field7b != 0)
+    if (CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
+                               user->getCurCharacR()->m_field7b,
+                               GlobalData::s_systemTime_.getCurSec()))     // +0x7b
     {
-        days = ComputeDaysScheduleTime(
-            G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-            user->getCurCharacR()->m_field7b,
-            GlobalData::s_systemTime_.getCurSec());
-    }
-
-    short charging =
-        GlobalData::s_fatigueBatteryHandle_->ChargingFatigueBattery(user, days);
-    if (charging > 0)
-    {
-        user->IncFatigueBatteryCharging(charging);
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x139a, 0);
-        trace("FATIGUE BATTERY : charno(%d) days(%d), lastplaytick(%d), "
-              "curTick(%d), charging(%d), cur charging(%d)",
-              (int)user->getCurCharacNo(), days,
-              (unsigned)user->getCurCharacR()->m_field7b,
-              (unsigned)GlobalData::s_systemTime_.getCurSec(),
-              (int)charging,
-              (int)user->GetFatigueBatteryCharging());
-    }
-
-    if (user->GetFatigueBatteryCharging() > 0)
-    {
-        short decAmount = GlobalData::s_fatigueBatteryHandle_->ActiveFatigueBattery(user);
-        if (decAmount != 0)
+        int days = 0;
+        if (user->getCurCharacR()->m_field7b != 0)
         {
-            user->DecFatigueBatteryCharging(decAmount);
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x13a4, 0);
-            trace("FATIGUE BATTERY ACTIVE: charno(%d) , descFatigueAmount(%d), "
-                  "cur charging(%d)",
-                  (int)user->getCurCharacNo(), (int)decAmount,
-                  (int)user->GetFatigueBatteryCharging());
+            days = ComputeDaysScheduleTime(
+                G_CEnvironment()->m_serverEnvir.m_fatigueTime,
+                user->getCurCharacR()->m_field7b,
+                GlobalData::s_systemTime_.getCurSec());
         }
-    }
 
-    user->RecoverFatigue(0);                                        // ORIG T 0x08657ada
-    user->resetCurCharacMemberBonusFatigue();                       // ORIG T（恢复疲劳后清 bonus）
-    user->ResetDailyQuest();
-    user->ResetTrainingQuest();
+        short charging =
+            GlobalData::s_fatigueBatteryHandle_->ChargingFatigueBattery(user, days);
+        if (charging > 0)
+        {
+            user->IncFatigueBatteryCharging(charging);
+            int curCharging = (short)user->GetFatigueBatteryCharging();
+            cMyTrace(__PRETTY_FUNCTION__, 0x139a, 0)(
+                "FATIGUE BATTERY : charno(%d) days(%d), lastplaytick(%d), "
+                "curTick(%d), charging(%d), cur charging(%d)",
+                  (int)user->getCurCharacNo(), days,
+                  (unsigned)user->getCurCharacR()->m_field7b,
+                  (unsigned)GlobalData::s_systemTime_.getCurSec(),
+                (int)charging,
+                curCharging);
+        }
+
+        if ((short)user->GetFatigueBatteryCharging() > 0)
+        {
+            short decAmount = GlobalData::s_fatigueBatteryHandle_->ActiveFatigueBattery(user);
+            if (decAmount != 0)
+            {
+                user->DecFatigueBatteryCharging(decAmount);
+                cMyTrace(__PRETTY_FUNCTION__, 0x13a4, 0)(
+                    "FATIGUE BATTERY ACTIVE: charno(%d) , descFatigueAmount(%d), "
+                    "cur charging(%d)",
+                    (int)user->getCurCharacNo(), (int)decAmount,
+                    (int)(short)user->GetFatigueBatteryCharging());
+            }
+        }
+
+        user->RecoverFatigue(0);                                        // ORIG T 0x08657ada
+        user->resetCurCharacMemberBonusFatigue();                       // ORIG T（恢复疲劳后清 bonus）
+        user->ResetDailyQuest();
+        user->ResetTrainingQuest();
+    }
     return true;
 }
 
@@ -720,8 +721,11 @@ void Inter_LoadEtc::giveBreakAwayReward(CUser* user)
     char title[21];
     char body[256];
 
-    if (user->getUserBreakAwayRewardLuckPoint() < 1)
-        user->setBreakAwayRewardData(false);
+    if (user->getUserBreakAwayRewardLuckPoint() > 0)
+    {
+    }
+    else
+        user->setBreakAwayRewardData(false);   // ORIG test;setg;test;jne
 
     int itemId = 0;
     int itemCnt = 0;
@@ -734,35 +738,27 @@ void Inter_LoadEtc::giveBreakAwayReward(CUser* user)
             g_scriptStringManager_.findString(4, "game_server_msg_135", 0),
             0x14);
 
-    switch (user->getBreakAwayRewardItemOrder())
-    {
-    case 0:
+    // ORIG(4.1) 为 if-else 链且每判点重调 getter（无跳转表、无 order 局部槽）
+    if (user->getBreakAwayRewardItemOrder() == 0)
         strncpy(body, g_scriptStringManager_.findString(4, "game_server_msg_136", 0), 0xff);
-        break;
-    case 2:
+    else if (user->getBreakAwayRewardItemOrder() == 2)
         strncpy(body, g_scriptStringManager_.findString(4, "game_server_msg_142", 0), 0xff);
-        break;
-    case 4:
+    else if (user->getBreakAwayRewardItemOrder() == 4)
         strncpy(body, g_scriptStringManager_.findString(4, "game_server_msg_160", 0), 0xff);
-        break;
-    case 1:
+    else if (user->getBreakAwayRewardItemOrder() == 1)
         strncpy(body, g_scriptStringManager_.findString(4, "game_server_msg_158", 0), 0xff);
-        break;
-    case 3:
+    else if (user->getBreakAwayRewardItemOrder() == 3)
         strncpy(body, g_scriptStringManager_.findString(4, "game_server_msg_159", 0), 0xff);
-        break;
-    default:
+    else
         return;
-    }
 
     Inven_Item mailItem;
     int coinCount = 0;
     if (itemId == 0)
     {
         coinCount = itemCnt;
-        CCirculationStatistic* stat = GetInstanceCirculationStatistic();
-        stat->AddCirculationStatistic(CIRCULATION_STATISTIC_FIELD(0x10), user,
-                                       (unsigned int)itemCnt);
+        GetInstanceCirculationStatistic()->AddCirculationStatistic(
+            CIRCULATION_STATISTIC_FIELD(0x10), user, (unsigned int)coinCount);
     }
     else
     {

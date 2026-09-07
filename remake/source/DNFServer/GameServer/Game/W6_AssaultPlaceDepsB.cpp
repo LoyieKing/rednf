@@ -169,11 +169,13 @@ void CAssaultPlace::_MakeUserUdpIpPort(PacketGuard* p)
         p->put_byte(static_cast<int>(
             m_assaulters[i].GetUser()->m_network.get_nat_type()));
         p->put_int(m_assaulters[i].GetUser()->m_network.get_mtu());
-        const _Charac_info* ch = m_assaulters[i].GetUser()->getCurCharacR();
-        if (ch == 0)
+        // [b23S3C] P48 去缓存：ORIG 每用点重取 GetUser()->getCurCharacR()，
+        // ch 无具名局部（缓存会多出 -0xc 槽致全循环帧槽号 +4 错位 ~50 条）。
+        if (m_assaulters[i].GetUser()->getCurCharacR() == 0)
             p->put_byte(0);
         else
-            p->put_byte(ch->m_stamina);   // +0x75 疲劳值（movzbl 0x75）
+            p->put_byte(
+                m_assaulters[i].GetUser()->getCurCharacR()->m_stamina);
         count++;
     }
     p->put_byte(countIdx, count);

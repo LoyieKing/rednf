@@ -378,36 +378,53 @@ MapArea::~MapArea()                         // ORIG 0x083660d6（仅析构 +0x10
 {
 }
 
+MapArea& MapArea::operator=(const MapArea& other)   // ORIG 0x86d886a
+{
+    m_x = other.m_x;
+    m_y = other.m_y;
+    m_w = other.m_w;
+    m_h = other.m_h;
+    m_list = other.m_list;
+    return *this;
+}
+
 // ===========================================================================
 // 支撑类型方法（Clear/clear 逐条转写）
 // ===========================================================================
 
 
 // ---------------------------------------------------------------------------
-// TownPath ctor / clear —— ORIG C1 0x089e828e / clear 0x089e8258。
-// ORIG 前段为 MapArea 子对象调用（clear→MapArea::clear 0x08366050、
-// ctor→MapArea::C1 0x0836608e）；本 TU TownPath 为平铺布局（CMap.h），
-// 按字段等价展开。
+// TownPath —— 切片实证 TownPath 以 MapArea 为子对象（基类），本 TU 四个方法
+// 全部委托给基类：clear 0x089e8258→call _ZN7MapArea5clearEv 0x08366050、
+// C1 0x089e828e→call _ZN7MapAreaC1Ev + vector<int>::C1@0x24 后 call 自身 clear、
+// C1ERKS 0x083d9b78→call _ZN7MapAreaC1ERKS_、aSERKS_ 0x089ea970→call
+// _ZN7MapAreaaSERKS_；随后 +0x1c/+0x20 两 int 与 vector<int>@0x24。
 // ---------------------------------------------------------------------------
-TownPath::TownPath()
+TownPath::TownPath()                        // ORIG 0x089e828e
 {
-    m_x = 0;
-    m_y = 0;
-    m_w = 0;
-    m_h = 0;
-    m_areaList.clear();
-    m_field1c = 0;
-    m_field20 = 0;
-    m_conds.clear();
+    clear();
 }
 
-void TownPath::clear()
+TownPath::TownPath(const TownPath& other)   // ORIG 0x083d9b78
+    : MapArea(other),
+      m_field1c(other.m_field1c),
+      m_field20(other.m_field20),
+      m_conds(other.m_conds)
 {
-    m_x = 0;
-    m_y = 0;
-    m_w = 0;
-    m_h = 0;
-    m_areaList.clear();
+}
+
+TownPath& TownPath::operator=(const TownPath& other)   // ORIG 0x089ea970
+{
+    MapArea::operator=(other);
+    m_field1c = other.m_field1c;
+    m_field20 = other.m_field20;
+    m_conds = other.m_conds;
+    return *this;
+}
+
+void TownPath::clear()                      // ORIG 0x089e8258
+{
+    MapArea::clear();
     m_field1c = 0;                       // +0x1c movl $0
     m_field20 = 0;                       // +0x20 movl $0
     m_conds.clear();                     // vector<int>@0x24 clear

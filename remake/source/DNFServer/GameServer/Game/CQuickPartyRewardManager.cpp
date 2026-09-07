@@ -57,7 +57,7 @@ IBasicReward::IBasicReward(QuickPartyData& data)
 }
 
 IRandomwReward::IRandomwReward(QuickPartyData& data)
-    : IRewardType(data), m_type(RANDOM_BUFF_INCREASE_EXP)
+    : IRewardType(data)
 {
 }
 

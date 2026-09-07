@@ -392,8 +392,12 @@ bool CSharedServerMessageManager::CheckUserCondition(CUser* pUser, int nIndex, i
     {
     case 1:
         break;
-    case 0:
     case 3:
+        nSlot = pUser->getCurCharacInvenR()->check_item_exist(0x28d3aa);
+        if (nSlot == -1)
+            return false;
+        break;
+    case 0:
         nSlot = pUser->getCurCharacInvenR()->check_item_exist(0x28d3aa);
         if (nSlot == -1)
             return false;

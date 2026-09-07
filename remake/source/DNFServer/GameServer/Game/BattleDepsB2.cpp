@@ -637,13 +637,14 @@ void CBattle_Field::checkLayeredMap(int x, int y)
         return;
 
     const GridScript* grid = &maze->getGridR(x, y);
-    if (grid == NULL || grid->m_layeredMapIndexes.empty())
-        return;
+    bool hasLayered = (grid != NULL && grid->m_layeredMapIndexes.size() != 0);
+    if (hasLayered)
+    {
+        if ((int)grid->m_layeredMapIndexes.size() > getLayeredMapIndex() + 1)
+            setLayeredMapIndex();
 
-    if ((int)grid->m_layeredMapIndexes.size() > getLayeredMapIndex() + 1)
-        setLayeredMapIndex();
-
-    getCurrentLayeredMapInfo()->m_layeredMap = 1;    // MapInfo+0xe8
+        getCurrentLayeredMapInfo()->m_layeredMap = 1;    // MapInfo+0xe8
+    }
 }
 
 // ORIG 0x0830dbde onUseItem(user, item)：技能材料计时 + 用物计数。

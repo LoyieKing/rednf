@@ -10,6 +10,7 @@
 #include "CDataManager.h"
 #include "CItemList.h"
 #include "CGameManager.h"
+#include "CEnvironment.h"   // GlobalInstance<Store>（ORIG G_Store 调 inst_ptr）
 #include "CDungeon.h"
 #include "GlobalData.h"
 #include "CServerProxyMgr.h"
@@ -115,8 +116,7 @@ int getItemSellPrice(int basePrice, int curEndurance, int maxEndurance, bool isR
 
 Store* G_Store()
 {
-    static Store s;
-    return &s;
+    return GlobalInstance<Store>::inst_ptr();
 }
 
 // ---------------------------------------------------------------------------

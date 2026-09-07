@@ -245,21 +245,21 @@ struct STAssignSpecialPassiveObj
 };
 
 
-// ORIG TownPath ctor 0x089e828e / clear 0x089e8258（sizeof 0x30）：
-//   首成员 MapArea(0x1c) + 2 int + vector<int>[quest condition]@0x24。
-struct TownPath
+// ORIG TownPath ctor 0x089e828e / clear 0x089e8258 / copy 0x083d9b78 /
+// operator= 0x089ea970（sizeof 0x30）：切片实证首 0x1c 字节为 MapArea 子对象
+// （clear 首条 call _ZN7MapArea5clearEv、ctor call _ZN7MapAreaC1Ev、
+//  copy call _ZN7MapAreaC1ERKS_、assign call _ZN7MapAreaaSERKS_ 均 this+0），
+// 其后 2 int + vector<int>[quest condition]@0x24。以 MapArea 基类复现该子对象。
+struct TownPath : MapArea
 {
-    int m_x;                 // +0x00（MapArea 首四字段）
-    int m_y;                 // +0x04
-    int m_w;                 // +0x08
-    int m_h;                 // +0x0c
-    std::vector<int> m_areaList; // +0x10（MapArea 尾部向量；ORIG clear 仅清容器）
     int m_field1c;           // +0x1c（clear=0）
     int m_field20;           // +0x20（clear=0）
     std::vector<int> m_conds;    // +0x24（[quest condition] 列表）
 
-    TownPath();
-    void clear();
+    TownPath();                          // ORIG 0x089e828e
+    TownPath(const TownPath& other);     // ORIG 0x083d9b78
+    TownPath& operator=(const TownPath& other); // ORIG 0x089ea970
+    void clear();                        // ORIG 0x089e8258
 };
 
 // ORIG STAssignPassiveObject ctor 0x089e8440 / Clear 0x089e8414（W）：

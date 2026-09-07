@@ -217,7 +217,7 @@ public:
     int GetRemainDate(int nowSec) const;  // ORIG _ZNK...13GetRemainDateEi 0x833f016（W）
 
     // ---- ORIG W 内联访问器（nm --defined-only 实证，体为单字段读写）----
-    int GetItemId() { return m_itemId; }                        // W 0x833efa4
+    int GetItemId();                      // W 0x833efa4（外联定义 CreatureOnlySimple.cpp；ORIG 调用形态为 call）
     void SetItemId(int itemId) { m_itemId = itemId; }           // W 0x833efb0
     int GetCreatureItemType();                                  // W 0x833ef98（定义 CCreatureMgr.cpp，ORIG 外联调用形态）
     void SetCreatureItemType(CREATURE_ITME_TYPE type);   // ORIG W 0x833efe2（外联 CreatureOnlySimple.cpp；ORIG 无 int 版符号）

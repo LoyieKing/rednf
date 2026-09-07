@@ -47,6 +47,10 @@ struct MapArea
     ~MapArea();                      // ORIG 0x83660d6
     void clear();                    // ORIG 0x8366050
 
+    // ORIG 0x86d886a（TownPath::operator= 0x089ea970 以 this+0 调用，实证存在）。
+    // out-of-line 定义见 STMapScript.cpp（与本类型其余方法同 TU，保持 call 不发内联）。
+    MapArea& operator=(const MapArea& other);
+
     // ORIG T 0x82f02e6：把 (x,y) 按 margin 裁剪到区域内，结果写 outX/outY；
     // 未发生移动（裁剪后 == 原坐标）返回 1，否则返回 0。
     int include(int x, int y, int& outX, int& outY, int margin);

@@ -1137,9 +1137,57 @@ extern "C" int FT_Done_Face(void* face)
     return 0;
 }
 
-extern "C" int FT_Done_FreeType(void* library)
+// FreeType 库内部收尾函数（ORIG 0x087c3c00 FT_Done_Library / 0x087dc6b0
+// FT_Done_Memory / 0x087c43a0 FT_Open_Face）。均真实存在于 ORIG，属静态链入
+// 第三方库本体，函数体不参与 identical 目标（同 crypto 豁免）；wrapper
+// FT_Done_FreeType / FT_New_Face 的调用站点 codegen 需与 ORIG 一致，故此处给
+// 占位定义保链接。FT_Library 首字段为 memory（offset 0），见 idx49 报告汇编。
+extern "C" int FT_Done_Library(void* library)
 {
     (void)library;
+    return 0;
+}
+
+extern "C" int FT_Done_Memory(void* memory)
+{
+    (void)memory;
+    return 0;
+}
+
+// FT_Open_Face 用参结构（FreeType FT_Open_Args_，pathname@0xc、stream@0x10）
+struct FT_Open_Args
+{
+    unsigned int flags;   // +0x00
+    const void*  memory_base;  // +0x04
+    long         memory_size;  // +0x08
+    const char*  pathname;     // +0x0c
+    void*        stream;       // +0x10
+    void*        module;       // +0x14
+};
+
+extern "C" int FT_Open_Face(void* library, FT_Open_Args* args, long face_index,
+                            void** aface)
+{
+    (void)library;
+    (void)args;
+    (void)face_index;
+    if (aface)
+    {
+        *aface = 0;
+    }
+    return 0;
+}
+
+extern "C" int FT_Done_FreeType(void* library)
+{
+    // ORIG 0x087bca50（idx49 报告）：library != 0 时读取其首字段 memory，
+    // 依次调用 FT_Done_Library(library) 与 FT_Done_Memory(memory)；恒返 0。
+    if (library != 0)
+    {
+        void* memory = *(void**)library;   // library->memory @ offset 0
+        FT_Done_Library(library);
+        FT_Done_Memory(memory);
+    }
     return 0;
 }
 
@@ -1150,14 +1198,18 @@ extern "C" int FT_Done_FreeType(void* library)
 extern "C" int FT_New_Face(void* library, const char* filepathname, long face_index,
                            void** aface)
 {
-    (void)library;
-    (void)filepathname;
-    (void)face_index;
-    if (aface)
+    // ORIG 0x087c4730（idx73 报告）：FVar1 初值 6；pathname 非空时构造
+    // FT_Open_Args{flags=4, pathname, stream=0} 调 FT_Open_Face；否则返 6。
+    int err = 6;
+    if (filepathname != 0)
     {
-        *aface = 0;
+        FT_Open_Args args;
+        args.flags = 4;
+        args.pathname = filepathname;
+        args.stream = 0;
+        err = FT_Open_Face(library, &args, face_index, aface);
     }
-    return 0;
+    return err;
 }
 
 extern "C" int FT_Set_Pixel_Sizes(void* face, unsigned int pixel_width,
@@ -4476,41 +4528,44 @@ CGM_Manager::~CGM_Manager()
 }
 bool CGM_Manager::LoadGmListFromDb()
 {
-    // ORIG 0x08299530：查询 gm_manifest(m_id, level)，写锁保护下填充 map。
+    // [b23S3C] ORIG 0x08299530：ok 即返回变量（exec/get_int 逐次覆写），
+    // mId/level/rows 函数级预清（P197③ 帧头 movl $0×N），writeGuard 保护填充。
+    char ok = 0;
+    int rows = 0;
+    unsigned int mId = 0;
+    int level = 0;
     m_db->set_query("seLect m_id, level from gm_manifest");
-    char ok = m_db->exec(true);
+    ok = m_db->exec(true);
     if (ok != 1)
     {
         cMyTrace t(__PRETTY_FUNCTION__, 0x1579, 0);
         t("Failed to get GM list from DB.");
-        return false;
+        return 0;
     }
-    m_lock.wrlock();
-    int rows = m_db->get_n_rows();
-    int result = 1;
+    writeGuard<rwLock> guard(&m_lock);
+    rows = m_db->get_n_rows();
     for (int i = 0; i < rows; ++i)
     {
         m_db->fetch();
-        unsigned int mId = 0;
-        int level = 0;
-        if (m_db->get_int(0, *(int*)&mId) != 1)
+        ok = m_db->get_int(0, mId);
+        if (ok != 1)
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x1588, 0);
             t("Failed to get GM's m_id from DB.");
-            result = 0;
+            ok = 0;
             break;
         }
-        if (m_db->get_int(1, level) != 1)
+        ok = m_db->get_int(1, level);
+        if (ok != 1)
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x158e, 0);
             t("Failed to get GM's lv from DB.");
-            result = 0;
+            ok = 0;
             break;
         }
         m_gmMap[mId].m_level = level;
     }
-    m_lock.unlock();
-    return result == 1;
+    return ok;
 }
 CStatisticMgr::CStatisticMgr()
 {

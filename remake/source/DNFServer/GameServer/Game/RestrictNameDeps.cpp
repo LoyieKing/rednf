@@ -16,6 +16,7 @@
 #include "LogManager.h"
 #include <string.h>               // strlen
 #include <wchar.h>                // wcslen
+#include <algorithm>              // std::any_of（ORIG W _ZSt6any_ofIPKw…EEbT_S4_T0_ @0x08ac3253）
 #include "CDataManager.h"        // G_CDataManager()/hasSpecialCharacter 族
 
 namespace restrict_inputting_name
@@ -110,20 +111,17 @@ bool IsNoneUnicodeRange::operator()(wchar_t ch) const
     return !isInRange(ch);
 }
 
-// ORIG T 0x08ac2de4（isWideStrInUnicodeRange.md 全文）。
-// 注意：ORIG 以 std::any_of 实例化实现（W 符号 @0x08ac3253）；std::any_of 为
-// C++11 接口，c6root gcc4.4.7 无法生成该实例——此处以语义等价循环实现并声明豁免
-// （判定口径 N3 同类：工具链限制不可复现，观察行为一致）。
+// ORIG T 0x08ac2de4（isWideStrInUnicodeRange.md 全文）：
+//   IsNoneUnicodeRange 构造（call 0x08ac3240）→ wcslen（call 0x0807e130）结果落
+//   局部槽 -0x10（P0：具名 size_t 局部）→ any_of(str, str+len, pred)（call
+//   0x08ac3253）→ 取反返回。any_of 实例 ORIG W _ZSt6any_ofIPKw
+//   N23restrict_inputting_name18IsNoneUnicodeRangeEEbT_S4_T0_ @0x08ac3253
+//   （c6root libstdc++ 4.4.7 bits/stl_algo.h:778 有该模板，可实例化）。
 bool isWideStrInUnicodeRange(const wchar_t* str)
 {
     IsNoneUnicodeRange pred;
-    const wchar_t* end = str + wcslen(str);
-    for (const wchar_t* p = str; p != end; ++p)
-    {
-        if (pred(*p))                               // any_of 命中 → 非法字符
-            return false;
-    }
-    return true;
+    size_t len = wcslen(str);
+    return !std::any_of(str, str + len, pred);
 }
 
 // ORIG T 0x08ac2d6c sz 0x78（isUtf8StrInUnicodeRange.md 全文）：

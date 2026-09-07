@@ -110,12 +110,14 @@ struct STAICharacterCommonScriptView
 
 namespace DNFFLib { void Make_Dir(char* dir); }   // T 0x08108ad7
 
-int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
-                           const char* listPath, std::map<int, int>* unused);
+bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
+                            const char* listPath, std::map<int, int>* unused);
    // ORIG T 0x088bbd77 _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_
    //   _PSt3mapIiiSt4lessIiESaISt4pairIKiiEEE；定义 STScriptFileList.cpp。
    // 旧本地声明 bool(void*,...) mangled 不匹配（Pv ≠ P16STScriptFileList），
    // 曾产生未解析引用——本批次统一为 ORIG 签名（ScriptFileAndGlobalsB2）。
+   // 返回类型按 bool 声明（mangled 不含返回类型；StrikerScript.cpp 先例；
+   // ORIG 体 return 0/1，调用侧 xor$1/test %al 岛证实 1 字节语义）。
 
 namespace ctors1
 {
@@ -428,16 +430,24 @@ bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index
 
 bool initNpcScript(const char* dir, const char* listPath)
 {
-    // ORIG 0x089fc1a8：strncpy(base,dir,0x100)；末字符非 '\\'/'/' 时补 "/"；
-    // loadRDARScriptListFile(&g_npcScriptFileList, base, list, 0)。
+    // ORIG 0x089fc1a8：strncpy(base,dir,0x100)；strlen 三独立重调（P48 无 CSE：
+    // '\\' 判定、'/' 判定、memcpy dst 各一次），末字符非 '\\' 且非 '/' 时
+    // memcpy(base+len, "\\", 2)；尾部 xor$1/test/je 双 mov 岛 = (load 返 1)。
     strncpy(g_npcScriptBaseDirectory, dir, 0x100);
-    size_t len = strlen(g_npcScriptBaseDirectory);
-    char last = g_npcScriptBaseDirectory[len - 1];
-    if (last != '\\' && last != '/')
-        memcpy(g_npcScriptBaseDirectory + len, "\\", 2);
-    return loadRDARScriptListFile(&g_npcScriptFileList,
-                                  g_npcScriptBaseDirectory, listPath, 0)
-               ? true : false;
+    if (g_npcScriptBaseDirectory[strlen(g_npcScriptBaseDirectory) - 1] != '\\')
+    {
+        if (g_npcScriptBaseDirectory[strlen(g_npcScriptBaseDirectory) - 1] != '/')
+        {
+            memcpy(g_npcScriptBaseDirectory + strlen(g_npcScriptBaseDirectory), "\\", 2);
+        }
+    }
+    // 岛形复现（同 isExistNPCScript 技巧）：je 落点 = mov $1 ⇒ r==1 返 true。
+    register bool hit __asm__("al");
+    hit = !loadRDARScriptListFile(&g_npcScriptFileList, g_npcScriptBaseDirectory,
+                                  listPath, 0);
+    if (hit)
+        return false;
+    return true;
 }
 
 bool isExistNPCScript(const char* name)

@@ -1085,9 +1085,15 @@ CStaticDisposition::CStaticDisposition(CUser** users, int* counts) // ORIG 0x82e
     m_iconPos = ASSAULT_RECT_ICON_POINT;
     for (int j = 0; j <= 1; ++j)
     {
-        int cnt = counts[j * 4];      // ORIG counts[j<<2] 槽位布局
-        for (int k = 0; k <= 3 && cnt > k; ++k)
-            m_mats[j].AddPoint(ASSAULT_RECT_PLAYER_POINT[j * 4 + k]);
+        // [b23S3C] counts[j]（非 j*4；int* 天然乘 4 字节）；P48 每循环迭代重读
+        // counts[j]（ORIG 内层条件先判 counts[j]>k 再 k<=3）；ORIG 具名临时 Point2d
+        // p 在 -0x30，独立于末端 origin(-0x28)，故两处各自命名。
+        for (int k = 0; counts[j] > k && k <= 3; ++k)
+        {
+            Point2d p(ASSAULT_RECT_PLAYER_POINT[j * 4 + k].m_x,
+                      ASSAULT_RECT_PLAYER_POINT[j * 4 + k].m_y);
+            m_mats[j].AddPoint(p);
+        }
     }
     Point2d origin(users[0]->get_posX(), users[0]->get_posY());
     _MoveMatrix(origin);

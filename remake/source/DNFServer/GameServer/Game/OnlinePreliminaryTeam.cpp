@@ -197,10 +197,10 @@ void COnlinePreliminaryTeam::saveData()
 // 流（"OnlinePreliminaryTeam.cpp",0x38）：<<0x1e9、<<-1，
 // SIG_ONLINE_PRELIMINARY_TEAM(buf 0x20)：+0=teamId(+0x4)、+0x14=rating(+0x8
 // 位模式)、+0x18=win、+0x1c=lose；put(DB_Q)；清 m_hasWinFlag。
-void COnlinePreliminaryTeam::_saveTeam()
+bool COnlinePreliminaryTeam::_saveTeam()
 {
     if (!m_hasWinFlag)
-        return;
+        return true;
 
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("OnlinePreliminaryTeam.cpp", 0x38),
@@ -211,14 +211,15 @@ void COnlinePreliminaryTeam::_saveTeam()
     // 具名字段写入（布局证据 SigTypes_D.h::SIG_ONLINE_PRELIMINARY_TEAM）：
     // +0 teamId / +0x14 rating 位 / +0x18 win / +0x1c lose，ORIG 逐条 movl。
     SIG_ONLINE_PRELIMINARY_TEAM* t =
-        guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_TEAM>();
+        guard->GetInBuffer<SIG_ONLINE_PRELIMINARY_TEAM>();
     t->m_teamId = m_field04;
-    t->m_rating = static_cast<unsigned int>(m_field08);
+    t->m_rating = m_field08;
     t->m_winCount = m_winCount;
     t->m_loseCount = m_loseCount;
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     m_hasWinFlag = 0;
+    return true;
 }
 
 // ORIG T 0x0858800c：m_hasLoseFlag==0 直通；流（file,0x4e）：<<0x1ed、<<-1；
@@ -341,9 +342,9 @@ bool COnlinePreliminaryMember::_saveData(CUser* pUser)
     guard.operator*()->operator<<(static_cast<int>(pUser->GetUID()));
 
     SIG_ONLINE_PRELIMINARY_MEMBER* p =
-        guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_MEMBER>();
+        guard->GetInBuffer<SIG_ONLINE_PRELIMINARY_MEMBER>();
     p->m_serverGroup = static_cast<unsigned short>(pUser->GetServerGroup());
-    p->m_characNo = static_cast<unsigned int>(pUser->getCurCharacNo());
+    p->m_characNo = pUser->getCurCharacNo();
     p->m_rating = m_rating;   // ORIG movl 4B 直拷
     p->m_winCount = m_winCount;
     p->m_loseCount = m_loseCount;

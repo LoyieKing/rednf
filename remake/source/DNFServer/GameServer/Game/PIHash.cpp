@@ -179,40 +179,38 @@ void _NS_PI_2ND_SendHash_SC(char* data, unsigned short len, CUser* user)
 // +0x23 ip 相关 dword、+0x27 ip[0x10]、+0x37 前段、+0x43 后段（'.' 拆分）。
 void SetUserManagerToolIP(CUser* user, SIG_UPDATE_LOGOUT* sig)
 {
-    sig->m_pcbangFlag = user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc) ? 1 : 0;
+    if (user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc))
+        sig->m_pcbangFlag = 1;
+    else
+        sig->m_pcbangFlag = 0;
 
-    char* ip = sig->m_ipBuf;
-    user->m_network.GetPeerIP2(ip, 0x10);
+    user->m_network.GetPeerIP2(sig->m_ipBuf, 0x10);
 
     // peer IP 为空时回退用户 m_mcap.m_pcRoomIp（+0x8e418）记录的 IP。
-    if (*ip == '\0')
+    if (sig->m_ipBuf[0] == '\0' && user->m_mcap.m_pcRoomIp[0] != '\0')
     {
-        const char* savedIp = user->m_mcap.m_pcRoomIp;
-        if (*savedIp != '\0')
-        {
-            std::memset(ip, 0, 0x10);
-            std::strncpy(ip, savedIp, 0x10);
-        }
+        std::memset(sig->m_ipBuf, 0, 0x10);
+        std::strncpy(sig->m_ipBuf, user->m_mcap.m_pcRoomIp, 0x10);
     }
 
-    if (std::strlen(ip) > 0x10)
+    if (std::strlen(sig->m_ipBuf) > 0x10)
         return;
 
     // 以最后一个 '.' 把 a.b.c.d 拆为前缀(+0x37)/后缀(+0x43)。
-    char* dot = std::strrchr(ip, '.');
+    char* dot = std::strrchr(sig->m_ipBuf, '.');
     if (dot == 0)
         return;
 
-    int prefixLen = static_cast<int>(dot - ip);
+    int prefixLen = static_cast<int>(dot - sig->m_ipBuf);
     if (static_cast<unsigned int>(prefixLen) > 0xc)
         return;
 
     int suffixLen = static_cast<int>(std::strlen(dot + 1));
     if (static_cast<unsigned int>(suffixLen) > 4)
         return;
-    std::strncpy(sig->m_ipPrefix, ip, prefixLen);
+    std::strncpy(sig->m_ipPrefix, sig->m_ipBuf, prefixLen);
     std::strncpy(sig->m_ipSuffix, dot + 1, suffixLen);
-    sig->m_ipDword = static_cast<unsigned int>(user->m_mcap.m_field24);  // +0x8e414
+    sig->m_ipDword = user->m_mcap.m_field24;  // +0x8e414
 }
 
 

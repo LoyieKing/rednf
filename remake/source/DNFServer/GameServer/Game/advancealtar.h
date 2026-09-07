@@ -177,10 +177,24 @@ struct _RidableDbHead
 };                                   // sizeof 0x21
 struct _AdvanceAltarDbData
 {
-    // ORIG W C1/C2 @0x0848f488（0xd7）：_RidableBase ctor + 50×_Stage + 12×_Slot +
-    // 50×_BuyItem + 29×_Reward 各子对象 memset ctor 后整体 memset(this,0,0x518)
-    // —— 全 POD，等价于单次全清零。
-    _AdvanceAltarDbData() { std::memset(this, 0, sizeof(*this)); }
+    // ORIG W C1/C2 @0x0848f488（0xd7）指令序列（二进制切片实证，逐条对应）：
+    //   +0x08  mov 0x8(%ebp),%eax; mov %eax,(%esp);
+    //          call _ZN12advancealtar12_RidableBaseC1Ev   (@0x0848f464，memset 0x21)
+    //   +0x16  50× call _ZN12advancealtar6_StageC1Ev      (@0x08134452，步长 0x8，base+0x21)
+    //   +0x40  12× call _ZN12advancealtar5_SlotC1Ev       (@0x0813449a，步长 0xa，base+0x1b1)
+    //   +0x74  50× call _ZN12advancealtar8_BuyItemC1Ev    (@0x08134476，步长 0xc，base+0x229)
+    //   +0x9d  30× call _ZN12advancealtar7_RewardC1Ev     (@0x081344be，步长 0x5，base+0x481；
+    //          循环 mov $0x1d,%esi 递减至 -1 ⇒ 0x1d+1 = 30 个元素，见 m_rewards 注释)
+    //   +0xc1  memset(this, 0, 0x518)（最后执行，覆盖上述全部子对象 ctor 的写入）
+    // m_ridable 为 +0x00 的 0x21 字节扁平视图（不成员化 _RidableBase：后者 sizeof 0x24
+    // 会把 m_stages 推到 +0x24，与 ORIG 的 +0x21 冲突，见下方 offsetof 断言），故按
+    // C++98 显式构造调用形式在 +0x00 就地构造 _RidableBase，编译器发出真实
+    // call _RidableBaseC1Ev（非编造符号，ORIG nm 实证 W 0x0848f464 size 0x23）。
+    _AdvanceAltarDbData()
+    {
+        reinterpret_cast<_RidableBase *>(&m_ridable)->_RidableBase::_RidableBase();
+        std::memset(this, 0, sizeof(*this));
+    }
     union
     {
         char m_ridable[0x21];        // +0x00（旧基名保留：整块 0x21 扁平视图）
@@ -189,8 +203,10 @@ struct _AdvanceAltarDbData
     _Stage m_stages[0x32];           // +0x21（50）
     _Slot  m_slots[0xc];             // +0x1b1（12）
     _BuyItem m_buyItems[0x32];       // +0x229（50）
-    _Reward m_rewards[0x1d];         // +0x481（29）
-    char m_pad512[5];                // +0x512
+    // +0x481（30）：ORIG ctor 以 `mov $0x1d,%esi` 递减到 -1 的循环发 30 次
+    // _RewardC1Ev（步长 0x5）⇒ 元素数 0x1e，非 0x1d。0x481 + 30*0x5 = 0x517，
+    // 故 m_update 紧随其后（无 pad 区），块尾即结构尾 0x518。
+    _Reward m_rewards[0x1e];         // +0x481（30，尾 0x517）
     unsigned char m_update;          // +0x517
 };                                   // sizeof 0x518
 #pragma pack(pop)

@@ -146,7 +146,7 @@ public:
     void IncreaseEachOtherTeamPlayCount(int teamId);
     int  GetEachOtherTeamPlayCount(int teamId) const;
     void saveData();
-    void _saveTeam();
+    bool _saveTeam();
     void _saveTeamMatchList();
     void Reset();                                    // T 0x858838a
     void ResetDailyMidnight();

@@ -366,7 +366,7 @@ struct SIG_ONLINE_PRELIMINARY_MEMBER
 {
     unsigned short m_serverGroup;  // +0x00 movw @0x085860a1（CUser::GetServerGroup）
     char           m_pad02[2];     // +0x02..0x03 无读写证据
-    unsigned int   m_characNo;     // +0x04 movl（CUserCharacInfo::getCurCharacNo）
+    int            m_characNo;     // +0x04 movl（CUserCharacInfo::getCurCharacNo 返回 int，ORIG 4B 直拷无 cvt）
     float          m_rating;       // +0x08 4B 位拷贝（成员 m_rating float）
     int            m_winCount;     // +0x0c movl
     int            m_loseCount;    // +0x10 movl

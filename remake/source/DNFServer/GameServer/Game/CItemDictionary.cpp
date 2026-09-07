@@ -129,9 +129,13 @@ void CItemDictionary::sendItemDictionaryInfoTotal(CUser* user)
     PacketGuard guard;
     guard.put_header(0, 0x18a);
     const int length = getLengthBinary();
-    guard.put_int(length);
-    if (length != 0)
+    if (length == 0)
+        guard.put_int(0);                     // ORIG 0x0811dde6：空词典显式写 0
+    else
+    {
+        guard.put_int(length);
         guard.put_binary(reinterpret_cast<const char*>(m_data), length);
+    }
     guard.finalize(true);
     user->Send(guard);
 }

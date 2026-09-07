@@ -16,7 +16,6 @@
 #include "GameTypes.h"         // cMyTrace
 #include "LogManager.h"
 
-#include <dlfcn.h>
 #include <cstring>
 
 // Taiwan 域 internal_stream（TaiwanQueries.h 权威声明；包类型枚举见该头）。
@@ -24,28 +23,17 @@
 
 extern CEnvironment* G_CEnvironment();
 
-namespace {
-
-typedef void* (*GeoIPNewFn)(int);
-typedef void* (*GeoIPNew2Fn)(int, void*);   // ORIG GeoIP_new(GEOIP_STANDARD=0)
-typedef void (*GeoIPDeleteFn)(void*);
-typedef const char* (*GeoIPCountryByAddrFn)(void*, const char*);
-
-static GeoIPNewFn get_geoip_new()
-{
-    return reinterpret_cast<GeoIPNewFn>(dlsym(RTLD_DEFAULT, "GeoIP_new"));
+// libGeoIP C API（ORIG `nm -u df_game_r` 权威：U GeoIP_new / U GeoIP_delete /
+// U GeoIP_country_code_by_addr，调用点为 @plt：closeGeolocation 0x08170a96 →
+// GeoIP_delete@plt、initGeolocation 0x08170a5c → GeoIP_new@plt、
+// getCountryCode 0x08170fb0/0x08170fd5 → GeoIP_country_code_by_addr@plt）。
+// 工具链无 GeoIP.h，按第三方 C 库惯例手写 extern "C" 声明（同 Dispatchers.cpp
+// uncompress、APSystemOnlyOrig.cpp compress2 口径；非 §4.5 asm 桥）。
+extern "C" {
+void* GeoIP_new(int db_type);                       // GEOIP_STANDARD = 0
+void GeoIP_delete(void* handle);
+const char* GeoIP_country_code_by_addr(void* handle, const char* qry);
 }
-static GeoIPDeleteFn get_geoip_delete()
-{
-    return reinterpret_cast<GeoIPDeleteFn>(dlsym(RTLD_DEFAULT, "GeoIP_delete"));
-}
-static GeoIPCountryByAddrFn get_geoip_country_by_addr()
-{
-    return reinterpret_cast<GeoIPCountryByAddrFn>(
-        dlsym(RTLD_DEFAULT, "GeoIP_country_code_by_addr"));
-}
-
-}  // namespace
 
 RestrictGeolocation::RestrictGeolocation() : m_geoip(0), m_allowCountry(0xb)
 {
@@ -65,8 +53,7 @@ bool RestrictGeolocation::initGeolocation()
     // ORIG 0x08170a46：m_geoip 为空则 GeoIP_new(0)；失败返回 0；随后 loadData()。
     if (m_geoip == 0)
     {
-        GeoIPNewFn geoipNew = get_geoip_new();
-        m_geoip = geoipNew ? geoipNew(0) : 0;
+        m_geoip = GeoIP_new(0);
         if (m_geoip == 0)
         {
             return false;
@@ -78,12 +65,8 @@ bool RestrictGeolocation::initGeolocation()
 
 void RestrictGeolocation::closeGeolocation()
 {
-    // ORIG 0x08170a88。
-    GeoIPDeleteFn geoipDelete = get_geoip_delete();
-    if (geoipDelete)
-    {
-        geoipDelete(m_geoip);
-    }
+    // ORIG 0x08170a88：无空指针判定，直接 GeoIP_delete(this->m_geoip)。
+    GeoIP_delete(m_geoip);
 }
 
 void RestrictGeolocation::clearAllowCountry()
@@ -135,11 +118,9 @@ void RestrictGeolocation::getCountryCode(char* out, unsigned int outLen, std::st
         trace("[Taiwan, GeoIP] Geo instance is null.");
     }
     std::memset(out, 0, outLen);
-    GeoIPCountryByAddrFn byAddr = get_geoip_country_by_addr();
-    if (byAddr && byAddr(m_geoip, ip.c_str()) != 0)
+    if (GeoIP_country_code_by_addr(m_geoip, ip.c_str()) != 0)
     {
-        const char* code = byAddr(m_geoip, ip.c_str());
-        strcpy(out, code);
+        strcpy(out, GeoIP_country_code_by_addr(m_geoip, ip.c_str()));
     }
 }
 
@@ -158,11 +139,9 @@ bool RestrictGeolocation::isAllow(std::string account, std::string ip)
 
     char countryCode[0x10];
     std::memset(countryCode, 0, sizeof(countryCode));
-    GeoIPCountryByAddrFn byAddr = get_geoip_country_by_addr();
-    if (byAddr && byAddr(m_geoip, ip.c_str()) != 0)
+    if (GeoIP_country_code_by_addr(m_geoip, ip.c_str()) != 0)
     {
-        const char* code = byAddr(m_geoip, ip.c_str());
-        strcpy(countryCode, code);
+        strcpy(countryCode, GeoIP_country_code_by_addr(m_geoip, ip.c_str()));
     }
 
     if (isAllowCountryCode(countryCode))

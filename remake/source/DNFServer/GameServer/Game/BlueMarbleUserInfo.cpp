@@ -53,9 +53,7 @@ void BlueMarbleUserInfo::resetBlueMarbleUserInfo()
     m_userState = (BlueMarbleUserState::T)0;
     m_boardZone = 1;
     m_grade = (BlueMarbleUserGrade::T)4;
-    m_buff.m_exp = 1;   // BuffInfo::reset
-    m_buff.m_gold = 1;
-    m_buff.m_drop = 1;
+    resetBuff();   // ORIG BuffInfo::reset（m_exp=m_gold=m_drop=1）
     resetIndex();
 }
 void BlueMarbleUserInfo::resetBuff()

@@ -182,6 +182,7 @@ int TOD_UserState::getLastClearTime() const
 
 // ============================================================================
 // TowerOfDespairMgr::CheckEnterable —— ORIG T 0x086440ee（报告全文转写）：
+// [b23S3C] N：帧重排+跨 call 寄存器缓存（N82/N18a 族），语义等价已核（详见 b22_s3_verdicts.tsv）
 //   user 空 → 0x15；level < m_minLevel(+0x34e) → 0xe；
 //   TOD_UserState(getCharacExpandData 0xd).getEnterCount()>0 时：
 //     非 GM 且 !CheckDailyScheduleTime(env.m_fatigueTime(+0x37c),

@@ -87,6 +87,14 @@ void CCreatureItem::SetCreatureItemType(user_creature::CREATURE_ITME_TYPE type)
     m_creatureItemType = type;
 }
 
+// ORIG _ZN13user_creature13CCreatureItem9GetItemIdEv W 0x0833efa4（size 0x0b）：
+// mov 0x4(%eax),%eax 直返。ORIG 为外联弱符号，CEgg::SaveCreatureItem 等以 call 调
+// （不内联）；故头内仅声明、此处外联定义以产出真实 call。
+int CCreatureItem::GetItemId()
+{
+    return m_itemId;
+}
+
 // ORIG _ZN13user_creature13CCreatureItem11GetNoChargeEv W 0x0833efd6（size 0x0e）：
 // movzbl 0x14(%eax),%eax 直返。P9：返回 unsigned char（bool 会生成 setne 规范化）。
 // 头内不再保留 inline 定义（无调用点则永不 emission → 仅 ORIG 缺口），外联产出符号。
@@ -179,7 +187,7 @@ bool CEgg::SaveCreatureItem(Inven_Item* item,
                             SIG_CREATURE_ITEM_DETAIL_INFO* info, CUser* user)
 {
     (void)user;                     // ORIG 未读该实参
-    item->m_addInfo = m_itemId;     // *(int*)(item+0x02) ← CCreatureItem::GetItemId()
+    item->m_addInfo = GetItemId();  // *(int*)(item+0x02) ← CCreatureItem::GetItemId()（ORIG call）
     info->m_uid = m_uid;            // info+0x04 ← this+0x0c
     info->m_slotNo = m_slotNo;      // info+0x00 ← this+0x10
     info->m_creatureItemType =
