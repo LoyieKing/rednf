@@ -459,15 +459,14 @@ void cUserHistoryLog::SkillSPInfoSave(CUser* user, eSkillSPInfoSaveReason reason
 void cUserHistoryLog::BillingSuccess(ENUM_BILLING_TYPE type,
                                      unsigned long long tranNo, int amount)
 {
-    // ORIG 0x086858a0：两分支各调一次 NumberToString（P48 双臂独立 call）+
-    // ullong 实参经 8B 对齐槽对预 spill——4.4 对嵌套实参 R→L 装载序与 4.1
-    // “call 先行+结果寄存器直转”不可齐（穷举 inline/命名/tn 预spill 三形，
-    // 命名单 call 形 41/45 最近），取最小 ndiff 形并保语义。
-    char* str = NumberToString(tranNo, 0);
+    // ORIG 0x086858a0：两分支各独立调 NumberToString（P48 去跨臂缓存，
+    // `push %ebx`（第二臂 %ebx=amount）正由此双调用引入）。
     if (type == 3)
-        m_user->LogHistory("BILLING, Success,%d,%s", 3, str);
+        m_user->LogHistory("BILLING, Success,%d,%s", 3,
+                           NumberToString(tranNo, 0));
     else
-        m_user->LogHistory("BILLING, Success,%d,%d,%d", (int)type, (int)str, amount);
+        m_user->LogHistory("BILLING, Success,%d,%d,%d", (int)type,
+                           NumberToString(tranNo, 0), amount);
 }
 
 // ============================================================================

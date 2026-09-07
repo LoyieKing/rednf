@@ -568,7 +568,10 @@ void EventCommon::LoadCharacEventItem(unsigned int eventId,
         db->get_uint(3, sig->m_entries[loaded].m_eventCode);
         ++loaded;
     }
-    sig->m_itemCount = loaded;                         // +0x08 = 实际行数
+    // +0x08 = 第二次 get_n_rows()=rowCount（ORIG `mov -0x14,%edx; mov %edx,0x8`
+    // 直写本地行数，非 fetch 已装载数 loaded ── fetch 提前失败时仍写全行数，
+    // 与调用方消费口径一致；勿臆改）。
+    sig->m_itemCount = rowCount;
 
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);
 }
