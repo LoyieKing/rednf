@@ -36,9 +36,11 @@ public:
     void Xor(char* buff, const char* chain);
     void SetMode(int iMode);
     // ORIG _ZN7IMethod11BytesToWordEPKhRj / _ZN7IMethod11WordToBytesEjPh
-    // （CTEA EncryptBlock/DecryptBlock 字节↔字组转换；实现属 ServerLib/Method.cpp）
-    void BytesToWord(unsigned char const* src, unsigned int& dst);
-    void WordToBytes(unsigned int src, unsigned char* dst);
+    // （CTEA EncryptBlock/DecryptBlock 字节↔字组转换；实现属 ServerLib/Method.cpp:145/157。
+    //  Main 对齐权威形：**static**——ServerLib Method.h:49 即 static，非 static 声明使
+    //  CTEA 调用点多出 this 装载压栈（.text+0x283 前多一条 mov），且与定义侧签名不一致。）
+    static void BytesToWord(unsigned char const* src, unsigned int& dst);
+    static void WordToBytes(unsigned int src, unsigned char* dst);
     // ORIG 非虚成员（_ZN7IMethod12GetBlockSizeEPj T 0x080b4416 /
     //   _ZN7IMethod3PadEPciPj T 0x080b44a6；定义在 DBMW/Method.cpp）。
     int GetBlockSize(unsigned int* outError);
