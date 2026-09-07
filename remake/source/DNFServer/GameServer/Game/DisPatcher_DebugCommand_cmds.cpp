@@ -721,12 +721,13 @@ bool DisPatcher_DebugCommand::_debugCommandClearAvtInven(CUser* user,
     // 尾检循环（ORIG 头仅 -0xc i 预清+jmp tail，`i<=0x68` setle 形）；
     // 两读位各独立 getCurCharacInvenR、delete/event 各独立 W（P48）；
     // delete_item 直测 xor$1 形（bool 返）；NumberToString 直落实参槽；
-    // send_itemspace 循环外尾段（xor$1 需 bool——CUser.h 冻结，报 Main）。
+    // send_itemspace 循环外尾段（xor$1 形——Main 已代落 CUser.h bool）。
+    int avatarUid;   // [b23S3C] 试：先声明使 4.4 槽序对齐 ORIG（i=-0xc/此=-0x10）
     for (int i = 0; i <= 0x68; ++i)
     {
         if (user->getCurCharacInvenR()->m_pAvatarSlot[i].m_addInfo != 0)
         {
-            int avatarUid =
+            avatarUid =
                 user->getCurCharacInvenR()->m_pAvatarSlot[i].m_addInfo2;
             if (!user->getCurCharacInvenW()->delete_item(
                     static_cast<INVEN_TYPE>(2), i, 1,

@@ -2840,7 +2840,7 @@ public:
     void send_skill_info();
     void _UpdateUserInfo4Guild();                         // ORIG T 0x0867cd20
     void send_equip(int slot);
-    int send_itemspace(int space);
+    bool send_itemspace(int space);  // ORIG 0x0865db6c 调用点(GmCmds_B 0x084ab115/DebugCmd 0x085903a9)均 xor$1;test%al 直测形(P22；S23C-R5 取证，Main 代落)
     // ---- OnlyOrig_CreatureJob 批依赖（声明在此，定义归 OnlyOrig_CUser 域生产；
     //      EJMaterial/EJEnchanter 调用）----
     Inven_Item* GetCurCharacInventoryRef(unsigned short area, unsigned short slot);               // ORIG _ZN5CUser24GetCurCharacInventoryRefEtt T 0x08680f2e

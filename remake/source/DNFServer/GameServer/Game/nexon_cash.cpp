@@ -1267,14 +1267,16 @@ ByteBuffer NCashImpl::set_data_header(unsigned char packetId, unsigned char flag
 }
 
 // ORIG 0x081ad168：从入包 body 读 pid/flag/requestId 三元组。
-void NCashImpl::get_data_header(unsigned char& a, unsigned char& b,
-                                unsigned int& c)
+// [b23S3C] P192：sret 返回入包视图对象（NRVO 直构 caller 槽，无额外拷贝）。
+ByteBuffer NCashImpl::get_data_header(unsigned char& a, unsigned char& b,
+                                      unsigned int& c)
 {
     ByteBuffer in(0, 0);
     in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
     in >> a;
     in >> b;
     in >> c;
+    return in;
 }
 
 // ORIG 0x081ad1e0：switch(err-5) 跳转表分支（默认 16）。
@@ -1430,12 +1432,12 @@ int NCashImpl::purchase(unsigned long long productSeq, int cashType,
 
     unsigned char ackPid = 0, errCode = 0;
     unsigned int reqId = 0;
-    get_data_header(ackPid, errCode, reqId);
+    // [b23S3C] P192：以 sret 返回值续读 trOut（消本函数 C1/wrap/body/
+    // body_length EXTRA×4）。
+    ByteBuffer in = get_data_header(ackPid, errCode, reqId);
     if (errCode != 2)
         return handle_cash_error(errCode);
 
-    ByteBuffer in(0, 0);
-    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
     in >> trOut.m_type;
     in >> trOut.m_id;
     printf("[%s] PURCHASE OK, db_id: %u, transaction_id: %u\n", __FUNCTION__,
@@ -1453,12 +1455,12 @@ int NCashImpl::purchase(unsigned long long productSeq, int cashType,
         return 2;
 
     ByteBuffer msg = set_data_header(0x00, 0x01);
-    short streamType;
+    // [b23S3C] 双臂各直推一次（ORIG +0x68/+0x7d 两块内各 call lsEs、jmp 共享
+    // 后继）——具名 streamType 合流形少一条 lsEs（P167 实证 MISSING lsEs）。
     if (subCmd == 0x3c || subCmd == 0x3e)
-        streamType = subCmd;
+        msg << subCmd;
     else
-        streamType = static_cast<short>(m_fieldD);
-    msg << streamType;
+        msg << static_cast<short>(m_fieldD);
     msg << productSeq;
     msg << cashType;
     msg << cashAmount;
@@ -1467,21 +1469,24 @@ int NCashImpl::purchase(unsigned long long productSeq, int cashType,
     msg << m_paramB;
     msg << static_cast<short>(m_fieldC);
 
-    int rc = send_msg(msg.length());
+    // [b23S3C] P197③：ORIG rc 槽两段式（length 前先 movl $0,-0xc）。
+    int rc = 0;
+    rc = send_msg(msg.length());
     if (rc != 0)
         return rc;
     rc = recv_msg();
     if (rc != 0)
         return rc;
 
-    unsigned char ackPid = 0, errCode = 0;
-    unsigned int reqId = 0;
-    get_data_header(ackPid, errCode, reqId);
+    // [b23S3C] 三元组无预清（ORIG sret call 前无 movb/movl $0，槽仅由
+    // get_data_header 填写）。
+    unsigned char ackPid, errCode;
+    unsigned int reqId;
+    // [b23S3C] P192：sret 返回值续读 trOut（消 EXTRA C1/wrap/body/body_length）。
+    ByteBuffer in = get_data_header(ackPid, errCode, reqId);
     if (errCode != 2)
         return handle_cash_error(errCode);
 
-    ByteBuffer in(0, 0);
-    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
     in >> trOut.m_type;
     in >> trOut.m_id;
     printf("[%s] PURCHASE OK, db_id: %u, transaction_id: %u\n", __FUNCTION__,

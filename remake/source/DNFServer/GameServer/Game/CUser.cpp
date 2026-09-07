@@ -7757,7 +7757,7 @@ void CUser::prepareDisconnect()
 // ORIG：按物品空间号生成并发送对应列表包：
 //   0/1 → CInventory::MakeItemList(1/2)、2 → CCargo::MakeItemList、
 //   7 → 生物列表 + MakeItemList(3)、0xc → CAccountCargo::SendItemList（不存在时返回 1）。
-int CUser::send_itemspace(int space)
+bool CUser::send_itemspace(int space)   // 返回形随 CUser.h:2843 bool 化（P22 调用点直测形）
 {
     // P168a/X2 五段化（2026-09-05 CUserC8，Main 派单）：ORIG 0x86?? 每 MakeItemList
     // case `call; xor $0x1,%eax; test %al,%al; je` **带分支消费者**（判据③通过），

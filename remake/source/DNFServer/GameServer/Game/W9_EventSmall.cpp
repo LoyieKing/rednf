@@ -185,8 +185,10 @@ bool CCharacBloodDungeon::_saveData(CUser* pUser)  // ORIG 0x832a330
     sig->m_weeklyEnterCount = m_weeklyEnterCount;
     sig->m_useGold = m_useGold;
     sig->m_dailyInitTime = getDailyInitializeTime(6, 0, 0);  // 覆写 +0x10
-    sig->m_field14 = m_field14;
-    sig->m_enterCount = m_enterCount;
+    // ORIG 跳过 this+0x14：sig+0x14←this+0x18、sig+0x18←this+0x1c（与 loadData
+    // 镜像一致；原写 this+0x14/0x18 系真错位 bug）。
+    sig->m_field14 = m_enterCount;
+    sig->m_enterCount = m_field1c;
     sig->m_flag1c = m_flag20;                    // byte 镜像
     sig->m_field20 = m_field24;
     sig->m_field24 = m_field28;

@@ -17420,28 +17420,16 @@ int Dispatcher_CharacSlotExtendEffect::process(CUser* user, MSG_BASE& msg, Param
 {
     (void)msg;
     stCharacSlotExtendEffect& param = *reinterpret_cast<stCharacSlotExtendEffect*>(&paramBase);
-    // ORIG 0x081d7fb6：state==2 才处理；slotEffectCount < characSlotLimit 时扩槽并入 DB_Q。
+    // [b23S3C] ORIG 0x081d7fb6：state==2 才处理；count>=limit → trace+m_4=0x12（条件
+    // 极性对调复现 ORIG `setae;test;je send` 前置 trace fall-through 布局，P191）；
+    // Acquire 直落 guard ctor 实参（去 stream 槽）；op*/op-> 显式解引用（S23A 统一口径，
+    // ORIG 3 处前置 call）；去 buf alias 中转变量（ORIG 直接 `mov -0x1c,%edx` 槽基）。
     if (user->get_state() != 2)
     {
         param.m_4 = 7;
         return 0;
     }
-    if (user->getSlotEffectCount() < user->getCharacSlotLimit())
-    {
-        user->setSlotEffectCount(user->getCharacSlotLimit());
-        param.m_8 = static_cast<unsigned char>(user->getSlotEffectCount());
-        param.m_9 = static_cast<unsigned char>(user->getCharacSlotLimit());
-        Stream* stream = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x429a);
-        CStreamGuard guard(stream, true);
-        guard << 0x28a;
-        guard << -1;
-        char* buf = reinterpret_cast<char*>(guard->GetInBuffer<SIG_EXTEND_CHARAC_SLOT>());
-        *reinterpret_cast<int*>(buf + 0) = static_cast<int>(user->get_acc_id());
-        buf[4] = static_cast<char>(user->getSlotEffectCount());
-        buf[5] = static_cast<char>(user->getCharacSlotLimit());
-        GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
-    }
-    else
+    if (user->getSlotEffectCount() >= user->getCharacSlotLimit())
     {
         unsigned char limit = user->getCharacSlotLimit();
         unsigned char count = user->getSlotEffectCount();
@@ -17451,7 +17439,21 @@ int Dispatcher_CharacSlotExtendEffect::process(CUser* user, MSG_BASE& msg, Param
         trace("CharacSlotExtendEffect m_id(%s), SlotEffectCount(%u), CharacSlotLimit(%u)",
               id, (unsigned int)(count & 0xff), (unsigned int)(limit & 0xff));
         param.m_4 = 0x12;
+        return 0;
     }
+    user->setSlotEffectCount(user->getCharacSlotLimit());
+    param.m_8 = static_cast<unsigned char>(user->getSlotEffectCount());
+    param.m_9 = static_cast<unsigned char>(user->getCharacSlotLimit());
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x429a), true);
+    guard.operator*()->operator<<(0x28a);
+    guard.operator*()->operator<<(-1);
+    SIG_EXTEND_CHARAC_SLOT* sig =
+        guard.operator->()->GetInBuffer<SIG_EXTEND_CHARAC_SLOT>();
+    *reinterpret_cast<int*>(sig) = static_cast<int>(user->get_acc_id());
+    reinterpret_cast<char*>(sig)[4] = static_cast<char>(user->getSlotEffectCount());
+    reinterpret_cast<char*>(sig)[5] = static_cast<char>(user->getCharacSlotLimit());
+    GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
     return 0;
 }
 int Dispatcher_CharacSlotExtendEffect::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
@@ -18296,51 +18298,45 @@ int Dispatcher_AuctionMyAuctionHistory::read(PacketBuf& packet, MSG_BASE& msg) {
 Dispatcher_Card_Select_Right_State::~Dispatcher_Card_Select_Right_State() {}
 int Dispatcher_Card_Select_Right_State::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    // ORIG 0x081ff504..0x081ff7dd (0x2d9 字节)。packet 未读取（ORIG 不消费包）。
-    static const char* const kPretty =
-        "virtual int Dispatcher_Card_Select_Right_State::dispatch_sig(CUser*, PacketBuf&)";
-
+    // [b23S3C] ORIG 0x081ff504：PF 直写（kPretty static 局多 guard 记账开销）；
+    // GetPartyIndex 实参直传 movswl 升格 %ebx（去 partyIdx 槽，P200）；member 无槽、
+    // get_user 每用点重取（ORIG 3 call）、fatigue 对 ebx 缓存 + `cmp %ax,%bx`
+    // （TournamentRewardSelectState::send 同 TU 已闭合孪生形）。
     if (user->get_state() != 5)
         return 0;
     if (user->getMoveSpace() == 1)
         return 0;
-
-    const short partyIdx = user->GetPartyIndex();
-    CParty* party = G_CGameManager()->GetParty((int)partyIdx);
+    CParty* party = G_CGameManager()->GetParty(
+        (int)(short)user->GetPartyIndex());
     if (party == 0)
-        return LineFunc(0x9328, kPretty, 0, 0);
-
+        return LineFunc(0x9328, __PRETTY_FUNCTION__, 0, 0);
     if (party->m_battleField.m_pDungeon != 0 && party->m_battleField.m_pDungeon->isTowerOfDespairDungeon())
         return 0;
-
     if (!party->CheckRecvFromAllMember(user))
         return 0;
-
     if (party->get_dungeon_clear_state() > 3)   // cmp $0x3 / setg
     {
         user->getHackAnalyzer()->addServerHackCnt(
             user, (WongWork::ENUM_HACKTYPE)0x197, 1, 0, 0);
         return 0;
     }
-
     PacketGuard guard;
     guard.put_header(1, 0x49);
     guard.put_byte(1);
-    for (int i = 0; i <= 3; i++)   // cmpl $0x3 / setle
+    for (int i = 0; i < 4; ++i)   // cmpl $0x3 / setle
     {
-        CUser* member = party->get_user(i);
-        if (member == 0)
+        if (party->get_user(i) == 0)
         {
             guard.put_short(-1);
         }
+        else if (party->get_user(i)->getCurCharacTotalFatigue() ==
+                 party->get_user(i)->getCurCharacTotalMaxFatigue())
+        {
+            guard.put_short(0);
+        }
         else
         {
-            const unsigned short fatigue = member->getCurCharacTotalFatigue();
-            const unsigned short maxFatigue = member->getCurCharacTotalMaxFatigue();
-            if (fatigue == maxFatigue)
-                guard.put_short(0);
-            else
-                guard.put_short(1);
+            guard.put_short(1);
         }
     }
     guard.finalize(true);
@@ -20980,10 +20976,12 @@ int Dispatcher_police_queryCharacName_useMid::dispatch_sig(CUser* user, PacketBu
     }
     Pakcet_FindUserName_use_Charac_no request;
     request.m_uid = user->GetUID();              // +0x0a（ORIG -0x42）
-    request.m_characNo = 0;                      // ORIG 预清 -0x3e
-    packet.get_int(request.m_characNo);          // ORIG 未检查返回值
+    unsigned int* const pNo =
+        reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&request) + 0x0e);
+    *pNo = 0;                                    // ORIG 预清 -0x3e
+    packet.get_int(*pNo);                        // ORIG 未检查返回值
     CUser* target = G_GameWorld()->find_from_world(
-        (unsigned short)request.m_characNo);
+        (unsigned short)*pNo);
     if (target == 0)
     {
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(
@@ -21002,7 +21000,7 @@ int Dispatcher_police_queryCharacName_useMid::dispatch_sig(CUser* user, PacketBu
                 target->getCurCharacName(), nameLen);
         PacketGuard response;
         response.put_header(1, 0x14b);
-        response.put_int(request.m_characNo);
+        response.put_int(*pNo);
         response.put_int((int)nameLen);
         response.put_str(reinterpret_cast<char*>(&request) + 0x16, (int)nameLen);
         response.finalize(true);
@@ -25074,66 +25072,57 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 // ==== Dispatcher_Teleport::check_error (ORIG 0x081d056c，三参形态) ====
 int Dispatcher_Teleport::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    // [b23S3C] N：4.1 &&链布局伪影（+0xc3 首比较 stub 结果弃用+jmp merge 重复三
-    // 比较、-2 岛 je 前置）无 4.4 源码复现形；去值槽现取版行数对齐(167/169)但
-    // ndiff 90→106 反劣 ⇒ 保留 HEAD 值槽版。语义已核（Ghidra 全读：state 岛、
-    // >4 err0xf1、GetInvenRef money 三常量、vill/CheckMoveTown、party 0x9e、
-    // use_stackable/OnTeleportCharacter 链）。
+    // [b23S3C] ORIG 0x081d056c：w3 ||短路岛形（CallGuildAllMembers probe 同证）；去
+    // slot/invenType/itemIdx/vill/state/teleport 值槽与 param 早缓存（P0：ORIG 槽仅
+    // pm/ref/party/out），money 三比较与两实参处每点重取 ref->m_addInfo/req 字段
+    // （P48）；party 段 teleport/state 双现取（ORIG 2 组 call）；out 声明置 party 块后。
+    // 同口径 fresh .o 复验 163→106（HEAD 值槽版更差）。残余=4.1 &&链 stub 重复比较布局。
     MSG_TELEPORT& req = static_cast<MSG_TELEPORT&>(msg);
-    stTeleportParam& out = static_cast<stTeleportParam&>(param);
-
-    if (!(user->get_state() > 2 && user->getCurCharacR() != 0))
-    {
+    if (user->get_state() <= 2 || user->getCurCharacR() == 0)
         return -1;
-    }
     if (user->get_state() > 4)
     {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xf1), 0x13);
         return -1;
     }
-
-    const short slot = req.m_field0e;
-    const int invenType =
-        GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)static_cast<int>(req.m_field14));
     Inven_Item* ref = const_cast<Inven_Item*>(
-        user->getCurCharacInvenR()->GetInvenRef(invenType, slot));
+        user->getCurCharacInvenR()->GetInvenRef(
+            GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)static_cast<int>(req.m_field14)),
+            (int)req.m_field0e));
     if (ref == 0)
     {
         return -2;
     }
-    const int itemIdx = ref->m_addInfo;
-    if (itemIdx != 0x27ac4e && itemIdx != 0x28e7d0 && itemIdx != 0x29f288)
+    if (ref->m_addInfo != 0x27ac4e && ref->m_addInfo != 0x28e7d0 &&
+        ref->m_addInfo != 0x29f288)
     {
         return -2;
     }
-
-    const unsigned char vill =
-        static_cast<unsigned char>(req.m_field15);
-    if (static_cast<char>(vill) < 1)
+    if (static_cast<char>(req.m_field15) < 1)
     {
         return 0x7fffffff;
     }
-    if (user->CheckMoveTown(static_cast<int>(static_cast<char>(vill))) != 0)
+    if (user->CheckMoveTown(static_cast<int>(static_cast<char>(req.m_field15))) != 0)
     {
         return 0x7fffffff;
     }
-
-    CPartyTelePort* teleport = 0;
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (party != 0)
     {
-        teleport = static_cast<CPartyTelePort*>(party->GetPartyTelePort());
-        const char state = teleport->get_teleport_state();
-        if (state >= 0 && state <= 3)
+        if (static_cast<CPartyTelePort*>(party->GetPartyTelePort())
+                ->get_teleport_state() >= 0 &&
+            static_cast<CPartyTelePort*>(party->GetPartyTelePort())
+                ->get_teleport_state() <= 3)
         {
             return 0x9e;   // 组队传送进行中
         }
     }
-
-    out.m_14 = static_cast<int>(itemIdx);
+    stTeleportParam* const out = static_cast<stTeleportParam*>(&param);
+    out->m_14 = static_cast<int>(ref->m_addInfo);
     // ORIG 0x081d0726：use_stackable((short)m_field0e, (signed char)m_field14,
     // -1, -1)，失败返 0x11。
-    if (!user->use_stackable(slot, static_cast<int>(req.m_field14), -1, -1))
+    if (!user->use_stackable((short)req.m_field0e,
+            static_cast<int>(req.m_field14), -1, -1))
     {
         return 0x11;
     }

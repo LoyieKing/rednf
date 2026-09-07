@@ -206,8 +206,9 @@ int DbmwClient::ReadData(char* dst, int len)
 {
     // ORIG @0x08120b32：循环 recv 凑满 len；EINTR 重试；EOF 提前返回已读数；
     // 错误记日志返回 -1。
-    size_t remain = (size_t)len;
+    // ORIG 槽：cur@-0x10、remain@-0xc（cur 后声明；4.4 反序分配）。
     char* cur = dst;
+    size_t remain = (size_t)len;
     while ((int)remain >= 1)
     {
         ssize_t got = ::recv(m_sock, cur, remain, 0);
@@ -215,11 +216,12 @@ int DbmwClient::ReadData(char* dst, int len)
         {
             if (errno == EINTR)
                 continue;
-            int errNo = errno;
+            // ORIG 0x08120b32：errno 在各使用点独立宏展开（__errno_location
+            // 多调，%ebx 缓存 ptr 跨 strerror call）——errNo 命名缓存形少 2 条。
             LogManager::logFormat(
                 1, "localchina/DbmwClient.cpp", __FUNCTION__, 0x1dd,
                 "AccountDBMW read error; recv result:%d, errno:%d:%s",
-                (int)got, errNo, strerror(errNo));
+                (int)got, errno, strerror(errno));
             return -1;
         }
         if (got == 0)

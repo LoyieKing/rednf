@@ -314,7 +314,7 @@ void CClearAvatarInvenCmd::execute()
                                                         slot + 10, 0);
         }
     }
-    // ORIG xor$1 形需 send_itemspace 返 bool（CUser.h:2843 冻结 int，报 Main 代落）。
+    // ORIG xor$1 形需 send_itemspace 返 bool（Main 已代落 CUser.h:2843）。
     if (user->send_itemspace(1) != 1)   // ENUM_ITEMSPACE_AVATAR=1
     {
         LogManager::logFormat(

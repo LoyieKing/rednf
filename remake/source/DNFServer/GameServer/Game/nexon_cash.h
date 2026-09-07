@@ -332,8 +332,10 @@ public:
     bool reconnect();                                        // ORIG 0x081ad080
 
     ByteBuffer set_data_header(unsigned char packetId, unsigned char flag); // ORIG 0x081ad0e6 (sret 形态，按值返回)
-    void get_data_header(unsigned char& a, unsigned char& b,
-                         unsigned int& c);                   // ORIG 0x081ad168
+    // [b23S3C] P192 sret：ORIG 0x081ad168 callee 首槽=sret、体 wrap(sret,body,len)
+    // +rs×3、尾 mov %ebx,%eax；caller 0x081ad920 等五压槽实证返回 ByteBuffer 值。
+    ByteBuffer get_data_header(unsigned char& a, unsigned char& b,
+                               unsigned int& c);             // ORIG 0x081ad168
     int handle_cash_error(int code);                         // ORIG 0x081ad1e0
     int handle_coupon_error(int code);                       // ORIG 0x081ad2c0
 
