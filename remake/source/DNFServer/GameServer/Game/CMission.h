@@ -58,7 +58,9 @@ public:
     MissionRankRange GetRankRange() const;   // ORIG W 0x085e692a（sret {gradeMin,gradeMax}）
 
     // ---- 非虚入口 ----
-    int isAcceptCondition(const CUser& user) const;
+    // b28d-50：ORIG 0x085e318e 尾 `call *%edx` 后**无 movzbl 直返** ⇒ 返回类型
+    // bool（int 会补 movzbl；mangled 不含返回类型，符号不变）。
+    bool isAcceptCondition(const CUser& user) const;
     bool canUpdate(const MissionClearCondition_Parameter& param) const;
     // ORIG mangled 名为 _ZN8CMissionltERKS_（非 const 成员）；语义同 const
     bool operator<(const CMission& other);
@@ -82,8 +84,10 @@ protected:
         struct { int m_gradeMin; int m_gradeMax; };
         MissionRankRange m_rankRange;
     };                                             // +0x18
-    int m_rateMin;                                 // +0x20
-    int m_rateMax;                                 // +0x24
+    union {
+        struct { int m_rateMin; int m_rateMax; };
+        MissionRankRange m_rateRange;   // b28d-50：同 +0x18（ORIG 亦整体拷贝）
+    };                                             // +0x20
     int m_grade;                                   // +0x28
     float m_expRate;                               // +0x2c
     std::vector<std::pair<int, int> > m_rewardItems;  // +0x30

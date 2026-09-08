@@ -1,5 +1,16 @@
 
 #include "CConditionEventManager.h"
+// ============================================================================
+// b28d-52 判词表（本 TU）：
+//   已修：_getRequiredParameter 0x083356a4（P236/P293 内联实参翻槽序）、
+//     IsFreeGoldCard 0x0833579e（P0 单变量复用）、ProcessCheckStepUp 0x08335566
+//     （P286 单 case switch）⇒ 均转 AE。
+//   剩余 DIFF：
+//   GetConditionRewardInfo 0x083353a0 —— N86（4.1 iterator 临时槽+拷贝两段；
+//     4.4 copy-elision 直构 ⇒ 槽序 -0x28/-0x24 不可复现）
+//   RequestConditionEventReward 0x08334850 —— N82/N86（帧 0x24c vs 0x120 大件槽组
+//     + 迭代器/容器 copy-elision）
+// ============================================================================
 
 
 #include <string.h>

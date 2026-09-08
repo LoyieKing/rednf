@@ -5,6 +5,21 @@
 // 其余 9 个子类 ctor/dtor 最小实现（仅基类 ctor + vptr，证据：global_constructors_
 // keyed_to_TaiwanInternalDispatcher 报告各 ctor 区 movl code + call 基类 C1 + 设子类 vtable）。
 #include "TaiwanInternalDispatcher.h"
+// ============================================================================
+// b28d-52 判词表（本 TU 剩余 DIFF）：
+//   InterUpdateP2pHolePunchingState::dispatch_sig 0x08161952 —— N82（帧内槽 +4 平移）
+//   InterLoadHeroMissionEventData::dispatch_sig 0x08161c92 —— N82（帧/槽平移）
+//   InterLoadServiceRestrictPolicy::dispatch_sig 0x08160796 —— P209 形参比较形
+//     （ORIG `mov 0x10(%ebp),%eax` 载寄存器；4.4 折 `cmpl $0,0x10(%ebp)` 内存直比）
+//   InterLoadGeolocation::dispatch_sig 0x0816088a —— P209（同上）
+//   InterCheckStayTimeEvent::dispatch_sig 0x08160a42 —— N82（帧 0xa0 + 槽平移）
+//   InterInsertGiveBoxEventReward::dispatch_sig 0x08161a8a —— N82（帧 0xa0 + 槽平移）
+//   InterSelectCreateDnfUserInfo::dispatch_sig 0x08161012 —— P209（同上）
+//   InterSelectMobileAuthReward::dispatch_sig 0x0816132a —— 语义缺口（ORIG 帧 0x3ec
+//     vs 我方 0x38；需 P167 调用点差集补齐，本波未闭合）
+//   TaiwanInternalDispatcher::init 0x08160294 —— 帧形（我方多 push edi/esi；
+//     ORIG `sub $0x24` 单帧）
+// ============================================================================
 
 #include <algorithm>
 

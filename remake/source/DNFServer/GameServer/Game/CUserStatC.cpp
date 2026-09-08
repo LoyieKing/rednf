@@ -68,6 +68,7 @@ inline bool accountCargoResolveSlot(CAccountCargo* cargo, int& slot)
 int CUser::delete_item(char itemSpace, int position, unsigned long itemIdx,
                        int count, eItemDelReason reason)
 {
+    // b28d-49 判词：N 封顶（N82 帧/槽 + N89）。P167 CLEAR（17/17）。@0x866285c
     if (CheckInTrade())
         return 0x13;
 
@@ -133,6 +134,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                                int addInfo, int toSpace, int toSlot,
                                unsigned long toItemIdx, int* outSlot)
 {
+    // b28d-49 判词：N 封顶（N82 帧/槽 + N89 STL 内联）。P167 CLEAR（265/265）。@0x865f7b0
     PacketGuard packetGuard;      // ORIG 栈上 RAII 局部（无其它使用）
     Inven_Item item;              // 主工作副本（ORIG -0x131）
 

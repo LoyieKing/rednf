@@ -1088,13 +1088,11 @@ void CParty::send_hellParty_value()
     PacketGuard packet;
     packet.put_header(0, 0xcf);
 
-    const float kScale = 100.0f;                         // flds 0x08cbbbcc
-    // ORIG：flds 0xb0c（hellValue=bd.m_hellPartyValueTotal）* 100.0f /
-    // fildl int m_hellPartyRatio0（=BF+0x1e8 = CParty+0xd0c）。
-    const float denom =
-        static_cast<float>(bf(this).m_hellPartyRatio0);
+    // [b28d-51] P0：ORIG 无具名 float 局部（flds 0xb0c; flds 0x8cbbbcc; fmulp;
+    // fildl 0xd0c; fdivrp; fistpl 一气呵成）⇒ 表达式必须内联。
     const int out =
-        D2_ROUND((kScale * bd(this).m_hellPartyValueTotal) / denom);
+        D2_ROUND((bd(this).m_hellPartyValueTotal * 100.0f) /
+                 static_cast<float>(bf(this).m_hellPartyRatio0));
     packet.put_int(out);
     packet.finalize(true);
     send_to_party(packet);
@@ -1519,14 +1517,16 @@ void CParty::sendPremiumGoldCardStatistic(int type, int value1, int value2)
 void CParty::historyBloodRoundClear(int round, unsigned int clearTime,
                                     unsigned int playTime, const char* dungeonName)
 {
-    char memberNames[0x40];
-    memset(memberNames, 0, sizeof(memberNames));
+    // [b28d-51] P214③：ORIG 0x085b7dce 为 rep stos 内联（char[0x40]={0}），
+    // memset 调用形不符；成员指针亦须内联 m_member[slot].m_pUser（ORIG 无
+    // 二次 get_user 调用，0x085b7e33 段直接 this+slot*0x18+0x78 寻址）。
+    char memberNames[0x40] = { '\0' };
     getMemberNames(memberNames);
     for (int slot = 0; slot < 4; ++slot)
     {
         if (get_user(slot) == 0 || !checkValidUser(slot))
             continue;
-        cUserHistoryLog* log = &get_user(slot)->m_historyLog;
+        cUserHistoryLog* log = &m_member[slot].m_pUser->m_historyLog;
         log->BloodRoundClear(round, clearTime, playTime, dungeonName, memberNames);
     }
 }

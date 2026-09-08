@@ -15,6 +15,13 @@
 // ============================================================================
 
 #include <fstream>
+// ============================================================================
+// b28d-52 判词表（本 TU，唯一 DIFF）：
+//   DNFLexWrapper::setFileStreamData 0x08acede0 —— 本 TU 走 per-source SRC_OPTS
+//     `-O2 -std=gnu++98`（dnf_game_cxx.sh DNFLexWrapperLoadStream 分支 + build.make
+//     EXTRA 已由 check_tu_routed.sh 注入）；残差为 -O2 下寄存器分配/帧形与 ORIG
+//     （同 -O2 口径）的结构性差异，判 N（跨版本 -O2 调度）。
+// ============================================================================
 
 #include "DNFLexWrapper.h"
 

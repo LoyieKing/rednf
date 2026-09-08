@@ -621,13 +621,15 @@ bool DB_SecurityCardIssue::dispatch(int userIdx, int slot, Stream* stream)
             db->get_uint(0, nIssue);
             db->get_uint(1, lastTime);
 
-            unsigned int now =
-                static_cast<unsigned int>(GlobalData::s_systemTime_.getCurSec());
+            // b28d-54：now 仅用于 localtime_r；声明为 time_t 使实参为纯 `&now`
+            //   （与第一次调用同形 ⇒ 4.4 复现 ORIG arg2 先求值序，P23）。
+            time_t now =
+                static_cast<time_t>(GlobalData::s_systemTime_.getCurSec());
             time_t tLast = static_cast<time_t>(lastTime);
             struct tm tmLast;
             struct tm tmNow;
             localtime_r(&tLast, &tmLast);
-            localtime_r(reinterpret_cast<time_t*>(&now), &tmNow);
+            localtime_r(&now, &tmNow);
 
             if (tmLast.tm_yday == tmNow.tm_yday)
             {

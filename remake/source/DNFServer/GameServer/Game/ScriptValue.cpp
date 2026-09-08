@@ -9,6 +9,13 @@
 // ============================================================================
 
 #include "ScriptValue.h"
+// ============================================================================
+// b28d-52 判词表（本 TU 剩余 DIFF）：
+//   scanChangeStatusData 0x088bda1c —— P264 重定位（std::string C1/ScanTypeOrStr 目标）
+//     + 帧/槽差
+//   scanScriptValue 0x088bd381 —— P264 重定位（DNFLexWrapper 单例立即数 .o 显示 0）
+//     + N82 帧/槽
+// ============================================================================
 #include "DNFLexWrapper.h"
 #include "GameScriptEnumHelpers.h"
 #include "SyncScriptDeps.h"

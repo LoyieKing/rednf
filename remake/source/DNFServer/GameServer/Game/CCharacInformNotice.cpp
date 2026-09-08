@@ -56,21 +56,32 @@ bool CCharacInformNotice::checkInformNoticeFlag(unsigned int bit, unsigned int b
 }
 
 // ORIG T 0x080e4806：flag&7=bit，flag>>3=byte；check 真则置位并 alter。
+// b28d-55 P223 多岛形：ORIG 三失败出口各落独立 nop 岛（+0x7d nop;jmp / +0x80
+// nop;jmp / +0x83 nop，标签序=守卫序）⇒ 负条件 goto 到连续尾标签（探针
+// /tmp/b28d_l55/probe_p223.cpp fA 逐条复现三岛）。byteIdx 含初始化须包内层复合块
+// （P223 扩展：4.4 拒 goto 跨同层非平凡初始化声明）。
 void CCharacInformNotice::handleInformNoticeFlag(unsigned int flag)
 {
     unsigned int bit = flag & 7;
     if (bit > 7)
-        return;
-    unsigned int byteIdx = flag >> 3;
-    if (byteIdx >= InformNotice::kInformNoticeIndex)
-        return;
-    // ORIG: call check; test %al,%al; je 尾（bool callee 正判无 xor；X 族①裸形）。
-    if (checkInformNoticeFlag(bit, byteIdx)) {
+        goto L1;
+    {
+        unsigned int byteIdx = flag >> 3;
+        if (byteIdx >= InformNotice::kInformNoticeIndex)
+            goto L2;
+        if (!checkInformNoticeFlag(bit, byteIdx))
+            goto L3;
         m_flags[byteIdx] = (unsigned char)(m_flags[byteIdx] + (1u << bit));
         alter();
+        goto END;
     }
+L1:;
+L2:;
+L3:;
+END:;
     // 残差 N：①ORIG movzbl→edx→ebx / lea→edx→ecx 两段物化为 N18a 反向折叠
-    //（4.4 恒单段不可造）；②ORIG 三出口 nop;jmp 独立块 4.4 合并同布局空块。
+    //（4.4 恒单段不可造）；②第三守卫 ORIG `test %al,%al; je` vs 4.4 `xor $0x1;
+    //  test %al,%al; jne`（P168a①/P292 bool 归一，无绑定不可造）。
 }
 
 // ORIG T 0x080e48ec：movzbl 0x5(%edx,%eax,1),%eax 直返（P9：返回 unsigned char，单条零扩展）。

@@ -203,6 +203,10 @@ bool CParty::IsExistCharacter(int characNo)
     {
         if (!_checkValidUser(local_10))
             continue;
+        // [b28d-53 判词 N18b/N22/P85] ORIG 0x085b62a8 段 `mov 0xc(%ebp),%edx;
+        // cmp %edx,%eax`（4.1 先载 int 形参入寄存器再比较）；4.4 恒折
+        // `cmp 0xc(%ebp),%eax` 内存直比——交换操作数 / unsigned 化两形实测均无效。
+        // 41/39，语义等价，byte 层 N 封顶。
         if (characNo == m_member[local_10].m_pUser->getCurCharacNo())
         {
             return true;
@@ -233,22 +237,27 @@ int CParty::FindUserByCharId(unsigned int characNo)
 // ============================================================================
 // BloodHandleDieUser —— ORIG T 0x085b8e5c（报告 CParty/BloodHandleDieUser.md）
 // ============================================================================
-void CParty::BloodHandleDieUser(CUser* user)
+// [b28d-53 P159] ORIG 尾 `mov $0x1,%eax`、错误路径 `mov $0x0,%eax` ⇒ 返回非 void；
+// 声明随头改 bool（mangled 不含返回类型）。
+bool CParty::BloodHandleDieUser(CUser* user)
 {
     int local_10 = 0;
     for (local_10 = 0; local_10 <= 3; ++local_10)
     {
-        if (!checkValidUser(local_10))
-            continue;
-        if (get_user(local_10) == user)
+        // [b28d-53] ORIG 0x085b8e8c 段为正向包裹（`call; test %al,%al; je join`），
+        // `if(!f()) continue;` 会多产 xor $1（P248 反向）。
+        if (checkValidUser(local_10))
         {
-            if (m_battleData.m_arr54[local_10] != 1)
+            if (get_user(local_10) == user)
             {
-                user->SendCmdErrorPacket((ENUM_CMDPACKET)0x2b, 0x12);
-                return;
+                if (m_battleData.m_arr54[local_10] != 1)
+                {
+                    user->SendCmdErrorPacket((ENUM_CMDPACKET)0x2b, 0x12);
+                    return false;
+                }
+                set_charac_live(user, (ENUM_USER_DUNGEON_STATE)0);
+                break;
             }
-            set_charac_live(user, (ENUM_USER_DUNGEON_STATE)0);
-            break;
         }
     }
 
@@ -256,12 +265,15 @@ void CParty::BloodHandleDieUser(CUser* user)
     {
         if (m_battleField.m_bloodState != 1)
         {
-            int key = gen_timer_key((TIMER_MESSAGE)0x22);
+            // [b28d-53 P24/P52] ORIG 先求第 5 参 gen_timer_key 并入 %esi 跨后续
+            // call 保活 ⇒ 实参内联（具名 key 局部落槽 +2 条并致帧 0x30→0x34）。
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
                                         GetPartyIndex(), (TIMER_MESSAGE)0x22,
-                                        10, key, (unsigned int)0x22);
+                                        10, gen_timer_key((TIMER_MESSAGE)0x22),
+                                        (unsigned int)0x22);
         }
     }
+    return true;
 }
 
 // ============================================================================
@@ -424,14 +436,16 @@ void CParty::SendPartyMemberTagChracInfo()
     for (int local_14 = 0; local_14 <= 3; ++local_14)
     {
         CUser* user = get_user(local_14);
-        if (user != 0)
+        // [b28d-53 归零] P223② 新实证：ORIG 两守卫共落同一 join（+0xa2）且 then
+        // 尾有 `jmp <++i>; nop` 岛。复现形 = 扁平化「守卫1 continue + 守卫2 正向
+        // if{…; continue;}」——嵌套 if 与负极性 `!call()` 均被 jump-thread/多产
+        // xor+岛（实测 82/87 条）。此形 84=84 全等（ORIG 0x085be05a）。
+        if (user == 0)
+            continue;
+        if (user->MakeTagCharacInfo(packet))
         {
-            // 试 2 形（P223 goto 反写产 xor;jne 3 行差），原形 1 行 jmp 岛差
-            // =4.1 merge-jmp 不可造（N-JMP 在册）。
-            if (user->MakeTagCharacInfo(packet))
-            {
-                ++tagCount;
-            }
+            ++tagCount;
+            continue;
         }
     }
 

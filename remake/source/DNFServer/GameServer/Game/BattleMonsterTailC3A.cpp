@@ -19,6 +19,13 @@
 // Get_instance_groupOrder_map_pool（定义见 TournamentTailC3C.cpp）。
 
 #include <list>
+// ============================================================================
+// b28d-52 判词表（本 TU 剩余 DIFF）：
+//   CBattle_Field::checkClearedNamedMonsterMap 0x08300c76 —— N82（帧 0x380 vs 0x370）
+//   CBattle_Field::ConsistTournament 0x083035c8 —— P264（全局立即数 .o 重定位显示 0）
+//     + N82 帧/槽
+//   CBattle_Field::add_hell_party_monster 0x083071ba —— N82（帧 0x3d0 + 局部初始化序）
+// ============================================================================
 #include <map>
 #include <vector>
 

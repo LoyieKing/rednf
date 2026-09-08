@@ -23,6 +23,40 @@
 //   CAdvanceAltarLog::incrementEntranceData / advanceAltarstatistics_（统计日志）。
 // ============================================================================
 
+// ============================================================================
+// b28d-52 判词表（本 TU 独占；ORIG 地址来自 game_func_report 二进制切片）
+// 已修（转 AE/IDENTICAL）：
+//   ProcStage::dieMob 0x0812e1de（P214① 汇聚块 + P248② m_padC bool 化）
+//   _SummonObjectMs::C1 0x08134674（_SummonObject 迁叶子头 ⇒ 真实子对象 C1，消 N83）
+//   HistoryLog::leaveDungeon 0x08133abc（P214③ char[0x100]={0} + P0 实参内联）
+//   ProcStage::endProcAllKillMonster 0x0812ea00（P222 正向包裹 + P0 表达式内联）
+//   ProcSummonObjectMs::reset 0x0812d43c（P96/P270 const_iterator + P28 后置 ppEi）
+// 剩余 DIFF（N 归因）：
+//   CharacData::upgreadGage 0x0812d176 —— N85（x87 fildl/flds/fmulp 两向 lowering）
+//     + N82（帧 0x28 vs 0x38 槽组平移）
+//   CharacData::upGage 0x0812d0b6 —— N85（x87 累加 flds 序；ORIG fildl 直读）
+//   HistoryLog::enterDungeon 0x081339b0 —— N78（4.1 memset 内联为对齐剥离+rep stos
+//     慢路，4.4 恒 call）
+//   HistoryLog::dungeonClearInfo 0x08133bd4 —— N82（帧 0x15c vs 0x168 + 槽组平移）
+//   ProcStage::startStage 0x0812de70 —— N82（帧 0x24 vs 0x34，4.4 多 0x10 槽）
+//   ProcStage::rewardClearStage 0x0812f0fa —— P214① 汇聚块极性（4.4 反产 sete;test;je）
+//   ProcSummonObjectMs::completePushSummonObject 0x0812d5d0 —— 跨版本 && 汇聚物化
+//     （4.1 mov$1/mov$0+test；4.4 折直跳）+ signed 形参 mem 直比
+//   ProcSummonObjectMs::summonObjectAndSendPacket 0x0812d658 —— P225 X3 变体
+//     （ORIG test/sete/test/jne；4.4 cmpl mem 直跳）
+//   ProcSummonObjectMs::dieMob 0x0812db00 —— P48（ORIG 两次独立 operator->）
+//     + bool 物化（xor $1）不可同时复现
+//   ProcStage::sendMailRewardItem 0x0812f47a —— P264 重定位（全局单例立即数 .o 显示 0）
+//     + 局部缓冲槽差 3
+//   ProcStage::clearStageAndReward 0x0812e3f6 —— N82/N86（迭代器 copy-elision 槽差）
+//   ProcStage::addAchievementReward 0x0812f3ae —— P0（manager 指针被缓存成具名局部，
+//     ORIG 为 lea 直用）+ 帧差
+//   ProcStage::makeCurrentPhaseSummonObject 0x0812eba8 —— N82/N86（大件槽组 + 迭代器）
+//   ProcStage::isEndStage 0x0812e2c6 —— P248② 字段 bool 化后 ORIG sete 物化不可复现
+//   ProcStage::sendClearStage 0x0812e6de —— N86（迭代器/容器 copy-elision 槽差）
+//   ProcSummonObjectMs::debugLog 0x0812d804 —— N89（vector/map 迭代器外链 + trace 变参）
+// ============================================================================
+
 #include "advancealtar_ProcStage.h"
 
 #include <algorithm>  // std::random_shuffle

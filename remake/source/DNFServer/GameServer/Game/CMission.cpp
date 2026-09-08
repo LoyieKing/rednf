@@ -22,23 +22,26 @@ public:
 // CMission
 // ============================================================================
 
+// b28d-50：ORIG 0x085e2ffc 发射序 = 声明序（标量 +4..+14 → +0x18/+0x20 两处
+// 8 字节**整体拷贝** → +0x28/+0x2c → vector +0x30 → +0x3c）；旧「vector 只写
+// meminit、标量留函数体」使 4.4 先发 vector C1（P239）。全部移入初始化列表且
+// 按声明序书写，+0x18/+0x20 经 union 的 pair 视图整体拷贝（P246/P247）。
 CMission::CMission(const MissionScript& script)
-    : m_rewardItems(script.m_rewardItems)
+    : m_conditionType(script.m_kind)              // script+0x78（byte）
+    , m_kind(script.m_field08)
+    , m_missionIndex(script.m_field0c)
+    , m_field10(script.m_field00)
+    , m_prevMissionIndex(script.m_prevMissionIndex)
+    // ORIG C1 0x085e304b/0x085e305f 两处 8 字节整体拷贝：MissionScript
+    // +0x10/+0x18 为 std::pair<int,int>（布局同 POD 两 int）⇒ 经 POD 视图
+    // 整体拷贝复现（std::pair 含构造函数不能作 union 成员）。
+    , m_rankRange(*reinterpret_cast<const MissionRankRange*>(&script.m_grade))
+    , m_rateRange(*reinterpret_cast<const MissionRankRange*>(&script.m_rate))
+    , m_grade(script.m_field20)
+    , m_expRate(script.m_expRate)
+    , m_rewardItems(script.m_rewardItems)
+    , m_job(script.m_job)
 {
-    m_conditionType = script.m_kind;              // script+0x78（byte）
-    m_kind = script.m_field08;
-    m_missionIndex = script.m_field0c;
-    m_field10 = script.m_field00;
-    m_prevMissionIndex = script.m_prevMissionIndex;
-    // b28c-lane17 同步：MissionScript +0x10/+0x18 为 std::pair<int,int>
-    // （ORIG C1 0x08a5ba8c 对两偏移各发 pair C1Ev；偏移不变）。
-    m_gradeMin = script.m_grade.first;
-    m_gradeMax = script.m_grade.second;
-    m_rateMin = script.m_rate.first;
-    m_rateMax = script.m_rate.second;
-    m_grade = script.m_field20;
-    m_expRate = script.m_expRate;
-    m_job = script.m_job;
 }
 
 CMission::~CMission() {}
@@ -85,39 +88,42 @@ bool CMission::canUpdate(const MissionClearCondition_Parameter& param) const
     return _canUpdate(param);
 }
 
-int CMission::isAcceptCondition(const CUser& user) const
+bool CMission::isAcceptCondition(const CUser& user) const
 {
     CMissionList_Charac* list =
         (CMissionList_Charac*)user.GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)8);
     if (list->getIndex_byKind(GetMissionKind()) != 0) return 0;
 
-    int grade = user.get_pvp_grade();
-    bool gradeRejected;
-    if ((m_gradeMin == -1) ||
-        ((m_gradeMin <= grade) && (grade < m_gradeMax)))
-    {
-        gradeRejected = false;
-    }
-    else
-    {
-        gradeRejected = true;
-    }
-    if (gradeRejected) return 0;
+    // b28d-50：ORIG 0x085e31d9 段无 grade 槽（两次独立 call get_pvp_grade，
+    // 0x085e31f0/0x085e31ff）且布尔**留在 %al**（mov $1/$0 + test，无槽）⇒ 原码是
+    // 单一 `if (A && (B || C)) return 0;`（&&/|| 跳转物化），非具名 bool + else-if；
+    // m_gradeMin 作左操作数先入 %ebx 跨 call 保活（P23/P66）。
+    if ((m_gradeMin != -1) &&
+        ((m_gradeMin > user.get_pvp_grade()) ||
+         (user.get_pvp_grade() >= m_gradeMax)))
+        return 0;
 
     int winRate = user.get_pvp_WinningRate_relateMission();
-    if ((m_rateMin == -1) ||
-        ((m_rateMin <= winRate) && (winRate < m_rateMax)))
-    {
-        return _isAcceptCondition(user);
-    }
-    return 0;
+    // b28d-50：ORIG 0x085e3233 段块序为 REJECT（mov $0）在前、PASS（虚调）在后
+    // （je PASS; jg REJECT; jg PASS; REJECT; PASS）⇒ 原码为否定式 `if(拒绝) return 0;
+    // return _isAcceptCondition(user);`，而非正向 PASS 先行（4.4 反产 jle REJECT）。
+    if ((m_rateMin != -1) &&
+        ((m_rateMin > winRate) || (winRate >= m_rateMax)))
+        return 0;
+    return _isAcceptCondition(user);
 }
 
 int CMission::Reward(CUser& user) const
 {
-    int exp = (int)(m_expRate *
-                    (float)G_CDataManager()->get_BaseMissionExp_byRank(
-                        (unsigned short)m_gradeMin));
+    // b28d-50：ORIG 0x085e32xx 对 get_BaseMissionExp_byRank 的结果先
+    // `mov $0,%edx; mov %eax,-0x30; mov %edx,-0x2c; fildll` ⇒ 原码为
+    // `(float)(unsigned long long)` 零扩展 64 位（int 恒 fildl）。
+    // b28d-50：ORIG 先 fildll（call 结果）后 flds m_expRate（0x085e3352 段，
+    // 无临时槽）⇒ 书写序为「call 结果 * m_expRate」；写成 m_expRate * call() 会
+    // 把 m_expRate 先 fstps 到临时槽再 fmuls（P243 x87 序）。
+    int exp = (int)((float)(unsigned long long)(unsigned int)
+                        G_CDataManager()->get_BaseMissionExp_byRank(
+                            (unsigned short)m_gradeMin) * m_expRate);
 
     user.m_historyLog.pvpMissionClearReward(
         user.getPVPResultRefW()->m_expPoint, exp, GetMissionKind(),
@@ -125,12 +131,15 @@ int CMission::Reward(CUser& user) const
     user.getPVPResultRefW()->m_expPoint += exp;
 
     std::vector<int> outSlots;
-    int ret = ((CInventory*)user.getCurCharacInvenW())
-                  ->insert_event_items(m_rewardItems, outSlots,
-                                       (eMoneyAddReason)0x1e,
-                                       (eItemAddReason)0x33, true,
-                                       "game_server_msg_173",
-                                       "game_server_msg_174");
+    // b28d-50：ORIG 0x085e3393 在 insert_event_items call **前**发
+    // `movl $0x0,-0xc(%ebp)`（ret 预清）⇒ 声明与赋值必须两句式（P198①）。
+    int ret = 0;
+    ret = ((CInventory*)user.getCurCharacInvenW())
+              ->insert_event_items(m_rewardItems, outSlots,
+                                   (eMoneyAddReason)0x1e,
+                                   (eItemAddReason)0x33, true,
+                                   "game_server_msg_173",
+                                   "game_server_msg_174");
     if ((ret > 0) && (outSlots.size() > 2))
     {
         user.SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_0,
@@ -791,12 +800,16 @@ bool CMission_within::_isAcceptCondition(const CUser& user) const
     CMissionList_Charac* list =
         (CMissionList_Charac*)user.GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)8);
     if (list->isClearMission(GetMissionIndex())) return 0;
-    if (user.getPVPResultRefR()->m_pvpGrade != m_gradeMin) return 0;
+    // b28d-50：ORIG 0x085e3c30 三处均**调 GetRankRange() 取 .gradeMin**（0x085e692a
+    // sret 落 -0x2c/-0x24/-0x1c 三个临时槽），不是直读 m_gradeMin；且尾比较为
+    // `curPoint + (nextPoint - curPoint)` 两步冗余式（0x085e3d1a sub/add 段，P171
+    // 照抄）。按 ORIG 改后 86/63 gap 闭合。
+    if (user.getPVPResultRefR()->m_pvpGrade != GetRankRange().gradeMin) return 0;
 
-    int curPoint = GlobalData::s_ref_pvp_grade->GetPvpPoint(m_gradeMin);
+    int curPoint = GlobalData::s_ref_pvp_grade->GetPvpPoint(GetRankRange().gradeMin);
     int nextPoint =
-        GlobalData::s_ref_pvp_grade->GetPvpNextRankPoint(m_gradeMin);
-    if (user.getPVPResultRefR()->m_expPoint >= nextPoint)
+        GlobalData::s_ref_pvp_grade->GetPvpNextRankPoint(GetRankRange().gradeMin);
+    if (user.getPVPResultRefR()->m_expPoint >= curPoint + (nextPoint - curPoint))
     {
         const_cast<CUser&>(user).getPVPResultRefW()->m_expPoint = nextPoint;
         return 1;
@@ -1069,9 +1082,14 @@ bool CMission_combo_clear::_isAcceptCondition(const CUser& user) const
     combo_script_key key;
     key.m_job = (char)user.get_charac_job();
     key.m_growType = (short)user.getCurCharFirstGrowType();
-    // b28d-50：ORIG 0x085e438c 尾为 test %al,%al; je <mov $0>; mov $1; jmp;
-    // mov $0（P56 分支形态）；`return find()!=end();` 4.4 直返 call 结果（-5 条）。
-    if (m_comboMap.find(key) != m_comboMap.end())
+    // b28d-50：①ORIG 0x085e438c 尾为 test %al,%al; je <mov $0>; mov $1; jmp;
+    // mov $0（P56 分支形态）；②ORIG 求值序为 **find 先、end 后**（find sret -0x14、
+    // end sret -0xc），单表达式 `find()!=end()` 4.4 反产 end 先（P293 具名 it 形）。
+    // 具名 const_iterator + 分支 return + 反序实参（end() 在左）即三处同复现
+    // （ORIG 0x085e4387 实参序 (%esp)=end 槽、0x4(%esp)=it 槽，P74补②/P220）。
+    std::map<combo_script_key, combo_script_data>::const_iterator it =
+        m_comboMap.find(key);
+    if (m_comboMap.end() != it)
         return true;
     return false;
 }
@@ -1116,12 +1134,14 @@ int CMission_combo_clear::_Reward(CUser& user) const
     items.push_back(it->second.m_bonus);
 
     std::vector<int> outSlots;
-    int ret = ((CInventory*)user.getCurCharacInvenW())
-                  ->insert_event_items(items, outSlots,
-                                       (eMoneyAddReason)0x1e,
-                                       (eItemAddReason)0x33, true,
-                                       "game_server_msg_173",
-                                       "game_server_msg_174");
+    // b28d-50：ORIG 预清 `movl $0x0,-0xc(%ebp)` 在 call 前（P198①两句式）。
+    int ret = 0;
+    ret = ((CInventory*)user.getCurCharacInvenW())
+              ->insert_event_items(items, outSlots,
+                                   (eMoneyAddReason)0x1e,
+                                   (eItemAddReason)0x33, true,
+                                   "game_server_msg_173",
+                                   "game_server_msg_174");
     if ((ret > 0) && (outSlots.size() > 2))
     {
         user.SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_0,

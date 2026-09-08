@@ -50,16 +50,16 @@ enum ENUM_TITLE_BOOK_CATEGORY
 // ---- 称号元素（0x20 字节） ----
 struct stTitleElement
 {
-    // b28c-L26：ORIG C1 0x08aa95ae 发射序 = m_index(-1) → vector(+0x4) →
-    // string(+0x18) → +0x1c → +0x10 → +0x14 → +0x20 → +0x24（后五个**非**声明序）
-    // ⇒ m_index 走 meminit（声明序首位，先于两个类成员构造），其余五个标量
-    // 归 ctor 体按 ORIG 书写序赋值（4.4 对全 meminit 形会重排标量段）。
+    // b28c-L26 / b28d-55：ORIG C1 0x08aa95ae 发射序 = vector(+0x4) → string(+0x18)
+    // → +0x1c → +0x00 → +0x10 → +0x14 → +0x20 → +0x24（**全部**标量均在两个类
+    // 成员构造之后，且非声明序）⇒ 初始化列表只留两个类成员，六个标量按 ORIG
+    // 书写序全部落 ctor 体（P239：4.4 对全 meminit 形按声明序混合发射）。
     stTitleElement()
-        : m_index(-1),
-          m_fitJobs(),
+        : m_fitJobs(),
           m_strText()
     {
         m_achievementIdx = -1;
+        m_index = -1;
         m_field10 = -1;
         m_field14 = 0;
         m_field20 = 0;

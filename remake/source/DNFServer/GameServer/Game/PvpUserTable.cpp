@@ -73,7 +73,9 @@ bool PvpUserTable::IsValidTeam(int team)
     return (team >= 0 && team <= 7);
 }
 
-int PvpUserTable::IsValidConvertedGrade(int grade)
+// b28d-54 判词：ORIG 0x085d4a32（GetExpectVal 两处调用点 0x085d4b4a/0x085d4b5f 均
+//   `call; xor $1,%eax; test %al,%al; je`）⇒ 返回 bool（P248 档①）。
+bool PvpUserTable::IsValidConvertedGrade(int grade)
 {
     return (grade >= 0 && grade <= 0x14) ? 1 : 0;
 }
@@ -105,8 +107,11 @@ float PvpUserTable::GetExpectVal(int grade1, int grade2, CUser* user)
     bool changed = false;
     if ((grade1 == 1 && grade2 == 0) || (grade1 == 0 && grade2 == 1))
     {
-        // 用户存在且段位 <= 9 时保留换算结果，否则回退原段位
-        if (!(user != 0 && ((CUserCharacInfo*)user)->get_pvp_grade() <= 9))
+        // b28d-54：ORIG 0x085d4b2d `cmpl $0,0x14(%ebp); je 同岛` + `cmp $9,%eax;
+        //   jg 同岛`（两跳同落回退块）+ `mov $1/jmp/mov $0/test/jne`。4.4 对
+        //   `a==0||b>9` 与 `!(a!=0&&b<=9)`、具名 keep 三形恒产 jle/je（反向物化，
+        //   P194/P272 族），仅指令极性差、语义等价 ⇒ 取本形（95/95，残差 2 行）。
+        if (user == 0 || ((CUserCharacInfo*)user)->get_pvp_grade() > 9)
         {
             grade1 = saved1;
             grade2 = saved2;
@@ -114,10 +119,13 @@ float PvpUserTable::GetExpectVal(int grade1, int grade2, CUser* user)
         }
     }
 
-    if (!IsValidConvertedGrade(grade1) || !IsValidConvertedGrade(grade2))
-    {
+    // b28d-54 翻正：ORIG 0x085d4b4a/0x085d4b5f 两个独立守卫各自
+    //   `call; xor $1,%eax; test %al,%al; je <独立 return -1 块>`（P133：
+    //   合并 `||` 会生 bool 汇聚 setne 物化）。
+    if (!IsValidConvertedGrade(grade1))
         return -1.0f;
-    }
+    if (!IsValidConvertedGrade(grade2))
+        return -1.0f;
     if (grade1 != grade2 && !changed)
     {
         if (grade1 == 0)

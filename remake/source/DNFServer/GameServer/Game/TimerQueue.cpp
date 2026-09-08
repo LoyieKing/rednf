@@ -60,6 +60,8 @@ TimerQueue::~TimerQueue() throw()
 
 void TimerQueue::InsertTimer(TimerEntry& entry) throw()
 {
+    // b28d-49 判词：NEAR 封顶（N82 槽布局：Guard/msg/it/end 深槽 vs 我方浅槽 +
+    // P61/P178 make_pair 引用传实参）。@0x8630cec
     Guard<Mutex> guard(&m_mutex);
     m_queue.push(entry);
 
@@ -131,6 +133,8 @@ size_t TimerQueue::GetQueueSize() throw()
 
 void TimerQueue::write_timer_queue_log() throw()
 {
+    // b28d-49 判词：N 封顶（N82 槽布局整体平移 0x18：ORIG log/it/end/buf 在
+    // -0x30..-0x4c，我方 -0x18..-0x34；+ N89 string/迭代器内联）。P167 CLEAR。@0x863101e
     std::string log;
     log.clear();
 

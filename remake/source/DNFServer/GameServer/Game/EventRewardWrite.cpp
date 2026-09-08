@@ -12,6 +12,17 @@
 //   this 形参在这些函数中不参与发放（见各报告 Ghidra C）。
 
 #include <string.h>
+// ============================================================================
+// b28d-52 判词表（本 TU）：
+//   已修：rewardKey::operator< 0x080f121a —— P222 正向包裹 + P196 三字节字段
+//     signed char（CDataManager.h，已 R2 广播）⇒ 转 AE。
+//   剩余 DIFF：
+//   eventReward::unsealRandomOption 0x080f0e40 —— N82（帧 0x4c vs 0x3c）
+//   eventReward::applyItemOption 0x080f0d6e —— N82（帧 0x14 vs 0x24）
+//   eventReward::sendPostalReward 0x080f0976 —— N82（帧 0x1bc vs 0x1b0）
+//   eventReward::rewardWriteUserEquip 0x080f06da —— N82（帧差 + 迭代器槽）
+//   eventReward::rewardWriteUserInven 0x080f0408 —— N82（帧 0xa4 vs 0x94）
+// ============================================================================
 
 #include <map>
 #include <string>

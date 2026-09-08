@@ -557,7 +557,7 @@ public:
     int kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
                      MSG_MONSTER_DIE const& dieInfo, int* param);  // ORIG 返回 0/1
     void kill_blood_monster(CUser* user, int monsterIdx, unsigned short* param);
-    void BloodHandleDieUser(CUser* user);
+    bool BloodHandleDieUser(CUser* user);   // b28d-53 P159：ORIG 尾 mov$1/错误路径 mov$0 ⇒ bool
     void beginBloodClearProcess(bool flag);
     void onBloodClear(bool flag, int param);
     bool onBloodRewardTimer(TIMER_MESSAGE msg);  // ORIG 返回 0/1（0x85b6a48；caller 0x08638d17 xor$1 取反形⇒bool）

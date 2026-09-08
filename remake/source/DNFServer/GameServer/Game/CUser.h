@@ -948,7 +948,7 @@ public:
 
     void Init() throw();       // ORIG W：全部字段清零 + checker.reset()（P216：b28 BL0 代落，消 C1Ev 0x8696fe0 侧 4.4 冗余 landing）
     int UpdatePacket(const _header& hdr);  // ORIG W：重复包检测，返回错误码
-    unsigned short GetSequence();          // ORIG W：读 +0x14
+    int GetSequence();          // ORIG W 0x08696e48：读 +0x14（b28d-Main 代落 P159/SIGFIX：尾双段 `movzwl 0x14(%eax); movzwl %ax,%eax` ⇒ int 返回，D52 探针实证；推翻旧 N18a 判词）
 
     static int m_nVaridCount;        // D 0x093ace38 = 5
     static int m_nVaridSecond;       // D 0x093ace3c = 1

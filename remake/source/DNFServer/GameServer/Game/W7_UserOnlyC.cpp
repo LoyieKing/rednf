@@ -23,6 +23,28 @@
 //   CStackableItem::GetMonsterCardId()                      W 0x0849f530
 
 #include "CUser.h"
+// ============================================================================
+// b28d-52 判词表（本 TU 剩余 DIFF）：
+//   已修：CPacketVerifier::GetSequence 0x08696e48 —— P159/SIGFIX 返回类型 int
+//     （ORIG 尾双段 movzwl；探针 /tmp/b28d_l52/p_ushort.cpp f2 实证）。CUser.h 冻结，
+//     Main 已代落 ⇒ 本件转 AE。
+//   已修（头部）：CUser::SetSkillLevel 0x0867b51c —— P248② 裸偏移改具名字段
+//     `!m_clientSpec.m_gmUserFlag` + P214① 短路汇聚（头部 20 条与 ORIG 逐条对齐）；
+//     残差 N82（帧 0x4c vs 0x44 + 后续槽组/push edi/esi）。
+//   CPacketVerifier::UpdatePacket 0x08696e58 —— 残差仅 call/跳转目标重定位（N7 寄存器
+//     轮转 + P264 口径）
+//   PIReceiverManager::CheckHashReceived 0x0808bf7e —— P0/P183（我方 so 指针缓存槽 -0x14
+//     + `add $0x4` 地址形；ORIG 表达式直读）
+//   CUser::SetSkillLevel 0x0867b51c —— P248② 字段 bool 化候选（ORIG 0x0867b52d xor $1）
+//     （见上「已修（头部）」）
+//   CUser::GiveItemsReturnUser 0x08692000 —— N82（帧 0x8c vs 0x98）
+//   CUser::GiveEquipItemsReturnUser 0x08692140 —— N82（帧 0x9c vs 0xb4）
+//   CUser::SendCeraShopGiftStatisticLog 0x0868a87a —— N82 + P264（Acquire 立即数重定位）
+//   CUser::Parsing 0x08647890 —— N82（帧 0x63c vs 0x61c）
+//   CDungeon::VerifyMaze() 0x0834c9f0 —— N82（帧 0xa0 vs 0x90）
+//   CDungeon::VerifyMaze(MazeScript) 0x0834c990 —— N82（帧 0x94 vs 0x84）
+//   _NS_PI_2ND_RecvHash_CS 0x08274f73 —— N82（帧 0x64 vs 0x74）
+// ============================================================================
 #include "CDungeon.h"
 #include "CStackableItem.h"
 #include "CDataManager.h"
@@ -95,12 +117,11 @@ void CPacketVerifier::Init() throw()   // P216：头（Main 代落 CUser.h:938�
     m_checker.reset();
 }
 
-unsigned short CPacketVerifier::GetSequence()
+int CPacketVerifier::GetSequence()
 {
-    // ORIG 0x08696e52 尾多一条 `movzwl %ax,%eax`（4.1 对 ushort 返回值的冗余
-    // 加宽再归一段，N18a 反向族）。b28 复核：无 cast/双 cast/&0xffff/|0/三目/
-    // 具名局部 六形 probe（/tmp/l0p1-3.cpp）4.4 恒折叠单 movzwl，源形不可造；
-    // 具名局部形违 P0（ORIG 无槽往返）。残差 1 条封顶 N。
+    // b28d-D52 终裁（推翻旧 N18a 判词）：ORIG 0x08696e4e/0x08696e52 双段
+    // `movzwl 0x14(%eax),%eax; movzwl %ax,%eax` = 字段 unsigned short 读 + 返回
+    // 类型 int 的零扩展（探针 p_ushort：ushort 返回单段、int 返回双段全等）。
     return (unsigned short)m_sequence;
 }
 
@@ -442,12 +463,11 @@ bool CUser::Parsing(int received)
 // （runnable 假 / skill==0）——Model22 桥清零证据；签名与 CUser.h 同步（Main 代落）。
 int CUser::SetSkillLevel(int skillIdx, int level)
 {
-    // P167/Ghidra：仅 hack 标志(0x711d8)==1 且 getCurCharacR() != 0 才进入处理，
-    // 否则返 0（原源码 runnable 逻辑与 ORIG 相反——真语义 bug）。
-    if (*reinterpret_cast<const unsigned char*>(
-            reinterpret_cast<const char*>(this) + 0x711d8) != 1)
-        return 0;
-    if (getCurCharacR() == 0)
+    // b28d-52：ORIG 0x0867b528 `movzbl 0x711d8(%eax); xor $1; test; jne` =
+    // `!m_gmUserFlag`（P248② bool 字段 + 裸 !field；该偏移 = Client_Spec+0xbfc，
+    // CUser+0x705dc 的 m_clientSpec）。原裸偏移 `!= 1` 违反 §4.3 且产 cmp $1/jne。
+    // 短路汇聚形（P214①）：`if (!flag || getCurCharacR() == 0) return 0;`
+    if (!m_clientSpec.m_gmUserFlag || getCurCharacR() == 0)
         return 0;
 
     const int job = get_charac_job();

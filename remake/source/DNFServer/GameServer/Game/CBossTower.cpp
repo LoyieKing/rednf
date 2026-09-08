@@ -1006,9 +1006,9 @@ int CBossTower::generateRewardExp()
     for (int i = 0; i <= 3; ++i)
     {
         CUser* member = m_party->get_user(i);
-        bool invalid = (member == 0) ||
-                       (m_party->checkValidUser(i) != 1);
-        if (invalid)
+        // b28d-54 翻正：ORIG 0x08144d7e 段 `test %al,%al; jne` 直测（无 bool 槽）
+        // ⇒ 去具名 invalid 局部，条件内联（P0：无槽往返 ⇒ 无具名局部）。
+        if (member == 0 || m_party->checkValidUser(i) != 1)
             continue;
 
         unsigned int mobReward = 0;              // ebp-0x14
@@ -1033,9 +1033,8 @@ int CBossTower::generateRewardItem()
     for (int i = 0; i <= 3; ++i)
     {
         CUser* member = m_party->get_user(i);
-        bool invalid = (member == 0) ||
-                       (m_party->checkValidUser(i) != 1);
-        if (invalid)
+        // b28d-54 翻正：同 generateRewardExp（ORIG 直测形，无 bool 槽）。
+        if (member == 0 || m_party->checkValidUser(i) != 1)
             continue;
 
         stDeathTower_t* towerScript = G_CDataManager()->GetTowerScript(
@@ -1048,7 +1047,9 @@ int CBossTower::generateRewardItem()
         int itemCount = std::min(m_dungeon->getTowerMaxClearRewardItemNum(),
                                  scriptLimit);
         itemCount = std::min(10, itemCount);
-        const int stageParam = std::min(10, m_stageCur);
+        // b28d-54：m_stageCur 同型化为 unsigned 后保持 min<int> 实例（ORIG 调
+        // _ZSt3minIiERKT_S2_S2_），故显式 (int)。
+        const int stageParam = std::min(10, (int)m_stageCur);
 
         CBossPlay::generateRewardItem(
             i, itemCount,

@@ -161,7 +161,10 @@ public:
     // callee 体 0x085d4a14 = `cmpl $0; js; cmpl $7; jg; mov $1; jmp; mov $0`
     // 常量岛形。mangled 无返回类型 ⇒ 零 ABI 风险（技巧 33）。
     bool IsValidTeam(int team);
-    int  IsValidConvertedGrade(int grade);
+    // b28d-54：int→bool（P248 档①）。ORIG GetExpectVal 0x085d4b4a/0x085d4b5f 两处调用点
+    //   均 `call; xor $1,%eax; test %al,%al; je` ⇒ callee 返回 bool；int 恒 sete 物化。
+    //   返回类型不入 mangled，调用点无需改。
+    bool IsValidConvertedGrade(int grade);
     int  GetTeamUserCount(int team);
     float GetExpectVal(int grade1, int grade2, CUser* user);
     int  Calculate();

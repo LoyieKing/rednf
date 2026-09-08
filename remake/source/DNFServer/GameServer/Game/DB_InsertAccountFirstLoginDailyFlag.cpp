@@ -3,6 +3,13 @@
 // 语义：makeRequest（0x0843ea64）发表头 0x342 + 4 参数；dispatch（0x0843e8be）
 // 先 UPDATE（affected==0 则 INSERT）。
 #include "DB_InsertAccountFirstLoginDailyFlag.h"
+// ============================================================================
+// b28d-52 判词表（本 TU，唯一 DIFF）：
+//   dispatch 0x0843e8be —— 已修：P48/P282 两处 fresh 虚调用 get_db_table_name
+//     （vptr+0x20，旧版具名引用缓存致第二次虚调用缺失）+ P0 去 dm 局部 +
+//     P171 照抄死写入 local_14 + p3 无预清。残差为早返块布局（P16/P222 方向；
+//     ORIG `jne <后置失败块>` vs 4.4 `je <就地失败块>`）⇒ N（跨版本分支布局）。
+// ============================================================================
 
 #include "CStreamGuard.h"
 #include "StreamPool.h"
