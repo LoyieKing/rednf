@@ -304,7 +304,9 @@ bool CCreature::EvoluteMulty(CUser* user, int creatureId)
 
 // ORIG _ZN13user_creature9CCreature11ItemEvoluteEP5CUseri T 0x8338ca0
 //（ItemEvolute.md 全转写）：目标取 GetItemEvolutionCreatureId(itemIdx)（0x833cad8）。
-bool CCreature::ItemEvolute(CUser* user, int itemIdx)
+// 返回 int：ORIG 尾 `mov %ebx,%eax` 直通 + caller CCreatureMgr::ItemEvolute
+// 0x833d6c2 call 后无 movzbl 归一（P159/P9 bool→int 判据）。
+int CCreature::ItemEvolute(CUser* user, int itemIdx)
 {
     if (m_script == 0)
     {
@@ -428,6 +430,10 @@ bool user_creature::CDBMsgSender::EventEvoluteCreature(int uid, int itemIdx, int
     buf->m_hdr |= 0x248;
     buf->m_addInfo2 = uid;                            // +0x30（先写，ORIG 序）
     // ORIG `mov %edx,0x8(%eax)` buf 基址 disp8 直存（具名视图，探针 bl8_probe6 f5）。
+    // [b28-BM7 判词] NEAR 2 = N76：ORIG 本 store 为 RHS-first 3 条形（先
+    // `mov 0x10(%ebp),%edx` 后载 this），相邻 +0x4c exp store 却 LHS-first；
+    // 同函数两向并存排除类型律——int/unsigned 字段×直赋×语句表达式 4 形探针
+    // 恒 LHS-first（/tmp/bm7/p2-p4.o），源码层不可复现。
     reinterpret_cast<SigCreatureItemIdxView*>(buf)->m_itemIdx = itemIdx;  // +0x08
     buf->m_exp = exp;                                 // +0x4c（SigTypes 已具名 m_exp）
     CItem* item = G_CDataManager()->find_item(itemIdx);

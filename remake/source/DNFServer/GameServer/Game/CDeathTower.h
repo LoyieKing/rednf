@@ -83,8 +83,11 @@ namespace WongWork
         class CStage
         {
         public:
-            CStage();                           // ORIG W 0x82a74ca：MapInfo ctor + resetCurrentStage
-            ~CStage();                          // ORIG W 0x82a74ec：MapInfo dtor
+            CStage() throw();                   // ORIG W 0x82a74ca：MapInfo ctor + resetCurrentStage
+                                              //  P216：throw() 消 CDeathTower::C1 对该
+                                              //  ctor 的 4.4 landing/cleanup（N91 突破）
+            ~CStage() throw();                  // ORIG W 0x82a74ec：MapInfo dtor（P216：
+                                              //  消 C1/D1 cleanup 对它的 landing）
             void reset();                       // ORIG 0x84614ec
             void resetCurrentStage();           // ORIG W 0x82a74bc（m_currentStage = 1）
             bool setState(ENUM_STAGE_STATE state);  // ORIG 0x8461c5a
@@ -238,7 +241,7 @@ namespace WongWork
     int handleStageCommand(CUser*, unsigned char);
     int handleStartGame(int, char, ENUM_DUNGEON_TYPE);
     int handleUseStackable(CUser*, ENUM_ITEMSPACE, unsigned short);
-    int onLeaveUser(CUser*);
+    bool onLeaveUser(CUser*);  /* ORIG 0x084636f2 尾恒 mov $1,ret；caller xor$1/test%al bool 归一形（P9/P159） */
     int onTimer(TIMER_MESSAGE, unsigned int);
     void reset();
     void setIdx(int);

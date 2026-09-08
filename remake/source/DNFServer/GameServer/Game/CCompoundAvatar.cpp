@@ -90,7 +90,9 @@ namespace WongWork
 
 // ORIG 0x08331d74：11×tagCompoundAvatarTable 构造（成员数组自动）→
 // CMTRand(new 0x9c8)(time(0)) 存 +0x84 → 100 次 randInt(10000) 热身。
-// （range 先于 seed 声明以复现 ORIG 栈槽分配：seed=-0x24、range=-0x20。）
+// 槽残差：ORIG seed=-0x24/range=-0x20 vs 4.4 call 临时恒浅槽对调（P212 全头部
+// 声明试形反劣 8→10，具名 seed 亦不落深槽）——与 CItemUpgrade_Separate::C1
+// b26 判词同型，N82 族封顶。
 CCompoundAvatar::CCompoundAvatar()
 {
     m_rand = new CMTRand(static_cast<unsigned long>(time(0)));

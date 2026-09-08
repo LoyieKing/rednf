@@ -689,9 +689,14 @@ struct _Charac_info
     // stAuraAvatarOption 子对象（@0x1281，3×int）——证据 CUser/GetAuraAvatarOption.md
     // 0x0868ddc2 mov 0x1281/0x1285/0x1289(%eax) 三连 + get_aura_avatar_option_value
     // 写侧 cur+0x1281+idx*4（idx<3 边界）。Reset 的 reset() 视图 call 仍走 this+0x1281。
-    int m_auraValue0;                 // +0x1281
-    int m_auraValue1;                 // +0x1285
-    int m_auraValue2;                 // +0x1289
+    union {                           // b28 BM1 代落（Main）：int[3] 数组视图复现 ORIG 单条 scaled 直存
+        struct {                      // （probe p19.o a1 命中 0x0868e1xx；标量形 4 条不可翻）
+            int m_auraValue0;         // +0x1281
+            int m_auraValue1;         // +0x1285
+            int m_auraValue2;         // +0x1289
+        };
+        int m_auraValues[3];
+    };
     int m_field128D;                  // +0x128d ← Reset movl $0（R+0x6a5）
     int m_field1291;                  // +0x1291 ← Reset movl $0（R+0x698）
     int m_field1295;                  // +0x1295 ← Reset movl $0（R+0x6b2）
@@ -2236,7 +2241,7 @@ public:
             m_money[1] = 0;
             m_money[2] = 0;
         }
-        int m_money[3];  // +0x00（0xc 字节）
+        int m_money[3];  // +0x00（0xc 字节；b28 BM1 实测 unsigned 化净负已回退：+= 段翻正但 [2]=now store 段劣化，NEAR6→DIFF10）
     };
 
     // ---- 成员布局（ORIG 构造 0x864e410 逐子对象推导，总尺寸 0x8ec30） ----
@@ -3139,7 +3144,7 @@ public:
     void SendLogoutToPCRoomServer();                // 0x0868170c T
     void SendLoginToPCRoomServer();                 // 0x0868152c T（TimerCheckPaidPCRoomTerm 调用）
     void SetTradePunishType(int type);              // 0x08689890 T（TimerSetPunishUser/TimerSetTradePunishUser 调用）
-    void recover_stamina();                         // 0x0865784e T（TimerStamina 调用）
+    int recover_stamina();                          // 0x0865784e T（TimerStamina 调用；b28 BM1 P159 代落：ORIG 体尾 movzbl 双段非 void，mangled 不变）
     void WorkPerFiveMin();                          // 0x08652f0c T（TimerScheduleFiveMinPerUser 调用）
     void WorkPerTenMin();                           // 0x08653196 T（TimerScheduleTenMinPerUser 调用）
     int delete_ontime_reward_list();                // 0x0868c3bc T

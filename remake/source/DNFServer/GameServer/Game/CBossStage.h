@@ -67,7 +67,8 @@ protected:
     CDungeon* m_dungeon;       // +0x9f0（consistMap/handleMoveMap/掉落域）
     MapInfo m_stageData;       // +0x9f4（0xec；ctor 显式构造+Clear）
     int m_stageCur;            // +0xae0（当前层，ctor=1）
-    int m_stageMax;            // +0xae4
+    unsigned int m_stageMax;       // +0xae4（P211 异型化：getRandomTowerMaxStage 返 int
+                               //  ⇒ RHS-first+edx 中转 = ORIG InitBossTower 形）
     int m_difficulty;          // +0xae8
     int m_expParamA;           // +0xaec（KillMonsterGetExp 的费率表索引参数）
 

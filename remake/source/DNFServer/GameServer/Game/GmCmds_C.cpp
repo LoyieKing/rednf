@@ -72,6 +72,10 @@ void CCraneNeedMaterial::execute()
 
 // ORIG execute 0x084a9720：取分解师职业槽挂到 GM 角色，随后在其脚下
 // 以固定名 "test"/容量 500 创建分解商店（坐标取 GM 角色当前位置低 16 位）。
+// 【b28 判词 N-P75】job 槽(-0xc)值供 SetCurCharacExpertJob 实参：ORIG 4.1 在
+// GetUser call 前物化入 %ebx（`mov -0xc(%ebp),%ebx` 前置），4.4 恒 call 后
+// 重读槽入 %edx（参数装载时刻跨版本调度，P75；P226 语句表达式形在纯槽装载
+// 场景不升格，探针 /tmp/bm3/p13 fSE），余 25 条逐条相等。
 void CCreateDisjointStoreCmd::execute()
 {
     expert_job::CExpertJob* job =

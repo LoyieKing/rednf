@@ -3767,7 +3767,10 @@ void Timer_ReturnUserTimeout::registNextTimer(int p1, int p2, unsigned int p3)
     // ORIG 0x0863ae10：getCurSec 结果驻 %eax（无 now 槽），call 后再装载 p3
     // `mov 0x10(%ebp),%edx; mov %edx,%ecx; sub %eax,%ecx; mov %ecx,%eax` 三步拷贝链，
     // delta 落具名槽
-    // N96/P0：绑定形已废，两段式具名局部（P197③ 双槽形）。
+    // P0：getCurSec 结果无槽往返 ⇒ 原码无具名局部，表达式直用（cur 槽消）。
+    // b28 实测（P75）：表达式直用形令 4.4 先载 p3 入 %ebx（push %ebx + sub 0x34，
+    // 帧布局差 15 行）反劣于两段式槽形（realdiff 2）；负形被前端折叠。维持槽形，
+    // 残差 2 行 = cur store/load 往返（ORIG 免槽直驻 %eax 跨用，4.1 调度产物）⇒ P75/N18a。
     unsigned int cur;
     cur = GlobalData::s_systemTime_.getCurSec();
     int delta;

@@ -2080,7 +2080,11 @@ struct stWarPoint
     stWarPoint() { clear(); }
     void clear()
     {
-        memset(this, 0, 0x10);   // ORIG: memset(this,0,0x10)
+        // [b28 BM2 P68] ORIG 0x0891a87a 形：this 先载 %eax 再写远参槽
+        // （`mov 0x8(%ebp),%eax; movl $0x10,0x8(%esp); movl $0,0x4(%esp);
+        // mov %eax,(%esp)`）；裸 memset(this,...) 4.4 恒右→左先压常量。
+        // (char*)this 形触发 P68 求值序=ORIG 形。
+        memset((char*)this, 0, 0x10);
     }
     // ORIG 布局：int m_pts[4] 从 +0 起（HandleWpPerMonster 0x86ba1ea 读
     // 0x4(pair*,%edx,4)=second+0+4i；ImportWarAreaCounter 写 4 int 占满 0x10）。

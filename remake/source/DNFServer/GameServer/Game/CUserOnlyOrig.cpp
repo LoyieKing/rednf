@@ -1440,16 +1440,22 @@ bool CUser::CheckDeleteCharacTime(int slot)
     // CommonTime 6 字节写入视图（+0 年+?/+1 月/+2 日/+3 时/+4 分，SetCurTime
     // 0x82a4224..0x82a427f 逐条 movb 实证）。ORIG 槽基 -0x20（8B）⇒ char[8] 缓冲；
     // 技巧31：前置 0x10 dead 缓冲复现 4.1 帧 0x34（outgoing 与 locals 间空洞）
-    unsigned int frameGapA;              // 技巧31 填 -0x18；b28：ok bool 占 -0x14
-    (void)frameGapA;                     //   空洞，删一个 gap 把 tt 推回 -0x20（P31）。
+    //   空洞，删一个 gap 把 tt 推回 -0x20（P31）。[b28 复验] P190 double pad
+    //   反把 tt 推至 -0x28（本件槽基差 4、帧已等 ⇒ 非对齐进位场景），回退；
+    //   -0x1c vs -0x20 残差记 N95/P31 帧基族。
+    unsigned int frameGapA;
+    (void)frameGapA;
     char tt[8];                           // 后声明=远槽 → 基址 -0x20（ORIG）
     reinterpret_cast<CommonTime*>(tt)->SetCurTime();       // ORIG 0x0864a837 lea -0x20; call
     // ORIG 0x0864a85a/0x0864a87e/0x0864a8a2：三段比较各调一次 operator[]，
     // 逐字节 `movzbl 0x39+k(%eax),%edx; movzbl -0x20+k(%ebp),%eax; cmp %al,%dl`；
     // 4.1 && 物化 bool 岛（+0x7e mov$1 / +0x85 mov$0 / test;je）⇒ 具名 bool
     // 技巧22：register bool asm("al") 免 -0x11 槽，物化后直 `test %al,%al; je`
-    // P0/N96 去绑定：具名 bool 两段式（P198①）；ORIG al 物化无槽，残差记 N96 代价。
-    bool ok = false;
+    // P0/N96 去绑定：ORIG 物化岛尾 `test %al,%al; je` 直测无槽往返 ⇒ 原码无具名
+    // bool（P0），删预清；4.4 槽回写 vs ORIG 顶寄存器直测残差记跨版本 N。
+    // [b28 复验] P225 while-break 形在本件反劣（ndiff 3→50：多出口 body 被
+    // 4.4 loop-exit 重排整块后移，P225 适用边界=单 fall body）——回退具名形。
+    bool ok;
     ok = (unsigned char)m_characList[slot].m_delReqTime[0] == (unsigned char)tt[0]
            && (unsigned char)m_characList[slot].m_delReqTime[1] == (unsigned char)tt[1]
            && (unsigned char)m_characList[slot].m_delReqTime[2] == (unsigned char)tt[2];
@@ -9756,11 +9762,13 @@ void CUser::initBingoData()
             GlobalData::s_event_manager->GetRepeatEvent(0x6a));
         if (event != 0)
         {
-            BingoData* data = static_cast<BingoData*>(getBingoData());
             // ORIG 0x08691323-0x08691337：getBingoSystem() 返回 shared_ptr<CBingo>*，
             // 再显式 call boost::shared_ptr<CBingo>::operator->()（0x080ce766）得 CBingo*，
-            // 作为 initUserData 的 this。getBingoData 结果 ORIG 缓存进 %ebx（callee-saved）。
-            event->getBingoSystem()->operator->()->initUserData(*data);
+            // 作为 initUserData 的 this。ORIG `mov %eax,%ebx` 将 getBingoData 结果升格
+            // callee-saved 跨两次 call 保活（P0：无槽往返 ⇒ 右值内联，非具名局部）——
+            // P226 裸语句表达式形重试 b22「N82」判词：值经 callee-saved 而非栈槽。
+            event->getBingoSystem()->operator->()->initUserData(
+                *({ static_cast<BingoData*>(getBingoData()); }));
             sendBingoData();
         }
     }

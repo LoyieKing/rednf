@@ -325,13 +325,20 @@ int AdvanceAltarShopParameter::getMaxStarResetGoldFee()
 // ============================================================================
 StageDifficulty::T StageDifficulty::getNextDifficulty(StageDifficulty::T diff)
 {
-    if (diff == DIFF_EASY)
+    // P208/P163：switch 复现 ORIG 4.1 决策树（值缓存 %eax + test/cmp 链）。
+    // 枚举底层为 unsigned 会吞 -1 case（「case 标号低于类型最小值」告警），
+    // switch(int) 保留（g2 探针全等 ORIG 树）。
+    switch (static_cast<int>(diff))
+    {
+    case DIFF_EASY:                     // 0 → 1
         return DIFF_MEDIUM;
-    if (diff == DIFF_MEDIUM)
+    case DIFF_MEDIUM:                   // 1 → 2
         return DIFF_HARD;
-    if (diff == (StageDifficulty::T)-1)
-        return DIFF_EASY;          // -1 → 0
-    return diff;
+    case -1:                             // -1 → 0
+        return DIFF_EASY;
+    default:
+        return diff;
+    }
 }
 
 // ============================================================================
@@ -341,7 +348,9 @@ StageDifficulty::T StageDifficulty::getNextDifficulty(StageDifficulty::T diff)
 bool isOnEvent()
 {
     // P183 禁指针缓存：ORIG 每步重物化，无具名局部（0x812cfac/cfbc 实证）。
-    return GlobalData::s_event_manager->GetRepeatEvent(0x77)->IsEventing((CUser*)0);
+    if (!GlobalData::s_event_manager->GetRepeatEvent(0x77)->IsEventing((CUser*)0))
+        return false;
+    return true;
 }
 // ============================================================================
 bool isOpenAdvanceAltar()

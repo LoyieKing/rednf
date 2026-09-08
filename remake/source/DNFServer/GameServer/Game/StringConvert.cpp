@@ -41,6 +41,10 @@ CharString convertToCharString(const wchar_t* src, unsigned int srcLength);
 // （UnicodeConvert.cpp 域）：TLS 环形缓冲当前槽指针（shl 12/14 槽步长实证）。
 // 缓冲与槽索引均 TU 局部（与 SyncScriptDeps.cpp 的 toMbcs 缓冲不共享；
 // ORIG 各 Unicode 转换 TU 本就各自维护 TLS 缓冲）。
+// [b28 BM2 判词·N·TLS 布局伪差] 三件 NEAR(2)：fresh .o fn_diff_tu 归一 0 差
+// （/tmp/tu_StringConvert.o 实证）；全二进制残差 = %gs 相对偏移立即数（ORIG
+// index 落 TLS 块 -0x22028 vs 本 TU 块内布局不同）+ lea 符号注记——TLS 块内
+// 布局跨工具链产物，源码不可控（P155 TLS %gs 访问同形豁免族）。语义逐条等价。
 // ---------------------------------------------------------------------------
 static __thread char gMbcsBuffer[10][0x1000];
 static __thread int gMbcsBufferIndex;

@@ -71,7 +71,9 @@ private:
     const char* m_account;       // +0x00
     const char* m_charac;        // +0x04
     unsigned int m_price;        // +0x08（purchase 第 2 参，调用方恒传 99999）
-    long long m_uid;             // +0x0c（拍卖物品唯一号）
+    unsigned long long m_uid;    // +0x0c（拍卖物品唯一号。b28BM13 P211：long long→
+                                 // unsigned long long 符号性异型化，翻 ORIG 0x0817454c
+                                 // m_uid store 的 RHS-first 装载序；宽度/偏移不变）
     unsigned int m_price2;       // +0x14（实付金额）
     BillTransaction m_trans;     // +0x18（0xc）
     int m_resultCode;            // +0x24（@out_code）
@@ -159,16 +161,11 @@ public:
     {
         Guard<Mutex> guard(&m_mutex);
         increaseRequest();
-        // [b27L8] ORIG（各实例 0x0817xxxx）为 bool ok 常量岛汇聚形：
+        // [b28BM13 N96 清绑] 原 register bool asm("ebx") 形违反 P0，去除绑定。
+        // ORIG（各实例 0x0817xxxx）为 bool ok 常量岛汇聚形：
         // call setQuery/execQuery; test;je → mov $1,%eax; jmp join; mov $0,%eax;
-        // join: test %al → getResult 直传 ebx / false。探针 l8_probe4 V5
-        // （register bool ok = a&&b; if(ok)）4.4 出同形且 ok 保持寄存器
-        // 直测（ORIG join: test %al,%al 无槽；asm("ebx") 4.4 直测 %al——
-        // asm("eax") 反生 mov %eax,%ebx 中转，探针 pb6/pb7）；
-        // 嵌套 if 形出直跳链无岛。
-        register bool ok asm("ebx") =
-            query.setQuery(m_mysql) && query.execQuery(m_mysql);
-        if (ok)
+        // join: test %al,%al（有分支消费者=getResult 调用）→ 清绑后按裸形复测。
+        if (query.setQuery(m_mysql) && query.execQuery(m_mysql))
             return query.getResult(m_mysql);
         return false;
     }
@@ -363,8 +360,8 @@ struct SIPGDataPointView
     char m_arg94[0x18];          // +0x94（strncpy n=0x15；ceraPoint p5；扩到 0x18 以衔接 +0xac）
     unsigned int m_point;        // +0xac（`mov %edx,0xac(%eax)` 4B）
     unsigned char m_command;     // +0xb0（`movb $0x41`/`$0x55`；case6 `movzbl 0xb0` 比 'A'）
-    unsigned char m_cmdA;        // +0xb1（`mov %dl,0xb1`；ceraPoint p6）
-    unsigned char m_cmdB;        // +0xb2（`mov %dl,0xb2`；ceraPoint p7）
+    char m_cmdA;                 // +0xb1（`mov %dl,0xb1`；ceraPoint p6；P211 同型化
+    char m_cmdB;                 // +0xb2（  char⇒LHS-first=ORIG store 装载序）
     char m_reasonB3[4];          // +0xb3（case6 失败 sprintf "%d" rc）
     char m_padB7[0xbc];          // +0xb7
     char m_resultCode[4];        // +0x173（case6 sprintf "%d" rc）
@@ -399,9 +396,11 @@ union SIPGDataCmdView
 
 struct SIPGData
 {
-    // ORIG DynamicPool<SIPGData>::CNode::C1（0x081019xx）以 rep stos 清零
-    // 整个 0x2dc 节点体；SIPGData 无字段级默认值，由该 memset 统一清零。
-    SIPGData() { memset(this, 0, sizeof(*this)); }
+    // b28 BM3：原用户 `SIPGData() { memset }` 已删——ORIG nm 无 SIPGDataC1Ev
+    // 符号（P215 展开形/POD），且用户 ctor 使 DynamicPool<SIPGData>::CNode
+    // 的 new[] 带上 cookie、与 ORIG `_Znaj` 直返形相悖（MoreAlloc 0x081019c2
+    // `imul $0x2e4; call _Znaj` 无 cookie 实证）。清零职责移交 CNode 特化
+    // ctor 的基类 value-init（探针 /tmp/bm3/p20 N1：rep stos 0xb7 与 ORIG 同形）。
 
     unsigned int m_recordLen;    // +0x00（_SetIPGData 08100ada `mov %edx,(%eax)` ← m_dataTableA[type]；Sim 用作 memcpy 长度）
     char m_envCode[0x14];        // +0x04（strncpy 自 CIPGHelper+0x24，n=0x14；语义=环境/站点码【推断】）
@@ -540,6 +539,22 @@ static_assert(sizeof(CIPGMgr::CIPGWorker) == 0x10, "CIPGWorker ABI drift");
 static_assert(sizeof(SIPGData) == 0x2dc, "SIPGData ABI drift");
 
 }}  // namespace WongWork::IPG
+
+// ---- DynamicPool<SIPGData>::CNode 整类特化（b28 BM3；须在 DynamicPool 所属
+// 全局作用域声明，且先于任何 DynamicPool<SIPGData> 成员实例化使用点）----
+// ORIG 实证：无 CNodeD1Ev/D2 符号（nm DynamicPool<SIPGData> 仅 CNode C1/C2）⇒
+// CNode 无用户析构（trivial）：MoreAlloc 的 new[] 无 cookie（`imul $0x2e4;
+// call _Znaj` 直返 @0x081019c2）、~DynamicPool 循环 delete[] 仅 `call _ZdaPv`
+// 无析构调用（@0x0810150e）。主模板带用户 ~CNode 会触发 cookie+dtor 链，故
+// 整类特化去掉 dtor 声明；清零职责在 ctor 的基类 value-init（rep stos 0xb7）。
+template <>
+struct DynamicPool<WongWork::IPG::SIPGData>::CNode : public WongWork::IPG::SIPGData
+{
+    int m_type;    // +0x2dc（池魔数 0x8f21）
+    char m_inUse;  // +0x2e0（占用计数）
+
+    CNode();       // 定义见 TaiwanCash.cpp（ORIG W 0x081021d6）
+};                // sizeof = 0x2e4（MoreAlloc 步长 imul $0x2e4 实证）
 
 // ORIG 0x08146669：计费返回码检查（0 = 成功）。
 bool CheckBillingErrorCode(int code);

@@ -1432,6 +1432,11 @@ stDeathTower_t* CDataManager::GetTowerScript(unsigned int dungeonIdx)
     if (it == m_deathTowerMap.end())
     {
         // ORIG：dungeonIdx 先物化到 %ebx 跨 C1+cl 两调用保活（P87 register 形）。
+        // b28 BM4 判词（N93/N82附 在册负例）：fresh 实残 7 行 = 块内条件构造
+        // trace 与函数头 iterator/end 临时槽深方向跨版本相反（4.1 构造序
+        // it=-0x20/end=-0x1c/trace=-0x18；4.4 trace=-0x20/it=-0x10/end=-0xc）。
+        // trace ctor 受 if 路守护不可头部化（P212 不适用）；声明序交换=构造序
+        // 变化反劣（N93 实证）。dungeonIdx→%ebx 直传段已同形。语义等价封顶。
         register unsigned int idx = dungeonIdx;
         cMyTrace trace("stDeathTower_t* CDataManager::GetTowerScript(unsigned int)", 0xd44, 5);
         trace("Dungeon idx not found : %u", idx);

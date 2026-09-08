@@ -8,7 +8,7 @@ class CPartyResultRecvFlag
 public:
     CPartyResultRecvFlag();
     bool IsValidIdx(int idx) const;
-    char IsRecv(int idx) const;
+    unsigned char IsRecv(int idx) const;  // P9/P11：ORIG 0x085bf406 尾 movzbl 直返无归一
     void SetRecvFlag(int idx);
     void Clear();
 

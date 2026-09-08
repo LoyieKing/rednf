@@ -156,7 +156,7 @@ void CharacAdvanceAltarManager::getCharacAdvanceAltarDbData(_CharacAdvanceAltarD
 // m_update=0 → 7 个 map clear（stages/buyItems1..3/slots1/slots2/rewards）。
 void AdvanceAltarData::reset()
 {
-    std::memset(this, 0, 0x21);
+    std::memset((char*)this, 0, 0x21);
     m_update = 0;
     m_stages.clear();
     m_buyItems1.clear();
@@ -326,8 +326,10 @@ void DBAndExchangeServerProc::getFromMemory(const CUser& user, _CharacAdvanceAlt
 {
     data.m_characNo = (unsigned int)user.getCurCharacNo();
     user.m_advanceAltar.getCharacAdvanceAltarDbData(data);
-    if (user.m_advanceAltar.isUpdated())
-        DB_Update::makeRequest((int)user.GetUID(), data);
+    if (user.m_advanceAltar.isUpdated() == 0)
+        goto L_done;
+    DB_Update::makeRequest((int)user.GetUID(), data);
+L_done:;
 }
 
 // ---- requestLoadFromDBAndES（advancealtar__DBAndExchangeServerProc 报告全文）----
@@ -1044,7 +1046,10 @@ bool convertZipToString(MySQL* mysql, int col, char* zipBuf, unsigned int zipCap
         return false;
     std::memset(strBuf, 0, strCap);
     unsigned int len = rawLen;
-    return uncompress_zip(strBuf, len, zipBuf, static_cast<unsigned int>(zlen));
+    // P168a①：bool callee 裸负形 = ORIG `call; xor$1,%eax; test%al; je` choose。
+    if (!uncompress_zip(strBuf, len, zipBuf, static_cast<unsigned int>(zlen)))
+        return false;
+    return true;
 }
 
 } // namespace advancealtar

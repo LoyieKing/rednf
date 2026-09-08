@@ -136,13 +136,16 @@ public:
         SITEMTYPE(bool usable, unsigned char f1, unsigned char f2,
                   unsigned short f4, std::string name)
         {
+            // b28 BM4: P211 同型化——m_field0 char→bool（1B/偏移不变），
+            // bool=bool 同型 ⇒ 4.4 store 翻 LHS 先 = ORIG 装载序
+            // （`mov 0x8(%ebp),%eax; movzbl -0xc,%edx`；char 字段恒 RHS 先）。
             m_field0 = usable;    // 成员默认构造 + 函数体内赋值（ORIG 形态）
             m_field1 = f1;
             m_field2 = f2;
             m_field4 = f4;
             m_str8 = name;
         }
-        char m_field0;        // +0x00
+        bool m_field0;        // +0x00  // b28 BM4 P211 同型化（1B 布局不变）
         unsigned char m_field1;  // +0x01
         unsigned char m_field2;  // +0x02
         unsigned short m_field4; // +0x04

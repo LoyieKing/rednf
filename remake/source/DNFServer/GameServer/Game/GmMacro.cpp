@@ -96,7 +96,11 @@ stMacroData* CMacro::GetCurCmd()                        // 0x084a87e2
     return &m_data[m_curIdx];
 }
 
-void CMacro::Recording(int type, int sub, char* data, int len)  // 0x084a8802
+// 0x084a8802。【b28 判词 N-EH】ORIG 35 = ours 正常路径逐条全等；额外 18 条为
+// 4.4 对 new[]/memcpy/push_back throwing call 恒发的 landing cleanup 块
+// （stMacroData ctor/dtor 已 throw() 仍发；push %esi/%ebx 随之），4.1 同形源码
+// 不布 guard-cleanup——「跨版本 new-expression landing-pad 抑制」负例在册。
+void CMacro::Recording(int type, int sub, char* data, int len)
 {
     stMacroData rec;
     rec.m_cmd = static_cast<unsigned char>(type);

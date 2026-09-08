@@ -105,6 +105,10 @@ void CFairPvPScore::_reset()
 }
 
 // ---- ORIG 0x84a57fe _saveData(CUser*) --------------------------------------
+// [b28 BM2 判词·N7] AE-ndiff=6（fresh .o 归一，全二进制口径 12）：唯一差 =
+// 虚槽调用（CUser 写流路径）ORIG 4.1 `mov (%eax),%edx; …; call *%edx` vs 4.4
+// 恒 `call *%eax` + 实参装载寄存器对调（N7 间接 call 目标族，b26 NL28 实证）。
+// 助记符/条数 87=87 全等；禁绑定形（P0/N96）。
 bool CFairPvPScore::_saveData(CUser* pUser)
 {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("FairPvPScore.cpp", 0x10a),

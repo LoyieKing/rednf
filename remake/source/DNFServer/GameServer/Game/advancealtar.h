@@ -561,7 +561,7 @@ public:
     void destroy();                              // ORIG T 0x081300ce：reset() + returnAdvanceAltar(this)
     int selectStage(CUser* user, int stageId, StageDifficulty::T diff);  // ORIG T 0x0812fa7a
     void sendStageInfo();                        // ORIG T 0x081300f6：0x209 舞台信息包
-    char leaveUser();                            // ORIG T 0x0812fc4e
+    bool leaveUser();                            // ORIG T 0x0812fc4e（尾恒 mov $0/1,%ebx→eax，bool 归一；P159）
     bool onTimerStageTick();                     // ORIG T 0x0812fb98（恒返回 1；caller 0x08295dde `xor $0x1,%eax; test %al,%al` P22 bool 物化，StrC13 会签）
     static void gotoStage(CUser* user);          // ORIG T 0x0812fdd4（静态语义，asm 无 this；Fix6 静态化）
     void onTimer(TIMER_MESSAGE msg, StageEndType::T endType);            // ORIG T 0x0812fbfa

@@ -151,6 +151,10 @@ void CAssaultPlace::_SendUserUdpIpPort()
 // ORIG T 0x82e8de2 _MakeUserUdpIpPort(PacketGuard*)
 void CAssaultPlace::_MakeUserUdpIpPort(PacketGuard* p)
 {
+    // b28 BM4 判词（N18a/N7）：fresh .o 实残 1 条 = ORIG +0x175 stamina 段
+    // `movsbl %al,%edx` 拓宽即落第二寄存器 + receiver 重载（4.4 恒 `%eax`
+    // 单段直落参数槽，冗余 regmove 不可造；P211 异型化探针 pbq 同形已证）。
+    // 其余 6 行 difflib 连锁移位由该 ±1 行产生。无源码解，语义等价封顶。
     p->put_header(0, 0xb);
     int countIdx = 0;
     int count = 0;
@@ -241,12 +245,10 @@ int CAssaultPlace::_GetConnectP2PPoint(int idx)
     int points = 0;                             // movl $0x0,-0x10(%ebp)
     for (int i = 0; i <= 7; ++i) {              // cmpl $0x7 … setle
         if (idx != i) {
-            // X2: ORIG `call _IsCannotConnectP2P; xor $1,%eax; test %al`（int 返回
-            // 不自救不行，绑 %eax 具名 uchar + ^=1 复现单段——技巧 22 精化）
-            register unsigned char ic asm("eax") =
-                (unsigned char)_IsCannotConnectP2P(idx, i);
-            ic ^= 1;
-            if (ic)
+            // N96 清绑（P168a③b）：ORIG `call _IsCannotConnectP2P; xor $1,%eax;
+            // test %al,%al; je` 为 4.1 bool 物化，4.4 -O0 对 int 返回 callee
+            // 恒产 cmp/setne/test（探针 /tmp/x1.cpp 全败）；按语义 `!=1` 写。
+            if ((unsigned char)_IsCannotConnectP2P(idx, i) != 1)
                 points++;
         }
     }
@@ -274,10 +276,9 @@ int CAssaultPlace::_ClearConnectP2PAbsolute(int idx)
 {
     for (int i = 0; i <= 7; ++i) {
         if (idx != i) {
-            // _IsCannotConnectP2P int 返回→窄化 %eax 具名 uchar 得 ORIG `test %al; je`
-            register unsigned char ic asm("eax") =
-                (unsigned char)_IsCannotConnectP2P(idx, i);
-            if (ic) {
+            // N96 清绑（P3 调用点收窄）：ORIG `call; test %al,%al; je`
+            // （int 返回按字节直测）。
+            if ((unsigned char)_IsCannotConnectP2P(idx, i)) {
                 if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
                     GlobalData::s_power_manager->GetPowerWarLog()->IncP2PBadCountSecede();
                 }
@@ -321,6 +322,9 @@ bool CAssaultPlace::_CheckPowerWarInPlayer(ENUM_POWER_SIDE_TYPE side,
                                            int& winCnt, int& loseCnt,
                                            int& aliveCnt)
 {
+    // b28 BM4 判词（jump-threading 跨版本负例族）：fresh .o 实残 1 条 = 块尾
+    // PacketGuard 段前 4.4 多发 `jmp <T>` 中继（ORIG 4.1 直落）。助记符序列
+    // 其余逐条对齐（含空块 `{}` 限定 u 作用域形），语义完成，byte 层封顶。
     for (int i = 0; i <= 7; ++i) {
         if (m_assaulters[i].Empty())
             continue;

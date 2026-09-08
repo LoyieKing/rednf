@@ -96,6 +96,9 @@ float CStomach::GetStomachValue(CREATURE_STATE state, bool growFlag)
 
 // ORIG _ZN13user_creature8CStomach14IncrementValueEf T 0x08336e66：
 // m_value += amount；超过 100.0f 钳回 100.0f（0x42c80000）；返回新值。
+// [b28-BM7 判词] 残余 = N85：ORIG 比较形 `fucompp; fnstsw %ax; sahf`（4.1）vs
+// 4.4 `fucomip %st(1),%st; fstp %st(0)`（x87 比较两向跨版本固有差，patterns N85）；
+// 常量地址 0x8c2f450 引用为 AE 归一项。语义（>100 钳位+返回）全等。
 float CStomach::IncrementValue(float amount)
 {
     m_value += amount;
@@ -141,10 +144,9 @@ CCreature::CCreature()
     Reset();
 }
 
-CCreature::~CCreature()
-{
-    m_vptr = 0x08c2f4c0;  // ORIG 0x83370a8：movl $0x8c2f4c0,(%eax)
-}
+// ~CCreature 定义迁至 CGameManager.cpp（CNode 特化之前）：P210 callee 定义顺序
+// 定律——DynamicPool<CCreature>::CNode::~CNode 需先可见 dtor 定义才能继承
+// ORIG 的 sub $0x4 小帧（仅声明时 4.4 保守撑至 0x18；探针 /tmp/bm3/）。
 
 // ORIG _ZN13user_creature9CCreature8GetStateEv W 0x833f064：返回 +0x3c。
 int CCreature::GetState()
@@ -158,6 +160,9 @@ bool CCreature::IsDieCreature()
 {
     // ORIG 0x833a660 sub $0x28：float 比较物化 spill 槽 -0xc(fstps/flds)+slack。
     // 4.4 栈顶保留不占槽 → 帧差 0x10；int[4] 16B 对齐恰好补齐（dead pad）。
+    // [b28-BM7 判词] 残余 = N85：ORIG `fstps/flds; fucompp; fnstsw %ax;
+    // test $0x45,%ah; sete %al` vs 4.4 `fucomip %st(1),%st; fstp %st(0); seta`
+    // （x87 比较两向+槽往返跨版本固有差）。语义（value<1 ⇒ die）全等。
     int frameGap[4];  // 对齐帧撑宽，勿动
     (void)frameGap;
     return m_stomach.GetStomachValue((CREATURE_STATE)m_state, m_isGrow) < 1.0f;
@@ -380,8 +385,8 @@ float CCreature::GetAddExp(int artifactSlot, CUser* user)
         {
             int minLevel = artifact->GetCreatureMinimumLevel();
             // ORIG 0x8337795：残差为 4.1 phi 物化（两路各 `mov -0x18,%eax` +
-            // jmp 值岛）；4.4 CFG merge 折成单一尾 load + jl。三元/自赋值形
-            // 均反产 fld/fsts 或 store，维持 if 形（4.1-PHI 天花板）。
+            // jmp 值岛）；4.4 CFG merge 折成单一尾 load + jl。三元/自赋值形/
+            // goto 岛形（b28-BM7 复测）均反产，维持 if 形（4.1-PHI 天花板 N）。
             if (minLevel == 0 || minLevel <= m_level)
                 result = artifact->GetExperienceAmount();
         }
@@ -684,7 +689,8 @@ CCreatureMgr& CCreatureMgr::operator=(const CCreatureMgr& src)
     m_user = src.m_user;
     // ORIG 0x869d644 三条 artifact store 共享 %eax/%edx（4.1 跨语句 CSE，value
     // 走 %ecx）；4.4 -O0 每条平铺 reload 且 value 覆盖 %edx，register 钉基址
-    // 反产 %ebx spill+push/pop。probe 均劣化 → 4.1-CSE 天花板（N）。
+    // 反产 %ebx spill+push/pop；P206 8B 视图形（b28-BM7 复测）反产
+    // `lea dest→%ecx 缓存+双 store` 异形。probe 均劣化 → 4.1-CSE 天花板（N）。
     m_artifacts[0] = src.m_artifacts[0];
     m_artifacts[1] = src.m_artifacts[1];
     m_artifacts[2] = src.m_artifacts[2];
@@ -697,6 +703,11 @@ CCreatureMgr& CCreatureMgr::operator=(const CCreatureMgr& src)
 // ORIG Reset @ 0x833a45a。
 void CCreatureMgr::Reset()
 {
+    // [b28-BM7 判词] 残余 = N82/N89 复合：①ORIG 帧 0x48（迭代器槽 -0x1c/
+    // -0x18 深排），4.4 紧凑 0x38 浅排（double framePad×2 实测反产 0x58/
+    // -0x2c 更漂，P190 附注边界）；②begin/end/++/clear 调用 4.1 发射
+    // out-of-line 模板实例（N89），4.4 内联。cMyTrace arg 已按 P118 改
+    // __PRETTY_FUNCTION__（0x833a514 _ZZ 符号实证）。
     m_equippedCreature = 0;            // +0x18
     m_user = 0;                        // +0x1c
     m_tempExpireDelta = -1;            // +0x2c = -1
@@ -712,8 +723,10 @@ void CCreatureMgr::Reset()
             {
                 if (!GetInstanceCreatureItemFactory()->FreeCreatureItem(creatureItem))
                 {
+                    // P118/P139：ORIG 0x833a514 arg2 = `_ZZN13user_creature12
+                    // CCreatureMgr5ResetEvE19__PRETTY_FUNCTION__` 局部静态。
                     LogManager::logFormat(1, "Creature.cpp",
-                                          "void user_creature::CCreatureMgr::Reset()",
+                                          __PRETTY_FUNCTION__,
                                           0xb50, "FreeCreatureItem() error");
                 }
             }
@@ -1165,8 +1178,8 @@ CDBMsgSender::~CDBMsgSender()
         switch (m_stream->m_poolType)
         {
             case 1: GlobalData::s_small_stream_pool->Free(m_stream); break;
-            case 2: GlobalData::s_big_stream_pool->Free(m_stream); break;
             case 0: GlobalData::s_stream_pool->Free(m_stream); break;
+            case 2: GlobalData::s_big_stream_pool->Free(m_stream); break;
             default: break;
         }
         m_stream = 0;
@@ -1956,6 +1969,8 @@ bool CDBMsgSender::HatchCreature(int uid, int flag, int itemIdx)
     buf->m_addInfo2 = uid;                            // +0x30
     buf->m_flag50 = (unsigned char)flag;              // +0x50
     // ORIG 0x833fd0f：无 compat 槽，`mov %edx,0x8(%eax)` buf 基址直存（具名视图折叠）。
+    // [b28-BM7 N76 封顶] RHS-first 3 条形（值槽装载先于 this 槽）四形实测均
+    // LHS-first：int/unsigned 字段×直赋/语句表达式（/tmp/bm7/p2-p4.o）。
     reinterpret_cast<SigCreatureItemIdxView*>(buf)->m_itemIdx = itemIdx;  // buf+0x08
     CItem* item = G_CDataManager()->find_item(itemIdx);
     buf->m_days = item->getUsablePeriod();            // +0x54

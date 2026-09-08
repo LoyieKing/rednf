@@ -42,11 +42,9 @@
 namespace
 {
 
-// bf 子对象视图（与 CPartyLink2.cpp 同惯例）。
-inline CBattle_Field& kcbf(CParty* p)
-{
-    return p->m_battleField;
-}
+// P49：寻址助手用宏（inline 函数 -O0 产真 call；ORIG 0x0859ba98 域
+// `mov this; add $0xb24,%eax; mov esp; call` 直取址形）。
+#define kcbf(p) ((p)->m_battleField)
 
 }  // namespace
 
@@ -203,16 +201,17 @@ void CParty::increase_result_card_gold(WongWork::stGenerateResult_t& result)
     {
         if (!checkValidUser(i))
             continue;
-        if (it == result.m_dropItems.end())
-            continue;
-
-        QuickParty::RewardData_Param param(this);
-        param.m_param4 = kcbf(this).get_dungeon_index();
-        QuickParty::RewardData_Result res;
-        res.m_value00 = it->m_addInfo2;   // item+0x07 金卡金额
-        set_basic_reward(QuickParty::BASIC_REWARD_CARD_GOLD, param, res);
-        it->m_addInfo2 = res.m_value00;
-        ++it;
+        // P220 正极性包裹：ORIG `call ==; test; je`（==真跳主流程后）
+        if (it != result.m_dropItems.end())
+        {
+            QuickParty::RewardData_Param param(this);
+            param.m_param4 = kcbf(this).get_dungeon_index();
+            QuickParty::RewardData_Result res;
+            res.m_value00 = it->m_addInfo2;   // item+0x07 金卡金额
+            set_basic_reward(QuickParty::BASIC_REWARD_CARD_GOLD, param, res);
+            it->m_addInfo2 = res.m_value00;
+            ++it;
+        }
     }
 }
 

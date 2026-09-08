@@ -374,16 +374,15 @@ void COnlinePreliminary::_RegisterWaitingRoom(PvP_Room* /*room*/)
     // [b28 判词 N96+P168a④] X2 寄存器 xor/钉值物化形需 register 绑定；绑定 P0 全域禁用后无源形，N 封顶。
 int COnlinePreliminary::_CheckSameTeam(PvP_Room* /*room*/, CUser* user)
 {
-    /* ORIG @085606f2 cmp $-1; sete %al; test; je（bool 物化 @085606f5）【技巧22】；
-     * @08560703 第二次 call 后 mov %eax,%ebx(@0856070e) */
-    bool isNone = (user->GetCurCharacOnlinePreliminaryTeamId() == -1);  // b28 P0 清绑定
-    if (isNone)
+    /* ORIG @085606f2 cmp $-1,%eax; sete %al; test %al,%al; je —— 裸 if 直判即产
+     * sete+test（无独立 bool 槽，帧 sub $0x14 与 ORIG 全等）；具名 bool 反 spill 到
+     * -0xa/-0x9（本件 b28 前判 N96 系误判，P168a① 裸形复测翻正）。 */
+    if (user->GetCurCharacOnlinePreliminaryTeamId() == -1)
         return 0;
     /* ORIG @0856070e 第二次 call 结果直落 %ebx、@0856071b 第三 call→%eax、
      * @0856071d cmp %eax,%ebx：与 _CheckObserver 尾同族——lhs call 跨 rhs
      * call 自动落 callee-saved；具名绑定/中转折算反产 mov 链 */
-    bool diff = (user->GetCurCharacOnlinePreliminaryTeamId() != GetTeamId());  // b28 P0
-    if (diff)
+    if (user->GetCurCharacOnlinePreliminaryTeamId() != GetTeamId())
         return 0;
     return 1;
 }
@@ -404,8 +403,7 @@ int COnlinePreliminary::_CheckObserver(PvP_Room* room, CUser* /*user*/)
     /* ORIG @08560797 cmp %eax,%ebx; setge %al; test; je → mov $1 岛(@+0x71)、
      * ge 真走 fall mov $0(@+0x6a)：register bool 物化+正向 if（同
      * _CheckMatchable 尾法） */
-    bool ge = (m_teams[0].size() - observers >= (int)(unsigned char)GetPlayCountPerOneTeam());  // b28 P0
-    if (ge)
+    if (m_teams[0].size() - observers >= (int)(unsigned char)GetPlayCountPerOneTeam())
         return 0;
     return 1;
 }
@@ -511,12 +509,11 @@ int COnlinePreliminary::CheckJoinable(PvP_Room* room, CUser* user)
  * (@085608c5)，else 体 mov $1 (@085608cc) → !=2 判定块在前【技巧17】 */
 int COnlinePreliminary::CheckSeat(int a)
 {
-    /* ORIG 用 jne 反向跳(@085608c3)，if/else 被 4.4 恒翻 je → goto 钉块序
-     * 【技巧23】 */
-    if (a != 2)
-        goto RET1;
-    return 0;
-RET1:
+    /* ORIG @085608c3 cmpl $2 / jne +0x10(mov $1)、fall-through mov $0、jmp +0x15(leave)
+     * ——守卫早返 `if(a==2)return 0;`+尾 `return 1;` 精确复现（三目被折叠成 setne，goto 形
+     * 多一 nop 中继；P133 独立守卫形）。 */
+    if (a == 2)
+        return 0;
     return 1;
 }
 
@@ -685,20 +682,19 @@ void COnlinePreliminary::_IncreaseLoseCount(ENUM_SCHOOL_MATCH_TEAM team)
 // ---------------------------------------------------------------------------
 
 /* ORIG T 0x08560212 */
-    // [b28 判词 N96+P168a④] X2 寄存器 xor/钉值物化形需 register 绑定；绑定 P0 全域禁用后无源形，N 封顶。
+    // [b28b 判词 N82附] 帧/callee-saved 已翻正（P52 内联，gap=0）；残 8 = gcn/gsg 跨
+    // expand call 的 %ebx↔%esi 汇聚对调（多实参首值 callee-saved 寄存器对调），源形不可控。
 unsigned int COnlinePreliminary::_GetEachOtherPlayCount(CUser* a, CUser* b)
 {
     if ((char)GetPlayCountPerOneTeam() == 1)
     {
         // 在 a 的“对过谁”表（charac_expand(5)）中记/查 b 的 (serverGroup,characNo)
-        /* ORIG @0856022e getCurCharacNo(b)→%ebx(@+0x21)、@0856023b
-         * GetServerGroup→%eax 后 @08560240 mov %eax,%esi（跨 call 保全，
-         * eax 钉值技巧）；expand(5) 最后(@+0x3e) */
-        unsigned int no = b->getCurCharacNo();          // b28 P0 清绑定
-        ENUM_SERVER_GROUP grp = b->GetServerGroup();
+        /* ORIG @0856022e gcn(b)→%ebx、@0856023b gsg(b)→%esi 跨 expand call 保全
+         * （push esi;push ebx;sub $0x10）——P52 单语句全内联实参形复现（具名 no/grp
+         * 反落栈槽退化 sub $0x24，本件 b28 N96 系误判，P0 内联复测翻正）。 */
         return reinterpret_cast<COnlinePreliminaryMemberMatchList*>(
                    a->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)5))
-                   ->GetPeerPlayCount(grp, no);
+                   ->GetPeerPlayCount(b->GetServerGroup(), b->getCurCharacNo());
     }
     /* ORIG @08560272 test;setne %al;test;je→mov $0 岛(@+0x8f)：!=0 正向 */
     if (a->GetCurCharacOnlinePreliminaryTeam() != 0)
@@ -737,19 +733,16 @@ RET0:
 }
 
 /* ORIG T 0x085602ae */
-    // [b28 判词 N96+P168a④] X2 寄存器 xor/钉值物化形需 register 绑定；绑定 P0 全域禁用后无源形，N 封顶。
+    // [b28b 判词 N82附] 帧/callee-saved 已翻正（P52 内联，gap=0）；残 8 = %ebx↔%esi 汇聚对调（N82附）。
 void COnlinePreliminary::_IncreaseEachOtherPlayCount(CUser* a, CUser* b)
 {
     if ((char)GetPlayCountPerOneTeam() == 1)
     {
-        /* ORIG 求值序：@085602ca getCurCharacNo(b)→%ebx(@+0x21)、@085602d7
-         * GetServerGroup(b)→%esi(@+0x2e)，再 @085602ec expand(5)，尾
-         * mov %ebx,0x8;mov %esi,0x4(@085602f1/0x2f5)【技巧28 钉寄存器】 */
-        unsigned int no = b->getCurCharacNo();          // b28 P0 清绑定
-        ENUM_SERVER_GROUP grp = b->GetServerGroup();
+        /* ORIG @085602ca gcn(b)→%ebx、@085602d7 gsg(b)→%esi 跨 expand call 保全
+         * ——P52 单语句全内联实参形复现（具名 no/grp 反退化帧，b28 N96 系误判）。 */
         reinterpret_cast<COnlinePreliminaryMemberMatchList*>(
             a->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)5))
-            ->IncreasePeerPlayCount(grp, no);
+            ->IncreasePeerPlayCount(b->GetServerGroup(), b->getCurCharacNo());
     }
     else if (a->GetCurCharacOnlinePreliminaryTeam() != 0)
     {
@@ -924,8 +917,9 @@ int COnlinePreliminary::OnRegisterMatch(CUser* user, PvP_Room* room)
      * @+0x6b cmpl;setne %al;test 物化【技巧22】 */
     int err = 0;
     err = _CheckMatchable(room);
-    bool nz = (err != 0);  // b28 P0
-    if (nz)
+    /* ORIG @08561443 cmpl $0,-0xc; setne %al; test; je（bool 四段物化，无独立 bool 槽）
+     * ——P225 while+break 形精确复现（具名 bool 会另开 -0x9 槽破坏帧）。 */
+    while (err != 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xc7, (unsigned char)err);
         return 0;
@@ -1219,11 +1213,11 @@ CUser* COnlinePreliminary::GetUser(unsigned int idx)
 {
     if (idx >= 4)
         return 0;
-    /* ORIG @085620e6 xor $1,%eax / test / je body(@+0x2c)：eax 钉值原地 xor
-     * （技巧16） */
-    unsigned char fv = m_teams[0].m_seats[idx].m_flag;  // b28 P0：X2 裸形
-    fv ^= 1;
-    if (fv)
+    /* ORIG @08560e6：无独立 bool 槽（无 sub 帧），field==1 判据。4.4 对
+     * `if(m_flag==1)` 产 `cmp $1,%al; jne`，ORIG 为 `xor $1,%eax; test %al,%al; je`——
+     * [b28b 判词 N96+P168a④] xor $1 物化（非 cmp）需 register 绑定，P0 禁用后
+     * 4 形裸测（==1 / !=1 / ^1!=0 / (uchar)v^=1）恒折 cmp；帧/槽已对齐（无 sub），仅余 3 条。 */
+    if ((m_teams[0].m_seats[idx].m_flag ^ 1) != 0)
         return 0;
     return m_teams[0].m_seats[idx].m_user;
 }

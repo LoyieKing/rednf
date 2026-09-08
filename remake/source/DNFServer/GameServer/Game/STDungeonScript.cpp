@@ -3694,23 +3694,23 @@ bool advancealtar::StageType::getStageType(const std::string& name, T& out)
 bool advancealtar::StageDifficulty::getDifficulty(const std::string& name,
                                                    T& out)
 {
+    // P63 反向：ORIG 各成功分支独立 `mov$1;jmp` 尾岛，return false 独占尾块。
     if (name == "easy")
     {
         out = DIFF_EASY;
+        return true;
     }
-    else if (name == "medium")
+    if (name == "medium")
     {
         out = DIFF_MEDIUM;
+        return true;
     }
-    else if (name == "hard")
+    if (name == "hard")
     {
         out = DIFF_HARD;
+        return true;
     }
-    else
-    {
-        return false;
-    }
-    return true;
+    return false;
 }
 
 bool advancealtar::RewardItemType::getRewardItemType(const std::string& name,

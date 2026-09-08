@@ -202,17 +202,18 @@ bool Manager::finishLoad(CUser* user)  // ORIG T 0x08130eb2（返回值域仅 0/
 // ----------------------------------------------------------------------------
 void Manager::giveUpGame(CUser* user)
 {
-    if (user != 0)
+    if (user == 0)
+        goto L_out;
+    StageControl* control;
+    control = user->getAdvanceAltar();
+    if (control != 0)
     {
-        StageControl* control = user->getAdvanceAltar();
-        if (control != 0)
-        {
-            control->getProcStage()->setState(ProcStage::State::S_N6);
-            Timer_StageControl::RegistTimerEPLP(control->getIndex(),
-                                                StageEndType::END_N2);
-            HistoryLog::dungeonClearInfo(*user, *control, false);
-        }
+        control->getProcStage()->setState(ProcStage::State::S_N6);
+        Timer_StageControl::RegistTimerEPLP(control->getIndex(),
+                                            StageEndType::END_N2);
+        HistoryLog::dungeonClearInfo(*user, *control, false);
     }
+L_out:;
 }
 
 
@@ -704,13 +705,13 @@ int CharacAdvanceAltarManager::resetSlot(advancealtar::AdvanceAltarData& cur,
     {
         return 2;
     }
-    if (it->second.m_byte0 == 1)   // 残差 xor/test vs cmp/sete 属 setcc-fold 负例（探针 (x^1)==0 仍折）
+    if (it->second.m_byte0 != 1)   // P222 反向包裹：ORIG body-fall、mov$2 尾块
     {
-        return 2;                          // 锁定槽
+        it->second.m_int6 = 0;
+        cur.m_update = 1;
+        return 0;
     }
-    it->second.m_int6 = 0;
-    cur.m_update = 1;
-    return 0;
+    return 2;                          // 锁定槽
 }
 
 // ---- ORIG T 0x08132234（setUnlockItemToEmptySlot.md 全文）----

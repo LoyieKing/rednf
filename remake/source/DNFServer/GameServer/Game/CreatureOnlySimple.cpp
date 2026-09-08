@@ -226,18 +226,20 @@ int CCreatureItem::GetItemId()
 //   ==0/default → StreamPool::Free      (GlobalData::s_stream_pool@0x940bd6c)
 void CDBMsgSender::Cancel()
 {
-    if (m_stream == 0)
-        return;
-    // P163 实测否决：补 `case 0:` 使 4.4 走二分树（js/jle），ORIG 为线性
-    // cmp$1;cmp$2;test;je——维持裸 case1/2/default，残 1 条 dead `test %eax`
-    // 系 4.1 树尾 0 判 leaf（N3 族豁免）。
-    switch (m_stream->m_poolType)
+    // D1 同形（正向 if 块消 early-return 尾 jmp+nop 中继岛；ORIG 0x833f9a1
+    // je 直达 +0x76 leave）。switch 源序 1/0/2 = ORIG 块物理布局
+    // +0x27/+0x3f/+0x57（P46 叶块书写序判据）。
+    if (m_stream != 0)
     {
-        case 1: GlobalData::s_small_stream_pool->Free(m_stream); break;
-        case 2: GlobalData::s_big_stream_pool->Free(m_stream); break;
-        default: GlobalData::s_stream_pool->Free(m_stream); break;
+        switch (m_stream->m_poolType)
+        {
+            case 1: GlobalData::s_small_stream_pool->Free(m_stream); break;
+            case 0: GlobalData::s_stream_pool->Free(m_stream); break;
+            case 2: GlobalData::s_big_stream_pool->Free(m_stream); break;
+            default: break;
+        }
+        m_stream = 0;
     }
-    m_stream = 0;
 }
 
 // ============================================================================

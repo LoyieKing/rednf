@@ -638,7 +638,7 @@ void CDeathTower::_checkMemberReady()
         _genTimerKey((TIMER_MESSAGE)0x49), 0x49);
 }
 
-int CDeathTower::onLeaveUser(CUser* user)
+bool CDeathTower::onLeaveUser(CUser* user)
 {
     user->setDeathTowerIndex((short)-1);
     CInventory* inven = (CInventory*)user->getCurCharacInvenW();
@@ -1269,13 +1269,13 @@ void CDeathTower::_onStartStage()
 
 // ---- CStage ----
 // ORIG W 0x82a74ca：MapInfo ctor（编译器生成）后 resetCurrentStage()。
-CDeathTower::CStage::CStage()
+CDeathTower::CStage::CStage() throw()
 {
     resetCurrentStage();
 }
 
 // ORIG W 0x82a74ec：仅 MapInfo dtor（编译器生成）。
-CDeathTower::CStage::~CStage()
+CDeathTower::CStage::~CStage() throw()
 {
 }
 
@@ -2024,8 +2024,9 @@ int CDeathTower::handleLeaveUser(CUser* user)
         if (m_party->checkValidUser(i))
         {
             // ORIG 0x8465b06：cmp 0xc(%ebp),%eax; sete %al; test al; je skip（范式22）。
-            register bool hit asm("al") = (m_party->get_user(i) == user);
-            if (hit)
+            // N96 清绑：具名 bool 槽化反劣（帧 0x20→0x30）⇒ call 结果直比
+            // （P197④：结果寄存器直比出 sete 形）。
+            if (m_party->get_user(i) == user)
             {
             m_party->leave_user(user, (ENUM_PARTY_INFO_TYPE)2);
             m_playData.setMemberAlive(i, false);
@@ -2045,9 +2046,9 @@ int CDeathTower::handleLeaveUser(CUser* user)
 
     onLeaveUser(user);
 
-    register bool allDead asm("eax");
-    allDead = (m_party->get_member_count() > 0) && _checkMemberDie();
-    if (allDead)
+    // N96 清绑：ORIG 0x8465c39/0x8465c40 mov$1/$0 岛物化于 %eax 无槽（P0 无具名
+    // 局部）⇒ 短路条件内联直测。
+    if (m_party->get_member_count() > 0 && _checkMemberDie())
     {
         _onFinishStage();
         _onPrepareFinishTower();

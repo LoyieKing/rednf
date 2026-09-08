@@ -137,12 +137,13 @@ void CUser::deleteGuildExpBook()
 
     deleteSpecificItem(requestItems, deletedItems);
 
-    // X1 形（XOR_FAMILY.tsv，probe /tmp/xg2.cpp 形 B）：ORIG T 0x0867e898 对
-    // `send_itemspace()`(返 int) 的结果走 `xor $0x1,%eax; test %al,%al`，
-    // 而 `!= 1` 在 4.4 产 `cmp $0x1,%al; setne %al; test` 三段。
-    register unsigned char inv asm("eax") = (unsigned char)send_itemspace((int)ENUM_ITEMSPACE_0);
-    inv ^= 1;
-    if (inv)
+    // P0/N96 清绑（历史 register asm("eax") 绑定全域禁用）：ORIG T 0x0867e898
+    // 对 `send_itemspace()`(返 int) 结果走 `xor $0x1,%eax; test %al,%al` 寄存器
+    // 形；4.4 任何合法表达式（^1/!=1/uchar cast 五探针 p11/p12）恒折叠
+    // `cmp $0x1,%eax; setne %al; test` 三段，单段 xor 顶寄存器形不可造
+    // （P168a④ 绑定赋值中转并入 N18a 反向判词）。清绑致 NEAR4→DIFF 回退，
+    // 按 N96+P168a④ 落判词封顶。
+    if (send_itemspace((int)ENUM_ITEMSPACE_0) ^ 1)
     {
         LogManager::logFormat(
             1, "user.cpp", __PRETTY_FUNCTION__, 0x7c57,
@@ -150,9 +151,7 @@ void CUser::deleteGuildExpBook()
             NumberToString(get_acc_id(), 0));
         return;
     }
-    register unsigned char car asm("eax") = (unsigned char)send_itemspace(2);  // ENUM_ITEMSPACE_CARGO
-    car ^= 1;
-    if (car)
+    if (send_itemspace(2) ^ 1)  // ENUM_ITEMSPACE_CARGO（同形判词）
     {
         LogManager::logFormat(
             1, "user.cpp", __PRETTY_FUNCTION__, 0x7c5c,
@@ -161,19 +160,6 @@ void CUser::deleteGuildExpBook()
         return;
     }
     send_RedeemInfo();
-}
-
-// ---------------------------------------------------------------------------
-// CDataManager::getDungeonIndexList()
-// ORIG T 0x08365434 sz 0x15（_ZN12CDataManager19getDungeonIndexListEv 非 const），
-// 报告 docs/class_func_reports/CDataManager/getDungeonIndexList.md。
-// this+0x00 = CDungeonList* m_dungeonList，透传其 getDungeonIndexList() 返回值
-// （CDungeonList::getDungeonIndexList 返回 this）。原 CDataManager.cpp 的 const
-// 发明重载已删除，本 TU 为唯一 owner。
-// ---------------------------------------------------------------------------
-CDungeonList* CDataManager::getDungeonIndexList()
-{
-    return m_dungeonList->getDungeonIndexList();
 }
 
 // ---------------------------------------------------------------------------

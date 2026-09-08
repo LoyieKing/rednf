@@ -74,7 +74,7 @@ void StageControl::setIndex(int idx)
 //   basic_info(0,2) → send_itemspace(0) → getCurCharacInvenR().
 //   SendItemLockListInven() → setAdvanceAltarIndex(-1)（CUser+0x8d012）→
 //   destroy(this) → 1。
-char StageControl::leaveUser()
+bool StageControl::leaveUser()
 {
     CUser* user =
         reinterpret_cast<CharacData*>(m_characData)->getUser();
@@ -255,9 +255,19 @@ void StageControl::sendEplp(StageEndType::T endType)
 void StageControl::onEplp(StageEndType::T endType)
 {
     // ORIG 0x813064a：bool 岛 -0x9（预清 movb $0x0、条件链物化 movb $0/$1、无读者——
-    // 4.1 保留死 store；volatile 强制 4.4 保留写与槽）。
+    // 4.1 保留死 store；volatile 强制 4.4 保留写与槽）。分支内独立 movb 直存复现
+    // ORIG 两 arm `movb $0/$1,-0x9`（三目形被物化折成 mov%al）。
     volatile bool flag = false;
-    flag = (!(endType < 0) && endType > 2 && endType == 3);
+    if (endType >= 0)
+    {
+        if (endType > 2)
+        {
+            if (endType == 3)
+                flag = true;
+        }
+        else
+            flag = false;
+    }
     sendEplp(endType);
     Timer_StageControl::RegistTimerEPLPReturnVillage(getIndex());
 }

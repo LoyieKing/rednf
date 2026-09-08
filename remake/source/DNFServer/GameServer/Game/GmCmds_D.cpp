@@ -240,6 +240,10 @@ void CItemInfoCmd::execute()
 // ORIG ctor：仅基类 vptr(0x8c819a8)。
 
 // ORIG execute 0x084ab16e。
+// 【b28 判词 N-P75】末段 set_money(invenW, oldMoney)：ORIG 4.1 在 call
+// getCurCharacInvenW 前将 -0xc 槽值物化入 %ebx 跨调用（`mov -0xc(%ebp),%ebx`
+// 前置），4.4 恒 call 后装载 %edx（参数物化时刻受版本调度，P75；语句表达式
+// 形探针 /tmp/bm3/p13 fSE 亦不可翻），余逐条相等。
 void CInvalidGold::execute()
 {
     CUser* user = GetUser();
@@ -663,6 +667,9 @@ void CHeroMissionCommand::parse()
 
 // ORIG execute 0x084b3e5e："set"→processMission，"reset"→setEventData("")，
 // 最后统一 sendMissionData 回发任务数据。
+// 【b28 判词 N18a】残差 2 处 = m_field10/m_field12 读取后 ORIG 两段
+// `mov 0x10(%eax),%eax; mov %eax,%esi`（4.1 冗余 regmove，4.4 恒折单段直落，
+// N18a 在册不可造），余含 P48 三独立 Get() 均逐条相等。
 void CHeroMissionCommand::execute()
 {
     CUser* user = GetUser();

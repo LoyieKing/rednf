@@ -100,6 +100,27 @@ namespace MercenaryHardCodingSettingValue
 }
 
 // ----------------------------------------------------------------------------
+// 2. ORIG T 0x08692e9c sz 0x55。
+// cashedCharacJob==-1 → 1（首次加载放行）；否则两次调 GetCharacHotKeyType 比较，
+// 相同→0、不同→1（类型变化才允许重新加载热键）。
+// [P210] 本函数定义前置到 callee GetCharacHotKeyType 定义之前：4.4 对 TU 内
+// 已见定义的 callee 精确继承 outgoing（帧塌缩 0x14→0x8），前置后恢复 ORIG
+// 保守帧 sub $0x14（b28 P210 派生附注同法）。
+// ----------------------------------------------------------------------------
+bool CUser::CheckLoadHotKeyCashedCharacType(int cashedCharacJob, int characJob)
+{
+    if (cashedCharacJob == -1)
+        return true;
+
+    // P0/N96 去绑定 + P226 裸语句表达式升格：`({ callee(); })` 单表达式形令 4.4
+    // 将首结果升格 %ebx 跨次 call 保活并出 `mov %eax,%ebx; cmp %eax,%ebx;
+    // sete %al; test; je` 物化形（probe p7.t7 实证 push ebx+sub 0x14 帧同 ORIG）。
+    if (({ GetCharacHotKeyType(cashedCharacJob); }) == GetCharacHotKeyType(characJob))
+        return false;
+    return true;
+}
+
+// ----------------------------------------------------------------------------
 // 1. ORIG T 0x08692ef2 sz 0x17。
 // cmpl $0xa,param; jne→0；相等→1。返回值 eax 全宽（头文件声明 int，调用点
 // LoadCharacTypeHotKey 以 mov %eax 全宽取值后截 byte；语义 characJob==10）。
@@ -109,24 +130,6 @@ int CUser::GetCharacHotKeyType(int characJob)
     if (characJob == 10)
         return 1;
     return 0;
-}
-
-// ----------------------------------------------------------------------------
-// 2. ORIG T 0x08692e9c sz 0x55。
-// cashedCharacJob==-1 → 1（首次加载放行）；否则两次调 GetCharacHotKeyType 比较，
-// 相同→0、不同→1（类型变化才允许重新加载热键）。
-// ----------------------------------------------------------------------------
-bool CUser::CheckLoadHotKeyCashedCharacType(int cashedCharacJob, int characJob)
-{
-    if (cashedCharacJob == -1)
-        return true;
-
-    // P197②+register asm("ebx")：首 call 结果直落 callee-saved %ebx，
-    // 次结果寄存器直比 → ORIG `mov %eax,%ebx; cmp %eax,%ebx; sete %al; test %al,%al; je` 形
-    // （探针 /tmp/probe_l8g3.o g1 实证 30 条逐条全中）。
-    if (({ register int cachedType asm("ebx") = GetCharacHotKeyType(cashedCharacJob); cachedType; }) == GetCharacHotKeyType(characJob))
-        return false;
-    return true;
 }
 
 // ----------------------------------------------------------------------------
@@ -159,7 +162,6 @@ int CUser::CalcMercenaryAvatarBonus() const
             equip = dynamic_cast<CEquipItem*>(item);
         if (equip == 0)
             return 0;
-        if (equip->IsAvatarItem())
         if (equip->IsAvatarItem())
         {
             if (equip->get_grade() < best)

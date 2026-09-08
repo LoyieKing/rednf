@@ -64,8 +64,8 @@ namespace WongWork
 //   写 packed m_color1(+0x3f)/m_color2(+0x41)。
 void Avatar_Item::setColor(short color1, short color2)
 {
-    m_color1 = (unsigned short)color1;
-    m_color2 = (unsigned short)color2;
+    m_color1 = color1;
+    m_color2 = color2;
 }
 
 // _ZN8WongWork11Avatar_Item18updateEmblemSocketEjj W 0x082fa2a6：

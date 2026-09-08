@@ -241,7 +241,10 @@ public:
     CMTRand(const unsigned long& s);   // ORIG _ZN7CMTRandC1ERKm（CMTRand.cpp 定义）
     void seed(unsigned long s);
     int randInt();
-    int randInt(const unsigned long& range);
+    // ORIG 真实返回 unsigned long（调用集 setb 无符号比较实证，如
+    // Dispatcher_MonstercardBind::calcurate_rarity @0x081d842e `movzwl slot,%edx;
+    // cmp %edx,%eax; setb`；mangled ERKm 不含返回类型，链接零影响）。
+    unsigned long randInt(const unsigned long& range);
 private:
     char m_pad[0x9c8];
 };

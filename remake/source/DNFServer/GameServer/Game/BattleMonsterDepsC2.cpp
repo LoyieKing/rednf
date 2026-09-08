@@ -142,8 +142,10 @@ void CBattle_Field::setDungeonClearTrace(int mapId, int maxBoss, int killedBoss,
     m_dungeonClearTracer.SetMaxBossCount(maxBoss);
     m_dungeonClearTracer.SetKilledBossCount(killedBoss);
     m_dungeonClearTracer.SetKilledMonsterCount(killedMonster);
-    // ORIG 尾部 `movl $0x0,-0x4(%ebp)`（dead 局部）不可复现：4.4 局部槽基恒从
-    // ebp-8 起且帧顶留 gap（N95），补声明反致 sub $0x18→$0x28 帧漂，负结论。
+    // ORIG 0x083010e4 尾部 `movl $0x0,-0x4(%ebp)`（4.1 dead 局部顶到 ebp-4）：
+    // b28 复核（probe /tmp/l0p5.cpp set4/set5 两段式均产 sub $0x28 + -0xc）——
+    // 4.4 局部槽基恒 ≤ebp-8（N95），写出该 store 即帧 +0x10 且槽号差 8，
+    // 保持无 store 形，残差 1 条封顶 N95。
 }
 
 // ORIG 0x0830dc74：当前图 m_playInfo.m_startTick(+0x7c) ← 系统 tick。

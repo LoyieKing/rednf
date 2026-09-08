@@ -218,12 +218,12 @@ ENUM_ASSAULT_STATE CAssaulter::GetState()
 
 int GetDirectionByTeam(ENUM_ASSAULT_TEAM team)
 {
-    // ORIG T 0x82e564c：具名槽 dir(-0x4) 初值 0，分支写槽后统一装载返回
-    // （4.4 switch-return 直产 mov imm，具名 if/else 形合 ORIG）。
-    // cmpl imm,mem 融合破法（技巧28）：register asm(eax) 中转 team。
+    // ORIG T 0x82e564c：具名槽 dir(-0x4) 初值 0，分支写槽后统一装载返回。
+    // N96 清绑：switch(team) 自然形复现 ORIG `mov 0x8(%ebp),%eax; test;
+    // je; cmp $1,%eax; je; jmp`（探针 /tmp/x1.cpp dirSw 实证；if/else 链
+    // 在 4.4 产 cmpl imm,mem 融合形，不合 ORIG）。
     int dir = 0;
-    register int t asm("eax") = team;
-    switch (t)
+    switch (team)
     {
     case 0: dir = 6; break;
     case 1: dir = 4; break;
@@ -241,8 +241,8 @@ void CAssaultPlace::_GetTeamCount(int* counts)
     {
         if (m_assaulters[i].Empty())
             continue;
-        register int t asm("eax") = m_assaulters[i].GetTeam();
-        counts[t]++;
+        // N96 清绑：GetTeam 结果作下标表达式直传（P0 表达式直读）。
+        counts[m_assaulters[i].GetTeam()]++;
     }
 }
 
@@ -284,8 +284,8 @@ int CAssaultPlace::_GetUserIndex(CUser* user, bool strict)
     {
         if (m_assaulters[i].Empty())
             continue;
-        register bool same asm("al") = (m_assaulters[i].GetUser() == user);
-        if (same)
+        // N96 清绑：call 结果与形参直比（P197④ 出 sete 物化）。
+        if (m_assaulters[i].GetUser() == user)
             return i;
     }
     if (strict)
@@ -301,8 +301,8 @@ bool CAssaultPlace::ExistUser(CUser* user)
     {
         if (m_assaulters[i].Empty())
             continue;
-        register bool same asm("al") = (m_assaulters[i].GetUser() == user);
-        if (same)
+        // N96 清绑：call 结果与形参直比（P197④ 出 sete 物化）。
+        if (m_assaulters[i].GetUser() == user)
             return true;
     }
     return false;
@@ -316,12 +316,11 @@ bool CAssaultPlace::SendPacket(PacketGuard& packet)
         CUser* user = m_assaulters[i].GetUser();
         if (user != 0)
         {
-            // 判据③b/X2 同 TEAM 版：ORIG `call Send; xor $0x1,%eax; test %al`
-            // 单段 xor 物化。
-            register unsigned char sv asm("eax") =
-                (unsigned char)user->Send(packet);
-            sv ^= 1;
-            if (sv)
+            // N96 清绑（P168a③b）：ORIG `call Send; xor $0x1,%eax; test %al;je`
+            // 为 4.1 bool 物化；4.4 -O0 对 int 返回 callee 恒产
+            // cmp/setne/test（探针 /tmp/x1.cpp a1/a3/c3 全败），按真实语义
+            // `Send()!=1` 写自然形（Ghidra C：cVar1 != '\x01'）。
+            if ((unsigned char)user->Send(packet) != 1)
                 ok = false;
         }
     }
@@ -336,14 +335,10 @@ bool CAssaultPlace::SendPacket(PacketGuard& packet, ENUM_ASSAULT_TEAM team)
         CUser* user = m_assaulters[i].GetUser();
         if (user != 0 && m_assaulters[i].GetTeam() == team)
         {
-            // 判据③b/X2（Main 批准五方形）：ORIG +0xcb 是 `call Send;
-            // xor $0x1,%eax; test %al,%al; je skip`——int 返回 callee 的 xor
-            // 物化有 je 消费者，register uchar 绑 %eax + `^= 1` 复现单段；
-            // 4.4 裸 `!call()` 折成 `test %eax,%eax; jne`（少 xor、真值序反）。
-            register unsigned char sv asm("eax") =
-                (unsigned char)user->Send(packet);
-            sv ^= 1;
-            if (sv)
+            // N96 清绑（P168a③b）：ORIG +0xcb `call Send; xor $1,%eax;
+            // test %al,%al; je skip` 为 4.1 bool 物化；4.4 -O0 不可自然复现
+            // （探针 /tmp/x1.cpp a1/a3/c3），按语义 `Send()!=1` 写自然形。
+            if ((unsigned char)user->Send(packet) != 1)
                 ok = false;
         }
     }
@@ -408,9 +403,10 @@ void CAssaulter::DetachUser()
 // 收敛口径（batch-14 EmoC11）：o=142 n=143（原 -18）。已修语义两处：第一段
 // 条件真值 `!pw && vill!=7`→(7)/else(3)（旧写 `pw||vill==7`→7 为分支反了）+
 // 两段各自独立 IsPowerWarEventOn call、两分支独立 GiveupPvP（P48/P133）。
-// register bool asm("al") 岛形（技巧22）复现 $1/$0 物化+test 汇聚；全展开
-// m_user-> 直读（P183）。残 1 条 = ORIG push esi/ebx 寄存器接力 vs 4.4 栈槽
-// （register asm("ebx") 实测 146 劣化已回滚）+ .o 全局地址/槽号显示（AE 后核销）。
+// N96 清绑：两处 bool 绑定删除后，裸合并短路条件在 4.4 直产 ORIG 的
+// $1/$0 物化+test 汇聚岛（探针 /tmp/x1.cpp 同族）；全展开 m_user->
+// 直读（P183）。残 1 条 = ORIG push esi/ebx 寄存器接力 vs 4.4 栈槽 + .o
+// 全局地址/槽号显示（AE 后核销）。
 void CAssaulter::GiveupPanalty()
 {
     // P183/P157：ORIG 不缓存 m_user（每点 `mov this; mov (%eax)` 重装载，
@@ -427,10 +423,9 @@ void CAssaulter::GiveupPanalty()
         // 岛，+0x73 `cmp $7; je→$0`）= `!pw && vill!=7` → GiveupPvP(7)，
         // else→(3)（两分支独立 call）；第二段（+0xd1 `test; jne→$1`，
         // +0xe2 `cmp $7; jne→$0`）= `pw || vill==7`。
-        register bool powerWarVill1 asm("al") =
-            !GlobalData::s_power_manager->IsPowerWarEventOn() &&
-            m_user->getCurCharacVill() != 7;
-        if (powerWarVill1)
+        // N96 清绑：ORIG $1/$0 物化岛由合并短路条件自然产生（P133）。
+        if (!GlobalData::s_power_manager->IsPowerWarEventOn() &&
+            m_user->getCurCharacVill() != 7)
         {
             m_user->m_historyLog.GiveupPvP((ENUM_PVP_HISTORY_REASON)7);
         }
@@ -439,10 +434,8 @@ void CAssaulter::GiveupPanalty()
             m_user->m_historyLog.GiveupPvP((ENUM_PVP_HISTORY_REASON)3);
         }
         int ghostTime = 0;                    // ORIG +0xbb 第二段前预清零
-        register bool powerWarVill2 asm("al") =
-            GlobalData::s_power_manager->IsPowerWarEventOn() ||
-            m_user->getCurCharacVill() == 7;
-        if (powerWarVill2)
+        if (GlobalData::s_power_manager->IsPowerWarEventOn() ||
+            m_user->getCurCharacVill() == 7)
         {
             float penalty = GlobalData::s_power_manager->GetPowerWarResponPenalty(m_user);
             ghostTime = GlobalData::s_power_manager->GetPowerWarGhostTime(m_user, penalty);
@@ -496,9 +489,8 @@ bool CAssaultPlace::_IsBroadcastRunaway(CUser* user)
         user->getCurCharacVill() == 7)
         return false;
     // ORIG 0x82eab62：`test eax;setne al; test al; je; mov$1;...mov$0`
-    // 物化尾岛（技巧22 register bool asm(al)）
-    register bool hasCharac asm("al") = (user->getCurCharacR() != 0);
-    if (hasCharac)
+    // 物化尾岛（P197④ call 结果寄存器直比出 sete；N96 绑定已清）。
+    if (user->getCurCharacR() != 0)
         return true;
     return false;
 }
@@ -549,9 +541,11 @@ void CAssaultPlace::_MakeUserState(PacketGuard* p, CUser* user)
     p->put_header(0, 3);
     p->put_byte(1);
     p->put_short(user->get_unique_id() & 0xffff);
-    // ORIG 0x82e8d60+0x30：`call GetUserState; mov %eax,%edx; mov 0xc(%ebp),%eax;
-    // mov %edx,0x4(%esp); mov %eax,(%esp)`——register asm("edx") 绑定实测在传
-    // uchar 形参处多一跳 `mov %edx,%eax`（36 vs 34），内联形复现装载序。
+    // b28 BM4 判词（N18a）：ORIG 0x82e8d60+0x30 为 call GetUserState 后
+    // `mov %eax,%edx` 冗余中转（int→int 同型，4.4 恒直落 `mov %eax,0x4(%esp)`
+    // 折叠；/tmp/pbq.cpp i/u/cast 三形探针实测 4.4 均无 hop，源形不可造，
+    // 绑定形 P0 禁用）。本函数与单参重载同段各差 1 条 hop → difflib 连锁
+    // 计 7/13，实残仅此。
     p->put_byte(user->GetUserState());
     p->finalize(true);
 }
@@ -568,9 +562,8 @@ void CAssaultPlace::SendUserState(CUser* user)
     packet.put_byte(user->GetUserState());
     packet.finalize(true);
     // ORIG 0x82e845c：G_GameWorld 结果 %eax 直通 this 实参（无 world 槽，
-    // 其余实参用 %edx 装载）⇒ register asm(eax) 绑定。
-    register GameWorld* world asm("eax") = G_GameWorld();
-    world->send_all(packet, user);
+    // 其余实参用 %edx 装载）⇒ P52/P134 链式内联（N96 绑定已清）。
+    G_GameWorld()->send_all(packet, user);
 }
 
 // ORIG T 0x82e7b2a：_SendCloseAssault(CUser*, int) —— tick 下限 0x1e，发关闭包。
@@ -578,8 +571,8 @@ int CAssaultPlace::_SendCloseAssault(CUser* user, int tick)
 {
     // ORIG 0x82e7b2a：`test eax;setne al;test al;je bb1` 判 R!=0；
     // 两路径统一 `mov 0x10(%ebp),%eax` ⇒ 恒返回 tick（钳位直写参数槽）。
-    register bool hasCharac asm("al") = (user->getCurCharacR() != 0);
-    if (hasCharac)
+    // N96 清绑：call 结果直比出 setne 物化（P197④）。
+    if (user->getCurCharacR() != 0)
     {
         if (tick < 0x1e)
             tick = 0x1e;
@@ -1071,9 +1064,10 @@ bool CStaticDisposition::SetVirtualMap(std::vector<MapArea>* areas) // ORIG 0x82
 bool CStaticDisposition::MoveUser(CForcedMoveCharacter* fm)  // ORIG 0x82e65ee
 {
     // ORIG 0x82e65ee：`mov 0xc(%ebp),%eax; mov (%eax),%eax; mov %eax,%edx`
-    // 原地两级装载 ⇒ register asm(eax) 中转（技巧16 变体）
-    register int idx asm("eax") = fm->m_field00;
-    return m_mats[idx].MoveUser(fm);
+    // 原地两级装载 ⇒ 下标表达式直传（N96 清绑）。残余：4.4 把
+    // `mov (%eax),%eax; mov %eax,%edx` 折为 `mov (%eax),%edx`——N18a 单段
+    // regmove 4.4 恒折、源形不可造（探针 /tmp/x1.cpp m1），byte 封顶。
+    return m_mats[fm->m_field00].MoveUser(fm);
 }
 
 // [b23S3C] A：真修 counts[j*4]→counts[j]（原越界读）、P48 内层每次重读 counts[j]、
@@ -1215,14 +1209,14 @@ void CAssaultPlace::AbuseUser(CUser* user)      // ORIG T 0x82eb5e2（size 0x192
         {
             if (m_assaulters[j].Empty())
                 continue;
-            // ORIG 82eb703：第一次 GetUser 落 callee-saved %ebx（跨调用作
-            // arg1 直通 `mov %ebx,0x4(%esp)`，Main 批准的新判据：约束产生
-            // 指令形收益=免槽装载）；第二次 GetUser 直落 getHackAnalyzer，
-            // 结果 %eax 无槽直通 this（P52 链式 receiver）。共 2 次 GetUser。
-            register CUser* slotUser asm("ebx") = m_assaulters[j].GetUser();
+            // ORIG 82eb703：两次 GetUser 均无槽往返（P0 ⇒ 原码无具名局部，
+            // 值右值直传）：第一次直落 getHackAnalyzer receiver 链，第二次
+            // 结果经 %ebx 中转作 arg1（4.1 冗余 regmove=N18a 已证不可造，
+            // 但 b28 实测**实参位内联** 4.4 自然分配 %ebx 逐条全等；
+            // register asm("ebx") 绑定违例已按 P0/N96 清除）。共 2 次 GetUser。
             m_assaulters[j].GetUser()
                 ->getHackAnalyzer()
-                ->addServerHackCnt(slotUser,
+                ->addServerHackCnt(m_assaulters[j].GetUser(),
                                    (WongWork::ENUM_HACKTYPE)0x32e, 1, 0, 0);
         }
         m_state = 6;
@@ -1246,8 +1240,10 @@ CAssaultPlace::CAssaultPlace()
 
 CAssaultPlace::~CAssaultPlace()
 {
-    // b26 NEAR 封顶:outgoing 帧尺寸差(ORIG 0x4 vs 4.4 0x14;单 1 参 call,
-    // 4.4 outgoing 恒 0x10 对齐),指令流逐条相等。
+    // b28 BM4 判词（N-帧/P210 系）：编译器生成数组析构循环，4.4 对 D1 循环
+    // 帧恒 sub $0x14（/tmp/d1probe{,2}.cpp 双探针：任意非平凡元素 dtor 循环
+    // 均 0x14，源体不可干预——空体即此形）；ORIG 4.1 为 sub $0x4。指令流
+    // 逐条同（仅 sub/add 立即数差 2 行），NEAR 4 封顶。
 }
 
 // ORIG T 0x82e6d3a：m_pos.x/y 非零才向所在区域广播。
@@ -1343,9 +1339,9 @@ void CAssaultPlace::_DelUser(int index, bool flag)
     // ORIG +0x0f2：EndPvP 段 getCurSec 差值落 %edx 跨装载直落 0xc(%esp)
     // （P44 变参即时求值，无 now 槽）；+0x13d G_GameWorld 结果 %eax 直通
     // receiver（P89 合并形，无 world 槽）；area 参数 get_area 结果直落。
-    // b28 BL6 v7: P223 goto 尾空标签——保 ORIG `&&` 直测极性
-    // （call on; test; je skip→vill check）+ 体尾 jmp 中继岛；ORIG 的
-    // mov$1/mov$0 无槽物化段 = 4.1 setcc 汇聚顶产物（setcc-fold 负例）。
+    // b28 BM4 v9: v8 `!(A&&B)` 包裹实测引入 xor$1+极性反 8 差（P168a③b：
+    // ORIG bool callee 直判 test/je 段跨版本不可造），回退 v7 goto 形
+    // （残 2 jmp：setcc-fold mov$1/jmp 岛顶产物 + 尾块中继，N 封顶）。
     if (GlobalData::s_power_manager->IsPowerWarEventOn()
         && delUser->getCurCharacVill() == 7)
         goto POWERWAR_VILL;

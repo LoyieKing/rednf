@@ -418,8 +418,8 @@ int WarRoom::WalkOutUserBySlot(int slot)
     ((CUser*)m_slots[slot])->getHackAnalyzer()->reportHackInfo();
     ((CUser*)m_slots[slot])->getHackAnalyzer()->resetHackInfo();
     m_slotState[slot] = 0xff;
-    // ORIG 086bd2f6: 槽值单步直落 %ebx 跨 G_GameWorld 调用；4.4 恒经 %eax 中转
-    // 两步（N18a 反向，register asm("ebx") 亦只改物化不改步数）⇒ 记 N。
+    // ORIG 086bd2f6: 槽值单步直落 %ebx 跨 G_GameWorld 调用；4.4 恒 eax 落值+
+    // mov 保活两步（N18a；P226 裸语句表达式形实测同两步不可翻，b28BM13）。
     G_GameWorld()->out_from_warroom((CUser*)m_slots[slot]);
     if (m_pDungeon != 0)
     {
@@ -543,6 +543,9 @@ void WarRoom::Start()
     {
         if (m_slots[i] != 0)
         {
+            // [b28BM13 N18a] ORIG 0x086bc3xx 首读值单段直落 %ebx 跨
+            // getHackAnalyzer 保活；4.4 恒 eax 落值+mov 保活两步（P226 裸语句
+            // 表达式实参形实测同两步不可翻，b28BM13）。
             ((CUser*)m_slots[i])->getHackAnalyzer()->beginCollectHackInfo(
                 (CUser*)m_slots[i]);
         }
@@ -604,9 +607,9 @@ int WarRoom::SendWalkOut(CUser* user, ENUM_WALKOUT_TYPE type)
 void WarRoom::SendWarRoomFailMsg()
 {
     // P23：嵌套实参求值序 GenTimerKey→m_index→G_TimerQueue()（ORIG ebx/esi 缓存）。
-    // ORIG 086c0b09：key→%ebx、m_index→%esi；4.4 分配相反，asm("ebx") 在此
-    // 反产 %ebx→%eax→%esi 复制链（同法在 PvP VoteLackUser 成，此处分配器行为
-    // 不同）⇒ N7 互换，保持直写。
+    // [b28BM13 N96/N7] ORIG 086c0b09：key→%ebx、m_index→%esi；4.4 分配相反
+    // （esi↔ebx 互换，助记符序列全等 NEAR 4）。register 绑定违反 P0 已全域禁用
+    // （旧 asm("ebx") 注记作废）⇒ N7 跨版本寄存器分配封顶，保持直写。
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
                                 (TIMER_MESSAGE)0x46, 10,
                                 GenTimerKey((TIMER_MESSAGE)0x46), 0);
@@ -632,9 +635,9 @@ int WarRoom::HostChangeWarRoom(CUser* user, char a, unsigned long b)
 {
     if ((m_slots[(int)a] != 0) && ((CUser*)m_slots[(int)a] == user))
     {
-        // ORIG 086c08dd: 4.1 装载序 a→this→lea→b；4.4 sched 恒 a→b→this→add
-        // （asm("edx")/显式 this/ternary 劫持均实测无效）+ 后段 GenTimerKey/m_index
-        // %ebx↔%esi 互换 = N7 ⇒ 整函数记 N。
+        // [b28BM13 N96/N7/N18a] ORIG 086c08dd: 4.1 装载序 a→this→lea→b；4.4
+        // sched 恒 a→b→this→add（寄存器劫持按 P0 禁用，旧 asm("edx") 注记作废）
+        // + 后段 GenTimerKey/m_index %ebx↔%esi 互换 = N7 ⇒ 整函数记 N。
         m_hostVotes[(int)a] = (int)b;
         if (m_userCount == 0)
         {
@@ -732,8 +735,9 @@ void WarRoom::SendStatePacket()
 void WarRoom::MakeStateInfo(char* buf)
 {
     InterfacePacketBuf& p = *(InterfacePacketBuf*)buf;
-    // ORIG 086be089/086be0a4/086be0bb：实参 spill 前值驻 %edx（4.4 恒 %eax，
-    // register asm("edx") 传参反产 mov,%edx,%eax 复原两步 = N18a 族）⇒ 记 N。
+    // [b28BM13 N18a/P75] ORIG 086be089/086be0a4/086be0bb：4.1 先把实参值物化
+    // 到 %edx 再统一装 esp 槽；4.4 恒「即装即压」落 %eax（单段 mem→%edx 不可
+    // 造）。register 绑定按 P0 全域禁用（旧 asm("edx") 尝试注记作废）⇒ 记 N。
     p.put_short(m_index);
     p.put_byte(m_state);
     p.put_short(m_curSpawnStep);
@@ -1460,31 +1464,43 @@ int WarRoom::SetSlotState(CUser* user, int seat, ENUM_SEAT_STATE state, CUser** 
 {
     if (user == 0)
         return 0;
-    if (state != (ENUM_SEAT_STATE)0xff)
-        return 0;
-    if (m_slots[seat] == 0)
+    // [b28BM13 P209] ORIG 0x086bd0f8 形 = `mov 0x14(%ebp),%eax; cmp $0xff,%eax`
+    // （无符号比较先载寄存器）；enum 直比 4.4 折 cmpl mem。
+    // [b28BM13 P222] 正向包裹：ORIG 不等臂 jne 直达共享尾 return-0 块。
+    if (static_cast<unsigned int>(state) == 0xffu)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x590, 5);
-        trace("WARAREA  WarRoom::SetSlotState players_[pos] is NULL pos(%d)", seat);
-    }
-    else
-    {
-        *out = (CUser*)m_slots[seat];
-        m_slotState[seat] = 0xff;
-        m_liveFlag[seat] = 0;
-        a = true;
-        if (GetState() > 2)
+        if (m_slots[seat] == 0)
         {
-            AddBanList(user);
+            // [b28BM13] ORIG 0x086bd12e：trace 块尾独立物化 `mov $0,%eax; jmp
+            // 共享 epilogue`（显式 return 触发，块内无 store）。
+            cMyTrace trace(
+                __PRETTY_FUNCTION__,
+                0x590, 5);
+            trace("WARAREA  WarRoom::SetSlotState players_[pos] is NULL pos(%d)", seat);
+            return 0;
         }
-        user->getHackAnalyzer()->reportHackInfo();
-        user->getHackAnalyzer()->resetHackInfo();
-        if (m_pDungeon != 0)
+        else
         {
-            user->m_historyLog.LeaveDungeon(m_pDungeon->GetDungeonName(),
-                                            (unsigned char)m_levelBand);
+            // [b28BM13] ORIG 0x086bd17e 单段直落 %edx；4.4 恒 eax 落值+mov
+            // 保活两段（N18a；void** 无 cast 探针单段但 mangled 冻结 CUser**，
+            // 语句表达式/memcpy 视图均不可翻，探针 bm13_p3/p5）。
+            *out = (CUser*)m_slots[seat];
+            m_slotState[seat] = 0xff;
+            // [b28BM13] ORIG 0x086bd1a1 `movl $0x0,0xc(%eax,%edx,4)` 实证清零。
+            m_slots[seat] = 0;
+            m_liveFlag[seat] = 0;
+            a = true;
+            if (GetState() > 2)
+            {
+                AddBanList(user);
+            }
+            user->getHackAnalyzer()->reportHackInfo();
+            user->getHackAnalyzer()->resetHackInfo();
+            if (m_pDungeon != 0)
+            {
+                user->m_historyLog.LeaveDungeon(m_pDungeon->GetDungeonName(),
+                                                (unsigned char)m_levelBand);
+            }
         }
     }
     return 0;

@@ -269,8 +269,8 @@ struct SIG_SECURITY_CARD_ACTIVATE
         {
             unsigned int m_mId;               // +0x00（member_security_card.m_id ← accId）
             char m_certKey[6];                // +0x04（strncpy 6；SQL cert_key）
-            unsigned char m_activateResult;   // +0x0a（dispatch 回写 ok，1B）
-            unsigned char m_historyFlag;      // +0x0b（history modify_type 选择，1B）
+            bool m_activateResult;   // +0x0a（dispatch 回写 ok(bool)，1B；P211 bool↔bool 同型化复现 ORIG LHS-first store 装载序 @0x0842b86c+0x214）
+            bool m_historyFlag;      // +0x0b（history modify_type 选择，1B；P211 同型化复现 ORIG LHS-first @0x0842bb5c+0xc9；读侧 movzbl/test 同形）
         };
     };
 };

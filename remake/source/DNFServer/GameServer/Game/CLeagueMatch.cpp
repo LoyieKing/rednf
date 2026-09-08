@@ -180,10 +180,8 @@ CUser* CLeagueMatch::GetUser(unsigned int idx)   // ORIG T 0x0855e5e4
 {
     if (idx > 3)
         return 0;
-    // ORIG movzbl;xor $1;test %al;je <主流程>：X1 register 形复现（probe_xor f2）。
-    register unsigned char flagChk asm("eax") = m_teamA.m_players[idx].m_flag;
-    flagChk ^= 1;
-    if (flagChk)
+    // N96 清绑：字段无槽往返 ⇒ 表达式直读（P0）；xor$1 单段形待复测。
+    if ((bool)(m_teamA.m_players[idx].m_flag ^ 1))
         return 0;
     return m_teamA.m_players[idx].m_user;
 }
@@ -293,7 +291,9 @@ int CLeagueMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
     // ORIG movl $0x0,-0xc 预清（P198③ 声明=0+独立赋值两句式）。
     int err = 0;
     err = _CheckMatchable(room);
-    if (err != 0) {
+    // P225：ORIG `cmpl $0,slot; setne %al; test %al; je <主流程>` bool 四段物化
+    // → while+return 形精确复现（if 直判被 4.4 折成 cmp;je 两段）。
+    while (err != 0) {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(199),
                                  static_cast<unsigned char>(err & 0xff));
         return 0;
@@ -303,10 +303,9 @@ int CLeagueMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
         _RegisterWaitingRoom(room);
 
     m_state = 1;
-    // ORIG mov 0x18(%eax),%ebx 跨 get_index call 缓存（P87 register 局部）；
-    // get_index 结果右值直传实参（P0 无槽）。
-    register long auth asm("ebx") = m_authValue;
-    TimerStartMatching::registNextTimer(10, room->get_index(), static_cast<int>(auth));
+    // N96 清绑：ORIG mov 0x18(%eax),%ebx 跨 get_index call 缓存 m_authValue（P87）；
+    // 成员表达式直传（P0 无具名局部）。
+    TimerStartMatching::registNextTimer(10, room->get_index(), m_authValue);
     _SendMatchStatePacket(0, 1);
     return 1;
 }
@@ -633,12 +632,9 @@ int CLeagueMatch::CheckJoinable(PvP_Room* room, CUser* user)   // ORIG T 0x0855c
 
     switch (m_state) {
     case 0: {
-        // X1: ORIG `call _CheckSchool; xor $1,%eax; test %al; je`（int 返回不自救不行，
-        // 绑 %eax 具名 uchar + ^=1 复现单段 xor——技巧 22 精化）
-        register unsigned char sc asm("eax") =
-            (unsigned char)_CheckSchool(room, user);
-        sc ^= 1;
-        if (sc)
+        // N96 清绑：ORIG `call _CheckSchool; xor $1,%eax; test %al; je` 单段 xor
+        // 直落 %al 属 N18a/N96（int callee 无绑定复现形，P168a①②两形探针劣化）。
+        if (_CheckSchool(room, user) == 0)
             return 4;
         return 0;
     }
@@ -991,10 +987,8 @@ int CLeagueMatch::addBadge(PlayerInfo* info, ENUM_BADGE_TYPE badgeType,
     // 分支岛非三目物化）；三分支各复制完整 findString+snprintf call 序列
     // （ORIG 三独立岛，非选串指针汇聚）；值表达式 (int)*msgFlag+count 右→左
     // 求值先于 findString（ORIG ebx 先算）。
-    // ORIG movzbl;xor $1;test %al;je <main>：X1 register 形复现（probe_xor f2）。
-    register unsigned char flagChk asm("eax") = info->m_flag;
-    flagChk ^= 1;
-    if (flagChk)
+    // N96 清绑：字段表达式直读（P0）；xor$1 单段形复测。
+    if ((info->m_flag ^ 1) != 0)
         return 0;
     if (info->m_user == 0)
         return 0;

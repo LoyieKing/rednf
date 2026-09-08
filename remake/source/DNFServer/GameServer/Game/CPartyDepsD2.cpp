@@ -511,28 +511,12 @@ bool CParty::canFatigueUp(unsigned char flag)
         return false;
     if (m_battleField.m_pDungeon == 0)
         return false;
-    // [X2 形实测不适用] 0x085a8c88 O@19-34 为 `movzbl 0x89f; test; jne` /
-    // `movzbl 0x87a; xor$1; test; je` / `call; xor$1; test; je`：具名化后
-    // 裸 `==0`/`!` 形已出 movzbl+test 两段，xor$1 段系 4.1 指令选择，
-    // register-asm ^=1 反加 movzbl（6→13 实测回退）。
-    // [X2·callee/字段 xor-化] ORIG 0x085a8c88 O@24-34：`movzbl 0x87a;
-    // xor$1,%eax; test; je` + `call; xor$1,%eax; test; je`。
-    if (m_battleField.m_pDungeon->m_bloodDungeonType == 0)
-    {
-        register unsigned char village asm("eax") =
-            m_battleField.m_pDungeon->m_villageAttackEventFlag;
-        village ^= 1;
-        if (village)
-        {
-            register unsigned char nofat asm("eax") =
-                (unsigned char)m_battleField.m_pDungeon->isNoFatigueDungeon();
-            nofat ^= 1;
-            if (nofat)
-            {
-                return true;
-            }
-        }
-    }
+    // N96 清绑后普通形：三段守卫 && 汇聚（ORIG movzbl/test、xor$1/test、
+    // call/xor$1/test 逐点 je→false 岛，尾 bool 归一 test;je;mov$1/mov$0）。
+    if (m_battleField.m_pDungeon->m_bloodDungeonType == 0 &&
+        m_battleField.m_pDungeon->m_villageAttackEventFlag == 0 &&
+        m_battleField.m_pDungeon->isNoFatigueDungeon() == 0)
+        return true;
     return false;
 }
 
@@ -577,12 +561,10 @@ void CParty::changePartyMemberInfoOnMoveMap(MSG_MOVE_MAP& info, bool firstVisit)
     if (firstVisit)                                      // cmpb $0 jne 结束
         return;
 
-    // [X2/技巧22] ORIG 0x085a8e3c O@8-21：正向 `test;je` + callee 结果
-    // mov$1/mov$0 立即数物化岛（%eax 直存，无槽 spill）。
-    register bool eachMap asm("al") =
-        m_battleField.m_pDungeon != 0 ? m_battleField.m_pDungeon->IsEnterEachMap() : false;  // T 0x08365278
-
-    if (eachMap)
+    // N96 清绑：ORIG 判空短路 + IsEnterEachMap 结果 mov$1/mov$0 物化岛
+    // （%al 直落 test；4.4 恒折 test;jcc 无中转——P168a③b/N96 判词）。
+    if (m_battleField.m_pDungeon != 0 &&
+        m_battleField.m_pDungeon->IsEnterEachMap())
     {
         changePartyMemberInfo(info, (char)info.m_39);    // 座位号字节 +0x39
     }
@@ -1264,6 +1246,10 @@ bool CParty::OnTimerWalkOutLackUser()   // CParty.h:657 bool（PSM 落，定义�
     int victimIdx = m_election.GetElected();
     while (victimIdx >= 0)
     {
+        // P184 死块照抄：ORIG +0x1e `cmpl $0; js → nop岛→return1`（4.1 物化
+        // 头部冗余检查，4.4 -O0 同发射）。
+        if (victimIdx < 0)
+            break;
         m_election.CancelCandidate(victimIdx);
         m_election.CancelVoter(victimIdx);
         CUser* victim = m_member[victimIdx].m_pUser;
@@ -1280,17 +1266,6 @@ bool CParty::OnTimerWalkOutLackUser()   // CParty.h:657 bool（PSM 落，定义�
         victimIdx = m_election.GetElected();
     }
     return 1;
-}
-
-// ---------------------------------------------------------------------------
-// CParty::IncreaseSetPlayResultCount —— ORIG T 0x085b22e2（报告
-//   IncreaseSetPlayResultCount.md）：记录该成员已回传结算（m_field4=1）。
-// ---------------------------------------------------------------------------
-void CParty::IncreaseSetPlayResultCount(CUser* user)
-{
-    int slot = GetMemberSlotNo(user);
-    if (slot >= 0)
-        m_member[slot].m_field4 = 1;
 }
 
 // ---------------------------------------------------------------------------

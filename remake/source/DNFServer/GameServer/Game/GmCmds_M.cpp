@@ -181,6 +181,11 @@ void CMoveCharacCmd::execute()
     // CAchievementReport — ORIG execute 0x084b07fe。
     // 成就(0xf)_gm_report 到栈缓冲（95000 字节，先清零、限长 strcpy），
     // 经 CBoosterTest::printClient 以 achievement_report.txt 回显给 GM。
+    // 【b28 判词 · 待解条目复验】唯一实差 = memset 首参物化形：ORIG 4.1
+    // `lea buf,%eax` 前置 + size 经 `mov $N,%edx; mov %edx,8(%esp)` 中转；
+    // 4.4 恒 `movl $N,8(%esp)` 直写后补 lea（探针 /tmp/bm3/p21 g1-g6：字面量/
+    // (unsigned)/&arr[0]/移位/变量 val/sizeof 六形全直写——与范式库「待解」
+    // 条目一致），语义等价，记跨版本 memset 参数物化差。
     // -------------------------------------------------------------------
     void CAchievementReport::execute()
     {
@@ -250,7 +255,7 @@ void CMoveCharacCmd::execute()
 // P210 实证（b28）：本 ctor 定义前置到基类 CGameMasterCharacter() 之前，令
 // 4.4 编译本函数体时基类 ctor 定义尚不可见 → 保守 outgoing 帧 sub $0x18，
 // 与 ORIG 逐条全等（推翻 b23「6 形探针穷举不可达」判词——缺的正是定义顺序维度）。
-CGameMasterCharacterItemDropRate::CGameMasterCharacterItemDropRate()  // 0x084b4434
+CGameMasterCharacterItemDropRate::CGameMasterCharacterItemDropRate() throw()  // 0x084b4434
 {
 }
 

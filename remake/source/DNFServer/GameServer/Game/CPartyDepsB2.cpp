@@ -305,9 +305,6 @@ int CParty::choose_random_buff(QuickParty::RandomBuffDungeon dungeon)
                                           dungeon);
         if (roll <= acc)
         {
-            // 【二次核验】ORIG 0x0859b814 域首存基址先载(mov 0x8,%eax;-0xc,%edx)，
-            // 4.4 调度恒 RHS 先——this->显式/指针中转两 probe 均不改或毁槽序，
-            // 维持直存（1 行 NEAR 封顶）。
             m_field1ae8 = type;                         // +0x1ae8
             return m_field1ae8;
         }

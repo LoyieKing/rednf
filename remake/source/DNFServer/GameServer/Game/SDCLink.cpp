@@ -196,6 +196,9 @@ float getDamageInflictPassiveObject(STComputeDamageVariable* v, void* passiveObj
 //    其它：movzbl 0xa(%edx,%eax) → m_elemEnable[elem] != 0。
 // ============================================================================
 // 返回 bool：ORIG 尾 setne %al 直返无 movzbl 规范化（P9）
+// [b28 BM2 判词·AE] 清单 NEAR(2) 为 jmp 目标偏移标签伪差（ORIG 双 epilogue 岛
+// +0x41/+0x53 vs 4.4 共享尾，跨版本 epilogue merge 族）；fresh /tmp/tu_SDCLink.o
+// fn_diff_tu 归一 0 差（31=31 逐条）。
 bool isValidAttackInfoElement(STComputeDamageVariable* v, int elem)
 {
     if (elem == 4)

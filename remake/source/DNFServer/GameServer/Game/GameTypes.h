@@ -307,6 +307,11 @@ DynamicPool<T>::CNode::~CNode()
 template <class T>
 bool DynamicPool<T>::MoreAlloc(int n)
 {
+    // b28 BM3：cookie 有无由 CNode 析构 trivial 性决定——SIPGData 实例经
+    // TaiwanCash.h 整类特化去用户 dtor 后，4.4 `new CNode[n]` 发
+    // `imul $0x2e4,%esi,%eax; call _Znaj` 直返无 cookie，与 ORIG 0x081019c2
+    // 同形（显式 ::operator new[] 形会丢 ctor 循环，探针 /tmp/bm3/p20 实证）。
+    // 其余实例化（CEgg 等）orig 形态不受本 TU 影响（特化仅 SIPGData）。
     CNode* nodes = new CNode[n];
     if (!nodes)
     {

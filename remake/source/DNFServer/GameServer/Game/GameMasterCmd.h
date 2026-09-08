@@ -47,7 +47,8 @@ public:
 class CGameMasterCharacterItemDropRate : public CGameMasterCharacter
 {
 public:
-    CGameMasterCharacterItemDropRate();                  // ORIG W 0x084b4434
+    CGameMasterCharacterItemDropRate() throw();          // ORIG W 0x084b4434（P216 试验：
+                                                         // 消 execute 内 static 构造 4.4 landing）
     virtual void sendServerState(CUser* user, char const* msg);  // ORIG W 0x084b4330
 };
 

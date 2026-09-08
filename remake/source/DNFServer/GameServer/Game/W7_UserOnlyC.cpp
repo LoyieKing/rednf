@@ -97,6 +97,10 @@ void CPacketVerifier::Init() throw()   // P216：头（Main 代落 CUser.h:938�
 
 unsigned short CPacketVerifier::GetSequence()
 {
+    // ORIG 0x08696e52 尾多一条 `movzwl %ax,%eax`（4.1 对 ushort 返回值的冗余
+    // 加宽再归一段，N18a 反向族）。b28 复核：无 cast/双 cast/&0xffff/|0/三目/
+    // 具名局部 六形 probe（/tmp/l0p1-3.cpp）4.4 恒折叠单 movzwl，源形不可造；
+    // 具名局部形违 P0（ORIG 无槽往返）。残差 1 条封顶 N。
     return (unsigned short)m_sequence;
 }
 

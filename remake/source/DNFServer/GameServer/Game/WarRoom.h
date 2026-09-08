@@ -136,7 +136,9 @@ private:
     WARROOM_STATE m_state;              // +0x144（ORIG SetState 0x082a5a56 this-先行装载=成员与形参同类型探针实证）
     int m_slotState[6];                 // +0x148
     int m_timerKey[9];                  // +0x160（GenTimerKey 数组，msg 0x40..0x47 → 下标 1..8）
-    char m_liveFlag[6];                 // +0x184（槽存活标志：非 0=在场且存活）
+    bool m_liveFlag[6];                 // +0x184（槽存活标志：非 0=在场且存活。
+                                        // b28BM13：char→bool 同型化（SetCharacterLive
+                                        // bool 实参）翻 ORIG store 装载序，探针 bm13_p1）
     char m_pad18a[2];                   // +0x18a（ORIG Reset 不触及的尾随 2 字节）
     int m_slotData[6];                  // +0x18c
     int m_slotFp[6];                    // +0x1a4（CalcGuildFP 公会 FP 均摊工作区；

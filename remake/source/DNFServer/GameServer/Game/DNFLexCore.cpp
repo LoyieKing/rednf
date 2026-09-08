@@ -8,6 +8,9 @@
 // DNFLex 本类收口（2026-08-23）：yylex / get_next_token / getStreamName 在同一
 // 4.4.6-3 -O2 下为寄存器分配 / NRVO 帧 DIFF，禁止 __asm__ 后无法再压到逐指令
 // IDENTICAL；语义已对齐 ORIG。用户视为 identical（checker IDENTICAL_AE）。
+// [b28BM13 复核] fresh（-std=gnu++98 -O2 路由）：PushInputStream AE、
+// get_next_token DIFF ndiff=12（4.1 callee-saved 栈帧头保存形 + O2 寄存器
+// 分配序差，块内条数/助记符集全等，N7/N82 跨版本封顶；P226/局部形试穷举无解）。
 // ============================================================================
 
 #include <cstdio>

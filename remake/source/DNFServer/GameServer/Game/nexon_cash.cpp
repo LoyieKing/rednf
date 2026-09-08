@@ -551,7 +551,7 @@ bool UDPSocket::bind(unsigned short port, bool nonBlock)
 //   if (!data || length<=0) return -1; if (!host) return 0;
 //   目标 sockaddr_in{AF_INET,htons(port),inet_addr(host)}；
 //   n = sendto(m_socket,data,length,0,&adrs,16)；
-//   n<0 且 errno∈{EAGAIN,EINTR,EAGAIN}→0；否则 n。
+//   n<0 且 errno∈{EWOULDBLOCK,EAGAIN,EINTR}→0；否则 n。
 int UDPSocket::send(char* data, int length, unsigned short port,
                     const char* host)
 {
@@ -572,7 +572,9 @@ int UDPSocket::send(char* data, int length, unsigned short port,
         static_cast<socklen_t>(sizeof(adrs))));
     if (n < 0)
     {
-        if (errno == EAGAIN || errno == EINTR || errno == EAGAIN)
+        // [b28 BM11] ORIG 立即数序 = 11,11,4（EWOULDBLOCK==EAGAIN 双写 + EINTR 尾，
+        // P171 原码链序照抄）；旧形 11,4,11 与 ORIG cmp 立即数错位。
+        if (errno == EWOULDBLOCK || errno == EAGAIN || errno == EINTR)
             return 0;
     }
     return n;
@@ -1146,6 +1148,18 @@ inline void traceRecvError(int errCode, const char* plain)
 // NCashImpl
 // ===========================================================================
 
+// [b28 BM11] P210 定义顺序翻案（推翻 b22「不可复现」判词）：NexonCash ctor 定义
+// 前置于 NCashImpl ctor 定义之前 ⇒ 4.4 对 new-expression 只见原型，保守生成
+// EH cleanup（delete+Unwind_Resume 岛，ORIG 0x081ae21b-0x081ae232 共 9 insns）。
+// ORIG 0x81ae1b0。
+NexonCash::NexonCash(const char* serverAdrs, short port, char paramB,
+                     short fieldC, short fieldD)
+{
+    m_impl = new NCashImpl(serverAdrs, port,
+                           static_cast<unsigned char>(paramB),
+                           static_cast<unsigned short>(fieldC), fieldD);
+}
+
 void NCashImpl::_increaseRequestID()                 // ORIG 0x081aea32
 {
     ++m_requestID;
@@ -1203,11 +1217,13 @@ int NCashImpl::recv_msg()
 // ORIG 0x081aeb3c：按 body_length 继续收 body 区（flags 同 0x100）。
 int NCashImpl::recv_body()
 {
-    // [b27L8] ORIG 0x081aeb4b movzwl %ax,%esi 单步；4.4 对 asm("esi") 赋值
-    // 恒经 eax 中转（+1 条）；ushort 形丢零扩展（语义险，探针已弃）。
-    register unsigned int bodyLen asm("esi") = m_inMsg.body_length();
-    register unsigned char* body asm("ebx") = m_inMsg.body();
-    int n = static_cast<int>(::recv(m_socket.getHandle(), body, bodyLen, 0x100));
+    // [b28 BM11] N96/P0 清绑：register asm("esi")/asm("ebx") 存量删除，改实参
+    // 内联形（P200/P226 方向）：body_length→body→getHandle 的 R2L 求值序与
+    // ORIG 装载序同构；跨 body call 存活的 ushort 零扩展值由 4.4 升格
+    // callee-saved。
+    int n = static_cast<int>(::recv(
+        m_socket.getHandle(), m_inMsg.body(),
+        m_inMsg.body_length(), 0x100));
     if (n == 0)
     {
         printf("[%s] connection lost: %s\n", __FUNCTION__, strerror(errno));
@@ -1682,22 +1698,6 @@ int NCashImpl::chargeCash(char* sessionKey, unsigned char h1, unsigned char h2,
 // ===========================================================================
 // NexonCash（薄包装）
 // ===========================================================================
-
-// [b22判词·N族] ORIG 0x81ae1b0 对 `new NCashImpl(...)` 生成异常清理 landing pad：
-// Ghidra 标注 try/CatchHandler@0x81ae21b（构造抛 → operator delete(m_impl) →
-// _Unwind_Resume，0x81ae21b..0x81ae232 共 9 insns）。本 TU 内 NCashImpl ctor 定义可见
-// （0x081acfdc 体在同文件 1150 行），我方 GCC 判定其不抛 → `new NCashImpl(...)` 正常
-// 路径不再合成 catch 块（our_insns 41 vs ORIG 50，差集恰为该 9 insns）。正常（无异常）
-// 路径逐条 IDENTICAL（参数搬运/new(0x450)/构造实参压栈/存 m_impl 全等），差异仅在异常
-// 回退路径，属编译器异常表代码生成差异，不可经标准 C++98 源码复现（§4.1 禁伪
-// noexcept/hack）。语义等价：正常构造行为一致。
-NexonCash::NexonCash(const char* serverAdrs, short port, char paramB,
-                     short fieldC, short fieldD)
-{
-    m_impl = new NCashImpl(serverAdrs, port,
-                           static_cast<unsigned char>(paramB),
-                           static_cast<unsigned short>(fieldC), fieldD);
-}
 
 // ORIG 0x081ae250：free(m_impl)，非 delete —— 忠实保留（ORIG free@plt）。
 NexonCash::~NexonCash()

@@ -30,7 +30,7 @@ public:
     void seed();
 
     int randInt();
-    int randInt(const unsigned long& range);
+    unsigned long randInt(const unsigned long& range);   // ORIG 返回 ulong（调用侧 setb 实证）
 
     static unsigned long hash(long a, long b);
 
@@ -137,7 +137,7 @@ int CMTRand::randInt()
     return (int)y;
 }
 
-int CMTRand::randInt(const unsigned long& range)
+unsigned long CMTRand::randInt(const unsigned long& range)
 {
     unsigned long mask = range;
     mask |= mask >> 1;
@@ -151,7 +151,7 @@ int CMTRand::randInt(const unsigned long& range)
     {
         v = (unsigned long)randInt() & mask;
         } while (v > range);   // ORIG cmp/setb：v<=range 时退出
-    return (int)v;
+    return v;
 }
 
 void CMTRand::seed(unsigned long* init_key, unsigned long key_length)

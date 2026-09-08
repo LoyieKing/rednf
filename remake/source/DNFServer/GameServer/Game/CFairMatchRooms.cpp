@@ -322,6 +322,10 @@ int CFairMatch::OnCreateRoom(CUser* user)
 }
 
 // OnDestroyRoom ORIG T 0x8562dc6 报告 OnDestroyRoom.md
+// [b28 BM2 判词·N7] AE-ndiff=6（fresh .o 归一）：pWaitingRoomList_->DelRoom 虚槽
+// 调用 ORIG 4.1 以 %ecx 承载 fnptr、%edx/%eax 装载实参，4.4 恒 %eax 承载 call 目标
+// （N7「间接 call 目标恒 %eax」，b26 NL28 族）。助记符/条数全等，纯寄存器文本差；
+// 禁绑定形（P0/N96）。
 void CFairMatch::OnDestroyRoom(CUser* /*user*/)
 {
     m_field04 = 0;
@@ -362,6 +366,8 @@ void CFairMatch::_BackupRoomInfo(PvP_Room* room)
 
 // _RegisterWaitingRoom ORIG T 0x8563a32 报告 _RegisterWaitingRoom.md
 // (**pWaitingRoomList_)->vtable[0] = AddRoom —— 经 IRoomList::AddRoom(this)
+// [b28 BM2 判词·N7] 同 OnDestroyRoom：AddRoom 虚槽 %ecx vs %eax 承载（N7 族），
+// 其余逐条同。
 void CFairMatch::_RegisterWaitingRoom(PvP_Room* /*room*/)
 {
     // ORIG 0x8563a38 实证无 null 检查直接解引用（pWaitingRoomList_ 恒非 0）
@@ -393,6 +399,9 @@ void CFairMatch::_ChangeTeamLeader(PvP_Room* room,
 }
 
 // OnLeaveRoom ORIG T 0x8562fbc 报告 OnLeaveRoom.md
+// [b28 BM2 判词·N7] AE-ndiff=6（fresh .o 归一，全二进制口径 16 含标签伪差）：
+// 唯一差 = _ReturnTeam 类虚槽调用 call *%ecx(ORIG) vs call *%eax(4.4) 及其
+// 实参装载寄存器对调（N7 族，b26 NL28）。其余 181  insn 逐条同。
 void CFairMatch::OnLeaveRoom(CUser* user, PvP_Room* room,
                              int teamNo, int flag)
 {
@@ -448,6 +457,8 @@ void CFairMatch::OnLeaveRoom(CUser* user, PvP_Room* room,
 // [b28 P222-y10 DIFF→NEAR] 否定合并前置形已翻正块序（ndiff 20→6）；残余 6 行 =
 // DelRoom 虚槽 call *%ecx vs *%eax = N7 封顶。
 // ORIG 返回 int：条件不满足 → 0；执行 → 1。
+// [b28 BM2 判词·N7] AE-ndiff=8（fresh .o 归一）：DelRoom/Remove 虚槽 call *%ecx
+// vs call *%eax + 实参 %edx/%eax→%ecx/%edx 对调（N7 族）。其余逐条同。
 int CFairMatch::OnUnregisterMatch(CUser* /*user*/, PvP_Room* /*room*/)
 {
     // [b28 P59 变体·y10 探针 /tmp/l2_p5.cpp] 否定合并 `!=1 && !=2` return 0 前置形

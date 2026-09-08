@@ -62,7 +62,9 @@ struct SIG_CREATURE_ITEM_DETAIL_INFO
     int           m_expireTime;       // +0x28
     unsigned char m_pad2c[4];         // +0x2c..0x2f
     unsigned char m_growExpFlag;      // +0x30
-    unsigned char m_isMaxLevel;       // +0x31
+    bool          m_isMaxLevel;       // +0x31（ORIG CCreature::LoadCreatureItem
+                                      // 0x83386xx `mov %al,0x31(%edx)` bool→bool
+                                      // 直存形，P219/P211 同型判据；sizeof 不变）
     unsigned char m_pad32[6];         // +0x32..0x37
 };
 #pragma pack(pop)

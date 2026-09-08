@@ -123,7 +123,9 @@ public:
         unsigned int m_startTick;         // +0x0c
         unsigned int m_endTick;           // +0x10
         bool m_isBloodClear;              // +0x14
-        int m_rewardExp[4];               // +0x18
+        unsigned int m_rewardExp[4];      // +0x18（P211：与 setRewardExp 形参 uint
+                                          // 同型化翻 store 序 LHS-first，ORIG
+                                          // 0x085bf14a this 先载实证；宽度/偏移不变）
         stRewardItem_t m_reward[4];       // +0x28
         int m_ultimateClearPoint;         // +0x9c8
 

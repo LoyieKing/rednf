@@ -16,6 +16,8 @@
 //   `mov -0x10(%ebp),%eax; add $0x1,%eax; add 0x10(%ebp),%eax` 由 len 重算
 //   ⇒ 原码持有的是长度局部量、末段地址按 src+len+1 表达式现算（非 dot+1）。
 // ============================================================================
+// [b28 BM2 判词·AE] 3 参版清单 NEAR(2) 为全二进制 call/jmp 目标标签伪差；
+// fresh /tmp/tu_Divide_C_ClassIP_EndIP.o fn_diff_tu 归一 0 差（55=55 逐条）。
 void Divide_C_ClassIP_EndIP(char* out, char* end, char* src)
 {
     if (src == 0)

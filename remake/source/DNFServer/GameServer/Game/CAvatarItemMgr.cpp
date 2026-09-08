@@ -68,6 +68,8 @@ int CAvatarItemMgr::_AssignTempKey()
     // N82 族封顶不追。
     char framePad[0x10];
     (void)framePad;
+    // [b28 复验] P190 double 撑槽与 P31 dead int 占槽两形均不把 counter 顶至
+    // ORIG -0xc（4.4 标量首槽恒 -0x4，声明序/double 对齐/占位写全败）——N82 封顶。
     if (m_tempKeyCounter == 0x7fffffff)
         m_tempKeyCounter = 0;
     m_tempKeyCounter++;

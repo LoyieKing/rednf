@@ -253,7 +253,12 @@ bool CBossPlay::handleLeaveUser(CUser* user)
     int i = 0;
     for (i = 0; i <= 3; ++i)
     {
-        if (m_party->checkValidUser(i) && m_party->get_user(i) == user)
+        // P133：ORIG 两守卫独立 jne（checkValidUser 直跳 + get_user==user
+        // sete 岛），合并 && 生 bool 展开形。拆两条 + 直比（同型件
+        // CDeathTower::handleLeaveUser 清绑后 AE 先例）。
+        if (m_party->checkValidUser(i))
+        {
+        if (m_party->get_user(i) == user)
         {
             if (m_memberField[i] == 0 && user->get_state() == 0xc)
             {
@@ -261,6 +266,7 @@ bool CBossPlay::handleLeaveUser(CUser* user)
             }
             m_party->leave_user(user, (ENUM_PARTY_INFO_TYPE)2);
             setMemberAlive(i, false);
+        }
         }
     }
 

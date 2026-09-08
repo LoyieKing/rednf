@@ -101,6 +101,9 @@ bool DB_RequestCharacSkillInfo::_GetSkillInfo(unsigned int characNo, char slot,
     }
     int i = 0;
     int len = 0x198;
+    // b28 判词（P75 在册 0x08447312）：ORIG 4.1 在 i++ 前先载 len(-0xc)→%ecx 跨
+    // 副作用保活；4.4.7 恒在最后装载位实装——实参装载时刻跨版本调度差，
+    // cast/逗号/具名三形同产。残差 1 insn（装载位置）封顶。
     if (!get_compressed_blob_data(db, i++, (char*)skills, len, 2))
     {
         LogManager::logFormat(1, "DBThread.cpp", __PRETTY_FUNCTION__, 0xb1e0,

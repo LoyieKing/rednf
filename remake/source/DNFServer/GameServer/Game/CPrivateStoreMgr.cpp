@@ -726,6 +726,10 @@ bool CPrivateStore::EnterPrivateStore()
     // ORIG 0x85c8dd6：!= 右操作数 `m_users.end()`（+0x30 sentinel，ebx 跨 call
     // 保活）先于 find() 求值 = 4.1 操作数右先；4.4 恒左先（P75）。同类型两侧
     // operator!= 符号不变，对调操作数使 end 落左操作数即复现右先装载序。
+    // 【b28 复核】lhs 正序形 `find(...) != end` 实测使 find 结果 sret 槽从
+    // -0x18 提前占 -0x14/-0x10 阶（临时槽阶梯平移，44 行劣于对调形 4 行），
+    // 两形不可兼得（求值序 vs 实参位序）——维持对调形，残 4 行封顶 P75 跨版本
+    // 实参求值序（链接后仅剩此对，其余为 call 标注伪差）。
     if (m_users.end() != std::find(m_users.begin(), m_users.end(), m_pBuyer))
     {
         m_errorHandler.Do(0x14);
@@ -2107,9 +2111,9 @@ CCharacterControllerPrivate::CCharacterControllerPrivate() : m_startPos() {}
 // 计算私商开店起始坐标：pos 先清零再写 village 号(a)；user/world/village 缺失
 // 时仅 trace 并保持 b=0。注意 ORIG 后两个失败分支复用 "G_GameWorld call failed"
 // 文案（0x8cbd0cf，原版即如此），逐字保留。
-// 【b28 封顶】残 6 行：①trace 临时槽方向 -0x40↔-0x20 两对（N93附 兄弟块槽深
-// 跨版本反向，穷举实证不可翻）；②world/village 判空的 `cmp;sete;test;je` 物化岛
-// 4 行（P197④：4.4 槽比恒 cmp/jne 直跳，register 绑定已按 N96 全域清除）。
+// 【b28 P225】world/village 判空的 `cmp $0; sete %al; test; je` 物化岛改
+// `while (p == 0) { trace; break; }` 形复现（P225 修正 P197④「槽比恒不可翻」
+// 边界；旧 if-return 形产 cmp/jne 直跳为残差主因）。
 void CCharacterControllerPrivate::GetStartPoint(CUser* user, PrivateStorePos& pos)
 {
     pos.m_field2 = 0x172;
@@ -2125,18 +2129,20 @@ void CCharacterControllerPrivate::GetStartPoint(CUser* user, PrivateStorePos& po
     }
     pos.m_a = (unsigned char)user->getCurCharacVill();
     world = G_GameWorld();
-    if (world == 0)   // N96：register asm 绑定全域禁用（P0），改自然判空形
+    while (world == 0)   // P225 while 四段物化复现 sete 岛；goto 尾保持原语义
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x18b, 5)("G_GameWorld call failed");
-        return;
+        goto out;
     }
     village = world->getUserVillage(user);
-    if (village == 0)   // N96：同上
+    while (village == 0)   // P225 同上
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x190, 5)("G_GameWorld call failed");
-        return;
+        goto out;
     }
     pos.m_b = (unsigned char)village->get_gate_area();
+out:
+    ;
 }
 
 // ---- CPacketBufPrivate::MakeErrorReturnPacket（ORIG W 0x85cc830）----

@@ -13,7 +13,7 @@ public:
     CPartyResultRecvFlag();
 
     bool IsValidIdx(int idx) const;
-    char IsRecv(int idx) const;
+    unsigned char IsRecv(int idx) const;
     void SetRecvFlag(int idx);
     void Clear();
 
@@ -36,7 +36,7 @@ void CPartyResultRecvFlag::SetRecvFlag(int idx)
     m_flag[idx] = 1;
 }
 
-char CPartyResultRecvFlag::IsRecv(int idx) const
+unsigned char CPartyResultRecvFlag::IsRecv(int idx) const
 {
     if (!IsValidIdx(idx))
     {

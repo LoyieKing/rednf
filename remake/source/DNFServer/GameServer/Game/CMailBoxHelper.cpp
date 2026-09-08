@@ -189,9 +189,9 @@ struct MailBoxSendSystemMultiMailV
     unsigned int m_count;            // +0x388
     unsigned int m_nA;               // +0x38c
     unsigned int m_nB;               // +0x390
-    unsigned char m_flag;            // +0x394
-    unsigned int m_serverGroup;      // +0x395
-    unsigned int m_titleLen;         // +0x399
+    bool m_flag;                     // +0x394（P211 同型化：bA bool 槽 ⇒ LHS-first=ORIG）
+    int m_serverGroup;               // +0x395（P211：形参 ENUM_SERVER_GROUP 底层 int 同型）
+    int m_titleLen;                  // +0x399（P211：形参 nTitleLen int 同型⇒LHS-first）
     char m_pad39d[0x3a5 - 0x39d];
     unsigned int m_unk3a5;           // +0x3a5
 };                                   // sizeof 0x3a9
@@ -1677,7 +1677,7 @@ int CMailBoxHelper::ReqDBSendNewSystemMultiMail(const char* pSender,
     msg->m_titleLen = nTitleLen;
     msg->m_nB = nB;
     msg->m_serverGroup = nServerGroup;
-    msg->m_flag = (unsigned char)bA;
+    msg->m_flag = bA;
     msg->m_unk3a5 = 1;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return 0;

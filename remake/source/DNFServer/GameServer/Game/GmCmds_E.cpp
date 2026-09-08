@@ -804,6 +804,10 @@ void CPcroomRewardReset::execute()
 // ORIG ctor 0x082a85e6：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 
 // ORIG parse 0x084ac84c：trim；find(" ") 切两段分别 atoi 入 +0x08/+0x0c。
+// 【b28 判词 N-P75/N18a】残差全为跨版本参数装载调度：①substr(pos,..) 的 pos
+// 槽装载 ORIG 先于 this 链、4.4 恒后置于 lea dest（P75）；②pos+1 ORIG 两段
+// `add $1,%eax; mov %eax,%edx` vs 4.4 折 `lea 0x1(%eax),%ecx`（N18a 折叠）；
+// ③第二段 ecx/edx 寄存器互换（N7 同族）。
 void CPickup::parse()
 {
     trim(m_parser->m_args);
@@ -948,18 +952,25 @@ void CRandomObjectTest::getVendingMachineItem(std::map<int, int>& out)
 // ORIG processVendingMachineItemLottery(CMTRand&, info const*, Inven_Item&)
 // 0x084b0550：在 [0, m_giveCount-1] 掷点，扫 m_vecGive 取首个累计权重
 // 大于掷点的输出，把 itemId/m_count 写入物品 +0x02/+0x07。
+// 【b28 部分翻案+判词】cmp 三段→折叠 `cmp -0xc(%ebp),%eax` 经 roll 槽
+// unsigned 同型化翻正（P218 同族，探针 /tmp/bm3/p18 fE vs fF）；残差
+// 1 条 = 首 store `mov (%eax),%edx` 单段直落（4.4 恒经 %eax 中转，N18a
+// 反向判词在册），次 store 两段形与 ORIG 一致。
 void CRandomObjectTest::processVendingMachineItemLottery(CMTRand& rng,
                                                          const stVendingMachineInfo_t* info,
                                                          Inven_Item& item)
 {
     unsigned long range = static_cast<unsigned long>(info->m_giveCount - 1);
-    int roll = rng.randInt(range);
+    // b28 BM3：roll 槽按 ORIG -0xc unsigned 32 位直存；比较两侧同为 unsigned
+    // 时 4.4 折叠 `cmp -0xc(%ebp),%eax`（探针 /tmp/bm3/p18 fE vs fF：int 槽+双侧
+    // cast 恒生三段 mov %eax,%edx;mov mem,%eax;cmp）。
+    unsigned roll = rng.randInt(range);
 
     for (std::vector<stVendingMachineOutput_t>::const_iterator it =
              info->m_vecGive.begin();
          it != info->m_vecGive.end(); ++it)
     {
-        if (static_cast<unsigned int>(it->m_cumWeight) > static_cast<unsigned int>(roll))
+        if (static_cast<unsigned int>(it->m_cumWeight) > roll)
         {
             item.m_addInfo = it->m_itemId;
             item.m_addInfo2 = static_cast<int>(it->m_count);
@@ -1064,6 +1075,7 @@ void CRecipeSuccess::execute()
 // ORIG ctor 0x082a8602：基类 ctor → 自身 vptr；string@+0x08 默认构造。
 
 // ORIG parse 0x084ac96c：trim；find(" ") 切两段分别 atoi 入 +0x08/+0x0c。
+// 【b28 判词 N-P75/N18a】与 CPickup::parse 同型残差（0x084ac84c 判词照抄）。
 void CRefund::parse()
 {
     trim(m_parser->m_args);

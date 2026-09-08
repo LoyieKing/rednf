@@ -352,9 +352,9 @@ int AuthGarenaToken::decrypt(const char* token, int len, GarenaAuthData& out)
 // ORIG T 0x08173ffa（C2 同址别名）
 EntranceQuery::EntranceQuery() : m_field0(0), m_resultCode(0) {}
 
-bool EntranceQuery::setQuery(MySQL&) { return true; }     // ORIG 0x08174012
-bool EntranceQuery::execQuery(MySQL&) { return true; }    // ORIG 0x0817401c
-bool EntranceQuery::getResult(MySQL&) { return 1; }        // ORIG 0x08174026
+bool EntranceQuery::setQuery(MySQL&) throw() { return true; }   // ORIG 0x08174012
+bool EntranceQuery::execQuery(MySQL&) throw() { return true; }  // ORIG 0x0817401c
+bool EntranceQuery::getResult(MySQL&) throw() { return 1; }     // ORIG 0x08174026
 
 // ---- BalanceQuery ---------------------------------------------------------
 
@@ -386,14 +386,20 @@ bool BalanceQuery::getResult(MySQL& db)
             throw static_cast<int>(0x119);
         if (!db.fetch())
             throw static_cast<int>(0x11c);
-        if (!db.get_int(0, m_balance))
+        // [b28BM13] ORIG 0x08174092 -0x10(%ebp) 为共享 idx 槽，init 落 fetch
+        // 检查之后：addl $1 后置自增、值经 eax 直传首参（P0：有槽⇒具名局部）。
+        unsigned int idx = 0;
+        if (!db.get_int(idx++, m_balance))
             throw static_cast<int>(0x120);
-        if (!db.get_int(1, m_resultCode))
+        if (!db.get_int(idx++, m_resultCode))
             throw static_cast<int>(0x123);
         return 1;
     }
-    catch (const int& e)
+    catch (int e)
     {
+        // [b28BM13] ORIG 0x0817422d = `begin_catch; mov (%eax),%eax; mov %eax,-0xc`
+        // （值先物化入槽，P35/P0）⇒ 原码为按值 catch；引用形反产指针落槽+回读
+        // 解引用两段（b28BM13 实测）。throw(int) 语义等价（POD）。
         LogManager::logFormat(
             1, "localtaiwan/System/TaiwanCash.cpp", __FUNCTION__, 0x129,
             "[Taiwan, Billing] BalanceQuery Error Line:%u\n",
@@ -432,15 +438,17 @@ bool BalancePointQuery::getResult(MySQL& db)
             throw static_cast<int>(0x14e);
         if (!db.fetch())
             throw static_cast<int>(0x151);
-        if (!db.get_int(0, m_balance))
+        // [b28BM13] 同 BalanceQuery::getResult：ORIG 共享 idx 槽（-0x10）后置自增。
+        unsigned int idx = 0;
+        if (!db.get_int(idx++, m_balance))
             throw static_cast<int>(0x155);
-        if (!db.get_int(1, m_point))
+        if (!db.get_int(idx++, m_point))
             throw static_cast<int>(0x158);
-        if (!db.get_int(2, m_resultCode))
+        if (!db.get_int(idx++, m_resultCode))
             throw static_cast<int>(0x15b);
         return 1;
     }
-    catch (const int& e)
+    catch (int e)   // [b28BM13] ORIG 值先物化入槽 ⇒ 按值 catch（同 BalanceQuery）
     {
         LogManager::logFormat(
             1, "localtaiwan/System/TaiwanCash.cpp", __FUNCTION__, 0x161,
@@ -671,8 +679,9 @@ CeraPointQuery::CeraPointQuery(const char* account, const char* p2,
 }
 
 // ORIG T 0x08175224：%d 参数序 price/c6/StringToNumber(uidStr)/c8 与 ORIG 一致。
-// N7 封顶：指令/槽/助记符全等，仅 5 个 callee-saved 分配整体错位（4.1 首位 edx
-// vs 4.4 首位 edi）；register asm("edx") 钉形实测劣化（DIFF），穷举后封顶。
+// [b28BM13 N7] 封顶：指令/槽/助记符全等，仅 5 个 callee-saved 分配整体错位
+// （4.1 首位 edx vs 4.4 首位 edi）。register 绑定按 P0 全域禁用（旧 asm("edx")
+// 尝试注记作废，实测亦劣化），穷举后封顶。
 bool CeraPointQuery::setQuery(MySQL& db)
 {
     return db.set_query(
@@ -823,18 +832,18 @@ bool GarenaCyberCafe(unsigned short cafeFlag)
 bool GarenaCheckTimeStamp(unsigned int nowA, unsigned int nowB,
                           unsigned int serverC, unsigned int serverD)
 {
-    // [b27L8] ORIG 0x08173080 = 嵌套守卫形（P194/P59 反形）：条件成立跳走
-    // （ja/je/jb 到 return 岛），失败直落下一判（探针 l8_probe6 g3 逐条同）；
-    // 平铺 if-return 形 4.4 出条件不成立跳下一判的反极性链。
+    // [b28BM13 P222] ORIG 中层 = `cmp; jne <mov$0 岛>`（正向 == 包裹、else 归
+    // return-false 岛，探针 bm13_p6 g2 实证；!=/!(==) 形 4.4 恒产 je 反极性）。
     if (!(nowA + 300 > nowB))       // ja：无符号 >
     {
-        if (nowA != serverC)        // je 失败直落
+        if (nowA == serverC)
         {
             if (!(serverD + 300 < nowB))  // jb：无符号 <
                 return true;
             return false;
         }
-        return false;
+        else
+            return false;
     }
     return true;
 }

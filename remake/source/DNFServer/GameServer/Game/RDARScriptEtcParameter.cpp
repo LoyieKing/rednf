@@ -297,6 +297,8 @@ int importExperienceItemMapInfo(std::map<int, int, std::less<int>,
 //       +0x0e unsigned char m_cMultiboxCount
 // BoosterPoint：+0x00 unsigned long m_dwItemIdx / +0x04 unsigned char m_cPoint
 // ============================================================================
+// [b28 BM2 判词·AE] 清单 NEAR(2) 为全二进制 call 目标标签伪差；fresh
+// /tmp/tu_RDARScriptEtcParameter.o fn_diff_tu 归一 0 差（152=152 逐条）。
 int importBoosterGage(char* path, BoosterGageData* out)
 {
     if (!out)

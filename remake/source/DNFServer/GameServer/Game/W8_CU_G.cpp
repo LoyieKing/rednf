@@ -363,7 +363,10 @@ unsigned int CUser::reqSendMailCertify()
     packet.put_byte(static_cast<int>(veriB));
     packet.put_short(static_cast<int>(veriC));
 
-    packet.put_byte(static_cast<int>(static_cast<unsigned int>(m_humanCertifyErrorCnt) & 0xff));
+    // ORIG 0x086530xx：`mov 0x8e0fc(%eax),%eax; movzbl %al,%eax` = int 字段
+    // **uchar→int 双段截断**形（probe p18.z1：`(int)(unsigned char)` 直落产
+    // movzbl %al；`& 0xff` 形产 and——两 lowering 指令名不同）。
+    packet.put_byte(static_cast<int>(static_cast<unsigned char>(m_humanCertifyErrorCnt)));
     packet.put_byte(1);
     packet.finalize(true);
     Send(packet);

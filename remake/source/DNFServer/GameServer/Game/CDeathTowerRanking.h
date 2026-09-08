@@ -126,13 +126,10 @@ public:
         bool operator==(const stBestRecord_t& other)
         {
             // ORIG 0x08469d30：首比较 jne→mov$0 岛@8469d62；次比较 sete %al 直出@8469d5d
-            // （范式22：register bool 绑 al 免物化分支；范式23 goto 钉岛序）。
+            // （N96 清绑：改自然比较返回形，禁 register asm；残差按 P168a④/N96 判词。）
             if (m_stage != other.m_stage)
                 goto RET0;
-            {
-                register bool eq asm("al") = (m_playTime == other.m_playTime);
-                return eq;
-            }
+            return m_playTime == other.m_playTime;
         RET0:
             return false;
         }

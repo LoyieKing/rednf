@@ -68,8 +68,10 @@ CharacData::~CharacData()
 //   getSlotItem 同步 m_slotItems（map<uchar,_SlotItem>）。
 void CharacData::setSlotItem()
 {
-    if (m_user != 0)
-        m_user->m_advanceAltar.getSlotItem(m_slotItems);
+    if (m_user == 0)
+        goto L_done;
+    m_user->m_advanceAltar.getSlotItem(m_slotItems);
+L_done:;
 }
 
 // ORIG T 0x0812d078（reset.md 全文）：m_gageLevel/m_user/m_gage/m_field0 清零 +
@@ -318,7 +320,7 @@ void ProcStage::ProcSummonObjectMs::debugLog() const
 //   user, _SummonObject::m_id（m_summon 槽 +0x00）, msg) 并返回 1；否则 0。
 //   （第二 ushort 参数 ORIG 未引用，忠实保留。）
 // ----------------------------------------------------------------------------
-int ProcStage::ProcSummonObjectMs::dieMob(unsigned short mobSeq, unsigned short param,
+bool ProcStage::ProcSummonObjectMs::dieMob(unsigned short mobSeq, unsigned short param,
                                           const MSG_MONSTER_DIE& msg)
 {
     (void)param;  // ORIG 未使用
@@ -514,22 +516,20 @@ bool ProcStage::makeCurrentPhaseSummonObject()
 // ----------------------------------------------------------------------------
 void ProcStage::procTimeLine()
 {
-    if (m_state == State::S_N3)
+    if (m_state != State::S_N3)
+        goto L_out;
+    if (m_summonObjectMs.isEndSummon())
     {
-        if (m_summonObjectMs.isEndSummon())
+        bool made = makeCurrentPhaseSummonObject();
+        if (!made)
         {
-            bool made = makeCurrentPhaseSummonObject();
-            if (!made)
-            {
-                m_state = State::S_N4;
-            }
-        }
-        incCurrentMs();
-        if (m_state == State::S_N3)
-        {
-            m_summonObjectMs.summonObjectAndSendPacket();
+            m_state = State::S_N4;
         }
     }
+    incCurrentMs();
+    if (m_state == State::S_N3)
+        m_summonObjectMs.summonObjectAndSendPacket();
+L_out:;
 }
 
 // ORIG W 0x08134844：*(this+4) = state。
@@ -751,9 +751,8 @@ int ProcStage::startStage(int stageId, StageDifficulty::T diff)
 // ----------------------------------------------------------------------------
 void ProcStage::addCreatedMapMonster(_MapMonsterSummary& summary)
 {
-    // P0：ORIG 无 seq 槽（0x812e177 movzwl 后寄存器直存/lea 自增），原码为内联右值。
-    summary.m_seq = m_field14;
-    m_field14 = static_cast<short>(m_field14 + 1);
+    // P0：ORIG 无 seq 槽（0x812e177 movzwl 后寄存器直存/lea 自增），++ 后缀单读双用。
+    summary.m_seq = m_field14++;
     m_createdMapMonsters.insert(std::make_pair(summary.m_seq, summary));
 }
 
@@ -945,17 +944,18 @@ int ProcStage::getState() const
 bool ProcStage::dieMob(unsigned short mobSeq, unsigned short param,
                        const MSG_MONSTER_DIE& msg)
 {
-    if (m_summonObjectMs.dieMob(mobSeq, param, msg))
+    // P168a①：bool callee 裸负形 → ORIG `call; xor$1,%eax; test%al; je`（r1 探针）。
+    if (!m_summonObjectMs.dieMob(mobSeq, param, msg))
     {
+        std::map<short, _MapMonsterSummary>::iterator it =
+            m_createdMapMonsters.find(static_cast<short>(mobSeq));
+        if (it == m_createdMapMonsters.end() || it->second.m_padC == 1)
+        {
+            return false;
+        }
+        it->second.m_padC = 1;   // 兼用字段：已创建怪死亡标记 [objdump 0x0812e2a9 读 pair+0xe=m_padC]
         return true;
     }
-    std::map<short, _MapMonsterSummary>::iterator it =
-        m_createdMapMonsters.find(static_cast<short>(mobSeq));
-    if (it == m_createdMapMonsters.end() || it->second.m_padC == 1)
-    {
-        return false;
-    }
-    it->second.m_padC = 1;   // 兼用字段：已创建怪死亡标记 [objdump 0x0812e2a9 读 pair+0xe=m_padC]
     return true;
 }
 

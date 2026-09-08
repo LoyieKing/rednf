@@ -148,7 +148,8 @@ static_assert(sizeof(SIG_CREATURE_ITEM) == 0x74, "SIG_CREATURE_ITEM ABI drift");
 // +0x08 物品 idx 具名视图（P95/P82 手法）：ORIG CDBMsgSender::{Evolute,Event,
 // Hatch}Creature 写点为 buf 基址 disp8 折叠 `mov %edx,0x8(%eax)`；
 // *reinterpret_cast<int*>(&m_item[4]) 形在 4.4 展开 add $0x8（探针 /tmp/bl8_probe6.o f5）。
-struct SigCreatureItemIdxView
+struct SigCreatureItemIdxView   // N76 判定：int/unsigned/cast/compat 链 4 形探针恒
+                                 // LHS-first，ORIG RHS-first 不可源码复现
 {
     char m_pre[8];
     int  m_itemIdx;    // SIG_CREATURE_ITEM+0x08（compat 区 m_itemIdx）

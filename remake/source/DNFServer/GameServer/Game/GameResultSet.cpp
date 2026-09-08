@@ -1,24 +1,7 @@
 // ============================================================================
 // df_game_r 还原 —— GameResultSet。
-// ORIG：ctor 0x84b75d2 T / dtor 0x84b75e6 T / Clear 0x84b75fa T，
-// 三者均为对 GameResultType 同名方法的转发调用。
-// 报告：docs/class_func_reports/GameResultSet/{~GameResultSet,GameResultSet,Clear}.md
-// 类声明唯一来源：GameResultType.h / GameResultSet.h 权威头。
+// 三方法（ctor/dtor/Clear）定义已迁至 GameResultType.cpp 尾部：ORIG 符号地址
+// 邻接（0x84b7416 → 0x84b75d2）证明原属同一翻译单元，且 P210 callee 定义顺序
+// 定律要求基类 ~GameResultType 定义先于派生 ~GameResultSet（帧 0x18→0x4）。
+// 本 TU 保留为空壳（构建目标列表不变）。
 // ============================================================================
-#include "GameResultSet.h"
-
-// ORIG ctor 0x84b75d2 T：转发基类构造（0x84b73d4）。
-GameResultSet::GameResultSet()
-{
-}
-
-// ORIG dtor 0x84b75e6 T：转发基类非内联析构（0x84b7416）。
-GameResultSet::~GameResultSet()
-{
-}
-
-// ORIG 0x84b75fa T：显式限定转发 GameResultType::Clear（0x84b7442）。
-void GameResultSet::Clear()
-{
-    GameResultType::Clear();
-}

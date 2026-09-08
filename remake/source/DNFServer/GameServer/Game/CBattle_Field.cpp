@@ -344,6 +344,9 @@ int CBattle_Field::getBloodState()
 void CBattle_Field::SetEnableHellDungeon(bool flag)
 {
     char* p = GetEnableHellDungeon();
+    // p 槽取址使 4.4 store 前发纯装载 `mov -0xc(%ebp),%eax`（LHS 先，ORIG
+    // 0x0822cf44 形）；无取址时 4.4 恒 RHS 值先（probe /tmp/l0p8.cpp SetH）。
+    (void)&p;
     *p = flag;
 }
 
@@ -368,12 +371,12 @@ unsigned char CBattle_Field::IsEnableHellDungeon()
     return *p;
 }
 
-void CBattle_Field::set_dungeon_diff(register char diff)
+void CBattle_Field::set_dungeon_diff(char diff)
 {
-    // ORIG 0x830ed21：movzbl 0xc → cmp $0x4 → jbe(写) → push/pop 设 4 ——
-    // clamp 到 ≤4 的 if 形态（直接在 diff 参数上，无局部 v；比较无符号）。
-    // （已改善 ndiff 18→11；残差为 ISel `movzbl mem` vs `mov32+copy`、
-    // `push/pop` vs `mov` 常量装载，合法源码不可复现。）
+    // ORIG 0x830ed21：`movzbl 0xc(%ebp),%edx; cmp $0x4,%edx; jbe` + clamp 臂
+    // `push $0x4; pop %edx`（值恒驻寄存器、不回写形参槽）。b28 按 P0/N96 清除
+    // 存量 `register char diff` 绑定形：4.4 对形参写回恒落槽（movb $4,0xc）再
+    // 读回，4.1 跨块寄存器驻留不可合法复现（N96→N18a 反向判词），落判词封顶。
     if ((unsigned char)diff > 4)
         diff = 4;
     m_dungeonDiff = (unsigned char)diff;
@@ -466,6 +469,10 @@ void CBattle_Field::CheckAppearRidableObject(PacketGuard* packet)
 //   迭代器先默认构造（P28：it = find(...) 经临时中转拷贝）；两次独立
 //   GetCurrentMapInfo()（P48 无 CSE）；找到则经块作用域临时 map_monster
 //   拷贝给 out（tmp 析构先于 return true，对齐 ORIG 的 mov $1 在 dtor 后）。
+//   【b28 封顶】指令数 72=72、帧 sub $0x380 全等；残差为局部槽基深差：4.1 把
+//   迭代器/临时对象顶到帧底（-0x35c/-0x36c/-0x358…），4.4 恒自 ebp-8 起
+//   （-0x10/-0xc/-0x18…）⇒ 全帧槽号平移 0x34c（N95/N82 族，P182 不强凑；
+//   double framePad 仅调 ±4 无法位移 0x34c）。语义闭合，N 封顶勿再耗轮。
 bool CBattle_Field::GetFieldMob(int uid, map_monster& out)
 {
     std::map<int, map_monster>::iterator it;
@@ -692,8 +699,10 @@ int CBattle_Field::CBloodClearRewardData::getRewardExp(int idx)
     return m_rewardExp[idx];
 }
 
-// N18a 物化：m_rewardExp[idx] 地址计算 ORIG `lea 0x4(%edx),%ecx` vs 4.4
-// `add $0x4,%ecx`（ISel add/lea，合法源码不可复现）。
+// b28 P211 翻案（DIFF 6→IDENTICAL）：字段 int→unsigned int 与 exp 形参同型化
+// 后 store 展开翻为 LHS-first（this 于 idx 之后即载，`lea 0x4(%edx),%ecx` 并入
+// scaled 寻址），与 ORIG 0x085bf144 逐条全等；旧「add vs lea」判词系字段异型
+// 所致的装载方向差，非 ISel 伪差。
 void CBattle_Field::CBloodClearRewardData::setRewardExp(int idx, unsigned int exp)
 {
     m_rewardExp[idx] = exp;

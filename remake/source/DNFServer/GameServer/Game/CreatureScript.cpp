@@ -1836,6 +1836,9 @@ CCreatureScript::CCreatureScript()
 }
 
 // ORIG 0x833c848：释放 +0x20 数组（delete[]），析构 +0x68/+0x34/+8。
+// [b28-BM7 判词] we-larger 22 = N89：ORIG 3 处容器 clear 为 4.1 发射的
+// out-of-line 模板实例（0x8083dda/0x80d9f34，objdump 误标 _GLOBAL__I），
+// 4.4 libstdc++ 全内联展开循环+delete call；EH landing 双段同构。语义全等。
 CCreatureScript::~CCreatureScript()
 {
     if (m_artifactSlotFlags != 0)
@@ -1899,10 +1902,10 @@ void CCreatureScript::Set(CreatureScript* src)
 // ORIG 0x833cad8：find(m_set34, creatureId)；命中返回 creatureId，否则 0。
 int CCreatureScript::GetItemEvolutionCreatureId(int creatureId)
 {
-    // N7/实参装载序封顶：两栈参载入次序 ORIG 与 4.4 相反（槽 -0x10/-0xc），
-    // 指令集全等；同表达式实参序跨版本差（patterns"实参求值序"条）不可源码复现。
+    // ORIG 0x833cb15：ne 的 this=-0xc（end 临时槽）、arg=-0x10（find 结果 it
+    // 槽）⇒ 原码比较形为 end != it（P220 极性翻正消实参装载序差）。
     std::set<int>::const_iterator it = m_set34.find(creatureId);
-    if (it != m_set34.end())
+    if (m_set34.end() != it)
     {
         return creatureId;
     }

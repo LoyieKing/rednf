@@ -42,8 +42,9 @@ public:
     int m_registTime;                          // +0x04
     char m_ipgAgencyNo[25];                    // +0x08（0x19 字节）
     stAvatarEmblemInfo_t m_emblemInfo;         // +0x21（0x1e 字节）
-    unsigned short m_color1;                   // +0x3f
-    unsigned short m_color2;                   // +0x41
+    short m_color1;                            // +0x3f（P211 同型化：ORIG setColor(ss)
+    short m_color2;                            // +0x41  store 为 LHS-first，字段与形参
+                                              //  同型翻正；pack(1) 偏移/尺寸不变）
     char m_pad43[1];                           // +0x43
 };
 #pragma pack(pop)

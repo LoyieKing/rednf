@@ -138,10 +138,10 @@ class CEgg : public CCreatureItem    // ORIG 继承 CCreatureItem（ctor 基区�
 {
 public:
     CEgg();        // ORIG T 0x08338f4c：基类 ctor → vptr←&_ZTV CEgg+0x8(0x08c2f4a8) → Reset
-    ~CEgg()        // ORIG D1 0x08338f74 仅写 vptr（0x8338f7a movl $0x8c2f4a8,(%eax)）
-    {
-        m_vptr = 0x08c2f4a8;
-    }
+    // ORIG D1 0x08338f74 仅写 vptr（0x8338f7a movl $0x8c2f4a8,(%eax)）。
+    // 外联定义（P210：头内联体使 DynamicPool<CNode>::~CNode 调用点 4.4 保守撑帧
+    // 0x18 vs ORIG 0x4；探针 /tmp/bm3/p1-p2）。定义随 CNode 特化置于 CGameManager.cpp。
+    ~CEgg();
     void Reset();  // ORIG T 0x08338f82：基类字段清零
     bool IsSave(); // ORIG W 0x0833f102：字面返回 0
     bool Hatch(int* out);   // ORIG T 0x0833912a（定义 CCreatureMgr.cpp）
@@ -330,7 +330,8 @@ public:
     bool RenameCreature(const char* name);              // ORIG T 0x83373aa
     bool EvoluteMulty(CUser* user, int creatureId);     // ORIG T 0x8338950
     bool EventEvolute(CUser* user, int creatureId, int slot);  // ORIG T 0x833db2e
-    bool ItemEvolute(CUser* user, int itemIdx);         // ORIG T 0x8338ca0
+    int ItemEvolute(CUser* user, int itemIdx);          // ORIG T 0x8338ca0（尾 mov %ebx,%eax
+                                                        // 直通+caller 无归一 ⇒ int，P159）
     bool IsEvolutionCreature(int creatureId);           // ORIG T 0x83388ec
     bool IsEvolutionCreatureMulty(int creatureId);      // ORIG T 0x8338922
     bool IsEventEvolutionCreature(int creatureId);      // ORIG T 0x8338bfa

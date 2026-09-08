@@ -857,10 +857,15 @@ void CUserCharacInfo::setBlueMarbleEnterCount(unsigned char count)
 
 void CUserCharacInfo::setBloodBestRecord(unsigned int time, int round, int record, bool flag)
 {
-    if (m_selected)
+    // [b28 BM8 P223] ORIG 三空块中继岛（+0x24c/0x24f/0x252 `nop;jmp`）：
+    // m_selected==0 空 else、`!(best<=round)`、`best==cur 全等` 短路空出口。
+    // 4.4 jump-threading 折叠空块 ⇒ 改 goto+尾空标签形逐岛复现。
+    if (m_selected == 0)
+        goto L_SBR_END;
     {
     if (round > 0xf)
         round = 0xf;
+    {
     std::map<int, stBloodBestRecord>::iterator it =
         CUR->m_bloodBestMap.m_map.find(record);
     if (it == CUR->m_bloodBestMap.m_map.end())
@@ -884,8 +889,11 @@ void CUserCharacInfo::setBloodBestRecord(unsigned int time, int round, int recor
     {
         CUR->m_bloodBestRound = it->second.m_round;
         CUR->m_bloodBestTime = it->second.m_time;
-        if (CUR->m_bloodBestRound <= round &&
-            (CUR->m_bloodBestTime != time || CUR->m_bloodBestRound != round))
+        if (round < CUR->m_bloodBestRound)
+            goto L_SBR_END2;
+        if (CUR->m_bloodBestTime == time &&
+            CUR->m_bloodBestRound == round)
+            goto L_SBR_END3;
         {
             if (CUR->m_bloodBestRound == round)
             {
@@ -903,6 +911,10 @@ void CUserCharacInfo::setBloodBestRecord(unsigned int time, int round, int recor
         }
     }
     }
+    }
+L_SBR_END3:;
+L_SBR_END2:;
+L_SBR_END:;
 }
 
 
@@ -2129,20 +2141,6 @@ void CUserCharacInfo::getExpBonusPoint(ExpBonusPointResult& out)
 
 
 
-int CUserCharacInfo::calc_disp_help_abuse_ratio(int param)
-{
-    // [N] 逐条指令序全等，唯槽号整体平移（-0x30↔-0x38 等 +8/0x10，帧 0x58 vs
-    // 0x68）——4.4 fildll 8 字节槽对齐布局恒形，跨版本槽分配豁免（ndiff 28 封顶）。
-    int levelUpExp = get_level_up_exp(get_charac_level());
-    float helpRate =
-        (float)((double)getCurCharacDungeonHelpAbuseExp() / (double)levelUpExp);
-    int ratio = (int)((float)getCurCharacDungeonHelpAbuseRatio() + 1000000.0f * helpRate);
-    int result = 0;
-    if (get_charac_level() + param > 0)
-        result = ratio / (get_charac_level() + param);
-    return std::min(1000000, result);
-}
-
 int CUserCharacInfo::get_level_up_exp(int level)
 {
     return G_CDataManager()->get_level_exp(level + 1) - G_CDataManager()->get_level_exp(level);
@@ -2158,6 +2156,26 @@ unsigned int CUserCharacInfo::getCurCharacDungeonHelpAbuseExp() const
     return m_selected ? CUR->m_dungeonHelpAbuseExp : 0;
 }
 
+// [b28 BM8 P210] 定义序移到全部同 TU callee（get_level_up_exp/两 getter）之后：
+// 4.4 按已见 callee 帧继承 outgoing，缩帧向 ORIG 0x58 靠拢；原「fildll 槽对齐
+// 恒形 N」旧判词系未试 P210 前置。实测 P210 前置帧不变（仍 0x68）；具名 ull
+// 局部形反劣 80 insn（reload 链），回滚匿名临时形（68=68 助记符全等）。
+// [b28 BM8 判词 N82附/N95] 残差全为槽号平移：4.4 聚合(8B)临时优先占深槽且基址
+// 比 4.1 低 8B（-0x38 vs -0x30，连带 cw -0x3a/-0x3c vs -0x32/-0x34、除数槽
+// -0x4c vs -0x3c），帧 0x58↔0x68 差 16B——4.1 生命周期穿插 vs 4.4 分区排布，
+// 无源形可控（ndiff 28 封顶）。
+int CUserCharacInfo::calc_disp_help_abuse_ratio(int param)
+{
+    int levelUpExp = get_level_up_exp(get_charac_level());
+    float helpRate =
+        (float)((double)getCurCharacDungeonHelpAbuseExp() / (double)levelUpExp);
+    int ratio = (int)((float)getCurCharacDungeonHelpAbuseRatio() + 1000000.0f * helpRate);
+    int result = 0;
+    if (get_charac_level() + param > 0)
+        result = ratio / (get_charac_level() + param);
+    return std::min(1000000, result);
+}
+
 void CUserCharacInfo::calcHelpAbuseRatioBeforeLevelUp(int param)
 {
     char unused[0x20];
@@ -2166,12 +2184,15 @@ void CUserCharacInfo::calcHelpAbuseRatioBeforeLevelUp(int param)
 }
 
 
-void CUserCharacInfo::calcHelpAbuseRatio(unsigned int param, register bool flag)
+void CUserCharacInfo::calcHelpAbuseRatio(unsigned int param, bool flag)
 {
     // ORIG `mov 0x10(%ebp),%eax; mov %al,-0x24(%ebp)` 单段直存（P35）。
-    // 残余：4.4 数组槽 anchor 使帧 0x30 vs ORIG 0x24（1 条 sub 差）。实测
-    // char[0x23]+具名标量、标量前置/后置、fE 型 bottom-spill 均在 4.4 成员
-    // 语境落 -0x1/-0x24+帧量化 16，不可精确 0x24（P182 不强凑，N95 族）。
+    // [b28 BM8 判词 N95/N96] 存量形曾靠**裸 register bool 形参**消 4.4 形参
+    // spill 凑出「单 store+帧 0x30」，属 P0 禁用绑定形，已清绑。清绑后 4.4
+    // 对任何 char/bool[0x1c..0x24] 数组直存恒发「spill 槽 store + anchor store」
+    // 两段（探针 bm8_p4/p6：帧 0x24 时 anchor=-0x1c≠ORIG -0x24；anchor=-0x24 时
+    // 帧 0x34）。ORIG「帧 0x24+唯一 store -0x24」组合在 4.4 槽基规则（N95：
+    // 局部从 ebp-8 起、数组贴底）下无源形 ⇒ N 封顶（ndiff 4）。
     char unused[0x24];
     unused[0] = flag;
     (void)param;

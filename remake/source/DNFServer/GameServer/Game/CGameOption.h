@@ -213,7 +213,10 @@ public:
     bool m_gmQuestFlag;                              // +0x62c（ORIG setGmQuestFlag 0x0822fc8e this-先 bool=bool 直落形）
     bool m_forceDropFlag;                            // +0x62d（ORIG setForceDropFlag 0x0868f6fa 同形；getForceDropFlag 0x0868f716 movzbl 直返兼容）
     char m_webAddress[0x12];                         // +0x62e（getWebAddress）
-    int m_playExpAdd;                                // +0x640
+    unsigned int m_playExpAdd;                       // +0x640（P211 异型化实证：incPlayExpAdd
+                                                     //   ORIG 0x86972a0 `mov field,%edx; mov v,%eax;
+                                                     //   add %eax,%edx` 双段形=unsigned 字段+int 参
+                                                     //   转换中转（probe p10.incG）；宽度/偏移不变）
     bool m_breakAwayDungeonClear;                    // +0x644（CUser+0x703a8；ORIG movzbl 直返，bool 实证
                                                      //   ORIG W 0x085bfd1a 写 byte / isBreakAwayDungeonClear
                                                      //   0x086971de movzbl 读；CUserOnlyOrig.cpp:7704 同义实现）

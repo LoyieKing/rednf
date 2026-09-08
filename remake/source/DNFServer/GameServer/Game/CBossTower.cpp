@@ -168,14 +168,11 @@ bool CBossTower::handleLeaveUser(CUser* user)
 //   (uchar)m_difficulty)；返回 1。
 int CBossTower::handleMoveMap(unsigned short* mapIndex)
 {
-    // X1 形（XOR_FAMILY.tsv）+ 落点岛（技巧 24）：ORIG @0x…handleMoveMapEPt 是
+    // P168a①裸形复测 + ②直分支形：ORIG @0x…handleMoveMapEPt 是
     // `call CBossStage::handleMoveMap; xor $0x1,%eax; test %al,%al; je BODY;
-    //  mov $0x0,%eax; jmp end; BODY: …` —— **return 0 走 fall-through、
-    //  成功路径跳走**。被调返回 int，4.4 对 `if (!intcall())` 恒产两段
-    //  `test;sete`，必须用绑 %eax 的具名 unsigned char + 显式 `^= 1`。
-    register unsigned char v asm("eax") = (unsigned char)CBossStage::handleMoveMap(mapIndex);
-    v ^= 1;
-    if (!v) goto BODY;
+    //  mov $0x0,%eax; jmp end; BODY: …` —— return 0 走 fall-through、成功路径跳走。
+    // N96 清绑：register asm 全域禁用；X2 槽化/xor 物化形按 P168a④ 复验后定。
+    if (CBossStage::handleMoveMap(mapIndex) == 0) goto BODY;
     return 0;
 BODY:
     for (int i = 0; i < 4; ++i)

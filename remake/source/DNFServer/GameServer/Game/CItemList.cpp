@@ -234,7 +234,7 @@ struct SITEMTYPE
         m_field4 = f4;
         m_str8 = name;
     }
-    char m_field0;        // +0x00
+    bool m_field0;        // +0x00  // b28 BM4 P211 同型化，与 sync_script.h 同步
     unsigned char m_field1;  // +0x01
     unsigned char m_field2;  // +0x02
     unsigned short m_field4; // +0x04（ORIG GetType 读 *(ushort*)(p+4)）

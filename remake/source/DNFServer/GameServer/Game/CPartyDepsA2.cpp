@@ -423,9 +423,11 @@ void CParty::SendPartyMemberTagChracInfo()
         CUser* user = get_user(local_14);
         if (user != 0)
         {
+            // 试 2 形（P223 goto 反写产 xor;jne 3 行差），原形 1 行 jmp 岛差
+            // =4.1 merge-jmp 不可造（N-JMP 在册）。
             if (user->MakeTagCharacInfo(packet))
             {
-                tagCount = tagCount + 1;
+                ++tagCount;
             }
         }
     }

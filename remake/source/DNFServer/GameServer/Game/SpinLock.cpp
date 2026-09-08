@@ -5,18 +5,17 @@
 #include "CEnvironment.h"
 #include "GameTypes.h"
 
-// ---- Uncopyable（ORIG 0x8ad38a2/0x8ad38a8，空构造/析构）----
-Uncopyable::Uncopyable() {}
-Uncopyable::~Uncopyable() {}
-
 // ---- YieldProcessor（ORIG 0x8ad351c，空函数）----
 static void YieldProcessor() {}
 
 // ---- SpinLock ----
-// C1/D1 残差为 outgoing-args reserve 跨版本尺寸差（ORIG sub $0x18 vs 4.4 $0x4，
-// 指令序列全等），N 封顶。
+// P210 前置：本 TU 的 Uncopyable ctor/dtor 定义放在 SpinLock C1/D1 之后，
+// 使 4.4 对未可见 callee 采用保守帧（ORIG sub $0x18）。
 SpinLock::SpinLock() : Uncopyable() { m_lock = 0; }
+Uncopyable::Uncopyable() {}
+
 SpinLock::~SpinLock() {}
+Uncopyable::~Uncopyable() {}
 
 void SpinLock::enter()
 {

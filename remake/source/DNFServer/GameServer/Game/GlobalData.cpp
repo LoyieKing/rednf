@@ -1302,6 +1302,8 @@ bool CaptchaGen::addFont(const char* font, int size)
     // &face) → 失败返 false → FT_Set_Pixel_Sizes(face, 0, size) → 失败返 false →
     // FT_Select_Charmap(face, FT_ENCODING_UNICODE=0x756e6963) → 失败返 false →
     // m_faces.push_back(face)（vector<void*>）→ 返 true。
+    // [b28 BM2 判词·AE] 清单 NEAR(2) 为全二进制全局地址标签伪差；fresh
+    // /tmp/tu_GlobalData.o fn_diff_tu 归一 0 差（48=48 逐条）。
     // 原转写以 fopen/fclose/malloc/strcpy 假实现替代真 FT 序列（违 §4.1），已改为
     // 忠实 ORIG；face 错误码 slot 落 -0xc 与 `cmpl $0,slot; je 成功` 逐指令对应。
     void* toPush;     // ORIG local_14 @ -0x10（声明提前占浅槽；赋值仍在尾部）

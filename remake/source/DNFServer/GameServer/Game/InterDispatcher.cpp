@@ -6720,6 +6720,8 @@ int Inter_MonitorNoticeBlackList::dispatch_sig(CUser* user, char* data, int /*le
     {   // ORIG 0x084d0b73 mov 0x3(%eax,%edx,4),%eax：具名数组视图 [i+4] 保 add $4+disp3 折叠形
         // ORIG 体首两装载 `mov -0xc(%ebp),%edx; mov -0x10(%ebp),%eax`（index 先载）；
         // 4.4 恒 base 先载且具名 idx 破坏折叠（实测 +4 行），N76 类 blocked。
+        // b28 复测：`[4 + i]` 交换形实装序不变（NEAR 残 2 行=两槽读先后互换），
+        // 4.1 index-先/base-后为调度产物 ⇒ N18b/P75 封顶，勿再试。
         user->registerToBlackList(
             reinterpret_cast<Inter_MonitorNoticeBlackListIdView*>(recv)->m_ids[i + 4]);
     }
@@ -7349,14 +7351,12 @@ int Inter_ChagneUserHandicap::dispatch_sig(CUser* /*user*/, char* data, int /*le
     Inter_ChagneUserHandicapPktView* pPkt = reinterpret_cast<Inter_ChagneUserHandicapPktView*>(data);
     CUser* target = G_CGameManager()->GetUserByAccId(
         pPkt->m_a);
-    // ORIG 0x084d2745-084d276b：守卫是「(target==0 || state<=1) 物化 bool →
-    // test %al → 真则 mov $0 早退岛」形（`cmpl $0,-0xc; je →mov$1` 短路 + `cmp $1;
-    // jg →mov$0`），而非 && 正判直跳形。字段校验在汇合后独立 cmp/jne。
-    // 技巧22：register bool asm("al") 免槽（ORIG `test %al,%al` 直判、无 -0x9 spill，
-    // 且消除本函数 -0xc→-0x10 整体槽偏移）。
-    register bool guardFail asm("al");
-    guardFail = (target == 0 || target->get_state() <= 1);
-    if (guardFail)
+    /* [b28b P0/N96 清绑复测] ORIG 0x084d2745-084d276b 守卫 =「target==0 短路 je →
+     * get_state; cmp $1; jg →mov$0；汇合 test %al,%al → je 早退」的 OR 直判形（bool 落
+     * %al 寄存器、无独立槽）。P168a① 裸形复测：直接 `if (target == 0 || state <= 1) return 0;`
+     * 即由 4.4 复现 mov$1/mov$0 + test %al 汇聚，与 ORIG 全等——存量 register bool asm("al")
+     * 绑定违反 P0，已删；无需约束形。 */
+    if (target == 0 || target->get_state() <= 1)
         return 0;
     if (pPkt->m_e == 1)
     {
@@ -9140,37 +9140,6 @@ Inter_AuctionResultAskRegistedItemNum::~Inter_AuctionResultAskRegistedItemNum() 
 #pragma pack(push, 1)
 namespace {
 
-struct RegPckDnfItemInfo    // 0x35：@PCK+0x30..+0x64
-{
-    void reset()   // 忠实对应 ORIG DnfItemInfo::reset 的逐条清零宽度
-    {
-        seal = false;            // movb $0,(this)
-        item_id = 0;             // movl $0,0x1(this)
-        uniItemAttr = 0;         // movb $0,0x5
-        add_info = 0;            // movl $0,0x6
-        endurance = 0;           // movw $0,0xa
-        extendInfo = 0;          // movl $0,0xc
-        abilityType_ = 0;        // movb $0,0x10
-        abilityValue_ = 0;       // movw $0,0x11
-        random_option_.reset();
-        separate_info.reset();   // UpgradeSeparateInfo::reset @0x80cb346
-        reserved_capacity.reset();  // ReservedCapacity::reset @0x80cb380
-    }
-
-    bool seal;                              // +0x00
-    unsigned long item_id;                  // +0x01 (u32)
-    unsigned char uniItemAttr;              // +0x05
-    int add_info;                           // +0x06
-    unsigned short endurance;               // +0x0a
-    unsigned long extendInfo;               // +0x0c (u32)
-    unsigned char abilityType_;             // +0x10
-    unsigned short abilityValue_;           // +0x11
-    char guid_[10];                         // +0x13..+0x1c（auction DnfItemInfo::guid_ 10B；ORIG reset 不清）
-    RandomOption random_option_;            // +0x1d (0xe)
-    UpgradeSeparateInfo separate_info;      // +0x2b
-    ReservedCapacity reserved_capacity;     // +0x2c (9)
-};
-
 struct RegPckGuid  // 10B：ORIG pck+0x8b..+0x95（=auction itemGloballyUniqueIdentifier_t 10B 版；AuctionItem.h 与 Inven_Item.h 冲突故本地定义）
 {
     char data_[10];
@@ -9186,7 +9155,7 @@ struct PCK_AUCTION_REGIST_ITEM_GA : public nsl::PACKET_HEADER
     unsigned char user_type;                  // @39
     int price;                                // @40
     int instant_price;                        // @44
-    RegPckDnfItemInfo item_info;              // @48 (0x35)
+    DnfItemInfo item_info;                    // @48 (0x35)：权威类型（ORIG ctor call `_ZN11DnfItemInfoC1Ev` T @0x84e910a 实证；DnfItemInfo.h 同布局）
     stAvatarEmblemInfo_t jewel_info;          // @101
     stAvatarExpansionInfo_t expansion;        // @131
     unsigned int black_point;                 // @135
@@ -9371,11 +9340,11 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
             user->SaveInventory();
             user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, 0);
             pck.setCategory(0x12);
-            pck.item_info.add_info = restrictAmount;                  // ORIG local_149 = msg+0x11
+            pck.item_info.m_addInfo = restrictAmount;                  // ORIG local_149 = msg+0x11
             pck.jewel_info.init();                                    // ORIG stAvatarEmblemInfo_t::init(pck+0x65)
-            pck.item_info.seal = false;                               // ORIG local_14f = 0
-            pck.item_info.item_id = itemId;                            // ORIG local_14e = msg+0x0d
-            pck.item_info.uniItemAttr = 0;                             // ORIG local_145 = 0
+            pck.item_info.m_seal = false;                               // ORIG local_14f = 0
+            pck.item_info.m_itemId = itemId;                            // ORIG local_14e = msg+0x0d
+            pck.item_info.m_attr = 0;                             // ORIG local_145 = 0
             strncpy(pck.owner_nexon_id, user->get_acc_name(),
                     strlen(user->get_acc_name()));                     // ORIG 形：strncpy(dst,acc,strlen)（不补 \0）
             GlobalData::s_cera_auction_proxy->SendPacket(&pck);
@@ -9505,14 +9474,14 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         }
 
         // ==== 包主体详细字段化（报告反编译 local_14f..local_126 全链）====
-        pck.item_info.seal = false;
-        pck.item_info.item_id = itemId;
-        pck.item_info.uniItemAttr = item.GetItemAttr();                // 提升档位/seal 位
-        pck.item_info.endurance = item.m_fieldb;
-        pck.item_info.extendInfo = item.m_fieldd;
-        pck.item_info.add_info =
+        pck.item_info.m_seal = false;
+        pck.item_info.m_itemId = itemId;
+        pck.item_info.m_attr = item.GetItemAttr();                // 提升档位/seal 位
+        pck.item_info.m_endurance = item.m_fieldb;
+        pck.item_info.m_extendInfo = item.m_fieldd;
+        pck.item_info.m_addInfo =
             item.isEquipableItemType() ? item.m_addInfo2 : restrictAmount;
-        item.m_amp.getValues(pck.item_info.abilityType_, pck.item_info.abilityValue_);
+        item.m_amp.getValues(pck.item_info.m_abilityType, pck.item_info.m_abilityValue);
         pck.jewel_info.init();                                         // ORIG 无条件 stAvatarEmblemInfo_t::init(local_11a)
         if (avatarFlow)
         {
@@ -9526,15 +9495,15 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
             else
                 memcpy(&pck.expansion, exp, 4);                                  // ORIG memcpy(asStack_fc,src,4)
             if (pck.jewel_info.stEmblemSocket[0].emblemSocketType_ != 0)
-                pck.item_info.uniItemAttr =
-                    (unsigned char)((pck.item_info.uniItemAttr & 0xe0) | 0x1);
+                pck.item_info.m_attr =
+                    (unsigned char)((pck.item_info.m_attr & 0xe0) | 0x1);
         }
         {   // ORIG 逐字段（CONCAT13/CONCAT33）写 random_option，非 memcpy；随后 SetUpgradeSeparate
             const unsigned char* src = reinterpret_cast<const unsigned char*>(&item) + 0x25;
-            unsigned char* dst = reinterpret_cast<unsigned char*>(&pck.item_info.random_option_);
+            unsigned char* dst = reinterpret_cast<unsigned char*>(&pck.item_info.m_opt);
             for (int i = 0; i < (int)sizeof(RandomOption); ++i)
                 dst[i] = src[i];
-            pck.item_info.separate_info.SetUpgradeSeparate(
+            pck.item_info.m_up.SetUpgradeSeparate(
                 item.m_upgradeSep.GetUpgradeSeparate());
         }
 
@@ -9574,7 +9543,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         }
         else
         {
-            if (!inven->delete_item((INVEN_TYPE)item.m_field0, slotNo, pck.item_info.add_info,
+            if (!inven->delete_item((INVEN_TYPE)item.m_field0, slotNo, static_cast<int>(pck.item_info.m_addInfo),
                                     (eItemDelReason)0x19, true))
             {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x94, (PAY_TYPE)payType);

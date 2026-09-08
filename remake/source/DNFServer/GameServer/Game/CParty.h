@@ -793,7 +793,7 @@ public:
     int m_quickPartyIndex;           // +0x1ae0
     bool m_isQuickParty;             // +0x1ae4
     unsigned char m_pad1ae5[3];      // +0x1ae5
-    int m_field1ae8;                 // +0x1ae8
+    unsigned int m_field1ae8;        // +0x1ae8（P211：与 int RHS 符号异型→store RHS-first=ORIG 形 @0x0859b814）
     QuickParty::RandomBuffType m_randomBuffType;  // +0x1aec（ORIG set_gm 赋值为同型无转换：eax 先取址）
     bool m_weekendEvent;             // +0x1af0
     bool m_dungeonMapSaving;         // +0x1af1

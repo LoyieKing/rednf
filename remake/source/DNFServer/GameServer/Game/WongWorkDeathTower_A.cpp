@@ -263,19 +263,19 @@ void CDeathTower::CPacketHandler::makeDisplayRangking(unsigned int tableType,
     // ORIG 0x084601da：两记录段各自重调 makeDungeonIdx2TowerIdx +
     // getRankTable（P48 无跨句缓存；this 经 %esi、towerIdx 经 %ebx 跨 call）。
     {
-        // P179：ORIG towerIdx 跨 getRankTable call 经 %ebx（push %ebx 由此），
-        // 4.4 具名 const 落槽致每用点 +1 重载。register 形还原。
-        register unsigned int towerIdx1 __asm__("ebx");
-        towerIdx1 = CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
+        // P179：ORIG towerIdx 跨 getRankTable call 经 %ebx（push %ebx 由此）。
+        // N96 清绑后按 P226 裸语句表达式升格试形。
         // getRankTable 结果 %eax 直传 this 实参槽（命名指针会强制落槽回读）。
         ((CDeathTowerRanking*)CDeathTowerRanking::getRankTable(tableType))
-            ->makeMyBestRecordPacket(towerIdx1, key, *this);     // ORIG 0x08468b8e
+            ->makeMyBestRecordPacket(
+                ({ CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx); }),
+                key, *this);                                     // ORIG 0x08468b8e
     }
     {
-        register unsigned int towerIdx2 __asm__("ebx");
-        towerIdx2 = CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
         ((CDeathTowerRanking*)CDeathTowerRanking::getRankTable(tableType))
-            ->makeTopRankerRecordPacket(towerIdx2, *this);       // ORIG 0x08468c68
+            ->makeTopRankerRecordPacket(
+                ({ CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx); }),
+                *this);                                          // ORIG 0x08468c68
     }
     finalize(true);
 }

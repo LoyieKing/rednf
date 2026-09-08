@@ -489,17 +489,14 @@ int PvP_Room::check_joinable(CUser* user)
 int PvP_Room::IsQuickJoinablePVPRoom(CUser* user)
 {
     // P24：ORIG 内联实参（0x085d6c1c），getCurCharacNo 结果直传不落栈槽。
-    // ORIG 0x085d6c18 逐段：layer1 `call check_joinable; test%al; je L0`（==0 →
-    // 假出）；layer2 `call find…; xor$1; test%al; je L0`（==1 → 假出）；真值路
-    // `mov$1` 汇 L0 `mov$0`，尾 `test%al; je; mov$1/jmp; mov$0` 三层物化岛 ⇒
-    // 源形 = 短路 && + !bool-callee 裸取反（P168a ①）。
-    bool b = false;
-    if (check_joinable(user) != 0)
-    {
-        if (!user->find_pvp_masterid_walkingout_me(m_seats[7]->getCurCharacNo()))
-            b = true;
-    }
-    return b;
+    // ORIG 0x085dc18 逐段：layer1 `call check_joinable; test%eax; jne L0(mov$0)`；
+    // layer2 `call find…; xor$1; test%al; je L0`；真值路 mov$1，尾 `test%al;
+    // je; mov$1/jmp; mov$0` 双归一岛（&&-结果岛 + return 归一岛）。P0：结果全程
+    // %eax 无槽 ⇒ 源形 = 短路 && 条件 + if-return 1/0（无具名局部，P56 形）。
+    if (check_joinable(user) == 0 &&
+        !user->find_pvp_masterid_walkingout_me(m_seats[7]->getCurCharacNo()))
+        return 1;
+    return 0;
 }
 
 int PvP_Room::get_team(int seat)
@@ -765,6 +762,10 @@ int PvP_Room::get_recv_pvp_rank_count()
 {
     // ORIG 0x085dc2cc：bool IsRecv 直用条件（test %al/je，无 !=0 物化）；
     // 槽 -0x8=count、-0x4=i，帧 $0x18。
+    // N 封顶：callee PvpResultRecvFlag::IsRecv 属外 TU T 符号（4.4 不可见 ⇒ 恒保守
+    // +0x10 → 帧 $0x28 vs $0x18），N95 槽基 gap 差（4.1 局部顶到 -0x4，4.4 恒 -0x8 起）
+    // ⇒ 全帧槽号平移；另 4.1 三 je 分落独立 nop/jmp 岛、4.4 合并共享 inc 出口
+    // （CFG 简化跨版本差）。指令语义全等，勿再耗轮次。
     int local_c = 0;
     for (int local_8 = 0; local_8 <= 7; local_8 = local_8 + 1)
     {
@@ -1773,6 +1774,10 @@ int PvP_Room::set_ready_state(CUser* user, bool ready)
 
 int PvP_Room::make_ready_info(char* buf, int seat)
 {
+    // P75/N7 封顶（ORIG 0x085dbcd4）：ORIG(4.1) 对常量/形参实参点先载 receiver
+    // (-0xc→%eax) 再 store 常量槽，计算值实参点先物化值(%edx) 后载 receiver；
+    // 4.4 恒先 store 实参后载 receiver 且 scratch 用 %eax 顶替 %edx。指令集合/
+    // 语义全等，装载时刻与寄存器角色为跨版本调度固有差（P75 判例），勿再耗轮次。
     InterfacePacketBuf* local_f4 = (InterfacePacketBuf*)buf;
     local_f4->put_header(0, 0x2c);
     local_f4->put_byte(seat);
@@ -2145,9 +2150,17 @@ int PvP_Room::OnConnectP2PPvPTimeout()
 
 bool PvP_Room::OnTimerWalkOutLackUser()
 {
+    // ORIG 0x085dce28：Ghidra 双条件 `-1 < local_10 && -1 < local_10`——尾 cond
+    // 用 not/shr$0x1f 物化（loop tail），body 头重复 `cmpl$0; js→nop 岛`
+    // （P184 死块照抄）。双 guard 形（while(x>-1) + 体内 if(x<0) break）使
+    // 4.4 复现全部 69 条含 not/shr 岛（合并 && 形被 bool 汇聚，P133）；
+    // 残余 = OnWalkOut 虚 call callee-saved 互换 10 行（N7，同 get_user_list 判例），
+    // NEAR 封顶。
     int local_10 = m_election.GetElected();
-    while (local_10 >= 0)
+    while (local_10 > -1)
     {
+        if (local_10 < 0)
+            break;
         m_election.CancelCandidate(local_10);
         m_election.CancelVoter(local_10);
         ((IMatch*)m_matching)->OnWalkOut(this, local_10);
@@ -2532,6 +2545,10 @@ int PvP_Room::insert_timer_recv_pvp_end_result()
     // P24 内联实参形（ORIG 0x085dc253/27a/28c：key/ms 结果 callee-saved 直落
     // outgoing 槽）。残余 1 条：ORIG 把 m_index 经 -0x1c 槽 store/reload（4.1
     // 具名局部 spill），4.4 表达式直传不可复现（N18a 族）。
+    // [b28 BM14 fresh 复核] 完整残差 = N82附互换族：4.1 将 gen_timer_key 结果放
+    // %edi、m_index(vptr) spill 至 -0x1c 槽；4.4 恰好反配（key→槽、vptr→%edi），
+    // 叠加虚 call 目标 eax↔edx（N7）与 0x18/0x8 装载序。寄存器/槽分配对调无源形
+    // 解（同 VoteLackUser 判例），语义全等，N 封顶。
     G_TimerQueue()->InsertTimerInMilisecond(
         (TimerEntry::OBJ_TYPE)1, m_index, (TIMER_MESSAGE)0x3d,
         ((IMatch*)m_matching)->GetEndPvPResultTimeout(),

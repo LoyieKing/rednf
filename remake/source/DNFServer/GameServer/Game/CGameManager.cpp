@@ -424,6 +424,16 @@ void WongWork::CMailBox::setMailIterator()
 //  =0x08c2f478；CCreature CNode `@0x08c2f488`+8=0x08c2f490），再写 magic/bUse。
 // 真虚建模不可行（实证：-O0 true-virtual 的 vptr 写为 `movl $0x8`+R_386_32 重定位，
 // 恒为小偏移而非硬编 0x8c2f478；AE 口径不归一立即数）→ 手动常量按 ORIG 槽序写回。
+// 基类 dtor 外联定义必须出现在 CNode 特化之前（P210 帧继承实证：callee out-of-line
+// 定义先可见 ⇒ caller sub $0x4=ORIG；仅声明 ⇒ 4.4 保守 sub $0x18；探针 /tmp/bm3/p1-p10）。
+user_creature::CEgg::~CEgg()
+{
+    m_vptr = 0x08c2f4a8;  // ORIG 0x08338f74：movl $0x8c2f4a8,(%eax)
+}
+user_creature::CCreature::~CCreature()
+{
+    m_vptr = 0x08c2f4c0;  // ORIG 0x83370a8：movl $0x8c2f4c0,(%eax)
+}
 template <> DynamicPool<user_creature::CEgg>::CNode::CNode()
 {
     this->m_vptr = 0x08c2f478;
@@ -798,15 +808,16 @@ void CGameManager::PutParty(CParty* party)
     // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
     // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
     // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
+    int key, eraseKey;   // P212 全头部声明：使 find sret 缓冲落 -0x20 与 ORIG 对齐
     if (party == 0)
         return;
-    int key = party->GetPartyIndex();
+    key = party->GetPartyIndex();
     __gnu_cxx::hash_map<int, CParty*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<CParty*> >::iterator it = m_partyMap.find(key);
     if (it != m_partyMap.end())
     {
-        int eraseKey = party->GetPartyIndex();
+        eraseKey = party->GetPartyIndex();
         m_partyMap.erase(eraseKey);
         m_partyPool.Free(party);
     }
@@ -999,21 +1010,23 @@ int CGameManager::GetPvpIdx(PvP_Room* room)
 
 void CGameManager::PutPvp(PvP_Room* room)
 {
+    int key, eraseKey;   // P212 头部声明对齐 find sret 缓冲槽（同 PutParty）
     if (room != 0)
     {
-        // ORIG：roomIndex 经 ebx callee-saved 跨 CSwitchLog 构造缓存（P87）。
+        // ORIG：roomIndex 经 ebx callee-saved 跨 CSwitchLog 构造缓存（P87）；
+        // bare `register`（无 asm 绑定，P0 合规——仅槽+ebx 装载形）。
         register int roomIndex = room->get_index();
         {
             CSwitchLog log(__PRETTY_FUNCTION__, 0xae4, 0, 0);
             log("pvp@log room(%d)", roomIndex);
         }
-        int key = room->get_index();
+        key = room->get_index();
         __gnu_cxx::hash_map<int, PvP_Room*,
             __gnu_cxx::hash<int>, std::equal_to<int>,
             std::allocator<PvP_Room*> >::iterator it = m_pvpRoomMap.find(key);
         if (it != m_pvpRoomMap.end())
         {
-            int eraseKey = room->get_index();
+            eraseKey = room->get_index();
             m_pvpRoomMap.erase(eraseKey);
             m_pvpRoomPool.Free(room);
         }
@@ -1149,20 +1162,19 @@ int CGameManager::GetQuickPartyIdx(QuickParty::CQuickParty* qp)
 
 void CGameManager::PutQuickParty(QuickParty::CQuickParty* qp)
 {
-    // N82 封顶（hash_map 迭代器槽平移）：ORIG 槽组 key@-0x18/iter@-0x20/
-    // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
-    // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
-    // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
+    // P212 头部声明使 find sret 缓冲对齐 ORIG -0x20；余差 key/eraseKey/erase-arg
+    // 三槽号（4.4 标量分区 vs 4.1 生命周期穿插，N82附封顶，v1/v4(double pad)/v5/v7 探针穷举）。
+    int key, eraseKey;
     if (qp == 0)
         return;
-    int key = qp->get_quick_party_index();
+    key = qp->get_quick_party_index();
     __gnu_cxx::hash_map<int, QuickParty::CQuickParty*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<QuickParty::CQuickParty*> >::iterator it =
             m_quickPartyMap.find(key);
     if (it != m_quickPartyMap.end())
     {
-        int eraseKey = qp->get_quick_party_index();
+        eraseKey = qp->get_quick_party_index();
         m_quickPartyMap.erase(eraseKey);
         m_quickPartyPool.Free(qp);
         qp->init();
@@ -1211,19 +1223,17 @@ int CGameManager::GetWarRoomIdx(WarRoom* room)
 
 void CGameManager::PutWarRoom(WarRoom* room)
 {
-    // N82 封顶（hash_map 迭代器槽平移）：ORIG 槽组 key@-0x18/iter@-0x20/
-    // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
-    // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
-    // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
+    // P212 头部声明对齐 sret 缓冲；余三槽号差 N82附（同 PutParty）。
+    int key, eraseKey;
     if (room == 0)
         return;
-    int key = room->GetIndex();
+    key = room->GetIndex();
     __gnu_cxx::hash_map<int, WarRoom*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<WarRoom*> >::iterator it = m_warRoomMap.find(key);
     if (it != m_warRoomMap.end())
     {
-        int eraseKey = room->GetIndex();
+        eraseKey = room->GetIndex();
         m_warRoomMap.erase(eraseKey);
         m_warRoomPool.Free(room);
     }
@@ -1318,20 +1328,18 @@ int CGameManager::getDeathTowerIdx(WongWork::CDeathTower* tower)
 
 void CGameManager::returnDeathTower(WongWork::CDeathTower* tower)
 {
-    // N82 封顶（hash_map 迭代器槽平移）：ORIG 槽组 key@-0x18/iter@-0x20/
-    // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
-    // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
-    // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
+    // P212 头部声明对齐 sret 缓冲；余三槽号差 N82附（同 PutParty）。
+    int key, eraseKey;
     if (tower == 0)
         return;
-    int key = tower->getIdx();
+    key = tower->getIdx();
     __gnu_cxx::hash_map<int, WongWork::CDeathTower*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<WongWork::CDeathTower*> >::iterator it =
             m_deathTowerMap.find(key);
     if (it != m_deathTowerMap.end())
     {
-        int eraseKey = tower->getIdx();
+        eraseKey = tower->getIdx();
         m_deathTowerMap.erase(eraseKey);
         m_deathTowerPool.Free(tower);
     }
@@ -1349,17 +1357,15 @@ void CGameManager::checkOutDeathTower(CUser* user)
     WongWork::CDeathTower* tower;
     if ((bool)(user->checkInDeathTower() ^ 1)) goto end;
     tower = getDeathTower(user->getDeathTowerIndex());
-    if (tower != 0)
-        {
-            // N96/P0：无槽折叠形（cmp$1,%al; setne; test; je，残差 xor 族 2 行）。
-            if ((((unsigned char)tower->onLeaveUser(user)) ^ 1) != 0)
-            {
-                LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x123a,
-                                      "DeathTower checkOutDeathTower ID[%d] ACCID[%s]",
-                                      tower->getIdx(),
-                                      NumberToString(user->get_acc_id(), 0));
-            }
-        }
+    if (tower == 0) goto end;
+    // onLeaveUser 返回类型 bool 化后裸 !call() 直产 call;xor$1,%eax;test%al;je（P168a 技巧1）。
+    if (!tower->onLeaveUser(user))
+    {
+        LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x123a,
+                              "DeathTower checkOutDeathTower ID[%d] ACCID[%s]",
+                              tower->getIdx(),
+                              NumberToString(user->get_acc_id(), 0));
+    }
 end:
     ;
 }
@@ -1406,22 +1412,20 @@ int CGameManager::getBossTowerIdx(WongWork::CBossTower* tower)
 
 void CGameManager::returnBossTower(WongWork::CBossTower* tower)
 {
-    // N82 封顶（hash_map 迭代器槽平移）：ORIG 槽组 key@-0x18/iter@-0x20/
-    // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
-    // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
-    // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
+    // P212 头部声明对齐 sret 缓冲；余三槽号差 N82附（同 PutParty）。
+    int key, eraseKey;
     if (tower == 0)
         return;
-    int key = tower->getIdx();
+    key = tower->getIdx();
     __gnu_cxx::hash_map<int, WongWork::CBossTower*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<WongWork::CBossTower*> >::iterator it =
             m_bossTowerMap.find(key);
     if (it != m_bossTowerMap.end())
     {
-        int eraseKey = tower->getIdx();
+        eraseKey = tower->getIdx();
         m_bossTowerMap.erase(eraseKey);
-        m_bossTowerPool.Free(tower);
+        m_bossTowerPool.Free(tower);  // ORIG 0x082b2420 = StaticPool<CBossTower,600>::Free（call 目标核对纠错）
     }
 }
 
@@ -1431,8 +1435,8 @@ void CGameManager::checkOutBossTower(CUser* user)
     WongWork::CBossTower* tower;
     if ((bool)(user->checkInBossTower() ^ 1)) goto end;
     tower = getBossTower(user->getBossTowerIndex());
-    if (tower != 0)
-        {
+    if (tower == 0) goto end;
+    {
             // **虚槽仲裁（多点联立，非单点）**：ORIG 此处是
             // `mov (%eax),%eax; add $0x14,%eax; mov (%eax),%edx; call *%edx`。
             // %eax 取到的是 vptr（指向 _ZTV+0x08），故 +0x14 ⇒ _ZTV+0x1c。
@@ -1501,20 +1505,18 @@ int CGameManager::getAdvanceAltarIndex(advancealtar::StageControl* control)
 
 void CGameManager::returnAdvanceAltar(advancealtar::StageControl* control)
 {
-    // N82 封顶（hash_map 迭代器槽平移）：ORIG 槽组 key@-0x18/iter@-0x20/
-    // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
-    // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
-    // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
+    // P212 头部声明对齐 sret 缓冲；余三槽号差 N82附（同 PutParty）。
+    int key, eraseKey;
     if (control == 0)
         return;
-    int key = control->getIndex();
+    key = control->getIndex();
     __gnu_cxx::hash_map<int, advancealtar::StageControl*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<advancealtar::StageControl*> >::iterator it =
             m_stageMap.find(key);
     if (it != m_stageMap.end())
     {
-        int eraseKey = control->getIndex();
+        eraseKey = control->getIndex();
         m_stageMap.erase(eraseKey);
         m_stagePool.Free(control);
     }
@@ -1532,8 +1534,8 @@ void CGameManager::checkOutAdvanceAltar(CUser* user)
     control = getAdvanceAltar(user->getAdvanceAltarIndex());
     if (control == 0) goto end;
     {
-        // N96/P0：char callee 无槽折叠形。
-        if ((((unsigned char)control->leaveUser()) ^ 1) != 0)
+        // leaveUser 返回类型 bool 化后裸 !call() 直产 call;xor$1,%eax;test%al;je（P168a 技巧1）。
+        if (!control->leaveUser())
         {
             LogManager::logFormat(1, "App.cpp",
                                   __PRETTY_FUNCTION__, 0x11ef,
@@ -1613,20 +1615,18 @@ int CGameManager::getBlueMarbleIdx(BlueMarble* marble)
 
 void CGameManager::putBlueMarble(BlueMarble* marble)
 {
-    // N82 封顶（hash_map 迭代器槽平移）：ORIG 槽组 key@-0x18/iter@-0x20/
-    // eraseKey@-0x14/erase-arg@-0xc；4.4 对 __gnu_cxx::hash_map find/erase 链
-    // 槽组整体 -4 平移（key@-0x14/iter@-0x1c/eraseKey@-0x10/arg@-0x20），
-    // 归一后余差仅槽号（fn_diff_tu 实证），槽分配策略跨版本差无源码解。
+    // P212 头部声明对齐 sret 缓冲；余三槽号差 N82附（同 PutParty）。
+    int key, eraseKey;
     if (marble == 0)
         return;
-    int key = marble->getMemoryPoolIndex();
+    key = marble->getMemoryPoolIndex();
     __gnu_cxx::hash_map<int, BlueMarble*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<BlueMarble*> >::iterator it =
             m_blueMarbleMap.find(key);
     if (it != m_blueMarbleMap.end())
     {
-        int eraseKey = marble->getMemoryPoolIndex();
+        eraseKey = marble->getMemoryPoolIndex();
         m_blueMarbleMap.erase(eraseKey);
         m_blueMarblePool.Free(marble);
     }

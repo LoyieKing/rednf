@@ -224,7 +224,7 @@ public:
     void completePushSummonObject(int firstIndex);                // T 0x0812d5d0
     static bool compare(const _SummonObjectMs* lhs, const _SummonObjectMs* rhs);  // T 0x0812daec
     void summonObjectAndSendPacket();                             // T 0x0812d658
-    int dieMob(unsigned short mobSeq, unsigned short param,
+    bool dieMob(unsigned short mobSeq, unsigned short param,
                const MSG_MONSTER_DIE& msg);                       // T 0x0812db00
     void debugLog() const;                                        // T 0x0812d804
     int m_currentMs;                                   // +0x00（ctor/reset 清零）

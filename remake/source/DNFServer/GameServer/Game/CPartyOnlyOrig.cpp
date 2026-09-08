@@ -137,24 +137,17 @@ void CParty::_GetConnectP2PMaxMinPoint(int& maxPoint, int& minPoint)
 {
     maxPoint = 0;
     minPoint = 4;
-    int point = 0;
-    for (int i = 0; i < 4; i++)
+    int point = 0;                                    // -0x10
+    for (int i = 0; i <= 3; i++)                      // -0xc（P2/P51：i<=3 → cmpl $0x3;setle 尾检）
     {
-        // [X1·判据③有消费者] ORIG 0x085bxxxx `call;xor$1,%eax;test;jne`。
-        register unsigned char v asm("eax") = (unsigned char)_checkValidUser(i);
-        v ^= 1;
-        if (!v)
-        {
-            point = _GetConnectP2PPoint(i);
-            if (point < minPoint)
-            {
-                minPoint = point;
-            }
-            if (maxPoint < point)
-            {
-                maxPoint = point;
-            }
-        }
+        // P168a①：bool callee 裸形直产 call; xor$1; test; jne→nop 岛
+        if (!_checkValidUser(i))
+            continue;
+        point = _GetConnectP2PPoint(i);
+        if (minPoint > point)                           // ORIG cmp (*min),point; jle
+            minPoint = point;
+        if (maxPoint < point)                           // ORIG cmp point,(*max); jge
+            maxPoint = point;
     }
 }
 
@@ -446,9 +439,11 @@ void* CParty::GetUserSecretShop(CUser* user)
     // 跳共享 0 岛）；ORIG 总偏移 = this+0x2a0+8+slot*0x1c = **0x2a8**+slot*0x1c
     //（m_padShop @+0x2a4 ⇒ 表达式内偏移 4；前人误将区域基址 0x2a0 当 m_padShop
     // 基址写成 8，实产 0x2ac 差 4B）。
+    // P205 两乘积拆形：ORIG `mov slot,%eax; shl $2; lea (,%eax,8),%edx;
+    // sub %eax,%edx; lea 0x2a0(%edx),%eax; add this; add $8`
     if (slot >= 0 && slot <= 3)
     {
-        return &m_padShop[4 + slot * 0x1c];
+        return &m_padShop[4 + (slot * 4) * 7];
     }
     return 0;
 }
@@ -647,15 +642,10 @@ bool CParty::recv_party_packet_all()
         {
             continue;
         }
-        // [X1·判据③有消费者] ORIG `call; xor$1,%eax; test; je`。
-        register unsigned char r asm("eax") =
-            (unsigned char)reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)
-                ->IsRecv(i);
-        r ^= 1;
-        if (r)
-        {
+        // N96 清绑：ORIG call; xor$1; test; jne 岛——4.4 对 uchar callee 恒
+        // setXX 物化（P168a④ 在册），裸形取最小差。
+        if (!reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->IsRecv(i))
             return false;
-        }
     }
     return true;
 }
@@ -682,7 +672,7 @@ bool CParty::TimeoutCompleteAfterAssault()
         m_recvResultFlag = 0;
         return 0;
     }
-    if (recv_party_packet_all() == 0)
+    if (!recv_party_packet_all())
     {
         for (int i = 0; i <= 3; i++)
         {
@@ -690,26 +680,19 @@ bool CParty::TimeoutCompleteAfterAssault()
             {
                 continue;
             }
-            // [X1·判据③] ORIG `call; xor$1,%eax; test; je`。
-            register unsigned char r asm("eax") =
-                (unsigned char)reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)
-                    ->IsRecv(i);
-            r ^= 1;
-            if (r)
+            if (reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->IsRecv(i))
             {
-                // P87/P36：两中间结果跨 cMyTrace ctor 调用以 callee-saved
-                // %esi/%ebx 缓存（ORIG +0x0a6/+0x0b3）。
-                register const char* name =
-                    reinterpret_cast<CUserCharacInfo*>(get_user(i))
-                        ->getCurCharacName();
-                register int partyIdx = GetPartyIndex();
-                // P37：cMyTrace 临时链式（args 在 ctor 后设置）。
-                cMyTrace(__PRETTY_FUNCTION__, 0x1fa, 0)(
-                    "CParty::TimeoutCompleteAfterAssault(index:%d, name:%s)",
-                    partyIdx, name);
-                leave_user(get_user(i),
-                           static_cast<ENUM_PARTY_INFO_TYPE>(2));
+                continue;
             }
+            // P227 全表达式临时链：R2L 求值 name(→%esi)/partyIdx(→%ebx)
+            // 跨 ctor 保活（ORIG +0x0a6/+0x0b3）
+            cMyTrace(__PRETTY_FUNCTION__, 0x1fa, 0)(
+                "CParty::TimeoutCompleteAfterAssault(index:%d, name:%s)",
+                GetPartyIndex(),
+                reinterpret_cast<CUserCharacInfo*>(get_user(i))
+                    ->getCurCharacName());
+            leave_user(get_user(i),
+                       static_cast<ENUM_PARTY_INFO_TYPE>(2));
         }
     }
     return 1;
@@ -893,12 +876,18 @@ bool CParty::checkUnLimitUsedCoinCondition(CDungeon const* dungeon)
 // 未清完全部 hell 组时，对照已用硬币数判断是否越过本副本 hell 限额。
 int CParty::CheckHellCoinLimint(int param)
 {
-    if (CBattle_Field::IsEnableHellDungeon() && m_battleField.m_hellPartyMode == 1 &&
-        reinterpret_cast<CBattle_Field*>(&m_battleField)
-                ->IsKilledAllHellGruoups() != 1 &&
-        GetUsedCoinCount() >= param)
+    // P133 拆嵌套守卫；uchar callee `> 0` 回退 test/je 直跳（BattleDungeonMapA2 先例）。
+    if (CBattle_Field::IsEnableHellDungeon() > 0)
     {
-        return 0;
+        if (m_battleField.m_hellPartyMode == 1)
+        {
+            if (reinterpret_cast<CBattle_Field*>(&m_battleField)
+                    ->IsKilledAllHellGruoups() == 0)
+            {
+                if (GetUsedCoinCount() >= param)
+                    return 0;
+            }
+        }
     }
     return 1;
 }
@@ -1103,7 +1092,7 @@ unsigned char CParty::DestroyPassiveObject(int param)
 {
     // [ORIG 0x085a3b6a 物化形] 声明初始化 0 + call 后赋值两段（movb$0 再
     // movzbl reload）+拆&&嵌套。
-    unsigned char destroyed = 0;
+    bool destroyed = false;                             // P158：bool 汇聚触发 movzbl+test 物化
     destroyed = static_cast<unsigned char>(
         reinterpret_cast<CBattle_Field*>(&m_battleField)
             ->DestroyPassiveObject(param));

@@ -130,3 +130,27 @@ int GameResultType::GetUniqueKey()
 {
     return m_field4 * 10 + m_field8;
 }
+
+// ---- GameResultSet（ORIG T 0x84b75d2 / 0x84b75e6 / 0x84b75fa，与 GameResultType
+//      各符号地址邻接 = 原同一翻译单元；P210：基类 ctor/dtor 定义前置使派生
+//      D1/C1 帧 0x18→0x4 与 ORIG 一致）。类声明权威见 GameResultSet.h。----
+class GameResultSet : public GameResultType
+{
+public:
+    GameResultSet();
+    ~GameResultSet();
+    void Clear();
+};
+
+GameResultSet::GameResultSet()
+{
+}
+
+GameResultSet::~GameResultSet()
+{
+}
+
+void GameResultSet::Clear()
+{
+    GameResultType::Clear();
+}

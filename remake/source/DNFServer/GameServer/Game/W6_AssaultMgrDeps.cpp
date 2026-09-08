@@ -92,6 +92,11 @@ void CAssaultMgr::Reset()
 // ===========================================================================
 unsigned int CAssaultMgr::_GetNextAssaultPlaceId()
 {
+    // b28 BM4 判词（N7/N82 跨版本寄存器分配）：fresh .o 实残 = ORIG 4.1 以
+    // `push %ebx; sub $0x24` + `mov <A>,%ebx` 跨 cMyTrace call 缓存 count 地址
+    // （两次 `mov %ebx,0x8(%esp)`）；4.4 无 push ebx、sub $0x28、每次重读
+    // <A> 直传，帧/寄存器策略差 3 行（push/pop/add vs leave），绑定形 P0 禁，
+    // 无源码解。语义等价封顶。
     static int count = 0;                       // ORIG _ZZN…_GetNextAssaultPlaceIdE5count
 
     ++m_nextAssaultPlaceId;
@@ -307,20 +312,14 @@ void CAssaultMgr::AvailableAssault(CUser* user, CUser const* source)
 
     if (party != 0)
     {
-        // [b23S3C] P168a X2：is_limit_minimum_* 为 int callee（ORIG eax=0/1），
-        // `==0` 裸形产 test;sete 岛，ORIG 是 `xor $1,%eax; test %al; je` ⇒
-        // register uchar asm("eax") 异或直测（P194 if(v)=失败分支）。
-        register unsigned char ageBad asm("eax");
-        ageBad = (unsigned char)party->is_limit_minimum_age(ageLimitFlag, errorOut);
-        ageBad ^= 1;
-        if (ageBad)
+        // [b23S3C] N96 清绑（P168a③b）：is_limit_minimum_* 为 int callee，
+        // ORIG `xor $1,%eax; test %al; je` 为 4.1 bool 物化，4.4 -O0 恒产
+        // cmp/setne/test（探针 /tmp/x1.cpp 全败）；按语义 `!=1` 写自然形。
+        if ((unsigned char)party->is_limit_minimum_age(ageLimitFlag, errorOut) != 1)
         {
             throw static_cast<ENUM_ERROR>(0x5f);
         }
-        register unsigned char lvlBad asm("eax");
-        lvlBad = (unsigned char)party->is_limit_minimum_level(0x1e, errorOut);
-        lvlBad ^= 1;
-        if (lvlBad)
+        if ((unsigned char)party->is_limit_minimum_level(0x1e, errorOut) != 1)
         {
             if (user == source)
             {
@@ -440,6 +439,10 @@ int CAssaultMgr::OnConnectP2PAfterAssault(CUser* user, char* ip, int len)
 int CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int timerKey)
 {
     (void)timerKey;                                     // ORIG 第 2 参未消费
+    // b28 BM4 判词（setcc-fold 负例，在册）：ORIG +0x?? 在 TimeoutComplete
+    // AfterAssault 后出 `test %al; je; mov $0x1,%eax; jmp; mov $0,%eax` 直分支
+    // 常量物化岛（gap 5）；范式库 setcc-fold 条已判 4.4 恒折 setXX+test 不可造
+    // 且 register 形 P0 禁。本函数返回恒 1 全路径语义已对（B24D 同族判词）。
     try
     {
         CParty* party = G_CGameManager()->GetParty(static_cast<int>(partyIndex));

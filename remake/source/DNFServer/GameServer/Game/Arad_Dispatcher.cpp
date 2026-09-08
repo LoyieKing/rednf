@@ -49,6 +49,22 @@ namespace ARAD
 {
 
 // ============================================================================
+// Arad_Dispatcher_Manager::open —— ORIG 0x0818fe38。
+// [b28 BM11] P210 定义前置翻案（推翻 b23「landing-pad 抑制不可复现」判词，与
+// NexonCash C1 同法）：open 定义前置于 BuyItemCheck_Impl ctor 定义之前 ⇒ Impl
+// ctor 本 TU 仅原型可见 ⇒ 4.4 对 new-expression 保守生成 EH cleanup
+// （delete+Unwind_Resume 岛 + push %edi/%esi + 帧 0x2c/槽 -0x1c，ORIG 全形）。
+// ============================================================================
+bool Arad_Dispatcher_Manager::open()
+{
+    // ORIG 0x0818fe38：operator new(8) → BuyItemCheck_Impl ctor → 注册 → return 0。
+    Arad_Dispatcher_BuyItemCheck_Impl* impl =
+        new Arad_Dispatcher_BuyItemCheck_Impl();
+    GlobalInstance<Arad_Dispatcher_Manager>::inst()->register_dispatcher(impl);
+    return false;
+}
+
+// ============================================================================
 // Arad_Dispatcher_BuyItemCheck_Impl —— ORIG C1 @0x0818e9cc：基类码 0x1fa。
 // P210：本 ctor 定义必须先于基类 Arad_Dispatcher(int) ——基类 ctor 本 TU 可见时
 // 4.4 按其后继帧精确继承 outgoing（帧 0x18→0x8，与 ORIG 0x18 反）。
@@ -109,22 +125,6 @@ Arad_Dispatcher_Manager::Arad_Dispatcher_Manager()
 Arad_Dispatcher_Manager::~Arad_Dispatcher_Manager()
 {
     // ORIG D1 @0x0818fe32：空。
-}
-
-bool Arad_Dispatcher_Manager::open()
-{
-    // ORIG 0x0818fe38：operator new(8) → BuyItemCheck_Impl ctor → 注册 → return 0。
-    // [b23判词·跨版本 N（new-expression landing-pad 抑制）] ORIG 比本函数多 13 条，全部
-    // 属于 ctor 抛异常时的清理岛（`jmp` 进 `mov %edx,%esi; mov %eax,%edi; operator delete;
-    // _Unwind_Resume`）及其连带的 `push %edi/%esi` + 帧 0x2c/槽 -0x1c。/tmp 探针（同
-    // toolchain 4.4.7 -m32 -O0，A/B/C/D 四变体）实证：当基类 Arad_Dispatcher 的
-    // ctor/dtor 在**本 TU 有可见空定义**时，4.4 推断 Impl ctor 不抛 ⇒ landing pad 被抑制
-    // （gnu++98/gnu++0x 同结果），4.1 保守生成 ⇒ 不可源码复现。正常路径（new(8)→ctor→
-    // 存槽/取回→inst()→register_dispatcher→mov $0x0,%eax）逐条与 ORIG 相等，语义等价。
-    Arad_Dispatcher_BuyItemCheck_Impl* impl =
-        new Arad_Dispatcher_BuyItemCheck_Impl();
-    GlobalInstance<Arad_Dispatcher_Manager>::inst()->register_dispatcher(impl);
-    return false;
 }
 
 bool Arad_Dispatcher_Manager::register_dispatcher(Arad_Dispatcher* d)

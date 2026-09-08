@@ -1456,10 +1456,10 @@ int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon)
     // ORIG 0x859f3fc：`if (gdp <= 0) return 0` 前置（`setle` 判定 + 独立 return0 岛），
     // 尾部 `return 0` 复用 leave 出口（ORIG +0x17f）。P0：gdp 结果 %al 直测无槽；
     // ORIG 未对 m_pDungeon 判空。
-    if (m_battleField.m_pDungeon->get_dimension_possible() <= 0)
+    if ((signed char)m_battleField.m_pDungeon->get_dimension_possible() <= 0)
         return 0;
     int memberCount = get_member_count();
-    int dimIdx = (char)dungeon->get_dimension_possible() - 1;
+    int dimIdx = (signed char)dungeon->get_dimension_possible() - 1;
     // ORIG 0859f476 `DimensionPartyCount::DimensionPartyCount(local_1b, (char)+0xcd8,
     // (char)+0xcc4, -1)` —— 用 3 参构造（非默认 ctor 后逐字段赋值）。
     DimensionPartyCount dpc((char)m_battleField.m_bloodState,
@@ -1957,6 +1957,14 @@ unsigned int CParty::GetMemberSlotNo(CUser const* user) const
             return (unsigned int)i;
     }
     return 0xffffffff;
+}
+// CParty::IncreaseSetPlayResultCount —— ORIG T 0x085b22e2。
+// P210：定义置于 callee GetMemberSlotNo 之后，4.4 精确继承 outgoing（帧 0x28→0x18=ORIG）。
+void CParty::IncreaseSetPlayResultCount(CUser* user)
+{
+    int slot = GetMemberSlotNo(user);
+    if (slot >= 0)
+        m_member[slot].m_field4 = 1;
 }
 void CParty::Reset_party_overlapped_drop_ratio()
 {
@@ -2566,11 +2574,14 @@ float CParty::CalcAvatarBonus()
     bool found = false;
     for (int i = 0; i <= 3; ++i)
     {
-        if (_checkValidUser(i) && m_member[i].m_pUser->IsEquipAvatar())
-        {
-            found = true;
-            break;
-        }
+        // P133 拆独立守卫（ORIG 各 call 直落统一 continue 出口）；
+        // P194 `bool z=(expr); if(z)` 复现 setle 物化岛。
+        if (!_checkValidUser(i))
+            continue;
+        if (!m_member[i].m_pUser->IsEquipAvatar())
+            continue;
+        found = true;
+        break;
     }
     if (found)
         bonus = (get_member_count() <= 1) ? 0.02f : 0.05f;

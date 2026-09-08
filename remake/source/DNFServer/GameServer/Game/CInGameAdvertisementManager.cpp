@@ -79,6 +79,9 @@ CInGameAdvertisementManager::CInGameAdvertisementManager()
     // ORIG 0x080fdd8a：time 结果槽 -0x1c 单槽直绑（lea -0x1c 早于 operator new，
     // %esi 跨调用缓存 &now）。const unsigned long& 形参 → time_t 槽同址绑定。
     // 4.4 对 &now 实参表达式自然产 lea -0x1c 并物化（P0：寄存器仅承载表达式值）。
+    // b28 判词（P75/N18a）：4 探针（现形/具名指针局部/语句表达式/逗号形，
+    // /tmp/bm10/c1probe.cpp）4.4 恒把 lea 放 operator new 之后且用 %edx——
+    // &now 提前 callee-saved 物化是 4.1 调度产物，源形不可翻。残差 4 行。
     m_rand = new CMTRand(*reinterpret_cast<unsigned long*>(&now));
 }
 

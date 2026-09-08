@@ -158,9 +158,12 @@ class EntranceQuery
 public:
     EntranceQuery();
 
-    bool setQuery(MySQL& db);             // ORIG T 0x08174012：恒 true
-    bool execQuery(MySQL& db);            // ORIG T 0x0817401c：恒 true
-    bool getResult(MySQL& db);            // ORIG T 0x08174026：恒 1
+    // [b28BM13 P216] throw()：ORIG processBilling<EntranceQuery> 0x0817555c 无
+    // 任何 EH landing pad（其余实例的 getResult 才带 try/throw）；三方法声明
+    // nothrow 使 4.4 判 call 无抛、cleanup 链与 ORIG 同形。
+    bool setQuery(MySQL& db) throw();     // ORIG T 0x08174012：恒 true
+    bool execQuery(MySQL& db) throw();    // ORIG T 0x0817401c：恒 true
+    bool getResult(MySQL& db) throw();    // ORIG T 0x08174026：恒 1
 
 
     friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
@@ -227,7 +230,9 @@ private:
     const char* m_account;                // +0x00
     const char* m_sendCharac;             // +0x04
     const char* m_recvCharac;             // +0x08
-    long long m_uid;                      // +0x0c
+    unsigned long long m_uid;             // +0x0c（b28BM13 P211 符号性异型化：
+                                          // 翻 ORIG 0x081747bc ctor 的 RHS-first
+                                          // store 序；宽度/偏移不变）
     unsigned int m_price;                 // +0x14
     unsigned int m_pay;                   // +0x18
     int m_resultCode;                     // +0x1c（@out_code）
@@ -363,7 +368,10 @@ public:
     int m_restrictValue;                                  // +0x000（getRestrictValue 读）
     int m_count;                                          // +0x004
     char m_data[100][0x2d];                               // +0x008
-    unsigned char m_extra[0x64];                          // +0x119c（flag 写入区）
+    unsigned char m_extra[0x64];                          // +0x119c（flag 写入区。
+                                        // b28BM13：bool 字段实测触发 setne 归一
+                                        // (+2)，保持 uchar；装载序 index→this→
+                                        // flag vs 4.4 index→flag→this = N18a）
 };
 
 // SigLoadHeroMissionData（sizeof 0x104）

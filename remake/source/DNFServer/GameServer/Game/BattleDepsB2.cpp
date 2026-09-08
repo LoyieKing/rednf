@@ -270,6 +270,10 @@ int CBattle_Field::GetHellPartyDifficulty(ENUM_DUNGEON_TYPE type)
 }
 
 // ORIG 0x082ffb06 GetHellPartyEventType(diff)：查 stHellParty_t.m_field8a[diff]。
+// b28 复核：残差为 base/index 寄存器放置——ORIG 留 call 结果于 %eax、索引
+// `movsbl -0xc(%ebp),%edx`；4.4 ISel 恒 index→%eax、base 挪 %edx（多 1 条
+// `mov %eax,%edx`，N7/N22 同族）。三形（视图 cast/指针算术/具名基址）probe
+// 不可翻，具名基址反违 P0。封顶 N，ndiff 5。
 int CBattle_Field::GetHellPartyEventType(char diff)
 {
     return (signed char)static_cast<stHellParty_t*>(

@@ -540,10 +540,9 @@ bool CCreatureMgr::InsertCreatureItemResult(SIG_CREATURE_ITEM* sig)
 // 广播 SendCreatureItemInfo。
 bool CCreatureMgr::UpdateCreatureItemResult(SIG_CREATURE_ITEM* sig)
 {
-    // Inven_Item 有用户 ctor，{0}/value-init 不可用（编译拒）；ORIG 该区为
-    // 4.1 内联 rep stos（N78），4.4 恒 call memset——负例在册。
+    // ORIG 0x833b592：仅 `lea -0x45,%eax; mov (%esp); call Inven_Item::Inven_Item`
+    // 一条——清零由 ctor（Inven_Item.cpp reset()）完成，无独立 memset。
     Inven_Item localItem;
-    memset(&localItem, 0, sizeof(localItem));
     reinterpret_cast<Inven_Item_Compatible*>((void*)sig->m_item)->makeInvenItem(localItem);
 
     // ORIG tail `call; xor $0x1,%eax(dead flags-consumed); …mov$0`＝P168a② 直分支

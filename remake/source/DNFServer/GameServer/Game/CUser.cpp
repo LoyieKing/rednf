@@ -2582,7 +2582,7 @@ int CUser::get_aura_avatar_option_value(int idx)
     if (getCurCharacR() == 0)
         return -1;
     if (idx >= 0 && idx <= 2)
-        return (&getCurCharacR()->m_auraValue0)[idx];
+        return getCurCharacR()->m_auraValues[idx];
     return -1;
 }
 
@@ -2953,8 +2953,13 @@ int CUser::CheckMoveTown(int vill)
     // 4.4 恒先载 %eax（具名 uv 槽双 spill 更差，probe），保留 cast 形 ndiff=1。
     if (static_cast<unsigned int>(vill) <= 10)   // ORIG: ja 无符号比较
     {
-        // P0/N96 去绑定：表达式直用（ORIG shl %cl 三段+and 中转，残差 N18a/P85）。
-        if ((1 << vill) & 0x580)
+        // N6 消解：直写表达式 `(1 << vill) & 0x580` 被 4.4 前端折成 `sar+and$1`
+        // （probe p17.f2）；改具名 bit 局部保 shl 链。裸 `register` 提示（非
+        // asm("reg") 绑定，P0/N96 合规）令 4.4 免槽回写，复现 ORIG
+        // `mov $1; shl %cl; mov %ebx,%eax; and $0x580` 全寄存器形（同 is_fighting 先例）。
+        register int bit;
+        bit = 1 << vill;
+        if (bit & 0x580)
             return 0;
     }
     	Village* village = G_GameWorld()->GetVillage(vill);
@@ -5142,7 +5147,7 @@ void CUser::set_multiboxLotteryItemFailCnt(int v)
 
 void CUser::resetPlayExpAdd()
 {
-    *(int*)((char*)&m_gameOption.m_playExpAdd) = 0;
+    m_gameOption.m_playExpAdd = 0;  // 字段 unsigned 化后直写复原 ORIG `movl $0x0,0x703a4(%eax)` 单条
 }
 
 void CUser::resetCleanpadFailCnt()
@@ -5432,7 +5437,7 @@ void CUser::SendCashData(bool flag)
 
 // ORIG _ZN5CUser15recover_staminaEv T 0x0865784e：满体力外每分钟恢复
 // （+9，钳 100）并回发包 0x4。
-void CUser::recover_stamina()
+int CUser::recover_stamina()
 {
     // ORIG 0x8657859-0x8657874：两次独立装载 `cmp $0x2,%eax; jle` / `cmp $0x5,%eax; je`，
     // 均落 0x865797d `mov $0,%eax` dead 岛后 fall epi（P0/N96：dead eax 置零与
@@ -5456,12 +5461,14 @@ void CUser::recover_stamina()
         }
         // ORIG 0x8657969-0x8657978：pg dtor merge 后 dead 读（技巧 16 原地双零扩展）；
         // 两分支共落。
-        (void)getCurCharacR();   // ORIG dead call 有副作用必须保留；尾 movzbl
-                                 //   dead 读 4.4 不发射（残差 1-2 条，N96 代价）。
+        // ORIG 0x8657969 尾：call getCurCharacR + `movzbl 0x75(%eax),%eax;
+        // movzbl %al,%eax` = 成功路返回 stamina 字段（第二 movzbl 为 4.1 int
+        // 返回截断产物，4.4 单段零扩展，残差 1 条记跨版本 N）。
+        return getCurCharacR()->m_stamina;
     }
-    goto RET1;
+    goto RET0;   // 不可达守卫镜像（保持 ORIG 块序：成功 fall 在前、mov$0 岛在后）
 RET0:;
-RET1:;
+    return 0;
 }
 
 // ORIG _ZN5CUser13WorkPerTenMinEv T 0x08653196：无角色时 trace；有激活角色
@@ -6048,8 +6055,8 @@ void CUser::send_aura_avatar_option()
         int now = GlobalData::s_systemTime_.getCurSec();
         // [b23S3C] P48/P0：ORIG 双臂各重取 getCurCharacR（无 cur/expire 槽），
         // if/else 分支岛（P56/P198），put_int 两分支各一次
-        if (now < (&getCurCharacR()->m_auraValue0)[idx])
-            packet.put_int((&getCurCharacR()->m_auraValue0)[idx] - now);
+        if (now < getCurCharacR()->m_auraValues[idx])
+            packet.put_int(getCurCharacR()->m_auraValues[idx] - now);
         else
             packet.put_int(0);
     }
@@ -8667,8 +8674,12 @@ int CUser::gainGuildSkillExp(int exp)
     learned = (char)IsGuildSkillLearn(0xc9);
     // P0/N96：去绑定。ORIG `cmpb $0,-0x11; sete %al; test; jne` 物化岛为 4.1
     // 槽比零产物（P197④：4.4 对槽比恒出 cmp/jne 直跳，源形不可复现）。
-    if (learned == 0)
+    // P225 修正 P197④ 边界：while(learned==0){return 0;} 复现
+    // `cmpb $0; sete %al; test; je BODY` 物化形（probe p7.t5 逐条实证）。
+    while (learned == 0)
+    {
         return 0;
+    }
     CSkill* skill = 0;
     skill = G_CDataManager()->find_skill(get_charac_job(), 0xc9);
     // ORIG 0x0864fbdc-0x86fbfd：gradeIdx（=learned-1）跨 operator[] call 存活于
@@ -9159,12 +9170,19 @@ void CUser::RecoverCoin(unsigned int v)
     if (pEvent != 0 && pEvent->IsEventing((CUser*)0))
     {
         v = pEvent->GetCoinNoPerDay(get_charac_level());
-        getCurCharacInvenR()->GetCoin();
+        // ORIG 0x8657faa：`call GetCoin; cmp 0xc(%ebp),%eax` 后无消费者 =
+        // 4.1 发射**空 if 死比较**（P184 死块照抄；probe p15.d1 实证 4.4
+        // `if (call() != v) {}` 保留裸 dead cmp 无 setne 展开）。
+        if (getCurCharacInvenR()->GetCoin() != v)
+        {
+        }
     }
     if (IsHavePremiumAdvantage())
     {
         v += m_premium.GetAdvantageCoin();
-        getCurCharacInvenR()->GetCoin();
+        if (getCurCharacInvenR()->GetCoin() != v)  // ORIG 0x8657fe2 同形死比较
+        {
+        }
     }
     if (getCurCharacInvenR()->GetCoin() < v)
         SetOpencoin((char)0);

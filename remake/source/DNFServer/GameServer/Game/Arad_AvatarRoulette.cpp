@@ -96,8 +96,10 @@ void CUser::_GetSaveInvenBase(SIG_SAVE_INVENTORY* out)
         out->m_avatarCoin = getCurCharacInvenR()->m_avatarCoin.Get();
     }
     // ORIG 0x0864fd80 尾：getCurSec 结果落 -0xc 槽再装载（P0 具名局部）。
-    unsigned int curSec = GlobalData::s_systemTime_.getCurSec();
-    setCurCharacLastPlayTick(static_cast<long>(curSec));
+    // P211 双向开关：形参 long 与实参同型（long 局部）⇒ this(LHS) 先载 =
+    // ORIG `mov 0x8(%ebp),%eax; mov -0xc(%ebp),%edx` 序；unsigned 异型产 RHS 先。
+    long curSec = GlobalData::s_systemTime_.getCurSec();
+    setCurCharacLastPlayTick(curSec);
 }
 
 // ---- AvatarCoin::SaveToDB ORIG @ 0x081800d6 ----
