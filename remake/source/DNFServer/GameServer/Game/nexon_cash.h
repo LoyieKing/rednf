@@ -132,7 +132,19 @@ private:
 
 private:
     int            m_socket;  // +0x00
-    unsigned char  m_adrs[16];// +0x04 sockaddr_in（避免系统头污染全局作用域）
+    // [b28d-D43] m_adrs 具名 sockaddr_in 视图（§4.3 裸偏移具名化）：ORIG
+    // 0x081aedfc `movw $0x2,0x4(%eax)` / 0x081aee10 `mov %eax,0x8(%edx)` /
+    // 0x081aee2b `mov %ax,0x6(%edx)` 均为 this+disp 单条写 ⇒ 成员视图而非
+    // 局部 cast。sizeof(union)=16、+0x14 m_port/+0x18 m_from 偏移不变。
+    union {
+        unsigned char  m_adrs[16];    // +0x04 sockaddr_in 字节视图
+        struct {
+            unsigned short m_sinFamily;  // +0x04（AF_INET=2）
+            unsigned short m_sinPort;    // +0x06（网络序）
+            unsigned int   m_sinAddr;    // +0x08（网络序）
+            unsigned int   m_sinZero[2]; // +0x0c（sockaddr_in.sin_zero）
+        } m_sin;
+    };
     unsigned short m_port;    // +0x14
     unsigned char  m_pad16[2];// +0x16（ORIG recvfrom 第5参 add $0x18,%eax @0x081af105
                                //  证明 m_from 基址 +0x18，需显式 2B pad）

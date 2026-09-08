@@ -282,18 +282,21 @@ bool CTitleBook::findItemLock(unsigned char lock, ENUM_ITEMSPACE& space,
 void CTitleBook::getItemLockList(
     std::vector<item_lock::stItemLockRef>& out)
 {
+    // b28d-183/198：ORIG 0x086411ba 实证——无 item 指针缓存（P183 地址重物化：
+    // 每次全量展开 m_category[category][i]）；lock 用「声明预清 + 独立赋值」两句式
+    // （P198①，ORIG 头部 movb $0x0,-0x11(%ebp)）；ref 赋值序 = lock → slot → space。
+    unsigned char lock = 0;
     for (int category = 0; category < 4; ++category)
     {
         for (int i = 0; i < TITLE_BOOK_MAX[category]; ++i)
         {
-            const Inven_Item* item = m_category[category] + i;
-            unsigned char lock = item->m_amp.GetLock();
+            lock = m_category[category][i].m_amp.GetLock();
             if (lock != 0)
             {
                 item_lock::stItemLockRef ref;
                 ref.m_lock = lock;
-                ref.m_space = (char)category + 0x13;
                 ref.m_slot = (short)i;
+                ref.m_space = (char)category + 0x13;
                 out.push_back(ref);
             }
         }
@@ -354,7 +357,9 @@ bool CTitleBook::isAbleItemLock(unsigned long itemIdx)
 bool CTitleBook::_checkFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
                                int slot)
 {
-    std::map<int, std::vector<stTitleElement> >::iterator it =
+    // b28d-167/96：p167 差集 MISSING const operator[] + EXTRA const ptEv/非 const
+    // operator[] ⇒ ORIG 用 const_iterator + `(*it).second`（deEv）。
+    std::map<int, std::vector<stTitleElement> >::const_iterator it =
         ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.find(
             (int)category);
     if (it == ((CTitleBookMgrRaw*)G_CDataManager())
@@ -470,43 +475,27 @@ int CTitleBook::checkError(CUser* user, ENUM_TITLE_BOOK_CATEGORY category,
         return 3;
     }
     int result = 0;
-    if (category == 1)
+    // b28d-46/214：ORIG 0x08641fac 为 switch 决策树（case 0..3 顺序）+ result 局部，
+    // 每 case 只写 result 不早返；越界条件合并为 `slot<0 || slot>上限`（短路两跳同落
+    // result=3 块，ORIG 0x08641fe8/0x08641ff4 实证）。上限取 ORIG 立即数（0x45/0xc7/
+    // 0x77/0x3b = 源码 <0x46/<=199/<0x78/<0x3c 的等价边界）。
+    switch ((int)category)
     {
-        if ((slot < 0) || (slot > 199))
-        {
-            result = 3;
-        }
-    }
-    else if ((int)category < 2)
-    {
-        if (category == 0)
-        {
-            if ((slot >= 0) && (slot < 0x46))
-            {
-                return 0;
-            }
-            return 3;
-        }
-    }
-    else
-    {
-        if (category == 2)
-        {
-            if ((slot >= 0) && (slot < 0x78))
-            {
-                return 0;
-            }
-            return 3;
-        }
-        if (category == 3)
-        {
-            if ((slot >= 0) && (slot < 0x3c))
-            {
-                return 0;
-            }
-            return 3;
-        }
+    case 0:
+        if ((slot < 0) || (slot > 0x45)) result = 3;
+        break;
+    case 1:
+        if ((slot < 0) || (slot > 199)) result = 3;
+        break;
+    case 2:
+        if ((slot < 0) || (slot > 0x77)) result = 3;
+        break;
+    case 3:
+        if ((slot < 0) || (slot > 0x3b)) result = 3;
+        break;
+    default:
         result = 3;
+        break;
     }
     return result;
 }
@@ -546,7 +535,7 @@ int CTitleBook::getTitle(CUser* user, ENUM_TITLE_BOOK_CATEGORY category,
 
     if (invenType == 1)
     {
-        if (!book->_checkMovetoInven(category, slot))
+        if (!CTitleBook::_checkMovetoInven(category, slot))
         {
             return 5;
         }
@@ -645,7 +634,7 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
     {
         return 9;
     }
-    if (!book->_checkFitSlot(itemIdx, category, titleSlot))
+    if (!CTitleBook::_checkFitSlot(itemIdx, category, titleSlot))
     {
         return 2;
     }
@@ -801,7 +790,8 @@ bool CTitleBook::_checkInsertTitle(ENUM_TITLE_BOOK_CATEGORY category,
 bool CTitleBook::_checkMovetoInven(ENUM_TITLE_BOOK_CATEGORY category,
                                    int slot)
 {
-    std::map<int, std::vector<stTitleElement> >::iterator it =
+    // b28d-167/96：同 _checkFitSlot——ORIG const operator[]（ixEj 的 K 版）。
+    std::map<int, std::vector<stTitleElement> >::const_iterator it =
         ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.find(
             (int)category);
     if (it == ((CTitleBookMgrRaw*)G_CDataManager())
@@ -809,11 +799,11 @@ bool CTitleBook::_checkMovetoInven(ENUM_TITLE_BOOK_CATEGORY category,
     {
         return 0;
     }
-    if ((int)slot >= (int)it->second.size())
+    if ((int)slot >= (int)(*it).second.size())
     {
         return 0;
     }
-    return it->second[slot].m_achievementIdx == -1;
+    return (*it).second[slot].m_achievementIdx == -1;
 }
 
 bool CTitleBook::_getOwnerTitleInfo(ENUM_TITLE_BOOK_CATEGORY& category,
@@ -821,9 +811,9 @@ bool CTitleBook::_getOwnerTitleInfo(ENUM_TITLE_BOOK_CATEGORY& category,
 {
     const CInventory* inven =
         (const CInventory*)m_user->getCurCharacInvenR();
-    Inven_Item item;
-    item = inven->GetInvenSlot(0, 0xb);
-    *out = item;
+    // b28d-167：p167 EXTRA Inven_Item::C1Ev ⇒ ORIG 无具名 Inven_Item 局部
+    //（GetInvenSlot 返回值直接赋 *out）。
+    *out = inven->GetInvenSlot(0, 0xb);
     if ((out->m_addInfo != 0) &&
         _getFitSlot(out->m_addInfo, category, slot))
     {

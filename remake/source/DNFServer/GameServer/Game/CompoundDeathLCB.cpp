@@ -918,12 +918,15 @@ void CDeathTowerRanking::makeTopRankerRecordPacket(unsigned int towerIdx,
     // 不经 m_slots 具名 +0x98 偏移；具名 slots 局部会引入 add $0x90/+0x8
     // 常量折叠与 -0x10 基址槽）。
     // [b27] 残差：ORIG 先载 0xc(towerIdx)/-0xc(i) 后两 imul、我们 eax 预载
-    // m_towers（mov $0,%eax 常量形）且 ecx 中转——N18a 族寄存器序不可定向
-    //（探针 43 全局数组形亦多 1 条），语义/循环界/槽序已全等。
+    // m_towers 且 lea 合并——N18a 族寄存器序不可定向，语义/循环界/槽序已全等。
+    // [b28d-48] P205 左结合拆两乘积（base + towerIdx*0x390 + i*0x98）把 26→25
+    // 条（消 `mov %edx,%ecx` 中转）；4.4 恒先物化 this 基址 + lea 合并，ORIG
+    // 0x08468c77 段为最后 `add 0x8(%ebp),%eax`——四形实测（char* 双项括号/
+    // 交换项/具类型 stride/左结合）均 25 条且 this-first 不可翻 ⇒ N18a 封顶。
     for (int i = 1; i <= 5; ++i)
         _makeRecordPacket(
             *reinterpret_cast<stBestRecord_t*>(
-                reinterpret_cast<char*>(m_towers) + (i * 0x98 + towerIdx * 0x390)),
+                reinterpret_cast<char*>(m_towers) + towerIdx * 0x390 + i * 0x98),
             packet);
 }
 

@@ -74,6 +74,7 @@
 // 序号、附加信息 0x52 字节（premium 时叠加 CUserPremium::GetAdditionalInfo）、
 // 装备列表、技能强化循环、求购单包。成功返回 1。
 // ---------------------------------------------------------------------------
+// [b28d-D43] N82/N89 大函数（276/236）（ORIG 0x08690776）。
 bool CUser::MakeTagCharacInfo(PacketGuard& packet)
 {
     if (getCurCharacR() == 0)
@@ -147,6 +148,7 @@ bool CUser::MakeTagCharacInfo(PacketGuard& packet)
 // （报告 AvatarRechargeServer/CalcDurabilityChangeEquip.md）
 // 状态 5 且组队中、疲劳副本、未清图时，槽位 0..9 执行 CalcDurabilityDetail。
 // ---------------------------------------------------------------------------
+// [b28d-D43] P84/N22 sete 物化：ORIG `call GetParty; test; sete; test; jne` vs 4.4 结果落槽 -0xc + cmpl（ORIG 0x081905b4）。
 void AvatarRechargeServer::CalcDurabilityChangeEquip(CUser* user, int equipSlot)
 {
     if (user->get_state() != 5)
@@ -170,6 +172,8 @@ void AvatarRechargeServer::CalcDurabilityChangeEquip(CUser* user, int equipSlot)
 // 否则按 INVEN_TYPE 取槽内 item idx（5=扩充栏 9 号页 / 6=金库期望清零 /
 // 其余走背包），两侧 idx 均与期望一致才允许移动。
 // ---------------------------------------------------------------------------
+// [b28d-D43] N82 帧：ORIG sub $0x124 vs 4.4 $0x138（callee-saved 需求差；
+// ORIG 0x0865f1e1，114/116 语义闭合）。
 bool _checkItemMovable(const CUser* user, ENUM_ITEMSPACE fromSpace, int fromSlot,
                        unsigned long fromItemIdx, ENUM_ITEMSPACE toSpace, int toSlot,
                        unsigned long toItemIdx)
@@ -270,6 +274,7 @@ void Secu_MonsterCheck::Reset()
 // → put_int(GetRoutingItemUniqueID) → finalize(true) → send_to_party → cancelTimer →
 // SetEndRouting → ~PacketGuard（+EH 岛 _Unwind_Resume）。P167 实测 16=16 call 集归零。语义等价。
 // ---------------------------------------------------------------------------
+// [b28d-D43] N82/N95 帧与槽平移（87/86）（ORIG 0x0860b332）。
 void CSpecialItemRoutingManager::ProcessFailEtc(CParty* party, int failCode)
 {
     if (party != 0)
@@ -298,6 +303,7 @@ void CSpecialItemRoutingManager::ProcessFailEtc(CParty* party, int failCode)
 // 7. CSpecialItemRoutingManager::processRouting —— ORIG T 0x0860ac6a
 // （报告 CSpecialItemRoutingManager/processRouting.md）：路由物品投递主流程。
 // ---------------------------------------------------------------------------
+// [b28d-D43] N82/N89 大函数（442/435）（ORIG 0x0860ac6a）。
 void CSpecialItemRoutingManager::processRouting(CParty* party)
 {
     Inven_Item* routingItem = party->GetRoutingInvenItem();
@@ -459,9 +465,11 @@ bool CParty::IsUseFatigueDungeon()
 {
     if (m_battleField.m_bloodState == 1 || m_battleField.m_pDungeon == 0)
         return false;
-    return m_battleField.m_pDungeon->m_bloodDungeonType == 0 &&
-           !m_battleField.m_pDungeon->m_villageAttackEventFlag &&
-           !m_battleField.m_pDungeon->isNoFatigueDungeon();
+    if (m_battleField.m_pDungeon->m_bloodDungeonType == 0 &&
+        !m_battleField.m_pDungeon->m_villageAttackEventFlag &&
+        !m_battleField.m_pDungeon->isNoFatigueDungeon())
+        return true;
+    return false;
 }
 
 // ORIG T 0x085bea4a（无报告，objdump）：al 直接透传 check_grid_clear。
@@ -470,16 +478,20 @@ bool CParty::CheckMapClear()
     return reinterpret_cast<CBattle_Field*>(&m_battleField)->check_grid_clear();
 }
 
-// ORIG T 0x0830a0e8（无报告，objdump）：遍历当前图怪物表，存在 dropCnt==100
-// 且 +0x13 标志为 0 的怪 → false，全部通过 → true。
+// ORIG T 0x0830a0e8（报告 docs/class_func_reports/CBattle_Field/check_grid_clear.md）：
+// 遍历当前图怪物表，存在 dropCnt==100 且 +0x13 标志为 0 的怪 → false，全部通过 → true。
+// [b28d-D43] ORIG 形：mob 在**循环外**默认构造（0x830a0f3 一次 C1Ev，循环内
+// operator=）；it 在 for 初始化处直构 begin()；条件端**第二次独立** GetCurrentMapInfo
+// （P48 无 CSE）；增量段 `it++`（P28 ppEi）。旧重建缓存 mapInfo/monsters 引用
+// （-0x10/-0xc 两槽）且循环内构造 mob ⇒ 78→66。
 bool CBattle_Field::check_grid_clear()
 {
-    MapInfo* mapInfo = GetCurrentMapInfo();
-    std::map<int, map_monster>& monsters = mapInfo->m_monsterMap;  // +0xc
-    for (std::map<int, map_monster>::iterator it = monsters.begin();
-         it != monsters.end(); ++it)
+    map_monster mob;
+    for (std::map<int, map_monster>::iterator it =
+             GetCurrentMapInfo()->m_monsterMap.begin();
+         it != GetCurrentMapInfo()->m_monsterMap.end(); it++)
     {
-        map_monster mob = it->second;                 // operator= 拷贝
+        mob = it->second;                             // operator= 拷贝
         if (mob.m_dropCnt == 0x64 && mob.m_field13 == 0)
             return false;
     }
@@ -498,6 +510,7 @@ int CEquipItem::GetUsableEquipmentType() const
 // 即 B 表累计计数（与 CHackAnalyzer.cpp hackCntB 寻址一致；
 // resetServerHackAccumulatedCnt 0x086950b6 清同一槽位）。按 ORIG 运算次序
 // 书写以对齐指令选择。
+// [b28d-D43] N1 两步常量折叠：ORIG `lea -0x65(%eax),%edx; add $0xf44,%edx` vs 4.4 折 `add $0xee1,%edx; shl $2`（ORIG 0x?）。
 int WongWork::CHackAnalyzer::getServerHackAccumulatedCnt(
     WongWork::ENUM_HACKTYPE type) const
 {

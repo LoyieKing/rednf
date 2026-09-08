@@ -60,6 +60,8 @@ DB_CreateCharac::~DB_CreateCharac()
 // ===========================================================================
 // dispatch — dispatch.md T @0x08400d2c
 // ===========================================================================
+// b28d-D42 verdict=DIFF [N82/N89] ORIG 0x08400d2c orig/ours=210/181 ndiff=180。
+// 帧/槽平移 + Stream 读取链内联差；语义按报告逐条对齐。
 bool DB_CreateCharac::dispatch(int userIdx, int slot, Stream* stream)
 {
     if (!DBDispatcher::dispatch(userIdx, slot, stream))
@@ -202,6 +204,9 @@ bool DB_CreateCharac::_createCharacDungeon(unsigned int accId)
 // CheckLimitCreateNewCharac(SIG*) — 报告 @0x08401504
 // 当日（本地零点起）已建 >1 角色拒建（rc=5）；exec 失败 rc=2。
 // ===========================================================================
+// b28d-D42 verdict=DIFF [N82] ORIG 0x08401504 orig/ours=109/108 ndiff=49。
+// 残差为槽号 -0x18/-0x20 互换 + bool 物化形（movb/movzbl/xor vs 直 xor）；
+// P112/N82 跨版本槽分配，语义等价封顶。
 bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
 {
     if (GlobalData::s_pGMAccounts_->isGM(sig->m_accId))
@@ -266,6 +271,8 @@ bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
 // `movzbl;xor;test`（P102 同槽多查），4.4 对 `!a()||!b()||!c() break` 短路直跳；trace
 // 实参寄存器缓存序 N82。无子母，封 N。
 // ===========================================================================
+// b28d-D42 verdict=DIFF [N82] ORIG 0x08401922 orig/ours=155/148 ndiff=104。
+// 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
 bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig,
                                                 bool traceFlag)
 {
@@ -347,6 +354,8 @@ void DB_CreateCharac::makeRequestResetLimitCreateMid()
 // _checkCharacName — 报告 @0x084011d4
 // 重名/delete_flag 判定；gc_no==1010(0x3f2) 且恰与基准名相同时追查 query 日志。
 // ===========================================================================
+// b28d-D42 verdict=DIFF [N82] ORIG 0x084011d4 orig/ours=120/117 ndiff=88。
+// 帧/槽号与寄存器分配差（P112/N82）；语义按报告逐条对齐。
 bool DB_CreateCharac::_checkCharacName(MySQL* db, char const* dbTable,
                                        SIG_CREATE_CHARAC* sig)
 {
@@ -463,6 +472,9 @@ bool DB_CreateCharac::_updateCreateEventCharacter(SIG_CREATE_CHARAC* sig)
 // ===========================================================================
 // InsertLimitCreateNewCharac(SIG*) — 报告 @0x084016ae：新行插入 + trace。
 // ===========================================================================
+// b28d-D42 verdict=DIFF [N82] ORIG 0x084016ae orig/ours=110/109 ndiff=38。
+// 残差为 cMyTrace 具名对象槽号差（ORIG -0x34 vs 我们 -0x24）与寄存器保活差；
+// P112/N82 跨版本槽分配，语义等价封顶。
 bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
 {
     if (GlobalData::s_pGMAccounts_->isGM(sig->m_accId))
@@ -503,6 +515,8 @@ bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
 // InsertLimitCreateNewCharac(SIG*, bool) — 报告 @0x08401b9a
 // count=count+1（无行插入 1），trace 行号 0xf61。
 // ===========================================================================
+// b28d-D42 verdict=DIFF [N82] ORIG 0x08401b9a orig/ours=141/140 ndiff=39。
+// 同 trace 槽号/保活差（P112/N82）；语义等价封顶。
 bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig,
                                                  bool traceFlag)
 {
@@ -556,6 +570,8 @@ bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig,
 // ===========================================================================
 // CreateNewCharac — 报告 @0x08401dcc
 // ===========================================================================
+// b28d-D42 verdict=DIFF [N82] ORIG 0x08401dcc orig/ours=234/230 ndiff=229。
+// 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
 bool DB_CreateCharac::CreateNewCharac(SIG_CREATE_CHARAC* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
@@ -672,6 +688,8 @@ bool DB_CreateCharac::_CreateNewCharacStat(SIG_CREATE_CHARAC* sig)
 // CreateInventory — 报告 @0x08402230
 // item==NULL 仅写 coin；否则将 item 起点 0x3b55 字节 zip 后入库 + 空背包扩容表。
 // ===========================================================================
+// b28d-D42 verdict=DIFF [N82/N78] ORIG 0x08402230 orig/ours=94/88 ndiff=90。
+// 大缓冲（zipped 0x473e）清零/搬移形态差（N78）+ 帧槽（N82）。
 bool DB_CreateCharac::CreateInventory(unsigned int characNo, Inven_Item* item)
 {
     static const int handleIdx = 3;
@@ -714,6 +732,8 @@ bool DB_CreateCharac::CreateInventory(unsigned int characNo, Inven_Item* item)
 // CreateEquip — 报告 @0x084023ac
 // item==NULL 直接成功；否则 zip(item, 0x2dc) upDate equipslot 列。
 // ===========================================================================
+// b28d-D42 verdict=DIFF [N82] ORIG 0x084023ac orig/ours=88/53 ndiff=86。
+// ORIG push %edi/%ebx + 大缓冲帧形态 vs 4.4 栈槽（P112/N82）；语义等价封顶。
 bool DB_CreateCharac::CreateEquip(unsigned int characNo, Inven_Item* item)
 {
     static const int handleIdx = 3;
@@ -741,6 +761,8 @@ bool DB_CreateCharac::CreateEquip(unsigned int characNo, Inven_Item* item)
 // CreateSkill — 报告 @0x084024e6
 // m_masteredSkillA/B 各 0x198 zip 后入 skill 表两 slot blob。
 // ===========================================================================
+// b28d-D42 verdict=DIFF [N82/N78] ORIG 0x084024e6 orig/ours=148/87 ndiff=146。
+// 大缓冲（bufSlot 0x1f5 区）rep stos/memcpy 形态差（N78）+ 帧槽（N82）。
 bool DB_CreateCharac::CreateSkill(SIG_CREATE_CHARAC* sig)
 {
     static const int handleIdx = 3;
@@ -868,6 +890,8 @@ struct MiciJobView
 // 用 callee-saved %edi 承载 maxHP（+0x26，跨 NumberToString/set_query 实参布建存活，
 // 故 push/pop %edi），我们落栈槽回读（N82 寄存器分配差）；实参布建 ORIG 用 %eax、我们用
 // %edx（寄存器文本差，_NEAR_）。语义/callsite 完整。
+// b28d-D42 verdict=DIFF [N82] ORIG 0x080ec2a0 orig/ours=154/155 ndiff=153。
+// 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
 void DB_CreateCharac::MakeInsertCharacInfo(MySQL* db, SIG_CREATE_CHARAC* sig,
                                            char const* escapedName)
 {

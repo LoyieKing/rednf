@@ -26,7 +26,7 @@ namespace WongWork
 // 完成位图数组步长 1）。原 m_pad[0x14] 占位删除。
 struct STClearedQuest
 {
-    unsigned char m_cleared;   // +0x00
+    bool m_cleared;            // +0x00（b28d-Main：bool 元素直载 movzbl 解释 ORIG 0x0808bae0 体无 setne）
 
     // ORIG W 0x0848f768：C1Ev 仅置首字节 0。
     STClearedQuest();
@@ -38,7 +38,7 @@ public:
     CQuestClear();
     ~CQuestClear();
     void clear();
-    unsigned char isClearedQuest(unsigned int questIdx) const;
+    bool isClearedQuest(unsigned int questIdx) const;  // b28d-Main: P292 判别法证 bool（ORIG 调用点 0x0819968f/0x083550cd/0x085a8320 均 `call; xor $0x1,%eax; test %al,%al; je`）
     const STClearedQuest* getClearedQuest() const;
     bool resetClearedQuests(unsigned int questIdx);   // ORIG 返回 1/0
     void setClearedQuest(const STClearedQuest* quest);

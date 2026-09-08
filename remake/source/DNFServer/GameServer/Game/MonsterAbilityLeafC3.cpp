@@ -260,6 +260,8 @@ int getToleranceActiveStatus(ENUM_ACTIVEPROPERTY prop)
 // addChampionFeature — ORIG 0x88b9f66：同组(fc/ fd/fe/ff)冲突拒绝 → 重复拒绝 →
 // 点数足够才 push_back 并扣点。
 // ---------------------------------------------------------------------------
+// b28d-D42 verdict=DIFF [N82] ORIG 0x088b9f66 orig/ours=118/83 ndiff=115。
+// 帧 0x28 vs 0x38 + 槽序/寄存器分配差（P112/N82）；语义等价封顶。
 void addChampionFeature(CHAMPION_FEATURES feature, int& count,
                         std::vector<int>& list)
 {
@@ -291,6 +293,8 @@ void addChampionFeature(CHAMPION_FEATURES feature, int& count,
 // 过滤：>0x30007 时仅 [0x3fe09,0x3fe0c] 与 0x40008 跳过；≤0x30007 且 ≥0x30004
 // 跳过；等于 0x1ff00/0x20013/0xff01 跳过；其余添加。count<=1 提前终止。
 // ---------------------------------------------------------------------------
+// b28d-D42 verdict=DIFF [N82] ORIG 0x088b9dcf orig/ours=102/111 ndiff=79。
+// 槽序与循环结构差（P112/N82）；语义等价封顶。
 void randomSetChampionFeature(int seed, int& count, std::vector<int>& temp,
                               int diff)
 {
@@ -383,6 +387,8 @@ void upgradeAbilityByBossFeature(ActiveStaticInfo* /*info*/)
 // m_hpBase@+0x04、statBase3/4/6@+0x118/+0x120/+0x130、statBase11..14@
 // +0x158/+0x160/+0x168/+0x170、attr17Base[13]=+0xac（ActiveStaticInfo.h 布局）。
 // ---------------------------------------------------------------------------
+// b28d-D42 verdict=DIFF [N82] ORIG 0x088b7c29 orig/ours=229/199 ndiff=224。
+// 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
 void upgradeAbilityByChampionFeature(int elem, int roleType,
                                      std::vector<int>* features,
                                      ActiveStaticInfo* info)
@@ -452,6 +458,9 @@ float STMonsterParameterCategory::getValueFloat() const
 //   m_field4!=0 → 目标 = trunc(target_f * getValueFloat())；
 //   否则 → 目标 += getValueInt()（即 m_field8/100）。
 // ---------------------------------------------------------------------------
+// b28d-D42 verdict=DIFF [N82/N4] ORIG 0x088b7f36 orig/ours=163/168 ndiff=84。
+// 槽差 4 + ORIG 两步 `add $K` 寻址被 4.4 折叠（N4/N102）+ bool 物化形差；
+// 语义等价封顶。
 void upgradeAbilityByMonsterParameterCategory(
     const std::vector<STMonsterParameterCategory>* categories,
     ActiveStaticInfo* info, bool isChampion)
@@ -511,6 +520,8 @@ void upgradeAbilityByMonsterParameterCategory(
 // 在本重载中未使用）。table 为副本难度表，行访问除 +0x118 一处使用 operator[]
 // 外均为 at()（保留 ORIG 的越界抛出语义）；BONUS 扁平索引见各注释。
 // ---------------------------------------------------------------------------
+// b28d-D42 verdict=DIFF [N82/N89] ORIG 0x088b813a orig/ours=330/296 ndiff=320。
+// 帧/槽平移 + vector at()/float STL 内联差（N89）；语义按报告逐条对齐。
 void upgradeAbilityByDifficultyOfDungeon(
     int diff, ActiveStaticInfo* info, int level,
     const std::vector<std::vector<float> >& table)
@@ -647,6 +658,9 @@ void upgradeAbilityByDifficultyOfDungeon(int diff, ActiveStaticInfo* info,
 
 // 逐双字拷贝前 5 个字段（+0x14 m_field18 与 state 均不动）。
 // ---------------------------------------------------------------------------
+// b28d-D42 verdict=DIFF [P67] ORIG 0x0830e9d8 orig/ours=19/24 ndiff=21。
+// RidableObject 用户 dtor 使 4.4 i386 改按引用传参（ORIG 4.1 按值 5 dword
+// 压栈后逐槽直读），P67 跨工具链 ABI 结构性 DIFF 豁免；字段语义逐条一致。
 void DungeonRidableObject::operator=(RidableObject other)
 {
     m_x = other.m_x;
@@ -664,6 +678,9 @@ void DungeonRidableObject::operator=(RidableObject other)
 // map（key=第 3 字段）；否则顺序插入全部对象（注意循环条件是 size 而非 count）。
 // state 统一置 4（ORIG 在 operator= 之后单独写 +0x18=4）。
 // ---------------------------------------------------------------------------
+// b28d-D42 verdict=DIFF [N82] ORIG 0x082fe6d0 orig/ours=192/264 ndiff=249。
+// 帧/槽号平移 + map/vector/random_shuffle STL 内联差（N82/N89）；
+// P167 调用点已核，语义按报告逐条对齐。
 void CRidable::SetRidableObject(RidableScript& script)
 {
     if (script.m_0 <= 0)
@@ -726,6 +743,8 @@ extern std::vector<DungeonPartyBalance> DUNGEON_PARTY_BALANCE_TABLE;
 
 // upgradeAbilityByParty —— ORIG 0x088b8e88：job 0..3 截断；首个满足
 // level>=m_a && level==m_b 的 balance 应用后立即返回。
+// b28d-D42 verdict=DIFF [N82] ORIG 0x088b8e88 orig/ours=228/235 ndiff=223。
+// 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
 void upgradeAbilityByParty(int job, ActiveStaticInfo* info, int level)
 {
     if (info == 0)

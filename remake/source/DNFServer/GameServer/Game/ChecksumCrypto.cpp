@@ -566,6 +566,11 @@ static void SHA256_Transform(unsigned long* stateWords, unsigned long* dataWords
 {
     // ORIG static _ZL16SHA256_TransformPmS_：state/数据均为 unsigned long*，
 // 元素宽随平台；算法规范为 32 位寄存器，统一经 u32 视图读写。
+    // [b28d-41] 豁免（用户规则 §6：SHA 通用算法类只保算法正确）：ORIG 4.1 将
+    // 64 轮 W 扩展 + 64 轮压缩完全展开（584 条），重建用两段 for 循环（247 条）
+    // ——语义等价。实测（/tmp/d41_crypto_test.cpp）：SHA256("abc") =
+    // ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad ✓
+    // （FIPS-180 向量，经 CNChecksumSha256::MakeChecksumFromMemory 全链）。
     unsigned int* state = reinterpret_cast<unsigned int*>(stateWords);
     unsigned int w[64];
     unsigned char const* raw = reinterpret_cast<unsigned char const*>(dataWords);
@@ -1020,6 +1025,12 @@ static void aesInvMixColumnsBlk(unsigned char st[16])
 
 // ORIG AES_Encrypt(void*, unsigned char*) @0x0809f981：完全展开单块加密。
 // 参数语义：pNumArea = &alg->num（结构体 +0x3c），ek 紧随其后（+0x40）。
+// [b28d-41] 豁免（用户规则 §6：AES/DES/SHA 通用算法类只保算法正确，不强制
+// identical）：ORIG 4.1 将 10/12/14 轮完全展开（1595 条），重建按轮循环表达
+// （70 条）——语义等价、轮数由 num+6 驱动（AES-128/192/256 通用）。
+// 实测（/tmp/d41_crypto_test.cpp，链接 tu_ChecksumCrypto.o 运行）：AES-128
+// FIPS-197 向量 key 000102…0f / pt 00112233…ff → ct 69c4e0d8…b4c55a ✓、
+// AES enc/dec roundtrip ✓（本轮修 AES_DecKeySchedule 轮数真 bug，见该函数）。
 void AES_Encrypt(void* pNumArea, unsigned char* block)
 {
     unsigned long const* pNum = reinterpret_cast<unsigned long const*>(pNumArea);
@@ -1097,7 +1108,11 @@ void AES_DecKeySchedule(unsigned char* key, unsigned long keyLen,
 
     unsigned long esk[60];
     RIJNDAEL_KeySchedule(key, keyLen, esk);
-    unsigned long nr = alg->num / 4 + 6;
+    // [b28d-41] 真 bug 修复：原写 `alg->num / 4 + 6`，对 AES-128（num=4）得 7 轮
+    // （应为 Nk+6=10；AES-192/256 同理得 7/8 而非 12/14）⇒ 等效解密轮密钥
+    // dk[0]=esk[nr*4] 取到 esk[28] 而非 esk[40]，AES 解密 roundtrip 全错。
+    // 轮数与 AES_Encrypt/AES_Decrypt 一致应为 num + 6。
+    unsigned long nr = alg->num + 6;
 
     // ORIG 等效解密轮密钥：dk[0]=esk[nr]，中间组 InvMixColumn，dk[nr]=esk[0]
     std::memcpy(&alg->rk[0], &esk[nr * 4], 16);
@@ -1837,6 +1852,11 @@ static unsigned long desF(unsigned long r, unsigned long long subkey)
         desStore64(block, desPermute(pre, 64, 64, k_desFP));                  \
     } while (0)
 
+// [b28d-41] 豁免（用户规则 §6：DES 通用算法类只保算法正确）：ORIG 4.1 将 16 轮
+// 完全展开（1058 条），重建用 DES_BLOCK_BODY 宏内 16 轮循环（81 条）——语义等价。
+// 实测（/tmp/d41_crypto_test.cpp 运行 tu_ChecksumCrypto.o）：NIST 单块向量
+// key 133457799BBCDFF1 / pt 0123456789ABCDEF → ct 85E813540F0AB405 ✓、
+// DES enc/dec roundtrip ✓、3DES EDE roundtrip ✓。
 void DES_Encrypt(void* rkArea, unsigned char* block)
 {
     DES_BLOCK_BODY(1);
@@ -1903,9 +1923,10 @@ int DES3_KeySchedule(unsigned char* key, unsigned long keyLen,
 // ORIG 0x080adf6c / 0x080adfbc：EDE 三块顺序调用
 void DES3_Encrypt(void* rkArea, unsigned char* block)
 {
-    // [b26N帧] ORIG(4.1) 同 TU callee outgoing 策略帧 0x28/rk@-0xc；4.4 同 TU
-    // 定义使 outgoing 塌缩帧 0x18/rk@-0x4（探针 des3p3/p4 实证，源形不可翻）。
-    // DES/3DES 算法类按 §6 只保算法正确，豁免。
+    // [b28d-41] 豁免（用户规则 §6）：残差仅帧 0x28 vs 0x18 + rk 槽 -0xc vs -0x4
+    // + 实参装载序（ORIG 4.1 同 TU callee outgoing 策略；4.4 同 TU 定义使
+    // outgoing 塌缩，探针 des3p3/p4 实证，P210 族源形不可翻）。3DES EDE
+    // roundtrip 实测 ✓（/tmp/d41_crypto_test.cpp）。
     unsigned char* rk = (unsigned char*)rkArea;
     DES_Encrypt(rk, block);
     DES_Decrypt(rk + 0x80, block);
@@ -1914,7 +1935,8 @@ void DES3_Encrypt(void* rkArea, unsigned char* block)
 
 void DES3_Decrypt(void* rkArea, unsigned char* block)
 {
-    // [b26N帧] 同 DES3_Encrypt：outgoing 帧 0x28 vs 0x18 跨版本差，豁免。
+    // [b28d-41] 豁免：同 DES3_Encrypt（帧 0x28 vs 0x18 跨版本差）。3DES
+    // roundtrip 实测 ✓（/tmp/d41_crypto_test.cpp）。
     unsigned char* rk = (unsigned char*)rkArea;
     DES_Decrypt(rk + 0x100, block);   // D(K3)
     DES_Encrypt(rk + 0x80, block);    // E(K2)

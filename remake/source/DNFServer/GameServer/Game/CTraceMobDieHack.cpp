@@ -12,6 +12,9 @@
 //   +0x4c char m_bTracing、+0x50 CUser* m_users[4]、+0x54 int m_damage[4]、
 //   +0x58 int m_count[4]、+0x80 bool m_bInspectUser、+0x84 int m_dungeonDiff、
 //   +0x88 保留。类/结构定义见 CTraceMobDieHack.h（真实 std::map/vector 成员，
+// b28d-45 判词汇总（本 TU 1 件）：
+//   traceEnd 0x08599a88 DIFF107 N82/N98：182:182 槽位集对齐；余 getCurSec
+//     重定位显示（R_386_32）+ 帧槽差。
 //   ctor/dtor 由编译器按成员序隐式构造/逆序析构，与 ORIG 一致）。
 // 跨类调用一律 include 真实头，不再使用 extern asm 桥。
 

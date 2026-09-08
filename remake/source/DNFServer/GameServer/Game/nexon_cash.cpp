@@ -133,6 +133,7 @@ bool TCPSocket::listen(int backlog)
 //   }
 //   if (savedErrno == 0) return 0;
 //   m_sendRetryCount = 0; return -1;
+// [b28d-D43] P168a/N96：ORIG `cmp $0x64; setg %al; test %al,%al; je` 寄存器 bool vs 4.4 直跳 `jle`（清绑后 P0 合规）+ §6.1 尾对齐 nop（ORIG 0x081af6ae）。
 int TCPSocket::send(char* buffer, unsigned int length)
 {
     if (buffer == 0 || length == 0)
@@ -268,6 +269,7 @@ bool TCPSocket::setOptNagle(bool on)
 // ORIG 0x081af9ea：本地 sockaddr_in{AF_INET,inet_addr(host),htons(port)}；
 // connect 失败→false；成功则 memcpy(&m_peerAdrs,&sin_addr,4)、
 // m_peerPort=sin_port，return true。
+// [b28d-D43] P75 实参装载时刻：ORIG 提前 `mov -0xc(%ebp),%ecx`（跨两条 this 装载）vs 4.4 使用点才读（ORIG 0x081af9ea）。
 bool TCPSocket::connect(const char* host, unsigned short port)
 {
     struct sockaddr_in adrs;
@@ -286,6 +288,7 @@ bool TCPSocket::connect(const char* host, unsigned short port)
 }
 
 // ORIG 0x081afa98 (sz 0x230)：非阻塞连接 + select 等待 + SO_ERROR 校验。
+// [b28d-D43] P75 实参装载时刻 + 帧差（155/154）（ORIG 0x081afa98）。
 bool TCPSocket::connect_nonb(const char* host, unsigned short port,
                              timeval timeout)
 {
@@ -415,37 +418,64 @@ void TCPSocket::SetSendBufSize(int size)
 
 // 共同骨架（ORIG 三者同构，仅 select 第二/三/四参与超时不同）：
 // 清零 fd_set(32*int)，FD_SET(m_socket)，select(nfds=2, ...)，ret !=0。
+// [b28d-D43] AE: FD_ZERO→显式循环（pset/i 全头部声明复现 -0x1c/-0x20 槽序）+FD_SET unsigned cast 复现 shr（ORIG 0x081afcc8）。
 bool TCPSocket::pollReadEvent() const
 {
     fd_set fds;
-    FD_ZERO(&fds);
-    FD_SET(m_socket, &fds);
     struct timeval timeout;
+    int ret;
+    unsigned int i;
+    fd_set* pset;
+    pset = &fds;
+    for (i = 0; i <= 0x1f; ++i)
+        pset->fds_bits[i] = 0;
+    FD_SET(static_cast<unsigned int>(m_socket), &fds);
     timeout.tv_sec = 0;
     timeout.tv_usec = 0;
-    return ::select(2, &fds, 0, 0, &timeout) != 0;
+    ret = ::select(2, &fds, 0, 0, &timeout);
+    if (ret == 0)
+        return false;
+    return true;
 }
 
+// [b28d-D43] AE: 同 pollReadEvent（ORIG 0x081afd94）。
 bool TCPSocket::pollWriteEvent() const
 {
     fd_set fds;
-    FD_ZERO(&fds);
-    FD_SET(m_socket, &fds);
     struct timeval timeout;
+    int ret;
+    unsigned int i;
+    fd_set* pset;
+    pset = &fds;
+    for (i = 0; i <= 0x1f; ++i)
+        pset->fds_bits[i] = 0;
+    FD_SET(static_cast<unsigned int>(m_socket), &fds);
     timeout.tv_sec = 0;
     timeout.tv_usec = 0;
-    return ::select(2, 0, &fds, 0, &timeout) != 0;
+    ret = ::select(2, 0, &fds, 0, &timeout);
+    if (ret == 0)
+        return false;
+    return true;
 }
 
+// [b28d-D43] AE: 同 pollReadEvent（ORIG 0x081afe60）。
 bool TCPSocket::pollErrorEvent() const
 {
     fd_set fds;
-    FD_ZERO(&fds);
-    FD_SET(m_socket, &fds);
     struct timeval timeout;
+    int ret;
+    unsigned int i;
+    fd_set* pset;
+    pset = &fds;
+    for (i = 0; i <= 0x1f; ++i)
+        pset->fds_bits[i] = 0;
+    FD_SET(static_cast<unsigned int>(m_socket), &fds);
     timeout.tv_sec = 0;
     timeout.tv_usec = 0;
-    return ::select(2, 0, 0, &fds, &timeout) != 0;
+    ret = ::select(2, 0, 0, &fds, &timeout);
+    if (ret == 0)
+        return false;
+    return true;
 }
 
 int TCPSocket::msRecvBufSize = 0;  // B 0x09407d68
@@ -492,15 +522,17 @@ bool UDPSocket::open()
 // m_adrs={AF_INET=2, inet_addr(host)}；sin_port=htons(m_port)；
 // bind(m_socket,&m_adrs,16)；失败→printf("Udp Port binding fail, %s , %d\n",
 // host, port)（@0x08bb4a08）并 false。
+// [b28d-D43] AE: m_adrs 具名 sockaddr_in 视图直存 + htons(m_port)（ORIG 0x081aedc6）。
 bool UDPSocket::bind(const char* host, unsigned short port)
 {
     m_port = port;
     memset(m_adrs, 0, sizeof(m_adrs));
-    *reinterpret_cast<unsigned short*>(m_adrs + 0) = 2;  // AF_INET
-    unsigned int addr = inet_addr(host);
-    memcpy(m_adrs + 4, &addr, 4);
-    unsigned short netPort = htons(port);
-    memcpy(m_adrs + 2, &netPort, 2);
+    // [b28d-D43] 具名视图直存（ORIG 0x081aedfc/0x081aee10/0x081aee2b 三条
+    // this+disp 单条写；旧 memcpy+局部 addr/netPort 多 11 条）。htons 实参按
+    // ORIG 读 m_port（0x081aee19 双段 movzwl），非形参 port。
+    m_sin.m_sinFamily = 2;                  // AF_INET
+    m_sin.m_sinAddr = inet_addr(host);
+    m_sin.m_sinPort = htons(m_port);
 
     if (::bind(m_socket,
                reinterpret_cast<struct sockaddr*>(m_adrs), 16) != 0)
@@ -523,24 +555,34 @@ bool UDPSocket::bind(unsigned short port, bool nonBlock)
 {
     m_port = port;
     memset(m_adrs, 0, sizeof(m_adrs));
-    *reinterpret_cast<unsigned short*>(m_adrs + 0) = 2;
-    unsigned int any = htonl(0);
-    memcpy(m_adrs + 4, &any, 4);
-    unsigned short netPort = htons(port);
-    memcpy(m_adrs + 2, &netPort, 2);
+    // [b28d-D43] 同上具名视图直存。
+    m_sin.m_sinFamily = 2;
+    m_sin.m_sinAddr = htonl(0);
+    m_sin.m_sinPort = htons(m_port);
 
     if (::bind(m_socket,
                reinterpret_cast<struct sockaddr*>(m_adrs), 16) != 0)
     {
         int e = errno;
-        if (e == 98 /*EADDRINUSE*/)
+        // [b28d-D43] P251：ORIG 0x081aef15 段为 `mov -0xc(%ebp),%eax; cmp
+        // $0x62,%eax; je …; cmp $0x63,%eax; je …; test %eax,%eax; je …`
+        // （值载寄存器后多路比较链，非内存直比）⇒ 源码是 switch(e)。
+        switch (e)
+        {
+        case 98: /*EADDRINUSE*/
             printf("Port %d for receiving UDP is in use\n",
                    static_cast<int>(port));
-        else if (e == 99 /*EACCES*/)
+            break;
+        case 99: /*EACCES*/
             puts("Cannot assign requested address.");
-        else if (e != 0)
+            break;
+        case 0:
+            break;
+        default:
             printf("Could not bind UDP receive port. Error= %d , strerror=%s\n",
                    e, strerror(e));
+            break;
+        }
         return false;
     }
     if (nonBlock)
@@ -587,6 +629,7 @@ int UDPSocket::send(char* data, int length, unsigned short port,
 //   —— ORIG 直接以 this+0x18 作为源地址存储（即成员 m_from）。
 //   n<0: (errno==EAGAIN||errno==EINTR||errno==EAGAIN)→ return 0（0x081af162 共岛），
 //        否则 → return -1（0x081af169）；n>=0 原样返回（0x081af170）。
+// [b28d-D43] P75/P52：ORIG 提前 `lea -0x10(%ebp),%ebx`（callee-saved 独占）vs 4.4 推迟到实参装载点（ORIG 0x081af0de）。
 int UDPSocket::recv(char* buffer, int length)
 {
     if (buffer == 0 || length <= 0)
@@ -655,39 +698,66 @@ bool UDPSocket::setOptResizeRecvBuf(int size)
 }
 
 // ORIG 0x081af268：read 集 select(nfds=2)，超时 {0,5000}微秒，ret!=0。
+// [b28d-D43] AE: 同 pollReadEvent（ORIG 0x081af268）。
 bool UDPSocket::pollReadEvent() const
 {
     fd_set fds;
-    FD_ZERO(&fds);
-    FD_SET(m_socket, &fds);
     struct timeval timeout;
+    int ret;
+    unsigned int i;
+    fd_set* pset;
+    pset = &fds;
+    for (i = 0; i <= 0x1f; ++i)
+        pset->fds_bits[i] = 0;
+    FD_SET(static_cast<unsigned int>(m_socket), &fds);
     timeout.tv_sec = 0;
     timeout.tv_usec = 0x1388;
-    return ::select(2, &fds, 0, 0, &timeout) != 0;
+    ret = ::select(2, &fds, 0, 0, &timeout);
+    if (ret == 0)
+        return false;
+    return true;
 }
 
 // ORIG 0x081af334：write 集超时 {0,0}。
+// [b28d-D43] AE: 同 pollReadEvent（ORIG 0x081af334）。
 bool UDPSocket::pollWriteEvent() const
 {
     fd_set fds;
-    FD_ZERO(&fds);
-    FD_SET(m_socket, &fds);
     struct timeval timeout;
+    int ret;
+    unsigned int i;
+    fd_set* pset;
+    pset = &fds;
+    for (i = 0; i <= 0x1f; ++i)
+        pset->fds_bits[i] = 0;
+    FD_SET(static_cast<unsigned int>(m_socket), &fds);
     timeout.tv_sec = 0;
     timeout.tv_usec = 0;
-    return ::select(2, 0, &fds, 0, &timeout) != 0;
+    ret = ::select(2, 0, &fds, 0, &timeout);
+    if (ret == 0)
+        return false;
+    return true;
 }
 
 // ORIG 0x081af400：except 集，超时 {0,0}。
+// [b28d-D43] AE: 同 pollReadEvent（ORIG 0x081af400）。
 bool UDPSocket::pollErrorEvent() const
 {
     fd_set fds;
-    FD_ZERO(&fds);
-    FD_SET(m_socket, &fds);
     struct timeval timeout;
+    int ret;
+    unsigned int i;
+    fd_set* pset;
+    pset = &fds;
+    for (i = 0; i <= 0x1f; ++i)
+        pset->fds_bits[i] = 0;
+    FD_SET(static_cast<unsigned int>(m_socket), &fds);
     timeout.tv_sec = 0;
     timeout.tv_usec = 0;
-    return ::select(2, 0, 0, &fds, &timeout) != 0;
+    ret = ::select(2, 0, 0, &fds, &timeout);
+    if (ret == 0)
+        return false;
+    return true;
 }
 
 // ===========================================================================
@@ -707,9 +777,9 @@ ByteBuffer::ByteBuffer(char* buffer, unsigned int len)
 // `ByteBuffer&` + 字段直写产 17 条逐字段 store（ORIG 16 条 sret 构造）。
 ByteBuffer ByteBuffer::wrap(char* buffer, unsigned int len)
 {
-    // [b28d-D43] P190 帧律：ORIG `sub $0x14`（4.4 自然帧 $0xc）
-    double framePad; (void)&framePad;
-    double framePad2; (void)&framePad2;
+    // [b28d-D43] N-P190附注②：ORIG `sub $0x14` vs 4.4 自然帧 `sub $0xc`；
+    // 4.4 局部区量化步长 16（char[4]/char[8]/float×2/double 实测均落 $0x1c/$0x20），
+    // 无 pad 组合可达 $0x14 ⇒ 帧差封顶；体 16/16 条全等（仅 call 重定位显示差）。
     return ByteBuffer(buffer, len);
 }
 
@@ -736,6 +806,7 @@ ByteBuffer& ByteBuffer::operator<<(const char* value)
 
 // ORIG 0x081acd1e：len=wcslen；字节数=len*2；超 0xffff 抛 invalid_argument；
 // 空间足够则写 ushort 长度前缀（大端）+ wcsncpy + 游标前进 len*2。
+// [b28d-D43] N82/N89 大函数（124/124）：STL 实例化 + 槽平移（ORIG 0x081acd1e）。
 ByteBuffer& ByteBuffer::operator<<(const wchar_t* value)
 {
     size_t len = wcslen(value);
@@ -1015,6 +1086,7 @@ void UserBalance::addNewTransaction(Transaction* tx)
 
 // ORIG 0x081b1530：erase(remove(begin,end,tx), end) 惯用法（ORIG 实例化了
 // std::remove 与两参 erase 的 W 符号）。
+// [b28d-D43] P23/P75 求值序：ORIG erase 两实参 end,end,begin,remove 序 vs 4.4 remove 提前（ORIG 0x081b1530）。
 void UserBalance::removeTransaction(Transaction* tx)
 {
     std::vector<Transaction*>::iterator last = std::remove(
@@ -1291,12 +1363,13 @@ ByteBuffer NCashImpl::set_data_header(unsigned char packetId, unsigned char flag
 
 // ORIG 0x081ad168：从入包 body 读 pid/flag/requestId 三元组。
 // [b23S3C] P192：sret 返回入包视图对象（NRVO 直构 caller 槽，无额外拷贝）。
+// [b28d-D43] NEAR 帧量化：ORIG sub $0x10 vs 4.4 $0xc（P190附注②；体 39/39 全等）（ORIG 0x081ad168）。
 ByteBuffer NCashImpl::get_data_header(unsigned char& a, unsigned char& b,
                                       unsigned int& c)
 {
     // [b28d-D43] ORIG 0x081ad168 无 in 的 ctor call（wrap 的 sret 即 in 槽，
     // %ebx=get_data_header sret 槽）：直接初始化形令 4.4 把 in 地址传给 wrap。
-    double framePad; (void)&framePad;   // P190：ORIG `sub $0x10`（4.4 自然帧 $0xc）
+    // 帧：ORIG `sub $0x10` vs 4.4 `sub $0xc`（N-P190附注②量化差，指令 39/39 全等）。
     ByteBuffer in = ByteBuffer::wrap(reinterpret_cast<char*>(m_inMsg.body()),
                                      m_inMsg.body_length());
     in >> a;
@@ -1367,6 +1440,7 @@ Lsilent:
 }
 
 // ORIG 0x081ad316：手组包头（不走 set_data_header！仅自增 requestID 不写入）。
+// [b28d-D43] N82/N95 帧/槽平移（大函数 106/112）（ORIG 0x081ad316）。
 int NCashImpl::checkEntrance(const char* userName, char& outStatus)
 {
     if (!reconnect())
@@ -1402,6 +1476,7 @@ int NCashImpl::checkEntrance(const char* userName, char& outStatus)
 }
 
 // ORIG 0x081ad49e：packet_id=0 应答 err==0 后读余额。
+// [b28d-D43] N82/N95 帧/槽平移（81/104）（ORIG 0x081ad49e）。
 int NCashImpl::getBalance(const char* userId, int& balanceOut)
 {
     if (!reconnect())
@@ -1525,6 +1600,7 @@ int NCashImpl::purchase(unsigned long long productSeq, int cashType,
 }
 
 // ORIG 0x081ad9c4：两段附加串位于 m_paramB/m_fieldC 之后。
+// [b28d-D43] N82 帧：ORIG sub $0x68 vs 4.4 push %ebx+sub $0x74（ORIG 0x081ad9c4）。
 int NCashImpl::gift(unsigned long long productSeq, int cashType,
                     int cashAmount, const char* targetUserId,
                     const char* message, const char* extra1,
@@ -1569,6 +1645,7 @@ int NCashImpl::gift(unsigned long long productSeq, int cashType,
 }
 
 // ORIG 0x081adbd4：err!=3 时 handle_cash_error 结果被丢弃仍打印成功行返 0。
+// [b28d-D43] N82/N95 同 cancel（帧/槽平移）（ORIG 0x081adbd4）。
 int NCashImpl::confirm(unsigned char trFlag, unsigned int trId)
 {
     if (trId == 0)
@@ -1597,6 +1674,7 @@ int NCashImpl::confirm(unsigned char trFlag, unsigned int trId)
 }
 
 // ORIG 0x081add04：与 confirm 同构，packet_id=4、__FUNCTION__="cancel"。
+// [b28d-D43] N82/N95 帧/槽平移：set_data_header 返回槽 ORIG -0x1c vs 4.4 -0x2c（ORIG 0x081add04）。
 int NCashImpl::cancel(unsigned char trFlag, unsigned int trId)
 {
     if (trId == 0)
@@ -1628,6 +1706,7 @@ int NCashImpl::cancel(unsigned char trFlag, unsigned int trId)
 // mbstowcs → Adler32(宽串字节) → EncodeDressStringWide(key=0x1b1bde64) →
 // wcstombs 回 ASCII 密文入包 + 协议键 qword + adler qword。
 // snprintf token-to-slot 错位处标【推断】（见批次报告 artifact://58982 复核指引）。
+// [b28d-D43] N82/N89 大函数（196/223）（ORIG 0x081ade34）。
 int NCashImpl::chargeCash(char* sessionKey, unsigned char h1, unsigned char h2,
                           int iv, char* pA, char* pB, char* pC, char* pD,
                           int code, NXTransaction& trOut)

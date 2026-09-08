@@ -38,6 +38,9 @@ void EventCharacterParameterScript::clear()
     m_levels.clear();
 }
 
+// b28d-D42 verdict=DIFF [N82/N89] ORIG 0x0895b006 orig/ours=423/421 ndiff=376。
+// 残差为巨件帧/槽号平移（局部表/缓冲）与 std::map/string 内联差（N89）；
+// P167 调用点已核，语义按报告逐条对齐。
 bool EventCharacterParameterScript::importEventCharacterParameterScript(const char* file_name)
 {
     if (!loadRDARScriptFile(g_eventCharacterScriptBaseDirectory, file_name))

@@ -71,6 +71,7 @@ MapInfo* CBattle_Field::GetCurrentMapInfo()
     return GetMapInfoFromPos(x, y, false);
 }
 
+// [b28d-D43] N82/N89 大函数（178/180）（ORIG 0x?）。
 MapInfo* CBattle_Field::GetMapInfoFromPos(int x, int y, bool create)
 {
     int key = GetMapInfoKeyValue(x, y);
@@ -230,6 +231,7 @@ bool CBattle_Field::isWorldMapTowerArea()
     return m_worldMapTowerArea;
 }
 
+// [b28d-D43] N4/P30 索引常量两步寻址：ORIG `mov 0x114(%eax),%edx; add $0x2,%edx` vs 4.4 恒 `mov %eax; lea 0x2(%eax),%edx`（P205/P211 拆形+探针 d43_probe2/3 六形全败，语义等价）（ORIG 0x?）。
 int CBattle_Field::GetCurPosX()
 {
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap())
@@ -247,6 +249,7 @@ int CBattle_Field::GetCurPosX()
     }
 }
 
+// [b28d-D43] N4/P30 同 GetCurPosX（+2 两处）（ORIG 0x?）。
 int CBattle_Field::GetCurPosY()
 {
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap())
@@ -261,6 +264,8 @@ int CBattle_Field::GetCurPosY()
 }
 
 // N81 附族：m_pos[m_curSeatNo+6] 索引段同上（add vs lea 直落，不可复现）。
+// [b28d-D43] N4/P30 索引常量两步寻址（+6 两处）：ORIG `mov 0x114(%eax),%edx;
+// add $0x6,%edx` vs 4.4 `mov %eax; lea 0x6(%eax),%edx`（ORIG 0x0830eac8 段）。
 MapInfo* CBattle_Field::GetLastMapInfo()
 {
     int x = -1;
@@ -281,6 +286,7 @@ MapInfo* CBattle_Field::GetLastMapInfo()
 // N81 附族：m_pos[m_curSeatNo+2] 索引段 `mov mem,%eax`+`lea` 合成 vs ORIG
 // `mov mem,%edx`+`add` 直落（同 GetCurPosX/Y，4.1 索引 regmove 落点，合法源码
 // 不可复现——负面结论同列）。
+// [b28d-D43] N4/P30 同 GetCurPosX（+2 两处）（ORIG 0x08300da6）。
 void CBattle_Field::getCurPosXY(int& x, int& y)
 {
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap() &&
@@ -297,6 +303,7 @@ void CBattle_Field::getCurPosXY(int& x, int& y)
 }
 
 // N81 附族：m_pos[m_curSeatNo+6] 索引段同上（add vs lea 直落，不可复现）。
+// [b28d-D43] N4/P30 同族（+6 两处）（ORIG 0x08300e44）。
 void CBattle_Field::getLastPosXY(int& x, int& y)
 {
     if (m_pDungeon->IsEnterEachMap() &&
@@ -315,6 +322,7 @@ void CBattle_Field::getLastPosXY(int& x, int& y)
 
 // N81 附族：m_pos[...+6]/[...+2] 索引段 + make_pair 传参同理（add vs lea 直落，
 // 不可复现）。
+// [b28d-D43] N4/P30 同族（+6/+2 make_pair 段）（ORIG 0x0830878e）。
 void CBattle_Field::swap_curpos_xy(int x, int y)
 {
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap() &&
@@ -371,6 +379,7 @@ unsigned char CBattle_Field::IsEnableHellDungeon()
     return *p;
 }
 
+// [b28d-D43] N97/P230 cmov：4.4 三目 if-conversion `cmova` vs ORIG 分支 `jbe+push/pop`（-march=i486 才能消 cmov，本波不改路由表）（ORIG 0x?）。
 void CBattle_Field::set_dungeon_diff(char diff)
 {
     // [b28d-D43] ORIG 0x0830ed21：`movzbl 0xc(%ebp),%edx; cmp $0x4,%edx; jbe`
@@ -472,6 +481,7 @@ void CBattle_Field::CheckAppearRidableObject(PacketGuard* packet)
 //   迭代器/临时对象顶到帧底（-0x35c/-0x36c/-0x358…），4.4 恒自 ebp-8 起
 //   （-0x10/-0xc/-0x18…）⇒ 全帧槽号平移 0x34c（N95/N82 族，P182 不强凑；
 //   double framePad 仅调 ±4 无法位移 0x34c）。语义闭合，N 封顶勿再耗轮。
+// [b28d-D43] N82附 槽分区：4.4 聚合对象优先低槽（m 临时 -0x35c）+标量分区（it/end -0x10/-0xc）vs 4.1 生命周期穿插（-0x354/-0x35c/-0x358）（ORIG 0x0830a708）。
 bool CBattle_Field::GetFieldMob(int uid, map_monster& out)
 {
     std::map<int, map_monster>::iterator it;
@@ -810,6 +820,7 @@ public:
 // CBattle_Field::getRandomBuffDungeonType —— ORIG 0x0830aaa4（0x1d5 字节）
 //   报告：docs/class_func_reports/CBattle_Field/getRandomBuffDungeonType.md
 // ============================================================================
+// [b28d-D43] N82/N95 帧/槽平移（138/135）（ORIG 0x0830aaa4）。
 int CBattle_Field::getRandomBuffDungeonType(int dungeonIdx)
 {
     if (dungeonIdx == 0)
@@ -862,6 +873,7 @@ int CBattle_Field::getRandomBuffDungeonType(int dungeonIdx)
 //   InsertTimer 链 esi/ebx 跨调用保存与帧差异，源码已按 ORIG 比较边界写 >=4，
 //   GCC 仍规范化，无法逐字节复现——见报告）
 // ============================================================================
+// [b28d-D43] N82/N95 帧/槽平移（97/101）（ORIG 0x0830ac7a）。
 void CBattle_Field::setEplpWaitingTimer(register QuickParty::RandomBuffDungeon type)
 {
     if (m_party == 0)

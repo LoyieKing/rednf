@@ -44,7 +44,7 @@ void CQuestClear::clear()
     ((QC_SaveFlagView*)this)->m_saveFlag = 0;
 }
 
-unsigned char CQuestClear::isClearedQuest(unsigned int questIdx) const
+bool CQuestClear::isClearedQuest(unsigned int questIdx) const
 {
     // ORIG 0x0808bae0：idx==0 或 idx>0x752f → 0；否则 movzbl 直返字节（P9 无 setne）。
     if (questIdx == 0 || questIdx > 0x752f)

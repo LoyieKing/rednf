@@ -472,7 +472,9 @@ static_assert(offsetof(SIG_GET_USER_REGDATE, m_regDate) == 0x08,
 
 struct SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD
 {
-    char m_pad[0x4];
+    // [b28d-47] 字段化：ORIG 0x0842373b `movzbl param5; mov p,%eax; mov %edx,(%eax)`
+    // 写首 4 字节（改密标志，值 0/1）；sizeof/偏移/mangled 不变（0x4）。
+    unsigned int m_adviceChangePwd;   // +0x00
 };
 
 struct SIG_GOBLIN_UPDATE_REWARD

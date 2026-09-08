@@ -151,14 +151,14 @@ int CFairMatch::CheckJoinable(PvP_Room* room, CUser* user)
         return 1;
     // ORIG +0x2e：pc 直落 callee-saved %ebx 跨 GetPlayCountPerOneTeam 调用。
     register const int pc = room->get_player_count();
-    if ((bool)(static_cast<int>(
-            static_cast<unsigned char>(GetPlayCountPerOneTeam())) * 2
-            <= pc))
+    // b28d-196/211：ORIG `cmp %eax,%ebx; setge`（ebx=pc 为左操作数）⇒ 源码按
+    // `pc >= X` 书写（`X <= pc` 反产 cmp %ebx,%eax; setle，语义等价但寄存器序反）。
+    if ((bool)(pc >= static_cast<int>(
+            static_cast<unsigned char>(GetPlayCountPerOneTeam())) * 2))
         return 4;
     register const int total = m_teams[0].size() + m_teams[1].size();
-    if ((bool)(static_cast<int>(
-            static_cast<unsigned char>(GetPlayCountPerOneTeam())) * 2
-            < total))
+    if ((bool)(total > static_cast<int>(
+            static_cast<unsigned char>(GetPlayCountPerOneTeam())) * 2))
         return 4;
     // ORIG +0x8d..0x99 跳表（cmp $5/ja/jmp *table）⇒ switch（P17）；
     // 叶块排布序 = case 书写序（P46）：0 → 3 → 1/4/5 与 default。
@@ -166,9 +166,12 @@ int CFairMatch::CheckJoinable(PvP_Room* room, CUser* user)
     case 0:
         if (!_CheckSameTeam(room, user))
             return 4;
-        if (_CheckObserver(room, user))
-            return 0;
-        return 4;   // ORIG +0xe2（obs false）
+        // b28d-168a①：ORIG +0xd6 段 `call _CheckObserver; xor $0x1,%eax; test %al,%al;
+        // je <mov $0>` ⇒ 源码为否定早返 `if (!f()) return 4; return 0;`（正极性写法
+        // 少 xor 物化）。
+        if (!_CheckObserver(room, user))
+            return 4;
+        return 0;
     case 3:
         return 0;
     case 1:
@@ -586,7 +589,8 @@ int CFairMatch::_PutInRoom(CUser* user, PvP_Room* room, bool observer)
         G_GameWorld()->send_all(pkt);
         G_GameWorld()->goto_pvp(user);
     }
-    pkt.finalize(true);   // ORIG 尾部 finalize（两条路径均执行）
+    // b28d-167：p167 差集 EXTRA InterfacePacketBuf::finalize×1 ⇒ ORIG 无尾部
+    // finalize（两条路径各自 finalize 后返回），删除。
     return seat;
 }
 

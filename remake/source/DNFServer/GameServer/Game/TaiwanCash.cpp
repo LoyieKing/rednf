@@ -40,10 +40,15 @@ bool InitBillingCash(Taiwan::TaiwanCash*& cash)
     STDBConnInfo& info =
         G_CEnvironment()->m_dbConnInfo[DB_HANDLE_E];
 
-    // init 返回 bool（0/1），ORIG 汇编 `xor $1,%eax` 即 `!init`；==1 省去。
-    return !(cash == 0 ||
-             cash->init(info.m_host, static_cast<unsigned int>(info.m_port),
-                        info.m_db, info.m_user, info.m_pass));
+    // [b28d-47] 真语义 bug 修正：ORIG 0x0814663e..+0xe5 双层取反
+    // bVar2 = !(cash==0 || init(...)==1); return !bVar2 ⇒ 返回 true 当且仅当
+    // cash==0 或 init 返回 1（+0xc7 je +0xd0 落 bVar2=0 ⇒ 尾 +0xe0 mov $1）。
+    // 旧实现单层 !(...) 在 cash==0/init 成功时返回 false，与 ORIG 相反。
+    // [b28d-47] 嵌套双层 `!(!(...))`：具名 bool 会落 -0x19 槽（4.4 实测），
+    // ORIG 第一层结果直接留在 eax 供第二层 test（无槽往返）。
+    return !(!(cash == 0 ||
+               cash->init(info.m_host, static_cast<unsigned int>(info.m_port),
+                          info.m_db, info.m_user, info.m_pass) == 1));
 }
 
 namespace Taiwan
@@ -294,11 +299,11 @@ int TaiwanCash::getBalance(const char* account, int& balance)
         return query.m_resultCode;
 
     balance = query.m_balance;
-    {
-        cMyTrace trace(__FUNCTION__, 0x46, 0);
-        trace("[Taiwan, Billing] BalanceQuery Balance:%d, Result:%d",
-              balance, query.m_resultCode);
-    }
+    // [b28d-47] P227 全表达式临时链：ORIG 0x081737c6 `mov -0x1c(%ebp),%esi;
+    // mov (%eax),%ebx` 在 ctor 前物化两实参并跨 ctor 保活。
+    cMyTrace(__FUNCTION__, 0x46, 0)(
+        "[Taiwan, Billing] BalanceQuery Balance:%d, Result:%d",
+        balance, query.m_resultCode);
     return 0;
 }
 
@@ -314,11 +319,9 @@ int TaiwanCash::getBalance(const char* account, int& balance, int& point)
 
     balance = query.m_balance;
     point = query.m_point;
-    {
-        cMyTrace trace(__FUNCTION__, 0x5a, 0);
-        trace("[Taiwan, Billing] BalancePointQuery Balance:%d, Point:%d, Result:%d",
-              balance, point, query.m_resultCode);
-    }
+    cMyTrace(__FUNCTION__, 0x5a, 0)(   // [b28d-47] P227（同上）
+        "[Taiwan, Billing] BalancePointQuery Balance:%d, Point:%d, Result:%d",
+        balance, point, query.m_resultCode);
     return 0;
 }
 
@@ -334,10 +337,11 @@ int TaiwanCash::checkEntrance(const char* account, char& entrance)
     if (!checkResultCode(query.m_resultCode))
         return query.m_resultCode;
 
-    {
-        cMyTrace trace(__FUNCTION__, 0x34, 0);
-        trace("[Taiwan, Billing] EntranceQuery Entrance:%d", query.m_resultCode);
-    }
+    // [b28d-47] P227/P221：ORIG 0x0817371e `mov -0x1c(%ebp),%ebx` 把 m_resultCode
+    // 在 cMyTrace ctor 前物化并跨 ctor 以 %ebx 保活 ⇒ 全表达式临时链形（具名 trace
+    // 对象会令实参在 ctor 后求值且落槽，帧 -0x38 vs ORIG -0x34）。
+    cMyTrace(__FUNCTION__, 0x34, 0)(
+        "[Taiwan, Billing] EntranceQuery Entrance:%d", query.m_resultCode);
     return 0;
 }
 
@@ -379,9 +383,10 @@ int TaiwanCash::gift(unsigned long long uid, int price, int pay,
 // ---- cancel(const BillTransaction&) —— ORIG T 0x08173d1c ----
 int TaiwanCash::cancel(const BillTransaction& trans)
 {
-    // tranNo 高低双字均为 0 → 直接返回 0（ORIG test lo|hi）。
-    if ((static_cast<int>(trans.m_tranNo & 0xffffffffULL) |
-         static_cast<int>(trans.m_tranNo >> 32)) == 0)
+    // [b28d-47] ORIG 0x08173d24 `mov 0x8(%eax),%edx; mov 0x4(%eax),%eax;
+    // or %edx,%eax; test` = 直接 `m_tranNo == 0`（long long 零比较）；旧 lo|hi
+    // 写法多两次 64 位读取 + `mov %edx,%eax; xor %edx,%edx` 移位链。
+    if (trans.m_tranNo == 0)
         return 0;
 
     CancelQuery query(trans);
@@ -391,12 +396,11 @@ int TaiwanCash::cancel(const BillTransaction& trans)
     if (!checkResultCode(query.m_resultCode))
         return query.m_resultCode;
 
-    {
-        char* tranStr = NumberToString(
-            static_cast<unsigned long long>(trans.m_tranNo), 0);
-        cMyTrace trace(__FUNCTION__, 0xb9, 0);
-        trace("[Taiwan, Billing] CancelQuery Transaction:%s", tranStr);
-    }
+    // [b28d-47] P227 全表达式临时链（ORIG 0x08173xxx 在 ctor 前物化 NumberToString
+    // 结果并跨 ctor 以 callee-saved 保活；具名 tranStr/trace 会落槽 + 帧漂移）。
+    cMyTrace(__FUNCTION__, 0xb9, 0)(
+        "[Taiwan, Billing] CancelQuery Transaction:%s",
+        NumberToString(static_cast<unsigned long long>(trans.m_tranNo), 0));
     return 0;
 }
 
@@ -436,9 +440,7 @@ int TaiwanCash::charge(char* p1, unsigned char serviceType, unsigned char p3,
 // ---- confirm(const BillTransaction&) —— ORIG T 0x08173c48 ----
 int TaiwanCash::confirm(const BillTransaction& trans)
 {
-    // tranNo 高低双字均为 0 → 直接返回 0（ORIG test lo|hi）。
-    if ((static_cast<int>(trans.m_tranNo & 0xffffffffULL) |
-         static_cast<int>(trans.m_tranNo >> 32)) == 0)
+    if (trans.m_tranNo == 0)   // [b28d-47] 同 cancel（ORIG long long 零比较形）
         return 0;
 
     ConfirmQuery query(trans);
@@ -448,12 +450,9 @@ int TaiwanCash::confirm(const BillTransaction& trans)
     if (!checkResultCode(query.m_resultCode))
         return query.m_resultCode;
 
-    {
-        char* tranStr = NumberToString(
-            static_cast<unsigned long long>(trans.m_tranNo), 0);
-        cMyTrace trace(__FUNCTION__, 0xa7, 0);
-        trace("[Taiwan, Billing] ConfirmQuery Transaction:%s", tranStr);
-    }
+    cMyTrace(__FUNCTION__, 0xa7, 0)(   // [b28d-47] P227（同上）
+        "[Taiwan, Billing] ConfirmQuery Transaction:%s",
+        NumberToString(static_cast<unsigned long long>(trans.m_tranNo), 0));
     return 0;
 }
 

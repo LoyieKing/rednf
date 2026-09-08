@@ -381,6 +381,8 @@ void SpecialItemHandler::respond_special_item_booster(int,
 // 逐选择包表，ceraParam 的 vector<tagPackageItemSelection>(+0xc)/vector<pair<int,int>>(+0x0)，
 // 逐包 _processAdditionalItem（子物品 vtable+0x60 槽按 CItem::set_parent_booster_item_id
 // 真实虚方法直调）+ CUser::SendRandomBoxStatistic(0x380/0x28982d/0x289749)。
+// b28d-D42 verdict=DIFF [N82/N89] ORIG 0x0827c204 orig/ours=557/547 ndiff=497。
+// 巨件帧/槽平移 + tagPackageItemSelection STL 内联差（N89）；P167 调用点已核。
 void SpecialItemHandler::respond_special_item_package(
     int, const STSpecailItem_Param& param, STSpecailItem_Result&)
 {
@@ -549,6 +551,8 @@ void SpecialItemHandler::respond_special_item_package(
 // is_notify/_sendPremiumPacket → write_log。未命中记 PREMIUM_ERROR 日志返回。
 // 注：报告汇编中 "ItemVendingMachine::BuyAuctionItem" 标签为 report_resolve 误标，
 // 实际地址 0x0817a10c 为 CItemList::GetRestrictCode（nm 核实），本函数不使用 BuyAuctionItem。
+// b28d-D42 verdict=DIFF [N82/N89] ORIG 0x0827d3dc orig/ours=672/703 ndiff=680。
+// 巨件帧/槽平移 + STL/字符串内联差（N89）；语义按报告逐条对齐。
 void SpecialItemHandler::respond_special_item_premium(int type,
                                                       const STSpecailItem_Param& param,
                                                       STSpecailItem_Result&)
@@ -961,6 +965,8 @@ int CCeraShop::_CheckConditionPutonAvatar(CUser* user)
 // 0x05（背包容量+造物）、0x06（事件商品存在性）、0x08（等级）、0x0b（技能树）、
 // 0x0c（角色槽/服务器环境）、0x0d（背包容量精确）、0x10（转职/可堆叠限定）。
 // ============================================================================
+// b28d-D42 verdict=DIFF [N82] ORIG 0x08323f86 orig/ours=566/563 ndiff=530。
+// 巨件帧/槽平移（P112/N82）；语义按报告逐条对齐。
 int CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long itemIdx,
                                      unsigned int b, unsigned short c, unsigned char d,
                                      unsigned short e)
@@ -1263,6 +1269,8 @@ int CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long 
 //   独立虚调用（0x08257b..0x08325 +0xd5b/+0xd83/+0xdb8/+0xdcf/+0xe0c 实证，
 //   P0：多 call ⇒ 源码无缓存）。
 // ============================================================================
+// b28d-D42 verdict=DIFF [N82/N89] ORIG 0x08324a1e orig/ours=860/923 ndiff=801。
+// 巨件 switch 决策树 + 帧/槽号平移（N82）；语义按报告逐条对齐。
 bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& flag)
 
 {
@@ -1762,6 +1770,8 @@ bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& fl
 // ============================================================================
 // ProcessSpecialItem —— ORIG 0x0832587e (T)
 // ============================================================================
+// b28d-D42 verdict=DIFF [N82/N89] ORIG 0x0832587e orig/ours=125/108 ndiff=108。
+// 帧/槽号平移 + STL 内联差；语义按报告逐条对齐。
 bool CCeraShop::ProcessSpecialItem(CUser* user, int itemIdx, int count,
                                    int& restrictCode, long curSec, bool flag,
                                    std::vector<Inven_Item>& items,
@@ -1813,6 +1823,8 @@ bool CCeraShop::ProcessSpecialItem(CUser* user, int itemIdx, int count,
 //   其余 groupIdx 委托 uint 重载 _CheckBuyingCondition(CUser*, uint, ulong, uint,
 //   ushort, uchar, ushort)；子返回非 1 则 outCode=8。
 // ============================================================================
+// b28d-D42 verdict=DIFF [N82] ORIG 0x08324810 orig/ours=102/97 ndiff=92。
+// 帧/槽号与寄存器分配差（P112/N82）；语义按报告逐条对齐。
 bool CCeraShop::_CheckBuyingCondition(CUser* user, const CCeraShopGoods* goods,
                                       unsigned int param3, unsigned char param4,
                                       unsigned short param5, char param6, int& outCode)
@@ -1849,6 +1861,8 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, const CCeraShopGoods* goods,
 //   2) 对每个 stack-buyable 商品，按 restrictCode 校验限制购买仍为可重复。
 //   返回 true=通过；其间任何限制冲突返回 false。
 // ============================================================================
+// b28d-D42 verdict=DIFF [N82] ORIG 0x08323af4 orig/ours=320/327 ndiff=311。
+// 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
 bool CCeraShop::_CheckValidCount(const CCeraShopGoods** goodsList)
 {
     int typeCount[15];
@@ -2038,6 +2052,8 @@ void CCeraShop::_processCoin(CUser* user, unsigned short value, bool)
 // GlobalData::g_randomOptionHandle->give_option 写入 invItem 的随机选项区
 // （m_random.m_random，ORIG &invItem+0x25）。失败记 logFormat。
 // ============================================================================
+// b28d-D42 verdict=DIFF [N18a] ORIG 0x08327f10 orig/ours=103/105 ndiff=78。
+// xor/sete 物化方向与寄存器分配差；语义等价封顶。
 void CCeraShop::autoUnsealItem(const CItem* item, Inven_Item& invItem)
 {
     if (item != 0 && item->IsRandomOption())
@@ -2292,6 +2308,8 @@ void CCeraShop::_ClosePremium(CUser* user, int type)
 // SIG_SAVE_CRAZY_LEVELUP_EVENT 流（"0707" 头 + accId + characNo(-1)）至 LOGDB_Q；
 // 再按 Is2010ChuseokPacket(itemIdx) 分支调 DB_UpdateChuseokPackagePurchase。
 // ============================================================================
+// b28d-D42 verdict=DIFF [N82] ORIG 0x08327454 orig/ours=97/102 ndiff=79。
+// 槽/寄存器分配差（P112/N82）；语义按报告逐条对齐。
 void CCeraShop::_onBuySpecialItem(CUser* user, ENUM_CERA_SPECIALITEM,
                                   unsigned long itemIdx)
 {
@@ -2324,6 +2342,8 @@ void CCeraShop::_onBuySpecialItem(CUser* user, ENUM_CERA_SPECIALITEM,
 // 清空 items 后逐项 _processAdditionalItem；随后限制商品校验 + SaveInventory。
 // 返回：find==end→0；item==0 或处理完成→1。
 // ============================================================================
+// b28d-D42 verdict=DIFF [N82] ORIG 0x08327894 orig/ours=233/238 ndiff=215。
+// 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
 int CCeraShop::_processBoosterSelect(CUser* user, int itemIdx, int count, int& result,
                                      long curSec, bool flag,
                                      std::vector<Inven_Item>& items,
@@ -2392,6 +2412,9 @@ int CCeraShop::_processBoosterSelect(CUser* user, int itemIdx, int count, int& r
 // rep stos→memset call：nameBuf 0x200 / agency 0x18）；其余 |gap| 为 N82 帧
 // 槽号 + P184 死块 rep 段形态残余 ⇒ 语义完成、byte 层 N 封顶。
 // ============================================================================
+// b28d-D42 verdict=DIFF [N82/N89] ORIG 0x083267a2 orig/ours=763/730 ndiff=702。
+// 巨件帧槽（N82）+ N78 rep stos→memset call 两处（nameBuf 0x200/agency 0x18）；
+// P167 调用点差集已归零。
 void CCeraShop::_processAdditionalItem(CUser* user, unsigned long itemIdx,
                                        unsigned short slot, unsigned char a,
                                        unsigned char b, std::vector<Inven_Item>& items,

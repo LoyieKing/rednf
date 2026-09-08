@@ -462,6 +462,15 @@ bool CNetwork<N1, N2>::Parsing_ServerPacket(int recvLen)
                 m_recvBuf = m_recv;
                 break;
             }
+            // [b28d-48 判 N·跨版本 jump-to-next] ORIG 0x0846d1f9 段形：
+            //   cmpl $0x0,remain; jne +0x10; <赋值>; jmp exit;
+            //   +0x10: cmpl $0x9,remain; jg <loop>; jmp exit; nop; exit:
+            // 即 4.1 无显式 continue 的 jmp、且为 break 发射 jmp exit（跳过对齐
+            // nop）。4.4 两向都不可复现：删本 continue 后 4.4 把末尾 break 折成
+            // fall-through（少 jmp exit，clean 错位 31 行）；保留则 continue 的
+            // jmp 前置到 `cmpl $0x9` 之前（本形，clean 残 3 行/助记符序列同）。
+            // 探针 /tmp/p48_cnet{,2,3}.cpp v1..v11 十一形全试（含 goto 尾标签/
+            // if-else/负条件守卫），4.4 恒消除 jump-to-next ⇒ 封 N。
             continue;
         }
         if (remain > 9)

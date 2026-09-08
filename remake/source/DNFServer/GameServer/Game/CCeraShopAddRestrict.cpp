@@ -6,8 +6,23 @@
 // 用户限购数据位于 CUser +0x8d1e4（4 张 map）。
 // CEventCeraShopRewardPoint 已拆分至 CEventCeraShopRewardPoint.h/cpp
 // （CEventBase 权威声明见 CGuildServerProxy.h，本文件内仅保留
-//  CCeraShopBonusItemEvent 及其局部基类）。
+// CCeraShopBonusItemEvent 及其局部基类）。
 // ============================================================================
+// b28d-45 判词汇总（本 TU 9 件，ORIG 地址见各函数注释）：
+//   Manager::C1 0x080e10c0 DIFF15 N77：4.1 对 m_loader 前置 zero-init（5×movl $0，
+//     落 map 内部）；4.4 按 CWG434 不 emit，value-init 形已试无效。
+//   readTime 0x08abf166 DIFF35 FIX：n/ok 声明序交换对齐发射序（123:124）；
+//     余 1 条在 ScanInt/__cxa_throw 段 → N82。
+//   InputBuyInfoDetail 0x080e117a DIFF21 N95：find/end 迭代器 sret 槽浅移 8。
+//   LoadProcess 0x080e142a DIFF51 N77/N94：new 结果 %edx 缓存 + `add 0x10(%ebp)`
+//     两步寻址 vs 4.4 落槽重载/lea 折形。
+//   LoadScript 0x08abf3cc DIFF65 N89/N78：ORIG movb×3 预清 + 3 处 jmp;nop 岛。
+//   LoadScriptDaily 0x08abf4de DIFF145 N82/N93：帧 0x8c/0x90 + bool/迭代器槽向。
+//   InputBuyInfo 0x080e129a DIFF102 FIX：P251/P261 if 链→switch（无槽 cmp 链对齐）；
+//     余槽/帧差 N82。
+//   makeSyncPacket 0x080e0f3a DIFF108 N98/P274：ORIG 两语句累加「载槽→add→回写」
+//     三连不可造（4.4 恒 `add %eax,-0x14` 内存直加）。
+//   FindUserInfoDetail 0x080e0ab7 DIFF60 N95：迭代器 sret 槽深移 8。
 
 #include <ctime>
 #include <cstring>
@@ -422,7 +437,12 @@ void Manager::GetItemListForPacket(
 void Manager::makeSyncPacket(CUser* user)
 {
     UserInfo& info = user->m_ceraUserInfo;
-    int total = (int)info.m_accountDaily.size() + (int)info.m_characDaily.size();
+    // b28d-45：ORIG 0x080e0f3a 为两语句累加（size() 结果落 -0x10，第二次
+    // `mov -0x10,%edx; add %edx,%eax; mov %eax,-0x10`）；4.4 两语句形恒折
+    // `add %eax,-0x14`（内存直加）、单表达式形用 %ebx 寄存器累加，均不可
+    // 复现「载槽→add→回写」三连 ⇒ N98/P274 跨版本封顶（语义等价）。
+    int total = (int)info.m_accountDaily.size();
+    total += (int)info.m_characDaily.size();
     if (total != 0) {
         std::vector<unsigned int> list;
         GetItemListForPacket(list, info.m_accountDaily);
@@ -458,19 +478,26 @@ bool Manager::InputBuyInfo(CUser* user, unsigned int ipgNo, unsigned int itemIdx
         return false;
     out.m_pInfo = info;
     UserInfo& ui = user->m_ceraUserInfo;
-    if (info->m_type == 0) {
+    // b28d-45 P251/P261：ORIG 0x080e12d0 为无槽 cmp 链
+    // `test %eax,%eax; je case0; cmp $0x1,%eax; je case1; jmp default` ⇒ switch。
+    switch (info->m_type) {
+    case 0: {
         std::map<unsigned int, unsigned int>::iterator it = ui.m_field30.find(ipgNo);
         if (it != ui.m_field30.end())
             ui.m_field30.erase(it);
         out.m_result = (int)InputBuyInfoDetail(ui.m_accountDaily, info,
                                                ipgNo, itemIdx);
-    } else if (info->m_type == 1) {
+        break;
+    }
+    case 1: {
         std::map<unsigned int, unsigned int>::iterator it = ui.m_field48.find(ipgNo);
         if (it != ui.m_field48.end())
             ui.m_field48.erase(it);
         out.m_result = (int)InputBuyInfoDetail(ui.m_characDaily, info,
                                                ipgNo, itemIdx);
-    } else {
+        break;
+    }
+    default:
         return false;
     }
     if (out.m_result == 0)

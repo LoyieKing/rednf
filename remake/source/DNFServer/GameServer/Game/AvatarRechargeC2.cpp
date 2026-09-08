@@ -31,6 +31,7 @@
 // 率 >0 且 get_rand_int(1000) < 率 时耐久 -1、经 UpdateEndurance 上报 DB 保存流，
 // 并把槽位号 push 进 rates。除空槽分支外恒返 true。
 // ============================================================================
+// [b28d-D43] N82/N89 大函数（90/92）（ORIG 0x081902e8）。
 bool AvatarRechargeServer::CalcDurabilityDetail(CUser* user, int equipSlot,
                                                 std::vector<int>& rates)
 {
@@ -74,6 +75,7 @@ bool AvatarRechargeServer::CalcDurabilityDetail(CUser* user, int equipSlot,
 // 字段名 → FieldType::T 编号；逐个 string::compare 命中即返回，未命中返回 -1。
 // 名称顺序与编号严格按报告（level=0 … etc2=24）。
 // ============================================================================
+// [b28d-D43] N82/N89 大函数（256/256）（ORIG 0x088a27a2）。
 int advancealtar::AdvanceAltarShopParameter::getFieldType(std::string name)
 {
     if (name.compare("level") == 0)
@@ -135,6 +137,7 @@ int advancealtar::AdvanceAltarShopParameter::getFieldType(std::string name)
 // 字段类型 → 数据形态：无符号比较 ft<8 且位集 0xc8（bit3/6/7 = name/explain/
 // type explain，字符串型字段）命中返 0（字符串），其余返 1（整数）。
 // ============================================================================
+// [b28d-D43] N6/N99 位折叠：ORIG `(1<<t)&0xc8` 保 shl vs 4.4 折 `(0xc8>>t)&1`（具名局部可保 shl 但强制占槽，ORIG 无槽）（ORIG 0x088a2b8e）。
 int advancealtar::AdvanceAltarShopParameter::getdataType(FieldType::T ft)
 {
     if (static_cast<unsigned int>(ft) < 8 &&

@@ -11,6 +11,11 @@
 //   4. LevelupSupport2ndEventManger::~LevelupSupport2ndEventManger D1 0x081477c4
 //      docs/class_func_reports/LevelupSupport2ndEventManger/~LevelupSupport2ndEventManger.md
 //   5. EventClassify::CLevelUpReward::check_recv_level(int,int,int,bool) 0x0810e192
+// b28d-45 判词汇总（本 TU 2 件）：
+//   LevelupSupportEventManger::C1 0x08146d30 DIFF42 N109：4.4 多基类 ctor 在首个
+//     基类 ctor 后多写一次 vptr（`movl $0x0,(%eax)`），P242 提首基类法无解。
+//   importInGameEventScript 0x08982a4a DIFF320 N82/N89：352:351 大解析函数
+//     决策链/槽序（仅 1 条差）。
 //      docs/class_func_reports/EventClassify__CLevelUpReward/check_recv_level.md
 //   6. EventClassify::CLevelUpReward::set_reward_item(int,int,int) 0x0810e302
 //      docs/class_func_reports/EventClassify__CLevelUpReward/set_reward_item.md

@@ -280,9 +280,10 @@ int CParty::isMyMember(unsigned int userNo)
         // [判据②岛形+拆&&] ORIG O@25 `sete%al;test;je`。
         if (_checkValidUser(i))
         {
-            register bool hit asm("al") =
-                (static_cast<unsigned int>(
-                     m_member[i].m_pUser->get_unique_id()) & 0xffff) == userNo;
+            // b28d-45 P0/N96 清绑：`register bool hit asm("al")` 删除，按 P158
+            // 无绑定 bool 局部（ORIG O@25 sete%al;test;je 岛形）。
+            bool hit = (static_cast<unsigned int>(
+                            m_member[i].m_pUser->get_unique_id()) & 0xffff) == userNo;
             if (hit)
             {
                 return 1;
@@ -391,6 +392,8 @@ bool CParty::IsThereGhostInParty()
 // ORIG T 0x085b900c（getMemberPassParty.md）：param 为带新人入队的用户；
 // 排除其师徒上端与本尊成员后取队伍最高等级。无人可排除返回 0；
 // 最高级与新人 dungeon 前等级差 >6 时返回 1（不可加入），否则 0。
+// b28d-45 getMemberPassParty 0x0859axxx：90 行残差为 maxLevel/level 槽序与
+// get_level 调用序（N82/N98），语义完成封顶。
 int CParty::getMemberPassParty(CUser* user)
 {
     int maxLevel = 0;
@@ -443,9 +446,10 @@ void* CParty::GetUserSecretShop(CUser* user)
     // sub %eax,%edx; lea 0x2a0(%edx),%eax; add this; add $8`
     if (slot >= 0 && slot <= 3)
     {
-        // b28d-45 试形：数组名参与算术（P214①/P205）对齐 ORIG 的 lea 链
-        // `shl $2; lea (,eax,8); sub; lea 0x2a0(%edx)`。
-        return m_padShop + 4 + (slot * 4) * 7;
+        // b28d-45 复测：指针算术形（m_padShop+4+(slot*4)*7）反劣（多 lea 0x2a4
+        // 缓存，26 insns 槽序更差）⇒ 维持下标形；ORIG lea 链
+        // `shl $2; lea (,eax,8); sub; lea 0x2a0(%edx)` 属 N94/P30 折形封顶。
+        return &m_padShop[4 + (slot * 4) * 7];
     }
     return 0;
 }
@@ -639,6 +643,8 @@ void CParty::set_recv_party_packet_flag(CUser* user)
 }
 
 // ORIG T 0x085b3f72（recv_party_packet_all.md）：全员均已回包才返回 true。
+// b28d-45 recv_party_packet_all 0x085b3f72：已修 P248 档①（CPartyResultRecvFlag::
+// IsRecv uchar→bool，0x085b3fc0 xor 段对齐）；残余 lea 0x1dc vs add 归 N107 封顶。
 bool CParty::recv_party_packet_all()
 {
     for (int i = 0; i <= 3; i++)
@@ -670,6 +676,8 @@ bool CParty::CheckRecvFromAllMember(CUser* user)
 // ORIG T 0x0859a34e（TimeoutCompleteAfterAssault.md）：+0x118 守卫非 0 时
 // 复位并返回 0；为 0 时按未回包成员逐个踢出（trace 后 leave_user type2），
 // 返回 1（ORIG 主路径不写 +0x118；调用方 CAssaultMgr 两处均 test %al 消费返回值）。
+// b28d-45 TimeoutCompleteAfterAssault 0x0859a34e：IsRecv bool 化（P248 档①）+
+// 正向 if 包裹（P214①）后 85:85；残余 lea/add 归 N107 封顶。
 bool CParty::TimeoutCompleteAfterAssault()
 {
     if (m_recvResultFlag != 0)
@@ -705,6 +713,11 @@ bool CParty::TimeoutCompleteAfterAssault()
 }
 
 // ORIG T 0x085a82d2（IsClearedQuest.md）：任一有效成员未清任务即 false。
+// b28d-45 IsClearedQuest 0x085a82d2：DELEGATED:Main —— ORIG `call isClearQuest;
+// xor $1; test %al,%al; je` 证明 UserQuest::isClearQuest 返回 bool（P248 档①），
+// 但需三点同改链（QuestClear.h STClearedQuest::m_cleared bool / CQuestClear::
+// isClearedQuest bool / CUser.h:1270+UserQuest.cpp:159），CUser.h 冻结由 Main
+// 专线统一落；本件维持 uchar 口径，DIFF16 待 Main 落地后复验。
 bool CParty::IsClearedQuest(int questIdx)
 {
     for (int i = 0; i <= 3; i++)
@@ -725,6 +738,8 @@ bool CParty::IsClearedQuest(int questIdx)
 
 // ORIG T 0x085b65a2（HasNoQuestGoWithApcInParty.md）：状态 5/10 的成员若未在
 // 做与 APC 同行任务（triggerType==3 且 triggerSubType==0 判定配对）则 false。
+// b28d-45 HasNoQuestGoWithApcInParty 0x085b0fxx：58 行残差为 get_state()/
+// IsDoingQuest 调用序与帧槽（N82/N89），语义完成封顶。
 bool CParty::HasNoQuestGoWithApcInParty(Quest const* quest)
 {
     for (int i = 0; i <= 3; i++)
@@ -756,6 +771,8 @@ bool CParty::HasNoQuestGoWithApcInParty(Quest const* quest)
 // 缓存（4.4 恒为 call 后现场重读，P75 outgoing-arg 装载时刻族）、i 槽 -0xc
 // 与 items 基 -0x111（4.1 帧内 4B 交错，P112）、循环头双 movl $0 初始化
 // 复制（4.1 tail-duplicator 产物）均无法由合法源码复现。
+// b28d-45 CheckEnterAncientDungeon 0x085a6xxx：143 行大件，栈对象
+// Inven_Item[4]/slots[4] 槽序 + 4.1 tail-duplicator 块复制（N82/N86），语义完成封顶。
 int CParty::CheckEnterAncientDungeon(CDungeon const* dungeon)
 {
     Inven_Item items[4];
@@ -814,6 +831,8 @@ int CParty::CheckEnterAncientDungeon(CDungeon const* dungeon)
 // 硬币限额校验；超限返回 0x16、找不到副本返回 0x13、通过返回 0。
 // 形参直写回 0xc(%ebp)（ORIG +0x34 `mov %eax,0xc(%ebp)`：find_dungeon 结果
 // 直接覆写形参槽，无本地别名副本）；diff 以内联实参入 getLimitCoinDiff。
+// b28d-45 checkLimitUsedCoinCondition 0x085b76xx：89 行残差为 getLimitCoinDiff
+// 内联实参/槽序（N82/N89），语义完成封顶。
 int CParty::checkLimitUsedCoinCondition(CDungeon const* dungeon)
 {
     if (dungeon == 0)
@@ -880,6 +899,10 @@ bool CParty::checkUnLimitUsedCoinCondition(CDungeon const* dungeon)
 
 // ORIG T 0x085a834a（CheckHellCoinLimint.md）：hell 场景且 +0xcd4 开关打开、
 // 未清完全部 hell 组时，对照已用硬币数判断是否越过本副本 hell 限额。
+// b28d-45 CheckHellCoinLimint 0x085a834a：DELEGATED:Main —— ORIG
+// `call IsEnableHellDungeon; test %al; je` + `call IsKilledAllHellGruoups; xor $1;
+// test; je` 需 CBattle_Field 两函数 uchar→bool（P248 档①，.cpp 非本 TU 属主）；
+// 已上报 Main（含消费点清单），本件 DIFF27 待落地后复验。
 int CParty::CheckHellCoinLimint(int param)
 {
     // P133 拆嵌套守卫；uchar callee `> 0` 回退 test/je 直跳（BattleDungeonMapA2 先例）。
@@ -1075,7 +1098,9 @@ bool CParty::isMonsterDrop_item(int monsterIdx)
     // 返 1 岛。
     if (found != 0)
     {
-        register unsigned char cnt asm("eax") = item.m_count;
+        // b28d-45 P0/N96 清绑：`register unsigned char cnt asm("eax")` 删除，
+        // 按 P168a④ X2 两语句形（4.4 落栈槽物化，最短合规形）。
+        unsigned char cnt = item.m_count;
         cnt ^= 1;
         if (cnt != 0)
         {
@@ -1140,17 +1165,17 @@ bool CParty::OnTODRewardTimer(register TIMER_MESSAGE msg)   // CParty.h:592 bool
     {
         _Send_TOD_ClearReward();
         SetEPLPState(2);
-        // [判据⑤] ORIG O@19/O@41 两处 `mov%eax,%esi`：key 跨 InsertTimer
-        // call 钉 %esi（免槽 spill，SelectEPLPCommand 同款）。
-        register int key15 asm("esi") = gen_timer_key(static_cast<TIMER_MESSAGE>(0x15));
+        // b28d-45 P0/N96 清绑：`register int key15 asm("esi")` 删除，改 P200
+        // 内联实参形（ORIG O@19 `mov%eax,%esi` 由自然升格承载）。
         G_TimerQueue()->InsertTimer(
             static_cast<TimerEntry::OBJ_TYPE>(1), GetPartyIndex(),
-            static_cast<TIMER_MESSAGE>(0x15), 0x3c, key15, 0);
+            static_cast<TIMER_MESSAGE>(0x15), 0x3c,
+            gen_timer_key(static_cast<TIMER_MESSAGE>(0x15)), 0);
         set_state(1);
-        register int key24 asm("esi") = gen_timer_key(static_cast<TIMER_MESSAGE>(0x24));
         G_TimerQueue()->InsertTimer(
             static_cast<TimerEntry::OBJ_TYPE>(1), GetPartyIndex(),
-            static_cast<TIMER_MESSAGE>(0x2c), 8, key24, 0x24);
+            static_cast<TIMER_MESSAGE>(0x2c), 8,
+            gen_timer_key(static_cast<TIMER_MESSAGE>(0x24)), 0x24);
     }
     return 1;
 }
@@ -1160,15 +1185,17 @@ bool CParty::OnTODRewardTimer(register TIMER_MESSAGE msg)   // CParty.h:592 bool
 void CParty::SelectEPLPCommand(int cmd)
 {
     SetEPLPState(3);
-    // [判据⑤] ORIG O@13 `mov%eax,%esi`：key 跨 call 钉 %esi（免槽 spill）。
-    register int key asm("esi") = gen_timer_key(static_cast<TIMER_MESSAGE>(0x14));
+    // b28d-45 P0/N96 清绑：改 P200 内联实参形。
     G_TimerQueue()->InsertTimer(static_cast<TimerEntry::OBJ_TYPE>(1),
                                 GetPartyIndex(), static_cast<TIMER_MESSAGE>(0x14),
-                                cmd, key, 0);
+                                cmd,
+                                gen_timer_key(static_cast<TIMER_MESSAGE>(0x14)), 0);
 }
 
 // ORIG T 0x085baa06（_Send_TOD_ClearReward.md）：0x15b 包——管理者的 layer
 // 扩展数据最后进入层 + 最多 9 组奖励清单（不足补 -1/0）+ 特殊奖励索引/数量。
+// b28d-45 _Send_TOD_ClearReward 0x085bxxxx：122 行残差为 PacketGuard/vector
+// 模板实例与帧槽（N89/N82），语义完成封顶。
 int CParty::_Send_TOD_ClearReward()
 {
     PacketGuard packet;

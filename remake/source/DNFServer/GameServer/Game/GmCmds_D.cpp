@@ -247,9 +247,12 @@ void CItemInfoCmd::execute()
 void CInvalidGold::execute()
 {
     CUser* user = GetUser();
+    // b28d-248③：ORIG 0x084ab16e 两段 `mov <A>,%eax; mov %eax,%ebx` ⇒ 静态计数
+    // 需与 set_money(unsigned int) 形参异型（int 位模式不变）。裸 register 形
+    // 实测反劣（多 push %esi，41 vs 39）⇒ 不加。
     const unsigned int oldMoney = user->getCurCharacMoney();
     // ORIG .data 0x093abb40 初值 ffffd8f0（-10000）；每次执行再减 10000。
-    static unsigned int invalidMoney = 0xffffd8f0u;
+    static int invalidMoney = (int)0xffffd8f0u;
     invalidMoney -= 10000;
     user->getCurCharacInvenW()->set_money(invalidMoney);
     user->SendUpdateItemList(CUser::eSendTarget_1, ENUM_ITEMSPACE_0, 0);
@@ -270,20 +273,23 @@ void CLinkSystem::execute()
     trim(m_parser->m_args);
     const char flag =
         static_cast<char>(atoi(m_parser->m_args.c_str()));   // movsbl 截断
-    ServerParameterScript& sps =
-        G_CDataManager()->m_serverParameter;                 // ORIG datamgr+0x68
-    if (flag == 0)
+    // b28d-17/48：ORIG 0x084abdd0 为 switch 决策树（movsbl;test;je;cmp $1;je）
+    // 且不缓存 ServerParameterScript&（p167：G_CDataManager 调用 3 次，每分支重取）。
+    switch (flag)
     {
-        sps.setDungeonOpen(0x2aff, false);
+    case 0:
+        G_CDataManager()->m_serverParameter.setDungeonOpen(0x2aff, false);
         G_GameWorld()->send_all_dungeon_inout_message(0x2aff, false);
-    }
-    else if (flag == 1)
-    {
-        if (sps.isDungeonOpen(0x2aff) != true)
+        break;
+    case 1:
+        if (G_CDataManager()->m_serverParameter.isDungeonOpen(0x2aff) != true)
         {
-            sps.setDungeonOpen(0x2aff, true);
+            G_CDataManager()->m_serverParameter.setDungeonOpen(0x2aff, true);
             G_GameWorld()->send_all_dungeon_inout_message(0x2aff, true);
         }
+        break;
+    default:
+        break;
     }
 }
 

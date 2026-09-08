@@ -19,8 +19,13 @@ int BlueMarbleTileScript::importScript(const char* path)
     std::string token;
     std::string value;
     int enterDungeon = 0;
-    while (ScanType(token, true))
+    // [b28d-47] ORIG 0x088d50f9 循环头 `call ScanType; xor $1,%eax; test %al,%al;
+    // jne <退出>`（P168a bool callee 裸取反形）⇒ 写 `if (!ScanType) break;`；
+    // `while (ScanType(...))` 4.4 直产 `test %al; je`（少 xor）。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[type]")
         {
             ScanStr(&value);

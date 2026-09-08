@@ -6,6 +6,14 @@
 // CountinuousItemOption/AvatarOptionChangeType）与 STStackableScript 同 TU
 // （ORIG 0x089c30dc..0x089c34e8 弱符号紧邻），方法实现于此。
 // ============================================================================
+// b28d-45 判词汇总（本 TU 4 件）：
+//   STStackableScript::Clear 0x0899087a DIFF190 N82/N89：322:320 基类 Clear
+//     转发 + AradStClear 调用点显示差。
+//   STStackableScript::operator= 0x089c418e DIFF379 N84/N82：621:627 基类
+//     operator= 转发 + Arad_STStackableScript::operator= 槽序。
+//   STStackableScript::C1ERKS_ 0x0898f218 DIFF434 N84/N82：643:647 拷贝构造链。
+//   ImportStackableScript 0x089aeaf4 DIFF9936 N89/N82：10096:10147 万行级
+//     解析件，§6.2 三件套判语义完成、byte 层封顶。
 
 #include "STStackableScript.h"
 #include "CStackableItem.h"  // RecipeInfo 权威布局（0x4c，ORIG 0x8513c6a 族）

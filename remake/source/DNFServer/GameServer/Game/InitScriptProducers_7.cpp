@@ -103,6 +103,9 @@ bool importEventAvatarListScript(EventAvatarListScript* s, const char* path)
         else if (token == "[event avatar list end]")
         {
             seenEnd = true;
+            // [b28d-47] ORIG 0x0895e1ed +0x0e3：置位后 jmp +0xea（直接退出主循环），
+            // 非回主循环头（+0x56）。缺 break 会多扫一轮，语义差异。
+            break;
         }
     }
     return seenEnd;

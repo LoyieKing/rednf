@@ -89,6 +89,11 @@ namespace __atomic0
 
 static pthread_mutex_t g_atomic0FlagMutex = PTHREAD_MUTEX_INITIALIZER;
 
+// b28d-D42 verdict=DIFF [N89/N101] ORIG 0x086d92d0 orig/ours=32/15 ndiff=29。
+// ORIG 为 libstdc++ __atomic_flag_base 内联实现（get_atomic_mutex +
+// __gthread_active_p 检查 + pthread_mutex_lock/unlock），其 TU-local static
+// get_atomic_mutex 全仓无源码可引用（N101）；4.4 atomic_0.h 仅声明成员
+// ⇒ 按 ORIG 语义手写互斥版，byte 层 N89 封顶。
 bool atomic_flag::test_and_set(memory_order) volatile
 {
     pthread_mutex_lock(&g_atomic0FlagMutex);
@@ -98,6 +103,8 @@ bool atomic_flag::test_and_set(memory_order) volatile
     return r;
 }
 
+// b28d-D42 verdict=DIFF [N89/N101] ORIG 0x086d9330 orig/ours=30/11 ndiff=27。
+// 同 test_and_set（ORIG 互斥 + gthread 活跃检查内联），N89/N101 封顶。
 void atomic_flag::clear(memory_order) volatile
 {
     pthread_mutex_lock(&g_atomic0FlagMutex);
@@ -140,6 +147,9 @@ void forceCtorEmissions()
     stQuestTargetCharacter_t sqtc((ENUM_CHARACTERJOB)0, 0, 0); (void)sqtc;
 
     // ---- 析构（D1/D2）：new/delete 触发完整对象析构 ----
+// b28d-D42 verdict=DIFF [N89] ORIG 0x08ad1320 orig/ours=50/27 ndiff=48。
+// ORIG 为 libstdc++ stream/string 内联析构（lock xadd 引用计数 + sentinel
+// 比较），4.4 头集实现不同（N89 libstdc++ 内联差）⇒ 语义等价封顶。
     CompiledDNFLex::stream_t* pst = new CompiledDNFLex::stream_t();
     delete pst;
     stQuestTargetCharacter_t* psqtc =

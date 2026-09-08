@@ -46,6 +46,7 @@ EmblemCompound::~EmblemCompound()
 // end()→find()→operator==、命中则插入否则报错的分支形态（与 ORIG 一致）。
 // 返回 0=成功 / -1=打开失败 / -2=重复 grade。
 // ============================================================================
+// [b28d-D43] N82/N89 大函数（273/255）（ORIG 0x088b154a）。
 int EmblemCompound::loadScript()
 {
     if (!loadRDARScriptFile("Etc/EmblemRenewal/", "emblem_compound_jpn.etc"))
@@ -219,6 +220,7 @@ void EmblemCompoundServer::Test()
 #include "CompoundEmblemDeps.h" // getCompoundEmblemStatistic
 #include "AvatarConvertServer.h" // StatisticsEmblemCreate
 
+// [b28d-D43] N82 帧：ORIG sub $0x24 vs 4.4 $0x34（ORIG 0x08191818）。
 bool EmblemCompoundServer::GetEmblemInfo(CUser* user,
                                          arad::SigAradEmblemCompound* sig,
                                          int idx)
@@ -257,6 +259,7 @@ bool EmblemCompoundServer::GetEmblemInfo(CUser* user,
     return true;
 }
 
+// [b28d-D43] N82/N95 槽平移（map::operator[] 结果槽 -0x18 vs -0x14）（ORIG 0x081919e8）。
 int EmblemCompoundServer::GetEmblemRandomIndex(int grade,
                                                unsigned short selectIdx)
 {
@@ -283,6 +286,7 @@ bool EmblemCompoundServer::IsResultSelectable(int grade)
     return m_result[grade]->m_selectable != 0;
 }
 
+// [b28d-D43] N82 帧：ORIG push %esi+sub $0x30 vs 4.4 sub $0x34（ORIG 0x08191636）。
 bool EmblemCompoundServer::CheckCondition(CUser* user,
                                           arad::SigAradEmblemCompound* sig)
 {
@@ -321,6 +325,7 @@ bool EmblemCompoundServer::CheckCondition(CUser* user,
     return true;
 }
 
+// [b28d-D43] N82/N89 大函数（426/423）（ORIG 0x08191afa）。
 bool EmblemCompoundServer::Process(CUser* user,
                                    arad::SigAradEmblemCompound* sig)
 {

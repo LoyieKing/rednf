@@ -165,14 +165,20 @@ int PVP_CHANNEL::is_all_pvp_channel()
 }
 
 // is_winpoint_pvp_channel @ 0x0819770a：channelType ∈ {4, 8}
-// b28 实测：P209 unsigned-cast 混合形不生效（4.4 对槽值+imm 比较仍恒折 `cmpl $K,mem`，
-// 两段物化与反向操作数均不可造，N18b 全域）；残差 2 行 cmp 形态（语义等价）。
+// [b28d-46 判词·AE] 17/17 指令数全等、调用点差集零。槽变量 + 双 case switch
+// （P251/P286 应用）复现 ORIG `mov -0xc,%eax; cmp $K,%eax` 寄存器比较链；
+// if 短路链在 4.4 恒折 `cmpl $K,mem`（旧 b28 P209/N18b 判词作废）。
 int PVP_CHANNEL::is_winpoint_pvp_channel()
 {
     int channelType = G_GameWorld()->GetChannelType();
-    if ((unsigned int)channelType == 4 || channelType == 8)
+    switch (channelType)
+    {
+    case 4:
+    case 8:
         return 1;
-    return 0;
+    default:
+        return 0;
+    }
 }
 
 // is_common_channel @ 0x0819773b：非综合 pvp 且渠道号 != 7
@@ -626,12 +632,12 @@ int Arad_Dispatcher_Login_Impl::punish_user_check(SIG_LOGIN_DATA* data)
     long curSec = GlobalData::s_systemTime_.getCurSec();
 
     int index = 0;
-    do
+    // [b28d-46 判词·N/N102] 99/99 指令数全等（while 形修复入口检查重复，P25/P283）。
+    // 残余仅 2 处「数组元素成员常量偏移」disp 折叠：ORIG `add $0x3a68; mov (%eax)`
+    // vs 4.4 `add $0x3a60; mov 0x8(%eax)`（同 0x3a54/0x3a50+4）。N102 定论：
+    // 4.4 恒折单条 disp，唯一出 add 的源形是裸偏移（§4.3 禁）⇒ 封顶。ORIG 0x0818f970。
+    while (data->m_punishInfoCount > index)
     {
-        if (data->m_punishInfoCount <= index)
-        {
-            return 1;
-        }
         long punishEnd = data->m_punishInfos[index].m_endTime;   // +0x3a68
         int punishType = data->m_punishInfos[index].m_type;      // +0x3a54
 
@@ -660,7 +666,7 @@ int Arad_Dispatcher_Login_Impl::punish_user_check(SIG_LOGIN_DATA* data)
             }
         }
         ++index;
-    } while (data->m_punishInfoCount > index);
+    }
     return 1;
 }
 

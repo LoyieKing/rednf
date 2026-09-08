@@ -31,6 +31,8 @@ public:
 extern CDataManager* G_CDataManager();
 
 // ORIG 0x898c79d：线性插值
+// [b28d-D43] N85 x87：ORIG 整数比较链 vs 4.4 fildl/fdivrp/fucomip 浮点
+// lowering（ORIG 0x0898c79d；帧 0x68 vs 0x58）。
 int getLevelLinearAbility(int a, int b, int c, int d, int level)
 {
     int vSpan = b - a;                              // ORIG：先求除数（-0x2c）
@@ -71,6 +73,7 @@ public:
 }
 
 // STEquipmentScript 权威布局见 STEquipmentScript.h（class STEquipmentScript : public STItemScript，
+// [b28d-D43] N82/N89 大函数（669/705）（ORIG 0x0850fd84）。
 // 基类 0x178 + 派生。CEquipItem::set_item(STEquipmentScript&) 直接使用权威成员名访问，
 // 不再保留本文件的 flat 工作布局副本（消除与权威头的重复定义）。
 // ===================== 报告函数（CEquipItem.md） =====================
@@ -115,14 +118,17 @@ bool CEquipItem::IsAvatarOptionValid(char idx) const
     return 1;
 }
 
+// [b28d-D43] N18a/P248 寄存器中转：ORIG 单段 `mov 0x234(%eax),%eax; cmp` vs 4.4 多 `mov %eax,%ebx; cmp %ebx; mov %ebx,%eax`（三档类型旋钮试尽）（ORIG 0x0851388e）。
 bool CEquipItem::checkItemUpgradePossible() const
 {
     if (IsImpossibleUpgrade())
     {
         return 0;
     }
-    // [b28c-21] ORIG 085138b2 段：m_itemType 只装载一次（cmp 后复用 %eax 作
-    // shl 计数）；纯 register 声明复现，写两遍成员表达式会二次装载。
+    // [b28d-D43] N18a/P248：ORIG 0x0851388e 段单段直落（`mov 0x234(%eax),%eax`
+    // 后 cmp/shl 复用 %eax），4.4 对具名局部恒多 `mov %eax,%ebx`+`mov %ebx,%eax`
+    // 两段（裸 register 保留可免槽；去 register 反而落槽 -0xc 帧 0x14→0x24，
+    // 两形实测均不可造 ⇒ 封顶）。
     register unsigned int itemType = m_itemType;
     if (itemType < 0x16 &&
         ((1 << itemType) & 0x3ff400U) != 0)
@@ -263,6 +269,7 @@ bool CEquipItem::verify()
 
 // ===================== make_item（ORIG 0x851098a） =====================
 
+// [b28d-D43] N89/N82 大函数（182/184）：STL out-of-line 实例+槽分区（ORIG 0x0851098a）。
 void CEquipItem::make_item(Inven_Item& item) const
 {
     if (IsAvatarItem())
@@ -676,6 +683,7 @@ int CEquipItem::getAvatarPeriod(unsigned char a) const
 // ORIG 0x8150f36：填充 emblem 的小孔类型。
 // 1) 先将 m_vec180（vector<ushort>）逐项写入 emblem.stEmblemSocket[i].emblemSocketType_
 // 2) 依 slot 选择 m_avatarSelect 项并写入其 socketType 数组（index 续接）
+// [b28d-D43] N82/N95 帧/槽平移（152/165）（ORIG 0x?）。
 void CEquipItem::getAvatarSocket(int slot, stAvatarEmblemInfo_t& emblem) const
 {
     size_t index = 0;
@@ -764,6 +772,7 @@ int CEquipItem::get_hatch_item_id() const
 //   2. 遍历 source：取 pr.first = *it 后自增；若已到 end 则 break；
 //      否则 m_field0 += *it（累加后一个元素），m_vec4.push_back(pr)（second 保持 0），再自增。
 //   即：相邻元素配对，偶下标进 pair.first（second=0），奇下标累加进 m_field0；奇数长度时末尾丢弃。
+// [b28d-D43] N82 帧：ORIG sub $0x38 vs 4.4 push %ebx+sub $0x34（callee-saved 需求差）（ORIG 0x089bba40）。
 void RandomItemTable::Set(std::vector<int>* source)
 {
     m_vec4.clear();

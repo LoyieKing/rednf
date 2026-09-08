@@ -10,8 +10,10 @@
 
 // ORIG _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIii... 0x088bbd77 T
 //（定义 CDataManagerScripts.cpp/STScriptFileList.cpp；DNFLexWrapper.h 未含声明）。
-int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
-                           const char* listPath, std::map<int, int>* unused);
+// b28d-22/168a①：ORIG initTileList/initMapList 调用点 `call; xor $1,%eax; test %al,%al`
+// ⇒ 本 TU 按 bool 视图声明（返回类型不入 mangled；定义处恒 0/1，ABI 兼容）。
+bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
+                            const char* listPath, std::map<int, int>* unused);
 
 // BlueMarbleInfoScript（+0x30）、m_tiles/m_maps 两 map（成员默认构造即等价）；
 // 全部成员构造后调用 clear()（0x88d622c，清两文件列表与两 map）。
@@ -83,20 +85,25 @@ bool BlueMarbleScriptManager::initTileList(const char* dir, const char* list)
     }
 
     m_tiles.clear();
-    for (std::map<int, std::string>::const_iterator it = m_tileFileList.m_fileMap.begin();
+    // b28d-96/270：ORIG 0x088d626e 用非 const _Rb_tree_iterator（ptEv/ppEv/ne），
+    // const_iterator 会多出转换构造 + const ptEv ⇒ 改非 const。
+    for (std::map<int, std::string>::iterator it = m_tileFileList.m_fileMap.begin();
          it != m_tileFileList.m_fileMap.end(); ++it)
     {
         BlueMarbleTileScript* tile = new BlueMarbleTileScript;
+        // b28d-183 反例（ORIG 有槽）：ORIG 0x088d62f3 缓存 it->first 到 -0x1c 后再用。
+        const int key = it->first;
         std::string path(dir);
         path += it->second;
-        if (tile->importScript(path.c_str()) == 1)
-        {
-            m_tiles[it->first] = tile;
-        }
-        else
+        // b28d-59/168a①：ORIG 失败分支直落（`xor $1; test; je <成功>`）⇒ 否定早返形。
+        if (!tile->importScript(path.c_str()))
         {
             delete tile;
             tile = 0;
+        }
+        else
+        {
+            m_tiles[key] = tile;
         }
     }
     return true;
@@ -112,20 +119,23 @@ bool BlueMarbleScriptManager::initMapList(const char* dir, const char* list)
     }
 
     m_maps.clear();
-    for (std::map<int, std::string>::const_iterator it = m_mapFileList.m_fileMap.begin();
+    // b28d-96/270：同 initTileList——ORIG 非 const 迭代器。
+    for (std::map<int, std::string>::iterator it = m_mapFileList.m_fileMap.begin();
          it != m_mapFileList.m_fileMap.end(); ++it)
     {
         BlueMarbleMapScript* map = new BlueMarbleMapScript;
+        const int key = it->first;
         std::string path(dir);
         path += it->second;
-        if (map->importScript(path.c_str()) == 1)
-        {
-            m_maps[it->first] = map;
-        }
-        else
+        // b28d-59/168a①：同 initTileList（否定早返形）。
+        if (!map->importScript(path.c_str()))
         {
             delete map;
             map = 0;
+        }
+        else
+        {
+            m_maps[key] = map;
         }
     }
     return true;

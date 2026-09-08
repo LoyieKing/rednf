@@ -106,13 +106,18 @@ void CMobileRestrictCommand::parse()
 
 // ORIG execute 0x084b3c60：m_str0=="mobile" 时改 garena auth data +0x2c 字节并打日志；
 // =="character" 分支仅做比较（结果丢弃，空体）。
+// b28d-45 CMobileRestrictCommand::execute 0x084b3c60：§4.3 裸偏移 `*(auth+0x2c)`
+// 已改具名引用访问器 mobileAuthRef（TaiwanQueries.h always_inline，赋值形保住
+// 「先 call 后读字段」序）；auth 写段仅差 `add $0x2c` 折位移（N107），余 N82 帧差。
 void CMobileRestrictCommand::execute()
 {
     CUser* user = GetUser();
     if (m_str0 == "mobile")
     {
-        char* auth = user->getGarenaAuthData();
-        *(auth + 0x2c) = static_cast<char>(m_restrictSwitch);
+        // b28d-45 §4.3 裸偏移清理：`*(auth+0x2c)` → 具名 setter（ORIG
+        // 0x084b3cf0 `mov %dl,0x2c(%eax)`）。
+        reinterpret_cast<Taiwan::GarenaAuthData*>(user->getGarenaAuthData())
+            ->mobileAuthRef() = static_cast<unsigned char>(m_restrictSwitch);
         const char* yesNo;
         if (m_restrictSwitch == 1)
         {
@@ -151,6 +156,8 @@ void CMonsterDropTest::clear()
 // ORIG parse 0x084ace8a：clear；sscanf(args,"%d%d",&mode,&count)；随后按发起者
 // party 校验：无 party 提示；mode==1 清空 passed 列表后压入当前图并开启
 // 地图保存；mode∈{2,3} 关闭地图保存。
+// b28d-45 CMonsterDropTest::parse 0x084ace8a：帧 0x20 vs 0x30 + 具名局部
+// （user/party/passed）槽化差属 N82/N89 族；ORIG 分支体为 4.1 直读形，N 封顶。
 void CMonsterDropTest::parse()
 {
     clear();
@@ -192,6 +199,9 @@ void CMonsterDropTest::parse()
 // ===========================================================================
 
 // ORIG checkCommandExecuteError(CParty*) 0x084ad82a：返回错误文案指针或 0。
+// b28d-45 CMonsterDropTest::checkCommandExecuteError 0x084ad82a：ORIG 形参直比
+// `cmpl $0,0xc(%ebp)`+push ebx/sub 0x24；4.4 槽化形参/帧 0x28 属 N98/P35 族，
+// 语义等价封顶。
 const char* CMonsterDropTest::checkCommandExecuteError(CParty* party)
 {
     int mode = m_mode;
@@ -254,6 +264,8 @@ void CMonsterDropTest::processDungeonDrop(CParty* party, DropStat& drop,
 // 0x084add20：全局效果 1/4 放大掉落次数（向零截断换算，min/max 夹取）；
 // 统计队员 premium 0x4f 数并取加成；hell 组计入全灭标记；最终转发
 // CBattle_Field::_MakeDropItems。
+// b28d-45 CMonsterDropTest::processKillMonster 0x084ad4xx：278 行超大件，按 §6.2
+// 三件套（gap/调用点/槽位）判语义完成、byte 层 N82/N89 封顶。
 void CMonsterDropTest::processKillMonster(CParty* party, MapInfo& mapInfo,
                                           map_monster& mob, std::vector<bool>& flags,
                                           int killCnt, std::list<map_item>& items)
@@ -363,6 +375,8 @@ void CMonsterDropTest::singleMapMonsterKill(CParty* party, DropStat& drop,
 }
 
 // ORIG passedMapMonsterKill 0x084adaf8：passed 列表每张图同样处理。
+// b28d-45 CMonsterDropTest::passedMapMonsterKill 0x084adaf8：N89（std 迭代器
+// 内联/out-of-line 实例差）+ N82 帧槽族，语义完成封顶。
 void CMonsterDropTest::passedMapMonsterKill(CParty* party, DropStat& drop,
                                             GradeStat& grade)
 {
@@ -398,6 +412,10 @@ void CMonsterDropTest::passedMapMonsterKill(CParty* party, DropStat& drop,
 void CMonsterDropTest::getDungeonDropResult(std::list<map_item>& items, DropStat& drop,
                                             GradeStat& grade)
 {
+    // b28d-45：ORIG 0x084ae0e2 为无槽 cmp 链（`cmp $2; je; cmp $3; je;
+    // test; jne`，m_mode 恒在 %eax）；switch(m_mode) 形反劣 35→51（4.4 生成
+    // 跳表/决策树 + 落槽），维持 if 链 —— 4.1 寄存器直比 vs 4.4 槽化属
+    // P251/N98 跨版本形态差，N 封顶（语义等价）。
     int mode = m_mode;
     if (mode != 2)
     {
@@ -417,6 +435,8 @@ void CMonsterDropTest::getDungeonDropResult(std::list<map_item>& items, DropStat
 
 // ORIG makeGeneralItemDropList 0x084ae734：普通物品按 itemId 计数；
 // itemId==0（金币类）把 Inven_Item.m_addInfo2 累计到键 0。
+// b28d-45 CMonsterDropTest::makeGeneralItemDropList 0x084ae734：list 迭代器/
+// map operator[] 的 std 模板调用形态差（N89）+ 槽序（N82），语义完成封顶。
 void CMonsterDropTest::makeGeneralItemDropList(std::list<map_item>& items,
                                                DropStat& out)
 {
@@ -473,6 +493,8 @@ void CMonsterDropTest::makeGoldItemDropList(std::list<map_item>& items, DropStat
 // ORIG makeUpgradeDropList 0x084ae14c：非堆叠掉落按 grade 分桶；
 // 桶内记录 [强化等级]=次数 与 [特殊类型+1000]=次数（特殊类型由
 // m_addInfo2 映射：0x5aa7→1 / 0xfa6→2 / 0x6a23→3 / 0x5df0→4 / 0x7270→5）。
+// b28d-45 CMonsterDropTest::makeUpgradeDropList 0x084ae8xx：335 行超大件，
+// §6.2 三件套判语义完成、N89（std 模板实例）+ N82（帧槽）封顶。
 void CMonsterDropTest::makeUpgradeDropList(std::list<map_item>& items, GradeStat& out)
 {
     for (std::list<map_item>::iterator it = items.begin(); it != items.end(); ++it)
@@ -555,6 +577,8 @@ void CMonsterDropTest::makeUpgradeDropList(std::list<map_item>& items, GradeStat
 // ORIG makeFileGoldContents 0x084ad6d6：gold 统计追加到文件缓冲；容量不足时提示。
 // （ORIG static：makeRequest.md 反编译注释 __PRETTY_FUNCTION__ 无 this，
 //   报告实证 arg0=CUser*。）
+// b28d-45 CMonsterDropTest::makeFileGoldContents 0x084adcxx：ORIG 用 rep stos
+// 内联清零（N78：4.4 恒 call memset）+ push edi/ebx 帧差，N78 封顶（语义等价）。
 void CMonsterDropTest::makeFileGoldContents(CUser* user, char* fileBuf, DropStat& stat)
 {
     char line[1024];
@@ -577,6 +601,8 @@ void CMonsterDropTest::makeFileGoldContents(CUser* user, char* fileBuf, DropStat
 }
 
 // ORIG execute 0x084acf98：主流程（校验 → 分派击杀 → 分模式落盘 → 升级分表输出）。
+// b28d-45 CMonsterDropTest::execute 0x084acf98：481 行超大件，§6.2 三件套判
+// 语义完成、N89/N82 byte 层封顶（勿再耗轮次）。
 void CMonsterDropTest::execute()
 {
     CUser* user = GetUser();
@@ -717,13 +743,16 @@ void NpcLimitBuyItem::parse()
 void NpcLimitBuyItem::execute()
 {
     CUser* user = GetUser();
-    if (user != 0)
+    // b28d-45 P223 变体：ORIG 0x084b1f85 体尾 `jmp; nop` 岛 ⇒ 裸早返形复现。
+    if (user == 0)
     {
-        LimitNpcBuyItemRequestInfo req;
-        ENUM_SERVER_GROUP group = user->GetServerGroup();
-        CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy(group);
-        proxy->SendPacket((char*)&req, 10);
+        return;
     }
+    LimitNpcBuyItemRequestInfo req;
+    // b28d-45 P0：ORIG 0x084b1f84 无 group/proxy 具名局部（值经寄存器直传，
+    // req 槽 -0x16），表达式内联。
+    GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendPacket(reinterpret_cast<char*>(&req), 10);
 }
 
 // ===========================================================================
@@ -808,6 +837,8 @@ void CPcroomRewardReset::execute()
 // 槽装载 ORIG 先于 this 链、4.4 恒后置于 lea dest（P75）；②pos+1 ORIG 两段
 // `add $1,%eax; mov %eax,%edx` vs 4.4 折 `lea 0x1(%eax),%ecx`（N18a 折叠）；
 // ③第二段 ecx/edx 寄存器互换（N7 同族）。
+// b28d-45 CPickup::parse 0x084ac6xx：实参装载序 mov -0xc,%edx 位置差（P75/N18a
+// 跨版本）；既有 b28 判词同型，维持 N 封顶。
 void CPickup::parse()
 {
     trim(m_parser->m_args);
@@ -889,6 +920,8 @@ const char* CRandomObjectTest::checkCommandExecuteError()
 
 // ORIG getVendingMachineInfo 0x084b0444：找 vending 表首个 m_id==1 条目中
 // 首个 m_groupNum==1 的 info；找不到返回 0。直调 CDataManager::getVendingMachineTable。
+// b28d-45 CRandomObjectTest::getVendingMachineInfo 0x084b0444：84:89，迭代器
+// 循环 begin/end 实例化与帧槽差（N89+N82），语义完成封顶。
 stVendingMachineInfo_t* CRandomObjectTest::getVendingMachineInfo()
 {
     std::vector<stVendingMachine_t>* table =
@@ -923,6 +956,8 @@ stVendingMachineInfo_t* CRandomObjectTest::getVendingMachineInfo()
 
 // ORIG getVendingMachineItem(map&) 0x084b02e6：以 time 种子 Mersenne 随机
 // 模拟 count 次抽取，统计 itemId 出现次数。
+// b28d-45 CRandomObjectTest::getVendingMachineItem 0x084b04xx：Inven_Item 局部
+// 槽差 4（-0x7d vs -0x79，N95 槽基 gap）+ N82 帧族，语义等价封顶。
 void CRandomObjectTest::getVendingMachineItem(std::map<int, int>& out)
 {
     stVendingMachineInfo_t* info = getVendingMachineInfo();
@@ -956,6 +991,8 @@ void CRandomObjectTest::getVendingMachineItem(std::map<int, int>& out)
 // unsigned 同型化翻正（P218 同族，探针 /tmp/bm3/p18 fE vs fF）；残差
 // 1 条 = 首 store `mov (%eax),%edx` 单段直落（4.4 恒经 %eax 中转，N18a
 // 反向判词在册），次 store 两段形与 ORIG 一致。
+// b28d-45 CRandomObjectTest::processVendingMachineItemLottery 0x084b05xx：
+// 62:63 仅差 1 条（std 迭代器调用点/重定位显示），N89/N82 封顶。
 void CRandomObjectTest::processVendingMachineItemLottery(CMTRand& rng,
                                                          const stVendingMachineInfo_t* info,
                                                          Inven_Item& item)
@@ -980,6 +1017,8 @@ void CRandomObjectTest::processVendingMachineItemLottery(CMTRand& rng,
 }
 
 // ORIG execute 0x084b0082：校验后按 mode==1 跑售货机统计并分片落盘。
+// b28d-45 CRandomObjectTest::execute 0x084b0082：157 行大件，N89（std 模板
+// out-of-line 实例）+ N82（帧槽复用），语义完成封顶。
 void CRandomObjectTest::execute()
 {
     CUser* user = GetUser();
@@ -1076,6 +1115,8 @@ void CRecipeSuccess::execute()
 
 // ORIG parse 0x084ac96c：trim；find(" ") 切两段分别 atoi 入 +0x08/+0x0c。
 // 【b28 判词 N-P75/N18a】与 CPickup::parse 同型残差（0x084ac84c 判词照抄）。
+// b28d-45 CRefund::parse 0x084ac8xx：与 CPickup::parse 同型（P75/N18a 实参装载
+// 序），N 封顶。
 void CRefund::parse()
 {
     trim(m_parser->m_args);

@@ -114,6 +114,13 @@ public:
     unsigned int getTimeStamp();          // ORIG T 0x08172fea：ntohl(+0x24)+m_patchTime
     unsigned int getPatchTime();          // ORIG T 0x08173042
     void setPatchTime(unsigned int t);    // ORIG T 0x08173034
+    // b28d-45：ORIG CMobileRestrictCommand::execute 0x084b3cf0 对 +0x2c 直写
+    // `mov %dl,0x2c(%eax)`（赋值形：先 call getGarenaAuthData 后读字段）；
+    // setter 调用形 4.4 恒先求值实参 ⇒ 改引用访问器保持赋值语义。原
+    // GmCmds_E.cpp 裸偏移 char* 视图（§4.3）已同步删除。always_inline ⇒
+    // 零新符号、布局/mangled 零影响；残余 `add $0x2c` 折位移归 N107。
+    unsigned char& mobileAuthRef() __attribute__((always_inline))
+    { return m_mobileAuth; }
 
 private:
     unsigned int m_uid;                             // +0x00（ntohl 读取）

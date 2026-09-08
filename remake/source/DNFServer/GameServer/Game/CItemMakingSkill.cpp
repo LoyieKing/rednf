@@ -1,3 +1,4 @@
+// [b28d-D43] N81/N4 scaled store：ORIG `mov %cx,0x4(%eax,%edx,2)` vs 4.4 add 链（P205 三形实测仍展开）（ORIG 0x08545b42）。
 // CItemMakingSkill.cpp —— CItemMakingSkill::getData(char*) const
 // （OrigItemMaking15 批；本 TU 独占 CItemMakingSkill.cpp/.h）。
 //
@@ -40,6 +41,7 @@ void CItemMakingSkill::getData(char* pData) const
 //   双判，jbe 为无符号比较）；否则返回 档位[idx].first - 档位[idx-1].first
 //   （两次 vector::operator[]，idx 与 idx-1；ORIG mov (%eax),%ebx/sub 形态）。
 // ============================================================================
+// [b28d-D43] N82/N95 槽平移：ORIG idx 寄存器直比 vs 4.4 -0xc→%ebx 槽中转（ORIG 0x08545b7e）。
 int CItemMakingSkill::GetPrevExpGap(int level)
 {
     stItemMakingSkill* table =

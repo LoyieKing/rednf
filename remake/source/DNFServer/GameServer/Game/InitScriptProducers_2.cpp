@@ -178,25 +178,42 @@ int ImportReturnUserRewardScript(const char* path, stReturnUserRewardScript& out
         return 0x36b4;
 
     std::string token;
+    // [b28d-47] ORIG 0x0891813b/+0x45：`movb $0x0,-0xd`（死 bool 局部，P232）
+    // 与 `movl $0x0,-0xc`（ret）预清，声明序 flag→ret。
+    bool flag = false;
+    (void)flag;
+    int ret = 0;
     out.m_levelUp.clear();
 
-    while (ScanType(token, true))
+    // ORIG 0x089180ea 双层 do-while：内层 while(true) 扫 [pacakege item]（continue
+    // 回内层头），内层尾 `token != "[reward equip item]"` 退出；外层 ret==0 继续。
+    // ScanType 失败 → ret=0 跳出（ORIG `xor $1,%eax; test %al,%al; jne <epilogue>`）。
+    for (;;)
     {
-        if (token == "[pacakege item]")
+        do
         {
-            ScanInt(&out.m_field0);
-            ScanInt(&out.m_field4);
-            continue;
-        }
-        if (token != "[reward equip item]")
-            continue;
+            for (;;)
+            {
+                if (!ScanType(token, true))
+                    return 0;   // ORIG `mov $0,%ebx; jmp <~string>`（直接返回，非写 ret 槽）
+                if (token == "[pacakege item]")
+                {
+                    ScanInt(&out.m_field0);
+                    ScanInt(&out.m_field4);
+                    continue;
+                }
+                break;
+            }
+        } while (token != "[reward equip item]");
 
-        const int err = LoadRewardDataByGrowType(out.m_levelUp,
-                                                 "[/reward equip item]");
-        if (err != 0)
-            return err;
+        ret = LoadRewardDataByGrowType(out.m_levelUp, "[/reward equip item]");
+        // ORIG 尾 `cmpl $0,-0xc; je <循环头>`（直跳）⇒ 写 break 形；`while(ret==0)`
+        // 4.4 反产 `sete %al; test %al; jne` 物化（多 2 条）。
+        if (ret != 0)
+            break;
     }
-    return 0;
+done:
+    return ret;
 }
 
 // ============================================================================

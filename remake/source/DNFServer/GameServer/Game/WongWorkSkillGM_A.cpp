@@ -212,10 +212,12 @@ void CGMAccounts::AppendGM_Sys(unsigned int mid, char type)
     m_gmList.push_back(info);
 
     // ORIG NumberToString → %ebx 跨 CMyFileLog ctor 保活（P44/P24 即时求值形）。
-    // [b27 封顶] 残差：帧 0x48 vs 0x34（outgoing/槽策略 N82 族）+ NumberToString
-    // 结果 %ebx（ORIG）vs -0xc 槽化（4.4 恒，N18a）；内联实参形反致 ctor/调用
-    // 次序错（ctor 先于 NumberToString）。info={} 零填已复现。维持 midStr 形。
-    char* midStr = NumberToString(mid, 0);
+    // [b28d-41 判词·N82/N18a] DIFF：残差 (a) NumberToString 结果 ORIG 升格 %ebx
+    // 跨 ctor 保活，4.4 恒落槽 -0xc；(b) 帧 0x48 vs 0x34、info 槽 -0x14/-0x10 vs
+    // ORIG -0x18/-0x14。本轮加试 P226 裸语句表达式 `({ NumberToString(mid,0); })`
+    // ——4.4 仍落槽（同 b27 判词），内联实参形令 ctor 先于 NumberToString（次序反）
+    // 亦不可用 ⇒ 维持 N82/N18a 封顶。
+    char* midStr = ({ NumberToString(mid, 0); });
     CMyFileLog log("AppendGM_Sys", 0xcd);
     log("./log/Init", "GM List Add mid:%s", midStr);
 }

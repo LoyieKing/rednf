@@ -92,6 +92,7 @@ void CBattle_Field::on_not_visited_map(int x, int y, bool& flag)
 //   找不到时整体返回 false；全部阶段完成后写 lastSmallRoundOrder。
 // 局部布局按 ORIG 栈槽逐一对位（含两个从不读取的死局部 -0x42/-0x40）。
 // ---------------------------------------------------------------------------
+// [b28d-D43] N82/N89 大函数（384/382）（ORIG 0x08304804）。
 bool CBattle_Field::add_blood_monster(map_monster& mob, int& uid, int& seq,
                                       std::vector<STAssignBloodSystem> systems,
                                       std::vector<STAssignBloodPhaseTime> phaseTimes)

@@ -12,6 +12,17 @@
 //   OS_API::Sleep(int)                                   0x0858c4e0
 //   （DNFFLib::Make_Dir 0x08108ad7 归属 ServerCommon/DNFFunctionLib.cpp，不在此重复）
 // 逐函数对照 docs/class_func_reports/<类>/<方法>.md 的 ## 汇编 与
+// b28d-45 判词汇总（本 TU 5 件）：
+//   stMonsterIndependentDrop_t::C1ERKS_ 0x08376bb2 DIFF41 N90：隐式拷贝构造
+//     数组成员块搬移分块启发式（ORIG 分块重载 src/dst 基址 vs 4.4 单次连发）。
+//   stMonsterIndependentDrop_t::aSERKS_ 0x08376bb2 DIFF41 N90：同上（operator=）。
+//   load_pvp_skill_tree_list 0x08a5ce28 DIFF54 N93/P28：_Rb_tree_iterator 具名
+//     对象槽向相反（ORIG -0x14 vs 4.4 -0x18）+ begin/end 求值序。
+//   importPairPvPSkillPointScript 0x08a5e226 DIFF251 N82/N89：帧 0xd0/0xe0 +
+//     loadRDARScriptFile 调用点。
+//   ImportIndependentDrop 0x0897c398 DIFF479 N89/N82：519:515 大解析件。
+//   importIndependentDropParameterScript 0x0897c1c6 DIFF107 N89/N82。
+//   importPvPSkillTreeParameterScript 0x08a5cf16 DIFF728 N89/N82：769:757。
 // ## 反编译 C 转写；报告缺失处以 objdump 反汇编为准并标注。
 
 #include <algorithm>
@@ -78,8 +89,10 @@ int RegenerationROI::_0_Load_RegenerationRandomOptionItem()
     int err = 0;                                            // ORIG movl $0,-0xc 预清
     err = importRegenerationRandomOptionScript(
         m_regenerator, "Etc/RandomOption/RegenerationRandomOption.etc");
-    register bool fail asm("al") = (bool)(err != 0);        // ORIG cmp/setne/test 形
-    if (fail)                                               // ORIG je +0x18
+    // b28d-45 P0/N96 清绑：`register bool fail asm("al")` 删除，按 P158 无绑定
+    // bool 局部（ORIG cmp/setne/test + je +0x18）。
+    bool fail = (err != 0);
+    if (fail)
     {
         printf("Fail to Load Random Option Item Regenerator Line : %d\n", err);
         return err;

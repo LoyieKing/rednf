@@ -131,15 +131,33 @@ Inven_Item* CAccountCargo::GetSlotRef(int slot)
 // ---- 插入条件 / 插入 / 删除 / 移动 ----
 int CAccountCargo::CheckInsertCondition(Inven_Item& item)
 {
-    CDataManager* dm = G_CDataManager();
-    CItem* ci = dm->find_item(item.m_addInfo);
+    // [b28d-46 判词·真 bug + N/N82] ORIG 0x08289a4a。
+    // 真 bug（P282）：ORIG 0x08289bc6 虚调用 vptr+0x10 = _ZTV5CItem slot 4 = IsAvatarItem，
+    // 原误写 IsCreatureItem（slot 5）⇒ 运行时调错虚函数；已改。
+    // 配套范式：链式 G_CDataManager()->find_item（P24/P52 实参先物化 %ebx）、
+    // GetLock 具名 uchar 缓存（P0/P48，消重复 call）、isPackagable guard 早期返回
+    // （P59/P168a xor 物化）、expireSec 具名局部（P0，先落 -0x10 槽再 call getCurSec）。
+    // 残差封顶：槽号整体浅移 4~8（N82/N98，4.4 按首次使用序分配）＋ switch 跳表 vs
+    // 4.4 比较链（P163 补 case 0/4/5 反生 bitmask 已回退）。dead char[0x10] 补帧
+    // （P232）使 sub $0x34 对齐。
+    char framePad[0x10];
+    (void)framePad;
+    // [b28d-46 P24/P52] ORIG 先把 item.m_addInfo 物化 %ebx 再 call G_CDataManager，
+    // 链式形复现（具名 dm 局部使 receiver 先调用、实参后装载）。
+    CItem* ci = G_CDataManager()->find_item(item.m_addInfo);
     if (ci == 0)
         return 0;
-    if (ci->isPackagable()) {
-        if (item.m_amp.GetLock() != 0) {
-            CExpandEquipslot* expand = m_pUser->GetCharacExpandDataR(
-                (ENUM_CHARAC_EXPAND_TYPE)2);
-            if (((item_lock::CItemLock*)expand)->CheckItemLock(item.m_amp.GetLock()))
+    // [b28d-46 P59/P168a] ORIG `call isPackagable; xor $1; test %al; je BODY;
+    // mov $0;jmp END; BODY:` ⇒ 早期返回 guard 形（非 if 包裹 + 尾部 return 0）。
+    if (!ci->isPackagable())
+        return 0;
+    {
+        // [b28d-46 P0/P48] ORIG 把 GetLock() 存 bool 槽 -0x15（cmpb 判定）后复用；
+        // 内联两次调用形在 4.4 多一次 call（无 CSE）⇒ 具名 uchar 局部。
+        unsigned char lock = item.m_amp.GetLock();
+        if (lock != 0) {
+            if (((item_lock::CItemLock*)m_pUser->GetCharacExpandDataR(
+                    (ENUM_CHARAC_EXPAND_TYPE)2))->CheckItemLock(lock))
                 return 0;
         }
         if (item.m_field1 == 4 || item.m_field1 == 5 || item.m_field1 == 6 ||
@@ -161,7 +179,10 @@ int CAccountCargo::CheckInsertCondition(Inven_Item& item)
         }
         if (item.m_upgradeSep.IsTradeRestriction())
             return 0;
-        if (!m_pUser->isGMUser() && !ci->IsCreatureItem()) {
+        // [b28d-46 判词·真 bug/P282] ORIG 0x08289bc6 虚调用 vptr+0x10 = CItem vtable
+        // slot 4 = IsAvatarItem（非 slot 5 IsCreatureItem）；按 _ZTV5CItem 0x08c96da0
+        // 逐槽核对（vptr=_ZTV+8，slot12=IsImpossibleUpgrade 与头声明序吻合）。
+        if (!m_pUser->isGMUser() && !ci->IsAvatarItem()) {
             // ORIG 0x194..0x1c8 + 0x1c2..0x1ec：两段相同的期限判定。
             // 第一段两字段均为 0 → 无期限放行；否则第二段再判，两字段仍均 0 →
             // （不可达）持久时限检查，否则（有期限物品）返回 0 不允许存入。
@@ -169,9 +190,12 @@ int CAccountCargo::CheckInsertCondition(Inven_Item& item)
                 // 无期限物品可存入
             } else {
                 if ((ci->getUsablePeriod() == 0 && ci->getExpirationDate() == 0)) {
-                    unsigned short endurance = item.m_fieldb;
+                    // [b28d-46 P0] ORIG 把 imul/add 结果先落 -0x10 槽再 call getCurSec
+                    // （具名 expireSec）；endurance 内联 item.m_fieldb（无 16 位中转槽）。
+                    int expireSec =
+                        (int)((unsigned int)item.m_fieldb * 0x15180 + 0x44a54a80);
                     int curSec = GlobalData::s_systemTime_.getCurSec();
-                    if ((int)((unsigned int)endurance * 0x15180 + 0x44a54a80) <= curSec)
+                    if (expireSec <= curSec)
                         return 0;
                 } else {
                     return 0;
@@ -180,7 +204,6 @@ int CAccountCargo::CheckInsertCondition(Inven_Item& item)
         }
         return 1;
     }
-    return 0;
 }
 
 int CAccountCargo::InsertItem(Inven_Item& item, int slot)
@@ -195,7 +218,8 @@ int CAccountCargo::InsertItem(Inven_Item& item, int slot)
         }
         // ORIG 0x08289c82：不同类型且槽非空 → 返回 -1（不覆盖）；仅空槽才拷贝。
         if (m_slots[slot].m_addInfo == 0) {
-            memcpy(&m_slots[slot], &item, sizeof(Inven_Item));
+            // [b28d-46 N84] ORIG 为结构体直接赋值 rep movsl（非 memcpy 调用）。
+            m_slots[slot] = item;
             m_alter = 1;
             return slot;
         }
@@ -203,7 +227,8 @@ int CAccountCargo::InsertItem(Inven_Item& item, int slot)
         return -1;
     }
     if (m_slots[slot].m_addInfo == 0) {
-        memcpy(&m_slots[slot], &item, sizeof(Inven_Item));
+        // [b28d-46 N84] 同 InsertItem：结构体赋值。
+        m_slots[slot] = item;
         m_alter = 1;
         return slot;
     }
@@ -236,10 +261,11 @@ bool CAccountCargo::MoveItem(int from, int to)
 {
     bool fail = !(CheckValidSlot(from) && CheckValidSlot(to) && from != to);
     if (!fail) {
+        // [b28d-46 N84] ORIG 结构体整体赋值 rep movsl（无 memcpy call）。
         Inven_Item tmp;
-        memcpy(&tmp, &m_slots[from], sizeof(Inven_Item));
-        memcpy(&m_slots[from], &m_slots[to], sizeof(Inven_Item));
-        memcpy(&m_slots[to], &tmp, sizeof(Inven_Item));
+        tmp = m_slots[from];
+        m_slots[from] = m_slots[to];
+        m_slots[to] = tmp;
         m_alter = 1;
     }
     return !fail;

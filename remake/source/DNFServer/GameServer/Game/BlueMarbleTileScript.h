@@ -29,6 +29,8 @@ public:
     // ORIG T 0x088d509c（本体待 TileScript 批次；initTileList 经此加载每个格子）。
     // ORIG T 0x088d520a：脚本类型名→枚举（empty=0..kick=0xd，未识别 0）。
     int toType(std::string type);
+    // b28d-168a①：ORIG initTileList 调用点为 `call; xor $1,%eax; test %al,%al`，
+    // 理想形需 callee bool 化；本件定义属主非本泳道（R1）⇒ 保留 int，调用点封 N。
     int importScript(const char* path);
 
     int m_type;    // +0x00

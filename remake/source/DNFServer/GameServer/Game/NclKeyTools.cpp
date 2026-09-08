@@ -2,6 +2,7 @@
 // df_game_r ncl_* license key 工具族（ORIG 自由函数，objdump 直转）。
 // ----------------------------------------------------------------------------
 // ORIG 符号（df_game_r，全部 T 强符号，同一工具区域 0x085723fc-0x08572e1c）：
+// [b28d-D43] AE: 循环变量复用 sock 槽复现 4.1 lifetime 复用（ORIG 0x085723fc 的 -0x10 单槽）。
 //   ncl_make_mac(char*)                _Z12ncl_make_macPc    0x085723fc (0xd3)
 //   ncl_char_plus(char, int)           _Z13ncl_char_plusci   0x08572581 (0x3c)
 //   ncl_check_digit_str(char*)         _Z19ncl_check_digit_strPc 0x08572531 (0x50)
@@ -107,6 +108,8 @@ L_done:;
 //   （偏移 9/0x12/0x1b/0x24/0x27 = 9/18/27/36/39）中 pos==k 者保留原值，
 //   其余 4 位用 rand()%10+'0' 覆盖（ORIG 原样，含越界位 36/39 写入）。
 //   返回 strlen(out)。
+// [b28d-D43] N82/N89 大函数（344/344）：槽序与寄存器分配跨版本差（ORIG
+// 0x085725bd；控制流/调用点逐条同构，语义闭合）。
 int ncl_encrypt_key(char* out, char* mac, char* date1, char* date2)
 {
     if (ncl_check_digit_str(mac) != 0x12)

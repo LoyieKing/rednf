@@ -8,6 +8,9 @@
 // ORIG T 0x08908d46 importDeadTowerDialogScript(path, STDeadTowerFullDialog&)：
 // loadRDARScriptFile 失败返 0x18d9；按 token 分派三组对话框，ScanInt 失败返
 // 0x18e6/0x18f6/0x1906，ScanStr 失败返 0x18ea/0x18fa/0x190a；成功返 0。
+// b28d-D42 verdict=DIFF [N82/N89] ORIG 0x08908d46 orig/ours=209/212 ndiff=197。
+// 残差为帧/槽号平移（局部 token/字符串缓冲）与 RDARScript 解析器内联差；
+// P167 调用点已核，语义按报告逐条对齐。
 int importDeadTowerDialogScript(const char* path, STDeadTowerFullDialog& out)
 {
     // ORIG 0x8908d64：loadRDARScriptFile("", path) —— dir 空串，path 即文件路径。

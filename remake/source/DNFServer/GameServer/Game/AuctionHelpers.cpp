@@ -19,6 +19,14 @@ bool IsPriceError(int price, int limit)
 
 bool IsValidMultiplyResult(int a, int b)
 {
+    // [b28d-41 判词·N] DIFF：ORIG 0x08213e40 无栈帧（push edi/esi/ebx 后直入），
+    // acc 前两项在 %esi、乘积 mul 一次（eax:edx），单出口 %ecx 物化——4.1 对
+    // 单语句内重复子表达式走 SAVE_EXPR **寄存器**复用。4.4 对同一表达式恒把
+    // SAVE_EXPR 落槽并重算子表达式（本件 +0x24 帧 / -0x28..-0x14 五槽 / acc 与
+    // 乘积各算两次）。八形探针（/tmp/d41_p8.cpp fA..fI：具名/三元链/短路/register/
+    // 宏内联/乘积前置）全部落槽，无类型旋钮可试（比较两侧均 int/unsigned/ull）
+    // ⇒ 跨版本 SAVE_EXPR 处理差异，语义等价（乘积高位+符号修正项，历史 256 组
+    // 输入交叉验证一致）。
     unsigned int A = (unsigned int)a;
     unsigned int B = (unsigned int)b;
     unsigned long long P = (unsigned long long)A * (unsigned long long)B;

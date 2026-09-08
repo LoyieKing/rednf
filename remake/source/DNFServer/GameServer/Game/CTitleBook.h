@@ -360,9 +360,11 @@ public:
     void getItemLockList(std::vector<item_lock::stItemLockRef>& out);
     void sendList();
     void sendListOtherUser(CUser* user, ENUM_TITLE_BOOK_INFO_TYPE type);
-    bool isAbleItemLock(unsigned long itemIdx);
-    bool _checkFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
-                       int slot);
+    // b28d-245（P245/P281）：ORIG 0x08642ec2 / 0x08642d42 首参分别读 0x8(%ebp)（itemIdx）
+    // 与 0xc(%ebp)（category），全程无 this ⇒ 原码为 static 成员（mangled 不变）。
+    static bool isAbleItemLock(unsigned long itemIdx);
+    static bool _checkFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
+                              int slot);
     static bool _getFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY& category,
                             int& slot);
     void deleteTimeoutItem(const std::vector<std::pair<int, int> >& list);
@@ -391,7 +393,9 @@ public:
     void _deleteTitle(ENUM_TITLE_BOOK_CATEGORY category, int slot);
     bool _checkInsertTitle(ENUM_TITLE_BOOK_CATEGORY category, int slot,
                            Inven_Item* item);
-    bool _checkMovetoInven(ENUM_TITLE_BOOK_CATEGORY category, int slot);
+    // b28d-245（P245/P281）：ORIG 0x08641c52 函数体首参读 0x8(%ebp)、全程无 this
+    // ⇒ 原码为 static 成员（mangled 不含 static，符号名不变）。非 static 使整帧 +4。
+    static bool _checkMovetoInven(ENUM_TITLE_BOOK_CATEGORY category, int slot);
     bool _getOwnerTitleInfo(ENUM_TITLE_BOOK_CATEGORY& category, int& slot,
                             Inven_Item* out);
     int _getCategoryItemCount(ENUM_TITLE_BOOK_CATEGORY category);

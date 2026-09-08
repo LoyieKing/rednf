@@ -17,6 +17,7 @@
 
 #include "CUser.h"
 #include "CDataManager.h"          // G_CDataManager/m_characList/find_quest/find_item/get_event_script_mng
+#include "CCharacList.h"           // CCharacList::m_characs[11]（+0x000，步长 0x7dc）
 #include "CCharacter.h"            // CCharacter 布局（0x7dc 步长）/get_growtype_stat/_Additioal_info
 #include "Quest.h"                 // Quest::m_mailFlag/m_levelMin、stSelectQuestParam(CUser*)
 #include "CInventory.h"            // GetInvenRef/GetInvenData/insertItemIntoInventory/update_item
@@ -60,16 +61,16 @@ public:
 // ============================================================================
 void CUser::_update_charac_stat(bool add)
 {
-    char secondGrow = getCurCharSecondGrowType();          // +0x15 call getCurCharSecondGrowType
-    char firstGrow  = getCurCharFirstGrowType();           // +0x23 call getCurCharFirstGrowType
-
-    CCharacter* characTable =                              // +0x2b..+0x33 *(G_CDataManager()+0x14)
-        reinterpret_cast<CCharacter*>(G_CDataManager()->m_characList);
-    int job = get_charac_job();                            // +0x39 call get_charac_job
-
+    // [b28d-47] P0：ORIG 0x086646c8 中 secondGrow/firstGrow/characTable/job 全程
+    // 寄存器直传（movsbl %al,%esi/%ebx、mov 0x14(%eax),%edi，无栈槽往返）⇒ 原码是
+    // 单表达式右值，仅 stat 具名占 -0x1c。禁具名中间局部（每处 +2~4 条槽往返）。
+    // 权威成员访问 m_characList->m_characs[job]（reinterpret_cast 下标使 4.4 多发
+    // `mov 0x14(%eax),%eax; mov %eax,%edi`；ORIG 是 `mov 0x14(%eax),%edi` 单条）。
     const _Additioal_info* stat =                          // +0x52 call get_growtype_stat(job*0x7dc 行)
         static_cast<const _Additioal_info*>(
-            characTable[job].get_growtype_stat(firstGrow, secondGrow));
+            G_CDataManager()->m_characList->m_characs[get_charac_job()]
+                .get_growtype_stat(getCurCharFirstGrowType(),
+                                   getCurCharSecondGrowType()));
 
     // ORIG：getCurCharacAddInfoW 在 add/subtract 两分支各自重调（禁缓存，P183/P48）。
     if (add)                                               // +0x5a cmpb param

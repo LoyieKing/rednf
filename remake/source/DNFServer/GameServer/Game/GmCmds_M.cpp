@@ -3,6 +3,12 @@
 // 对照 docs/class_func_reports/game_master__{CPvPStartCmd,CItemDropRateCmd,
 // CResetTutorialFlagCmd,CRunMacroCmd,CAchievementReset,CAchievementReport,
 // CAchievementClear,CAchievementAllClear,CAchievementNoClear}/ 逐函数转写。
+// b28d-45 判词汇总（本 TU 2 件）：
+//   CAchievementReport::execute 0x084b0830 DIFF60：patterns 末「memset 首参 edx
+//     中转」待解条目实证件 —— ORIG `mov $0x17318,%edx; mov %edx,0x8(%esp)`，
+//     直写立即数不可复现（65:64，语义等价）。
+//   CMoveCharacCmd::execute 0x084a8d02 DIFF125 N82/N89：帧 0x50/0x60 +
+//     find_user_by_charac_name 结果具名局部槽化差。
 #include "GameMasterCmd.h"
 #include "CUser.h"
 #include "CUserCharacInfo.h"

@@ -567,7 +567,9 @@ int DB_MouseRegister::_modifyPassword(unsigned int mid, const char* pwd,
         // ORIG 0x0842373b 实有中间槽（`mov %eax,-0xc; movzbl -0x2c,%edx;
         // mov -0xc,%eax; mov %edx,(%eax)`）＝ 具名 p 变量形态。
         p = guard->GetInBuffer<SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD>();
-        *reinterpret_cast<unsigned int*>(p) = param5;
+        // [b28d-47] 具名成员访问：4.4 对 `p->m = b` 产 ORIG 的 RHS 值先装载序
+        // （探针 f3；reinterpret_cast 视图形恒 LHS 指针先）。
+        p->m_adviceChangePwd = param5;
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
     return 0;
@@ -657,7 +659,7 @@ int DB_MouseRegister::dispatch(int param1, int param2, Stream* stream)
         // ORIG 0x08422a94 实有中间槽（`mov %eax,-0xc; mov -0xc,%eax; movl
         // $0,(%eax)`）＝ 具名 p 变量形态（fn_diff_tu 实证）。
         p = guard2->GetInBuffer<SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD>();
-        *reinterpret_cast<unsigned int*>(p) = 0;
+        p->m_adviceChangePwd = 0;   // [b28d-47] 具名字段（同上）
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard2);
         return 0;
     }

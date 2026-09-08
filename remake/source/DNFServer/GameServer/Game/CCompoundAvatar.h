@@ -61,7 +61,11 @@ struct STAncientRareAvatarCube
     STAncientRareAvatarCube();
 
     std::vector<std::pair<int, int> > m_vec;        // +0x00
-    int m_field0c[10];                              // +0x0c（ctor 置 0）
+    // +0x0c（ctor 置 0）；类型由 setCompoundRareAvatarData ORIG 0x08902e78 实证为
+    // unsigned：权重加法段 `mov field,%ecx; mov weight,%eax; add %eax,%ecx` 只在
+    // 字段 unsigned + RHS int 时出现（P274），且 ORIG push_back 的 pair converting
+    // ctor 符号为 `_ZNSt4pairIiiEC1IRiRjEEOT_OT0_`（第二参 unsigned int&）。
+    unsigned int m_field0c[10];                     // +0x0c
     std::vector<std::pair<int, int> > m_vecs[10];   // +0x34
 };  // sizeof == 0xac
 

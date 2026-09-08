@@ -7,6 +7,7 @@
 #include "ItemGloballyUniqueIdentifierGenerator.h"
 #include <time.h>   // time（generate SetDatetime）
 
+// [b28d-D43] N4 scaled 写 vs lea 折叠：ORIG `movb $0,(%edx,%eax,1)` vs 4.4 `lea (%edx,%eax,1); movb $0,(%eax)`（ORIG 0x08899dfa）。
 void itemGloballyUniqueIdentifier_t::reset()
 {
     // ORIG 0x85139e8：循环变量为 char（movsbl 读/addb 自增/cmpb $9 判界）。

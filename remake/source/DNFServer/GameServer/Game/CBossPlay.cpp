@@ -198,17 +198,17 @@ int CBossPlay::getLiveMemberCount()
 // ============================================================================
 int CBossPlay::handleDieUser(CUser* user)
 {
+    // [b28d-46 实测] ORIG 双 `movl $0,-0xc`（P191）+ 尾部 `cmpl $3; setle; test;
+    // jne`（P51）+ 两独立守卫各 `je INC`（P133）⇒ for + continue 形。
     int i = 0;
-    while (true)
+    for (i = 0; i <= 3; ++i)
     {
-        if (3 < i)
-            return 1;
-        if (m_party->checkValidUser(i) && m_party->get_user(i) == user)
-            break;
-        ++i;
-    }
-    if (isMemberAlive(i))
-    {
+        if (!m_party->checkValidUser(i))
+            continue;
+        if (!(m_party->get_user(i) == user))
+            continue;
+        if (isMemberAlive(i))
+        {
         setMemberAlive(i, false);
 
         PacketGuard packet1;
@@ -232,9 +232,11 @@ int CBossPlay::handleDieUser(CUser* user)
             m_party->send_to_party(packet2);
         }
         return 1;
+        }
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x2b, 0x12);
+        return 0;
     }
-    user->SendCmdErrorPacket((ENUM_CMDPACKET)0x2b, 0x12);
-    return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -297,11 +299,13 @@ int CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
     // 脚本下标从 1 起）；x87 fistpll 就近舍入，直接 (long long) 强转等价。
     unsigned int clearExp;
     {
-        stDeathTower_t* tower =
-            G_CDataManager()->GetTowerScript(dungeon->get_index());
+        // [b28d-46 P252 实测] ORIG 先 fildll(a*b)→fstps 具名 float 槽 -0xf0，再取
+        // tower 并 fmuls mem；具名 float 局部复现该槽往返。
+        float baseExp = (float)(long long)((unsigned int)(a * b));
+        // ORIG tower 无槽往返（GetTowerScript 结果直用 %eax）⇒ 内联表达式（P0/P183）。
         clearExp = (unsigned int)(long long)(
-            (double)(long long)((unsigned int)(a * b)) *
-            tower->m_rewardExpWeight[1 + a]);
+            baseExp * G_CDataManager()->GetTowerScript(
+                dungeon->get_index())->m_rewardExpWeight[1 + a]);
     }
 
     stClearRewardBonusExp_t bonus;
@@ -423,10 +427,16 @@ int CBossPlay::generateRewardItem(int memberIdx, int itemCount, unsigned int a,
                 if (!result.m_dropItems.empty())
                 {
                     Inven_Item& dst = m_memberReward[memberIdx].m_items[i];
-                    dst.setCopy(result.m_dropItems.front());
+                    // [b28d-46 P167] ORIG 无 vector::front 调用（内联 begin 解引用）
+                    // ⇒ 用 operator[] 下标形。
+                    dst.setCopy(result.m_dropItems[0]);
                     // ORIG +0x3f2：按首项 idx 查 CItemList，命中后按
                     // itemType(+0x01)/rarity/grade 扣幸运点（::CLuckPoint）。
-                    CItem* item = dm->find_item(dst.m_addInfo);   // +0x02 = item idx
+                    // [b28d-46 真 bug/P167] ORIG 0x08149d42 调 CItemList::find_item
+                    // （receiver = G_CDataManager()+0xc = m_itemList），非
+                    // CDataManager::find_item；原实现调错类（EXTRA find_item）。
+                    CItem* item = G_CDataManager()->getItemList()->find_item(
+                        dst.m_addInfo);   // +0x02 = item idx
                     if (item != 0)
                     {
                         ::CLuckPoint::UseLuckPoint(
@@ -455,7 +465,7 @@ int CBossPlay::generateRewardItem(int memberIdx, int itemCount, unsigned int a,
             ref.m_field42 = 1;
             gen->generateRandomItem(ref, result);
             Inven_Item& dst = m_memberReward[memberIdx].m_items[i];
-            dst.setCopy(result.m_dropItems.front());
+            dst.setCopy(result.m_dropItems[0]);
             int addInfo = dst.get_add_info();
             dst.set_add_info((int)ROUND((float)addInfo * rare3));
         }

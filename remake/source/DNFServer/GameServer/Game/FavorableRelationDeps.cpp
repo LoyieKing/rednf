@@ -103,13 +103,13 @@ stFavorableRelationShip_t::stLevelRewardInfo::stLevelRewardInfo()
 }
 
 // ORIG 0x08a04160：word/dword/dword 标量拷贝 + 两 string 拷贝构造（+0xc/+0x10）。
+// [b28d-41] P239 复现：标量三段须与两 string 拷贝同列初始化列表且按声明序发射；
+// 原「列表只 string、标量写 ctor 体」形使 4.4 先构造 string 后拷贝标量（块序反）。
 stFavorableRelationShip_t::stLevelRewardInfo::
     stLevelRewardInfo(const stLevelRewardInfo& other)
-    : m_name(other.m_name), m_desc(other.m_desc)
+    : m_level(other.m_level), m_flag0(other.m_flag0), m_flag1(other.m_flag1),
+      m_name(other.m_name), m_desc(other.m_desc)
 {
-    m_level = other.m_level;
-    m_flag0 = other.m_flag0;
-    m_flag1 = other.m_flag1;
 }
 
 // ORIG 0x085823c6：m_desc(+0x10)、m_name(+0xc) 逆序析构（与隐式析构一致）。

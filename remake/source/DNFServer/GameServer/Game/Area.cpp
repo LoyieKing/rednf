@@ -166,14 +166,35 @@ Area::~Area()
 // ---------------------------------------------------------------------------
 int Area::GetUserCount() const
 {
+    // [b28d-48] ORIG 086c31f2 切片：user 预清(-0x10) → it 默认构造(-0x20) →
+    // begin sret(-0x2c) 赋值 → count(-0xc)=0 → do 形循环（end sret -0x1c、
+    // operator++ 两分支各一 sret -0x18/-0x14）⇒ 源为 while(true)+体内 return
+    // + 具名 user 预清（P198①/P50 反例复活）。
+    // [b28d-48 收口] DIFF 65 → NEAR 4（长度 68=68、助记符序列全同）。组合修法：
+    // P50 先声明后赋值迭代器（默认构造槽）+ P283 goto 尾条件（begin 后 jmp 底部）
+    // + P28 后置 `it++`×2（ORIG 两处均 ppEi 带独立 sret）+ P198① user 预清。
+    // 残余 4 = 四个 sret 临时槽号互换（ORIG it++/-0x18、end/-0x1c、it++/-0x14
+    // vs 4.4 -0x1c/-0x14/-0x18）——N93 块级临时槽方向跨版本相反，不可翻。
+    CUser* user = 0;
+    std::map<unsigned short, CUser*>::const_iterator it;
+    it = m_UsersInArea.begin();
     int count = 0;
-    for (std::map<unsigned short, CUser*>::const_iterator it = m_UsersInArea.begin();
-         it != m_UsersInArea.end(); ++it)
+    // P283：ORIG 0x086c322f `jmp 086c32a8`（begin 后直跳底部条件块），
+    // 条件块尾 jne 回循环体、假路 mov count 直落——4.4 对 while(true) 恒
+    // 条件置顶，故用 goto 尾标签复现。
+    goto check;
+loop_body:
+    user = it->second;
+    if (user == 0 || user->get_state() <= 2)
     {
-        CUser* user = it->second;
-        if (user != 0 && user->get_state() > 2)
-            ++count;
+        it++;                                        // ORIG 0x086c3268 ppEi sret -0x18
+        goto check;
     }
+    ++count;
+    it++;                                            // ORIG 0x086c3299 ppEi sret -0x14
+check:
+    if (it != m_UsersInArea.end())
+        goto loop_body;
     return count;
 }
 
@@ -237,16 +258,26 @@ END:;
 // ---------------------------------------------------------------------------
 void Area::get_user_id_list(std::vector<unsigned short>& out)
 {
-    for (std::map<unsigned short, CUser*>::iterator it = m_UsersInArea.begin();
-         it != m_UsersInArea.end(); ++it)
+    // [b28d-48] 同 GetUserCount 族：ORIG 086c305e 的 user 预清(-0xc) + P50 先声明
+    // 后赋值 + P283 goto 尾条件 + P28 后置 it++（ppEi sret -0x18）+ id 具名槽(-0x12)。
+    CUser* user = 0;
+    unsigned short id;
+    std::map<unsigned short, CUser*>::iterator it;
+    it = m_UsersInArea.begin();
+    goto check;
+loop_body:
+    user = it->second;
+    if (user == 0 || user->get_state() <= 2)
     {
-        CUser* user = it->second;
-        if (user != 0 && user->get_state() > 2)
-        {
-            unsigned short id = user->get_unique_id();
-            out.push_back(std::move(id));
-        }
+        it++;
+        goto check;
     }
+    id = user->get_unique_id();
+    out.push_back(id);
+    it++;
+check:
+    if (it != m_UsersInArea.end())
+        goto loop_body;
 }
 
 // ---------------------------------------------------------------------------
@@ -324,15 +355,25 @@ void Area::insert_user(CUser* user)
 // ---------------------------------------------------------------------------
 void Area::make_power_war_hp_of_vill(PacketGuard& packet, int& count)
 {
-    for (std::map<unsigned short, CUser*>::iterator it = m_UsersInArea.begin();
-         it != m_UsersInArea.end(); ++it)
+    // [b28d-48] 同 GetUserCount 族（ORIG 086c2c1e）：user 预清 + P50 先声明后赋值
+    // + P283 goto 尾条件 + P28 后置 it++。
+    CUser* user = 0;
+    std::map<unsigned short, CUser*>::iterator it;
+    it = m_UsersInArea.begin();
+    goto check;
+loop_body:
+    user = it->second;
+    if (user == 0 || user->get_state() <= 2)
     {
-        CUser* user = it->second;
-        if (user == 0 || user->get_state() <= 2)
-            continue;
-        packet.put_short(user->getPowerWarHP());
-        ++count;
+        it++;
+        goto check;
     }
+    packet.put_short(user->getPowerWarHP());
+    ++count;
+    it++;
+check:
+    if (it != m_UsersInArea.end())
+        goto loop_body;
 }
 
 // ---------------------------------------------------------------------------
@@ -392,15 +433,24 @@ public:
 
 void Area::send_group(PacketGuard& packet, CBelong* belong)
 {
-    for (std::map<unsigned short, CUser*>::iterator it = m_UsersInArea.begin();
-         it != m_UsersInArea.end(); ++it)
+    // [b28d-48] 同 GetUserCount 族（ORIG 086c2e1e）。
+    CUser* user = 0;
+    std::map<unsigned short, CUser*>::iterator it;
+    it = m_UsersInArea.begin();
+    goto check;
+loop_body:
+    user = it->second;
+    if (user == 0 || user->get_state() <= 2)
     {
-        CUser* user = it->second;
-        if (user == 0 || user->get_state() <= 2)
-            continue;
-        if (belong->IsBelong(user))
-            user->Send(packet);
+        it++;
+        goto check;
     }
+    if (belong->IsBelong(user))
+        user->Send(packet);
+    it++;
+check:
+    if (it != m_UsersInArea.end())
+        goto loop_body;
 }
 
 // ---------------------------------------------------------------------------
@@ -408,13 +458,24 @@ void Area::send_group(PacketGuard& packet, CBelong* belong)
 // ---------------------------------------------------------------------------
 void Area::send_to_all(PacketGuard& packet)
 {
-    for (std::map<unsigned short, CUser*>::iterator it = m_UsersInArea.begin();
-         it != m_UsersInArea.end(); ++it)
+    // [b28d-48] 同 GetUserCount 族（ORIG 086c2d2a）：user 预清 + P50 先声明后赋值
+    // + P283 goto 尾条件 + P28 后置 it++。
+    CUser* user = 0;
+    std::map<unsigned short, CUser*>::iterator it;
+    it = m_UsersInArea.begin();
+    goto check;
+loop_body:
+    user = it->second;
+    if (user == 0 || user->get_state() <= 2)
     {
-        CUser* user = it->second;
-        if (user != 0 && user->get_state() > 2)
-            user->Send(packet);
+        it++;
+        goto check;
     }
+    user->Send(packet);
+    it++;
+check:
+    if (it != m_UsersInArea.end())
+        goto loop_body;
 }
 
 void Area::send_to_all(PacketGuard& packet, std::vector<CUser*>& users)

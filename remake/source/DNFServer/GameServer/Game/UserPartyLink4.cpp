@@ -8,6 +8,13 @@
 //   _ZN12CDataManager19getDungeonIndexListEv   T 0x08365434（非 const）
 //   _ZN6CParty12drop_item_gmEP5CUserj          T 0x085a73a6
 // ============================================================================
+// b28d-45 判词汇总（本 TU 3 件 + 1 NEAR）：
+//   deleteGuildExpBook 0x0867e898 NEAR2：N98 pair<ENUM,int>→pair<int,int> 转换
+//     临时槽序（ORIG first=-0x10/second=-0xc）；右值引用具名化反劣 117→121 已回退。
+//   adjust_charac_stat 0x08664766 DIFF127 N82/N89：_Additioal_info 栈对象 +
+//     234:199 大 gap（std 模板/槽复用）。
+//   RewardTutorial 0x086475d8 DIFF139 N82/N93：帧 0x60/0x50 + vector<int> 槽向。
+//   drop_item_gm 0x085a73a6 DIFF245 N82/N89：257:255 CheckInTrade 早退岛 + 槽序。
 
 #include <string.h>
 

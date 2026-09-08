@@ -194,15 +194,14 @@ bool DB_LoadInventory::SendResult_forchina(int userIdx, int slot,
 bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
 {
     static const int handleIdx = 3;
-    char equipBuf[0x37a];
-    char invenBuf[0x473e];
-    char creatureBuf[0x1d36];
+    // b28d-214③/N78：ORIG 对三缓冲区发 rep stos 内联清零（无 memset call）
+    // ⇒ 用数组零初始化器复现。
+    char equipBuf[0x37a] = {0};
+    char invenBuf[0x473e] = {0};
+    char creatureBuf[0x1d36] = {0};
     unsigned int equipLen = 0x37a;      // ORIG local_150（解压 in/out 容量）
     unsigned int invenLen = 0x473e;     // ORIG local_154
     unsigned int creatureLen = 0x1d36;  // ORIG local_14c
-    memset(equipBuf, 0, sizeof(equipBuf));
-    memset(invenBuf, 0, sizeof(invenBuf));
-    memset(creatureBuf, 0, sizeof(creatureBuf));
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
@@ -488,8 +487,8 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
 
     unsigned int expireDate = 0;
     int regDate = 0;
-    char ipgAgencyNo[0x18];
-    memset(ipgAgencyNo, 0, sizeof(ipgAgencyNo));
+    // b28d-214③/N78：ORIG rep stos 内联清零（无 memset call）⇒ 数组零初始化器。
+    char ipgAgencyNo[0x18] = {0};
     int abilityNo = 0;
     int clearAvatarId = 0;
     int uiId = 0;
@@ -663,7 +662,9 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
         e.m_registTime = regDate;                      // +0x08（movl）
         strncpy(e.m_ipgAgencyNo, ipgAgencyNo, 0x18);   // +0x0c
         e.m_clearAvatarId = clearAvatarId;             // +0x25（movl）
-        memcpy(&e.m_jewelSocket, &jewel, 0x1e);        // +0x29（ORIG 逐字段 8 写）
+        // b28d-83/84：ORIG +0x29 为 7×movl+1×movw 结构整体赋值（非 memcpy call）
+        // ⇒ 用 stAvatarEmblemInfo_t 结构赋值（同 CInventory.cpp:5554 镜像法）。
+        e.m_jewelSocket = jewel;                       // +0x29（ORIG 逐字段 8 写）
 
         // ---- Inven_Item 槽位（avatar 主区 / equip 镜像区）----
         if (slot < 0x73)
@@ -967,9 +968,12 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
     }
 
     // ---- overflow vector：填首个空槽并触发 SwapCreatureItem ----
+    // b28d-167/28：ORIG 0x0840ca74 的 p167 差集 = MISSING operator*(deEv)×4 +
+    // operator++(int)(ppEi)×1，EXTRA operator->(ptEv)×4 + operator++(ppEv)×1
+    // ⇒ 源码须写 `(*it).field` 与后置 `it++`（P167/P28）。
     int emptySlot = 0;
     for (std::vector<Inven_Item>::iterator it = overflow.begin();
-         it != overflow.end(); ++it)
+         it != overflow.end(); it++)
     {
         for (; emptySlot < 0x8d; ++emptySlot)
         {
@@ -994,10 +998,10 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
         }
         Inven_Item& dst = sig->m_invenType3[cur];
         dst.m_field1 = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;
-        dst.m_fieldb = it->m_fieldb;                       // +0x0b movw
-        dst.m_addInfo = it->m_addInfo;                     // +0x02 movl（4B，ORIG）
-        dst.m_addInfo2 = it->m_addInfo2;                   // +0x07 movl
-        dst.m_amp.SetLock(it->m_amp.GetLock());            // +0x11
+        dst.m_fieldb = (*it).m_fieldb;                     // +0x0b movw
+        dst.m_addInfo = (*it).m_addInfo;                   // +0x02 movl（4B，ORIG）
+        dst.m_addInfo2 = (*it).m_addInfo2;                 // +0x07 movl
+        dst.m_amp.SetLock((*it).m_amp.GetLock());          // +0x11
         DB_SwapCreatureItem::makeRequest(dst.m_addInfo2, cur);
     }
     return 1;
@@ -1013,15 +1017,13 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
 int DB_LoadInventory::_getCharacInvenExpand(SIG_LOAD_INVENTORY* sig) const
 {
     static const int handleIdx = 3;
-    char cargoBuf[0x2b82];
-    char jewelBuf[0x120f];
-    char equipBuf[0xa5c];
+    // b28d-214③/N78：同 GetUserInven——ORIG rep stos 内联清零，无 memset call。
+    char cargoBuf[0x2b82] = {0};
+    char jewelBuf[0x120f] = {0};
+    char equipBuf[0xa5c] = {0};
     unsigned int cargoLen = 0x2b82;     // ORIG local_24
     unsigned int jewelLen = 0x120f;     // ORIG local_28
     unsigned int equipLen = 0xa5c;      // ORIG local_2c
-    memset(cargoBuf, 0, sizeof(cargoBuf));
-    memset(jewelBuf, 0, sizeof(jewelBuf));
-    memset(equipBuf, 0, sizeof(equipBuf));
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
@@ -1185,9 +1187,13 @@ unsigned int DB_LoadInventory::GetItemLock(unsigned int characNo,
     static const int handleIdx = 3;
     // ORIG 槽距：buf@-0x414、outLen 紧接其后 -0x48（4.1 声明序连排）；4.4 小变量
     // 另置浅槽 → 用同结构体保证相邻。ok=-0x11（exec/fetch 保存读回位）。
-    struct Local { char buf[0x3cc]; unsigned int outLen; } local;
+    // b28d-78（N78 封顶，语义等价）：ORIG 以 rep stos 0xf3 dword 内联清零（无
+    // memset call），4.4 需「同结构体聚合零初始化」才不 call memset，但计数按
+    // sizeof(Local)/4=0xf4（多清 1 dword=outLen 自身，随后仍被赋值 0x3cc）。
+    // 独立 `char buf[0x3cc]={0}` 可精确 0xf3，但 outLen 落浅槽 -0x18（ORIG -0x48）
+    // 并使 cMyTrace 槽全漂 ⇒ 取结构体形，1 dword 计数差封 N78。
+    struct Local { char buf[0x3cc]; unsigned int outLen; } local = {};
     bool ok;
-    memset(local.buf, 0, 0x3cc);
     local.outLen = 0x3cc;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);

@@ -332,7 +332,10 @@ struct SIG_MILEAGE_STRUCT
 struct SIG_MOUSE_REGISTER
 {
     unsigned int m_accId;              // +0x00 CUser::get_acc_id
-    unsigned int m_pkgType;            // +0x04 包内字节扩展（movzbl 后写 4 字节）
+    // [b28d-47] int（非 unsigned）：_sendResult 第 3 形参为 int（ORIG mangled
+    // `..._sendResultEjiiiP18SIG_MOUSE_REGISTER`）；字段与形参同型 ⇒ 4.4 出 ORIG
+    // 0x08422c45 的单段 `mov 0x4(%eax),%edx`（unsigned 字段反产 eax 中转 2 条）。
+    int m_pkgType;                     // +0x04 包内字节扩展（movzbl 后写 4 字节）
     char m_password1[7];               // +0x08 解密明文密码 1（strncpy 7）
     char m_password2[7];               // +0x0f 解密明文密码 2（strncpy 7）
     char m_pad16[0xd];                 // +0x16..0x22 未建模填充（无读写证据）

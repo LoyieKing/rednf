@@ -1267,7 +1267,7 @@ public:
     ~UserQuest() {}
     CUser* m_user;                    // +0x0000（权威布局见 UserQuest.cpp；缺失曾致
                                       //  其后全域 -4 偏移漂移，m_guildDB 落 +0x8d01c）
-    unsigned char isClearQuest(int questIdx) const;  // b28c C28L9 代落：ORIG @0x086ab920 直返 callee(uchar) 无归一；bool 形反产 cmpl+setne（P73/P9 同型直传）
+    bool isClearQuest(int questIdx) const;  // b28d-Main 终裁(P292)：ORIG 调用点 0x085a8320/0x086785da/0x0866e9a4 等 8+ 处 `call; xor $0x1,%eax; test %al,%al; je` ⇒ bool；整链(CQuestClear::isClearedQuest+STClearedQuest::m_cleared)同改 bool 后体仍直透
     bool IsDoingQuest(int questIdx) const;  // ORIG W 0x086acffe
                                             // _ZNK9UserQuest12IsDoingQuestEi（当前无定义）
     void set_parent(CUser* user);              // ORIG W _ZN10UserQuest10set_parentEP5CUser
