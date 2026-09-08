@@ -103,6 +103,9 @@ int CDeathMatchBattleMgr::getMaxKillCount()
 }
 
 // ==== ORIG 085def60 ====
+// [b28d-27] NEAR N82附：ORIG 0x085def60；多实参 call 首值 callee-saved 寄存器对调
+// （ORIG key→%ebx/idx→%esi，我方相反），语句表达式/具名形实测反劣 ⇒ 封顶。
+// p167 CLEAR（3/3），语义闭合。
 void CDeathMatchBattleMgr::InsertTimerKilledUserForRevive(int roomIdx, int a)
 {
     // ORIG 0x8568d90：key 先物化 %ebx、G_TimerQueue 次之 %esi（P24），无具名槽；
@@ -153,6 +156,8 @@ int CDeathMatchBattleMgr::checkGameOverForSinglePlay(int mode)
 
 // ==== ORIG 085df126 ====
 // SIGFIX b28c-L29：ORIG 串 "bool CDeathMatchBattleMgr::checkGameOverForTeamPlay(...)"。
+// [b28d-27] DIFF N82：ORIG 0x085df126；p167 CLEAR（1/1），残差为帧/槽与块排布，
+// 语义闭合。
 bool CDeathMatchBattleMgr::checkGameOverForTeamPlay(
     CUser** users, int teamCnt, unsigned char* teamWin)
 {
@@ -211,6 +216,8 @@ void CDeathMatchBattleMgr::checkWinnerForSinglePlay(
 }
 
 // ==== ORIG 085df296 ====
+// [b28d-27] DIFF N82/N93：ORIG 0x085df296；p167 CLEAR（4/4），残差为帧/槽与
+// 分支块排布，语义闭合。
 void CDeathMatchBattleMgr::checkWinnerForTeamPlay(
     CUser** users, bool* win, unsigned char* teamWin, PvpUserTable& table)
 {
@@ -270,6 +277,8 @@ void CDeathMatchBattleMgr::checkWinnerForTeamPlay(
 }
 
 // ==== ORIG 085df576（const） ====
+// [b28d-27] DIFF N82/N86：ORIG 0x085df576；p167 CLEAR（10/10），残差为 pair 数组
+// 临时槽与帧分配，语义闭合。
 int CDeathMatchBattleMgr::getRanking(CUser** users, int* out) const
 {
     int count = 0;

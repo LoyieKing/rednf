@@ -123,8 +123,8 @@ CStringMaker::~CStringMaker() {}                      // D1 0x0837f580
 
 void CStringMaker::operator()(int v)                  // 0x08375f6c "%d"
 {
-    char num[0xff];   // ORIG 缓冲 0xff 字节
-    std::memset(num, 0, sizeof(num));
+    // b28d-35：同 clEf——`={0}` 复现 4.1 内联三段清零（P214③/P253）。
+    char num[0xff] = {0};
     sprintf(num, "%d", v);
     if (!m_str.empty())
     {
@@ -135,8 +135,9 @@ void CStringMaker::operator()(int v)                  // 0x08375f6c "%d"
 
 void CStringMaker::operator()(float v)                // 0x08626cd0 "%f"
 {
-    char num[0xff];   // ORIG 缓冲 0xff 字节
-    std::memset(num, 0, sizeof(num));
+    // b28d-35：ORIG 缓冲 0xff 字节为 4.1 内联三段清零（对齐+字+双字 rep stos）；
+    //   `memset` 调用形在 4.4 恒 call。按 P214③/P253 改 `={0}` 复现内联 rep stos。
+    char num[0xff] = {0};
     sprintf(num, "%f", v);
     if (!m_str.empty())
     {
@@ -147,8 +148,8 @@ void CStringMaker::operator()(float v)                // 0x08626cd0 "%f"
 
 void CStringMaker::operator()(SkillUseItem v)         // 0x08626d98 "%d,%d,%d"
 {
-    char num[0xff];   // ORIG 缓冲 0xff 字节
-    std::memset(num, 0, sizeof(num));
+    // b28d-35：同 clEf——`={0}` 复现 4.1 内联三段清零（P214③/P253）。
+    char num[0xff] = {0};
     sprintf(num, "%d,%d,%d", v.m_index, v.m_useLevel[0], v.m_useLevel[1]);
     if (!m_str.empty())
     {
@@ -159,8 +160,8 @@ void CStringMaker::operator()(SkillUseItem v)         // 0x08626d98 "%d,%d,%d"
 
 void CStringMaker::operator()(EquipmentSkillDataUp v) // 0x08626e6e 七个 %d
 {
-    char num[0xff];   // ORIG 缓冲 0xff 字节
-    std::memset(num, 0, sizeof(num));
+    // b28d-35：同 clEf——`={0}` 复现 4.1 内联三段清零（P214③/P253）。
+    char num[0xff] = {0};
     sprintf(num, "%d,%d,%d,%d,%d,%d,%d", v.m_job, v.m_v4, v.m_v8,
             v.m_percent, v.m_v10, v.m_key, v.m_module);
     if (!m_str.empty())
@@ -172,9 +173,16 @@ void CStringMaker::operator()(EquipmentSkillDataUp v) // 0x08626e6e 七个 %d
 
 void CStringMaker::operator()(LevelUpSkill v)         // 0x08626f7a job==0xb→99
 {
-    char num[0xff];   // ORIG 缓冲 0xff 字节
-    std::memset(num, 0, sizeof(num));
-    int job = (v.m_job == 0xb) ? 0x63 : v.m_job;
+    // b28d-35：同 clEf——`={0}` 复现 4.1 内联三段清零（P214③/P253）。
+    char num[0xff] = {0};
+    // b28d-35：ORIG 0x08626f7a 为 then-first if/else（`cmp $0xb; jne <else>;
+    //   movl $0x63,-0xc; jmp` 后 else `mov 0xc(%ebp),%eax; mov %eax,-0xc`）；
+    //   三目形产镜像块序（`je` + 常量块在后）⇒ 改 if/else。
+    int job;
+    if (v.m_job == 0xb)
+        job = 0x63;
+    else
+        job = v.m_job;
     sprintf(num, "%d,%d,%d", job, v.m_field4, v.m_field8);
     if (!m_str.empty())
     {
@@ -185,8 +193,8 @@ void CStringMaker::operator()(LevelUpSkill v)         // 0x08626f7a job==0xb→9
 
 void CStringMaker::operator()(ItemAuraInfo v)         // 0x08627066 "%d,%d,%d,%d"
 {
-    char num[0xff];   // ORIG 缓冲 0xff 字节
-    std::memset(num, 0, sizeof(num));
+    // b28d-35：同 clEf——`={0}` 复现 4.1 内联三段清零（P214③/P253）。
+    char num[0xff] = {0};
     // ORIG 参数栈：v+0 int / (uchar)v+4 / float v+8（vararg 提升 double）/
     // v+c int，fmt "%d,%d,%d,%d"。
     sprintf(num, "%d,%d,%d,%d", v.m_field0, (int)v.m_field4, v.m_float8,
@@ -208,16 +216,20 @@ void CStringMaker::operator()(std::vector<float>& values)  // 0x08627146
     {
         m_str += ";";
     }
+    // b28d-35：ORIG 0x08627146 的 num 缓冲在循环**外**（内联清零位于 m_str
+    //   检查之后、begin() 之前，循环体内仅 sprintf 直接引用 -0x113 槽）⇒
+    //   声明移出循环体（`={0}` 复现 4.1 内联三段清零，P214③/P253）。
+    char num[0xff] = {0};
     for (std::vector<float>::iterator it = values.begin(); it != values.end();
          ++it)
     {
+        // b28d-35：ORIG 循环体语句序 = sprintf → 逗号判断 → += num（0x86271fe
+        //   先 deEv+sprintf，0x8627225 才调 begin 比较）⇒ 保持该序。
+        sprintf(num, "%f", *it);
         if (it != values.begin())
         {
             m_str += ",";   // 元素间 ORIG 逗号 @0x8ce2dec
         }
-    char num[0xff];   // ORIG 缓冲 0xff 字节
-    std::memset(num, 0, sizeof(num));
-        sprintf(num, "%f", *it);
         m_str += num;
     }
 }
@@ -237,6 +249,7 @@ CStringMaker::operator std::string()                  // 0x086272c0
 bool CSyncScript::GetType(std::string name, ENUM_CHARACTERJOB job, int idx,
                           int& out1, int& out2, bool flag)
 {
+    // b28d-35: DIFF→N 封顶（N82 帧/槽 + N89 STL 内联）。ORIG @0x0861cf0a。
     if (name.empty())
     {
         return false;
@@ -400,6 +413,7 @@ void CSyncScript::GetLevelUpSkill(
     STEquipmentScript* script,
     EquipmentParameterInfo::ENUM_SKILL_UP_VECTOR_INDEX vectorIndex)
 {
+    // b28d-35: DIFF→N82（帧/槽 + 下标寻址形状）。ORIG @0x0861d472。
     static std::string level_up_skill;
     level_up_skill.clear();
     // ORIG 0x0861d472：无 vectorIndex 值域检查——直接 m_levelUpSkills[idx] 下标
@@ -470,6 +484,8 @@ const char* CSyncScript::GetUsableCharacter(STStackableScript* script)
 
 bool CSyncScript::LoadItemInfoMasterScript(const char* path)
 {
+    // b28d-35: NEAR→N 封顶（P75/N7 跨版本实参装载序；444/444 助记符全等，
+    //   仅寄存器名/装载时刻差）。ORIG @0x08625064。
     // b26 NEAR 封顶(6.2 三件套):gap 0(444=444)、P167 调用点差集 CLEAR
     // (80=80);槽归一后唯一实质差异 1 行=负例 N18a(4.1 mem→eax→reg 两段
     // 中转,4.4 恒折单段)。其余全帧 N82:ORIG 帧 0x90/不按 lifetime 复用
@@ -565,6 +581,7 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
 
 bool CSyncScript::insert_skill_index(STSkillScript* script, int job)
 {
+    // b28d-35: DIFF→N82/N78（帧/槽 + 内联清零）。ORIG @0x0862262c。
     if (m_field0 != 1)
     {
         return true;
@@ -628,6 +645,8 @@ bool CSyncScript::trancate_skill_info()
 
 bool CSyncScript::insert_skill_info(STSkillScript* script, int job, int type)
 {
+    // b28d-35: DIFF→N82（巨件 1400/1401，§6.2 口径；残余为帧/槽平移 +
+    //   jump-threading 块序）。ORIG @0x08622e08。
     // 【残差封顶·NEAR 级】指令数 ours=1401 vs ORIG=1400 等量，调用序逐段对齐；
     // 残余 = ①浅槽临时区 +0x1c 偏移（cMyTrace/string 物化序，牵动 0xb000 缓冲
     // 基址 -0xa924 vs ORIG -0xa908 全部 29 处——整帧重排风险>收益，Main 批复挂起）
@@ -794,10 +813,10 @@ bool CSyncScript::insert_quest_category(QuestScript* script)
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)2, (ENUM_SERVER_GROUP)0);
-    char name[0x40];
-    memset(name, 0, sizeof(name));
-    char escaped[0x40];
-    memset(escaped, 0, sizeof(escaped));
+    // b28d-35：ORIG 帧 0x24c 且内联 rep stos 计数 0x40 dword = 0x100 字节
+    //   （P116/P253）⇒ 两缓冲各 0x100 字节（原 0x40 使帧仅 0xcc 且 escaped
+    //   在长名时有溢出风险）；`={0}` 复现内联清零（P214③）。
+    char name[0x100] = {0};
     if (!CodePage::script2Database((char*)script->m_name.c_str(), name))
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x6a4, 5)(
@@ -805,10 +824,17 @@ bool CSyncScript::insert_quest_category(QuestScript* script)
             CodePage::database(), script->m_name.c_str(),
             __PRETTY_FUNCTION__, 0x6a4);
     }
+    // b28d-35：ORIG 第二次 rep stos（-0x22c = escaped）位于 script2Database
+    //   之后、escape_string 之前 ⇒ 声明位置后置以复现清零点。
+    char escaped[0x100] = {0};
     db->escape_string(escaped, name);
     db->set_query("inSert into quest_category(quest_idx, quest_name) values(%d, '%s')",
                   script->m_index, escaped);
-    return db->exec(true);
+    // b28d-35：ORIG 尾部为 `call exec; xor $1,%eax; test %al; je; mov $0; jmp;
+    //   mov $1` ⇒ P101 形（`return db->exec(true);` 会被 4.4 折叠掉取反段）。
+    if (!db->exec(true))
+        return false;
+    return true;
 }
 
 bool CSyncScript::truncate_quest_category()
@@ -1092,6 +1118,7 @@ bool CSyncScript::insert_creature_info_to_db(unsigned int id,
                                              const char* param3,
                                              const char* param4)
 {
+    // b28d-35: DIFF→N82（487/489）。ORIG @0x08624414。
     if (m_field0 != 1)
     {
         return true;
@@ -1206,11 +1233,22 @@ bool CSyncScript::insert_one_item_info_master(unsigned char masterNo,
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
     const char* names[2];
+    // b28d-35：ORIG 在 db 取值后先对 names[0]/names[1] 各发一次
+    //   `movl $0x0,-N(%ebp)`（P198① 预清两句式）⇒ 照抄预清。
+    names[0] = 0;
+    names[1] = 0;
     names[0] = toMbcs(name);
     names[1] = toMbcs(explain);
-    char escaped[2][BUFSIZE];
-    memset(escaped, 0, 0x32);  // ORIG：仅清 0x32
-    for (int i = 0; i < 2; ++i)
+    // b28d-35：P253 真 bug 修正——ORIG 0x0864… 的清零为 `mov $0x32,%edx` +
+    //   `rep stos`，0x32 是 **dword 计数**（0x32*4 = 0xc8 = sizeof(escaped)）；
+    //   原 `memset(escaped, 0, 0x32)` 少清 0x96 字节（escaped[1] 前半未清）。
+    //   改 `={0}` 同时复现 4.1 内联 rep stos（P116/P214③/P253）。
+    char escaped[2][BUFSIZE] = {0};
+    // b28d-35：N 封顶（P209 附族，循环尾比较载寄存器不可翻）。ORIG 为
+    //   `addl $1,-0xc; mov -0xc,%eax; cmp $0x1,%eax; setbe %al; test; jne`；
+    //   4.4 对 unsigned 局部恒折 `cmpl $0x1,-0xc; setbe`（内存直比，少 1 条）。
+    //   do-while 形实测：入口 jmp 丢失（+1 差）且比较仍折内存 ⇒ 回 for 形。
+    for (unsigned int i = 0; i < 2u; ++i)
     {
         GetEscapeString(db, names[i], escaped[i]);
     }
@@ -1220,11 +1258,16 @@ bool CSyncScript::insert_one_item_info_master(unsigned char masterNo,
     {
         return false;
     }
-    return db->exec(true);
+    // b28d-35：同 insert_quest_category —— ORIG 尾含 `xor $1,%eax; test;
+    //   je; mov $0; jmp; mov $1`（P101 形）。
+    if (!db->exec(true))
+        return false;
+    return true;
 }
 
 bool CSyncScript::insert_item_info_master_to_db()
 {
+    // b28d-35: DIFF→N82/N78（369/383；帧/槽 + 内联清零）。ORIG @0x0862571a。
     static const int BUFSIZE = 0x64;  // ORIG _ZZN11sync_script11CSyncScript29insert_item_info_master_to_dbEvE7BUFSIZE
     if (m_field0 != 1)
     {
@@ -1326,6 +1369,7 @@ bool CSyncScript::truncate_item_info_master_table()
 
 bool CSyncScript::insert_old_equip_info_to_db()
 {
+    // b28d-35: DIFF→N82（235/234 差 1 条装载序）。ORIG @0x08624d1a。
     if (m_field0 != 1)
     {
         return true;

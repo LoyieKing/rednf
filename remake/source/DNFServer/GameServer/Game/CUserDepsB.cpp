@@ -397,12 +397,11 @@ int CUser::getCurCharacInvenCheckSum() const
 {
     if (getCurCharacR() == 0)                      // W 0x08120432
         return 0;
-    // b28c-lane12 P0 清绑：删 asm("esi")/asm("ebx") 绑定，并按 C28L20A 反例
-    // 一并删 register 关键字（裸 register 非免槽载体，反强制 push ebx/esi +
-    // 帧与 epilogue 破形）；清绑后按 P200/P226 重试自然形，残余记 N。
-    int seed = m_checkSumSeed;                                 // mov 0x796e0(%eax)
-    int winPoint = getPVPResultR()->m_winPoint;                // getPVPResultR +0x58
-    return getCurCharacInvenR()->makeCheckSum(winPoint, seed);   // T 0x0850ae7a
+    // b28d-40: P52/P0 单语句链式实参（两实参升格 %esi/%ebx 跨 receiver 调用保活）。
+    // 残差 N18a：ORIG 0x0864e0e2 `mov 0x796e0(%eax),%eax; mov %eax,%esi` 两段
+    // 中转 vs 4.4 恒折 `mov 0x796e0(%eax),%esi`；字段侧旋钮受 CUser.h 冻结限制。
+    return getCurCharacInvenR()->makeCheckSum(getPVPResultR()->m_winPoint,
+                                              m_checkSumSeed);   // T 0x0850ae7a
 }
 
 // ----------------------------------------------------------------------------
@@ -412,10 +411,11 @@ int CUser::getCurCharacSkillCheckSum() const
 {
     if (getCurCharacR() == 0)
         return 0;
-    // b28c-lane12 P0 清绑（同上：普通局部，无 register/无 asm 绑定）。
-    int seed = m_checkSumSeed;                       // ORIG: seed 跨 call 缓存
+    // b28d-40: P52/P0 单语句链式实参（seed 升格 %ebx 跨 getCurCharacSkillR 保活）。
+    // 残差 N18a：ORIG 0x0864e139 `mov 0x796e0(%eax),%eax; mov %eax,%ebx` 两段
+    // 中转 vs 4.4 恒折单段；字段侧旋钮受 CUser.h 冻结限制。
     return reinterpret_cast<const SkillSlot*>(getCurCharacSkillR())
-        ->makeCheckSum(seed);                      // T 0x086066f2
+        ->makeCheckSum(m_checkSumSeed);            // T 0x086066f2
 }
 
 // ============================================================================

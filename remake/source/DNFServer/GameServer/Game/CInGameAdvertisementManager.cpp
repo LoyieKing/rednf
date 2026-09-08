@@ -79,9 +79,13 @@ CInGameAdvertisementManager::CInGameAdvertisementManager()
     // ORIG 0x080fdd8a：time 结果槽 -0x1c 单槽直绑（lea -0x1c 早于 operator new，
     // %esi 跨调用缓存 &now）。const unsigned long& 形参 → time_t 槽同址绑定。
     // 4.4 对 &now 实参表达式自然产 lea -0x1c 并物化（P0：寄存器仅承载表达式值）。
-    // b28 判词（P75/N18a）：4 探针（现形/具名指针局部/语句表达式/逗号形，
-    // /tmp/bm10/c1probe.cpp）4.4 恒把 lea 放 operator new 之后且用 %edx——
-    // &now 提前 callee-saved 物化是 4.1 调度产物，源形不可翻。残差 4 行。
+    // b28d-36 判词（N 封顶，ORIG 0x080fdd8a）：ORIG 在 `call _Znwj` **之前**发
+    // `lea -0x1c(%ebp),%esi`（&now 提前入 callee-saved），4.4 恒把 lea 放到
+    // operator new 之后且用 %edx。本轮复测 7 形（现形/具名指针局部/裸语句表达式
+    // 三形/带具名变量语句表达式/取址语句表达式，/tmp/d36_probe_c1..c3.cpp）：
+    // 唯一能提前 lea 的是「语句表达式含具名变量」形，但它额外物化 -28/-36 两槽
+    // （+6 条）反劣。⇒ 4.1 的无副作用地址计算提前调度不可复现（P75/N18a 族）。
+    // 残差 4 行（lea 位置+寄存器名）。
     m_rand = new CMTRand(*reinterpret_cast<unsigned long*>(&now));
 }
 
@@ -263,7 +267,12 @@ bool CInGameAdvertisementManager::checkCondition(CUser* user,
     {
         return false;
     }
-    char* ageTbl = reinterpret_cast<char*>(&G_CDataManager()->m_inGameAd);  // +0x4a5c
+    // b28d-36：ORIG 0x080fcd2c 段为 `mov -0xc(%ebp),%edx; movzbl (%edx,%eax,1),%eax`
+    // （基址入 edx、索引留 eax 的 scaled 形）。4.4 对**指针**下标恒折
+    // `add base,%eax; movzbl (%eax)`（探针 /tmp/d36_probe_idx.cpp f1..f8 八形全败）；
+    // 改用**数组引用**（探针 f9/f10）即逐条复现。
+    char (&ageTbl)[1] =
+        *reinterpret_cast<char(*)[1]>(&G_CDataManager()->m_inGameAd);  // +0x4a5c
     if (static_cast<unsigned char>(info->getExposeCondition()->m_pad0[1]) != 0xffu)
     {
         if (static_cast<unsigned char>(info->getExposeCondition()->m_pad0[1]) == 0)

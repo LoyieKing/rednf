@@ -108,6 +108,9 @@ int BattleData::GetTotalKilledMonsterCount() const
     return m_killedMonster0 + m_killedMonster1 + m_killedMonster2;
 }
 
+// b28d-40: 真 bug 已修（比较方向 >=）+ P183 去缓存 + goto fail 共享出口；
+// 残差 = ORIG ebx 缓存 roomIndex + 单累加器 add 链 vs 4.4 lea（N4/P30 封顶）。
+// ORIG 0x085be7aa。
 void BattleData::IncEventDungeonDestoryObjectPoint(
     int param_1, const CMDPacketStruct::_STReqEventDungeonDestoryObject& st)
 {
@@ -115,14 +118,14 @@ void BattleData::IncEventDungeonDestoryObjectPoint(
     {
         return;
     }
-    int idx = param_1 * 3 + st.m_roomIndex;
+    // b28d-40: P183 去 idx 缓存（ORIG 0x085be711/0x085be761 两臂各一次全量重算索引）。
     if (st.m_destroyType == 1)
     {
-        m_eventClear[idx].m_monsterIdx += st.m_point;
+        m_eventClear[param_1 * 3 + st.m_roomIndex].m_monsterIdx += st.m_point;
     }
     else
     {
-        m_eventClear[idx].m_roomIdx += st.m_point;
+        m_eventClear[param_1 * 3 + st.m_roomIndex].m_roomIdx += st.m_point;
     }
 }
 
@@ -131,33 +134,39 @@ void BattleData::ResetEventDungeonClearPoint()
     memset(m_eventClear, 0, sizeof(m_eventClear));
 }
 
+// b28d-40: 真 bug 已修（st.m_monsterIndex >= param_2，原写 <= 反向；ORIG 0x085be82b
+// `cmp 0x10(%ebp),%eax; jl fail`）+ P183 去 idx 缓存 + 共享 fail 出口复现；
+// 残差 = 索引 add-vs-lea + ebx callee-saved（N4/P30 封顶）。ORIG 0x085be7aa。
 int BattleData::ClearEventDungeonRoom(
     int param_1, int param_2, const CMDPacketStruct::_STReqEventDungeonClearRoom& st)
 {
-    if (st.m_roomIndex < 3)
+    // b28d-40: 真语义 bug 修正——ORIG 0x085be82b `cmp 0x10(%ebp),%eax; jl fail`
+    // ⇒ 成功条件是 st.m_monsterIndex >= param_2（原码写成 <= 反向）。
+    // 同时按 P183 去 idx 缓存（ORIG 三次独立全量重算索引）、P133 拆独立守卫。
+    if (st.m_roomIndex <= 2)
     {
-        int idx = param_1 * 3 + st.m_roomIndex;
-        if (m_eventClear[idx].m_monsterIdx == st.m_monsterIndex &&
-            m_eventClear[idx].m_roomIdx == st.m_monsterCount &&
-            st.m_monsterIndex <= param_2)
-        {
-            m_eventClear[idx].m_clearFlag = 1;
-            return 1;
-        }
-        return 0;
+        if (m_eventClear[param_1 * 3 + st.m_roomIndex].m_monsterIdx != st.m_monsterIndex)
+            goto fail;
+        if (m_eventClear[param_1 * 3 + st.m_roomIndex].m_roomIdx != st.m_monsterCount)
+            goto fail;
+        if (st.m_monsterIndex < param_2)
+            goto fail;
+        m_eventClear[param_1 * 3 + st.m_roomIndex].m_clearFlag = 1;
+        return 1;
     }
+    return 0;
+fail:
     return 0;
 }
 
 char BattleData::IsClearEventDungeonRoom(int param_1, unsigned short roomIdx) const
 {
-    // [b28c-35] N：ORIG 0x085be87e 索引链用 %ebx 缓存 roomIdx（触发 push %ebx、槽 -0x8）
-    // 且 `add %ebx,%eax; add $0xc4,%eax` 单累加器；4.4 用 %ecx + `lea (%ecx,%eax,1),%edx`
-    // 两累加器（交换下标序更劣，已实测回退）。add-vs-lea + callee-saved 选择属 N4/P30 族，
-    // 语义全等。
+    // b28d-40: N4/P30 封顶——ORIG 0x085be87e 索引链用 %ebx 缓存 roomIdx（push %ebx、
+    // 槽 -0x8）且单累加器 add；4.4 用 %eax + `lea (%eax,%edx,1),%edx`（下标序交换
+    // 实测无效）。add-vs-lea + callee-saved 选择语义全等。ORIG 0x085be862。
     if (roomIdx >= 3)
     {
         return 0;
     }
-    return m_eventClear[roomIdx + param_1 * 3].m_clearFlag;
+    return m_eventClear[param_1 * 3 + roomIdx].m_clearFlag;
 }

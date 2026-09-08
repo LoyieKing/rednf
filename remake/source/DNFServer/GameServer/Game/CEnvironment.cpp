@@ -186,6 +186,8 @@ bool CEnvironment::parse_se_event_db(char* line, char* value)
     return 1;
 }
 
+// b28d-31: N 封顶（N82 巨件）——ORIG 0x082906be；2232 vs 2228（§6.2 三件套
+// 口径：gap≤4、槽位集对齐，残余帧/槽分配）。
 bool CEnvironment::parse(char* line)
 {
     char* key;

@@ -49,6 +49,8 @@ void PlayInfo::operator+=(const PlayInfo& other)
 
 bool CDungeonNode::InsertDB(const DungeonKey& key)   // SIGFIX: bool（ORIG 串）
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x08485ba4：帧 0x7c vs 0x6c + 具名局部槽号
+    // 整体平移（N82/N93）；调用点差集与 SQL 变参逐条一致，语义等价。
     for (std::map<int, Monster>::iterator it = m_monsterMap.begin(); it != m_monsterMap.end(); ++it)
     {
         Monster& m = it->second;
@@ -89,6 +91,9 @@ bool CDungeonNode::InsertDB(const DungeonKey& key)   // SIGFIX: bool（ORIG 串�
 // ============================================================================
 bool CDungeonNode::InsertMonsterKey(int monsterIndex)
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x084852de：Monster 临时对象/迭代器槽序
+    // （-0x44..-0x14 vs 4.4 -0x34..-0x18）+ `mov $0,%eax` vs `%ebx` 初值；
+    // 语义逐条等价。
     std::map<int, Monster>::iterator e = m_monsterMap.end();
     std::map<int, Monster>::iterator it = m_monsterMap.find(monsterIndex);
     if (it != e)
@@ -105,6 +110,8 @@ bool CDungeonNode::InsertMonsterKey(int monsterIndex)
 // ============================================================================
 bool CDungeonNode::InsertSkillKey(int skillIndex, int job, int type, int flag)
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x08485404：帧 0x80 vs 0x70 + 临时对象槽
+    // 整体平移（N82/N93）；语义逐条等价。
     std::map<int, CDungeonJobNode>::iterator it = m_jobMap.find(job);
     std::map<int, CDungeonJobNode>::iterator e = m_jobMap.end();
     if (it != e)
@@ -164,6 +171,8 @@ bool CDungeonNode::UpdateSkill(SIG_DUNGEON_DATA_STATISTIC* stat)
 // ============================================================================
 bool CDungeonJobNode::InsertSkillKey(int skillIndex)
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x08484a86：Skill 临时对象/迭代器槽序
+    // （-0x40/-0x3c vs -0x28/-0x24 等）；语义逐条等价。
     std::map<int, Skill>::iterator e = m_skillMap.end();
     std::map<int, Skill>::iterator it = m_skillMap.find(skillIndex);
     if (it != e)
@@ -179,12 +188,14 @@ bool CDungeonJobNode::InsertSkillKey(int skillIndex)
 // ============================================================================
 bool CDungeonJobNode::UpdateSkill(SIG_DUNGEON_DATA_STATISTIC* stat)
 {
+    // [b28d-39] ORIG 0x08484bac：find sret -0x14 / end sret -0x10 / s -0xc；
+    // 聚合源地址 `add $0x64,%eax`（单条）⇒ 必须写 &m_charac[0x40]（数组下标折叠），
+    // `m_charac + 0x40` 在 4.4 生 add $0x24 + add $0x40 两条。
     std::map<int, Skill>::iterator it = m_skillMap.find(stat->m_skillKey);
-    std::map<int, Skill>::iterator e = m_skillMap.end();
-    if (it == e)
+    if (it == m_skillMap.end())
         return false;
     Skill& s = it->second;
-    s += *reinterpret_cast<const Skill*>(stat->m_charac + 0x40);
+    s += *reinterpret_cast<const Skill*>(&stat->m_charac[0x40]);
     return true;
 }
 
@@ -194,6 +205,8 @@ bool CDungeonJobNode::UpdateSkill(SIG_DUNGEON_DATA_STATISTIC* stat)
 // ============================================================================
 bool CDungeonJobNode::InsertDB(const DungeonKey& key, int job)   // SIGFIX: bool
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x08485e00：帧 0x7c vs 0x6c + 迭代器槽阶梯
+    // （N86/N93）；语义逐条等价。
     for (std::map<int, Skill>::iterator it = m_skillMap.begin(); it != m_skillMap.end(); ++it)
     {
         Skill& s = it->second;
@@ -227,6 +240,8 @@ bool CDungeonJobNode::InsertDB(const DungeonKey& key, int job)   // SIGFIX: bool
 CDungeonSuccessNode::CDungeonSuccessNode()
     : m_partyMap(), m_jobMap()
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x08484dda：帧 0x230 vs 0x1e0、JobParty/迭代器
+    // 临时对象槽序跨版本相反（N93）+ 预清位置（N88）；逐字段写入集合一致，语义等价。
     for (int job = 2; job <= 4; ++job)
     {
         Party p;
@@ -260,6 +275,8 @@ CDungeonSuccessNode::CDungeonSuccessNode()
 // ============================================================================
 bool CDungeonSuccessNode::InsertDB(const DungeonKey& key, bool flag)   // SIGFIX: bool
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x08485f8a：帧 0xcc vs 0xbc + bool 形参 spill
+    // 槽 -0x5c vs -0x4c + 迭代器槽平移；语义逐条等价。
     for (std::map<JobKey, CSuccessJobNode>::iterator itJob = m_jobMap.begin(); itJob != m_jobMap.end(); ++itJob)
     {
         itJob->second.InsertDB(key, flag, itJob->first);
@@ -300,8 +317,11 @@ bool CDungeonSuccessNode::InsertDB(const DungeonKey& key, bool flag)   // SIGFIX
 // ============================================================================
 int CDungeonSuccessNode::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat)
 {
+    // [b28d-39 判词 · N107] ORIG 0x084851de：成员常量偏移取址 4.4 恒
+    // `add $0x44,%eax; mov %eax,%ecx`，ORIG 为 `lea 0x44(%eax),%ecx`（N107 不可造）；
+    // 其余逐条对齐，语义等价。
     std::map<int, Party>::iterator it =
-        m_partyMap.find(*reinterpret_cast<const int*>(stat->m_charac + 0x20));
+        m_partyMap.find(*reinterpret_cast<const int*>(&stat->m_charac[0x20]));
     std::map<int, Party>::iterator e = m_partyMap.end();
     if (it != e)
     {
@@ -327,6 +347,8 @@ int CDungeonSuccessNode::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat)
 CSuccessJobNode::CSuccessJobNode()
     : m_jobPartyMap(), m_charac()
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x08484c30：帧 0x40 vs 0x30、map 迭代器/临时
+    // 槽阶梯（N86/N93）；预插 job 2..4 的写入集合一致，语义等价。
     for (int job = 2; job <= 4; ++job)
     {
         JobParty p;
@@ -341,6 +363,8 @@ CSuccessJobNode::CSuccessJobNode()
 // ============================================================================
 bool CSuccessJobNode::InsertDB(const DungeonKey& key, bool flag, const JobKey& jobKey)   // SIGFIX: bool
 {
+    // [b28d-39 判词 · N86/N93] ORIG 0x08486234：迭代器具名槽 -0x28 vs -0x24、
+    // map find 临时槽 -0x50 vs -0x38（N86 copy-elision/槽向）；语义逐条等价。
     if (m_charac.m_f3c != 0)
     {
         MySQL* sql = GetMySqLInstance();
@@ -394,8 +418,10 @@ bool CSuccessJobNode::InsertDB(const DungeonKey& key, bool flag, const JobKey& j
 // ============================================================================
 int CSuccessJobNode::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat)
 {
+    // [b28d-39 判词 · N107] ORIG 0x08484d4c：同 CDungeonSuccessNode::UpdateCharacter
+    // 的成员常量偏移 add-vs-lea（N107）；语义逐条等价。
     std::map<int, JobParty>::iterator it =
-        m_jobPartyMap.find(*reinterpret_cast<const int*>(stat->m_charac + 0x20));
+        m_jobPartyMap.find(*reinterpret_cast<const int*>(&stat->m_charac[0x20]));
     std::map<int, JobParty>::iterator e = m_jobPartyMap.end();
     if (it != e)
     {

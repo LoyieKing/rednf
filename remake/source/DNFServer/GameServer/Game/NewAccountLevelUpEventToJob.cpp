@@ -79,6 +79,7 @@ void NewAccountLevelUpEventToJob::sendNewAccountLevelUpToJobData(CUser& /*user*/
 // 上报 → 逐条 create_item + 邮寄（标题 game_server_msg_285，正文
 // snprintf(game_server_msg_286, level)），失败走 logFormat。成功返回 1，
 // 前置失败返回 0。
+// b28d-31: N 封顶（N82/P197）——ORIG 0x081b82a4；351 vs 353（帧/槽）。
 bool NewAccountLevelUpEventToJob::processLevelUpToJob(CUser& user, bool growup)
 {
     // ORIG：全部 getter 在实参位内联求值（P24），不设持久局部 —— key 构造

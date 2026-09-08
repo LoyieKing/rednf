@@ -139,6 +139,7 @@ int EnterPVPRoom(CUser* user, PvP_Room* pvp, ENUM_CMDPACKET cmd, char const* pas
 #include "CPrivateStoreMgr.h"
 #include <cstring>
 
+// [b28d-29] N82：帧 0x7c vs 0x70 + 局部对象槽平移（-0x40 vs -0x34），调用点全等  (ORIG 0x081ed09a insn 409->408)
 // ORIG T 0x081ed09a _Z12EnterPVPRoomP5CUserP8PvP_Room14ENUM_CMDPACKETPKc
 int EnterPVPRoom(CUser* user, PvP_Room* room, ENUM_CMDPACKET cmd,
                  char const* password)
@@ -485,6 +486,7 @@ DisPatcher_Login::DisPatcher_Login() throw() : m_field4(0) {}   // ORIG C1：基
 DisPatcher_Login::~DisPatcher_Login() {}
 // §6.2 巨件核销：P167 168/168 [0缺0多]；gap 986→986/990；残差归因 N82/P112
 // （槽复用策略 + 块排布，diff 形态计数对称无缺类，详见
+// [b28d-29] N82：帧 0x1c0 vs 0x1d0 + 局部对象槽平移（-0xc4 vs -0x90），调用点全等  (ORIG 0x081e8c78 insn 986->990)
 // docs/asm_translation_patterns.md 负例表）。无真修条目。
 int DisPatcher_Login::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -781,6 +783,7 @@ int DisPatcher_SetIP::read(PacketBuf& packet, MSG_BASE& msg)
 }
 int DisPatcher_SetIP::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232fd2 W _ZN16DisPatcher_SetIP7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081f468c)
 
+// [b28d-29] N78/N82：ORIG 4 个 dword 清零 vs 4.4 逐字节 movb 展开 + 帧 0x60 vs 0xa0；语义等价  (ORIG 0x081ed948 insn 316->373)
 DisPatcher_Exit::~DisPatcher_Exit() {}
 int DisPatcher_Exit::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -905,6 +908,7 @@ int DisPatcher_Exit::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_Exit::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232bea W _ZN15DisPatcher_Exit7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081ed948)
 
+// [b28d-29] N82/setcc-fold：帧 0x40 vs 0x60 + 槽平移与 sete 折痕，调用点全等  (ORIG 0x081c686e insn 267->285)
 DisPatcher_SelectCharac::~DisPatcher_SelectCharac() {}
 int DisPatcher_SelectCharac::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -1085,6 +1089,7 @@ int DisPatcher_UseCoin::usedCoinDungeonCheck(CUser* user, CParty* party)
 }
 
 // ORIG 0x081ca63a T _ZN18DisPatcher_UseCoin11Dungeon_check_errorEP5CUserR8MSG_BASER9ParamBase
+// [b28d-29] N82/P183：ORIG 每次重调 GetParty 并落独立槽（不复用），4.4 复用同槽 + 帧 -0x14；语义集合全等  (ORIG 0x081ca63a insn 87->87)
 // （报告 DisPatcher_UseCoin/Dungeon_check_error.md 汇编+C 全文转写，wave2）。
 int DisPatcher_UseCoin::Dungeon_check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -1133,6 +1138,7 @@ int DisPatcher_UseCoin::Dungeon_check_error(CUser* user, MSG_BASE& msg, ParamBas
 
 // ORIG 0x081ca75c T _ZN18DisPatcher_UseCoin11WarRoom_check_errorEP5CUserR8MSG_BASER9ParamBase
 // （报告 DisPatcher_UseCoin/WarRoom_check_error.md 汇编+C 全文转写，wave2）。
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
 int DisPatcher_UseCoin::WarRoom_check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     // ORIG +0x06：msg 先落远槽 -0x14（req 先声明，技21/13），room 后落 -0x10。
@@ -1143,7 +1149,7 @@ int DisPatcher_UseCoin::WarRoom_check_error(CUser* user, MSG_BASE& msg, ParamBas
     {
         return -2;
     }
-    register bool coinOk asm("al");   // ORIG +0x3a `test %al,%al; je`（技22 免 xor 翻转）
+    bool coinOk;   // ORIG +0x3a `test %al,%al; je`（技22 免 xor 翻转）
     coinOk = user->getCurCharacInvenR()->IsCoinUsable();
     if (coinOk)
     {
@@ -1233,6 +1239,7 @@ void DisPatcher_SelectCharac::send(CUser* user, ParamBase& param)
 // param.m_errNo=check_error；>0 返 0；<0 LineFunc(0x1587,pretty,err,acc_id)。
 // resetSaveFlags → 视图状态/上次登录判定 → 综合PvP频道抑制 → exchange 命中计数 →
 // 回填 MSG+0xe/+0x12（_Charac_info.m_field14b8/m_field14b7）→ 九路 DB/ES 请求 →
+// [b28d-29] N82：帧 0x1a0 vs 0x1b4 + 槽平移，调用点全等  (ORIG 0x081c6380 insn 320->323)
 // 清上次登录 → 死塔最佳记录/注册日期 DB 请求 → LimitNpcBuyItemInfoAll 监视包。
 int DisPatcher_SelectCharac::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -1355,6 +1362,7 @@ static const int CREATECHARACTEREQUIP[22] =
 };
 
 // ORIG T 0x081c6ca0（RequestDBCharac.md）：SIG 7 → CACHE_CHARAC；
+// [b28d-29] N93附 + N18a：尾块布局差 + `mov 0xe(%eax),%eax; mov %eax,%edx` 单段直落不可造  (ORIG 0x081c6ca0 insn 160->159)
 // Reset 后填 acc/charac/school/tag 区；双职业热键装载；队列 5(有效上次登录)/2(DB_Q)。
 int DisPatcher_SelectCharac::RequestDBCharac(CUser* user, MSG_CHARAC_SELECT const& msg)
 {
@@ -1409,6 +1417,7 @@ int DisPatcher_SelectCharac::RequestDBCharac(CUser* user, MSG_CHARAC_SELECT cons
 // +0=get_charac_no(msg.m_slot)) → 有效登录 put Q5 否则 Q2。
 // SIG 缓冲首字视图（RequestDB* 系 sig 头写入用；ORIG `mov -0xc(%ebp),%eax;
 // mov %edx,(%eax)` 双钉 store 的同型字段载体，偏移 0 无对齐差）。
+// [b28d-29] N93附/P222：同 RequestDBSkill 尾块布局差（4.4 就地 epilogue vs 4.1 jmp 尾岛）  (ORIG 0x081c727c insn 120->119)
 struct SigWord { unsigned int m_w; };
 int DisPatcher_SelectCharac::RequestDBTicket(CUser* user, MSG_CHARAC_SELECT& msg)
 {
@@ -1428,11 +1437,11 @@ int DisPatcher_SelectCharac::RequestDBTicket(CUser* user, MSG_CHARAC_SELECT& msg
     SIG_LOAD_TICKET* sig = guard->GetInBuffer<SIG_LOAD_TICKET>();
     memset(sig, 0, sizeof(SIG_LOAD_TICKET));
     // ORIG 081c6e5x：同 RequestDBSkill 双钉+ebx 缓存形。
-    register unsigned int vNo asm("edx") = static_cast<unsigned int>(
+    unsigned int vNo = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
-    register SigWord* dst asm("eax") = reinterpret_cast<SigWord*>(sig);
+    SigWord* dst = reinterpret_cast<SigWord*>(sig);
     dst->m_w = vNo;
-    register int res asm("ebx");
+    int res;
     if (user->IsValidLastLoginCharac())
     {
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)5, guard);
@@ -1450,6 +1459,7 @@ L_end:
 
 // ORIG 0x081c7bac T _ZN23DisPatcher_SelectCharac20RegistTimerSchedulesEP5CUser
 // （报告 RegistTimerSchedules.md）：G_TimerQueue()->InsertTimer(OBJ_TYPE_0, uid,
+// [b28d-29] NEAR=N7/N82附：两 callee-saved 角色对调（ORIG getCurCharacNo->%esi / get_unique_id->%edi，4.4.7 恒反向）；源码已为内联实参形，P248 三档试尽不翻（4.4.6 后端可翻但本波禁改路由）  (ORIG 0x081c7bac insn 34->35)
 // TIMER_MESSAGE_0x51, 0, unique_id, characNo) 后恒返 1。
 int DisPatcher_SelectCharac::RegistTimerSchedules(CUser* user)
 {
@@ -1505,6 +1515,7 @@ void DisPatcher_SelectCharac::RequestDBInventory(CUser* user, MSG_CHARAC_SELECT&
 
 // ORIG T 0x081c7c1c（RequestDBInventory_forchina.md）：SIG 8 → CACHE_INVENTORY；
 // BigStreamPool；memset 0x1544c 后 acc/charac/tagInven 清理/+0x8←MSG.m_0e。
+// [b28d-29] setcc-fold：ORIG 尾 bool 物化岛（mov $1,%esi/mov $0,%ebx + test），4.4 恒折单条 mov/直分支  (ORIG 0x081c7c1c insn 137->134)
 // 尾部两分支均返回 1（ORIG esi 未初始化路径经 test ebx 归一为恒真）。
 int DisPatcher_SelectCharac::RequestDBInventory_forchina(CUser* user,
                                                           MSG_CHARAC_SELECT& msg)
@@ -1636,6 +1647,7 @@ int DisPatcher_SelectCharac::RequestDBKillMonsterInfo(CUser* user,
 
 // ORIG T 0x081c7602（RequestDBETC.md）：SIG 0x20 → CACHE_ETC；BigStreamPool；
 // memset 0x14b60；serverGroup/channelNo ← CEnvironment；tagEtc 清理；
+// [b28d-29] P254/N18a：字段->实参两段中转（ORIG mov mem,%eax; mov %eax,%edx）与块序差；语义集合全等  (ORIG 0x081c7602 insn 152->154)
 // job 预写 combo 视图 m_job（SIG 内绝对偏移 +0x14ab0）。
 int DisPatcher_SelectCharac::RequestDBETC(CUser* user, MSG_CHARAC_SELECT& msg)
 {
@@ -1674,6 +1686,7 @@ int DisPatcher_SelectCharac::RequestDBETC(CUser* user, MSG_CHARAC_SELECT& msg)
 
 
 // ORIG T 0x081c6f08（RequestDBSkill.md）：SIG 9 → CACHE_SKILL；StreamPool；
+// [b28d-29] N93附/P222：尾块布局（ORIG 先 jmp 尾岛再统一 epilogue，4.4 就地内联 epilogue），槽集合与调用点全等  (ORIG 0x081c6f08 insn 120->119)
 // memset 0x414 后仅写 characNo@0；队列 5(有效上次登录)/2(DB_Q)。
 int DisPatcher_SelectCharac::RequestDBSkill(CUser* user, MSG_CHARAC_SELECT& msg)
 {
@@ -1692,11 +1705,11 @@ int DisPatcher_SelectCharac::RequestDBSkill(CUser* user, MSG_CHARAC_SELECT& msg)
     SIG_LOAD_SKILL* sig = guard->GetInBuffer<SIG_LOAD_SKILL>();
     memset(sig, 0, sizeof(SIG_LOAD_SKILL));
     // ORIG 081c7037 +0x12f：store 双钉（value→%edx、sig 槽 reload→%eax，技45）。
-    register unsigned int vNo asm("edx") = static_cast<unsigned int>(
+    unsigned int vNo = static_cast<unsigned int>(
         user->get_charac_no(static_cast<int>(static_cast<signed char>(msg.m_slot))));
-    register SigWord* dst asm("eax") = reinterpret_cast<SigWord*>(sig);
+    SigWord* dst = reinterpret_cast<SigWord*>(sig);
     dst->m_w = vNo;                                    // ORIG `mov %edx,(%eax)`
-    register int res asm("ebx");                      // ORIG +0x161 `mov $0x1,%ebx`
+    int res;                      // ORIG +0x161 `mov $0x1,%ebx`
     if (user->IsValidLastLoginCharac())
     {
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)5, guard);
@@ -1717,6 +1730,7 @@ L_end2:
 // GM 透传 setCharacNameFilterPass → BigStreamPool 取流构造 SIG_CREATE_CHARAC
 // （memset 0x5354）→ 填 accid/slot/name/+0x23 → 活动角色占用则 m_errNo=0x14 →
 // 角色创建表（CDataManager::m_characList + job*0x7dc）回填 → 双技能树初始技能 →
+// [b28d-29] N82/P211：帧 0x3c vs 0x30 + 参数副本槽 + store 装载序，调用点全等  (ORIG 0x081c041e insn 267->258)
 // SP/makeGift/SSN 检查 → 战士(slot9) 连技 → lockCreateCharac 成功投递 DB_Q。
 int DisPatcher_CreateCharac::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -1792,6 +1806,7 @@ int DisPatcher_CreateCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     return 0;
 }
 
+// [b28d-29] setcc-fold + N82：ORIG 0x081c08cf 短路 bool 物化岛（mov $1/$0 + 二次 test）4.4 恒折 setne；cMyTrace 槽 -0x34 vs -0x24（4.4 复用，帧 0x44 vs 0x34）  (ORIG 0x081c0830 insn 140->136)
 DisPatcher_CreateCharac::~DisPatcher_CreateCharac() {}
 int DisPatcher_CreateCharac::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -1821,9 +1836,11 @@ int DisPatcher_CreateCharac::check_error(CUser* user, MSG_BASE& msg)
     // 常量岛 = `!= 0` 结果二次 test；4.1 形。残 call *%edx↔call *%eax = N7。
     if (restrictEvt != 0)
     {
-        // ORIG vtable+0x34 槽直调（Ghidra C 原样；事件域虚表槽位归属见 FixEventVtable 批）
-        if ((*(int (**)(void*, int))(*(char**)restrictEvt + 0x34))(
-                (void*)restrictEvt, 0) != 0)
+        // [b28d-29] P226 语句表达式实测劣化（136→141），已回退。
+        // ORIG 0x081c08cf 段为 4.1 短路 bool 物化岛（mov $1/$0 + 二次 test）；
+        // 4.4 恒折 setne 直分支（setcc-fold 负例）⇒ N 封顶。call *%edx↔*%eax = N7。
+        if ((*(bool (**)(void*, int))(*(char**)restrictEvt + 0x34))(
+                (void*)restrictEvt, 0))
         {
             int limit = restrictEvt->getLimitCreateCharacter(user->get_charac_count());
             if (limit != 0)
@@ -1950,6 +1967,7 @@ void DisPatcher_CreateCharac::send(CUser* user, ParamBase& param)
 
 // ORIG T 0x081c0a1a（makeGift.md）：按创建槽位（=职业索引）发放初始武器/衣服与
 // 职业赠礼道具。find_item 失败时仅置标志 0；命中则 Inven_Item 预填 +0x02 索引后
+// [b28d-29] P205/P30：ORIG 单条 scaled `mov <A>(,%eax,8)`，4.4 拆 add+scaled；字段直读 vs 缓存差，语义集合全等  (ORIG 0x081c0a1a insn 227->223)
 // 经 CItem::make_item（vtable+0x08）填充并整体拷贝入 SIG 槽位。
 void DisPatcher_CreateCharac::makeGift(CUser* /*user*/, SIG_CREATE_CHARAC* sig)
 {
@@ -2009,6 +2027,7 @@ void DisPatcher_CreateCharac::makeGift(CUser* /*user*/, SIG_CREATE_CHARAC* sig)
 
 DisPatcher_DeleteCharac::~DisPatcher_DeleteCharac() {}
 // ORIG 0x081c14f0 T _ZN23DisPatcher_DeleteCharac11check_errorEP5CUserR8MSG_BASE
+// [b28d-29] N82/P0：msg 形参副本落 -0x18（ORIG -0x14 直读形），帧 0x44 vs 0x40，调用点全等  (ORIG 0x081c14f0 insn 199->198)
 // 报告：docs/class_func_reports/DisPatcher_DeleteCharac/check_error.md（汇编+反编译 C 全读）
 int DisPatcher_DeleteCharac::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -2139,6 +2158,7 @@ void DisPatcher_DeleteCharac::send(CUser* user, ParamBase& param)
 // param.m_errNo=check_error；>0 返 0；<0 LineFunc(0xa41,pretty,err,acc_id)。
 // RemoveCharacMercenaryInfo → StreamPool 取流构造 SIG_DELETE_CHARAC（memset 0x14）→
 // characNo==0 则 m_errNo=0x15 并 Free 回流 → 填公会 id → lockDeleteCharac 成功投递
+// [b28d-29] N82/P211：帧 0x5c vs 0x50 + 参数副本槽 + store 装载序，调用点全等  (ORIG 0x081c1182 insn 216->210)
 // DB_Q 并打 cMyTrace（accid 十进制串 / m_characNo / m_name），失败 Free + LineFunc(0xa68)。
 int DisPatcher_DeleteCharac::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -2203,6 +2223,7 @@ int DisPatcher_DeleteCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
 }
 
 DisPatcher_ReturnToSelectCharacter::~DisPatcher_ReturnToSelectCharacter() {}
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
 int DisPatcher_ReturnToSelectCharacter::dispatch_sig(CUser* user, PacketBuf& /*packet*/)
 {
     unsigned char flag = 1;                     // ORIG -0x9(%ebp)
@@ -2224,7 +2245,7 @@ int DisPatcher_ReturnToSelectCharacter::dispatch_sig(CUser* user, PacketBuf& /*p
         guard.put_byte(flag);
         // P168a X2 精确形（ORIG +0x8d `movzbl -0x9,%eax; xor $0x1,%eax; test %al,%al;
         // je`：test 有 je 消费者过③闸；栈槽 byte 读→X2 寄存器中转）。
-        register unsigned char chk asm("eax") = flag;
+        unsigned char chk = flag;
         chk ^= 1;
         if (chk)
         {
@@ -2403,6 +2424,7 @@ DisPatcher_ReqPeer::~DisPatcher_ReqPeer() {}
 // §6.2 巨件核销：P167 194/194 [0缺0多]；gap 1379→1379/1387；残差归因 N82/P112
 // （4.1 不复用槽 vs 4.4 复用 + 块排布，diff 形态计数对称无缺类，详见
 // docs/asm_translation_patterns.md 负例表）。无真修条目。
+// [b28d-29] P30/N4 + N82：ORIG 结构体基址 lea -0x50 + add $0xd/0xf/0x10 两步，4.4 折独立 lea；语义集合全等  (ORIG 0x081eed08 insn 1379->1387)
 // ============================================================================
 int DisPatcher_ReqPeer::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -2764,6 +2786,7 @@ DisPatcher_ResPeer::~DisPatcher_ResPeer() {}
 //   put_header(1,0xb)/put_byte(0)/put_byte(code)/put_byte(tail)/finalize(true)。
 // 汇编中 GetAssaultPrevent 以两参栈式调用（this 经 ecx），沿用
 // W6_AssaultMgrDeps.cpp 同款成员函数指针 ABI 转接。
+// [b28d-29] P30/N4 + N82：帧 0xec vs 0xf0 + ORIG 两步 add 寻址 vs 4.4 独立局部槽；语义集合全等  (ORIG 0x081f088e insn 2061->2029)
 // ============================================================================
 int DisPatcher_ResPeer::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -3513,12 +3536,13 @@ void DisPatcher_SetPartyInfo::send(CUser* user, ParamBase& param)
 // 无队：G_CGameManager()->GetParty() 空则 param=4 返回 0，否则 create_party +
 // SetPartyInfoUI + send_party_info_to_all(party,0)；有队：非队长 param=8，
 // 队长 SetPartyInfoUI + send_party_info_to_all(party,1)；均返回 0。
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
 int DisPatcher_SetPartyInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stSetPartyInfo& out = static_cast<stSetPartyInfo&>(param);
     // ORIG value→%edx 先、槽地址→%eax 后（register asm 双钉，技45 同 SetArea 形）。
-    register int ec asm("edx") = check_error(user, msg);
-    register stSetPartyInfo* dst asm("eax") = &out;
+    int ec = check_error(user, msg);
+    stSetPartyInfo* dst = &out;
     dst->m_errNo = ec;
     if (out.m_errNo > 0)
     {
@@ -3603,11 +3627,12 @@ void DisPatcher_LeaveParty::send(CUser* user, ParamBase& param)
 //   - _ZN11pvp_assault13CAssaultPlace25ForcedMoveAtPowerWarPlaceEP5CUser @0x082ed6a6
 //     （依赖未建模类 CForcedMoveCharacter）
 //   - _ZN11pvp_assault20CForcedMoveCharacter10ForcedMoveEv @0x082e567c
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
 int DisPatcher_LeaveParty::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stLeavePartyParam& out = static_cast<stLeavePartyParam&>(param);
-    register int ec asm("edx") = check_error(user, msg);   // ORIG mov %eax,%edx
-    register stLeavePartyParam* dst asm("eax") = &out;     // ORIG mov -0x14,%eax
+    int ec = check_error(user, msg);   // ORIG mov %eax,%edx
+    stLeavePartyParam* dst = &out;     // ORIG mov -0x14,%eax
     dst->m_errNo = ec;
     if (out.m_errNo > 0)
     {
@@ -3716,6 +3741,7 @@ int DisPatcher_WalkoutParty::process(CUser* user, MSG_BASE& msg, ParamBase& para
     return 0;
 }
 
+// [b28d-29] N82：帧 0x34 vs 0x58 + 条件极性折痕（je/jne），槽集合与调用点全等  (ORIG 0x081c9f6c insn 228->246)
 DisPatcher_StartGame::~DisPatcher_StartGame() {}
 int DisPatcher_StartGame::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -3878,6 +3904,7 @@ int DisPatcher_StartGame::excludeAddHackCount(CUser* user)
 // ORIG 0x081ca2fe T process（process.md 全文转写）。
 // err>0 返 0；err<0 LineFunc(0x1e5b)；err==0：世界图 hasDeathTower 死调用后，
 // 未组队走 GameManager 单人 party（hack 记账 0x1f6 + set_single_play + game_start）；
+// [b28d-29] N82：全帧槽号平移 4（ORIG 帧更浅），助记符序列与调用点全等  (ORIG 0x081ca2fe insn 129->133)
 // 已组队且 state==3 时对所在 party game_start；均返回 0。
 int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -3885,8 +3912,8 @@ int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         "virtual int DisPatcher_StartGame::process(CUser*, MSG_BASE&, ParamBase&)";
     stStartGameParam& out = static_cast<stStartGameParam&>(param);
     // ORIG +0x20：errNo store 双钉（技45）。
-    register int ec asm("edx") = check_error(user, msg, param);
-    register stStartGameParam* dst asm("eax") = &out;
+    int ec = check_error(user, msg, param);
+    stStartGameParam* dst = &out;
     dst->m_errNo = ec;
     if (out.m_errNo > 0)
     {
@@ -4052,6 +4079,7 @@ int DisPatcher_SelectDungeon::read(PacketBuf& packet, MSG_BASE& msg)
                         0, 0);
     }
     return 0;
+// [b28d-29] N82/N93：槽号平移与块序（ORIG 无 -0x10 副本，4.4 多 mov 0xc(%eax) 重读），语义集合全等  (ORIG 0x081c8e9c insn 204->199)
 }
 void DisPatcher_SelectDungeon::send(CUser* user, ParamBase& param)
 {
@@ -4112,6 +4140,7 @@ void DisPatcher_SelectDungeon::send(CUser* user, ParamBase& param)
 }
 
 // ORIG T 0x081c9172 _ZN24DisPatcher_SelectDungeon15checkBlueMarbleEP6CParty
+// [b28d-29] AE：38=38 全等（同上重定位归一）  (ORIG 0x081c9172 insn 38->39)
 // （checkBlueMarble.md 全文转写）。
 int DisPatcher_SelectDungeon::checkBlueMarble(CParty* party)
 {
@@ -4139,6 +4168,7 @@ int DisPatcher_SelectDungeon::checkBlueMarble(CParty* party)
 // ORIG 0x081c8102 T process（process.md 全文转写，含汇编分支次序）。
 // §6.2 巨件核销：P167 95/95 [0缺0多]；gap 810→810/830；残差归因 N82/P112。
 // 真修 1 条：死块 [HackUser] logFormat(0x198a) 误传 member 指针 → 按 ORIG
+// [b28d-29] N82/P211：帧与参数副本槽（-0x90 vs -0x98）+ store 装载序，调用点全等  (ORIG 0x081c8102 insn 810->831)
 // +0x13e 改 member->get_acc_id()（补齐缺失的 _ZNK5CUser10get_acc_idEv 调用点）。
 int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -4571,6 +4601,7 @@ int DisPatcher_DeleteItem::read(PacketBuf& packet, MSG_BASE& msg)
                         0, 0);
     }
     return 0;
+// [b28d-29] setcc-fold + N18a：bool 物化（xor $1 vs cmpb/setne）与单段直落 callee-saved 不可造；语义集合全等  (ORIG 0x081c1ad6 insn 154->160)
 }
 bool DisPatcher_DeleteItem::exercise_mode(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -4709,6 +4740,7 @@ void DisPatcher_DeleteItem::send(CUser* user, ParamBase& param)
 // ORIG 0x081c1dda T process（process.md 全文转写）。
 // §6.2 巨件核销：P167 61/61 [0缺0多]；gap 31→1；残差归因 N82/P112。
 // 真修 1 条：GetInvenSlot 返回 4.4 直构缺 ORIG +0x25e~+0x327 的 17 条逐字段
+// [b28d-29] N82/P211：帧 0x100 vs 0x110 + 参数副本槽 + store 装载序；bool 条件 4.4 test 直判 vs 4.1 cmpb，语义集合全等  (ORIG 0x081c1dda insn 651->653)
 // 拷贝（sret 匿名槽→具名局部）→ 改两段式（slotItem 收 sret + 拷贝入 item）。
 int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -4917,6 +4949,7 @@ DisPatcher_MoveItem::~DisPatcher_MoveItem() {}
 // m_field14<0 → -1。toSpace(space)>5 时仅 ==0xe、<=5 时 ==4/5 或 ==3 走限制/锁定检查；
 // ==4/5 或 0xe：CheckItemTradeLimitCountToMoveByUser 假 → 0x72；==3 且 fromSpace==7：
 // GetInvenSlot(3,fromPos) 非空且 fromPos>0x8b → 需锁定检查；需检查者 CheckItemLock
+// [b28d-29] P251：ORIG 0x5/0xe/0x3 值域为稀疏 switch 决策树，源码为 if 链；槽往返随 P0 属 N82 族  (ORIG 0x081c57a0 insn 108->103)
 // 命中 → 0xd5；否则 0。
 int DisPatcher_MoveItem::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -5079,6 +5112,7 @@ void DisPatcher_MoveItem::send(CUser* user, ParamBase& param)
 
 
 // ORIG 0x081c5904 T process（process.md 全文转写）。
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
 int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     static const char* const kPretty =
@@ -5104,8 +5138,8 @@ int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     const MoveItemSpaceView* req = reinterpret_cast<const MoveItemSpaceView*>(&msg);
     stMoveItemParam& out = static_cast<stMoveItemParam&>(param);
     // ORIG value→%edx 先、槽地址→%eax 后（双钉）。
-    register int ec asm("edx") = check_error(user, msg);
-    register stMoveItemParam* dst asm("eax") = &out;
+    int ec = check_error(user, msg);
+    stMoveItemParam* dst = &out;
     dst->m_4 = ec;
     if (out.m_4 > 0)
     {
@@ -5161,8 +5195,8 @@ int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     {
         // ORIG +0x242：value 从槽先载 %edx、地址槽后载 %eax（双钉 reload 形，
         // 同 DisPatcherCore:16647 RepairDisjoint 先例）。
-        register int rv asm("edx") = ret;
-        register stMoveItemParam* dst2 asm("eax") = &out;
+        int rv = ret;
+        stMoveItemParam* dst2 = &out;
         dst2->m_4 = rv;
         out.m_8 = req->m_fromSpace;
         out.m_10 = req->m_toSpace;
@@ -5205,6 +5239,7 @@ int DisPatcher_SortItem::read(PacketBuf& packet, MSG_BASE& msg)
 // （docs/class_func_reports/DisPatcher_SortItem/send.md 汇编+反编译 C 全文转写）：
 // put_header(1,0x14)；result==0 → put_byte(1)/(char)invenType，否则 0/(char)result/
 // (char)invenType；finalize+Send。result==0 时 send_itemspace((char)invenType)；
+// [b28d-29] 已修 DIFF->AE：if-else 决策链改 switch（P17/P251/P261，ORIG 0x081c9ec6 稀疏 switch 树）  (ORIG 0x081c9dba insn 128->129)
 // result==0 且 invenType 1/0/2/7 分别 SendItemLockListAvatar/Inven/Cargo/Creature。
 void DisPatcher_SortItem::send(CUser* user, ParamBase& param)
 {
@@ -5230,24 +5265,25 @@ void DisPatcher_SortItem::send(CUser* user, ParamBase& param)
     }
     if (p.m_result == 0)
     {
-        if ((int)(char)p.m_invenType == 1)
+        // [b28d-29] ORIG 0x081c9ec6 段为稀疏 switch 决策树（cmp$1/je case1 →
+        // cmp$1/jg L2 → test/je case0 → jmp default；L2: cmp$2/je → cmp$7/je），
+        // 非 if-else 链（P17/P251/P261：无状态槽 cmp 链 ⇒ 源形是 switch）。
+        switch ((int)(char)p.m_invenType)
         {
-            user->getCurCharacInvenR()->SendItemLockListAvatar();
-        }
-        else if ((int)(char)p.m_invenType > 1)
-        {
-            if ((int)(char)p.m_invenType == 2)
-            {
-                user->getCurCharacCargoR()->SendItemLockList();
-            }
-            else if ((int)(char)p.m_invenType == 7)
-            {
-                user->getCurCharacInvenR()->SendItemLockListCreature();
-            }
-        }
-        else if ((int)(char)p.m_invenType == 0)
-        {
+        case 0:
             user->getCurCharacInvenR()->SendItemLockListInven();
+            break;
+        case 1:
+            user->getCurCharacInvenR()->SendItemLockListAvatar();
+            break;
+        case 2:
+            user->getCurCharacCargoR()->SendItemLockList();
+            break;
+        case 7:
+            user->getCurCharacInvenR()->SendItemLockListCreature();
+            break;
+        default:
+            break;
         }
     }
 }
@@ -5297,6 +5333,7 @@ DisPatcher_BuyItem::~DisPatcher_BuyItem() {}
 // checkValidShopItem(0x15,(ulong)0x0d) 失败 → OneADayShop 判定（是→0x11，否→
 // addServerHackCnt 0x3c9+(-1)）；随后 CheckInTrade/getCurCharacR/isHackUser → 0x13、
 // isRestricted(1,3) → 0xd1、state!=8 时 secu 0x22 非0返码、IsBusyPrivateStore → 0x3c、
+// [b28d-29] setcc-fold + N82：ORIG 直分支常量岛（mov $0x11; jmp），4.4 折 sete/setne；槽号平移，语义集合全等  (ORIG 0x081be46a insn 136->149)
 // OneADayShop 时 GetRepeatEvent(0x6d)->IsEventing(0) 为假 → 0x11；否则 0。
 int DisPatcher_BuyItem::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -5377,6 +5414,7 @@ int DisPatcher_BuyItem::read(PacketBuf& packet, MSG_BASE& msg)
 // ORIG 0x081be20a T _ZN18DisPatcher_BuyItem4sendEP5CUserR9ParamBase
 // 报告：docs/class_func_reports/DisPatcher_BuyItem/send.md（汇编+反编译 C 全读）
 // [b28c-L19 N18a] 唯一正文差（165/164）：`UseFinishPoint(out.m_8c)` 处 ORIG
+// [b28d-29] N18a/P254：ORIG `mov 0x8c(%eax),%eax; mov %eax,%edx` 冗余 regmove（int 字段->int 形参），4.4 单段直载 edx 不可反向造  (ORIG 0x081be20a insn 165->165)
 // `mov 0x8c(%eax),%eax; mov %eax,%edx` 冗余 regmove vs 4.4 单步直载 edx（反向不可造）。
 void DisPatcher_BuyItem::send(CUser* user, ParamBase& param)
 {
@@ -5419,6 +5457,7 @@ void DisPatcher_BuyItem::_onBuyItemEvent(const BuyItemParam& /*param*/, CUser* /
 
 // ORIG 0x081beab0 T get_nMaxBuyableCount（报告 get_nMaxBuyableCount.md 全文映射）：
 // 对六种货币价格（money/cera/winpoint/finishpoint/guildPowerWarPoint/userPowerWarPoint）
+// [b28d-29] N18b/P197③：ORIG 三目 min 形（cmp mem,%eax + jge 双出口）+ 两 dead 局部预清；4.4 折 reg-reg cmp 且丢预清  (ORIG 0x081beab0 insn 130->123)
 // 逐项取「持有量 / 单价」与 0x7fffffff 取小，返回可购上限。
 unsigned int DisPatcher_BuyItem::get_nMaxBuyableCount(CUser* user, BuyItemParam& param)
 {
@@ -5481,6 +5520,7 @@ unsigned int DisPatcher_BuyItem::get_nMaxBuyableCount(CUser* user, BuyItemParam&
 
 // ORIG 0x081be658 T get_data（报告 get_data.md ## 反编译 C 全文映射）：
 // 解析商城物品 → 材料槽 → 六种单价（>1 件时乘数量并校验上限）→ 持有量校验。
+// [b28d-29] N82/N18a：帧 0x20 vs 0x34 + 返回指针缓存槽（-0x1c）与两段中转差；语义集合全等  (ORIG 0x081be658 insn 310->328)
 // 返回 0=成功；0x11=物品不存在；1=参数非法；10=余额不足；0x24=公会会长限制。
 int DisPatcher_BuyItem::get_data(CUser* user, MSG_BUY_ITEM& msg, BuyItemParam& param)
 {
@@ -5588,6 +5628,7 @@ void DisPatcher_BuyItem::statistic_process(CUser* user, BuyItemParam& param)
 // （IsCreatureItem && GetItemType()==0x16 → InsertCreatureItem）→ 公会 OnBuyItem →
 // use_money(m_80, reason 0, log) → 有材料则 delete_item(1, m_a4, m_9c, 0x1a, 1) →
 // _onBuyItemEvent/statistic_process → WriteBuyItem/SendAradEventItemLog/
+// [b28d-29] N82/P211：帧 0x8c vs 0x98 + 参数副本槽 + store 装载序，调用点全等  (ORIG 0x081bdc7e insn 373->376)
 // eventDeliveryBuyItem(msg+0x15)。失败路径 SendCmdErrorPacket(0x15, 码) 返 -1。
 int DisPatcher_BuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -5678,6 +5719,7 @@ int DisPatcher_BuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     return 0;
 }
 
+// [b28d-29] N78/N82：ORIG rep stos 结构体清零 vs 4.4 call memset（0x28 字节）+ 帧 0x19c vs 0x190；语义等价  (ORIG 0x081ee59c insn 480->487)
 DisPatcher_RentAvatar::~DisPatcher_RentAvatar() {}
 int DisPatcher_RentAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -5824,6 +5866,7 @@ int DisPatcher_ExtendAvatar::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBa
 DisPatcher_SellItem::~DisPatcher_SellItem() {}
 // §6.2 巨件核销：P167 77/77 [0缺0多]；gap 515→515/522；残差归因 N82/P112
 // （diff 形态计数对称无缺类，详见 docs/asm_translation_patterns.md 负例表）。
+// [b28d-29] P30/N4：ORIG 结构体基址 lea -0x52 + add $0xd/0xe/0x10 两步，4.4 折单 lea；语义集合全等  (ORIG 0x081f2d0c insn 515->522)
 // 无真修条目。
 int DisPatcher_SellItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -5998,6 +6041,7 @@ int DisPatcher_SellItem::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_SellItem::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232f0e W _ZN19DisPatcher_SellItem7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081f2d0c)（状态检查/Secu 保护/Store::user_sell_item）
 
+// [b28d-29] N6/N22：ORIG 29 条为 (1<<state)&0x15e8 无槽寄存器形；4.4 折叠成 (mask>>state)&1（N6）或槽化（P0），三形实测 33/34 均不达 29  (ORIG 0x081c619c insn 29->34)
 DisPatcher_RepairEquip::~DisPatcher_RepairEquip() {}
 int DisPatcher_RepairEquip::check_error(CUser* user, MSG_BASE& /*msg*/)
 {
@@ -6016,18 +6060,17 @@ int DisPatcher_RepairEquip::check_error(CUser* user, MSG_BASE& /*msg*/)
     // ORIG 081c61bb `cmp $0xc,%eax; ja`→共享 0x13 块、+0xd4 `test; jne`→ret0 块。
     // 4.4 需 goto 形才能把「mov $0x13; jmp」排在 jne 之后（直落共享块），
     // OK 岛由 ja 落点承接（技23/17）。残留 mov %eax,%edx = N22 变体天花板。
-    // [b28c-30] P0 清绑：原 asm("eax") 已删，保留纯 register（P231 合法存储建议）。
+    // [b28d-29] P0 清绑 + P231 纯 register（无 asm 绑定，合规）：ORIG 该值无槽
+    // （`cmp $0xc,%eax` 直判后 `mov %eax,%ecx` 复用），字面量 1 无具名局部
+    // （`mov $0x1,%edx` 直出）。
     unsigned int state = (unsigned int)user->get_state();
     if (state > 0xc)
     {
         goto L_bad;                   // ORIG ja → +0x3a 共享 0x13 块
     }
+    if ((1 << (int)state & 0x15e8) != 0)
     {
-        int one = 1;   // ORIG `mov $0x1,%edx; mov %edx,%ebx`（P0 清绑）
-        if ((one << (int)state & 0x15e8) != 0)
-        {
-            goto L_ok;                     // ORIG `test; jne +0x41`
-        }
+        goto L_ok;                     // ORIG `test; jne +0x41`
     }
 L_bad:
     return 0x13;                      // ORIG +0x3a 共享块（jne fall-through）
@@ -6086,6 +6129,7 @@ void DisPatcher_RepairEquip::send(CUser* user, ParamBase& param)
 // ORIG 0x081c6082 T _ZN22DisPatcher_RepairEquip7processEP5CUserR8MSG_BASER9ParamBase
 // err>0：SendCmdErrorPacket(cmd=0x19, err&0xff) 返回 -1；err<0：LineFunc(0x1500,pretty,0,acc_id)
 // 并返回其值；err==0：G_Store()->repair_equip(user, msg[0xd], (s16)msg+0xe, (u16)msg+0x10,
+// [b28d-29] N82：帧差（ORIG sub $0x4c+push edi/esi，4.4 sub $0x34）+ 槽号平移，调用点全等  (ORIG 0x081c6082 insn 83->80)
 // 出参 param+0xc) 写 param.m_errNo，成功(==0)时回显 m_8=msg[0xd]、m_a=(u16)msg+0xe；返回 0。
 int DisPatcher_RepairEquip::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -6334,6 +6378,7 @@ void _check_disjoint_need_slot(CUser* user, CItem* item, Inven_Item& invenItem,
 
 // §6.2 巨件核销：P167 98/98 [0缺0多]；gap 811→811/818；残差归因 N82/P112
 // （diff 形态计数对称无缺类，详见 docs/asm_translation_patterns.md 负例表）。
+// [b28d-29] N82：帧 0x2bc vs 0x2dc + 槽平移（-0x26c vs -0x28c），调用点全等  (ORIG 0x081f92ca insn 811->818)
 // 无真修条目。
 int DisPatcher_DisJointItem::_disjoint(CUser* user, int slot, int type,
                                        ENUM_CMDPACKET cmd, CUser* targetUser,
@@ -6569,6 +6614,7 @@ int DisPatcher_DisJointItem::_disjoint(CUser* user, int slot, int type,
 
 DisPatcher_Lottery::~DisPatcher_Lottery() {}
 // ORIG 0x081f8380 T _ZN18DisPatcher_Lottery12dispatch_sigEP5CUserR9PacketBuf
+// [b28d-29] N82：帧内对象槽整体平移 8（ORIG -0x2c，4.4 -0x34），助记符序列与调用点全等  (ORIG 0x081f8380 insn 166->167)
 // 报告：docs/class_func_reports/DisPatcher_Lottery/dispatch_sig.md（汇编+反编译 C 全读）
 int DisPatcher_Lottery::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -6632,6 +6678,7 @@ int DisPatcher_Lottery::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /
 DisPatcher_ChangeSkill::~DisPatcher_ChangeSkill() {}
 // ORIG 0x081c0196 T _ZN22DisPatcher_ChangeSkill11check_errorEP5CUserR8MSG_BASE
 // （报告 DisPatcher_ChangeSkill/check_error.md 逐块映射）：技能树索引
+// [b28d-29] N82/N18b：槽号平移 -0x10->-0x14 + 比较方向折痕（4.4 cmpl mem 直比 vs 4.1 两段），语义集合全等  (ORIG 0x081c0196 insn 31->39)
 // ∈{-1,0} 时 msg+0xd==1 → 0x13；其它索引时 msg+0xd!=1 → 0x13；否则 0。
 int DisPatcher_ChangeSkill::check_error(CUser* user, MSG_BASE& msg)
 {
@@ -6714,6 +6761,7 @@ void DisPatcher_ChangeSkill::send(CUser* user, ParamBase& param)
 // ORIG 0x081bffbc T _ZN22DisPatcher_ChangeSkill7processEP5CUserR8MSG_BASER9ParamBase
 // （报告 DisPatcher_ChangeSkill/process.md ## 反编译 C 全文映射）：
 // check_error（stub 恒 0）→ param.m_curSlot/m_newSlot ← msg[0xe]/msg[0xf] →
+// [b28d-29] N82/P0：msg/param 形参副本落槽（ORIG 0x10/0x14(%ebp) 直用），4.4 帧 0x28 vs ORIG 0x2c+三 push  (ORIG 0x081bffbc insn 74->69)
 // SkillSlot::skill_move(cur, new, get_charac_job)；>0 时 SendCmdErrorPacket(0x1e) 返 -1。
 int DisPatcher_ChangeSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -6781,6 +6829,7 @@ int DisPatcher_BuySkill::check_state(CUser* user, PacketBuf& /*packet*/)
     return 0;
 }
 // ORIG 0x081bed4a T _ZN19DisPatcher_BuySkill4readER9PacketBufR8MSG_BASE
+// [b28d-29] AE：169=169 全等（同上重定位归一）  (ORIG 0x081bed4a insn 169->170)
 // 报告：docs/class_func_reports/DisPatcher_BuySkill/read.md（汇编+反编译 C 全读）
 int DisPatcher_BuySkill::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -6843,6 +6892,7 @@ int DisPatcher_BuySkill::read(PacketBuf& packet, MSG_BASE& msg)
         }
     }
     return 0;
+// [b28d-29] N82：帧 0x40 vs 0x60 + 局部对象槽平移（-0x20 vs -0x38），调用点全等  (ORIG 0x081bf468 insn 311->302)
 }
 void DisPatcher_BuySkill::send(CUser* user, ParamBase& param)
 {
@@ -7056,6 +7106,7 @@ int DisPatcher_BuySkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 // *(u16*)(GetGuildDBInfo()+0x42))，成功经 GlobalData::s_guild_proxy_mgr 发送
 // SendBuyGuildSkill(get_charac_no(-1), get_charac_guildkey(), m_0, info.m_8,
 // needGSP, needGold)。
+// [b28d-29] N82 + P168a：帧 0x7c vs 0x9c + 取反物化方向（xor $1 位置），调用点全等  (ORIG 0x081bf952 insn 239->248)
 // 尾部（+0x2b3）：m_4>=0 时 HistoryLog::WriteLearnSkill(m_field796f8, m_0, 当前等级)。
 void DisPatcher_BuySkill::master_new_skill_process(CUser* user, char treeKind,
                                                    buySkillInfo& info)
@@ -7149,6 +7200,7 @@ void DisPatcher_BuySkill::master_new_skill_process(CUser* user, char treeKind,
 // （docs/class_func_reports/DisPatcher_BuySkill/refund_skill_process.md 全文转写）：
 // 无树门/无权限门（treeKind 存 -0x2c 后未再读取）；refundCount 局部清零后取址；
 // SkillSlot::refund_skill(idx, level, job, first, second, (s8)m_1, &refundCount)
+// [b28d-29] N82：帧/槽重排（ORIG sub $0x4c+三 push，4.4 sub $0x58），调用点全等  (ORIG 0x081bfc5c insn 73->72)
 // 写 m_4，≥0 时 m_8←当前等级。ORIG 不读回 refundCount 值。
 void DisPatcher_BuySkill::refund_skill_process(CUser* user, char /*treeKind*/,
                                                buySkillInfo& info)
@@ -7172,6 +7224,7 @@ void DisPatcher_BuySkill::refund_skill_process(CUser* user, char /*treeKind*/,
 
 // ORIG 0x081bfd3c T _ZN19DisPatcher_BuySkill25try_refund_skills_processEP5CUsercR12buySkillInfo
 // （docs/class_func_reports/DisPatcher_BuySkill/try_refund_skills_process.md 全文转写）：
+// [b28d-29] N82：帧/槽重排（ORIG sub $0x4c+push edi/esi/ebx，4.4 sub $0x58），助记符序列与调用点全等  (ORIG 0x081bfd3c insn 59->55)
 // 与 refund 同参形态调 try_refund_skill；仅写 m_4，无等级回读、无任何门。
 void DisPatcher_BuySkill::try_refund_skills_process(CUser* user, char /*treeKind*/,
                                                     buySkillInfo& info)
@@ -7192,6 +7245,7 @@ void DisPatcher_BuySkill::try_refund_skills_process(CUser* user, char /*treeKind
 // ORIG 0x081bfdf0 T _ZN19DisPatcher_BuySkill29try_master_new_skills_processEP5CUsercR12buySkillInfo
 // （docs/class_func_reports/DisPatcher_BuySkill/try_master_new_skills_process.md 全文转写）：
 // 公会技能 [200,208] 直接返回（cmp $0xd0 jbe → 尾声；与正式 master 相反）；
+// [b28d-29] N82/N18b：帧/槽重排 + 比较方向折痕，调用点全等  (ORIG 0x081bfdf0 insn 84->79)
 // 非公会走同一树门后调 try_master_new_skills，仅写 m_4，无等级回写、无日志尾部。
 void DisPatcher_BuySkill::try_master_new_skills_process(CUser* user, char treeKind,
                                                         buySkillInfo& info)
@@ -7230,6 +7284,7 @@ DisPatcher_IncreStatus::~DisPatcher_IncreStatus() {}
 // （docs/class_func_reports/DisPatcher_IncreStatus/dispatch_sig.md 汇编+反编译 C 全文转写）：
 // state<=2 → 0；get_short 失败 → LineFunc 0x70fc；GetItemPtr(user,0,slot)==0 →
 // LineFunc 0x7101；CheckItem 0x2a 非0 → SendCmdErrorPacket(0x20,err)+0；
+// [b28d-29] N82：帧 0x50 vs 0x40 + 槽平移（ORIG 结构体基址 -0x2f+add 两步，4.4 折 lea），语义集合全等  (ORIG 0x081ede34 insn 123->121)
 // slot<0x99 → increase_status(slot)，否则 UseQuestItem(slot)+cMyTrace(0x710f,5)。
 int DisPatcher_IncreStatus::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -7282,6 +7337,7 @@ int DisPatcher_IncreStatus::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 // dispatch_sig(0x081ede34，报告 docs/class_func_reports/DisPatcher_IncreStatus/dispatch_sig.md)。
 int DisPatcher_IncreStatus::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }
 
+// [b28d-29] N82/P168a：帧 0x6c vs 0x7c + 取反物化（ORIG test/je 直判 vs 4.4 xor/jne），语义集合全等  (ORIG 0x081ee010 insn 342->357)
 DisPatcher_QuestAction::~DisPatcher_QuestAction() {}
 int DisPatcher_QuestAction::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -7625,6 +7681,7 @@ void DisPatcher_SetArea::send(CUser* user, ParamBase& param)
     }
 }
 // ORIG 0x081c951c T _ZN18DisPatcher_SetArea7processEP5CUserR8MSG_BASER9ParamBase
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
 int DisPatcher_SetArea::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     // ORIG 081c9525/+0x0f：入口先存 msg→-0x20（req）、后存 param→-0x1c（out）；
@@ -7633,8 +7690,8 @@ int DisPatcher_SetArea::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     stSetAreaParam& out = static_cast<stSetAreaParam&>(param);
     // ORIG +0x35：`mov %eax,%edx`（value 先落 edx）→ `mov -0x1c,%eax`（地址后载）→
     // `mov %edx,0x4(%eax)`（register asm 双钉，同 Dispatchers 16628 形）。
-    register int ec asm("edx") = check_error(user, msg, param);
-    register stSetAreaParam* dst asm("eax") = &out;
+    int ec = check_error(user, msg, param);
+    stSetAreaParam* dst = &out;
     dst->m_errNo = ec;
     if (out.m_errNo >= 1)
     {
@@ -7705,6 +7762,7 @@ int DisPatcher_FinishLoad::check_error(CUser* user, MSG_BASE& /*msg*/)
 }
 // 队伍 >2 人时逐成员核对：0 号记录 job/growType/IP 前缀/前三技能 index，
 // 其余成员与之全等（job/growType 不等或 IP 网络前缀不等 → 0x330 多开计数清标；
+// [b28d-29] N82/P197③：ORIG 4 dead 局部预清 + push ebx，4.4 丢预清且帧 +4；语义集合全等  (ORIG 0x08264c28 insn 251->240)
 // 技能三槽不全等 → 仅清 0x32f 同 IP 标）。任一失败即短路置双标志为 0。
 void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
 {   // ORIG 栈位映射：-0x40 sameIp / -0x3f multiBox / -0x3e job(sbyte) /
@@ -7823,11 +7881,12 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
     }
 }
 // ORIG 0x0826503c T _ZN21DisPatcher_FinishLoad7processEP5CUserR8MSG_BASER9ParamBase
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
 int DisPatcher_FinishLoad::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stFinishLoadParam& out = static_cast<stFinishLoadParam&>(param);
-    register int ec asm("edx") = check_error(user, msg);   // ORIG mov %eax,%edx
-    register stFinishLoadParam* dst asm("eax") = &out;     // ORIG 地址槽后载 %eax
+    int ec = check_error(user, msg);   // ORIG mov %eax,%edx
+    stFinishLoadParam* dst = &out;     // ORIG 地址槽后载 %eax
     dst->m_errNo = ec;
     if (out.m_errNo >= 1)
     {
@@ -8058,13 +8117,14 @@ bool CHackLog_InvalidUsingSkill::IsValidUsingSkill(const SKILL_USING_VALIDATE_IN
 // param.m_errNo=check_error；>=1 直接返回 0；<0 LineFunc(0x1ff2,err,acc_id)；
 // ==0 时构造校验信息 → 非法使用记黑客计数（addServerHackCnt(type,1,slot,0)），
 // 有队伍则 CParty::use_skill(user, slot, target)，恒返 0。
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
 int DisPatcher_UseSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stUseSkillParam& out = static_cast<stUseSkillParam&>(param);
     // ORIG 0x081cadaa+0x35：`mov %eax,%edx; mov -0x24(%ebp),%eax; mov %edx,0x4(%eax)`
     // 三段 = register asm 双钉形（value 声明初始化绑 edx、地址绑 eax）。
-    register int ec asm("edx") = check_error(user, msg, param);
-    register stUseSkillParam* dst asm("eax") = &out;
+    int ec = check_error(user, msg, param);
+    stUseSkillParam* dst = &out;
     dst->m_errNo = ec;
     if (out.m_errNo >= 1)
     {
@@ -8103,6 +8163,7 @@ DisPatcher_DieMob::~DisPatcher_DieMob() {}
 // setMonsterMoveHack 门禁（moveCheckFlag && state==5）后按 state 分派：
 //   5=普通副本 kill_monster 全反作弊链 / 10=死亡塔 handleKillMonster /
 //   0xc=BossTower Global::CBossTowerFunc::DieMob / 0xd=advancealtar dieMob /
+// [b28d-29] N78/N82：ORIG 无 0xa3f 字节 memset 而 4.4 发 call + 帧 0xb10 vs 0xb40；调用点全等  (ORIG 0x081eb0c4 insn 1564->1585)
 //   8=WarRoom HandleMonsterKill。
 int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -8681,6 +8742,7 @@ struct CPartyDungeonView
 // ==0：CharacDie(getCurCharacName, msg+0xd, msg+0xf) → GetPartyIndex→G_CGameManager()->GetParty
 // 备用队 → CBossTowerFunc::DieCharacInDungeon 为假时：state==0xd 先 advancealtar dieCharac；
 // 无队/无 dungeon/dungeon->m_bloodDungeonType(signed)<1：备用队非空则 die_user，返 0；
+// [b28d-29] P30/N4 + N82：ORIG 成员偏移两步寻址（movzwl 0xf(%eax) 折叠）vs 4.4 add 链；参数副本槽差，语义集合全等  (ORIG 0x081c2a12 insn 119->126)
 // 否则 BloodHandleDieUser + m_errNo=0x7fffffff，返 0。CBossTowerFunc 为真直接返 0。
 int DisPatcher_DieCharacInDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -8792,6 +8854,7 @@ void DisPatcher_UseCoin::send(CUser* user, ParamBase& param)
 // 并返回其值；==0：m_8(u16)=msg.m_0d；state==5：GetParty 判空 LineFunc(0x1f5a,...,0,acc_id)，
 // checkFreeRevivalCondition(0) 为假时 UseCoin(eCoinSubReason 0) + set_authen_data(3,1,0) +
 // party->IncreaseUsedCoinCount + APSystem ClearActionAndSendtoUser(0x25)；state==8：
+// [b28d-29] N82/P211：帧 0x28 vs 0x38 + 参数副本槽 + store 装载序，调用点全等  (ORIG 0x081ca852 insn 122->125)
 // UseCoin(eCoinSubReason 4) + set_authen_data(3,1,0) + user->IncreaseUsedCoinCount；返回 0。
 int DisPatcher_UseCoin::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -9026,6 +9089,7 @@ void DisPatcher_GetItem::send(CUser* user, ParamBase& param)
     }
 }
 // ORIG T 0x0889209d（定义 OnlyOrigBatch11.cpp:141）：奇偶门，返回 1=通过 0=失败。
+// [b28d-29] N82/P211：帧 0x50 vs 0x60 + 参数副本槽 + store 装载序，调用点全等  (ORIG 0x081c35c0 insn 484->511)
 int checkGetItemPacket(int a, int b, int c);
 int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -9197,6 +9261,7 @@ DisPatcher_UseStack::~DisPatcher_UseStack() {}
 // ============================================================================
 // §6.2 巨件核销：P167 208/208 [0缺0多]；gap 1320→1320/1321；残差归因 N82/P112
 // （diff 形态计数对称无缺类，详见 docs/asm_translation_patterns.md 负例表）。
+// [b28d-29] N82/P183：帧 0x120 vs 0x140 + ORIG 两步 add 寻址 vs 4.4 独立局部槽；语义集合全等  (ORIG 0x081f63c0 insn 1320->1321)
 // 无真修条目（batch-20 半程核销语义未回退）。
 int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -9566,6 +9631,7 @@ int DisPatcher_UseStack::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& 
 
 DisPatcher_MoveMap::~DisPatcher_MoveMap() {}
 // [b28c-L19 属主修复] 参数名曾被注释但函数体用 &msg ⇒ TU 编译失败，恢复具名。
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
 int DisPatcher_MoveMap::check_error(CUser* user, MSG_BASE& msg)
 {
     if (user == 0)
@@ -9581,7 +9647,7 @@ int DisPatcher_MoveMap::check_error(CUser* user, MSG_BASE& msg)
     // ORIG +0x45/+0x63：每次 call 现场 `mov -0x10(%ebp),%eax; add $0xb24,%eax`，
     // BF 地址不入槽（技36 删中转）；ORIG +0x77/+0x7e 双 int 常量岛 + `test %al,%al`
     // = \|\| 短路物化绑 %al（技22/40），无 invalid 槽。
-    register bool invalid asm("al");
+    bool invalid;
     invalid =
         ((int)req.m_y >=
          party->m_battleField.getMapHeight()) ||
@@ -9686,6 +9752,7 @@ int DisPatcher_MoveMap::read(PacketBuf& packet, MSG_BASE& msg)
 }
 // ORIG 0x081c4b7a T _ZN18DisPatcher_MoveMap20CheckTrapBitsHackCntEP5CUserR12MSG_MOVE_MAP
 // msg.m_18 ushort 非 7 的倍数 → 记 0x1f9；累计 >4 时对队伍其余成员记 0x1fa、
+// [b28d-29] N-P223/N-JMP：唯一残差=cond 尾 4.4 多保留 jmp 岛（ORIG 0x081c4bb5 je 直落 epilogue，4.1 线程化折掉），ndiff 20->1  (ORIG 0x081c4b7a insn 108->111)
 // 落库 DB_ReqSaveHackUserPunish 并 DisConnSig(0x18,1,0) 强制断线。
 void DisPatcher_MoveMap::CheckTrapBitsHackCnt(CUser* user, MSG_MOVE_MAP& info)
 {
@@ -9736,6 +9803,7 @@ void DisPatcher_MoveMap::CheckTrapBitsHackCnt(CUser* user, MSG_MOVE_MAP& info)
 // 以队伍地图游玩时长（死亡塔为 stage 通关时限/1000+5）为基准，逐成员修正
 // msg.m_23[i] 上报 tick：>10000 部分按万位上报（0x2afe 副本记 0x82 否则 0x77）；
 // job3 / job4 觉醒2 减半 ×0.5 否则 ×0.8；未开局且 >limit 时按 t<=1.5*limit
+// [b28d-29] N82/P183：帧 0x64 vs 0x94 + 槽平移，ORIG 无缓存局部而 4.4 新增；语义集合全等  (ORIG 0x081c4d26 insn 412->366)
 // 单次、超幅 ×10 次记 0x74/0x81。
 void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& info)
 {
@@ -9854,11 +9922,12 @@ void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& i
     }
 }
 // ORIG 0x081c5330 T _ZN18DisPatcher_MoveMap7processEP5CUserR8MSG_BASER9ParamBase
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
 int DisPatcher_MoveMap::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stMoveMapParam& out = static_cast<stMoveMapParam&>(param);
-    register int ec asm("edx") = check_error(user, msg);   // ORIG mov %eax,%edx
-    register stMoveMapParam* dst asm("eax") = &out;
+    int ec = check_error(user, msg);   // ORIG mov %eax,%edx
+    stMoveMapParam* dst = &out;
     dst->m_errNo = ec;
     if (out.m_errNo >= 1)
     {
@@ -9918,6 +9987,10 @@ DisPatcher_SetPlayResult::~DisPatcher_SetPlayResult() {}
 // 081f5528/081f559e）4.1 将 memset 0x703 / memcpy 0x676 / memcpy 0x78 inline 成
 // rep stos/rep movsl 逐段展开；4.4 O0 恒 `call memset/memcpy`（GDataC8 探针实证
 // 同族 N78），单 TU 源码写法不可翻。+0x99..+0xc4 blood-dungeon 守卫缺段已补
+// [b28d-29] P0 清绑（register asm("al") 已删）+ P167 修正 5 处 get_int(int&) 重载
+// （ORIG 0x081f4f57/0x081f59cc.. 实证 ERi；coinSlot 0x081f50dd 保持 ERj）。
+// 残差：CHARAC_DATA/TAG_CHARAC_DATA 本仓建模为 POD（ORIG 有 C1 call，P104 建模差）
+// + 帧 0x1d0c vs 0xf54（N82 4.1 不复用大缓冲槽）+ setcc-fold。  (ORIG 0x081f4ce6)
 // （语义修复保留）。
 int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -10000,7 +10073,7 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
         gameResult->m_field4a,
         static_cast<int>(party->GetMapPlayingTime() / 1000), 0);
 
-    unsigned int killCountRead = 0;              // ORIG local_ea8
+    int killCountRead = 0;              // ORIG local_ea8（P167：ORIG get_int(int&) ERi）
     if (!packet.get_int(killCountRead))
         return LineFunc(0x818b,
                         __PRETTY_FUNCTION__,
@@ -10009,8 +10082,9 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
     // （`!check()` xor 形先行、`kill!=0` 后行 → mov$1/mov$0 岛 + test al; je）。
     if (party != 0)
     {
-        register bool bossCheat asm("al");
-        bossCheat = !party->checkBossRoom() && killCountRead != 0;
+        // [b28d-29] P0 清绑：原 `register bool bossCheat asm("al")` 违 P0/N96，已删；
+        // ORIG 短路物化岛（mov $1/$0 + test）4.4 恒折直分支 ⇒ 形态差记 N（setcc-fold）。
+        bool bossCheat = !party->checkBossRoom() && killCountRead != 0;
         if (bossCheat)
         {
             user->getHackAnalyzer()->addServerHackCnt(
@@ -10124,11 +10198,11 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
             user, (WongWork::ENUM_HACKTYPE)0xe4, 1, 0, 0);
     }
 
-    unsigned int memberKillSum = 0;               // local_ebc
-    unsigned int coinUsedA = 0;                   // local_eac
-    unsigned int coinDenomA = 0;                  // local_eb4
-    unsigned int expGain = 0;                     // local_eb0
-    unsigned int expDenomB = 0;                   // local_eb8
+    int memberKillSum = 0;               // local_ebc（P167：ORIG get_int(int&)）
+    int coinUsedA = 0;                   // local_eac
+    int coinDenomA = 0;                  // local_eb4
+    int expGain = 0;                     // local_eb0
+    int expDenomB = 0;                   // local_eb8
     if (!packet.get_int(memberKillSum))
         return LineFunc(0x820e,
                         __PRETTY_FUNCTION__,
@@ -10211,6 +10285,7 @@ DisPatcher_DropItem::~DisPatcher_DropItem() {}
 // 角色空/数量<1 → -1；state==10 → 0x13；组队血副本 → 0x13；综合PVP频道 → 0x13；
 // isRestricted(1,1) → param.m_c=1,0xd1；m_padTail!=1 时安全保护 0x1e（param.m_c=1,返码）；
 // CheckItemLock → 0xd5；isHackUser → 0x13；space 1 → 0x17；space 3 且 pos<10 → 0x17；
+// [b28d-29] N82/P211：形参副本槽 + store 装载序差，调用点与槽集合全等  (ORIG 0x081c2d9a insn 146->148)
 // space 0 且 pos==0 且 count>1000 → 0x46；否则 0。（ORIG +0x18b 存在未读死局部 6）
 int DisPatcher_DropItem::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -10339,6 +10414,7 @@ void DisPatcher_DropItem::send(CUser* user, ParamBase& param)
 // LineFunc(0xdcc,pretty,err,acc_id) 返回其值；==0 按 state 分派：
 // 5=CGameManager::GetParty(GetPartyIndex) 后 CParty::drop_item（[BLOCKED]）；
 // 0xc=getBossTower 虚调 handleDropItem；8=WarRoom::HandleItemDrop>0 时写
+// [b28d-29] N88/N82：3 处 ORIG 有 `mov $0x0,%eax` 死写入（写后未读），4.4 惰性求值位置错位；语义等价  (ORIG 0x081c2f94 insn 208->212)
 // m_errNo/m_8；其它 m_errNo=0x13。
 int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -10347,8 +10423,8 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     // sete %al; test %al,%al; je`（技9 (bool)==K 物化形）。
     MSG_DROP_ITEM& req = *reinterpret_cast<MSG_DROP_ITEM*>(&msg);
     stDropItemParam& out = static_cast<stDropItemParam&>(param);
-    register int ec asm("edx") = check_error(user, msg, param);
-    register stDropItemParam* dst asm("eax") = &out;
+    int ec = check_error(user, msg, param);
+    stDropItemParam* dst = &out;
     dst->m_errNo = ec;
     if (out.m_errNo >= 1)
     {
@@ -10436,6 +10512,7 @@ int DisPatcher_UseEquip::check_error(CUser* user, MSG_BASE& msg)
         }
     }
     return 0;
+// [b28d-29] AE：正文 21=21 全等，仅 .o 重定位/字符串地址显示差（跨二进制布局产物）  (ORIG 0x081c0dfa insn 21->22)
 }
 int DisPatcher_UseEquip::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -10546,6 +10623,7 @@ bool DisPatcher_MakePVP::ExtractPacket(PacketBuf& packet, MSG_MAKE_PVP_ROOM& msg
     }
     return true;
 }
+// [b28d-29] N82/P183：临时对象构造块（lea -0x10）位置前移 3 指令，difflib 块序伪差；语义集合全等  (ORIG 0x081f803e insn 103->104)
 
 int DisPatcher_MakePVP::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -10554,7 +10632,7 @@ int DisPatcher_MakePVP::dispatch_sig(CUser* user, PacketBuf& packet)
     // 否则 MakePVPRoom(user,msg,0x35, mode==0?2:6)。
     MSG_MAKE_PVP_ROOM msg;
     memset(&msg, 0, 0x3d);
-    register int res asm("ebx");   // 技39：EH-ebx 返回缓存，string dtor 后 mov %ebx,%eax
+    int res;   // 技39：EH-ebx 返回缓存，string dtor 后 mov %ebx,%eax
     if (!ExtractPacket(packet, msg))
     {
         res = LineFunc(0x85b6, __PRETTY_FUNCTION__, 0, 0);
@@ -10597,6 +10675,7 @@ int DisPatcher_MakePVP::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 // dispatch_sig(0x081f803e，报告 docs/class_func_reports/DisPatcher_MakePVP/dispatch_sig.md)。
 int DisPatcher_MakePVP::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }
 
+// [b28d-29] P30/N4 + N82：ORIG 结构体基址 lea -0x1b + add $0xd 两步 vs 4.4 折 lea -0xe；槽平移 0xd，语义集合全等  (ORIG 0x081ed6c8 insn 152->151)
 DisPatcher_EnterPVP::~DisPatcher_EnterPVP() {}
 int DisPatcher_EnterPVP::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -10657,6 +10736,7 @@ DisPatcher_SetPVPSeat::~DisPatcher_SetPVPSeat() {}
 // （docs/class_func_reports/DisPatcher_SetPVPSeat/dispatch_sig.md 汇编+反编译 C 全文转写）：
 // state<=5 → 0；get_byte(seat) 失败或 seat∉[0,7] → LineFunc 0x82a4；get_byte(state)
 // 失败 → 0x82a6；room==0 → 0x82a9；OnSetPVPSeatState(user,(int)(char)seat,state,2)!=1
+// [b28d-29] AE：91=91 全等（同上重定位归一）  (ORIG 0x081f5eba insn 91->91)
 // → room->reset() + G_CGameManager()->PutPvp(room)；返回 0。
 int DisPatcher_SetPVPSeat::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -10774,6 +10854,7 @@ int DisPatcher_SetPVPReady::process(CUser* user, MSG_BASE& msg, ParamBase& param
 
 DisPatcher_SetPVPTeam::~DisPatcher_SetPVPTeam() {}
 // ORIG 0x081f6020 T _ZN21DisPatcher_SetPVPTeam12dispatch_sigEP5CUserR9PacketBuf
+// [b28d-29] P30/N4：ORIG 结构体基址 lea -0x2c + add $0xd 两步，4.4 折单 lea -0x21；槽号平移随 N82  (ORIG 0x081f6020 insn 137->139)
 // 报告：docs/class_func_reports/DisPatcher_SetPVPTeam/dispatch_sig.md（汇编+反编译 C 全读）
 int DisPatcher_SetPVPTeam::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -10831,6 +10912,7 @@ int DisPatcher_SetPVPTeam::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase
 
 DisPatcher_DiePvP::~DisPatcher_DiePvP() {}
 // ORIG 0x081ece64 T _ZN17DisPatcher_DiePvP12dispatch_sigEP5CUserR9PacketBuf
+// [b28d-29] N82：帧 0x6c vs 0x60 + 槽平移（ushort 数组 -0x36 vs -0x26），调用点全等  (ORIG 0x081ece64 insn 146->147)
 // 报告：docs/class_func_reports/DisPatcher_DiePvP/dispatch_sig.md（汇编+反编译 C 全读）
 int DisPatcher_DiePvP::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -10972,6 +11054,7 @@ DisPatcher_EndPvPResult::~DisPatcher_EndPvPResult() {}
 // state!=7 → 0；room==0 → LineFunc 0x8681；set_recv_pvp_end_result_flag 后
 // recv_all 为真 → end_pvp_result + make_state_info/send_all + end_pvp + battle_reset；
 // 否则 isRematchable&&recv_team 命中时对 m_matching(+0x6e4) vtable+0x80 槽直调
+// [b28d-29] setcc-fold + N82：bool 物化方向（ORIG mov $0,%eax 岛，4.4 %ebx）+ 块位置，语义集合全等  (ORIG 0x081f88ae insn 130->136)
 // （room==0 → logFormat 0x86b6），未命中 count==1 时插 end_result 定时器。
 int DisPatcher_EndPvPResult::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11026,6 +11109,7 @@ int DisPatcher_EndPvPResult::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_EndPvPResult::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233344 W _ZN23DisPatcher_EndPvPResult7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081f88ae)（set_recv_pvp_end_result_flag → recv_pvp_end_result_all 全齐则 end_pvp_result/make_state_info 广播/end_pvp/battle_reset，报告 docs/class_func_reports/DisPatcher_EndPvPResult/dispatch_sig.md）
 
+// [b28d-29] P183 反向 + N93：ORIG 缓存 &msg+0xd 到 -0xc 后 disp 访问，4.4 逐次 mov 0xc(%ebp)+add；两侧 store 偏移集合 {0x25..0x4d} 完全一致（语义等价）  (ORIG 0x081f039e insn 172->179)
 DisPatcher_ResPvpRank::~DisPatcher_ResPvpRank() {}
 bool DisPatcher_ResPvpRank::ExtractPacket(MSG_RES_PVP_RANK& msg, PacketBuf& packet)
 {
@@ -11068,6 +11152,7 @@ bool DisPatcher_ResPvpRank::ExtractPacket(MSG_RES_PVP_RANK& msg, PacketBuf& pack
     msg.m_result.m_avg[10] = s[10];  // +0x40
     return true;
 }
+// [b28d-29] N82/P197③：ORIG 两 dead 局部预清 + 槽序（-0x1c/-0x18/-0x10/-0xc），4.4 合并复用致全帧平移；语义集合全等  (ORIG 0x081f05ea insn 197->197)
 
 bool DisPatcher_ResPvpRank::SavePvpRank(CUser* user, MSG_RES_PVP_RANK& msg)
 {
@@ -11160,6 +11245,7 @@ int DisPatcher_ResPvpRank::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase
 
 DisPatcher_SetPVPMapIndex::~DisPatcher_SetPVPMapIndex() {}
 // ORIG 0x081f8602 T _ZN25DisPatcher_SetPVPMapIndex12dispatch_sigEP5CUserR9PacketBuf
+// [b28d-29] N82 + setcc-fold：帧 0x40 vs 0x30；`!flag` 已按 P168a 修正（xor 形），残余为槽平移与 4.4 sete 折痕  (ORIG 0x081f8602 insn 175->179)
 // 报告：docs/class_func_reports/DisPatcher_SetPVPMapIndex/dispatch_sig.md（汇编+反编译 C 全读）
 int DisPatcher_SetPVPMapIndex::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11196,7 +11282,9 @@ int DisPatcher_SetPVPMapIndex::dispatch_sig(CUser* user, PacketBuf& packet)
     room->SetRequestedMapNo(mapIdx);
     room->make_state_info(reinterpret_cast<char*>(&guard));
     G_GameWorld()->send_all(guard);
-    if (flag != true && room->get_pvp_battle_mode() == 4)
+    // [b28d-29] P168a：ORIG 0x081f87d6 `movzbl flag; xor $0x1,%eax; test %al,%al`
+    // ⇒ 原码是裸 `!flag`（bool 取反物化），`flag != true` 使 4.4 反产 test/sete。
+    if (!flag && room->get_pvp_battle_mode() == 4)
     {
         int res = room->set_pvp_mode(user, 5);
         if (0 < res)
@@ -11304,6 +11392,7 @@ int DisPatcher_AddFriend::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 // m_field4=check_error；>0 返 0；<0 logFormat(1,file,pretty,0x20d8,
 // "Dispatcher_Impl Check_Error No(%d)",err) 返 0x20d9；==0：StreamPool 取流构造
 // CStreamGuard → <<0x33e <<GetUID → GetInBuffer<SIG_CHECK_ADD_FRIEND> 判空置 m_field4=1；
+// [b28d-29] N82/P211：store 装载序 + 临时对象块位置（P183 反向），调用点全等  (ORIG 0x081cb30a insn 126->125)
 // 否则 sig[+4]=!isGM(acc_id)、strncpy(sig+5, msg+0x11, 0x1e)、MsgQueueMgr put(DB_Q)；返 0。
 int DisPatcher_AddFriend::process_packet_jpn(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -11400,6 +11489,7 @@ void DisPatcher_RemoveFriend::send(CUser* user, ParamBase& param)
 // m_errNo=check_error；>0 返 0；<0 LineFunc(0x2141,pretty,err,acc_id) 返回其值；
 // ==0：组 Packet_Monitor_Del_Buddy（ctor 0x0822bcb2 W：PacketHeader(0x674,0x30)+memset(m_name)），
 // 填 m_charNo=getCurCharacNo、m_idByChannel=GetUID、memcpy(m_name, msg+0x11, strlen)，
+// [b28d-29] N82/P211：参数副本槽 + store 装载序（ORIG RHS-first mov %eax,%edx 中转，4.4 LHS-first）  (ORIG 0x081cb618 insn 85->81)
 // 经 s_monitor_proxy_mgr GetServerProxy(GetServerGroup())->SendPacket(&pkt, packetSize)，返 0。
 int DisPatcher_RemoveFriend::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -11570,6 +11660,7 @@ ST_Guild_War_Rank_Info::ST_Guild_War_Rank_Info()
     m_field8 = 0;
     memset(m_pad0a, 0, sizeof(m_pad0a));
 }
+// [b28d-29] N82/P151：ORIG 数组成员隐式构造倒计数循环用 %ebx/%esi 寄存器指针（无槽），4.4 恒栈槽 + 循环变量落槽  (ORIG 0x? insn 28->31)
 
 Packet_Notice_Guild_War_Info::Packet_Notice_Guild_War_Info()
     : PacketHeader(0x414, 0x15c)
@@ -11695,6 +11786,7 @@ int DisPatcher_MultiBoxLottery::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 }
 int DisPatcher_MultiBoxLottery::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233bdc W _ZN26DisPatcher_MultiBoxLottery7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x0820b802，见 docs/class_func_reports/DisPatcher_MultiBoxLottery/dispatch_sig.md)
 
+// [b28d-29] P251/P208：ORIG 0x0821ac7c 为 switch(local_e) 稀疏树（ushort 入口截断槽 -0xa 双段），源码 if-else 链；帧差随 N82  (ORIG 0x0821abe0 insn 228->234)
 DisPatcher_UdpCharacteristic::~DisPatcher_UdpCharacteristic() {}
 int DisPatcher_UdpCharacteristic::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -11849,6 +11941,7 @@ int DIspatcher_OneDayLetheTicket::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 int DIspatcher_OneDayLetheTicket::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08233d80 W _ZN28DIspatcher_OneDayLetheTicket7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现（objdump 0x08233d80..0x08233d94 核实），全部逻辑位于 dispatch_sig(0x0821b106：cMyTrace"ONE_DAY_LETHE : SKILL_INIT_PACKET"→state==3→非 PVP/PvPSkillTree 渠道校验→GetPremiumLetheManager().ResetSkillReq(user)，报告 docs/class_func_reports/DIspatcher_OneDayLetheTicket/dispatch_sig.md)
 
 Dispatcer_polic_one_to_one_chat_disable::~Dispatcer_polic_one_to_one_chat_disable() {}
+// [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
 int Dispatcer_polic_one_to_one_chat_disable::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x082272ce（报告 Dispatcer_polic_one_to_one_chat_disable/dispatch_sig.md）：
@@ -11856,7 +11949,7 @@ int Dispatcer_polic_one_to_one_chat_disable::dispatch_sig(CUser* user, PacketBuf
     // GM 发起时回填 characNo 并经 Monitor 代理 SendTcpPacket(0x30)。
     // ORIG +0x12..+0x34：4.1 将 !(state>=3 && ptr) 物化为 %al（双常量岛 jle→mov$1/
     // jne→mov$0 + test;je），跳过路径 `mov $0,%eax; jmp end`。等价 skip-flag 写法。
-    register bool skip asm("al");   // 技22：物化直落 %al，无槽
+    bool skip;   // 技22：物化直落 %al，无槽
     skip = (user->get_state() <= 2 || user->getCurCharacR() == 0);
     if (skip)
     {
@@ -12107,6 +12200,7 @@ void Dispather_RegenerationRandomOption::send(CUser* user, ParamBase& param)
 // → s_statistic_proxy_mgr->GetServerProxy(user->GetServerGroup())->SendPacket(pkt,0x89)。
 namespace statistc_proxy
 {
+// [b28d-29] N78：ORIG 手写 0x400 字节对齐清零展开（and/test/字节+字+双字三段），4.4 恒 call memset；语义等价  (ORIG 0x0860fdd2 insn 106->74)
 void add(CUser* user, const char* tableName, const char* fieldName,
          unsigned int value, const char* fmt, ...)
 {
@@ -12161,6 +12255,7 @@ int DispatcherResetRandomOption::read(PacketBuf& packet, MSG_BASE& msg)
 // ORIG 0x08682d3a T _ZN15cUserHistoryLog12RandomOptionERK10Inven_ItemN18randomOptionReason1TE
 // （docs/class_func_reports/cUserHistoryLog/RandomOption.md + objdump 全文转写）：
 // m_user->LogHistory("RandomOptionItem,%d,%02X×14,%d", item.m_addInfo,
+// [b28d-29] N82/P183：ORIG 无逐字段临时缓存，4.4 新增 -0x50..-0x48 三槽（帧 0x9c vs 0xac）；语义集合全等  (ORIG 0x08682d3a insn 102->119)
 //   item.m_random.m_random 的 14 字节（+0x25..+0x32）逐字节, reason)。无 m_user 空检查。
 void cUserHistoryLog::RandomOption(const Inven_Item& item, randomOptionReason::T reason)
 {
@@ -12182,6 +12277,7 @@ void cUserHistoryLog::RandomOption(const Inven_Item& item, randomOptionReason::T
 // → 统计 regen_cnt/regen_gold → use_money(cost,0x2f,1) → delete_item(1,槽,1,0x2e,1)×2
 // → newItem 置封印标志与次数 → insertItemIntoInventory(reason 0x36,1,1) →
 // SendUpdateItemList ×3 + cUserHistoryLog::RandomOption(reason 1)。
+// [b28d-29] N82：帧 0x19c vs 0x1ac + 槽平移与参数副本顺序差，调用点全等  (ORIG 0x081d6af4 insn 479->466)
 // 错误码写 param.m_errNo；插入槽位写 param.m_insertedSlot。
 int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
                                                 ParamBase& param)
@@ -12301,6 +12397,7 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
 // 否则 0x15) → 函数级 static CRandomOptionItemHandle → reset_option(idx,rarity,
 // choice,&item.m_random.m_random) 非零即失败回显 → cUserHistoryLog.RandomOption(3)
 // → statistc regen_cnt 同款 reset_cnt → use_item(scrollSlot,1,1)==0 失败 0x16 →
+// [b28d-29] setcc-fold + P208：ORIG sete 物化与 ushort 截断槽，4.4 直折 jne/jbe；语义集合全等  (ORIG 0x081dd2be insn 323->317)
 // SendUpdateItem×2 + SendCmdOkPacket(0x1c8)。全程错误只发包不外抛，恒返 0。
 int DispatcherResetRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
@@ -12498,6 +12595,7 @@ MSG_ADD_SOCKET_TO_AVATAR::MSG_ADD_SOCKET_TO_AVATAR()
 #include "Dispatchers.h"         // Dispatcher_AddSocketToAvatar 类声明
 #include "Inven_Item.h"          // Inven_Item 完整类型
 #include "CEquipItem.h"          // CEquipItem::{check_eType,getAvatarSocket}
+// [b28d-29] N82：帧 0x140 vs 0x150 + 局部对象槽平移（-0x3d vs -0x45），调用点全等  (ORIG 0x0821a412 insn 488->478)
 
 int Dispatcher_AddSocketToAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -12645,6 +12743,7 @@ int Dispatcher_AddSocketToAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
 // ============================================================================
 #include "Packet_Monitor_Other_Channel_Chat.h"   // shared/packet/include 监视包权威头
 #include "CCommunityServerProxy.h"              // SendTcpPacket（Community 监视包）
+// [b28d-29] P30/N4：ORIG 结构体基址 lea -0x1a3 + add 偏移两步，4.4 折单 lea；帧 0x31c vs 0x2ec（N82），语义集合全等  (ORIG 0x081f3540 insn 896->897)
 #include "DB_AccountCargoSync.h"                // DB_InsertPoliceSaveChatting::makeRequest
 int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -12878,6 +12977,7 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
 #include "RestrictNameDeps.h"
 #include "DB_ReqChangeCharacName.h"
 #include "GameTypes.h"            // cMyTrace
+// [b28d-29] N82：帧 0xcc vs 0xc0 + 槽平移（-0x65 vs -0x13），调用点全等  (ORIG 0x08205898 insn 418->417)
 
 int Dispatcher_ChangeCharacName::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -13026,6 +13126,7 @@ int Dispatcher_ChangeCharacName::dispatch_sig(CUser* user, PacketBuf& packet)
 
 // §6.2 巨件核销：P167 117/117 [0缺0多]；gap 761→761/777；残差归因 N82/P112
 // （diff 形态计数对称无缺类，详见 docs/asm_translation_patterns.md 负例表）。
+// [b28d-29] N82/setcc-fold：帧 0x8c vs 0x90 + bool 局部槽物化（movb -0x1b）vs ORIG 寄存器岛；语义集合全等  (ORIG 0x081fc4de insn 761->777)
 // 无真修条目。
 int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -13326,6 +13427,7 @@ class DB_SelectAllowProxyUser
 public:
     static void makeRequest(int userIdx, unsigned int accId);
 };
+// [b28d-29] N82/N7：帧 0x12c vs 0x13c + 尾值寄存器角色（ORIG %eax，4.4 %ebx），调用点全等  (ORIG 0x081f468c insn 381->357)
 
 int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -13455,6 +13557,7 @@ Packet_Frame_Lag_Statistic_Add::Packet_Frame_Lag_Statistic_Add()
     : PacketHeader(0xc26, 0x186)
 {
 }
+// [b28d-29] N82/P183：帧 0x1b4 vs 0x1b8 + ORIG 无 -0x20 指针缓存而 4.4 新增，槽平移；语义集合全等  (ORIG 0x08217046 insn 418->368)
 
 int Dispatcher_FrameLagStatistics::dispatch_sig(CUser* user, PacketBuf& packet)
 {

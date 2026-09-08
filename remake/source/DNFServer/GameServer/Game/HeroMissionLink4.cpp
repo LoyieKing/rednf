@@ -144,6 +144,8 @@ void EventClassify::CEventScriptMng::test_process_change_day(int timeVal)
 // ---------------------------------------------------------------------------
 // WongWork::CCompoundAvatar::ProcTest @ 0x08333fda
 // ---------------------------------------------------------------------------
+// [b28d-D33 P28/P61 封顶] ORIG 0x08333fda：142 vs 143 条；p167 差集 = ne/make_pair
+// 非 const(MISSING) vs eq/make_pair const(EXTRA)（P61/P81 左值性 + P220 极性）。
 void WongWork::CCompoundAvatar::ProcTest(ENUM_CHARACTERJOB job,
                                          ENUM_EQUIPMENTTYPE equipType,
                                          int addRate, int bonusFlag,
@@ -191,6 +193,8 @@ void WongWork::CCompoundAvatar::ProcTest(ENUM_CHARACTERJOB job,
 // ORIG 循环内 __gnu_cxxne 判续 + 循环后 __gnu_cxxeq 判 ==end 双实例化，
 // 对应普通 for 迭代器循环。
 // ---------------------------------------------------------------------------
+// [b28d-D33 P28/N86 封顶] ORIG 0x08332e4e：56 vs 50 条；p167 差集 = vector::end
+// EXTRA（P13 缓存 end 形）+ 迭代器槽（N86）。语义等价。
 int getItemIndex(const std::vector<std::pair<int, int> >& items, int rand)
 {
     std::vector<std::pair<int, int> >::const_iterator it = items.begin();

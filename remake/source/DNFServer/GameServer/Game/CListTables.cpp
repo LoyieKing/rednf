@@ -109,20 +109,17 @@ public:
 
 struct stSelectQuestParam
 {
-    // 权威布局（Quest.h，ORIG _ZN18stSelectQuestParamC1EP5CUser）：m_powerSide 在 +0x14。
-    // 此局部定义仅用于本 TU 编译（CDataManager.h 只有前向声明）；曾误作 +0x50，
-    // 导致 Check_Quest 读 param+0x50 而非 ORIG 的 +0x14。字段与 Quest.h 严格一致。
+    // 本 TU 镜像（P144）：ORIG CListTables TU 视图仅 7 字段（size 0x1c）——证据
+    // Check_Quest 0x08355474 的隐式拷贝只覆盖 +0x00..+0x18（+0x14 char 单字节，
+    // +0x15..0x17 padding 不拷）。Quest.h 权威定义含 +0x1c..+0x24 三字段（供
+    // Quest.cpp/UserQuest.cpp），本 TU 不使用，故镜像裁剪以复现拷贝形态。
     int m_level;          // +0x00
     int m_job;            // +0x04
     int m_firstGrow;      // +0x08
     int m_secondGrow;     // +0x0c
     int m_pvpGrade;       // +0x10
     char m_powerSide;     // +0x14
-    char m_pad15[3];      // +0x15..0x17
     int m_questIdx;       // +0x18
-    int m_expertJobType;  // +0x1c
-    int m_expertJobLevel; // +0x20
-    int m_questCount;     // +0x24
 };
 
 namespace WongWork
@@ -451,6 +448,7 @@ CMapList::~CMapList()
     destroy();
 }
 
+// [b28d-32 N(P223/N89): 迭代器/STL 形态与岛差（82/95） | ORIG 0x0834f08c]
 void CMapList::destroy()
 {
     CMap* map = 0;
@@ -482,6 +480,7 @@ CMap* CMapList::find_map(int idx)
     return 0;
 }
 
+// [b28d-32 N(P75/N89): vector/STL 内联与装载序差（202/187） | ORIG 0x0834f18e]
 int CMapList::insert_map(int channel, int key, CMap* map,
                          std::vector<PVPMAP_DATA>& pvpData)
 {
@@ -537,6 +536,7 @@ int CMapList::insert_map(int channel, int key, CMap* map,
     return 1;
 }
 
+// [b28d-32 N89/N82: STL 内联/槽位差（74=74 但装载序多块不同） | ORIG 0x0834f4ba]
 void CMapList::LoadPvPSinglePlayableMap(char* path)
 {
     char buf[512];
@@ -550,6 +550,7 @@ void CMapList::LoadPvPSinglePlayableMap(char* path)
     }
 }
 
+// [b28d-32 N(setcc-fold): ORIG 寄存器内比较直跳 vs 4.4 物化 setne+test（P197④ 镜像负例） | ORIG 0x0834f5c8]
 bool CMapList::GetPvpMapInfo(int idx, PvPMapInfo& info)
 {
     // [b28c-21 代落 C28L35 spec] 初始化式直构：ORIG find 直接落 -0x10，无 C1Ev 默认构造。
@@ -615,19 +616,26 @@ CMonster* CMonsterManager::find_monster(int idx)
     return it->second;
 }
 
+// [b28d-32 AE: const_iterator 对 + 后置 it++ + 具名 result 复现 ORIG，51=51 逐条全等 | ORIG 0x0834ff20]
 int CMonsterManager::get_levelrandom_mob(int level)
 {
-    std::pair<std::multimap<int, int>::iterator,
-              std::multimap<int, int>::iterator> range =
+    // [b28d-32] ORIG 0x0834ff20：range 类型为 const_iterator 对 ⇒ 从 non-const
+    // equal_range 结果隐式转换构造（_C1ISt17_Rb_tree_iterator...EOS_ 实例）；
+    // 迭代器遍历用后置 it++（ORIG 增量段 ppEi，P28）。
+    std::pair<std::multimap<int, int>::const_iterator,
+              std::multimap<int, int>::const_iterator> range =
         m_levelMonsterList.equal_range(level);
     int count = m_levelMonsterList.count(level);
     int rand = get_rand_int(count);
-    std::multimap<int, int>::iterator it = range.first;
+    std::multimap<int, int>::const_iterator it = range.first;
     for (int i = 0; i < rand; ++i)
     {
-        ++it;
+        it++;
     }
-    return it->second;
+    // ORIG 0x0834ffc0 尾：`mov 0x4(%eax),%eax; mov %eax,-0x10(%ebp);
+    // mov -0x10(%ebp),%eax` ⇒ 具名结果局部 + return（P171 照抄）。
+    int result = it->second;
+    return result;
 }
 
 int CMonsterManager::insert_monster(int level, int monsterIdx)
@@ -638,18 +646,25 @@ int CMonsterManager::insert_monster(int level, int monsterIdx)
     return 1;
 }
 
+// [b28d-32 N93/N98] ORIG 0x0834fdee：迭代器 it/end 槽序 ORIG it 深 end 浅，
+// 4.4 按首次使用序分配不可翻（声明序交换反劣 61），54=54 助记符全等。
 bool CMonsterManager::insert_monster(int level, CMonster* monster)
 {
-    __gnu_cxx::hash_map<int, CMonster*>::iterator it = m_monsterMap.find(level);
+    // [b28d-32] ORIG 0x0834fdee：迭代器先默认构造（C1Ev）再 find 赋值
+    // （P50 复活 + find 结果 8 字节拷贝到 it 槽）；insert 用显式
+    // pair<const int,CMonster*>(int&,CMonster*&) 直构，无 make_pair 中转。
+    __gnu_cxx::hash_map<int, CMonster*>::iterator it;
+    it = m_monsterMap.find(level);
     __gnu_cxx::hash_map<int, CMonster*>::iterator end = m_monsterMap.end();
     if (it == end)
     {
-        m_monsterMap.insert(std::make_pair(level, monster));
+        m_monsterMap.insert(std::pair<const int, CMonster*>(level, monster));
         return true;
     }
     return false;
 }
 
+// [b28d-32 N(P75/N89): 扫描器/STL 内联与槽位差（215/203） | ORIG 0x0834fa84]
 int CMonsterManager::load_monsters()
 {
     if (sync_script::GetInstanceSyncScript()->truncate_monster_info_table())
@@ -712,6 +727,7 @@ CSkillList::~CSkillList()
     destroy();
 }
 
+// [b28d-32 N(P223/N89): ORIG 尾岛与 STL 调用形差（71/98） | ORIG 0x08350b42]
 void CSkillList::destroy()
 {
     __gnu_cxx::hash_map<int, CSkill*>::iterator it;
@@ -747,6 +763,7 @@ CSkill* CSkillList::find_skill(int jobType, int skillIdx)
     return it->second;
 }
 
+// [b28d-32 N(P75/N93): 装载序/槽位差（125/118） | ORIG 0x083519a6]
 void CSkillList::insert_skill(int jobType, CSkill* skill)
 {
     if (skill == 0)
@@ -778,6 +795,7 @@ void CSkillList::insert_skill(int jobType, CSkill* skill)
         std::multimap<int, CSkill*>::value_type(skill->get_group(), skill));
 }
 
+// [b28d-32 N(P183/N82): 容器重复访问/槽位差（138/117） | ORIG 0x08351c1e]
 int CSkillList::get_ran_groupskill_index(int jobType, int group, int skillIdx)
 {
     int count = m_groupSkillMap[jobType].count(group);
@@ -824,6 +842,7 @@ int CSkillList::get_ran_groupskill_index(int jobType, int group, int skillIdx)
     return skill->get_index();
 }
 
+// [b28d-32 N(P75/N93): 实参装载序与块序差（163/185） | ORIG 0x08351e18]
 void CSkillList::set_post_learning_skill(int jobType, CSkill* skill)
 {
     if (skill != 0 && skill->m_preSkillList.size() != 0)
@@ -872,6 +891,7 @@ __gnu_cxx::hash_map<int, CSkill*>* CSkillList::getSkillList(int jobType)
     return &m_skillList[jobType];
 }
 
+// [b28d-32 N(P75/N89): 大解析函数 STL 内联/槽位差（866/845） | ORIG 0x08350c26]
 int CSkillList::init()
 {
     STSkillScript script;
@@ -1059,6 +1079,7 @@ QuestList::~QuestList()
     destroy();
 }
 
+// [b28d-32 N(P223/N89): ORIG 空块岛与迭代器/STL 形态差（81/93） | ORIG 0x08353c86]
 void QuestList::destroy()
 {
     Quest* quest = 0;
@@ -1116,44 +1137,50 @@ std::multimap<int, int>* QuestList::getQuestNPCList(ENUM_QUEST_GRADE grade)
     }
 }
 
+// [b28d-32 AE: P50 先声明后赋值（C1Ev）+ 后置 it++ + 双 nop 岛，61=61 逐条全等 | ORIG 0x08354f02]
 void QuestList::insert_NPC(int npcIdx)
 {
-    if (npcIdx != 0)
+    // [b28d-32] ORIG 0x08354f02：`C1Ev` 默认构造迭代器 + 后置 `it++`（ppEi）+
+    // 双 nop 岛（循环内 return 与正常出口汇合）⇒ 先声明后赋值（P50 复活）、
+    // while 形、后置增量。
+    if (npcIdx == 0)
+        return;
+    std::list<int>::iterator it;
+    it = m_listE0.begin();
+    while (it != m_listE0.end())
     {
-        for (std::list<int>::iterator it = m_listE0.begin();
-             it != m_listE0.end(); ++it)
+        if (*it == npcIdx)
         {
-            if (*it == npcIdx)
-            {
-                return;
-            }
+            return;
         }
-        m_listE0.push_back(npcIdx);
+        it++;
     }
+    m_listE0.push_back(npcIdx);
 }
 
+// [b28d-32 N(P74/P75): ORIG char 成员单字节拷贝 vs 4.4 折 dword（+0x15..17 padding 合并）+ 实参装载序（79/74）；本 TU 镜像已裁为 ORIG 7 字段 | ORIG 0x08355474]
 int QuestList::Check_Quest(Quest* quest, stSelectQuestParam& param,
                            const WongWork::CQuestClear& clear)
 {
-    if (quest->exposeQuest())
-    {
-        if (quest->check_possible(param))
-        {
-            if (check_ahead_quest(param.m_questIdx, clear))
-            {
-                if (check_anti_quest(param.m_questIdx, clear))
-                {
-                    if (quest->check_power_side(param.m_powerSide))
-                    {
-                        return 1;
-                    }
-                }
-            }
-        }
-    }
-    return 0;
+    // [b28d-32] ORIG 0x08355474：函数头把 param 7 字段逐条拷入栈局部
+    // （-0x24..-0xd，+0x14 为 char），随后各检查用负形早退
+    // `call; xor $1,%eax; test %al,%al; je fail; mov $0,%eax; jmp end`
+    // （exposeQuest/check_possible 仍用原 param，其余用副本字段），尾 return 1。
+    stSelectQuestParam paramCopy = param;
+    if (!quest->exposeQuest())
+        return 0;
+    if (!quest->check_possible(param))
+        return 0;
+    if (!check_ahead_quest(paramCopy.m_questIdx, clear))
+        return 0;
+    if (!check_anti_quest(paramCopy.m_questIdx, clear))
+        return 0;
+    if (!quest->check_power_side(paramCopy.m_powerSide))
+        return 0;
+    return 1;
 }
 
+// [b28d-32 N(P75/N93): 实参装载序与槽位差（94/86） | ORIG 0x08354fc8]
 bool QuestList::check_ahead_quest(int questIdx,
                                  const WongWork::CQuestClear& clear)
 {
@@ -1190,6 +1217,7 @@ bool QuestList::check_ahead_quest(int questIdx,
     return 1;
 }
 
+// [b28d-32 N(P75/N93): 栈拷贝/装载序与分支块序差（88/79） | ORIG 0x0835511e]
 bool QuestList::check_anti_quest(int questIdx,
                                 const WongWork::CQuestClear& clear)
 {
@@ -1224,12 +1252,12 @@ bool QuestList::check_anti_quest(int questIdx,
     return 1;
 }
 
+// [b28d-32 AE: P223 正向 if-early-return 消 goto 尾对齐 nop，31=31 逐条全等 | ORIG 0x08355284]
 bool QuestList::check_clear(int questIdx, const WongWork::CQuestClear& clear)
 {
-    // [b28c-21] ORIG `jle 0x5c`（≤0x752f 跳 body，trace 块 fall-through 在前）：
-    // goto 正向形复现（4.4 对 if-early-return 恒把 then 块放尾部产 jg）。
-    if (questIdx <= 0x752f)
-        goto BODY;
+    // [b28d-32] ORIG 0x08355284：`jle +0x5c`（>0x752f 走 trace 块 fall-through，
+    // ≤ 直跳 body）。正向 if-early-return 形复现，goto 尾标签会多一条对齐 nop。
+    if (questIdx > 0x752f)
     {
         cMyTrace trace(
             __PRETTY_FUNCTION__,
@@ -1237,9 +1265,8 @@ bool QuestList::check_clear(int questIdx, const WongWork::CQuestClear& clear)
         trace("[%s][%d]",
               __PRETTY_FUNCTION__,
               0x152f);
+        return 0;
     }
-    return 0;
-BODY:
     if (clear.isClearedQuest(questIdx))
     {
         return 0;
@@ -1247,6 +1274,7 @@ BODY:
     return 1;
 }
 
+// [b28d-32 N(P223/N89): 迭代器循环与岛差（113/94） | ORIG 0x08355304]
 bool QuestList::select_mail_quest(std::list<int>& out,
                                   const WongWork::CQuestClear& clear,
                                   const stSelectQuestParam& param)
@@ -1282,6 +1310,7 @@ void QuestList::select_quest(std::list<int>& out, stSelectQuestParam& param,
     allowable_questlist_as_npc(out, m_npcQuestList5, param, clear, false);
 }
 
+// [b28d-32 N(P183/N82): multimap 遍历重复访问与槽位差（131/109） | ORIG 0x0835556c]
 void QuestList::allowable_questlist_as_npc(
     std::list<int>& out, const std::multimap<int, int>& npcList,
     stSelectQuestParam& param, const WongWork::CQuestClear& clear, bool flag)
@@ -1308,6 +1337,7 @@ void QuestList::allowable_questlist_as_npc(
     }
 }
 
+// [b28d-32 N(P89/N134): 具名局部/STL 调用链形态差（106/85） | ORIG 0x0835589e]
 void QuestList::GetDailyQuestList(std::list<int>& out)
 {
     for (std::list<int>::iterator it = m_listE0.begin();
@@ -1344,12 +1374,10 @@ END2:;
 END1:;
 }
 
-static int getQuestItemType(CItem* item)
-{
-    int (**vtbl)(void*) = *(int (***)(void*))item;
-    return vtbl[3](item);
-}
-
+// [b28d-32 P282 修复] ORIG 0x08353fb5 `vptr+0xc` 虚槽 = CItem vtable slot 3 =
+// GetItemType()（CItem.h:45，槽序 ~CItem×2/make_item/GetItemType）；旧实现用
+// static getQuestItemType 手动 vtbl[3] 调用（发明符号+手动虚调，违 §4.5）已删，
+// 改为真实 `item->GetItemType() == 8`。残差 N89 内联差 991/983。
 bool QuestList::load_list()
 {
     QuestScript script;
@@ -1395,7 +1423,7 @@ bool QuestList::load_list()
                         path, mit->m_itemIdx);
                     return 0;
                 }
-                if (!(item->is_stackable() && getQuestItemType(item) == 8))
+                if (!(item->is_stackable() && item->GetItemType() == 8))
                 {
                     LogManager::logFormat(
                         1, "data_manager.cpp", __PRETTY_FUNCTION__,

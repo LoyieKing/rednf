@@ -138,6 +138,10 @@ void Manager::dieCharac(CUser* user)
     //   具名局部——每个 ProcStage 调用点现取现用 `control->getProcStage()->…`（结果
     //   寄存器直传不落槽，缓存成命名局部会合并 getProcStage 少发 call）。isReward 用
     //   `if(!x) return` 触发 bool 取反 xor 形（P22）对齐 ORIG。
+    // [b28d-D33] 尾块布局 N 封顶：早返形（本形）69 条 vs ORIG 68 条，唯一残差为
+    // 多一个 `jmp <epilogue>;nop` 岛（我们 3 岛 vs ORIG 2 岛，ORIG control==0
+    // 直跳 leave）。P223 负条件 goto 尾标签形与 P63 && 合并形实测均劣（69/72），
+    // 属 4.1 vs 4.4 基本块落点布局差，语义等价（call 序列逐条一致）。
     if (user == 0)
     {
         return;
@@ -232,6 +236,9 @@ Manager::Manager() {}
 Manager::~Manager() {}
 
 // ---- ORIG T 0x0813101e（advancealtar__Manager/eplp.md 全文）----
+// [b28d-D33 N1 封顶] ORIG 0x08131041 多一条 `add $0x0,%eax`（4.1 对
+// `type + 常量0` 未折叠）；4.4 前端恒折成单条 cmp（探针 /tmp/eplp_probe{,2}.cpp
+// f1/f2/g1..g7 七形全折），N1「两步常量算术折叠为单步」判据命中，语义等价。
 void Manager::eplp(CUser* user, EplpType::T type)
 {
     if (user == 0)
@@ -269,6 +276,9 @@ int Manager::pause(CUser* user, bool flag)
 }
 
 // ---- ORIG T 0x08130bb8（advancealtar__Manager/dieMob.md 全文 + 汇编逐块核对）----
+// [b28d-D33 N93/P222 封顶] ORIG 0x08130bb8：203 vs 199 条；残差 = 尾部条件极性
+// （ORIG je vs 4.4 jne）+ 局部槽 -0x30/-0x2c 装载序（N93 块级槽方向 + P222 块序）。
+// p167 差集 CLEAR（41=41 calls），语义完成。
 int Manager::dieMob(CUser* user, unsigned short mobSeq, unsigned short param,
                     const MSG_MONSTER_DIE& msg)
 {
@@ -346,8 +356,9 @@ void Manager::leaveUser(CUser* user)
     {
         return;
     }
-    GameWorld* world = G_GameWorld();
-    world->out_from_dungeon(user);
+    // [b28d-D33] P0：ORIG 0x081310b2 段 `call G_GameWorld; mov %eax,(%esp); call
+    // out_from_dungeon` 无 -0xc 槽往返 ⇒ 原码无 world 具名局部（去缓存）。
+    G_GameWorld()->out_from_dungeon(user);
 
     PacketGuard packet;
     packet.put_header(0, 2);
@@ -355,8 +366,7 @@ void Manager::leaveUser(CUser* user)
     packet.put_short(1);
     user->make_basic_info(reinterpret_cast<char*>(&packet), '\0');
     packet.finalize(true);
-    world = G_GameWorld();
-    world->send_all(packet, user);
+    G_GameWorld()->send_all(packet, user);
 }
 
 
@@ -376,34 +386,40 @@ void CharacAdvanceAltarManager::gmSetTicket(int ticket)
 // 任一成功置 update=1 并返 1（头口径 char）。----
 char CharacAdvanceAltarManager::decTicket()
 {
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
-    if (cur == 0)
+    // [b28d-D33 P183/P0] ORIG 0x081313b6 无 cur 具名槽：每次 `mov 0x8(%ebp),%eax;
+    // mov (%eax),%eax` 重读成员并直接 test ⇒ 去缓存逐次重读。
+    if (m_currentAdvanceAltarData == 0)
     {
         return 0;
     }
     bool dec = false;
-    if (cur->m_ticket >= 1)
+    if (m_currentAdvanceAltarData->m_ticket >= 1)
     {
-        --cur->m_ticket;
+        --m_currentAdvanceAltarData->m_ticket;
         dec = true;
     }
-    else if (cur->m_freeTicket > 0)
+    else if (m_currentAdvanceAltarData->m_freeTicket > 0)
     {
-        --cur->m_freeTicket;
+        --m_currentAdvanceAltarData->m_freeTicket;
         dec = true;
     }
     if (dec)
     {
-        cur->m_update = 1;
+        m_currentAdvanceAltarData->m_update = 1;
     }
-    return dec ? 1 : 0;
+    // [b28d-D33] ORIG 尾 `movzbl -0x1(%ebp),%eax; leave; ret` 直读 bool 槽 ⇒
+    // 原码 `return dec;`（bool→char 隐式转换），非三目物化。
+    return dec;
 }
 
 // ---- ORIG T 0x08132abe（addRewardData.md）：rewards map 查重后两端各插一份
 //      （_Reward{field0=rewardId,byte4=0}），置 m_update=1；返回 1/0。----
+// [b28d-D33 P220/P236 封顶] ORIG 0x08132abe：89=89 条；p167 差集 = eq(MISSING) vs
+// ne(EXTRA) ⇒ ORIG 用 `it==end` 正极性；实参装载序 `lea map,%ecx; lea key,%edx`
+// 与 4.4 相反（P236/P75）。语义等价。
 int CharacAdvanceAltarManager::addRewardData(int rewardId, std::map<int, _Reward>& out)
 {
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
+    AdvanceAltarData* cur = m_currentAdvanceAltarData;
     if (cur == 0)
     {
         return 0;
@@ -423,9 +439,11 @@ int CharacAdvanceAltarManager::addRewardData(int rewardId, std::map<int, _Reward
 
 // ---- ORIG T 0x081318e2（getClearStageSummary.md）：按 _Stage.m_field0
 //      （difficulty 计数）分组累计 out[0..2]。----
+// [b28d-D33 P28/N86 封顶] ORIG 0x081318e2：79 vs 66 条；p167 差集 = ppEi(MISSING)
+// vs ppEv(EXTRA) ⇒ 迭代器增量形 + N86 copy-elision 两段槽（4.1 临时槽+拷贝）。
 void CharacAdvanceAltarManager::getClearStageSummary(int out[3]) const
 {
-    const AdvanceAltarData* data = getCurrentAdvanceAltarData();
+    const AdvanceAltarData* data = m_currentAdvanceAltarData;
     if (data == 0)
     {
         return;
@@ -462,11 +480,13 @@ void CharacAdvanceAltarManager::getClearStageSummary(int out[3]) const
 //      getFieldDataPoint(minLevel, FT_PRICE)；命中则构建 _BuyItem 入对应 shop 表，
 //      需要占槽时置入空槽【BLOCKED 子调用：setUnlockItemToEmptySlot 依赖 _Slot
 //      in-map 布局口径】；尾部统一置 update=1。----
+// [b28d-D33 P28/N86 封顶] ORIG 0x08132d20：159 vs 163 条；p167 差集 = ppEi(MISSING)
+// vs ppEv(EXTRA)（P28 增量侧）+ 局部槽序。语义等价。
 void CharacAdvanceAltarManager::setUnlockBuyItem(AdvanceAltarShopType::T shopType,
                                                  int stageIdx,
                                                  std::vector<_BuyItem>* out)
 {
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
+    AdvanceAltarData* cur = m_currentAdvanceAltarData;
     if (cur == 0)
     {
         return;
@@ -533,9 +553,12 @@ void CharacAdvanceAltarManager::setDefaultBuyItem(AdvanceAltarShopType::T type)
 // it+2=&m_int1、it+6=&m_byte5、it+7=&m_int6 —— 与现头 sizeof(_Slot)==0xa 自洽。----
 
 // ---- ORIG T 0x08131b58（setSlot.md 全文）----
+// [b28d-D33 N93 封顶] ORIG 0x08131b58：253 vs 274 条；残差 = 局部槽 -0x20 vs -0x24
+// 起的整组槽位平移（N93/N98 块级槽分配，已全头部声明不可翻）。p167 差集 CLEAR
+// （13=13），语义等价。
 int CharacAdvanceAltarManager::setSlot(bool isSet, const CMDPacketStruct::_SetSlotData& data)
 {
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
+    AdvanceAltarData* cur = m_currentAdvanceAltarData;
     if (cur == 0)
     {
         return 2;
@@ -628,6 +651,9 @@ int CharacAdvanceAltarManager::setSlot(bool isSet, const CMDPacketStruct::_SetSl
 }
 
 // ---- ORIG T 0x08131f0a（exchangeSlot.md 全文）----
+// [b28d-D33 N7/N109 + 帧量化] ORIG 0x08131f0a：219 vs 243 条；ORIG 帧 sub $0x48
+// （16k+8）vs 4.4 push %ebx + sub $0x54（callee-saved 需求不同，N7/N109）。
+// p167 差集 CLEAR（10=10），语义等价。
 unsigned int CharacAdvanceAltarManager::exchangeSlot(CMDPacketStruct::_SetSlotData& slotA,
                                             CMDPacketStruct::_SetSlotData& slotB)
 {
@@ -635,7 +661,7 @@ unsigned int CharacAdvanceAltarManager::exchangeSlot(CMDPacketStruct::_SetSlotDa
     {
         return 2;
     }
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
+    AdvanceAltarData* cur = m_currentAdvanceAltarData;
     if (cur == 0)
     {
         return 3;
@@ -705,7 +731,9 @@ int CharacAdvanceAltarManager::resetSlot(advancealtar::AdvanceAltarData& cur,
     {
         return 2;
     }
-    if (it->second.m_byte0 != 1)   // P222 反向包裹：ORIG body-fall、mov$2 尾块
+    // [b28d-D33] ORIG 0x08132c39 `xor $1,%eax; test %al,%al; je` ⇒ 裸 !field 形
+    // （P168a 档②；值域 {0,1}，与 !=1 语义等价）。
+    if (!it->second.m_byte0)   // P222 反向包裹：ORIG body-fall、mov$2 尾块
     {
         it->second.m_int6 = 0;
         cur.m_update = 1;
@@ -715,6 +743,9 @@ int CharacAdvanceAltarManager::resetSlot(advancealtar::AdvanceAltarData& cur,
 }
 
 // ---- ORIG T 0x08132234（setUnlockItemToEmptySlot.md 全文）----
+// [b28d-D33 P209/P28 封顶] ORIG 0x08132234：71 vs 82 条；残差 = ①枚举形参比较
+// ORIG `mov 0xc(%ebp),%eax; test`（寄存器化）vs 4.4 mem 直比（P209 反例）；
+// ②p167 差集 ppEi/ptEv MISSING vs ppEv/ne EXTRA（P28 + P167 新判据）。语义等价。
 void CharacAdvanceAltarManager::setUnlockItemToEmptySlot(AdvanceAltarShopType::T shopType,
                                                          int itemIdx)
 {
@@ -731,7 +762,7 @@ void CharacAdvanceAltarManager::setUnlockItemToEmptySlot(AdvanceAltarShopType::T
     {
         return;
     }
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
+    AdvanceAltarData* cur = m_currentAdvanceAltarData;
     if (cur == 0)
     {
         return;
@@ -762,9 +793,12 @@ void CharacAdvanceAltarManager::setUnlockItemToEmptySlot(AdvanceAltarShopType::T
 // ---- ORIG W 0x08132f8e（setDefaultSlot.md 全文）：unit/skill 两张槽表各扫 0..5；
 // 命中则清空槽数据；缺失则以 kUnitSlotNoLock/kSkillSlotNoLock[k] 为模板补插，
 // 类型标记分别为 SLOT_N1/SLOT_N2，槽内槽号=k 写入 m_byte5。----
+// [b28d-D33 P183/P220 封顶] ORIG 0x08132f8e：161 vs 156 条；ORIG
+// `mov (%eax),%eax; test %eax,%eax` 直判（无 cur 槽，P183）vs 4.4 -0x1c 槽 +
+// p167 差集 eq/make_pair 左值性（P61/P220）。语义等价。
 void CharacAdvanceAltarManager::setDefaultSlot()
 {
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
+    AdvanceAltarData* cur = m_currentAdvanceAltarData;
     if (cur == 0)
     {
         return;
@@ -813,13 +847,15 @@ void CharacAdvanceAltarManager::setDefaultSlot()
 // use_money(fee,0x32,1) 失败返 3 → SendUpdateItemList(1,0,0) → ++m_resetCount
 // → setDefaultSlot + 三商店 default → 遍历 stages（m_field4!=-1）三商店重放
 // unlock → 星池差值入账 + HistoryLog::starAdd。----
+// [b28d-D33 N82/帧量化] ORIG 0x081333b2：220 vs 234 条；帧 sub $0x48 vs $0x58
+// （N82 帧区差）+ 局部槽组平移。语义等价。
 int CharacAdvanceAltarManager::resetStar(CUser* user, CMDPacketStruct::ResetStarType::T type)
 {
-    if (user == 0 || getCurrentAdvanceAltarData() == 0)
+    if (user == 0 || m_currentAdvanceAltarData == 0)
     {
         return 2;
     }
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
+    AdvanceAltarData* cur = m_currentAdvanceAltarData;
     if (type != static_cast<CMDPacketStruct::ResetStarType::T>(0))
     {
         return 2;
@@ -896,6 +932,9 @@ void CharacAdvanceAltarManager::gmSetStar(int star)
 }
 
 // ---- ORIG T 0x08131426（checkAndCreateDefaultRidable.md 全文）----
+// [b28d-D33 P197④/N82 封顶] ORIG 0x08131426：92 vs 101 条；帧 sub $0x28 vs $0x38
+// （N82 帧/槽区差）+ p167 差集 = size(MISSING x3) vs empty(EXTRA x3) ⇒ 源形须
+// `map.size()==0` 而非 `map.empty()`（P197④）。语义等价。
 void CharacAdvanceAltarManager::checkAndCreateDefaultRidable()
 {
     bool skipInit = false;
@@ -938,11 +977,13 @@ void CharacAdvanceAltarManager::checkAndCreateDefaultRidable()
 }
 
 // ---- ORIG T 0x081319ae（buyItem.md 全文）----
+// [b28d-D33 P220/P75 封顶] ORIG 0x081319ae：130 vs 125 条；p167 差集 = eq(MISSING)
+// vs ne/ptEv(EXTRA) + 实参/槽装载序（P75 跨版本调度）。语义等价。
 int CharacAdvanceAltarManager::buyItem(AdvanceAltarShopType::T shopType, int level,
                                        short fromSlot, short toSlot, int totalCost,
                                        int& outReward)
 {
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
+    AdvanceAltarData* cur = m_currentAdvanceAltarData;
     if (cur == 0)
     {
         return 3;
@@ -982,15 +1023,17 @@ int CharacAdvanceAltarManager::buyItem(AdvanceAltarShopType::T shopType, int lev
 }
 
 // ---- ORIG T 0x0813234e（sendAchievementReward.md 全文）：奖励领奖入口。----
+// [b28d-D33 N82/帧量化] ORIG 0x0813234e：210 vs 222 条；帧 sub $0x50 vs $0x60
+// （N82 帧区差）+ 局部槽组平移。语义等价。
 int CharacAdvanceAltarManager::sendAchievementReward(
     CUser* user, int achievementId,
     const std::vector<_RewardItem>** outItems)
 {
-    if (user == 0 || getCurrentAdvanceAltarData() == 0)
+    if (user == 0 || m_currentAdvanceAltarData == 0)
     {
         return 2;
     }
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
+    AdvanceAltarData* cur = m_currentAdvanceAltarData;
     std::map<int, _Reward>& rewards = cur->m_rewards;
     std::map<int, _Reward>::iterator it = rewards.find(achievementId);
     if (it == rewards.end())
@@ -1095,10 +1138,13 @@ void CharacAdvanceAltarManager::set(const _CharacAdvanceAltarDbData& db)
 // 写入点口径还原：itemId=等级点 FT_INDEX 的 FieldData::m_value、needGage=
 // CItem::getAdvanceAltarNeedGage；键=槽表 first（槽号）。局部 tmp _SlotItem
 // 构造自然发射 ORIG W 0x081347e2 的 C1/C2 弱符号。----
+// [b28d-D33 N86/P28/P167 封顶] ORIG 0x08132638：183 vs 193 条；p167 差集 =
+// ne/ptEv/ppEi/make_pair 非 const(MISSING) vs eq/ppEv/make_pair const(EXTRA)
+// （P28/P167/P61/N86 copy-elision 槽号连锁）。语义等价。
 void CharacAdvanceAltarManager::getSlotItem(
     std::map<unsigned char, _SlotItem>& out) const
 {
-    const AdvanceAltarData* cur = getCurrentAdvanceAltarData();
+    const AdvanceAltarData* cur = m_currentAdvanceAltarData;
     if (cur == 0)
     {
         return;
@@ -1220,6 +1266,9 @@ bool CharacAdvanceAltarManager::clearStage(int stageIdx, StageDifficulty::T diff
 //      （setNextStage.md 全文；2026-08-27 LfAltarStage 批）。stageIdx==0 走首幕
 //      占位；否则按 StageMapList 链推进，下一幕未入 map 时写入占位记录并按链
 //      尾标志递归。----
+// [b28d-D33 P28/P61 封顶] ORIG 0x081331d4：130 vs 136 条（D26 已去 cur 缓存）；
+// p167 差集 = 迭代器转换 C1ERKS/eq/make_pair 非 const(MISSING) vs ne/make_pair
+// const(EXTRA)（P61/P81 左值性 + P220 极性）。语义等价。
 void CharacAdvanceAltarManager::setNextStage(int stageIdx)
 {
     // [b28d-26] ORIG 0x081331d4 每处 `mov 0x8(%ebp),%eax; mov (%eax),%eax`
@@ -1269,9 +1318,14 @@ void CharacAdvanceAltarManager::setNextStage(int stageIdx)
 // ---- ORIG T 0x08364df6 _ZNK12StageMapList7isExistEi ----
 bool StageMapList::isExist(int stageIdx) const
 {
-    // [b28c-21] ORIG 先 find（-0x10）后 end（-0xc）再 eq：单表达式 4.4 先求
-    // 右操作数（end→-0x10）；交换操作数使 find 落 -0x10、end 落 -0xc。
-    return m_map.end() != m_map.find(stageIdx);
+    // [b28d-D33] ORIG 0x08364e40：find 直构 -0x10（this）、end 临时 -0xc（rhs），
+    // 调 operator==（eq）后 test/je/mov$0/mov$1 分支形（P56 + P47）。
+    std::map<int, _StageMapSummary>::const_iterator it = m_map.find(stageIdx);
+    if (it == m_map.end())
+    {
+        return false;
+    }
+    return true;
 }
 
 // ---- ORIG W 0x081347c0 _ZNK12StageMapList18getFirstStageIndexEv（inline thunk）----
@@ -1294,8 +1348,7 @@ int StageMapList::getNextStage(int stageIdx, bool& outFlags) const
     {
         // [b28c-21] ORIG `movzbl 0x10(%eax),%edx; mov %dl,(%eax)` 无归一化；
         // 4.4 对 uchar→bool 赋值恒插 test/setne（跨版本 bool ABI，N 族）；
-        // 字节视图形（reinterpret_cast<unsigned char&>）实测反致 push %ebx
-        // + 帧 0x28→0x24，已回退。
+        // 字节视图形（引用/指针）实测均致 push %ebx + 帧 0x28→0x24，已回退。
         outFlags = next->second.m_flags;
     }
     return it->second.m_nextId;

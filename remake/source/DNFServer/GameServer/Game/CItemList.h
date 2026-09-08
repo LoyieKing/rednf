@@ -61,7 +61,11 @@ struct STCeraShopItem
     int m_field38;                    // +0x38（ceraPrice）
     char m_field3c;                   // +0x3c
     std::string m_name;               // +0x40
-    int m_field44;                    // +0x44（bonusWeight）
+    union {
+        int m_field44;                // +0x44（bonusWeight，int 视图：SetItem 读取）
+        float m_field44f;             // +0x44（float 视图：clear 常数 store 的 edx
+                                      //   中转形复现，P238；sizeof/偏移/mangled 不变）
+    };
     int m_field48;                    // +0x48
     int m_field4c;                    // +0x4c
     char m_field50;                   // +0x50（giftDisallow）

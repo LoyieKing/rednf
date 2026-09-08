@@ -372,10 +372,15 @@ public:
     int m_restrictValue;                                  // +0x000（getRestrictValue 读）
     int m_count;                                          // +0x004
     char m_data[100][0x2d];                               // +0x008
-    unsigned char m_extra[0x64];                          // +0x119c（flag 写入区。
-                                        // b28BM13：bool 字段实测触发 setne 归一
-                                        // (+2)，保持 uchar；装载序 index→this→
-                                        // flag vs 4.4 index→flag→this = N18a）
+    char m_extra[0x64];                                   // +0x119c（flag 写入区。
+                                        // b28d-36：字段与 char flag 同型化
+                                        // （P211）——set ORIG 0x0815de19 为
+                                        // LHS-first（this 先于 flag），uchar 字段
+                                        // 实测恒 RHS-first；改 char 后逐条复现，
+                                        // 且 getRestrictValue 的 uchar RHS 变异型
+                                        // ⇒ RHS-first+edx 中转与 ORIG 0x0816dd99
+                                        // 一致。sizeof/偏移不变。禁改 bool
+                                        // （b28BM13 setne 归一 +2）。
 };
 
 // SigLoadHeroMissionData（sizeof 0x104）

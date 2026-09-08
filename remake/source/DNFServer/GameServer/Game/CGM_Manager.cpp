@@ -52,9 +52,12 @@ unsigned char CGM_Manager::TurnGmMode(unsigned int accId)
         m_gmMap[accId].m_mode = 0;
     else
         m_gmMap[accId].m_mode = 1;
-    // ORIG 0x0829923e：`movzbl (%eax),%ebx`（直落 callee-saved）⇒ P226 裸语句
-    // 表达式令 4.4 升格 %ebx；直写 return 出 movzbl(%eax),%eax; mov %eax,%ebx 两步。
-    return ({ m_gmMap[accId].m_mode; });
+    // b28d-37 [N18a 复核]：ORIG 0x0829923e `movzbl (%eax),%ebx`（零扩展直落
+    // callee-saved 返回值缓存）；4.4 恒 `movzbl (%eax),%eax; mov %eax,%ebx`。
+    // P248 档③字段侧（m_mode bool→uchar）、P226 语句表达式、P231 纯 register
+    // 三形均已实测同形 ⇒ N18a 封顶（P0 禁绑定，不再试）。
+    register unsigned char mode = m_gmMap[accId].m_mode;
+    return mode;
 }
 
 // ORIG 符号: _ZN11CGM_Manager16GetCurrentGmModeEj @ 0x8299276
@@ -69,8 +72,10 @@ char CGM_Manager::GetCurrentGmMode(unsigned int accId)
     std::map<unsigned int, CGMRecord>::iterator it = m_gmMap.find(accId);
     if (it == m_gmMap.end())
         return 0;
-    // 同 TurnGmMode：ORIG 0x082992?? `movzbl (%eax),%ebx` 直落（P226）。
-    return ({ m_gmMap[accId].m_mode; });
+    // b28d-37 [N18a 封顶]：同 TurnGmMode，ORIG 0x082992f3 `movzbl (%eax),%ebx`
+    // 直落 vs 4.4 `movzbl (%eax),%eax; mov %eax,%ebx`；P226/P231 两形实测同形。
+    register char mode = m_gmMap[accId].m_mode;
+    return mode;
 }
 
 // ORIG 符号: _ZN11CGM_Manager10GetGmLevelEj @ 0x082993d8

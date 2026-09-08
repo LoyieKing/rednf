@@ -1,4 +1,10 @@
 // ============================================================================
+// [b28d-38 判词] 本 TU 5 件最终状态：
+//  updateOneADayItemList 0x851xxxx DIFF（p167 CLEAR 11/11；setne 物化/N88）
+//  checkValidShopItem 0x08512cda DIFF（operator++(int) 后置已修；余 4.1 循环条件槽物化 P197④）
+//  checkLimitNpcBuyItemList 0x08513580 DIFF（同上）
+//  loadItemShopFiles 0x08512aa0 DIFF（operator!= 正极性已修；残差槽号/物化）
+//  importItemShopScript DIFF（p167 CLEAR 59/59；byte 层 N 封顶）
 // df_game_r 还原 —— CItemShop（NPC 物品商店，G4 商城/交易域批次）
 // 参照 docs/class_func_reports/CItemShop.md + ORIG 反汇编逐函数核对。
 // 布局见 CDataManager.h；ItemShopScript 布局依据 C1/clear/import 推导。
@@ -142,9 +148,9 @@ bool CItemShop::loadItemShopFiles()
     ItemShopScript script;
     std::map<int, std::string>::iterator it;
     it = g_itemShopScriptFileList.m_fileMap.begin();
-    for (;;) {
-        if (it == g_itemShopScriptFileList.m_fileMap.end())
-            break;
+    // [b28d-38] P167：ORIG 调 _Rb_tree_iterator::operator!=（我们原用 ==）⇒ 正极性 while。
+    while (it != g_itemShopScriptFileList.m_fileMap.end())
+    {
         const char* path = it->second.c_str();
         if (path == 0)
             break;
@@ -171,7 +177,8 @@ bool CItemShop::checkValidShopItem(unsigned int shopId, unsigned long itemIdx)
         return false;
     std::vector<int>::iterator vit = it->second.m_curItemList.begin();
     std::vector<int>::iterator vend = it->second.m_curItemList.end();
-    for (; vit != vend; ++vit) {
+    // [b28d-38] P28 增量侧：ORIG 调 operator++(int)（后置 vit++，带临时槽）。
+    for (; vit != vend; vit++) {
         if ((unsigned long)*vit == itemIdx)
             return true;
     }
@@ -186,7 +193,7 @@ bool CItemShop::checkLimitNpcBuyItemList(unsigned int shopId, unsigned long item
         return false;
     std::vector<int>::iterator vit = it->second.m_limitNpcBuyList.begin();
     std::vector<int>::iterator vend = it->second.m_limitNpcBuyList.end();
-    for (; vit != vend; ++vit) {
+    for (; vit != vend; vit++) {
         if ((unsigned long)*vit == itemIdx)
             return true;
     }

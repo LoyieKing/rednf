@@ -35,21 +35,6 @@
 namespace expert_job
 {
 
-namespace
-{
-
-// 配方物品（实际为 CStackableItem）的材料清单视图。
-// ORIG FindMonsterCard/GetRecipeInputItems/DelMaterialOfRecipe 各处一律以
-// (char*)recipeItem + 0x174 直接解释为 std::vector<std::pair<int,int>>，
-// 对应 CStackableItem.h 的 m_recipe174.m_vec0（RecipeInfo@+0x174、首向量
-// +0x00）；CItem 基类布局止于 0x148，故必须经派生类型转换后具名访问。
-inline std::vector<std::pair<int, int> >& get_recipe_materials(CItem* recipe)
-{
-    return reinterpret_cast<CStackableItem*>(recipe)->m_recipe174.m_vec0;
-}
-
-}  // namespace
-
 // ---------------------------------------------------------------------------
 // ExpertJobMaterial 成员
 // ---------------------------------------------------------------------------
@@ -109,16 +94,18 @@ int ExpertJobMaterial::CheckType(bool checkStackable, int itemType)
     if (Empty())
         return 0x11;
 
-    CItem* item = reinterpret_cast<CItem*>(m_item);
-    if (item->is_stackable() != checkStackable)
+    // b28d-36（修法，P0）：ORIG 0x0849bfd0 每次访问均重发 `mov 0x8(%ebp),%eax;
+    // mov 0x4(%eax),%eax` 直传 is_stackable/GetItemType/IsEnchantalbe（无 item
+    // 具名槽往返）⇒ 删局部、逐点内联 reinterpret_cast<CItem*>(m_item)。
+    if (reinterpret_cast<CItem*>(m_item)->is_stackable() != checkStackable)
         return 0x17;
 
     if (checkStackable)
     {
-        if (item->GetItemType() != itemType)
+        if (reinterpret_cast<CItem*>(m_item)->GetItemType() != itemType)
             return 0x17;
     }
-    else if (!item->IsEnchantalbe())
+    else if (!reinterpret_cast<CItem*>(m_item)->IsEnchantalbe())
     {
         return 0x17;
     }
@@ -196,8 +183,13 @@ int ExpertJobMaterial::IsExistMaterialOfRecipe()
 
     int recipeErr = 0;
     recipeErr = IsRecipe();   // ORIG 0x849c17b 前置 movl $0x0,-0xc 预清（P198-①）
-    if (recipeErr != 0)
+    // b28d-36（P225 试形）：ORIG 0x849c183 `cmpl $0x0,-0xc; setne %al;
+    // test %al,%al; je` 为 4.1 槽比零 bool 物化；4.4 对 `if (x != 0)` 恒折
+    // 直跳。while+break 形复现该四段物化（P225 定稿）。
+    while (recipeErr != 0)
+    {
         return recipeErr;
+    }
 
     if (reinterpret_cast<CUser*>(m_user)->getCurCharacR() == 0)
         return 3;
@@ -287,9 +279,14 @@ int ExpertJobMaterial::UseMaterialOfRecipe(PacketGuard* packet)
     if (Empty())
         return 0x11;
 
-    int recipeErr = IsRecipe();
-    if (recipeErr != 0)
+    // b28d-36：ORIG 0x0849c556 前置 `movl $0x0,-0xc` 预清（P198-①）+
+    // `cmpl $0; setne %al; test %al,%al; je` 槽比零物化（P225 while+break 形）。
+    int recipeErr = 0;
+    recipeErr = IsRecipe();
+    while (recipeErr != 0)
+    {
         return recipeErr;
+    }
 
     CUser* user = reinterpret_cast<CUser*>(m_user);
     if (user->getCurCharacR() == 0)
@@ -297,8 +294,8 @@ int ExpertJobMaterial::UseMaterialOfRecipe(PacketGuard* packet)
 
     bool changed = false;
     if (!DelMaterialOfRecipe(user,
-                             get_recipe_materials(
-                                 reinterpret_cast<CItem*>(m_item)),
+                             reinterpret_cast<CStackableItem*>(m_item)
+                                 ->m_recipe174.m_vec0,
                              static_cast<int>(m_slot), packet, changed))
         return 0x11;
 
@@ -314,11 +311,14 @@ int ExpertJobMaterial::UseMaterialOfRecipe(PacketGuard* packet)
 // ORIG _ZN10expert_job15FindMonsterCardEP5CItem @0x0849be32。
 CItem* FindMonsterCard(CItem* recipe)
 {
-    const std::vector<std::pair<int, int> >& materials =
-        get_recipe_materials(recipe);
+    // b28d-36（P49）：ORIG 0x0849be32 内联 `lea 0x174(%eax),%edx`（helper 被
+    // 4.1 前端内联）；4.4 -O0 发真实 call（DIFF+missing）⇒ 逐点内联成员访问。
     for (std::vector<std::pair<int, int> >::const_iterator it =
-             materials.begin();
-         it != materials.end(); ++it)
+             reinterpret_cast<CStackableItem*>(recipe)
+                 ->m_recipe174.m_vec0.begin();
+         it != reinterpret_cast<CStackableItem*>(recipe)
+                   ->m_recipe174.m_vec0.end();
+         ++it)
     {
         CStackableItem* found = static_cast<CStackableItem*>(
             G_CDataManager()->find_item(it->first));
@@ -336,11 +336,13 @@ CItem* FindMonsterCard(CItem* recipe)
 void GetRecipeInputItems(CItem* recipe,
                          std::vector<std::pair<int, int> >& inputs)
 {
-    const std::vector<std::pair<int, int> >& materials =
-        get_recipe_materials(recipe);
+    // b28d-36（P49）：同 FindMonsterCard，删 helper/引用局部，逐点内联。
     for (std::vector<std::pair<int, int> >::const_iterator it =
-             materials.begin();
-         it != materials.end(); ++it)
+             reinterpret_cast<CStackableItem*>(recipe)
+                 ->m_recipe174.m_vec0.begin();
+         it != reinterpret_cast<CStackableItem*>(recipe)
+                   ->m_recipe174.m_vec0.end();
+         ++it)
     {
         CStackableItem* found = static_cast<CStackableItem*>(
             G_CDataManager()->find_item(it->first));
@@ -370,7 +372,8 @@ int IsExistRecipeItem(CUser* user, CItem* recipe, bool onlyInputs)
         materials.clear();
         if (recipe == 0)
             return 0;
-        materials = get_recipe_materials(recipe);
+        materials = reinterpret_cast<CStackableItem*>(recipe)
+                        ->m_recipe174.m_vec0;
         user->CalculateExpertJobMaterials(materials);
     }
 
@@ -474,7 +477,9 @@ int UseMaterialOfRecipe(CUser* user, CItem* recipe, PacketGuard* packet,
     }
     else
     {
-        if (!DelMaterialOfRecipe(user, get_recipe_materials(recipe), 0,
+        if (!DelMaterialOfRecipe(user,
+                                 reinterpret_cast<CStackableItem*>(recipe)
+                                     ->m_recipe174.m_vec0, 0,
                                  packet, changed, 0))
             return 0x11;
     }

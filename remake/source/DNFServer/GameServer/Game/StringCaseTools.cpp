@@ -126,8 +126,9 @@ WideString reverse(const WideString& str)
 // ---------------------------------------------------------------------------
 
 // _Z6removeRK10CharStringii 0x08ad7a01
-// [b28 判词·N] NEAR：第 2 个 memcpy 的 pos(0x10)/removeLength(0x14) 装载 4.1 先
-// 远后近、4.4 先近后远（P209 附 memcpy / N82附 寄存器对调），2 行互换纯文本差。
+// [b28d-28] AE | P269 指针加法分组修复：第二 memcpy 源写
+// `c_str() + (pos + removeLength)` 复现 ORIG `mov 0x14,%edx; mov 0x10,%ecx;
+// lea (%ecx,%edx,1),%edx` 的装载序（原 `+ pos + removeLength` 为 4.4 先近后远）。
 CharString remove(const CharString& str, int pos, int removeLength)
 {
     if (removeLength == 0)
@@ -139,13 +140,13 @@ CharString remove(const CharString& str, int pos, int removeLength)
     // [b24ab] P48：ORIG 无 src/buf 具名局部，getBuffer/c_str 每用点重取
     // （两次 getBuffer、两次 c_str、两次 length 实调用）
     memcpy(newData->getBuffer(), str.c_str(), pos);
-    memcpy(newData->getBuffer() + pos, str.c_str() + pos + removeLength,
+    memcpy(newData->getBuffer() + pos, str.c_str() + (pos + removeLength),
            str.length() - pos - removeLength);
     return CharString(newData);
 }
 
 // _Z6removeRK10WideStringii 0x08adaa7a
-// [b28 判词·N] 同 CharString 版 memcpy 装载序互换（P209 附/N82附），禁绑定形（P0）。
+// [b28d-28] AE | 同 CharString 版：P269 指针加法分组 `c_str() + (pos + removeLength)`。
 WideString remove(const WideString& str, int pos, int removeLength)
 {
     if (removeLength == 0)
@@ -156,7 +157,7 @@ WideString remove(const WideString& str, int pos, int removeLength)
         WideStringData::createTerminated(str.length() - removeLength);
     // [b24ab] P48：ORIG 无 src/buf 具名局部，getBuffer/c_str 每用点重取
     memcpy(newData->getBuffer(), str.c_str(), pos * sizeof(wchar_t));
-    memcpy(newData->getBuffer() + pos, str.c_str() + pos + removeLength,
+    memcpy(newData->getBuffer() + pos, str.c_str() + (pos + removeLength),
            (str.length() - pos - removeLength) * sizeof(wchar_t));
     return WideString(newData);
 }
@@ -275,6 +276,10 @@ WideString trim(const WideString& str)
 // _Z20readStringFromBufferPciRS_ 0x08ad0130：
 // 读 ushort 长度 n（buf 前移 2），拷贝 min(n, maxLen-1) 字节并以 NUL 收尾，
 // buf 前进 n 字节。
+// [b28d-28] DIFF | ORIG 0x08ad0130 | N82/P75：ORIG 以 ebx/esi/edi 缓存
+// dst/maxLen/buf 与 n（`mov %di,_ZZ18readWordFromBufferRPcE10wordBuffer`——
+// 4.1 inline 展开遗留的 only-ORIG weak 符号）；4.4 重读形参并把 n 槽化
+// （-0xe）、min() 折 cmovg。源形不可造，语义等价。
 void readStringFromBuffer(char* dst, int maxLen, char*& buf)
 {
     const unsigned short n = *(unsigned short*)buf;
@@ -287,6 +292,9 @@ void readStringFromBuffer(char* dst, int maxLen, char*& buf)
 
 // _Z20readStringFromBufferRSsRPc 0x08ad0460：
 // 读 ushort 长度 n（buf 前移 2），string resize(n+1) 后 assign n 字节，buf 前进 n。
+// [b28d-28] DIFF | ORIG 0x08ad0460 | 同上 N82/P75：ORIG ebx/esi/edi 缓存 +
+// `mov %si,0x9501a1a`（readWordFromBuffer 局部 static，weak 合并）；4.4 槽化
+// n（-0xa）+ 逐次重读 0xc(%ebp)。语义等价。
 void readStringFromBuffer(std::string& str, char*& buf)
 {
     const unsigned short n = *(unsigned short*)buf;

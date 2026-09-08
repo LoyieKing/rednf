@@ -64,6 +64,9 @@ using namespace GlobalData;
 
 WongWork::CSecurityCardCenter::CSecurityCardCenter()
 {
+    // [b28d-39 判词 · N18a] ORIG 0x082a6654：4.4 多发 `movl $0x8,(%eax)` vptr 写
+    // 序（4.1 非虚 this 调用约定内层链），单段 regmove 不可造（N18a）；子对象
+    // 构造集合一致，语义等价。
     // ORIG 0x082a6654 W：构造 CRijndael@0x0（0x47c 子块）与 list<uchar>@0x47c；
     // 尾 movl $0x8,(%eax)=vptr 写（4.1 非虚 this 调用约定：C1 内层链写 vptr
     // 形，CRijndael C1 0x082a6662 前部无 vptr 写差 2 条不可造，N18a 族封顶）。
@@ -72,6 +75,9 @@ WongWork::CSecurityCardCenter::CSecurityCardCenter()
 
 void WongWork::CSecurityCardCenter::init()
 {
+    // [b28d-39 判词 · N209] ORIG 0x085fe05e：残余仅 unsigned 局部 for 尾测
+    // （ORIG `mov -0xc,%eax; cmp $0x29,%eax; setbe` vs 4.4 `cmpl $0x29,-0xc; setbe`，
+    // 4.4 恒折内存直比，P209附 封顶）；初始化/字符集/计数写入逐条等价。
     // ORIG T 0x085fe05e：固定密钥初始化头部 CRijndael；42 字符 characterSet
     // 逐个 push 进 m_characterSet；+0x484 置 1。（字符集数据段 0x93ac1e0）
     static const unsigned char characterSet[] =
@@ -88,6 +94,9 @@ void WongWork::CSecurityCardCenter::init()
 
 char* WongWork::CSecurityCardCenter::encryptString(char const* src, char* out)
 {
+    // [b28d-39 判词 · N82/N78] ORIG 0x085fe2e2：帧 0x220 vs 0x238 + callee-saved
+    // 角色（push edi/ebx vs 无）+ 栈缓冲清零 rep stos vs memset（N78）；缓冲尺寸
+    // 0x100 与清零长度逐条对齐，语义等价。
     // ORIG T 0x085fe2e2 (size 0x161)。两块 256 字节栈缓冲清零 → strncpy 0x100
     // → strlen → IMethod::GetBlockSize 取块大小并向上取整 → Pad → CRijndael::
     // Encrypt（asm 为非虚派发直呼）→ Binary2Hex 转十六进制并以 len*2+1 下标补
@@ -154,6 +163,9 @@ void WongWork::CSecurityCardCenter::_updateTimeCount()
 
 char* WongWork::CSecurityCardCenter::generateServerKey(char* out)
 {
+    // [b28d-39 判词 · N7/N82] ORIG 0x085fe0ec：callee-saved 三件套角色互换
+    // （ORIG push edi/esi/ebx、帧 0x3c vs 4.4 无 push、帧 0x48）+ 局部槽号平移；
+    // 格式串与各实参来源逐条对齐，语义等价。
     // ORIG T 0x085fe0ec (size 0x91)：
     // "%02d%02d%010d%05d%05d"(env+0x378, env+0x1b0, curSec, timeCount, rand5)
     _updateTimeCount();
@@ -172,6 +184,9 @@ char* WongWork::CSecurityCardCenter::generateServerKey(char* out)
 
 bool WongWork::CSecurityCardCenter::checkPhoneNumber(char const* phone) const
 {
+    // [b28d-39 判词 · N4/N209] ORIG 0x085fe444：残余为 `add 0xc(%ebp),%eax` 两步
+    // 寻址 vs 4.4 `mov 0xc(%ebp),%edx; lea (%edx,%eax,1),%eax`（P30/N4）+ 循环尾测
+    // mem 直比（P209附）；数字判定/越界语义逐条等价。
     // ORIG T 0x085fe444 (size 0x52)：i<=0xb 为循环条件；'\0' 提前 break 共享
     // return-1 出口（je→尾块+loop 尾 jmp 对）；数字判定单式
     // 9U < (unsigned)(schar)c - 0x30U（jbe 即无符号序，涵盖 c<'0'）。
@@ -197,6 +212,9 @@ bool WongWork::CSecurityCardCenter::checkPhoneNumber(char const* phone) const
 
 char* WongWork::CSecurityCardCenter::generateCardData(char* out) const
 {
+    // [b28d-39 判词 · N88/N93] ORIG 0x085fe1ba：帧 0x40 vs 0x30、具名 int 预清
+    // `movl $0x26,-0x18` 位置前置（N88）+ 槽序跨版本（N93）；随机取槽与字符集
+    // 写入集合一致，语义等价。
     // ORIG T 0x085fe1ba (size 0x128)：拷贝 m_characterSet 至临时 list；循环
     // （pos<=0x25 继续）：以 list.size() 为上界随机取槽，顺序迭代到第 pick 个
     // 元素写出并 erase（每字符只使用一次）。
@@ -231,6 +249,8 @@ char* WongWork::CSecurityCardCenter::generateCardData(char* out) const
 
 bool WongWork::CSecurityCard::checkAnswer(unsigned char ansA, unsigned char ansB) const
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x085fdf6a：帧 0x8 vs 0x18 + 形参 spill 槽
+    // -0x4/-0x8 vs -0x14/-0x18（N93）；答案表索引与比较结果逐条等价。
     // ORIG W 0x085fdf6a (size 0xbb)。问题四元组 @0x3c..0x3f；答案表基址 this+8，
     // 第一问索引 = question[1]*10 + question[0]，第二问 = question[3]*10 +
     // question[2]；表值与答案均经 movsbl/zbl 后整数值比较。
@@ -302,6 +322,9 @@ unsigned short WongWork::CUserPremium::getCeraShopDiscountRate() const
 std::vector<WongWork::SUserPremiumInfo> WongWork::CUserPremium::GetPremiumInfoList(
     int type) const
 {
+    // [b28d-39 判词 · N93/N88] ORIG 0x086ade9c：具名 int 槽 -0x1c vs -0x20 方向
+    // 相反（N93）+ 预清 `movl $0x1` 位置前置（N88）；返回 vector 元素与过滤条件
+    // 逐条等价。
     // ORIG T 0x086ade9c (size 0xb6)：sret 按值返回 vector。遍历 entries[1..0x69]
     //（stride 0x14），m_type != 0 且 filter==0x270f 或等于 m_type 时 push_back。
     std::vector<SUserPremiumInfo> list;
@@ -465,7 +488,10 @@ unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemI
                                                  unsigned int count, unsigned int eventIdx,
                                                  unsigned int extra)
 {
-    // ORIG T 0x086c121e (size 0x6f1)。
+    // [b28d-39 判词 · N82/N89] ORIG 0x086c121e：超大件帧/槽号整体平移（N82）+
+    // libstdc++ 内联容器访问器跨版本差（N89）；SQL/奖励路径调用点逐条对齐，
+    // 语义等价。
+    // ORIG T 0x086c121e (size 0x6f1)：
     if (itemId == 1)
     {
         // ---- 活动币入账分支（asm +0x16..+0x97）----

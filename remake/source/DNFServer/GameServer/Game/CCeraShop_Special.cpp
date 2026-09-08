@@ -126,11 +126,12 @@ void SpecialItemHandler::respond_special_item_cargo(int type,
                                                     const STSpecailItem_Param& param,
                                                     STSpecailItem_Result& result)
 {
-    CUser* user = static_cast<CUser*>(param.m_user);
-    int value = param.m_value;
-    CCargo* cargo = user->getCurCharacCargoW();
-    if (cargo->UpgradeCargo(value) == 1)
-        m_owner->_sendCargoUpgradePacket(user, type);
+    // b28d-D42 P0/P52：ORIG 0x0827be8a 无 user/value 具名槽——value 先入 %ebx
+    // 跨 getCurCharacCargoW call 保活，user 在成功臂逐点重读 param.m_user
+    // （两次 `mov (%eax),%edx`），故写成单条链式表达式。
+    if (static_cast<CUser*>(param.m_user)->getCurCharacCargoW()->UpgradeCargo(
+            param.m_value) == 1)
+        m_owner->_sendCargoUpgradePacket(static_cast<CUser*>(param.m_user), type);
     else
         result.m_value = 0x17;
 }
@@ -238,9 +239,13 @@ void SpecialItemHandler::respond_special_item_cerapoint_giftcard(
     // IPGHelper 该槽未建模，保留裸槽派发。
     // [N7 封顶] 单表达式后 4.4 分配 vtable 项→%eax、value→%ebx、user→%ecx，
     // ORIG 为 ebx/ecx/edx——纯寄存器名互换（N7 不可翻）；帧 0x24+push%ebx 已复现。
+    // b28d-D42 P265：ORIG 0x0827de4e 的 param.m_value 装载为两段
+    // `mov 0x8(%eax),%eax; mov %eax,%ecx`——按 P265 在实参处显式 cast 到 enum
+    // 复现该中转（int 字段 + enum 实参 ⇒ 4.4 保留 eax 中转）。
     (*reinterpret_cast<void (***)(void*, void*, int, int, int, int)>(
-        GlobalData::s_pIPGHelper))[3](GlobalData::s_pIPGHelper, param.m_user,
-                                      param.m_value, 2, 0, 0);
+        GlobalData::s_pIPGHelper))[3](
+        GlobalData::s_pIPGHelper, param.m_user,
+        (ENUM_CERA_SPECIALITEM)param.m_value, 2, 0, 0);
 }
 
 // ---- respond_special_item_charac_slot_extend —— ORIG 0x0827c0c2 ----
@@ -1937,8 +1942,11 @@ void CCeraShop::ProcessError(CUser* user, unsigned short a, int b, unsigned int 
     packet.finalize(true);
     user->Send(packet);
 
-    cMyTrace trace(__PRETTY_FUNCTION__, 0xc2a, 0);
-    trace("NEXON BILLING : Buy Error(%d,%u)", (int)a, c);
+    // b28d-D42 P227/P221：ORIG 0x08323978 中 trace 匿名槽(-0x18)浅于
+    // PacketGuard(-0x24)，且 (int)a 在 ctor 前装载 %ebx 跨 ctor 保活
+    // （`movzwl -0x2c(%ebp),%ebx` 先于 cMyTrace C1）⇒ 全表达式临时链形。
+    cMyTrace(__PRETTY_FUNCTION__, 0xc2a, 0)(
+        "NEXON BILLING : Buy Error(%d,%u)", (int)a, c);
 }
 
 // ============================================================================

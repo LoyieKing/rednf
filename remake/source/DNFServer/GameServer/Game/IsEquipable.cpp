@@ -18,6 +18,7 @@ int _S_CHARAC_JOB_MASTARY[0xC0] = {
     0,0,0,0,0, 0,0,0,0,0,0,0
 };
 
+// [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x085003be。
 int IsEquipable(CUser* user, const CItem* item, int slot)
 {
     // ORIG 0x85003be：虚表槽5 IsCreatureItem()（无参）判定，非 getUsableItemType(slot)。

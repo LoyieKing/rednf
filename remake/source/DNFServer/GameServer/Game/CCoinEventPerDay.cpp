@@ -39,10 +39,14 @@ void CCoinEventPerDay::StartEvent()
 // ORIG 0x0810ac04：SetEventFlag(true) + 整 4 字节写 param 到 +0x09 +
 // cMyTrace(__FUNCTION__,0x41,0) 输出 4 个档位字节
 // ("Coin Event Per Day Start! coin(%d) coin(%d) coin(%d) coin(%d) ")。
+// b28d-76（N76 封顶，语义等价）：ORIG `lea 0xc(%ebp),%edx; mov 0x8(%ebp),%eax;
+// mov (%edx),%edx; mov %edx,0x9(%eax)` = 4.1 求值序「RHS 地址 → LHS 地址 → RHS 值」；
+// 4.4-O0 对 `m_coinPack = *(unsigned int*)&param;` 恒 RHS 完整求值先
+// （`lea ...,%eax; mov (%eax),%edx; mov this,%eax`）。20 形探针（volatile 读/写、
+// 视图/引用解引用、字段 int↔unsigned 同异型化、数组下标、语句表达式、具名中转）
+// 只能产「this 先」或「RHS 值先」两族，无一复现 ORIG 前两条顺序 ⇒ N76。
 void CCoinEventPerDay::StartEvent(Word_Param param)
 {
-    // [b28c-27] N7/N82附：虚调用目标寄存器（%edx vs %eax）+ Word_Param 取址
-    // `lea 0xc(%ebp),%edx` vs 4.4 `lea ...,%eax; mov (%eax),%edx` 装载序差。
     SetEventFlag(true);
     m_coinPack = *(const unsigned int*)&param;
     cMyTrace(__FUNCTION__, 0x41, 0)(

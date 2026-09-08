@@ -39,10 +39,13 @@ void CBattle_Field::check_elevator_timer()
 int CBattle_Field::GetTotalSkillMaterial()
 {
     int total = 0;
-    for (std::map<int, MapInfo>::iterator it = m_mapInfo.begin();
-         it != m_mapInfo.end(); ++it)
+    // b28d-lane25：P167 差集实证 ORIG 走 iterator C1Ev + MapInfo C1Ev/D1/aSERKS_
+    // ⇒ iterator 与 MapInfo 均在循环外"先声明"，循环内 info = it->second 赋值。
+    std::map<int, MapInfo>::iterator it;
+    MapInfo info;
+    for (it = m_mapInfo.begin(); it != m_mapInfo.end(); ++it)
     {
-        MapInfo& info = it->second;
+        info = it->second;
         if (info.m_dummyBossMap != 1 && info.m_visited != 0)
             total += info.m_killChecker1.m_useSkillMaterialTime;
     }

@@ -68,6 +68,9 @@ bool CMonitorServerProxy::InitUdp()
     return 1;
 }
 
+// [b28d-27] DIFF N80：ORIG 0x08470ad6；ORIG 在 cMyTrace ctor call 之前右起求
+// varargs 并跨 call 保活 callee-saved（%edi/%esi），4.4 恒 ctor 后求（具名/临时/
+// register 三探针不可翻，N80 实证 0x0847196d）⇒ 封顶。p167 CLEAR（9/9）。
 bool CMonitorServerProxy::InitTcp()
 {
     if (m_udpPort == 0)
@@ -385,6 +388,9 @@ void CMonitorServerProxy::SendChangeCharName(unsigned int idByChannel,
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }
 
+// [b28d-27] DIFF N18a/P75：ORIG 0x084714ec；ORIG 目标地址两段 lea
+// （`lea -0x27(%ebp),%eax; lea 0xd(%eax),%edx`）并提前装载，4.4 恒折 `lea+add`
+// 且延迟到压参（register asm 两向实测更差）⇒ 封顶。p167 CLEAR（3/3）。
 void CMonitorServerProxy::SendGameServerInfo(char* name, unsigned short port,
                                              unsigned char group, unsigned char channel)
 {

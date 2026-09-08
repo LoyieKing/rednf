@@ -75,6 +75,8 @@ bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx);
 //   letter_id 是否含目标。
 bool IsContainedLetter(SIG_MAILBOX_LIST* list, int letterId)
 // [b28c-L23 N18b/N7] 已修装载序与操作数极性（letterId 置左）后残 8 行 =
+// [b28d-D33 复验] 残差收敛为 2 处：ORIG 0x0841ccd4 两段物化 vs 4.4 单段
+// `cmp MEM,reg`（N18b 封顶）+ 循环首基址/下标序（P30 伪影），语义全等。
 // ①@0x0841ccd4 ORIG 两段物化 `mov 0xc(%eax),%edx; mov 0xc(%ebp),%eax; cmp %eax,%edx`，
 // 4.4 对「成员 vs 形参」比较恒折单段 `cmp MEM,reg`（N18b，无源码写法产两段）；
 // ②循环体首 `mov -0x4(i),%eax; mov 0x8(list),%edx` 的基址/下标先后（P30 穷举后
@@ -119,6 +121,8 @@ bool IsContainedLetter(SIG_MAILBOX_LIST* list, int letterId)
 //   +0x79c 直接置 param_3；否则 +0x79c=0 并逐项取 max(postal_id) 回写 +0x79c，
 //   mailIdx 表收 postal 的 +0x2e add_info。
 // ============================================================================
+// [b28d-D33 P30/N4 封顶] ORIG 0x0841d470：65 vs 56 条；SIG 宏生 add+mov 两步 vs
+// ORIG 单 disp `mov 0x794(%eax),%eax`（P30/N4）+ 多余 push ebx。p167 CLEAR 1=1。
 void DoChangeMailList(SIG_MAILBOX_LIST* list, unsigned int* mailIdx, int count)
 {
     mailIdx[0] = 0;
@@ -161,6 +165,13 @@ bool CompareLetterIndex(const SIG_LETTER_INFO& a, const SIG_LETTER_INFO& b)
 // ============================================================================
 int FindLastLetterIndexMail(SIG_MAILBOX_LIST* list, int letterId)
 {
+    // [b28d-D33 N82/P30 封顶] P232 dead 局部已对齐帧（sub $0x20 一致，补 pad[8]
+    // 后 0x10→0x20）；残差 = ①局部槽基差（ORIG maxIdx@-0x18/i@-0x10 vs 我们
+    // -0xc/-0x8，4.4 槽复用/分配序不可控，N82）；②循环首基址/下标装载序
+    // （ORIG i 先 list 后 vs 我们 list 先，P30 结构性伪影）；③连锁 jmp 偏移。
+    // 语义与 ORIG 全等（ORIG 0x0841cc16）。
+    char framePad[8];
+    (void)framePad;
     int maxIdx = 0;
     int i;
     for (i = 0; i < SIG_I32(list, SIG_OFF_POSTAL_COUNT); ++i)
@@ -186,6 +197,10 @@ int FindLastLetterIndexMail(SIG_MAILBOX_LIST* list, int letterId)
 // ============================================================================
 bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx)
 {
+    // [b28d-D33 N78 封顶] ORIG 0x0841cd03（87 条）把 0x61 字节 memmove 内联为
+    // 字节对齐慢路展开（and $2/$1 + movzwl/movzbl 段，0x0841cd8f 起实证）；
+    // 4.4 -O0 对 memmove 恒发 call（50 条）。N78「4.1 内联 mem*，4.4 恒 call」
+    // 判据命中，语义等价（拷贝区间/长度一致）。
     if (SIG_I32(list, SIG_OFF_POSTAL_COUNT) - 1 != mailIdx)
     {
         int i;
@@ -205,6 +220,8 @@ bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx)
 //   LetterIndexMail）并删除（RemoveMailByLatestLetter），同时从 vecOld 删同
 //   letter_id 项。恒返 1。
 // ============================================================================
+// [b28d-D33 N86/N82 封顶] ORIG 0x0841d16d：120 vs 111 条；帧 0x38 vs 0x58 +
+// 迭代器 C1Ev EXTRA（P50 先声明后赋值形）。语义等价。
 bool ArrangeMailAndLetterIndex(SIG_MAILBOX_LIST* list,
                                std::vector<SIG_LETTER_INFO>& vecNew,
                                int count,
@@ -316,6 +333,7 @@ struct MailCreatureItemView
 //   （stat==3 单独；stat 1/2 按 IsContainedLetter 分流）→ ArrangeMailAndLetterIndex
 //   整理 → 限额拷回 +0x101c 区（stride 0x12b）→ 写 +0x332a/+0x798/+0x1018。
 // ============================================================================
+// [b28d-D33 N82/N89 封顶] ORIG 0x0841d52c：550 vs 511 条（大函数，§6.2 口径）。
 bool DB_MailBox_Req_List::SelectLetter(MySQL* db, int slot, int characNo,
                                        unsigned int letterIdx,
                                        SIG_MAILBOX_LIST* out)
@@ -467,6 +485,8 @@ bool DB_MailBox_Req_List::SelectLetter(MySQL* db, int slot, int characNo,
 // setCreatureData —— ORIG 0x0841dc84（普通成员）：getList2inQuery(list) 拼串 →
 //   查 creature_items（stat=1）→ +0xd30 条数 → 逐行回填 +0xd30+i*0x25 区。
 // ============================================================================
+// [b28d-D33 N82 封顶] ORIG 0x0841dc84：125 vs 101 条；帧 -0x1018 vs -0x1010
+// （槽组平移）。p167 CLEAR 9=9，语义完成。
 bool DB_MailBox_Req_List::setCreatureData(MySQL* db, unsigned int characNo,
                                           unsigned int* list,
                                           SIG_MAILBOX_LIST* out)
@@ -507,6 +527,8 @@ bool DB_MailBox_Req_List::setCreatureData(MySQL* db, unsigned int characNo,
 //   → SelectLetter 信件 → DoChangeMailList 整理 → user_items 回填（stride 0x47）
 //   → setCreatureData 回填（stride 0x25）→ 0x7f 包投递 DISPATCH_Q。
 // ============================================================================
+// [b28d-D33 N82/N89 封顶] ORIG 0x0841de4a：1169 vs 1151 条（超大函数 >500，
+// §6.2 三件套口径）。语义等价。
 bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
 {
     static const int handleIdx = 3;

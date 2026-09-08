@@ -83,6 +83,8 @@ CParser::~CParser()                             // 0x08235446
 {
 }
 
+// [b28d-28] NEAR | ORIG 0x084a8ab6 | N93/N82：块级对象槽方向（ORIG -0x10 vs
+// 4.4 -0xc）+ EH cleanup 块序（4.1 直落 vs 4.4 `jmp` 岛）；助记符序列全等。
 void CParser::parse()                           // 0x084a8ab6
 {
     m_line = m_buf;                             // operator=(string&, const char*)
@@ -109,6 +111,8 @@ CCommandMap::CCommandMap()                     // 0x082a7f64
     // ORIG：unordered_map 以 bucket_count=10 直接构造。
 }
 
+// [b28d-28] AE-OK | ORIG 0x082a7d88 | 双容器（map+unordered_map）迭代器析构
+// 循环逐条全等（含两段 EH landing）。
 CCommandMap::~CCommandMap()                    // 0x082a7d88
 {
     // ORIG 双遍历：id 侧与名字侧各按迭代器取 second，判空后 delete。

@@ -788,7 +788,9 @@ public:
     int CompetitionCharac(CUser* user, unsigned int slot, char modeA, char modeB);  // ORIG T 0x081b4536（0/1）
     bool IsWaitingStateCharac(unsigned int characNo);                                // ORIG T 0x081b45ce（非 const）
     void UpdateCharacName(unsigned int characNo, std::string const& name);           // ORIG T 0x081b462e
-    int ReturnCharac(CUser* user, unsigned int characNo, competition_reward_result& reward);  // ORIG T 0x081b44c0（直传 Reward）
+    // b28d-27：ORIG 0x081b44c0 尾部 `call CHARAC_LOAD_MERCENARY::Reward; leave; ret` 直传单字节
+    // （无 movzbl 规范化，P9）⇒ 返回 bool；返回类型不入 mangled、零 ABI/布局影响。
+    bool ReturnCharac(CUser* user, unsigned int characNo, competition_reward_result& reward);
     std::vector<CHARAC_LOAD_MERCENARY> m_characs;  // +0x00（ORIG C1/D1 = vector C1/D1）
 };
 
@@ -1727,9 +1729,11 @@ public:
     // ORIG T Check223 @0x0827ad98 / Check224 @0x0827af78 / Check225 @0x0827b100
     // （报告 docs/class_func_reports/Secu_MonsterCheck/；返回 1 字节）。
     // 定义待批次（LinkClosureC 上报 Main 收敛清单）；Secu_HackLogCheck::DieMob 消费。
-    char Check223();
-    char Check224();
-    char Check225();
+    // b28d-36：ORIG DieMob 0x0827a84x/0x0827a88x/0x0827a8a4 为 `call Check22x; mov %al,0x38(%edx)`
+    // LHS-first 无中转 ⇒ 返回类型与 `unsigned char m_flag22x` 同型（P211 档①）；返回类型不入 mangled。
+    unsigned char Check223();
+    unsigned char Check224();
+    unsigned char Check225();
 
     CUser* m_user;              // +0x00
     bool m_active223;  // +0x04（init223 置 1 / Reset 清零；b28c C28L20A/lane12 代落：X2 族 bool 字段 + 裸 !field 直产 ORIG movzbl;xor$1;test;je，见 P219/P168a 补录）

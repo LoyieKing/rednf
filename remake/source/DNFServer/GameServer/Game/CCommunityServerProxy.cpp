@@ -46,7 +46,7 @@ int CCommunityServerProxy::InitTcp()
         {
             cMyTrace(__PRETTY_FUNCTION__, 0xbf, 0)
                 ("CCommunityServerProxy CreateConnectionSocket() error(%d:%d:%s)",
-                 ret, errno, strerror(errno));
+                 ret, errno, ({ strerror(errno); }));
             return 0;
         }
         // 残差 N80（patterns 定论负例，实证即本函数）：ORIG 在 cMyTrace ctor call

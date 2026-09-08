@@ -99,9 +99,8 @@ void AvatarRechargeServer::CalcDurability(CUser* user, int count)
 bool AvatarRechargeServer::CheckConditionUseRecharge(
     CUser* user, arad::SigAradUseAvatarRecharge* sig)
 {
-    const CInventory* invenR = user->getCurCharacInvenR();
     const Inven_Item* stone =
-        invenR->GetInvenRef(1, (int)sig->stoneSlot);
+        user->getCurCharacInvenR()->GetInvenRef(1, (int)sig->stoneSlot);
     if (stone == 0 || stone->isEmpty())
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0x16);
@@ -133,7 +132,7 @@ bool AvatarRechargeServer::CheckConditionUseRecharge(
     }
 
     const Inven_Item* avatar =
-        invenR->GetInvenRef(2, (int)sig->avatarSlot);
+        user->getCurCharacInvenR()->GetInvenRef(2, (int)sig->avatarSlot);
     if (avatar == 0 || avatar->isEmpty())
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0x16);
@@ -150,7 +149,7 @@ bool AvatarRechargeServer::CheckConditionUseRecharge(
     }
 
     const stAvatarEmblemInfo_t* socketData =
-        (const stAvatarEmblemInfo_t*)invenR->GetAvatarItemMgrR()->getJewelSocketData(
+        (const stAvatarEmblemInfo_t*)user->getCurCharacInvenR()->GetAvatarItemMgrR()->getJewelSocketData(
             avatar->m_addInfo2);
     sig->maxEndurance = *(int*)((char*)this + 4) * getSocketCount(socketData);
     if ((int)(unsigned int)(unsigned short)avatar->m_fieldSplit.m_avatarEndur <

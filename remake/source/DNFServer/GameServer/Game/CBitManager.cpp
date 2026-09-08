@@ -1,4 +1,6 @@
 // ============================================================================
+// [b28d-38 判词] CBitManager::ShiftRight 0x0831c1.. DIFF：p167 CLEAR 0/0（无调用），
+//  残差 N87（4.4 变长移位恒插 and $0x1f 掩码）+ N4（lea/shl 折叠）+ 帧槽差。
 // CBitManager.cpp —— CBitManager 位流工具实现（ORIG 0x0831c09c..0x0831c3af）
 //
 // 语义来源：docs/class_func_reports/CBitManager/ 各 md 的 ## 汇编 + ## 反编译 C。

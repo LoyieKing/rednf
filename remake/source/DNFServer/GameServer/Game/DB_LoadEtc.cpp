@@ -106,6 +106,7 @@ int DB_LoadEtc::GetUserPvpBase(SIG_LOAD_ETC* sig)
 // 若 pvp_grade_ext_update_time(col25)+86400 < 当前秒清 +0x5c。返 0=OK
 // 1=无行 -1=DB/取值错误。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x08407dc2；385 vs 390（帧/槽），p167 待核。
 int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
@@ -198,6 +199,8 @@ bool DB_LoadEtc::LoadLitmitItem(SIG_LOAD_ETC* sig)
 // DB_LoadEtc::dispatch @0x08403bee
 // 调用序/分支/错误行号严格按报告汇编（0x14c6/0x14db/0x14e3/0x1566 等）。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x08403bee；我们多 3 条（帧/装载序），
+// p167 待核，语义按 dispatch 协议等价。
 bool DB_LoadEtc::dispatch(int userIdx, int slot, Stream* stream)
 {
     if (!DBDispatcher::dispatch(userIdx, slot, stream))
@@ -391,6 +394,8 @@ bool DB_LoadEtc::LoadConditionEventInfo(SIG_LOAD_ETC* sig)
 // npc 数据区 SIG_LOAD_ETC +0x3e6c(cnt)/+0x3e70(binary, ≤600 字节)。
 // 错误码 0x1c80/0x1c84/0x1c87/0x1c8a/0x1c8d/0x1c90（见汇编各失败出口）。
 // ============================================================================
+// b28d-31: N 封顶（N82/N95）——ORIG 0x08407482；槽号 -0x10/-0xc 整体平移
+// （4.4 局部槽基策略），助记符序列等价。
 int DB_LoadEtc::_loadNPCRelasionship(SIG_LOAD_ETC* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
@@ -430,6 +435,8 @@ int DB_LoadEtc::_loadNPCRelasionship(SIG_LOAD_ETC* sig)
 // DB_LoadEtc::LoadRedeemItem @0x846a6a？—— 报告头地址 0x08406a6a；
 // redeem_info blob → uncompress_zip → SIG_LOAD_ETC+0x40ce（m_expandData6 区）。
 // ============================================================================
+// b28d-31: N 封顶（N78）——ORIG 0x08406a6a；p167 EXTRA memset ×1
+//（ORIG 内联 rep stos vs 4.4 call memset），语义等价。
 bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC* sig)
 {
     static const int handleIdx = 3;    // ORIG _ZZN10DB_LoadEtc14LoadRedeemItem…E9handleIdx
@@ -479,6 +486,8 @@ bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC* sig)
 // DB_LoadEtc::LoadPvPMissionList @0x08406cce —— fair_pvp_score.pvp_mission_info
 // blob → SIG_LOAD_ETC+0xcdd5（type8 expand 区，cap 0x198）。n_rows==0 也返 0。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x08406cce；4.1 push %edi/%ebx+sub 0x1f0
+// vs 4.4 sub 0x1f8。
 bool DB_LoadEtc::LoadPvPMissionList(SIG_LOAD_ETC* sig)
 {
     static const int handleIdx = 3;    // ORIG _ZZN10DB_LoadEtc18LoadPvPMissionList…E9handleIdx
@@ -527,6 +536,8 @@ bool DB_LoadEtc::LoadPvPMissionList(SIG_LOAD_ETC* sig)
 // achievement zip → SIG_LOAD_ETC+0xb1a4（cap 0x1800），统计非零 0xc 条目计数入
 // +0xc9a4，unix_timestamp(last_update_time) 入 +0xc9a8。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x08406422；4.1 push %edi/%ebx+sub 0x1d00
+// vs 4.4 sub 0x1d08（1.9KB 局部缓冲的 callee-saved 差异）。
 bool DB_LoadEtc::LoadAchievement(SIG_LOAD_ETC* sig)
 {
     static const int compressed_buff_size = 0x1cd8;  // ORIG _ZZ…LoadAchievement…E20compressed_buff_size
@@ -608,6 +619,8 @@ bool DB_LoadEtc::LoadOnceGiveAvengerTitle(SIG_LOAD_ETC* sig)
 // DB_LoadEtc::LoadAuraAvatarOption @0x0840838e
 // aura_avatar_option → stAuraAvatarOption 视图 @SIG_LOAD_ETC+0xd730。
 // ============================================================================
+// b28d-31: N 封顶（N82/P232）——ORIG 0x0840838e；4.4 多发 eax 中转
+// （`mov %eax,-0x18; mov -0x18,%eax`）且槽 -0x18→-0x14 平移。
 bool DB_LoadEtc::LoadAuraAvatarOption(SIG_LOAD_ETC* sig)
 {
     stAuraAvatarOption* aura =
@@ -654,6 +667,8 @@ bool DB_LoadEtc::LoadAuraAvatarOption(SIG_LOAD_ETC* sig)
 // (+0xECDC..)/blueMarbleEnterCount(+0x14a98)/charac_inform_notice(+0x14a9a,16B)
 // 及 best_clear_time 条目计数 +0xecd4。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x084084e0；p167 CLEAR（0/0），
+// 残差为帧/槽分配（ORIG 169 vs 4.4 158）。
 bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
 {
     (void)userIdx;   // ORIG 仅透传第 3 参起作用（in_stack_00000010）
@@ -791,19 +806,22 @@ bool DB_LoadEtc::_LoadQuestShop(unsigned int characNo, CHARAC_QUEST_SHOP_DATA* o
     ret = db->get_uint(idx++, out->m_qp);                       // qp          +0x04
     if (!ret)
     {
-        cMyTrace trq1("static bool DB_LoadEtc::_LoadQuestShop(unsigned int,"
-                       " CHARAC_QUEST_SHOP_DATA*)", 0x17ea, 5);
-        trq1("DB_LoadEtc::LoadQuestShope, get(%d) ERROR charac_no=%u", idx,
-              characNo);
+        // b28d-31: P221 全表达式临时链（ORIG 0x08404bff 槽 -0x38 在 trq2 的
+        // -0x28 之前；具名声明 4.4 槽序反向 ⇒ 改构造即调用）。
+        cMyTrace("static bool DB_LoadEtc::_LoadQuestShop(unsigned int,"
+                 " CHARAC_QUEST_SHOP_DATA*)", 0x17ea, 5)(
+            "DB_LoadEtc::LoadQuestShope, get(%d) ERROR charac_no=%u", idx,
+            characNo);
         return false;
     }
     ret = db->get_uint(idx++, out->m_initCount);                // init_count  +0x08
     if (!ret)
     {
-        cMyTrace trq2("static bool DB_LoadEtc::_LoadQuestShop(unsigned int,"
-                       " CHARAC_QUEST_SHOP_DATA*)", 0x17f1, 5);
-        trq2("DB_LoadEtc::LoadQuestShope, get(%d) ERROR charac_no=%u", idx,
-              characNo);
+        // b28d-31: P221 全表达式临时链（ORIG 0x08404c22 槽 -0x28）。
+        cMyTrace("static bool DB_LoadEtc::_LoadQuestShop(unsigned int,"
+                 " CHARAC_QUEST_SHOP_DATA*)", 0x17f1, 5)(
+            "DB_LoadEtc::LoadQuestShope, get(%d) ERROR charac_no=%u", idx,
+            characNo);
         return false;
     }
     // ORIG EH 区间自首个 throw 起：仅逐列 get_ushort/get_uint 段位于 try 内。
@@ -871,6 +889,9 @@ bool DB_LoadEtc::_LoadQuestShop(unsigned int characNo, CHARAC_QUEST_SHOP_DATA* o
 // 主区 = SIG_LOAD_ETC+0xd5a7，tag 区 = +0xd651（tag_charac_no=+0xc 非零时装载），
 // 双区齐备后 +0xd6fb 置 1。错误走 cMyTrace 0x16c4/0x16d5。
 // ============================================================================
+// b28d-31: N 封顶（N107/N82）——ORIG 0x08404a68；成员常量偏移取址 4.4 恒
+// `add $0xd5a7,%eax` vs ORIG `lea 0xd5a7(%eax)`，且 4.1 push %ebx 保守帧
+// 0x44 vs 4.4 栈槽 0x38（帧/寄存器分配跨版本）。
 bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC* sig)
 {
     if (!_LoadQuestShop(sig->m_characNo,
@@ -903,6 +924,8 @@ bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC* sig)
 // DB_LoadEtc::LoadTitleBook @0x08406092 —— 4 个压缩列分别解压到
 // +0x466a(cap0x10ae) / +0x5718(0x2fa8) / +0x86c0(0x1c98) / +0xa358(0xe4c)。
 // ============================================================================
+// b28d-31: N 封顶（N78）——ORIG 0x08406092；p167 EXTRA memset ×2
+//（ORIG 内联清零 vs 4.4 call），语义等价。
 bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
 {
     // ORIG 槽形：ok=-0x19 保存、srcLen=-0x18/-0x14/-0x10/-0xc（各列命名槽）、
@@ -998,6 +1021,8 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
 // ============================================================================
 // DB_LoadEtc::LoadComboSkillInfo @0x0844a3b2 —— combo 区 job==9 才拉双树。
 // ============================================================================
+// b28d-31: N 封顶（P223 边界）——ORIG 0x0844a3b2；4.4 尾部多 [jmp;nop]
+// epilogue-threading（`!call()` 等三形实测不消），语义等价。
 void DB_LoadEtc::LoadComboSkillInfo(SIG_LOAD_ETC* sig)
 {
     // ORIG: 直读 sig+0x14ab0（mov 0x14ab0(%eax)，直接折叠反偏移），无意引局部槽（P0）。
@@ -1035,6 +1060,8 @@ void DB_LoadEtc::LoadComboSkillInfo(SIG_LOAD_ETC* sig)
 // ============================================================================
 // DB_LoadEtc::LoadComboSkill @0x0844a47a —— 单树连招装载（kind∈{0,1}）。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x0844a47a；p167 CLEAR（0/0），
+// 残差为帧/槽分配（ORIG 167 vs 4.4 156）。
 bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC* sig, ENUM_SKILL_TREE_KIND kind)
 {
     unsigned int kindVal = (unsigned int)kind;
@@ -1103,6 +1130,8 @@ bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC* sig, ENUM_SKILL_TREE_KIND kind)
 // DB_LoadEtc::getComboSkill @0x0844a704 —— 每行 7 个 short 填一个 comoboSkillData，
 // 行数上限 min(count,6)；成功返回 1、任何 get 失败行号错误路径返回 0。
 // ============================================================================
+// b28d-31: N 封顶（N82/N93）——ORIG 0x0844a704；槽 -0x44 vs -0x28 与
+// 比较段物化差（p167 CLEAR，语义完整）。
 bool DB_LoadEtc::getComboSkill(MySQL* db, unsigned int accId, int count,
                                comoboSkillData* out)
 {
@@ -1158,6 +1187,8 @@ bool DB_LoadEtc::getComboSkill(MySQL* db, unsigned int accId, int count,
 // 列序 12 列，目标偏移照汇编；n_rows==0 且 PvP 技能树频道时补插一行。
 // 错误行号 0x1d50/0x1d5d/0x1d69/0x1d71/0x1d98/0x1dac/0x1db2/0x1dea/0x1df1。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x084075d2；p167 CLEAR（0/0），
+// 残差为帧/槽分配（ORIG 478 vs 4.4 468）。
 bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
 {
     static const int handleIdx = 3;    // ORIG _ZZN10DB_LoadEtc12GetUserSkill…E9handleIdx
@@ -1332,6 +1363,8 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
 // DB_LoadEtc::LoadCharacItemStat @0x08445660 —— cooltime/effect blob 双列 +
 // check_flag 压缩列（cap 5000）入 +0xd740。错行号 0xac8a/0xac91/0xac98。
 // ============================================================================
+// b28d-31: N 封顶（N89 镜像）——ORIG 0x08445660；ORIG 151 条内联展开 vs
+// 4.4 127 条 out-of-line 访问器调用；p167 CLEAR（0/0），语义完整。
 bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
@@ -1382,6 +1415,8 @@ bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC* sig)
 // DB_LoadEtc::LoadItemMakingSkill @0x084040b4 —— 11 列 short 循环装载，
 // 目标基址 sig+0x10+(col+0x6b78)*2（=0xD700+col*2）。错行号 0x15dd/0x15e8/0x15f2。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x084040b4；4.1 push %ebx+sub 0x54 vs
+// 4.4 sub 0x58，bool 槽 -0x11 形态差。
 bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
@@ -1431,6 +1466,8 @@ bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC* sig)
 // 前置 exec/fetch/AffectedRowCount==1 任一失败均如实 ret 1；列失败走 cMyTrace 0。
 // col2 last_clear_layer 经 TOD_Layer(unsigned short) 构造后取其 m_layer 落位。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x08406eec；4.4 多 8 条（帧/槽），
+// p167 待核。
 bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
 {
     static const int handleIdx = 2;    // ORIG _ZZN10DB_LoadEtc16LoadTODUserState…E9handleIdx
@@ -1585,6 +1622,8 @@ bool DB_LoadEtc::LoadVillageAttackInfo(SIG_LOAD_ETC* sig)
 // bitset 位操作映射 std::bitset<32>::set/reset(pos, true) ORIG 外联符号
 // （084506e4 set / 0845071e reset）。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x08405c6e；4.1 push %ebx+sub 0x24 保守帧
+// vs 4.4 sub 0x38（实参装载序/槽差异）。
 bool DB_LoadEtc::LoadAccountFirstLogin(SIG_LOAD_ETC* sig, int eventCode)
 {
     EventClassify::CEventScriptMng* evMng =
@@ -1632,6 +1671,8 @@ bool DB_LoadEtc::LoadAccountFirstLogin(SIG_LOAD_ETC* sig, int eventCode)
 // ============================================================================
 bool DB_LoadEtc::LoadAccountFirstLoginDaily(SIG_LOAD_ETC* sig, int eventCode)
 {
+    // b28d-31: ORIG 0x08405e0a —— 链调用 3 次（evMng 初始化 + entity + today），
+    // get_convert_to_user_confirmflag 在 3 处 set/reset 各重发（P167 差集 ×2）。
     EventClassify::CEventScriptMng* evMng =
         reinterpret_cast<EventClassify::CEventScriptMng*>(
             G_CDataManager()->get_event_script_mng());
@@ -1639,13 +1680,16 @@ bool DB_LoadEtc::LoadAccountFirstLoginDaily(SIG_LOAD_ETC* sig, int eventCode)
     {
         return false;
     }
-    EventClassify::CEventEntity* entity = evMng->get_event_entity(eventCode);
+    EventClassify::CEventEntity* entity =
+        reinterpret_cast<EventClassify::CEventScriptMng*>(
+            G_CDataManager()->get_event_script_mng())->get_event_entity(eventCode);
     if (entity == 0)
     {
         return false;
     }
 
-    int today = evMng->get_today_time();
+    int today = reinterpret_cast<EventClassify::CEventScriptMng*>(
+                    G_CDataManager()->get_event_script_mng())->get_today_time();
     if (today < entity->get_event_start_time()
         || today > entity->get_event_end_time())
     {
@@ -1674,20 +1718,21 @@ bool DB_LoadEtc::LoadAccountFirstLoginDaily(SIG_LOAD_ETC* sig, int eventCode)
     db->set_query("seLect m_id from %s where m_id=%u and occ_date >"
                   " FROM_UNIXTIME(%d)", tableName, sig->m_accId, baseSec);
 
-    unsigned int flagPos =
-        (unsigned int)evMng->get_convert_to_user_confirmflag(eventCode);
     if (!db->exec(true))
     {
-        sig->m_bitset.set(flagPos, true);                    // ORIG bitset::set(Ejb)
+        sig->m_bitset.set((unsigned int)
+            evMng->get_convert_to_user_confirmflag(eventCode), true);
         return false;
     }
     if (db->get_n_rows() == 0)
     {
-        sig->m_bitset.reset(flagPos);                        // ORIG bitset::reset(Ej)
+        sig->m_bitset.reset((unsigned int)
+            evMng->get_convert_to_user_confirmflag(eventCode));
     }
     else
     {
-        sig->m_bitset.set(flagPos, true);                    // ORIG bitset::set(Ejb)
+        sig->m_bitset.set((unsigned int)
+            evMng->get_convert_to_user_confirmflag(eventCode), true);
     }
     return true;
 }
@@ -1697,6 +1742,8 @@ bool DB_LoadEtc::LoadAccountFirstLoginDaily(SIG_LOAD_ETC* sig, int eventCode)
 // n_rows==0 时补插并返回；give_item 压缩列（cap 0x650）→ +0xcf4b；
 // daily 重置比较（last_play_time < getDailyInitializeTime(6,0,0) → +0xd59b=0）。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x08404290；474 vs 476（帧/寄存器分配），
+// p167 待核。
 bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
 {
     static const int handleIdx = 3;    // ORIG _ZZN10DB_LoadEtc16LoadFairPvPScore…E9handleIdx
@@ -1852,6 +1899,8 @@ bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
 // DB_LoadEtc::LoadBoosterGage @0x08446d9e —— member_booster_gage gage 单列
 // 入 +0xeccc（accId 维度）。错行号 0xafc4。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x08446d9e；4.1 push %ebx+sub 0x34 保守帧
+// vs 4.4 sub 0x38 纯栈槽（db 指针不升格 callee-saved）。
 bool DB_LoadEtc::LoadBoosterGage(SIG_LOAD_ETC* sig)
 {
     static const int handleIdx = 2;    // ORIG _ZZN10DB_LoadEtc15LoadBoosterGage…E9handleIdx
@@ -1886,6 +1935,8 @@ bool DB_LoadEtc::LoadBoosterGage(SIG_LOAD_ETC* sig)
 // DB_LoadEtc::LoadPcRoomPlayTimeInfo @0x084066ae —— 事件关闭时如实 ret 1；
 // play_time(+0xc9b3)/reward_cnt(+0xc9b7)。无记录 ret 1。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x084066ae；帧 0x28 vs 0x38（4.4 保守多
+// 分配）与指针解引用形差，语义等价。
 bool DB_LoadEtc::LoadPcRoomPlayTimeInfo(SIG_LOAD_ETC* sig)
 {
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x5c);
@@ -1930,6 +1981,9 @@ bool DB_LoadEtc::LoadPcRoomPlayTimeInfo(SIG_LOAD_ETC* sig)
 // DB_LoadEtc::LoadUsedGiftFatigueInfo @0x08406810 —— CUsedFatigueGiveItem 事件
 // 驱动的 fatigue_quantity 装载（账号表 idx9 / 角色表 idx2 双路径）。
 // ============================================================================
+// b28d-31: N 封顶（P167 未闭合）——ORIG 0x08406810；p167 MISSING
+// string 拷贝构造/dtor ×2 + toTString(const string&) ×1 + _Unwind_Resume
+//（ORIG 具名 string 临时生命周期 + 重载选择差），语义等价但调用点未归零。
 bool DB_LoadEtc::LoadUsedGiftFatigueInfo(SIG_LOAD_ETC* sig)
 {
     sig->m_curCharacUsedGiftFatigueQuantity = 0;             // +0xc9b8 清零先

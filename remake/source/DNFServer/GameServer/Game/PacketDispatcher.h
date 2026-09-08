@@ -162,6 +162,8 @@ int IPacketDispatcher<MSG, Param, state>::dispatch_template(CUser* user, PacketB
     //   · N-MSG_BASE（24 件）：4.1 对空体 MSG_BASE::C1(0x812c076) 的独立对象默认构造不发 call
     //     （实例 0x8257feb 零构造 call），4.4.6 恒发 lea/mov/call 3 条；MSG_BASE 构造不可删
     //     （ORIG MSG_ENCHANT::C1 0x822dc10 派生链调用它），部分特化实测反劣 3→8 行，封顶。
+    //     [b28d-lane25 复核] WarRoom.cpp 实例 _ZN17IPacketDispatcherI8MSG_BASE9ParamBaseL8ch_state0EE
+    //     @0x081258b6 仍余 EXTRA _ZN8MSG_BASEC1Ev（P167 0M/1E）⇒ 沿用本 N-MSG_BASE 封顶。
     //   · N7+N-ALIGN（30 件）：4.1 上层对象起始不 4 对齐（SecuCardRpyParam ORIG param@-0x12
     //     非 4 倍数），4.4.6 恒 align_down4 ⇒ 非 4 倍数 sizeof 需 pack(1) 才可复现。
     // ORIG 代码形态（逐实例化核对，如 MSG_FINISH_LOADING@0x8265abc、

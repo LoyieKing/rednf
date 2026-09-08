@@ -47,6 +47,7 @@ void CPacketRespondent::finalize(bool encryptRequired)
 }
 
 // ORIG Send @ 0x083403e0：+0x1c=0；CUser::Send(*this) 结果透传（int）。
+// b28d-40: ORIG 0x083403e0，AE（唯一残差 = call 重定位标签显示）。
 int CPacketRespondent::Send()
 {
     m_autoSend = 0;
@@ -57,6 +58,7 @@ int CPacketRespondent::Send()
 //   +0x1c=0；vill==0 && area==0 → 返回 0；
 //   IsGateArea(m_user, area) → m_user->Send(*this)；
 //   否则 G_GameWorld()->send_to_area(vill, area, *this)；返回 1。
+// b28d-40: ORIG 0x08340404，AE（唯一残差 = call 重定位标签显示）。
 int CPacketRespondent::Broadcast(int vill, int area)
 {
     m_autoSend = 0;
@@ -80,6 +82,8 @@ bool CPacketRespondent::SendAll()
 
 // ORIG IsGateArea @ 0x08340256：GameWorld/村空时按 __PRETTY_FUNCTION__ 打点并返 0；
 // 否则比较 Village::get_gate_area(village) == area。
+// b28d-40: P225 while 形复现 sete/test/je 物化 + P221 全表达式临时链翻 sibling
+// trace 槽序（-0x30 深 / -0x20 浅）；ORIG 0x08340256，AE。
 bool CPacketRespondent::IsGateArea(CUser* user, int area)
 {
     // ORIG 0x834025c：两指针槽 -0x10/-0xc 先置 0（探针实证：声明+后续独立赋值形才生成
@@ -89,17 +93,15 @@ bool CPacketRespondent::IsGateArea(CUser* user, int area)
     GameWorld* world = 0;
     Village* village = 0;
     world = G_GameWorld();
-    if (world == 0)
+    while (world == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x281, 5);
-        trace("G_GameWorld call failed");
+        cMyTrace(__PRETTY_FUNCTION__, 0x281, 5)("G_GameWorld call failed");
         return false;
     }
     village = world->getUserVillage(user);
-    if (village == 0)
+    while (village == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x287, 5);
-        trace("getUserVillage call failed");
+        cMyTrace(__PRETTY_FUNCTION__, 0x287, 5)("getUserVillage call failed");
         return false;
     }
     return village->get_gate_area() == area;

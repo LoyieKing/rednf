@@ -626,8 +626,75 @@ int SkillSlot::check_skill_mastered(int skillIdx, int level, int group,
     return 0;
 }
 
-/* P182/N82 封顶（b26 Lane27）：46 条指令全等，仅帧 0x38 vs 0x24（4.4 outgoing/
- * slack 多 20B）连带 slot 槽平移（-0xc vs -0x4）；帧策略跨版本差。 */
+int SkillSlot::get_skillslot_no(_Mastered_skill* buf, int skillIdx, int group,
+                                bool checkCombo) const
+{
+    if (m_parent == 0)
+    {
+        return -1;
+    }
+    if (buf == 0)
+    {
+        return -1;
+    }
+    if (checkCombo)
+    {
+        for (int i = 0; i < 6; ++i)
+        {
+            if ((unsigned char)buf[i].m_index == skillIdx)
+            {
+                return i;
+            }
+        }
+    }
+    int start = 0;
+    int end = 0;
+    switch (group)
+    {
+    case 0:
+        start = 6;
+        end = 0x36;
+        break;
+    case 1:
+        start = 0x36;
+        end = 0x66;
+        break;
+    case 2:
+        start = 0x66;
+        end = 0x96;
+        break;
+    case 3:
+        start = 0x96;
+        end = 0xc6;
+        break;
+    default:
+        break;
+    }
+    for (int i = start; i < end; ++i)
+    {
+        if ((unsigned char)buf[i].m_index == skillIdx)
+        {
+            return i;
+        }
+    }
+    if (checkCombo)
+    {
+        for (int i = 0xc6; i < 0xcc; ++i)
+        {
+            if ((unsigned char)buf[i].m_index == skillIdx)
+            {
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
+/* b28d-36（P210 前置法）：本函数 ORIG 帧 0x24（callee get_skillslot_no 已见定义、
+ * outgoing 精确继承）；callee 定义后置时 4.4 撑保守帧 0x38、slot 槽 -0xc vs
+ * ORIG -0x4。把 get_skillslot_no(_Mastered_skill*,...) 定义前置到本函数之前即
+ * 逐条复现（NEAR→AE）。代价：callee 自身 .o 层 IDENT→AE（本地跳转偏移巧合丢失，
+ * clean 口径仍等价）。 */
 int SkillSlot::check_skill_mastered(_Mastered_skill* buf, int skillIdx,
                                     int level, int group) const
 {
@@ -710,70 +777,6 @@ int SkillSlot::get_skillslot_no(int skillIdx, int group,
         if (buf[i].m_index == skillIdx)
         {
             return i;
-        }
-    }
-    return -1;
-}
-
-int SkillSlot::get_skillslot_no(_Mastered_skill* buf, int skillIdx, int group,
-                                bool checkCombo) const
-{
-    if (m_parent == 0)
-    {
-        return -1;
-    }
-    if (buf == 0)
-    {
-        return -1;
-    }
-    if (checkCombo)
-    {
-        for (int i = 0; i < 6; ++i)
-        {
-            if ((unsigned char)buf[i].m_index == skillIdx)
-            {
-                return i;
-            }
-        }
-    }
-    int start = 0;
-    int end = 0;
-    switch (group)
-    {
-    case 0:
-        start = 6;
-        end = 0x36;
-        break;
-    case 1:
-        start = 0x36;
-        end = 0x66;
-        break;
-    case 2:
-        start = 0x66;
-        end = 0x96;
-        break;
-    case 3:
-        start = 0x96;
-        end = 0xc6;
-        break;
-    default:
-        break;
-    }
-    for (int i = start; i < end; ++i)
-    {
-        if ((unsigned char)buf[i].m_index == skillIdx)
-        {
-            return i;
-        }
-    }
-    if (checkCombo)
-    {
-        for (int i = 0xc6; i < 0xcc; ++i)
-        {
-            if ((unsigned char)buf[i].m_index == skillIdx)
-            {
-                return i;
-            }
         }
     }
     return -1;
@@ -2312,8 +2315,11 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
 
 void SkillSlot::InitSkillHistoryLog(ENUM_SKILL_TREE_KIND kind, int reason)
 {
-    // [b28c-21] 残差（P23 实参求值序）：ORIG 先物化 spKind(-0x20) 与 historyLog
-    // 地址（this+0x79700）再 call get_charac_level；4.4 反序（先 charac_level）。
+    // b28d-36 判词（N 封顶，ORIG 0x08608675 尾段）：ORIG 先载 spKind(-0x20→%edx)
+    // 再算 receiver &m_historyLog(m_parent+0x79700→%ecx)，压栈 0x14→(%esp) 从右到左；
+    // 4.4 先算 receiver(%edx) 再载 spKind(%eax)，且 (%esp)/0x4(%esp) 两条互换
+    // （P23/P75 实参求值序+寄存器角色，N7 族）。receiver 无槽往返（P0 ⇒ 原码
+    // 无具名引用局部），表达式改写/具名局部均只能改恶（+槽）。残差 2 条 mov。
     if (m_parent == 0)
     {
         return;

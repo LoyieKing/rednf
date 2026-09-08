@@ -42,6 +42,7 @@ void DB_UpdatePurchaseCashItemBonus::makeRequest(int p1, unsigned int p2)
 // DB_UpdatePurchaseCashItemBonus::dispatch @ 0x0843e252
 // mangled _ZN30DB_UpdatePurchaseCashItemBonus8dispatchEiiP6Stream
 // ============================================================================
+// [b28d-32 N(P259/P75): Acquire 内联实参/stream 局部差（203/202） | ORIG 0x0843e252]
 bool DB_UpdatePurchaseCashItemBonus::dispatch(int /*userIdx*/, int slot,
                                                Stream* s)
 {

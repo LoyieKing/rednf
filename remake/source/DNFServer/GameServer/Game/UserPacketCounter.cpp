@@ -55,6 +55,8 @@ void CUserPacketCounter::IncreasePacket(unsigned int accId)
 // （ORIG 每条记录都新建一个 CMyFileLog，忠实保留。）
 void CUserPacketCounter::WriteLog()
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x0856fff0 用 edi/esi/ebx 跨调用缓存成员，
+    // 4.4 落栈槽（P183 反向/P52 族），帧 0x4c vs 0x58；语义等价。
     CMyFileLog head(m_logPath, 0x9d);
     head(m_logPath, "user_packet_counter total_count(%d)", m_totalCount);
 

@@ -23,18 +23,19 @@ extern int DEFAULT_MAX_FATIGUE;    // CUserCharacInfo.h 亦声明（ORIG B 0x937
 // IsHavePremiumAdvantage 时按事件是否生效分两路 setCurCharacMaxPremiumFatigue
 // （生效：事件缩放差 + 优惠倍率两段 /100；未生效：当前上限 × 优惠倍率 /100）；
 // 最后 CUser::SendFatigue()。
+// [b28d-28] DIFF | ORIG 0x0812ca88 | P13/P28 已修（while 形 + `it++` 复现
+// `jmp cond` + 尾部 `ppEi`）；残差 N82：我方具名中间量（rate1/iVar3/uVar6/
+// rate2/curMax/rate）致帧 0x54 vs ORIG 0x30（P0/P183 内联化未完成）。
 void CLocalChina_User::SendFatigueEvent()
 {
     CMaxFatigueFactorEvent* ev =
         static_cast<CMaxFatigueFactorEvent*>(GlobalData::s_event_manager->GetRepeatEvent(2));
     std::map<unsigned short, CUser*>::iterator it =
         G_GameWorld()->m_UserInWorld.begin();
-    for (;;)
+    // [b28d-28] ORIG 0x0812cac5 `jmp <cond>`（while 前置跳转）+ 条件处每轮
+    // `call end()`（非缓存）+ 尾部 `ppEi` 后置增量 ⇒ 源形 while(it != end())。
+    while (it != G_GameWorld()->m_UserInWorld.end())
     {
-        std::map<unsigned short, CUser*>::iterator end =
-            G_GameWorld()->m_UserInWorld.end();
-        if (!(it != end))
-            return;
         CUser* user = it->second;
         if (user->get_state() > 2)
         {
@@ -102,7 +103,9 @@ void CLocalChina_User::SendFatigueEvent()
             user->SendFatigue();
         }
 loop_tail:
-        ++it;
+        // [b28d-28] P28 增量侧：ORIG 增量段调 `_Rb_tree_iterator::ppEi`（后置，
+        // 带独立 sret 临时槽）⇒ 源形必写 `it++`；`++it` 走 ppEv 免临时槽。
+        it++;
     }
 }
 

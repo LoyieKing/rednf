@@ -188,6 +188,7 @@ int CBoosterGage::get_booster_point(unsigned long dwItemIdx)
     return cRet;
 }
 
+// [b28d-32 N(N78/P116): ORIG memset 内联 rep stos 慢路 vs 4.4 call（210/177） | ORIG 0x080dc6d6]
 void CBoosterGage::make_postar(CUser* pUser, const Inven_Item& item,
                                const char* pAgency, int nPeriod)
 {
@@ -244,7 +245,8 @@ void CBoosterGage::log_booster_gage_bonus_reward(
                  strLog.c_str(), pUser->getCurCharacNo());
 }
 
-// [b28c-11] NEAR 封顶（118/118 条）：残余 = 帧差引发的全帧槽号平移
+// [b28d-32 判词·N82] ORIG 0x080dcbd6：NEAR 封顶（118/118 条），残余 = 帧差
+// 引发的全帧槽号平移
 // （ORIG -0x64 vs 4.4 -0x24，N82/P182 族），助记符序列全等。
 int CBoosterGage::AddAvatarItem(std::vector<std::pair<int, int> >& itemList,
                                 bool bIsFirst, CUser* pUser, const Inven_Item& item,
@@ -408,6 +410,7 @@ void CBoosterGage::ResetDaily()
     m_dwTotalGage = 0;
 }
 
+// [b28d-32 N(EH 尾岛): ORIG 正常路径 jmp 尾岛 + 异常段居中，4.4 就地内联 epilogue（N104 族），81/80 | ORIG 0x080dd340]
 bool CBoosterGage::_saveData(CUser* pUser)
 {
     // [b28c-11] N 封顶（81/80）：残余 = EH 段布局——ORIG 正常路径 `jmp` 尾岛

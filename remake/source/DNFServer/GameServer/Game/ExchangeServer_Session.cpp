@@ -115,6 +115,9 @@ int CSession::GetTriggerSessionEventType()            // ORIG 0x8490066
 // ---------------------------------------------------------------------------
 // Parsing — ORIG 0x8490074 size 0x29a
 // ---------------------------------------------------------------------------
+// [b28d-D33 语义缺口-待复核] ORIG 0x08490074：169 vs 174 条；p167 差集 MISSING
+// __cxa_begin_catch/__cxa_end_catch/_Unwind_Resume/logFormat ⇒ ORIG 有 try/catch
+// 段（我方无 EH 结构）；N7/N109 push 序。需 Main 复核是否真语义缺口。
 bool CSession::Parsing(int recvLen)
 {
     int parsingLength;                      // -0x24(%ebp)
@@ -287,6 +290,8 @@ bool CSession::OnError()
 // ---------------------------------------------------------------------------
 // OnAccept — ORIG 0x849045e size 0x174
 // ---------------------------------------------------------------------------
+// [b28d-D33 N7/N109 封顶] ORIG 0x0849045e：94=94 条；push esi/ebx 顺序 + 帧
+// 0x70 vs 0x84（callee-saved 角色 + 16k+4 量化）。p167 CLEAR 13=13，语义等价。
 CSession* CSession::OnAccept()
 {
     sockaddr_in addr;                         // -0x50(%ebp)，len@-0x54

@@ -1,4 +1,6 @@
 // ============================================================================
+// [b28d-38 判词] CLevelDungeonPlayStatistic::InsertDatabase 0x0860edf4 DIFF：
+//  p167 CLEAR 28/28（语义完成）；残差 N18a 单段直落（ORIG mov 0x8;mov 0x4;mov 双段）。
 // df_game_r 还原 —— CLevelDungeonPlayStatistic::InsertDatabase。
 // ORIG 0x0860edf4 T（_ZN26CLevelDungeonPlayStatistic14InsertDatabaseEv）。
 // 报告：docs/class_func_reports/CLevelDungeonPlayStatistic/InsertDatabase.md

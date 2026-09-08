@@ -131,6 +131,7 @@ int loadAppendageType(const std::string& token)
 //   随后按序 ScanFloat 写入 26 个 g_*Const_ 全局 → true。
 //   （ORIG 另构造一个未使用局部 string local_20，无语义，略。）
 // ============================================================================
+// [b28d-32 N(P75/N89): 扫描器内联与装载序差（144/125） | ORIG 0x080966fa]
 bool importEtcParameterScriptForServer(void)
 {
     if (!loadRDARScriptFile("", "Etc/EtcParameter.etc"))
@@ -197,6 +198,7 @@ std::vector<stTitleElement>* getTitleCollection(stTitleBookInfo* book, int tab)
 // 扫描顺序逐条对齐汇编：change=status 先存 appendage 再 Str/ValueType/Float；
 // postal 先两个 int(+0x18/+0x1c) 后三个 string(+0xc/+0x10/+0x14)。
 // ============================================================================
+// [b28d-32 N7: stTitleRewardBasis D1 @0x08aa9652 间接虚调目标 ORIG %edx vs 4.4.7 恒 %eax（P230：4.4.6 后端可翻，路由表不改）]
 int importRewards(std::vector<stTitleRewardBasis*>* out, std::string token)
 {
     const int appendage = loadAppendageType(token);
@@ -243,6 +245,7 @@ int importRewards(std::vector<stTitleRewardBasis*>* out, std::string token)
 // 重新查表派发。查表命中标签则解析对应字段；未命中即奖励行 → importRewards。
 // 返回：ScanType 耗尽→true；[/reward type]→true；[/section]→false。
 // ============================================================================
+// [b28d-32 N(P75/N89): static map 惰性注册链与装载序差（461/475） | ORIG 0x08aa8d65]
 bool importTitleSection(stTitleSection* section, int idx)
 {
     typedef std::map<const char*, int, less_TCHAR> LookupMap;
@@ -347,6 +350,7 @@ bool importTitleSection(stTitleSection* section, int idx)
 // ============================================================================
 struct stSpPerLevelTable : public std::vector<unsigned int> {};
 
+// [b28d-32 N(P75/N89): 扫描器/STL 内联与装载序差（93/84） | ORIG 0x08910505]
 int importSpPerLevelReferenceTable(const char* path, stSpPerLevelTable& table)
 {
     bool ok = false;
@@ -393,6 +397,7 @@ int importSpPerLevelReferenceTable(const char* path, stSpPerLevelTable& table)
 //                              {+0xc,+8,+0} 三 int，自增键插入 +0x170。
 // loadRDARScriptFile 失败→false；其余路径均 true。
 // ============================================================================
+// [b28d-32 N(P75/N89): 大解析函数扫描器内联/装载序差（448/416） | ORIG 0x08912336]
 int importGenuineUpgradeTable(const char* path,
                               GenuineDamageUpgradeTable* table)
 {

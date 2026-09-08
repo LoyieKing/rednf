@@ -128,10 +128,11 @@ bool BestClearTime::loadData(CUser* pUser, char* pData)
         // ORIG：make_pair<int&,SIG&>(...) → pair<int,SIG> 拷贝 →
         // map::insert(value_type const&)（三段调用与 ORIG 展开一致）。
         char* entry = pData + 8 + i * 0x18;
-        std::pair<int, SIG_BEST_CLEAR_TIME_DIFFICULTY> value(std::make_pair(
+        // b28d-lane25：P167 差集实证 ORIG 以 make_pair 右值临时直入 insert
+        // （value_type 转换构造为 move 形 C1<int,SIG>(pair<int,SIG>&&)）。
+        m_map.insert(std::make_pair(
             *reinterpret_cast<int*>(entry),
             *reinterpret_cast<SIG_BEST_CLEAR_TIME_DIFFICULTY*>(entry + 4)));
-        m_map.insert(value);
     }
     return true;
 }
@@ -140,25 +141,25 @@ bool BestClearTime::loadData(CUser* pUser, char* pData)
 // （characNo@+0 不由本函数写，由 _saveData 填。）
 void BestClearTime::getData(char* pData) const
 {
+    // b28d-lane25：ORIG 0x080c883c 结构 = 循环头 end/ne 判定 → i>999 直接 return
+    // （不写 count）→ 两次 ptEv（first 一次、second 缓存引用一次）；正常收敛写 count。
     std::map<int, SIG_BEST_CLEAR_TIME_DIFFICULTY>::const_iterator it =
         m_map.begin();
     int i = 0;
-    for (;;)
+    while (it != m_map.end())
     {
         if (i > 0x3e7)
-            break;
-        // ORIG：entries[i]（pData + i*0x18 + 8）：key + 5 个 int 直接 mov。
+            return;
         int* entry = reinterpret_cast<int*>(pData + i * 0x18);
         entry[2] = it->first;
-        entry[3] = it->second.m_time[0];
-        entry[4] = it->second.m_time[1];
-        entry[5] = it->second.m_time[2];
-        entry[6] = it->second.m_time[3];
-        entry[7] = it->second.m_time[4];
-        ++i;
+        const SIG_BEST_CLEAR_TIME_DIFFICULTY& d = it->second;
+        entry[3] = d.m_time[0];
+        entry[4] = d.m_time[1];
+        entry[5] = d.m_time[2];
+        entry[6] = d.m_time[3];
+        entry[7] = d.m_time[4];
         ++it;
-        if (!(it != m_map.end()))
-            break;
+        ++i;
     }
     *reinterpret_cast<int*>(pData + 4) = i;
 }

@@ -62,6 +62,9 @@ AvatarConvert::~AvatarConvert()
 // （ORIG 此路径不释放 cr——忠实保留）。
 // 返回 0=成功 / -1=打开失败 / -2=重复 grade。
 // ============================================================================
+// [b28d-D33 P216/N83 封顶] ORIG 0x088b1b36：189 vs 186 条；p167 差集 =
+// _ZdlPv/eq MISSING vs _ZnwjPv/_ZdlPvS_/ne EXTRA（placement new 前端内联 vs
+// 4.4 extern call，N83；P216 throw() 边界）+ 帧 0x5c vs 0x6c。
 int AvatarConvert::loadScript()
 {
     if (!loadRDARScriptFile("Etc/EmblemRenewal/", "avatar_convert_jpn.etc"))
@@ -218,7 +221,10 @@ CStatisticServerProxy* getStatisticProxy0()
 
 }  // namespace
 
-    // N7 封顶：唯一残差=虚调用 callee 寄存器互换（N7，探针 /tmp/l22p/vprobe*.cpp）。
+    // [b28d-D33 复验] N7 封顶：唯一残差=虚调用 callee 寄存器互换（ORIG
+    // 0x0819319b `mov (%eax),%edx; call *%edx` vs 4.4 `mov (%eax),%eax; call *%eax`），
+    // 助记符序列/长度全等（N7，探针 /tmp/l22p/vprobe*.cpp）。P282 已核槽位 +0xc
+    // 一致，非调用目标还原错。
 void AvatarConvertServer::StatisticsAvatarDisjoint(const CItem* item,
                                                    int isRechargeStone)
 {
@@ -241,6 +247,9 @@ void AvatarConvertServer::StatisticsAvatarDisjoint(const CItem* item,
         ->SendPacket(reinterpret_cast<char*>(&packet), 0x28);
 }
 
+// [b28d-D33 P167/N83/N86 封顶] ORIG 0x081931dc：117 vs 110 条；p167 差集 =
+// Packet C1Ev/GetServerProxy MISSING vs memset/helper EXTRA（P124/P83 结构赋值 vs
+// memset；helper 已存在的 TU-local 转发）+ 帧 0x74 vs 0x64（N86/N82）。
 void AvatarConvertServer::StatisticsEmblemCreate(
     const std::vector<std::pair<int, int> >& created)
 {
@@ -276,6 +285,7 @@ void AvatarConvertServer::StatisticsEmblemCreate(
     getStatisticProxy0()->SendPacket(reinterpret_cast<char*>(pkt), 0x36);
 }
 
+// [b28d-D33 N82 封顶] ORIG 0x08192212：302 vs 293 条（帧/槽跨版本差）。
 bool AvatarConvertServer::CheckCondition(CUser* user,
                                          arad::SigAradAvatarConvert* sig)
 {
@@ -383,6 +393,8 @@ bool AvatarConvertServer::CheckCondition(CUser* user,
     return true;
 }
 
+// [b28d-D33 N82/N89 封顶] ORIG 0x081926de：609 vs 610 条（超大函数 >500，
+// §6.2 三件套口径）。语义等价。
 bool AvatarConvertServer::Convert(CUser* user,
                                   arad::SigAradAvatarConvert* sig)
 {

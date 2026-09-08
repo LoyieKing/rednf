@@ -50,6 +50,8 @@ float CPowerManager::GetPowerWarResponPenalty(CUser* user)
     return penalty;
 }
 
+// [b28d-28] NEAR | ORIG 0x08480e92 | N82：4.1 不复用已死槽（fistpl 结果槽 -0xc
+// vs 4.4 复用 ghostTime 槽 -0x1c），仅 2 行槽号差，语义等价。
 int CPowerManager::GetPowerWarGhostTime(CUser* user, float f)
 {
     // ORIG 0x08480e92：(int)(ghostTime * f)，fistpl 就近取整。
@@ -118,6 +120,8 @@ bool CPowerManager::IsWinerSide(char side)
     return m_winnerSide == side;
 }
 
+// [b28d-28] DIFF | ORIG 0x0847fb02 | P167 CLEAR（69/69 call 多重集全等）；
+// 残差为 N82 槽/寄存器分配 + 视图寻址形态（4.1 lea 折叠 vs 4.4 add 链）。
 int CPowerManager::ProcessJoinPowerWar(CUser* user, char side)
 {
     // ORIG 0x0847fb02：加入/退出 PowerWar 的完整校验与处理。
@@ -304,6 +308,8 @@ void CPowerManager::LoadRankerInfo()
     **guard << G_CEnvironment()->m_serverEnvir.m_serverGroup;   // ORIG env+0x378 直读
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
+// [b28d-28] DIFF | ORIG 0x0847f1b0 | N18b/P209附：unsigned 局部 for 尾测 4.4 恒
+// 折 `cmpl $2,-0x4(%ebp)`；ORIG 两段 `mov slot,%eax; cmp $2,%eax` 源形不可造。
 bool CPowerManager::CheckCompleteDBLoadStatueInfo()
 {
     // [b28c-L9] fresh 复验 ndiff 5→2 封顶：残差即下述 N18b 一条（unsigned 局部
@@ -333,6 +339,8 @@ void CPowerManager::SetPowerWarStartTime(unsigned char y, unsigned char m,
     m_powerWarStartTime[3] = h;
 }
 
+// [b28d-28] DIFF | ORIG 0x0847ebec | 同 CheckCompleteDBLoadStatueInfo：N18b/P209附
+// （unsigned 循环尾测内存直比折叠，1 行差）。
 void CPowerManager::SetPowerWarUserRankingInfo(unsigned int* charNos)
 {
     // ORIG 0x0847ebec：characNo==0 -> 置 flag，否则写 +0x2c 并发 DB 消息 0x166。
@@ -358,6 +366,8 @@ void CPowerManager::SetPowerWarUserRankingInfo(unsigned int* charNos)
 
 
 
+// [b28d-28] DIFF | ORIG 0x0847ed4e | P167 CLEAR（7/7）；残差为 N82 槽分配 +
+// 4.1 数组寻址 `lea (%edx,%eax,1)` vs 4.4 `shl/add` 链（N94 族）。
 void CPowerManager::SetPowerWarUserStatueInfo(SIG_LOAD_POWER_WAR_STATUE_INFO* info)
 {
     // ORIG 0x0847ed4e：按 characNo（info+0x00）匹配条目，拷贝雕像字段并置 flag，
@@ -402,8 +412,11 @@ void CPowerManager::SetPowerWarUserStatueInfo(SIG_LOAD_POWER_WAR_STATUE_INFO* in
 
 void CPowerManager::ClearMVPInfo()
 {
-    cMyTrace trace("void CPowerManager::ClearMVPInfo()", 0x143, 0);
-    trace("CLEAR MVP INFO");
+    // [b28d-28] ORIG 0x0847f5fe/-0x38 与 0x0847f83x/-0x28：两个 cMyTrace 槽
+    // 深→浅（4.1 方向）；具名对象 4.4 恒反向 ⇒ 用全表达式临时链（P227/P221）
+    // 复现槽序，同时使 `tr(...)` 的 varargs（G_CEnvironment()->+0x378）在
+    // ctor 前求值并以 %ebx 跨 call 保活（ORIG 0x0847f84x `mov 0x378(%eax),%ebx`）。
+    cMyTrace("void CPowerManager::ClearMVPInfo()", 0x143, 0)("CLEAR MVP INFO");
     memset(m_rankings, 0, sizeof(m_rankings));
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DNF_PowerManager.cpp", 0x149), true);
@@ -414,9 +427,9 @@ void CPowerManager::ClearMVPInfo()
     **guard << G_CEnvironment()->m_serverEnvir.m_serverGroup;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 
-    cMyTrace tr("void CPowerManager::ClearMVPInfo()", 0x152, 0);
-    tr("PUT DB MSG - E_DELETE_POWER_WAR_STATUE_MESSAGE / server_group : %d",
-       G_CEnvironment()->m_serverEnvir.m_serverGroup);
+    cMyTrace("void CPowerManager::ClearMVPInfo()", 0x152, 0)
+        ("PUT DB MSG - E_DELETE_POWER_WAR_STATUE_MESSAGE / server_group : %d",
+         G_CEnvironment()->m_serverEnvir.m_serverGroup);
 
     CSharedServerMessageManager* mgr =
         G_CGameManager()->GetSharedServerMessageManager();
@@ -450,21 +463,31 @@ bool CPowerManager::IsAbleToRevival(CUser* user, unsigned int charNo, int& resul
 {
     // ORIG 0x0847f952：复活冷却判定。penalty 同 GetPowerWarResponPenalty，
     // ghost=ROUND(ghostTime*penalty)，与 (charNo - 混沌死亡时刻) 比较。
+    // [b28d-28] ORIG 0x0847f98d：unsigned int→float 走 64 位零扩展
+    // （`mov $0,%edx; mov %eax,-0x28; mov %edx,-0x24; fildll`，同
+    // GetPowerWarResponPenalty 0x08480f03）；尾块 ORIG 为
+    // `jle L_then`（ghost<=delta → result=0;return 1 在后）、
+    // ghost>delta 直落（result=ghost-delta; return 0）⇒ 源码取正向早返形。
     float penalty = 1.0f;
     if ((unsigned int)user->GetCurCharacChaosStateTime() <
         (unsigned int)G_CDataManager()->m_powerParameter.m_penaltyThreshold)
     {
         penalty = 2.0f -
-                  (float)user->GetCurCharacChaosStateTime() /
+                  (float)(unsigned long long)(unsigned int)user->GetCurCharacChaosStateTime() /
                       (float)G_CDataManager()->m_powerParameter.m_penaltyThreshold;
     }
     int ghost = (int)((float)G_CDataManager()->m_powerParameter.m_ghostTime * penalty);
-    int delta = (int)charNo - user->GetCurCharacChaosDieTime();
-    if (ghost <= delta)
-        result = 0;
-    else
+    // [b28d-28] ORIG 0x0847f9f2 装载序：`call GetCurCharacChaosDieTime` 之后才
+    // `mov 0x10(%ebp),%edx`（charNo）⇒ 无符号中间量 d = charNo - (unsigned)die
+    // 使 4.4 求值序翻为「先 call 后读 charNo」（探针 /tmp/l28_probe/p3.cpp g4 全等）。
+    int delta = (int)(charNo - (unsigned int)user->GetCurCharacChaosDieTime());
+    if (ghost > delta)
+    {
         result = ghost - delta;
-    return ghost <= delta;
+        return false;
+    }
+    result = 0;
+    return true;
 }
 
 void CPowerManager::IncreaePowerWarPointInChannel(char side, int point)
@@ -475,6 +498,8 @@ void CPowerManager::IncreaePowerWarPointInChannel(char side, int point)
         m_side2ChannelPoint += point;
 }
 
+// [b28d-28] DIFF | ORIG 0x0847f200 | P167 EXTRA +2 strlen = N98（4.1 内联
+// strlen word-at-a-time，4.4 恒 call）；余为 N82 槽/寄存器差。
 void CPowerManager::SendPowerWarUserStatueInfo(CUser* user)
 {
     // ORIG 0x0847f200：组 SEND 雕像信息包（0xb6），含各条目姓名/职业/等级/
@@ -526,6 +551,8 @@ int CPowerManager::GetPowerWarPointInChannel(char side)
     return side == 1 ? m_side1ChannelPoint : m_side2ChannelPoint;
 }
 
+// [b28d-28] DIFF | ORIG 0x0847eba0 | N18b/P209附：同 CheckCompleteDBLoadStatueInfo
+// （`mov slot,%eax; cmp $2,%eax` 两段物形不可造，1 行差）。
 int CPowerManager::GetRankingByCharacNo(unsigned int charNo)
 {
     // [b28c-L9] fresh 复验 ndiff 5→2 封顶：同上 N18b（`mov slot,%eax; cmp $2,%eax`

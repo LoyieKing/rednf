@@ -233,13 +233,15 @@ bool CAssaultPlace::_IsCannotConnectP2P(int a, int b)
 {
     // asm：offset = this + a*0x20 + b + 0x15 的单字节（a<<5 后按字节加 b，
     //   并非第二个槽基址）；该字节非零且 m_assaulters[b] 非空 → 判"无法连接"。
-    const char* p =
-        reinterpret_cast<const char*>(this) + a * 0x20 + b + 0x15;
-    if (static_cast<unsigned char>(*p) == 0)
+    // [b28d-26] P183：去 p 局部缓存（ORIG 0x82e927e 全表达式直算，无 -0xc 槽，
+    //   帧 sub $0x18 vs 我们 $0x28）。
+    // ORIG 0x82e927e 偏移拆分：`add $0x10,%eax; movzbl 0x5(%eax)` ⇒ 写成 [5] 下标形。
+    if (static_cast<unsigned char>(
+            (reinterpret_cast<const char*>(this) + a * 0x20 + b + 0x10)[5]) == 0)
         return true;
-    if (!m_assaulters[b].Empty())
-        return true;
-    return false;
+    if (m_assaulters[b].Empty())
+        return false;
+    return true;
 }
 
 // ORIG T 0x82e93bc _GetConnectP2PPoint(int)
@@ -262,14 +264,17 @@ void CAssaultPlace::_GetConnectP2PMaxMinPoint(int& maxPt, int& minPt)
 {
     maxPt = 0;                                  // 第 1 引用参 init 0 → 最大值
     minPt = 8;                                  // 第 2 引用参 init 8 → 最小值
+    // [b28d-26] ORIG 0x82e9412：pt 声明于循环外（-0x10 槽预清 0），循环变量 i 落
+    //   -0xc；Empty() 早返 continue 形产 `test %al,%al; jne <continue>`（无 xor）。
+    int pt = 0;
     for (int i = 0; i <= 7; ++i) {
-        if (!m_assaulters[i].Empty()) {
-            int pt = _GetConnectP2PPoint(i);
-            if (pt < minPt)
-                minPt = pt;
-            if (maxPt < pt)
-                maxPt = pt;
-        }
+        if (m_assaulters[i].Empty())
+            continue;
+        pt = _GetConnectP2PPoint(i);
+        if (pt < minPt)
+            minPt = pt;
+        if (maxPt < pt)
+            maxPt = pt;
     }
 }
 
@@ -927,16 +932,19 @@ void CAssaultPlace::_GetTeamCountAliveUser(int* counts)
 // ORIG T 0x82e7018 _AddUser(CUser*, ENUM_ASSAULT_TEAM)
 void CAssaultPlace::_AddUser(CUser* user, ENUM_ASSAULT_TEAM team)
 {
-    int slot = 0;
-    for (slot = 0; slot <= 7; ++slot) {
+    // [b28d-26] ORIG 0x82e7018：`je <循环增量>` 跳过主体、主体以 ret 早返，
+    //   throw 块在循环尾之后（无循环内 slot==7 判定）；SetAssaultPlace 实参直读
+    //   this+0x104（无 GetAssaultPlaceId call）。
+    for (int slot = 0; slot <= 7; ++slot) {
         if (m_assaulters[slot].IsAttachAble())
-            break;
-        if (slot == 7)
-            throw (ENUM_ERROR)0x04;              // ORIG __cxa_throw ENUM_ERROR(4)
+        {
+            m_assaulters[slot].AttachUser(user, team);
+            user->SetAssaultPlace(m_field104);   // ORIG 直读 +0x104 → CUserCharacInfo::SetAssaultPlace
+            m_field100++;                        // GetAssaulterCount 计数域
+            return;
+        }
     }
-    m_assaulters[slot].AttachUser(user, team);
-    user->SetAssaultPlace(GetAssaultPlaceId());  // +0x104 → CUserCharacInfo::SetAssaultPlace
-    m_field100++;                                // GetAssaulterCount 计数域
+    throw (ENUM_ERROR)0x04;                      // ORIG __cxa_throw ENUM_ERROR(4)
 }
 
 // ORIG T 0x82e70c8 _AddTeam(CUser*, ENUM_ASSAULT_TEAM)

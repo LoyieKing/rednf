@@ -1,3 +1,7 @@
+// [b28d-38 判词] 本 TU 3 件最终状态：
+//  RemoveMail 0x082f.. DIFF（p167 CLEAR 16/16；byte 层 N 封顶）
+//  AddNewMail 0x082f.. DIFF（p167 余 make_pair 首参 const& 形：ORIG make_pair<unsigned int const&, CMail*&>）
+//  CMail::MakePacket 0x082f.. DIFF（p167 CLEAR 45/45；byte 层 N 封顶）
 // df_game_r WongWork::CMailBox / CMailBox::CMail 方法实现（U2 批次）。
 // 依据 docs/class_func_reports/WongWork__CMailBox/ 与 WongWork__CMailBox__CMail/
 // 各报告 + ORIG objdump 逐函数转写；类布局见 CGameManager.h（CMail 真实字段）。

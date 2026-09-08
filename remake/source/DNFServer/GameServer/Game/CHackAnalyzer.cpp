@@ -168,6 +168,7 @@ bool CHackAnalyzer::CheckExceptionCnt(ENUM_HACKTYPE type, int cnt)
     return false;
 }
 
+// b28d-31: N 封顶（复核 b27，sret 跨版本 lowering）——ORIG 0x080f8320。
 bool CHackAnalyzer::CheckHackRateByPartyCount(ENUM_HACKTYPE type, int count)
 {
     // ORIG 0x080f8320：std::find 于 m_checkRateHackTypes(+0x7a24) 查 type；
@@ -191,6 +192,7 @@ bool CHackAnalyzer::CheckHackRateByPartyCount(ENUM_HACKTYPE type, int count)
     return false;
 }
 
+// b28d-31: N 封顶（复核 b27）——ORIG 0x080f842e。
 bool CHackAnalyzer::CheckHackRateByDifficult(ENUM_HACKTYPE type, int lvDiff,
                                              int difficult)
 {
@@ -217,6 +219,7 @@ bool CHackAnalyzer::CheckHackRateByDifficult(ENUM_HACKTYPE type, int lvDiff,
     return false;
 }
 
+// b28d-31: 本波 check_tu 复核为 AE（299/299，无实质残差）。
 void CHackAnalyzer::AddCheckRateHackTypeList()
 {
     // ORIG 0x080f8550：前 18 项压入 m_checkRateHackTypes(+0x7a24)，
@@ -286,6 +289,8 @@ void CHackAnalyzer::ReqDBSaveHackInfo(unsigned int uid, unsigned int type,
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
 }
 
+// b28d-31: N 封顶（N89 镜像/P197）——ORIG 0x080f8080；91 vs 79（4.1 内联
+// 展开 vs 4.4 out-of-line），p167 待核。
 void CHackAnalyzer::reportHackInfo()
 {
     if (m_hackInfoList.empty())
@@ -310,6 +315,8 @@ void CHackAnalyzer::resetHackInfo()
     m_field7a08 = 0;
 }
 
+// b28d-31: N 封顶（N82/P254）——ORIG 0x080f7fd2；33 vs 48（帧结构 +
+// movzbl 两段中转）。
 void CHackAnalyzer::_addHackInfo(ENUM_REPORT_4_HACK_FLAG flag,
                                  ENUM_HACKTYPE type, int value)
 {
@@ -397,6 +404,7 @@ int CHackAnalyzer::analyzeHackReport(CUser* user, PacketBuf* pkt)
     return 1;
 }
 
+// b28d-31: N 封顶（复核 batch-26 lane14）——ORIG 0x080f7cca；槽组平移 8。
 void CHackAnalyzer::_analyzeSpeedHack(unsigned int ms)
 {
     // ORIG 0x080f7cca（_analyzeSpeedHack.md）：ratio=(int)(100.0f*ms/elapsed)；
@@ -451,6 +459,8 @@ void CHackAnalyzer::_analyzeMemoryHack(unsigned int val)
     }
 }
 
+// b28d-31: N 封顶（N1/N18a，复核 b27）——ORIG 0x080f7e18；两步常量
+// 0x10+0xc 被 4.4 折成单 add $0x1c。
 void CHackAnalyzer::_analyzeEquipmentUpgradeHack(unsigned short const* table)
 {
     // ORIG 0x080f7e18（_analyzeEquipmentUpgradeHack.md）：当前角色背包装备栏
@@ -478,6 +488,7 @@ void CHackAnalyzer::_analyzeEquipmentUpgradeHack(unsigned short const* table)
     }
 }
 
+// b28d-31: N 封顶（P223 边界）——ORIG 0x080f7eb6；尾部多 1 组 [nop;jmp]。
 void CHackAnalyzer::_analyzeMonsterDieHack()
 {
     // ORIG 0x080f7eb6（_analyzeMonsterDieHack.md）：采集窗口 <11 秒且 kill 记录
@@ -585,6 +596,8 @@ void CHackAnalyzer::onUpdateHackCount(CUser* user, ENUM_HACKTYPE type, int a,
     user->onUpdateHackCount(type, a, b, c);
 }
 
+// b28d-31: N 封顶（N82/P183）——ORIG 0x080f8c7e；211 vs 230（帧/槽 + 地址
+// 重物化次数差）。
 void CHackAnalyzer::addServerHackCnt(CUser* user, ENUM_HACKTYPE type,
                                      unsigned int count, unsigned int a,
                                      unsigned int b)
@@ -782,12 +795,17 @@ void Secu_AccountHacking::sendMail(char const* name, MSG_CHECK_MAIL_RECEIVER* ms
         for (int i = 0;
              i < (int)((CheckMailReceiverListView*)msg)->m_entryCount; ++i)
         {
+            // b28d-31: NEAR 封顶（P75 跨版本装载序）。ORIG 0x08278c69 循环体
+            // `mov -0xc(%ebp),%edx; mov 0x10(%ebp),%ecx`（索引先、msg 后）；
+            // 4.4 对 m_entries[i] 恒 base-first（`mov 0x10(%ebp),%ecx` 先）。
+            // 下标 / &arr[i] / 指针加法 / 交换加法 四形实测均不可翻，语义等价。
             if (isAvatar(((CheckMailReceiverListView*)msg)->m_entries[i].m_itemIdx))
                 sendAvatar(name, 0);
         }
     }
 }
 
+// b28d-31: N 封顶（N82）——ORIG 0x08278cce；166 vs 169（帧/槽）。
 void Secu_AccountHacking::sendGold(char const* name, unsigned int a,
                                    unsigned int money, unsigned int b,
                                    unsigned char trackType, char* ip)

@@ -536,12 +536,18 @@ int UserQuest::finish_quest(int questIdx)
 // item_reward_quest / get_rescue_questmap / check_cond_clear
 // ============================================================================
 
+// b28d-40: P223 双守卫分落——外层正向 if 包裹 + 内层 continue 复现
+// ORIG 第一守卫直落循环尾、第二守卫落 nop 岛；0x086ac954，AE。
 int UserQuest::item_reward_quest(int mapIdx) const
 {
     for (int i = 0; i <= 19; ++i)
     {
-        if (m_quest[i] != 0 && m_trigger[i] != 0)
+        if (m_quest[i] != 0)
         {
+            if (m_trigger[i] == 0)
+            {
+                continue;
+            }
             Quest* quest = G_CDataManager()->find_quest(m_quest[i]);
             if (quest == 0)
             {
@@ -556,12 +562,17 @@ int UserQuest::item_reward_quest(int mapIdx) const
     return 0;
 }
 
+// b28d-40: P223 双守卫分落（同 item_reward_quest 形）；0x086aca16，AE。
 int UserQuest::get_rescue_questmap(int mapIdx) const
 {
     for (int i = 0; i <= 19; ++i)
     {
-        if (m_quest[i] > 0 && m_trigger[i] != 0)
+        if (m_quest[i] > 0)
         {
+            if (m_trigger[i] == 0)
+            {
+                continue;
+            }
             Quest* quest = G_CDataManager()->find_quest(m_quest[i]);
             if (quest == 0)
             {
@@ -770,36 +781,33 @@ bool UserQuest::IsDoingQuest(int questIdx) const
 
 int UserQuest::CheckDungeonEventStoryPause(int dungeonNo, int fieldNo, int mapNo) const
 {
-    // [b28c-L9] fresh 复验 ndiff 18→2：残差 = 4.1 为 case0 的空 break 发射一枚
-    // nop 中继岛（0x086ad136 `nop` → fall 到 0x086ad137），case1 的 break 则 je 直达
-    // 0x086ad137；4.4 两 case 均 jump-thread 成 `jmp` ⇒ +2 jmp（P223 三形实测不闭合）。
+    // b28d-40: 两个 continue 改嵌套正向 if 包裹（消 4.4 同层多 continue 的 nop+jmp
+    // 中继岛，ORIG 0x086ad079/0x086ad0a7 两守卫直接落外层循环尾 0x086ad159）。
     for (int i = 0; i <= 19; ++i)
     {
-        if (m_quest[i] == 0)
+        if (m_quest[i] != 0)
         {
-            continue;
-        }
-        Quest* quest = G_CDataManager()->find_quest(m_quest[i]);
-        if (quest == 0)
-        {
-            continue;
-        }
-        for (unsigned int j = 0; j < quest->m_eventDialogs.size(); ++j)
-        {
-            switch (quest->m_eventDialogs[j].m_field0)
+            Quest* quest = G_CDataManager()->find_quest(m_quest[i]);
+            if (quest != 0)
             {
-            case 0:
-                if (quest->m_eventDialogs[j].m_field8 == fieldNo)
+                for (unsigned int j = 0; j < quest->m_eventDialogs.size(); ++j)
                 {
-                    return 1;
+                    switch (quest->m_eventDialogs[j].m_field0)
+                    {
+                    case 0:
+                        if (quest->m_eventDialogs[j].m_field8 == fieldNo)
+                        {
+                            return 1;
+                        }
+                        break;
+                    case 1:
+                        if (quest->m_eventDialogs[j].m_field8 == dungeonNo)
+                        {
+                            return 1;
+                        }
+                        break;
+                    }
                 }
-                break;
-            case 1:
-                if (quest->m_eventDialogs[j].m_field8 == dungeonNo)
-                {
-                    return 1;
-                }
-                break;
             }
         }
     }
@@ -843,33 +851,30 @@ void UserQuest::ResetUrgentQuestWaitingList()
     if (hasEpicQuest())
     {
         m_authenData.m_urgentQuest = -1;
-        return;
-    }
-
-    quest2 = G_CDataManager()->find_quest(m_authenData.m_urgentQuest);
-    // b25c 翻案：ORIG 4.1 把 quest2==0 的 return 块外置在后（je 落点岛），
-    // 且槽序 quest2/-0x18 i/-0x14 quest/-0x10 levelLimit/-0xc。if/else 反转
-    // 写法（探针 /tmp/probe_blk.cpp v_origform）4.4 下槽序与块排布逐条同构；
-    // if(q==0){return} 早退内联形两者皆反。
-    if (quest2 != 0)
-    {
-        int levelLimit = quest2->m_levelMax;
-        if (levelLimit > UrgentQuestLevelLimit::kEndLvl)
-        {
-            levelLimit = UrgentQuestLevelLimit::kEndLvl;
-        }
-        if (m_user->get_charac_level() + 1 > levelLimit)
-        {
-            m_authenData.m_urgentQuest = -1;
-        }
-        // [b28c-L9] ORIG 0x086ad241/0x086ad250 两臂各有一份「写 -1 + jmp end」
-        // （fall-through 共享尾块会合并成一份 ⇒ 少 1 jmp）。
-        return;
     }
     else
     {
-        m_authenData.m_urgentQuest = -1;
-        return;
+        quest2 = G_CDataManager()->find_quest(m_authenData.m_urgentQuest);
+        // b25c 翻案：ORIG 4.1 把 quest2==0 的块外置在后（je 落点岛），
+        // 且槽序 quest2/-0x18 i/-0x14 quest/-0x10 levelLimit/-0xc。
+        // b28d-40：两臂 return 改自然结束（ORIG 0x086ad24e/0x086ad25d 各一条 jmp，
+        // return 形多一条 nop+jmp 中继）。
+        if (quest2 != 0)
+        {
+            int levelLimit = quest2->m_levelMax;
+            if (levelLimit > UrgentQuestLevelLimit::kEndLvl)
+            {
+                levelLimit = UrgentQuestLevelLimit::kEndLvl;
+            }
+            if (m_user->get_charac_level() + 1 > levelLimit)
+            {
+                m_authenData.m_urgentQuest = -1;
+            }
+        }
+        else
+        {
+            m_authenData.m_urgentQuest = -1;
+        }
     }
 }
 

@@ -30,8 +30,8 @@ public:
                         char const* label);
 
 private:
-    void* m_slot0;  // +0x00【推断】
-    void* m_slot4;  // +0x04【推断】
+    unsigned int m_slot0;  // +0x00【推断】ORIG 0x085f3cc4 双字段 or（P254 同型）
+    unsigned int m_slot4;  // +0x04【推断】
 };
 
 }  // namespace random_option

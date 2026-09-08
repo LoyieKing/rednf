@@ -241,6 +241,9 @@ bool CharString::isWhiteSpace() const
 
 unsigned int CharString::getHash() const
 {
+    // [b28d-34] AE（compare_tu 口径，ndiff 2→0）：残差仅 4.4 循环出口 nop 填充
+    // （4.1 无；-falign-loops=1/-fno-align-jumps 实测无效）⇒ §6.1 对齐 nop 豁免；
+    // 归一后逐条全等。ORIG 0x08ad6c1c。
     // ORIG：isEmpty 结果直接 test %al（bool 返回值不物化），空串走 mov $0,%eax
     // 常量岛提前 return；value=0 初始化在检查之后落槽。
     if (isEmpty())
@@ -267,6 +270,9 @@ char CharString::getAt(int idx) const
 
 CharString CharString::setAt(int idx, char ch)
 {
+    // [b28d-34] 复核维持 DIFF（N82 族）：ORIG 0x08ad6ca2 用 edi/esi 跨调用缓存
+    // 且帧 0x2c；4.4 帧 0x20 并多一次 getData/create 调用序，源形不可择
+    // （P0/P183 表达式化已试）；语义等价。
     CharStringData* newData;
     if (buffer_[idx] == ch)
     {
@@ -297,24 +303,13 @@ bool CharString::startsWith(const char* pat, bool isIgnoreCase) const
 bool CharString::endsWith(const char* pat, bool isIgnoreCase) const
 {
     int patLength = static_cast<int>(strlen(pat));
-    bool tooShort = length() < patLength;
-    if (!tooShort)
-    {
-        if (isIgnoreCase)
-        {
-            const char* start = c_str();
-            return strncasecmp(start + (length() - patLength), pat, patLength) == 0;
-        }
-        else
-        {
-            const char* start = c_str();
-            return strncmp(start + (length() - patLength), pat, patLength) == 0;
-        }
-    }
-    else
-    {
+    // [b28d-34] ORIG 0x08ad9xxx：`cmp; setl %al; test %al; je body; mov$0,%eax;
+    // jmp end`（tooShort 早退岛，无槽 ⇒ 原码无 bool 局部）。早退 return false 形。
+    if (length() < patLength)
         return false;
-    }
+    if (isIgnoreCase)
+        return strncasecmp(c_str() + (length() - patLength), pat, patLength) == 0;
+    return strncmp(c_str() + (length() - patLength), pat, patLength) == 0;
 }
 
 char CharString::front() const
@@ -328,6 +323,8 @@ char CharString::back() const
     // 已按 P0 清除。自然形（`if(len())`/`!=0`/`>0`/cast，探针 p9 b1..b5）
     // 4.4 恒多 `setcc %al; test %al,%al` 两条 bool 物化 vs ORIG 单条
     // `test %eax,%eax; je` ⇒ 落 N96（绑定赋值中转）+P168a④。
+    // [b28d-34] 复核维持 N96/P168a④（ORIG 0x08ad6edc）：4.4 对 int callee 条件
+    // 调用恒物化 setne+test，源形五探针全败；语义等价。
     if (length())
         return buffer_[length() - 1];
     return '\0';
@@ -679,6 +676,8 @@ CharString& CharString::format(const char* formatStr, ...)
     // union 扩展（单条 call C1Ev，零 operator-new 噪声）；4.4.7 拒 union 且 placement new
     // 经本类 operator new[](size_t, void*) 产 `_ZnwjPv`+null 检查双噪声（实测 61 vs 53）。
     // 委托 vformat=语义等价最小形；字节级同形属类层专批（b25 trivial 化）一并解。
+    // [b28d-34] 复核维持 N83（ORIG 0x08ad8afa）：4.4 placement operator new 恒发
+    // _ZnwjPv call+size 装载行+EH 段（内联展开实测 61 vs ORIG 53），封顶。
     this->vformat(formatStr, argList);
     va_end(argList);
     return *this;
@@ -687,6 +686,8 @@ CharString& CharString::format(const char* formatStr, ...)
 // ORIG T 0x08ad8b9e：length==0 → this->C1Ev()（**就地默认构造覆盖**，旧 data 不 detach——
 // ORIG 体实证无 ~CharString/D1 调用）；否则 create(length)+ss_vsprintf 后 this->C1EP14CharStringData
 // 就地覆盖；尾 return *this。
+// [b28d-34] 复核维持 N83：ORIG 内联 placement new（0 call）；4.4 发 _ZnwjPv call+
+// 判空+EH 残段（58 vs 49），源形不可控。
 CharString& CharString::vformat(const char* formatStr, va_list argList)
 {
     int length = vsnprintf(reinterpret_cast<char*>(0), 0, formatStr, argList);
@@ -710,6 +711,8 @@ int CharString::tokenize(const CharString& str, std::vector<CharString>* tokenVe
                          const char* dropDelimiters, const char* returnDelimiters,
                          bool isKeepEmptyToken)
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x08ad8c6c 循环出口岛/落点与 4.4 循环旋转
+    // 布局差（clean 269=269，仅岛位置不同）；N82/P164 族，语义等价。
     const char* strBuf = str.c_str();
     int strLen = str.length();
     int nextStartIdx = 0;
@@ -815,6 +818,8 @@ int CharString::tokenizeNewLine(const CharString& str,
 CharString CharString::join(const std::vector<CharString>& stringVector,
                             const CharString& separator)
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x08ad920e 帧 0x60 vs 4.4 0x40 + 迭代器/临时
+    // 槽序差（P28/N86 族）；语义等价。
     if (stringVector.empty())
     {
         return CharString();
@@ -983,6 +988,7 @@ bool WideString::isWhiteSpace() const
 
 unsigned int WideString::getHash() const
 {
+    // [b28d-34] AE（同 CharString::getHash，nop 豁免）。ORIG 0x08ad9c74。
     // ORIG：isEmpty 结果直接 test %al（bool 返回值不物化），空串走 mov $0,%eax
     // 常量岛提前 return；value=0 初始化在检查之后落槽。
     if (isEmpty())
@@ -1009,6 +1015,7 @@ wchar_t WideString::getAt(int idx) const
 
 WideString WideString::setAt(int idx, wchar_t ch)
 {
+    // [b28d-34] 复核维持 DIFF（N82 族，同 CharString::setAt）。ORIG 0x08ad9cf8。
     WideStringData* newData;
     if (buffer_[idx] == ch)
     {
@@ -1040,24 +1047,14 @@ bool WideString::startsWith(const wchar_t* pat, bool isIgnoreCase) const
 bool WideString::endsWith(const wchar_t* pat, bool isIgnoreCase) const
 {
     int patLength = static_cast<int>(wcslen(pat));
-    bool tooShort = length() < patLength;
-    if (!tooShort)
-    {
-        if (isIgnoreCase)
-        {
-            const wchar_t* start = c_str();
-            return wcsncasecmp(start + (length() - patLength), pat, patLength) == 0;
-        }
-        else
-        {
-            const wchar_t* start = c_str();
-            return wcsncmp(start + (length() - patLength), pat, patLength) == 0;
-        }
-    }
-    else
-    {
+    // [b28d-34] 同 CharString::endsWith：早退 return false 形复现 ORIG 0x08ad9xxx
+    // `setl; test; je body` + `mov$0,jmp` 岛；残差仅 `length()-patLength` 物化段
+    // （N-86b，与 right 族同）。
+    if (length() < patLength)
         return false;
-    }
+    if (isIgnoreCase)
+        return wcsncasecmp(c_str() + (length() - patLength), pat, patLength) == 0;
+    return wcsncmp(c_str() + (length() - patLength), pat, patLength) == 0;
 }
 
 wchar_t WideString::front() const
@@ -1068,6 +1065,7 @@ wchar_t WideString::front() const
 wchar_t WideString::back() const
 {
     // [b28c-16 P0 清绑 + N96] 同上。
+    // [b28d-34] 复核维持 N96/P168a④（ORIG 0x08ad9f36）。
     if (length())
         return buffer_[length() - 1];
     return 0;
@@ -1415,11 +1413,13 @@ WideString& WideString::format(const wchar_t* formatStr, ...)
     va_list argList;
     va_start(argList, formatStr);
     this->vformat(formatStr, argList);   // CharString::format 同案（N 封顶，b25 类层批）
+    // [b28d-34] 复核维持 N83（ORIG 0x08adbbe4，同 CharString::format）。
     va_end(argList);
     return *this;
 }
 
 // CharString::vformat 同形（ORIG T 0x08adbc88）。
+// [b28d-34] 复核维持 N83（同 CharString::vformat）。
 WideString& WideString::vformat(const wchar_t* formatStr, va_list argList)
 {
     int length = vswprintf(reinterpret_cast<wchar_t*>(0), 0, formatStr, argList);
@@ -1443,6 +1443,7 @@ int WideString::tokenize(const WideString& str, std::vector<WideString>* tokenVe
                          const wchar_t* dropDelimiters, const wchar_t* returnDelimiters,
                          bool isKeepEmptyToken)
 {
+    // [b28d-34] 复核维持 DIFF（同 CharString::tokenize）。ORIG 0x08adbd56。
     const wchar_t* strBuf = str.c_str();
     int strLen = str.length();
     int nextStartIdx = 0;
@@ -1548,6 +1549,7 @@ int WideString::tokenizeNewLine(const WideString& str,
 WideString WideString::join(const std::vector<WideString>& stringVector,
                             const WideString& separator)
 {
+    // [b28d-34] 复核维持 DIFF（同 CharString::join）。ORIG 0x08adc2f4。
     if (stringVector.empty())
     {
         return WideString();
@@ -1742,6 +1744,7 @@ CharString right(const CharString& str, int length)
     // 发 `mov %eax,%edx; mov 0x10(%ebp),%eax; mov %edx,%ecx; sub %eax,%ecx;
     // mov %ecx,%eax` 五段（无槽往返 ⇒ P0 无具名局部），4.4 恒折 `sub MEM,%eax`
     // 单条；同一算术多 codegen，源形不可择。
+    // [b28d-34] 复核维持 N-86b（ORIG 0x08ad7fe5）。
     if (str.length() <= length)
     {
         return CharString(str);
@@ -1799,6 +1802,7 @@ WideString mid(const WideString& str, int start, int length)
 WideString right(const WideString& str, int length)
 {
     // [b28c-16 定论 N-86b] 同 right(CharString)：4.1 五段物化 vs 4.4 单条折叠。
+    // [b28d-34] 复核维持 N-86b（ORIG 0x08adb099）。
     if (str.length() <= length)
     {
         return WideString(str);
@@ -2111,6 +2115,9 @@ WideString operator+(wchar_t ch, const WideString& src2)
 }
 
 // ---- StringUnorderedMap 显式实例化（CNRDScriptData 等使用）----
+// [b28d-34] StringUnorderedMap<...,float>/<...,int>::insert（ORIG 0x08080b6c）：
+// 复核维持 DIFF——clean 96=96，残差仅末尾析构 call 落点（ORIG 在 jmp 之后、
+// 我们在 jmp 之前），N104/EH 尾块序封顶，语义等价。
 #include "HashMap.h"
 
 template class StringUnorderedMap<CharStringHashTrait, std::string>;

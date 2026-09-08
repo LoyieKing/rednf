@@ -42,6 +42,8 @@ void Arad_EventPeriodDataManager::clearScriptData()
     m_eventPeriodList.clear();
 }
 
+// [b28d-28] DIFF | ORIG 0x081956b0 | N86/P28：find_if sret 临时槽序（ORIG
+// -0x1c/-0x18 vs 4.4 -0x18/-0x14）+ 谓词实参装载序；语义等价。
 bool Arad_EventPeriodDataManager::isApplied(ENUM_REPEAT_EVENT_CODE eventCode, unsigned int time)
 {
     // P167：ORIG 用 SearchEventPeriod 谓词 + find_if（非 const iterator）
@@ -97,6 +99,8 @@ void Arad_EventPeriodDataManager::addUserRewardData(
 }
 
 // ORIG 0x081958b6：Guard<Mutex> 后 std::find（operator== 三字段比较），命中即 true。
+// [b28d-28] DIFF | ORIG 0x081958b6 | N86/P28：std::find 迭代器槽序 + EH 块序
+// （ORIG 两段 return 直落 vs 4.4 jmp 岛）；语义等价。
 bool Arad_EventPeriodDataManager::isRewarded(EventRewardItemArad item)
 {
     Guard<Mutex> guard(&m_mutex);
@@ -108,6 +112,8 @@ bool Arad_EventPeriodDataManager::isRewarded(EventRewardItemArad item)
 // 命中后起点 = GM ? m_field8 * (-86400) + 0x5005D250 : 0x5005D250（32 位回绕，
 // -0x15180 = -86400 秒/天）；begin <= time < 条目 m_endTime(+0x08) 返回 true。
 // 注意：ORIG 此函数不加锁。
+// [b28d-28] DIFF | ORIG 0x08195794 | N86/P28：同 isApplied（find_if 槽序 +
+// 谓词实参序）+ isGM 分支块序；语义等价。
 bool Arad_EventPeriodDataManager::checkCreateTime(
     ENUM_REPEAT_EVENT_CODE eventCode, unsigned int time, unsigned int gmId)
 {
@@ -130,6 +136,8 @@ bool Arad_EventPeriodDataManager::checkCreateTime(
 }
 
 // ORIG 0x08195b06：Guard<Mutex> 后删除 +0x3c list 中 +0x04 == get_acc_id(user) 的记录。
+// [b28d-28] DIFF | ORIG 0x08195b06 | N86/P28：list erase 迭代器槽序
+// （ORIG -0x18/-0x1c vs 4.4 -0x1c/-0x18）+ 比较方向（P220）；语义等价。
 void Arad_EventPeriodDataManager::delUserRewardData(CUser* user)
 {
     Guard<Mutex> guard(&m_mutex);

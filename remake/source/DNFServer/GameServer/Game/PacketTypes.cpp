@@ -942,12 +942,12 @@ void base64_decode(std::string const& in, std::vector<unsigned char>& out)
     unsigned char c3[3];
     while (in_len-- != 0)
     {
-        char ch = in[in_++];
-        if (ch == '=')
+        // b28d-lane25：P167 差集实证 ORIG 每次迭代读 in[in_] 多次（不缓存 ch）。
+        if (in[in_] == '=')
             break;
-        if (!is_base64(static_cast<unsigned char>(ch)))
+        if (!is_base64(static_cast<unsigned char>(in[in_])))
             break;
-        c4[i++] = static_cast<unsigned char>(ch);
+        c4[i++] = static_cast<unsigned char>(in[in_++]);
         if (i == 4)
         {
             for (i = 0; i < 4; i++)

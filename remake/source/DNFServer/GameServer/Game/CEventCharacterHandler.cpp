@@ -222,6 +222,8 @@ void CEventCharacterHandler::_SetClearedQuest(CUser* user)
 
 bool CEventCharacterHandler::_MasterNewSkill(CUser* user, int skillIdx, int count)
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x0848e7d6 用 `movzbl 0x1(%eax)`（disp 折叠），
+    // 4.4 发 `add $1,%eax; movzbl (%eax)`（N4/P30 族，源形不可择）；语义等价。
     // ORIG 0x0848e7d6：skill 两段式（入口 movl $0,-0x18 预清）；job 内联
     // rvalue 经 %ebx 跨 G_CDataManager call（P197②）；getCurCharacSkillR
     // 两独立重调（+0x5a/+0x8e，P48）。
@@ -265,6 +267,8 @@ bool CEventCharacterHandler::_MasterNewSkill(CUser* user, int skillIdx, int coun
 bool CEventCharacterHandler::_AddItem(CUser* user, unsigned long itemIdx, int count,
                                       int reason)
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x0848e8e2 用 esi 跨调用缓存 + 帧 0x40，
+    // 我们帧 0x54（N82/P52 族）；语义等价。
     if (itemIdx == 0xffffffff)
     {
         long start = GlobalData::s_systemTime_.getCurSec();
@@ -318,10 +322,13 @@ bool CEventCharacterHandler::_SetLevel(CUser* user, int level)
     {
         for (int i = 0; i < diff; ++i)
         {
-            // b28c-L19：ORIG 槽序 newLevel 深(-0x28)/maxLevel 浅(-0x24) ⇒ 4.4
-            // 「先声明占浅槽」(N93 标量例外) 需 maxLevel 先声明。
-            int maxLevel = 0x46;
+            // [b28d-34] N98 封顶（ndiff 16→16 NEAR）：ORIG 0x08c9xxx 需
+            // 「newLevel 深(-0x28)/maxLevel 浅(-0x24)」+「call 先、常量后」；
+            // 4.4 首次使用序把 store 时机与槽深绑死 ⇒ 两形互斥：maxLevel 先声明
+            // 得槽序对但常量提前写；newLevel 先声明得 store 时机对但槽序反
+            // （实测两形各 2 hunk）。保留 store 时机对齐形，槽号整体平移 8。
             int newLevel = user->get_charac_level() + 1;
+            int maxLevel = 0x46;
             user->SetCharacLevel(std::min(maxLevel, newLevel));
         }
     }
@@ -329,8 +336,8 @@ bool CEventCharacterHandler::_SetLevel(CUser* user, int level)
     {
         for (int i = 0; i > diff; --i)
         {
-            int maxLevel = 0x46;
             int newLevel = user->get_charac_level() - 1;
+            int maxLevel = 0x46;
             user->SetCharacLevel(std::min(maxLevel, newLevel));
         }
     }
@@ -368,6 +375,8 @@ bool CEventCharacterHandler::_SetGrowType(CUser* user, int growTypeKind, int gro
 
 bool CEventCharacterHandler::_makeEventCharacter(CUser* user, int level)
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x0848e2a4 用 edi/esi/ebx 缓存 + 帧 0x6c，
+    // 4.4 无 edi 且帧不同（N82 族）；语义等价。
     int cmdIdx = -1;
     if (!_checkMakeCommand(user, level, cmdIdx))
     {

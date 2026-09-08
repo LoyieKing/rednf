@@ -89,6 +89,7 @@ void StageTimeLineParameter::debugLog()
 // ============================================================================
 int StageTimeLineParameter::importStageTimeLineParameter(const char* path)
 {
+    // b28d-35: DIFF→N 封顶（N82 帧/槽 + N78 内联清零族）。ORIG @0x08899f26。
     std::string token;
     int unused18 = 0;                   // ORIG -0x18 死存储（保留以对齐栈帧）
     bool unused11 = false;              // ORIG -0x11 死存储（同上）
@@ -202,6 +203,7 @@ int StageTimeLineParameter::importSummonObject()
 // ============================================================================
 int StageTimeLineParameter::importActionDefine()
 {
+    // b28d-35: DIFF→N82（帧/槽 + 表遍历形状）。ORIG @0x0889a56e。
     bool ok = false;                                // ORIG -0x41，入口置 0
     for (;;)                                        // ORIG 0889a57d
     {

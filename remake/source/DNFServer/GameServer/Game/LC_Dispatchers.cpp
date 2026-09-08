@@ -87,6 +87,8 @@ void Dispatcher_MouseRegister::send(CUser* user, ParamBase& param)
 // check_error → param+4；>0 返回 0；>=0 时组包转发 Monitor/Guild 代理；
 // 韩服（serverGroup==3）且名单命中两个 GM 名串（EUC-KR，0x1d 字节逐字节比较）
 // → param+4 = 0x7fffffff；<0 → LineFunc(0x269f,...)。
+// [b28d-D33 N7/N109 封顶] ORIG 0x081cdc9a：115 vs 111 条；ORIG push ebx +
+// sub 0x54 vs 4.4 sub 0x58（callee-saved 需求差，N7/N109）。p167 CLEAR 15=15。
 int Dispatcher_RegisterToBlackList::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stRegisterToBlackListParam& out = static_cast<stRegisterToBlackListParam&>(param);

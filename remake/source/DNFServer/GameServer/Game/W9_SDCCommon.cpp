@@ -130,6 +130,9 @@ int isSyncActiveStatus(int type)
 
 // ============================ SDCActiveStatusSyncCommon ============================
 
+// [b28d-28] DIFF | ORIG 0x0808d37a | N94/N4：ORIG 单条 scale-8
+// `mov POWER1(,%eax,8),%eax`；4.4 恒 `add %eax,%eax; mov (,%eax,4)`。
+// 8 字节视图探针（/tmp/l28_probe/p4.cpp q1/q3/q4）反劣 +5 条 ⇒ 封顶。
 float SDCActiveStatusSyncCommon::getActiveStatusPower1(int idx, int level)
 {
     // P31/P184：ORIG entry 双死 init 槽 -0x14=0/-0x10=1（照抄）；
@@ -150,6 +153,8 @@ float SDCActiveStatusSyncCommon::getActiveStatusPower1(int idx, int level)
     return v;
 }
 
+// [b28d-28] DIFF | ORIG 0x0808d3dc | N94（同 Power1）+ N82：entry 双死 init 槽
+// 平移 4（-0x14/-0x10 vs ORIG -0x10/-0xc）与 fstps 槽差。
 float SDCActiveStatusSyncCommon::getActiveStatusPower2(int idx, int level)
 {
     int deadA = 0;
@@ -208,12 +213,18 @@ int SDCActiveStatusSyncCommon::getDuration(ENUM_ACTIVESTATUS status,
         status, level, d->m_field29, d->m_field2d, d->m_field31);
 }
 
+// [b28d-28] DIFF | ORIG 0x0808d272 | N6/N82：mask `1u<<status` ORIG 全程留
+// %eax（`mov %eax,%edx; and $0x385aa` 复用），4.4 落槽 -0x14；register 提示
+// 实测无效（P231 三条件不满足）；尾 x87 槽组平移。
 int SDCActiveStatusSyncCommon::getActiveStatusDurationServer(
     int status, int level, int objectType, int a4, int hpPenalty)
 {
     int duration = 0;
     if ((unsigned int)status < 0x12)
     {
+        // [b28d-28] ORIG 0x0808d28d：mask 值全程留 %eax（`mov %eax,%edx; and
+        // $0x385aa` 复用），4.4 恒落槽 -0x14 且 register 提示实测无效（P231
+        // 三条件不满足：4.4 自行升格/无跨 call 需求）⇒ N6/N82 封顶。
         unsigned int mask = 1u << status;
         if ((mask & 0x385aa) != 0)
         {
@@ -274,6 +285,8 @@ int SDCActiveStatusSyncCommon::getPoisonDamage(STSDCActiveStatusSyncDataSend* d,
     return static_cast<int>(dmg);
 }
 
+// [b28d-28] DIFF | ORIG 0x0808dd5c | N82：4.1 不复用槽（fistpl -0xc vs 4.4
+// -0x10；fstps/fmuls 槽 -0x24 vs -0xc），语义等价。
 int SDCActiveStatusSyncCommon::getDiseaseDamage(
     STSDCActiveStatusSyncDataSend* d, int t)
 {
@@ -290,14 +303,16 @@ int SDCActiveStatusSyncCommon::getDiseaseDamage(
     return dmg;
 }
 
+// [b28d-28] NEAR | ORIG 0x0808df1a | N82：x87 槽组平移 0xc（raw -0x8 vs ORIG
+// -0x14、cw -0x12/-0x14 vs -0x16/-0x18）；P232 撑槽探针实测反劣（帧 0x24）。
 int SDCActiveStatusSyncCommon::getBleedingDamageServer(
     STSDCActiveStatusSyncDataSend* d)
 {
-    double framePad; (void)&framePad;   // P190：ORIG 帧 0x18 vs 4.4 紧凑 0x14
     // P0：ORIG int 中转槽 -0x14 + float 具名局部 -0x4（fildl→fstps→flds 两段）。
     // [N82 封顶] fistpl 复用 rawDamage 槽已对齐；残差仅槽号平移（raw -0x8 vs
     // ORIG -0x14、cw -0x12/-0x14 vs -0x16/-0x18），4.1 x87 控制词槽紧贴 int 槽
     // 且中间留洞，4.4 无洞布局，槽平移封顶。
+    double framePad; (void)&framePad;   // P190：ORIG 帧 0x18 vs 4.4 紧凑 0x14
     int rawDamage = d->m_baseDamage;
     float dmg = static_cast<float>(rawDamage);
     dmg = dmg * 1.5f;
@@ -359,6 +374,8 @@ void SDCActiveStatusSyncCommon::makeEtcParameters(
     makeEtcParameters(status, level, *pOut);
 }
 
+// [b28d-28] DIFF | ORIG 0x0808d50e | N85：4.4 对 dead float 返回值追加 22 条
+// `fstp %st(0)` x87 栈清理（ORIG 无），语义等价。
 void SDCActiveStatusSyncCommon::makeEtcParameters(ENUM_ACTIVESTATUS status,
                                                   int level,
                                                   std::vector<int>& out)
@@ -438,6 +455,8 @@ void SDCActiveStatusSyncCommon::makeEtcParameters(ENUM_ACTIVESTATUS status,
 #undef PUSH_CONST
 }
 
+// [b28d-28] DIFF | ORIG 0x0808df82 | P196/P197④/N82：ORIG `setne %al; test`
+// 物化与 je 落点块序，4.4 产 `xor $1; je` 反向；余为槽号差。
 void SDCActiveStatusSyncCommon::getActiveStatusDamageDurationForSDC(
     char attackType, int statusLevel, int* outPtr, int* outB,
     STSDCActiveStatusSyncDataSend* d, void*)

@@ -174,11 +174,11 @@ NpcScript::~NpcScript()
 //   → m_rewardItems(+0x208).clear()。
 void stFavorableRelationShip_t::clear()
 {
-    // b28c-L8（P212 全头部声明复现块级槽序）：ORIG 有两个循环变量槽
-    // （map-clear 环 i @-0x10、favorRate 环 j @-0xc）；本工具头实测为
-    // 「后声明者更深」⇒ 按 j、i 序声明使 i 落 -0x10。
-    int j;
+    // b28d-D33（P212 全头部声明复现块级槽序）：ORIG 两个循环变量槽
+    // （map-clear 环 i @-0x10 深、favorRate 环 j @-0xc 浅）⇒ 头部按 i、j 序声明
+    // 且两循环均复用头部变量（旧形块内重声明 i 使 4.4 按首次使用序放 -0xc）。
     int i;
+    int j;
     m_enabled = false;
     m_defaultFavor = 0;
     m_maxGiftPerDay = 0;
@@ -190,7 +190,7 @@ void stFavorableRelationShip_t::clear()
     // 4 次 map clear（基址 +0x28/+0x118/+0xa0/+0x190，步长 i*0x18），共 5 轮。
     // 旧双层形多做 20 倍 clear（幂等故行为不显，但多 4 条外层循环控制且 ndiff
     // 无法收敛）⇒ 收敛为单层。
-    for (int i = 0; i < 5; ++i)
+    for (i = 0; i < 5; ++i)
     {
         m_preferItems[i].clear();
         m_unpreferItems[i].clear();
@@ -219,6 +219,8 @@ const int IMPORT_FAIL  = 0;
 // 深水区（长尾 keyword 的次要字段、静态 lookup 表优化）以语义等价形式实现，
 // 已在对应分支标注「推断」。
 // ----------------------------------------------------------------------------
+// [b28d-D33 N89/N82 封顶] ORIG 0x089fc264：2517 vs 2546 条（超大函数 >500，
+// §6.2 三件套口径：ndiff 失真，语义以调用点/逐块为准）。语义等价。
 bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 xor $1 取反 ⇒ bool（P22）
 {
     if (!loadRDARScriptFile(g_npcScriptBaseDirectory, path))
@@ -1042,13 +1044,13 @@ bool CNPCScript::isExistRole(ENUM_NPC_ROLE role) const
 // ORIG 0x8580fd0: 遍历奖励等级表（CNPCScript+0x658 = NpcScript+0x654）。
 bool CNPCScript::isRewardLevel(unsigned short level) const
 {
-    // [b28c-21] 残差：ORIG `de()` 结果落 -0xc 槽后 cmpl 判空再 jne 直判命中；
-    // 4.4 无指针槽且 sete 物化（迭代器槽序/条件极性跨版本），保持可读源码。
+    // [b28d-D33] P167 差集：ORIG 调 de()/ppEi，我方 ptEv/ppEv ⇒ 源形改
+    // `(*it).m_level` + 后置 `it++`（P28 增量侧：ORIG ppEi ⇒ 必写 it++）。
     for (std::vector<stFavorableRelationShip_t::stLevelRewardInfo>::const_iterator it =
              m_npcScript.m_favorableRelationShip.m_levelRewards.begin();
-         it != m_npcScript.m_favorableRelationShip.m_levelRewards.end(); ++it)
+         it != m_npcScript.m_favorableRelationShip.m_levelRewards.end(); it++)
     {
-        if (it->m_level == level)
+        if ((*it).m_level == level)
         {
             return true;
         }
@@ -1093,6 +1095,8 @@ int CNPCScript::getPeriodRewardType() const
 // ORIG 0x85809e4：按 mood 槽依次查四张礼物表（m_maps[mood]），命中后比较
 //   it->second.m_b（ushort）与 count 决定采纳 m_c 还是写 result=FAIL；
 //   give!=0 时提前返回。m_c 为有符号 short（setg 16 位比较 / std::max<short>）。
+// [b28d-D33 N7/帧 封顶] ORIG 0x085809e4：254 vs 258 条；push 顺序 + 帧区差
+// （N7/N109）。语义等价。
 unsigned short CNPCScript::giveGiftItem(unsigned int mood, CItem const* item, unsigned int count,
                                         ENUM_NPC_FAVOR_GIFT_RESULT_CONST& result) const
 {
@@ -1163,6 +1167,8 @@ unsigned short CNPCScript::giveGiftItem(unsigned int mood, CItem const* item, un
 
 // ORIG 0x8580d30：按 m_rewardItems.m_slots[index][mood].m_byDir[change] 权重表
 //   随机抽取（get_rand_int(weight)）；权重 0 条目（m_a==0 && m_b==0）直接 break。
+// [b28d-D33 N7/N109 封顶] ORIG 0x08580d30：103 vs 105 条；push edi/esi/ebx 顺序
+// 互换 + 帧 0x30（callee-saved 角色，N7/N109）。p167 CLEAR 7=7，语义等价。
 Inven_Item CNPCScript::getGiftRewardItem(ENUM_NPC_MOOD mood,
                                          ENUM_NPC_FAVOR_CHANGE_CONST change,
                                          unsigned int index) const

@@ -31,33 +31,62 @@ public:
     unsigned int m_data1;   // +0x04
 };
 
-// ORIG W @0x080aa503：把块按大端序展开为 8 字节（先 +0x04 后 +0x00，
-// 每次 shr 8 写向 buf 尾部）。
+// ORIG _Z4Bytej @0x080aa341（定义在 CBlowFish.cpp）：32 位直返低字节。
+unsigned char Byte(unsigned int v);
+
+// ORIG W @0x080aa503（objdump 实证）：先 +0x04 后 +0x00，每字节
+// 「v = 字段[>>N]（具名局部 -0xc）; --buf; *buf = Byte(v)」。
+// [b28d-32 AE] 重写后 83=83 逐条全等（仅 .o 重定位标签差） | ORIG 0x080aa503]
 inline void BlockToBytes(SBlock const& block, unsigned char* buf)
 {
-    unsigned int hi = block.m_data1;
-    buf[7] = (unsigned char)(hi);
-    buf[6] = (unsigned char)(hi >> 8);
-    buf[5] = (unsigned char)(hi >> 16);
-    buf[4] = (unsigned char)(hi >> 24);
-    unsigned int lo = block.m_data0;
-    buf[3] = (unsigned char)(lo);
-    buf[2] = (unsigned char)(lo >> 8);
-    buf[1] = (unsigned char)(lo >> 16);
-    buf[0] = (unsigned char)(lo >> 24);
+    unsigned int v = block.m_data1;
+    *--buf = Byte(v);
+    v = block.m_data1 >> 8;
+    *--buf = Byte(v);
+    v = block.m_data1 >> 16;
+    *--buf = Byte(v);
+    v = block.m_data1 >> 24;
+    *--buf = Byte(v);
+    v = block.m_data0;
+    *--buf = Byte(v);
+    v = block.m_data0 >> 8;
+    *--buf = Byte(v);
+    v = block.m_data0 >> 16;
+    *--buf = Byte(v);
+    v = block.m_data0 >> 24;
+    *--buf = Byte(v);
 }
 
-// ORIG W @0x080aa3d0：从 8 字节大端序恢复块（+0x00 = b[0..3]、+0x04 = b[4..7]）。
+// ORIG W @0x080aa3d0（objdump 实证）：先清零 +0x00，逐字节
+// 「v = *buf++; v <<= N; field = field | v」；+0x04 同法。
+// [b28d-32 IDENTICAL] 重写后 103=103 逐条全等 | ORIG 0x080aa3d0]
 inline void BytesToBlock(unsigned char const* buf, SBlock& block)
 {
-    block.m_data0 = ((unsigned int)buf[0] << 24) |
-                    ((unsigned int)buf[1] << 16) |
-                    ((unsigned int)buf[2] << 8) |
-                    (unsigned int)buf[3];
-    block.m_data1 = ((unsigned int)buf[4] << 24) |
-                    ((unsigned int)buf[5] << 16) |
-                    ((unsigned int)buf[6] << 8) |
-                    (unsigned int)buf[7];
+    unsigned int v;
+    block.m_data0 = 0;
+    v = *buf++;
+    v <<= 24;
+    block.m_data0 = block.m_data0 | v;
+    v = *buf++;
+    v <<= 16;
+    block.m_data0 = block.m_data0 | v;
+    v = *buf++;
+    v <<= 8;
+    block.m_data0 = block.m_data0 | v;
+    v = *buf++;
+    block.m_data0 = block.m_data0 | v;
+    block.m_data1 = 0;
+    v = *buf++;
+    v <<= 24;
+    block.m_data1 = block.m_data1 | v;
+    v = *buf++;
+    v <<= 16;
+    block.m_data1 = block.m_data1 | v;
+    v = *buf++;
+    v <<= 8;
+    block.m_data1 = block.m_data1 | v;
+    v = *buf++;
+    block.m_data1 = block.m_data1 | v;
 }
 
 #endif  // DNF_GAME_SBLOCK_H_

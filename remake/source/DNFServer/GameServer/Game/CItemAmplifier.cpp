@@ -28,6 +28,8 @@ stAmplifyItemScript_t::stAmplifyItemScript_t()
 upgrade_table_t::upgrade_table_t()
     : m_machineFrames(0xa)   // ORIG C1 0x089000ca：_Hashtable 桶数 0xa
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x089000ca 帧 0x40 vs 4.4 0x30
+    // （N82/P210 族）；语义等价。
     int i;
     // 初始化循环一律用 **dword 下标** 形（UPG_TBL_F32/I32 + `i + K`），复现 ORIG
     // 0x089001xx..0x089003a0 的 `mov %edx,%eax? ; add $K,%edx ;
@@ -88,13 +90,15 @@ bool CItemAmplifier::checkInvestableItem(const CItem* item,
         return false;
     }
 
-    typedef int (*GetItemTypeFn)(const CItem*);
-    GetItemTypeFn getType = *(GetItemTypeFn*)(*(const char**)item + 0xc);
-    if (getType(item) <= 9 || getType(item) > 0x15)
+    // [b28d-34] P282：vptr+0xc 槽 = _ZTV5CItem+0x14 word[3] = CItem::GetItemType()
+    // （CItem.h:45 纯虚 @3，ORIG 三处 `mov (%eax),%eax; add $0xc; mov (%eax),%edx;
+    // call *%edx`）；旧函数指针形把目标缓存进栈槽并多 2 insn。
+    // [b28d-34] 修后 138/139，残差 N7（间接 call 目标 %eax vs %edx）+ 帧 0x24/0x34。
+    if (item->GetItemType() <= 9 || item->GetItemType() > 0x15)
     {
         return false;
     }
-    if (getType(item) == 0xb)
+    if (item->GetItemType() == 0xb)
     {
         return false;
     }
@@ -152,9 +156,14 @@ void CItemAmplifier::generateAmplifyItem(const CItem* item,
         return;
     }
 
-    typedef bool (*CheckFn)(const CItem*);
-    CheckFn check = *(CheckFn*)(*(const char**)item + 0x58);
-    if (check(item))
+    // [b28d-34] P282 槽序还原：ORIG 0x08514f02 `add $0x58,%eax; mov (%eax),%edx;
+    // call *%edx` 的 vptr+0x58 槽 = _ZTV5CItem+0x60 word[24] = CItem::
+    // isAmplifyPollutionItem() const（0x085136ac，nm 实证）。ORIG 后随
+    // `xor $1; test %al; je` ⇒ 源形为负极性 `if (!item->isAmplifyPollutionItem())`
+    // （fn()==false 走 true 臂，0x8514f16 第三参=1；fn()==true 落 0x8514f43 第三参=0）。
+    // [b28d-34] 修后残差仅 N7（4.4.7 间接 call 目标恒 %eax vs ORIG %edx）+ 尾
+    // 2 条 jmp 中继（P63 族）；语义等价。
+    if (!item->isAmplifyPollutionItem())
     {
         inven.m_amp._setAbility((unsigned char)type, value, true);
     }
@@ -168,6 +177,8 @@ void CItemAmplifier::_generateOption(const CItem* item,
                                      ENUM_AMPLIFY_TYPE& type,
                                      unsigned short& value) const
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x08514f70 帧 0x38 vs 4.4 0x48
+    // （N82 族）；语义等价。
     // ORIG 0x08514f76..0x08514fa3：范围守卫**两次独立 get_rarity**（0x08514f7c
     // 与 0x08514f8b）+ `mov$1/mov$0` 汇聚岛 + `test%al; je` ⇒ 用命名 bool 物化、
     // 且两臂各重调（P84/P48/P183）；写成 `int rarity` 缓存会让 4.4 只发 1 次
@@ -221,12 +232,12 @@ void CItemAmplifier::_generateOption(const CItem* item,
 // ORIG 0x08234d20：i∈[0,1]，表项 == itemIdx 则返回 i；否则 -1。
 int CItemAmplifier::getPurifyMaterialType(int itemIdx) const
 {
+    // [b28d-34] AE（22=22）：字段 unsigned int + 表值在左翻正比较段（P274/P211）。
     for (int i = 0; i <= 1; ++i)
     {
-        // [b28c-16] N18b 反演试形：ORIG `mov 表项,%edx; mov 形参,%eax; cmp
-        // %eax,%edx`（两段物化），4.4 对 `表项==形参` 恒折 `cmp MEM,reg`；
-        // 交换操作数试产两段形。
-        if (itemIdx == m_script.m_purifyMatItem[i])  // +0x9c 表查找
+        // [b28d-34] 字段 unsigned + 表值在左 ⇒ ORIG 两段物化（`mov 表项,%edx;
+        // mov 形参,%eax; cmp %eax,%edx`）；探针 /tmp/p34e.cpp f4 逐条命中。
+        if (m_script.m_purifyMatItem[i] == itemIdx)  // +0x9c 表查找
             return i;
     }
     return -1;
@@ -267,16 +278,20 @@ bool CItemAmplifier::getInvestMaterialInfo(
     //   ① 表址 = this + ((type*4+type)*4 + 0xa0) + 0xc（无边界检查，P140）；
     //   ② hash_map::end() **两次**（-0x1c 先作 it 初值、-0x14 作 last），
     //      find 结果以 POD 双 dword 覆盖 -0x1c（4.1 迭代器赋值发形）；
+    // [b28d-34] N98 封顶（ndiff 8→2 NEAR）：4.1 槽序=声明序「先声明深」
+    // （it=-0x1c/last=-0x14），4.4 按首次使用序「先用浅」且不可由声明序翻
+    // （两序互试实测）。交换声明序（last 先）后仅剩两处 end() 的 lea 槽号
+    // 互换（-0x14↔-0x1c），find 结果槽与后段逐条全等，语义等价。
     //   ③ it == last → 0；
     //   ④ 命中段**逐成员**赋值：两次 _Hashtable_const_iterator::operator->
     //      分别取 pair+4 / pair+8（⇒ `info = it->second` 整体拷贝会丢一次
     //      operator-> 并改走结构复制路径）。
     const __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>&
         table = m_script.m_investMap[(int)type];
-    __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>::const_iterator it =
-        table.end();
     const __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>::const_iterator
         last = table.end();
+    __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>::const_iterator it =
+        table.end();
     it = table.find(level);
     if (it == last)
     {
@@ -377,6 +392,8 @@ int upgrade_table_t::get_upgrade_info(upgrade_info_t* out,
                                       unsigned char upgrade,
                                       ENUM_EQUIPMENTTYPE equipType) const
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x08900436 帧 0x6c vs 4.4 0x5c（N82 族）；
+    // 语义等价。
     if (upgrade >= m_infos.size())
         return 0;
     if (rarity >= 6)

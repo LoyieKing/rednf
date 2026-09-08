@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <map>
 #include <vector>
+#include <boost/foreach.hpp>           // ORIG attach/notify 用 BOOST_FOREACH 遍历 list
 #include "RDARScriptStringManager.h"   // g_scriptStringManager_/findString
 #include "CEventTable.h"              // CEventTable 权威声明（唯一）
 #include "PacketGuard.h"
@@ -84,17 +85,21 @@ bool CDelivery::checkAddress(int type)
     return type >= 1 && type <= 2;
 }
 
+// b28d-40: BOOST_FOREACH 复现 + 正向 `if (it != end)` 包裹（P220）；ORIG 0x081163fa，AE。
 void CDelivery::attach(int type, CEventBase* event)
 {
     if (!checkAddress(type))
         return;
-    // P167/Ghidra：ORIG 用 map.find(type) —— type 不存在则不 attach（不 operator[] 建默认空 list）
     std::map<int, std::list<CEventBase*> >::iterator it = m_eventMap.find(type);
-    if (it == m_eventMap.end())
-        return;
-    std::list<CEventBase*>& events = it->second;
-    if (std::find(events.begin(), events.end(), event) == events.end())
-        events.push_back(event);
+    if (it != m_eventMap.end())
+    {
+        BOOST_FOREACH(CEventBase*& e, it->second)
+        {
+            if (e == event)
+                return;
+        }
+    }
+    m_eventMap[type].push_back(event);
 }
 
 void CDelivery::detach(int type, CEventBase* event)
@@ -106,21 +111,21 @@ void CDelivery::detach(int type, CEventBase* event)
         it->second.remove(event);
 }
 
-// ORIG 0x08116682（notify.md）：checkAddress 校验 → map.find →
-// 遍历该 type 的 list，对非空 CEventBase 经 vtable+0x30（= delivery 虚槽 12）
-// 调用 delivery(msg)。此处用真实虚调用，生成 call vtable[+0x30]，与 ORIG 一致。
+// b28d-40: BOOST_FOREACH 复现 + 正向 `if (it != end)` 包裹（P220）；ORIG 0x08116682，AE。
+// checkAddress 校验 → map.find → 遍历该 type 的 list，对非空 CEventBase 经
+// vtable+0x30（= delivery 虚槽 12）调用 delivery(msg)。
 void CDelivery::notify(int type, DeliveryMsg& msg)
 {
     if (!checkAddress(type))
         return;
     std::map<int, std::list<CEventBase*> >::iterator it = m_eventMap.find(type);
-    if (it == m_eventMap.end())
-        return;
-    for (std::list<CEventBase*>::iterator event = it->second.begin();
-         event != it->second.end(); ++event)
+    if (it != m_eventMap.end())
     {
-        if (*event != 0)
-            (*event)->delivery(msg);
+        BOOST_FOREACH(CEventBase*& e, it->second)
+        {
+            if (e != 0)
+                e->delivery(msg);
+        }
     }
 }
 
@@ -178,13 +183,17 @@ bool CEventManager::IsExistOverlappedExpBonusEvent()
     return false;
 }
 
+// b28d-40: N7 封顶——ORIG 虚调用目标 %ecx + 索引 %edx/%eax vs 4.4.7 目标恒 %eax
+// + 索引 %ecx/%edx（助记符序列全等，仅寄存器角色轮转）。ORIG 0x0811630e。
 void CEventManager::dailyresetData()
 {
     for (int i = 0; i <= 0xa5; ++i)
     {
-        CEventBase* event = m_events[i];
-        if (event != 0 && event->IsEventing(0))
-            event->dailyresetData();
+        if (m_events[i] != 0)
+        {
+            if (m_events[i]->IsEventing(0))
+                m_events[i]->dailyresetData();
+        }
     }
 }
 
@@ -595,15 +604,15 @@ bool CEventTable::InsertEventTable(std::vector<int>& ids)
 // 调该事件 vptr+0x20 槽（ORIG changeCharacName 槽，头内声明序与 ORIG vtable
 // 对位：_ZTV10CEventBase @0x08b4bae0 实测 +0x20=changeCharacName、
 // +0x34=IsEventing），实参 (user, key, name, flag)。
+// b28d-40: N7 封顶（同 dailyresetData，虚调用目标/索引寄存器轮转）。ORIG 0x08116276。
 void CEventManager::changeCharacName(CUser* user, int key, char* name, int flag)
 {
     for (int i = 0; i <= 0xa5; ++i)
     {
-        CEventBase* event = m_events[i];
-        if (event == 0)
-            continue;
-        if (!event->IsEventing(0))
-            continue;
-        event->changeCharacName(user, key, name, flag);
+        if (m_events[i] != 0)
+        {
+            if (m_events[i]->IsEventing(0))
+                m_events[i]->changeCharacName(user, key, name, flag);
+        }
     }
 }

@@ -75,6 +75,9 @@ public:
 template <class T>
 T* Stream::GetInBuffer()
 {
+    // [b28d-39 判词 · N18a] ORIG 0x08602160：残余仅两段装载 `mov 0x8(%eax),%eax;
+    // mov %eax,%edx` 被 4.4 折成单段 `mov 0x8(%eax),%edx`（N18a 不可造）；
+    // enable_in/resize/in_ptr 调用与返回值语义逐条等价。
     // [b28c-35] N18a：ORIG 0x0860219e 为两段装载 `mov 0x8(%eax),%eax; mov %eax,%edx`
     // （m_buffer 先入 %eax 再中转 %edx），4.4 对 `m_buffer + m_inPtr` 与
     // `&m_buffer[m_inPtr]` 两形均折 `mov 0x8(%eax),%edx` 单段 ⇒ 单段直落不可反向造。
@@ -289,6 +292,8 @@ void CSharedServerMessageManager::SendServerMessageInfo(CUser* pUser,
                                                        SIG_EVENT_SERVER_MESSAGE* pMsg,
                                                        char bFlag)
 {
+    // [b28d-39 判词 · N93] ORIG 0x086008d8：map find 迭代器具名槽 -0x2c vs -0x28
+    // （N93 槽向）；发包字段与条件分支逐条等价。
     PacketGuard pg;
     pg.put_header(0, 0xc0);
     pg.put_byte((int)bFlag);
@@ -370,6 +375,8 @@ stSERVER_MESSAGE* CSharedServerMessageManager::getCurMessage(int nIndex)
 
 bool CSharedServerMessageManager::IsChangableMessage(int nIndex, int nTime)
 {
+    // [b28d-39 判词 · AE] ORIG 0x08600cc8：fresh 复验 TU ae（23=23），
+    // 清单 NEAR(2) 为 .o 重定位标签伪差；语义/控制流与 ORIG 全等。
     // b28c-L20: AE — fresh 复验 orig=23 our=23 ndiff=0（归一口径）。槽往返仅 pMsg 一处
     // （ORIG -0xc(%ebp) `mov %eax,-0xc(%ebp); cmpl $0x0,-0xc(%ebp)`）；pMsg->m_endTime(+0x54)
     // +0x78 与 nTime 的有符号 `jl` 走 RHS 值先物化（P0/P85），get_channel_no 类返回宽度无关。
@@ -441,6 +448,8 @@ bool CSharedServerMessageManager::CheckUserCondition(CUser* pUser, int nIndex, i
 void CSharedServerMessageManager::UpdateServerMessage(CUser* pUser, int nIndex,
                                                       char* pMsg, char* pMsg2, int nEndTime)
 {
+    // [b28d-39 判词 · N93] ORIG 0x08600ec0：具名指针槽 -0x1c vs -0x24 方向相反
+    // （N93）；消息更新/落库/发包路径逐条对齐，语义等价。
     stSERVER_MESSAGE* pCur = getCurMessage(nIndex);
     if (pCur == 0)
     {
@@ -544,6 +553,9 @@ void CSharedServerMessageManager::UpdateServerMessageByBroadcast(int nIndex,
                                                                  char* pMsg, char* pMsg2,
                                                                  int nEndTime)
 {
+    // [b28d-39 判词 · N168a③b] ORIG 0x08601476：bool callee 直判点 ORIG 为
+    // `call; test %al,%al; je`，4.4 恒多 `xor $0x1,%eax` 归一段（跨版本 bool ABI，
+    // P168a③b 定论）；广播条件与包写入逐条等价。
     stSERVER_MESSAGE* pCur = getCurMessage(nIndex);
     if (pCur == 0)
     {

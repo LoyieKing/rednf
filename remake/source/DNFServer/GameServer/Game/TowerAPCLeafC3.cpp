@@ -46,6 +46,7 @@ SendingAPC_Info::~SendingAPC_Info()
 {
 }
 
+// [b28d-32 N(P75): 1 条装载序/寄存器差（202/201） | ORIG 0x085fe906]
 void SendingAPC_Info::Set_APC_Info(TOD_Layer const& layer, _APCInfo const& info)
 {
     // b21 verdict=DIFF（N 残余）：202/201（gap=1）。调用点全等（clear/put_header/put_byte×/
@@ -155,6 +156,7 @@ void TowerOfDespairMgr::SendMessageToCUser(CUser* user, char* msg)
 // 真实 map<TOD_Layer,SendingAPC_Info> 一致）；填充方 Set_APC_Info 后续批次
 // 接入时须按本真实容器模型实现。
 // ---------------------------------------------------------------------------
+// [b28d-32 N(P75): 装载序/寄存器差（90/87） | ORIG 0x085feee4]
 void TowerOfDespair_APC_Mgr::Send_APC_Info(TOD_Layer const& layer, CUser* user)
 {
     // ORIG 形态：默认构造 it → end() 先求值 → find 赋值 → operator!= 判断；

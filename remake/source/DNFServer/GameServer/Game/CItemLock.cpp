@@ -696,10 +696,15 @@ void CItemLock::SendRequestItemUnlockCancel(CUser* user, int space, int slot)
 // （lock 号 = i+1），使低号位最终落在栈顶（与空闲号池 LIFO 序一致）。恒真。
 bool CItemLock::loadData(CUser* user, char* pData)
 {
-    // [b28c-6] N76/N18a：ORIG 偏移计算 `mov i,%eax; shl $3,%eax; mov %eax,%edx;
-    // add -0x10(%ebp),%edx`（data 作 add 内存源）；4.4 恒 data 先载 %edx 再
-    // `add %eax,%edx`。data+i*8 / i*8+data / (int)data+i*8 / 指针算术四形均实测
-    // 不可翻（ndiff 4）。
+    // [b28d-41] N7/N18a 封顶（ORIG 0x08541714，ndiff 4）：ORIG 偏移计算
+    // `mov i,%eax; shl $3,%eax; mov %eax,%edx; add -0x10(%ebp),%edx`（偏移先物化
+    // 入 %edx、data 作 add 内存源）；4.4 恒 `mov data,%edx; … add %eax,%edx`（LHS 先载）。
+    // 本轮实测 13 形：data+i*8 / (int)data+i*8 / i*8+(int)data / &data[i*8] /
+    // data+(i<<3) / (unsigned)data+… / (char*)(i*8)+(long)data / (S*)data+i /
+    // &((S*)data)[i] / data+i*sizeof(S) / ((S*)data)+i / (long)i*8 / i*8L /
+    // register 指针 / register int / (unsigned char*)data —— 全产 LHS-first
+    // （探针 /tmp/d41_p1.cpp、/tmp/d41_p2.cpp、/tmp/d41_p3.cpp），属 4.1↔4.4
+    // add 展开序固有差；函数其余 28 条逐条全等。
     char* data = pData;   // ORIG 0x854171d mov %eax,-0x10 存槽复用
     for (int i = 99; i >= 0; --i)
     {

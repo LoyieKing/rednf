@@ -65,8 +65,6 @@ void CSchoolMatchEvent::StartEvent(Word_Param param)
 
     struct Bytes { unsigned char b0, b1, b2, b3; };   // 组件视图折叠 ORIG 单 disp（P1）
     Bytes* p = (Bytes*)&param;
-    int findValue;                                    // P212：ORIG -0x30 独立槽
-                                                      // （块内声明会被 4.4 复用 trace 槽）
     cMyTrace(__PRETTY_FUNCTION__, 0x1e, 0)
         ("CSchoolMatchEvent Start! channel_no(%d), player_count(%d), school_rating(%d), player_rating(%d)",
          (unsigned int)p->b0, (unsigned int)p->b1,
@@ -89,9 +87,10 @@ void CSchoolMatchEvent::StartEvent(Word_Param param)
     }
 
     // 当前频道号不在表内才登记。
-    findValue = (int)p->b0;
+    // b28d-35：find 的 key 用内联实参（临时槽），不设具名 findValue 局部——
+    //   具名局部使 4.4 把 trace 对象整体浅移 4（-0x50/-0x40 vs ORIG -0x54/-0x44）。
     std::vector<int>::const_iterator it =
-        std::find(m_channels.begin(), m_channels.end(), findValue);
+        std::find(m_channels.begin(), m_channels.end(), (int)p->b0);
     if (it == m_channels.end()) {
         m_channels.push_back((int)p->b0);
     }

@@ -17,6 +17,8 @@
 // 子串拷贝到 0x400 栈缓冲后 strcpy 回写（反汇编 0x0829f0ef 逐指令转写）。
 char* trim(char* s)
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x0829f0ef 循环变量/条件（js 与 cmp 0x20 顺序）
+    // 与 4.4 槽序镜像（P212/N98 族）；语义等价。
     char buf[0x400];
     int len = strlen(s);
     int start = 0;
@@ -94,6 +96,8 @@ cMyTrace::cMyTrace(const char* name, int line, int flag, bool bFieldC, bool bFie
 }
 void cMyTrace::operator()(const char* fmt, ...)
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x0854f788 无 `cmpl $0,0xc(%ebp)` 前置，
+    // 我们多 1 条且帧 0x1020→0x1030（P0 表达式直用族）；语义等价。
     // ORIG 0x854f788（0x207 字节）：0x1000 栈缓冲清零；level(m_flag) 非 8/9 时
     // sprintf("%s(%d): ", m_name, m_line) 前缀；vsnprintf 追加变参（上限 0xfff）；
     // Guard<Mutex>(&CLog::instance()->m_mutexes[m_flag*0x18]) 加锁后按 level 分发：

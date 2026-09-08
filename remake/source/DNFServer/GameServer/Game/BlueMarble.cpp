@@ -39,7 +39,9 @@
 // BlueMarble 实现
 // ============================================================================
 
-// b28c-1 N: P75 实参装载序（ORIG 先载 seedValue 再算 m_pRands[i]，4.4 恒 receiver 先）。
+// [b28d-32 判词·P75/N4] ORIG 0x080d8a5c seed 循环：先载 seedValue(%eax) 再算
+// receiver（ecx/edx+lea）；4.4 恒 receiver 先（eax/edx+add）。P226 语句表达式
+// 实测零效（装载时刻由调度决定）⇒ 结构性 DIFF 封顶，104=104 助记符集等长。
 BlueMarble::BlueMarble()
     : m_memoryPoolIndex(-1), m_state(BlueMarbleState::T_0), m_diceNumber(0), m_blueMarbleMap(0),
       m_pScript(0), m_maxBoardSize(0)
@@ -143,6 +145,7 @@ void BlueMarble::setUserState(int seat, BlueMarbleUserState::T state)
 
 // b28c-1 N: 清绑（P0/N96）后余 5 条 = 4.4 未内联 std::move（ORIG 4.1 内联）；
 //  去 move 则指令序列与 ORIG 全等但块内 zone/pair 槽方向差 14 行（N93/N82附）。
+// [b28d-32 N(P75/N82): 装载序与槽位差（181/186） | ORIG 0x080d7afc]
 int BlueMarble::setUserGrade(int grade)
 {
     std::multimap<int, int, std::greater<int> > mm;
@@ -318,6 +321,7 @@ int BlueMarble::setDropBuff(int seat, int drop)
 }
 
 // b28c-1 N: P209 4.4 每次重载形参槽 vs ORIG 载入一次复用（switch/裸形均劣化）。
+// [b28d-32 N(岛): 4.4 多出 nop/jmp 岛与分支块序（53/58） | ORIG 0x080d990e]
 int BlueMarble::getBuff(CUser* user, BlueMarbleBuffType::T type)
 {
     if (user == 0)
@@ -376,6 +380,7 @@ int BlueMarble::getRandomItem() const
     return 0;
 }
 
+// [b28d-32 N(P75/N82): 2 条槽/装载序差（214/212） | ORIG 0x080d73dc]
 int BlueMarble::getRandomDungeon(int seat, BlueMarbleTileScript::Type type) const
 {
     std::vector<int> local;
@@ -516,6 +521,7 @@ int BlueMarble::resetIndexInfo(int seat)
     m_users[seat].resetIndex();
 }
 
+// [b28d-32 N(块序/岛): 1 处 je↔jne 极性 + 1 条 nop 岛差（175/176，P222 两形互试后封顶） | ORIG 0x080d8d02]
 int BlueMarble::checkUserConditionEnterBlueMarble(CUser* user)
 {
     if (user == 0)
@@ -600,6 +606,7 @@ L_MOVE_OK:
     return 0;
 }
 
+// [b28d-32 N(P75): 1 条装载序差（138/137） | ORIG 0x080d9c12]
 void BlueMarble::checkBlueMarbleUserConfirm(CUser* user)
 {
     int userBlueMarbleIndex;
@@ -697,16 +704,16 @@ int BlueMarble::startBlueMarble()
 }
 
 // b28c-1 N: 第三条件 je/jne 极性（4.4 块序折叠；三目/表达式/具名 bool 三形实测均不可翻）。
+// [b28d-32 AE + 真语义 bug: 旧实现两 return 值写反（全真返回 false）；取反条件形复现 ORIG 三条件 jle/jne/je + bVar1 双岛 | ORIG 0x080d6ed8]
 bool BlueMarble::checkThrowDice(int seat)
 {
-    // ORIG 0x080d6ed8：bVar1 物化全程 %eax（0x080d6f3f/6f46 mov$1/$0,%eax），
-    // return !bVar1 走 `test al; je; mov$0/$1` 双岛（0x80d6f4b..）。
-    // b28c-1：P0/N96 清绑；P56 if-return 分支形（ORIG `test al; je; mov$0/$1`）。
-    // b28c-1：P56 if-return 分支形（三目/表达式形实测劣化）；ORIG 尾
-    //  `test al; je; mov$0/$1` 双岛仅第三条件 je/jne 极性差（N：4.4 块序折叠）。
-    if (m_users[seat].getBoardZone() < getMaxBoardSize() &&
-        m_users[seat].getUserState() == (BlueMarbleUserState::T)1 &&
-        getState() == 2)
+    // [b28d-32] ORIG 0x080d6ed8：三条件全真 → bVar1=0 → `test al; je; mov$1`
+    // ⇒ 返回 true（0x080d6f46 mov$0 / 0x080d6f56 mov$1）。旧实现两个 return 值
+    // 写反（全真返回 false）= 真语义 bug，已对调；形态与 ORIG 逐块同构
+    // （bVar1 物化 + `test al; je; mov$0/$1` 双岛）。
+    if (!(m_users[seat].getBoardZone() < getMaxBoardSize() &&
+          m_users[seat].getUserState() == (BlueMarbleUserState::T)1 &&
+          getState() == 2))
     {
         return false;
     }
@@ -743,7 +750,9 @@ done:
     ;
 }
 
-// b28c-1 N: ORIG 0x080d9c08 EH cleanup 尾 jmp 岛（4.4 析构内联无岛）。
+// [b28d-32 AE] ORIG 0x080d9c08 尾岛 `jmp +0x1bf; nop`：P223 fC 条件 goto 前置
+// （`if(!checkThrowDice) goto DONE; body; DONE:;`）复现 128=128 逐条全等；
+// 旧 body 尾 goto 恒被 4.4 jump-thread（少 jmp+nop 2 条）。
 void BlueMarble::movePosition(CUser* user, int pos)
 {
     int seat = getUserSlot(user);
@@ -754,12 +763,12 @@ void BlueMarble::movePosition(CUser* user, int pos)
     }
     // ORIG 0x80d9ab9 xor $0x1,%eax; test; jne 出口（=false 走体）——用已验证的
     // `(int)!boolcall()` 物化形（handleStageCommand 0x84661a3 同构）。
-    else if ((int)!checkThrowDice(seat))
-    {
-        ;
-    }
+    // [b28d-32] P223 fC 形：条件 goto 置于 body 之前，复现 ORIG 0x080d9bfd
+    // 尾 `jmp +0x1bf; nop` 岛（body 尾 goto 恒被 4.4 jump-thread）。
     else
     {
+        if ((int)!checkThrowDice(seat))
+            goto DONE;
         PacketGuard packet;
         packet.put_header(0, 0x1af);
         packet.put_byte(seat);
@@ -771,8 +780,6 @@ void BlueMarble::movePosition(CUser* user, int pos)
         intoBoardZone(seat);
         sendBoardZoneActionInfo(seat, getDungeonIndex(seat),
                                 (unsigned int)getItemIndex(seat));
-        // b28c-1：P223 尾岛（ORIG 0x080d9c08 jmp+nop 汇合形）。
-        goto DONE;
     }
 DONE:
     ;
@@ -1036,6 +1043,7 @@ DONE3:
 }
 
 // b28c-1 N: ORIG 0x080d7e6c 死岛（nop+jmp）被 4.4 jump-thread 合并（4.1 goto 岛产物）。
+// [b28d-32 N/P223: ORIG 单源尾岛（insertItem 后 jmp+nop+jmp+nop）被 4.4 jump-thread 合并，少 2 条 | ORIG 0x080d7dde]
 int BlueMarble::resultReward()
 {
     Inven_Item item;
@@ -1060,8 +1068,6 @@ int BlueMarble::resultReward()
         goto NEXT2;
     NEXT0:
         ;
-    NEXT3:
-        ;
     NEXT2:
         ;
     NEXT1:
@@ -1076,6 +1082,7 @@ int BlueMarble::finishBlueMarble(int seat)
     sendFinishBlueMarble();
 }
 
+// [b28d-32 N(P75): 1 条装载序差（104/103） | ORIG 0x080d7e8e]
 int BlueMarble::setResultItem(int seat, Inven_Item& item)
 {
     // ORIG 0x080d7eb5-：每处 `(*rewards)[g]` 均从 this+0x38+0xa4 重新算
@@ -1110,6 +1117,7 @@ int BlueMarble::setResultItem(int seat, Inven_Item& item)
     }
 }
 
+// [b28d-32 N(P75/N82): 装载序与槽位差（177/186） | ORIG 0x080d800e]
 int BlueMarble::insertItem(int seat, Inven_Item& item, eItemAddReason reason)
 {
     // ORIG 0x080d800e：`mov 0x7(%eax),%ebx`（4 字节读）= Inven_Item::m_addInfo2。

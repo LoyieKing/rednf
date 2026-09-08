@@ -56,6 +56,8 @@ char const s_bfkm_pretty[] =
 
 // ================= kill_monster 主函数 =================
 
+// [b28d-D33 N82/N89 封顶] ORIG 0x0830bc78：1587 vs 1579 条（超大函数 >500，
+// §6.2 三件套口径：ndiff 失真，语义以调用点/逐块为准）。语义等价。
 bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
                                  unsigned int& reward,
                                  const STKillMonsterData& data)

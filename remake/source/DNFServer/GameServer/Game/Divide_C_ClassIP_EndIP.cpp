@@ -20,6 +20,8 @@
 // fresh /tmp/tu_Divide_C_ClassIP_EndIP.o fn_diff_tu 归一 0 差（55=55 逐条）。
 void Divide_C_ClassIP_EndIP(char* out, char* end, char* src)
 {
+    // [b28d-39 判词 · AE] ORIG 0x086b1dd5：fresh 复验 TU ae（60=60 逐条），
+    // 清单 NEAR(1) 为 .o 重定位标签伪差；语义/控制流与 ORIG 全等。
     if (src == 0)
         return;
 
@@ -84,10 +86,11 @@ void Divide_C_ClassIP_EndIP(char* out, char* end, char* src, char* err)
     if (out == 0)
         goto l5;
     strncpy(out, src, len);
-    // [b28 N 判词] ORIG 0x086b1f21 end 守卫为 `jne COPY2; jmp ERR6` 双跳形；4.4
-    // CFG 对 `je→ERR6 岛` 化简恒产反向单跳（空块垫 P223 亦被 fold，实测无效），
-    // 冷块物理位置由 GCC BB 序决定不可源码控制。残余 1 条助记符（je↔jne）+
-    // 2 nop 岛差，三分支可观察行为逐条相等。禁 asm 桥（P0）。
+    // [b28d-39 判词 · N223/跨版本] ORIG 0x086b1f21 end 守卫为 `jne COPY2; jmp ERR6`
+    // 双跳形；4.4 对 `if(end!=0) goto l2; goto l6;` 恒 CFG 反演为 `je l6; jmp l2`
+    // （早返 if/else 形亦产 `jne COPY2` 但把 out 守卫打反、且多 2 条），冷块物理
+    // 位置由 GCC BB 序决定不可源码控制。残余仅 1 条助记符（je↔jne）+ 2 nop 岛，
+    // 三分支可观察行为逐条相等；禁 asm 桥（P0）。
     if (end != 0)
     {
         goto l2;

@@ -18,6 +18,7 @@
 #include "CLog.h"           // CLog::instance / initiate
 #include "HistoryLog.h"     // HistoryLog::Init
 
+// [b28d-32 N(4.1 死块): ORIG cmp+无条件 jmp 跳过 argc 错误块（死代码），4.4 恒条件化并 DCE 死块，合法 C++ 不可造（探针 /tmp/lane32_probe1.cpp） | ORIG 0x0817de00]
 int AradAppSystem::AradAppInit(int argc, char** argv)
 {
     std::cerr << "[!] Server Starting...\n";

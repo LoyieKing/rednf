@@ -247,6 +247,8 @@ void stUltimateWarMonsterInfo::clear()
 // ============================================================================
 int importQPGuideScript(const char* path, stQPGuideScript& out)
 {
+    // [b28d-34] 复核维持 DIFF（§6.2）：orig 396/ours 384，槽基 -0x3c/-0x40 平移
+    // + 容器实例化族（N89）；语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x28b6;
     std::string token;
@@ -367,6 +369,8 @@ int importQPGuideScript(const char* path, stQPGuideScript& out)
 // ============================================================================
 int importPartyMatchingInfo(const char* path, std::vector<stPartyMatchingInfo>* out)
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x0890f311 比我们多一段迭代器/临时构造
+    // （clean 173 vs 155）；N89/N86 STL 实例化族，语义等价。
     if (!loadRDARScriptFile("", path))
         return 0;
     std::string token;
@@ -418,6 +422,8 @@ int importPartyMatchingInfo(const char* path, std::vector<stPartyMatchingInfo>* 
 // ============================================================================
 int importPCBANGScript(const char* path, std::vector<stNeoplePCBANG>& out)
 {
+    // [b28d-34] 复核维持 DIFF（§6.2）：orig 393/ours 387，残差为 N89 容器
+    // 实例化族；语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x1417;
     std::string token;
@@ -552,6 +558,8 @@ int importBloodWarEtcScript(const char* path,
                             stBloodWarGrowTable* growTable,
                             stBloodWarBloodPointTable* bloodPoint,
                             std::vector<stBloodWarBgmTable>* bgm,
+                            // [b28d-34] 复核维持 DIFF（§6.2）：orig 338/ours 320，
+                            // 残差为容器实例化族（N89）；语义等价。
                             std::vector<stUltimateWarMonsterInfo>* monsterInfo)
 {
     if (!loadRDARScriptFile("", path))

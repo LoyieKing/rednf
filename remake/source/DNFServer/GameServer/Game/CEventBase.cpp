@@ -16,6 +16,8 @@ stADDINFO::stADDINFO()
     m_info1 = 0xffff;
 }
 
+// [b28d-30] 复核 NEAR：ORIG 帧 0x18 vs 4.4 0x14（P190 附注：带 call 帧 sub 恒 16k+4
+// 量化，0x18 非量化值不可凑；dead int×4=0x14、+double 跳 0x24）⇒ N82/P190 封顶。
 CEventBase::CEventBase()
     : m_addInfo()
 {

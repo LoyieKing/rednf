@@ -91,7 +91,10 @@ void CAlchemist::UseDelilah(CUser* user)
 }
 
 // ---- UseRevivalItem（报告 UseRevivalItem.md，ORIG T 0x085d1694 sz 0x7d）----
-// b28c-1 N82附: 多实参 call 首值 callee-saved %esi↔%ebx 对调。
+// b28d-31 N82附（复核 b28c-1）: ORIG 0x085d1694 多实参 call 首值 callee-saved
+// 角色为 %esi（GetRevivalTime）/ %ebx（GetUID）；4.4.7 恒反向（首值 %ebx）。
+// 两值均跨 G_TimerQueue() call 保活且 4.4 自升格 ⇒ 裸 register 三条件②不成立，
+// 具名局部反增槽（ORIG 无槽往返）⇒ 语义等价封顶。
 void CAlchemist::UseRevivalItem(CUser* user)
 {
     // ORIG：getCurSec 经全局符号直载；revivalTime/uid 以 esi/ebx 跨调用缓存
@@ -344,6 +347,7 @@ int CDisjointer::OnRepairDisjointMachine(CUser* user)
 }
 
 // ---- OnUpgradeDisjointMachine（报告，ORIG T 0x085d37e8 sz 0x2e2）----
+// b28d-31: N 封顶（N82）——ORIG 0x085d37e8；202 vs 209（帧/槽）。
 int CDisjointer::OnUpgradeDisjointMachine(CUser* user)
 {
     int grade = GetSelfExpand(user)->get_disjoint_machine_grade();
@@ -451,24 +455,20 @@ unsigned int CExpertJobMgr::IsAvailableRequestPeer(CUser* requester,
 {
     (void)type;
     (void)packet;
-    if (target->getCurCharacR() != 0 && requester->getCurCharacR() != 0)
-    {
-        if (requester->GetCurCharacExpertJob() == 0 &&
-            target->GetCurCharacExpertJob() == 0)
-        {
-            if (private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(target))
-            {
-                return 0x3d;
-            }
-            if (target->IsCurCharacGhost())
-            {
-                return 0x13;
-            }
-            return 0;
-        }
+    // b28d-31: ORIG 0x0849e564 为 `||` 短路物化（je P; jne Q; P:mov$1; Q:mov$0;
+    // test;je）——负极性守卫 return 3 直落；ExpertJob 两守卫为独立形
+    // （各发 test;setne;test;je，P133① 独立守卫）。
+    if (target->getCurCharacR() == 0 || requester->getCurCharacR() == 0)
+        return 3;
+    if (requester->GetCurCharacExpertJob() != 0)
         return 0x13;
-    }
-    return 3;
+    if (target->GetCurCharacExpertJob() != 0)
+        return 0x13;
+    if (private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(target))
+        return 0x3d;
+    if (target->IsCurCharacGhost())
+        return 0x13;
+    return 0;
 }
 
 // ---- OnRequestPeer（报告，ORIG T 0x0849e256 sz 0x10b）----
@@ -480,9 +480,9 @@ void CExpertJobMgr::OnRequestPeer(CUser* requester, CUser* target,
     unsigned int err = 0;
     err = IsAvailableRequestPeer(requester, target, type, packet);
     // b28：清 register asm（N96/P0 全域禁）——直测短路条件。
-    // b28c-1：ORIG 0x0849e26b `cmpl $0,-0xc; setne %al; test %al; je` 为
-    //  4.1 槽比零物化（P197-④/N-88 族，4.4 槽比恒直跳，具名 bool 实测劣化 11）。
-    if (err != 0)
+    // b28d-31：P225 while+break 复现 4.1 槽比零 setne 物化
+    //（ORIG 0x0849e26b `cmpl $0,-0xc(%ebp); setne %al; test %al,%al; je`）。
+    while (err != 0)
     {
         requester->SendCmdPeerErrorPacket((ENUM_CMDPACKET)10, type,
                                           (unsigned char)err, packet);
@@ -498,6 +498,8 @@ void CExpertJobMgr::OnRequestPeer(CUser* requester, CUser* target,
 }
 
 // ---- OnResponsePeer（报告，ORIG T 0x0849e362 sz 0x1fb）----
+// b28d-31: P225 while 形已消 2 条（135→133，ORIG 132）；残余 N7/N82
+//（G_CDataManager 等 callee 寄存器角色 + 尾块序）。
 void CExpertJobMgr::OnResponsePeer(CUser* requester, CUser* peerTarget,
                                    CUser* jobOwnerA, CUser* jobOwnerB,
                                    int cookie, ENUM_PEER_REQUEST_TYPE type,
@@ -507,7 +509,8 @@ void CExpertJobMgr::OnResponsePeer(CUser* requester, CUser* peerTarget,
     // 0x849e39d setne %al 判定物化（4.4 恒折槽比零，P197-④/N-88）。
     unsigned int err = 0;
     err = IsAvailableRequestPeer(requester, peerTarget, type, packet);
-    if (err != 0)
+    // b28d-31：P225 while+break 复现 4.1 槽比零 setne 物化（ORIG 0x0849e39d）。
+    while (err != 0)
     {
         requester->SendCmdPeerErrorPacket((ENUM_CMDPACKET)0xb, type,
                                           (unsigned char)err, packet);
@@ -543,6 +546,7 @@ void CExpertJobMgr::OnResponsePeer(CUser* requester, CUser* peerTarget,
 }
 
 // ---- OnEnchantByBead（报告，ORIG T 0x0849ed1a sz 0x474）----
+// b28d-31: N 封顶（N82）——ORIG 0x0849ed1a；297 vs 290（帧/槽）。
 int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
                                    int param4, int ringSlot)
 {
@@ -653,6 +657,8 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
 }
 
 // ---- OnGiveup（报告，ORIG T 0x0849e60c sz 0x70d）----
+// b28d-31: N 封顶（N82/P165）——ORIG 0x0849e60c；458 vs 396（物理内联
+// 展开 vs 循环抽象差）。
 void CExpertJobMgr::OnGiveup(CUser* user)
 {
    if (user->getCurCharacR() == 0)
@@ -767,6 +773,9 @@ namespace expert_job
 
 // ---- SendExpertJobInfo（报告，ORIG T 0x0832b454 sz 0x201）----
 // b28c-1 N: N-88 槽比零 sete 物化 + P168a X2 占槽（X1 实测 7→78 回退）。
+// b28d-31: N 封顶（P248 档①待属主）——ORIG 0x0832b454；调用点
+// `call get_recipe; xor $1,%eax; jne` 需 callee 返回类型 bool 化
+//（get_recipe 定义在 CExpertJob.cpp，非本 TU ⇒ 未改）。
 int CCharacExpertJob::SendExpertJobInfo(CUser* user)
 {
     PacketGuard packet;

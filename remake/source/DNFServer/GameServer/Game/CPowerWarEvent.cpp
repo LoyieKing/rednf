@@ -36,6 +36,9 @@ CPowerWarEvent::~CPowerWarEvent()
 // ORIG 0x08267dea：环境为 1/2 时向 monitor 发 Event_End 包；
 // 否则事件未进行中则直接返回，进行中则开始力战（关终极副本、发配置、
 // 挂三个定时器）。
+// [b28d-26] NEAR 收敛至 1 处：P221 全表达式临时链（cMyTrace(...)(fmt)）后
+//   槽位/块序全对齐，仅余 N7 间接 call 目标寄存器（ORIG `call *%edx` vs
+//   4.4.7 `call *%eax`，0x08267e26 段；P230：4.4.6 后端可消，本 TU 未路由）⇒ N7 封顶。
 void CPowerWarEvent::StartEvent(Word_Param param)
 {
     if (G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
@@ -99,6 +102,7 @@ void CPowerWarEvent::StartEvent(Word_Param param)
 
 // ---------------------------------------------------------------------------
 // ORIG 0x082679fa：同 StartEvent(Word_Param)，但不写 m_param。
+// [b28d-26] NEAR 同族收敛：P221 临时链后仅余 N7（`call *%edx` vs `call *%eax`）⇒ N7 封顶。
 void CPowerWarEvent::StartEvent()
 {
     if (G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
@@ -162,6 +166,8 @@ void CPowerWarEvent::StartEvent()
 // ORIG 0x082681e2：环境为 1/2 时直接返回；事件未进行中直接返回；
 // 进行中则关力战（开终极副本、OnEndPowerWar/CancelPowerUp 广播、
 // 清共享服务器消息、强制关闭 assault、触发 0x35 事件）。
+// [b28d-26] NEAR 收敛至 1 处：P221 临时链（含 0xde/0xe1/0xe4/0x110 四 trace）后
+//   槽位/块序全对齐，仅余 N7 间接 call 寄存器（0x08268226 段 `call *%edx` vs `*%eax`）⇒ N7 封顶。
 void CPowerWarEvent::EndEvent()
 {
     if (G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
@@ -180,19 +186,19 @@ void CPowerWarEvent::EndEvent()
             {
                 G_CDataManager()->m_serverParameter.setDungeonOpen(0x2aff, true);
                 G_GameWorld()->send_all_dungeon_inout_message(0x2aff, true);
-                cMyTrace tr(__PRETTY_FUNCTION__, 0xde, 0);
-                tr("ULTIMATE_LOG : POWER WAR EVENT END!! ULTIMATE DUNGEON OPEN!!");
+                cMyTrace(__PRETTY_FUNCTION__, 0xde, 0)
+                    ("ULTIMATE_LOG : POWER WAR EVENT END!! ULTIMATE DUNGEON OPEN!!");
             }
             else
             {
-                cMyTrace tr(__PRETTY_FUNCTION__, 0xe1, 0);
-                tr("ULTIMATE_LOG : NOT UTIMATE DUNGEON OPEN TIME!!");
+                cMyTrace(__PRETTY_FUNCTION__, 0xe1, 0)
+                    ("ULTIMATE_LOG : NOT UTIMATE DUNGEON OPEN TIME!!");
             }
         }
         else
         {
-            cMyTrace tr(__PRETTY_FUNCTION__, 0xe4, 0);   // ORIG 0x0826834d 行号 0xe4
-            tr("ULTIMATE_LOG : ALLEADY ULTIMATE DUNGEON CLOSE!!");
+            cMyTrace(__PRETTY_FUNCTION__, 0xe4, 0)   // ORIG 0x0826834d 行号 0xe4
+                ("ULTIMATE_LOG : ALLEADY ULTIMATE DUNGEON CLOSE!!");
         }
         PacketGuard packet;
         packet.put_header(0, 0xa0);
@@ -206,8 +212,8 @@ void CPowerWarEvent::EndEvent()
         param.m_duration = 0;
         param.m_field2 = 0;
         GlobalData::s_event_manager->TriggerEventStart(0x35, param);
-        cMyTrace tr(__PRETTY_FUNCTION__, 0x110, 0);
-        tr("Power War Event End");
+        cMyTrace(__PRETTY_FUNCTION__, 0x110, 0)
+            ("Power War Event End");
     }
 }
 

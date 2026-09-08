@@ -36,6 +36,7 @@ void Secu_DungeonAverageCheck::startDungeon()
     reset();
 }
 
+// [b28d-24] DIFF 残20: P167 MISSING vector::end×1；ORIG 用 sret 临时 -0x10 + 返回拷贝，我方具名 it 直构（P28/P50 槽阶梯）。ORIG 0x0827993c
 std::vector<SecKillMonsterInfo>::iterator
 Secu_DungeonAverageCheck::findKillMonsterInfo(unsigned int monsterId)
 {

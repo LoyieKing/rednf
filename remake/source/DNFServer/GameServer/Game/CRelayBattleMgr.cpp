@@ -149,6 +149,8 @@ void CRelayBattleMgr::OnReady(int seat, bool ready)
     m_battles[seat].m_state = ready ? 1 : 0;
 }
 
+// b28d-31: N 封顶（N96+N18a，复核 b28c-L18）——ORIG 0x085de83e；ORIG
+// `xor $0x1,%eax` 寄存器物化（m_requestFight bool 裸形），4.4 无绑定不可达。
 void CRelayBattleMgr::OnRequestFight(int seat)
 {
     if (seat < 0)
@@ -293,7 +295,16 @@ void CRelayBattleMgr::CreateRandomSequenceVector(std::vector<int>& seq,
     {
         count = (int)seq.size();
     }
-    if (count < 1)
+    // b28d-31: ORIG 0x085e8e1c 块序 = else 体（count>=1 随机段）在前、
+    // count<1 递减段在后（P222/P272 块序交换）。
+    if (count >= 1)
+    {
+        CRandomValue rv(seq, 1, 100, 10);
+        std::generate(seq.begin(), seq.end(), rv);
+        std::sort(seq.begin(), seq.end(), CDescending());
+        std::random_shuffle(seq.begin(), seq.begin() + count);
+    }
+    else
     {
         n = (int)seq.size();
         val = n;
@@ -302,13 +313,6 @@ void CRelayBattleMgr::CreateRandomSequenceVector(std::vector<int>& seq,
             seq[i] = val;
             --val;
         }
-    }
-    else
-    {
-        CRandomValue rv(seq, 1, 100, 10);
-        std::generate(seq.begin(), seq.end(), rv);
-        std::sort(seq.begin(), seq.end(), CDescending());
-        std::random_shuffle(seq.begin(), seq.begin() + count);
     }
 }
 
@@ -325,6 +329,8 @@ void CRelayBattleMgr::ArrangeChangeSequence(std::vector<int>& seq, int team,
     }
 }
 
+// b28d-31: N 封顶（N96+N18a，复核 b28c-L18）——ORIG 0x085de18c；同上
+// `xor $0x1,%eax` 物化。
 void CRelayBattleMgr::ArrangeNoChangeSequence(std::vector<int>& seq, int team,
                                               int& outIdx)
 {
@@ -394,6 +400,8 @@ int CRelayBattleMgr::SendRequestFight(int seat)
     return 1;
 }
 
+// b28d-31: N 封顶（N98/N82）——ORIG 0x085dead6；PacketGuard 槽 -0x24 vs
+// -0x28、index -0x28 vs -0x1c（4.4 按首次使用序分配，声明序不可翻）。
 int CRelayBattleMgr::TurnPlayer()
 {
     if (m_pRoom->IsEndPvpBattle())

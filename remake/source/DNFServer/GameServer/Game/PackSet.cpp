@@ -53,8 +53,11 @@ static void make_crc_table()
     crc_table[0] = 0;
     for (unsigned int i = 0x80u; i != 0; i >>= 1)
     {
-        h = ((h & 1u) == 0u) ? 0u : 0xedb88320u;
-        h ^= (h >> 1);
+        // b28d-36（修法）：ORIG 0x08ad345x 为 `mov %eax,%edx; shr %edx; mov
+        // h,%eax; and $1; test; je; mov $poly/jmp; xor %edx,%eax; mov %eax,h`
+        // = 单表达式 `(h>>1) ^ (h&1 ? poly : 0)`；旧两语句形把三目结果先回写 h
+        // 再 `xor mem`（+2 条且槽序反）。
+        h = (h >> 1) ^ (((h & 1u) == 0u) ? 0u : 0xedb88320u);
         for (unsigned int j = 0u; j < 0x100u; j += i * 2u)
         {
             crc_table[i + j] = crc_table[j] ^ h;
@@ -879,7 +882,10 @@ pack_ret_t PackSet::added(char const* name, IPackFileProcess* process)   // 0x08
     }
 
     index_vector_it it = find(name);
-    if (it != m_indexes.end())
+    // b28d-36（P74② 实参序旋钮）：ORIG 0x08ac57a0 段 ne() 首参=&end(-0xc)、
+    // 次参=&it(-0x10) ⇒ 原码 end() 在比较式**左侧**；写 `it != end()` 时 4.4
+    // 反压。槽位不变，仅 0x4(%esp)/(%esp) 互换。
+    if (m_indexes.end() != it)
     {
         fprintf(stdout, "find %s", name);
         fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x390, __FUNCTION__);

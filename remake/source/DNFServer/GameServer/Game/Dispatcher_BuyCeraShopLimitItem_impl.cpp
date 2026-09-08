@@ -212,9 +212,14 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
         if (relatedItem != 0 && relatedItem->IsCreatureItem()) {
             CEquipItem* equip = dynamic_cast<CEquipItem*>(relatedItem);
             if (equip != 0 && edition->getAvatarTypeSelect() == (unsigned char)0xff) {
+                // b28d-lane25：P167 差集实证 ORIG 0x082201a1 调
+                // CEquipItem::getAvatarTypeSelect()（返回 m_avatarSelect 视图）再 begin/end，
+                // 非直读成员。
                 // 遍历 relatedItem 的 m_avatarSelect，跳过 m_field10(小孔数)<=0 的项，
                 // 停在首个小孔数>0 的项，avatarTypeSel 随之递增。
-                const std::vector<stAvatarTypeSelect_t>& sel = equip->m_avatarSelect;
+                const std::vector<stAvatarTypeSelect_t>& sel =
+                    *static_cast<const std::vector<stAvatarTypeSelect_t>*>(
+                        equip->getAvatarTypeSelect());
                 for (std::vector<stAvatarTypeSelect_t>::const_iterator it = sel.begin();
                      it != sel.end(); ++it)
                 {
@@ -246,7 +251,9 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
                 special = true;
         }
         if (special) {
-            restrictCode = G_CDataManager()->getItemList()->GetRestrictCode(edition->getRelateditem());
+            // b28d-lane25：P167 差集实证 ORIG 直读 CDataManager+0x0c（m_itemList）字段
+            // 再调 GetRestrictCode（无 getItemList 调用）。
+            restrictCode = G_CDataManager()->m_itemList->GetRestrictCode(edition->getRelateditem());
         }
         if (restrictCode != 0) {
             if (user->IsRestrictedGoods(restrictCode)) throw 0x12;
@@ -261,10 +268,8 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
         query.m_seq   = user->GetUID();
         // ORIG 包布局：m_ipgno(+0xe) 与解析首个 byte(subCount, ebp-0x22a) 同址，故填 subCount。
         query.m_ipgno = (unsigned int)subCount;
-        // m_payload 填入第二条记录（每条 itemIdx + short + short，stride 8）。
-        if (entryCnt2 > 0) {
-            std::memcpy(query.m_payload, &rec2[0], entryCnt2 * sizeof(RawEntry2));
-        }
+        // b28d-lane25：P167 差集实证 ORIG 0x082203d4..0x08220412 无 m_payload 填充
+        // （无 memcpy/循环，栈对象按 ctor 状态直发）⇒ 删除本重建段的 memcpy（P171 照抄）。
 
         CMonitorServerProxy* proxy =
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());

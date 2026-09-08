@@ -79,6 +79,7 @@ void CVendingMachineStatistic::addOutputItem(unsigned long itemIdx,
 // ----------------------------------------------------------------------------
 // updateDataIntoDB（ORIG 0x0860f6de）
 // ----------------------------------------------------------------------------
+// [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 见 class_func_reports/CVendingMachineStatistic/updateDataIntoDB.md。
 void CVendingMachineStatistic::updateDataIntoDB()
 {
     // ORIG：Acquire Stream("Statistics.cpp",0x624) → CStreamGuard(stream,true) →

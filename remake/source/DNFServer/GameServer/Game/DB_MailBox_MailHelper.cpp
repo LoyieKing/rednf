@@ -54,6 +54,14 @@ struct LetterOccView
 };
 #pragma pack(pop)
 
+// [b28d-27] postal 条目块（0x61 字节，对齐 1）：ORIG 0x0841ce06 的左移循环用
+// 结构体整体赋值（对齐检查+rep movsl+尾 word/byte），非 memmove call（p167
+// 差集实证我们多 1 条 memmove）。探针 /tmp/d27_p4.cpp copy1 逐条同形。
+struct PostalBlob
+{
+    char m_bytes[0x61];
+};
+
 // RemoveMailByLatestLetter —— ORIG 0x0841cd03，定义归 DB_MailBox_Req_List.cpp
 bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx);
 
@@ -61,6 +69,9 @@ bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx);
 // GetOnlyMailCount —— ORIG 0x0841cc6a：postal 区扫 +0x5c（letter_id），
 // 统计为 0 的条目数，返计数。
 // ============================================================================
+// [b28d-27] NEAR P235/N4：ORIG 0x0841cc6a；循环体装载序 ORIG「i 先 base 后」
+// （mov -0x4→eax; mov 0x8→edx），4.4 视图形恒 base 先；P235 需 SIG_MAILBOX_LIST
+// 权威头匿名 union 视角（未改，头改动收益单件）⇒ 封顶。p167 CLEAR。
 int GetOnlyMailCount(SIG_MAILBOX_LIST* list)
 {
     // 视图（P82/P95，同 DB_MailBox_Req_List.cpp IsContainedLetter 先例）：
@@ -99,6 +110,9 @@ int GetOnlyMailCount(SIG_MAILBOX_LIST* list)
 //   项；未找到返 0。找到则自该项起左移一项（0x61 字节 memmove），
 //   count-1、remain+1，返 1。
 // ============================================================================
+// [b28d-27] DIFF N84（已修）：ORIG 0x0841ce06；memmove→PostalBlob 结构体整体赋值
+// （ORIG 对齐检查+rep movsl+残段，探针 /tmp/d27_p4.cpp copy1 同形）后 p167
+// memmove EXTRA 清零、ndiff 105→34，残差为帧/槽分配（N82）。
 bool RemoveMailByMailIndex(SIG_MAILBOX_LIST* list, int mailIdx)
 {
     int i;
@@ -117,7 +131,8 @@ bool RemoveMailByMailIndex(SIG_MAILBOX_LIST* list, int mailIdx)
         return 0;
     for (i = foundIdx; i < SIG_I32(list, SIG_OFF_POSTAL_COUNT) - 1; ++i)
     {
-        memmove(SIG_PTR(list, i * 0x61), SIG_PTR(list, (i + 1) * 0x61), 0x61);
+        *reinterpret_cast<PostalBlob*>(SIG_PTR(list, i * 0x61)) =
+            *reinterpret_cast<const PostalBlob*>(SIG_PTR(list, (i + 1) * 0x61));
     }
     SIG_I32(list, SIG_OFF_POSTAL_COUNT) -= 1;
     SIG_I32(list, SIG_OFF_REMAIN_COUNT) += 1;
@@ -128,6 +143,8 @@ bool RemoveMailByMailIndex(SIG_MAILBOX_LIST* list, int mailIdx)
 // FindLastOccTimeMail —— ORIG 0x0841cf5a：第一遍取 occ_time(+0x55)-0x13c680
 //   大于入参的最大值；第二遍找等于该值且 postal_id 最大的 postal 下标。
 // ============================================================================
+// [b28d-27] DIFF N82/P112：ORIG 0x0841cf5a；p167 CLEAR（0 call），残差为帧/槽
+// 与循环寻址序，语义闭合。
 int FindLastOccTimeMail(SIG_MAILBOX_LIST* list, int occTime)
 {
     int maxVal = 0;
@@ -171,6 +188,8 @@ bool CompareLetter(const SIG_LETTER_INFO& a, const SIG_LETTER_INFO& b)
 //   （FindLastOccTimeMail）并删除（RemoveMailByLatestLetter），同时从 vecOld
 //   删同 letter_id(+0x5c) 项。恒返 1。
 // ============================================================================
+// [b28d-27] DIFF（p167 MISSING/EXTRA 1）：ORIG 0x0841d2ef；ORIG 14 calls /
+// 我方 15，差集为容器/字符串实例族 ⇒ N89 封顶（语义等价）。
 int ArrangeMailAndLetter(SIG_MAILBOX_LIST* list,
                          std::vector<SIG_LETTER_INFO>& vecNew, int count,
                          std::vector<SIG_LETTER_INFO>& vecOld)

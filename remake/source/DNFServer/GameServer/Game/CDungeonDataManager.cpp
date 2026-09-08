@@ -1,3 +1,7 @@
+// [b28d-38 判词] 本 TU 4 件最终状态：
+//  InsertDungeonKey 0x084856ac NEAR（N93 块内对象槽向 node/it 反；p167 余 make_pair 右值形）
+//  UpdateSkill 0x08485.. DIFF / UpdateMonster / UpdateCharacter：N107 成员常量偏移取址
+//   4.4 恒 add $K,%reg vs ORIG lea K(%eax),%ecx（N107 已列本三函数，六形探针封顶）。
 // CDungeonDataManager 批次实现（仅 ORIG 符号，无桥）。
 // 证据：docs/class_func_reports/CDungeonDataManager/ 全部 7 份报告
 // （InsertDungeonKey/InsertMonsterKey/InsertSkillKey/UpdateCharacter/

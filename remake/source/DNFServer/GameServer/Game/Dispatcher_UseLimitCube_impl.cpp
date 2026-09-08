@@ -141,6 +141,9 @@ int Dispatcher_UseLimitCube::read(PacketBuf& packet, MSG_BASE& msg)
 //   否则构造 PacketGuard：header(1,0x153) | byte(1) | int(param.resultIdx)
 //        | short(param.resultCount) | finalize(true) → CUser::Send
 // ============================================================================
+// [b28d-28] DIFF | ORIG 0x081d4784 | P73/P248档①：ORIG bool 结果槽化
+// （`mov -0xc,%eax; test %al,%al`），4.4 产 `mov %al,-0x11; cmpb $0,-0x11`；
+// 余为帧（0x20 vs 0x30）/槽差。语义等价。
 void Dispatcher_UseLimitCube::send(CUser* user, ParamBase& param)
 {
     stUseLimitCube& st = *reinterpret_cast<stUseLimitCube*>(&param);
@@ -164,6 +167,9 @@ void Dispatcher_UseLimitCube::send(CUser* user, ParamBase& param)
 // ============================================================================
 // process —— ORIG 0x081d3d38（handler2：dispatch_template 校验后调用）
 // ============================================================================
+// [b28d-28] DIFF | ORIG 0x081d3d38 | P167 MISSING 3×deEv/3×ppEv + 3×pair ctor
+// 变体 + getCurCharacInvenRefR（迭代器重载 + 取值路径缺口）+ N82 帧
+// （0xcac0 vs 0xcaf0）；未闭合缺口。
 int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     if (user->get_state() != 3)

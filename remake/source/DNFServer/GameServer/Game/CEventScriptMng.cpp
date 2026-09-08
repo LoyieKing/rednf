@@ -80,6 +80,9 @@ InGameEventScript* InGameEventScriptLoader::insertEventScript(
 // [b28c-31] N93：ORIG 0x08982f5x find 目标槽 -0x10 / end 槽 -0xc（4.1 先声明占
 // 深槽），4.4 恒反向（先声明 -0xc）；声明序翻转无效，且"先声明后赋值"会引入
 // ORIG 不存在的 _Rb_tree_iterator::C1Ev（nm 实证）⇒ 封顶。
+// [b28d-27] NEAR N93（复核）：ORIG 0x08982f38；ORIG find 槽 -0x10 / end 槽 -0xc
+// （调用序 find 先、end 后），4.4 恒反向且交换声明序会改调用序 ⇒ 封顶。
+// p167 CLEAR（6/6），语义闭合。
 InGameEventScript* InGameEventScriptLoader::getEventScript(int id,
                                                            const std::string& name)
 {
@@ -193,6 +196,8 @@ CEventScriptMng::CEventScriptMng()
     m_scripts.clear();
 }
 
+// [b28d-27] DIFF（D1/D2 别名）：ORIG 0x0810b218；p167 显示 ORIG 调成员 D1Ev、
+// 我方调 D2Ev（同址别名，P93 类伪差集），语义等价。
 CEventScriptMng::~CEventScriptMng()
 {
     for (std::map<std::string, InGameEventScript*>::iterator it =
@@ -252,6 +257,8 @@ std::string& CEventScriptMng::get_db_table_name(int key)
 }
 
 // ORIG 0x810bde0：事件开启且用户尚未确认时，调用账号首次登录实体动作。
+// [b28d-27] DIFF N82：ORIG 0x0810bde0；p167 CLEAR（6/6），残差为帧/槽与分支
+// 块排布，语义闭合。
 void CEventScriptMng::process_account_first_login(
     int key, CUser* user, std::bitset<32u> flags)
 {
@@ -423,6 +430,8 @@ void CEventScriptMng::send_pc_room_play_init_time(CUser* user)
 // ORIG 0x810c40e：包 0x176 —— put_header(0,0x176)、put_int(m_todayTime)、
 // 占位 byte 后遍历实体：is_eventing 的实体调用虚 send_init_data(user,packet,
 // key,m_todayTimeDay,flag)，成功则计数+1；回填计数、finalize 并 CUser::Send。
+// [b28d-27] DIFF N82：ORIG 0x0810c40e；p167 CLEAR（19/19），残差为帧/槽分配，
+// 语义闭合。
 void CEventScriptMng::send_event_init_data(CUser* user, bool flag)
 {
     if (user == 0)
@@ -553,6 +562,8 @@ int CEventScriptMng::get_pass_day(int yyyymmdd1, int yyyymmdd2)
     return -1;
 }
 
+// [b28d-27] DIFF N82：ORIG 0x0810c5d2；p167 CLEAR（4/4），残差为帧/槽与 time_t
+// 装载序，语义闭合。
 void CEventScriptMng::update_time_values(int hour)
 {
     time_t now = GlobalData::s_systemTime_.getCurSec();
@@ -610,25 +621,32 @@ void CEventScriptMng::init_evnet_entity()
 
 bool CEventScriptMng::initScriptlist(InGameEventInfoList& list)
 {
+    // [b28d-27] ORIG 0x0810ba7a（p167：ptEv×11 / map::operator[]×4）：ORIG 每个
+    // 字段访问都重发 `it->second.xxx` 与 `m_entities[...]`（P157/P183 禁缓存
+    // 引用/指针）；旧实现用 `InGameEventInfo& info` + `CEventEntity*& slot`
+    // 缓存 ⇒ 少 11 条 ptEv + 3 条 operator[]。已修：ndiff 302→113；残差为
+    // 帧/槽分配（N82），p167 差集已清零。
     for (std::map<int, InGameEventInfo>::iterator it = list.m_info.begin();
          it != list.m_info.end(); ++it)
     {
-        InGameEventInfo& info = it->second;
-        if (info.m_isEventing == 0)
+        if (it->second.m_isEventing == 0)
             continue;
 
-        std::string name(toTString(info.m_name));
+        std::string name(toTString(it->second.m_name));
         InGameEventScript* script =
-            InGameEventScriptLoader::getEventScript(info.m_eventId, name);
+            InGameEventScriptLoader::getEventScript(it->second.m_eventId, name);
         if (script == 0)
             return false;
 
-        CEventEntity*& slot = m_entities[info.m_eventId];
-        slot = create_event_entity(info.m_eventId, false);
-        slot->set_event_flag(info.m_isEventing != 0);
-        slot->set_event_data(it->first, script);
-        slot->set_event_start_time(info.m_startTime);
-        slot->set_event_end_time(info.m_endTime);
+        m_entities[it->second.m_eventId] =
+            create_event_entity(it->second.m_eventId, false);
+        m_entities[it->second.m_eventId]->set_event_flag(
+            it->second.m_isEventing != 0);
+        m_entities[it->second.m_eventId]->set_event_data(it->first, script);
+        m_entities[it->second.m_eventId]->set_event_start_time(
+            it->second.m_startTime);
+        m_entities[it->second.m_eventId]->set_event_end_time(
+            it->second.m_endTime);
     }
 
     init_evnet_entity();
@@ -636,6 +654,8 @@ bool CEventScriptMng::initScriptlist(InGameEventInfoList& list)
 }
 
 
+// [b28d-27] DIFF N82：ORIG 0x0810bf56；p167 CLEAR（16/16），残差为帧/槽与
+// 分支块排布，语义闭合。
 void CEventScriptMng::process_level_up_reward(CUser* user, bool flag)
 {
     if (user == 0 || !is_eventing(0x194))

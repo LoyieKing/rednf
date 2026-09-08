@@ -42,6 +42,7 @@ StringResource const* StringResourceDelayedItem::getStringResource() const
 // ORIG @0x08ad538a：get 命中 → m_cacheStr = *out；未命中 →
 //   CharString::format("getStr(%d) == none", m_id)（0x8e32c4c）赋 m_cacheStr；
 //   最后 m_pCache = m_cacheStr.c_str()。
+// [b28d-24] DIFF 残25: P167 MISSING CharString D1Ev + _Unwind_Resume×1——4.4 拒绝 4.1 非平凡 union 成员抑制默认构造形；raw-buffer 引用形下显式 dtor 被折叠。ORIG 0x08ad538a
 void StringResourceDelayedItem::makeCacheStr()
 {
     CharString const* out;

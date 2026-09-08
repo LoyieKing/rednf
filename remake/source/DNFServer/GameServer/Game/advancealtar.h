@@ -81,7 +81,10 @@ enum SlotInt1_t { SLOT_INT1_N0 = 0 };
 struct _Slot {
     // ORIG W C1/C2 @0x0813449a：memset(this,0,10)。
     _Slot() { std::memset(this, 0, sizeof(*this)); }
-    unsigned char m_byte0; SlotInt1_t m_int1; unsigned char m_byte5; int m_int6;   // pack(1)，10 字节
+    // [b28d-D33] m_byte0 unsigned char→bool：ORIG resetSlot 0x08132c39
+    // `movzbl …; xor $1,%eax; test %al,%al; je` 为裸 !bool 字段形（P168a 档②）。
+    // 值域 {0,1}（advancealtar_DB.cpp:643 写 atoi>0?1:0）、pack(1) 偏移/sizeof 不变。
+    bool m_byte0; SlotInt1_t m_int1; unsigned char m_byte5; int m_int6;   // pack(1)，10 字节
 };  // 10 字节
 struct _Reward {
     // ORIG W C1/C2 @0x081344be：memset(this,0,5)。

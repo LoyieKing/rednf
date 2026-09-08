@@ -116,10 +116,18 @@ bool uncompress_zip(char* out, unsigned int& outLen, const char* in, unsigned in
 //   成功但 *outLen（入参容量）< bound → 返回 false（ORIG 防御性容量检查）；
 //   成功：out 头 dword = len & 0x3fffffff（ORIG and 截断 30 位），outLen = bound+4。
 // ----------------------------------------------------------------------------
+// [b28d-27] DIFF N82（已按 P0 修）：ORIG 0x086b201f；补回 out/inLen/bound/dst4/ret
+// 五个具名局部（ORIG 有槽往返）后 ndiff 35→14，残差为跨版本槽号分配（N82），
+// p167 CLEAR（2/2），语义闭合。
 bool compress_zip(char* out, unsigned int& outLen, const char* in, unsigned int inLen)
 {
-    // ORIG 以带符号语义处理 inLen（cmpl+jg 有符号比较、imul 0x66666667+sar 有符号除 5）
-    if ((int)inLen <= 0)
+    // [b28d-27] ORIG 0x086b201f 逐条：形参 out/inLen 各复制进具名局部（-0x10/-0x14，
+    // P0 槽往返证据），bound 为 **int**（imul 0x66666667+sar 有符号除 5，槽 -0x1c），
+    // dst4 具名指针（-0xc），compress2 返回值具名 ret（-0x18），末段 bound 先写回
+    // 再赋 outLen（两步）。
+    char* dst = out;
+    int len = (int)inLen;
+    if (len <= 0)
     {
         LogManager::logFormat(
             1, "Utility.cpp",
@@ -127,19 +135,19 @@ bool compress_zip(char* out, unsigned int& outLen, const char* in, unsigned int 
             "d%c%02d");
         return false;
     }
-    unsigned long bound =
-        static_cast<unsigned long>((int)inLen + (int)inLen / 5 + 12);
-    if (compress2(reinterpret_cast<unsigned char*>(out + 4), &bound,
-                  reinterpret_cast<const unsigned char*>(in),
-                  static_cast<unsigned long>(inLen), -1) != 0)
-    {
+    int bound = len + len / 5 + 12;
+    unsigned char* dst4 = reinterpret_cast<unsigned char*>(dst) + 4;
+    int ret = compress2(dst4, reinterpret_cast<unsigned long*>(&bound),
+                        reinterpret_cast<const unsigned char*>(in),
+                        static_cast<unsigned long>(len), -1);
+    if (ret != 0)
         return false;
-    }
-    if (outLen < bound)                        // ORIG：*destCap < size → 失败
+    if (outLen < static_cast<unsigned int>(bound))   // ORIG：*destCap < size → 失败
         return false;
-    *reinterpret_cast<unsigned int*>(out) =
-        static_cast<unsigned int>(inLen) & 0x3fffffff;   // ORIG and 截断 30 位
-    outLen = static_cast<unsigned int>(bound + 4);
+    *reinterpret_cast<unsigned int*>(dst) =
+        static_cast<unsigned int>(len) & 0x3fffffff;  // ORIG and 截断 30 位
+    bound += 4;
+    outLen = static_cast<unsigned int>(bound);
     return true;
 }
 
@@ -193,6 +201,8 @@ bool DB_LoadActionPoint::dispatch(int a, int b, Stream* stream)
 }
 
 // ParseActionClearState —— 报告全文转写。ORIG T 0x08123f50。this 未使用。
+// [b28d-27] DIFF N82：ORIG 0x08123f50；p167 CLEAR（10/10），残差为帧/槽分配，
+// 语义闭合。
 bool DB_LoadActionPoint::ParseActionClearState(char* text, _ActionPoint* table,
                                                unsigned int count)
 {
@@ -235,6 +245,8 @@ bool DB_LoadActionPoint::ParseActionClearState(char* text, _ActionPoint* table,
 }
 
 // Select —— 报告全文转写。ORIG T 0x08123b9e。
+// [b28d-27] DIFF N82/N89：ORIG 0x08123b9e；p167 CLEAR（21/21），残差为 SQL/STL
+// 实例与帧/槽分配，语义闭合。
 bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
 {
     // 伪 helper 归一（P49-P50）：ORIG 直接调 DBMgr::GetDBHandle，勿经 inline 中继
@@ -352,11 +364,18 @@ DB_LoadActionPoint::~DB_LoadActionPoint() {}
 // ============================================================================
 
 // MakeActionClearStateString —— 报告全文转写。ORIG T 0x081246d6。
+// [b28d-27] DIFF（p167 MISSING 4）：ORIG 0x081246d6；ORIG 多 std::string 临时
+// 构造/析构（_ZNSsC1Ev/D1Ev×2）+ _Unwind_Resume，我方缺临时对象与 EH 清理路径。
 void DB_UpdateActionPoint::MakeActionClearStateString(std::string& out,
                                                       const _ActionPoint* table,
                                                       unsigned int count)
 {
     out.clear();
+    // [b28d-27] ORIG 0x081246d6：out.clear() 后立即 `_ZNSsC1Ev`（具名 std::string
+    // 局部），函数尾 D1Ev + _Unwind_Resume（EH 清理）；该局部在 ORIG 中未被赋值
+    // （死局部，P171 照抄）。
+    std::string tmp;
+    (void)tmp;
     for (unsigned int row = 0; row < count; ++row)
     {
         const _ActionPoint& rec = table[row];
@@ -379,6 +398,8 @@ void DB_UpdateActionPoint::MakeActionClearStateString(std::string& out,
 }
 
 // Update —— 报告全文转写。ORIG T 0x08124386。
+// [b28d-27] DIFF N82/N89：ORIG 0x08124386；p167 CLEAR（22/22），残差为 SQL/STL
+// 实例与帧/槽分配，语义闭合。
 bool DB_UpdateActionPoint::Update(bool bExpireDate, const _SIG_LOAD_ACTION_POINT& sig)
 {
     // 伪 helper 归一：ORIG 直接调 DBMgr::GetDBHandle
@@ -483,6 +504,8 @@ bool DB_LoadRewardMedal::dispatch(int a, int b, Stream* stream)
 }
 
 // Select —— 报告全文转写。ORIG T 0x08124910。
+// [b28d-27] DIFF N82/N89：ORIG 0x08124910；p167 CLEAR（18/18），残差为 SQL/STL
+// 实例与帧/槽分配，语义闭合。
 bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
 {
     // 伪 helper 归一：ORIG 直接调 DBMgr::GetDBHandle
@@ -621,6 +644,8 @@ void CActionPointManager::Set(_SIG_LOAD_ACTION_POINT& sig)
 }
 
 // GM_Reset —— 报告汇编+反编译全文转写。ORIG T 0x08121d12。
+// [b28d-27] DIFF N82：ORIG 0x08121d12；p167 CLEAR（1/1），残差为循环体数组寻址
+// （两步 add vs 4 步 imul 链）+ 帧差，语义闭合。
 void CActionPointManager::GM_Reset()
 {
     m_flag00 = 1;                             // *(this)=1
@@ -644,6 +669,10 @@ void CActionPointManager::GM_Reset()
 }
 
 // ClearActionOne —— 报告全文转写。ORIG T 0x08121f1c。
+// [b28d-27] DIFF（p167 MISSING 5）：ORIG 0x08121f1c；ORIG 直接
+// G_CDataManager()->GetActionPointEtcParameter(false).m_refs.find/end（非 const）
+// + const_iterator 转换，我方经 getActionPointRefs() getter（EXTRA）且 const 版
+// find/end ⇒ 调用形态不同（语义等价）。
 bool CActionPointManager::ClearActionOne(_ActionPoint& action, int itemIdx)
 {
     if (itemIdx != 0)
@@ -700,6 +729,8 @@ bool CActionPointManager::ClearActionOne(_ActionPoint& action, int itemIdx)
 }
 
 // ClearAction —— 报告全文转写。ORIG T 0x08121dcc。
+// [b28d-27] DIFF N82：ORIG 0x08121dcc；p167 CLEAR（3/3），残差为帧/槽分配，
+// 语义闭合。
 bool CActionPointManager::ClearAction(CUser& user, _ActionGroupIndex group,
                                       int itemIdx, ENUM_PACKETCLASS packetClass)
 {
@@ -732,6 +763,10 @@ bool CActionPointManager::ClearAction(CUser& user, _ActionGroupIndex group,
 }
 
 // SetTodayAction —— 报告汇编+反编译全文转写。ORIG T 0x0812161c。
+// [b28d-27] DIFF（p167 MISSING 6 族/17 次）：ORIG 0x0812161c；ORIG 用
+// vector<const CActionPointEx*>（ixEj×11、C1Ev、push_back(&&)、const_iterator
+// ppEi/ne），我方用不同容器/遍历形式（EXTRA 分配器/构造族）⇒ 符号族不同
+// ⇒ N89 封顶（语义等价）。
 void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
                                          ENUM_EXPERT_JOB_TYPE jobType,
                                          const std::map<unsigned short,
@@ -851,6 +886,9 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
 }
 
 // GetTodayRewardAndSendMail —— 报告全文转写。ORIG T 0x08122104。
+// [b28d-27] DIFF（p167 MISSING 3）：ORIG 0x08122104；ORIG 用
+// `const vector<_TodayRewardItem>::operator[]`（_ZNK...ixEj）三次，我方非 const
+// 版（P96/P270 cv 旋钮）。
 bool CActionPointManager::GetTodayRewardAndSendMail(
     CUser& user, _SIG_LOAD_ACTION_POINT::_TodayRewardItem reward)
 {
@@ -908,6 +946,9 @@ bool CActionPointManager::GetTodayRewardAndSendMail(
 // Inter_LoadRewardMedal::SendMail —— 报告全文转写。ORIG T 0x08124ea0。
 // 声明位于 InterDispatcher.h（类内 public）。
 // ============================================================================
+// [b28d-27] DIFF（p167 MISSING 5）：ORIG 0x08124ea0；ORIG 用
+// `const vector<_MedalRewardItem>::operator[]`（_ZNK...ixEj）五次，我方非 const 版
+// （P96/P270 cv 旋钮）。
 bool Inter_LoadRewardMedal::SendMail(CUser& user, unsigned int medalCount)
 {
     const std::vector<_MedalRewardItem>& medals =

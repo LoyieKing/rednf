@@ -1,4 +1,6 @@
 // ============================================================================
+// [b28d-38 判词] ImportChattingEmoticon 0x08.. DIFF：p167 CLEAR 42/42（语义完成），
+//  byte 层 N 封顶（317=317 助记符序列/槽差）。
 // df_game_r 还原 —— CChattingEmoticonList（聊天表情列表，G5 批次）。
 // 语义依据 docs/class_func_reports/CChattingEmoticonList/*.md 与
 // ChattingEmoticon_{Base,byEvent,byPremium,byLevel}/*.md 反汇编。

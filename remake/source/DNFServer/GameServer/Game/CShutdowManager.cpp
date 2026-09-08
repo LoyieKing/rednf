@@ -24,6 +24,8 @@ CShutdowManager::CShutdowManager()
 // ORIG 0x82a37c8：this 使能位(+0x00) 非零时向 DB 队列投递两条关服消息：
 //   queue 2: << 0x95 << -1；queue 4: << 0x96 << -1；各使 this+0x04 计数 +1。
 //   （ORIG 全程未使用 user 参数。）
+// [b28d-27] DIFF N82：ORIG 0x082a37c8；p167 CLEAR（20/20），残差为帧/槽与
+// 分支块排布，语义闭合。
 unsigned int CShutdowManager::SendLastMsgDBQueue(CUser* user)
 {
     if (!static_cast<bool>(m_flag))
@@ -55,12 +57,11 @@ unsigned int CShutdowManager::SendLastMsgDBQueue(CUser* user)
 bool CShutdowManager::WaitUntilExitThread()
 {
     std::printf("WaitUntilExitThread (%d)\n", (int)(unsigned char)m_flag);
-    register unsigned char v asm("eax") = m_flag;
-    v ^= 1;
-    if (v)
+    // [b28d-27] P0/N96 清绑：ORIG 0x082a396e `movzbl (%eax),%eax; xor $1; test %al;
+    // je <joins>` ⇒ 字段已 bool，裸 `if (!m_flag) { joins; return true; }` 即复现
+    // （P248 档②；P214② 两个 return true 共享尾块）。
+    if (!m_flag)
     {
-        return true;
-    }
     // ORIG 0x82a396e 逐条转写：按地址序 join 7 个线程全局（s_dispatch_thr →
     // s_udp_thr → s_monitor_tcp_thr → s_db_thr → s_db_thr_for_logDB →
     // s_accept_thr → s_net_thr），每次 join 后 puts 对应描述串。
@@ -80,6 +81,8 @@ bool CShutdowManager::WaitUntilExitThread()
     std::puts("accept thread join");
     reinterpret_cast<ThreadInterface*>(GlobalData::s_net_thr)->join();
     std::puts("net thread join");
+    return true;
+    }
     return true;
 }
 
@@ -112,12 +115,10 @@ void CShutdowManager::EnableShutdown(bool on)
 //   GlobalData::s_server_stop = 1。
 void CShutdowManager::OnAllUserLogout()
 {
-    register unsigned char v2 asm("eax") = m_flag;
-    v2 ^= 1;
-    if (v2)
-    {
+    // [b28d-27] P0/N96 清绑：ORIG 0x082a36bc `movzbl (%eax),%eax; xor $1; test %al;
+    // jne <尾>` ⇒ 裸 `if (!m_flag) return;`（P248 档②）。
+    if (!m_flag)
         return;
-    }
     cMyTrace trace(__PRETTY_FUNCTION__, 0x323b, 0);
     // ORIG +0x03c `movl $"ALL USER LOGOUT COMPLETE\n"`——日志第二点：消息串须与
     // ORIG 逐字节一致（原"Send message to monitor for logout all user."是错误串）。

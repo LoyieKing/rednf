@@ -227,22 +227,30 @@ unsigned long Event_Upgrade_Jar::getBoosterIndex_byUpgradeCardIndex(unsigned lon
     // b28d-lane25：P167 差集实证 ORIG 用非 const `_Rb_tree_iterator`（ne/ptEv）且
     // make_pair(low,high) 为 pair<short,short>→pair<int,int> 转换（P96/P270/P192）。
     std::map<unsigned long, short>::iterator itCard = m_boosterIndexMap.find(cardIdx);
-    if (itCard == m_boosterIndexMap.end())
-        return 0;
     std::map<unsigned long, short>::iterator itBooster = m_boosterIndexMap.find(boosterIdx);
-    if (itBooster == m_boosterIndexMap.end())
-        return 0;
+    // ORIG：两处均 `!=`（ne）且为嵌套 if；low/high 手写交换（非 std::swap）。
+    if (itCard != m_boosterIndexMap.end())
+    {
+        if (itBooster != m_boosterIndexMap.end())
+        {
+            short low = itCard->second;
+            short high = itBooster->second;
+            if (high < low)
+            {
+                short tmp = high;
+                high = low;
+                low = tmp;
+            }
 
-    short low = itCard->second;
-    short high = itBooster->second;
-    if (high < low)
-        std::swap(low, high);
-
-    std::map<std::pair<int, int>, unsigned long>::iterator itRecipe =
-        m_recipeMap.find(std::make_pair(low, high));
-    if (itRecipe == m_recipeMap.end())
-        return 0;
-    return itRecipe->second;
+            std::map<std::pair<int, int>, unsigned long>::iterator itRecipe =
+                m_recipeMap.find(std::make_pair(low, high));
+            if (itRecipe != m_recipeMap.end())
+            {
+                return itRecipe->second;
+            }
+        }
+    }
+    return 0;
 }
 
 // ORIG 0x0854b57c（W）。m_materialKind==1。
@@ -272,155 +280,127 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
     if (!loadRDARScriptFile("", path))
         return false;
 
+    // b28d-lane25：ORIG 0x089687d1 全文重写。要点：
+    // ① 比较形 `"字面量" == token`（const char* 在左，P167 差集实证）；
+    // ② 全部 ScanInt/ScanFloat 走 bool* 重载 `x = ScanInt(&ok); if (!ok)`；
+    // ③ 两个 string 局部（ORIG C1Ev/D1Ev 各 1）；
+    // ④ 主循环 for(;;) 各段尾回头部；失败 return false / EOF return true。
     std::string token;
-    bool ok = true;
-    bool consumed = true;
+    std::string unusedToken;   // ORIG 第二 string 局部（0x08968811 C1Ev / 0x08968d31 D1Ev）
+    (void)unusedToken;
+    bool ok = false;
+    ST_Event_Upgrade_Jar_EventNPCs_Script npc;   // ORIG 函数级对象（0x08968828 C1，-0x84）
 
-    while (consumed && ScanType(token, true))
+    for (;;)
     {
-        if (token == "[group info]")
-        {
-            int npcCount = 0;
-            if (!ScanInt(&npcCount))
-            {
-                ok = false;
-                break;
-            }
-            info->m_npcCount = (unsigned short)npcCount;
+        if (!ScanType(token, true))
+            return true;
 
-            // ORIG：每组连续读入若干 id（`local_7c`），以 `-1` 结束；将
-            // `{id, 组索引 g}` 插入 m_boosterIndexMap（value = 0-based 组号）。
+        if ("[group info]" == token)
+        {
+            // ORIG 0x08968878：先写 m_npcCount 字段，后查 ok。
+            info->m_npcCount = (unsigned short)ScanInt(&ok);
+            if (!ok)
+                return false;
+
+            // 每组连续读入若干 id，以 -1 结束；insert(make_pair(id, g))（ORIG insert）。
             for (unsigned short g = 0; g < info->m_npcCount; ++g)
             {
-                for (;;)
-                {
-                    int id = 0;
-                    if (!ScanInt(&id))
-                    {
-                        ok = false;
-                        break;
-                    }
-                    if (id == -1)
-                        break;
-                    info->m_boosterIndexMap[(unsigned long)id] = (short)g;
-                }
+                // ORIG make_pair 模板参 <unsigned int&, unsigned short&> ⇒ id 为 unsigned。
+                unsigned int id = 0;
+                id = ScanInt(&ok);
                 if (!ok)
+                    return false;
+                if (id == -1)
                     break;
+                info->m_boosterIndexMap.insert(std::make_pair(id, g));
             }
-            if (!ok)
-                break;
 
             // 配方对：`<cardIdx> <boosterIdx> <recipeIndex>`，共 npcCount*(npcCount+1)/2 组。
             int pairCount = (int)((unsigned int)info->m_npcCount * (info->m_npcCount + 1U)) >> 1;
             for (int i = 0; i < pairCount; ++i)
             {
                 int cardIdx = 0, boosterIdx = 0, recipeIndex = 0;
-                if (!ScanInt(&cardIdx) || !ScanInt(&boosterIdx) || !ScanInt(&recipeIndex))
-                {
-                    ok = false;
-                    break;
-                }
-                int lo = cardIdx - 1;
-                int hi = boosterIdx - 1;
-                info->m_recipeMap[std::make_pair(lo, hi)] = (unsigned long)recipeIndex;
+                cardIdx = ScanInt(&ok);
+                if (!ok)
+                    return false;
+                boosterIdx = ScanInt(&ok);
+                if (!ok)
+                    return false;
+                recipeIndex = ScanInt(&ok);
+                if (!ok)
+                    return false;
+                info->m_recipeMap[std::make_pair(cardIdx - 1, boosterIdx - 1)] =
+                    (unsigned long)recipeIndex;
             }
-            if (!ok)
-                break;
         }
-        else if (token == "[fortune index]")
+        else if ("[fortune index]" == token)
         {
-            for (;;)
-            {
-                int idx = 0;
-                if (!ScanInt(&idx))
-                {
-                    ok = false;
-                    break;
-                }
-                if (idx == -1)
-                    break;
-                info->m_materialIndices.push_back((unsigned long)idx);
-            }
+            // ORIG 0x08968a6e..0x08968b60：固定 4 次（直线，无循环、无 -1 终止），
+            // 每次 `push_back((unsigned long)ScanInt(&ok))`（右值临时槽）。
+            int idx;
+            idx = ScanInt(&ok);
             if (!ok)
-                break;
+                return false;
+            info->m_materialIndices.push_back((unsigned long)idx);
+            idx = ScanInt(&ok);
+            if (!ok)
+                return false;
+            info->m_materialIndices.push_back((unsigned long)idx);
+            idx = ScanInt(&ok);
+            if (!ok)
+                return false;
+            info->m_materialIndices.push_back((unsigned long)idx);
+            idx = ScanInt(&ok);
+            if (!ok)
+                return false;
+            info->m_materialIndices.push_back((unsigned long)idx);
         }
-        else if (token == "[fortune fail rate]")
+        else if ("[fortune fail rate]" == token)
         {
-            // ORIG：每次读三值 `groupIdx(=1-based) <discard> <failRate>`，将 failRate
-            // 压入 m_failRateByFortune[groupIdx-1]；groupIdx==-1 终止。
-            for (;;)
+            // ORIG 0x08968b86：逗号条件 while((groupIdx=ScanInt(&ok)), ok)；
+            // 第二个值丢弃、第三个为 rate；首值失败仅回主循环（break），
+            // 后两值失败 return false。无 -1 终止检查。
+            int groupIdx;
+            while ((groupIdx = ScanInt(&ok), ok == true))
             {
-                int groupIdx = 0;
-                if (!ScanInt(&groupIdx))
-                {
-                    ok = false;
-                    break;
-                }
-                if (groupIdx == -1)
-                    break;
-                int dummy = 0, rate = 0;
-                if (!ScanInt(&dummy) || !ScanInt(&rate))
-                {
-                    ok = false;
-                    break;
-                }
+                ScanInt(&ok);                 // 丢弃（ORIG 0x08968ba5 结果不入字段）
+                if (!ok)
+                    return false;
+                int rate;
+                rate = ScanInt(&ok);
+                if (!ok)
+                    return false;
                 info->m_failRateByFortune[groupIdx - 1].push_back((unsigned int)rate);
             }
-            if (!ok)
-                break;
         }
-        else if (token == "[event upgrade table]")
+        else if ("[event upgrade table]" == token)
         {
-            float discount = 0.0f;
-            if (!ScanFloat(&discount))
-            {
-                ok = false;
-                break;
-            }
+            // ORIG 0x08968c35：ScanFloat(&ok) 直存 m_discountRate（fstps 序）。
+            float discount = ScanFloat(&ok);
             info->m_discountRate = discount;
+            if (!ok)
+                return false;
             for (;;)
             {
-                int dummy = 0;
-                if (!ScanInt(&dummy))     // 丢弃（占位，无读取字段）
-                {
-                    ok = false;
-                    break;
-                }
-                int failRate = 0;
-                if (!ScanInt(&failRate))
-                    break;                // 序列终止
-                int meterialCount = 0;
-                if (!ScanInt(&meterialCount))
-                {
-                    ok = false;
-                    break;
-                }
-                ST_Event_Upgrade_Jar_EventNPCs_Script npc;
-                npc.m_failRate = (unsigned int)failRate;
-                npc.m_meterialCount = (unsigned int)meterialCount;
+                ScanInt(&ok);                 // 丢弃（ORIG 0x08968c5b 结果不入字段）
+                npc.m_failRate = (unsigned int)ScanInt(&ok);
+                if (!ok)
+                    break;                    // 序列终止：回主循环
+                npc.m_meterialCount = (unsigned int)ScanInt(&ok);
+                if (!ok)
+                    return false;
                 info->m_npcScripts.push_back(npc);
             }
+        }
+        else if ("[upgrade max]" == token)
+        {
+            // ORIG 0x08968cd7：先写 m_upgradeMax 字段，后查 ok。
+            info->m_upgradeMax = ScanInt(&ok);
             if (!ok)
-                break;
-        }
-        else if (token == "[upgrade max]")
-        {
-            int max = 0;
-            if (!ScanInt(&max))
-            {
-                ok = false;
-                break;
-            }
-            info->m_upgradeMax = max;
-            consumed = true;
-        }
-        else
-        {
-            // 未知段：跳过（保持 ScanType 循环继续）。
+                return false;
         }
     }
-
-    return ok;
 }
 
 // ORIG 0x08968d59。把 EventUpgradeJarInfo 的 NPC 脚本填进 upgrade_table_t 的 m_infos
@@ -435,9 +415,10 @@ bool updateUpgradeTableFromEventUpgradeJarScript(upgrade_table_t* table, EventUp
     {
         if (i < table->m_infos.size())
         {
-            upgrade_info_t& infoRow = table->m_infos[i];
-            infoRow.m_recipeItem = 0x28be7b;
-            infoRow.m_meterialCount = (int)info->m_npcScripts[i].m_meterialCount;
+            // b28d-lane25：P167 差集实证 ORIG 对 m_infos[i] 发两次 operator[]
+            // （P48 无 CSE，禁引用缓存）。
+            table->m_infos[i].m_recipeItem = 0x28be7b;
+            table->m_infos[i].m_meterialCount = (int)info->m_npcScripts[i].m_meterialCount;
         }
     }
 

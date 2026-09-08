@@ -388,13 +388,14 @@ int CSkill::getMaxSkillLevel(int level, int firstGrowType,
     {
         return -1;
     }
-    // ORIG 0x83506e0：v=(level-m_levelLimit)+1 仅参与比较，maxLevel 保持原值
-    // （NEW 曾误写为 if (v<=max) max=v，会缩小上限，与 ORIG 不符）。
-    {
-        int keep = maxLevel;
-        if ((level - m_levelLimit) + 1 > keep)
-            maxLevel = keep;
-    }
+    // b28d-37 [真语义 bug 修正，ORIG 0x08350785]：ORIG 为
+    // `eax=v+1; edx=maxLevel; cmp %edx,%eax; jle L; mov %edx,%eax; L: mov %eax,-0x10`
+    // ⇒ maxLevel = min((level-m_levelLimit)+1, maxLevel)（v+1<=maxLevel 时上限缩小）。
+    // 旧实现 `if (v+1 > keep) maxLevel = keep;` 恒为无操作（keep==maxLevel），
+    // 导致返回上限偏大（v+1<=maxLevel 时未缩小）。改三元 min 形。
+    maxLevel = ((level - m_levelLimit) + 1 < maxLevel)
+                   ? (level - m_levelLimit) + 1
+                   : maxLevel;
     int q = (level - m_levelLimit) / m_fieldC8 + 1;
     if ((unsigned)(q < maxLevel ? q : maxLevel) >> 31)
     {

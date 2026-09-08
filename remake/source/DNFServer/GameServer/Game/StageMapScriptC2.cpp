@@ -200,6 +200,7 @@ StageMapScript::~StageMapScript()
 // four integers until the first failed ScanInt, then appends the current
 // district; [slot type] consumes five-integer records and only inserts a new
 // key; and [/area] appends the area without appending the pending district.
+// [b28d-24] DIFF 残279: P167 EXTRA push_back×3/StageData D1×2/ne×1（解析分支结构差异），待按 P165/P166 收敛。ORIG 0x088a9f28
 bool importStageMapScript(stagemap::StageMapScript* out, const char* path)
 {
     if (!loadRDARScriptFile(g_stageMapScriptBaseDirectory, path))

@@ -947,18 +947,16 @@ int ImportNewAccountLeventUpToJobScript(const char* path,
 
         if (token == "[reward stackable item]")
         {
-            std::string endTag("[/reward stackable item]");
-            err = LoadRewardDataByNoType(script.m_stepReward, endTag);
+            // b28d-lane25：P167 差集实证 ORIG 直接传字面量（C1EPKc 临时，无 C1ERKSs 拷贝）。
+            err = LoadRewardDataByNoType(script.m_stepReward, "[/reward stackable item]");
         }
         else if (token == "[reward equip item]")
         {
-            std::string endTag("[/reward equip item]");
-            err = LoadRewardDataByGrowType(script.m_levelUp18, endTag);
+            err = LoadRewardDataByGrowType(script.m_levelUp18, "[/reward equip item]");
         }
         else if (token == "[reward avatar item]")
         {
-            std::string endTag("[/reward avatar item]");
-            err = LoadRewardDataByGrowType(script.m_levelUp30, endTag);
+            err = LoadRewardDataByGrowType(script.m_levelUp30, "[/reward avatar item]");
         }
         else
         {
@@ -1032,14 +1030,15 @@ void deleteTagBracketString(std::string& text)
 
     for (std::string::size_type i = 0; i < text.size(); ++i)
     {
-        char c = text[i];
-        if (c == tag[0] || c == tag[1])
+        // b28d-lane25：P167 差集实证 ORIG 无 char 缓存——text[i] 在条件两臂与
+        // push_back 处各读一次（operator[] 共 3 次）。
+        if (text[i] == tag[0] || text[i] == tag[1])
         {
             replaced = true;
         }
         else
         {
-            filtered.push_back(c);
+            filtered.push_back(text[i]);
         }
     }
 

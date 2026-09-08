@@ -153,6 +153,7 @@ void CParty::die_user(CUser* user)
  // ============================================================================
 // CParty::finish_loading —— ORIG 0x085b15e0
 // ============================================================================
+// [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x085b15e0。
 void CParty::finish_loading(CUser* user)
 {
     for (int i = 0; i <= 3; ++i)                        // -0xc
@@ -316,6 +317,7 @@ int CParty::choose_random_buff(QuickParty::RandomBuffDungeon dungeon)
 // CParty::checkInoutConditionDungeon —— ORIG 0x085abc80（三参重载，单出口）
 // 返回错误码（0=通过）；错误路径同步向全队发包。
 // ============================================================================
+// [b28d-30] 复核 DIFF：巨件残差（N82/N89 族），ORIG 0x085abc80。
 int CParty::checkInoutConditionDungeon(CDungeon const* dungeon,
                                        ENUM_DUNGEON_MODE mode,
                                        ENUM_CMDPACKET cmd)
@@ -525,6 +527,7 @@ DONE:
 // CParty::giveup_game —— ORIG 0x085b2baa（单出口）
 // 参数：user=放弃者 a2=允许惩罚 a3=按成功结算 a4=强制整队分支。
 // ============================================================================
+// [b28d-30] 复核 DIFF：巨件残差（N82/N89 族），ORIG 0x085b2baa。
 void CParty::giveup_game(CUser* user, bool a2, bool a3, bool a4)
 {
     CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);

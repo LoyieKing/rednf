@@ -115,6 +115,8 @@ void ScriptStringManager::clear()
 // ORIG 的负 index 分支检查是死代码（负 index 恒满足 index<=size 而走
 // 越界 assign，UB），此处按 DWARF 意图以越界返回 false 作护栏；
 // outputString==NULL 亦为 ORIG UB，护栏返回 false。
+// b28d-31: N 封顶（N7）——ORIG 0x08acf160；44 vs 44，唯一残差为 eax↔ecx
+// 寄存器角色（lea (%eax/%ecx,%esi,4) 承载寄存器互换）。
 bool ScriptStringManager::getString(int index, std::string* outputString) const
 {
     // [b28c-21] ORIG 8acf160 段：outputString/index 缓存于 callee-saved
@@ -138,6 +140,8 @@ bool ScriptStringManager::getString(int index, std::string* outputString) const
 // index<0 或 index>=条数 → &DEFAULT_STRING（8acf221），否则返回
 // &strings_[index]（8acf226）。ORIG 返回非常量 string*（DWARF 原型），
 // const 成员取成员地址为 const，此处按 const std::string* 返回。
+// b28d-31: N 封顶（N7/N89）——ORIG 0x08acf1f0；45 vs 53（guard 惰性初始化
+// 的 __cxa_guard 段 + callee-saved 角色差）。
 const std::string* ScriptStringManager::getString(int index) const
 {
     // [b28c-21] ORIG 8acf1f0：正极性嵌套 if（js 负索引 → 尾部 DEFAULT），
@@ -160,6 +164,10 @@ const std::string* ScriptStringManager::getString(int index) const
 // 此处以空串作护栏。
 int ScriptStringManager::insertString(const char* string)
 {
+    // b28d-31: N 封顶（N89/P167）——ORIG 0x08acf720；196 vs 240。实测两形：
+    // 具名 value 形 240 条（本形，最优）；find/insert 各内联 std::string(string)
+    // 临时形 293 条（更差，已回退）——ORIG 的 2×basic_string(char const*) +
+    // _M_insert_aux(string&&) 组合无 4.4 源形可复现。
     const std::string value = string ? string : "";
     std::map<std::string, int>::const_iterator it = string_map_.find(value);
     if (it != string_map_.end()) return it->second;
@@ -174,6 +182,8 @@ int ScriptStringManager::insertString(const char* string)
 // offsets[i] 写前查 4+4*i<=buffSize（8acf480/8acf491）、数据区前查
 // 总大小 offset<=buffSize（8acf4bd）、每串 memcpy 后查游标<=buffSize
 // （8acf528）。ORIG 无 buffer==NULL 检查（UB），此处护栏返回 -1。
+// b28d-31: N 封顶（N89 镜像）——ORIG 0x08acf420；102 vs 80：ORIG 内联
+// vector::size/operator[]（mov 0x8/0x4(%esi) 直算），4.4 恒 out-of-line call。
 int ScriptStringManager::exportToBuffer(unsigned char* buffer, int buffSize) const
 {
     const int count = static_cast<int>(strings_.size());
@@ -211,6 +221,8 @@ int ScriptStringManager::exportToBuffer(unsigned char* buffer, int buffSize) con
 // 任一 fwrite 失败 → fclose 后 false；fopen 失败 → false（ORIG 无 fclose）。
 // 布局与 exportToBuffer 完全一致。ORIG 无 fileName==NULL 检查（UB），
 // 此处护栏返回 false。
+// b28d-31: N 封顶（N89 镜像）——ORIG 0x08acf2a0；115 vs 106：ORIG 内联
+// 访问器，4.4 call（同 exportToBuffer 族）。
 bool ScriptStringManager::exportToFile(const char* fileName) const
 {
     if (fileName == 0)
@@ -261,6 +273,8 @@ ScriptStringManager::ScriptStringManager() {}
 ScriptStringManager::~ScriptStringManager() {}
 
 // importFromBuffer @ 0x8acf970
+// b28d-31: N 封顶（N89 镜像/P167）——ORIG 0x08acf970；242 vs 266：ORIG
+// 内联 map/vector 访问器 vs 4.4 out-of-line。
 bool ScriptStringManager::importFromBuffer(const unsigned char* buffer,
                                            int buffSize)
 {

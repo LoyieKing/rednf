@@ -76,8 +76,10 @@ CAutoPunishRuleBlackIPMgr::stIPInfo_t::stIPInfo_t(unsigned char minIp,
 bool CAutoPunishRuleBlackIPMgr::addBlackIP(unsigned long addr, unsigned char minIp,
                                            unsigned char maxIp)
 {
-    stIPInfo_t info(minIp, maxIp);
-    m_map.insert(std::make_pair(addr, info));
+    {
+        stIPInfo_t info(minIp, maxIp);
+        m_map.insert(std::make_pair(addr, info));
+    }
     return true;   // mov $0x1,%eax
 }
 

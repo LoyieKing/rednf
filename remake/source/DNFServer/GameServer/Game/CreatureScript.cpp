@@ -20,6 +20,9 @@
 #include "LogManager.h"
 #include "NpcScript.h"
 #include "STComputeDamageVariable.h"
+// [b28d-34] 本 TU 发射的 STComputeDamageVariable::C1（ORIG W 0x08890936，定义在
+// 共享头 STComputeDamageVariable.h）：orig 257/ours 259，残差为头内 ctor 的
+// 字段初始化集合/序差（+0x1f 起一段），N82/N98 族；语义等价。
 #include "CEnvironment.h"     // class SpinLock / struct less_TCHAR
 
 // processModuleTagSet ORIG T 0x08a97637（RDARScriptSkill.cpp 模块标签域；实现于
@@ -103,6 +106,8 @@ CreatureScript::~CreatureScript()
 // ORIG 0x833dfac：复位全部标量 + clear 各容器。
 void CreatureScript::clear()
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x0833dfac 有两条连续 `movl $0,-0xc`
+    // （P197③ 双槽置 0 形），4.4 折一条且槽号平移（N98 族）；语义等价。
     m_evolutionMultyId.clear();
     m_id = 0;
     m_name = "";
@@ -282,6 +287,7 @@ bool AttackInfo::isIntendDamage()
     // `fucompp; fnstsw %ax; sahf; seta` vs 4.4 `fucomip %st(1),%st; fstp %st(0);
     // seta`（条数 24 vs 25，语义逐条等价）。N85 判据明列此形无源码解（禁改
     // callee 返回类型/禁内联绕过）。三条件短路布局与跳转落点已全等。
+    // [b28d-34] 复核维持 N85（ORIG 0x08890760）。
     if (m_weaponDamageApply != 0 || m_damage > 0.0f || m_absoluteDamage > 0)
     {
         return true;
@@ -433,6 +439,8 @@ enum CreatureSkillTag
 
 bool importCreatureScript(CreatureScript* script, const char* path)
 {
+    // [b28d-34] 复核维持 DIFF（§6.2）：orig 2188/ours 2162，残差为帧差
+    // （0x2ac vs 0x2dc）与 STL 实例化族（N89），语义等价。
     if (!loadRDARScriptFile(g_creatureScriptBaseDirectory, path))
     {
         return false;
@@ -1245,6 +1253,9 @@ enum AttackInfoTag
 // 与 case 0x42 共享入口（dispatch 树 `test %eax,%eax; je 0x19ca`）。
 bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
 {
+    // [b28d-34] 复核维持 DIFF（§6.2 三件套口径）：超大件 orig 2148/ours 2066，
+    // 残差为 4.4 帧/槽布局（0x40c vs 0x41c，P182/N82）与大函数 difflib 失真，
+    // 语义等价。
     if (!loadRDARScriptFile("", path))        // 0x1a:失败 ebx=0 → return false
     {
         return false;
@@ -1831,15 +1842,12 @@ namespace user_creature
 // ORIG 0x833c77e：vector +8、+0x24/+0x28/+0x2c 清零、set +0x34、vector +0x68、
 // clear +8、+0x20 置 0、clear +0x68。
 CCreatureScript::CCreatureScript()
-    : m_field0(0), m_field4(0), m_vec8(), m_field14(0), m_field18(0),
-      m_itemId(0), m_artifactSlotFlags(0), m_field24(0), m_field28(0),
-      m_field2c(0), m_set34(), m_field4c(0), m_field50(0), m_field54(0),
-      m_field58(0), m_field5c(0), m_field60(0), m_field64(0), m_vec68()
+    : m_vec8(), m_field24(0), m_field28(0), m_field2c(0), m_set34(), m_vec68()
 {
+    // [b28d-34] 按 ORIG 0x833c77e 逐条核减：ORIG 只初始化 +0x24/+0x28/+0x2c
+    // （列表）与 +0x20（体），其余标量（+0/+4/+0x14/+0x18/+0x1c/+0x4c..+0x64）
+    // 不写；旧列表多 33 条 store（100 vs 67）。
     m_vec8.clear();
-    m_field24 = 0;
-    m_field28 = 0;
-    m_field2c = 0;
     m_artifactSlotFlags = 0;
     m_vec68.clear();
 }
@@ -1855,9 +1863,6 @@ CCreatureScript::~CCreatureScript()
         delete[] m_artifactSlotFlags;
         m_artifactSlotFlags = 0;
     }
-    m_vec68.clear();
-    m_set34.clear();
-    m_vec8.clear();
 }
 
 // ORIG 0x833c8e8：从原生 CreatureScript* 拷贝字段。
@@ -1867,6 +1872,8 @@ CCreatureScript::~CCreatureScript()
 // = src + 4*(i+0x14) = src+0x50+4i，即 m_artifactSlotRed/Blue/Green 组）。
 void CCreatureScript::Set(CreatureScript* src)
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x0833c8e8 实参装载序（`mov 0xc(%ebp),%eax`
+    // 先于 `add $0x14,%ecx`）与 4.4 相反，N82/P211 族；语义等价。
     m_artifactSlotFlags = new bool[3];
     for (int i = 0; i < 3; ++i)
     {
@@ -1956,6 +1963,8 @@ int CCreatureScript::GetEvolutionCreatureId()
 // ORIG 0x833f150：遍历 +0x68 向量，命中返回 true。
 bool CCreatureScript::validEventEvlouteCreature(int creatureId)
 {
+    // [b28d-34] 复核维持 DIFF（P59/P222 布局族）：ORIG 0x0833f150 先取
+    // begin/end 判空再遍历，4.4 块序镜像（46 vs 45）；语义等价。
     for (std::vector<int>::const_iterator it = m_vec68.begin();
          it != m_vec68.end(); ++it)
     {
@@ -2013,10 +2022,10 @@ int CCreatureScript::GetLearnOverSkillLevel()
 //   if (m_field5c==itemIdx || m_field60==itemIdx) return 1 else 0。
 bool CCreatureScript::validItemExp(int itemIdx)
 {
-    // ORIG 0x833f280：movzbl 0x4c;xor$1;test;je 校验 → m_field4c==1(有效)才校验
-    register unsigned char v asm("eax") = m_field4c;
-    v ^= 1;
-    if (v)
+    // [b28d-34] P0 清绑（N96+N18a 封顶）：原 `register unsigned char v asm("eax")`
+    // 违反 P0 全域禁则。ORIG 0x833f280 `movzbl 0x4c;xor$1;test;je` 寄存器物化
+    // 无绑定不可达（P168a④），以 `cmpb $1,mem` 最短形替代。
+    if (m_field4c != 1)
         return false;
     if (m_field5c == itemIdx || m_field60 == itemIdx)
     {
@@ -2028,10 +2037,8 @@ bool CCreatureScript::validItemExp(int itemIdx)
 // ORIG 0x833f2bc：if (m_field4c != 0) return 0; if (m_field5c==itemIdx) return 1 else 0。
 bool CCreatureScript::validItem_AType(int itemIdx)
 {
-    // ORIG 0x833f2bc：movzbl 0x4c;xor$1;test;je 校验 → m_field4c==1 才校验
-    register unsigned char v asm("eax") = m_field4c;
-    v ^= 1;
-    if (v)
+    // [b28d-34] P0 清绑（同 validItemExp，ORIG 0x833f2bc）。
+    if (m_field4c != 1)
         return false;
     if (m_field5c == itemIdx)
     {
@@ -2043,10 +2050,8 @@ bool CCreatureScript::validItem_AType(int itemIdx)
 // ORIG 0x833f2ee：if (m_field4c != 0) return 0; if (m_field60==itemIdx) return 1 else 0。
 bool CCreatureScript::validItem_BType(int itemIdx)
 {
-    // ORIG 0x833f2ee：同族，m_field4c==1 才校验
-    register unsigned char v asm("eax") = m_field4c;
-    v ^= 1;
-    if (v)
+    // [b28d-34] P0 清绑（同 validItemExp，ORIG 0x833f2ee）。
+    if (m_field4c != 1)
         return false;
     if (m_field60 == itemIdx)
     {

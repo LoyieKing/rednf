@@ -138,7 +138,9 @@ public:
                                                   //      type]，equip type 10..21）
     // ORIG getter 以类内 int 数组寻址（arr[i] ⇒ idx+0x24 + disp8 形），
     // 故按行各声明为 int[2]：item 行 [0]=[purify material] item、[1]=only。
-    int m_purifyMatItem[2];                       // +0x9c..0xa0
+    // [b28d-34] unsigned：ORIG getPurifyMaterialType 0x08234d20 比较段两段物化
+    // （P274/P211 字段侧旋钮），探针 /tmp/p34e.cpp f4 逐条命中；布局不变。
+    unsigned int m_purifyMatItem[2];              // +0x9c..0xa0
     int m_purifyMatCount[2];                      // +0xa4..0xa8（名称序「推断」，偏移实证）
     // 强化投资表（ORIG ctor 0x082aa510 依次构造 3 个；尺寸 0x14 各）
     __gnu_cxx::hash_map<unsigned long, stInvestAmplifyOption_t>

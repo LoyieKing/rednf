@@ -126,15 +126,6 @@ struct PostalRewardView
 // stAchievement / stAchievement_DBData
 // ============================================================================
 
-stAchievement::stAchievement()
-{
-    m_id = 0;
-    m_trigger0 = 0;
-    m_trigger1 = 0;
-    m_trigger2 = 0;
-    m_state = 0;
-}
-
 bool stAchievement::isComplete()
 {
     return (m_trigger0 == 0) && (m_trigger1 == 0) && (m_trigger2 == 0);
@@ -144,12 +135,19 @@ stAchievement_DBData::stAchievement_DBData()
 {
     // ORIG 0x828d8e5：m_entries 数组由编译器自动逐个构造（esi 递减 512 次
     // call stAchievementC1），无需显式赋值循环
-    // [b28c-L29] outgoing 帧：ORIG sub $0x10 vs 4.4 sub $0x4；加 0xc 字节
-    // dead 局部对齐 ORIG 帧（4.4 -O0 未使用局部仍占栈）。
-    double framePad;
-    (void)framePad;
     m_count = 0;
     m_saveTime = 0;
+}
+
+// [b28d-D33] P210：stAchievement::C1 定义后置于 caller 之后 ⇒ 4.4 保守帧
+// sub $0x10 与 ORIG 0x828d8d8 一致（定义在前时精确继承小帧 0x4，加任何 pad 反成 0x14）。
+stAchievement::stAchievement()
+{
+    m_id = 0;
+    m_trigger0 = 0;
+    m_trigger1 = 0;
+    m_trigger2 = 0;
+    m_state = 0;
 }
 
 // ============================================================================
@@ -202,6 +200,10 @@ void CAchievement::setTrigger(unsigned int id, unsigned short t0,
     _checkComplete(id);
 }
 
+// [b28d-D33 P209 封顶] ORIG 0x0828b800 比较链为寄存器形
+// `mov 0xc(%ebp),%eax; cmp $0x198b,%eax; je`（4.1 把多次比较的形参提升寄存器）；
+// 4.4 恒 mem 直比 `cmpl $0x198b,0xc(%ebp)`（P209 反例：unsigned 形参多路比较
+// 被折叠），if 链/switch/具名局部三形均不可翻。50 vs 47 条，语义等价。
 bool CAchievement::_verifyTrigger(unsigned int id, unsigned short t0,
                                   unsigned short t1, unsigned short t2)
 {
@@ -351,6 +353,9 @@ void CAchievement::_checkComplete(unsigned int id)
     ((cUserHistoryLog*)((char*)m_user + 0x79700))->AchievementComplete((int)id);
 }
 
+// [b28d-D33] P167 CLEAR（16=16 calls，已修 `Inven_Item invenItem = …` 消 EXTRA
+// C1Ev）；残差 = push esi/ebx 顺序 + 帧 0xc0 vs 0xc4（N7/N109 callee-saved 角色
+// + 4.4 帧量化 16k+4，P190 附注②）。134 vs 135 条，语义完成。
 void CAchievement::_forceClear(unsigned int id)
 {
     Quest* quest = G_CDataManager()->find_quest((int)id);
@@ -387,8 +392,9 @@ void CAchievement::_forceClear(unsigned int id)
         {
             // ORIG 0x828cdcc 调 _ZNK15CUserCharacInfo18getCurCharacInvenREv（只读引用）
             const CInventory* inven = m_user->getCurCharacInvenR();
-            Inven_Item invenItem;
-            invenItem = inven->GetInvenSlot(0, 0xb);
+            // [b28d-D33 P215] ORIG 0x0828cc56 段无 Inven_Item::C1Ev call
+            // （p167 差集 EXTRA +1 C1Ev 实证）⇒ 原码是直接初始化，非「先声明后赋值」。
+            Inven_Item invenItem = inven->GetInvenSlot(0, 0xb);
             if ((invenItem.m_addInfo == 0) ||
                 (invenItem.m_addInfo != titleIdx))
             {
@@ -399,6 +405,9 @@ void CAchievement::_forceClear(unsigned int id)
     alter();
 }
 
+// [b28d-D33 N7/N109 + 帧量化] ORIG 0x0828ce40 帧 sub $0x40（16k+0 非量化值，
+// 4.4 带 call 恒 16k+4 ⇒ 0x54 不可凑，P190 附注②）+ push esi/ebx 顺序互换
+// （N7/N109）。163 vs 164 条、助记符序列全等，语义等价。
 void CAchievement::_forceReset(unsigned int id)
 {
     Quest* quest = G_CDataManager()->find_quest((int)id);
@@ -474,6 +483,9 @@ stAchievement CAchievement::_getTrigger(unsigned int id)
     return out;
 }
 
+// [b28d-D33 P23/P75 封顶] ORIG 0x0828d092：`call G_CDataManager` 先于形参装载
+// （ORIG `call; lea 0xa7a0(%eax),%edx` vs 4.4 先存形参槽），实参求值序跨版本
+// 调度差异。172 vs 183 条，语义等价。
 void CAchievement::_verifyAchievement(unsigned int self)
 {
     CAchievement* ach = (CAchievement*)self;
@@ -539,6 +551,9 @@ void CAchievement::_verifyAchievement(unsigned int self)
     }
 }
 
+// [b28d-D33 N93/N82 封顶] ORIG 0x0828c976 三局部槽 -0x20/-0x1c/-0x18 vs 4.4
+// -0x28/-0x2c/-0x24（块级/具名对象槽分配方向相反，N93；已全头部声明 P212 仍
+// 不可翻）。169 vs 165 条，语义等价。
 void CAchievement::adjust()
 {
     ENUM_TITLE_BOOK_CATEGORY category = (ENUM_TITLE_BOOK_CATEGORY)0;
@@ -660,6 +675,8 @@ void CAchievement::_sendComplete(unsigned int id, int titleIdx,
     m_user->Send(packet);
 }
 
+// [b28d-D33 N82/帧量化] ORIG 0x0828bf2a 帧 sub $0x70（16k+0）vs 4.4 $0x80
+// （16k+0 但多 0x10 局部区）+ 槽 -0x10 vs -0x14。110 vs 108 条，语义等价。
 void CAchievement::_sendCompleteReward(const Quest* quest,
                                        ENUM_TITLE_BOOK_CATEGORY category,
                                        int slot)
@@ -688,18 +705,26 @@ void CAchievement::_sendCompleteReward(const Quest* quest,
 
 void CAchievement::_sendEachAchieveReward(const Quest* quest)
 {
-    const PostalRewardView* reward =
-        (const PostalRewardView*)&quest->m_postalReward;
-    if (reward->m_itemIdx == 0)
+    // [b28d-D33 P63 封顶] 已修视图 cast→直访成员（ORIG 0x0828c086 单 disp）。
+    // 残差 = 尾部多 1 条 `jmp <epilogue>`（ORIG 两 return 共享直落出口），
+    // 65 vs 64 条、助记符序列全等，P63「早退共享出口」判据命中，语义等价。
+    // [b28d-D33] ORIG 0x0828c086 段为单 disp `mov 0xa4(%eax),%eax`（+0x9c+0x8）
+    // ⇒ 原码直接访问 Quest::m_postalReward 的具名成员（Quest.h:168 PostalReward
+    // 已有 m_itemIdx/m_addInfo/m_title/m_contents），非本地视图 cast（后者生 add）。
+    if (quest->m_postalReward.m_itemIdx == 0)
     {
         return;
     }
-    _sendPostal(reward->m_itemIdx, reward->m_addInfo, reward->m_title,
-                reward->m_contents);
+    _sendPostal(quest->m_postalReward.m_itemIdx,
+                quest->m_postalReward.m_addInfo,
+                quest->m_postalReward.m_title,
+                quest->m_postalReward.m_contents);
 }
 
-// 【N7 封顶】b26 lane19：虚调用 callee 寄存器互换 + callee-saved 轮换
-// （edi/esi/ebx 错位，74 条长度/助记符全等），N7 判据命中。
+// 【N7/N109 封顶】b26 lane19 + b28d-D33 复验：callee-saved 角色互换
+// （ORIG edi@0x1c/esi@0x10/ebx@0xc vs 4.4 esi@0x1c/ebx@0x10/edi@0xc；
+//  74 条长度/助记符全等，无虚调用）。P248 类型旋钮三档不适用（无 store 序/类型差），
+//  N109「callee-saved 角色互换」判据命中，ORIG 0x0828d0a8。
 void CAchievement::_sendPostal(int itemIdx, int addInfo, std::string sender,
                                std::string subject)
 {
@@ -740,6 +765,8 @@ void CAchievement::_gm_init()
     alter();
 }
 
+// [b28d-D33 N82/P75 封顶] ORIG 0x0828d450：191 vs 192 条，残差为局部槽序与
+// 实参装载序（P75 跨版本调度）。语义等价。
 void CAchievement::_gm_report(std::string& out)
 {
     char buf[0x400];
@@ -905,6 +932,9 @@ stTitleRewardBasis* CAchievement::_getPostalReward(stTitleSection* section)
     return 0;
 }
 
+// [b28d-D33 N93/P212 封顶] ORIG 0x0828bdc6：首块 `mov 0x10(%ebp),%eax;
+// mov %eax,-0x14(%ebp)` 与 4.4 槽 -0x10/-0x18 顺序相反（块级槽分配方向，N93）。
+// 107 vs 110 条，语义等价。
 bool CAchievement::_getTabComplete(stTitleSection* section,
                                    ENUM_TITLE_BOOK_CATEGORY category)
 {

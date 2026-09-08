@@ -87,7 +87,11 @@ private:
     T m_target;
 };
 
-// 缓存 begin/end/结果迭代器（ORIG 栈槽 -0x10/-0x14/-0x1c/-0xc 与两次 end 调用）。
+// [b28d-39 判词 · N93] ORIG 0x86b75d7 槽序 pred -0x18 / e -0x14 / b -0x10 / f -0x1c /
+// e2 -0xc（非单调：f 最深、e2 最浅）。4.4 具名局部恒按声明序浅→深（pred -0xc …
+// e2 -0x1c，N93）；改全表达式临时形虽改槽序但把首个 end() 提到 pred 之前、调用序
+// 变为 end/pred/begin/end/find_if（ORIG 为 pred/end/begin/find_if/end）⇒ DIFF 更深。
+// 两形实测均不闭合，块级类对象槽向跨版本不可控（N93），语义逐条等价。
 template <class T>
 bool detect_collision(std::list<T>& list, T& obj)
 {

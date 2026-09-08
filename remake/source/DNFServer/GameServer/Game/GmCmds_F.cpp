@@ -150,6 +150,7 @@ void CSecretShopNpc::parse()
 // 秘密商店数据的 npc id 改为参数值（限 1000/0x3ea/0x3eb/0x3ec 四个合法值），
 // 条件：无队伍，或队伍不在血色地下城中（party->m_battleField.m_pDungeon == 0 或
 // dungeon->m_bloodDungeonType == 0）。随后聊天通告 + 广播 0x114 npc 替换包。
+// [b28d-30] 复核 DIFF：大件残差（N82/N89 族），ORIG 0x084a6xxx 见 class_func_reports/CSecretShopNpc/execute.md。
 void CSecretShopNpc::execute()
 {
     CUser* user = GetUser();
@@ -232,6 +233,8 @@ void CSetGuildFund::parse()
 // SendAddGuildFund(characNo, guildKey, amount, eFundType_GM)。
 // 【NEAR 封顶】助记符序列已逐条相同；残余仅 guildKey/characNo 的
 // esi/ebx 寄存器互换（4.4 按初始化序线性分配，无法跳位复现）。
+// [b28d-30] 复核 NEAR：esi/ebx 寄存器互换（N7/N82 族，4.4 按初始化序线性分配无法跳位），
+// ORIG 0x084a6xxx 见 class_func_reports/game_master__CSetGuildFund/execute.md。
 void CSetGuildFund::execute()
 {
     CUser* user = GetUser();
@@ -261,6 +264,7 @@ void CSetMultiboxFailCnt::parse()
 
 // ORIG execute 0x084b34f8：set_multiboxLotteryItemFailCnt(v)；v > 2 时追加
 // 下发 0x1c6 空包头通知客户端（多重盒子抽取失败次数刷新）。
+// [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 见 class_func_reports/game_master__CSetMultiboxFailCnt/execute.md。
 void CSetMultiboxFailCnt::execute()
 {
     CUser* user = GetUser();

@@ -135,6 +135,8 @@ void Secu_GoldControl::resetRangeMoney(user_gold_info& cur, user_gold_info& copy
         cur.m_auctionSub = 0;
     }
 }
+// b28d-31: N 封顶（N82附）——ORIG 0x0828757c；4.1 push %esi/%ebx 缓存
+// this/&m_mailCharName vs 4.4 栈槽 -0x10/-0xc（跨 call 值缓存策略差）。
 void Secu_GoldControl::AddGold(unsigned int value, eMoneyAddReason reason)
 {
     CheckDate();
@@ -169,6 +171,8 @@ void Secu_GoldControl::AddGold(unsigned int value, eMoneyAddReason reason)
     AddMoney(value);
     CheckMoneyRange();
 }
+// b28d-31: N 封顶（N82附/P209）——ORIG 0x0828764a；同上 callee-saved 差，
+// 且 reason 比较 ORIG `cmp $0xe,%eax`（载寄存器）vs 4.4 mem 直比。
 void Secu_GoldControl::SubGold(unsigned int value, eMoneySubReason reason)
 {
     CheckDate();
@@ -381,11 +385,11 @@ void Secu_GoldControl::SavetoDB(bool a, bool b, bool c)
 
 void Secu_GoldControl::CheckMoneyRange()
 {
-    // ORIG：(high!=0 || low==-1) 逐项比较，勿折叠成 64 位单比较。
-    unsigned int* gold = (unsigned int*)&m_cur.m_gold;
-    unsigned int* sub = (unsigned int*)&m_cur.m_sub;
-    if ((gold[1] != 0 || gold[0] == 0xffffffffu) ||
-        (sub[1] != 0 || sub[0] == 0xffffffffu))
+    // b28d-31: P183 去指针缓存 —— ORIG 0x08287b80 直接
+    // `mov 0x44(%eax),%edx; mov 0x40(%eax),%eax; cmp $0,hi; ja/jb;
+    //  cmp $0xfffffffe,lo; ja` 即 64 位无符号 `> 0xfffffffeULL` 展开
+    // （逐半指针比较四形不产生该 cmp 链）。语义等价，且消去 -0x10/-0xc 槽。
+    if (m_cur.m_gold > 0xfffffffeULL || m_cur.m_sub > 0xfffffffeULL)
     {
         SavetoDB(true, false, true);
     }

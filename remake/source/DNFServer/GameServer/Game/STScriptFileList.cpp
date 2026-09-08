@@ -65,6 +65,7 @@ int STScriptFileList::GetIndex(const char* path)
 // _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIiiSt4lessIiESaISt4pairIKiiEEE
 // 用 DNFLex 扫描列表文件，逐行 ScanInt+ScanStr 填充 m_fileMap。
 // 第 4 参 map<int,int>* 在 ORIG 中未被使用（可由调用方传 0）。
+// b28d-31: N 封顶（N82）——ORIG 0x088bbd77；134 vs 136（帧/槽）。
 int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
                            const char* listPath, std::map<int, int>* /*unused*/)
 {

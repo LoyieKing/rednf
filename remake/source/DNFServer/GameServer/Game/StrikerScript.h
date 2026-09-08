@@ -92,7 +92,11 @@ struct StrikerSkillAddCommand
 {
     int m_field00;  // +0x00
     int m_field04;  // +0x04
-    int m_type;     // +0x08（setType: 0<=v<=8 写入）
+    // [b28d-34] P211 异型化：ORIG setType 0x08a9d7cc 的 store 为 RHS-first
+    // （`mov 0xc(%ebp),%edx; mov 0x8(%ebp),%eax; mov %edx,0x8(%eax)`）；字段 int
+    // 与形参 int 同型 ⇒ 4.4 LHS-first，改 unsigned int（与形参异型）即翻正，
+    // 无中转（探针 /tmp/p34b.cpp A/B 对照，sizeof/偏移/mangled 不变）。
+    unsigned int m_type;  // +0x08（setType: 0<=v<=8 写入）
     void setType(int type)
     {
         // [b28c-30] P223 多源尾标签形：ORIG 0x08a9d7cc 为

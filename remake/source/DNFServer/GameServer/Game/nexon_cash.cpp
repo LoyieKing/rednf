@@ -147,9 +147,10 @@ int TCPSocket::send(char* buffer, unsigned int length)
     if (savedErrno == EAGAIN || savedErrno == EINTR || savedErrno == EAGAIN)
     {
         ++m_sendRetryCount;                                       // 0x081af70a-0x081af716
-        register bool over asm("al") =
-            (m_sendRetryCount > static_cast<int>(TCPSocket::MAX_SEND_RETRY));
-        if (over)   // ORIG 0x081af722 setg %al; test; je（寄存器 bool，无槽）
+        // [b28d-D43] P0/N96 清绑：原 register bool over asm("al") 删除（全域禁
+        // 绑定）。ORIG 0x081af722 为 setg %al; test %al,%al; je（无槽往返）⇒ 按
+        // P0「无槽 = 无具名局部」写裸条件。
+        if (m_sendRetryCount > static_cast<int>(TCPSocket::MAX_SEND_RETRY))
         {
             m_sendRetryCount = 0;                                 // 0x081af72c
             return -100;                                          // 0x081af733
@@ -1192,8 +1193,8 @@ NCashImpl::NCashImpl(const char* serverAdrs, short port, unsigned char paramB,
 // 直填第1参（0x081aea66-0x081aea7b），n 槽 -0xc，frame 0x24 + pop ebx。
 int NCashImpl::recv_msg()
 {
-    register unsigned char* buf asm("ebx") = m_inMsg.data();
-    int n = static_cast<int>(::recv(m_socket.getHandle(), buf, 3, 0x100));
+    // [b28d-D43] P0/N96 清绑：register asm("ebx") 删除，改实参内联形。
+    int n = static_cast<int>(::recv(m_socket.getHandle(), m_inMsg.data(), 3, 0x100));
     if (n == 0)
     {
         printf("[%s] connection lost: %s\n", __FUNCTION__,
@@ -1249,15 +1250,14 @@ int NCashImpl::recv_body()
 int NCashImpl::send_msg(unsigned int totalLen)
 {
     m_outMsg.encode_header(totalLen);
-    register unsigned int len asm("esi") = m_outMsg.length();   // 0x081aec5c
-    register unsigned char* buf asm("ebx") = m_outMsg.data();   // 0x081aec6e
-
-    int n = static_cast<int>(::send(m_socket.getHandle(), buf, len, 0x100));
+    // [b28d-D43] P0/N96 清绑：register asm("esi")/asm("ebx") 删除，改实参内联形。
+    int n = static_cast<int>(::send(m_socket.getHandle(), m_outMsg.data(),
+                                    m_outMsg.length(), 0x100));
     if (n != static_cast<int>(m_outMsg.length()))   // 0x081aeca9 cmp -0xc,%eax
     {
-        register char* err asm("ebx") = strerror(errno);        // 0x081aecc2
+        // [b28d-D43] P0/N96 清绑：err 改内联实参。
         printf("send error: send bytes: %d, message length: %d, error: %s\n",
-               n, static_cast<int>(m_outMsg.length()), err);
+               n, static_cast<int>(m_outMsg.length()), strerror(errno));
         m_connected = false;
         m_socket.close();
         return 2;

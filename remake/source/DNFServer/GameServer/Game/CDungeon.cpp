@@ -306,6 +306,9 @@ void CDataManager::set_limit_inout_count(char value, ENUM_BLOOD_TYPE type)
 
 void CDungeon::set_dungeon(STDungeonScript& script)
 {
+    // [b28d-39 判词 · N82/N89] ORIG 0x0834acc4：超大件帧/槽号整体平移（N82，
+    // ORIG 具名临时 -0x88 vs 4.4 -0x8c）+ 容器访问器跨版本差（N89）；
+    // 全字段赋值序与来源逐条对齐，语义等价。
     // ORIG 0x0834acc4：从脚本复制全部字段（顺序按 ORIG 汇编）
     m_index = script.m_18;
     m_standardLevel = script.m_ac;
@@ -499,6 +502,9 @@ copy_rest:
 // 唯一残差即该 lea-vs-add+mov 折叠 ⇒ N18a（单段 regmove 不可造）封顶。
 void TOD_UserState::IncreaseEnterCount()
 {
+    // [b28d-39 判词 · N4/P30] ORIG 0x0864388a：残余 `add $0x1,%eax; mov %eax,%edx`
+    // vs 4.4 `lea 0x1(%eax),%edx`（add-vs-lea 固有差）；三次自增/时间戳/alter 调用
+    // 逐条等价。
     m_data.m_enterCount = m_data.m_enterCount + 1;
     m_data.m_lastEnterLayer = m_data.m_lastEnterLayer + 1;
     m_data.m_lastEnterTime = GlobalData::s_systemTime_.getCurSec();
@@ -554,6 +560,9 @@ CDungeon_TowerOfDespair::CDungeon_TowerOfDespair()
 }
 int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
 {
+    // [b28d-39 判词 · N93/N82] ORIG 0x0834d8ec：具名 int 槽 -0x14 vs -0x18 方向
+    // 相反（N93）+ 帧 0x28 族平移（N82）；调用点差集与发包/统计写入逐条对齐，
+    // 语义等价。
     // ORIG 0x0834d8ec：进入绝望之塔——递增计数、二次进入扣门票、发包回执、统计。
     // 判例（ADeepY4[6]）：DIFF(N封)，gap +1（orig 254 / our 255）。全调用点成立
     // （GetCharacExpandData/IncreaseEnterCount/getEnterCount/check_item_exist/GetInvenSlot/
@@ -649,6 +658,9 @@ void CDungeon::GetRandMaze(int& out) const
 
 int CDungeon::GetRandMazebyPartyCount(int partyCount) const
 {
+    // [b28d-39 判词 · N82] ORIG 0x0834d06c：帧 0x40 vs 0x30 + 除法 lowering
+    // （ORIG `mov %eax,-0x2c; divl -0x2c` vs 4.4 寄存器 div）；候选收集/随机
+    // 语义逐条等价。
 	// ORIG 0x0834d06c：唯一迷宫直返；否则按 [m_partyCountMin, m_partyCountMax]
 	// 收集候选；候选唯一/随机取，空则全表随机。
 	if (m_mazeList.size() == 1)
@@ -987,6 +999,9 @@ void STWarRoomData::clear()
 
 void STWarRoomData::copy(STWarRoomData* other)
 {
+    // [b28d-39 判词 · N84/N90] ORIG 0x0836a578：结构整体赋值/memcpy 的 rep movsl
+    // 分块启发式跨版本差（4.1 分块重载 src/dst，4.4 单次连发，N84/N90）；
+    // 逐字段复制集合与顺序一致，语义等价。
     // ORIG 0x836a578：数组按元素 reserve/push_back，标量逐个/memcpy。
     memcpy(other, this, 0xc);
     other->m_c = m_c;
@@ -1064,8 +1079,21 @@ advancealtar::ClearRewardData::~ClearRewardData()
 advancealtar::ClearRewardData& advancealtar::ClearRewardData::operator=(
     const ClearRewardData& other)
 {
-    for (int i = 0; i < 3; ++i)
-        m_vec[i] = other.m_vec[i];
+    // [b28d-39 判词 · N18a] ORIG 0x08376c9c：语义已按 ORIG 修正（--n 前置测试只拷
+    // 前 2 个元素，P171 照抄）；残余仅 `mov 0x8(%ebp),%eax; mov %eax,%esi`
+    // 被 4.4 折成单条 `mov 0x8(%ebp),%esi`（N18a 单段 regmove 不可造）。
+    // [b28d-39] ORIG 0x08810d8a：指针步进 do-while（esi=dst/ebx=src 各 +0xc、
+    // edi=2 递减到 -1、`setne/test/jne`）——索引形在 4.4 生 add/add/shl 地址链，DIFF。
+    register std::vector<advancealtar::_RewardItem>* dst = m_vec;
+    register const std::vector<advancealtar::_RewardItem>* src = other.m_vec;
+    register int n = 2;
+    // ORIG 0x08810d8a 为 `--n != -1` 前置测试 while：n=2 只拷贝 2 个元素（P171 照抄）。
+    while (--n != -1)
+    {
+        *dst = *src;
+        ++dst;
+        ++src;
+    }
     return *this;
 }
 

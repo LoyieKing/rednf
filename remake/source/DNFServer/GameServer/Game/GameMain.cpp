@@ -28,6 +28,11 @@
 #include "CGuildServerProxy.h"
 #include "CStatisticServerProxy.h"
 #include "CServerProxyMgr.h"
+// [b28d-28] DIFF | CServerProxyMgr<T>::createServerProxy(int,int,ENUM_SERVER_GROUP,
+// char*,int,int) 三实例（ORIG 0x082b3dc2 CMonitor / 0x082b4018 CGuild /
+// 0x082b426e CStatistic，定义在共享头 CServerProxyMgr.h、本 TU 隐式实例化）：
+// N104/N82：EH landing 块序（4.1 直落 vs 4.4 `jmp` 岛）+ 帧 0x3c vs 0x4c +
+// 槽平移 0x10；`lea 0x0(,%ebx,4)` vs `shl $0x2`（N94 族）。
 #include "NpcScript.h"
 #include "MsgQueueMgr.h"
 #include "StreamPool.h"
@@ -106,6 +111,7 @@ void ProcessServerStatusLog();               // _Z22ProcessServerStatusLogv
 // ORIG 0x0829d7b3：conf.find(key) 命中且 value 非空 → 返回 value.c_str()；
 // 未命中/空值 → logFormat(1,"App.cpp","char* GetConfigFileString(...)",0x1fc7,
 // "%s tag error", key) 后返回 ""。
+// [b28d-28] DIFF | ORIG 0x0829d7b3 | N82：迭代器/string 临时槽序 + 槽平移。
 const char* GetConfigFileString(
     std::map<std::string, std::string>& conf, const char* key)
 {
@@ -231,6 +237,8 @@ int TimerStatisticLevel::m_nTimeTable[5] = { 1, 10, 0xe, 0x11, 0x15 };
 // i 从 3 递减找首个 m_nTimeTable[i] <= 当前小时的 i，目标小时 = 表[i+1]；
 // 全表未命中（found=false）或 mktime 结果早于当前时刻 → 小时=表[0]、
 // tm_mday+1（明天首档）再 mktime；最终返回目标时刻 + get_rand_int(300) 秒。
+// [b28d-28] DIFF | ORIG 0x0863591a | P196/N82：比较方向反演（ORIG jl/jle vs
+// 4.4 jg/jge）+ 槽号平移 4。
 int TimerStatisticLevel::CalcNextTime()
 {
     std::time_t now = static_cast<std::time_t>(s_systemTime_.getCurSec());
@@ -275,6 +283,8 @@ void TimerScheduleTenSecond::registNextTimer(unsigned int sec)
 //   （start 分已过则下一小时的 start 分）；
 //   其余（已开始但窗口判定未命中的边缘）→ mktime(start)+0x15180（明天 start）。
 //   delay = 目标 - now，负值钳 0。ORIG 末尾恒返回 eax=1（本模型 void，mangling 同）。
+// [b28d-28] DIFF | ORIG 0x08639b20 | P167 MISSING 14×`_Rb_tree_iterator::ptEv` +
+// G_CDataManager：ORIG 每轮迭代重新解引用（我方缓存），语义缺口待补。
 void Timer_DungeonInoutOpenTime::RegistNextTimer()
 {
     std::time_t now = static_cast<std::time_t>(s_systemTime_.getCurSec());
@@ -341,6 +351,7 @@ void Timer_DungeonInoutOpenTime::RegistNextTimer()
 // RegistServerSchedule() —— ORIG 0x82a0459（0x49b 字节）逐条转写。
 // 全部为 G_TimerQueue()->InsertTimer(OBJ_TYPE=2, 0, msg, delaySec, 0, 0)。
 // ---------------------------------------------------------------------------
+// [b28d-28] DIFF | ORIG 0x082a0459 | N82：槽/寄存器分配差（大函数）。
 void RegistServerSchedule()
 {
     // 0x50 / 0x52：固定 0 秒
@@ -429,6 +440,9 @@ STScriptFileList g_npcScriptFileList;
 // ShowLogo() —— ORIG 0x829f966：cout<<endl 后 puts 6 行 ASCII logo，
 // 再 SetCurTime 取年月日时分 printf "[!] Service Date (%02d-%02d-%02d/%02d:%02d)\n"。
 // ---------------------------------------------------------------------------
+// [b28d-28] DIFF | ORIG 0x0829f966 | N82/P183：ORIG CommonTime 五字节单条 disp
+// （`movzbl -0x18..-0x14`），我方经 m_pad 数组索引产 lea+add（字段化待 Main 批）；
+// 帧 0x30 vs 0x40。
 void ShowLogo()
 {
     std::cout << std::endl;
@@ -491,6 +505,8 @@ void Neof_shutdownGlobalInstances()
 // call 序列组织主体流程；配置解析细节（GetConfigFileString 各键名、
 // proxy 数量参数）为「推断」占位。
 // ---------------------------------------------------------------------------
+// [b28d-28] DIFF | ORIG 0x082a08f4 | P167 MISSING 2×G_CEnvironment/2×c_str/
+// ostream/sprintf/cMyTrace（初始化尾部日志路径缺口）+ N82 大函数槽。
 bool Init(int argc, char** argv)
 {
     // ORIG @0x82a08f4：regist_signals 失败 → cout "Fail to regist os signals,
@@ -897,6 +913,8 @@ bool Init(int argc, char** argv)
 // ---------------------------------------------------------------------------
 // SIGFIX:MainLoop —— ORIG __PRETTY_FUNCTION__ 串 "bool MainLoop()"；ORIG 尾
 // 0x829fd24 `mov $0x1,%eax` 后 leave/ret（循环退出返回 1，P174）。
+// [b28d-28] DIFF | ORIG 0x0829fa2b | P167 CLEAR（36/36）；N82：常量数组初始化槽
+// （-0x48..-0x38）+ 帧 0x60 vs 0x50 + 槽平移。
 bool MainLoop()
 {
     int cnt30 = 0;        // -0x34
@@ -1077,6 +1095,8 @@ void rdar_terminate();     // ORIG T 0x0829e80b（本文件尾部定义）
 void omll_dump_core_file(); // ORIG T 0x0829f6f4（本文件已有定义）
 void TerminateServers();    // ORIG T 0x082a21f9（本文件尾部定义）
 
+// [b28d-28] DIFF | ORIG 0x0829f28b | P167 CLEAR（48/48）；N82 槽/寄存器分配差
+// （我方多 28 条）。
 void signal_handler(int sig)
 {
     switch (sig)
@@ -1225,6 +1245,7 @@ void omll_dump_core_file() { std::abort(); }
 
 // 15/10/12/13/11/8/4/7/16/23/24/25/31 → signal_handler（13 → SIG_IGN），
 // 任一注册失败即返回 0，全部成功返回 1。
+// [b28d-28] DIFF | ORIG 0x0829f4c5 | P167 CLEAR（13/13）；N82 槽/寄存器分配差。
 int regist_signals()
 {
     if (!regist_signal(15, signal_handler)) { return 0; }
@@ -1399,6 +1420,7 @@ void CShutdowManager::SendShutdownSignal()
 }
 
 // check_argv(int, char**) —— ORIG 0x829ea5a（0x420 字节，逐指令转写）。
+// [b28d-28] DIFF | ORIG 0x0829ea5a | N82：槽/寄存器分配差（263=263）。
 int check_argv(int argc, char** argv)
 {
     if (argc <= 2)
@@ -1516,6 +1538,8 @@ int check_argv(int argc, char** argv)
 // create_thread() —— ORIG 0x829fd30（0x2f8 字节，逐指令转写）：
 // 依次 begin 七个全局线程并 setCurrentPacketPool 绑定包池；任一失败返回 0；
 // 尾部非 PvP 整合频道（且 channelType!=7）时再启动 exchange 线程。
+// [b28d-28] DIFF | ORIG 0x0829fd30 | P167 CLEAR（28/28）；N82/P73：ORIG bool
+// 局部 16× 槽往返（`mov %al,-0x9; movzbl -0x9`），4.4 寄存器化（202 vs 160）。
 int create_thread()
 {
 #define DNF_BEGIN_AND_BIND(obj, type)                                        \
@@ -1561,6 +1585,8 @@ extern STScriptFileList g_stEquipmentScriptFileList;              // ORIG B 0x94
 extern std::map<int, std::string> g_stMonsterScriptFileList;      // ORIG B 0x94ff260
 extern std::map<int, std::string> g_questScriptFileList;        // ORIG B 0x9500480
 extern std::map<int, std::string> g_stPassiveObjectScriptFileList;// ORIG B 0x94ff3a0
+// [b28d-28] DIFF | ORIG 0x082a002a | P167 MISSING 4×begin/4×end/2×C1Ev/2×deEv
+// vs EXTRA 2×ptEv：ORIG 迭代器声明-赋值两段形（P50）我方直接初始化；语义缺口待补。
 char* SelectKeyString(int* outKey, int* outValue)
 {
     static char s_fallbackKey[] = "DNF_SERVER_KEY_STRING";
@@ -1597,6 +1623,9 @@ char* SelectKeyString(int* outKey, int* outValue)
 // （ORIG 记录 stride 0x10：+0 Cipher*、+4/+8 int 键索引）；
 // 首轮经 guard 记录总钥长；重复填充选中密钥串至总钥长后 Initialize。
 // 尾部 cMyTrace 输出耗时（文案「推断」）。
+// [b28d-28] DIFF | ORIG 0x082a025a | P167 MISSING __cxa_guard_acquire/release/
+// abort + _Unwind_Resume vs EXTRA memset：ORIG 静态局部 guard 形（P21）我方
+// 以 memset 直清，语义等价但形态不可复现。
 void InitCipherKeyString()
 {
     int t0 = static_cast<int>(s_systemTime_.getCurSec());
@@ -1629,19 +1658,26 @@ void InitCipherKeyString()
 
 // ProcessAntiBotInputWrapper() —— ORIG 0x80eddb0（0xe1 字节，逐指令转写）：
 // 计时包裹 s_antibotChecker_ 的虚调用（vtbl+0x10）；耗时 >500ms 记 logFormat(42)。
+// [b28d-28] DIFF | ORIG 0x080eddb0 | P282/N7：虚调用偏移 vptr+0x10 已核（word[4]）；
+// ORIG 无判空（P171 照抄）已修 + 死局部 `limit=500` 已补；残差仅 fn 落 %edx（ORIG）
+// vs %eax（4.4.7 间接 call 恒 %eax）⇒ N7 封顶（P230：4.4.6 后端可解，待路由）。
 void ProcessAntiBotInputWrapper()
 {
+    // [b28d-28] ORIG 0x080eddb7 `movl $0x1f4,-0x10(%ebp)`：死局部（P171 照抄，
+    // 后续比较仍用立即数 `cmpl $0x1f4,-0xc`）。
+    long limit = 500;
+    (void)limit;
     timeval t0, t1;
     gettimeofday(&t0, 0);
 
+    // [b28d-28] ORIG 0x080eddd1：无判空、无具名 fn/checker 局部——单表达式虚调
+    // `mov 0x941f7e4,%eax; mov (%eax),%eax; add $0x10,%eax; mov (%eax),%edx;
+    // mov 0x941f7e4,%eax; mov %eax,(%esp); call *%edx`（P282：vptr+0x10 = word[4]，
+    // 外部 SDK 类未建模故保留函数指针形）。
     typedef void (*CheckerFn)(void*);
-    void* checker = GlobalData::s_antibotChecker_;
-    if (checker)
-    {
-        CheckerFn fn = reinterpret_cast<CheckerFn>(
-            reinterpret_cast<void**>(*reinterpret_cast<void***>(checker))[4]);
-        fn(checker);
-    }
+    (*reinterpret_cast<CheckerFn*>(
+        (*reinterpret_cast<void***>(GlobalData::s_antibotChecker_))[0x10 / 4]))(
+        GlobalData::s_antibotChecker_);
 
     gettimeofday(&t1, 0);
     long ms = (t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_usec - t0.tv_usec) / 1000;
@@ -1666,6 +1702,7 @@ int GetCreaturePoolRemainSize();
 // 聚合 user/party/warroom/deathtower/pvp_room/trade 池占用、消息队列/流池余量、
 // IPG 状态、creature/avatar/egg 池等指标后统一 cMyTrace 输出，随后按用户数
 // 低于 party/pvp/trade 池占用打印三条 SESSION ERROR 日志。
+// [b28d-28] DIFF | ORIG 0x080ede91 | N82：大函数槽/视图寻址差（302 vs 296）。
 void ProcessServerStatusLog()
 {
     int userCount = G_GameWorld()->get_UserCount_InWorld();          // -0x6c

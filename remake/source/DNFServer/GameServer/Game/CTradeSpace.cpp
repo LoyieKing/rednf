@@ -232,6 +232,13 @@ int CTradeSpace::_IsTradable(const Inven_Item& item)
         return 0;
     unsigned int t = (unsigned int)ci->GetAttachType();
     if (t < 6) {
+        // b28d-35：N 封顶（P197④ 镜像 + N6 位折叠族）。ORIG 0x08529dce 的 bit
+        //   全程留 %eax（无槽，仅一组 shl），尾部含死计算 `and $0x1,%eax;
+        //   test %eax,%eax`（`if(bit&1) return 1;` 与 `return 1;` 同臂合并）。
+        //   三形实测：①具名 bit（本形）63/62，槽整体差 4 且 bit 逐次回读；
+        //   ②内联 `(1u<<t)&M` 被 4.4 折成 `shr`+`and $1`（N6，净 +3）；
+        //   ③register bit 落 %ebx+push/pop（净 +4）。ORIG 无槽形不可复现，
+        //   语义/边界（t<6、0x36/8/1 掩码）全等。
         unsigned int bit = 1u << t;
         if ((bit & 0x36) != 0)
             return 0;
@@ -254,6 +261,8 @@ void CTradeSpace::_SaveAvatarItemOwnerChange(unsigned int a, unsigned int b,
 // ---- add_item @ 0x08529aa2 ----
 int CTradeSpace::add_item(int traderIdx, TradeSlot slot, int count)
 {
+    // b28d-35: DIFF→N82（帧/槽平移：ORIG @0x08529aa2 槽 -0x10 vs 我方 -0x18；
+    //   189/192）。语义/调用点一致。
     // ORIG 0x8529aa2（O=190）：单槽 local_14 = idx = 返回值；equipable 分支
     // 物理在前（+0x3b test-true fallthrough）；dst 每用点全链重算（P157）；
     // 已存在路径 newCount 落 local_10 槽（+0xe8/+0xee add mem 形）。
@@ -354,6 +363,7 @@ bool CTradeSpace::cancel_trade()
 // ---- send_lose_item_for_china @ 0x0852e3a8 ----
 int CTradeSpace::send_lose_item_for_china(CUser* user, Inven_Item& item)
 {
+    // b28d-35: DIFF→N82（帧 0x15c vs 0x18c；110/136）。ORIG @0x0852e3a8。
     char title[41];
     char msg[0xff];
     if (item.m_addInfo == 0)
@@ -432,6 +442,7 @@ int CTradeSpace::send_lose_item_for_china(CUser* user, Inven_Item& item)
 // field1==8 双 trace（0xba7/0xbab）。bool 返回（PRETTY @0x8c98444）。
 bool CTradeSpace::checkTrade()
 {
+    // b28d-35: DIFF→N82（425/424 差 1 条；§6.2 口径）。ORIG @0x08530210。
     CInventory copy[2];
     // ORIG +0xe4-0x120：mem 构造与 Set 交替（非并列声明后统一 Set）
     InventoryMemory mem0;
@@ -521,6 +532,7 @@ bool CTradeSpace::checkTrade()
 //     （负例表「空 else nop;jmp 岛 vs jump-threading」行），4.4 恒直达自增 +3。
 bool CTradeSpace::checkCancelTrade()
 {
+    // b28d-35: DIFF→N82（531/529）。ORIG @0x0852dbb8。
     if (m_pTraders[0]->getCurCharacR() == 0 ||
         m_pTraders[1]->getCurCharacR() == 0) {
         cMyTrace(__PRETTY_FUNCTION__, 0x674, 5)(
@@ -630,6 +642,7 @@ bool CTradeSpace::checkCancelTrade()
 //   结构性等价残差，P167 调用点 multiset 全等、语义逐分支对照完整，N 封顶。
 bool CTradeSpace::cancel_trade_for_china(CUser* user)
 {
+    // b28d-35: DIFF→N82（798/814）。ORIG @0x0852e544。
     PacketGuard packet[2];                      // -0x58
     int user_index = 0;                         // -0x2c（ORIG 仅循环前 +0x0c/0x13 置零）
     int count;                                  // -0x30（每外圈头 +0x88 置 0）
@@ -753,6 +766,9 @@ bool CTradeSpace::cancel_trade_for_china(CUser* user)
 // ORIG Ghidra 精度（第一块 float 0.7+0.01*r1，第二块 double 0.9）。
 bool CTradeSpace::change_trade_state(CUser* user, int state)   // SIGFIX: bool（ORIG 串）
 {
+    // b28d-35: DIFF→N82 + P282 复核。ORIG @0x0852f134；vcall_cand 件记
+    //   ORIG 0x10 两处 vs 我方 0x14 两处（虚调用槽差）——按 P282 五步仲裁
+    //   核对 _ZTV 槽序后确认非真 bug（调用目标一致，仅 4.1/4.4 vptr 装载差）。
     PacketGuard packet;  // ORIG 入口即构造（-0xc0），各分支复用
     int me, opp;
     CUser* target = 0;
@@ -1050,6 +1066,7 @@ bool CTradeSpace::change_trade_state(CUser* user, int state)   // SIGFIX: bool�
 //     （.o 帧槽序，AE 归一吸收）。
 bool CTradeSpace::proceed_trade()
 {
+    // b28d-35: DIFF→N82（1606/1618；§6.2）。ORIG @0x0853087a。
     if (!IsLocked())
         return false;
     if (!checkTrade())
@@ -1359,6 +1376,7 @@ bool CTradeSpace::proceed_trade()
 //   完整），N 封顶。
 int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
 {
+    // b28d-35: DIFF→N82（2021/2021 等量，帧/槽平移；§6.2）。ORIG @0x08529e7e。
     if (IsLocked())
         return -0x63;
     if (b <= 0)
@@ -1787,6 +1805,8 @@ int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
 int CTradeSpace::remove_item(CUser* user, int trade_slot_no, int type,
                              int target_slot, int count)
 {
+    // b28d-35: DIFF→N82（1767/1767 等量；P183 去缓存后 gap=4，§6.2）。
+    //   ORIG @0x0852bfcc。
     // ORIG +0x17 `test %al,%al; je`：直判形（4.4 对裸 if(char) 生 setne 物化，
     // 显式 !=0 抑制归一尝试）
     if (IsLocked() != 0)

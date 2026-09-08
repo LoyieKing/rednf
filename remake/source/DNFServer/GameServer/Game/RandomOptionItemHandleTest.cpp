@@ -44,11 +44,11 @@ void CRandomOptionItemHandleTest::test_reset() {}      // ORIG 纯 ret
 long long CRandomOptionItemHandleTest::_get_auction_id()
 {
     // ORIG 布局：or/test/je(DB) —— 非空缓存直落返回，DB 链后置（if-else 排布）。
-    // [b28c-lane17] 判词：本形已复现 ORIG 的 or/test 折叠；唯一残余是
-    // ORIG 0x085f3ccd 用**单次 this 装载**读两字段（`mov +4→%edx; mov +0→%eax`），
-    // 4.4 恒先 `mov +4→%eax` 再回读 this（+2 条）——N18a 单段 regmove 不可造。
-    if ((reinterpret_cast<unsigned int>(m_slot4)
-         | reinterpret_cast<unsigned int>(m_slot0)) != 0)
+    // [b28c-lane17] 判词：本形已复现 ORIG 的 or/test 折叠；残余为单次 this 装载。
+    // [b28d-31] 复核：字段 void*→unsigned int 同型化（P254 档③）消两段中转
+    // （71→70）；残余 `mov 0x8(%ebp),%eax` this 重载（ORIG 0x085f3ccd 单次装载）
+    // 四形（reinterpret 原序/交换、C cast、字段同型化）实测均不可翻 ⇒ N18a 封顶。
+    if ((m_slot4 | m_slot0) != 0)
     {
         return *(long long*)this;
     }
@@ -76,6 +76,7 @@ long long CRandomOptionItemHandleTest::_get_auction_id()
 //   item+0x25（random_option 段 0xe 字节）/ item+0x15（amplify 段 10 字节）；
 //   23 个 SQL 变参按 ORIG 压栈序（0x8(%esp) 首参 → 0x64 尾参）照抄。
 // ============================================================================
+// b28d-31: N 封顶（N82）——ORIG 0x085f3dba；123 vs 126（帧/槽 + 变参装载）。
 int CRandomOptionItemHandleTest::_regist_auction(Inven_Item& item, long long auctionId,
                                                  int occTime, int expireTime,
                                                  char const* ownerName)

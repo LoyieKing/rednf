@@ -50,6 +50,7 @@ int _NS_PI_2ND_GetHackType(unsigned int type, unsigned char b, unsigned short c)
 //                0xe1, 0xee, 0x100, 0x104, 0x107, 0x10f..0x111,
 //                0x120, 0x13c, 0x145}
 // ---------------------------------------------------------------------------
+// [b28d-24] DIFF 残84: 控制流/帧差异（我方 96 条 vs ORIG 76）。ORIG 0x0859092a
 bool DenyPacket(int id)
 {
     if (id <= 0xac)
@@ -122,6 +123,7 @@ void _NS_PI_2ND_MakeChecksumTo1Byte2(unsigned int& checksum1,
 //   7) 否则计数 +1，penalty = (t%10)*10+0xc9（ORIG 魔数除法 0x67/5 序列），
 //      PIAddServerHackCnt(user, PI_GetHackTypes(cmdType), penalty)。
 // ---------------------------------------------------------------------------
+// [b28d-24] DIFF 残13: 分支块序/寄存器分配（P47/P222 族）。ORIG 0x08274778
 void _NS_PI_Check_CMD(ENUM_PACKETCLASS packetClass, unsigned short cmd,
                       PacketBuf& packet, CUser* user)
 {
@@ -182,6 +184,7 @@ void _NS_PI_Check_CMD(ENUM_PACKETCLASS packetClass, unsigned short cmd,
 // ===========================================================================
 // [b23S3C] ORIG 尾 `mov $0x1,%eax; leave; ret`+调用点 xor$0x1 直测低字节 ⇒ 返回 char；
 // 体 ORIG 单 call _Z3md5PhiS_（0x80b3d57），勿展开 starts/update/finish 三 call。
+// [b28d-24] DIFF 残20: xor 链中转寄存器差异（ORIG 用 %ecx 逐段 `xor %eax,%ecx`；4.4 用 %edx 且多 1 条 xor）。ORIG 0x0808c8b5
 bool _NS_MakeHash_(char* data, short len, int& out)
 {
     if (len <= 0 || len > 0x190)
@@ -458,6 +461,7 @@ int _NS_IPScan(CUser* user, PacketBuf& packet)
 // HP_GetHackType(a) → SetETC → addServerHackCnt(user, type, 1, etc, 0)。
 // 各步读取失败依次返回 1/2/3。
 // ===========================================================================
+// [b28d-24] DIFF 残24: 控制流/帧差异（P167 待复核）。ORIG 0x08274523
 int _NS_ProcessScan(CUser* user, PacketBuf& packet)
 {
     char a = 0, b = 0, c = 0;

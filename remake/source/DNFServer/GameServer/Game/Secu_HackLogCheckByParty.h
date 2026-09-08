@@ -53,6 +53,8 @@ struct SecKillMonsterInfo
     // N76 族封顶（方向相反判例）：成员 store 4.1 LHS 地址先载 vs 4.4 RHS 值
     // 先载；探针 /tmp/l22p/ctor_probe*.cpp 4 形（初始化列表/体赋值/显式
     // this->/cast）4.4 全部值先载，不可翻（ndiff 8）。
+    // [b28d-24] N封顶 N76（范式库 P211 已定性）：字段 int/形参 unsigned 本已异型
+    // 仍 RHS 先载，ctor_probe 4 形不可翻。ORIG 0x08279d30（W）。
     SecKillMonsterInfo(unsigned int monsterId, unsigned int count,
                        unsigned int v1, unsigned int v2)
         : m_monsterId(monsterId), m_count((int)count), m_sumValue1((int)v1),

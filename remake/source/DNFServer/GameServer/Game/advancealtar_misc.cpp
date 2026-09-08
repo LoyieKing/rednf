@@ -65,6 +65,8 @@ BuyUpgradeData& BuyUpgradeData::operator=(const BuyUpgradeData& other)
 // 相同两段查询并以同式返回（继承 ORIG 尾部指令序 [objdump 0x88a2d5a..2e41]）。
 int BuyUpgradeData::getFieldData(int level, FieldType::T ft)
 {
+    // b28d-35: DIFF→N 封顶（N82 帧/槽 + logFormat 实参装载序）。ORIG @0x088a2c62
+    //   帧 0x50；我方帧 0x40 且首段 logFormat 实参装载序不同。语义/调用点一致。
     LogManager::logFormat(
         0, "../localglobal/global_RDARScriptAdvanceAltar_Shop.cpp", __FUNCTION__,
         0x26e, "BuyUpgradeData::GetFieldData level = %d", level);   // [objdump 0x88a2c98]
@@ -105,6 +107,8 @@ int BuyUpgradeData::getFieldType(int idx) const
 // ORIG T 0x088a3322：初值 0，取 m_listMap 最大 key。
 int BuyUpgradeData::getMaxLevel() const
 {
+    // b28d-35: IDENTICAL_AE（49/49 clean 全等）。ORIG @0x088a3322；ppEi 后置
+    //   三槽形 + advancealtar.h enum 化后重编复验通过。
     // b28c-L5：ORIG 0x088a3322 循环增量段调
     //   `_ZNSt23_Rb_tree_const_iterator...ppEi`（**后置** ++，带独立 sret 临时槽
     //   -0x10，it=-0x18 / end=-0x14 三槽并存）。4.4 对 `++it` 走 ppEv（返回引用、
@@ -125,6 +129,7 @@ int BuyUpgradeData::getMaxLevel() const
 // ORIG T 0x088a33c0：初值 0，取 m_listMap 最小 key。
 int BuyUpgradeData::getMinLevel() const
 {
+    // b28d-35: IDENTICAL_AE（49/49 clean 全等）。ORIG @0x088a33c0；同 getMaxLevel。
     // b28c-L5：同 getMaxLevel —— ORIG ppEi 后置 ++ 三槽形（0x088a33c0）。
     int minLevel = 0;
     for (LevelFieldDataMap::const_iterator it = m_listMap.begin();
@@ -155,6 +160,10 @@ FieldData* BuyUpgradeData::getMinLevelFieldDataPoint(FieldType::T ft, int& outLe
 // ORIG T 0x088a2f7a：首个落在 [FT_HP(0xa), FT_ETC2(0x18)] 的字段下标，否则 -1。
 int BuyUpgradeData::getStatFirstPos() const
 {
+    // b28d-35: DIFF→N 封顶（P197④ 镜像族：ORIG @0x088a2f7a 对 call 结果算术
+    //   比较出直跳 `ja`，4.4 恒物化 `setbe;test;je`）。七形实测（/tmp/d35_sfp*.cpp
+    //   h1-h21）：裸指针解引用直跳、迭代器 operator* 结果恒物化；< 0xfU 与 <= 0xeU
+    //   同折；goto/取反/双比较（双比较需重复调用 operator*，违 P48）均不闭合。
     // b28c-L5：ORIG 0x088a2f7a 两处形状约束——
     //   判词（N197④ 反向·setcc 物化不可免）：ORIG 边界判定段为
     //     `mov (%eax),%eax / sub $0xa,%eax / cmp $0xe,%eax / ja <continue>`（4 条直跳）；
@@ -187,31 +196,41 @@ int BuyUpgradeData::getStatFirstPos() const
 // ORIG T 0x088a3056：ft∈[10,24] → 序号 0..14，缺省 -1。
 int BuyUpgradeData::getStatIconIndex(FieldType::T ft) const
 {
+    // b28d-35：ORIG 为「具名 result 局部（-0x4，初值 -1）+ 每 case
+    //   `movl $N,-0x4; jmp` 汇聚尾 `mov -0x4,%eax`」；逐 case return 形使 4.4
+    //   直接 `mov $N,%eax`（无 result 槽）⇒ 改 result 赋值 + break 形。
+    int result = -1;
     switch (ft)
     {
-    case FieldType::FT_HP:   return 0;      // 0x0a
-    case FieldType::FT_DMG:  return 1;      // 0x0b
-    case FieldType::FT_PIC:  return 2;      // 0x0c
-    case FieldType::FT_RCV:  return 3;      // 0x0d
-    case FieldType::FT_SUM:  return 4;      // 0x0e
-    case FieldType::FT_MHT:  return 5;      // 0x0f
-    case FieldType::FT_RGN:  return 6;      // 0x10
-    case FieldType::FT_MSD:  return 7;      // 0x11
-    case FieldType::FT_ASD:  return 8;      // 0x12
-    case FieldType::FT_SDT:  return 9;      // 0x13
-    case FieldType::FT_FDT:  return 10;     // 0x14
-    case FieldType::FT_ETC:  return 0xb;    // 0x15
-    case FieldType::FT_LRG:  return 0xc;    // 0x16
-    case FieldType::FT_SPL:  return 0xd;    // 0x17
-    case FieldType::FT_ETC2: return 0xe;    // 0x18
-    default:                 return -1;
+    case FieldType::FT_HP:   result = 0;   break;   // 0x0a
+    case FieldType::FT_DMG:  result = 1;   break;   // 0x0b
+    case FieldType::FT_PIC:  result = 2;   break;   // 0x0c
+    case FieldType::FT_RCV:  result = 3;   break;   // 0x0d
+    case FieldType::FT_SUM:  result = 4;   break;   // 0x0e
+    case FieldType::FT_MHT:  result = 5;   break;   // 0x0f
+    case FieldType::FT_RGN:  result = 6;   break;   // 0x10
+    case FieldType::FT_MSD:  result = 7;   break;   // 0x11
+    case FieldType::FT_ASD:  result = 8;   break;   // 0x12
+    case FieldType::FT_SDT:  result = 9;   break;   // 0x13
+    case FieldType::FT_FDT:  result = 10;  break;   // 0x14
+    case FieldType::FT_ETC:  result = 0xb; break;   // 0x15
+    case FieldType::FT_LRG:  result = 0xc; break;   // 0x16
+    case FieldType::FT_SPL:  result = 0xd; break;   // 0x17
+    case FieldType::FT_ETC2: result = 0xe; break;   // 0x18
+    default:                 break;
     }
+    return result;
 }
 
 // ORIG T 0x088a3106（sret 返回 std::string）：FieldType→字符串表条目
 // CStringManager::getStr(id)；区间外的 ft 返回空串。
 std::string BuyUpgradeData::getStatStringIndex(FieldType::T ft) const
 {
+    // b28d-35：N 封顶（N86/N82 族）。ORIG 0x088a3106 = 140 条（每 case 压 id 后
+    //   走公共 sret 尾）；实测两形：①逐 case `return getStr(N)` 使 4.4 为每臂
+    //   展开独立 sret 构造/析构 ⇒ 397 条（远劣）；②具名 strId + 统一尾调用
+    //   （本形）71 条。4.1 的「逐 case 压栈 + 共享 sret 尾」在 4.4 无源形，
+    //   取最短可读形；语义（id 表与 default 空串）全等。
     std::string result;
     int strId = -1;
     switch (ft)
@@ -319,10 +338,13 @@ RewardParameter::getAchievementRewardData(StageDifficulty::T diff, int count) co
     for (std::map<int, AchievementRewardData>::const_iterator it = m_rewardMap.begin();
          it != m_rewardMap.end(); ++it)
     {
-        const AchievementRewardData& data = it->second;
-        if (data.m_difficulty == (int)diff && data.m_stageClearCount == count)
+        // b28d-35：ORIG 0x0889b5a8 每字段重新计算 `it->second` 基址
+        //   （`call operator->` 后直接 `mov 0x8(%eax)` / 再调一次后 `mov 0xc(%eax)`）
+        //   ⇒ P183 禁引用缓存：删除 `const AchievementRewardData& data` 具名缓存。
+        if (it->second.m_difficulty == (int)diff &&
+            it->second.m_stageClearCount == count)
         {
-            return const_cast<AchievementRewardData*>(&data);
+            return const_cast<AchievementRewardData*>(&it->second);
         }
     }
     return 0;
@@ -335,6 +357,8 @@ RewardParameter::getAchievementRewardData(StageDifficulty::T diff, int count) co
 // ============================================================================
 int AdvanceAltarShopParameter::getMaxStarResetGoldFee()
 {
+    // b28d-35: DIFF→N82（迭代器临时槽/帧差）。ORIG @0x088a2bc0 帧 0x28、end() 临时
+    //   -0xc；我方帧 0x38、临时 -0x1c（4.4 多一次 end 求值+槽深差 0x10）。语义一致。
     int maxKey = 0;
     for (std::map<int, _StarRestFeeByGold>::const_iterator it = m_starRestMap.begin();
          it != m_starRestMap.end(); ++it)
@@ -352,17 +376,18 @@ int AdvanceAltarShopParameter::getMaxStarResetGoldFee()
 // ============================================================================
 StageDifficulty::T StageDifficulty::getNextDifficulty(StageDifficulty::T diff)
 {
-    // P208/P163：switch 复现 ORIG 4.1 决策树（值缓存 %eax + test/cmp 链）。
+    // P208/P163 + P46：switch 复现 ORIG 4.1 决策树（值缓存 %eax + test/cmp 链）。
     // 枚举底层为 unsigned 会吞 -1 case（「case 标号低于类型最小值」告警），
-    // switch(int) 保留（g2 探针全等 ORIG 树）。
+    // switch(int) 保留。b28d-35：case 必须按数值升序书写（P46 叶块排放序），
+    // 原 0,1,-1 序使 4.4 产 `je` 反向树 + 叶序 [1,2,0]（ORIG 为 `jne` + 叶序 [0,1,2]）。
     switch (static_cast<int>(diff))
     {
-    case DIFF_EASY:                     // 0 → 1
-        return DIFF_MEDIUM;
-    case DIFF_MEDIUM:                   // 1 → 2
-        return DIFF_HARD;
     case -1:                             // -1 → 0
         return DIFF_EASY;
+    case DIFF_EASY:                      // 0 → 1
+        return DIFF_MEDIUM;
+    case DIFF_MEDIUM:                    // 1 → 2
+        return DIFF_HARD;
     default:
         return diff;
     }
@@ -404,6 +429,8 @@ bool isOpenAdvanceAltar()
 // ============================================================================
 void putRidableInfoToPacket(PacketGuard& packet, const AdvanceAltarData& data)
 {
+    // b28d-35: DIFF→N82（350/349 差 1 条）。ORIG @0x08141781 首条载 0xc(%ebp)，
+    //   我方装载序差 1 条（b28d 已 288→1，P183 去缓存后残余为实参装载序）。
     // ORIG 每处直接 `mov 0x8(%ebp)` 传参（无 buf 引用槽）⇒ 不用具名别名。
     // 段 2..6 容器指针 = ORIG 二段初始化槽（`movl $0,-0x10/-0xc` + 赋值，
     // 0x0814184e/0x0814185b 等）；段 1/7 直取（0x081417a3/0x08141bb7）。
@@ -508,6 +535,8 @@ std::map<unsigned char, _Slot>* AdvanceAltarData::getSlotMap(
 // 见函数体注释地址）。
 void AdvanceAltarData::set(const _AdvanceAltarDbData& db)
 {
+    // b28d-35: DIFF→N82（全帧槽平移）。ORIG @0x088992da 帧 0xd8；我方 0x118
+    //   （4.1/4.4 槽复用策略差，N82 族）。逐块语义比对一致。
     m_update = 0;                                                  // [objdump 0x88992e6]
     std::memcpy(this, &db, 0x21);                                  // [objdump 0x8899302]
 
@@ -598,6 +627,8 @@ void AdvanceAltarData::set(const _AdvanceAltarDbData& db)
 // 3 次 ScanInt 分别写 +0 int/-8→short/-6→short，push 到 Phase+0x08）。
 int StageTimeLineParameter::importPhase(TimeLine& timeLine)
 {
+    // b28d-35: DIFF→N82（循环旋转）。ORIG @0x0889a930；我方入口多 1 条 jmp
+    //   （4.4 循环旋转，P164 族）。语义一致。
     for (;;)
     {
         std::string token;
@@ -693,6 +724,8 @@ int StageTimeLineParameter::importPhase(TimeLine& timeLine)
 int StageTimeLineParameter::checkAndSetActionDefine(
     TimeLine& timeLine, const std::map<int, ActionDefine>& defines)
 {
+    // b28d-35: DIFF→N82/N7（寄存器分配差）。ORIG @0x0889a032 无 push esi；
+    //   我方多 push esi（4.4 用 callee-saved 缓存跨调用值）。语义一致。
     int totalDuration = 0;                                         // local_18
     int phaseIndex = 0;                                            // local_14
     for (std::vector<Phase>::iterator pit = timeLine.m_phases.begin();

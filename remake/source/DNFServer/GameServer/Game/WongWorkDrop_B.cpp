@@ -1,4 +1,13 @@
 // ============================================================================
+// [b28d-38 判词] 本 TU 8 件最终状态（p167 全部 CLEAR）：
+//  _getGenItemProbIdx(Hell/Special) 0x08535a88/0x0853736e DIFF（P183 去 probs 引用缓存；
+//   残差 N4/P30 v[0]<=value 的 cmp 极性/disp 折叠）
+//  setDropRatio(Hell/Special) 0x08535948/0x085359e8 DIFF（helper call→物理内联 P165，
+//   语义补全 14→53 条；残差 N4 v[2+j] 的 +2 并入索引不可折叠）
+//  generateSpecificItem 0x08535726 DIFF（m_itemList 具名成员直访消 getItemList call；gap 6）
+//  hellPartySpecificItem 0x08535b08 DIFF（byte 层 N 封顶）
+//  chooseItem 0x08534fce DIFF（size()==0 / it-- 后置 / 先声明后赋值 P50；N88 残差）
+//  _generateRandomItem 0x08536882 DIFF（AMC 链式重发 + 花括号零初始化 P253；gap 11）
 // WongWorkDrop_B.cpp — WongWork 掉落生成器批 B（LinkClosureB.WongWorkDrop）
 //
 // 本 TU 为唯一 owner，逐报告/objdump 忠实转写以下 8 个 ORIG 符号
@@ -90,35 +99,37 @@ void AI_generateDropAvatarItem(CAICharacter const* self, unsigned char a,
 //   vector 赋值 m_probsSub(+0x24) = m_probs(+0x18)，随后逐元素 j=0..4：
 //   fild(v[j]) * ratio → roundFloat → 存回同一槽位（元素步长 8 ⇒ v[2+j]）。
 // ---------------------------------------------------------------------------
-namespace {
-
-template <typename T>
-inline void applyDropRatio(std::vector<T>& probsSub,
-                           std::vector<T> const& probs, float ratio)
+void CMonsterDrop_Hell::setDropRatio(float ratio)
 {
-    probsSub = probs;                       // ORIG stl_vector::operator=
-    for (size_t i = 0; i < probsSub.size(); ++i)
+    // [b28d-38] ORIG 逐条：vector op= 后双层循环（P165 两份物理独立块，禁 helper
+    // call——4.4 -O0 对 inline 模板仍发 out-of-line call，always_inline 展开则形参槽
+    // 物化 +6 条）。内层缓存 `e` 引用（ORIG -0x10 槽 + `0x8(%eax,%edx,4)` 直读）。
+    m_probsSub = m_probs;                       // ORIG stl_vector::operator=
+    for (size_t i = 0; i < m_probsSub.size(); ++i)
     {
+        stGenItemProb_t& e = m_probsSub[i];
         for (int j = 0; j < 5; ++j)
         {
-            // ORIG: filds 整数槽 → fmuls ratio → fstps → call roundFloat → 存回
-            probsSub[i].v[2 + j] =
-                static_cast<int>(roundFloat(static_cast<float>(probsSub[i].v[2 + j]) *
-                                            ratio));
+            // ORIG: fildl 整数槽 → fmuls ratio → fstps → call roundFloat → 存回
+            e.v[2 + j] = static_cast<int>(
+                roundFloat(static_cast<float>(e.v[2 + j]) * ratio));
         }
     }
 }
 
-}  // namespace
-
-void CMonsterDrop_Hell::setDropRatio(float ratio)
-{
-    applyDropRatio(m_probsSub, m_probs, ratio);
-}
-
 void CSpecialMonsterDrop::setDropRatio(float ratio)
 {
-    applyDropRatio(m_probsSub, m_probs, ratio);
+    // [b28d-38] 同 CMonsterDrop_Hell::setDropRatio（ORIG 两份同型物理独立块）。
+    m_probsSub = m_probs;
+    for (size_t i = 0; i < m_probsSub.size(); ++i)
+    {
+        stGenItemProb_t& e = m_probsSub[i];
+        for (int j = 0; j < 5; ++j)
+        {
+            e.v[2 + j] = static_cast<int>(
+                roundFloat(static_cast<float>(e.v[2 + j]) * ratio));
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -155,12 +166,14 @@ void CMonsterDrop_Hell::generateSpecificItem(stGenerateRefData_t const& ref,
                                              static_cast<unsigned char>(ref.m_field35)));
         if (itemIdx != -1)
         {
-            CItem* item = G_CDataManager()->getItemList()->find_item(itemIdx);
+            // [b28d-38] P167：ORIG 无 getItemList() call（头内 inline 在 4.4-O0 发
+            // out-of-line call，ORIG 是 `mov 0xc(%eax),%eax` 直读 m_itemList）⇒ 具名成员直访。
+            CItem* item = G_CDataManager()->m_itemList->find_item(itemIdx);
             if (item != 0)
             {
                 Inven_Item inv;
                 inv.m_addInfo = itemIdx;
-                G_CDataManager()->getItemList()->create_item(
+                G_CDataManager()->m_itemList->create_item(
                     static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
                 int grade = item->get_grade();
                 int itemRarity = item->get_rarity();
@@ -261,21 +274,23 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
     for (int i = 1; i <= 4; ++i)
     {
         float factor = 1.0f;
-        int fallbackTable[6];                        // ORIG 栈 -0x7c..-0x64（24B 清零）
-        memset(fallbackTable, 0, sizeof(fallbackTable));
+        // [b28d-38] P214③/P253：ORIG 内联清零（无 memset call）⇒ 花括号零初始化。
+        int fallbackTable[6] = {0};                  // ORIG 栈 -0x7c..-0x64（24B 清零）
         int* tablePtr = &m_rarityBasis[i][0];
         double boost = 0.0;
 
         if (i == 2)
         {
-            CAutoMarketConditionsControl* amc =
-                G_CDataManager()->GetAutoMarketContitionsControl();
-            factor = amc->GetItemDropRate(probIdx);
+            // [b28d-38] P183/P167：ORIG 无 amc 具名局部，两次
+            // `G_CDataManager()->GetAutoMarketContitionsControl()` 各重发一次调用。
+            factor = G_CDataManager()->GetAutoMarketContitionsControl()
+                         ->GetItemDropRate(probIdx);
             boost = 0.0;
             if (factor != 0.0f)
                 boost = 1.0f / factor - 1.0f;
-            if (amc->ChangeItemRarity(&m_rarityBasis[i][0], fallbackTable, 6,
-                                      boost))
+            if (G_CDataManager()->GetAutoMarketContitionsControl()
+                    ->ChangeItemRarity(&m_rarityBasis[i][0], fallbackTable, 6,
+                                       boost))
                 tablePtr = fallbackTable;
         }
 
@@ -313,14 +328,14 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
         if (itemIdx == -1)
             continue;
 
-        CItem* item = G_CDataManager()->getItemList()->find_item(itemIdx);
+        CItem* item = G_CDataManager()->m_itemList->find_item(itemIdx);   // [b28d-38] 同上
         if (item == 0)
             continue;
 
         if (i == 2)
         {
-            char buf[256];                            // ORIG -0x1b9 帧 256B 清零
-            memset(buf, 0, sizeof(buf));
+            // [b28d-38] P253：ORIG `rep stos`（0x40 dwords）⇒ 花括号零初始化。
+            char buf[256] = {0};                      // ORIG -0x1b9 帧 256B 清零
             sprintf(buf,
                     "special monster drop rate : item_id(%d), mon_lv(%d), "
                     "role(%d), dungeon_lv(%d), dungeon_diff(%d), member_cnt(%d), "
@@ -338,7 +353,7 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
         // create_item(1,&inv,1) / get_grade+get_rarity+UseLuckPoint / push_back。
         Inven_Item inv;                                // ORIG 内联 C2
         inv.m_addInfo = itemIdx;                       // ORIG 写对象首 +0x02
-        G_CDataManager()->getItemList()->create_item(
+        G_CDataManager()->m_itemList->create_item(
             static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
         int grade = item->get_grade();
         int itemRarity = item->get_rarity();
@@ -492,18 +507,20 @@ int CSecialIMonsterDropItemGenRateTable::chooseItem(
             if (randomOptionIdx != -1)
                 return randomOptionIdx;
         }
-        if (m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].empty())
+        // [b28d-38] P167：ORIG 调 map::size()（无 empty）；P28 增量侧：ORIG 用
+        // 后置 it--（mmEi，带临时槽）；P50 复活：ORIG 有 iterator::C1Ev ⇒ 先声明后赋值。
+        if (m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].size() == 0)
             return -1;
-        std::map<unsigned int, int>::iterator lastIter =
-            m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].end();
-        --lastIter;
+        std::map<unsigned int, int>::iterator lastIter;
+        lastIter = m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].end();
+        lastIter--;
         unsigned long maxKey = lastIter->first;
         unsigned long roll = static_cast<unsigned long>(
             m_rand->randInt(maxKey));
         std::map<unsigned int, int>::iterator lb =
             m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].lower_bound(roll);
         if (lb == m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].end())
-            --lb;
+            lb--;
         result = lb->second;
     }
     catch (...)
@@ -527,32 +544,32 @@ int CSecialIMonsterDropItemGenRateTable::chooseItem(
 // ---------------------------------------------------------------------------
 int CMonsterDrop_Hell::_getGenItemProbIdx(int value)
 {
-    std::vector<stGenItemProb_t>& probs = m_probsSub;   // +0x24
+    // [b28d-38] P183：ORIG 每点重发 `mov this; lea 0x24`，禁 probs 引用缓存。
     int i = 0;
     // ORIG：size() 与 i 作无符号比较（seta/setbe），不做 int 强转。
-    while (probs.size() > i)
+    while (m_probsSub.size() > i)
     {
-        stGenItemProb_t& e = probs[i];
+        stGenItemProb_t& e = m_probsSub[i];
         if (e.v[0] <= value && e.v[1] >= value)
             return i;
         ++i;
     }
-    return (probs.size() <= i) ? -1 : i;
+    return (m_probsSub.size() <= i) ? -1 : i;
 }
 
 int CSpecialMonsterDrop::_getGenItemProbIdx(int value)
 {
-    std::vector<stGenItemProb_t>& probs = m_probsSub;   // +0x24
+    // [b28d-38] P183：ORIG 每点重发 `mov this; lea 0x24`，禁 probs 引用缓存。
     int i = 0;
     // ORIG：size() 与 i 作无符号比较（seta/setbe），不做 int 强转。
-    while (probs.size() > i)
+    while (m_probsSub.size() > i)
     {
-        stGenItemProb_t& e = probs[i];
+        stGenItemProb_t& e = m_probsSub[i];
         if (e.v[0] <= value && e.v[1] >= value)
             return i;
         ++i;
     }
-    return (probs.size() <= i) ? -1 : i;
+    return (m_probsSub.size() <= i) ? -1 : i;
 }
 
 }  // namespace WongWork

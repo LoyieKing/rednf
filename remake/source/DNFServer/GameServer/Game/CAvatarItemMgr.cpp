@@ -1,3 +1,15 @@
+// [b28d-38 判词] 本 TU 11 件最终状态：
+//  _AssignTempKey 0x082f9e02 NEAR（N95/N82 槽基差：ORIG counter@-0xc vs 4.4 恒 -0x4；13 形探针）
+//  UnRegistItem 0x082f9d.. AE（单表达式 find()!=end() 翻求值序 + erase(key)）
+//  EraseAvatarItem AE（同上）
+//  SaveEndurance 0x082f9f9e AE（迭代器声明序 it 先于 endIt）
+//  GetEmblemReduceRate 0x082f9f.. AE（非 const iterator P96/P270 + P222 正极性包裹）
+//  UpdateEndurance AE（P222 否定条件块序 + pair 直构 + endIt 具名）
+//  RegistItem(iiiPKc…) 0x082f901c AE（早返形 + _FindItem/Acquire 独立变量）
+//  RegistNotAssignedAvatarItem(iiPKcb…) 0x082f9xxx AE（SetData 三分支物理内联 P165）
+//  AddEmblemEndurance 0x082f9e4c DIFF（p167 CLEAR 12/12；N4/P30 i*6+2 disp 折叠 + 槽号）
+//  Reset 0x082f9ae4 NEAR（p167 CLEAR 25/25；const_iterator 双端转换+去缓存/null 检查；N93 槽向）
+//  GetItem 0x082f9d.. DIFF（p167 CLEAR 16/16；去 item 缓存 + 结构赋值替 memcpy(N84)；槽号）
 // df_game_r Game/ WongWork::CAvatarItemMgr 实现（独立 TU，从 GameStubs.cpp 拆出）。
 // 语义字段：m_registeredItems/m_waitAssignItems/m_tempKeyCounter/m_emblemEnduranceMap
 //          /m_enduranceUpdateMap。
@@ -8,6 +20,18 @@
 #include <cstring>
 namespace WongWork
 {
+
+// [b28d-38] jewel socket 槽视图：步长 6（+0 short pad、+2 int itemId）。
+// ORIG AddEmblemEndurance `mov 0x2(%eax,%ecx,1),%eax`（i*6 与 base 各占寄存器、
+// +2 折 disp）实证；裸偏移 `*(int*)(jd + i*6 + 2)` 使 4.4 把 +2 并入索引（多 2 条）。
+namespace
+{
+struct JewelSocketSlot
+{
+    short m_pad;
+    int m_itemId;
+} __attribute__((packed));
+}
 
 // ORIG 静态池 B 0x5c @0x943bd80；静态初始化 0x82fa193 实证 ctor(0x3a98=15000, 0x3e8=1000)。
 DynamicPool<Avatar_Item> CAvatarItemMgr::m_AvatarItemPool(15000, 1000);
@@ -30,24 +54,21 @@ void CAvatarItemMgr::Reset()
     if (m_registeredItems.empty() && m_waitAssignItems.empty())
         return;
 
-    for (std::map<int, Avatar_Item*>::iterator it = m_registeredItems.begin();
-         it != m_registeredItems.end(); ++it)
+    // [b28d-38] P167：ORIG 用 _Rb_tree_const_iterator（转换构造×4/op->×3/op++×2/
+    // op!=×2）⇒ 两侧均先转 const_iterator（混合比较会生成 operator!=<PK,P> 变体）。
+    std::map<int, Avatar_Item*>::const_iterator it = m_registeredItems.begin();
+    std::map<int, Avatar_Item*>::const_iterator endIt = m_registeredItems.end();
+    for (; it != endIt; ++it)
     {
-        Avatar_Item* item = it->second;
-        if (item != 0)
-        {
-            item->init();
-            m_AvatarItemPool.Free(item);
-        }
+        // ORIG 无 null 检查、无 item 具名局部（每点重发 operator->）。
+        it->second->init();
+        m_AvatarItemPool.Free(it->second);
     }
-    for (std::map<int, Avatar_Item*>::iterator it = m_waitAssignItems.begin();
-         it != m_waitAssignItems.end(); ++it)
+    std::map<int, Avatar_Item*>::const_iterator it2 = m_waitAssignItems.begin();
+    std::map<int, Avatar_Item*>::const_iterator endIt2 = m_waitAssignItems.end();
+    for (; it2 != endIt2; ++it2)
     {
-        Avatar_Item* item = it->second;
-        if (item != 0)
-        {
-            m_AvatarItemPool.Free(item);
-        }
+        m_AvatarItemPool.Free(it2->second);
     }
     m_registeredItems.clear();
     m_waitAssignItems.clear();
@@ -119,25 +140,28 @@ void CAvatarItemMgr::AddEmblemEndurance(int key, const Avatar_Item* item)
     short totalEndurance = 0;
     for (int i = 0; i <= 4; i++)
     {
-        int itemId = *(int*)(jewelData + i * 6 + 2);
-        if (itemId != 0)
+        // [b28d-38] P0/P48：ORIG 对同一表达式读两次（test 与 find_item 实参各一次），
+        // 无 itemId 具名槽；grade 无具名槽（P52 链式实参跨 receiver call 保活 ebx）。
+        if (((const JewelSocketSlot*)jewelData)[i].m_itemId != 0)
         {
-            CItem* citem = G_CDataManager()->find_item(itemId);
+            CItem* citem = G_CDataManager()->find_item(
+                ((const JewelSocketSlot*)jewelData)[i].m_itemId);
             if (citem == 0)
                 return;
-            int grade = citem->get_grade();
-            int rate = ARAD::Singleton<AvatarRechargeServer>::Get()->GetRateFromEmblemGrade(grade);
-            totalEndurance += (short)rate;
+            totalEndurance += (short)ARAD::Singleton<AvatarRechargeServer>::Get()
+                                  ->GetRateFromEmblemGrade(citem->get_grade());
         }
     }
     std::map<int, int>::iterator it = m_emblemEnduranceMap.find(key);
-    if (it != m_emblemEnduranceMap.end())
+    // [b28d-38] P167：ORIG 调 operator==（非 !=）、insert 实参构造成员模板为
+    // pair<int&,short&>（totalEndurance 为 short 左值、pair 直构非 make_pair）。
+    if (it == m_emblemEnduranceMap.end())
     {
-        it->second = (int)totalEndurance;
+        m_emblemEnduranceMap.insert(std::pair<const int, int>(key, totalEndurance));
     }
     else
     {
-        m_emblemEnduranceMap.insert(std::make_pair(key, (int)totalEndurance));
+        it->second = (int)totalEndurance;
     }
 }
 
@@ -171,20 +195,20 @@ unsigned long CAvatarItemMgr::RegistNotAssignedAvatarItem(int itemIdx, int tick,
 {
     int tempKey = _AssignTempKey();
     Avatar_Item* item = m_AvatarItemPool.Acquire();
-    int expireDate;
+    // [b28d-38] ORIG 0x82f9xxx：SetData 三分支各物理内联一份（P165 多份独立块），
+    // 无 expireDate 具名局部（各分支参数直接算）。
     if (itemIdx == 0 || itemIdx == 0x16d)
     {
-        expireDate = 0;
+        item->SetData(0, tick, ipgAgency);
     }
     else if (!b)
     {
-        expireDate = itemIdx * 0x15180 + tick;
+        item->SetData(itemIdx * 0x15180 + tick, tick, ipgAgency);
     }
     else
     {
-        expireDate = tick + itemIdx;
+        item->SetData(tick + itemIdx, tick, ipgAgency);
     }
-    item->SetData(expireDate, tick, ipgAgency);
     item->setEmblemSocketData(emblem);
     item->setColor(0, 0);   // ORIG 真名 setColor(short,short)
     // ORIG 0x82f95d3: lea 0x18(%eax),%ecx → 插入 m_waitAssignItems(+0x18)
@@ -219,10 +243,12 @@ int CAvatarItemMgr::RegistItem(int key, int expireDate, int registTime, const ch
                                const stAvatarEmblemInfo_t& emblem,
                                const stAvatarExpansionInfo_t& expansion, bool b)
 {
-    Avatar_Item* item = _FindItem(key);
-    if (item != 0)
+    Avatar_Item* found = _FindItem(key);
+    // [b28d-38] ORIG -0x10=_FindItem 结果、-0x2c=Acquire 结果（两个独立局部）；
+    // 早返形（`cmpl $0,-0x10; je <主流程>` 由 4.1 早返布局产生）。
+    if (found != 0)
         return 0;
-    item = m_AvatarItemPool.Acquire();
+    Avatar_Item* item = m_AvatarItemPool.Acquire();
     int expireDate2 = 0;
     if (b)
     {
@@ -282,10 +308,12 @@ int CAvatarItemMgr::GetRemainDate(int nAvatarUid, int nTick) const
 
 int CAvatarItemMgr::GetEmblemReduceRate(int key)   // ORIG 非 const
 {
-    std::map<int, int>::const_iterator it = m_emblemEnduranceMap.find(key);
-    if (it == m_emblemEnduranceMap.end())
-        return 0;
-    return it->second;
+    // [b28d-38] P96/P270：const_iterator 引入转换构造 call（+10 条）⇒ 非 const iterator。
+    // P222：ORIG 尾部 ret0 块（`mov $0x0,%eax; leave`）⇒ 正极性包裹（!=end fall-through）。
+    std::map<int, int>::iterator it = m_emblemEnduranceMap.find(key);
+    if (it != m_emblemEnduranceMap.end())
+        return it->second;
+    return 0;
 }
 
 const char* CAvatarItemMgr::getJewelSocketData(int key) const
@@ -324,14 +352,16 @@ bool CAvatarItemMgr::GetItem(AvatarDetailInfo* info, int* count) const
     for (std::map<int, Avatar_Item*>::const_iterator it = m_registeredItems.begin();
          it != m_registeredItems.end() && i <= 0x72; ++it, ++i)
     {
-        Avatar_Item* item = it->second;
+        // [b28d-38] P157/P167：ORIG 4 次 operator->（每点重发 it->second），无 item 缓存。
         info[i].m_key = it->first;
-        info[i].m_expireDate = item->GetExpireDate();
-        info[i].m_registTime = item->GetRegistTime();
-        strncpy(info[i].m_ipgAgencyNo, item->GetIPGAgencyNo(), 0x19);
-        const char* jewelData = item->getJewelSocketData();
-        memcpy(&info[i].m_jewelSocket, jewelData, 0x1e);
-        info[i].m_expansionInfo = *(const stAvatarExpansionInfo_t*)item->getExnansionInfoRef();
+        info[i].m_expireDate = it->second->GetExpireDate();
+        info[i].m_registTime = it->second->GetRegistTime();
+        strncpy(info[i].m_ipgAgencyNo, it->second->GetIPGAgencyNo(), 0x19);
+        // [b28d-38] P167/N84：ORIG 无 memcpy call ⇒ 结构体直接赋值（rep movsl 展开）。
+        const char* jewelData = it->second->getJewelSocketData();
+        info[i].m_jewelSocket = *(const stAvatarEmblemInfo_t*)jewelData;
+        info[i].m_expansionInfo =
+            *(const stAvatarExpansionInfo_t*)it->second->getExnansionInfoRef();
     }
     *count = i;
     return 1;
@@ -344,12 +374,10 @@ bool CAvatarItemMgr::UnRegistItem(int key)
         return false;
     m_registeredItems.erase(key);
     m_AvatarItemPool.Free(item);
-    // [b27 封顶] 残差 = find!=end 双实参求值序（ORIG 4.1 先 end 后 find，
-    // 4.4 先 find 后 end——求值序由编译器固定不可定向，N/P23 族）。
-    // EraseAvatarItem 同款（end 槽 -0x14/-0x10 对调同根）。
-    std::map<int, int>::iterator it = m_emblemEnduranceMap.find(key);
-    if (it != m_emblemEnduranceMap.end())
-        m_emblemEnduranceMap.erase(it);
+    // [b28d-38] 单表达式形：ORIG 先求 end（-0x14）后求 find（-0x10），
+    // 且 erase 传 key 地址（0xc(%ebp)）非迭代器副本；具名 it 形 4.4 恒 find 先。
+    if (m_emblemEnduranceMap.find(key) != m_emblemEnduranceMap.end())
+        m_emblemEnduranceMap.erase(key);
     return true;
 }
 
@@ -359,9 +387,8 @@ Avatar_Item* CAvatarItemMgr::EraseAvatarItem(int key)
     if (item == 0)
         return 0;
     m_registeredItems.erase(key);
-    std::map<int, int>::iterator it = m_emblemEnduranceMap.find(key);
-    if (it != m_emblemEnduranceMap.end())
-        m_emblemEnduranceMap.erase(it);
+    if (m_emblemEnduranceMap.find(key) != m_emblemEnduranceMap.end())
+        m_emblemEnduranceMap.erase(key);
     return item;
 }
 
@@ -386,20 +413,24 @@ int CAvatarItemMgr::setEmblemSocketData(int key, const stAvatarEmblemInfo_t& emb
 void CAvatarItemMgr::UpdateEndurance(int key, int endurance)
 {
     std::map<int, int>::iterator it = m_enduranceUpdateMap.find(key);
-    if (it != m_enduranceUpdateMap.end())
-        it->second = endurance;
+    std::map<int, int>::iterator endIt = m_enduranceUpdateMap.end();
+    // [b28d-38] ORIG then 块（it->second=endurance）在函数尾、insert 块直落 ⇒
+    // 否定条件写法（P222 镜像）；pair 直构替代 make_pair（省一次转换构造 call，P192）。
+    if (it == endIt)
+        m_enduranceUpdateMap.insert(std::pair<const int, int>(key, endurance));
     else
-        m_enduranceUpdateMap.insert(std::make_pair(key, endurance));
+        it->second = endurance;
 }
 
 void CAvatarItemMgr::SaveEndurance()
 {
     if (m_enduranceUpdateMap.empty())
         return;
-    // [b27 封顶] 残差 = begin/end 槽号互换（ORIG begin@-0xc/end@-0x10，
-    // 4.4 反向——P212 类对象槽向差；endIt 先声明形实测反劣）。循环体/clear 全等。
-    for (std::map<int, int>::iterator it = m_enduranceUpdateMap.begin();
-         it != m_enduranceUpdateMap.end(); ++it)
+    // [b28d-38] ORIG begin@-0xc/end@-0x10；4.4 对两迭代器 sret 恒 begin 结果深、
+    // end 结果浅（与声明序无关，N93/N82附 聚合对象槽分区）⇒ 槽号互换 NEAR 封顶。
+    std::map<int, int>::iterator it = m_enduranceUpdateMap.begin();
+    std::map<int, int>::iterator endIt = m_enduranceUpdateMap.end();
+    for (; it != endIt; ++it)
     {
         AvatarRechargeServer::SaveAvatarEnduranceUnit(it->first, it->second);
     }

@@ -6,6 +6,10 @@
 // <iostream> 的 std::ios_base::Init 静态初始化（ORIG _GLOBAL__I_ keyed to C2）。
 #include <iostream>
 
+// [b28d-28] DIFF | ORIG 0x0818e2c8 | CNetwork<6144,100000>::Parsing_ServerPacket(int)
+// （定义在共享头 CNetwork.h，本 TU 隐式实例化）：残差仅 1 条 `jmp` 位置互换
+// （P223 边界：4.4 对单源 goto/空 then 尾岛恒 jump-threading 合并，N 封顶）。
+
 #include "Arad_DevMgr_Server_Proxy.h"
 #include "LogManager.h"
 

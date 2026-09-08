@@ -148,6 +148,8 @@ int importGoldLimitByLevel(unsigned int* out)
 // （P71/P67 跨编译器结构性差异；ORIG D1/D2 W 0x8948ff0/0x89491a6 须保留，
 // 不删用户析构）⇒ 标 N 封顶。
 // ===========================================================================
+// [b28d-27] DIFF（p167 EXTRA 4/MISSING 4）：ORIG 0x08908338；ORIG 22 calls /
+// 我方 26，差集为字符串/容器实例族 ⇒ N89 封顶（语义等价）。
 int importInvalidName(char* path, InvalidCharData* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -247,6 +249,8 @@ int importInvalidName(char* path, InvalidCharData* out)
 // 注意报告 Ghidra 的 make_pair 两分支实参顺序相反，以 objdump 为准：
 //   false 分支把 -0x48(val) 放 first、-0x44(level) 放 second；true 分支相反。
 // ============================================================================
+// [b28d-27] NEAR N95/P112：ORIG 0x089136a4；局部槽基差 4（ORIG -0x40/-0x39 vs
+// 我方 -0x3c/-0x3d），4.4 槽基恒 ebp-8 起（N95），p167 CLEAR（17/17），语义闭合。
 int importExperienceItemMapInfo(std::map<int, int, std::less<int>,
                                 std::allocator<std::pair<int const, int> > >& m,
                                 bool second)
@@ -302,6 +306,7 @@ int importExperienceItemMapInfo(std::map<int, int, std::less<int>,
 // ============================================================================
 // [b28 BM2 判词·AE] 清单 NEAR(2) 为全二进制 call 目标标签伪差；fresh
 // /tmp/tu_RDARScriptEtcParameter.o fn_diff_tu 归一 0 差（152=152 逐条）。
+// [b28d-27] AE：ORIG 0x08913a7e；fn_diff_tu 归一 0 差（157=157），p167 CLEAR。
 int importBoosterGage(char* path, BoosterGageData* out)
 {
     if (!out)
@@ -366,6 +371,9 @@ int importBoosterGage(char* path, BoosterGageData* out)
 // 验收：gap 12→1；差集 10/10 归零；残余 = ORIG 三态汇聚 ebx+终值 esi 双
 // 寄存器物化（4.1 choose-without-store，N3/N76 族）。
 // ===========================================================================
+// [b28d-27] DIFF N93附/P47：ORIG 0x08913dbc；分支常量物化寄存器角色互换
+// （ORIG mov $1,%ebx vs 我方 mov $1,%esi+mov $0,%ebx 组合），p167 CLEAR（10/10），
+// 语义闭合。
 int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -433,6 +441,8 @@ int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
 // 4.4 在 token== 匹配后发射 `jmp <内层检查>` 中继 vs 4.1 fall-through
 // （跨版本 nop;jmp 岛 vs jump-threading，N 类豁免）。
 // ===========================================================================
+// [b28d-27] DIFF N82/N89：ORIG 0x08912e47；p167 CLEAR（64/64），残差为 STL 实例
+// 与帧/槽分配，语义闭合。
 int importPremiumServiceData(std::vector<PremiumServiceData>& out)
 {
     typedef std::map<const char*, int, less_TCHAR> LookupMap;
@@ -607,6 +617,8 @@ int importPremiumServiceData(std::vector<PremiumServiceData>& out)
 // 成功返 1。
 // 验收：差集 35/35 归零；残余为 set/pair 临时链槽位序（N82）+ 块排布镜像。
 // ===========================================================================
+// [b28d-27] DIFF N82/N89：ORIG 0x08913f48；p167 CLEAR（35/35），残差为帧/槽与
+// STL 实例形态，语义闭合。
 int importCommonSkillIndexes(
     const char* path,
     std::vector<int>& commonSkill,
@@ -687,6 +699,8 @@ int importCommonSkillIndexes(
 // 验收：gap 52→1（413/412）；P167 差集 58/58 归零；残余=槽号平移+ctor/dtor
 // 块序（N82/EH-merge 族）。
 // ===========================================================================
+// [b28d-27] DIFF N82/N89：ORIG 0x08914dd1；p167 CLEAR（58/58），残差为帧/槽与
+// STL 实例形态，语义闭合。
 int importCancelSkillIndices(
     const char* path,
     std::map<std::pair<ENUM_CHARACTERJOB, int>, std::set<int> >& out)
@@ -807,6 +821,8 @@ int importCancelSkillIndices(
 // 验收：差集 40/40 归零；clean 225=225，残余为 clear/dtor 块序镜像
 // （4.4 jump-threading 跨版本伪影，N 类）。
 // ===========================================================================
+// [b28d-27] DIFF N82：ORIG 0x08907e3a；p167 CLEAR（40/40），残差为帧/槽分配，
+// 语义闭合。
 int importAdditionalEffectListScript(const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -1010,6 +1026,8 @@ int importNoviceCommandScript(const char* path, stNoviceCommand& out)
 // 拷贝链逐点对应）；残余 = 循环出口多路 dtor 链块序与槽号
 // （N82/EH merge 跨版本族）。
 // ===========================================================================
+// [b28d-27] DIFF N82/N89：ORIG 0x0890793f；p167 CLEAR（66/66），残差为帧/槽与
+// STL 实例形态，语义闭合。
 int importEquipmentEffectSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
 {
     if (!loadRDARScriptFile("", path))

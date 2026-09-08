@@ -40,6 +40,7 @@ static_assert(sizeof(CUser::st_monstorkill) == 0x14, "st_monstorkill ABI drift")
 //    @0x08654b94（findSkillCommandData.md ##汇编 + ##反编译 C 逐行转写）
 bool CUser::findSkillCommandData(int skillId, STSkillCommandData& out)
 {
+    // b28d-35: DIFF→N82（帧/槽）。ORIG @0x08654b94 size 0x2d6。
     // 命令表 getter（CUserCharacInfo +0x1254 区容器）：std::map<int,STSkillCommandData>*
     std::map<int, STSkillCommandData>* cmds =
         reinterpret_cast<std::map<int, STSkillCommandData>*>(
@@ -110,6 +111,7 @@ bool CUser::findSkillCommandData(int skillId, STSkillCommandData& out)
 //    @0x08654e6a（仅查玩家命令表重载；flag 参与 Ghidra 尾参杂散，逻辑不依赖）
 int CUser::findSkillCommandData(int skillId, STSkillCommandData& out, bool flag)
 {
+    // b28d-35: DIFF→N82（帧 0x34 vs 0x48、槽平移；bool 形参截断槽）。ORIG @0x08654e6a。
     std::map<int, STSkillCommandData>* cmds =
         reinterpret_cast<std::map<int, STSkillCommandData>*>(
             const_cast<char*>(getSkillCommand()));
@@ -137,6 +139,7 @@ int CUser::findSkillCommandData(int skillId, STSkillCommandData& out, bool flag)
 //    @0x08654f74
 int CUser::customizingSkillCommand(STSkillCommandData& data)
 {
+    // b28d-35: DIFF→N82/N7（帧 0x54 vs 0x58；寄存器分配差）。ORIG @0x08654f74。
     std::map<int, STSkillCommandData>* cmds =
         reinterpret_cast<std::map<int, STSkillCommandData>*>(
             const_cast<char*>(getSkillCommand()));
@@ -283,6 +286,7 @@ bool CUser::st_monstorkill::Check(unsigned int nowTick, unsigned short nx,
                                   unsigned short ny, unsigned short xLim,
                                   unsigned short yLim, unsigned int windowLimit)
 {
+    // b28d-35: DIFF→N82/N7（帧/槽 + 寄存器分配；W 弱符号 0x1cd）。ORIG @0x0823049c。
     if ((unsigned int)(nowTick - m_lastTick) > windowLimit)   // ORIG 82304cc: cmp/ja 无符号超窗
     {
         // 超窗重置检测框

@@ -63,8 +63,10 @@ void write_log_gain_money(eMoneyAddReason reason, int amount, CUser* user)
             LogManager::logFormat(1, "inventory.cpp", __PRETTY_FUNCTION__, 0xd71,
                 "write_log_gain_money() reason(%d), gold(%d), gold(%d)",
                 reason, amount, user->get_charac_level());
-            return;
         }
+        // b28d-37：ORIG 0x84febea `jns 0x84fed94(nop 岛)` + log 分支 `jmp 0x84fed95`
+        // ⇒ 内层 if 失败与 log 分支共享函数尾出口（P223 空岛形），改共享 return。
+        return;
     }
     else
     {
@@ -107,6 +109,10 @@ void write_log_gain_money(eMoneyAddReason reason, int amount, CUser* user)
             // 实测复形失败：把 `default: break;` 改为显式 `goto L_SWITCH_EXIT;` +
             // 块外空标签后 4.4 仍折叠（ndiff 9→9，零改善），已回退为自然 break 形。
             // 语义完全等价（末 case 落函数尾）。
+            // [b28d-37 复核] 函数头 `if(amount<1){if(amount<0)log;}return;` 改共享
+            // return 后已复现 ORIG 0x84fed94 nop 岛（our 111→113=ORIG 113）；仅剩
+            // 末 case break 跳板 1 条 jmp 差（4.1 保留跳板 / 4.4 jump-threading）⇒
+            // goto/空标签形仍不可翻，N 封顶（P223 边界：我方多出岛不可消，缺岛可补）。
         default:
             break;
         }
@@ -117,6 +123,9 @@ void write_log_use_money(eMoneySubReason reason, int amount, CUser* user)
 {
     // ORIG 0x84fed9b：先无条件取 charac_level 存局部，再 if(amount<1){if(<0)log}else{...}。
     // switch 体布局序 = ORIG 块序（jump table 实证）。
+    // b28d-37 [N 封顶]：共享 return 后复现 ORIG nop 岛（our 302→304=ORIG 304）；
+    // 仅剩末 case break 跳板 1 条 jmp（4.1 保留 / 4.4 jump-threading，goto+空标签形
+    // 实测不可翻，同 write_log_gain_money）。
     int level = user->get_charac_level();
     if (amount < 1)
     {
@@ -125,8 +134,10 @@ void write_log_use_money(eMoneySubReason reason, int amount, CUser* user)
             LogManager::logFormat(1, "inventory.cpp", __PRETTY_FUNCTION__, 0xde9,
                 "write_log_use_money() reason(%d), gold(%d), gold(%d)",
                 reason, amount, level);
-            return;
         }
+        // b28d-37：同 write_log_gain_money——ORIG 0x84fee5? `jns <nop 岛>` 与 log
+        // 分支共享函数尾出口（P223），改共享 return 复现 nop 岛。
+        return;
     }
     else
     {
@@ -1346,12 +1357,12 @@ int CInventory::GetSlotItemType(int slot) const
 
 void CInventory::getHashCode(unsigned char* out)
 {
-    // b28c-L2 [N95 封顶]：fresh 复验 orig 41 / our 41，残差 6 行 = 6 处
-    // `lea -0xe0(%ebp)` vs `lea -0xe8(%ebp)`。md5_context 大局部（0xdc 字节）
-    // 4.1 可顶到 ebp（outgoing 区含 8B gap），4.4-O0 局部槽基恒从 ebp-8 起
-    // ⇒ 全帧平移 8（范式库 N95 即以本函数 0x084fa91c 为实证；double framePad
-    // 反致下移、int pad/声明序调整均不可上移）。清零/更新/收尾调用序与实参
-    // 宽度与 ORIG 逐条一致，语义闭合。
+    // b28d-37 [N95 封顶，ORIG 0x084fa91c]：fresh 复验 orig 41 / our 41（NDIFF=6，
+    // 全为 6 处 `lea -0xe0(%ebp)` vs `lea -0xe8(%ebp)`）。md5_context 大局部
+    // （0xdc 字节）4.1 可顶到 ebp（outgoing 区含 8B gap），4.4-O0 局部槽基恒从
+    // ebp-8 起 ⇒ 全帧平移 8（范式库 N95 即以本函数为实证；P190 double framePad
+    // 反致下移、int pad/声明序调整均不可上移）。清零/更新/收尾调用序与实参宽度
+    // 与 ORIG 逐条一致，语义闭合。
     md5_context ctx;
     md5_starts(&ctx);
     md5_update(&ctx, (unsigned char*)&m_invenItem[0], 0x53e);
@@ -1635,6 +1646,10 @@ int CInventory::UseUpCoin(unsigned int amount)
 
 int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int param)
 {
+    // b28d-37：ORIG 0x84ff29c 槽序 money(-0x40) < trace(-0x38) < limit(-0x28)
+    // < oldMoney(-0x24) < gained(-0x20) < i(-0x1c)。块内 `int money` 被 4.4
+    // 分配到浅槽(-0x1c)且整帧 +0x10；按 P212 提到函数头并置于槽深序首位复现。
+    int money;
     register int level;
     register const char* accName;
     int limit = 0x7fffffff;
@@ -1652,7 +1667,7 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
     if (limit - amount < m_money)
     {
         m_money = limit;
-        int money = m_money;
+        money = m_money;
         register int level2 = ((CUserCharacInfo*)m_pParent)->get_charac_level();
         register int characNo = m_pParent->get_charac_no(-1);
         register char* numStr = NumberToString(m_pParent->get_acc_id(), 0);
@@ -1923,22 +1938,23 @@ bool CInventory::IsEquipAvatar() const
 
 bool CInventory::IsExistStackable(int itemIdx, Inven_Item::ITEM_TYPE type) const
 {
-    // b28c-L2 [跨版本块序封顶]：ORIG 0x0850a044 区间块序为 BODY/ADDL/HIT(mov$1)/
-    // JMP-COND/COND（4.1 把命中出口块插在循环增量与条件块之间，故 body 尾需
-    // `jmp COND`）；4.4-O0 恒把 COND 紧跟 body（fall-through）、HIT 落函数尾，
-    // `return true` 直形/`goto found` 形两式实测均产 jne+内联或 COND 前置
-    // （探针 /tmp/l2_probe8.cpp S/S2/S3），与范式库「跨版本·空 else jump
-    // threading」+N93附（尾部双 return 块发射序相反）同族 ⇒ 保持可读直返形，
-    // ndiff 4 封顶。
+    // b28d-37 [已归零，ORIG 0x0850a016]：旧「跨版本块序封顶」判词作废——提前
+    // `if (field != itemIdx) continue;` 形（P223② 同层 continue）令 4.4 复现 ORIG
+    // 块序 BODY(cmp)/`je HIT`/ADDL/`jmp COND`/HIT(mov$1)/COND，36=36 逐条全等
+    // （仅 .o 未解析 call 重定位伪差）。直 return 形产 `jne COND`+HIT 内联。
     int start;
     int end;
     StartEndPos(type, start, end);
     for (int i = start; i <= end; i++)
     {
-        // b28c-L2: 试直 return 形（原 goto 形 4.4 产 COND 紧跟 body，ORIG 块序为
-        // BODY/ADDL/JMP-COND/HIT(mov$1)/COND）。
-        if (m_pEquipSlot[i].m_addInfo == itemIdx)
-            return true;
+        // b28d-37：ORIG 0x0850a05e 块序为 BODY(cmp)/`je HIT`/ADDL/`jmp COND`/
+        // HIT(mov$1)/COND；4.4 直 return 形产 `jne COND`+HIT 内联（块序反）。
+        // P223② 提前 continue 形试复现 HIT 落 ADDL 之后。
+        if (m_pEquipSlot[i].m_addInfo != itemIdx)
+        {
+            continue;
+        }
+        return true;
     }
     return false;
 }
@@ -1952,22 +1968,23 @@ bool CInventory::IsOverStackableItem(int itemIdx, volatile unsigned char count)
 
 bool CInventory::isAnyExpiredAvatarItem() const
 {
+    // b28d-37：ORIG 0x850937e 两循环各带 1 个 nop 岛（je 落 +0x64/+0xd0 nop，
+    // 后两条守卫 je/jge 落 +0x65/+0xd1 addl）。P223 定案①复现形=负条件 goto 到
+    // 共享尾空标签串（标签序=守卫序），使 4.4 在标签处发 nop 中继。
     int now = OS_API::GetDateTimeTick();
     for (int i = 0; i <= 9; i++)
     {
-        if (m_invenItem[i].m_addInfo != 0 && m_invenItem[i].m_addInfo2 != 0 &&
-            m_invenItem[i].m_addInfo2 < now)
-        {
+        if (m_invenItem[i].m_addInfo == 0) goto L1;
+        if (m_invenItem[i].m_addInfo2 != 0 && m_invenItem[i].m_addInfo2 < now)
             return true;
-        }
+    L1:;
     }
     for (int i = 0; i <= 0x68; i++)
     {
-        if (m_pAvatarSlot[i].m_addInfo != 0 && m_pAvatarSlot[i].m_addInfo2 != 0 &&
-            m_pAvatarSlot[i].m_addInfo2 < now)
-        {
+        if (m_pAvatarSlot[i].m_addInfo == 0) goto L2;
+        if (m_pAvatarSlot[i].m_addInfo2 != 0 && m_pAvatarSlot[i].m_addInfo2 < now)
             return true;
-        }
+    L2:;
     }
     return false;
 }
@@ -2249,8 +2266,11 @@ int CInventory::tryStackInvenItemIntoQuickSlot(Inven_Item item) const
         {
             return -2;
         }
-        if (!checkStackableLimit((unsigned long)item.m_addInfo,
-                                 m_pEquipSlot[i].get_add_info() + item.get_add_info()))
+        // b28d-37：ORIG 0x08501ca5..0xb2 对和值有槽往返（`lea (%ebx,%eax,1),%eax;
+        // mov %eax,-0xc(%ebp); mov -0xc(%ebp),%edx`）⇒ P0 原码有具名局部；
+        // 直传形少 2 条且循环变量槽上移 4（-0xc vs ORIG -0x10）。
+        int sum = m_pEquipSlot[i].get_add_info() + item.get_add_info();
+        if (!checkStackableLimit((unsigned long)item.m_addInfo, sum))
         {
             return -10;
         }
@@ -2278,8 +2298,10 @@ int CInventory::tryStackInvenItemIntoCorrespondingSpace(Inven_Item item) const
         {
             return -2;
         }
-        if (!checkStackableLimit((unsigned long)item.m_addInfo,
-                                 m_pEquipSlot[i].get_add_info() + item.get_add_info()))
+        // b28d-37：同 tryStackInvenItemIntoQuickSlot——ORIG 0x08501dca..0xe3 有
+        // `mov %eax,-0xc(%ebp); mov -0xc(%ebp),%edx` 槽往返 ⇒ P0 具名 sum 局部。
+        int sum = m_pEquipSlot[i].get_add_info() + item.get_add_info();
+        if (!checkStackableLimit((unsigned long)item.m_addInfo, sum))
         {
             return -10;
         }
@@ -3999,11 +4021,17 @@ int CInventory::tryInsertEventItems(const std::vector<std::pair<int, int> >& ite
     {
         return 0;
     }
-    for (std::vector<std::pair<int, int> >::const_iterator it = items.begin(); it != items.end();
-         ++it)
+    // b28d-37：P167 差集 MISSING = iterator::ppEi×4 + iterator::C1Ev + pair::C1Ev
+    // + pair::aSEOS0_（ORIG 0x0850?）⇒ 原码为「先声明后赋值」迭代器（P50 反例复活）
+    // + 具名 pair 局部右值赋值（P135）。改之。
+    std::vector<std::pair<int, int> >::const_iterator it;
+    it = items.begin();
+    for (; it != items.end(); it++)
     {
-        int itemIdx = it->first;
-        int count = it->second;
+        std::pair<int, int> entry;
+        entry = std::pair<int, int>(*it);
+        int itemIdx = entry.first;
+        int count = entry.second;
         if (itemIdx == 0 || itemIdx == 1)
         {
             insertCount++;
@@ -5306,7 +5334,12 @@ int CInventory::ChangeEquip(INVEN_TYPE invenType, int slot, int equipSlot)
         }
         int result = 0;
         result = move_item((INVEN_TYPE)0, equipSlot, (INVEN_TYPE)1, slot);
-        if ((bool)(result != 0))
+        // b28d-37 [setcc-fold + N93附 封顶，ORIG 0x084fc4dd/0x084fc52d]：ORIG 为
+        // `cmpl $0,-0x14(%ebp); setne %al; test %al,%al; je`（4.1 槽比零物化，P197④
+        // 实证 4.4 对槽比恒折 `cmpl/je` 直跳、唯 call 结果寄存器直比才产 sete）。
+        // 具名 bool 局部实测槽化（帧 +8、ndiff 18→22 劣化）；尾 `nop` 落点差属
+        // N93附（尾部双 return 块发射序相反）。保持直判形，ndiff 封顶。
+        if ((bool)result)
         {
             return result;
         }
@@ -5320,7 +5353,7 @@ int CInventory::ChangeEquip(INVEN_TYPE invenType, int slot, int equipSlot)
         }
         int result = 0;
         result = move_item((INVEN_TYPE)0, equipSlot, (INVEN_TYPE)2, slot);
-        if ((bool)(result != 0))
+        if ((bool)result)
         {
             return result;
         }
@@ -5465,22 +5498,11 @@ static_assert(sizeof(EmblemBlobV) == 0x1e, "EmblemBlobV == stAvatarEmblemInfo_t 
 
 void SIG_AVATAR_INSERT::setJewelSocket(const stAvatarEmblemInfo_t& emblem)
 {
-    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d0 =
-        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d0;
-    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d1 =
-        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d1;
-    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d2 =
-        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d2;
-    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d3 =
-        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d3;
-    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d4 =
-        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d4;
-    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d5 =
-        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d5;
-    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_d6 =
-        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_d6;
-    reinterpret_cast<EmblemBlobV*>(&m_jewelSocket)->m_tail =
-        reinterpret_cast<const EmblemBlobV*>(&emblem)->m_tail;
+    // b28d-37：ORIG 0x850d44c 为 this 侧 disp 折叠（`mov %ecx,0x2d(%eax)` 7 dword
+    // + 尾 `mov %dx,0x49(%eax)`），P82 视图取址形（reinterpret_cast<EmblemBlobV*>
+    // (&m_jewelSocket)）每次重发 `mov 0x8(%ebp),%eax; add $0x2d,%eax` 使 22→44 条。
+    // 结构整体赋值让 4.4 走成员链 disp 折叠（N84/P83 形，30B pack(1) 直拷）。
+    m_jewelSocket = emblem;
 }
 
 // ============================================================================

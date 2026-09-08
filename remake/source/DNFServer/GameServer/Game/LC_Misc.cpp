@@ -65,12 +65,22 @@ void Secu_HackLogCheck::DieMob(const MSG_MONSTER_DIE* msg)
 
     SetMonsterInfo(msg);
 
+    // b28d-36 判词（档① callee 侧旋钮，待 Main 代落 CUser.h）：ORIG
+    // 0x0827a84x 为 `call Check223; mov 0x8(%ebp),%edx; mov %al,0x38(%edx)`
+    // （LHS-first 无中转），要求 callee 返回类型与 uchar 字段**同型**。
+    // 探针 /tmp/d36_probe_dm.cpp：t2（返回 unsigned char）逐条命中，t1/t3
+    // （返回 char，含调用点 cast 形）恒多 `mov %eax,%edx` 中转（P211 档③）。
+    // Check223 尾部 ORIG `movzbl -0x11(%ebp),%eax` 亦证返回 uchar。
+    // ⇒ 正解 = CUser.h:1732-1734 Check223/224/225 返回 char→unsigned char。
     if (m_flag223 != 0)
         m_flag223 = Check223();
     if (m_flag224 != 0)
         m_flag224 = Check224();
     if (m_flag225 != 0)
         m_flag225 = Check225();
+    // b28d-36 判词（N 封顶）：ORIG 0x0827a8a4 最后一支 body 直落 epilogue；
+    // 4.4 平铺 if 恒多 `jmp <epilogue>; nop` 岛（P63/P223 边界：只治空 then
+    // 占位岛，不治 epilogue-threading）。显式 return 试形反多一岛，已回退。
 }
 
 // ---------------------------------------------------------------------------
@@ -139,10 +149,11 @@ char* Sanicova::CPad::getPassword()
 // strncmp 遇 NUL 提前停止——ORIG 语义如此，不得改为 memcmp）。
 bool Sanicova::CPad::checkAnswer(char* answer) const
 {
-    char plain[36];
-    char cipher[36];
-    memset(plain, 0, sizeof(plain));
-    memset(cipher, 0, sizeof(cipher));
+    // b28d-36（修法，P214③/P253）：ORIG 0x08599712 对两缓冲各发内联
+    // `mov $0x9,%edx; rep stos`（9 dword=36B）；源码 memset 使 4.4 恒发
+    // call memset（N78 触发条件）⇒ 改 `= {0}` 显式零初始化即逐条复现。
+    char plain[36] = {0};
+    char cipher[36] = {0};
 
     strncpy(plain, answer, 8);
     encryptAES_(GlobalData::s_pcryptRijndael_MousePassword_, plain, cipher);
@@ -159,11 +170,23 @@ char* encryptAES_(CRijndael* method, char* src, char* dst);
 bool StrikerScript::checkSkillIndex(short firstGrowType, short secondGrowType,
                                     int skillIndex)
 {
-    for (int pass = 0; pass < 2; ++pass)
+    // b28d-36（修法，P212/P191）：ORIG 0x08a9e8xx 函数头连发 `movl $0x0,-0x10;
+    // movl $0x0,-0xc` ⇒ vec/pass 均**全头部声明**且各带零初始化（vec 深 -0x10、
+    // pass 浅 -0xc，4.1/4.4 全头部同为「先声明深」）；旧形把 vec 放 for 块内
+    // 使其占 -0xc、pass 反占 -0x10（槽互换 + 帧 0x48→0x38）。
+    std::vector<StrikerSkill>* vec = 0;
+    int pass = 0;
+    // b28d-36 判词（N 封顶，ORIG 0x08a9e8xx）：vec@-0x10 / pass@-0xc 与 ORIG
+    // 全对齐（全头部声明 + 双零初始化，P212/P191 形已落）。残余 = 帧 0x48 vs
+    // 0x38（+0x10）连带形参 spill 槽 -0x2c/-0x30 vs -0x1c/-0x20 与迭代器 sret
+    // 槽 -0x1c/-0x18 vs -0x18/-0x14 整体平移；P232 `char framePad[0x10]` 撑帧
+    // 实测使槽位更劣（-0x1c→-0x28）⇒ 帧/槽族 N82+P112 封顶。
+    for (pass = 0; pass < 2; ++pass)
     {
-        std::vector<StrikerSkill>* vec =
-            (pass == 0) ? getStrikerSkillVector(firstGrowType, secondGrowType)
-                        : getStrikerSkillVector(firstGrowType, 0);
+        if (pass == 0)
+            vec = getStrikerSkillVector(firstGrowType, secondGrowType);
+        else
+            vec = getStrikerSkillVector(firstGrowType, 0);
         if (vec == 0)
             return false;
 
@@ -193,18 +216,23 @@ int CEnvironment::getProcessSequence() const
 std::vector<StrikerSkill>* StrikerScript::getStrikerSkillVector(short first,
                                                                 short second)
 {
-    // [b28c-lane17] ORIG 0x08a9e7ec：两 short 形参各自 spill 后**直接 16 位
-    // 存进 key 槽对**（`mov %ax,-0x10; movzwl -0x20,%eax; mov %ax,-0xe`），
-    // 未做 int 零扩展中转；find 实参按 int 读槽。原写 `int key = (int)(ushort)`
-    // 使 4.4 先 `movzwl %ax,%eax` 再存 32 位（少 1 条、形不同）。
-    // [b28c-lane17] 三形实测（裸 (int)(ushort) / 16 位视图写槽对 / 直传）
-    // 唯一不引入 lea 地址物化或 movzwl 32 位扩展的是下面这形：
-    // 4.4 对「ushort→int 局部」的 lowering 与 ORIG 逐条同形。
-    unsigned short uw = static_cast<unsigned short>(first);
-    int key = static_cast<int>(uw);
-    (void)second;
+    // b28d-36（修法）：ORIG 0x08a9e7f4 段把 key 槽（int @-0x10）用**两次 16 位
+    // store** 填成 `低半=first / 高半=second`：
+    //   movzwl -0x1c,%eax; mov %ax,-0x10 ; movzwl -0x20,%eax; mov %ax,-0xe
+    // 然后 find 传 &key（int）。旧形 `ushort uw + int key=(int)uw` 使 4.4 多出
+    // uw 槽并 32 位直存 key（`mov %eax,-0x14`，+3 条、全帧浅 4）。
+    // 用 union 的 short 视图逐半字写入即逐条复现（P197① union 拆半同族；
+    // union 为函数局部 POD，零符号发射）。
+    union StrikerSkillKey
+    {
+        int key;
+        struct { unsigned short lo, hi; } parts;
+    };
+    StrikerSkillKey k;
+    k.parts.lo = static_cast<unsigned short>(first);
+    k.parts.hi = static_cast<unsigned short>(second);
     std::map<int, std::vector<StrikerSkill>*>::iterator it =
-        m_skillMap.find(key);
+        m_skillMap.find(k.key);
     if (it != m_skillMap.end())
         return it->second;
     return 0;
@@ -294,7 +322,7 @@ void Secu_MonsterCheck::init225(const MSG_MONSTER_DIE* msg)
 //  残差 2 行（136=136）：`if (m_field0e > 4) m_field10 = 1;` 的 ORIG `jbe 尾`
 //  vs 4.4 镜像 `ja body`；三形互试（>4 body / `<=4 goto 尾空标签` / BM8 外层
 //  标签）4.4 恒折 ja ⇒ P222 镜像边界 + P223 空块岛被 jump-thread 吞，封顶。
-char Secu_MonsterCheck::Check223()
+unsigned char Secu_MonsterCheck::Check223()
 {
     if (m_field08 == m_curKillCount)
         return 1;
@@ -321,17 +349,12 @@ char Secu_MonsterCheck::Check223()
             // jbe` / `cmp $0x4,%ax; jbe`（**16 位无符号**域），4.4 把 ushort
             // 提升 int 后恒产有符号 `jle`。值域 0..N 不越 0x7fff ⇒ 非真语义
             // bug，但为对齐 ORIG 需把比较留在 unsigned 域。
-            if ((unsigned int)m_field0e <= 0xa)
-            {
-                // [b28c-lane12 判词·N] ORIG @0x0827aec6 `cmp $0x4,%ax; jbe 尾;
-                // movw $0x1,0x10`（<=4 跳走 + then fall-through）；4.4 对
-                // `if (>4) body` 恒产镜像 `ja body`。三形互试（>4 body /
-                // `<=4 goto 尾空标签` / BM8 外层标签）4.4 恒折 ja ⇒ P222 镜像
-                // 边界 + P223 空块岛被 jump-thread 吞，封顶。
-                if ((unsigned int)m_field0e > 4)
-                    m_field10 = 1;
-            }
-            else
+            // b28d-36（P222 外层翻正）：ORIG 0x0827ae60 `cmp $0xa,%ax;
+            // jbe +0x127` ⇒ **else 块（>10，含上报/清零）物理在前、then 块
+            // （<=10 的 >4 分支）在 +0x127**。旧写 `if (<=10) {…} else {…}`
+            // 使 4.4 把 then 放前（镜像）。外层条件反写 `if (>10) {else-body}
+            // else {then}` 后 4.4 直产 `jbe +0x127` 与 ORIG 逐条一致。
+            if ((unsigned int)m_field0e > 0xa)
             {
                 m_field10 = 3;
                 if (m_user != 0)
@@ -341,6 +364,11 @@ char Secu_MonsterCheck::Check223()
                         3, 0, 0);
                 }
                 result = 0;
+            }
+            else
+            {
+                if ((unsigned int)m_field0e > 4)
+                    m_field10 = 1;
             }
         }
         else
@@ -362,7 +390,7 @@ char Secu_MonsterCheck::Check223()
 }
 
 // ORIG T 0x0827af78 sz 0x187（Check224.md）：击杀间隔 1000ms 判定，上报 0xe0。
-char Secu_MonsterCheck::Check224()
+unsigned char Secu_MonsterCheck::Check224()
 {
     if (m_field12 == m_curKillCount)
         return 1;
@@ -411,7 +439,7 @@ char Secu_MonsterCheck::Check224()
 }
 
 // ORIG T 0x0827b100 sz 0x187（Check225.md）：击杀间隔 2000ms 判定，上报 0xe1。
-char Secu_MonsterCheck::Check225()
+unsigned char Secu_MonsterCheck::Check225()
 {
     if (m_field1c == m_curKillCount)
         return 1;

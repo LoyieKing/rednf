@@ -27,9 +27,10 @@ STCeraShopItem::STCeraShopItem()
 }
 
 // ---- clear @ 0x88fd9c4 ----
-// 残余 1 insn（N 类豁免）：m_field44 写 ORIG 0x088fd…为 `mov $0x0,%edx;
-// mov %edx,0x44(%eax)` 两段（4.1 常数寄存器中转），4.4.7 恒折 `movl $0x0,
-// 0x44(%eax)` 单段（N18a 系 regmove 折叠，无源码形可翻）。
+// [b28d-35] 翻正（推翻原 N18a 判词）：m_field44 写 ORIG 为 `mov $0x0,%edx;
+// mov %edx,0x44(%eax)` 两段（4.1 常数寄存器中转）——按 P238 用 float 视图
+// `m_field44f = 0.0f;` 即复现该 edx 中转形（int 视图恒折 `movl $0x0,
+// 0x44(%eax)` 单段）。字段经匿名 union 双视图，sizeof/偏移/mangled 不变。
 void STCeraShopItem::clear()
 {
     m_field0 = (char)0xff;
@@ -50,7 +51,7 @@ void STCeraShopItem::clear()
     m_field3c = (char)0xff;
     m_name = "";
     m_field80 = 0;
-    m_field44 = 0;
+    m_field44f = 0.0f;
     m_field48 = 0;
     m_field4c = 0;
     m_field50 = 0;
@@ -109,6 +110,9 @@ bool STCeraShopItem::isLimitSaleItem()
 // （N18a：regmove 落 callee 不可复现）。
 void CCeraShopGoods::SetItem(const STCeraShopItem& item)
 {
+    // b28d-35: DIFF→N 封顶（N18a 单段折叠，84/83 差 1 条）。ORIG @0x08510c1a：
+    //   `mov 0x14(%eax),%eax; mov %eax,%edx` 两段（P254 enum 化可翻，但
+    //   m_field14 为 int 且消费面广，改型风险 > 收益）⇒ 保留单段形。
     m_itemIdx = item.m_field14;
     m_stackCount = item.m_field1c;
     m_goldPrice = item.m_field2c;
@@ -194,10 +198,12 @@ float CCeraShopGoods::GetBonusWeight() const
 {
     // ORIG 0x0854c588：`mov 0x2c(%eax),%eax; mov %eax,-0x4(%ebp); flds
     // -0x4(%ebp)`（9 insn）—— 单条 disp 装载 + 槽 spill + flds。
-    // [b28c-lane17] 判词：4.4 对 type-pun 读把地址计算拆成
-    // `add $0x2c,%eax; mov (%eax),%eax`（ORIG 4.1 = 单条 `mov 0x2c(%eax),%eax`），
-    // 实测具名尾视图（P82/P95 形）同样拆两条 ⇒ N18a 单段折叠不可造；
-    // 语义与值域完全一致，保留最短可读形。
+    // [b28d-35] N 封顶（N18a/N85 族，跨版本 type-pun 读展开差）：三形实测——
+    //   ①成员取址位读（本形）10 条：add+mov；②具名 int 局部 + 位读 12 条
+    //   （4.4 多发 lea+mov 到临时 -0x14）；③局部 union i/f 双视图 12 条同形
+    //   （探针 /tmp/d35_gbw.cpp f1-f6、/tmp/d35_gbw2.cpp g1-g6 共 12 形）。
+    //   4.1 的 `mov mem→槽; flds 槽`（9 条）在 4.4 不可复现；语义/值域一致，
+    //   取最短可读形。
     return *reinterpret_cast<const float*>(&m_bonusWeight);
 }
 
@@ -247,6 +253,9 @@ bool importCashShopItemList(
     std::map<int, std::vector<std::vector<int> > >* limitMap,
     std::vector<int>* param7)
 {
+    // b28d-35: DIFF→N 封顶（§6.2 巨件口径：ORIG @0x088fdcb5 size 0x1df4；
+    //   我方 1595 vs ORIG 1739，残余为 N82 帧/槽 + N78 内联清零 + N89 STL 内联
+    //   + jump-threading 块序，逐块语义比对一致）。
     if (!loadRDARScriptFile("", path))
         return 0;
 

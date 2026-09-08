@@ -505,13 +505,13 @@ struct LevelUpRewardItemData
 // importRegenerationRandomOptionScript 0x08a7e610 实证：second+0x4 为
 // std::string（operator[] 命中后 operator= 写入），second+0x8 push_back。
 // second+0x00..0x03 未观测，保留占位。
-// [b28c-30] N76 封顶（隐式 C1ERKS_ 39 insn）：ORIG 0x08a7f000 段首成员 char[4]
-// 拷贝为 RHS-first（`mov 0xc(%ebp),%eax; mov (%eax),%edx; mov 0x8(%ebp),%eax;
-// mov %edx,(%eax)`），4.4 恒 LHS-first（this 先载）；成员对自身同型 ⇒ P211
-// 异型化不适用。
+// [b28d-34] ORIG 0x08a7f000 隐式 C1ERKS_ 39 insn：段首成员拷贝为 RHS-first
+// （`mov 0xc(%ebp),%eax; mov (%eax),%edx; mov 0x8(%ebp),%eax; mov %edx,(%eax)`）。
+// 原 char[4] 数组成员 4.4 走 LHS-first；改 unsigned int 标量（4 字节，sizeof/
+// 偏移不变）后装载序翻正（b28c-30 的 N76 判词作废）。
 struct str_index_to_itemgroup
 {
-    char m_pad0[4];                        // +0x00（未还原字段区）
+    unsigned int m_pad0;                   // +0x00（未还原字段区；4 字节标量）
     std::string m_name4;                   // +0x04（importRegenerationRandomOptionScript 写入）
     std::vector<std::string> m_vec8;       // +0x08（item group 名表）
 };  // sizeof 0x14
@@ -2071,7 +2071,9 @@ public:
         int m_uniqueId;   // +0x00（makeStageMapUniqueId）
         int m_stageId;    // +0x04（map 键）
         int m_nextId;     // +0x08（链式后继 stageId；末元素由 loadList 决定）
-        unsigned char m_flags;    // +0x0c（loadList 常规=0 / 幕区收尾=1【推断】）
+        // [b28d-D33] ORIG getNextStage 0x08364eaa `movzbl 0x10(%eax),%edx; mov %dl,(%eax)`
+        // 直存无归一化（P136）⇒ 与 bool& 实参同型（bool）。sizeof/偏移不变（1 字节）。
+        bool m_flags;             // +0x0c（loadList 常规=0 / 幕区收尾=1【推断】）
         // 原 m_pad0d[3] 显式成员使隐式 copy ctor 以 dword 整体覆盖 +0x0c..0x0f，
         // ORIG construct/copy 仅 `movzbl+movb` 单字节（+0x0d..0x0f 为纯尾隙不拷贝）
         // ⇒ 删 pad，靠默认对齐保 sizeof 0x10。

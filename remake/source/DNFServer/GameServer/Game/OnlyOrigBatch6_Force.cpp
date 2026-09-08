@@ -40,7 +40,10 @@ void emitBatch6WeakSymbols()
     SIG_LOAD_INVENTORY s4;
     SIG_LOAD_KILL_MONSTER_INFO s5;
     SIG_LOAD_QUEST s6;
-    SIG_LOAD_SKILL s7;
+    SIG_LOAD_SKILL s7;   // [b28d-39 判词 · N82/N93] STSkillCommandData::STCommand::C1
+                         // ORIG 0x0822da04：ORIG `mov $0x1,%esi`+`movl $0xcb,-0x1c`
+                         // 循环形 vs 4.4 `mov $0xca,%esi` 索引形（数组元素建模粒度/
+                         // 槽序，N82/N93）；构造清零集合一致，语义等价。
     SIG_POSTAL_CREATURE_TEMP_PERIOD s8;
     SIG_QUEST_SHOP_DATA s9;
     SIG_REDEEMINFO_LIST_TO_DB s10;
@@ -53,7 +56,10 @@ void emitBatch6WeakSymbols()
     SIG_SAVE_PC_ROOM_PLAY_TIME s17;
     SIG_SAVE_PC_ROOM_RENT_INFO s18;
     SIG_SAVE_PC_ROOM_RENT_ITEM s19;
-    TAG_CHARAC_ETC_DATA s20;
+    TAG_CHARAC_ETC_DATA s20;   // [b28d-39 判词 · N82/N93] ORIG 0x0848f7dc：
+                               // _Mastered_skill 数组构造循环计数/步进跨版本差
+                               // （ORIG push edi/esi/ebx 三件套、4.4 两件套）；构造
+                               // 清零集合一致，语义等价。
     TAG_CHARAC_INVEN_DATA s21;
 
     // ---- SIG_LOAD_ETC 析构（D1/D2，构造同址 C1 一并发射）----

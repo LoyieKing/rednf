@@ -28,6 +28,8 @@ CVillageObjectMgr::~CVillageObjectMgr()
 
 void CVillageObjectMgr::on_move_area(CUser* user)
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x086b71da：帧/槽号整体平移（N82）+
+    // map 迭代器与视图包临时对象槽向（N93）；Zone 查找/发包字段逐条等价。
     // ORIG 0x86b71da：Zone(curVill, curArea) 查找，命中则向该玩家发送 0xca 视图包。
     Zone zone(user->getCurCharacVill(), (unsigned char)user->get_area(false));
     std::map<Zone, std::list<IObject*> >::iterator it = m_objects.find(zone);
@@ -53,6 +55,9 @@ void CVillageObjectMgr::on_move_area(CUser* user)
 
 int CVillageObjectMgr::register_object(Zone zone, IObject* object)
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x086b6f58：帧 0x50 vs 0x40 + ORIG 具名局部
+    // `add $0x4,%eax; mov %eax,-0xc` 与迭代器槽阶梯（N86/N93）；插入/碰撞/返回
+    // 分支逐条等价。
     // ORIG 0x86b6f58：无该 Zone 则新建列表插入，否则先 detect_collision 碰撞
     // 检测（命中返 0），通过才 push_back；成功返 1。
     std::map<Zone, std::list<IObject*> >::iterator it = m_objects.find(zone);

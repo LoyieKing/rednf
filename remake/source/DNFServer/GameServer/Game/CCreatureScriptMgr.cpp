@@ -24,6 +24,7 @@ CCreatureScriptMgr::~CCreatureScriptMgr()
 
 // ORIG Destroy @ 0x833d3bc：遍历 +0x18 map，删除（D1 + operator delete）每个
 // CCreatureScript*，最后 clear()。
+// [b28d-30] 复核 DIFF：我方少 8 条（析构/clear 路径形差，N82/P12 族），ORIG 0x0833dxxx 见 report。
 void CCreatureScriptMgr::Destroy()
 {
     if (m_scripts.empty())
@@ -47,6 +48,7 @@ void CCreatureScriptMgr::Destroy()
 //      空集追加 ",4"；失败则 "%d,%d"）入 buf270/buf370；
 //   4) 构造 CCreatureScript，Set(native)，SetItemId(注册表 itemId)，
 //      insert_creature_info_to_db，查重后注册进 m_scripts。
+// [b28d-30] 复核 DIFF：大件残差（N82/N89 族），ORIG 见 class_func_reports/user_creature__CCreatureScriptMgr/LoadCreatureScriptFile.md。
 bool CCreatureScriptMgr::LoadCreatureScriptFile()
 {
     CreatureScript native;
@@ -172,6 +174,8 @@ bool CCreatureScriptMgr::LoadCreatureScriptFile()
 
 // ORIG FindCreatureScript @ 0x833d49a：在 +0x18 map 按 creatureId 查脚本指针；
 // 未命中 cMyTrace 后返回 0。
+// [b28d-30] 复核 DIFF：我方多 10 条（find 迭代器 cv/转换构造形，P96/P270/N82 族），
+// ORIG 见 class_func_reports/user_creature__CCreatureScriptMgr/FindCreatureScript.md。
 CCreatureScript* CCreatureScriptMgr::FindCreatureScript(int creatureId)
 {
     std::map<int, CCreatureScript*>::const_iterator it = m_scripts.find(creatureId);
@@ -189,6 +193,7 @@ CCreatureScript* CCreatureScriptMgr::FindCreatureScript(int creatureId)
 }
 
 // ORIG RegisterCreatureIdAndItemId @ 0x833d54a。
+// [b28d-30] 复核 NEAR：map 迭代器槽/转换临时差（P50/P96/N86 族），ORIG 0x0833d54a。
 bool CCreatureScriptMgr::RegisterCreatureIdAndItemId(int creatureId, int itemId)
 {
     // P50/P96：ORIG find 返回 iterator 直存（const_iterator 会额外引入转换临时+

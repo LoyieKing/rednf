@@ -97,6 +97,7 @@ void Arad_IPGProcess::CashShopModeItem(CUser* user, unsigned long itemIdx,
 // ---------------------------------------------------------------------------
 // CashShopModeAvatar —— ORIG T 0x0819c2b4（报告 CashShopModeAvatar.md 全文转写）。
 // ---------------------------------------------------------------------------
+// [b28d-30] 复核 DIFF：大件残差（N82/N89 族），ORIG 见 class_func_reports/Arad_IPGProcess/CashShopModeAvatar.md。
 void Arad_IPGProcess::CashShopModeAvatar(CUser* user, unsigned long itemIdx,
                                          int a3, int a4, char c1, char c2,
                                          char const* str, int& out,
@@ -133,6 +134,7 @@ void Arad_IPGProcess::CashShopModeAvatar(CUser* user, unsigned long itemIdx,
 // CashShopModeCreature —— ORIG T 0x0819c670（报告 CashShopModeCreature.md 转写）。
 // 期限槽实证：esp0x50=08110c60 getUsablePeriod、esp0x54=080f1306 getExpirationDate。
 // ---------------------------------------------------------------------------
+// [b28d-30] 复核 DIFF：大件残差（N82/N89 族），ORIG 见 class_func_reports/Arad_IPGProcess/CashShopModeCreature.md。
 void Arad_IPGProcess::CashShopModeCreature(CUser* user, unsigned long itemIdx,
                                            unsigned short stack, int& outCodeA,
                                            int& outCodeB, unsigned int accId,
@@ -171,6 +173,7 @@ void Arad_IPGProcess::CashShopModeCreature(CUser* user, unsigned long itemIdx,
 // 非特殊商品：insertItemIntoInventory 直插背包（失败转邮件补发）；
 // 特殊商品：ProcessSpecialItem 通道。
 // ---------------------------------------------------------------------------
+// [b28d-30] 复核 DIFF：大件残差（N82/N89 族），ORIG 见 class_func_reports/Arad_IPGProcess/CashShopModeVendingItem.md。
 void Arad_IPGProcess::CashShopModeVendingItem(
     CUser* user, unsigned long itemIdx, unsigned short stack, int count,
     long seq, std::vector<Inven_Item>& out,
@@ -236,6 +239,7 @@ Arad_MileageProcess::~Arad_MileageProcess() {}
 // ---------------------------------------------------------------------------
 // BuySuccess —— ORIG T 0x0819e220（报告 BuySuccess.md 全文转写）。
 // ---------------------------------------------------------------------------
+// [b28d-30] 复核 DIFF：大件残差（N82/N89 族），ORIG 见 class_func_reports/Arad_MileageProcess/BuySuccess.md。
 void Arad_MileageProcess::BuySuccess(CUser* user, int a2, int a3, int a4, int a5,
                                      int a6, int a7, std::vector<Inven_Item>& items)
 {
@@ -280,6 +284,7 @@ void Arad_MileageProcess::BuySuccess(CUser* user, int a2, int a3, int a4, int a5
 // 汇编算术：fild rate; fild amount; flds [1000.0f @0x8ba7330]; fdivrp; fmulp;
 //   fstpl; call floor; fistp（fldcw 0xc 截断模式）→ (int)floor(...)。
 // ---------------------------------------------------------------------------
+// [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 见 class_func_reports/Arad_MileageProcess/GiveMileage.md。
 void Arad_MileageProcess::GiveMileage(CUser* user, int ipgNo, int amount)
 {
     if (user == 0)
@@ -330,6 +335,7 @@ void Arad_MileageProcess::BuyFail(CUser* user, short errCode, int a3, int a4, in
 // ---------------------------------------------------------------------------
 // BuyMileageItem —— ORIG T 0x0819dd4e（报告 BuyMileageItem.md 全文转写）。
 // ---------------------------------------------------------------------------
+// [b28d-30] 复核 DIFF：大件残差（N82/N89 族），ORIG 见 class_func_reports/Arad_MileageProcess/BuyMileageItem.md。
 int Arad_MileageProcess::BuyMileageItem(CUser* user, int param2, unsigned long itemIdx,
                                         unsigned short stack, int count, long seq,
                                         int param7, char c1, char c2, int price,

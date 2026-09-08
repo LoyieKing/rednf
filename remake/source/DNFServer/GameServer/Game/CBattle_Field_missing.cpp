@@ -32,6 +32,9 @@
 // 由成员声明序自动构造；此处仅复刻 ORIG 的标量初值与容器清理操作。
 CBattle_Field::CBattle_Field()
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x082a44fe：ORIG 数组构造 3 元素×0x1c 步进、
+    // 4.4 为 9 元素×0xc 步进（成员数组建模粒度差）+ 帧 0x20 vs 0x50；
+    // 逐字段写入集合一致，语义等价（N82 槽族）。
     // —— 位置链：起点/终点槽对夫妇构完后按 ORIG 置初值 ——
     // ORIG：m_lastY(+0x6c) = -1，再沿 +0x68/+0x64/+0x60/+0x18/+0x14/+0x10/+0x0c/
     // +0x08/+0x04 级联，故 m_startX/m_startY、m_curX/m_curY、m_lastX/m_lastY、
@@ -112,6 +115,9 @@ int CBattle_Field::pickup_item(int uid)
 // 全字段清零链，逐字段按 ORIG 汇编映射到 CBattle_Field.h 具名成员。
 void CBattle_Field::reset_field()
 {
+    // [b28d-39 判词 · N4/P30] ORIG 0x0830a1f6：残余仅循环内 4 处
+    // `mov idx,%edx; add $K,%edx` vs 4.4 `mov idx,%eax; lea K(%eax),%edx`
+    // （add-vs-lea 两步寻址固有差，P30 穷举到顶）；语义逐条等价。
     // —— 位置/尺寸链 ——
     m_dungeonIndex = 0;                     // +0x194
     m_mapHeight    = 0;                     // +0x190
@@ -196,6 +202,9 @@ void CBattle_Field::reset_field()
 // 从 CDataManager 的 hellparty 脚本值（float 数组）拷贝各组比例；分母 10000.0f。
 void CBattle_Field::reset_hell_party_value()
 {
+    // [b28d-39 判词 · N4/N107] ORIG 0x0830a57c：残余为成员偏移取址
+    // `mov 0x4(%eax),%edx`（4.1 折叠）vs 4.4 `add $0x4,%eax; mov (%eax),%edx`
+    // （N107 成员常量偏移 4.4 恒 add）；语义等价。
     // ORIG（reset_hell_party_value.md 0x0830a583..0x0830a6f7）P48 no-CSE：
     // 每个字段/数组元素各自 fresh G_CDataManager()->get_hellparty_script_values()，
     // 共 9 对 G_CDataManager/get_hellparty_script_values 调用（6 固定 + 3 循环整组）。
@@ -252,26 +261,34 @@ bool CBattle_Field::isQuestMaze()
 // ---------------------------------------------------------------------------
 int CBattle_Field::get_blood_spawn_cnt_of_phase(short smallRound, short phase)
 {
+    // [b28d-39 判词 · N82/N98] ORIG 0x08306a62：短整守卫/正写 size 比较已对齐，
+    // 残余为具名 int cnt(-0x10) 预清位置与槽序（4.4 按首次使用分配，N98），
+    // 帧 0x38 vs 0x34 属 N82 槽族；语义逐条等价。
     if (m_bloodPhaseTimes.empty() || m_bloodSystems.empty())
         return -1;
-    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
+    // [b28d-39] ORIG 0x08306a62：`(short)size()` 与 short 形参 16 位比较
+    // （cmp -0x1c(%ebp),%ax），避免 4.4 为 size_t 提升把 movswl 值缓存进 %ebx。
+    if (smallRound >= (short)m_bloodPhaseTimes.size() || smallRound < 0)
         return -1;
+    // [b28d-39] ORIG 0x08306a62：sysIdx 先声明（-0xc）、cnt 次声明（-0x10，
+    // 预清 `movl $0x0,-0x10` 在 sysIdx 赋值前）；4.4 首声明占浅槽 ⇒ 此序复现。
+    unsigned int sysIdx;
     int cnt = 0;
-    unsigned int sysIdx = (unsigned int)m_bloodPhaseTimes[smallRound].m_phaseIdx;
+    sysIdx = (unsigned int)m_bloodPhaseTimes[smallRound].m_phaseIdx;
     if (sysIdx == 0xffffffffu)
     {
-        if (m_bloodPhaseOrder.empty() || (size_t)smallRound >= m_bloodPhaseOrder.size())
+        if (m_bloodPhaseOrder.empty() || smallRound >= (short)m_bloodPhaseOrder.size())
             return -1;
         sysIdx = (unsigned int)m_bloodPhaseOrder[smallRound];
     }
-    if ((int)sysIdx < (int)m_bloodSystems.size())
-    {
-        const STAssignBloodSystem& sys = m_bloodSystems[sysIdx];
-        for (int p = 0; p < (int)phase + 1; ++p)
-            cnt = sys.m_startCnt + sys.m_cntInc * p;
-        return cnt;
-    }
-    return -1;
+    // [b28d-39] ORIG 0x08306a62：`cmp -0xc(%ebp),%eax; setle` ⇒ 源为
+    // `(int)size() <= (int)sysIdx` 正写（负写 sysIdx<size 会引 %ebx 缓存）。
+    if ((int)m_bloodSystems.size() <= (int)sysIdx)
+        return -1;
+    const STAssignBloodSystem& sys = m_bloodSystems[sysIdx];
+    for (int p = 0; p < (int)phase + 1; ++p)
+        cnt = sys.m_startCnt + sys.m_cntInc * p;
+    return cnt;
 }
 
 // ---------------------------------------------------------------------------
@@ -280,20 +297,28 @@ int CBattle_Field::get_blood_spawn_cnt_of_phase(short smallRound, short phase)
 // ---------------------------------------------------------------------------
 int CBattle_Field::get_blood_spawn_time_of_phase(short smallRound)
 {
+    // [b28d-39 判词 · N82/N98] ORIG 0x0830690a：同上（cnt/result 预清位置 +
+    // 槽序跨版本差）；语义逐条等价。
     if (m_bloodPhaseTimes.empty() || m_bloodSystems.empty())
         return -1;
-    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
+    // [b28d-39] ORIG 0x0830690a：短整比较形（同 get_blood_spawn_cnt_of_phase）。
+    if (smallRound >= (short)m_bloodPhaseTimes.size() || smallRound < 0)
         return -1;
-    unsigned int sysIdx = (unsigned int)m_bloodPhaseTimes[smallRound].m_phaseIdx;
+    // sysIdx(-0xc) 先声明、result(-0x10, 预清 0) 次声明（ORIG 槽序）。
+    unsigned int sysIdx;
+    int result = 0;
+    sysIdx = (unsigned int)m_bloodPhaseTimes[smallRound].m_phaseIdx;
     if (sysIdx == 0xffffffffu)
     {
-        if (m_bloodPhaseOrder.empty() || (size_t)smallRound >= m_bloodPhaseOrder.size())
+        if (m_bloodPhaseOrder.empty() || smallRound >= (short)m_bloodPhaseOrder.size())
             return -1;
         sysIdx = (unsigned int)m_bloodPhaseOrder[smallRound];
     }
-    if ((int)sysIdx < (int)m_bloodSystems.size())
-        return m_bloodSystems[sysIdx].m_timeB;
-    return -1;
+    // [b28d-39] ORIG 0x0830690a：`cmp -0xc(%ebp),%eax; setle` 正写形（同上）。
+    if ((int)m_bloodSystems.size() <= (int)sysIdx)
+        return -1;
+    result = m_bloodSystems[sysIdx].m_timeB;
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -302,20 +327,27 @@ int CBattle_Field::get_blood_spawn_time_of_phase(short smallRound)
 // ---------------------------------------------------------------------------
 int CBattle_Field::get_blood_spawn_phase_total_cnt_of_small_round(short smallRound)
 {
+    // [b28d-39 判词 · N82/N98] ORIG 0x08306c0e：同 get_blood_spawn_time_of_phase。
     if (m_bloodPhaseTimes.empty() || m_bloodSystems.empty())
         return -1;
-    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
+    // [b28d-39] ORIG 0x08306c0e：短整比较形（同 get_blood_spawn_cnt_of_phase）。
+    if (smallRound >= (short)m_bloodPhaseTimes.size() || smallRound < 0)
         return -1;
-    unsigned int sysIdx = (unsigned int)m_bloodPhaseTimes[smallRound].m_phaseIdx;
+    // sysIdx(-0xc) 先声明、result(-0x10, 预清 0) 次声明（ORIG 槽序）。
+    unsigned int sysIdx;
+    int result = 0;
+    sysIdx = (unsigned int)m_bloodPhaseTimes[smallRound].m_phaseIdx;
     if (sysIdx == 0xffffffffu)
     {
-        if (m_bloodPhaseOrder.empty() || (size_t)smallRound >= m_bloodPhaseOrder.size())
+        if (m_bloodPhaseOrder.empty() || smallRound >= (short)m_bloodPhaseOrder.size())
             return -1;
         sysIdx = (unsigned int)m_bloodPhaseOrder[smallRound];
     }
-    if ((int)sysIdx < (int)m_bloodSystems.size())
-        return m_bloodSystems[sysIdx].m_totalCnt;
-    return -1;
+    // [b28d-39] ORIG 0x08306c0e：`cmp -0xc(%ebp),%eax; setle` 正写形（同上）。
+    if ((int)m_bloodSystems.size() <= (int)sysIdx)
+        return -1;
+    result = m_bloodSystems[sysIdx].m_totalCnt;
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -324,23 +356,29 @@ int CBattle_Field::get_blood_spawn_phase_total_cnt_of_small_round(short smallRou
 // ---------------------------------------------------------------------------
 int CBattle_Field::get_blood_spawn_time_of_next_small_round(short smallRound)
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x0830676a：帧 push esi/ebx 与具名 result
+    // 槽序跨版本相反（N93）；语义逐条等价。
     if (m_bloodPhaseTimes.empty() || m_bloodSystems.empty())
         return -1;
-    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
+    // [b28d-39] ORIG 0x0830676a：短整比较形（同 get_blood_spawn_cnt_of_phase）。
+    if (smallRound >= (short)m_bloodPhaseTimes.size() || smallRound < 0)
         return -1;
-    unsigned int sysIdx = (unsigned int)m_bloodPhaseTimes[smallRound].m_phaseIdx;
+    // sysIdx(-0xc) 先声明、result(-0x10, 预清 0) 次声明（ORIG 槽序）。
+    unsigned int sysIdx;
+    int result = 0;
+    sysIdx = (unsigned int)m_bloodPhaseTimes[smallRound].m_phaseIdx;
     if (sysIdx == 0xffffffffu)
     {
-        if (m_bloodPhaseOrder.empty() || (size_t)smallRound >= m_bloodPhaseOrder.size())
+        if (m_bloodPhaseOrder.empty() || smallRound >= (short)m_bloodPhaseOrder.size())
             return -1;
         sysIdx = (unsigned int)m_bloodPhaseOrder[smallRound];
     }
-    if ((int)sysIdx < (int)m_bloodSystems.size())
-    {
-        const STAssignBloodSystem& sys = m_bloodSystems[sysIdx];
-        return sys.m_timeA - sys.m_totalCnt * sys.m_timeB;
-    }
-    return -1;
+    // [b28d-39] ORIG 0x0830676a：`cmp -0xc(%ebp),%eax; setle` 正写形（同上）。
+    if ((int)m_bloodSystems.size() <= (int)sysIdx)
+        return -1;
+    const STAssignBloodSystem& sys = m_bloodSystems[sysIdx];
+    result = sys.m_timeA - sys.m_totalCnt * sys.m_timeB;
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -349,11 +387,14 @@ int CBattle_Field::get_blood_spawn_time_of_next_small_round(short smallRound)
 // ---------------------------------------------------------------------------
 int CBattle_Field::get_blood_round_of_small_round(short smallRound)
 {
-    if (m_bloodPhaseTimes.empty())
+    // [b28d-39] ORIG 0x083065f8：`||` 短路链（empty / `(short)size()<=smallRound` /
+    // `smallRound<0`）汇到 invalid 岛，`mov $1/%eax`+`mov $0` 物化后 test；具名 int
+    // result（尾 mov %eax,-0xc; mov -0xc,%eax）。
+    if (m_bloodPhaseTimes.empty() ||
+        smallRound >= (short)m_bloodPhaseTimes.size() || smallRound < 0)
         return -1;
-    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
-        return -1;
-    return m_bloodPhaseTimes[smallRound].m_smallRoundOrder;
+    int result = m_bloodPhaseTimes[smallRound].m_smallRoundOrder;
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -362,11 +403,12 @@ int CBattle_Field::get_blood_round_of_small_round(short smallRound)
 // ---------------------------------------------------------------------------
 int CBattle_Field::get_blood_round_difficylty_of_small_round(short smallRound)
 {
-    if (m_bloodPhaseTimes.empty())
+    // [b28d-39] ORIG 0x083062fe：同 get_blood_round_of_small_round 的 `||` 短路形。
+    if (m_bloodPhaseTimes.empty() ||
+        smallRound >= (short)m_bloodPhaseTimes.size() || smallRound < 0)
         return -1;
-    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
-        return -1;
-    return (int)(signed char)m_bloodPhaseTimes[smallRound].m_difficulty;
+    int result = (int)(signed char)m_bloodPhaseTimes[smallRound].m_difficulty;
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -375,11 +417,14 @@ int CBattle_Field::get_blood_round_difficylty_of_small_round(short smallRound)
 // ---------------------------------------------------------------------------
 int CBattle_Field::get_blood_spawn_small_round_interval(short smallRound)
 {
+    // [b28d-39] ORIG 0x083066ea：empty() 走独立早返（`je` 后直落 size 检查），
+    // 仅 size/负值两条件走 `||` 短路物化（与另三个 getter 的合并短路形不同）。
     if (m_bloodPhaseTimes.empty())
         return -1;
-    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
+    if (smallRound >= (short)m_bloodPhaseTimes.size() || smallRound < 0)
         return -1;
-    return m_bloodPhaseTimes[smallRound].m_interval;
+    int result = m_bloodPhaseTimes[smallRound].m_interval;
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -388,11 +433,15 @@ int CBattle_Field::get_blood_spawn_small_round_interval(short smallRound)
 // ---------------------------------------------------------------------------
 bool CBattle_Field::checkBloodSpawnOrder(short smallRound)
 {
-    if ((size_t)smallRound >= m_bloodPhaseClear.size())
+    // [b28d-39] ORIG 0x08306e32：先 `(short)size() < smallRound`（16 位 setl），
+    // 再 empty()；具名 `int n=(int)smallRound`（-0x10）+ `int i`（-0xc）的
+    // `i<n` 有符号循环。负数 smallRound 在非空时返 1（原码语义，照抄）。
+    if ((short)m_bloodPhaseClear.size() < smallRound)
         return 0;
     if (m_bloodPhaseClear.empty())
         return 0;
-    for (int i = 0; i < (int)smallRound; ++i)
+    int n = (int)smallRound;
+    for (int i = 0; i < n; ++i)
     {
         if (!m_bloodPhaseClear[i])
             return 0;
@@ -410,6 +459,9 @@ bool CBattle_Field::checkBloodSpawnOrder(short smallRound)
 void CBattle_Field::BloodMonsterSpawnPacket(int cnt, int time, short smallRound,
                                             short nextRound)
 {
+    // [b28d-39 判词 · N82/N91] ORIG 0x08305992：ORIG 帧 0x3a0（含 0x3xx 栈上
+    // 组包缓冲）vs 4.4 帧 0x50；大局部对象槽布局跨版本不可控（N82），
+    // 组包内容与发送次数逐条对齐；语义等价。
     PacketGuard packet;
     packet.put_header(0, 0xd2);
     packet.put_short(cnt);
@@ -465,6 +517,8 @@ void CBattle_Field::BloodMonsterSpawnPacket(int cnt, int time, short smallRound,
 void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
                                     int timerKey, int phaseIdx)
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x0830553a：帧 0x6c vs 0x8c、全帧槽号平移
+    // （N82 lifetime 槽复用差）+ 形参 spill 槽方向（N93）；语义逐条等价。
     const short spawnCnt = (short)get_blood_spawn_cnt_of_phase(smallRound, nextRound);
     int spawnTime = get_blood_spawn_time_of_phase(smallRound);
     const short roundOrder = (short)m_bloodRound.getBloodRoundOrder();
@@ -576,6 +630,8 @@ void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
 // ---------------------------------------------------------------------------
 int CBattle_Field::BloodPhaseSpawnTimerResgister(short smallRound)
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x083053d2：帧 0x4c vs 0x5c + 具名局部槽号
+    // 整体平移；语义逐条等价。
     int cnt = get_blood_spawn_cnt_of_small_round(smallRound);
     if (cnt < 0 || 10 < cnt)
         return -1;
@@ -640,6 +696,8 @@ void CBattle_Field::BloodCrazyMonsterSpawnPacket()
 // ---------------------------------------------------------------------------
 void CBattle_Field::BloodSpawnTimerManager(bool onStart, bool isMinimal)
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x08304dd2：形参 spill 槽 -0x14/-0x12/-0x10
+    // vs 4.4 -0x18/-0x16/-0x14 + 帧差；语义逐条等价。
     const short roundOrder = (short)m_bloodRound.getBloodRoundOrder();
     const short smallRoundOrder = (short)m_bloodRound.getBloodSmallRoundOrder();
     const short lastSmallRoundOrder = (short)m_bloodRound.getBloodLastSmallRoundOrder();
@@ -703,6 +761,8 @@ int CBattle_Field::getNextRoundDifficulty(short round)
 // ---------------------------------------------------------------------------
 bool CBattle_Field::forceValuesToChangeRound(short round, short smallRound, int diff)
 {
+    // [b28d-39 判词 · N82/N93] ORIG 0x08305f50：具名 int 槽 -0x18 与实参装载序
+    // 跨版本相反（N93/N82）；语义逐条等价。
     const short nextOrder = (short)getNextSamllRoundOrder(round, diff);
     if (nextOrder == 0)
     {
@@ -809,6 +869,9 @@ void CBattle_Field::startUltimateRound()
 // ---------------------------------------------------------------------------
 int CBattle_Field::CBloodClearRewardData::getUltimateRewardItem()
 {
+    // [b28d-39 判词 · N86/N93] ORIG 0x083070ca：ORIG 具名临时槽 -0x18/-0x14/-0x10
+    // vs 4.4 -0x20/-0x1c/-0x24（槽向相反）+ G_CDataManager 调用链装载序；
+    // 语义逐条等价。
     const int clearPoint = getUltimateRoundClearPoint();
     std::map<int, STUltimateRewardProb>::const_iterator it =
         G_CDataManager()->m_bloodDungeon.m_map358.find(clearPoint);
@@ -856,6 +919,8 @@ void CBattle_Field::CBloodClearRewardData::setRewardItemAddInfo(float rate,
 void CBattle_Field::CBloodClearRewardData::onFinishBloodRound(
     bool isClear, short round, CParty* party, const CDungeon* dungeon)
 {
+    // [b28d-39 判词 · N7/N82] ORIG 0x08306fc4：callee-saved 角色互换
+    // （push esi+ebx vs 仅 push ebx）+ 帧 0x40 vs 0x54（N82）；语义逐条等价。
     if (isClear)
         setBloodClear(true);
     m_bloodRound = (int)round;
@@ -875,11 +940,12 @@ void CBattle_Field::CBloodClearRewardData::onFinishBloodRound(
 // ---------------------------------------------------------------------------
 int CBattle_Field::get_blood_spawn_cnt_of_small_round(short smallRound)
 {
-    if (m_bloodPhaseTimes.empty())
+    // [b28d-39] ORIG 0x08306670：同 get_blood_round_of_small_round 的 `||` 短路形。
+    if (m_bloodPhaseTimes.empty() ||
+        smallRound >= (short)m_bloodPhaseTimes.size() || smallRound < 0)
         return -1;
-    if (smallRound < 0 || (size_t)smallRound >= m_bloodPhaseTimes.size())
-        return -1;
-    return m_bloodPhaseTimes[smallRound].m_spawnCnt;
+    int result = m_bloodPhaseTimes[smallRound].m_spawnCnt;
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -888,6 +954,9 @@ int CBattle_Field::get_blood_spawn_cnt_of_small_round(short smallRound)
 // ---------------------------------------------------------------------------
 short CBattle_Field::getNextSamllRoundOrder(short round, int diff)
 {
+    // [b28d-39 判词 · N86/N93] ORIG 0x08306212：ORIG 返回槽预清 `movw $0x0,-0xa`
+    // + map 迭代器槽阶梯（-0x18/-0x1c/-0x20 vs 4.4 -0x14/-0x18/-0x10）；
+    // N86 copy-elision/槽向族；语义逐条等价。
     MapInfo* mapInfo = GetCurrentMapInfo();
     if (mapInfo == 0)
         return 0;

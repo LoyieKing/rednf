@@ -15,6 +15,10 @@
 //       char const*, CActionPointEtcParameter&)                    T 0x08894996
 //   eventReward::ImportRewardScript(char const*, char const*)      T 0x080ef3a2
 //   importUpgradeTable(char const*, upgrade_table_t*)              T 0x08900c26
+// [b28d-34] 本 TU 发射的 APSystem::CActionPointEx 隐式 C1ERKS_(0x08895ebc)/
+// aSERKS_(0x0889603a)：ORIG 逐字段拷贝（int@0/int@4/short@8/char@a/short@c/
+// char@e,f,10 + 容器@14），我方 APSystemTypes.h 平铺 union 布局致块拷贝形
+// （84 vs 74 / 61 vs 51）⇒ N（布局妥协，见 APSystemLeafC3.cpp 判词）；语义等价。
 //   stLevelUpRewardItemScript::clear()                             W 0x083711d6（无报告，objdump）
 //   seriaRoomDecoAniEventScript::clear()                           W 0x083732a4（无报告，objdump）
 //   rewardSubKey::{rewardSubKey,clear,operator<}                   W 0x080f1190/0x080f11de/0x080f11a2
@@ -79,6 +83,8 @@ extern char g_npcScriptBaseDirectory[0x100];                // B 0x094fe680
 // ============================================================================
 int convertTabTypeStringToEnum(const char* text)
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x08aa7d98 帧 0x8c vs 4.4 0x9c（N82 族）；
+    // 语义等价。
     static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
     static char __inited = 0;
@@ -149,6 +155,8 @@ void stNPCCommonData_t::clear()
 // ============================================================================
 int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x089fafc5 `movb $0/$1,-0x50`（bool 物化）
+    // vs 我们 `movl $0,-0x50`（P158/P219 bool 化族）；语义等价。
     if (!loadRDARScriptFile(g_npcScriptBaseDirectory, path))
     {
         return 0x3c;
@@ -306,6 +314,8 @@ int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
 int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
                                          const char* path)
 {
+    // [b28d-34] 复核维持 DIFF（§6.2）：orig 297/ours 299，残差为容器实例化族
+    // （N89）+ 槽序；语义等价。
     if (!loadRDARScriptFile("", path))
     {
         return 0;
@@ -401,6 +411,8 @@ int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
 // ============================================================================
 bool StrikerScript::importScript(const char* path)
 {
+    // [b28d-34] 复核维持 DIFF（§6.2）：orig 497/ours 477，残差为帧差
+    // （0x8c vs 0x7c）+ 容器族（N89）；语义等价。
     if (!loadRDARScriptFile("", path))
     {
         return false;
@@ -622,6 +634,8 @@ bool importStageMapScript(stagemap::StageMapScript* out, const char* path);
 // ============================================================================
 bool StageMapList::loadList()
 {
+    // [b28d-34] 复核维持 DIFF（§6.2）：orig 356/ours 290，残差为 STL 实例化族
+    // （N89）+ 帧 0xf0；语义等价。
     std::vector<_StageMapSummary> summaries;
 
     for (std::map<int, std::string>::iterator it =
@@ -707,6 +721,8 @@ namespace APSystem
 bool CActionPointEtcParameter::importActionPointSystemEtcScript(
     const char* path, CActionPointEtcParameter& out)
 {
+    // [b28d-34] 复核维持 DIFF（§6.2）：orig 794/ours 798，残差为帧/槽与容器
+    // 实例化族；语义等价。
     std::string token;
     bool ok = false;
 
@@ -952,6 +968,8 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
 // ============================================================================
 int eventReward::ImportRewardScript(const char* dir, const char* file)
 {
+    // [b28d-34] 复核维持 DIFF（§6.2）：orig 885/ours 909，帧 0x21c vs 0x25c
+    // （N82/P210 族）；语义等价。
     if (!loadRDARScriptFile(dir, file))
     {
         return 0;
@@ -1179,6 +1197,8 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
 
 int importUpgradeTable(const char* path, upgrade_table_t* table)
 {
+    // [b28d-34] 复核维持 DIFF（§6.2）：orig 1119/ours 1166，帧 0x190 vs 0x160
+    // （N82/P210 族）；语义等价。
     if (!loadRDARScriptFile("", path))
     {
         return 0;

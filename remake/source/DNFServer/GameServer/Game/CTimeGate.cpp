@@ -75,13 +75,15 @@ void CTimeGate::SetLevel(int level)
 // ORIG 0x8234e46：两段条件各自物化为 bool 再判定（见文件头注释）。
 bool CTimeGate::setBlindTimeGateStateQuest(int questIdx)
 {
-    register bool opened = (getQuestIndex() == questIdx && isOpen());
-    if (opened)
+    // b28d-35：ORIG 0x08234e46 短路物化在 %al（`mov $1/%al; test %al,%al`，
+    //   零槽，帧 0x18）。实测：register bool → %ebx+push（+5）；普通 bool →
+    //   落槽 movb/cmpb（+2）。按 P226 扩展用语句表达式包条件（内无具名变量）
+    //   复现短路物化岛且零槽。
+    if (({ getQuestIndex() == questIdx && isOpen(); }))
     {
         return true;
     }
-    register bool openedQuest = (getOpenedQuestIndex() == questIdx && !isOpen());
-    if (openedQuest)
+    if (({ getOpenedQuestIndex() == questIdx && !isOpen(); }))
     {
         return true;
     }

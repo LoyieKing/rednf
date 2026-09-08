@@ -105,6 +105,8 @@ int RandomOptionScript::getPrefixGrade(int level)
 // 按 flag 选择 m_prefixNormal(+0x1a8) / m_prefixPremium(+0x1c0) map，
 // 以第一个 int(prefix) 为 key find；返回向量下标
 // getPrefixGrade(grade)（flag 时 +3）处的字符串。
+// [b28d-27] DIFF（已按 P167 修）：ORIG 0x08a73956；`it->second`→`(*it).second`
+// 消 ptEv EXTRA 后仍余帧/槽差（N82）；p167 差集已双向清零。
 std::string RandomOptionScript::getPrefix(int prefix, int grade, bool flag)
 {
     std::string out;
@@ -124,9 +126,11 @@ std::string RandomOptionScript::getPrefix(int prefix, int grade, bool flag)
         idx += 3;
     }
     std::map<int, std::vector<std::string> >::iterator it = pMap->find(prefix);
-    if (it != pMap->end() && idx >= 0 && idx < (int)it->second.size())
+    // [b28d-27] ORIG 0x08a73956：`(*it).second`（operator* = deEv），非
+    // `it->second`（operator-> = ptEv）；p167 差集实证我们多 1 条 ptEv。
+    if (it != pMap->end() && idx >= 0 && idx < (int)(*it).second.size())
     {
-        out = it->second[idx];
+        out = (*it).second[idx];
     }
     return out;
 }
@@ -279,6 +283,9 @@ static_assert(sizeof(DifferentWeightKeyView) == 2, "ORIG different weight short 
 
 }   // namespace
 
+// [b28d-27] DIFF N82（§6.2 超大函数口径）：ORIG 0x08a70a90；p167 CLEAR（361/361，
+// 双向零差）+ gap=1（2754/2755），残差为 4.1 vs 4.4 帧/槽复用策略（N82），
+// 语义完成、byte 层封顶。
 int importRandomOptionScript(RandomOptionScript& script, const char* path)
 {
     if (!loadRDARScriptFile("", path))

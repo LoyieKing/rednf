@@ -24,6 +24,8 @@ CCirculationStatistic* GetInstanceCirculationStatistic()
 bool CCirculationStatistic::AddCirculationStatistic(CIRCULATION_STATISTIC_FIELD field, CUser* user,
                                                        unsigned int value)
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x0860daaa `test %al,%al` 直测 vs 我们
+    // bool 槽 `mov %al,-0x19; cmpb`（P0 表达式直用/P168a③b 族）；语义等价。
     bool wrongIndex = !(field >= 0 && field < 0x30 &&
                         user->get_charac_level() > 0 &&
                         user->get_charac_level() < 0x47);
@@ -59,6 +61,8 @@ bool CCirculationStatistic::AddCirculationStatistic(CIRCULATION_STATISTIC_FIELD 
 // 初始化列表已对位）。
 void CCirculationStatistic::InsertCirculationStatistic()
 {
+    // [b28d-34] 复核维持 DIFF：ORIG 0x0860dccc 槽组整体平移 4
+    // （-0xf4/-0x1c vs -0xf8/-0x20）+ 一段顺序差（N82/N98 族）；语义等价。
     for (std::map<ENUM_SERVER_GROUP, stCirculationStatistic>::iterator it =
              m_data.begin(), endIt = m_data.end();
          it != endIt; ++it)

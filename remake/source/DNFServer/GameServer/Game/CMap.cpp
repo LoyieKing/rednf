@@ -146,6 +146,7 @@ bool isInArea(int x, int y, MapArea* area)
     return 1;
 }
 
+// [b28d-24] DIFF 残115: 二维数组寻址/帧差异（P255/N4 族）。ORIG 0x08891c18
 void makePathArea(MapArea* areas, const int area1[][2], const int area2[][2])
 {
     // b21 verdict=DIFF（N 残余）：257/229。无外部调用，纯算术；常量/字段偏移/除 2 均已核
@@ -216,6 +217,7 @@ _mapMonster::_mapMonster()
 
 // _mapMonster 拷贝构造 —— ORIG 0x0813d708：逐成员拷贝 +0x00..+0x30
 // （不含 +0x31 pad），再拷贝构造 +0x34 vector。
+// [b28d-24] DIFF 残7: ORIG 连续成员 store 用 %ecx 缓存 this（P29 初始化列表），4.4 逐条重载 0x8(%ebp)。ORIG 0x0813d708
 _mapMonster::_mapMonster(const _mapMonster& other)
     : m_mobId(other.m_mobId),
       m_flag04(other.m_flag04),
@@ -360,6 +362,7 @@ int CMap::CheckEntrance(int flag) const
     }
     return 0;
 }
+// [b28d-24] DIFF 残329: P167 const_iterator vs iterator（P96/P220）+ 拷贝语义差异。ORIG 0x0834e18a
 int CMap::set_map(STMapScript script)
 {
     m_4 = script.m_index;

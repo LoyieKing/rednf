@@ -355,6 +355,7 @@ void CDeathTower::CPacketHandler::makeUpdateItemList(CUser* user, ENUM_ITEMSPACE
 // 报告 WongWork__CDeathTower__CPlayData/generateRewardExp.md）；所得 exp 与最终
 // 结算结果 >0x10c8e0(1100000) 时写 BLOOD_LOG 并截断。各加成系数仅进日志参数流。
 // ==============================================================================
+// [b28d-24] DIFF 残148（P282 候选）: vcall 偏移 52 ORIG 3 次 vs 我方 2 次（/tmp/b28d_vcall_cand.tsv）——须按 P282 流程（vptr=_ZTV+8、word[(off+8)/4]）复核虚调目标。ORIG 0x08462538
 void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
                                                unsigned int baseExp, CParty* party,
                                                CDungeonMgr& dungeonMgr)
@@ -471,6 +472,7 @@ void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
 // WongWork__CDeathTower__CPlayData/generateRewardItem.md 0846205d..099 /
 // 084622bc..328）。
 // ==============================================================================
+// [b28d-24] DIFF 残380: P167 迭代器写法差（MISSING begin/deEv×5；EXTRA front/C1/D1/G_CDataManager 等）——按 P167 判据改访问形。ORIG 0x08461fc0
 void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
                                                 const CDungeonMgr& dungeonMgr,
                                                 unsigned int param4, unsigned int param5,
