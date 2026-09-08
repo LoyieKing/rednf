@@ -25,6 +25,8 @@ class CUser;
 // （C1IiiEEOT_OT0_ @0x081627d4）构造、循环内 `grade = GetRankRange()` 调
 // pair<int,int>::operator=(pair&&)（aSEOS0_ @0x080ddf1c）⇒ 返回类型确为
 // std::pair<int,int>，非自造 POD。mangled _ZNK8CMission12GetRankRangeEv 无参。
+// [b28d-70] 类型更正专线判词：GetRankRange IDENTICAL 11=11；get_WithinMissionIndex
+// DIFF→AE 70/71 + P167 CLEAR 12=12；CMission TU 117/207/0/5 零回归。
 typedef std::pair<int, int> MissionRankRange;
 
 class CMission

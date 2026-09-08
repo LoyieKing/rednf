@@ -522,6 +522,7 @@ CMission* PvP_MissionSystem::find_mission(int idx)
 // operator*→GetRankRange），故不写 `if (!*it)`。init/cond 两处**各调一次**
 // `m_kindMissionList[0x1b]` 的 const operator[]（0x85e2f3e/0x85e2fc3）⇒ 不缓存 list
 // 引用（P48/P183 重物化）。
+// [b28d-70] 判词：DIFF→AE 70/71；P167 CLEAR 12=12（C1IiiE/aSEOS0_ 双符号命中）。
 int PvP_MissionSystem::get_WithinMissionIndex(int idx) const
 {
     std::pair<int, int> grade(0, 0);

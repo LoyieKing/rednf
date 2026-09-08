@@ -32,6 +32,7 @@ CMission::CMission(const MissionScript& script)
     , m_missionIndex(script.m_field0c)
     , m_field10(script.m_field00)
     , m_prevMissionIndex(script.m_prevMissionIndex)
+    // [b28d-70] pair 成员化后 C1 仍 DIFF 61/59（残余 2×add-vs-lea，N18a，零回归）。
     // ORIG C1 0x085e304b/0x085e305f 两处 8 字节逐字段内联拷贝：成员与 MissionScript
     // +0x10/+0x18 同为 std::pair<int,int>（pair 拷贝构造对 <int,int> trivial ⇒ 内联，
     // 无 call；get_WithinMissionIndex 0x085e2f00 的 pair 消费实证该真实类型，b28d-70）。
@@ -90,6 +91,8 @@ bool CMission::canUpdate(const MissionClearCondition_Parameter& param) const
 
 bool CMission::isAcceptCondition(const CUser& user) const
 {
+    // [b28d-70] 判词：AE 78=78（m_rankRange.first/.second、m_rateRange.first/.second
+    // 偏移 +0x18/+0x1c/+0x20/+0x24 与原字段名完全同址，pair 化零指令差）。
     CMissionList_Charac* list =
         (CMissionList_Charac*)user.GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)8);
     if (list->getIndex_byKind(GetMissionKind()) != 0) return 0;
@@ -115,6 +118,7 @@ bool CMission::isAcceptCondition(const CUser& user) const
 
 int CMission::Reward(CUser& user) const
 {
+    // [b28d-70] 判词：AE 124=124（m_rankRange.first 读 +0x18；P167 CLEAR 16=16）。
     // b28d-50：ORIG 0x085e32xx 对 get_BaseMissionExp_byRank 的结果先
     // `mov $0,%edx; mov %eax,-0x30; mov %edx,-0x2c; fildll` ⇒ 原码为
     // `(float)(unsigned long long)` 零扩展 64 位（int 恒 fildl）。
@@ -170,6 +174,7 @@ bool CMission::operator<(const CMission& other)
 
 bool CMission::_isAcceptCondition_Series(const CUser& user) const
 {
+    // [b28d-70] 判词：AE 56/57（pair 化后逐条同形）。
     CMissionList_Charac* list =
         (CMissionList_Charac*)user.GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)8);
     if (list->isClearMission(GetMissionIndex())) return 0;
@@ -209,6 +214,7 @@ int CMission_rank::getClearCondition() const
 // && 短路产生 jg/jge 直跳失败块 + 布尔返回归一。
 bool CMission_rank::isAcceptCondition(const CUser& user) const
 {
+    // [b28d-70] 判词：AE 30/31（m_rankRange.first/.second 同址）。
     // [b28c-35] ORIG 0x085e372c：第一比较先装载 m_rankRange.first 到 %ebx（跨 call
     // 保活）再 call get_pvp_grade ⇒ 左操作数是成员（交换操作数序，P23/P66）；第二比较
     // 仍左 call 右成员。原 `grade >= m_rankRange.first` 形 4.4 恒先 call 后读成员
@@ -798,6 +804,7 @@ CMission_within::~CMission_within() {}
 
 bool CMission_within::_isAcceptCondition(const CUser& user) const
 {
+    // [b28d-70] 判词：AE 86=86（GetRankRange().first 三处 sret 形不变）。
     CMissionList_Charac* list =
         (CMissionList_Charac*)user.GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)8);
     if (list->isClearMission(GetMissionIndex())) return 0;
@@ -1157,6 +1164,7 @@ int CMission_combo_clear::_Reward(CUser& user) const
 // （`mov 0x1c(%eax),%edx; mov 0x18(%eax),%eax; mov %eax,(%ecx); mov %edx,0x4(%ecx);
 // mov %ecx,%eax; ret $0x4`）——pair<int,int> 拷贝构造 trivial ⇒ 无 call，与 C1
 // 0x085e304b 同族。成员已按 ORIG 建模为 std::pair<int,int> m_rankRange（b28d-70）。
+// [b28d-70] 判词：IDENTICAL 11=11。
 MissionRankRange CMission::GetRankRange() const
 {
     return m_rankRange;
