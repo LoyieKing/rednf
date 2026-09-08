@@ -465,7 +465,9 @@ public:
     char m_field120;                           // +0x120
     char m_pad121[3];
     std::vector<dungeonEventHanaseStruct> m_eventDialogs;  // +0x124
-    char m_field130;                           // +0x130
+    // b28d-65 [P248档②]：ORIG 0x0866e41e 读 `movzbl; xor $0x1; test; je` ⇒ 字段 bool。
+    // 0/1 值域，sizeof/后续偏移（m_powerSide@+0x131）不变。
+    bool m_field130;                           // +0x130
     unsigned char m_powerSide;                 // +0x131
     char m_pad132[2];
     int m_field134;                            // +0x134

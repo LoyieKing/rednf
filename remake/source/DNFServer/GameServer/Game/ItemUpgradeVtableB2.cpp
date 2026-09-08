@@ -25,6 +25,14 @@
 //     引用、无独立报告——调用方报告已读后按 objdump 忠实转写）
 //   DisJointResult::DisJointResult   W 0x082347a2（无独立报告；调用方 GetResult/
 //     _ProcPenalty 报告已读后按 objdump 忠实转写）
+// [b28d-64 判词汇总 · 泳道64] 本 TU 8 件（明细 /tmp/b28d_lane_64_result.tsv）：
+//   _ProcPortableUpgradeItem 85/85 AE；_CheckTargetUsableLv 78/78 AE
+//   （CStackableItem.h m_char320 char→bool，R2 已广播）；
+//   IsExistContinuousEffectItem 66/65 N18b（成员==参数 mem-cmp 折叠）；
+//   DisJoint::GetResult 105/107 N85（§4.3 裸偏移已改具名 m_creationRate）；
+//   _getAdditionalDisjointItem 108/111 N85；_DoProcUpgrade 166/179 N封顶
+//   （P167 CLEAR 14/14）；_ProcPenalty 634/631 N82（P167 EXTRA helper×2）；
+//   ProcUpgrade 1242/1246 N82（P167 EXTRA helper×2）。
 //   getItemSellPrice(int,int,int,bool) T 0x0898c86e（无独立报告；调用方 GetResult/
 //     _ProcPenalty 报告已读后按 objdump 忠实转写）
 //   g_alchemistInfo                 B 0x094f7778（数据符号；nm 尺寸 8，唯一读者按

@@ -7,6 +7,13 @@
 // 各区（village/exp/…）按 ORIG 报告 get_* callee 重载实证类型具名字段访问
 // （2026-09-05 §4.3 字段化，绑定别名见 SigTypes_C.h/CCharacter.h 注释）。
 // ============================================================================
+// [b28d-64 判词汇总 · 泳道64] 本 TU 5 件：
+//   _sendResult           80/80 AE（P259 Acquire 内联实参去 stream 槽 + P227 trace 临时链）
+//   _getCharacInfo        464/462 N封顶（gap2 = SQL 变参装载寄存器序/槽号 P86/P112）
+//   _LoadEventBringUpInfo 158/159 N封顶（gap1 = cMyTrace 重定位 + 槽号）
+//   _GetTagCharacInfo     373/326 N封顶（P167 CLEAR 28/28；gap47 = 4.4 SQL get_* 内联折叠 P86/N89）
+//   getCharacStat         644/556 N封顶（P167 CLEAR 47/47；gap88 同上）
+// ============================================================================
 
 #include <string.h>
 #include <string>

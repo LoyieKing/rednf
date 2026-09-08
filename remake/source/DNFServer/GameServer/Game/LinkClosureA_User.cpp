@@ -141,21 +141,26 @@ void CUser::UpdateRating(float rating)
 //   否则：全部 idx 已清除才返回 &m_rewardItems；
 //   空 idx 表或不满足一律返回 &m_titleReward。
 // ---------------------------------------------------------------------------
+// b28d-65 [P281]：ORIG 0x0866e914 首参读 0x8(%ebp)、字段访问 param_1+0xe8/+0xec/+0xc4
+//   ⇒ 原码为 static 成员（P245/P281）；我方非 static 使 quest 落 0xc(%ebp)、整帧 +4。
+//   修 static 需改冻结头 CUser.h 声明（走 Main 代落）。本 TU 已去具名 q 局部
+//   （P0 内联 const_cast），编译绿；残余 = static 帧差 + N86 迭代器 copy-elision。
 std::vector<RewardItemInfo>* CUser::getUserQuestRewardItem(
     const Quest* quest, const CUser* other)     // ORIG _ZN5CUser22…PKS_ 非 const
 {
-    Quest* q = const_cast<Quest*>(quest);   // ORIG 直接 lea 非常量视图
-    if (!q->m_fieldDC.empty())              // [0x866e91b xor $1]
+    // b28d-65 [P0]：ORIG 0x0866e914 全程直接重读形参 0xc(%ebp)（无 -0xc 槽往返）
+    // ⇒ 原码无具名 `Quest* q` 局部，const_cast 内联为表达式。
+    if (!const_cast<Quest*>(quest)->m_fieldDC.empty())  // [0x866e91b xor $1]
     {
-        std::vector<int>::const_iterator it = q->m_fieldDC.begin();
-        std::vector<int>::const_iterator end = q->m_fieldDC.end();
+        std::vector<int>::const_iterator it = const_cast<Quest*>(quest)->m_fieldDC.begin();
+        std::vector<int>::const_iterator end = const_cast<Quest*>(quest)->m_fieldDC.end();
 
-        if (q->m_fieldE8 == 1)                         // [cmp $1]
+        if (const_cast<Quest*>(quest)->m_fieldE8 == 1)  // [cmp $1]
             for (; it != end; ++it)
             {
                 if (other->getCurCharacQuestR()->isClearQuest(*it))
                 {
-                    return &q->m_rewardItems;          // [lea +0xec]
+                    return &const_cast<Quest*>(quest)->m_rewardItems;  // [lea +0xec]
             }
         }
         else
@@ -167,11 +172,11 @@ std::vector<RewardItemInfo>* CUser::getUserQuestRewardItem(
             }
             if (it == end)                                 // [operator== P7]
             {
-                return &q->m_rewardItems;
+                return &const_cast<Quest*>(quest)->m_rewardItems;
             }
         }
     }
-    return &q->m_titleReward;                          // [lea +0xc4]
+    return &const_cast<Quest*>(quest)->m_titleReward;  // [lea +0xc4]
 }
 
 // ---------------------------------------------------------------------------
@@ -204,6 +209,8 @@ int CUser::compute_level_penalty(int levelDelta)
 // ---------------------------------------------------------------------------
 // CUser::compute_quest_basic_reward_exp（报告全文已读）
 // ---------------------------------------------------------------------------
+// b28d-65：m_field130 已按 P248档② bool 化（Quest.h）并改裸 if(!field) ⇒ xor$1 对齐；
+//   残余槽整体平移 4（ORIG -0x24..-0x10 vs 4.4 -0x28..-0x14，N95/P232 族）⇒ 封顶。
 int CUser::compute_quest_basic_reward_exp(Quest* quest)
 {
     if (quest->m_type == 4)                                // [quest+0x8]
@@ -213,7 +220,7 @@ int CUser::compute_quest_basic_reward_exp(Quest* quest)
 
     int levelDelta = get_charac_level() - quest->m_levelMin; // [-0x24]
     int penalty = 100;                                     // [-0x20]
-    if (quest->m_field130 == 0)                            // [xor $1 双测]
+    if (!quest->m_field130)                                // [xor $1 双测 → P248档② 裸形]
     {
         penalty = compute_level_penalty(levelDelta);       // [0x866e439]
     }
@@ -349,6 +356,8 @@ void CUser::quest_basic_reward(Quest* quest, int& expOut, int& goldOut,
 // copy 向量上按 GetExpertJobCompoundMaterialVariation/100 缩减后再并回原表。
 // P48 双迭代器形态照录（ci 在 copy 上、mi 在实参向量上同步推进）。
 // ---------------------------------------------------------------------------
+// b28d-65：残余 P0（jobLevel/jobType ORIG 直落 %ebx/%esi 无槽）+ N86（迭代器两段）+
+//   槽向族；orig 165 vs ours 153，四形实测不可翻 ⇒ 封顶。
 void CUser::CalculateExpertJobMaterials(
     std::vector<std::pair<int, int> >& materials)
 {

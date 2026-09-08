@@ -316,10 +316,10 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
         return false;
     }
 
-    GameWorld* world = G_GameWorld();
+    // b28d-68：ORIG 0x0840f573/0x0840f584 两次独立 G_GameWorld()（P48/P157 禁指针缓存）
     bool needUserDBInfo =
-        (world->IsIntegratedPvPBaseChannel() &&
-         world->GetChannelType() != 0xe);
+        (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
+         G_GameWorld()->GetChannelType() != 0xe);
     if (needUserDBInfo)
     {
         DBMgr::stUserDBInfo_t info;
@@ -467,8 +467,8 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
     GetPremiumInfo(0 /*int 占位形参，ORIG 未使用*/, sig, entries);
 
     // ---- 通道 7（公会战）：检查 BreakAway 数据完整 ----
-    world = G_GameWorld();
-    if (world->GetChannelType() == 7)
+    // b28d-68：ORIG 0x0840fcad 独立 G_GameWorld() 调用（无缓存）
+    if (G_GameWorld()->GetChannelType() == 7)
     {
         if (sig->m_tournamentAccountFlag == 0 || sig->m_tournamentServerGroup == 0)
         {
@@ -478,8 +478,8 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
         }
     }
     // ---- 通道 0xe（线上预选）：pvp mask 校验 ----
-    world = G_GameWorld();
-    if (world->GetChannelType() == 0xe)
+    // b28d-68：ORIG 0x0840fd12 独立 G_GameWorld() 调用（无缓存）
+    if (G_GameWorld()->GetChannelType() == 0xe)
     {
         bool blocked;
         if (sig->m_onlinePrelimCharacNo == 0 || sig->m_onlinePrelimServerGroup == 0)

@@ -32,11 +32,11 @@ CMission::CMission(const MissionScript& script)
     , m_missionIndex(script.m_field0c)
     , m_field10(script.m_field00)
     , m_prevMissionIndex(script.m_prevMissionIndex)
-    // ORIG C1 0x085e304b/0x085e305f 两处 8 字节整体拷贝：MissionScript
-    // +0x10/+0x18 为 std::pair<int,int>（布局同 POD 两 int）⇒ 经 POD 视图
-    // 整体拷贝复现（std::pair 含构造函数不能作 union 成员）。
-    , m_rankRange(*reinterpret_cast<const MissionRankRange*>(&script.m_grade))
-    , m_rateRange(*reinterpret_cast<const MissionRankRange*>(&script.m_rate))
+    // ORIG C1 0x085e304b/0x085e305f 两处 8 字节逐字段内联拷贝：成员与 MissionScript
+    // +0x10/+0x18 同为 std::pair<int,int>（pair 拷贝构造对 <int,int> trivial ⇒ 内联，
+    // 无 call；get_WithinMissionIndex 0x085e2f00 的 pair 消费实证该真实类型，b28d-70）。
+    , m_rankRange(script.m_grade)
+    , m_rateRange(script.m_rate)
     , m_grade(script.m_field20)
     , m_expRate(script.m_expRate)
     , m_rewardItems(script.m_rewardItems)
@@ -97,18 +97,18 @@ bool CMission::isAcceptCondition(const CUser& user) const
     // b28d-50：ORIG 0x085e31d9 段无 grade 槽（两次独立 call get_pvp_grade，
     // 0x085e31f0/0x085e31ff）且布尔**留在 %al**（mov $1/$0 + test，无槽）⇒ 原码是
     // 单一 `if (A && (B || C)) return 0;`（&&/|| 跳转物化），非具名 bool + else-if；
-    // m_gradeMin 作左操作数先入 %ebx 跨 call 保活（P23/P66）。
-    if ((m_gradeMin != -1) &&
-        ((m_gradeMin > user.get_pvp_grade()) ||
-         (user.get_pvp_grade() >= m_gradeMax)))
+    // m_rankRange.first 作左操作数先入 %ebx 跨 call 保活（P23/P66）。
+    if ((m_rankRange.first != -1) &&
+        ((m_rankRange.first > user.get_pvp_grade()) ||
+         (user.get_pvp_grade() >= m_rankRange.second)))
         return 0;
 
     int winRate = user.get_pvp_WinningRate_relateMission();
     // b28d-50：ORIG 0x085e3233 段块序为 REJECT（mov $0）在前、PASS（虚调）在后
     // （je PASS; jg REJECT; jg PASS; REJECT; PASS）⇒ 原码为否定式 `if(拒绝) return 0;
     // return _isAcceptCondition(user);`，而非正向 PASS 先行（4.4 反产 jle REJECT）。
-    if ((m_rateMin != -1) &&
-        ((m_rateMin > winRate) || (winRate >= m_rateMax)))
+    if ((m_rateRange.first != -1) &&
+        ((m_rateRange.first > winRate) || (winRate >= m_rateRange.second)))
         return 0;
     return _isAcceptCondition(user);
 }
@@ -123,7 +123,7 @@ int CMission::Reward(CUser& user) const
     // 把 m_expRate 先 fstps 到临时槽再 fmuls（P243 x87 序）。
     int exp = (int)((float)(unsigned long long)(unsigned int)
                         G_CDataManager()->get_BaseMissionExp_byRank(
-                            (unsigned short)m_gradeMin) * m_expRate);
+                            (unsigned short)m_rankRange.first) * m_expRate);
 
     user.m_historyLog.pvpMissionClearReward(
         user.getPVPResultRefW()->m_expPoint, exp, GetMissionKind(),
@@ -209,13 +209,14 @@ int CMission_rank::getClearCondition() const
 // && 短路产生 jg/jge 直跳失败块 + 布尔返回归一。
 bool CMission_rank::isAcceptCondition(const CUser& user) const
 {
-    // [b28c-35] ORIG 0x085e372c：第一比较先装载 m_gradeMin 到 %ebx（跨 call 保活）再
-    // call get_pvp_grade ⇒ 左操作数是成员（交换操作数序，P23/P66）；第二比较仍左 call
-    // 右成员。原 `grade >= m_gradeMin` 形 4.4 恒先 call 后读成员（22 vs 30 insn）。
+    // [b28c-35] ORIG 0x085e372c：第一比较先装载 m_rankRange.first 到 %ebx（跨 call
+    // 保活）再 call get_pvp_grade ⇒ 左操作数是成员（交换操作数序，P23/P66）；第二比较
+    // 仍左 call 右成员。原 `grade >= m_rankRange.first` 形 4.4 恒先 call 后读成员
+    // （22 vs 30 insn）。
     // 尾段 ORIG 为两层物化（&& 结果 al → test %al,%al; je; mov $1/$0）⇒ P56
     // `if(cond)return true; return false;` 形保留第二层。
-    if (m_gradeMin <= user.get_pvp_grade() &&
-        user.get_pvp_grade() < m_gradeMax)
+    if (m_rankRange.first <= user.get_pvp_grade() &&
+        user.get_pvp_grade() < m_rankRange.second)
         return true;
     return false;
 }
@@ -804,11 +805,11 @@ bool CMission_within::_isAcceptCondition(const CUser& user) const
     // sret 落 -0x2c/-0x24/-0x1c 三个临时槽），不是直读 m_gradeMin；且尾比较为
     // `curPoint + (nextPoint - curPoint)` 两步冗余式（0x085e3d1a sub/add 段，P171
     // 照抄）。按 ORIG 改后 86/63 gap 闭合。
-    if (user.getPVPResultRefR()->m_pvpGrade != GetRankRange().gradeMin) return 0;
+    if (user.getPVPResultRefR()->m_pvpGrade != GetRankRange().first) return 0;
 
-    int curPoint = GlobalData::s_ref_pvp_grade->GetPvpPoint(GetRankRange().gradeMin);
+    int curPoint = GlobalData::s_ref_pvp_grade->GetPvpPoint(GetRankRange().first);
     int nextPoint =
-        GlobalData::s_ref_pvp_grade->GetPvpNextRankPoint(GetRankRange().gradeMin);
+        GlobalData::s_ref_pvp_grade->GetPvpNextRankPoint(GetRankRange().first);
     if (user.getPVPResultRefR()->m_expPoint >= curPoint + (nextPoint - curPoint))
     {
         const_cast<CUser&>(user).getPVPResultRefW()->m_expPoint = nextPoint;
@@ -1152,12 +1153,10 @@ int CMission_combo_clear::_Reward(CUser& user) const
     return 1;
 }
 
-// ORIG W 0x085e692a：sret 返回 {m_gradeMin, m_gradeMax}（8 字节）。
-// b28d-50 AE：旧 b28c-lane12「N 封顶」判词作废——ORIG 该形为 **8 字节 POD 整体
-// 拷贝**（`mov 0x1c(%eax),%edx; mov 0x18(%eax),%eax; mov %eax,(%ecx); mov %edx,0x4(%ecx);
-// mov %ecx,%eax`），与 C1 0x085e304b 同族；CMission.h 把 +0x18 改为匿名 union
-// 双视角（m_gradeMin/m_gradeMax | MissionRankRange m_rankRange，偏移不变）后
-// `return m_rankRange;` 即逐条复现（探针 /tmp/arad_probe/r3.cpp 实证）。
+// ORIG W 0x085e692a：sret 返回 std::pair<int,int>（8 字节）。ORIG 为逐字段内联拷贝
+// （`mov 0x1c(%eax),%edx; mov 0x18(%eax),%eax; mov %eax,(%ecx); mov %edx,0x4(%ecx);
+// mov %ecx,%eax; ret $0x4`）——pair<int,int> 拷贝构造 trivial ⇒ 无 call，与 C1
+// 0x085e304b 同族。成员已按 ORIG 建模为 std::pair<int,int> m_rankRange（b28d-70）。
 MissionRankRange CMission::GetRankRange() const
 {
     return m_rankRange;

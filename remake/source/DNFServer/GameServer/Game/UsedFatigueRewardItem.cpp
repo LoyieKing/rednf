@@ -12,6 +12,10 @@
 #include "Arad_Script.h"
 #include "RDARScriptStringManager.h"   // g_scriptStringManager_ / findString
 
+// [b28d-64 判词汇总 · 泳道64] 本 TU 1 件：parsing 0x081a25d2
+//   214/226 N封顶（P167 EXTRA UsedFatigueRewardItem::Data::~Data ×2，4.4 对局部
+//   Data 数组/临时多发析构 + EH 段；MISSING 空 ⇒ 语义完成、byte 层封顶）。
+
 // ============================================================================
 // OnlyOrigBatch11 落地：find / parsing（报告 parsing.md / find.md 全文转写）
 // ============================================================================

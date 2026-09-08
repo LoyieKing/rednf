@@ -3,9 +3,9 @@
 // 已修 AE：Factory（P171 去 default 冗余赋值）、Load_EtcParameter（P292 早返）、
 //   sort_list（P175/P225 索引循环+P159 int 返回）、C1（new CMTRand(time(0))+
 //   resize(0x24,list)）、D1（P141 delete 直删）、Load_list（P198/P140/P167 全段还原）。
-// N 封顶：get_WithinMissionIndex 0x085e2f00（ORIG MissionRankRange 实为
-//   std::pair<int,int>——CMission.h union 建模限制，需跨 TU 改 CMission.h/.cpp）、
-//   importPvpMissionParameterScript 0x08a5b7ec（MISSING string operator==×3，
+// b28d-70：get_WithinMissionIndex 0x085e2f00 已修（CMission.h MissionRankRange 改为
+//   std::pair<int,int>，本函数同步 pair 形，P167 CLEAR）。
+// N 封顶：importPvpMissionParameterScript 0x08a5b7ec（MISSING string operator==×3，
 //   重载选择差异）、get_New_DailyMission 0x085e26e0（MISSING make_pair×2）、
 //   importPvpMissionScript 0x08a5ac28（MISSING string==×8，N89/大函数）。
 #include "CMission.h"
@@ -515,18 +515,21 @@ CMission* PvP_MissionSystem::find_mission(int idx)
     return 0;
 }
 
-// ORIG 0x85e2f00：遍历 m_kindMissionList[0x1b]，首个 GetRankRange().gradeMin == idx
-// 的 CMission 返回其 GetMissionIndex()；无匹配返回 0。
+// ORIG 0x85e2f00（b28d-70 P167 CLEAR）：循环外构造 `std::pair<int,int> grade(0, 0)`
+// （0x85e2f06/0x85e2f0d 双 movl $0 + C1IiiEEOT_OT0_ 0x081627d4），循环内
+// `grade = (*it)->GetRankRange()`（aSEOS0_ 0x080ddf1c move 赋值），`grade.first == idx`
+// 命中即返回 GetMissionIndex()；无匹配返回 0。ORIG 循环体无判空（P140：0x85e2f57 直接
+// operator*→GetRankRange），故不写 `if (!*it)`。init/cond 两处**各调一次**
+// `m_kindMissionList[0x1b]` 的 const operator[]（0x85e2f3e/0x85e2fc3）⇒ 不缓存 list
+// 引用（P48/P183 重物化）。
 int PvP_MissionSystem::get_WithinMissionIndex(int idx) const
 {
-    const std::list<CMission*>& list = m_kindMissionList[0x1b];
-    for (std::list<CMission*>::const_iterator it = list.begin();
-         it != list.end(); ++it)
+    std::pair<int, int> grade(0, 0);
+    for (std::list<CMission*>::const_iterator it = m_kindMissionList[0x1b].begin();
+         it != m_kindMissionList[0x1b].end(); ++it)
     {
-        if (!*it)
-            continue;
-        MissionRankRange grade = (*it)->GetRankRange();
-        if (grade.gradeMin == idx)
+        grade = (*it)->GetRankRange();
+        if (grade.first == idx)
             return (*it)->GetMissionIndex();
     }
     return 0;

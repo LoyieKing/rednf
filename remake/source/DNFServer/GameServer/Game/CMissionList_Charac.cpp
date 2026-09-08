@@ -1,6 +1,13 @@
 // df_game_r 角色任务列表实现（G3-2 批次，2026-08-17）。
 // 语义依据 docs/class_func_reports/CMissionList_Charac.md（Ghidra C）+ ORIG
 // 反汇编（ctor 0x832af8a / dtor 0x85ec626 / 弱方法 0x85e68b6..0x85e7130）。
+// [b28d-64 判词汇总 · 泳道64] 本 TU 10 件（明细 /tmp/b28d_lane_64_result.tsv）：
+//   addNewMission 54/54 AE；Update_Revenge_event 97/97 NEAR·N82（槽号）；
+//   Update_EnterWorld_event 85/83 N封顶（P133 短路 bool 物化跨版本）；
+//   Update_RecvPacket_event 116/117 N82；ClearMission 123/121 N7/N82；
+//   MakeMissionList_JustKind 96/104 N82；MakeMissionList_forNewbies 93/105 N82；
+//   check_mission_kind 109/114 N7/N82；MakeMissionList_forOldUser 109/121 N82；
+//   loadData 156/180 N82；Update_ComboMission_Event 150/135 N82。
 #include <bitset>
 #include <cstring>
 #include <map>

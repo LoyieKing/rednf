@@ -424,6 +424,10 @@ pack_ret_t IndexEntry::write_info(FILE* fp)   // @0x08ac4284
 }
 
 // 主版本（dst 预分配）@0x08ac3eac
+// b28d-36 判词（N95 封顶，ORIG 0x08ac3eac size 0x36c）：p167 调用点差集
+// 20=20 CLEAR、insn 198=198 全等，唯一残差为帧尺寸 ORIG `sub $0x24` vs 我方
+// `sub $0x34`（差 0x10，4.4 outgoing 保守量化 P190/N95 族；本函数无具名局部
+// 可删，5 个 fprintf 调用点的参数槽不可压缩）。语义完成，byte 层封顶。
 pack_ret_t IndexEntry::get_content(PackSet* owner, hash_t code, unsigned char* dst,
                                    unsigned int dst_size, unsigned int* content_size)
 {
@@ -827,15 +831,20 @@ pack_ret_t PackSet::get(char const* name, unsigned char* buffer,
         return PACK_ERROR;
     }
 
-    index_vector_it it = find(name);
+    // b28d-36（P50 复活）：ORIG 有独立 `__normal_iterator::C1Ev`（默认构造）
+    // ⇒ 原码先声明后赋值（`it = find(name);`），初始化式形被 4.4 折叠。
+    index_vector_it it;
+    it = find(name);
     if (it == m_indexes.end())
     {
         fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x319, __FUNCTION__);
         return PACK_ERROR;
     }
 
-    hash_t code = (*it).first;
-    if ((*it).second.get_content(this, code, buffer, buffer_size, content_size) == PACK_ERROR)
+    // b28d-36（P167 判据）：ORIG 调 `_ZN9__gnu_cxx17__normal_iterator…ptEv`
+    // （it->），`(*it)` 形额外实例化 deEv（p167 EXTRA deEv×2）。
+    hash_t code = it->first;
+    if (it->second.get_content(this, code, buffer, buffer_size, content_size) == PACK_ERROR)
     {
         fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 799, __FUNCTION__);
         return PACK_ERROR;
@@ -852,15 +861,16 @@ pack_ret_t PackSet::get(char const* name, unsigned char** content,
         return PACK_ERROR;
     }
 
-    index_vector_it it = find(name);
+    index_vector_it it;
+    it = find(name);
     if (it == m_indexes.end())
     {
         fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x333, __FUNCTION__);
         return PACK_ERROR;
     }
 
-    hash_t code = (*it).first;
-    if ((*it).second.get_content(this, code, content, content_size) == PACK_ERROR)
+    hash_t code = it->first;
+    if (it->second.get_content(this, code, content, content_size) == PACK_ERROR)
     {
         fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x339, __FUNCTION__);
         return PACK_ERROR;

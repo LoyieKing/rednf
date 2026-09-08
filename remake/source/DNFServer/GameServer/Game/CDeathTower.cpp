@@ -684,6 +684,12 @@ bool CDeathTower::onLeaveUser(CUser* user)
     return 1;
 }
 
+// [b28d-69] P167 CLEAR（ORIG calls=103 = OUR 103）：P183 每使用点重发
+// getDungeon()->get_index()/getCurCharacNo()/getStartMemberCnt()（ORIG 11/9/6/2 次实证）
+// + P0 去 partyState/key/mgrIdx 缓存 + P197③ playTime 预清 + P184 内层死块照抄
+// + 2×min<unsigned>+1×min<int>（P211/P265）。ndiff 566→16，orig 610 / our 608；
+// 残余仅 4.4 帧 0xdc vs ORIG 0xcc 的槽号整体 -0x10 平移 + 实参跨 call 落槽 vs
+// ORIG callee-saved（N82/N95/N7 族）⇒ 语义完成、byte 层 N 封顶。
 void CDeathTower::_beginTowerClearProcess(bool isLast)
 {
     if (getTowerState() > 2)
@@ -2403,15 +2409,24 @@ int CDeathTower::CStage::dropItem(map_item& item)
     return idx;
 }
 
+// [b28d-69] P167 CLEAR（ORIG calls=134 = OUR 134）：补 m_mapInfo.m_mapIndex =
+// map->get_index()（ORIG 0x0846063f）；去 aiList 缓存（P183：G_CDataManager 每使用点重调）；
+// push_back 右值化（P270 EOj）；find 第三参 cast unsigned；getAppearancePoint /
+// getStandardLevel / getItemGenerator 重调（P48 无 CSE）；mons/items 去 const
+// （非 const begin/end + _List_const_iterator 转换 C1×2）；specialItems 改 const 指针
+// （const at）；第四段循环条件改 m_party->m_battleField.m_bloodState!=1
+//（消 get_party_type EXTRA，ORIG 0x0846136d 实证）+ _mapItem src 具名局部（C1 符号）。
 bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* map,
                                      CDeathTower* tower)
 {
     // ORIG 0x8460634：mobIdVec + apMap（拷贝自 aiList->getAPCount()）+
     // map_monster mob 局部，随后按三段填充：AI 布点 → AP 随机怪 → 脚本怪列表
     // → 特殊被动物品生成。tower 参数供第四段判 partyType（ORIG 0x8461371）。
+    // [b28d-69] ORIG 0x0846063f：*(this+0x10)=m_mapInfo.m_mapIndex = map->get_index()；
+    // G_CDataManager 每次使用点重调（p167 差集 -4 实证），禁缓存 aiList（P183）。
+    m_mapInfo.m_mapIndex = map->get_index();
     std::vector<unsigned int> mobIdVec;
-    CAICharacterList* aiList = G_CDataManager()->m_aiCharacterList;
-    std::map<int, int> apMap(aiList->getAPCount());
+    std::map<int, int> apMap(G_CDataManager()->m_aiCharacterList->getAPCount());
 
     int mobIdx = 0;
     map_monster mob;
@@ -2424,17 +2439,17 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
                  aiChars->begin(); it != aiChars->end(); ++it)
         {
             const STAICharacterMapArrangeData& data = *it;
-            CAICharacter* aiChar = aiList->get(data.m_type);
+            CAICharacter* aiChar =
+                G_CDataManager()->m_aiCharacterList->get(data.m_type);
             if (!aiChar)
                 return false;
 
-            unsigned int aiIdx = aiChar->getIdx();
-            mobIdVec.push_back(aiIdx);
+            mobIdVec.push_back(aiChar->getIdx());
 
-            int ap = aiChar->getAppearancePoint();
-            if (ap != 0)
+            if (aiChar->getAppearancePoint() != 0)
             {
-                std::map<int, int>::iterator it2 = apMap.find(ap);
+                std::map<int, int>::iterator it2 =
+                    apMap.find(aiChar->getAppearancePoint());
                 if (it2 != apMap.end())
                     it2->second = std::max(it2->second - 1, 0);
             }
@@ -2462,16 +2477,18 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
         mobIdx = 0x40;
         for (;;)
         {
-            if (aiList->getMinAP() > apRandomPoint)
+            if (G_CDataManager()->m_aiCharacterList->getMinAP() > apRandomPoint)
                 break;                      // [a]
 
-            CAICharacter* aiChar = aiList->getByAP(
-                static_cast<unsigned int>(get_rand_int(apRandomPoint) + 1));
+            CAICharacter* aiChar =
+                G_CDataManager()->m_aiCharacterList->getByAP(
+                    static_cast<unsigned int>(get_rand_int(apRandomPoint) + 1));
             if (!aiChar)
                 return false;
 
             std::vector<unsigned int>::iterator fi = std::find(
-                mobIdVec.begin(), mobIdVec.end(), aiChar->getIdx());
+                mobIdVec.begin(), mobIdVec.end(),
+                (unsigned int)aiChar->getIdx());
             if (fi != mobIdVec.end())
             {
                 // [e] 抽中已布过的怪：统计可用 AP 总量，为 0 才结束
@@ -2486,11 +2503,11 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
 
             // [d] 新怪：入已用表、扣减出现点数、建怪（m_dropCnt=100 ORIG 立即数）
             mobIdVec.push_back(aiChar->getIdx());
-            int ap = aiChar->getAppearancePoint();
-            std::map<int, int>::iterator it2 = apMap.find(ap);
+            std::map<int, int>::iterator it2 =
+                apMap.find(aiChar->getAppearancePoint());
             if (it2 != apMap.end())
                 it2->second = std::max(it2->second - 1, 0);
-            apRandomPoint -= ap;
+            apRandomPoint -= aiChar->getAppearancePoint();
 
             memset(&mob, 0, sizeof(mob));
             mob.m_mobId = mobIdx;
@@ -2508,7 +2525,9 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
     // ---- 第三段：脚本怪列表（ORIG 0x8460d28..0x8460f74）----
     mobIdx = 0;
     std::vector<int> namedVec;
-    const std::list<_mapMonster> mons = map->get_monster_list();
+    // ORIG 非 const 局部（按值拷贝）+ const_iterator 隐式转换（p167 差集
+    // list<_mapMonster>::begin/end 非 const + _List_const_iterator C1×2 实证）。
+    std::list<_mapMonster> mons = map->get_monster_list();
     for (std::list<_mapMonster>::const_iterator it = mons.begin();
          it != mons.end(); ++it)
     {
@@ -2562,24 +2581,25 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
     }
 
     // ---- 第四段：特殊被动物品生成（ORIG 0x8460fdd..0x846133f）----
-    std::vector<stDungeonAssignItem_t>* specialItems =
+    _mapItem src;
+    const std::vector<stDungeonAssignItem_t>* specialItems =
         dungeonMgr.getSpecialPassiveObjectItems();
     stGenerateRefData_t refData1;
     stGenerateRefData_t refData2;
     dungeonMgr.getObjectDropItems();   // ORIG 取出未用（忠实保留）
-    const std::list<_mapItem> items = map->get_item_list();
+    std::list<_mapItem> items = map->get_item_list();
 
-    for (std::list<_mapItem>::const_iterator it = items.begin();
+    for (std::list<_mapItem>::iterator it = items.begin();
          it != items.end(); ++it)
     {
-        // ORIG 0x8461371：tower->m_party->m_battleField.m_bloodState==1（单人）→ 跳过本图
-        // 特殊被动物品生成（tower 参数即外层死亡塔实例）
-        if (tower->m_party->get_party_type() == 1)
+        // ORIG 0x0846136d：循环条件 tower->m_party->m_battleField.m_bloodState!=1
+        //（单人则停止本图特殊被动物品生成）；ORIG 无 get_party_type 调用（P167 EXTRA）。
+        if (tower->m_party->m_battleField.m_bloodState == 1)
         {
             break;
         }
 
-        const _mapItem& src = *it;
+        src = *it;
         const stDungeonAssignItem_t& assign =
             specialItems->at(static_cast<unsigned int>(src.m_objectIdx));
 
@@ -2590,11 +2610,12 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
         }
         else
         {
-            int stdLevel = dungeonMgr.getStandardLevel();
-            if (stdLevel <= 0 || stdLevel > 0xc8)
+            // ORIG 0x084610c0..0x084610f5：getStandardLevel 三次重调（P48 无 CSE）
+            if (dungeonMgr.getStandardLevel() < 1 ||
+                dungeonMgr.getStandardLevel() > 0xc8)
                 continue;
             *reinterpret_cast<char*>(&refData1.m_rankBonusIndex) =
-                static_cast<char>(stdLevel);
+                static_cast<char>(dungeonMgr.getStandardLevel());
         }
         // ORIG 0x84610fb..0x846111b：refData1+0x39 = src.m_field04 低字节
         //（+0x38/+0x39 即 m_rankBonusIndex 的低两字节，ORIG 均为 movb 单字节写：
@@ -2603,11 +2624,11 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
             static_cast<char>(src.m_field04);
 
         stGenerateResult_t result;
-        WongWork::CItemGeneratorMgr* genMgr =
-            G_CDataManager()->getItemGenerator();
-        genMgr->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_1)
+        G_CDataManager()->getItemGenerator()
+            ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_1)
             ->generateRandomItem(refData1, result);
-        genMgr->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_4)
+        G_CDataManager()->getItemGenerator()
+            ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_4)
             ->generateSpecificItem(refData2, result);
 
         for (std::vector<Inven_Item>::iterator d = result.m_dropItems.begin();

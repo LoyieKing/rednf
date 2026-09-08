@@ -5,27 +5,27 @@
 // CMission 布局依据 ORIG ctor 0x85e2ffc / 弱访问器 0x85e6906..0x85e6959：
 //   vptr +0x00；m_conditionType +0x04（byte，canUpdate 用）；
 //   m_kind +0x08；m_missionIndex +0x0c；m_field10 +0x10；
-//   m_prevMissionIndex +0x14；m_gradeMin/Max +0x18/+0x1c；
-//   m_rateMin/Max +0x20/+0x24；m_grade +0x28；m_expRate +0x2c；
+//   m_prevMissionIndex +0x14；m_rankRange(+0x18, pair .first/.second)；
+//   m_rateRange(+0x20, pair)；m_grade +0x28；m_expRate +0x2c；
 //   m_rewardItems vector +0x30；m_job +0x3c。
 // 虚表槽位（0x8cc4048 族）：_makeTotalMissionInfo/_canUpdate/_isAcceptCondition/
 //   ~dtor(D1/D0)/isClearable/verifyMission/isSeriesMission/makeMissionInfo/
 //   Update/getClearCondition/Reward/_Reward。
 
 #include <map>
+#include <utility>
 #include <vector>
 
 #include "MissionTypes.h"
 
 class CUser;
 
-// GetRankRange 返回值（ORIG sret 8 字节：{m_gradeMin, m_gradeMax}，
-// mangled _ZNK8CMission12GetRankRangeEv 无参）。
-struct MissionRankRange
-{
-    int gradeMin;   // +0x00
-    int gradeMax;   // +0x04
-};
+// GetRankRange 返回值 = std::pair<int,int>（.first=gradeMin、.second=gradeMax）。
+// ORIG 实证：get_WithinMissionIndex 0x085e2f00 以 `pair<int,int> grade(0,0)`
+// （C1IiiEEOT_OT0_ @0x081627d4）构造、循环内 `grade = GetRankRange()` 调
+// pair<int,int>::operator=(pair&&)（aSEOS0_ @0x080ddf1c）⇒ 返回类型确为
+// std::pair<int,int>，非自造 POD。mangled _ZNK8CMission12GetRankRangeEv 无参。
+typedef std::pair<int, int> MissionRankRange;
 
 class CMission
 {
@@ -55,7 +55,7 @@ public:
     int GetMissionKind() const { return m_kind; }
     int GetPrevMissionIndex() const { return m_prevMissionIndex; }
     int GetMissionGrade() const { return m_grade; }
-    MissionRankRange GetRankRange() const;   // ORIG W 0x085e692a（sret {gradeMin,gradeMax}）
+    MissionRankRange GetRankRange() const;   // ORIG W 0x085e692a（sret pair<int,int>）
 
     // ---- 非虚入口 ----
     // b28d-50：ORIG 0x085e318e 尾 `call *%edx` 后**无 movzbl 直返** ⇒ 返回类型
@@ -76,18 +76,11 @@ protected:
     int m_missionIndex;                            // +0x0c
     int m_field10;                                 // +0x10
     int m_prevMissionIndex;                        // +0x14
-    // +0x18：ORIG 为 8 字节 POD 整体成员——C1 0x085e304b（`lea 0x18(%eax),%ecx;
-    // …; mov %eax,(%ecx); mov %edx,0x4(%ecx)`）与 GetRankRange 0x085e692a 同形
-    // （整体拷贝，P246/P235）。匿名 union 双视角：字段名与 `m_rankRange` 并存，
-    // 偏移 +0x18/+0x1c、sizeof、后续成员偏移全部不变。
-    union {
-        struct { int m_gradeMin; int m_gradeMax; };
-        MissionRankRange m_rankRange;
-    };                                             // +0x18
-    union {
-        struct { int m_rateMin; int m_rateMax; };
-        MissionRankRange m_rateRange;   // b28d-50：同 +0x18（ORIG 亦整体拷贝）
-    };                                             // +0x20
+    // +0x18/+0x20：ORIG 为两枚 std::pair<int,int> 成员——C1 0x085e304b/0x085e305f
+    // 逐字段内联拷贝（pair 拷贝构造对 <int,int> trivial）、GetRankRange 0x085e692a
+    // 同形。sizeof/偏移不变（m_grade 仍 +0x28）。
+    std::pair<int, int> m_rankRange;               // +0x18（.first=gradeMin/.second=gradeMax）
+    std::pair<int, int> m_rateRange;               // +0x20（.first=rateMin/.second=rateMax）
     int m_grade;                                   // +0x28
     float m_expRate;                               // +0x2c
     std::vector<std::pair<int, int> > m_rewardItems;  // +0x30
@@ -107,7 +100,8 @@ public:
                        const MissionClearCondition_Parameter& param) const;
     virtual int getClearCondition() const;
 
-    // ORIG 0x85e372c：rank 任务接受条件 = 用户 PvP 段位落在 [m_gradeMin, m_gradeMax)
+    // ORIG 0x85e372c：rank 任务接受条件 = 用户 PvP 段位落在 [m_rankRange.first,
+    // m_rankRange.second)
     // 区间内（两次独立 get_pvp_grade 调用，O0 无 CSE；基类同名入口不含 -1 特判）
     bool isAcceptCondition(const CUser& user) const;
 

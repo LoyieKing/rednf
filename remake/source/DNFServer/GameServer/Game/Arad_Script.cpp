@@ -1,5 +1,17 @@
 #include "Arad_Script.h"
 
+// ============================================================================
+// [b28d-64 判词汇总 · 泳道64] 本 TU 4 件（ORIG 地址见各报告 /tmp/b28d_lane_64_result.tsv）：
+//   AradJumping_Script::importScript 0x089... 92/102 N封顶：P167 CLEAR 39/39；
+//     残余 = cMyTrace 字符串重定位 + nop 岛落点 + %esi/%ebx 实参保活序（N80/N7）。
+//   Arad_Script::Load(PKc)           418/421 N封顶：P167 CLEAR 39/39；槽序/寄存器
+//     （本 TU 路由 -O2 + gnu++0x，ORIG 为 -O0）。
+//   Arad_Script::Load(PKc, S1)       397/400 N封顶：P167 CLEAR 31/31；同上。
+//   ARAD::SCRIPT::importAradEventScript 340/360 N封顶：P167 EXTRA
+//     SEventPeriodData/SRewardPeriodData::~D1 ×2（4.4 对 vector 元素/临时多发析构 + EH）；
+//     MISSING 空 ⇒ 语义完成、N91 封顶。
+// ============================================================================
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

@@ -10,6 +10,18 @@
 // 只取其声明。
 // C++98 / 32 位 / O0；字段均为具名成员，无偏移宏。
 // ============================================================================
+// [b28d-64 判词汇总 · 泳道64] 本 TU 10 件（明细 /tmp/b28d_lane_64_result.tsv）：
+//   LoadClientFile 66/66 AE；IsDifferentExeVersionRoughly 66/66 AE；
+//   ~WindowsDataFileFamily 77/77 AE；~WindowsExeFileFamily 94/94 AE；
+//   ~WindowsExeFile 151/151 AE；GenerateRange 106/109 N封顶（P198 边界）；
+//   WindowsDataFileFamily::GenerateChecksum 93/106 N82；
+//   WindowsExeFileFamily::GenerateChecksum 97/111 N82；
+//   LoadWindowsFile 163/169 N封顶（P167 CLEAR 21/21）；
+//   CodeProtectorServer::GenerateChecksum 152/162 N封顶（P167 CLEAR 10/10）；
+//   MakeCommonWindowsExeConstantSections 164/179 N91（P167 EXTRA Interval D1×4）；
+//   CompleteLoadingWindowsExeFiles 279/281 N91（EXTRA Interval D1×2）；
+//   ReadPeHeader 551/532 N82（P167 MISSING 迭代器遍历×2 + IntervalSet 段，我方索引形）。
+//   注：本清单含 13 行（TSV 10 件 + 3 件 D58 已判同 TU 归因）。
 #include "WindowsPackFiles.h"
 #include "AdvanceAltarZip.h"
 #include "MySQL.h"

@@ -15,6 +15,9 @@
 // ——本 TU 补 GetAddtionalSkill 与 _GetAdditionalItem/_GetAdditionalItemInfo
 // （自 ItemUpgradeVtableB2.cpp 迁入，按真实成员布局重写）。
 // ============================================================================
+// [b28d-64 判词汇总 · 泳道64] 本 TU 1 件：_GetAdditionalItem 0x084732b4
+//   103/104 N封顶（P167 CLEAR；残余 = N1 折叠 add $0x150 vs $0x154 + bool
+//   局部落槽 vs ORIG `test %al;je` 寄存器形）。
 
 #include "DisJoint.h"
 #include "CItem.h"

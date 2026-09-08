@@ -239,6 +239,7 @@ void cUserHistoryLog::AvatarItemDel(int itemIdx, int avatarUid, const char* agen
     }
 }
 
+// b28d-65 [N4/N102]：同 CreatureItemAdd；ORIG 0x08684f38。
 void cUserHistoryLog::CreatureItemDel(INVEN_TYPE invenType, int itemIdx, int count, int addInfo, int type, eItemDelReason reason)
 {
     // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
@@ -392,6 +393,8 @@ void cUserHistoryLog::LeaveDungeon(int dungeonIdx, int unk, const char* memberNa
     m_user->LogHistory("DungeonLeave,%d,%d,%d,%s", dungeonIdx, unk, state, memberNames);
 }
 
+// b28d-65 [N4/N102]：残余仅 m_traderCharac[0] add-vs-disp 1 条（同 TradeBegin 判词）；
+//   ORIG 0x08684e3c，78=77+1 封顶。
 void cUserHistoryLog::CreatureItemAdd(INVEN_TYPE invenType, int itemIdx, int count, int addInfo, int type, eItemAddReason reason)
 {
     // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
@@ -700,6 +703,8 @@ void cUserHistoryLog::TradeBegin()
         m_user->LogHistory("Trade+,\"%s\",\"%s\"", m_traderCharac, m_traderAccount);
 }
 
+// b28d-65 [N4/N102]：残余仅 m_traderCharac[0] 数组退化 add-vs-disp 1 条（同 TradeBegin
+//   判词，七形探针封顶）；ORIG 0x0868507c，53=53。
 void cUserHistoryLog::TradeEnd(eTradeEndReason reason, int a, int b, int c, int d)
 {
     // b28c-L2 [N4 封顶]：同 TradeBegin 的 m_traderCharac[0] add 寻址族。
@@ -775,6 +780,8 @@ void cUserHistoryLog::apply_Item(int a, int b, eApplyItemReason reason)
 // UseSelectBooster(unsigned int,int,int,std::vector<Inven_Item>&)：ORIG 0x8686b52。
 // 把 items 中每个元素 +0x02（Inven_Item::m_addInfo）拼成 "%d," 串（上限 0x400 字节缓冲，
 // 每项至少占 0xd 字节），经 CUser::LogHistory 记录 "UseSelectBooster,%u,%d,%d,%s"。
+// b28d-65：while(i<size)+体内 `if(strlen+0xd>0x3fe) break` + sprintf 目标内联（去 p 槽）
+//   ⇒ 与 ORIG 0x08686b52 逐条全等（60=60）。
 void cUserHistoryLog::UseSelectBooster(unsigned int a, int b, int c,
                                        std::vector<Inven_Item>& items)
 {
@@ -1290,6 +1297,7 @@ void cUserHistoryLog::GuildCreate(unsigned int guildKey, const char* guildName,
 }
 
 // ORIG _ZN15cUserHistoryLog9GuildJoinEjPKcjtc @0x08685a48
+// b28d-65：三具名日期局部（year/month/day，P0 槽往返）⇒ 53=53 逐条全等（ORIG 0x08685a48）。
 void cUserHistoryLog::GuildJoin(unsigned int guildKey, const char* guildName,
                                 unsigned int characNo, unsigned short a, char b)
 {
@@ -1305,6 +1313,7 @@ void cUserHistoryLog::GuildJoin(unsigned int guildKey, const char* guildName,
 }
 
 // ORIG _ZN15cUserHistoryLog8GuildOutEjPKcjct @0x08685b00
+// b28d-65：同 GuildJoin（三具名日期局部）⇒ 53=53（ORIG 0x08685b00）。
 void cUserHistoryLog::GuildOut(unsigned int guildKey, const char* guildName,
                                unsigned int characNo, char a, unsigned short b)
 {
@@ -1320,6 +1329,7 @@ void cUserHistoryLog::GuildOut(unsigned int guildKey, const char* guildName,
 }
 
 // ORIG _ZN15cUserHistoryLog16GuildChangeGradeEjPKcjjhh @0x08685c4e
+// b28d-65：同 GuildJoin（三具名日期局部）⇒ 55=55（ORIG 0x08685c4e）。
 void cUserHistoryLog::GuildChangeGrade(unsigned int guildKey, const char* guildName,
                                        unsigned int characNo, unsigned int grade,
                                        unsigned char oldGrade, unsigned char newGrade)

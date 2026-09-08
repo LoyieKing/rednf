@@ -424,9 +424,12 @@ bool CQuestShop::SetTagCharacQuestShopData(CHARAC_QUEST_SHOP_DATA* data)
 bool CQuestShop::loadData(CUser* user, char* data)
 {
     _reset();   // ORIG call *(vtable+0x1c)（CData 虚槽 7 _reset）
-    const SigQuestShopLoadBlock* block =
-        reinterpret_cast<const SigQuestShopLoadBlock*>(data); // -0x10
-    const SigQuestShopLoadBlock* p = block;         // -0xc（ORIG data→-0x10→-0xc 两步）
+    // b28d-36（修法 P61/P167）：ORIG 的 data 形参非 const（char* data），
+    // make_pair 第二参是非 const 左值 ⇒ 实例 `IRiRt`；旧 const 视图生成
+    // `IRiRKt`（p167 EXTRA _ZSt9make_pairIRiRKtE…）。
+    SigQuestShopLoadBlock* block =
+        reinterpret_cast<SigQuestShopLoadBlock*>(data); // -0x10
+    SigQuestShopLoadBlock* p = block;               // -0xc（ORIG data→-0x10→-0xc 两步）
     m_qp = static_cast<int>(p->m_main.m_qp);        // mov 0x4→m_qp(+0x38)
     setInitCount(static_cast<int>(p->m_main.m_initCount));
     m_piece = static_cast<int>(p->m_main.m_questPiece); // 0xa6→(+0x44)
@@ -435,14 +438,14 @@ bool CQuestShop::loadData(CUser* user, char* data)
         if (reinterpret_cast<const QuestShopStatusView*>(p)->m_statusCounts[i] == 0)       // movzwl + test ax / je
             continue;
         // ORIG make_pair<IRiRt>(i, m_statusCounts[i]) 左值 + pair 移动 + insert
-        m_buyingStatus.insert(std::make_pair(i, reinterpret_cast<const QuestShopStatusView*>(p)->m_statusCounts[i]));
+        m_buyingStatus.insert(std::make_pair(i, reinterpret_cast<QuestShopStatusView*>(p)->m_statusCounts[i]));
     }
     if (p->m_tagFlag != 0)                          // movzbl 0x154(%eax)
     {
-        p = reinterpret_cast<const SigQuestShopLoadBlock*>(
+        p = reinterpret_cast<SigQuestShopLoadBlock*>(
             &block->m_tag);   // ORIG SetTag 实参从 block(-0x10) 算 +0xaa 经 -0xc 中转
-        SetTagCharacQuestShopData(const_cast<CHARAC_QUEST_SHOP_DATA*>(
-            reinterpret_cast<const CHARAC_QUEST_SHOP_DATA*>(p)));
+        SetTagCharacQuestShopData(
+            reinterpret_cast<CHARAC_QUEST_SHOP_DATA*>(p));
     }
     if (user->getCurCharacLastPlayTick() <=
         static_cast<long>(0x500723cf))              // cmp/setle +0x12a

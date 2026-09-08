@@ -11,6 +11,10 @@
 #include "PacketGuard.h"
 #include "TimerQueue.h"    // G_TimerQueue/TimerEntry/TIMER_MESSAGE
 
+// [b28d-64 判词汇总 · 泳道64] 本 TU 1 件：StartRouting 0x0860a9d4
+//   102/102 N封顶（P251 候补：ORIG `cmp $0x5,%eax; cmp $0xc,%eax` 寄存器直比 +
+//   两 nop 岛 vs 我方具名 state 落槽 -0x14 无岛；语义等价 ⇒ N82/N7）。
+
 // ORIG 0x0860a9d4 _ZN26CSpecialItemRoutingManager12StartRoutingEP5CUserR10Inven_Itemj
 // get_state∉{5,0xc}→1；GetParty()==0→1；find_item(item idx)==0→1；
 // IsRoutingState()→0x12；否则置路由状态/物品、insertTimer(0x23s)、

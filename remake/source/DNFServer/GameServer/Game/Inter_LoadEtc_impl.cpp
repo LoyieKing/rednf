@@ -330,12 +330,14 @@ int CSkillTreeParam::SetSkillTree(Inter_LoadEtc* owner)
             int group = skill->get_group();
             int slot1 = 0;
             int slot2 = 0;
-            SkillSlot* skillR = reinterpret_cast<SkillSlot*>(
-                const_cast<char*>(m_user->getCurCharacSkillR()));
-            slot1 = skillR->get_skillslot_no(first, group,
-                                             ENUM_SKILL_TREE_KIND(0), true);
-            slot2 = skillR->get_skillslot_no(first, group,
-                                             ENUM_SKILL_TREE_KIND(1), true);
+            // [b28d-63] ORIG 0x84ef9c2/0x84ef9f8：两次 get_skillslot_no 各自
+            // 重新取 getCurCharacSkillR（无 skillR 复用局部；P167 MISSING ×2）。
+            slot1 = reinterpret_cast<SkillSlot*>(
+                        const_cast<char*>(m_user->getCurCharacSkillR()))
+                        ->get_skillslot_no(first, group, ENUM_SKILL_TREE_KIND(0), true);
+            slot2 = reinterpret_cast<SkillSlot*>(
+                        const_cast<char*>(m_user->getCurCharacSkillR()))
+                        ->get_skillslot_no(first, group, ENUM_SKILL_TREE_KIND(1), true);
             if (slot1 < 0)
             {
                 SkillSlot* skillW = reinterpret_cast<SkillSlot*>(
@@ -1128,14 +1130,14 @@ void Inter_LoadEtc::processAttendAnceEvent(SIG_ATTENDANCE_EVENT* sig, CUser& use
             g_scriptStringManager_.findString(4, "game_server_msg_275", 0),
             0x14);
 
-    unsigned int charNo = user.getCurCharacNo();
+    // [b28d-63] ORIG 0x84e82ab/0x84e82fe：getCurCharacNo 两处内联调用（无缓存局部）。
     int serverGroup = (int)user.GetServerGroup();
     WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-        title, mailItem, 0u, charNo, sender, (int)strlen(sender), 0u,
+        title, mailItem, 0u, user.getCurCharacNo(), sender, (int)strlen(sender), 0u,
         (ENUM_SERVER_GROUP)serverGroup, false, false);
 
     DB_InsertAttendanceEvent::makeRequest((int)user.GetUID(),
-                                          user.get_acc_id(), charNo);
+                                          user.get_acc_id(), user.getCurCharacNo());
     sig->m_isEnabled = 0;
 }
 
@@ -1277,8 +1279,7 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
         // GetPeerIP2/getWebAddress + Login（无缓存局部）。
         {
             CNetwork<4096, 450000>* net = &user->m_network;
-            char peerIp[16];
-            memset(peerIp, 0, sizeof(peerIp));
+            char peerIp[16];   // [b28d-63] ORIG 0x84c0a23 memset 仅 m_mixedRegion（0x414）
             if (net->get_ip() == 0)
             {
                 int serverGroup = (int)user->GetServerGroup();
@@ -1686,11 +1687,11 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                                 dstMsg->m_msg[idx].m_lenMsg = (*smi).m_lenMsg;
                                 dstMsg->m_msg[idx].m_kind = (*smi).m_kind;
                                 dstMsg->m_msg[idx].m_endTime = (*smi).m_endTime;
-                                memcpy(dstMsg->m_msg[idx].m_msg2, (*smi).m_msg2,
-                                       sizeof((*smi).m_msg2));
+                                strncpy(dstMsg->m_msg[idx].m_msg2, (*smi).m_msg2,
+                                        sizeof((*smi).m_msg2));   // ORIG 0x84c18e0 len 0x13
                                 dstMsg->m_msg[idx].m_index = (*smi).m_index;
-                                memcpy(dstMsg->m_msg[idx].m_msg, (*smi).m_msg,
-                                       sizeof((*smi).m_msg));
+                                strncpy(dstMsg->m_msg[idx].m_msg, (*smi).m_msg,
+                                        sizeof((*smi).m_msg));   // ORIG 0x84c193d len 0x31
                                 dstMsg->m_msg[idx].m_lenMsg2 = (*smi).m_lenMsg2;
                                 idx = idx + 1;
                                 smi++;
