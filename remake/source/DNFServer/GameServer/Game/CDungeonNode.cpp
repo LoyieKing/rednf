@@ -49,10 +49,10 @@ void PlayInfo::operator+=(const PlayInfo& other)
 
 bool CDungeonNode::InsertDB(const DungeonKey& key)   // SIGFIX: bool（ORIG 串）
 {
-    // [b28d-solo-CDungeonNode · NEAR] ORIG 0x08485ba4：补 `int monsterIndex = it->first;`、
-    // 第二段 `CDungeonJobNode* node` / `int job` 具名局部、两处 it++（p167 归零）。
-    // 残差 = 4.4 同块局部「先声明浅」vs 4.1「先声明深」的迭代器槽互换（N82/P112）；
-    // 指令数 171=171、p167 CLEAR。
+    // [b28d-solo-CDungeonNode · P221 · AE] ORIG 0x08485ba4：循环内 cMyTrace 改全表达式
+    // 临时链（4.1 迭代器槽 it -0x54 深于 trace -0x4c；具名 trace 时 4.4 反置）⇒ AE。
+    // 补 `int monsterIndex = it->first;`、第二段 `CDungeonJobNode* node` / `int job`
+    // 具名局部、两处 it++（p167 CLEAR）。指令数 171=171。
     for (std::map<int, Monster>::iterator it = m_monsterMap.begin(); it != m_monsterMap.end(); it++)
     {
         Monster& m = it->second;
@@ -68,8 +68,7 @@ bool CDungeonNode::InsertDB(const DungeonKey& key)   // SIGFIX: bool（ORIG 串�
                 monsterIndex, m.m_damageTotal, m.m_damageCount);
             if (!sql->exec(true))
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x13d, 5);
-                trace("inSert log_dungeon_monster failed ");
+                cMyTrace(__PRETTY_FUNCTION__, 0x13d, 5)("inSert log_dungeon_monster failed ");
                 return false;
             }
         }
@@ -96,13 +95,10 @@ bool CDungeonNode::InsertDB(const DungeonKey& key)   // SIGFIX: bool（ORIG 串�
 // ============================================================================
 bool CDungeonNode::InsertMonsterKey(int monsterIndex)
 {
-    // [b28d-solo-CDungeonNode · NEAR] ORIG 0x084852de：make_pair 第二参为右值
-    // `Monster&&`（mangled `IRi7MonsterE...OS4_OS7_`）⇒ 源形传 `Monster()` 临时。
-    // 残差 = e/it 迭代器槽互换（4.4 同块「先声明浅」vs 4.1「先声明深」，N82/P112）；
-    // 指令数 94=94。
-    std::map<int, Monster>::iterator e = m_monsterMap.end();
-    std::map<int, Monster>::iterator it = m_monsterMap.find(monsterIndex);
-    if (it != e)
+    // [b28d-solo-CDungeonNode · P293] ORIG 0x084852de：end sret -0x44 先、find sret -0x40 后
+    // ⇒ 原码是单表达式 `find(x) != end()`（4.4 单表达式形复现 ORIG end 先/find 后，
+    // 具名 it/e 形恒反序）。make_pair 第二参为右值 `Monster&&` ⇒ 传 `Monster()` 临时。
+    if (m_monsterMap.find(monsterIndex) != m_monsterMap.end())
         return false;
     m_monsterMap.insert(std::make_pair(monsterIndex, Monster()));
     return true;
@@ -115,12 +111,10 @@ bool CDungeonNode::InsertMonsterKey(int monsterIndex)
 // ============================================================================
 bool CDungeonNode::InsertSkillKey(int skillIndex, int job, int type, int flag)
 {
-    // [b28d-solo-CDungeonNode · NEAR] ORIG 0x08485404：已存在路径补具名
-    // `CDungeonJobNode* node = &it->second;`、else 单 return 消 ebx 物化、it++。
-    // 残差 = find/end 迭代器槽互换（4.4 先声明浅 vs 4.1 先声明深，N82/P112）；112=112。
+    // [b28d-solo-CDungeonNode · 具名 it + 临时 end] ORIG 0x08485404：find sret -0x54（具名 it）
+    // 先、end 临时 sret -0x50 后（ORIG 无具名 e 槽）⇒ 源码只具名 it，比较用 `m_jobMap.end()`。
     std::map<int, CDungeonJobNode>::iterator it = m_jobMap.find(job);
-    std::map<int, CDungeonJobNode>::iterator e = m_jobMap.end();
-    if (it != e)
+    if (it != m_jobMap.end())
     {
         CDungeonJobNode* node = &it->second;
         node->InsertSkillKey(skillIndex);
@@ -180,12 +174,10 @@ bool CDungeonNode::UpdateSkill(SIG_DUNGEON_DATA_STATISTIC* stat)
 // ============================================================================
 bool CDungeonJobNode::InsertSkillKey(int skillIndex)
 {
-    // [b28d-solo-CDungeonNode · NEAR] ORIG 0x08484a86：同 InsertMonsterKey，
+    // [b28d-solo-CDungeonNode · P293] ORIG 0x08484a86：end sret -0x50 先、find sret -0x4c 后
+    // ⇒ 单表达式 `find(x) != end()`（具名 it/e 形 4.4 恒反序）。
     // make_pair 第二参为右值 `Skill&&` ⇒ 源形传 `Skill()` 临时。
-    // 残差 = e/it 迭代器槽互换（N82/P112）；指令数 94=94。
-    std::map<int, Skill>::iterator e = m_skillMap.end();
-    std::map<int, Skill>::iterator it = m_skillMap.find(skillIndex);
-    if (it != e)
+    if (m_skillMap.find(skillIndex) != m_skillMap.end())
         return false;
     m_skillMap.insert(std::make_pair(skillIndex, Skill()));
     return true;
@@ -214,10 +206,10 @@ bool CDungeonJobNode::UpdateSkill(SIG_DUNGEON_DATA_STATISTIC* stat)
 // ============================================================================
 bool CDungeonJobNode::InsertDB(const DungeonKey& key, int job)   // SIGFIX: bool
 {
-    // [b28d-solo-CDungeonNode · NEAR] ORIG 0x08485e00：`Skill& s = it->second;`
-    // + `int skillIndex = it->first;` 两个具名局部（operator-> 各调一次，
-    // 槽 -0x24/-0x20）；日志尾参用 skillIndex 而非重读 it->first；it++（ppEi）。
-    // 残差 = it/cMyTrace 槽分配方向（N82/P112）；110=110。
+    // [b28d-solo-CDungeonNode · P221 · AE] ORIG 0x08485e00：cMyTrace 改全表达式临时链
+    // （迭代器槽 it -0x40 深于 trace -0x38）⇒ AE。`Skill& s = it->second;`
+    // + `int skillIndex = it->first;` 两个具名局部（operator-> 各调一次，槽 -0x24/-0x20）；
+    // 日志尾参用 skillIndex 而非重读 it->first；it++（ppEi）。110=110。
     for (std::map<int, Skill>::iterator it = m_skillMap.begin(); it != m_skillMap.end(); it++)
     {
         Skill& s = it->second;
@@ -234,8 +226,7 @@ bool CDungeonJobNode::InsertDB(const DungeonKey& key, int job)   // SIGFIX: bool
                 job, 0, skillIndex);
             if (!sql->exec(true))
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x177, 5);
-                trace("inSert log_dungeon_skill failed");
+                cMyTrace(__PRETTY_FUNCTION__, 0x177, 5)("inSert log_dungeon_skill failed");
                 return false;
             }
         }
@@ -252,13 +243,16 @@ bool CDungeonJobNode::InsertDB(const DungeonKey& key, int job)   // SIGFIX: bool
 CDungeonSuccessNode::CDungeonSuccessNode()
     : m_partyMap(), m_jobMap()
 {
-    // [b28d-solo-CDungeonNode · N 封顶] ORIG 0x08484dda：循环变量 job/sub/g 声明于函数头
-    // 且先置 0（P191 双初始化形，ORIG 开头 -0x214/-0x10/-0xc 三条 movl $0）；
-    // 两段循环各带原码死比较 `find != end()`（P171 照抄）；make_pair 第二参右值。
-    // 残差 = N104（EH landing 块序/岛数 4.1 vs 4.4；255 vs 262，p167 CLEAR 33=33）。
+    // [b28d-solo-CDungeonNode · N104 + 位域窄化 封顶] ORIG 0x08484dda：循环变量 job/g/sub
+    // 声明于函数头且先置 0（P191；ORIG -0x214/-0x10/-0xc 三条 movl $0，g/sub 声明序按 ORIG
+    // 槽深排定）；两段循环各带原码死比较 `find != end()`（P171 照抄）；make_pair 第二参右值。
+    // STGrowthType 位域化（m_sub:4/m_grow:3/m_rsv:1）复现 ORIG RMW 掩码 0xfffffff0/0xffffff8f。
+    // 残差 = N104（两循环 EH landing 相对序：4.1 集中置尾 vs 4.4 就地内联；262 vs 261）
+    //        + 位域窄化 lowering（ORIG `shl$4; sar$4,%al`/`shl$5; sar$5,%al` vs 4.4
+    //          `and$0xf`/`and$0x7`；cast 形反多 movsbl 两条，已回退最优形）。
     int job = 0;
-    int sub = 0;
     int g = 0;
+    int sub = 0;
     for (job = 2; job <= 4; job++)
     {
         if (m_partyMap.find(job) != m_partyMap.end())
@@ -275,10 +269,10 @@ CDungeonSuccessNode::CDungeonSuccessNode()
         for (sub = 0; sub <= 5; sub++)
         {
             grow.m_growthType = 0;
-            grow.m_growthType = (unsigned char)(sub & 0xf);
+            grow.m_sub = sub;
             for (g = 0; g <= 2; g++)
             {
-                grow.m_growthType = (unsigned char)((grow.m_growthType & 0x8f) | ((g & 7) << 4));
+                grow.m_grow = g;
                 key.m_sub = grow.m_growthType;
                 if (m_jobMap.find(key) != m_jobMap.end())
                 {
@@ -296,9 +290,9 @@ CDungeonSuccessNode::CDungeonSuccessNode()
 // ============================================================================
 bool CDungeonSuccessNode::InsertDB(const DungeonKey& key, bool flag)   // SIGFIX: bool
 {
-    // [b28d-solo-CDungeonNode · NEAR] ORIG 0x08485f8a：两循环各补具名引用
-    // `const JobKey& jobKey` / `const int& partyKey` + `CSuccessJobNode* node`、it++。
-    // 残差 = 迭代器/具名槽分配方向（N82/P112）；194=194、p167 CLEAR。
+    // [b28d-solo-CDungeonNode · P221 · AE] ORIG 0x08485f8a：cMyTrace 改全表达式临时链
+    // ⇒ AE。两循环各补具名引用 `const JobKey& jobKey` / `const int& partyKey`
+    // + `CSuccessJobNode* node`、it++。194=194、p167 CLEAR。
     for (std::map<JobKey, CSuccessJobNode>::iterator itJob = m_jobMap.begin(); itJob != m_jobMap.end(); itJob++)
     {
         const JobKey& jobKey = itJob->first;
@@ -324,8 +318,7 @@ bool CDungeonSuccessNode::InsertDB(const DungeonKey& key, bool flag)   // SIGFIX
                 key.m_dungeonDiff, flag, p.m_f24, partyKey);
             if (!sql->exec(true))
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x1b9, 5);
-                trace("inSert log_dungeon_party failed");
+                cMyTrace(__PRETTY_FUNCTION__, 0x1b9, 5)("inSert log_dungeon_party failed");
                                 return 0;
             }
         }
@@ -342,14 +335,14 @@ bool CDungeonSuccessNode::InsertDB(const DungeonKey& key, bool flag)   // SIGFIX
 // ============================================================================
 int CDungeonSuccessNode::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat)
 {
-    // [b28d-solo-CDungeonNode · N 封顶] ORIG 0x084851de：第二段补具名
+    // [b28d-solo-CDungeonNode · N107 封顶] ORIG 0x084851de：两段均 find sret 具名
+    // （-0x1c/-0x20）、end 临时（-0x18/-0x14，具名 e/eJob 时 4.4 反置，已删）；第二段补具名
     // `CSuccessJobNode* node = &itJob->second;`。残差 = N107（`&stat->m_charac[0x20]`/
-    // `stat->m_charac`/`&stat->m_job` 三处取址 4.4 恒 add+mov vs ORIG lea，六形探针
-    // 不可造）+ 六具名槽分配方向（N82/P112）；语义/调用点逐条对齐。
+    // `stat->m_charac`/`&stat->m_job` 三处取址 4.4 恒 add+mov vs ORIG lea，六形探针不可造）；
+    // 78 vs 81（+3 = 三处 N107 各多 1 条）。
     std::map<int, Party>::iterator it =
         m_partyMap.find(*reinterpret_cast<const int*>(&stat->m_charac[0x20]));
-    std::map<int, Party>::iterator e = m_partyMap.end();
-    if (it != e)
+    if (it != m_partyMap.end())
     {
         Party& p = it->second;
         p += *reinterpret_cast<const PlayInfo*>(stat->m_charac);
@@ -358,8 +351,7 @@ int CDungeonSuccessNode::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat)
 
     std::map<JobKey, CSuccessJobNode>::iterator itJob =
         m_jobMap.find(*reinterpret_cast<const JobKey*>(&stat->m_job));
-    std::map<JobKey, CSuccessJobNode>::iterator eJob = m_jobMap.end();
-    if (itJob != eJob)
+    if (itJob != m_jobMap.end())
     {
         CSuccessJobNode* node = &itJob->second;
         node->UpdateCharacter(stat);
@@ -374,10 +366,11 @@ int CDungeonSuccessNode::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat)
 CSuccessJobNode::CSuccessJobNode()
     : m_jobPartyMap(), m_charac()
 {
-    // [b28d-solo-CDungeonNode · N 封顶] ORIG 0x08484c30：循环体内保留原码的死比较
+    // [b28d-solo-CDungeonNode · N104 封顶] ORIG 0x08484c30：循环体内保留原码的死比较
     // `find(job) != end()`（operator!= 结果被丢弃，无 test/je——P171 照抄）；
     // make_pair 第二参为右值 `JobParty&&`（mangled `IRi7JobPartyE...OS7_`）。
-    // 残差 = N104（4.4 EH landing 链比 ORIG 多 1 条 jmp；90 vs 89）。
+    // 残差 = N104（4.4 EH cleanup 链比 ORIG 多 1 条 jmp：正常路径尾块就地内联 vs
+    // 4.1 集中置尾；块内容逐条全等）；90 vs 89。
     for (int job = 2; job <= 4; ++job)
     {
         if (m_jobPartyMap.find(job) != m_jobPartyMap.end())
@@ -394,9 +387,10 @@ CSuccessJobNode::CSuccessJobNode()
 // ============================================================================
 bool CSuccessJobNode::InsertDB(const DungeonKey& key, bool flag, const JobKey& jobKey)   // SIGFIX: bool
 {
-    // [b28d-solo-CDungeonNode · NEAR] ORIG 0x08486234：补缺失的 `m_charac.Reset()`
-    // （真语义缺口，p167 归零）+ 具名引用 `const int& jobIndex = it->first;` + it++。
-    // 残差 = cMyTrace/迭代器/sql 槽分配方向（N82/P112）；226=226、p167 CLEAR。
+    // [b28d-solo-CDungeonNode · P221 · AE] ORIG 0x08486234：两处 cMyTrace 改全表达式
+    // 临时链（4.1 迭代器槽 -0x54 深于 trace，具名 trace 时 4.4 反置）⇒ AE。
+    // 补缺失的 `m_charac.Reset()`（真语义缺口，p167 归零）+ 具名引用
+    // `const int& jobIndex = it->first;` + it++。226=226、p167 CLEAR。
     if (m_charac.m_f3c != 0)
     {
         MySQL* sql = GetMySqLInstance();
@@ -412,8 +406,7 @@ bool CSuccessJobNode::InsertDB(const DungeonKey& key, bool flag, const JobKey& j
             (int)(char)jobKey.m_sub, m_charac.m_f28);
         if (!sql->exec(true))
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x1f2, 5);
-            trace("inSert log_dungeon_charac failed");
+            cMyTrace(__PRETTY_FUNCTION__, 0x1f2, 5)("inSert log_dungeon_charac failed");
             return 0;
         }
     }
@@ -435,8 +428,7 @@ bool CSuccessJobNode::InsertDB(const DungeonKey& key, bool flag, const JobKey& j
                 jobKey.m_job, (int)(char)jobKey.m_sub, jobIndex, flag, jp.m_count);
             if (!sql->exec(true))
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x215, 5);
-                trace("inSert log_dungeon_party_job failed");
+                cMyTrace(__PRETTY_FUNCTION__, 0x215, 5)("inSert log_dungeon_party_job failed");
                 return 0;
             }
         }
@@ -453,19 +445,20 @@ bool CSuccessJobNode::InsertDB(const DungeonKey& key, bool flag, const JobKey& j
 // ============================================================================
 int CSuccessJobNode::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat)
 {
-    // [b28d-solo-CDungeonNode · N 封顶] ORIG 0x08484d4c：operator-> 只调一次并把
+    // [b28d-solo-CDungeonNode · N107 封顶] ORIG 0x08484d4c：find sret -0x14 具名、
+    // end 临时 -0x10（具名 e 时 4.4 反置，已删）；operator-> 只调一次并把
     // `&it->second.m_count` 存具名引用槽 -0xc（P0 槽往返⇒原码有具名局部）；
     // 尾段仅一次 Character::operator+=（无 m_f3c 自增，ORIG 无该指令，已删）。
-    // 残差 = N107（`&stat->m_charac[0x20]` 取址 add+mov vs ORIG lea）+ it/e
-    // 槽互换（N82/P112）；46 vs 45。
+    // 残差 = N107（`&stat->m_charac[0x20]`/`&stat->m_charac[0]` 取址：4.4 恒
+    // `add $K,%reg; mov %reg,%reg2` vs ORIG `lea K(%eax),%ecx`；六形探针不可造）；
+    // 46 vs 45（+1 = N107 的 add+mov 比 lea 多 1 条）。
     std::map<int, JobParty>::iterator it =
         m_jobPartyMap.find(*reinterpret_cast<const int*>(&stat->m_charac[0x20]));
-    std::map<int, JobParty>::iterator e = m_jobPartyMap.end();
-    if (it != e)
+    if (it != m_jobPartyMap.end())
     {
         JobParty& jp = it->second;
         jp.m_count = jp.m_count + 1;
     }
-    m_charac += *reinterpret_cast<const Character*>(stat->m_charac);
+    m_charac += *reinterpret_cast<const Character*>(&stat->m_charac[0]);
     return 1;
 }

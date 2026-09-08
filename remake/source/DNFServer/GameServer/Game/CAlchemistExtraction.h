@@ -18,7 +18,8 @@ namespace expert_extraction
 class CAlchemistExtraction : public CExtraction
 {
 public:
-    CAlchemistExtraction();
+    // [b28d-solo-GlobalData] P299/P318：ORIG C1/C2 为 W（0x084a463c 隐式合成）
+    // ⇒ 删用户空 ctor 声明，恢复 `new T()` 的 value-init 前置清零（CExtractionMgr::C1 实证）。
     virtual ~CAlchemistExtraction();
 
     virtual bool extraction(CUser* user, short param,

@@ -13,7 +13,8 @@
 //   +0x24 LotteryInfo（0x20：defaultIdx/items/defaultCount/counts）
 //   +0x44 std::map<unsigned short, CUser*> m_UsersInArea
 //   +0x5c std::vector<int> m_npcIdList（hasNPC）
-//   +0x68 int  m_areaType（1=村庄 2=钓鱼/竞技场 4=特殊）
+//   +0x68 unsigned int m_areaType（1=村庄 2=钓鱼/竞技场 4=特殊；P211/P274：
+//              ORIG set_area store 对 int RHS 出 eax→edx 中转 ⇒ 字段异型化）
 //   +0x6c uchar m_field6c（STMapScript 限制交易标记，默认 1）
 //   +0x70 std::vector<std::pair<int,int> > m_npcPositions（AssignNpc 坐标）
 //   +0x7c std::vector<MapArea> m_mapAreas
@@ -72,8 +73,10 @@ public:
     LotteryInfo m_lottery;       // +0x24（0x20）
     std::map<unsigned short, CUser*> m_UsersInArea;  // +0x44（0x18）
     std::vector<int> m_npcIdList;                    // +0x5c
-    int m_areaType;              // +0x68
-    unsigned char m_field6c;     // +0x6c
+    unsigned int m_areaType;     // +0x68（同宽同偏移；与 Area.cpp 权威定义一致）
+    // [b28d-solo-GameWorld] P248 档②：ORIG 读点 0x086c4609 `movzbl 0x6c; xor $0x1;
+    // test %al; je` ⇒ 字段 bool + 裸 `if(!field)`。sizeof/偏移/mangled 不变。
+    bool m_field6c;              // +0x6c
     char m_pad6d[0x70 - 0x6d];   // +0x6d
     std::vector<std::pair<int, int> > m_npcPositions;  // +0x70
     std::vector<MapArea> m_mapAreas;                   // +0x7c

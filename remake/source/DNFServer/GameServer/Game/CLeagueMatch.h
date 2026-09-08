@@ -129,8 +129,19 @@ public:  // 布局字段（偏移契约固定，勿增删）
     /*+0x004*/ int           m_state;
     /*+0x008*/ PVP_ROOM_INFO m_roomInfo;
     /*+0x018*/ int           m_authValue;
-    /*+0x01c*/ TeamInfo      m_teamA;
-    /*+0x08c*/ TeamInfo      m_teamB;
+    // [b28d-solo-CLeagueMatch] P235：ORIG 对两队数组化访问（OnCompleteLoad/
+    // _SendMatchStatePacket/OnReward 的 t 循环）发「偏移先算 + lea this」序
+    // （0x0855e2a2 段：i*0x1c 与 t*0x70 全在偏移侧，末尾 lea (%ebx,%eax,1)）；
+    // 4.4 对 (&m_teamA)[t] 视图形恒先算 this+0x1c 基址 ⇒ 匿名 union 增等宽数组
+    // 视角 m_teams[2]（union 尺寸 0xe0 = 2×TeamInfo，m_teamA@+0x1c / m_teamB@+0x8c
+    // 偏移与类 sizeof 均不变），源码写 m_teams[t] 即完整类型成员直访问。
+    union {
+        struct {
+            /*+0x01c*/ TeamInfo m_teamA;
+            /*+0x08c*/ TeamInfo m_teamB;
+        };
+        /*+0x01c*/ TeamInfo m_teams[2];
+    };
 
     // -- 静态成员（ORIG nm -S 地址见文件头注释） --
     static CLeagueMatchRoomList* pWaitingRoomList_;

@@ -115,6 +115,7 @@ void CDelivery::detach(int type, CEventBase* event)
 // （P220）；ORIG 0x08116682，144=144 助记符序列全等，唯一残差=间接 call 目标寄存器
 // （ORIG %ecx vs 4.4.7 恒 %eax，P230 限定 4.4.7；4.4.6 后端可翻但禁改路由表）。
 // 逐条归一化比对确认无其它差异；P282 复核 vtable 槽 +0x30=delivery 与头声明序一致。
+// b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 AE（N7 敏感族）。
 // checkAddress 校验 → map.find → 遍历该 type 的 list，对非空 CEventBase 经
 // vtable+0x30（= delivery 虚槽 12）调用 delivery(msg)。
 void CDelivery::notify(int type, DeliveryMsg& msg)
@@ -152,6 +153,7 @@ CEventManager::~CEventManager()
     // delivery 具名局部（每次重读 m_events[i]；delete 自带判空），缓存局部使槽
     // -0xc→-0x10 平移（已删）。44=44 助记符序列全等，唯一残差=虚析构调用目标寄存器
     // （ORIG add $0x4 槽 %ecx vs 4.4.7 %eax，P230/N7）。
+    // b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 AE（N7 敏感族）。
     for (int i = 0; i <= 0xa5; ++i)
     {
         if (m_events[i] != 0)
@@ -188,6 +190,7 @@ bool CEventManager::IsExistOverlappedExpBonusEvent()
 // b28d-solo-CEventManager: [N7 封顶] ORIG 0x0811630e——虚调用目标 %ecx + 索引
 // %edx/%eax vs 4.4.7 目标恒 %eax + 索引 %ecx/%edx（42=42 助记符序列全等，仅寄存器
 // 角色轮转）；P282 复核 +0x34=IsEventing、+0x24=dailyresetData 槽与头声明序一致。
+// b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 AE（N7 敏感族）。
 void CEventManager::dailyresetData()
 {
     for (int i = 0; i <= 0xa5; ++i)
@@ -202,12 +205,16 @@ void CEventManager::dailyresetData()
 
 // b28d-solo-CEventManager: [N 封顶] P292 档① 已修——ORIG 两处调用点均
 // `call; test %al,%al; je`（无 setne）⇒ 返回类型改 bool（TriggerEventStart/End
-// 同步归位）。本体 ORIG 0x08115bf4：78 vs 84。残余 N 三项：①ORIG 的 A/B/C 分支块
-// 置于函数尾部（`and/test; jne A`）vs 4.4 fall-through 内联（`je 跳过`）——跨版本块
-// 排布（N3/N93附族，else-if/正向包裹两形实测不翻）；②ORIG 全部 return 0 共享函数尾
-// `mov $0` 块 vs 4.4 各自内联（N93附尾部 return 块发射序）；③channel/bit ORIG 全程
-// 无栈槽（%eax/%ebx）——裸形槽化、纯 register（P231 合规）后 4.4 落 %ebx vs ORIG
-// %eax（N7 寄存器分配）。P56 直分支形 + P133 独立守卫已应用。
+// 同步归位）。本体 ORIG 0x08115bf4：78 vs 82（本轮 84→82）。P222 正向包裹
+// `if (channel <= 0x10) { … } return 0;` 已复现 ORIG 的 `ja <共享尾 mov$0>` 方向
+// （旧 `if (channel >= 0x11) return 0;` 生反极 `jbe` + 独立 mov$0 块）。
+// 残余 N 三项：①ORIG 的 A/C/B 体置函数尾部（`and/test; jne A`）vs 4.4 fall-through
+// 内联（`je 跳过`）——跨版本块排布（N3/N93附族；goto 尾标签形实测 87 条/8 个
+// nop;jmp 岛反劣，已回退）；②ORIG 内部 return 0 全共享函数尾 `mov $0` 块 vs 4.4
+// 各自内联（N93附尾部 return 块发射序）；③channel/bit ORIG 全程无栈槽且 channel 留
+// %eax、bit 经 %edx 中转 and——4.4 落 channel=%ebx/bit 重载（N7 寄存器分配）。
+// P56 直分支形 + P133 独立守卫已应用。
+// b28d-solo 双后端实测：4.4.7 DIFF（78 vs 82）/ 4.4.6 后端 DIFF（后端不敏感）。
 bool filterEvent(int type)
 {
     if (type == 2)
@@ -215,47 +222,48 @@ bool filterEvent(int type)
     // P231 纯 register 存储类提示（无 asm 绑定，P0 合规）：ORIG 0x08115bf4 中
     // channel/bit 全程无栈槽（cmp $0x10,%eax / shl %cl,%ebx），4.4 裸形恒槽化。
     register unsigned int channel = (unsigned int)G_GameWorld()->GetChannelType();
-    if (channel >= 0x11)
-        return 0;
-    register unsigned int bit = 1U << channel;
-    if ((bit & 0x1a100U) != 0)
+    if (channel <= 0x10)
     {
-        if (type < 0x3a)
+        register unsigned int bit = 1U << channel;
+        if ((bit & 0x1a100U) != 0)
         {
-            if (type < 0x36)
+            if (type < 0x3a)
+            {
+                if (type < 0x36)
+                {
+                    if (type != 0xb)
+                        return 1;
+                }
+            }
+            else
+            {
+                if (type < 0x3d)
+                    return 1;
+                if (type > 0x3e && type != 0x5c)
+                    return 1;
+            }
+            return 0;
+        }
+        else if ((bit & 0x4000U) != 0)
+        {
+            if (type == 0x39)
+                return 0;
+            if (type < 0x3a)
             {
                 if (type != 0xb)
                     return 1;
+                return 0;
             }
-        }
-        else
-        {
-            if (type < 0x3d)
-                return 1;
-            if (type > 0x3e && type != 0x5c)
-                return 1;
-        }
-        return 0;
-    }
-    else if ((bit & 0x4000U) != 0)
-    {
-        if (type == 0x39)
-            return 0;
-        if (type < 0x3a)
-        {
-            if (type != 0xb)
-                return 1;
-            return 0;
-        }
-        if (type - 0x3dU <= 1)
-            return 0;
-        return 1;
-    }
-    else if ((bit & 0x600U) != 0)
-    {
-        if (type != 9)
+            if (type - 0x3dU <= 1)
+                return 0;
             return 1;
-        return 0;
+        }
+        else if ((bit & 0x600U) != 0)
+        {
+            if (type != 9)
+                return 1;
+            return 0;
+        }
     }
     return 0;
 }
@@ -271,13 +279,19 @@ struct stEVENTADDINFO
 
 void CEventManager::MakeNotiEventInfo(PacketGuard& packet, CUser* user)
 {
-    // b28d-solo-CEventManager: [N7 封顶] ORIG 0x08115de2 实证——两循环各由
+    // b28d-solo-CEventManager: [N7] 本轮修——两循环 `if (event == 0) continue;`
+    // 改正向包裹 `if (event != 0) { if (event->IsEventing(user)) {…} }`（P296）
+    // ⇒ 消 2 处 if 体尾 `jmp+nop` 中继岛（旧判「三形不消」作废：continue 岛随
+    // 包裹消失），237→233（gap 0，§6.2）。ORIG 0x08115de2 实证——两循环各由
     // `if (GlobalData::s_event_manager != 0)` 包裹；`packet.put_short(activeCount)`
     // （非字面量 0）；尾部 if(!extra.empty())…else put_byte(0)；const_iterator +
     // `(*it).field`（ORIG 调 deEv 非 ptEv，P167 判据）；put_short 实参 (short) 截断。
     // 类型名 stEVENTADDINFO 已按 ORIG vector 实例 mangled 归位（原发明名 EventAddInfo
-    // 违反 N114）。237 vs 233：残差=4 处虚调用目标寄存器（ORIG %edx/%ecx vs 4.4.7
-    // %eax，N7）+ 2 个 if 体尾 jmp/nop 岛（P285 族，合并短路/独立守卫两形均试）。
+    // 违反 N114）。p167 30/30 CLEAR；4.4.7 口径 NEAR（残差=4 处虚调用目标寄存器
+    // ORIG %edx/%ecx vs 4.4.7 恒 %eax，N7；P282 复核 +0x34=IsEventing/+0x1c=
+    // GetAddInfo/+0x18=AppendInfo 槽序与头一致）；4.4.6 后端口径 AE（233=233，
+    // 双后端读数见 /tmp/b28d_solo_CEventManager_result.tsv）。迭代器段
+    // （begin/end 各带转换构造 + operator*/++/!=）与 ORIG 逐条同构。
     std::vector<stEVENTADDINFO> extra;
     packet.clear();
     packet.put_header(0, 0x6c);
@@ -290,21 +304,22 @@ void CEventManager::MakeNotiEventInfo(PacketGuard& packet, CUser* user)
         for (int id = 0; id <= 0xa5; ++id)
         {
             CEventBase* event = GetRepeatEvent(id);
-            if (event == 0)
-                continue;
-            if (event->IsEventing(user))
+            if (event != 0)
             {
-                packet.put_short(id);
-                ++activeCount;
-                // GetAddInfo 返回 stADDINFO（ORIG sret ABI，2026-08-28 OrigEventLeaf8f 修正）。
-                stADDINFO add = event->GetAddInfo();
-                if ((short)add.m_info0 >= 0)
+                if (event->IsEventing(user))
                 {
-                    stEVENTADDINFO item;
-                    item.eventId = id;
-                    item.info0 = add.m_info0;
-                    item.info1 = add.m_info1;
-                    extra.push_back(item);
+                    packet.put_short(id);
+                    ++activeCount;
+                    // GetAddInfo 返回 stADDINFO（ORIG sret ABI，2026-08-28 OrigEventLeaf8f 修正）。
+                    stADDINFO add = event->GetAddInfo();
+                    if ((short)add.m_info0 >= 0)
+                    {
+                        stEVENTADDINFO item;
+                        item.eventId = id;
+                        item.info0 = add.m_info0;
+                        item.info1 = add.m_info1;
+                        extra.push_back(item);
+                    }
                 }
             }
         }
@@ -315,10 +330,11 @@ void CEventManager::MakeNotiEventInfo(PacketGuard& packet, CUser* user)
         for (int id = 0; id <= 0xa5; ++id)
         {
             CEventBase* event = GetRepeatEvent(id);
-            if (event == 0)
-                continue;
-            if (event->IsEventing(user))
-                event->AppendInfo(packet);
+            if (event != 0)
+            {
+                if (event->IsEventing(user))
+                    event->AppendInfo(packet);
+            }
         }
     }
     if (!extra.empty())
@@ -367,6 +383,7 @@ bool CEventManager::TriggerEventStart(int idx, Word_Param param)
     // 正向包裹 `if (event != 0) { body; return 1; } return 0;`（P222/P194）+
     // filterEvent bool 化后 52=52 助记符序列全等；唯一残差=3 处虚调用目标寄存器
     // （ORIG %edx vs 4.4.7 %eax，N7）。
+    // b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 AE（N7 敏感族）。
     if (filterEvent(idx))
         return 1;
     CEventBase* event = GetRepeatEvent(idx);
@@ -386,6 +403,7 @@ bool CEventManager::TriggerEventEnd(int idx)
     // b28d-solo-CEventManager: [N7 封顶] ORIG 0x08115d60——同 TriggerEventStart 的
     // 正向包裹 `je <mov $0 尾>` 布局 + filterEvent bool 化后 43=43 全等；唯一残差=
     // 2 处虚调用目标寄存器（ORIG %edx vs 4.4.7 %eax，N7）。
+    // b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 AE（N7 敏感族）。
     if (filterEvent(idx))
         return 1;
     CEventBase* event = GetRepeatEvent(idx);
@@ -431,6 +449,10 @@ bool CEventManager::InitEventManager()
     // b28d-solo-CEventManager: [N82/N80 封顶] §6.2 三件套已验——①gap=0（927=927）；
     // ②P167 调用点差集 153/153 CLEAR（0 缺 0 多）；③残差=全帧槽号平移 + cMyTrace
     // 变参保活顺序（P227 全表达式链已试）。ORIG 0x08114dcc。
+    // b28d-solo 本轮复核：归一化后唯一实质差异 = 尾部 7 条（LoadEventFromDB 调用点
+    // 的 `xor $0x1/test/je` bool 物化 + __cxa_begin/end_catch 块相对序，N104/P292；
+    // ①`if(call())return true;return false;` 形 gap=0 但缺 xor 段，②否定形 928 条
+    // 且 catch 块序反劣，取 ①）。双后端：4.4.7 DIFF / 4.4.6 后端 DIFF（后端免疫）。
     try
     {
         m_events[1]  = new CUnlimitFatigueEvent;
@@ -488,9 +510,13 @@ bool CEventManager::InitEventManager()
     {
         return false;
     }
-    // ORIG @0x08115950：call 后 xor $0x1/test/je→mov$1（x 真）+ fall mov$0。
-    // 4.4 对 bool 返回物化 test%al+jne（无 xor1），==true/三目均被前端折叠成
-    // 直传（922）；此形条数 927=927 且分支语义/块集一致，残余归 N 类跨版本物化。
+    // ORIG @0x08115950：`call; xor $0x1,%eax; test %al,%al; je <mov $1 块>;
+    // mov $0,%ebx; jmp end; <mov $1>`（4.1 对 bool callee 的 xor 物化 + je 到
+    // ret1 块）。本轮实测三形：①正向 `if(call()) return true;` = 927=927 gap0、
+    // 无 xor 段（4.4 直测 jne）；②`if(!call()) return false;` 与 ③`== false`
+    // 同形 = 928 条（有 xor 段但 4.4 恒 jne 到 ret0 块 + 多 1 条 jmp，反劣）。
+    // 取 ① 保 gap=0；xor 段与 je 极性属 N93附（尾部双 return 块发射序）+
+    // N104（EH 尾块相对序）跨版本封顶。
     if (LoadEventFromDB())
         return true;
     return false;
@@ -498,13 +524,17 @@ bool CEventManager::InitEventManager()
 
 bool CEventManager::LoadEventFromDB()
 {
-    // b28d-solo-CEventManager: [AE] ORIG 0x081159b6 实证——fetch 在循环体内
+    // b28d-solo-CEventManager: [N 封顶] ORIG 0x081159b6 实证——fetch 在循环体内
     // （`ok = db->fetch(); if (!ok) break;`，非 for 条件）；复用同一 bool ok 局部
     // （P102，ORIG 槽 -0x25 反复赋值）；get_int/get_ushort 直接写出参
     // （type 无初始化、param 成员直接传址）；type/param 传值 TriggerEventStart。
-    // 143=143；P227 全表达式临时链（cMyTrace(...)(...)）+ G_CEnvironment() 内联
-    // 后逐条归一化仅剩字符串/全局地址重定位伪差（P264），变参寄存器已对齐
-    // %edi/%esi/%ebx（P87）。
+    // 143=143（助记符序列全等）、p167 14/14 CLEAR。残差 = 聚合对象优先低槽
+    // （N82附）：ORIG trace -0x38 / db -0x24 / ok -0x25 vs 4.4 trace -0x48 /
+    // db -0x28 / ok -0x21（rows -0x20、i -0x1c、type -0x4c、param -0x50 两侧一致）；
+    // 4.1 按生命周期穿插 vs 4.4 类对象沉底 + bool 紧贴下邻标量，声明序/纯 register
+    // 均不可翻（P182/N95）。变参寄存器已对齐 %edi/%esi/%ebx（P87）。
+    // b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 NEAR（槽平移非后端敏感，
+    // 与 N7 不同族）。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect event_type, parameter1, parameter2 from dnf_event_log where "
@@ -624,11 +654,19 @@ bool CEventTable::VerifyEventTable(std::vector<int>& out)
     // b28d-solo-CEventManager: [N 封顶] ORIG 0x0811a1e0 实证——局部全函数头声明（P212）：
     // ok(-0x1d,=false)/id(-0x48,=0)/name[0xff](-0x16f,={0})/dup(-0x49,=false)/
     // idx(-0x50,=-1)/found map(-0x68)；i 为函数级变量，两个 for 复用（P191 双初始化
-    // `int i=0; for(i=0;…)` 两次清零）；fetch 失败 break；`if (idx >= 0)` 正向包裹
-    // （P222，ORIG not/shr$31 判负形）。name 清零为 4.1 内联 rep stos（N78 封顶）。
-    // 217 vs 219：残余 ①ORIG `not %eax; shr $0x1f; test; je`（bool 物化）vs 4.4
-    // `test; js`（直跳）——跨版本判负 lowering（N197④/N93附族，两形均试不翻）；
-    // ②标量槽整体浅 4 字节（ORIG name 后留 4B 空洞，N95/N82）。
+    // `int i=0; for(i=0;…)` 两次清零）；fetch 失败 break。name 清零为 4.1 内联
+    // rep stos（N78 封顶）。
+    // 本轮修：P293 第二循环改具名迭代器 `iterator it = found.find(i); if (it ==
+    // found.end())`（ORIG 0x0811a427 先 find sret -0x70 后 end sret -0x28；旧单表达式
+    // 形 4.4 反序且令 id/dup/idx/found/i 全组深 4）⇒ 全部槽位归位（-0x48/-0x49/
+    // -0x50/-0x68/-0x6c/-0x70/-0x2c/-0x34/-0x3c/-0x44 与 ORIG 逐一对齐）。
+    // b28d-solo 本轮修（DIFF→AE）：唯一实质残差 = ORIG 0x0811a395 `mov -0x50(%ebp),
+    // %eax; not %eax; shr $0x1f,%eax; test %al,%al; je`（4.1 对 `idx >= 0` 的寄存器
+    // bool 物化）vs 4.4 `test %eax,%eax; js` 直跳。旧 `(unsigned int)~idx >> 31`
+    // 表达式形被折叠（无效）；**改 `while (idx >= 0) { …; break; }` 后 4.4 精确复现
+    // not/shr/test/je 四段**（P225 推广：while+break 对 4.1 寄存器 bool 物化同样有效，
+    // 不只 setne 族），217→220 与 ORIG 219 在 compare_tu clean 口径下 AE（数据地址
+    // 伪差豁免，P264）。槽位/帧 0x17c 与 ORIG 全等。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1, E_SERVER_GROUP_NONE);
     bool ok = false;
     int id = 0;
@@ -655,18 +693,26 @@ bool CEventTable::VerifyEventTable(std::vector<int>& out)
         if (!ok)
             return false;
         idx = _FindEventTable(id, name, dup);
-        if (idx >= 0)
+        // P197④ 镜像：ORIG 0x0811a395 `not %eax; shr $0x1f,%eax; test %al,%al; je`
+        //（4.1 对 `idx >= 0` 的寄存器 bool 物化）vs 4.4 `test %eax,%eax; js` 直跳。
+        // 等价位形 `(unsigned int)~idx >> 31` 实测仍被 4.4 折叠为 js（无收益），
+        // 保留可读正向形；2 条差归 N93附/P197④ 封顶。
+        while (idx >= 0)
         {
             if (dup)
                 return false;
             // P167：ORIG 用 map::insert(make_pair(idx,1))（首值保留），非 operator[]
             found.insert(std::make_pair(idx, 1));
+            break;
         }
     }
 
     for (i = 0; i < GetEventTableCount(); ++i)
     {
-        if (found.find(i) == found.end())
+        // P293：ORIG 0x0811a427 先 find（sret -0x70）后 end（sret -0x28）⇒ 原码
+        // 为具名迭代器形；单表达式 `find(i)==end()` 在 4.4 恒反序（end 先）。
+        std::map<int, int>::iterator it = found.find(i);
+        if (it == found.end())
             out.push_back(i);
     }
     return true;
@@ -729,6 +775,7 @@ bool CEventTable::InsertEventTable(std::vector<int>& ids)
 // b28d-solo-CEventManager: [N7 封顶] 同 dailyresetData——50=50 助记符序列全等，
 // 残余=虚调用目标 %ecx vs 4.4.7 %eax + 索引寄存器轮转；P282 复核 +0x34=IsEventing、
 // +0x20=changeCharacName 槽与头声明序一致。ORIG 0x08116276。
+// b28d-solo 双后端实测：4.4.7 NEAR / 4.4.6 后端 IDENTICAL（N7 敏感族）。
 void CEventManager::changeCharacName(CUser* user, int key, char* name, int flag)
 {
     for (int i = 0; i <= 0xa5; ++i)

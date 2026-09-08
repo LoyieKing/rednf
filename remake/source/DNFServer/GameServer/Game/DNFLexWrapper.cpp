@@ -25,6 +25,11 @@
 //   （lexType_：0=NORMAL 文本流 / 1=COMPILED 编译态）
 //   +0x18 dnfLex_（DNFLex 子对象）/+0x40bc compiledDnfLex_（CompiledDNFLex
 //   子对象）/+0x6108 LexerError_ / +0x610c LoadStream_，总大小 0x6110。
+// ----------------------------------------------------------------------------
+// [b28d-solo-DNFLexWrapper] _ZNK9FlexLexer6YYTextEv 不属本 TU：ORIG 该符号 @0x080950c6
+// （__slang_filter__FlexLexer 段 0x08093xxx..0x08095xxx，由 SlangFilter.cpp 的 YYText() 调用点
+// 发射）；本 TU 全部 getter 按 ORIG 直读 dnfLex_.yytext / dnfLex_.yylineno（见各函数判词），
+// 不再发射该弱符号（改动前本 TU 因调用它而发射，body 的 pop/load 序与 ORIG 相反）。
 // ============================================================================
 
 #include <cstdio>
@@ -57,50 +62,57 @@ int DNFLexWrapper::getLastToken()
     return lastToken_;
 }
 
+// [b28d-solo-DNFLexWrapper] AE：ORIG 0x08ace430；P0/§4.3 具名成员直读 dnfLex_.yytext（+0x1c）
+// 替代 YYText()（4.4 对弱符号 inline 恒发 call，多 add/mov/call 三条；ORIG 无此 call）。
 char* DNFLexWrapper::getLastTokenData()
 {
     if (lexType_ == LEX_TYPE_NORMAL)
-        return const_cast<char*>(dnfLex_.YYText());
+        return dnfLex_.yytext;
     char* pc = 0;
     if (lexType_ == LEX_TYPE_COMPILED)
         return lastStringValue_;
     return pc;
 }
 
+// [b28d-solo-DNFLexWrapper] AE：ORIG 0x08ace490；NORMAL 分支直读 dnfLex_.yylineno（+0x24）
+// 替代 lineno() call；COMPILED 尾调 GetOffset 与 ORIG 同形。
 int DNFLexWrapper::getLastLineNo()
 {
     if (lexType_ == LEX_TYPE_NORMAL)
-        return dnfLex_.lineno();
+        return dnfLex_.yylineno;
     int r = -1;
     if (lexType_ == LEX_TYPE_COMPILED)
         return compiledDnfLex_.GetOffset();
     return r;
 }
 
+// [b28d-solo-DNFLexWrapper] AE：ORIG 0x08ace390；直读 dnfLex_.yytext（同 getConnector/getCustomData）。
 char* DNFLexWrapper::getType()
 {
     if (lexType_ == LEX_TYPE_NORMAL)
-        return const_cast<char*>(dnfLex_.YYText());
+        return dnfLex_.yytext;
     char* pc = 0;
     if (lexType_ == LEX_TYPE_COMPILED)
         return lastStringValue_;
     return pc;
 }
 
+// [b28d-solo-DNFLexWrapper] AE：ORIG 0x08ace3f0；直读 dnfLex_.yytext（P0 表达式直读，无中间局部）。
 char* DNFLexWrapper::getConnector()
 {
     if (lexType_ == LEX_TYPE_NORMAL)
-        return const_cast<char*>(dnfLex_.YYText());
+        return dnfLex_.yytext;
     char* pc = 0;
     if (lexType_ == LEX_TYPE_COMPILED)
         return lastStringValue_;
     return pc;
 }
 
+// [b28d-solo-DNFLexWrapper] AE：ORIG 0x08ace3c0；直读 dnfLex_.yytext。
 char* DNFLexWrapper::getCustomData()
 {
     if (lexType_ == LEX_TYPE_NORMAL)
-        return const_cast<char*>(dnfLex_.YYText());
+        return dnfLex_.yytext;
     char* pc = 0;
     if (lexType_ == LEX_TYPE_COMPILED)
         return lastStringValue_;
@@ -147,10 +159,16 @@ int DNFLexWrapper::getToken()
     return lastToken_;
 }
 
-// [b28d-solo-DNFLexWrapper] N 封顶（N7/N18a 寄存器角色互换 + 块落点）：ORIG 0x08ace2f0；
-// optimize("O2,no-if-conversion,no-omit-frame-pointer") 下 62 insn vs ORIG 68（剥 7 条对齐填充
-// 62:61）：c 在 %ecx(ORIG)/%eax(4.4)、d 复用 c 的 sub vs lea、skip_space 块落点差不可翻；
-// O0/O1/register 三形实测更劣（109/67/62，O1 另产 cmovne）。P167 CLEAR(0/0) 语义等价。
+// [b28d-solo-DNFLexWrapper] N 封顶（跨版本寄存器分配 + 块布局，N7/N18a/N82 族）：ORIG 0x08ace2f0
+// （-O2，68 insn）把 c 分配 %ecx 并复用为 d（`movsbl %cl,%ecx; sub $0x30,%ecx`），4.4.6 恒分配
+// %eax（`movsbl %al,%eax; lea -0x30(%eax),%ecx`，mnem-ndiff 26/64）；v=0 被 4.4 下沉到 `ja` 之后
+// （ORIG 在 parse 入口）、minus 块排在 skip_space 之前、maybe_neg 就地复制 epilogue
+// （ORIG `pop/pop/ret` vs 我们 `jmp` 复用）。
+// 已试（均 ≥26，最佳即当前 while 形）：optimize 属性矩阵 O0/O1/O2/O3 + no-if-conversion/
+// no-omit-frame-pointer/no-crossjumping/no-thread-jumps/no-tree-sink/no-reorder-blocks/
+// no-schedule-insns2/ira-algorithm=cb/ira-region=one|all/no-tree-pre/no-tree-ccp、变量声明序/
+// register/signed char、v 位置三形（+v/dthenv/for）、Ghidra do-while 结构重写、三目/negassign。
+// P167 CLEAR(0/0) 语义等价；§6.1 对齐 nop 已剥。
 __attribute__((optimize("O2,no-if-conversion,no-omit-frame-pointer")))
 int DNFLexWrapper::getDecimal()
 {
@@ -202,26 +220,25 @@ digit_start:
 parse:
     v = 0;
     d = (int)c - 0x30;
-    if ((unsigned)d > 9)
-        goto maybe_neg;
-digit_loop:
-    p = p + 1;
-    v = v * 10 + d;
-    d = (int)*p - 0x30;
-    if ((unsigned)d <= 9)
-        goto digit_loop;
-maybe_neg:
+    while ((unsigned)d <= 9)
+    {
+        p = p + 1;
+        v = v * 10 + d;
+        d = (int)*p - 0x30;
+    }
     if (neg)
         return -v;
     return v;
 }
 
+// [b28d-solo-DNFLexWrapper] AE：ORIG 0x08ace780；sscanf 实参直读 dnfLex_.yytext + 2
+// （替代 YYText() call），COMPILED 返回 lastIntValue_。
 int DNFLexWrapper::getHexDecimal()
 {
     if (lexType_ == LEX_TYPE_NORMAL)
     {
         int v = 0;
-        std::sscanf(dnfLex_.YYText() + 2, "%x", &v);
+        std::sscanf(dnfLex_.yytext + 2, "%x", &v);
         return v;
     }
     int r = 0;
@@ -230,10 +247,12 @@ int DNFLexWrapper::getHexDecimal()
     return r;
 }
 
+// [b28d-solo-DNFLexWrapper] AE：ORIG 0x08ace730；__strtod_internal 实参直读 dnfLex_.yytext
+// （替代 YYText() call），COMPILED 返回 lastFloatValue_。
 float DNFLexWrapper::getFloat()
 {
     if (lexType_ == LEX_TYPE_NORMAL)
-        return (float)__strtod_internal(dnfLex_.YYText(), 0, 0);
+        return (float)__strtod_internal(dnfLex_.yytext, 0, 0);
     if (lexType_ == LEX_TYPE_COMPILED)
         return lastFloatValue_;
     return 0.0f;
@@ -280,11 +299,22 @@ char* DNFLexWrapper::getPairStr()
     return pc;
 }
 
+// [b28d-solo-DNFLexWrapper] N 封顶（TU 级 optimize 属性污染，非本函数源码形可解）：
+// ORIG 0x08ace4d0（33 insn）的 `return std::string(pc);` 只发 toTString + _ZNSsC1EPKcRKSaIcE +
+// _Unwind_Resume 三个 call；本 TU 因 ScanAll×2 的 `__attribute__((optimize("O0")))` 触发 4.4
+// 全局内联抑制，额外发射 _ZNSaIcEC1Ev×1 + _ZNSaIcED1Ev×2（p167 EXTRA=3）。
+// 证据：同旗标（-O2 -std=gnu++98 + 4.4.6 头集/后端）小 TU 探针（仅 includes+本函数）4.4.6/4.4.7
+// 均内联空 allocator ctor（0 个 allocator call）；整删 ScanAll×2 或仅删其 optimize 属性即恢复
+// （TU 读数：保留 ae=22/diff=3；删属性 ae=21/diff=3；删 ScanAll ae=21/diff=1 且本件转 AE）。
+// 已试无效：本函数加 optimize("O2"/"O3")、`#pragma GCC push_options/optimize("O0")/pop_options`
+// 替代 ScanAll 属性（同样污染）、具名 std::string 局部。P167 语义等价。
+// 迁移建议已上报 Main（ScanAll ORIG 邻域 0x088bdb56 ScanAnyData/0x088bda1c scanChangeStatusData，
+// 不属 DNFLexWrapper 段 0x8ace290..0x8acecf0）。
 std::string DNFLexWrapper::getLastTokenDataAsString()
 {
     const char* pc;
     if (lexType_ == LEX_TYPE_NORMAL)
-        pc = dnfLex_.YYText();
+        pc = dnfLex_.yytext;
     else
     {
         pc = "";

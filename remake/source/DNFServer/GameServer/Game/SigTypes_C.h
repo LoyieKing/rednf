@@ -388,7 +388,9 @@ struct SIG_REQ_BLACK_COUNT
 {
     unsigned int m_characNo;   // +0x000（RequestBlackCount 写入）
     int      m_count;          // +0x004
-    int      m_blackCount;     // +0x008
+    unsigned int m_blackCount; // +0x008（P211/P274 异型化：ORIG store 出
+                               //  `mov %eax,%edx; mov 0xc(%ebp),%eax; mov %edx,0x8(%eax)`
+                               //  RHS-first 中转形；同宽同偏移，消费点仅赋值/直读）
     char     m_pad_c[0x10 - 0xc];
 };
 static_assert(sizeof(SIG_REQ_BLACK_COUNT) == 0x10, "SIG_REQ_BLACK_COUNT ABI drift");
@@ -507,7 +509,9 @@ struct SIG_LOAD_ETC
             union
             {
                 char m_pad2308a[0x230c - 0x2308];    // +0x2308
-                int m_cooltimeCharacNo;              // +0x2308
+                // [b28d-solo-CUserCharacInfo P211 档③] unsigned 与 m_characNo 同型：
+                // 异型使 4.4 多 `mov %eax,%edx` 中转（ORIG 0x08677f34 单段直存）。
+                unsigned int m_cooltimeCharacNo;     // +0x2308
             };
             union
             {
@@ -517,7 +521,7 @@ struct SIG_LOAD_ETC
             union
             {
                 char m_pad24A0[4];                   // +0x24a0
-                int m_effectCharacNo;                // +0x24a0
+                unsigned int m_effectCharacNo;       // +0x24a0（P211 档③，同 m_characNo）
             };
             union
             {

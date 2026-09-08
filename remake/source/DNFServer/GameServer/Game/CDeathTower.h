@@ -134,6 +134,8 @@ namespace WongWork
 
             // b28d-D13：P216 throw() 实测过度折叠（CPlayData C1/D1 空体，4.4 连 call
             // 一起消除：C1 53→29、D1 41→17 insn）⇒ 回退，C1/D1 残差按 N91 封顶。
+            // [b28d-solo-CDeathTower] P216 throw() 复测：净负（C1 53→29 vs ORIG 45，
+            // 4.4 连 call 一起折叠；D1 41 不变）⇒ 已回退，C1/D1 按 N91 封顶。
             CPlayData();                        // ORIG W 0x82a7538：m_rewards[4] 逐个 stRewardItem_t()
             ~CPlayData();                       // ORIG W 0x82a7572（空函数）
 
@@ -172,8 +174,22 @@ namespace WongWork
             unsigned int m_lastPlayTime;        // +0x14
             stRewardItem_t m_rewards[4];        // +0x18..+0x9b8（步长 0x268）
             int m_rewardExp[4];                 // +0x9b8..+0x9c7
-            int m_startMemberCnt;               // +0x9c8
-            char m_startMemberInfo[0x5c];       // +0x9cc（4×0x17：name[20]/level/job/growType）
+            // [b28d-solo-CDeathTower] P211 档③：ORIG makeStartMemberInfo 尾
+            // `mov %eax,%edx; mov this,%eax; mov %edx,0x9c8(%eax)`（RHS-first+中转）
+            // ⇒ 字段与 get_member_count() 返回类型异型（unsigned int）。
+            unsigned int m_startMemberCnt;      // +0x9c8
+            // [b28d-solo-CDeathTower] 具名元素视图（sizeof/偏移不变 0x5c@+0x9cc）：
+            // ORIG makeStartMemberInfo 0x08461d96 起对 strcpy 目标/字段发
+            // `imul $0x17` + add 链（P30/P311），一维 `[count*0x17+K]` 在 4.4 恒折
+            // lea 0x9cc(%base,%idx)。
+            struct stStartMemberInfo_t
+            {
+                char m_name[0x14];
+                char m_level;
+                char m_job;
+                char m_growType;
+            };
+            stStartMemberInfo_t m_startMemberInfo[4];   // +0x9cc（元素 0x17）
             bool m_enterStartMap[4];            // +0xa28（checkEnterStartMap）
         };
 
@@ -213,7 +229,8 @@ namespace WongWork
     bool _checkMemberDie();   // 原 int；ORIG caller 0x84661bc `test %al,%al` 直用 al 无归一 ⇒ bool 返回（mangled 无返回类型）
     void _checkMemberReady();  // 原 int；ORIG 0x84670f8 尾无 %eax 置值 ⇒ void（mangled 无返回类型）
     int _checkRenewMyRecord(unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
-    int _checkRenewTopRecord(unsigned int, unsigned int, unsigned int, unsigned int);
+    // [b28d-solo-CDeathTower] ORIG 0x0846801e 尾透传 callee 的 %al 无加宽 ⇒ bool。
+    bool _checkRenewTopRecord(unsigned int, unsigned int, unsigned int, unsigned int);
     int _checkStartGameCondition(unsigned char&);
     bool _checkTimerKey(TIMER_MESSAGE, unsigned int);   // ORIG 0x8469c68
     void _destroy();

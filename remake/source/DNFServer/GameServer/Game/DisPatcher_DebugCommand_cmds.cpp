@@ -191,9 +191,10 @@ bool DisPatcher_DebugCommand::_debugCommandOn(CUser* user,
 // ===========================================================================
 // 3. _debugCommandClearSkill —— 0x0858e9c4
 // ===========================================================================
-// [b28d-solo-DisPatcher_DebugCommand_cmds] N93附封顶（尾双 return 块物理序互换）：
-// ORIG `je <mov$0+jmp>` 在前、`mov$1` 在后；4.4 恒 mov$1 在前、mov$0 fall-through。
-// 显式 else/逆置条件/三目 4 形已由 N93附 探针判死；P167 callsite CLEAR 10/10。
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE：N93附「尾双 return 块物理序互换」
+// 由 P223 goto 尾标签翻正——成功体尾 `goto ok;` + 块外 `return false;` +
+// `ok: return true;` 复现 ORIG `je <尾 mov$0 块>` / `mov$1` 后置布局
+// （P222 正向包裹的 goto 变体，探针 p3 实测）。P167 callsite CLEAR 10/10。
 bool DisPatcher_DebugCommand::_debugCommandClearSkill(CUser* user,
                                                       MSG_DEBUG_COMMAND& /*msg*/)
 {
@@ -206,16 +207,18 @@ bool DisPatcher_DebugCommand::_debugCommandClearSkill(CUser* user,
         if (user->get_state() == 5)             // +0xb1 state==5
             user->SendNotiPacket(static_cast<CUser::eSendTarget>(2),
                                  static_cast<ENUM_NOTIPACKET>(2), 1);
-        return true;                            // +0xe7 ret 1
+        goto ok;                                // P223：成功体尾 jmp 岛 + 失败块前
     }
-    return false;
+    return false;                               // +0xe0 失败块（mov$0）
+ok:
+    return true;                                // +0xe7 成功块（mov$1）
 }
 
 // ===========================================================================
 // 4. _debugCommandSetSkill —— 0x0858eab8
 // ===========================================================================
-// [b28d-solo-DisPatcher_DebugCommand_cmds] N93附封顶：SetSkillLevel bool 化
-// （P248 档①，Main 代落 CUser.h）后唯一残差=尾块序互换（同 ClearSkill）；
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE：SetSkillLevel bool 化
+// （P248 档①，Main 代落 CUser.h）+ P223 goto 尾标签翻尾块序（同 ClearSkill）；
 // P167 callsite CLEAR 10/10。
 bool DisPatcher_DebugCommand::_debugCommandSetSkill(CUser* user, int skillIdx,
                                                     int level)
@@ -234,9 +237,11 @@ bool DisPatcher_DebugCommand::_debugCommandSetSkill(CUser* user, int skillIdx,
         if (user->get_state() == 5)             // +0xd1
             user->SendNotiPacket(static_cast<CUser::eSendTarget>(2),
                                  static_cast<ENUM_NOTIPACKET>(2), 1);
-        return true;
+        goto ok;                                // P223：成功体尾 jmp 岛 + 失败块前
     }
     return false;
+ok:
+    return true;
 }
 
 // ===========================================================================
@@ -264,9 +269,10 @@ bool DisPatcher_DebugCommand::_debugCommandMasterNewSkill(CUser* user,
 // ===========================================================================
 // 6. _debugCommandAddItem —— 0x0858ec92
 // ===========================================================================
-// [b28d-solo-DisPatcher_DebugCommand_cmds] N7+N93附封顶：IsAvatarItem 间接 call
-// 目标 4.4.7 恒 %eax（ORIG %edx，P230 补限 4.4.6 后端）；尾块序互换；
-// getCurSec 双调内联实参 + `&&` 拆嵌套 if（P225 推广）；P167 CLEAR 16/16。
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE（4.4.6 后端路由已落，Main 2026-09-09）：
+// IsAvatarItem 间接 call 目标 4.4.6 后端 %edx（与 ORIG 同形）；4.4.7 下恒 %eax 才是
+// NEAR（P230 补）。已修：slot>=0 正向包裹翻尾块序（P222）、outSpace 删预清（P171）、
+// getCurSec 双调内联实参、`&&` 拆嵌套 if（P225 推广）。P167 CLEAR 16/16。
 bool DisPatcher_DebugCommand::_debugCommandAddItem(CUser* user,
                                                    unsigned long itemIdxOnlyServer,
                                                    int count)
@@ -303,17 +309,19 @@ bool DisPatcher_DebugCommand::_debugCommandAddItem(CUser* user,
             return false;
     }
 
-    ENUM_ITEMSPACE outSpace = static_cast<ENUM_ITEMSPACE>(0);   // -0x24 local_28
+    ENUM_ITEMSPACE outSpace;                    // -0x24 local_28（ORIG 无预清）
     int slot = user->AddItem((int)itemIdxOnlyServer, count,
                              static_cast<eItemAddReason>(6), outSpace, 0);  // +0xff reason6
-    if (slot < 0)                               // +0x10a js
-        return false;
-
-    cMyTrace(g_dbgCmdPrettyAddItem, 0xf4, 0)("%s:'%s' GM Mode Add Item(%d).",
-        NumberToString(user->get_acc_id(), 0), user->getCurCharacName(), slot);
-    user->SendUpdateItemList(static_cast<CUser::eSendTarget>(1),
-                             outSpace, slot);   // +0x19f SendUpdateItemList(1,space,slot)
-    return true;
+    // ORIG +0x10a `js <尾 mov$0 块>`：成功条件正向包裹，失败块后置（P222/P59）。
+    if (slot >= 0)
+    {
+        cMyTrace(g_dbgCmdPrettyAddItem, 0xf4, 0)("%s:'%s' GM Mode Add Item(%d).",
+            NumberToString(user->get_acc_id(), 0), user->getCurCharacName(), slot);
+        user->SendUpdateItemList(static_cast<CUser::eSendTarget>(1),
+                                 outSpace, slot);   // +0x19f SendUpdateItemList(1,space,slot)
+        return true;
+    }
+    return false;
 }
 
 // ===========================================================================
@@ -373,9 +381,11 @@ bool DisPatcher_DebugCommand::_debugCommandSetGrowType(CUser* user, int kind,
 // ===========================================================================
 // 8. _debugCommandLevelUpDown —— 0x0858f3ba
 // ===========================================================================
-// [b28d-solo-DisPatcher_DebugCommand_cmds] NEAR(N7/N82附)：SetCharacLevel bool 化
-// （Main）+ get_state 改 switch + std::min 结果内联实参后，残差=槽号平移与
-// callee-saved 角色差；P167 callsite CLEAR 29/29。
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE：ORIG 的 -0x14/-0x10 是 std::min
+// 的两个**匿名临时槽**（表达式右值 + 常量 200 物化），不是具名局部——写具名
+// candA/candB 会让 4.4 把取址标量排到深槽（-0x20/-0x24）、trace 占浅槽 -0x1c；
+// 改 `std::min(200, get_charac_level()+delta)` 内联后槽位/寄存器全等（P0 右值内联）。
+// SetCharacLevel bool 化（Main）+ get_state switch（P251）。P167 callsite CLEAR 29/29。
 bool DisPatcher_DebugCommand::_debugCommandLevelUpDown(CUser* user, int delta)
 {
     if (!user->isGMUser())
@@ -386,10 +396,9 @@ bool DisPatcher_DebugCommand::_debugCommandLevelUpDown(CUser* user, int delta)
         return false;
 
     bool changed = true;                        // -0x9 local_d
-    int candA = user->get_charac_level() + delta;   // +0xb1 lv+delta
-    int candB = 200;                            // +0xbe $200
-    // ORIG min<int>(&lv+delta, &$200) 结果直压实参（无具名 newLevel 槽）。
-    if (user->SetCharacLevel(std::min(candB, candA)) != 1)  // +0xdc xor $1/test al 判成功
+    // P0：ORIG 的 -0x14/-0x10 是 min 的**匿名临时槽**（表达式右值 + 常量物化），
+    // 无具名局部（具名局部会占据取址槽并改变 4.4 分配序）。
+    if (user->SetCharacLevel(std::min(200, user->get_charac_level() + delta)) != 1)
         changed = false;
     if (changed)
     {
@@ -432,10 +441,12 @@ bool DisPatcher_DebugCommand::_debugCommandLevelUpDown(CUser* user, int delta)
 // ===========================================================================
 // 9. _debugCommandGuildLevelUp —— 0x0858f64c
 // ===========================================================================
-// [b28d-solo-DisPatcher_DebugCommand_cmds] NEAR(N7)：链式 receiver 双处 +
-// proxyInfo.m_agitFlag=0 补写（ORIG movb $0,-0x2d）+ GuildDbInfoView 具名偏移
-// （消 add→disp）；残差=getCurCharacNo/GetUID 的 callee-saved 角色互换
-// （ORIG esi/ebx，4.4 ebx/esi）；P167 callsite CLEAR 15/15。
+// [b28d-solo-DisPatcher_DebugCommand_cmds] NEAR（N7 封顶，双后端一致）：
+// callee-saved 角色互换——ORIG 主线 edi/esi/ebx（guildkey/characNo/UID）+
+// STGuildProxy 段 ecx/edx；4.4.7 与 4.4.6 后端均 edi/ebx/esi + edx/eax
+// （非路由可解；callee 侧 cast 旋钮双向试过零变化）。已修：链式 receiver 双处
+// （P52）+ proxyInfo.m_agitFlag=0 补写 + GuildDbInfoView 具名偏移（消 add→disp）。
+// P167 callsite CLEAR 15/15。
 bool DisPatcher_DebugCommand::_debugCommandGuildLevelUp(CUser* user)
 {
     if (!user->isGMUser())
@@ -453,9 +464,9 @@ bool DisPatcher_DebugCommand::_debugCommandGuildLevelUp(CUser* user)
     // 具名 proxy 局部反致落槽 + 实参寄存器角色漂移。
     GlobalData::s_guild_proxy_mgr->GetServerProxy(
         static_cast<ENUM_SERVER_GROUP>(0))                      // +0xc1 GetServerProxy(...,0)
-        ->SendGuildLevelup((int)user->GetUID(),
-                           (unsigned int)user->getCurCharacNo(),
-                           (unsigned int)user->get_charac_guildkey(), 0);  // +0xdd
+        ->SendGuildLevelup(user->GetUID(),
+                           user->getCurCharacNo(),
+                           user->get_charac_guildkey(), 0);  // +0xdd
 
     char* dbInfo = reinterpret_cast<char*>(user->GetGuildDBInfo());  // +0xe2（raw DB blob，
                                                                      // 沿用仓库裸读先例）
@@ -480,10 +491,10 @@ bool DisPatcher_DebugCommand::_debugCommandGuildLevelUp(CUser* user)
     return true;
 }
 
-// [b28d-solo-DisPatcher_DebugCommand_cmds] N7+N93附封顶：IsAvatarItem 间接 call
-// 目标 4.4.7 恒 %eax（ORIG %edx）；slot==-1 失败出口块序互换。已修：`!(a&&b)`
-// 改正条件包裹、usablePeriod 内联（P227）、slot 预清、G_CEnvironment 具名字段。
-// P167 callsite CLEAR 18/18。
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE（4.4.6 后端路由已落，Main 2026-09-09）：
+// IsAvatarItem 间接 call 目标 %edx 与 ORIG 同形（见 AddItem 判词）。已修：
+// `slot != -1` 正向包裹翻失败出口块序（P222）、usablePeriod 内联（P227）、
+// G_CEnvironment 具名字段。P167 callsite CLEAR 18/18。
 bool DisPatcher_DebugCommand::_debugCommandAddAvatar(CUser* user,
                                                      MSG_DEBUG_COMMAND& msg)
 {
@@ -544,11 +555,15 @@ bool DisPatcher_DebugCommand::_debugCommandAddAvatar(CUser* user,
                 /*f*/ msg.payload.avatar.count);                // u16 数量
         }
 
-        if (slot == -1)                                         // +0x2bd
-            return false;
-        user->SendUpdateItemList(static_cast<CUser::eSendTarget>(1),
-                                 static_cast<ENUM_ITEMSPACE>(1), slot);
-        return true;
+        // ORIG +0x2c1 `je <尾 mov$0 块>`：成功条件正向包裹，失败块后置
+        // （P222/P59；早返形 4.4 恒把 mov$0 放就地、成功块后置）。
+        if (slot != -1)
+        {
+            user->SendUpdateItemList(static_cast<CUser::eSendTarget>(1),
+                                     static_cast<ENUM_ITEMSPACE>(1), slot);
+            return true;
+        }
+        return false;
     }
     return false;
 }
@@ -590,9 +605,11 @@ bool DisPatcher_DebugCommand::_debugCommandPVPRankSet(CUser* user,
 // ===========================================================================
 // 12. _debugCommandSetEnchant —— 0x0858fb4e
 // ===========================================================================
-// [b28d-solo-DisPatcher_DebugCommand_cmds] N104/N93附封顶：getCurCharacR `!=0`
-// 正向包裹后，4.4 对多级嵌套 return 用 %esi/%edi 暂存（ORIG 平铺早退共享尾岛、
-// 单 %ebx），帧 0x3c vs 0x30；P167 callsite CLEAR 16/16。
+// [b28d-solo-DisPatcher_DebugCommand_cmds] N104/N93附封顶（EH 帧/寄存器策略）：
+// 删段实验证明——去掉 PacketGuard 段后 4.4 与 ORIG 完全同形（push %ebx/sub 0x24、
+// invenType -0x10、slotInt→%ebx）；带 PacketGuard EH landing 时 4.4 恒多用
+// %esi/%edi 并把标量槽加深 0x10（帧 0x3c vs ORIG 0x30）。已修：getCurCharacR
+// `!=0` 正向包裹（P222/P214①）。P167 callsite CLEAR 16/16。
 bool DisPatcher_DebugCommand::_debugCommandSetEnchant(CUser* user,
                                                       MSG_DEBUG_COMMAND& msg)
 {
@@ -896,9 +913,10 @@ bool DisPatcher_DebugCommand::_debugCommandRequestMid(CUser* user,
 // ===========================================================================
 // 23. _debugCommandUserRepel —— 0x0859048e
 // ===========================================================================
-// [b28d-solo-DisPatcher_DebugCommand_cmds] N7封顶：name 内联实参后，残差=arg4/arg3
-// 物化位置互换（ORIG arg4→%edi、arg3→槽 -0x1c；4.4 反）——4.4 仅剩一个 callee-saved
-// 时的选择与 4.1 相反，具名 name/内联两形已双向实测；P167 callsite CLEAR 5/5。
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE：arg4/arg3 物化位置互换的钥匙 =
+// `&msg.payload.nameBuf[0]`（取首元素地址 vs 数组退化改变 4.4 表达式树）——ORIG
+// `mov 0xe(%eax),%edi`（m_arg→%edi）+ nameBuf 地址落槽 -0x1c；直接写 nameBuf 反致
+// 两者互换（探针 r8/r9 实测）。P167 callsite CLEAR 5/5。
 bool DisPatcher_DebugCommand::_debugCommandUserRepel(CUser* user,
                                                      MSG_DEBUG_COMMAND& msg)
 {
@@ -907,7 +925,7 @@ bool DisPatcher_DebugCommand::_debugCommandUserRepel(CUser* user,
     GlobalData::s_monitor_proxy_mgr->GetServerProxy(
         user->GetServerGroup())                                 // +0x4a GetServerProxy(group)
         ->SendUserRepel(user->get_acc_id(), user->GetUID(),
-                        msg.payload.nameBuf, msg.m_arg);        // +0x65 SendUserRepel
+                        &msg.payload.nameBuf[0], msg.m_arg);    // +0x65 SendUserRepel
     return true;
 }
 

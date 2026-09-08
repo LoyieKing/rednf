@@ -157,11 +157,23 @@ public:
     char m_pad[0x200];
 };
 
+// [b28d-solo-CUserCharacInfo P254] ContinuousItemInfo::m_itemIdx 的 enum 视角（仅
+// CUserCharacInfo.cpp 消费）：ORIG 4.1 对 enum 源字段保留 `mov (%eax),%eax;
+// mov %eax,%ebx` 两段中转，int 字段 4.4 恒折单段。默认底层 int ⇒ 宽度/偏移不变。
+enum EContinuousItemIdx
+{
+    ECII_ZERO = 0,
+    ECII_ONE = 1
+};
+
 class ContinuousItemInfo
 {
 public:
     ContinuousItemInfo() : m_itemIdx(0), m_expireTime(0) {}  // ORIG W 0x08695c48（两字段清零）
-    int m_itemIdx;             // +0x00
+    union {
+        int m_itemIdx;              // +0x00（全仓消费点保持 int）
+        EContinuousItemIdx m_itemIdxEnum;  // +0x00（P254 enum 视角）
+    };
     unsigned int m_expireTime; // +0x04
 };
 
@@ -329,6 +341,25 @@ union GrowTypeBits
     };
 };
 
+// [b28d-solo-CUserCharacInfo P254] packed enum 视角（仅 CUserCharacInfo.cpp 消费）：
+// ORIG 4.1 对 enum 源字段保留 `movzwl mem,%edx; mov %edx,%ecx` 两段中转，4.4 对
+// unsigned short 字段恒折单段 `movzwl mem,%ecx`。packed 使底层类型保持 2 字节，
+// 宽度/偏移/sizeof/mangled 零变化（下方 sizeof(CharacInfoFields)==0x14d1 断言自证）。
+enum EPowerWarPointValue
+{
+    EPWPV_ZERO = 0,
+    EPWPV_MAX = 9999
+} __attribute__((packed));
+enum EFatigueBatteryValue
+{
+    EFBV_ZERO = 0,
+    EFBV_MAX = 0xffff
+} __attribute__((packed));
+static_assert(sizeof(EPowerWarPointValue) == 2,
+              "packed enum view must stay 2 bytes (+0x121f)");
+static_assert(sizeof(EFatigueBatteryValue) == 2,
+              "packed enum view must stay 2 bytes (+0x4f)");
+
 #pragma pack(push, 1)
 struct CharacInfoFields
 {
@@ -349,7 +380,10 @@ struct CharacInfoFields
     unsigned short m_fatigueGrownUpBuff;   // +0x37
     CommonTime m_createTime;           // +0x39（0x14；set_charac_createtime）
     unsigned short m_usedFatigue;      // +0x4d
-    unsigned short m_fatigueBattery;   // +0x4f
+    union {
+        unsigned short m_fatigueBattery;          // +0x4f（全仓消费点保持 ushort）
+        EFatigueBatteryValue m_fatigueBatteryEnum; // +0x4f（P254 enum 视角）
+    };
     unsigned int m_tutorialFlags;      // +0x51
     char m_tutorialFlags2[0x10];       // +0x55
     CReliablePerson m_reliablePerson;  // +0x65（0x10）
@@ -363,15 +397,24 @@ struct CharacInfoFields
     char m_addInfo[0x52];              // +0x88..0xda
     char m_inven[0x892 - 0xda];        // +0xda..0x892（CInventory 内嵌）
     char m_skill[0xdaa - 0x892];       // +0x892..0xdaa
-    char m_cargo[0xdbe - 0xdaa];       // +0xdaa..0xdbe（CCargo 内嵌，0x14）
+    // [b28d-solo-CUserCharacInfo N107/P106] 真实 CCargo 类型（sizeof 0x14）：
+    // char[0x14] 占位使 `&CUR->m_cargo` 退化为数组取址 ⇒ 4.4 恒 `add $0xdaa`；
+    // 真实成员取址复现 ORIG `lea 0xdaa(%edx),%ecx`。
+    CCargo m_cargo;                    // +0xdaa..0xdbe（0x14）
     int m_guildkey;                    // +0xdbe
     unsigned char m_guildCreateRight;  // +0xdc2
     unsigned short m_guildCreateFlag;  // +0xdc3
     char m_guildName[0x17];            // +0xdc5
     char m_guildAddr[0xd];             // +0xddc
-    int m_guildExp;                    // +0xde9
+    union {
+        int m_guildExp;                // +0xde9（全仓消费点保持 int）
+        unsigned int m_guildExpU;      // +0xde9（P274 异型视角：复现 lea 形）
+    };
     unsigned short m_guildTempExp;      // +0xded
-    int m_guildTodayExp;               // +0xdef
+    union {
+        int m_guildTodayExp;               // +0xdef（全仓消费点保持 int）
+        unsigned int m_guildTodayExpU;     // +0xdef（P274 异型视角：复现 lea 形）
+    };
     unsigned char m_guildMemberGrade;  // +0xdf3
     unsigned int m_dungeonHelpAbuseRatio;  // +0xdf4
     unsigned int m_dungeonHelpAbuseExp;    // +0xdf8
@@ -458,7 +501,10 @@ struct CharacInfoFields
     unsigned short m_disguiseIndex;        // +0xeeb
     char m_backupSkill[0x199];             // +0xeed
     char m_backupSkill2ND[0x199];          // +0x1086
-    unsigned short m_powerWarPoint;        // +0x121f
+    union {
+        unsigned short m_powerWarPoint;           // +0x121f（全仓消费点保持 ushort）
+        EPowerWarPointValue m_powerWarPointEnum;  // +0x121f（P254 enum 视角）
+    };
     int m_powerWarAssaultCount;            // +0x1221
     int m_powerWarAssaultVictoryCount;     // +0x1225
     unsigned short m_straightVictories;    // +0x1229

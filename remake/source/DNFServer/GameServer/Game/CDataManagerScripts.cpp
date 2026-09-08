@@ -289,14 +289,14 @@ bool stBroadCastItemScript::checkUnCommonNestedItem(int itemIdx, int subItemIdx)
     return false;
 }
 
-// [b28d-solo-CDataManagerScripts] AE：map 构造 + clear；fresh check_tu_routed clean（39=39）；ORIG 0x083738a2。
+// [b28d-solo-CDataManagerScripts] AE：map C1 + CSlotBoundChecker C1（+0x18 真实内嵌成员）+ clear；fresh check_tu_routed clean（39=39）；ORIG 0x083738a2。
 eventReward::eventReward() : m_map0()
 {
     // ORIG C1 0x83738a2：构造 map + CSlotBoundChecker 后 clear map。
     // CSlotBoundChecker 重建为静态数组实现（无 per-instance 成员），+0x18 保持 pad。
     m_map0.clear();
 }
-// [b28d-solo-CDataManagerScripts] AE：map + CSlotBoundChecker 析构（后者静态实现无成员）；fresh check_tu_routed clean（27=27）；ORIG 0x0837dfb2。
+// [b28d-solo-CDataManagerScripts] AE：map D1 + CSlotBoundChecker D1（+0x18 真实内嵌成员，ORIG 0x0837dfb2 调 _ZN17CSlotBoundCheckerD1Ev）；fresh check_tu_routed clean（27=27）；ORIG 0x0837dfb2。
 eventReward::~eventReward()
 {
     // ORIG D1 0x837dfb2：析构 map + CSlotBoundChecker（后者静态实现无成员，跳过）
@@ -541,25 +541,24 @@ int CNPCScriptList::getFavorLevel(unsigned short favorExp) const
     return 4;
 }
 
-int CNPCScriptList::getMaxFavorValue() const
-{
-    return m_npcCommon.m_maxFavorExp;
-}
-
 // ORIG _ZNK14CNPCScriptList18getFavorLevelValueEj 0x858174e：level 0..3 返
 // m_favorExp[level]（level 0 返 0），越界（>3）返 getMaxFavorValue()。
-// [b28d-solo-CDataManagerScripts] DIFF→N：①帧 sub $0x18 vs 4.4（P232 死局部 pad[8]→0x24 实测，非 16k+4 量化帧不可凑，已回退）；②尾 ushort→uint 4.4 恒双 movzwl（ORIG 0x858177d 单条，P9 跨版本 zext artifact）；ORIG 0x0858174e。
-unsigned int CNPCScriptList::getFavorLevelValue(unsigned int level) const
+// [b28d-solo-CDataManagerScripts] AE：①返回类型 unsigned short（ORIG 0x0858177d
+// 单条 `movzwl` 直返；int 返回 4.4 恒多一条 `movzwl %ax,%eax`，P9/探针
+// /tmp/b28d_s160_p1.cpp 实证）；②本定义置于 getMaxFavorValue 之前（P210：callee
+// 定义在后 ⇒ 4.4 走保守 `sub $0x18`，与 ORIG 0x08581751 一致）；ORIG 0x0858174e。
+unsigned short CNPCScriptList::getFavorLevelValue(unsigned int level) const
 {
-    // [b28c-35] 双残差判 N：①帧 ORIG 0x08581751 `sub $0x18` 非 4.4 的 16k+4 量化
-    // 序列（无 pad=0x4 / char[0x14]=0x24，P190 附注②八探针同族，不可凑）；
-    // ②返回段 4.4 对 ushort→uint 多一条 `movzwl %ax,%eax`（ORIG 0x0858177d 单条
-    // movzwl 直返）——跨版本 zext artifact，字段/返回类型已穷举。
     if (level > 3)
         return getMaxFavorValue();
     if (level == 0)
         return 0;
-    return m_npcCommon.m_favorExp[level];   // N: 4.4 恒产双 movzwl(返回 ushort→uint)，ORIG 4.1 单条 0x858177d
+    return m_npcCommon.m_favorExp[level];
+}
+
+int CNPCScriptList::getMaxFavorValue() const
+{
+    return m_npcCommon.m_maxFavorExp;
 }
 
 // ORIG _destroy 0x8581784：遍历 hash_map delete 各 CNPCScript*（调 D1 + operator delete），
@@ -851,19 +850,16 @@ bool* GetLightServerFlag()
 //   其余 → 0。
 //   注：ORIG vtable（0x8c96da8）实证 @4=IsAvatarItem、@18=PeriodAfterUnsealing、
 //   @19=IsRandomOption（NEW 原实现误用 IsCreatureItem/IsRandomOption，已纠正）。
-// [b28d-solo-CDataManagerScripts] DIFF→N：P52 链式已翻正（`G_CDataManager()->find_item(item.m_addInfo)` ⇒ 实参先物化 %ebx，帧 push ebx/sub 0x24 对齐）；残余 P63 共享出口（ORIG 多 return 0 的 je 直达尾块 vs 4.4 就地物化）+ 短路物化岛；ORIG 0x0867cf8d。
+// [b28d-solo-CDataManagerScripts] AE：①P52 链式 find_item（实参先物化 %ebx）；②P226 条件向语句表达式复现短路物化岛（`mov $1/$0 + test/je`，零槽）；③真语义 bug 修正：`PeriodAfterUnsealing() && m_field0!=0` 路径 ORIG 0x0867d03c 走 +0xb1 `mov $0,%eax` = 返回 **0**（原实现误写 return 1）；fresh clean 101=101；ORIG 0x0867cf8d。
 bool _checkTimeoutItem(const Inven_Item& item)   // b28d-Main(P292/P248档①)：ORIG 0x086412ba 调用点 `call; test %al,%al; jne` ⇒ bool
 {
     // ORIG 0x0867cf8f：实参 item.m_addInfo 先物化 %ebx 再 call G_CDataManager()
     // ⇒ 单条链式表达式（P52），勿拆具名 dm 局部（会生 -0x18 槽 + 换序）。
     CItem* ci = G_CDataManager()->find_item(item.m_addInfo);
-    if (ci == 0)
-    {
-        return 0;
-    }
-
-    // stLimitItemUsageInfoEx 权威定义见上方（SetLightServerFlag 之后）。
-    if (ci->getUsablePeriod() != 0 || ci->getExpirationDate() != 0)
+    // [b28d-solo-CDataManagerScripts] P226 条件向：ORIG 0x0867cfb4/0x0867cfd4/0x0867cfdb
+    // 短路链物化为 `mov $1/%eax … mov $0/%eax; test %al; je`（无槽）⇒ 语句表达式
+    // 承载整条条件（内不含具名变量）。
+    if (({ ci == 0 || (ci->getUsablePeriod() == 0 && ci->getExpirationDate() == 0); }))
     {
         return 0;
     }
@@ -871,9 +867,11 @@ bool _checkTimeoutItem(const Inven_Item& item)   // b28d-Main(P292/P248档①)�
     {
         return 0;
     }
+    // [b28d-solo-CDataManagerScripts] 真语义 bug 修正：ORIG 0x0867d03c `test %al; je +0xb8`
+    // ⇒ 该条件为真时走 +0xb1 `mov $0,%eax; jmp 尾` = **return 0**（原实现写 return 1）。
     if (ci->PeriodAfterUnsealing() && item.m_field0 != 0)
     {
-        return 1;
+        return 0;
     }
     int now = GlobalData::s_systemTime_.getCurSec();
     if (ci->GetItemType() == 0xa)
@@ -1103,7 +1101,7 @@ stBloodDungeon_t::stBloodDungeon_t() : m_vec334(), m_map358()
     clear();
 }
 stBloodDungeon_t::~stBloodDungeon_t() {}
-// [b28d-solo-CDataManagerScripts] DIFF→N：P209附 —— 同 stDeathTower_t::C1（unsigned 局部 for 尾测 4.4 恒 mem 直比，ORIG 先载寄存器），register 形实测不翻；语义等价；ORIG 0x08370b02。
+// [b28d-solo-CDataManagerScripts] AE：P310 —— `for (int i = 0; (unsigned int)i <= 199; ++i)` 复现 ORIG 两段寄存器尾测（`mov -0xc(%ebp),%eax; cmp $0xc7,%eax; setbe`）；fresh clean 42=42；ORIG 0x08370b02。
 void stBloodDungeon_t::clear()
 {
     // [b28c-27] N：ORIG 循环条件 `mov -0xc(%ebp),%eax; cmp $0xc7,%eax; setbe`
@@ -1113,7 +1111,9 @@ void stBloodDungeon_t::clear()
     // +0x330=1.0f → memset(+0x324,0,0xc) → memset(+0x340,0,0x18) → +0x358 clear。
     //   【N】循环条件 ORIG `mov -0xc,%eax; cmp $0xc7,%eax`（先载入寄存器），
     //   4.4 O0 恒折 `cmpl $0xc7,-0xc(%ebp)`（mem 直比），语义全等，register 形差。
-    for (unsigned int i = 0; i <= 199; ++i)
+    // [b28d-solo-CDataManagerScripts] P310：局部改 int + 显式 (unsigned int) 比较
+    // 复现 ORIG 两段寄存器尾测（mov -0xc,%eax; cmp $0xc7,%eax; setbe）。
+    for (int i = 0; (unsigned int)i <= 199; ++i)
         m_rate[i] = 1.0f;
     m_vec334.clear();
     m_field320 = 1;
@@ -1128,7 +1128,7 @@ void stBloodDungeon_t::clear()
 // ---- stDeathTower_t（ORIG C1 0x08370970）----
 
 // ORIG C1 0x8370970：四个 200 元素表初始化 + 尾部字段，非全量 memset。
-// [b28d-solo-CDataManagerScripts] DIFF→N：P209附/N-86b —— for 尾测 4.4 恒折 `cmpl $0xc7,-0xc(%ebp)` mem 直比（ORIG 先载 %eax），register/while/P212 三形本轮实测不翻；语义等价；ORIG 0x08370970。
+// [b28d-solo-CDataManagerScripts] AE：P310 —— `for (int i = 0; (unsigned int)i < 200; ++i)` 复现 ORIG 两段寄存器尾测；fresh clean 45=45；ORIG 0x08370970。
 stDeathTower_t::stDeathTower_t()
 {
     m_apcExpWeight = 0.0f;        // ORIG +0x00 位清零（float 语义：import [apc exp weight] fstps 实证）
@@ -1136,7 +1136,8 @@ stDeathTower_t::stDeathTower_t()
     m_rewardGoldWeight = 1.0f;
     //   【N】循环条件 ORIG `mov -0xc,%eax; cmp $0xc7,%eax`（先载入寄存器），
     //   4.4 O0 恒折 `cmpl $0xc7,-0xc(%ebp)`（mem 直比），语义全等，register 形差。
-    for (unsigned int i = 0; i < 200; ++i)
+    // [b28d-solo-CDataManagerScripts] P310：int 局部 + 显式 (unsigned int) 比较。
+    for (int i = 0; (unsigned int)i < 200; ++i)
     {
         m_rewardExpWeight[i] = 1.0f;          // this+0x04+i*4
         m_rewardCardNum[i] = 0;               // this+0x324+i*4
@@ -1229,7 +1230,7 @@ int reseal_table_t::get_reseal_cost(unsigned char param_1,
 
     // (param_2-1)/10（0x66666667 乘法魔数 → 无符号除 10 的 32 位无符号截断）
     int idx = (param_2 - 1) / 10;
-    if (m_vec.size() <= idx)      // setbe → vector::size() <= idx（ORIG mem 直比）
+    if (m_vec.size() <= idx)      // setbe → vector::size() <= idx（ORIG 0x08900b86 mem 直比 dst=eax）
         idx = (int)m_vec.size() - 1;   // 取末元素
     // return m_vec[idx]*m_arr1[param_1] + param_3*m_arr2[param_1]
     // （ORIG imul 为 32 位模 2^32，此处用无符号累加再一次性转 int 保持位模式）
@@ -1437,7 +1438,7 @@ stTempRewardInfo CNPCRelationEventManager::GetItemKind(
     std::map<unsigned short, stNPCRelationEventInfo*>::iterator it =
         m_npcEventMap.find(idx);
     if (it == m_npcEventMap.end())
-        return result;
+        return result;   // ORIG 0x0890d1d2 `mov %ebx,(%esp); call C1Ev` ⇒ NRVO 直构 sret
 
     stNPCRelationEventInfo* node = it->second;
     // ORIG 0x0890d1c0：不绑定 vector 引用/迭代器，每轮 size()/at() 现取
@@ -1474,7 +1475,7 @@ stCharacLinkSystem_t::~stCharacLinkSystem_t() {}
 // ---- CNPCRelationEventManager::GetRewardItem（ORIG T 0x0890d326，sret
 //      stNPCRewardItemInfo）：find(idx) 未命中 → {0,0}；命中 →
 //      node->m_favor[kind].m_rewardA / m_rewardB（+0xc/+0x10）。----
-// [b28d-solo-CDataManagerScripts] DIFF→N：N86/N93 —— ORIG 局部 result 槽（-0x18/-0x14）+ 拷贝到 sret vs 4.4 直构进 sret（无源码解，禁 -fno-elide-constructors），另加槽序；ORIG 0x0890d326。
+// [b28d-solo-CDataManagerScripts] 部分翻正：`return stNPCRewardItemInfo(result);` 破 4.4 NRVO ⇒ result 落 -0x18/-0x14 + 尾部拷贝 sret，帧/槽与 ORIG 对齐；残余 = N107 成员数组寻址折叠（ORIG `mov 0xc(%eax,%ecx,1)` vs 4.4 lea+add）⇒ N107/N86 封顶；ORIG 0x0890d326。
 stNPCRewardItemInfo CNPCRelationEventManager::GetRewardItem(
     unsigned short idx, ENUM_NPC_RELATION_EVENT_FAVOR_KIND kind)
 {
@@ -1484,12 +1485,12 @@ stNPCRewardItemInfo CNPCRelationEventManager::GetRewardItem(
     std::map<unsigned short, stNPCRelationEventInfo*>::iterator it =
         m_npcEventMap.find(idx);
     if (it == m_npcEventMap.end())
-        return result;
+        return stNPCRewardItemInfo(result);
 
     stNPCRelationEventInfo* node = it->second;
     result.m_rewardA = node->m_favor[kind].m_rewardA;
     result.m_rewardB = node->m_favor[kind].m_rewardB;
-    return result;
+    return stNPCRewardItemInfo(result);
 }
 
 // ---- advancealtar（StageTimeLineParameter D1 0x8899e88 /
@@ -1554,21 +1555,26 @@ void advancealtar::RewardParameter::reset()
 // ORIG STScriptFileList 即 +0 的 map<int,string>（NpcScript.h 占位版同尺寸），
 // 故直接以本地 map 重解释传入，避免与本 TU 已含头中的占位定义冲突。
 // ============================================================================
-// [b28d-solo-CDataManagerScripts] DIFF→N：P214① 正极性包裹已翻正（ORIG `test %al; je <尾 mov $0x77>`）；残余 map/it 槽整体平移 4（-0x24/-0x28 vs ORIG -0x20/-0x24）+ 实参装载寄存器（P75/N93）；ORIG 0x080ef29c。
+// [b28d-solo-CDataManagerScripts] AE：①P214① 正极性包裹；②真实 STScriptFileList 局部（ORIG 调 _ZN16STScriptFileListC1Ev；原 map+reinterpret_cast 调错 C1 符号且槽深 4）；③P13 缓存 end（ORIG 循环前调一次 end 存 -0x28）；④`!ImportRewardScript(...)` 复现 ORIG `test %eax,%eax; je` 直分支；fresh clean 82=82；ORIG 0x080ef29c。
 int eventReward::importRewardTable(const char* dir, const char* file)
 {
-    std::map<int, std::string> fileList;
+    // [b28d-solo-CDataManagerScripts] 真实 STScriptFileList（ORIG 0x080ef2a7 调
+    // _ZN16STScriptFileListC1Ev；此前用 map + reinterpret_cast 会调 map C1 且多
+    // 一条取址 lea、槽整体深 4）。
+    STScriptFileList fileList;
     // ORIG 0x080ef2a7：test %al; je 失败块（末尾 mov $0x77）⇒ 正极性包裹
     // （P214①），勿写 if(!f()) 早返（产 xor$1 + 前置换位）。
-    if (loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&fileList),
-                               dir, file, 0))
+    if (loadRDARScriptListFile(&fileList, dir, file, 0))
     {
         // fileList 为非 const 局部 ⇒ ORIG 用非 const iterator（const_iterator 换
-        // begin/end/operator++ callee 集致 we-larger 主因）。
-        for (std::map<int, std::string>::iterator it = fileList.begin();
-             it != fileList.end(); ++it)
+        // begin/end/operator++ callee 集致 we-larger 主因）。ORIG 0x080ef2ce 在
+        // 循环前调一次 end() 存具名 e（槽 -0x28）⇒ P13 缓存 end。
+        std::map<int, std::string>::iterator it = fileList.m_fileMap.begin();
+        std::map<int, std::string>::iterator e = fileList.m_fileMap.end();
+        for (; it != e; ++it)
         {
-            if (ImportRewardScript(dir, it->second.c_str()) == 0)
+            // ORIG 0x080ef2f7 `test %eax,%eax; je` 直接分支（4.4 对 ==0 物化 sete）。
+            if (!ImportRewardScript(dir, it->second.c_str()))
                 return 0x71;
         }
         return 0;
@@ -1596,7 +1602,7 @@ void DeleteInvalidItemScript::DeleteInvalidItemData::init()
     m_field8 = 0;
 }
 
-// [b28d-solo-CDataManagerScripts] NEAR(9)：N93/N82 —— DeleteInvalidItemData 块内对象槽 -0x4c vs ORIG -0x50（4.1 聚合对象优先占深槽 vs 4.4 标量分区，声明序/全头部声明均不可翻），语义等价；ORIG 0x08ac1e60。
+// [b28d-solo-CDataManagerScripts] AE：函数头声明序 `token, ok, idx, data`（P212/P309：4.4 头部声明按先声明浅 ⇒ data 落最深 -0x50、idx -0x44，与 ORIG 一致）；fresh clean 149=149；ORIG 0x08ac1e60。
 bool DeleteInvalidItemScript::loadScript()
 {
     // [X1 形] ORIG 7 检查点（load 0x08ac1e7c / ScanType 0x08ac1ec3 / ScanInt-ok×3
@@ -1609,6 +1615,7 @@ bool DeleteInvalidItemScript::loadScript()
 
     std::string token;
     bool ok = false;
+    int idx;
     DeleteInvalidItemData data;
     for (;;)
     {
@@ -1618,7 +1625,7 @@ bool DeleteInvalidItemScript::loadScript()
         {
             for (;;)
             {
-                int idx = ScanInt(&ok);
+                idx = ScanInt(&ok);
                 if (!(ok))
                     break;
                 int rewardIdx = ScanInt(&ok);
@@ -2296,12 +2303,13 @@ PowerParameterScript::~PowerParameterScript()
 // ---- PowerParameterScript 查询（ORIG T 0x08a59c6e / 0x08a59d58）----
 // GetPenalty：遍历 m_vecBC（+0xbc），取首个 m_field4 >= victory 的条目按值返回；
 // 无匹配时返回最后一条（ORIG memmove(&vec[size-1], 0x10)）；空表未定义。
-// [b28d-solo-CDataManagerScripts] DIFF→N：N93/N86 —— 具名 entry 值拷贝 + end 缓存已落；残余 sret 帧 sub $0x24 vs 0x34 + 块级槽序（4.1 拷贝槽 -0x20..-0x14 两段 vs 4.4 直构）；ORIG 0x08a59c6e。
+// [b28d-solo-CDataManagerScripts] AE：P13 反向 —— ORIG 0x08a59ce3 在循环条件处每轮调 end()（end 临时 -0xc，不缓存），改 for-init 内 begin + 条件 end() 后逐条对齐；fresh clean 71=71；ORIG 0x08a59c6e。
 stVictoryPenalty PowerParameterScript::GetPenalty(int victory)
 {
-    std::vector<stVictoryPenalty>::iterator it = m_vecBC.begin();
-    std::vector<stVictoryPenalty>::iterator e = m_vecBC.end();
-    for (; it != e; ++it)
+    // [b28d-solo-CDataManagerScripts] P13 反向：ORIG 0x08a59ce3 循环条件处每轮
+    // 调 end()（end 临时槽 -0xc），不缓存；it 槽 -0x10。
+    for (std::vector<stVictoryPenalty>::iterator it = m_vecBC.begin();
+         it != m_vecBC.end(); ++it)
     {
         stVictoryPenalty entry = *it;
         if (entry.m_field4 >= victory)
@@ -2616,7 +2624,7 @@ pvp_channel_info_t::pvp_channel_info_t()
 // 权威声明见 STExpertJobScript.h（CUser::GetCurExpertJobLevel 真实调用）。
 // ============================================================================
 
-// [b28d-solo-CDataManagerScripts] NEAR(1)：N18b/N7 —— 4.4 恒 `cmp %ebx,%eax`（目标寄存器为字段侧）；本轮实试 `e == field` 交换操作数不翻（P248 三档：callee/字段/同异型已试尽）；语义等价；ORIG 0x0849f420。
+// [b28d-solo-CDataManagerScripts] NEAR(1)：N22 —— 4.4 恒 `cmp %ebx,%eax`（dst=call 结果/字段侧），ORIG 4.1 `cmp %eax,%ebx`（dst=局部 e）；交换源码操作数两形均不翻（P248 三档试尽）；语义等价；ORIG 0x0849f420。
 bool STExpertJobScript::isBoundaryExpValue(int exp)
 {
     // [b28c-L18] NEAR（fresh 32=32，助记符序列全等，仅 cmp 操作数序差 2 行）：
@@ -2631,7 +2639,7 @@ bool STExpertJobScript::isBoundaryExpValue(int exp)
     for (; i < m_expVec.size(); ++i)
     {
         register int e = exp;
-        if (e == m_expVec[i].m_exp)
+        if (m_expVec[i].m_exp == e)
             return true;
     }
     return false;
@@ -2655,7 +2663,7 @@ int STExpertJobScript::GetLevel(unsigned int exp)
 // STExpertJobScript::GetCompoundRate（ORIG 0x0849f366 W）。
 // 遍历 m_compoundRateVec（+0x1f4）：返回首个 stCompoundRate.m_level >= level 的元素；
 // 全表都 < level 时返回末元素；空表返回 0。调用方（GetSuccessRate）读 +4/+8/+0xc。
-// [b28d-solo-CDataManagerScripts] AE：P13 缓存 end（`iterator e = m_compoundRateVec.end();` 具名初始化）⇒ begin/end 槽 -0xc/-0x10 与调用点序对齐；ORIG 0x0849f366。
+// [b28d-solo-CDataManagerScripts] AE：①P13 缓存 end（`iterator e = m_compoundRateVec.end();` 具名初始化）⇒ begin/end 槽 -0xc/-0x10 对齐；②P167 —— ORIG 三处调 `operator*`(deEv)，`it->m_level` 改 `(*it).m_level` 消 ptEv 差集；fresh clean 56=56；ORIG 0x0849f366。
 stCompoundRate* STExpertJobScript::GetCompoundRate(int level)
 {
     if (m_compoundRateVec.empty())
@@ -2664,7 +2672,7 @@ stCompoundRate* STExpertJobScript::GetCompoundRate(int level)
     std::vector<stCompoundRate>::iterator e = m_compoundRateVec.end();
     for (; it != e; ++it)
     {
-        if (it->m_level >= level)
+        if ((*it).m_level >= level)
             return &(*it);
     }
     --it;  // 全部 < level：取末元素

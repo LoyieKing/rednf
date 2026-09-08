@@ -29,6 +29,11 @@ struct stDeathTowerRecordMemberInfo_t;
 namespace WongWork
 {
 
+// [b28d-solo-CDeathTower] 隐式 C1 verdict=DIFF（218/208，P167：MISSING
+// stBestRecord_t::C1 ×1 / EXTRA stTowerBlock::C1 ×1）——N109/N91：4.4 对含非平凡
+// 成员的嵌套类数组发射 stTowerBlock::C1 并调用，4.1 在 C1 内联展开 6×
+// stBestRecord_t::C1；二维数组化需同步改 CompoundDeathLCB.cpp/W6_RankMailDeps.cpp
+// 消费点（跨泳道，R1 禁）⇒ N 封顶。
 class CDeathTowerRanking
 {
 public:
@@ -62,8 +67,11 @@ public:
                            unsigned int stage, unsigned int playTime);
     // ORIG 0x08468290 T（_ZN8WongWork18CDeathTowerRanking19checkRenewTopRecordEjjj，
     // 成员 this=表）：返回 1=破纪录，0=未破。
-    int checkRenewTopRecord(unsigned int towerIdx, unsigned int a,
-                            unsigned int b);
+    // [b28d-solo-CDeathTower] 返回类型 bool：ORIG 尾 `call operator>; leave; ret`
+    // 无 movzbl 加宽（P9/P292），调用点 _checkRenewTopRecord 侧 `test %al,%al`。
+    // 返回类型不入 mangled、不改布局/sizeof。
+    bool checkRenewTopRecord(unsigned int towerIdx, unsigned int a,
+                             unsigned int b);
     // ORIG 0x08468de0 T（_ZN8WongWork18CDeathTowerRanking14getVirtualRankEjjj，
     // 成员 this=表）：返回虚拟名次（-1=更好，详见报告）。
     int getVirtualRank(unsigned int towerIdx, unsigned int stage,
@@ -133,6 +141,8 @@ public:
         }
         bool operator==(const stBestRecord_t& other)
         {
+            // [b28d-solo-CDeathTower] verdict=AE/IDENTICAL（18/18，仅尾 nop 填充，
+            // §6.1 豁免）：N96 清绑后自然比较返回形与 ORIG 逐条同形。
             // ORIG 0x08469d30：首比较 jne→mov$0 岛@8469d62；次比较 sete %al 直出@8469d5d
             // （N96 清绑：改自然比较返回形，禁 register asm；残差按 P168a④/N96 判词。）
             if (m_stage != other.m_stage)

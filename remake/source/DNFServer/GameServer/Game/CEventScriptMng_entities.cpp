@@ -67,16 +67,17 @@ void CLevelUpReward::do_action(CUser* user)
         true);
 }
  
- // [b28d-solo-CEventScriptMng_entities] N7 封顶（ndiff=8，17/17）：间接虚调用目标
-//   寄存器 ORIG %ecx vs 4.4.7 恒 %eax（4.4.6 后端实测逐值相同 ⇒ 不可翻）；附 N76
-//   store 装载序（ORIG RHS 值先 / 4.4 LHS 地址先，字段异型化实测未翻）（ORIG 0x0810e168 sz 0x0000002a）
+// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，17/17）：P211 档③——m_script1c
+//   具型化（LevelUpRewardScript*）+ 赋值点 static_cast 异型化 ⇒ store 复现 ORIG
+//   RHS-first；4.4.6 后端同时消 N7（vfn %ecx / this %eax 与 ORIG 同形）。4.4.7 下
+//   该件仍 NEAR（纯 N7 后端差；Main 已路由 4.4.6，dnf_game_cxx.sh b28d-S157 条目）
+//   （ORIG 0x0810e168 sz 0x0000002a）
 void CLevelUpReward::set_event_data(int key, InGameEventScript* script)
 {
     // ORIG 0x810e168：call vtable+0x18（set_event_record_type(key)），再写 +0x1c。
-    /* N7 封顶（b26 NL26）：唯一残差为虚调用 vfn/this/key 寄存器分配差
-     * （ORIG vfn=ecx,this=eax vs 4.4 vfn=eax,this=edx），负例表 N7。 */
+    // [b28d-solo-CEventScriptMng_entities] P211 档③：字段具型化 ⇒ store RHS-first。
     set_event_record_type(key);
-    m_script1c = script;
+    m_script1c = static_cast<LevelUpRewardScript*>(script);
 }
 
 std::string& CLevelUpReward::get_db_table_name()
@@ -182,15 +183,15 @@ std::string& CUsedFatigueGiveItem::get_db_table_name()
     return static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_dbTableName;
 }
 
-// [b28d-solo-CEventScriptMng_entities] N7 封顶（ndiff=8，17/17）：间接虚调用目标
-//   寄存器 ORIG %ecx vs 4.4.7 恒 %eax（4.4.6 后端实测逐值相同 ⇒ 不可翻）；附 N76
-//   store 装载序（ORIG RHS 值先 / 4.4 LHS 地址先，字段异型化实测未翻）（ORIG 0x081105be sz 0x0000002a）
+// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，17/17）：同 CLevelUpReward
+//   ::set_event_data——P211 档③具型化（UsedFatigueGiveItemScript*）+ 4.4.6 消 N7；
+//   4.4.7 下仍 NEAR（纯 N7 后端差，Main 已路由 4.4.6）（ORIG 0x081105be sz 0x0000002a）
 void CUsedFatigueGiveItem::set_event_data(int key, InGameEventScript* script)
 {
     // ORIG 0x81105be。
-    /* N7 封顶（b26 NL26）：同 CLevelUpReward::set_event_data 判词。 */
+    // [b28d-solo-CEventScriptMng_entities] P211 档③：字段具型化 ⇒ store RHS-first。
     set_event_record_type(key);
-    m_script1c = script;
+    m_script1c = static_cast<UsedFatigueGiveItemScript*>(script);
 }
 
 // [b28d-solo-CEventScriptMng_entities] AE：字段 bool 化 + 直存（ORIG 0x081107ea sz 0x0000002a）
@@ -264,31 +265,40 @@ void CUsedFatigueGiveItem::sendEventItemFromFatigue(CUser* user, unsigned int fa
 
 // ============ CAttendance（0x56 → AttendanceScript）============
 
-// [b28d-solo-CEventScriptMng_entities] N7 封顶（ndiff=5，35/35）：虚调用目标
-//   ORIG %edx vs 4.4.7 恒 %eax；Main 实测本 TU 4.4.6 后端逐值相同（P230 补的
-//   4.4.6 收益不适用本 TU）⇒ 4.4.7 下不可翻，P0 禁 register 绑定（ORIG 0x0810e75c sz 0x0000006f）
+// [b28d-solo-CEventScriptMng_entities] N 封顶（P75/N7 复合；残 2 行，35/35）：
+//   P226 已翻内层物化岛（见下），4.4.6 后端已对齐 vfn→%edx。唯一残差 =
+//   ORIG `mov -0xc(%ebp),%eax; movl $0x0,0x4(%esp)` vs 4.4 `movl $0x0,0x4(%esp);
+//   mov -0xc(%ebp),%eax`——receiver 装载先于常量实参压栈（4.1 this-first /
+//   4.4 arg-first，P75 实参装载时刻跨版本差）。18 形探针全败（/tmp/probe_isevt{,2}.cpp：
+//   ->、(*e)、int()、0u、*&*e、两种 cast、三目、嵌套 if、register 局部、具名 int
+//   实参、语句表达式实参等），源形不可择。P0 禁 register asm 绑定
+//   （ORIG 0x0810e75c sz 0x0000006f）
 bool CAttendance::is_eventing()
 {
     // ORIG 0x810e75c：GetRepeatEvent(0x56) 判空后经 vptr+0x34 判 IsEventing(0)，
     // 结果与判空合成一个 bool 条件（双重归一化形态）。
-    // N7：ORIG vfn→%edx / this 从槽回读→%eax；4.4 恒 vfn→%eax / this→%edx
-    // （指令数同 35，仅虚调用寄存器分配差）。S12 探针/穷举无效，判词见上。
     if (CEventEntity::is_eventing())
     {
         CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x56);
-        if (evt != 0 && evt->IsEventing(0))
+        // [b28d-solo-CEventScriptMng_entities] P226 扩展：ORIG 内层条件先物化到
+        //   %eax（`mov $1,%eax; jmp; mov $0,%eax; test %al,%al; je`）再判，属
+        //   「零槽短路物化」——4.4 对裸 `if (evt!=0 && evt->IsEventing(0))` 恒
+        //   jump-thread 成两条件共落 fail 出口（少 5 条）。用语句表达式包住整个
+        //   条件（内不含具名变量）复现 ORIG 物化岛。
+        if (({ evt != 0 && evt->IsEventing(0); }))
             return true;
     }
     return false;
 }
 
-// [b28d-solo-CEventScriptMng_entities] N7 封顶（ndiff=8，17/17）：间接虚调用目标
-//   寄存器 ORIG %ecx vs 4.4.7 恒 %eax（4.4.6 后端实测逐值相同 ⇒ 不可翻）；附 N76
-//   store 装载序（ORIG RHS 值先 / 4.4 LHS 地址先，字段具型化实测未翻）（ORIG 0x0810eadc sz 0x0000002a）
+// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，17/17）：P211 档③——m_script1c
+//   具型化（AttendanceScript*，S12 先例）+ 赋值点 static_cast ⇒ store RHS-first；
+//   4.4.6 后端消 N7（vfn %ecx / this %eax 与 ORIG 同形）。4.4.7 下仍 NEAR（纯 N7
+//   后端差，Main 已路由 4.4.6）（ORIG 0x0810eadc sz 0x0000002a）
 void CAttendance::set_event_data(int key, InGameEventScript* script)
 {
     // ORIG 0x810eadc。
-    /* N7 封顶（b26 NL26）：同 CLevelUpReward::set_event_data 判词。 */
+    // [b28d-solo-CEventScriptMng_entities] P211 档③：字段具型化 ⇒ store RHS-first。
     set_event_record_type(key);
     m_script1c = static_cast<AttendanceScript*>(script);
 }
@@ -403,15 +413,15 @@ bool CPcRoomPlayTime::is_eventing()
     return false;
 }
 
-// [b28d-solo-CEventScriptMng_entities] N7 封顶（ndiff=8，17/17）：间接虚调用目标
-//   寄存器 ORIG %ecx vs 4.4.7 恒 %eax（4.4.6 后端实测逐值相同 ⇒ 不可翻）；附 N76
-//   store 装载序（ORIG RHS 值先 / 4.4 LHS 地址先，字段异型化实测未翻）（ORIG 0x08110872 sz 0x0000002a）
+// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，17/17）：同 CLevelUpReward
+//   ::set_event_data——P211 档③具型化（PcBangPlayTimeScript*）+ 4.4.6 消 N7；
+//   4.4.7 下仍 NEAR（纯 N7 后端差，Main 已路由 4.4.6）（ORIG 0x08110872 sz 0x0000002a）
 void CPcRoomPlayTime::set_event_data(int key, InGameEventScript* script)
 {
     // ORIG 0x8110872。
-    /* N7 封顶（b26 NL26）：同 CLevelUpReward::set_event_data 判词。 */
+    // [b28d-solo-CEventScriptMng_entities] P211 档③：字段具型化 ⇒ store RHS-first。
     set_event_record_type(key);
-    m_script1c = script;
+    m_script1c = static_cast<PcBangPlayTimeScript*>(script);
 }
 
 std::string& CPcRoomPlayTime::get_db_table_name()
@@ -420,13 +430,10 @@ std::string& CPcRoomPlayTime::get_db_table_name()
     return static_cast<PcBangPlayTimeScript*>(m_script1c)->m_dbTableName;
 }
 
-// [b28d-solo-CEventScriptMng_entities] NEAR·N7 封顶（40/40，残 5 行全为 N7）：
-//   N22 已翻正——P248 档①：CUser::getPcRoomPlayTimeRewardCnt 返回类型
-//   int→unsigned int（Main 代落，mangled 不变）⇒ 4.4 复现 ORIG
-//   `call; ...; cmp %edx,%eax; setae`（call 结果留 %eax、零中转；S12 探针 w1/x1 命中，
-//   int callee + 任何调用点写法恒多 `mov %eax,%edx`）。余残差 = N7 虚调用
-//   is_eventing vfn 目标 ORIG %edx vs 4.4.7 恒 %eax（4.4.6 后端实测逐值相同）
-//   （ORIG 0x08110a38 sz 0x00000076）
+// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，40/40）：N22 由 P248 档①
+//   翻正（CUser::getPcRoomPlayTimeRewardCnt int→unsigned int，Main 代落）；
+//   原 N7 残余（is_eventing 虚调用 vfn 目标 %edx vs 4.4.7 恒 %eax）随 4.4.6 路由
+//   消尽 ⇒ 逐条对齐（ORIG 0x08110a38 sz 0x00000076）
 int CPcRoomPlayTime::verifyUserPcRoomPlayEvent(CUser* user)
 {
     // ORIG 0x8110a38：未开事件 → 0xb2；非 0xc 类 premium → 7；
@@ -451,15 +458,15 @@ int CPcRoomPlayTime::verifyUserPcRoomPlayEvent(CUser* user)
 // value-init 前置清零（CWG434/N77）——删后由编译器隐式合成，工厂 12 个 case
 // 的 value-init 清零循环与 ORIG 逐条对齐。
 
-// [b28d-solo-CEventScriptMng_entities] N7 封顶（ndiff=8，17/17）：间接虚调用目标
-//   寄存器 ORIG %ecx vs 4.4.7 恒 %eax（4.4.6 后端实测逐值相同 ⇒ 不可翻）；附 N76
-//   store 装载序（ORIG RHS 值先 / 4.4 LHS 地址先，字段异型化实测未翻）（ORIG 0x0810deda sz 0x0000002a）
+// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，17/17）：同 CLevelUpReward
+//   ::set_event_data——P211 档③具型化（AccountFirstLoginScript*）+ 4.4.6 消 N7；
+//   4.4.7 下仍 NEAR（纯 N7 后端差，Main 已路由 4.4.6）（ORIG 0x0810deda sz 0x0000002a）
 void CAccountFirstLogin::set_event_data(int key, InGameEventScript* script)
 {
     // ORIG 0x810deda。
-    /* N7 封顶（b26 NL26）：同 CLevelUpReward::set_event_data 判词。 */
+    // [b28d-solo-CEventScriptMng_entities] P211 档③：字段具型化 ⇒ store RHS-first。
     set_event_record_type(key);
-    m_script1c = script;
+    m_script1c = static_cast<AccountFirstLoginScript*>(script);
 }
 
 std::string& CAccountFirstLogin::get_db_table_name()
@@ -507,15 +514,15 @@ void CAccountFirstLogin::do_action(int flags, CUser* user, std::bitset<32u> /*bs
 
 // ============ CAddItemCountDB（0x193 → AddItemCountDBScript）============
 
-// [b28d-solo-CEventScriptMng_entities] N7 封顶（ndiff=8，17/17）：间接虚调用目标
-//   寄存器 ORIG %ecx vs 4.4.7 恒 %eax（4.4.6 后端实测逐值相同 ⇒ 不可翻）；附 N76
-//   store 装载序（ORIG RHS 值先 / 4.4 LHS 地址先，字段异型化实测未翻）（ORIG 0x0810e064 sz 0x0000002a）
+// [b28d-solo-CEventScriptMng_entities] AE（4.4.6 路由，17/17）：同 CLevelUpReward
+//   ::set_event_data——P211 档③具型化（AddItemCountDBScript*）+ 4.4.6 消 N7；
+//   4.4.7 下仍 NEAR（纯 N7 后端差，Main 已路由 4.4.6）（ORIG 0x0810e064 sz 0x0000002a）
 void CAddItemCountDB::set_event_data(int key, InGameEventScript* script)
 {
     // ORIG 0x810e064。
-    /* N7 封顶（b26 NL26）：同 CLevelUpReward::set_event_data 判词。 */
+    // [b28d-solo-CEventScriptMng_entities] P211 档③：字段具型化 ⇒ store RHS-first。
     set_event_record_type(key);
-    m_script1c = script;
+    m_script1c = static_cast<AddItemCountDBScript*>(script);
 }
 
 std::string& CAddItemCountDB::get_db_table_name()

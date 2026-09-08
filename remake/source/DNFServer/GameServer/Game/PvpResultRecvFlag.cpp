@@ -12,7 +12,7 @@ public:
     ~PvpResultRecvFlag();
 
     bool IsValidIdx(int idx) const;
-    char IsRecv(int idx) const;
+    bool IsRecv(int idx) const;
     void SetRecvFlag(int idx);
     void Clear();
 
@@ -27,15 +27,6 @@ PvpResultRecvFlag::PvpResultRecvFlag()
 
 PvpResultRecvFlag::~PvpResultRecvFlag()
 {
-}
-
-char PvpResultRecvFlag::IsRecv(int idx) const
-{
-    if (idx < 0 || idx > 7)
-    {
-        return 0;
-    }
-    return m_flag[idx];
 }
 
 void PvpResultRecvFlag::SetRecvFlag(int idx)

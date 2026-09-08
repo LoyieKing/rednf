@@ -418,21 +418,33 @@ int TimerDBUpdate::dispatch_sig(int p1, int p2, unsigned int p3)
 TimerStamina::TimerStamina() {}
 TimerStamina::~TimerStamina() {}
 // [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x08633c90 见 report。
-// [b28d-solo-TimerDispatcher] 判词 N7/N82附 封顶：三 getter 结果 callee-saved 角色轮换
-// （ORIG edi/esi/ebx vs 4.4 esi/ebx/edi），实参压栈序相同。
+// [b28d-solo-TimerDispatcher] 判词 N7 封顶：DIFF→NEAR（95/95 助记符全等）。
+// 修法：①P0 删具名 `updateCount`（ORIG 无槽，08633d6c `mov %eax,%ebx` 后 cmp 直用）
+// ——内联后 user 槽回 -0x1c（原 -0x20 全帧平移）；②P63 合并短路拆三条独立守卫
+// （ORIG 08633cea/08633d09/08633d41 共享同一 leave 出口）；③求值序左操作数写
+// GetCurCharacLuckPointUpdateTimeCount（ORIG 先求该 getter 入 %ebx）。
+// 残差 = 尾部三 getter callee-saved 角色轮换（ORIG edi/esi/ebx vs 4.4 esi/ebx/edi），
+// 实参压栈序相同 ⇒ N7。
 int TimerStamina::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 4);   // ORIG 0x08633c90 第2参固定 4（p2 仅用于 loginTick 比对）
-    if (user == 0 || user->GetLoginTick() != p2 ||
-        (p3 != 0 && static_cast<unsigned int>(user->get_charac_no(-1)) != p3))
-    {
+    // P63：ORIG 三段独立早退共享同一 leave 出口（08633cea/08633d09/08633d41 均
+    // `mov $0,%eax; jmp +0x150`），故拆三条独立守卫而非合并短路。
+    if (user == 0)
         return 0;
-    }
+    if (user->GetLoginTick() != p2)
+        return 0;
+    if (p3 != 0 && static_cast<unsigned int>(user->get_charac_no(-1)) != p3)
+        return 0;
     user->recover_stamina();
     user->IncCurCharacLuckPointUpdateTimeCount();
-    const int updateCount = user->GetCurCharacLuckPointUpdateTimeCount();
     // P48 no-CSE：ORIG 每处 use 各自 fresh G_CDataManager()（m_84 / m_80 共 2 次）。
-    if (G_CDataManager()->m_serverParameter.m_84 <= updateCount)
+    // P0：ORIG updateCount 无栈槽（0x0b0 `mov %eax,%ebx` 后 cmp 直用）⇒ 原码无具名
+    // 局部，表达式内联（旧具名形多占 -0x1c 槽使 user 槽 -0x1c→-0x20 全帧平移）。
+    // P243 同族（求值序）：ORIG 先求 GetCurCharacLuckPointUpdateTimeCount（%ebx）后
+    // 求 G_CDataManager ⇒ 左操作数写成该 getter（4.4 先求左）。
+    if (user->GetCurCharacLuckPointUpdateTimeCount() >=
+        G_CDataManager()->m_serverParameter.m_84)
     {
         user->IncCurCharacLuckPoint(G_CDataManager()->m_serverParameter.m_80);
         user->SetCurCharacLuckPointUpdateTimeCount(0);
@@ -759,10 +771,18 @@ int TimerAvatarExpire::CheckExpiredAvatar(CUser* user)
 TimerStatisticsLog::TimerStatisticsLog() {}
 TimerStatisticsLog::~TimerStatisticsLog() {}
 // [b28d-30] 复核 DIFF：帧/callee-saved 跨版本差（N7/N82 族），ORIG 0x08633f3d 见 report。
-// [b28d-solo-TimerDispatcher] 判词 N80/N82 封顶：cMyTrace varargs 求值序（ORIG ctor 后
-// 压参）+ 槽 -0x19↔-0x9 + 帧 0x5c↔0x60（107/108）。
+// [b28d-solo-TimerDispatcher] 判词 N82 封顶：DIFF→NEAR（107/107）。
+// 修法：①P231/P307 后三 getter 结果加纯 register（非 asm 绑定）⇒ 复现 ORIG
+// %edi/%esi/%ebx 跨 cMyTrace ctor 保活（删槽）；②P212 前三 getter 局部提函数头。
+// 残差 = 前三槽 -0x44/-0x40/-0x3c vs -0x28..（4.1 声明序深槽 vs 4.4 首次使用序）
+// + cMyTrace varargs 求值序 ⇒ N80/N82。
 int TimerStatisticsLog::dispatch_sig(int p1, int p2, unsigned int p3)
 {
+    // P212 全头部声明：ORIG 三 getter 结果落深槽 -0x44/-0x40/-0x3c、trace -0x2c、
+    // guard -0x34；4.4 块内声明按首次使用序落浅槽 ⇒ 提至函数头复现块级槽序。
+    int cacheLoadFailOverflowCount;
+    int cacheLoadFailCount;
+    int cacheLoadOverflowCount;
     // ORIG 0x08633f3d-0x08633f54：Acquire 结果 %eax 直落 guard ctor 0x4(%esp)
     // （技巧36 删 s 中转槽）
     // ORIG 0x08633f25-0x08633fce：guard 生命周期止于 put 后（dtor+catch 块夹在
@@ -777,17 +797,19 @@ int TimerStatisticsLog::dispatch_sig(int p1, int p2, unsigned int p3)
 
     // ORIG 0x08633fe0/0x08633ff0/0x086334000：前三 getter 结果槽 -0x44/-0x40/-0x3c
     //（4.1 声明序布局；4.4 按生命周期落 -0x28..近端，槽序不可翻=N 族残差）
-    int cacheLoadFailOverflowCount = exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadFailOverflowCount();
-    int cacheLoadFailCount = exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadFailCount();
-    int cacheLoadOverflowCount = exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadOverflowCount();
+    cacheLoadFailOverflowCount = exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadFailOverflowCount();
+    cacheLoadFailCount = exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadFailCount();
+    cacheLoadOverflowCount = exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadOverflowCount();
     // ORIG 0x08634010/0x0863401f/0x0863402e：后三 getter 结果直落
     // %edi/%esi/%ebx 跨 ctor 存活；绑定版残差=装载时多一条重排 mov（probe 实测
     // N96/P0：绑定形已废（三 callee 结果寄存器缓存残差记 N76/N82附）。
-    int cacheLoadCount =
+    // P231/P307：ORIG 后三 getter 结果直落 %edi/%esi/%ebx 跨 cMyTrace ctor 保活
+    // （无栈槽）⇒ 纯 register 存储类提示（非 asm 绑定，P0 合规）。
+    register int cacheLoadCount =
         exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadCount();
-    int dbLoadOverflowCount =
+    register int dbLoadOverflowCount =
         exchange_server::GetInstanceExchangeServerHitRate()->GetDBLoadOverflowCount();
-    int dbLoadCount =
+    register int dbLoadCount =
         exchange_server::GetInstanceExchangeServerHitRate()->GetDBLoadCount();
 
     cMyTrace trace(__PRETTY_FUNCTION__, 0x637, 0);
@@ -1414,7 +1436,12 @@ int TimerBloodDungeonClearReward::dispatch_sig(int p1, int p2, unsigned int p3)
 TimerUltimateNextRoundStart::TimerUltimateNextRoundStart() {}
 TimerUltimateNextRoundStart::~TimerUltimateNextRoundStart() {}
 // [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x08635xxx 见 report。
-// [b28d-solo-TimerDispatcher] 判词 N82/N93 封顶：帧/槽位跨版本差（94/100）。
+// [b28d-solo-TimerDispatcher] 判词 N4/N7 封顶：94/97（原 94/100）。
+// 修法：①P183 删 `CBattle_Field* field = &party->m_battleField` 缓存（ORIG 每站点
+// 重发 `mov -0x10(%ebp),%eax; add $0xb24,%eax`）；②get_blood_dungeon_type() 外联
+// call 改直读 m_bloodDungeonType（ORIG `movzbl 0x89f(%eax),%eax`）。
+// 残差 = sendUltimateRandomDifficulty 的 `add $0xb24` vs 4.4 `lea 0xb24` + 实参
+// 装载序（P30/N4）+ 条件物化 ⇒ N4/N7。
 int TimerUltimateNextRoundStart::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1422,25 +1449,29 @@ int TimerUltimateNextRoundStart::dispatch_sig(int p1, int p2, unsigned int p3)
     {
         return 0;
     }
+    // P133 反例实测：拆两条独立 if 使 4.4 多产 `mov $1; test; je` 物化（94→99），
+    // 保持合并短路 `||`（ORIG 08638daf 同一失败落点，4.4 直跳形）。
     if (party->m_battleField.m_pDungeon == 0 ||
-        party->m_battleField.m_pDungeon->get_blood_dungeon_type() != 2)
+        party->m_battleField.m_pDungeon->m_bloodDungeonType != 2)
     {
         return 0;
     }
-    CBattle_Field* field = &party->m_battleField;   // ORIG：party+0xb24 子对象
-    if (field->getUltimateDifficylty() != 0)
+    // P183 地址重物化铁律：ORIG 每个站点重发 `mov -0x10(%ebp),%eax; add $0xb24,%eax`
+    // （08638dfb/08638e2f/08638e5c 等），禁缓存 `CBattle_Field* field = &party->m_battleField`。
+    if (party->m_battleField.getUltimateDifficylty() != 0)
     {
         return 0;
     }
-    const int diff = field->getNextRoundRandomDifficulty();
-    field->setUltimateDifficulty(static_cast<char>(diff));
+    const int diff = party->m_battleField.getNextRoundRandomDifficulty();
+    party->m_battleField.setUltimateDifficulty(static_cast<char>(diff));
     // P48 no-CSE：ORIG 两次 fresh getBloodRoundOrder()（比较用 + send 实参用）
-    if (static_cast<short>(field->m_bloodRound.getBloodRoundOrder()) != field->getBloodMaxRound() - 1)
+    if (static_cast<short>(party->m_battleField.m_bloodRound.getBloodRoundOrder()) !=
+        party->m_battleField.getBloodMaxRound() - 1)
     {
-        field->sendUltimateRandomDifficulty(
-            static_cast<short>(field->m_bloodRound.getBloodRoundOrder()), diff);
+        party->m_battleField.sendUltimateRandomDifficulty(
+            static_cast<short>(party->m_battleField.m_bloodRound.getBloodRoundOrder()), diff);
     }
-    field->startUltimateRound();
+    party->m_battleField.startUltimateRound();
     return 1;
 }
 TimerEventChristmas::TimerEventChristmas() {}
@@ -1615,7 +1646,7 @@ int TimerNatTypeUser::RegistNextTimer()
 
 TimerCheckMailTimeOut::TimerCheckMailTimeOut() {}
 TimerCheckMailTimeOut::~TimerCheckMailTimeOut() {}
-// [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x08635d0f 见 report。
+// [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x08635xxx 见 report。
 // [b28d-solo-TimerDispatcher] 判词 N82/N93 封顶：帧/槽位跨版本差（106/109）。
 int TimerCheckMailTimeOut::dispatch_sig(int p1, int p2, unsigned int p3)
 {
@@ -2161,33 +2192,42 @@ int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 TimerLightServerNotice::TimerLightServerNotice() {}
 TimerLightServerNotice::~TimerLightServerNotice() {}
 // [b28d-30] 复核 DIFF：越界检查形/帧差（N82 族），ORIG 0x08636a7c。
-// [b28d-solo-TimerDispatcher] 判词 N82 封顶：越界检查形 + 帧差（112/115）。
-int TimerLightServerNotice::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int p3)
+// [b28d-solo-TimerDispatcher] 判词 N104 封顶：P183 去 notices/packet 缓存 + 真语义
+// bug（第二形参）修正后 112/112 助记符全等；唯一残差 = EH 尾块相对序（ORIG 正常路径
+// D1 在 +0x183 最末、unwind 块居中 +0x168；4.4 就地内联 D1、unwind 压最末）⇒ N104。
+// [b28d-solo-TimerDispatcher] 真语义 bug 修正：ORIG 全程读 **0x10(%ebp) = 第二形参**
+// （越界检查 08636a84、size 08636a9f、operator[] 08636b1c、RegistNextTimer 08636bb6），
+// 旧码误用第三形参 p3（0x14(%ebp)）。
+int TimerLightServerNotice::dispatch_sig(int /*p1*/, int p2, unsigned int /*p3*/)
 {
-    // ORIG 0x08636a7c：越界检查（p3 负或 >= size 直接 false）→ 构造 0xc 包
-    // {byte 0, short 0, byte 0, int len, str} 广播 → RegistNextTimer(p3)。
-    std::vector<stLightServerNotice_t>& notices =
-        G_CDataManager()->m_serverParameter.m_light3c;
-    if (static_cast<int>(p3) < 0 || p3 >= notices.size())
+    // ORIG 0x08636a7c：越界检查（idx 负或 >= size 直接 false）→ 构造 0xc 包
+    // {byte 0, short 0, byte 0, int len, str} 广播 → RegistNextTimer(idx)。
+    // P183 地址重物化铁律：ORIG 每个站点重发 `call G_CDataManager; add $0xa4,%eax`
+    // （08636a8d/08636b1f/08636b58），禁 `std::vector<...>& notices = ...` 引用缓存。
+    if (p2 < 0 ||
+        static_cast<unsigned int>(p2) >=
+            G_CDataManager()->m_serverParameter.m_light3c.size())
     {
         return 0;
     }
     PacketGuard guard;
-    InterfacePacketBuf& packet = static_cast<InterfacePacketBuf&>(guard);
-    packet.put_header(0, 0xc);
-    packet.put_byte(0);
-    packet.put_short(0);
-    packet.put_byte(0);
-    int len = notices[p3].m_message.size();
+    // P89/P183：ORIG 每站点 `lea -0x1c(%ebp),%eax; mov %eax,(%esp)`（guard 地址直传），
+    // 禁具名 `InterfacePacketBuf& packet`（多占 -0x18 槽）。
+    static_cast<InterfacePacketBuf&>(guard).put_header(0, 0xc);
+    static_cast<InterfacePacketBuf&>(guard).put_byte(0);
+    static_cast<InterfacePacketBuf&>(guard).put_short(0);
+    static_cast<InterfacePacketBuf&>(guard).put_byte(0);
+    int len = G_CDataManager()->m_serverParameter.m_light3c[p2].m_message.size();
     // ORIG 0x08636b50：先 put_int(len) 再 put_str
-    packet.put_int(len);
-    packet.put_str(notices[p3].m_message.c_str(), len);
-    packet.finalize(true);
+    static_cast<InterfacePacketBuf&>(guard).put_int(len);
+    static_cast<InterfacePacketBuf&>(guard).put_str(
+        G_CDataManager()->m_serverParameter.m_light3c[p2].m_message.c_str(), len);
+    static_cast<InterfacePacketBuf&>(guard).finalize(true);
     G_GameWorld()->send_all(guard);
-    const bool done = RegistNextTimer(static_cast<int>(p3));
-    // N96/P0：绑定形已废；具名 bool done 槽 + 自然 if(!done)（4.4 恒折
-    // cmpb 直判，ORIG movzbl+xor 寄存器物化属 setcc-fold 负例在册）。
-    int ret;
+    const bool done = RegistNextTimer(p2);
+    // P231/P307：ORIG 汇聚变量驻 %ebx（08636bd6 `mov $0x0,%ebx` / 08636bdd
+    // `mov $0x1,%ebx`）且无栈槽 ⇒ 纯 register 存储类提示（非 asm 绑定，P0 合规）。
+    register int ret;
     if (!done)
         ret = 0;
     else
@@ -3378,7 +3418,8 @@ int TimerUpdateCompoundEmblemStatics::dispatch_sig(int p1, int p2, unsigned int 
         const unsigned int dbGrade1 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(1));
         const unsigned int dbGrade0 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(0));
         DB_UpdateCompoundEmblemStatics::makeRequest(
-            *(const int*)((const char*)G_CEnvironment() + 0x1b0),
+            // §4.3 具名化：+0x1b0 = m_serverEnvir(+0x198).m_channelNo(+0x18)
+            G_CEnvironment()->m_serverEnvir.m_channelNo,
             dbGrade0, dbGrade1, dbGrade2, dbGrade3, dbGrade4, dbGrade5, dbGrade6);
     }
     registNextTimer();
@@ -3388,8 +3429,11 @@ int TimerUpdateCompoundEmblemStatics::dispatch_sig(int p1, int p2, unsigned int 
 
 // ORIG T _ZN32TimerUpdateCompoundEmblemStatics15registNextTimerEv @0x0863939a
 // [b28d-30] 复核 DIFF：localtime_r 返回指针视图/槽差（P43/N82 族），ORIG 0x0863939a。
-// [b28d-solo-TimerDispatcher] 判词 N1 封顶：P43 指针访问已修；残差 = `%0x1e` 展开
-// lea+shl+sub vs add+shl+sub（74/74）。
+// [b28d-solo-TimerDispatcher] 判词 N1 封顶：74/73。修法：①P43 指针访问已修；
+// ②§4.3 具名化 `*(const int*)((const char*)G_CEnvironment() + 0x1b0)` →
+// `G_CEnvironment()->m_serverEnvir.m_channelNo`（CEnvironment.h:132，ORIG
+// `mov 0x1b0(%eax),%ecx` 单条 disp 已匹配）。残差 = `%0x1e` 常量除法展开
+// lea+shl+sub vs add+shl+sub（源形不可择）⇒ N1。
 int TimerUpdateCompoundEmblemStatics::registNextTimer()
 {
     const time_t now = static_cast<time_t>(GlobalData::s_systemTime_.getCurSec());
@@ -3401,7 +3445,9 @@ int TimerUpdateCompoundEmblemStatics::registNextTimer()
     p->tm_hour = 5;
     p->tm_min = 0;
     p->tm_sec = 0;
-    p->tm_min = *(const int*)((const char*)G_CEnvironment() + 0x1b0) % 0x1e;
+    // §4.3 具名化：+0x1b0 = CEnvironment::m_serverEnvir(+0x198).m_channelNo(+0x18)
+    // （CEnvironment.h:132 权威声明；ORIG `mov 0x1b0(%eax),%ecx` 单条 disp）。
+    p->tm_min = G_CEnvironment()->m_serverEnvir.m_channelNo % 0x1e;
     int target = static_cast<int>(mktime(p));
     if (p->tm_hour <= curHour)
         target += 0x15180;
@@ -3989,9 +4035,8 @@ int Timer_Send_Ontime_Reward::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int 
         // ORIG +0x58: process_send_reward_to_user()
         ev->process_send_reward_to_user();
         // ORIG +0x63: get_ontime_reward_user_count()
-        // [b28d-30] ORIG +0x6d `jne +0xb0; jmp +0xb5`（then 块在后、return 1 共享尾）；
-        // 4.4 对裸 if/goto 尾标签均产 `je 跳过` 镜像布局（goto 形另加 nop+jmp，实测
-        // 反劣）⇒ 保留最短裸 if 形，块排布差记 N93附/P223 封顶。
+        // [b28d-solo] ORIG +0x6d `jne +0xb0; jmp +0xb5`（call 块落函数最末、`mov $1`
+        // 共享尾）；goto 尾标签形实测 52→54 反劣（jump-thread + nop 岛），保留裸 if。
         if (ev->get_ontime_reward_user_count() != 0)
         {
             RegistNextTimer();

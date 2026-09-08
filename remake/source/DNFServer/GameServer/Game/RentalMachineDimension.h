@@ -37,7 +37,7 @@ public:
 
 private:
     bool checkAllRentalItemScript();   // ORIG T @0x0826f022
-    int checkSelectionListScript(
+    bool checkSelectionListScript(
         const std::vector<std::vector<EventRewardItemInfo> >& list);         // T @0x0826f14e
     int GetRentItemInfo(CUser& user,
                         const InstanceRentalSystem::RentInput::RentInElem& elem,

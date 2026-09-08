@@ -759,6 +759,8 @@ void WarRoom::MakeStateInfo(char* buf)
     //   receiver-first（先 `mov -0xc(%ebp),%eax` 装 p，实参 scratch 用 %edx），
     //   4.4 恒 arg-first（实参 scratch %eax 后压、再装 receiver）。探针
     //   /tmp/probe_rcv.cpp t1..t10（指针/引用/解引用/cast 全形）均 arg-first ⇒ 封顶。
+    //   本轮 fresh .o 复测：ndiff=11（orig 26/our 25），显式 (int) cast 类型旋钮
+    //   （P265/P319）零变化 ⇒ 判 N7/P75（实参装载时刻跨版本）。
     InterfacePacketBuf& p = *(InterfacePacketBuf*)buf;
     // [b28BM13 N18a/P75] ORIG 086be089/086be0a4/086be0bb：4.1 先把实参值物化
     // 到 %edx 再统一装 esp 槽；4.4 恒「即装即压」落 %eax（单段 mem→%edx 不可
@@ -773,6 +775,8 @@ void WarRoom::MakeRoomInfo(char* buf)
     // [b28d-solo-WarRoom] DIFF(67) | ORIG 0x086bdd58 | ①已修：m_pDungeon
     //   分支块序翻正（ORIG `test;je <if体>` = 非 0 直落，旧形反）；②残余为
     //   N82附 receiver-first vs arg-first（probe_rcv.cpp 十形全败）⇒ 封顶。
+    //   本轮 fresh .o 复测：ndiff=45（orig 94/our 93），P267 双 cast
+    //   `(unsigned char)(unsigned int)` 旋钮零变化 ⇒ 判 N7/P75。
     InterfacePacketBuf* p = (InterfacePacketBuf*)buf;
     p->put_short(m_index);
     p->put_byte((unsigned char)m_field8);
@@ -801,6 +805,8 @@ void WarRoom::MakeSlotInfo(char* buf, int seat)
     //   probe_rcv.cpp 十形全败 ⇒ 封顶。语义/调用序与 ORIG 一致。
     // ORIG 0x86be1xx：buf 物化 -0x14 局部槽，后续全部从槽读（p 指针局部）。
     InterfacePacketBuf* p = (InterfacePacketBuf*)buf;
+    // ORIG 0x086bde0x 首调用 receiver-first（`mov -0x14(%ebp),%eax` 先于常量压栈）；
+    // 内联 cast 形（P277 反向）实测 ndiff 50 不变 ⇒ 保持 p-> 形。
     p->put_header(0, 0x59);
     p->put_short(m_index);
     if (seat == 0xffff)
@@ -1158,9 +1164,14 @@ void WarRoom::CalcGuildFP()
 
 void WarRoom::SendGuildFP()
 {
-    // [b28d-solo-WarRoom] DIFF(225) | ORIG 0x086bc0b0 | N82附 槽差（循环变量 i
-    //   ORIG -0x20 vs 4.4 -0x1c，PacketGuard 槽位连动）+ 4.1 for 体尾 jmp 中继岛
-    //   （0x086bc0xx `jmp <incr>` 结构，4.4 fall-through）。P167 CLEAR(32/32)。
+    // [b28d-solo-WarRoom] DIFF | ORIG 0x086bc0b0 | 本轮 fresh .o ndiff 38→30
+    //   （our 263 / orig 267，P167 CLEAR 32/32）：①P97/P244 logFormat 的 vararg
+    //   来源改具名 bestSlot（ORIG 从 -0x14 槽装载，非字面量 0xffffffff）；
+    //   ②P225 推广把 while 内 `&&` 短路链拆嵌套 if ⇒ 复现 ORIG 第三条件
+    //   `cmp; setge %al; test; je` 物化。残余 = N82附 槽差（i ORIG -0x20 vs
+    //   4.4 -0x1c、minFp -0x1c vs -0x18、count -0x18 vs -0x20，PacketGuard 连动）
+    //   + 4.1 for 体尾 `jmp <incr>` 中继岛（0x086bc0xx，4.4 fall-through；
+    //   P225 while+break 复测 ndiff 30→40 反劣）⇒ N82 封顶。
     PacketGuard packet;
     packet.put_header(0, 0x60);
     packet.put_byte(GetWaiterCount());
@@ -1168,6 +1179,9 @@ void WarRoom::SendGuildFP()
     {
         if (m_slots[i] != 0)
         {
+            // ORIG 0x086bc127：`setl %al; test %al,%al; je <incr>` + body +
+            //   体尾 `jmp <incr>`（4.1 bool 物化四段形）；4.4 对 if(cond) 恒 jl
+            //   直跳 ⇒ P225 while+break 实测 ndiff 30→40 反劣，保持 if 形。
             if ((m_slotsUser[i])->GetFinishPointTotal() <
                 G_CDataManager()->m_warAreaCounter.m_kickPoint)
             {
@@ -1210,17 +1224,28 @@ void WarRoom::SendGuildFP()
         int bestFp = -1;
         for (int i = 0; i <= 5; ++i)
         {
-            if ((m_slots[i] != 0) && (local_3a[i] == 0) &&
-                (bestFp <= (m_slotsUser[i])->GetFinishPointTotal()))
+            // [b28d-solo-WarRoom P225 推广] ORIG 0x086bc3xx：第三条件独立成 if
+            //   （call 结果 vs 槽比较物化 `cmp; setge %al; test; je`）；&& 短路链
+            //   在 4.4 恒折成 jl/mov$1/jmp/mov$0 物化链 ⇒ 拆嵌套 if 复现。
+            if (m_slots[i] != 0)
             {
-                bestFp = (m_slotsUser[i])->GetFinishPointTotal();
-                bestSlot = i;
+                if (local_3a[i] == 0)
+                {
+                    if (bestFp <= (m_slotsUser[i])->GetFinishPointTotal())
+                    {
+                        bestFp = (m_slotsUser[i])->GetFinishPointTotal();
+                        bestSlot = i;
+                    }
+                }
             }
         }
         if (bestSlot == -1)
         {
+            // [b28d-solo-WarRoom P97/P244] ORIG 0x086bc3xx：vararg 从具名局部槽
+            //   -0x14(%ebp) 装载（`mov -0x14(%ebp),%eax; mov %eax,0x14(%esp)`），
+            //   即实参来源是 bestSlot（此处恒 -1），非字面量 0xffffffff。
             LogManager::logFormat(1, "WarRoom.cpp", __PRETTY_FUNCTION__, 0x430,
-                                  "maxPlayer (%d)", 0xffffffff);
+                                  "maxPlayer (%d)", bestSlot);
         }
         local_3a[bestSlot] = 1;
         packet.put_byte(bestSlot);
@@ -2429,12 +2454,14 @@ int EnterWarRoom(CUser* user, WarRoom* room, ENUM_CMDPACKET cmd)
 // ============================================================================
 int ImportWarRoomWPTable(stBloodWarGrowTable* table)
 {
-    // [b28d-solo-WarRoom] DIFF(91) | ORIG 0x08902543 | 帧差 0x40(ORIG) vs
-    //   0x50(4.4)：ORIG token@-0x10/ok@-0x11/row@-0x20/p@-0x28，4.4 各槽深 4
-    //   （std::string 临时与 vector 槽序 = N82附/N93 族）；另 ORIG 0x089025ad/
-    //   0x089025b0 两处 nop 中继岛（外层 while 的 4.1 if 空块占位）为 P223 形，
-    //   与 do-while 嵌套叠加后本轮穷举 goto 尾标签三形未闭合（岛落点分属两层
-    //   循环）⇒ N82+P223 封顶。语义与 ORIG 一致。
+    // [b28d-solo-WarRoom] DIFF | ORIG 0x08902543 | 本轮 fresh .o ndiff 76→10
+    //   （our 119 / orig 123，P167 CLEAR 16/16）：①P283/P164 while(true)+break
+    //   复现 ORIG 循环头 `call ScanType; xor $0x1; test; jne` 否定形；
+    //   ②P0 判读去掉具名 `bool again`（ORIG 无槽往返，物化在 %ebx）⇒ do-while
+    //   直接复用 ok。残余 10 行 = 帧差 0x40(ORIG)/0x50(4.4) + 槽平移 4
+    //   （std::string/vector 槽序，N82附/N93）+ ORIG 的 %ebx 物化四段形
+    //   （`mov $0/$1,%ebx` 与 `test %ebx,%ebx; je`；register 提示实测方向相反）
+    //   ⇒ N82 封顶。语义与 ORIG 一致。
     if (!loadRDARScriptFile("", "Etc/WarRoomWPTable.tbl"))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp", __FUNCTION__, 0xdb8,
@@ -2443,9 +2470,13 @@ int ImportWarRoomWPTable(stBloodWarGrowTable* table)
     }
     std::string token;
     bool ok = false;
-    bool again;
-    while (ScanType(token, true))
+    // [b28d-solo-WarRoom P283/P164] ORIG 0x0890259x 循环头为
+    //   `call ScanType; xor $0x1,%eax; test %al,%al; jne <body>`（否定跳转）+
+    //   两处 nop 中继岛；4.4 对 while(cond) 恒正向 `test;je` ⇒ while(true)+break 试翻。
+    while (true)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[WP TABLE]")
         {
             do
@@ -2466,13 +2497,11 @@ int ImportWarRoomWPTable(stBloodWarGrowTable* table)
                 {
                     if (table != 0)
                         table->push_back(row);
-                    again = true;
                 }
-                else
-                {
-                    again = false;
-                }
-            } while (again);
+                // [b28d-solo-WarRoom P0] ORIG 0x089025xx 循环尾用寄存器物化
+                //   （`mov $0x1,%ebx` / `mov $0x0,%ebx`，无栈槽往返）⇒ 原码无
+                //   具名 again 局部，do-while 条件直接复用 ok（实测 ndiff 64→10）。
+            } while (ok);
         }
     }
     return 1;

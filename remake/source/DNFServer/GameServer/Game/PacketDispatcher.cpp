@@ -2,10 +2,17 @@
 // 全部方法逐指令转写自 docs/class_func_reports/PacketDispatcher/ 与 objdump；
 // 注册表取自 ORIG ctor 0x8590a2e 的 new+槽位序列（顺序一致）。
 // ============================================================================
-// b28d-solo-PacketDispatcher 判词表（本 TU 独占）。PacketTypes.h patch 落地后 fresh
-// （check_tu_routed.sh / compare_tu_game_orig.py，2026-09-08）：
-//   119 件 = 5 IDENTICAL/AE + 7 NEAR + 107 DIFF；ndiff 分布 0×5 / 3×21 / 8×51 /
-//   10×6 / 12×9 / 13×3 / 16×11 / 20×9 / 24×3 / 127×1（大件）。
+// b28d-solo-S153 终态（fresh /tmp/tu_PacketDispatcher.o，compare_tu clean 口径，2026-09-09）：
+//   清单 115 件 = 7 IDENTICAL_AE + 1 NEAR + 107 DIFF。
+//   · N-SIZE 族已落地：Main 落 PacketDispatcher.h `ParamBase` pack(1)；本泳道落 PacketTypes.h
+//     20 类尾部 pad/对齐（21 类实测槽差归零，逐类证据见各类注释与
+//     /tmp/b28d_solo_PacketDispatcher_sizepatch.md）⇒ MSG_RENAME_CREATURE/MSG_ENCHANT/
+//     MSG_COMPATIBILITY_INDEX 等 3 件 DIFF/NEAR→AE。
+//   · 余 2 类 Main 否决并封 N：MSG_DELETE_ITEM（+4 与 DisPatcherCore TailView assert@0x4bf
+//     冲突）、MSG_CLIENT_SPEC_STATISTIC（需缩 CUser.h Client_Spec，冻结头）。
+//   · 剩余 107 DIFF = N7（4.4.6 虚目标 %ecx vs ORIG %edx + &msg/&param 物化序；三后端 +
+//     13 源形穷举封顶）与 N-MSG_BASE（空体 ctor 独立对象多发 3 条 call；P298 承载器因发明
+//     242 符号回退）。
 //   已落地修法：①doDispatch 返回 bool（P292，ORIG 0x8594f7e xor $1 调用点实证）；
 //     ②dispatch 逐条重排（int packetClass/short cmd/内联 checker+history/嵌套 if）；
 //     ③doDispatch 去 clientCrc 局部（P183）+ antibot && 拆嵌套 if。
@@ -131,8 +138,73 @@
 // [8251008] DIFF N7                     MSG_GOLD_TAKE_INCREASING_AMOUNT/stGoldTakeIncreasingAmount/0
 // [82506ae] DIFF N7                     MSG_EXPAND_EQUIPSLOT_FLAG_UPDATE/stExpandEquipslotFlagUpdate/3
 // [824c9ba] DIFF N7                     MSG_AVATAR_DISJOINT_RANDOM_REWARD/stAvatarDisjointRandomReward/0
-// [8594e52] DIFF N7/N18a                PacketDispatcher::dispatch
-// [8594922] DIFF N82/N18a/P1974         PacketDispatcher::doDispatch
+// [8594e52] AE   S161 三修               PacketDispatcher::dispatch
+// [8594922] DIFF N82/P1974(gap=2)        PacketDispatcher::doDispatch
+// ============================================================================
+// b28d-solo-S161 终态（fresh /tmp/tu_PacketDispatcher.o，check_tu_routed/compare_tu clean，2026-09-09）：
+//   本泳道清单 111 件 = **4 AE + 1 NEAR + 106 DIFF**（S153 移交 7AE+1NEAR+107DIFF 的 115 件
+//   清单口径不同：本清单仅含 IPacketDispatcher 实例 + dispatch/doDispatch）。
+//   TU 全局：identical=394 ae=1537 near=1 diff=109（无回归；S153 移交基线 ae=1533/near=4）。
+//   · **N-SIZE 落地（Main 授权，PacketTypes.h 14 类尾部 pad）**：stSelectStriker 0x4→0x5、
+//     stStackableActionUse 0x7→0xb、stTournamentRewardSelect 0x4→0x5、MSG_TELEPORT +2、
+//     MSG_BOSS_DIE_CHECK +2、MSG_DIE_CHARACTER +1、MSG_CHANGE_HOST_WARROOM +1、
+//     MSG_OBJECT_BRING_UP +1、MSG_MAILBOX_EXTRACT_ITEM +2、MSG_REQUEST_DISJOINT_ITEM +1、
+//     MSG_PVP_MISSION_COMBO_CLEAR +1、MsgLimitNpcBuyItem +1、MsgMercenaryCompetition +1、
+//     MsgMercenaryReturn +1 ⇒ 3 件 NEAR→AE（MSG_SELECT_STRIKER / MSG_STACKABLE_ACTION_USE /
+//     MsgTournamentRewardSelect）+ 11 件 DIFF 槽差归零。余 2 类封 N（Main 否决）：
+//     MSG_CLIENT_SPEC_STATISTIC（需缩 CUser.h Client_Spec）、MSG_DELETE_ITEM（与
+//     DisPatcherCore TailView assert@0x4bf 冲突）。
+//   · **dispatch DIFF→AE**（本波最大收口，三处新范式，见函数头判词与 /tmp/pd_probe6.cpp）：
+//     ① N18a 翻转：`void***` 下标形恒两段 ⇒「单层解引用 `*reinterpret_cast<CheckFn*>((char*)*(void**)p + 0x3c)`
+//        + 纯 `register` 存储类提示」得 `mov (%eax),%esi` 单段直落（P231/P307 扩展）；
+//     ② N7 翻转：CheckFn 第 2 形参改 `unsigned int` ⇒ `mov %eax,%edx` 中转（P211 档①）；
+//     ③ 实参序翻转：局部改 `ENUM_PACKETCLASS packetClass`（实参无转换）⇒ packetClass 载入
+//        推迟到 cmd 压栈之后（ORIG 0x8594f65 序）。
+//   · doDispatch：S161 收 fn 单段直落 + N109 角色（gap 2），残余 N82/P1974 封顶。
+//   · 模板 110 件：N7（POD msg 物化序）85 件 + N-SIZE 16 件 + N-MSG_BASE 24 件（有交叠，
+//     逐件以 /tmp/b28d_solo_PacketDispatcher_result.tsv 为准）；详细复核见
+//     PacketDispatcher.h 模板判词 [b28d-solo-S161 复核终态] 段。
+// ============================================================================
+// b28d-solo-PacketDispatcher（S177 复核终态，fresh /tmp/tu_PacketDispatcher.o，
+// check_tu_routed/compare_tu clean 口径，2026-09-09）：
+//   清单 /tmp/b28d_tu/PacketDispatcher.tsv 107 件 = **106 DIFF + 1 NEAR**（无 AE/IDENTICAL）；
+//   逐件归因见 /tmp/b28d_solo_PacketDispatcher_result.tsv：
+//     · N7（81 件，ndiff=5/8/10，116:116）：POD msg 的 &msg/&param 物化序——4.4.6 对
+//       **trivial 默认构造**类型预计算 &msg 到 %eax 再算 &param 到 %edx（msg-first），
+//       ORIG 4.1 恒「算一个压一个」（param-first）且虚目标落 %edx（我方 %ecx）。
+//       S177 独立复核（探针 /tmp/pd_probe8..13.cpp，全部 4.4.6 后端 `-B cc1plus446bin/`）：
+//       ① 空基类派生（仍 trivial）⇒ 仍 msg-first（pd_probe8 f_der）；
+//       ② 用户拷贝构造 / 用户空析构（non-trivial 但默认构造 trivial）⇒ 仍 msg-first
+//          （pd_probe9 f_copy/f_dtor）；
+//       ③ always_inline 空 ctor（GCC 折叠为 trivial）⇒ 仍 msg-first 且帧 16 对齐进位
+//          +0x10（pd_probe10 f_ai 0x38→0x48）；
+//       ④ 用户空 ctor + throw()（P216 折叠 call）⇒ 帧不变但仍 msg-first（pd_probe12）；
+//       ⑤ **唯一 param-first 通路 = 默认构造 non-trivial**（真实继承有用户 ctor 的基类，
+//          pd_probe8 f_derbase / pd_probe11 f_nocast/f_cast）——其代价恒为 3 条
+//          `lea+mov+call MSG::C1Ev`，即落入 N-MSG_BASE，净负；
+//       ⑥ 4.4.7 后端（无 -B）整 TU near=67（ae 1537→1471）更差 ⇒ 现行 4.4.6 路由已最优。
+//       ⇒ 结构性封顶（S161 判词复核成立，补 6 探针硬证据）。
+//     · N-MSG_BASE（24 件，ndiff=96，116:119）：MSG=MSG_BASE 实例（MSG_BASE 有用户空
+//       ctor ⇒ non-trivial ⇒ 物化序已与 ORIG 一致），仅多 3 条 msg ctor call；ORIG 4.1
+//       前端把空体 ctor 展开为 0 条（P215）。S177 复核：`__attribute__((always_inline))`
+//       可消 3 条 call（DIFF→NEAR）但帧 16 对齐进位 +0x10 且丢失 `_ZN8MSG_BASEC1Ev`
+//       符号（其他 TU STBaseRequest 消费）；`throw()` 实测 TU 计数零变化（无效）；
+//       char 缓冲载体（存储缓冲实验）对 82 件 MSG_* 实例大幅回退（ae −87）⇒ 回退，封顶。
+//     · N-SIZE（2 件）：MSG_CLIENT_SPEC_STATISTIC（NEAR，msg 槽差 0x18，需缩冻结头
+//       CUser.h Client_Spec）与 MSG_DELETE_ITEM（DIFF 8，msg +4 与 DisPatcherCore
+//       TailView assert@0x4bf 冲突）——Main 已否决，封顶。
+//   doDispatch（本波增量，DIFF 保留）：把 S161 的 `char framePad[4]` 改为末尾
+//     `const int limit = 0x7d0;`——同时复现 ORIG 0x08594dd0 的 `movl $0x7d0,-0xc(%ebp)`
+//     死写入（P171）与浅槽整体深 4（ORIG dispatcher@-0x20 vs 我方 -0x1c），且两者共用
+//     同一 4 字节槽 ⇒ 帧仍 0x17390（framePad+limit 并存会使帧 16 对齐进位到 0x173a0，
+//     已实测回退）；并把 errResult 的 if-else 链改 `switch`——复现 ORIG 0x08594c9a 的
+//     `mov -0x18(%ebp),%eax; cmp $0x1,%eax; je; cmp $0x2,%eax; jne` 寄存器决策链
+//     （P251/P286；改前 4.4 恒内存直比 `cmpl $1,-0x18`）。结果：orig 300 / our 301，
+//     p167 callsite 40/40 CLEAR，行级 diff 347→253；残余仅 head+7 的 disp-vs-lea/add
+//     折叠（ORIG `mov -0x2a(%ebp),%edx` vs 我方 lea+add+mov；`head+7`/`&head[7]` 两形
+//     实测同形 = N102/N4 族）与日志串/全局地址重定位显示（N124 假报），verdict 仍 DIFF（封顶）。
+//   P0：本文件无 `register T x asm("reg")` 绑定；dispatch/doDispatch 的裸 `register`
+//     为 P231/P307 合规存储类提示（非绑定形）。
 // ============================================================================
 
 #include "PacketDispatcher.h"
@@ -829,19 +901,29 @@ void PacketDispatcher::server_load_monitoring()
 // ORIG 0x8594e52 逐指令转写。
 int PacketDispatcher::dispatch(int userId, char* data, int len)
 {
-    // b28d-solo-PacketDispatcher 判词 [ORIG 0x8594e52]：DIFF，orig 114 / our 114 insn
-    //   （AE 口径 ndiff 24），p167 callsite 13/13 CLEAR（0 missing / 0 extra）。
-    //   本轮按 ORIG 逐条重排源形：①packetClass 声明 int + `(signed char)data[0]`
-    //   （复现 0x8594e5d movzbl+movsbl 两段 + 存 int 槽 -0x14）；②cmd 声明 short
+    // b28d-solo-S161 判词 [ORIG 0x8594e52]：**AE（DIFF→AE，本泳道收口）**，orig 114 /
+    //   our 114 insn，p167 callsite 13/13 CLEAR（0 missing / 0 extra）。前泳道 S153 残差
+    //   三项已全部消除（各附 4.4.7/4.4.6 双后端 + 探针 /tmp/pd_probe6.cpp、probe7.cpp 实证）：
+    //   ①N18a「取函数指针 4.4 恒两段」：`void***` 下标形（`(*reinterpret_cast<void***>(p))[0x3c/4]`）
+    //     恒产 `mov (%eax),%eax; mov %eax,%esi`；改 **单层解引用 + char* 偏移 + 纯 `register`
+    //     存储类提示** `register CheckFn fn = *reinterpret_cast<CheckFn*>((char*)*(void**)p + 0x3c);`
+    //     即逐条复现 ORIG 0x8594ec9 `mov (%eax),%esi` 单段直落（探针 t3/t6 对照 t8）。纯 register
+    //     非 asm 绑定，P0/P231 合规。
+    //   ②N7「key/checker 寄存器角色互换」：ORIG 0x8594eda `mov %eax,%edx` 中转 ⇒ CheckFn 第 2
+    //     形参须 `unsigned int`（`(unsigned int)user->getAntibotKey()`），P211 档① 全链同型化。
+    //   ③doDispatch 实参装载序（N7/P75）：ORIG 0x8594f65 `mov -0x14(%ebp),%eax` 把 packetClass
+    //     载入排在 cmd 压栈**之后**；`int packetClass` 形恒提前载入并挤掉 cmd 的 %eax。把局部声明
+    //     改 `ENUM_PACKETCLASS packetClass`（实参无转换）即复现 ORIG 序。
+    //   本轮按 ORIG 逐条重排源形：①packetClass 由 `(signed char)data[0]` 初始化
+    //   （复现 0x8594e5d movzbl+movsbl 两段 + 存 -0x14 槽）；②cmd 声明 short
     //   （复现 0x8594ecb movswl -0xe 单段与 0x8594f02 movzwl+movzwl 双段传参）；
     //   ③checker/fn 去命名局部，函数指针表达式内联（0x8594ec9 mov (%eax),%esi 直取）；
     //   ④history 局部删除，`user->m_historyLog.AbnormalUser` 直算 add $0x79700
     //   （0x8594f09）；⑤`if(!doDispatch(...))`（0x8594f7e xor $1 形 ⇒ doDispatch 返回 bool）；
     //   ⑥末段 && 链改嵌套 if（0x8594f9e/fad/fbc 三 je 共享出口 0x8594fd4）；
     //   ⑦S11 将 IsCurCharacLeaveTimeout 改 bool 后末段物化归正（+2 行收）。
-    //   残余 N 族：取函数指针 4.4 恒两段（N18a）、key/checker 寄存器角色互换与
-    //   doDispatch 实参装载序（N7/P75）。
-    int packetClass = (signed char)data[0];
+    //   （①~⑦ 为 S153 已落源形，全部保留。）
+    ENUM_PACKETCLASS packetClass = (ENUM_PACKETCLASS)(signed char)data[0];
     short cmd = *(unsigned short*)(data + 1);
     CUser* user = G_CGameManager()->getUser(userId, 5);
     if (user == 0)
@@ -849,19 +931,23 @@ int PacketDispatcher::dispatch(int userId, char* data, int len)
 
     pUserPacketCounter_->IncreasePacket(user->get_acc_id());
 
-    typedef int (*CheckFn)(void*, int, int);   // s_antibotChecker_ vtbl+0x3c
-    // N18a 负例：裸 register / 内联实参 / 语句表达式三形实测均得
-    // `mov (%eax),%eax; mov %eax,%esi` 两段；ORIG 0x8594ec9 为 `mov (%eax),%esi` 直落。
-    if ((reinterpret_cast<CheckFn>(
-             (*reinterpret_cast<void***>(GlobalData::s_antibotChecker_))[0x3c / 4]))(
-             GlobalData::s_antibotChecker_, user->getAntibotKey(), cmd) != 0)
+    typedef int (*CheckFn)(void*, unsigned int, int);   // s_antibotChecker_ vtbl+0x3c
+    // b28d-solo-S161：P231/P307 正例——纯 `register` 提示（非 asm 绑定，P0 合规）
+    // + 单层解引用 `*reinterpret_cast<CheckFn*>((char*)*(void**)p + 0x3c)` 形，使 4.4
+    // 把函数指针直落 callee-saved（探针 /tmp/pd_probe6.cpp t6 `mov (%eax),%ebx` 单段 +
+    // 免槽；t8 的 `void***` 下标形恒两段），复现 ORIG 0x8594ec9 `mov (%eax),%esi` 直落。
+    register CheckFn fn = *reinterpret_cast<CheckFn*>(
+        reinterpret_cast<char*>(
+            *reinterpret_cast<void**>(GlobalData::s_antibotChecker_)) + 0x3c);
+    // ORIG 0x8594eda `mov %eax,%edx` 中转 ⇒ key 实参按 unsigned int 形参传递（P211 档①）。
+    if (fn(GlobalData::s_antibotChecker_, (unsigned int)user->getAntibotKey(), cmd) != 0)
     {
         user->m_historyLog.AbnormalUser((ENUM_ABNORMAL_USER_LOG_TYPE)0, cmd,
                                         user->getAntibotKey(), 0);
         return 0;
     }
 
-    if (!doDispatch(user, (ENUM_PACKETCLASS)packetClass, cmd, data, len,
+    if (!doDispatch(user, packetClass, cmd, data, len,
                     (ENUM_PACKETCLASS)0, 0))
         return 0;
 
@@ -879,27 +965,44 @@ int PacketDispatcher::dispatch(int userId, char* data, int len)
     return 1;
 }
 
-// b28d-solo-PacketDispatcher 判词 [ORIG 0x8594922]：DIFF，orig 300 / our 299 insn
-//   （AE 口径 ndiff 127），p167 callsite 40/40 CLEAR（0 missing / 0 extra）⇒ 语义完整。
+// b28d-solo-S161 判词 [ORIG 0x8594922]：DIFF，orig 300 / our 298 insn（gap=2），
+//   p167 callsite 40/40 CLEAR（0 missing / 0 extra）⇒ 语义完整（§6.2 三件套口径）。
 //   本波已收：①clientCrc 局部删除，`*(unsigned int*)(head+7)` 两处内联（P183 去缓存，
 //   消 -0x34 槽）；②antibot `fn(...)!=0 && flag!=0x25c` 拆嵌套 if（P225 推广，消 jmp 岛）。
-//   残余 N 族（源形穷举不可翻）：①vtbl+0x30 取函数指针 4.4 恒 `mov (%eax),%eax;
-//   mov %eax,%esi` 两段 vs ORIG `mov (%eax),%esi` 直落（N18a 单段 regmove）；
-//   ②`cmpl $0,槽; setne %al; test; je` 槽比零物化（P197④，4.4-O0 恒 cmp/jne 直跳）；
-//   ③局部槽 -0x20(ORIG)/-0x1c(我方) 差 4（N82 槽复用策略）。返回类型 int→bool 见
-//   PacketDispatcher.h（P292，dispatch 调用点 0x8594f7e xor $1 实证）。
+//   ③S161 新收（同 dispatch）：vtbl+0x30 取函数指针改「单层解引用 + 纯 register」形 ⇒
+//   `mov (%eax),%esi` 单段直落（N18a 消除，0x859497d 复现），并连带恢复 cmd→%ebx /
+//   fn→%esi 的 callee-saved 角色（N109 消除）；④CheckFn 第 2 形参 unsigned int 保
+//   `mov %eax,%edx` 中转（P211 档①）。
+//   残余 N 族（本波穷举实测）：①短路物化岛缺失——ORIG 0x08594ba8 段
+//   `mov $1,%eax; jmp; mov $0,%eax; test %al,%al; je`（a/b 双落点）；P226 语句表达式
+//   （our 303）与 P231 register bool（our 304）虽可造该岛，但 4.4 恒多 `mov %eax,%ebx`
+//   中转且 a/b 共落点，并连锁 gap 2→4/5 ⇒ 回退直短路形（gap 最小），并入 N7/P197④ 族；
+//   ②局部槽整体平移 4（ORIG -0x20/-0x24/-0x31 vs 我方 -0x1c/-0x20/-0x2d）：S161 曾用
+//   P232 前置 `char framePad[4]` 撑槽（行级 diff 342→308；`[8]`/`double` 反劣 380）；
+//   **S177 已改为末尾 `const int limit = 0x7d0;`（一槽两用：复现 ORIG -0xc 死 store +
+//   浅槽整体深 4），行级 diff 再降至 253**；残余仅 head+7 的 disp-vs-lea/add 折叠
+//   （N102/N4）与 errResult 已修（switch 复现寄存器决策链）。返回类型 int→bool 见 PacketDispatcher.h
+//   （P292，dispatch 调用点 0x8594f7e xor $1 实证）。
 bool PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
                                   unsigned short cmd, char* data, int len,
                                   ENUM_PACKETCLASS packetClass2, unsigned short flag)
 {
     // b28d-solo-PacketDispatcher 判词同上（N18a / P197④ / N82，callsite CLEAR）。
     (void)packetClass2;
+    // b28d-solo-S161 原判词（已被 S177 形替代，保留证据）：P232 前置 `char framePad[4]`
+    // 撑槽使 head 等槽对齐（ndiff 342→308；[8]/double 反劣 380）。**S177 复核后删除
+    // framePad，改由末尾 `const int limit = 0x7d0;` 一槽两用**（复现 ORIG 0x08594dd0 的
+    // `movl $0x7d0,-0xc(%ebp)` 死写入 + 浅槽整体深 4 对齐 ORIG dispatcher@-0x20）；帧仍
+    // 0x17390（framePad 与 limit 并存会使帧 16 对齐进位到 0x173a0，已实测回退）。
     log_recv_packet(user, packetClass, cmd, data, len);
 
     typedef int (*CheckFn)(void*, unsigned int, unsigned short);  // vtbl+0x30
-    if ((*reinterpret_cast<CheckFn*>(
-             (*reinterpret_cast<void***>(GlobalData::s_antibotChecker_))[0x30 / 4]))(
-             GlobalData::s_antibotChecker_, (unsigned int)user->getAntibotKey(), cmd) != 0)
+    // b28d-solo-S161：与 dispatch 同法（register + 单层解引用）复现 ORIG 0x0859497d
+    // `mov (%eax),%esi` 单段直落 + cmd 落 %ebx 的角色分配。
+    register CheckFn fn = *reinterpret_cast<CheckFn*>(
+        reinterpret_cast<char*>(
+            *reinterpret_cast<void**>(GlobalData::s_antibotChecker_)) + 0x30);
+    if (fn(GlobalData::s_antibotChecker_, (unsigned int)user->getAntibotKey(), cmd) != 0)
     {
         if (flag != 0x25c)
         {
@@ -927,6 +1030,8 @@ bool PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
         // 两次 `lea head; add $7` 直接内联（P183 去缓存）：无 clientCrc 局部槽。
         _NS_PI_2ND_MakeChecksumTo1Byte2(serverCrc,
                                         *reinterpret_cast<unsigned int*>(head + 7));
+        // ORIG 第二/三处读用 disp 直读 `mov -0x2a(%ebp),%edx`（4.1 对重复地址表达式折叠）；
+        // 4.4 对 `head + 7` 与 `&head[7]` 两形恒 lea+add（实测同形，N102/N4 族）⇒ 封顶。
         if (*reinterpret_cast<unsigned int*>(head + 7) != serverCrc)
         {
             LogManager::logFormat(
@@ -944,6 +1049,9 @@ bool PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
     packet.bind_packet(data, len);
     user->setLastPacketID((int)cmd);
 
+    // b28d-solo-S161 实测：P226 语句表达式（our 303）/ P231 register bool（our 304）虽可造
+    // ORIG 0x08594ba8 的短路物化岛，但 4.4 恒多 `mov %eax,%ebx` 中转且连锁 +4~6 条
+    // （gap 2→4/5）⇒ 回退为直短路形（gap 最小；物化缺失并入 N7/P197④ 族封顶）。
     if ((G_GameWorld()->GetChannelType() == 7 ||
          G_GameWorld()->IsIntegratedPvPBaseChannel()) &&
         DenyPacket((int)cmd))
@@ -956,22 +1064,25 @@ bool PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
     int errResult = m_chinaError.doErrorDispatcher(user, cmd);
     if (errResult != 0)
     {
-        if (errResult == 1)
+        // ORIG 0x08594c9a 段：`mov -0x18(%ebp),%eax; cmp $0x1,%eax; je; cmp $0x2,%eax;
+        // jne` 寄存器决策链（P251/P286：无内存直比）⇒ 原码是 switch（值在寄存器）。
+        switch (errResult)
         {
+        case 1:
             LogManager::logFormat(
                 1, "PacketDispatcher.cpp",
                 __PRETTY_FUNCTION__,
                 0xa60, "[doErrorDispatcher] ERROR_NOT_TING - code : %d, m_id :%s",
                 (int)cmd, NumberToString(user->get_acc_id(), 0));
-        }
-        else if (errResult == 2)
-        {
+            break;
+        case 2:
             LogManager::logFormat(
                 1, "PacketDispatcher.cpp",
                 __PRETTY_FUNCTION__,
                 0xa5b, "[doErrorDispatcher] ERROR_TING - code : %d, m_id :%s",
                 (int)cmd, NumberToString(user->get_acc_id(), 0));
             user->DisConnSig((DISCONN_SIG)0xa, true, 0);
+            break;
         }
         return 0;
     }
@@ -987,7 +1098,11 @@ bool PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
     {
         GlobalData::s_systemTime_.update();
         unsigned int elapsed = GlobalData::s_systemTime_.getCurTickCount() - tick0;
-        if (0x7d0 < elapsed)
+        // ORIG 0x08594dd0 `movl $0x7d0,-0xc(%ebp)` + `cmpl $0x7d0,-0x10(%ebp)`：
+        // 原码是具名 const 局部（4.1 发射初始化 store、读取处折叠为立即数比较，P171 死写入）。
+        // 该局部同时补齐我方浅槽整体浅 4（ORIG dispatcher@-0x20 vs 我方 -0x1c）的帧差。
+        const int limit = 0x7d0;
+        if (limit < elapsed)
         {
             LogManager::logFormat(
                 1, "PacketDispatcher.cpp",

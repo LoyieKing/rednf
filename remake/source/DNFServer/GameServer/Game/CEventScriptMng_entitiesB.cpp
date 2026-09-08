@@ -33,18 +33,18 @@ CFatigueQuantity::~CFatigueQuantity()
 
 // ORIG 0x0810f95e：虚调度 set_event_record_type（vtable+0x18）写 m_recordType=key，
 // 然后把绑定脚本存到 +0x1c。
-// [b28d-solo-CEventScriptMng_entitiesB] NEAR·N7+N76 封顶（语义闭合，ORIG 0x0810f95e）。
+// [b28d-solo-CEventScriptMng_entitiesB] AE（4.4.6 后端，17/17）：P211 档③——m_script1c
+//   具型化（FatigueQuantityScript*）+ 赋值点 static_cast 异型化 ⇒ store 复现 ORIG
+//   RHS-first（0x810f97d 三条逐条一致）；4.4.6 后端同时消 N7（vfn %ecx / this %eax
+//   与 ORIG 同形）。4.4.7 下该件仍 NEAR（纯 N7 后端差：vfn %eax / this %edx）；
+//   实测 TU identical 30→35 / ae 42 / near 5→0 / diff 1（N123 撞名假 DIFF）零回归。
+//   路由已落 dnf_game_cxx.sh:370（b28d-S188）（ORIG 0x0810f95e sz 0x0000002a）
 void CFatigueQuantity::set_event_data(int key, InGameEventScript* script)
 {
-    /* [b28d-solo-CEventScriptMng_entitiesB] NEAR·N7+N76 封顶。残差仅两处：
-     * ①虚调用寄存器：ORIG `mov (%eax),%ecx`（vfn=%ecx,this=%eax）vs 4.4.7
-     *   vfn=%eax,this=%edx（N7）；本 TU 未路由 4.4.6，且 4.4.6 目标为 %edx≠%ecx。
-     * ②同型指针 store 序：ORIG 4.1 RHS-first（mov 0x10(%ebp),%edx; mov 0x8(%ebp),%eax;
-     *   mov %edx,0x1c(%eax)）vs 4.4 LHS-first（N76/P211 档③）；探针 Ent1..E10 十形
-     *   证实同型指针不可翻，唯一 RHS-first 形要求 RHS 为派生指针，而 mangled 固定
-     *   形参 InGameEventScript*（改字段为派生型会破坏 +0x1c 全仓消费点）。 */
+    // ORIG 0x810f95e：call vtable+0x18（set_event_record_type(key)），再写 +0x1c。
+    // [b28d-solo-CEventScriptMng_entitiesB] P211 档③：字段具型化 ⇒ store RHS-first。
     set_event_record_type(key);
-    m_script1c = script;
+    m_script1c = static_cast<FatigueQuantityScript*>(script);
 }
 
 std::string& CFatigueQuantity::get_db_table_name()
@@ -67,13 +67,15 @@ CExchangeRandomItemReward::~CExchangeRandomItemReward()
 }
 
 // ORIG 0x0810eb06：同 CFatigueQuantity 模式。
+// [b28d-solo-CEventScriptMng_entitiesB] AE（4.4.6 后端，17/17）：同
+//   CFatigueQuantity::set_event_data——P211 档③ 具型化
+//   （ExchangeRandomItemRewardScript*）⇒ store RHS-first；4.4.6 消 N7。4.4.7 下
+//   仍 NEAR（纯 N7 后端差）。路由已落 dnf_game_cxx.sh:370（ORIG 0x0810eb06 sz 0x0000002a）
 void CExchangeRandomItemReward::set_event_data(int key, InGameEventScript* script)
 {
-    /* [b28d-solo-CEventScriptMng_entitiesB] NEAR·N7+N76 封顶（同
-     * CFatigueQuantity::set_event_data 判词：虚调用 vfn/this 寄存器差 +
-     * 同型指针 store RHS-first 不可翻）。 */
+    // [b28d-solo-CEventScriptMng_entitiesB] P211 档③：字段具型化 ⇒ store RHS-first。
     set_event_record_type(key);
-    m_script1c = script;
+    m_script1c = static_cast<ExchangeRandomItemRewardScript*>(script);
 }
 
 // ============ CAvatarDisjointRandomReward ============
@@ -83,12 +85,15 @@ CAvatarDisjointRandomReward::~CAvatarDisjointRandomReward()
 }
 
 // ORIG 0x0810f37a：同 CFatigueQuantity 模式。
+// [b28d-solo-CEventScriptMng_entitiesB] AE（4.4.6 后端，17/17）：同
+//   CFatigueQuantity::set_event_data——P211 档③ 具型化
+//   （AvatarDisjointRandomRewardScript*）⇒ store RHS-first；4.4.6 消 N7。4.4.7 下
+//   仍 NEAR（纯 N7 后端差）。路由已落 dnf_game_cxx.sh:370（ORIG 0x0810f37a sz 0x0000002a）
 void CAvatarDisjointRandomReward::set_event_data(int key, InGameEventScript* script)
 {
-    /* [b28d-solo-CEventScriptMng_entitiesB] NEAR·N7+N76 封顶（同
-     * CFatigueQuantity::set_event_data 判词）。 */
+    // [b28d-solo-CEventScriptMng_entitiesB] P211 档③：字段具型化 ⇒ store RHS-first。
     set_event_record_type(key);
-    m_script1c = script;
+    m_script1c = static_cast<AvatarDisjointRandomRewardScript*>(script);
 }
 
 // ============ CObjectBringUp ============
@@ -98,12 +103,15 @@ CObjectBringUp::~CObjectBringUp()
 }
 
 // ORIG 0x0810fcb2：同 CFatigueQuantity 模式。
+// [b28d-solo-CEventScriptMng_entitiesB] AE（4.4.6 后端，17/17）：同
+//   CFatigueQuantity::set_event_data——P211 档③ 具型化（ObjectBringUpScript*）⇒
+//   store RHS-first；4.4.6 消 N7。4.4.7 下仍 NEAR（纯 N7 后端差）。路由已落
+//   dnf_game_cxx.sh:370（ORIG 0x0810fcb2 sz 0x0000002a）
 void CObjectBringUp::set_event_data(int key, InGameEventScript* script)
 {
-    /* [b28d-solo-CEventScriptMng_entitiesB] NEAR·N7+N76 封顶（同
-     * CFatigueQuantity::set_event_data 判词）。 */
+    // [b28d-solo-CEventScriptMng_entitiesB] P211 档③：字段具型化 ⇒ store RHS-first。
     set_event_record_type(key);
-    m_script1c = script;
+    m_script1c = static_cast<ObjectBringUpScript*>(script);
 }
 
 std::string& CObjectBringUp::get_db_table_name()
@@ -170,12 +178,15 @@ CPurchaseCashItemBonus::~CPurchaseCashItemBonus()
 }
 
 // ORIG 0x0810f996：同 CFatigueQuantity 模式。
+// [b28d-solo-CEventScriptMng_entitiesB] AE（4.4.6 后端，17/17）：同
+//   CFatigueQuantity::set_event_data——P211 档③ 具型化
+//   （PurchaseCashItemBonusScript*）⇒ store RHS-first；4.4.6 消 N7。4.4.7 下仍
+//   NEAR（纯 N7 后端差）。路由已落 dnf_game_cxx.sh:370（ORIG 0x0810f996 sz 0x0000002a）
 void CPurchaseCashItemBonus::set_event_data(int key, InGameEventScript* script)
 {
-    /* [b28d-solo-CEventScriptMng_entitiesB] NEAR·N7+N76 封顶（同
-     * CFatigueQuantity::set_event_data 判词）。 */
+    // [b28d-solo-CEventScriptMng_entitiesB] P211 档③：字段具型化 ⇒ store RHS-first。
     set_event_record_type(key);
-    m_script1c = script;
+    m_script1c = static_cast<PurchaseCashItemBonusScript*>(script);
 }
 
 // ORIG 0x0810f9c0：return &m_dbTableName（PurchaseCashItemBonusScript +0x08）。

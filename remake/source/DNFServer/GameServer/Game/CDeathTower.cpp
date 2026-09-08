@@ -232,6 +232,9 @@ CBossTower::~CBossTower()
 
 unsigned int CDeathTowerRanking::makeDungeonIdx2TowerIdx(unsigned int dungeonIdx)
 {
+    // [b28d-solo-CDeathTower] verdict=AE（12/12，仅尾 nop 填充差异，§6.1 豁免）：
+    // ORIG 08469d69 W 两段无符号边界 `cmpl $0x2af7; jbe NEG` / `cmpl $0x2afd;
+    // jbe POS` 与 4.4 逐条同形；nop 填充已由 compare_tu 剥离。
     // ORIG 08469d69 W：dungeonIdx∈[0x2af8,0x2afd] → idx-0x2af8（塔序号 0..5），其余 -1。
     // ORIG 0x8469d6c..0x8469d88：cmp1 jbe→NEG@8469d7e；cmp2 jbe→POS@8469d85；
     // NEG 为 cmp2 fall-through，POS 殿后 —— && 条件 goto POS，-1 顺落（范式24 落点岛）。
@@ -275,11 +278,14 @@ int CDeathTowerRanking::checkRenewMyRecord(unsigned int towerIdx,
     return tmp > it->second ? 1 : 0;  // ORIG: stBestRecord_t::operator>(tmp, existing)
 }
 
-int CDeathTowerRanking::checkRenewTopRecord(unsigned int towerIdx,
-                                            unsigned int clearTime,
-                                            unsigned int playTime)
+bool CDeathTowerRanking::checkRenewTopRecord(unsigned int towerIdx,
+                                             unsigned int clearTime,
+                                             unsigned int playTime)
 {
-    // [b28d-solo-CDeathTower] NEAR 3（31/33）：ORIG `add $0x128` 单条 vs 4.4 拆
+    // [b28d-solo-CDeathTower] verdict=AE（31/32，仅尾 nop 填充 §6.1 豁免）：
+    // 修法 = 返回类型 int→bool（ORIG 尾 `call operator>; leave; ret` 无 movzbl
+    // 加宽，P9/P292；调用点 test %al 联判），头/定义/调用点三处同步。
+    // 旧残差注记：ORIG `add $0x128` 单条 vs 4.4 拆
     // 0x120+disp8（N94，0x128%8==0）+ 返回值 bool 加宽 movzbl（P9）；P167 CLEAR。
     // ORIG 0x08468290：塔块 +0x128（= m_towers[i].m_slots[1] 起点 +0x98 内
     // flag +0x90）movzbl 读取，!=1 直接返回 0；否则构造默认 stBestRecord_t，
@@ -305,7 +311,7 @@ int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
                                        unsigned int stage,
                                        unsigned int playTime)
 {
-    // [b28d-solo-CDeathTower] NDIFF=428（610/581）：P167 CLEAR（54/54）；残差 = 全帧
+    // [b28d-solo-CDeathTower] verdict=DIFF（orig 610 / our 580，NDIFF=598）：P167 CLEAR（54/54）；残差 = 全帧
     // 槽号平移（-0x120 vs -0x154 起）+ push %esi（N82/P112）。插值/跨层扫描语义全等。
     // 候选新纪录（stage, playTime）。ORIG 0x08468de0：本类无 towerIdx 越界检查。
     // 调用方（rankTable 槽位）保证 towerIdx 在 [0,4]，与 ORIG 保持一致不加防御。
@@ -477,11 +483,14 @@ void CDeathTowerRanking::unregistRanking(unsigned int characNo)
 // m_tableBest.m_stage(+0x70e0)=200（ORIG 0x1d3 先写 type、0x1dc 再写 200）。
 void CDeathTowerRanking::init(unsigned int type)
 {
-    // [b28d-solo-CDeathTower] NDIFF=67（119/104）：双层循环变量槽序 + push %ebx
-    // （N93/N98/P212）；P167 CLEAR（5/5）。语义（5 塔 x5 槽重置/memcpy 名/表级 stage=200）全等。
-    for (unsigned int tower = 0; tower <= 4; ++tower)
+    // [b28d-solo-CDeathTower] verdict=DIFF（orig 119 / our 102，P167 CLEAR 5/5）：已修 P2
+    // （循环变量 int ⇒ ORIG setle 复现；此前 unsigned 产 setbe）。残差 = 双层循环
+    // 变量槽序 -0x14/-0x10 vs -0x18/-0x14 + ORIG push %ebx（N82/N93）⇒ 封顶。
+    // [b28d-solo-CDeathTower] P2：ORIG 0x084680c0 尾测 `setle`（有符号）⇒ 循环
+    // 变量 int（unsigned 生 setbe）。
+    for (int tower = 0; tower <= 4; ++tower)
     {
-        for (unsigned int slot = 1; slot <= 5; ++slot)
+        for (int slot = 1; slot <= 5; ++slot)
             m_towers[tower].m_slots[slot].m_flag90 = 0;
         // ORIG 0x8c63370 实证每名 6 字符 + NUL（"AAAAAA\0" 等，7 字节；
         // memcpy 7 字节 = 6 字母 + NUL，与 ORIG 逐字节一致）。槽起点 +0x04 =
@@ -491,7 +500,7 @@ void CDeathTowerRanking::init(unsigned int type)
         std::memcpy(m_towers[tower].m_slots[3].m_memberData[0], "CCCCCC", 7);
         std::memcpy(m_towers[tower].m_slots[4].m_memberData[0], "DDDDDD", 7);
         std::memcpy(m_towers[tower].m_slots[5].m_memberData[0], "EEEEEE", 7);
-        for (unsigned int slot = 1; slot <= 5; ++slot)
+        for (int slot = 1; slot <= 5; ++slot)
         {
             stBestRecord_t& rec = m_towers[tower].m_slots[slot];
             rec.m_field94 = static_cast<int>(slot);
@@ -505,8 +514,13 @@ void CDeathTowerRanking::init(unsigned int type)
 
 CDeathTower::CDeathTower()
 {
-    // [b28d-solo-CDeathTower] NEAR 8（45/53）：唯一残差 = CStage 子对象 ctor 异常路径
-    // EH cleanup（4.4 恒发 ~CStage + _Unwind_Resume，4.1 无）——N91 封顶（判词保留）。
+    // [b28d-solo-CDeathTower] verdict=DIFF（orig 45 / our 53，P167：EXTRA CStage::D1 ×1）：
+    // 4.4 在 CPlayData 子对象构造点布 ~CStage cleanup（ORIG 只在 CStage 构造点布
+    // ~CDungeonMgr）。根因 = CPlayData::CPlayData() 定义在 WongWorkDeathTower_A.cpp
+    // 且未加 throw()（P216：callee ctor throw() ⇒ 4.4 判 nothrow 不布 landing）；
+    // 该 .cpp 非本泳道（R1 单文件铁律）。**已实测负例（S171 收口）**：给 CPlayData
+    // ctor/dtor 加 throw() 后 4.4 把 ctor call 一并折叠（C1 53→29 vs ORIG 45，净负）
+    // ⇒ 已回退；P216「纯空体外联 ctor」反例适用，本件 N91 封顶。
     // ORIG 0x82a75da：CDungeonMgr/CStage/CPlayData 子对象 ctor 由编译器生成；
     // 函数体仅将 m_timerKeys[TIMER_MESSAGE 0x48..0x4e] 清零。
     // [b27 封顶] 唯一残差 = EH cleanup 段：4.4 对 CStage 子对象 ctor 异常路径
@@ -519,8 +533,10 @@ CDeathTower::CDeathTower()
 // [b27 封顶] D1 残差（33 vs 43）= CStage 析构 EH 双份 epilogue（4.4 恒发
 // ~CStage cleanup 块 + ebx/esi 保存，4.1 merge 为单块）——N91 同根（C1 同判
 // 见 ctor 注），无源码解。
-// [b28d-solo-CDeathTower] NEAR 9（33/41）：CStage 析构 EH 双份 epilogue
-//（4.4 恒发 ~CStage cleanup + ebx/esi，4.1 merge 为单块）——N91 封顶。
+// [b28d-solo-CDeathTower] verdict=DIFF（orig 33 / our 41，P167：EXTRA CStage::D1 ×1）：
+// 同 C1 根因（CPlayData dtor 未 throw()，定义在 WongWorkDeathTower_A.cpp）；
+// throw() 实测负例已回退（见 C1 判词）⇒ 4.4 在 CPlayData D1 调用点布 CStage D1
+// cleanup、ORIG 无 ⇒ N91 封顶。
 CDeathTower::~CDeathTower() {}
 
 int CDeathTower::getIdx()
@@ -641,7 +657,10 @@ static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 90;
 
 void CDeathTower::_checkMemberReady()
 {
-    // [b28d-solo-CDeathTower] NEAR 8（41/43）：ORIG volatile const 内存读
+    // [b28d-solo-CDeathTower] verdict=AE（41/43→归零）：修法 = timeout 由
+    // unsigned int 改 int（与 InsertTimer 第 4 参 int 同型，P211 档③），
+    // 消 4.4 的 %edi 升格 + push %edi + 帧 0x3c→0x30。
+    // 旧残差注记：ORIG volatile const 内存读
     //（0x08c635f0/4）vs 4.4 常量/槽 + push %edi 中转（P0/N 族，既有判词保留）。
     m_playData.resetMemberReady();
     // ORIG 0x84670f8：call 结果直 cmp $0x1（免具名）；key/idx 走 ebx/esi
@@ -649,10 +668,13 @@ void CDeathTower::_checkMemberReady()
     // [b28d-D13] N 封顶：ORIG 0x084670f8 timeout@-0xc 直读 volatile const；
     // 4.4 三元恒经 -0x1c 槽 + %edi 中转（帧 0x30 vs 0x3c）。if/else 赋值形实测
     // 12→17 反劣 ⇒ 保持三元。
-    unsigned int timeout =
+    // [b28d-solo-CDeathTower] P211 档③：ORIG 0x08467122 三元结果直存 -0xc 槽且
+    // 压参时从槽回读；局部与 InsertTimer 第 4 参同型 int（unsigned 局部令 4.4
+    // 升格 %edi 并多 push + 帧 0x30→0x3c）。
+    int timeout =
         m_party->get_member_count() == 1
-            ? (unsigned int)CONST_SINGLE_MAP_LOADING_WAIT_TIMEOUT
-            : (unsigned int)CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT;
+            ? CONST_SINGLE_MAP_LOADING_WAIT_TIMEOUT
+            : CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT;
     G_TimerQueue()->InsertTimer(
         (TimerEntry::OBJ_TYPE)6, m_idx, (TIMER_MESSAGE)0x49, timeout,
         _genTimerKey((TIMER_MESSAGE)0x49), 0x49);
@@ -660,12 +682,22 @@ void CDeathTower::_checkMemberReady()
 
 bool CDeathTower::onLeaveUser(CUser* user)
 {
+    // [b28d-solo-CDeathTower] verdict=DIFF（orig 131 / our 123，P167 CLEAR 14/14）：已修
+    // P312（前置死局部 pad5 把 memberNames 顶到 ORIG 的 -0x119 非 4 对齐槽，
+    // 复现 4.1 对齐剥离+rep stos+尾 2/1 字节慢路）+ P52/P183 链式 RemoveFPItem。
+    // 残差 = state 槽 -0x19(ORIG) vs -0xd(4.4) 的 N82 槽分配差 + `add $0x79700`
+    // vs `lea 0x79700(%edx)`（N4/N107 族）⇒ 语义完成、N 封顶。
     user->setDeathTowerIndex((short)-1);
-    CInventory* inven = (CInventory*)user->getCurCharacInvenW();
-    inven->RemoveFPItem();
+    // [b28d-solo-CDeathTower] P52/P183：ORIG 0x08463711 为链式单表达式
+    //（getCurCharacInvenW 结果直压 esp 调 RemoveFPItem，无具名 inven 槽中转）。
+    ((CInventory*)user->getCurCharacInvenW())->RemoveFPItem();
     // [b28d-solo-CDeathTower] ORIG 0x08463724 起内联对齐 memset（无 memset call）⇒
     // 写 `= {0}`（P214③/P232）。
+    // [b28d-solo-CDeathTower] P312：ORIG buf 基址 -0x119（非 4 对齐）⇒ 4.1 发
+    // 对齐剥离 + rep stos + 尾 2/1 字节慢路；加前置死局部把大数组顶到同一非对齐槽。
+    char pad5[5];
     char memberNames[0x100] = {0};
+    (void)pad5;
 
     if (m_party)
     {
@@ -693,10 +725,11 @@ bool CDeathTower::onLeaveUser(CUser* user)
     return 1;
 }
 
+// [b28d-solo-CDeathTower] verdict=DIFF（orig 608 / our 603，P167 CLEAR 103/103）。
 // [b28d-69] P167 CLEAR（ORIG calls=103 = OUR 103）：P183 每使用点重发
 // getDungeon()->get_index()/getCurCharacNo()/getStartMemberCnt()（ORIG 11/9/6/2 次实证）
 // + P0 去 partyState/key/mgrIdx 缓存 + P197③ playTime 预清 + P184 内层死块照抄
-// + 2×min<unsigned>+1×min<int>（P211/P265）。ndiff 566→16，orig 610 / our 608；
+// + 2×min<unsigned>+1×min<int>（P211/P265）。ndiff 566→407，orig 608 / our 603；
 // 残余仅 4.4 帧 0xdc vs ORIG 0xcc 的槽号整体 -0x10 平移 + 实参跨 call 落槽 vs
 // ORIG callee-saved（N82/N95/N7 族）⇒ 语义完成、byte 层 N 封顶。
 void CDeathTower::_beginTowerClearProcess(bool isLast)
@@ -864,7 +897,9 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
         m_playData.generateRewardExp(i, curStage, mobReward, m_party, m_dungeonMgr);
     }
 }
-// [b28d-solo-CDeathTower] P167 CLEAR（ORIG calls=149 = OUR 149，0 missing/0 extra）。
+// [b28d-solo-CDeathTower] verdict=DIFF（orig 1041 / our 1065，P167 CLEAR 149/149）：
+// 语义完成、byte 层 N 封顶（残差 = 4.4 帧 0x5a4 vs ORIG 0x53c 槽号平移 + 实参跨
+// call 落槽，N82/N95/N7 族）。P167 CLEAR（ORIG calls=149 = OUR 149，0 missing/0 extra）。
 // 本轮修 11 项语义缺口：GetPremiumInfoList 改按值返回版（ORIG 0x0846496e）；premium
 // 循环三次独立 operator[]（P157）；dropItemIds 改 unsigned long 左值 push_back(const&)
 // + const_iterator 具名对（0x08464d63）；掉落项存 stGenerateResult_t::m_dropItems
@@ -1275,26 +1310,30 @@ void CDeathTower::_onFinishDeathTower()
 
 void CDeathTower::_onFinishStage()
 {
-    // [b28d-solo-CDeathTower] NDIFF=27（85/84）：局部槽 -0x10/-0xc vs -0x18 方向差 +
-    // push %ebx（N93/N82）；P167 CLEAR。语义（onFinishStage/addPlayTime/<=0x176f hack
-    // 判定/quest set_authen_data）全等。
+    // [b28d-solo-CDeathTower] verdict=AE（orig 85 / our 85，P167 CLEAR 11/11）：修法 =
+    // P52/P183：ORIG 0x08467d79/0x08467dbb 两处链式单表达式
+    // （getHackAnalyzer 结果直压 (%esp) 无具名槽；getStageMapIndex 结果先物化 %ebx 跨
+    // getCurCharacQuestW 保活）⇒ 去 hack/quest 具名局部，槽基回到 ORIG -0xc/-0x10。
     m_stage.onFinishStage();
     m_playData.addPlayTime(m_stage.getStageClearTime());
 
     for (int i = 0; i <= 3; ++i)
     {
-        CUser* user = m_party->get_user(i);
+        // [b28d-solo-CDeathTower] P197③：ORIG 0x08467d2a 循环体首 `movl $0,-0xc`
+        // 预清 ⇒ 声明=0 与赋值分两句式。
+        CUser* user = 0;
+        user = m_party->get_user(i);
         if (user == 0 || !m_party->checkValidUser(i))
             continue;
         // [b28d-D13] P196 真语义修正：ORIG 0x08467d24 cmp $0x176f; setbe（无符号
         // 比较）⇒ 源码须为 unsigned 比较（int 版 4.4 产 setle，负数时语义分叉）。
         if ((unsigned int)m_stage.getStageClearTime() <= 0x176f)
         {
-            CHackAnalyzer* hack = user->getHackAnalyzer();
-            hack->addServerHackCnt(user, (WongWork::ENUM_HACK_TYPE)0x19a, 1u, 0u, 0u);
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, (WongWork::ENUM_HACK_TYPE)0x19a, 1u, 0u, 0u);
         }
-        UserQuest* quest = user->getCurCharacQuestW();
-        quest->set_authen_data((QUEST_CONDITION)1, m_stage.getStageMapIndex(), 0);
+        user->getCurCharacQuestW()->set_authen_data(
+            (QUEST_CONDITION)1, m_stage.getStageMapIndex(), 0);
     }
 }
 
@@ -1309,6 +1348,10 @@ void CDeathTower::_onPrepareFinishTower()
 
 void CDeathTower::_onStartDeathTower()
 {
+    // [b28d-solo-CDeathTower] verdict=DIFF（orig 94 / our 93，P167 CLEAR 12/12）：唯一残差 =
+    // EnterDungeon 第 4 参 ORIG `mov 0xcd8(%eax),%eax; mov %eax,%ebx` 两段 vs
+    // 4.4 `mov 0xcd8(%eax),%ebx` 单段（N18a/P248 档③：m_bloodState 为共享头
+    // CBattle_Field.h int 字段，enum 化将波及 20+ 消费 TU ⇒ 封顶）。
     // [b28d-solo-CDeathTower] ORIG 0x08467b5b：memberNames 0x100 字节内联清零
     //（mov $0x40,%edx + rep stos = 0x40 dwords，P116）；旧 0x40 尺寸为误读。
     char memberNames[0x100] = {0};
@@ -1435,7 +1478,7 @@ void CDeathTower::_pickupItemMoney(CUser* user, int memberCnt, const map_item& i
 }
 CUser* CDeathTower::_pickupItem(CUser* user, char* countBuf, int slot, const map_item& item, bool a5, char a6, const CItem* citem)
 {
-    // [b28d-solo-CDeathTower] NDIFF=153（309/327）：P167 CLEAR（17/17）；残余 = 帧/槽号
+    // [b28d-solo-CDeathTower] verdict=DIFF（orig 309 / our 327，NDIFF=153）：P167 CLEAR（17/17）；残余 = 帧/槽号
     // 整体平移 + 实参跨 call 落槽（N82/N95）。routing/计数/随机数语义全等（ORIG 0x08466cfe）。
     // ORIG T 0x08466cfe（Ghidra 反编译语义逐条转写；countBuf = 调用点 nameBuf[4] 计数）
     CUser* result = user;
@@ -1526,38 +1569,53 @@ CUser* CDeathTower::_pickupItem(CUser* user, char* countBuf, int slot, const map
 
 // ORIG T 0x0846966c：卡片统计（每卡 AddValueStatistic 0xb/0xc + 死亡之塔
 // ValueStatistic 上报，字段 8/2/7/10；isNotTower/level 参与上报参数）。
+// [b28d-solo-CDeathTower] verdict=AE（orig 173 / our 173，P167 CLEAR 24/24）：修法 =
+// price 预清 + GetSellItemPrice 移到 citem 判空之前（ORIG 0x0846978X 为无条件调用，
+// 判空在其后）；P184 死块 = 两个独立 `cmpl $0,-0x1c(%ebp); je`（外层/内层各一）。
 void CDeathTower::deathTowerCardStatistic(int count, CUser* user, const Inven_Item* items)
 {
     // [b28d-solo-CDeathTower] ORIG 0x08469683：get_index 结果直比（无 dungeonIdx 槽）；
     // 三元 false:true 复现 `cmp; sete; test; je; movb $0; jmp; movb $1`（P47/P225）。
-    bool isNotTowerOfDespair =
-        (m_dungeonMgr.getDungeon()->get_index() == 0x2af8) ? false : true;
+    // [b28d-solo-CDeathTower] ORIG 0x08469683：`cmp $0x2af8; sete %al; test %al;
+    // je; movb $0,-0x25; jmp; movb $1,-0x25` —— 三目形在 4.4 折 setne+槽；
+    // 改 if/else 赋值复现 sete 岛（P47/P194）。
+    // [b28d-solo-CDeathTower] ORIG 0x084696a4 `movsbl -0x25(%ebp),%ebx`（signed 扩展）
+    // ⇒ 槽类型 char（bool 槽读恒 movzbl）。
+    char isNotTowerOfDespair;
+    if (m_dungeonMgr.getDungeon()->get_index() == 0x2af8)
+        isNotTowerOfDespair = false;
+    else
+        isNotTowerOfDespair = true;
     int level = user->get_charac_level();
 
     for (int i = 0; i < count; ++i)
     {
-        const Inven_Item* item = &items[i];   // Inven_Item 打包尺寸 0x3d（等价于 items+i*0x3d）
-        int itemId = item->m_addInfo;
-        if (itemId == 0)
+        // [b28d-solo-CDeathTower] P183：ORIG 每使用点重算 items+i*0x3d
+        //（`mov i,%eax; imul $0x3d; add items`），无 item 指针/ itemId 具名槽；
+        // 条件为寄存器直测（test %eax,jne）而非槽物化。
+        if (items[i].m_addInfo == 0)
         {
             GetInstanceValueStatistic()->AddValueStatistic(
                 (VALUE_STATISTIC_FIELD)0xb, user,
-                (unsigned int)item->get_add_info());
+                (unsigned int)items[i].get_add_info());
             GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
                 (DEATHTOWER_VALUE_STATISTIC_FIELD)8, (char)isNotTowerOfDespair,
-                (char)level, (unsigned int)item->get_add_info());
+                (char)level, (unsigned int)items[i].get_add_info());
         }
         else
         {
-            CItem* citem = G_CDataManager()->find_item(itemId);
-            if (citem)
-            {
-                int price = 0;
-                G_Store()->GetSellItemPrice(
-                    const_cast<Inven_Item&>(*item), (const CItem*)citem,
-                    (short)count, false, price);
+            CItem* citem = G_CDataManager()->find_item(items[i].m_addInfo);
+            // [b28d-solo-CDeathTower] ORIG 0x0846978X：price 预清与 GetSellItemPrice
+            // 无条件执行（citem 判空在其后）；P184 死块 = 两个独立 `cmpl $0,-0x1c; je`。
+            int price = 0;
+            G_Store()->GetSellItemPrice(
+                const_cast<Inven_Item&>(items[i]), (const CItem*)citem,
+                (short)count, false, price);
+            if (citem != 0)
                 GetInstanceValueStatistic()->AddValueStatistic(
                     (VALUE_STATISTIC_FIELD)0xc, user, (unsigned int)price);
+            if (citem != 0)
+            {
                 if (citem->GetItemType() == 3)   // ORIG vptr+0xc 虚调用 GetItemType==3
                 {
                     GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
@@ -1582,7 +1640,7 @@ void CDeathTower::deathTowerCardStatistic(int count, CUser* user, const Inven_It
 }
 bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map_item& item)
 {
-    // [b28d-solo-CDeathTower] NDIFF=318（489/510）：P167 CLEAR（41/41）；残差 = 帧槽号
+    // [b28d-solo-CDeathTower] verdict=DIFF（orig 489 / our 510，NDIFF=318）：P167 CLEAR（41/41）；残差 = 帧槽号
     // 平移（type 槽 -0x5c vs -0x8c）+ Inven_Item 临时槽（N82/N93）。switch 4 路 + 校验 +
     // 删除/统计语义全等（ORIG 0x0846638c）。
     // ORIG T 0x0846638c（Ghidra 反编译语义逐条转写；参数槽：0x8=this,0xc=user,
@@ -1766,7 +1824,7 @@ int CDeathTower::_checkRenewMyRecord(unsigned int dungeonIdx, unsigned int membe
                 memberCnt))->checkRenewMyRecord(towerIdx, a, b, c);
 }
 
-int CDeathTower::_checkRenewTopRecord(unsigned int dungeonIdx, unsigned int memberCnt, unsigned int a, unsigned int b)
+bool CDeathTower::_checkRenewTopRecord(unsigned int dungeonIdx, unsigned int memberCnt, unsigned int a, unsigned int b)
 {
     // [b28d-D13] P0 清绑（N96）：ORIG 0x8468034 mov %eax,%ebx，同 _checkRenewMyRecord。
     register unsigned int towerIdx =
@@ -1798,7 +1856,7 @@ int CDeathTower::_checkStartGameCondition(unsigned char& flag)
 }
 int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE dungeonType)
 {
-    // [b28d-solo-CDeathTower] NDIFF=13（440/439）：B24D 判词保留（try/catch(int)+throw
+    // [b28d-solo-CDeathTower] verdict=DIFF（orig 440 / our 439，NDIFF=13）：B24D 判词保留（try/catch(int)+throw
     // 8/0x16/cond/0x15/1 语义全对，P167 81/81 CLEAR）；残余 = 地址占位/EH typeinfo/
     // 个别 lowering。
     // [B24D判词 N] 语义正确：try/catch(int)+throw 8/0x16/cond/0x15/1+
@@ -1995,11 +2053,19 @@ int CDeathTower::handleFinishLoading(CUser* user)
 
 int CDeathTower::handleDieUser(CUser* user)
 {
-    // [b28d-solo-CDeathTower] NDIFF=56（102/106）：循环变量双置 0 槽 -0xc vs -0x10 +
-    // 槽号平移（N93/P197③）；P167 CLEAR。语义（alive 判定/死亡包/_checkMemberDie）全等。
-    for (int i = 0; i <= 3; ++i)
+    // [b28d-solo-CDeathTower] verdict=DIFF（orig 102 / our 107，P167 CLEAR 15/15）：已修 P191
+    // 双初始化（两条 movl $0）。残差 = ①`get_user(i)==user` ORIG sete 物化 vs 4.4
+    // jne+mov$1/$0 岛（P197④/N122：4.4 对槽比恒直跳，语句表达式/P226 实测不产 sete）；
+    // ②帧 0x20 vs 0x30 ⇒ N 封顶。
+    // [b28d-solo-CDeathTower] P191：ORIG 0x0846595a/0x08465961 两条 `movl $0,-0xc`
+    // = 声明=0 + for-init=0 双写。
+    int i = 0;
+    for (i = 0; i <= 3; ++i)
     {
-        if (m_party->checkValidUser(i) && m_party->get_user(i) == user)
+        // [b28d-solo-CDeathTower] P226：ORIG 0x0846597d 为 `sete %al` 短路物化
+        //（checkValidUser 直跳 + get_user 结果寄存器直比 sete），4.4 裸 && 恒折
+        // jne 直跳 + mov$1/$0 岛 ⇒ 语句表达式包条件。
+        if (({ m_party->checkValidUser(i) && m_party->get_user(i) == user; }))
         {
             if (!m_playData.isMemberAlive(i))
             {
@@ -2024,9 +2090,9 @@ int CDeathTower::handleDieUser(CUser* user)
     return 1;
 }
 
-// [b28d-solo-CDeathTower] NDIFF=21（130/131），P167 CLEAR：残差 = item 槽 -0x6c vs
-// -0x74 的帧平移 + 相邻局部槽号整体错位（N82/P112 族；范式31 dead-local 已试，
-// ORIG item@-0x6c 与 4.4 -0x74 差 8 属帧继承）。语义/调用点全等。
+// [b28d-solo-CDeathTower] verdict=DIFF（orig 130 / our 131，P167 CLEAR 17/17）：残差 = item 槽
+// -0x6c vs -0x74 的帧平移 + 相邻局部槽号整体错位（N82/P112；dead-local pad 增删
+// 两向实测均不收敛，属 4.4 槽基/帧继承）⇒ 语义完成、byte 层 N 封顶。
 int CDeathTower::handleDropItem(CUser* user, int a2, int a3, char a4, int a5, int a6)
 {
     if (a6 < 0)
@@ -2034,8 +2100,6 @@ int CDeathTower::handleDropItem(CUser* user, int a2, int a3, char a4, int a5, in
         return 0;
     }
 
-    unsigned int padA;  // 范式31：试验推移 item 槽（ORIG item@-0x6c vs 4.4 -0x70）
-    (void)padA;
     map_item item;
     CPacketHandler packet;
 
@@ -2066,8 +2130,8 @@ int CDeathTower::handleDropItem(CUser* user, int a2, int a3, char a4, int a5, in
 
 int CDeathTower::CStage::killMonster(int idx, map_monster& monster)
 {
-    // [b28d-solo-CDeathTower] NEAR 10（62/62）：const_iterator 槽序 N93/N98 封顶
-    // （探针 11 形实测，4.4 恒后声明深槽）；P167 CLEAR。ORIG 0x08461708。
+    // [b28d-solo-CDeathTower] verdict=NEAR（62/62，P167 CLEAR 9/9）：const_iterator
+    // 双槽方向 N93 封顶（同 pickupItem/peekItem；roleType 槽 -0xc 已对齐）。
     // ORIG 0x8461708：find(idx)；命中则 monster = it->second、取
     // m_level(+0x10) 作返回值并 erase；未命中返回 0。
     // 注：ORIG movzbl 0x14(%pair) = pair+0x14 = map_monster+0x10 = m_level
@@ -2090,8 +2154,8 @@ int CDeathTower::CStage::killMonster(int idx, map_monster& monster)
 
 bool CDeathTower::CStage::peekItem(int idx, map_item& item)
 {
-    // [b28d-solo-CDeathTower] NEAR 9（59/59）：find/end 两 const_iterator 槽序
-    // it=-0x28/itEnd=-0x20（ORIG）vs -0x24/-0x28（4.4）——N93/N98 封顶；P167 CLEAR。
+    // [b28d-solo-CDeathTower] verdict=NEAR（59/59，P167 CLEAR 6/6）：同 pickupItem，
+    // const_iterator 双槽方向 N93 封顶（构造序 find 先，交换声明即翻 call 序）。
     // ORIG 0x8461534：m_mapInfo.m_itemMap.find(idx)；命中拷贝 0x54 字节返回 true。
     // ORIG 0x8461569/0x8461593：find/end 结果各经 _Rb_tree_const_iterator C1(iter&)
     // 转换（0x8152fa2 两次 call）⇒ 源以 const_iterator 具名持有。
@@ -2150,7 +2214,7 @@ int CDeathTower::handleLeaveUser(CUser* user)
     return 1;
 }
 
-// [b28d-solo-CDeathTower] NDIFF=164（252/249）。P167：MISSING _Unwind_Resume x4——
+// [b28d-solo-CDeathTower] verdict=DIFF（orig 252 / our 249，NDIFF=164）。P167：MISSING _Unwind_Resume x4——
 // ORIG 各 CPacketHandler 局部（try 内多个 return 路径）各带 landing pad，4.4 判同 TU
 // callee nothrow 合并 cleanup（N91/N104 族：EH 块数量/相对序差异，D1 调用次数已匹配）。
 // 语义/异常路由（catch(int) → makeCommonError(0x30,e)）与 ORIG 一致。
@@ -2214,7 +2278,7 @@ int CDeathTower::handleMoveMap()
     }
 }
 
-// [b28d-solo-CDeathTower] NDIFF=145（400/418），P167 CLEAR（44/44）：残差 = 4.4 帧
+// [b28d-solo-CDeathTower] verdict=DIFF（orig 400 / our 418，NDIFF=145），P167 CLEAR（44/44）：残差 = 4.4 帧
 // 0x… 槽号整体平移 + _pickupItem/appendPickupItem 实参跨 call 落槽 vs ORIG
 // callee-saved（N82/N95/N7 族）。语义（金钱/物品/avatar 三路 + 统计）全等。
 int CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)
@@ -2454,8 +2518,10 @@ bool CDeathTower::CStage::moveNextStage(unsigned int endStage)
 
 bool CDeathTower::CStage::pickupItem(int idx, map_item& item)
 {
-    // [b28d-solo-CDeathTower] NEAR 9（65/65）：同 peekItem，const_iterator 双槽序
-    // N93/N98 封顶；P167 CLEAR。ORIG 0x084615e4。
+    // [b28d-solo-CDeathTower] verdict=NEAR（65/65，P167 CLEAR 7/7）：残差 = 两个
+    // const_iterator 具名槽方向（ORIG it=-0x28/itEnd=-0x20 vs 4.4 it=-0x24/itEnd=-0x28）
+    // ——N93：块级直接初始化局部双对象槽分配方向跨版本相反，且构造序（find 先）绑死
+    // 声明序，交换声明会翻转 call 序 ⇒ 无源码解，封顶。
     // ORIG 0x84615e4：peek 语义 + erase。
     // ORIG 0x8461619/0x8461643：find/end 各经 _Rb_tree_const_iterator C1(0x8152fa2)
     // 转换 ⇒ const_iterator 具名；erase@0x8152c18 arg=&idx（key 版）。
@@ -2490,6 +2556,10 @@ int CDeathTower::CStage::dropItem(map_item& item)
 bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* map,
                                      CDeathTower* tower)
 {
+    // [b28d-solo-CDeathTower] verdict=DIFF（orig 918 / our 920，P167 CLEAR 134/134）：
+    // 语义（AI 布点/AP 随机怪/脚本怪/特殊被动物品四段）与调用点全等；残差 =
+    // 4.4 帧 0x… vs ORIG 的槽号整体平移 + 实参跨 call 落槽（N82/N95/N7 族）
+    // ⇒ byte 层 N 封顶。
     // ORIG 0x8460634：mobIdVec + apMap（拷贝自 aiList->getAPCount()）+
     // map_monster mob 局部，随后按三段填充：AI 布点 → AP 随机怪 → 脚本怪列表
     // → 特殊被动物品生成。tower 参数供第四段判 partyType（ORIG 0x8461371）。
@@ -2720,31 +2790,44 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
 
 int CDeathTower::handleUseStackable(CUser* user, ENUM_ITEMSPACE itemSpace, unsigned short slot)
 {
-    const CInventory* inven = user->getCurCharacInvenR();
-    const Inven_Item* item = inven->GetInvenRef(
+    // [b28d-solo-CDeathTower] verdict=AE（68/73→归零，P167 CLEAR）：修法 =
+    // ①P52/P183 链式 `user->getCurCharacInvenR()->GetInvenRef(...)`（去具名 inven
+    // 缓存槽）；②删多余的 `item->m_addInfo != 0x18` 第三短路项（ORIG 0x08466331
+    // 只有 `limit && (a<0x1964 || a>6999)`）；③switch 直用 `item->m_addInfo`
+    // （P183 每决策点重读）；④正向 if 包裹复现 ORIG 纯直跳链（禁早返/合并 &&）。
+    // [b28d-solo-CDeathTower] P52/P183：ORIG 0x08466304 为链式单表达式
+    // `user->getCurCharacInvenR()->GetInvenRef(GetInvenTypeFromItemSpace(itemSpace), slot)`
+    //（receiver getCurCharacInvenR 在 GetInvenTypeFromItemSpace 之后求值）；
+    // 具名 inven 缓存提前 call 入槽 -0x14 且帧 0x30→0x34（P183 禁指针缓存）。
+    const Inven_Item* item = user->getCurCharacInvenR()->GetInvenRef(
         GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)itemSpace), slot);
     if (!item)
     {
         return 0;
     }
 
-    if (m_dungeonMgr.getDungeon()->limitOfStackableItemInTower() &&
-        ((item->m_addInfo < 0x1964 || item->m_addInfo > 6999) &&
-         item->m_addInfo != 0x18))
+    // [b28d-solo-CDeathTower] ORIG 0x08466331..0x08466349 短路为
+    // `limit && (addInfo < 0x1964 || addInfo > 6999)`（无 `addInfo != 0x18`
+    // 第三项；case 0x18 由 switch 决策树自身处理并落 RET1 岛）。
+    // 早返两守卫形复现 ORIG 的 `test %al; je RET1` + `jbe SWITCH` +
+    // `jbe RET1` 纯直跳链（合并 &&/|| 会被 4.4 物化成 mov$1/$0 岛）。
+    if (m_dungeonMgr.getDungeon()->limitOfStackableItemInTower())
     {
-        unsigned int itemId = (unsigned int)item->m_addInfo;
-        // [b28d-solo-CDeathTower] ORIG 0x08466351 起为 4.1 二分决策树
-        // （cmp$0x18 je / ja / cmp$0xa je / …）⇒ 源形是 switch（P46/P163），
-        // case 按数值升序书写；case 0x18 是 ORIG 保留的不可达 case。
-        switch (itemId)
+        if (item->m_addInfo < 0x1964 || item->m_addInfo > 6999)
         {
-        case 0xa:
-        case 0x18:
-        case 0x33:
-        case 0x28978a:
-            break;
-        default:
-            return 0;
+            // [b28d-solo-CDeathTower] ORIG 0x08466351 起为 4.1 二分决策树
+            // （cmp$0x18 je / ja / cmp$0xa je / …）⇒ 源形是 switch（P46/P163），
+            // case 按数值升序书写；case 0x18 由决策树自身处理并落 RET1 岛。
+            switch ((unsigned int)item->m_addInfo)
+            {
+            case 0xa:
+            case 0x18:
+            case 0x33:
+            case 0x28978a:
+                break;
+            default:
+                return 0;
+            }
         }
     }
     return 1;
@@ -2752,6 +2835,9 @@ int CDeathTower::handleUseStackable(CUser* user, ENUM_ITEMSPACE itemSpace, unsig
 
 int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
 {
+    // [b28d-solo-CDeathTower] verdict=DIFF（orig 806 / our 787，P167 CLEAR 107/107）：
+    // 语义（6 路 msg 分发 + 各定时器处理）与调用点全等；残差 = 帧/槽号整体平移
+    // 与实参跨 call 落槽（N82/N95/N7 族）⇒ byte 层 N 封顶。
     if (!_checkTimerKey(msg, key))
     {
         return 0;
@@ -3026,7 +3112,7 @@ void CDeathTower::CPlayData::setLastRoutedTurn(int turn)
 
 char* CDeathTower::CPlayData::getStartMemberInfo()
 {
-    return m_startMemberInfo;
+    return m_startMemberInfo[0].m_name;
 }
 
 CDungeon* CDeathTower::CDungeonMgr::getDungeon() const
@@ -3041,7 +3127,7 @@ void CDeathTower::CStage::resetCurrentStage()
 
 void CDeathTower::CStage::makeStagePacket(PacketGuard& packet)
 {
-    // [b28d-solo-CDeathTower] NDIFF=14（221/220）：实参/this 装载序（ORIG value-first，
+    // [b28d-solo-CDeathTower] verdict=DIFF（orig 221 / our 220，NDIFF=14）：实参/this 装载序（ORIG value-first，
     // P75 跨版本）+ short 扩展两段（P200）+ 迭代器临时槽；P167 CLEAR（40/40）。
     packet.put_short(getCurrentStage());
     packet.put_int(get_rand_int(0));
@@ -3115,8 +3201,10 @@ int CDeathTower::CPlayData::getStartMemberCnt()
 
 void CDeathTower::CPlayData::makeStartMemberInfo(CParty* party)
 {
-    // [b28d-solo-CDeathTower] NDIFF=54（90/87）：循环/局部槽序 -0x10/-0x14/-0x18 互换
-    // （N93/N98）；P167 CLEAR（9/9）。语义（strcpy+level/job/growType 写入）全等。
+    // [b28d-solo-CDeathTower] verdict=AE（orig 90 / our 90，P167 CLEAR 9/9）：修法 =
+    // P214① 短路守卫（P226 语句表达式，消 -0x9 bool 槽）、P197③ info 预清、P30/P311
+    // 二维数组视图（m_startMemberInfo[4][0x17]，复现 strcpy 目标 add 链）+ 字段写入
+    // 常量拆分按 ORIG 的 0x9d0+0x10 形对齐（N1/N94 已消）。
     // ORIG 0x08461d02：memset(m_startMemberInfo,0,0x5c)；遍历 4 个队伍槽，
     // 有效成员（get_user 非空且 checkValidUser==1）把名字 strcpy 到
     // m_startMemberInfo+count*0x17，level/job/growType 写到条目 +0x14/+0x15/+0x16；
@@ -3125,21 +3213,23 @@ void CDeathTower::CPlayData::makeStartMemberInfo(CParty* party)
     int count = 0;
     for (int i = 0; i < 4; ++i)
     {
-        CUserCharacInfo* info = (CUserCharacInfo*)party->get_user(i);
-        bool invalid;
-        if (info == 0)
-            invalid = true;
-        else
-            invalid = party->checkValidUser(i) != 1;
-        if (!invalid)
+        // [b28d-solo-CDeathTower] P197③/P198①：ORIG 0x08461d3c 循环体首
+        // `movl $0,-0xc` 预清 ⇒ 声明=0 与赋值分两句式。
+        CUserCharacInfo* info = 0;
+        info = (CUserCharacInfo*)party->get_user(i);
+        // [b28d-solo-CDeathTower] P226 条件向：ORIG 0x08461d58..0x08461d85 为
+        // 零槽短路物化岛（info==0 与 `xor $1; test` 共享 mov$1 岛，尾 test/jne
+        // 跳 SKIP）；具名 bool 局部多 -0x9 槽并令 i/count/info 整体深移 4。
+        if (({ info == 0 || !party->checkValidUser(i); }))
+            continue;
         {
-            strcpy(m_startMemberInfo + count * 0x17,
+            strcpy(m_startMemberInfo[count].m_name,
                    info->getCurCharacName());
-            m_startMemberInfo[count * 0x17 + 0x14] =
+            m_startMemberInfo[count].m_level =
                 (char)info->get_charac_level();
-            m_startMemberInfo[count * 0x17 + 0x15] =
+            m_startMemberInfo[count].m_job =
                 (char)info->get_charac_job();
-            m_startMemberInfo[count * 0x17 + 0x16] =
+            m_startMemberInfo[count].m_growType =
                 (char)info->getCurCharacGrowType();
             ++count;
         }

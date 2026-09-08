@@ -130,7 +130,9 @@ bool CGuildServerProxy::InitUdp()
 //   4.4 只保活两个调用结果（strerror→ebx、errno→esi），槽变量 ret 恒在使用点
 //   `mov -0xc(%ebp),%eax` ⇒ 缺 push edi、帧 -0x10、全槽基差 0x10。P226 语句表达式
 //   `({ ret; })`、P227 全表达式临时链均实测零效；P231 裸 register 反使 ret 失槽
-//   （ORIG 有槽 -0x1c，违 P0 判读）⇒ N80 封顶 | ORIG 0x0846d96c
+//   （ORIG 有槽 -0x1c，违 P0 判读）；b28d 复验追加：varargs 首参改
+//   `(*(volatile int*)&ret)` 强制 volatile 读（74→76 劣化，仍缺 push edi）
+//   ⇒ N80 封顶 | ORIG 0x0846d96c
 bool CGuildServerProxy::InitTcp()
 {
     if (m_udpPort == 0)
@@ -627,7 +629,10 @@ bool CGuildServerProxy::LoadGuildInfoProxyFromDB(ENUM_SERVER_GROUP group)
 //      -0xc 后全程未读，P171 死写入照抄；单语句 `it->second = info;` 只发一次 ptEv）。
 //   残余仅逐字段拷贝段：ORIG `lea 0x4(%eax),%edx`（dst 物化 %edx、src 装 %eax），
 //   4.4 恒 dst 留 %eax、src 装 %edx 且 +4 折 disp（N107/N18a）。实测 9 形
-//   （显式 operator-> / (*it) / *(&it->second) / RHS cast 族 / 具名 q）均不可翻 | ORIG 0x0846e95e
+//   （显式 operator-> / (*it) / *(&it->second) / RHS cast 族 / 具名 q）均不可翻。
+//   b28d 复验追加：`*(volatile STGuildProxy*)&it->second`（编译失败：volatile 对象无
+//   非 volatile operator=）、`register STGuildProxy* pDst=&it->second; *pDst=info;`
+//   （63→65 劣化）均不可用 | ORIG 0x0846e95e
 bool CGuildServerProxy::ModifyGuildInfoProxy(unsigned int guildId, STGuildProxy& info)
 {
     std::map<unsigned int, STGuildProxy>::iterator it = m_guildInfoMap.find(guildId);
@@ -651,15 +656,19 @@ bool CGuildServerProxy::ModifyGuildInfoProxy(unsigned int guildId, STGuildProxy&
     }
 }
 
-// [b28d-solo-CGuildServerProxy N75/N7: 53/53] 残差 4 行：ORIG 在压 memset/memcpy
-//   常量前先 `mov -0xc(%ebp),%eax` 取 dst 并跨压栈保活、memcpy src 走
-//   `mov 0x10(%ebp),%edx`；4.4 恒右起求值（dst 装载落最后）且 src 用 %eax。
-//   P226 语句表达式（({ pGuild; })/({ (char*)pGuild; })/+0/&p[0]/cast 共 11 形）与
-//   P231 裸 register（m5/m10：先 load 但改用 %ebx+push/pop 破帧）实测均不闭合
-//   ⇒ P75 实参装载时刻 + N7 寄存器指派，封顶 | ORIG 0x0846ea3e
+// [b28d-solo-CGuildServerProxy N98: 53/53 NEAR] P316 翻案（DIFF→NEAR）：pGuild
+//   声明为 `STGuildProxy* volatile` 后，4.4 把 memset/memcpy 的 dst 装载提前到压栈
+//   之前（ORIG @0x0846ead7 `mov -0xc(%ebp),%eax` 先于 `movl $0x17,0x8(%esp)`），
+//   memcpy src 自然落 %edx（ORIG `mov 0x10(%ebp),%edx` 同形）⇒ 求值序/寄存器全对齐。
+//   残余仅槽号互换：4.4 给 volatile pGuild=-0x10、end() 内联临时=-0xc，ORIG 反之
+//   （pGuild=-0xc、end 临时=-0x10）。已实测不闭合：①声明移至函数头最前（it 得
+//   -0x14 ✓ 但 pGuild/end 仍互换）；②具名 endIt（it/endIt 互换）；③
+//   `*(STGuildProxy* volatile*)&pGuild` 读形（+2 条）。均属 N98 槽分配族 ⇒ 封顶
+//   | ORIG 0x0846ea3e
 void CGuildServerProxy::ChangeGuildNameInProxy(unsigned int guildId, char* name)
 {
-    // 槽序（与 ORIG 一致）：find 结果 -0x14、end() 内联临时 -0x10、pGuild -0xc。
+    STGuildProxy* volatile pGuild;
+    // 槽序：find 结果 -0x14（与 ORIG 一致）；end() 临时与 pGuild 互换（N98 残差）。
     std::map<unsigned int, STGuildProxy>::iterator it = m_guildInfoMap.find(guildId);
     if (it == m_guildInfoMap.end())
     {
@@ -668,7 +677,7 @@ void CGuildServerProxy::ChangeGuildNameInProxy(unsigned int guildId, char* name)
     }
     else
     {
-        STGuildProxy* pGuild = &it->second;
+        pGuild = &it->second;
         memset(pGuild, 0, 0x17);
         memcpy(pGuild, name, 0x16);
     }

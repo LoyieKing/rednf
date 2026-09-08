@@ -71,7 +71,11 @@ struct _ReqAdvanceAltarPause : public STBaseRequest
 
 struct _ResAdvanceAltarPause : public STBaseResponse
 {
-    int m_nErrorCode;             // +0x04 check_error 结果
+    // b28d-solo-S162：int→unsigned（P211 档③）——ORIG 0x08140b3c process_packet
+    //   `call check_error; mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,0x4(%eax)`
+    //   RHS 先+中转；int 字段←int 返回值同型时 4.4 恒 LHS 地址先。消费点全为
+    //   !=0/==0（Dispatchers.cpp 804 等）⇒ 语义等价，sizeof/偏移/mangled 不变。
+    unsigned int m_nErrorCode;    // +0x04 check_error 结果
     bool m_bPause;                // +0x08（req+0x0d 回显；objdump 0x08140b8a mov %dl,0x8
                                   //  字节写 = bool←bool）
     unsigned char m_pad9[3];
@@ -121,7 +125,7 @@ struct _ReqAdvanceAltarSetSlot : public STBaseRequest
 
 struct _ResAdvanceAltarSetSlot : public STBaseResponse
 {
-    int m_nErrorCode;             // +0x04
+    unsigned int m_nErrorCode;    // +0x04（b28d-solo-S162：同 Pause，P211 档③）
     int m_field08;                // +0x08（req+0x10 回显）
     bool m_bSet;                  // +0x0c（req+0x14 回显；objdump 0x0814008a mov %dl,0xc
                                   //  字节写 = bool←bool）
@@ -143,7 +147,8 @@ struct _ReqAdvanceAltarResetStar : public STBaseRequest
 
 struct _ResAdvanceAltarResetStar : public STBaseResponse
 {
-    int m_nErrorCode;             // +0x04
+    unsigned int m_nErrorCode;    // +0x04（b28d-solo-S162：P211 档③，ORIG check_error
+                                  //   store 为 RHS-first+%edx 中转）
     int m_field08;                // +0x08（req+0x10 回显；objdump 0x08140fe7 `mov %eax,-0x24(%ebp)`）
 
     _ResAdvanceAltarResetStar();  // memset K=0xc == sizeof
@@ -163,7 +168,7 @@ struct _ReqAdvanceAltarSummonUnit : public STBaseRequest
 
 struct _ResAdvanceAltarSummonUnit : public STBaseResponse
 {
-    int m_nErrorCode;             // +0x04
+    unsigned int m_nErrorCode;    // +0x04（b28d-solo-S162：P211 档③，同上）
     unsigned char m_bySlotType;   // +0x08（req+0x0d 回显）
     unsigned char m_pad09[3];
     int m_nUnitId;                // +0x0c（req+0x10 回显）

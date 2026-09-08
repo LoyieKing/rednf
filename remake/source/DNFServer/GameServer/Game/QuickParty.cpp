@@ -175,21 +175,24 @@ void CQuickPartySystemManager::init_quick_party_pool(const CDungeon* dungeon)
             return;                                     // 已是 quick party 奖励副本
     }
 
-    if (!dungeon->isTowerOfDespairDungeon()) {
+    if (dungeon->isTowerOfDespairDungeon())
+        return;
+
+    {
         STQuickPartyPoolMap_Key key;
         STQuickPartyPoolMap_Data data;
 
         key.m_dungeonIndex = (short)dungeon->get_index();
         for (int i = 0; i < 4; ++i) {
-            // [b28d-solo-QuickParty] 修法（P226/P0）：ORIG 0x08269d00 的 special 物化在
-            // %al（mov $1/jmp、mov $0、test %al,%al），无栈槽；具名 bool 使 4.4 落 -0x9。
-            if (!((dungeon->getDungeonKind() == 1) ||
-                  (dungeon->get_blood_dungeon_type() > 0) ||
-                  (dungeon->getQuestNpcDungeon() != 0)))
-                goto do_insert;
-            if (i != 0)
-                goto next_diff;
-        do_insert:
+            // [b28d-solo-QuickParty] 修法（P214① 正向包裹 + P223 变体）：
+            // ORIG 0x08269cc6 `test %al,%al; jne <nop 岛>`（正极性早返，非 xor 形），
+            // 0x08269d3a 的 or 链物化后 `test %al,%al; je <插入块>` 直落（非 xor 反形）。
+            if ((dungeon->getDungeonKind() == 1) ||
+                (static_cast<signed char>(dungeon->get_blood_dungeon_type()) > 0) ||
+                (dungeon->getQuestNpcDungeon() != 0)) {
+                if (i != 0)
+                    goto next_diff;
+            }
             key.m_dungeonDiff = (signed char)i;
             m_poolMap.insert(std::make_pair(key, data));
         next_diff: ;
@@ -216,7 +219,7 @@ bool CQuickPartySystemManager::cancel_quick_party(CParty* party, bool flag, CUse
         } else {
             LogManager::logFormat(1, "QuickParty.cpp", __PRETTY_FUNCTION__, 0x1e5,
                                   "QUICK_PARTY_LOG : ABNOMAL QUICK PARTY INDEX (%d)!!",
-                                  party ? party->get_quick_party_index() : 0);
+                                  party->get_quick_party_index());
         }
         return 0;
     }
@@ -231,11 +234,13 @@ bool CQuickPartySystemManager::cancel_quick_party(CParty* party, bool flag, CUse
 
     if (party->GetEPLPState() > 1 && flag) {
         party->SetSelectedEPLPCmd((char)-1);            // ORIG 写 -1（0x826a4db）
-        // CParty+0xb24 内嵌 CBattle_Field（局部视图 CPartyBattleFieldView）
-        CBattle_Field* bf =
-            &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField;
-        int buffType = bf->getRandomBuffDungeonType(qp->get_dungeon_index());
-        bf->setEplpWaitingTimer((RandomBuffDungeon)buffType);
+        // CParty+0xb24 内嵌 CBattle_Field（局部视图 CPartyBattleFieldView）；
+        // P48/P183：ORIG 两次独立 `mov party,%edx; add $0xb24,%edx`（无 bf 缓存），
+        // getRandomBuffDungeonType 结果直传 setEplpWaitingTimer（无 buffType 槽）。
+        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.setEplpWaitingTimer(
+            (RandomBuffDungeon)
+                reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.getRandomBuffDungeonType(
+                    qp->get_dungeon_index()));
     }
 
     STQuickPartyPoolMap_Key key;
@@ -248,9 +253,8 @@ bool CQuickPartySystemManager::cancel_quick_party(CParty* party, bool flag, CUse
     if (!flag)
         qp->set_change_quick_party_count(true);
 
-    int count;
+    int count = 0;                                    // ORIG 0x826a586 预清
     if (party->get_member_count() == 1 || flag) {
-        count = 0;
         qp->delete_party_index(party->GetPartyIndex());
         count = qp->get_quick_party_count();
         party->init_quick_party_data();
@@ -469,13 +473,11 @@ bool CQuickPartySystemManager::remove_quick_party_in_pool(
     // it 回到 -0x28（与 ORIG 全等），残余仅 end 临时槽 -0x20 与 qpIndex -0x24 互换
     // ——4.4 按首次使用序分配（N98），end 条件先于块内赋值使用，声明序/具名 e 两形
     // 实测（/tmp/b28d_l1/r19c.md 52、r19d.md 48）均只交换槽位，判 N93/N98 封顶。
-    int qpIndex;
     std::map<STQuickPartyPoolMap_Key, STQuickPartyPoolMap_Data>::iterator it =
         m_poolMap.find(key);
     if (it != m_poolMap.end())
     {
-        qpIndex = qp->get_quick_party_index();
-        it->second.m_lists[poolIdx].remove(qpIndex);
+        it->second.m_lists[poolIdx].remove(qp->get_quick_party_index());
         return true;
     }
 
@@ -980,11 +982,12 @@ CParty* CQuickPartySystemManager::make_quick_party(CQuickParty* qp)
     std::list<CUser*> detached;
 
     // 选 host：优先 EPLP 等待态>1 的队伍，否则任一 quick party 属性队伍。
+    CParty* member;
     CParty* host = 0;
     for (int i = 0; i < 4; ++i)
     {
         int partyIdx = qp->get_party_index(i);
-        CParty* member = G_CGameManager()->GetParty(partyIdx);
+        member = G_CGameManager()->GetParty(partyIdx);
         if (member == 0)
             continue;
         if (member->GetEPLPState() > 1)
@@ -999,7 +1002,8 @@ CParty* CQuickPartySystemManager::make_quick_party(CQuickParty* qp)
     {
         for (int i = 0; i < 4; ++i)
         {
-            host = G_CGameManager()->GetParty(qp->get_party_index(i));
+            int partyIdx = qp->get_party_index(i);
+            host = G_CGameManager()->GetParty(partyIdx);
             if (host != 0)
                 break;
         }
@@ -1031,15 +1035,16 @@ CParty* CQuickPartySystemManager::make_quick_party(CQuickParty* qp)
         int partyIdx = qp->get_party_index(i);
         if (partyIdx == -1)
             continue;
-        CParty* member = G_CGameManager()->GetParty(partyIdx);
+        CParty* member = 0;
+        member = G_CGameManager()->GetParty(partyIdx);
         if (member == 0 || member == host)
             continue;
         for (int slot = 0; slot < 4; ++slot)
         {
             if (!member->checkValidUser(slot))
                 continue;
-            CUser* user = member->get_user(slot);
-            member->delete_party_for_quick_party(user, detached);
+            member->delete_party_for_quick_party(member->get_user(slot),
+                                                 detached);
         }
     }
 

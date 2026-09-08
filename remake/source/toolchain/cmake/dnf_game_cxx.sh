@@ -362,8 +362,34 @@ case "$(basename "$src" .cpp)" in
                 # 4.4.6 下与 ORIG 全等（NEAR→AE）。实测 TU ae 94→95 / near 2→1 /
                 # diff 8 不变 ⇒ 零回归。
                 exec "$C6446R" "$@" ;;
+            *Game/CEventScriptMng_entities.cpp)
+                # b28d-S157：set_event_data ×6 + CPcRoomPlayTime::verifyUserPcRoomPlayEvent
+                # 的 near 差在 4.4.6 下全消。实测 TU 4.4.7 identical=29/ae=46/near=7/diff=2
+                # vs 4.4.6 identical=35/ae=47/near=0/diff=2 ⇒ near 7→0 零回归。
+                exec "$C6446R" "$@" ;;
+            *Game/CEventScriptMng_entitiesB.cpp)
+                # b28d-S188：5 件 set_event_data 的 N7（vfn %eax/this %edx vs ORIG %ecx/%eax）
+                # 在 4.4.6 下全消。实测 4.4.7 identical=30/ae=42/near=5/diff=1
+                # vs 4.4.6 identical=35/ae=42/near=0/diff=1 ⇒ near 5→0 零回归。
+                exec "$C6446R" "$@" ;;
+            *Game/CEventManager.cpp)
+                # b28d-S195：7 件间接 call 目标 %ecx/%edx vs 4.4.7 恒 %eax 的 N7 族在
+                # 4.4.6 下翻正。实测 4.4.7 identical=129/ae=233/near=8/diff=3
+                # vs 4.4.6 identical=130/ae=239/near=1/diff=3 ⇒ 零回归。
+                exec "$C6446R" "$@" ;;
+            *Game/W6_IPGDeps.cpp)
+                # b28d-S194：Finalize/dispatch/IPGOutputSimulation 的 N7 间接 call 目标
+                # 寄存器在 4.4.6 下翻正。实测 4.4.7 identical=61/ae=155/near=3/diff=4
+                # vs 4.4.6 identical=61/ae=158/near=0/diff=4 ⇒ 零回归。
+                exec "$C6446R" "$@" ;;
+            *Game/DisPatcher_DebugCommand_cmds.cpp)
+                # b28d-S193：AddItem/AddAvatar 的 N7 在 4.4.6 下翻 AE。实测
+                # 4.4.7 identical=20/ae=68/near=3/diff=2 vs 4.4.6 合计 90AE/near=1/diff=2
+                # ⇒ 零回归。
+                exec "$C6446R" "$@" ;;
             *Game/CLeagueMatch.cpp | *Game/LinkMiscSecuTimerSolo.cpp | *Game/STEquipmentScript.cpp | *Game/CCreatureMgr.cpp | *Game/OnlyOrigBatch12.cpp | \
-            *Game/CFairMatch.cpp | *Game/CEquipItem.cpp | *Game/CAccountCargo.cpp)
+            *Game/CFairMatch.cpp | *Game/CEquipItem.cpp | *Game/CAccountCargo.cpp | \
+            *Game/CUserCharacInfo.cpp)
                 # b28d-6：ORIG CompareRating 的 x87 比较为 fucompp/fnstsw/sahf；4.4 需
                 # -march=i486 才出该 lowering（P230 补）。实测 TU ae 51→52 / diff 24→23。
                 # b28d-D44：LinkMiscSecuTimerSolo::GetMarketConditionRate 同族 x87 比较，
@@ -380,6 +406,9 @@ case "$(basename "$src" .cpp)" in
                 # b28d-S124：CAccountCargo 的 GetEmptySlot/GetSpecificItemSlot 为
                 # MIN_EXPR cmov（ORIG `cmp; jbe; mov $0x38`），仅 i486 可消；
                 # CheckMoneyLimit 64 位比较段同族。预期 3 件转 AE 零回归。
+                # b28d-S156：CUserCharacInfo 的 `index / 8`（有符号除 2^k）在 i486 下
+                # 产 ORIG 精确 5 条（sar/shr/lea/sar），默认旗标产 cmovs（N97）。
+                # 实测 ae 374→376 / diff 5→3 零回归。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
             *Game/CExpandEquipslot.cpp)
                 # CExpandEquipslot：loadData 虚调用寄存器形态需 4.4.6

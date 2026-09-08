@@ -4609,12 +4609,12 @@ struct Inter_MonitorGuildMemberNamingReplyPktView
     char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     char m_pade[0x4];  // +0xe..未消费
-    unsigned int m_12;              // +0x12
+    int m_12;                       // +0x12
 };
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=NEAR ndiff=1（ORIG 0x084cc23c）：寄存器中转(N18a/N7)；gap0。
-// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=2（ORIG 0x84cc23c）：N22 cmp 操作数方向。
+// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=2（ORIG 0x84cc23c）：N22 有参 callee 封顶（同上）。
 int Inter_MonitorGuildMemberNamingReply::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -4626,8 +4626,8 @@ int Inter_MonitorGuildMemberNamingReply::dispatch_sig(CUser* user, char* data, i
     // 0x084cc26b 字段值直落 %ebx 跨 call 存活，cmp %eax,%ebx。b28 实测：具名局部
     // （无 register）4.4 将字段值槽化→cmp -0xc(%eax) 且帧 0x20→0x30（N22 恒 call
     // 结果在 eax）；翻转比较操作数同产反向（N18b/N22）。维持原形，残差 cmp 方向 1 行。
-    register unsigned int charIdMsg = pPkt->m_12;
-    if (user->get_charac_no(-1) != charIdMsg)
+    register int charIdMsg = pPkt->m_12;
+    if (charIdMsg != user->get_charac_no(-1))
         return 0;
 
     // ORIG 0x084cc2ba/0x084cc2ec：m_a 两处独立 reload，无具名槽（技巧37）。
@@ -4798,13 +4798,13 @@ Inter_GuildNoticeGuildMessage::~Inter_GuildNoticeGuildMessage() {}
 struct Inter_GuildNoticeGuildMessagePktView
 {
     char m_pad0[0xe];  // 未消费
-    unsigned int m_e;         // +0x0e
+    int m_e;                  // +0x0e
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
 };
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=NEAR ndiff=1（ORIG 0x084cc650）：寄存器中转(N18a/N7)；gap0。
-// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=2（ORIG 0x84cc650）：N22 cmp 操作数方向。
+// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=2（ORIG 0x84cc650）：N22 有参 callee 封顶（同上）。
 int Inter_GuildNoticeGuildMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -4812,7 +4812,7 @@ int Inter_GuildNoticeGuildMessage::dispatch_sig(CUser* user, char* data, int /*l
     // ORIG：包基址槽在守卫之后物化。
     Inter_GuildNoticeGuildMessagePktView* pPkt = reinterpret_cast<Inter_GuildNoticeGuildMessagePktView*>(data);
     // ORIG +0x2f 一步 `mov 0xe(%eax),%ebx` ⇒ register 局部（普通局部会先落 -0xc 再比较）。
-    register unsigned int charIdMsg =                  // recv charId @ msg+0xe
+    register int charIdMsg =                           // recv charId @ msg+0xe
         pPkt->m_e;
     // ORIG `cmp %eax,%ebx`（ebx=charIdMsg 为 dst）⇒ register 变量作左操作数、
     // 且不套 cast（cast 会让 gcc 把 call 结果当左操作数）。
@@ -5229,14 +5229,15 @@ Inter_MonitorNoticeMemberSecede::~Inter_MonitorNoticeMemberSecede() {}
 struct Inter_MonitorNoticeMemberSecedePktView
 {
     char m_pad0[0xe];  // 未消费
-    int m_e;                  // +0x0e
+    unsigned int m_e;         // +0x0e
     unsigned char m_12;       // +0x12
     char m_13[1];             // +0x13 串/字节区首元素（容量未建模）
 };
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=136（ORIG 0x084cd83a）：寄存器中转(N18a/N7)+混合残差；gap+1。
-// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=11（ORIG 0x84cd83a）：N22 cmp 操作数方向+P30/N4 add-vs-lea。
+// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=4（ORIG 0x84cd83a）：cmp 方向经字段 unsigned
+// 异型化已翻正；余 N107/N18a（成员常量偏移取址 4.4 恒 add、4.1 恒 lea）+ 装载序。
 int Inter_MonitorNoticeMemberSecede::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax; sete
@@ -5274,7 +5275,7 @@ int Inter_MonitorNoticeMemberSecede::dispatch_sig(CUser* user, char* data, int /
         packet.put_byte(0);
     const size_t msgLen = strlen(pPkt->m_13);
     packet.put_int((int)msgLen);
-    packet.put_str(pPkt->m_13, (int)msgLen);
+    packet.put_str(&pPkt->m_13[0], (int)msgLen);
     if (pPkt->m_12 == 1 || pPkt->m_12 == 2)
         packet.put_byte(1);
     else
@@ -6873,7 +6874,8 @@ struct Inter_MonitorNoticeBlackListPktView
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=NEAR ndiff=2（ORIG 0x084d0b3a）：块序重排(N104/P223)+槽序/帧差(N82/P212/P221)；gap0。
-// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=2（ORIG 0x84d0b3a）：混合残差（寄存器分配/槽序：N7/N18a/N82/P112）。
+// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=2（ORIG 0x84d0b3a）：4.4 恒 base-first、
+// 4.1 恒 index-first（两条 mov 顺序互换，语义/条数全等）⇒ N4/P30 封顶。
 int Inter_MonitorNoticeBlackList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -11450,7 +11452,7 @@ int Inter_NoticeGuildMemo::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     // ORIG：register 形态（`mov 0xe(%eax),%ebx`+`cmp %eax,%ebx`）。
     register unsigned int charIdMsg = pPkt->m_e;
-    if (user->get_charac_no(-1) != charIdMsg)
+    if (charIdMsg != user->get_charac_no(-1))
         return 0;
 
     PacketGuard packet;
@@ -11475,7 +11477,7 @@ Inter_PowerWarProcessInfo::~Inter_PowerWarProcessInfo() {}
 struct Inter_PowerWarProcessInfoPktView
 {
     char m_pad0[0xe];  // +0x0..未消费
-    unsigned int m_e;               // +0x0e
+    int m_e;                        // +0x0e
     int m_12;                       // +0x12
     int m_16;                       // +0x16
     int m_1a;                       // +0x1a
@@ -11485,17 +11487,19 @@ struct Inter_PowerWarProcessInfoPktView
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=NEAR ndiff=1（ORIG 0x084daf30）：寄存器中转(N18a/N7)；gap0。
-// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=2（ORIG 0x84daf30）：N22 cmp 操作数方向。
+// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=2（ORIG 0x84daf30）：N22——有参 callee
+// get_charac_no(int) 下 4.4 恒 dst=call 结果；int 同型化/书写序交换/语句表达式/具名中转
+// 六形实测均不翻（无参 callee 件同旋钮已归零，见 ReqAddPvPBuddy）⇒ 封顶。
 int Inter_PowerWarProcessInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_PowerWarProcessInfoPktView* pPkt = reinterpret_cast<Inter_PowerWarProcessInfoPktView*>(data);
     // ORIG：unsigned 字段失配 4 行 spill（同 ReplyGuildLetter）。
     // 实测本函数 ORIG 为 register 形态（`mov 0xe(%eax),%ebx`+`cmp %eax,%ebx`，
     // dst 是 %ebx）⇒ 用 register 局部且 call 作左操作数。
-    register unsigned int charIdMsg = pPkt->m_e;
+    register int charIdMsg = pPkt->m_e;
     // N22 封顶：ORIG `cmp %eax,%ebx`（dst=register 局部）；4.4 恒 dst=call 结果
     // （`cmp %ebx,%eax`），书写序交换无效（!= 交换律规范化），probe 不可翻。
-    if (user->get_charac_no(-1) != charIdMsg)
+    if (charIdMsg != user->get_charac_no(-1))
         return 0;
 
     user->SetPowerWarProcessInfoLastUpdateTime(
@@ -14342,14 +14346,15 @@ Inter_PvPBuddyConnList::~Inter_PvPBuddyConnList() {}
 struct Inter_PvPBuddyConnListPktView
 {
     char m_pad0[0xa];  // +0x0..未消费
-    unsigned int m_a;               // +0x0a
+    int m_a;                        // +0x0a
     char m_pade[0x4];  // +0xe..未消费
     int m_12;                       // +0x12
 };
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=45（ORIG 0x084e16fe）：寄存器中转(N18a/N7)+混合残差；gap+1。
-// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=7（ORIG 0x84e16fe）：N22 cmp 操作数方向。
+// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=6（ORIG 0x84e16fe）：cmp 方向经 int 同型化
+// 已翻正（-1）；余 entry 地址形 N4/P30（ORIG 三段 add 0x10/base/0x6 vs 4.4 add 0x16+lea）。
 int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     // [b28c-30] N22 封顶：ORIG 0x084e1709 `cmp %eax,%ebx`（ebx = 局部字段值）vs
@@ -14360,9 +14365,9 @@ int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
         return 0;
 
     // ORIG 一步 `mov 0xa(%eax),%ebx` 直落 callee-saved（具名槽会顶深 pPkt，技巧2）。
-    register unsigned int charIdMsg =                  // recv charId @ msg+0xa
+    register int charIdMsg =                           // recv charId @ msg+0xa
         pPkt->m_a;
-    if (charIdMsg != (unsigned int)user->getCurCharacNo())
+    if (charIdMsg != user->getCurCharacNo())
         return 0;
 
     // ORIG：m_12 每处独立 reload（无 count 槽；put_int + 循环界各一次）。
@@ -14370,7 +14375,7 @@ int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_header(0, 0x10f);
     packet.put_int((int)pPkt->m_12);
     for (int i = 0; i < (int)pPkt->m_12; ++i)
-        packet.put_binary(data + 0x16 + i * 0x29, 0x29);
+        packet.put_binary(reinterpret_cast<char*>(pPkt) + i * 0x29 + 0x16, 0x29);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -14385,7 +14390,7 @@ Inter_ReqAddPvPBuddy::~Inter_ReqAddPvPBuddy() {}
 struct Inter_ReqAddPvPBuddyPktView
 {
     char m_pad0[0xa];  // 未消费
-    unsigned int m_a;         // +0x0a
+    int m_a;                  // +0x0a
     char m_pade[0x4];  // 未消费
     char m_12;                // +0x12
     char m_13[1];             // +0x13 串/字节区首元素（容量未建模）
@@ -14394,7 +14399,7 @@ struct Inter_ReqAddPvPBuddyPktView
 
 // [b28 判词 N22] 唯一残差 `cmp %eax,%ebx`↔`cmp %ebx,%eax`（dst 方向），负例在册。
 // [b28d-lane2] verdict=NEAR ndiff=1（ORIG 0x084e1832）：寄存器中转(N18a/N7)；gap0。
-// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=2（ORIG 0x84e1832）：N22 cmp 操作数方向。
+// [b28d-solo-InterDispatcher] verdict=AE（收口：字段/局部 int 同型化翻转 cmp 方向 → 归零）。
 int Inter_ReqAddPvPBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     // ORIG +0x10：包基址槽在首条 call 之前即物化（-0x10）。
@@ -14402,7 +14407,7 @@ int Inter_ReqAddPvPBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (user->get_state() <= 2 || user->get_state() == 7)
         return 0;
     // ORIG +0x27 一步 `mov 0xa(%eax),%ebx` ⇒ register 局部。
-    register unsigned int charIdMsg =                  // recv charId @ msg+0xa
+    register int charIdMsg =                           // recv charId @ msg+0xa
         pPkt->m_a;
     if (charIdMsg != user->getCurCharacNo())   // ORIG `cmp %eax,%ebx` 同上
         return 0;
@@ -14439,13 +14444,15 @@ struct Inter_AddPvPBuddyResultPktView
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=130（ORIG 0x084e1978）：寄存器中转(N18a/N7)+混合残差；gap0。
-// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=38（ORIG 0x84e1978）：N18a 单段 regmove+P30/N4 add-vs-lea+P264 .o 重定位/立即数。
+// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=41（ORIG 0x84e1978）：P231 register int 局部
+// 未能翻单段（4.4 仍两段）；余 m_32 分支 je/jne 极性 + N4 add-vs-lea。
 int Inter_AddPvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AddPvPBuddyResultPktView* pPkt = reinterpret_cast<Inter_AddPvPBuddyResultPktView*>(data);
     if (user->get_state() <= 2)
         return 0;
-    if (pPkt->m_a != user->getCurCharacNo())
+    register int characNoMsg = pPkt->m_a;
+    if (characNoMsg != user->getCurCharacNo())
         return 0;
 
     if (pPkt->m_12 == '\0')
@@ -14510,13 +14517,15 @@ struct Inter_RemovePvPBuddyResultPktView
 };
 #pragma pack(pop)
 
+// [b28d-solo-InterDispatcher 收口] verdict=AE（P231 register int 局部直落 %ebx → 归零）。
 int Inter_RemovePvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_RemovePvPBuddyResultPktView* pPkt = reinterpret_cast<Inter_RemovePvPBuddyResultPktView*>(data);
     if (user->get_state() <= 2)                        // setle：signed <= 2
         return 0;
 
-    if (pPkt->m_a != user->getCurCharacNo())
+    register int characNoMsg = pPkt->m_a;
+    if (characNoMsg != user->getCurCharacNo())
         return 0;
 
     if (pPkt->m_31 != '\0')
@@ -14560,13 +14569,15 @@ struct Inter_NoticePvPBuddyInOutPktView
 };
 #pragma pack(pop)
 
+// [b28d-solo-InterDispatcher 收口] verdict=AE（P231 register int 局部直落 %ebx → 归零）。
 int Inter_NoticePvPBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_NoticePvPBuddyInOutPktView* pPkt = reinterpret_cast<Inter_NoticePvPBuddyInOutPktView*>(data);
     if (user->get_state() <= 2)                        // setle：signed <= 2
         return 0;
 
-    if (pPkt->m_a != user->getCurCharacNo())
+    register int characNoMsg = pPkt->m_a;
+    if (characNoMsg != user->getCurCharacNo())
         return 0;
 
     PacketGuard packet;
@@ -15596,6 +15607,7 @@ int Inter_SendTimeSyncLogin::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_AddGuildFundResult::~Inter_AddGuildFundResult() {}
 // ORIG 0x084e34ba T dispatch_sig —— 公会基金捐献结果处理。
 // 报告 docs/class_func_reports/Inter_AddGuildFundResult/dispatch_sig.md 全文转写。
+// [b28d-solo-InterDispatcher 收口] verdict=AE（P231 register int 局部直落 %ebx → 归零）。
 int Inter_AddGuildFundResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
 #pragma pack(push, 1)
@@ -15613,7 +15625,8 @@ int Inter_AddGuildFundResult::dispatch_sig(CUser* user, char* data, int /*len*/)
     AddGuildFundResultView* p = reinterpret_cast<AddGuildFundResultView*>(data);
     if (user->get_state() <= 2)
         return 0;
-    if (p->m_characNo != user->getCurCharacNo())
+    register int characNoMsg = p->m_characNo;
+    if (characNoMsg != user->getCurCharacNo())
         return 0;
     if (p->m_bSuccess != 0)
     {
@@ -15650,13 +15663,16 @@ struct Inter_TodayGuildMemberPktView
 };
 #pragma pack(pop)
 
+// [b28d-solo-InterDispatcher 收口] verdict=NEAR ndiff=3（ORIG 0x84e358a）：首处比较已由
+// register int 局部归位；第二处 `&&` 右操作数 4.4 恒两段 mov（N18a）⇒ 封顶。
 int Inter_TodayGuildMember::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_TodayGuildMemberPktView* pPkt = reinterpret_cast<Inter_TodayGuildMemberPktView*>(data);
     if (user->get_state() <= 2)                        // cmp $2; setle
         return 0;
 
-    if (pPkt->m_e !=
+    register int characNoMsg = pPkt->m_e;
+    if (characNoMsg !=
         user->getCurCharacNo())
         return 0;
 
@@ -15863,23 +15879,24 @@ struct Inter_ApproveJoinGuildPktView
 {
     char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a
-    unsigned int m_e;               // +0x0e
+    int m_e;                        // +0x0e
     char m_pad12[0x4];  // +0x12..未消费
     int m_16;                       // +0x16
 };
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=82（ORIG 0x084e3f0e）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
-// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=57（ORIG 0x84e3f0e）：N22 cmp 操作数方向+N82/P112 帧槽平移+P30/N4 add-vs-lea。
+// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=57（ORIG 0x84e3f0e）：cmp 方向经 int 同型化
+// 已翻正；余 N82/P112 帧槽平移 + P30/N4 add-vs-lea + errCode 分支布局。
 int Inter_ApproveJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ApproveJoinGuildPktView* pPkt = reinterpret_cast<Inter_ApproveJoinGuildPktView*>(data);
     if (user->get_state() <= 2)
         return 0;
 
-    const unsigned int charIdMsg =                     // recv charId @ msg+0xe
+    register int charIdMsg =                           // recv charId @ msg+0xe
         pPkt->m_e;
-    if (charIdMsg != (unsigned int)user->getCurCharacNo())
+    if (charIdMsg != user->getCurCharacNo())
         return 0;
 
     const unsigned int errCode = pPkt->m_a;
@@ -15982,13 +15999,15 @@ struct Inter_GuildAttendanceInfoPktView
 };
 #pragma pack(pop)
 
+// [b28d-solo-InterDispatcher 收口] verdict=AE（P231 register int 局部直落 %ebx → 归零）。
 int Inter_GuildAttendanceInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_GuildAttendanceInfoPktView* pPkt = reinterpret_cast<Inter_GuildAttendanceInfoPktView*>(data);
     if (user->get_state() <= 2)                        // setle：signed <= 2
         return 0;
 
-    if (pPkt->m_a != user->getCurCharacNo())
+    register int characNoMsg = pPkt->m_a;
+    if (characNoMsg != user->getCurCharacNo())
         return 0;
 
     PacketGuard packet;
@@ -16016,7 +16035,7 @@ Inter_AchieveGuildAttendance::~Inter_AchieveGuildAttendance() {}
 struct Inter_AchieveGuildAttendancePktView
 {
     char m_pad0[0xa];  // +0x0..未消费
-    unsigned int m_a;               // +0x0a
+    int m_a;                        // +0x0a
     char m_pade[0x4];  // +0xe..未消费
     int m_12;                       // +0x12
     int m_16;                       // +0x16
@@ -16024,7 +16043,7 @@ struct Inter_AchieveGuildAttendancePktView
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=NEAR ndiff=1（ORIG 0x084e41e4）：寄存器中转(N18a/N7)；gap0。
-// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=2（ORIG 0x84e41e4）：N22 cmp 操作数方向。
+// [b28d-solo-InterDispatcher] verdict=AE（收口：字段/局部 int 同型化 + 删 (unsigned) cast → 归零）。
 int Inter_AchieveGuildAttendance::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AchieveGuildAttendancePktView* pPkt = reinterpret_cast<Inter_AchieveGuildAttendancePktView*>(data);
@@ -16032,9 +16051,9 @@ int Inter_AchieveGuildAttendance::dispatch_sig(CUser* user, char* data, int /*le
         return 0;
 
     // ORIG 0x084e4214 `mov 0xa(%eax),%ebx`：register 直落 callee-saved（cmp 方向 N22）。
-    register unsigned int charIdMsg =                  // recv charId @ msg+0xa
+    register int charIdMsg =                           // recv charId @ msg+0xa
         pPkt->m_a;
-    if (charIdMsg != (unsigned int)user->getCurCharacNo())
+    if (charIdMsg != user->getCurCharacNo())
         return 0;
 
     // ORIG 0x084e425b/0x084e4270：m_12/m_16 各自从 -0xc reload（PG 生命周期内无缓存）。

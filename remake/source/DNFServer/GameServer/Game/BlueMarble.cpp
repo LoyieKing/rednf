@@ -150,10 +150,6 @@ void BlueMarble::setUserState(int seat, BlueMarbleUserState::T state)
 // 4.1 从浅起；提函数头 P212 实测反劣 46）⇒ N93/N82附 封顶。ORIG 0x080d7afc
 int BlueMarble::setUserGrade(int grade)
 {
-    // P190：ORIG 槽基比 4.4 深 4（mm -0x48 vs -0x44）；取址 pad 撑帧回推
-    // （double 过头 +0x10，float 试 +4）。
-    float framePad;
-    (void)&framePad;
     std::multimap<int, int, std::greater<int> > mm;
     m_users[grade].setGrade(BlueMarbleUserGrade::T_0);
     for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
@@ -165,13 +161,10 @@ int BlueMarble::setUserGrade(int grade)
             goto NEXT0;
         if (m_users[i].getGrade() == 0)
             goto NEXT0;
-        {
-            // ORIG 0x080d7bb0..：zone 槽 -0x1c；Ghidra `make_pair<int,int&>` +
-            // 无 out-of-line call ⇒ 原码是左值 make_pair（P61/P234），
-            // `std::move(zone)` 会多发一次 `call std::move<int>`（+5 条）。
-            int zone = m_users[i].getBoardZone();
-            mm.insert(std::make_pair(zone, i));
-        }
+        // ORIG 0x080d7bb0..：zone 槽 -0x1c；Ghidra `make_pair<int,int&>` +
+        // 无 out-of-line call ⇒ 原码是左值 make_pair（P61/P234），
+        // `std::move(zone)` 会多发一次 `call std::move<int>`（+5 条）。
+        mm.insert(std::make_pair(m_users[i].getBoardZone(), i));
     NEXT0:
         ;
     }
@@ -1216,7 +1209,10 @@ int BlueMarble::insertItem(int seat, Inven_Item& item, eItemAddReason reason)
             };
             MailPayload local_273;
             memset(local_273.raw, 0, 0x145);
-            strncpy(local_273.msg.m_name11, local_2e, 0x1d); // +0x11 收件人名
+            // ORIG 0x080d8273/0x080d8278 `lea -0x26f; add $0x11`：数组退化 + 常量偏移
+            // 形（P214①/N102 反例解；`msg.m_name11` 结构成员恒折 disp 成 lea 0x11(%eax)）。
+            // raw 为 union 字节视角（+0x11 即 m_name11 起始），偏移由字段自身证明。
+            strncpy(local_273.raw + 0x11, local_2e, 0x1d);
             local_273.msg.m_itemId39 =
                 static_cast<unsigned long>(item.m_addInfo);  // +0x39 附件物品 id
             local_273.msg.m_extra3d = item.m_addInfo2;       // +0x3d 附件 add_info

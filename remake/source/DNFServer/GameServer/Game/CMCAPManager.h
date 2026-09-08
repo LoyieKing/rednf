@@ -74,7 +74,11 @@ static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHac
     bool m_field544;   // +0x544（0x8e934 setRestingUserRestrict）
     char m_pad545[1];  // +0x545
     short m_field546;  // +0x546（0x8e936 setPunishTradeAlert）
-    int m_lastLotteryTime;  // +0x548（0x8e938 getLastLotteryTime）
+    // +0x548（0x8e938 getLastLotteryTime）：b28d-solo-CUser 实证——setLastLotteryTime
+    // ORIG 0x082307cb `mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx; mov %edx,0x548(%eax)`
+    // = LHS-first（P211 同型律）⇒ 字段与形参 `unsigned long t` 同型；int 字段时 4.4
+    // 恒 RHS-first（`mov 0xc(%ebp),%edx` 在前）。ia32 ulong=4B，偏移/sizeof 不变。
+    unsigned long m_lastLotteryTime;
     char m_field54c;   // +0x54c
     char m_pad54d[1];                   // +0x54d
     unsigned short m_cleanPadVeriA;     // +0x54e（GenerateCleanPadVeriData randInt(0xffff)+1）

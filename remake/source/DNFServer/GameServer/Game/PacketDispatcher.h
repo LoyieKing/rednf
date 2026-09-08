@@ -59,6 +59,10 @@ public:
 //   _ZTV9ParamBase          V 0x08b5f500：{0, &_ZTI9ParamBase, D1, D0}
 //   _ZTI9ParamBase/_ZTS     V 0x08b5f7a8/0x08b5f79c：__class_type_info 根类型
 // ---------------------------------------------------------------------------
+// [b28d-Main 试验·S153 尺寸表] pack(1)：ORIG dispatch_template 把 ParamBase
+// 局部对象放非 4 对齐槽（-0x29/-0x21/-0x27/-0x1f/-0x1d…），我方 alignof 4 恒落
+// 4 对齐槽 ⇒ 16 个实例槽基差 -3/-2/-1。sizeof 仍 4（TEST_CLASS_SIZE 通过）。
+#pragma pack(push, 1)
 class ParamBase
 {
 public:
@@ -66,6 +70,7 @@ public:
     ParamBase(const ParamBase&) {}
     virtual ~ParamBase() {}
 };
+#pragma pack(pop)
 
 // ---------------------------------------------------------------------------
 // IDispatcher：分发器抽象基类（ORIG 无基类，RTTI 为 __class_type_info 根类型）
@@ -179,6 +184,55 @@ int IPacketDispatcher<MSG, Param, state>::dispatch_template(CUser* user, PacketB
     //   · PacketTypes.h patch（Main 已落 2026-09-08）：5 件 ndiff=0（AE：MSG_BINGO_QUIZ/
     //     FATIGUE_ATTENDANCE/STACKABLE_ACTION_USE/OPEN_CERAPACKAGE/COMBO_SKILL）；余件残
     //     3~24 行（N7/N-MSG_BASE/N-SIZE 残差，见 .cpp 顶部逐件表）。
+    //   · [b28d-solo-S153 终态] 新鲜 /tmp/tu_PacketDispatcher.o（compare_tu clean）口径：
+    //     115 件 = 7 IDENTICAL_AE + 1 NEAR + 107 DIFF。残差三族：
+    //     ① N-SIZE（已修复 21 类）：ORIG/OURS 指令逐条全等，唯一差异曾是 msg/param 栈槽
+    //        基址（P213 紧排律 ⇒ 类 sizeof/对齐差）。Main 落本文件 `ParamBase` pack(1)；
+    //        S153 落 PacketTypes.h 20 类尾部 pad/对齐（详见各类注释）⇒ 槽差归零、
+    //        MSG_RENAME_CREATURE/MSG_ENCHANT/MSG_COMPATIBILITY_INDEX 等 3 件 →AE。
+    //        余 2 类经 Main 裁决封 N：MSG_DELETE_ITEM（+4 与 DisPatcherCore TailView
+    //        assert@0x4bf 冲突）、MSG_CLIENT_SPEC_STATISTIC（需缩 CUser.h Client_Spec）。
+    //     ② N7（封顶）：4.4.6 虚目标恒 %ecx / ORIG %edx + &msg/&param 物化序；本波补测
+    //        `*&param`、`reinterpret_cast<ParamBase*>(&param)`、`reinterpret_cast<MSG_BASE&>(msg)`
+    //        三形（连同前泳道 10 形 + 446h46/446h47/447 三后端）均零变化 ⇒ 结构性封顶。
+    //     ③ N-MSG_BASE（封顶）：空体 ctor 独立对象多发 3 条 call，承载器方案因发明 242 符号回退。
+    //   · [b28d-solo-S161 复核终态] 新鲜 /tmp/tu_PacketDispatcher.o（compare_tu clean）口径：
+    //     本模板覆盖的 110 件 = **3 AE + 1 NEAR + 106 DIFF**（S161 清单 111 件另含 dispatch(AE)
+    //     与 doDispatch）。三族复核结论：
+    //     ① N7（POD msg 的 &msg/&param 物化序，封顶）：S161 用探针 /tmp/pd_probe{1..5}.cpp
+    //        12 形 × 4.4.6/4.4.7 双后端重测——4.4 对**POD 局部对象地址实参**先预计算 lea 再
+    //        按右→左压栈（msg-first），4.1 恒算一个压一个（param-first）；唯一翻转条件是该类
+    //        真实继承 MSG_BASE（探针 h1/h2/ha param-first）或非 POD 派生形，但 MSG_* 均为
+    //        独立 POD（PacketTypes.h 注释实证无 C1/D1）⇒ 让 MSG 派生会为每实例多发 3 条
+    //        MSG::C1 call（恶化），禁。`volatile` 对象 / 用户空 ctor / 用户拷贝赋值声明 /
+    //        pack(1) / 语句表达式 / 逗号表达式 / 具名引用 / 指针局部（m1..m5、g4..g8）均仍
+    //        msg-first 或引入额外槽 ⇒ 结构性封顶。
+    //     ② N-SIZE（**S161 已落地 14 类 pad**，Main 授权）：16 件 param/msg 栈槽曾差 1/2/4/0x18。
+    //        本次在 PacketTypes.h 追加/扩占位（不动现有成员偏移）：param 类 stSelectStriker
+    //        pad 0x4→0x5、stStackableActionUse 0x7→0xb、stTournamentRewardSelect 0x4→0x5；
+    //        msg 类 MSG_TELEPORT +pad16[2]（assert 0x16→0x18）、MSG_BOSS_DIE_CHECK +pad18[2]
+    //        （0x16→0x18）、MSG_DIE_CHARACTER pad 0x3→0x4、MSG_CHANGE_HOST_WARROOM 0x4→0x5、
+    //        MSG_OBJECT_BRING_UP 0x2→0x3、MSG_MAILBOX_EXTRACT_ITEM lane10pad 0x3→0x5
+    //        （assert 0x14→0x16）、MSG_REQUEST_DISJOINT_ITEM +pad13（0x13→0x14）、
+    //        MSG_PVP_MISSION_COMBO_CLEAR 0x1→0x2、MsgLimitNpcBuyItem 0x7→0x8、
+    //        MsgMercenaryCompetition 0xa→0xb、MsgMercenaryReturn 0x6→0x7。
+    //        实测 TU ae 1534→1537 / near 4→1 / diff 109 不变 ⇒ **3 件 NEAR→AE**
+    //        （MSG_SELECT_STRIKER / MSG_STACKABLE_ACTION_USE / MsgTournamentRewardSelect），
+    //        11 件 DIFF 槽差归零（残 N7 lea 寄存器差）。余 2 类封 N：
+    //        MSG_CLIENT_SPEC_STATISTIC（msg 差 0x18，需缩 CUser.h Client_Spec）与
+    //        MSG_DELETE_ITEM（msg +4 与 DisPatcherCore TailView assert@0x4bf 冲突）。
+    //     ③ N-MSG_BASE（24 件，封顶）：MSG_BASE 实例 ORIG 零 ctor call / 我方 +3 条
+    //        （lea -0x19 + mov + call），承载器方案因发明 242 符号回退。
+    //   · [b28d-solo-PacketDispatcher/S177 复核终态] 清单 /tmp/b28d_tu/PacketDispatcher.tsv
+    //     107 件 = **106 DIFF + 1 NEAR**（81 N7 + 24 N-MSG_BASE + 1 N-SIZE + 1 N7+N-SIZE；
+    //     逐件见 /tmp/b28d_solo_PacketDispatcher_result.tsv，证据见 .cpp 顶部 S177 段）：
+    //     ① N7 复核（81 件）：4.4.6 对 **trivial 默认构造**类型恒 msg-first + 虚目标 %ecx；
+    //        唯一 param-first+%edx 通路 = 默认构造 non-trivial（继承有用户 ctor 基类），
+    //        代价恒 3 条 msg ctor call（=N-MSG_BASE）⇒ 净负。探针 pd_probe8..13（空基类/
+    //        用户拷贝构造/用户析构/always_inline/throw()/继承链）全部复证，4.4.7 后端更差。
+    //     ② N-MSG_BASE 复核（24 件）：always_inline 消 call 但帧 16 对齐进位 +0x10 且丢
+    //        _ZN8MSG_BASEC1Ev；throw() 无效；char 缓冲载体令 82 件 MSG_* 回退 ae−87 ⇒ 封顶。
+    //     ③ 本模板函数体保持原形（`MSG msg;` 真实构造），不得改存储缓冲/载体。
     //   · ORIG 代码形态（逐实例化核对，如 MSG_FINISH_LOADING@0x8265abc、
     //     MSG_DELETE_ITEM@0x825a0c2 域）：result 于 check_state 早退后置 0；赋值内嵌于
     //     条件（(result = read(...)) != 0 / (result = process(...)) > 0 ⇒ setne/setg 物化）。

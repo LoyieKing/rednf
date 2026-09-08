@@ -222,7 +222,8 @@ public:
 class CTeamFactory : public StaticPool<COnlinePreliminaryTeam, 600>
 {
 public:
-    CTeamFactory();                                  // ORIG W 0x8588e2e：转调基类 StaticPool ctor（定义在 GlobalData.cpp）
+    // [b28d-solo-GlobalData] P299/P318：ORIG C1/C2 为 W（隐式合成）⇒ 删用户空 ctor
+    // 声明恢复 CWG434 value-init 前置 rep stos（COnlinePreliminaryTeamMgr::C1 0x0858860c 实证）。
     ~CTeamFactory();                                 // ORIG W 0x8588e42
     COnlinePreliminaryTeam* Acquire();               // 0x8588dd8
     void Free(COnlinePreliminaryTeam* team);          // 0x8588dec

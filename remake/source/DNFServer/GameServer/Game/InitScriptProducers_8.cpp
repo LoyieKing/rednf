@@ -72,7 +72,9 @@ int loadRDARScriptListFile(class STScriptFileList* list, const char* dir,
 // _Z22loadRDARScriptListFile.. T 0x088bbd77（STScriptFileList.cpp）
 
 // ---- PvP 全局表：定义于 PvP_Room.cpp 的三个，此处仅 extern 引用 ----
-extern unsigned char PVPMAP_DEATHMATCH_MODE[0x14];            // ORIG B 0x94f70e0
+// [b28d-Main 代落·S165] 元素 unsigned char→bool（定义侧 PvP_Room.cpp:65 已改；
+// 消 ODR 不一致；sizeof/地址 0x94f70e0 不变，写侧值域 0/1）。
+extern bool PVPMAP_DEATHMATCH_MODE[0x14];                     // ORIG B 0x94f70e0
 extern char PVPMAP_ONLY_NORMAL_EXPOSURE[0x14];       // ORIG B 0x94f7108
 extern char PVPMAP_ONLY_TOURNAMENT_RANDOM[0x14];     // ORIG B 0x94f711c
 

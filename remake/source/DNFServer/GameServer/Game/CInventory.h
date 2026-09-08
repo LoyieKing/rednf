@@ -287,7 +287,11 @@ public:
     bool GainExp(int exp);                               // ORIG _ZN13user_creature12CCreatureMgr7GainExpEi
     bool IsEquippedCreature() const;                     // ORIG _ZNK13user_creature12CCreatureMgr18IsEquippedCreatureEv
     bool IsGrowCreature_Equipped_Creature() const;       // ORIG _ZNK13user_creature12CCreatureMgr32IsGrowCreature_Equipped_CreatureEv
-    int VerifyEquipedCreatureQuest() const;  // ORIG _ZNK13user_creature12CCreatureMgr26VerifyEquipedCreatureQuestEv T 0x0833d6fa
+    // [b28d-solo-CCreatureMgr P248档①] ORIG 0x833d72f/0x833d749 `call; jmp; leave;ret`
+    // 无 movzbl 归一 ⇒ 返回 bool（与 IsAbleEvolute/IsAbleSelectEvolute 同链）。
+    // [b28d-solo-CCreatureMgr P248档① 代落] int→bool：ORIG 调用点 `call; test %al,%al`
+    // 无 setcc（返回类型不入 mangled）。消费点 Dispatchers.cpp:15459 语句调用。
+    bool VerifyEquipedCreatureQuest() const;  // ORIG _ZNK13user_creature12CCreatureMgr26VerifyEquipedCreatureQuestEv T 0x0833d6fa
     bool InsertCreatureItem(Inven_Item* item, int a,     // ORIG _ZN13user_creature12CCreatureMgr18InsertCreatureItemEP10Inven_Itemiiii
                             int b, int c, int d);
     int GetCreatureItemId() const;                 // ORIG _ZNK13user_creature12CCreatureMgr17GetCreatureItemIdEv
@@ -420,20 +424,8 @@ namespace GlobalData
 extern CSecu_ProtectionField* s_pSecuProtectionField;
 }
 
-// ORIG C1 0x837355a = map C1 + init; D1 0x837388e = map D1 (both W).
-// sole member map<SlotBoundKey,SlotBound> (sizeof 0x18; defs in CDataManager.h).
-class CSlotBoundChecker
-{
-public:
-    CSlotBoundChecker() { init(); }
-    ~CSlotBoundChecker() {}
-    void init();
-    void insert(int slot, int capacity, Inven_Item::ITEM_TYPE type, bool a, bool b);
-    bool get_slot_bound(Inven_Item::ITEM_TYPE type, int capacity, int& start, int& end) const;
-    bool get_item_type(int slot, int capacity, Inven_Item::ITEM_TYPE& outType) const;
-private:
-    std::map<SlotBoundKey, SlotBound> m_map;
-};
+// CSlotBoundChecker 的权威定义已迁至 CDataManager.h（eventReward +0x18 内嵌
+// 成员需完整类型，见该头 eventReward 前）；本头经 #include "CDataManager.h" 获得。
 
 
 class Store

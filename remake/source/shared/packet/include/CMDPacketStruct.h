@@ -106,6 +106,9 @@ TEST_CLASS_SIZE(MSG_BASE, 13);
 // （穷举实证：全二进制对 ParamBase* 的访问均从 +0x04 起，+0x00 为 vptr）。
 // sizeof = 4。
 // ---------------------------------------------------------------------------
+// [b28d-Main 试验·S153] pack(1)（见 Game/PacketDispatcher.h 同判词）：alignof 1、
+// sizeof 仍 4，复现 ORIG 非 4 对齐槽基。
+#pragma pack(push, 1)
 class ParamBase {
 public:
     ParamBase()
@@ -122,6 +125,7 @@ public:
     {
     }
 };
+#pragma pack(pop)
 
 TEST_CLASS_SIZE(ParamBase, 4);
 

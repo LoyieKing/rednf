@@ -53,6 +53,17 @@ inline int* memberUsedCoin(CParty* party)
     return party->m_battleData.m_arr7e8;
 }
 
+// +0x1dc CPartyResultRecvFlag 接收标志区视图。ORIG 三处 receiver 取址
+// （0x085b3f58 / 0x085b3f85 / 0x085a464）均为 `mov this,%eax;
+// lea 0x1dc(%eax),%edx`；4.4 对「视图 cast + 具名成员」产同形 lea，对
+// `reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)` 取址恒产 add（N107）
+// ⇒ 以视图具名成员表达 receiver（探针 /tmp/b28d_s187/p2.cpp m1..m3）。
+struct CPartyRecvFlagView
+{
+    unsigned char m_pad1dc[0x1dc];
+    CPartyResultRecvFlag m_recvFlag;   // +0x1dc
+};
+
 }  // namespace
 
 // ============================================================================
@@ -446,30 +457,25 @@ int CParty::getMemberPassParty(CUser* user)
 
 // ORIG T 0x085b9e80（GetUserSecretShop.md）：+0x2a8 + slot*0x1c 起的逐成员
 // secret 商店数据视图；slot 出界返回空。
-// b28d-solo-CPartyOnlyOrig 判词：DIFF ndiff=7 @0x085b9e80。已用权威具名视图
-// `SECRET_SHOP_DATA::m_info[slot]` 复现 ORIG 的 28x 强度归约链（shl2/lea8/sub，
-// 裸 `slot*0x1c+4` 下标形被 4.4 重结合成 `(slot*7+1)*4`）；残余 N107/P30 封顶：
-// 基址常量拆分（4.1 `lea 0x2a0`+`add $8` vs 4.4 `add $0x2a4`+`add $4`）与
-// this 中转 `mov %eax,%ecx`（探针 fA/fB/fJ/g1..g3 全败）。语义等价。
+// b28d-solo-CPartyOnlyOrig 判词：DIFF→AE。修法：CParty.h +0x2a8 落
+// POD 具名数组成员 `m_secretShopInfo[4][0x1c]`（R2 已广播，sizeof/偏移不变）
+// ⇒ `&this->m_secretShopInfo[slot]` 复现 ORIG 的 28x 强度归约链与
+// `lea 0x2a0(%edx),%eax; add this; add $8` 常量拆分；cast 取址形恒多
+// `mov this,%ecx` 中转（探针 /tmp/b28d_s187/p11/p14/p18）。
 void* CParty::GetUserSecretShop(CUser* user)
 {
     int slot = GetUserPosition(user);
     // [Ghidra 0x085b9e80 双证] 命中区间写正向 `0<=slot<=3`（ORIG js/jg 双
     // 跳共享 0 岛）；ORIG 总偏移 = this+0x2a0+8+slot*0x1c = **0x2a8**+slot*0x1c
-    //（m_padShop @+0x2a4 ⇒ 表达式内偏移 4；前人误将区域基址 0x2a0 当 m_padShop
-    // 基址写成 8，实产 0x2ac 差 4B）。
-    // P205 两乘积拆形：ORIG `mov slot,%eax; shl $2; lea (,%eax,8),%edx;
-    // sub %eax,%edx; lea 0x2a0(%edx),%eax; add this; add $8`
+    //（CParty.h 中 SECRET_SHOP_DATA 头 m_padShop@+0x2a4 + 数组
+    // m_secretShopInfo@+0x2a8；前人误将区域基址 0x2a0 当子对象基址写 8，实产
+    // 0x2ac 差 4B）。
     if (slot >= 0 && slot <= 3)
     {
-        // b28d-solo-CPartyOnlyOrig：改用权威具名视图 —— ORIG 地址
-        // this+0x2a8+slot*0x1c = SECRET_SHOP_DATA(+0x2a4).m_info[slot]（+0x04，
-        // SECRET_SHOP_INFO 0x1c）。类型化数组索引让 4.4 产出 ORIG 的
-        // `shl$2; lea(,eax,8); sub` 28x 强度归约链（裸 `slot*0x1c+4` 下标形
-        // 被 4.4 重结合成 `(slot*7+1)*4`）；残余 `mov %eax,%ecx` 中转与
-        // 常量拆分（4.1 lea 0x2a0+8 vs 4.4 add 0x2a4+4）归 N107/P30 封顶。
-        return &reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)
-                    ->m_info[slot];
+        // ORIG 地址 this+0x2a8+slot*0x1c = SECRET_SHOP_DATA(+0x2a4).m_info
+        // （+0x04，SECRET_SHOP_INFO 0x1c）。
+        return reinterpret_cast<secretshop::SECRET_SHOP_INFO*>(
+            &m_secretShopInfo[slot]);
     }
     return 0;
 }
@@ -650,10 +656,9 @@ void CParty::setMonsterMoveHack()
 // ============================================================================
 
 // ORIG T 0x085b3f34（set_recv_party_packet_flag.md）：+0x1dc 结果接收标志区。
-// b28d-solo-CPartyOnlyOrig 判词：DIFF ndiff=4 @0x085b3f34。N107 封顶 ——
-// ORIG receiver `lea 0x1dc(%eax),%edx` vs 4.4 `add $0x1dc,%eax`（数组名/
-// 取址 cast 两形恒 add；探针证明仅**具名成员子对象**产 lea，但匿名 union
-// 方案被 GCC4.4「union 不能含带构造函数成员」拒绝）。语义等价。
+// b28d-solo-CPartyOnlyOrig 判词：DIFF→AE。修法：+0x1dc 视图具名成员
+// receiver（`CPartyRecvFlagView::m_recvFlag`）复现 ORIG `lea 0x1dc(%eax),%edx`
+// —— 4.4 对取址 cast 恒 add（N107），对视图具名成员产 lea。
 void CParty::set_recv_party_packet_flag(CUser* user)
 {
     int slot = GetMemberSlotNo(const_cast<const CUser*>(user));
@@ -663,17 +668,14 @@ void CParty::set_recv_party_packet_flag(CUser* user)
     {
         return;
     }
-    // b28d-solo-CPartyOnlyOrig：receiver 取数组地址形（ORIG 0x085b3f58
-    // `lea 0x1dc(%eax),%edx`）；数组名/取址 cast 两形 4.4 恒产 add（N107，
-    // 探针 f 证明 lea 需具名成员子对象，但 union 方案被 GCC4.4 拒绝）。
-    reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->SetRecvFlag(slot);
+    reinterpret_cast<CPartyRecvFlagView*>(this)->m_recvFlag.SetRecvFlag(slot);
 }
 
 // ORIG T 0x085b3f72（recv_party_packet_all.md）：全员均已回包才返回 true。
-// b28d-solo-CPartyOnlyOrig 判词：DIFF ndiff=5 @0x085b3f72。N107 封顶
-//（同 set_recv_party_packet_flag 的 lea/add receiver 差；余下逐条全等）。
+// b28d-solo-CPartyOnlyOrig 判词：DIFF→AE（+0x1dc 视图具名 receiver，
+// 同 set_recv_party_packet_flag 修法）。
 // b28d-45 recv_party_packet_all 0x085b3f72：已修 P248 档①（CPartyResultRecvFlag::
-// IsRecv uchar→bool，0x085b3fc0 xor 段对齐）；残余 lea 0x1dc vs add 归 N107 封顶。
+// IsRecv uchar→bool，0x085b3fc0 xor 段对齐）。
 bool CParty::recv_party_packet_all()
 {
     for (int i = 0; i <= 3; i++)
@@ -684,7 +686,8 @@ bool CParty::recv_party_packet_all()
         }
         // N96 清绑：ORIG call; xor$1; test; jne 岛——4.4 对 uchar callee 恒
         // setXX 物化（P168a④ 在册），裸形取最小差。
-        if (!reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->IsRecv(i))
+        if (!reinterpret_cast<CPartyRecvFlagView*>(this)
+                 ->m_recvFlag.IsRecv(i))
             return false;
     }
     return true;
@@ -705,11 +708,9 @@ bool CParty::CheckRecvFromAllMember(CUser* user)
 // ORIG T 0x0859a34e（TimeoutCompleteAfterAssault.md）：+0x118 守卫非 0 时
 // 复位并返回 0；为 0 时按未回包成员逐个踢出（trace 后 leave_user type2），
 // 返回 1（ORIG 主路径不写 +0x118；调用方 CAssaultMgr 两处均 test %al 消费返回值）。
-// b28d-solo-CPartyOnlyOrig 判词：DIFF ndiff=6 @0x0859a34e。N107 封顶
-//（receiver lea/add）+ 字符串字面量 R_386_32 重定位显示差（链接后即 ORIG
-// 绝对地址）；其余逐条全等。
+// b28d-solo-CPartyOnlyOrig 判词：DIFF→AE（+0x1dc 视图具名 receiver）。
 // b28d-45 TimeoutCompleteAfterAssault 0x0859a34e：IsRecv bool 化（P248 档①）+
-// 正向 if 包裹（P214①）后 85:85；残余 lea/add 归 N107 封顶。
+// 正向 if 包裹（P214①）后 85:85。
 bool CParty::TimeoutCompleteAfterAssault()
 {
     if (m_recvResultFlag != 0)
@@ -727,7 +728,8 @@ bool CParty::TimeoutCompleteAfterAssault()
             }
             // b28d-45 P248 档①：IsRecv 已 bool 化，ORIG 0x085a467 为
             // `call; xor $0x1; test %al,%al; je`（正向 if 包裹），非 continue 形。
-            if (!reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->IsRecv(i))
+            if (!reinterpret_cast<CPartyRecvFlagView*>(this)
+                     ->m_recvFlag.IsRecv(i))
             {
                 // P227 全表达式临时链：R2L 求值 name(→%esi)/partyIdx(→%ebx)
                 // 跨 ctor 保活（ORIG +0x0a6/+0x0b3）
@@ -771,11 +773,12 @@ bool CParty::IsClearedQuest(int questIdx)
 
 // ORIG T 0x085b65a2（HasNoQuestGoWithApcInParty.md）：状态 5/10 的成员若未在
 // 做与 APC 同行任务（triggerType==3 且 triggerSubType==0 判定配对）则 false。
-// b28d-solo-CPartyOnlyOrig 判词：DIFF ndiff=6 @0x085b65a2。修法已落：删
+// b28d-solo-CPartyOnlyOrig 判词：DIFF（N 封顶）@0x085b65a2。修法已落：删
 // userQuest 局部槽（内联 getCurCharacQuestR()->IsDoingQuest）对齐 ORIG 直接
 // 压参形；外层条件改正向 `==5 || ==10`。残余 N 封顶：4.4 对 `||` 第二条件后
 // 恒物化 `mov $1/$0; test %al,%al` 岛，4.1 为 `je body / jne continue` 直跳
-//（探针 f1..f6 六形含 goto/嵌套/德摩根全败）。语义等价。
+//（探针 f1..f6 + 本轮 p19 f1..f5：正/负极性、嵌套 if、goto、switch 五形全产
+// 物化岛）。语义等价。
 bool CParty::HasNoQuestGoWithApcInParty(Quest const* quest)
 {
     for (int i = 0; i <= 3; i++)
@@ -810,13 +813,18 @@ bool CParty::HasNoQuestGoWithApcInParty(Quest const* quest)
 // 缓存（4.4 恒为 call 后现场重读，P75 outgoing-arg 装载时刻族）、i 槽 -0xc
 // 与 items 基 -0x111（4.1 帧内 4B 交错，P112）、循环头双 movl $0 初始化
 // 复制（4.1 tail-duplicator 产物）均无法由合法源码复现。
-// b28d-solo-CPartyOnlyOrig 判词：DIFF ndiff=6 @0x0859e7fe。**报告撞名警示：
+// b28d-solo-CPartyOnlyOrig 判词：DIFF（部分修复，残余 N 封顶）@0x0859e7fe。
+// 本轮修法：①`while (slots[i] == -1) { return 0; }` 复现 ORIG 0x0859e97c
+// `cmp $-1; sete %al; test %al,%al; je`（4.4 的 `if` 直形恒折 `jne`，探针
+// p22 g6）；②`int i = 0;` + `for (i = 0; ...)` 双初始化复现 ORIG 双
+// `movl $0,-0xc`（P191）。残余 N 封顶：ORIG 第二处 `slots[i]` 读复用 %ebx
+// （i 缓存）vs 4.4 恒重读 `-0xc(%ebp)`（+1 条，N7/N18a 寄存器分配族；register
+// 提示反致槽漂移 -0x1c→-0x28，已回退）。**报告撞名警示：
 // docs/class_func_reports/CParty/CheckEnterAncientDungeon.md 是 4 参重载
 // 0x0859e528 的内容，本件 ORIG 基线取自二进制 nm 切片 0x0859e7fe..0x0859eac2。**
 // 修法已落：`!= 1` 取反形复现 ORIG `xor $1; test; je`（P194；CheckEnterEventDungeon
 // 返回 bool）；Main 代落 RequiredItem::m_enableFlag char→bool 后
-// `!m_enableFlag` 段与 ORIG xor 形对齐。残余 N 封顶：4.1 tail-duplicator 双
-// `movl $0,-0x4`（i 初始化两次）；`slots[i]` 读复用 ebx 索引 vs 4.4 重读 i（+1 条）。
+// `!m_enableFlag` 段与 ORIG xor 形对齐。
 int CParty::CheckEnterAncientDungeon(CDungeon const* dungeon)
 {
     Inven_Item items[4];
@@ -850,7 +858,10 @@ int CParty::CheckEnterAncientDungeon(CDungeon const* dungeon)
     {
         return 1;
     }
-    for (int i = 0; i <= 3; i++)
+    // b28d-solo-CPartyOnlyOrig：ORIG 0x0859e8f8/0x0859e8ff 双 `movl $0,-0xc`
+    // （4.1 声明初始化 + for 初始化各一条，P191 配套）。
+    int i = 0;
+    for (i = 0; i <= 3; i++)
     {
         if (!_checkValidUser(i))
         {
@@ -862,7 +873,10 @@ int CParty::CheckEnterAncientDungeon(CDungeon const* dungeon)
             reinterpret_cast<CUserCharacInfo*>(m_member[i].m_pUser)
                 ->getCurCharacInvenR()
                 ->check_item_exist(dungeon->m_entryRequiredItem.m_itemIdx);
-        if (slots[i] == -1)
+        // b28d-solo-CPartyOnlyOrig：ORIG 0x0859e97c 为 `cmp $-1; sete %al;
+        // test %al,%al; je`（4.1 槽比物化）；4.4 的 `if` 直形恒折 `jne`，
+        // `while (cond) { return X; }` 形逐条复现（P225 扩展，探针 p22 g6）。
+        while (slots[i] == -1)
         {
             return 0;
         }
@@ -1159,9 +1173,10 @@ void CParty::RestartDungeon()
 }
 
 // ORIG T 0x085a7786（isMonsterDrop_item.md）：场上存在该掉落且数量非 0 才算 0。
-// b28d-solo-CPartyOnlyOrig 判词：DIFF ndiff=2 @0x085a7786。N 封顶 —— 4.4
-// 前端把 `(m_count ^ 1) != 0` 折成 `movzbl; cmp $1,%al; je`，4.1 保
-// `movzbl; xor $1,%eax; test %al,%al; je`（P194 形；六写法探针全折）。语义等价。
+// b28d-solo-CPartyOnlyOrig 判词：DIFF→AE。修法：map_item::m_count uchar→bool
+// （WarField.h，R2 已广播）+ 裸取反 `!item.m_count` ⇒ 复现 ORIG
+// `movzbl -0x60; xor $1,%eax; test %al,%al; je`（P248 档②；uchar 字段下
+// `(m_count^1)!=0`/`!=1` 七写法探针全折 `cmpb $1`）。
 bool CParty::isMonsterDrop_item(int monsterIdx)
 {
     map_item item;
@@ -1171,12 +1186,10 @@ bool CParty::isMonsterDrop_item(int monsterIdx)
     unsigned char found = reinterpret_cast<CBattle_Field*>(&m_battleField)
                               ->get_field_item(monsterIdx, item);
     // ORIG O@0x33..0x4b：found!=0 先 cmpb 直判（跳过 body → 返 1 岛），
-    // 体内 m_count 真值取反 movzbl;xor$1;test（asm al 钉位）；两 je 同达
-    // 返 1 岛。
-    // b28d-solo-CPartyOnlyOrig：P0 判读 —— ORIG 第二判定 `movzbl -0x60;
-    // xor $0x1; test %al; je` 全程寄存器直传（无槽往返）⇒ 原码无 cnt 局部，
-    // 取反表达式内联进短路条件（此前 X2 两语句形落栈槽，多 3 条）。
-    if (found != 0 && (item.m_count ^ 1) != 0)
+    // 体内 m_count 真值取反 movzbl;xor$1;test（两 je 同达返 1 岛）。
+    // b28d-solo-CPartyOnlyOrig：P0 判读 —— ORIG 第二判定全程寄存器直传
+    // （无槽往返）⇒ 原码无 cnt 局部，取反表达式内联进短路条件。
+    if (found != 0 && !item.m_count)
     {
         return false;
     }
@@ -1197,10 +1210,10 @@ void CParty::kill_blood_monster(CUser* user, int monsterIdx,
 
 // ORIG T 0x085b6540（DestroyPassiveObject.md）：摧毁被动物件并在触发清除条件
 // 时结算整场。
-// b28d-solo-CPartyOnlyOrig 判词：DIFF ndiff=2 @0x085a3b6a。N 封顶 —— 4.4 对
+// b28d-solo-CPartyOnlyOrig 判词：DIFF（N 封顶）@0x085a3b6a。N 封顶 —— 4.4 对
 // 局部条件恒折 `cmpb $0,-0x9(%ebp); je`，4.1 为 `movzbl -0x9; test %al,%al; je`
-//（探针 d1..d5：uchar/bool/int 局部 × `if(d)`/`!=0`/`(int)d` 全产 cmpb，bool
-// 局部另多 setne）。语义等价。
+//（探针 d1..d5 + 本轮 p23 f1..f5：uchar/bool/int 局部 × `if(d)`/`while(d)`/
+// `for(;d;)`/`!=0`/`(int)d` 全产 cmpb，bool 局部另多 setne）。语义等价。
 unsigned char CParty::DestroyPassiveObject(int param)
 {
     // [ORIG 0x085a3b6a 物化形] 声明初始化 0 + call 后赋值两段（movb$0 再
@@ -1272,7 +1285,7 @@ void CParty::SelectEPLPCommand(int cmd)
 
 // ORIG T 0x085baa06（_Send_TOD_ClearReward.md）：0x15b 包——管理者的 layer
 // 扩展数据最后进入层 + 最多 9 组奖励清单（不足补 -1/0）+ 特殊奖励索引/数量。
-// b28d-solo-CPartyOnlyOrig 判词：DIFF ndiff=6 @0x085baa06。修法已落：具名
+// b28d-solo-CPartyOnlyOrig 判词：DIFF（N 封顶）@0x085baa06。修法已落：具名
 // userState 指针落槽（P0 槽往返）+ 匿名 sret 全表达式链（P278）+
 // `m_battleData.m_field0` 具名成员访问 ⇒ packet 槽 -0x24 与 ORIG 对齐。
 // 残余 N 封顶：4.1 `mov 0x330(%eax),%edx` 冗余装载（N18a）与首循环前

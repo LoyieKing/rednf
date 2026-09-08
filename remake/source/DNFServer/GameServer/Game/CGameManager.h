@@ -321,9 +321,11 @@ public:
     int GetCreatureId();              // W 0x833f0da：+0x48
     COverSkillTime* GetOverSkillTime();  // W 0x833f0e6：this+0x50
 
-    int IsAbleEvolute(CUser* user) const;   // ORIG T 0x083380fc（RestoreUserQuestStubs 批次）
+    // [b28d-solo-CCreatureMgr P248档①] ORIG 调用点 0x8337d11 `call; test %al,%al;
+    // je`（无 setcc）⇒ 返回 bool（返回类型不入 mangled，布局零影响）。
+    bool IsAbleEvolute(CUser* user) const;  // ORIG T 0x083380fc（RestoreUserQuestStubs 批次）
     bool IsCreatureScript();   // ORIG _ZN13user_creature9CCreature16IsCreatureScriptEv W 0x0833f0f2：return m_script != 0（定义 CreatureOnlyMgrRest.cpp）
-    int IsAbleSelectEvolute(CUser* user);   // ORIG T 0x08337d58（RestoreUserQuestStubs 批次）
+    bool IsAbleSelectEvolute(CUser* user);  // ORIG T 0x08337d58（同族 bool 化）
     // ---- Save/Load 落库链（TranslateCCreatureMgrTU 批次；签名与 ORIG mangled 一致）----
     // ---- TranslateCCreatureTU 追加（ORIG 报告齐备，实现落 CCreature.cpp；
     //      经 user_creature 域属主 TranslateCCreatureMgrTU 书面协调授权）----

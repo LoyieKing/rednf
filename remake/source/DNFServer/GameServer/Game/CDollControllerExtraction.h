@@ -18,7 +18,7 @@ namespace expert_extraction
 class CDollControllerExtraction : public CExtraction
 {
 public:
-    CDollControllerExtraction();
+    // [b28d-solo-GlobalData] P299/P318：ORIG C1/C2 为 W（0x084a4674）⇒ 删用户空 ctor。
     virtual ~CDollControllerExtraction();
 
     virtual bool extraction(CUser* user, short param,

@@ -2899,6 +2899,22 @@ public:
     stLevelUpRewardItemScript m_levelUp30;         // +0x30
 };
 
+// ORIG C1 0x837355a = map C1 + init; D1 0x837388e = map D1（均 W）。
+// sole member map<SlotBoundKey,SlotBound>（sizeof 0x18）。权威定义归口本头：
+// eventReward +0x18 以真实 CSlotBoundChecker 内嵌（CInventory.h 前向/外链引用）。
+class CSlotBoundChecker
+{
+public:
+    CSlotBoundChecker() { init(); }
+    ~CSlotBoundChecker() {}
+    void init();
+    void insert(int slot, int capacity, Inven_Item::ITEM_TYPE type, bool a, bool b);
+    bool get_slot_bound(Inven_Item::ITEM_TYPE type, int capacity, int& start, int& end) const;
+    bool get_item_type(int slot, int capacity, Inven_Item::ITEM_TYPE& outType) const;
+private:
+    std::map<SlotBoundKey, SlotBound> m_map;
+};
+
 class eventReward
 {
 public:
@@ -2927,11 +2943,10 @@ public:
     ~eventReward();
 
     // ORIG D1 0x837dfb2：+0x00 map<rewardKey,map<int,vector<itemData>>>
-    // +0x18 内嵌 CSlotBoundChecker（其唯一成员即 map<SlotBoundKey,SlotBound>，
-    // sizeof 0x18；权威 CSlotBoundChecker 于 CInventory.h 为静态数组重建且无
-    // 成员，无法内嵌，故此处直接以同布局 map 成员保持 ABI 与生命周期形态）。
+    // +0x18 内嵌 CSlotBoundChecker（真实类型，sizeof 0x18；C1/D1 分别调
+    // _ZN17CSlotBoundCheckerC1Ev/D1Ev，ORIG 0x83738a2/0x837dfb2 实证）。
     std::map<rewardKey, std::map<int, std::vector<itemData> > > m_map0;  // +0x00
-    std::map<SlotBoundKey, SlotBound> m_slotBoundMap;                    // +0x18
+    CSlotBoundChecker m_slotBound;                                       // +0x18
 };
 
 class DeleteInvalidItemScript
@@ -3238,7 +3253,7 @@ public:
     CNPCScript* find(unsigned int idx) const;
     int getMaxFavorValue() const;                       // W 0x8582364
     int getFavorLevel(unsigned short favorExp) const;   // T 0x85816e4
-    unsigned int getFavorLevelValue(unsigned int level) const;  // T 0x858174e
+    unsigned short getFavorLevelValue(unsigned int level) const;  // T 0x858174e（ORIG 尾单条 movzwl 直返 ⇒ ushort 返回）
     // ORIG _ZN14CNPCScriptList8_destroyEv 0x8581784 T（D1 0x83762a8 调用；
     // 定义见 CDataManagerScripts.cpp：delete 各 CNPCScript* 后 clear()）
     void _destroy();

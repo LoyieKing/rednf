@@ -111,7 +111,7 @@ public:
     bool IsPvpObserver(int seat);
     bool check_winner();   // ORIG 体尾 movw $0,%ax（bool 规范化）；[b23S3C] P9/P159
     int check_recv_pvp_rank();
-    int check_team_pvp();
+    bool check_team_pvp();   // [b28d-solo-PvP_Room] P248 档①/P292：ORIG set_ready_state 调用点 `call; xor $1,%eax; test %al; je` ⇒ bool（mangled 不变）
     int set_recv_pvp_rank_flag(CUser* user);
     int set_recv_pvp_end_result_flag(CUser* user);
     bool IsThereSameGuildMember();

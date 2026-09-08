@@ -1180,16 +1180,18 @@ int Dispatcher_StartGame::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x0813f8ce orig/ours=31/33 ndiff-blocks=5
-//   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
-//   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
-//   首差: mov    %eax,-0x10(%ebp) | mov    %eax,-0xc(%ebp) | mov    %eax,%edx
+// b28d-solo-Dispatchers verdict=AE(routed) [P0/P211档③] ORIG 0x0813f8ce orig/ours=30/30
+//   [S162] 已修：①具名 ec + dst 两局部（帧 +8、槽整体漂移）→ 单语句内联实参
+//   `p->m4 = check_error(...)`（P0 右值直传）；②_P4::m4 改 unsigned 与 int 返回值
+//   异型 ⇒ 4.4 翻 RHS-first+%edx 中转（P211 档③）。
 int Dispatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     // ORIG 0x813f8ce（报告 advancealtar__Dispatcher_StartGame/process.md 全文已读）：
     // msg@-0x10、param@-0xc 两局部槽；check_error 结果直存 p+4（call 后回读槽，
     // 不 hoist %ebx）；(p+4)!=0 → 真体 fall-through return 0（je → call 段）。
-    struct _P4 { int m0; int m4; };
+    // [b28d-solo-S162] P211 档③：字段与 RHS(int) 异型 ⇒ 4.4 翻 RHS-first+%edx 中转
+    // （ORIG 0x0813f8d8 `mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,0x4(%eax)`）。
+    struct _P4 { int m0; unsigned int m4; };
     MSG_BASE& m = msg;                // ORIG -0x10 死存储（调用直传形参 msg）
     _P4* const p = reinterpret_cast<_P4*>(&param);   // ORIG -0xc（指针形：
                                                     // store 时 base 从 -0xc 载 %eax、
@@ -1197,12 +1199,9 @@ int Dispatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     (void)m;
     // ORIG 0x813f8ce：call → mov %eax,%edx（value 先落 %edx）→ `mov -0xc(%ebp),%eax`
     // （地址从 p 的局部槽 reload，非形参槽 0x14）→ `mov %edx,0x4(%eax)`。
-    unsigned int ec = check_error(user, msg);
-    // ORIG：base 从 -0xc 槽 reload 到 %eax、值留 %edx → `mov %edx,0x4(%eax)`。
-    // 直接 `p->m4 = ec` 被 4.4 折成「值搬 %eax、base 搬 %edx」（N76 形）；
-    // 用 register asm("eax") 从 p 局部装载强制 base 占 %eax。
-    _P4* dst = p;
-    dst->m4 = ec;
+    // [b28d-solo-S162] 原具名 ec + dst 两局部各占一槽（帧 +8、槽整体漂移）。
+    // ORIG 值是 call 结果右值直传（P0 无槽往返）⇒ 单语句内联实参形。
+    p->m4 = check_error(user, msg);
     if (p->m4 != 0)
     {
         return 0;
@@ -2289,10 +2288,9 @@ int Dispatcher_BVHackInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 int Dispatcher_BVHackInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_BlueMarble::~Dispatcher_BlueMarble() {}
-// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081e612c orig/ours=62/63 ndiff-blocks=6
-//   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
-//   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
-//   首差: mov    %eax,-0x14(%ebp) | mov    -0x14(%ebp),%eax | mov    %eax,-0x10(%ebp)
+// b28d-solo-Dispatchers verdict=AE(routed) [P226/P0] ORIG 0x081e612c orig/ours=62/62
+//   [S162] 已修：尾部具名 bool（fail = !(get_state()==0xb || ==5)）落 -0x9 并使
+//   全帧槽号 +4；改条件表达式直用（ORIG 物化于 %al `test %al,%al`，P0 无槽往返）。
 int Dispatcher_BlueMarble::check_error(CUser* user, MSG_BASE& msg)
 {
     // ORIG 0x081e60xx 入口即 `mov 0x10(%ebp),%eax; mov %eax,-0x14(%ebp)` —— msg 引用槽
@@ -2325,9 +2323,9 @@ int Dispatcher_BlueMarble::check_error(CUser* user, MSG_BASE& msg)
     }
     // 【batch-17 S池 P48+P84】ORIG 两臂各调一次 get_state，结果 mov$1/mov$0 物化
     // 成 bool 再 test/je 选 return（0/0xfffffffb）。具名 bool 保物化岛。
-    bool fail;
-    fail = !(user->get_state() == 0xb || user->get_state() == 5);
-    if (fail)
+    // [b28d-solo-S162] P226/P0：ORIG 物化于 %al（`test %al,%al`）无槽往返
+    // ⇒ 条件表达式直用；具名 bool 落 -0x9 并使全帧槽号 +4 漂移。
+    if (!(user->get_state() == 0xb || user->get_state() == 5))
     {
         return -5;
     }
@@ -3224,6 +3222,7 @@ int Dispatcher_Join_Power::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 Dispatcher_MotionHack::~Dispatcher_MotionHack() {}
 // ORIG 0x08264574（报告 Dispatcher_MotionHack/read.md）[随行依赖]：
 // get_byte(msg+0xd) / get_int(msg+0xe) / get_int(msg+0x12)。
+// b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x08264574 orig/ours=51/51
 int Dispatcher_MotionHack::read(PacketBuf& packet, MSG_BASE& msg)
 {
     if (!packet.get_byte(*reinterpret_cast<char*>((char*)&msg + 0xd)))
@@ -5124,35 +5123,29 @@ int Dispatcher_RequestMatch::process(CUser* user, MSG_BASE& msg, ParamBase& para
 int Dispatcher_RequestMatch::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_ScanBotByDll::~Dispatcher_ScanBotByDll() {}
-// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x08264538 orig/ours=20/23 ndiff-blocks=5
-//   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
-//   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
-//   首差: mov    0xd(%eax),%eax | add    $0x352,%eax | mov    -0x4(%ebp),%eax
+// b28d-solo-Dispatchers verdict=AE(routed) [P310/P209附] ORIG 0x08264538 orig/ours=20/23
+//   ORIG 两段形 `mov -0x4(%ebp),%eax; cmp $0x351,%eax; jle`（P209 附：signed 局部
+//   被 4.4 折 cmpl mem,imm）。翻案 = 局部 unsigned + 使用点 `(int)wv` 比较
+//   （P310 变体；探针 /tmp/b28d_disp/probe_wv.cpp k1 逐条命中两段+jle 方向）。
 int Dispatcher_ScanBotByDll::check_error(CUser* user, MSG_BASE& msg)
 {
     (void)user;
     // ORIG 0x08264538（报告 Dispatcher_ScanBotByDll/check_error.md 全文已读）：
     // v = msg+0xd + 0x352（slot -0x4）；v<=0x351 || v>0x383 → 0x407；否则 0。
-    // ORIG 比较走「load 槽→reg cmp→jle 短路共享体」——实验实证数组下标访问形态
-    // （标量局部会被 4.4.7 折叠为 cmpl mem,imm / bool 物化，均不匹配）。
+    // ORIG 比较走「load 槽→reg cmp→jle 短路共享体」。
     // 槽位对齐（技巧21 声明序）：ORIG req ptr@-0x8（先声明远槽）、window@-0x4。
-    // 比较两步形 `mov -0x4,%eax; cmp`：register asm(eax) 中转破 4.4 cmpl 折叠（技巧28）。
     const MSG_SCAN_DLL* req = reinterpret_cast<const MSG_SCAN_DLL*>(&msg);
-    // b28d-D0: 单一局部 wv（=ORIG -0x4 槽）；原 window+wv 双槽使 4.4 多发
-    //   `mov -0x8,%eax; mov %eax,-0x4` 拷贝（ORIG 20 vs 我们 23）。
-    int wv = req->m_field0d + 0x352;
-    // ORIG 0x826455a/0x8264564：407 岛体（mov $0x407）是第二 jle 的自然 fall-through。
-    if (wv <= 0x351) {
-    } else {
-        if (wv <= 0x383)     // ORIG 0x8264564：jle 跳过 407 岛
-            goto LOK;
-    }
-LERR:
-    return 0x407;        // 0x8264566：407 岛 fall 位
-LOK:
+    // [b28d-solo-S162] 单一局部 wv（=ORIG -0x4 槽）；unsigned 声明 + (int) 比较
+    //   破 4.4 的 cmpl-mem 折叠（P310/P209 附，禁 register 绑定）。
+    //   短路 `||` 双条件形（探针 probe_wv.cpp k8）逐条复现 ORIG 两段+jle 布局。
+    unsigned int wv = req->m_field0d + 0x352;
+    // ORIG 0x826455a `jle → 407` / 0x8264564 `jle → LOK`（两守卫共享 407 岛）。
+    if ((int)wv <= 0x351 || (int)wv > 0x383)
+        return 0x407;    // 0x8264566：407 岛
     return 0;            // 0x826456d
 }
 // ORIG 0x082643b2（报告 Dispatcher_ScanBotByDll/read.md）[随行依赖]。
+// b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x082643b2 orig/ours=51/51
 int Dispatcher_ScanBotByDll::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x：裸偏移内联（无指针槽，帧 0x18）。
@@ -7633,6 +7626,7 @@ int Dispatcher_HellPartyStart::process(CUser* user, MSG_BASE& msg, ParamBase& pa
 int Dispatcher_HellPartyStart::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_ItemDictionary::~Dispatcher_ItemDictionary() {}
+// b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x081dd87a orig/ours=21/21
 int Dispatcher_ItemDictionary::check_error(CUser* user, MSG_BASE& msg)
 {
     // ORIG 0x081dd880：user!=0 正向嵌套 + setle 物化（技巧9）+ msg 死槽 -0xc（技巧13 声明位）。
@@ -9614,10 +9608,10 @@ int Dispatcher_ChangeCharacName::process(CUser* user, MSG_BASE& msg, ParamBase& 
 int Dispatcher_ChangeCharacName::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_ChangeLetterStat::~Dispatcher_ChangeLetterStat() {}
-// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081ce2ba orig/ours=26/26 ndiff-blocks=3
-//   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
-//   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
-//   首差: mov    %eax,-0xc(%ebp) | test   %al,%al | nop
+// b28d-solo-Dispatchers verdict=AE(routed) [P226/P0] ORIG 0x081ce2ba orig/ours=26/26
+//   ORIG bool 物化于 %al（0x081ce2f1 `test %al,%al`）无槽往返 ⇒ P0：原码无具名
+//   bool 局部，是条件表达式直用。原具名 bool 落 -0x9 且 dead 槽漂到 -0x10。
+//   探针 /tmp/b28d_disp/probe_bool.cpp fB（`if (!(A && B)) return -1;`）逐条同形。
 int Dispatcher_ChangeLetterStat::check_error(CUser* user, MSG_BASE& msg)
 {
     // ORIG 0x081ce2c0：首行 msg 指针 dead 槽 -0xc（技巧8）；bool 双岛物化
@@ -9627,14 +9621,8 @@ int Dispatcher_ChangeLetterStat::check_error(CUser* user, MSG_BASE& msg)
     MSG_CHANGE_LETTER_STAT* const pm =
         reinterpret_cast<MSG_CHANGE_LETTER_STAT*>(&msg);
     (void)pm;
-    // b28d-solo-Dispatchers verdict=DIFF [N96] ORIG 0x081ce2ba orig/ours=26/26
-    //   ORIG 直测 %al vs 4.4 具名 bool 落槽；P231 纯 register 试形实测不闭合
-    //   （与 RequestMemberEnter 同形）⇒ N96+N18a 封顶。
-    bool fail;
-    // 同 RequestMemberEnter：取反短路式 + register bool %al 保 jle/jne 直分支
-    // （ORIG 0x081ce2d4 `jle 岛1` / 0x081ce2e3 `jne 岛0`，probe pg r3 实证）。
-    fail = !(user->get_state() > 2 && user->getCurCharacR() != 0);
-    if (fail)
+    // [b28d-solo-S162] P226：取反短路条件表达式直用（禁 register 绑定，P0）。
+    if (!(user->get_state() > 2 && user->getCurCharacR() != 0))
     {
         return -1;
     }
@@ -10331,6 +10319,7 @@ int Dispatcher_Open_Guild_Board::process(CUser* user, MSG_BASE& msg, ParamBase& 
                              static_cast<char>(pm->m_page));
     return 0;
 }
+// b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x081d307e orig/ours=21/21
 int Dispatcher_Open_Guild_Board::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG（帧 $0x18）：无指针物化槽 ⇒ 内联表达式（同 DonateGuildFund 口径）。
@@ -12483,9 +12472,11 @@ void Dispatcher_Cancel_Quick_Party::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_ChangeRandomOption::~Dispatcher_ChangeRandomOption() {}
-// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x081dc9ba orig/ours=512/537 ndiff-blocks=97
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x081dc9ba orig/ours=511/537 ndiff-blocks=97
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 5 个，4.4 libstdc++ 全内联不可复现
-//   首差: sub    $0xac,%esp | mov    %eax,-0x34(%ebp) | cmp    $0x2,%eax
+//   [S162+S172] 已修：m_seedd.m_field & 3 → m_seedd.m_bits.m_low2 位域视角
+//   （P308；Inven_Item.h 匿名 union，sizeof/偏移不变）⇒ 首差位 0→5。
+//   首差: mov    %eax,-0x34(%ebp) | ... （S162 后首差位=5）
 int Dispatcher_ChangeRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     // §6.2 语义完成：P167 调用点差集双零（73/73）；orig511/our537，gap-26 为
@@ -12560,7 +12551,7 @@ int Dispatcher_ChangeRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase
     }
     cVar4 = (char)local_34->m_random.m_random.m_fielda.empty();
     if ((cVar4 == 1) ||
-        ((unsigned int)(local_34->m_random.m_random.m_seedd.m_field & 3) == local_28))
+        ((unsigned int)local_34->m_random.m_random.m_seedd.m_bits.m_low2 == local_28))
     {
         bVar3 = false;
     }
@@ -13571,24 +13562,18 @@ int Dispatcher_RequestGuildSecede::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_RequestGuildSecede::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_RequestMemberEnter::~Dispatcher_RequestMemberEnter() {}
-// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081cb82a orig/ours=26/26 ndiff-blocks=2
-//   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
-//   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
-//   首差: test   %al,%al | nop
+// b28d-solo-Dispatchers verdict=AE(routed) [P226/P0] ORIG 0x081cb82a orig/ours=26/26
+//   ORIG bool 物化于 %al（0x081cb85b `test %al,%al`）无槽往返 ⇒ P0：原码无具名
+//   bool 局部，是条件表达式直用（具名版落 -0x9 且帧 +0x10）。
+//   探针 /tmp/b28d_disp/probe_bool.cpp fB 逐条同形。
 int Dispatcher_RequestMemberEnter::check_error(CUser* user, MSG_BASE& msg)
 {
     // ORIG 0x081cb830：无 user 判空；bool 双岛物化（技巧22/23 goto 版：
     // 普通 if/else 在 4.4 折成 setle/sete+test，双 goto 保 jle/jne 直分支）：
     // state<=2 || characR==0 → fail → -1；成功路径 0x081cb866 才物化 msg
     // dead 槽 -0xc（技巧13 声明位=落槽时机）再返 0。
-    // b28d-solo-Dispatchers verdict=DIFF [N96] ORIG 0x081cb82a orig/ours=26/26
-    //   ORIG 直测 %al（bool 无栈槽）vs 4.4 具名 bool 落槽；P231 纯 register 试形
-    //   （非 asm 绑定）实测不闭合 ⇒ 按 N96+N18a 封顶。
-    bool fail;
-    // 4.4 下须「取反短路式 + register bool %al」（probe pg r3 实证）才同时得到
-    // `cmp $2; jle 岛1` 与 `test %eax,%eax; jne 岛0` 两条直分支。
-    fail = !(user->get_state() > 2 && user->getCurCharacR() != 0);
-    if (fail)
+    // [b28d-solo-S162] P226：取反短路条件表达式直用（禁 register 绑定，P0）。
+    if (!(user->get_state() > 2 && user->getCurCharacR() != 0))
     {
         return -1;
     }
@@ -16843,6 +16828,7 @@ void Dispatcher_PartyTeleportConfirm::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_PcRoomPlayTimeReward::~Dispatcher_PcRoomPlayTimeReward() {}
+// b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x081e4f5c orig/ours=58/58
 int Dispatcher_PcRoomPlayTimeReward::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     // ORIG 0x081e4f5c
@@ -17098,6 +17084,10 @@ void Dispatcher_Register_Quick_Party::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_ReportMannerlessUser::~Dispatcher_ReportMannerlessUser() {}
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112/N197②] ORIG 0x08206124 orig/ours=232/231
+//   prologue 差：ORIG `push %ebx`（值跨 call 保活占 callee-saved）vs 我方直接
+//   sub $0x1f8,%esp；4.4 未升格（P197② 边界 / N82 寄存器分配跨版本）。语义已对齐。
+//   首差: push   %ebx | sub    $0x1f8,%esp
 int Dispatcher_ReportMannerlessUser::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user->get_state() <= 2 || user->getCurCharacR() == 0)
@@ -17566,6 +17556,7 @@ int Dispatcher_Mercenary_Competition::process(CUser* user, MSG_BASE& msg, ParamB
     return 0;
 }
 
+// b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x081ddc24 orig/ours=53/53
 int Dispatcher_Mercenary_Competition::read(PacketBuf& packet, MSG_BASE& msg)  // ORIG 0x081ddc24 (81 insn)
 {
     MsgMercenaryCompetition& req = reinterpret_cast<MsgMercenaryCompetition&>(msg);
@@ -17989,6 +17980,7 @@ Dispatcher_Break_Away_Quest_Check::~Dispatcher_Break_Away_Quest_Check() {}
 // 【blocked：giveBreakAwayDungeonClearReward 及其 selectReward/
 // Inter_LoadEtc::giveBreakAwayReward 生产链尚未还原（报告齐备，独立批次），
 // 已 hub 通知 Main；不写猜测实现。】
+// b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x081d390a orig/ours=98/98
 int Dispatcher_Break_Away_Quest_Check::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stBreakAwayParam& res = static_cast<stBreakAwayParam&>(param);  // -0x10（ORIG 缓存 param）
@@ -18223,9 +18215,13 @@ void Dispatcher_CharacSlotExtendEffect::send(CUser* user, ParamBase& param)
 
 
 Dispatcher_CheckAssaultMotionHack::~Dispatcher_CheckAssaultMotionHack() {}
-// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08221f3c orig/ours=213/212 ndiff-blocks=18
-//   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
-//   首差: movl   $&_ZZN33Dispatcher_CheckAssaultMotionHack12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN33Dispatcher_CheckAss
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112+N122+N197②] ORIG 0x08221f3c orig/ours=213/217
+//   [S162] 已修：inPowerWar 直接初始化 → if/else 分支写常量（ORIG 0x0822204e 形，P194）；
+//   half 具名 bool → 条件表达式直用（P226）；overCnt/overRem 预清两句式（P198①）。
+//   残余：①`!inPowerWar` 4.4 恒 xor 物化 vs ORIG `cmpb $0,-0x11`（N122）；
+//   ②overCnt 实参 4.4 直压栈 vs ORIG 升格 %ebx 跨 call（N82附/P197② 寄存器对调）；
+//   ③then/else 块物理序差（N104 族）。语义已对齐。
+//   首差: movl   $0x0,-0x10(%ebp) | mov    -0x18(%ebp),%eax | ... （S162 后首差位=88）
 int Dispatcher_CheckAssaultMotionHack::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x08221f3c..0x0822226f (0x334 字节)。
@@ -18247,14 +18243,24 @@ int Dispatcher_CheckAssaultMotionHack::dispatch_sig(CUser* user, PacketBuf& pack
         return LineFunc(0xdb7f, kPretty, 0, 0);
 
     // Power War 事件开启且当前村庄 == 7 → power war 场景
-    const bool inPowerWar =
-        (GlobalData::s_power_manager->IsPowerWarEventOn()
-         && user->getCurCharacVill() == 7);
+    // [b28d-solo-S162] ORIG 0x0822204e：条件物化于 %al 后**分支写常量**
+    // （`test %al,%al; je; movb $1,-0x11; jmp; movb $0,-0x11`）⇒ 原码是 if/else
+    // 赋值；直接初始化 `bool x = expr;` 产单条 `mov %al,-0x11`（P194 变体）。
+    bool inPowerWar;
+    if (GlobalData::s_power_manager->IsPowerWarEventOn()
+        && user->getCurCharacVill() == 7)
+        inPowerWar = true;
+    else
+        inPowerWar = false;
 
     if (10000 < moveCnt)   // cmp $0x2710 / jbe
     {
-        const unsigned int overCnt = moveCnt / 10000;   // -0x10
-        const unsigned int overRem = moveCnt % 10000;   // -0xc
+        // [b28d-solo-S162] ORIG 0x0822206a/71 先 `movl $0,-0x10/-0xc` 预清再算
+        // （P198① 两句式：初始化式会丢预清行）。
+        unsigned int overCnt = 0;   // -0x10
+        unsigned int overRem = 0;   // -0xc
+        overCnt = moveCnt / 10000;
+        overRem = moveCnt % 10000;
         if (inPowerWar)
             user->getHackAnalyzer()->addServerHackCnt(
                 user, (WongWork::ENUM_HACKTYPE)0x7c, 1, overCnt, 0);
@@ -18266,10 +18272,10 @@ int Dispatcher_CheckAssaultMotionHack::dispatch_sig(CUser* user, PacketBuf& pack
 
     // 职业 == 3，或 ==4 且初生 growtype == 2 → 系数 0.5，否则 0.8（截断转换）
     // ORIG 每次测试重读 get_charac_job（P48 无 CSE）。
-    const bool half =
-        (user->get_charac_job() == 3) ||
-        (user->get_charac_job() == 4 && user->getCurCharFirstGrowType() == 2);
-    if (half)
+    // [b28d-solo-S162] P226/P0：ORIG 该条件物化于 %al（`test %al,%al`，无槽往返）
+    // ⇒ 原码无具名 bool 局部，改条件表达式直用（具名版落 -0x12 并挤帧）。
+    if ((user->get_charac_job() == 3) ||
+        (user->get_charac_job() == 4 && user->getCurCharFirstGrowType() == 2))
         moveCnt = (unsigned int)((double)(unsigned long long)moveCnt * 0.5);
     else
         moveCnt = (unsigned int)((double)(unsigned long long)moveCnt * 0.8);
@@ -18593,6 +18599,7 @@ int Dispatcher_Float_RDATA_Modulation::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_LogIngameAdvertisement::~Dispatcher_LogIngameAdvertisement() {}
+// b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x081e4ec8 orig/ours=21/21
 int Dispatcher_LogIngameAdvertisement::check_error(CUser* user, MSG_BASE& msg)
 {
     // ORIG 0x081e4ece：user!=0 正向嵌套 + setle 物化（技巧9）+ msg 死槽 -0xc。
@@ -21414,6 +21421,7 @@ Dispatcher_FinishVillageMonsterFighting::~Dispatcher_FinishVillageMonsterFightin
 // ORIG 0x0822284a T _ZN39Dispatcher_FinishVillageMonsterFighting12dispatch_sigEP5CUserR9PacketBuf
 // （docs/class_func_reports/Dispatcher_FinishVillageMonsterFighting/dispatch_sig.md 汇编+反编译 C 全文转写）
 // ORIG G_CEnvironment()+0x1a8 = m_serverEnvir.m_serverType（Server_Envir 基址 +0x198 + 0x10）。
+// b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x0822284a orig/ours=70/70
 int Dispatcher_FinishVillageMonsterFighting::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
@@ -22538,6 +22546,7 @@ int Dispatcher_P2PHolePunchingSuccessRateStatistics::process(CUser* user, MSG_BA
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(1), guard);
     return 0;
 }
+// b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x0825feda orig/ours=53/53
 int Dispatcher_P2PHolePunchingSuccessRateStatistics::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x0825feda：byte@0xd → uint@0xe → uint@0x12
@@ -23164,20 +23173,17 @@ namespace ARAD {
 
 namespace APSystem {
 Dispatcher_ClearAction::~Dispatcher_ClearAction() {}
-// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x0812513c orig/ours=48/48 ndiff-blocks=5
-//   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
-//   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
-//   首差: test   %al,%al | lea    -0x13(%ebp),%eax | lea    -0x13(%ebp),%eax
+// b28d-solo-Dispatchers verdict=AE(routed) [P226/P0] ORIG 0x0812513c orig/ours=48/48
+//   ORIG bool 物化于 %al（0x0812516x `test %al,%al`）无槽往返 ⇒ 条件表达式直用；
+//   具名 bool 落 -0x9/帧漂移（探针 /tmp/b28d_disp/probe_bool.cpp fB 同形）。
 int Dispatcher_ClearAction::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x0812513c：state>2 且 curCharacR 非空才受理（否则 0x278）；
     // get_binary 0xb 字节 → ClearActionAndSendtoUser(group@0, value@4, packetClass 1)
     // ORIG 0x08125142/5156/5165：三条件全走直分支（cmpl je / cmp jle / test jne），
     // 汇合到 `mov $1,%eax`+`mov $0,%eax` 常量岛后 `test %al,%al`。栈 bool 会额外
-    // 产 movb/cmpb 对；register bool %al + 取反短路式（probe pg r3 实证）逐条命中。
-    bool bad;
-    bad = !(user != 0 && user->get_state() > 2 && user->getCurCharacR() != 0);
-    if (bad)
+    // 产 movb/cmpb 对 ⇒ 取反短路条件表达式直用（P226；禁 register 绑定，P0）。
+    if (!(user != 0 && user->get_state() > 2 && user->getCurCharacR() != 0))
         return 0x278;
     _MSG_ACTION_POINT_ACTION_CLEAR msg;
     // ORIG 0x0812517e：msg 基址 -0x13（1 对齐槽位）。本类型含 int 成员，4.4 默认
@@ -23192,18 +23198,14 @@ int Dispatcher_ClearAction::process(CUser* user, MSG_BASE& msg, ParamBase& param
 int Dispatcher_ClearAction::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_GetTodayReward::~Dispatcher_GetTodayReward() {}
-// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081251da orig/ours=41/42 ndiff-blocks=3
-//   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
-//   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
-//   首差: test   %al,%al | lea    -0xd(%ebp),%eax | mov    -0xc(%ebp),%eax
+// b28d-solo-Dispatchers verdict=AE(routed) [P226/P0] ORIG 0x081251da orig/ours=41/42
+//   ORIG bool 物化于 %al 无槽往返 ⇒ 条件表达式直用（同 ClearAction，探针 fB 同形）。
 int Dispatcher_GetTodayReward::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x081251da：state>2 且 curCharacR 非空才受理（否则 0x287）；
     // get_binary 5 字节 → GetTodayRewardAndSendPostal(reward=int@+1)
-    // 同 ClearAction：三条件直分支 + %al 常量岛（probe pg r3）。
-    bool bad;
-    bad = !(user != 0 && user->get_state() > 2 && user->getCurCharacR() != 0);
-    if (bad)
+    // 同 ClearAction：三条件直分支 + %al 常量岛 ⇒ 条件表达式直用（P226）。
+    if (!(user != 0 && user->get_state() > 2 && user->getCurCharacR() != 0))
         return 0x287;
     // ORIG 0x0812520x：buf@-0xd，reward 取值走 `mov -0xc(%ebp),%eax`（+1 处 4 字节
     // 按值传）——用 packed 视图把「buf+1 解引用」变成字段访问，消 lea+add+mov 三步。
@@ -24020,6 +24022,7 @@ Dispatcher_MonstercardBind::~Dispatcher_MonstercardBind()
 
 // ==== Dispatcher_MonstercardBind::~Dispatcher_MonstercardBind (ORIG D1 0x08244b42 / D0 0x08244b72，基类转发) ====
 // ==== Dispatcher_MonstercardBind::check_need_slot (ORIG 0x081d83c4 T) ====
+// b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x081d83c4 orig/ours=28/28
 int Dispatcher_MonstercardBind::check_need_slot(CUser* user)
 {
     CInventory* invenR = const_cast<CInventory*>(user->getCurCharacInvenR());
@@ -25254,10 +25257,11 @@ int Dispatcher_RefundSkill::check_error(CUser* user, MSG_BASE& msg)
     // ORIG 槽序（4.4 规则 probe slots4 实证：先声明→远槽、后声明→近槽）：
     // req=-0x10（ORIG 0x081dad35 store）、treeIndex=-0xc（ORIG 0x081dadb9 store）。
     MSG_REFUND_SKILL* req = reinterpret_cast<MSG_REFUND_SKILL*>(&msg);
-    // [b28c-30] N 封顶：ORIG 0x081dadbc/dadc4 为 reload 后寄存器比较
-    // （`mov -0xc(%ebp),%eax; cmp $imm,%eax` / `test %eax,%eax`），4.4 对局部
-    // 恒折 mem 直比（P209 附，signed/unsigned 均折；volatile 版 81 insn 反劣，
-    // 已实测回退）。原 register asm("eax") 绑定按 P0/N96 清除，绑定形不可用。
+    // [b28d-solo-S162] N 封顶：ORIG 0x081dadbc/dadc4 为 reload 后寄存器比较
+    // （`mov -0xc(%ebp),%eax; cmp $0xffffffff,%eax; je` / `mov; test; jne`）。
+    // 4.4 对局部与常量 ==/!= 恒折 mem 直比——探针 /tmp/b28d_disp/probe_ti.cpp
+    // n1..n8（signed/unsigned/(int) cast/短路）与 probe_ti3.cpp w1..w6 全折；
+    // volatile 版产 load+cmp 但多 setcc 物化（probe_ti2.cpp v1）。禁 register 绑定 P0。
     int treeIndex;
 
     // ORIG 0x081dad43：test+sete 物化（技巧9）。
@@ -25283,8 +25287,7 @@ int Dispatcher_RefundSkill::check_error(CUser* user, MSG_BASE& msg)
     // ORIG 0x081dadb9：结果整字存 -0xc（caller 视角 int 返回，无 movsbl）；
     treeIndex = user->GetCurCharacSkillTreeIndex();
     // ORIG 0x081dadbc/dadc4：两比较各自 `mov -0xc(%ebp),%eax` 重装载。
-    // [b28c-30] P0 清绑：原 register int ti asm("eax") 绑定已删（N96/P0 全域禁），
-    // 改直接使用 treeIndex 表达式。LZERO 体须是第二 jne 的自然 fall-through：
+    // LZERO 体须是第二 jne 的自然 fall-through：
     // 空 then + else 内二次判断（probe p4 v2 实证；直写 goto LZERO 版多一条 jmp）。
     if (treeIndex == -1) {
     } else {
@@ -26254,6 +26257,9 @@ int Dispatcher_Teleport::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 }
 
 // ==== Dispatcher_Teleport::send (ORIG 0x081d087c) ====
+// b28d-solo-Dispatchers verdict=AE(routed) [S162] ORIG 0x081d087c orig/ours=135/135
+//   [S162] 已修：stTeleportParam::m_14 偏移 0x12→0x14（PacketTypes.h m_pad12[2]，
+//   ORIG ctor 0x08231362 写 +0x14 实证）⇒ 唯一残差（读 +0x12 vs +0x14）归零。
 void Dispatcher_Teleport::send(CUser* user, ParamBase& param)
 {
     // ORIG 0x081d087c 两处形：①`test %eax,%eax; jne <guard 段>` —— err==0 正常路径是
@@ -27984,6 +27990,7 @@ void Dispatcher_Skill_Command_Customizing::send(CUser* user, ParamBase& param)
 // ============================================================================
 
 // ==== Dispatcher_SoloTeleport::read (ORIG 0x081e1b9c) ====
+// b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x081e1b9c orig/ours=117/117
 int Dispatcher_SoloTeleport::read(PacketBuf& packet, MSG_BASE& msg)
 {
     MSG_SOLO_TELEPORT& req = reinterpret_cast<MSG_SOLO_TELEPORT&>(msg);
@@ -28938,6 +28945,7 @@ int Dispatcher_Select_3rdChronicleItem_ForEnchant::check_state(
 // ORIG：list=getRewardGiveItemList(job, growType)；list 非空且
 //   selectionIdx>=0 且 selectionIdx<=list->size()（ORIG cmp/jl 边界）→
 //   返回 &list->at(selectionIdx)（ORIG 调 at，idx==size 时由 at 抛异常）；否则 0。
+// b28d-solo-Dispatchers verdict=AE(routed) [S162-verify] ORIG 0x08915f9a orig/ours=34/34
 std::vector<EventRewardItemInfo>* DimensionActivationRewardData::getRewardGiveItems(
     int selectionIdx, int job, int growType)
 {

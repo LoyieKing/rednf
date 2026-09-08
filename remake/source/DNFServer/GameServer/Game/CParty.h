@@ -759,7 +759,16 @@ public:
     unsigned short m_straightVictories;  // +0x29c
     unsigned char m_pad29e[2];       // +0x29e
     int m_startGamePartyCount;       // +0x2a0
-    unsigned char m_padShop[0x78];   // +0x2a4
+    // +0x2a4 SECRET_SHOP_DATA(0x88) 区域按 POD 视图拆分：ORIG GetUserSecretShop
+    // 0x085b9eaa 的 `lea 0x2a0(%edx),%eax; add this; add $8` 只在「this 直接
+    // 含具名数组成员」形下由 4.4 复现（cast 取址形恒产 `mov this,%ecx` 中转，
+    // 探针 /tmp/b28d_s187/p14/p17/p18）。SECRET_SHOP_DATA.m_info 在 +0x04
+    // （SECRET_SHOP_INFO 0x1c×4 = 0x70）⇒ 数组落 +0x2a8..+0x317。
+    // sizeof/全部偏移/mangled 不变；`&m_padShop` 仍 = this+0x2a4（CParty.cpp
+    // placement-new/cast 消费点语义不变）。
+    unsigned char m_padShop[0x4];    // +0x2a4（SECRET_SHOP_DATA 头 m_openCode）
+    char m_secretShopInfo[4][0x1c];  // +0x2a8（SECRET_SHOP_INFO POD 镜像）
+    unsigned char m_padShopTail[0x4];// +0x318
     bool m_premiumGoldCardParty;     // +0x31c
     unsigned char m_pad31d[3];       // +0x31d
     unsigned int m_premiumGoldCardDefaultItem;  // +0x320

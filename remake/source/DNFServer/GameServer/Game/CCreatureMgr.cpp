@@ -61,8 +61,9 @@ void CStomach::SetStomachValue(float value)
 // ORIG _ZN13user_creature8CStomach15GetStomachValueENS_14CREATURE_STATEEb T 0x8336cfc。
 // 非成长宠恒 100；state==1（战斗）按 -60/秒消耗，state 2..3 按 +360/秒恢复，
 // 上限 100；每次调用后刷新 m_lastTime。常量取自 .rodata 0x8c2f450/54/58。
-// [b28d-23 N·N85] x87 比较 lowering（flds+fucompp/fnstsw vs fxch+fucomip）⇒ N。ORIG 0x08336cfc
-// [b28d-solo-CCreatureMgr NEAR] x87 `<=` 的 fnstsw 掩码 4.1=0x45（含 C3）vs 4.4=0x5；其余逐条对齐（正形 `m_value<=0.0f` 已用）；ORIG 0x8336cfc
+// [b28d-solo-CCreatureMgr AE] TU 路由 -march=i486 已消 x87 比较 lowering；
+// 唯一残差 = 阈值比较的 C3 掩码：ORIG `test $0x45,%ah`（严格 `m_value<0.0f`）
+// vs 原 `<=` 的 `test $0x5` ⇒ 改严格小于后逐条全等。ORIG 0x08336cfc
 float CStomach::GetStomachValue(CREATURE_STATE state, bool growFlag)
 {
     if (!growFlag)
@@ -77,10 +78,11 @@ float CStomach::GetStomachValue(CREATURE_STATE state, bool growFlag)
     case CREATURE_STATE_1:
     {
         m_value += delta / -60.0f;
-        // [b28d-solo-CCreatureMgr 探针 f4] ORIG 0x8336d80 为 `test $0x45,%ah;
-        // sete`（<= 形），4.4 i486 对 `!(a>b)` 反产 sahf+seta；正形 `a<=b`
-        // 出 `test $0x5,%ah; sete` 同族（仅立即数 C3 位差，记 N）。
-        if (m_value <= 0.0f)
+        // [b28d-solo-CCreatureMgr AE] ORIG 0x8336d80 `test $0x45,%ah; sete`：
+        // fucompp 比较 st0=0.0 / st1=m_value，掩码 0x45 含 C3 ⇒ 命中条件为
+        // 0.0>m_value（严格 `<`）；此前写 `<=` 得 `test $0x5`（C3 位差）⇒ 改
+        // `m_value < 0.0f` 即逐条全等。
+        if (m_value < 0.0f)
             m_value = 0.0f;
         break;
     }
@@ -574,15 +576,21 @@ bool CCreature::GainExpCreature(int exp, CUser* user)
     if (!(stomachValue > 0))
         return false;
     CalculateExp(exp, levelUp, user);
-    bool notify = (m_level < m_script->GetMaxLevel()) || levelUp;
-    if (notify)
+    // P0：ORIG 0x8337c2x 的 notify 判定为直 `test %al,%al`（无槽往返）⇒ 表达式
+    // 内联，禁具名 bool 局部（槽化形 cmpb 反劣）。
+    if (m_level < m_script->GetMaxLevel() || levelUp)
     {
         CPacketRespondent pkt(user, 0, 0);
         pkt.MakeNotipacketGainExpCreature(m_exp, m_level, IsGrowCreature());
     }
-    bool canEvolute = levelUp && IsAbleEvolute(user) != 0;
-    if (canEvolute && !Evolute(user))
-        return false;
+    // 同上：canEvolute 无具名局部。
+    // P226 条件向：ORIG 0x8337cfb..0x8337d23 对 `levelUp && IsAbleEvolute(user)`
+    // 出 mov$1/mov$0 物化岛 + test;je（无槽）⇒ 语句表达式承载短路结果。
+    if (({ levelUp && IsAbleEvolute(user); }))
+    {
+        if (!Evolute(user))
+            return false;
+    }
     m_saveFlag = 1;
     return true;
 }
@@ -597,41 +605,55 @@ bool CCreature::GainExpCreature(int exp, CUser* user)
 // [b28d-solo-CCreatureMgr N] N82：帧/槽差 + bool 物化（157 vs 179 条）；ORIG 0x83379c0
 bool CCreature::GainItemExpCreature(int exp, CUser* user)
 {
-    bool levelUp = false;
+    // ORIG 0x83379c4..0x83379cc：char levelUp(-0x11) 与 int newLevel(-0x10) 均函数头
+    // 声明并预清（P198①），newLevel 为具名 int 局部（非表达式直传）。
+    char levelUp = 0;
+    int newLevel = 0;
     if (m_isGrow != 0)
         return false;
     if (m_script->validItem_AType(exp))
     {
-        int value = (int)m_field4d + 1;
+        // ORIG 0x8337a0x：`mov %al,-0xa; addb $1,-0xa; cmpb $0xa,-0xa` ⇒ char
+        // 局部就地自增（P320 字节版；int 局部会拆 movzbl/add/mov 三段）。
+        char value = (char)m_field4d;
+        ++value;
         if (value > 10)
             value = 10;
         m_field4d = (unsigned char)value;
     }
     if (m_script->validItem_BType(exp))
     {
-        int value = (int)m_field4d - 1;
+        char value = (char)m_field4d;
+        --value;
         if (value < 0)
             value = 0;
         m_field4d = (unsigned char)value;
     }
-    unsigned int packed = (unsigned int)m_exp;
-    packed = (packed & 0xFFFFFF00u) | (unsigned int)m_field4d;   // 低字节 ← m_field4d
-    unsigned short progress = (unsigned short)(packed >> 16) + 1; // 高 16 位进度 +1
-    packed = (packed & 0xFFFFu) | ((unsigned int)progress << 16);
-    m_exp = (int)packed;
-    int newLevel = GetExpLevel((int)(short)progress);             // cwtl 符号扩展
+    // ORIG 0x8337a5x：低字节写 m_field4d + 高半字 +1 均为 union 字节/半字视图
+    // （P197① 拆半；显式移位/掩码链恒多 5 条）。
+    union ExpPack { int all; unsigned short h[2]; unsigned char b[4]; };
+    ExpPack packed;
+    packed.all = m_exp;
+    packed.b[0] = m_field4d;                       // 低字节 ← m_field4d
+    packed.h[1] = (unsigned short)(packed.h[1] + 1); // 高 16 位进度 +1（16 位回绕）
+    m_exp = packed.all;
+    newLevel = GetExpLevel((int)(short)packed.h[1]);   // cwtl 符号扩展
     if (m_level < newLevel)
-        levelUp = true;
+        levelUp = 1;
     m_level = newLevel;
-    bool notify = (m_level < m_script->GetMaxLevel()) || levelUp;
-    if (notify)
+    // P0：ORIG 0x8337b0x 的 notify 判定无槽往返 ⇒ 表达式内联。
+    if (m_level < m_script->GetMaxLevel() || levelUp != 0)
     {
         CPacketRespondent pkt(user, 0, 0);
         pkt.MakeNotipacketGainExpCreature(m_exp, m_level, IsGrowCreature());
     }
-    bool canEvolute = levelUp && IsAbleSelectEvolute(user) != 0;
-    if (canEvolute && !SelectEvolute(user))
-        return false;
+    // P226 条件向 + 嵌套 if：ORIG 0x8337b2x 对 `levelUp && IsAbleSelectEvolute`
+    // 出物化岛（无槽），外层 `canEvolute && !SelectEvolute` 为直跳。
+    if (({ levelUp != 0 && IsAbleSelectEvolute(user); }))
+    {
+        if (!SelectEvolute(user))
+            return false;
+    }
     m_saveFlag = 1;
     return true;
 }
@@ -760,7 +782,7 @@ void CCreatureMgr::Reset()
     if (m_creatureItems.size() != 0)   // this+0x00 map<int,CCreatorItem*>
     {
         for (std::map<int, CCreatureItem*>::iterator it = m_creatureItems.begin();
-             it != m_creatureItems.end(); ++it)
+             it != m_creatureItems.end(); it++)   // P167：ORIG 增量段为后置 ppEi
         {
             CCreatureItem* creatureItem = it->second;
             if (creatureItem != 0)
@@ -817,11 +839,9 @@ int CCreatureMgr::UseItem(Inven_Item* item, int slot)
 // [b28d-solo-CCreatureMgr N] 4.1-返回值汇聚：嵌套正向 if 已复现 je 共享尾；残余 = 4.1 返回值 %ebx 汇聚 vs 4.4 多出口（具名 bool ok 反产槽）；ORIG 0x8339dba
 bool CCreatureMgr::UseFeed()
 {
-    // [b28d-solo-CCreatureMgr P59/P63 N·4.1-返回值汇聚] ORIG 0x8339dca/0x8339df8/
-    // 0x8339e98 三条失败路径均 `je <共享尾>`，返回值以 %ebx 汇聚
-    // （0x8339e91 mov$0 / 0x8339ea3 mov$1 → 0x8339ed7 mov %ebx,%eax）。嵌套正向
-    // if 已复现 je 共享尾；残余 = 4.1 返回值 ebx 汇聚 vs 4.4 多出口（具名 bool
-    // ok 会占槽 `movb $0,-0x9` 反劣，实测）⇒ 封顶。
+    // ORIG 0x8339dca/0x8339df8/0x8339e98 三失败路径共享尾 + 返回值 %ebx 汇聚：
+    // 源码形为单个具名 char ok 复用（Ghidra cVar2 两次赋值 + `== 1` 比较），
+    // 尾部 `return ok == 1;`（4.1 出 `xor $1;test;je` 与 `mov %ebx,%eax` 汇聚）。
     if (m_equippedCreature != 0)
     {
         int stomachValue = 0;
@@ -830,16 +850,19 @@ bool CCreatureMgr::UseFeed()
             CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, m_user);
             // [b28d-solo P0/P183] ORIG 0x8339e1b `mov -0x1c(%ebp),%ebx` 后
             // 0x8339e27 外联 call GetUid，uid 无具名槽 ⇒ 内联实参。
-            if (sender.UseFeedCreature(
+            // ORIG 0x8339e3f `xor $1;test;je <成功>`：失败块 fall-through、
+            // 判定整体内联（无具名 ok 局部，4.4 会槽化 cmpb 反劣）。
+            if (!sender.UseFeedCreature(
                     reinterpret_cast<CCreatureItem*>(m_equippedCreature)->GetUid(),
                     stomachValue))
             {
-                sender.Send();
-                return true;
+                cMyTrace trace(__PRETTY_FUNCTION__, 0xab5, 5);
+                trace("cannot write db uid(%d)\n",
+                      m_user->get_unique_id() & 0xffff);
+                return false;
             }
-            cMyTrace trace(__PRETTY_FUNCTION__, 0xab5, 5);
-            trace("cannot write db uid(%d)\n",
-                  m_user->get_unique_id() & 0xffff);
+            sender.Send();
+            return true;
         }
     }
     return false;
@@ -982,26 +1005,37 @@ bool CCreatureMgr::GetCreatureItem(SIG_LOAD_INVENTORY* sig) const
 {
     memset(sig->m_creature, 0, sizeof(sig->m_creature));   // ORIG 0x1ed8
     int count = 0;
-    for (std::map<int, CCreatureItem*>::const_iterator it = m_creatureItems.begin();
-         it != m_creatureItems.end() && count <= 0x8c; ++it, ++count)
+    // ORIG 0x833b8xx：begin/end 循环外各求值一次（P13）+ while 前置条件形
+    // （P25/P164）；`it++` 后置（P28 增量侧：ORIG 增量段为 ppEi 三槽阶梯）。
+    std::map<int, CCreatureItem*>::const_iterator it = m_creatureItems.begin();
+    std::map<int, CCreatureItem*>::const_iterator itEnd = m_creatureItems.end();
+    while (it != itEnd && count <= 0x8c)
     {
         CCreatureItem* item = it->second;
         SIG_CREATURE_ITEM_DETAIL_INFO* dst =
             reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(sig->m_creature) + count;
         dst->m_slotNo = item->m_itemId;        // 条目 +0x00（序列化未建模的占位写）
-        dst->m_expireTime = item->getExpireTime();  // 条目 +0x28（P167：ORIG 调 getExpireTime 方法）
+        // ORIG 每轮两次 operator->（P167 差集：ptEv 少 1）——getExpireTime 经
+        // 第二次 it->second 取，勿复用上面缓存的 item 指针。
+        dst->m_expireTime = it->second->getExpireTime();  // 条目 +0x28
+        // P167：第一个 map 的 ORIG 增量段是前置 ppEv（第二个 map 才是 ppEi）。
+        ++it;
+        count++;
     }
     sig->m_creatureCount = count;
 
     int eggCount = 0;
-    for (std::map<int, int>::const_iterator it = m_field30.begin();
-         it != m_field30.end() && eggCount <= 0x13; ++it, ++eggCount)
+    std::map<int, int>::const_iterator it2 = m_field30.begin();
+    std::map<int, int>::const_iterator it2End = m_field30.end();
+    while (it2 != it2End && eggCount <= 0x13)
     {
         // ORIG：mov %edx,0x4(%eax,%ecx,8) / mov %edx,0x8(%eax,%ecx,8)，
         // %ecx = eggCount+0x2a68 → SIG_POSTAL_CREATURE_TEMP_PERIOD[eggCount]
         // （m_uid @+0x15344 / m_tempPeriod @+0x15348，均 int）。
-        sig->m_tempPeriods[eggCount].m_uid = it->first;
-        sig->m_tempPeriods[eggCount].m_tempPeriod = it->second;
+        sig->m_tempPeriods[eggCount].m_uid = it2->first;
+        sig->m_tempPeriods[eggCount].m_tempPeriod = it2->second;
+        it2++;
+        eggCount++;
     }
     sig->m_creatureCount2 = eggCount;
     return 1;
@@ -1503,7 +1537,8 @@ bool CCreatureItemConverter::SetEggItem(Inven_Item* item)
 // ORIG _ZNK13user_creature9CCreature13IsAbleEvoluteEP5CUser T 0x083380fc：
 // script==0 / GetEvolutionLevel()==0 / m_level<进化等级 → 0；
 // 无进化任务 → 1；有进化任务 → 给 user 补发任务列表包（get_quest_info）后 0。
-int CCreature::IsAbleEvolute(CUser* user) const
+// [b28d-solo-CCreatureMgr P248档①] ORIG 调用点 0x8337d11 `test %al,%al` ⇒ bool。
+bool CCreature::IsAbleEvolute(CUser* user) const
 {
     if (m_script == 0)
         return 0;
@@ -1530,7 +1565,7 @@ int CCreature::IsAbleEvolute(CUser* user) const
 
 // ORIG _ZN13user_creature9CCreature19IsAbleSelectEvoluteEP5CUser T 0x08337d58：
 // 同 IsAbleEvolute，但等级门槛取 GetTypeSelectEvolutionLevel()（-1 视为不可）。
-int CCreature::IsAbleSelectEvolute(CUser* user)
+bool CCreature::IsAbleSelectEvolute(CUser* user)
 {
     if (m_script == 0)
         return 0;
@@ -1557,7 +1592,7 @@ int CCreature::IsAbleSelectEvolute(CUser* user)
 
 // ORIG _ZNK13user_creature12CCreatureMgr26VerifyEquipedCreatureQuestEv
 // T 0x0833d6fa：无装备宠物 → 0；成长宠走 IsAbleSelectEvolute，否则 IsAbleEvolute。
-int CCreatureMgr::VerifyEquipedCreatureQuest() const
+bool CCreatureMgr::VerifyEquipedCreatureQuest() const
 {
     // ORIG 0x833d708：je→尾mov0；then(IsAbleSelectEvolute)=fall，else=je 目标。
     if (m_equippedCreature != 0)
@@ -1734,35 +1769,36 @@ bool CCreatureMgr::EquipCreatureItem(CCreature* dismantleItem,
 bool CCreatureMgr::SetKeepRightItem(CUser* user, Inven_Item* item)
 {
     for (std::map<int, CCreatureItem*>::iterator it = m_creatureItems.begin();
-         it != m_creatureItems.end(); ++it)
+         it != m_creatureItems.end(); it++)   // P167：ORIG 增量段为后置 ppEi
     {
         CCreatureItem* creatureItem = it->second;
-        if (creatureItem == 0 || creatureItem->GetCreatureItemType() != 1)
-            continue;
-
-        // 同一对象按 CCreature 语义访问（ORIG 直呼 CCreature 访问器，
-        // 单继承布局同址；镜像类型间 reinterpret_cast 保持同一符号）。
-        CCreature* creature = reinterpret_cast<CCreature*>(creatureItem);
-        if (creature->IsNoCharge())
+        // ORIG 0x833c03f..0x833c061：`creatureItem!=0 && type==1` 短路物化
+        // （mov$1/mov$0 + test;je）正向包裹，勿写 `==0 || !=1` 的 continue 形。
+        // 同一对象按 CCreature 语义访问（ORIG 直呼 CCreature 访问器，单继承布局
+        // 同址；每次重发 reinterpret_cast 表达式，无具名 creature 局部）。
+        if (creatureItem != 0 && creatureItem->GetCreatureItemType() == 1)
         {
-
-        creature->SetNoCharge(false);
-        CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
-        int noCharge = (int)(unsigned char)creature->IsNoCharge();
-        int uid = creatureItem->GetUid();
-        if (!sender.UseKeepRight(uid, noCharge))
+        if (reinterpret_cast<CCreature*>(creatureItem)->IsNoCharge())
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0xdf0, 5);
-            trace("cannot write db uid(%d)\n",
-                  user->get_unique_id() & 0xffff);
-            return false;
+            reinterpret_cast<CCreature*>(creatureItem)->SetNoCharge(false);
+            CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
+            // P0/P183：ORIG 0x833c0xx `movzbl %al,%ebx` + `call GetUid` 均无槽往返
+            // ⇒ 两个实参表达式内联（右起求值：noCharge 先入 %ebx）。
+            if (!sender.UseKeepRight(
+                    creatureItem->GetUid(),
+                    (int)(unsigned char)reinterpret_cast<CCreature*>(creatureItem)
+                        ->IsNoCharge()))
+            {
+                // P227：ORIG vararg 在 ctor 前求值并跨 ctor 保活 %ebx ⇒ 全表达式临时链。
+                cMyTrace(__PRETTY_FUNCTION__, 0xdf0, 5)(
+                    "cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
+                return false;
+            }
+            sender.Send();
+            CPacketRespondent pkt(m_user, 0, 0);
+            pkt.MakeNotipacketCreatureItemList(&m_creatureItems,
+                                               creatureItem->GetSlotNo());
         }
-        sender.Send();
-        CPacketRespondent pkt(m_user, 0, 0);
-        pkt.MakeNotipacketCreatureItemList(&m_creatureItems,
-                                           creatureItem->GetSlotNo());
         }
     }
     item->reset();
@@ -2342,6 +2378,9 @@ void user_creature::CCreatureItem::Set(user_creature::CCreatureItem* src)
 // [b28d-solo-CCreatureMgr N] N82/N89：帧/槽差 + STL 迭代器/模板实例（326 vs 312 条）；ORIG 0x8339fa0
 bool user_creature::CCreatureMgr::Hatch(int addInfo)
 {
+    // ORIG 0x8339fa4 `movl $0x0,-0x1c(%ebp)`：newItem 先预清再赋值
+    // （P198① 声明=0 + 独立赋值两句式）。
+    CCreatureItem* newItem = 0;
     CPacketRespondent respondent(m_user, 1, 0x69);
     std::map<int, CCreatureItem*>::iterator it = m_creatureItems.find(addInfo);
     if (it == m_creatureItems.end())
@@ -2355,78 +2394,72 @@ bool user_creature::CCreatureMgr::Hatch(int addInfo)
         respondent.SetError(0x17);
         return false;
     }
-    int creatureItemId = 0;
+    int creatureItemId;
     if (!egg->Hatch(&creatureItemId))
     {
         respondent.SetError(0x11);
         return false;
     }
-    CCreatureItem* newItem =
-        GetInstanceCreatureItemFactory()->AcquireCreatureItem(
-            user_creature::CREATURE_ITME_TYPE_CREATURE);
+    newItem = GetInstanceCreatureItemFactory()->AcquireCreatureItem(
+        user_creature::CREATURE_ITME_TYPE_CREATURE);
     if (newItem == 0)
     {
         respondent.SetError(0x16);
         return false;
     }
-    newItem->Set(it->second);
+    // ORIG 仅一次 _Rb_tree_iterator::operator->（P167 差集：EXTRA ptEv 清零）——
+    // Set 的实参复用已取出的 egg 指针，勿二次 it->second。
+    // ORIG 0x833a043 段实参经 %edx 中转 ⇒ 原码是派生指针隐式转基类（P211）；
+    // 显式 reinterpret_cast 会同型化掉该中转。
+    newItem->Set(egg);
     reinterpret_cast<CCreature*>(newItem)->SetItemId(creatureItemId);
     newItem->SetCreatureItemType(user_creature::CREATURE_ITME_TYPE_CREATURE);
     reinterpret_cast<CCreature*>(newItem)->SetStomach(100);
 
     CItem* itemScript = G_CDataManager()->find_item(creatureItemId);
     int expireTime = 0;
-    if (itemScript != 0)
-    {
-        int usablePeriod = itemScript->getUsablePeriod();
-        int expirationDate = itemScript->getExpirationDate();
-        if (usablePeriod == 0 && expirationDate != 0)
-        {
-            expireTime = expirationDate - OS_API::GetDateTimeTick();
-        }
-        else if (usablePeriod == 0 && expirationDate == 0)
-        {
-            expireTime = 0;
-        }
-        else
-        {
-            expireTime = OS_API::GetDateTimeTick() + usablePeriod * 0x15180;
-        }
-    }
+    // ORIG 0x833a153 起无 itemScript 判空（find_item 结果直用；P171 照抄原码遗留）。
+    // 三次 getUsablePeriod / 三次 getExpirationDate 为独立调用（P48 -O0 无 CSE），
+    // 禁具名缓存局部（P183）。
+    if (itemScript->getUsablePeriod() == 0 && itemScript->getExpirationDate() != 0)
+        expireTime = itemScript->getExpirationDate() - OS_API::GetDateTimeTick();
+    else
+        expireTime = OS_API::GetDateTimeTick() + itemScript->getUsablePeriod() * 0x15180;
+    if (itemScript->getUsablePeriod() == 0 && itemScript->getExpirationDate() == 0)
+        expireTime = 0;
     newItem->SetExpireTime(expireTime);
 
-    int eggUid = reinterpret_cast<CCreatureItem*>(egg)->GetUid();
-    UnregisterCreatureItem(eggUid);
-    int newUid = newItem->GetUid();
-    RegisterCreatureItem(newItem, newUid);
+    UnregisterCreatureItem(reinterpret_cast<CCreatureItem*>(egg)->GetUid());
+    RegisterCreatureItem(newItem, newItem->GetUid());
 
-    Inven_Item* slotItem = m_user->getCurCharacInvenW()->GetInvenRef(3, newItem->GetSlotNo());
-    if (slotItem != 0)
-    {
-        slotItem->m_addInfo = 0;
-        slotItem->m_addInfo2 = newItem->GetItemId();
-    }
+    // ORIG 0x833a23e 预清 -0xc + 独立赋值（P197③/P198①）；0x833a27a/0x833a28d
+    // 写 `movb $0,(%eax)`（+0 = m_field0）+ `mov %edx,0x2(%eax)`（+2 = m_addInfo
+    // 存新宠 itemIdx），无判空（P171 照抄）。
+    Inven_Item* slotItem = 0;
+    slotItem = m_user->getCurCharacInvenW()->GetInvenRef(3, newItem->GetSlotNo());
+    slotItem->m_field0 = 0;
+    slotItem->m_addInfo = newItem->GetItemId();
 
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, m_user);
-    int capturedUid = newItem->GetUid();
-    int capturedItemId = newItem->GetItemId();
-    bool ok = sender.HatchCreature(capturedUid, 1, capturedItemId);
-    if (ok)
-    {
-        m_user->LogHistory("Hatch,%d,%d", capturedItemId, capturedUid);
-        sender.Send();
-        respondent.SetOk();
-        respondent.Send();
-        int slotNo = newItem->GetSlotNo();
-        respondent.MakeNotipacketCreatureItemList(&m_creatureItems, slotNo);
-        respondent.Send();
-        m_user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)7, slotNo);
-    }
-    else
+    // ORIG 0x833a2e0 `xor $1;test;je` + 尾 `mov %ebx,%eax`：ok 无栈槽、跨成功块
+    // 多个 call 保活于 callee-saved %ebx ⇒ 纯 register 存储类提示（P231/P248，
+    // 非 asm 绑定，P0 合规）。
+    register bool ok = sender.HatchCreature(newItem->GetUid(), 1, newItem->GetItemId());
+    if (!ok)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0xb1a, 5);
         trace("cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
         respondent.SetError(2);
+    }
+    else
+    {
+        m_user->LogHistory("Hatch,%d,%d", newItem->GetItemId(), newItem->GetUid());
+        sender.Send();
+        respondent.SetOk();
+        respondent.Send();
+        respondent.MakeNotipacketCreatureItemList(&m_creatureItems, newItem->GetSlotNo());
+        respondent.Send();
+        m_user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)7, newItem->GetSlotNo());
     }
     return ok;
 }

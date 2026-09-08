@@ -67,10 +67,13 @@ float CPowerManager::GetPowerWarResponPenalty(CUser* user)
     return penalty;
 }
 
-// [b28d-solo-CPowerManager] NEAR(18=18, gap 0) | ORIG 0x08480e92 | 已按 P0 补双
-// 具名局部（ghostTime 源 / n 结果）消 fistpl 复用；残差 = 4.4 槽分配（ghostTime
-// -0x10、cw -0x1a/-0x1c vs ORIG -0x1c/-0x1e/-0x20）⇒ N82/P112 封顶（framePad
-// 前置/后置 + n 预清三形实测：槽号不变，预清反 +1 条）。
+// [b28d-solo-CPowerManager] NEAR(18=18, gap 0) | ORIG 0x08480e92 | 语义全等
+// （fildl/fmuls/fistpl 同序、指令数一致），残差仅槽号：ghostTime -0x10、cw
+// -0x1a/-0x1c vs ORIG -0x1c/-0x1e/-0x20 ⇒ N82/P112 封顶。本轮穷举六族：
+// double framePad 前置/后置、int[3]/char pad、3×dead int、long double、union
+// {struct{int;int[3];};int;} 标量视图形、n-first 声明序——4.4 把未使用局部沉到
+// 帧底、使用的标量按声明序反向分配，源槽恒 -0x10/-0xc，无法移到 ORIG 的 -0x1c
+// （4.1 为不复用临时槽预留 12B 死槽；视图形虽命中 -0x1c 但 fildl 前多一次 spill）。
 int CPowerManager::GetPowerWarGhostTime(CUser* user, float f)
 {
     // ORIG 0x08480e92：(int)(ghostTime * f)，fistpl 就近取整。
@@ -339,18 +342,17 @@ void CPowerManager::LoadRankerInfo()
     **guard << G_CEnvironment()->m_serverEnvir.m_serverGroup;   // ORIG env+0x378 直读
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
-// [b28d-solo-CPowerManager] DIFF→N18b | ORIG 0x0847f1b0 | 唯一残差 = 尾测
-// `mov slot,%eax; cmp $2,%eax` vs 4.4 `cmpl $2,slot`（1 条，27/28）。探针
-// /tmp/p_loop{,2,3}.cpp 8 形（for/while/do-while/int/unsigned/2>=i/!(i>2)/取址/
-// register）全败：取址形尾测命中但增量段 +2 条（净劣化）⇒ N18b/P209附 封顶。
+// [b28d-solo-CPowerManager] IDENTICAL(28=28, ndiff 0) | ORIG 0x0847f1b0 | 本轮修复：
+// P310 翻案（旧 N18b/P209附 判词作废）——循环局部由 unsigned 改 int + 显式
+// `(unsigned int)i <= 2` 比较，4.4 即发 ORIG 的两段寄存器尾测
+// `mov slot,%eax; cmp $2,%eax; setbe; test %al,%al; jne`（unsigned 局部恒折
+// `cmpl $2,slot` 单段）。同族三件（GetRankingByCharacNo/SetPowerWarUserRankingInfo）
+// 同法一次归零。
 bool CPowerManager::CheckCompleteDBLoadStatueInfo()
 {
-    // [b28c-L9] fresh 复验 ndiff 5→2 封顶：残差即下述 N18b 一条（unsigned 局部
-    // `i <= 2` 4.4 恒 `cmpl $2,-0x4(%ebp)`，ORIG 0x0847f1bf 为 `mov slot,%eax; cmp`）。
-    // ORIG 0x847f1bf 尾部 addl;mov slot;cmp;setbe 含 mov slot,%eax —— 探针
-    // /tmp/l6/probe5.cpp 三形（do-while/++i/i++）4.4 恒折 cmpl $2,mem（N18b 族
-    // mem 操作数比较折叠），源形不可复现，维持 for（残差 1 insn）。
-    for (unsigned int i = 0; i <= 2; ++i)
+    // [b28d-solo] P310：int 局部 + 显式 unsigned 比较复现 ORIG 0x0847f1bf 尾测
+    // 两段物化（`mov -0x4(%ebp),%eax; cmp $0x2,%eax; setbe; test; jne`）。
+    for (int i = 0; (unsigned int)i <= 2; ++i)
         if (m_rankings[i].m_flag != 1)
             return 0;
     return 1;
@@ -372,13 +374,14 @@ void CPowerManager::SetPowerWarStartTime(unsigned char y, unsigned char m,
     m_powerWarStartTime[3] = h;
 }
 
-// [b28d-solo-CPowerManager] DIFF→N18b | ORIG 0x0847ebec | 同 CheckComplete 件：
-// 唯一残差 = 尾测两段物化（103/104），P167 CLEAR 12/12 ⇒ N18b/P209附 封顶。
+// [b28d-solo-CPowerManager] IDENTICAL(104=104, ndiff 0) | ORIG 0x0847ebec | 本轮修复：
+// P310 同法（int i + `(unsigned int)i < 3`）复现 ORIG 0x0847ec0e 尾测两段物化
+// `mov -0xc(%ebp),%eax; cmp $0x2,%eax; setbe; test; jne`；P167 CLEAR 12/12。
 void CPowerManager::SetPowerWarUserRankingInfo(unsigned int* charNos)
 {
     // ORIG 0x0847ebec：characNo==0 -> 置 flag，否则写 +0x2c 并发 DB 消息 0x166。
-    // [b28c-L9] ORIG 0x0847ec0e 尾部 `mov slot,%eax; cmp $2,%eax; setbe` ⇒ 无符号循环变量。
-    for (unsigned int i = 0; i < 3; ++i)
+    // [b28d-solo] P310：尾测须两段寄存器形 ⇒ 局部 int + 显式 unsigned 比较。
+    for (int i = 0; (unsigned int)i < 3; ++i)
     {
         if (charNos[i] != 0)
         {
@@ -399,12 +402,14 @@ void CPowerManager::SetPowerWarUserRankingInfo(unsigned int* charNos)
 
 
 
-// [b28d-solo-CPowerManager] 语义完成 / byte 层 N | ORIG 0x0847ed4e | 本轮修复：
-// 真语义缺口 m_flag=1（ORIG memcpy 后 `movb $0x1,0x8(%eax)`，9 条，原缺）+ pack(1)
+// [b28d-solo-CPowerManager] 语义完成 / byte 层 N（352=352, gap 0）| ORIG 0x0847ed4e |
+// 此前修复：真语义缺口 m_flag=1（ORIG memcpy 后 `movb $0x1,0x8(%eax)`）+ pack(1)
 // 具名视图消 add 链（P80/P99/P183）+ P222 正向 if 包裹 + P227/P139 全表达式临时链
-// + __PRETTY_FUNCTION__ + P211 档③ 同型化（3 处 uchar→char 中转清零）。
-// 残差 = N4（9 处 `lea 0(,%eax,4),%edx;mov` vs `shl $2,%eax;mov`，条数相同）
-// + N18b 尾测 1 条；P167 CLEAR 7/7，351/352。
+// + __PRETTY_FUNCTION__ + P211 档③ 同型化。本轮：P310 消 N18b 尾测 1 条。
+// 残差 = N4/N86b（13 处 4.1 `lea 0x0(,%eax,4),%edx` vs 4.4 `shl $0x2,%eax` 强度
+// 归约形；探针 /tmp/probe2d{,2}.cpp 八形——一维/二维[3][1]/`*(arr+i)`/
+// `(&arr[0])[i]`/指针局部/unsigned 索引/int 数组下标——4.4 恒 shl，源形不可择）。
+// P167 CLEAR 7/7。
 void CPowerManager::SetPowerWarUserStatueInfo(SIG_LOAD_POWER_WAR_STATUE_INFO* info)
 {
     // ORIG 0x0847ed4e：按 characNo（info+0x00）匹配条目，拷贝雕像字段并置 flag，
@@ -416,7 +421,7 @@ void CPowerManager::SetPowerWarUserStatueInfo(SIG_LOAD_POWER_WAR_STATUE_INFO* in
     // movzbl 0x22(%eax),%edx`），禁 src 指针缓存（缓存生 add 链且帧 +4）。
     // [b28d-solo] P222/P59：ORIG `cmp; jne <循环尾>` 匹配即直落 body ⇒ 正向
     // `if (匹配) { body; break; }`（原 `if (!=) continue;` 产反向 je 块布局）。
-    for (unsigned int i = 0; i < 3; ++i)
+    for (int i = 0; (unsigned int)i < 3; ++i)
     {
         if (m_rankings[i].m_characNo == ((const PowerWarStatueView*)info)->m_characNo)
         {
@@ -459,8 +464,8 @@ void CPowerManager::SetPowerWarUserStatueInfo(SIG_LOAD_POWER_WAR_STATUE_INFO* in
         SendPowerWarUserStatueInfo(0);
 }
 
-// [b28d-solo-CPowerManager] AE | ORIG 0x0847f5de | 186=186 clean 全等（P227 全
-// 表达式临时链复现两 trace 槽序 + varargs 跨 ctor 保活）；P139 恢复
+// [b28d-solo-CPowerManager] IDENTICAL(186=186, ndiff 0) | ORIG 0x0847f5de | clean
+// 全等（P227 全表达式临时链复现两 trace 槽序 + varargs 跨 ctor 保活）；P139 恢复
 // `_ZZN13CPowerManager12ClearMVPInfoEvE19__PRETTY_FUNCTION__` 局部静态符号。
 void CPowerManager::ClearMVPInfo()
 {
@@ -552,10 +557,12 @@ void CPowerManager::IncreaePowerWarPointInChannel(char side, int point)
         m_side2ChannelPoint += point;
 }
 
-// [b28d-solo-CPowerManager] 语义完成 / byte 层 N | ORIG 0x0847f200 | 本轮修复：
-// len 具名缓存消 EXTRA +2 strlen（P167 22/22 CLEAR）、P47 正极性 if/else、P212
-// 全头部声明（槽位全等 pkt-0x28/count-0x1c/len-0x18/i-0x14/i2-0x10/j-0xc）、
-// P171 死预清 len=0。唯一残差 = N18b 尾测 1 条（236/237）。
+// [b28d-solo-CPowerManager] IDENTICAL(237=237, ndiff 0) | ORIG 0x0847f200 | 本轮修复：
+// P310（循环变量 i 由 unsigned 改 int + 显式 `(unsigned int)i < 3`）复现 ORIG 尾测
+// 两段物化 `mov -0x14(%ebp),%eax; cmp $0x2,%eax; setbe; test; jne`，旧「N18b 尾测
+// 1 条」判词作废。此前：len 具名缓存消 EXTRA +2 strlen（P167 22/22 CLEAR）、
+// P47 正极性 if/else、P212 全头部声明（槽位全等 pkt-0x28/count-0x1c/len-0x18/
+// i-0x14/i2-0x10/j-0xc）、P171 死预清 len=0。
 void CPowerManager::SendPowerWarUserStatueInfo(CUser* user)
 {
     // ORIG 0x0847f200：组 SEND 雕像信息包（0xb6），含各条目姓名/职业/等级/
@@ -566,12 +573,12 @@ void CPowerManager::SendPowerWarUserStatueInfo(CUser* user)
     PacketGuard pkt;
     int count;
     int len;
-    unsigned int i;
+    int i;
     int i2;
     int j;
     pkt.put_header(0, 0xb6);
     count = 0;
-    for (i = 0; i < 3; ++i)
+    for (i = 0; (unsigned int)i < 3; ++i)
         if (m_rankings[i].m_characNo != 0)
             ++count;
     pkt.put_byte((int)(char)count);
@@ -622,14 +629,13 @@ int CPowerManager::GetPowerWarPointInChannel(char side)
     return side == 1 ? m_side1ChannelPoint : m_side2ChannelPoint;
 }
 
-// [b28d-solo-CPowerManager] DIFF→N18b | ORIG 0x0847eba0 | 唯一残差 = 尾测
-// `mov slot,%eax; cmp $2,%eax`（1 条，27/28）⇒ N18b/P209附 封顶（同前，探针已证）。
+// [b28d-solo-CPowerManager] IDENTICAL(28=28, ndiff 0) | ORIG 0x0847eba0 | 本轮修复：
+// P310 翻案（旧 N18b/P209附 判词作废）——int 局部 + 显式 `(unsigned int)i <= 2`
+// 复现 ORIG 0x0847ebd8 尾测 `mov slot,%eax; cmp $2,%eax; setbe; test; jne`。
 int CPowerManager::GetRankingByCharacNo(unsigned int charNo)
 {
-    // [b28c-L9] fresh 复验 ndiff 5→2 封顶：同上 N18b（`mov slot,%eax; cmp $2,%eax`
-    // 两段物形不可造），助记符序列全等 ⇒ NEAR。
-    // N18b 族同上（mov slot,%eax 不可复现），维持 for。
-    for (unsigned int i = 0; i <= 2; ++i)
+    // [b28d-solo] P310：int 局部 + 显式 unsigned 比较复现两段寄存器尾测。
+    for (int i = 0; (unsigned int)i <= 2; ++i)
         if (m_rankings[i].m_characNo == charNo)
             return (int)i + 1;
     return 0;

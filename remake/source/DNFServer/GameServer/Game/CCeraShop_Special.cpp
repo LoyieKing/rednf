@@ -173,7 +173,8 @@ void SpecialItemHandler::respond_special_item_cargo(int type,
 // ---- respond_special_item_cargo_abs —— ORIG 0x0827bee6 ----
 // 绝对容量仓库升级：目标容量 = 当前 GetCapacity()+value；isUpgradable 通过则
 // UpgradeCargo 后发包，否则 result.m_value = 0x12。
-// b28d-solo-CCeraShop_Special verdict=DIFF [N86] 余 2 处 lea(%eax,%edx,1) vs add+mov（同算术多 codegen，源形不可择）
+// b28d-solo-CCeraShop_Special verdict=DIFF [N4] 55/57；余 2 处 lea(%eax,%edx,1) vs add+mov。
+// P167 CLEAR 9/9；P248 三档类型旋钮已试（字段/callee 返回类型/同异型）不可择 ⇒ N4/N18a 封顶。
 void SpecialItemHandler::respond_special_item_cargo_abs(int type,
                                                         const STSpecailItem_Param& param,
                                                         STSpecailItem_Result& result)
@@ -265,12 +266,24 @@ void SpecialItemHandler::respond_special_item_skill_tree_style(int,
 void SpecialItemHandler::respond_special_item_booster_selection(
     int, const STSpecailItem_Param& param, STSpecailItem_Result& result)
 {
+    // b28d-solo-CCeraShop_Special verdict=DIFF [N82] 63/63 等长；P0 九具名局部复现
+    // ORIG 槽序（-0x34..-0x19），P167 CLEAR 1/1，余帧 0x5c/0x50 + m_flag bool 归一化。
+    // b28d-solo(P0)：ORIG 0x0827ccfc 九个实参各自占具名栈槽（-0x34..-0x19，
+    // 逐字段 `mov 0x10(%ebp),%eax; mov disp(%eax),%eax; mov %eax,-N(%ebp)`），
+    // 声明序 = ORIG 槽序 user/itemIdx/items/ceraParam/count/time/flag/c1/c2。
     CUser* user = static_cast<CUser*>(param.m_user);
-    m_owner->_processBoosterSelect(
-        user, param.m_itemIdx, param.m_count, result.m_value, param.m_time,
-        param.m_flag != 0, *static_cast<std::vector<Inven_Item>*>(param.m_items),
-        *static_cast<WongWork::CCeraShop::stCeraShopItemParam_t*>(param.m_ceraParam),
-        static_cast<char>(param.m_char1d), static_cast<char>(param.m_char1e));
+    int itemIdx = param.m_itemIdx;
+    std::vector<Inven_Item>* items =
+        static_cast<std::vector<Inven_Item>*>(param.m_items);
+    WongWork::CCeraShop::stCeraShopItemParam_t* ceraParam =
+        static_cast<WongWork::CCeraShop::stCeraShopItemParam_t*>(param.m_ceraParam);
+    int count = param.m_count;
+    long time = param.m_time;
+    bool flag = param.m_flag;
+    char c1 = static_cast<char>(param.m_char1d);
+    char c2 = static_cast<char>(param.m_char1e);
+    m_owner->_processBoosterSelect(user, itemIdx, count, result.m_value, time,
+                                   flag, *items, *ceraParam, c1, c2);
 }
 
 // ---- respond_special_item_cerapoint_giftcard —— ORIG 0x0827de4e ----
@@ -349,7 +362,7 @@ void SpecialItemHandler::respond_special_item_inventory_upgrade(
         user->getCurCharacInvenR()->get_inventory_capacity() + param.m_value);
     DB_UpdateInventoryCapacity::makeRequest(
         user->GetServerGroup(), user->GetUID(),
-        (unsigned int)user->getCurCharacNo(),
+        user->getCurCharacNo(),
         user->getCurCharacInvenR()->get_inventory_capacity());
     m_owner->_sendInventoryUpgradePacket(CERA_PARAM_TYPED(param)->m_user, type);
 }
@@ -360,6 +373,8 @@ void SpecialItemHandler::respond_special_item_inventory_upgrade(
 // GetRestrictCode/IsRestrictedGoods/SetRestrictedGoods/SaveFeaturedIdx → SaveInventory。
 // 子物品项 vtable+0x60 槽经 CItem 虚表序核对 = set_parent_booster_item_id(ulong)，
 // 已按真实虚方法直调（CItem.h 声明，槽位 +0x60 吻合）。
+// b28d-solo-CCeraShop_Special verdict=DIFF [N82] 205/201；P167 CLEAR 29/29
+// （const_iterator 修法消 5 ptEv+2 ne/ppEv 差集），余槽号/寄存器分配。
 void SpecialItemHandler::respond_special_item_booster(int,
                                                       const STSpecailItem_Param& param,
                                                       STSpecailItem_Result&)
@@ -379,8 +394,11 @@ void SpecialItemHandler::respond_special_item_booster(int,
     if (base != 0)
         base->getBoosterItem(boosterList);
 
-    for (std::vector<stStackableBoosterItemInfo_t>::iterator it = boosterList.begin();
-         it != boosterList.end(); ++it)
+    // b28d-solo(P167 判据)：ORIG 0x0827ca4a 用 const_iterator（ne/ppEv/operator-> 全
+    // const 版 + iterator→const_iterator 转换构造 ×2）；非 const 版多发/少发上述符号。
+    for (std::vector<stStackableBoosterItemInfo_t>::const_iterator it = boosterList.begin(),
+             itEnd = boosterList.end();
+         it != itEnd; ++it)
     {
         CItem* subItem = G_CDataManager()->find_item((int)it->m_itemIdx);
         // ORIG vtable+0x60 = CStackableItem::set_parent_booster_item_id(unsigned long)
@@ -960,9 +978,11 @@ namespace WongWork
 // checkBuyingCondition —— ORIG 0x08323f2a (T)
 // 仅转发到 _CheckBuyingCondition(CUser*, uint, ulong, uint, ushort, uchar, ushort)。
 // ============================================================================
-int CCeraShop::checkBuyingCondition(CUser* user, unsigned int a, unsigned long itemIdx,
-                                    unsigned int b, unsigned short c, unsigned char d,
-                                    unsigned short e)
+// b28d-solo-CCeraShop_Special verdict=IDENTICAL_AE [原 DIFF] P292/P159：返回类型 int→bool
+// 消 `movzbl %al,%eax`（ORIG 尾为 call;leave;ret 直透 bool 结果）
+bool CCeraShop::checkBuyingCondition(CUser* user, unsigned int a, unsigned long itemIdx,
+                                     unsigned int b, unsigned short c, unsigned char d,
+                                     unsigned short e)
 {
     return _CheckBuyingCondition(user, a, itemIdx, b, c, d, e);
 }
@@ -1308,7 +1328,10 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
 // ============================================================================
 // b28d-D42 verdict=DIFF [N82/N89] ORIG 0x08324a1e orig/ours=860/923 ndiff=801。
 // 巨件 switch 决策树 + 帧/槽号平移（N82）；语义按报告逐条对齐。
-// b28d-solo-CCeraShop_Special verdict=DIFF [N82/N89] 860/923；P167 CLEAR 3/3，余 switch 决策树/STL 内联/帧槽（§6.2 语义完成封顶）
+// b28d-solo-CCeraShop_Special verdict=DIFF [P163/N82] 860/936；**真语义 bug 修复**：
+// 补 case 2660545（0x2898C1 → outType=2/outValue=0x54，ORIG 0x083255cf 块，入口
+// `cmp $0x2898c2; jl` ⇒ 唯一未列值）后双方 case 表立即数多重集全等（159=159，
+// 0 MISSING/0 EXTRA）；P167 CLEAR 3/3；余 4.4 决策树节点数差 + STL 内联/帧槽。
 bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& flag)
 
 {
@@ -1660,6 +1683,15 @@ bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& fl
         flag = true;
         return true;
 
+    // b28d-solo 真语义 bug 修复：ORIG 0x0832506e 段存在 outValue=0x54 的叶
+    // （Ghidra 树以 `if (param_1 < 0x2898c2) { *param_3=0x54; return 1; }` 表达
+    // 0x2898c1 这一未列 case）⇒ 源码补 case 2660545（0x2898C1）。
+    case 2660545:
+        outType = 2;
+        outValue = 0x54;
+        flag = true;
+        return true;
+
     case 2660546:
         outType = 2;
         outValue = 0x57;
@@ -1915,13 +1947,20 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, const CCeraShopGoods* goods,
 // ============================================================================
 // b28d-D42 verdict=DIFF [N82] ORIG 0x08323af4 orig/ours=320/327 ndiff=311。
 // 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
-// b28d-solo-CCeraShop_Special verdict=DIFF [N82] 320/330；rep stos 已复现(P214③)，余帧 0xbc/0xcc + 槽号平移 + 缺 2 个前置 0 局部
+// b28d-solo-CCeraShop_Special verdict=DIFF [N82] 324/331；P214③ rep stos 与 P0
+// type/value 循环外前置清零（ORIG -0x44/-0x48）已复现，P167 CLEAR 33/33；
+// 余帧 0xbc/0xcc（16k 量化不可凑）+ 4.1/4.4 槽复用序差。
 bool CCeraShop::_CheckValidCount(const CCeraShopGoods** goodsList)
 {
     // P214③：ORIG 0x08323af4 用 `mov $0,%eax; mov $0xf,%edx; rep stos`（0x3c 字节）
     // ⇒ 显式零初始化形（memset 会退化为 call）。
     int typeCount[15] = {0};
 
+    // ORIG 0x08323b16/0x08323b1d：type/value 在**循环外**一次性清零
+    // （`movl $0,-0x44` / `movl $0,-0x48`），循环内仅 specialFlag 逐轮清零
+    // （0x08323c1b `movb $0,-0x55`）⇒ 两出参声明在循环外。
+    int type = 0;
+    int value = 0;
     int n = 0;
     for (; n < 0x23 && goodsList[n] != 0; ++n)
     {
@@ -1944,7 +1983,6 @@ bool CCeraShop::_CheckValidCount(const CCeraShopGoods** goodsList)
         }
 
         bool specialFlag = false;
-        int type = 0, value = 0;
         if (IsSpecialItem(goodsList[n]->GetItemIdx(), type, value, specialFlag))
         {
             ++typeCount[type];
@@ -2127,7 +2165,7 @@ void CCeraShop::autoUnsealItem(const CItem* item, Inven_Item& invItem)
             // getItemGroupName/GetRandomOptionGrade(vtable+0x50)；
             // options = invItem.m_random.m_random（ORIG &invItem+0x25）。
             if (!GlobalData::g_randomOptionHandle->give_option(
-                    (unsigned long)invItem.m_addInfo,
+                    invItem.m_addInfo,
                     (ENUM_RARITY)item->get_rarity(), item->getUsableLevel(),
                     item->getItemGroupName(), item->GetRandomOptionGrade(),
                     &invItem.m_random.m_random))
@@ -2370,7 +2408,9 @@ void CCeraShop::_ClosePremium(CUser* user, int type)
 // ============================================================================
 // b28d-D42 verdict=DIFF [N82] ORIG 0x08327454 orig/ours=97/102 ndiff=79。
 // 槽/寄存器分配差（P112/N82）；语义按报告逐条对齐。
-// b28d-solo-CCeraShop_Special verdict=DIFF [N6/N99] 余 2 处 (1u<<k)&C 被 4.4 折 (C>>k)&1 + k 重算
+// b28d-solo-CCeraShop_Special verdict=DIFF [N6/N99] 97/99；(1u<<k)&0x7df 被 4.4 恒折
+// (0x7df>>k)&1 + k 重算。探针 14 形（内联/具名/register/volatile/双 register/bit 拆分）
+// 全产 shr，shl 形不可择 ⇒ N6/N99 封顶。P167 CLEAR 18/18。
 void CCeraShop::_onBuySpecialItem(CUser* user, ENUM_CERA_SPECIALITEM,
                                   unsigned long itemIdx)
 {
@@ -2404,7 +2444,9 @@ void CCeraShop::_onBuySpecialItem(CUser* user, ENUM_CERA_SPECIALITEM,
 // ============================================================================
 // b28d-D42 verdict=DIFF [N82] ORIG 0x08327894 orig/ours=233/238 ndiff=215。
 // 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
-// b28d-solo-CCeraShop_Special verdict=DIFF [N82/N86] 233/239；const map 视图已复现，余 STL 迭代器临时槽 + 帧平移
+// b28d-solo-CCeraShop_Special verdict=DIFF [N82/N86] 233/233 等长；P225 拆嵌套 if 消
+// `&&` bool 物化岛（-5 条），P167 CLEAR 34/34；余 restrictCode 形参槽覆盖（4.1 特性）
+// 与尾部 `ok?1:0` 三目形 + 迭代器槽方向。
 int CCeraShop::_processBoosterSelect(CUser* user, int itemIdx, int count, int& result,
                                      long curSec, bool flag,
                                      std::vector<Inven_Item>& items,
@@ -2454,10 +2496,15 @@ int CCeraShop::_processBoosterSelect(CUser* user, int itemIdx, int count, int& r
         }
 
         int restrictCode = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
-        if (restrictCode != 0 && !user->IsRestrictedGoods(restrictCode))
+        // b28d-solo(P225 推广)：`&&` 被 4.4 折成 bool 物化岛（mov $1/jmp/mov $0/
+        // test/je，+4 条）；ORIG 两条件各发独立 je 直跳 ⇒ 拆嵌套 if 逐条复现。
+        if (restrictCode != 0)
         {
-            user->SetRestrictedGoods(restrictCode);
-            SaveFeaturedIdx(user, restrictCode, (int)curSec, 0);
+            if (!user->IsRestrictedGoods(restrictCode))
+            {
+                user->SetRestrictedGoods(restrictCode);
+                SaveFeaturedIdx(user, restrictCode, (int)curSec, 0);
+            }
         }
         user->SaveInventory();
     }

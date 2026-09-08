@@ -46,7 +46,9 @@ public:
         int m_count;                       // +0x00
         int m_defaultIdx;                  // +0x04
         int m_defaultNum;                  // +0x08
-        char m_defaultFlag;                // +0x0c
+        // b28d-solo：char→bool（P248 档②，ORIG get_multibox_lottery_item 0x0850ef76
+        // `movzbl -0x5c; mov %al,-0xd` 直存无 setne 归一化 ⇒ 源字段 bool）。
+        bool m_defaultFlag;                // +0x0c
         std::vector<std::pair<int, int> > m_items;   // +0x10
         std::vector<std::pair<int, int> > m_bonus;   // +0x1c
     };
@@ -60,6 +62,9 @@ public:
         int m_defaultCount;                    // +0x00
         int m_defaultIdx;                      // +0x04
         int m_defaultNum;                      // +0x08
+        // b28d-solo：**保持 char**（与 LotteryUnit 相反）——本类字段的消费点
+        // get_multibox_default_item `!=0` 与 createStackableMultiBoxLotteryInfo
+        // `= (char)*it` 在 ORIG 均要求 char 形（test/setne 物化 / 直存）。
         char m_defaultFlag;                    // +0x0c
         std::vector<stDefaultItem> m_items;    // +0x10
     };

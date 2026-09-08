@@ -52,7 +52,15 @@ class RandomOptionSeed
 public:
     void reset();
 
-    unsigned char m_field;   // +0x00
+    // [b28d-solo-RandomRentalA2 P308] 匿名 union 位域视角：位域读取使 4.4 产出
+    // ORIG 的 `movzbl; and $0x3; movzbl %al,%edx`（先 and 后窄化；标量
+    // `(unsigned char)(m_field & 3)` 恒被折成先窄化，探针 /tmp/rr_probe4.cpp
+    // c1 vs c2）。sizeof 1 / 偏移 / mangled 均不变；旧名 m_field 保留。
+    union
+    {
+        unsigned char m_field;   // +0x00（整体字节口径）
+        struct { unsigned char m_low2 : 2; unsigned char m_high6 : 6; } m_bits;
+    };
 };
 
 // ORIG enum（_ZN18randomOptionReason1TE；cUserHistoryLog::RandomOption 第 2 参）。
@@ -126,9 +134,16 @@ public:
     // ORIG _ZN12RandomOption5emptyEv W 0x822abd0：首字节为 0 视为未生成选项。
     bool empty();
 
-    RandomOptionField m_field0;  // +0x00
-    RandomOptionField m_field3;  // +0x03
-    RandomOptionField m_field6;  // +0x06
+    // [b28d-solo-RandomRentalA2 P235] 匿名 union 数组视角：真实成员数组使 4.4 产出
+    // ORIG 的 index-first 装载序（探针 /tmp/rr_probe3.cpp S3::m1/s1 与
+    // ORIG 0x085f4040/0x085f4078 逐条全等）；cast 数组指针恒 this-first（NEAR 残差）。
+    // sizeof 0x0e 与 m_seed9(+0x09)/m_fielda(+0x0a)/m_seedd(+0x0d) 偏移、mangled 均不变；
+    // 旧名保留（匿名 struct 注入外层作用域）。
+    union
+    {
+        struct { RandomOptionField m_field0; RandomOptionField m_field3; RandomOptionField m_field6; };
+        RandomOptionField m_fields[3];
+    };
     RandomOptionSeed m_seed9;    // +0x09
     RandomOptionField m_fielda;  // +0x0a
     RandomOptionSeed m_seedd;    // +0x0d

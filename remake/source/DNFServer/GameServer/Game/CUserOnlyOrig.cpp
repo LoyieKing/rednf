@@ -1367,7 +1367,8 @@ int CUser::check_locked_multibox_error(const CItem* opener, int openedCnt, bool 
 // 31) CUser::check_multibox_error(int requiredEmptySlots)
 //     报告：docs/class_func_reports/CUser/check_multibox_error.md。ORIG 0x08675edc。
 // ---------------------------------------------------------------------------
-// [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x08675edc：调用点差集 CLEAR；残余为帧槽/物化跨版本差（P0/N82/P112 族），语义完成。
+// [b28d-solo-CUserOnlyOrig AE] ORIG 0x08675edc：P168a 裸短路链（callee bool）一次归零
+// （具名 uchar r + 逗号绑定形令 4.4 落 -0x9 槽 + cmpb；见函数内注释）。
 int CUser::check_multibox_error(int requiredEmptySlots)
 {
     // ORIG 0x08675ee2-0x08675fb1：getCurCharacInvenW 每段重调（免 inv 槽）+
@@ -1382,12 +1383,14 @@ int CUser::check_multibox_error(int requiredEmptySlots)
     // 另：本函数 ORIG 止于五段空位检查（0x8675fcf leave;ret）——前批臆造的
     // IsCurCharacGhost/CheckInTrade/GetAssaultPlace/IsPVPChannel 四段已删
     // （ORIG 全 68 insn 内无对应 call，2026-09-05 CUserC8 objdump 全文核对）。
-    unsigned char r;
-    if ((r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)1, requiredEmptySlots), r) ||
-        (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)2, requiredEmptySlots), r) ||
-        (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)3, requiredEmptySlots), r) ||
-        (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)10, requiredEmptySlots), r) ||
-        (r = ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)5, requiredEmptySlots), r))
+    // [b28d-solo-CUserOnlyOrig P168a/P226] ORIG 每段 `call; xor $0x1,%eax;
+    // test %al,%al; jne <共享BAD岛>` 无栈槽往返 ⇒ 原码无具名 r（P0）；
+    // callee 返 bool 时裸短路链直产该形，具名 uchar r 令 4.4 落 -0x9 槽 + cmpb。
+    if (! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)1, requiredEmptySlots) ||
+        ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)2, requiredEmptySlots) ||
+        ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)3, requiredEmptySlots) ||
+        ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)10, requiredEmptySlots) ||
+        ! getCurCharacInvenW()->check_empty_count((Inven_Item::ITEM_TYPE)5, requiredEmptySlots))
         return 0x13;
     return 0;
 }
@@ -1521,11 +1524,12 @@ bool CUser::CheckDeleteCharacTime(int slot)
     // bool（P0），删预清；4.4 槽回写 vs ORIG 顶寄存器直测残差记跨版本 N。
     // [b28 复验] P225 while-break 形在本件反劣（ndiff 3→50：多出口 body 被
     // 4.4 loop-exit 重排整块后移，P225 适用边界=单 fall body）——回退具名形。
-    bool ok;
-    ok = (unsigned char)m_characList[slot].m_delReqTime[0] == (unsigned char)tt[0]
-           && (unsigned char)m_characList[slot].m_delReqTime[1] == (unsigned char)tt[1]
-           && (unsigned char)m_characList[slot].m_delReqTime[2] == (unsigned char)tt[2];
-    if (ok)
+    // [b28d-solo-CUserOnlyOrig P226] ORIG 物化岛尾 `test %al,%al; je` 无槽往返
+    // ⇒ 原码无具名 bool；改用语句表达式包住整个条件（P226 条件向），消 -0x11 槽
+    // 与 cmpb 回读。
+    if (({ (unsigned char)m_characList[slot].m_delReqTime[0] == (unsigned char)tt[0]
+            && (unsigned char)m_characList[slot].m_delReqTime[1] == (unsigned char)tt[1]
+            && (unsigned char)m_characList[slot].m_delReqTime[2] == (unsigned char)tt[2]; }))
     {
         // ORIG 0x0864a8da-0x0864a8eb：ci 小时 *60 结果跨 call 存 %ebx（shl 链
         // mov %edx,%ebx; sub %eax,%ebx）⇒ register asm("ebx") 钉 callee-saved
@@ -6011,8 +6015,9 @@ void CUser::send_broadcast_lottery_gold_message(unsigned long itemIdx, int count
     // mov -0xc(%ebp),%eax; mov 0x340(%eax),%eax` ⇒ 原码有具名 CStackableItem* 局部
     // （槽 -0xc），内联 cast 形缺该槽且帧少 4。
     CStackableItem* stack = (CStackableItem*)def;
-    // [b28d-22 修法 P133] ORIG 0x0868d33x 两守卫 `jle 0x868d323` / `jg 0x868d323`
-    // 同落点 ⇒ 合并短路形（独立两 if 各产一岛，共 4 岛 vs ORIG 3 岛）。
+    // [b28d-solo-CUserOnlyOrig P63/N] 三散布早退 4.4 各产 jmp+nop 中继岛（4 vs ORIG 2）；
+    // 正向包裹合并形实测反产 bool 物化岛（mov$1/mov$0）且助记符序列 DIFF ⇒ 回退独立
+    // 守卫（原状 ndiff=2），岛数差按 P63/N121 封顶。
     if (stack->m_int340 <= 0 || stack->m_int340 > count)
         return;
 
@@ -6753,6 +6758,10 @@ void CUser::SetPuUser(bool flag)
     // bool=bool 直落形（probe7 B 实证；成员已 bool）。
     // [b28d-solo-CUserOnlyOrig P0] ORIG 无 this 槽（0x8(%ebp) 直读）⇒ 原码无具名
     // `self` 局部；旧写法 `CUser* self = this;` 多 store+load 且帧 0x14→0x4 漂移。
+    // [b28d-solo-CUserOnlyOrig N76] 1 字节标量 store 4.4 恒 RHS-first（movzbl 值先、
+    // mov this 后）；已试 `(unsigned char)flag` 同型化（P211/P300/P308）无效——P308
+    // 的 LHS-first 仅对 1 字节 POD 子对象整体赋值成立，标量视角恒 RHS-first。
+    // 字段 bool 化会破坏 InterDispatcher.cpp:17179 的字节直存（P266）⇒ 封 N76。
     m_field796d8 = flag;
 }
 
@@ -7044,28 +7053,38 @@ void CUser::setSkillCommandData(char* data)
 //     TAG_CHARAC_DATA 源偏移:+0/+4/+0x21/+0x22(w)/+0x24/+0x25/+0x26(0x52)。
 // ---------------------------------------------------------------------------
 // [b28d-22 N82] ORIG 0x08690098：p167=M0/E0:，gap=-23；语义完成、byte 层帧槽/物化族封顶。
-// [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x08690098：残余为帧槽/物化跨版本差（P0/N82/P112 族），语义完成。
+// [b28d-solo-CUserOnlyOrig AE] ORIG 0x08690098：P196 有符号界判 + P214① 正极性包裹
+// + P30 显式元素取址（strncpy src）三修归零（见函数内注释）。
 int CUser::setTagCharacInfo(int idx, unsigned int characNo, TAG_CHARAC_DATA* data)
 {
-    if (idx < 0 || (size_t)idx >= m_characList.size())
-        return 0;
-    if (m_characList[idx].m_characNo != characNo)
-        return 0;
+    // [b28d-solo-CUserOnlyOrig P196/P310/P214①] ORIG 0x086900c9 `cmp 0xc(%ebp),%eax;
+    // jle L_false`（有符号 size<=idx，短路物化 `js L_false` 同一出口）⇒ 正极性
+    // 包裹 `if (idx >= 0 && size() > idx) { body } return 0;` 复现 ORIG 块序；
+    // 旧 `(size_t)idx >= size()` 生无符号 `jb` + %ebx 缓存 + 反向块序。
+    if (idx >= 0 && static_cast<int>(m_characList.size()) > idx)
+    {
+        if (m_characList[idx].m_characNo != characNo)
+            return 0;
 
-    // 2026-09-04 §4.3：dst 视图→_Charac_info 具名字段；src 侧→TAG_CHARAC_DATA
-    // 具名 wire 字段（SigTypes_C.h union 字段 by CUserMain）。
-    // [b28d-solo-CUserOnlyOrig P167/P157] ORIG 0x086900xx 段命中
-    // `vector<_Charac_info>::operator[](unsigned int)` ×6（含入口判等共 7 次），
-    // 我方旧 `_Charac_info& ci = m_characList[idx];` 引用缓存只发 1 次 ⇒ 逐字段
-    // 重写完整下标表达式（禁引用缓存）。
-    m_characList[idx].m_characNo = data->m_characNo;                  // wire +0x00
-    strncpy(m_characList[idx].m_name, data->m_name, 0x1d);            // wire +0x04
-    m_characList[idx].m_field26 = data->m_field21;                    // wire +0x21 → +0x26 job
-    m_characList[idx].m_level = static_cast<short>(data->m_field22);  // wire +0x22 → +0x27
-    m_characList[idx].m_field29 = data->m_field24;                    // wire +0x24 → +0x29
-    m_characList[idx].m_field1239 = data->m_field25;                  // wire +0x25 -> +0x1239
-    memcpy(&m_characList[idx].m_field88, &data->m_add, 0x52);         // _Additioal_info
-    return 1;
+        // 2026-09-04 §4.3：dst 视图→_Charac_info 具名字段；src 侧→TAG_CHARAC_DATA
+        // 具名 wire 字段（SigTypes_C.h union 字段 by CUserMain）。
+        // [b28d-solo-CUserOnlyOrig P167/P157] ORIG 0x086900xx 段命中
+        // `vector<_Charac_info>::operator[](unsigned int)` ×6（含入口判等共 7 次），
+        // 我方旧 `_Charac_info& ci = m_characList[idx];` 引用缓存只发 1 次 ⇒ 逐字段
+        // 重写完整下标表达式（禁引用缓存）。
+        m_characList[idx].m_characNo = data->m_characNo;                  // wire +0x00
+        // [b28d-solo-CUserOnlyOrig P30] ORIG 0x0869016x `mov 0x14(%ebp),%eax;
+        // lea 0x4(%eax),%ebx`（单条 lea 进 callee-saved）vs 数组退化实参
+        // `add $0x4,%eax; mov %eax,%ebx` 两段 ⇒ 写显式元素取址。
+        strncpy(m_characList[idx].m_name, &data->m_name[0], 0x1d);        // wire +0x04
+        m_characList[idx].m_field26 = data->m_field21;                    // wire +0x21 → +0x26 job
+        m_characList[idx].m_level = static_cast<short>(data->m_field22);  // wire +0x22 → +0x27
+        m_characList[idx].m_field29 = data->m_field24;                    // wire +0x24 → +0x29
+        m_characList[idx].m_field1239 = data->m_field25;                  // wire +0x25 -> +0x1239
+        memcpy(&m_characList[idx].m_field88, &data->m_add, 0x52);         // _Additioal_info
+        return 1;
+    }
+    return 0;
 }
 
 // >>> W7-BLOCKED CUser::setTagCharacInven —— tag inven 为 Inven_Item 数组视图，草稿按 CInventory 处理语义混乱；GetItemIdByAddInfo 未核
@@ -9678,9 +9697,13 @@ void CUser::SetBirth(const char* birth)
     // [b28d-solo-CUserOnlyOrig P167 重载选错真 bug] ORIG 0x0867ed18 / 0x0867ed4b
     // 均 call strncpy@plt（0807d8d0），非 memcpy（我方旧写法 EXTRA memcpy ×2、
     // MISSING strncpy ×2）。n=2 且源非零时两者等价，按 ORIG 照抄。
-    strncpy(reinterpret_cast<char*>(&digits), birth + 2, 2);
+    // [b28d-solo-CUserOnlyOrig P319] ORIG 0x0867ed0a `mov 0xc(%ebp),%eax; add $0x2,%eax`
+    // 两段（4.1 指针算术）vs 4.4 `lea 0x2(%eax),%edx` 单段；整型加法+回 cast 复现两段。
+    strncpy(reinterpret_cast<char*>(&digits),
+            reinterpret_cast<const char*>(reinterpret_cast<unsigned int>(birth) + 2), 2);
     m_clientSpec.m_birthMonth = static_cast<char>(atoi(reinterpret_cast<char*>(&digits)));
-    strncpy(reinterpret_cast<char*>(&digits), birth + 4, 2);
+    strncpy(reinterpret_cast<char*>(&digits),
+            reinterpret_cast<const char*>(reinterpret_cast<unsigned int>(birth) + 4), 2);
     m_clientSpec.m_birthDay = static_cast<char>(atoi(reinterpret_cast<char*>(&digits)));
 }
 
@@ -9826,6 +9849,10 @@ void CUser::ValidateStrikerInfo()
                               // [b28d-22 修法] ORIG 0x08690ce6 `movzbl 0x29(%eax),%eax;
                               // shl $0x4,%eax; sar $0x4,%al; movsbl %al,%esi`（8 位 sar）
                               // ⇒ 单层外层 cast（内层 cast 多一条 movsbl）。
+                              // [b28d-solo-CUserOnlyOrig N/P11] ORIG 首条 movzbl + `sar
+                              // $0x4,%al`（8 位）为 4.1 位域提取形；显式 uchar 中转实测
+                              // 反多一条 `movzbl %al,%eax`（5 条 vs ORIG 4 条）⇒ 回退裸形
+                              // （4 条，仅 movsbl/sar 宽度差）封顶。
                               static_cast<char>(
                                   (m_characList[linkedIdx].m_field29 << 4) >> 4),
                               static_cast<int>(
@@ -10204,7 +10231,8 @@ void CUser::SendEventBringUpInfo()
 // + ==0 早退形；残差为 `xor $0x1`（ORIG gcc4.4）vs `cmp $1;setne`（本工具链）
 // 跨版本 ISel 单条，见报告）
 // ---------------------------------------------------------------------------
-// [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x086903f8：调用点差集 CLEAR；残余为帧槽/物化跨版本差（P0/N82/P112 族），语义完成。
+// [b28d-solo-CUserOnlyOrig AE] ORIG 0x086903f8：P248 档②（m_field14BC char→bool，Main
+// 代落 CUser.h:719）+ 裸 `if(!field)` 内联形归零（原具名 uchar v + v^=1 落 -0x9 槽）。
 void CUser::SendTagCharacInfo()
 {
     // ORIG 0x086903f8（SendTagCharacInfo.md）：getTagCharacR() 判空 + 取
@@ -10214,10 +10242,9 @@ void CUser::SendTagCharacInfo()
         return;
     // ORIG O@0x2b..0x37：m_field14BC 真值取反 movzbl;xor$1;test;je（非
     // !=1 的 cmp;setne）。
-    unsigned char v =
-        static_cast<unsigned char>(getTagCharacR()->m_field14BC);
-    v ^= 1;
-    if (v)
+    // [b28d-solo-CUserOnlyOrig P168a④/P248档②] 具名 uchar v + v^=1 令 4.4 落
+    // -0x9 栈槽物化（xorb/cmpb）；ORIG 无槽往返 ⇒ 裸 `if(!field)` 内联形。
+    if (!getTagCharacR()->m_field14BC)
     {
         getTagCharacW()->m_field14BC = 1;
     }

@@ -17,7 +17,7 @@ namespace expert_extraction
 class CEnchanterExtraction : public CExtraction
 {
 public:
-    CEnchanterExtraction();
+    // [b28d-solo-GlobalData] P299/P318：ORIG C1/C2 为 W（0x084a4658）⇒ 删用户空 ctor。
     virtual ~CEnchanterExtraction();
 
     virtual bool extraction(CUser* user, short param,

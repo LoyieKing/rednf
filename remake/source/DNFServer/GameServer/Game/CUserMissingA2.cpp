@@ -262,7 +262,7 @@ bool UserMercenaryInfoMgr::IsWaitingStateCharac(unsigned int characNo)
 // level 并 alter()，返回 0；命中 level 相同也返回 0；未命中返回 1。
 // 循环条件 seta（size()>i 无符号），参数首 dword 每次迭代载入 ebx（P36）。
 // ----------------------------------------------------------------------------
-int UserMercenaryInfoMgr::CheckValidAppend(const CHARAC_LOAD_MERCENARY& info)
+bool UserMercenaryInfoMgr::CheckValidAppend(const CHARAC_LOAD_MERCENARY& info)
 {
     size_t i = 0;
     while (m_characs.size() > i)

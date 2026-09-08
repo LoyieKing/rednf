@@ -6090,7 +6090,12 @@ int DisPatcher_SellItem::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& 
 
 // [b28d-29] N6/N22：ORIG 29 条为 (1<<state)&0x15e8 无槽寄存器形；4.4 折叠成 (mask>>state)&1（N6）或槽化（P0），三形实测 33/34 均不达 29  (ORIG 0x081c619c insn 29->34)
 DisPatcher_RepairEquip::~DisPatcher_RepairEquip() {}
-// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 14（ORIG 28 / ours 32），残差=N7/N82 帧与 callee-saved 角色/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// [b28d-solo-DisPatcherCore] 复核 DIFF：正极性形实测 32→31 insn（ORIG 28）；
+// 尾段已与 ORIG 同形（`test; jne <mov $0>` + fall `mov $0x13`），残余 3 条：
+// ① 4.4 把 register state 落 callee-saved %esi（ORIG 留 %eax：call 返回值直判+
+// `mov %eax,%ecx` 复用）⇒ push/pop esi + mov/cmp/mov 共 4 条；② ORIG `mov $1,%edx;
+// mov %edx,%ebx` 立即数物化 2 条 vs 4.4 `mov $1,%ebx` 1 条；③ ja 落点块布局。
+// 两句式/goto 形均劣 ⇒ N7+N18a 封顶。
 int DisPatcher_RepairEquip::check_error(CUser* user, MSG_BASE& /*msg*/)
 {
     // [b28c-30] N96 封顶：原 asm("eax")/asm("edx") 绑定已按 P0 清除。
@@ -6117,18 +6122,16 @@ int DisPatcher_RepairEquip::check_error(CUser* user, MSG_BASE& /*msg*/)
     register unsigned int state = (unsigned int)user->get_state();
     if (state > 0xc)
     {
-        goto L_bad;                   // ORIG ja → +0x3a 共享 0x13 块
+        return 0x13;                  // ORIG ja → +0x3a 共享 0x13 块
     }
-    register unsigned int bit;
-    bit = 1;
+    // ORIG `mov $0x1,%edx; mov %edx,%ebx` = 初始化式物化（非两句式）。
+    register unsigned int bit = 1;
     bit <<= state;
-    if ((bit & 0x15e8) != 0)
+    // ORIG `test; jne +0x41`（跳 mov $0）⇒ 正极性 ==0 早返；goto 形会多 1 条 jmp。
+    if ((bit & 0x15e8) == 0)
     {
-        goto L_ok;                     // ORIG `test; jne +0x41`
+        return 0x13;
     }
-L_bad:
-    return 0x13;                      // ORIG +0x3a 共享块（jne fall-through）
-L_ok:
     return 0;
 }
 int DisPatcher_RepairEquip::read(PacketBuf& packet, MSG_BASE& msg)
@@ -6740,40 +6743,27 @@ DisPatcher_ChangeSkill::~DisPatcher_ChangeSkill() {}
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 18（ORIG 30 / ours 34），残差=N82 槽/块序；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_ChangeSkill::check_error(CUser* user, MSG_BASE& msg)
 {
-    // [b28c-30] N96+P168a④ 封顶：原 `register int av asm("eax")` 已按 P0 清除。
-    // ORIG 0x081c01b5/0x081c01c1 为 `mov -0xc(%ebp),%eax; cmp $0xffffffff,%eax` /
-    // `test %eax,%eax`（reload + 寄存器比较）；清绑后纯 register 用 %ebx（39 insn）、
-    // 普通局部折 mem 直比（38 insn）均不可复现，绑定形为唯一通路（P0 禁）。
-    // ORIG 0x081c0196：pReq(先声明)→远槽 -0x10、treeIdx(后声明)→近槽 -0xc（技21）；
-    // 比较两次独立 reload `mov -0xc(%ebp),%eax` + 寄存器 cmp（技28 asm(eax) 中转破
-    // cmpl 融合）；`==−1||==0` 共享检查体用双 goto（技23），避免 4.4 bool 物化岛。
+    // [b28d-solo-DisPatcherCore] 删 av/goto 改自然 if/else-if（ORIG 源码形：
+    // `cmp $-1; je L_eq` + `test; jne L_ne` 两独立分支、L_ne 侧 `je L_ret0`）。
     const MSG_CHANGE_SKILLSLOT* pReq =
         reinterpret_cast<const MSG_CHANGE_SKILLSLOT*>(&msg);   // ORIG -0x10(%ebp)
     int treeIdx = user->GetCurCharacSkillTreeIndex();          // ORIG -0xc(%ebp)
-    // ORIG 0x081c0196：pReq(先声明)→远槽 -0x10、treeIdx(后声明)→近槽 -0xc（技21）；
-    // 比较两次独立 reload `mov -0xc(%ebp),%eax` + 寄存器 cmp（技28 asm(eax) 中转破
-    // cmpl 融合）；`==−1||==0` 共享检查体用双 goto（技23），避免 4.4 bool 物化岛。
-    // 残留 1 行 `jmp`+label-nop 岛 = 4.4 CFG label 分块差异（4.1 直落 body1）。
-    int av;   // [b28c-30] P0 清绑：原 asm("eax") 已删
-    av = treeIdx;
-    if (av == -1)
+    // [b28d-solo-DisPatcherCore] 自然 if/else-if 实测 34→29 insn（ORIG 31）：
+    // 唯一残差 = ORIG 两次独立 reload `mov -0xc(%ebp),%eax; cmp $0xffffffff,%eax` /
+    // `mov -0xc(%ebp),%eax; test %eax,%eax` vs 4.4 折 `cmpl $imm,-0xc(%ebp)` 直比
+    // （N18b：4.4 对具名 int 局部比较恒折 mem 直比，无源码写法产两段物化；
+    // switch 形实测 30 条且产 add/cmp/ja 树，更劣）⇒ N18b 封顶。
+    if (treeIdx == -1 || treeIdx == 0)
     {
-        goto L_checkEq;
+        if (pReq->m_head[0xd] == 1)
+        {
+            return 0x13;
+        }
     }
-    av = treeIdx;
-    if (av != 0)
+    else if (pReq->m_head[0xd] != 1)
     {
-        goto L_checkNe;
+        return 0x13;
     }
-L_checkEq:
-    if (pReq->m_head[0xd] != 1)
-        goto L_ret0;
-    return 0x13;
-L_checkNe:
-    if (pReq->m_head[0xd] == 1)
-        goto L_ret0;
-    return 0x13;
-L_ret0:
     return 0;
 }
 int DisPatcher_ChangeSkill::read(PacketBuf& packet, MSG_BASE& msg)
@@ -11758,24 +11748,14 @@ ST_Guild_War_Rank_Info::ST_Guild_War_Rank_Info()
     m_field8 = 0;
     memset(m_pad0a, 0, sizeof(m_pad0a));
 }
-// [b28d-29] N82/P151：ORIG 数组成员隐式构造倒计数循环用 %ebx/%esi 寄存器指针（无槽），4.4 恒栈槽 + 循环变量落槽  (ORIG 0x? insn 28->31)
-
-// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 28（ORIG 28 / ours 30），残差=N7/N82 帧与 callee-saved 角色/P211/N18a 中转/store 序/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// [b28d-solo-DisPatcherCore] 修复：m_rankInfo 由 char[0x14a] 改真实元素数组
+// ST_Guild_War_Rank_Info[10]（头 R2 广播），ctor 删手写 placement-new 循环
+// ⇒ 编译器隐式数组成员构造复现 ORIG P151 倒计数循环（esi=9→-1、ebx 步进 0x21，
+// 无 _ZnwjPv/size 装载）；N83 的 placement-new 多 2 条消除。
 Packet_Notice_Guild_War_Info::Packet_Notice_Guild_War_Info()
     : PacketHeader(0x414, 0x15c)
 {
-    // ORIG +0x2f 循环：esI=9 起向下 `while(esi!=-1){ ctor; ebx+=0x21; esi--; }`
-    // ＝ 10 次构造（+0x12..0x15c 填满，m_rankInfo[0x14a]=10×0x21）。
-    // gcc 4.4 拒绝显式构造调用语法，placement new 多出 _ZnwjPv（标准 no-op），
-    // 语义等价 → 豁免该调用差异。
-    char* pos = m_rankInfo;
-    int i = 9;
-    while (i != -1)
-    {
-        new (pos) ST_Guild_War_Rank_Info();
-        pos += 0x21;
-        i = i - 1;
-    }
+    // ORIG +0x2f 循环由编译器隐式发射（数组成员构造）；函数体为空。
 }
 
 DisPatcher_RequestGuildWarInfo::~DisPatcher_RequestGuildWarInfo() {}

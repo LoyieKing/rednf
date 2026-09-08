@@ -713,7 +713,10 @@ struct _Charac_info
                                       //   子对象视图区 @0x12b7 sizeof 0x200）
     unsigned char m_field14b7;        // +0x14b7（SelectCharac::process 回填 MSG_CHARAC_SELECT+0x12）
     int m_field14b8;                  // +0x14b8（SelectCharac::process 回填 MSG_CHARAC_SELECT+0xe）
-    char m_field14BC;                 // +0x14bc ← Reset movb $0（R+0x769）
+    // [b28d-solo-CUserOnlyOrig 代落 P248档②] char→bool：ORIG SendTagCharacInfo
+    // 0x0869043x `movzbl 0x14bc(%eax),%eax; xor $0x1,%eax; test %al,%al; je`
+    // （字段 bool 直测）；char 裸 if(!f) 4.4 产 test/sete 双物化。消费点 5 处均 0/1。
+    bool m_field14BC;                 // +0x14bc ← Reset movb $0（R+0x769）
     char m_field14BD;                 // +0x14bd ← Reset movb $0（R+0x773）
     int m_field14BE;                  // +0x14be ← Reset movl $0（R+0x77d）
     int m_field14C2;                  // +0x14c2 ← Reset movl $0（R+0x78a）
@@ -784,7 +787,10 @@ public:
     unsigned int FindIndexByCharacNo(unsigned int characNo) const;  // ORIG T 0x081b42ae
     bool CheckCharacIndex(unsigned char index) const;               // ORIG T 0x081b4262
     bool IsCompetition(unsigned int characNo) const;
-    int CheckValidAppend(const CHARAC_LOAD_MERCENARY& info);                      // ORIG T 0x081b4198（返回 0=命中/1=未命中）
+    // [b28d-solo-CUser 代落 P168a/P292] int→bool：ORIG 0x081b4300 调用点
+    // `call; xor $0x1,%eax; test %al,%al; jne`（bool callee）。位模式仍 0=命中/1=未命中，
+    // 调用点 `!= 1` 与 `!f()` 在 0/1 值域等价。返回类型不入 mangled。
+    bool CheckValidAppend(const CHARAC_LOAD_MERCENARY& info);                     // ORIG T 0x081b4198（0=命中/1=未命中）
     int CompetitionCharac(CUser* user, unsigned int slot, char modeA, char modeB);  // ORIG T 0x081b4536（0/1）
     bool IsWaitingStateCharac(unsigned int characNo);                                // ORIG T 0x081b45ce（非 const）
     void UpdateCharacName(unsigned int characNo, std::string const& name);           // ORIG T 0x081b462e
@@ -901,7 +907,11 @@ public:
     char m_padbfa[2];       // +0xbfa..0xbfb
     bool m_gmUserFlag;      // +0xbfc（0x711d8 isGMUser；ORIG movzbl 直返，bool 实证）
     char m_padbfd[0xc00 - 0xbfd];  // +0xbfd..0xbff
-    unsigned int m_gmUpgradeMode;   // +0xc00（0x711dc；SetGMUpgradeMode 0x0822fea4 enum(unsigned)×int 异号必 arg-先，this-先⇒uint）
+    // [b28d-solo-CUser 代落 P211 同型律] unsigned int→ENUM_GM_ITEM_UPGRADE：
+    // ORIG SetGMUpgradeMode 0x0822fea4 `mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx;
+    // mov %edx,0x711dc(%eax)` = LHS-first；探针实证 enum 字段+enum 形参 ⇒ LHS-first，
+    // uint 字段 ⇒ RHS-first。sizeof/偏移(0x711dc)/mangled 不变；消费点仅 CUser.cpp:3708 写。
+    ENUM_GM_ITEM_UPGRADE m_gmUpgradeMode;   // +0xc00（0x711dc）
     unsigned int m_age;     // +0xc04（0x711e0；SetAge 0x08231c?? this-先载 ⇒ uint）
     bool m_progLogout;      // +0xc08（0x711e4；IsProgLogout 0x082a6796 movzbl 直返⇒bool，char 会 movsbl/uchar 会 setne）
     char m_padc09[3];       // +0xc09..0xc0b
@@ -3213,7 +3223,9 @@ public:
     bool IsSubGuildMaster();                        // ORIG T 0x0866c414
     bool IsCompleteGuildFund();   // ORIG T 0x0866c1ca _ZN5CUser19IsCompleteGuildFundEv
                                   // 定义见 CUserDepsA.cpp（m_guildDB.m_fundLevel/m_fundMoney 已字段化）
-    void SendClientCrashDownLogToLogDB(int reason); // ORIG T 0x0864870e
+    // [b28d-solo-CUser 代落] void→int：ORIG 0x0864870e 尾 `mov $1,%ebx; … mov %ebx,%eax; ret`
+    // （恒返回 1；调用点忽略返回值）。返回类型不入 mangled。
+    int SendClientCrashDownLogToLogDB(int reason);  // ORIG T 0x0864870e
     void _SaveCharacData();                         // ORIG T 0x08650aa2
     // GetCurCharacAssaultFatigueCount/Inc/Set 三方法由基类 CUserCharacInfo
     // 提供（ORIG 仅存在 _ZN16CUserCharacInfo* 弱符号，无 CUser:: 版本）。
@@ -3405,7 +3417,9 @@ public:
     void add_pvp_play_info(unsigned int a, unsigned int b);                    // 0x0865d986
     void add_pvp_result(bool flag, unsigned int* out);                         // 0x0865c678
     int gainGuildSkillExp(int exp);                                           // 0x0864fb3a
-    bool IsGuildSkillLearn(int skillIdx);                                      // 0x0864fac4
+    // [b28d-solo-CUser 代落 P9] bool→unsigned char：ORIG 0x0864fac4 尾
+    // `movzbl (%eax),%eax` 直返字节（无 bool 归一 setne）。消费点均按条件/char 使用。
+    unsigned char IsGuildSkillLearn(int skillIdx);                             // 0x0864fac4
     bool update_pvp_point(int v);                                                // 0x0865cfd8；串定 bool（b28c SIGFIX）
     void RecoverCoin(unsigned int v);                                          // 0x08657f10
     void RewardItem2DeleteInvalidItem(const std::string& name,                 // 0x086931c4

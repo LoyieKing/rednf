@@ -30,8 +30,13 @@
 // C28L17/18/21 三方写权 CItemList.cpp + Arad_ItemBonus.cpp 消费面），spec 已广播交
 // Main 统一批次；改动清单=头继承表 + CStackableItem.cpp 12 处 + Arad_ItemBonus.cpp:431
 // + CItemList.cpp:1986 去 `m_arad148.` 前缀。
-// [b28d-N(布局建模)] fresh 复验 292=292 维持 N：唯一残差 = 本类 vptr 写入时机
-// （AradItemInfo 须为次基类，跨 CItemList.cpp/Arad_ItemBonus.cpp 消费面，spec 交 Main）。
+// [b28d-N(布局建模)｜待专项批次] fresh 复验 292=292 维持 N：唯一残差 = 本类 vptr
+// 写入时机（AradItemInfo 须为次基类，跨 CItemList.cpp/Arad_ItemBonus.cpp 消费面）。
+// Main 2026-09-09 裁决：**本轮不做**（收益仅本件 4 行残差，代价为全域构造/析构语义
+// 变更 + 14 处消费点 + 多基类 RTTI/EH 风险），spec 存档待专项批次：
+//   头改 `class CStackableItem : public CItem, public AradItemInfo`，删 m_arad148 成员，
+//   去 CStackableItem.cpp 12 处 `m_arad148.` 前缀 + CItemList.cpp:1986 + Arad_ItemBonus.cpp:431；
+//   CItem sizeof=0x148 权威 ⇒ 全部偏移/sizeof 不变、AradItemInfo 无虚函数 ⇒ 不引入第二 vptr。
 CStackableItem::CStackableItem()
 {
 }
@@ -405,13 +410,20 @@ int createGlobalEffectInfo(std::vector<stGlobalEffect_t>& out,
 //   若 source 仍有剩余元素：m_field24 = (tail==1)，m_field25 = (tail==2)（均读同一元素），
 //   且 extra!=0 时 m_vec28 = *extra。
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
-// [b28d-solo-CStackableItem] fresh 复验 226/227 NEAR（起点 225/217）：已按 ORIG 重写——
+// [b28d-solo-CStackableItem] NEAR 225=225。本波新增 P190 附注「2 个取址 double framePad」
+// 撑帧 0x68→0x78（与 ORIG sub $0x78 逐值一致），逐行 diff 356→342。已按 ORIG 重写：
 // `int n = *it; it++;` 拆句、`int i = 0; for (i = 0; …)` 双初始化（P191）、
-// pair 逐字段赋值、尾部改早退 `if (it == source->end()) return;`（P214）。
-// 残余 = 帧 0x78 vs 0x68 与 n/i/迭代器组槽位非均匀偏移（N95 槽基 + N82 族）。
+// pair 逐字段赋值、尾部早退 `if (it == source->end()) return;`（P214）。
+// 残余判 N95/N82：迭代器组槽 ORIG -0x48/-0x44/-0x40 vs 我们 -0x4c/-0x50（非均匀
+// 偏移，声明序两形实测均不翻）+ n/i 槽序。
 void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
                       std::vector<std::pair<int, int> >* extra)
 {
+    // b28d-solo 修法（P190 附注）：双取址 double 撑帧 +0x10（见函数头判词）。
+    double framePad;
+    double framePad2;
+    (void)&framePad;
+    (void)&framePad2;
     info->clear();
     std::vector<int>::iterator it = source->begin();
     std::vector<int>::iterator end = source->end();
@@ -520,12 +532,21 @@ void createLotteryInfo(LotteryInfo* info, std::vector<int>* source)
 // ——`vec(*itA)` → `it = (*itA).begin()`（deEv 非 ptEv）→ unit 构造/clear；边界一律
 // `(*itA).end()`；失败路径改正极性早退 `if (it == (*itA).end()) break;`；b 部分改
 // `if (it == b->end()) return;`；c 部分 `*it`/`it++` 拆句 + 内层 break（ndiff 902→499）。
-// 残余 = 内层 do-while 岛数（ORIG 4 尾岛 vs 4.4 3）+ c 部分极性 eq+jne vs ne+je。
+// [b28d-N90/N95] 判 N 封顶（fresh 652/648）：本波新增**前置死局部 `int framePad;`**
+// （P232 复活）令全函数槽基回推 4，纯槽号差行 346→216、逐行 diff 857→518 行
+// （加 pad 前 ORIG -0xa4/-0xb8 = 我们 -0xa0/-0xb4；加后首 250 行逐条对齐）。
+// 残余 = STL 迭代器外联结构差（N90：4.1 每步 8 insn sret 外联 vs 4.4 inline 4；
+// p167 差集 = ORIG `__gnu_cxx::eq`×6 / `deEv`×1 / `vector<int>::end`×1 vs
+// 我们 `ne`×5 / stDefaultItem D1×2 / _Unwind_Resume×1 = N89/N91 族）
+// + c 部分嵌套 if 的 ppEi/dummy-arg 与 eq/jne 极性（N86/N108）+ 剩余局部槽序（N95）。
 void createStackableMultiBoxLotteryInfo(
     MultiBoxLotteryInfo* info,
     std::vector<std::vector<int> >* a, std::vector<int>* b,
     std::vector<int>* c)
 {
+    // b28d-solo 修法（P232）：前置死局部回推槽基 4（见函数头判词）。
+    int framePad;
+    (void)framePad;
     if (info == 0 || a == 0 || b == 0)
     {
         return;
@@ -856,7 +877,10 @@ int CStackableItem::check_able_To_use(int job, int level)
 // b28c-L8 fresh 复验：44 行口径 29=29、NDIFF=4，判词维持 N82（callee
 // _ZNK5CItem14check_job_typeEc 定义在 CItem.cpp 0x0850d728 = 跨 TU ⇒ P210 定义前置不可用；
 // P190 double framePad 反向撑帧亦不可（本例是 4.4 多撑，需减帧））。
-// [b28d-N82] fresh 复验 29=29 维持 N82（帧 0x28 vs 0x10 + 2 char 槽平移）。
+// [b28d-N115/N82] fresh 29=29 维持 N：帧 0x28 vs 0x10 + 2 char 参数槽平移（-0xc/-0x10
+// vs -0x4/-0x8）。根因 = N115：4.1 参数直写帧底（outgoing 仅实参 4B），4.4 -O0 恒预留
+// 16B 对齐 outgoing 区（帧 +0x18）。P210 定义前置不可用（callee CItem::check_job_type
+// 定义在 CItem.cpp = 跨 TU，迁定义违 R1）；P190 double 撑帧方向反（本例需减帧）。
 bool CStackableItem::check_change_job_type(char changeJob,
                                            char checkJob) const
 {
@@ -871,10 +895,11 @@ bool CStackableItem::check_change_job_type(char changeJob,
     return (char)m_arad148.m_field4 == changeJob;
 }
 
-// [b28d-solo-CStackableItem] fresh 复验 101/102：外层/内层 end() 已按 P13 缓存、
-// 结构逐条对齐；残差 2 条 = while 条件 4.4 恒 `mov i,%ebx; cmp m_count,%ebx; setb`
-// 而 ORIG 为 `mov m_count,%eax; cmp i,%eax; seta`（比较方向/寄存器折叠 N18b 族；
-// 反写 `m_count > i` 实测劣化 +2 已回退）。
+// [b28d-solo-CStackableItem] AE 101=101。修法（新范式，P218/P310 扩展）：局部 `i`
+// 声明 unsigned int + **裸比较** `while (it->m_count > i)` ⇒ 4.4 产 ORIG 形
+// `mov m_count,%eax; cmp i,%eax; seta`。此前 `int i + (unsigned) 双 cast` 恒产
+// `mov i,%ebx; cmp m_count,%ebx; setb`（+1 条 mov，且方向反）；反写 `m_count > i`
+// 带 cast 形劣化 +2（`mov %eax,%edx; mov i,%eax; cmp`）。外层/内层 end() 按 P13 缓存。
 void CStackableItem::getBoosterItem(
     std::vector<stStackableBoosterItemInfo_t>& out) const
 {
@@ -885,10 +910,10 @@ void CStackableItem::getBoosterItem(
         m_booster.m_elements.end();
     for (; it != itEnd; ++it)
     {
-        int i = 0;
+        unsigned int i = 0;
         // ORIG 0x850f75e：m_count/m_prob 均按无符号比较（seta/setb）。
-        while (static_cast<unsigned int>(i)
-               < static_cast<unsigned int>(it->m_count))
+        // b28d-solo 实验：i 改 unsigned + 裸比较（ORIG seta 形）。
+        while (it->m_count > i)
         {
             int rand = get_rand_int(it->m_prob);
             // ORIG 0x850f7e5/0x850f7f3：内层 begin/end 亦各求值一次（P13）。
@@ -972,13 +997,13 @@ int CStackableItem::get_amplify_reinforce_count(int count)
     return bestKey;
 }
 
-// [b28d-solo-CStackableItem] ORIG 0x850fbe4 两循环复用同一 const_iterator 槽 -0x48
-// （第二循环 `it = begin()` 重新赋值），循环体先 operator*（deEv）取引用地址入槽
-// （-0x10/-0xc），再 `add %eax,total/sum`；增量段为 ppEi（后置）⇒ 源写 `it++`。
-// fresh 复验 118/119：指令数/序列已对齐；残差 = range 与第一循环迭代器组的槽方向
-// 相反（ORIG range=-0x38 在临时槽之后、it=-0x48；4.4 恒 range=-0x44、it=-0x48 的
-// 声明序实测两形均差 0x10，N95/N93 槽分配族）+ 比较方向 `cmp sum,rand;ja` vs
-// `cmp rand,sum;jb`（N18b 族，`sum>=rand`/`!(rand>=sum)` 三形实测同形）。
+// [b28d-solo-CStackableItem] NEAR 118=118。已修：`sum` 局部 unsigned 化（新范式
+// P218/P310 扩展）⇒ 比较翻正为 ORIG `mov rand,%eax; cmp sum,%eax; ja`（此前 int sum
+// 恒产 `mov sum,%eax; cmp rand,%eax; jb`）。残余 N95 封顶：range 槽 ORIG -0x38
+// （在 begin/end/pp 临时槽之后），4.4 恒 -0x44（临时槽之前）；把 range 声明移到循环后
+// 实测反向（range -0x48/it -0x44）⇒ 槽分配方向不可择，判 N95/N93。
+// ORIG 0x850fbe4 两循环复用同一 const_iterator 槽 -0x48（第二循环 `it = begin()`
+// 重新赋值），循环体先 operator*（deEv）取引用地址入槽（-0x10/-0xc），增量段 ppEi。
 void CStackableItem::get_limit_cube_item(std::pair<int, int>& out)
 {
     unsigned long range;
@@ -995,7 +1020,8 @@ void CStackableItem::get_limit_cube_item(std::pair<int, int>& out)
     }
     range = total;
     unsigned int rand = m_pRand->randInt(range);
-    int sum = 0;
+    // b28d-solo 修法：sum unsigned（裸比较翻操作数序，P218/P310 扩展；见函数头判词）。
+    unsigned int sum = 0;
     it = m_limitCube.m_results.begin();
     while (it != m_limitCube.m_results.end())
     {
@@ -1265,8 +1291,14 @@ struct CItemView
 //   `m_boolF8 = script.m_field31`（P171）；③删 scriptText/strncpy 冗余缓冲，
 //   script2Database 直传 m_strac.c_str()；④cMyTrace 改全表达式临时链（P227）；
 //   ⑤镜像 STStackableScript 13 字段按 ORIG `movzbl` 单段形改型；⑥m_field364→int。
-// 残余 = 装载序/中转（N76/P211）、`m_vec94[i]` lea-vs-add（N107）、比较方向
-// seta-vs-setb（N18b）、帧 0x26c vs 0x27c（N95）。
+// [b28d-N] fresh 1059/1071（差 12 条，逐行 diff 323 行、槽号归一后匹配 76 行）判 N 封顶：
+// 残余族 = ①槽整体深 4（ORIG -0x64/-0x258 vs 我们 -0x68/-0x25c；前置死局部 `int
+// framePad` 实测反向变 -0x6c，N95 槽基不可上移）；②ORIG 把 `lea -0x64,%esi` 地址缓存进
+// callee-saved 而我们直用 %edx（P183/P226 地址物化族）；③装载序/中转（N76/P211）；
+// ④`m_vec94[i]` lea-vs-add（N107）；⑤比较方向 seta-vs-setb（N18b）。
+// 注：函数内 `__asm__ __volatile__` rep stosl 清零块（ORIG 0x7d dwords=500B）沿用既有
+// 批次做法，非 P0 register 绑定；本波未改动（如 Main 要求可换 P312 `char buf[500]={0}`
+// + 前置死局部形重测）。
 void CStackableItem::set_item(STStackableScript& script)
 {
     char buf[500];
@@ -1525,13 +1557,16 @@ void CStackableItem::set_item(STStackableScript& script)
 
 // ===================== get_multibox_default_item（ORIG 0x850f136） =====================
 
-// [b28d-solo-CStackableItem] ORIG 0x850f136：rand/sum/itemIdx/count/flag 声明在函数头
-// （-0x20/-0x1c/-0x18/-0x14/-0xd），循环体内先 `it = begin()`（-0x2c）再
-// get_rand_int(1000000)；内层 while 每次调 end()、增量 `it++`（ppEi）。
-// fresh 复验 153/152：结构逐条对齐；残差 = ①`sum += (*it).m_prob` ORIG 4.1 走
-// `mov mem,%edx; mov sum,%eax; lea (edx,eax)` 四段、4.4 恒折 `mov mem,%eax;
-// add %eax,sum`（加法折叠 N18b 族，`prob+sum`/`sum+prob` 两序实测同形）；②比较
-// 方向 `cmp sum,rand;jle` vs `cmp rand,sum;jge`（N18b，`!(rand>=sum)` 实测劣化 +4）。
+// [b28d-N18b] 判 N 封顶（fresh 153/151）。唯一残余族（语义等价、跨版本 codegen）：
+// `sum += (*it).m_prob`：ORIG 4.1 走 `mov 0x8(%eax),%edx; mov sum,%eax;
+// lea (%edx,%eax,1),%eax; mov %eax,sum` 四段；4.4 恒折 `mov mem,%eax; add %eax,sum`
+// （-2 条）。实测反劣/无效：`sum = sum + prob`、`sum = prob + sum`、sum→unsigned
+// （unsigned 还会把比较翻成无符号 jae，与 ORIG 有符号 jle 反，已回退）。
+// 本件 `flag = stDefaultItemInfo::m_defaultFlag != 0` 的 test/setne 物化已匹配
+// （该字段保持 char，见 get_multibox_lottery_item 判词的字段分型说明）。
+// ORIG 0x850f136：rand/sum/itemIdx/count/flag 声明在函数头（-0x20/-0x1c/-0x18/-0x14/-0xd），
+// 循环体内先 `it = begin()`（-0x2c）再 get_rand_int(1000000)；内层 while 每次调 end()、
+// 增量 `it++`（ppEi）。
 void CStackableItem::get_multibox_default_item(
     std::vector<std::pair<Inven_Item, bool> >* out)
 {
@@ -1641,13 +1676,16 @@ void CStackableItem::get_multibox_default_item_arad(
 
 // ===================== get_multibox_lottery_item（ORIG 0x850edda） =====================
 
-// [b28d-solo-CStackableItem] ORIG 0x850edda：rand/sum/itemIdx/count/flag 声明在函数头
-// （-0x24/-0x20/-0x1c/-0x18/-0xd）；外层 while 每次调 end()、增量 unitIt++（ppEi）；
-// unit 拷贝构造落 -0x68；内层双迭代器 itemIt(-0x40)/bonusIt(-0x44) 均 ppEi，
-// 字段访问走 operator*（deEv）。
-// fresh 复验 215/216：结构/槽位逐条对齐；残差 2 条 = `p.second = flag`（char→bool）
-// ORIG 4.1 直接 `movzbl -0xd; mov %al` 不归一化，4.4 恒 `cmpb $0,-0xd; setne`（bool
-// 赋值归一化跨版本差，N/B 族；flag 改 bool 则 default 分支反向多 2 条，净差相同）。
+// [b28d-solo-CStackableItem] AE 214=214。修法（P300/P248 档②）：本函数 `flag` 局部
+// char→bool + **LotteryUnit::m_defaultFlag** 字段 char→bool（MultiBoxLotteryInfo.h，
+// 已 R2 广播）⇒ `flag = unit.m_defaultFlag;` 与 `p.second = flag;` 均产 ORIG 直存
+// `movzbl -0x5c; mov %al`（此前 char 版 4.4 归一化 `cmpb/setne` 多 1 条）。
+// 注意**同名字段分属两类、真型相反**：stDefaultItemInfo::m_defaultFlag 保持 char
+// （其消费点 get_multibox_default_item / createStackableMultiBoxLotteryInfo 要求
+// char 形）——字段级分型后三件同时满足（见各自判词）。
+// ORIG 0x850edda：rand/sum/itemIdx/count/flag 声明在函数头（-0x24/-0x20/-0x1c/-0x18/-0xd）；
+// 外层 while 每次调 end()、增量 unitIt++（ppEi）；unit 拷贝构造落 -0x68；内层双迭代器
+// itemIt(-0x40)/bonusIt(-0x44) 均 ppEi，字段访问走 operator*（deEv）。
 void CStackableItem::get_multibox_lottery_item(
     std::vector<std::pair<Inven_Item, bool> >* out)
 {
@@ -1659,7 +1697,8 @@ void CStackableItem::get_multibox_lottery_item(
     int sum = 0;
     int itemIdx = 0;
     int count = 0;
-    char flag = 0;
+    // b28d-solo 修法：flag char→bool（P300/P248 档②，配 m_defaultFlag bool 化 ⇒ 直存）。
+    bool flag = 0;
     std::vector<MultiBoxLotteryInfo::LotteryUnit>::iterator unitIt =
         m_multiBox.m_units.begin();
     while (unitIt != m_multiBox.m_units.end())
@@ -1805,7 +1844,9 @@ CStackableItem::CoolTimeOption CStackableItem::GetCoolTimeOption()
     // 直读（uchar 视图实测反劣 +1：4.4 对 uchar→ushort 追加 movzbl %dl 归一）。
     // 残差 1 条 = 4.4 第二读复用 %edx 覆盖基址 ⇒ 需重载 0xc(%ebp)，而 4.1 用
     // %ecx/%edx 分列（N7/N18a 型寄存器分配固有差，实测两形均不可翻）。
-    // [b28d-N7] fresh 复验 10/11 维持 N7（/tmp/gc_probe.cpp f1..f8 八形全产 %edx）。
+    // [b28d-solo-N7] fresh 10/11 判 N7。本波补测：聚合初始化形 10/13 反劣
+    // （先 movw/movb 清零再赋值）已回退；类型旋钮无可用（sec/flag 均 1/2 字节 packed，
+    // 改型即改 sizeof=3；返回类型 CoolTimeOption 固定 sret）。
     opt.sec  = m_option2d8.m_sec16;
     opt.flag = m_option2d8.m_field2;
     return opt;
@@ -1818,7 +1859,7 @@ CStackableItem::CoolTimeOption CStackableItem::GetEffectItemOption()
 {
     CoolTimeOption opt;
     opt.sec  = m_option2e4.m_sec16;    // b28c-L8：同 GetCoolTimeOption（ORIG 0x086946f4）
-                                       // [b28d-N7] fresh 复验 10/11 维持 N7。
+                                       // [b28d-solo-N7] fresh 10/11 维持 N7（同族同判词）。
     opt.flag = m_option2e4.m_field2;
     return opt;
 }

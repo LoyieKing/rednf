@@ -135,7 +135,12 @@ public:
     void  do_action(CUser* user);                    // 0x810e4ea（非虚）
     int   send_reward_from_recv_level(CUser*, int, int);  // 0x810e51a
 protected:
-    InGameEventScript* m_script1c;                   // +0x1c
+    LevelUpRewardScript* m_script1c;                 // +0x1c（[b28d-solo] 具型化：
+                                                     //   P301/P211 档③——赋值点
+                                                     //   static_cast 异型化 ⇒ store
+                                                     //   RHS-first（ORIG 0x810e187 形）。
+                                                     //   同宽同偏移，sizeof 0x20 与
+                                                     //   mangled 不变）
 };
 
 // CUsedFatigueGiveItem ← 事件记录类型 0x65（脚本 UsedFatigueGiveItemScript）。
@@ -152,7 +157,9 @@ public:
     void  sendEventItemFromFatigue(CUser*, unsigned int);  // 0x81105f6
     bool  verifyApplyUser(CUser*);                   // 0x8110756
 protected:
-    InGameEventScript* m_script1c;                   // +0x1c
+    UsedFatigueGiveItemScript* m_script1c;           // +0x1c（[b28d-solo] 具型化：同
+                                                     //   CLevelUpReward，ORIG 0x81105dd
+                                                     //   store RHS-first；同宽同偏移）
 };
 
 // CAttendance ← 事件记录类型 0x56（脚本 AttendanceScript）。虚表覆写 is_eventing
@@ -191,7 +198,9 @@ public:
     int   processEventPcRoomPlayTime(CUser*);        // 0x811089c
     int   verifyUserPcRoomPlayEvent(CUser*);         // 0x8110a38
 protected:
-    InGameEventScript* m_script1c;                   // +0x1c
+    PcBangPlayTimeScript* m_script1c;                // +0x1c（[b28d-solo] 具型化：同
+                                                     //   CLevelUpReward，ORIG 0x8110891
+                                                     //   store RHS-first；同宽同偏移）
 };
 
 // CAccountFirstLogin ← 事件记录类型 0x191/0x192（脚本 AccountFirstLoginScript）。
@@ -208,7 +217,9 @@ public:
     virtual void do_action(int flags, CUser* user, std::bitset<32u> bs);  // slot 9 0x810df04
     char* get_mail_data();                           // 0x810decc：m_script+0xc
 protected:
-    InGameEventScript* m_script1c;                   // +0x1c
+    AccountFirstLoginScript* m_script1c;             // +0x1c（[b28d-solo] 具型化：同
+                                                     //   CLevelUpReward，ORIG 0x810def9
+                                                     //   store RHS-first；同宽同偏移）
 };
 
 // CAddItemCountDB ← 事件记录类型 0x193（脚本 AddItemCountDBScript）。虚表覆写
@@ -222,7 +233,9 @@ public:
     bool is_event_item(int itemId);                  // 0x810e08e
     bool is_event_quest(int questId);                // 0x810e0f4
 protected:
-    InGameEventScript* m_script1c;                   // +0x1c
+    AddItemCountDBScript* m_script1c;                // +0x1c（[b28d-solo] 具型化：同
+                                                     //   CLevelUpReward，ORIG 0x810e083
+                                                     //   store RHS-first；同宽同偏移）
 };
 
 // ============================================================================
@@ -241,7 +254,12 @@ public:
     virtual std::string& get_db_table_name();               // slot 8 0x810f988：m_script+8
     char get_user_type() const;                       // 0x08110edc（ZNK const）
 protected:
-    InGameEventScript* m_script1c;                   // +0x1c
+    FatigueQuantityScript* m_script1c;               // +0x1c（[b28d-solo] 具型化：
+                                                     //   P211 档③——赋值点
+                                                     //   static_cast 异型化 ⇒ store
+                                                     //   RHS-first（ORIG 0x810f97d 形）。
+                                                     //   同宽同偏移，sizeof 0x20 与
+                                                     //   mangled 不变）
 };
 
 // CExchangeRandomItemReward ← 交换随机奖励事件。虚表覆写 set_event_data(slot4)。
@@ -262,7 +280,10 @@ public:
                               std::vector<int>& recordVec,
                               unsigned char& flag);             // 0x0810f26e
 protected:
-    InGameEventScript* m_script1c;                   // +0x1c
+    ExchangeRandomItemRewardScript* m_script1c;      // +0x1c（[b28d-solo] 具型化：
+                                                     //   P211 档③ ⇒ store RHS-first；
+                                                     //   同宽同偏移，sizeof 0x20 与
+                                                     //   mangled 不变）
 };
 
 // CAvatarDisjointRandomReward ← 头像分解随机奖励事件。虚表覆写 set_event_data(slot4)。
@@ -283,7 +304,10 @@ public:
     int  sendRandomItemReward(CUser* user,
                               std::vector<std::pair<int, int> >& rewards);  // 0x0810f88c
 protected:
-    InGameEventScript* m_script1c;                   // +0x1c
+    AvatarDisjointRandomRewardScript* m_script1c;    // +0x1c（[b28d-solo] 具型化：
+                                                     //   P211 档③ ⇒ store RHS-first；
+                                                     //   同宽同偏移，sizeof 0x20 与
+                                                     //   mangled 不变）
 };
 
 // CObjectBringUp ← 养成本体事件。虚表覆写 set_event_data(slot4)/get_db_table_name(slot8)。
@@ -300,7 +324,10 @@ public:
     bool  sendBringUpReward(CUser* user, std::vector<int>& rewardVec,
                             unsigned char& flag);                   // 0x0810fe90
 protected:
-    InGameEventScript* m_script1c;                   // +0x1c
+    ObjectBringUpScript* m_script1c;                 // +0x1c（[b28d-solo] 具型化：
+                                                     //   P211 档③ ⇒ store RHS-first；
+                                                     //   同宽同偏移，sizeof 0x20 与
+                                                     //   mangled 不变）
 };
 
 // CPurchaseCashItemBonus ← 商城消费奖励事件。虚表覆写 set_event_data(slot4)/
@@ -317,7 +344,10 @@ public:
     bool  verifyGiveBonusReward(
               PurchaseCashItemBonusScript::PurchaseBonusRule&, int);  // 0x810fae0
 protected:
-    InGameEventScript* m_script1c;                   // +0x1c
+    PurchaseCashItemBonusScript* m_script1c;         // +0x1c（[b28d-solo] 具型化：
+                                                     //   P211 档③ ⇒ store RHS-first；
+                                                     //   同宽同偏移，sizeof 0x20 与
+                                                     //   mangled 不变）
 };
 
 // CAccountFirstLoginDaily ← 由 CAccountFirstLogin（含虚槽 slot 9 do_action）派生。

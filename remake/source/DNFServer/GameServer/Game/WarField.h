@@ -37,7 +37,12 @@ class CMonster;
 //     序列化为有符号字节：MakePacket 08309526、SendMapInfoPacket 0814d05a。
 struct map_item
 {
-    unsigned char m_count;    // +0x00 掉落堆叠数量（byte）
+    // +0x00 掉落堆叠数量（byte）。ORIG 读取恒为 bool 取反物化
+    // `movzbl F; xor $1,%eax; test %al,%al; je`（CParty::isMonsterDrop_item
+    // 0x085a77c3、get_item 0x085a57e2 实证），且全仓写入恒 0/1
+    // （_MakeDropItems 0830b5ab、CParty::drop_item 085a64e5 等 movb）⇒ 字段
+    // 真型为 bool（P248 档②）；uchar 形 4.4 恒折 `cmpb $1`。宽度/偏移/mangled 不变。
+    bool m_count;             // +0x00
     char m_standardLevel;     // +0x01 物品生成等级（byte；来源见上）
     char m_pad02[2];          // +0x02
     int m_itemIndex;          // +0x04

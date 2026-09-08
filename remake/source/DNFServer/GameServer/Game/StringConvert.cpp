@@ -56,10 +56,18 @@ CharString convertToCharString(const wchar_t* src, unsigned int srcLength);
 // 块总 0x3c550，disp 依次 -0x3c028/-0x32024/-0xa020），getMbcsBuffer 0x08adea35、
 // toMbcs 0x08adeea0、toUnicode 0x08adf0f6..0x08adf3de 全在同一 TU 段共享该组。
 // 重建有三处同名 static __thread 定义（本 TU、SyncScriptDeps.cpp lane8、Library/
-// Include/Core/UnicodeConvert.cpp）⇒ 链接后 .tbss=0x78578 下 lane8 组落 0x3c550
-// （disp 恰合 ORIG），本 TU 组落 0x340（disp=-0x78238，差 0x3c210），本泳道 7 件
-// %gs disp 不可对齐。函数正文逐条等价（routed 口径 AE）；组归属收敛（把本 TU 的
-// 3 getter + 4 个 TLS toUnicode 重载迁到持有匹配组之 TU，或反向）跨 .cpp，需 Main 裁决。
+// Include/Core/UnicodeConvert.cpp）⇒ 链接后 .tbss=0x78574（本轮实测）下 lane8 组
+// 落 0x3c550（disp 恰合 ORIG），本 TU 组落块内 0x340（tpoff gUnicodeBuffer=-0x6e234 /
+// gMbcsBuffer=-0x78238 / gTCharBuffer=-0x46230，较 ORIG 差 0x3c210）。
+// 【单 TU 不可修复·证明】tpoff = offset_block - tls_size：组内前置 lead 或移动变量
+// 使 offset 与 tls_size 等量变化 ⇒ tpoff 不变；组后 tail 使 tls_size 增而 offset 不变
+// ⇒ tpoff 反向增大（目标需减 0x3c210）⇒ 本 TU 内任何 TLS 增删/重排都不可达。
+// 收敛只能删重复组（把本 TU 的 3 getter + 4 个 TLS toUnicode 重载迁到持有匹配组之
+// TU，或反向）——跨 .cpp，需 Main 裁决（本泳道只持有 StringConvert.cpp）。
+// 【b28d 本轮复验】check_tu_routed.sh COMPILE OK；identical=4 ae=33（37 件）
+// near=0 diff=0 missing=0；4 件 p167 调用点差集全 CLEAR（1/2/2/3 对全中）；
+// fn_diff_tu 逐条 ok（ours==orig 46/50/48/52 行）；ORIG/NEW 符号尺寸全等
+// 0xa1/0xb0/0xaa/0xb9——正文逐条等价为硬证据，残差仅 %gs tpoff 立即数。
 // ---------------------------------------------------------------------------
 static __thread char gMbcsBuffer[10][0x1000];
 static __thread int gMbcsBufferIndex;
@@ -455,7 +463,7 @@ void toUnicode(const std::wstring& src, std::wstring& dst)
 // ---------------------------------------------------------------------------
 
 // _Z9toUnicodePKc 0x08adf1b3
-// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf1b3 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234。
+// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf1b3 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234（差 0x3c210）。复验：routed AE、p167 CLEAR(1/1)、fn_diff_tu 46=46 逐条 ok、符号尺寸 ORIG=NEW=0xa1。
 const wchar_t* toUnicode(const char* src)
 {
     const int curindex = gUnicodeBufferIndex;
@@ -466,7 +474,7 @@ const wchar_t* toUnicode(const char* src)
 }
 
 // _Z9toUnicodeRKSs 0x08adf0f6
-// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf0f6 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234。
+// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf0f6 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234（差 0x3c210）。复验：routed AE、p167 CLEAR(2/2)、fn_diff_tu 48=48 逐条 ok、符号尺寸 ORIG=NEW=0xaa。
 const wchar_t* toUnicode(const std::string& src)
 {
     const int curindex = gUnicodeBufferIndex;
@@ -477,7 +485,7 @@ const wchar_t* toUnicode(const std::string& src)
 }
 
 // _Z9toUnicodePKcRSbIwSt11char_traitsIwESaIwEE 0x08adf32f
-// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf32f 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234。
+// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf32f 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234（差 0x3c210）。复验：routed AE、p167 CLEAR(2/2)、fn_diff_tu 50=50 逐条 ok、符号尺寸 ORIG=NEW=0xb0。
 void toUnicode(const char* src, std::wstring& dst)
 {
     const int curindex = gUnicodeBufferIndex;
@@ -488,7 +496,7 @@ void toUnicode(const char* src, std::wstring& dst)
 }
 
 // _Z9toUnicodeRKSsRSbIwSt11char_traitsIwESaIwEE 0x08adf25c
-// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf25c 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234。
+// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf25c 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234（差 0x3c210）。复验：routed AE、p167 CLEAR(3/3)、fn_diff_tu 52=52 逐条 ok、符号尺寸 ORIG=NEW=0xb9。
 void toUnicode(const std::string& src, std::wstring& dst)
 {
     const int curindex = gUnicodeBufferIndex;

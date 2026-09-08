@@ -64,7 +64,8 @@ class MSG_ADD_FRIEND
 {
 public:
     char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
-    char m_pad[0x21];         // +0xd..（帧推导总长 0x37；内部布局未还原）
+    char m_pad[0x22];         // +0xd..（b28d-solo-S153：ORIG 0x82577fc dispatch 帧距实测
+                              //   sizeof=0x2f [m=-0x43/p=-0x14]，原 0x21 少 1 字节）
 };
 
 #pragma pack(push, 1)
@@ -129,8 +130,10 @@ public:
     unsigned short m_field10; // +0x10 短整型参数【推断】（get_short@msg+0x10；process 复制进包）
     int m_skillCheckSum;      // +0x14 技能校验和【推断】（get_int@msg+0x14；与
                               //  CUser::getCurCharacSkillCheckSum 比较）
+    char m_pad18[2];          // +0x16..+0x17（b28d-solo-S161：ORIG 0x8256094 域 msg 槽
+                              //  -0x24 ⇒ 帧距 0x18，原 0x16 差 2）
 };
-static_assert(sizeof(MSG_BOSS_DIE_CHECK) == 0x16, "MSG_BOSS_DIE_CHECK size");
+static_assert(sizeof(MSG_BOSS_DIE_CHECK) == 0x18, "MSG_BOSS_DIE_CHECK size");
 #pragma pack(pop)
 
 class MSG_BREAK_AWAY : public MSG_BASE
@@ -225,7 +228,8 @@ class MSG_CHANGE_HOST_WARROOM
 {
 public:
     char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
-    char m_pad[0x4];
+    // b28d-solo-S161：ORIG 0x824fd96 域 msg 槽 -0x1e ⇒ 帧距 0x12，原 0x11 差 1。
+    char m_pad[0x5];
 };
 
 #pragma pack(push, 1)
@@ -346,6 +350,8 @@ public:
     short m_1a;           // +0x1a
     unsigned char m_1c;   // +0x1c
     unsigned char m_1d;   // +0x1d
+    char m_pad1e[2];      // +0x1e..+0x1f（b28d-solo-S153：ORIG 0x824b272 帧距 sizeof=0x20
+                          //   [msg 深 m=-0x30/p=-0x10]；线上字段止于 +0x1d）
 };
 #pragma pack(pop)
 
@@ -364,7 +370,7 @@ class MSG_CREATE_DISJOINT_STORE
 {
 public:
     char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
-    char m_pad[0x10d];
+    char m_pad[0x10f];  // b28d-solo-S153：ORIG 0x82549c2 帧距 sizeof=0x11c [m=-0x130/p=-0x14]
 };
 
 #pragma pack(push, 1)
@@ -382,7 +388,8 @@ class MSG_DELETE_CHARACTER
 public:
     char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     signed char m_slot;      // +0xd
-    char m_padE[0x21];        // +0xe..+0x37（帧推导总长 0x38）
+    char m_padE[0x22];        // +0xe..（b28d-solo-S153：ORIG 0x825a2ce 帧距 sizeof=0x30
+                              //   [m=-0x44/p=-0x14]，原 0x21 少 1 字节）
 };
 #pragma pack(pop)
 
@@ -416,8 +423,10 @@ public:
     char m_gap0d[3];          // +0x0d（ORIG 未出线）
     int m_nameLen;            // +0x10 角色名长度【推断】（Dispatcher_DeleteToBlackList/read.md get_int@msg+0x10）
     char m_characName[0x1e];  // +0x14 移出黑名单的角色名（get_str(buf,0x1e)@msg+0x14）
+    char m_pad34[2];          // +0x32..+0x33（b28d-solo-S153：ORIG 0x8255cac 帧距 sizeof=0x34
+                              //   [m=-0x48/p=-0x14]；线上字段止于 +0x31）
 };
-static_assert(sizeof(MSG_DELETE_TO_BLACKLIST) == 0x32, "MSG_DELETE_TO_BLACKLIST size");
+static_assert(sizeof(MSG_DELETE_TO_BLACKLIST) == 0x34, "MSG_DELETE_TO_BLACKLIST size");
 #pragma pack(pop)
 
 #pragma pack(push, 1)
@@ -435,7 +444,8 @@ class MSG_DIE_CHARACTER
 {
 public:
     char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
-    char m_pad[0x3];         // +0xd..+0x10（帧推导总长 0x11）
+    // b28d-solo-S161：ORIG 0x8259f68 域 msg 槽 -0x1d ⇒ 帧距 0x11，原 0x10 差 1。
+    char m_pad[0x4];         // +0xd..+0x10（帧推导总长 0x11）
 };
 
 #pragma pack(push, 1)
@@ -840,9 +850,10 @@ public:
     char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned int m_mailIdx;   // +0x0d 提取的邮件编号【推断】
                               //（Dispatcher_MailBox_Extract/read.md get_int(uint&)@msg+0xd）
-    char m_lane10pad[0x3];
+    // b28d-solo-S161：ORIG 0x8256668 域 msg 槽 -0x22 ⇒ 帧距 0x16，原 0x14 差 2。
+    char m_lane10pad[0x5];
 };
-static_assert(sizeof(MSG_MAILBOX_EXTRACT_ITEM) == 0x14, "MSG_MAILBOX_EXTRACT_ITEM size");
+static_assert(sizeof(MSG_MAILBOX_EXTRACT_ITEM) == 0x16, "MSG_MAILBOX_EXTRACT_ITEM size");
 #pragma pack(pop)
 
 #pragma pack(push, 1)
@@ -885,8 +896,10 @@ public:
     char m_gap0d[3];          // +0x0d（ORIG 未出线）
     int m_nameLen;            // +0x10 角色名长度【推断】（Dispatcher_MemberSecede/read.md get_int@msg+0x10）
     char m_characName[0x1e];  // +0x14 脱离公会的成员角色名（get_str(buf,0x1e)@msg+0x14）
+    char m_pad34[2];          // +0x32..+0x33（b28d-solo-S153：ORIG 0x8257038 帧距 sizeof=0x34
+                              //   [m=-0x48/p=-0x14]）
 };
-static_assert(sizeof(MSG_MEMBER_SECEDE) == 0x32, "MSG_MEMBER_SECEDE size");
+static_assert(sizeof(MSG_MEMBER_SECEDE) == 0x34, "MSG_MEMBER_SECEDE size");
 #pragma pack(pop)
 
 #pragma pack(push, 1)
@@ -969,7 +982,8 @@ class MSG_OBJECT_BRING_UP
 {
 public:
     char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
-    char m_pad[0x2];
+    // b28d-solo-S161：ORIG 0x824b856 域 msg 槽 -0x1c ⇒ 帧距 0x10，原 0xf 差 1。
+    char m_pad[0x3];
 };
 
 #pragma pack(push, 1)
@@ -1081,7 +1095,8 @@ class MSG_PVP_MISSION_COMBO_CLEAR
 {
 public:
     char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
-    char m_pad[0x1];
+    // b28d-solo-S161：ORIG 0x8250a88 域 msg 槽 -0x1b ⇒ 帧距 0xf，原 0xe 差 1。
+    char m_pad[0x2];
 };
 
 #pragma pack(push, 1)
@@ -1100,7 +1115,8 @@ class MSG_PVP_TIMEOUT
 {
 public:
     char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
-    char m_pad[0x29];         // +0xd..（帧推导总长 0x3f；内部布局未还原）
+    char m_pad[0x2a];         // +0xd..（b28d-solo-S153：ORIG 0x8258f28 帧距 sizeof=0x37
+                              //   [m=-0x4b/p=-0x14]，原 0x29 少 1 字节）
 };
 
 class MSG_QUEST_SHOP : public MSG_BASE
@@ -1173,15 +1189,18 @@ public:
     char m_gap0d[3];          // +0x0d（ORIG 未出线）
     int m_nameLen;            // +0x10 角色名长度【推断】（Dispatcher_RegisterToBlackList/read.md get_int@msg+0x10）
     char m_characName[0x1e];  // +0x14 加入黑名单的目标角色名（get_str(buf,0x1e)@msg+0x14）
+    char m_pad34[2];          // +0x32..+0x33（b28d-solo-S153：ORIG 0x8255ea0 帧距 sizeof=0x34
+                              //   [m=-0x48/p=-0x14]）
 };
-static_assert(sizeof(MSG_REGISTER_TO_BLACKLIST) == 0x32, "MSG_REGISTER_TO_BLACKLIST size");
+static_assert(sizeof(MSG_REGISTER_TO_BLACKLIST) == 0x34, "MSG_REGISTER_TO_BLACKLIST size");
 #pragma pack(pop)
 
 class MSG_REMOVE_FRIEND
 {
 public:
     char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
-    char m_pad[0x21];         // +0xd..（帧推导总长 0x37；内部布局未还原）
+    char m_pad[0x22];         // +0xd..（b28d-solo-S153：ORIG 0x825760e 帧距 sizeof=0x2f
+                              //   [m=-0x43/p=-0x14]，原 0x21 少 1 字节）
 };
 
 #pragma pack(push, 1)
@@ -1194,6 +1213,8 @@ public:
     short m_field0e;          // +0x0e【推断】（get_short@msg+0xe）
     int m_nameLen;            // +0x10 新名字字节长度（get_int@msg+0x10；get_str len 参数）
     char m_name[0xd];         // +0x14..+0x20 新生物名称（get_str(buf,0xd,len)@msg+0x14；ctor memset 全零）
+    char m_pad21[3];          // +0x21..+0x23（b28d-solo-S153：ORIG 0x8256470 帧距 sizeof=0x24
+                              //   [m=-0x38/p=-0x14]；ctor memset 仍 0xd 字节不变）
 };
 #pragma pack(pop)
 
@@ -1237,8 +1258,10 @@ public:
     short m_field0e;          // +0x0e slot【推断】（Dispatcher_RequestDisjointItem/read.md get_short@msg+0xe）
     short m_field10;          // +0x10 第二 slot/idx【推断】（get_short@msg+0x10）
     signed char m_field12;    // +0x12 byte flag【推断】（get_byte@msg+0x12）
+    // b28d-solo-S161：ORIG 0x82547d4 域 msg 槽 -0x20 ⇒ 帧距 0x14，原 0x13 差 1。
+    char m_pad13;
 };
-static_assert(sizeof(MSG_REQUEST_DISJOINT_ITEM) == 0x13, "MSG_REQUEST_DISJOINT_ITEM size");
+static_assert(sizeof(MSG_REQUEST_DISJOINT_ITEM) == 0x14, "MSG_REQUEST_DISJOINT_ITEM size");
 #pragma pack(pop)
 
 #pragma pack(push, 1)
@@ -1274,8 +1297,10 @@ public:
     char m_gap0d[3];          // +0x0d（ORIG 未出线）
     int m_nameLen;            // +0x10 角色名长度【推断】（Dispatcher_RequestMemberEnter/read.md get_int@msg+0x10）
     char m_characName[0x1e];  // +0x14 请求进入成员的角色名（get_str(buf,0x1e)@msg+0x14）
+    char m_pad34[2];          // +0x32..+0x33（b28d-solo-S153：ORIG 0x8257420 帧距 sizeof=0x34
+                              //   [m=-0x48/p=-0x14]）
 };
-static_assert(sizeof(MSG_REQUEST_MEMBER_ENTER) == 0x32, "MSG_REQUEST_MEMBER_ENTER size");
+static_assert(sizeof(MSG_REQUEST_MEMBER_ENTER) == 0x34, "MSG_REQUEST_MEMBER_ENTER size");
 #pragma pack(pop)
 
 #pragma pack(push, 1)
@@ -1587,8 +1612,10 @@ public:
     unsigned int m_field10;   // +0x10【推断】（get_int@msg+0x10）
     signed char m_field14;    // +0x14【推断】（get_byte@msg+0x14）
     signed char m_field15;    // +0x15【推断】（get_byte@msg+0x15）
+    // b28d-solo-S161：ORIG 0x8253e2e 域 msg 槽 -0x24 ⇒ 帧距 0x18，原 0x16 差 2。
+    char m_pad16[2];
 };
-static_assert(sizeof(MSG_TELEPORT) == 0x16, "MSG_TELEPORT size");
+static_assert(sizeof(MSG_TELEPORT) == 0x18, "MSG_TELEPORT size");
 #pragma pack(pop)
 
 class MSG_TEMP_STRUCT : public MSG_BASE
@@ -1789,21 +1816,24 @@ class MsgLimitNpcBuyItem
 {
 public:
     char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
-    char m_pad[0x7];
+    // b28d-solo-S161：ORIG 0x824ba44 域 msg 槽 -0x21 ⇒ 帧距 0x15，原 0x14 差 1。
+    char m_pad[0x8];
 };
 
 class MsgMercenaryCompetition
 {
 public:
     char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
-    char m_pad[0xa];
+    // b28d-solo-S161：ORIG 0x824d24a 域 msg 槽 -0x24 ⇒ 帧距 0x18，原 0x17 差 1。
+    char m_pad[0xb];
 };
 
 class MsgMercenaryReturn
 {
 public:
     char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
-    char m_pad[0x6];
+    // b28d-solo-S161：ORIG 0x824d69c 域 msg 槽 -0x20 ⇒ 帧距 0x14，原 0x13 差 1。
+    char m_pad[0x7];
 };
 
 #pragma pack(push, 1)
@@ -1894,13 +1924,17 @@ public:
     // pad removed
 };
 
+#pragma pack(push, 1)
 class LimitNpcBuyItem : public ParamBase
 {
 public:
     LimitNpcBuyItem();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
+    char m_pad8[3];          // +0x08..+0x0a（b28d-solo-S153：ORIG 0x824ba44 帧距 param sizeof=0xb
+                             //   [m=-0x21/p=-0x2c]；pack(1) 使 sizeof=0xb 不被 int 对齐撑到 0xc）
 };
+#pragma pack(pop)
 
 class PcRoomPlayTimeRewardParam : public ParamBase
 {
@@ -2016,8 +2050,10 @@ public:
     unsigned int m_characNo;     // +0x08 竞技对象角色 No（msg+0x10 回写；0x081dddc1）
     unsigned char m_charac;      // +0x0c（msg[0x15] 回写；0x081dddce）【推断】
     unsigned char m_charac2;     // +0x0d（msg[0x14] 回写；0x081ddddb）【推断】
+    char m_pad0e[5];             // +0x0e..+0x12（b28d-solo-S153：ORIG 0x824d24a 帧距
+                                 //   param sizeof=0x10 [m=-0x24/p=-0x34]）
 };
-static_assert(sizeof(SendMercenaryCompetitionResult) == 0xb, "SendMercenaryCompetitionResult size");
+static_assert(sizeof(SendMercenaryCompetitionResult) == 0x10, "SendMercenaryCompetitionResult size");
 #pragma pack(pop)
 
 #pragma pack(push, 1)
@@ -2162,6 +2198,8 @@ public:
     stChangeEmotionParam();
     // ORIG C1：+0x04 word 清零
     short m_4;               // +0x04
+    char m_pad6[1];          // +0x06（b28d-solo-S153：ORIG 0x82532a4 帧距 param sizeof=0x7
+                             //   [m=-0x1b/p=-0x22]）
 };
 #pragma pack(pop)
 
@@ -2172,6 +2210,8 @@ public:
     stChangeHostWarRoom();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
+    char m_pad8[2];          // +0x08..+0x09（b28d-solo-S153：ORIG 0x824fd96 帧距 param sizeof=0xa
+                             //   [m=-0x1e/p=-0x28]）
 };
 #pragma pack(pop)
 
@@ -2281,12 +2321,16 @@ public:
     int m_4;                 // +0x04
 };
 
+#pragma pack(push, 1)
 class stDieCharacInDungeon : public ParamBase
 {
 public:
     stDieCharacInDungeon();
     int m_errNo;    // +0x04（ORIG process 写 check_error 结果/0x7fffffff）
+    char m_pad8[3]; // +0x08..+0x0a（b28d-solo-S153：ORIG 0x8259f68 帧距 param sizeof=0xb
+                    //   [m=-0x1d/p=-0x28]；若 check_tu 不 AE 则回退本行）
 };
+#pragma pack(pop)
 
 class stDropItemParam : public ParamBase
 {
@@ -2312,7 +2356,10 @@ public:
     stEnchantParam();
     // ORIG C1：+0x04 int 清零
     int m_4;                 // +0x04
-};
+    short m_pad8;            // +0x08..+0x09（b28d-solo-S153：ORIG 0x82523a0 帧距 param
+                             //   sizeof=0xa [m=-0x26/p=-0x30]；short 令类对齐=2，
+                             //   MSG_BASE 实例 param 起点取整到 -0x24）
+} __attribute__((aligned(2)));   // b28d-solo-S153：ORIG 该类对齐 2（pack(1) 会压成 1）
 #pragma pack(pop)
 
 class stEnterDisjointStoreParam : public ParamBase
@@ -2524,6 +2571,7 @@ public:
     // pad removed
 };
 
+#pragma pack(push, 1)
 class stMailboxExtractParam : public ParamBase
 {
 public:
@@ -2531,7 +2579,10 @@ public:
     // ORIG C1：+0x04/+0x08 int 清零
     int m_4;                 // +0x04
     int m_8;                 // +0x08
+    char m_padC[2];          // +0x0c..+0x0d（b28d-solo-S153：ORIG 0x8256668 帧距 param
+                             //   sizeof=0xe [m=-0x22/p=-0x30]）
 };
+#pragma pack(pop)
 
 class stMailboxOpenParam : public ParamBase
 {
@@ -2905,7 +2956,9 @@ class stSelectStriker : public ParamBase
 {
 public:
     stSelectStriker();
-    char m_pad[0x4];
+    // b28d-solo-S161：ORIG dispatch_template 0x824a3d8 域 param 槽距 = 9
+    // （msg@-0x1b / param@-0x24 ⇒ param 尾 -0x1c 紧贴 msg）⇒ 4(pad)+5=9。
+    char m_pad[0x5];
 };
 
 class stSendClearedMission : public ParamBase
@@ -2974,7 +3027,9 @@ class stStackableActionUse : public ParamBase
 {
 public:
     stStackableActionUse();
-    char m_pad[0x7];
+    // b28d-solo-S161：ORIG 0x826033e 域 param 槽距 = 0xf（msg@-0x29 / param@-0x38）
+    // ⇒ 4(pad)+0xb=0xf（原 0x7 得 0xb，差 4）。
+    char m_pad[0xb];
 };
 
 class stStartGameParam : public ParamBase
@@ -2996,6 +3051,11 @@ public:
     char m_gapA[6];       // +0x0a..+0x0f（ORIG 未初始化区）
     unsigned char m_10;   // +0x10
     unsigned char m_11;   // +0x11
+    // [b28d-Main 代落·S162 真语义 bug] ORIG ctor 0x08231362 写 +0x14 int、
+    // Dispatcher_Teleport::send 0x081d09b3 读 +0x14、process 0x081d0723 写 +0x14
+    // （+0x12..+0x13 不写）⇒ pack(1) 下 int 须前置 2 字节 pad 才落 +0x14；
+    // 原 m_14 落 +0x12（读/写错位）。sizeof 仍 0x18（0x14+4，尾部 pad 删除）。
+    char m_pad12[2];      // +0x12..+0x13（ORIG 未初始化区）
     int m_14;             // +0x14
 };
 #pragma pack(pop)
@@ -3004,14 +3064,17 @@ class stTournamentRewardSelect : public ParamBase
 {
 public:
     stTournamentRewardSelect();
-    char m_pad[0x4];
+    // b28d-solo-S161：ORIG 0x822e0aa 域 param 槽距 = 9（msg@-0x1b / param@-0x24）
+    // ⇒ 4(pad)+5=9（原 0x4 得 8，差 1）。
+    char m_pad[0x5];
 };
 
 class stTournamentRewardSelectState : public ParamBase
 {
 public:
     stTournamentRewardSelectState();
-    char m_pad[0x3];
+    char m_pad[0x7];   // b28d-solo-S153：ORIG 0x824c162 帧距 param sizeof=0xb [m=-0x19/p=-0x24]；
+                       // 若 check_tu 不 AE 则回退为 0x3
 };
 
 class stUpdateContractOfCubeInfo : public ParamBase

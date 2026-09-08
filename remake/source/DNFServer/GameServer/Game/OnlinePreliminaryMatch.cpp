@@ -595,26 +595,20 @@ float COnlinePreliminary::_GetRating(ENUM_SCHOOL_MATCH_TEAM team)
 
 /* ORIG T 0x08560082：f 槽(-0xc)无 entry 初始化；else 路径 @085600e8
  * `mov $0,%eax` 单物化；尾 merge `mov %eax,-0xc; flds -0xc`(@085600ed) */
-/* [b28d-solo-OnlinePreliminaryMatch 判词·DIFF/N85③] float 多 return：4.1
- * 各臂 `fstps -0xc; mov -0xc,%eax; jmp merge` + 尾 `mov %eax,-0xc; flds`
- * 同槽复用；4.4 恒另开 -0x1c 返回临时槽（`mov -0xc,%eax; mov %eax,-0x1c;
- * flds -0x1c`）且帧 0x38 vs ORIG 0x28。P231 纯 register 试形实测零变（已
- * 回退）；P252 具名 float 局部已具名。跨版本 float 返回物化差，封顶。 */
+/* [b28d-solo-OnlinePreliminaryMatch 判词·AE] 旧 DIFF/N85③ 判词作废。真因
+ * 是**具名 float 局部 + return f** 使 4.4 另开 -0x1c 返回临时槽（帧 0x38）；
+ * 改为**各分支直接 return**（无具名局部）后返回槽与 -0xc 合一，逐条复现
+ * ORIG：各臂 `fstps -0xc; mov -0xc,%eax; jmp merge` + 尾
+ * `mov %eax,-0xc; flds -0xc`，帧 0x28（探针 /tmp/s190/p_gr.cpp fB 全等；
+ * fA/fC/fD 具名形恒多 -0x1c）。语义等价（返回值即各分支表达式）。 */
 float COnlinePreliminary::_GetRating(CUser* user)
 {
-    /* ORIG(@08560082) 各分支 fstps 后 `mov -0xc,%eax` 经 int 路汇入 merge、
-     * 尾 `mov %eax,-0xc; flds -0xc` 同槽复用——4.4 恒另开 -0x1c float 临时
-     * 槽往返（probe：类型双关写/register asm("eax") 均产 lea/mov 间接形更
-     * 差），属 N18a 类跨版本 float 返回物化差 */
-    float f;
     if ((char)GetPlayCountPerOneTeam() == 1)
-        f = reinterpret_cast<COnlinePreliminaryMember*>(
-                user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)4))->GetRating();
-    else if (user->GetCurCharacOnlinePreliminaryTeam() != 0)
-        f = user->GetCurCharacOnlinePreliminaryTeam()->GetRating();
-    else
-        f = 0.0f;
-    return f;
+        return reinterpret_cast<COnlinePreliminaryMember*>(
+                   user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)4))->GetRating();
+    if (user->GetCurCharacOnlinePreliminaryTeam() != 0)
+        return user->GetCurCharacOnlinePreliminaryTeam()->GetRating();
+    return 0.0f;
 }
 
 /* ORIG T 0x08560368：首个在场成员同步个人 rating */
@@ -824,12 +818,14 @@ void COnlinePreliminary::_IncreaseEachOtherPlayCount()
 // ---------------------------------------------------------------------------
 
 /* ORIG T 0x08560920 */
-/* [b28d-solo-OnlinePreliminaryMatch 判词·NEAR/N82附] 本波修：①删 equip 具名
- * 局部（ORIG 全函数仅一个 CItem* 槽 -0xc，equip 每次重读）；②尾改
- * `if(!CheckUnusableItem(...)) return false; return true;`（复现 ORIG
- * xor$1/test/je 物化）。残余：CheckUnusableEquipmentInfo 两实参
- * getUsableLevel→%esi / GetUsableEquipmentType→%ebx 与 ORIG 对调（callee-
- * saved 角色，P226 语句表达式实测不翻）⇒ N82附 封顶。 */
+/* [b28d-solo-OnlinePreliminaryMatch 判词·AE] 旧 NEAR/N82附 判词作废。本波修：
+ * ①删 equip 具名局部（ORIG 全函数仅一个 CItem* 槽 -0xc，equip 每次重读）；
+ * ②尾改 `if(!CheckUnusableItem(...)) return false; return true;`（复现 ORIG
+ * xor$1/test/je 物化）；③CheckUnusableEquipmentInfo 两实参 callee-saved 角色
+ * （ORIG 先求值 getUsableLevel→%esi、后 GetUsableEquipmentType→%ebx；4.4 恒
+ * 反）用**第二实参语句表达式** `({ found->getUsableLevel(); })` 翻正（P226
+ * 实参向；探针 /tmp/s190/p_ces.cpp v4 逐条复现 ORIG，v0/v1/v2/v3 均反）。
+ * 语义等价（值即调用结果，无具名变量）。 */
 bool COnlinePreliminary::CheckUnusableEquipment(const Inven_Item* item)
 {
     if (item == 0)
@@ -852,13 +848,11 @@ bool COnlinePreliminary::CheckUnusableEquipment(const Inven_Item* item)
     if (static_cast<CEquipItem*>(found)->GetUsableEquipmentType() == 0)  // W 0x832e036
         return true;
     if (!G_CDataManager()->m_serverParameter.CheckUnusableEquipmentInfo(
-            /* [b28d-solo-OnlinePreliminaryMatch·N封顶 N82附/N7] ORIG 寄存器
-             * 角色：先求值 getUsableLevel→%esi、后求值 GetUsableEquipmentType
-             * →%ebx；4.4 恒相反（getUsableLevel→%ebx）。P226 语句表达式
-             * `({expr;})` 实测不改变 call 结果实参的升格寄存器（仍 ebx/esi
-             * 反），callee-saved 角色互换源形不可控 ⇒ 保留裸形封 N。 */
+            /* [b28d-solo-OnlinePreliminaryMatch] ORIG 寄存器角色：先求值
+             * getUsableLevel→%esi、后求值 GetUsableEquipmentType→%ebx；
+             * 4.4 裸形恒反 ⇒ 第二实参包语句表达式（P226 实参向）。 */
             (ENUM_UNUSABLE_EQUIPMENT_TYPE)static_cast<CEquipItem*>(found)->GetUsableEquipmentType(),
-            found->getUsableLevel()))
+            ({ found->getUsableLevel(); })))
         return false;
     /* ORIG 经虚表槽 +0xc（GetItemType）取类型后查 CheckUnusableItem；
      * [b28d-solo-OnlinePreliminaryMatch] ORIG @08560a23 尾为 `call; xor $1,%eax;
@@ -993,14 +987,18 @@ int COnlinePreliminary::OnRegisterMatch(CUser* user, PvP_Room* room)
 }
 
 /* ORIG T 0x085614ea：第 2 参为匹配授权号，与 m_authValue 校验。ORIG 失败路径 → 0；成功 → 1。 */
-/* [b28d-solo-OnlinePreliminaryMatch 判词·NEAR/N95] 本波修：①5 处 cMyTrace
- * 改全表达式临时链 + __PRETTY_FUNCTION__（P221/P139，复现 ORIG
- * -0x6c/-0x5c/-0x4c/-0x3c/-0x2c 深→浅槽序）；②oppUser/oppRoom/opponent
+/* [b28d-solo-OnlinePreliminaryMatch 判词·AE] 旧 NEAR/N95 判词作废。历史修：
+ * ①5 处 cMyTrace 改全表达式临时链 + __PRETTY_FUNCTION__（P221/P139，复现
+ * ORIG -0x6c/-0x5c/-0x4c/-0x3c/-0x2c 深→浅槽序）；②oppUser/oppRoom/opponent
  * 全头部声明 =0（P212）；③team 提至循环外（P212）；④`& 0xff`→
  * `(unsigned char)`（消 and）；⑤size 比较方向改 `size > pc`（复现 jg）；
- * ⑥gen_timer_key 内联实参（P24，消 key 槽往返）。残余：全帧槽基 -8（4.4
- * 局部槽基恒从 ebp-8 起 vs ORIG 顶到 ebp，N95 不可上移）+ 重定位伪差；
- * 助记符序列 302=302 全等。 */
+ * ⑥gen_timer_key 内联实参（P24，消 key 槽往返）。
+ * 本波收口（全帧槽号 -4 根因，302=302 全等）：⑦循环内 user 不再另起
+ * `CUser* u` 局部，直接复用 oppUser（ORIG @085618b1 `mov %eax,-0x1c(%ebp)`
+ * 实证槽复用；另起局部多占 -0x10 使全帧槽深 4——N95 判词的真因，非槽基不可
+ * 上移）；⑧真语义 bug：第一处 get_player_count 的接收者 ORIG 为**形参 room**
+ * （@085616e5 `mov 0xc(%ebp),%eax`，Ghidra C `get_player_count(param_1)` 同
+ * 证），原写 oppRoom 查错对象，已改 room。 */
 int COnlinePreliminary::OnMatchRoom(PvP_Room* room, int authNo)
 {
     if (m_authValue != authNo)
@@ -1050,8 +1048,11 @@ int COnlinePreliminary::OnMatchRoom(PvP_Room* room, int authNo)
         return 0;
     }
     /* [b28d-solo-OnlinePreliminaryMatch] ORIG `movzbl %al,%eax` 形 ⇒
-     * `(unsigned char)` 强转（`& 0xff` 恒产 and $0xff）。 */
-    if (oppRoom->get_player_count() > (int)(unsigned char)GetPlayCountPerOneTeam())
+     * `(unsigned char)` 强转（`& 0xff` 恒产 and $0xff）。
+     * [b28d-solo-OnlinePreliminaryMatch 真语义 bug 修] ORIG @085616e5
+     * `mov 0xc(%ebp),%eax` = 形参 room（非 local_1c/oppRoom；Ghidra C 同证
+     * `get_player_count(param_1)`）——原写 oppRoom 查错对象。 */
+    if (room->get_player_count() > (int)(unsigned char)GetPlayCountPerOneTeam())
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x7d2, 0)(
             "error file(%s) line(%d)", "MatchingSystem.cpp", 0x7d2);
@@ -1088,17 +1089,22 @@ int COnlinePreliminary::OnMatchRoom(PvP_Room* room, int authNo)
     int team = 0;
     for (unsigned int s = 0; s <= 7; ++s)
     {
-        CUser* u = reinterpret_cast<CUser*>(oppRoom->get_user_seat((int)s));
-        if (u == 0)
+        /* [b28d-solo-OnlinePreliminaryMatch] ORIG @085618b1 `mov %eax,
+         * -0x1c(%ebp)`：循环内 user 复用 oppUser 槽（ORIG 全函数仅 5 个浅槽
+         * -0xc/-0x10/-0x14/-0x18/-0x1c 承载 6 个局部）⇒ 原码就是复用 oppUser
+         * 变量本身（oppUser 在取到 oppRoom 后已死）。另起 `CUser* u` 会多占
+         * -0x10 槽使全帧槽号整体深 4（帧同为 0x90 但槽基 -4）。 */
+        oppUser = reinterpret_cast<CUser*>(oppRoom->get_user_seat((int)s));
+        if (oppUser == 0)
             continue;
         team = oppRoom->get_team((int)s);
-        _PullOutRoom(u, oppRoom, (int)s);
+        _PullOutRoom(oppUser, oppRoom, (int)s);
         /* [b28d-solo-OnlinePreliminaryMatch·P218/P290] ORIG @0856191d-0x41
          * 压参序为「先压常量 2/3 再装载 newSeat」；unsigned 局部使 4.4 提前
          * 装载 %eax。声明改 int 复现 ORIG 装载时刻。 */
-        int newSeat = _PutInRoom(u, room, false);
+        int newSeat = _PutInRoom(oppUser, room, false);
         if (team == 3)
-            room->OnSetPVPSeatState(u, newSeat,
+            room->OnSetPVPSeatState(oppUser, newSeat,
                                     (ENUM_SEAT_STATE)3, (ENUM_WALKOUT_TYPE)2);
     }
 
@@ -1124,14 +1130,17 @@ void COnlinePreliminary::OnStartFight()
 }
 
 /* ORIG T 0x08562022 */
-/* [b28d-solo-OnlinePreliminaryMatch 判词·DIFF/N75(N=2)] 唯一残差：ORIG
- * @08562040-0x29 为 `mov -0xc(%ebp),%eax`（managerTeam）先于
- * `movl $0x0,0xc(%esp)`（第3参常量）；4.4 恒 R2L 先压常量。三写法
- * （NULL/static_cast/具名）探针不可翻（P75 跨版本实参装载时刻），
- * 其余 51 条逐条同形（含 0x44→0x1c 十对字 block-move）。语义等价。 */
+/* [b28d-solo-OnlinePreliminaryMatch 判词·AE] 旧 DIFF/N75(N=2) 判词作废。
+ * 唯一残差曾是 ORIG @08562040-0x29「`mov -0xc(%ebp),%eax`（managerTeam）
+ * 先于 `movl $0x0,0xc(%esp)`（第3参常量）」而 4.4 恒 R2L 先压常量。
+ * 翻正旋钮=**实参来源局部改 unsigned int**（P248 档③ 变体）：实参表达式带
+ * 隐式 int 转换后 4.4 判其需预求值寄存器，先发 `mov -0xc(%ebp),%eax` 再压
+ * 常量，逐条复现 ORIG（探针 /tmp/s190/p_arg4.cpp v17：int 局部恒常量先、
+ * unsigned 局部则值先；v12 enum 同效）。值域 0..2，`!=1` 为等值比较，
+ * 语义/槽位/帧零变化。 */
 void COnlinePreliminary::OnEndFight(PvP_Room* room)
 {
-    int managerTeam = room->get_manager_team();           /* T 0x85d9242 */
+    unsigned int managerTeam = room->get_manager_team();  /* T 0x85d9242 */
     m_field04 = 0;
     _ReturnTeam(room, managerTeam, (CUser*)0);
     /* ORIG @08562067 十对字 block-move（%eax=LHS %edx=RHS 双 this 装载、
@@ -1145,10 +1154,16 @@ void COnlinePreliminary::OnEndFight(PvP_Room* room)
 /* ORIG T 0x08561f8c（vtable+0x2c＝OnLeaveRoom 级联）。ORIG 返回 1。 */
 /* [b28d-solo-OnlinePreliminaryMatch 判词·NEAR] 本波修真语义 bug：OnLeaveRoom
  * 实参序 (u,room,a,team)→(u,room,team,a)（ORIG @08561fc6-0x5d 压参序实证，
- * 原第 3 参 teamGroup 收到座位号）；残 N7 虚调目标 %edx↔%eax（4.4 恒 %eax）。 */
+ * 原第 3 参 teamGroup 收到座位号）。
+ * [b28d-solo-OnlinePreliminaryMatch] 另修实参装载序：ORIG @08561fc6 先
+ * `mov -0x10(%ebp),%eax`（team）再 `mov 0x10(%ebp),%edx`（a）；4.4 恒 R2L
+ * 逐参 load+store。旋钮=team 局部改 unsigned int（P248 档③ 变体，探针
+ * /tmp/s190/p_arg4.cpp v17 实证）：实参隐式 int 转换使 4.4 预求值 team 入
+ * %eax 再压 a，逐条复现 ORIG 装载序。
+ * 残 N7 虚调目标 %ecx↔%edx（4.4.6 恒 %edx，ORIG 4.1 上下文用 %ecx）。 */
 int COnlinePreliminary::OnWalkOut(PvP_Room* room, int a)
 {
-    int team = room->get_team(a);
+    unsigned int team = room->get_team(a);
     CUser* u = reinterpret_cast<CUser*>(room->get_user_seat(a));
     /* [b28d-solo-OnlinePreliminaryMatch] ORIG @08561fc6-0x5d 压参序实证：
      * 0xc(%esp)=team(-0x10 槽)、0x10(%esp)=a(0x10(%ebp)) ⇒ 第 3 参是
@@ -1228,13 +1243,16 @@ void COnlinePreliminary::OnConnectP2PTimeout(PvP_Room* room)
 }
 
 // ORIG T 0x08561b80
-/* [b28d-solo-OnlinePreliminaryMatch 判词·NEAR/N93+N7] 语义与 ORIG 全等。
+/* [b28d-solo-OnlinePreliminaryMatch 判词·NEAR/N7] 语义与 ORIG 全等。
  * 本波修：①`(int)(GetPlayCountPerOneTeam() & 0xff)` → `(unsigned char)`
  * 强转（消 and $0xff，复现 ORIG movzbl）；②ready 发送循环
  * `if(flag==0||u==0)continue` → 正向 `if(flag!=0&&u!=0)Send`（消 xor$1 物化
- * + 双 jmp/nop 岛，复现 ORIG 双 je 直指增量块）。残余：两个 PacketGuard
- * （ready/st）栈槽互换——ORIG ready=-0x28/st=-0x34，4.4 恒反（N93 块级双对象
- * 槽方向相反，RAII 对象不可改临时链/声明序）；及虚调目标 %edx↔%eax（N7）。 */
+ * + 双 jmp/nop 岛，复现 ORIG 双 je 直指增量块）；③两 PacketGuard 槽方向：
+ * ORIG ready=-0x28/st=-0x34，4.4 对「if 块内对象 + 函数体对象」恒反（N93）；
+ * 把 st 包进**尾随复合块**（scope_probe /tmp/s190/p_guard.cpp a2：同为块级
+ * 对象后 4.4 按声明序给出 ready 浅/st 深，逐条复现 ORIG）——ctor/dtor 时序
+ * 与语句序零变化（块即函数末段）。
+ * 残 N7 虚调目标 %edx↔%eax。 */
 void COnlinePreliminary::OnConnectP2P(CUser* user, PvP_Room* room,
                                       char* addr, int len)
 {
@@ -1273,19 +1291,21 @@ void COnlinePreliminary::OnConnectP2P(CUser* user, PvP_Room* room,
         }
     }
 
-    PacketGuard st;
-    st.clear();
-    room->battle_reset();                                 /* T 0x85d6430 */
-    for (int s = 0; s <= 7; ++s)
     {
-        if (room->get_user_seat(s) != 0)
-            room->m_relayMgr.OnReady(s, true);            /* +0x620 子对象 */
+        PacketGuard st;
+        st.clear();
+        room->battle_reset();                             /* T 0x85d6430 */
+        for (int s = 0; s <= 7; ++s)
+        {
+            if (room->get_user_seat(s) != 0)
+                room->m_relayMgr.OnReady(s, true);        /* +0x620 子对象 */
+        }
+        room->start_pvp();                                /* T 0x85d8c3a */
+        // ORIG：make_state_info 写入 st 自身缓冲（Ghidra local_38 复用，ORIG `(char*)local_38`），
+        // send_all(st) 发送同一包。
+        room->make_state_info(reinterpret_cast<char*>(&st));  /* T 0x85dbd3a */
+        G_GameWorld()->send_all(st);
     }
-    room->start_pvp();                                    /* T 0x85d8c3a */
-    // ORIG：make_state_info 写入 st 自身缓冲（Ghidra local_38 复用，ORIG `(char*)local_38`），
-    // send_all(st) 发送同一包。
-    room->make_state_info(reinterpret_cast<char*>(&st));  /* T 0x85dbd3a */
-    G_GameWorld()->send_all(st);
 }
 
 /* ORIG T 0x08561e36：纯返 1 */

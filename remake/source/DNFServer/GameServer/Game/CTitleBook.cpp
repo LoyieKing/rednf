@@ -331,10 +331,10 @@ void CTitleBook::sendListOtherUser(CUser* user,
 
 bool CTitleBook::isAbleItemLock(unsigned long itemIdx)
 {
-    // b28d-solo-CTitleBook 终判（N93 槽序封顶）：C28L8 具名 fitFound 已把助记符
-    // 序列对齐 ORIG（120=120，NEAR）——ORIG find sret -0x1c / 具名迭代器 it -0x24；
-    // 4.4 把 fitFound 落最深处 -0x24、it 退 -0x20（4.1/4.4 具名局部与匿名 sret 的
-    // 槽分配方向相反）。裸实参/语句表达式/声明后赋值/头部声明 6 形实测均不可复现。
+    // b28d-solo-CTitleBook 终判（AE，本波归零）：P74② 实参序旋钮——ORIG
+    // 0x08642f5a 比较形为 `ne(end(-0x10), find-sret(-0x1c))`（end 在左、find 结果
+    // 匿名）⇒ 源码写 `end() != std::find(...)`：匿名 find 消具名槽 -0x24、左操作数
+    // 固定 ne 压参序，120=120 全等。旧「N93 槽序封顶」判词作废。
     for (std::map<int, std::vector<stTitleElement> >::iterator it =
              ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.begin();
          it != ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.end();
@@ -344,13 +344,12 @@ bool CTitleBook::isAbleItemLock(unsigned long itemIdx)
         {
             // ORIG 0x8641468 的 std::find 以 unsigned long（itemIdx 原类型）实例化，
             // 不做 (int) 转换。
-            // b28d-solo-CTitleBook（C28L8 具名左操作数）：ORIG 0x08642f5a 先求值
-            // find（sret -0x1c）再求值比较端 end()（-0x10）；裸形 4.4 先求值右操作数。
-            std::vector<int>::iterator fitFound =
+            // b28d-solo-CTitleBook（P74②）：ORIG 0x08642f5a 比较端 end() 在左、
+            // find 结果匿名（sret -0x1c）⇒ 保持 `end() != std::find(...)` 形。
+            if (it->second[i].m_fitJobs.end() !=
                 std::find(it->second[i].m_fitJobs.begin(),
                           it->second[i].m_fitJobs.end(),
-                          itemIdx);
-            if (fitFound != it->second[i].m_fitJobs.end())
+                          itemIdx))
             {
                 if (it->second[i].m_achievementIdx == -1)
                 {
@@ -369,9 +368,9 @@ bool CTitleBook::_checkFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
     // b28d-solo-CTitleBook（P96/P270）：ORIG 0x08642d42 map::find 为非 const 版
     // （`findERS7_` 无 K），it 即 `iterator`；写 const_iterator 会多一次转换构造
     // （4.4 额外 call + 临时槽 -0x24，帧 0x38→0x48）。
-    // 终判（N93 槽序封顶）：pVec 缓存 + 具名 fitFound 后 133→111 条（=ORIG 111，
-    // NEAR）；残余仅 find sret 与 it 的槽号互换（ORIG it -0x28 / sret -0x1c；
-    // 4.4 fitFound -0x28 / it -0x24），6 形源码实测不可翻。
+    // b28d-solo-CTitleBook 终判（AE，本波归零）：P74② 实参序旋钮——ORIG 0x08642e2d
+    // 比较形为 `ne(end(-0x10), find-sret(-0x1c))` ⇒ 匿名 `end() != std::find(...)`
+    // 形，111=111 全等。旧「N93 槽序封顶」判词作废。
     std::map<int, std::vector<stTitleElement> >::iterator it =
         ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.find(
             (int)category);
@@ -388,14 +387,12 @@ bool CTitleBook::_checkFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
     {
         return 0;
     }
-    // b28d-solo-CTitleBook（C28L8 具名左操作数）：ORIG 0x08642e2d 先求值 find
-    // （sret -0x1c）再求值比较端 end()（-0x10）；裸 `find() != end()` 4.4 先求值
-    // 右操作数 ⇒ 具名 find 结果固定求值序与槽序。
-    std::vector<int>::const_iterator fitFound =
+    // b28d-solo-CTitleBook（P74②）：ORIG 0x08642e2d 比较端 end() 在左、find 结果
+    // 匿名（sret -0x1c）⇒ 保持 `end() != std::find(...)` 形。
+    if ((*pVec)[slot].m_fitJobs.end() !=
         std::find((*pVec)[slot].m_fitJobs.begin(),
                   (*pVec)[slot].m_fitJobs.end(),
-                  itemIdx);
-    if (fitFound != (*pVec)[slot].m_fitJobs.end())
+                  itemIdx))
     {
         return 1;
     }
@@ -418,16 +415,13 @@ bool CTitleBook::_getFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY& category,
     {
         for (unsigned int i = 0; i < it->second.size(); ++i)
         {
-            // b28d-solo-CTitleBook（P278 具名返回值，N93 槽序封顶）：ORIG
-            // 0x08642baa find sret 落 -0x1c（深于实参临时 end -0x18/begin -0x14）；
-            // 4.4 把具名 fitFound 落最深处 -0x24、匿名形落 -0x18（均与 ORIG 差 4）。
-            // 实测 6 形（裸实参/具名初始化/声明后赋值/语句表达式/实参具名/头部声明）
-            // 均不可复现，判 N93 槽分配方向封顶（115=115 助记符全等）。
-            std::vector<int>::iterator fitFound =
+            // b28d-solo-CTitleBook 终判（AE，本波归零）：P74② 实参序旋钮——ORIG
+            // 0x08642baa 比较形为 `ne(end(-0x10), find-sret(-0x1c))` ⇒ 匿名
+            // `end() != std::find(...)` 形，115=115 全等；旧「N93/P278 封顶」作废。
+            if (it->second[i].m_fitJobs.end() !=
                 std::find(it->second[i].m_fitJobs.begin(),
                           it->second[i].m_fitJobs.end(),
-                          itemIdx);
-            if (fitFound != it->second[i].m_fitJobs.end())
+                          itemIdx))
             {
                 category = (ENUM_TITLE_BOOK_CATEGORY)it->first;
                 slot = (int)i;
@@ -441,10 +435,11 @@ bool CTitleBook::_getFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY& category,
 void CTitleBook::deleteTimeoutItem(
     const std::vector<std::pair<int, int> >& list)
 {
-    // b28d-solo-CTitleBook 终判（P223 边界封顶）：p167 差集 CLEAR（33=33 调用）、
-    // 175 vs 177 仅差 else 体尾一条冗余 `jmp .+1; nop`（4.4 jump-threading 失效，
-    // jmp 目标即下一条 nop）。6 形实测（if/else-if、else{}+嵌套、continue×2、
-    // goto 尾标签×2、空 else）均恒多该 2 条 ⇒ 判结构性伪影封顶。
+    // b28d-solo-CTitleBook 终判（N121 封顶）：p167 差集 CLEAR（33=33 调用）、
+    // 175 vs 177 仅 else 体尾多 `jmp .+2; nop`——4.4 在 continue/join 目标（addl）
+    // 前插对齐 nop，致跳转目标 ≠ 下一条 ⇒ jump-threading 失效。本波再试 4 形
+    //（goto 尾标签、取反 continue、反转 then/else、函数属性 -fno-align-jumps/-loops）
+    // 均恒 177~180 条 ⇒ 4.4 自身尾岛，判 N121 封顶（语义/调用点全等）。
     std::vector<std::pair<int, int> > toDelete;
     for (int category = 0; category < 4; ++category)
     {
@@ -548,6 +543,7 @@ int CTitleBook::getTitle(CUser* user, ENUM_TITLE_BOOK_CATEGORY category,
                          int& outSlot)
 {
     // b28d-solo-CTitleBook 终判：389=389、p167 差集 CLEAR（27=27 调用）⇒ AE。
+    // b28d-solo-CTitleBook 本波复核：TU clean 口径 AE（near/diff 列表无本件）。
     // 本件修三处：① cMyTrace 全表达式临时链（P227，ORIG ctor 前右起求 varargs）；
     // ② GetLock 谓词内联（P198②，去具名 uchar 槽往返）；③ 装备分支补
     // `title.m_field0 = 0`（ORIG 0x08642a49 `movb $0x0,-0x91(%ebp)`，真语义缺口）。
@@ -646,12 +642,12 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
                          int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
                          int titleSlot)
 {
-    // b28d-solo-CTitleBook 终判（P75/N7 封顶）：p167 差集 CLEAR（33=33 调用）、
-    // 335=335 条；已修 Inven_Item C1Ev（sret 直构）、send_equip(slot)、cMyTrace 临时链、
-    // delete_item→bool、sectionIdx int 化（消 `lea` vs `add`）。残余 2 处纯装载时机/
-    // 寄存器选择差：① GetInvenSlot 的 sret/invenType/slot 装载序（ORIG edx/eax/ecx）；
-    // ② delete_item 在压完 3 立即数后才载 invenType，4.4 提前载入 %eax 保活。
-    // 属跨版本 O0 调度差（语义/ABI/调用点全等）⇒ P75 封顶。
+    // b28d-solo-CTitleBook 终判（AE，本波归零）：p167 差集 CLEAR（33=33 调用）、
+    // 335=335 条。已修 Inven_Item C1Ev（sret 直构）、send_equip(slot)、cMyTrace 临时链、
+    // delete_item→bool、sectionIdx int 化（消 `lea` vs `add`）。本波修复残余 2 处装载
+    // 时机差：invenType 局部 int→INVEN_TYPE（P211/P265 同型化）——GetInvenSlot 的
+    // sret/invenType/slot 装载序回正 ORIG edx/eax/ecx，且 delete_item 不再提前把
+    // invenType 载入 %eax 跨 3 个立即数保活；旧「P75/N7 封顶」判词作废。
     CTitleBook* book = (CTitleBook*)user->GetCharacExpandData(
         (ENUM_CHARAC_EXPAND_TYPE)0xe);
     if (!book)
@@ -663,7 +659,10 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
         space = (ENUM_ITEMSPACE)3;
     }
     CInventory* inven = (CInventory*)user->getCurCharacInvenW();
-    int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space);
+    // b28d-solo-CTitleBook（P211/P265）：ORIG 实参同型直传（无 int→enum 转换中转）
+    // ⇒ 局部用 INVEN_TYPE 而非 int。
+    INVEN_TYPE invenType =
+        (INVEN_TYPE)GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space);
 
     // b28d-solo-CTitleBook（P0/P183）：ORIG 0x086420b6 把 GetInvenSlot 的 sret
     // 直构进 invenItem 槽（-0x8d）——「先声明后赋值」会多发一次 Inven_Item::C1Ev
@@ -705,8 +704,7 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
     {
         return 2;
     }
-    if (!inven->delete_item((INVEN_TYPE)invenType, slot, 1,
-                            eItemDelReason_0x2b, true))
+    if (!inven->delete_item(invenType, slot, 1, eItemDelReason_0x2b, true))
     {
         return 2;
     }
@@ -859,6 +857,7 @@ bool CTitleBook::_checkMovetoInven(ENUM_TITLE_BOOK_CATEGORY category,
     // b28d-solo-CTitleBook（P96/P270 + P157 反向）：ORIG 0x08641c52 用非 const
     // map::find（`findERS7_` 无 K）⇒ it 为 iterator；且 `(*it).second` 缓存到具名
     // 局部 -0xc（ptEv + `add $0x4`）后复用，operator[] 为 const 版（ixEj 的 K 版）。
+    // b28d-solo-CTitleBook 本波复核：TU clean 口径 AE/IDENTICAL（near/diff 无本件）。
     std::map<int, std::vector<stTitleElement> >::iterator it =
         ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.find(
             (int)category);

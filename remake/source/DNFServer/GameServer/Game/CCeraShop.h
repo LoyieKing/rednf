@@ -79,9 +79,11 @@ public:
     bool _CheckBuyingCondition(CUser* user, const CCeraShopGoods* goods,
                                unsigned int param3, unsigned char param4,
                                unsigned short param5, char param6, int& outCode);  // 0x08324810
-    int checkBuyingCondition(CUser* user, unsigned int a, unsigned long itemIdx,
-                             unsigned int b, unsigned short c, unsigned char d,
-                             unsigned short e);                                 // 0x08323f2a
+    // b28d-solo-CCeraShop_Special(P292/P159)：ORIG 0x08323f2a 尾为 `call _CheckBuyingCondition;
+    // leave; ret`（无 movzbl 零扩展）⇒ 返回类型与 callee 同为 bool（mangled 不含返回类型）。
+    bool checkBuyingCondition(CUser* user, unsigned int a, unsigned long itemIdx,
+                              unsigned int b, unsigned short c, unsigned char d,
+                              unsigned short e);                                // 0x08323f2a
     // 六参重载（ORIG mangled jmjtht；实现在 CCeraShop_Special.cpp）。
     // b28d-solo-CCeraShop_Special(P292/P9)：ORIG 0x08324810 goods 委托调用点
     // `call; mov %al,-0x21(%ebp)`（直接存 al、无 test/setne 归一）⇒ 返回 bool。

@@ -106,12 +106,15 @@ CDeathTower::CPlayData::stRewardItem_t::stRewardItem_t()
 }
 
 // 其余标量 ORIG 不初始化；仅 m_rewards[4] 调 stRewardItem_t C1（0x82a7538）。
+// [b28d-solo-CDeathTower] P216 throw() 实测净负（CDeathTower::C1 53→29 insn，
+// ORIG 45：4.4 判 nothrow 后连 CPlayData::C1 call 一起折叠）⇒ 回退，N91 封顶。
 CDeathTower::CPlayData::CPlayData()
 {
 }
 
 // ORIG 0x82a7572：push ebp/mov esp,ebp/pop ebp/ret —— 空函数（Inven_Item 平凡
 // 析构，编译器不发清理代码，与 ORIG 完全一致）。
+// [b28d-solo-CDeathTower] P216 throw() 对 D1 无改善（41 insn 不变）⇒ 回退。
 CDeathTower::CPlayData::~CPlayData()
 {
 }

@@ -390,7 +390,8 @@ private:
 class CExpertJobFactory
 {
 public:
-    CExpertJobFactory();
+    // [b28d-solo-GlobalData] P299/P318：ORIG C1/C2 为 W（隐式合成）⇒ 删用户空 ctor
+    // 声明恢复 CWG434 value-init 前置 rep stos（CExpertJobMgr::C1 0x0849e102 实证）。
     ~CExpertJobFactory();
     StaticPool<CEnchanter, 300> m_enchanterPool;    // +0x00
     StaticPool<CDisjointer, 600> m_disjointerPool;  // +0x30

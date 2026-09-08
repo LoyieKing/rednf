@@ -525,13 +525,12 @@ bool CAssaultPlace::_IsBroadcastRunaway(CUser* user)
 // 广播逃跑公告（ServerParameter 的 notice 模板 + 双方角色名）。
 void CAssaultPlace::_BroadcastRunaway(CUser* user, int index)
 {
-    // b28d-solo-CAssaultMgr: N 封顶（N18a/N82 附）— ORIG 103 vs ours 106 条，两处
-    // 结构性差异：①ORIG 把 len 复用 msg 对象内 padding 槽（len@-0x11c=msg+0xe）
-    // ⇒ buf@-0x52a（mod4=2，对齐剥离先 2 字节）；4.4 标量分区（len@-0x1f）使
-    // buf@-0x52d（mod4=1，先 1 字节，+2 条）；②ORIG 三处双零扩展
-    //（`movzbl mem,%eax; movzbl %al,%eax`×2 + `movzwl`），4.4 对局部 uchar 恒单次
-    //（探针 /tmp/probe_zext{,2}.cpp：全局 uchar 双扩展、局部 uchar 单扩展）。
-    // 语义等价（len/len2 值域 0..0xff/0x10e）。
+    // b28d-solo-CAssaultMgr: **AE（归零）** — S174 曾判 NEAR（槽基平移 4B）。
+    // 真因：ORIG 的 len/len2 不是独立局部，而是 **msg 成员** —— 其槽位
+    // -0x11c/-0x128 恰为 msg+0xe/+0x2（msg this=-0x12a、sizeof 0x10e）；
+    // 写 `msg.m_len`/`msg.packetSize` 后局部集与 ORIG 一致，`char pad1[1]`
+    // 死局部（P312 旧代偿）随之删除，buf 自然落 -0x52a（mod4=2）复现 ORIG
+    // 对齐剥离慢路。orig 102 = ours 102，p167 CLEAR。
     char buf[0x400] = {0};
     // b28d-L3：ORIG 0x82eab7a 段把 name→%esi、curName→%ebx 跨 notice 求值
     // 保活、三值均无槽往返（P0）⇒ 三具名局部内联为 sprintf 实参（变参右到左
@@ -543,12 +542,12 @@ void CAssaultPlace::_BroadcastRunaway(CUser* user, int index)
 
     Packet_Broadcast_Msg msg;
     msg.m_padA = 0;
-    unsigned char len = static_cast<unsigned char>(strlen(buf));
+    // ORIG 0x82eac41/0x82eac9e 直写 msg+0xe/+0x2 ⇒ 原码即成员赋值（见上）。
+    msg.m_len = static_cast<char>(strlen(buf));
     memset(msg.m_text, 0, 0xff);
-    strncpy(msg.m_text, buf, len);
-    unsigned short len2 =
-        static_cast<unsigned short>(len + 0xf);
-    int packetSize = len2;
+    strncpy(msg.m_text, buf, (unsigned char)msg.m_len);
+    msg.packetSize = static_cast<short>((unsigned char)msg.m_len + 0xf);
+    int packetSize = (unsigned short)msg.packetSize;
     GlobalData::s_monitor_proxy_mgr->GetServerProxy(
         user->GetServerGroup())
         ->SendPacket(reinterpret_cast<char*>(&msg), packetSize);
@@ -638,9 +637,17 @@ int CAssaultPlace::_SendCloseAssault(CUser* user, int tick)
 // merge」族）。其余残余：帧 0x80 vs 0x70 + 全槽平移（N82/P112）、尾多 1 条
 // `jmp <epilogue>` 岛边（跨版本 nop;jmp 岛/jump-threading 族）、`add $0x70` vs
 // `sub $0xffffff80` 文本形差。语义完成、byte 层 N 封顶。
-// b28d-solo-CAssaultMgr: N 封顶（§6.2 三件套复核）— P167 calls 63 vs 64，
-// MISSING=0、EXTRA 仅 1×_Unwind_Resume（N104 EH 块序/merge 族）；gap=2（453 vs
-// 455）；残差全为 N82 帧/槽平移 + N104 尾块序，无语义缺口。
+// b28d-solo-CAssaultMgr: N 封顶（§6.2 三件套，S174+本轮复验）— P167 calls 63 vs
+// 64，MISSING=0、EXTRA 仅 1×_Unwind_Resume（N104 EH 块序/merge 族）；残差全为
+// N82 帧/槽平移（帧 0x80 vs 0x70 = N115 outgoing 预留 0x10，PacketGuard 槽
+// -0x30/-0x24 互换 = N93 互斥块槽方向）+ N104 EH 尾块序 + N121 尾岛。
+// 本轮两处**语义/结构修正**（原形为真语义反向 + 缺条件）：
+// ①82eb07a 收尾链 = `user != 0 && (!IsPowerWarEventOn() || vill != 7)` 嵌套
+//   `m_state <= 3 && index∈{0,1}`（旧德摩根形缺 user 项且把 m_state 并入外层链）；
+// ②82eb1b0 段 `call _CheckPlayable; xor$1; test; je <epilogue>` 是 4.1 对
+//   **`if (!_CheckPlayable()) { 剩余全部 }`** 的形（旧写 `if (!_CheckPlayable())
+//   return;` 早返 + 后续平铺，条件方向与块边界均与 ORIG 不符，且 4.4 产 jne 反跳）。
+// ndiff 126→103（语义修正后）。
 // ============================================================================
 void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
 {
@@ -713,17 +720,26 @@ void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
     if (user != 0)
     {
         // 非 PowerWar（或非村庄7）且状态<=3 且索引 0/1：双方队伍置 7 后关闭。
-        bool nonPowerWar = !GlobalData::s_power_manager->IsPowerWarEventOn() ||
-                           user->getCurCharacVill() != 7;
-        if (nonPowerWar && m_state <= 3 && (index == 0 || index == 1))
+        // b28d-solo: ORIG 82eb1xx 段为短路链直接 test（无 bool 槽）⇒ P0 内联。
+        // b28d-solo-CAssaultMgr: ORIG 0x82eb07a 段短路物化形
+        //（`cmpl user; je F; IsPowerWarEventOn; xor$1; test; jne T; vill; cmp$7;
+        //   je F; T: mov$1; F: mov$0; test; je`）⇒ 源形 `user != 0 &&
+        //（!IsPowerWarEventOn() || vill != 7)` 嵌套 `m_state <= 3 &&
+        //（index==0||index==1)`（旧形缺 user 项且 m_state 并入外层链）。
+        if (user != 0 &&
+            (!GlobalData::s_power_manager->IsPowerWarEventOn() ||
+             user->getCurCharacVill() != 7))
         {
-            if (m_parties[0].m_field00 != 0)
-                ((CParty*)m_parties[0].m_field00)->SetAssaultState(7);
-            if (m_parties[1].m_field00 != 0)
-                ((CParty*)m_parties[1].m_field00)->SetAssaultState(7);
-            m_state = 7;
-            CloseAssault();
-            return;
+            if (m_state <= 3 && (index == 0 || index == 1))
+            {
+                if (m_parties[0].m_field00 != 0)
+                    ((CParty*)m_parties[0].m_field00)->SetAssaultState(7);
+                if (m_parties[1].m_field00 != 0)
+                    ((CParty*)m_parties[1].m_field00)->SetAssaultState(7);
+                m_state = 7;
+                CloseAssault();
+                return;
+            }
         }
         // 82eb13a：m_field100==0 → 同样置 7 后关闭。
         if (m_field100 == 0)
@@ -736,51 +752,60 @@ void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
             CloseAssault();
             return;
         }
-        // 82eb1b0：m_field100!=0 且场景可玩时，PowerWar 村庄7 且状态∈(3,4]
-        // 走 guild 点数/连击清理；随后统一置 6 结束。
+        // b28d-solo-CAssaultMgr: ORIG 0x82eb1b0 段 `call _CheckPlayable; xor$1;
+        // test; je <epilogue>` = 4.1 对 `if (!_CheckPlayable()) { 剩余全部 }` 的形
+        //（je 跳过整个 if 体到 epilogue）；单语句 `if (...) return;` 4.4 产 `jne`
+        // 反向跳（旧早返形同此）。其后条件链为两段：链①`IsPowerWarEventOn() &&
+        // user!=0 && vill==7` 物化后 test，链②`m_state > 3 && m_state <= 4` 为
+        // 嵌套 if（非并入链①）。
         if (!_CheckPlayable())
-            return;
-        if (GlobalData::s_power_manager->IsPowerWarEventOn() &&
-            user->getCurCharacVill() == 7 && m_state > 3 && m_state <= 4)
         {
-            int winCnt = 0;
-            int loseCnt = 0;
-            int aliveCnt = 0;
-            if (_CheckPowerWarInPlayer(
-                    (ENUM_POWER_SIDE_TYPE)user->getPowerSide(),
-                    (ENUM_POWER_WAR_WINNER_OR_LOSER)2, winCnt, loseCnt,
-                    aliveCnt))
+            if (GlobalData::s_power_manager->IsPowerWarEventOn() &&
+                user != 0 &&
+                user->getCurCharacVill() == 7)
             {
-                _SendPowerWarPointToGuildServer(
-                    user, (ENUM_POWER_WAR_WINNER_OR_LOSER)2, winCnt, loseCnt,
-                    aliveCnt);
-            }
-            CParty* party = (CParty*)user->GetParty();
-            if (party != 0)
-                party->resetStraightVictories();
-            else
-                user->resetStraightVictories();
-            for (int i = 0; i <= 7; ++i)
-            {
-                // ORIG 82eb2e6：`call Empty; test %al; jne <loop-inc>` 正向
-                // 判定（P22/P59：写 !Empty() 会 xor$1 物化多 1 条）。
-                if (m_assaulters[i].Empty())
-                    continue;
-                CUser* slotUser = m_assaulters[i].GetUser();
-                if (slotUser->getPowerSide() != user->getPowerSide())
+                if (m_state > 3 && m_state <= 4)
                 {
-                    _SendStraightVictories(slotUser);
-                    break;
+                    int winCnt = 0;
+                    int loseCnt = 0;
+                    int aliveCnt = 0;
+                    if (_CheckPowerWarInPlayer(
+                            (ENUM_POWER_SIDE_TYPE)user->getPowerSide(),
+                            (ENUM_POWER_WAR_WINNER_OR_LOSER)2, winCnt, loseCnt,
+                            aliveCnt))
+                    {
+                        _SendPowerWarPointToGuildServer(
+                            user, (ENUM_POWER_WAR_WINNER_OR_LOSER)2, winCnt,
+                            loseCnt, aliveCnt);
+                    }
+                    CParty* party = (CParty*)user->GetParty();
+                    if (party != 0)
+                        party->resetStraightVictories();
+                    else
+                        user->resetStraightVictories();
+                    for (int i = 0; i <= 7; ++i)
+                    {
+                        // ORIG 82eb2e6：`call Empty; test %al; jne <loop-inc>` 正向
+                        // 判定（P22/P59：写 !Empty() 会 xor$1 物化多 1 条）。
+                        if (m_assaulters[i].Empty())
+                            continue;
+                        CUser* slotUser = m_assaulters[i].GetUser();
+                        if (slotUser->getPowerSide() != user->getPowerSide())
+                        {
+                            _SendStraightVictories(slotUser);
+                            break;
+                        }
+                    }
                 }
             }
+            // 82eb349：双方队伍置 6 后结束。
+            if (m_parties[0].m_field00 != 0)
+                ((CParty*)m_parties[0].m_field00)->SetAssaultState(6);
+            if (m_parties[1].m_field00 != 0)
+                ((CParty*)m_parties[1].m_field00)->SetAssaultState(6);
+            m_state = 6;
+            EndAssault();
         }
-        // 82eb349：双方队伍置 6 后结束。
-        if (m_parties[0].m_field00 != 0)
-            ((CParty*)m_parties[0].m_field00)->SetAssaultState(6);
-        if (m_parties[1].m_field00 != 0)
-            ((CParty*)m_parties[1].m_field00)->SetAssaultState(6);
-        m_state = 6;
-        EndAssault();
     }
 }
 
@@ -1139,14 +1164,17 @@ bool CStaticDisposition::MoveUser(CForcedMoveCharacter* fm)  // ORIG 0x82e65ee
 // fresh .o 复验 our=154/orig=158，调用点差集仅 C1/C2 同名差，语义等价。
 CStaticDisposition::CStaticDisposition(CUser** users, int* counts) // ORIG 0x82e62aa
 {
-    // b28d-solo-CAssaultMgr: N 封顶（P30/N94/P205 族）— 唯一实质残差是
-    // ASSAULT_RECT_PLAYER_POINT[idx].m_y 的地址折叠：ORIG 0x82e63d4 段
-    // `shl $2,%edx; lea (%edx,%eax,1),%eax; add %eax,%eax; add $1,%eax;
-    // mov TABLE(,%eax,4)`（7 条，(idx*2+1)*4），4.4 恒折 `shl $3; add; mov
-    // 0x4(,%eax,8)`（4 条）。探针 /tmp/probe_arr{,2,3}.cpp：int 引用视图
-    // （a2）产 `mov $TABLE,%eax` 基址形且指令序不同、二维 int 数组（b1）产
-    // `add %eax,%eax; add $1` 但 add-vs-lea 与 ORIG 不齐（P30 定性）。
-    // m_x 段（idx*8 直接）两侧一致；其余仅重定位/地址显示与尾 nop 豁免。
+    // b28d-solo-CAssaultMgr: N 封顶（P30/N94/N86b 族，S174+本轮复验）— 用
+    // `reinterpret_cast<const int (&)[16]>(ASSAULT_RECT_PLAYER_POINT)[idx*2+1]`
+    // 数组引用视图复现 ORIG m_y 的 `add %eax,%eax; add $1,%eax` 链与 scaled
+    // `mov (,%eax,4)`（gap 4→1）。残差 = 2 处 add-vs-lea（ORIG
+    // `mov k,%eax; lea (%edx,%eax,1),%eax` vs 4.4 `shl; add k_mem,%eax`，P30/N86b
+    // 源形不可择）+ 1 条基址载入 `mov $TABLE,%eax`（引用 cast 恒载基址）。
+    // 本轮穷举并回退的替代形：①union 双视角（Point2d 有用户 ctor，C++98 union
+    // 成员不得有构造函数，编译拒绝）；②指针 cast `((const int*)TABLE)[i]`
+    // （our 157→159 更差）；③独立 int[16] 表（可消基址载入但 .rodata 重复
+    // 0x40B 且两处符号地址不同，AE 归一化仍不等，回退）。
+    // 语义等价（int[16] 视图与 Point2d[8] 同布局；idx*2+1 即 .m_y）。
     m_iconPos.m_x = ASSAULT_RECT_ICON_POINT.m_x;
     m_iconPos.m_y = ASSAULT_RECT_ICON_POINT.m_y;
     for (int j = 0; j <= 1; ++j)
@@ -1156,8 +1184,9 @@ CStaticDisposition::CStaticDisposition(CUser** users, int* counts) // ORIG 0x82e
         // p 在 -0x30，独立于末端 origin(-0x28)，故两处各自命名。
         for (int k = 0; counts[j] > k && k <= 3; ++k)
         {
-            Point2d p(ASSAULT_RECT_PLAYER_POINT[j * 4 + k].m_x,
-                      ASSAULT_RECT_PLAYER_POINT[j * 4 + k].m_y);
+            Point2d p(ASSAULT_RECT_PLAYER_POINT[k + j * 4].m_x,
+                      reinterpret_cast<const int (&)[16]>(
+                          ASSAULT_RECT_PLAYER_POINT)[(k + j * 4) * 2 + 1]);
             m_mats[j].AddPoint(p);
         }
     }
@@ -1184,11 +1213,10 @@ bool CDynamicDisposition::SetVirtualMap(std::vector<MapArea>* areas) // ORIG 0x8
 
 CDynamicDisposition::CDynamicDisposition(CUser** users, int* counts) // ORIG 0x82e6032
 {
-    // b28d-solo-CAssaultMgr: N 封顶（N87 跨版本 16 位移位 lowering）— 修后
-    // ORIG 165 = ours 165 条，唯一残差 2× `shr %ax`（ORIG）vs `sar %eax`（4.4）：
-    // ORIG 在 unsigned short 宽度做逻辑右移（`shr %ax; movzwl %ax,%eax`），
-    // 4.4 恒提升 int 后算术右移（探针 /tmp/probe_shr.cpp 五形：含 uint 化 f5 仅得
-    // 32 位 `shr %edx`，无 `shr %ax`）。值域 0..0xffff 正数，sar/shr 语义等价。
+    // b28d-solo-CAssaultMgr: ORIG `shr %ax` 是 4.1 对 **unsigned short 除以 2**
+    // 的 16 位无符号除法降级（探针 /tmp/shr_probe.cpp f6 `g_b = g_a / 2;` 逐条
+    // 同形 `movzwl g_a,%eax; shr %ax`）；写 `>> 1` 会被整型提升成 32 位 `sar %eax`
+    //（N87）。值域 0..0xffff，`/2` 与 `>>1` 语义等价。
     // 另两处已修：m_users 循环拷贝（+5）、m_matrices 拆具名成员消数组构造循环+EH。
     // b28d-solo-CAssaultMgr: ORIG 0x82e6055 段用循环拷贝 m_users
     //（`movl $0,-0xc; jmp cond; ...; addl $1,-0xc; cmpl $1; setle; test; jne`），
@@ -1196,9 +1224,9 @@ CDynamicDisposition::CDynamicDisposition(CUser** users, int* counts) // ORIG 0x8
     for (int i = 0; i <= 1; ++i)
         m_users[i] = users[i];
     m_anchor.m_x = (unsigned short)m_users[0]->get_posX()
-                 + ((unsigned short)m_users[1]->get_posX() >> 1);
+                 + ((unsigned short)m_users[1]->get_posX() / 2);
     m_anchor.m_y = (unsigned short)m_users[0]->get_posY()
-                 + ((unsigned short)m_users[1]->get_posY() >> 1);
+                 + ((unsigned short)m_users[1]->get_posY() / 2);
     // ORIG 82e6101..82e6208：每个 MakeCandidatePoint 各自构造 Point2d（P48 去缓存）。
     // b28d-solo-CAssaultMgr 真语义 bug 修正：ORIG 0x82e6189 段 m_matrices[0] 的
     // a=&(-0x24)=Point2d(users[0])、b=&(-0x2c)=Point2d(users[1])（原码实参序
@@ -1464,6 +1492,11 @@ void CAssaultPlace::_DelUser(int index, bool flag)
 // state 5/6 时两队下发 SetAssaultState(7)、置 state=7 并 CloseAssault()。
 void CAssaultPlace::TimeoutCloseAssault()
 {
+    // b28d-solo-CAssaultMgr: N 封顶（N18a，S174 复验）— gap=1、ndiff=3。唯一残差
+    // 为 ORIG 082ea21a `mov 0x10c(%eax),%eax; mov %eax,%ebx`（m_state 载入后
+    // eax→ebx 中转）vs 4.4 恒折 `mov 0x10c(%eax),%ebx`。P248 三档旋钮全试：
+    // 探针 /tmp/probe_enum_field.cpp（int/enum 字段同形）、/tmp/probe_ret.cpp
+    //（unsigned/int 返回类型同形）4.4 均无该中转 ⇒ 源形不可造，语义等价。
     // b28d-solo-CAssaultMgr: ORIG 0x082ea188 先把 8 个 GetCharacName 实参求值
     // （-0x40..-0x2c 槽 + edi/esi），**之后**才 ctor cMyTrace（+0x30 段）⇒ 原码是
     // 全表达式临时链（P227/P37），具名对象恒 ctor 先于实参求值（DIFF 主因）。
@@ -1539,20 +1572,27 @@ void CAssaultMgr::FreeAssaultPlace(int id, CAssaultPlace* place)
 // ORIG T 0x82e9ad6 size 0x52d：关场主流程 —— 全员按 PowerWar/普通分支
 // 发关闭包并回补体力，广播状态与图标， ghost 记录，定时两队重载，
 // 清场后归还池。
-// b28d-solo-CAssaultMgr: N 封顶（§6.2 三件套）— P167 calls 60 vs 60 **CLEAR**
-// （本波修 3 处：①PartyInfo::Get 非发明符号——ORIG nm W 0x82f060a 真实存在，
-// 旧「发明 wrapper」判词作废，改头声明+外联定义恢复 2 个 call 点（P119）；
-// ②0x082e9c63 SetAssaultPlace 前重取 m_assaulters[i].GetUser()（P183 反向）。
-// 残 374 vs 391 = N82 帧/槽平移（我方多 bool 栈化 `mov %al,-N; cmpb $0,-N`
-// 与 slotUser 槽装载 vs ORIG callee-saved 接力）+ N76，无语义缺口。
+// b28d-solo-CAssaultMgr: N 封顶（§6.2 三件套，S174 复验）— P167 calls 60 vs 60
+// **CLEAR**；gap -15→-3（372 vs 375）、ndiff 593→35。本轮修复：
+// ①4 个 bool 局部（powerWarVill/gainChaosKill/powerWar/reloadParty）内联为
+//   短路条件（ORIG 无 bool 槽、我方 cmpb×4 全消）；②ghost 分支改正极性
+//   `if (IsCurCharacGhost())`（ORIG 082e9bd6 正极性，消 xor$1）；
+// ③P191 双初始化：`int i=0` 函数头声明、两循环复用（对齐 ORIG 082e9ade 双
+//   初始化 + 两处 `movl $0,-0x28`）；④now/chaos/level/sps 内联（ORIG 无槽往返，
+//   P0）；⑤stamina 内联（ORIG `movzbl %al,%edx` 直传）。
+// 残差仅 N18b 比较操作数序（ORIG `cmp %edx,%eax`）、N121 尾 jmp 岛 ×2、
+// N104 EH 块相对序（ORIG cleanup 居中 vs 我方居末），无语义缺口。
 void CAssaultPlace::CloseAssault()
 {
-    // b28d-L3: DIFF/N82 — ORIG 0x082e... 372 vs 383
+    // b28d-solo: ORIG 0x082e9ade/0x082e9ae5 头部双初始化 `movl $0,-0x28;
+    // movl $0,-0x24` + 两循环各再 `movl $0,-0x28` ⇒ P191 双初始化形：
+    // i 在函数头声明并初始化，两处 for 复用（`for (i=0;…)`）。
+    int i = 0;
     int lastVill = 0;
     if (m_field100 <= 0)
         return;
 
-    for (int i = 0; i < 8; ++i)
+    for (i = 0; i < 8; ++i)
     {
         if (m_assaulters[i].Empty())
             continue;
@@ -1560,10 +1600,8 @@ void CAssaultPlace::CloseAssault()
         if (slotUser == 0)
             continue;
 
-        bool powerWarVill =
-            GlobalData::s_power_manager->IsPowerWarEventOn()
-            && slotUser->getCurCharacVill() == 7;
-        if (powerWarVill)
+        if (GlobalData::s_power_manager->IsPowerWarEventOn()
+            && slotUser->getCurCharacVill() == 7)
         {
             if (!m_assaulters[i].IsPowerWarWinner())
                 ForcedMoveAtPowerWarPlace(slotUser);
@@ -1574,18 +1612,20 @@ void CAssaultPlace::CloseAssault()
         {
             if (slotUser->getCurCharacR() != 0)
             {
-                if (slotUser->IsCurCharacGhost() == 0)
+                // b28d-solo: ORIG 082e9bd6 正极性 `test %al; je <非ghost>`
+                // ⇒ 源码为 `if (IsCurCharacGhost())`（ghost 分支直落）。
+                if (slotUser->IsCurCharacGhost())
                 {
-                    unsigned char stamina =
-                        (unsigned char)_SendCloseAssault(
-                            slotUser, m_assaulters[i].GetHp());
-                    slotUser->setCurCharacStamina(stamina);
+                    // b28d-solo: ORIG 082e9bf9 `movzbl %al,%edx` 无 stamina 槽
+                    //（P0 内联右值；具名 uchar 局部恒多 store+load 两条）。
+                    slotUser->setCurCharacStamina(
+                        (unsigned char)_SendCloseAssault(slotUser, 100));
                 }
                 else
                 {
-                    unsigned char stamina =
-                        (unsigned char)_SendCloseAssault(slotUser, 100);
-                    slotUser->setCurCharacStamina(stamina);
+                    slotUser->setCurCharacStamina(
+                        (unsigned char)_SendCloseAssault(
+                            slotUser, m_assaulters[i].GetHp()));
                 }
             }
         }
@@ -1601,20 +1641,19 @@ void CAssaultPlace::CloseAssault()
                 slotUser->setPowerWarHP(0x1e);
         }
 
-        bool gainChaosKill =
-            m_assaulters[i].GetTeam() == m_winTeam
+        if (m_assaulters[i].GetTeam() == m_winTeam
             && !GlobalData::s_power_manager->IsPowerWarEventOn()
-            && slotUser->getCurCharacVill() != 7;
-        if (gainChaosKill)
+            && slotUser->getCurCharacVill() != 7)
         {
-            int now = GlobalData::s_systemTime_.getCurSec();
-            slotUser->SetCurCharacChaosKillTime(now);
+            // b28d-solo: ORIG 082e9d07 无 now 槽（`call getCurSec` 结果直压实参）
+            // ⇒ P0 内联右值。
+            slotUser->SetCurCharacChaosKillTime(
+                GlobalData::s_systemTime_.getCurSec());
         }
 
         int ghostTime = 0;
-        bool powerWar = GlobalData::s_power_manager->IsPowerWarEventOn()
-                        || slotUser->getCurCharacVill() == 7;
-        if (powerWar)
+        if (GlobalData::s_power_manager->IsPowerWarEventOn()
+            || slotUser->getCurCharacVill() == 7)
         {
             float penalty =
                 GlobalData::s_power_manager->GetPowerWarResponPenalty(slotUser);
@@ -1624,14 +1663,16 @@ void CAssaultPlace::CloseAssault()
         }
         else
         {
-            int chaos = slotUser->GetCurCharacChaosPoint();
-            int level = slotUser->get_charac_level();
-            ServerParameterScript* sps =
-                &G_CDataManager()->m_serverParameter;   // §4.3 具名化（+0x68）
-            ghostTime = sps->getAssaultGhostTime(level, chaos);
+            // b28d-solo: ORIG 082e9d90 段把 chaos→%esi、level→%ebx 跨调用保活
+            // 且无槽往返（P0/P52）⇒ 两实参内联，sps 亦内联为成员访问（+0x68）。
+            ghostTime = G_CDataManager()->m_serverParameter.getAssaultGhostTime(
+                slotUser->get_charac_level(),
+                slotUser->GetCurCharacChaosPoint());
         }
 
-        if (slotUser->IsCurCharacGhost() != 0 && ghostTime != 0)
+        // b28d-solo: ORIG 082e9dcb `test %al,%al; je` 直落循环尾（bool 正极性，
+        // 短路两守卫同落点）⇒ 去掉 `!= 0` 以免 4.4 生成块尾 jmp 中继。
+        if (slotUser->IsCurCharacGhost() && ghostTime != 0)
         {
             int now = GlobalData::s_systemTime_.getCurSec();
             slotUser->SetCurCharacChaosDieTime(now);
@@ -1646,9 +1687,7 @@ void CAssaultPlace::CloseAssault()
     _MakeViewAssaultIconPlayer(&packet, false);
     _SendPacketToArea(packet);
 
-    bool reloadParty =
-        GlobalData::s_power_manager->IsPowerWarEventOn() && lastVill == 7;
-    if (reloadParty)
+    if (GlobalData::s_power_manager->IsPowerWarEventOn() && lastVill == 7)
     {
         // b28d-solo-CAssaultMgr: ORIG 0x082e9f01/0x082e9f4e 两处 `call
         // PartyInfo::Get` 后 `mov %eax,-0x10/-0xc; cmpl $0,-...`（具名 party
@@ -1669,7 +1708,7 @@ void CAssaultPlace::CloseAssault()
         }
     }
 
-    for (int i = 0; i < 8; ++i)
+    for (i = 0; i < 8; ++i)
     {
         if (m_assaulters[i].Empty())
             continue;

@@ -85,13 +85,14 @@
 int CUser::change_equip_expand(int space, int slot, int dstSpace,
                                int dstSlot, int* outSlot)
 {
-    // b28d-solo-CUserDepsB: N 封顶（P209+P63 族），语义/结构全还原——P17/P208
-    // 外层 switch(space)（ORIG 0x0865f382 `mov 0xc(%ebp),%eax; cmp $3; je;
-    // cmp $0x12; je; test; je; jmp default`）+ case 0 内层 switch(dstSpace)
-    // （ORIG 0x0865f42a）+ ret 提为函数级共用 -0x18 槽 ⇒ 帧 0x38 与 ORIG 全等、
-    // 189 vs 187。残差：①P209 形参比较形（ORIG `mov 0x14(%ebp),%eax; test;
-    // jne` 载寄存器 vs 4.4 `cmpl $0,mem`，unsigned cast 无效、形参类型不可改
-    // mangled）；②P63 各 return 的 mov$1/jmp 中继块落点差。ORIG 0x0865f382。
+    // b28d-solo-CUserDepsB: AE（189=189，本轮由 DIFF 翻正）——三条本轮定案：
+    // ①P46 叶块排放序 = case **书写**顺序 ⇒ 外层 switch 必须写 3 → 0 → 0x12
+    //   （原写 3 → 0x12 → 0，0x12 体整段前移 37 行；决策链 3/0x12/0 与书写序无关）；
+    // ②P286 单 case switch 复现 `mov 0x14(%ebp),%eax; test %eax,%eax; jne`
+    //   （if 形 4.4 恒折 `cmpl $0,mem`；两处 dstSpace 守卫均改
+    //   `switch(dstSpace){case 0:{主体} default:return 1;}`）；
+    // ③内层 default 直接 `return 1;` 复现 ORIG 0x0865f57e 独立出口。
+    // P17/P208 外层/内层 switch 决策链 + ret 提为函数级 -0x18 槽照旧。ORIG 0x0865f382。
     int ret;                               // ORIG 各 case 共用 -0x18 槽（无初值）
     switch (space)
     {
@@ -99,36 +100,26 @@ int CUser::change_equip_expand(int space, int slot, int dstSpace,
     {
         if (slot <= 9 || slot > 0x15)      // cmpl $0x9 jle / cmpl $0x15 jle
             return 1;
-        if (static_cast<unsigned int>(dstSpace) != 0)   // ORIG 0x0865f3bc
-                                           // `mov 0x14(%ebp),%eax; test %eax,%eax;
-                                           // jne`（P209：unsigned 比较恒载寄存器）
+        // P286：ORIG 0x0865f3bc 是 `mov 0x14(%ebp),%eax; test %eax,%eax; jne`
+        // （形参载入+寄存器比较）；if 形在 4.4 恒折 `cmpl $0,mem` ⇒ 单 case
+        // switch 复现载入形。
+        switch (dstSpace)
+        {
+        case 0:
+        {
+            if (CheckInTrade())            // W 0x080da2fe
+                return 0x13;
+            // call 0x0865eed2：arg1=dstSpace(0x14(%ebp))、arg2=(short)dstSlot(cwtl)、
+            // arg3=slot(0x10(%ebp))。
+            ret = change_equip(dstSpace, static_cast<short>(dstSlot), slot);
+            if (ret != 0)
+                return ret;
+            *outSlot = slot;               // mov 0x18(%ebp) → *0x1c(%ebp)
+            return 0;
+        }
+        default:
             return 1;
-        if (CheckInTrade())                // W 0x080da2fe
-            return 0x13;
-        // call 0x0865eed2：arg1=dstSpace(0x14(%ebp))、arg2=(short)dstSlot(cwtl)、
-        // arg3=slot(0x10(%ebp))。
-        ret = change_equip(dstSpace, static_cast<short>(dstSlot), slot);
-        if (ret != 0)
-            return ret;
-        *outSlot = slot;                   // mov 0x18(%ebp) → *0x1c(%ebp)
-        return 0;
-    }
-    case 0x12:
-    {
-        if (static_cast<unsigned int>(dstSpace) != 0)
-            return 1;
-        if (CheckInTrade())
-            return 0x13;
-        // GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9)：W 0x080dd584，
-        // 字面量 9 由 movl $0x9 压栈。
-        CExpandEquipslot* expand =
-            GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE_9);
-        // call 0x08499a48：(expand, this, p3, p4, p1, p2)。
-        ret = expand->Change_Equip(this, dstSpace, dstSlot, space, slot);
-        if (ret != 0)
-            return ret;
-        *outSlot = dstSlot;
-        return 0;
+        }
     }
     case 0:
     {
@@ -171,9 +162,35 @@ int CUser::change_equip_expand(int space, int slot, int dstSpace,
             return 0;
         }
         default:
-            break;
+            return 1;      // ORIG 0x0865f57e 独立出口（mov$1;jmp epilogue）
         }
-        return 1;
+    }
+    // ORIG 叶块排放序 = 3 → 0 → 0x12（P46：叶块顺序 = case 书写顺序；决策链
+    // 顺序 3/0x12/0 与书写序无关）。原把 0x12 写在 0 前 ⇒ 0x12 体整段前移 37 行。
+    case 0x12:
+    {
+        // 同 case 3：P286 单 case switch 复现 `mov 0x14(%ebp),%eax; test;
+        // jne`（ORIG 0x0865f4e8 段）。
+        switch (dstSpace)
+        {
+        case 0:
+        {
+            if (CheckInTrade())
+                return 0x13;
+            // GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9)：W 0x080dd584，
+            // 字面量 9 由 movl $0x9 压栈。
+            CExpandEquipslot* expand =
+                GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE_9);
+            // call 0x08499a48：(expand, this, p3, p4, p1, p2)。
+            ret = expand->Change_Equip(this, dstSpace, dstSlot, space, slot);
+            if (ret != 0)
+                return ret;
+            *outSlot = dstSlot;
+            return 0;
+        }
+        default:
+            return 1;
+        }
     }
     default:
         break;
@@ -193,6 +210,9 @@ void CUser::eventDeliveryBuyItem(int deliveryType, const Inven_Item& item)
     // 42=42 指令全等）；残差 N7：第 3/第 2 实参 callee-saved 角色互换（ORIG
     // serverGroup→%esi、characNo→%ebx；4.4 →%ebx、%esi），探针同构形给 ORIG 分配、
     // 本 TU 因可见 GetServerGroupToPvP 定义而反转，源形不可择。ORIG 0x0866463c。
+    // [S191 本轮复验] p167 CLEAR（6/6）；42=42 仅两处 `mov %eax,%esi/%ebx` 与
+    // 对应压栈寄存器互换（P248② 反例族）。试形：cast/具名中间量/求值序均不可翻
+    // ⇒ N7 封顶（助记符序列全等，仅 callee-saved 角色）。ORIG 0x0866463c。
     BuyItemDeliveryMsg msg;                        // lea -0x20(%ebp) ctor
     msg.setBaseData(2, get_acc_id(), getCurCharacNo(),
                     GetServerGroupToPvP());        // W 0x086978ec
@@ -217,7 +237,12 @@ void CUser::_processLevelReward(unsigned int level, unsigned int characNo,
     // ①N95 局部槽基差 4（4.4 槽基自 ebp-8 起 vs ORIG ebp-4，全帧标量 -0x2c vs
     // -0x28 统一平移）；②P63 return 中继岛 6 vs 4（拆 if/合并 || 两形实测不变）；
     // ③P231 register 形（%ebx 跨 G_CDataManager 保活，复现 ORIG push %ebx +
-    // `mov SLOT,%ebx`）较内联实参形多占 1 槽（168→171 条）。ORIG 0x0868745e。
+    // `mov SLOT,%ebx`）较内联实参形多占 1 槽（168→171 条）。
+    // [S191 本轮复验] 160(ORIG) vs 164：opcode 对齐后 = N95 全帧平移 4（mgr -0x28
+    // vs -0x2c，job spill 槽 -0x18c 两侧同址、帧同 0x1c4 ⇒ 4.1 槽基顶到 ebp 的
+    // N95 固有差）+ N7（strlen 结果 ORIG 留 %ebx，4.4 落 -0x10 槽往返，P226
+    // 语句表达式形实测无效）+ P63（return 中继岛 5 vs 4）。p167 CLEAR（20/20）。
+    // ORIG 0x0868745e。
     CLevelRewardTableMgr* mgr = CLevelRewardTableMgr::GetInstance();
     CLevelRewardTable* table = 0;                  // local_28 初值 0
     if (!mgr->IsOn())   // P292 档①：IsOn 已按调用点 xor 形改 bool 返回（P9 直返形
@@ -295,8 +320,12 @@ void CUser::_postQuestTriggerItem(const Quest* quest)
     // `call empty; test; je <非空分支>`，空列表分支在前（原 `if(!empty)` 反向）；
     // ②P23/P44 实参内联右到左求值（ORIG edi=GetServerGroup、-0xb8=size、
     // esi=body.c_str、ebx=getCurCharacNo、title.c_str 即时），去 5 个具名槽；
-    // ③去 items 引用局部（ORIG 每处重读 quest->m_mailItems）。204 vs 202，
-    // 归一化后余差仅 .o 重定位占位与 1 处 `++it` 落点（P63 岛族）。ORIG 0x086689ee。
+    // ③去 items 引用局部（ORIG 每处重读 quest->m_mailItems）。
+    // [S191 本轮定案] ④第二对元素读完后才 `++it`（循环尾公共块，ORIG 0x08668cce）
+    // ——原写在 `int count = *it;` 后致 ppEv 落点前移 3 条。修正后 203(ORIG) vs
+    // 202，唯一残差 = ORIG else 路径末尾 `jmp +0x2e0` 跳过 1 条对齐 nop 的中继
+    // （4.1 循环回边目标对齐；N112：-falign-loops/-fno-align-jumps 实测无效，
+    // 4.4 不生成）⇒ N112/N121 封顶。p167 CLEAR（30/30）。ORIG 0x086689ee。
     if (quest->m_mailItems.empty())
     {
         Inven_Item mailItem;                       // 空列表单封默认道具邮件
@@ -315,7 +344,6 @@ void CUser::_postQuestTriggerItem(const Quest* quest)
             int itemNo = *it;
             ++it;
             int count = *it;
-            ++it;
             Inven_Item mailItem;                   // local_aa 每对新建
             if (itemNo == 0 && count > 0)
             {
@@ -342,6 +370,9 @@ void CUser::_postQuestTriggerItem(const Quest* quest)
                         GetServerGroup(), 0, 0);
                 }
             }
+            // ORIG 0x08668cce 段：第二对元素处理完后才 `++it`（循环尾公共块），
+            // 非紧跟 `int count = *it;`（P28 增量侧：位置决定 ppEv 落点）。
+            ++it;
         }
     }
 }
@@ -355,11 +386,17 @@ void CUser::_postQuestTriggerItem(const Quest* quest)
 // 经 cUserHistoryLog::SendMail 落日志。
 void CUser::processLevelUpEventReward(bool growupFlag)
 {
-    // b28d-solo-CUserDepsB: N 封顶（N82/N7 族），语义闭合——①P23/P200 key 构造
-    // 实参内联（grow→%esi/job→%ebx/level→%eax，去三槽）；②P214③ `char body[256]={0}`
-    // 复现 ORIG 0x086640c0 rep stos 内联清零（memset 恒 call）。残差：帧 0x30c vs
-    // 0x2fc（0x10）+ 虚调目标寄存器（ORIG %edx vs 4.4 %eax，N7）+ 迭代器/vector
-    // 访问槽序。ORIG 0x08663cc0。
+    // b28d-solo-CUserDepsB: 语义闭合（本轮 256→246，p167 归零）——①P23/P200 key
+    // 构造实参内联（grow→%esi/job→%ebx/level→%eax，去三槽）；②P214③
+    // `char body[256]={0}` 复现 ORIG 0x086640c0 rep stos 内联清零（memset 恒 call）；
+    // ③[本轮] P167 调用点差集归零：`(*it)` 具名引用局部（ORIG 0x08663e92 deEv 存
+    // -0x1c 槽）+ `G_CDataManager()->m_itemList` 成员直读（原 getItemList() 多 1 call）；
+    // ④[本轮] P0 四值实参内联（serverGroup/bodyLen/characNo/mailTitle 原各占 4 槽，
+    // 致全帧 +0x10；ORIG 走 %esi/%edi/%ebx/%eax 无槽）⇒ 帧 0x2fc 与 ORIG 全等；
+    // ⑤[本轮] history 写入用 packed 内层 struct 视图复现常量 disp 直存
+    // （`mov %eax,-0x289(%ebp)`；裸 `*(int*)(history+0x39)` 恒 lea+add）。
+    // 残差唯一：`lea 0x79700(%eax),%edx`(ORIG) vs `add $0x79700,%edx`(4.4) ——
+    // N107（成员常量偏移取址，6 形探针全产 add）⇒ 封顶。ORIG 0x08663cc0。
     CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x5d);
     if (event->IsEventing(0) != true)              // vtable+0x34（槽 13）==1 继续
         return;
@@ -388,29 +425,51 @@ void CUser::processLevelUpEventReward(bool growupFlag)
     for (std::vector<LevelUpRewardItemData>::iterator it = rewards.begin();
          it != rewards.end(); ++it)
     {
+        // P167 新判据：ORIG 0x08663e92 调 `operator*`(deEv) 并把结果存 -0x1c 槽
+        // （P0 具名引用局部），随后两次字段读取均从该槽解引用；我方旧写
+        // `it->m_field0` 发 2 次 `operator->`(ptEv) ⇒ MISSING deEv/EXTRA ptEv。
+        LevelUpRewardItemData& data = *it;
         Inven_Item item;                           // local_81（ctor 0x080cb854）
-        item.m_addInfo = it->m_field0;             // -0x7b ← data.f0（create_item 前）
-        G_CDataManager()->getItemList()->create_item(
-            ENUM_ITEM_CREATE_TYPE_0, item, it->m_field4);  // T 0x08511fb8
-        ENUM_SERVER_GROUP serverGroup = GetServerGroup();
-        int bodyLen = static_cast<int>(strlen(body));
-        int characNo = getCurCharacNo();
-        const char* mailTitle = g_scriptStringManager_.findString(
-            4, "game_server_msg_187", (bool*)0);
+        item.m_addInfo = data.m_field0;            // -0x7b ← data.f0（create_item 前）
+        // ORIG 0x08663eb3 段：`call G_CDataManager; mov 0xc(%eax),%eax` 是**成员直读**
+        // （CDataManager+0xc = m_itemList），非 getItemList() 调用（P167 EXTRA）。
+        G_CDataManager()->m_itemList->create_item(
+            ENUM_ITEM_CREATE_TYPE_0, item, data.m_field4);  // T 0x08511fb8
+        // P0：ORIG 0x08663ed6..0x08663f64 四值全走 callee-saved 直传（serverGroup
+        // →%esi、bodyLen→%edi、characNo→%ebx、mailTitle→%eax 末位），无任何栈槽
+        // ⇒ 原码是实参内联右到左求值（具名局部各占 4 槽并致全帧 +0x10）。
         if (WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-                mailTitle, item, 0, characNo, body, bodyLen, 0, serverGroup,
+                g_scriptStringManager_.findString(4, "game_server_msg_187",
+                                                  (bool*)0),
+                item, 0, getCurCharacNo(), body,
+                static_cast<int>(strlen(body)), 0, GetServerGroup(),
                 0, 0) == 0)
         {
-            char history[0x145];                   // local_2c6 缓冲
-            memset(history, 0, sizeof(history));
-            strncpy(history + 0x11,
+            // local_2c6 缓冲；ORIG 0x08663fd5 两处写入是常量 disp 直存
+            // （`mov -0x7b(%ebp),%eax; mov %eax,-0x289(%ebp)`），裸指针
+            // `*(int*)(history+0x39)` 在 4.4 恒 lea+add+store ⇒ 用 union 具名
+            // 视图（m_itemId39@+0x39 / m_extra3d@+0x3d）折叠为同一 disp 形。
+            union
+            {
+                char raw[0x145];
+                struct
+                {
+                    char m_pad39[0x39];
+                    int m_itemId;              // +0x39
+                    int m_extra;               // +0x3d
+                    char m_tail[0x145 - 0x41];
+                } __attribute__((packed)) fields;   // 内层 packed：sizeof 0x145
+            } history;                         // ORIG 基址 -0x2c2（对齐 1）
+            memset(history.raw, 0, sizeof(history.raw));
+            strncpy(history.raw + 0x11,
                     g_scriptStringManager_.findString(4, "game_server_msg_187",
                                                       (bool*)0),
                     0x14);
-            *(reinterpret_cast<int*>(history + 0x39)) = item.m_addInfo;
-            *(reinterpret_cast<int*>(history + 0x3d)) = item.m_addInfo2;
-            m_historyLog.SendMail(reinterpret_cast<MSG_MAILBOX_SEND*>(history),
-                                  0);              // T 0x086847ea
+            history.fields.m_itemId = item.m_addInfo;
+            history.fields.m_extra = item.m_addInfo2;
+            m_historyLog.SendMail(
+                reinterpret_cast<MSG_MAILBOX_SEND*>(history.raw),
+                0);                                // T 0x086847ea
         }
     }
 }
@@ -561,6 +620,12 @@ int CLevelRewardTable::GetRewardItemNo(int jobIdx, int levelIdx)
     // add lv(mem),%edx`。本轮 20 形探针（/tmp/b28d_s47/probe_idx{,2,3,4,5}.cpp：
     // 操作数序/unsigned/enum/register 形参/指针下标/语句表达式）无一命中，
     // 11=11 仅寄存器与装载序差。ORIG 0x086976f6。
+    // [S191 合规复核] 书写序 = levelIdx + jobIdx*0x46（ORIG 0x086976f6
+    // `mov 0xc(%ebp),%ecx; mov 0x10(%ebp),%edx; imul $0x46,%ecx,%ecx;
+    // lea (%ecx,%edx,1),%edx` 两操作数均在寄存器）。
+    // [S191 本轮复验] 再试 4 形（交换书写序 / 双 unsigned cast / 单 cast ×2）
+    // 均 11=11 且恒 `add mem` 或 `mov mem,%eax; add %eax,%edx`，出不了 ORIG 的
+    // 预载 + `lea (%ecx,%edx,1)` ⇒ N4/N102（4.4 折 add）封顶。
     return m_rewardPrimary[jobIdx * 0x46 + levelIdx];
 }
 
@@ -572,6 +637,8 @@ int CLevelRewardTable::GetItemCount(int jobIdx, int levelIdx)
     // $0x46,%ecx,%ecx; lea (%ecx,%edx,1),%edx; add $0x2bc,%edx`；4.4 恒折
     // add mem 形。本轮 20 形探针（/tmp/b28d_s47/probe_idx*.cpp）无一命中，
     // 11=11 仅寄存器/装载序差。ORIG 0x08697712。
+    // [S191 合规复核] 同上：ORIG 0x08697712 同形（add $0x2bc 之后 scaled 读）。
+    // [S191 本轮复验] 同 GetRewardItemNo：4 形实测均 11=11 不可翻 ⇒ N4/N102 封顶。
     return m_rewardSecondary[jobIdx * 0x46 + levelIdx];
 }
 
@@ -689,7 +756,8 @@ bool LevelupSupportEventManger::CheckNewStep(int level)
 // state=1 并 DB 上报；末尾按 CheckNewStep 发送状态包（level 或 0）。
 void LevelupSupportEventManger::UpdateEventInfo(CUser* user)
 {
-    // b28d-solo-CUserDepsB: AE——①P214① 正极性包裹 `if(A||B){主流程}` 复现
+    // b28d-solo-CUserDepsB: NEAR（114=114，助记符序列全等）——①P214① 正极性
+    // 包裹 `if(A||B){主流程}` 复现
     // ORIG 0x081471ec 的 mov$1/mov$0 短路物化 + 0x0814721d `test;je 尾`
     // （具名 bool pass 恒槽化 movb/-0x19；语句表达式/register 两形实测均劣化）；
     // ②循环上界是**本类 m_events**（ORIG 0x08147248 `this+0x34`）而非
@@ -698,8 +766,11 @@ void LevelupSupportEventManger::UpdateEventInfo(CUser* user)
     // 为 (characNo, level)——W8LT_DBTask.cpp dispatch 读流序 characNo→level→state、
     // InterDispatcher.cpp:17832 / UserMiscLink.cpp:522 两调用点同序，ORIG
     // 0x081472f2 压栈 `$1, level, characNo, uid` 实证。114=114，残差仅
-    // N7/P75：uid/characNo 两实参装载时刻（ORIG 即时逐参载入 vs 4.4 先保活
-    // uid 于 %eax）。ORIG 0x081471c6。
+    // N7/P75：uid/characNo 两实参装载时刻（ORIG `mov -0x14,%eax`(characNo) 先、
+    // uid 后载；4.4 先保活 uid 于 %eax、characNo 走 %edx）。[S191 本轮复验]
+    // 删 cast / uid 局部改 int 两形实测：前者无变化、后者把 NEAR 打成 DIFF
+    // （movzwl %ax,%edx→%eax 破坏助记符序列）⇒ 维持 unsigned + 直传，N7/P75 封顶。
+    // ORIG 0x081471c6。
     int level = user->get_charac_level();
     // P214① 正极性包裹：复现 ORIG 0x081471ec 的短路物化岛（test/jne L_pass →
     // B 假落 mov$0）+ 0x0814721d `test %al,%al; je 函数尾`（主流程直落）。
@@ -719,7 +790,7 @@ void LevelupSupportEventManger::UpdateEventInfo(CUser* user)
             {
                 user->m_levelupEvents[i].m_state = 1;   // movw $0x1, 0x2
                 DB_SaveEventLevelupSupport::makeRequest(
-                    static_cast<int>(uid), characNo,
+                    uid, characNo,
                     static_cast<int>(user->m_levelupEvents[i].m_level), 1);
             }
         }
@@ -812,12 +883,17 @@ void LevelupSupport2ndEventManger::Process(CUser* user)
 void DB_SaveEventLevelupSupport::makeRequest(int accId, int characNo,
                                              int level, int state)
 {
+    // b28d-solo-CUserDepsB: AE（73=73，本轮由 NEAR 翻正）——ORIG 0x0844cc90/0x0844ccaa
+    // 第 3/4 次 `operator<<` 的实参槽是 0xc(%ebp)(characNo) 与 0x10(%ebp)(level)：
+    // 原代码按注释写的流序 `<< level; << characNo;` 与形参序相反（写流序实为
+    // accId→characNo→level→state），交换两句即与 ORIG 逐条全等。p167 CLEAR（16/16）。
+    // ORIG 0x0844cc2e。
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xc25a), true);
     **guard << 0x34f;
     **guard << accId;
-    **guard << level;
     **guard << characNo;
+    **guard << level;
     **guard << state;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }

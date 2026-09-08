@@ -115,9 +115,10 @@ void cUserHistoryLog::AvatarItemAdd(int itemIdx, int avatarUid, const char* agen
 // ORIG 0x8682e84：reason∈{1,2} 且交易中（m_traderCharac[0]!=0）→ 交易格式；
 // 否则常规格式（含 getItemXPos/YPos(m_user+0x79700) 网格坐标【推断】）。
 // 14 个 hex 字节 = item+0x25..0x32（ChronicleRandomOptionInfo 区）。
-// [b28d-solo-cUserHistoryLog] DIFF 372/370：已补两分支缺失的 item.m_field0 vararg（ORIG item+0
-// 字节，真缺口，P253 同族）；残差 N80（print ctor 前 op 实参 %ebx 保活）+ N82附（print/guid 槽向）
-// + N107（取址 add-vs-lea）+ N18a（charac edi 保活 vs 落槽）。
+// [b28d-solo-cUserHistoryLog] DIFF 372/372（p167 CLEAR 18=18）：P227 全表达式临时链翻案 N80
+// （两分支 print 均改 LogHistory 末实参 `Print()(arg)`）；残差 N107（4.4 add+mov vs ORIG lea）
+// + N82附（帧 sub $0x17c vs $0x16c、print 临时槽 -0x5a vs ORIG 具名 -0x2d）
+// + N102（m_traderCharac[0] add-vs-disp）。
 void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
                               const Inven_Item& item, eItemAddReason reason)
 {
@@ -126,9 +127,6 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
         if (m_traderCharac[0] != 0)
         {
             // ORIG：分支内构造 CItemGloballyUniqueIdentifierPrint，先渲染 GUID 串。
-            CItemGloballyUniqueIdentifierPrint print;
-            const char* guid = print(
-                *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
             unsigned int reseal = item.GetReSealCount();
             unsigned int upgrade = item.GetUpgrade();
             m_user->LogHistory(
@@ -141,15 +139,14 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
                 ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
                 ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
                 item.m_field0,
-                reseal, guid);
+                reseal,
+                CItemGloballyUniqueIdentifierPrint()(
+                    *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
         }
         // ORIG：getItemXPos/YPos(m_user + 0x79700)（history 子对象 +0x40/+0x42 网格坐标）。
         cUserHistoryLog* posSrc = &m_user->m_historyLog;
         unsigned short xPos = posSrc->getItemXPos();
         unsigned short yPos = posSrc->getItemYPos();
-        CItemGloballyUniqueIdentifierPrint print;
-        const char* guid = print(
-            *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
         unsigned int reseal = item.GetReSealCount();
         unsigned int upgrade = item.GetUpgrade();
         m_user->LogHistory(
@@ -164,14 +161,16 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
             ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
             ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
             item.m_field0,
-            reseal, guid);
+            reseal,
+            CItemGloballyUniqueIdentifierPrint()(
+                *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
     }
 }
 
 // ORIG 0x868340a：与 ItemAdd 对应的删除日志（无 XPos/YPos，11 个 %d）；
 // 尾部 reason==8 且 ITEM_TYPE==1 时补 "Compound-" 日志。
-// [b28d-solo-cUserHistoryLog] DIFF 410/412：已补两分支 item.m_field0 vararg；p167 调用点差集
-// CLEAR（22=22）；残差同 ItemAdd（N80+N82附+N107），+2 条为 upgrade 装载形差。
+// [b28d-solo-cUserHistoryLog] DIFF 414/410（p167 CLEAR 22=22）：P227 翻案 N80（两分支 print
+// 改末实参临时链）；残差 N107 + N82附（帧/槽向）+ N102（m_traderCharac[0]）。
 void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
                               const Inven_Item& item, eItemDelReason reason)
 {
@@ -180,9 +179,6 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
         if (m_traderCharac[0] != 0)
         {
             // ORIG：分支内构造 CItemGloballyUniqueIdentifierPrint，先渲染 GUID 串。
-            CItemGloballyUniqueIdentifierPrint print;
-            const char* guid = print(
-                *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
             unsigned int reseal = item.GetReSealCount();
             unsigned int upgrade = item.GetUpgrade();
             m_user->LogHistory(
@@ -195,14 +191,13 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
                 ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
                 ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
                 item.m_field0,
-                reseal, guid);
+                reseal,
+                CItemGloballyUniqueIdentifierPrint()(
+                    *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
         }
     }
     else
     {
-        CItemGloballyUniqueIdentifierPrint print;
-        const char* guid = print(
-            *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
         unsigned int reseal = item.GetReSealCount();
         unsigned int upgrade = item.GetUpgrade();
         m_user->LogHistory(
@@ -216,7 +211,9 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
             ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
             ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
             item.m_field0,
-            reseal, guid);
+            reseal,
+            CItemGloballyUniqueIdentifierPrint()(
+                *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
     }
 
     // Compound 补丁块（ORIG +0x543）：reason==8 && m_field1(ITEM_TYPE)==1。
@@ -577,9 +574,12 @@ void cUserHistoryLog::SkillSave(const _Mastered_skill* skills, unsigned int a, i
         if (n == 0)
             break;
 
+        // [b28d-solo] N107 维持：`&tmp[0x10]` 4.4 恒发 `lea -0x94; add $0x10` 两条
+        // （ORIG 单条 `lea -0x84(%ebp)`）；具名结构体视图（m_pre@+0/m_num@+0x10）
+        // 同形、拆两数组（tmp_pre/tmp_num）虽消 add 但槽位错为 -0x94/-0x7c
+        // （4.4 把两数组分置帧两端）⇒ 回退 char tmp[40]。
         char tmp[40];
         // ORIG 循环外无 tmp 清零（sprintf 自写终止符）；清零只在 k 循环内（4.1 内联 4 条 movl）。
-        // &tmp[0x10] 使 4.4 折叠单条 `lea -0x84(%ebp),%eax`（ORIG 形）；指针加法 tmp+0x10 恒 lea+add。
         sprintf(&tmp[0x10], "%d/%d/%d", a, n, b);
         strcat(buf, &tmp[0x10]);
 
@@ -944,15 +944,14 @@ void cUserHistoryLog::RemovePrivateStore(int zoneA, int zoneB, char const* name)
 // b28d-65 复核：去 (int)m_addInfo 冗余 cast 消 N18a 两段中转 ⇒ 165=165；
 //   残余仅 N80（ctor 前实参保活）+ N82附（print@-0x2d/guid@-0x80 槽向）+ N107
 //   （取址 add-vs-lea）三族，P226 语句表达式实测零收益 ⇒ 维持封顶。
-// [b28d-solo-cUserHistoryLog] DIFF 165/165：残差 N80（print ctor 前 op 实参 %ebx 保活）+
-// N82附（print@-0x2d/guid@-0x80 槽向）+ N107（取址 add-vs-lea）；P226 语句表达式实测零收益。
+// [b28d-solo-cUserHistoryLog] DIFF 166/165：P227 全表达式临时链（Print()(arg) 作末实参）
+// 翻案 N80+N82附——4.4 复现 ORIG 的 ctor 前实参保活与 print/guid 槽向；残差仅 N107：
+// 4.4 `add $0x15,%eax; mov %eax,%ebx` vs ORIG `lea 0x15(%eax),%ebx`（数组名退化/
+// 语句表达式/reinterpret_cast 三形实测同形；N107 六形探针封顶）。
 void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const& item,
                                           int addNew, int addOld, eItemAddReason reason,
                                           char const* name1, char const* name2)
 {
-    CItemGloballyUniqueIdentifierPrint print;
-    const char* guid = print(
-        *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
     m_user->LogHistory(
         "Item+,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
@@ -969,7 +968,8 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
         ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
         item.m_field0,            // ORIG IVar1 = *param_3（item+0x00 字节）
         item.GetReSealCount(),
-        guid);
+        CItemGloballyUniqueIdentifierPrint()(
+            *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
 }
 
 // ORIG T 0x868412a（报告全文）："Item-,..."——注意 %s 只有一个名字参数（param_8）。
@@ -977,14 +977,11 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
 // b28c-L2 fresh 复验 ndiff 13（orig 163/our 164）：封顶族与 PrivateStoreItemAdd 同
 //   （N80 具名 print ctor 前实参保活 + N82附 聚合/标量槽向 + N18a 单段直落），判词见上。
 // b28d-65 复核：去 (int)m_addInfo 冗余 cast ⇒ 163=163；残余同 Add（N80+N82附+N107）。
-// [b28d-solo-cUserHistoryLog] DIFF 163/163：封顶族同 PrivateStoreItemAdd（N80+N82附+N107）。
+// [b28d-solo-cUserHistoryLog] DIFF 164/163：P227 同 PrivateStoreItemAdd；残差仅 N107。
 void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const& item,
                                           int delNew, int delOld, eItemDelReason reason,
                                           char const* name1, char const* name2)
 {
-    CItemGloballyUniqueIdentifierPrint print;
-    const char* guid = print(
-        *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
     m_user->LogHistory(
         "Item-,%d,%d,%d,%d,%d,\"%s\",%d,%d,"
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
@@ -1001,7 +998,8 @@ void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const
         ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
         item.m_field0,            // ORIG IVar1 = *param_3（item+0x00 字节）
         item.GetReSealCount(),
-        guid);
+        CItemGloballyUniqueIdentifierPrint()(
+            *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
 }
 
 // ============================================================================
@@ -1229,15 +1227,17 @@ void cUserHistoryLog::EndRidable(eRidableType type, int a)
 // ORIG _ZN15cUserHistoryLog6ExpAddEii13eExpAddReasoni @0x08684bd0：
 //   仅当 reason>0xc 或 (1<<reason)&0x1892==0 时记录（排除常规来源）；
 //   日志第三参数与判断均用 reason（reasonIdx 未参与）。
-// [b28d-solo-cUserHistoryLog] DIFF 32/31：N6 封顶——4.4 前端恒折 (1u<<reason)&0x1892 为
-// (0x1892>>reason)&1（shr+and$1），ORIG 的 shl+and 不可造；局部阻断引入 store/load 反劣。
+// [b28d-solo-cUserHistoryLog] DIFF 32/31：N6 已翻案（见函数体内注——`(int)` cast 阻断
+// 4.4 的 bool 位测试折叠）；残差 N18a（reason 二次加载）+ N121（尾 jmp+nop 岛）。
 void cUserHistoryLog::ExpAdd(int exp, int sp, eExpAddReason reason, int reasonIdx)
 {
-    // N6: ORIG 4.1 `(1u<<reason)&0x1892`(shl;and 0x1892), 4.4 前端恒折为
-    // `(0x1892>>reason)&1`(shr;and 1)，语义等价；局部变量阻断会引入 store/load
-    // + 帧膨胀，历 N6 判据放弃。保留内联折叠形。
+    // [b28d-solo-cUserHistoryLog] N6 翻案：`(int)` cast 阻断 4.4 前端的 bool 位测试折叠
+    // （探针 /tmp/b28d_hl/probe_n6c.cpp k1：`(int)((1u<<r)&0x1892u)==0` 产 ORIG 的
+    // shl;and $0x1892;test，无 cast 的 k2..k8 恒折 shr;and $1）。31/32 残差：
+    //   N18a：ORIG 复用 cmp 的 %eax 作 shl 源，4.4 恒重载 `mov 0x14(%ebp),%eax`（+1 条）；
+    //   N121：ORIG if 体尾 `jmp+nop` 岛，4.4 jump-thread 不产（-2 条）。
     if ((0xc < (unsigned)reason) ||
-        (((1u << (unsigned int)reason) & 0x1892U) == 0))
+        (((int)((1u << reason) & 0x1892U)) == 0))
     {
         m_user->LogHistory("Exp+,%d,%d,%d", exp, sp, reason);
     }

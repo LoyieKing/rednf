@@ -429,6 +429,7 @@ int CmmChannelProxy::SendPacket(char* buf, int len)
 //   （0x081065ab，等价 `(unsigned)nread >> 31`）；errno 链 ==EAGAIN||==EINTR||
 //   ==EAGAIN||==0（0x081065bb-5e3 四次独立取址，11 出现两次为原码忠实转写）。
 // [b28d-18 N82] 残差=帧槽/寄存器（N82） | ORIG 0x0810645c
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（18/18）；残差=N82 槽位/寄存器 + N89 STL 展开。
 int CmmChannelProxy::RecvPacket()
 {
     // ORIG 0x0810651c `cmpl $0; jg body` + fall-through `mov $0;jmp end`——
@@ -546,8 +547,9 @@ bool CmmChannelProxy::SendCheckChannelScript()
     }
     // ORIG（0x08106870 段）：行缓冲为函数作用域 static（bss -0x4d4），循环带
     // 行首空白剥离 + '\n'/'#' 注释行跳行（linePos 跨行累计【实证：不随行重置】）。
-    for (std::fgets(s_version, 0x400, fp);   // cond1 弃用：ORIG 前置读+setne 形
-         std::fgets(s_version, 0x400, fp) != 0;)
+    // [b28d-solo-GlobalData] p167 EXTRA fgets×1：ORIG 仅 1 次 fgets（0x08106888
+    // 尾测 `test;setne;test;jne <body>` 旋转形）⇒ 单条件 while，删 init 弃用读。
+    while (std::fgets(s_version, 0x400, fp) != 0)
     {
         char* src = s_version;
         char* dst = src;
@@ -763,7 +765,7 @@ private:
         std::set<unsigned int> m_set;  // +0x104
     };  // 0x11c
     bool checkAllRentalItemScript();   // ORIG T 0x0826f022（本批实现）
-    int checkSelectionListScript(
+    bool checkSelectionListScript(
         const std::vector<std::vector<EventRewardItemInfo> >& list);         // T 0x0826f14e
     // 返回 bool：ORIG 调用处 0x0826f591 `xor $0x1,%eax; test %al,%al; je`
     // （P73/探针 v12：仅 bool 实参的 `!` 会折成 xor，int/char 为 test+sete）；
@@ -915,63 +917,6 @@ static void drawLine(GreyImage* img, int x1, int y1, int x2, int y2)
         {
             y += step;
             err += dx;
-        }
-    }
-}
-
-// ---- 字形渲染：A-Z 用内置 8x8 点阵；韩/日等码点用确定性伪字形。
-//      ORIG 走 FreeType 栅格化；本环境无 FreeType/字体文件，算法等价占位。----
-static void renderGlyph(unsigned short code, unsigned char* out, int& gw, int& gh)
-{
-    gw = 8;
-    gh = 8;
-    static const unsigned char font8x8[26][8] = {
-        {0x18,0x3c,0x66,0x7e,0x66,0x66,0x66,0x00},  // A
-        {0x7c,0x66,0x66,0x7c,0x66,0x66,0x7c,0x00},  // B
-        {0x3c,0x66,0x60,0x60,0x60,0x66,0x3c,0x00},  // C
-        {0x78,0x6c,0x66,0x66,0x66,0x6c,0x78,0x00},  // D
-        {0x7e,0x60,0x60,0x7c,0x60,0x60,0x7e,0x00},  // E
-        {0x7e,0x60,0x60,0x7c,0x60,0x60,0x60,0x00},  // F
-        {0x3c,0x66,0x60,0x6e,0x66,0x66,0x3e,0x00},  // G
-        {0x66,0x66,0x66,0x7e,0x66,0x66,0x66,0x00},  // H
-        {0x3c,0x18,0x18,0x18,0x18,0x18,0x3c,0x00},  // I
-        {0x1e,0x0c,0x0c,0x0c,0x0c,0x6c,0x38,0x00},  // J
-        {0x66,0x6c,0x78,0x70,0x78,0x6c,0x66,0x00},  // K
-        {0x60,0x60,0x60,0x60,0x60,0x60,0x7e,0x00},  // L
-        {0x63,0x77,0x7f,0x6b,0x63,0x63,0x63,0x00},  // M
-        {0x66,0x76,0x7e,0x7e,0x6e,0x66,0x66,0x00},  // N
-        {0x3c,0x66,0x66,0x66,0x66,0x66,0x3c,0x00},  // O
-        {0x7c,0x66,0x66,0x7c,0x60,0x60,0x60,0x00},  // P
-        {0x3c,0x66,0x66,0x66,0x66,0x6c,0x36,0x00},  // Q
-        {0x7c,0x66,0x66,0x7c,0x78,0x6c,0x66,0x00},  // R
-        {0x3c,0x66,0x60,0x3c,0x06,0x66,0x3c,0x00},  // S
-        {0x7e,0x18,0x18,0x18,0x18,0x18,0x18,0x00},  // T
-        {0x66,0x66,0x66,0x66,0x66,0x66,0x3c,0x00},  // U
-        {0x66,0x66,0x66,0x66,0x66,0x3c,0x18,0x00},  // V
-        {0x63,0x63,0x63,0x6b,0x7f,0x77,0x63,0x00},  // W
-        {0x66,0x66,0x3c,0x18,0x3c,0x66,0x66,0x00},  // X
-        {0x66,0x66,0x66,0x3c,0x18,0x18,0x18,0x00},  // Y
-        {0x7e,0x06,0x0c,0x18,0x30,0x60,0x7e,0x00}   // Z
-    };
-    if (code >= 'A' && code <= 'Z')
-    {
-        const unsigned char* g = font8x8[code - 'A'];
-        for (int r = 0; r < 8; ++r)
-        {
-            for (int c = 0; c < 8; ++c)
-            {
-                out[r * 8 + c] = (g[r] & (1 << (7 - c))) ? 0xff : 0;
-            }
-        }
-        return;
-    }
-    unsigned int seed = code * 2654435761u;
-    for (int r = 0; r < 8; ++r)
-    {
-        for (int c = 0; c < 8; ++c)
-        {
-            seed = seed * 1664525u + 1013904223u;
-            out[r * 8 + c] = ((seed >> 16) & 1) ? 0xff : 0;
         }
     }
 }
@@ -1271,6 +1216,79 @@ extern "C" int FT_Select_Charmap(void* face, unsigned long encoding)
     return 0;
 }
 
+// ---- generateImage 用 FreeType 结构视图与 API 占位 ----
+// [b28d-solo-GlobalData] 偏移实证：face+0x54=glyph（ORIG 0x080deff3
+// `mov 0x54(%eax),%eax`）、glyph+0x4c=bitmap（0x080df034 `add $0x4c,%eax`）、
+// FT_Bitmap{rows@0,width@4,pitch@8,buffer@0xc}（0x080df118/0x080df086/
+// 0x080df0b2/0x080df0ac）。仅建模用到的字段；函数体属静态链入第三方库，
+// 不参与 identical 目标（同既有 FT_* 占位豁免），符号名取自 ORIG nm。
+typedef long FT_Fixed;
+struct FT_Vector
+{
+    FT_Fixed x;   // +0x00
+    FT_Fixed y;   // +0x04
+};
+struct FT_Matrix
+{
+    FT_Fixed xx;  // +0x00
+    FT_Fixed xy;  // +0x04
+    FT_Fixed yx;  // +0x08
+    FT_Fixed yy;  // +0x0c
+};
+struct FT_Bitmap
+{
+    unsigned int rows;            // +0x00
+    unsigned int width;           // +0x04
+    int pitch;                    // +0x08
+    unsigned char* buffer;        // +0x0c
+    unsigned short num_grays;     // +0x10
+    unsigned char pixel_mode;     // +0x12
+    unsigned char palette_mode;   // +0x13
+    void* palette;                // +0x14
+};
+struct FT_GlyphSlotRec
+{
+    char m_pad00[0x4c];
+    FT_Bitmap bitmap;             // +0x4c
+};
+struct FT_FaceRec
+{
+    char m_pad00[0x54];
+    FT_GlyphSlotRec* glyph;       // +0x54
+};
+
+extern "C" int FT_Set_Transform(FT_FaceRec* face, FT_Matrix* matrix,
+                                FT_Vector* delta)
+{
+    (void)face;
+    (void)matrix;
+    (void)delta;
+    return 0;
+}
+
+extern "C" unsigned int FT_Get_Char_Index(FT_FaceRec* face, unsigned long charcode)
+{
+    (void)face;
+    (void)charcode;
+    return 0;
+}
+
+extern "C" int FT_Load_Glyph(FT_FaceRec* face, unsigned int glyph_index,
+                             int load_flags)
+{
+    (void)face;
+    (void)glyph_index;
+    (void)load_flags;
+    return 0;
+}
+
+extern "C" int FT_Render_Glyph(FT_GlyphSlotRec* slot, int render_mode)
+{
+    (void)slot;
+    (void)render_mode;
+    return 0;
+}
+
 CaptchaGen::CaptchaGen()
     : m_library(0)   // ORIG 0x080de697：m_library 清零先于 vector/XorRand 成员
                      // ctor —— mem-init（声明序）而非 body 赋值。
@@ -1286,6 +1304,8 @@ CaptchaGen::CaptchaGen()
 }
 
 // [b28d-18 N-EH] FreeType 占位定义同 TU 可见 ⇒ 4.4 判 nothrow 不布 landing（跨版本 EH 可见性，b28 已判） | ORIG 0x080de706
+// [b28d-solo-GlobalData] DIFF 封顶：p167 MISSING vector D1+_Unwind_Resume = N-EH（4.1 对外部
+// FreeType .so 不透明调用布 landing；本仓占位定义同 TU 可见 ⇒ 4.4 判 nothrow）。
 CaptchaGen::~CaptchaGen()
 {
     // ORIG 0x080de717：ix 实参先载 i 槽（int→unsigned 转换 ⇒ arg 先于 this，
@@ -1317,7 +1337,6 @@ bool CaptchaGen::addFont(const char* font, int size)
     // /tmp/tu_GlobalData.o fn_diff_tu 归一 0 差（48=48 逐条）。
     // 原转写以 fopen/fclose/malloc/strcpy 假实现替代真 FT 序列（违 §4.1），已改为
     // 忠实 ORIG；face 错误码 slot 落 -0xc 与 `cmpl $0,slot; je 成功` 逐指令对应。
-    void* toPush;     // ORIG local_14 @ -0x10（声明提前占浅槽；赋值仍在尾部）
     void* face;       // ORIG local_18 @ -0x14（FT_New_Face 出参，未初始化）
     int err = FT_New_Face(m_library, font, 0, &face);   // ORIG local_10 @ -0xc
     if (err != 0)
@@ -1334,10 +1353,11 @@ bool CaptchaGen::addFont(const char* font, int size)
     {
         return false;
     }
-    // ORIG +0x86..+0x8c：local_14 = local_18 显式拷贝（mov -0x14→-0x10）再
-    // push_back(&local_14) —— 两槽结构经具名拷贝复现，避免 4.4 copy-elision 合一槽。
-    toPush = face;         // ORIG local_14 @ -0x10
-    m_faces.push_back(toPush);
+    // [b28d-solo-GlobalData] P315/P234：ORIG 0x080de81a `mov -0x14,%eax; mov %eax,-0x10;
+    // lea -0x10,%eax; mov %eax,0x4(%esp)` 调 `push_back(OS0_)`（void*&& 右值重载）；
+    // 具名左值 toPush 选 RKS0_（p167 MISSING OS0_/EXTRA RKS0_）⇒ 写 `(void*)face`
+    // 产生 prvalue 临时（-0x10 拷贝槽）绑定右值引用。
+    m_faces.push_back((void*)face);
     return true;
 }
 
@@ -1378,6 +1398,11 @@ void CaptchaGen::generateText(CountryCode code, int len, unsigned short* out)
 }
 
 // [b28d-18 N82] 残差=槽位/STL（N82/N89） | ORIG 0x080deade
+// [b28d-solo-GlobalData] 语义缺口已闭合：p167 CLEAR（53/53，0 missing/0 extra）——补
+// FT_Set_Transform/FT_Get_Char_Index/FT_Load_Glyph/FT_Render_Glyph extern "C" 占位 +
+// FT_Matrix/FT_Vector/FT_Bitmap/FT_GlyphSlotRec/FT_FaceRec 视图，按 ORIG 0x080dee9x..
+// 0x080df120 还原 16.16 定点矩阵与 bitmap 遍历（std::min<int>）；发明符号 static
+// renderGlyph 已删。余 gap 3 = 槽号平移（N82/N95 族）。
 void CaptchaGen::generateImage(int width, int height, const unsigned short* text, int len,
                                const ImageOption& opt, GreyImage* image)
 {
@@ -1423,43 +1448,50 @@ void CaptchaGen::generateImage(int width, int height, const unsigned short* text
     for (int i = 0; i < len; ++i)
     {
         unsigned int faceIdx = m_rng() % m_faces.size();
-        (void)faceIdx;
-        // ORIG 0x08176xxx 段：调外部 RandGen::getFloat(&m_rng,…)（0x08ae02a4），
-        // 本 TU 原 CaptchaGen::getFloat 为发明符号（ORIG nm 无）⇒ 改用权威函数。
-        (void)RandGen::getFloat(&m_rng, opt.m_fieldc, opt.m_field10);   // 旋角
-        (void)RandGen::getFloat(&m_rng, opt.m_fieldc, opt.m_field10);
-        (void)RandGen::getFloat(&m_rng, opt.m_field14, opt.m_field18);  // 缩放
-        (void)RandGen::getFloat(&m_rng, opt.m_field14, opt.m_field18);
-        (void)(m_rng() & 2);                                   // 镜像位
-        (void)(m_rng() & 2);
-
-        unsigned char glyph[8 * 8];
-        int gw = 8;
-        int gh = 8;
-        renderGlyph(text[i], glyph, gw, gh);
+        // [b28d-solo-GlobalData] 按 ORIG 0x080dee9x..0x080df120 段还原真实
+        // FreeType 栅格化序列（旧 static renderGlyph 占位为发明符号，已删）：
+        // m_faces[idx] -> 4×getFloat(旋角/缩放) -> 2×镜像位 -> FT_Matrix 16.16
+        // 定点（65536.0f=_DAT_08b2cab0）-> FT_Set_Transform -> FT_Get_Char_Index
+        // -> FT_Load_Glyph -> FT_Render_Glyph(face->glyph,0) -> bitmap 遍历
+        // （std::min<int>(width, width-penX) + setAlphaAsMax）-> penX 推进。
+        FT_FaceRec* face = (FT_FaceRec*)m_faces[faceIdx];
+        float rotA = RandGen::getFloat(&m_rng, opt.m_fieldc, opt.m_field10);
+        float rotB = RandGen::getFloat(&m_rng, opt.m_fieldc, opt.m_field10);
+        float sclA = RandGen::getFloat(&m_rng, opt.m_field14, opt.m_field18);
+        float sclB = RandGen::getFloat(&m_rng, opt.m_field14, opt.m_field18);
+        float mirX = (m_rng() & 2) ? 1.0f : -1.0f;
+        float mirY = (m_rng() & 2) ? 1.0f : -1.0f;
+        FT_Matrix matrix;
+        matrix.xx = (FT_Fixed)(65536.0f * rotA);
+        matrix.xy = (FT_Fixed)(65536.0f * sclA * mirX);
+        matrix.yx = (FT_Fixed)(65536.0f * sclB * mirY);
+        matrix.yy = (FT_Fixed)(65536.0f * rotB);
+        FT_Set_Transform(face, &matrix, 0);
+        unsigned int glyphIndex = FT_Get_Char_Index(face, text[i]);
+        int err = FT_Load_Glyph(face, glyphIndex, 0);
+        err = FT_Render_Glyph(face->glyph, 0);
+        (void)err;
 
         int yOff = m_rng() % opt.m_field1c;
-        int cols = width - penX;
-        if (cols > gw)
-        {
-            cols = gw;
-        }
-        for (int row = 0; row < gh; ++row)
+        FT_Bitmap* bm = &face->glyph->bitmap;
+        for (int row = 0; row < (int)bm->rows; ++row)
         {
             int yy = penY + row + yOff;
-            if (yy < 0 || yy >= height)
+            if (yy > -1 && yy < height)
             {
-                continue;
-            }
-            for (int c = 0; c < cols; ++c)
-            {
-                if (glyph[row * gw + c] != 0)
+                int maxCols = width - penX;
+                int cols = std::min((int)bm->width, maxCols);
+                for (int c = 0; c < cols; ++c)
                 {
-                    image->setAlphaAsMax(penX + c, yy, glyph[row * gw + c]);
+                    unsigned char a = bm->buffer[bm->pitch * row + c];
+                    if (a != 0)
+                    {
+                        image->setAlphaAsMax(penX + c, yy, a);
+                    }
                 }
             }
         }
-        penX += (int)(opt.m_field20 * (float)gw);
+        penX += (int)(opt.m_field20 * (float)bm->width);
     }
 
     // 波形扭曲（ORIG 第四段：cos/sin 16.16 定点偏移 + 双线性采样）
@@ -1742,6 +1774,7 @@ int UdpThread::_bindUDPSocket(unsigned short port)
 // 未识别包按首字节分流（0 互斥数据 / 1 换装队列 / 2 忽略 / 3 拍卖停止）。
 // ---------------------------------------------------------------------------
 // [b28d-18 N82] p167 CLEAR（51/51）；残差=帧槽（N82） | ORIG 0x0857c5a4
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（51/51）；残差=N82 槽位/寄存器 + N89。
 void UdpThread::_processUDPData(char* data, int len)
 {
     // 跨服 UDP 包 = 10 字节 PacketHeader 线格式（shared/packet/include/PacketHeader.h）；
@@ -1816,6 +1849,7 @@ void UdpThread::_processUDPData(char* data, int len)
 // _processUDPData；循环条件 !GlobalData::s_server_stop（0x940bd64）。
 // ---------------------------------------------------------------------------
 // [b28d-18 N82] p167 CLEAR（8/8）；残差=帧槽（N82） | ORIG 0x0857c9de
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR；残差=N82 槽位/寄存器分配。
 void UdpThread::dispatch(void* arg)
 {
     (void)arg;
@@ -1869,6 +1903,7 @@ void UdpThread::dispatch(void* arg)
 // CUserPacketCounter 600s 周期落盘。pUserPacketCounter_ 指向本栈实例。
 // ---------------------------------------------------------------------------
 // [b28d-18 NEAR] 修：curSec/lastWriteSec 角色互换（ORIG 循环外初始化 curSec、循环内更新 lastWriteSec）；p167 CLEAR 53/53；余 N82 帧槽 | ORIG 0x0847e2d2
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（53/53）；gap 1=N82 帧伪影（勿强凑，P182）。
 void DispatchThread::dispatch(void* arg)
 {
     (void)arg;
@@ -1985,6 +2020,7 @@ void DispatchThread::dispatch(void* arg)
 // 发送缓冲过大 → DisConnSig(6)。
 // ---------------------------------------------------------------------------
 // [b28d-18 N82] p167 CLEAR（29/29）；残差=帧槽/寄存器（N82） | ORIG 0x0857d5be
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（29/29）；gap 5=N82 槽位/寄存器。
 void NetworkThread::dispatch(void* arg)
 {
     (void)arg;
@@ -2080,6 +2116,8 @@ AcceptThread::AcceptThread()
 // 第二次 IsIntegratedPvPBaseChannel 守卫包裹 auction/cera 段（ORIG 0x0857edb5
 // `xor $1; test; je 循环尾`——真语义缺口，整合 PvP 频道时跳过两段）。
 // 余 gap=+256/ndiff=1570 = 4.4 对 FD_ZERO/FD_SET 宏展开与帧槽布局差（N82/N89 族） | ORIG 0x0857d95a
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（无调用缺口）；our 1830 vs orig 1574 = N82 帧/槽
+// 复用策略 + N89 libstdc++ 全内联（ORIG out-of-line 实例）⇒ 语义完成，byte 层 N 封顶。
 void MonitorTcpThread::dispatch(void* arg)
 {
     (void)arg;
@@ -2654,6 +2692,7 @@ void MonitorTcpThread::dispatch(void* arg)
 // 负例表）。
 // ---------------------------------------------------------------------------
 // [b28d-18 N82] p167 CLEAR（93/93）；残差=帧槽/寄存器（N82） | ORIG 0x0857cc5a
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（p167 全等）；gap 7=N82 槽位/寄存器。
 void AcceptThread::dispatch(void* arg)
 {
     (void)arg;
@@ -2952,6 +2991,8 @@ bool CPCRoomServerProxy::Init()
 // varargs 而多保存 %edi（0x084719d6 `add $0x4c,%esp; pop %ebx/esi/edi`），
 // 4.4 帧 0x40/仅 %ebx ⇒ 块序与帧大小联动不可源码翻转。
 // [b28d-18 N7+N82] p167 CLEAR（8/8）；残差=callee-saved 数量（ORIG push edi/esi/ebx vs 我们 esi/ebx） | ORIG 0x084718e2
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（8/8）；N80（cMyTrace ctor 前右起 varargs 跨
+// ctor 保活 %edi/%esi/%ebx 不可翻——4.4 恒 ctor 后求值）+ N82 帧 0x4c vs 0x40。
 bool CPCRoomServerProxy::InitTcp()
 {
     if (m_ip.length() == 0 || m_tcpPort == 0)
@@ -3101,7 +3142,7 @@ WongWork::CGMAccounts::CGMAccounts()
 WongWork::CGMAccounts::~CGMAccounts()
 {
 }
-// [b28d-18 N89] 修：key={0} 预清两句式 + type/mid 写序（P202①）；余 STL find/end 展开差（N89） | ORIG 0x08109346
+// [b28d-solo-GlobalData] 修：P56+P293 单表达式 if-return（end 先/find 后 + 分支物化） | ORIG 0x08109346
 bool WongWork::CGMAccounts::isGM(unsigned int mid)
 {
     // ORIG 0x0810934c..0x08109364：key 先整体零初始化（两条 movl $0x0，
@@ -3109,9 +3150,15 @@ bool WongWork::CGMAccounts::isGM(unsigned int mid)
     WongWork::CGMAccounts::stGMInfo_t key = {0};   // POD 无用户 ctor（ORIG nm 无 C1）
     key.type = 3;
     key.mid = mid;
-    std::list<WongWork::CGMAccounts::stGMInfo_t>::iterator it =
-        std::find(m_gmList.begin(), m_gmList.end(), key);
-    return it != m_gmList.end();
+    // [b28d-solo-GlobalData] ORIG 0x081093a6：end() 先求值（-0x18）→ find（sret -0x14，
+    // 内联 last=第二次 end -0x10、first=begin -0xc）→ ne(this=find 结果, arg=end)；
+    // 尾 `test%al;je;mov$1;jmp;mov$0` 为 P56 分支物化（return 表达式直写会少 5 条）。
+    // 单表达式形复现 ORIG 求值序（P293：具名 it 形 4.4 恒 find 先/end 后）。
+    if (std::find(m_gmList.begin(), m_gmList.end(), key) != m_gmList.end())
+    {
+        return true;
+    }
+    return false;
 }
 int WongWork::CGMAccounts::removeGM(unsigned int mid, unsigned int param)
 {
@@ -3301,8 +3348,14 @@ void WongWork::CSimpleSSO::init(MySQL* mysql)
     {
         for (int col = 0; col < 24; ++col)
         {
-            CRijndael* r = &m_keys[row][col];
-            r->Initialize(strKeyTable_[row * 24 + col], 0x20, CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
+            // [b28d-solo-GlobalData] P183 去指针缓存：ORIG 0x0860283x 每次重发
+            // row/col 两级寻址直传 this；缓存 `CRijndael* r` 多 1 条且槽整体深 4
+            // （row/col -0x14/-0x10 vs ORIG -0x10/-0xc）。
+            // [b28d-solo-GlobalData] 索引加法序两形（row*24+col / col+row*24）实测 4.4
+            // 恒折 `add -0xc(%ebp),%eax` 内存版，ORIG 4.1 先 `mov col,%ecx` 寄存器版
+            // ⇒ P30/N4 add-vs-mem 封顶（余 1 条 + 槽深差 4）。
+            m_keys[row][col].Initialize(strKeyTable_[row * 24 + col], 0x20,
+                                        CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
         }
     }
 }
@@ -3526,6 +3579,8 @@ void ItemVendingMachine::ProcessIPG_ResultQuery(CUser* user,
 // ProcessIPG_ResultOutput —— ORIG 0x08178676（0x12a8 字节，报告全文转写）。
 // ----------------------------------------------------------------------------
 // [b28d-18 N82] 超大件：残差=槽位/STL（N82/N89） | ORIG 0x08178676
+// [b28d-solo-GlobalData] DIFF：p167 EXTRA memcpy×3/guard_abort×2/_Unwind_Resume×2/getItemList×2/
+// make_pair/logFormat/ne —— 我方多发调用（多余局部/临时），已定位待收敛（非发明符号）。
 void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
                                                  WongWork::IPG::SIPGData* reqData,
                                                  WongWork::IPG::SIPGData* resData,
@@ -3820,6 +3875,7 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
 // put_binary/入 DB 队列；PuUser 标志异常时补 DB_SavePuUserCheck。
 // ----------------------------------------------------------------------------
 // [b28d-18 N82] 残差=槽位/STL 展开（N82/N89） | ORIG 0x0817991e
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR；残差=N82 帧/槽 + N89 STL 展开。
 void ItemVendingMachine::BillingRecord(CUser* user, int a3, int a4, int a5,
                                        const char* itemName, const char* accName,
                                        int priceLabel, unsigned long long uid,
@@ -3987,6 +4043,7 @@ bool ItemVendingMachine::_CheckEnableStateCondition(const CCeraShopGoods*, CUser
 // ORIG 代码形态（Fix18_E 实证）：GetRelatedItem 两次调用、IsAvatarItem 前
 // 无判空、out 经 stAvatarTypeSelect_t::init() 清零、四字段各自下标访问。
 // [b28d-18 N82] 残差=槽位/寄存器分配（N82） | ORIG 0x08176794
+// [b28d-solo-GlobalData] DIFF 封顶：p167 逐调用同形；残差=N82 槽位/寄存器分配。
 bool ItemVendingMachine::_CheckEnableAvatarCondition(const CCeraShopGoods* goods,
                                                      char c, unsigned char uc,
                                                      stAvatarTypeSelect_t& out)
@@ -4050,6 +4107,8 @@ void ItemVendingMachine::_GetItemString(const CCeraShopGoods* goods, char* buf,
 // b28c-l23 SIGFIX：返回类型 int→bool（ORIG __PRETTY_FUNCTION__ 串 @0x08b87080，
 // P174；体内 return 仅 0/1 语义）。mangled 不含返回类型，符号与 ABI 零变。
 // [b28d-18 N82] 超大件：残差=槽位/STL（N82/N89） | ORIG 0x081769f6
+// [b28d-solo-GlobalData] DIFF：p167 EXTRA memset×7+memcpy×4 = N78（4.1 内联清零/块搬移 vs
+// 4.4 call）；大件三件套 gap 归 N82/N78，语义无缺口（MISSING 空）。
 bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 {
     if (user == 0)
@@ -4501,6 +4560,8 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
 // service==1：CPad 已激活→若已认证则 flag=1，否则将 msg 截 8 字节 AES 加密后
 // setFailCnt(0)+setPassword；任一分支生效则发送 0x159 通知包（service/flag）。
 // [b28d-18 N78] EXTRA memset×2：4.1 内联清零 vs 4.4 call（N78） | ORIG 0x08286e40
+// [b28d-solo-GlobalData] DIFF 封顶：p167 EXTRA memset×2 = N78（4.1 内联清零/4.4 call）；
+// MISSING 空 ⇒ 语义无缺口。
 void Secu_DataControl::UpdateSecurityServiceState(CUser* user, unsigned char service,
                                                   unsigned char flag, char* msg)
 {
@@ -4579,16 +4640,22 @@ bool CDBConnector::Connect(DBInfoMap infoMap)
 {
     // ORIG 0x080ec760：按值遍历连接表；idx==0/5 跳过；cMyTrace 记录
     // "Open(type:%2d, %s/%d/%s/%s)"（.rodata 0x8b356a4）；Open 失败即 false。
+    // [b28d-solo-GlobalData] p167 修：ORIG 全程逐字段重调 operator->（ptEv×7，
+    // P157/P183 禁 idx/info 缓存）；cMyTrace 为 5 参重载 `C1EPKciibb`
+    // （str, 0x4e, 9, true, true；旧 3 参形 MISSING 5 参 + EXTRA 3 参）。
+    // [b28d-solo-GlobalData N·Main 裁决] STDBConnInfo 偏移两函数证据冲突：本件
+    // ORIG 0x080ec760 段为 port@0x18/db@0x1c/user@0x46，而 QueryConnInfo
+    // 0x080eca6c `add $0x42,%edx` 与现布局 m_db@0x42 直证吻合 ⇒ 判定本件实参序/
+    // 字段名映射与我们不同（p167 CLEAR，语义等价），**维持 QueryConnInfo 直证
+    // 布局**，不重排 CEnvironment.h 的 STDBConnInfo（风险远超收益）⇒ N 封顶。
     for (DBInfoMap::iterator it = infoMap.begin(); it != infoMap.end(); ++it)
     {
-        ENUM_DB_HANDLE_IDX idx = it->first;
-        STDBConnInfo& info = it->second;
-        if (!(idx == 0 || idx == (ENUM_DB_HANDLE_IDX)5))
+        if (!(it->first == 0 || it->first == (ENUM_DB_HANDLE_IDX)5))
         {
-            cMyTrace t("CDBConnector::Connect", 0x4e, 1);
-            t("Open(type:%2d, %s/%d/%s/%s)", (int)idx, info.m_host,
-              (int)info.m_port, info.m_db, info.m_user);
-            if (!Open(idx, (ENUM_SERVER_GROUP)0, info))
+            cMyTrace t("CDBConnector::Connect", 0x4e, 9, true, true);
+            t("Open(type:%2d, %s/%d/%s/%s)", (int)it->first, it->second.m_host,
+              (int)it->second.m_port, it->second.m_db, it->second.m_user);
+            if (!Open(it->first, (ENUM_SERVER_GROUP)0, it->second))
             {
                 return false;
             }
@@ -4688,6 +4755,7 @@ bool CDBConnector::Open(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
 //       db_userid(0x15→m_user) / db_passwd（先清零 60 字节，0x3c→+0x2d 起）。
 // 密文经 CEnvironment::DecryptValue 解出（ORIG 解密结果未回写结构，仅校验）。
 // [b28d-18 N82] 残差=槽位/STL 展开（N82/N89） | ORIG 0x080eca6c
+// [b28d-solo-GlobalData] DIFF：p167 EXTRA memset×1（N78 内联清零）；余 N82 槽位/STL 展开。
 bool CDBConnector::QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
                                  DBInfoMap& outMap)
 {
@@ -4771,16 +4839,17 @@ bool CGM_Manager::LoadGmListFromDb()
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x1588, 0);
             t("Failed to get GM's m_id from DB.");
-            ok = false;
-            break;
+            // [b28d-solo-GlobalData] ORIG 0x0829962x 该分支为 `mov $0x0,%ebx;
+            // jmp <尾>`（直接物化返回寄存器）⇒ 原码是 `return false;` 而非
+            // ok=false;break（后者多写 -0x11 槽且尾部经 movzbl 重载）。
+            return false;
         }
         ok = m_db->get_int(1, level);
         if (!ok)
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x158e, 0);
             t("Failed to get GM's lv from DB.");
-            ok = false;
-            break;
+            return false;
         }
         m_gmMap[mId].m_level = level;
     }
@@ -4815,7 +4884,9 @@ void CLevelDungeonPlayStatistic::IncreaseLevelDungeonPlay(int level, int playCou
     // ORIG 0x0860ed0x：find 两实参装载序（-0x44 先入 0x4(%esp)、-0x30 后入
     // (%esp)）；P50 先声明后赋值实测反劣（4→11，多默认构造 call+拷贝）⇒ 回退。
     std::map<int, stDungeonPlayInfo>::iterator it = m_levelPlayMap.find(level);
-    if (it == m_levelPlayMap.end())
+    // [b28d-solo-GlobalData] P74 迭代器实参序旋钮：ORIG 0x0860ed51 先 `lea -0x44(it)`
+    // 入 0x4(%esp)、`lea -0x30(end)` 入 (%esp) ⇒ 原码是 `end() == it`（第一实参 end）。
+    if (m_levelPlayMap.end() == it)
     {
         stDungeonPlayInfo info;
         info.m_playCount = playCount;
@@ -4854,6 +4925,7 @@ break_away_prevent::CBreakAwayPreventSystem::~CBreakAwayPreventSystem()
 // value=+0x14..+0x24 五个 int（STRewardData）。key 已存在 → list push_back；
 // 否则新建 list 插入 map。同时维护 m_keys（5 项）。
 // [b28d-18 N82] p167 CLEAR（21/21）；ORIG 243 vs 203 条，残差=槽位/STL（N82/N89） | ORIG 0x0831c49e
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（21/21）；gap 40=N82 帧/槽 + 表初始化展开。
 void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
     SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER* data)
 {
@@ -4903,10 +4975,8 @@ void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
 }
 // （b28 试 P216 throw() 回滚：4.4 判 ctor pure 后连 call 一起消除，ORIG 有 call，
 //  得不偿失；CExpertJobMgr::C1 残差为 N77/P90 value-init 清零段。）
-expert_job::CExpertJobFactory::CExpertJobFactory()
-{
-    // ORIG 0x0849f68c：两个 StaticPool 成员构造。
-}
+// [b28d-solo-GlobalData] P299/P318：CExpertJobFactory 用户空 ctor 声明+定义已删
+// （ORIG 0x0849f68c 为 W 隐式合成）⇒ CExpertJobMgr::C1 恢复 value-init 前置 rep stos。
 expert_job::CExpertJobFactory::~CExpertJobFactory()
 {
     // ORIG 0x0849f6d2：两个 StaticPool 成员析构。
@@ -4981,8 +5051,10 @@ InstanceRentalSystem::~InstanceRentalSystem()
     for (std::map<int, IRentalMachine*>::iterator it = m_impl->m_machines.begin();
          it != m_impl->m_machines.end(); ++it)
     {
-        delete it->second;
-        it->second = 0;
+        // [b28d-solo-GlobalData] P167：ORIG 0x0827016x 发 `_ZNK...deEv`（operator*）
+        // 非 `ptEv` ⇒ 源码写 `(*it).second`（it->second 选错实例化，p167 MISSING deEv）。
+        delete (*it).second;
+        (*it).second = 0;
     }
 }
 void InstanceRentalSystem::registerRentalMachine(int idx, IRentalMachine* m)
@@ -5062,7 +5134,8 @@ IRentalMachine* InstanceRentalSystem::getMachine(int idx)
     {
         return 0;
     }
-    return it->second;
+    // [b28d-solo-GlobalData] P167：ORIG 发 deEv ⇒ `(*it).second`。
+    return (*it).second;
 }
 
 // Ready（ORIG T 0x082701dc）：遍历机器表；任一为空或其槽3 Ready() 返回非 1
@@ -5077,7 +5150,8 @@ bool InstanceRentalSystem::Ready()
         // ORIG 0x08270214：判空条件极性 `jne body` + fall-through `mov $0;jmp
         // end`（技巧 17：if(x==0) return false; 直落形）；`!Ready()` 独立 if
         // （ORIG 0x08270233 xor+test+je 续循环，非 || 短路合并形）。
-        IRentalMachine* machine = it->second;
+        // [b28d-solo-GlobalData] P167：ORIG 发 deEv ⇒ `(*it).second`。
+        IRentalMachine* machine = (*it).second;
         if (machine == 0)
         {
             return false;
@@ -5106,10 +5180,8 @@ int InstanceRentalSystem::Rent(CUser& user, const RentInput& input,
 
 CDailyScheduleManager::CDailyScheduleManager() {}
 CDailyScheduleManager::~CDailyScheduleManager() {}
-online_preliminary::CTeamFactory::CTeamFactory()
-{
-    // ORIG 0x08588e2e：StaticPool 成员构造（new CNode[600]）。
-}
+// [b28d-solo-GlobalData] P299/P318：CTeamFactory 用户空 ctor 声明+定义已删
+// （ORIG 0x08588e2e 为 W 隐式合成）⇒ COnlinePreliminaryTeamMgr::C1 恢复前置 rep stos。
 online_preliminary::CTeamFactory::~CTeamFactory()
 {
     // ORIG 0x08588e42：StaticPool 成员析构。
@@ -5127,7 +5199,9 @@ online_preliminary::COnlinePreliminaryTeamMgr::COnlinePreliminaryTeamMgr()
     // N77 定论（DL7 复测）：ORIG 0x0858867e rep stos $0xc dword（0x30 全清）
     // ＝ `new T()` value-init；4.4 CWG434 对 user-ctor 类不 emit（加括号
     // 实测仍无 rep stos）⇒ 连同 0x10 帧差与 ebx/esi/edi 缓存差 N77+N82附 封顶。
-    m_factory = new (std::nothrow) CTeamFactory;
+    // [b28d-solo-GlobalData] P299/P318：用户空 ctor 已删，此处补括号 value-init
+    // 即触发 4.4 前置 rep stos（ORIG 0x0858867e rep stos $0xc dword）。
+    m_factory = new (std::nothrow) CTeamFactory();
     if (m_factory == 0)
     {
         LogManager::logFormat(1, "OnlinePreliminaryTeam.cpp",
@@ -5232,6 +5306,7 @@ int CBusinessImpl::SendBuffertoClient(int a, int b, int c, unsigned int d,
 }
 
 // [b28d-18 N82] p167 CLEAR（12/12）；残差=槽位/寄存器分配 | ORIG 0x080de3ee
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR；残差=N82/N7 槽位与寄存器角色。
 void CBusinessImpl::PunishClient(int a, int b, unsigned int c, EPUNISHMODE mode,
                                  tagAntibotPunishInfo* info, char* reason)
 {
@@ -5345,6 +5420,7 @@ int StackableAction::Action::proc_bingo(input_param& p)
 }
 // [b28d-18 NEAR] 修：getCurCharacFatigue 两次独立调用（P48 无 CSE，p167 MISSING 实证）；
 // 调用差集 CLEAR 8/8；余槽位/寄存器（N82） | ORIG 0x0827fbd6
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR；残差=N82/N7 槽位与寄存器角色。
 int StackableAction::Action::proc_addFatigue(input_param& p)
 {
     // ORIG 0x0827fbd6：user/item 判空→0x13；item+0x3a0 的 vector<int> 取第 0 项
@@ -5400,6 +5476,9 @@ void StackableAction::Action::init_function_type()
 {
     // ORIG 0x0827f7c8：以 boost::bind 将 proc_* 成员注册进 map2（key 0x34/0x36/0x37）。
     // 与 ORIG 一致用 insert 方式（非 operator[]）。
+    // [b28d-solo-GlobalData] p167 EXTRA `boost::arg<1>::C1Ev`×3：本头集下
+    // `boost::_1` 不可用（COMPILE FAILED），保留 `arg<1>()` 构造形 ⇒ N（绑定库
+    // placeholder 构造跨版本差异）封顶。
     using boost::arg;
     m_map2.insert(std::make_pair(TYPE_BINGO,
         boost::bind(&Action::proc_bingo, this, arg<1>())));
@@ -5426,13 +5505,13 @@ expert_extraction::CExtraction::~CExtraction()
     // ORIG 0x084a2938：仅 delete m_rand（判空），不置零。
     delete m_rand;
 }
-expert_extraction::CAlchemistExtraction::CAlchemistExtraction() {}
+// [b28d-solo-GlobalData] P299/P318：三个子类用户空 ctor 声明+定义已删（ORIG C1/C2 均 W）
+// ⇒ CExtractionMgr::C1 的 `new T()` 恢复 value-init 前置双清零（ORIG 0x084a3047/0x084a308f）。
 expert_extraction::CAlchemistExtraction::~CAlchemistExtraction() {}
-expert_extraction::CEnchanterExtraction::CEnchanterExtraction() {}
 expert_extraction::CEnchanterExtraction::~CEnchanterExtraction() {}
-expert_extraction::CDollControllerExtraction::CDollControllerExtraction() {}
 expert_extraction::CDollControllerExtraction::~CDollControllerExtraction() {}
-// [b28d-18 N77] ORIG new T() value-init 前置双清零；4.4 折叠进 C1（N77/N83） | ORIG 0x084a302e
+// [b28d-solo-GlobalData] 归零 75=75 IDENTICAL：P299/P318 删三个子类用户空 ctor
+// （ORIG C1/C2 均 W）恢复 `new T()` value-init 前置双清零（旧 N77/N83 判词作废） | ORIG 0x084a302e
 expert_extraction::CExtractionMgr::CExtractionMgr()
 {
     // ORIG 0x084a302e：new 三个子提取器对象，依次存 +0/+4/+8。
@@ -5441,10 +5520,9 @@ expert_extraction::CExtractionMgr::CExtractionMgr()
     m_slots[0] = new CAlchemistExtraction();
     m_slots[1] = new CEnchanterExtraction();
     m_slots[2] = new CDollControllerExtraction();
-    // [N83 判词] ORIG 0x084a3047：value-init 双 movl 前清在 C1 前（4.1 前端
-    // 内联 placement）；4.4 恒 extern new+EH 块 + zero-init 折叠进 C1。
-    // 显式 operator new+placement new 探针（TU 实测 75→117）反劣：EH 残段
-    // 翻倍。源形不可择，语义等价，N 封顶。
+    // [b28d-solo-GlobalData] 4.4 现发 `movl $0x0,(%eax); movl $0x0,0x4(%eax)`
+    // 前置双清零（与 ORIG 0x084a3047/0x084a308f 逐条同形）——关键是子类无用户
+    // 提供 ctor（CWG434）；旧「4.4 折叠进 C1/N83 封顶」判词作废。
 }
 expert_extraction::CExtractionMgr::~CExtractionMgr()
 {
@@ -5589,6 +5667,7 @@ NPC_Teleport::NPC_Teleport()
 NPC_Teleport::~NPC_Teleport() {}
 
 // [b28d-18 N82] p167 CLEAR（11/11）；残差=槽位/寄存器分配 | ORIG 0x08283c5a
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR；残差=N82 槽位/分支布局。
 int Teleport::check_rule(CUser* user)
 {
     // ORIG 0x08283c5a：状态/渠道/vill/aura 冷却校验链（报告 Teleport/check_rule.md）。
@@ -5770,6 +5849,9 @@ random_option::CRandomOptionItemHandle::CRandomOptionItemHandle()
         // imul/lea 之前把 t 载入 %eax（`mov -0x20,%eax` 先行），4.4 恒按
         // 「this→下标→实参」序装载 ⇒ P75/N86（实参装载时刻跨版本调度），
         // 语义等价（seed 实参同一槽值），保持可读源形。
+        // [b28d-solo-GlobalData] P248 裸 register 实测：删 register 反生 seed 二段
+        // 拷贝（69→71，多 mov -0x24→-0x1c），保留 register 回到 69=69；余纯寄存器
+        // 名轮换（ORIG eax/edx/ecx vs 4.4 ebx/eax/edx）⇒ N7 封顶（P230：4.4.7 分配固定）。
         register unsigned long seed = t;
         m_rand[i].seed(seed);
     }
@@ -5788,6 +5870,9 @@ random_option::CRandomOptionItemHandle::~CRandomOptionItemHandle()
 }
 
 // [b28d-18 N] ORIG 切片缺失（objdump 直转 082a73cb）；p167 CLEAR（9/9）；残差=表内容占位+codegen | ORIG 0x082a73cb
+// [b28d-solo-GlobalData] DIFF 封顶 N：ORIG 人证字符串表（.data 0x936e2a0，64 项）内容缺失，
+// 重建以全 0 占位必须保留 s==0||*s==0 检查（否则 std::string(0) 崩溃），ORIG 无检查 ⇒ +10 条；
+// p167 CLEAR（表访问调用同形）。
 void CHumanCertifier::init()
 {
     // ORIG 0x082a73cb：遍历 0..0x63 号人证字符串表（.data 0x936e2a0，64 项
@@ -5872,6 +5957,7 @@ struct CDBEnvServerGroupMapView
 };
 
 // [b28d-18 DIFF] p167 MISSING G_CEnvironment×1（真缺口未闭合）；余槽位（N82） | ORIG 0x0829d8e8
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（42/42）；残差=N82 槽位/寄存器 + 行解析展开。
 bool CDBEnviroment::parse(char* buf)
 {
     const char* sep = "=";
@@ -6106,6 +6192,7 @@ void GlobalData::GenerateCaptchaData()
 // GlobalData::Fini
 // ============================================================================
 
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（52/52）；大件三件套：gap 7=N82 槽位复用策略。
 void GlobalData::Fini()
 {
     delete s_ref_pvp_grade;
@@ -6190,6 +6277,7 @@ void GlobalData::Fini()
 // ============================================================================
 
 // [b28d-18 N82] p167 CLEAR（36/36）；残差=槽位分配（ORIG -0x44/-0x48/-0x50 vs 4.4 -0x30/-0x18/-0x20） | ORIG 0x0829dd82
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（36/36）；残差=N82 槽位/寄存器 + N89 STL 展开。
 bool GlobalData::initTournamentDB(const char* fileName)
 {
     typedef std::map<ENUM_SERVER_GROUP, std::map<std::string, std::string> > GroupNameMap;
@@ -6242,6 +6330,8 @@ bool GlobalData::initTournamentDB(const char* fileName)
 // ============================================================================
 
 // [b28d-18 N89] 超大件：残差=STL 实例展开差（N89）；§6.2 语义完成度按调用差集+gap 计 | ORIG 0x08299fa0
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（大件 3139 insn）；N89（ORIG out-of-line STL
+// 实例 vs 4.4 全内联）+ N82 槽位；语义完成，byte 层 N 封顶。
 bool GlobalData::Init()
 {
     s_server_stop = false;
@@ -7226,17 +7316,21 @@ bool GetRentItemInfo(CUser& user, char sectionIdx, char seqIdx,
         return false;
     }
 
-    if (sectionIdx < 0 || (int)list->size() <= sectionIdx)
+    // [b28d-solo-GlobalData] P214① 正条件 if 包裹 + P0 具名 size 槽：ORIG 0x08271444
+    // 先 call size() 落 -0x14，再 `cmpb $0,-0x2c; js F1`、`movsbl; cmp -0x14; jl OK1`
+    // 两跳共享 F1 块（无 bool 物化）；负极性早返/`||` 均产 setcc 汇聚（+4 条）。
+    const int listSize = (int)list->size();
+    if (sectionIdx >= 0 && listSize > sectionIdx)
     {
-        return false;
+        std::vector<EventRewardItemInfo>& inner = list->at((std::size_t)sectionIdx);
+        const int innerSize = (int)inner.size();
+        if (seqIdx >= 0 && innerSize > seqIdx)
+        {
+            out = inner[(std::size_t)seqIdx];
+            return true;
+        }
     }
-    std::vector<EventRewardItemInfo>& inner = list->at((std::size_t)sectionIdx);
-    if (seqIdx < 0 || (int)inner.size() <= seqIdx)
-    {
-        return false;
-    }
-    out = inner[(std::size_t)seqIdx];
-    return true;
+    return false;
 }
 
 // ---- CheckInventoryEquipmentEmptyCount —— T 0x08271062（同名报告全文转写）--
@@ -7251,6 +7345,7 @@ bool CheckInventoryEquipmentEmptyCount(CUser& user, int need)
 
 // ---- CheckInventoryEmptyCount —— T 0x0827108c（同名报告全文转写）-----------
 // [b28d-18 N82] p167 CLEAR（16/16）；残差=槽位/寄存器分配 | ORIG 0x0827108c
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（16/16）；残差=N82 槽位/寄存器分配。
 bool CheckInventoryEmptyCount(CUser& user, int need)
 {
     // ORIG（0x0827108c，report 汇编+反编译 C 全读）：每次 check 前重调
@@ -7297,6 +7392,7 @@ bool CheckInventoryEmptyCount(CUser& user, int need)
 
 // ---- DeleteAllRentalItemInSameSectionForNewRent —— T 0x08271807 ------------
 // [b28d-18 NEAR] 修：(*it) 代 it->（P167 deEv）+ ResetSlot 双分支独立调用（P48）；p167 CLEAR 18/18 | ORIG 0x08271807
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（18/18）；残差=N82 槽位/STL 展开。
 void DeleteAllRentalItemInSameSectionForNewRent(
     CUser& user,
     std::vector<InstanceRentalSystem::DeletedRentItem>& deleted, int rentalType)
@@ -7345,6 +7441,7 @@ void DeleteAllRentalItemInSameSectionForNewRent(
 // ---- ProcessEquipItem —— T 0x082714c5（同名报告全文转写；委托转写核对）-----
 // 与 ProcessInsertItem 仅差 SetUpgrade/rentId 写入顺序、装备位插入与标记字节。
 // [b28d-18 N71] 同 ProcessInsertItem：空析构 trivial 判定差异（P71） | ORIG 0x082714c5
+// [b28d-solo-GlobalData] DIFF 封顶：p167 逐调用同形；残差=N82 槽位/寄存器分配。
 int ProcessEquipItem(CUser& user,
                      const InstanceRentalSystem::RentInElem& inElem,
                      const EventRewardItemInfo& reward,
@@ -7389,6 +7486,8 @@ int ProcessEquipItem(CUser& user,
 
 // ---- ProcessInsertItem —— T 0x08271666（同名报告全文转写）------------------
 // [b28d-18 N71] EXTRA RentalInfo::D1Ev×2 + _Unwind_Resume×1：ORIG 空析构被 4.1 判 trivial 不调用（P71；throw() 实测无效） | ORIG 0x08271666
+// [b28d-solo-GlobalData] DIFF 封顶：p167 EXTRA RentalInfo D1×2+_Unwind_Resume = N71（ORIG 空析构
+// 被 4.1 判 trivial 不调用；throw() 实测无效）。
 int ProcessInsertItem(CUser& user,
                       const InstanceRentalSystem::RentInElem& inElem,
                       const EventRewardItemInfo& reward,
@@ -7447,17 +7546,26 @@ void RentalMachinePcRoom::log(CUser& user, int itemId)
     {
         serverInfo = (char)G_CEnvironment()->m_serverEnvir.m_serverGroup;
     }
-    const int charNo = user.get_charac_no(-1);
-    const unsigned int accId = user.get_acc_id();
+    // [b28d-solo-GlobalData] ORIG 0x082707e8 `movsbl -0x19; mov %eax,-0x2c` 槽往返
+    // ⇒ 原码有具名 int 提升局部（P0 有槽必有局部）。
+    const int serverEnv = (int)serverInfo;
+    // [b28d-solo-GlobalData] P231/P248：ORIG 0x082707c0 三个值跨 CMyFileLog ctor
+    // 保活于 callee-saved（esi=charNo/ebx=accId/edi=m_data）⇒ 纯 register 提示
+    // （非 asm 绑定，P0 合规）；缺 register 时 4.4 落栈槽（-0x10/-0xc）。
+    register const int charNo = user.get_charac_no(-1);
+    register const unsigned int accId = user.get_acc_id();
+    register char* const pData = m_impl->m_data;
 
     CMyFileLog flog("void RentalMachinePcRoom::log(CUser&, int)", 0x12e);
-    flog(m_impl->m_data,
+    flog(pData,
          "[RENT] m_id(%d) char_no(%d) server_info(%d) item_id(%d)", accId,
-         charNo, (int)serverInfo, itemId);
+         charNo, serverEnv, itemId);
 }
 
 // ---- Dimension::log —— T 0x0826ef16（同名报告全文转写）---------------------
 // [b28d-18 N7+N82] 槽位+callee-saved 角色轮换；P76 待办：ORIG auto_ptr 模板参为嵌套类 RentalMachineDimension::RentalMachineDimensionImpl（p167 MISSING ptEv） | ORIG 0x0826ef16
+// [b28d-solo-GlobalData] NEAR 封顶：p167 CLEAR（9/9）；N7（callee-saved 角色轮换 esi/ebx/edi）+
+// N82（帧 0x4c vs 0x3c、槽位平移）。
 void RentalMachineDimension::log(CUser& user, int itemId)
 {
     char serverInfo = 0;
@@ -7515,6 +7623,7 @@ int RentalMachineDimension::GetRewardItemGiveList(int job, int growType)
 
 // ---- Dimension::GetRentItemInfo —— T 0x0826f842（同名报告全文转写）---------
 // [b28d-18 N82] p167 CLEAR（11/11）；残差=槽位/寄存器分配 | ORIG 0x0826f842
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR；残差=N82 槽位/寄存器分配。
 bool RentalMachineDimension::GetRentItemInfo(
     CUser& user, const InstanceRentalSystem::RentInElem& inElem,
     EventRewardItemInfo& out)
@@ -7570,6 +7679,7 @@ bool RentalMachineDimension::GetRentItemInfo(
 
 // ---- PcRoom::checkAllRentalItemScript —— T 0x082708cc（同名报告全文转写）---
 // [b28d-18 N82] 残差=槽位/STL（N82/N89） | ORIG 0x082708cc
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（50/50）；残差=N82 槽位/分支布局 + N89。
 bool RentalMachinePcRoom::checkAllRentalItemScript()
 {
     // ORIG 0x082708cc 段（p167 实证）：外层 map 的 begin()/end() 各自独立重调
@@ -7652,7 +7762,8 @@ bool RentalMachinePcRoom::checkAllRentalItemScript()
 // ---- Dimension::checkSelectionListScript —— T 0x0826f14e -------------------
 // （报告全文转写；五谓词次序同 PcRoom，cerr 前缀为 RentalDimensionSystem）
 // [b28d-18 N82] 残差=槽位/STL 展开（N82/N89） | ORIG 0x0826f14e
-int RentalMachineDimension::checkSelectionListScript(
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（43/43）；已按 P248 档① 改 bool 返回；残差=N82/N89。
+bool RentalMachineDimension::checkSelectionListScript(
     const std::vector<std::vector<EventRewardItemInfo> >& selectionList)
 {
     // ORIG 0x0826f14e 段（p167 MISSING 迭代器族）：两层均为 const_iterator
@@ -7735,7 +7846,10 @@ bool RentalMachineDimension::checkAllRentalItemScript()
          it != G_CDataManager()
                    ->m_dimensionAct.m_rewardData.m_mapC.end(); ++it)
     {
-        if (checkSelectionListScript((*it).second) != 1)
+        // [b28d-solo-GlobalData] P0：ORIG 0x0826f05x `add $0x4,%eax; mov %eax,-0x10;
+        // mov -0x10,%eax` 槽往返 ⇒ 原码有具名引用局部再传参（直接传表达式少 2 条）。
+        const std::vector<std::vector<EventRewardItemInfo> >& sel = (*it).second;
+        if (!checkSelectionListScript(sel))
         {
             return false;
         }
@@ -7747,7 +7861,8 @@ bool RentalMachineDimension::checkAllRentalItemScript()
          it != G_CDataManager()
                    ->m_dimensionAct.m_rewardData.m_map24.end(); ++it)
     {
-        if (checkSelectionListScript((*it).second) != 1)
+        const std::vector<std::vector<EventRewardItemInfo> >& sel = (*it).second;
+        if (!checkSelectionListScript(sel))
         {
             return false;
         }
@@ -7757,6 +7872,7 @@ bool RentalMachineDimension::checkAllRentalItemScript()
 
 // ---- PcRoom::CheckupAllRentalItems —— T 0x08270d1e（同名报告全文转写）------
 // [b28d-18 N7] 残差=callee-saved 角色轮换 + 单段 regmove（N7/N18a） | ORIG 0x08270d1e
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（18/18）；残差=N7/N82 寄存器角色与槽位。
 int RentalMachinePcRoom::CheckupAllRentalItems(
     CUser& user, const InstanceRentalSystem::RentInput& input)
 {
@@ -7813,6 +7929,7 @@ int RentalMachinePcRoom::CheckupAllRentalItems(
 
 // ---- Dimension::CheckupAllRentalItems —— T 0x0826f52c（同名报告全文转写）---
 // [b28d-18 N7] 残差=callee-saved 角色轮换 + 单段 regmove（N7/N18a） | ORIG 0x0826f52c
+// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（18/18）；残差=N7/N82 寄存器角色与槽位。
 int RentalMachineDimension::CheckupAllRentalItems(
     CUser& user, const InstanceRentalSystem::RentInput& input)
 {
