@@ -526,8 +526,11 @@ void CBoosterTest::getJarResult(CItem const* item, std::map<int, int>& result)
     Inven_Item lotto;
     for (int i = 0; i < m_count; ++i)
     {
-        int idx = const_cast<CItem*>(item)->get_index();
-        G_CDataManager()->getItemList()->get_lotto_item(idx, reinterpret_cast<char*>(&lotto));
+        // [b28d-47] P0：ORIG 0x084afbe8 `call get_index; mov %eax,%ebx`（无槽）⇒
+        // 实参内联，禁具名 idx（4.4 落 -0xc 槽并使帧/槽整体漂移）。
+        G_CDataManager()->getItemList()->get_lotto_item(
+            const_cast<CItem*>(item)->get_index(),
+            reinterpret_cast<char*>(&lotto));
         int itemId = lotto.m_addInfo;
         std::map<int, int>::iterator pos = result.find(itemId);
         if (pos == result.end())
@@ -536,7 +539,7 @@ void CBoosterTest::getJarResult(CItem const* item, std::map<int, int>& result)
         }
         else
         {
-            pos->second = pos->second + 1;
+            ++pos->second;   // ORIG 单次 ptEv + mov/add/mov（`= pos->second + 1` 4.4 双 ptEv）
         }
     }
 }
@@ -548,8 +551,9 @@ void CBoosterTest::get_gold_lottery_result(CItem const* item,
     Inven_Item lotto;
     for (int i = 0; i < m_count; ++i)
     {
-        int idx = const_cast<CItem*>(item)->get_index();
-        G_CDataManager()->getItemList()->get_lotto_item(idx, reinterpret_cast<char*>(&lotto));
+        G_CDataManager()->getItemList()->get_lotto_item(   // [b28d-47] P0 同 getJarResult
+            const_cast<CItem*>(item)->get_index(),
+            reinterpret_cast<char*>(&lotto));
         int goldCount = lotto.m_addInfo2;
         std::map<int, int>::iterator pos = result.find(goldCount);
         if (pos == result.end())
@@ -558,7 +562,7 @@ void CBoosterTest::get_gold_lottery_result(CItem const* item,
         }
         else
         {
-            pos->second = pos->second + 1;
+            ++pos->second;   // ORIG 单次 ptEv（同 getJarResult）
         }
     }
 }

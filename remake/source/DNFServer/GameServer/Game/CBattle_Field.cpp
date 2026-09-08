@@ -454,7 +454,7 @@ MapInfo* CBattle_Field::getCurrentLayeredMapInfo()
     return getLayeredMapInfoIndex(getLayeredMapIndex());
 }
 
-unsigned char CBattle_Field::IsKilledAllHellGruoups()
+bool CBattle_Field::IsKilledAllHellGruoups()
 {
     return m_killedAllHellGroups;
 }

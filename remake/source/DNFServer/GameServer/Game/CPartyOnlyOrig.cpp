@@ -280,11 +280,11 @@ int CParty::isMyMember(unsigned int userNo)
         // [判据②岛形+拆&&] ORIG O@25 `sete%al;test;je`。
         if (_checkValidUser(i))
         {
-            // b28d-45 P0/N96 清绑：`register bool hit asm("al")` 删除，按 P158
-            // 无绑定 bool 局部（ORIG O@25 sete%al;test;je 岛形）。
-            bool hit = (static_cast<unsigned int>(
-                            m_member[i].m_pUser->get_unique_id()) & 0xffff) == userNo;
-            if (hit)
+            // b28d-45 P0/N96 清绑：`register bool hit asm("al")` 删除，裸形
+            // （P158 bool 局部形实测反劣 46→45 AE，已回退；ORIG O@25
+            // sete%al;test;je 岛形在 4.4 无绑定下不可复现，按 N96/N18a 封顶）。
+            if ((static_cast<unsigned int>(
+                     m_member[i].m_pUser->get_unique_id()) & 0xffff) == userNo)
             {
                 return 1;
             }
@@ -713,11 +713,10 @@ bool CParty::TimeoutCompleteAfterAssault()
 }
 
 // ORIG T 0x085a82d2（IsClearedQuest.md）：任一有效成员未清任务即 false。
-// b28d-45 IsClearedQuest 0x085a82d2：DELEGATED:Main —— ORIG `call isClearQuest;
-// xor $1; test %al,%al; je` 证明 UserQuest::isClearQuest 返回 bool（P248 档①），
-// 但需三点同改链（QuestClear.h STClearedQuest::m_cleared bool / CQuestClear::
-// isClearedQuest bool / CUser.h:1270+UserQuest.cpp:159），CUser.h 冻结由 Main
-// 专线统一落；本件维持 uchar 口径，DIFF16 待 Main 落地后复验。
+// b28d-45 IsClearedQuest 0x085a82d2：FIX→AE —— Main 已落 QuestClear bool 链
+// （STClearedQuest::m_cleared / CQuestClear::isClearedQuest / CUser.h:1270），
+// 调用点改裸取反 `if(!isClearQuest(...))` 后 40:40 槽位集全等、xor 段逐条对齐；
+// 余为 R_386_32 重定位显示差（链接后即 ORIG 绝对地址）。
 bool CParty::IsClearedQuest(int questIdx)
 {
     for (int i = 0; i <= 3; i++)
@@ -726,8 +725,10 @@ bool CParty::IsClearedQuest(int questIdx)
         // 内部 isClearQuest `!=1` 用 xor（P194 聚合布尔物化）。
         if (_checkValidUser(i))
         {
-            if (m_member[i].m_pUser->getCurCharacQuestR()
-                    ->isClearQuest(questIdx) == 0)
+            // b28d-45 P248 档①：Main 已落 QuestClear/isClearQuest bool 链
+            // （ORIG 0x085a8320 `call; xor $0x1; test %al,%al; je`）⇒ 裸取反形。
+            if (!m_member[i].m_pUser->getCurCharacQuestR()
+                     ->isClearQuest(questIdx))
             {
                 return false;
             }
@@ -899,19 +900,23 @@ bool CParty::checkUnLimitUsedCoinCondition(CDungeon const* dungeon)
 
 // ORIG T 0x085a834a（CheckHellCoinLimint.md）：hell 场景且 +0xcd4 开关打开、
 // 未清完全部 hell 组时，对照已用硬币数判断是否越过本副本 hell 限额。
-// b28d-45 CheckHellCoinLimint 0x085a834a：DELEGATED:Main —— ORIG
-// `call IsEnableHellDungeon; test %al; je` + `call IsKilledAllHellGruoups; xor $1;
-// test; je` 需 CBattle_Field 两函数 uchar→bool（P248 档①，.cpp 非本 TU 属主）；
-// 已上报 Main（含消费点清单），本件 DIFF27 待落地后复验。
+// b28d-45 CheckHellCoinLimint 0x085a834a：FIX+N —— Main 已落
+// IsKilledAllHellGruoups bool 链（调用点裸取反后 xor 段对齐）；IsEnableHellDungeon
+// 按 Main 口径维持 uchar（其体依赖被指字段 uchar，5 个 ORIG 调用点无判别力）⇒
+// 本件 4.4 恒多 `setne` 归一段，N 封顶（29:31，语义等价）。
 int CParty::CheckHellCoinLimint(int param)
 {
-    // P133 拆嵌套守卫；uchar callee `> 0` 回退 test/je 直跳（BattleDungeonMapA2 先例）。
-    if (CBattle_Field::IsEnableHellDungeon() > 0)
+    // P133 拆嵌套守卫；b28d-45：ORIG 0x085a8350 为 `call; test %al,%al; je`
+    // 正向直判 ⇒ 改裸 `if(f())`（`> 0` 形 4.4 反产 setne 归一段）。
+    if (CBattle_Field::IsEnableHellDungeon())
     {
         if (m_battleField.m_hellPartyMode == 1)
         {
-            if (reinterpret_cast<CBattle_Field*>(&m_battleField)
-                    ->IsKilledAllHellGruoups() == 0)
+            // b28d-45 P248 档①：Main 已落 IsKilledAllHellGruoups bool 链
+            // （ORIG 0x085a8377 `call; xor $0x1; test %al,%al; je`）；
+            // IsEnableHellDungeon 按 Main 口径维持 uchar（N 封顶）。
+            if (!reinterpret_cast<CBattle_Field*>(&m_battleField)
+                     ->IsKilledAllHellGruoups())
             {
                 if (GetUsedCoinCount() >= param)
                     return 0;

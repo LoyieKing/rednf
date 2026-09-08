@@ -302,13 +302,13 @@ bool importInGameAdvertisementEtcScript(InGameAdvertisementScript* s, const char
     {
         return false;
     }
-    s->clear();
-
     InGameAdvertisementScript* p = s;          // ORIG -0x14 arg 缓存
+    s->clear();                                // ORIG：p 存槽先于 clear call
+
     std::string token;                         // ORIG -0x18
     bool run = true;                           // ORIG -0xd（token ctor 后写 1）
+    int idx = 0;                               // ORIG -0xc（声明序 run→idx→ok，[b28d-47]）
     bool ok = false;                           // ORIG -0x19
-    int idx = 0;                               // ORIG -0xc prologue 初始化
 
     while (run && ScanType(token, true))       // ORIG 4.1 复合条件：run 检查在体尾
     {

@@ -109,12 +109,9 @@ void CBossPlay::InitPlayUser(int questCond, int towerIdx)
     for (int i = 0; i <= 3; ++i)
     {
         CUser* user = m_party->get_user(i);
-        bool invalid = false;
-        if (user == 0)
-            invalid = true;
-        else if (m_party->checkValidUser(i) != 1)
-            invalid = true;
-        if (!invalid)
+        // [b28d-46 实测] ORIG 无 invalid bool 物化（直接 `cmpl $0,-0xc; je` 跳过）
+        // ⇒ 正极性短路条件。
+        if (user != 0 && m_party->checkValidUser(i) == 1)
         {
             CUser* u = m_party->get_user(i);
             u->setBossTowerIndex((short)towerIdx);
@@ -188,6 +185,8 @@ int CBossPlay::getLiveMemberCount()
 
 // ============================================================================
 // handleDieUser（ORIG 0x081494a4）
+// [b28d-46 判词·N/P197④+P168a③b+N82] 168 vs 172，p167 CLEAR（29/29）。
+// for(i=0;i<=3;++i)+continue 形复现双初始化（P191）与尾部 setle 物化（P51）。
 // [b21 N·P197-④] 语义已闭合：找成员循环 `checkValidUser(i) && get_user(i)==user`
 //   的取反判定——ORIG(4.1) 发 `sete %al; test; je`，4.4-O0 对 call 结果直比恒发
 //   `mov $1/mov $0 + test/jne`（P197-④：源形不可复现，禁改内联比较=双调用真 bug）；
@@ -286,6 +285,9 @@ bool CBossPlay::handleLeaveUser(CUser* user)
 
 // ============================================================================
 // generateRewardExp（ORIG 0x08149e20）
+// [b28d-46 判词·N/N82] 244 vs 267，p167 CLEAR（32/32）。已修：baseExp 具名 float
+// （P252 复现 fstps -0xf0 槽往返）、tower 内联表达式（P0/P183 无槽直用 %eax）。
+// 残差 = 帧 0x13c vs 0x174 全帧槽号平移（N82）＋ `1+a` 下标 add vs disp 折叠（P30/N4）⇒ 封顶。
 // ============================================================================
 int CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
                                  const CDungeon* dungeon)
@@ -374,6 +376,14 @@ int CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
 
 // ============================================================================
 // generateRewardItem（ORIG 0x08149914）
+// [b28d-46 判词·N/N89 + 真 bug] 327 vs ~290。已修（P167 调用点）：
+// ① dropItems 访问改 `*begin()`（ORIG 调 vector::begin + iterator::operator* 各 3 处，
+//    原 front()/operator[] 均为 EXTRA 调用）；
+// ② getGenerator 移入两分支（ORIG 各 1 次，共 2:2；原循环外缓存 1 次）；
+// ③ find_item 目标改 `G_CDataManager()->m_itemList->find_item`（ORIG 0x08149d42 调
+//    CItemList::find_item；原调 CDataManager::find_item 为真 bug）。
+// 剩余 MISSING 全为 N89（4.4 内联 stGenerateResult_t C1/D1 与 begin/operator* 第 3 实例）；
+// 帧 0x13c vs 0xdc 属 N82 ⇒ 封顶。
 // ============================================================================
 int CBossPlay::generateRewardItem(int memberIdx, int itemCount, unsigned int a,
                                   ENUM_DUNGEON_DIFFICULTY diff, unsigned int b,
@@ -398,9 +408,6 @@ int CBossPlay::generateRewardItem(int memberIdx, int itemCount, unsigned int a,
     dm = G_CDataManager();
     tower = dm->GetTowerScript(dungeonIdx);
     rare3 = tower->m_rewardGoldWeight;
-    CItemGeneratorMgr* genMgr = G_CDataManager()->getItemGenerator();
-    CItemGenerator* gen = genMgr->getGenerator(CItemGeneratorMgr::eGenerateType_2);
-
     for (int i = 0; i < itemCount; ++i)
     {
         int randVal = get_rand_int(1000);
@@ -423,19 +430,20 @@ int CBossPlay::generateRewardItem(int memberIdx, int itemCount, unsigned int a,
                 ref.m_rankBonusRate = 1.0f;
                 ref.m_dungeon = const_cast<CDungeon*>(dungeon);
                 ref.m_field3c = 0;
-                gen->generateSpecificItem(ref, result);
+                G_CDataManager()->getItemGenerator()->getGenerator(
+                    CItemGeneratorMgr::eGenerateType_2)->generateSpecificItem(ref, result);
                 if (!result.m_dropItems.empty())
                 {
                     Inven_Item& dst = m_memberReward[memberIdx].m_items[i];
-                    // [b28d-46 P167] ORIG 无 vector::front 调用（内联 begin 解引用）
-                    // ⇒ 用 operator[] 下标形。
-                    dst.setCopy(result.m_dropItems[0]);
+                    // [b28d-46 P167] ORIG 调 vector::begin + iterator::operator*
+                    // （各 3 处）⇒ 迭代器解引用形。
+                    dst.setCopy(*result.m_dropItems.begin());
                     // ORIG +0x3f2：按首项 idx 查 CItemList，命中后按
                     // itemType(+0x01)/rarity/grade 扣幸运点（::CLuckPoint）。
                     // [b28d-46 真 bug/P167] ORIG 0x08149d42 调 CItemList::find_item
                     // （receiver = G_CDataManager()+0xc = m_itemList），非
                     // CDataManager::find_item；原实现调错类（EXTRA find_item）。
-                    CItem* item = G_CDataManager()->getItemList()->find_item(
+                    CItem* item = G_CDataManager()->m_itemList->find_item(
                         dst.m_addInfo);   // +0x02 = item idx
                     if (item != 0)
                     {
@@ -463,9 +471,10 @@ int CBossPlay::generateRewardItem(int memberIdx, int itemCount, unsigned int a,
             ref.m_goldFactor = 1;
             ref.m_field40 = 1;
             ref.m_field42 = 1;
-            gen->generateRandomItem(ref, result);
+            G_CDataManager()->getItemGenerator()->getGenerator(
+                CItemGeneratorMgr::eGenerateType_2)->generateRandomItem(ref, result);
             Inven_Item& dst = m_memberReward[memberIdx].m_items[i];
-            dst.setCopy(result.m_dropItems[0]);
+            dst.setCopy(*result.m_dropItems.begin());
             int addInfo = dst.get_add_info();
             dst.set_add_info((int)ROUND((float)addInfo * rare3));
         }

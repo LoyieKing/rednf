@@ -480,20 +480,30 @@ check:
 
 void Area::send_to_all(PacketGuard& packet, std::vector<CUser*>& users)
 {
-    for (std::map<unsigned short, CUser*>::iterator it = m_UsersInArea.begin();
-         it != m_UsersInArea.end(); ++it)
+    // [b28d-48] 同 GetUserCount 族（ORIG 086c2f2c）。
+    CUser* user = 0;
+    std::map<unsigned short, CUser*>::iterator it;
+    it = m_UsersInArea.begin();
+    goto check;
+loop_body:
+    user = it->second;
+    // ORIG 086c2f2c：内层对 users 逐一比较，结果未使用（死代码），保留遍历。
+    for (std::vector<CUser*>::size_type i = 0; i < users.size(); ++i)
     {
-        CUser* user = it->second;
-        // ORIG 086c2f2c：内层对 users 逐一比较，结果未使用（死代码），保留遍历。
-        for (std::vector<CUser*>::size_type i = 0; i < users.size(); ++i)
+        if (users[i] == user)
         {
-            if (users[i] == user)
-            {
-            }
         }
-        if (user != 0 && user->get_state() > 2)
-            user->Send(packet);
     }
+    if (user == 0 || user->get_state() <= 2)
+    {
+        it++;
+        goto check;
+    }
+    user->Send(packet);
+    it++;
+check:
+    if (it != m_UsersInArea.end())
+        goto loop_body;
 }
 
 // ---------------------------------------------------------------------------
@@ -582,29 +592,33 @@ void Area::set_area(int vill, TownAreaScript& script, STMapScript& mapScript)
 // ---------------------------------------------------------------------------
 int Area::take_fish()
 {
-    if (m_areaType != 2)
-        return -1;
-
-    int result = 0;
-    int randVal = get_rand_int(100000);
-    int sum = 0;
-    std::pair<int, int> cur;
-
-    for (std::vector<std::pair<int, int> >::iterator it = m_lottery.m_items.begin();
-         it != m_lottery.m_items.end(); ++it)
+    // [b28d-48] P59 正向包裹：ORIG 0x086c2xxx 为 `jne <尾部 return -1>`、
+    // 主流程直落（areaType==2 时走主流程），原 guard 写法 4.4 产 `je <主流程>`
+    // + fail 块前置（反向布局）。
+    if (m_areaType == 2)
     {
-        cur = *it;
-        sum += cur.second;
-        if (sum > randVal)
-        {
-            result = cur.first;
-            break;
-        }
-    }
+        int result = 0;
+        int randVal = get_rand_int(100000);
+        int sum = 0;
+        std::pair<int, int> cur;
 
-    if (result == 0)
-        result = m_lottery.m_defaultIdx;
-    return result;
+        for (std::vector<std::pair<int, int> >::iterator it = m_lottery.m_items.begin();
+             it != m_lottery.m_items.end(); ++it)
+        {
+            cur = *it;
+            sum += cur.second;
+            if (sum > randVal)
+            {
+                result = cur.first;
+                break;
+            }
+        }
+
+        if (result == 0)
+            result = m_lottery.m_defaultIdx;
+        return result;
+    }
+    return -1;
 }
 
 // ---------------------------------------------------------------------------

@@ -336,7 +336,7 @@ public:
                                 std::map<short, std::vector<TournamentInfo> >& roundMap,
                                 std::list<_mapMonster>& mobList);  // 08303ace
     int GetHellPartyDifficulty(ENUM_DUNGEON_TYPE type);       // 082ffa2e
-    unsigned char IsKilledAllHellGruoups();                            // 085bf250
+    bool IsKilledAllHellGruoups();                            // 085bf250（b28d-Main: P292 判别，ORIG 调用点 0x085a8377 `call; xor $0x1,%eax; test %al,%al; je`）
     void ResetFirstEnterDungeon();                            // 08307662
     void add_hell_party_monster(map_monster& mob, int& uid, int& seq,
                                 std::map<unsigned short, STHellPartyGroupOrder>* groups);
@@ -469,7 +469,7 @@ public:
     int m_hellPosY;                        // +0x1c4
     char m_visitedGotoFlag;                // +0x1c8
     char m_sealDoorItemsOk;                // +0x1c9（唯一写点 UseSealDoorItems @0x085a8038：全员通过=1/失败=0）
-    char m_killedAllHellGroups;            // +0x1ca
+    bool m_killedAllHellGroups;            // +0x1ca（b28d-Main: bool 直载 movzbl 复现 ORIG 体 0x085bf256）
     char m_field1cb;                       // +0x1cb
     char m_hellPartyDifficulty;            // +0x1cc
     char m_hellPartyEventType;             // +0x1cd
