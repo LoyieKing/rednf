@@ -39,9 +39,11 @@
 // BlueMarble 实现
 // ============================================================================
 
-// [b28d-32 判词·P75/N4] ORIG 0x080d8a5c seed 循环：先载 seedValue(%eax) 再算
-// receiver（ecx/edx+lea）；4.4 恒 receiver 先（eax/edx+add）。P226 语句表达式
-// 实测零效（装载时刻由调度决定）⇒ 结构性 DIFF 封顶，104=104 助记符集等长。
+// [b28d-solo-BlueMarble N(P75/N4)] ORIG 0x080d8a5c seed 循环：先载
+// seedValue(%eax) 再算 receiver（ecx/edx + lea）；4.4 恒 receiver 先
+// （eax/edx + add）。P226 语句表达式 / `(*(m_pRands+i))` 指针形 / 具名
+// 实参三形实测均零效（实参装载时刻由调度决定）⇒ 结构性 DIFF 封顶，
+// 104=104 gap 0，唯 5 行装载序差。
 BlueMarble::BlueMarble()
     : m_memoryPoolIndex(-1), m_state(BlueMarbleState::T_0), m_diceNumber(0), m_blueMarbleMap(0),
       m_pScript(0), m_maxBoardSize(0)
@@ -50,8 +52,6 @@ BlueMarble::BlueMarble()
     unsigned long seedValue = (unsigned long)time((time_t*)0);
     for (int i = 0; i <= 3; ++i)
     {
-        // b28c-1：ORIG 0x080d8a5c 先载 seedValue 再算 m_pRands[i]（P75 实参
-        //  装载序跨版本差；静态调用形不可表达），保持自然成员调用形。
         m_pRands[i].seed(seedValue);
     }
     m_users.clear();
@@ -143,11 +143,17 @@ void BlueMarble::setUserState(int seat, BlueMarbleUserState::T state)
     m_users[seat].setUserState(state);
 }
 
-// b28c-1 N: 清绑（P0/N96）后余 5 条 = 4.4 未内联 std::move（ORIG 4.1 内联）；
-//  去 move 则指令序列与 ORIG 全等但块内 zone/pair 槽方向差 14 行（N93/N82附）。
-// [b28d-32 N(P75/N82): 装载序与槽位差（181/186） | ORIG 0x080d7afc]
+// [b28d-solo-BlueMarble NEAR(14)/N93] P234 去掉 `std::move(zone)`（ORIG 无
+// out-of-line move call，省 5 条）；P190 float 取址 pad 撑帧 +4 使 mm/i/it
+// 槽基与 ORIG 对齐（179=179 gap 0）。余 14 条 = 块内 zone（-0x54 vs ORIG
+// -0x1c）与 make_pair sret（-0x20 vs -0x24）槽方向差（4.4 块内槽从深起、
+// 4.1 从浅起；提函数头 P212 实测反劣 46）⇒ N93/N82附 封顶。ORIG 0x080d7afc
 int BlueMarble::setUserGrade(int grade)
 {
+    // P190：ORIG 槽基比 4.4 深 4（mm -0x48 vs -0x44）；取址 pad 撑帧回推
+    // （double 过头 +0x10，float 试 +4）。
+    float framePad;
+    (void)&framePad;
     std::multimap<int, int, std::greater<int> > mm;
     m_users[grade].setGrade(BlueMarbleUserGrade::T_0);
     for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
@@ -160,9 +166,11 @@ int BlueMarble::setUserGrade(int grade)
         if (m_users[i].getGrade() == 0)
             goto NEXT0;
         {
-            // ORIG 0x080d7bb0..：zone 槽 -0x1c；make_pair 经 move（4.1 内联）。
+            // ORIG 0x080d7bb0..：zone 槽 -0x1c；Ghidra `make_pair<int,int&>` +
+            // 无 out-of-line call ⇒ 原码是左值 make_pair（P61/P234），
+            // `std::move(zone)` 会多发一次 `call std::move<int>`（+5 条）。
             int zone = m_users[i].getBoardZone();
-            mm.insert(std::make_pair(std::move(zone), i));
+            mm.insert(std::make_pair(zone, i));
         }
     NEXT0:
         ;
@@ -320,8 +328,10 @@ int BlueMarble::setDropBuff(int seat, int drop)
     m_users[seat].setDrop(drop);
 }
 
-// b28c-1 N: P209 4.4 每次重载形参槽 vs ORIG 载入一次复用（switch/裸形均劣化）。
-// [b28d-32 N(岛): 4.4 多出 nop/jmp 岛与分支块序（53/58） | ORIG 0x080d990e]
+// [b28d-solo-BlueMarble AE] P251/P261+P305：原 if/goto 链使 4.4 每次重载形参槽
+// （多 2 载入 + 3 nop 岛，53/58）；改 `switch((int)type)`（窄枚举必须 (int) 化，
+// 否则 case 1/2 被 -fstrict-enums 静默删）后 type 单次载入复用 eax，53=53 ndiff 0。
+// ORIG 0x080d990e
 int BlueMarble::getBuff(CUser* user, BlueMarbleBuffType::T type)
 {
     if (user == 0)
@@ -335,25 +345,23 @@ int BlueMarble::getBuff(CUser* user, BlueMarbleBuffType::T type)
                               0x4c7, "BlueMarble::getBuff slot(%d)", seat);
         return 0;
     }
-    // 语义修正 + 块序：ORIG 0x080d997c `cmp$1; je→getGoldBuff@999e`、
-    // 0x080d9984 `cmp$2; je→getDropBuff@99b2`、0x080d9988 `test; jne→mov$0@99c6`、
-    // fall type==0→getExpBuff@9997（case 对应：0→exp、1→gold、2→drop；
-    // 范式23 goto 钉 je-岛序，exp body 为 fall-through 首块）。
-    // b28c-1：ORIG 0x080d997c `mov 0x10(%ebp),%eax; cmp $1,%eax` 载入复用
-    //  ⇒ P209 unsigned 比较恒载寄存器形（switch 形实测劣化 5）。
-    if ((unsigned int)type == 1)
-        goto L_GOLD;
-    if ((unsigned int)type == 2)
-        goto L_DROP;
-    if ((unsigned int)type != 0)
-        goto L_DEF;
-    return getExpBuff(seat);
-L_GOLD:
-    return getGoldBuff(seat);
-L_DROP:
-    return getDropBuff(seat);
-L_DEF:
-    return 0;
+    // ORIG 0x080d9979 `mov 0x10(%ebp),%eax` 只载入一次并全程复用 eax：
+    // 0x080d997c `cmp$1; je→getGoldBuff@999e`、0x080d9984 `cmp$2;
+    // je→getDropBuff@99b2`、0x080d9988 `test; jne→mov$0@99c6`，fall
+    // type==0→getExpBuff@9997（P251/P261 无槽 cmp 链 ⇒ 原码是 switch）。
+    // P305：BlueMarbleBuffType 是窄枚举（仅 T_0=0），必须 `switch((int)type)`
+    // 否则越界 case 1/2 被 -fstrict-enums 静默删除。
+    switch ((int)type)
+    {
+    case 0:
+        return getExpBuff(seat);
+    case 1:
+        return getGoldBuff(seat);
+    case 2:
+        return getDropBuff(seat);
+    default:
+        return 0;
+    }
 }
 
 // b28c-1 AE: P218 下标 int 化（unsigned i→int i）后 0 差。
@@ -380,7 +388,12 @@ int BlueMarble::getRandomItem() const
     return 0;
 }
 
-// [b28d-32 N(P75/N82): 2 条槽/装载序差（214/212） | ORIG 0x080d73dc]
+// [b28d-solo-BlueMarble AE] 三处修复：①m_char4 char→bool（BlueMarbleTileScript.h，
+// 已 R2 广播）+ 裸 `if(!tile->m_char4)` 复现 ORIG 0x080d74a5 `movzbl; xor $1;
+// test; je`（P292/P300）；②type 分派 if 链改 `switch((int)type)`（窄枚举必须
+// (int) 化，P251/P261/P305）复现单次载入 + cmp$7/$8/$2 链；③去掉 `int r` 局部
+// （ORIG randInt 结果直入 %ebx、无槽，P0）后帧顶槽基同时对齐。214=214 ndiff 0。
+// ORIG 0x080d73dc
 int BlueMarble::getRandomDungeon(int seat, BlueMarbleTileScript::Type type) const
 {
     std::vector<int> local;
@@ -398,33 +411,38 @@ int BlueMarble::getRandomDungeon(int seat, BlueMarbleTileScript::Type type) cons
     {
         return 0;
     }
-    if (tile->m_char4 != 1)   // ORIG 0x080d74a5 `movzbl 0x4(%eax),%eax`（char 读）
+    // ORIG 0x080d74a5 `movzbl 0x4(%eax),%eax; xor $0x1,%eax; test %al,%al; je`
+    // ⇒ m_char4 已 bool 化（BlueMarbleTileScript.h）+ 裸 `if(!field)`（P292/P300）。
+    if (!tile->m_char4)
     {
         return 0;
     }
     // ORIG 0x080d74ba-：type 三分支各自 sret 临时槽（-0x38/-0x2c/-0x20）
     // 直写 `local = getXXXIndex(level)`（每分支一对 op=+D1），无跨分支
     // 共享 tmp——旧 tmp 块形与 move 中转已废。
-    if (type == (BlueMarbleTileScript::Type)7)
+    // ORIG 0x080d74ba `mov 0x10(%ebp),%eax` 单次载入 + cmp$7/cmp$8/cmp$2 链
+    // ⇒ switch（P251/P261）；Type 是窄枚举（仅 Type_0）故必须 (int) 化（P305）。
+    switch ((int)type)
     {
+    case 7:
         local = m_pScript->m_info.getUniqueDungeonIndex(level);
-    }
-    else if (type == (BlueMarbleTileScript::Type)8 ||
-             type == (BlueMarbleTileScript::Type)2)
-    {
+        break;
+    case 8:
+    case 2:
         local = m_pScript->m_info.getBossDungeonIndex(level);
-    }
-    else
-    {
+        break;
+    default:
         local = m_pScript->m_info.getRandomDungeonIndex(level);
+        break;
     }
     if (local.size() == 0)
     {
         return 0;
     }
-    // 保持具名形：inline 直调实测反增 1（4.4 在取模表达式中仍需暂存槽）。
-    int r = m_pRands[2].randInt();
-    unsigned int idx = (unsigned int)r % (unsigned int)local.size();
+    // ORIG 0x080d7611 `mov %eax,%ebx`（randInt 结果直入 callee-saved、无 r 槽，
+    // P0：原码无具名 r 局部）⇒ 调用内联进取模表达式。
+    unsigned int idx =
+        (unsigned int)m_pRands[2].randInt() % (unsigned int)local.size();
     if (idx >= local.size())
     {
         return 0;
@@ -521,7 +539,9 @@ int BlueMarble::resetIndexInfo(int seat)
     m_users[seat].resetIndex();
 }
 
-// [b28d-32 N(块序/岛): 1 处 je↔jne 极性 + 1 条 nop 岛差（175/176，P222 两形互试后封顶） | ORIG 0x080d8d02]
+// [b28d-solo-BlueMarble AE + 真语义 bug] moveSpace 守卫原写反（==1 入主流程，
+// ORIG 是 ==1 返回 0x17）；改 `(getMoveSpace()-1)==0` early-return 同时复现
+// ORIG `sete; test; je <主流程>` 落点，175=175 ndiff 0。ORIG 0x080d8d02
 int BlueMarble::checkUserConditionEnterBlueMarble(CUser* user)
 {
     if (user == 0)
@@ -552,12 +572,15 @@ int BlueMarble::checkUserConditionEnterBlueMarble(CUser* user)
     {
         return 0x17;
     }
-    // ORIG +0xcd `cmp $1; sete %al; test; je <体>`：==1 物化，je 入体、
-    // fall 0x17 岛——goto 形唯一复现（P194）。b28c-1：P0/N96 清绑。
-    if (user->getMoveSpace() == (UserSpace::T)1)
-        goto L_MOVE_OK;
-    return 0x17;
-L_MOVE_OK:
+    // ORIG +0xcd `cmp $1,%eax; sete %al; test; je <主流程体@0x80d8de3>`：
+    // 物化 (moveSpace==1)，**al==0（moveSpace!=1）跳主流程**，fall 返回 0x17。
+    // [b28d-solo-BlueMarble 真语义 bug] 旧 goto 形条件写反（==1 入主流程）；
+    // 4.4 对 `!(x==1)` 折成 setne，唯 `(x-1)==0` 形复现 sete+je 落点
+    // （探针 /tmp/p_bm3.cpp c20/c22）。early-return 使 return 块 fall-through。
+    if ((user->getMoveSpace() - 1) == 0)
+    {
+        return 0x17;
+    }
     // P48 去缓存：ORIG +0x0e7/+0x0ff 对上下界各独立重调 get_charac_level
     //（两次调用，不缓存进 level 局部）；第二条件 call 在前（P134）。
     if (user->get_charac_level() < m_pScript->m_info.m_enterLevel ||
@@ -606,16 +629,26 @@ L_MOVE_OK:
     return 0;
 }
 
-// [b28d-32 N(P75): 1 条装载序差（138/137） | ORIG 0x080d9c12]
+// [b28d-solo-BlueMarble NEAR(42)/N82] 三处结构修复：①1024B 数组声明移入 if 块
+// （ORIG rep stos 在 user==0 判空之后，0x080d9c28-3e）；②memoryPoolIndex/
+// characNo/m_id 加纯 register 提示复现 ORIG edi/esi/ebx 跨调用保活
+// （P231/P248 三条件；push edi/esi/ebx 齐备，无 asm 绑定）；③空 else{return;}
+// 复现尾 `jmp <epilogue>; nop` 岛（P285）。137=137 gap 0。
+// 余 42 条 = 4.4 把大数组放最深槽（buf -0x430 vs ORIG -0x424、三标量
+// -0x28/-0x24/-0x20 vs -0x434/-0x430/-0x42c、log -0x30 vs -0x24）⇒ 槽分配
+// 策略差 N82/P112（块内提头/标量 register/全头部声明四形实测均不翻）。
+// ORIG 0x080d9c12
 void BlueMarble::checkBlueMarbleUserConfirm(CUser* user)
 {
     int userBlueMarbleIndex;
     UserSpace::T moveSpace;
     int userState;
-    char local_428[1024] = {0};
     int i;
     if (user != 0)
     {
+        // ORIG 0x080d9c28-0x080d9c3e：1024 字节 rep stos 清零位于 user==0
+        // 判空之后 ⇒ 数组声明在 if 块内（函数头声明会在入口即清零）。
+        char local_428[1024] = {0};
         sprintf(local_428, "./log/%s/BlueMarbleConfirmInfo",
                 G_CEnvironment()->get_file_name());
         for (i = 0; i < m_pScript->m_info.m_playerMax; ++i)
@@ -623,11 +656,14 @@ void BlueMarble::checkBlueMarbleUserConfirm(CUser* user)
             if (m_users[i].getUser() == user)
             {
                 userBlueMarbleIndex = (int)(short)m_users[i].getUser()->getBlueMarbleIndex();
-                int memoryPoolIndex = getMemoryPoolIndex();
+                // ORIG 0x080d9cd3 `mov %eax,%edi` / 0x080d9d58 `mov %eax,%esi` /
+                // 0x080d9d8f `mov %eax,%ebx`：三值跨后续 call 保活于 callee-saved
+                // 且无栈槽（P231/P248 三条件齐备）⇒ 纯 register 提示（非 asm 绑定）。
+                register int memoryPoolIndex = getMemoryPoolIndex();
                 moveSpace = m_users[i].getUser()->getMoveSpace();
                 userState = m_users[i].getUser()->get_state();
-                int characNo = m_users[i].getUser()->get_charac_no(-1);
-                char* m_id = NumberToString(m_users[i].getUser()->get_acc_id(), 0);
+                register int characNo = m_users[i].getUser()->get_charac_no(-1);
+                register char* m_id = NumberToString(m_users[i].getUser()->get_acc_id(), 0);
                 CMyFileLog log(__PRETTY_FUNCTION__,
                                0x514);
                 log(local_428,
@@ -636,6 +672,12 @@ void BlueMarble::checkBlueMarbleUserConfirm(CUser* user)
                     userBlueMarbleIndex, i);
             }
         }
+    }
+    else
+    {
+        // P285：空 else{return;} 保留 if 体尾 `jmp <epilogue>; nop` 岛
+        // （ORIG 0x080d9e15/0x080d9e17）。
+        return;
     }
 }
 
@@ -1042,8 +1084,10 @@ DONE3:
     ;
 }
 
-// b28c-1 N: ORIG 0x080d7e6c 死岛（nop+jmp）被 4.4 jump-thread 合并（4.1 goto 岛产物）。
-// [b28d-32 N/P223: ORIG 单源尾岛（insertItem 后 jmp+nop+jmp+nop）被 4.4 jump-thread 合并，少 2 条 | ORIG 0x080d7dde]
+// [b28d-solo-BlueMarble AE] P223 尾岛：NEXT0 岛尾必须写 `continue;`——`goto NEXT1`
+// 会被 4.4 jump-thread（NEXT0 fall-through 即 NEXT2→NEXT1），少 ORIG 0x080d7e6d
+// 第二条 `jmp +0x92`；continue 形保留该 jmp，双 nop 岛齐全，53=53 ndiff 0。
+// ORIG 0x080d7dde
 int BlueMarble::resultReward()
 {
     Inven_Item item;
@@ -1064,10 +1108,12 @@ int BlueMarble::resultReward()
             goto NEXT1;
         }
         // b28c-1：P223 多岛形（ORIG 0x80d7e6c nop+jmp 岛 + 0x80d7e6f nop 岛）
-        //  ⇒ 条件假分支同样 goto 到相邻标签。
+        //  ⇒ 条件假分支同样 goto 到相邻标签；NEXT0 岛自带 goto NEXT1 以复现
+        //  ORIG 0x080d7e6d 第二条 `jmp +0x92`（标签共址会被 4.4 合并少 1 条）。
         goto NEXT2;
     NEXT0:
         ;
+        continue;
     NEXT2:
         ;
     NEXT1:
@@ -1082,48 +1128,52 @@ int BlueMarble::finishBlueMarble(int seat)
     sendFinishBlueMarble();
 }
 
-// [b28d-32 N(P75): 1 条装载序差（104/103） | ORIG 0x080d7e8e]
+// [b28d-solo-BlueMarble AE] P251/P261：if-else 链（带 -0xc grade 槽 + 逐次重载
+// 比较）改 `switch (getGrade())` 后 4.4 复现 ORIG 决策树（cmp1/je、cmp1/jg、
+// test/je、cmp2、cmp3）与 case 块序 0,1,2,3，104=104 ndiff 0。ORIG 0x080d7e8e
 int BlueMarble::setResultItem(int seat, Inven_Item& item)
 {
     // ORIG 0x080d7eb5-：每处 `(*rewards)[g]` 均从 this+0x38+0xa4 重新算
     // 基址再 call vector::operator[]（4 组 5 条装载链，无 rewards 指针
     // 局部缓存——旧缓存形每位省 2 条即 we-short 主因，P172 去缓存）。
-    int grade = m_users[seat].getGrade();
-    if (grade == 1)
+    // ORIG 决策树 `cmp$1; je; cmp$1; jg; test; je; jmp` + case 块序 0,1,2,3
+    // 且 getGrade() 结果直用 %eax（无 grade 局部槽）⇒ 原码是 switch
+    // （P251/P261；if-else 链会带 -0xc 状态槽并逐次重载比较）。
+    switch (m_users[seat].getGrade())
     {
+    case 0:
+        item.m_addInfo = m_pScript->m_info.m_rewardList[0].m_a;
+        item.m_addInfo2 = m_pScript->m_info.m_rewardList[0].m_b;
+        break;
+    case 1:
         item.m_addInfo = m_pScript->m_info.m_rewardList[1].m_a;
         item.m_addInfo2 = m_pScript->m_info.m_rewardList[1].m_b;
-    }
-    else
-    {
-        if (grade > 1)
-        {
-            if (grade == 2)
-            {
-                item.m_addInfo = m_pScript->m_info.m_rewardList[2].m_a;
-                item.m_addInfo2 = m_pScript->m_info.m_rewardList[2].m_b;
-            }
-            else if (grade == 3)
-            {
-                item.m_addInfo = m_pScript->m_info.m_rewardList[3].m_a;
-                item.m_addInfo2 = m_pScript->m_info.m_rewardList[3].m_b;
-            }
-        }
-        else if (grade == 0)
-        {
-            item.m_addInfo = m_pScript->m_info.m_rewardList[0].m_a;
-            item.m_addInfo2 = m_pScript->m_info.m_rewardList[0].m_b;
-        }
+        break;
+    case 2:
+        item.m_addInfo = m_pScript->m_info.m_rewardList[2].m_a;
+        item.m_addInfo2 = m_pScript->m_info.m_rewardList[2].m_b;
+        break;
+    case 3:
+        item.m_addInfo = m_pScript->m_info.m_rewardList[3].m_a;
+        item.m_addInfo2 = m_pScript->m_info.m_rewardList[3].m_b;
+        break;
     }
 }
 
-// [b28d-32 N(P75/N82): 装载序与槽位差（177/186） | ORIG 0x080d800e]
+// [b28d-solo-BlueMarble NEAR(36)/N7+P82] P0 去缓存/register 化：addInfo、
+// msg268/msg269、mailRet 三个具名局部内联（ORIG 分别直入 %ebx、直作 strncpy
+// 实参、`test;sete;test;je` 无槽比较）、serverGroup/len 纯 register 复现
+// callee-saved 保活（P231/P248）、characNo 内联实参。177/179 gap 2。
+// 余 36 条：①%esi/%ebx 角色互换（ORIG serverGroup→ebx、len→esi；4.4 恒
+// serverGroup→esi，声明序交换实测无效 ⇒ N7/N109）；②MSG 视图三字段的 base
+// lea（ORIG 折叠 -0x236/-0x232 绝对 disp + `add $0x11`，4.4 视图访问恒先
+// lea base ⇒ P82/P235；裸偏移被 §4.3 禁用不可回退）。ORIG 0x080d800e
 int BlueMarble::insertItem(int seat, Inven_Item& item, eItemAddReason reason)
 {
-    // ORIG 0x080d800e：`mov 0x7(%eax),%ebx`（4 字节读）= Inven_Item::m_addInfo2。
-    int addInfo = item.m_addInfo2;
+    // ORIG 0x080d801c `mov 0x7(%eax),%ebx`（Inven_Item::m_addInfo2）直入
+    // callee-saved、无 addInfo 槽（P0）⇒ 内联实参。
     G_CDataManager()->m_itemList->create_item(ENUM_ITEM_CREATE_TYPE_0, item,
-                                              addInfo);
+                                              item.m_addInfo2);
     // ORIG 0x080d80xx：链式直调（getCurCharacInvenW 返回值 %edx 直接作
     // this 压栈，无 inven 局部槽——旧缓存形多 1 条 reload）。
     int ret = ((CInventory*)m_users[seat].getUser()->getCurCharacInvenW())
@@ -1132,19 +1182,24 @@ int BlueMarble::insertItem(int seat, Inven_Item& item, eItemAddReason reason)
     {
         char local_2e[30];
         char local_12e[256];
-        const char* msg268 = g_scriptStringManager_.findString(
-            4, "game_server_msg_268", 0);
-        strncpy(local_2e, msg268, 0x1d);
-        const char* msg269 = g_scriptStringManager_.findString(
-            4, "game_server_msg_269", 0);
-        strncpy(local_12e, msg269, 0xff);
-        ENUM_SERVER_GROUP serverGroup = m_users[seat].getUser()->GetServerGroup();
-        size_t len = strlen(local_12e);
-        int characNo = m_users[seat].getUser()->get_charac_no(-1);
-        int mailRet = WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-            local_2e, item, 0, (unsigned)characNo, local_12e, (int)len, 0xf,
-            serverGroup, false, false);
-        if (mailRet == 0)
+        // ORIG 0x080d8127/0x080d8162：findString 返回值直作 strncpy 第 2 参
+        // （无 msg268/msg269 槽，P0）。
+        strncpy(local_2e, g_scriptStringManager_.findString(
+                    4, "game_server_msg_268", 0), 0x1d);
+        strncpy(local_12e, g_scriptStringManager_.findString(
+                    4, "game_server_msg_269", 0), 0xff);
+        // ORIG 0x080d819e `mov %eax,%ebx` / 0x080d81b6 `mov %eax,%esi`：
+        // serverGroup/len 跨后续调用保活于 callee-saved 且无栈槽
+        // （P231/P248 三条件齐备）⇒ 纯 register 提示。
+        register ENUM_SERVER_GROUP serverGroup =
+            m_users[seat].getUser()->GetServerGroup();
+        register size_t len = strlen(local_12e);
+        // ORIG 0x080d822d `test %eax,%eax; sete %al; test %al,%al; je`：
+        // mailRet 无槽（P0），比较内联进 if。
+        if (WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                local_2e, item, 0,
+                (unsigned)m_users[seat].getUser()->get_charac_no(-1),
+                local_12e, (int)len, 0xf, serverGroup, false, false) == 0)
         {
             // ORIG 栈槽 local_273（0x145）= MSG_MAILBOX_SEND 载荷（权威布局
             // PacketTypes.h：m_name11@+0x11 / m_itemId39@+0x39 / m_extra3d@+0x3d；

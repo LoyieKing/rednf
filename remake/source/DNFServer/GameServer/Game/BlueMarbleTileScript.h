@@ -34,7 +34,11 @@ public:
     int importScript(const char* path);
 
     int m_type;    // +0x00
-    char m_char4;  // +0x04
+    // [b28d-solo-BlueMarble] char→bool：ORIG getRandomDungeon 0x080d74a5
+    // `movzbl 0x4(%eax),%eax; xor $0x1,%eax; test %al,%al; je` ⇒ 字段 bool
+    // + 裸 `if(!field)`（P292/P300）。sizeof 0xc / 全部偏移 / mangled 零变化；
+    // 写入点仅 BlueMarbleTileScript.cpp clear()/importScript()（0/1 赋值合法）。
+    bool m_char4;  // +0x04（“是否可用”标记）
     int m_value;   // +0x08
 };
 

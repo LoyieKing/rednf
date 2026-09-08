@@ -2,15 +2,17 @@
 // 全部方法逐指令转写自 docs/class_func_reports/PacketDispatcher/ 与 objdump；
 // 注册表取自 ORIG ctor 0x8590a2e 的 new+槽位序列（顺序一致）。
 // ============================================================================
-// b28d-solo-PacketDispatcher 判词表（本 TU 独占，119 件 = 110 DIFF + 9 NEAR，
-// fresh check_tu_routed.sh / compare_tu_game_orig.py，2026-09-08）：
-//   已落地修法：①DispatchMsgHolder<MSG_BASE> 特化（4.4.6 多发 MSG_BASE::C1 call
-//     消除，24 件 ndiff 97→20）；②doDispatch 返回 bool（P292，ORIG 0x8594f7e
-//     xor $1 调用点实证）；③dispatch 逐条重排（int packetClass/short cmd/内联
-//     checker+history/嵌套 if），ndiff 93→26；④doDispatch 去 clientCrc 局部
-//     （P183）+ antibot && 拆嵌套 if，ndiff 151→127，p167 callsite 0M/0E。
-//   待 Main 代落：/tmp/b28d_lane10_PacketTypes.patch（113 hunk 与当前头逐行
-//     匹配；落地后本 TU 5 件 ndiff=0、72 件降至 N7 残余 8 行、40 件降至 10~24）。
+// b28d-solo-PacketDispatcher 判词表（本 TU 独占）。PacketTypes.h patch 落地后 fresh
+// （check_tu_routed.sh / compare_tu_game_orig.py，2026-09-08）：
+//   119 件 = 5 IDENTICAL/AE + 7 NEAR + 107 DIFF；ndiff 分布 0×5 / 3×21 / 8×51 /
+//   10×6 / 12×9 / 13×3 / 16×11 / 20×9 / 24×3 / 127×1（大件）。
+//   已落地修法：①doDispatch 返回 bool（P292，ORIG 0x8594f7e xor $1 调用点实证）；
+//     ②dispatch 逐条重排（int packetClass/short cmd/内联 checker+history/嵌套 if）；
+//     ③doDispatch 去 clientCrc 局部（P183）+ antibot && 拆嵌套 if。
+//   已回退：P298 承载器 DispatchMsgHolder（消 N-MSG_BASE 3 条 call，但为每个 MSG
+//     实例化出 ORIG 无的 C1/C2 共 242 符号，违反禁发明符号 ⇒ Main 回退）。
+//   下表为 patch 落地前快照（行名/ORIG 地址仍有效）；逐件最新 verdict/ndiff 以
+//   /tmp/b28d_solo_PacketDispatcher_result.tsv 为准。
 //   行格式：[ORIG 地址] verdict 归因 MSG/Param/state
 // [825aae2] DIFF N7                     MSG_BUY_ITEM/BuyItemParam/3
 // [8259b8c] DIFF N7                     MSG_GET_ITEM/stGetItemParam/5
@@ -827,14 +829,18 @@ void PacketDispatcher::server_load_monitoring()
 // ORIG 0x8594e52 逐指令转写。
 int PacketDispatcher::dispatch(int userId, char* data, int len)
 {
-    // b28d-solo-PacketDispatcher 判词 [ORIG 0x8594e52]：
+    // b28d-solo-PacketDispatcher 判词 [ORIG 0x8594e52]：DIFF，orig 114 / our 114 insn
+    //   （AE 口径 ndiff 24），p167 callsite 13/13 CLEAR（0 missing / 0 extra）。
     //   本轮按 ORIG 逐条重排源形：①packetClass 声明 int + `(signed char)data[0]`
     //   （复现 0x8594e5d movzbl+movsbl 两段 + 存 int 槽 -0x14）；②cmd 声明 short
     //   （复现 0x8594ecb movswl -0xe 单段与 0x8594f02 movzwl+movzwl 双段传参）；
     //   ③checker/fn 去命名局部，函数指针表达式内联（0x8594ec9 mov (%eax),%esi 直取）；
     //   ④history 局部删除，`user->m_historyLog.AbnormalUser` 直算 add $0x79700
     //   （0x8594f09）；⑤`if(!doDispatch(...))`（0x8594f7e xor $1 形 ⇒ doDispatch 返回 bool）；
-    //   ⑥末段 && 链改嵌套 if（0x8594f9e/fad/fbc 三 je 共享出口 0x8594fd4）。
+    //   ⑥末段 && 链改嵌套 if（0x8594f9e/fad/fbc 三 je 共享出口 0x8594fd4）；
+    //   ⑦S11 将 IsCurCharacLeaveTimeout 改 bool 后末段物化归正（+2 行收）。
+    //   残余 N 族：取函数指针 4.4 恒两段（N18a）、key/checker 寄存器角色互换与
+    //   doDispatch 实参装载序（N7/P75）。
     int packetClass = (signed char)data[0];
     short cmd = *(unsigned short*)(data + 1);
     CUser* user = G_CGameManager()->getUser(userId, 5);

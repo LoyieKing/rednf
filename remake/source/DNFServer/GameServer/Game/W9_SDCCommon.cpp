@@ -23,12 +23,8 @@
 #include "DataManagerInitDepends.h"
 #include "STSDCActiveStatusSyncDataCLONG.h"  // CLONG 完整定义（双向 operator=）
 
-extern float ACTIVESTATUS_POWER1[36];       // B 0x093f5900（owner ScriptDepsA.cpp）
-extern float ACTIVESTATUS_POWER2[36];       // B 0x093f59a0
 extern float ACTIVESTATUS_ETC_PARAMETERS[18][8];  // B 0x093f5a40
-extern float ACTIVESTATUS_POWER1[36];                      // B 0x093f5900（owner ScriptDepsA.cpp）
-extern float ACTIVESTATUS_POWER2[36];                      // B 0x093f59a0
-extern float ACTIVESTATUS_ETC_PARAMETERS[18][8];           // B 0x093f5a40
+extern int ACTIVESTATUS_DURATION[18];             // B 0x093f58a0
 extern float ACTIVESTATUS_USER_TO_USER_DAMAGE_RATE;        // D 0x0936e48c
 extern float ACTIVESTATUS_USER_TO_USER_DAMAGE_RATE_DEATH_TOWER;  // D 0x0936e490
 extern int ACTIVESTATUS_MAXLEVEL;                          // D 0x0936e484
@@ -40,6 +36,21 @@ struct SDCPair
     float m_lo;   // 偶槽 idx*2
     float m_hi;   // 奇槽 idx*2+1
 };
+
+// [b28d-solo-W9_SDCCommon] P291/P235 具名 union 双视角（仅本 TU 视图，全局符号
+// 名 ACTIVESTATUS_POWER1/2 不参与 mangling，owner ScriptDepsA.cpp 仍按 float[36]
+// 定义/写入，布局逐字节相同）。ORIG 0x0808d3af/0x0808d414 对 POWER[idx*2] 发单条
+// scale-8 `mov ACTIVESTATUS_POWER1(,%eax,8),%eax`，而 4.4 对 float[36] 下标 idx*2
+// 恒折 `add %eax,%eax; mov (,%eax,4)`（+1 条）。m_pair 视图按 8 字节元素下标即
+// 折叠为单条 scale-8；奇槽继续走 m_flat[idx*2+1]，保持 ORIG 的
+// `add %eax,%eax; add $1; mov (,%eax,4)` 形（探针 /tmp/sdc_p7.cpp 29/29 全等）。
+union SDCActiveStatusPowerView
+{
+    float m_flat[36];
+    SDCPair m_pair[18];
+};
+extern SDCActiveStatusPowerView ACTIVESTATUS_POWER1;  // B 0x093f5900
+extern SDCActiveStatusPowerView ACTIVESTATUS_POWER2;  // B 0x093f59a0
 
 // ORIG 各函数实证为 fistpl 截断（fnstcw/fldcw 设 RC=truncate），非四舍五入；
 // 故一律用 static_cast<int>（GCC O0 生成相同截断序列）。
@@ -130,41 +141,35 @@ int isSyncActiveStatus(int type)
 
 // ============================ SDCActiveStatusSyncCommon ============================
 
-// [b28d-28] DIFF | ORIG 0x0808d37a | N94/N4：ORIG 单条 scale-8
-// `mov POWER1(,%eax,8),%eax`；4.4 恒 `add %eax,%eax; mov (,%eax,4)`。
-// 8 字节视图探针（/tmp/l28_probe/p4.cpp q1/q3/q4）反劣 +5 条 ⇒ 封顶。
+// [b28d-solo-W9_SDCCommon] ORIG 0x0808d37a：P291/P235 union 双视角后偶槽单条
+// scale-8、奇槽 scale-4、死槽 -0x14/-0x10、返回两段物化（fstps -0xc → 返回值
+// 中转 -0x1c → flds）全等（探针 /tmp/sdc_p8.cpp p1 29/29）。
 float SDCActiveStatusSyncCommon::getActiveStatusPower1(int idx, int level)
 {
     // P31/P184：ORIG entry 双死 init 槽 -0x14=0/-0x10=1（照抄）；
-    // float 结果具名局部两段物化（fstps → 自拷贝 → flds）。
+    // float 具名 v -0xc + return v 的返回值中转槽 -0x1c（P0 双槽）。
     int deadA = 0;
     int deadB = 1;
     (void)deadA; (void)deadB;
-    // [b28c-L7] N94/N4 封顶（本 TU 同族二件：getActiveStatusPower2 同判词）：
-    // 唯一残差 1 条 = ORIG 0x0808d3af 对 POWER1[idx*2] 发单条 scale-8 disp
-    // `mov POWER1(,%eax,8),%eax`，4.4 恒 `add %eax,%eax; mov (,%eax,4)`。
-    // 已实测排掉的形：①SDCPair 8 字节视图 → `mov $0,%eax; mov idx,%esi;
-    // shl $3; add,%eax; mov (%eax)` +5 条并 push %esi（反劣）；②[idx+idx]/
-    // [2*idx] 代数拆形同产 add+scale4。奇槽 [idx*2+1] 的 add/add/scale-4
-    // 两侧本就一致，故差异仅偶槽的寻址宽度选择（4.1 固有不复现）。
-    float v = GetUniformVelocityFloatSDC(ACTIVESTATUS_POWER1[idx * 2],
-                                         ACTIVESTATUS_POWER1[idx * 2 + 1],
+    float v = GetUniformVelocityFloatSDC(ACTIVESTATUS_POWER1.m_pair[idx].m_lo,
+                                         ACTIVESTATUS_POWER1.m_flat[idx * 2 + 1],
                                          level - 1, ACTIVESTATUS_MAXLEVEL - 1);
     return v;
 }
 
-// [b28d-28] DIFF | ORIG 0x0808d3dc | N94（同 Power1）+ N82：entry 双死 init 槽
-// 平移 4（-0x14/-0x10 vs ORIG -0x10/-0xc）与 fstps 槽差。
+// [b28d-solo-W9_SDCCommon] ORIG 0x0808d3dc：union 双视角 + 双死 init 槽
+// -0x10/-0xc + **直接 return 调用表达式**（无具名 v）⇒ 4.4 返回值中转槽 -0x1c
+// 自拷贝形（fstps -0x1c; mov -0x1c,%eax; mov %eax,-0x1c; flds -0x1c），与 ORIG
+// 30/30 全等（探针 /tmp/sdc_p8.cpp p6；注意 Power1 是具名 v 的 p1 形，两函数
+// 原码结构不同）。
 float SDCActiveStatusSyncCommon::getActiveStatusPower2(int idx, int level)
 {
     int deadA = 0;
     int deadB = 1;
     (void)deadA; (void)deadB;
-    // [b28c-L7] 同 getActiveStatusPower1（scale-8 单条为 4.1 固有寻址，N94 封顶）。
-    float v = GetUniformVelocityFloatSDC(ACTIVESTATUS_POWER2[idx * 2],
-                                         ACTIVESTATUS_POWER2[idx * 2 + 1],
-                                         level - 1, ACTIVESTATUS_MAXLEVEL - 1);
-    return v;
+    return GetUniformVelocityFloatSDC(ACTIVESTATUS_POWER2.m_pair[idx].m_lo,
+                                      ACTIVESTATUS_POWER2.m_flat[idx * 2 + 1],
+                                      level - 1, ACTIVESTATUS_MAXLEVEL - 1);
 }
 
 float SDCActiveStatusSyncCommon::getActiveStatusEtcParameter(int idx, int level,
@@ -213,39 +218,56 @@ int SDCActiveStatusSyncCommon::getDuration(ENUM_ACTIVESTATUS status,
         status, level, d->m_field29, d->m_field2d, d->m_field31);
 }
 
-// [b28d-28] DIFF | ORIG 0x0808d272 | N6/N82：mask `1u<<status` ORIG 全程留
-// %eax（`mov %eax,%edx; and $0x385aa` 复用），4.4 落槽 -0x14；register 提示
-// 实测无效（P231 三条件不满足）；尾 x87 槽组平移。
+// [b28d-solo-W9_SDCCommon] ORIG 0x0808d272：status 的 18 个取值按掩码
+// 0x385aa/0x3a55/0x4000 三组**全划分** ⇒ 原码是 switch(status) 的位测试展开
+// （P17/P163：范围检查 `cmpl $0x11,0xc(%ebp); ja` + 单次 shl + 掩码链
+// `mov %eax,%edx; and $0x385aa`，mask 全程留 %eax/%edx 无槽往返，P0）。
+// if-else 链会把 mask 落槽 -0x14 且内存直比退化为先载寄存器（P209）。
 int SDCActiveStatusSyncCommon::getActiveStatusDurationServer(
     int status, int level, int objectType, int a4, int hpPenalty)
 {
     int duration = 0;
-    if ((unsigned int)status < 0x12)
+    switch (status)
     {
-        // [b28d-28] ORIG 0x0808d28d：mask 值全程留 %eax（`mov %eax,%edx; and
-        // $0x385aa` 复用），4.4 恒落槽 -0x14 且 register 提示实测无效（P231
-        // 三条件不满足：4.4 自行升格/无跨 call 需求）⇒ N6/N82 封顶。
-        unsigned int mask = 1u << status;
-        if ((mask & 0x385aa) != 0)
-        {
-            duration = static_cast<int>(1000.0f * getActiveStatusPower1(status, level));
-        }
-        else if ((mask & 0x3a55) != 0)
-        {
-            extern int ACTIVESTATUS_DURATION[18];   // B 0x093f58a0
-            duration = ACTIVESTATUS_DURATION[status] * 1000;
-        }
-        else if ((mask & 0x4000) != 0)
-        {
-            duration = 0;
-        }
+    // P46：叶块物理顺序 = case 书写顺序。ORIG 叶块序为 duration(0x0808d2bd)
+    // → power1(0x0808d2d2) → zero(0x0808d30b)，故 duration 组必须写在前面。
+    case 0:
+    case 2:
+    case 4:
+    case 6:
+    case 9:
+    case 11:
+    case 12:
+    case 13:
+        duration = ACTIVESTATUS_DURATION[status] * 1000;
+        break;
+    case 1:
+    case 3:
+    case 5:
+    case 7:
+    case 8:
+    case 10:
+    case 15:
+    case 16:
+    case 17:
+        duration = static_cast<int>(1000.0f * getActiveStatusPower1(status, level));
+        break;
+    case 14:
+        duration = 0;
+        break;
+    default:
+        break;
     }
 
     if (_SDC::isObjectType(objectType, 0x211))
     {
-        float f = static_cast<float>(duration);
-        float x = static_cast<float>(hpPenalty);
-        duration -= static_cast<int>(f * ((x / 3.0f) / x));
+        float f1 = static_cast<float>(hpPenalty) / 3.0f;
+        float x = f1 / static_cast<float>(hpPenalty);
+        // ORIG 0x0808d358：fistpl 落具名 int dec 槽 -0xc（非 duration 槽），
+        // `mov -0xc,%eax; sub %eax,-0x18` 两段扣减；该具名局部同时把 duration
+        // 定到 -0x18、f1/x 到 -0x14/-0x10（探针 /tmp/sdc_p10.cpp c 全等）。
+        int dec = static_cast<int>(static_cast<float>(duration) * x);
+        duration -= dec;
     }
     if (duration < 0)
         duration = 0;
@@ -293,12 +315,16 @@ int SDCActiveStatusSyncCommon::getDiseaseDamage(
     if (!(d->m_hpPercent < 100))
         return 0;
 
+    // [b28d-solo-W9_SDCCommon] ORIG 0x0808dd5c 槽位复现（探针 /tmp/sdc_p4.cpp
+    // vc 55/55 逐条全等）：dmg 具名 int -0xc；(float)(int) 双 cast 把
+    // baseDamage 物化到 -0x20；PvP 分支 (float)dmg 作乘法**左**操作数先物化
+    // 到临时 -0x24（fildl/fstps 先于 callee call），fistpl 复用 dmg 槽。
     int dmg = static_cast<int>(GetUniformVelocityFloatSDC(
-        0.0f, static_cast<float>(d->m_baseDamage), t, d->m_durationTick));
+        0.0f, static_cast<float>((int)d->m_baseDamage), t, d->m_durationTick));
     if (d->m_isPvp != 0)
     {
-        float rate = getUserToUserDamageRate(d->m_attackerType == 10);
-        dmg = static_cast<int>(rate * static_cast<float>(dmg));
+        dmg = static_cast<int>(static_cast<float>(dmg) *
+            getUserToUserDamageRate(d->m_attackerType == 10));
     }
     return dmg;
 }
@@ -308,17 +334,13 @@ int SDCActiveStatusSyncCommon::getDiseaseDamage(
 int SDCActiveStatusSyncCommon::getBleedingDamageServer(
     STSDCActiveStatusSyncDataSend* d)
 {
-    // P0：ORIG int 中转槽 -0x14 + float 具名局部 -0x4（fildl→fstps→flds 两段）。
-    // [N82 封顶] fistpl 复用 rawDamage 槽已对齐；残差仅槽号平移（raw -0x8 vs
-    // ORIG -0x14、cw -0x12/-0x14 vs -0x16/-0x18），4.1 x87 控制词槽紧贴 int 槽
-    // 且中间留洞，4.4 无洞布局，槽平移封顶。
-    double framePad; (void)&framePad;   // P190：ORIG 帧 0x18 vs 4.4 紧凑 0x14
-    int rawDamage = d->m_baseDamage;
-    float dmg = static_cast<float>(rawDamage);
+    // [b28d-solo-W9_SDCCommon] ORIG 0x0808df1a：冗余 (int) cast 强制 4.4 把
+    // int 中间值物化到 -0x14 槽（mov 0x3(%eax),%eax; mov %eax,-0x14; fildl
+    // -0x14），fistpl 复用同槽返回；float 具名 dmg -0x4、x87 控制词
+    // -0x16/-0x18、帧 0x18 与 ORIG 全等（探针 /tmp/sdc_p3.cpp v12 23/23）。
+    float dmg = static_cast<float>((int)d->m_baseDamage);
     dmg = dmg * 1.5f;
-    // ORIG 0x0808d582：fistpl 复用 rawDamage 槽（-0x14）→ int 结果回写具名局部。
-    rawDamage = static_cast<int>(dmg);
-    return rawDamage;
+    return static_cast<int>(dmg);
 }
 
 int SDCActiveStatusSyncCommon::getBleedingDamageClient(
@@ -334,29 +356,6 @@ int SDCActiveStatusSyncCommon::getBleedingDamageClient(
     float dmg = static_cast<float>(d->m_baseDamage) / static_cast<float>(tick);
     return static_cast<int>(dmg);
 }
-
-// ORIG 0x0808d4b4/0x0808d50e 共用 x87 取整宏（每 push_back 前 12 步内联序列，
-// 全 case 共享槽 -0x7a/-0x7c/-0x80）：fnstcw / movzwl+mov $0xc,%ah（ah 覆写=
-// RC=up(toward +inf)，bit8-9 同步清零）/ mov %ax / fldcw / fistpl(st0=前一
-// call 的 float 返回值) / fldcw 还原 / mov 取回。以整段 volatile asm 保序，
-// 实现固有 x87 语义（非符号桥；仓库 inline asm 先例见 ActiveStaticInfo.cpp 等）。
-// v 以 "t" 约束声明置于 st(0)（call 返回值天然所在，不出 fld/fstp）；
-// 整序列单条 volatile asm 阻断 4.4 把 fnstcw 前移。fistpl 目标共享 _ri，
-// 再 mov 入 _tv[i]（ORIG -0x80 共享 + 独立槽两步）。
-#define SDC_ROUND_UP(v, dst)                                                \
-    __extension__({                                                         \
-        __asm__ __volatile__(                                               \
-            "fnstcw %0\n\t"                                                  \
-            "movzwl %0, %%eax\n\t"                                          \
-            "movb $12, %%ah\n\t"                                            \
-            "movw %%ax, %1\n\t"                                             \
-            "fldcw %1\n\t"                                                  \
-            "fistpl %2\n\t"                                                 \
-            "fldcw %0"                                                      \
-            : : "m"(_cw), "m"(_cwUp), "m"(_ri), "t"(v)                      \
-            : "eax", "memory");                                             \
-        (dst) = _ri;                                                        \
-    })
 
 void SDCActiveStatusSyncCommon::makeEtcParameters(
     ENUM_ACTIVESTATUS status, int level, void* param, std::vector<int>* out,
@@ -374,96 +373,89 @@ void SDCActiveStatusSyncCommon::makeEtcParameters(
     makeEtcParameters(status, level, *pOut);
 }
 
-// [b28d-28] DIFF | ORIG 0x0808d50e | N85：4.4 对 dead float 返回值追加 22 条
-// `fstp %st(0)` x87 栈清理（ORIG 无），语义等价。
 void SDCActiveStatusSyncCommon::makeEtcParameters(ENUM_ACTIVESTATUS status,
                                                   int level,
                                                   std::vector<int>& out)
 // 0x0808d50e：jump table（cmp $0x11; ja; mov table(,%eax,4); jmp *%eax）。
-// 每 push 独立具名结果槽（ORIG -0x6c..-0xc，tv1 最深、tv25 最浅——4.4 先声明
-// 更浅 ⇒ 声明序 tv25..tv1 逆序）；fcw 三临时最后声明（最深 -0x7a/-0x7c/-0x80）。
+// [b28d-solo-W9_SDCCommon] ORIG 每个 push_back 是「(int) 右值实参」形：
+// call → 4.4 内建 RC=truncate 序列（fnstcw/fldcw/fistpl，共享 -0x7a/-0x7c/-0x80）
+// → 临时对象槽（-0x6c..-0xc 共 25 个，首次使用最深）→ lea + push_back(int&&)。
+// p167 差集：MISSING push_back(int&&)×25 / EXTRA push_back(int const&)×25 ⇒ 必须
+// 选右值重载（P270/P234）。具名 tv + 左值实参既选错重载，又使 4.4 对 dead float
+// 返回值追加 22 条 `fstp %st(0)`（N85 伪残差，非真差）。探针 /tmp/sdc_p11.cpp b
+// 与 /tmp/sdc_p12.cpp m 逐条全等（含槽分配方向）。
 {
-    int tv1, tv2, tv3, tv4, tv5, tv6, tv7, tv8, tv9, tv10, tv11, tv12, tv13,
-        tv14, tv15, tv16, tv17, tv18, tv19, tv20, tv21, tv22, tv23, tv24, tv25;
-    char _gap12[12];  // 范式31：12B dead pad（ORIG fcw 槽 -0x7a/-0x7c/-0x80 精确深度）
-    (void)_gap12;
-    short _cw, _cwUp;
-    int _ri;
-#define PUSH_ETC(dst, j)                                                  \
-    do {                                                                  \
-        SDC_ROUND_UP(getActiveStatusEtcParameter(status, level, j), dst); \
-        out.push_back(dst);                                               \
-    } while (0)
-#define PUSH_CONST(dst, val) ((dst) = (val)); out.push_back(dst)
     switch (status)
     {
     case ACTIVE_STATUS_SLOW:
-        PUSH_ETC(tv25, 0);
-        PUSH_ETC(tv24, 1);
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 0)));
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 1)));
         break;
     case 2:
-        PUSH_ETC(tv23, 0);
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 0)));
         break;
     case 4:
-        PUSH_ETC(tv22, 0);
-        PUSH_ETC(tv21, 1);
-        PUSH_ETC(tv20, 2);
-        PUSH_ETC(tv19, 3);
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 0)));
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 1)));
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 2)));
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 3)));
         break;
     case 5:
-        PUSH_ETC(tv18, 0);
-        PUSH_ETC(tv17, 1);
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 0)));
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 1)));
         break;
     case 6:
-        PUSH_ETC(tv16, 0);
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 0)));
         break;
     case 7:
-        PUSH_ETC(tv15, 0);
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 0)));
         break;
     case 9:
-        PUSH_ETC(tv14, 0);
-        PUSH_ETC(tv13, 1);
-        PUSH_CONST(tv12, 1);
-        PUSH_CONST(tv11, 3000);
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 0)));
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 1)));
+        out.push_back(1);
+        out.push_back(3000);
         break;
     case 10:
-        PUSH_ETC(tv10, 0);
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 0)));
         break;
     case 11:
-        PUSH_ETC(tv9, 0);
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 0)));
         break;
     case 12:
-        PUSH_ETC(tv8, 0);
-        PUSH_ETC(tv7, 1);
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 0)));
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 1)));
         break;
     case 13:
-        PUSH_ETC(tv6, 0);
-        PUSH_ETC(tv5, 1);
-        PUSH_ETC(tv4, 2);
-        PUSH_ETC(tv3, 3);
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 0)));
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 1)));
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 2)));
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 3)));
         break;
     case 15:
-        PUSH_CONST(tv2, 1);
+        out.push_back(1);
         break;
     case ACTIVE_STATUS_17:
-        PUSH_ETC(tv1, 0);
+        out.push_back(static_cast<int>(getActiveStatusEtcParameter(status, level, 0)));
         break;
     default:
         break;
     }
-#undef PUSH_ETC
-#undef PUSH_CONST
 }
 
-// [b28d-28] DIFF | ORIG 0x0808df82 | P196/P197④/N82：ORIG `setne %al; test`
-// 物化与 je 落点块序，4.4 产 `xor $1; je` 反向；余为槽号差。
+// [b28d-solo-W9_SDCCommon] ORIG 0x0808df82：守卫顺序 outPtr(0x14)→outB(0x18)
+// →d(0x1c)（P133 独立守卫，禁合并短路）；params.size()!=0 产
+// `test %eax,%eax; setne %al; test %al,%al; je`（P197④：empty() 恒产 xor 反向）；
+// 赋值块读 **outPtr**（0x14）而非 outB（原重建误写 *outB，真语义 bug，已修）；
+// switch 叶块物理序 = case 书写序（P46）：burn(0x107)→poison(0x13a)→
+// bleeding(0x162)→disease(0x17b)。
 void SDCActiveStatusSyncCommon::getActiveStatusDamageDurationForSDC(
     char attackType, int statusLevel, int* outPtr, int* outB,
     STSDCActiveStatusSyncDataSend* d, void*)
 // 0x0808df82：栈上备份 d、经 makeEtcParameters 取 duration / 参数，
 // 按 attackType 分派伤害计算并写入 *outB。
 {
-    if (outB == 0 || d == 0 || outPtr == 0)
+    if (outPtr == 0 || outB == 0 || d == 0)
         return;
 
     STSDCActiveStatusSyncDataSend local = *d;      // ORIG 帧 -0x4a..(-0x16) 全拷
@@ -472,30 +464,30 @@ void SDCActiveStatusSyncCommon::getActiveStatusDamageDurationForSDC(
     makeEtcParameters(static_cast<ENUM_ACTIVESTATUS>(attackType), statusLevel,
                       &local, &params, outPtr);
 
-    if (!params.empty())
+    if (params.size() != 0)
     {
-        // ORIG：local.baseDamage=params[0]，local.durationTick=*outB。
+        // ORIG 0x0808e06b：local.durationTick = *outPtr（0x14），非 *outB。
         local.m_baseDamage = params[0];
-        local.m_durationTick = *outB;
+        local.m_durationTick = *outPtr;
     }
 
     switch (attackType)
     {
-    case 2:                                        // poison
-        *outB = getPoisonDamage(&local, 0, local.m_durationTick);
-        break;
-    case 6:                                        // disease
-    case 7:
-        *outB = local.m_baseDamage;
-        break;
     case 9:                                        // burn
     {
         bool flag = false;
         *outB = getBurnDamage(flag, &local, 0, local.m_durationTick);
         break;
     }
+    case 2:                                        // poison
+        *outB = getPoisonDamage(&local, 0, local.m_durationTick);
+        break;
     case 11:                                       // bleeding(server)
         *outB = getBleedingDamageServer(&local);
+        break;
+    case 6:                                        // disease
+    case 7:
+        *outB = local.m_baseDamage;
         break;
     default:
         break;

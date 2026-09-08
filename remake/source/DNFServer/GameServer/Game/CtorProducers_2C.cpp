@@ -159,7 +159,7 @@ void CMCAPManager::init()
 namespace WongWork
 {
 
-CItemGeneratorMgr::CItemGeneratorMgr()
+CItemGeneratorMgr::CItemGeneratorMgr() throw()
 {
     // ORIG 0x08374ef4：仅对 +0x3e0 的内嵌 CGeneratorCommonData 调用空体 ctor
     // （0x08374ebc push/mov/pop/ret），由编译器按成员初始化自动完成。

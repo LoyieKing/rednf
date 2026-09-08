@@ -138,7 +138,11 @@ CAutoMarketConditionsControl::~CAutoMarketConditionsControl()
 // `cmpl $9; setle` = i<=9 头检 for；key2 上界检查 ORIG 不存在（仅 <=0 →
 // 0x3c）；key4 push_back 后存在 ok 二次重载检查（0x082f8386，别名后重读）；
 // 未知键直接 return 0x64（0x082f8401），非 continue。
-// [b28d-lane16 DIFF] ORIG 082f815c：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-CDataManager DIFF-N] 真语义 bug ×2 修复：① ORIG 0x082f8287 有
+// `cmp $0xc8; jle` 上界检查（value>200 → 0x3c），旧码缺；② ORIG 0x082f82ac 写
+// 地址 = this+0xc+(value+0x14)*4 = m_goldPerLevel[value]，旧码 `[value+0x17]`
+// 多写 0x5c 字节越界。残差仅入口 jmp 旋转 1 条（P164 负例，for(;;)+break 反 +2）
+// ⇒ N 封顶；p167 19/19 CLEAR。
 int CAutoMarketConditionsControl::LoadScript(const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -148,6 +152,9 @@ int CAutoMarketConditionsControl::LoadScript(const char* path)
     std::string token;
     int value = 0;
     bool ok = false;
+    // [b28d-solo-CDataManager] ORIG 条件块在循环头（+0x42 直落）、尾部回跳；
+    // 4.4 对 while(cond) 恒旋转成入口 jmp 尾条件（+1 条，P164 负例；
+    // for(;;)+break 形实测 +2 更差）。唯一残差 1 条 jmp，语义等价。
     while (ScanType(token, true) != false)
     {
         if (token == "[control of gold drop amount rate]")
@@ -175,11 +182,17 @@ int CAutoMarketConditionsControl::LoadScript(const char* path)
                 {
                     return 0x3c;
                 }
-                // ORIG 0x082f82ac `lea 0x14(%ebx); 0xc(this+0x5c,,4)` = 落
-                // +0xB8+level*4，即 m_goldPerLevel[level+0x17]（写侧基差
-                // 0x5c 实证【推断：消费侧 GetMarketConditionRate 以同数组
-                // 低段读取，此处忠实 ORIG 写位不臆改】）。
-                m_goldPerLevel[value + 0x17] = ScanInt(&ok);
+                // [b28d-solo-CDataManager 真语义 bug 修复] ORIG 0x082f8280-8c 有
+                // 上界检查（`cmp $0xc8; jle` ⇒ value>200 也返回 0x3c），旧码缺。
+                if (value > 200)
+                {
+                    return 0x3c;
+                }
+                // [b28d-solo-CDataManager 真语义 bug 修复] ORIG 0x082f82ac 写地址
+                // = this+0xc+(value+0x14)*4 = this+0x5c+value*4 = m_goldPerLevel
+                // [value]（成员 +0x5c 实证）；旧码 `[value+0x17]` 多写 0x5c 字节
+                // （23 个 int），越界破坏后续成员。
+                m_goldPerLevel[value] = ScanInt(&ok);
                 if (ok != true)
                 {
                     return 0x40;
@@ -399,7 +412,9 @@ int CDataManager::get_creature_exp_level(int exp) const
     return level - 1;
 }
 
-// [b28d-lane16 NEAR] ORIG 08360cb8：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-CDataManager NEAR-N] 唯一残差 1 条：ORIG `mov level,%edx; mov this,
+// %eax` vs 4.4 恒 this 先（探针 /tmp/p_sp/{a,b,c}.cpp 六形全败；cast 视图恒 base
+// 先，真实成员直访问产 lea 折叠亦不符）⇒ N76 load 侧/P30 封顶，语义等价。
 unsigned int CDataManager::GetSpAtLevelUp(int level) const
 {
     if (level < 1 || level > 95)
@@ -432,7 +447,8 @@ unsigned int CDataManager::GetMoneyLimitPerLevel(int level, const char* serverGr
 
 // 残余 DIFF 归因：ORIG else 臂把表值直读进 %edx 后 `mov %edx,(%eax)`，4.4.7
 // 先落 %eax 再 spill %edx（N7/N18a 寄存器指派反向），界检查折叠同因。
-// [b28d-lane16 DIFF] ORIG 08360a6e：先落 %eax 再 spill %edx（N7/N18a 寄存器指派反向），界检查折叠同因。
+// [b28d-solo-CDataManager AE] 修复：CDataManager.h 匿名 union 增同址 unsigned
+// 视角 m_mobRewardU（P235/P246）复现 ORIG 单段 `mov 0x4(%eax,%edx,4),%edx`。
 void CDataManager::get_mob_reward(int level, unsigned int& out) const
 {
     if (level <= 0 || level > 199)
@@ -592,13 +608,15 @@ end:
 // 遍历 m_genRefs1(+0x468)/m_genRefs0(+0x428)，元素 +0x10=m_dropRate 按
 // ROUND(v*ratio) 截断缩放；float 比较为 i486 形态。尾部空块中继岛按 P223
 // goto 尾空标签形复现；x87 分步 flds+fdivp vs 4.4 fdivs 折叠属 N85附②。
-// [b28d-lane16 DIFF] ORIG 083607d8：goto 尾空标签形复现；x87 分步 flds+fdivp vs 4.4 fdivs 折叠属 N85附②。
+// [b28d-solo-CDataManager DIFF-N] 残差 2 条：① x87 `/const` 折叠 `fdivs mem`
+// vs ORIG `flds+fdivp`（N85附② 跨版本中端差）；② 尾 jmp/nop 落点
+// （P223 边界：4.4 自身 epilogue-threading；早返/正向 if+空 else/goto 尾标签
+// 三形实测同产物）。语义等价封顶。
 __attribute__((target("arch=i486"))) void CDataManager::SetItemDropRate(float rate)
 {
-    float ratio;   // 声明先于 goto（POD 无初始化声明可跨越，C++98 [stmt.dcl]）
     if (m_dropRate == rate)
-        goto end;
-    ratio = m_dropRate / rate;
+        return;
+    float ratio = m_dropRate / rate;
     m_dropRate = rate;
     m_itemGeneratorMgr->setDropRatio(rate);
     for (int i = 0; i < (int)m_serverParameter.m_genRefs1.size(); ++i)
@@ -611,8 +629,6 @@ __attribute__((target("arch=i486"))) void CDataManager::SetItemDropRate(float ra
         sItemGenRef& ref = m_serverParameter.m_genRefs0[i];
         ref.m_dropRate = (int)((float)ref.m_dropRate * ratio);
     }
-end:
-    ;
 }
 
 // ===================== PvP/排行 =====================
@@ -668,7 +684,10 @@ std::vector<int>* CDataManager::getDailyTrainingQuest(int idx)
     return &m_dailyTrainingQuest[idx - 1];
 }
 
-int CDataManager::isThereDailyTrainingQuestList(int idx, int questIdx)
+// [b28d-solo-CDataManager] 返回类型 int→bool（P292/P168a 档①）：ORIG
+// 0x0836411e 返回点 `mov $0/1,%eax`，唯一调用点 Quest::check_possible
+// 0x08352f3b `call; xor $0x1,%eax; test %al,%al; je` ⇒ callee bool。
+bool CDataManager::isThereDailyTrainingQuestList(int idx, int questIdx)
 {
     if (idx <= 0 || idx > 0x46)
     {
@@ -959,7 +978,7 @@ bool ChattingEmoticonBase::isCommonEmoticon(const CUser& user) const
     return isUsable(user);
 }
 
-// [b28d-solo-CDataManager] 原嵌套 if 形被 4.4 折成内存直比（cmpl $imm,0xc(%ebp)），
+// [b28d-solo-CDataManager AE] 修复：原嵌套 if 形被 4.4 折成内存直比（cmpl $imm,0xc(%ebp)），
 // ORIG 为形参物化 + 寄存器比较链。改 switch 连续 case 组（0x2898bf/c0→53、
 // c1/c2→57）即复现 `mov 0xc(%ebp),%eax; cmp $0x2898bf,%eax; jl fail; …`
 // 决策链（P251/P261 switch 判据 + 探针 /tmp/p_sp/h.cpp f6 逐条全等）。
@@ -999,7 +1018,10 @@ ChattingEmoticonBase* CChattingEmoticonList::find_emoticon(int idx)
 // 族——同址参数装载的 eax↔edx 指派与 spill 序（如 `mov (%eax),%edx` vs
 // `mov (%eax),%eax` 后接不同中转），4.4.7 分配器固定反向，穷举表达式形
 // 不可翻（范式库 N7/N18a/N22 + setcc 装载组合）。
-// [b28d-lane16 DIFF] ORIG 080e5880：不可翻（范式库 N7/N18a/N22 + setcc 装载组合）。
+// [b28d-solo-CDataManager DIFF-N] 残差：① 循环尾测 4.4 恒内存直比
+// `cmpl $0x17,-0x20(%ebp)` vs ORIG `mov -0x20,%eax; cmp $0x17,%eax`
+// （P209 附，三形探针 /tmp/p_sp/i.cpp 全折）；② EH 尾块相对序（N104）。
+// p167 29/29 CLEAR ⇒ 语义完整，byte 层封顶。
 void CChattingEmoticonList::ReCalc(CChattingEmoticonConfig& config,
                                    const CUser& user)
 {
@@ -1257,6 +1279,7 @@ CDataManager::~CDataManager()
 
 void CDataManager::destroy()
 {
+    // [b28d-solo-CDataManager AE] 本波 TU 口径已闭合（不在 DIFF/NEAR 列表）。
     // N7 封顶：delete 链中唯一虚析构调用（+0x86f4 vptr+4 间接 call）两侧
     // vptr/obj 寄存器互换（ORIG edx/eax vs 4.4 eax/edx，N7 族）；其余 307 条
     // 归一后逐条相等（fn_diff_tu 实证）。语义等价封顶。
@@ -1428,7 +1451,9 @@ void* CDataManager::GetChannelScript() const
     return const_cast<channel_script_t*>(&m_channelScript);
 }
 
-// [b28d-lane16 NEAR] ORIG 见报告：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-CDataManager AE] 修复：trace 改 `cMyTrace(__FUNCTION__,0xd44,5)(...)`
+// 全表达式临时链（P221）翻正 it/end/trace 槽向，并把 ctor 串改回 ORIG 的
+// __FUNCTION__ 符号、fmt 改回 ORIG 原文 "not finnd tower : %u"（0x8b6f4c0）。
 stDeathTower_t* CDataManager::GetTowerScript(unsigned int dungeonIdx)
 {
     // ORIG W 0x081455d8：m_deathTowerMap.find(dungeonIdx)；未找到打 cMyTrace；
@@ -1481,6 +1506,7 @@ char CDataManager::get_dimensionInout(int idx)
 
 bool CDataManager::GetPvPChannelGrade()
 {
+    // [b28d-solo-CDataManager AE] 本波 TU 口径已闭合（不在 DIFF/NEAR 列表）。
     // ORIG 0x08357e9e T：-0x1c(dst)/-0x38(serverGroup) 在 guard 前物化；
     // guard `xor$1;test;je` 为 if(IsPVPChannel()) 正向包裹（0x08357ecd）。
     // 返回 0/1（ORIG `mov$0/mov$1,%eax` 双路，P159）。
@@ -1570,7 +1596,8 @@ const char* CDataManager::SuddenShopFileName3()
 //  跨版本 this-cache 物化——4.1.2 对局部容器成员调用先 `lea obj; mov %eax,-slot`
 //  （-0x58=&monsterList、-0x54=aiList 等，0x08362125 实证），4.4.7 直发 lea 不
 //  物化，全帧槽号系统性平移（P112 族）；条目基址/负值检查行随之整块错位。
-// [b28d-lane16 DIFF] ORIG 083620ee：物化，全帧槽号系统性平移（P112 族）；条目基址/负值检查行随之整块错位。
+// [b28d-solo-CDataManager DIFF-N] p167 94/94 CLEAR（调用点零差）；残差为
+// 帧 0x130 vs 0x120 与槽/寄存器指派（P112/N82 族）⇒ 语义完成、byte 层 N 封顶。
 bool CDataManager::VerifyMap(const CMap& map, int idx) const
 {
     // ORIG 0x083620ee：map type 与 monster list 只被读取，结果不参与返回。
@@ -1762,7 +1789,9 @@ void* CDataManager::get_dungeon(int idx)
 // （P151 同族形已用，槽 -0x6e4 对齐）；② for_each 段 4.4 引用别名物化槽
 // 使 maker 区平移（P112）；③ ORIG EH landing pad（0x08363d2c..0x08363d89
 // cleanup 展开）与 4.4 异常表结构差异属跨版本负例。
-// [b28d-lane16 DIFF] ORIG 08363ce0：使 maker 区平移（P112）；③ ORIG EH landing pad（0x08363d2c..0x08363d89
+// [b28d-solo-CDataManager DIFF-N] 修复：CStringMaker 改匿名临时全表达式链
+// （P37/P221；ORIG 段零 copy ctor call、D1×4，旧具名形多 C1ERKS_×1+D1×2），
+// p167 31/31 CLEAR；残差为 multiset[0x46] 构造循环（P151 族）+ EH 结构（N104）。
 bool CDataManager::reselectDailyTrainingQuest()
 {
     // ORIG 0x08363ce0 T。主分支：
@@ -1818,16 +1847,15 @@ bool CDataManager::reselectDailyTrainingQuest()
         m_trainingQuest.reset_same_apply_level_cnt();
         if (!m_dailyTrainingQuest[level - 1].empty())
         {
-            // ORIG 0x08363f58..0x08364075：maker(-0x44) 先构造，begin/end 落
-            // -0x3c/-0x40，for_each sret 回 -0x48（`for_each<normal_iterator
-            // <int*>,CStringMaker>` @0x0839519f），c_str()@0x08376034 → ebx，
-            // 再 cMyTrace 临时链（P37），末两 CStringMaker dtor@0x0837f580。
-            sync_script::CStringMaker maker;
-            sync_script::CStringMaker made = std::for_each(
-                m_dailyTrainingQuest[level - 1].begin(),
-                m_dailyTrainingQuest[level - 1].end(), maker);
+            // ORIG 0x08363f58..0x08364075：仅一次 `CStringMakerC1Ev`
+            // （0x08363f6e）+ 4×D1、**零** copy ctor call ⇒ 原码传匿名临时
+            // （copy elision 直构形参）；旧具名 maker 形多 1 copy C1ERKS_ + 2 D1
+            // （p167 EXTRA）。全表达式临时链复现（P37/P221）。
             cMyTrace(__PRETTY_FUNCTION__, 0x2ad2, 0)(
-                "TRAINING_QUEST level(%d), quest(%s)", level, made.c_str());
+                "TRAINING_QUEST level(%d), quest(%s)", level,
+                std::for_each(m_dailyTrainingQuest[level - 1].begin(),
+                              m_dailyTrainingQuest[level - 1].end(),
+                              sync_script::CStringMaker()).c_str());
         }
     }
     return 1;
@@ -1899,7 +1927,11 @@ int getCharacterJobToEnumValue(std::string& job)
 // 逗号 while ORIG 头检测形 vs 4.4 循环旋转（P75/EvtC9 技巧①对该形未试全）；
 // ③ 外 guard `xor$1;test;je` 与 `cnt add$1;mov %eax,%edx` 两段式 = N18a/N1；
 // ④ 入口三组 `jmp +0x42; nop` 中转岛 = 跨版本空 else nop;jmp 负例。
-// [b28d-lane16 DIFF] ORIG 0890857b：③ 外 guard `xor$1;test;je` 与 `cnt add$1;mov %eax,%edx` 两段式 = N18a/N1；
+// [b28d-solo-CDataManager DIFF-N] 修复：① m_count 去具名 cnt 槽（P0，ORIG
+// 0x0890861c `call ScanInt; add $0x1,%eax` 直用）；② rankRate push_back 传左值
+// v（ORIG 0x089087ec ERKi）、recordOrder 直接传函数返回值（ORIG 0x08908961 EOi）
+// —— 旧形两处重载恰好互换使 p167 假 CLEAR，修正后仍 46/46 CLEAR；残差 =
+// resize 值参 vs const&（跨 libstdc++）+ while 循环旋转（P164）。
 int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
 {
     // ORIG 0x0890857b：ok(-0x25) 为函数级共享旗（入口 `movb $0,-0x25` 一次，
@@ -1915,8 +1947,10 @@ int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
     {
         if (line == "[pvp experience max grade]")
         {
-            int cnt = ScanInt(&ok);
-            table.m_count = cnt + 1;
+            // [b28d-solo-CDataManager] ORIG 0x0890861c 无 cnt 槽往返
+            // （`call ScanInt; add $0x1,%eax` 表达式直用，P0）——旧具名 cnt
+            // 多 store+load 两条。
+            table.m_count = ScanInt(&ok) + 1;
             if (!ok)
                 return 0x181f;
             table.m_grades.reserve(table.m_count);
@@ -1958,14 +1992,14 @@ int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
         }
         else if (line == "[pvp rank rate]")
         {
-            int v = 0;
+            // [b28d-solo-CDataManager] ORIG 0x089087bd：v 无入口清零、
+            // push_back 传左值槽（`push_backERKi`，ORIG call 8111126）；
+            // 旧形 `int v = 0` + `static_cast<int&&>(v)` 多入口 store 与
+            // 右值临时槽（-0x18）两条并选错 EOi 重载。
+            int v;
             while (v = ScanInt(&ok), ok == true)
             {
-                // [b28d-lane16 P234] ORIG 0x08908??? 选 `push_back(int&&)`（EOi）；
-                // 传左值 v 使 4.4 选 `push_back(int const&)`（ERKi）——p167 差集
-                // MISSING EOi/EXTRA ERKi。static_cast<int&&> 是纯语言构造，
-                // 零额外 call 且选中同一 move 重载。
-                table.m_rankRate.push_back(static_cast<int&&>(v));
+                table.m_rankRate.push_back(v);
             }
         }
         else if (line == "[pvp normal battle time]")
@@ -1998,8 +2032,10 @@ int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
             std::string job;
             while (ScanStr(&job))
             {
-                int idx = getCharacterJobToEnumValue(job);
-                table.m_recordOrder.push_back(idx);
+                // [b28d-solo-CDataManager] ORIG 0x08908961 选
+                // `push_backEOi`（右值）⇒ 直接传函数返回值，无具名 idx
+                // （具名左值会选 ERKi，p167 MISSING EOi/EXTRA ERKi）。
+                table.m_recordOrder.push_back(getCharacterJobToEnumValue(job));
             }
         }
         else if (line == "[pvp team hp correction]")
@@ -2019,7 +2055,9 @@ int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
 // 绝对地址（.o 显示 $0x0 reloc）；循环体 SetPvpGrade 的 grade 指针 ORIG 经
 // 单次装载复用（0x08360b0x 区），4.4.7 每次重装载全局（P48 反向），序列
 // 等价但行序差；table ctor 槽 -0x50 vs -0x54（4.4 对 4B 对齐选择差异，P112）。
-// [b28d-lane16 DIFF] ORIG 08360aa2：等价但行序差；table ctor 槽 -0x50 vs -0x54（4.4 对 4B 对齐选择差异，P112）。
+// [b28d-solo-CDataManager AE] 修复：prevExp/lastGrade 声明序按 ORIG 入口清零序
+// （-0x14 先），循环体序改为 ++lastGrade → data.curr=prevExp → data.next →
+// prevExp → SetPvpGrade（三次独立 op[]，P48）。
 int CDataManager::set_pvp_grade()
 {
     // ORIG 0x08360aa2：Clear 走 `mov &s_ref_pvp_grade,%eax; call` 两段直发
@@ -2125,7 +2163,14 @@ bool CDataManager::InitLoginState(ENUM_SERVER_GROUP serverGroup, int channelNo)
 // vector<_DailySchedule>、SDCActiveStatusSyncServer、AvatarRoulette）由 C++
 // 作用域析构，与 ORIG 异常清理块（+0x6df2..+0x6e96）等价。
 // ---------------------------------------------------------------------------
-// [b28d-lane16 DIFF] ORIG 08358332：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-CDataManager DIFF-N] 真语义缺口修复 ×3：① importDailyScheduleEtcScript
+// 失败 printf("importDDayEventEtcScript Fail(%d)\n")（ORIG 0x08359eaa）；②
+// initWorldMapScript 失败 puts("Load WorldMap.lst fail")（ORIG 0x0835b652）；
+// ③ 非空判定改 size()!=0（ORIG 0x08359ec9 调 size，旧 empty() 为 EXTRA）。另消除
+// ptEv ×5（EquipmentPartSet 段 data/pieces 具名引用，ORIG 0x0835e4f0/0x0835e4fe）。
+// Main 已代落 CItemGeneratorMgr::C1 throw()（CItemGeneratorMgr.h + CtorProducers_2C.cpp）
+// ⇒ new-expression landing pad 消除，p167 843/843 CLEAR（0 missing/0 extra）；
+// 残余为帧/槽（P112/N82 族）⇒ 语义完成、byte 层 N 封顶。
 bool CDataManager::init()
 {
     // ORIG 版本五元组落在具名区最浅端（槽 -0xf1c/-0xf18/-0xf14/-0xf10/
@@ -2644,12 +2689,19 @@ bool CDataManager::init()
     // AdvanceAltar 四段复用同一变量）。
     err = 0;
     std::vector<_DailySchedule> schedules;
-    if (importDailyScheduleEtcScript("Etc/Chn_ServerCheckSchedule.etc",
-                                     schedules) != 0)
+    // [b28d-solo-CDataManager 真语义缺口修复] ORIG 0x08359e95-0x08359ebb：
+    // err(-0x38) = importDailyScheduleEtcScript(...)；err!=0 时 **printf**
+    // ("importDDayEventEtcScript Fail(%d)\n", err) 再 ret0（旧码无 printf，
+    // p167 MISSING printf ×1）；且非空判定为 `size() != 0`（ORIG
+    // 0x08359ec9 调 vector<_DailySchedule>::size，旧码 empty() 为 EXTRA）。
+    err = importDailyScheduleEtcScript("Etc/Chn_ServerCheckSchedule.etc",
+                                       schedules);
+    if (err != 0)
     {
+        printf("importDDayEventEtcScript Fail(%d)\n", err);
         return 0;   // ORIG 清理链经 vector dtor 后 ret0（+0x6e88 区）
     }
-    if (!schedules.empty())
+    if (schedules.size() != 0)
     {
         GlobalData::s_DailyScheduleManager->AddDailSchedule(schedules);
     }
@@ -3036,6 +3088,10 @@ bool CDataManager::init()
     // WorldMap/StageMap。
     if (!initWorldMapScript((char*)"WorldMap/", (char*)"WorldMap.lst"))
     {
+        // [b28d-solo-CDataManager 真语义缺口修复] ORIG 0x0835b652-59：
+        // `movl $0x8c31c07,(%esp); call puts`（串 "Load WorldMap.lst fail"）
+        // ⇒ 失败路径有 puts（旧码缺，p167 MISSING puts ×1）。
+        puts("Load WorldMap.lst fail");
         return 0;
     }
     initStageMapScript((char*)"StageMap/", (char*)"StageMap.lst");
@@ -3626,21 +3682,27 @@ bool CDataManager::init()
                  g_equipmentPartSetMap_.begin();
              it != g_equipmentPartSetMap_.end(); ++it)
         {
+            // [b28d-solo-CDataManager] ORIG 0x0835e4f0 `ptEv; add $0x4;
+            // mov %eax,-0x20`（具名引用 data）+ 0x0835e4fe `add $0xc;
+            // mov %eax,-0x1c`（具名 pieces 引用）——旧形每处字段访问重发
+            // ptEv（p167 EXTRA operator-> ×5）。
+            STEquipmentPartSetData& data = it->second;
+            std::vector<STEquipmentPartSetPiece>& pieces = data.m_pieces;
             for (std::vector<STEquipmentPartSetPiece>::iterator pit =
-                     it->second.m_pieces.begin();
-                 pit != it->second.m_pieces.end(); ++pit)
+                     pieces.begin();
+                 pit != pieces.end(); ++pit)
             {
                 sync_script::GetInstanceSyncScript()->insert_item_parts_set(
                     it->first, *pit);
             }
-            if (it->second.m_script != 0)
+            if (data.m_script != 0)
             {
                 for (std::map<int, EquipmentParameterInfo>::iterator eit =
-                         it->second.m_script->m_paramMap678.begin();
-                     eit != it->second.m_script->m_paramMap678.end(); ++eit)
+                         data.m_script->m_paramMap678.begin();
+                     eit != data.m_script->m_paramMap678.end(); ++eit)
                 {
                     STEquipmentScript es;
-                    es.m_strac = it->second.m_script->m_str668;
+                    es.m_strac = data.m_script->m_str668;
                     // ORIG 0x0835e4f8：`call operator->; add $0x4; mov %eax,-0x20`
                     // 具名指针物化后两处复用（+0xc deref/…）——具名引用引导 4.4
                     // 同形物化（段②站点对表首个试点）。
@@ -3851,7 +3913,9 @@ unsigned int CDataManager::getDungeonClearAverageTime(int dungeonIdx, int partyC
 //   遍历 m_dungeonRank.m_vec18（vector<stBonusPointValues>）：
 //     若 diff < 当前 lo：列表首项 → 0，否则返回上一项 value；
 //     否则记录 (lo, value) 继续；循环结束返回最后一个 value。
-// [b28d-lane16 DIFF] ORIG 08363ac8：ORIG T 0x08363ac8 _ZN12CDataManager22getClearTimeBonusPointEii：
+// [b28d-solo-CDataManager AE] 修复：cur/prev 声明序（cur 先，ORIG 0x08363af0
+// 先构造 -0x20）+ diff 赋值后置到两次 ctor 之后 + end 缓存到 e（P13，ORIG
+// 0x08363b30 循环外一次 end）复现 ORIG 槽位与循环形。
 int CDataManager::getClearTimeBonusPoint(int avgTime, int clearTime)
 {
     // ORIG 0x08363ac8：result(-0x10)/diff(-0xc) 双双入口零初始化；早退

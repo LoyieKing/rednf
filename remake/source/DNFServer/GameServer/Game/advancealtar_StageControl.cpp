@@ -184,7 +184,13 @@ void StageControl::sendStageInfo()
 //   失败透传错误码；成功 → sendStageInfo() → sendMapInfo()【未建模批次跳过】
 //     → setNotSurvivalModeFirstRound() → set_state(0xd) → 0。
 // ----------------------------------------------------------------------------
-// [b28d-D9] P0/P183：ORIG 无 cam/cd 具名引用槽（每次重算 add $0x8df60）；4.4 具名 CharacData* 落 -0x14（ORIG 0x0812fa7a sz 0x0000011e）
+// [b28d-solo-StageControl] selectStage：ORIG 78 / ours 83。已按 P183/P0 去掉
+//   getCharacData()/getProcStage() out-of-line call 与具名指针槽（ORIG 每访问点重算
+//   this+0x98 / this+0x4），并补 P198① `int err = 0; err = startStage(...)` 预清两句式。
+//   残差 = N76：`m_field0 = getCurrentRidableId()` 4.4 恒 LHS-first（地址升格 %ebx 跨
+//   call ⇒ push ebx/sub $0x24、+5 条），ORIG 4.1 为 RHS-first 直存 `mov %eax,0x98(%edx)`；
+//   P211 档②/③（字段 unsigned 化、RHS (unsigned) cast）实测均不翻（4.4.6 同 LHS-first）。
+//   另 setUser/startStage 实参寄存器角色 eax↔edx 互换（P75 跨版本）。语义逐条等价。
 int StageControl::selectStage(CUser* user, int stageId,
                               advancealtar::StageDifficulty::T diff)
 {
@@ -203,14 +209,17 @@ int StageControl::selectStage(CUser* user, int stageId,
         return 8;
     }
 
-    CharacData* cd = getCharacData();
-    cd->m_field0 = user->m_advanceAltar.getCurrentRidableId();
-    cd->setUser(user);
-    cd->setSlotItem();
+    // [b28d-solo-StageControl] P183/P0：ORIG 每个访问点重算 this+0x98 / this+0x4
+    // （无 getCharacData/getProcStage call、无具名指针槽）；逐点表达式直用。
+    reinterpret_cast<CharacData*>(m_characData)->m_field0 =
+        (unsigned int)user->m_advanceAltar.getCurrentRidableId();
+    reinterpret_cast<CharacData*>(m_characData)->setUser(user);
+    reinterpret_cast<CharacData*>(m_characData)->setSlotItem();
 
-    ProcStage* procStage = getProcStage();
-    procStage->resetAll();
-    const int err = procStage->startStage(stageId, diff);
+    reinterpret_cast<ProcStage*>(m_procStage)->resetAll();
+    // P198①：ORIG 在 startStage 前有 `movl $0x0,-0xc(%ebp)` 预清 ⇒ 两句式。
+    int err = 0;
+    err = reinterpret_cast<ProcStage*>(m_procStage)->startStage(stageId, diff);
     if (err != 0)
     {
         return err;
@@ -218,7 +227,7 @@ int StageControl::selectStage(CUser* user, int stageId,
 
     sendStageInfo();
     sendMapInfo();
-    procStage->setNotSurvivalModeFirstRound();
+    reinterpret_cast<ProcStage*>(m_procStage)->setNotSurvivalModeFirstRound();
     user->set_state((ch_state)0xd);
     return 0;
 }
@@ -230,19 +239,22 @@ int StageControl::selectStage(CUser* user, int stageId,
 //   char isAvailableTicket; pad[3]}（8B，权威定义 advancealtar.h）；
 //   put_header(0,0x20e) + put_binary(8) + finalize(true) → Send。
 // ----------------------------------------------------------------------------
-// [b28d-D9] N89：getCharacData() 非 inline getter 4.4 恒 out-of-line call（ORIG 内联 add $0x98）（ORIG 0x081306be sz 0x000000e7）
+// [b28d-solo-StageControl] P183/P0：ORIG 直接 `this+0x98` 调 CharacData::getUser
+//   （无 getCharacData thunk call）；isAvailableTciket 结果先落具名 bool 槽 -0x9
+//   （`mov %al,-0x9` 直存、body 字段处 `movzbl -0x9; mov %al` 读回），且声明在 body
+//   之前 ⇒ 调用序在 body ctor 之前；旧 `? 1 : 0` 三目被物化成 test/je/mov$1/jmp/mov$0。
 void StageControl::sendEplp(StageEndType::T endType)
 {
-    CUser* user = getCharacData()->getUser();
+    CUser* user = reinterpret_cast<CharacData*>(m_characData)->getUser();
     if (user == 0)
     {
         return;
     }
 
+    const bool isAvailableTicket = user->m_advanceAltar.isAvailableTciket();
     NOTIPacketStruct::_NotiAdvanceAltarEplpState body;
     body.m_eplpType = endType;
-    body.m_isAvailableTicket =
-        user->m_advanceAltar.isAvailableTciket() ? 1 : 0;
+    body.m_isAvailableTicket = isAvailableTicket;
 
     PacketGuard guard;
     guard.put_header(0, 0x20e);
@@ -255,7 +267,11 @@ void StageControl::sendEplp(StageEndType::T endType)
 //   Timer_StageControl::RegistTimerEPLPReturnVillage(getIndex())
 //   （ORIG T 0x0812f956，定义 advancealtar_ProcStage.cpp）。
 // ----------------------------------------------------------------------------
-// [b28d-D9] P85：ORIG 形参比较载 %eax 复用（cmp $3,%eax; je）；4.4 signed 恒 mem 直比 + jne（ORIG 0x08130644 sz 0x0000004e）
+// [b28d-solo-StageControl] onEplp：ORIG 27 / ours 29（对齐 nop 剥离后 28）。P222 否定
+//   守卫形已把块序/跳转方向逐条对齐（js/jle/je/jmp/movb/jmp/movb 全等，含 e>3 兜底 jmp）。
+//   唯一残差 = 4.4 语句级重载形参多一条 `mov 0xc(%ebp),%eax` + 第二比较 `cmpl $3,mem`
+//   vs ORIG `cmp $3,%eax`（P85：ORIG 4.1 跨语句保留 %eax；P0 禁具名局部/绑定形）。
+//   语义逐值等价（e<0/e>3 均不写 flag，e∈[0,2]→0、e==3→1）。N 封顶（P85/N82 族）。
 void StageControl::onEplp(StageEndType::T endType)
 {
     // ORIG 0x813064a：bool 岛 -0x9（预清 movb $0x0、条件链物化 movb $0/$1、无读者——
@@ -266,11 +282,15 @@ void StageControl::onEplp(StageEndType::T endType)
     {
         if (endType > 2)
         {
-            if (endType == 3)
-                flag = true;
+            if (endType != 3)
+                goto flag_done;
+            goto flag_true;
         }
-        else
-            flag = false;
+        flag = false;
+        goto flag_done;
+    flag_true:
+        flag = true;
+    flag_done:;
     }
     sendEplp(endType);
     Timer_StageControl::RegistTimerEPLPReturnVillage(getIndex());
@@ -291,16 +311,29 @@ void StageControl::onEplpReturnVillage()
 //   ProcStage::setState(6) + Timer_StageControl::RegistTimerEPLP(getIndex(), 3)
 //   （第二参为字面 3，非透传）。
 // ----------------------------------------------------------------------------
-// [b28d-D9] P85：同 onEplp：比较载寄存器 vs mem 直比（ORIG 0x081305f6 sz 0x0000004d）
+// [b28d-solo-StageControl] onClearReward：ORIG 30 / ours 30。P223 多岛形（三条独立否定
+//   守卫 goto + 尾标签串 island1/2/3）逐条复现 ORIG 三岛（js/jle/jne 分落 nop+jmp 岛，
+//   第三岛直落；body 尾 jmp join 同形）。唯一残差 = 4.4 语句级重载形参多一条
+//   `mov 0xc(%ebp),%eax` + 第三比较 `cmpl $3,mem` vs ORIG `cmp $3,%eax`（P85 跨语句
+//   %eax 保活；P0 禁具名局部/绑定形）。语义逐值等价。N 封顶（P85 族）。
 void StageControl::onClearReward(StageEndType::T endType)
 {
-    if (!(endType < 0) && endType > 2 && endType == 3)
-    {
-        // ORIG 0x0813060e：this+4 直访问 m_procStage 槽（无 getProcStage call）、
-        // mov (%eax) 直读 m_index（无 getIndex call）、第二参透传 endType（0x81330629）。
-        reinterpret_cast<ProcStage*>(m_procStage)->setState(ProcStage::State::S_N6);
-        Timer_StageControl::RegistTimerEPLP(m_index, endType);
-    }
+    if (endType < 0)
+        goto island1;
+    if (endType <= 2)
+        goto island2;
+    if (endType != 3)
+        goto island3;
+    // ORIG 0x0813060e：this+4 直访问 m_procStage 槽（无 getProcStage call）、
+    // mov (%eax) 直读 m_index（无 getIndex call）、第二参透传 endType（0x81330629）。
+    reinterpret_cast<ProcStage*>(m_procStage)->setState(ProcStage::State::S_N6);
+    Timer_StageControl::RegistTimerEPLP(m_index, endType);
+island1:
+    ;
+island2:
+    ;
+island3:
+    ;
 }
 
 // ----------------------------------------------------------------------------
@@ -311,20 +344,22 @@ void StageControl::onClearReward(StageEndType::T endType)
 // [b28d-D9] P85/P209：ORIG 线性比较链值全程 %eax；4.4 signed 形参 mem 直比（unsigned 强转实测反劣 29>27）（ORIG 0x0812fbfa sz 0x00000053）
 void StageControl::onTimer(TIMER_MESSAGE msg, StageEndType::T endType)
 {
-    // [b28d-D9] ORIG 0x0812fbfa 为线性比较链且值全程 %eax（P209/P85）：
-    // 4.4 对 signed 形参恒折 mem 直比（`cmpl $0xa9,0xc(%ebp)`），unsigned 强转
-    // 实测反致 jne 块序 + 叶块内联（29>27）⇒ 维持表达式直用，寄存器差记 P85 封顶。
-    if (msg == (TIMER_MESSAGE)0xa9)
+    // [b28d-solo-StageControl] P251：ORIG 值全程 %eax 无槽 + cmp 链 ⇒ 原码是
+    // switch((int)msg)（窄枚举需 (int) 规避 P305 越界 case 静默删除）；叶块顺序 =
+    // case 书写顺序（P46）照 ORIG：a8 → a9 → aa。
+    switch ((int)msg)
     {
-        onEplp(endType);
-    }
-    else if (msg == (TIMER_MESSAGE)0xaa)
-    {
-        onEplpReturnVillage();
-    }
-    else if (msg == (TIMER_MESSAGE)0xa8)
-    {
+    case 0xa8:
         onClearReward(endType);
+        break;
+    case 0xa9:
+        onEplp(endType);
+        break;
+    case 0xaa:
+        onEplpReturnVillage();
+        break;
+    default:
+        break;
     }
 }
 
@@ -392,16 +427,15 @@ void StageControl::gotoStage(CUser* user)
 // [b28d-D9] N95/N89：ORIG getMap 直调+具名槽；4.4 inline getter 展开差 + 槽基差（ORIG 0x081307a6 sz 0x0000015b）
 int StageControl::getCenterCount() const
 {
-    ProcStage* procStage = const_cast<ProcStage*>(
-        reinterpret_cast<const ProcStage*>(m_procStage));
-    CMap* map = procStage->getMap();                    // W thunk 0x08134860
+    // [b28d-solo-StageControl] P183：ORIG 直接 `this+4` 调 getMap、`this+0x98` 调
+    //   getUser（无具名 procStage/characData 指针槽）；P28：ORIG 增量段调 ppEi（后置
+    //   迭代器带独立 sret 临时槽）⇒ 源形必写 `it++`。
+    CMap* map = reinterpret_cast<const ProcStage*>(m_procStage)->getMap();
     if (map == 0)
     {
         return 0;
     }
-    CharacData* characData = const_cast<CharacData*>(
-        reinterpret_cast<const CharacData*>(m_characData));
-    CUser* user = characData->getUser();
+    CUser* user = reinterpret_cast<const CharacData*>(m_characData)->getUser();
     if (user == 0)
     {
         return 0;
@@ -409,13 +443,23 @@ int StageControl::getCenterCount() const
 
     int count = 0;                                      // -0x14
     std::list<_mapMonster> monsters = map->get_monster_list();
-    for (std::list<_mapMonster>::const_iterator it = monsters.begin();
-         it != monsters.end(); ++it)
+    // ORIG 0x0813080e：`lea -0x2c,%eax; mov %eax,-0x10(%ebp)` —— 具名 list 指针槽
+    // -0x10，begin/end 均从该槽取 this（Ghidra local_14 = local_30）。
+    std::list<_mapMonster>* monsterList = &monsters;
+    // P96：ORIG 用非 const iterator（避免 const_iterator 转换构造的额外临时槽）。
+    for (std::list<_mapMonster>::iterator it = monsterList->begin();
+         it != monsterList->end(); it++)
     {
         int valueA = 0;                                 // local_88[1]
         int valueB = 0;                                 // local_88[0]
-        // [b28d-D9] 同上：ORIG 0x0813080e 每轮重算 `add $0x8df60,%eax`。
-        if (user->m_advanceAltar.getTowerInfo(it->m_mobId, valueA, valueB))
+        // ORIG 0x08130869：getTowerInfo 结果先落具名字节槽 -0x9（`mov %al,-0x9`），
+        // 再 `movzbl -0x9; xor $1; test; jne <skip>; ++count; jmp; nop` 取反物化。
+        unsigned char hit =
+            user->m_advanceAltar.getTowerInfo(it->m_mobId, valueA, valueB);
+        if (hit ^ 1)
+        {
+        }
+        else
         {
             ++count;
         }

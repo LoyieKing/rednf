@@ -24,7 +24,7 @@ StringResource::~StringResource() {}
 // 其余 '\' 删除前缀字符（与 ORIG 循环形态一致），行结束('\r'/'\n')截断。
 // 错误码经调用方 "Parse error : line:%d reason:%d" 记入 error。
 // ---------------------------------------------------------------------------
-// [b28d-32 N(P75/N82): 多分支装载序与槽位差（NEAR 28），助记符集等长 | ORIG 0x08ad490f]
+// [b28d-solo-StringResource AE: 155=155 逐条全等（P264 归一后） | ORIG 0x08ad490f]
 static int parseStringLine(char* line, int* key, char** value)
 {
     char* p = line;
@@ -139,7 +139,11 @@ bool StringResource::get(int id, const CharString** out) const
 // 行终结：'\n' 直接进下一行；'\r\n' 连续则一并消费（ORIG i++ 补偿）。
 // i==len 时对最后一行就地 NUL 终结后解析。遍历边界 i<=len（setle 条件）。
 // ---------------------------------------------------------------------------
-// [b28d-32 N(P75): 装载序/寄存器差（163/167） | ORIG 0x08ad4ac2]
+// [b28d-solo-StringResource N(N93/N98/N18b/N104): 块内局部槽方向相反（ORIG 声明序深→浅
+// val-0x34/key-0x30/msg-0x2c/v-0x28/dupMsg-0x24；4.4 首次使用序 -0x24/-0x28/-0x2c/-0x30/-0x34，
+// P212 全头部声明实测劣化 165→205）+ r 槽比较 4.4 恒 mem-cmpl（N18b，unsigned 化无效）+
+// EH 少 1×_Unwind_Resume（N104 块合并）；163/165，p167 MISSING 1×_Unwind_Resume，语义完成
+// | ORIG 0x08ad4ac2]
 bool StringResource::loadFromString(char* text, int length, CharString* error)
 {
     m_strings.clear();
@@ -149,10 +153,12 @@ bool StringResource::loadFromString(char* text, int length, CharString* error)
     // 先例局部声明避免拖入 SyncScriptDeps.h 依赖。
     const char* toTString(const char* pszSrc);
 
+    char* val;                      // ORIG -0x34（P212 全头部声明，先声明占深槽）
+    int key;                        // ORIG -0x30
     int lineNo = 0;                 // -0x20
     char* lineStart = text;         // -0x1c
     int i = 0;                      // -0x18
-    do
+    while (i <= length)
     {
         // ORIG @0x2c-0x4a：c 为 byte 槽（-0x11，mov %al）；三条件
         // cmpb je/cmpb je/cmp jne 全部直跳，共享行末 i++（@0x1fd）——
@@ -162,8 +168,7 @@ bool StringResource::loadFromString(char* text, int length, CharString* error)
         {
             ++lineNo;                   // 行号在边界块首自增（@0x50）
             text[i] = '\0';
-            char* val = 0;              // -0x34（ORIG @0x5d 唯一 0 初始化）
-            int key;                    // -0x30
+            val = 0;                    // ORIG @0x5d 唯一 0 初始化（块内）
             int r = parseStringLine(lineStart, &key, &val);   // -0x10
             if (r != 0)
             {
@@ -171,8 +176,10 @@ bool StringResource::loadFromString(char* text, int length, CharString* error)
                 // 忽略解析失败继续（@0x87 je →val 检查）。
                 if (error != 0)
                 {
-                    CharString msg;     // -0x2c（ORIG 对此局部为 trivial 构造不发 C1）
-                    msg.format("Parse error : line:%d reason:%d", lineNo, r);
+                    // ORIG 0x08ad4b5c：format 为静态 sret，直写 -0x2c 局部槽，
+                    // 无 C1Ev/无 op=（P215 展开形）。
+                    CharString msg = CharString::format(
+                        "Parse error : line:%d reason:%d", lineNo, r);
                     *error = msg;
                     return false;
                 }
@@ -186,9 +193,8 @@ bool StringResource::loadFromString(char* text, int length, CharString* error)
                     // 重复 key：写 err 后**整表加载失败返回**（@0x16c-0x1d5）。
                     if (error != 0)
                     {
-                        CharString dupMsg;         // -0x24
-                        dupMsg.format("Duplicated key : line:%d key:%d",
-                                      lineNo, key);
+                        CharString dupMsg = CharString::format(
+                            "Duplicated key : line:%d key:%d", lineNo, key);
                         *error = dupMsg;
                     }
                     return false;
@@ -200,7 +206,7 @@ bool StringResource::loadFromString(char* text, int length, CharString* error)
             lineStart = text + i + 1;
         }
         ++i;
-    } while (i <= length);
+    }
     return true;
 }
 
@@ -237,7 +243,10 @@ bool StringResource::loadFromResource(void*, int, CharString*)
 // content.length(), error)（length 共调用 3 次，P48 无 CSE）;
 // if (copyBuf) delete[] copyBuf; 返回结果 byte 槽聚合。
 // ---------------------------------------------------------------------------
-// [b28d-32 N(N78/P75): rep stos/movs 内联与装载序差（361/363） | ORIG 0x08ad4e04]
+// [b28d-solo-StringResource N(N97/N82/N95): (size+3)/4*4 的 4.1 sar/shr/lea 有符号 lowering
+// vs 4.4 lea/test/cmovs（N97）+ 标量槽基深 4（ORIG origSize -0x2c 起，4.4 -0x30 起，
+// 帧同 0x60；未使用局部 pad 反致整体再深 4）+ XOR 循环地址重算（P205/P183）；
+// 361/363 gap −2，p167 CLEAR 42=42，语义完成 | ORIG 0x08ad4e04]
 bool StringResource::loadFromBinary(const unsigned char* data, int size, CharString* error)
 {
     CharString content;                              // -0x48
@@ -251,6 +260,7 @@ bool StringResource::loadFromBinary(const unsigned char* data, int size, CharStr
         char* buf = new char[payloadBytes];                         // -0x20
         memcpy(buf, data + 8, size);
 
+        int slotPad;
         char* cur = buf;                                            // -0x18
         unsigned int key = k0;                                      // -0x14
         for (unsigned int i = 0; i < (unsigned int)payloadBytes / 4; ++i)
@@ -305,7 +315,10 @@ bool StringResource::loadFromBinary(const unsigned char* data, int size, CharStr
 // 成功：fseek end/ftell/回 0 → fread 整体 → fclose →
 // loadFromBinary(buf,size,err) → delete[]，透传结果（size<0 失败返 0）。
 // ---------------------------------------------------------------------------
-// [b28d-32 N80/P75: loadFromBinary 三实参 ORIG 全 %eax 串行、4.4 恒 arg1 预取 eax+arg2/3 edx（5 探针全败） | ORIG 0x08ad4ce4]
+// [b28d-solo-StringResource N80/P75: loadFromBinary 三实参 ORIG 右→左全 %eax 串行
+// （error→0xc, fileSize→0x8, buf→0x4, this→0x0）、4.4 左→右先取 buf 入 %eax、arg2/3 走 %edx；
+// A(int fileSize)/B(具名 binData)/C((int)cast)/D(B+C) 四变体实测均劣（具名形多 2 条且槽漂）
+// | ORIG 0x08ad4ce4]
 bool StringResource::loadFromFile(const char* path, CharString* error)
 {
     FILE* fp = fopen(path, "rb");
@@ -379,7 +392,9 @@ bool loadString(CharString* error)
 // ---------------------------------------------------------------------------
 static unsigned int gCodePage;
 
-// [b28d-32 N18a: ORIG len+1 两步（mov+add）vs 4.4 恒 lea 一步，6 探针全败 | ORIG 0x08adf57f]
+// [b28d-solo-StringResource N18a: ORIG len+1 两步（mov -0x10,%eax; add $1,%eax; mov %eax,%esi）
+// vs 4.4 恒 lea 0x1(%eax),%esi；A(+1UL)/B(int len)/C(uint cast)/D(unsigned len)/E(语句表达式)
+// 五变体实测全败（E 反致槽漂 −0x18） | ORIG 0x08adf57f]
 CharString convertToCharString(const wchar_t* src, unsigned int srcLength)
 {
     (void)srcLength;
@@ -428,7 +443,9 @@ CharString convertToCharString(const WideString& src)
 // 2 字节 (c&0x1f)<<6 | (signed)src[i+1]&0x3f；3 字节
 // (unsigned short)(c<<12)（shl $0xc; movzwl %ax 两段形）| (b1&0x3f)<<6 | (b2&0x3f)。
 // ---------------------------------------------------------------------------
-// [b28d-32 N(EH 析构块): 4.1 共享 dtor tail vs 4.4 散布 return 岛（161/162） | ORIG 0x08adf893]
+// [b28d-solo-StringResource N(N82/N93): 槽位分配差（wideCount ORIG -0x24 vs 4.4 -0x1c、
+// c ORIG -0x11 vs 4.4 -0xa；帧同 0x30，i 同 -0x18）+ 返回物化 %eax/%ebx；
+// 161/162 gap −1，p167 CLEAR 8=8，语义完成 | ORIG 0x08adf893]
 bool convertFromUtf8(const char* src, int srcLength, WideString* out)
 {
     int wideCount = 0;                        // -0x24
@@ -505,15 +522,15 @@ bool convertFromUtf8(const char* src, int srcLength, WideString* out)
 // app::getStr —— ORIG T 0x08ad54cc：get(id) 命中 → 返回表项拷贝；
 // 未命中 → CharString::format("getStr(%d) == none", id)。
 // ---------------------------------------------------------------------------
-// [b28d-32 N89/N86: ORIG 内联 STL/CharString 形，4.4 out-of-line 调用膨胀（32/55） | ORIG 0x08ad54cc]
+// [b28d-solo-StringResource AE: 32=32 逐条全等（CharString::format 静态 sret 化后；旧
+// 非静态形 32/55 系共享头签名错） | ORIG 0x08ad54cc]
 CharString app::getStr(int id)
 {
     const CharString* entry;        // ORIG 无初始化槽（@0x8ad54d6 直接取址传参）
     if (app::stringResource()->get(id, &entry))
         return *entry;
-    CharString ret;
-    ret.format("getStr(%d) == none", id);
-    return ret;   // NRVO：无临时/无 aSER（ORIG 本函数即 sret+局部形）
+    // ORIG 0x08ad5508：静态 sret 直写返回对象，无局部 C1Ev/无拷贝。
+    return CharString::format("getStr(%d) == none", id);
 }
 
 // ---------------------------------------------------------------------------
@@ -537,7 +554,9 @@ static bool is_sr_loaded = false;
 template <size_t N>
 int ss_sprintf(char (&buffer)[N], const char* format, ...);
 
-// [b28d-32 AE: .o 重定位标签差，助记符 66=66 逐条全等（P264） | ORIG 0x08ac35f8]
+// [b28d-solo-StringResource AE(源码 66=66 逐条全等): 唯一残差 = compare_tu 的 TLS_LE_LEA_RE
+// 只归一「源/目标同寄存器」形，ORIG `lea -0x3c048(%eax),%ebx`（eax→ebx）未归一而 OURS
+// `lea <A>(%eax),%ebx` 已归一 ⇒ 假 NEAR；已上报 Main 放宽该正则 | ORIG 0x08ac35f8]
 char* CStringManager::getStr(int id)
 {
     // ORIG _ZZN14CStringManager6getStrEiE8errorMsg：bss 0x20 字节 TLS 形式

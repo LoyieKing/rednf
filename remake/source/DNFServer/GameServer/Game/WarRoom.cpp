@@ -408,7 +408,7 @@ int WarRoom::IsJoinable(CUser* user)
 
 int WarRoom::WalkOutUserBySlot(int slot)
 {
-    // [b28d-solo-WarRoom] AE | ORIG 0x086bd25a | P235 union 具型视角消 cast 二段
+    // [b28d-solo-WarRoom] AE | ORIG 0x086bd256 | P235 union 具型视角消 cast 二段
     //   （ORIG 0x086bd2f6 `mov 0xc(%eax,%edx,4),%ebx` 单段直落）后逐条全等。
     if (m_slots[slot] == 0)
     {
@@ -637,7 +637,7 @@ void WarRoom::WarRoomFail()
 
 int WarRoom::HostChangeWarRoom(CUser* user, char a, unsigned long b)
 {
-    // [b28d-solo-WarRoom] DIFF(8) | ORIG 0x086c0884 | 两组 N 叠加：
+    // [b28d-solo-WarRoom] DIFF(8) | ORIG 0x086c08a6 | 两组 N 叠加：
     //   ① m_hostVotes[(int)a]=(int)b 段：ORIG `lea 0x4(%edx),%ecx` vs 4.4
     //      `add $0x4,%ecx` = N4/P30（add-vs-lea 不可择，N107 六形探针族）；
     //   ② GenTimerKey/m_index 的 %ebx↔%esi 互换 = N7（同 SendWarRoomFailMsg）。
@@ -755,7 +755,7 @@ void WarRoom::SendStatePacket()
 
 void WarRoom::MakeStateInfo(char* buf)
 {
-    // [b28d-solo-WarRoom] DIFF(14) | ORIG 0x086be040 | N82附：4.1 对成员调用
+    // [b28d-solo-WarRoom] DIFF(14) | ORIG 0x086be07a | N82附：4.1 对成员调用
     //   receiver-first（先 `mov -0xc(%ebp),%eax` 装 p，实参 scratch 用 %edx），
     //   4.4 恒 arg-first（实参 scratch %eax 后压、再装 receiver）。探针
     //   /tmp/probe_rcv.cpp t1..t10（指针/引用/解引用/cast 全形）均 arg-first ⇒ 封顶。
@@ -770,6 +770,9 @@ void WarRoom::MakeStateInfo(char* buf)
 
 void WarRoom::MakeRoomInfo(char* buf)
 {
+    // [b28d-solo-WarRoom] DIFF(67) | ORIG 0x086bdd58 | ①已修：m_pDungeon
+    //   分支块序翻正（ORIG `test;je <if体>` = 非 0 直落，旧形反）；②残余为
+    //   N82附 receiver-first vs arg-first（probe_rcv.cpp 十形全败）⇒ 封顶。
     InterfacePacketBuf* p = (InterfacePacketBuf*)buf;
     p->put_short(m_index);
     p->put_byte((unsigned char)m_field8);
@@ -793,7 +796,7 @@ void WarRoom::MakeRoomInfo(char* buf)
 }
 void WarRoom::MakeSlotInfo(char* buf, int seat)
 {
-    // [b28d-solo-WarRoom] DIFF(41) | ORIG 0x086be0cc | N82附：同 MakeStateInfo 的
+    // [b28d-solo-WarRoom] DIFF(41) | ORIG 0x086bdea0 | N82附：同 MakeStateInfo 的
     //   receiver-first vs arg-first（ORIG 每调用点先 `mov -0x14(%ebp),%eax`）；
     //   probe_rcv.cpp 十形全败 ⇒ 封顶。语义/调用序与 ORIG 一致。
     // ORIG 0x86be1xx：buf 物化 -0x14 局部槽，后续全部从槽读（p 指针局部）。
@@ -1155,7 +1158,7 @@ void WarRoom::CalcGuildFP()
 
 void WarRoom::SendGuildFP()
 {
-    // [b28d-solo-WarRoom] DIFF(225) | ORIG 0x086bc0b4 | N82附 槽差（循环变量 i
+    // [b28d-solo-WarRoom] DIFF(225) | ORIG 0x086bc0b0 | N82附 槽差（循环变量 i
     //   ORIG -0x20 vs 4.4 -0x1c，PacketGuard 槽位连动）+ 4.1 for 体尾 jmp 中继岛
     //   （0x086bc0xx `jmp <incr>` 结构，4.4 fall-through）。P167 CLEAR(32/32)。
     PacketGuard packet;
@@ -1507,9 +1510,9 @@ void WarRoom::SetCharacterLive(int seat, CUser* user, bool live, bool a, short b
 int WarRoom::SetSlotState(CUser* user, int seat, ENUM_SEAT_STATE state, CUser** out,
                           bool& a, bool& b, bool& c)
 {
-    // [b28d-solo-WarRoom] AE | ORIG 0x086c0d40 | P235 union 具型视角
+    // [b28d-solo-WarRoom] AE | ORIG 0x086bd0f8 | P235 union 具型视角
     //   （m_slotsUser）消 `(CUser*)m_slots[]` cast 的二段装载后逐条全等。
-    if (user == 0
+    if (user == 0)
         return 0;
     // [b28BM13 P209] ORIG 0x086bd0f8 形 = `mov 0x14(%ebp),%eax; cmp $0xff,%eax`
     // （无符号比较先载寄存器）；enum 直比 4.4 折 cmpl mem。
@@ -1589,7 +1592,7 @@ void WarRoom::HandleSetSeatState(CUser* user, int seat, ENUM_SEAT_STATE state)
 
 int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
 {
-    // [b28d-solo-WarRoom] DIFF(247) | ORIG 0x086c0b2a | N95/N82 槽基差 4
+    // [b28d-solo-WarRoom] DIFF(247) | ORIG 0x086bd87e | N95/N82 槽基差 4
     //   （slot ORIG -0x14 vs 4.4 -0x18；cMyTrace 临时槽连动）+ 全帧偏移平移。
     //   P167 CLEAR(41/41)；语义与 ORIG 一致。
     if ((GetState() != 3) && (GetState() != 4) && (m_state != 5))
@@ -1685,7 +1688,7 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
 __attribute__((target("arch=i486")))
 int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
 {
-    // [b28d-solo-WarRoom] DIFF(421) | ORIG 0x086c05xx | N82 帧/槽平移
+    // [b28d-solo-WarRoom] DIFF(421) | ORIG 0x086be1fe | N82 帧/槽平移
     //   （map_monster 临时 ORIG -0x3a8 vs 4.4 -0x3ac，全帧 -4 连动）。
     //   P167 CLEAR(40/40)：调用点多重集全等，无语义缺口；ours 418 vs orig 442
     //   条为 4.1 展开更宽（同一调用序列的指令形态差）。
@@ -1852,7 +1855,7 @@ WP_SLOT:
 
 int WarRoom::HandleGetItem(CUser* user, int idx)
 {
-    // [b28d-solo-WarRoom] DIFF(524) | ORIG 0x086bfc0e | N95/N82 槽基差 8
+    // [b28d-solo-WarRoom] DIFF(524) | ORIG 0x086bea2e | N95/N82 槽基差 8
     //   （flag ORIG -0x2d vs 4.4 -0x35；4.4 局部槽基恒 ebp-8 起、4.1 可顶到
     //   ebp）+ 全帧偏移平移。P167 CLEAR(91/91)；语义与 ORIG 一致。
     char flag = 1;
@@ -2263,7 +2266,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
 
 int WarRoom::ReviveUserByCoin(CUser* user, unsigned short uid)
 {
-    // [b28d-solo-WarRoom] AE | ORIG 0x086bf2c2 | 逐条归一全等（97/97）；b25 已补
+    // [b28d-solo-WarRoom] AE | ORIG 0x086bf324 | 逐条归一全等（97/97）；b25 已补
     //   target==0 → 0x15 语义块，本轮复验无残差。
     // ORIG 0x86bf33c：短路 && 条件直进 if（bool 局部会 spill cmpb）。
     if ((GetState() != 3) && (GetState() != 4))
@@ -2321,6 +2324,10 @@ struct stBloodWarGrowTable
 // ============================================================================
 int EnterWarRoom(CUser* user, WarRoom* room, ENUM_CMDPACKET cmd)
 {
+    // [b28d-solo-WarRoom] NEAR(27) | ORIG 0x08201e7a | 复核 lane25 判词：全部
+    //   残差 = PacketGuard 对象槽基 -0x1c(ORIG) vs -0x20(4.4) 的 4 字节平移
+    //   （seat 随之 -0x20→-0x14）= N82附「4.4 聚合对象优先占低槽、标量分区」。
+    //   本轮复测声明序交换/全头部声明/聚合化均不翻（P212 对本形无效）⇒ 封顶。
     // b28d-lane25 判词 N82附/N98：ORIG 0x08201e7a 槽序 seat=-0x20/packet=-0x1c/
     // ret=-0x10/party=-0xc（4.1 按声明序）；4.4 按首次使用序（packet 首用最早）⇒
     // packet=-0x20、seat=-0x14。实测声明序交换与 seat 聚合化（POD struct）均不翻，
@@ -2422,6 +2429,12 @@ int EnterWarRoom(CUser* user, WarRoom* room, ENUM_CMDPACKET cmd)
 // ============================================================================
 int ImportWarRoomWPTable(stBloodWarGrowTable* table)
 {
+    // [b28d-solo-WarRoom] DIFF(91) | ORIG 0x08902543 | 帧差 0x40(ORIG) vs
+    //   0x50(4.4)：ORIG token@-0x10/ok@-0x11/row@-0x20/p@-0x28，4.4 各槽深 4
+    //   （std::string 临时与 vector 槽序 = N82附/N93 族）；另 ORIG 0x089025ad/
+    //   0x089025b0 两处 nop 中继岛（外层 while 的 4.1 if 空块占位）为 P223 形，
+    //   与 do-while 嵌套叠加后本轮穷举 goto 尾标签三形未闭合（岛落点分属两层
+    //   循环）⇒ N82+P223 封顶。语义与 ORIG 一致。
     if (!loadRDARScriptFile("", "Etc/WarRoomWPTable.tbl"))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp", __FUNCTION__, 0xdb8,

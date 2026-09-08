@@ -27,6 +27,64 @@
 //  GetPremiumInfo 0x0840xxxx DIFF（p167 MISSING operator-> x21：需去 (*it). 缓存改 it-> 形）
 //  dispatch 0x08425374 DIFF（p167 MISSING G_GameWorld() x1 语义缺口）
 //  GetAccountInfo 0x0842xxxx DIFF（p167 MISSING NumberToString x2 + EXTRA memset x7 语义缺口）
+// ----------------------------------------------------------------------------
+// [b28d-solo-DB_Login 最终判词] 单文件泳道收口（check_tu_routed.sh + tu_diff gap 口径）。
+// TU 计数：identical=48 ae=129 near=1 diff=19（含非清单件 CCompressedBlob::resize）；
+// 本清单 27 件 = AE/IDENTICAL 8 + NEAR 1 + N 封顶 18 + 未解决 0。TU COMPILE OK 0 错误。
+//  p167 差集全部 CLEAR（27/27；CheckLoginIP 的 strrchr 符号差除外，见下）。
+//  AE/IDENTICAL（8）：
+//   CheckLoginIP 0x08415472 AE（SGBC 宏形 + std::strrchr；p167 `_ZSt7strrchrPci` vs
+//       `strrchr` = 工具链头 `__CORRECT_ISO_CPP_STRING_H_PROTO` 版本差 N，语义等价）
+//   _LoadEventItem 0x08411d7e AE（P167 迭代器化；真语义 bug：Arrange 第二实参
+//       ORIG 为 serverId 0x10(%ebp)，旧码误传 &entries）
+//   RemovePreminuInfo 0x084128c4 AE（P245 去 static 整帧回正 + P232 dead int 槽 +
+//       begin→end 调序 + P225 continue 形复现 exec 后 dead 读 sig+0x2938）
+//   _LoadDNFEventEntry 0x08411bda AE（P12/N84 删 tagDNFEventEntry 用户空析构消 2×D1
+//       +_Unwind_Resume；for(i<get_n_rows()&&fetch()) 拆 body；P223 五独立 nop 岛；
+//       P209 unsigned i 复现 seta）
+//   IsThisIPLoginPermissionGranted 0x0844b982 AE（三兄弟块 trace 全表达式临时链 P221/P227）
+//   GetLoginCommonData 0x0841090c AE（rows 具名槽 + col++ 递增索引 P191/P0）
+//   GetBadgeCount 0x08414512 AE（get_short 直传 sig->m_dailyBadge[i]；P227 链式 trace）
+//   _isPunishedHackUser 0x08412ac8 AE（expireSec int 化 P217；if(nowFlag==0)return 0 极性）
+//  NEAR/N 封顶（19）：
+//   CreateAccount 0x08412eb8 NEAR gap=2（N18a：hangame_flag 实参 4.4 恒 movzbl→%eax
+//       中转；P267 双 cast / P268 mask / 字段 uchar 三档试尽不翻）
+//   GetUserFatigueCount 0x084150e8 DIFF gap=5（N7 间接 call 目标 4.4.7 恒 %eax + 装载序）
+//   GetUserInGameEventHistory 0x084152b0 DIFF gap=9（N1：ORIG `add $0x3fa0; add sig;
+//       add $0xc` 三段被 4.4 折 $0x3fac+lea；十形探针既定）
+//   _DecryptUserInfo 0x0841300e DIFF gap=6（N7/P75 实参装载序；p167 CLEAR）
+//   UpdateLoginStat 0x08414d50 DIFF gap=4（N18a：三条 store 的 RHS-first 中转；
+//       P259 消 stream 局部 + P82 异型视图已修，余中转封顶）
+//   GetGameDBInfo 0x08414772 DIFF gap=13（N18b 内存直比 + P30/N4 数组寻址序；
+//       P0 去 world 局部/P222 正极性包裹/P209 unsigned viewRet/P28 声明序已修）
+//   getCharacLinkSystemData 0x0840ffca DIFF gap=1（P223/N：尾 `jmp exit` 岛不可造；
+//       P168a 极性翻转 + P227 链式 trace 已修，26→1）
+//   GetOntimeUserRecvIdx 0x08414f5c DIFF gap=6（N18a：除法中间值落 -0xc 槽；
+//       P48/P0 去 mid 缓存已修，32→6）
+//   GetAccountCharacterLevelUpOnceGift 0x0844834e DIFF gap=27（N82 槽/帧；P0/P140 去
+//       evt 局部与判空、P158 bool 槽、P222 正极性包裹已修，56→27）
+//   GetPunishUserInfo 0x08410cf6 DIFF gap=3（N18a：m_punishInfoCount unsigned 化可翻
+//       但会改 ARAD_LoginSecurity/InterDispatcher 三处比较符号性 ⇒ 不采纳）
+//   GetGrowthCreatureEvent 0x08448102 DIFF gap=35（N82 槽/帧；P0/P140/P158/P222 已修，66→35）
+//   _getGameDBCharacView 0x084149ce DIFF gap=3（N4/P30 数组寻址 add-vs-lea；
+//       P253 三缓冲 `={0}` rep stos 清零 + P87/P227 链式 trace 已修，32→3）
+//   GetBingoEvent 0x08448bee DIFF gap=4（N7/N4 尾残差；P0/P140/P198/P227 已修 86→4；
+//       真语义 bug：ORIG 成功路径落 08448eac `mov $0` ⇒ return 0）
+//   _getRewardInfo 0x084115f8 DIFF gap=177（N82 槽/帧 + N78 memset 展开；p167 CLEAR 18/18）
+//   GetMercenarySystemInfo 0x08415618 DIFF gap=169（N82 槽/帧 + P30/N4；p167 CLEAR 27/27）
+//   getBreakAwayMemberData 0x084101ae DIFF gap=105（N78 对齐 memset 展开 + N82 帧；
+//       p167 CLEAR 44/44）
+//   GetPremiumInfo 0x08411ee8 DIFF gap=256（N82 槽/帧；P157 去 eventId 缓存后
+//       p167 CLEAR 84/84）
+//   dispatch 0x08425374 DIFF gap=374（N82 帧 0x40↔0x90；p167 CLEAR 56/56）
+//   GetAccountInfo 0x0841325e DIFF gap=455（N78 memset 展开 + N80 varargs + N82 帧；
+//       p167 CLEAR 90/90：补 get(7)/get(9) trace 的 NumberToString 语义缺口 x2 +
+//       8 处 memset 改 `={0}` 消 EXTRA memset x7）
+// 真语义 bug 修复（3）：_LoadEventItem Arrange 第二实参、GetBingoEvent 成功返回值、
+//   GetAccountInfo 两处 trace 的 NumberToString 实参。
+// .h 改动（2，均已 R2 广播）：DB_Login.h 三函数去 static（P245）；tagDNFEventEntry
+//   删用户空析构（P12/N84）。SigTypes_D.h 的 m_loginType uchar 试验已回退（无收益）。
+// ----------------------------------------------------------------------------
 // df_game_r 还原 —— DB_Login（DBThread 登录分发器，Wave5 仅ORIG清零批）
 // 权威报告：docs/class_func_reports/DB_Login/*.md（汇编 + Ghidra 反编译 C），
 // 全部 52 个 ORIG 符号逐符号转写；SQL 字符串原样保留（大小写亦原样）。
@@ -572,17 +630,24 @@ void DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
     }
     else if (db->get_n_rows() == 1)
     {
-        if (db->fetch())
+        // [b28d-solo-DB_Login] P168a/P222：ORIG `call; xor $1; test; je <get_byte 段>`
+        // ⇒ 失败(trace)块直落、成功块后置；旧 if(fetch) 正极性产 `test; je <trace>`。
+        if (!db->fetch())
         {
-            if (!db->get_byte(0, reinterpret_cast<char&>(sig->m_characLinkMessageFlag)))
-            {
-            }
+            // P227：全表达式临时链 ⇒ NumberToString 结果在 ctor 前求值并跨 ctor
+            // 保活 %ebx（ORIG push %ebx / mov %eax,%ebx）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x2f65, 5)(
+                "LINK_LOG : charac_link_message DB ERROR!! M_ID(%s)",
+                NumberToString(sig->m_accId, 0));
         }
         else
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x2f65, 5);
-            trace("LINK_LOG : charac_link_message DB ERROR!! M_ID(%s)",
-                  NumberToString(sig->m_accId, 0));
+            // P225/P223：ORIG 尾 `xor $1; test %al,%al; jmp exit`（get_byte 失败的死物化）
+            // ⇒ while+break 出 xor/test 段，早返出尾 jmp（4.4 对空 if 恒 DCE）。
+            if (!db->get_byte(0, reinterpret_cast<char&>(sig->m_characLinkMessageFlag)))
+            {
+                return;
+            }
         }
     }
 }
@@ -601,7 +666,10 @@ int DB_Login::GetLoginCommonData(SIG_LOGIN_DATA* sig)
     {
         return 0;
     }
-    if (db->get_n_rows() == 0)
+    // [b28d-solo-DB_Login] P0：ORIG 有 rows 具名槽（-0x10，`cmpl $0,-0x10`）；
+    // 列号用递增计数器 col（-0xc，`mov -0xc,%eax; addl $1,-0xc` = col++）。
+    int rows = db->get_n_rows();
+    if (rows == 0)
     {
         sig->m_memberBonusFatigueInc = 0;       // +0x3f5e
         // [b28d-38] SGB() 函数形 off 为运行期参数 ⇒ -O0 物化 `movl $imm,槽; add 槽`
@@ -614,19 +682,20 @@ int DB_Login::GetLoginCommonData(SIG_LOGIN_DATA* sig)
     {
         return 0;
     }
+    int col = 0;
     int bonusFatigue = 0;
-    int updateTime = 0;
-    if (!db->get_int(0, bonusFatigue))
+    if (!db->get_int(col++, bonusFatigue))
     {
         return 0;
     }
-    if (!db->get_int(1, updateTime))
+    int updateTime = 0;
+    if (!db->get_int(col++, updateTime))
     {
         return 0;
     }
     sig->m_memberBonusSaveTime = (unsigned int)updateTime;  // +0x3f60 ORIG local_20[0]
     sig->m_memberBonusFatigueInc = (short)bonusFatigue;     // +0x3f5e
-    if (!db->get_str(2, SGBC(sig, 0x4114), 0x10))       // 第 3 列续接索引读取 login_ip
+    if (!db->get_str(col++, SGBC(sig, 0x4114), 0x10))   // 第 3 列续接索引读取 login_ip
     {
         return 0;
     }
@@ -705,27 +774,28 @@ bool DB_Login::GetPunishUserInfo(SIG_LOGIN_DATA* sig)
     db->set_query(
         "seLect punish_type, unix_timestamp(occ_time), punish_value, apply_flag, unix_timestamp(start_time), unix_timestamp(end_time) from member_punish_info where m_id=%s and apply_flag>=1 LIMIT %d",
         NumberToString(sig->m_accId, 0), 0x32);
-    if (!db->exec(true))
+    // [b28d-solo-DB_Login] P133 合并短路：ORIG `xor$1; test; jne <mov$1 岛>;
+    // …get_n_rows…; jne <mov$0>; test; je`（exec 失败与零行汇聚同一返回 1 出口）。
+    // P48 no-CSE：三处各自 fresh get_n_rows()（判零 / m_punishInfoCount / 循环上界）。
+    if (!db->exec(true) || db->get_n_rows() == 0)
     {
-        return true;   // ORIG 0x8410d7d：exec 失败视为无惩罚数据，正常继续
+        return true;   // ORIG 0x8410d7d/0x8410d89：无惩罚数据，正常继续
     }
-    // P48 no-CSE：ORIG 三处各自 fresh get_n_rows()（判零 / m_punishInfoCount /
-    // 循环上界）。
-    if (db->get_n_rows() == 0)
-    {
-        return true;
-    }
+    unsigned int i = 0;                          // P191：ORIG 双初始化（此处 + for 各一条）
     sig->m_punishInfoCount = db->get_n_rows();   // +0x3a50
-    for (unsigned int i = 0; i < db->get_n_rows(); ++i)
+    for (i = 0; i < db->get_n_rows(); ++i)
     {
-        SIG_LOGIN_PUNISH_INFO& e = sig->m_punishInfos[i];   // stride 0x18 @0x3a54
+        // P157/P183：ORIG 无引用缓存，每次重算完整 i*0x18 地址链。
         if (!db->fetch()) return false;
-        if (!db->get_int(0, e.m_type)) return false;                // punish_type
-        if (!db->get_uint(1, reinterpret_cast<unsigned int&>(e.m_field04))) return false; // occ_time
-        if (!db->get_int(2, e.m_stdDropRate)) return false;         // punish_value
-        if (!db->get_int(3, e.m_field0c)) return false;             // apply_flag
-        if (!db->get_uint(4, reinterpret_cast<unsigned int&>(e.m_field10))) return false; // start_time
-        if (!db->get_uint(5, reinterpret_cast<unsigned int&>(e.m_endTime))) return false; // end_time
+        if (!db->get_int(0, sig->m_punishInfos[i].m_type)) return false;                // punish_type
+        if (!db->get_uint(1, reinterpret_cast<unsigned int&>(
+                sig->m_punishInfos[i].m_field04))) return false;                        // occ_time
+        if (!db->get_int(2, sig->m_punishInfos[i].m_stdDropRate)) return false;         // punish_value
+        if (!db->get_int(3, sig->m_punishInfos[i].m_field0c)) return false;             // apply_flag
+        if (!db->get_uint(4, reinterpret_cast<unsigned int&>(
+                sig->m_punishInfos[i].m_field10))) return false;                        // start_time
+        if (!db->get_uint(5, reinterpret_cast<unsigned int&>(
+                sig->m_punishInfos[i].m_endTime))) return false;                        // end_time
     }
     return true;
 }
@@ -847,13 +917,20 @@ unsigned int DB_Login::_isPunishedHackUser(unsigned int mid)
     if (!db->get_int(2, nowFlag)) return 0;
     if (period != 0)
     {
-        long long expireSec = period * 0xe10 + occTime;
+        // [b28d-solo-DB_Login] ORIG 0x08412c0d..0x08412c1c 为 32 位 imul/lea
+        // （`imul $0xe10,%eax,%edx; lea (%edx,%eax,1),%eax; mov %eax,-0xc`）⇒ int。
+        int expireSec = period * 0xe10 + occTime;
         if (expireSec < GlobalData::s_systemTime_.getCurSec())
         {
             return 0;
         }
     }
-    return (nowFlag != 0) ? 1 : 0;
+    // P47/P56：ORIG `test; jne <mov$1 尾块>; mov$0` ⇒ if(==0) return 0; return 1;
+    if (nowFlag == 0)
+    {
+        return 0;
+    }
+    return 1;
 }
 
 // ============================================================================
@@ -1099,31 +1176,34 @@ void DB_Login::_LoadDNFEventEntry(unsigned int mid, vecDNFEventEntry_t& out)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
     // [hc 收] G_CEnvironment()+0x378 = Server_Envir::m_serverGroup（Ordb dnf_event_entry
     // server_id 字段；与 WarRoom::ClearReward/DB_UpdateLogin 同源 +0x378 访问）。
-    unsigned int serverId =
-        *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x378);
+    // [b28d-solo-DB_Login] P0：ORIG 无 serverId 具名槽（值在 %ebx 跨 NumberToString
+    // 保活），内联右值直传；P82 视图成员访问折叠单条 disp（裸 (char*)+off 会多 add）。
+    struct EnvView { char m_pad[0x378]; unsigned int m_serverGroup; };
     db->set_query(
         "seLect event_id,unix_timestamp(occ_date),server_id,charac_no,unix_timestamp(obtain_date) from dnf_event_entry where m_id=%s and server_id in(0,%d)",
-        NumberToString(mid, 0), serverId);
+        NumberToString(mid, 0),
+        reinterpret_cast<EnvView*>(G_CEnvironment())->m_serverGroup);
     if (!db->exec(true))
     {
         return;
     }
-    for (int i = 0; i < db->get_n_rows(); ++i)
+    // [b28d-solo-DB_Login] ORIG 0x08411c58..0x08411d6b：尾部条件块（seta; test; jne body）
+    // + body 首 fetch；5 个 get_int 各带独立 nop 岛落到增量（P223 多岛形）；
+    // exec/fetch 失败落 epilogue（return）。
+    // P209：ORIG `seta` ⇒ 无符号比较（i 声明 unsigned 使 int→unsigned 提升）。
+    for (unsigned int i = 0; i < db->get_n_rows(); ++i)
     {
         if (!db->fetch())
         {
             return;
         }
         tagDNFEventEntry entry;
-        bool ok = db->get_int(0, entry.m_eventId);
-        if (ok) ok = db->get_int(1, entry.m_occDate);
-        if (ok) ok = db->get_int(2, entry.m_serverId);
-        if (ok) ok = db->get_int(3, entry.m_characNo);
-        if (ok) ok = db->get_int(4, entry.m_obtainDate);
-        if (ok)
-        {
-            out.push_back(entry);
-        }
+        if (!db->get_int(0, entry.m_eventId)) continue;
+        if (!db->get_int(1, entry.m_occDate)) continue;
+        if (!db->get_int(2, entry.m_serverId)) continue;
+        if (!db->get_int(3, entry.m_characNo)) continue;
+        if (!db->get_int(4, entry.m_obtainDate)) continue;
+        out.push_back(entry);
     }
 }
 
@@ -1206,17 +1286,18 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
 
     for (vecDNFEventEntry_t::iterator it = entries.begin(); it != entries.end(); ++it)
     {
-        int eventId = it->m_eventId;
-        if (eventId >= 0xa029 && eventId <= 0xa02b)
+        // [b28d-solo-DB_Login] P157：ORIG 逐点重读 it->m_eventId（GetPremiumInfo 段
+        // 23×ptEv，我方旧 eventId 缓存仅 2×）⇒ 删除具名缓存，全部使用点写 it->m_eventId。
+        if (it->m_eventId >= 0xa029 && it->m_eventId <= 0xa02b)
         {
             // ---- 广播/PvP 预选特殊事件 ----
             dbAccount->set_query(
                 "seLect m_id,charac_no,server_id,unix_timestamp(start_time),charac_name from member_broadcast where event_id=%d and m_id=%s and end_time>now() limit 1",
-                eventId, NumberToString(sig->m_accId, 0));
+                it->m_eventId, NumberToString(sig->m_accId, 0));
             dbAccount->exec(true);
             if (dbAccount->get_n_rows() == 0)
             {
-                expiredIds.push_back(eventId);
+                expiredIds.push_back(it->m_eventId);
                 continue;
             }
             if (!dbAccount->fetch())
@@ -1242,7 +1323,7 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
 
             if (G_GameWorld()->GetChannelType() == 7)
             {
-                if (eventId != 0xa029 ||
+                if (it->m_eventId != 0xa029 ||
                     !dbAccount->get_str(4, SGBC(sig, 0x39b0), 0x1e))
                 {
                     continue;
@@ -1251,9 +1332,9 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
             else if (G_GameWorld()->GetChannelType() == 0xe)
             {
                 bool pass =
-                    (eventId == 0xa02a &&
+                    (it->m_eventId == 0xa02a &&
                      online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam() == 1) ||
-                    (eventId == 0xa02b &&
+                    (it->m_eventId == 0xa02b &&
                      online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam() != 1);
                 if (!pass)
                 {
@@ -1272,13 +1353,13 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
                         reinterpret_cast<int>(sig),
                         info);
                 }
-                if (eventId == 0xa02a)
+                if (it->m_eventId == 0xa02a)
                 {
                     sig->m_onlinePrelimCharacNo = characNo;
                     sig->m_onlinePrelimServerGroup = serverId;
                     sig->m_onlinePrelimPlayType |= 1;
                 }
-                else if (eventId == 0xa02b)
+                else if (it->m_eventId == 0xa02b)
                 {
                     sig->m_onlinePrelimCharacNo = characNo;
                     sig->m_onlinePrelimServerGroup = serverId;
@@ -1291,35 +1372,35 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
                 }
             }
         }
-        else if (!(eventId >= 50000 && eventId <= 89999))
+        else if (!(it->m_eventId >= 50000 && it->m_eventId <= 89999))
         {
-            if (eventId >= 70000 && eventId <= 89999)
+            if (it->m_eventId >= 70000 && it->m_eventId <= 89999)
             {
                 // 落表事件：登记到 sig 事件 id 列表
                 unsigned short cnt = sig->m_restrictedGoodsCount;
-                sig->m_restrictedGoods[cnt] = eventId;
+                sig->m_restrictedGoods[cnt] = it->m_eventId;
                 sig->m_restrictedGoodsCount = cnt + 1;
             }
-            else if (eventId == 59000)
+            else if (it->m_eventId == 59000)
             {
                 unsigned short cnt = sig->m_restrictedGoodsCount;
-                sig->m_restrictedGoods[cnt] = eventId;
+                sig->m_restrictedGoods[cnt] = it->m_eventId;
                 sig->m_restrictedGoodsCount = cnt + 1;
             }
-            else if (!WongWork::CUserPremium::IsRestrictedPremium((int)eventId))
+            else if (!WongWork::CUserPremium::IsRestrictedPremium((int)it->m_eventId))
             {
                 // ---- 常规 member_premium 查询 ----
                 dbPremium->set_query(
                     "seLect pre_type,unix_timestamp(service_start),unix_timestamp(service_end) from member_premium where m_id=%s and event_id=%d and service_end>now() and server_id in(0,%d) order by service_end desc limit 1",
                     NumberToString(sig->m_accId, 0),
-                    eventId, it->m_serverId);
+                    it->m_eventId, it->m_serverId);
                 if (!dbPremium->exec(true))
                 {
                     continue;
                 }
                 if (dbPremium->get_n_rows() == 0)
                 {
-                    expiredIds.push_back(eventId);
+                    expiredIds.push_back(it->m_eventId);
                     continue;
                 }
                 for (unsigned int r = 0; r < dbPremium->get_n_rows() && dbPremium->fetch(); ++r)
@@ -1359,13 +1440,13 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
                             break;
                         }
                         const unsigned int slotOff = (rowIdx + 0x229) * 0x10 + 0x14;
-                        SGFC(unsigned int, sig, slotOff) = eventId;
+                        SGFC(unsigned int, sig, slotOff) = it->m_eventId;
                         SGFC(int, sig, (rowIdx + 0x229) * 0x10 + 8) = preType;
                         SGFC(int, sig, (rowIdx + 0x229) * 0x10 + 0xc) = svcStart;
                         SGFC(int, sig, (rowIdx + 0x229) * 0x10 + 0x10) = svcEnd;
                         rowIdx += 1;
                         unsigned short cnt = sig->m_restrictedGoodsCount;
-                        sig->m_restrictedGoods[cnt] = eventId;
+                        sig->m_restrictedGoods[cnt] = it->m_eventId;
                         sig->m_restrictedGoodsCount = cnt + 1;
                     }
                 }
@@ -1374,7 +1455,7 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
             {
                 // 受限 premium 事件：只登事件 id
                 unsigned short cnt = sig->m_restrictedGoodsCount;
-                sig->m_restrictedGoods[cnt] = eventId;
+                sig->m_restrictedGoods[cnt] = it->m_eventId;
                 sig->m_restrictedGoodsCount = cnt + 1;
             }
         }
@@ -1408,9 +1489,11 @@ void DB_Login::RemovePreminuInfo(SIG_LOGIN_DATA* sig, std::vector<int>& ids)
         {
             goto nextEntry;
         }
-        if (SGFC(unsigned char, sig, 0x2938) == 0)
+        // 共享头 pad 区（m_pad28d8 内 +0x60）：具名成员下标 ⇒ 常量折叠单条 disp 读
+        // （SGFC 的 (char*)sig+off 会多一条 add，N107）。
+        if ((unsigned char)sig->m_pad28d8[0x2938 - 0x28d8])
         {
-            goto nextEntry;
+            continue;
         }
     nextEntry:
         ;
@@ -1600,8 +1683,9 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     }
 
     // ---- passwd 列 + SSO 校验 ----
-    char serverPwd[0x84];
-    memset(serverPwd, 0, sizeof(serverPwd));
+    // [b28d-solo-DB_Login] P214③/N78 突破口：ORIG 为内联展开（非 call memset）
+    // ⇒ 改显式零初始化（`= {0}`），4.4 复现 rep stos/展开而非 memset call。
+    char serverPwd[0x84] = {0};
     if (!db->get_str(1, serverPwd, 0x84))
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x39c8, 5);
@@ -1661,18 +1745,12 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     sig->m_userEventCharacterFlag = ssoOut.m_eventCharacFlag;   // +0x3f10
 
     // ---- first_ssn / second_ssn 解密 ----
-    char firstSsn[33];
-    char decFirst[33];
-    char secondSsn[33];
-    char decSecond[33];
-    char email[129];
-    char decEmail[129];
-    memset(firstSsn, 0, sizeof(firstSsn));
-    memset(decFirst, 0, sizeof(decFirst));
-    memset(secondSsn, 0, sizeof(secondSsn));
-    memset(decSecond, 0, sizeof(decSecond));
-    memset(email, 0, sizeof(email));
-    memset(decEmail, 0, sizeof(decEmail));
+    char firstSsn[33] = {0};
+    char decFirst[33] = {0};
+    char secondSsn[33] = {0};
+    char decSecond[33] = {0};
+    char email[129] = {0};
+    char decEmail[129] = {0};
 
     unsigned int firstVal = 0;
     unsigned int secondVal = 0;
@@ -1745,8 +1823,11 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     unsigned int hangameFlag = 0;
     if (!db->get_uint(7, hangameFlag))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x3ac0, 5);
-        trace("DB_Login::GetAccountInfo, get(7) ERROR m_id=%s", userId);
+        // [b28d-solo-DB_Login] ORIG 0x08413ef3：此两处 trace 实参为
+        // NumberToString(m_accId,0)（非 userId 指针）；P227 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0x3ac0, 5)(
+            "DB_Login::GetAccountInfo, get(7) ERROR m_id=%s",
+            NumberToString(sig->m_accId, 0));
         return false;
     }
     sig->m_hangameUser = (hangameFlag != 0);            // +0x38dd
@@ -1754,8 +1835,9 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     unsigned int regRaw = 0;
     if (!db->get_uint(8, regRaw))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x3ae6, 5);
-        trace("DB_Login::GetAccountInfo, get(9) ERROR m_id=%s", userId);
+        cMyTrace(__PRETTY_FUNCTION__, 0x3ae6, 5)(
+            "DB_Login::GetAccountInfo, get(9) ERROR m_id=%s",
+            NumberToString(sig->m_accId, 0));
         // 注意：ORIG 此分支记日志后不返回，继续走时间换算
     }
     SGFC(unsigned int, sig, OFF_BIRTH_DATE) = regRaw;   // +0xd0（SigTypes_D 该区 pad，ORIG 写保留）
@@ -1891,34 +1973,30 @@ bool DB_Login::GetBadgeCount(SIG_LOGIN_DATA* sig)
     {
         return 0;
     }
-    short green = 0;
-    short red = 0;
-    short blue = 0;
-    const char* pretty = "bool DB_Login::GetBadgeCount(SIG_LOGIN_DATA*)";
-    if (!db->get_short(0, green))
+    // [b28d-solo-DB_Login] P0/P244：ORIG 无 pretty/green/red/blue 具名局部——
+    // get_short 直接传 sig->m_dailyBadge[i]（`add $0x399c,%eax`），trace 用
+    // 全表达式临时链（sig 入 %ebx 跨 ctor，P87/P227）。
+    if (!db->get_short(0, sig->m_dailyBadge[0]))
     {
-        cMyTrace trace(pretty, 0x3b60, 5);
-        trace("DB_Login::GetBadgeCount, get(0) ERROR m_id=%s",
-              reinterpret_cast<const char*>(sig));
+        cMyTrace(__PRETTY_FUNCTION__, 0x3b60, 5)(
+            "DB_Login::GetBadgeCount, get(0) ERROR m_id=%s",
+            reinterpret_cast<const char*>(sig));
         return 0;
     }
-    if (!db->get_short(1, red))
+    if (!db->get_short(1, sig->m_dailyBadge[1]))
     {
-        cMyTrace trace(pretty, 0x3b66, 5);
-        trace("DB_Login::GetBadgeCount, get(1) ERROR m_id=%s",
-              reinterpret_cast<const char*>(sig));
+        cMyTrace(__PRETTY_FUNCTION__, 0x3b66, 5)(
+            "DB_Login::GetBadgeCount, get(1) ERROR m_id=%s",
+            reinterpret_cast<const char*>(sig));
         return 0;
     }
-    if (!db->get_short(2, blue))
+    if (!db->get_short(2, sig->m_dailyBadge[2]))
     {
-        cMyTrace trace(pretty, 0x3b6b, 5);
-        trace("DB_Login::GetBadgeCount, get(2) ERROR m_id=%s",
-              reinterpret_cast<const char*>(sig));
+        cMyTrace(__PRETTY_FUNCTION__, 0x3b6b, 5)(
+            "DB_Login::GetBadgeCount, get(2) ERROR m_id=%s",
+            reinterpret_cast<const char*>(sig));
         return 0;
     }
-    sig->m_dailyBadge[0] = green;
-    sig->m_dailyBadge[1] = red;
-    sig->m_dailyBadge[2] = blue;
     return 1;
 }
 
@@ -1928,8 +2006,10 @@ bool DB_Login::GetBadgeCount(SIG_LOGIN_DATA* sig)
 
 int DB_Login::GetGameDBInfo(SIG_LOGIN_DATA* sig)
 {
-    int viewRet = _getGameDBCharacView(sig);
-    if (viewRet == -1)
+    // [b28d-solo-DB_Login] P209：ORIG 两次比较均 `mov -0x14,%eax; cmp $imm,%eax`
+    // （unsigned 比较恒载寄存器）⇒ viewRet 声明 unsigned（-1 即 0xffffffff）。
+    unsigned int viewRet = _getGameDBCharacView(sig);
+    if (viewRet == 0xffffffff)
     {
         return 1;
     }
@@ -1937,31 +2017,32 @@ int DB_Login::GetGameDBInfo(SIG_LOGIN_DATA* sig)
     {
         return 0;
     }
-    GameWorld* world = G_GameWorld();
-    if (world->GetChannelType() != 7)
+    // [b28d-solo-DB_Login] P0：ORIG 无 world 具名局部（G_GameWorld 返回值直传
+    // GetChannelType）；P222 正极性包裹复现 `sete; test; je <整块>`。
+    if (G_GameWorld()->GetChannelType() == 7)
     {
-        return 0;
-    }
-    int count = sig->m_characCount;          // +0xdc 槽计数
-    int i = 0;
-    for (; i < count; ++i)
-    {
-        if (*reinterpret_cast<int*>(sig->m_characData + i * 0x94) ==
-            (int)sig->m_tournamentAccountFlag)      // server_id 匹配
+        // P28：ORIG 槽 i=-0x10（深）/count=-0xc ⇒ 先声明 i 后 count。
+        int i = 0;
+        int count = sig->m_characCount;          // +0xdc 槽计数
+        for (; i < count; ++i)
         {
-            memmove(sig->m_characData,
-                    sig->m_characData + i * 0x94, 0x94);
-            if (SGFC(char, sig, 0x39b0) != 0)       // charac_name 非空才覆写（SigTypes_D 隐式区）
+            if (*reinterpret_cast<int*>(sig->m_characData + i * 0x94) ==
+                (int)sig->m_tournamentAccountFlag)      // server_id 匹配
             {
-                strncpy(sig->m_characData + 4, SGBC(sig, 0x39b0), 0x1e);
+                memmove(sig->m_characData,
+                        sig->m_characData + i * 0x94, 0x94);
+                if (SGFC(char, sig, 0x39b0) != 0)       // charac_name 非空才覆写（SigTypes_D 隐式区）
+                {
+                    strncpy(sig->m_characData + 4, SGBC(sig, 0x39b0), 0x1e);
+                }
+                sig->m_characCount = 1;
+                break;
             }
-            sig->m_characCount = 1;
-            break;
         }
-    }
-    if (i == count)
-    {
-        return 1;
+        if (i == count)
+        {
+            return 1;
+        }
     }
     return 0;
 }
@@ -2052,16 +2133,19 @@ int DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* sig)
     if (!get_compressed_blob_data(db, 0, SGBC(sig, OFF_CHARAC_VIEW),
                                   0x14d0, 0x94))
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x3beb, 5);
-        trace("DB_Login::_getGameDBCharacView uncompress fail, m_id(%d)",
-              sig->m_accId);
+        // P87/P227：全表达式临时链 ⇒ m_accId 入 %ebx 跨 ctor 保活。
+        cMyTrace(__PRETTY_FUNCTION__, 0x3beb, 5)(
+            "DB_Login::_getGameDBCharacView uncompress fail, m_id(%d)",
+            sig->m_accId);
         return -1;
     }
 
-    char hashKey[0x84];
-    char pwdHash[0x84];
+    // [b28d-solo-DB_Login] P253/P214③：ORIG 0x08414b00..0x08414b40 对三个 0x84
+    // 缓冲各发 `rep stos` 0x21 dwords 清零（-0xa4 缓冲清零后未使用，P171 照抄）。
+    char deadBuf[0x84] = {0};
+    char hashKey[0x84] = {0};
+    char pwdHash[0x84] = {0};
+    (void)deadBuf;
     if (!db->get_binary(1, hashKey, 0x84))    // ORIG：get_binary 全量覆盖，无预清零
     {
         return -1;
@@ -2107,18 +2191,26 @@ int DB_Login::SendResult(int userDbIdx, int code, SIG_LOGIN_DATA* sig)
 
 int DB_Login::UpdateLoginStat(int userDbIdx, SIG_LOGIN_DATA* sig)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x3c5d);
-    CStreamGuard guard(stream, true);
+    // [b28d-solo-DB_Login] P259：ORIG 无 stream 具名局部（Acquire 返回值直接作
+    // CStreamGuard ctor 第 2 实参；guard 槽 -0x14）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x3c5d), true);
     guard.operator*()->operator<<(0x2b);                      // 包 id（SIG_UPDATE_LOGIN 上报）
     guard.operator*()->operator<<(userDbIdx);
-    SIG_UPDATE_LOGIN* pkt =
-        guard.operator->()->GetInBuffer<SIG_UPDATE_LOGIN>();
-    *reinterpret_cast<unsigned int*>(pkt) = sig->m_accId;
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(pkt) + 8) =
-        (int)sig->m_channelRestrictField;       // +0x3a38 serverGroup(short→int)
-    *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(pkt) + 4) =
-        sig->m_gcNo;                            // +0x9c
-    strncpy(reinterpret_cast<char*>(pkt) + 0xc, SGBC(sig, OFF_LOGIN_IP), 0x14);
+    // [b28d-solo-DB_Login] P82/P211 档③：ORIG 三条 store 均 RHS-first+disp 直写
+    // （目标与 RHS 异型）⇒ 具名视图逐字段访问（裸 cast+偏移恒 LHS-first+lea）。
+    struct __attribute__((packed)) PktView
+    {
+        int          m_accId;        // +0x00（目标 int vs RHS unsigned ⇒ RHS-first）
+        unsigned int m_gcNo;         // +0x04（目标 unsigned vs RHS int）
+        unsigned int m_serverGroup;  // +0x08（目标 unsigned vs RHS int）
+        char         m_ip[0x14];     // +0x0c
+    };
+    PktView* pkt = reinterpret_cast<PktView*>(
+        guard.operator->()->GetInBuffer<SIG_UPDATE_LOGIN>());
+    pkt->m_accId = sig->m_accId;
+    pkt->m_serverGroup = (int)sig->m_channelRestrictField;   // +0x3a38 serverGroup(short→int)
+    pkt->m_gcNo = sig->m_gcNo;                              // +0x9c
+    strncpy(pkt->m_ip, SGBC(sig, OFF_LOGIN_IP), 0x14);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return 1;
 }
@@ -2160,10 +2252,12 @@ int DB_Login::GetOntimeUserRecvIdx(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)DB_HANDLE_D,
                                                   E_SERVER_GROUP_NONE);
-    unsigned int mid = sig->m_accId;
+    // [b28d-solo-DB_Login] P0/P48：ORIG 槽 -0xc 存 `m_accId % 10` 结果（具名局部），
+    // 且 NumberToString 前**再读一次** m_accId（无 mid 缓存）。
     sig->m_ontimeLastRecvIdx = 0;                        // +0x3fa4
+    unsigned int mod = sig->m_accId % 10;
     db->set_query("seLect last_no from event_1112_ontime_user_%u where m_id=%s",
-                  mid % 10, NumberToString(mid, 0));
+                  mod, NumberToString(sig->m_accId, 0));
     if (!db->exec(true))
     {
         return 0;
@@ -2172,7 +2266,7 @@ int DB_Login::GetOntimeUserRecvIdx(SIG_LOGIN_DATA* sig)
     {
         sig->m_ontimeLastRecvIdx = 1;
         db->set_query("inSert into event_1112_ontime_user_%u(m_id,last_no) values (%s,%u )",
-                      mid % 10, NumberToString(mid, 0),
+                      mod, NumberToString(sig->m_accId, 0),
                       sig->m_ontimeLastRecvIdx);
         if (!db->exec(true))
         {
@@ -2568,8 +2662,9 @@ bool DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
 
 bool DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
 {
-    CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x67);
-    if (evt == 0 || !evt->IsEventing(0))  // §4.1：删发明 helper vtableCall34，原地展开（P5 真虚调用）
+    // [b28d-solo-DB_Login] P0/P140：ORIG 无 evt 具名局部、无判空（GetRepeatEvent
+    // 返回值直传虚调用）；P5 真虚调用原地展开。
+    if (!GlobalData::s_event_manager->GetRepeatEvent(0x67)->IsEventing(0))
     {
         return 1;
     }
@@ -2577,7 +2672,9 @@ bool DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
     db->set_query(
         "seLect server_id, charac_no, job_type, charac_name from event_1208_growthcreature where m_id = %d",
         sig->m_accId);
-    if (!db->exec(true))
+    // P158/P168a④：ORIG `mov %al,-0x19; movzbl; xor $1; test; je` ⇒ bool 具名局部。
+    bool execOk = db->exec(true);
+    if (!execOk)
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__, 0xb4b9,
@@ -2585,11 +2682,8 @@ bool DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
                               sig->m_accId);
         return 0;
     }
-    if (db->get_n_rows() == 0)
-    {
-        memset(SGBC(sig, OFF_GROWTH_CREATURE), 0, 0x1e4);
-    }
-    else
+    // P222/P214①：ORIG `test %eax; setne; test; je` ⇒ 正极性包裹（!=0 走 for）。
+    if (db->get_n_rows() != 0)
     {
         for (unsigned int i = 0; i < db->get_n_rows(); ++i)
         {
@@ -2614,20 +2708,25 @@ bool DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
             SGFC(int, sig, rowOff + 8) = jobType;
         }
     }
+    else
+    {
+        memset(SGBC(sig, OFF_GROWTH_CREATURE), 0, 0x1e4);
+    }
     return 1;
 }
 
 bool DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
 {
-    CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x68);
-    if (evt == 0 || !evt->IsEventing(0))  // §4.1：删发明 helper vtableCall34，原地展开（P5 真虚调用）
+    // [b28d-solo-DB_Login] P0/P140：同 0x67 件（无 evt 局部/判空）。
+    if (!GlobalData::s_event_manager->GetRepeatEvent(0x68)->IsEventing(0))
     {
         return 1;
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
     db->set_query("seLect job_type, level from event_1208_level_achieve where m_id = %d",
                   sig->m_accId);
-    if (!db->exec(true))
+    bool execOk = db->exec(true);           // P158：ORIG bool 槽（-0x15）
+    if (!execOk)
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__,
@@ -2636,11 +2735,7 @@ bool DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
                               sig->m_accId);
         return 0;
     }
-    if (db->get_n_rows() == 0)
-    {
-        memset(SGBC(sig, OFF_ONCE_GIFT), 0, 0x20);
-    }
-    else
+    if (db->get_n_rows() != 0)              // P222 正极性包裹
     {
         for (unsigned int i = 0; i < db->get_n_rows(); ++i)
         {
@@ -2661,6 +2756,10 @@ bool DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
             SGFC(int, sig, OFF_ONCE_GIFT + i * 8 + 4) = level;
         }
     }
+    else
+    {
+        memset(SGBC(sig, OFF_ONCE_GIFT), 0, 0x20);
+    }
     return 1;
 }
 
@@ -2670,18 +2769,20 @@ bool DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
 
 bool DB_Login::GetBingoEvent(SIG_LOGIN_DATA* sig)
 {
-    SIG_BINGO_EVENT& bingo = *reinterpret_cast<SIG_BINGO_EVENT*>(
-        SGBC(sig, OFF_BINGO_EVT));
-    bingo.clear();
-    CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x6a);
-    if (evt == 0 || !evt->IsEventing(0))  // §4.1：删发明 helper vtableCall34，原地展开（P5 真虚调用）
+    // [b28d-solo-DB_Login] P0/P140：ORIG 无 bingo 引用局部（地址直传 clear）、
+    // 无 evt 局部/判空（GetRepeatEvent 返回值直传虚调用）。
+    reinterpret_cast<SIG_BINGO_EVENT*>(SGBC(sig, OFF_BINGO_EVT))->clear();
+    if (!GlobalData::s_event_manager->GetRepeatEvent(0x6a)->IsEventing(0))
     {
         return 1;                            // 事件未开启：视为无数据成功
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
-    long long curSec = GlobalData::s_systemTime_.getCurSec();
+    // [b28d-solo-DB_Login] P0：ORIG 无 curSec 具名槽（getCurSec 结果 eax 直传），
+    // +0x37c 为 disp 直读（P82 视图；裸 cast+off 多一条 add）。
+    struct EnvView { char m_pad[0x37c]; int m_dailyResetHour; };
     long resetBase = GetCurrentResetBaseTime(
-        (int)curSec, *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x37c));
+        GlobalData::s_systemTime_.getCurSec(),
+        reinterpret_cast<EnvView*>(G_CEnvironment())->m_dailyResetHour);
     db->set_query(
         "seLect board,reward from event_1208_bingo where m_id = %s and occ_date > from_unixtime(%u)",
         NumberToString(sig->m_accId, 0),
@@ -2690,39 +2791,45 @@ bool DB_Login::GetBingoEvent(SIG_LOGIN_DATA* sig)
     {
         return 0;
     }
-    if (db->get_n_rows() == 0)
+    int rows = db->get_n_rows();             // P0：ORIG 具名槽 -0x14
+    if (rows == 0)
     {
         return 1;
     }
-    if (!db->fetch())
+    // P198①：ORIG 单一 bool 槽 -0xd 预清 + 独立赋值语句（fetch/get_int/get_byte 复用）。
+    bool ok = false;
+    ok = db->fetch();
+    if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xb71b, 5);
-        trace("DB_Login::GetBingoEvent, fetch() ERROR m_id=%s",
-              NumberToString(sig->m_accId, 0));
+        // P227：全表达式临时链（NumberToString 入 %ebx 跨 ctor）。
+        cMyTrace(__PRETTY_FUNCTION__, 0xb71b, 5)(
+            "DB_Login::GetBingoEvent, fetch() ERROR m_id=%s",
+            NumberToString(sig->m_accId, 0));
         return 0;
     }
-    const char* pretty = "bool DB_Login::GetBingoEvent(SIG_LOGIN_DATA*)";
-    int col = 1;
-    int reward = 0;
-    char board = 0;
-    if (!db->get_int(0, reward))             // 列 0 → reward(int)，写 +0x413c
+    // [b28d-solo-DB_Login] ORIG 0x08448d7a..：col=0 递增计数器（col++）+ 复用同一
+    // bool 槽 -0xd；get_int/get_byte 直接写 sig 字段（无 reward/board 局部）；
+    // trace 传递增后的 col（P198①/P227）。
+    int col = 0;
+    ok = db->get_int(col++, reinterpret_cast<int&>(sig->m_bingoEventId));   // +0x413c
+    if (!ok)
     {
-        cMyTrace trace(pretty, 0xb723, 5);
-        trace("DB_Login::GetBingoEvent, get(%d) ERROR m_id=%s", col,
-              NumberToString(sig->m_accId, 0));
+        cMyTrace(__PRETTY_FUNCTION__, 0xb723, 5)(
+            "DB_Login::GetBingoEvent, get(%d) ERROR m_id=%s", col,
+            NumberToString(sig->m_accId, 0));
         return 0;
     }
-    col += 1;
-    if (!db->get_byte(1, board))             // 列 1 → board(byte)，写 +0x4138
+    ok = db->get_byte(col++, sig->m_bingoWinFlag);                          // +0x4138
+    if (!ok)
     {
-        cMyTrace trace(pretty, 0xb729, 5);
-        trace("DB_Login::GetBingoEvent, get(%d) ERROR m_id=%s", col,
-              NumberToString(sig->m_accId, 0));
+        cMyTrace(__PRETTY_FUNCTION__, 0xb729, 5)(
+            "DB_Login::GetBingoEvent, get(%d) ERROR m_id=%s", col,
+            NumberToString(sig->m_accId, 0));
         return 0;
     }
-    sig->m_bingoEventId = (unsigned int)reward;      // +0x413c
-    sig->m_bingoWinFlag = board;                     // +0x4138
-    return 1;
+    // [b28d-solo-DB_Login] 真语义修正：ORIG 成功路径落 08448eac `mov $0x0,%eax`
+    // （Ghidra C `uVar3 = 0`）⇒ 返回 0（仅 rows==0 与事件未开启返回 1）。
+    return 0;
 }
 
 // ============================================================================
@@ -2738,9 +2845,10 @@ bool DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
                   SGBC(sig, OFF_LOGIN_IP));
     if (!db->exec(true))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0xbc49, 5);
-        trace("[QUERY_ERROR] (select from geo_allow)");
+        // [b28d-solo-DB_Login] P221/P227：兄弟块三 trace 全表达式临时链复现 ORIG
+        // 槽序（-0x3c/-0x2c/-0x1c 深→浅）。
+        cMyTrace(__PRETTY_FUNCTION__, 0xbc49, 5)(
+            "[QUERY_ERROR] (select from geo_allow)");
         return 0;
     }
     if (db->get_n_rows() == 0)
@@ -2749,9 +2857,8 @@ bool DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
     }
     if (!db->fetch() || !db->get_uint(0, allowCnt))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0xbc52, 5);
-        trace("[QUERY_ERROR] (fetch get_uint)");
+        cMyTrace(__PRETTY_FUNCTION__, 0xbc52, 5)(
+            "[QUERY_ERROR] (fetch get_uint)");
         return 0;
     }
     if (allowCnt != 0)
@@ -2763,9 +2870,8 @@ bool DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
                   SGBC(sig, OFF_LOGIN_IP));
     if (!db->exec(true))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0xbc63, 5);
-        trace("[QUERY_ERROR] (insert into member_join_info)");
+        cMyTrace(__PRETTY_FUNCTION__, 0xbc63, 5)(
+            "[QUERY_ERROR] (insert into member_join_info)");
         return 0;
     }
     return 1;

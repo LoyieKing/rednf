@@ -129,8 +129,8 @@ public:
     static CharString pattern(const char* pattern, int count);
     // ORIG T 0x08ad8afa/0x08ad8b9e：`mov 0x8(%ebp),%ebx`=this ⇒ **成员函数**，就地
     // 用 C1Ev/C1EP14CharStringData 覆盖重建本对象并返回 *this（S23C 发现重建误 static 化，真语义 bug）。
-    CharString& format(const char* formatStr, ...);
-    CharString& vformat(const char* formatStr, va_list argList);
+    static CharString format(const char* formatStr, ...);  // b28d-Main：ORIG 0x08ad8afa 尾 `ret $0x4` + fmt@0xc/varargs@0x10 ⇒ 静态 sret 按值
+    static CharString vformat(const char* formatStr, va_list argList);  // 同上（ORIG 0x08ad8b9e）
 
     static int tokenize(const CharString& str, std::vector<CharString>* tokenVector);
     static int tokenize(const CharString& str, std::vector<CharString>* tokenVector,
@@ -227,8 +227,8 @@ public:
 
     static WideString pattern(const wchar_t* pattern, int count);
     // CharString 族同案（ORIG T 0x08adbbe4：mov 0x8(%ebp),%ebx=this）⇒ 成员化。
-    WideString& format(const wchar_t* formatStr, ...);
-    WideString& vformat(const wchar_t* formatStr, va_list argList);
+    static WideString format(const wchar_t* formatStr, ...);  // ORIG 0x08adbbe4 同形 sret
+    static WideString vformat(const wchar_t* formatStr, va_list argList);  // 同上（ORIG 0x08adbc88）
 
     static int tokenize(const WideString& str, std::vector<WideString>* tokenVector);
     static int tokenize(const WideString& str, std::vector<WideString>* tokenVector,

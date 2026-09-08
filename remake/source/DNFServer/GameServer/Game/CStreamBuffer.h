@@ -60,8 +60,8 @@ public:
     //      无比较、无跳转 ⇒ 原码就是裸表达式语句）。glibc <string.h> 的 strlen
     //      带 __attribute__((pure))，gcc 4.4.7 的 tree-DCE 即使在 -O0 下也会删除
     //      "无副作用 + 结果未用" 的调用；实测：保留语句→被删，用 volatile/条件
-    //      包裹→额外多生 store/cmp 反而更偏离。故下面两行 strlen 仅作 ORIG
-    //      死代码的源码级文档保留（对二进制零影响），不产出指令。
+    //      包裹→额外多生 store/cmp 反而更偏离。（②已由 b28d-solo 轮用纯 register
+    //      形复现，见下段；本段②判词作废。）
     //   语义等价性已实测闭合：memset→OS_API::snprintf(fmt,val)→AppendString
     //   [b28c-11 复验] N 封顶维持：ORIG 4.1 的 memset 立即数经 %edx 物化 + 两条
     //   `strlen(m_buf)/strlen(tmp)` 死调用（0x08627cbc 起）；4.4 -O0 探针
@@ -74,6 +74,25 @@ public:
     //   [b28d-N] fresh 复验（四实例 33/26 同形）维持 N：①memset 立即数物化
     //   9 形探针全败；②死 strlen 被 4.4 tree-DCE（/tmp/l11p/dce.cpp 实证），
     //   volatile 反劣 ⇒ 封顶。ORIG 0x08627cbc/0x08627e60/0x08627d48/0x08627dd4。
+    //   [b28d-solo-CStreamBuffer] fresh 复验（routed 口径；探针 /tmp/b28d_csb/
+    //   probe{1,2,3,4,5}.cpp，真实 TU 旗标编译）：我方 138B/32 insns（原 113B/26），
+    //   与 ORIG 139B/33 insns 逐条对齐后**仅剩 memset 参数块 1 条残差**：
+    //   ① [N] memset 参数块（1 insn）：ORIG `lea tmp,%eax; mov $0xa000,%edx;
+    //      mov %edx,0x8(%esp); movl $0x0,0x4(%esp); mov %eax,(%esp)`（首参地址
+    //      先算入 %eax 保活 + 立即数经 %edx 物化）；4.4 恒 `movl $0xa000,0x8(%esp);
+    //      movl $0x0,0x4(%esp); lea; mov`（末算地址、直写立即数）。累计 14 形
+    //      （sizeof/&tmp/&tmp[0]/(void*)tmp 语句表达式/__builtin_memset/(size_t)
+    //      cast/'\0'/40960/sizeof tmp/optimize("no-tree-dce")/register n/
+    //      register char* p/二者组合）全败；register 形另引 push %ebx/帧漂更劣
+    //      ⇒ 跨版本 RTL 立即数物化，N 封顶。
+    //   ② [已复现] 两条结果丢弃 strlen（6 insn/2 call）：裸 `strlen(p);` 被
+    //      4.4 -O0 tree-DCE 删除（N99）；纯 register 局部承接（P231：禁的是
+    //      register asm 绑定，裸 register 存储类提示合法）后 4.4 保留两条调用、
+    //      不占槽、不产 store，与 ORIG 逐条同形（帧 0xa018/-0xa008 不变）。
+    //   语义闭合：memset→snprintf→strlen×2→AppendString 调用序与 ORIG 一致
+    //   （含 If 的 flds 0x10(%ebp)/fstpl 0xc(%esp)）；帧 IPKc/Ii/Ij=0xa018、
+    //   If=0xa028、参数槽 fmt@0xc/val@0x10、tmp@-0xa008 全一致；AppendString AE。
+    //   ⇒ 仅① N 封顶。无子子代理。
     template <typename T>
     void Insert(char* fmt, T val);                          // 0x08627cbc..e60
 
@@ -86,10 +105,14 @@ void CStreamBuffer::Insert(char* fmt, T val)
     char tmp[0xa000];
     memset(tmp, 0, sizeof(tmp));
     OS_API::snprintf(tmp, 0xa000, fmt, val);
-    // 以下两条 = ORIG 保留的死代码（结果丢弃）；gcc 4.4.7 -O0 tree-DCE 会删除，
-    // 详见类内 [b22判词·N] 第②条。保留仅作 ORIG 指令序的源码级文档。
-    strlen(m_buf);
-    strlen(tmp);
+    // 以下两条 = ORIG 保留的死代码（结果丢弃，ORIG 0x08627d08..0x08627d1c 段）。
+    // 裸 `strlen(p);` 会被 gcc 4.4.7 -O0 tree-DCE 删除（N99）；用纯 register 局部
+    // 承接（P231：非 asm 绑定，合法）即可保留两条调用且不占栈槽——实测与 ORIG
+    // 逐条同形（帧 0xa018/-0xa008 不变，无 store）。
+    register size_t deadLenA = strlen(m_buf);
+    register size_t deadLenB = strlen(tmp);
+    (void)deadLenA;
+    (void)deadLenB;
     AppendString(m_buf, 0xa000, tmp);
 }
 

@@ -55,8 +55,10 @@ public:
         int m_characNo;      // +0x10 charac_no
         int m_obtainDate;    // +0x14 unix_timestamp(obtain_date)
 
-        // ORIG 无显式 C1 符号；D1/D2 W 0x818d8d0（纯 ret）
-        ~tagDNFEventEntry() {}
+        // [b28d-solo-DB_Login] P12/N84：ORIG D1/D2 W 0x818d8d0 为**隐式合成**（纯 ret，
+        // _LoadDNFEventEntry 0x08411c94..0x08411d54 循环体内零 D1 调用、零 EH cleanup
+        // ⇒ 析构 trivial）；旧用户空析构使每次 push_back 多 2×D1 + _Unwind_Resume。
+        // 删除后由 vector 使用点发射隐式 W D1/D2（与 ORIG 同名同址段）。
     };
 
     typedef std::vector<tagDNFEventEntry> vecDNFEventEntry_t;

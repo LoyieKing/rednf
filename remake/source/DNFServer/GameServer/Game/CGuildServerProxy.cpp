@@ -123,7 +123,14 @@ bool CGuildServerProxy::InitUdp()
     return 1;
 }
 
-// [b28d-32 N80: cMyTrace ctor 前 varargs 右起求值并 callee-saved 保活，4.4 恒 ctor 后求（74/70） | ORIG 0x0846d96c]
+// [b28d-solo-CGuildServerProxy N80: 74/72] P225 while 形已复现 ORIG @0x0846d9c1
+//   `cmpl $0x0,-0x1c(%ebp); setne %al; test %al,%al; je`（原 if 形 4.4 恒折
+//   `cmpl;je` 少 2 条）。残余=4.1 在 cMyTrace ctor 前把 varargs 右起求值并
+//   callee-saved 保活（strerror→ebx、errno→edi、ret→esi ⇒ push edi + sub $0x5c）；
+//   4.4 只保活两个调用结果（strerror→ebx、errno→esi），槽变量 ret 恒在使用点
+//   `mov -0xc(%ebp),%eax` ⇒ 缺 push edi、帧 -0x10、全槽基差 0x10。P226 语句表达式
+//   `({ ret; })`、P227 全表达式临时链均实测零效；P231 裸 register 反使 ret 失槽
+//   （ORIG 有槽 -0x1c，违 P0 判读）⇒ N80 封顶 | ORIG 0x0846d96c
 bool CGuildServerProxy::InitTcp()
 {
     if (m_udpPort == 0)
@@ -134,7 +141,10 @@ bool CGuildServerProxy::InitTcp()
     {
         int ret = m_tcp.CreateConnectionSocket((int&)m_tcp, m_ip.c_str(),
                                                m_tcpPort);
-        if (ret != 0)
+        // [b28d-solo-CGuildServerProxy P225] ORIG @0x0846d9c1 `cmpl $0x0,-0x1c(%ebp);
+        // setne %al; test %al,%al; je` —— 4.1 的槽比零物化形，4.4 对 if 恒折
+        // `cmpl;je` 直跳；P225 实证 while+break 形可复现（CVillageAttacked/CDropItem）。
+        while (ret != 0)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x4ea, 0)
                 ("CGuildServerProxy CreateConnectionSocket() error(%d:%d:%s)",
@@ -610,12 +620,18 @@ bool CGuildServerProxy::LoadGuildInfoProxyFromDB(ENUM_SERVER_GROUP group)
     return 1;
 }
 
-// [b28d-32 N93/N75: ORIG 逐字段栈拷贝块（-0x14..）vs 4.4 寄存器交错，63/57 | ORIG 0x0846e95e]
+// [b28d-solo-CGuildServerProxy N107/N7: 63/62] 本件已修两处真缺口：
+//   ① 删具名 endIt 改内联 end()（ORIG find 落 -0x14、end 落 -0x10；具名 endIt 使
+//      4.4 反排成 -0xc/-0x10，与同 TU ChangeGuildNameInProxy 的 ORIG 槽序对齐）；
+//   ② 补 pGuild 死槽复现 ORIG @0x0846e9eb/0x0846e9fc 的两次 ptEv（第一次 +0x4 写
+//      -0xc 后全程未读，P171 死写入照抄；单语句 `it->second = info;` 只发一次 ptEv）。
+//   残余仅逐字段拷贝段：ORIG `lea 0x4(%eax),%edx`（dst 物化 %edx、src 装 %eax），
+//   4.4 恒 dst 留 %eax、src 装 %edx 且 +4 折 disp（N107/N18a）。实测 9 形
+//   （显式 operator-> / (*it) / *(&it->second) / RHS cast 族 / 具名 q）均不可翻 | ORIG 0x0846e95e
 bool CGuildServerProxy::ModifyGuildInfoProxy(unsigned int guildId, STGuildProxy& info)
 {
     std::map<unsigned int, STGuildProxy>::iterator it = m_guildInfoMap.find(guildId);
-    std::map<unsigned int, STGuildProxy>::iterator endIt = m_guildInfoMap.end();
-    if (it == endIt)
+    if (it == m_guildInfoMap.end())
     {
         LogManager::logFormat(1, "DF_GuildServerProxy.cpp", __PRETTY_FUNCTION__, 0x852,
                               "Find fail from guild info proxy(guild_id:%d)", guildId);
@@ -623,21 +639,28 @@ bool CGuildServerProxy::ModifyGuildInfoProxy(unsigned int guildId, STGuildProxy&
     }
     else
     {
+        // [b28d-solo-CGuildServerProxy P171 死写入照抄] ORIG @0x0846e9eb/0x0846e9fc
+        // 对 it->second 连发两次 _Rb_tree_iterator::ptEv：第一次 `add $0x4` 结果
+        // 写入 -0xc(%ebp) 后全程未读（死槽），第二次结果 +0x4 作为逐字段拷贝 dst。
+        // 该死槽只能由「具名 pGuild 取址 + 另写 it->second」两语句复现（探针
+        // /tmp/probe_mgi.cpp f vs f2：单语句只发一次 ptEv）。
+        STGuildProxy* pGuild = &it->second;
         it->second = info;
+        (void)pGuild;
         return true;
     }
 }
 
-// [b28d-32 P75/N7: memset/memcpy dst 装载时刻 + 源寄存器 eax↔edx（P226 零效，53=53 助记符全等） | ORIG 0x0846ea3e]
+// [b28d-solo-CGuildServerProxy N75/N7: 53/53] 残差 4 行：ORIG 在压 memset/memcpy
+//   常量前先 `mov -0xc(%ebp),%eax` 取 dst 并跨压栈保活、memcpy src 走
+//   `mov 0x10(%ebp),%edx`；4.4 恒右起求值（dst 装载落最后）且 src 用 %eax。
+//   P226 语句表达式（({ pGuild; })/({ (char*)pGuild; })/+0/&p[0]/cast 共 11 形）与
+//   P231 裸 register（m5/m10：先 load 但改用 %ebx+push/pop 破帧）实测均不闭合
+//   ⇒ P75 实参装载时刻 + N7 寄存器指派，封顶 | ORIG 0x0846ea3e
 void CGuildServerProxy::ChangeGuildNameInProxy(unsigned int guildId, char* name)
 {
-    // [b28c-lane12 判词·N75/N7] 残差 4 行（53/53 指令数等）：ORIG @0x0846ead7
-    // 在压 memset 常量之**前** `mov -0xc(%ebp),%eax` 取 dst 并跨两压栈保活，
-    // memcpy 源走 `mov 0x10(%ebp),%edx`；4.4 恒右起求值（dst 装载落最后）且
-    // 该源用 %eax（P75 实参装载时刻 + N7 寄存器指派，源形不可择）。
+    // 槽序（与 ORIG 一致）：find 结果 -0x14、end() 内联临时 -0x10、pGuild -0xc。
     std::map<unsigned int, STGuildProxy>::iterator it = m_guildInfoMap.find(guildId);
-    // N93 槽序：ORIG 0x846ea3e end() 结果占 -0x10（浅于 find 的 -0x14），
-    // 具名 endIt 局部使 4.4 反排；内联临时形复现。
     if (it == m_guildInfoMap.end())
     {
         LogManager::logFormat(1, "DF_GuildServerProxy.cpp", __PRETTY_FUNCTION__, 0x860,
@@ -743,13 +766,12 @@ void CGuildServerProxy::SendUpgradeGuildAgit(unsigned int guildKey, unsigned int
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }
 
-// [b28d-32 N94: scaled-index 大常量拆分约束（0xa56c%8=4 ⇒ 4.4 恒折单条大 disp mov），43/42 | ORIG 0x0846ee44]
+// [b28d-solo-CGuildServerProxy N94: 43/42] 唯一残差=循环体 scaled-index 大常量拆分：
+//   ORIG @0x0846ee96 `mov -0xc(%ebp),%edx; add $0x14aa,%edx; mov 0x1c(%eax,%edx,8),%eax`
+//   （C%8=4 拆成 add+disp8），4.4 恒折单条 `mov 0xa56c(%eax,%edx,8),%eax`
+//   （N94 定论：4.4 仅当 C%8==0 才拆，源形不可择）⇒ 封顶 | ORIG 0x0846ee44
 void CGuildServerProxy::SendGuildExpLimit()
 {
-    // [b26L17 判词 N94] 循环 m_levelUpCost[i][1]（ORIG @846ee9c：add $0x14aa;
-    //   mov 0x1c(%eax,%edx,8)）；4.4 仅当大常量 %8==0 才拆 scaled-index
-    //   （0xa56c%8=4 恒折单条 mov 大 disp，probeA/C/G 探针），语义正确形
-    //   保留，43→42 差 1 条。
     Packet_Guild_Exp_Limit pkt;
     pkt.m_channel = G_CEnvironment()->get_channel_no();
     pkt.m_guildExpLimit8 = G_CDataManager()->m_guildParameter.m_levelUpCost[8][1];
@@ -825,7 +847,11 @@ void CGuildServerProxy::SendGuildBoardDelete(unsigned int boardNo,
     pkt.m_boardNo = boardNo;
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }
-// [b28d-32 N75/N18a: strncpy dst ORIG 压常量前算好并 lea 0xd 保活，4.4 恒右起求值且折 lea+add（P226 零效） | ORIG 0x0846f0f2]
+// [b28d-solo-CGuildServerProxy N75/N107/N18a: 36/36] ORIG @0x0846f130 在压 strncpy
+//   常量前 `lea -0x27(%ebp),%eax; lea 0xd(%eax),%edx` 两步保活 dst；4.4 恒右起求值
+//   （dst 装载落最后）且折 `lea+add`。P226 语句表达式（({ pkt.m_name; })）、具名指针
+//   中间量、P231 裸 register（v28 探针：双 lea+顺序对，但改用 %ebx 且 push/pop 破帧）
+//   等 13 形实测均不闭合 ⇒ 封顶 | ORIG 0x0846f0f2
 void CGuildServerProxy::SendGameServerInfo(char* name, unsigned short port,
                                            unsigned char group, unsigned char channel)
 {
@@ -834,9 +860,6 @@ void CGuildServerProxy::SendGameServerInfo(char* name, unsigned short port,
     pkt.m_channel = channel;
     pkt.m_type = 1;
     pkt.m_port = port;
-    // [b28d-32 判词·N75/N18a] 唯一残差：ORIG @0x0846f130 把 dst 地址在压
-    // 常量前算好并 `lea 0xd(%eax),%edx` 两步保活；4.4 恒右起求值（dst 最后）
-    // 且折 `lea+add`。P226 裸语句表达式实测零效（装载时刻由调度决定）⇒ 封顶。
     strncpy(pkt.m_name, name, 0x10);
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }

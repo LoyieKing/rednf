@@ -192,6 +192,7 @@ struct dungeonEventHanaseStruct
     dungeonEventHanaseStruct(const dungeonEventHanaseStruct& o);  // ORIG C1ERKS T 0x8a6100e
     // ORIG D1/D2 T 0x8a61164：i=0..10 逐个 delete 非空 dialog 串后置空；
     // 内联（W）以规避 UserQuest.cpp 本地视图的强 T D1 重复定义，链接取强符号。
+    // b28d-solo-Quest [1]：TU 口径 AE（52=52 助记符/槽位全等，仅 .o 重定位标签差）。
     ~dungeonEventHanaseStruct()
     {
         for (int i = 0; i <= 10; ++i)
@@ -302,13 +303,17 @@ public:
     int m_fieldF0;                                // +0xf0
     std::vector<stQuestTargetCharacter_t> m_targetCharacters;  // +0xf4
     int m_levelMin[2];                            // +0x100/+0x104（ORIG clear 循环置 0）
-    char m_field108;                              // +0x108（后随对齐空洞，ORIG 拷贝跳过）
+    // b28d-solo-Quest [P300/档②]：ORIG set_quest 0x08352528 `movzbl 0x108(%eax),%edx;
+    // mov %dl,0x130(%eax)`（单段直存、无 setne 归一）⇒ 源字段与 bool 目标同型 = bool。
+    bool m_field108;                              // +0x108（后随对齐空洞，ORIG 拷贝跳过）
     std::vector<std::vector<int> > m_intDataList; // +0x10c
     std::vector<int> m_antiQuestList;             // +0x118
     int m_questCountLimit;                        // +0x124
     int m_field128;                               // +0x128
     int m_field12c;                               // +0x12c
-    char m_field130;                              // +0x130（后随对齐空洞）
+    // b28d-solo-Quest [P300/档②]：ORIG set_quest 0x08352412 `movzbl 0x130(%eax),%edx`
+    // 单段直存 ⇒ bool（Quest::m_clearSendFlag 已 bool，两端同型）。
+    bool m_field130;                              // +0x130（后随对齐空洞）
     int m_field134;                               // +0x134
     std::vector<DungeonClearItem> m_clearItems;   // +0x138
     std::vector<MonsterKillItem> m_killItems;     // +0x144
@@ -336,7 +341,9 @@ public:
     std::vector<int> m_rewardData;                // +0x21c
     int m_field228;                               // +0x228
     char m_field22c;                              // +0x22c
-    char m_field22d;                              // +0x22d
+    // b28d-solo-Quest [P300/档②]：ORIG set_quest 0x08352476 `movzbl 0x22d(%eax),%edx`
+    // 单段直存 ⇒ bool（Quest::m_exposeQuest 已 bool）。
+    bool m_field22d;                              // +0x22d
     char m_field22e;                              // +0x22e（+0x22f 为对齐空洞，ORIG 拷贝跳过）
     QuestAutoDisplayData m_autoDisplay;           // +0x230..+0x23b（[auto display]）
     char m_field23c;                              // +0x23c
@@ -353,7 +360,9 @@ public:
     std::vector<int> m_mailItems;                 // +0x264
     char m_field270;                              // +0x270
     char m_field271;                              // +0x271（ORIG clear 置 1）
-    char m_powerSide;                             // +0x272（+0x273 为对齐空洞）
+    // b28d-solo-Quest [P265/档③]：ORIG set_quest 0x083524cf `movzbl 0x272(%eax),%edx`
+    // 单段（无 eax 中转）⇒ 与 Quest::m_powerSide(unsigned char) 同型。
+    unsigned char m_powerSide;                    // +0x272（+0x273 为对齐空洞）
     int m_field274;                               // +0x274
     char m_field278;                              // +0x278（后随对齐空洞）
     int m_field27c;                               // +0x27c

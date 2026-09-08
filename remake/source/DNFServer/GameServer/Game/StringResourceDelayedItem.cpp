@@ -55,7 +55,7 @@ void StringResourceDelayedItem::makeCacheStr()
     if (get(&out)) {
         m_cacheStr = *out;
     } else {
-        msg.format("getStr(%d) == none", m_id);
+        msg = CharString::format("getStr(%d) == none", m_id);
         m_cacheStr = msg;
         msg.~CharString();   // ORIG 显式 D1 仅在 else 路径（0x8ad5400←0x3f4；hit 路径 0x3bd 直落 c_str）
     }

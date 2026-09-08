@@ -54,7 +54,7 @@ public:
     void onTryGenerateRandomItem(eGenerateType_t genType, eItemDropType_t dropType,
                                  ENUM_RARITY rarity);
 
-    CItemGeneratorMgr();             // ORIG _ZN8WongWork17CItemGeneratorMgrC1Ev W 0x08374ef4
+    CItemGeneratorMgr() throw();     // ORIG _ZN8WongWork17CItemGeneratorMgrC1Ev W 0x08374ef4；b28d-Main(P216)：加 throw() 消 CDataManager::init 的 new landing pad
     ~CItemGeneratorMgr();            // 定义于 CDataManagerScripts.cpp（仅析构 common）
     void setDropRatio(float ratio);  // 定义于 CDataManagerScripts.cpp（逐生成器虚调用）
     // ORIG T 0x08534322 _ZN8WongWork17CItemGeneratorMgr12onTimerEventEi

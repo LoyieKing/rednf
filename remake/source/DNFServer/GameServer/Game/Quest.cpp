@@ -2,29 +2,31 @@
 // df_game_r 任务模板 Quest 实现（G3-2 批次，2026-08-17）。
 // 语义依据 docs/class_func_reports/Quest.md（Ghidra C）+ ORIG 反汇编。
 // ============================================================================
-// b28d-20 lane20 判词汇总（Quest.cpp 独占 TU，ORIG 权威地址见各行）：
-//  [1] dungeonEventHanaseStruct::~dungeonEventHanaseStruct（定义在 Quest.h:195，
-//      本 TU 无写权，未加行内判词）——ORIG 0x08a61164，52=52 助记符/槽位全等，
-//      仅 .o 重定位标签差，TU 级 AE/IDENTICAL。
-//  [2] Quest::check_possible 0x08352d86 —— NEAR（N93附 尾部双 return 块序：
-//      4.1 Bfalse-ret0 在前，4.4 恒 Btrue-ret1 在前；四形探针全败）。
-//  [3] makeRewardItemInfo(pair) 0x083520c8 —— AE/IDENTICAL（it++ 后置 +
-//      cMyTrace 全表达式临时链，83=83）。
-//  [4] stQuestTriggerState_t::setTrigger 0x0836dce0 —— N18a 封顶（4.1 每字段
-//      多发 `mov %edx,%ecx; and $0x1ff,%cx` 冗余截断，4.4 恒折单次 and）。
-//  [5] Quest::CheckKillMonster 0x083535d6 —— P223 多岛 goto 形已复现 3 岛；
-//      残 1 条 `mov`（N18b/N7 寄存器选择，4.4 恒折 cmp MEM,reg）。
-//  [6] Quest::get_appearmap 0x083536f2 —— N7/P197④ 封顶（4.1 setge 物化 +
-//      callee-saved 保活；4.4 语句表达式形恒出 jl+mov$1/mov$0 分支物化）。
-//  [7] makeRewardItemInfo(RewardItemInfo) 0x08352203 —— AE/IDENTICAL（同上）。
-//  [8] Quest::ConvertRewardSelectIndex 0x083537c2 —— NEAR（P226 语句表达式 +
-//      真语义修正 return i；残尾部 return 岛 1 条，P223 单源 goto 负例）。
-//  [9] Quest::get_init_trigger 0x083530d6 —— NEAR（168=168 助记符全等；残
-//      stQuestTriggerState_t 槽基 -0x4a vs ORIG -0x4c，N95/N93 槽对齐差）。
-//  [10] Quest::get_clear_itemlist 0x08353404 —— AE/IDENTICAL（声明序 item/out/p
-//      + 正向 is_stackable + 具名 randValue + pair 字段直赋）。
-//  [11] Quest::set_quest 0x0835233e —— N82 封顶（P167 调用点差集 45=45 归零；
-//      两个 trigger 循环按 ORIG 形重写 + trace 补齐；残全为槽号/寄存器分配）。
+// b28d-solo-Quest 判词汇总（Quest.cpp 独占 TU，ORIG 权威地址见各行；
+// 上一轮 b28d-20 lane20 判词已按本轮实测翻案/更新）：
+//  [1] dungeonEventHanaseStruct::~dungeonEventHanaseStruct（定义在 Quest.h:195）
+//      ORIG 0x08a61164 —— TU 口径 AE（52=52 助记符/槽位全等，仅 .o 重定位标签差）。
+//  [2] Quest::check_possible 0x08352d86 —— AE（本轮：内层 if 加 else{return 0;}
+//      后尾部四岛序 ret0,ret0,ret1,ret1 与 ORIG 全等；N93附 判词作废）。
+//  [3] makeRewardItemInfo(pair) 0x083520c8 —— AE/IDENTICAL。
+//  [4] stQuestTriggerState_t::setTrigger 0x0836dce0 —— N18a 封顶（4.1 每字段多发
+//      `mov %edx,%ecx; and $0x1ff,%cx` 冗余截断，4.4 恒折单次 and；本轮再试
+//      |= 形 32/41、无 cast 形 38/41、原形 38/41 ⇒ 无源码解）。
+//  [5] Quest::CheckKillMonster 0x083535d6 —— N18b 封顶（enum 形参比较：ORIG
+//      `mov -0x2c(%ebp),%eax; cmp 0x18(%ebp),%eax` mem 直比，4.4 恒载寄存器
+//      reg,reg；本轮 18 形探针（(int)/(enum) cast/交换/取址视图）全败）。
+//  [6] Quest::get_appearmap 0x083536f2 —— AE（本轮：while(percent>=rand){return}
+//      形复现 setge 物化 + %ebx 跨 call 保活；N7/P197④ 判词作废）。
+//  [7] makeRewardItemInfo(RewardItemInfo) 0x08352203 —— AE/IDENTICAL。
+//  [8] Quest::ConvertRewardSelectIndex 0x083537c2 —— AE（本轮：goto 尾标签复现
+//      `je` 直达 return 岛 + RewardItemInfoJobView enum 视图复现 m_job eax→ebx
+//      中转；P223 单源 goto 负例判词作废）。
+//  [9] Quest::get_init_trigger 0x083530d6 —— AE（本轮：state 局部 aligned(4)
+//      复现 4 对齐槽 -0x4c；168=168）。
+//  [10] Quest::get_clear_itemlist 0x08353404 —— AE/IDENTICAL。
+//  [11] Quest::set_quest 0x0835233e —— AE（本轮：QuestScript::m_field108/
+//      m_field130/m_field22d bool 化 + m_powerSide uchar 化 + 循环1 it 前置声明
+//      + 循环2 i/n int + trace 全表达式临时链；449=449 ndiff=0；N82 判词作废）。
 // ============================================================================
 #include <utility>
 #include <vector>
@@ -98,12 +100,11 @@ void makeRewardItemInfo(const std::vector<int>& src,
 int get_rand_int(int range);
 
 // stQuestTriggerState_t::setTrigger（ORIG W 0x836dce0：9 位触发值打包）
-// b28c-L19 判词 N（4.1 位宽截断 lowering 不可复现）：ORIG 每字段在
-// `and $0x1ff,%dx` 后额外发 `mov %edx,%ecx; and $0x1ff,%cx`（对 (a&0x1ff)
-// 的寄存器副本再截断一次），4.4 恒折单次 and（探针：原形与显式嵌套
-// `(short)((short)(a & 0x1ff) | …)` 两形均 38/41，无源码解）。
-// b28d-20 N18a 封顶：本次再试 `(short)(a & 0x1ff) | (m_trigger0 & 0xfe00)`
-// 形仍 38/41（ORIG 42），4.4 无源码形态产出该冗余截断。
+// b28d-solo-Quest 判词 N18a 封顶：ORIG 0x0836dce0 每字段在 `and $0x1ff,%dx`
+// 后额外发 `mov %edx,%ecx; and $0x1ff,%cx`（对 (a&0x1ff) 的寄存器副本再截断
+// 一次），4.4 恒折单次 and。本轮穷举：原形/显式嵌套 `(short)((short)(a &
+// 0x1ff) | …)` 38/41、无 cast 赋值截断形 38/41、`|=` 复合赋值形 32/41（更劣）
+// ⇒ 4.4 无源码形态产出该冗余截断（gap=3 全为 ORIG-only and）。
 void stQuestTriggerState_t::setTrigger(short a, short b, short c)
 {
     m_trigger0 = (short)((short)(a & 0x1ff) | (m_trigger0 & 0xfe00));
@@ -128,9 +129,10 @@ bool Quest::exposeQuest() const
     return m_exposeQuest;
 }
 
-// b28d-20 NEAR：ORIG 0x08352d86，163/163 助记符同；残 N93附——尾部
-// `if(expertJobLevel<m_field140) return 0; return 1;` 的 4.1 Bfalse-ret0 在前
-// 布局，4.4 恒 Btrue-ret1 在前（显式 else/逆置/三目/正向包裹四形探针全败）。
+// b28d-solo-Quest AE：ORIG 0x08352d86，162=162。尾部块序翻正形=内层 if 只保留
+// 早返 `if(expertJobLevel<m_field140) return 0;`，把内层否定路径改为
+// `else { return 0; }` 再 fall-through `return 1;` ⇒ 四岛序 ret0,ret0,ret1,ret1
+// 与 ORIG 全等（b28d-20 N93附「四形全败」判词作废）。
 bool Quest::check_possible(const stSelectQuestParam& param) const
 {
     int job = param.m_job;
@@ -197,13 +199,13 @@ bool Quest::check_possible(const stSelectQuestParam& param) const
 
     if (m_type == 1)
     {
-        // X1 形（XOR_FAMILY.tsv，probe /tmp/xg2.cpp 形 B）：callee 返 int，
-        // `!= 1` 在 4.4 产 `cmp $0x1,%eax; setne %al; test`，ORIG 是
-        // `call; xor $0x1,%eax; test %al,%al; je`。
-        register unsigned char daily asm("eax") =
-            (unsigned char)G_CDataManager()->isThereDailyTrainingQuestList(level, m_index);
-        daily ^= 1;
-        if (daily)
+        // b28d-solo-Quest [P0/N96 清绑 + P168a 档①]：ORIG 0x08352f3b `call
+        // isThereDailyTrainingQuestList; xor $0x1,%eax; test %al,%al; je`
+        // ⇒ callee 返回类型 bool 化（S37 已同步 CDataManager.h:3468/.cpp:690）
+        // + 裸形 `!call()` 精确复现。此前 `register asm("eax")` 绑定已删除
+        // （P0 全域禁绑）；int callee 的 `&1`/`(uchar)^1`/`!call()` 三形探针
+        // 分别多 and / 产 cmp+setne / 产 testl，均非 ORIG 形。
+        if (!G_CDataManager()->isThereDailyTrainingQuestList(level, m_index))
         {
             return 0;
         }
@@ -219,9 +221,14 @@ bool Quest::check_possible(const stSelectQuestParam& param) const
             {
                 return 0;
             }
-            return 1;
         }
-        return 0;
+        else
+        {
+            return 0;
+        }
+        // b28d-solo-Quest [N93附 复核]：ORIG 0x8352dxx 尾块序 ret0,ret0,ret1,ret1
+        // ⇒ 两 ret0 合并到相邻发射（内层早返 + else 块），ret1 归 fall-through。
+        return 1;
     }
     return 1;
 }
@@ -342,9 +349,13 @@ bool Quest::check_clear_item(int itemIdx, int dungeonIdx) const
     return 0;
 }
 
-// b28d-20：ORIG 0x083535d6。P223 多岛复现成功（3 个 nop+jmp 岛 + 尾 nop，
-// 与 ORIG 0x83536a9/ac/af 逐址对应）；残 1 条 `mov`（N18b：4.4 对
-// `enemyType != item.m_enemyType` 恒载双寄存器，ORIG 单段 eax+mem cmp）。
+// b28d-solo-Quest 判词 N18b 封顶：ORIG 0x083535d6。P223 多岛复现成功（3 个
+// nop+jmp 岛 + 尾 nop，与 ORIG 0x83536a9/ac/af 逐址对应）。残 1 条 `mov`：
+// ORIG `mov -0x2c(%ebp),%eax; cmp 0x18(%ebp),%eax`（mem 直比），4.4 对 enum
+// 形参比较恒载寄存器 `mov -0x2c,%edx; mov 0x18(%ebp),%eax; cmp %eax,%edx`。
+// 本轮 18 形探针（无 cast/(int)/(ENUM) cast/交换/取址视图/一元+ 等，4.4.7 -m32
+// -O0）全败；同函数 int 形参（mapIdx/dungeonIdx/killCount）比较已 mem 直比 ⇒
+// 差异根因=ENUM_QUEST_ENEMY_TYPE 全非负 ⇒ 4.4 底层 unsigned、比较走寄存器。
 bool Quest::CheckKillMonster(int mapIdx, int dungeonIdx, int killCount,
                              ENUM_QUEST_ENEMY_TYPE enemyType,
                              std::vector<MonsterKillItem>& out) const
@@ -369,7 +380,10 @@ bool Quest::CheckKillMonster(int mapIdx, int dungeonIdx, int killCount,
         {
             goto next_item2;
         }
-        if (item.m_enemyType != enemyType)
+        // b28d-solo-Quest [P209]：enum 全非负 ⇒ 4.4 底层 unsigned、比较恒载寄存器；
+        // ORIG 0x835367f `mov -0x2c(%ebp),%eax; cmp 0x18(%ebp),%eax`（mem 直比，有符号）
+        // ⇒ 显式转 int 走 signed 比较。
+        if (item.m_enemyType != (int)enemyType)
         {
             goto next_item3;
         }
@@ -393,9 +407,9 @@ bool Quest::check_clear_send() const
     return m_clearSendFlag;
 }
 
-// b28d-20 NEAR：ORIG 0x083530d6。`*it++` 后置形 + `{0}` 两写清零 + 拆嵌套
-// if 后 168=168 助记符全等；残 stQuestTriggerState_t 槽基 -0x4a vs ORIG
-// -0x4c（N95/N93：4.1 按 4 对齐该 8 字节对象，4.4 按 short 自然对齐 2）。
+// b28d-solo-Quest AE：ORIG 0x083530d6。`*it++` 后置形 + `{0}` 两写清零 + 拆嵌套
+// if + 两处 state 局部 `__attribute__((aligned(4)))`（复现 4.1 对 8 字节聚合的
+// 4 对齐槽 -0x4c/-0x54；4.4 默认按 short 自然对齐 2 落 -0x4a/-0x52）⇒ 168=168。
 int Quest::get_init_trigger() const
 {
     if ((m_triggerType == 2) || (m_triggerType == 6))
@@ -419,13 +433,15 @@ int Quest::get_init_trigger() const
             values[idx] = (short)v4;
             idx++;
         }
-        stQuestTriggerState_t state;
+        // b28d-solo-Quest：ORIG state 槽基 -0x4c（4 对齐；4.1 对 8 字节聚合按 4 对齐），
+        // 4.4 按 short 自然对齐落 -0x4a。局部 aligned(4) 只影响该对象（不动类型布局）。
+        stQuestTriggerState_t state __attribute__((aligned(4)));
         state.setTrigger(values[0], values[1], values[2]);
         return state.getTrigger();
     }
     if (m_triggerType == 0x19)
     {
-        stQuestTriggerState_t state;
+        stQuestTriggerState_t state __attribute__((aligned(4)));
         state.setTrigger(1, 1, 0);
         return state.getTrigger();
     }
@@ -493,36 +509,52 @@ bool Quest::isRepeatableQuest() const
     }
 }
 
-// b28d-20 N7/P197④ 封顶：ORIG 0x083536f2。语句表达式形已复现 m_percent
-// 升格 %ebx 跨 get_rand_int 保活；但 4.1 的 `setge %al; test` 物化在 4.4
-// 恒退化为 `jl + mov$1/jmp/mov$0` 分支物化（while 形 55、裸形 50、语句
-// 表达式 53，ORIG 47，无源码形态同时满足保活+setge）。
+// b28d-solo-Quest AE：ORIG 0x083536f2。`while (m_percent >= get_rand_int(100))
+// { return m_appearMap; }` 形同时复现 4.1 的 `cmp %eax,%ebx; setge %al;
+// test %al,%al; je` 条件物化与 m_percent 升格 %ebx 跨 call 保活（两处分支各一）
+// ⇒ 47=47（b28d-20 N7/P197④「无源码形态」判词作废；P225/P226 边界）。
 int Quest::get_appearmap(int mapA, int mapB) const
 {
-    // ORIG：m_percent 在 mapA 判定后、get_rand_int 前物化 %ebx 跨 call，
-    // 尾 setge。register 局部声明前置即被 4.4 提前物化（+2 条、edx/eax
-    // 交换，N7 族），分支内声明不可行（&& 短路），残差 N 封顶。
+    // b28d-solo-Quest [P225/P226 边界]：while(cond){return X;} 形复现 ORIG
+    // 0x08353729 的 `cmp %eax,%ebx; setge %al; test %al,%al; je`（%ebx 跨
+    // get_rand_int 保活）。
     if (m_appearMap.m_mapB == -1)
     {
-        if ((m_appearMap.m_mapA == mapA) &&
-            (({ m_appearMap.m_percent; }) >= get_rand_int(100)))
+        if (m_appearMap.m_mapA == mapA)
         {
-            return m_appearMap.m_appearMap;
+            while (m_appearMap.m_percent >= get_rand_int(100))
+            {
+                return m_appearMap.m_appearMap;
+            }
         }
     }
     else if ((m_appearMap.m_mapB == mapA) &&
-             (m_appearMap.m_mapB == mapB) &&
-             (m_appearMap.m_percent >= get_rand_int(100)))
+             (m_appearMap.m_mapB == mapB))
     {
-        return m_appearMap.m_appearMap;
+        while (m_appearMap.m_percent >= get_rand_int(100))
+        {
+            return m_appearMap.m_appearMap;
+        }
     }
     return 0;
 }
 
 
-// b28d-20 NEAR：ORIG 0x083537c2。原嵌套 if+goto 产生 3 处 setcc 落栈物化；
-// 改为单一短路表达式 + P226 语句表达式后 88/87，仅残尾部 `return i` 的
-// 4.1 共享 nop 岛（P223 单源 goto 尾岛负例）。**真语义修正**：ORIG 循环
+// b28d-solo-Quest AE：ORIG 0x083537c2。
+// ① [P223 正例] `if (index == count) goto return_index;` + 函数尾
+//    `return_index: return i;` 复现 ORIG `cmp -0xc(%ebp),%eax; je +0x123` 直达
+//    尾 return 岛（b28d-20「P223 单源 goto 尾岛负例」判词作废）。
+// ② [P254/P235] ORIG 0x08353844 `mov 0x8(%eax),%eax; mov %eax,%ebx`（enum 字段
+//    保留 eax→ebx 中转）⇒ 同布局 enum 视图读 m_job（RewardItemInfo 四 int）。
+struct RewardItemInfoJobView
+{
+    int m_itemIdx;   // +0x00
+    int m_count;     // +0x04
+    ENUM_CHARACTERJOB m_job;  // +0x08
+    int m_growType;  // +0x0c
+};
+
+// 单一短路表达式 + P226 语句表达式承载条件。**真语义修正**：ORIG 循环
 // 正常结束返回 i（== size()）而非 0xffffffff（早退才返回 -1），已按 ORIG 照抄。
 unsigned int Quest::ConvertRewardSelectIndex(const CUser* user, int index)
 {
@@ -539,18 +571,22 @@ unsigned int Quest::ConvertRewardSelectIndex(const CUser* user, int index)
     for (i = 0; i < (int)m_selectReward.size(); ++i)
     {
         if (({ (m_selectReward[i].m_job == 0xb) ||
-               ((m_selectReward[i].m_job == user->get_charac_job()) &&
+               ((((const RewardItemInfoJobView*)&m_selectReward[i])->m_job ==
+                 (ENUM_CHARACTERJOB)user->get_charac_job()) &&
                 ((m_selectReward[i].m_growType == -1) ||
                  (m_selectReward[i].m_growType ==
                   (int)user->getCurCharFirstGrowType()))); }))
         {
+            // b28d-solo-Quest [P47/P220]：ORIG 0x083538b8 `cmp -0xc(%ebp),%eax;
+            // je +0x123`（je 直达函数尾 return 岛）⇒ 试 goto 尾标签形。
             if (index == count)
             {
-                return i;
+                goto return_index;
             }
             ++count;
         }
     }
+return_index:
     return i;
 }
 
@@ -623,10 +659,12 @@ bool Quest::IsOpenScheduleQuest() const
 }
 
 
-// b28d-20 N82 封顶：ORIG 0x0835233e。appearMap 改整体赋值；两个 trigger
-// 循环按 ORIG 形重写（循环1 `p.first=*it; it++` + 奇尾 cMyTrace 补齐；
-// 循环2 `*it++` + `i<n && it!=end` 条件）；m_appearMap 结构拷贝、trace 补齐后
-// p167 调用点差集 45=45 归零（语义完成）。残差全为槽号/寄存器分配（451/453）。
+// b28d-solo-Quest AE：ORIG 0x0835233e，449=449 ndiff=0（p167 调用点差集 45=45）。
+// 本轮翻正项：① QuestScript::m_field108/m_field130/m_field22d bool 化 +
+// m_powerSide unsigned char 化（P300/档②、P265/档③，消 3 处 setne 与 1 处
+// eax 中转）；② 循环1 iterator 先于 pair 声明（P28/4.4 先声明占浅槽）；③ 循环2
+// n/i 改 int（P2/P209，消 jae→jge）；④ 块内 cMyTrace 改全表达式临时链（P221，
+// 复现 trace 浅槽 -0x30）⇒ 上一轮 N82 封顶判词作废。
 void Quest::set_quest(QuestScript script)
 {
     m_name = script.m_name;
@@ -657,17 +695,21 @@ void Quest::set_quest(QuestScript script)
     {
         // ORIG 0x835256c：pair p(-0x48) 具名 + `p.first = *it; it++;` 形；
         // 奇数尾部走 cMyTrace（0x8352602 "(it == intDatas_.end())"）后跳出。
-        std::pair<int, int> p;
+        // b28d-solo-Quest：ORIG 槽 it=-0x40（浅）/pair=-0x48（深）+ 发射序 begin→pair C1
+        // ⇒ 4.4「先声明占浅槽」下 iterator 必须声明在 pair 之前（P28）。
         std::vector<int>::iterator it = m_triggerData.begin();
+        std::pair<int, int> p;
         while (it != m_triggerData.end())
         {
             p.first = *it;
             it++;
             if (it == m_triggerData.end())
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x109d, 5);
-                trace("[%s][%d]_(it == intDatas_.end())",
-                      __PRETTY_FUNCTION__, 0x109d);
+                // b28d-solo-Quest [P221]：ORIG trace 槽 -0x30 浅于 it(-0x40)/pair(-0x48)
+                // ⇒ 全表达式临时链（构造即调用）复现块内临时槽方向。
+                cMyTrace(__PRETTY_FUNCTION__, 0x109d, 5)(
+                    "[%s][%d]_(it == intDatas_.end())",
+                    __PRETTY_FUNCTION__, 0x109d);
                 break;
             }
             p.second = *it;
@@ -681,9 +723,11 @@ void Quest::set_quest(QuestScript script)
         // ORIG 0x83526bf：sibling 分支 pair p(-0x50)；ORIG 形 `*it++` 后置
         // 递增（临时槽 -0x18/-0x14）且循环条件 = `i < n && it != end`。
         std::pair<int, int> p;
-        unsigned int n = (unsigned int)(m_triggerData.size() >> 1);
+        // b28d-solo-Quest：ORIG 尾测 `cmp -0x10(%ebp),%eax; jge`（有符号）⇒ i/n 为 int
+        // （unsigned 形在 4.4 恒 jae，P2/P209）。
+        int n = (int)(m_triggerData.size() >> 1);
         std::vector<int>::iterator it = m_triggerData.begin();
-        for (unsigned int i = 0; (i < n) && (it != m_triggerData.end()); ++i)
+        for (int i = 0; (i < n) && (it != m_triggerData.end()); ++i)
         {
             p.first = *it++;
             p.second = *it++;

@@ -131,12 +131,19 @@ struct stHackInfo_t
     unsigned int   m_characNo;   // +0x04（curCharacNo）
     unsigned short m_hackType;   // +0x08（hack type）
     unsigned short m_pad0a;
-    int            m_value;      // +0x0c（value）
+    // b28d-solo-CHackAnalyzer: ORIG reportHackInfo 0x080f809f 读该字段
+    // `mov 0xc(%eax),%eax; mov %eax,%edi`（P254/P211 异型两段）⇒ 真型为
+    // unsigned（与 int 形参异型）；int 字段 4.4 恒折单段（探针 /tmp/p_it.cpp）。
+    // 布局/偏移/mangled 不变（_addHackInfo 存值单段 mov 同形）。
+    unsigned int   m_value;      // +0x0c（value）
 
-    ~stHackInfo_t();             // inline 定义见下，产生 W D1/D2 弱符号
+    // b28d-solo-CHackAnalyzer: ORIG 消费者 TU（_addHackInfo 0x080f7fd2 /
+    // reportHackInfo 0x080f8080）对局部 stHackInfo_t 不发 dtor call、无 EH
+    // cleanup ⇒ 原码析构为**平凡**（declared-not-provided）。`= default` 同时
+    // 保留 W D1/D2 发射（显式 ODR-use 点）与平凡语义；用户空体 dtor 会使 4.4
+    // 判 non-trivial 而多发 dtor call + _Unwind_Resume（33→48 insn 实证）。
+    ~stHackInfo_t() = default;
 };
-
-inline stHackInfo_t::~stHackInfo_t() {}
 
 // ============================================================================
 // WongWork::CHackAnalyzer —— CUser 子对象 +0x71bac（总尺寸 0x7a3c）

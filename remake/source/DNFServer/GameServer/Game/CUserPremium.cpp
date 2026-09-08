@@ -47,10 +47,21 @@ struct STPremiumItemData
 
 }  // namespace premium_script_parsing
 
+// [b28d-solo-CUserPremium] P254：ReCalcAdvantage 0x086ae5xx 读 m_slots[j]
+// 为两段 `mov 0x4(%eax,%edx,4),%eax; mov %eax,%ebx`（4.1 对 enum 字段保留
+// eax→目标中转）；int 字段 4.4 恒折单段 ⇒ m_slots 声明为 enum（4 字节，
+// 值域 0..0x15，布局/sizeof 不变）。
+enum ENUM_OVER_EQUIP_SLOT
+{
+    OVER_EQUIP_SLOT_HAT_AVATAR = 0x00,
+    OVER_EQUIP_SLOT_MAGIC_STONE = 0x15,
+    OVER_EQUIP_SLOT_MAX = 0x16
+};
+
 struct SPremiumOverEquipableInfo
 {
     int m_count;        // +0x00 组内标签数（ScanInt 失败前已写入）
-    int m_slots[26];    // +0x04 标签分类值（[hat avatar]=0 .. [magic stone]=0x15）
+    ENUM_OVER_EQUIP_SLOT m_slots[26];  // +0x04 标签分类值（[hat avatar]=0 .. [magic stone]=0x15）
 };  // memset 0x6c；仅前 22 槽被写入
 typedef char spremiumoverequipableinfo_size_0x6c
     [(sizeof(SPremiumOverEquipableInfo) == 0x6c) ? 1 : -1];
@@ -167,7 +178,12 @@ void stPremiumTable_t::clean()
 std::vector<SPremiumOverEquipableInfo> g_vecPremiumOverEquipableInfo;
 std::vector<SPremiumReturnItemInfo> g_vecPremiumReturnItemInfo;
 
-// [b28d-L1] 修法（P167）：ORIG 0x08905d95 调 `vector<unsigned int>::push_back(unsigned int&&)`（EOj）；左值实参使 4.4 选 const& 重载（RKj），改 static_cast<unsigned int&&> 后差集清零（同 QuickParty b23 N-XVAL 手法）。残余帧差 0x100 vs 0xf0（N82）。
+// [b28d-solo-CUserPremium] 修法（P167/N-XVAL）：ORIG 0x08905d95 调
+// `vector<unsigned int>::push_back(unsigned int&&)`（EOj）；左值实参使 4.4 选
+// const& 重载（RKj），改 static_cast<unsigned int&&> 后差集清零。
+// 终判：P167 CLEAR（145/145）+ gap 17/1142（1.5%）⇒ 语义完成；byte 层为
+// 帧-槽族（帧 0x100 vs 0xf0、局部槽 -0x74/-0x78 vs -0x60/-0x64 全帧错位、
+// ORIG-only movl×13 全为槽偏移对齐失败非缺写）⇒ N82/N95/P212 封顶。
 int importPremiumList(const char* path,
                       stPremiumTable_t* table,
                       std::vector<SPremiumOverEquipableInfo>& overVec,
@@ -228,7 +244,7 @@ int importPremiumList(const char* path,
                     else if (value == "[ring]")            equipCase = 0x13;
                     else if (value == "[support]")         equipCase = 0x14;
                     else if (value == "[magic stone]")     equipCase = 0x15;
-                    elem.m_slots[j] = equipCase;
+                    elem.m_slots[j] = (ENUM_OVER_EQUIP_SLOT)equipCase;
                 }
                 overVec.push_back(elem);
             }
@@ -635,8 +651,8 @@ namespace WongWork
 // ---------------------------------------------------------------------------
 // g_SPremiumInfo 权威元素类型见 SPremiumInfo.h（stride 0x120、0x6a 元素）；
 // 本 TU 经 g_SPremiumInfo[type] 具名字段访问。
-// importPremiumList 残差豁免（O=1155/N=1130，-25 散布：解析器逐字段
-// string/栈槽折叠宽度差，等结构无缺语义；Main 裁决标注不追 2026-09-05）。
+// importPremiumList 终判（b28d-solo-CUserPremium）：P167 CLEAR（145/145）
+// + 上列 gap ⇒ 语义完成；残余全为帧-槽族 N82/N95/P212（见函数头判词）。
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // CUserPremium 字段（ORIG 偏移 → CUser.h 具名成员）
@@ -770,7 +786,14 @@ bool CUserPremium::startPremium(int type, bool force)   // 0x086adc6a；调用�
     return 1;
 }
 
-// [b28d-L1] N89 封顶：ORIG 0x086ae10e；P167 GAP 全为 STL 模板实例差（ORIG 发 make_pair<IRi,S0_>/pair C1(Iii)/vector::ixEj，4.4 选 pair C1(IRi,S2_) 等），属 4.1 不内联/实例选择差异。残余 real diff 415 为帧/槽位形态。
+// [b28d-solo-CUserPremium] 修法（P167/P0/P211/P214①/P254）：
+// ①插入路径改 make_pair<int&,int&> + pair<const int,int> 右值转换构造、
+//   else 用 `it->second +=`（ORIG 单次 ptEv）⇒ 调用点差集清零（23/23 CLEAR）；
+// ②overEquip body 的 lhs 索引 + max 第一实参各重算 vec[]（ORIG 3 调用点）；
+// ③去 int now 中转（nowT 单槽）；④+0x85e/+0x850 用 unsigned short 引用/视图
+//   消临时槽；⑤m_slots enum 化复现两段中转（P254）。
+// 终判：ndiff 84→9（482 条），余 3 处 = N18a/N-86b 装载折叠（ORIG 单段直落
+// %edx/%ebx vs 4.4 eax 中转；加法 lea vs add）⇒ 封顶。
 void CUserPremium::ReCalcAdvantage()
 {
     // ORIG 0x086ae10e（O=487）：形态按 T-C9-1 全去缓存——g_SPremiumInfo[type]
@@ -790,8 +813,9 @@ void CUserPremium::ReCalcAdvantage()
     m_overSkillLevel = 0;
     m_ceraDiscountRate = 0;
 
-    int now = GlobalData::s_systemTime_.getCurSec();
-    time_t nowT = (time_t)now;
+    // [b28d-solo-CUserPremium] P0：ORIG 只有 nowT 一槽（`mov %eax,-0x3c(%ebp)`
+    // 后直接 lea 传址）；具名 int now 中转多 1 槽 + 1 条 mov（ndiff -3）。
+    time_t nowT = (time_t)GlobalData::s_systemTime_.getCurSec();
     tm localTm;
     localtime_r(&nowT, &localTm);
 
@@ -810,17 +834,18 @@ void CUserPremium::ReCalcAdvantage()
             m_overEquipFlag = true;
 
         // +0x85e/+0x860：unsigned short max，ORIG 调用站点 max<unsigned short>
-        m_overSkillLevel = static_cast<short>(
-            std::max(static_cast<unsigned short>(m_overSkillLevel),
-                     g_SPremiumInfo[m_entries[slot].m_type].m_overSkillLevel));
+        // [b28d-solo-CUserPremium] P0：ORIG 对 +0x85e 直接取址（`add $0x85e,%eax`）
+        // 传引用；`static_cast<unsigned short>(字段)` 产生临时槽（movzwl+movw+lea）。
+        m_overSkillLevel =
+            std::max(reinterpret_cast<unsigned short&>(m_overSkillLevel),
+                     g_SPremiumInfo[m_entries[slot].m_type].m_overSkillLevel);
         m_ceraDiscountRate = std::max(
             m_ceraDiscountRate,
             g_SPremiumInfo[m_entries[slot].m_type].m_field5a);
 
-        m_outFatigueRate = static_cast<short>(
-            static_cast<unsigned short>(m_outFatigueRate) +
-            static_cast<unsigned short>(
-                g_SPremiumInfo[m_entries[slot].m_type].m_fatigueRate));
+        m_outFatigueRate =
+            reinterpret_cast<unsigned short&>(m_outFatigueRate) +
+            g_SPremiumInfo[m_entries[slot].m_type].m_fatigueRate;
         m_outExpRate =
             m_outExpRate + g_SPremiumInfo[m_entries[slot].m_type].m_expRate;
         m_outPremiumCount = m_outPremiumCount +
@@ -905,12 +930,15 @@ void CUserPremium::ReCalcAdvantage()
     }
 }
 
-// [b28d-L1] N107/N7 封顶：ORIG 0x0830ed48 段 `lea 0x10(%eax),%edx; mov state,%eax; mov %eax,(%edx)`（this→%ecx 无 push）；4.4 恒 `add $0x10,%eax` + push %ebx。成员常量偏移取址 4.4 恒 add（N107 六形探针全产 add）。
+// [b28d-solo-CUserPremium] P214① 修法：ORIG 0x0830ed48 段为指针算术形
+// （`lea (%ecx,%eax,1),%edx; mov state,%eax; mov %eax,(%edx)`，this→%ecx 无
+// push %ebx）；下标形 `m_entries[(int)type]` 使 4.4 走 this→%ebx+add 直算
+// （16 条含 push %ebx）。改数组名参与指针算术后消除 callee-saved（13 条）。
+// 终判：13 vs 14（ndiff 7），余 = 装载序（ORIG idx 先/this 后）+ ORIG 二次
+// `lea 0x10(%eax),%edx` vs 4.4 disp store（N107/N7，探针 state/state2..8 全败）。
 void CUserPremium::setPremiumState(ENUM_PREMIUM_TYPE type, ENUM_PREMIUM_STATE state)
 {
-    // [b27 封顶] 残差 = 寻址/缓存形：ORIG this→ecx + lea0x10→edx 两步 disp，
-    // 4.4 恒 this→ebx + add 直算（N18a/N7 族寄存器分配差，加 1 条 push %ebx）。
-    m_entries[(int)type].m_state = (int)state;
+    (m_entries + (int)type)->m_state = (int)state;
 }
 
 // [b28d-solo-CUserPremium] P225 修法：ORIG 0x086ae834 的 mask[0]==-1 分支是
@@ -936,7 +964,9 @@ bool CUserPremium::_CheckApply(int type, tm t)
     return ok;
 }
 
-// [b28d-L1] IDENTICAL/AE（routed 口径 check_tu_routed）：ORIG 0x086af70a 逐条对齐（52/52）。P167 唯一差 = make_pair 模板实参 IRKm vs IRm（形参 top-level const 差异，不入 mangled/布局，零 ABI 影响）。
+// [b28d-solo-CUserPremium] IDENTICAL/AE（routed 口径 check_tu_routed 复验）：
+// ORIG 0x086af70a 逐条对齐（52/52，ndiff=0）。P167 唯一差 = make_pair 模板
+// 实参 IRKm vs IRm（形参 top-level const 差异，不入 mangled/布局）。
 int CUserPremium::SetPremiumItemData(unsigned long key, const STPremiumItemData& data)
 {
     if (key == 0)
@@ -958,7 +988,10 @@ bool CUserPremium::IsRestrictedPremium(int type)  // static（ORIG 0x086af7c4 �
     return (type >= 60000 && type <= 69999);
 }
 
-// [b28d-L1] N18a/N7 封顶：ORIG 0x086ae8c6 段 `mov (%eax),%edx; shr $0x5,%edx`（单段直落 %edx）；4.4 恒折 `mov (%eax),%eax; mov %eax,%edx`（多 1 条 regmove，N18a 反向）。P167 CLEAR（3/3）语义等价。
+// [b28d-solo-CUserPremium] 修法（P235/P211）：ORIG 0x086ae8c6 读侧单段
+// `mov (%eax),%edx; shr $0x5,%edx`；改 unsigned int 同型视图
+// （m_maxHP/m_maxMP/m_moveSpeed）直读后 315=315 ndiff=0（旧 int 视图 +
+// static_cast 使 4.4 多发 `mov %eax,%edx`，3 处 ×7 条）。P167 CLEAR（3/3）。
 void CUserPremium::RecalcAdditionalInfo(CUser const* user)
 {
     if (user->getCurCharacR() == 0 || GetAdvPremiumCount() == 0)
@@ -1093,7 +1126,11 @@ SUserPremiumInfo* CUserPremium::GetPremiumInfo(int type) const
     return const_cast<SUserPremiumInfo*>(&m_entries[type]);
 }
 
-// [b28d-L1] N93 封顶：ORIG 0x086ae7a8；find 结果槽 -0x10 / end -0xc 与 4.4 相反（同块两直接初始化迭代器，4.1 声明序低→高、4.4 相反）。交换声明序使调用序反、提头声明触发默认 C1+sret 拷贝（b28c-L7 三形实测）。P167 CLEAR（5/5）语义等价。
+// [b28d-solo-CUserPremium] N93 封顶（b28d 复测）：ORIG 0x086ae7a8；find 结果槽
+// -0x10 / end -0xc 与 4.4 相反（同块两直接初始化迭代器，4.1 声明序低→高、
+// 4.4 相反）。交换声明序 ⇒ 调用序反；提头声明 ⇒ 默认 C1+sret 拷贝（N86）；
+// P293 单表达式形 ⇒ end 先于 find（ORIG 调用序反）。P167 CLEAR（5/5）、
+// 42=42 gap0 ⇒ 语义等价，封 N93。
 int CUserPremium::GetReturnItemRate(int type) const
 {
     // ORIG 0x86ae7a8：先 empty() 预检；find/end 结果落 const_iterator 临时
@@ -1149,7 +1186,9 @@ int CUserPremium::GetAddExpBonus(int type) const
     return g_SPremiumInfo[type].m_field44;
 }
 
-// [b28d-L1] N82 封顶：ORIG 0x086adf7c；P167 CLEAR（7/7）⇒ 语义完成。残余为帧/槽位与全局表 reloc 形态差（real diff 46）。
+// [b28d-solo-CUserPremium] 修法（P225）：ORIG 0x086adf7c 循环为「尾测 setle
+// 物化 + 体首 first==0 出口」形；for&& 合并条件使 4.4 折 jg/bool 物化，
+// 改 while+break 后 132=132 ndiff=0。P167 CLEAR（7/7）。
 std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
 {
     std::vector<std::pair<int, int> > items;
@@ -1188,9 +1227,9 @@ std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
 }
 
 // ---------------------------------------------------------------------------
-// 残差豁免（O=758/N=767 级，散布 +9~15：字段拷贝展开策略——4.1 以
-// `g_SPremiumInfo+0x106/+0x1c/+0x256…` 别名标记的 block 段与 4.4 逐成员
-// operator=/vector 形差异，Main 裁决不追，2026-09-05）。
+// 终判（b28d-solo-CUserPremium）：P167 CLEAR（20/20）、gap -5/758 ⇒ 语义完成；
+// 残余全为帧-槽族（帧 0x7e3c vs 0x7e4c、局部槽整体平移 4/16、ORIG-only
+// xor×2 为条件物化差异非缺写）⇒ N82/N95/P232 封顶。
 // ORIG T 0x086aeca4 WongWork::CUserPremium::LoadPremiumInfo(char const*)。
 // importPremiumList 失败→0x15c；逐记录拷贝进 g_SPremiumInfo[i]（0x130→0x120
 // 字段重排，+0xc8 起写穿 _Additioal_info 子对象区）；SetPremiumItemData
@@ -1198,7 +1237,11 @@ std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
 // m_checkTerm 低字节）→0x1c4。全部成功返回 0（CDataManager::init 以
 // "LoadPremiumInfo Fail(Line: %d)" 打印该行码）。
 // ---------------------------------------------------------------------------
-// [b28d-L1] 修法（P167/P96）：ORIG 0x086aeca4 调非 const 迭代器族（ptEv/ppEv/ne(N,N)）；const_iterator 使 4.4 多发 const 转换构造+混合 ne（EXTRA×5/MISSING×3），改非 const iterator 后差集清零。残余帧差 0x7e3c vs 0x7e4c（N82/P232）。
+// [b28d-solo-CUserPremium] 修法（P167/P96/P50）：ORIG 0x086aeca4 调非 const
+// 迭代器族（ptEv/ppEv/ne(N,N)）且无 `iterator::C1Ev`（P167 EXTRA×1）⇒ 非
+// const iterator 且 for 初始化处直构；改后差集清零（20/20 CLEAR）。
+// 终判：gap -5/758 ⇒ 语义完成；残余帧差 0x7e3c vs 0x7e4c + 全帧槽平移 4
+// （N82/N95/P232）⇒ 封顶。
 int CUserPremium::LoadPremiumInfo(const char* path)
 {
     stPremiumTable_t table[0x6a];
@@ -1320,7 +1363,11 @@ void _Additioal_info::operator+=(const _Additioal_info& other)
 //   寄存器舞（0x3e/0x40/0x4a/0x4c 四 union 字段），4.4 恒发 `add %eax,%edx` 直形——
 //   同算术收形源码不可择（N-86b probe 实证恒内存直形）；循环体寄存器分配同理。
 //   逐字段语义逐一相等，封 N。
-// [b28d-L1] N7 封顶：ORIG 0x08693c? 段用 %edx 作索引中转（`add $0x8,%edx; movzwl (%eax,%edx,2),%eax; mov %eax,%edx`）；4.4 恒用 %ecx 且免中转。P167 CLEAR（0/0）语义等价。
+// [b28d-solo-CUserPremium] N-86b/N7 封顶（b28d 复测）：ORIG 0x08146300 对
+// 16 位加发 `movzwl; mov %eax,%edx; movzwl; lea (%edx,%eax,1); mov %eax,%edx`
+// 寄存器舞 + %edx 索引中转；4.4 恒折 `movzwl/movzwl/add/mov %dx` 直形且用
+// %ecx 索引（探针 /tmp/probe_add.cpp 六形 + probe_add2.cpp 五形全败）。
+// P167 CLEAR（0/0）、逐字段语义相等 ⇒ 封顶。
 void _Additioal_info::add(const _Additioal_info& other)
 {
     m_field00 += other.m_field00;
@@ -1351,7 +1398,9 @@ void _Additioal_info::add(const _Additioal_info& other)
 //   `mov %eax,%edx`+`lea/sub` 寄存器中途（含 mov %ebx,%eax 回转），4.4 恒发直接
 //   `sub %ax,%cx`/`add %eax,%edx` 形；0x4c/0x4e 加法特例已忠实保留。逐字段语义
 //   逐一相等，封 N。
-// [b28d-L1] N7 封顶：同 add——ORIG %edx 索引中转 vs 4.4 %ecx 直算（real diff 62 全为寄存器/中转形态）。P167 CLEAR（0/0）语义等价。
+// [b28d-solo-CUserPremium] N-86b/N7 封顶（b28d 复测）：同 add——ORIG 16 位差
+// 经 lea/mov 寄存器舞 + %edx 索引中转，4.4 恒直接 sub/add + %ecx；0x4c/0x4e
+// 两字段加法特例已忠实保留。P167 CLEAR（0/0）⇒ 语义等价，封顶。
 void _Additioal_info::subtract(const _Additioal_info& other)
 {
     m_field00 -= other.m_field00;

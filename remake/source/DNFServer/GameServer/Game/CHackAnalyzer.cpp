@@ -174,12 +174,8 @@ bool CHackAnalyzer::CheckHackRateByPartyCount(ENUM_HACKTYPE type, int count)
     // ORIG 0x080f8320：std::find 于 m_checkRateHackTypes(+0x7a24) 查 type；
     // 未命中返回 true；idx=count-1 越界或费率==100 返回 true；
     // 否则命中当 get_rand_int(100) <= 费率。
-    const int typeVal = (int)type;   // ORIG 先物化实参槽再调 begin/end
-    // [N 归因] ORIG 中段为 find sret 临时(-0x20)+iterator copy-ctor call(-0x24)
-    // 形；本 toolchain 对拷贝初始化直 sret（NRVO 形），分离声明又生多余默认
-    // 构造 call+mov 赋值——跨版本 lowering 差（probe 实证），判 NEAR 收。
-    std::vector<int>::iterator it = std::find(
-        m_checkRateHackTypes.begin(), m_checkRateHackTypes.end(), typeVal);
+    std::vector<int>::const_iterator it = std::find(
+        m_checkRateHackTypes.begin(), m_checkRateHackTypes.end(), (int)type);
     if (it == m_checkRateHackTypes.end())
         return true;
 
@@ -199,9 +195,8 @@ bool CHackAnalyzer::CheckHackRateByDifficult(ENUM_HACKTYPE type, int lvDiff,
     // ORIG 0x080f842e：std::find 查 m_vec7a30(+0x7a30)；未命中返回 true；
     // type==0x86 时 lvDiff<<1；difficult 越界返回 true；chance=100-lvDiff-表值，
     // <=0x18 且非 0x86 时抬到 0x19；命中当 get_rand_int(100) <= chance。
-    const int typeVal = (int)type;   // ORIG 先物化实参槽再调 begin/end
-    std::vector<int>::iterator it = std::find(m_vec7a30.begin(),
-                                              m_vec7a30.end(), typeVal);
+    std::vector<int>::const_iterator it = std::find(m_vec7a30.begin(),
+                                                    m_vec7a30.end(), (int)type);
     if (it == m_vec7a30.end())
         return true;
 
@@ -295,12 +290,19 @@ void CHackAnalyzer::reportHackInfo()
 {
     if (m_hackInfoList.empty())
         return;
-    for (std::vector<stHackInfo_t>::iterator it = m_hackInfoList.begin();
-         it != m_hackInfoList.end(); ++it)
+    // b28d-solo-CHackAnalyzer: ORIG 0x080f8080 用 const_iterator + 各自独立
+    // temp/拷贝构造的 begin/end 局部（P13 缓存 end、P50 直构形），循环为
+    // while；循环体先 `info = *it` 死拷贝（P171 照抄），实参改读 `it->`
+    // （ORIG 4 次 operator-> 调用，operator* 仅 1 次）。
+    std::vector<stHackInfo_t>::const_iterator it = m_hackInfoList.begin();
+    std::vector<stHackInfo_t>::const_iterator e = m_hackInfoList.end();
+    while (it != e)
     {
         stHackInfo_t info = *it;
-        ReqDBSaveHackInfo(info.m_uid, info.m_characNo, info.m_hackType,
-                          info.m_value, 1);
+        (void)info;
+        ReqDBSaveHackInfo(it->m_uid, it->m_characNo, it->m_hackType,
+                          it->m_value, 1);
+        ++it;
     }
 }
 
@@ -330,7 +332,7 @@ void CHackAnalyzer::_addHackInfo(ENUM_REPORT_4_HACK_FLAG flag,
     info.m_value = value;
     m_hackInfoList.push_back(info);
 
-    m_flag04 = (unsigned char)((unsigned)flag | (unsigned)m_flag04);
+    m_flag04 = (unsigned char)(m_flag04 | flag);
 }
 
 int CHackAnalyzer::analyzeHackReport(CUser* user, PacketBuf* pkt)
@@ -404,7 +406,7 @@ int CHackAnalyzer::analyzeHackReport(CUser* user, PacketBuf* pkt)
     return 1;
 }
 
-// b28d-31: N 封顶（复核 batch-26 lane14）——ORIG 0x080f7cca；槽组平移 8。
+// b28d-solo-CHackAnalyzer: NEAR 封顶（N82 族：4.1 保留死局部槽）——ORIG 0x080f7cca。
 void CHackAnalyzer::_analyzeSpeedHack(unsigned int ms)
 {
     // ORIG 0x080f7cca（_analyzeSpeedHack.md）：ratio=(int)(100.0f*ms/elapsed)；
@@ -431,11 +433,12 @@ void CHackAnalyzer::_analyzeSpeedHack(unsigned int ms)
     }
 }
 
-// 判词 N（batch-26 lane14）：ORIG numMs@-0x20/CW@-0x22/-0x24 vs 4.4 numMs@-0x18
-//   /CW@-0x1a/-0x1c —— ORIG numMs 与 elapsed 间存在 8 字节死局部（4.1 -O0 保留
-//   死局部槽实证；探针 slotprobe5/6/7/8x/90/91 + volatile/aligned(16)/声明序三法
-//   帧膨胀或无效），帧 0x38 两侧等齐、助记符序列全等，纯 4.1 保留死局部槽位策略，
-//   N 封顶不追（0x080f7cca）。
+// 判词 N（N82 族：4.1 死局部槽位策略）：ORIG numMs@-0x20/CW@-0x22/CW2@-0x24 vs
+//   本工具链 numMs@-0x18/CW@-0x1a/CW2@-0x1c —— ORIG numMs 与 elapsed(-0x10) 间
+//   存在 8 字节死槽(-0x18..-0x11)。本轮实测：①未使用 `long long`/`char[8]` 局部
+//   恒被置于最深槽（pad@-0x28）并抬帧 0x38→0x48（反劣）；②16 字节 POD 局部
+//   （packed/非 packed）同样落 -0x30 或多出结构拷贝。4.4 无「按声明序保留死槽」
+//   能力 ⇒ 帧 0x38 两侧等齐、助记符序列全等、仅 3 处槽号差，N 封顶不追。
 
 void CHackAnalyzer::_analyzeDifficultyHack(char level)
 {
@@ -459,8 +462,7 @@ void CHackAnalyzer::_analyzeMemoryHack(unsigned int val)
     }
 }
 
-// b28d-31: N 封顶（N1/N18a，复核 b27）——ORIG 0x080f7e18；两步常量
-// 0x10+0xc 被 4.4 折成单 add $0x1c。
+// b28d-solo-CHackAnalyzer: N 封顶（N1+N18a，复核 b27）——ORIG 0x080f7e18。
 void CHackAnalyzer::_analyzeEquipmentUpgradeHack(unsigned short const* table)
 {
     // ORIG 0x080f7e18（_analyzeEquipmentUpgradeHack.md）：当前角色背包装备栏
@@ -475,9 +477,11 @@ void CHackAnalyzer::_analyzeEquipmentUpgradeHack(unsigned short const* table)
         // 槽数组、+0x1c 为背包 ptr 槽区基址裸偏移跳入槽项；语义承载 = 槽序列
         // （§5.3 未建模子对象占位 / 序列化缓冲豁免，GetUpgrade 具名访问槽内字段）。
         // ORIG 地址链三步（imul;+0x10;+inv;+0xc）无槽中转 ⇒ this 内联表达式。
-        // [b27 封顶] 唯一残差 = 寻址链寄存器序：ORIG i→imul→+0x10→+inv→+0xc
-        // （eax 单承载），4.4 恒 inv 先载 + 0x1c 常量合并 + edx 双承载（分组
-        // 括号/中间指针/局部 off 三形探针 45/46 均不匹配），N18a/N81 族。
+        // [b27 封顶 + b28d-solo 复测] 唯一残差 = 寻址链求值序：ORIG
+        // i→imul→+0x10→+inv→+0xc（eax 单承载、两常量分列），4.4 恒 inv 先载 +
+        // 0x1c 常量合并 + edx 双承载。本轮新增两形实测：「整数侧先算
+        // (i*0x3d+0x10+inv)+0xc」被折回 lea+0x1c、「(char*)(i*0x3d+0x10)+inv+0xc」
+        // 被折回原形 ⇒ 前端 fold/canonicalize 不可绕过，N1+N18a 族封顶。
         if (((const Inven_Item*)((char const*)inv + (i * 0x3d + 0x10) + 0xc))
                 ->GetUpgrade() != table[i])
         {
@@ -496,26 +500,26 @@ void CHackAnalyzer::_analyzeMonsterDieHack()
     if (checkCollectedHack(REPORT_4_HACK_FLAG_MONSTER_DIE))
         return;
 
-    if (m_field24 - m_field20 > 0xa)
-        return;
-
-    std::vector<int>::const_iterator it = m_checkTypes.begin();
-    std::vector<int>::const_iterator e = m_checkTypes.end();
-    while (it != e)
+    // b28d-solo-CHackAnalyzer: 窗口检查改正向包裹（P222/P59 补强）——ORIG
+    // 0x080f7eec `jg 0x119(leave)` 直落共享出口（无岛），而 checkCollectedHack
+    // 的早退走 0x118 单个 nop 岛；早返形会让 4.4 给两个出口各发 [nop;jmp]
+    // （87→89）。包裹后窗口出口直跳 leave、早退保留单岛，逐条对齐。
+    if (m_field24 - m_field20 <= 0xa)
     {
-        if (*it != 0xffff)
-            break;      // ORIG body 形：setne+test+jne 退出（等价 && 短路）
-        ++it;
+        std::vector<int>::const_iterator it = m_checkTypes.begin();
+        std::vector<int>::const_iterator e = m_checkTypes.end();
+        while (it != e)
+        {
+            if (*it != 0xffff)
+                break;      // ORIG body 形：setne+test+jne 退出（等价 && 短路）
+            ++it;
+        }
+        if (it == e)
+        {
+            _addHackInfo(REPORT_4_HACK_FLAG_MONSTER_DIE, (ENUM_HACKTYPE)0x3c0,
+                         m_field24 - m_field20);
+        }
     }
-    if (it == e)
-    {
-        _addHackInfo(REPORT_4_HACK_FLAG_MONSTER_DIE, (ENUM_HACKTYPE)0x3c0,
-                     m_field24 - m_field20);
-    }
-    // [b27 封顶] 残余 = 尾部多 1 组 [nop;jmp]（87 vs 89）：addHackInfo 后
-    // 双出口「jmp;nop;jmp;nop」4.4 lowering（if(it==e) 块 + 空 then 出口
-    // 两形均复现 ORIG 单 [jmp;nop]，探针对照无效），在册 N 跨版本 lowering，
-    // 语义等价。
 }
 
 void CHackAnalyzer::analyzeMonsterDieHack()
@@ -795,10 +799,11 @@ void Secu_AccountHacking::sendMail(char const* name, MSG_CHECK_MAIL_RECEIVER* ms
         for (int i = 0;
              i < (int)((CheckMailReceiverListView*)msg)->m_entryCount; ++i)
         {
-            // b28d-31: NEAR 封顶（P75 跨版本装载序）。ORIG 0x08278c69 循环体
-            // `mov -0xc(%ebp),%edx; mov 0x10(%ebp),%ecx`（索引先、msg 后）；
-            // 4.4 对 m_entries[i] 恒 base-first（`mov 0x10(%ebp),%ecx` 先）。
-            // 下标 / &arr[i] / 指针加法 / 交换加法 四形实测均不可翻，语义等价。
+            // b28d-solo-CHackAnalyzer: NEAR 封顶（P75/N76 跨版本装载序）。ORIG
+            // 0x08278c69 循环体 `mov -0xc(%ebp),%edx; mov 0x10(%ebp),%ecx`（索引先、
+            // msg 后）；本工具链对 m_entries[i] 恒 base-first。本轮实测新增两形
+            // （交换下标 i[arr]、索引 (unsigned int)i 中转）仍 base-first，六形
+            // 均不可翻；两侧指令数/助记符序列全等，仅两 load 序差，语义等价。
             if (isAvatar(((CheckMailReceiverListView*)msg)->m_entries[i].m_itemIdx))
                 sendAvatar(name, 0);
         }

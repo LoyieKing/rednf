@@ -3462,7 +3462,10 @@ public:
 
     // ---- 任务 ----
     std::vector<int>* getDailyTrainingQuest(int idx);
-    int isThereDailyTrainingQuestList(int idx, int questIdx);
+    // [b28d-solo-CDataManager] int→bool：ORIG 0x0836411e 返回点 `mov $0/1,%eax`；
+    // 唯一调用点 Quest::check_possible 0x08352f3b `call; xor $0x1; test %al; je`
+    // ⇒ callee bool（P292/P168a 档①）。返回类型不入 mangled，零 ABI 风险。
+    bool isThereDailyTrainingQuestList(int idx, int questIdx);
     bool reselectDailyTrainingQuest();
     int get_WithinMissionIndex(int idx) const;
     std::list<CMission*>* get_kind_mission_list(int idx) const;

@@ -669,8 +669,9 @@ CharString CharString::pattern(const char* pattern, int count)
     return CharString(newData);
 }
 
-CharString& CharString::format(const char* formatStr, ...)
+CharString CharString::format(const char* formatStr, ...)
 {
+    // b28d-Main：改为 static sret 按值（ORIG 0x08ad8afa 尾 ret $0x4、fmt@0xc/varargs@0x10）。
     va_list argList;
     va_start(argList, formatStr);
     // [b28d-solo-StringTypes] verdict=N83 封顶（ORIG 0x08ad8afa）：ORIG format 体是 vformat 逻辑的
@@ -681,15 +682,13 @@ CharString& CharString::format(const char* formatStr, ...)
     int length = vsnprintf(reinterpret_cast<char*>(0), 0, formatStr, argList);
     if (length == 0)
     {
-        new (this) CharString();
         va_end(argList);
-        return *this;
+        return CharString();
     }
     CharStringData* newData = CharStringData::create(length);
     ss_vsprintf(newData->getBuffer(), length + 1, formatStr, argList);
-    new (this) CharString(newData);
     va_end(argList);
-    return *this;
+    return CharString(newData);
 }
 
 // ORIG T 0x08ad8b9e：length==0 → this->C1Ev()（**就地默认构造覆盖**，旧 data 不 detach——
@@ -701,18 +700,15 @@ CharString& CharString::format(const char* formatStr, ...)
 // （每处 +4~5 条，58 vs 49）。显式构造调用语法 `this->CharString::CharString()`
 // 在 4.4 编译报「错误地使用了 struct」（探针 /tmp/s23/p3.cpp）⇒ 无合法源形，
 // 语义等价（就地构造覆盖、旧 data 不 detach 均保持）。
-CharString& CharString::vformat(const char* formatStr, va_list argList)
+CharString CharString::vformat(const char* formatStr, va_list argList)
 {
+    // b28d-Main：static sret 按值（ORIG 0x08ad8b9e）。
     int length = vsnprintf(reinterpret_cast<char*>(0), 0, formatStr, argList);
     if (length == 0)
-    {
-        new (this) CharString();
-        return *this;
-    }
+        return CharString();
     CharStringData* newData = CharStringData::create(length);
     ss_vsprintf(newData->getBuffer(), length + 1, formatStr, argList);
-    new (this) CharString(newData);
-    return *this;
+    return CharString(newData);
 }
 
 int CharString::tokenize(const CharString& str, std::vector<CharString>* tokenVector)
@@ -1438,8 +1434,9 @@ WideString WideString::pattern(const wchar_t* pattern, int count)
     return WideString(newData);
 }
 
-WideString& WideString::format(const wchar_t* formatStr, ...)
+WideString WideString::format(const wchar_t* formatStr, ...)
 {
+    // b28d-Main：static sret 按值（ORIG 0x08adbbe4）。
     va_list argList;
     va_start(argList, formatStr);
     // [b28d-solo-StringTypes] verdict=N83 封顶（ORIG 0x08adbbe4）：同 CharString::format——
@@ -1448,32 +1445,27 @@ WideString& WideString::format(const wchar_t* formatStr, ...)
     int length = vswprintf(reinterpret_cast<wchar_t*>(0), 0, formatStr, argList);
     if (length == 0)
     {
-        new (this) WideString();
         va_end(argList);
-        return *this;
+        return WideString();
     }
     WideStringData* newData = WideStringData::create(length);
     ss_vswprintf(newData->getBuffer(), length + 1, formatStr, argList);
-    new (this) WideString(newData);
     va_end(argList);
-    return *this;
+    return WideString(newData);
 }
 
 // CharString::vformat 同形（ORIG T 0x08adbc88）。
 // [b28d-solo-StringTypes] verdict=N83 封顶（ORIG 0x08adbc88）：同 CharString::vformat
 // （4.4 placement operator new 恒发 `_ZnwjPv` call + 判空，无合法源形可内联）。
-WideString& WideString::vformat(const wchar_t* formatStr, va_list argList)
+WideString WideString::vformat(const wchar_t* formatStr, va_list argList)
 {
+    // b28d-Main：static sret 按值（ORIG 0x08adbc88）。
     int length = vswprintf(reinterpret_cast<wchar_t*>(0), 0, formatStr, argList);
     if (length == 0)
-    {
-        new (this) WideString();
-        return *this;
-    }
+        return WideString();
     WideStringData* newData = WideStringData::create(length);
     ss_vswprintf(newData->getBuffer(), length + 1, formatStr, argList);
-    new (this) WideString(newData);
-    return *this;
+    return WideString(newData);
 }
 
 int WideString::tokenize(const WideString& str, std::vector<WideString>* tokenVector)

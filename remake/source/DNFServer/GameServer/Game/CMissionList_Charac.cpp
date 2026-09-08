@@ -57,6 +57,8 @@ void StrToBitset(unsigned char* data, std::bitset<256>& bitset)
 //   4.4-O0 对 `x+byte` / `byte+x` / `+=` / `+(int)byte` 四形恒折 `add %al,byte`
 //   内存直加（P183 折叠铁律）；i 槽 ORIG -0x10 vs 4.4 -0x14（N98 首次使用序，
 //   声明序不可翻）。语义等价（uchar 回绕 + out[i] 截断同）。
+// [b28d-solo-CMissionList_Charac] 判词 N98+P183（51/48）：残差=槽号(-0x10/-0x14)
+//   与读-加-写三段被 4.4 折成 `add %al,byte`，两族均跨版本不可造，封顶。
 void BitsetToStr(const std::bitset<256>& bitset, std::string& out)
 {
     out.resize(0x20);
@@ -81,6 +83,7 @@ void BitsetToStr(const std::bitset<256>& bitset, unsigned char* out)
         // [b28d-58] DIFF N（同 Ss 重载）：ORIG 槽 i(-0x10)/byte(-0x11)/j(-0xc)，
         // 4.4 为 i(-0x14)/j(-0x10)/byte(-0x9)（N98 首次使用序不可翻）；加法段
         // ORIG 读-加-写三段 vs 4.4 `add %al,byte`（P183 折叠）——语义等价。
+        // [b28d-solo-CMissionList_Charac] 判词 N98+P183（44/42，同 Ss 重载）。
         int j = 0;
         unsigned char byte = 0;
         for (j = 0; j < 8; ++j)
@@ -95,14 +98,11 @@ bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime,
 // 的占位版本不同，本 TU 使用真实形态）
 
 
-// CEnvironment +0x37c 的每日任务排程时间（ORIG 布局）
-static int GetDailyScheduleTime(CEnvironment* env)
-{
-    // env+0x37c = Server_Envir(+0x198)::m_fatigueTime(+0x1e4)（CEnvironment.h 权威
-    // 布局；与本仓 CBoosterGage.cpp / BingoEventLink4.cpp / CGameManager.cpp 同款
-    // 具名口径一致）。ORIG loadData 0x085e49d0 `mov 0x37c(%eax),%eax` 4 字节读。
-    return env->m_serverEnvir.m_fatigueTime;
-}
+// [b28d-solo-CMissionList_Charac] P154 发明符号清理：原 `static int
+// GetDailyScheduleTime(CEnvironment*)` 在 ORIG nm 中**不存在**（仅 T
+// CheckDailyScheduleTime），ORIG loadData 0x085e49d0 直接内联
+// `mov 0x37c(%eax),%eax`（= m_serverEnvir.m_fatigueTime，CEnvironment.h 权威布局）
+// ⇒ 删除该 helper，调用点改为具名字段内联。
 
 // ============================================================================
 // 构造 / 析构 / 虚接口
@@ -143,11 +143,16 @@ bool CMissionList_Charac::loadData(CUser* pUser, char* pData)
     m_field14a = pSig->m_field146;                  // +0x146
     m_field14c = pSig->m_field148;                  // +0x148
 
-    CDataManager* mgr = G_CDataManager();
-    std::list<CMission*>* list =
-        (std::list<CMission*>*)(void*)mgr->get_kind_mission_list(6);
+    // [b28d-solo-CMissionList_Charac] ORIG 0x085e48e6 段 `call G_CDataManager;
+    // mov %eax,(%esp); call get_kind_mission_list` 无 mgr 具名槽（P0 右值内联）；
+    // `_ZNKSt4listIP8CMissionSaIS1_EE5beginEv/3endEv` 为 const 版 ⇒ const 指针。
+    // 判词 N82：残差=kind/list/pSig 槽号互换（4.4 首次使用序 vs 4.1 声明序，
+    // N98 不可翻）；fatigueTime 已按 ORIG 内联（原 GetDailyScheduleTime helper
+    // 为发明符号，已删）。
+    const std::list<CMission*>* list =
+        (const std::list<CMission*>*)(void*)G_CDataManager()->get_kind_mission_list(6);
     for (std::list<CMission*>::const_iterator it = list->begin();
-         it != list->end(); ++it)
+         list->end() != it; ++it)
     {
         if ((*it) && isClearMission((*it)->GetMissionIndex()))
         {
@@ -166,7 +171,7 @@ bool CMissionList_Charac::loadData(CUser* pUser, char* pData)
         MakeMissionList_forOldUser(*pUser);
     }
 
-    if (CheckDailyScheduleTime(GetDailyScheduleTime(G_CEnvironment()),
+    if (CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
                                pUser->getCurCharacLastPlayTick(),
                                GlobalData::s_systemTime_.getCurSec()))
     {
@@ -251,18 +256,23 @@ void CMissionList_Charac::Update_EnterWorld_event(CUser& user)
 {
     // [b28d-64] P48：ORIG 0x085e600a/0x085e6014 两次独立 `G_GameWorld()->
     // GetChannelType()`（无 CSE，无 type 局部槽）；具名 type 会少 4 条调用且槽漂。
-    if (G_GameWorld()->GetChannelType() == 0xf ||
-        G_GameWorld()->GetChannelType() == 0x10)
-    {
-        alter();
-        std::vector<int> out;
-        MissionClearCondition_Parameter param(PVP_BATTLE_MODE_2);
-        int pvpType = G_CDataManager()->GetPvPChannelType();  // ORIG 死代码调用（结果未使用）
-        int chanType = G_GameWorld()->GetChannelType();       // ORIG 死代码调用（结果未使用）
-        check_mission_kind(7, user, param, out);
-        check_mission_kind(0x1e, user, param, out);
-        Send_Cleared_Mission_List(user, out);
-    }
+    // [b28d-solo-CMissionList_Charac] P214①：ORIG 0x085e602c/0x085e6037 两守卫
+    // 均 `je <mov $0>` 共享落点 + 尾 `mov $1;jmp;test;jne <return>` ⇒ 原码是
+    // **正极性早返** `if (A != 0xf && A != 0x10) return;`（负极性包裹被 4.4 反演）。
+    // 判词 NEAR（85/85，条件形已逐条对齐）：残差=帧 0x40 vs 0x50 + 槽号
+    // param(-0x23/-0x2b)/out(-0x14/-0x1c)/pvpType(-0x18/-0x10)/chanType(-0x1c/-0xc)，
+    // 系 4.4 outgoing 保守撑帧 + 聚合优先低槽（N82/P112），语义等价。
+    if (G_GameWorld()->GetChannelType() != 0xf &&
+        G_GameWorld()->GetChannelType() != 0x10)
+        return;
+    alter();
+    std::vector<int> out;
+    MissionClearCondition_Parameter param(PVP_BATTLE_MODE_2);
+    int pvpType = G_CDataManager()->GetPvPChannelType();  // ORIG 死代码调用（结果未使用）
+    int chanType = G_GameWorld()->GetChannelType();       // ORIG 死代码调用（结果未使用）
+    check_mission_kind(7, user, param, out);
+    check_mission_kind(0x1e, user, param, out);
+    Send_Cleared_Mission_List(user, out);
 }
 
 void CMissionList_Charac::Update_Kill_event(
@@ -314,6 +324,10 @@ void CMissionList_Charac::Update_Revenge_event(CUser& user,
     // `setne %al; test %al,%al; jne` 物化 + 独立 nop 岛（+0x143/+0x146），
     // 合并 && 被 4.4 折成直跳（少 setne 与两岛）。拆两条否定 goto + 尾标签串。
     // win 分支 ORIG 0x085e6244 `cmpb $0,-0x2c; je <清零块>` ⇒ 正向 if(win){alter}。
+    // [b28d-solo-CMissionList_Charac] 判词 NEAR（97/97，指令序列全同）：残差=三处
+    // 栈槽号 out(-0x14 vs -0x18)/param(-0x23 vs -0x27)/issueMode(-0x22 vs -0xa)，
+    // 系 4.4 按首次使用序分配且聚合对象优先低槽（N82/N98，声明序不可翻；
+    // issueMode 为死值被 4.4 复用到浅槽）。语义等价。
     if (G_GameWorld()->GetChannelType() != 0xf)
         goto L_notchannel;
     if (getIndex_byKind(0x1b) != 0)
@@ -384,19 +398,25 @@ void CMissionList_Charac::Update_RecvPacket_event(
     {
         MissionClearCondition_Parameter param(
             (PVP_BATTLE_MODE)room->get_pvp_battle_mode());
+        // [b28d-solo-CMissionList_Charac] ORIG 0x085e5d2a `movl $0x0,-0x10(%ebp)`
+        // 位于 for 初始化区（循环外）⇒ 原码 mission 声明于循环外并零预清（P198①），
+        // 循环体内仅赋值。
+        // 判词 N82（116/116，指令序列全同）：残差=槽号 room(-0x14/-0x18)、
+        // mission(-0x10/-0x14)、i(-0xc/-0x10)、param(-0x33/-0x27)（4.4 首次使用序）。
+        CMission* mission = 0;
         for (unsigned int i = 0; i < kinds.size(); ++i)
         {
-            CMission* mission =
-                (CMission*)G_CDataManager()->find_mission(kinds[i]);
+            mission = (CMission*)G_CDataManager()->find_mission(kinds[i]);
                             if (mission)
                 {
-                    int kind = mission->GetMissionKind();
                     bool hackUser;
                     // ORIG 0x85e5caa：kind 6/0x15 执行 check_mission_kind，
                     // 其它 kind 记 HackUser 日志；ORIG 短路二次 GetMissionKind
                     // + 两分支内各重取（P167 定 4 调用位点，复现需逐位点对齐）。
-                    if ((kind == 6) ||
-                        ((kind = mission->GetMissionKind()) == 0x15))
+                    // [b28d-solo-CMissionList_Charac] ORIG 无 kind 局部槽（首次调用
+                    // 结果直接 `cmp $6,%eax`，P0 右值内联）⇒ 两处内联调用。
+                    if ((mission->GetMissionKind() == 6) ||
+                        (mission->GetMissionKind() == 0x15))
                         hackUser = false;
                     else
                         hackUser = true;
@@ -430,16 +450,22 @@ void CMissionList_Charac::Update_ComboMission_Event(CUser& user,
             c = (short)(count - 4);
             value = m_missionList[comboIdx].m_streak;
         }
-        int shift = (3 - (int)c) * 4 & 0x1f;
+        // [b28d-solo-CMissionList_Charac] P0/P183：ORIG 无 shift 局部槽
+        // （0x085e66c1 段每处重发 `mov $3;sub c;shl $2` 全链）⇒ 内联表达式。
+        // `& 0x1f` 为 4.4 变长移位固有掩码（N87），ORIG 4.1 不插。
+        // 判词 N82/N7（150/142）：残差=c/value/nib 槽位平移 + 寄存器角色互换
+        // （N7）与 4.4 强度归约少发的展开段，语义等价。
         unsigned short nib =
-            (unsigned short)((int)value >> shift) & 0xf;
+            (unsigned short)((int)value >> ((3 - (int)c) * 4)) & 0xf;
         short e = (short)(nib - 1);
         if (e < 0)
         {
             e = 0;
         }
-        e = (short)((int)e << shift);
-        value = (short)(value - (short)((int)(short)nib << shift)) + e;
+        e = (short)((int)e << ((3 - (int)c) * 4));
+        value = (short)(value -
+                        (short)((int)(short)nib << ((3 - (int)c) * 4))) +
+                e;
         if (count < 4)
         {
             m_missionList[comboIdx].m_count = value;
@@ -486,26 +512,31 @@ void CMissionList_Charac::check_mission_kind(
     }
     CMission* mission =
         (CMission*)G_CDataManager()->find_mission(m_missionList[kind].m_index);
-    if (!mission || !mission->canUpdate(param))
+    // [b28d-solo-CMissionList_Charac] ORIG 0x085e62bd..0x085e62e7：mission==0 与
+    // canUpdate==0 共享 `je <mov $0>` 落点 + `mov $1;jmp;test %al;je <return>` 物化
+    // ⇒ P214① 正极性包裹：`if (a!=0 && b!=0) {主流程}` 复现 je P;je P;mov$1;jmp;
+    // P:mov$0;Q:test;je 形（负极性早返被 4.4 反演为 xor $1 直跳）。
+    // 判词 N（111/109）：守卫/物化段逐条对齐；残差仅尾部 4.4 epilogue-threading
+    // 多 `jmp+nop` 岛 2 条（P223 边界：ORIG 无岛、我方多出，源形不可消）。
+    if (mission != 0 && mission->canUpdate(param))
     {
-        return;
-    }
-    mission->Update(m_missionList[kind], param);
-    if (mission->isClearable(m_missionList[kind], cleared))
-    {
-        int index = (int)m_missionList[kind].m_index;
-        outClearList.push_back(index);
-        if (kind == 0x1b)
+        mission->Update(m_missionList[kind], param);
+        if (mission->isClearable(m_missionList[kind], cleared))
         {
-            m_missionList[7].clear();
-            m_missionList[0x1e].clear();
+            int index = (int)m_missionList[kind].m_index;
+            outClearList.push_back(index);
+            if (kind == 0x1b)
+            {
+                m_missionList[7].clear();
+                m_missionList[0x1e].clear();
+            }
+            ClearMission(user, (short)index);
         }
-        ClearMission(user, (short)index);
-    }
-    if (cleared)
-    {
-        Send_Fail_Mission(user, m_missionList[kind].m_index);
-        cleared = false;
+        if (cleared)
+        {
+            Send_Fail_Mission(user, m_missionList[kind].m_index);
+            cleared = false;
+        }
     }
 }
 
@@ -517,19 +548,27 @@ void CMissionList_Charac::MakeMissionList_forNewbies(const CUser& user)
 {
     for (int kind = 1; kind <= 0x23; ++kind)
     {
-        std::list<CMission*>* list =
-            (std::list<CMission*>*)(void*)G_CDataManager()->get_kind_mission_list(kind);
+        // [b28d-solo-CMissionList_Charac] ORIG 调用 `_ZNKSt4listIP8CMissionSaIS1_EE5emptyEv`
+        // /`beginEv`/`endEv` 全为 **const 版**且无 `_List_iterator`→`_List_const_iterator`
+        // 转换构造 call ⇒ 原码 list 声明为 `const std::list<CMission*>*`。
+        const std::list<CMission*>* list =
+            (const std::list<CMission*>*)(void*)G_CDataManager()->get_kind_mission_list(kind);
         if (list->empty())
         {
             continue;
         }
-        if (list->front()->GetMissionGrade() == 2)
+        // [b28d-solo-CMissionList_Charac] ORIG 0x085e4d50..0x085e4d8d：MissionInfo
+        // info(-0x1c) 构造 → list->begin()(-0x20) → const_iterator::operator* →
+        // `cmp $2; sete; test; je 循环` ⇒ 原码用 begin()/`*it` 而非 front()
+        // （front() 少一次 begin sret 调用与迭代器槽）。增量段 ORIG 为 `ppEv`
+        // ⇒ `++it` 前置（P28 反向）。修复后 → AE（93/93）。
+        MissionInfo info;
+        std::list<CMission*>::const_iterator it = list->begin();
+        if ((*it)->GetMissionGrade() == 2)
         {
             continue;
         }
-        MissionInfo info;
-        for (std::list<CMission*>::const_iterator it = list->begin();
-             it != list->end(); ++it)
+        for (; list->end() != it; ++it)
         {
             if ((*it)->isAcceptCondition(user))
             {
@@ -546,23 +585,28 @@ void CMissionList_Charac::MakeMissionList_forOldUser(const CUser& user)
 {
     for (int kind = 1; kind <= 0x23; ++kind)
     {
-        std::list<CMission*>* list =
-            (std::list<CMission*>*)(void*)G_CDataManager()->get_kind_mission_list(kind);
+        // [b28d-solo-CMissionList_Charac] ORIG 0x085e4e88..0x085e4ef7 同 forNewbies：
+        // info(-0x1c) 构造 → begin()(-0x20) → operator* → GetMissionKind/getIndex_byKind
+        // → operator* → GetMissionGrade；`list` 亦为 const 指针（empty/begin/end const 版）。
+        // 循环条件实参序 this=&it(-0x20)、arg=&end(-0x14) ⇒ `it != list->end()`（与
+        // forNewbies 相反，P74 补充② 三件三形）。修复后 → AE（109/109）。
+        const std::list<CMission*>* list =
+            (const std::list<CMission*>*)(void*)G_CDataManager()->get_kind_mission_list(kind);
         if (list->empty())
         {
             continue;
         }
-        if (getIndex_byKind(list->front()->GetMissionKind()) != 0)
-        {
-            continue;
-        }
-        if (list->front()->GetMissionGrade() == 2)
-        {
-            continue;
-        }
         MissionInfo info;
-        for (std::list<CMission*>::const_iterator it = list->begin();
-             it != list->end(); ++it)
+        std::list<CMission*>::const_iterator it = list->begin();
+        if (getIndex_byKind((*it)->GetMissionKind()) != 0)
+        {
+            continue;
+        }
+        if ((*it)->GetMissionGrade() == 2)
+        {
+            continue;
+        }
+        for (; it != list->end(); ++it)
         {
             if ((*it)->isAcceptCondition(user))
             {
@@ -579,24 +623,29 @@ bool CMissionList_Charac::MakeMissionList_JustKind(const CUser& user,
                                                    unsigned int kind)
 {
     bool result = false;
-    std::list<CMission*>* list =
-        (std::list<CMission*>*)(void*)G_CDataManager()->get_kind_mission_list(kind);
-    if (!list->empty())
+    // [b28d-solo-CMissionList_Charac] ORIG 0x085e4fc1..0x085e50f1：`movb $0,-0xd`
+    // 预清 → empty 为真 `mov $0,%eax;jmp` 直返常量（非 movzbl result）⇒ 原码
+    // `if (list->empty()) return false;`；getIndex!=0 同样直返常量 0；
+    // 命中分支 `movb $1,-0xd; jmp 返回点` ⇒ `result = true; break;` 而非 `return true;`。
+    // list 为 const 指针（empty/begin/end 全 const 版），it 用 begin()+operator*。
+    // 修复后 → AE（96/96）。
+    const std::list<CMission*>* list =
+        (const std::list<CMission*>*)(void*)G_CDataManager()->get_kind_mission_list(kind);
+    if (list->empty())
+        return false;
+    MissionInfo info;
+    std::list<CMission*>::const_iterator it = list->begin();
+    if (getIndex_byKind((*it)->GetMissionKind()) != 0)
+        return false;
+    for (; it != list->end(); ++it)
     {
-        MissionInfo info;
-        if (getIndex_byKind(list->front()->GetMissionKind()) == 0)
+        if ((*it)->isAcceptCondition(user))
         {
-            for (std::list<CMission*>::const_iterator it = list->begin();
-                 it != list->end(); ++it)
-            {
-                if ((*it)->isAcceptCondition(user))
-                {
-                    (*it)->makeMissionInfo(info, user);
-                    addNewMission(info);
-                    alter();
-                    return true;
-                }
-            }
+            (*it)->makeMissionInfo(info, user);
+            addNewMission(info);
+            alter();
+            result = true;
+            break;
         }
     }
     return result;
@@ -652,8 +701,12 @@ void CMissionList_Charac::ClearMission(CUser& user, short index)
     if (!mission)
     {
         // ORIG 0x85e6441：mission 缺失记日志（cMyTrace 5/0x797）后返回。
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x797, 5);
-        trace("[@missionSystem] InvalidIndex: <index : %d>", (int)index);
+        // [b28d-solo-CMissionList_Charac] P227：ORIG 0x085e646c 先把 index 载入
+        // %ebx 跨 ctor 保活再 call op() ⇒ 全表达式临时链形（具名对象会即时读取）。
+        // 判词 N7/N82（121/123）：残差=cMyTrace 变参装载寄存器角色（N7）与
+        // sete/setne 极性（setcc-fold），语义等价。
+        cMyTrace(__PRETTY_FUNCTION__, 0x797, 5)(
+            "[@missionSystem] InvalidIndex: <index : %d>", (int)index);
         return;
     }
     int kind = mission->GetMissionKind();
@@ -675,9 +728,9 @@ void CMissionList_Charac::ClearMission(CUser& user, short index)
     else
     {
         // ORIG 0x85e64e1：m_index 不匹配记日志（cMyTrace 5/0x7a5）后返回。
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x7a5, 5);
-        trace("[@missionSystem] NotMatchIndex: <valid index:%d invalid index:%d>",
-              (int)m_missionList[kind].m_index, (int)index);
+        cMyTrace(__PRETTY_FUNCTION__, 0x7a5, 5)(
+            "[@missionSystem] NotMatchIndex: <valid index:%d invalid index:%d>",
+            (int)m_missionList[kind].m_index, (int)index);
     }
 }
 
@@ -713,6 +766,8 @@ void CMissionList_Charac::Reset_DailyMission()
     //   `cMyTrace(...)(...)` 翻正 trace 槽方向，具名对象被 4.4 放最深 -0x44）。
     //   残差仅 ORIG 正常 epilogue 在前 / unwind 块在函数最末，4.4 相反（difflib
     //   rotate 放大 ~30 行），gap=1，语义等价。
+    // [b28d-solo-CMissionList_Charac] 判词 N104（132/133）：调用点差集归零、槽位集
+    //   全等，唯 EH 正常尾块/unwind 尾块相对序互换 ⇒ 封顶。
     std::bitset<32> daily = G_CDataManager()->get_daily_mission_kind();
     for (int i = 0; i < 0x20; ++i)
     {
