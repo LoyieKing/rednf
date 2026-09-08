@@ -39,8 +39,14 @@ namespace QuickParty
 
 STQuickPartyPoolMap_Data::STQuickPartyPoolMap_Data()
 {
-    for (int i = 0; i < 4; ++i)
-        m_lists[i].clear();
+    // [b28d-L1] 修法：ORIG 0x0826b8b7..0x0826b8e7 为**展开的 4 次**
+    // `mov 0x8(%ebp),%eax; [add $K,%eax;] mov %eax,(%esp); call list::clear`
+    // （无循环变量/无回边）；原 for 形使 4.4 发 `movl $0,-0x1c` + setle/jne
+    // 回边并把帧撑到 0x3c（ORIG 0x2c）、EH 槽 -0x2c（ORIG -0x1c）。展开后逐条对齐。
+    m_lists[0].clear();
+    m_lists[1].clear();
+    m_lists[2].clear();
+    m_lists[3].clear();
 }
 
 STQuickPartyPoolMap_Data::~STQuickPartyPoolMap_Data() {}
@@ -145,7 +151,11 @@ void CQuickPartySystemManager::init_quick_party_pool(const CDungeon* dungeon)
     if (dungeon == 0)
         return;
 
-    std::vector<int>& idxList =
+    // [b28d-L1] 修法（P167）：ORIG 只调 `__gnu_cxx::ne<const int*>`（两侧
+    // const_iterator）；非 const 引用使 4.4 额外发 begin/end + const_iterator
+    // 转换构造 + 混合 `ne(PKi,Pi)`（P167 报 EXTRA×4/MISSING×1）。改 const 引用后
+    // begin()/end() 直接返回 const_iterator，差集清零。
+    const std::vector<int>& idxList =
         G_CGameManager()->GetQuickPartyRewardManager()->get_dungeon_idx_list();
     for (std::vector<int>::const_iterator it = idxList.begin(); it != idxList.end(); ++it) {
         if (dungeon->get_index() == *it)
@@ -404,11 +414,18 @@ bool CQuickPartySystemManager::remove_quick_party_in_pool(
     if (poolIdx >= 4 || poolIdx < 0)
         return false;
 
+    // [b28d-L1] 修法（P212 全头部声明，ndiff 52→46 为四形最优）：ORIG 槽序
+    // it=-0x28 / end 临时=-0x24 / qpIndex=-0x20。块内声明 qpIndex 时 4.4 把它排到
+    // 最深 -0x28、it/end 各上移一格；把 qpIndex 提到 it 之前声明（块内仅赋值）后
+    // it 回到 -0x28（与 ORIG 全等），残余仅 end 临时槽 -0x20 与 qpIndex -0x24 互换
+    // ——4.4 按首次使用序分配（N98），end 条件先于块内赋值使用，声明序/具名 e 两形
+    // 实测（/tmp/b28d_l1/r19c.md 52、r19d.md 48）均只交换槽位，判 N93/N98 封顶。
+    int qpIndex;
     std::map<STQuickPartyPoolMap_Key, STQuickPartyPoolMap_Data>::iterator it =
         m_poolMap.find(key);
     if (it != m_poolMap.end())
     {
-        int qpIndex = qp->get_quick_party_index();
+        qpIndex = qp->get_quick_party_index();
         it->second.m_lists[poolIdx].remove(qpIndex);
         return true;
     }
@@ -800,65 +817,71 @@ int CQuickPartySystemManager::match_proper_party(
 
     std::map<STQuickPartyPoolMap_Key, STQuickPartyPoolMap_Data>::iterator it =
         m_poolMap.find(key);
-    if (it == m_poolMap.end())
+    // [b28d-L1] 修法（P167/P220）：ORIG 34 calls 调 `_Rb_tree_iterator::ne`×1 +
+    // `list::size`×1（无 eq/empty）⇒ 原码是正极性 `if (it != end) { 主体 }`；
+    // 且档位判空写 `size() == 0` 而非 `empty()`（P197④）。原 eq/empty 形
+    // P167 报 EXTRA eq/empty、MISSING ne/size。改写后调用点差集仅余 N89
+    // （4.1 不内联 operator-> 发 ptEv×4，4.4 内联，结构性豁免）。
+    if (it != m_poolMap.end())
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x1d6, 5);
-        trace("QUICK_PARTY_LOG : NO EXIST KEY DATA!!");
-        return 1;
-    }
-    STQuickPartyPoolMap_Data& data = it->second;
+        STQuickPartyPoolMap_Data& data = it->second;
 
-    // 从"还差 memberCount 人即可开团"的档位向下尝试归并。
-    for (int need = maxMembers - memberCount; need > 0; --need)
-    {
-        if (data.m_lists[need].empty())
-            continue;
-
-        if (need + memberCount != maxMembers)
+        // 从"还差 memberCount 人即可开团"的档位向下尝试归并。
+        for (int need = maxMembers - memberCount; need > 0; --need)
         {
-            // 尚不足开局人数：并入现有等待队列（注册新组合）。
-            if (!regist_quick_party(key, data, need, party, memberCount))
-                return 1;
-            return 0;
-        }
+            if (data.m_lists[need].size() == 0)
+                continue;
 
-        // 正好补齐：弹出该档 quick party 并立即尝试开局。
-        CQuickParty* qp = find_quick_party_in_pool(data.m_lists[need]);
-        if (qp == 0)
-            continue;
+            if (need + memberCount != maxMembers)
+            {
+                // 尚不足开局人数：并入现有等待队列（注册新组合）。
+                if (!regist_quick_party(key, data, need, party, memberCount))
+                    return 1;
+                return 0;
+            }
 
-        qp->set_party_index(party->GetPartyIndex());
-        int total = qp->get_quick_party_count();
-        if (total == maxMembers)
-        {
-            start_game(qp);
-            return 0;
-        }
+            // 正好补齐：弹出该档 quick party 并立即尝试开局。
+            CQuickParty* qp = find_quick_party_in_pool(data.m_lists[need]);
+            if (qp == 0)
+                continue;
 
-        unsigned int qpIndex =
-            static_cast<unsigned int>(qp->get_quick_party_index());
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x1b4, 0);
-        trace("QUICK_PARTY_LOG : REPUSH QUICK PARTY IN POOL!! QUICK_PARTY_INDEX(%d), QUICK_PARTY_COUNT(%d)",
-              qpIndex, total);
-        if (!push_quick_party_in_pool(key, data, party, total, qp, true))
-        {
-            LogManager::logFormat(
-                1, "QuickParty.cpp",
+            qp->set_party_index(party->GetPartyIndex());
+            int total = qp->get_quick_party_count();
+            if (total == maxMembers)
+            {
+                start_game(qp);
+                return 0;
+            }
+
+            unsigned int qpIndex =
+                static_cast<unsigned int>(qp->get_quick_party_index());
+            cMyTrace trace(
                 __PRETTY_FUNCTION__,
-                0x1bc, "QUICK_PARTY_LOG : ABNOMAL QUICK PARTY!! (%d)", total);
-            return 1;
+                0x1b4, 0);
+            trace("QUICK_PARTY_LOG : REPUSH QUICK PARTY IN POOL!! QUICK_PARTY_INDEX(%d), QUICK_PARTY_COUNT(%d)",
+                  qpIndex, total);
+            if (!push_quick_party_in_pool(key, data, party, total, qp, true))
+            {
+                LogManager::logFormat(
+                    1, "QuickParty.cpp",
+                    __PRETTY_FUNCTION__,
+                    0x1bc, "QUICK_PARTY_LOG : ABNOMAL QUICK PARTY!! (%d)", total);
+                return 1;
+            }
+            return 0;
         }
+
+        // 无可归并组合：以空队首领新池对象挂起等待。
+        if (!regist_quick_party(key, data, 0, party, memberCount))
+            return 1;
         return 0;
     }
 
-    // 无可归并组合：以空队首领新池对象挂起等待。
-    if (!regist_quick_party(key, data, 0, party, memberCount))
-        return 1;
-    return 0;
+    cMyTrace trace(
+        __PRETTY_FUNCTION__,
+        0x1d6, 5);
+    trace("QUICK_PARTY_LOG : NO EXIST KEY DATA!!");
+    return 1;
 }
 
 // ---- make_quick_party @0x0826b222：把池内 quick party 合并成一个真实 party ----

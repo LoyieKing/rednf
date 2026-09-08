@@ -3173,7 +3173,7 @@ bool CUser::Send(PacketGuard& packet)   // b28c-L5 SIGFIX：ORIG 串 bool；
     return AntibotSend(*pBuf);
 }
 
-int CUser::SendPacket(eSendTarget target, PacketGuard& packet)
+bool CUser::SendPacket(eSendTarget target, PacketGuard& packet)  // b28d-lane5：CUser.h 已落 bool（Main），定义同步
 {
     if (target == (eSendTarget)1)
         Send(packet);
@@ -3226,7 +3226,7 @@ DO_FIN:
     return SendPacket(target, packet);
 }
 
-int CUser::SendCmdOkPacket(ENUM_CMDPACKET cmd)
+bool CUser::SendCmdOkPacket(ENUM_CMDPACKET cmd)  // b28d-lane5：ORIG 0x0867bf10 `call Send; mov %eax,%ebx`
 {
     PacketGuard packet;
     ((InterfacePacketBuf*)&packet)->clear();
@@ -3236,13 +3236,13 @@ int CUser::SendCmdOkPacket(ENUM_CMDPACKET cmd)
     return Send(packet);
 }
 
-int CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error)
+bool CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error)  // b28d-lane5
 {
     PacketGuard packet;
     return SendCmdErrorPacket(cmd, error, packet);
 }
 
-int CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PAY_TYPE pay)
+bool CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PAY_TYPE pay)  // b28d-lane5
 {
     PacketGuard packet;
     ((InterfacePacketBuf*)&packet)->put_header(1, (int)cmd);
@@ -3256,7 +3256,7 @@ int CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PAY_TYPE 
     return Send(packet);
 }
 
-int CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PacketGuard& packet)
+bool CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PacketGuard& packet)  // b28d-lane5
 {
     ((InterfacePacketBuf*)&packet)->put_header(1, (int)cmd);
     ((InterfacePacketBuf*)&packet)->put_byte(0);
@@ -3265,7 +3265,7 @@ int CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PacketGua
     return Send(packet);
 }
 
-int CUser::SendCmdErrorPacket2Byte(ENUM_CMDPACKET cmd, unsigned short error)
+bool CUser::SendCmdErrorPacket2Byte(ENUM_CMDPACKET cmd, unsigned short error)  // b28d-lane5
 {
     PacketGuard packet;
     ((InterfacePacketBuf*)&packet)->put_header(1, (int)cmd);
@@ -3276,7 +3276,7 @@ int CUser::SendCmdErrorPacket2Byte(ENUM_CMDPACKET cmd, unsigned short error)
     return Send(packet);
 }
 
-int CUser::SendCmdErrorPacketJpn(ENUM_CMDPACKET cmd, unsigned short error)
+bool CUser::SendCmdErrorPacketJpn(ENUM_CMDPACKET cmd, unsigned short error)  // b28d-lane5
 {
     PacketGuard packet;
     ARAD::DISPATCHER::make_cmd_packetheader_jpn(packet, cmd, false);
@@ -3353,15 +3353,15 @@ int CUser::AuctionPreCheck(ENUM_CMDPACKET cmd, PAY_TYPE pay)
     return -1;
 }
 
-void CUser::SendCmdPeerErrorPacket(ENUM_CMDPACKET cmd, ENUM_PEER_REQUEST_TYPE type,
-                                   unsigned char error)
+bool CUser::SendCmdPeerErrorPacket(ENUM_CMDPACKET cmd, ENUM_PEER_REQUEST_TYPE type,
+                                   unsigned char error)  // b28d-lane5：ORIG 0x0867be6f 保存 4 参版返回值
 {
     PacketGuard packet;
-    SendCmdPeerErrorPacket(cmd, type, error, packet);
+    return SendCmdPeerErrorPacket(cmd, type, error, packet);
 }
 
-void CUser::SendCmdPeerErrorPacket(ENUM_CMDPACKET cmd, ENUM_PEER_REQUEST_TYPE type,
-                                   unsigned char error, PacketGuard& packet)
+bool CUser::SendCmdPeerErrorPacket(ENUM_CMDPACKET cmd, ENUM_PEER_REQUEST_TYPE type,
+                                   unsigned char error, PacketGuard& packet)  // b28d-lane5
 {
     ((InterfacePacketBuf*)&packet)->clear();
     ((InterfacePacketBuf*)&packet)->put_header(1, (int)cmd);
@@ -3371,7 +3371,7 @@ void CUser::SendCmdPeerErrorPacket(ENUM_CMDPACKET cmd, ENUM_PEER_REQUEST_TYPE ty
     if ((int)type == 4)
         ((InterfacePacketBuf*)&packet)->put_int(0);
     ((InterfacePacketBuf*)&packet)->finalize(true);
-    Send(packet);
+    return Send(packet);
 }
 
 void CUser::SendZeroExpPacket()
@@ -5883,8 +5883,12 @@ int CUser::gainExpAsUpperMember(int exp)
     // result<=0 亦调 set_charac_member_bonus_exp(0)（ORIG 3 call 点）。
     if (is_connect_upper_member())
     {
-        unsigned char level = get_uppermember_exp_level();
-        int result = (int)(exp * (level * 0.01f));
+        // b28d-lane5：ORIG 0x0864fa2x `movzbl %al,%eax; mov %ax,-0x1a; filds -0x1a`
+        // ⇒ 原码局部为 **short**（非 uchar，P0 槽往返 + 宽度证据）；率计算
+        // `fstps -0x10` 具名 float 局部（P252）后再 `fildl exp; fmuls -0x10`。
+        short level = get_uppermember_exp_level();
+        float rate = level * 0.01f;
+        int result = (int)(exp * rate);
         if (result > 0)
             set_charac_member_bonus_exp(result);
         else
@@ -5910,7 +5914,7 @@ void CUser::add_guild_point_item()
     return;   // ORIG 0x865cd05 body 尾 jmp merge + 0x865cd07 nop 岛（技巧 7 尾置 return）
 }
 
-void CUser::SendMoneyFullReason(ENUM_MONEY_FULL_REASON reason, unsigned long a, unsigned long b)
+bool CUser::SendMoneyFullReason(ENUM_MONEY_FULL_REASON reason, unsigned long a, unsigned long b)  // b28d-lane5：ORIG 0x0867c8da 返回 Send 结果
 {
     PacketGuard packet;
     packet.put_header(0, 0x33);
@@ -5918,7 +5922,7 @@ void CUser::SendMoneyFullReason(ENUM_MONEY_FULL_REASON reason, unsigned long a, 
     packet.put_int(a);
     packet.put_int(b);
     packet.finalize(true);
-    Send(packet);
+    return Send(packet);
 }
 
 bool CUser::AddDungeonClear(int dungeonIdx, int clearCount)
@@ -10262,17 +10266,18 @@ bool CUser::CacheCharacterMemory()   // b28c-L5 SIGFIX（P174）
 bool CUser::GetDungeonClear(SIG_LOAD_DUNGEON_CLEAR* sig) const
 {
     sig->m_selected = 0;
-    const _Charac_info* cur = getCurCharacR();
-    if (cur != 0)
-    {
-        getDungeonClearRefR()->toString(sig->m_clearData, 0x1800);
-    }
-    else
+    // b28d-lane5：ORIG 0x0864de5f-0x0864de6d 无 cur 槽——`call getCurCharacR;
+    // test %eax,%eax; sete %al; test %al,%al; je <body>`（P197④ call 结果寄存器
+    // 直比产 sete）+ trace 块 fall-through、`return false` 常量岛。具名 cur 局部
+    // 反产 `mov %eax,-0xc; cmpl $0,-0xc` 槽比形（P0 槽-局部双向对应律）。
+    if (getCurCharacR() == 0)
     {
         cMyTrace tr(__PRETTY_FUNCTION__, 0x1400, 5);
         tr("CUser::GetDungeonClear User  m_selected is null");
+        return false;
     }
-    return cur != 0;
+    getDungeonClearRefR()->toString(sig->m_clearData, 0x1800);
+    return true;
 }
 
 // ORIG 0x0867f1d4 _ZNK5CUser17GetBlackListCountEP19SIG_REQ_BLACK_COUNT

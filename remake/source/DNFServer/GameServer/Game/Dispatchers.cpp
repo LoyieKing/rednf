@@ -2032,7 +2032,11 @@ int Dispatcher_SkillInit::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                         p->m_4, 0);
     }
     MSG_SKILL_INIT& req = static_cast<MSG_SKILL_INIT&>(msg);
-    p->m_8 = req.m_0d;
+    // b28d-D0: 源字段 char / 目标字段 unsigned char 异型 ⇒ 4.4 恒 `movzbl mem,%eax;
+    //   mov %eax,%edx` 两段；ORIG 0x081e5a01 单段 `movzbl 0xd(%eax),%edx`。
+    //   档③同型化：以 uchar 视图读源字段（P235 具名视图，布局不变）。
+    struct SkillInitMsgView { char m_pad[0xd]; unsigned char m_0d; };
+    p->m_8 = reinterpret_cast<SkillInitMsgView&>(req).m_0d;
     // ORIG 0x081e59xx：末次使用仍从 p 的局部槽 -0x10 reload（`mov -0x10(%ebp),%eax`），
     // 直传形参 param 会被 4.4 折成 `mov 0x14(%ebp),%eax`。
     process_skill_init(user, *p);
@@ -9757,6 +9761,8 @@ void CheckItemTradeLimitCountToMoveByUser(CUser& user, int space, int slot,
                                           bool& ok)
 {
     ok = true;
+    // b28d-D0: ORIG 0x08120394/0x08120397 两处落点不同（第一守卫 nop+jmp 岛、
+    //   第二守卫 nop 直落）⇒ P223/BM8 双守卫版：两条独立 goto + 尾标签串（标签序=守卫序）。
     if (user.getCurCharacR() == 0)
         goto L_early;   // [b28c-lane24] P223 尾空标签岛：ORIG 0x0812034c
                         // `jne +0x66` → `nop; jmp` 中继岛。
@@ -9766,10 +9772,12 @@ void CheckItemTradeLimitCountToMoveByUser(CUser& user, int space, int slot,
         // [b28c-lane24] 清除存量 register asm("eax") 绑定（P0 全域禁绑，N96）。
         // ORIG 0x08120379：`mov -0x43(%ebp),%eax; test %eax,%eax`（typed 字段直读
         // 单级 disp，P0 下为表达式直读形）。
-        if (item.m_addInfo != 0)
-            CheckTradeLimitItemCountToMove(item, ok);
+        if (item.m_addInfo == 0)
+            goto L_late;    // ORIG 0x0812037e `je 0x08120397`（第二独立 nop 岛）
+        CheckTradeLimitItemCountToMove(item, ok);
     }
 L_early:;
+L_late:;
 }
 
 // ORIG 0x082262a2：多附件邮件发送（PacketDispatcher_Impl_1.cpp 0xe1ea 区）。
@@ -13815,6 +13823,8 @@ int Dispatcher_GuildAttendanceInfo::process(CUser* user, MSG_BASE& msg, ParamBas
     // GetServerProxy 存活；proxy 结果直用 %eax（GetServerProxy 内联为
     // SendTcpPacket receiver，无 proxy 槽）。
     register unsigned short local_21 = local_23.packetSize;   // b28c-33：ORIG disp 直读
+    // b28d-D0: 去 register 试形实测仍 DIFF（movzwl mem,%eax; movzwl %ax,%esi 两段序
+    //   未复现）⇒ 保留裸 register（P231/P248 合法），残余两段扩展序按 N7 寄存器调度封顶。
     register char* const packet = reinterpret_cast<char*>(&local_23);
     GlobalData::s_guild_proxy_mgr
         ->GetServerProxy((ENUM_SERVER_GROUP)user->GetServerGroup())
@@ -14727,16 +14737,23 @@ int Dispatcher_UpgradeItemSeparate::check_error(CUser* user, MSG_BASE& msg)
 // 我方 36/ORIG 38，其余调用序列与槽全等（p167 CLEAR）。
 int Dispatcher_UpgradeItemSeparate::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    (void)param;
     int err = check_error(user, msg);
     if (err > 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1b7, (unsigned char)err);
         return -1;
     }
-    WongWork::IItemUpgrade* system =
-        (WongWork::IItemUpgrade*)G_CDataManager()->m_itemUpgradeSeparate;
-    system->item_upgrade_system(user, static_cast<MSG_ITEM_UPGRADE*>(&msg), 0x1b7);
+    // b28d-D0: ORIG 0x081cc152 `mov 0x14(%ebp),%eax; mov %eax,-0x10` = param 死槽
+    //   （P198 声明+赋值两句保地址 store）；0x081cc158 `mov 0x10(%ebp),%eax;
+    //   mov %eax,-0xc` = msg 具名指针槽（4.4 直传 &msg 会折叠该槽）。
+    ParamBase* dp;
+    dp = &param;
+    (void)dp;
+    MSG_ITEM_UPGRADE* pm;
+    pm = static_cast<MSG_ITEM_UPGRADE*>(&msg);
+    // ORIG 0x081cc15e 链式直取 m_itemUpgradeSeparate（无 system 具名槽）。
+    ((WongWork::IItemUpgrade*)G_CDataManager()->m_itemUpgradeSeparate)
+        ->item_upgrade_system(user, pm, 0x1b7);
     return 0;
 }
 int Dispatcher_UpgradeItemSeparate::read(PacketBuf& packet, MSG_BASE& msg)
@@ -20526,7 +20543,9 @@ int Dispatcher_Expand_Equipslot_Flag_Update::process(CUser* user, MSG_BASE& msg,
     stExpandEquipslotFlagUpdate& out = static_cast<stExpandEquipslotFlagUpdate&>(param);
     // [b28c-34] ORIG 0x081d5f8f `mov %al,-0x9(%ebp); cmpb $0x13,-0x9(%ebp)`：
     // 结果按 char 单字节落槽（原 int 生 movzbl+cmpl 两段）。
-    char result = (char)user->UpdateEquipslotFlag((char)req.m_flag);
+    // b28d-D0: result 声明与字段 out.m_4 同为 unsigned char（P211 同型化旋钮）⇒
+    //   store 复现 ORIG 0x081d5fa4 LHS-first `mov -0x10(%ebp),%eax; movzbl -0x9,%edx`。
+    unsigned char result = user->UpdateEquipslotFlag((char)req.m_flag);
     if (result == 0x13)
     {
         return LineFunc(0x3df3,
@@ -21521,9 +21540,12 @@ int Dispatcher_GrowthCreatureChangeInfinityCreature::check_error_event(CUser* us
 {
     if (GlobalData::s_event_manager->GetRepeatEvent(0x67)->IsEventing(0))  // 0x081e8729 虚槽 +0x34
     {
-        CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x67);
+        // b28d-D0: cast 移到赋值点（receiver 为具名派生指针 ⇒ 4.4 实参先于 this 装载，
+        //   复现 ORIG 0x081e874d `mov 0xc(%ebp),%eax; mov %eax,0x4(%esp); mov -0xc(%ebp),%eax`；
+        //   调用点 cast（static_cast<派生*>(ev)->m()）恒 this 先 + edx 中转，探针 /tmp/d0_probe2.cpp g1/g2）。
+        GiveGrowCreatureEvent* ev = static_cast<GiveGrowCreatureEvent*>(GlobalData::s_event_manager->GetRepeatEvent(0x67));
         if (ev != 0)
-            return static_cast<GiveGrowCreatureEvent*>(ev)->CheckEventInfo(*user);
+            return ev->CheckEventInfo(*user);
     }
     return 1;
 }
@@ -21534,9 +21556,10 @@ int Dispatcher_GrowthCreatureChangeInfinityCreature::process_event(CUser* user)
 {
     if (GlobalData::s_event_manager->GetRepeatEvent(0x67)->IsEventing(0))  // 0x081e8667 虚槽 +0x34
     {
-        CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x67);
+        // b28d-D0: 同 check_error_event，cast 前置到赋值点复现 ORIG 0x081e868b 实参先装载形。
+        GiveGrowCreatureEvent* ev = static_cast<GiveGrowCreatureEvent*>(GlobalData::s_event_manager->GetRepeatEvent(0x67));
         if (ev != 0)
-            return static_cast<GiveGrowCreatureEvent*>(ev)->processEvent(*user);
+            return ev->processEvent(*user);
     }
     return 0;
 }
@@ -26700,9 +26723,10 @@ void Dispatcher_SeriaRoom_Ani_Deco_Event::send(CUser* user, ParamBase& param)
         // param+8 word 零扩展入栈（movzwl/movzwl）
         guard.put_short(static_cast<int>(
             static_cast<unsigned short>(res.m_8)));
-        seriaRoom_AniDeco info = user->getSeriaRoomAniDecoInfo();
         // -0xe word（m_field2）零扩展后 cwtl 符号扩展为 int 实参
-        guard.put_short(static_cast<int>(static_cast<short>(info.m_field2)));
+        // b28d-D0 试形：匿名 sret 临时（全表达式链）复现 ORIG -0x10 sret 槽（具名 info 落 -0x1c）。
+        guard.put_short(static_cast<int>(static_cast<short>(
+            user->getSeriaRoomAniDecoInfo().m_field2)));
     }
     else
     {

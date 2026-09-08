@@ -218,10 +218,12 @@ ENUM_ASSAULT_STATE CAssaulter::GetState()
 
 int GetDirectionByTeam(ENUM_ASSAULT_TEAM team)
 {
-    // ORIG T 0x82e564c：具名槽 dir(-0x4) 初值 0，分支写槽后统一装载返回。
-    // N96 清绑：switch(team) 自然形复现 ORIG `mov 0x8(%ebp),%eax; test;
-    // je; cmp $1,%eax; je; jmp`（探针 /tmp/x1.cpp dirSw 实证；if/else 链
-    // 在 4.4 产 cmpl imm,mem 融合形，不合 ORIG）。
+    // ORIG T 0x82e564c（0x30 字节）：具名槽 dir(-0x4) 初值 0，`test;je`(==0)
+    // /`cmp $1;je`(==1) 各自写槽 + default 直落 `jmp ret`，统一装载返回。
+    // b28d-L3 实测：if/else-if 链在 4.4.6 产 `cmpl $0,0x8(%ebp);jne` 形参内存
+    // 直比（差 10）；switch 形装 eax + `cmp $1;je`（差 3，见 VARIANT-ARTIFACT
+    // 说明：4.4.6 对 2-case switch 把 case 0 折为 fall-through，缺 test/je 与
+    // default jmp，源形不可择）⇒ 保留 switch 形（本 TU 路由 446h46 的最优形）。
     int dir = 0;
     switch (team)
     {
@@ -439,12 +441,14 @@ void CAssaulter::GiveupPanalty()
         }
         else
         {
-            int chaos = m_user->GetCurCharacChaosPoint();
-            int level = m_user->get_charac_level();
             // §4.3 具名化：CDataManager::m_serverParameter 即 +0x68（CDataManager.h:3551，
             // ServerParameterScript 尺寸 0x49f4；同形写法已见本文件 DieUser 邻域）。
             ServerParameterScript* sps = &G_CDataManager()->m_serverParameter;
-            ghostTime = sps->getAssaultGhostTime(level, chaos);
+            // b28d-L3：ORIG 0x82e6a?? 先求第2实参 GetCurCharacChaosPoint→%esi
+            // 跨 get_charac_level call 保活（无槽往返 P0）⇒ 两具名 int 局部
+            // 内联为实参表达式。
+            ghostTime = sps->getAssaultGhostTime(m_user->get_charac_level(),
+                                                 m_user->GetCurCharacChaosPoint());
         }
         if (ghostTime != 0)
         {
@@ -497,11 +501,13 @@ bool CAssaultPlace::_IsBroadcastRunaway(CUser* user)
 void CAssaultPlace::_BroadcastRunaway(CUser* user, int index)
 {
     char buf[0x400] = {0};
-    const char* name = GetAnotherTeamCharacName(index);
-    const char* curName = user->getCurCharacName();
-    const char* notice =
-        G_CDataManager()->m_serverParameter.getAssaultUserRunawayNotice();
-    sprintf(buf, notice, curName, name);
+    // b28d-L3：ORIG 0x82eab7a 段把 name→%esi、curName→%ebx 跨 notice 求值
+    // 保活、三值均无槽往返（P0）⇒ 三具名局部内联为 sprintf 实参（变参右到左
+    // 求值序：第4参 name 先、第3参 curName 次、第2参 notice 末）。
+    sprintf(buf,
+            G_CDataManager()->m_serverParameter.getAssaultUserRunawayNotice(),
+            user->getCurCharacName(),
+            GetAnotherTeamCharacName(index));
 
     Packet_Broadcast_Msg msg;
     msg.m_padA = 0;
@@ -837,15 +843,19 @@ void CCandidateMatrix::_AddCandidatePoint(const Point2d& from1,
 
 void CCandidateMatrix::MakeCandidatePoint(const Point2d& a, const Point2d& b) // ORIG 0x82e5ca8
 {
+    // b28d-L3：ORIG 0x82e5ca8 头部两条 `movl $0,-0x10(%ebp); movl $0,-0xc(%ebp)`
+    // = 全头部声明 i/j 各带初值（P212），第一循环 init 覆写 `i=1` ⇒ 双初始化形。
+    int i = 0;
+    int j = 0;
     _AddCandidatePoint(a, a, b, 10);
-    for (int i = 1; i <= 7; ++i)
+    for (i = 1; i <= 7; ++i)
     {
         _AddCandidatePoint(Point2d(a.m_x, a.m_y + i * 10), a, b, 10);
         _AddCandidatePoint(Point2d(a.m_x, a.m_y - i * 10), a, b, 10);
     }
-    for (int j = 0; ::GetMaxCandidateMatirxRow() > j; ++j)
+    for (j = 0; ::GetMaxCandidateMatirxRow() > j; ++j)
     {
-        for (int i = 1; i <= 7; ++i)
+        for (i = 1; i <= 7; ++i)
         {
             _AddCandidatePoint(Point2d(m_points[j].m_point.m_x + i * 10,
                                        m_points[j].m_point.m_y), a, b, 0);
@@ -1064,7 +1074,8 @@ bool CStaticDisposition::MoveUser(CForcedMoveCharacter* fm)  // ORIG 0x82e65ee
     // 原地两级装载 ⇒ 下标表达式直传（N96 清绑）。残余：4.4 把
     // `mov (%eax),%eax; mov %eax,%edx` 折为 `mov (%eax),%edx`——N18a 单段
     // regmove 4.4 恒折、源形不可造（探针 /tmp/x1.cpp m1），byte 封顶。
-    return m_mats[fm->m_field00].MoveUser(fm);
+    // b28d-L3 试：下标 cast 为 unsigned 触发 4.4.6 转换中转（P211 异型化）。
+    return m_mats[(unsigned int)fm->m_field00].MoveUser(fm);
 }
 
 // [b23S3C] A：真修 counts[j*4]→counts[j]（原越界读）、P48 内层每次重读 counts[j]、
@@ -1326,41 +1337,45 @@ void CAssaultPlace::_DelUser(int index, bool flag)
     CUser* delUser = m_assaulters[index].GetUser();
     m_assaulters[index].DetachUser();
     m_field100 -= 1;
-    if (delUser == 0)
-        return;
-    // ORIG +0xb5：`test;setne;test;je <尾>` = **正向 wrap** `if (r != 0) {全部}`
-    // （早退 `==0` 形 4.4 产 sete+jne 镜像，助记符序列差 1）。
-    if (delUser->getCurCharacR() != 0)
+    // b28d-L3：ORIG +0xb5 为正向 wrap `if (delUser != 0) {…}`（早退 return 形
+    // 在 4.4.6 于函数尾留一条 jmp 中继，ORIG 无）；EndPvP 段用负条件包裹
+    // （ORIG 条件成立 `jne` 直跳 EndPvP 之后，goto 岛形多一条尾 jmp）。
+    if (delUser != 0)
     {
-
-    // ORIG +0x0f2：EndPvP 段 getCurSec 差值落 %edx 跨装载直落 0xc(%esp)
-    // （P44 变参即时求值，无 now 槽）；+0x13d G_GameWorld 结果 %eax 直通
-    // receiver（P89 合并形，无 world 槽）；area 参数 get_area 结果直落。
-    // b28 BM4 v9: v8 `!(A&&B)` 包裹实测引入 xor$1+极性反 8 差（P168a③b：
-    // ORIG bool callee 直判 test/je 段跨版本不可造），回退 v7 goto 形
-    // （残 2 jmp：setcc-fold mov$1/jmp 岛顶产物 + 尾块中继，N 封顶）。
-    if (GlobalData::s_power_manager->IsPowerWarEventOn()
-        && delUser->getCurCharacVill() == 7)
-        goto POWERWAR_VILL;
-    delUser->m_historyLog.EndPvP(
-        (ENUM_PVP_HISTORY_REASON)5, m_teamFlag[team],
-        GlobalData::s_systemTime_.getCurSec() - m_abuseSec);
-POWERWAR_VILL:
-    ;
-
-    Village* village = G_GameWorld()->getUserVillage(delUser);
-    if (village != 0)
-    {
-        Area* area = village->getArea(delUser->get_area(false));
-        if (area != 0)
+        if (delUser->getCurCharacR() != 0)
         {
-            area->send_area_users(delUser);
-            GetInstanceAssaultMgr()->OnMoveArea(delUser);
+            // ORIG +0x0f2：EndPvP 段 getCurSec 差值落 %edx 跨装载直落 0xc(%esp)
+            // （P44 变参即时求值，无 now 槽）；+0x13d G_GameWorld 结果 %eax 直通
+            // receiver（P89 合并形，无 world 槽）；area 参数 get_area 结果直落。
+            // b28d-L3 实测：负条件包裹（`if (!(A&&B))`）在 4.4.6 产 xor$1+极性
+            // 反转（残 7）；goto 尾标签形条件段全等但 body 尾多 1 条 jmp（残 1）。
+            // ORIG 布局 = 条件真时 `jne` 跳过 body、body 直落 ⇒ 空 then + else
+            // body 形（4.4.6 下 jump-thread 消掉尾 jmp）。
+            if (GlobalData::s_power_manager->IsPowerWarEventOn()
+                && delUser->getCurCharacVill() == 7)
+            {
+            }
+            else
+            {
+                delUser->m_historyLog.EndPvP(
+                    (ENUM_PVP_HISTORY_REASON)5, m_teamFlag[team],
+                    GlobalData::s_systemTime_.getCurSec() - m_abuseSec);
+            }
+
+            Village* village = G_GameWorld()->getUserVillage(delUser);
+            if (village != 0)
+            {
+                Area* area = village->getArea(delUser->get_area(false));
+                if (area != 0)
+                {
+                    area->send_area_users(delUser);
+                    GetInstanceAssaultMgr()->OnMoveArea(delUser);
+                }
+            }
+            GlobalData::s_villageObjectMgr->on_move_area(delUser);
+            GlobalData::s_villageMonsterMgr->OnMoveArea(delUser);
+            delUser->SetAssaultPlace(0);
         }
-    }
-    GlobalData::s_villageObjectMgr->on_move_area(delUser);
-    GlobalData::s_villageMonsterMgr->OnMoveArea(delUser);
-    delUser->SetAssaultPlace(0);
     }
 }
 

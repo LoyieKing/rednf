@@ -555,7 +555,9 @@ bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_T
          it != m_unusableEC.end(); ++it)
     {
         stUnusableEquipmentInfo* p = &*it;
-        if (p->m_field0 == static_cast<int>(type))
+        // b28d-L3：ORIG 0x08568ac0 段 `mov -0xc,%eax; mov (%eax),%eax;
+        // cmp 0xc(%ebp),%eax`（field0 入 eax、type 内存直比）⇒ 比较方向交换。
+        if (static_cast<int>(type) == p->m_field0)
         {
             // b28c-L8 语义修正（ORIG 0x08568af6 逐条）：field4!=0 时 ORIG 经
             // `jne +0x4f` 落入**同一段** field4/field8 判定（非跳过），旧源码把
@@ -725,7 +727,9 @@ void ServerParameterScript::setDungeonOpen(int dungeonIdx, bool open)
 {
     // ORIG 0x085bfxxx 实证双 find 分支形：open!=1(cmpb $0x1) 先走 erase 路径
     // 后 return；open==1 路径重 find，==end 则 push_back。
-    if (open != 1)
+    // b28d-L3：ORIG 0x085bfxxx 为形参 spill 后 `cmpb $0x1,-0x3c(%ebp)` 直比；
+    // `open != 1` 在 4.4.6 产 movzbl+xor$1 物化 ⇒ 改 `!open` 试裸形。
+    if (!open)
     {
         std::vector<int>::iterator it = std::find(
             m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(), dungeonIdx);

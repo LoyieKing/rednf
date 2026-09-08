@@ -189,10 +189,10 @@ DBUpdatePcroomDailyReward::~DBUpdatePcroomDailyReward()
 
 // ORIG T 0x0815cf06（报告 DBUpdatePcroomDailyReward/makeRequest.md）：PC 房日奖励
 // 落库请求：internal_stream(0xe, uid) → MSG{m_id=acc_id, m_remain=user+0x8ec32}。
-// [b22判词·N82槽号] 75/75 助记符序列逐条一致，残余仅局部栈槽编号差（guard
-// -0x24/-0x14、cMyTrace -0x1c/-0x24）：ORIG 声明序与 gcc4.4.7 现序的帧槽分配差，
-// 不可由源码复现；relink 后 call 占位消除即为 NEAR，语义等价。
-// [b28c-32] verdict=NEAR：N7 + P0 缓存/槽序残差（75=75）。
+// [b28d-lane6] AE：原 NEAR 残差 = cMyTrace 具名对象槽向反（ORIG guard@-0x24 /
+// trace@-0x1c，4.4 具名形 guard@-0x14 / trace@-0x24）。改 P221 全表达式临时链
+// `cMyTrace(...)(...)` 后槽向与 ORIG 一致（75=75 逐条全等，仅余 nop 填充）。
+// 旧 b22「N82 槽号不可翻」判词作废。
 void DBUpdatePcroomDailyReward::makeRequest(CUser* user)
 {
     // P0：Acquire 返回值右值内联进 ctor（ORIG %eax 直通，无 stream 栈槽）。
@@ -202,10 +202,9 @@ void DBUpdatePcroomDailyReward::makeRequest(CUser* user)
     MSG* msg = guard->GetInBuffer<MSG>();   // ORIG via CStreamGuard::operator->
     if (msg == 0)
     {
-        cMyTrace trace(
-            "static void DBUpdatePcroomDailyReward::makeRequest(CUser*)",
-            0x32b, 0);
-        trace("[Taiwan, Pcroom] msg is null");
+        // b28d-lane6 试形：P221 全表达式临时链（翻块内对象槽方向）。
+        cMyTrace("static void DBUpdatePcroomDailyReward::makeRequest(CUser*)",
+                 0x32b, 0)("[Taiwan, Pcroom] msg is null");
     }
     else
     {

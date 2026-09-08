@@ -4544,9 +4544,13 @@ bool DBTask::DBProcess(Stream* stream, int& signal)
         return false;
     }
 
-    // ORIG 0x084…：条件序 = 先符号界(test;jns 合并)后上界
-    // (cmp $0x353;jle 落 then)。`851 < msgId` 反写保 jle 方向。
-    if (msgId < 0 || 851 < msgId)
+    // ORIG 0x83ff4f1..0x83ff533：`test %eax,%eax; jns <body>` 与
+    // `cmp $0x353,%eax; jle <body>` 两跳同落主体、失败块居中 ⇒ 原码是
+    // **&& 失败链** `if (msgId < 0 && msgId > 851) { fail; return false; }`
+    // （探针 /tmp/l4_probe_dbp.cpp formB/formC 逐条复现；|| 正极性包裹
+    // formA 反产 `jns body; jg fail` 块序 DIFF）。负值经有符号 jle 亦落
+    // 主体 ⇒ ORIG 的 "Invalid signal received" 实为死代码，P171 照抄。
+    if (msgId < 0 && msgId > 851)
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__, 0x967,
@@ -6266,8 +6270,16 @@ bool DB_UpdateQuest::dispatch(int userIdx, int slot, Stream* stream)
 bool DB_UpdateQuest::_updateQuests(SIG_UPDATE_QUEST* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
+    // ORIG 0x8418c48 `movl $0x7530,-0x20(%ebp)` 与 0x8418c75/78
+    // `mov -0x28(%ebp),%eax; mov %eax,-0x1c(%ebp)`：两个写后未读的死局部
+    // （全函数再无 -0x20/-0x1c 引用，objdump 实证）——P171/P232 照抄，
+    // 同时把帧 0x8ed8→0x8edc 与 db(-0x24)/zipLen(-0x28) 槽位对齐 ORIG。
+    int maxSrcLen = 30000;
     char zipBuf[0x8cac] = { 0 };
     unsigned int zipLen = 0x8cac;
+    unsigned int origZipLen = zipLen;   // ORIG 0x8418c75/78 写后未读死槽
+    (void)maxSrcLen;
+    (void)origZipLen;
     if (!compress_zip(zipBuf, zipLen,
                       reinterpret_cast<const char*>(((DB_UpdateQuestView*)sig)->m_clearData),
                       30000))
@@ -6279,33 +6291,12 @@ bool DB_UpdateQuest::_updateQuests(SIG_UPDATE_QUEST* sig)
             sig->m_characNo);
         return false;
     }
-    DB_UpdateQuestView* v = (DB_UpdateQuestView*)sig;
-    if (v->m_clearFlag == 0)
-    {
-        db->set_query(
-            "upDate new_charac_quest set play_1=%d, play_1_trigger=%d, play_2=%d, play_2_trigger=%d, "
-            "play_3=%d, play_3_trigger=%d, play_4=%d, play_4_trigger=%d, play_5=%d, play_5_trigger=%d,"
-            "play_6=%d, play_6_trigger=%d, play_7=%d, play_7_trigger=%d, play_8=%d, play_8_trigger=%d, "
-            "play_9=%d, play_9_trigger=%d, play_10=%d, play_10_trigger=%d, play_11=%d, play_11_trigger=%d, "
-            "play_12=%d, play_12_trigger=%d, play_13=%d, play_13_trigger=%d, play_14=%d, play_14_trigger=%d, "
-            "play_15=%d, play_15_trigger=%d,play_16=%d, play_16_trigger=%d, play_17=%d, play_17_trigger=%d, "
-            "play_18=%d, play_18_trigger=%d, play_19=%d, play_19_trigger=%d, play_20=%d, play_20_trigger=%d,"
-            "urgentQuestIndex=%d,quest_notify='%s' where charac_no=%u",
-            v->m_play[0], v->m_playTrigger[0], v->m_play[1], v->m_playTrigger[1],
-            v->m_play[2], v->m_playTrigger[2], v->m_play[3], v->m_playTrigger[3],
-            v->m_play[4], v->m_playTrigger[4], v->m_play[5], v->m_playTrigger[5],
-            v->m_play[6], v->m_playTrigger[6], v->m_play[7], v->m_playTrigger[7],
-            v->m_play[8], v->m_playTrigger[8], v->m_play[9], v->m_playTrigger[9],
-            v->m_play[10], v->m_playTrigger[10], v->m_play[11], v->m_playTrigger[11],
-            v->m_play[12], v->m_playTrigger[12], v->m_play[13], v->m_playTrigger[13],
-            v->m_play[14], v->m_playTrigger[14], v->m_play[15], v->m_playTrigger[15],
-            v->m_play[16], v->m_playTrigger[16], v->m_play[17], v->m_playTrigger[17],
-            v->m_play[18], v->m_playTrigger[18], v->m_play[19], v->m_playTrigger[19],
-            v->m_urgentIndex,
-            db->blob_to_str(1, v->m_questNotify, 0x28),
-            v->m_characNo);
-    }
-    else
+    // ORIG 0x8418cea/0x8418d07/0x8418d34 等处一律 `mov 0xc(%ebp),%eax;
+    // add $0xa4,%eax` 重读 sig 参数（无视图指针局部）⇒ P183 去缓存，
+    // 逐点内联；原 `DB_UpdateQuestView* v` 局部会多占 -0x1c 槽并挤出 Y 死槽。
+    // ORIG 0x8418cf6 `test %al,%al; je <flag==0 块>`（0x8419132 在函数后段）
+    // ⇒ 源码块序 = flag!=0 块在前、flag==0 块在后（4.4 对 then 恒前置）。
+    if (((DB_UpdateQuestView*)sig)->m_clearFlag != 0)
     {
         db->set_query(
             "upDate new_charac_quest set clear_quest='%s', play_1=%d, play_1_trigger=%d, play_2=%d, play_2_trigger=%d, "
@@ -6317,19 +6308,44 @@ bool DB_UpdateQuest::_updateQuests(SIG_UPDATE_QUEST* sig)
             "play_18=%d, play_18_trigger=%d, play_19=%d, play_19_trigger=%d, play_20=%d, play_20_trigger=%d,"
             "urgentQuestIndex=%d,quest_notify='%s' where charac_no=%u",
             db->blob_to_str(0, zipBuf, zipLen),
-            v->m_play[0], v->m_playTrigger[0], v->m_play[1], v->m_playTrigger[1],
-            v->m_play[2], v->m_playTrigger[2], v->m_play[3], v->m_playTrigger[3],
-            v->m_play[4], v->m_playTrigger[4], v->m_play[5], v->m_playTrigger[5],
-            v->m_play[6], v->m_playTrigger[6], v->m_play[7], v->m_playTrigger[7],
-            v->m_play[8], v->m_playTrigger[8], v->m_play[9], v->m_playTrigger[9],
-            v->m_play[10], v->m_playTrigger[10], v->m_play[11], v->m_playTrigger[11],
-            v->m_play[12], v->m_playTrigger[12], v->m_play[13], v->m_playTrigger[13],
-            v->m_play[14], v->m_playTrigger[14], v->m_play[15], v->m_playTrigger[15],
-            v->m_play[16], v->m_playTrigger[16], v->m_play[17], v->m_playTrigger[17],
-            v->m_play[18], v->m_playTrigger[18], v->m_play[19], v->m_playTrigger[19],
-            v->m_urgentIndex,
-            db->blob_to_str(1, v->m_questNotify, 0x28),
-            v->m_characNo);
+            ((DB_UpdateQuestView*)sig)->m_play[0], ((DB_UpdateQuestView*)sig)->m_playTrigger[0], ((DB_UpdateQuestView*)sig)->m_play[1], ((DB_UpdateQuestView*)sig)->m_playTrigger[1],
+            ((DB_UpdateQuestView*)sig)->m_play[2], ((DB_UpdateQuestView*)sig)->m_playTrigger[2], ((DB_UpdateQuestView*)sig)->m_play[3], ((DB_UpdateQuestView*)sig)->m_playTrigger[3],
+            ((DB_UpdateQuestView*)sig)->m_play[4], ((DB_UpdateQuestView*)sig)->m_playTrigger[4], ((DB_UpdateQuestView*)sig)->m_play[5], ((DB_UpdateQuestView*)sig)->m_playTrigger[5],
+            ((DB_UpdateQuestView*)sig)->m_play[6], ((DB_UpdateQuestView*)sig)->m_playTrigger[6], ((DB_UpdateQuestView*)sig)->m_play[7], ((DB_UpdateQuestView*)sig)->m_playTrigger[7],
+            ((DB_UpdateQuestView*)sig)->m_play[8], ((DB_UpdateQuestView*)sig)->m_playTrigger[8], ((DB_UpdateQuestView*)sig)->m_play[9], ((DB_UpdateQuestView*)sig)->m_playTrigger[9],
+            ((DB_UpdateQuestView*)sig)->m_play[10], ((DB_UpdateQuestView*)sig)->m_playTrigger[10], ((DB_UpdateQuestView*)sig)->m_play[11], ((DB_UpdateQuestView*)sig)->m_playTrigger[11],
+            ((DB_UpdateQuestView*)sig)->m_play[12], ((DB_UpdateQuestView*)sig)->m_playTrigger[12], ((DB_UpdateQuestView*)sig)->m_play[13], ((DB_UpdateQuestView*)sig)->m_playTrigger[13],
+            ((DB_UpdateQuestView*)sig)->m_play[14], ((DB_UpdateQuestView*)sig)->m_playTrigger[14], ((DB_UpdateQuestView*)sig)->m_play[15], ((DB_UpdateQuestView*)sig)->m_playTrigger[15],
+            ((DB_UpdateQuestView*)sig)->m_play[16], ((DB_UpdateQuestView*)sig)->m_playTrigger[16], ((DB_UpdateQuestView*)sig)->m_play[17], ((DB_UpdateQuestView*)sig)->m_playTrigger[17],
+            ((DB_UpdateQuestView*)sig)->m_play[18], ((DB_UpdateQuestView*)sig)->m_playTrigger[18], ((DB_UpdateQuestView*)sig)->m_play[19], ((DB_UpdateQuestView*)sig)->m_playTrigger[19],
+            ((DB_UpdateQuestView*)sig)->m_urgentIndex,
+            db->blob_to_str(1, ((DB_UpdateQuestView*)sig)->m_questNotify, 0x28),
+            ((DB_UpdateQuestView*)sig)->m_characNo);
+    }
+    else
+    {
+        db->set_query(
+            "upDate new_charac_quest set play_1=%d, play_1_trigger=%d, play_2=%d, play_2_trigger=%d, "
+            "play_3=%d, play_3_trigger=%d, play_4=%d, play_4_trigger=%d, play_5=%d, play_5_trigger=%d,"
+            "play_6=%d, play_6_trigger=%d, play_7=%d, play_7_trigger=%d, play_8=%d, play_8_trigger=%d, "
+            "play_9=%d, play_9_trigger=%d, play_10=%d, play_10_trigger=%d, play_11=%d, play_11_trigger=%d, "
+            "play_12=%d, play_12_trigger=%d, play_13=%d, play_13_trigger=%d, play_14=%d, play_14_trigger=%d, "
+            "play_15=%d, play_15_trigger=%d,play_16=%d, play_16_trigger=%d, play_17=%d, play_17_trigger=%d, "
+            "play_18=%d, play_18_trigger=%d, play_19=%d, play_19_trigger=%d, play_20=%d, play_20_trigger=%d,"
+            "urgentQuestIndex=%d,quest_notify='%s' where charac_no=%u",
+            ((DB_UpdateQuestView*)sig)->m_play[0], ((DB_UpdateQuestView*)sig)->m_playTrigger[0], ((DB_UpdateQuestView*)sig)->m_play[1], ((DB_UpdateQuestView*)sig)->m_playTrigger[1],
+            ((DB_UpdateQuestView*)sig)->m_play[2], ((DB_UpdateQuestView*)sig)->m_playTrigger[2], ((DB_UpdateQuestView*)sig)->m_play[3], ((DB_UpdateQuestView*)sig)->m_playTrigger[3],
+            ((DB_UpdateQuestView*)sig)->m_play[4], ((DB_UpdateQuestView*)sig)->m_playTrigger[4], ((DB_UpdateQuestView*)sig)->m_play[5], ((DB_UpdateQuestView*)sig)->m_playTrigger[5],
+            ((DB_UpdateQuestView*)sig)->m_play[6], ((DB_UpdateQuestView*)sig)->m_playTrigger[6], ((DB_UpdateQuestView*)sig)->m_play[7], ((DB_UpdateQuestView*)sig)->m_playTrigger[7],
+            ((DB_UpdateQuestView*)sig)->m_play[8], ((DB_UpdateQuestView*)sig)->m_playTrigger[8], ((DB_UpdateQuestView*)sig)->m_play[9], ((DB_UpdateQuestView*)sig)->m_playTrigger[9],
+            ((DB_UpdateQuestView*)sig)->m_play[10], ((DB_UpdateQuestView*)sig)->m_playTrigger[10], ((DB_UpdateQuestView*)sig)->m_play[11], ((DB_UpdateQuestView*)sig)->m_playTrigger[11],
+            ((DB_UpdateQuestView*)sig)->m_play[12], ((DB_UpdateQuestView*)sig)->m_playTrigger[12], ((DB_UpdateQuestView*)sig)->m_play[13], ((DB_UpdateQuestView*)sig)->m_playTrigger[13],
+            ((DB_UpdateQuestView*)sig)->m_play[14], ((DB_UpdateQuestView*)sig)->m_playTrigger[14], ((DB_UpdateQuestView*)sig)->m_play[15], ((DB_UpdateQuestView*)sig)->m_playTrigger[15],
+            ((DB_UpdateQuestView*)sig)->m_play[16], ((DB_UpdateQuestView*)sig)->m_playTrigger[16], ((DB_UpdateQuestView*)sig)->m_play[17], ((DB_UpdateQuestView*)sig)->m_playTrigger[17],
+            ((DB_UpdateQuestView*)sig)->m_play[18], ((DB_UpdateQuestView*)sig)->m_playTrigger[18], ((DB_UpdateQuestView*)sig)->m_play[19], ((DB_UpdateQuestView*)sig)->m_playTrigger[19],
+            ((DB_UpdateQuestView*)sig)->m_urgentIndex,
+            db->blob_to_str(1, ((DB_UpdateQuestView*)sig)->m_questNotify, 0x28),
+            ((DB_UpdateQuestView*)sig)->m_characNo);
     }
     if (db->exec(true) != 1 || db->getAffectedRowCount() == 0)
         return false;
@@ -14201,31 +14217,10 @@ bool DB_SaveObjectBringUp::dispatch(int /*userIdx*/, int /*slot*/,
     std::string tableStr(
         static_cast<EventClassify::CEventScriptMng*>(
             G_CDataManager()->get_event_script_mng())->get_db_table_name(0x19b));
-    if (sig->m_rewardFlag == 0)
-    {
-        db->set_query(
-            "upDate %s set use_material_cnt=use_material_cnt+%u where charac_no=%u and m_id=%s",
-            toTString(tableStr), (unsigned int)sig->m_usedMaterialCnt,
-            sig->m_characNo, NumberToString(sig->m_accId, 0));
-        if (db->exec(true) != 1)
-            return 0;
-        if (db->getAffectedRowCount() == 0)
-        {
-            db->set_query(
-                "inSert into %s(charac_no,m_id,use_material_cnt) values(%u,%s,%u)",
-                toTString(tableStr), sig->m_characNo,
-                NumberToString(sig->m_accId, 0),
-                (unsigned int)sig->m_usedMaterialCnt);
-            if (db->exec(true) != 1)
-            {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0xaece, 5);
-                trace("upDate DB_SaveObjectBringUp::dispatch failed at charac_no(%u),count(%u)",
-                      sig->m_characNo, (unsigned int)sig->m_usedMaterialCnt);
-                return 0;
-            }
-        }
-    }
-    else
+    // ORIG 0x08446a1e 段 `movzbl 0xd(%eax),%eax; test %al,%al; je <flag==0 块>`
+    // ⇒ flag!=0 块直落、flag==0 块在后（4.4 then 恒前置）⇒ 交换块并取反
+    // （同 DB_GoblinPadUpdateReward / DB_UpdateQuest 的 P222 正向包裹形）。
+    if (sig->m_rewardFlag != 0)
     {
         db->set_query(
             "upDate %s set use_material_cnt=use_material_cnt+%u, give_reward_flag=1, occ_date = now() where charac_no=%u and m_id=%s",
@@ -14247,6 +14242,30 @@ bool DB_SaveObjectBringUp::dispatch(int /*userIdx*/, int /*slot*/,
                 trace("upDate DB_SaveObjectBringUp::dispatch failed at charac_no(%u),count(%u),flag(%u)",
                       sig->m_characNo, (unsigned int)sig->m_usedMaterialCnt,
                       (unsigned int)sig->m_rewardFlag);
+                return 0;
+            }
+        }
+    }
+    else
+    {
+        db->set_query(
+            "upDate %s set use_material_cnt=use_material_cnt+%u where charac_no=%u and m_id=%s",
+            toTString(tableStr), (unsigned int)sig->m_usedMaterialCnt,
+            sig->m_characNo, NumberToString(sig->m_accId, 0));
+        if (db->exec(true) != 1)
+            return 0;
+        if (db->getAffectedRowCount() == 0)
+        {
+            db->set_query(
+                "inSert into %s(charac_no,m_id,use_material_cnt) values(%u,%s,%u)",
+                toTString(tableStr), sig->m_characNo,
+                NumberToString(sig->m_accId, 0),
+                (unsigned int)sig->m_usedMaterialCnt);
+            if (db->exec(true) != 1)
+            {
+                cMyTrace trace(__PRETTY_FUNCTION__, 0xaece, 5);
+                trace("upDate DB_SaveObjectBringUp::dispatch failed at charac_no(%u),count(%u)",
+                      sig->m_characNo, (unsigned int)sig->m_usedMaterialCnt);
                 return 0;
             }
         }
@@ -18528,18 +18547,12 @@ bool DB_GoblinPadUpdateReward::dispatch(int userIdx, int slot, Stream* stream)
     // ORIG 0x0842413c：getCurSec/localtime_r/strftime/NumberToString 在
     // m_field4==2||m_field5==0 与否则两分支内各自重复（独立 ym 缓冲
     // local_2e/local_1e，见 report dispatch.md），非合并共享 —— 逐分支保留。
-    if (sig->m_field4 == 2 || sig->m_field5 == 0)
-    {
-        char ym[10] = { 0 };
-        time_t curSec = (time_t)GlobalData::s_systemTime_.getCurSec();
-        struct tm tmBuf;
-        localtime_r(&curSec, &tmBuf);
-        strftime(ym, 10, "%Y%m", &tmBuf);
-        db->set_query(
-            "inSert into member_mousepass_history_%s (occ_time, m_id, pre_mousepass, modify_type, ip_info, port_info) values (now(),%s,'%s',%d,'%s','')",
-            ym, NumberToString(sig->m_mId, 0), mousepass, 0xf, sig->m_ip);
-    }
-    else
+    // ORIG 0x0842413c 段 `cmp $0x2,%al; je <then>` + `test %al,%al; je <then>`
+    // 两跳同落 then（then 在函数后段、else 直落）⇒ 源码形 = 德摩根
+    // `if (field4 != 2 && field5 != 0) { else } else { then }`
+    // （探针 /tmp/l4_probe_pol.cpp f2/f3/f4 三形同产物；正极性 || 形 f1 反产
+    //  `jne <else>` 块序 DIFF）。
+    if (sig->m_field4 != 2 && sig->m_field5 != 0)
     {
         char ym[10] = { 0 };
         time_t curSec = (time_t)GlobalData::s_systemTime_.getCurSec();
@@ -18554,6 +18567,17 @@ bool DB_GoblinPadUpdateReward::dispatch(int userIdx, int slot, Stream* stream)
         db->set_query(
             "inSert into member_mousepass_history_%s (occ_time, m_id, pre_mousepass, modify_type, ip_info, port_info) values (now(),%s,'%s',%d,'%s','')",
             ym, NumberToString(sig->m_mId, 0), mousepass, 0x10, sig->m_ip);
+    }
+    else
+    {
+        char ym[10] = { 0 };
+        time_t curSec = (time_t)GlobalData::s_systemTime_.getCurSec();
+        struct tm tmBuf;
+        localtime_r(&curSec, &tmBuf);
+        strftime(ym, 10, "%Y%m", &tmBuf);
+        db->set_query(
+            "inSert into member_mousepass_history_%s (occ_time, m_id, pre_mousepass, modify_type, ip_info, port_info) values (now(),%s,'%s',%d,'%s','')",
+            ym, NumberToString(sig->m_mId, 0), mousepass, 0xf, sig->m_ip);
     }
     if (!(db->exec(true) && db->getAffectedRowCount() != 0))
         return 0;

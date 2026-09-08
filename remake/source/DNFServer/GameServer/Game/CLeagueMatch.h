@@ -47,7 +47,8 @@ struct PlayerInfo
     /*+0x00*/ unsigned int  m_accId;    // get_acc_id 快照
     /*+0x04*/ float         m_rating;   // Elo 个人分快照
     /*+0x08*/ CUser*        m_user;
-    /*+0x0c*/ unsigned char m_flag;     // !=0 槽位占用
+    /*+0x0c*/ bool          m_flag;     // !=0 槽位占用（b28d-lane6：bool 复现 ORIG
+                                        //   CompareRating 双重 movzbl+cmpl / GetUser xor 段）
     /*+0x10*/ int           m_schoolNo; // GetSchoolNo 快照
     /*+0x14*/ short         m_badges[3];// GetDailyBadge(short*) 三枚章
 };  // sizeof 0x1c

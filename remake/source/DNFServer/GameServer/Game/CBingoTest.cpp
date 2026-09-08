@@ -174,19 +174,25 @@ int CBingo::getToday(long sec, int hourLimit)
  // ORIG 反汇编：if (day>0 && day<=0x1f) 短路布局（jg/jle 同跳 body）。
 int CBingo::resetBoard(int day)
 {
-    if (!(day > 0 && day <= 0x1f))
+    // [b28d-7] P171 原码死分支照抄：ORIG `test; jg BODY; mov day; cmp $0x1f;
+    // jle BODY; mov$0` = `day<1 && day>0x1f`（永假，永不早退）。旧版德摩根
+    // 改写 `!(day>0 && day<=0x1f)` 引入真语义偏差，已修正为原码形。
+    if ((day < 1) && (day > 0x1f))
     {
         return 0;
     }
-    std::map<int, std::vector<int> >& boardMap = G_CDataManager()->m_bingo.m_map18;
-    std::map<int, std::vector<int> >::iterator it = boardMap.find(day);
-    if (it != boardMap.end())
+    // [b28d-7] P183/P236：ORIG 0x080ca9xx 每处完整重读 G_CDataManager()->m_bingo.m_map18
+    // （lea 0xb580(%eax) 直接入参，无 map 地址局部槽）⇒ 删具名 map 引用。
+    std::map<int, std::vector<int> >::iterator it =
+        G_CDataManager()->m_bingo.m_map18.find(day);
+    // [b28d-7] ORIG `je SKIP_RET0; mov$0; jmp END; SKIP_RET0: 取值` ⇒ 早返 0 形。
+    if (it == G_CDataManager()->m_bingo.m_map18.end())
     {
-        m_boards.clear();
-        m_boards = it->second;
-        return 1;
+        return 0;
     }
-    return 0;
+    m_boards.clear();
+    m_boards = it->second;
+    return 1;
 }
 
 // resetQuiz @ 0x080caa64（docs/class_func_reports/CBingo/resetQuiz.md）：
@@ -195,18 +201,22 @@ int CBingo::resetBoard(int day)
  // ORIG 反汇编：if (day>0 && day<=0x1f) 短路布局（jg/jle 同跳 body）。
 int CBingo::resetQuiz(int day)
 {
-    if (!(day > 0 && day <= 0x1f))
+    // [b28d-7] P171 原码死分支照抄：ORIG 0x080caa6d `test; jg BODY; mov day;
+    // cmp $0x1f; jle BODY; mov$0` = `day<1 && day>0x1f`（永假）。旧版德摩根
+    // 改写引入真语义偏差，已修正为原码形。
+    if ((day < 1) && (day > 0x1f))
     {
         return 0;
     }
-    std::map<int, int>& quizMap = G_CDataManager()->m_bingo.m_map0;
-    std::map<int, int>::iterator it = quizMap.find(day);
-    if (it != quizMap.end())
+    // [b28d-7] P183/P236：ORIG 0x080caa85 每处完整重读 m_map0（lea 0xb568(%eax) 直入参）。
+    std::map<int, int>::iterator it = G_CDataManager()->m_bingo.m_map0.find(day);
+    // [b28d-7] ORIG `je SKIP_RET0; mov$0; jmp END; SKIP_RET0: 取值` ⇒ 早返 0 形。
+    if (it == G_CDataManager()->m_bingo.m_map0.end())
     {
-        m_fieldC = it->second;
-        return 1;
+        return 0;
     }
-    return 0;
+    m_fieldC = it->second;
+    return 1;
 }
 
 int CBingo::getBingoRandomVaule(int param_1)

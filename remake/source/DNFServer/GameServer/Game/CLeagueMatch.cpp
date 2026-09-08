@@ -72,9 +72,15 @@ void PlayerInfo::reset()    // ORIG W 0x085687d4
 
 bool CompareRating(PlayerInfo const& a, PlayerInfo const& b)  // ORIG T 0x0855c952
 {
+    // b28d-lane6：m_flag bool 化（P248 档②）复现第一段 ORIG 0x0855c95a 双重 movzbl
+    // + cmpl/jle；第二段改 `==` 正向包裹复现 `jne` 落 false 尾块（P222/P47）；
+    // rating 段用 if/return true 保留 ORIG 的 seta/test/je 物化（P56）。
     if (a.m_flag > b.m_flag) return true;
-    if (a.m_flag != b.m_flag) return false;
-    return a.m_rating > b.m_rating;
+    if (a.m_flag == b.m_flag)
+    {
+        if (a.m_rating > b.m_rating) return true;
+    }
+    return false;
 }
 
 void TeamInfo::refresh()    // ORIG T 0x0855c9ae
@@ -182,8 +188,9 @@ CUser* CLeagueMatch::GetUser(unsigned int idx)   // ORIG T 0x0855e5e4
 {
     if (idx > 3)
         return 0;
-    // N96 清绑：字段无槽往返 ⇒ 表达式直读（P0）；xor$1 单段形待复测。
-    if ((bool)(m_teamA.m_players[idx].m_flag ^ 1))
+    // b28d-lane6：m_flag bool 化 + 裸 `if(!field)` ⇒ ORIG 0x0855e5e9 的
+    // `movzbl 0x18; xor $1; test %al,%al; je`（P248 档②，探针 /tmp/l6p/p6.cpp f2）。
+    if (!m_teamA.m_players[idx].m_flag)
         return 0;
     return m_teamA.m_players[idx].m_user;
 }
@@ -401,6 +408,9 @@ void CLeagueMatch::OnEndFight(PvP_Room* room)
 {
     int managerTeam = room->get_manager_team();
     m_state = 0;
+    // b28d-lane6 [N-P75]：ORIG 0x0855e594 先 `mov -0x1c(%ebp),%eax`（第二实参装载）
+    // 再 `movl $0x0,0xc(%esp)`（第三实参常量压栈）；4.4 恒先压常量。cast/NULL/
+    // 具名局部 3 形实测均不可翻（P75 跨版本实参装载时刻）。
     _ReturnTeam(room, managerTeam, 0);
     if (managerTeam != 1)
         m_teamA = m_teamB;   // ORIG rep movsl 0x1c dwords（P83 结构整体赋值）

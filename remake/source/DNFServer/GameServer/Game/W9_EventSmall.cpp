@@ -258,16 +258,16 @@ void CCharacBloodDungeon::ResetDaily()       // ORIG 0x832a5b6
 
 void CCharacBloodDungeon::IncPoint(int delta)       // ORIG 0x85bfed2 (W)
 {
-    // b26 N 封顶（N18a 反向）：ORIG 4.1 为「mem→edx 单段 + param→eax + add reg,reg」；
-    // 4.4 恒出「mem→eax、mov %eax,%edx 中转 + add mem,%edx」。+=/=delta+/++/
-    // register 形参/具名局部 4 源形探针 /tmp/incp 均不可复现 ORIG 序。
+    // b28d-lane6 修复（AE）：ORIG 0x85bfee6 为「mov 0x8(%eax),%edx; mov 0xc(%ebp),%eax;
+    // add %eax,%edx」= 字段 unsigned + 形参 int 的 4.4 形态（P211 类型旋钮）。
+    // 旧 b26「N18a 反向封顶」判词作废：探针 /tmp/l6p/p1.cpp B 形实证。
     charac_expand::CData::alter();
     m_point += delta;
 }
 
 void CCharacBloodDungeon::IncUseGold(int gold)       // ORIG 0x85bfef6 (W)
 {
-    // b26 N 封顶（N18a 反向，同 IncPoint）。
+    // b28d-lane6 修复（AE）：同 IncPoint，ORIG 0x85bfeff 段（字段 unsigned 旋钮）。
     charac_expand::CData::alter();
     m_useGold += gold;
 }

@@ -845,7 +845,8 @@ public:
     void SetCapacity(unsigned int capacity);
     void SetStable();
     void SendNotifyMoney(ENUM_CMDPACKET cmd);
-    int SendItemList();
+    bool SendItemList();   // b28d-5：ORIG send_itemspace 0x0865dcaf `call; mov %eax,%ebx`
+                           // 直传（caller 亦 bool）⇒ bool
     void MakeItemPacket(PacketGuard* packet, int slot) const;
     char IsAlter();
 
@@ -2791,25 +2792,30 @@ public:
     bool isSecurityServiceUsed();   // ORIG T 0x0868866e（定义待 CUser 域还原；SecuPF 批次）
     void SendAradEventItemLog(unsigned long itemIndex, int count);  // ORIG 0x08692b84
     void eventDeliveryBuyItem(int deliveryType, const Inven_Item& item);  // ORIG T 0x0866463c
-    int SendPacket(eSendTarget target, PacketGuard& packet);  // ORIG 无串可证，暂维持 int
+    bool SendPacket(eSendTarget target, PacketGuard& packet);  // b28d-5：ORIG SendCmd* 族尾
+                                                              // `call SendPacket; mov %eax,%ebx`
+                                                              // 直传 + SendCmdPacket 串证 bool
     bool SendCmdPacket(eSendTarget target, ENUM_CMDPACKET cmd, int param);  // ORIG 串 bool
     bool SendNotiPacket(eSendTarget target, ENUM_NOTIPACKET cmd, int param);  // ORIG 串 bool
     int SendUpdateItem(eSendTarget target, ENUM_ITEMSPACE space, int slot);   // ORIG T 0x867c2d8 返回 int
     void AddMileage(int mileage, eCoinAddReason reason);                      // ORIG T 0x08650954（W6_ARAD_ItemBonus 补）
     int SendUpdateItemList(eSendTarget target, ENUM_ITEMSPACE space, int slot);
-    int SendCmdOkPacket(ENUM_CMDPACKET cmd);
-    int SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error);
-    int SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PAY_TYPE pay);
-    int SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error,
+    // b28d-5：ORIG rodata 串 "bool CUser::SendCmdPacket(...)" + 本族体均 `return Send(packet)`
+    // （Send 为 bool）⇒ 本族返回 bool；改后定义体免 movzbl 中转。返回类型不入 mangled。
+    bool SendCmdOkPacket(ENUM_CMDPACKET cmd);
+    bool SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error);
+    bool SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PAY_TYPE pay);
+    bool SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error,
                             PacketGuard& packet);
-    int SendCmdErrorPacket2Byte(ENUM_CMDPACKET cmd, unsigned short error);
+    bool SendCmdErrorPacket2Byte(ENUM_CMDPACKET cmd, unsigned short error);
     // ORIG T 0x08680a96：拍卖操作前置门。pay==1(cera)/==0(普通) 代理未运行报 0x8c；
     // 状态<3 或无当前角色返回 0x8151；Secu(0x35) 失败报错返回 0；通过返回 -1。
     int AuctionPreCheck(ENUM_CMDPACKET cmd, PAY_TYPE pay);
-    int SendCmdErrorPacketJpn(ENUM_CMDPACKET cmd, unsigned short error);
-    void SendCmdPeerErrorPacket(ENUM_CMDPACKET cmd, ENUM_PEER_REQUEST_TYPE type,
+    bool SendCmdErrorPacketJpn(ENUM_CMDPACKET cmd, unsigned short error);
+    // b28d-5：ORIG 3 参版 0x0867be6a `call 4参版; mov %eax,%ebx; …; mov %ebx,%eax`（返回直传）。
+    bool SendCmdPeerErrorPacket(ENUM_CMDPACKET cmd, ENUM_PEER_REQUEST_TYPE type,
                                 unsigned char error);
-    void SendCmdPeerErrorPacket(ENUM_CMDPACKET cmd, ENUM_PEER_REQUEST_TYPE type,
+    bool SendCmdPeerErrorPacket(ENUM_CMDPACKET cmd, ENUM_PEER_REQUEST_TYPE type,
                                 unsigned char error, PacketGuard& packet);
     bool AntibotSend(PacketBuf& packet);  // ORIG 串 "bool CUser::AntibotSend(PacketBuf&)"（本函数体 cMyTrace 串亦为 bool）
     void SendZeroExpPacket();
@@ -2843,7 +2849,8 @@ public:
     void _processSpeicalContinuousTimeItem(unsigned int itemIdx); // ORIG 0x08659b60
     void UpdateCoolTimeItemInfo(unsigned int expireTime); // ORIG 0x08658b2a
     void UpdateEffectItemInfo(unsigned int expireTime);   // ORIG 0x08658d90
-    void SendMoneyFullReason(ENUM_MONEY_FULL_REASON reason, unsigned long a,
+    // b28d-5：ORIG 0x0867c8da 尾 `mov %ebx,%eax`（保存 Send 返回值跨 ~PacketGuard）⇒ bool。
+    bool SendMoneyFullReason(ENUM_MONEY_FULL_REASON reason, unsigned long a,
                              unsigned long b);
     void SendProperDungeonClearCount();
     void SendDungeonClearList();

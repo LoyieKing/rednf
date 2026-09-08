@@ -513,6 +513,7 @@ void InterDispatcher::register_dispatcher(int code, ISigDispatcher* dispatcher)
 }
 
 // ORIG 0x84be970 逐指令转写（getUser 参数序、DisConnSig 与双路径日志均按汇编）。
+// [b28d-lane2] verdict=DIFF ndiff=42（ORIG 0x084be970）：混合残差；gap+3。
 bool InterDispatcher::dispatch(int code, int userId, char* data, int len)
 {
     CUser* user = 0;
@@ -560,6 +561,7 @@ bool InterDispatcher::dispatch(int code, int userId, char* data, int len)
 Inter_Disconnect::~Inter_Disconnect() {}
 // ORIG 0x084beb3c T dispatch_sig —— 用户断开清理：状态门/扩展槽切换/付费税上报/各管理器离开通知/DB 收尾。
 // 报告 docs/class_func_reports/Inter_Disconnect/dispatch_sig.md 全文转写。
+// [b28d-lane2] verdict=DIFF ndiff=176（ORIG 0x084beb3c）：寄存器中转(N18a/N7)+混合残差；gap-4。
 int Inter_Disconnect::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -639,6 +641,7 @@ struct Inter_SessionClosePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=59（ORIG 0x084c7af0）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+3。
 int Inter_SessionClose::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_SessionClosePktView* pPkt = reinterpret_cast<Inter_SessionClosePktView*>(data);
@@ -688,6 +691,7 @@ class DB_LoadAccountCargo              { public: static void makeRequest(int, un
 
 // GameWorld 局部视图补充本函数所需成员（签名与 GameWorld.h/ORIG mangled 一致）
 static const char g_interLoginInfoSig[] =
+// [b28d-lane2] verdict=DIFF ndiff=2300（ORIG 0x084c5294）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+66。
     "virtual int Inter_LoginInfo::dispatch_sig(CUser*, char*, int)";
 
 int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
@@ -1335,6 +1339,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_LoginInfo::~Inter_LoginInfo() {}
 
 Inter_CreateCharac::~Inter_CreateCharac() {}
+// [b28d-lane2] verdict=DIFF ndiff=380（ORIG 0x084bee06）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+5。
 int Inter_CreateCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     // ORIG 0x084bee06 报告 docs/class_func_reports/Inter_CreateCharac/dispatch_sig.md
@@ -1473,6 +1478,7 @@ void Inter_CreateCharac::process_event(CUser* user, SIG_CREATE_CHARAC* sig)
 // ORIG T _ZN18Inter_CreateCharac18process_createGiftEP5CUserP17SIG_CREATE_CHARAC
 // @0x084bf4ce（报告 process_createGift.md 两段全读）：取角色创建礼包脚本，
 // 按 m_startTime/m_endTime 过滤后逐道具 find_item → make_item → 系统邮件投递。
+// [b28d-lane2] verdict=DIFF ndiff=204（ORIG 0x084bf4ce）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+3。
 void Inter_CreateCharac::process_createGift(CUser* user, SIG_CREATE_CHARAC* sig)
 {
     if (user == 0)
@@ -1545,6 +1551,7 @@ struct Inter_DeleteCharacPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=143（ORIG 0x084bf810）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-4。
 int Inter_DeleteCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_DeleteCharacPktView* pPkt = reinterpret_cast<Inter_DeleteCharacPktView*>(data);
@@ -1653,6 +1660,7 @@ struct Inter_LoadCharacPktView
 
 // §6.2 巨件核销：P167 106/106 [0缺0多]；gap -16→-16；残差归因 N82（4.4 槽复用全帧错位，
 // 详见 docs/asm_translation_patterns.md 负例表）。batch-20「Inter 巨兽」已核销，本次维持。
+// [b28d-lane2] verdict=DIFF ndiff=578（ORIG 0x084c3398）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-16。
 int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_LoadCharacPktView* pPkt = reinterpret_cast<Inter_LoadCharacPktView*>(data);
@@ -1918,6 +1926,7 @@ struct Inter_LoadInvenPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=410（ORIG 0x084c3f92）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-26。
 int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_LoadInvenPktView* pPkt = reinterpret_cast<Inter_LoadInvenPktView*>(data);
@@ -2055,6 +2064,7 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
 
 // ORIG T _ZN15Inter_LoadInven19_CheckOverEquipItemEP5CUser @0x084c4d38
 // （报告 docs/class_func_reports/Inter_LoadInven/_CheckOverEquipItem.md 两段全读）
+// [b28d-lane2] verdict=DIFF ndiff=216（ORIG 0x084c4d38）：槽序/帧差(N82/P212/P221)+混合残差；gap-13。
 void Inter_LoadInven::_CheckOverEquipItem(CUser* user)
 {
     if (!user->needCurCharacCheckOverEquip())
@@ -2155,6 +2165,7 @@ void Inter_LoadInven::_CheckUsableExpertJobEquipment(CUser* user)
 // @0x084c455c（报告 docs/class_func_reports/Inter_LoadInven/_UpdateRentalItems.md
 // 两段全读）：PC 房/维度频道直接清租借；否则机器键 1 按 exchange 标志取消息表或
 // 当前角色租借清单装配 RentInput，空表删除记录，非空走 Rent 成功后回写。
+// [b28d-lane2] verdict=DIFF ndiff=201（ORIG 0x084c455c）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-8。
 void Inter_LoadInven::_UpdateRentalItems(CUser* user, SIG_LOAD_INVENTORY* sig)
 {
     if (user == 0 || sig == 0)
@@ -2226,6 +2237,7 @@ void Inter_LoadInven::_UpdateRentalItems(CUser* user, SIG_LOAD_INVENTORY* sig)
 // exchange 表 0xb 条 stride 8（msg+(i+0x2a7e)*8）、elem.type 取自表第 7 字节或
 // RentalInfo+0xb；其余与 PC 房租借同构。m_rentItemId 表路径无数据，按 ORIG
 // RentInElem ctor 0x0822f02e 置 -1 [推断：movl $0xffffffff 实证]。
+// [b28d-lane2] verdict=DIFF ndiff=194（ORIG 0x084c4858）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-18。
 void Inter_LoadInven::_UpdateDimensionRentalItems(CUser* user,
                                                   SIG_LOAD_INVENTORY* sig)
 {
@@ -2581,6 +2593,7 @@ struct Inter_MonitorBuddyInOutPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=162（ORIG 0x084c8ec0）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-12。
 int Inter_MonitorBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MonitorBuddyInOutPktView* pPkt = reinterpret_cast<Inter_MonitorBuddyInOutPktView*>(data);
@@ -2638,6 +2651,7 @@ Inter_MonitorLoginOK::~Inter_MonitorLoginOK() {}
 // ORIG T _Z21_NS_NonClient_RequestP5CUser @0x08274bc5（0xfe，报告缺失，objdump 逐指令转写）：
 // rand 序号 → put_header(0,0x110)/put_int/rand → Send → SetNonClientRandInt →
 // G_TimerQueue()->InsertTimer(0,GetUID,0x8c,60,get_unique_id,0xffffffff)。
+// [b28d-lane2] verdict=DIFF ndiff=15（ORIG 0x08274bc5）：混合残差；gap+1。
 void _NS_NonClient_Request(CUser* user)
 // [b28c-L23 N(块序/jump threading) 残余 16 行] 唯一结构差 = PacketGuard 正常出口
 // 块的位置：ORIG @0x08274c... 在 `call InsertTimer` 之后发 `jmp <统一尾>`，把
@@ -2705,6 +2719,7 @@ struct Inter_MonitorLoginOKPktView
 // ② 删多余 memset(&sa,0,sizeof(sa))（ORIG sockaddr 槽不清零）；
 // ③ ipBuf 清零改显式 memset(ipBuf,0,0x4c)（复现 ORIG call memset @0x084c8500；
 //    `={'\0'}` 在 4.4-O0 内联 rep stos 形不符）。
+// [b28d-lane2] verdict=DIFF ndiff=637（ORIG 0x084c7e0c）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-23。
 int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MonitorLoginOKPktView* pPkt = reinterpret_cast<Inter_MonitorLoginOKPktView*>(data);
@@ -2914,6 +2929,7 @@ struct Inter_MonitorCallUserInfoPktView
 #pragma pack(pop)
 
 // [b28c-32] verdict=NEAR：N7 + movzbl 两段（ORIG %eax 中转 vs 4.4 直装 %ebx）（48=48）。
+// [b28d-lane2] verdict=AE ndiff=0（ORIG 0x084c89b2）：混合残差；gap0。
 int Inter_MonitorCallUserInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     if (G_CGameManager() == 0)
@@ -2930,17 +2946,18 @@ int Inter_MonitorCallUserInfo::dispatch_sig(CUser* /*user*/, char* data, int /*l
         // ORIG 0x084c8a2a/0x084c8a58：`movzbl 0xa(%eax),%eax; movzbl %al,%ebx`
         // 两步零扩展（unsigned int 槽 = char→int 宽度转换先落 %eax 再转 %ebx）。
         Inter_MonitorCallUserInfoPktView* pPkt = reinterpret_cast<Inter_MonitorCallUserInfoPktView*>(data);
-        // ORIG 0x084c8a2a：`movzbl 0xa(%eax),%eax`（uchar 源→%eax 技巧16 形）
-        // + `movzbl %al,%ebx`（uchar→uint 具名转换直落 %ebx）。
-        // ORIG 4.1 装载两段（先 %eax 后 %al→%ebx）；4.4 uchar register 恒融合
-        // 直落目标寄存（N18a 变体）→ 余 4 行 NEAR 形 register 差。
-        register unsigned char group1 = (unsigned int)pPkt->m_a;
-        G_CGameManager()->Send_userinfos_to_upper_server(group1);
+        // [b28d-lane2] P226/P48：ORIG 0x084c8a2a/0x084c8a58 两处均为
+        // `movzbl 0xa(%eax),%eax; movzbl %al,%ebx`（uchar→uint 显式转换两段装载）。
+        // 具名 register 局部使 4.4 融合为 `movzbl 0xa(%eax),%ebx`（N18a 变体）；
+        // 改「内联实参表达式」后 4.4 复现两段（探针 /tmp/l2probe/p14.cpp f7 实证），
+        // 第二处经 cMyTrace 全表达式临时链以 %ebx 跨 ctor 保活（P227）。
+        G_CGameManager()->Send_userinfos_to_upper_server(
+            (unsigned char)(unsigned int)pPkt->m_a);
         // ORIG 0x084c8a58：重读无 CSE（P48 两次独立装载）。
-        group1 = (unsigned int)pPkt->m_a;
         cMyTrace(__PRETTY_FUNCTION__,
                  0x2230, 0)(
-            "%d Server Call UserInfo Arrived\n", group1);
+            "%d Server Call UserInfo Arrived\n",
+            (unsigned char)(unsigned int)pPkt->m_a);
     }
     return 0;
 }
@@ -2980,6 +2997,7 @@ struct Inter_MonitorUserGetoutPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=51（ORIG 0x084c8b0c）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+2。
 int Inter_MonitorUserGetout::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_MonitorUserGetoutPktView* pPkt = reinterpret_cast<Inter_MonitorUserGetoutPktView*>(data);
@@ -3018,6 +3036,7 @@ int Inter_WebNoticeIngameAdvertisement::dispatch_sig(CUser* /*user*/, char* /*da
 Inter_ReloadIngameAdvertisement::~Inter_ReloadIngameAdvertisement() {}
 // ORIG 0x084c8d10 T dispatch_sig —— 游戏内广告条件重载。
 // 报告 docs/class_func_reports/Inter_ReloadIngameAdvertisement/dispatch_sig.md 全文转写。
+// [b28d-lane2] verdict=DIFF ndiff=5（ORIG 0x084c8d10）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap0。
 int Inter_ReloadIngameAdvertisement::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     // ORIG：InitADExposeInfo 前 local_14=param_3（-0x10）；循环体每迭代重调 Instance
@@ -3056,6 +3075,7 @@ struct Inter_TcpServerConnectPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=58（ORIG 0x084c8dca）：槽序/帧差(N82/P212/P221)+混合残差；gap-2。
 int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_TcpServerConnectPktView* pPkt = reinterpret_cast<Inter_TcpServerConnectPktView*>(data);
@@ -3170,6 +3190,7 @@ struct Inter_IPGResultPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=221（ORIG 0x084ceaee）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+4。
 int Inter_IPGResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_IPGResultPktView* pPkt = reinterpret_cast<Inter_IPGResultPktView*>(data);
@@ -3288,6 +3309,7 @@ struct Inter_LoadEventItemPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=146（ORIG 0x084cf0c4）：槽序/帧差(N82/P212/P221)+混合残差；gap-18。
 int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_LoadEventItemPktView* pPkt = reinterpret_cast<Inter_LoadEventItemPktView*>(data);
@@ -3360,6 +3382,7 @@ struct Inter_MonitorEventItemUpdatePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=NEAR ndiff=20（ORIG 0x084cefd2）：槽序/帧差(N82/P212/P221)+混合残差；gap0。
 int Inter_MonitorEventItemUpdate::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_MonitorEventItemUpdatePktView* pPkt = reinterpret_cast<Inter_MonitorEventItemUpdatePktView*>(data);
@@ -3406,6 +3429,7 @@ struct Inter_MonitorServerEventStartPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=64（ORIG 0x084cf3ca）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_MonitorServerEventStart::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_MonitorServerEventStartPktView* pPkt = reinterpret_cast<Inter_MonitorServerEventStartPktView*>(data);
@@ -3479,6 +3503,7 @@ struct Inter_MonitorNoticeGuildEnterPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=166（ORIG 0x084c9194）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_MonitorNoticeGuildEnter::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MonitorNoticeGuildEnterPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildEnterPktView*>(data);
@@ -3600,6 +3625,7 @@ struct Inter_MonitorNoticeGuildMarkChangePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=105（ORIG 0x084ca1e6）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+3。
 int Inter_MonitorNoticeGuildMarkChange::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MonitorNoticeGuildMarkChangePktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildMarkChangePktView*>(data);
@@ -3648,6 +3674,7 @@ struct Inter_MonitorNoticeGuildDismissPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=98（ORIG 0x084ca00c）：寄存器中转(N18a/N7)+混合残差；gap+2。
 int Inter_MonitorNoticeGuildDismiss::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                      // asm test eax,eax; sete
@@ -3707,6 +3734,7 @@ struct Inter_MonitorNoticeGuildChatMsgPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=118（ORIG 0x084c9e30）：寄存器中转(N18a/N7)+混合残差；gap+1。
 int Inter_MonitorNoticeGuildChatMsg::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MonitorNoticeGuildChatMsgPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildChatMsgPktView*>(data);
@@ -4150,6 +4178,7 @@ struct Inter_MonitorNoticeOtherChannelChatPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=354（ORIG 0x084cb1ac）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MonitorNoticeOtherChannelChatPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeOtherChannelChatPktView*>(data);
@@ -4252,6 +4281,7 @@ struct Inter_MonitorCallGuildInfoPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=90（ORIG 0x084cc006）：寄存器中转(N18a/N7)+混合残差；gap+5。
 int Inter_MonitorCallGuildInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax; sete
@@ -4330,6 +4360,7 @@ struct Inter_MonitorNoticeGuildInfoPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=293（ORIG 0x084cb726）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+5。
 int Inter_MonitorNoticeGuildInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -4425,6 +4456,7 @@ struct Inter_MonitorSetGuildKeyPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=175（ORIG 0x084cbd26）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-2。
 int Inter_MonitorSetGuildKey::dispatch_sig(CUser* user, char* data, int len)
 {
     Inter_MonitorSetGuildKeyPktView* pPkt = reinterpret_cast<Inter_MonitorSetGuildKeyPktView*>(data);
@@ -4552,6 +4584,7 @@ struct Inter_MonitorGuildMemberNamingReplyPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=NEAR ndiff=1（ORIG 0x084cc23c）：寄存器中转(N18a/N7)；gap0。
 int Inter_MonitorGuildMemberNamingReply::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -4600,6 +4633,7 @@ struct Inter_MonitorSetSubGuildMasterReplyPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=102（ORIG 0x084cc35c）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-3。
 int Inter_MonitorSetSubGuildMasterReply::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MonitorSetSubGuildMasterReplyPktView* pPkt = reinterpret_cast<Inter_MonitorSetSubGuildMasterReplyPktView*>(data);
@@ -4738,6 +4772,7 @@ struct Inter_GuildNoticeGuildMessagePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=NEAR ndiff=1（ORIG 0x084cc650）：寄存器中转(N18a/N7)；gap0。
 int Inter_GuildNoticeGuildMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -4918,6 +4953,7 @@ struct Inter_MonitorNoticeRequestMemberEnterToResponserPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=159（ORIG 0x084ccd54）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-3。
 int Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MonitorNoticeRequestMemberEnterToResponserPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeRequestMemberEnterToResponserPktView*>(data);
@@ -5093,6 +5129,7 @@ struct Inter_MonitorNoticeMemberEnterReplyPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=156（ORIG 0x084cd5ca）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+5。
 int Inter_MonitorNoticeMemberEnterReply::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MonitorNoticeMemberEnterReplyPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberEnterReplyPktView*>(data);
@@ -5164,6 +5201,7 @@ struct Inter_MonitorNoticeMemberSecedePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=136（ORIG 0x084cd83a）：寄存器中转(N18a/N7)+混合残差；gap+1。
 int Inter_MonitorNoticeMemberSecede::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax; sete
@@ -5332,6 +5370,7 @@ struct Inter_MonitorNoticeMemberChatMsgPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=139（ORIG 0x084ccfda）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+1。
 int Inter_MonitorNoticeMemberChatMsg::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MonitorNoticeMemberChatMsgPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberChatMsgPktView*>(data);
@@ -5431,6 +5470,7 @@ struct Inter_MonitorCallMemberListEntryWinView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=233（ORIG 0x084cddac）：混合残差；gap-12。
 int Inter_MonitorCallMemberList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax,eax; sete
@@ -5510,6 +5550,7 @@ struct Inter_MonitorPayTaxToUpperPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=226（ORIG 0x084ce164）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+2。
 int Inter_MonitorPayTaxToUpper::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax,eax; sete
@@ -5628,10 +5669,14 @@ struct Inter_UpdateLogoutPktView
 {
     int m_0;                  // +0x00
     char m_pad4[0xa];  // 未消费
-    unsigned int m_e;         // +0x0e
+    // [b28d-lane2] 档②字段类型旋钮（P211/P254）：ORIG 0x084ce581 段
+    // `mov 0xe(%eax),%eax; mov %eax,%edx` 两段中转，探针 /tmp/l2probe/p6.cpp
+    // 实证 int 字段 + cast 到 enum 实参才复现（unsigned 字段 4.4 恒折单段）。
+    int m_e;                  // +0x0e
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=AE ndiff=0（ORIG 0x084ce548）：混合残差；gap0。
 int Inter_UpdateLogout::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_UpdateLogoutPktView* pPkt = reinterpret_cast<Inter_UpdateLogoutPktView*>(data);
@@ -5673,6 +5718,7 @@ struct Inter_AvatarInsertPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=79（ORIG 0x084cf5a4）：槽序/帧差(N82/P212/P221)+混合残差；gap0。
 int Inter_AvatarInsert::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AvatarInsertPktView* pPkt = reinterpret_cast<Inter_AvatarInsertPktView*>(data);
@@ -5712,6 +5758,7 @@ struct Inter_AvatarChangeStatPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=75（ORIG 0x084cf6ec）：槽序/帧差(N82/P212/P221)+混合残差；gap+8。
 int Inter_AvatarChangeStat::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AvatarChangeStatPktView* pPkt = reinterpret_cast<Inter_AvatarChangeStatPktView*>(data);
@@ -5756,6 +5803,7 @@ struct Inter_TriggerEventStartPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=AE ndiff=0（ORIG 0x084ce5f4）：混合残差；gap0。
 int Inter_TriggerEventStart::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_TriggerEventStartPktView* pPkt = reinterpret_cast<Inter_TriggerEventStartPktView*>(data);
@@ -5783,6 +5831,7 @@ struct Inter_TriggerEventEndPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=AE ndiff=0（ORIG 0x084ce646）：混合残差；gap0。
 int Inter_TriggerEventEnd::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_TriggerEventEndPktView* pPkt = reinterpret_cast<Inter_TriggerEventEndPktView*>(data);
@@ -5805,6 +5854,7 @@ int Inter_TriggerEventEnd::dispatch_sig(CUser* /*user*/, char* data, int /*len*/
 Inter_MailBox_Req_List::~Inter_MailBox_Req_List() {}
 // ORIG 0x084cf7fa T dispatch_sig —— 邮箱列表装载：多重校验后设置邮箱信息。
 // 报告 docs/class_func_reports/Inter_MailBox_Req_List/dispatch_sig.md 全文转写。
+// [b28d-lane2] verdict=DIFF ndiff=46（ORIG 0x084cf7fa）：寄存器中转(N18a/N7)+混合残差；gap+3。
 int Inter_MailBox_Req_List::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 1 || user->getCurCharacR() == 0)
@@ -5845,6 +5895,7 @@ Inter_MailBox_Req_CheckReceiver::~Inter_MailBox_Req_CheckReceiver() {}
 // cera 直购 / 多附件邮件）完成校验、购买或入 DB 线程，并回 ACK 错误包。
 // 报告 docs/class_func_reports/Inter_MailBox_Req_CheckReceiver/dispatch_sig.md 全文转写。
 // SendErrorPacket/SendDBThread_forchina 为本类既有方法（NEEDS_DECL 见 meta）。
+// [b28d-lane2] verdict=DIFF ndiff=373（ORIG 0x084cf95a）：槽序/帧差(N82/P212/P221)+混合残差；gap-9。
 int Inter_MailBox_Req_CheckReceiver::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)                        // cmp $0x2,setle
@@ -6034,6 +6085,7 @@ void Inter_MailBox_Req_CheckReceiver::SendErrorPacket(
 // +0x2d 角色号→MsgQueueMgr::put(2)→返回 true。
 // b28c-l23 SIGFIX：int→bool（ORIG __PRETTY_FUNCTION__ 串，P174；体尾
 // `mov $0x1,%ebx` 直返，bool 免归一）。
+// [b28d-lane2] verdict=DIFF ndiff=28（ORIG 0x084cff18）：寄存器中转(N18a/N7)+混合残差；gap-1。
 bool Inter_MailBox_Req_CheckReceiver::SendDBThread_forchina(
     CUser* user, SIG_MAILBOX_CHECK_RECEIVER* sig)
 {
@@ -6072,10 +6124,14 @@ struct Inter_MailBox_Req_SendPktView
 {
     int m_0;                        // +0x00
     unsigned int m_4;               // +0x04
-    unsigned int m_8;               // +0x08
+    // [b28d-lane2] 档②字段类型旋钮（P211/P254）：ORIG 0x084d014f 段为
+    // `mov 0x8(%eax),%eax; mov %eax,%edx`（两段中转），探针 /tmp/l2probe/p6.cpp
+    // 实证 4.4.7 仅「int 字段 + cast 到 enum 实参」产两段（unsigned 字段恒折单段）。
+    int m_8;                        // +0x08
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=AE ndiff=0（ORIG 0x084d0130）：混合残差；gap0。
 int Inter_MailBox_Req_Send::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     // [b28c-30] N18a 封顶：ORIG 0x084d0161 段 `mov 0x8(%eax),%eax; mov %eax,%edx;
@@ -6260,6 +6316,7 @@ struct Inter_MonitorGuildWarInfoPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=153（ORIG 0x084ce7f6）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+7。
 int Inter_MonitorGuildWarInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MonitorGuildWarInfoPktView* pPkt = reinterpret_cast<Inter_MonitorGuildWarInfoPktView*>(data);
@@ -6316,6 +6373,7 @@ Inter_CodeChecksumRange::~Inter_CodeChecksumRange() {}
 // 报告 docs/class_func_reports/Inter_CodeChecksumRange/dispatch_sig.md 全文转写。
 // [b28c-31] N（inline 展开跨版本）：ORIG 0x084d069c 内联 getUserByAccIdMap() 为
 // `lea 0x22c(%eax),%edx`，4.4 -O0 恒产 out-of-line call（局部引用形反劣已回退）。
+// [b28d-lane2] verdict=DIFF ndiff=82（ORIG 0x084d0648）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-2。
 int Inter_CodeChecksumRange::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     CodeHackCheckRangeEx range;
@@ -6362,6 +6420,7 @@ struct Inter_MonitorForbidChatPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=67（ORIG 0x084d0466）：槽序/帧差(N82/P212/P221)+混合残差；gap+3。
 int Inter_MonitorForbidChat::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_MonitorForbidChatPktView* pPkt = reinterpret_cast<Inter_MonitorForbidChatPktView*>(data);
@@ -6404,6 +6463,7 @@ struct Inter_MouseRegisterPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=119（ORIG 0x084d07d2）：槽序/帧差(N82/P212/P221)+混合残差；gap-15。
 int Inter_MouseRegister::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MouseRegisterPktView* pPkt = reinterpret_cast<Inter_MouseRegisterPktView*>(data);
@@ -6466,6 +6526,7 @@ struct Inter_Monitor_MegaphoneMsgPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=110（ORIG 0x084d09aa）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_Monitor_MegaphoneMsg::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_Monitor_MegaphoneMsgPktView* pPkt = reinterpret_cast<Inter_Monitor_MegaphoneMsgPktView*>(data);
@@ -6513,6 +6574,7 @@ struct Inter_Monitor_RegisterBlackListResultPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=129（ORIG 0x084d0de0）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+6。
 int Inter_Monitor_RegisterBlackListResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_Monitor_RegisterBlackListResultPktView* pPkt = reinterpret_cast<Inter_Monitor_RegisterBlackListResultPktView*>(data);
@@ -6587,6 +6649,7 @@ struct Inter_Monitor_DeleteBlackListResultPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=116（ORIG 0x084d1034）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+2。
 int Inter_Monitor_DeleteBlackListResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_Monitor_DeleteBlackListResultPktView* pPkt = reinterpret_cast<Inter_Monitor_DeleteBlackListResultPktView*>(data);
@@ -6649,6 +6712,7 @@ struct Inter_Monitor_RequestBlackListResultPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=142（ORIG 0x084d0ba6）：寄存器中转(N18a/N7)+混合残差；gap+2。
 int Inter_Monitor_RequestBlackListResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_Monitor_RequestBlackListResultPktView* pPkt = reinterpret_cast<Inter_Monitor_RequestBlackListResultPktView*>(data);
@@ -6738,37 +6802,38 @@ Inter_MonitorNoticeBlackList::~Inter_MonitorNoticeBlackList() {}
 #pragma pack(push, 1)
 // Inter_MonitorNoticeBlackListPktView —— Inter_MonitorNoticeBlackList::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+// [b28d-lane2] P235 双视角：id 数组与头字段同址重叠，合入一个完整类型的匿名 union
+//   （原两个独立视图经 reinterpret_cast 访问使 4.4 恒「base 先载」；union 完整类型成员
+//   直访问复现 ORIG 0x084d0b73 的「index 先载」序，探针 /tmp/l2probe/p11.cpp fa 实证）。
 struct Inter_MonitorNoticeBlackListPktView
 {
-    char m_pad0[0x12];  // +0x0..未消费
-    unsigned char m_12;             // +0x12
-};
-#pragma pack(pop)
-
-// Inter_MonitorNoticeBlackListIdView —— 同 dispatch_sig 的 id 数组区视图（ORIG 0x084d0b73
-//   `mov 0x3(%eax,%edx,4),%eax`：元素 k 在 +0x3+4k，源码写 m_ids[i+4] 保折叠寻址形）。
-#pragma pack(push, 1)
-struct Inter_MonitorNoticeBlackListIdView
-{
     char m_pad0[3];               // +0x0
-    unsigned int m_ids[260];      // +0x3（容量上界 len/4，越界声明仅表达线格式，不建模边界）
+    union
+    {
+        unsigned int m_ids[260];  // +0x3（ORIG `mov 0x3(%eax,%edx,4),%eax`；容量上界 len/4）
+        struct
+        {
+            char m_pad3[0xf];     // +0x3..+0x11
+            unsigned char m_12;   // +0x12 id 个数
+        } m_hdr;
+    };
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=NEAR ndiff=2（ORIG 0x084d0b3a）：块序重排(N104/P223)+槽序/帧差(N82/P212/P221)；gap0。
 int Inter_MonitorNoticeBlackList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
         return 0;
     // ORIG 0x084d0b5b：recv 在 state 检查后才物化 -0x10；count 每轮 cond 重读（movzbl 双扩展 + cmp/setg）
+    // [b28d-lane2] 实测三形：①两独立视图 cast=NEAR 2（装载序反）；②union 视图+char* recv=NEAR 2；
+    //   ③union 视图+类型化 recv=DIFF 3（装载序正但 `lea 0x4(%eax),%edx` vs ORIG `add $0x4,%edx`
+    //   + i 落 %eax vs %edx）。取②（残差最小）。add-vs-lea 与寄存器名属 P30/N4 结构性伪影。
     char* recv = data;
-    for (int i = 0; i < (int)(unsigned char)reinterpret_cast<Inter_MonitorNoticeBlackListPktView*>(recv)->m_12; ++i)
+    for (int i = 0; i < (int)(unsigned char)reinterpret_cast<Inter_MonitorNoticeBlackListPktView*>(recv)->m_hdr.m_12; ++i)
     {   // ORIG 0x084d0b73 mov 0x3(%eax,%edx,4),%eax：具名数组视图 [i+4] 保 add $4+disp3 折叠形
-        // ORIG 体首两装载 `mov -0xc(%ebp),%edx; mov -0x10(%ebp),%eax`（index 先载）；
-        // 4.4 恒 base 先载且具名 idx 破坏折叠（实测 +4 行），N76 类 blocked。
-        // b28 复测：`[4 + i]` 交换形实装序不变（NEAR 残 2 行=两槽读先后互换），
-        // 4.1 index-先/base-后为调度产物 ⇒ N18b/P75 封顶，勿再试。
         user->registerToBlackList(
-            reinterpret_cast<Inter_MonitorNoticeBlackListIdView*>(recv)->m_ids[i + 4]);
+            reinterpret_cast<Inter_MonitorNoticeBlackListPktView*>(recv)->m_ids[i + 4]);
     }
     return 0;
 }
@@ -6966,6 +7031,7 @@ struct Inter_ChangeLetterStatPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=76（ORIG 0x084d18ac）：寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_ChangeLetterStat::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ChangeLetterStatPktView* pPkt;
@@ -7040,6 +7106,7 @@ struct Inter_SaveClientHackLogPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=127（ORIG 0x084d1ab6）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+7。
 int Inter_SaveClientHackLog::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_SaveClientHackLogPktView* pPkt = reinterpret_cast<Inter_SaveClientHackLogPktView*>(data);
@@ -7107,6 +7174,7 @@ struct Inter_ReqChangeCharacNamePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=384（ORIG 0x084d1c8a）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+27。
 int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ReqChangeCharacNamePktView* pPkt = reinterpret_cast<Inter_ReqChangeCharacNamePktView*>(data);
@@ -7271,6 +7339,7 @@ struct Inter_ReqQueryCharacInfoPktView
 // 编译器结构，源码不可复现，语义等价。
 // [b28c-31] N78：ORIG 早退 `mov $0x0,%eax; jmp` 用 %eax 汇聚，4.4 用 %ebx
 // 汇聚 + 尾 `mov %ebx,%eax`（0x084d23xx 实证，P78 族）。
+// [b28d-lane2] verdict=DIFF ndiff=96（ORIG 0x084d22fc）：寄存器中转(N18a/N7)+混合残差；gap-2。
 int Inter_ReqQueryCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)                      // asm cmp $0x2; setle
@@ -7326,6 +7395,7 @@ struct Inter_ReportMannerlessPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=127（ORIG 0x084d24a2）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+8。
 int Inter_ReportMannerless::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ReportMannerlessPktView* pPkt = reinterpret_cast<Inter_ReportMannerlessPktView*>(data);
@@ -7587,6 +7657,7 @@ struct Inter_CallGuildInviteToInvitedPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=147（ORIG 0x084d2b96）：寄存器中转(N18a/N7)+混合残差；gap+1。
 int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -7708,6 +7779,7 @@ struct Inter_ReplyGuildInviteToCallerPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=127（ORIG 0x084d2f6e）：寄存器中转(N18a/N7)+混合残差；gap+1。
 int Inter_ReplyGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ReplyGuildInviteToCallerPktView* pPkt = reinterpret_cast<Inter_ReplyGuildInviteToCallerPktView*>(data);
@@ -7782,6 +7854,7 @@ struct Inter_LoadDeathTowerBestRecordRecWinView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=88（ORIG 0x084d316a）：槽序/帧差(N82/P212/P221)+混合残差；gap+18。
 int Inter_LoadDeathTowerBestRecord::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_LoadDeathTowerBestRecordPktView* pPkt = reinterpret_cast<Inter_LoadDeathTowerBestRecordPktView*>(data);
@@ -7838,6 +7911,7 @@ struct Inter_DeathTowerLoadTopRankerRecWinView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=86（ORIG 0x084d3364）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+8。
 int Inter_DeathTowerLoadTopRanker::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_DeathTowerLoadTopRankerPktView* pPkt = reinterpret_cast<Inter_DeathTowerLoadTopRankerPktView*>(data);
@@ -7874,6 +7948,7 @@ int Inter_DeathTowerLoadTopRanker::dispatch_sig(CUser* /*user*/, char* data, int
 Inter_MonitorDeathTowerRanking::~Inter_MonitorDeathTowerRanking() {}
 // ORIG 0x084d3290 T dispatch_sig —— 死亡之塔排行登记。
 // 报告 docs/class_func_reports/Inter_MonitorDeathTowerRanking/dispatch_sig.md 全文转写。
+// [b28d-lane2] verdict=DIFF ndiff=59（ORIG 0x084d3290）：槽序/帧差(N82/P212/P221)+混合残差；gap+12。
 int Inter_MonitorDeathTowerRanking::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     for (int i = 0; i < 5; ++i)
@@ -7924,6 +7999,7 @@ struct Inter_ReplyGuildSecedePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=132（ORIG 0x084c9768）：寄存器中转(N18a/N7)+混合残差；gap0。
 int Inter_ReplyGuildSecede::dispatch_sig(CUser* user, char* data, int len)
 {
     // ORIG 无 len 槽（Ghidra local_28 系 PG 内部视图误标）；pPkt 入口即物化 -0x24。
@@ -8127,6 +8203,7 @@ struct Inter_DBCheckDoubleGuildNamePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=11（ORIG 0x084d347e）：块序重排(N104/P223)+混合残差；gap0。
 int Inter_DBCheckDoubleGuildName::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)
@@ -8376,6 +8453,7 @@ struct Inter_SecurityCardActivatePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=70（ORIG 0x084d3d56）：寄存器中转(N18a/N7)+混合残差；gap-2。
 int Inter_SecurityCardActivate::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_SecurityCardActivatePktView* pPkt = reinterpret_cast<Inter_SecurityCardActivatePktView*>(data);
@@ -8500,6 +8578,7 @@ struct Inter_AutoPunishRuleBlackIPPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=128（ORIG 0x084d422a）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-15。
 int Inter_AutoPunishRuleBlackIP::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_AutoPunishRuleBlackIPPktView* pPkt = reinterpret_cast<Inter_AutoPunishRuleBlackIPPktView*>(data);
@@ -8584,6 +8663,7 @@ struct Inter_AutoPunishRuleHackTypeEntryWinView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=202（ORIG 0x084d4440）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+68。
 int Inter_AutoPunishRuleHackType::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_AutoPunishRuleHackTypePktView* pPkt = reinterpret_cast<Inter_AutoPunishRuleHackTypePktView*>(data);
@@ -8678,6 +8758,7 @@ struct Inter_ReplyJoinPowerPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=124（ORIG 0x084d47d4）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_ReplyJoinPower::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ReplyJoinPowerPktView* pPkt = reinterpret_cast<Inter_ReplyJoinPowerPktView*>(data);
@@ -8744,6 +8825,7 @@ struct Inter_SecedePowerPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=110（ORIG 0x084d49d6）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_SecedePower::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_SecedePowerPktView* pPkt = reinterpret_cast<Inter_SecedePowerPktView*>(data);
@@ -8944,6 +9026,7 @@ struct Inter_ChangeGuildNamePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=94（ORIG 0x084d5072）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-4。
 int Inter_ChangeGuildName::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ChangeGuildNamePktView* pPkt = reinterpret_cast<Inter_ChangeGuildNamePktView*>(data);
@@ -9146,6 +9229,7 @@ struct Inter_AuctionResultAskPricePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=106（ORIG 0x084d5740）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-4。
 int Inter_AuctionResultAskPrice::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AuctionResultAskPricePktView* pPkt = reinterpret_cast<Inter_AuctionResultAskPricePktView*>(data);
@@ -9255,6 +9339,7 @@ struct Inter_AuctionResultAskRegistedItemNumPktView
 
 // §6.2 巨件核销：P167 111/111 [0缺0多]；gap 24→24；残差归因 N82（4.4 槽复用全帧错位，
 // 详见 docs/asm_translation_patterns.md 负例表）。batch-20「Inter 巨兽」已核销，本次维持。
+// [b28d-lane2] verdict=DIFF ndiff=1035（ORIG 0x084d5930）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+21。
 int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AuctionResultAskRegistedItemNumPktView* pPkt = reinterpret_cast<Inter_AuctionResultAskRegistedItemNumPktView*>(data);
@@ -9638,6 +9723,7 @@ struct Inter_AuctionResultRegistPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=106（ORIG 0x084d6ad6）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-3。
 int Inter_AuctionResultRegist::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AuctionResultRegistPktView* pPkt = reinterpret_cast<Inter_AuctionResultRegistPktView*>(data);
@@ -9708,6 +9794,7 @@ struct Inter_AuctionResultBiddingPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=449（ORIG 0x084d6cda）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-26。
 int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int len)
 {
     Inter_AuctionResultBiddingPktView* pPkt = reinterpret_cast<Inter_AuctionResultBiddingPktView*>(data);
@@ -9905,6 +9992,7 @@ struct Inter_AuctionResultRegistCancelPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=95（ORIG 0x084d741c）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-2。
 int Inter_AuctionResultRegistCancel::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AuctionResultRegistCancelPktView* pPkt = reinterpret_cast<Inter_AuctionResultRegistCancelPktView*>(data);
@@ -9946,6 +10034,7 @@ int Inter_AuctionResultRegistCancel::dispatch_sig(CUser* user, char* data, int /
 Inter_AuctionResultItemList::~Inter_AuctionResultItemList() {}
 // ORIG 0x084d75bc T dispatch_sig —— 拍卖物品列表应答：GM 延迟追踪 + 0xbd 包转发余包。
 // 报告 docs/class_func_reports/Inter_AuctionResultItemList/dispatch_sig.md 全文转写。
+// [b28d-lane2] verdict=DIFF ndiff=69（ORIG 0x084d75bc）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_AuctionResultItemList::dispatch_sig(CUser* user, char* data, int len)
 {
     if (user == 0)                                   // asm cmpl $0x0,0xc(%ebp)
@@ -9984,6 +10073,7 @@ int Inter_AuctionResultItemList::dispatch_sig(CUser* user, char* data, int len)
 Inter_AuctionResultMyRegistedItems::~Inter_AuctionResultMyRegistedItems() {}
 // ORIG 0x084d7758 T dispatch_sig —— 我的登记物品列表应答：GM 追踪 + 0xbf 包转发余包。
 // 报告 docs/class_func_reports/Inter_AuctionResultMyRegistedItems/dispatch_sig.md 全文转写。
+// [b28d-lane2] verdict=DIFF ndiff=69（ORIG 0x084d7758）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_AuctionResultMyRegistedItems::dispatch_sig(CUser* user, char* data, int len)
 {
     if (user == 0)                                   // asm cmpl $0x0,0xc(%ebp)
@@ -10022,6 +10112,7 @@ int Inter_AuctionResultMyRegistedItems::dispatch_sig(CUser* user, char* data, in
 Inter_AuctionResultMyBidding::~Inter_AuctionResultMyBidding() {}
 // ORIG 0x084d78f4 T dispatch_sig —— 我的竞拍列表应答：GM 追踪 + 0xc0 包转发余包。
 // 报告 docs/class_func_reports/Inter_AuctionResultMyBidding/dispatch_sig.md 全文转写。
+// [b28d-lane2] verdict=DIFF ndiff=69（ORIG 0x084d78f4）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_AuctionResultMyBidding::dispatch_sig(CUser* user, char* data, int len)
 {
     if (user == 0)                                   // asm cmpl $0x0,0xc(%ebp)
@@ -10073,6 +10164,7 @@ int Inter_AuctionLogMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
 Inter_AuctionNotifyAuctionService::~Inter_AuctionNotifyAuctionService() {}
 // ORIG 0x084d7ac8 T dispatch_sig —— 拍卖服务开关：置 proxy 运行态并全员广播。
 // 报告 docs/class_func_reports/Inter_AuctionNotifyAuctionService/dispatch_sig.md 全文转写。
+// [b28d-lane2] verdict=DIFF ndiff=90（ORIG 0x084d7ac8）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-5。
 int Inter_AuctionNotifyAuctionService::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     SIG_AUCTION_NOTIFY_AUCTION_SERVICE* sig =
@@ -10154,6 +10246,7 @@ struct Inter_AuctionResultBuyItemApiecePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=130（ORIG 0x084d7c8e）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+1。
 int Inter_AuctionResultBuyItemApiece::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AuctionResultBuyItemApiecePktView* pPkt = reinterpret_cast<Inter_AuctionResultBuyItemApiecePktView*>(data);
@@ -10267,6 +10360,7 @@ struct Inter_PvPChannelInfoPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=132（ORIG 0x084d8096）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-6。
 int Inter_PvPChannelInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_PvPChannelInfoPktView* pPkt = reinterpret_cast<Inter_PvPChannelInfoPktView*>(data);
@@ -10398,6 +10492,7 @@ struct Inter_LoadBreakAwayPreventMessagePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=67（ORIG 0x084d92b4）：寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_LoadBreakAwayPreventMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user == 0)
@@ -10451,6 +10546,7 @@ struct Inter_LoadDimensionInoutPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=133（ORIG 0x084d83d2）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+24。
 int Inter_LoadDimensionInout::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_LoadDimensionInoutPktView* pPkt = reinterpret_cast<Inter_LoadDimensionInoutPktView*>(data);
@@ -10536,6 +10632,7 @@ struct Inter_BlackIPMonitorRecWinView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=100（ORIG 0x084d8650）：槽序/帧差(N82/P212/P221)+混合残差；gap+22。
 int Inter_BlackIPMonitor::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_BlackIPMonitorPktView* pPkt = reinterpret_cast<Inter_BlackIPMonitorPktView*>(data);
@@ -10601,6 +10698,7 @@ struct Inter_BlackIPMonitorDeleteIPRecWinView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=84（ORIG 0x084d87e8）：混合残差；gap+18。
 int Inter_BlackIPMonitorDeleteIP::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_BlackIPMonitorDeleteIPPktView* pPkt = reinterpret_cast<Inter_BlackIPMonitorDeleteIPPktView*>(data);
@@ -10653,6 +10751,7 @@ struct Inter_UpdateOneDayLethePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=289（ORIG 0x084d894c）：寄存器中转(N18a/N7)+混合残差；gap-5。
 int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_UpdateOneDayLethePktView* pPkt = reinterpret_cast<Inter_UpdateOneDayLethePktView*>(data);
@@ -10847,6 +10946,7 @@ struct Inter_ResposncePCRoomPlyerListEntryWinView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=270（ORIG 0x084d9cbe）：寄存器中转(N18a/N7)+混合残差；gap+47。
 int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ResposncePCRoomPlyerListPktView* pPkt = reinterpret_cast<Inter_ResposncePCRoomPlyerListPktView*>(data);
@@ -11017,6 +11117,7 @@ struct Inter_NoticePowerWarRankPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=38（ORIG 0x084d4f46）：混合残差；gap+5。
 int Inter_NoticePowerWarRank::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_NoticePowerWarRankPktView* pPkt = reinterpret_cast<Inter_NoticePowerWarRankPktView*>(data);
@@ -11088,6 +11189,7 @@ struct Inter_UpdateServerMessagePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=160（ORIG 0x084da3e6）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+4。
 int Inter_UpdateServerMessage::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_UpdateServerMessagePktView* pPkt = reinterpret_cast<Inter_UpdateServerMessagePktView*>(data);
@@ -11179,6 +11281,7 @@ struct Inter_NoticeServerMessageInfoPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=156（ORIG 0x084da726）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+3。
 int Inter_NoticeServerMessageInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_NoticeServerMessageInfoPktView* pPkt = reinterpret_cast<Inter_NoticeServerMessageInfoPktView*>(data);
@@ -11242,6 +11345,7 @@ struct Inter_NoticeGuildMemoPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=32（ORIG 0x084dad96）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap0。
 int Inter_NoticeGuildMemo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_NoticeGuildMemoPktView* pPkt = reinterpret_cast<Inter_NoticeGuildMemoPktView*>(data);
@@ -11284,6 +11388,7 @@ struct Inter_PowerWarProcessInfoPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=NEAR ndiff=1（ORIG 0x084daf30）：寄存器中转(N18a/N7)；gap0。
 int Inter_PowerWarProcessInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_PowerWarProcessInfoPktView* pPkt = reinterpret_cast<Inter_PowerWarProcessInfoPktView*>(data);
@@ -11510,6 +11615,7 @@ struct Inter_MonitorPunishUserReqPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=81（ORIG 0x084db294）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+7。
 int Inter_MonitorPunishUserReq::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_MonitorPunishUserReqPktView* pPkt = reinterpret_cast<Inter_MonitorPunishUserReqPktView*>(data);
@@ -11580,6 +11686,7 @@ struct Inter_PcroomResponsePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=241（ORIG 0x084db452）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+7。
 int Inter_PcroomResponse::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_PcroomResponsePktView* pPkt = reinterpret_cast<Inter_PcroomResponsePktView*>(data);
@@ -11676,6 +11783,7 @@ struct Inter_ItemLimitEdition_Sell_StartPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=179（ORIG 0x084db878）：槽序/帧差(N82/P212/P221)+混合残差；gap+4。
 int Inter_ItemLimitEdition_Sell_Start::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_ItemLimitEdition_Sell_StartPktView* pPkt = reinterpret_cast<Inter_ItemLimitEdition_Sell_StartPktView*>(data);
@@ -11753,6 +11861,7 @@ struct Inter_ItemLimitEdition_Sell_EndPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=90（ORIG 0x084dbbb2）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-5。
 int Inter_ItemLimitEdition_Sell_End::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_ItemLimitEdition_Sell_EndPktView* pPkt = reinterpret_cast<Inter_ItemLimitEdition_Sell_EndPktView*>(data);
@@ -11796,6 +11905,7 @@ struct Inter_ItemLimitEdition_UpdatePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=130（ORIG 0x084dbd16）：槽序/帧差(N82/P212/P221)+混合残差；gap-6。
 int Inter_ItemLimitEdition_Update::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_ItemLimitEdition_UpdatePktView* pPkt = reinterpret_cast<Inter_ItemLimitEdition_UpdatePktView*>(data);
@@ -11862,6 +11972,7 @@ struct Inter_ItemLimitEdition_ReplyPktView
 
 // §6.2 巨件核销：P167 106/106 [0缺0多]；gap -39→-39；残差归因 N82（4.4 槽复用全帧错位，
 // 详见 docs/asm_translation_patterns.md 负例表）。batch-20「Inter 巨兽」已核销，本次维持。
+// [b28d-lane2] verdict=DIFF ndiff=716（ORIG 0x084dbef0）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-41。
 int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ItemLimitEdition_ReplyPktView* pPkt = reinterpret_cast<Inter_ItemLimitEdition_ReplyPktView*>(data);
@@ -12059,6 +12170,7 @@ struct Inter_FindFactoryHubPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=78（ORIG 0x084dc97a）：槽序/帧差(N82/P212/P221)+混合残差；gap-2。
 int Inter_FindFactoryHub::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_FindFactoryHubPktView* pPkt = reinterpret_cast<Inter_FindFactoryHubPktView*>(data);
@@ -12114,6 +12226,7 @@ struct Inter_SetIPCountPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=68（ORIG 0x084dcb18）：寄存器中转(N18a/N7)+混合残差；gap-2。
 int Inter_SetIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_SetIPCountPktView* pPkt = reinterpret_cast<Inter_SetIPCountPktView*>(data);
@@ -12146,6 +12259,7 @@ struct Inter_SetFullIPCountPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=71（ORIG 0x084dcbea）：寄存器中转(N18a/N7)+混合残差；gap-2。
 int Inter_SetFullIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_SetFullIPCountPktView* pPkt = reinterpret_cast<Inter_SetFullIPCountPktView*>(data);
@@ -12189,6 +12303,7 @@ struct Inter_ApplyTempPowerSidePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=131（ORIG 0x084dccde）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-3。
 int Inter_ApplyTempPowerSide::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ApplyTempPowerSidePktView* pPkt = reinterpret_cast<Inter_ApplyTempPowerSidePktView*>(data);
@@ -12252,6 +12367,7 @@ struct Inter_LoadPowerWarInfoPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=41（ORIG 0x084dcf4a）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap0。
 int Inter_LoadPowerWarInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_LoadPowerWarInfoPktView* pPkt = reinterpret_cast<Inter_LoadPowerWarInfoPktView*>(data);
@@ -12286,6 +12402,7 @@ struct Inter_SetFactoryHubUserPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=57（ORIG 0x084dcfec）：槽序/帧差(N82/P212/P221)+混合残差；gap-3。
 int Inter_SetFactoryHubUser::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_SetFactoryHubUserPktView* pPkt = reinterpret_cast<Inter_SetFactoryHubUserPktView*>(data);
@@ -12351,6 +12468,7 @@ struct Inter_Set_CleanPad_PointPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=52（ORIG 0x084dd12e）：寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_Set_CleanPad_Point::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_Set_CleanPad_PointPktView* pPkt = reinterpret_cast<Inter_Set_CleanPad_PointPktView*>(data);
@@ -12381,6 +12499,7 @@ struct Inter_LoadNoCacheDataPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=33（ORIG 0x084dd1ee）：寄存器中转(N18a/N7)+混合残差；gap-2。
 int Inter_LoadNoCacheData::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     // [b26N7] 尾部虚调用 callee 寄存器 ORIG vfn→%ecx vs 4.4 恒 %eax（N7 探针
@@ -12454,6 +12573,7 @@ struct Inter_GuildCargoPktView
 // 不适用非 scaled 形）；②循环体首值装载序 `mov -0xc,%eax; mov -0x14,%edx` 跨版本
 // 对调（N82附）。blob 起点偏移已按 ORIG 0x084dd405 `add $0x10 → add base → add $0x2`
 // 修正为 payload+0x02（真语义 bug 修复，原 +0x00 少 2 字节）。
+// [b28d-lane2] verdict=DIFF ndiff=62（ORIG 0x084dd26c）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+1。
 int Inter_GuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_GuildCargoPktView* pPkt = reinterpret_cast<Inter_GuildCargoPktView*>(data);
@@ -12532,6 +12652,7 @@ struct Inter_NoticeGuildCargoPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=115（ORIG 0x084dd4b2）：寄存器中转(N18a/N7)+混合残差；gap+5。
 int Inter_NoticeGuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_NoticeGuildCargoPktView* pPkt = reinterpret_cast<Inter_NoticeGuildCargoPktView*>(data);
@@ -12582,6 +12703,7 @@ struct Inter_GuildCargoHistoryPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=100（ORIG 0x084dd69e）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_GuildCargoHistory::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_GuildCargoHistoryPktView* pPkt = reinterpret_cast<Inter_GuildCargoHistoryPktView*>(data);
@@ -12666,6 +12788,7 @@ struct Inter_GuildCargoCheckPushItemPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=404（ORIG 0x084dd856）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-13。
 int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_GuildCargoCheckPushItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoCheckPushItemPktView*>(data);
@@ -12824,6 +12947,7 @@ struct Inter_GuildCargoPushItemPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=291（ORIG 0x084ddea2）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+6。
 int Inter_GuildCargoPushItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_GuildCargoPushItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPushItemPktView*>(data);
@@ -12932,6 +13056,7 @@ struct Inter_GuildCargoPopItemPktView
 
 // §6.2 巨件核销：P167 42/42 [0缺0多]；gap -7→-7；残差归因 N82（4.4 槽复用全帧错位，
 // 详见 docs/asm_translation_patterns.md 负例表）。
+// [b28d-lane2] verdict=DIFF ndiff=544（ORIG 0x084de330）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-7。
 int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
 Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemPktView*>(data);
@@ -13143,6 +13268,7 @@ struct Inter_GuildCargoUpgradePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=31（ORIG 0x084ded42）：槽序/帧差(N82/P212/P221)+混合残差；gap0。
 int Inter_GuildCargoUpgrade::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_GuildCargoUpgradePktView* pPkt = reinterpret_cast<Inter_GuildCargoUpgradePktView*>(data);
@@ -13187,6 +13313,7 @@ struct Inter_GuildBoardDataPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=263（ORIG 0x084dee6a）：槽序/帧差(N82/P212/P221)+混合残差；gap+19。
 int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_GuildBoardDataPktView* pPkt = reinterpret_cast<Inter_GuildBoardDataPktView*>(data);
@@ -13341,6 +13468,7 @@ struct Inter_VillageAttackedStartPktView
 #pragma pack(pop)
 
 // [b28c-32] verdict=NEAR：N7 虚调用 callee 寄存器 %edx(ORIG)↔%eax(4.4) 互换（137=137）。
+// [b28d-lane2] verdict=AE ndiff=0（ORIG 0x084df47a）：混合残差；gap0。
 int Inter_VillageAttackedStart::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
@@ -13354,11 +13482,11 @@ int Inter_VillageAttackedStart::dispatch_sig(CUser* /*user*/, char* data, int /*
     {
         G_CDataManager()->m_serverParameter.setDungeonOpen(0x2aff, false);
         G_GameWorld()->send_all_dungeon_inout_message(0x2aff, false);
-        // ORIG 0x084df4f?：具名 trace 占深槽 -0x2c，else 临时链式占 -0x1c（技巧3）。
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x4b9a, 0);
-        trace("ULTIMATE_LOG : VILLAGE ATTACKTED START!! ULTIMATE DUNGEON CLOSE!!");
+        // [b28d-lane2] P221：ORIG 0x084df548 trace 占 -0x2c、else 支 -0x1c、packet -0x38
+        // （深→浅）。具名 cMyTrace 使 4.4 槽向翻转（trace -0x38/packet -0x28）；
+        // 改全表达式临时链复现 ORIG 槽序。
+        cMyTrace(__PRETTY_FUNCTION__, 0x4b9a, 0)(
+            "ULTIMATE_LOG : VILLAGE ATTACKTED START!! ULTIMATE DUNGEON CLOSE!!");
     }
     else
     {
@@ -13398,6 +13526,7 @@ struct Inter_VillageAttackedEndPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=267（ORIG 0x084df6a4）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+9。
 int Inter_VillageAttackedEnd::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_VillageAttackedEndPktView* pPkt = reinterpret_cast<Inter_VillageAttackedEndPktView*>(data);
@@ -13645,6 +13774,7 @@ struct Inter_VillageAttackedRewardPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=283（ORIG 0x084dfea6）：槽序/帧差(N82/P212/P221)+混合残差；gap-20。
 int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_VillageAttackedRewardPktView* pPkt = reinterpret_cast<Inter_VillageAttackedRewardPktView*>(data);
@@ -13769,6 +13899,7 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
 Inter_VillageAttackedRewardServer::~Inter_VillageAttackedRewardServer() {}
 // ORIG 0x084e05c2 T dispatch_sig —— 村庄攻击奖励结束：组 0x1ec 包全网广播、清理复仇副本与角色状态。
 // 报告 docs/class_func_reports/Inter_VillageAttackedRewardServer/dispatch_sig.md 全文转写。
+// [b28d-lane2] verdict=DIFF ndiff=119（ORIG 0x084e05c2）：槽序/帧差(N82/P212/P221)+混合残差；gap+7。
 int Inter_VillageAttackedRewardServer::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
@@ -13924,6 +14055,7 @@ struct Inter_SetARSInfoEntryWinView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=259（ORIG 0x084e09ce）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+98。
 int Inter_SetARSInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_SetARSInfoPktView* pPkt = reinterpret_cast<Inter_SetARSInfoPktView*>(data);
@@ -14004,6 +14136,7 @@ struct Inter_OnTimeEventRewardStartPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=107（ORIG 0x084e0dc6）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+1。
 int Inter_OnTimeEventRewardStart::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_OnTimeEventRewardStartPktView* pPkt = reinterpret_cast<Inter_OnTimeEventRewardStartPktView*>(data);
@@ -14048,6 +14181,7 @@ int Inter_OnTimeEventRewardStart::dispatch_sig(CUser* /*user*/, char* data, int 
 Inter_OnTimeEventRewardEnd::~Inter_OnTimeEventRewardEnd() {}
 // ORIG 0x084e1062 T dispatch_sig —— 准时事件奖励结束：置奖励态并全员广播结束包。
 // 报告 docs/class_func_reports/Inter_OnTimeEventRewardEnd/dispatch_sig.md 全文转写。
+// [b28d-lane2] verdict=DIFF ndiff=96（ORIG 0x084e1062）：寄存器中转(N18a/N7)+混合残差；gap+1。
 int Inter_OnTimeEventRewardEnd::dispatch_sig(CUser* /*user*/, char* /*data*/, int /*len*/)
 {
     cMyTrace trace(
@@ -14107,6 +14241,7 @@ struct Inter_PvPBuddyConnListPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=45（ORIG 0x084e16fe）：寄存器中转(N18a/N7)+混合残差；gap+1。
 int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     // [b28c-30] N22 封顶：ORIG 0x084e1709 `cmp %eax,%ebx`（ebx = 局部字段值）vs
@@ -14150,6 +14285,7 @@ struct Inter_ReqAddPvPBuddyPktView
 #pragma pack(pop)
 
 // [b28 判词 N22] 唯一残差 `cmp %eax,%ebx`↔`cmp %ebx,%eax`（dst 方向），负例在册。
+// [b28d-lane2] verdict=NEAR ndiff=1（ORIG 0x084e1832）：寄存器中转(N18a/N7)；gap0。
 int Inter_ReqAddPvPBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     // ORIG +0x10：包基址槽在首条 call 之前即物化（-0x10）。
@@ -14193,6 +14329,7 @@ struct Inter_AddPvPBuddyResultPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=130（ORIG 0x084e1978）：寄存器中转(N18a/N7)+混合残差；gap0。
 int Inter_AddPvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AddPvPBuddyResultPktView* pPkt = reinterpret_cast<Inter_AddPvPBuddyResultPktView*>(data);
@@ -14374,6 +14511,7 @@ struct Inter_Antibot_SendBufferClientPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=214（ORIG 0x084e43bc）：槽序/帧差(N82/P212/P221)+混合残差；gap-12。
 int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_Antibot_SendBufferClientPktView* pPkt = reinterpret_cast<Inter_Antibot_SendBufferClientPktView*>(data);
@@ -14484,6 +14622,7 @@ struct Inter_Antibot_PunishClientPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=85（ORIG 0x084e4774）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+9。
 int Inter_Antibot_PunishClient::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_Antibot_PunishClientPktView* pPkt = reinterpret_cast<Inter_Antibot_PunishClientPktView*>(data);
@@ -14531,6 +14670,7 @@ struct Inter_Antibot_ProcessProtectMsgPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=152（ORIG 0x084e48c2）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+4。
 int Inter_Antibot_ProcessProtectMsg::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_Antibot_ProcessProtectMsgPktView* pPkt = reinterpret_cast<Inter_Antibot_ProcessProtectMsgPktView*>(data);
@@ -14657,6 +14797,7 @@ struct Inter_LoadCharacLinkBonusPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=299（ORIG 0x084e1f02）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+3。
 int Inter_LoadCharacLinkBonus::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_LoadCharacLinkBonusPktView* pPkt = reinterpret_cast<Inter_LoadCharacLinkBonusPktView*>(data);
@@ -14797,6 +14938,7 @@ struct Inter_LoadAccountCargoPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=61（ORIG 0x084e24ec）：寄存器中转(N18a/N7)+混合残差；gap+3。
 int Inter_LoadAccountCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_LoadAccountCargoPktView* pPkt = reinterpret_cast<Inter_LoadAccountCargoPktView*>(data);
@@ -14861,6 +15003,7 @@ struct Inter_MultiMailBoxReqSendPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=138（ORIG 0x084e27b8）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_MultiMailBoxReqSend::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MultiMailBoxReqSendPktView* pPkt = reinterpret_cast<Inter_MultiMailBoxReqSendPktView*>(data);
@@ -14933,6 +15076,7 @@ struct Inter_ReqQueryCharacInfoMailboxPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=107（ORIG 0x084e2a06）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-3。
 int Inter_ReqQueryCharacInfoMailbox::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ReqQueryCharacInfoMailboxPktView* pPkt = reinterpret_cast<Inter_ReqQueryCharacInfoMailboxPktView*>(data);
@@ -14977,6 +15121,7 @@ struct Inter_ReqGameServerInfoPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=133（ORIG 0x084e2b94）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+6。
 int Inter_ReqGameServerInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_ReqGameServerInfoPktView* pPkt = reinterpret_cast<Inter_ReqGameServerInfoPktView*>(data);
@@ -15053,6 +15198,7 @@ struct Inter_MonitorRegistGameServerAckPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=65（ORIG 0x084e2dee）：槽序/帧差(N82/P212/P221)+混合残差；gap+5。
 int Inter_MonitorRegistGameServerAck::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_MonitorRegistGameServerAckPktView* pPkt = reinterpret_cast<Inter_MonitorRegistGameServerAckPktView*>(data);
@@ -15122,6 +15268,7 @@ struct Inter_GuildExpBookDeletePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=99（ORIG 0x084e2f1e）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-7。
 int Inter_GuildExpBookDelete::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_GuildExpBookDeletePktView* pPkt = reinterpret_cast<Inter_GuildExpBookDeletePktView*>(data);
@@ -15240,6 +15387,7 @@ struct Inter_SendPeriodicMessagePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=12（ORIG 0x084e3232）：块序重排(N104/P223)+寄存器中转(N18a/N7)+混合残差；gap0。
 int Inter_SendPeriodicMessage::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     // ORIG 0x084e3232：recv 槽 -0xc 处处 reload（(unsigned long) 往返破 4.4 SSA 传播，技巧26）；
@@ -15490,6 +15638,7 @@ struct Inter_RequestJoinGuildPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=110（ORIG 0x084e3924）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-2。
 int Inter_RequestJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_RequestJoinGuildPktView* pPkt = reinterpret_cast<Inter_RequestJoinGuildPktView*>(data);
@@ -15596,6 +15745,7 @@ struct Inter_ApproveJoinGuildPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=82（ORIG 0x084e3f0e）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_ApproveJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ApproveJoinGuildPktView* pPkt = reinterpret_cast<Inter_ApproveJoinGuildPktView*>(data);
@@ -15647,6 +15797,7 @@ struct Inter_GuildJoinListEntryWinView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=196（ORIG 0x084e3c60）：槽序/帧差(N82/P212/P221)+混合残差；gap+54。
 int Inter_GuildJoinList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)
@@ -15746,6 +15897,7 @@ struct Inter_AchieveGuildAttendancePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=NEAR ndiff=1（ORIG 0x084e41e4）：寄存器中转(N18a/N7)；gap0。
 int Inter_AchieveGuildAttendance::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AchieveGuildAttendancePktView* pPkt = reinterpret_cast<Inter_AchieveGuildAttendancePktView*>(data);
@@ -15780,6 +15932,7 @@ struct Inter_UpdatePurchaseCashItemBonusPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=26（ORIG 0x084e42e0）：寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_UpdatePurchaseCashItemBonus::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     // ORIG 0x084e42e0：state 检查 setle 布尔物化（技巧22 al）；pPkt 检查后才落槽 -0xc；
@@ -15845,6 +15998,7 @@ struct Inter_PunishCancelPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=AE ndiff=0（ORIG 0x084e4b02）：混合残差；gap0。
 int Inter_PunishCancel::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_PunishCancelPktView* pPkt = reinterpret_cast<Inter_PunishCancelPktView*>(data);
@@ -15909,6 +16063,7 @@ struct Inter_BroadcastMsgPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=71（ORIG 0x084e4c2a）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+1。
 int Inter_BroadcastMsg::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_BroadcastMsgPktView* pPkt = reinterpret_cast<Inter_BroadcastMsgPktView*>(data);
@@ -16104,6 +16259,7 @@ struct Inter_MonitorNoticeGuildChatMsgHyperLinkPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=146（ORIG 0x084e503c）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+2。
 int Inter_MonitorNoticeGuildChatMsgHyperLink::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_MonitorNoticeGuildChatMsgHyperLinkPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildChatMsgHyperLinkPktView*>(data);
@@ -16248,6 +16404,7 @@ struct Inter_MonitorNoticeOtherChannelChatHyperLinkPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=423（ORIG 0x084e5528）：槽序/帧差(N82/P212/P221)+混合残差；gap+20。
 int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
     CUser* user, char* data, int /*len*/)
 {
@@ -16368,6 +16525,7 @@ struct Inter_Monitor_MegaphoneMsgHyperLinkPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=84（ORIG 0x084e5c26）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_Monitor_MegaphoneMsgHyperLinkPktView* pPkt = reinterpret_cast<Inter_Monitor_MegaphoneMsgHyperLinkPktView*>(data);
@@ -16530,6 +16688,7 @@ struct Inter_SelectCharacMidPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=54（ORIG 0x084e6170）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_SelectCharacMid::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_SelectCharacMidPktView* pPkt = reinterpret_cast<Inter_SelectCharacMidPktView*>(data);
@@ -16572,6 +16731,7 @@ struct Inter_NpcLimitBuyItemInfoAllPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=135（ORIG 0x084e6258）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+5。
 int Inter_NpcLimitBuyItemInfoAll::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_NpcLimitBuyItemInfoAllPktView* pPkt = reinterpret_cast<Inter_NpcLimitBuyItemInfoAllPktView*>(data);
@@ -16646,6 +16806,7 @@ struct Inter_NpcLimitBuyItemInfoRenewPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=127（ORIG 0x084e6e82）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-7。
 int Inter_NpcLimitBuyItemInfoRenew::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_NpcLimitBuyItemInfoRenewPktView* pPkt = reinterpret_cast<Inter_NpcLimitBuyItemInfoRenewPktView*>(data);
@@ -16811,6 +16972,7 @@ struct Inter_OwnerisVIPMsgWinView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=136（ORIG 0x084e7c90）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_OwnerisVIP::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_OwnerisVIPPktView* pPkt = reinterpret_cast<Inter_OwnerisVIPPktView*>(data);
@@ -16869,12 +17031,15 @@ int Inter_OwnerisVIP::dispatch_sig(CUser* user, char* data, int /*len*/)
 }
 
 Inter_LoadPuUserCheck::~Inter_LoadPuUserCheck() {}
+// [b28d-lane2] verdict=IDENTICAL ndiff=0（ORIG 0x084e7fe2）：混合残差；gap0。
 int Inter_LoadPuUserCheck::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     char* packet = data;
-    // ORIG 0x084e7ff1 单步 `movzbl (%eax),%edx`；4.4 装载目标恒 %eax 中转（N18a 镜像），register 变体反产 push ebx，blocked。
-    // [b28c-30] N18a 封顶（同上，字节装载目标寄存器跨版本固定）。
-    user->m_field796d8 = *packet;
+    // [b28d-lane2] 源侧 uchar 读旋钮（探针 /tmp/l2probe/p9.cpp v3/v4/v5 实证）：
+    // ORIG 0x084e7ff1 单步 `movzbl (%eax),%edx` 只在「源表达式为 unsigned char 左值」
+    // 时复现；`*packet`（char 源）4.4 恒产两段 `movzbl (%eax),%eax; mov %eax,%edx`。
+    // 字段仍为 uchar（CUser.h 冻结），零 ABI/布局影响。
+    user->m_field796d8 = *reinterpret_cast<unsigned char*>(packet);
     return 0;
 }
 
@@ -16927,6 +17092,7 @@ struct Inter_CollectItemsRewardPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=150（ORIG 0x084e71ee）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+2。
 int Inter_CollectItemsReward::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_CollectItemsRewardPktView* pPkt = reinterpret_cast<Inter_CollectItemsRewardPktView*>(data);
@@ -17038,6 +17204,7 @@ struct Inter_CollectItemsRewardBroadcastPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=79（ORIG 0x084e7598）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
 int Inter_CollectItemsRewardBroadcast::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_CollectItemsRewardBroadcastPktView* pPkt = reinterpret_cast<Inter_CollectItemsRewardBroadcastPktView*>(data);
@@ -17085,6 +17252,7 @@ struct Inter_RequestCharacSkillInfoPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=94（ORIG 0x084e7884）：槽序/帧差(N82/P212/P221)+混合残差；gap+10。
 int Inter_RequestCharacSkillInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_RequestCharacSkillInfoPktView* pPkt = reinterpret_cast<Inter_RequestCharacSkillInfoPktView*>(data);
@@ -17344,6 +17512,7 @@ struct Inter_CheckAddFriendPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=40（ORIG 0x084e8a42）：槽序/帧差(N82/P212/P221)+混合残差；gap+3。
 int Inter_CheckAddFriend::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_CheckAddFriendPktView* pPkt = reinterpret_cast<Inter_CheckAddFriendPktView*>(data);
@@ -17401,6 +17570,7 @@ struct Inter_LoadCerashopAddRestrictTypePktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=43（ORIG 0x080e2104）：槽序/帧差(N82/P212/P221)+混合残差；gap0。
 int Inter_LoadCerashopAddRestrictType::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_LoadCerashopAddRestrictTypePktView* pPkt = reinterpret_cast<Inter_LoadCerashopAddRestrictTypePktView*>(data);
@@ -17453,6 +17623,7 @@ struct Inter_LoadEventLevelupSupportPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=167（ORIG 0x084e8ce4）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-7。
 int Inter_LoadEventLevelupSupport::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_LoadEventLevelupSupportPktView* pPkt = reinterpret_cast<Inter_LoadEventLevelupSupportPktView*>(data);
@@ -17576,6 +17747,7 @@ void Inter_NpcLimitBuyItemInfo::reset() throw()
 // 报告 docs/class_func_reports/Inter_NpcLimitBuyItemInfo/checkError.md：
 // 用户/状态/角色号校验→find_item→GetNeedMaterial 填 m_needItem→
 // GetInvenData(this+0x5a)→add_info/计数比较，返回错误码。
+// [b28d-lane2] verdict=DIFF ndiff=96（ORIG 0x084e6acc）：寄存器中转(N18a/N7)+混合残差；gap-4。
 int Inter_NpcLimitBuyItemInfo::checkError(CUser* user, LimitNpcBuyItemInfo* info)
 {
     if (user == 0)
@@ -17647,6 +17819,7 @@ struct Inter_NpcLimitBuyItemInfoPktView
 };
 #pragma pack(pop)
 
+// [b28d-lane2] verdict=DIFF ndiff=302（ORIG 0x084e65a2）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-9。
 int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_NpcLimitBuyItemInfoPktView* pPkt = reinterpret_cast<Inter_NpcLimitBuyItemInfoPktView*>(data);

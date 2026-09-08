@@ -106,9 +106,9 @@ public:
 private:
     // ORIG 布局：基类 charac_expand::CData(0x08) 之后，_reset 覆盖 +0x08..+0x28，
     // sizeof(this)==0x2c。语义标注 [推断]（Inc*/Get* 反汇编实证，其余字段名仅占位）。
-    int m_point;             // +0x08（IncPoint 写入）
+    unsigned int m_point;    // +0x08（IncPoint 写入；b28d-lane6：unsigned 复现 ORIG add 段 P211）
     int m_weeklyEnterCount;  // +0x0c（GetWeeklyEnterCount / IncEnterCount ++）
-    int m_useGold;           // +0x10（IncUseGold 写入）
+    unsigned int m_useGold;  // +0x10（IncUseGold 写入；b28d-lane6：同 P211）
     int m_field14;           // +0x14 [推断]
     int m_enterCount;        // +0x18（GetEnterCount / IncEnterCount ++）
     int m_field1c;           // +0x1c [推断]

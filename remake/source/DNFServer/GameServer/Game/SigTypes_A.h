@@ -443,9 +443,9 @@ struct SIG_BLOOD_DUNGEON
     // ORIG 0x832a330 _saveData / 0x832a4c6 loadData 字节映射实证；
     // 字段语义 [推断]（与 CCharacBloodDungeon 内存镜像对应，见 W9_EventSmall.h）。
     int m_characNo;            // +0x00
-    int m_point;               // +0x04
+    unsigned int m_point;      // +0x04（b28d-lane6：与 CCharacBloodDungeon 同型化）
     int m_weeklyEnterCount;    // +0x08
-    int m_useGold;             // +0x0c
+    unsigned int m_useGold;    // +0x0c（b28d-lane6：同 P211）
     int m_dailyInitTime;       // +0x10（getDailyInitializeTime(6,0,0)）
     int m_field14;             // +0x14 [推断]
     int m_enterCount;          // +0x18
