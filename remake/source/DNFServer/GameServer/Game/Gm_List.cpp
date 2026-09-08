@@ -1,4 +1,8 @@
 // df_game_r：Gm_List 独立编译单元。
+// ---- b28d-61 判词汇总（本 TU 2 件非 identical，全 N 封顶）----
+// SendGMList_To_UpperServer 0x08299d54（P167 MISSING+EXTRA：Packet_Sync_GM_List
+//   构造/发送块差异，N80 变参求值序）、LoadGmListFromDb 0x08299a10
+//   （P167 CLEAR 38/38；N78/N89 迭代器+局部初始化 lowering）。
 // ORIG SendGMList_To_UpperServer @0x8299d54：
 //   serverGroup 0=监视服务器、1=公会服务器；每 20 个 GM 一包（Packet_Sync_GM_List，
 //   header 0x1f4d/0x70），m_pageNo 递增；末批不足 20 也发送。
@@ -116,7 +120,11 @@ void Gm_List::LoadGmListFromDb()
 {
     bool ok = false;
     m_db->set_query("seLect m_id, level from gm_manifest");
-    if (!m_db->exec(true))
+    // b28d-61 [P198① 预清必写两句式，ORIG 0x08299axx `call exec; mov %al,-0x11;
+    // movzbl -0x11,%eax; xor $1`]：旧单句 `if (!m_db->exec(true))` 直用返回值，
+    // 缺槽回读两段。
+    ok = m_db->exec(true);
+    if (!ok)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x15d4, 9, true, true);
         trace("Failed to get GM list from DB.");

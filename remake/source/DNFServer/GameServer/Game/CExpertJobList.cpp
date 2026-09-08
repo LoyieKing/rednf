@@ -1,5 +1,14 @@
 // ============================================================================
 // df_game_r 还原 —— CExpertJobList（专家职业脚本列表，G5 批次）。
+// ---- b28d-61 判词汇总（本 TU 6 件非 identical）----
+// 已修 AE：get（P222 正向 if 翻块序）、STExpertJobScript::Clear（ORIG 0x0896dfec
+//   调用序重排：0x248 在 0x230 前、0x18/0x30 等落标量清零之后，120/120 对齐）。
+// N 封顶（P167 缺口=STL 迭代器/字符串符号，N89）：
+//   destroy 0x0822b5f2（MISSING Rb_tree_iterator 符号）、
+//   get_disjoint_additional_items 0x085d3cxx（MISSING Rb_tree_iterator）、
+//   init 0x0822b3xx（MISSING iterator C1Ev+EXTRA）、
+//   ImportExpertJobEtcScript 0x0897xxxx（MISSING string C1/D1）、
+//   ImportExpertJobScript 0x089xxxxx（MISSING make_pair+EXTRA 24，N89 大函数）。
 // 语义依据 docs/class_func_reports/CExpertJobList/{init,destroy}.md 反汇编。
 // init（0x896d8ec）：遍历 g_expertJobScriptFileList，逐条 new STExpertJobScript
 //   + ImportExpertJobScript，成功则 FindIndexByFullScan 取 job key 插入 m_jobMap；
@@ -71,8 +80,28 @@ STExpertJobScript::STExpertJobScript()
 // ============================================================================
 void STExpertJobScript::Clear()
 {
+    // b28d-61 [按 ORIG 0x0896dfec 调用序重排，120/120 逐条对齐]：
+    // ORIG 顺序非声明序（0x248 在 0x230 前、0x18/0x30 等在标量清零之后）。
     m_expVec.clear();
     m_growSkillVec.clear();
+    m_disjointResultMap.clear();     // 0x1bc
+    m_baseConst = 0;                 // 0x1d4
+    m_additionalConst = 0;           // 0x1d8
+    m_clearQuests.clear();           // 0x1dc
+    m_giveupCost.clear();            // 0x1e8
+    m_compoundRateVec.clear();       // 0x1f4
+    m_recipeInfoMap.clear();         // 0x200
+    m_recipeIndexMap.clear();        // 0x218
+    m_recipeItemMap.clear();         // 0x248
+    m_recipeLevelMap.clear();        // 0x230
+    m_enduranceRepairCost.clear();   // 0x260
+    m_enduranceReduce1 = 0;          // 0x26c
+    m_enduranceReduce2 = 0;          // 0x270
+    m_enduranceInit = 0;             // 0x274
+    m_upgradeCost.clear();           // 0x278
+    m_gainExp1 = 0;                  // 0x284
+    m_gainExp2 = 0;                  // 0x288
+    m_limitDisjointGold = 0;         // 0x28c
     m_portableDisjointMap.clear();
     m_selfDisjoin.clear();   // ORIG：stSelfDisjoinMaterialInfo::clear @0x0896dbe6
     m_shopDollMap.clear();
@@ -86,24 +115,6 @@ void STExpertJobScript::Clear()
     m_alchemistResultInfo.clear();
     m_enchanterResultInfo.clear();
     m_dollResultInfo.clear();
-    m_disjointResultMap.clear();
-    m_baseConst = 0;
-    m_additionalConst = 0;
-    m_clearQuests.clear();
-    m_giveupCost.clear();
-    m_compoundRateVec.clear();
-    m_recipeInfoMap.clear();
-    m_recipeIndexMap.clear();
-    m_recipeLevelMap.clear();
-    m_recipeItemMap.clear();
-    m_enduranceRepairCost.clear();
-    m_enduranceReduce1 = 0;
-    m_enduranceReduce2 = 0;
-    m_enduranceInit = 0;
-    m_upgradeCost.clear();
-    m_gainExp1 = 0;
-    m_gainExp2 = 0;
-    m_limitDisjointGold = 0;
 }
 
 // ============================================================================

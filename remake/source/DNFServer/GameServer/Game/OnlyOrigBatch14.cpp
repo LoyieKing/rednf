@@ -81,13 +81,18 @@ struct STActiveStatus
 // ============================================================================
 
 // ORIG _ZL3ROLji @0x80c3dc0 / _ZL3RORji @0x809c42d：rol/ror %cl。
-// [b28c-lane25 判词·N] ORIG 为 4.1 rotate lowering：load value→%eax、count→%edx→%ecx、
-// `ror %cl,%eax`、写回参数槽、重读返回；4.4 对形参赋值+rotate 恒发内存形
-// （`roll %cl,0x8(%ebp)`）或 callee-saved 形（`rol %cl,%ebx`+push）。
-// 探针 /tmp/l25probe/rol.cpp rA/rB/rH/rI/rJ/rK 六形穷举不可得，跨版本 codegen 封顶。
+// [b28d-D66 判词·N 封顶] ORIG 为 4.1 rotate lowering：`mov 0x8(%ebp),%eax`（value）→
+// `mov 0xc(%ebp),%edx; mov %edx,%ecx`（count）→ `ror %cl,%eax` → 写回参数槽
+// `mov %eax,0x8(%ebp)` → 重读返回（10 insn）；4.4 对**形参赋值+rotate** 恒把读改写折成
+// 内存形 `rorl %cl,0x8(%ebp)`（8 insn，gap 2），对**单表达式 return** 恒发 callee-saved 形
+// `push %ebx; ... ror %cl,%ebx`（12 insn，ndiff 10）。探针 /tmp/d66_probe2.cpp r1..r6 +
+// /tmp/d66_probe3.cpp r7..r20 共 18 形穷举：无任何源形能同时保留「value 载入 %eax +
+// 寄存器 ror + 写回」，属 4.1/4.4 rotate lowering 跨版本差异 ⇒ 采用 gap 最小的写回形
+// （语义与 ORIG 完全一致，仅少 2 条寄存器中转）封顶。
 static unsigned int ROL(unsigned int value, int count)
 {
-    return (value << count) | (value >> (32 - count));
+    value = (value << count) | (value >> (32 - count));
+    return value;
 }
 
 static unsigned int ROR(unsigned int value, int count)
@@ -163,21 +168,48 @@ static void encrypt(unsigned long* buf, int n, unsigned long* key)
     }
 }
 
-// ORIG _ZL7decryptPmiS_ @0x80b4a49：i=(n&1)?0:4；while(j>3){ pi4;pi3;pi2;pi1; i^=4 }。
+// ORIG _ZL7decryptPmiS_ @0x80b4a49：i=(n&1)?0:4；j=n；循环：j>3 → 依次
+// pi4/pi3/pi2/pi1（各 --j）→ i^=4 → 回条件；j<=3 → 返回。
+// [b28d-D66] P17：ORIG 为**跳表 switch**（`cmpl $0x3,-0x8; jle; mov $0x4,%eax;
+// jmp; mov $0x0,%eax; cmp $0x4,%eax; ja Lend; mov table(,%eax,4),%eax; jmp *%eax`）
+// ⇒ 原码是 `for(;;) switch (j > 3 ? 4 : 0) { case 0: return; case 4..1 降序 fall-through }`，
+// 不是 while(j>3)（后者 4.4 产 setg/test/jne 物化，ndiff 37→1 实证）。
+// 终态 55 vs 56（gap 1，ndiff 37→1）：跳表形/槽序（j@-0x8 先声明、i@-0x4 后声明，
+// P212 全头部「先声明深」）与 ORIG 逐条一致；唯一残差 = 首句三目 `i = (n&1)?0:4`
+// 的 4.1 形 `test %eax,%eax; jne L0; mov $4,%eax; jmp; L0: mov $0`（then 后置）vs
+// 4.4 `test %al,%al; je L4; mov $0,%eax; jmp; L4: mov $4`（then 前置 + 低字节测试；
+// 探针 /tmp/d66_probe8.cpp t1..t6 六形 —— 三目/if-else/!=0/==1/%2 全部同形）⇒
+// P47/P78 跨版本块排布 + 测试宽度，封顶。
 static void decrypt(unsigned long* buf, int n, unsigned long* key)
 {
+    // P212：全头部声明 4.1/4.4 同为「先声明深」⇒ ORIG i@-0x4/j@-0x8 要求 j 先声明；
+    // i 的初始化先于 j 的赋值（ORIG `mov %eax,-0x4; mov 0xc(%ebp),%eax; mov %eax,-0x8`）。
+    int j;
     int i = (n & 1) ? 0 : 4;
-    int j = n;
-    while (j > 3)
+    j = n;
+    for (;;)
     {
-        pi4(buf, key + i);
-        --j;
-        pi3(buf, key + i);
-        --j;
-        pi2(buf, key + i);
-        --j;
-        pi1(buf);
-        --j;
+        // ORIG 跳表（.rodata 0x08b1f414 dump）：case0→0x80b4afb(return)、
+        // case1→0x80b4ae2(pi1)、case2→0x80b4ac6(pi2)、case3→0x80b4aaa(pi3)、
+        // case4→0x80b4a8e(pi4) ⇒ 原码 `switch (j > 3 ? 4 : 0)` + **降序 case 4→1
+        // 逐级 fall-through**（执行序 pi4,pi3,pi2,pi1），case 0 独立 return。
+        switch (j > 3 ? 4 : 0)
+        {
+        case 0:
+            return;
+        case 4:
+            pi4(buf, key + i);
+            --j;
+        case 3:
+            pi3(buf, key + i);
+            --j;
+        case 2:
+            pi2(buf, key + i);
+            --j;
+        case 1:
+            pi1(buf);
+            --j;
+        }
         i ^= 4;
     }
 }
@@ -394,11 +426,15 @@ int SetSockNonb(int fd, unsigned long arg)
 // movb $0,-0x5；两写点 089bd065/089bd06b）+ **无符号边界**（089bd046
 // cmpl $0xb,0x8(%ebp) 直比参数槽 + ja，P137/P2）+ 末尾 movzbl 读回。
 bool IsDamageActiveStatus(int status)
-// [b28c-L23 N(P209) + N6 权衡维持] ①边界比较 ORIG @0x089bd046 为
-// `cmpl $0xb,0x8(%ebp); ja`（无符号内存直比），4.4 对 unsigned 参与的形参比较
-// 恒先载寄存器（P209 判例，写 signed 会翻成 jle 助记符更劣）；②`int bit` 具名
-// 局部是为阻断 N6 位折叠（直写恒折 `(0xac4>>s)&1` 的 sar+and 反演形），其 store/
-// load 2 条是必要代价；③bool 汇聚槽号 -0x5 vs -0x9 差由 ② 的额外 int 槽顶出。
+// [b28d-D66 判词·N 封顶（N6 位折叠 + P209）] ORIG 24 insn / 我们 27 insn，两处残差：
+// ①边界比较 ORIG @0x089bd046 `cmpl $0xb,0x8(%ebp); ja`（无符号内存直比），4.4 对
+// unsigned 参与的形参比较恒先载寄存器（`mov 0x8(%ebp),%eax; cmp $0xb,%eax`，P209），
+// 写 signed 会翻 jle 助记符更劣；
+// ②位测试 ORIG `mov $0x1,%edx; ... shl %cl,%ebx; mov %ebx,%eax; and $0xac4,%eax` 无槽
+// 往返；4.4 直写 `((1<<status)&0xac4)!=0` 恒折 `(0xac4>>s)&1` 的 sar+and$1 反演形（N6），
+// 加 `&0x1f` 掩码亦折（探针 /tmp/d66_probe5.cpp f1/f3/f4/f5/f7 全 sar 或 shr），只有
+// 具名 `int bit = 1 << status;`（f2/f6）保住 shl，代价是 2 条槽往返（-0x8 store/load）
+// 并把 bool 汇聚槽从 -0x5 顶到 -0x9。⇒ 无源形可同时满足 shl 无槽 + mem 直比，封顶。
 {
     bool ret = false;
     if ((unsigned int)status <= 0xb)

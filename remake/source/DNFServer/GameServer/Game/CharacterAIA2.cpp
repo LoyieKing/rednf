@@ -1,5 +1,9 @@
 // ============================================================================
 // CharacterAIA2.cpp —— 角色/AI 脚本依赖恢复（CharacterAIA2 批次独占 TU）。
+// ---- b28d-61 判词汇解（本 TU 3 件非 identical，全 N 封顶）----
+// STAIInfoScript::destroy 0x08a38xxx（P167 CLEAR；N89 迭代器 lowering）、
+// importAIInfoScript 0x0895xxxx（P167 MISSING+EXTRA，N89 STL 内联）、
+// importAICharacterCommonScript 0x0896xxxx（P167 CLEAR 320/320；N89 大函数）。
 //
 // 本 TU 提供的 ORIG df_game_r 真实符号（nm 核验）：
 //   STAICharacterCommonScript C1 T 0x088c8a78 / clear T 0x088c9592 /

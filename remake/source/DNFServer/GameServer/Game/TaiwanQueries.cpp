@@ -860,32 +860,22 @@ void GarenaAuthPCRoom(CUser* user)
     if (user == 0)
         return;
 
-    // [b23S3C] ORIG 调用点为头内联字段直写（+0x01d movl $1,-0x15 = result、
-    // +0x024 movb $1、+0x028 movb $0xb、+0x03d mov -0x11 = patchTime、
-    // put_binary 长度 movzwl +0x2 = len），非 setter call；TaiwanQueries.h 为
-    // S23A 避让头，本地 pack(1) 视图复现（偏移出自该类各 setter 注记与 ctor
-    // 0x0822be14 清零区实证）。字段化终态报 Main 代落。
-    struct F {
-        unsigned short m_type;         // +0x00
-        unsigned short m_len;          // +0x02
-        char m_headPad4[0x0e];         // +0x04..+0x11（含 uid/accId 清零区）
-        unsigned int m_result;         // +0x12
-        unsigned int m_patchTime;      // +0x16
-        unsigned char m_mobileAuth;    // +0x1a
-        unsigned char m_gcaType;       // +0x1b
-        char m_pad1c[4];               // +0x1c..+0x1f
-    };
-    // （C++98 union 禁带 ctor 成员；4.4 不融合 cast 视图写 ⇒ 5 行为
-    // N18a/N82 族封顶，字段化终态待 Main 代落 TaiwanQueries.h。）
+    // b28d-36（修法 P104/P76）：改用全局权威类（0x1f，PacketHeader 派生）——
+    // ORIG 0x08471c8c 先 call 全局 ctor `_ZN22Packet_Pcroom_ResponseC1Ev`，
+    // 再字段直写 +0x12/-0x1a/-0x1b/-0x16（movl/movb/movb/movl），put_binary
+    // 长度取 +0x02 packetSize（movzwl -0x25）。本地 F 视图版多 4 条 lea 基址
+    // 且 ctor 落在 Taiwan 命名空间（p167 MISSING）。
     Packet_Pcroom_Response resp;
-    reinterpret_cast<F*>(&resp)->m_result = 1;
-    reinterpret_cast<F*>(&resp)->m_mobileAuth = 1;
-    reinterpret_cast<F*>(&resp)->m_gcaType = 0xb;
-    reinterpret_cast<F*>(&resp)->m_patchTime =
-        static_cast<unsigned int>(time(0)) + 0x93a80;
+    resp.m_field12 = 1;
+    resp.m_field1a = 1;
+    resp.m_field1b = 0xb;
+    resp.m_expireTime = static_cast<int>(time(0)) + 0x93a80;
 
-    int uid = static_cast<int>(user->GetUID());
-    int accId = static_cast<int>(user->get_acc_id());   // ORIG 读取未再使用
+    // b28d-36（P0/P92）：ORIG 0x08471cc2/0x08471cc8 直写 resp 字段
+    // （-0x1d=resp+0xa m_uid、-0x19=resp+0xe m_accId），非具名 uid/accId 局部
+    // ——具名版把 resp 基址顶深 8（-0x2f vs -0x27）且 guard 槽 -0x38 vs -0x30。
+    resp.m_uid = static_cast<int>(user->GetUID());
+    resp.m_accId = static_cast<int>(user->get_acc_id());   // ORIG 写入后不再读
 
     // [b23S3C] P48/P0：Acquire 右值直落 ctor 实参（无 stream 槽，ORIG +0x081）；
     // 写流两跳 `(*guard)->operator<<`（deEv 080c8c46 + lsEi 080c8c56 各一次，
@@ -894,40 +884,11 @@ void GarenaAuthPCRoom(CUser* user)
         GlobalData::s_stream_pool->Acquire("DF_PCRoomServerProxy.cpp", 0x1ab),
         true);
     (*guard)->operator<<(0x17e);
-    (*guard)->operator<<(uid);
+    (*guard)->operator<<(resp.m_uid);
     guard.operator->()->put_binary(
-        &resp, reinterpret_cast<F*>(&resp)->m_len);
+        &resp, resp.packetSize);
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    (void)accId;
 }   // guard 析构回收 stream（ORIG D1 调用一致）
-
-// ---------------------------------------------------------------------------
-// Packet_Pcroom_Response
-// ---------------------------------------------------------------------------
-
-// ORIG W 0x0822be14：PacketHeader(0xfaf,0x1f) 展开（type=0xfaf/len=0x1f/
-// 清零区 +4..+9）+ +0xa/+0xe dword 清零 + +0x1e 字节清零。
-unsigned short Packet_Pcroom_Response::rd16(int off) const
-{
-    unsigned short v;
-    memcpy(&v, m_buf + off, sizeof(v));
-    return v;
-}
-void Packet_Pcroom_Response::wr16(int off, unsigned short v)
-{
-    memcpy(m_buf + off, &v, sizeof(v));
-}
-void Packet_Pcroom_Response::wr32(int off, unsigned int v)
-{
-    memcpy(m_buf + off, &v, sizeof(v));
-}
-
-Packet_Pcroom_Response::Packet_Pcroom_Response() : m_buf()
-{
-    setType(0xfaf);
-    setLen(0x1f);
-    clearHeaderTail();   // +4..+9 清零区、+0xa/+0xe dword、+0x1e byte
-}
 
 }  // namespace Taiwan

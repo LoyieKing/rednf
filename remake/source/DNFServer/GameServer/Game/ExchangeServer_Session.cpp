@@ -115,128 +115,112 @@ int CSession::GetTriggerSessionEventType()            // ORIG 0x8490066
 // ---------------------------------------------------------------------------
 // Parsing — ORIG 0x8490074 size 0x29a
 // ---------------------------------------------------------------------------
-// [b28d-D33 语义缺口-待复核] ORIG 0x08490074：169 vs 174 条；p167 差集 MISSING
-// __cxa_begin_catch/__cxa_end_catch/_Unwind_Resume/logFormat ⇒ ORIG 有 try/catch
-// 段（我方无 EH 结构）；N7/N109 push 序。需 Main 复核是否真语义缺口。
+// [b28d-68 修法] ORIG 0x08490074。
+// ①控制流按 ORIG 重写为 do{...}while(parsingLength>5)（ORIG 0x084900b5 packetSize=0
+//   后 jmp 循环体、0x0849020c `jg` 回跳）；memcpy 无条件执行（ORIG 0x084900df 直落，
+//   非 else 分支）——删我方发明的 `m_recvOffset==0 && parsingLength<=5 → return 1`
+//   与 `m_recvOffset==0 → packetSize=0` 两条分支（ORIG 无）；
+// ②DispatchPacket 返回值存 int moved，`if (moved != 0)` 才 trace（ORIG 0x08490195
+//   `mov %eax,-0xc` / `cmpl $0x0` / `je`），替换我方 bool dispatched 取反；
+// ③logFormat 第三参改 __PRETTY_FUNCTION__（ORIG 0x8c79d00 串实证 =
+//   "bool exchange_server::CSession::Parsing(int)"），0x18d 段补 recvLen 实参
+//   （ORIG 7 参：0x14(%esp)=recvLen、0x18(%esp)=packetSize；原 "DispatchPacket()"
+//   第三参为发明字符串）。
+// 残差 N104/EH：4.4 对 try 内仅 nothrow memmove 的 EH 边整体消除（探针
+// /tmp/d68probe/eh.o、eh2.o 三形实证：无 __cxa_begin_catch/_Unwind_Resume），
+// 4.1 保留 ⇒ p167 的 5 项 EH MISSING 属跨版本结构性不可清。
 bool CSession::Parsing(int recvLen)
 {
-    int parsingLength;                      // -0x24(%ebp)
-    unsigned int packetSize;                // -0x14(%ebp)
-    int moved;                              // -0xc(%ebp)
-    long long tick;                         // -0x20/-0x1c
-    char header[HEADER_SIZE];               // -0x41(%ebp)
+    int parsingLength;
+    unsigned int packetSize;
+    int moved;
+    long long tick;
+    char header[HEADER_SIZE];
 
     parsingLength = (int)m_recvOffset + recvLen;
 
     tick = get_ms_tick();
-    m_lastRecvTick = (unsigned int)tick;                 // +0x04（ORIG 64 位整写，tick 低 4 字节）
-    m_recvGapTick = (unsigned int)(tick >> 32);          // +0x08
+    m_lastRecvTick = (unsigned int)tick;
+    m_recvGapTick = (unsigned int)(tick >> 32);
 
     if (parsingLength <= 12)
     {
         return 1;
     }
 
-    while (true)                            // 84900be 循环头
+    packetSize = 0;
+    do
     {
-        if (m_recvOffset == 0 && parsingLength <= 5)
+        if (m_recvOffset != 0)
         {
-            // 首次且不足最小头部，等下一次 recv（cmpl $5 → jg 重试）
-            return 1;
+            m_recvBuf -= m_recvOffset;
         }
 
-        if (m_recvOffset == 0)
+        memcpy(header, (const void*)m_recvBuf, HEADER_SIZE);
+        packetSize = *(unsigned int*)(header + 3);
+        if (packetSize <= 0xc || packetSize > 0x17318)
         {
-            packetSize = 0;                 // movl $0,-0x10
-        }
-        else
-        {
-            // 缓冲整备：m_recvBuf 回退 m_recvOffset，把已缓存头搬到 m_recv 头部
-            m_recvBuf -= m_recvOffset;                        // 2c -= 18
-            memcpy(header, (const void*)m_recvBuf, HEADER_SIZE); // memcpy(hdr, buf, 0xd)
-
-            packetSize = *(unsigned int*)(header + 3);        // -0x3e → -0x14（ORIG 实证）
-            if (packetSize <= 0xc)
-            {
-                // 8490111 jbe → 继续下方逻辑（<=12 直接走派发比较）
-            }
-            else if (packetSize > 0x17318)                    // MAX_SESSION_BUFFER_SIZE
-            {
-                LogManager::logFormat(1, "ExchangeServerNetwork.h",
-                    "DispatchPacket()", 0x18d,
-                    "Parsing Packet Size[%d] is Too Large", (int)packetSize);
-                return 0;
-            }
-
-            if (parsingLength >= (int)packetSize)             // cmp/jb
-            {
-                bool dispatched = false;
-                if (ES() != 0)
-                {
-                    // slot0 DispatchPacket(this, recvBuf, packetSize)
-                    dispatched = ES()->DispatchPacket(
-                        this, (char*)m_recvBuf, (int)packetSize);
-                }
-                moved = -2;                   // -0xc 占位（与 0 判定无关则恒进 trace）
-                if (dispatched == false)
-                {
-                    cMyTrace(__PRETTY_FUNCTION__, 0x197, 0)(
-                        "DispatchPacket() error line number(%d)", 407);
-                }
-
-                parsingLength -= (int)packetSize;
-                m_recvBuf += (int)packetSize;
-                m_recvOffset = 0;
-
-                if (parsingLength == 0)
-                {
-                    m_recvBuf = m_recv;       // 回卷读指针
-                }
-
-                if (parsingLength > 5)
-                {
-                    continue;                 // 还有数据→继续解析循环
-                }
-                break;
-            }
-            else
-            {
-                break;                        // jb 8490218：包未收全
-            }
+            LogManager::logFormat(1, "ExchangeServerNetwork.h",
+                __PRETTY_FUNCTION__, 0x18d,
+                "Recv Size[%d], Parsing Packet Size[%d] is Too Large",
+                recvLen, (int)packetSize);
+            return 0;
         }
 
-        // —— 8490218 起的剩余处理：净收长度异常检查 ——
-        if (parsingLength <= 0)
+        if (parsingLength < (int)packetSize)
         {
             break;
         }
-        if (parsingLength > 0x17318)
+
+        if (ES() != 0)
         {
-            LogManager::logFormat(1, "ExchangeServerNetwork.h",
-                "DispatchPacket()", 0x1b7,
-                "[PARSING LENGTH EXCEPTION] parsinglength > MAX_SESSION_BUFFER_SIZE , memmove : parsinglength = %d",
-                parsingLength);
-            return 0;
+            moved = ES()->DispatchPacket(this, (char*)m_recvBuf, (int)packetSize);
+            if (moved != 0)
+            {
+                cMyTrace(__PRETTY_FUNCTION__, 0x197, 0)(
+                    "DispatchPacket() error line number(%d)", 407);
+            }
         }
 
-        try
-        {
-            memmove(m_recv, m_recvBuf, parsingLength);
-            m_recvOffset = parsingLength;
-            m_recvBuf = m_recv + parsingLength;
-        }
-        catch (...)
-        {
-            LogManager::logFormat(1, "ExchangeServerNetwork.h",
-                "DispatchPacket()", 0x1c1,
-                "[PARSING EXCEPTION] memmove : parsinglength = %d", parsingLength);
-            return 0;
-        }
+        parsingLength -= (int)packetSize;
+        m_recvBuf += (int)packetSize;
+        m_recvOffset = 0;
 
-        break;
+        if (parsingLength == 0)
+        {
+            m_recvBuf = m_recv;
+            break;
+        }
+    } while (parsingLength > 5);
+
+    if (parsingLength <= 0)
+    {
+        return 1;
+    }
+    if (parsingLength > 0x17318)
+    {
+        LogManager::logFormat(1, "ExchangeServerNetwork.h",
+            __PRETTY_FUNCTION__, 0x1b7,
+            "[PARSING LENGTH EXCEPTION] parsinglength > MAX_SESSION_BUFFER_SIZE , memmove : parsinglength = %d",
+            parsingLength);
+        return 0;
     }
 
-    return 1;                                 // bx=1 默认返回（8490300/305）
+    try
+    {
+        memmove(m_recv, m_recvBuf, parsingLength);
+        m_recvOffset = parsingLength;
+        m_recvBuf = m_recv + parsingLength;
+    }
+    catch (...)
+    {
+        LogManager::logFormat(1, "ExchangeServerNetwork.h",
+            __PRETTY_FUNCTION__, 0x1c1,
+            "[PARSING EXCEPTION] memmove : parsinglength = %d", parsingLength);
+        return 0;
+    }
+
+    return 1;
 }
 
 // ---------------------------------------------------------------------------

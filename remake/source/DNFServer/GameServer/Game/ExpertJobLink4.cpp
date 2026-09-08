@@ -1,5 +1,19 @@
 // ============================================================================
 // ExpertJobLink4.cpp — expert_job 域 LinkMisc4 批次
+// ---- b28d-61 判词汇总（本 TU 11 件非 identical）----
+// 已修 AE：_checkDisjointableItem（P286 单 case switch 寄存器比较）、
+//   CEnchanter::OnCloseMission（P222 正向包裹 + P214① 去具名 bool）。
+// N 封顶（P167 调用点差集 CLEAR ⇒ 语义完整，仅 lowering）：
+//   get_disjoint_result 0x082347ec、get_additional_item 0x0896d6ab（jge/jle 极性+N88）、
+//   CDisjointer::OnCloseMission 0x085d2f08（&m_machine callee-saved 缓存）、
+//   _check_disjointable_user_state 0x081f8xxx（ServiceRestrictManager 调用块帧）、
+//   _check_disjointable_item_state 0x081f8ba1（jle/jge+N82 帧）、
+//   CAlchemist::OnTeleportCharacter 0x085d1424（P197④ shr/test vs cmpl/jns）、
+//   GetPredictResult 0x085d1f68（bool 物化 setg）、complete_disjoint 0x085d31a0
+//     （P167 MISSING GetScript×4 ⇒ 待补，N89/大函数）、get_disjoint_result_ 0x085d34a0
+//     （P167 MISSING GetScript+EXTRA，N89）。
+// N 封顶（P167 缺口）：_check_disjoint_need_slot 0x081f8fe3（MISSING
+//   vector::operator[]×3）、OnCreateDisjointStore 0x085d2d08（getCurCharacVill 槽）。
 //
 // 主符号（ORIG nm -S 核对）：
 //   _ZN10expert_job10CAlchemist19OnTeleportCharacterEP5CUseriiiib

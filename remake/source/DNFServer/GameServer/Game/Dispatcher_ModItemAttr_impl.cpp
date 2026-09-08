@@ -59,6 +59,13 @@ void sSendResult(CUser* user, unsigned short resultType,
 }
 }  // namespace
 
+// b28d-36（修法 P48/P282 + N82 封顶，ORIG 0x08200b08 T size 0xcfc）：
+// P282 候选已核——ORIG vptr+0xc 虚调 4 处（0x08200f22/0x08200f39/0x082011b9/
+// 0x082012d9），我方旧实现仅 3 处（itype 具名缓存把 0x08200f22+0x08200f39 合并为
+// 单次）⇒ 改两次独立 `citem->GetItemType()` 短路比较后 vcall 4/4 与 ORIG 同槽
+// 同形。三件套：①p167 调用点差集 102=102 CLEAR；②帧尺寸同 0x1ac；③gap 17
+// 全为 4.4 槽复用/声明序（N82）导致的槽号平移（358 行 %ebp 槽差），无 MISSING/
+// EXTRA 调用。语义完成，byte 层 N82 封顶。
 int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ========================================================================
@@ -165,8 +172,10 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
         throw (ENUM_ERROR)4;            // ORIG 0x08200f0d
     }
     {
-        int itype = citem->GetItemType();
-        if (itype < 10 || itype > 0x15)
+        // b28d-36（P48/P282，ORIG 0x08200f22/+0x431）：ORIG 两次独立虚调 vptr+0xc
+        // （GetItemType），首次结果只用于 `cmp $0x9; jle`，短路不成立才第二次
+        // `cmp $0x15; jg`；旧实现具名 itype 缓存成单次调用（vcall 计数 4→3）。
+        if (citem->GetItemType() < 10 || citem->GetItemType() > 0x15)
         {
             throw (ENUM_ERROR)0x13;     // ORIG 0x08200f77
         }

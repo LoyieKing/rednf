@@ -1,5 +1,21 @@
 // ============================================================================
 // df_game_r 还原 —— user_creature::CCreatureMgr 收尾批（CreatureOnlyMgrRest）。
+// ---- b28d-61 判词汇总（本 TU 14 件非 identical）----
+// 已修 AE：UpdateCreatureItemResult（显式指针算术 `(char*)sig+4` 复现 ORIG lea）、
+//   EventEvoluteCreature（P222 正向包裹翻 setge 极性）。
+// N 封顶（ORIG 地址见各函数头/报告）：
+//   checkMaxCreatureLevel 0x0833baee（GetItemId 已补；余 N89 STL 调用+帧）
+//   LoadCreatureItem 0x0833b68c（N89 内联差异 1 处）
+//   IsExistedCreatureItem 0x0833a942（N104 分支/trace 块布局）
+//   IsSaveCreatureItem 0x0833ba30（setcc-fold：ORIG sete vs 4.4 setne）
+//   C1ERKS0_ 0x0833b6xx（N84/N86 拷贝构造整体形态）
+//   SendCreatureItemInfo 0x0833b498（P183 槽/局部缓存）
+//   AuctionRegist 0x0833b09c / ChangeOwner 0x0833ad34 / ChangeSlotNo 0x0833aedc
+//     / SaveCreatureItem 0x0833bbbe（N80 cMyTrace 变参求值序+GetItemId 块）
+//   InsertCreatureItemResult 0x0833b4d4（N82 寄存器保存 push edi/esi）
+//   Evolute 0x0833beb4（N85 bool 物化岛）
+//   DenySwapArtifact 0x0833989c（N93 块序）
+//   SetOverSkillTime 0x0833c41e（P211 求值序，GetItemId 已补）
 // 工作清单 /tmp/only_orig/user_creature.txt 中 _ZN...12CCreatureMgr 27 符号，
 // 报告 docs/class_func_reports/user_creature__CCreatureMgr/<Method>.md 全文
 // （## 汇编 + ## 反编译 C）逐个转写；报告缺失者 objdump 标【objdump】。

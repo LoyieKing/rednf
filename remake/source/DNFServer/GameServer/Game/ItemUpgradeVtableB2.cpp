@@ -245,9 +245,8 @@ int DisJoint::GetResult(int itemIdx, DisJointResult& out)
     }
 
     const int rarity = script->get_rarity();
-    // m_creationRate[rarity]（+0x538+rarity*4）
-    const float rate = *reinterpret_cast<const float*>(
-        reinterpret_cast<const char*>(this) + rarity * 4 + 0x538);
+    // [b28d-64] §4.3：DisJoint.h 已具名 m_creationRate[6] @+0x538（原裸偏移改具名）。
+    const float rate = m_creationRate[rarity];
     out.m_f[5] = m_cubeIndexVecs[4][0];
 
     static const float priceBias = 1.1f;    // ORIG .rodata 0x08c6ff50

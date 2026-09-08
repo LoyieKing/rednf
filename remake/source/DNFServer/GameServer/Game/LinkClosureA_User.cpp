@@ -31,38 +31,45 @@
 Inven_Item* CUser::GetCurCharacInventoryRef(unsigned short area,
                                             unsigned short slot)
 {
-    if (getCurCharacR() == 0)
+    // b28d-65：ORIG 0x08680cab `test;setne;test;je` = 正极性 `if (getCurCharacR())`
+    // 物化形（P292 表）；负极性 `==0` 在 4.4 生 `sete`。改正向包裹、尾部统一 return 0。
+    if (getCurCharacR())
     {
-        return 0;                                          // [0x868109b]
-    }
-
-    switch (area)
-    {
-    case 0:
-        return getCurCharacInvenW()->GetInvenRef(1, slot); // [0x868062 GetInvenRefEii]
-    case 1:
-        return getCurCharacInvenW()->GetInvenRef(2, slot); // [0x8680f9a]
-    case 2:
-        return getCurCharacCargoW()->GetCargoRef(slot);    // [0x8680fa4 GetCargoRefEi]
-    case 3:
-        return getCurCharacInvenW()->GetInvenRef(0, slot); // [0x8680fba]
-    case 7:
-        return getCurCharacInvenW()->GetInvenRef(3, slot); // [0x868100a]
-    case 0x12:
-        return GetCharacExpandData(
-                   static_cast<ENUM_CHARAC_EXPAND_TYPE>(9))
-                   ->GetInvenRefW(static_cast<INVEN_TYPE>(5), slot); // [0x868102f]
-    case 0x13:
-    case 0x14:
-    case 0x15:
-    case 0x16:
-        return reinterpret_cast<CTitleBook*>(GetCharacExpandData(
-                   static_cast<ENUM_CHARAC_EXPAND_TYPE>(14)))
-                   ->getTitleSlot(
-                       static_cast<ENUM_TITLE_BOOK_CATEGORY>(area - 0x13),
-                       slot);                             // [0x8681062 ebx=area-0x13]
-    default:
-        break;                                             // [0x8681094 mov $0]
+        switch (area)
+        {
+        case 0:
+            return getCurCharacInvenW()->GetInvenRef(1, slot); // [0x868062 GetInvenRefEii]
+        // b28d-65：ORIG 叶块排放序（P46）= 源码 case 书写序 0,2,3,7,1,0x12,0x13..0x16
+        // （0x044 GetInvenRef1 / 0x076 GetCargoRef / 0x08c GetInvenRef0 / 0x0b4 GetInvenRef3 /
+        //  0x0e6 GetInvenRef2 / 0x101.. / 0x141..）⇒ case 1 移到 case 7 之后。
+        case 2:
+            return getCurCharacCargoW()->GetCargoRef(slot);    // [0x8680fa4 GetCargoRefEi]
+        case 3:
+            return getCurCharacInvenW()->GetInvenRef(0, slot); // [0x8680fba]
+        case 7:
+            return getCurCharacInvenW()->GetInvenRef(3, slot); // [0x868100a]
+        case 1:
+            return getCurCharacInvenW()->GetInvenRef(2, slot); // [0x8680f9a]
+        case 0x12:
+        {
+            // b28d-65 [P0]：ORIG 0x08680d99 段把 GetCharacExpandData 结果存槽 -0xc 再重载
+            // （槽往返 ⇒ 原码有具名局部），链式写法会让 4.4 改把 slot 存 %ebx 跨调用。
+            CExpandEquipslot* pExpand = GetCharacExpandData(
+                static_cast<ENUM_CHARAC_EXPAND_TYPE>(9));
+            return pExpand->GetInvenRefW(static_cast<INVEN_TYPE>(5), slot); // [0x868102f]
+        }
+        case 0x13:
+        case 0x14:
+        case 0x15:
+        case 0x16:
+            return reinterpret_cast<CTitleBook*>(GetCharacExpandData(
+                       static_cast<ENUM_CHARAC_EXPAND_TYPE>(14)))
+                       ->getTitleSlot(
+                           static_cast<ENUM_TITLE_BOOK_CATEGORY>(area - 0x13),
+                           slot);                             // [0x8681062 ebx=area-0x13]
+        default:
+            return 0;                                          // [0x8681094 mov $0]
+        }
     }
     return 0;
 }
@@ -74,41 +81,43 @@ Inven_Item* CUser::GetCurCharacInventoryRef(unsigned short area,
 const Inven_Item* CUser::GetCurCharacInventoryRef(unsigned short area,
                                                   unsigned short slot) const
 {
-    if (getCurCharacR() == 0)
+    // b28d-65：与非 const 版同修（ORIG 0x08680c8a 正极性 setne 物化 + 叶块序
+    // 0,2,3,7,1,0x12,0x13..0x16 + case 0x12 具名槽往返 + default 独立 return 0）。
+    if (getCurCharacR())
     {
-        return 0;
-    }
-
-    switch (area)
-    {
-    case 0:
-        return getCurCharacInvenR()->GetInvenRef(1, slot);
-    case 1:
-        return getCurCharacInvenR()->GetInvenRef(2, slot);
-    case 2:
-        return getCurCharacCargoR()->GetCargoRef(slot);
-    case 3:
-        return getCurCharacInvenR()->GetInvenRef(0, slot);
-    case 7:
-        return getCurCharacInvenR()->GetInvenRef(3, slot);
-    case 0x12:
-        return GetCharacExpandDataR(
-                   static_cast<ENUM_CHARAC_EXPAND_TYPE>(9))
-                   ->GetInvenRefR(static_cast<INVEN_TYPE>(5), slot);
-    case 0x13:
-    case 0x14:
-    case 0x15:
-    case 0x16:
-        // ORIG 直调非 const getTitleSlot（_ZN…E）且用非 RE 重载
-        // GetCharacExpandData(ENUM)（_ZNK5CUser19GetCharacExpandDataE23…）；
-        // 经 const_cast 去 CV。
-        return const_cast<CTitleBook*>(reinterpret_cast<const CTitleBook*>(
-                   GetCharacExpandData(
-                       static_cast<ENUM_CHARAC_EXPAND_TYPE>(14))))
-            ->getTitleSlot(
-                static_cast<ENUM_TITLE_BOOK_CATEGORY>(area - 0x13), slot);
-    default:
-        break;
+        switch (area)
+        {
+        case 0:
+            return getCurCharacInvenR()->GetInvenRef(1, slot);
+        case 2:
+            return getCurCharacCargoR()->GetCargoRef(slot);
+        case 3:
+            return getCurCharacInvenR()->GetInvenRef(0, slot);
+        case 7:
+            return getCurCharacInvenR()->GetInvenRef(3, slot);
+        case 1:
+            return getCurCharacInvenR()->GetInvenRef(2, slot);
+        case 0x12:
+        {
+            CExpandEquipslot* pExpand = GetCharacExpandDataR(
+                static_cast<ENUM_CHARAC_EXPAND_TYPE>(9));
+            return pExpand->GetInvenRefR(static_cast<INVEN_TYPE>(5), slot);
+        }
+        case 0x13:
+        case 0x14:
+        case 0x15:
+        case 0x16:
+            // ORIG 直调非 const getTitleSlot（_ZN…E）且用非 RE 重载
+            // GetCharacExpandData(ENUM)（_ZNK5CUser19GetCharacExpandDataE23…）；
+            // 经 const_cast 去 CV。
+            return const_cast<CTitleBook*>(reinterpret_cast<const CTitleBook*>(
+                       GetCharacExpandData(
+                           static_cast<ENUM_CHARAC_EXPAND_TYPE>(14))))
+                ->getTitleSlot(
+                    static_cast<ENUM_TITLE_BOOK_CATEGORY>(area - 0x13), slot);
+        default:
+            return 0;
+        }
     }
     return 0;
 }
@@ -263,6 +272,9 @@ int CUser::compute_quest_basic_reward_gold(Quest* quest)
         return 0;                                          // [0x866e608]
     }
 
+    // b28d-65 [N86]：ORIG 0x0866e61b 段为 begin()→临时 iterator 槽 + 转换构造两段
+    // （4.1 不做 copy-elision）；4.4 直构进目标槽 ⇒ 少 2 条 + 迭代器槽号连锁。
+    // 实测三形（=初始化 / ()初始化 / 先声明后赋值）均不可翻（后两形更劣 142 insn）。
     std::vector<RewardItemInfo>::const_iterator it = quest->m_titleReward.begin();
     std::vector<RewardItemInfo>::const_iterator end = quest->m_titleReward.end();
 

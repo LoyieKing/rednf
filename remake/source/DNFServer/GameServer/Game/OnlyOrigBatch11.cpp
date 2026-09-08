@@ -192,16 +192,21 @@ long getNextScheduleTime(int hour, long time)
 int checkGetItemPacket(int a, int b, int c)
 {
     const int sum = b + c;
-    // b28c-l23：ORIG 两槽是 `and $0x1,%eax; mov %al,-0x2/-0x1`（**char 截断直存**，
-    // 非 bool 归一——bool 会另产 setne）。声明 unsigned char 后：
-    // 第一段 `oddA == 0 || oddSum == 0` 复现 ORIG @+0x24 `cmpb $0x0,-0x2; je` +
-    // @+0x2a `cmpb $0x0,-0x1; jne`（P168a② 直分支形）；第二段 `!oddA || !oddSum`
-    // 复现 @+0x30 `movzbl -0x2; xor $1; test; je`（P168a④ uchar 单段 xor 物化）。
+    // b28d-D66：ORIG 两槽是 `and $0x1,%eax; mov %al,-0x2/-0x1`（char 截断直存）。
+    // 第一段 `if (oddA && oddSum) goto Lfail;` 复现 ORIG @+0x24 `cmpb $0x0,-0x2; je L1`
+    // + @+0x2a `cmpb $0x0,-0x1; jne Lfail`（then 后置 + 共享 Lfail 块；探针
+    // /tmp/d66_probe7.cpp g1 逐条对齐）；第二段 ORIG @+0x30 为 `movzbl; xor $1; test %al;
+    // je Lsucc` ×2（X 族寄存器物化），4.4 对 `!oddA || !oddSum` 恒发 `cmpb $0; je` 直分支
+    // （P168a④：无绑定即不可达；语句表达式 g3 反产 xorb 栈化 + 双 setne 更劣）⇒ N96 封顶。
+    // 尾部块序 Lfail(mov $0) 先于 Lsucc(mov $1) 与 ORIG 一致。
     const unsigned char oddA = (unsigned char)(a & 1);
     const unsigned char oddSum = (unsigned char)(sum & 1);
-    if ((oddA == 0 || oddSum == 0) && (!oddA || !oddSum))
-        return 1;
+    if (oddA && oddSum) goto Lfail;
+    if (!oddA || !oddSum) goto Lsucc;
+Lfail:
     return 0;
+Lsucc:
+    return 1;
 }
 
 // ============================================================================
@@ -494,6 +499,11 @@ void convert_string_to_time(const char* str, int& out)
 // ndiff 103→11（残差 = 尾部 tmp 析构公共块布局 + 返回值寄存器调度：
 // ORIG `D1; mov$1,%eax` 尾块直设，4.4 内联 D1 于 aSERKS_ 后 +
 // `mov$1,%ebx; mov%ebx,%eax` 跨 call 保活，跨版本不可复现，N 封顶）。
+// [b28d-D66 复核·N 封顶维持] 135 vs 136（gap 1）。残差两处：①早退臂 ORIG
+// `mov $0x1,%eax; jmp +0x1a5`（+0x077）与正常路径 `mov $0x1,%eax`（+0x1a0）两条
+// 独立直设；4.4 合并为 `mov $0x1,%ebx; jmp` + 尾 `mov %ebx,%eax`（P78 汇聚变量
+// 跨版本寄存器差异，禁 register 绑定）；②`movl $"",0x4(%esp)` 的 .o 重定位显示
+// （0x24b addend）属 P264 未链接伪差，AE 归一后相同。
 bool convertToUtf8(const wchar_t* src, int srcLength, CharString* out)
 {
     int need = 0;

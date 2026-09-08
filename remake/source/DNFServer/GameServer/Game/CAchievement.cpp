@@ -483,71 +483,81 @@ stAchievement CAchievement::_getTrigger(unsigned int id)
     return out;
 }
 
-// [b28d-D33 P23/P75 封顶] ORIG 0x0828d092：`call G_CDataManager` 先于形参装载
-// （ORIG `call; lea 0xa7a0(%eax),%edx` vs 4.4 先存形参槽），实参求值序跨版本
-// 调度差异。172 vs 183 条，语义等价。
+// [b28d-68 修法] ORIG 0x0828d092（static 成员，P245/P281）。
+// ①删 ach 具名局部：ORIG 每处重读 0x8(%ebp)（P0 表达式直用）；
+// ②删 list 引用缓存：ORIG 内层条件与体各自 `it->second`（每轮 2 次
+//   operator->() const，P157）；③empty()→size()!=0（ORIG 0x0808e1c0
+//   `_ZNKSt6vectorIiSaIiEE4sizeEv`），quest 改 const Quest* 使
+//   m_triggerData[0] 走 const operator[]（ORIG 0x080ea574）；
+// ④special bool 改内联复合条件（ORIG mov $1/$0 物化岛）；
+// ⑤删 level 缓存：ORIG 两臂各自 get_charac_level()（P48）；
+// ⑥isClearMission 实参 0x83/0x87/0x19c0 用具名局部（ORIG -0x48/-0x44/-0x1c）。
 void CAchievement::_verifyAchievement(unsigned int self)
 {
-    CAchievement* ach = (CAchievement*)self;
-
     // ORIG 0x828d09e：不缓存 elements 引用，begin 一次、end 每次循环重新取
-    for (std::map<int, std::vector<stTitleElement> >::iterator it =
-             GetTitleElements(G_CDataManager()).begin();
-         it != GetTitleElements(G_CDataManager()).end(); ++it)
+    std::map<int, std::vector<stTitleElement> >::iterator it =
+        GetTitleElements(G_CDataManager()).begin();
+    unsigned int achievementIdx = 0;
+    unsigned int clearQuestIdx = 0;
+    // ORIG 0x0828d0bd..0x0828d0d2：-0x28/-0x24/-0x20 = 0,0,4 三个死局部（后续无读，
+    // P171 死写入照抄；仅复现帧槽布局与 5 条初始化序列）。
+    unsigned int unusedA = 0;
+    unsigned int unusedB = 0;
+    unsigned int unusedC = 4;
+    for (; it != GetTitleElements(G_CDataManager()).end(); ++it)
     {
-        const std::vector<stTitleElement>& list = it->second;
-        for (unsigned int i = 0; i < list.size(); ++i)
+        for (unsigned int i = 0; i < it->second.size(); ++i)
         {
-            unsigned int achievementIdx =
-                (unsigned int)list[i].m_achievementIdx;
+            achievementIdx = (unsigned int)it->second[i].m_achievementIdx;
             if (achievementIdx == 0xffffffff)
             {
                 continue;
             }
-            Quest* quest = G_CDataManager()->find_quest((int)achievementIdx);
+            const Quest* quest = G_CDataManager()->find_quest((int)achievementIdx);
             if (quest == 0)
             {
                 continue;
             }
-            bool special =
-                (quest->m_type == 7) && (quest->m_triggerType == 0xc) &&
-                (quest->m_triggerData.empty());
-            if (special)
+            if (!((quest->m_type == 7) && (quest->m_triggerType == 0xc) &&
+                  (quest->m_triggerData.size() != 0)))
             {
                 continue;
             }
-            unsigned int clearQuestIdx = (unsigned int)quest->m_triggerData[0];
+            clearQuestIdx = (unsigned int)quest->m_triggerData[0];
             // ORIG 0x0828d1ca：getCurCharacQuestR() + 4 为 WongWork::CQuestClear
             // 子对象（UserQuest 容器 +0 m_user / +4 CQuestClear），调 isClearedQuest。
-            WongWork::CQuestClear* cleared =
-                (WongWork::CQuestClear*)((char*)ach->m_user->getCurCharacQuestR() + 4);
-            if (cleared->isClearedQuest(clearQuestIdx))
+            if (((WongWork::CQuestClear*)((char*)((CAchievement*)self)->m_user
+                                              ->getCurCharacQuestR() +
+                                          4))
+                    ->isClearedQuest(clearQuestIdx))
             {
-                ach->_forceClear(achievementIdx);
+                ((CAchievement*)self)->_forceClear(achievementIdx);
             }
         }
     }
 
-    int level = ach->m_user->get_charac_level();
-    if (level <= 0x45)
+    if (((CAchievement*)self)->m_user->get_charac_level() <= 0x45)
     {
         const unsigned int resetIds[2] = { 0x1983, 0x198b };
         for (int i = 0; i <= 1; ++i)
         {
-            ach->_forceReset(resetIds[i]);
+            ((CAchievement*)self)->_forceReset(resetIds[i]);
         }
     }
-    else if (level > 0x45)
+    else if (((CAchievement*)self)->m_user->get_charac_level() > 0x45)
     {
-        ach->_forceClear(0x1983);
+        ((CAchievement*)self)->_forceClear(0x1983);
     }
 
+    int missionA = 0x83;
+    int missionB = 0x87;
+    unsigned int clearId = 0x19c0;
     CMissionList_Charac* missionList = (CMissionList_Charac*)
-        ach->m_user->GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)8);
-    if (missionList->isClearMission(0x83) ||
-        missionList->isClearMission(0x87))
+        ((CAchievement*)self)->m_user->GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)8);
+    if (missionList->isClearMission(missionA) ||
+        missionList->isClearMission(missionB))
     {
-        ach->_forceClear(0x19c0);
+        ((CAchievement*)self)->_forceClear(clearId);
     }
 }
 

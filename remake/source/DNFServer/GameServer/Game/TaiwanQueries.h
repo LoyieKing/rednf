@@ -34,6 +34,9 @@
 #include <vector>
 
 #include "GameTypes.h"  // cMyTrace 声明（真实定义属其它 TU）
+// b28d-36（P104/P76）：Packet_Pcroom_Response 权威定义（全局命名空间、size 0x1f、
+// PacketHeader 派生）——ORIG 符号 `_ZN22Packet_Pcroom_ResponseC1Ev` 0x0822be14。
+#include "../../../shared/packet/include/Packet_Pcroom_Response.h"
 
 class MySQL;
 #include "TaiwanCash.h"    // BillTransaction 权威布局（唯一归口；无环）
@@ -432,42 +435,11 @@ bool GarenaCheckTimeStamp(unsigned int nowA, unsigned int nowB,
 // DISPATCH_Q（msg 头 0x17e，附 uid）。转写自 objdump 全量指令序。
 void GarenaAuthPCRoom(CUser* user);
 
-// ---------------------------------------------------------------------------
-// Packet_Pcroom_Response —— PCRoom 响应包（ORIG W ctor 0x0822be14：
-// PacketHeader(0xfaf,0x1f) 展开 + 清零）。无权威 PacketHeader 类；本类按
-// ELF _ZN12PacketHeaderC1Ett @0x08110b70 手工排布（type/len/清零区），槽位
-// 偏移全部 ORIG 实测，访问器经 memcpy 保证对齐无关。
-// ---------------------------------------------------------------------------
-#include <string.h>
-
-class Packet_Pcroom_Response
-{
-public:
-    Packet_Pcroom_Response();             // ORIG W 0x0822be14
-
-    void setType(unsigned short t)        { wr16(0x00, t); }
-    void setLen(unsigned short l)         { wr16(0x02, l); }
-    unsigned short getLen() const         { return rd16(0x02); }
-    void clearHeaderTail()                { memset(m_buf + 4, 0, 6);
-                                            wr32(0x0a, 0); wr32(0x0e, 0);
-                                            m_buf[0x1e] = 0; }
-    void setResult(unsigned int v)        { wr32(0x12, v); }
-    void setPatchTime(unsigned int t)     { wr32(0x16, t); }
-    void setMobileAuth(unsigned char c)   { m_buf[0x1a] = c; }
-    void setGcaType(unsigned char c)      { m_buf[0x1b] = c; }
-    void setUid(unsigned int v)           { wr32(0x0a, v); }
-    void setAccId(unsigned int v)         { wr32(0x0e, v); }
-
-private:
-    unsigned short rd16(int off) const;
-    void wr16(int off, unsigned short v);
-    void wr32(int off, unsigned int v);
-
-    unsigned char m_buf[0x20];            // 总窗（ORIG len 0x1f + 对齐尾）
-};
-
-static_assert(sizeof(Packet_Pcroom_Response) == 0x20,
-              "Packet_Pcroom_Response ABI drift");
+// b28d-36（修法 P104/P76，ORIG 0x08471c8c）：Packet_Pcroom_Response 的 ORIG 符号
+// 是**全局** `_ZN22Packet_Pcroom_ResponseC1Ev`（0x0822be14）；本地 Taiwan 命名空间
+// 版生成 `_ZN6Taiwan22Packet_Pcroom_ResponseC1Ev`（p167 MISSING 全局 ctor），且
+// 0x20 手工窗 + F 视图（lea 基址访问）非 ORIG 的 0x1f 权威类字段直写形。
+// 已改用 source/shared/packet/include 权威头（PacketHeader 派生、packed、0x1f）。
 
 }  // namespace Taiwan
 

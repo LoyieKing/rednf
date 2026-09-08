@@ -786,23 +786,26 @@ void Inter_LoadEtc::giveBreakAwayReward(CUser* user)
         CItem* found = G_CDataManager()->find_item(itemId);
         if (found == 0)
             return;
-        (void)found->is_stackable();                 // ORIG 虚槽 +0xc 返回值弃用
+        // [b28d-63] P282 vtable 还原：ORIG 0x84d9135 `add $0xc` ⇒ word[5]，
+        // CItem 虚序 f3 = GetItemType()（f2=make_item 即下方 +0x8）；返回值弃用。
+        (void)found->GetItemType();
         found->make_item(mailItem);                  // ORIG 虚槽 +0x8
         mailItem.set_add_info(itemCnt);
     }
 
     unsigned int accId = user->get_acc_id();
-    unsigned int charNo = user->getCurCharacNo();
     int serverGroup = (int)user->GetServerGroup();
     int sent = WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-        title, mailItem, coinCount, charNo, body, (int)strlen(body),
+        title, mailItem, coinCount, user->getCurCharacNo(), body, (int)strlen(body),
         7u, (ENUM_SERVER_GROUP)serverGroup, false, false);
 
     if (sent == 0)
     {
         STBreakAwayRewards* rewards = user->getBreakAwayRewards();
-        DB_LoadBreakAwayRewardData::makeRequest((int)user->GetUID(), accId, charNo,
-                                                *rewards);
+        // [b28d-63] ORIG 0x84d921c/0x84d9229：失败分支重调 getCurCharacNo/get_acc_id。
+        DB_LoadBreakAwayRewardData::makeRequest((int)user->GetUID(),
+                                                user->get_acc_id(),
+                                                user->getCurCharacNo(), *rewards);
         user->setBreakAwayRewardItemId(0);
         user->setBreakAwayRewardAItemCnt(0);
     }
@@ -972,10 +975,12 @@ int Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
 
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire("InterDispatcher.cpp", 0x40d2),
                            true);
-        guard << 0x15c;
-        guard << (int)user->GetUID();
+        // [b28d-63] ORIG 0x84d9602/0x84d962a：`guard << x` 实为 (*guard) << x
+        // （每处先 call CStreamGuard::operator*），GetInBuffer 才走 operator->（ptEv）。
+        (*guard)->operator<<(0x15c);
+        (*guard)->operator<<((int)user->GetUID());
         SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD* out =
-            guard->GetInBuffer<SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD>();
+            guard->GetInBuffer<SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD>();  // ORIG 0x84d9641 ptEv
         out->m_accID = user->get_acc_id();
         out->m_characNo = user->getCurCharacNo();
         memset(out->m_skills, 0, 0x198);
@@ -994,9 +999,10 @@ int Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
             lethe->BackupSkill(user, ENUM_SKILL_TREE_KIND(0));
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));
             int job = user->get_charac_job();
-            _Mastered_skill* skillR = reinterpret_cast<SkillSlot*>(
-                const_cast<char*>(user->getCurCharacSkillR()))
-                ->get_skillslot_buf(ENUM_SKILL_TREE_KIND(0));
+            // [b28d-63] ORIG 无 get_skillslot_buf 调用（p167 EXTRA ×2）：
+            // 直接以 getCurCharacSkillR() 指针 cast（ORIG call 序列仅 getCurCharacSkillR）。
+            _Mastered_skill* skillR = reinterpret_cast<_Mastered_skill*>(
+                const_cast<char*>(user->getCurCharacSkillR()));
             user->m_historyLog.SkillSave(static_cast<const _Mastered_skill*>(skillR),
                                         (unsigned)job, 0, eSkillSaveReason(0));
         }
@@ -1006,9 +1012,10 @@ int Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
             lethe->BackupSkill(user, ENUM_SKILL_TREE_KIND(0));
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));
             int job = user->get_charac_job();
-            _Mastered_skill* skillR = reinterpret_cast<SkillSlot*>(
-                const_cast<char*>(user->getCurCharacSkillR()))
-                ->get_skillslot_buf(ENUM_SKILL_TREE_KIND(0));
+            // [b28d-63] ORIG 无 get_skillslot_buf 调用（p167 EXTRA ×2）：
+            // 直接以 getCurCharacSkillR() 指针 cast（ORIG call 序列仅 getCurCharacSkillR）。
+            _Mastered_skill* skillR = reinterpret_cast<_Mastered_skill*>(
+                const_cast<char*>(user->getCurCharacSkillR()));
             user->m_historyLog.SkillSave(static_cast<const _Mastered_skill*>(skillR),
                                         (unsigned)job, 0, eSkillSaveReason(0));
         }
@@ -1040,10 +1047,12 @@ int Inter_LoadEtc::ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& er
 
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire("InterDispatcher.cpp", 0x411d),
                            true);
-        guard << 0x15c;
-        guard << (int)user->GetUID();
+        // [b28d-63] ORIG 0x84d9602/0x84d962a：`guard << x` 实为 (*guard) << x
+        // （每处先 call CStreamGuard::operator*），GetInBuffer 才走 operator->（ptEv）。
+        (*guard)->operator<<(0x15c);
+        (*guard)->operator<<((int)user->GetUID());
         SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD* out =
-            guard->GetInBuffer<SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD>();
+            guard->GetInBuffer<SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD>();  // ORIG 0x84d9641 ptEv
         out->m_accID = user->get_acc_id();
         out->m_characNo = user->getCurCharacNo();
         memset(out->m_skills, 0, 0x198);
@@ -1062,9 +1071,10 @@ int Inter_LoadEtc::ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& er
             lethe->BackupSkill(user, ENUM_SKILL_TREE_KIND(1));
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));
             int job = user->get_charac_job();
-            _Mastered_skill* skillR = reinterpret_cast<SkillSlot*>(
-                const_cast<char*>(user->getCurCharacSkillR()))
-                ->get_skillslot_buf(ENUM_SKILL_TREE_KIND(0));
+            // [b28d-63] ORIG 无 get_skillslot_buf 调用（p167 EXTRA ×2）：
+            // 直接以 getCurCharacSkillR() 指针 cast（ORIG call 序列仅 getCurCharacSkillR）。
+            _Mastered_skill* skillR = reinterpret_cast<_Mastered_skill*>(
+                const_cast<char*>(user->getCurCharacSkillR()));
             user->m_historyLog.SkillSave(static_cast<const _Mastered_skill*>(skillR),
                                         (unsigned)job, 1, eSkillSaveReason(0));
         }
@@ -1074,9 +1084,10 @@ int Inter_LoadEtc::ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& er
             lethe->BackupSkill(user, ENUM_SKILL_TREE_KIND(1));
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));
             int job = user->get_charac_job();
-            _Mastered_skill* skillR = reinterpret_cast<SkillSlot*>(
-                const_cast<char*>(user->getCurCharacSkillR()))
-                ->get_skillslot_buf(ENUM_SKILL_TREE_KIND(0));
+            // [b28d-63] ORIG 无 get_skillslot_buf 调用（p167 EXTRA ×2）：
+            // 直接以 getCurCharacSkillR() 指针 cast（ORIG call 序列仅 getCurCharacSkillR）。
+            _Mastered_skill* skillR = reinterpret_cast<_Mastered_skill*>(
+                const_cast<char*>(user->getCurCharacSkillR()));
             user->m_historyLog.SkillSave(static_cast<const _Mastered_skill*>(skillR),
                                         (unsigned)job, 1, eSkillSaveReason(0));
         }
@@ -1107,10 +1118,9 @@ void Inter_LoadEtc::processAttendAnceEvent(SIG_ATTENDANCE_EVENT* sig, CUser& use
     item->make_item(mailItem);                       // ORIG 虚槽 +0x8
     mailItem.set_add_info(1);
 
-    char sender[256];
-    memset(sender, 0, sizeof(sender));
-    char title[21];
-    memset(title, 0, sizeof(title));
+    // [b28d-63] ORIG 无 memset 调用（p167 EXTRA ×2）⇒ 聚合零初始化（P214③）。
+    char sender[256] = {0};
+    char title[21] = {0};
     strncpy(sender,
             g_scriptStringManager_.findChangedString(4, "game_server_msg_276", 0),
             0xff);
@@ -2194,10 +2204,9 @@ void Inter_VillageAttackedReward::_send_reward_item(CUser* user,
     {
         item.m_fieldb = 1;
     }
-    char title[30];
-    char content[256];
-    memset(title, 0, sizeof(title));
-    memset(content, 0, sizeof(content));
+    // [b28d-63] ORIG 无 memset 调用（p167 EXTRA ×2）⇒ 聚合零初始化（P214③）。
+    char title[30] = {0};
+    char content[256] = {0};
     strncpy(title, g_scriptStringManager_.findString(4, "game_server_msg_124", 0),
             0x1d);
     strncpy(content, g_scriptStringManager_.findString(4, "game_server_msg_125", 0),

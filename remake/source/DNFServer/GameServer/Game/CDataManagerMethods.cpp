@@ -1,5 +1,11 @@
 // ============================================================================
 // df_game_r 还原 —— CDataManager 独立方法 TU（Prod_CDataManager 批次）
+// ---- b28d-61 判词汇总（本 TU 5 件非 identical，全 N 封顶）----
+// set_reward_sp 0x08360bde（P167 CLEAR；N18a/N4 lea-vs-add+寄存器指派）、
+// initRandomOptionItem 0x083580aa（P167 CLEAR；N18a make_pair 首 ref lea 折叠）、
+// hasSpecialCharacter 0x0836xxxx（P167 MISSING normal_iterator，N89）、
+// load_map_files 0x0835fxxx（P167 MISSING Rb_tree_iterator ppEi，N89）、
+// initFairPVPSkillPoint 0x0835f1d6（P167 MISSING Rb_tree_iterator×5 + P183 指针缓存）。
 // 仅承载以下六个真实 ORIG 符号，逐指令对照
 // docs/class_func_reports/CDataManager/ 各报告转写：
 //   set_reward_sp                              _ZN12CDataManager13set_reward_spEv        0x08360bde

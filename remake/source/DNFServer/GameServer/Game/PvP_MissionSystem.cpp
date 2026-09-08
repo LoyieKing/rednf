@@ -1,4 +1,13 @@
 #include "CDataManager.h"
+// ---- b28d-61 判词汇总（本 TU 4 件非 identical）----
+// 已修 AE：Factory（P171 去 default 冗余赋值）、Load_EtcParameter（P292 早返）、
+//   sort_list（P175/P225 索引循环+P159 int 返回）、C1（new CMTRand(time(0))+
+//   resize(0x24,list)）、D1（P141 delete 直删）、Load_list（P198/P140/P167 全段还原）。
+// N 封顶：get_WithinMissionIndex 0x085e2f00（ORIG MissionRankRange 实为
+//   std::pair<int,int>——CMission.h union 建模限制，需跨 TU 改 CMission.h/.cpp）、
+//   importPvpMissionParameterScript 0x08a5b7ec（MISSING string operator==×3，
+//   重载选择差异）、get_New_DailyMission 0x085e26e0（MISSING make_pair×2）、
+//   importPvpMissionScript 0x08a5ac28（MISSING string==×8，N89/大函数）。
 #include "CMission.h"
 #include "MissionLessThan.h"
 #include "PvPTypes.h"          // CMTRand

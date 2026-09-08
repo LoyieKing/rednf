@@ -689,21 +689,23 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
     if (getTowerState() > 2)
         return;
 
-    unsigned int memberCnt = m_playData.getStartMemberCnt();
+    // [b28d-69] 声明序照 ORIG 槽（curStage -0x5c / playTime -0x40 预清 / memberCnt -0x3c）；
+    // partyState/key/mgrIdx 均无槽往返 ⇒ 原码为表达式直用（P0），勿声明局部。
+    unsigned int curStage;
+    unsigned int playTime = 0;
+    int memberCnt = m_playData.getStartMemberCnt();
     void* rankTable = WongWork::CDeathTowerRanking::getRankTable(memberCnt);
 
     _onClear(isLast);
 
-    int partyState = m_party->m_battleField.m_bloodState;
-    if (partyState == 1)
+    if (m_party->m_battleField.m_bloodState == 1)
     {
         setTowerState((ENUM_TOWER_STATE)5);
         m_party->SetEPLPState(2);
 
-        int key = _genTimerKey((TIMER_MESSAGE)0x4d);
-        int mgrIdx = m_idx;
         G_TimerQueue()->InsertTimer(
-            (TimerEntry::OBJ_TYPE)6, mgrIdx, (TIMER_MESSAGE)0x4d, 0x3c, key, 0x4d);
+            (TimerEntry::OBJ_TYPE)6, m_idx, (TIMER_MESSAGE)0x4d, 0x3c,
+            _genTimerKey((TIMER_MESSAGE)0x4d), 0x4d);
 
         PacketGuard pkt;
         pkt.put_header(0, 0xfe);
@@ -714,14 +716,12 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
     {
         setTowerState((ENUM_TOWER_STATE)3);
 
-        int key = _genTimerKey((TIMER_MESSAGE)0x4b);
-        int mgrIdx = m_idx;
         G_TimerQueue()->InsertTimer(
-            (TimerEntry::OBJ_TYPE)6, mgrIdx, (TIMER_MESSAGE)0x4b, 1, key, 0x4b);
+            (TimerEntry::OBJ_TYPE)6, m_idx, (TIMER_MESSAGE)0x4b, 1,
+            _genTimerKey((TIMER_MESSAGE)0x4b), 0x4b);
     }
 
-    int curStage = m_stage.getCurrentStage();
-    unsigned int playTime;
+    curStage = m_stage.getCurrentStage();
     if (isLast)
     {
         playTime = m_playData.getPlayTime();
@@ -731,12 +731,13 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
         playTime = m_playData.getLastPlayTime();
         int stageMinus1 = curStage - 1;
         int one = 1;
-        curStage = std::max(stageMinus1, one);
+        curStage = std::max(one, stageMinus1);
     }
 
     for (int i = 0; i <= 3; ++i)
     {
-        CUser* user = m_party->get_user(i);
+        CUser* user = 0;
+        user = m_party->get_user(i);
         if (!user || !m_party->checkValidUser(i))
             continue;
 
@@ -745,57 +746,73 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
         user->set_charac_fatigue_buf_bonus_exp(0);
         user->set_charac_seria_buf_bonus_exp(0);
 
-        int characNo = user->getCurCharacNo();
-        unsigned int dungeonIdx = m_dungeonMgr.getDungeon()->get_index();
+        // [b28d-69] P183 地址重物化铁律：ORIG 每个使用点重发 getDungeon()->get_index()/
+        // getCurCharacNo()（p167 差集 getDungeon 11/get_index 9/getCurCharacNo 6 实证），
+        // 禁缓存指针或索引；isNewRecord 的 P184 死块（内层再测 isLast）照抄。
+        int isNewRecord = 0;
+        int result = _checkRenewMyRecord(
+            m_dungeonMgr.getDungeon()->get_index(), memberCnt,
+            user->getCurCharacNo(), curStage, playTime);
+        if (isLast)
+        {
+            isNewRecord = (result == 1);
+            if (_checkRenewTopRecord(m_dungeonMgr.getDungeon()->get_index(), memberCnt,
+                                     curStage, playTime) && isLast)
+                isNewRecord += 2;
+        }
 
-        int result = _checkRenewMyRecord(dungeonIdx, memberCnt, characNo, curStage, playTime);
-        int isNewRecord = (isLast && result == 1) ? 1 : 0;
-
-        int topResult = _checkRenewTopRecord(dungeonIdx, memberCnt, characNo, playTime);
-        if (isLast && topResult)
-            isNewRecord += 2;
-
-        unsigned int towerIdx = WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
         int virtualRank = ((WongWork::CDeathTowerRanking*)rankTable)->getVirtualRank(
-            towerIdx, curStage, playTime);
+            WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(
+                m_dungeonMgr.getDungeon()->get_index()),
+            curStage, playTime);
 
-        // ORIG 0x08463f5：notTower = (dungeonIdx != 11000)；随后统计/记录上报
-        char notTower = (char)(dungeonIdx != 0x2af8);
+        // ORIG 0x0846760e：notTower = (get_index() != 11000)；随后统计/记录上报
+        char notTower = (char)(m_dungeonMgr.getDungeon()->get_index() != 0x2af8);
         GetInstanceDeathTowerPlaydataStatistic()->SendDeathTowerPlayInfo(
             i, notTower,
             (const stDeathTowerRecordMemberInfo_t*)m_playData.getStartMemberInfo(),
-            curStage, memberCnt);
+            curStage, m_playData.getStartMemberCnt());
 
-        int level = user->get_charac_level();
         GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
-            (DEATHTOWER_VALUE_STATISTIC_FIELD)1, notTower, (char)level, curStage);
+            (DEATHTOWER_VALUE_STATISTIC_FIELD)1, notTower,
+            (char)user->get_charac_level(), curStage);
         GetInstanceDeathTowerValueStatistic()->SendDeathTowerValueStatistic(
-            (DEATHTOWER_VALUE_STATISTIC_FIELD)0, notTower, (char)level, 1);
+            (DEATHTOWER_VALUE_STATISTIC_FIELD)0, notTower,
+            (char)user->get_charac_level(), 1);
 
         if (result != 0)
         {
             DB_UpdateDeathTowerBestRecord::makeRequest(
-                towerIdx, characNo, memberCnt,
+                WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(
+                    m_dungeonMgr.getDungeon()->get_index()),
+                user->getCurCharacNo(), memberCnt,
                 (const stDeathTowerRecordMemberInfo_t*)m_playData.getStartMemberInfo(),
                 curStage, playTime);
             if (virtualRank > 0)
             {
                 GlobalData::s_monitor_proxy_mgr->GetServerProxy(
                     (ENUM_SERVER_GROUP)0)->updateTowerRank(
-                        characNo, towerIdx, memberCnt, virtualRank);
+                        user->getCurCharacNo(),
+                        WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(
+                            m_dungeonMgr.getDungeon()->get_index()),
+                        memberCnt, virtualRank);
                 ((WongWork::CDeathTowerRanking*)rankTable)->updateRanking(
-                    towerIdx, characNo, virtualRank);
+                    WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(
+                        m_dungeonMgr.getDungeon()->get_index()),
+                    user->getCurCharacNo(), virtualRank);
             }
             ((WongWork::CDeathTowerRanking*)rankTable)->registBestRecord(
-                towerIdx, (unsigned int)characNo,
+                WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(
+                    m_dungeonMgr.getDungeon()->get_index()),
+                user->getCurCharacNo(),
                 (const stDeathTowerRecordMemberInfo_t*)m_playData.getStartMemberInfo(),
-                (unsigned int)curStage, playTime);
+                curStage, playTime);
         }
 
         CPacketHandler handler;
         handler.makeDisplayRangking(
-            memberCnt, characNo, curStage, playTime, (result == 1), dungeonIdx,
-            virtualRank);
+            memberCnt, user->getCurCharacNo(), curStage, playTime, (result == 1),
+            m_dungeonMgr.getDungeon()->get_index(), virtualRank);
         user->Send(handler);
 
         // 奖励数量：ORIG _beginTowerClearProcess 0x0846791f..0x08467948 两套
@@ -808,17 +825,20 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
         else
             rewardNumBase =
                 G_CDataManager()->m_deathTower.m_illusionRewardCardNum[curStage];
-        int rewardItemNum = rewardNumBase + isNewRecord;
-        int maxReward = m_dungeonMgr.getDungeon()->getTowerMaxClearRewardItemNum();
-        rewardItemNum = std::min(rewardItemNum, maxReward);
-        rewardItemNum = std::min(rewardItemNum, 10);
+        // ORIG 三次 min：min<unsigned>(maxCardNum,cardNum) → min<int>(10,rewardItemNum)
+        // → min<unsigned>(10,curStage)（p167 差集 2×min<unsigned>+1×min<int> 实证）。
+        unsigned int cardNum = (unsigned int)rewardNumBase + (unsigned int)isNewRecord;
+        unsigned int maxCardNum =
+            (unsigned int)m_dungeonMgr.getDungeon()->getTowerMaxClearRewardItemNum();
+        int rewardItemNum = std::min(maxCardNum, cardNum);
+        rewardItemNum = std::min(10, rewardItemNum);
 
-        int level2 = user->get_charac_level();
-        m_playData.generateRewardItem(i, rewardItemNum, m_dungeonMgr, level2,
-                                      std::min(curStage, 10), m_party);
+        m_playData.generateRewardItem(i, rewardItemNum, m_dungeonMgr,
+                                      user->get_charac_level(),
+                                      std::min(10u, curStage), m_party);
 
         unsigned int mobReward = 0;
-        G_CDataManager()->get_mob_reward(level2, mobReward);
+        G_CDataManager()->get_mob_reward(user->get_charac_level(), mobReward);
         QuickParty::RewardData_Param rewardParam(m_party);
         QuickParty::RewardData_Result rewardResult;
         rewardResult.m_value00 = mobReward;

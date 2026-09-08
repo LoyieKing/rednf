@@ -177,9 +177,11 @@ int BingoEvent::reqBingoQuizMark(CUser& user, int quizValue)
 // type 经 find_item 构造 Inven_Item 后以系统邮件发放（sender=292/title=294）。
 void BingoEvent::sendMaxMatchLineReward(CUser& user)
 {
-    std::map<int, std::pair<int, int> >& rewardMap = G_CDataManager()->m_bingo.m_map30;
-    std::map<int, std::pair<int, int> >::iterator it = rewardMap.find(kMaxMatchLine);
-    if (it == rewardMap.end())
+    // [b28d-64] P48/P157：ORIG 0x080ca62d find 与 0x080ca652 end 各自独立调用
+    // G_CDataManager()（3 次总计，含 find_item）；缓存 map 引用会少 1 次调用。
+    std::map<int, std::pair<int, int> >::iterator it =
+        G_CDataManager()->m_bingo.m_map30.find(kMaxMatchLine);
+    if (it == G_CDataManager()->m_bingo.m_map30.end())
     {
         // ORIG 0x080ca695 引用 _ZZN10BingoEvent22sendMaxMatchLineRewardER5CUserE19
         // __PRETTY_FUNCTION__（P139）：必须传 __PRETTY_FUNCTION__ 生成同形局部静态符号。

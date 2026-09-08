@@ -84,7 +84,9 @@ public:
                         unsigned short t2);
     // ORIG mangled 名 _ZN12CAchievement18_verifyAchievementEj（带一个 uint
     // 形参；loadData 以 (unsigned int)this 调用，函数体经形参访问本对象）。
-    void _verifyAchievement(unsigned int self);
+    // b28d-68：ORIG 0x0828d092 首参读 0x8(%ebp) 且全程无 this ⇒ static
+    //（P245/P281；static 不入 mangling，符号/ABI 不变）。
+    static void _verifyAchievement(unsigned int self);
     void _checkComplete(unsigned int id);
     bool isClearedAchievement(unsigned int id);
     void _forceClear(unsigned int id);
