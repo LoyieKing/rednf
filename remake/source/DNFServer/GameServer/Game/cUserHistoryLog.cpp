@@ -555,9 +555,10 @@ void cUserHistoryLog::SkillSave(const _Mastered_skill* skills, unsigned int a, i
             break;
 
         char tmp[40];
-        memset(tmp, 0, sizeof(tmp));
-        sprintf(tmp + 0x10, "%d/%d/%d", a, n, b);
-        strcat(buf, tmp + 0x10);
+        // ORIG 循环外无 tmp 清零（sprintf 自写终止符）；清零只在 k 循环内（4.1 内联 4 条 movl）。
+        // &tmp[0x10] 使 4.4 折叠单条 `lea -0x84(%ebp),%eax`（ORIG 形）；指针加法 tmp+0x10 恒 lea+add。
+        sprintf(&tmp[0x10], "%d/%d/%d", a, n, b);
+        strcat(buf, &tmp[0x10]);
 
         // ORIG 0x08685ff3 段：rep stos ecx=0x80 dwords = 0x200 字节（整块 chunk 清零）。
         char chunk[512] = {0};
@@ -565,7 +566,7 @@ void cUserHistoryLog::SkillSave(const _Mastered_skill* skills, unsigned int a, i
         {
             int idx = vec[start + k].first;
             int lvl = vec[start + k].second;
-            memset(tmp, 0, sizeof(tmp));
+            memset(tmp, 0, 0x10);
             if (k % 3 == 0)
                 sprintf(tmp, ",%d/%d", idx, lvl);
             else

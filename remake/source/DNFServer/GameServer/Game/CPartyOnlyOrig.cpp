@@ -397,23 +397,25 @@ bool CParty::IsThereGhostInParty()
 // get_level 调用序（N82/N98），语义完成封顶。
 int CParty::getMemberPassParty(CUser* user)
 {
+    // b28d-solo-CPartyOnlyOrig：ORIG 槽 maxLevel=-0x14 / level=-0x10（Ghidra C
+    // 同序）——4.4 按首次使用序分配，声明序翻转为 level 在前才得 ORIG 槽序
+    //（N93 标量例外）。level 无清零（ORIG 只有 -0x14/-0xc 两条 movl $0）。
+    int level;
     int maxLevel = 0;
-    int level = 0;
     for (int i = 0; i <= 3; i++)
     {
         if (!_checkValidUser(i))
         {
             continue;
         }
-        // P133/P45：两比较各自 je/jne 短路桥（ORIG +0x6b/+0xad），不物化 bool。
+        // b28d-solo-CPartyOnlyOrig：ORIG 0x6b/0xad 两比较汇入
+        // `mov $1; jmp; mov $0; test %al; jne continue` 常量岛物化 ⇒ 源码是
+        // 单个 `||` 短路条件（P133 反例：两个独立 if 生 sete/test 而非常量岛）。
         if (reinterpret_cast<CUserCharacInfo*>(user)
-                ->get_connect_upper_member() ==
-            m_member[i].m_pUser->get_charac_no(-1))
-        {
-            continue;
-        }
-        if (user->get_charac_no(-1) ==
-            m_member[i].m_pUser->get_charac_no(-1))
+                    ->get_connect_upper_member() ==
+                m_member[i].m_pUser->get_charac_no(-1) ||
+            user->get_charac_no(-1) ==
+                m_member[i].m_pUser->get_charac_no(-1))
         {
             continue;
         }
@@ -421,13 +423,18 @@ int CParty::getMemberPassParty(CUser* user)
         level = m_member[i].m_pUser->get_charac_level();
         maxLevel = std::max(maxLevel, level);
     }
-    if (maxLevel == 0)
+    // b28d-solo-CPartyOnlyOrig：Ghidra C 尾段 = bVar1 常量岛物化
+    //（`mov $1; jmp; mov $0; test %al; je`，ORIG +0x131..+0x13f），随后
+    // **再次**判 maxLevel==0（+0x148），否则返回 1 ⇒ 单个 `&&` 条件 +
+    // 重复零判，而非两个独立 return（后者 4.4 产 setle/test 物化）。
+    if (maxLevel != 0 &&
+        maxLevel -
+            reinterpret_cast<CUserCharacInfo*>(user)
+                ->get_charac_level_before_dungeon() <= 6)
     {
         return 0;
     }
-    if (maxLevel -
-        reinterpret_cast<CUserCharacInfo*>(user)
-            ->get_charac_level_before_dungeon() <= 6)
+    if (maxLevel == 0)
     {
         return 0;
     }
@@ -754,20 +761,23 @@ bool CParty::HasNoQuestGoWithApcInParty(Quest const* quest)
     {
         if (_checkValidUser(i))
         {
-            // P48：两比较各调一次 get_state（ORIG +0x1a/+0x2d 双 call）。
-            if (m_member[i].m_pUser->get_state() != 5 &&
-                m_member[i].m_pUser->get_state() != 10)
+            // b28d-solo-CPartyOnlyOrig：ORIG 0x4f `je body` + 0x73 `jne
+            // continue` 为 4.1 `||` 直跳；4.4 对 `==5 || ==10` 第二条件后
+            // 恒物化 `mov $1/$0; test` 岛（探针 f1..f6 六形全败）⇒ 保留正向
+            // `||`（首跳 je 落点已与 ORIG 对齐），残余物化岛归 N（跨版本
+            // `||` lowering）。
+            if (m_member[i].m_pUser->get_state() == 5 ||
+                m_member[i].m_pUser->get_state() == 10)
             {
-                continue;
+                register int qIdx = quest->m_index;
+                // ORIG 0x95 后直接压参（无 userQuest 局部槽）⇒ 内联调用链。
+                if (m_member[i].m_pUser->getCurCharacQuestR()
+                        ->IsDoingQuest(qIdx) &&
+                    quest->m_triggerType == 3 && quest->m_triggerSubType == 0)
+                {
+                    return false;
+                }
             }
-            register int qIdx = quest->m_index;
-            UserQuest* userQuest = m_member[i].m_pUser->getCurCharacQuestR();
-            if (userQuest->IsDoingQuest(qIdx) &&
-                quest->m_triggerType == 3 && quest->m_triggerSubType == 0)
-            {
-                continue;
-            }
-            return false;
         }
     }
     return true;

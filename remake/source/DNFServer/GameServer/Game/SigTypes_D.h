@@ -322,7 +322,7 @@ struct SIG_MILEAGE_STRUCT
     // Lane9 字段化（§8.3）：ORIG CUser::LoadMileage 0x086507b0 三写实证
     // (0)=acc_id、(4)=characNo、(8)=0；布局/sizeof 不变。
     unsigned int m_accId;      // +0x00（get_acc_id 返 unsigned 同型直存）
-    int m_characNo;            // +0x04（getCurCharacNo 返 int 同型——ORIG 0x086507b0/0x08650642 store 直存无中转，P211 同型化）
+    unsigned int m_characNo;   // +0x04（b28d-Main：getCurCharacNo 已改 unsigned ⇒ 同型直存恢复 ORIG 0x086507b0 LHS-first；int 时翻 RHS-first 中转）
     int m_mileage;             // +0x08（GetMileage 返 int 同型）
 };
 

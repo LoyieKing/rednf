@@ -11353,7 +11353,10 @@ bool CUser::IsSubGuildMaster()
     {
         // b28d-solo-CUser AE: ORIG `cmp; sete %al; test %al,%al; je` 无槽；具名 hit 落 -0x9
         // 并把 i 槽推 -0xc→-0x10 ⇒ 内联条件。
-        if (m_guildDB.m_subMasterData[i] == getCurCharacNo())
+        // b28d-solo-CUser：getCurCharacNo 已 unsigned（CUserCharacInfo.h:701 Main P211 实验）
+        //   而 m_subMasterData 为 int ⇒ 异型多一条 `mov %eax,%ebx` 中转；ORIG 0x0866c414
+        //   单段直落 ebx（同型）⇒ 调用点收窄回 int。
+        if (m_guildDB.m_subMasterData[i] == (int)getCurCharacNo())
             return true;
     }
     return false;

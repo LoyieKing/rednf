@@ -452,10 +452,12 @@ int COnlinePreliminary::_CheckMatchable(PvP_Room* room) const
             firstTeamId = u->GetCurCharacOnlinePreliminaryTeamId();
             continue;
         }
-        bool ne = (u->GetCurCharacOnlinePreliminaryTeamId() != firstTeamId);  // b28 P0
-        /* ORIG @08561348 test %al,%al; je→增量块(@+0xcf)，log 体走
-         * fall-through(@+0x8c)：正向 if 不取反 */
-        if (ne)
+        /* [b28d-solo-OnlinePreliminaryMatch] ORIG @08561348 `cmp -0x14(%ebp),%eax;
+         * setne %al; test %al,%al; je`（物化后直测、无槽）；具名 bool 局部在
+         * 4.4 恒落 -0x9 槽（mov%al,-N;cmpb），故写裸比较表达式（P168a② 直测形）。
+         * ORIG test %al,%al; je→增量块(@+0xcf)，log 体走 fall-through(@+0x8c)：
+         * 正向 if 不取反。 */
+        if (u->GetCurCharacOnlinePreliminaryTeamId() != firstTeamId)
         {
         /* ORIG @08561352 第三次 call 结果直落 0x14(%esp)(@+0x97)，无具名
          * 中转折算槽【技巧36/37】 */
@@ -469,8 +471,9 @@ int COnlinePreliminary::_CheckMatchable(PvP_Room* room) const
     }
     /* ORIG 尾 @085613c5 setne 物化 + 双常量岛(@0x16/jmp/mov$0)；
      * byte 化用 (unsigned char) 强转产 movzbl(@085613c0) */
-    bool diff = (m_teams[0].size() - observers != (int)(unsigned char)GetPlayCountPerOneTeam());  // b28 P0
-    if (diff)
+    /* [b28d-solo-OnlinePreliminaryMatch] ORIG @085613c0 `movzbl %al,%eax;
+     * cmp %eax,%ebx; setne %al; test %al,%al; je`（尾物化无槽）⇒ 裸比较。 */
+    if (m_teams[0].size() - observers != (int)(unsigned char)GetPlayCountPerOneTeam())
         return 0x16;
     return 0;
 }
@@ -815,16 +818,29 @@ bool COnlinePreliminary::CheckUnusableEquipment(const Inven_Item* item)
     if (found->is_stackable())
         return false;
 
-    CEquipItem* equip = static_cast<CEquipItem*>(found);
-    if (equip->GetUsableEquipmentType() == 0)             // W 0x832e036
+    /* [b28d-solo-OnlinePreliminaryMatch] ORIG 全函数只有一个 CItem* 槽 -0xc
+     * （equip 每次从同一槽重读，无独立 -0x10 槽）⇒ 原码无 equip 具名局部，
+     * 删除后两处调用均按 ORIG 从 -0xc 重读（帧 0x20/槽号对齐）。 */
+    if (static_cast<CEquipItem*>(found)->GetUsableEquipmentType() == 0)  // W 0x832e036
         return true;
-    if (!G_CDataManager()->m_serverParameter.CheckUnusableEquipmentInfo((ENUM_UNUSABLE_EQUIPMENT_TYPE)equip->GetUsableEquipmentType(),
-                                                         found->getUsableLevel()))
+    if (!G_CDataManager()->m_serverParameter.CheckUnusableEquipmentInfo(
+            /* [b28d-solo-OnlinePreliminaryMatch·N封顶 N82附/N7] ORIG 寄存器
+             * 角色：先求值 getUsableLevel→%esi、后求值 GetUsableEquipmentType
+             * →%ebx；4.4 恒相反（getUsableLevel→%ebx）。P226 语句表达式
+             * `({expr;})` 实测不改变 call 结果实参的升格寄存器（仍 ebx/esi
+             * 反），callee-saved 角色互换源形不可控 ⇒ 保留裸形封 N。 */
+            (ENUM_UNUSABLE_EQUIPMENT_TYPE)static_cast<CEquipItem*>(found)->GetUsableEquipmentType(),
+            found->getUsableLevel()))
         return false;
-    // ORIG 经虚表槽 +0xc（GetItemType）取类型后查 CheckUnusableItem
-    return G_CDataManager()->m_serverParameter.CheckUnusableItem(
+    /* ORIG 经虚表槽 +0xc（GetItemType）取类型后查 CheckUnusableItem；
+     * [b28d-solo-OnlinePreliminaryMatch] ORIG @08560a23 尾为 `call; xor $1,%eax;
+     * test %al,%al; je <mov $1 岛>; mov $0,%eax; jmp` ⇒ 源形是
+     * `if(!call) return false; return true;`（直接 `return call;` 无物化）。 */
+    if (!G_CDataManager()->m_serverParameter.CheckUnusableItem(
                  (ENUM_EQUIPMENTTYPE)found->GetItemType(),
-                                                  (unsigned long)found->get_index());
+                                                  (unsigned long)found->get_index()))
+        return false;
+    return true;
 }
 
 /* ORIG T 0x08560a42：装备栏 0..22 槽全检 */

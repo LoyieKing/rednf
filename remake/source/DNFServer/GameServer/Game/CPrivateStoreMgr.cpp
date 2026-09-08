@@ -652,8 +652,10 @@ bool CPrivateStore::CompleteDisplay(char const* subject, unsigned short dollSlot
         m_pSeller->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, (int)dollSlot);
         if (useResult != 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x6c1, 5);
-            trace("CPrivateStore::CompleteDisplay() ERROR!!! : use_item(%d)", (int)dollSlot);
+            // P227 全表达式临时链：令 4.4 把 dollSlot 读入 %ebx 跨 ctor 保活
+            // （ORIG 0x1a5 movzwl→%ebx、0x1cc mov %ebx,0x8(%esp)）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x6c1, 5)(
+                "CPrivateStore::CompleteDisplay() ERROR!!! : use_item(%d)", (int)dollSlot);
             return false;
         }
     }
@@ -1651,7 +1653,13 @@ int CPrivateStore::SendUsers(PacketGuard* packet, CUser* excludeA, CUser* exclud
 // [b28d-24] DIFF 残24: 迭代器临时槽阶梯/构造顺序（P28/P50）。ORIG 0x085c91b6
 bool CPrivateStore::IsExistBuyerList(CUser* user)
 {
-    return std::find(m_users.begin(), m_users.end(), user) != m_users.end();
+    // P56：ORIG 尾部 test%al;je;mov$1;jmp;mov$0 为 if/return 分支形，勿直返表达式。
+    // 具名迭代器固定 find 先求值（P74 补充②旋钮一），复现 ORIG 的
+    // end(-0x14)/begin(-0x10)/find(-0x18)/end(-0xc) 槽阶梯。
+    std::list<CUser*>::iterator found = std::find(m_users.begin(), m_users.end(), user);
+    if (found != m_users.end())
+        return true;
+    return false;
 }
 
 // ---- CheckValidItem 三重载（ORIG T 0x85c9d4e / 0x85c9bb8 / 0x85c9cc2，三份报告全文）----
@@ -2284,10 +2292,10 @@ void CPrivateStoreMgr::GetStoreBuyer(IBuyer** out, CUser* user, unsigned short s
     CUser* sellerUser = 0;
     // ORIG：参数直落（mov %ax,-0x1c 单槽），无具名中转。
     sellerUser = G_GameWorld()->find_from_world(sellerIndex);
-    // ORIG +0x2d 死 cmpl $0x0,-0xc(%ebp)（无 jcc）：4.1 遗留。
-    if (sellerUser == 0)
-    {
-    }
+    // ORIG +0x2d 死 cmpl $0x0,-0xc(%ebp)（无 jcc）：4.1 对 `if(p==0){}` 生成
+    // cmp+je、jump-opt 删掉目标即下一条的 je 只留 cmp；4.4 前端把空条件整块
+    // DCE。实测 if(p==0){} / while(p==0)break;（后者多 sete+test 两条）均不可
+    // 复现 ⇒ N 封顶（N99 死代码 DCE 族）。
     GetStoreBuyer(out, user, sellerUser);
 }
 

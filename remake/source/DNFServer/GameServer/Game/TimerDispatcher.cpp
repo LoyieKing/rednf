@@ -2116,28 +2116,12 @@ int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
     {
         // ORIG 0x086369e6：DisConnSig(0x1d, false, 0) 断线
         user->DisConnSig((DISCONN_SIG)0x1d, false, 0);
-        char ip[20];
-        ip[0] = '\0';
-        ip[1] = '\0';
-        ip[2] = '\0';
-        ip[3] = '\0';
-        ip[4] = '\0';
-        ip[5] = '\0';
-        ip[6] = '\0';
-        ip[7] = '\0';
-        ip[8] = '\0';
-        ip[9] = '\0';
-        ip[10] = '\0';
-        ip[11] = '\0';
-        ip[12] = '\0';
-        ip[13] = '\0';
-        ip[14] = '\0';
-        ip[15] = '\0';
-        ip[16] = '\0';
-        ip[17] = '\0';
-        ip[18] = '\0';
-        ip[19] = '\0';
-        const char* ipStr = user->m_network.GetPeerIP2(ip, 0x14);  // +0xe0
+        // [b28d-solo-TimerDispatcher] ORIG 0x08636a1d..0x08636a34：0x14 字节缓冲
+        // 以 5×`movl $0x0,-0x30..-0x20(%ebp)` 清零（4.1 对 20B 块按 dword 展开）
+        // ⇒ 源形用 int[5] 具名缓冲（逐字节 movb 反劣），语义同为全零 IP 缓冲。
+        int ipBuf[5] = {0};
+        const char* ipStr =
+            user->m_network.GetPeerIP2((char*)ipBuf, 0x14);  // +0xe0
         cMyTrace trace(
             __PRETTY_FUNCTION__,
             0xb73, 0);
@@ -3103,13 +3087,19 @@ int TimerGeneratePowerUpNotiTime::dispatch_sig(int p1, int p2, unsigned int p3)
             GlobalData::s_power_manager->SetPowerUpRemainTime(remain);
             const int notiSec =
                 G_CDataManager()->m_powerParameter.m_vec20[static_cast<int>(period)];
-            if (remain <= notiSec)
+            // [b28d-solo-TimerDispatcher] ORIG 08638446 `mov -0xc(%ebp),%eax;
+            // cmp -0x18(%ebp),%eax; jl` ⇒ 源形左操作数 notiSec（`notiSec >= remain`）。
+            if (notiSec >= remain)
             {
                 send_noti_time(notiSec);
+                // ORIG 08638455 `addl $0x1,-0x14(%ebp)`（内存自增）⇒ ++period 语句。
+                ++period;
                 GlobalData::s_power_manager->SetPowerUpTimerPeriod(
-                    static_cast<int>(period) + 1);
-                if (cnt <= static_cast<int>(period) + 1)
+                    static_cast<int>(period));
+                if (cnt <= static_cast<int>(period))
                 {
+                    // ORIG 0863846a `movl $0x0,-0x14(%ebp)`（period=0 写后未读照抄，P171）。
+                    period = 0;
                     bVar2 = false;
                     GlobalData::s_power_manager->SetPowerUpTimerPeriod(0);
                 }
@@ -3351,14 +3341,16 @@ int TimerUpdateCompoundEmblemStatics::registNextTimer()
 {
     const time_t now = static_cast<time_t>(GlobalData::s_systemTime_.getCurSec());
     tm t;
-    localtime_r(&now, &t);
-    const int curHour = t.tm_hour;
-    t.tm_hour = 5;
-    t.tm_min = 0;
-    t.tm_sec = 0;
-    t.tm_min = *(const int*)((const char*)G_CEnvironment() + 0x1b0) % 0x1e;
-    int target = static_cast<int>(mktime(&t));
-    if (t.tm_hour <= curHour)
+    // [b28d-solo-TimerDispatcher] P43：ORIG 经 localtime_r 返回值指针访问
+    // （`mov -0x18(%ebp),%eax; mov 0x8(%eax),%eax` / mktime(p)），非直接读栈上 tm。
+    tm* p = localtime_r(&now, &t);
+    const int curHour = p->tm_hour;
+    p->tm_hour = 5;
+    p->tm_min = 0;
+    p->tm_sec = 0;
+    p->tm_min = *(const int*)((const char*)G_CEnvironment() + 0x1b0) % 0x1e;
+    int target = static_cast<int>(mktime(p));
+    if (p->tm_hour <= curHour)
         target += 0x15180;
     const int delay = target - static_cast<int>(now);
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0x89,

@@ -1387,7 +1387,7 @@ bool CDBMsgSender::EvoluteCreature(int uid, int itemIdx)
 //   CEquipItem::get_sub_type()==0 → m_flag50(+0x50)=1 且 m_field64(+0x64)=6，
 //   否则 m_flag50=0；返回 1。
 // [b28d-23 N·N81/N76] 临时 this lea-vs-add + store 装载序 ⇒ N。ORIG 0x0833faaa
-// [b28d-solo-CCreatureMgr N] N7/N18a：+0x48 m_characNo ORIG call 返回值经 edx 中转+基址后载 vs 4.4 直存；字段 unsigned 化可翻正本点但 RecvMail/SendMail 同字段反向（P248 两端冲突，实测回退）；ORIG 0x833faaa
+// [b28d-solo-CCreatureMgr AE] +0x48 m_characNo 在当前头集/路由下与 ORIG 逐条对齐（曾因 edx 中转差异判 N；字段 unsigned 化会破坏 RecvMail/SendMail 同字段，P248 两端冲突，勿改）；ORIG 0x833faaa
 bool CDBMsgSender::InsertCreatureItem(CUser* user, Inven_Item* item, int slot,
                                       int reason, int mapSize, int days,
                                       int expireTick)
