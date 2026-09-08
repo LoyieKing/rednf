@@ -735,13 +735,6 @@ private:
     void log(CUser& user, int itemId);                                      // T 0x082707c0
     std::auto_ptr<RentalMachinePcRoomImpl> m_impl;  // +0x04（ORIG auto_ptr）
 };
-// RentalMachineDimensionImpl（ORIG ctor 0x826fa6c：与 PcRoom 同构，推断）。
-struct RentalMachineDimensionImpl
-{
-    RentalMachineDimensionImpl() { memset(m_data, 0, sizeof(m_data)); }
-    char m_data[0x104];            // +0x00
-    std::set<unsigned int> m_set;  // +0x104
-};  // 0x11c
 class RentalMachineDimension : public IRentalMachine
 {
 public:
@@ -757,6 +750,17 @@ public:
     virtual bool CheckRentableItem(unsigned int itemIdx);
 
 private:
+    // [b28d-solo-GlobalData] Impl 必须**嵌套**（P76/P104）：ORIG nm 为
+    // _ZN22RentalMachineDimension26RentalMachineDimensionImpl*（嵌套 mangling），
+    // 全局平铺 struct 使 auto_ptr<Impl> 的 operator->/C1/D1 符号不匹配
+    // （p167 MISSING ptEv×多件）。与 PcRoom 同构。
+    struct RentalMachineDimensionImpl
+    {
+        RentalMachineDimensionImpl() { memset(m_data, 0, sizeof(m_data)); }
+        ~RentalMachineDimensionImpl() {}   // ORIG D1 @0x0826fb0c：仅析构 set
+        char m_data[0x104];            // +0x00
+        std::set<unsigned int> m_set;  // +0x104
+    };  // 0x11c
     bool checkAllRentalItemScript();   // ORIG T 0x0826f022（本批实现）
     int checkSelectionListScript(
         const std::vector<std::vector<EventRewardItemInfo> >& list);         // T 0x0826f14e
@@ -1004,9 +1008,11 @@ public:
     static const unsigned short kTaiwanAlphabet[26];   // VA 0x08b2c500
     // [b23S3C] 非 const：ORIG(4.1) -O0 对 rodata 常量仍出运行时 mov 读取再 div；
     // 4.4 见 const 初始化器即折成魔数乘（mul/imul 形）。探针 /tmp/r3probe/p4 实证非 const 复原 `mov addr;div`。
-    static unsigned int kKoreanGeneralCount;     // VA 0x08b2c444（978）
-    static unsigned int kTaiwanAlphabetCount;    // VA 0x08b2c534（26）
-    static unsigned int kJapaneseHirakanaCount;  // VA 0x08b2c4f0（72）
+    // ORIG 0x080de87x：divisor 装载 `mov <A>,%edx; mov %edx,%ecx`（int 读入
+    // edx 再转 unsigned 到 ecx）⇒ 声明 int + 使用处显式转 unsigned（P211 档③）。
+    static int kKoreanGeneralCount;     // VA 0x08b2c444（978）
+    static int kTaiwanAlphabetCount;    // VA 0x08b2c534（26）
+    static int kJapaneseHirakanaCount;  // VA 0x08b2c4f0（72）
 private:
     static float getFloat(XorRand4& rng, float lo, float hi);
     void* m_library;             // +0x00（ORIG FT_Library；本还原中为句柄占位）
@@ -1112,9 +1118,9 @@ const unsigned short CaptchaGen::kTaiwanAlphabet[26] = {
     0x004d, 0x004e, 0x004f, 0x0050, 0x0051, 0x0052, 0x0053, 0x0054, 0x0055, 0x0056, 0x0057, 0x0058,
     0x0059, 0x005a,
 };
-unsigned int CaptchaGen::kKoreanGeneralCount = 978;    // VA 0x08b2c444
-unsigned int CaptchaGen::kTaiwanAlphabetCount = 26;    // VA 0x08b2c534
-unsigned int CaptchaGen::kJapaneseHirakanaCount = 72;  // VA 0x08b2c4f0
+int CaptchaGen::kKoreanGeneralCount = 978;    // VA 0x08b2c444
+int CaptchaGen::kTaiwanAlphabetCount = 26;    // VA 0x08b2c534
+int CaptchaGen::kJapaneseHirakanaCount = 72;  // VA 0x08b2c4f0
 
 // CaptchaGen 实现（G7 验证码；ORIG 走 FreeType，本环境无 FreeType，按算法等价实现）
 CaptchaGen::ImageOption::ImageOption()
@@ -1348,21 +1354,23 @@ void CaptchaGen::generateText(CountryCode code, int len, unsigned short* out)
     {
         for (int i = 0; i < len; ++i)
         {
-            out[i] = kKoreanGeneral[m_rng() % kKoreanGeneralCount];
+            out[i] = kKoreanGeneral[m_rng() % (unsigned int)kKoreanGeneralCount];
         }
     }
     else if (code == CountryCode::japan)
     {
         for (int i = 0; i < len; ++i)
         {
-            out[i] = kJapaneseHirakana[m_rng() % kJapaneseHirakanaCount];
+            out[i] =
+                kJapaneseHirakana[m_rng() % (unsigned int)kJapaneseHirakanaCount];
         }
     }
     else if (code == CountryCode::taiwan)
     {
         for (int i = 0; i < len; ++i)
         {
-            out[i] = kTaiwanAlphabet[m_rng() % kTaiwanAlphabetCount];
+            out[i] =
+                kTaiwanAlphabet[m_rng() % (unsigned int)kTaiwanAlphabetCount];
         }
     }
 }
@@ -2065,7 +2073,11 @@ AcceptThread::AcceptThread()
 // InitTcp(true) + 虚 Disconnect + SendRegistPacket；community 仅整合 PvP
 // 频道时处理）。
 // ---------------------------------------------------------------------------
-// [b28d-18 DIFF] p167 缺口未闭合：ORIG 239 vs 我们 169（缺 get_socket×20/GetServerProxyArrayAt×24/GetTcpHandler×20 等），待按 ORIG 展开结构重写 | ORIG 0x0857d95a
+// [b28d-solo-GlobalData] p167 CLEAR（239/239，0 missing/0 extra）：FD_SET/FD_ISSET
+// 三元链逐处重调（P157 禁 mon/s 缓存）+ 状态缓存消除（P48 独立调用）+
+// 第二次 IsIntegratedPvPBaseChannel 守卫包裹 auction/cera 段（ORIG 0x0857edb5
+// `xor $1; test; je 循环尾`——真语义缺口，整合 PvP 频道时跳过两段）。
+// 余 gap=+256/ndiff=1570 = 4.4 对 FD_ZERO/FD_SET 宏展开与帧槽布局差（N82/N89 族） | ORIG 0x0857d95a
 void MonitorTcpThread::dispatch(void* arg)
 {
     (void)arg;
@@ -2382,8 +2394,10 @@ void MonitorTcpThread::dispatch(void* arg)
                     "PCROOM::OnTcpSend == false!!!remain_size(%d)", sendRet);
             }
         }
-        int pcroomState = GlobalData::s_pcroom_proxy->GetSocketState();
-        if (pcroomState == ENUM_SOCKET_STATE_DISCONNECTED)
+        // ORIG 0x0857eab0/0x0857eb12：if/else-if 两臂各自独立调用
+        // GetSocketState（P48：O0 无 CSE，禁具名状态缓存）。
+        if (GlobalData::s_pcroom_proxy->GetSocketState() ==
+            ENUM_SOCKET_STATE_DISCONNECTED)
         {
             if (GlobalData::s_systemTime_.getCurSec() -
                     lastReconnectPcroom >
@@ -2396,7 +2410,8 @@ void MonitorTcpThread::dispatch(void* arg)
                     GlobalData::s_systemTime_.getCurSec();
             }
         }
-        else if (pcroomState == ENUM_SOCKET_STATE_CONNECTING)
+        else if (GlobalData::s_pcroom_proxy->GetSocketState() ==
+                 ENUM_SOCKET_STATE_CONNECTING)
         {
             if (GlobalData::s_systemTime_.getCurSec() -
                     lastReconnectPcroom >
@@ -2449,9 +2464,8 @@ void MonitorTcpThread::dispatch(void* arg)
                         sendRet);
                 }
             }
-            int commState =
-                GlobalData::s_community_proxy->GetSocketState();
-            if (commState == ENUM_SOCKET_STATE_DISCONNECTED)
+            if (GlobalData::s_community_proxy->GetSocketState() ==
+                ENUM_SOCKET_STATE_DISCONNECTED)
             {
                 GlobalData::s_community_proxy->InitTcp();
                 GlobalData::s_community_proxy->SetSocketState(
@@ -2459,7 +2473,8 @@ void MonitorTcpThread::dispatch(void* arg)
                 lastReconnectCommunity =
                     GlobalData::s_systemTime_.getCurSec();
             }
-            else if (commState == ENUM_SOCKET_STATE_CONNECTING)
+            else if (GlobalData::s_community_proxy->GetSocketState() ==
+                     ENUM_SOCKET_STATE_CONNECTING)
             {
                 if (GlobalData::s_systemTime_.getCurSec() -
                         lastReconnectCommunity >
@@ -2472,6 +2487,11 @@ void MonitorTcpThread::dispatch(void* arg)
             }
         }
 
+        // ORIG 0x0857eda3：第二次 G_GameWorld()->IsIntegratedPvPBaseChannel()，
+        // `xor $1; test %al,%al; je 循环尾` ⇒ 整合 PvP 频道时跳过
+        // auction/cera 两段（与前面 community 段互补的两独立 if，P48 无 CSE）。
+        if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
+        {
         // AUCTION 代理
         if (auctionSocket != -1 &&
             GlobalData::s_auction_proxy->GetSocketState() ==
@@ -2510,9 +2530,8 @@ void MonitorTcpThread::dispatch(void* arg)
                     sendRet);
             }
         }
-        int auctionState =
-            GlobalData::s_auction_proxy->GetSocketState();
-        if (auctionState == ENUM_SOCKET_STATE_DISCONNECTED)
+        if (GlobalData::s_auction_proxy->GetSocketState() ==
+            ENUM_SOCKET_STATE_DISCONNECTED)
         {
             if (GlobalData::s_systemTime_.getCurSec() -
                     lastReconnectAuction >
@@ -2527,7 +2546,8 @@ void MonitorTcpThread::dispatch(void* arg)
                     GlobalData::s_systemTime_.getCurSec();
             }
         }
-        else if (auctionState == ENUM_SOCKET_STATE_CONNECTING)
+        else if (GlobalData::s_auction_proxy->GetSocketState() ==
+                 ENUM_SOCKET_STATE_CONNECTING)
         {
             if (GlobalData::s_systemTime_.getCurSec() -
                     lastReconnectAuction >
@@ -2580,9 +2600,8 @@ void MonitorTcpThread::dispatch(void* arg)
                     sendRet);
             }
         }
-        int ceraState =
-            GlobalData::s_cera_auction_proxy->GetSocketState();
-        if (ceraState == ENUM_SOCKET_STATE_DISCONNECTED)
+        if (GlobalData::s_cera_auction_proxy->GetSocketState() ==
+            ENUM_SOCKET_STATE_DISCONNECTED)
         {
             if (GlobalData::s_systemTime_.getCurSec() -
                     lastReconnectCera >
@@ -2597,7 +2616,8 @@ void MonitorTcpThread::dispatch(void* arg)
                     GlobalData::s_systemTime_.getCurSec();
             }
         }
-        else if (ceraState == ENUM_SOCKET_STATE_CONNECTING)
+        else if (GlobalData::s_cera_auction_proxy->GetSocketState() ==
+                 ENUM_SOCKET_STATE_CONNECTING)
         {
             if (GlobalData::s_systemTime_.getCurSec() -
                     lastReconnectCera >
@@ -2610,6 +2630,7 @@ void MonitorTcpThread::dispatch(void* arg)
                 GlobalData::s_cera_auction_proxy->Disconnect();
             }
         }
+        }   // !IsIntegratedPvPBaseChannel()
     }
 }
 
@@ -4786,6 +4807,8 @@ void CLevelDungeonPlayStatistic::IncreaseLevelDungeonPlay(int level, int playCou
             "LEVEL_DUNGEON_PLAY_STATISTIC wrong level(%d)", level);
         return;
     }
+    // ORIG 0x0860ed0x：find 两实参装载序（-0x44 先入 0x4(%esp)、-0x30 后入
+    // (%esp)）；P50 先声明后赋值实测反劣（4→11，多默认构造 call+拷贝）⇒ 回退。
     std::map<int, stDungeonPlayInfo>::iterator it = m_levelPlayMap.find(level);
     if (it == m_levelPlayMap.end())
     {
@@ -5896,10 +5919,12 @@ bool CDBEnviroment::parse(char* buf)
     }
     else
     {
-        CDBEnvServerGroupMapView* env = (CDBEnvServerGroupMapView*)G_CEnvironment();
+        // ORIG 0x0829dc9a/0x0829dcbb：find 的 receiver 与 end 的 receiver 各自
+        // 独立调用 G_CEnvironment()（P48 无 CSE + P157 逐字段重读，禁 env 缓存；
+        // p167 实证旧写缺 G_CEnvironment×1）。
         std::map<ENUM_SERVER_GROUP, std::map<std::string, std::string> >::iterator it =
-            env->m_map.find(m_dbType);
-        if (it != env->m_map.end())
+            ((CDBEnvServerGroupMapView*)G_CEnvironment())->m_map.find(m_dbType);
+        if (it != ((CDBEnvServerGroupMapView*)G_CEnvironment())->m_map.end())
         {
             it->second.insert(std::make_pair(p1, p2));
         }
@@ -7542,22 +7567,27 @@ bool RentalMachineDimension::GetRentItemInfo(
 // [b28d-18 N82] 残差=槽位/STL（N82/N89） | ORIG 0x082708cc
 bool RentalMachinePcRoom::checkAllRentalItemScript()
 {
-    std::map<int, std::vector<std::vector<EventRewardItemInfo> > >& table =
-        G_CDataManager()->m_pcBangRentar.m_mapC;
-
+    // ORIG 0x082708cc 段（p167 实证）：外层 map 的 begin()/end() 各自独立重调
+    // G_CDataManager()（P157/P48）；内两层为 const_iterator 遍历
+    // （begin/end/operator*/operator++/operator!=），非 size()/operator[] 下标形
+    // （P175 反例）；`(*it).second` 代 `it->second`（P167 deEv 非 ptEv）。
     for (std::map<int,
                   std::vector<std::vector<EventRewardItemInfo> > >::iterator
-             outer = table.begin();
-         outer != table.end(); ++outer)
+             outer = G_CDataManager()->m_pcBangRentar.m_mapC.begin();
+         outer != G_CDataManager()->m_pcBangRentar.m_mapC.end(); ++outer)
     {
-        std::vector<std::vector<EventRewardItemInfo> >& sections =
-            outer->second;
-        for (std::size_t s = 0; s < sections.size(); ++s)
+        const std::vector<std::vector<EventRewardItemInfo> >& sections =
+            (*outer).second;
+        for (std::vector<std::vector<EventRewardItemInfo> >::const_iterator
+                 sit = sections.begin();
+             sit != sections.end(); ++sit)
         {
-            std::vector<EventRewardItemInfo>& items = sections[s];
-            for (std::size_t i = 0; i < items.size(); ++i)
+            const std::vector<EventRewardItemInfo>& items = *sit;
+            for (std::vector<EventRewardItemInfo>::const_iterator
+                     iit = items.begin();
+                 iit != items.end(); ++iit)
             {
-                const unsigned int itemId = (unsigned)items[i].m_field0;
+                const unsigned int itemId = (unsigned)(*iit).m_field0;
                 CItem* item = G_CDataManager()->find_item((int)itemId);
                 if (item == 0)
                 {
@@ -7620,12 +7650,17 @@ bool RentalMachinePcRoom::checkAllRentalItemScript()
 int RentalMachineDimension::checkSelectionListScript(
     const std::vector<std::vector<EventRewardItemInfo> >& selectionList)
 {
-    for (std::size_t s = 0; s < selectionList.size(); ++s)
+    // ORIG 0x0826f14e 段（p167 MISSING 迭代器族）：两层均为 const_iterator
+    // 遍历（begin/end/operator*/operator++/operator!=），非下标形（P175 反例）。
+    for (std::vector<std::vector<EventRewardItemInfo> >::const_iterator
+             sit = selectionList.begin();
+         sit != selectionList.end(); ++sit)
     {
-        const std::vector<EventRewardItemInfo>& items = selectionList[s];
-        for (std::size_t i = 0; i < items.size(); ++i)
+        const std::vector<EventRewardItemInfo>& items = *sit;
+        for (std::vector<EventRewardItemInfo>::const_iterator iit = items.begin();
+             iit != items.end(); ++iit)
         {
-            const unsigned int itemId = (unsigned)items[i].m_field0;
+            const unsigned int itemId = (unsigned)(*iit).m_field0;
             CItem* item = G_CDataManager()->find_item((int)itemId);
             if (item == 0)
             {
@@ -7685,28 +7720,29 @@ int RentalMachineDimension::checkSelectionListScript(
 // [b28d-18 N82] 残差=槽位/分支布局（N82） | ORIG 0x0826f022
 bool RentalMachineDimension::checkAllRentalItemScript()
 {
-    CDataManager* dm = G_CDataManager();
-    std::map<int, std::vector<std::vector<EventRewardItemInfo> > >& selectMap =
-        dm->m_dimensionAct.m_rewardData.m_mapC;      // +0x4b40
+    // ORIG 0x0826f028/0x0826f086/0x0826f0b9/0x0826f114：两循环的 begin()/end()
+    // 各自独立重调 G_CDataManager()（P157 逐字段重读 + P48 无 CSE，禁 dm 缓存）；
+    // `(*it).second` 代 `it->second`（P167：ORIG 发 deEv 非 ptEv）。
     for (std::map<int,
                   std::vector<std::vector<EventRewardItemInfo> > >::iterator
-             it = selectMap.begin();
-         it != selectMap.end(); ++it)
+             it = G_CDataManager()
+                      ->m_dimensionAct.m_rewardData.m_mapC.begin();
+         it != G_CDataManager()
+                   ->m_dimensionAct.m_rewardData.m_mapC.end(); ++it)
     {
-        if (checkSelectionListScript(it->second) != 1)
+        if (checkSelectionListScript((*it).second) != 1)
         {
             return false;
         }
     }
-    std::map<std::pair<int, int>,
-             std::vector<std::vector<EventRewardItemInfo> > >& giveMap =
-        dm->m_dimensionAct.m_rewardData.m_map24;     // +0x4b58
     for (std::map<std::pair<int, int>,
                   std::vector<std::vector<EventRewardItemInfo> > >::iterator
-             it = giveMap.begin();
-         it != giveMap.end(); ++it)
+             it = G_CDataManager()
+                      ->m_dimensionAct.m_rewardData.m_map24.begin();
+         it != G_CDataManager()
+                   ->m_dimensionAct.m_rewardData.m_map24.end(); ++it)
     {
-        if (checkSelectionListScript(it->second) != 1)
+        if (checkSelectionListScript((*it).second) != 1)
         {
             return false;
         }
@@ -7762,7 +7798,12 @@ int RentalMachinePcRoom::CheckupAllRentalItems(
             ++inventoryNeed;
         }
     }
-    return pc_room::CheckInventoryEmptyCount(user, inventoryNeed) ? 0 : 0xcb;
+    // 同 Dimension 版：ORIG 尾 if-return 形（P47/P191）。
+    if (!pc_room::CheckInventoryEmptyCount(user, inventoryNeed))
+    {
+        return 0xcb;
+    }
+    return 0;
 }
 
 // ---- Dimension::CheckupAllRentalItems —— T 0x0826f52c（同名报告全文转写）---
@@ -7812,8 +7853,13 @@ int RentalMachineDimension::CheckupAllRentalItems(
             ++inventoryNeed;
         }
     }
-    return pc_room::CheckInventoryEquipmentEmptyCount(user, inventoryNeed) ? 0
-                                                                          : 0xcb;
+    // ORIG 尾 `call; xor $1; test %al,%al; je <mov $0 岛>; mov $0xcb; jmp`
+    // ⇒ if-return 形（P47/P191：三目与 if-return 块排布镜像，此处需 if 形）。
+    if (!pc_room::CheckInventoryEquipmentEmptyCount(user, inventoryNeed))
+    {
+        return 0xcb;
+    }
+    return 0;
 }
 
 // ---- PcRoom::Rent —— T 0x082704e6（Rent.md 全文转写）------------------------
@@ -7822,11 +7868,18 @@ int RentalMachinePcRoom::Rent(CUser& user,
                               const InstanceRentalSystem::RentInput& input,
                               InstanceRentalSystem::RentOutput& output)
 {
-    // ORIG: (!IsPcRoomUser || input+0x11 字节==1) → 7。+0x11 = RentInput::m_field11
-    // （InstanceRentalSystem.h 权威成员，ORIG C1 清零、PcRoom::Rent 读 ==1）。
-    if (!pc_room::IsPcRoomUser(user) || input.m_field11 == 1)
+    // ORIG 0x082704f4..0x08270513（真语义 bug 修正）：`call IsPcRoomUser; xor $1;
+    // test; je <继续>` + 内层 `movzbl 0x11; xor $1; test; je <继续>`；两条 je 同落
+    // 继续块 ⇒ 原码是 `if (!IsPcRoomUser(user) && !input.m_field11) return 7;`
+    // （旧写 `|| m_field11 == 1` 逻辑相反）。
+    // P133①/P225 推广：ORIG 两条守卫各自 `je <继续>`（非汇聚物化）⇒ 嵌套 if
+    // （外层 !A、内层 !B → return 7），4.4 才逐条复现 `xor $1; test; je`。
+    if (!pc_room::IsPcRoomUser(user))
     {
-        return 7;   // ENUM_ERROR 7
+        if (!input.m_field11)
+        {
+            return 7;   // ENUM_ERROR 7
+        }
     }
     if (!pc_room::CheckRentableEnvironment(user))
     {
@@ -7862,13 +7915,15 @@ int RentalMachinePcRoom::Rent(CUser& user,
                 (int)(signed char)elem.m_itemIdx);
             return 1;   // ENUM_ERROR 1
         }
-        if (elem.m_bEquip == 0)
+        // ORIG `test %al,%al; je <ProcessInsertItem>`（equip 直落）⇒ 条件取反 +
+        // 两臂交换复现 4.1 else-first 布局（P47/P222，同 Dimension::Rent）。
+        if (elem.m_bEquip != 0)
         {
-            pc_room::ProcessInsertItem(user, elem, info, output, 0x3d);
+            pc_room::ProcessEquipItem(user, elem, info, output, 0x3d);
         }
         else
         {
-            pc_room::ProcessEquipItem(user, elem, info, output, 0x3d);
+            pc_room::ProcessInsertItem(user, elem, info, output, 0x3d);
         }
         if (input.m_logFlag != 0)
         {

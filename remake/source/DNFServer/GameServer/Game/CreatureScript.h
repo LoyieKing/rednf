@@ -15,6 +15,8 @@
 #include <string>
 #include <vector>
 
+#include "NpcScript.h"   // STScriptFileList（g_creatureScriptFileList 真型）
+
 // ENUM_ELEMENT（AttackInfo set 元素，getElement 0..4）。
 enum ENUM_ELEMENT
 {
@@ -280,7 +282,7 @@ public:
 // std::map<int,std::string>）；LoadCreatureScriptFile / importCreatureScript
 // 均按 map 语义访问，故此处直接声明为 std::map<int,std::string>（0x18B，
 // 与 STScriptFileList 布局一致），避免跨头 class/struct 声明冲突。
-extern std::map<int, std::string> g_creatureScriptFileList;
+extern STScriptFileList g_creatureScriptFileList;   // b28d-Main：ORIG 真型 STScriptFileList（+0x00 即 map<int,string>；探针 66/66）
 extern char g_creatureScriptBaseDirectory[0x104];
 
 // ---- 解析函数（ORIG T）----

@@ -58,7 +58,7 @@ class DisPatcher_SelectCharac : public IPacketDispatcher<MSG_CHARAC_SELECT, stSe
 public:
     DisPatcher_SelectCharac() {}
     virtual ~DisPatcher_SelectCharac();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -86,7 +86,7 @@ class DisPatcher_CreateCharac : public IPacketDispatcher<MSG_CREATE_CHARACTER, s
 public:
     DisPatcher_CreateCharac() {}
     virtual ~DisPatcher_CreateCharac();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -99,7 +99,7 @@ class DisPatcher_DeleteCharac : public IPacketDispatcher<MSG_DELETE_CHARACTER, s
 public:
     DisPatcher_DeleteCharac() {}
     virtual ~DisPatcher_DeleteCharac();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -218,7 +218,7 @@ public:
     DisPatcher_SelectDungeon() {}
     virtual ~DisPatcher_SelectDungeon();
     // ORIG mangled _ZN24DisPatcher_SelectDungeon11check_errorEP5CUserR8MSG_BASER9ParamBase
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     int checkBlueMarble(CParty* party);     // ORIG T 0x081c9172
@@ -241,7 +241,7 @@ public:
     DisPatcher_DeleteItem() {}
     virtual ~DisPatcher_DeleteItem();
     // ORIG check_error 为二参（_ZN21DisPatcher_DeleteItem11check_errorEP5CUserR8MSG_BASE）
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     bool exercise_mode(CUser* user, MSG_BASE& msg, ParamBase& param);  // 0x081c1ad6
     int restricted_check(CUser* user, MSG_BASE& msg);                  // 0x081c1cf6
     int condition_check(CUser* user, MSG_BASE& msg, INVEN_TYPE& type, int idx);  // 0x081c1d5c
@@ -502,7 +502,7 @@ class DisPatcher_DieCharacInDungeon : public IPacketDispatcher<MSG_DIE_CHARACTER
 public:
     DisPatcher_DieCharacInDungeon() {}
     virtual ~DisPatcher_DieCharacInDungeon();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -514,7 +514,7 @@ class DisPatcher_UseCoin : public IPacketDispatcher<MSG_USE_COIN, stUseCoinParam
 public:
     DisPatcher_UseCoin() {}
     virtual ~DisPatcher_UseCoin();
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG _ZN18DisPatcher_UseCoin11check_errorEP5CUserR8MSG_BASER9ParamBase
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG _ZN18DisPatcher_UseCoin11check_errorEP5CUserR8MSG_BASER9ParamBase
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     // wave1/wave2: 本 TU 家族 helper（ORIG T 0x081ca63a / 0x081ca75c / 0x081cab3a）
@@ -539,7 +539,7 @@ class DisPatcher_GetItem : public IPacketDispatcher<MSG_GET_ITEM, stGetItemParam
 public:
     DisPatcher_GetItem() {}
     virtual ~DisPatcher_GetItem();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -798,7 +798,7 @@ class DisPatcher_AddFriend : public IPacketDispatcher<MSG_ADD_FRIEND, stAddFrien
 public:
     DisPatcher_AddFriend() {}
     virtual ~DisPatcher_AddFriend();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -810,7 +810,7 @@ class DisPatcher_RemoveFriend : public IPacketDispatcher<MSG_REMOVE_FRIEND, stRe
 public:
     DisPatcher_RemoveFriend() {}
     virtual ~DisPatcher_RemoveFriend();
-    int check_error(CUser* user, MSG_BASE& msg);
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);

@@ -77,7 +77,9 @@ public:
         std::vector<RentInElem> m_elems;   // +0x00
         int m_machineKey;                  // +0x0c（getMachine 键）
         unsigned char m_logFlag;           // +0x10（非 0 逐物品 log）
-        unsigned char m_field11;           // +0x11（ORIG C1 清零；PcRoom::Rent 读 ==1 判定）
+        // P248 档②：ORIG PcRoom::Rent 0x08270503 `movzbl 0x11(%eax),%eax;
+        // xor $0x1,%eax; test %al,%al; je`（bool 字段 + 裸 !field 形）⇒ bool。
+        bool m_field11;                    // +0x11（ORIG C1 清零）
     };
 
     typedef RentInput::RentInElem RentInElem;  // 兼容既有调用处（别名不产生符号）

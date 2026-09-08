@@ -655,7 +655,7 @@ public:
     unsigned char get_blood_dungeon_type() const;  // ORIG 单 movzbl（826b92e）
     unsigned char get_dimension_possible() const;  // ORIG 单 movzbl（826b93x）
     unsigned char get_dimension_min_partymem() const;
-    unsigned char limitOfStackableItemInTower() const;
+    bool limitOfStackableItemInTower() const;  // b28d-Main(P292)：ORIG 0x081c1b68 `call; xor $0x1,%eax; test %al,%al; je` + 0x081c1b8e `call; test %al,%al; je` ⇒ bool
     bool isNoFatigueDungeon() const;               // b25c Lane21 bool 化：ORIG 0x822b4de 单 movzbl 直返无规范化，xor 直判调用点需 bool callee
     int GetType_DungeonInHeritance() const;
     bool isTowerOfDespairDungeon() const;
@@ -747,7 +747,7 @@ public:
     int m_tryGenSecondEventMonsterProb;                     // +0x6a0
     int m_secondEventMonsterTotalProb;                      // +0x6a4
     std::vector<stSecondEventMonster_t> m_secondEventMonsters; // +0x6a8
-    unsigned char m_limitStackableItemInTower;              // +0x6b4（同名访问器）
+    bool m_limitStackableItemInTower;              // +0x6b4（同名访问器；b28d-Main: bool 使体保持 movzbl 直返）
     unsigned char m_hasTowerItemDrop;                       // +0x6b5（同名访问器）
     int m_towerMaxClearRewardItemNum;                       // +0x6b8（同名访问器）
     std::vector<DimensionPartyCount> m_dimensionPartyCount; // +0x6bc

@@ -63,7 +63,7 @@ char CDungeon::get_limit_Inout_count() const
     return m_limitInoutCount;
 }
 
-unsigned char CDungeon::limitOfStackableItemInTower() const
+bool CDungeon::limitOfStackableItemInTower() const
 {
     return m_limitStackableItemInTower;
 }

@@ -71,7 +71,10 @@ MapInfo* CBattle_Field::GetCurrentMapInfo()
     return GetMapInfoFromPos(x, y, false);
 }
 
-// [b28d-D43] N82/N89 大函数（178/180）（ORIG 0x?）。
+// [b28d-solo-CBattle_Field] NEAR（178=178，助记符/call 目标/跳转偏移全等）：
+// 唯二残差 = MapInfo 临时槽 -0x2f0 vs -0x2ec、key 槽 -0x204 vs -0x1fc（帧
+// sub $0x310 两侧相同）⇒ N95 槽基差族（P182 不强凑）。m_layeredMap bool 化后
+// 0x0830cd42 段 setne 伪差已消（DIFF→NEAR）。
 MapInfo* CBattle_Field::GetMapInfoFromPos(int x, int y, bool create)
 {
     int key = GetMapInfoKeyValue(x, y);
@@ -231,7 +234,10 @@ bool CBattle_Field::isWorldMapTowerArea()
     return m_worldMapTowerArea;
 }
 
-// [b28d-D43] N4/P30 索引常量两步寻址：ORIG `mov 0x114(%eax),%edx; add $0x2,%edx` vs 4.4 恒 `mov %eax; lea 0x2(%eax),%edx`（P205/P211 拆形+探针 d43_probe2/3 六形全败，语义等价）（ORIG 0x?）。
+// [b28d-solo-CBattle_Field] N4/P30 封顶（28=28，唯 add-vs-lea + 索引寄存器落点）：
+// ORIG 0x085bf364 `mov 0x114(%eax),%edx; add $0x2,%edx` vs 4.4 `mov mem,%eax;
+// lea 0x2(%eax),%edx`。复核：D43 六形 + 本波字段类型全变体探针（/tmp/s18/p5.cpp
+// int/uint/short/ushort/long/ulong 六型恒 lea）⇒ 4.4 ISel 恒 lea，语义等价。
 int CBattle_Field::GetCurPosX()
 {
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap())
@@ -249,7 +255,7 @@ int CBattle_Field::GetCurPosX()
     }
 }
 
-// [b28d-D43] N4/P30 同 GetCurPosX（+2 两处）（ORIG 0x?）。
+// [b28d-solo-CBattle_Field] N4/P30 同 GetCurPosX（28=28，+2 索引段两处；ORIG 0x085bf3ba 区）。
 int CBattle_Field::GetCurPosY()
 {
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap())
@@ -264,8 +270,9 @@ int CBattle_Field::GetCurPosY()
 }
 
 // N81 附族：m_pos[m_curSeatNo+6] 索引段同上（add vs lea 直落，不可复现）。
-// [b28d-D43] N4/P30 索引常量两步寻址（+6 两处）：ORIG `mov 0x114(%eax),%edx;
-// add $0x6,%edx` vs 4.4 `mov %eax; lea 0x6(%eax),%edx`（ORIG 0x0830eac8 段）。
+// [b28d-solo-CBattle_Field] N4/P30 封顶（49=49，+6 索引段两处）：ORIG
+// `mov 0x114(%eax),%edx; add $0x6,%edx` vs 4.4 `mov mem,%eax; lea 0x6(%eax),%edx`
+// （ORIG 0x0830eac8 段）。
 MapInfo* CBattle_Field::GetLastMapInfo()
 {
     int x = -1;
@@ -286,7 +293,7 @@ MapInfo* CBattle_Field::GetLastMapInfo()
 // N81 附族：m_pos[m_curSeatNo+2] 索引段 `mov mem,%eax`+`lea` 合成 vs ORIG
 // `mov mem,%edx`+`add` 直落（同 GetCurPosX/Y，4.1 索引 regmove 落点，合法源码
 // 不可复现——负面结论同列）。
-// [b28d-D43] N4/P30 同 GetCurPosX（+2 两处）（ORIG 0x08300da6）。
+// [b28d-solo-CBattle_Field] N4/P30 同 GetCurPosX（51=51，+2 索引段两处；ORIG 0x08300da6）。
 void CBattle_Field::getCurPosXY(int& x, int& y)
 {
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap() &&
@@ -303,7 +310,7 @@ void CBattle_Field::getCurPosXY(int& x, int& y)
 }
 
 // N81 附族：m_pos[m_curSeatNo+6] 索引段同上（add vs lea 直落，不可复现）。
-// [b28d-D43] N4/P30 同族（+6 两处）（ORIG 0x08300e44）。
+// [b28d-solo-CBattle_Field] N4/P30 同族（47=47，+6 索引段两处；ORIG 0x08300e44）。
 void CBattle_Field::getLastPosXY(int& x, int& y)
 {
     if (m_pDungeon->IsEnterEachMap() &&
@@ -322,7 +329,7 @@ void CBattle_Field::getLastPosXY(int& x, int& y)
 
 // N81 附族：m_pos[...+6]/[...+2] 索引段 + make_pair 传参同理（add vs lea 直落，
 // 不可复现）。
-// [b28d-D43] N4/P30 同族（+6/+2 make_pair 段）（ORIG 0x0830878e）。
+// [b28d-solo-CBattle_Field] N4/P30 同族（76=76，+6/+2 索引段 + make_pair<int&,int&> 段；ORIG 0x0830878e）。
 void CBattle_Field::swap_curpos_xy(int x, int y)
 {
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap() &&
@@ -379,13 +386,21 @@ bool CBattle_Field::IsEnableHellDungeon()
     return *p;
 }
 
-// [b28d-D43] N97/P230 cmov：4.4 三目 if-conversion `cmova` vs ORIG 分支 `jbe+push/pop`（-march=i486 才能消 cmov，本波不改路由表）（ORIG 0x?）。
+// [b28d-solo-CBattle_Field] N97/P230 封顶（12/14）：4.4 char 形参恒 spill（`mov
+// %al,-0x4`，ORIG 4.1 直读 `movzbl 0xc(%ebp),%edx`）+ if-conversion `cmova`
+// （-march=i486 才消，本波不改路由表）+ N7 store 寄存器对调（ORIG 0x0830ed1e）。
 void CBattle_Field::set_dungeon_diff(char diff)
 {
     // [b28d-D43] ORIG 0x0830ed21：`movzbl 0xc(%ebp),%edx; cmp $0x4,%edx; jbe`
     // + clamp 臂 `push $0x4; pop %edx`（值恒驻寄存器、无形参槽写回）⇒ 原码是
     // 三目 clamp 表达式（P35/P77：ORIG 无 spill 槽即表达式右值直用）；改写
     // `if(..) diff=4;` 会引入 movb $4,-0x4 写回槽（12→15）。
+    // [b28d-solo-CBattle_Field] 实测三形（当前 14 条为最短）：
+    // ①外层 cast 三目=14 条（cmova 形）；②无外层 cast=16 条（双 movzbl+ja 分支，
+    // 探针 /tmp/s18/p2.cpp a/d 与 TU 实测一致）；③if 写回形=15 条。
+    // 残余不可消：4.4 对 char 形参恒 spill（`mov %al,-0x4`，ORIG 4.1 直读
+    // `movzbl 0xc(%ebp),%edx`）+ cmov（P230：需 -march=i486，本波不改路由表）
+    // + N7 store 寄存器对调 ⇒ N97/P230 封顶。
     m_dungeonDiff =
         (unsigned char)((unsigned char)diff > 4 ? 4 : (unsigned char)diff);
 }
@@ -481,7 +496,10 @@ void CBattle_Field::CheckAppearRidableObject(PacketGuard* packet)
 //   迭代器/临时对象顶到帧底（-0x35c/-0x36c/-0x358…），4.4 恒自 ebp-8 起
 //   （-0x10/-0xc/-0x18…）⇒ 全帧槽号平移 0x34c（N95/N82 族，P182 不强凑；
 //   double framePad 仅调 ±4 无法位移 0x34c）。语义闭合，N 封顶勿再耗轮。
-// [b28d-D43] N82附 槽分区：4.4 聚合对象优先低槽（m 临时 -0x35c）+标量分区（it/end -0x10/-0xc）vs 4.1 生命周期穿插（-0x354/-0x35c/-0x358）（ORIG 0x0830a708）。
+// [b28d-solo-CBattle_Field] NEAR/N82附 槽分区封顶（72=72，帧 sub $0x380 全等）：
+// 4.4 聚合对象优先低槽（map_monster 临时 -0x35c）+标量分区（it/end -0x10/-0xc）
+// vs 4.1 生命周期穿插（-0x354/-0x35c/-0x358）；P190 double framePad 仅 ±4
+// 无法位移 0x34c（ORIG 0x0830a708）。
 bool CBattle_Field::GetFieldMob(int uid, map_monster& out)
 {
     std::map<int, map_monster>::iterator it;
@@ -820,7 +838,11 @@ public:
 // CBattle_Field::getRandomBuffDungeonType —— ORIG 0x0830aaa4（0x1d5 字节）
 //   报告：docs/class_func_reports/CBattle_Field/getRandomBuffDungeonType.md
 // ============================================================================
-// [b28d-D43] N82/N95 帧/槽平移（138/135）（ORIG 0x0830aaa4）。
+// [b28d-solo-CBattle_Field] 已修 AE（138=138，call 目标/槽号/分支全等）：
+// ①P48/P13 两次独立 G_CGameManager 链调用 + end 具名缓存；②const 引用视图
+// 取 const begin/end（P96/P270，消转换构造）；③P0/P48 两次独立
+// get_blood_dungeon_type（去具名 int blood）；④(signed char) cast 复现
+// `setg`（ORIG 0x0830aaa4）。
 int CBattle_Field::getRandomBuffDungeonType(int dungeonIdx)
 {
     if (dungeonIdx == 0)
@@ -835,24 +857,37 @@ int CBattle_Field::getRandomBuffDungeonType(int dungeonIdx)
         return 7;
 
     // quick party 奖励副本表命中 → 类型 7
-    std::vector<int>& idxList =
-        G_CGameManager()->GetQuickPartyRewardManager()->get_dungeon_idx_list();
-    for (std::vector<int>::const_iterator it = idxList.begin();
-         it != idxList.end(); ++it)
+    // [b28d-solo-CBattle_Field] P48/P13：ORIG 0x0830ab02/0x0830ab29 两次独立
+    // G_CGameManager 链调用（无 CSE），end 一次求值后具名缓存（循环条件只调
+    // operator!=）；旧引用缓存 idxList 多一条槽 store 并使帧 0x38→0x28。
+    // P96/P270：ORIG 调 `_ZNKSt6vectorIiSaIiEE5beginEv/endEv`（const 版）且
+    // sret 直落 it/end 槽 ⇒ 对 const 引用视图取 begin/end（const_iterator 同型，
+    // 无 __normal_iterator 转换 C1；非 const 版 begin 会多 2 次转换构造）。
+    std::vector<int>::const_iterator it =
+        ((const std::vector<int>&)
+            G_CGameManager()->GetQuickPartyRewardManager()->get_dungeon_idx_list()).begin();
+    std::vector<int>::const_iterator end =
+        ((const std::vector<int>&)
+            G_CGameManager()->GetQuickPartyRewardManager()->get_dungeon_idx_list()).end();
+    for (; it != end; ++it)
     {
         if (*it == dungeonIdx)
             return 7;
     }
 
-    if (dungeon->get_dimension_possible() > 0)
+    // [b28d-solo-CBattle_Field] ORIG 0x0830ab9a `test %al,%al; setg %al`（有符号
+    // 判 >0）⇒ 源码须写 (signed char) cast（探针 /tmp/s18/p3.cpp t4 逐条命中；
+    // 裸 unsigned char > 0 在 4.4 恒折 setne）。
+    if ((signed char)dungeon->get_dimension_possible() > 0)
         return 2;
     if (dungeon->m_89c != 0)                       // +0x89c 直读（ORIG movzbl 0x89c）
         return 1;
 
-    int blood = dungeon->get_blood_dungeon_type();
-    if (blood == 1)
+    // [b28d-solo-CBattle_Field] P0/P48：ORIG 0x0830abd0/0x0830abee 两次独立调用
+    // get_blood_dungeon_type（无具名 int 槽，直接 cmp $1/$2,%al）。
+    if (dungeon->get_blood_dungeon_type() == 1)
         return 4;
-    if (blood == 2)
+    if (dungeon->get_blood_dungeon_type() == 2)
         return 5;
 
     // kind==1 且塔内堆叠物品限制非 0 → 3；kind==1 且限制==0 → 6；否则 0。
@@ -873,49 +908,47 @@ int CBattle_Field::getRandomBuffDungeonType(int dungeonIdx)
 //   InsertTimer 链 esi/ebx 跨调用保存与帧差异，源码已按 ORIG 比较边界写 >=4，
 //   GCC 仍规范化，无法逐字节复现——见报告）
 // ============================================================================
-// [b28d-D43] N82/N95 帧/槽平移（97/101）（ORIG 0x0830ac7a）。
-void CBattle_Field::setEplpWaitingTimer(register QuickParty::RandomBuffDungeon type)
+// [b28d-solo-CBattle_Field] ORIG 0x0830ac7a：帧 sub $0x30（push esi/ebx）已对齐；
+// key 直落 %esi（无 ebx 中转）⇒ 去 static_cast（P41 变体）与形参 register（P248）。
+void CBattle_Field::setEplpWaitingTimer(QuickParty::RandomBuffDungeon type)
 {
     if (m_party == 0)
         return;
 
-    if (type <= 5)
+    // [b28d-solo-CBattle_Field] P46/P261：ORIG 0x0830ac92 决策链为
+    // `cmp $5;jg / cmp $4;jge / cmp $3;je / jmp / cmp $6;jne`（无状态槽的
+    // 寄存器 cmp 链）⇒ 原码是 switch(type)，if-else 链在 4.4 恒产
+    // `cmp $3;jle` + 内存直比（探针 /tmp/s18/p4.cpp f3 逐条命中决策链）。
+    // 注：RandomBuffDungeon 占位枚举仅 NONE=0，4.4 -fstrict-enums 会把
+    // case 3..6 判为不可达并整体删除 ⇒ 以 (int) 视图 switch（不改共享头）。
+    switch ((int)type)
     {
-        // ORIG 0x0830ac7a：cmp $0x5,jg + cmp $0x4,jge（type∈{4,5} party
-        // timer），比较边界写 >=4 而非 >3 以复现 jge。
-        if (type >= 4)
-        {
-            register unsigned int key = static_cast<unsigned int>(
-                m_party->gen_timer_key((TIMER_MESSAGE)0x25));
-            int idx = m_party->GetPartyIndex();
-            G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, idx,
-                                        (TIMER_MESSAGE)0x25, 0x1e, key, 0x25);
-            return;
-        }
-        if (type != 3)
-        {
-            goto timer15;
-        }
-    }
-    else if (type != 6)
-    {
-        goto timer15;
-    }
+    case 3:
+    case 6:
     {
         WongWork::CDeathTower* tower = m_party->getManager()->getDeathTower();
         if (tower == 0)
             return;
-        register unsigned int key = static_cast<unsigned int>(
-            tower->genTimerKey((TIMER_MESSAGE)0x4d));
-        int idx = tower->getIdx();
-        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)6, idx,
+        register int key = tower->genTimerKey((TIMER_MESSAGE)0x4d);
+        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)6, tower->getIdx(),
                                     (TIMER_MESSAGE)0x4d, 0x1e, key, 0x4d);
         return;
     }
-timer15:
-    register unsigned int key = static_cast<unsigned int>(
-        m_party->gen_timer_key((TIMER_MESSAGE)0x15));
-    int idx = m_party->GetPartyIndex();
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, idx,
+    case 4:
+    case 5:
+    {
+        // P0/P24：ORIG 0x0830ad31 段 idx 直落 %ebx（无具名槽）
+        // ⇒ GetPartyIndex() 内联进 InsertTimer 实参。
+        register int key = m_party->gen_timer_key((TIMER_MESSAGE)0x25);
+        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
+                                    m_party->GetPartyIndex(),
+                                    (TIMER_MESSAGE)0x25, 0x1e, key, 0x25);
+        return;
+    }
+    default:
+        break;
+    }
+    register int key = m_party->gen_timer_key((TIMER_MESSAGE)0x15);
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_party->GetPartyIndex(),
                                 (TIMER_MESSAGE)0x15, 0x1e, key, 0x15);
 }

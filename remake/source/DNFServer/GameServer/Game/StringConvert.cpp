@@ -45,6 +45,15 @@ CharString convertToCharString(const wchar_t* src, unsigned int srcLength);
 // （/tmp/tu_StringConvert.o 实证）；全二进制残差 = %gs 相对偏移立即数（ORIG
 // index 落 TLS 块 -0x22028 vs 本 TU 块内布局不同）+ lea 符号注记——TLS 块内
 // 布局跨工具链产物，源码不可控（P155 TLS %gs 访问同形豁免族）。语义逐条等价。
+// [b28d-solo-StringConvert 判词·N·TLS 组归属重复] ORIG 仅一组 local TLS 变量
+// （_ZL11gMbcsBuffer@0x528/_ZL14gUnicodeBuffer@0xa52c/_ZL12gTCharBuffer@0x32530，
+// 块总 0x3c550，disp 依次 -0x3c028/-0x32024/-0xa020），getMbcsBuffer 0x08adea35、
+// toMbcs 0x08adeea0、toUnicode 0x08adf0f6..0x08adf3de 全在同一 TU 段共享该组。
+// 重建有三处同名 static __thread 定义（本 TU、SyncScriptDeps.cpp lane8、Library/
+// Include/Core/UnicodeConvert.cpp）⇒ 链接后 .tbss=0x78578 下 lane8 组落 0x3c550
+// （disp 恰合 ORIG），本 TU 组落 0x340（disp=-0x78238，差 0x3c210），本泳道 7 件
+// %gs disp 不可对齐。函数正文逐条等价（routed 口径 AE）；组归属收敛（把本 TU 的
+// 3 getter + 4 个 TLS toUnicode 重载迁到持有匹配组之 TU，或反向）跨 .cpp，需 Main 裁决。
 // ---------------------------------------------------------------------------
 static __thread char gMbcsBuffer[10][0x1000];
 static __thread int gMbcsBufferIndex;
@@ -54,17 +63,17 @@ static __thread int gUnicodeBufferIndex;
 static __thread char gTCharBuffer[10][0x1000];
 static __thread int gTCharBufferIndex;
 
-// [b28d-L1] IDENTICAL/AE（routed 口径 check_tu_routed）：ORIG 0x08adea35；残余仅 %gs TLS 块内偏移立即数（跨工具链 TLS 布局，P155 同形豁免）。
+// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adea35 单组 disp=-0x3c028，本 TU 组链接后 -0x78238。
 char* getMbcsBuffer()          // ORIG T 0x08adea35
 {
     return gMbcsBuffer[gMbcsBufferIndex];
 }
-// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x08adea54；残余仅 %gs TLS 布局立即数（P155 豁免）。
+// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adea54 单组 disp=-0x32024，本 TU 组链接后 -0x6e234。
 wchar_t* getUnicodeBuffer()    // ORIG T 0x08adea54
 {
     return gUnicodeBuffer[gUnicodeBufferIndex];
 }
-// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x08adea73；残余仅 %gs TLS 布局立即数（P155 豁免）。
+// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adea73 单组 disp=-0xa020，本 TU 组链接后 -0x46230。
 char* getTCharBuffer()         // ORIG T 0x08adea73
 {
     return gTCharBuffer[gTCharBufferIndex];
@@ -306,7 +315,11 @@ CharString replace(const CharString& str, char pat, char target)
 // ---------------------------------------------------------------------------
 
 // _Z7replaceRK10WideStringPKwiS3_i 0x08adacbe
-// [b28d-L1] N 封顶（P75 实参装载时刻）：ORIG 0x08adab85 中 receiver/实参装载块位置与 4.4 不同（real diff 30 全为装载序/寄存器形态）。P167 CLEAR（11/11）⇒ 语义等价；装载时刻跨版本不可择。
+// [b28d-solo-StringConvert] 修法：两处块序翻正——(a) newLength==0 改早返形
+// （ORIG 0x08adada2 `jne 主流程` + ==0 块直落 `call C1Ev; jmp end`；原包裹形
+// 产 `je 尾部` 反极性）；(b) 循环 2 改正向 `if (A && B) {then} else {else}`
+// （ORIG 0x08adadf1/0x08adae1b 两跳同落 else 块、then 直落；原否定式反序）。
+// 与同族 CharString 版（0x08ad7c36 AE）写法对齐。
 WideString replace(const WideString& str, const wchar_t* pat, int patLength,
                    const wchar_t* target, int targetLength)
 {
@@ -345,31 +358,29 @@ WideString replace(const WideString& str, const wchar_t* pat, int patLength,
     wordDelta = targetLength - patLength;
     nowLength = strLength;
     newLength = wordDelta * replaceCount + strLength;
-    if (newLength != 0)
+    if (newLength == 0)
+        return WideString();
+    newData = WideStringData::createTerminated(newLength);
+    newBuffer = newData->getBuffer();
+    i2 = 0;
+    ni = 0;
+    while (i2 < strLength)
     {
-        newData = WideStringData::createTerminated(newLength);
-        newBuffer = newData->getBuffer();
-        i2 = 0;
-        ni = 0;
-        while (i2 < strLength)
+        if (i2 <= strLength - patLength &&
+            memcmp(strBuffer + i2, pat, patLength * sizeof(wchar_t)) == 0)
         {
-            if (i2 > strLength - patLength ||
-                memcmp(strBuffer + i2, pat, patLength * sizeof(wchar_t)) != 0)
-            {
-                newBuffer[ni] = strBuffer[i2];
-                ++ni;
-                ++i2;
-            }
-            else
-            {
-                memcpy(newBuffer + ni, target, targetLength * sizeof(wchar_t));
-                i2 += patLength;
-                ni += targetLength;
-            }
+            memcpy(newBuffer + ni, target, targetLength * sizeof(wchar_t));
+            i2 += patLength;
+            ni += targetLength;
         }
-        return WideString(newData);
+        else
+        {
+            newBuffer[ni] = strBuffer[i2];
+            ++ni;
+            ++i2;
+        }
     }
-    return WideString();
+    return WideString(newData);
 }
 
 // _Z7replaceRK10WideStringPKwS3_ 0x08adac5f
@@ -438,7 +449,7 @@ void toUnicode(const std::wstring& src, std::wstring& dst)
 // ---------------------------------------------------------------------------
 
 // _Z9toUnicodePKc 0x08adf1b3
-// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x08adf1b3；残余仅 %gs TLS 布局立即数（P155 豁免）。
+// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf1b3 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234。
 const wchar_t* toUnicode(const char* src)
 {
     const int curindex = gUnicodeBufferIndex;
@@ -449,7 +460,7 @@ const wchar_t* toUnicode(const char* src)
 }
 
 // _Z9toUnicodeRKSs 0x08adf0f6
-// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x08adf0f6；残余仅 %gs TLS 布局立即数（P155 豁免）。
+// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf0f6 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234。
 const wchar_t* toUnicode(const std::string& src)
 {
     const int curindex = gUnicodeBufferIndex;
@@ -460,7 +471,7 @@ const wchar_t* toUnicode(const std::string& src)
 }
 
 // _Z9toUnicodePKcRSbIwSt11char_traitsIwESaIwEE 0x08adf32f
-// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x08adf32f；残余仅 %gs TLS 布局立即数（P155 豁免）。
+// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf32f 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234。
 void toUnicode(const char* src, std::wstring& dst)
 {
     const int curindex = gUnicodeBufferIndex;
@@ -471,7 +482,7 @@ void toUnicode(const char* src, std::wstring& dst)
 }
 
 // _Z9toUnicodeRKSsRSbIwSt11char_traitsIwESaIwEE 0x08adf25c
-// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x08adf25c；残余仅 %gs TLS 布局立即数（P155 豁免）。
+// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf25c 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234。
 void toUnicode(const std::string& src, std::wstring& dst)
 {
     const int curindex = gUnicodeBufferIndex;

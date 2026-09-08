@@ -102,16 +102,18 @@ void TeamInfo::refresh()    // ORIG T 0x0855c9ae
 // [b28d-lane6] DIFF·N94/P30：stride 段多处同 TeamInfo 族（lea vs shl）。
 int TeamInfo::add(CUser* user)   // ORIG T 0x0855cb54
 {
+    // [b28d-solo-CLeagueMatch] P292/P248 档②：ORIG 0x0855cb83 `movzbl; xor $1; test; je`
+    // = bool 字段 + 裸 `if (!m_flag)` 正向包裹（P296）；continue 形反产 xor+jne 岛。
     for (int i = 0; i <= 3; ++i) {
-        if (m_players[i].m_flag != 0)
-            continue;
-        m_players[i].m_flag = 1;
-        m_players[i].m_user = user;
-        m_players[i].m_accId = user->get_acc_id();
-        m_players[i].m_rating = user->GetRating();
-        m_players[i].m_schoolNo = user->GetSchoolNo();
-        user->GetDailyBadge(m_players[i].m_badges);
-        return 1;
+        if (!m_players[i].m_flag) {
+            m_players[i].m_flag = 1;
+            m_players[i].m_user = user;
+            m_players[i].m_accId = user->get_acc_id();
+            m_players[i].m_rating = user->GetRating();
+            m_players[i].m_schoolNo = user->GetSchoolNo();
+            user->GetDailyBadge(m_players[i].m_badges);
+            return 1;
+        }
     }
     return 0;
 }
@@ -180,15 +182,17 @@ float CLeagueMatch::GetGap(IMatch* other)     // ORIG T 0x0855e12a
     for (unsigned int i = 0; i < (unsigned int)nPlayerCountPerOneTeam_; ++i) {
         CUser* mine = m_teamA.m_players[i].m_user;
         CUser* theirs = other->GetUser(i);
-        if (m_teamA.m_players[i].m_flag == 0)
-            continue;
-        if (mine == 0)
-            continue;
-        if (theirs == 0)
-            continue;
-        float a = mine->GetRating() * g_RankingIncr[i];
-        float b = theirs->GetRating() * g_RankingIncr[i];
-        gap += __builtin_fabsf(a - b);
+        // [b28d-solo-CLeagueMatch] P296：ORIG 三守卫各 `je` 直跳循环尾（无 continue
+        // 的 jmp+nop 中继岛，0x0855e1a3/a9/af 同落 +0xcb）⇒ 嵌套正向 if 复现。
+        if (m_teamA.m_players[i].m_flag != 0) {
+            if (mine != 0) {
+                if (theirs != 0) {
+                    float a = mine->GetRating() * g_RankingIncr[i];
+                    float b = theirs->GetRating() * g_RankingIncr[i];
+                    gap += __builtin_fabsf(a - b);
+                }
+            }
+        }
     }
     return gap;
 }
@@ -255,7 +259,7 @@ void CLeagueMatch::OnJoinRoom(CUser* user)      // ORIG T 0x0855d198
 
 // ORIG T 0x0855d1c0
 // [b28d-lane6] DIFF·N93：槽号/实参装载序（142 vs 147，语义闭合）。
-void CLeagueMatch::OnLeaveRoom(CUser* user, PvP_Room* room, int team, int flag)
+void CLeagueMatch::OnLeaveRoom(CUser* user, PvP_Room* room, int team, int /*flag*/)
 {
     if (m_state == 4) {
         _SendMatchStatePacket(4, 2);
@@ -267,7 +271,10 @@ void CLeagueMatch::OnLeaveRoom(CUser* user, PvP_Room* room, int team, int flag)
         float selfRating = 0.0f;
         float oppoRating = 0.0f;
         for (idx = 0; idx < 4; ++idx) {
-            if (flag == 1) {
+            // [b28d-solo-CLeagueMatch] 真 bug 修正：ORIG 0x0855d245/d273 以**第 3 参**
+            // `cmpl $0x1,0x14(%ebp)` 判队（m_teamA +0x24 / m_teamB +0x94），原码误用
+            // 第 4 参 flag（0x18）——调用点 OnWalkOut/PvP_Room 均传 (user,room,team,seat)。
+            if (team == 1) {
                 if (m_teamA.m_players[idx].m_user == user) {
                     selfRating = m_teamA.m_players[idx].m_rating;
                     oppoRating = m_teamB.m_players[idx].m_rating;
@@ -289,7 +296,7 @@ void CLeagueMatch::OnLeaveRoom(CUser* user, PvP_Room* room, int team, int flag)
         m_state = 0;
     }
 
-    if (flag == 1)
+    if (team == 1)
         m_teamA.del(user);
     else
         m_teamB.del(user);
@@ -641,12 +648,14 @@ void CLeagueMatch::OnCompleteLoad(CUser* user)
     pkt.put_header(0, 0x81);
     pkt.put_short(user->get_unique_id() & 0xffff);
     pkt.finalize(true);
+    // [b28d-solo-CLeagueMatch] P183/P0：ORIG 无 TeamInfo&/PlayerInfo& 引用缓存槽
+    // （Ghidra 仅 t/i/user 三局部）；以 (&m_teamA)[t] 数组化寻址 + user 具名局部
+    // （ORIG -0x10）复现，并消 4.4 的引用槽。
     for (int t = 0; t <= 1; ++t) {
-        TeamInfo& ti = (t == 0) ? m_teamA : m_teamB;
         for (int i = 0; i < 4; ++i) {
-            PlayerInfo const& pi = ti.m_players[i];
-            if (pi.m_flag != 0 && pi.m_user != 0)
-                pi.m_user->Send(pkt);
+            CUser* member = (&m_teamA)[t].m_players[i].m_user;
+            if ((&m_teamA)[t].m_players[i].m_flag != 0 && member != 0)
+                member->Send(pkt);
         }
     }
 }
@@ -837,29 +846,30 @@ PvP_Room* CLeagueMatch::_MakeRoom(CUser* user)   // ORIG T 0x0855d572
 // [b28d-lane6] DIFF·N93/N94：槽号 + stride 段（132 vs 117）。
 void CLeagueMatch::_RegisterWaitingRoom(PvP_Room* room)   // ORIG T 0x0855d884
 {
-    bool foundMin = false;
+    // [b28d-solo-CLeagueMatch] ORIG foundMin 为 int（-0x20 `cmpl $0x0,-0x20`）非 bool；
+    // 两循环均嵌套正向 if（P296）：m_flag 正向 `test;je`（0x0855d8c7）、
+    // get_team==3 正向（0x0855d98a），消 continue 的 jmp+nop 中继岛。
+    int foundMin = 0;
     float minRating = 0.0f;
     for (int i = 0; i < 4; ++i) {
-        PlayerInfo& pi = m_teamA.m_players[i];
-        if (pi.m_flag == 0)
-            continue;
-        if (!foundMin) {
-            minRating = pi.m_rating;
-            foundMin = true;
+        if (m_teamA.m_players[i].m_flag != 0) {
+            if (foundMin == 0) {
+                minRating = m_teamA.m_players[i].m_rating;
+                foundMin = 1;
+            }
+            if (m_teamA.m_players[i].m_rating < minRating)   // asm fucompp：小于最小值则更新
+                minRating = m_teamA.m_players[i].m_rating;
         }
-        if (minRating < pi.m_rating)   // asm fucompp：小于最小值则更新
-            minRating = pi.m_rating;
     }
     minRating -= 1.0f;
 
     for (int seat = 0; seat <= 7; ++seat) {
-        if (room->get_team(seat) != 3)
-            continue;
-        CUser* seatUser = reinterpret_cast<CUser*>(room->get_user_seat(seat));
-        for (int i = 0; i < 4; ++i) {
-            PlayerInfo& pi = m_teamA.m_players[i];
-            if (pi.m_user == seatUser && seatUser != 0)
-                pi.m_rating = minRating;
+        if (room->get_team(seat) == 3) {
+            CUser* seatUser = reinterpret_cast<CUser*>(room->get_user_seat(seat));
+            for (int i = 0; i < 4; ++i) {
+                if (m_teamA.m_players[i].m_user == seatUser && seatUser != 0)
+                    m_teamA.m_players[i].m_rating = minRating;
+            }
         }
     }
 
@@ -877,6 +887,10 @@ void CLeagueMatch::_BackupRoomInfo(PvP_Room* room)     // ORIG T 0x0855d554
 int CLeagueMatch::_CheckMatchable(PvP_Room* room) const   // ORIG T 0x0855da56
 {
     int emptySeats = 0;
+    // [b28d-solo-CLeagueMatch] P0：ORIG -0x14 具名局部（恒 0）作 logFormat 首个 %d
+    // 实参（0x0855dad6 `mov -0x14(%ebp),%eax; mov %eax,0x14(%esp)`）；删除 school
+    // 局部改两次 GetSchoolNo（P48 O0 无 CSE），槽序 emptySeats/X/i/user 与 ORIG 全等。
+    int logArg0 = 0;
     for (int i = 0; i <= 7; ++i) {
         if (room->get_team(i) == 3) {
             ++emptySeats;
@@ -885,12 +899,11 @@ int CLeagueMatch::_CheckMatchable(PvP_Room* room) const   // ORIG T 0x0855da56
         CUser* user = reinterpret_cast<CUser*>(room->get_user_seat(i));
         if (user == 0)
             continue;
-        int school = user->GetSchoolNo();
-        if (school == 0) {
+        if (user->GetSchoolNo() == 0) {
             LogManager::logFormat(
                 1, "MatchingSystem.cpp",
                 __PRETTY_FUNCTION__, 599,
-                "(%d) found a different school no(%d)", 0, user->GetSchoolNo());
+                "(%d) found a different school no(%d)", logArg0, user->GetSchoolNo());
             return 0x16;
         }
     }
@@ -931,9 +944,12 @@ int CLeagueMatch::_PutInRoom(CUser* user, PvP_Room* room, bool observer)  // ORI
 // [b28d-lane6] DIFF·N93：槽号偏移（-0x10/-0x18 vs -0x14/-0x10 族）。
 void CLeagueMatch::_ReturnTeam(PvP_Room* room, int team, CUser* except)  // ORIG T 0x0855e378
 {
+    // [b28d-solo-CLeagueMatch] P0：ORIG 槽序 user(-0x18)/madeRoom(-0x14)/seat(-0x10)
+    // ⇒ user 声明于函数头并置 0（有槽往返=具名局部），循环内赋值。
+    CUser* user = 0;
     PvP_Room* madeRoom = 0;
     for (unsigned int seat = 0; seat <= 7; ++seat) {
-        CUser* user = reinterpret_cast<CUser*>(room->get_user_seat(static_cast<int>(seat)));
+        user = reinterpret_cast<CUser*>(room->get_user_seat(static_cast<int>(seat)));
         if (user == 0)
             continue;
         int seatTeam = room->get_team(static_cast<int>(seat));
@@ -960,11 +976,13 @@ void CLeagueMatch::_SendMatchStatePacket(int state, int teams)   // ORIG T 0x085
     pkt.put_header(0, 0xaf);
     pkt.put_byte(state);
     pkt.finalize(true);
+    // [b28d-solo-CLeagueMatch] P183/P0：ORIG 无 TeamInfo& 引用槽（t/i/user 三局部，
+    // user 具名缓存 -0xc，寻址 this+i*0x1c+t*0x70+0x24）⇒ 数组化访问复现。
     for (int t = 0; t < teams; ++t) {
         for (int i = 0; i <= 3; ++i) {
-            TeamInfo const& ti = (t == 0) ? m_teamA : m_teamB;
-            if (ti.m_players[i].m_flag != 0 && ti.m_players[i].m_user != 0)
-                ti.m_players[i].m_user->Send(pkt);
+            CUser* member = (&m_teamA)[t].m_players[i].m_user;
+            if ((&m_teamA)[t].m_players[i].m_flag != 0 && member != 0)
+                member->Send(pkt);
         }
     }
 }
@@ -1051,29 +1069,26 @@ int CLeagueMatch::addBadge(PlayerInfo* info, ENUM_BADGE_TYPE badgeType,
         ++count;
 
     char textBuf[0x100] = { '\0' };   // P4：ORIG rep stos 内联清零
-    // switch 分发（ORIG 比较值入 %eax 三段 cmp+je、无 default → case 尾 jmp 汇入；
-    // 4.4 if-else 链折 `cmpl $K,mem`，switch 保寄存器装载形）。
-    switch (badgeType) {
-    case (ENUM_BADGE_TYPE)1:
+    // [b28d-solo-CLeagueMatch] 真语义缺口修正：ENUM_BADGE_TYPE 仅定义值 0，
+    // `switch(badgeType)` 在 4.4 被 -fstrict-enums 判值域 {0} 而**删除 case 2**
+    // （.o 仅 2×findString/snprintf，ORIG 3×；P167 差集 MISSING 各 1）。
+    // 改 `(int)badgeType` if 链，值域未知 ⇒ 三分支全保留，且线性链
+    // `cmp $1;je / cmp $2;je / test;je` 与 ORIG 0x0855e90f/914/919 同序。
+    if ((int)badgeType == 1) {
         OS_API::snprintf(textBuf, 0xff,
                          (const char*)g_scriptStringManager_.findString(
                              4, "school_red_badge_msg", (bool*)0),
                          (int)*msgFlag + count);
-        break;
-    case (ENUM_BADGE_TYPE)2:
+    } else if ((int)badgeType == 2) {
         OS_API::snprintf(textBuf, 0xff,
                          (const char*)g_scriptStringManager_.findString(
                              4, "school_blue_badge_msg", (bool*)0),
                          (int)*msgFlag + count);
-        break;
-    case ENUM_BADGE_TYPE_0:
+    } else if ((int)badgeType == 0) {
         OS_API::snprintf(textBuf, 0xff,
                          (const char*)g_scriptStringManager_.findString(
                              4, "school_green_badge_msg", (bool*)0),
                          (int)*msgFlag + count);
-        break;
-    default:
-        break;
     }
 
     PacketGuard pkt;

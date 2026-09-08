@@ -1858,7 +1858,7 @@ public:
     unsigned int m_80;          // +0x80（b28c C28L19 代落：ORIG 0x081becdd 单步直落 callee-saved vs 同函数 +0xb0 int 三段，P211）
     int m_84;                   // +0x84
     int m_88;                   // +0x88
-    int m_8c;                   // +0x8c
+    unsigned int m_8c;          // +0x8c（b28d-Main 代落 P211档③：ORIG DisPatcher_BuyItem::send 0x081be20a `mov 0x8c(%eax),%eax; mov %eax,%edx` RHS-first+edx 中转需字段与 int 返回异型）
     int m_90;                   // +0x90
     int m_94;                   // +0x94
     std::pair<int, int> m_pair; // +0x98

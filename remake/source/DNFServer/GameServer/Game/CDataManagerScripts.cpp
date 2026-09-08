@@ -2633,7 +2633,7 @@ bool STExpertJobScript::isBoundaryExpValue(int exp)
     for (; i < m_expVec.size(); ++i)
     {
         register int e = exp;
-        if (m_expVec[i].m_exp == e)
+        if (e == m_expVec[i].m_exp)
             return true;
     }
     return false;

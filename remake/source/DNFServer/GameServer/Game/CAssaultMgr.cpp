@@ -80,20 +80,24 @@ int CAssaultMgr::OnMoveArea(CUser* user)
          it != m_places.end(); ++it)
     {
         CAssaultPlace* place = it->second;
-        if (place == 0)
-            continue;
-        // ORIG 0x82ef6b0：vill 为 int（`call; mov %eax,%ebx` 无截断）；area 是
-        // `(char)` 收窄（`movsbl %al,%eax` 就地直落 arg2）。register 绑 %ebx
-        // 实测反扰乱 4.4 装载序（156>154），保持自然形，vill 槽 vs ebx 缓存
-        // 差按 N76/N82 标注。
-        int vill = user->getCurCharacVill();
-        if (!place->IsArea(vill, (char)user->get_area(false)))
-            continue;
-        if (!place->ExistUser(user) && place->CheckPlayable() &&
-            place->GetState() == 4)
+        // b28d-solo-CAssaultMgr: ORIG 0x82ef6b0 两处守卫（place==0 / !IsArea）
+        // 均 `je <循环出口>` 且无 xor ⇒ 原码是嵌套正向 if 包裹（P296），
+        // `continue` 形在 4.4 恒产 `xor $1` + 双 `jmp+nop` 中继岛（+7）。
+        // vill 内联为实参（P0：ORIG 无槽往返，`call; mov %eax,%ebx`）。
+        if (place != 0)
         {
-            place->MakeViewAssaultIconOnePlayer(&packet, true);
-            count += 1;
+            // ORIG 0x82ef6bf：get_area 结果 `mov %eax,%ebx` 无 movsbl（返回 int
+            // 直接传，原码无 (char) cast）；getCurCharacVill 才 movsbl（返回 char）。
+            if (place->IsArea(user->getCurCharacVill(),
+                              user->get_area(false)))
+            {
+                if (!place->ExistUser(user) && place->CheckPlayable() &&
+                    place->GetState() == 4)
+                {
+                    place->MakeViewAssaultIconOnePlayer(&packet, true);
+                    count += 1;
+                }
+            }
         }
     }
     if (count != 0)
@@ -225,8 +229,12 @@ int GetDirectionByTeam(ENUM_ASSAULT_TEAM team)
     // 直比（差 10）；switch 形装 eax + `cmp $1;je`（差 3，见 VARIANT-ARTIFACT
     // 说明：4.4.6 对 2-case switch 把 case 0 折为 fall-through，缺 test/je 与
     // default jmp，源形不可择）⇒ 保留 switch 形（本 TU 路由 446h46 的最优形）。
+    // b28d-solo-CAssaultMgr: ENUM_ASSAULT_TEAM 当前仅 1 个枚举量（值域 {0}）⇒
+    // 4.4.6 把 case 0 折进 default（缺 ORIG 的 `test;je` 与 default `jmp`，14 vs 16）。
+    // switch 表达式内联 (int) 转换即恢复全宽值域：探针 g2 `switch((int)e)` 与 ORIG
+    // 逐条同形（test;je / cmp $1;je / jmp 三链 + 双赋值块）。
     int dir = 0;
-    switch (team)
+    switch ((int)team)
     {
     case 0: dir = 6; break;
     case 1: dir = 4; break;
@@ -412,8 +420,8 @@ void CAssaulter::GiveupPanalty()
     // b28d-L3: DIFF/N7+N82 — ORIG 0x82e6694.. chaos/level 实参内联后帧 0x24 vs ORIG 0x20、缺 push %esi（ORIG 值留 %esi 跨调用）
     // P183/P157：ORIG 不缓存 m_user（每点 `mov this; mov (%eax)` 重装载，
     // penalty/now 处才用 %esi/%ebx 跨调用缓存）——重建禁 named user。
-    if (m_user == 0)
-        return;
+    if (m_user != 0)
+    {
     // ORIG +0x1d：getCurCharacR `test %eax; setne %al; test %al; je`——4.4 对
     // 裸 `!= 0` 指针比较恒产同款两段物化（带变量赋值反改 slot store+cmpl）。
     if (m_user->getCurCharacR() != 0)
@@ -450,14 +458,11 @@ void CAssaulter::GiveupPanalty()
             ghostTime = G_CDataManager()->m_serverParameter.getAssaultGhostTime(
                 m_user->get_charac_level(), m_user->GetCurCharacChaosPoint());
         }
-        // b28d-L3：函数末尾块用空 then + else body 形，消 4.4 的尾 jmp 中继
-        // （与 _DelUser 同法；ORIG 尾块直接 fall-through 到 epilogue）。
-        if (ghostTime == 0)
+        // b28d-solo-CAssaultMgr: ORIG 0x82e69d0 `cmpl $0,-0x14; je <epilogue>`
+        // + body 直落 epilogue（无尾 jmp/nop）。试单出口包裹形。
+        if (ghostTime != 0)
         {
-        }
-        else
-        {
-            m_user->SetCurCharacGhost(true);
+        m_user->SetCurCharacGhost(true);
             //（ORIG 用 %ebx callee-saved 缓存 now；4.4 绑 %ebx 实测反增 spill，
             // 维持具名槽，寄存器选择差记 N7/N82。）
             int now = GlobalData::s_systemTime_.getCurSec();
@@ -466,6 +471,7 @@ void CAssaulter::GiveupPanalty()
             m_user->m_characterView.enableSaveCharacView();
         }
     }
+        }
 }
 
 // ============================================================================
@@ -1125,30 +1131,35 @@ void CDynamicDisposition::GetFlagPoint(int& x, int& y)       // ORIG 0x82f050a
 
 bool CDynamicDisposition::SetVirtualMap(std::vector<MapArea>* areas) // ORIG 0x82e624c
 {
-    m_matrices[0].RemoveCandidatePoint(areas);
-    m_matrices[1].RemoveCandidatePoint(areas);
-    m_matrices[0].ArrangeCandidatePoint();
-    m_matrices[1].ArrangeCandidatePoint();
+    m_matrix0.RemoveCandidatePoint(areas);
+    m_matrix1.RemoveCandidatePoint(areas);
+    m_matrix0.ArrangeCandidatePoint();
+    m_matrix1.ArrangeCandidatePoint();
     return true;           // ORIG mov $0x1,%eax
 }
 
 CDynamicDisposition::CDynamicDisposition(CUser** users, int* counts) // ORIG 0x82e6032
 {
-    // b28d-L3: DIFF/N82+N93 — ORIG 0x82e... 165 vs 191
-    m_users[0] = users[0];
-    m_users[1] = users[1];
+    // b28d-solo-CAssaultMgr: ORIG 0x82e6055 段用循环拷贝 m_users
+    //（`movl $0,-0xc; jmp cond; ...; addl $1,-0xc; cmpl $1; setle; test; jne`），
+    // 展开赋值恒少 5 条。
+    for (int i = 0; i <= 1; ++i)
+        m_users[i] = users[i];
     m_anchor.m_x = (unsigned short)m_users[0]->get_posX()
                  + ((unsigned short)m_users[1]->get_posX() >> 1);
     m_anchor.m_y = (unsigned short)m_users[0]->get_posY()
                  + ((unsigned short)m_users[1]->get_posY() >> 1);
-    // ORIG 82e6101..82e6208：每个 MakeCandidatePoint 各自构造 Point2d（P48 去缓存），
-    // m_matrices[0] 用 (users[1],users[0])、m_matrices[1] 用 (users[0],users[1])。
-    m_matrices[0].MakeCandidatePoint(
-        Point2d(m_users[1]->get_posX(), m_users[1]->get_posY()),
-        Point2d(m_users[0]->get_posX(), m_users[0]->get_posY()));
-    m_matrices[1].MakeCandidatePoint(
+    // ORIG 82e6101..82e6208：每个 MakeCandidatePoint 各自构造 Point2d（P48 去缓存）。
+    // b28d-solo-CAssaultMgr 真语义 bug 修正：ORIG 0x82e6189 段 m_matrices[0] 的
+    // a=&(-0x24)=Point2d(users[0])、b=&(-0x2c)=Point2d(users[1])（原码实参序
+    // 为 (users[0],users[1])，旧写 (users[1],users[0]) 反了）；m_matrices[1]
+    // 的 a=&(-0x14)=users[1]、b=&(-0x1c)=users[0] 与旧写一致。
+    m_matrix0.MakeCandidatePoint(
         Point2d(m_users[0]->get_posX(), m_users[0]->get_posY()),
         Point2d(m_users[1]->get_posX(), m_users[1]->get_posY()));
+    m_matrix1.MakeCandidatePoint(
+        Point2d(m_users[1]->get_posX(), m_users[1]->get_posY()),
+        Point2d(m_users[0]->get_posX(), m_users[0]->get_posY()));
 }
 
 CAssaultPlaceFactory::CAssaultPlaceFactory() {}   // ORIG C1 0x82f0f96
@@ -1402,24 +1413,29 @@ void CAssaultPlace::_DelUser(int index, bool flag)
 // state 5/6 时两队下发 SetAssaultState(7)、置 state=7 并 CloseAssault()。
 void CAssaultPlace::TimeoutCloseAssault()
 {
-    // b28d-L3: DIFF/N82 — ORIG 0x82ea188 具名 cMyTrace 对象（帧 0x6c）vs 我方 0x5c
-    cMyTrace trace(__PRETTY_FUNCTION__,
-                   0x9ea, 0);
-    trace("TimeoutCloseAssault() state(%d) %s,%s,%s,%s,%s,%s,%s,%s",
+    // b28d-solo-CAssaultMgr: ORIG 0x082ea188 先把 8 个 GetCharacName 实参求值
+    // （-0x40..-0x2c 槽 + edi/esi），**之后**才 ctor cMyTrace（+0x30 段）⇒ 原码是
+    // 全表达式临时链（P227/P37），具名对象恒 ctor 先于实参求值（DIFF 主因）。
+    cMyTrace(__PRETTY_FUNCTION__,
+             0x9ea, 0)("TimeoutCloseAssault() state(%d) %s,%s,%s,%s,%s,%s,%s,%s",
           m_state,
           m_assaulters[0].GetCharacName(), m_assaulters[1].GetCharacName(),
           m_assaulters[2].GetCharacName(), m_assaulters[3].GetCharacName(),
           m_assaulters[4].GetCharacName(), m_assaulters[5].GetCharacName(),
           m_assaulters[6].GetCharacName(), m_assaulters[7].GetCharacName());
 
-    if (m_state != 5 && m_state != 6)
-        return;
-    if (m_parties[0].m_field00 != 0)
-        ((CParty*)m_parties[0].m_field00)->SetAssaultState(7);
-    if (m_parties[1].m_field00 != 0)
-        ((CParty*)m_parties[1].m_field00)->SetAssaultState(7);
-    m_state = 7;
-    CloseAssault();
+    // b28d-solo-CAssaultMgr: ORIG 尾块 `call CloseAssault` 后直落 epilogue；
+    // 早退 return 使 4.4 尾块补 `jmp <epilogue>; nop`（+2）。改单出口正向包裹
+    // （`==5 || ==6` 短路链）复现 ORIG `cmp $5;je body; cmp $6;jne epilogue`。
+    if (m_state == 5 || m_state == 6)
+    {
+        if (m_parties[0].m_field00 != 0)
+            ((CParty*)m_parties[0].m_field00)->SetAssaultState(7);
+        if (m_parties[1].m_field00 != 0)
+            ((CParty*)m_parties[1].m_field00)->SetAssaultState(7);
+        m_state = 7;
+        CloseAssault();
+    }
 }
 
 // ORIG T 0x82e6ab8（报告 Reset.md）：全场复位；归还池前调用。

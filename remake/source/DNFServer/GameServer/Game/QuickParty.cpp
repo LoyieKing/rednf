@@ -153,13 +153,18 @@ void CQuickPartySystemManager::init_quick_party_pool(const CDungeon* dungeon)
     if (dungeon == 0)
         return;
 
-    // [b28d-L1] 修法（P167）：ORIG 只调 `__gnu_cxx::ne<const int*>`（两侧
-    // const_iterator）；非 const 引用使 4.4 额外发 begin/end + const_iterator
-    // 转换构造 + 混合 `ne(PKi,Pi)`（P167 报 EXTRA×4/MISSING×1）。改 const 引用后
-    // begin()/end() 直接返回 const_iterator，差集清零。
-    const std::vector<int>& idxList =
-        G_CGameManager()->GetQuickPartyRewardManager()->get_dungeon_idx_list();
-    for (std::vector<int>::const_iterator it = idxList.begin(); it != idxList.end(); ++it) {
+    // [b28d-solo-QuickParty] 修法（P0/P24）：ORIG 0x08269c31/0x08269c58 两次调用
+    // get_dungeon_idx_list()（begin/end 各一次），无 idxList 引用槽；引用局部使 4.4
+    // 多发 `mov %eax,-0x14` 槽往返并把帧撑到 0xa0（ORIG 0x90）。
+    std::vector<int>::const_iterator it =
+        ((const std::vector<int>&)
+            G_CGameManager()->GetQuickPartyRewardManager()
+                ->get_dungeon_idx_list()).begin();
+    std::vector<int>::const_iterator end =
+        ((const std::vector<int>&)
+            G_CGameManager()->GetQuickPartyRewardManager()
+                ->get_dungeon_idx_list()).end();
+    for (; it != end; ++it) {
         if (dungeon->get_index() == *it)
             return;                                     // 已是 quick party 奖励副本
     }
@@ -170,11 +175,13 @@ void CQuickPartySystemManager::init_quick_party_pool(const CDungeon* dungeon)
 
         key.m_dungeonIndex = (short)dungeon->get_index();
         for (int i = 0; i < 4; ++i) {
-            bool special = (dungeon->getDungeonKind() == 1)
-                || (dungeon->get_blood_dungeon_type() > 0)
-                || (dungeon->getQuestNpcDungeon() != 0);
-            if (!special || i == 0) {
-                key.m_dungeonDiff = (unsigned char)i;
+            // [b28d-solo-QuickParty] 修法（P226/P0）：ORIG 0x08269d00 的 special 物化在
+            // %al（mov $1/jmp、mov $0、test %al,%al），无栈槽；具名 bool 使 4.4 落 -0x9。
+            if (((dungeon->getDungeonKind() == 1) ||
+                 (dungeon->get_blood_dungeon_type() > 0) ||
+                 (dungeon->getQuestNpcDungeon() != 0)) == false ||
+                i == 0) {
+                key.m_dungeonDiff = (signed char)i;
                 m_poolMap.insert(std::make_pair(key, data));
             }
         }
@@ -334,10 +341,14 @@ unsigned short CQuickParty::get_matching_quick_party_master_unique_id()
 {
     int slot = -1;
     unsigned short uid = 0xffff;
+    // [b28d-solo-QuickParty] 修法（N93/P212）：ORIG 槽序 party=-0x28 深于 i=-0x24/
+    // partyIdx=-0x20 ⇒ 原码 party 为循环外声明（循环内仅赋值）；循环内声明使 4.4
+    // 把它排到 i/partyIdx 之上（-0x20）。
+    CParty* party = 0;
     for (int i = 0; i <= 3; ++i)
     {
         int partyIdx = get_party_index(i);
-        CParty* party = G_CGameManager()->GetParty(partyIdx);
+        party = G_CGameManager()->GetParty(partyIdx);
         if (party == 0)
             continue;
         if (party->GetEPLPState() > 1)
@@ -352,7 +363,11 @@ unsigned short CQuickParty::get_matching_quick_party_master_unique_id()
     {
         for (int i = 0; i <= 3; ++i)
         {
-            if (G_CGameManager()->GetParty(get_party_index(i)) != 0)
+            // [b28d-solo-QuickParty] 修法（P0）：ORIG 0x082699ef 具名 partyIdx 落 -0x18 槽
+            // 后传 GetParty；内联实参使 4.4 升格 %ebx 跨 G_CGameManager() 保活（push %ebx
+            // + 帧 0x34、PartyGuard 槽整体漂移）。
+            int partyIdx = get_party_index(i);
+            if (G_CGameManager()->GetParty(partyIdx) != 0)
             {
                 slot = i;
                 break;
@@ -361,12 +376,15 @@ unsigned short CQuickParty::get_matching_quick_party_master_unique_id()
     }
     if (slot != -1 && slot >= 0 && slot <= 3)
     {
-        CParty* party = G_CGameManager()->GetParty(get_party_index(slot));
+        // [b28d-solo-QuickParty] 修法（P0）：ORIG 0x08269a4a 具名 partyIdx 落 -0x14 槽。
+        int partyIdx = get_party_index(slot);
+        CParty* party = G_CGameManager()->GetParty(partyIdx);
         if (party != 0)
         {
+            // [b28d-solo-QuickParty] 修法（P171 反向照抄）：ORIG 0x08269a75 无 mgr 判空
+            // （getManager 结果直接 `mov -0xc,%eax; call get_unique_id`）。
             CUser* mgr = party->getManager();
-            if (mgr != 0)
-                uid = static_cast<unsigned short>(mgr->get_unique_id());
+            uid = static_cast<unsigned short>(mgr->get_unique_id());
         }
     }
     return uid;
@@ -494,10 +512,12 @@ bool CQuickPartySystemManager::push_quick_party_in_pool(
     if (party != 0)
         party->set_quick_party_index(qp->get_quick_party_index());
 
-    int qpIndex = qp->get_quick_party_index();
-    // ORIG 存 qpIndex 于 -0x20(%ebp) 后 lea 取址传 push_back(int&&)（EOi）⇒ 源码
-    // 以 static_cast<int&&>(qpIndex) 生成 xvalue 精确命中 list<int>::push_back(int&&)。
-    data.m_lists[count].push_back(static_cast<int&&>(qpIndex));
+    // [b28d-solo-QuickParty] 修法：ORIG 0x0826b155 只有单槽 `call get_quick_party_index;
+    // mov %eax,-0x20(%ebp); …; lea -0x20(%ebp),%edx; call push_back(int&&)`；具名
+    // qpIndex 使 4.4 多发 `mov %eax,-0x24; mov -0x24,%eax; mov %eax,-0x20`（+2 条 +
+    // 多占 -0x24 槽把 PacketGuard 挤到 -0x30）。改内联 xvalue 实参后单槽直落。
+    data.m_lists[count].push_back(
+        static_cast<int&&>(qp->get_quick_party_index()));
 
     if (flag)
         insert_timer_waiting_party_matching(qp);
@@ -538,8 +558,7 @@ bool CQuickParty::check_timer_key(TIMER_MESSAGE msg, int key)
     // b28c-lane3：ORIG 0x082696c2 元素→%edx、0x082696c6 key→%eax、
     // `cmp %eax,%edx`（12 条）；无 cast 时 4.4 折成 `cmp key_mem,%eax`（11 条，
     // N18b）。两侧同 cast 到 unsigned int 后 4.4 走「两寄存器操作数」形。
-    return (unsigned int)key ==
-           (unsigned int)m_timerKeyCnt[static_cast<int>(msg) - 0x9d];
+    return m_timerKeyCnt[static_cast<int>(msg) - 0x9d] == (unsigned int)key;
 }
 
 // ---- set_party_index @0x0826978c：写入首个空槽（-1），全满则丢弃 ----
@@ -714,26 +733,31 @@ int CQuickPartySystemManager::check_match_proper_party(
     if (members <= 0 || members > 3)
         return 1;
 
-    short dungeonIdx = static_cast<short>(key.m_dungeonIndex);
-    if (dungeonIdx < 0)
+    // [b28d-solo-QuickParty] 修法（P0/P35）：ORIG 0x08269e6f 无 dungeonIdx 具名槽——
+    // 每处 `movzwl (%eax),%eax` 重读 key.m_dungeonIndex（条件 test %ax、日志参 cwtl、
+    // find_dungeon 实参 movswl %ax,%ebx）；具名 short 局部多 `mov %ax,-0x12` 槽往返。
+    if (key.m_dungeonIndex < 0)
     {
         LogManager::logFormat(
             1, "QuickParty.cpp",
             __PRETTY_FUNCTION__,
             0x16e, "QUICK_PARTY_LOG : DUNGEON INDEX ERROR!! (%d)",
-            static_cast<int>(dungeonIdx));
+            static_cast<int>(key.m_dungeonIndex));
     }
 
-    CDungeon* dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
+    CDungeon* dungeon = G_CDataManager()->find_dungeon(key.m_dungeonIndex);
     if (dungeon == 0)
         return 1;
 
     // 血色副本按人数上限直接放行；否则走常规出入副本条件检查。
-    bool bloodPass =
-        static_cast<int>(
-            static_cast<signed char>(dungeon->get_blood_dungeon_type())) == 2 &&
-        static_cast<int>(dungeon->get_limit_party_count()) <= members;
-    if (bloodPass)
+    // [b28d-solo-QuickParty] 修法（P226 语句表达式）：ORIG 0x08269ee6 的 bloodPass 物化在
+    // %al（`mov $1/jmp`、`mov $0`、`test %al,%al`），无栈槽；具名 bool 局部使 4.4 落 -0x9
+    // 并多发 `mov %al,-0x9; cmpb $0,-0x9`。
+    if (({
+            static_cast<int>(
+                static_cast<signed char>(dungeon->get_blood_dungeon_type())) == 2 &&
+            static_cast<int>(dungeon->get_limit_party_count()) <= members;
+        }))
         return 1;
     return party->checkInoutConditionDungeon(dungeon,
                                              static_cast<ENUM_DUNGEON_MODE>(0),
@@ -1039,6 +1063,10 @@ void CQuickPartySystemManager::start_game(CQuickParty* qp)
     if (merged->GetEPLPState() <= 1)
     {
         merged->game_start(merged->getManager());
+    }
+    else
+    {
+        return;
     }
 }
 

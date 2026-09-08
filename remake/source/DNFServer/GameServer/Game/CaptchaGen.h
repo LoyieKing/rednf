@@ -67,9 +67,11 @@ public:
     static const unsigned short kJapaneseHirakana[72]; // VA 0x08b2c460
     static const unsigned short kTaiwanAlphabet[26];   // VA 0x08b2c500
     // 非 const：防 4.4 常量折叠（对齐 ORIG 运行时读 rodata 值做 div，见 GlobalData.cpp 注）
-    static unsigned int kKoreanGeneralCount;     // VA 0x08b2c444（978）
-    static unsigned int kTaiwanAlphabetCount;    // VA 0x08b2c534（26）
-    static unsigned int kJapaneseHirakanaCount;  // VA 0x08b2c4f0（72）
+    // ORIG 0x080de87x：divisor 装载 `mov <A>,%edx; mov %edx,%ecx`（int 读入
+    // edx 再转 unsigned 到 ecx）⇒ 声明 int + 使用处显式转 unsigned（P211 档③）。
+    static int kKoreanGeneralCount;     // VA 0x08b2c444（978）
+    static int kTaiwanAlphabetCount;    // VA 0x08b2c534（26）
+    static int kJapaneseHirakanaCount;  // VA 0x08b2c4f0（72）
 private:
     static float getFloat(XorRand4& rng, float lo, float hi);
     void* m_library;             // +0x00（ORIG FT_Library；本还原中为句柄占位）

@@ -63,8 +63,8 @@ bool CCreatureScriptMgr::LoadCreatureScriptFile()
         return false;
     }
 
-    for (std::map<int, std::string>::const_iterator it = g_creatureScriptFileList.begin();
-         it != g_creatureScriptFileList.end(); ++it)
+    for (std::map<int, std::string>::const_iterator it = g_creatureScriptFileList.m_fileMap.begin();
+         it != g_creatureScriptFileList.m_fileMap.end(); ++it)
     {
         const char* path = it->second.c_str();
         if (path == 0)

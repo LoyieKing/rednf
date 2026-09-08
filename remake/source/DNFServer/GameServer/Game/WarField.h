@@ -177,7 +177,9 @@ struct MapInfo
     short m_cc;                       // +0xcc
     char m_padCE[2];                  // +0xce
     std::multimap<int, map_monster> m_tournamentMob;  // +0xd0
-    char m_layeredMap;                // +0xe8
+    bool m_layeredMap;                // +0xe8（P292 档②：ORIG GetMapInfoFromPos
+                                      //   0x0830cd42 直判 `test %al,%al; je` 无
+                                      //   setne ⇒ bool；同宽 1B，偏移/sizeof 不变）
     char m_padE9[3];                  // +0xe9
 
     MapInfo();                                // ORIG 08151394

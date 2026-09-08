@@ -35,7 +35,7 @@ bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
 char g_creatureScriptBaseDirectory[0x104];
 
 // ORIG g_creatureScriptFileList（STScriptFileList，+0x00 即 map<int,string>）。
-std::map<int, std::string> g_creatureScriptFileList;
+STScriptFileList g_creatureScriptFileList;
 
 // 模块名表 MODULE_NAME_TAG（processModuleTagSet 用；+8 步长 = 开/闭 string 对）。
 std::string g_moduleNameTag[17][2];  // ORIG MODULE_NAME_TAG B 0x88 字节（17 对 = 34 string）
@@ -1164,8 +1164,7 @@ bool importCreatureScript(CreatureScript* script, const char* path)
     // 末尾 0x8a38376：STScriptFileList::FindIndexByFullScan(this=&列表, path)
     // 写回 m_id 后 return true（g_creatureScriptFileList 建模为 map，布局与
     // STScriptFileList +0x00 一致 → 类型视图调用，同 InitScriptProducers_5 先例）。
-    script->m_id = reinterpret_cast<const STScriptFileList*>(&g_creatureScriptFileList)
-                       ->FindIndexByFullScan(path);
+    script->m_id = g_creatureScriptFileList.FindIndexByFullScan(path);
     return true;
 }
 

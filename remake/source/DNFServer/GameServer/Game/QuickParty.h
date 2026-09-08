@@ -38,21 +38,25 @@ struct STQuickPartyPoolMap_Key
         // 与 0x0826b843 `jge <共享 false 尾>`，否定早返 `!=` 需改写为 `==` 包裹；
         // ②P196 真 bug 修复——ORIG 0x0826b843 是有符号 `jge`，m_dungeonDiff 值域
         // 含 0xff（C1 初值），无符号比较在 ≥0x80 处分叉，按 ORIG 用 signed char 比较。
-        // [b28d-L1] N18a 反向封顶：ORIG 0x0826b837 `movzbl 0x2(%eax),%edx`（单段直落
-        // %edx）；双 cast 形 `(signed char)m < (signed char)rhs.m` 使 4.4 恒发
-        // `movzbl …,%eax; mov %eax,%edx`（+1 条 regmove）。探针 /tmp/b28d_l1/probe/
-        // p_lt.cpp：无 cast 形 a7 产单段 `movzbl mem,%edx` 但改无符号比较（P196 真
-        // bug 禁止，值域含 0xff）；单侧 cast b1..b6 产 movsbl，均不匹配。语义等价。
+        // [b28d-solo-QuickParty] 修法（P248 档②）：旧 b28c-lane3 判「N18a 反向封顶」
+        // 作废。ORIG 0x0826b837 `movzbl 0x2(%eax),%edx`（单段直落 %edx）在
+        // 「signed char 字段 + 无 cast 比较」下逐条复现：探针 /tmp/b28d_solo/probe_lt.cpp
+        // lt_s_nocast ⇒ `movzbl 0x2(%eax),%edx; movzbl 0x2(%eax),%eax; cmp %al,%dl; setl`；
+        // 而 uchar 字段 + 双 cast 恒多 `mov %eax,%edx`（regmove 中转，28 vs 27）。
+        // 字段 unsigned char→signed char 同宽（sizeof=4/偏移不变），有符号语义与 ORIG
+        // `jge` 一致（m_dungeonDiff 值域含 0xff）。
         if (m_dungeonIndex == rhs.m_dungeonIndex)
         {
-            if ((signed char)m_dungeonDiff < (signed char)rhs.m_dungeonDiff)
+            if (m_dungeonDiff < rhs.m_dungeonDiff)
                 return true;
         }
         return false;
     }
 
     short m_dungeonIndex;        // +0x00
-    unsigned char m_dungeonDiff; // +0x02
+    signed char m_dungeonDiff;   // +0x02（b28d-solo-QuickParty：ORIG lt 0x0826b837 单段
+                                 // `movzbl 0x2(%eax),%edx`+`cmp %al,%dl; jge` ⇒ signed char
+                                 // 字段无 cast 比较；uchar 多 regmove 中转。）
 };                               // sizeof = 4
 
 // STQuickPartyPoolMap_Data（ORIG C1 @0x0826b854 W / D1 @0x0826b9d2 W：
@@ -114,7 +118,12 @@ private:
     short m_dungeonIndex;                // +0x16
     char m_dungeonDiff;                  // +0x18
     char m_poolIndex;                    // +0x19
-    int m_timerKeyCnt[2];                // +0x1c（timer key 计数数组，下标 (int)msg-0x9d；get/check/gen_timer_key 实证）
+    unsigned int m_timerKeyCnt[2];       // +0x1c（timer key 计数数组，下标 (int)msg-0x9d；
+                                         // b28d-solo-QuickParty：ORIG check_timer_key 0x082696b0
+                                         // `mov 0xc(%eax,%edx,4),%edx; mov 0x10(%ebp),%eax; cmp %eax,%edx`
+                                         // 两寄存器形要求元素为 unsigned（4.4 对 int 元素恒折
+                                         // `cmp key_mem,%eax` 11 条）；int→unsigned int 同宽，
+                                         // sizeof/偏移/mangled 零变化。）
     bool m_isChangeQuickPartyCount;          // +0x24（ORIG 改快速组队人数标记；movzbl 按 bool 读取）
     unsigned char m_pad25[3];
 };                                       // sizeof = 0x28

@@ -230,7 +230,13 @@ public:
 private:
     CUser* m_users[2];              // +0x04
     Point2d m_anchor;               // +0x0c
-    CCandidateMatrix m_matrices[2]; // +0x14、+0x20
+    // b28d-solo-CAssaultMgr：原 `CCandidateMatrix m_matrices[2]` 使 4.4 对数组
+    // 构造发倒计数循环+EH 段（35 条）；ORIG 0x82e6032 是**两次展开** `call C1`
+    // （+0x14/+0x20 各一次）。拆两个独立成员后 4.4 逐成员展开构造，布局/偏移
+    // （+0x14/+0x20，sizeof(CCandidateMatrix)=0xc）与 sizeof 不变；全仓仅
+    // CAssaultMgr.cpp 以常量 [0]/[1] 访问，无动态索引。
+    CCandidateMatrix m_matrix0;     // +0x14
+    CCandidateMatrix m_matrix1;     // +0x20
 };
 
 // 6 参投影版（ORIG T 0x82e5a0b；定义 owner=CVillageMonsterMgr.cpp，

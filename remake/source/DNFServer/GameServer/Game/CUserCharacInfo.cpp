@@ -1527,6 +1527,10 @@ seriaRoom_AniDeco CUserCharacInfo::getSeriaRoomAniDecoInfo()
     return result;
 }
 
+// [b28d-solo-CUserCharacInfo 复核] ①`out.clear()` 移到 buffer 声明之前 ⇒ ORIG
+// 0x0864607e `call clear` 在 rep stos 前（原顺序反）；②删具名 bool stop 改直测条件
+// （P198②）⇒ `test %al,%al; jne` 与 ORIG 一致；③余差 = N4（ORIG 两条 lea 分步，
+// 4.4 折 `add mem`×2）+ EH 尾段相对序（N104：_Unwind_Resume/析构 cleanup 块）⇒ 封顶。
 void CUserCharacInfo::getSeparatedTextUnits(std::vector<std::string>& out,
                                             const char* text, const char* sep,
                                             int maxUnits)
@@ -1534,13 +1538,14 @@ void CUserCharacInfo::getSeparatedTextUnits(std::vector<std::string>& out,
     // [b28d-L14 真 bug 修正 + P253] ORIG 0x08647874 `mov $0x40,%edx; rep stos`：
     // %edx 是 dword 计数 ⇒ 清零 0x40*4=0x100 字节（全缓冲），旧 memset(0x40)
     // 少清 0xc0 字节。显式零初始化数组复现 4.1 rep stos（P214③）。
-    char buffer[0x100] = {0};
     out.clear();
+    char buffer[0x100] = {0};
     int offset = 6;
     while (true)
     {
-        bool stop = maxUnits != 0 && (int)out.size() >= maxUnits - 1;
-        if (stop)
+        // [b28d-solo-CUserCharacInfo P198②] ORIG 0x086460d4 无 stop 槽（寄存器 setne
+        // 物化直测）⇒ 条件内联，勿用具名 bool 局部。
+        if (maxUnits != 0 && (int)out.size() >= maxUnits - 1)
             break;
         const char* found = strstr(text + offset, sep);
         if (found == 0)
@@ -1552,6 +1557,8 @@ void CUserCharacInfo::getSeparatedTextUnits(std::vector<std::string>& out,
             buffer[length] = 0;
             out.push_back(std::string(buffer, std::allocator<char>()));
         }
+        // [b28d-solo-CUserCharacInfo N4] ORIG 0x08646196 用两条 lea
+        // （`lea (%eax,%edx,1)` ×2）保留分步求值，4.4 恒折 `add mem`（3 条）⇒ 封顶。
         offset += (int)strlen(sep) + length;
     }
     if (text[offset] != 0)
@@ -3640,7 +3647,10 @@ void CUserCharacInfo::SetIsAffectedExpDouble(bool flag)
 // mov $0,%ebx; test %bl` 物化；槽深/帧差。p167 CLEAR（15/15，语义完整）。
 // [b28d-solo-CUserCharacInfo P252 修复] 具名 `float penalty` 局部（替内联实参）复现
 // ORIG 0x086462f0 `fstps -0x10(%ebp)` + 回读压栈形；裸 register bool 两处保留
-// （P231：删 register 反致 bool 栈槽物化 120 insn）⇒ 本件 AE（TU ae 362→363）。
+// （P231：删 register 反致 bool 栈槽物化 120 insn）。
+// [b28d-solo-CUserCharacInfo 定稿] 具名 float penalty 复测反劣（120 vs 118）已回退；
+// register bool 保留（删则 120 条栈槽物化）；余差 = bool 物化寄存器（ebx vs ORIG eax）
+// + 槽深/帧差 + x87 返回值经槽（N85）⇒ 按 N82附/P225 封顶，语义等价。
 void CUserCharacInfo::DieCurCharac(int responTime, CUser* user)
 {
     if (m_selected)
@@ -3658,10 +3668,10 @@ void CUserCharacInfo::DieCurCharac(int responTime, CUser* user)
         powerWar = false;
     if (powerWar)
     {
-        // [b28d-solo-CUserCharacInfo P252/N85] ORIG 0x086462f0 `fstps -0x10(%ebp)` +
-        // 回读压栈 ⇒ 原码有具名 float 局部（内联实参则 fstps 直落 0x8(%esp)）。
-        float penalty = GlobalData::s_power_manager->GetPowerWarResponPenalty(user);
-        ghostTime = GlobalData::s_power_manager->GetPowerWarGhostTime(user, penalty);
+        // [b28d-solo-CUserCharacInfo 复核] 具名 float penalty 实测反劣（120 vs 118
+        // 条，bool 物化转栈槽）⇒ 维持内联实参形，本件按 N82附/P225 封顶。
+        ghostTime = GlobalData::s_power_manager->GetPowerWarGhostTime(
+            user, GlobalData::s_power_manager->GetPowerWarResponPenalty(user));
     }
     else
     {
