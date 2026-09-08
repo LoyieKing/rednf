@@ -169,6 +169,7 @@ int getObjectTypeToEnumValue(std::string& s)
 // else{enter 双检}：ours 1294 → 1383 == ORIG 1383（残余仅 .o relocation 显示，
 // relink 后按 AE 口径核销）。
 // ---------------------------------------------------------------------------
+// [b28d-lane16 DIFF] ORIG 08892b0d：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 int getChangeStatusType(std::string& s)
 {
     for (;;)
@@ -526,6 +527,7 @@ int getChangeStatusType(std::string& s)
 // 共 56 条，表尾释放锁、置 __inited 并跳回 guard 重新 find 派发；建表后命中
 // case 写 result 并 break 返回角色 0..55，未命中保持入口初值 -1。
 // ---------------------------------------------------------------------------
+// [b28d-lane16 DIFF] ORIG 089fecee：else{enter 双检}：ours 1364 → 1475（ORIG 1476；唯一实质残差 = lock 区
 int getNpcRoleByString(std::string name)
 {
     int result = -1;                        // ORIG 089fecfa movl $0xffffffff,-0x20(%ebp)
@@ -861,6 +863,7 @@ int getNpcMoodFromString(const char* name)
 // scanModuleType — ORIG @ 0x88c0b9a。
 // { std::string s; ScanStr(&s); return getModuleType(s.c_str()); }
 // ---------------------------------------------------------------------------
+// [b28d-lane16 DIFF] ORIG 088c0bfc：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 int getModuleType(const char* name)
 {
     // ORIG _Z13getModuleTypePKc @ 0x88c0bfc（报告 _lt_global_gt_/getModuleType.md

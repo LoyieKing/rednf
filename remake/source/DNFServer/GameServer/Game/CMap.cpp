@@ -91,8 +91,9 @@ template <> void cElection<int, 4, 4>::cVoter::Init()
 template <> cElection<int, 4, 4>::cVoter::cVoter() { Init(); }
 template <> cElection<int, 4, 4>::cElection()
 {
-    for (int i = 3; i >= 0; --i)
-        new (&m_voters[i]) cVoter();
+    // ORIG 0x082be?? P167 calls=2：仅「数组元素 cVoter::C1 循环 + Init()」。
+    // 原 placement-new 循环产生 EXTRA cVoter C1/_ZnwjPv/_ZdlPvS_/Unwind_Resume
+    // （双构造冗余），与 8,8 版同样删除（成员数组构造由编译器自动生成）。
     Init();
 }
 template <> void cElection<int, 4, 4>::Init()
@@ -334,12 +335,16 @@ int CMap::box_item_index(std::list<std::pair<int, int> > itemList) const
 {
     int threshold = get_rand_int(100) + 1;
     int accumulated = 0;
-    std::list<std::pair<int, int> >::const_iterator it = itemList.begin();
-    for (; it != itemList.end(); ++it)
+    // ORIG 0x0825?? P167：非 const iterator（P96）+ 循环外默认构造 pair（C1Ev）
+    // + 体内临时 pair 右值赋值（deEv + aSEOS0_，P135）+ 后置 it++（ppEi，P28）。
+    std::pair<int, int> item;
+    for (std::list<std::pair<int, int> >::iterator it = itemList.begin();
+         it != itemList.end(); it++)
     {
-        accumulated += it->second;
+        item = std::pair<int, int>(*it);
+        accumulated += item.second;
         if (threshold < accumulated)
-            return it->first;
+            return item.first;
     }
     return -2;
 }

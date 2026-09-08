@@ -62,6 +62,8 @@ void CChangeCharacName::parse()
 }
 
 // ORIG execute 0x084ab558。
+// b28d-21: NEAR 封顶 — 承 b26 判词：ORIG 0x084ab558 首结果→%ebx/次→%esi，
+// 4.4 恒反（N7 callee-saved 角色互换）；实参求值序 R2L 由编译器固定，无源码自由度。
 void CChangeCharacName::execute()
 {
     CUser* user = GetUser();
@@ -85,6 +87,10 @@ void CChangeExpertJobCmd::parse()
 }
 
 // ORIG execute 0x084a9900。
+// b28d-21: 已修 P157/P183 — 两次 growtype_skill 调用点各自重取 skillW/curJob
+// 并重发 operator[]（删 skillIdx/skillLevel/curJob/skillW 四个具名局部）⇒
+// p167 调用点差集 CLEAR（39=39，原 MISSING 6）；ndiff 108→54。余 N82 帧/槽
+// （178 vs 182）。ORIG 0x084a9900。
 void CChangeExpertJobCmd::execute()
 {
     int jobType = m_jobType;
@@ -101,16 +107,20 @@ void CChangeExpertJobCmd::execute()
             {
                 continue;
             }
-            // pair = [skillIdx, level]（STExpertJobScript+0xc [skill]）
-            int skillIdx = script->m_growSkillVec[i].first;
-            int skillLevel = script->m_growSkillVec[i].second;
-            int curJob = GetUser()->get_charac_job();
-            SkillSlot* skillW = reinterpret_cast<SkillSlot*>(
-                GetUser()->getCurCharacSkillW());         // 占位声明返回 char*，ORIG 实为 SkillSlot*
-            skillW->growtype_skill(curJob, skillIdx, skillLevel,
-                                   (ENUM_SKILL_TREE_KIND)0);
-            skillW->growtype_skill(curJob, skillIdx, skillLevel,
-                                   (ENUM_SKILL_TREE_KIND)1);
+            // b28d-21：P167 差集（ORIG 39 calls vs 重建 33）证明 ORIG 在两次
+            // growtype_skill 调用点各自重取 skillW/curJob 并重发 operator[]
+            // （P157/P183 禁缓存）⇒ 全部内联，删 skillIdx/skillLevel/curJob/skillW
+            // 四个具名局部。占位声明返回 char*，ORIG 实为 SkillSlot*。
+            reinterpret_cast<SkillSlot*>(GetUser()->getCurCharacSkillW())
+                ->growtype_skill(GetUser()->get_charac_job(),
+                                 script->m_growSkillVec[i].first,
+                                 script->m_growSkillVec[i].second,
+                                 (ENUM_SKILL_TREE_KIND)0);
+            reinterpret_cast<SkillSlot*>(GetUser()->getCurCharacSkillW())
+                ->growtype_skill(GetUser()->get_charac_job(),
+                                 script->m_growSkillVec[i].first,
+                                 script->m_growSkillVec[i].second,
+                                 (ENUM_SKILL_TREE_KIND)1);
         }
         expert_job::CCharacExpertJob* expand =
             reinterpret_cast<expert_job::CCharacExpertJob*>(
@@ -198,10 +208,15 @@ void CChangeNPCMaxDayCmd::execute()
 // ===========================================================================
 
 // ORIG execute 0x084a905e：读 AdditionalInfo 移速/攻速/施速，组串回发本人。
+// b28d-21: 已修 P214③（255 字节缓冲 `memset` → `char buf[255] = {0}` 复现 ORIG
+// 内联「对齐剥离 + rep stos」39 条，ndiff 92→9）；余 N1/槽（ORIG -0x1c add 形 vs
+// 重建 disp 折叠）。ORIG 0x084a905e。
 void CCharacStatCmd::execute()
 {
-    char buf[255];                                        // ORIG -0x127(%ebp)，255 字节清零
-    memset(buf, 0, sizeof(buf));
+    // b28d-21：ORIG 0x084a905e 对 255 字节缓冲发内联「对齐剥离+rep stos」
+    //（0x84a9063 起 39 条），4.4 对 memset 恒发 call ⇒ 按 P214③ 用大数组
+    // 显式零初始化 `= {0}` 复现。
+    char buf[255] = {0};                                  // ORIG -0x127(%ebp)
 
     unsigned char const* add = static_cast<unsigned char const*>(
         GetUser()->getCurCharacAddInfoR());
@@ -243,7 +258,9 @@ void CChoiceItem::execute()
     CItem* item = G_CDataManager()->find_item(m_itemIdx);
     // ORIG：bad = (item==0 || is_stackable) bool 汇聚（mov$1 落 +0x61 fall，mov$0
     // 为 je 岛），if(!bad) 才 setChoiceItem(true, idx)。
-    register unsigned char bad asm("eax") = (item == 0) || item->is_stackable();
+    // b28d-21：P0/N96 清绑（原 `register unsigned char bad asm("eax")`），
+    // 改纯 register 存储类提示（P231/P248 非绑定形）。
+    register unsigned char bad = (item == 0) || item->is_stackable();
     if (bad)
         goto done;
     G_CDataManager()->setChoiceItem(true, (unsigned int)m_itemIdx);
@@ -341,6 +358,8 @@ void CClearRewardTest::parse()
 
 
 // ORIG execute 0x084b2a08。
+// b28d-21: DIFF/N 封顶（语义缺口已定位）— p167 EXTRA 5 项（重建多 cMyTrace/
+// 临时对象构造）；残差 N82 帧/槽（597 vs 608）+ N89。ORIG 0x084b2a08。
 void CClearRewardTest::execute()
 {
     CUser* user = GetUser();

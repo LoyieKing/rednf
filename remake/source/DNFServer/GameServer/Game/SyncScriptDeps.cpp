@@ -61,10 +61,20 @@ const char* toTString(const char* pszSrc)
 // 故在本属主 TU 用同名 static __thread 缓冲迁移（TU 局部，无跨 TU ODR 冲突；
 // getMbcsBuffer 等其余 Unicode 辅助符号仍归 Unicode TU，二者缓冲不共享，
 // 若未来将 UnicodeConvert.cpp 纳入 game 需合并此处缓冲）。
+// [b28d-lane8] TLS 布局对齐（P190 类比；无访问点、无外部符号，仅占 .tbss）：
+// ORIG 中 toMbcs/toTString 属含 gUnicodeBuffer 的 TU，其 LE 偏移
+//   gMbcsBuffer=-0x3c028（0x08adeea0 段 `lea -0x3c028(%eax)`）、
+//   gTCharBuffer=-0xa020（0x08adeb7d 段）。
+// 本 TU 组须复现同组内相对布局：lead 4B 使 gMbcsBuffer 8 对齐，
+// gUnicodeBuffer[10][0x1000]+index 补足 0x28004 间距，tail 0x18B 补齐尾距。
+static __thread char gTlsPadLead[4] __attribute__((unused));
 static __thread char gMbcsBuffer[10][0x1000];
 static __thread int gMbcsBufferIndex;
+static __thread wchar_t gUnicodeBuffer[10][0x1000] __attribute__((unused));
+static __thread int gUnicodeBufferIndex __attribute__((unused));
 static __thread char gTCharBuffer[10][0x1000];
 static __thread int gTCharBufferIndex;
+static __thread char gTlsPadTail[0x10] __attribute__((unused));
 
 // ORIG 0x08adf024：toMbcs(char const*, string&) = sDst = pszSrc。
 void toMbcs(const char* pszSrc, std::string& sDst)
@@ -79,6 +89,7 @@ void toMbcs(const std::string& sSrc, std::string& sDst)
 }
 
 // ORIG 0x08adeea0：toMbcs(wchar_t const*)：wcstombs 到 TLS Mbcs 缓冲。
+// [b28d-L8] AE | 修法：本 TU TLS 组按 ORIG 布局补 lead4B+gUnicodeBuffer[10][0x1000]+tail0x10（gMbcsBuffer LE=-0x3c028、gTCharBuffer LE=-0xa020，ORIG 0x08adeea0）；待 Main relink 复验
 const char* toMbcs(const wchar_t* pszSrc)
 {
     int curIndex = gMbcsBufferIndex;
@@ -89,6 +100,7 @@ const char* toMbcs(const wchar_t* pszSrc)
 }
 
 // ORIG 0x08adede6：toMbcs(wstring const&)：wcstombs 到 TLS Mbcs 缓冲。
+// [b28d-L8] AE | 同上（TLS 组布局对齐，ORIG 0x08adede6）
 const char* toMbcs(const std::wstring& sSrc)
 {
     int curIndex = gMbcsBufferIndex;
@@ -99,6 +111,7 @@ const char* toMbcs(const std::wstring& sSrc)
 }
 
 // ORIG 0x08adf03e：toMbcs(wchar_t const*, string&)：wcstombs 后 sDst = buf。
+// [b28d-L8] AE | 同上（TLS 组布局对齐，ORIG 0x08adf03e）
 void toMbcs(const wchar_t* pszSrc, std::string& sDst)
 {
     int curIndex = gMbcsBufferIndex;
@@ -109,6 +122,7 @@ void toMbcs(const wchar_t* pszSrc, std::string& sDst)
 }
 
 // ORIG 0x08adef63：toMbcs(wstring const&, string&)：wcstombs 后 sDst = buf。
+// [b28d-L8] AE | 同上（TLS 组布局对齐，ORIG 0x08adef63）
 void toMbcs(const std::wstring& sSrc, std::string& sDst)
 {
     int curIndex = gMbcsBufferIndex;
@@ -131,6 +145,7 @@ void toTString(const std::string& sSrc, std::string& sDst)
 }
 
 // ORIG 0x08adeb7d：toTString(wchar_t const*)：wcstombs 到 TLS TChar 缓冲。
+// [b28d-L8] AE | 同上（TLS 组布局对齐，ORIG 0x08adeb7d）
 const char* toTString(const wchar_t* pszSrc)
 {
     int curIndex = gTCharBufferIndex;
@@ -141,6 +156,7 @@ const char* toTString(const wchar_t* pszSrc)
 }
 
 // ORIG 0x08adeac3：toTString(wstring const&)：wcstombs 到 TLS TChar 缓冲。
+// [b28d-L8] AE | 同上（TLS 组布局对齐，ORIG 0x08adeac3）
 const char* toTString(const std::wstring& sSrc)
 {
     int curIndex = gTCharBufferIndex;
@@ -151,6 +167,7 @@ const char* toTString(const std::wstring& sSrc)
 }
 
 // ORIG 0x08aded1b：toTString(wchar_t const*, string&)：wcstombs 后 sDst = buf。
+// [b28d-L8] AE | 同上（TLS 组布局对齐，ORIG 0x08aded1b）
 void toTString(const wchar_t* pszSrc, std::string& sDst)
 {
     int curIndex = gTCharBufferIndex;
@@ -161,6 +178,7 @@ void toTString(const wchar_t* pszSrc, std::string& sDst)
 }
 
 // ORIG 0x08adec40：toTString(wstring const&, string&)：wcstombs 后 sDst = buf。
+// [b28d-L8] AE | 同上（TLS 组布局对齐，ORIG 0x08adec40）
 void toTString(const std::wstring& sSrc, std::string& sDst)
 {
     int curIndex = gTCharBufferIndex;
@@ -280,6 +298,7 @@ struct ActionPointExDescView
 
 }  // namespace
 
+// [b28d-L8] N82 | 帧差 0x4fc vs 0x4f0 + 槽平移（ORIG 0x0812268c）
 bool APSystem::CSyncScript::InsertDescTable()
 {
     CDataManager* mgr = G_CDataManager();
@@ -382,6 +401,7 @@ bool SyncScript::truncateItemDescTable()
 // ORIG 0x08134132：见头注。type==1→+0x10 vec；type==2→+0x1c vec；type==0→+0x04 vec；
 // 其它 type 直接返回 false。逐项 CodePage::script2Database 转换 desc 后 sprintf 元组，
 // 项间追加 ", "；任一项转换失败走 cMyTrace 错误日志并返回 false。
+// [b28d-L8] N82 | 帧差 0x85c vs 0x55c（大局部数组）+ 块序（ORIG 0x08xxxxxx）
 bool SyncScript::getItemValueStirng(int ridableId, const BuyShopData& data,
                                     AdvanceAltarShopType::T type, std::string& out)
 {
@@ -431,6 +451,7 @@ bool SyncScript::getItemValueStirng(int ridableId, const BuyShopData& data,
 // ridable_id 依次生成 type 0/1/2 的 values 元组（项间以 "," 分隔），拼装
 // "inSert into charac_advance_altar_item_desc (ridable_id, item_type,
 // item_id, item_desc) values " 后 INSERT；任一行失败返回 0，全部成功返回 1。
+// [b28d-L8] N82 | 块序（string C1/双检）+ 槽平移（ORIG 0x08xxxxxx）
 bool SyncScript::insertItemDescTable()
 {
     CDataManager* dm = G_CDataManager();

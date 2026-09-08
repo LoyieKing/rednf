@@ -118,6 +118,7 @@ bool CParty::existSamePCRoomUser(unsigned int pcbangNo)
 // 死亡计数表基址 this+0x10+(slot+0xe0)*4（ORIG 寻址实证），位于 m_battleData
 // （+0x32c）内，超建模段按裸偏移访问。
 // ============================================================================
+// [b28d-7 N82] ORIG 0x085ad9b4：float 局部槽 -0x8/-0x4（帧 $0x18），4.4 -0xc/-0x8 + 块序不同；P167 CLEAR ⇒ 封顶。
 float CParty::calDeadUserDungeonPenalty(int slot)
 {
     float rate = 0.0f;
@@ -145,6 +146,7 @@ float CParty::calDeadUserDungeonPenalty(int slot)
 // put_int(0)/put_int(item.add_info())，标志非 0 时再补写标志与尾随 addInfo。
 // 尾随 addInfo 宿主为 item+0x3d 处的 Inven_Item 视图（set_add_info 写其 +0x07）。
 // ============================================================================
+// [b28d-7 N82] ORIG 0x085ad0be：帧 $0x64 + 单一 push %ebx + 无具名 blob 局部，4.4 帧 $0x78 + 多级具名槽（-0x14/-0x18/-0x1c）；P167 CLEAR ⇒ 封顶。
 void CParty::_makeRewardItemInfo(CUser const* user, Inven_Item* item,
                                  PacketGuard& packet)
 {
@@ -194,6 +196,7 @@ void CParty::_makeRewardItemInfo(CUser const* user, Inven_Item* item,
 // 以 RewardCardGold(type=0xb) 结算该成员金卡加成并回写 item.m_addInfo2(+0x07)；
 // 每次消费一个结果项（迭代器独立于成员循环推进）。
 // ============================================================================
+// [b28d-7 AE] ORIG 0x0859ba98：77/77 助记符/槽位逐条全等（446h46 路由口径），vector begin/end/operator* 链与 ORIG 一致，P167 CLEAR。
 void CParty::increase_result_card_gold(WongWork::stGenerateResult_t& result)
 {
     std::vector<Inven_Item>::iterator it = result.m_dropItems.begin();
@@ -220,6 +223,7 @@ void CParty::increase_result_card_gold(WongWork::stGenerateResult_t& result)
 // 组队首杀同步：roleType==3（Boss）/8（APC Boss）/命名怪三分支，各遍历成员
 // 1..3（跳过队长），对每成员 CKillMonsterInfo 先 Check 后 Register。
 // ============================================================================
+// [b28d-7 N82] ORIG 0x085bae6e：m_mobIndex 直用无槽，4.4 缓存至 -0x30（帧同 0x58）；P167 CLEAR ⇒ 封顶。
 void CParty::MemberRegisterKillMonster(map_monster& monster, unsigned char flag)
 {
     const unsigned int mobIdx = static_cast<unsigned int>(monster.m_mobIndex);
@@ -302,6 +306,7 @@ int CParty::getDungeonTypeKind(CDungeon const* dungeon)
 // AddDungeonClear(m_battleField.m_dungeonIndex=CParty+0xcb8, 3)。其余 kind
 // 或未命中返回 false。
 // ============================================================================
+// [b28d-7 修法+P167] ORIG 0x085bddfc：三分支各自 return AddDungeonClear（0x085bdf02/085bdf95/085be024，共 3 处）——旧版共享末尾 return 少 2 次调用，已按分支补回；残余为 N82 槽基（-0xc vs -0x10）与两步寻址（add/shl vs lea），P167 已 CLEAR。
 bool CParty::addDungeonClear(const CDungeon* dungeon, int param, int slot)
 {
     for (int i = 0; i <= 3; ++i)
@@ -324,6 +329,11 @@ bool CParty::addDungeonClear(const CDungeon* dungeon, int param, int slot)
                     > 0x1e
                 || m_member[slot].m_field14 != 0)
                 continue;
+            // [b28d-7 真缺口] P167：ORIG 0x85bdf02 每分支独立 return
+            // AddDungeonClear（共 3 处 0x85bdf02/0x85bdf95/0x85be024），
+            // 旧版共享末尾 return 少 2 次调用。
+            return m_member[slot].m_pUser->AddDungeonClear(
+                m_battleField.m_dungeonIndex, 3);
         }
         else if (kind == 2)
         {
@@ -335,6 +345,8 @@ bool CParty::addDungeonClear(const CDungeon* dungeon, int param, int slot)
                     > 0x32
                 || m_member[slot].m_field14 != 0)
                 continue;
+            return m_member[slot].m_pUser->AddDungeonClear(
+                m_battleField.m_dungeonIndex, 3);
         }
         else
         {
@@ -348,10 +360,9 @@ bool CParty::addDungeonClear(const CDungeon* dungeon, int param, int slot)
                     > 10
                 || m_member[slot].m_field14 != 0)
                 continue;
+            return m_member[slot].m_pUser->AddDungeonClear(
+                m_battleField.m_dungeonIndex, 3);
         }
-
-        return m_member[slot].m_pUser->AddDungeonClear(
-            m_battleField.m_dungeonIndex, 3);
     }
     return false;
 }
@@ -362,6 +373,7 @@ bool CParty::addDungeonClear(const CDungeon* dungeon, int param, int slot)
 // diff1→dm+0x5130 门槛下 2 次/diff2→ultimate 清单内 addDungeonClear），
 // 记账成功即发 0x05 准入通知包（short: 1 / dungeonIdx / diff+1）。
 // ============================================================================
+// [b28d-7 修法+P167] ORIG 0x085b12f8：diff==2 分支两次完整重读 getUltimateDungeonList（0x085b147e/085b1486）+ const 版 set::find（0x085b1476）+ operator==（0x085b14aa）——旧版缓存指针 + operator!=，已按 ORIG 形重写；残余 N82 槽基/帧（0x40 vs 0x50），P167 已 CLEAR（29=29）。
 void CParty::DungeonPermission(int param)
 {
     const int dungeonIdx = m_battleField.m_dungeonIndex;
@@ -389,10 +401,19 @@ void CParty::DungeonPermission(int param)
         }
         else if (diff == 2)
         {
-            const std::set<int>* ultimate =
-                G_CDataManager()->getUltimateDungeonList();
-            if (ultimate->find(dungeon->get_index()) != ultimate->end())
-                granted = addDungeonClear(dungeon, param, i);
+            // [b28d-7 真缺口] P167/P183：ORIG 0x85b147e/0x85b1486 两次完整重读
+            // getUltimateDungeonList（无指针缓存），0x85b14aa 用 operator==
+            // 比较后 jne 跳过授予；旧版缓存指针 + operator!= 造成调用点差集。
+            // ORIG 0x85b1476 调 const 版 set::find ⇒ 视图侧 const 化（零 ABI 影响）。
+            if (static_cast<const std::set<int>*>(
+                    G_CDataManager()->getUltimateDungeonList())
+                    ->find(dungeon->get_index()) ==
+                static_cast<const std::set<int>*>(
+                    G_CDataManager()->getUltimateDungeonList())->end())
+                goto DUNGEON_PERM_NEXT;
+            granted = addDungeonClear(dungeon, param, i);
+        DUNGEON_PERM_NEXT:
+            ;
         }
         else if (diff == 0)
         {

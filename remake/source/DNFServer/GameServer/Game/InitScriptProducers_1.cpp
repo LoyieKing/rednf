@@ -135,7 +135,9 @@ bool importAccountCargoScript(AccountCargoScript* script, const char* path)
                     info.m_field4 = f4;
                     info.m_field8 = f8;
                     info.m_fieldC = fC;
-                    script->m_upgradeMap.insert(std::make_pair(grade, info));
+                    // b28d-lane25：P167 差集实证 ORIG 调 pair<int,UpgradeInfo>::C1<int&,UpgradeInfo&>
+                    // 直构（P192），非 make_pair。
+                    script->m_upgradeMap.insert(std::pair<int, UpgradeInfo>(grade, info));
                 }
                 continue;                                   // 段毕回主循环（do 底部仅对未知 token 生效）
             }
@@ -220,15 +222,8 @@ int applyChannelScript(channel_script_t* script)
         if (!ScanType(token, true))
             return 1;                                    // +0x778→+0x779 esi=1
 
-        if (token != "[dungeon]" && token != "[server]")
-        {
-            LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__,
-                                  0xef,
-                                  "importChannelScript - invalid type. %s is not acceptable",
-                                  token.c_str());
-            return 1;                                    // +0x776→+0x779 esi=1
-        }
-
+        // b28d-lane25：P167 差集实证 ORIG 用 operator==（非 !=）且结构为
+        // if==[dungeon]/else if==[server]/else{log;return 1}（0x088dc034 je +0x19a）。
         if (token == "[dungeon]")
         {
             // +0x05a..+0x136：两个 STR 后连读 int 至断流，逐条打日志并入表。
@@ -255,9 +250,11 @@ int applyChannelScript(channel_script_t* script)
             continue;                                     // ebx=1 → 主循环
         }
 
-        // token == "[server]"
-        // +0x1b5..+0x736：先 serverNo；行循环 chNo→name→type→分类→bonusRate→float[10]；
-        // chNo 断流时把已积累 innerMap 以 serverNo 提交到 +0x18 外层 map。
+        // else if (token == "[server]")：+0x1b5..+0x736：先 serverNo；行循环
+        // chNo→name→type→分类→bonusRate→float[10]；chNo 断流时把已积累 innerMap
+        // 以 serverNo 提交到 +0x18 外层 map。
+        else if (token == "[server]")
+        {
         std::map<int, channel_info_t> channelInfos;
         int serverNo = 0;
         bool ok = false;
@@ -321,8 +318,10 @@ int applyChannelScript(channel_script_t* script)
 
                         if (info.m_dungeonName != "[none]")
                         {
-                            std::map<std::string, channel_dungeon_info_t>::iterator dit =
-                                script->m_channelDungeonMap.find(info.m_dungeonName);
+                            // b28d-lane25：P167 差集实证 ORIG 走 iterator::C1Ev + find 两段
+                            // （P50 反例复活：先声明后赋值，禁初始化式合并）。
+                            std::map<std::string, channel_dungeon_info_t>::iterator dit;
+                            dit = script->m_channelDungeonMap.find(info.m_dungeonName);
                             if (dit == script->m_channelDungeonMap.end())
                             {
                                 LogManager::logFormat(
@@ -395,6 +394,15 @@ int applyChannelScript(channel_script_t* script)
             }
             return 0;                                      // ROW_ERROR → esi=0
         }
+        }
+        else
+        {
+            LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__,
+                                  0xef,
+                                  "importChannelScript - invalid type. %s is not acceptable",
+                                  token.c_str());
+            return 1;                                      // +0x776→+0x779 esi=1
+        }
     }
 }
 
@@ -463,9 +471,11 @@ void traversalChannelScript(channel_script_t* script)
 {
     char buf[0x200];
 
-    for (std::map<std::string, channel_dungeon_info_t>::iterator it =
-             script->m_channelDungeonMap.begin();
-         it != script->m_channelDungeonMap.end(); ++it)
+    // b28d-lane25：P167 差集实证 ORIG 增量段走 ppEi（后置++，P28 增量侧推论）+
+    // 各迭代器独立 C1Ev ⇒ 三个循环一律 it++ 且"先声明后赋值"。
+    std::map<std::string, channel_dungeon_info_t>::iterator it;
+    for (it = script->m_channelDungeonMap.begin();
+         it != script->m_channelDungeonMap.end(); it++)
     {
         snprintf(buf, sizeof(buf), "[DUNGEON] %s as %s : ",
                  it->second.m_keyName.c_str(), it->first.c_str());
@@ -474,14 +484,15 @@ void traversalChannelScript(channel_script_t* script)
         LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__, 0x107, buf);
     }
 
-    for (std::map<int, std::map<int, channel_info_t> >::iterator outer =
-             script->m_channelMap.begin();
-         outer != script->m_channelMap.end(); ++outer)
+    std::map<int, std::map<int, channel_info_t> >::iterator outer;
+    for (outer = script->m_channelMap.begin();
+         outer != script->m_channelMap.end(); outer++)
     {
         LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__, 0x10c,
                               "[CHANNEL] Server %d", outer->first);
-        for (std::map<int, channel_info_t>::iterator inner = outer->second.begin();
-             inner != outer->second.end(); ++inner)
+        std::map<int, channel_info_t>::iterator inner;
+        for (inner = outer->second.begin();
+             inner != outer->second.end(); inner++)
         {
             channel_info_t& ci = inner->second;
             snprintf(buf, sizeof(buf), "\t%d : %s type(%d) name(%s) tag(%s) ",
@@ -578,27 +589,28 @@ int ImportSeriaBlessingScript(const char* path, stSeriaBlessingScript& out)
             break;
         stSeriaBlessingScript::Value value;      // 每轮构造（ORIG 同；随即全覆盖）
 
-        if (token != "[Seria Blessing]")
-            continue;
-
-        while (true)
+        // b28d-lane25：P167 差集实证 ORIG 调 operator==（非 !=）；P191/P222 正向包裹。
+        if (token == "[Seria Blessing]")
         {
-            int key = ScanInt(&ok);
-            if (!ok)
-                break;
+            while (true)
+            {
+                int key = ScanInt(&ok);
+                if (!ok)
+                    break;
 
-            value.m_minLv = ScanInt(&ok);
-            if (!ok) return 0x2a89;
-            value.m_maxLv = ScanInt(&ok);
-            if (!ok) return 0x2a8d;
-            value.m_field8 = ScanInt(&ok);
-            if (!ok) return 0x2a91;
-            value.m_fieldC = ScanInt(&ok);
-            if (!ok) return 0x2a95;
-            value.m_field10 = ScanInt(&ok);
-            if (!ok) return 0x2a99;
+                value.m_minLv = ScanInt(&ok);
+                if (!ok) return 0x2a89;
+                value.m_maxLv = ScanInt(&ok);
+                if (!ok) return 0x2a8d;
+                value.m_field8 = ScanInt(&ok);
+                if (!ok) return 0x2a91;
+                value.m_fieldC = ScanInt(&ok);
+                if (!ok) return 0x2a95;
+                value.m_field10 = ScanInt(&ok);
+                if (!ok) return 0x2a99;
 
-            out.m_map0[key] = value;             // operator[] 值初始化为 0（同 Value ctor）后覆盖
+                out.m_map0[key] = value;         // operator[] 值初始化为 0（同 Value ctor）后覆盖
+            }
         }
     }
     return 0;
@@ -829,12 +841,13 @@ int ImportGrowthCapsuleScript(const char* path, stGrowthCapsuleScript& script)
             if (!ok) return 0x2bc2;
             continue;
         }
-        if (token != "[capsule limit lv]")
-            continue;
-
-        script.m_capsuleLimitLv = ScanInt(&ok);
-        if (!ok)
-            return 0x2bc8;
+        // b28d-lane25：P167 差集实证 ORIG 调 operator==（非 !=）；正向包裹。
+        if (token == "[capsule limit lv]")
+        {
+            script.m_capsuleLimitLv = ScanInt(&ok);
+            if (!ok)
+                return 0x2bc8;
+        }
     }
 }
 
@@ -851,7 +864,9 @@ void stStepRewardStackableItemScript::clear()
 // ORIG W 0x0891bd0e：find 命中则向既有 vector push_back，否则新建单元素 vector 插入。
 // b28-34：比较写 `m_map0.end() == it`（临时为 this、it 为形参）——ORIG 先装载
 // 0x4(%esp)=&it 后装载 (%esp)=&end 临时；写 `it == m_map0.end()` 装载序反成 DIFF。
-void stStepRewardStackableItemScript::set_data(int step, StackableItemData& data)
+// b28d-lane25：ORIG 0x0891bd0e。P167 差集实证 ORIG 调 make_pair<IRKi,RSt6vector…>
+// （键为 const int& 绑定形参本身）⇒ 形参顶层 const（不入 mangled），定义处还原。
+void stStepRewardStackableItemScript::set_data(const int step, StackableItemData& data)
 {
     std::map<int, std::vector<StackableItemData> >::iterator it = m_map0.find(step);
     if (m_map0.end() == it)

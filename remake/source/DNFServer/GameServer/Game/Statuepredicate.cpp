@@ -17,6 +17,9 @@
 // （需以非平凡基类才能强制发 call，会改类语义）。
 // [b28c-27] 复核同上：4.4 对 std::unary_function（空基类 trivial ctor）恒省 call
 // 与对应帧，ORIG 4.1 O0 发射；不可翻（同 P215 边界）。
+// [b28d-lane15] 复核维持 N：ORIG 15 insn / 我方 13（TSV ndiff=11）；唯一残差即
+// unary_function::C1 call（ORIG 0x08a6c192）与随之的 sub $0x18 帧（4.4 恒省）。
+// 三成员 mov 与 ORIG 同址同序（+0x0/+0x4/+0x8）。封顶。
 Statuepredicate::Statuepredicate(pieceQuestRewardStatus status)
     : std::unary_function<pieceQuestRewardStatus, bool>(),
       m_appendageType(status.m_appendageType),

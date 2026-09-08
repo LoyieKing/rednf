@@ -38,11 +38,12 @@ int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
 char g_szScriptFileBaseDirectory[0x104];  // ORIG B 0x949b180
 static char s_bUseScriptPack = 0;         // ORIG d _ZL16s_bUseScriptPack 0x93f4d24
 
-// ORIG T 0x088bb7cf：movzbl 0x93f4d24（s_bUseScriptPack）直返。
-// [b28c-lane24] 返回类型 char→bool（不入 mangled）：调用点 `if (!UseScriptPack())`
-// 需 P168a① 裸形 `call; xor$1; test %al; je`（ORIG findFileWithServerToken
-// 0x088bb982 直读 static 的 xor 形）；char 返回使 4.4 产 sete 物化。
-bool UseScriptPack()
+// ORIG T 0x088bb7cf：`movzbl 0x93f4d24,%eax; pop %ebp; ret` 直返字节。
+// [b28d-lane16] 返回类型 bool→char（P9：直返无 setne/test 规范化；bool 返回
+// 使 4.4 多 `test %al,%al; setne %al` 两条 ⇒ 本件 DIFF）。调用点
+// LinkMiscSecuTimerSolo.cpp 的 extern 声明需同步为 char（该点跨 TU 访问
+// ORIG TU-local static，受 P189 豁免）。
+char UseScriptPack()
 {
     return s_bUseScriptPack;
 }
@@ -94,6 +95,7 @@ void LexerError(const char* msg)
 //   3) 置 s_bUseScriptPack=compiled；param_3 非空时强制 pack 模式并以其为包名；
 //   4) pack 模式下 PackSet 打开并装载字符串表，结果写入 param_4（推断：ORIG 的
 //      loadStringTable/importKeyNameIndexTable 为 ORIG TU 内 static，未单独还原）。
+// [b28d-lane16 DIFF] ORIG 088bb5d2：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool InitRDARScript(const char* dir, bool compiled, const char* file, int* err)
 {
     g_dnfLex.SetHandler(&isDbcsLead, &LexerOutput, &LexerError,
@@ -139,6 +141,7 @@ bool InitRDARScript(const char* dir, bool compiled, const char* file, int* err)
 
 // ORIG 0x088bbf52：把 list->m_fileMap 以 "%d\t`%s`" 写入 param_3 指定文本文件。
 // param_1/2/4/5 在 ORIG 中未被使用。
+// [b28d-lane16 DIFF] ORIG 088bbf52：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool saveRDARScriptListFile(STScriptFileList* list, const char* dir, const char* file,
     std::map<int, int>* a,
     std::multimap<int, Comment*>* b)
@@ -149,8 +152,13 @@ bool saveRDARScriptListFile(STScriptFileList* list, const char* dir, const char*
     std::FILE* fp = std::fopen(file, "wt");
     if (fp == 0)
         return false;
-    for (std::map<int, std::string>::const_iterator it = list->m_fileMap.begin();
-         it != list->m_fileMap.end(); ++it)
+    // [b28d-lane16 P96/P270] ORIG 用非 const `_Rb_tree_iterator`（C1Ev/ppEv/ne/ptEv）；
+    // const_iterator 会引入转换构造 C1ERKS_ + const 版 operator->（p167 EXTRA 2+2）。
+    // 另：ORIG 有独立 `iterator::C1Ev`（默认构造）+ begin() 临时槽 ⇒ 先声明后赋值
+    // （P50 复活形；p167 MISSING -1 C1Ev）。
+    std::map<int, std::string>::iterator it;
+    it = list->m_fileMap.begin();
+    for (; it != list->m_fileMap.end(); ++it)
     {
         std::fprintf(fp, "%d\t", it->first);
         std::fprintf(fp, "`%s`", it->second.c_str());
@@ -161,6 +169,7 @@ bool saveRDARScriptListFile(STScriptFileList* list, const char* dir, const char*
 
 // ORIG 0x088bc068：装载名字表文件（name id 对），插入 STNameList；
 // 插入失败（重复键）时记日志；返回列表是否非空（推断：ORIG 尾部 begin()==end() 判断）。
+// [b28d-lane16 DIFF] ORIG 088bc068：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool loadRDARNameFile(STNameList* list, const char* dir, const char* file)
 {
     if (!loadRDARScriptFile(dir, file))
@@ -176,9 +185,12 @@ bool loadRDARNameFile(STNameList* list, const char* dir, const char* file)
         int id = ScanInt(&ok);
         if (!ok)
             break;
-        bool isNew = (list->GetID(name.c_str()) == 0xffffffff);
-        list->Insert(name.c_str(), id);
-        if (!isNew)
+        // [b28d-lane16 P192] ORIG 0x088bc068 直接调 StringUnorderedMap::insert(PKc,RKi)
+        // 并用返回值 .second 判重复（ORIG nm 无 STNameList::Insert/IsEmpty 符号）；
+        // 原 GetID+Insert 两查形多 EXTRA c_str/GetID 并缺 insert 调用。
+        StringUnorderedMap<CharStringHashTrait, int>::InsertResult r =
+            list->m_map.insert(name.c_str(), id);
+        if (!r.second)
         {
             LogManager::logFormat(
                 0, "../RDARScript.cpp", __FUNCTION__, 1000,
@@ -186,10 +198,12 @@ bool loadRDARNameFile(STNameList* list, const char* dir, const char* file)
                 name.c_str());
         }
     }
-    return !list->IsEmpty();
+    // ORIG 尾部 begin()==end() 直发（无 STNameList::IsEmpty 符号；p167 用 eq 非 ne）。
+    return !(list->m_map.begin() == list->m_map.end());
 }
 
 // ORIG 0x088bc1ee：装载列表文件（id name 对）加入 m_fileMap；重复键记日志并跳过。
+// [b28d-lane16 DIFF] ORIG 088bc1ee：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool addRDARScriptListFile(STScriptFileList* list, const char* dir, const char* file)
 {
     if (!loadRDARScriptFile(dir, file))
@@ -207,7 +221,10 @@ bool addRDARScriptListFile(STScriptFileList* list, const char* dir, const char* 
         bool isNew = (list->m_fileMap.find(idx) == list->m_fileMap.end());
         if (isNew)
         {
-            list->m_fileMap.insert(std::make_pair(idx, name));
+            // [b28d-lane16 P192] ORIG 0x088bc2?? 直接构造 value_type（mangled
+            // `C1IRiRSsEEOT_OT0_` = pair<const int,string>(int&,string&)）；
+            // make_pair 生成值 pair + 转换构造 + 额外 D1（p167 EXTRA D1Ev×2）。
+            list->m_fileMap.insert(std::map<int, std::string>::value_type(idx, name));
         }
         else
         {
@@ -224,6 +241,7 @@ bool addRDARScriptListFile(STScriptFileList* list, const char* dir, const char* 
 //   1) 用 g_scriptStringManager_ 的文件列表装载 dir 指定的列表文件；
 //   2) 逐项按 s_bUseScriptPack 选择 Pack/Plain 装流，调 loadStringFile；
 //   3) 任一失败向 err 追加 ErrorLog（code=0x80000003，message=文件名）并置失败。
+// [b28d-lane16 DIFF] ORIG 088bff9c：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool InitRDARScriptStringManager(const char* dir, const char* file,
                                  std::vector<ErrorLog>* err)
 {

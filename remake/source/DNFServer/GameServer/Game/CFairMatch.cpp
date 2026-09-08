@@ -68,6 +68,7 @@ void PlayerInfoThird::reset()
 }
 
 // ORIG add 0x85625c6：首个空位（m_flag==0）写入；满返 0，成功返 1。
+// [b28d-L8] N82 | 帧差（push ebx+sub 0x24 vs sub 0x28）+ 循环块序（ORIG 0x08xxxxxx）
 int TeamInfoThird::add(CUser* user)
 {
     for (int i = 0; i < 4; ++i)
@@ -143,6 +144,7 @@ void TeamInfoThird::SendToTeam(PacketGuard& pkt)
 // `fucompp; fnstsw %ax; sahf`（3 条）vs 4.4 恒 `fucomip; fstp`（2 条），负例 N85
 // 「x87 比较两向跨版本」定案（GetResult/BuyAuctionItem 族）；源形不可择。
 // 其余 43/43 逐条同（含 mov $0 整型零初始化 sum、fildl/fdivp 平均段、-0x14 中转槽）。
+// [b28d-L8] N85 | x87 比较 lowering（ORIG fucompp/fnstsw/sahf vs 4.4 fucomip/fstp）；-march=i486 可治，路由由 Main 定（ORIG 0x085627b2）
 float TeamInfoThird::GetTeamRating()
 {
     float sum = 0.0f;
@@ -253,42 +255,45 @@ void CFairMatch::SetPlayCountPerOneTeam(unsigned int)
 //   CheckUnusableEquipmentInfo(type, usableLevel)==1 时再以
 //   vtable+0xc（GetItemType）与 get_index 查 CheckUnusableItem 判定；
 //   其余返回 0。
+// [b28d-L8] N7 | 参数槽已修（static，P245）；残余=esi/ebx 实参寄存器角色互换 + 间接 call 目标 edx vs eax（N7，4.4.6 后端可治，ORIG 0x08562bdc）
 int CFairMatch::CheckUnusableEquipment(const Inven_Item* item)
 {
     if (item == 0)
         return 0;
 
     // ORIG *(int*)(param_1 + 2)：+0x02 m_addInfo（item idx）
-    int itemIdx = item->m_addInfo;
-    if (itemIdx == 0)
+    // P0/P48：ORIG 无 itemIdx 槽往返——条件与 find_item 实参各独立读一次
+    //（0x08562bxx 两处 `mov 0x8(%ebp),%eax; mov 0x2(%eax),%eax`）。
+    if (item->m_addInfo == 0)
         return 1;
 
     // P48 no-CSE：ORIG 每处 use 各自 fresh G_CDataManager()（find_item /
     // CheckUnusableEquipmentInfo / CheckUnusableItem 共 3 次）；equipType 也
     // 不在比较与实参间缓存（GetUsableEquipmentType 共 2 次）。
-    CItem* found = G_CDataManager()->find_item(itemIdx);
+    CItem* found = G_CDataManager()->find_item(item->m_addInfo);
     if (found == 0)
         return 0;
 
-    if (!found->is_stackable())
-    {
-        CEquipItem* equip = static_cast<CEquipItem*>(found);
-        if (equip->GetUsableEquipmentType() == 0)
-            return 1;
-
-        if (G_CDataManager()->m_serverParameter.CheckUnusableEquipmentInfo(
-                (ENUM_UNUSABLE_EQUIPMENT_TYPE)equip->GetUsableEquipmentType(),
-                found->getUsableLevel()))
-        {
-            // ORIG vtable 槽 +0xc：CItem::GetItemType()
-            int itemType = const_cast<const CItem*>(found)->GetItemType();
-            return G_CDataManager()->m_serverParameter.CheckUnusableItem(
-                       (ENUM_EQUIPMENTTYPE)itemType,
-                       (unsigned long)found->get_index()) ? 1 : 0;
-        }
+    // P59/P222 正极性（ORIG 0x8562c1x `call is_stackable; test %al; je` 直落
+    // 主流程；负极性多 xor $1）；P0：无 equip 具名局部，found 表达式直用。
+    if (found->is_stackable())
         return 0;
-    }
-    return 0;
+
+    if (static_cast<CEquipItem*>(found)->GetUsableEquipmentType() == 0)
+        return 1;
+
+    // P168a 裸形（ORIG 0x08562c9d/0x08562ce4 `xor $1; test %al; je`）：
+    // bool 返回 callee 用 `if (!call()) return 0;`。
+    if (!G_CDataManager()->m_serverParameter.CheckUnusableEquipmentInfo(
+            (ENUM_UNUSABLE_EQUIPMENT_TYPE)static_cast<CEquipItem*>(found)->GetUsableEquipmentType(),
+            found->getUsableLevel()))
+        return 0;
+    // ORIG vtable 槽 +0xc：CItem::GetItemType()
+    if (!G_CDataManager()->m_serverParameter.CheckUnusableItem(
+            (ENUM_EQUIPMENTTYPE)const_cast<const CItem*>(found)->GetItemType(),
+            (unsigned long)found->get_index()))
+        return 0;
+    return 1;
 }
 
 // ORIG _GetOppositeTeam 0x8564f8c：1↔2，其余原样返回。

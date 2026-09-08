@@ -481,6 +481,7 @@ struct BlackListNoticeView {          // = Packet_Monitor_Notice_Black_List（0x
 // 0x2713 cMyTrace、0x27f9/0x27fa make_internal_stream_jpn、0xfe6 条件 <<）；
 // ③逐块比对 ~115 case：sig/<<常量/put_binary 长度/字段偏移(+0x29,+0xd,+0xf,+0x12
 // 等视图核实)/队列 idx/返回 0|1 与 ORIG 反编译 C 全同，无 MISSING/EXTRA，判 N 封顶。
+// [b28d-lane16 DIFF] ORIG 08473660：等视图核实)/队列 idx/返回 0|1 与 ORIG 反编译 C 全同，无 MISSING/EXTRA，判 N 封顶。
 bool CDispatchServerPacket::dispatchPacket(char* data)
 {
     // ORIG 0x8473660：上游服务器包按首 short(sig) 重写头并转投 DISPATCH_Q。
@@ -2554,6 +2555,7 @@ struct GAPassThruView {               // case 0x2718..0x271b 转发
 // 三件套：①gap −11；②调用差集零（含 case2 价格双循环、case3 8 条逐写、
 // case7/8/9 resize 双检 setg/setle、case0xe 单件购买、default logFormat 全配对）；
 // ③逐 case 比对：sig(0xf0..0xf9,0x20d)/字段序/字面量与 ORIG 反编译 C 全同，判 N 封顶。
+// [b28d-lane16 DIFF] ORIG 0847ac3c：③逐 case 比对：sig(0xf0..0xf9,0x20d)/字段序/字面量与 ORIG 反编译 C 全同，判 N 封顶。
 bool CDispatchServerPacket::dispatchAuctionPacket(char* data)
 {
     unsigned int packetId = (int)((nsl::PACKET_HEADER*)data)->getPacketID();
@@ -2901,6 +2903,7 @@ bool CDispatchServerPacket::dispatchAuctionPacket(char* data)
 // case5 strncpy、case0xe strcpy、0x2718..0x271b put_binary 转发全配对）；
 // ③逐 case 比对：sig(0xf0..0xfa,0x2a5..0x2a8,0x2da)/字段序/case0 先 result 后
 // flag（case0xc 反序先 flag）/0xa 空 case/default logFormat 与 ORIG 全同，判 N 封顶。
+// [b28d-lane16 DIFF] ORIG 0847c1fe：flag（case0xc 反序先 flag）/0xa 空 case/default logFormat 与 ORIG 全同，判 N 封顶。
 bool CDispatchServerPacket::dispatchPointPacket(char* data)
 {
     unsigned int packetId = (int)((nsl::PACKET_HEADER*)data)->getPacketID();

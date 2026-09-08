@@ -77,6 +77,7 @@ void GreyImage::setAlphaAsMax(int x, int y, unsigned char alpha)
     p = std::max(p, alpha);
 }
 
+// [b28d-D9] N95：全部局部槽深恒差 8（4.4 槽基 ebp-8 vs 4.1 顶到 ebp）（ORIG 0x080df676 sz 0x0000012e）
 int GreyImage::sampleAlpha(int x, int y)
 {
     int xi = x >> 16;

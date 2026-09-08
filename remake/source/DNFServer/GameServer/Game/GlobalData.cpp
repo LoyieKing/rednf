@@ -360,6 +360,7 @@ bool CmmChannelProxy::SendChannelInfo()
 }
 
 // ORIG ConnectBridgeServer 0x08106278：socket/connect 桥接服务器并设非阻塞。
+// [b28d-18 IDENTICAL_AE] 修：addrlen 改 int + (socklen_t) cast 翻实参装载序（P248 档③新实证，addrlen→%ecx 先载）；NDIFF 3→1（余尾 nop） | ORIG 0x08106278
 bool CmmChannelProxy::ConnectBridgeServer()
 {
     sockaddr_in addr;
@@ -380,8 +381,8 @@ bool CmmChannelProxy::ConnectBridgeServer()
     // 但 4.4 的 volatile 特判把它塞进更远槽、并连带把 addr/nonblock 等**全部**
     // 后续槽号推偏：实测 volatile + volatile 垫块回推的写法让本函数
     // ndiff 2 → 20（非统一平移，无法补偿）⇒ 两难坐实，记 N82 族封顶。
-    socklen_t addrlen = 16;
-    if (connect(m_sock, reinterpret_cast<sockaddr*>(&addr), addrlen) < 0)
+    int addrlen = 16;
+    if (connect(m_sock, reinterpret_cast<sockaddr*>(&addr), (socklen_t)addrlen) < 0)
     {
         std::puts("[CmmChannelProxy::SendCheckChannelScript] Can't connect channel bridge server");
         return false;
@@ -426,6 +427,7 @@ int CmmChannelProxy::SendPacket(char* buf, int len)
 //   error@-0x58/len@-0x5c；read 结果槽 -0x24；负判定 `shr $0x1f; test`
 //   （0x081065ab，等价 `(unsigned)nread >> 31`）；errno 链 ==EAGAIN||==EINTR||
 //   ==EAGAIN||==0（0x081065bb-5e3 四次独立取址，11 出现两次为原码忠实转写）。
+// [b28d-18 N82] 残差=帧槽/寄存器（N82） | ORIG 0x0810645c
 int CmmChannelProxy::RecvPacket()
 {
     // ORIG 0x0810651c `cmpl $0; jg body` + fall-through `mov $0;jmp end`——
@@ -513,6 +515,7 @@ int CmmChannelProxy::RecvPacket()
 // channel_info.etc 并落盘。stat 失败且非 ENOENT → 0；version 文件读写两次；
 // CHECK_SCRIPT_VERSION(cat1/id5) 应答尾包写入 version；GET_SCRIPT(cat2/id9)
 // 应答尾包为脚本体（fwrite size-0xb 字节）。
+// [b28d-18 N82] 残差=槽位/寄存器（N82） | ORIG 0x081066ea
 bool CmmChannelProxy::SendCheckChannelScript()
 {
     ConnectBridgeServer();
@@ -1276,6 +1279,7 @@ CaptchaGen::CaptchaGen()
     return;
 }
 
+// [b28d-18 N-EH] FreeType 占位定义同 TU 可见 ⇒ 4.4 判 nothrow 不布 landing（跨版本 EH 可见性，b28 已判） | ORIG 0x080de706
 CaptchaGen::~CaptchaGen()
 {
     // ORIG 0x080de717：ix 实参先载 i 槽（int→unsigned 转换 ⇒ arg 先于 this，
@@ -1296,6 +1300,7 @@ CaptchaGen::~CaptchaGen()
     FT_Done_FreeType(m_library);
 }
 
+// [b28d-18 IDENTICAL_AE] 48=48 逐条同形（.o call 重定位标签伪差） | ORIG 0x080de794
 bool CaptchaGen::addFont(const char* font, int size)
 {
     // ORIG 0x080de794（report 汇编+反编译 C 全读）：FT_New_Face(m_library, font, 0,
@@ -1330,6 +1335,7 @@ bool CaptchaGen::addFont(const char* font, int size)
     return true;
 }
 
+// [b28d-18 N18a] p167 CLEAR；ORIG 全局计数两段装载，4.4 单段（N18a 反向） | ORIG 0x080de83c
 void CaptchaGen::generateText(CountryCode code, int len, unsigned short* out)
 {
     // [b23S3C] ORIG 0x080de83c：三分支各独立循环（i 槽 -0x14/-0x10/-0xc），
@@ -1367,6 +1373,7 @@ float CaptchaGen::getFloat(XorRand4& rng, float lo, float hi)
     return (float)v * (1.0f / 65536.0f) * (hi - lo) + lo;
 }
 
+// [b28d-18 N82] 残差=槽位/STL（N82/N89） | ORIG 0x080deade
 void CaptchaGen::generateImage(int width, int height, const unsigned short* text, int len,
                                const ImageOption& opt, GreyImage* image)
 {
@@ -1724,6 +1731,7 @@ int UdpThread::_bindUDPSocket(unsigned short port)
 // _processUDPData —— ORIG 0x0857c5a4：AddUdpLog → 静态计数 → dispatchPacket；
 // 未识别包按首字节分流（0 互斥数据 / 1 换装队列 / 2 忽略 / 3 拍卖停止）。
 // ---------------------------------------------------------------------------
+// [b28d-18 N82] p167 CLEAR（51/51）；残差=帧槽（N82） | ORIG 0x0857c5a4
 void UdpThread::_processUDPData(char* data, int len)
 {
     // 跨服 UDP 包 = 10 字节 PacketHeader 线格式（shared/packet/include/PacketHeader.h）；
@@ -1797,6 +1805,7 @@ void UdpThread::_processUDPData(char* data, int len)
 // dispatch —— ORIG 0x0857c9de：bind UDP 口后 select 轮询 recv，转入
 // _processUDPData；循环条件 !GlobalData::s_server_stop（0x940bd64）。
 // ---------------------------------------------------------------------------
+// [b28d-18 N82] p167 CLEAR（8/8）；残差=帧槽（N82） | ORIG 0x0857c9de
 void UdpThread::dispatch(void* arg)
 {
     (void)arg;
@@ -1849,6 +1858,7 @@ void UdpThread::dispatch(void* arg)
 // stream->m_poolType（0/1/2 = 默认/小/大流池）。CMessageCounter(10000) 与
 // CUserPacketCounter 600s 周期落盘。pUserPacketCounter_ 指向本栈实例。
 // ---------------------------------------------------------------------------
+// [b28d-18 NEAR] 修：curSec/lastWriteSec 角色互换（ORIG 循环外初始化 curSec、循环内更新 lastWriteSec）；p167 CLEAR 53/53；余 N82 帧槽 | ORIG 0x0847e2d2
 void DispatchThread::dispatch(void* arg)
 {
     (void)arg;
@@ -1856,8 +1866,11 @@ void DispatchThread::dispatch(void* arg)
     unsigned char typeByte = 0;      // 首字节（客户端包分流码）
     unsigned short sizeWord = 0;     // +1 起的 ushort
     message_counter::CMessageCounter msgCounter(10000);
+    // ORIG 0847e322/0847e7xx：lastWriteSec（-0x34）循环外置 0，curSec（-0x30）
+    // 循环外以 getCurSec() 初始化；循环内更新 lastWriteSec，比较
+    // `lastWriteSec - curSec > 600` 后回写 curSec（两次 getCurSec 调用）。
     int lastWriteSec = 0;
-    int curSec = 0;
+    int curSec = GlobalData::s_systemTime_.getCurSec();
     message_counter::CUserPacketCounter userCounter(
         G_CEnvironment()->get_file_name(), "UserPacketCounter");
     PacketDispatcher::pUserPacketCounter_ = &userCounter;
@@ -1889,7 +1902,7 @@ void DispatchThread::dispatch(void* arg)
         int streamType = stream->m_poolType;
         *stream >> code;
         *stream >> idx;
-        curSec = GlobalData::s_systemTime_.getCurSec();
+        lastWriteSec = GlobalData::s_systemTime_.getCurSec();
         interval->SetLastTime();
         if (code == 0)
         {
@@ -1912,9 +1925,9 @@ void DispatchThread::dispatch(void* arg)
         msgCounter.IncreaseMessage(
             (unsigned int)code, typeByte, sizeWord,
             interval->GetTimeInterval());
-        if (curSec - lastWriteSec > 600)
+        if (lastWriteSec - curSec > 600)
         {
-            lastWriteSec = curSec;
+            curSec = lastWriteSec;
             msgCounter.WriteLog();
             userCounter.WriteLog();
             cMyTrace trace(__PRETTY_FUNCTION__, 0x8f, 5);
@@ -1961,6 +1974,7 @@ void DispatchThread::dispatch(void* arg)
 // EPOLLIN(1)/EPOLLOUT(4)/错误掩码(0x18)；sendSize>0x6ddd0(450000) 判定
 // 发送缓冲过大 → DisConnSig(6)。
 // ---------------------------------------------------------------------------
+// [b28d-18 N82] p167 CLEAR（29/29）；残差=帧槽/寄存器（N82） | ORIG 0x0857d5be
 void NetworkThread::dispatch(void* arg)
 {
     (void)arg;
@@ -2051,6 +2065,7 @@ AcceptThread::AcceptThread()
 // InitTcp(true) + 虚 Disconnect + SendRegistPacket；community 仅整合 PvP
 // 频道时处理）。
 // ---------------------------------------------------------------------------
+// [b28d-18 DIFF] p167 缺口未闭合：ORIG 239 vs 我们 169（缺 get_socket×20/GetServerProxyArrayAt×24/GetTcpHandler×20 等），待按 ORIG 展开结构重写 | ORIG 0x0857d95a
 void MonitorTcpThread::dispatch(void* arg)
 {
     (void)arg;
@@ -2556,6 +2571,7 @@ void MonitorTcpThread::dispatch(void* arg)
 // N7-N82 寄存器分配 / P63 jmp 中继（详见 docs/asm_translation_patterns.md
 // 负例表）。
 // ---------------------------------------------------------------------------
+// [b28d-18 N82] p167 CLEAR（93/93）；残差=帧槽/寄存器（N82） | ORIG 0x0857cc5a
 void AcceptThread::dispatch(void* arg)
 {
     (void)arg;
@@ -2853,6 +2869,7 @@ bool CPCRoomServerProxy::Init()
 // 残余差归因（N 类，块内求值序，见下方 0x0847196d 区注释）：ORIG 因提前求值
 // varargs 而多保存 %edi（0x084719d6 `add $0x4c,%esp; pop %ebx/esi/edi`），
 // 4.4 帧 0x40/仅 %ebx ⇒ 块序与帧大小联动不可源码翻转。
+// [b28d-18 N7+N82] p167 CLEAR（8/8）；残差=callee-saved 数量（ORIG push edi/esi/ebx vs 我们 esi/ebx） | ORIG 0x084718e2
 bool CPCRoomServerProxy::InitTcp()
 {
     if (m_ip.length() == 0 || m_tcpPort == 0)
@@ -3002,11 +3019,14 @@ WongWork::CGMAccounts::CGMAccounts()
 WongWork::CGMAccounts::~CGMAccounts()
 {
 }
+// [b28d-18 N89] 修：key={0} 预清两句式 + type/mid 写序（P202①）；余 STL find/end 展开差（N89） | ORIG 0x08109346
 bool WongWork::CGMAccounts::isGM(unsigned int mid)
 {
-    WongWork::CGMAccounts::stGMInfo_t key;   // POD 无用户 ctor（ORIG nm 无 C1）
-    key.mid = mid;
+    // ORIG 0x0810934c..0x08109364：key 先整体零初始化（两条 movl $0x0，
+    // 成员声明序 mid→type），再 type=3、mid=mid（P202① 预清两句式）。
+    WongWork::CGMAccounts::stGMInfo_t key = {0};   // POD 无用户 ctor（ORIG nm 无 C1）
     key.type = 3;
+    key.mid = mid;
     std::list<WongWork::CGMAccounts::stGMInfo_t>::iterator it =
         std::find(m_gmList.begin(), m_gmList.end(), key);
     return it != m_gmList.end();
@@ -3097,20 +3117,25 @@ void WongWork::CBlackIPMonitor::insertNewIP(
     m_monitorMap.insert(std::make_pair(
         ip, stBlackIPMonitorEntry_t(type, idCnt, startTime, endTime)));
 }
+// [b28d-18 IDENTICAL_AE] 修：inet_addr 两次独立调用（P48）+ entry 整体拷贝（P157）；NDIFF 25→0 EQ | ORIG 0x084ebace
 char WongWork::CBlackIPMonitor::deleteIP(char const* ipStr, unsigned int type)
 {
     // ORIG 0x84ebace：ip 为空返回 0；inet_addr 转 key；遍历 [lower_bound, upper_bound)
     // 删除 entry.m_punishType == type 的项。
     if (!ipStr)
         return 0;
-    unsigned int key = static_cast<unsigned int>(inet_addr(ipStr));
+    // ORIG 0x84ebaea/0x84ebb14：inet_addr 调用两次（O0 无 CSE，P48），
+    // 结果分别落 -0x10/-0xc 两槽（lower_bound/upper_bound 各一）。
     std::multimap<unsigned int, stBlackIPMonitorEntry_t>::iterator it =
-        m_monitorMap.lower_bound(key);
+        m_monitorMap.lower_bound(inet_addr(ipStr));
     std::multimap<unsigned int, stBlackIPMonitorEntry_t>::iterator end =
-        m_monitorMap.upper_bound(key);
+        m_monitorMap.upper_bound(inet_addr(ipStr));
     while (it != end)
     {
-        if (static_cast<unsigned int>(it->second.m_punishType) == type)
+        // ORIG 0x84ebb3a..0x84ebb58：先把 it->second 整体拷到栈（4 字段
+        // 逐 dword 落 -0x28/-0x24/-0x20/-0x1c），再比较 m_punishType。
+        stBlackIPMonitorEntry_t entry = it->second;
+        if (static_cast<unsigned int>(entry.m_punishType) == type)
         {
             // ORIG 0x84ebace：命中即 erase 并返回 1，未命中返回 0。
             m_monitorMap.erase(it);
@@ -3120,24 +3145,28 @@ char WongWork::CBlackIPMonitor::deleteIP(char const* ipStr, unsigned int type)
     }
     return 0;
 }
+// [b28d-18 IDENTICAL_AE] 修：inet_addr 两次独立调用 + entry 整体拷贝；NDIFF 46→0 EQ | ORIG 0x084ebba6
 unsigned int WongWork::CBlackIPMonitor::getPunishType(char const* ipStr)
 {
     // ORIG 0x84ebba6：ip 为空返回 0；遍历 [lower_bound, upper_bound) 累 OR
     // entry.m_punishType。
     if (!ipStr)
         return 0;
-    unsigned int key = static_cast<unsigned int>(inet_addr(ipStr));
     unsigned int result = 0;
+    // ORIG 0x84ebba6：inet_addr 两次独立调用（P48）。
     std::multimap<unsigned int, stBlackIPMonitorEntry_t>::const_iterator it =
-        m_monitorMap.lower_bound(key);
+        m_monitorMap.lower_bound(inet_addr(ipStr));
     std::multimap<unsigned int, stBlackIPMonitorEntry_t>::const_iterator end =
-        m_monitorMap.upper_bound(key);
+        m_monitorMap.upper_bound(inet_addr(ipStr));
     for (; it != end; ++it)
     {
-        result |= static_cast<unsigned int>(it->second.m_punishType);
+        // ORIG 0x84ebc2x：entry 整体拷贝到栈后取 m_punishType（P48 同族）。
+        stBlackIPMonitorEntry_t entry = it->second;
+        result |= static_cast<unsigned int>(entry.m_punishType);
     }
     return result;
 }
+// [b28d-18 IDENTICAL_AE] 修：inet_addr 两次独立调用 + entry 整体拷贝（P48/P157）；ORIG 切片缺失，objdump 手工核对 71=71 仅重定位伪差 | ORIG 0x084ebc8c
 long WongWork::CBlackIPMonitor::GetEndTime(
     char const* ipStr, ENUM_BLACKIPMONITOR_PUNISH_TYPE type)
 {
@@ -3145,16 +3174,18 @@ long WongWork::CBlackIPMonitor::GetEndTime(
     // entry.m_punishType == type 的 m_endTime，否则 0。
     if (!ipStr)
         return 0;
-    unsigned int key = static_cast<unsigned int>(inet_addr(ipStr));
+    // ORIG 0x84ebca8/0x84ebce4：inet_addr 两次独立调用（P48）。
     std::multimap<unsigned int, stBlackIPMonitorEntry_t>::const_iterator it =
-        m_monitorMap.lower_bound(key);
+        m_monitorMap.lower_bound(inet_addr(ipStr));
     std::multimap<unsigned int, stBlackIPMonitorEntry_t>::const_iterator end =
-        m_monitorMap.upper_bound(key);
+        m_monitorMap.upper_bound(inet_addr(ipStr));
     for (; it != end; ++it)
     {
-        if (it->second.m_punishType == type)
+        // ORIG 0x84ebd27..0x84ebd3c：entry 整体拷贝到 -0x30..-0x24 后比较。
+        stBlackIPMonitorEntry_t entry = it->second;
+        if (entry.m_punishType == type)
         {
-            return it->second.m_endTime;
+            return entry.m_endTime;
         }
     }
     return 0;
@@ -3176,6 +3207,7 @@ WongWork::CSimpleSSO::~CSimpleSSO()
     // 共 744 个 CRijndael），由编译器生成，与 ORIG 同形。
 }
 
+// [b28d-18 N18a] p167 CLEAR；ORIG 全局计数两段装载，4.4 恒单段（N18a 反向） | ORIG 0x086027fc
 void WongWork::CSimpleSSO::init(MySQL* mysql)
 {
     // ORIG 0x086027fc：保存 DB 句柄；逐块（行*0x6ba0 + 列*0x47c）以
@@ -3411,6 +3443,7 @@ void ItemVendingMachine::ProcessIPG_ResultQuery(CUser* user,
 // ----------------------------------------------------------------------------
 // ProcessIPG_ResultOutput —— ORIG 0x08178676（0x12a8 字节，报告全文转写）。
 // ----------------------------------------------------------------------------
+// [b28d-18 N82] 超大件：残差=槽位/STL（N82/N89） | ORIG 0x08178676
 void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
                                                  WongWork::IPG::SIPGData* reqData,
                                                  WongWork::IPG::SIPGData* resData,
@@ -3704,6 +3737,7 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
 // 打包 0x10e 字节计费记录（SIG 结构以文件内局部缓冲按 ORIG 偏移写入）后
 // put_binary/入 DB 队列；PuUser 标志异常时补 DB_SavePuUserCheck。
 // ----------------------------------------------------------------------------
+// [b28d-18 N82] 残差=槽位/STL 展开（N82/N89） | ORIG 0x0817991e
 void ItemVendingMachine::BillingRecord(CUser* user, int a3, int a4, int a5,
                                        const char* itemName, const char* accName,
                                        int priceLabel, unsigned long long uid,
@@ -3870,6 +3904,7 @@ bool ItemVendingMachine::_CheckEnableStateCondition(const CCeraShopGoods*, CUser
 // _CheckEnableAvatarCondition —— ORIG 0x08176794 (T)
 // ORIG 代码形态（Fix18_E 实证）：GetRelatedItem 两次调用、IsAvatarItem 前
 // 无判空、out 经 stAvatarTypeSelect_t::init() 清零、四字段各自下标访问。
+// [b28d-18 N82] 残差=槽位/寄存器分配（N82） | ORIG 0x08176794
 bool ItemVendingMachine::_CheckEnableAvatarCondition(const CCeraShopGoods* goods,
                                                      char c, unsigned char uc,
                                                      stAvatarTypeSelect_t& out)
@@ -3930,6 +3965,7 @@ void ItemVendingMachine::_GetItemString(const CCeraShopGoods* goods, char* buf,
 // ============================================================================
 // b28c-l23 SIGFIX：返回类型 int→bool（ORIG __PRETTY_FUNCTION__ 串 @0x08b87080，
 // P174；体内 return 仅 0/1 语义）。mangled 不含返回类型，符号与 ABI 零变。
+// [b28d-18 N82] 超大件：残差=槽位/STL（N82/N89） | ORIG 0x081769f6
 bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 {
     if (user == 0)
@@ -4380,6 +4416,7 @@ char* encryptAES_(CRijndael* cipher, char* inData, char* outHex);
 // [0x08286e40,0x08287081]。service==0：SecurityCard 已激活→init；
 // service==1：CPad 已激活→若已认证则 flag=1，否则将 msg 截 8 字节 AES 加密后
 // setFailCnt(0)+setPassword；任一分支生效则发送 0x159 通知包（service/flag）。
+// [b28d-18 N78] EXTRA memset×2：4.1 内联清零 vs 4.4 call（N78） | ORIG 0x08286e40
 void Secu_DataControl::UpdateSecurityServiceState(CUser* user, unsigned char service,
                                                   unsigned char flag, char* msg)
 {
@@ -4453,6 +4490,7 @@ bool CDBConnector::GetConnInfo(DBGroupMap& groupMap, DBInfoMap& infoMap)
     return true;
 }
 
+// [b28d-18 N82] 残差=槽位/STL 展开（N82/N89） | ORIG 0x080ec760
 bool CDBConnector::Connect(DBInfoMap infoMap)
 {
     // ORIG 0x080ec760：按值遍历连接表；idx==0/5 跳过；cMyTrace 记录
@@ -4475,24 +4513,28 @@ bool CDBConnector::Connect(DBInfoMap infoMap)
     return true;
 }
 
+// [b28d-18 NEAR] 修：P157 逐字段重读（4 次 ptEv）+ 负极性守卫（P222）+ register group（P231）；NDIFF 31→4 | ORIG 0x080ec8f8
 bool CDBConnector::ConnectWithServerGroup(DBInfoMap infoMap)
 {
     // ORIG 0x080ec8f8：遍历连接表；idx==0 跳过；以 +0x168 处 server group
     // 为组参数调 Open；失败即 false。
     for (DBInfoMap::iterator it = infoMap.begin(); it != infoMap.end(); ++it)
     {
-        ENUM_DB_HANDLE_IDX idx = it->first;
-        if (idx != (ENUM_DB_HANDLE_IDX)0)
+        // ORIG 0x080ec91d/0x080ec93b/0x080ec949/0x080ec954：每次字段访问
+        // 重新调用 operator->（4 次 ptEv，P157 逐字段重读，禁引用缓存）。
+        // ORIG 0x080ec926 `sete %al; test; jne <跳过>` = 负极性守卫（P222）。
+        if (it->first == (ENUM_DB_HANDLE_IDX)0)
         {
-            STDBConnInfo& info = it->second;
-            // ORIG 080ec946（ConnectWithServerGroup.md）：`mov 0x168(%eax)`（eax=pair 基址）
-            // = second+0x164 = STDBConnInfo::m_tail（存 server group；Open 第 2 实参 %ebx）。
-            // 原写 +0x160 系偏移误读（pair/second 基混淆），此处以具名字段修正为 +0x164。
-            ENUM_SERVER_GROUP group = static_cast<ENUM_SERVER_GROUP>(info.m_tail);
-            if (!Open(idx, group, info))
-            {
-                return false;
-            }
+            continue;
+        }
+        // ORIG 080ec946（ConnectWithServerGroup.md）：`mov 0x168(%eax)`（eax=pair 基址）
+        // = second+0x164 = STDBConnInfo::m_tail（存 server group；Open 第 2 实参 %ebx）。
+        // 原写 +0x160 系偏移误读（pair/second 基混淆），此处以具名字段修正为 +0x164。
+        register ENUM_SERVER_GROUP group =
+            static_cast<ENUM_SERVER_GROUP>(it->second.m_tail);
+        if (!Open(it->first, group, it->second))
+        {
+            return false;
         }
     }
     return true;
@@ -4556,6 +4598,7 @@ bool CDBConnector::Open(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
 // 列序：db_name(0x1f→m_db) / db_ip(0x11→m_host) / db_port(→m_port) /
 //       db_userid(0x15→m_user) / db_passwd（先清零 60 字节，0x3c→+0x2d 起）。
 // 密文经 CEnvironment::DecryptValue 解出（ORIG 解密结果未回写结构，仅校验）。
+// [b28d-18 N82] 残差=槽位/STL 展开（N82/N89） | ORIG 0x080eca6c
 bool CDBConnector::QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
                                  DBInfoMap& outMap)
 {
@@ -4611,6 +4654,7 @@ CGM_Manager::~CGM_Manager()
 }
 // b28c-l23 SIGFIX：返回类型 char→bool（ORIG __PRETTY_FUNCTION__ 串 + 体尾
 // `movzbl -0x11(%ebp),%ebx` 直返 bool 局部；char 声明使 4.4 出 movsbl）。
+// [b28d-18 N82] p167 CLEAR（17/17）；残差=槽位分配（ORIG -0x48/-0x4c vs 4.4 -0x18/-0x1c） | ORIG 0x08299530
 bool CGM_Manager::LoadGmListFromDb()
 {
     // [b23S3C] ORIG 0x08299530：ok 即返回变量（exec/get_int 逐次覆写），
@@ -4662,6 +4706,7 @@ CStatisticMgr::CStatisticMgr()
 // level ∉ [1,200] → 仅 trace(type=0)；否则 find 命中 → 引用缓存后
 // m_playCount += playCount、++m_userCount；未命中 → 先写 playCount 再置
 // userCount=1，insert。
+// [b28d-18 NEAR] 修：删发明符号 stDungeonPlayInfo::C1Ev（ORIG nm 无，POD 化）；p167 CLEAR；余 N80 | ORIG 0x0860ecc6
 void CLevelDungeonPlayStatistic::IncreaseLevelDungeonPlay(int level, int playCount)
 {
     if (level < 1 || level > 200)
@@ -4717,6 +4762,7 @@ break_away_prevent::CBreakAwayPreventSystem::~CBreakAwayPreventSystem()
 // 清 map 后按条目组装：条目 stride 0x18，key=+0x10/+0x11/+0x12 三字节，
 // value=+0x14..+0x24 五个 int（STRewardData）。key 已存在 → list push_back；
 // 否则新建 list 插入 map。同时维护 m_keys（5 项）。
+// [b28d-18 N82] p167 CLEAR（21/21）；ORIG 243 vs 203 条，残差=槽位/STL（N82/N89） | ORIG 0x0831c49e
 void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
     SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER* data)
 {
@@ -4775,6 +4821,7 @@ expert_job::CExpertJobFactory::~CExpertJobFactory()
     // ORIG 0x0849f6d2：两个 StaticPool 成员析构。
 }
 // b28c-1 N77: 4.1 new T() value-init 前置 rep stos 0x18 dword，4.4 不 emit（去具名 p 后 15→13）。
+// [b28d-18 N77] ORIG new(nothrow) T() value-init 前置 rep stos 0x18 dword + 临时指针槽；4.4 按 CWG434 不 emit（N77/P90） | ORIG 0x0849e102
 expert_job::CExpertJobMgr::CExpertJobMgr()
 {
     // ORIG 0x0849e102：首条 `movl $0x0,(%eax)` 预清槽 + new(nothrow) T()
@@ -4835,6 +4882,7 @@ InstanceRentalSystem::InstanceRentalSystem()
     registerRentalMachine(1, new RentalMachinePcRoom);
     registerRentalMachine(2, new RentalMachineDimension);
 }
+// [b28d-18 IDENTICAL_AE] 68=68；唯一残差=尾对齐 nop（§6.1 豁免） | ORIG 0x08270110
 InstanceRentalSystem::~InstanceRentalSystem()
 {
     // ORIG 0x08270110：遍历机器表虚析构；impl 由 auto_ptr D1 释放。
@@ -4864,6 +4912,7 @@ void RentalMachinePcRoom::initLoggingEnvironment()
                      G_CEnvironment()->get_file_name());
 }
 
+// [b28d-18 IDENTICAL_AE] 21=21 逐条同形 | ORIG 0x0826efdc
 void RentalMachineDimension::initLoggingEnvironment()
 {
     // ORIG 0x826efdc：同 PcRoom 日志路径（.rodata 0x8bf90c2 同串）。
@@ -4895,6 +4944,7 @@ bool RentalMachinePcRoom::CheckRentableItem(unsigned int itemIdx)
     return m_impl->m_set.end() != it;
 }
 // Dimension::CheckRentableItem（ORIG 0x0826eea8）：同构。
+// [b28d-18 IDENTICAL_AE] 32=32；唯一残差=尾对齐 nop（§6.1 豁免） | ORIG 0x0826eea8
 bool RentalMachineDimension::CheckRentableItem(unsigned int itemIdx)
 {
     // ORIG 0x0826ef01：const_iterator::ne 的 this = end() 临时槽(-0xc)、
@@ -4906,6 +4956,7 @@ bool RentalMachineDimension::CheckRentableItem(unsigned int itemIdx)
 // ---- InstanceRentalSystem 查询/分发（ORIG 报告 InstanceRentalSystem/*.md）----
 
 // getMachine（ORIG T 0x08270348）：map find，未命中返回 0。
+// [b28d-18 IDENTICAL_AE] 38=38 逐条同形（.o 重定位伪差） | ORIG 0x08270348
 IRentalMachine* InstanceRentalSystem::getMachine(int idx)
 {
     // ORIG 0x082703a0：`_Rb_tree_iterator::eq` + `test; je` 到 de 路径、
@@ -4926,6 +4977,7 @@ IRentalMachine* InstanceRentalSystem::getMachine(int idx)
 // Ready（ORIG T 0x082701dc）：遍历机器表；任一为空或其槽3 Ready() 返回非 1
 // 即返回 false，全部就绪（含空表）返回 true。
 // [b28 判词 N7] 残差=call *%edx↔%eax 换名+对调，主体 56 行同形封顶。
+// [b28d-18 IDENTICAL_AE] 56=56 逐条同形；残差仅间接 call 寄存器名（N7 已判） | ORIG 0x082701dc
 bool InstanceRentalSystem::Ready()
 {
     for (std::map<int, IRentalMachine*>::iterator it = m_impl->m_machines.begin();
@@ -4973,6 +5025,7 @@ online_preliminary::CTeamFactory::~CTeamFactory()
 }
 // [b28 判词 N77] ORIG 4.1 `new (nothrow) T()` value-init 前置 rep stos 12 dword
 // 清零+临时槽；4.4 CWG434 不 emit——placement/显式 memset 变 call 均不可翻，封顶。
+// [b28d-18 N77] ORIG new T() value-init 前置 rep stos + 临时指针槽；4.4 不 emit（N77/P90） | ORIG 0x0858860c
 online_preliminary::COnlinePreliminaryTeamMgr::COnlinePreliminaryTeamMgr()
     : m_factory(0)
 {
@@ -5087,6 +5140,7 @@ int CBusinessImpl::SendBuffertoClient(int a, int b, int c, unsigned int d,
     return 0;
 }
 
+// [b28d-18 N82] p167 CLEAR（12/12）；残差=槽位/寄存器分配 | ORIG 0x080de3ee
 void CBusinessImpl::PunishClient(int a, int b, unsigned int c, EPUNISHMODE mode,
                                  tagAntibotPunishInfo* info, char* reason)
 {
@@ -5198,6 +5252,8 @@ int StackableAction::Action::proc_bingo(input_param& p)
     }
     return 0x13;
 }
+// [b28d-18 NEAR] 修：getCurCharacFatigue 两次独立调用（P48 无 CSE，p167 MISSING 实证）；
+// 调用差集 CLEAR 8/8；余槽位/寄存器（N82） | ORIG 0x0827fbd6
 int StackableAction::Action::proc_addFatigue(input_param& p)
 {
     // ORIG 0x0827fbd6：user/item 判空→0x13；item+0x3a0 的 vector<int> 取第 0 项
@@ -5217,12 +5273,13 @@ int StackableAction::Action::proc_addFatigue(input_param& p)
         return 4;
     }
     int need = std::max(0, costs->at(0));
-    int cur = p.m_user->getCurCharacFatigue();
-    if ((int)(cur & 0xffff) < need)
+    // ORIG 0x0827fc6a/0x0827fc89：getCurCharacFatigue 两次独立调用
+    // （O0 无 CSE，P48；原具名 cur 缓存少 1 次调用，p167 MISSING 实证）。
+    if ((int)(p.m_user->getCurCharacFatigue() & 0xffff) < need)
     {
         return 0x5f;
     }
-    int after = (cur & 0xffff) - need;
+    int after = (p.m_user->getCurCharacFatigue() & 0xffff) - need;
     int lower = 0;
     p.m_user->setCurCharacFatigue(std::max(after, lower));
     p.m_user->SendFatigue();
@@ -5247,6 +5304,7 @@ int StackableAction::Action::proc_lotteryCount(input_param& p)
     return 0x13;
 }
 
+// [b28d-18 N82] 残差=槽位/STL 展开（N82/N89） | ORIG 0x0827f7c8
 void StackableAction::Action::init_function_type()
 {
     // ORIG 0x0827f7c8：以 boost::bind 将 proc_* 成员注册进 map2（key 0x34/0x36/0x37）。
@@ -5260,6 +5318,7 @@ void StackableAction::Action::init_function_type()
         boost::bind(&Action::proc_addFatigue, this, arg<1>())));
 }
 
+// [b28d-18 IDENTICAL_AE] 修：register 指针 pt=&t 使 &t 提前物化 %esi 跨 operator new 保活（P231 新实证）；NDIFF 4→1（余 vtable 重定位伪差） | ORIG 0x084a2938
 expert_extraction::CExtraction::CExtraction()
 {
     // ORIG 0x084a2938：vptr + new CMTRand 并以 time(0) seed。
@@ -5268,7 +5327,8 @@ expert_extraction::CExtraction::CExtraction()
     unsigned long t = (unsigned long)time(0);
     // ORIG 0x084a2959：seed 槽地址提前物化 %esi —— 4.4 对实参 &t 表达式
     // 自然产 lea（P0：寄存器仅承载表达式值）。
-    m_rand = new CMTRand(t);
+    register unsigned long* pt = &t;
+    m_rand = new CMTRand(*pt);
 }
 expert_extraction::CExtraction::~CExtraction()
 {
@@ -5281,6 +5341,7 @@ expert_extraction::CEnchanterExtraction::CEnchanterExtraction() {}
 expert_extraction::CEnchanterExtraction::~CEnchanterExtraction() {}
 expert_extraction::CDollControllerExtraction::CDollControllerExtraction() {}
 expert_extraction::CDollControllerExtraction::~CDollControllerExtraction() {}
+// [b28d-18 N77] ORIG new T() value-init 前置双清零；4.4 折叠进 C1（N77/N83） | ORIG 0x084a302e
 expert_extraction::CExtractionMgr::CExtractionMgr()
 {
     // ORIG 0x084a302e：new 三个子提取器对象，依次存 +0/+4/+8。
@@ -5436,6 +5497,7 @@ NPC_Teleport::NPC_Teleport()
 }
 NPC_Teleport::~NPC_Teleport() {}
 
+// [b28d-18 N82] p167 CLEAR（11/11）；残差=槽位/寄存器分配 | ORIG 0x08283c5a
 int Teleport::check_rule(CUser* user)
 {
     // ORIG 0x08283c5a：状态/渠道/vill/aura 冷却校验链（报告 Teleport/check_rule.md）。
@@ -5599,6 +5661,7 @@ void* random_option::GetRandomOption()
     // ORIG T 0x085f0eb0：返回 &m_randomOption（CDataManager+0x4e10，objdump 实证）。
     return &G_CDataManager()->m_randomOption;
 }
+// [b28d-18 N7] 修：register seed 使 seed 先载（P231）；余纯寄存器名轮换（N7 封顶） | ORIG 0x085f0d64
 random_option::CRandomOptionItemHandle::CRandomOptionItemHandle()
 {
     // ORIG 0x085f0d64：new[0x7f28] 13×CMTRand，逐元素 seed(time(0))；
@@ -5616,7 +5679,8 @@ random_option::CRandomOptionItemHandle::CRandomOptionItemHandle()
         // imul/lea 之前把 t 载入 %eax（`mov -0x20,%eax` 先行），4.4 恒按
         // 「this→下标→实参」序装载 ⇒ P75/N86（实参装载时刻跨版本调度），
         // 语义等价（seed 实参同一槽值），保持可读源形。
-        m_rand[i].seed(t);
+        register unsigned long seed = t;
+        m_rand[i].seed(seed);
     }
     m_field08 = 0;
     m_disabled = 0;
@@ -5632,6 +5696,7 @@ random_option::CRandomOptionItemHandle::~CRandomOptionItemHandle()
     delete[] m_rand;
 }
 
+// [b28d-18 N] ORIG 切片缺失（objdump 直转 082a73cb）；p167 CLEAR（9/9）；残差=表内容占位+codegen | ORIG 0x082a73cb
 void CHumanCertifier::init()
 {
     // ORIG 0x082a73cb：遍历 0..0x63 号人证字符串表（.data 0x936e2a0，64 项
@@ -5715,6 +5780,7 @@ struct CDBEnvServerGroupMapView
     std::map<ENUM_SERVER_GROUP, std::map<std::string, std::string> > m_map;
 };
 
+// [b28d-18 DIFF] p167 MISSING G_CEnvironment×1（真缺口未闭合）；余槽位（N82） | ORIG 0x0829d8e8
 bool CDBEnviroment::parse(char* buf)
 {
     const char* sep = "=";
@@ -6030,6 +6096,7 @@ void GlobalData::Fini()
 // GlobalData::initTournamentDB
 // ============================================================================
 
+// [b28d-18 N82] p167 CLEAR（36/36）；残差=槽位分配（ORIG -0x44/-0x48/-0x50 vs 4.4 -0x30/-0x18/-0x20） | ORIG 0x0829dd82
 bool GlobalData::initTournamentDB(const char* fileName)
 {
     typedef std::map<ENUM_SERVER_GROUP, std::map<std::string, std::string> > GroupNameMap;
@@ -6081,6 +6148,7 @@ bool GlobalData::initTournamentDB(const char* fileName)
 // GlobalData::Init
 // ============================================================================
 
+// [b28d-18 N89] 超大件：残差=STL 实例展开差（N89）；§6.2 语义完成度按调用差集+gap 计 | ORIG 0x08299fa0
 bool GlobalData::Init()
 {
     s_server_stop = false;
@@ -7038,6 +7106,7 @@ EventRewardSection* GetRewardSection(int idx, register int type)
 }
 
 // ---- GetRentItemInfo —— T 0x08271396（同名报告全文转写）--------------------
+// [b28d-18 NEAR] 修：委托 pc_room::GetRewardItemSelectionList(packageKey,type)（p167 MISSING）；CLEAR 9/9；余槽位 | ORIG 0x08271396
 bool GetRentItemInfo(CUser& user, char sectionIdx, char seqIdx,
                      EventRewardItemInfo& out, int type)
 {
@@ -7055,17 +7124,10 @@ bool GetRentItemInfo(CUser& user, char sectionIdx, char seqIdx,
     int packageKey =
         makeFairPVPEquipmentPackageKey((int)job, selectionIdx);
 
-    std::vector<std::vector<EventRewardItemInfo> >* list = 0;
-    if (type == 1)
-    {
-        list = G_CDataManager()->m_pcBangRentar.getRewardSelectionList(packageKey);
-    }
-    else if (type == 2)
-    {
-        list = G_CDataManager()
-                   ->m_dimensionAct.m_rewardData.getRewardSelectItemList(
-                       packageKey);
-    }
+    // ORIG 0x08271396：委托 pc_room::GetRewardItemSelectionList(packageKey,type)
+    // （p167 MISSING 实证；原内联三分支多发 G_CDataManager×2 + 具体方法×2）。
+    std::vector<std::vector<EventRewardItemInfo> >* list =
+        GetRewardItemSelectionList(packageKey, type);
     if (list == 0)
     {
         return false;
@@ -7095,6 +7157,7 @@ bool CheckInventoryEquipmentEmptyCount(CUser& user, int need)
 }
 
 // ---- CheckInventoryEmptyCount —— T 0x0827108c（同名报告全文转写）-----------
+// [b28d-18 N82] p167 CLEAR（16/16）；残差=槽位/寄存器分配 | ORIG 0x0827108c
 bool CheckInventoryEmptyCount(CUser& user, int need)
 {
     // ORIG（0x0827108c，report 汇编+反编译 C 全读）：每次 check 前重调
@@ -7140,6 +7203,7 @@ bool CheckInventoryEmptyCount(CUser& user, int need)
 }
 
 // ---- DeleteAllRentalItemInSameSectionForNewRent —— T 0x08271807 ------------
+// [b28d-18 NEAR] 修：(*it) 代 it->（P167 deEv）+ ResetSlot 双分支独立调用（P48）；p167 CLEAR 18/18 | ORIG 0x08271807
 void DeleteAllRentalItemInSameSectionForNewRent(
     CUser& user,
     std::vector<InstanceRentalSystem::DeletedRentItem>& deleted, int rentalType)
@@ -7154,7 +7218,8 @@ void DeleteAllRentalItemInSameSectionForNewRent(
              rentalList.begin();
          it != rentalList.end(); ++it)
     {
-        const int itemId = it->m_itemIndex;   // RentalInfo+0x04
+        // ORIG 0x08271807：`(*it).m_itemIndex`（deEv，非 ptEv；P167 判据）。
+        const int itemId = (*it).m_itemIndex;   // RentalInfo+0x04
 
         int slot = 0;
         bool isEquip = false;
@@ -7165,8 +7230,16 @@ void DeleteAllRentalItemInSameSectionForNewRent(
             continue;
         }
 
-        CInventory* invW = user.getCurCharacInvenW();
-        invW->ResetSlot(isEquip ? 0 : 1, slot);
+        // ORIG 0x082718c0/0x082718e4：两分支各自独立调用 getCurCharacInvenW
+        // 与 ResetSlot（P48 无 CSE；原三元式只调一次 ⇒ p167 MISSING 各 1）。
+        if (isEquip)
+        {
+            user.getCurCharacInvenW()->ResetSlot(0, slot);
+        }
+        else
+        {
+            user.getCurCharacInvenW()->ResetSlot(1, slot);
+        }
 
         InstanceRentalSystem::DeletedRentItem entry;
         entry.m_bEquip = isEquip ? 1 : 0;
@@ -7178,6 +7251,7 @@ void DeleteAllRentalItemInSameSectionForNewRent(
 
 // ---- ProcessEquipItem —— T 0x082714c5（同名报告全文转写；委托转写核对）-----
 // 与 ProcessInsertItem 仅差 SetUpgrade/rentId 写入顺序、装备位插入与标记字节。
+// [b28d-18 N71] 同 ProcessInsertItem：空析构 trivial 判定差异（P71） | ORIG 0x082714c5
 int ProcessEquipItem(CUser& user,
                      const InstanceRentalSystem::RentInElem& inElem,
                      const EventRewardItemInfo& reward,
@@ -7221,6 +7295,7 @@ int ProcessEquipItem(CUser& user,
 }
 
 // ---- ProcessInsertItem —— T 0x08271666（同名报告全文转写）------------------
+// [b28d-18 N71] EXTRA RentalInfo::D1Ev×2 + _Unwind_Resume×1：ORIG 空析构被 4.1 判 trivial 不调用（P71；throw() 实测无效） | ORIG 0x08271666
 int ProcessInsertItem(CUser& user,
                       const InstanceRentalSystem::RentInElem& inElem,
                       const EventRewardItemInfo& reward,
@@ -7267,6 +7342,7 @@ int ProcessInsertItem(CUser& user,
 // ===========================================================================
 
 // ---- PcRoom::log —— T 0x082707c0（同名报告全文转写）------------------------
+// [b28d-18 N7] p167 CLEAR；残差=callee-saved 角色轮换 + 槽位（N7/N82） | ORIG 0x082707c0
 void RentalMachinePcRoom::log(CUser& user, int itemId)
 {
     char serverInfo = 0;
@@ -7288,6 +7364,7 @@ void RentalMachinePcRoom::log(CUser& user, int itemId)
 }
 
 // ---- Dimension::log —— T 0x0826ef16（同名报告全文转写）---------------------
+// [b28d-18 N7+N82] 槽位+callee-saved 角色轮换；P76 待办：ORIG auto_ptr 模板参为嵌套类 RentalMachineDimension::RentalMachineDimensionImpl（p167 MISSING ptEv） | ORIG 0x0826ef16
 void RentalMachineDimension::log(CUser& user, int itemId)
 {
     char serverInfo = 0;
@@ -7344,6 +7421,7 @@ int RentalMachineDimension::GetRewardItemGiveList(int job, int growType)
 }
 
 // ---- Dimension::GetRentItemInfo —— T 0x0826f842（同名报告全文转写）---------
+// [b28d-18 N82] p167 CLEAR（11/11）；残差=槽位/寄存器分配 | ORIG 0x0826f842
 bool RentalMachineDimension::GetRentItemInfo(
     CUser& user, const InstanceRentalSystem::RentInElem& inElem,
     EventRewardItemInfo& out)
@@ -7398,6 +7476,7 @@ bool RentalMachineDimension::GetRentItemInfo(
 }
 
 // ---- PcRoom::checkAllRentalItemScript —— T 0x082708cc（同名报告全文转写）---
+// [b28d-18 N82] 残差=槽位/STL（N82/N89） | ORIG 0x082708cc
 bool RentalMachinePcRoom::checkAllRentalItemScript()
 {
     std::map<int, std::vector<std::vector<EventRewardItemInfo> > >& table =
@@ -7474,6 +7553,7 @@ bool RentalMachinePcRoom::checkAllRentalItemScript()
 
 // ---- Dimension::checkSelectionListScript —— T 0x0826f14e -------------------
 // （报告全文转写；五谓词次序同 PcRoom，cerr 前缀为 RentalDimensionSystem）
+// [b28d-18 N82] 残差=槽位/STL 展开（N82/N89） | ORIG 0x0826f14e
 int RentalMachineDimension::checkSelectionListScript(
     const std::vector<std::vector<EventRewardItemInfo> >& selectionList)
 {
@@ -7539,6 +7619,7 @@ int RentalMachineDimension::checkSelectionListScript(
 }
 
 // ---- Dimension::checkAllRentalItemScript —— T 0x0826f022（同名报告转写）----
+// [b28d-18 N82] 残差=槽位/分支布局（N82） | ORIG 0x0826f022
 bool RentalMachineDimension::checkAllRentalItemScript()
 {
     CDataManager* dm = G_CDataManager();
@@ -7571,6 +7652,7 @@ bool RentalMachineDimension::checkAllRentalItemScript()
 }
 
 // ---- PcRoom::CheckupAllRentalItems —— T 0x08270d1e（同名报告全文转写）------
+// [b28d-18 N7] 残差=callee-saved 角色轮换 + 单段 regmove（N7/N18a） | ORIG 0x08270d1e
 int RentalMachinePcRoom::CheckupAllRentalItems(
     CUser& user, const InstanceRentalSystem::RentInput& input)
 {
@@ -7621,6 +7703,7 @@ int RentalMachinePcRoom::CheckupAllRentalItems(
 }
 
 // ---- Dimension::CheckupAllRentalItems —— T 0x0826f52c（同名报告全文转写）---
+// [b28d-18 N7] 残差=callee-saved 角色轮换 + 单段 regmove（N7/N18a） | ORIG 0x0826f52c
 int RentalMachineDimension::CheckupAllRentalItems(
     CUser& user, const InstanceRentalSystem::RentInput& input)
 {
@@ -7671,6 +7754,7 @@ int RentalMachineDimension::CheckupAllRentalItems(
 }
 
 // ---- PcRoom::Rent —— T 0x082704e6（Rent.md 全文转写）------------------------
+// [b28d-18 NEAR] 修：const_iterator 三段循环（p167 MISSING）；NDIFF 42→9 | ORIG 0x082704e6
 int RentalMachinePcRoom::Rent(CUser& user,
                               const InstanceRentalSystem::RentInput& input,
                               InstanceRentalSystem::RentOutput& output)
@@ -7693,9 +7777,12 @@ int RentalMachinePcRoom::Rent(CUser& user,
 
     pc_room::DeleteAllRentalItemInSameSectionForNewRent(user, output.m_deleted,
                                                         1);
-    for (std::size_t i = 0; i < input.m_elems.size(); ++i)
+    // ORIG 0x082704e6：const_iterator 三段循环（p167 MISSING 实证）。
+    for (std::vector<InstanceRentalSystem::RentInput::RentInElem>::const_iterator
+             it = input.m_elems.begin();
+         it != input.m_elems.end(); ++it)
     {
-        const InstanceRentalSystem::RentInElem& elem = input.m_elems[i];
+        const InstanceRentalSystem::RentInElem& elem = *it;
         EventRewardItemInfo info;
         if (!pc_room::GetRentItemInfo(user, (char)elem.m_sectionIdx,
                                       (char)elem.m_itemIdx, info, 1))
@@ -7729,6 +7816,7 @@ int RentalMachinePcRoom::Rent(CUser& user,
 }
 
 // ---- Dimension::Rent —— T 0x0826ec22（Rent.md 全文转写）---------------------
+// [b28d-18 NEAR] 修：const_iterator 三段循环（p167 MISSING begin/end/ne/deEv/ppEv）；CLEAR 21/21；NDIFF 37→3 | ORIG 0x0826ec22
 int RentalMachineDimension::Rent(CUser& user,
                                  const InstanceRentalSystem::RentInput& input,
                                  InstanceRentalSystem::RentOutput& output)
@@ -7753,9 +7841,13 @@ int RentalMachineDimension::Rent(CUser& user,
 
     pc_room::DeleteAllRentalItemInSameSectionForNewRent(user, output.m_deleted,
                                                         2);
-    for (std::size_t i = 0; i < input.m_elems.size(); ++i)
+    // ORIG 0x0826f3xx：const_iterator 三段循环（begin/end/ne/deEv/ppEv，
+    // p167 MISSING 实证），非 size()/operator[] 下标形。
+    for (std::vector<InstanceRentalSystem::RentInput::RentInElem>::const_iterator
+             it = input.m_elems.begin();
+         it != input.m_elems.end(); ++it)
     {
-        const InstanceRentalSystem::RentInElem& elem = input.m_elems[i];
+        const InstanceRentalSystem::RentInElem& elem = *it;
         EventRewardItemInfo info;
         if (!GetRentItemInfo(user, elem, info))
         {

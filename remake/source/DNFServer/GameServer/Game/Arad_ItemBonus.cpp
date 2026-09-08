@@ -115,6 +115,8 @@ bool CheckAccountItem(CUser* user, unsigned int itemIndex,
 // 错误码口径与汇编一致；文件扫描正常结束后的返回值取最后一次 insert 结果
 // （成功=1）【推断：ORIG 在 EOF 路径复用上轮 ebx，指令层面未再赋值】。
 // ---------------------------------------------------------------------------
+// b28d-21: DIFF/N 封顶 — p167 33=33 但形态差（ORIG make_pair/pair 直构模板实例，
+// P178/P192）+ N82 帧/槽（248 vs 261）+ N89 模板内联。ORIG 0x081aba30 段。
 int importCashShopPurcahseBonusItemList(
     char* path,
     std::map<int, std::vector<PurcahseBonus> >& out)
@@ -241,6 +243,10 @@ void CeraShopPurcahseCountBonus::GiveBonusItem(CUser* user,
 // _findBonusItem —— ORIG 0x081ac04c：遍历 list 取最后一个 m_flag <= threshold
 // 的元素 memcpy 0xa 字节到 out；无命中返回 false。
 // ---------------------------------------------------------------------------
+// b28d-21: DIFF/N 封顶 — ORIG 0x081ac04c 73 条 vs 重建 55 条：ORIG 迭代器对
+// （-0x18/-0x14）逐轮重调 operator!=/operator++ 且 best 指针独立槽（-0xc），
+// 重建槽序相反（N86 迭代器槽族 + N82）。语义（取最后一个 flag<=threshold 元素
+// memcpy 0xa 字节）全等。
 bool CeraShopPurcahseCountBonus::_findBonusItem(
     const std::vector<PurcahseBonus>& list, PurcahseBonus& out,
     unsigned short threshold)
@@ -263,6 +269,8 @@ bool CeraShopPurcahseCountBonus::_findBonusItem(
 // _processBonusItem —— ORIG 0x081ac13e（_processBonusItem.md 全文转写）：
 //   type==1 代币；type==5 里程券；其它按 itemIdx 发放物品。
 // ---------------------------------------------------------------------------
+// b28d-21: DIFF/N 封顶 — p167 调用点差集 CLEAR（42=42，语义完整）；残差
+// N82 帧/槽（331 vs 332）+ N89。ORIG 0x081ac13e。
 void CeraShopPurcahseCountBonus::_processBonusItem(CUser* user, int goodsIdx,
                                                    const PurcahseBonus& bonus)
 {
@@ -363,6 +371,8 @@ void CeraShopPurcahseCountBonus::_processBonusItem(CUser* user, int goodsIdx,
 // ---------------------------------------------------------------------------
 // send_mail —— ORIG 0x08196b03（send_mail.md 全文转写）：邮件流打包入 DB 队列。
 // ---------------------------------------------------------------------------
+// b28d-21: DIFF/N 封顶 — p167 调用点差集 CLEAR（17=17，语义完整）；残差
+// N82 帧/槽（151 vs 149）+ N89。ORIG 0x081966b0 段。
 int send_mail(ARAD_DATAS::AradMailInfo& info)
 {
     Stream* stream = GlobalData::s_stream_pool->Acquire(kAradFuncFile, 0x3a);
@@ -405,6 +415,8 @@ int send_mail(ARAD_DATAS::AradMailInfo& info)
 // ---------------------------------------------------------------------------
 // ARAD_ITEM::arad_secret_shop_event_buff —— ORIG 0x08196dd3（报告全文转写）。
 // ---------------------------------------------------------------------------
+// b28d-21: DIFF/N 封顶 — 残差 N82 帧/槽（72 vs 75）+ N89 模板内联；
+// 调用序全等。ORIG 0x08196dd3。
 void ARAD_ITEM::arad_secret_shop_event_buff(CUser* user, unsigned long param)
 {
     PacketGuard pg;
@@ -424,6 +436,9 @@ void ARAD_ITEM::arad_secret_shop_event_buff(CUser* user, unsigned long param)
 // ---------------------------------------------------------------------------
 // ARAD_ITEM::arad_secret_shop_event_item —— ORIG 0x08196ed7（报告全文转写）。
 // ---------------------------------------------------------------------------
+// b28d-21: 已修 P74/P50 — 迭代器「先声明后赋值」+ `CRabbitBox box; box = *it;`
+// 默认构造+赋值形 ⇒ 差集 4 MISSING/2 EXTRA → 1/1（余 getItemIndex×1 与
+// _Unwind_Resume×1）。残差 N82 帧/槽（307 vs 318）。ORIG 0x08196ed7。
 void ARAD_ITEM::arad_secret_shop_event_item(CUser* user, unsigned long param,
                                             CStackableItem* stackable)
 {
@@ -454,9 +469,15 @@ void ARAD_ITEM::arad_secret_shop_event_item(CUser* user, unsigned long param,
     }
 
     int lastSlot = -1;
-    for (RabbitVec::iterator it = rabbits.begin(); it != rabbits.end(); ++it)
+    // b28d-21：p167 差集 MISSING CRabbitBox::C1Ev / __normal_iterator::C1Ev /
+    // CRabbitBox::aSERKS_ / getItemIndex，EXTRA C1ERKS_ + _Unwind_Resume ⇒ ORIG 为
+    // 「默认构造 + 赋值」形（P74/P50）：迭代器先声明后赋值，box 默认构造再 aSERKS_。
+    RabbitVec::iterator it;
+    it = rabbits.begin();
+    for (; it != rabbits.end(); ++it)
     {
-        CRabbitBox box = *it;                          // ORIG copy ctor
+        CRabbitBox box;
+        box = *it;
         const int rabbitIdx = box.getItemIndex();
         CItem* item = G_CDataManager()->find_item(rabbitIdx);
         if (item == 0)
@@ -496,6 +517,8 @@ void ARAD_ITEM::arad_secret_shop_event_item(CUser* user, unsigned long param,
 // ---------------------------------------------------------------------------
 // ARAD_ITEM::arad_process_item —— ORIG 0x081973fa（arad_process_item.md 转写）。
 // ---------------------------------------------------------------------------
+// b28d-21: DIFF/N 封顶 — p167 调用点差集 CLEAR（19=19，语义完整）；残差
+// N82 帧/槽（148 vs 148，槽号差）+ N89。ORIG 0x081973fa。
 bool ARAD_ITEM::arad_process_item(CUser* user, Inven_Item const& item)
 {
     if (user == 0 || item.m_addInfo == 0)

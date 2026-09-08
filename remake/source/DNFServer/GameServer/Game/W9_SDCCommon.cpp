@@ -100,14 +100,11 @@ STSDCActiveStatusSyncDataSend& STSDCActiveStatusSyncDataSend::operator=(
 // 逐条复现 ORIG 全组槽位。故定义下移至本 TU 所有 caller 之后（见文件尾）。
 // 声明由 DataManagerInitDepends.h:450 提供。
 
-// _SDC::isObjectType @0x080950e8
+// [b28d-lane15 R3 迁出，Main 批准] _SDC::isObjectType T 0x080950e8 的**定义**已迁至
+// SDCLink.cpp（P210②：定义先于 caller 使 4.4 精确继承 outgoing 帧 sub $0xc）。
+// 本 TU 及全仓调用点改持 U 引用，声明见 DataManagerInitDepends.h:447。
 namespace _SDC
 {
-bool isObjectType(int objectType, int code)
-{
-    // ORIG 0x080950e8：无帧无槽，and 后直接 cmp 参数（P0 单表达式）。
-    return (objectType & code) == code;
-}
 
 // [b28c-34] ORIG T 0x0808d074：type<0xc 且 (1<<type & 0xac4)!=0（位 2/6/7/9/11）。
 // 推断 ORIG 原码为 switch 位掩码族：4.4 对 if+短路形把 (1u<<type)&0xac4 前端折叠成

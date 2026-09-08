@@ -109,7 +109,10 @@ bool AvatarRechargeServer::CheckConditionUseRecharge(
                                    sig->stoneSlot);
         return false;
     }
-    if (!IsEmblemRechargeStone(stone->m_addInfo))
+    // b28d-lane25：P167 差集实证 ORIG 0x081907b8/0x081907cd 直接内联
+    // map find/end + eq（end() 在左控实参序，P74 补充），不调 IsEmblemRechargeStone。
+    std::map<int, int>::iterator it = m_emblemRechargeStoneMap.find(stone->m_addInfo);
+    if (m_emblemRechargeStoneMap.end() == it)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0x11);
         LogManager::logFormat(
@@ -262,8 +265,9 @@ bool AvatarRechargeServer::UseEmblem(CUser* user, std::vector<int>& grades,
     int addSum = 0;
     for (std::vector<int>::size_type i = 0; i < grades.size(); ++i)
     {
-        std::map<int, int>::const_iterator it =
-            m_useEmblemGradeRateMap.find(grades[i]);
+        // b28d-lane25：P167 差集实证 ORIG 非 const iterator + 先声明后赋值（P50/P96）。
+        std::map<int, int>::iterator it;
+        it = m_useEmblemGradeRateMap.find(grades[i]);
         if (it != m_useEmblemGradeRateMap.end())
             addSum += it->second;
     }
@@ -555,10 +559,13 @@ std::map<int, int>* ARAD::SCRIPT::AvatarRecharge::getEmblemRechargeStoneInfo()
 int ARAD::SCRIPT::AvatarRecharge::getEmblemRecharge(int grade)
 {
     // ORIG 0x088b132a：+0x1c map 值或 0。
-    std::map<int, int>::const_iterator it = m_emblemRechargeMap.find(grade);
-    if (it == m_emblemRechargeMap.end())
-        return 0;
-    return it->second;
+    // b28d-lane25：P167 差集实证 ORIG 用非 const iterator + 先声明后赋值（C1Ev）
+    // + `!=` 正极性（P50 反例复活 / P96）。
+    std::map<int, int>::iterator it;
+    it = m_emblemRechargeMap.find(grade);
+    if (it != m_emblemRechargeMap.end())
+        return it->second;
+    return 0;
 }
 
 // ORIG 0x088b0eba loadScript。忠实转写：
@@ -594,12 +601,18 @@ int ARAD::SCRIPT::AvatarRecharge::loadScript()
                 if (!(!isType && isInt))
                     break;
                 int value = ScanInt((bool*)NULL);
-                if (m_emblemRechargeStoneMap.find(idx) != m_emblemRechargeStoneMap.end())
+                // b28d-lane25：P167 差集实证 ORIG 三段均为
+                // `if (find==end) insert(value_type(k,v)); else {printf;return}`（eq 形）。
+                if (m_emblemRechargeStoneMap.find(idx) == m_emblemRechargeStoneMap.end())
+                {
+                    m_emblemRechargeStoneMap.insert(
+                        std::map<int, int>::value_type(idx, value));
+                }
+                else
                 {
                     printf("[emblem recharge stone info] duplicate item_index:%d", idx);
                     return -2;
                 }
-                m_emblemRechargeStoneMap.insert(std::make_pair(idx, value));
             }
         }
         else if (token == "[emblem recharge]")
@@ -610,12 +623,16 @@ int ARAD::SCRIPT::AvatarRecharge::loadScript()
                 if (!(!isType && isInt))
                     break;
                 int value = ScanInt((bool*)NULL);
-                if (m_emblemRechargeMap.find(grade) != m_emblemRechargeMap.end())
+                if (m_emblemRechargeMap.find(grade) == m_emblemRechargeMap.end())
+                {
+                    m_emblemRechargeMap.insert(
+                        std::map<int, int>::value_type(grade, value));
+                }
+                else
                 {
                     printf("[emblem recharge] duplicate grade:%d", grade);
                     return -3;
                 }
-                m_emblemRechargeMap.insert(std::make_pair(grade, value));
             }
         }
         else if (token == "[recharge use emblem info]")
@@ -628,12 +645,16 @@ int ARAD::SCRIPT::AvatarRecharge::loadScript()
                 if (grade >= 8)
                     break;
                 int value = ScanInt((bool*)NULL);
-                if (m_useEmblemGradeRateMap.find(grade) != m_useEmblemGradeRateMap.end())
+                if (m_useEmblemGradeRateMap.find(grade) == m_useEmblemGradeRateMap.end())
+                {
+                    m_useEmblemGradeRateMap.insert(
+                        std::map<int, int>::value_type(grade, value));
+                }
+                else
                 {
                     printf("[recharge use emblem info] duplicate grade:%d", grade);
                     return -4;
                 }
-                m_useEmblemGradeRateMap.insert(std::make_pair(grade, value));
             }
         }
     }

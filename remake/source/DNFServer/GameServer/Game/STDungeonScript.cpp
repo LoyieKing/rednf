@@ -49,6 +49,7 @@ STDungeonScript::~STDungeonScript()
 
 void STDungeonScript::Clear()
 {
+    // b28d-L3: DIFF/P212+N82 — ORIG 0x... 帧 0x24 + 二维索引 `mov -0x18,%ecx; mov -0x14,%edx; add %ecx,%ecx; lea (%ecx,%edx,1),%edx` vs 我方 0x34/-0
     // ORIG 0x0836abc6（473 insn 二进制切片逐段转写）：语句序、string 混用形
     // （assign "" = _ZNSsaSEPKc vs _ZNSs5clearEv）与物理循环全部按汇编还原。
     m_18 = 0;                                        // 0836abd0
@@ -204,6 +205,7 @@ void STDungeonScript::Clear()
 }
 bool ImportDungeonScript(STDungeonScript* script, const char* path)
 {
+    // b28d-L3: DIFF/N91+N82+N89 — ORIG 0x08... 9263 vs 9404
     // 【验收标注 §6.2】超大函数（ORIG 9343 insn）。调用点差集已归零：
     // printf(3)/puts(2)/memset(2,N78 rep-stos 对位)/ScanInt 196+4 位点形态、
     // 静态五组 guard/atexit(10)、map insert(172)、string ctor/dtor 全部与
@@ -3432,6 +3434,7 @@ void convertBinaryToText(const char* path);
 
 bool exportDungeonScript(STDungeonScript* script, const char* path)
 {
+    // b28d-L3: DIFF/N82+N89 — ORIG 0x... 1314 vs 1306
     // 【验收标注 §6.2】超大函数（ORIG 1314 insn）。调用点差集零
     // （176 vs 175，ORIG PLT 无符号地址聚类：fprintf 0x0807da90×52/
     // fwrite 0x0807e320×31/fopen/fclose/fputc 全对位）；9 处 vector<int>
@@ -3735,6 +3738,7 @@ bool advancealtar::RewardItemType::getRewardItemType(const std::string& name,
 bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
                                   const char* path)
 {
+    // b28d-L3: DIFF/N82+N89 — ORIG 0x... 533 vs 527
     (void)path;  // ORIG 未使用该参数
     bool ok = false;   // ORIG 0x088f20ac：函数序言即初始化（-0x15）
     if (str == "[defense dungeon]")

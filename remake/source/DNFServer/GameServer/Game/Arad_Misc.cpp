@@ -76,6 +76,7 @@ unsigned int inet_a2n(const char* addrText)
     return addr;
 }
 
+// [b28d-L1] N82 封顶：ORIG 0x08197a4d；P167 报 GAP 但 .o 实含 inet_ntoa/string C1EPKcRKSaIcE 重定位（同 init_quick_party_pool 的区间假象）。残余为帧/槽位与 EH 段形态差（real diff 55）。语义等价。
 std::string inet_n2a(struct in_addr addr)
 {
     // ORIG：buf[0x20] 清零后 inet_ntoa→strncpy(buf,..,0x10)；null → 空串。
@@ -165,6 +166,7 @@ char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
 
 }  // namespace ARAD_CRYPT
 
+// [b28d-L1] N82 封顶：ORIG 0x0819eaf8；P167 CLEAR（3/3）⇒ 语义完成；残余为 cMyTrace 实参装载/帧槽形态差（real diff 66）。
 void write_incorrect_item_info(unsigned int characNo, const Inven_Item& item,
                                const char* invenType, int errorLine, int slotNo)
 {

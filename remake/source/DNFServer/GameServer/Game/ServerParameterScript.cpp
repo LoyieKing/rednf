@@ -36,6 +36,7 @@ ServerParameterScript::~ServerParameterScript()
 
 void ServerParameterScript::clear()
 {
+    // b28d-L3: DIFF/P212+N82 — ORIG 0x0836f... 帧 0x28 + 同槽双写 `movl $0,-0x18` ×2（P191 双初始化）vs 我方 0x48/-0x30（多循环变量各占槽）
     m_358 = 0;
     for (int i = 0; i < 4; ++i)
     {
@@ -238,6 +239,7 @@ std::vector<std::pair<int, int> >* ServerParameterScript::GetEscaladeTutorialRew
 
 bool ServerParameterScript::checkAssaultServer(int serverGroup, int channelNo)
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（ORIG 0x85bf...
     // b28c-L8 [AE]：fresh 复验 49/50，唯一差 = 4.4 在 `mov $1,%eax; jmp` 之后多一条
     // 尾对齐 nop（§6.1 剥离后逐条全等）；p167 调用点差集 0/0，源码未改。
     std::pair<int, int> p;
@@ -261,6 +263,7 @@ bool ServerParameterScript::checkAssaultServer(int serverGroup, int channelNo)
 unsigned int ServerParameterScript::getAssaultGhostTime(int level,
                                                         int chaosPoint)
 {
+    // b28d-L3: DIFF/N82 — ORIG 0x085... 267 vs 287
     if (m_ghostLevel4f0.empty())
     {
         return 0xb4;
@@ -324,6 +327,7 @@ unsigned int ServerParameterScript::getAssaultGhostTime(int level,
 
 float ServerParameterScript::getAssaultPriceChaospointWeight(int chaosPoint)
 {
+    // b28d-L3: DIFF/N82 — ORIG 0x085... 帧 0x58 无 callee-saved vs 我方 push esi/ebx + 0x50（N82）
     if (m_chaosWeight4e4.empty())
     {
         return 1.0f;
@@ -585,6 +589,7 @@ bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_T
 bool ServerParameterScript::CheckUnusableItem(ENUM_EQUIPMENTTYPE equipType,
                                               unsigned long itemIdx) const
 {
+    // b28d-L3: DIFF/N89 — ORIG 0x85bf... 有 `_Rb_tree_const_iterator<unsigned long>::operator==` 外部 call（p167 MISSING=1）
     if (m_unusableItemFC.find(itemIdx) != m_unusableItemFC.end())
     {
         return false;
@@ -636,6 +641,7 @@ int ServerParameterScript::GetCleanChattingCount(int level)
 int ServerParameterScript::GetTraningFirstGive(int a, int b, int c,
                                                std::vector<std::pair<int, int> >& out)
 {
+    // b28d-L3: DIFF/N82 — ORIG 0x085... 帧 0x58 + sret 槽形 vs 我方 0x?（N82 帧/槽复用）
     // ORIG 0x084a61c4：① 在 m_map49c4 线性找首个 key>=c（第 3 参数），找到则
     // c=key 并跳出；未找到（it==end）回退到最大 key 并把 c=key。② 以 (a,b,c)
     // 构造 PvPPlayerKey 查 m_pvp49ac；未命中返 0。③ 命中把 vector 整段 insert
@@ -842,6 +848,7 @@ int GetEquipmentTypeStringToEnum(std::string& type);   // CStackableItem.cpp
 bool importServerParameterScript(ServerParameterScript* script,
                                  const char* path)
 {
+    // b28d-L3: DIFF/N82+N89 — ORIG 0x... 4534 vs 4566
     if (!loadRDARScriptFile("", path))
     {
         return false;

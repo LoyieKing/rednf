@@ -150,6 +150,7 @@ void HistoryLog::LogClose(FILE* file)
     count_ -= 1;
 }
 
+// [b28d-19] N：N82 —— 帧/槽序（对象临时物化差）；ORIG 0x084b9b32。
 FILE* HistoryLog::LogOpen(unsigned int chNo)
 {
     int rnd = rand();

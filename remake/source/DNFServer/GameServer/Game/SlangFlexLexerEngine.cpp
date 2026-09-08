@@ -3,6 +3,8 @@
 // source/toolchain/gen_slang_engine.sh  (slang_filter.l, -+ -P__slang_filter__)
 // Do not hand-edit the DFA loop; change slang_filter.l and regenerate.
 // ============================================================================
+// [b28d-11b] N：flex 2.5.35 生成 DFA；残余 53/3998 为 4.4 vs 4.1 寄存器分配
+// （edi/esi/ebx 互换）与标量栈槽化差异（N7/N82），禁手改 DFA（改 slang_filter.l 重生成）。
 #line 2 "/tmp/grok-goal-7c1153ba5fb7/implementer/slang_engine.gen.cpp"
 
 #line 4 "/tmp/grok-goal-7c1153ba5fb7/implementer/slang_engine.gen.cpp"

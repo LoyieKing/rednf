@@ -103,6 +103,7 @@ CDisconnectDetecter::~CDisconnectDetecter()
 {
 }
 
+// [b28d-lane16 NEAR] ORIG 08472272：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool CDisconnectDetecter::RegisterUser(CUser* user)
 {
     int mapSize = m_map.size();

@@ -33,6 +33,7 @@ long long CAdvanceAltarLog::getType(long long key)
 
 // ORIG getIndex @0x0815730e：返回 (long long)(int)key（低 32 位符号扩展；
 // mov $0,%eax 后 mov %edx,%eax 残留，sar $0x1f 符号扩展为 64 位）。
+// [b28d-lane6] DIFF·N18a：ORIG 0x0815730e 的 (int)key→long long 截断-扩链残留 4 条死序（mov -0x4,%edx; mov %eax,%edx; mov $0,%eax; mov %edx,%eax），4.4 恒折（b28c-27 复核）。
 long long CAdvanceAltarLog::getIndex(long long key)
 {
     // ORIG 0x08157314..+0x26：sub $0x8 + mov eax,edx / mov $0,eax 死序 + sar 0x1f
@@ -79,6 +80,7 @@ void CAdvanceAltarLog::initStatistics()
 // 命中累加 enter/success/star 三计数；未命中经栈上 16B 构造后 operator[] 写入
 // {stageIndex, deltas}（data[0] 冗余存键，与 ORIG 二进制布局一致）。
 // ----------------------------------------------------------------------------
+// [b28d-lane6] DIFF·N93/N82：槽号/寄存器分配（99=99 长度同，逐条语义等价；N82 帧族）。
 void CAdvanceAltarLog::incrementEntranceData(unsigned int stageIndex,
                                              unsigned int enterDelta,
                                              unsigned int successDelta,
@@ -109,6 +111,7 @@ void CAdvanceAltarLog::incrementEntranceData(unsigned int stageIndex,
 // 命中累加 useCount/useStar；未命中 14B 结构装配后 memcpy 运算式写入新槽
 // （新建分支计数亦含增量，与 hit 分支累计一致）。
 // ----------------------------------------------------------------------------
+// [b28d-lane6] DIFF·N93/N82：槽号/寄存器分配（111 vs 123，语义闭合；N82 帧族）。
 void CAdvanceAltarLog::incrementLayerStatData(unsigned short itemType,
                                               unsigned int itemIndex,
                                               unsigned short a3,
@@ -149,6 +152,7 @@ void CAdvanceAltarLog::incrementLayerStatData(unsigned short itemType,
 // clear；同序 layers：size + memcpy 0x10（pair+8 起，超读 2 字节 pad 为 ORIG
 // 原行为）/trace/clear；尾 MsgQueueMgr put 队列 4。
 // ----------------------------------------------------------------------------
+// [b28d-lane6] DIFF·N93/N82：槽号/寄存器分配（258 vs 266，语义闭合）。
 void CAdvanceAltarLog::updateDatabase()
 {
     Guard<Mutex> guard(&m_mutex);

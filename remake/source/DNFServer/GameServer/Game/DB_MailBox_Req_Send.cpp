@@ -139,6 +139,12 @@ bool DB_MailBox_Req_Send::InsertLetter(MySQL* db, int characNo, int sendCharacNo
 //   → 拷贝 senderName → blob_to_str(0,+0x3a,10)/(1,+0x47,0xe) →
 //     set_query(postal insert 20 列) → exec。
 // ============================================================================
+// b28d-21: DIFF/N 封顶 — ORIG 0x0841f2fa 291 条 vs 重建 285 条，残差全为已知 N 族：
+// ①`mov -0x1c,%edx; mov %edx,%ecx; sub %eax,%ecx; mov %ecx,%eax; mov %eax,-0x1c`
+// vs 4.4 `sub %eax,-0x1c`（N18a 反向，单段不可造）；
+// ②`imul $0x15180,%eax,%edx; mov -0x1c,%eax; lea (%edx,%eax,1),%eax` vs
+// `imul %eax; add -0x1c`（N1/P205 两乘积拆形不可择）；
+// ③`mov 0x1e(%eax),%eax; mov %eax,%edx` vs 单段（N18a）。语义/调用序全等。
 bool DB_MailBox_Req_Send::insertMailData(MySQL* db, const SIG_MAILBOX_SEND_NEW_MAIL* sigRaw)
 {
     static int last_letter_id = 0;   // ORIG _ZZN19DB_MailBox_Req_Send14insertMailDataEP5MySQLPK25SIG_MAILBOX_SEND_NEW_MAILE14last_letter_id 0x0943c230

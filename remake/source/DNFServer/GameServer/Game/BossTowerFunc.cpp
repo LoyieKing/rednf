@@ -58,6 +58,7 @@ bool Global::CBossTowerFunc::UseItem(CUser* user, const Inven_Item& item)
 // 否则虚槽[10] handlePickupItem(user,item,flag,type)；非零 →
 // PacketGuard: put_header(1,0x2e)+put_byte(1)+finalize(true)+user->Send。
 // ----------------------------------------------------------------------------
+// [b28d-D9] P227/N82：cMyTrace 临时链 %ebx 保活 + PacketGuard 槽位差（ORIG 0x08146994 sz 0x00000144）
 char Global::CBossTowerFunc::GetItem(CUser* user, int item, bool flag, char type)
 {
     WongWork::CBossTower* tower = user->getBossTower();
@@ -89,6 +90,7 @@ char Global::CBossTowerFunc::GetItem(CUser* user, int item, bool flag, char type
 // "StaticPool BossTower NULL" → 0；按 get_member_count 映射 (1→0,2→1,3→2,4→3，
 // 其它保持 0)；handleStartGame 失败时 _destroy()；返回其结果。
 // ----------------------------------------------------------------------------
+// [b28d-D9] N82/槽差：帧/槽序差（74 vs 66）（ORIG 0x08146722 sz 0x00000102）
 bool Global::CBossTowerFunc::SelectDungeon(CParty* party, short dungeonIdx,
                                            ENUM_DUNGEON_TYPE type)
 {
@@ -225,6 +227,7 @@ bool Global::CBossTowerFunc::FinishLoad(CUser* user)  // ORIG T 0x08146916
 // state==10 → CDeathTower::handleLeaveUser；state==12 → 虚槽[5] handleLeaveUser；
 // state==5 且队伍存在 → giveup_game(user,true,false,false)；恒返回 1。
 // ----------------------------------------------------------------------------
+// [b28d-D9] N82/槽差：帧/槽序差（59 vs 57）（ORIG 0x08146ad8 sz 0x000000ca）
 void Global::CBossTowerFunc::GiveUpGame(CUser* user)
 {
     const int state = user->get_state();
@@ -295,6 +298,7 @@ bool Global::CBossTowerFunc::MoveMap(CUser* user, unsigned short* mapIndex)  // 
 // 参见同文件 UseItem/DieCharacInDungeon 的 state 分支注释）。命中 → 1，否则 0。
 // ORIG 调用方（objdump xref）：DisPatcher_FinishLoad::check_state(0x82654a6)、
 // 0x81c2bd4、0x81c4b5b、0x81feef2、0x8232256、0x82324c0。
+// [b28d-D9] N18a：P231 裸 register 消槽成功（20/20）；残 2 条 = 4.1 冗余 mov $1,%edx; mov %edx,%ebx 不可造（ORIG 0x081466f0 sz 0x00000031）
 bool Global::CGlobalFunc::Get_State_Check(ch_state state)
 {
     // b28c-L8 复测（N6 位折叠判据）：ORIG 0x081466f0 保 `mov $0x1,%edx;
@@ -306,7 +310,10 @@ bool Global::CGlobalFunc::Get_State_Check(ch_state state)
     // （ORIG 两处失败均 `ja/je` 跳同一 +0x29 岛）。
     if (static_cast<unsigned int>(state) <= 0xd)
     {
-        unsigned int bit = 1;
+        // [b28d-D9] P231：ORIG 0x081466f0 的 bit 全程寄存器（%ebx）无栈槽
+        // （`mov $0x1,%edx; mov %edx,%ebx; shl %cl,%ebx`）；裸 register 存储类
+        // 提示改变 4.4 分配偏好（非 asm 绑定，P0 合规）。
+        register unsigned int bit = 1;
         bit <<= static_cast<unsigned int>(state);
         if ((bit & 0x3420u) != 0)
         {

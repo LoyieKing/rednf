@@ -51,7 +51,9 @@ public:
                                                     //   P217：time_t 同型直存消 4.4 mov%eax,%edx 中转，
                                                     //   sizeof/偏移不变，b28-L11 探针 l11_n92 实证）
     SIG_LOAD_KILL_MONSTER_INFO m_expand;            // +0x34884  ENUM 0x282
-    char m_memberFlag[0xc];                         // +0x3f850   成员脏标记
+    bool m_memberFlag[0xc];                         // +0x3f850   成员脏标记
+    // [b28d-lane15] char→bool：ORIG GetMemberPosition 0x0848fd7c 用 `movzbl` 读该数组
+    // 并直存 bool&（P11 unsigned + P136 bool 直字节存）。sizeof/全部偏移/mangled 不变。
 };
 static_assert(sizeof(CACHE_CHARACTER_TYPE) == 0x3f85c,
               "CACHE_CHARACTER_TYPE ABI drift (ORIG 0x3f85c)");

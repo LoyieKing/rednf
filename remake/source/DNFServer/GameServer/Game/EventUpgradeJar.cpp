@@ -155,7 +155,9 @@ void Event_Upgrade_Jar::SettingRecipeNUpConunt(int materialIdx, upgrade_info_t& 
         }
         else if (m_materialKind == 2)
         {
-            info.m_discountBase = (int)(m_discountRate * (float)info.m_discountBase);
+            // b28d-lane25：P167 差集实证 ORIG 0x080f4d?? 调 _getDiscountRate_NewNPC()
+            // 取折扣率（非直读 m_discountRate 成员）。
+            info.m_discountBase = (int)(_getDiscountRate_NewNPC() * (float)info.m_discountBase);
             info.m_meterialCount = _getMeterialCount_NewNPC(upgrade);
             info.m_recipeItem = 0x28be7b;
         }
@@ -222,10 +224,12 @@ unsigned long Event_Upgrade_Jar::GetIndexLuckyStrengtheningDeed()
 // m_recipeMap[(min,max)] 的值（min/max 为两键对应的 short 值）；否则 0。
 unsigned long Event_Upgrade_Jar::getBoosterIndex_byUpgradeCardIndex(unsigned long& cardIdx, unsigned long& boosterIdx)
 {
-    std::map<unsigned long, short>::const_iterator itCard = m_boosterIndexMap.find(cardIdx);
+    // b28d-lane25：P167 差集实证 ORIG 用非 const `_Rb_tree_iterator`（ne/ptEv）且
+    // make_pair(low,high) 为 pair<short,short>→pair<int,int> 转换（P96/P270/P192）。
+    std::map<unsigned long, short>::iterator itCard = m_boosterIndexMap.find(cardIdx);
     if (itCard == m_boosterIndexMap.end())
         return 0;
-    std::map<unsigned long, short>::const_iterator itBooster = m_boosterIndexMap.find(boosterIdx);
+    std::map<unsigned long, short>::iterator itBooster = m_boosterIndexMap.find(boosterIdx);
     if (itBooster == m_boosterIndexMap.end())
         return 0;
 
@@ -234,8 +238,8 @@ unsigned long Event_Upgrade_Jar::getBoosterIndex_byUpgradeCardIndex(unsigned lon
     if (high < low)
         std::swap(low, high);
 
-    std::map<std::pair<int, int>, unsigned long>::const_iterator itRecipe =
-        m_recipeMap.find(std::make_pair((int)low, (int)high));
+    std::map<std::pair<int, int>, unsigned long>::iterator itRecipe =
+        m_recipeMap.find(std::make_pair(low, high));
     if (itRecipe == m_recipeMap.end())
         return 0;
     return itRecipe->second;

@@ -38,6 +38,7 @@ CFatigueQuantity::~CFatigueQuantity()
 
 // ORIG 0x0810f95e：虚调度 set_event_record_type（vtable+0x18）写 m_recordType=key，
 // 然后把绑定脚本存到 +0x1c。
+// [b28d-lane6] NEAR·N76+N7：ORIG 0x0811039x 指针 store RHS-first（mov 0x10(%ebp),%edx; mov 0x8(%ebp),%eax; mov %edx,0x1c(%eax)），4.4 同型指针恒 LHS-first（P211）；虚调用目标 %ecx↔%eax=N7（4.4.6 后端可消 N7，TU 统计不变）。
 void CFatigueQuantity::set_event_data(int key, InGameEventScript* script)
 {
     /* N7 封顶（b26 NL26）：唯一残差为虚调用 vfn/this/key 寄存器分配差
@@ -127,6 +128,7 @@ std::string& CObjectBringUp::get_db_table_name()
 // 「(当前已用疲劳 - 增量) < t 且 当前已用疲劳 >= t」即发该对邮件；
 // 发信成功读 m_mail.m_itemIdx 记日志后返回（ORIG 单次发放语义）。
 // 全程不缓存脚本指针（与 ORIG 同）。
+// [b28d-lane6] DIFF·N93：帧 0x40 vs 0x50 + 具名局部槽偏移（语义闭合）。
 void CObjectBringUp::sendEventItemFromFatigue(CUser* user, unsigned int fatigue)
 {
     if (static_cast<ObjectBringUpScript*>(m_script1c)->m_ruleMails1c.empty())
@@ -195,6 +197,7 @@ std::string& CPurchaseCashItemBonus::get_db_table_name()
 // 命中脚本 m_set0c（[item idx start]/[item idx end] 区间导入的目标商品集合）
 // 时向 DB 队列发 DB_UpdatePurchaseCashItemBonus（m_id, acc_id）请求，
 // 并以 cMyTrace 记 "updateTargetGoodsCount(%d)"（acc_id）。
+// [b28d-lane6] DIFF·N93：ORIG 0x08110xxx 帧 0x48 无 callee-saved（我们 push %ebx+sub 0x44）+ find 槽序。
 void CPurchaseCashItemBonus::updateTargetGoodsCount(
     CUser* user, unsigned int characNo, stCeraShopIPGRequest_t* request)
 {
@@ -239,6 +242,7 @@ bool CPurchaseCashItemBonus::verifyGiveBonusReward(
 // ORIG 0x0810fb34：按购买数遍历 m_ruleMails24 规则-邮件对发奖励邮件。
 // user 为空仅记 LogManager 告警返回 false；命中规则且发信成功读
 // mail.m_itemIdx 记日志并将返回置 false（ORIG 返回值语义：true=本轮未发放）。
+// [b28d-lane6] DIFF·N93：ORIG 0x08110xxx bool 槽 -0x9 vs 我们 -0x11 + lea 0x24 vs add/mov 缓存。
 bool CPurchaseCashItemBonus::sendPurchaseBonusReward(CUser* user, int count)
 {
     if (user == 0)

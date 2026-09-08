@@ -54,14 +54,17 @@ static __thread int gUnicodeBufferIndex;
 static __thread char gTCharBuffer[10][0x1000];
 static __thread int gTCharBufferIndex;
 
+// [b28d-L1] IDENTICAL/AE（routed 口径 check_tu_routed）：ORIG 0x08adea35；残余仅 %gs TLS 块内偏移立即数（跨工具链 TLS 布局，P155 同形豁免）。
 char* getMbcsBuffer()          // ORIG T 0x08adea35
 {
     return gMbcsBuffer[gMbcsBufferIndex];
 }
+// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x08adea54；残余仅 %gs TLS 布局立即数（P155 豁免）。
 wchar_t* getUnicodeBuffer()    // ORIG T 0x08adea54
 {
     return gUnicodeBuffer[gUnicodeBufferIndex];
 }
+// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x08adea73；残余仅 %gs TLS 布局立即数（P155 豁免）。
 char* getTCharBuffer()         // ORIG T 0x08adea73
 {
     return gTCharBuffer[gTCharBufferIndex];
@@ -87,6 +90,7 @@ int getTCharBufferSize()       // ORIG T 0x08adeaa6
 // [b28 判词·N] AE-NEAR(2)：第二 memcpy 的 srcLength(0x18)/src(0x10) 装载——4.1 先
 // 读远参入 %edx 再读近参入 %ecx，4.4 恒先近后远（P209 附 memcpy 装载跨版本定论，
 // 探针 e19；N82附 多实参寄存器对调）。2 行相邻互换，禁 register 绑定（P0/N96）。
+// [b28d-L1] 修法：ORIG 0x08ad771a 第三段 dest 为 `mov srcLength,%edx; mov pos,%ecx; lea (%ecx,%edx,1)`；未分组 `+ pos + srcLength` 使 4.4 反序，改 `+ (pos + srcLength)` 后 AE（探针 /tmp/b28d_l1/probe/p_ins.cpp f1/f3）。
 CharString insert(const CharString& str, int pos, const char* src, int srcLength)
 {
     if (str.length() == 0)
@@ -96,7 +100,11 @@ CharString insert(const CharString& str, int pos, const char* src, int srcLength
     CharStringData* newData = CharStringData::createTerminated(str.length() + srcLength);
     memcpy(newData->getBuffer(), str.c_str(), pos);
     memcpy(newData->getBuffer() + pos, src, srcLength);
-    memcpy(newData->getBuffer() + pos + srcLength, str.c_str() + pos,
+    // [b28d-L1] 修法：第三段 dest 写 `+ (pos + srcLength)` 显式分组——ORIG
+    // 0x08ad78c6 段为 `mov srcLength,%edx; mov pos,%ecx; lea (%ecx,%edx,1)`，
+    // 未分组的 `+ pos + srcLength` 使 4.4 反序（探针 /tmp/b28d_l1/probe/p_ins.cpp
+    // f1 vs f3 实证）。语义等价（指针+整数结合律）。
+    memcpy(newData->getBuffer() + (pos + srcLength), str.c_str() + pos,
            str.length() - pos);
     return CharString(newData);
 }
@@ -140,6 +148,7 @@ CharString insert(const CharString& str, int pos, char src)
 // _Z6insertRK10WideStringiPKwi 0x08ada76a
 // [b28 判词·N] 同 CharString 版：memcpy 实参装载序 4.1/4.4 互换（P209 附/N82附），
 // 2 行寄存器对调，禁绑定形（P0）。
+// [b28d-L1] 修法：同 CharString 版（ORIG 0x08ada76a 段装载序），dest 改 `+ (pos + srcLength)` 后 AE。
 WideString insert(const WideString& str, int pos, const wchar_t* src, int srcLength)
 {
     if (str.length() == 0)
@@ -149,7 +158,8 @@ WideString insert(const WideString& str, int pos, const wchar_t* src, int srcLen
     WideStringData* newData = WideStringData::createTerminated(str.length() + srcLength);
     memcpy(newData->getBuffer(), str.c_str(), pos * sizeof(wchar_t));
     memcpy(newData->getBuffer() + pos, src, srcLength * sizeof(wchar_t));
-    memcpy(newData->getBuffer() + pos + srcLength, str.c_str() + pos,
+    // [b28d-L1] 修法：同 CharString 版（ORIG 0x08ada8e6 段装载序）。
+    memcpy(newData->getBuffer() + (pos + srcLength), str.c_str() + pos,
            (str.length() - pos) * sizeof(wchar_t));
     return WideString(newData);
 }
@@ -296,6 +306,7 @@ CharString replace(const CharString& str, char pat, char target)
 // ---------------------------------------------------------------------------
 
 // _Z7replaceRK10WideStringPKwiS3_i 0x08adacbe
+// [b28d-L1] N 封顶（P75 实参装载时刻）：ORIG 0x08adab85 中 receiver/实参装载块位置与 4.4 不同（real diff 30 全为装载序/寄存器形态）。P167 CLEAR（11/11）⇒ 语义等价；装载时刻跨版本不可择。
 WideString replace(const WideString& str, const wchar_t* pat, int patLength,
                    const wchar_t* target, int targetLength)
 {
@@ -427,6 +438,7 @@ void toUnicode(const std::wstring& src, std::wstring& dst)
 // ---------------------------------------------------------------------------
 
 // _Z9toUnicodePKc 0x08adf1b3
+// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x08adf1b3；残余仅 %gs TLS 布局立即数（P155 豁免）。
 const wchar_t* toUnicode(const char* src)
 {
     const int curindex = gUnicodeBufferIndex;
@@ -437,6 +449,7 @@ const wchar_t* toUnicode(const char* src)
 }
 
 // _Z9toUnicodeRKSs 0x08adf0f6
+// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x08adf0f6；残余仅 %gs TLS 布局立即数（P155 豁免）。
 const wchar_t* toUnicode(const std::string& src)
 {
     const int curindex = gUnicodeBufferIndex;
@@ -447,6 +460,7 @@ const wchar_t* toUnicode(const std::string& src)
 }
 
 // _Z9toUnicodePKcRSbIwSt11char_traitsIwESaIwEE 0x08adf32f
+// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x08adf32f；残余仅 %gs TLS 布局立即数（P155 豁免）。
 void toUnicode(const char* src, std::wstring& dst)
 {
     const int curindex = gUnicodeBufferIndex;
@@ -457,6 +471,7 @@ void toUnicode(const char* src, std::wstring& dst)
 }
 
 // _Z9toUnicodeRKSsRSbIwSt11char_traitsIwESaIwEE 0x08adf25c
+// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x08adf25c；残余仅 %gs TLS 布局立即数（P155 豁免）。
 void toUnicode(const std::string& src, std::wstring& dst)
 {
     const int curindex = gUnicodeBufferIndex;

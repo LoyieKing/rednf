@@ -61,6 +61,7 @@ extern std::map<int, std::string> g_townScriptFileList;  // 定义于 GameWorld.
 // ===================== QuestScript =====================
 
 // ORIG C1 0x08a70700：成员自动构造（memset 区清零见 ctor 尾段）。
+// [b28d-L8] N82/N78 | 大函数帧/槽平移 + memset lowering（N78 rep stos vs call，ORIG 0x0837xxxx）
 QuestScript::QuestScript()
 {
     memset(m_jobNames, 0, sizeof(m_jobNames));
@@ -69,65 +70,16 @@ QuestScript::QuestScript()
     memset(m_jobSolves, 0, sizeof(m_jobSolves));
 }
 
-// ORIG copy 0x0837adc8：string/vector/map 成员逐个深拷贝构造
-// （NEW 原为编译器隐式生成，GCC 4.4 下对 COW string 成员退化为 rep movsl
-// 整块浅拷贝，引用计数未递增 → 双释/悬垂风险）；四组 11 指针数组与
-// ORIG 同型浅拷贝（ORIG asm 逐指针复制实证）。
-QuestScript::QuestScript(const QuestScript& o)
-    : m_index(o.m_index), m_name(o.m_name), m_requestDefault(o.m_requestDefault),
-      m_conditionDefault(o.m_conditionDefault), m_solveDefault(o.m_solveDefault),
-      m_questIdx(o.m_questIdx), m_fieldC8(o.m_fieldC8),
-      m_questType(o.m_questType), m_fieldD8(o.m_fieldD8),
-      m_jobChangeQuest(o.m_jobChangeQuest), m_fieldE0(o.m_fieldE0),
-      m_npcIdx(o.m_npcIdx), m_fieldE8(o.m_fieldE8), m_fieldEC(o.m_fieldEC),
-      m_fieldF0(o.m_fieldF0), m_targetCharacters(o.m_targetCharacters),
-      m_intDataList(o.m_intDataList), m_antiQuestList(o.m_antiQuestList),
-      m_questCountLimit(o.m_questCountLimit), m_field128(o.m_field128),
-      m_field12c(o.m_field12c), m_field130(o.m_field130),
-      m_field134(o.m_field134), m_clearItems(o.m_clearItems),
-      m_killItems(o.m_killItems), m_appearMap(o.m_appearMap),
-      m_rewardSelectList(o.m_rewardSelectList), m_field16c(o.m_field16c),
-      m_triggerType(o.m_triggerType), m_triggerSubType(o.m_triggerSubType),
-      m_triggerData(o.m_triggerData), m_field18c(o.m_field18c),
-      m_field198(o.m_field198), m_field1b0(o.m_field1b0),
-      m_field1bc(o.m_field1bc), m_field1c0(o.m_field1c0),
-      m_field1c4(o.m_field1c4), m_field1c8(o.m_field1c8),
-      m_rewardType(o.m_rewardType), m_titleReward(o.m_titleReward),
-      m_field1e4(o.m_field1e4), m_selectReward(o.m_selectReward),
-      m_field1f4(o.m_field1f4), m_eventDialogs(o.m_eventDialogs),
-      m_field20c(o.m_field20c), m_field218(o.m_field218),
-      m_rewardData(o.m_rewardData), m_field228(o.m_field228),
-      m_field22c(o.m_field22c), m_field22d(o.m_field22d),
-      m_field22e(o.m_field22e), m_field23c(o.m_field23c),
-      m_field23d(o.m_field23d), m_field240(o.m_field240),
-      m_str244(o.m_str244), m_field248(o.m_field248),
-      m_field24c(o.m_field24c), m_field250(o.m_field250),
-      m_field254(o.m_field254), m_mailQuestFlag(o.m_mailQuestFlag),
-      m_mailTitle(o.m_mailTitle), m_mailContents(o.m_mailContents),
-      m_mailItems(o.m_mailItems), m_field270(o.m_field270),
-      m_field271(o.m_field271), m_powerSide(o.m_powerSide),
-      m_field274(o.m_field274), m_field278(o.m_field278),
-      m_field27c(o.m_field27c), m_field280(o.m_field280),
-      m_field282(o.m_field282), m_field284(o.m_field284),
-      m_field288(o.m_field288), m_field28c(o.m_field28c),
-      m_field290(o.m_field290), m_str294(o.m_str294),
-      m_postalReward(o.m_postalReward), m_field2a8(o.m_field2a8),
-      m_field2ac(o.m_field2ac), m_map2b0(o.m_map2b0), m_2c8(o.m_2c8),
-      m_str2cc(o.m_str2cc), m_exceptionList(o.m_exceptionList),
-      m_dailySchedule(o.m_dailySchedule), m_str2e8(o.m_str2e8),
-      m_2ec(o.m_2ec), m_vec2f0(o.m_vec2f0), m_vec2fc(o.m_vec2fc),
-      m_308(o.m_308)
+// [b28d-L8 · N84 处置②/P147] ORIG _ZN11QuestScriptC1ERKS_ 0x0837adc8 为 W
+// 隐式合成（0xd65）；本 TU 持完整类定义但无 ODR 使用点 ⇒ 加 TU-local force
+// 使用点保证 W 发射（与 CListTables.cpp 的镜像类弱定义合并时以完整版为准）。
+static void __attribute__((used)) forceQuestScriptCopyEmit(const QuestScript& o)
 {
-    for (int i = 0; i <= 2; ++i)
-        m_autoDisplay.m_values[i] = o.m_autoDisplay.m_values[i];
-    for (int i = 0; i < 0xb; ++i)
-    {
-        m_jobNames[i] = o.m_jobNames[i];          // 指针浅拷贝（ORIG 同型）
-        m_jobRequests[i] = o.m_jobRequests[i];
-        m_jobConditions[i] = o.m_jobConditions[i];
-        m_jobSolves[i] = o.m_jobSolves[i];
-    }
+    QuestScript t(o);
+    (void)t;
 }
+
+
 
 // ORIG D1 0x08a70700：先 destroy()（delete 四组 11 指针），再成员自动析构。
 QuestScript::~QuestScript()
@@ -428,6 +380,7 @@ int TrainingQuestScript::getTrainingQuest(int dayIndex, int questCount, int job)
     return m_questProb[dayIndex - 1 + questCount].at(m_applyCount);
 }
 
+// [b28d-L8] N82 | 块序/调用序（vector C1 与 computeDayIndex 位置互换，ORIG 0x08a9xxx）
 bool TrainingQuestScript::getApplyLevel(std::multiset<int>* out)
 {
     if (m_selectProb.m_count <= 0 || m_selectProb.m_pairs.empty())
@@ -474,6 +427,7 @@ bool TrainingQuestScript::getApplyLevel(std::multiset<int>* out)
 // 权威定义见 InitScriptProducers_4.cpp（g_questScriptFileList B 0x9500480）。
 extern std::map<int, std::string> g_questScriptFileList;
 
+// [b28d-L8] P75 | 同 initTownScript：ORIG memcpy 首参先占 (%esp)+strlen 后栈顶重读；四形探针不可造（ORIG 0x8aad9ec）
 bool initQuestScript(const char* dir, const char* list)
 {
     strncpy(g_questScriptBaseDirectory, dir, 0x100);
@@ -493,6 +447,7 @@ bool initQuestScript(const char* dir, const char* list)
     return 1;
 }
 
+// [b28d-L8] N82/N89 | 超大函数（3836 条）帧差 0x10 + 全帧槽平移；§6.2 三件套口径（ORIG 0x08a6xxx）
 int importQuestScript(QuestScript* script, const char* path)
 {
     // ORIG importQuestScript 的函数局部辅助类 QuestData（报告
@@ -1794,6 +1749,7 @@ int importQuestScript(QuestScript* script, const char* path)
     }
     return 1;
 }
+// [b28d-L8] P75 | 实参装载/栈顶中转差（ORIG memcpy 首参先占 (%esp)、strlen 后 mov (%esp),%eax 重读）；四形探针不可造（ORIG 0x8a6166a）
 bool initTownScript(char* dir, char* list)
 {
     strncpy(g_townScriptBaseDirectory, dir, 0x100);
@@ -1813,6 +1769,7 @@ bool initTownScript(char* dir, char* list)
     return 1;
 }
 
+// [b28d-L8] N82 | 大函数槽平移 0x10 + 块序（ORIG 0x8aada90）
 bool importTownScript(TownScript* script, const char* path)
 {
     // ORIG T 0x8aada90（382 条）：ScanType 失败=文件读完并成功收尾；各标签
@@ -1964,6 +1921,7 @@ bool importTownScript(TownScript* script, const char* path)
     return true;
 }
 
+// [b28d-L8] N82 | 调用序（clear/C1 位置）+ 槽平移（ORIG 0x08a9xxx）
 int importTrainingQuestScript(TrainingQuestScript* script, const char* path)
 {
     // ORIG T 0x8aaf542（258 条）：键值段只由 ScanInt 消费数值，外层 ScanType

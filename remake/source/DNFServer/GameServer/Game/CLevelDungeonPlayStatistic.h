@@ -16,7 +16,9 @@ public:
     {
         int m_userCount;   // +0x00（每次调用 +1）
         int m_playCount;   // +0x04（+= playCount）
-        stDungeonPlayInfo() : m_userCount(0), m_playCount(0) {}
+        // ORIG nm 无 stDungeonPlayInfo::C1Ev ⇒ 无用户 ctor（POD）；
+        // 两字段在使用点显式赋值（ORIG 0x0860ed67..0x0860ed6d 先 playCount
+        // 后 userCount，P131 按写入宽度/顺序恢复）。
     };
     void IncreaseLevelDungeonPlay(int level, int playCount);  // ORIG T 0x0860ecc6
 

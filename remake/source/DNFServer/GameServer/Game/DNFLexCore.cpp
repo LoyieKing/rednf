@@ -39,6 +39,7 @@ DNFLex::stream_t* DNFLex::GetInputStream()
 }
 
 // ---- DNFLex::getStreamName()（ORIG 0x8acd310，tstring RVO）----
+// [b28d-19] N：N7/N82 —— 同上（get_next_token 同族）；ORIG 0x08acd310。
 std::string DNFLex::getStreamName()
 {
     stream_t* finish = stream_stack.end().base();
@@ -115,6 +116,7 @@ bool DNFLex::LoadStream(const char* dir, const char* filename, stream_data_t* s)
 }
 
 // ---- DNFLex::PushInputStream(...)（ORIG 0x8acd7d0）----
+// [b28d-19] AE（真实构建口径 = flags.make + build.make per-source `-O2 -std=gnu++98`；该口径下 178=178 逐条对齐。check_tu_routed.sh 曾漏 per-source 追加 flags 按 -O0 假报 DIFF，Main 已修）；ORIG 0x08acd7d0。
 bool DNFLex::PushInputStream(const char* dir, const char* filename, stream_data_t* s)
 {
     stream_t stream;
@@ -225,6 +227,7 @@ int DNFLex::getLineNumber()
 }
 
 // ---- DNFLex::get_next_token（ORIG 0x8acdaa0）----
+// [b28d-19] N：N7/N82 —— 4.1 callee-saved 栈帧头保存形 + 寄存器分配序差，块内条数/助记符集全等；ORIG 0x08acdaa0。
 int DNFLex::get_next_token()
 {
     int tok = 0;

@@ -35,6 +35,10 @@ public:
     static const unsigned int kRankStageCount = 200;
     static const unsigned int kRankTowerCount = 5;
 
+    // [b28d-D13] ORIG C1 0x082a787c 尾部 `movl $0x0,0x70f0(%eax)`（m_tableType
+    // 清零，218 insn）——隐式 C1 不初始化标量成员 ⇒ 用户默认 ctor 补 m_tableType(0)。
+    CDeathTowerRanking() : m_tableType(0) {}
+
     typedef __gnu_cxx::hash_map<unsigned int, unsigned int,
                                 __gnu_cxx::hash<unsigned int>,
                                 std::equal_to<unsigned int>,
@@ -148,7 +152,9 @@ public:
                                      // 0x8468d4a/d6a movzbl ⇒ 无符号）
         unsigned int m_stage;        // +0x88
         unsigned int m_playTime;     // +0x8c
-        unsigned char m_flag90;      // +0x90（ctor 置 0；塔榜首槽此位=“有纪录”）
+        // [b28d-D13] P248 档②：ORIG checkRenewTopRecord 0x084682ae
+        // `movzbl (%eax); xor $1; test %al; je` ⇒ 字段 bool 化 + 裸 if(!field)。
+        bool m_flag90;               // +0x90（ctor 置 0；塔榜首槽此位=“有纪录”）
         unsigned int m_field94;      // +0x94（ctor 置 -1；表级纪录此位=存故名次；ORIG
                                      // _makeRecordPacket 0x8468dc6 两 mov = unsigned→int 转换形）
     };

@@ -784,7 +784,7 @@ void CharacAdvanceAltarManager::setDefaultSlot()
         }
         _Slot slot;                                  // ORIG _Slot ctor memset
         slot.m_byte0 = kUnit[k];
-        slot.m_int1 = 1;                             // 槽类型标记（SLOT_N1）
+        slot.m_int1 = static_cast<SlotInt1_t>(1);    // 槽类型标记（SLOT_N1）
         slot.m_byte5 = static_cast<unsigned char>(k);
         slot.m_int6 = 0;
         slots.insert(std::make_pair(static_cast<unsigned char>(k), slot));
@@ -801,7 +801,7 @@ void CharacAdvanceAltarManager::setDefaultSlot()
         }
         _Slot slot;
         slot.m_byte0 = kSkill[k];
-        slot.m_int1 = 2;                             // 槽类型标记（SLOT_N2）
+        slot.m_int1 = static_cast<SlotInt1_t>(2);    // 槽类型标记（SLOT_N2）
         slot.m_byte5 = static_cast<unsigned char>(k);
         slot.m_int6 = 0;
         slots.insert(std::make_pair(static_cast<unsigned char>(k), slot));
@@ -1205,9 +1205,9 @@ bool CharacAdvanceAltarManager::clearStage(int stageIdx, StageDifficulty::T diff
     }
     if (it->second.m_field4 < static_cast<int>(diff))    // 未达该难度 → 晋级发星
     {
-        it->second.m_field4 =
+        it->second.m_field4 = static_cast<StageField4_t>(
             StageDifficulty::getNextDifficulty(
-                static_cast<StageDifficulty::T>(it->second.m_field4));
+                static_cast<StageDifficulty::T>(it->second.m_field4)));   // b28d：m_field4 已 enum 化
         starDelta = kRewardStar[diff];
         cur->m_curStar += starDelta;      // +0x0c
         cur->m_starPoint += starDelta;    // +0x14
@@ -1222,8 +1222,9 @@ bool CharacAdvanceAltarManager::clearStage(int stageIdx, StageDifficulty::T diff
 //      尾标志递归。----
 void CharacAdvanceAltarManager::setNextStage(int stageIdx)
 {
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();
-    if (cur == 0)
+    // [b28d-26] ORIG 0x081331d4 每处 `mov 0x8(%ebp),%eax; mov (%eax),%eax`
+    // 重读 this+0（P183 地址重物化，无 cur 具名局部）⇒ 直读成员。
+    if (m_currentAdvanceAltarData == 0)
     {
         return;
     }
@@ -1232,8 +1233,8 @@ void CharacAdvanceAltarManager::setNextStage(int stageIdx)
         StageMapList& stageMapList = G_CDataManager()->m_stageMapList;
         _Stage stage;
         stage.m_field0 = stageMapList.getFirstStageIndex();
-        stage.m_field4 = -1;
-        cur->m_stages.insert(std::make_pair(stage.m_field0, stage));
+        stage.m_field4 = static_cast<StageField4_t>(-1);   // b28d：enum 化（-1 哨兵）
+        m_currentAdvanceAltarData->m_stages.insert(std::make_pair(stage.m_field0, stage));
         return;
     }
     bool chainFlags = false;
@@ -1243,17 +1244,17 @@ void CharacAdvanceAltarManager::setNextStage(int stageIdx)
     {
         return;
     }
-    std::map<int, _Stage>::iterator it = cur->m_stages.find(nextStage);
-    if (it != cur->m_stages.end())
+    std::map<int, _Stage>::iterator it = m_currentAdvanceAltarData->m_stages.find(nextStage);
+    if (it != m_currentAdvanceAltarData->m_stages.end())
     {
         return;   // 已有该幕记录则不再推进
     }
-    cur->m_field20 = 1;   // ORIG *(char*)(cur+0x20)=1（语义【推断】）
+    m_currentAdvanceAltarData->m_field20 = 1;   // ORIG *(char*)(cur+0x20)=1（语义【推断】）
     _Stage stage;
     stage.m_field0 = nextStage;
-    stage.m_field4 = -1;
-    cur->m_stages.insert(std::make_pair(nextStage, stage));
-    cur->m_update = 1;
+    stage.m_field4 = static_cast<StageField4_t>(-1);   // b28d：enum 化（-1 哨兵）
+    m_currentAdvanceAltarData->m_stages.insert(std::make_pair(nextStage, stage));
+    m_currentAdvanceAltarData->m_update = 1;
     if (chainFlags)
     {
         setNextStage(nextStage);

@@ -40,14 +40,8 @@ private:
     void _insertPurchaseCount(unsigned int mId);
 };
 
-// P1 组件视图：SIG_CERASHOP_PURCHASE_COUNT 的 purchase_cnt 字段（+0x8 ushort）
-// 必须经此视图访问才能在 O0 折叠为单指令 disp 寻址（movzwl 0x8(%eax)）。
-struct CeraShopCntView
-{
-    char m_pad[8];
-    unsigned short m_cnt;
-    int m_param;
-};
+// b28d-21（D21）：SIG_CERASHOP_PURCHASE_COUNT 已按 ORIG 逐字段具名化
+//（SigTypes_A.h，sizeof 0x10 不变），原 CeraShopCntView 视图与裸偏移全部删除。
 
 // ============================================================================
 // b21 NEAR：逐指令语义与 ORIG 0x0844b0cc 全等；残余差异仅
@@ -63,6 +57,9 @@ struct CeraShopCntView
 //   → *guard<<slot → guard->GetInBuffer<SIG>()（null 则 trace(0xbbc9) 返 false）
 //   → 16B 逐字拷贝 → MsgQueueMgr::put(DISPATCH_Q=1, guard) → 返 true。
 // ============================================================================
+// b28d-21: NEAR（DIFF→NEAR）— SIG_CERASHOP_PURCHASE_COUNT 具名化（SigTypes_A.h）
+// + 删 CeraShopCntView/裸偏移（P156）；154=154 指令数全等，p167 调用点差集 CLEAR
+// （22=22）。余槽位分配差（N82）。ORIG 0x0844b0cc。
 bool DB_UpdateCeraShopPurchaseCount::dispatch(int userIdx, int slot, Stream* stream)
 {
     SIG_CERASHOP_PURCHASE_COUNT* sig =
@@ -76,9 +73,7 @@ bool DB_UpdateCeraShopPurchaseCount::dispatch(int userIdx, int slot, Stream* str
         return false;
     }
 
-    if (!_selectPurchaseCount(
-            *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig) + 0x0),
-            reinterpret_cast<CeraShopCntView*>(sig)->m_cnt))
+    if (!_selectPurchaseCount(sig->m_id, sig->m_purchaseCnt))
     {
         cMyTrace trace(
             __PRETTY_FUNCTION__,
@@ -87,19 +82,15 @@ bool DB_UpdateCeraShopPurchaseCount::dispatch(int userIdx, int slot, Stream* str
         return false;
     }
 
-    if (reinterpret_cast<CeraShopCntView*>(sig)->m_cnt == 0)
+    if (sig->m_purchaseCnt == 0)
     {
-        reinterpret_cast<CeraShopCntView*>(sig)->m_cnt = 1;
-        _insertPurchaseCount(
-            *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig) + 0x0));
+        sig->m_purchaseCnt = 1;
+        _insertPurchaseCount(sig->m_id);
     }
     else
     {
-        reinterpret_cast<CeraShopCntView*>(sig)->m_cnt =
-            reinterpret_cast<CeraShopCntView*>(sig)->m_cnt + 1;
-        _updatePurchaseCount(
-            *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(sig) + 0x0),
-            reinterpret_cast<CeraShopCntView*>(sig)->m_cnt);
+        sig->m_purchaseCnt = sig->m_purchaseCnt + 1;
+        _updatePurchaseCount(sig->m_id, sig->m_purchaseCnt);
     }
 
     CStreamGuard guard(
@@ -241,6 +232,9 @@ void DB_UpdateCeraShopPurchaseCount::_insertPurchaseCount(unsigned int mId)
 //   trace(0xbbde) "ptrData is null" 返）→ sig+0xc=count；+0=accId；+4(8B)=itemUid；
 //   +8(2B)=0 → MsgQueueMgr::put(DB_Q=2, guard)。
 // ============================================================================
+// b28d-21: NEAR（DIFF→NEAR）— 字段具名化后逐字段写（ORIG +0x4 仅 4 字节写，
+// 原 `*(unsigned long long*)` 8 字节写已修正）；82=82 指令数全等，p167 CLEAR（14=14）。
+// 余 P211 装载序（N82）。ORIG 0x0844b31c。
 void DB_UpdateCeraShopPurchaseCount::makeRequest(unsigned int accId,
                                                  unsigned long itemUid,
                                                  int count, int param4)
@@ -260,10 +254,10 @@ void DB_UpdateCeraShopPurchaseCount::makeRequest(unsigned int accId,
         return;  // ORIG jmp → ~CStreamGuard 后 ret（无入队）
     }
 
-    *(int*)((char*)sig + 0xc) = count;
-    *(unsigned int*)((char*)sig + 0x0) = accId;
-    *(unsigned long long*)((char*)sig + 0x4) = itemUid;
-    *(unsigned short*)((char*)sig + 0x8) = 0;
+    sig->m_count = count;
+    sig->m_id = accId;
+    sig->m_itemUid = (unsigned int)itemUid;   // ORIG +0x4 仅 4 字节写
+    sig->m_purchaseCnt = 0;
 
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
 }

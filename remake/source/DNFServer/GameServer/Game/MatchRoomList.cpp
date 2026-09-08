@@ -63,6 +63,7 @@ bool CWaitingRoomList::insert(IMatch* room)
 
 int CWaitingRoomList::doMatch(IMatch* me, std::multimap<float, IMatch*>& out)
 {
+    // b28d-L3: DIFF/P168a+N82 — ORIG `call; xor $1; test; je`（bool callee 取反直判）与 4.4 形差（P168a③b 跨版本 bool ABI）+ 帧/槽号差
     if (m_roomSet.empty())
         return 0;
     for (std::set<IMatch*>::iterator it = m_roomSet.begin();
@@ -107,6 +108,7 @@ bool CLeagueMatchRoomList::DelRoom(IMatch* room)
 
 bool CLeagueMatchRoomList::Match(IMatch* me, IMatch** out)
 {
+    // b28d-L3: DIFF/N89 — p167 MISSING=2：`map<IMatch*,int>::end()` + `_Rb_tree_iterator<pair<IMatch* const,int>>::operator!=`（ORIG 外部 ca
     if (m_roomMap.size() == 0)
         return false;
     bool found = false;
@@ -143,6 +145,7 @@ bool CLeagueMatchRoomList::Match(IMatch* me, IMatch** out)
 
 CMultiMatchRoomList::CMultiMatchRoomList()
 {
+    // b28d-L3: DIFF/N89 — ORIG 0x856... p167 MISSING=2：`IRoomList::C1Ev`（基类构造外部 call）+ `make_pair<int, CWaitingRoomList&>` 右值实例 `_ZSt9ma
     // 按每队人数（1..GetPlayCountPerOneTeam）预建等待列表；
     // GetPlayCountPerOneTeam() 恒返 1，故实际仅插入 key=1。
     // 非静态成员经 NULL this 调用（ORIG 恒返 1，不访问 this），同 MatchRoomLCB.cpp。
@@ -203,6 +206,7 @@ bool CMultiMatchRoomList::DelRoom(IMatch* room)
 
 bool CMultiMatchRoomList::Match(IMatch* me, IMatch** out)
 {
+    // b28d-L3: DIFF/N82+N89 — ORIG 280 vs 258（我方少 22 条）
     if (m_roomMap.empty())
         return false;
     std::vector<IMatch*> vec;
@@ -244,6 +248,7 @@ bool CMultiMatchRoomList::Match(IMatch* me, IMatch** out)
 int CMultiMatchRoomList::GetWaitingRoomCombination(IMatch* me, int playCount,
                                                    std::vector<IMatch*>& out)
 {
+    // b28d-L3: DIFF/N82+N89 — ORIG 419 vs 401
     // 与 ORIG 同名的函数内静态常量/组合表（数据导出自 0x8ca3200，
     // 0x8ca35d4 起为四个 1 字节常量）。
     static const unsigned char MAX_SAME_COUNT = 2;

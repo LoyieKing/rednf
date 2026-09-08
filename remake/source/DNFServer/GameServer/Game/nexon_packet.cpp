@@ -63,6 +63,7 @@ bool CPacketHelper::padding(unsigned char* src, int count)
 //   if (m_offset + count >= m_size) return 0;
 //   for (i=0; i<count; ++i) { dst[i] = m_buffer[m_offset++]; }
 //   return 1;
+// [b28d-D9] N18a/P200：ORIG 值先 eax 再中转 edx + m_buffer 缓存 %ebx；4.4 单段/不同寄存器（ORIG 0x08694160 sz 0x0000006c）
 bool CPacketHelper::scan(unsigned char* dst, int count)
 {
     if (static_cast<int>(static_cast<unsigned>(m_offset)) + count >= m_size)
@@ -156,6 +157,7 @@ stLoginPacket::stLoginPacket(stLogin& login)
 //   helper.scan((unsigned char*)packet+0x201,4);        // m_ip
 //   helper.scan((unsigned char*)packet+0x205,1);        // m_canTry
 //   helper.scan((unsigned char*)packet+0x206,8);        // m_userIdx+m_accId
+// [b28d-D9] N95：CPacketHelper 对象槽基差 0xc（-0x18 vs -0xc）+ 帧 0x28 vs 0x20（ORIG 0x086943af sz 0x00000131）
 void stLoginPacket::ReadPacket(const char* packet, stLogin& out)
 {
     (void)out;  // ORIG 未使用该参数（解码目标为 packet 缓冲）

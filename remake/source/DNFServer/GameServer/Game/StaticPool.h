@@ -8,6 +8,7 @@
 // ============================================================================
 
 #include <queue>
+#include <cstdio>   // b28d-lane12：_IO_FILE 全特化需完整类型（struct _IO_FILE 声明）
 
 template <class T, int N>
 class StaticPool
@@ -42,7 +43,11 @@ public:
         //   SP<C>（CNode ctor 带 throw()）vs SP<A>（无）逐条对照：仅带 throw() 者
         //   无该残段，且 `call CNodeC1Ev` 不被折叠（P216「空体反例」边界不适用——
         //   本 ctor 体有 magic/bUse 两写，非纯空体）。
-        CNode() throw() : T(), magic(0x8f21), bUse(0) {}
+        // b28d-lane12（Main 批准方案①）：**不带** throw()。ORIG 非平凡析构 T 的池 C1
+        // （CTradeSpace 0x082ae5ee 等 19 个）含完整 new[] EH cleanup
+        // （0x82ae685..0x82ae6cd：CNodeD1 循环 + _ZdaPv + _Unwind_Resume）⇒ ORIG 的
+        // CNode ctor 可抛。平凡析构的 _IO_FILE 池走下方全特化（保留 throw()）。
+        CNode() : T(), magic(0x8f21), bUse(0) {}
         // ORIG 各池 CNode D1（非 POD T 的池如 CUser/CTradeSpace/CParty/
         // CDeathTower 实证 CNodeD1Ev W 符号）：隐式析构经 ~T() 链即满足，
         // 故不写用户定义析构——POD T 池（如 _IO_FILE）的 ORIG 不生成
@@ -71,5 +76,48 @@ private:
     std::queue<CNode*> m_Queue;  // +0x04
     int m_nErrorCode;            // +0x2c
 };
+
+// ============================================================================
+// StaticPool<_IO_FILE, 50> 全特化（b28d-lane12，Main 2026-09-08 批准方案①）
+// 依据：ORIG `StaticPool<_IO_FILE,50>::C1` 0x084ba31a（99 insn）**无** new[]
+//   EH cleanup 段（元素 _IO_FILE 析构平凡）；而模板版 CNode ctor 不带 throw() 时
+//   4.4 会多发 8 条 `CNodeD1` 循环 + `_ZdaPv` 回滚（99→107、ndiff 26 实测）。
+//   非平凡析构 T 的 19 个池则相反：ORIG 有完整 cleanup（CTradeSpace C1 0x082ae5ee
+//   0x82ae685..0x82ae6cd 实证），throw() 会消掉它（ndiff 51→0 实测）。
+// 故仅本池保留 `CNode() throw()`；其余成员体与主模板逐字相同（N→50）。
+// 成员函数定义见 CGameManager.cpp（显式特化形式）；符号名与模板实例相同
+// （_ZN10StaticPoolI8_IO_FILELi50EE*），sizeof/布局/mangled 无变化。
+// ============================================================================
+template <>
+class StaticPool<_IO_FILE, 50>
+{
+public:
+    struct CNode : public _IO_FILE
+    {
+        CNode() throw() : _IO_FILE(), magic(0x8f21), bUse(0) {}
+        int magic;     // +sizeof(_IO_FILE)
+        char bUse;     // +sizeof(_IO_FILE)+4
+    };
+
+    StaticPool();
+    ~StaticPool();
+
+    _IO_FILE* Acquire();
+    _IO_FILE* Get(int index);
+    void Free(_IO_FILE* p);
+    int GetIndex(_IO_FILE* p);
+    int GetLastErrorCode();
+    int Size() { return 50; }
+    int Remain() { return (int)m_Queue.size(); }
+
+private:
+    CNode* m_pNode;              // +0x00
+    std::queue<CNode*> m_Queue;  // +0x04
+    int m_nErrorCode;            // +0x2c
+};
+
+// 布局与主模板一致（CNode* + std::queue + int = 0x30；ORIG logfiles_@0x0943dd00 /
+// count_@0x0943dd30 差值 0x30 实证）。
+static_assert(sizeof(StaticPool<_IO_FILE, 50>) == 0x30, "StaticPool<_IO_FILE,50> ABI drift");
 
 #endif  // GAME_STATICPOOL_H_

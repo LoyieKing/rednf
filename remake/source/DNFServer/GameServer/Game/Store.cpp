@@ -42,6 +42,7 @@ extern CDeathTowerValueStatistic* GetInstanceDeathTowerValueStatistic()
     return &instance;
 }
 
+// [b28d-lane6] DIFF·N93：ORIG 0x0861xxxx 帧含 push %ebx + sub 0x54（我们 sub 0x58 无 callee-saved），槽号 -0x13/-0x12 vs -0x1b/-0x1a。
 bool CDeathTowerValueStatistic::SendDeathTowerValueStatistic(DEATHTOWER_VALUE_STATISTIC_FIELD field,
                                                               char a, char b, unsigned int c)
 {
@@ -123,6 +124,7 @@ Store* G_Store()
 // ---------------------------------------------------------------------------
 // GetSellItemPrice(Inven_Item&, const CItem*, short, bool, int&)
 // ---------------------------------------------------------------------------
+// [b28d-lane6] DIFF·N93/P197④：ORIG 0x08618ea0 直跳 jl/jg vs 4.4 setge 物化 + 槽号偏移。
 int Store::GetSellItemPrice(Inven_Item& item, const CItem* pItem, short count,
                             bool flag, int& outPrice)
 {
@@ -221,6 +223,7 @@ int Store::GetSellItemPrice(CUser* user, char invenType, short slot, short count
 // ---------------------------------------------------------------------------
 // user_buy_item(CUser*, int itemId, int count)
 // ---------------------------------------------------------------------------
+// [b28d-lane6] DIFF·N82：帧/槽复用策略差（305 vs 292；§6.2 三件套口径）。
 int Store::user_buy_item(CUser* user, int itemId, int count)
 {
     if (user->CheckInTrade())
@@ -331,6 +334,7 @@ int Store::user_buy_item(CUser* user, int itemId, int count)
 // ---------------------------------------------------------------------------
 // user_sell_item(CUser*, char invenType, short slot, short count) —— ORIG 0x86193f8
 // ---------------------------------------------------------------------------
+// [b28d-lane6] DIFF·N82：帧/槽复用策略差（497 vs 491；P167 调用集 CLEAR 0 missing/0 extra）。
 int Store::user_sell_item(CUser* user, char invenType, short slot, short count)
 {
     if (user->CheckInTrade())
@@ -487,6 +491,7 @@ extern int getEquipmentRepairPrice(int baseCost, int curEndurance, int maxEndura
 // 字段口径：判空/查表/工具 id 全程直读 +0x02 m_addInfo（item idx）；耐久为
 //   +0x0b m_fieldb。m_addInfo2(+0x07, get_add_info) 是 stackable 数量域，勿混。
 // ---------------------------------------------------------------------------
+// [b28d-lane6] DIFF·部分修：已修 CItemList::find_item 目标（P167）与 const_iterator 遍历；残余 = ne 实例化选择 + get_endurance/get_charac_level 重读次数差（N82/P183）。
 int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short count,
                         unsigned short& outEndurance)
 {
@@ -535,7 +540,10 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
             Inven_Item slotItem = user->getCurCharacInvenR()->GetInvenSlot(0, i);
             if (slotItem.m_addInfo != 0 && slotItem.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
             {
-                CEquipItem* pEquip = (CEquipItem*)G_CDataManager()->find_item(slotItem.m_addInfo);
+                // b28d-lane6：ORIG 0x0861a816 调 CItemList::find_item（P167 差集实证）；
+                // 其余两处保持 CDataManager::find_item。
+                CEquipItem* pEquip =
+                    (CEquipItem*)G_CDataManager()->m_itemList->find_item(slotItem.m_addInfo);
                 if (pEquip)
                 {
                     int level = user->get_charac_level();
@@ -581,9 +589,12 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
             }
 
 
-            for (size_t i = 0; i < repairList.size(); i++)
+            // b28d-lane6：ORIG 0x0861a8xx 用 const_iterator 遍历（P167 MISSING
+            // begin/end/de/pp/ne + const_iterator 转换 ctor；EXTRA operator[]/size）。
+            for (std::vector<tagRepairItemInfo>::const_iterator it = repairList.begin();
+                 it != repairList.end(); ++it)
             {
-                const tagRepairItemInfo& info = repairList[i];
+                const tagRepairItemInfo& info = *it;
                 int invenType2 = info.m_type;
                 int slotIdx = info.m_slot;
                 CEquipItem* pEquip = const_cast<CEquipItem*>(info.m_item);

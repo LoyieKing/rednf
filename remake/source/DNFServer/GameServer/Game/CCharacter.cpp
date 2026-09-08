@@ -187,6 +187,7 @@ void CCharacter::clear()
 //   resist 两段循环按具名字段寻址即与 ORIG 逐字节一致（+0x2a4 / +0x2ac），
 //   尾字节写 ((char*)&m_secondGrowTypes[a].m_fieldbc)[b]（ORIG +0x350+a*0xc0+b），
 //   末尾 m_secondGrowTypes[a].m_skills[b] = script->m_secondGrow[a].m_skills[b]。
+// [b28d-7 N82] ORIG 0x08348894：帧 $0x5c + `imul $0x57` 后 add 两步寻址（-0x3c 先载），4.4 帧 $0x4c + lea 折叠；P167 CLEAR ⇒ 封顶。
 void CCharacter::set_data(STCharacterScript* script)
 {
     for (int i = 0; i <= 6; ++i)

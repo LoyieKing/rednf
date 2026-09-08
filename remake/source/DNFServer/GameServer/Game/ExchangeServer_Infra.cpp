@@ -98,6 +98,8 @@ bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
     // [b28c-6] 残差 1 处（ndiff 3）：OnConnect 后 ok 回读 ORIG 发
     // `movzbl -0x1d,%eax; test %al,%al`，4.4 恒折 `cmpb $0,-0x1d`（P168a③b
     // 跨版本 bool 归一化差）。P15 已修装载序（CSession* accepted）。
+    // [b28d-lane15] 复核维持 N：170 vs 169，唯一残差即上述 cmpb 折叠（4.4 恒折，
+    // 探针族 P168a③b 已定论）。封顶。
     // [b23S3C] P48 去缓存：errno 两比较点各重取（ORIG 两次 __errno_location
     // call、无 err 槽）；EINTR 分支不写 n=0（ORIG 保持负数走空循环）；events[i]
     // .events 掩码每用点重取（ORIG 无 mask 槽，8 条/用点×5）；无 evOk 中间局部
@@ -202,11 +204,11 @@ template <>
 bool CSessionManager<CSession, PacketGuard, CEpoll>::TrySend(
     CSession* session, PacketGuard& guard)
 {
-    // P0/N96：原 `register unsigned char v asm("eax")` 绑定已清除（全域禁用）；
-    // P168a X2 自然形（uchar 槽 + xor $1 + test）。
-    unsigned char v = static_cast<unsigned char>(session->Send(guard));
-    v ^= 1;
-    if (v)
+    // [b28d-lane15] P0/N96：原 `register unsigned char v asm("eax")` 绑定已清除。
+    // CSession::Send 返回 bool（ExchangeServer.h:77 PRETTY 串实证）⇒ P248 档①
+    // 裸形 `if (!boolcall())` 直产 ORIG `call; xor $0x1,%eax; test %al,%al; je`
+    // （X2 uchar 局部形会被 4.4 栈化：mov %al,-0x9; xorb $1,-0x9; cmpb $0,-0x9）。
+    if (!session->Send(guard))
     {
         TryDisconnect(session);
         return false;
@@ -321,17 +323,30 @@ CACHE_CHARACTER_TYPE* CCacheCharacterMgr::AcquireCharacter(int characNo)
 
 // FreeCharacter ORIG 0x8490bf4：池 Free；(1000-remain)!=map.size() 时 cMyTrace 告警
 // （line=0x4e）。
+// [b28d-lane15 判词·N（N7/N18a 寄存器中转）] 本波已修：Size() 常量 1000（P119 头内
+// inline 4.4 恒发 call）、trace 全表达式临时链（P37/P227）、格式串按 ORIG .rodata
+// 0x08c78398 实测 "FreeCharacter() error (%d,%d,%d)" 且实参序 (1000,remain,size)。
+// 残差 2 条：ORIG `mov %edx,%ecx; sub %eax,%ecx; mov %ecx,%eax; mov %eax,%ebx`
+// 四段中转 vs 4.4 `mov %edx,%ebx; sub %eax,%ebx`（N7/N18a 寄存器角色差），
+// 另一条为重定位伪差。封顶。
 void CCacheCharacterMgr::FreeCharacter(CACHE_CHARACTER_TYPE* mem)
 {
     Guard<Mutex> g(&m_mutex);
     m_pool.Free(mem);
-    int used = m_pool.Size() - m_pool.Remain();
-    if (used != static_cast<int>(m_map.size()))
+    // [b28d-lane15] ORIG 0x08490c31 `mov $0x3e8,%edx; mov %edx,%ecx; sub %eax,%ecx`
+    // —— 4.1 把头内 `int Size() { return N; }` 折成常量 1000（**无 Size call**）；
+    // 4.4-O0 对同一头内定义恒发 out-of-line call（P119）。按 ORIG 形直写 1000
+    // （N=1000 模板实参，语义等价；同时消掉 ORIG 不存在的 Size 调用点）。
+    // 且 ORIG 的 used 无栈槽（`mov %eax,%ebx` 寄存器保活）⇒ 不设具名局部（P0）。
+    if (1000 - m_pool.Remain() != static_cast<int>(m_map.size()))
     {
-        cMyTrace tr("exchange_server::CCacheCharacterMgr::FreeCharacter", 0x4e, 0);
-        tr("map size(%d), pool remain(%d), max(%d)",
-           static_cast<int>(m_map.size()), m_pool.Remain(),
-           m_pool.Size());
+        // [b28d-lane15] ORIG .rodata 0x08c78398 实测 = "FreeCharacter() error (%d,%d,%d)"，
+        // 实参装载 0x8/0xc/0x10 = 1000 / remain / map.size()（非我方旧推断的
+        // "map size/pool remain/max" 且顺序相反）。
+        // 且 ORIG 先算完两个实参再构造 tr（P37/P227 全表达式临时链）。
+        cMyTrace("exchange_server::CCacheCharacterMgr::FreeCharacter", 0x4e, 0)(
+            "FreeCharacter() error (%d,%d,%d)",
+            1000, m_pool.Remain(), static_cast<int>(m_map.size()));
     }
 }
 
@@ -365,6 +380,9 @@ bool CCacheCharacterMgr::GetCacheCharacter(int characNo,
 }
 
 // CollectGarbage ORIG 0x8490992：回收 cacheTime 距今 >0x1d 秒的条目。
+// [b28d-lane15 判词·N（N82/N93 槽布局）] 残差为局部对象槽 -0x1c vs -0x18 与
+// 迭代器 cur/erase 段的槽重排（ORIG 把 erase 参数经 lea 直传，4.4 多一次槽中转）；
+// 调用序列/长度一致（72 vs 70）。语义等价，封顶。
 bool CCacheCharacterMgr::CollectGarbage()
 {
     unsigned int now = static_cast<unsigned int>(time(0));
@@ -544,6 +562,9 @@ CExchangeServerThread::~CExchangeServerThread()
 }
 
 // dispatch ORIG 0x8493bfe（disasm 5001-5119，rodata 字符串已从 .rodata 提取）：
+// [b28d-lane15 判词·N（N93/N82 cMyTrace 槽组）] 残差为四个 cMyTrace 局部对象槽
+// -0x50 vs -0x20 的整体平移（4.4 兄弟块具名对象槽序反向，P221 族）+ 字符串重定位
+// 伪差；指令数与助记符序列一致（102=102）。语义等价，封顶。
 void CExchangeServerThread::dispatch(void* arg)
 {
     (void)arg;
@@ -646,45 +667,45 @@ int CACHE_CHARACTER_TYPE::GetMemberPosition(ENUM_INTERNALPACKET type,
     switch (static_cast<int>(type))
     {
     case 0x07:
-        found = m_memberFlag[0] != 0;
+        found = m_memberFlag[0];
         *size = static_cast<int>(sizeof(m_charac));
         return reinterpret_cast<int>(&m_charac);
     case 0x08:
-        found = m_memberFlag[1] != 0;
+        found = m_memberFlag[1];
         *size = static_cast<int>(sizeof(m_inventory));
         return reinterpret_cast<int>(&m_inventory);
+    case 0xb3:
+        found = m_memberFlag[7];
+        *size = static_cast<int>(sizeof(m_blackList));
+        return reinterpret_cast<int>(&m_blackList[0]);
     case 0x0a:
-        found = m_memberFlag[3] != 0;
+        found = m_memberFlag[3];
         *size = static_cast<int>(sizeof(m_quest));
         return reinterpret_cast<int>(&m_quest);
     case 0x0b:
-        found = m_memberFlag[4] != 0;
+        found = m_memberFlag[4];
         *size = static_cast<int>(sizeof(m_ticket));
         return reinterpret_cast<int>(&m_ticket[0]);
     case 0x0c:
-        found = m_memberFlag[5] != 0;
+        found = m_memberFlag[5];
         *size = static_cast<int>(sizeof(m_dungeonClear));
         return reinterpret_cast<int>(&m_dungeonClear[0]);
-    case 0xb3:
-        found = m_memberFlag[7] != 0;
-        *size = static_cast<int>(sizeof(m_blackList));
-        return reinterpret_cast<int>(&m_blackList[0]);
     case 0x11:
-        found = m_memberFlag[8] != 0;
+        found = m_memberFlag[8];
         *size = static_cast<int>(sizeof(m_actionPoint));
         return reinterpret_cast<int>(&m_actionPoint);
+    case 0x282:
+        found = m_memberFlag[9];
+        *size = static_cast<int>(sizeof(m_expand));
+        return reinterpret_cast<int>(&m_expand);
     case 0x19:
-        found = m_memberFlag[0xa] != 0;
+        found = m_memberFlag[0xa];
         *size = static_cast<int>(sizeof(m_altar));
         return reinterpret_cast<int>(&m_altar);
     case 0x20:
-        found = m_memberFlag[0xb] != 0;
+        found = m_memberFlag[0xb];
         *size = static_cast<int>(sizeof(m_etc));
         return reinterpret_cast<int>(&m_etc);
-    case 0x282:
-        found = m_memberFlag[9] != 0;
-        *size = static_cast<int>(sizeof(m_expand));
-        return reinterpret_cast<int>(&m_expand);
     default:
         return 0;
     }

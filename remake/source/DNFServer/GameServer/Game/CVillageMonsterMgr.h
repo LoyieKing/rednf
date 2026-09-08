@@ -113,7 +113,10 @@ public:
     int m_field08;                       // +0x08
     int m_field0c;                       // +0x0c
     bool m_field10;                      // +0x10（ORIG 0x86b36e6 movzbl+xor$1 ⇒ bool）
-    int m_state;                         // +0x14
+    // P254（b28d-L8）：ORIG MakeVillageMonsterListPacket 0x86b3666 对 +0x14 读
+    // 出两段 `mov 0x14(%eax),%eax; mov %eax,%edx` ⇒ 源字段类型须为 enum
+    //（int 字段 4.4 恒折单段）。布局/mangled 不变。
+    ENUM_VILLAGE_MONSTER_STATE m_state;  // +0x14
     int m_partyIndex;                    // +0x18
     CVillageMonsterArea* m_area;         // +0x1c
     int m_field20;                       // +0x20

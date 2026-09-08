@@ -13,7 +13,13 @@ public:
     PCK_AUCTION_CLOSE_PRIVATE_STORE_GA();   // 定义 OnlyOrigBatch4_Force.cpp
 
     nsl::PACKET_HEADER m_header;   // +0x00（0x12）
-    char m_body[0x16 - 0x12];      // +0x12
+    // +0x12：ORIG 调用点写 memberIdentificationNumber_t（4 字节，AuctionPacket.h
+    // 权威镜像 `m_id` @+0x12）；union 保留字节视图不引入新符号、sizeof 不变。
+    union
+    {
+        char m_body[0x16 - 0x12];
+        unsigned int m_id;
+    };
 };  // sizeof 0x16
 #pragma pack(pop)
 

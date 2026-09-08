@@ -90,6 +90,7 @@ void CAssaultMgr::Reset()
 // _GetNextAssaultPlaceId —— ORIG T 0x082ed976 (0x87)
 // 自增回卷时借静态 count 以 cMyTrace 报警并再 +1。
 // ===========================================================================
+// [b28d-19] N：N7/N82 —— 4.1 `mov <A>,%ebx` 跨 cMyTrace call 缓存 count 地址，4.4 折 %eax（无源码解）；ORIG 0x082ed976。
 unsigned int CAssaultMgr::_GetNextAssaultPlaceId()
 {
     // b28 BM4 判词（N7/N82 跨版本寄存器分配）：fresh .o 实残 = ORIG 4.1 以
@@ -436,6 +437,7 @@ int CAssaultMgr::OnConnectP2PAfterAssault(CUser* user, char* ip, int len)
 // landing pad（cmp $1/je/Resume/begin_catch 存槽/end_catch）与 party@-0x10、
 // e@-0xc 槽位均逐条一致。残余仅物化岛形差，语义等价。
 // ===========================================================================
+// [b28d-19] N：跨版本 bool ABI —— 4.1 `mov $1/jmp/mov $0` 物化岛，4.4 恒 setne（已实测 if/else、三目全形）；ORIG 0x082ef9d8。
 int CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int timerKey)
 {
     (void)timerKey;                                     // ORIG 第 2 参未消费
@@ -474,6 +476,7 @@ int CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int ti
 //   （他方属主），(char)/bool ABI 表示导出 setne 物化岛 vs ORIG testb %al，bool ABI
 //   跨版本豁免（W6_AssaultMgrDeps.cpp:435 同批已录纯表示差），语义等价。
 // ===========================================================================
+// [b28d-19] N：N93 —— 帧 sub $0x30 vs $0x20 + 局部槽序；ORIG 0x082ef86e。
 void CAssaultMgr::OnTimeoutCompleteLoadAfterAssault(unsigned int partyIndex, int timerKey)
 {
     try
@@ -509,6 +512,7 @@ void CAssaultMgr::OnTimeoutCompleteLoadAfterAssault(unsigned int partyIndex, int
 // 包 header(0,0x10a)；PowerSide==1 时 [胜方连数 A][B]，否则反向；
 // finalize(true) 后两队分别 send_to_party 或单人 Send。
 // ===========================================================================
+// [b28d-19] N：N93 —— 帧 sub $0x20 vs $0x30 + PacketGuard 槽序平移；ORIG 0x082efcb2。
 void CAssaultMgr::_SendVictoryInfo(CUser* userA, CUser* userB)
 {
     PacketGuard packet;
@@ -614,6 +618,7 @@ inline float roundToNearestEven(float v)                // ORIG fldcw(0x0c)+fist
 
 }  // unnamed namespace
 
+// [b28d-19] N：N82 —— 大件帧槽错位（帧 0x64 vs 0x74）；ORIG 0x082edc86。
 int CAssaultMgr::GetRequestAssaultNeedMoney(CUser* attacker, CUser* target)
 {
     // RepeatEvent(0x20) IsEventing 命中 → 免费判定路径返回 0。
@@ -720,6 +725,7 @@ int CAssaultMgr::GetRequestAssaultNeedMoney(CUser* attacker, CUser* target)
 // [b28c-L7][SIGFIX:pvp_assault::CAssaultMgr::OnRequestAssault] int→bool
 //（ORIG __PRETTY_FUNCTION__ 串 "bool ...(CUser*, CUser*, int*)"，tsv 第 14 行；
 // mangled 不含返回类型⇒符号不变；体内 return 值仅 0/1）。
+// [b28d-19] N：N82 —— 超大件（1097 insn）帧槽错位；§6.2 三件套口径封顶；ORIG 0x082edfba。
 bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
 {
     CAssaultPlace* acquiredPlace = 0;                   // -0x94(%ebp)
@@ -1097,14 +1103,19 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
 // ===========================================================================
 // IsStayGate —— ORIG T 0x082edc05 (0x81)，全局自由函数（被本 TU 使用）。
 // ===========================================================================
+// [b28d-19] N：P197④ 槽比零 setcc 物化（4.1 `cmp -N,0; sete; test; je`，4.4 恒 jne 直跳）+ 帧差；已按 P198① 补两句式预清；ORIG 0x082edc05。
 bool IsStayGate(CUser* user)                            // _Z10IsStayGateP5CUser
 {
-    GameWorld* world = G_GameWorld();
+    // ORIG 0x082edc05：入口 `movl $0x0,-0x10/-0xc(%ebp)` 双预清（P198① 两句式）
+    // ⇒ 原码为「声明=0 + 独立赋值」两段。
+    GameWorld* world = 0;
+    world = G_GameWorld();
     if (world == 0)
     {
         return true;
     }
-    Village* village = world->getUserVillage(user);
+    Village* village = 0;
+    village = world->getUserVillage(user);
     if (village == 0)
     {
         return true;
@@ -1121,12 +1132,26 @@ CPowerWarLog::CPowerWarLog()                            // ORIG T 0x0848021e (0x
     Reset();
 }
 
+// [b28d-19] AE（P54 逐字段具名赋值修复，34=34）；ORIG 0x08480232。
 void CPowerWarLog::Reset()                              // ORIG T 0x08480232 (0x9a)
 {
-    for (int i = 0; i < 15; ++i)
-    {
-        reinterpret_cast<int*>(this)[i] = 0;
-    }
+    // ORIG 0x08480232：15 条独立 `mov 0x8(%ebp),%eax; movl $0x0,disp(%eax)`
+    // （逐字段重读 this、无循环变量/无栈帧）⇒ 原码是逐成员赋值（P54/P171）。
+    m_attemptCount = 0;
+    m_successCount = 0;
+    m_failureCount = 0;
+    m_loadingTimeout = 0;
+    m_loadingTimeoutSecede = 0;
+    m_p2pTimeoutFailure = 0;
+    m_p2pTimeoutSecede = 0;
+    m_p2pBadFailure = 0;
+    m_p2pBadSecede = 0;
+    m_startSuccess = 0;
+    m_startFailure = 0;
+    m_startSuccessCount = 0;
+    m_field30 = 0;
+    m_totalJoinAssaultUser = 0;
+    m_totalLeaveAssaultUser = 0;
 }
 
 void CPowerWarLog::IncAssaultAttemptCount()             // ORIG W 0x082f082a
@@ -1179,6 +1204,7 @@ CPowerWarLog* CPowerManager::GetPowerWarLog()           // ORIG W 0x082f0906 (0x
     return &m_powerWarLog;   // +0x1b4 嵌入对象
 }
 
+// [b28d-19] N：N82 —— 大件帧槽错位（帧 0x174 vs 0x178）；ORIG 0x084802cc。
 void CPowerWarLog::PrintPowerWarAssultReport()          // ORIG T 0x084802cc (0x58e)
 {
     // docs/class_func_reports/CPowerWarLog/PrintPowerWarAssultReport.md

@@ -108,6 +108,7 @@ void TOD_UserState::getData(char* pData) const
 // ORIG T 0x086434fc：先虚调 _reset()，拷入 6 dword 数据区；
 // 若当日跨天(按 serverEnvir.m_fatigueTime(+0x37c) 口径)再虚调 ResetDaily()；
 // 有历史层且 lastEnterTime<0x4e275df1 时清层标记 + alter 脏标记。恒返 true。
+// [b28d-23 N·N93] 槽/帧差（69/80）⇒ N。ORIG 0x086434fc
 bool TOD_UserState::loadData(CUser* pUser, char* pData)
 {
     _reset();
@@ -142,6 +143,7 @@ bool TOD_UserState::loadData(CUser* pUser, char* pData)
 // ORIG T 0x08643642：等级低于 TowerOfDespairMgr 最小等级时直接返回 true；
 // 否则经 StreamPool 取流组包：<<0x278、<<UID、GetInBuffer 填 0x18 记录、
 // MsgQueueMgr::put(Q2)。异常安全由局部 CStreamGuard 析构承担。
+// [b28d-23 N·N93] ⇒ N。ORIG 0x08643642
 bool TOD_UserState::_saveData(CUser* pUser)
 {
     const int level = pUser->get_charac_level();

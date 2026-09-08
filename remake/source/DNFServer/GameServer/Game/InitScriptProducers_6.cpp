@@ -108,17 +108,26 @@ bool ConvertHHMMSSStringToInt(std::string s, unsigned char& h,
 // ConvertWeekdayStringToInt —— ORIG T 0x088c284a。SUN..SAT→0..6、ALL→7；
 // 未命中返回 false 且不触碰 out（ORIG 仅在命中路径写 (%edx)）。
 // ----------------------------------------------------------------------------
+// b28d-21: 已修 P63 共享尾（8 个独立 `return true` 各生一条 mov $1 → else-if 链 +
+// 尾部统一 return true，96/80）；余 8 处 ORIG `test %eax,%eax; sete %al`（operator==
+// 返回值的跨版本 bool 物化，P197④/setcc-fold 源形不可复现）⇒ N 封顶。ORIG 0x088c284a。
 bool ConvertWeekdayStringToInt(std::string s, unsigned int& out)
 {
-    if (s == "SUN") { out = 0; return true; }
-    if (s == "MON") { out = 1; return true; }
-    if (s == "TUE") { out = 2; return true; }
-    if (s == "WED") { out = 3; return true; }
-    if (s == "THU") { out = 4; return true; }
-    if (s == "FRI") { out = 5; return true; }
-    if (s == "SAT") { out = 6; return true; }
-    if (s == "ALL") { out = 7; return true; }
-    return false;
+    // b28d-21：ORIG 0x088c284a 命中分支只写 out 并 jmp 到共享尾 `mov $0x1,%eax`
+    //（8 处 `mov $0x1,%eax` 仅 1 处，P63 共享出口）⇒ else-if 链 + 尾部统一
+    // return true；原 8 个独立 `return true` 各生一条 mov $1 是残差主因。
+    // 残差 8 处 `test %eax,%eax; sete %al`（ORIG 对 operator== 返回的
+    // 跨版本 bool 物化，P197④/setcc-fold）不可复现 ⇒ N 封顶。
+    if (s == "SUN") out = 0;
+    else if (s == "MON") out = 1;
+    else if (s == "TUE") out = 2;
+    else if (s == "WED") out = 3;
+    else if (s == "THU") out = 4;
+    else if (s == "FRI") out = 5;
+    else if (s == "SAT") out = 6;
+    else if (s == "ALL") out = 7;
+    else return false;
+    return true;
 }
 
 // ----------------------------------------------------------------------------
@@ -178,6 +187,8 @@ int getCharacterJobToEnumValue(std::string& s);
 // ----------------------------------------------------------------------------
 typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
 
+// b28d-21: DIFF/N 封顶 — p167 调用点差集 CLEAR（71=71，语义完整）；残差为
+// N82（帧/槽号，673 vs 687）+ N89（libstdc++ 模板全内联）。ORIG 0x088be63d。
 int getGrowTypeIndex(const char* name)
 {
     int idx = -1;                     // ORIG 首指令 movl $0xffff,-0x20
@@ -335,17 +346,23 @@ AvatarRoulette::~AvatarRoulette()
 }
 
 // clear —— ORIG 0x8911cf6：j=0..10 双层清空 avatar 数组；stiker 数组不动。
+// b28d-21: IDENTICAL（55=55）— P183 删 `vector& bucket = m_avatars[j]` 引用缓存
+// （ORIG 每轮重发 j*12+0x14 全链）+ 具名 int n 槽 + 有符号比较（setl）。
 void AvatarRoulette::clear()
 {
+    // b28d-21：ORIG 0x08911cf6 每轮都重发 `j*12+0x14` 完整寻址（P183 禁
+    // `vector& bucket = m_avatars[j]` 缓存引用），且 size() 结果落具名 int 槽
+    //（ORIG -0xc 每 j 轮算一次；循环尾 `cmp -0xc(%ebp),%eax; setl` 有符号比较）。
     for (int j = 0; j <= 10; ++j)
     {
-        std::vector<std::vector<std::pair<unsigned long, int> > >& bucket =
-            m_avatars[j];
-        for (std::size_t k = 0; k < bucket.size(); ++k)
+        // ORIG 槽序：k=-0x10（深）、n=-0xc（浅）⇒ k 先声明/先使用。
+        int k = 0;
+        int n = static_cast<int>(m_avatars[j].size());
+        for (; k < n; ++k)
         {
-            bucket[k].clear();
+            m_avatars[j][k].clear();
         }
-        bucket.clear();
+        m_avatars[j].clear();
     }
 }
 
@@ -356,6 +373,8 @@ void AvatarRoulette::clear()
 // pairs{value,3}；pairs 非空时整体 push 进 m_avatars[job]，再 ScanInt 一枚
 // sticker push 进 m_stikers[job]。恒返回 true。
 // ============================================================================
+// b28d-21: DIFF/N 封顶 — p167 差集仅 1 项：ORIG `pair<unsigned long,int>::C1IRiiEE`
+// 直构 vs 重建 make_pair（P192 pair 直构形）；余为 N82 帧/槽。ORIG 0x089115b1。
 bool importAvatarRouletteListDetail(AvatarRoulette& out,
                                     std::string& token,
                                     ENUM_CHARACTERJOB job)
@@ -392,6 +411,8 @@ bool importAvatarRouletteListDetail(AvatarRoulette& out,
 // ([swordman]..[DemonicSwordman])，每节 do{Detail}while(token==[/节名])。
 // EOF（ScanTypeOrInt 非型且返 0）或 load 失败之外的出口恒为 true。
 // ============================================================================
+// b28d-21: DIFF/N 封顶 — p167 调用点差集 CLEAR（47=47，语义完整）；残差 N82 帧/槽
+// （307 vs 304）+ N89 模板内联。ORIG 0x089116eb。
 bool importAvatarRouletteList(char* path, AvatarRoulette& out)
 {
     std::string token;                  // ORIG ctor 首位（-0x14）
@@ -516,6 +537,8 @@ bool importAvatarRouletteList(char* path, AvatarRoulette& out)
 // 所有 Scan 均为「先写入字段、后校验 ok」（fstp/mov 先于 ok 判定；
 // [reward item prob] 三列前缀和亦同），与 ORIG 指令顺序一致。
 // ============================================================================
+// b28d-21: DIFF/N 封顶 — p167 调用点差集 CLEAR（24=24）；残差 N82 帧/槽
+// （234 vs 235）+ N89。ORIG 0x08912b00 段。
 int importDeathTowerScript(const char* path, stDeathTower_t& out)
 {
     bool ok = false;
@@ -604,6 +627,8 @@ int importDeathTowerScript(const char* path, stDeathTower_t& out)
 //   int (const char*, stBloodDungeon_t&)，0=成功。
 // [ultimate reward prob] 以 map find 判重：key 已存在 → 0x196e 错误。
 // ============================================================================
+// b28d-21: DIFF/N 封顶 — p167 差集 3 项：ORIG 迭代器 `eq`（我们 `ne`，P220 极性）
+// + `make_pair`/`pair C1` 形（P178/P192）；余 N82/N89。ORIG 0x08909016。
 int importBloodDungeonScript(const char* path, stBloodDungeon_t& out)
 {
     bool ok = false;
@@ -696,6 +721,9 @@ int importBloodDungeonScript(const char* path, stBloodDungeon_t& out)
 // [link level] 写 +0x00；四个 bonus 节各自选定目标 vector 后 do-while 连续装
 // 4×ScanInt 记录；未匹配节名静默跳过（ORIG al=0 → 回外层）。
 // ============================================================================
+// b28d-21: DIFF/N 封顶 — p167 差集 4 项均为 std::string C1/D1 与
+// operator==(string,const char*)（ORIG 多 2 次临时串构造/析构，N86/N89 模板族）；
+// 残差 N82 帧/槽（195 vs 176）。ORIG 0x08909529。
 int importCharacLinkSystemScript(const char* path, stCharacLinkSystem_t& out)
 {
     bool ok = false;
@@ -766,6 +794,8 @@ int importCharacLinkSystemScript(const char* path, stCharacLinkSystem_t& out)
 // rewardInfo 挂入 m_map0[job] 并复位累积器；[/create character gift] 返回 true；
 // EOF 未遇结束符 → false；时间串转换失败 → false。
 // ============================================================================
+// b28d-21: IDENTICAL（634=634）— 本波 fresh 复验已闭合（b27/b28 双相派发 +
+// 循环内静态三件套 P177 形）。ORIG T 0x0895eda1。
 bool importCharacterCreateGiftScript(createChracScript* s, const char* path)
 {
     // ORIG 双相派发（T 0x0895eda1）：函数级静态三件套位于主循环体内（ORIG
@@ -974,6 +1004,8 @@ bool importCharacterCreateGiftScript(createChracScript* s, const char* path)
 // 静态符号名 _ZZ…E8__lookup/11__init_lock/8__inited+双 guard 实测与 ORIG
 // 一致），链接后按 AE 口径判等。
 // ============================================================================
+// b28d-21: IDENTICAL（482=482）— 本波 fresh 复验已闭合（P164 EOF 落点形）。
+// ORIG T 0x0896001a。
 bool importCharacterCreateCreatureGiftScript(CharacterCreateCreatureGiftScript* s,
                                              const char* path)
 {
@@ -1152,6 +1184,8 @@ bool importCharacterCreateCreatureGiftScript(CharacterCreateCreatureGiftScript* 
 // [apply level] 写 +0x0c；[unable dungeon] 清空后 do-while push_back；
 // 无 unloadRDARScriptFile（ORIG 如此）；out 为空指针时返回 false。
 // ============================================================================
+// b28d-21: DIFF/N 封顶 — p167 差集 3 项均为 std::string C1/D1（ORIG 多 2 次临时串
+// 构造/析构，N86/N89）；残差 N82 帧/槽（98 vs 83）。ORIG 0x08913891。
 bool importConditionEventChkDungeonScript(const char* path,
                                           ConditionLevelChkDungeon* out)
 {
@@ -1195,6 +1229,9 @@ bool importConditionEventChkDungeonScript(const char* path,
 // [condition reward]→multimap+0x20；[condition quick party add reward]→
 // multimap+0x38。两条 reward 节均扫 1 key+4 值，末两值 setne 成 bool。
 // ============================================================================
+// b28d-21: DIFF/N 封顶 — 320=320 指令数全等；残差为局部初始化落点（ORIG 三个局部
+// （string/string/bool）置于循环标签之后每轮穿 guard，P177 形）+ 槽序（N93/N82）。
+// ORIG 0x0890e868。
 bool importConditionEventScript(const char* path, stConditionEventInfo* out)
 {
     // ORIG T 0x0890e868（323 条；orig=ours=323，助记符序列仅 4 处 4.1 块放置
@@ -1302,6 +1339,8 @@ loop_exit:
 // 第二匹配 [dblog getitem]（flag=1）；记录={id,ConvertStringToTime(str),flag}，
 // id ScanInt 失败即节尾。任一 ScanStr/时间转换失败 → 整体 false。
 // ============================================================================
+// b28d-21: DIFF/N 封顶 — p167 EXTRA 6 项均为 std::string D1/C1ERKSs（重建多局部
+// string 临时，N86/N89 族）；残差 N82 帧/槽（199 vs 234）。ORIG 0x0890dbba。
 bool importDBLogItem(char* path, std::vector<stDBLogItem>* out)
 {
     // ORIG T 0x0890dbba（204 条；单出口 ebx 形——4.1 把所有失败/EOF 路径 merge
@@ -1531,6 +1570,8 @@ int importDailyScheduleEtcScript(const char* path,
 // (getCharacterJob,idx) 入 m_mapC(+0x28)；[give group] 按 (job,growIdx) 入
 // m_map24(+0x40)。节内 ScanStr 失败 → return false；EOF(ScanType 失败) → true。
 // ============================================================================
+// b28d-21: DIFF/N 封顶 — p167 调用点差集 CLEAR（175=175，语义完整）；残差
+// N82（帧/槽，1127 vs 1111）+ N89。ORIG 0x0890c1f0 段。
 bool importDimensionActivationData(const char* path,
                                    DimensionActivationData* out)
 {
@@ -1861,6 +1902,8 @@ bool importDimensionActivationData(const char* path,
 // 随后 4 值/3 布尔/字符串族填充元素后 push 入 m_data(+0x0c)；$END 结束
 // m_18 字符串列表。任一 Scan 失败 → false。
 // ============================================================================
+// b28d-21: DIFF/N 封顶 — p167 差集 3 项均为 std::string C1/D1（N86/N89）；
+// 残差 N82 帧/槽（234 vs 225）。ORIG 0x08908e40 段。
 bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
 {
     bool ok = false;
@@ -1938,6 +1981,8 @@ bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
 // [grade_0]..[grade_4] 五节分别向五个 vector<unsigned int> push（push_backEOj
 // 右值重载，值序一致）；out 判空在 load 之后（ORIG 0x890e1d3）。
 // ============================================================================
+// b28d-21: DIFF/N 封顶 — p167 差集 3 项均为 std::string C1/D1（N86/N89）；
+// 残差 N82 帧/槽（183 vs 168）。ORIG 0x08908330 段。
 bool importEquipmentGradeSampleInfo(const char* path,
                                     stEquipmentGradeSample* out)
 {

@@ -24,6 +24,7 @@ unsigned char* CActionPointManager::GetActionPoint() const
 // 0xb 字节 packed，具名成员访问仍保持 +0x00/+0x02/+0x06 的真实布局。
 void CActionPointManager::GM_Set(CUser& user, unsigned int value)
 {
+    // b28d-L3: DIFF/N82 — ORIG 0x082... push ebx + sub 0x44 vs 我方 sub 0x58（帧差/callee-saved 缺失，N82）
     m_flag00 = 1;
     m_sig.m_apSum = 0;
     m_prevApSum = 0;

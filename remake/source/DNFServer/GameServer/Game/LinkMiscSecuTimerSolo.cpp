@@ -74,7 +74,9 @@ extern std::vector<std::string> g_szScriptFilePriorityBaseDirectory;
 extern char g_szScriptFileBaseDirectory[0x104];
 // s_bUseScriptPack 为 ORIG RDARScript.cpp TU-local static（d 0x93f4d24，重建定义
 // 于 ScriptExtras.cpp）；跨 TU 经其真实访问器 UseScriptPack（ORIG T 0x088bb7cf）。
-extern bool UseScriptPack();  // [b28c-lane24] bool 返回 ⇒ P168a① 裸形 xor 物化
+extern char UseScriptPack();  // [b28d-lane16 DELEGATED:AUTHORIZED-BY-MAIN] 与
+                              // ScriptExtras.cpp 定义同步（P9 直返字节；调用点
+                              // 跨 TU 访问 ORIG TU-local static，P189 豁免）
 extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定义）
 
 // ===========================================================================

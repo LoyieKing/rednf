@@ -69,9 +69,18 @@ public:
     unsigned char GetLock() const;
     void getValues(unsigned char& type, unsigned short& value) const;
 
-    unsigned char m_abilityType;     // +0x00（bit7 = identified）
-    unsigned short m_abilityValue;   // +0x01
-    unsigned char m_lock;            // +0x03
+    // [b28d-23 P235] 头部 4 字节改匿名 union 双视角：m_amp0Int 供
+    // Inven_Item_Compatible::setCopy/makeInvenItem 以具名 int 成员直访
+    // （ORIG 0x833f38e `mov 0x11(%edx),%edx` / 0x833f418 `mov %edx,0x11(%eax)`
+    // 单条 disp；取址 reinterpret 形恒多 add $0x11）。布局/sizeof 0xe 不变。
+    union {
+        struct {
+            unsigned char m_abilityType;     // +0x00（bit7 = identified）
+            unsigned short m_abilityValue;   // +0x01
+            unsigned char m_lock;            // +0x03
+        };
+        int m_amp0Int;                       // +0x00 四字节视角
+    };
     union {
         char m_pad4[0xa];            // +0x04（尺寸 0xe，历史视图保留——AraC9
                                      //   cUserHistoryLog 等消费点不动）
@@ -358,9 +367,9 @@ public:
 
     // ---- 强化投资（投资材料查询/启用/消费）----
     // 均 const；返回码语义见各实现（与 Dispatcher_InvestItemAmplifyOption 配套）。
-    int getInvestMaterialInfo(ENUM_ITEM_AMPLIFY_INVEST_TYPE type,
-                              unsigned long level,
-                              stInvestAmplifyOption_t& info) const;
+    bool getInvestMaterialInfo(ENUM_ITEM_AMPLIFY_INVEST_TYPE type,
+                               unsigned long level,
+                               stInvestAmplifyOption_t& info) const;
     int enableInvestAmplifyOption(const Inven_Item& inven,
                                   ENUM_ITEM_AMPLIFY_INVEST_TYPE type) const;
     void investAmplifyOption(const CItem* item, Inven_Item& inven,

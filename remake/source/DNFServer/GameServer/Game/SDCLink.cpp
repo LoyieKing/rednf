@@ -19,10 +19,18 @@
 #include <algorithm>
 
 // ---- 本 TU 外部符号（ORIG 已有/由其它批次提供；不得重复定义） ----
-// _SDC::isObjectType T 0x080950e8 —— 定义 W9_SDCCommon.cpp。
+// [b28d-lane15 R3 跨 TU 迁定义，Main 批准 2026-09-08] _SDC::isObjectType
+// T 0x080950e8 的**定义**自 W9_SDCCommon.cpp 迁入本 TU：ORIG 中它与 SDCLink 族
+// （0x08095193..0x080957c3）地址相邻=同 TU；P210② 要求定义先于 caller，4.4 才
+// 精确继承 outgoing 帧（sub $0xc，探针 /tmp/b28d_l15_probe4.cpp fF/fG）。
+// 迁出侧 W9_SDCCommon.cpp 保留 DataManagerInitDepends.h:447 的声明（U 引用）。
 namespace _SDC
 {
-bool isObjectType(int objectType, int code);
+bool isObjectType(int objectType, int code)
+{
+    // ORIG 0x080950e8：无帧无槽，and 后直接 cmp 参数（P0 单表达式）。
+    return (objectType & code) == code;
+}
 }
 // ScriptDepsB.cpp 定义（D 0x093f5d18 / 0x093f5d30），声明复用 ScriptDepsB.h；本地直声明避免拖依赖。
 extern float g_physicalReduceRateConst_;   // 0x093f5d18
@@ -78,6 +86,10 @@ static const double kDamageRateDiv100 = 100.0;    // 0x08b12f58
 //   d3 = vec[3]*sum + vec[2]
 //   d4 = (vec[4]/d3 + 1) * d1
 //   d6 = vec[3]*sum + vec[5]
+// [b28d-lane15 判词·N（N85 x87 整数↔浮点链）] ORIG 0x080955e1 对每个 int 乘积走
+// `imul → mov 槽 → fildl → fldl → faddp` 的 x87 长链（帧 0x78）；4.4 折叠为
+// imul+内存直算（帧 0x68、98 vs 108）。N85/P252 探针族已证源形不可择（具名 double
+// 局部会改槽布局）。fildl 截断语义一致 ⇒ 封顶。
 float getDamageRateCreature(int a, int b, int c)
 {
     if (a > 0x32)
@@ -121,6 +133,10 @@ float getCreatureDamageRateFromIndex(int index)
 // _Z24getDamageInflictCreatureP23STComputeDamageVariable @0x08095508 (0xd9)：
 // m_char1B5 门控；dmg=m_field000*(rate(m_char1B7,m_char1B8,(int)m_d1AA))*m_f02B
 // *FromModule(m_objTypeByte)；objTypeByte==9 再 *FromIndex(m_char1B9)。
+// [b28d-lane15 判词·N（N85）] ORIG 对 float 纯拷贝发 `flds (%eax); fstps -0x24`
+// 往返（4.4 恒 `mov (%eax),%eax; mov %eax,槽` 直搬，N85①），乘法为
+// `flds; fmuls mem; fstps` 三步 vs 4.4 `flds; fmulp; fstps` 折叠（N85③）；
+// 由此槽组 -0x24/-0x20/-0xc vs -0x10/-0xc 整体平移。语义等价，封顶。
 float getDamageInflictCreature(STComputeDamageVariable* v)
 {
     if (v->m_char1B5 == 0)
@@ -142,6 +158,10 @@ float getDamageInflictCreature(STComputeDamageVariable* v)
 // _Z31getDamageInflictCollisionObjectP23STComputeDamageVariablePv @0x08095275 (0x1bb)：
 // 逐指令转写。0x8b12f54=0.01f；0x93f5d10/0x93f5d28=Damage 常量；
 // getAbilityConvertRateSDC 表类型 3/5/0。
+// [b28d-lane15 判词·N（N85②）] 残差仅 2 处除法：ORIG `flds 全局; flds -0x8;
+// fdivp %st,%st(1)` 三步 vs 4.4 `flds 全局; fdivs -0x8` 两步（除操作数在内存时
+// 4.4 恒折 fdivs）。其余 diff 行全为重定位地址伪差（0x8b12f54 vs .o 未解析 0x28）。
+// 语义等价，封顶。
 float getDamageInflictCollisionObject(STComputeDamageVariable* v, void* collisionObject)
 {
     float dmg = v->m_field000;
@@ -178,18 +198,16 @@ float getDamageInflictCollisionObject(STComputeDamageVariable* v, void* collisio
 
 // _Z29getDamageInflictPassiveObjectP23STComputeDamageVariablePv @0x08095220 (0x55)：
 // m_char1B5 && m_char1B6 → Creature(v)；否则 CollisionObject(v, passiveObject)。
-// [b28c-lane24] 四形实测（双 return/if-else/if-else+init/P210 前置定义）帧恒
-// 0x38 vs ORIG 0x28、尾物化槽 -0x1c vs -0xc ⇒ N（跨版本帧策略 + 尾物化槽）。
+// [b28c-lane24] 四形（双 return/if-else/if-else+init/P210 前置定义）帧恒 0x38 vs
+// ORIG 0x28、尾物化槽 -0x1c vs -0xc ⇒ 曾判 N（跨版本帧策略 + 尾物化槽）。
+// [b28d-lane15 翻案] ORIG 实为**三元**：两臂 fstps -0xc → 汇合 +0x4d
+// `mov %eax,-0xc; flds -0xc`（float 位模式过 eax），帧 0x28、无具名 float 局部。
+// 改三元后 fresh .o 判 identical/ae（SDCLink near 2→1）。P243 同族。
 float getDamageInflictPassiveObject(STComputeDamageVariable* v, void* passiveObject)
 {
-    float r;
-    if (v->m_char1B5 != 0 && v->m_char1B6 != 0)
-    {
-        r = getDamageInflictCreature(v);
-        return r;
-    }
-    r = getDamageInflictCollisionObject(v, passiveObject);
-    return r;
+    return (v->m_char1B5 != 0 && v->m_char1B6 != 0)
+               ? getDamageInflictCreature(v)
+               : getDamageInflictCollisionObject(v, passiveObject);
 }
 
 // ============================================================================
@@ -201,6 +219,8 @@ float getDamageInflictPassiveObject(STComputeDamageVariable* v, void* passiveObj
 // [b28 BM2 判词·AE] 清单 NEAR(2) 为 jmp 目标偏移标签伪差（ORIG 双 epilogue 岛
 // +0x41/+0x53 vs 4.4 共享尾，跨版本 epilogue merge 族）；fresh /tmp/tu_SDCLink.o
 // fn_diff_tu 归一 0 差（31=31 逐条）。
+// [b28d-lane15] check_tu_routed 复核：本件不在 near/diff 列表（identical/ae）；
+// game_func_report 的 DIFF 系 jmp 目标标签归一伪差，维持 AE。
 bool isValidAttackInfoElement(STComputeDamageVariable* v, int elem)
 {
     if (elem == 4)
@@ -217,6 +237,12 @@ bool isValidAttackInfoElement(STComputeDamageVariable* v, int elem)
 // 3) _Z34getComputeDamageBasisLevelAttackerP23STComputeDamageVariableb @0x080957c3 (0x4d)
 //    bool 为真且 isObjectType(m_attackerObjType,0x111) → (signed char)0x1b4；
 //    否则 (signed char)0x1b3。两字节 ctor 初值均为 1。
+// [b28d-lane15 判词·N（跨 TU 帧继承，P210②）] ORIG 帧 sub $0xc / bool spill -0x4；
+// 4.4 对**仅声明**的 _SDC::isObjectType 恒保守 sub $0x28 / spill -0xc（探针
+// /tmp/b28d_l15_probe3.cpp fA..fE 五形全 0x28）。把 isObjectType **定义**置于
+// caller 之前（探针 /tmp/b28d_l15_probe4.cpp fF/fG）即复现 0xc。ORIG 中
+// isObjectType @0x080950e8 与本族地址相邻（同 TU）；我方定义在 W9_SDCCommon.cpp
+// （非本泳道 TU，R1 禁编辑）⇒ 已上报 Main 定夺 TU 归属迁移，本件暂 N 封顶。
 // ============================================================================
 int getComputeDamageBasisLevelAttacker(STComputeDamageVariable* v, bool useAttackerLevel)
 {
@@ -249,6 +275,9 @@ float getDamageInflict(STComputeDamageVariable* v, void* defender)
 //    常量：0x8b12f54=0.01f、0x8b12f60=400.0f、0x8b12f64=100.0f；
 //    全局：0x93f5d18=g_physicalReduceRateConst_、0x93f5d30=g_magicalReduceRateConst_
 //          （ScriptDepsB.cpp 定义）。
+// [b28d-lane15 判词·N（N85①/N82 槽组平移）] 残差为 float 中转槽 -0x24 vs -0x20 的
+// 整体浅移 4（ORIG flds/fstps 往返占槽，4.4 mov 直搬省槽），指令序列/长度逐条一致
+// （152 vs 151）；常量/全局引用行为 .o 重定位伪差。封顶。
 // ============================================================================
 void getDefenseRateDamager(float& outDefenseRate, float& outReduceS1,
                            STComputeDamageVariable* v, void* defender)
@@ -305,6 +334,10 @@ void getDefenseRateDamager(float& outDefenseRate, float& outReduceS1,
 // ============================================================================
 // 6) _Z18checkIsCriticalSDCP23STComputeDamageVariablePfPj @0x08095a16 (0x21c)
 //    暴击判定：累计暴击率 → SDC_Rand()%10000 对比 → 命中写 *dmg 倍率与 m_isCritical。
+// [b28d-lane15 判词·N（N85① + 常量装载形）] ORIG `push %ebx; sub $0x34`，kCritRollScale
+// 常量地址先 `mov $HEX,%eax; mov %eax,-0x10` 入槽再 `flds -0x10`；4.4 直接
+// `flds 0x30` 立即数寻址、帧 0x28、无 push ebx ⇒ float 常量/中转槽整体平移。
+// 语义等价，封顶。
 // ============================================================================
 bool checkIsCriticalSDC(STComputeDamageVariable* v, float* dmg, unsigned int* randState)
 {
@@ -365,6 +398,12 @@ bool checkIsCriticalSDC(STComputeDamageVariable* v, float* dmg, unsigned int* ra
 // 7) _Z19decryptBVHackPacketPcR14stBVHackInfo_t @0x088920f1 (0xd1)
 //    magic 0x6e3f4b9c 校验 → key=payload[0x30]（原 +0x34）→ 12×int XOR 就地解密
 //    0x30 字节 → 6×double 依序拷贝到 info。
+// [b28d-lane15 判词·N（P211/N76 族，残 1 条）] 本波已复现：magic 死写入槽 -0x10
+// （P171）、unsigned 循环变量出 `setbe`（P2）、payload 形参自增 6×fldl/fstpl。
+// 唯一残差 = `*cur ^= key` 的 LOD 地址寄存器：ORIG 0x08892142 双读 cur
+// （`mov -0x8,%eax; mov -0x8,%edx; mov (%edx),%edx`），4.4 复用 eax 作值寄存器
+// 再重载 cur（多 1 条 mov，68 vs 67）。`*cur=*cur^key`/`*cur^=key`/下标形三形同产，
+// 具名中间量会引入 ORIG 不存在的槽 ⇒ 封顶。
 // ============================================================================
 struct stBVHackInfo_t
 {
@@ -377,6 +416,10 @@ int decryptBVHackPacket(char* payload, stBVHackInfo_t& info)
     if (payload == 0)                               // 0x088920f7
         return 0;
 
+    // [b28d-lane15] ORIG 0x08892107 `movl $0x6e3f4b9c,-0x10(%ebp)` 是**死写入**局部
+    // （比较仍用立即数 `cmp $0x6e3f4b9c`）——P171 照抄，勿删。
+    unsigned int magic = 0x6e3f4b9cu;
+
     if (*reinterpret_cast<unsigned int*>(payload) != 0x6e3f4b9cu)   // 0x08892113
         return 0;
 
@@ -386,20 +429,21 @@ int decryptBVHackPacket(char* payload, stBVHackInfo_t& info)
         *reinterpret_cast<unsigned int*>(payload + 0x30);           // mov 0x30(%eax)
 
     unsigned int* cur = reinterpret_cast<unsigned int*>(payload);   // -0x8 游标
-    for (int i = 0; i <= 11; ++i)                   // cmpl $0xb … setbe（i≤11 共 12 次）
+    // ORIG 0x0889215b `setbe`（无符号 ≤）⇒ 循环变量必须 unsigned（P2）。
+    for (unsigned int i = 0; i <= 11; ++i)          // cmpl $0xb … setbe（i≤11 共 12 次）
     {
-        *cur = *cur ^ key;                          // mov (%edx); xor -0xc; mov (%eax)
+        *cur ^= key;                                // mov (%edx); xor -0xc; mov (%eax)
         ++cur;
     }
 
-    // 6×double：fstpl 到 info+0x00/+0x08/+0x10/+0x18/+0x20/+0x28
-    const double* src = reinterpret_cast<const double*>(payload);
-    info.m_values[0] = src[0];
-    info.m_values[1] = src[1];
-    info.m_values[2] = src[2];
-    info.m_values[3] = src[3];
-    info.m_values[4] = src[4];
-    info.m_values[5] = src[5];
+    // 6×double：ORIG 逐次 `fldl (payload); fstpl off(info); addl $0x8,payload`
+    // （形参自增，非数组下标 src[i]）。
+    info.m_values[0] = *reinterpret_cast<double*>(payload); payload += 8;
+    info.m_values[1] = *reinterpret_cast<double*>(payload); payload += 8;
+    info.m_values[2] = *reinterpret_cast<double*>(payload); payload += 8;
+    info.m_values[3] = *reinterpret_cast<double*>(payload); payload += 8;
+    info.m_values[4] = *reinterpret_cast<double*>(payload); payload += 8;
+    info.m_values[5] = *reinterpret_cast<double*>(payload); payload += 8;
     return 1;                                       // mov $0x1,%eax
 }
 

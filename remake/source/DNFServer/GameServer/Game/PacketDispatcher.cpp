@@ -696,6 +696,11 @@ void PacketDispatcher::server_load_monitoring()
 // ORIG 0x8594e52 逐指令转写。
 int PacketDispatcher::dispatch(int userId, char* data, int len)
 {
+    // b28d-lane10 判词：DIFF（orig 114 / our 119，ndiff 115）。本轮未改源码。
+    // 残余：①s_antibotChecker_ vtbl+0x3c 取函数指针形态（ORIG 0x8594ec9 mov (%eax),%esi 直取）；
+    // ②`fn(...)!=0` 的 bool 物化（ORIG 0x8594eee test/setne/test/je 直落）；
+    // ③AbnormalUser 前 cmd 的 movzwl 双段（ORIG 0x8594f02 movzwl -0xe; movzwl %dx,%dx 两段）；
+    // ④局部槽分配差。归 N7/P197④ 族（跨版本寄存器与短路物化），语义等价。
     char packetClass = data[0];
     unsigned short cmd = *(unsigned short*)(data + 1);
     CUser* user = G_CGameManager()->getUser(userId, 5);
@@ -742,6 +747,13 @@ int PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
                                  unsigned short cmd, char* data, int len,
                                  ENUM_PACKETCLASS packetClass2, unsigned short flag)
 {
+    // b28d-lane10 判词：DIFF（orig 300 / our 301，ndiff 272）。本轮未改源码；callsite 差集 0/0
+    // （ADeepY4[2] 判例，P167 语义完整）。残余 3 类：
+    // ①s_antibotChecker_ vtbl+0x30 取函数指针我方多 1 条 mov (%eax),%eax（ORIG 0x859497d 直接
+    //   mov (%eax),%esi；源码表达式 `(*reinterpret_cast<CheckFn*>((*reinterpret_cast<void***>(...))[0x30/4]))`）；
+    // ②`fn(...)!=0 && flag!=0x25c` 我方产 jmp 岛（ORIG 0x85949a7 setne %al; test; je 直落；
+    //   P197④ 槽比/短路物化族，4.4-O0 恒 cmp/jne 直跳）；
+    // ③局部槽 -0x20(ORIG)/-0x1c(我方) 差 4（N82 槽复用）。归 N 族，语义等价。
     (void)packetClass2;
     log_recv_packet(user, packetClass, cmd, data, len);
 

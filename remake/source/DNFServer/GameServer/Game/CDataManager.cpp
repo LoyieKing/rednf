@@ -138,6 +138,7 @@ CAutoMarketConditionsControl::~CAutoMarketConditionsControl()
 // `cmpl $9; setle` = i<=9 头检 for；key2 上界检查 ORIG 不存在（仅 <=0 →
 // 0x3c）；key4 push_back 后存在 ok 二次重载检查（0x082f8386，别名后重读）；
 // 未知键直接 return 0x64（0x082f8401），非 continue。
+// [b28d-lane16 DIFF] ORIG 082f815c：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 int CAutoMarketConditionsControl::LoadScript(const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -398,6 +399,7 @@ int CDataManager::get_creature_exp_level(int exp) const
     return level - 1;
 }
 
+// [b28d-lane16 NEAR] ORIG 08360cb8：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 unsigned int CDataManager::GetSpAtLevelUp(int level) const
 {
     if (level < 1 || level > 95)
@@ -430,6 +432,7 @@ unsigned int CDataManager::GetMoneyLimitPerLevel(int level, const char* serverGr
 
 // 残余 DIFF 归因：ORIG else 臂把表值直读进 %edx 后 `mov %edx,(%eax)`，4.4.7
 // 先落 %eax 再 spill %edx（N7/N18a 寄存器指派反向），界检查折叠同因。
+// [b28d-lane16 DIFF] ORIG 08360a6e：先落 %eax 再 spill %edx（N7/N18a 寄存器指派反向），界检查折叠同因。
 void CDataManager::get_mob_reward(int level, unsigned int& out) const
 {
     if (level <= 0 || level > 199)
@@ -589,6 +592,7 @@ end:
 // 遍历 m_genRefs1(+0x468)/m_genRefs0(+0x428)，元素 +0x10=m_dropRate 按
 // ROUND(v*ratio) 截断缩放；float 比较为 i486 形态。尾部空块中继岛按 P223
 // goto 尾空标签形复现；x87 分步 flds+fdivp vs 4.4 fdivs 折叠属 N85附②。
+// [b28d-lane16 DIFF] ORIG 083607d8：goto 尾空标签形复现；x87 分步 flds+fdivp vs 4.4 fdivs 折叠属 N85附②。
 __attribute__((target("arch=i486"))) void CDataManager::SetItemDropRate(float rate)
 {
     float ratio;   // 声明先于 goto（POD 无初始化声明可跨越，C++98 [stmt.dcl]）
@@ -957,21 +961,22 @@ bool ChattingEmoticonBase::isCommonEmoticon(const CUser& user) const
 
 // P85/P0：ORIG 判定链先 `mov 0xc(%ebp),%eax` 物化后 cmp $imm,%eax（形参无槽
 // 往返 ⇒ 表达式直用；历史 register 绑定形已按 P0 全域清除）。
+// [b28d-lane16 DIFF] ORIG 080e5dde：P85/P0：ORIG 判定链先 `mov 0xc(%ebp),%eax` 物化后 cmp $imm,%eax（形参无槽
 void ChattingEmoticonBase::AddPremiumIndex(int index)
 {
     // ORIG 0x080e5dde：特定 index 映射到 premium 槽位集合。
-    // [b28c-L12 代落·C28L19 spec] ORIG 判断链 = 双严格早退（`cmp $0x2898bf;
-    // jl` / `cmp $0x2898c2; jg`）+ `cmp $0x2898c0; jle` 选 53/57 块，
-    // 故写早返形（P196 比较方向反演鉴别：原 `0x2898be < index` 形被 4.4
-    // 折叠为 `cmp $0x2898be; jle`，边界常量差 1）。
-    if (index < 0x2898bf)
-        return;
-    if (index > 0x2898c2)
-        return;
-    if (index <= 0x2898c0)
-        m_set.insert(0x53);
-    else
-        m_set.insert(0x57);
+    // [b28d-lane16] 按 Ghidra C 原码形（嵌套 if：外层 `index > 0x2898be` 包裹，
+    // 内层 `<=0x2898c0 → 53` / `<=0x2898c2 → 57`）复现 ORIG 的
+    // `cmp $0x2898bf; jl fail` + `jle L53` + `jg fail` + `jmp L57` 链
+    // （旧早返平铺形多 2 条尾岛 jmp/nop）。残余 `mov 0xc(%ebp),%eax` 物化
+    // （P85）与边界常量 ±1（P196）为跨版本结构性差异。
+    if (index > 0x2898be)
+    {
+        if (index <= 0x2898c0)
+            m_set.insert(0x53);
+        else if (index <= 0x2898c2)
+            m_set.insert(0x57);
+    }
 }
 
 // ---- CChattingEmoticonList（ORIG find_emoticon 0x80e581c / ReCalc 0x80e5880）----
@@ -994,6 +999,7 @@ ChattingEmoticonBase* CChattingEmoticonList::find_emoticon(int idx)
 // 族——同址参数装载的 eax↔edx 指派与 spill 序（如 `mov (%eax),%edx` vs
 // `mov (%eax),%eax` 后接不同中转），4.4.7 分配器固定反向，穷举表达式形
 // 不可翻（范式库 N7/N18a/N22 + setcc 装载组合）。
+// [b28d-lane16 DIFF] ORIG 080e5880：不可翻（范式库 N7/N18a/N22 + setcc 装载组合）。
 void CChattingEmoticonList::ReCalc(CChattingEmoticonConfig& config,
                                    const CUser& user)
 {
@@ -1422,6 +1428,7 @@ void* CDataManager::GetChannelScript() const
     return const_cast<channel_script_t*>(&m_channelScript);
 }
 
+// [b28d-lane16 NEAR] ORIG 见报告：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 stDeathTower_t* CDataManager::GetTowerScript(unsigned int dungeonIdx)
 {
     // ORIG W 0x081455d8：m_deathTowerMap.find(dungeonIdx)；未找到打 cMyTrace；
@@ -1564,6 +1571,7 @@ const char* CDataManager::SuddenShopFileName3()
 //  跨版本 this-cache 物化——4.1.2 对局部容器成员调用先 `lea obj; mov %eax,-slot`
 //  （-0x58=&monsterList、-0x54=aiList 等，0x08362125 实证），4.4.7 直发 lea 不
 //  物化，全帧槽号系统性平移（P112 族）；条目基址/负值检查行随之整块错位。
+// [b28d-lane16 DIFF] ORIG 083620ee：物化，全帧槽号系统性平移（P112 族）；条目基址/负值检查行随之整块错位。
 bool CDataManager::VerifyMap(const CMap& map, int idx) const
 {
     // ORIG 0x083620ee：map type 与 monster list 只被读取，结果不参与返回。
@@ -1755,6 +1763,7 @@ void* CDataManager::get_dungeon(int idx)
 // （P151 同族形已用，槽 -0x6e4 对齐）；② for_each 段 4.4 引用别名物化槽
 // 使 maker 区平移（P112）；③ ORIG EH landing pad（0x08363d2c..0x08363d89
 // cleanup 展开）与 4.4 异常表结构差异属跨版本负例。
+// [b28d-lane16 DIFF] ORIG 08363ce0：使 maker 区平移（P112）；③ ORIG EH landing pad（0x08363d2c..0x08363d89
 bool CDataManager::reselectDailyTrainingQuest()
 {
     // ORIG 0x08363ce0 T。主分支：
@@ -1891,6 +1900,7 @@ int getCharacterJobToEnumValue(std::string& job)
 // 逗号 while ORIG 头检测形 vs 4.4 循环旋转（P75/EvtC9 技巧①对该形未试全）；
 // ③ 外 guard `xor$1;test;je` 与 `cnt add$1;mov %eax,%edx` 两段式 = N18a/N1；
 // ④ 入口三组 `jmp +0x42; nop` 中转岛 = 跨版本空 else nop;jmp 负例。
+// [b28d-lane16 DIFF] ORIG 0890857b：③ 外 guard `xor$1;test;je` 与 `cnt add$1;mov %eax,%edx` 两段式 = N18a/N1；
 int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
 {
     // ORIG 0x0890857b：ok(-0x25) 为函数级共享旗（入口 `movb $0,-0x25` 一次，
@@ -1952,7 +1962,11 @@ int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
             int v = 0;
             while (v = ScanInt(&ok), ok == true)
             {
-                table.m_rankRate.push_back(v);
+                // [b28d-lane16 P234] ORIG 0x08908??? 选 `push_back(int&&)`（EOi）；
+                // 传左值 v 使 4.4 选 `push_back(int const&)`（ERKi）——p167 差集
+                // MISSING EOi/EXTRA ERKi。static_cast<int&&> 是纯语言构造，
+                // 零额外 call 且选中同一 move 重载。
+                table.m_rankRate.push_back(static_cast<int&&>(v));
             }
         }
         else if (line == "[pvp normal battle time]")
@@ -2006,11 +2020,15 @@ int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
 // 绝对地址（.o 显示 $0x0 reloc）；循环体 SetPvpGrade 的 grade 指针 ORIG 经
 // 单次装载复用（0x08360b0x 区），4.4.7 每次重装载全局（P48 反向），序列
 // 等价但行序差；table ctor 槽 -0x50 vs -0x54（4.4 对 4B 对齐选择差异，P112）。
+// [b28d-lane16 DIFF] ORIG 08360aa2：等价但行序差；table ctor 槽 -0x50 vs -0x54（4.4 对 4B 对齐选择差异，P112）。
 int CDataManager::set_pvp_grade()
 {
     // ORIG 0x08360aa2：Clear 走 `mov &s_ref_pvp_grade,%eax; call` 两段直发
     // （无指针命名槽）；lastGrade(-0x14)/prevExp(-0x10) 在 table ctor 前
     // 初始化；table 由 C1 0x0837f45e 自带清零（ORIG 无 m_count 手写 store）。
+    // [b28d-lane16 真语义缺口] ORIG 0x08360aaa-0x08360ab2 先调 RefPvpGrade::Clear()
+    // （p167 差集 MISSING -1 _ZN11RefPvpGrade5ClearEv）；原重建缺失该清表调用。
+    GlobalData::s_ref_pvp_grade->Clear();
     int lastGrade = 0;
     int prevExp = 0;
     stPvpRefTable_t table;
@@ -2104,6 +2122,7 @@ bool CDataManager::InitLoginState(ENUM_SERVER_GROUP serverGroup, int channelNo)
 // vector<_DailySchedule>、SDCActiveStatusSyncServer、AvatarRoulette）由 C++
 // 作用域析构，与 ORIG 异常清理块（+0x6df2..+0x6e96）等价。
 // ---------------------------------------------------------------------------
+// [b28d-lane16 DIFF] ORIG 08358332：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool CDataManager::init()
 {
     // ORIG 版本五元组落在具名区最浅端（槽 -0xf1c/-0xf18/-0xf14/-0xf10/
@@ -3809,7 +3828,11 @@ unsigned int CDataManager::getDungeonClearAverageTime(int dungeonIdx, int partyC
         return 0;
     }
 
-    switch (difficulty)
+    // [b28d-lane16] 本地 ENUM_DUNGEON_DIFFICULTY 只声明了 _0=0（值域 0..0），
+    // 直接 switch(difficulty) 会被前端裁掉 case 2/3（编译警告「case 标号值比该
+    // 类型的最大值还要大」，ORIG 4 次 ptEv 只剩 2 次）；cast 到 int 后值域完整，
+    // 4 个 case 逐条发射（mangled 不含 switch 类型，零 ABI 影响）。
+    switch ((int)difficulty)
     {
     case 0: result = (unsigned int)it->second.m_v[0]; break;
     case 1: result = (unsigned int)it->second.m_v[1]; break;
@@ -3825,6 +3848,7 @@ unsigned int CDataManager::getDungeonClearAverageTime(int dungeonIdx, int partyC
 //   遍历 m_dungeonRank.m_vec18（vector<stBonusPointValues>）：
 //     若 diff < 当前 lo：列表首项 → 0，否则返回上一项 value；
 //     否则记录 (lo, value) 继续；循环结束返回最后一个 value。
+// [b28d-lane16 DIFF] ORIG 08363ac8：ORIG T 0x08363ac8 _ZN12CDataManager22getClearTimeBonusPointEii：
 int CDataManager::getClearTimeBonusPoint(int avgTime, int clearTime)
 {
     // ORIG 0x08363ac8：result(-0x10)/diff(-0xc) 双双入口零初始化；早退

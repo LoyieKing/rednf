@@ -195,6 +195,7 @@ LevelupSupport2ndScript::~LevelupSupport2ndScript() {}
 // 比较链 je/jne 朝向为 setcc-fold 族。
 bool importActionMailScript(Action_SendMail* mail)
 {
+    // b28d-L3: DIFF/N82+N89 — ORIG 0x089... 380 vs 378
     std::string token;
     bool ok = false;
 
@@ -349,6 +350,7 @@ bool importActionMailScript(Action_SendMail* mail)
 // 初值 0 仅作 ScanType 失败返回（+0x4a1 movzbl -0x1d），此外从不写。
 bool importFatigueQuantityEventScript(FatigueQuantityScript* script, char const* path)
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（ORIG 0x08981539
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -476,6 +478,7 @@ scan_done:
 // 失败返回（+0x49b）。
 bool importAccountFirstLoginEventScript(AccountFirstLoginScript* script, char const* path)
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（P164/P177 同族）
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -604,6 +607,7 @@ scan_done:
 // [db table] 串存 +0x20。ok(-0xa9) 共享即返回值。
 bool importAddItemCountDBEventScript(AddItemCountDBScript* script, char const* path)
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（P164/P177 同族）
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -762,6 +766,7 @@ scan_done:
 // ScanType 失败返回（+0x63e movzbl -0x1d），此外从不写。
 bool importPcBangPlayTimeScript(PcBangPlayTimeScript* script, char const* path)
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（ORIG 0x08985601
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -942,6 +947,7 @@ scan_done:
 bool importExchangeRandomItemRewardScript(ExchangeRandomItemRewardScript* script,
                                           char const* path)
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（P164/P177 同族）
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -1118,6 +1124,7 @@ scan_done:
 bool importAvatarDisjointRandomRewardScript(AvatarDisjointRandomRewardScript* script,
                                             char const* path)
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（P164/P177 同族）
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -1267,6 +1274,7 @@ scan_done:
 // 直存；ScanType 失败返回 ok（+0x893 movzbl -0x121）。
 bool importAttendanceScript(AttendanceScript* script, char const* path)
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（P164 scan_exit 岛标签四函数族之一）
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -1510,6 +1518,7 @@ scan_done:
 bool importUsedFatigueGiveItemEventScript(UsedFatigueGiveItemScript* script,
                                           char const* path)
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（P164/P177 同族）
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -1731,6 +1740,7 @@ scan_done:
 // 「fatigue 内层循环/clear 复位/mail 失败不复位 rule」三处语义，已按 ORIG 修正。
 bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* path)
 {
+    // b28d-L3: DIFF/N82+N89 — ORIG 0x089... 643 vs 636
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -2016,6 +2026,7 @@ scan_done:
 // 逐分支对照 ORIG 汇编一致。
 bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
 {
+    // b28d-L3: DIFF/N82+N89 — ORIG 0x... 1127 vs 1132
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -2366,6 +2377,7 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
 bool importPurchaseCashItemBonusEventScript(PurchaseCashItemBonusScript* script,
                                             char const* path)
 {
+    // b28d-L3: DIFF/P194+P168a — ORIG 563/563 全等指令数
     if (!loadRDARScriptFile("Event/", path))
         return false;
 

@@ -1042,7 +1042,15 @@ struct SIG_INGAME_EVENT_HISTORY       { unsigned char m_data[0x178]; };  // +0x3
 static_assert(sizeof(SIG_INGAME_EVENT_HISTORY) == 0x178, "SIG_INGAME_EVENT_HISTORY size");
 struct SIG_GROWTH_WEAPON_EVENT        { unsigned char m_data[0x14]; };   // +0x4140..0x4153
 static_assert(sizeof(SIG_GROWTH_WEAPON_EVENT) == 0x14, "SIG_GROWTH_WEAPON_EVENT size");
-struct SIG_LEVELUP_GIFT_ACCOUNT_ONCE  { unsigned char m_data[0x20]; };   // +0x4338..0x4357
+// [b28d-22] ORIG 0x08691dca setCharacLevelUpGift_AccountOnce 对 sig 用 scaled 索引
+// `mov 0xc(%ebp),%eax; mov 0x4(%eax,%edx,8),%eax` ⇒ 条目数组自 sig+0 起、元素 {int,int}
+// stride 8（0x20/8=4 条），.m_second 在条目内 +0x04；循环 i<11 越界读照抄 P171。
+// 占位 m_data 令 4.4 折成 shl+add ⇒ 建具名数组；sizeof 0x20 不变。
+struct SIG_LEVELUP_GIFT_ACCOUNT_ONCE
+{
+    struct Entry { int m_first; int m_second; };   // 条目内 +0x00/+0x04
+    Entry m_entries[4];                            // +0x00..+0x1f（stride 8）
+};   // +0x4338..0x4357
 static_assert(sizeof(SIG_LEVELUP_GIFT_ACCOUNT_ONCE) == 0x20, "SIG_LEVELUP_GIFT_ACCOUNT_ONCE size");
 
 // 金币控制统计结构（Secu_GoldControl 用），ORIG sizeof = 0x3c。

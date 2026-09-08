@@ -31,9 +31,12 @@ STPvPGuild::STPvPGuild()
 PvP_GuildWar_Log::PvP_GuildWar_Log()
     : m_startTime(0)
 {
-    // [b28c-L18] 帧差 N：ORIG sub $0x10（4.1 非量化 outgoing），4.4 带 call 帧恒
-    // 16k+4 量化（P190 附注 b28 BL11：0x4/0x14/…）——两种定义序均不可凑 0x10，
-    // 保持 callee 前置的自然小帧。
+    // [b28d-23 N 封顶] ORIG 0x085dda4b `sub $0x10`（0xc 局部 + 4 outgoing）。
+    // P232 补 char[0xc] 后 4.4 发 `sub $0x14`（实测）：4.4 带 call 帧恒 16k+4
+    // 量化（P190 附注 b28 BL11：0x4/0x14/0x24…），ORIG 的 0x10 非量化值不可达；
+    // 保留 0xc 死局部取最近帧（差 4），语义等价（framePad 不读写）。
+    char framePad[0xc];
+    (void)framePad;
 }
 
 PvP_GuildWar_Log::~PvP_GuildWar_Log()
@@ -55,6 +58,7 @@ void PvP_GuildWar_Log::SetpvpStartTime(long t)
 
 // ORIG _ZN16PvP_GuildWar_Log14InsertPvPGuildEji 0x085ddd80：
 //   for(i=0;i<=7;++i){ key==0→跳到插入；key==guildKey→累加返回 1 } 未命中返回 0。
+// [b28d-23 N·P223] 岛形/块序（108/109）⇒ N。ORIG 0x085ddd80
 int PvP_GuildWar_Log::InsertPvPGuild(unsigned int guildKey, int point)
 {
     // [b28c-L18] 真语义 bug 修复：ORIG 0x085dddcc `cmp 0xc(%ebp),%eax; jne <++i 块>`
@@ -88,6 +92,7 @@ cond:
     return 0;
 }
 
+// [b28d-23 N·N82] 192/191 ⇒ N。ORIG 0x085ddad0
 void PvP_GuildWar_Log::WriteGuildWarPvPLog(int roomIdx, char mode, CUser** users)
 {
     char logBuf[2048];

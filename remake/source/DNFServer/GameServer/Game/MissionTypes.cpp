@@ -21,6 +21,7 @@ MissionScript::MissionScript()
 // （-0xc/-0x10/-0x14）。本件已是「全头部声明」形（P212 前置条件满足仍不翻正），且
 // 声明序绑死构造序（ORIG ctor 序 = maskA,maskB,operator&），翻转声明即翻转指令序
 // ⇒ 无合法源形。44=44、助记符序列全等，仅 3 处 lea 槽号差。
+// [b28d-23 N·N93附] 三枚 bitset 局部分配方向跨版本相反（4.1 先声明占深槽 -0x14/-0xc/-0x10 vs 4.4 -0xc/-0x10/-0x14），声明序绑死构造序 ⇒ N。ORIG 0x08a5aa4e
 bool is_Victory_in_a_row(std::bitset<32> bits, short victory)
 {
     std::bitset<32> maskA((1 << victory) - 1);

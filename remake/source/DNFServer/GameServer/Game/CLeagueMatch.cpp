@@ -53,6 +53,7 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
 
 // [b28c-21] P210 定义顺序：ORIG TeamInfo::reset `sub $0x28` 保守帧；4.4 对
 // 已见定义的 PlayerInfo::reset 精确继承 $0x14 ⇒ 本定义前置于 callee 之前。
+// [b28d-lane6] DIFF·N94/P30：stride 段同 TeamInfo 族（lea vs shl）+ 我们多 1 条 mov %edx,%eax 中转。
 void TeamInfo::reset()      // ORIG T 0x0855cb16
 {
     for (int i = 0; i <= 3; ++i)
@@ -70,6 +71,8 @@ void PlayerInfo::reset()    // ORIG W 0x085687d4
         m_badges[i] = 0;
 }
 
+// [b28d-lane6] AE（已修）：m_flag bool 化（P248 档②）+ `==` 正向包裹（P222）后
+// 第一/二段与 ORIG 0x0855c95a 全等；x87 比较段经 fresh 重编译后亦归一（34=34）。
 bool CompareRating(PlayerInfo const& a, PlayerInfo const& b)  // ORIG T 0x0855c952
 {
     // b28d-lane6：m_flag bool 化（P248 档②）复现第一段 ORIG 0x0855c95a 双重 movzbl
@@ -83,6 +86,7 @@ bool CompareRating(PlayerInfo const& a, PlayerInfo const& b)  // ORIG T 0x0855c9
     return false;
 }
 
+// [b28d-lane6] DIFF·N94/P30：stride 段多处同 TeamInfo 族（lea vs shl）。
 void TeamInfo::refresh()    // ORIG T 0x0855c9ae
 {
     for (int i = 0; i <= 3; ++i) {
@@ -95,6 +99,7 @@ void TeamInfo::refresh()    // ORIG T 0x0855c9ae
     }
 }
 
+// [b28d-lane6] DIFF·N94/P30：stride 段多处同 TeamInfo 族（lea vs shl）。
 int TeamInfo::add(CUser* user)   // ORIG T 0x0855cb54
 {
     for (int i = 0; i <= 3; ++i) {
@@ -111,6 +116,7 @@ int TeamInfo::add(CUser* user)   // ORIG T 0x0855cb54
     return 0;
 }
 
+// [b28d-lane6] DIFF·N94/P30：stride 段 3 处同 TeamInfo 族（lea vs shl）。
 int TeamInfo::del(CUser* user)   // ORIG T 0x0855cc9c
 {
     for (int i = 0; i <= 3; ++i) {
@@ -122,6 +128,7 @@ int TeamInfo::del(CUser* user)   // ORIG T 0x0855cc9c
     return 0;
 }
 
+// [b28d-lane6] DIFF·N94/P30：stride 0x1c 的 i*4 ORIG 0x0855cd42 用 lea(,%eax,4)，4.4 恒 shl $2（探针 /tmp/l6p/p4.cpp 五形全败）。
 int TeamInfo::size() const       // ORIG T 0x0855cd26
 {
     /* ORIG @0855cd42 乘法链 lea(,%eax,4)/lea(,%edx,8)/sub %edx（PlayerInfo
@@ -145,6 +152,7 @@ int TeamInfo::size() const       // ORIG T 0x0855cd26
 // （+0x00/08/0c/10/14/18），GCC4.1 语义；4.4 视 user-provided ctor 类免置零直调。
 // placement-new+try 实测反引入 operator new(void*,ptr) call + EH spill，C++98
 // 无法复现该置零序列，语义等价（残差 6 insns），按 N 族结案，勿再开轮。
+// [b28d-lane6] DIFF·N77：ORIG 0x0855cd74 对 new PVP_ROOM_INFO 发 6 条 value-init 清零（+0x00/08/0c/10/14/18），4.4 按 CWG434 不 emit。
 CLeagueMatch::CLeagueMatch()
 {
     if (pWaitingRoomList_ == 0)
@@ -165,6 +173,7 @@ CLeagueMatch::~CLeagueMatch()
 // IMatch 覆盖
 // ---------------------------------------------------------------------------
 
+// [b28d-lane6] DIFF·N94 stride（ORIG 0x0855e12a）+ 守卫块（ORIG 三独立 je 直跳 vs 4.4 continue jmp 中继，P63/P133）。
 float CLeagueMatch::GetGap(IMatch* other)     // ORIG T 0x0855e12a
 {
     float gap = 0.0f;
@@ -184,6 +193,7 @@ float CLeagueMatch::GetGap(IMatch* other)     // ORIG T 0x0855e12a
     return gap;
 }
 
+// [b28d-lane6] DIFF·N94：stride 段同 TeamInfo 族；bool 化后 xor 段已与 ORIG 0x0855e5e9 一致（P248 档②）。
 CUser* CLeagueMatch::GetUser(unsigned int idx)   // ORIG T 0x0855e5e4
 {
     if (idx > 3)
@@ -244,6 +254,7 @@ void CLeagueMatch::OnJoinRoom(CUser* user)      // ORIG T 0x0855d198
 }
 
 // ORIG T 0x0855d1c0
+// [b28d-lane6] DIFF·N93：槽号/实参装载序（142 vs 147，语义闭合）。
 void CLeagueMatch::OnLeaveRoom(CUser* user, PvP_Room* room, int team, int flag)
 {
     if (m_state == 4) {
@@ -320,6 +331,7 @@ int CLeagueMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
 }
 
 // ORIG T 0x0855dc64。ORIG 返回 int：失败路径 → 0；成功 → 1。
+// [b28d-lane6] DIFF·N93/N104：槽号（-0x6c vs -0x38）+ EH 尾块序（277 vs 275）。
 int CLeagueMatch::OnMatchRoom(PvP_Room* room, int authValue)
 {
     if (m_authValue != authValue) {
@@ -404,6 +416,7 @@ void CLeagueMatch::OnStartFight()           // ORIG T 0x0855e21c
 }
 
 // ORIG T 0x0855e55a
+// [b28d-lane6] DIFF·N-P75：ORIG 0x0855e594 第二实参先入 %eax 再压常量 0，4.4 恒先压常量；cast/NULL/具名局部 3 形实测不可翻。
 void CLeagueMatch::OnEndFight(PvP_Room* room)
 {
     int managerTeam = room->get_manager_team();
@@ -422,6 +435,7 @@ void CLeagueMatch::OnEndFight(PvP_Room* room)
 // 【N7 封顶】b26 lane19：虚调用 callee 寄存器 %ecx↔%eax 互换 + 实参装载序
 // 跨版本差（ORIG 先槽 -0x10 后形参 0x10，4.4 反序——N80 族不可翻），33 条
 // 长度/助记符全等。
+// [b28d-lane6] NEAR·N7：虚调用目标 %ecx(ORIG 0x0855e4dc)↔%edx(4.4.7)+实参装载序(P75)；33 条助记符全等。
 int CLeagueMatch::OnWalkOut(PvP_Room* room, int seat)
 {
     int team = room->get_team(seat);
@@ -451,6 +465,7 @@ bool CLeagueMatch::OnReady(CUser* /*user*/, bool ready)
 //   3) GetDailyBadge 由循环改 3 条独立调用（ORIG $0x0/$0x1/$0x2 立即数直传
 //      三处 call，P0），读取 user 按数组化寻址 (&m_teamA)[t].m_players[i].m_user
 //      复现 ORIG 乘法寻址链（无具名缓存槽）。
+// [b28d-lane6] DIFF·N82：帧 0x1fc vs 0x24c，槽复用策略差（992 vs 960；§6.2 三件套口径）。
 void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
 {
     // ---- 结果包（ORIG 0x0855eb37 call W Packet_PvPResult::C1Ev 0x08568dc6，
@@ -619,6 +634,7 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
 }
 
 // ORIG T 0x0855e22c：向全体成员广播加载完成通知（0x81 包，携带 unique id）。
+// [b28d-lane6] DIFF·N93：槽号偏移（-0x20 vs -0x24 族）+ 块序。
 void CLeagueMatch::OnCompleteLoad(CUser* user)
 {
     PacketGuard pkt;
@@ -667,6 +683,7 @@ int CLeagueMatch::CheckSeat(int seat)        // ORIG T 0x0855d058
     return 1;
 }
 
+// [b28d-lane6] DIFF·N94/P30：stride 段主导（135 行差全为该段重复展开）。
 bool CLeagueMatch::CheckMatchable(IMatch* other)   // ORIG T 0x0855fa14
 {
     // ORIG 汇编对 other 直接按对象前部偏移读其第一队 PlayerInfo 槽
@@ -732,6 +749,7 @@ void CLeagueMatch::SetPlayCountPerOneTeam(unsigned int n)   // ORIG T 0x0855d070
 
 // ORIG 虚槽布局：GetSchoolNo 为派生新增第 37 槽（ORIG vtable +0x90），
 // GetIndentification 的覆盖体即经 vtable+0x90 虚调本函数。
+// [b28d-lane6] DIFF·N94/P30：stride 段同 TeamInfo 族（lea vs shl）。
 int CLeagueMatch::GetSchoolNo()              // ORIG T 0x0855f9aa
 {
     for (int i = 0; i <= 3; ++i) {
@@ -764,6 +782,7 @@ unsigned char CLeagueMatch::GetPlayCountPerOneTeam()  // ORIG W 0x084ed37b：mov
     return nPlayerCountPerOneTeam_;
 }
 
+// [b28d-lane6] DIFF·N93：槽号（-0x2c vs -0x34）+ 块序（196 vs 201）。
 PvP_Room* CLeagueMatch::_MakeRoom(CUser* user)   // ORIG T 0x0855d572
 {
     PacketGuard pkt;
@@ -815,6 +834,7 @@ PvP_Room* CLeagueMatch::_MakeRoom(CUser* user)   // ORIG T 0x0855d572
     return pvp;
 }
 
+// [b28d-lane6] DIFF·N93/N94：槽号 + stride 段（132 vs 117）。
 void CLeagueMatch::_RegisterWaitingRoom(PvP_Room* room)   // ORIG T 0x0855d884
 {
     bool foundMin = false;
@@ -853,6 +873,7 @@ void CLeagueMatch::_BackupRoomInfo(PvP_Room* room)     // ORIG T 0x0855d554
     room->get_room_info(&m_roomInfo);
 }
 
+// [b28d-lane6] DIFF·N82/N93：局部槽号整体偏 4 + 块序；语义闭合（69/64）。
 int CLeagueMatch::_CheckMatchable(PvP_Room* room) const   // ORIG T 0x0855da56
 {
     int emptySeats = 0;
@@ -887,6 +908,7 @@ void CLeagueMatch::_PullOutRoom(CUser* user, PvP_Room* room, int seat)  // ORIG 
     }
 }
 
+// [b28d-lane6] DIFF·N104：EH 尾块相对序（ORIG 正常出口块在函数末、unwind 居中；块内容逐条全等）。
 int CLeagueMatch::_PutInRoom(CUser* user, PvP_Room* room, bool observer)  // ORIG T 0x0855d42a
 {
     PacketGuard pkt;
@@ -906,6 +928,7 @@ int CLeagueMatch::_PutInRoom(CUser* user, PvP_Room* room, bool observer)  // ORI
     return seatNo;
 }
 
+// [b28d-lane6] DIFF·N93：槽号偏移（-0x10/-0x18 vs -0x14/-0x10 族）。
 void CLeagueMatch::_ReturnTeam(PvP_Room* room, int team, CUser* except)  // ORIG T 0x0855e378
 {
     PvP_Room* madeRoom = 0;
@@ -930,6 +953,7 @@ void CLeagueMatch::_ReturnTeam(PvP_Room* room, int team, CUser* except)  // ORIG
     m_state = 0;
 }
 
+// [b28d-lane6] DIFF·N93：槽号 + 三目/块序（ORIG 0x0855e9xx）。
 void CLeagueMatch::_SendMatchStatePacket(int state, int teams)   // ORIG T 0x0855e664
 {
     PacketGuard pkt;
@@ -945,6 +969,7 @@ void CLeagueMatch::_SendMatchStatePacket(int state, int teams)   // ORIG T 0x085
     }
 }
 
+// [b28d-lane6] AE：clean 归一后 25=25 全等（余 2 条路由 nop 填充，§6.1 豁免）。
 int CLeagueMatch::_getSameSchool(unsigned int* schools, int selfIdx,
                                  int count, unsigned int schoolNo)  // ORIG T 0x0855e7a8
 {
@@ -989,6 +1014,7 @@ bool CLeagueMatch::_CheckSchool(PvP_Room* room, CUser* user)  // ORIG T 0x0855ce
     return 1;
 }
 
+// [b28d-lane6] DIFF·N93/P184：ORIG 0x0855xxxx switch 块 + 死块照抄（207 vs 187）。
 int CLeagueMatch::addBadge(PlayerInfo* info, ENUM_BADGE_TYPE badgeType,
                            unsigned char* msgFlag, bool extra)   // ORIG T 0x0855e7ee
 {

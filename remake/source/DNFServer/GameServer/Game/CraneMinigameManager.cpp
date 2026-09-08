@@ -62,6 +62,8 @@
 //    `_ZSt10_ConstructISt4pairIiiES1_EvPT_OT0_` 两个 ORIG 无同名切片的弱符号
 //    （ORIG 只有 C++98 拼写 `…EvPT_RKT0_` @0x085c3936；`…EvPT_OT0_` 是 4.4.7
 //    + `-std=gnu++0x` 头文件在 vector<pair> 扩容路径上的内部结构差，N 类）。
+// [b28d-lane15 复核] 维持 N：TSV ndiff=394（ORIG 431 / 我方 431，尺寸 0x74d 双侧
+// 全等）；残差即上述 ①循环旋转岛 1 insn、②N82/P112 帧槽号、③.o 重定位显示差。
 // ============================================================================
 
 bool importCraneMinigameScript(CraneMinigameScript* script, const char* path)
@@ -314,6 +316,8 @@ bool CraneMinigameManager::init()
 // 残余 DIFF 归因（N 类，40/40 等长，仅 6 行搬移链次序）：4.1 把 count 提前
 // 载入 %ebx 再 `mov %ebx,%eax` 喂 divl、余数 `mov %edx,%ecx`；4.4 直取
 // 0xc(%ebp) 且 div 结果先归 %eax 再 `mov %eax,%ecx`（N7/N82 RA 族）。
+// [b28d-lane15 复核] 维持 N：N96 清绑后残差为 N7/N82 RA 寄存器角色差（ORIG
+// +0x26 余数三段搬运 / +0x49 双 callee-saved 保活），语义等价。
 void CraneMinigameManager::updateCraneItemNeedMaterial(int count)
 {
     unsigned int size = m_needMaterials.size();

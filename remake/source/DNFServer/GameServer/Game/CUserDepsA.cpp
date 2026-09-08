@@ -151,6 +151,8 @@ void CUser::SendNotiPacketMessage(const char* msg, ENUM_MESSAGE_TYPE type)
 // INVEN_TYPE 常量 $0x1/$0x2 在首块对调出现）+ 未链接 .o 的 $0x0 relocation 占位。
 // 语义（space==0→INVEN_TYPE 1、space==1→AVATAR 2、CheckUnusable/Equipslot/
 // AvatarBonus/Durability/send_equip/边界判据）与 ORIG 逐块一致。
+// [b28d-L14 N82/N95] ORIG 0x0821f0f4；p167 CLEAR（32/32）；残差=帧/槽布局
+// （ORIG 0x34 vs 4.4 0x44）+ 槽号平移。
 int CUser::change_equip(int space, short slot, int dstSlot)
 {
     int ret;

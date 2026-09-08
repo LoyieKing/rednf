@@ -23,6 +23,7 @@
 #include "DB_AvatarChangeOwner.h"     // avatar 过户 DB 请求
 #include "DisPatcherCore.h"           // DisPatcher_LeaveParty（CreatePrivateStore 离队）
 #include "PCK_AUCTION_OPEN_PRIVATE_STORE_GA.h"  // 权威 PCK_AUCTION_OPEN_PRIVATE_STORE_GA（ORIG W 0x85cb374）
+#include "PCK_AUCTION_CLOSE_PRIVATE_STORE_GA.h" // 权威 PCK_AUCTION_CLOSE_PRIVATE_STORE_GA（ORIG W 0x85cb3dc）
 
 
 #include <algorithm>
@@ -31,22 +32,9 @@
 // ORIG T _Z26IsTradeLimitAttachTypeItemRK10Inven_Item @0x081201dc（定义在 CMailBoxHelper TU）。
 bool IsTradeLimitAttachTypeItem(Inven_Item const& item);
 
-// PCK_AUCTION_OPEN_PRIVATE_STORE_GA → 归一化到权威共享头 PCK_AUCTION_OPEN_PRIVATE_STORE_GA.h
-//（eliminate 伪镜像 OpenPrivateStoreGaMirror，统一符号 /_ZN33PCK_AUCTION_OPEN_PRIVATE_STORE_GAC1Ev/）。
-// ClosePrivateStoreGaMirror 仍留（close 包无权威头，见下）。
-
-// PCK_AUCTION_CLOSE_PRIVATE_STORE_GA 镜像：ORIG W 0x85cb3dc
-// PACKET_CTOR_BODY(0, 0xc, 0x16)（memset 0x16→setCategory(0)→setPacketID(0xc)→setSize(0x16)），
-// m_id（memberIdentificationNumber_t）@18；权威定义见 ServerLab/Auction AuctionPacket.h。
-struct ClosePrivateStoreGaMirror : public nsl::PACKET_HEADER
-{
-    unsigned int m_id;   // @18（setSize 0x16 = 头 0x12 + 4）
-
-    ClosePrivateStoreGaMirror()
-    {
-        PACKET_CTOR_BODY(0, 0xc, 0x16);
-    }
-};
+// PCK_AUCTION_OPEN/CLOSE_PRIVATE_STORE_GA 均归一化到权威共享头（eliminate 伪镜像
+// OpenPrivateStoreGaMirror / ClosePrivateStoreGaMirror，统一 ORIG 符号
+// /_ZN33PCK_AUCTION_OPEN_PRIVATE_STORE_GAC1Ev/、/_ZN34PCK_AUCTION_CLOSE_PRIVATE_STORE_GAC1Ev/）。
 
 namespace private_store
 {
@@ -83,7 +71,7 @@ CPrivateStoreMgr::~CPrivateStoreMgr()
 {
     for (std::map<PrivateStoreZone, std::list<CPrivateStore*>*>::iterator it =
              m_zoneStores.begin();
-         it != m_zoneStores.end(); ++it)
+         it != m_zoneStores.end(); it++)   // ORIG 用 ppEi 后置形（P28）
     {
         std::list<CPrivateStore*>* pList = it->second;
         if (pList != 0)
@@ -122,36 +110,39 @@ bool CPrivateStorePos::put_object_info(PacketGuard& p)
         return false;
     }
 
-    int state = m_pStore->GetState();
-    if (state != 1 && state != 2)
+    // ORIG 0x85cadf6 P167 差集：GetPos×9 / GetSeller×6 / GetState×4 /
+    // GetSubject×4 / isDollCreated×3 / getCurCharacVill×2 / get_area×2 ——
+    // 原码逐使用点重读 getter（P157/P183 禁缓存），日志变参亦直接读 getter
+    // 表达式（P92）；缓存 pos/seller/state/subject 局部丢 20 个调用点。
+    if (m_pStore->GetState() != 1 && m_pStore->GetState() != 2)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0xd11, 0);
-        trace("STATE_ERROR : private_store_state(%d)", state);
+        trace("STATE_ERROR : private_store_state(%d)", m_pStore->GetState());
         return false;
     }
 
-    CUser* seller = m_pStore->GetSeller();
-    if (seller == 0)
+    if (m_pStore->GetSeller() == 0)
     {
-        PrivateStorePos* pos = m_pStore->GetPos();
         cMyTrace trace(__PRETTY_FUNCTION__, 0xd17, 0);
         trace("NOTEXIST_ERROR : private_store(%d, %d) user(null)",
-              (int)pos->m_a, (int)pos->m_b);
+              (int)m_pStore->GetPos()->m_a, (int)m_pStore->GetPos()->m_b);
         return false;
     }
 
     // 未生成 doll 时才校验 store 登记位置与卖家当前位置一致。
     if (!m_pStore->isDollCreated())
     {
-        PrivateStorePos* pos = m_pStore->GetPos();
-        signed char vill = (signed char)seller->getCurCharacVill();
-        int area = seller->get_area(false);
-        if ((int)pos->m_a != (int)vill || (int)pos->m_b != area)
+        if ((int)m_pStore->GetPos()->m_a !=
+                (int)(signed char)m_pStore->GetSeller()->getCurCharacVill() ||
+            (int)m_pStore->GetPos()->m_b !=
+                m_pStore->GetSeller()->get_area(false))
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0xd23, 0);
             trace("DIFFERENT_ERROR : private_store(%d,%d), user(%d,%d), uid(%d)",
-                  (int)pos->m_a, (int)pos->m_b, (int)vill, area,
-                  seller->get_unique_id() & 0xffff);
+                  (int)m_pStore->GetPos()->m_a, (int)m_pStore->GetPos()->m_b,
+                  (int)(signed char)m_pStore->GetSeller()->getCurCharacVill(),
+                  m_pStore->GetSeller()->get_area(false),
+                  m_pStore->GetSeller()->get_unique_id() & 0xffff);
             return false;
         }
     }
@@ -159,19 +150,24 @@ bool CPrivateStorePos::put_object_info(PacketGuard& p)
     p.put_byte(1);
     p.put_short((unsigned short)m_pStore->GetSellerIndex());
 
-    std::string* subject = m_pStore->GetSubject();
-    p.put_int((int)subject->length());
-    p.put_str(subject->c_str(), (int)subject->length());
+    p.put_int((int)m_pStore->GetSubject()->length());
+    p.put_str(m_pStore->GetSubject()->c_str(),
+              (int)m_pStore->GetSubject()->length());
 
     p.put_byte(m_pStore->GetState() != 1 ? 1 : 0);
 
-    PrivateStorePos* pos = m_pStore->GetPos();
-    p.put_byte((int)pos->m_a);
-    p.put_byte((int)pos->m_b);
-    p.put_short((short)pos->m_field2);
-    p.put_short((short)pos->m_field4);
+    p.put_byte((int)m_pStore->GetPos()->m_a);
+    p.put_byte((int)m_pStore->GetPos()->m_b);
+    p.put_short((short)m_pStore->GetPos()->m_field2);
+    p.put_short((short)m_pStore->GetPos()->m_field4);
 
-    p.put_byte(m_pStore->isDollCreated() ? 1 : 0);
+    // ORIG 0x85cb21c 尾：`call isDollCreated; test; je else; put_byte(1); jmp;
+    // else: call isDollCreated; xor $1; test; je end; put_byte(0)` = 两独立守卫
+    // 各重读一次 getter（P48/P184 死块照抄；三目形只出 1 次调用）。
+    if (m_pStore->isDollCreated())
+        p.put_byte(1);
+    else if (!m_pStore->isDollCreated())
+        p.put_byte(0);
     return true;
 }
 
@@ -574,13 +570,13 @@ bool CPrivateStore::RemovePrivateStore(bool sendFail)
         }
     }
 
-    m_pSeller->getCurCharacName();
+    // ORIG P167：getCurCharacName 仅 1 次（原先多一条返回值丢弃的死调用）。
     m_pSeller->m_historyLog.RemovePrivateStore(
         (int)m_pos.m_a, (int)m_pos.m_b, m_pSeller->getCurCharacName());
 
     if (GlobalData::s_auction_proxy->IsRunning())
     {
-        ClosePrivateStoreGaMirror auctionPacket;
+        PCK_AUCTION_CLOSE_PRIVATE_STORE_GA auctionPacket;
         auctionPacket.m_id = (unsigned int)m_pSeller->get_acc_id();
         GlobalData::s_auction_proxy->SendPacket(&auctionPacket);
     }
@@ -723,13 +719,11 @@ bool CPrivateStore::EnterPrivateStore()
         return false;
     }
 
-    // ORIG 0x85c8dd6：!= 右操作数 `m_users.end()`（+0x30 sentinel，ebx 跨 call
-    // 保活）先于 find() 求值 = 4.1 操作数右先；4.4 恒左先（P75）。同类型两侧
-    // operator!= 符号不变，对调操作数使 end 落左操作数即复现右先装载序。
-    // 【b28 复核】lhs 正序形 `find(...) != end` 实测使 find 结果 sret 槽从
-    // -0x18 提前占 -0x14/-0x10 阶（临时槽阶梯平移，44 行劣于对调形 4 行），
-    // 两形不可兼得（求值序 vs 实参位序）——维持对调形，残 4 行封顶 P75 跨版本
-    // 实参求值序（链接后仅剩此对，其余为 call 标注伪差）。
+    // ORIG 0x85c8dd6：find() 结果 sret=-0x18 作 operator!= 的 this，第二次
+    // end() 结果 -0xc 作实参。左操作数内联写 `find(...) != end()` 时 4.4 把
+    // find 实参求值序翻成 begin 先（P75）；右操作数内联写 `end() != find(...)`
+    // 则 find 实参序与 ORIG 全等，仅余比较点 this/实参装载对调 3 行
+    // （P75 跨版本实参装载序），封顶 NEAR。
     if (m_users.end() != std::find(m_users.begin(), m_users.end(), m_pBuyer))
     {
         m_errorHandler.Do(0x14);

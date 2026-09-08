@@ -57,7 +57,9 @@ struct SIG_CREATURE_ITEM_DETAIL_INFO
     int           m_exp;              // +0x20
     unsigned char m_creatureItemType; // +0x24（低字节；Load 以 (signed char) 还原）
     unsigned char m_pad25;            // +0x25
-    unsigned char m_noCharge;         // +0x26
+    char          m_noCharge;         // +0x26（ORIG CEgg::SaveCreatureItem 0x83390c8
+                                      // 赋值段 movzbl→eax;mov eax,edx 两段 ⇒ 目标
+                                      // 为 signed char，探针 /tmp/d26p/p_route2.cpp）
     unsigned char m_stat;             // +0x27（兼作删除标记）
     int           m_expireTime;       // +0x28
     unsigned char m_pad2c[4];         // +0x2c..0x2f

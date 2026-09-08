@@ -74,6 +74,7 @@ bool DB_RequestCharacSkillInfo::_GetSkillTreeIndex(unsigned int characNo, char* 
 // ORIG 0x08447312：seLect %s from skill（DB_HANDLE_3，列名=get_skill_slot_name(slot)）；
 // exec/fetch 失败或 count==0 → logFormat 后返回 0；get_compressed_blob_data(0, 0x198, 2)
 // 解压已学技能表。
+// [b28d-19] N：P75 —— 实参装载时刻（ORIG 在 i++ 前先载 len→%ecx，4.4 末位装载；cast/逗号/具名三形同产）；ORIG 0x08447312。
 bool DB_RequestCharacSkillInfo::_GetSkillInfo(unsigned int characNo, char slot,
                                               _Mastered_skill* skills)
 {

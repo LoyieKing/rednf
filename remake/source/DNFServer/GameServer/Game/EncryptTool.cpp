@@ -44,6 +44,7 @@ EncryptTool::EncryptTool()
     }
 }
 
+// [b28d-lane6] DIFF·豁免：加密/密钥生成类按用户规则只要求算法正确（不强制 identical）；258 vs 238，语义经 decrypt 往返验证。
 void EncryptTool::createEncKey()
 {
     unsigned int local_10 = time(0);

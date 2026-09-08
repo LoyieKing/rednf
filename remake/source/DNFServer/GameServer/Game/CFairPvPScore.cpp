@@ -129,6 +129,9 @@ bool CFairPvPScore::_saveData(CUser* pUser)
 }
 
 // ---- ORIG 0x84a55a8 getData(char*) const -----------------------------------
+// b28d-21: 已修 P167（`it->first/second` → `(*it).first/second`，消 2 处
+// _Rb_tree_const_iterator::operator-> ptEv）；余 N82 帧/槽（183 vs 218）+
+// P175（size()/at() 索引形）族。ORIG 0x84a55a8。
 void CFairPvPScore::getData(char* pData) const
 {
     SIG_FAIR_PVP_SCORE* sig = reinterpret_cast<SIG_FAIR_PVP_SCORE*>(pData);
@@ -141,11 +144,13 @@ void CFairPvPScore::getData(char* pData) const
         // 经具名条目视图写入，宽度逐字段与反汇编一致。
         SIG_FAIR_PVP_SCORE_ENTRY* entry =
             reinterpret_cast<SIG_FAIR_PVP_SCORE_ENTRY*>(pData + (idx + 2) * 0x10);
-        entry[1].m_job = (char)it->first.m_job;
-        entry[1].m_sub = (char)it->first.m_sub;
-        entry[1].m_cnt0 = it->second.m_cnt0;
-        entry[1].m_cnt1 = it->second.m_cnt1;
-        entry[1].m_cnt2 = it->second.m_cnt2;
+        // b28d-21：P167 差集 EXTRA 为 _Rb_tree_const_iterator::operator->（ptEv）
+        // ⇒ ORIG 源码用 `(*it).` 形式（deEv），改回。
+        entry[1].m_job = (char)(*it).first.m_job;
+        entry[1].m_sub = (char)(*it).first.m_sub;
+        entry[1].m_cnt0 = (*it).second.m_cnt0;
+        entry[1].m_cnt1 = (*it).second.m_cnt1;
+        entry[1].m_cnt2 = (*it).second.m_cnt2;
         ++sig->m_jobScoreCount;                          // 字节自增（ORIG movzbl/lea/movb）
     }
 
@@ -173,6 +178,9 @@ void CFairPvPScore::getData(char* pData) const
 }
 
 // ---- ORIG 0x84a5a28 UpdateScore(int,int,int,int,int,int,int) ---------------
+// b28d-21: DIFF/N 封顶 — p167 差集 3 项：ORIG `ne`（重建 `eq`，P220 迭代器极性）
+// + make_pair/pair 直构形（P178/P192）；残差 N82 帧/槽（211 vs 200）。
+// ORIG 0x84a5a28。
 void CFairPvPScore::UpdateScore(int jobId, int subKey, int mode,
                                 int cnt0, int cnt1, int cnt2, int resultKind)
 {
@@ -237,6 +245,8 @@ void CFairPvPScore::UpdateScore(int jobId, int subKey, int mode,
 }
 
 // ---- ORIG 0x84a5cc2 MakePacketSocre(PacketGuard&, int) const ---------------
+// b28d-21: DIFF/N 封顶 — p167 调用点差集 CLEAR（37=37，语义完整）；残差
+// N82 帧/槽（233 vs 221）+ N89。ORIG 0x84a5cc2。
 void CFairPvPScore::MakePacketSocre(PacketGuard& pkt, int mode) const
 {
     pkt.put_byte(mode);
@@ -336,21 +346,19 @@ int CFairPvPScore::GetLastTrainingSealBonusCount()     // 0x85dfdbc
     return (int)m_lastTrainingSealBonusCount;
 }
 
-namespace
-{
-
-inline bool IsFairPvpTrainingChannel()                 // ORIG 双调用模式 0xf/0x10
-{
-    GameWorld* world = G_GameWorld();
-    const int type = world->GetChannelType();
-    if (type == 0xf || type == 0x10)
-        return true;
-    return false;
-}
-
-}  // namespace
+// b28d-21：删除**发明符号** `_ZN8fair_pvp12_GLOBAL__N_124IsFairPvpTrainingChannelEv`
+// （ORIG nm 无此符号；P49：-O0 下 static inline helper 仍产真实 call 符号 = 既 DIFF
+// 又造 missing）。ORIG 0x84a48f8 loadData 区间实测 4 次 `call G_GameWorld` +
+// 4 次 `call GetChannelType`（0x84a4b??/0x84a4c?? 段）⇒ 两个使用点各直接写两次
+// `G_GameWorld()->GetChannelType()`（P183 禁指针缓存，每点重发全链）。
 
 // ---- ORIG 0x84a48f8 loadData(CUser*, char*) --------------------------------
+// b28d-21: 已修发明符号（删 `_ZN8fair_pvp12_GLOBAL__N_124IsFairPvpTrainingChannelEv`
+// ——ORIG nm 无此符号；两使用点改直接表达式，G_GameWorld/GetChannelType 差集清零，
+// 951→928）。余 MISSING：G_CDataManager×2、make_pair(JobKey)/pair C1、
+// put_short、getCurCharacInvenR、strncpy；EXTRA：memset×4、PacketGuard C1/D1、
+// Inven_Item C1Ev、_Unwind_Resume。残差 N82 帧/槽（847 vs 843）+ N86/N89。
+// ORIG 0x84a48f8。
 bool CFairPvPScore::loadData(CUser* pUser, char* pData)
 {
     bool ok = true;
@@ -404,7 +412,9 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
     m_field54 = (int)sig->m_lastPlayTime;
 
     // 训练特训渠道（0xf/0x10）且无上次结算时间 → 补发入场奖励
-    if (IsFairPvpTrainingChannel() && (int)sig->m_lastPlayTime == 0)
+    if ((G_GameWorld()->GetChannelType() == 0xf ||
+         G_GameWorld()->GetChannelType() == 0x10) &&
+        (int)sig->m_lastPlayTime == 0)
     {
         std::vector<std::pair<int, int> > items;
         // ORIG 0x084a4b86 call getPVPResultRefR(CUser)——返回值未使用【死调用，
@@ -474,7 +484,8 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
     m_giveItem = sig->m_giveItem;
 
     // 特训渠道：可领但尚未领取的道具（发 0x161 提示包）
-    if (IsFairPvpTrainingChannel())
+    if (G_GameWorld()->GetChannelType() == 0xf ||
+        G_GameWorld()->GetChannelType() == 0x10)
     {
         const int giveLimit =
             G_CDataManager()->m_serverParameter.get_pvp_item_give(

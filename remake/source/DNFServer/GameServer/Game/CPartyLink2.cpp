@@ -72,6 +72,31 @@ inline CTraceMobDieHack& traceHack(CParty* p)
 // fistpll（round-to-nearest）等价转写（同 PartyDepsD2.cpp 惯例）
 #define LINK2_ROUND(x) ((int)((x) + 0.5f))
 
+// [b28d-D13] CAICharacter PvP 胜点视图（ORIG 0x0834a240 逐条实证：
+// +0x1c=最小胜点、+0x20=最大胜点，均 `mov this,%eax; mov disp(%eax)` 重物化
+// ⇒ 源形为 cast 表达式直用，无具名指针/局部）。视图仅用于本 TU 转写。
+struct CAICharacterPvPView
+{
+    char m_pad00[0x1c];
+    int m_pvpWinLow;    // +0x1c
+    int m_pvpWinHigh;   // +0x20
+};
+
+// [b28d-D13] 秘密商店槽视图（ORIG 0x085b9ecc 地址链 `pos*0x1c → lea 0x2a0 →
+// add this → lea 0x8` 实证：this+0x2a0 起 4 槽、步长 0x1c，槽内 +0x8 为
+// vector<secretshop::SALE_INFO>）。替代原 `(char*)this + 0x2b0 + pos*0x1c` 裸偏移。
+struct SecretShopSlotView
+{
+    char m_pad00[0x8];
+    std::vector<secretshop::SALE_INFO> m_items;   // +0x08
+    char m_pad14[0x1c - 0x8 - 0xc];               // +0x14..+0x1b
+};
+struct PartySecretShopView
+{
+    char m_pad00[0x2a0];
+    SecretShopSlotView m_slots[4];                // +0x2a0（步长 0x1c）
+};
+
 }  // namespace
 
 // ============================================================================
@@ -84,11 +109,14 @@ int CAICharacterGetPvPWinPointShim(void const* self)
     asm("_ZNK12CAICharacter14getPvPWinPointEv");
 int CAICharacterGetPvPWinPointShim(void const* self)
 {
-    int low = *reinterpret_cast<int const*>(reinterpret_cast<char const*>(self) + 0x1c);
-    int high = *reinterpret_cast<int const*>(reinterpret_cast<char const*>(self) + 0x20);
-    if (low == high)
-        return low;
-    return low + get_rand_int(high - low + 1);
+    // [b28d-D13] P0/P183：ORIG 无 low/high 槽往返，每次访问重发 `mov 0x8(%ebp),%eax`
+    // + `mov 0x1c/0x20(%eax)` ⇒ 表达式内联（禁具名局部缓存）。
+    if (((CAICharacterPvPView const*)self)->m_pvpWinLow ==
+        ((CAICharacterPvPView const*)self)->m_pvpWinHigh)
+        return ((CAICharacterPvPView const*)self)->m_pvpWinLow;
+    return ((CAICharacterPvPView const*)self)->m_pvpWinLow +
+           get_rand_int(((CAICharacterPvPView const*)self)->m_pvpWinHigh -
+                        ((CAICharacterPvPView const*)self)->m_pvpWinLow + 1);
 }
 
 // ============================================================================
@@ -139,13 +167,13 @@ void CParty::setBestClearTime(int dungeonIdx, int difficulty, int time)
 void CParty::SendSecretShopItemList(CUser* user)
 {
     int pos = GetUserPosition(user);
-    if (pos < 0 || pos >= 4)
-        return;
-
-    std::vector<secretshop::SALE_INFO>* shopItems =
-        reinterpret_cast<std::vector<secretshop::SALE_INFO>*>(
-            reinterpret_cast<char*>(this) + 0x2b0 + pos * 0x1c);
-    GlobalData::s_secret_shop->SendSecretShopItemList(user, *shopItems);
+    // [b28d-D13] 具名视图替代裸偏移（§4.3）；ORIG 0x085b9ecc 地址链逐条对齐。
+    // 正向包裹消尾 jmp 中继（P257）。
+    if (pos >= 0 && pos < 4)
+    {
+        GlobalData::s_secret_shop->SendSecretShopItemList(
+            user, ((PartySecretShopView*)this)->m_slots[pos].m_items);
+    }
 }
 
 // ============================================================================

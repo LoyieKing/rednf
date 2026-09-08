@@ -61,6 +61,7 @@ void DB_EventUpdateGrowthWeaponTimepiece::makeRequest(
 // Acquire("DBThread.cpp", 0x64de)；<<0xc3(int) → <<accId(int) →
 // SIG_CHANGE_CHARAC_NAME 权威布局见 SigTypes_A.h（总 0x30），按报告偏移写入。
 // ============================================================================
+// [b28d-L1] N7/P168 封顶：ORIG 0x08426590 尾部 `mov -0xc(%ebp),%eax; mov %eax,%edx; mov -0xc(%ebp),%eax; mov %dl,0x2c(%eax)`（body 双读 + edx 中转）；4.4 恒用 %ebx 缓存（多 push/pop）。P167 CLEAR（14/14）语义等价；其余为字符串/全局 reloc 归一。
 void DB_ReqChangeCharacName::makeRequest(int accId, int characIdx,
                                          char const* name, int flag)
 {
@@ -246,6 +247,7 @@ bool DB_ReqChangeCharacName::dispatch(int userIdx, int slot, Stream* stream)
 // exec 失败 → 2；无行 → 0；fetch/get_int 失败 → 2；
 // delete_flag==0 → 0x14，delete_flag!=0 → 0x18。
 // ============================================================================
+// [b28d-L1] N93/P168a④ 封顶：ORIG 0x084267c2 用 `xor $1,%eax; test %al,%al` 寄存器物化 + 槽 -0xc；4.4 恒 `movb %al,-0x9; cmpb $0,-0x9` 栈化物化且槽 -0x10（P168a④ 实证：无绑定不可达）。P167 CLEAR（5/5）语义等价。
 int DB_ReqChangeCharacName::_hasSameCharacName(MySQL* db, char const* table, char const* name)
 {
     db->set_query("seLect delete_flag from %s.charac_info where charac_name='%s'", table, name);
@@ -270,6 +272,7 @@ int DB_ReqChangeCharacName::_hasSameCharacName(MySQL* db, char const* table, cha
 // GetInBuffer<SIG_CHANGE_CHARAC_NAME>() 回填请求体（+0x28←sig+0x24、+0x24←result、
 // +0x00←sig+0x00、+0x2c←sig+0x28、strncpy name 0x1d）→ put(DISPATCH_Q)。
 // ============================================================================
+// [b28d-L1] N18a 封顶：ORIG 0x084266a4 段 `mov 0x24(%eax),%edx`（单段直落 %edx）；4.4 恒 `mov 0x24(%eax),%eax; mov %eax,%edx`（+1 regmove）。P167 CLEAR（13/13）语义等价。
 void DB_ReqChangeCharacName::_sendResult(SIG_CHANGE_CHARAC_NAME const* sig, int slot, int result)
 {
     CStreamGuard guard(

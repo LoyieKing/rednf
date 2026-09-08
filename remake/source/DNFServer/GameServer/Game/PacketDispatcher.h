@@ -151,6 +151,19 @@ void IPacketDispatcher<MSG, Param, state>::send(CUser* user, ParamBase& param)
 template <class MSG, class Param, ch_state state>
 int IPacketDispatcher<MSG, Param, state>::dispatch_template(CUser* user, PacketBuf& packet)
 {
+    // b28d-lane10 判词（119 件 dispatch_template 实例族，详见 /tmp/b28d_lane_10_result.tsv）：
+    //   · 修法（待 Main 应用 /tmp/b28d_lane10_PacketTypes.patch）：50 个 MSG_* 改 standalone POD
+    //     （ORIG nm 无 _ZN<MSG>*C1Ev，如 MSG_SECU_RPY 0x8265362 域实例零 MSG 构造 call）、
+    //     删 103 处占位 pad + 16 类 pack(1) + 39 类 pad 精调（sizeof 按 ORIG dispatch 槽跨度反推，
+    //     P213）⇒ 本族 5 AE + 7 NEAR（原 0 AE + 9 NEAR）。
+    //   · N7（51 件）：4.4.6 在「虚目标 + param 地址装载」形态选 %ecx，ORIG 4.1 用 %edx
+    //     （P230 补限定：4.4.7 恒 %eax、4.4.6 本形态 %ecx）；实参装载序 ORIG 右起先 param。
+    //     证据 0x825aae2(BUY_ITEM)/0x8259b8c(GET_ITEM)/0x8257dc4(USE_COIN)；助记符序列等价。
+    //   · N-MSG_BASE（24 件）：4.1 对空体 MSG_BASE::C1(0x812c076) 的独立对象默认构造不发 call
+    //     （实例 0x8257feb 零构造 call），4.4.6 恒发 lea/mov/call 3 条；MSG_BASE 构造不可删
+    //     （ORIG MSG_ENCHANT::C1 0x822dc10 派生链调用它），部分特化实测反劣 3→8 行，封顶。
+    //   · N7+N-ALIGN（30 件）：4.1 上层对象起始不 4 对齐（SecuCardRpyParam ORIG param@-0x12
+    //     非 4 倍数），4.4.6 恒 align_down4 ⇒ 非 4 倍数 sizeof 需 pack(1) 才可复现。
     // ORIG 代码形态（逐实例化核对，如 MSG_FINISH_LOADING@0x8265abc、
     // MSG_DELETE_ITEM@0x825a0c2 域）：result 于 check_state 早退后置 0；
     // 赋值内嵌于条件（(result = read(...)) != 0 / (result = process(...)) > 0

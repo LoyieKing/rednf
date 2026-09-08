@@ -30,6 +30,7 @@ Interval::Interval(long start, long size)              // W @0x08575e5e
     m_size = size;
 }
 
+// [b28d-lane15] 试 `= default` 无效（4.4.7 仍发 2 处 D1 引用），回退空体。
 Interval::~Interval()                                  // W @0x08577554（空体）
 {
 }
@@ -72,11 +73,14 @@ void IntervalSet::Sort()                               // T @0x085735dc
 
 long IntervalSet::GetTotalIntervalSize()               // T @0x0857363c
 {
-    // ORIG: 遍历累加元素 +0x4（m_size）
+    // ORIG: 遍历累加元素 +0x4（m_size）。槽布局 -0x14(it 默认构造) / -0xc(total)
+    // / -0x1c(begin 临时) / -0x10(end 每轮重算)。
+    // [b28d-lane15] P28+P50反例复活：it 必须先默认构造再 `it = begin()`（经 -0x1c
+    // 临时中转）；end() 不得缓存（P13 不适用），循环条件逐轮调用 end()。
+    std::vector<Interval>::iterator it;
     long total = 0;
-    std::vector<Interval>::iterator it = m_intervals.begin();
-    std::vector<Interval>::iterator end = m_intervals.end();
-    for (; it != end; ++it)
+    it = m_intervals.begin();
+    for (; it != m_intervals.end(); ++it)
         total += it->m_size;
     return total;
 }
@@ -93,27 +97,37 @@ bool IsOverlappedInterval(long aStart, long aSize, long bStart, long bSize) // T
 
 bool IntersectInterval(Interval* result, const Interval& lhs, const Interval& rhs) // T @0x08573060
 {
-    const long lhsEnd = lhs.m_start + lhs.m_size;
-    const long rhsEnd = rhs.m_start + rhs.m_size;
+    // [b28d-lane15] ORIG 全寄存器、零局部槽（无 lhsEnd/rhsEnd 具名局部，P0/P183）：
+    // 每个使用点重算 `start+size`；两个 early-return 独立（P133），两分支各带内层
+    // `if (rhs.start < lhs.start+lhs.size)`（P225 拆嵌套 if，禁 && 合并）。
+    // ORIG 两条件共享同一 FAIL 块（+0x2f `mov $0,%eax`）⇒ 合并短路（P133 反向用例：
+    // 此处 ORIG 失败块唯一，独立 if 会生两个 FAIL 块各 +2 条）。
+    if (lhs.m_start + lhs.m_size <= rhs.m_start ||
+        rhs.m_start + rhs.m_size <= lhs.m_start)
+        return false;
 
-    if (!(lhsEnd > rhs.m_start) || !(rhsEnd > lhs.m_start))
-        return false;                                   // 不相交 → ret 0
-
-    if (lhs.m_start <= rhs.m_start && rhs.m_start < lhsEnd)
+    // ORIG 两分支内层假路都落同一 ELSE1（+0xc6）⇒ 原码是 && 合并的 else-if 链
+    // （4.4 对 `a && b` 直跳不物化，P225 边界）。
+    if (lhs.m_start <= rhs.m_start &&
+        rhs.m_start < lhs.m_start + lhs.m_size)
     {
         result->m_start = rhs.m_start;                  // 左端取 max(start)
-        if (lhsEnd >= rhsEnd)
-            result->m_size = rhsEnd - result->m_start;
+        // ORIG 0x085730e4 `jge +0xa7`：真臂（rhsEnd-start）在远处、假臂紧跟
+        // ⇒ 条件取反 + 两臂交换（P47/P59 块排布）。
+        if (lhs.m_start + lhs.m_size < rhs.m_start + rhs.m_size)
+            result->m_size = lhs.m_start + lhs.m_size - result->m_start;
         else
-            result->m_size = lhsEnd - result->m_start;
+            result->m_size = rhs.m_start + rhs.m_size - result->m_start;
     }
-    else if (rhs.m_start <= lhs.m_start && lhs.m_start < rhsEnd)
+    else if (rhs.m_start <= lhs.m_start &&
+             lhs.m_start < rhs.m_start + rhs.m_size)
     {
         result->m_start = lhs.m_start;
-        if (rhsEnd >= lhsEnd)
-            result->m_size = lhsEnd - result->m_start;
+        // ORIG 0x08573171 `jge +0x131`：真臂（lhsEnd-start）在远处 ⇒ 同法取反。
+        if (rhs.m_start + rhs.m_size < lhs.m_start + lhs.m_size)
+            result->m_size = rhs.m_start + rhs.m_size - result->m_start;
         else
-            result->m_size = rhsEnd - result->m_start;
+            result->m_size = lhs.m_start + lhs.m_size - result->m_start;
     }
     // 未命中重叠窗口时 ORIG 落到 ret 1 且不写 result；此处与之一致。
     return true;
@@ -121,15 +135,23 @@ bool IntersectInterval(Interval* result, const Interval& lhs, const Interval& rh
 
 void IntersectIntervalSet(IntervalSet* out, const IntervalSet& lhs, const IntervalSet& rhs) // T @0x085731b2
 {
-    // ORIG: out->Clear(); 双重遍历：IntersectInterval 命中则 AddInterval(交集)
+    // [b28d-lane15] ORIG 槽：-0x14 ai / -0x18 bi / -0x20 cross 三个对象在函数头
+    // **先默认构造**（+0x07/+0x12/+0x1d 三次 C1），再 out->Clear()；迭代器一律
+    // 先声明后 `= begin()`（P50反例复活），end() 每轮重算（不缓存，P13 不适用）。
+    // [b28d-lane15 判词·N（P71 空析构省略跨版本差）] 上述槽序/调用序已与 ORIG 对齐；
+    // 残差唯一来源 = cross 的析构：ORIG 0x085731b2 尾部 `mov -0x4(%ebp),%ebx;
+    // leave; ret` 直落**不调 D1、无 EH cleanup**，4.4 恒调 2 处 D1（正常+unwind）
+    // 并多 push %esi。ORIG 的 D1 W 符号全仓唯一调用点是
+    // `new_allocator<Interval>::destroy`（0x08577566）；删用户析构会连带丢该符号
+    // ⇒ 无源码解，封顶。
+    std::vector<Interval>::const_iterator ai;
+    std::vector<Interval>::const_iterator bi;
+    Interval cross;
     out->Clear();
-    for (std::vector<Interval>::const_iterator ai = lhs.m_intervals.begin();
-         ai != lhs.m_intervals.end(); ++ai)
+    for (ai = lhs.m_intervals.begin(); ai != lhs.m_intervals.end(); ++ai)
     {
-        for (std::vector<Interval>::const_iterator bi = rhs.m_intervals.begin();
-             bi != rhs.m_intervals.end(); ++bi)
+        for (bi = rhs.m_intervals.begin(); bi != rhs.m_intervals.end(); ++bi)
         {
-            Interval cross;
             if (IntersectInterval(&cross, *ai, *bi))
                 out->AddInterval(cross);
         }
@@ -144,6 +166,12 @@ void IntervalSet::MinusInterval(const Interval& interval) // T @0x08573394
     //   r.start==iv.start       → 当前槽改 {r.end, iv.end-r.end}，++
     //   r.end==iv.end           → 当前槽改 {iv.start, r.start-iv.start}，++
     //   中挖                    → 头部残留写回当前槽，++ 后 insert 尾部残留，再 ++
+    // [b28d-lane15 判词·N（P71 空析构省略跨版本差）] ORIG 0x08573394 对 iv/ret/tail
+    // 三个 Interval 局部**不调 D1**（尾部 +0x246 leave/ret 直落），4.4 恒调 3 处
+    // D1 + 布 EH cleanup（223/202 形均试，ORIG 183）。ORIG 的 D1 符号仅被
+    // `new_allocator<Interval>::destroy` 引用（0x08577566，全仓唯一调用点）；删用户
+    // 析构会连带丢该 W 符号与 destroy 实例形态 ⇒ 无源码解，封顶。
+    // 另：函数头四对象槽序 -0x14/-0x1c/-0x24/-0x2c 与 ORIG 一致，残差全为析构调用。
     std::vector<Interval>::iterator it = m_intervals.begin();
     while (it != m_intervals.end())
     {

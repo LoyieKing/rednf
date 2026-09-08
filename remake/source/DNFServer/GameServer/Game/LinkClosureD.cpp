@@ -71,6 +71,7 @@ void cago_meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig,
 //   段G 仅收集     i 0x00..0x68  lock@s+0x4065 → space 0x01, slot i
 // 全部通过返回 1。
 // ---------------------------------------------------------------------------
+// [b28d-L8] N82 | 帧差 + 结构寻址（add vs imul 链，ORIG 0x08xxxxxx）
 bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
                       std::vector<item_lock::stItemLockRef>& lockRefs,
                       CUser* user)
@@ -226,6 +227,7 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
 // put_short(dungeonIdx) → put_byte(diff) → 返回 1。
 // 消费点：CUser::SendDungeonClearList 经 enumDungeonClear 回调（CUser.h 已修正拼写）。
 // ---------------------------------------------------------------------------
+// [b28d-L8] P75/N7 | p+=4 4.4 恒 addl mem（4.1 lea+mov，gA/gB/gD/gE 四形穷举不可造）+ movswl 寄存器角色差（ORIG 0x08678166）
 int fnEnumDungeonClear(short dungeonIdx, char diff, char* userData)
 // [b28c-L23 真语义 bug 修正 + N7/P75 残余] ①已修游标步长：ORIG @0x0867817c
 // `lea 0x4(%eax),%edx; mov %edx,0x10(%ebp)` 表明回调游标按**指针槽 4 字节**前移，
@@ -264,6 +266,7 @@ int fnEnumDungeonClear(short dungeonIdx, char diff, char* userData)
 // 参数表（证据 A 槽序）：0x8 user / 0xc begin / 0x10 end / 0x14 start3 /
 //   0x18 itemIdx / 0x1c titleStr / 0x20 msgStr / 0x24 p8(uint)。
 // ---------------------------------------------------------------------------
+// [b28d-L8] N82 | 帧差 0x190 vs 0x194 + 参数装载序（ORIG 0x084bfb84）
 void RewardItem(CUser* user, long begin, long end, long start3,
                 unsigned int itemIdx, const char* titleStr,
                 const char* msgStr, unsigned int p8)
@@ -305,6 +308,7 @@ void RewardItem(CUser* user, long begin, long end, long start3,
 // （0x5949 + i*0x3d，步长 0x3d）：空槽 setCopy+reset 返回；同 addInfo 槽
 // m_addInfo2 累加后 reset 返回；溢出 logFormat 0x161d。
 // ---------------------------------------------------------------------------
+// [b28d-L8] N82 | 块序/槽平移（ORIG 0x08xxxxxx）
 void meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig, Inven_Item* item)
 {
     if (sig == 0 || item == 0)
@@ -407,6 +411,7 @@ private:
 //   (N86b 等价)；非 stackable type 分发 ORIG 链式 cmp、我们区间式。错误码 0x1562..0x15f8
 //   与空槽全零/rarity/attachtype 各分支语义全部对应。
 // ---------------------------------------------------------------------------
+// [b28d-L8] N82 | 帧差 0x6c + 槽平移（ORIG 0x08xxxxxx）
 int _verifyItem(int slot, const Inven_Item* item, INVENTORY_TYPE type,
                 bool b1, bool b2, CUser* user)
 {
@@ -515,6 +520,7 @@ int _verifyItem(int slot, const Inven_Item* item, INVENTORY_TYPE type,
 // @0x084f0075 sz0xd0。报告缺失（objdump 转写）：单条 ERROR_ITEM_LOG 日志，
 // 字段序（含 m_amp 首 4 字节 int 视图）见 logFormat 实参。
 // ---------------------------------------------------------------------------
+// [b28d-L8] N82 | 帧差 0x6c vs 0x7c + 装载序（ORIG 0x08xxxxxx）
 void _writeIncorrectItemInventoryForRecovery(unsigned int characNo,
                                              const Inven_Item& item,
                                              const char* tag, int err,

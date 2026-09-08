@@ -38,6 +38,11 @@ struct STQuickPartyPoolMap_Key
         // 与 0x0826b843 `jge <共享 false 尾>`，否定早返 `!=` 需改写为 `==` 包裹；
         // ②P196 真 bug 修复——ORIG 0x0826b843 是有符号 `jge`，m_dungeonDiff 值域
         // 含 0xff（C1 初值），无符号比较在 ≥0x80 处分叉，按 ORIG 用 signed char 比较。
+        // [b28d-L1] N18a 反向封顶：ORIG 0x0826b837 `movzbl 0x2(%eax),%edx`（单段直落
+        // %edx）；双 cast 形 `(signed char)m < (signed char)rhs.m` 使 4.4 恒发
+        // `movzbl …,%eax; mov %eax,%edx`（+1 条 regmove）。探针 /tmp/b28d_l1/probe/
+        // p_lt.cpp：无 cast 形 a7 产单段 `movzbl mem,%edx` 但改无符号比较（P196 真
+        // bug 禁止，值域含 0xff）；单侧 cast b1..b6 产 movsbl，均不匹配。语义等价。
         if (m_dungeonIndex == rhs.m_dungeonIndex)
         {
             if ((signed char)m_dungeonDiff < (signed char)rhs.m_dungeonDiff)

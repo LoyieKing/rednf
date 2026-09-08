@@ -41,6 +41,7 @@ void DB_InsertAccountFirstLoginFlag::makeRequest(int p1, unsigned int p2, int p3
 // DB_InsertAccountFirstLoginFlag::dispatch @ 0x0843e636
 // mangled _ZN30DB_InsertAccountFirstLoginFlag8dispatchEiiP6Stream
 // ============================================================================
+// [b28d-L8] N82 | 帧差（push edi/esi/ebx vs sub 0x58）+ 槽平移（ORIG 0x08xxxxxx）
 bool DB_InsertAccountFirstLoginFlag::dispatch(int /*userIdx*/, int /*slot*/,
                                                Stream* s)
 {

@@ -20,6 +20,7 @@ CCharacterDayEvent::~CCharacterDayEvent()
     // ORIG 0x0810a4ee：写 vptr 后调 CEventBase::~CEventBase（编译器生成）。
 }
 
+// [b28d-D9] N18a：ORIG movzwl 0xc(%ebp),%eax + mov %eax,%edx 两段；4.4 恒单段（四形探针 a-d 全败）（ORIG 0x0810a58e sz 0x0000005e）
 void CCharacterDayEvent::StartEvent()
 {
     // ORIG 0x0810a53c：SetEventFlag(true) + cMyTrace(__FUNCTION__,0x17,0)(...)。

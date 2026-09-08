@@ -70,6 +70,7 @@ CBingo::~CBingo()
 // calBoradMatchLine @ 0x080cab5a（docs/class_func_reports/CBingo/calBoradMatchLine.md）：
 // 统计 25 位棋盘的连线数（5 行 + 5 列 + 2 对角线；对角线1 = bit[r*6]，
 // 对角线2 = bit[(r+1)*4]）。
+// [b28d-7 N82] ORIG 0x080cab5a：帧 $0x64 + 局部槽 -0x24/-0x28/-0x4c 起，4.4 帧 $0x54 + 槽 -0x24/-0x48 起（槽序不同）；P167 CLEAR ⇒ 封顶。
 int CBingo::calBoradMatchLine(int board)
 {
     std::bitset<25> bits(static_cast<unsigned long>(board));

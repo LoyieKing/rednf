@@ -59,6 +59,10 @@ CServerProxyMgr<T>::CServerProxyMgr()
 }
 
 template <class T>
+// [b28d-18 N18a] CServerProxyMgr<T>::~CServerProxyMgr 三实例
+// （CStatisticServerProxy 0x082b3b8e / CGuildServerProxy 0x082b3ac6 /
+//  CMonitorServerProxy 0x082b39fe）：删显式 m_proxy.~T()（ORIG 仅自动析构，
+// 原为双重析构真 bug）+ register p（P231）；余 N18a 单段 regstore（83→76 条）。
 CServerProxyMgr<T>::~CServerProxyMgr()
 {
     if (m_allocated)
@@ -67,8 +71,8 @@ CServerProxyMgr<T>::~CServerProxyMgr()
         m_pIndexArray = 0;
         if (m_pProxyArray)
         {
-            int n = *((int*)m_pProxyArray - 1);
-            char* p = (char*)m_pProxyArray + n * sizeof(T);
+            register char* p =
+                (char*)m_pProxyArray + *((int*)m_pProxyArray - 1) * sizeof(T);
             while (p != (char*)m_pProxyArray)
             {
                 p -= sizeof(T);
@@ -79,7 +83,6 @@ CServerProxyMgr<T>::~CServerProxyMgr()
         m_pProxyArray = 0;
     }
     m_count = 0;
-    m_proxy.~T();
 }
 
 template <class T>

@@ -76,7 +76,9 @@ namespace WongWork
             std::vector<std::pair<int, int> >* getObjectDropItems() const;             // 转发 CDungeon::getObjectDropItems
             std::vector<stDungeonAssignItem_t>* getSpecialPassiveObjectItems() const;  // 转发 CDungeon::getSpecialPassiveObjectItems
             CDungeon* m_pDungeon;   // +0x00
-            int m_endStage;         // +0x04（getDeathTowerMaxStage 写入）
+            unsigned int m_endStage; // +0x04（getDeathTowerMaxStage 写入；b28d-D13：
+                                     // 与 int 返回值异型化 ⇒ 4.4 RHS-first+中转，复现
+                                     // ORIG 0x084605e0 mov %eax,%edx 形，P211）
         };
 
 
@@ -130,6 +132,8 @@ namespace WongWork
                 Inven_Item m_items[10];  // +0x04
             };
 
+            // b28d-D13：P216 throw() 实测过度折叠（CPlayData C1/D1 空体，4.4 连 call
+            // 一起消除：C1 53→29、D1 41→17 insn）⇒ 回退，C1/D1 残差按 N91 封顶。
             CPlayData();                        // ORIG W 0x82a7538：m_rewards[4] 逐个 stRewardItem_t()
             ~CPlayData();                       // ORIG W 0x82a7572（空函数）
 

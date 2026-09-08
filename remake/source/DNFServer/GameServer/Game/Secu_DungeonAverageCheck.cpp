@@ -8,6 +8,7 @@
 #include "Secu_HackLogCheckByParty.h"
 
 #include <string.h>
+#include <algorithm>   // std::max（ORIG 0x08279a12 调 _ZSt3maxIiERKT_S2_S2_ ×2）
 
 #include "CParty.h"
 #include "CUser.h"
@@ -61,13 +62,12 @@ void Secu_DungeonAverageCheck::setKillMonsterInfo(const MSG_MONSTER_DIE* info,
     std::vector<SecKillMonsterInfo>::iterator it = findKillMonsterInfo(monsterId);
     if (it != m_killInfos.end())
     {
-        SecKillMonsterInfo& rec = *it;
-        if (4 < (unsigned int)rec.m_count)
+        if (4 < (unsigned int)it->m_count)
         {
-            float avg1 = (float)(unsigned int)rec.m_sumValue1 /
-                         (float)(unsigned int)rec.m_count;
-            float avg2 = (float)(unsigned int)rec.m_sumValue2 /
-                         (float)(unsigned int)rec.m_count;
+            float avg1 = (float)(unsigned int)it->m_sumValue1 /
+                         (float)(unsigned int)it->m_count;
+            float avg2 = (float)(unsigned int)it->m_sumValue2 /
+                         (float)(unsigned int)it->m_count;
 
             float adj1;
             if ((int)avg1 < 10)
@@ -84,7 +84,7 @@ void Secu_DungeonAverageCheck::setKillMonsterInfo(const MSG_MONSTER_DIE* info,
             if (m_party->m_mapHitCount > 0 &&
                 lower1 <= info->m_killValue1 && info->m_killValue1 <= upper1)
             {
-                rec.m_hackCntE6 += 1;
+                it->m_hackCntE6 += 1;
                 for (int i = 0; i < 4; ++i)
                 {
                     if (!m_party->checkValidUser(i))
@@ -98,7 +98,7 @@ void Secu_DungeonAverageCheck::setKillMonsterInfo(const MSG_MONSTER_DIE* info,
             if (m_party->m_mapHitCount > 0 &&
                 lower2 <= info->m_killValue2 && info->m_killValue2 <= upper2)
             {
-                rec.m_hackCntE7 += 1;
+                it->m_hackCntE7 += 1;
                 for (int i = 0; i < 4; ++i)
                 {
                     if (!m_party->checkValidUser(i))
@@ -110,9 +110,9 @@ void Secu_DungeonAverageCheck::setKillMonsterInfo(const MSG_MONSTER_DIE* info,
                 }
             }
         }
-        rec.m_count += 1;
-        rec.m_sumValue1 += (int)info->m_killValue1;
-        rec.m_sumValue2 += (int)info->m_killValue2;
+        it->m_count += 1;
+        it->m_sumValue1 += (int)info->m_killValue1;
+        it->m_sumValue2 += (int)info->m_killValue2;
     }
     else
     {
@@ -137,8 +137,9 @@ void Secu_DungeonAverageCheck::CheckHackTypeEndDungeon()
     {
         const int limit =
             (int)(0.5 + 0.7 * (double)(unsigned int)it->m_count) - 4;
-        const int overTime = it->m_hackCntE6 - (limit > 0 ? limit : 0);
-        const int overExp = it->m_hackCntE7 - (limit > 0 ? limit : 0);
+        // ORIG P167：调 std::max<int>(limit,0) 两次（三目形丢 2 个调用点）。
+        const int overTime = it->m_hackCntE6 - std::max(limit, 0);
+        const int overExp = it->m_hackCntE7 - std::max(limit, 0);
         if (overTime > 0 || overExp > 0)
         {
             for (int i = 0; i < 4; ++i)

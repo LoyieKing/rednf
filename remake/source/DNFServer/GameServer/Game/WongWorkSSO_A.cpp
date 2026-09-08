@@ -156,8 +156,11 @@ bool WongWork::CSimpleSSO::checkValidPassword(unsigned int mId, char const* a,
     // outgoing 只按本函数实参算帧（0x38），且 0x18 槽先→lea 序 vs 4.4
     // lea 先（P75）。定义顺序已核（_getGameStartTime 定义在后，若前置
     // 则 4.4 应继承大帧——实测两序均试不翻）。语义/调用链全等。
+    // [b28d-D13] P232 试形：ORIG 帧 0xf8（大局部），4.4 裸形 0x38；补 dead 数组撑帧。
+    char framePad[0xc0];
+    (void)framePad;
+    unsigned int v2 = 0;  // ORIG -0x14(%ebp)（先初始化，ORIG movl $0,-0x14 在前）
     unsigned int v1 = 0;  // ORIG -0x18(%ebp)
-    unsigned int v2 = 0;  // ORIG -0x14(%ebp)
     return _getGameStartTime(mId, *reinterpret_cast<long*>(&v2),
                              *reinterpret_cast<long*>(&v1), out);
 }
@@ -184,6 +187,9 @@ bool WongWork::CSimpleSSO::checkValidPassword_Jpn(unsigned int mId, char const* 
             cMyTrace(__PRETTY_FUNCTION__, 0x2e, 0)(
                 "[!]GM User Check Password Sucess=> m_id(%d)", mId);
         }
+        // [b28d-D13] ORIG 0x081b263a mov $1,jmp 中继：if 内独立 return true
+        // （ORIG 0x081b263c 尾部再一条 mov $1 共享出口）。
+        return true;
     }
     return true;
 }
@@ -281,12 +287,14 @@ bool WongWork::CSimpleSSO::updateHumanCertify(unsigned int mId, int accountFail)
     char tableName[0x14];
     memset(tableName, 0, 0x14);                // ORIG call memset
     memcpy(tableName, "member_login", 0xd);    // ORIG call memcpy
-    int totalAccountFailInc = (accountFail != 0) ? 1 : 0;  // setne/movzbl
-    char* idStr = NumberToString(mId, 0);
+    // [b28d-D13] ORIG 0x0860326c cmpl+setne %al+movzbl %al,%eax+mov %eax,-0xc
+    // ⇒ 源码为 `int x = (accountFail != 0);`（非三目）。ORIG 0x08603290
+    // NumberToString 结果经 %eax 直入 0x14(%esp)（无 idStr 槽）⇒ 内联实参（P0）。
+    int totalAccountFailInc = (accountFail != 0);
     m_mysql->set_query(
         "upDate %s set last_play_time=unix_timestamp(now()),account_fail=%d,"
         "total_account_fail=total_account_fail+%d where m_id=%s",
-        tableName, accountFail, totalAccountFailInc, idStr);
+        tableName, accountFail, totalAccountFailInc, NumberToString(mId, 0));
     if (!m_mysql->exec(true))
         return false;
     if (m_mysql->getAffectedRowCount() == 0)
@@ -331,11 +339,17 @@ bool WongWork::CSimpleSSO::updateSSOExpireTime(unsigned int mId, unsigned int lo
     char tableName[0x14];
     memset(tableName, 0, 0x14);                // ORIG call memset
     memcpy(tableName, "member_login", 0xd);    // ORIG call memcpy
-    char* idStr = NumberToString(mId, 0);
-    int lastPlayBase = GlobalData::s_systemTime_.getCurSec();  // 第一次 getCurSec
-    int expireBase = GlobalData::s_systemTime_.getCurSec();    // 第二次 getCurSec
+    // [b28d-D13] ORIG 0x08602a70：idStr→%esi、lastPlayBase→%ebx、expireBase→%eax
+    // （lea 0xb4(%eax),%edx）——三者均无栈槽 ⇒ 内联实参（P24/P0），右起求值序
+    // NumberToString→getCurSec→getCurSec 与 ORIG 一致。ORIG 0x08602ae8 尾部
+    // xor$1/test/je+双 mov ⇒ 源码 if(!exec())return false; return true;（P101）。
     m_mysql->set_query(
         "upDate %s set login_time=%d, expire_time=%d, last_play_time=%d where m_id=%s",
-        tableName, loginTime, expireBase + 0xb4, lastPlayBase, idStr);
-    return m_mysql->exec(true);
+        tableName, loginTime,
+        GlobalData::s_systemTime_.getCurSec() + 0xb4,
+        GlobalData::s_systemTime_.getCurSec(),
+        NumberToString(mId, 0));
+    if (!m_mysql->exec(true))
+        return false;
+    return true;
 }

@@ -189,6 +189,7 @@ extern unsigned char _NS_PI_2ND_GetDefaultRandomHashKey();
 extern char* GetPacketName(ENUM_PACKETCLASS packetClass, unsigned short packetId);   // ORIG T 0x082a2112
 
 extern bool IsLightServer();   // ORIG 0x0822ad44 W（bool 实证：giveup_panalty 0x086786cb test %al 无 setne）
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08668823 | _Z29_postCheckForceChangeGrowTypeP5CUserii
 extern void _postCheckForceChangeGrowType(CUser* user, int firstGrow, int secondGrow);  // 0x08668823 T
 extern void _postCheckForceChangeGrowType4AheadQuest(CUser* user, Quest* quest);  // 0x086686ed T（定义 StubS3A_deps.cpp）
 
@@ -214,6 +215,7 @@ void WongWork::CMCAPManager::resetExposedCount() { m_field10 = 0; }
 // 0x0864809c：antibot 校验/加密发送主链路（依据 AntibotSend.md 反编译；
 // s_antibotChecker_ vtable +0x34 校验 / +0x28 加密，ORIG 栈缓冲此处以 vector 等价）。
 extern void _NS_PI_2ND_SendHash_SC(char* data, unsigned short len, CUser* user); // ORIG T 0x082751ee
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0864809c | _ZN5CUser11AntibotSendER9PacketBuf
 bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
                                               // "bool CUser::AntibotSend(PacketBuf&)"（P174）
 {
@@ -423,6 +425,7 @@ int CSecurityCard::getCancelCnt() { return m_cancelCnt48; }
 }
 
 
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x081b4300 | _ZN20UserMercenaryInfoMgr9AddCharacER21CHARAC_LOAD_MERCENARY
 int UserMercenaryInfoMgr::AddCharac(CHARAC_LOAD_MERCENARY& info)
 {
     // ORIG T 0x081b4300：未命中（CheckValidAppend==1）才添加；先置
@@ -449,6 +452,7 @@ int UserMercenaryInfoMgr::AddCharac(CHARAC_LOAD_MERCENARY& info)
 }
 // ORIG T 0x081b441a：按 characNo 线性查找并 erase（ORIG 经 FindIndexByCharacNo，
 // 内联等价）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x081b441a | _ZN20UserMercenaryInfoMgr12RemoveCharacEj
 void UserMercenaryInfoMgr::RemoveCharac(unsigned int characNo)
 {
     for (size_t i = 0; i < m_characs.size(); ++i)
@@ -462,6 +466,7 @@ void UserMercenaryInfoMgr::RemoveCharac(unsigned int characNo)
 }
 using expert_job::CCharacExpertJob;
 
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0832a778 | _ZN13charac_expand8CDataMgrC1Ev
 charac_expand::CDataMgr::CDataMgr()
 {
     // slot0 +0x00：ORIG operator new(0x30) → memset 全块 → CCharacExpertJob::CCharacExpertJob()
@@ -721,6 +726,7 @@ void Character::operator+=(const Character& other)
 // CUser 实现
 // ============================================================================
 
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0864e410 | _ZN5CUserC1Ev
 CUser::CUser()
     : m_field704a8(0), m_field79670(0), m_field796d8(0), m_chState((ch_state)0)
 {
@@ -765,6 +771,7 @@ CUser::CUser()
     m_rentalFlag3 = 0;
 }
 
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0864ef9c | _ZN5CUserD1Ev
 CUser::~CUser()
 {
     m_powerUp = 0;
@@ -866,6 +873,7 @@ void CUser::reset()
     m_field8ec32 = 0;
 }
 
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0865851c | _ZN5CUser14ResetCurCharacEv
 void CUser::ResetCurCharac()
 {
     getPVPResultRefW()->Clear();
@@ -964,7 +972,7 @@ int CUser::get_fatigue_count_db(int type)
 {
     // ORIG 0x868d4ca-0x868d4d4：技巧 16 register asm(eax) 双零扩展 + `cmp 0xc(%ebp),%eax`
     // arg 槽直折。int register 形（unsigned register 反产 %edx 中转）。
-    register int cur asm("eax") = (unsigned char)m_serverFatigueDbType;
+    int cur = (unsigned char)m_serverFatigueDbType;
     if (cur == type)
         return (unsigned char)m_serverFatigueValue;
     return 0;
@@ -1027,8 +1035,8 @@ bool CUser::CheckMoney(int money)
     // 帧 0x20）；limit@-0x10、curMoney@-0xc；尾 `cmp -0x10,%eax; jg F; mov $1; jmp;
     // F: mov $0` 直分支岛。4.4 goto-RET0 形在 label 前恒插 1 字节 nop 填充（探针
     // nl11_probe1/2 实证），if/else return 形无 nop（仅 cmp 操作数序 4.4 恒折反向）。
-    register const char* accName asm("esi") = get_acc_name();
-    register int level asm("ebx") = get_charac_level();
+    const char* accName = get_acc_name();
+    int level = get_charac_level();
     int limit = G_CDataManager()->GetMoneyLimitPerLevel(level, accName);
     int curMoney = getCurCharacMoney();
     if (curMoney + money <= limit)
@@ -1161,7 +1169,7 @@ unsigned short CUser::getCurCharacTotalFatigue() const
     // (0x865777d)；rate 无槽：test %ax,%ax;setne;test;je 物化（技巧 22，0x8657791-99）。
     unsigned short total = 0;
     total = getCurCharacFatigue();
-    register bool nz asm("al");
+    bool nz;
     nz = (m_premium.GetAdvantageFatigueRate() != 0);
     if (nz)
     {
@@ -1197,7 +1205,7 @@ unsigned short CUser::getCurCharacTotalMaxFatigue() const
     total = getCurCharacMaxFatigue();
     // ORIG 0x8??：`test %ax,%ax; setne %al; test %al,%al; je`（技巧 22：register bool
     // asm("al") 对 short call 结果 !=0 物化）。
-    register bool nz asm("al");
+    bool nz;
     nz = (m_premium.GetAdvantageFatigueRate() != 0);
     if (nz)
         total = (unsigned short)(total + getCurCharacMaxPremiumFatigue());
@@ -1335,6 +1343,7 @@ struct SigForbidUserToPlayBody
 
 }  // namespace
 
+// b28d-lane5 N封顶: N97/P230 cmov; P11 符号扩展; P11 反向符号扩展; N18a/P200 拓宽中轉; P168a/P248 setcc 物化方向; N82/P112 槽号分配 | ORIG 0x0865a44e | _ZN5CUser15make_basic_infoEPcc
 bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串 bool）
 {
     InterfacePacketBuf& pkt = *(InterfacePacketBuf*)buf;
@@ -1822,6 +1831,7 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
     }
     return 1;
 }
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0865dd14 | _ZN5CUser10send_equipEi
 void CUser::send_equip(int slot)
 {
     // ORIG 0x0865dd14：state(+0x8cfc4) ∈ {5,8,10,0xc} 且 slot==0x16 → 发给自己；
@@ -1854,6 +1864,7 @@ void CUser::send_equip(int slot)
     }
 }
 
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x086893ac | _ZN5CUser12AddDBLogItemEjj20ENUM_DBLOG_ITEM_TYPE
 void CUser::AddDBLogItem(unsigned int itemIdx, unsigned int type,
                          ENUM_DBLOG_ITEM_TYPE value)
 {
@@ -1881,6 +1892,7 @@ void CUser::AddDBLogItem(unsigned int itemIdx, unsigned int type,
     m_dbLogItems.push_back(info);
 }
 
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08681224 | _ZN5CUser13addAvatarItemEmccPKc20eAvatarItemAddReason
 int CUser::addAvatarItem(unsigned long itemIdx, char param2, char param3,
                          const char* ipgAgency, eAvatarItemAddReason reason)
 {
@@ -1898,6 +1910,7 @@ int CUser::addAvatarItem(unsigned long itemIdx, char param2, char param3,
                                  ipgAgency, reason, 0, 0);
 }
 
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867c65a | _ZN5CUser18SendUpdateItemListENS_11eSendTargetE14ENUM_ITEMSPACEi
 int CUser::SendUpdateItemList(eSendTarget target, ENUM_ITEMSPACE space, int slot)
 {
     PacketGuard packet;
@@ -1935,6 +1948,7 @@ int CUser::SendUpdateItemList(eSendTarget target, ENUM_ITEMSPACE space, int slot
 // isBoundaryExpValue/GetLevel（_ZN17STExpertJobScript*）计算等级，
 // 边界值时用 ExpertJobEtcScript 内 map<uchar,short>（等级→所需角色等级）修正：
 // 查不到或角色等级不足 → 等级 -1。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0868bc7c | _ZN5CUser20GetCurExpertJobLevelEi
 int CUser::GetCurExpertJobLevel(int exp)
 {
     if (getCurCharacR() == 0)
@@ -1977,6 +1991,7 @@ bool CUser::is_clear_stealingSkillMission() const
 // ORIG T 0x08679736：公会技能公告。文案 = ServerString(0x3ea) + "%d "(count) +
 // skillName + ServerString(0x3eb)；总长 ≥0x78 丢弃；公会公告板写入
 // (boardNo=0, charNo, job=-1, growType=-1, guildKey)。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08679a36 | _ZN5CUser21makeGuildSkillMessageEPKci
 void CUser::makeGuildSkillMessage(const char* skillName, int count)
 {
     if (skillName == 0)
@@ -2007,6 +2022,7 @@ void CUser::makeGuildSkillMessage(const char* skillName, int count)
 //   GetServerString(0x3ec 强化 / 0x3ed 降级) + 角色名；长度>0x77 不发，
 //   否则经 CGuildServerProxy::SendGuildBoardWrite 广播。
 // ============================================================================
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08679cee | _ZN5CUser26makeGuildItemUpgradMessageEPKciib
 void CUser::makeGuildItemUpgradMessage(const char* itemName, int from,
                                        int to, bool isAmplify)
 {
@@ -2031,7 +2047,7 @@ void CUser::makeGuildItemUpgradMessage(const char* itemName, int from,
     char board[0x78] = {0};
     // ORIG 无顶部初始化（%ebx 仅分支内 0x8679e9d mov$0 / 0x8679e43 mov$1 两路
     // 径赋值后共享 dtor 尾）→ if/else 双赋值形，无 sent=0 预写。
-    register int sent asm("ebx");
+    int sent;
     if (isAmplify && to > 10)
     {
         std::string name(getCurCharacName());
@@ -2042,7 +2058,7 @@ void CUser::makeGuildItemUpgradMessage(const char* itemName, int from,
         pre += msg;
         pre += suf;
         name += pre;
-        register bool tooLong asm("al");
+        bool tooLong;
         tooLong = (name.length() > 0x77);   // ORIG 0x8679e93 seta %al 物化
         if (tooLong) {
             sent = 0;
@@ -2061,7 +2077,7 @@ void CUser::makeGuildItemUpgradMessage(const char* itemName, int from,
         pre += msg;
         pre += suf;
         name += pre;
-        register bool tooLong2 asm("al");
+        bool tooLong2;
         tooLong2 = (name.length() > 0x77);
         if (tooLong2) {
             sent = 0;
@@ -2091,6 +2107,7 @@ void CUser::makeGuildItemUpgradMessage(const char* itemName, int from,
 // growtype_skill 双树（buf!=null 编码回填双树计数块）；成功后 _UpdateUserInfo4Guild
 // + Guild/Monitor SendCharLevelGrowType + processGrowTypeEvent。
 // name 实为 InterfacePacketBuf*（CUserOnlyOrig.cpp:4952/4977 传 &ack 需双树编码回填；null=直接应用）。
+// b28d-lane5 N封顶: N18a/P200 拓宽中轉; N82/P112 槽号分配 | ORIG 0x086787fc | _ZN5CUser13set_grow_typeEhhPc21eChangeGrowTypeReason
 void CUser::set_grow_type(unsigned char firstGrow, unsigned char secondGrow,
                           char* name, eChangeGrowTypeReason reason)
 {
@@ -2333,7 +2350,7 @@ void CUser::set_state(ch_state state)
     if (getCurCharacR() == 0)
         goto ST_END;
     {
-        register bool bFight asm("al");
+        bool bFight;
         bFight = is_fighting();
         ((CInventory*)getCurCharacInvenR())
             ->GetCreatureMgrW()
@@ -2346,7 +2363,7 @@ unsigned int CUser::GetUID() const
 {
     // ORIG 0x80c8c9c movzwl 704a6,%eax；0x80c8ca3 cwtl；0x80c8ca4 movzwl %ax,%edx。
     // register 钉 eax 阻断 fold-const 三段折叠，(unsigned short) 强制物化到 edx。
-    register int rawHi asm("eax") = (short)m_field704a6;
+    int rawHi = (short)m_field704a6;
     return (unsigned short)rawHi | ((int)(short)m_slotIDX << 16);
 }
 
@@ -2460,6 +2477,7 @@ void CUser::gainWinPoint(int winPoint, eWPAddReason reason)
     }
 }
 
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0868adfc | _ZN5CUser17setInitQuestPointEv
 void CUser::setInitQuestPoint()
 {
     // ORIG 0x868adfc T：清空 init QP 与 piece，再按 NPC 任务表逐条累加已清任务奖励点。
@@ -2522,6 +2540,7 @@ void CUser::DecreaseGuildPowerWarPoint(unsigned int point)
     m_guildDB.m_powerWarPoint -= point;
 }
 
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0867ed68 | _ZN5CUser11is_fightingEv
 bool CUser::is_fighting()   // CUser.h:2556 已 bool 化（Main 落，ORIG 0x867ed68 尾 mov$0/$1 直返 + caller test %al 无 setne）
 {
     register int bit;   // 跨标签 goto 用无初始化 POD（P177）
@@ -2555,6 +2574,7 @@ void CUser::set_area(int area)
     m_field8cfbc = area;
 }
 
+// b28d-lane5 AE: 本轮核验通过（orig/our 归一逐条相等）| ORIG 0x086813be | _ZN5CUser8get_areaEb
 int CUser::get_area(bool param)
 {
     if (param) {
@@ -2611,6 +2631,7 @@ bool CUser::CheckFatigue()
 
 // ORIG T 0x0864f7fe sz0xeb：扣除 1 点疲劳（先消耗高级会员疲劳额度）。
 //   min(premiumFatigue, maxPremiumFatigue) → 不足时回落到普通疲劳。
+// b28d-lane5 N封顶: N97/P230 cmov; N82/P112 槽号分配 | ORIG 0x0864f7fe | _ZN5CUser20gainCurCharacFatigueEi
 void CUser::gainCurCharacFatigue(int value)
 {
     unsigned int maxPrefatigue = 0;
@@ -2644,6 +2665,7 @@ short CUser::has_within_Mission() const
     return mission->getIndex_byKind(0x1b);
 }
 
+// b28d-lane5 AE: 本轮核验通过（orig/our 归一逐条相等）| ORIG 0x086552e6 | _ZN5CUser13getBlueMarbleEv
 void* CUser::getBlueMarble()
 {
     // ORIG 0x8??：无 idx 槽——`movzwl mem,%eax; test %ax,%ax; js`（ushort 零装载
@@ -2681,6 +2703,7 @@ void CUser::insert_pvp_masterid_walkingout_me(unsigned int id)
     m_set8cfe4.insert(id);
 }
 
+// b28d-lane5 AE: 本轮核验通过（orig/our 归一逐条相等）| ORIG 0x0865cfac | _ZN5CUser20update_old_pvp_pointEv
 void CUser::update_old_pvp_point()
 {
     // ORIG 0x8??：writable `%mov eax,%ebx` 单条跨 call 存活；P0/N96 去绑定改
@@ -2719,6 +2742,7 @@ public:
 };
 
 // 0x08657ada
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x08657ada | _ZN5CUser14RecoverFatigueEi
 void CUser::RecoverFatigue(int value)
 {
     // ORIG 0x08657ada：角色为空直接返回（跳过全部）；否则先写回
@@ -2887,7 +2911,7 @@ bool CUser::IsEquipAvatar()
 {
     // ORIG 0x8??：cur 无槽——`test %eax,%eax; setne %al; test; je`（技巧 22 指针!=0
     // register bool）；je → mov $0 尾岛；then 链式 `call;call;call; jmp merge`。
-    register bool hasCur asm("al");
+    bool hasCur;
     hasCur = (getCurCharacR() != 0);
     if (hasCur)
         return ((const CInventory*)getCurCharacInvenR())->IsEquipAvatar();
@@ -2954,6 +2978,7 @@ void CUser::setMoveSpace(UserSpace::T space)
     m_field8cfcc = space;
 }
 
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x08678526 | _ZN5CUser13CheckMoveTownEi
 int CUser::CheckMoveTown(int vill)
 {
     if (G_GameWorld()->IsPVPChannel())
@@ -3016,10 +3041,10 @@ void CUser::setDungeonClearHackCheck(bool flag)
     if (flag) {
         // ORIG 0x8649bab-0x8649bb4：movzbl→%eax + mov %eax,%edx + or $0x1,%edx。
         // register char asm("eax")（非 uchar！uchar 绑定反产 or-%eax，probe29 a/b/c 三探针定位）
-        register char cur asm("eax") = m_mcap.m_field54c;
+        char cur = m_mcap.m_field54c;
         m_mcap.m_field54c = (cur | 1);
     } else {
-        register char cur asm("eax") = m_mcap.m_field54c;   // ORIG 0x8649bc5-0x8649bce or $0x2,%edx 同形
+        char cur = m_mcap.m_field54c;   // ORIG 0x8649bc5-0x8649bce or $0x2,%edx 同形
         m_mcap.m_field54c = (cur | 2);
     }
 }
@@ -3144,6 +3169,7 @@ void CUser::ClearItemSellCount()
 }
 
 // ---- 发包族（PacketGuard 局部 + InterfacePacketBuf） ----
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x086485ba | _ZN5CUser4SendER11PacketGuard
 bool CUser::Send(PacketGuard& packet)   // b28c-L5 SIGFIX：ORIG 串 bool；
                                         // 调用点 0x082e6c2b `xor$1;test%al` bool callee 直判
 {
@@ -3173,6 +3199,7 @@ bool CUser::Send(PacketGuard& packet)   // b28c-L5 SIGFIX：ORIG 串 bool；
     return AntibotSend(*pBuf);
 }
 
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0867b8fe | _ZN5CUser10SendPacketENS_11eSendTargetER11PacketGuard
 bool CUser::SendPacket(eSendTarget target, PacketGuard& packet)  // b28d-lane5：CUser.h 已落 bool（Main），定义同步
 {
     if (target == (eSendTarget)1)
@@ -3201,6 +3228,7 @@ bool CUser::SendPacket(eSendTarget target, PacketGuard& packet)  // b28d-lane5�
     return 1;
 }
 
+// b28d-lane5 AE: 本轮核验通过（orig/our 归一逐条相等）| ORIG 0x0867c1d4 | _ZN5CUser13SendCmdPacketENS_11eSendTargetE14ENUM_CMDPACKETi
 bool CUser::SendCmdPacket(eSendTarget target, ENUM_CMDPACKET cmd, int param)  // b28c-L5 SIGFIX（P174）
 {
     // ORIG 0x867c1d4 块序（技巧 23 goto 钉）：true 路径 put_byte×2 后 **jmp 到位于
@@ -3226,6 +3254,7 @@ DO_FIN:
     return SendPacket(target, packet);
 }
 
+// b28d-lane5 AE: 本轮核验通过（orig/our 归一逐条相等）| ORIG 0x0867bea0 | _ZN5CUser15SendCmdOkPacketE14ENUM_CMDPACKET
 bool CUser::SendCmdOkPacket(ENUM_CMDPACKET cmd)  // b28d-lane5：ORIG 0x0867bf10 `call Send; mov %eax,%ebx`
 {
     PacketGuard packet;
@@ -3242,7 +3271,8 @@ bool CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error)  // b28d
     return SendCmdErrorPacket(cmd, error, packet);
 }
 
-bool CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PAY_TYPE pay)  // b28d-lane5
+// b28d-lane5 AE: CUser.h 返回 int→bool（Main 代落）+ 定义同步（ORIG 尾 call Send 直返）| ORIG 0x0867c022 | _ZN5CUser18SendCmdErrorPacketE14ENUM_CMDPACKETh8PAY_TYPE
+bool CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PAY_TYPE pay)
 {
     PacketGuard packet;
     ((InterfacePacketBuf*)&packet)->put_header(1, (int)cmd);
@@ -3256,7 +3286,8 @@ bool CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PAY_TYPE
     return Send(packet);
 }
 
-bool CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PacketGuard& packet)  // b28d-lane5
+// b28d-lane5 AE: CUser.h 返回 int→bool（Main 代落）+ 定义同步 | ORIG 0x0867bfae | _ZN5CUser18SendCmdErrorPacketE14ENUM_CMDPACKEThR11PacketGuard
+bool CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PacketGuard& packet)
 {
     ((InterfacePacketBuf*)&packet)->put_header(1, (int)cmd);
     ((InterfacePacketBuf*)&packet)->put_byte(0);
@@ -3265,6 +3296,7 @@ bool CUser::SendCmdErrorPacket(ENUM_CMDPACKET cmd, unsigned char error, PacketGu
     return Send(packet);
 }
 
+// b28d-lane5 AE: 本轮核验通过（orig/our 归一逐条相等）| ORIG 0x0867c110 | _ZN5CUser23SendCmdErrorPacket2ByteE14ENUM_CMDPACKETt
 bool CUser::SendCmdErrorPacket2Byte(ENUM_CMDPACKET cmd, unsigned short error)  // b28d-lane5
 {
     PacketGuard packet;
@@ -3276,6 +3308,7 @@ bool CUser::SendCmdErrorPacket2Byte(ENUM_CMDPACKET cmd, unsigned short error)  /
     return Send(packet);
 }
 
+// b28d-lane5 AE: 本轮核验通过（orig/our 归一逐条相等）| ORIG 0x08692824 | _ZN5CUser21SendCmdErrorPacketJpnE14ENUM_CMDPACKETt
 bool CUser::SendCmdErrorPacketJpn(ENUM_CMDPACKET cmd, unsigned short error)  // b28d-lane5
 {
     PacketGuard packet;
@@ -3292,10 +3325,13 @@ bool CUser::SendCmdErrorPacketJpn(ENUM_CMDPACKET cmd, unsigned short error)  // 
 //   3) get_state()<3 或 getCurCharacR()==0 → 返回 0x8151；
 //   4) CSecu_ProtectionField::Check(this, 0x35) !=0 → 报对应错误，返回 0；
 //   5) 全部通过 → 返回 -1。
+// b28d-lane5 N封顶: N96+P168a④ 清 `register bool fail asm("al")` 后 bool 暂存落栈槽
+// （movb $1,-0xd / cmpb $0,-0xd），ORIG 为寄存器 `mov $1,%eax`；无绑定即不可达（P0 硬约束）。
+// | ORIG 0x08680a96 | _ZN5CUser15AuctionPreCheckE14ENUM_CMDPACKET8PAY_TYPE
 int CUser::AuctionPreCheck(ENUM_CMDPACKET cmd, PAY_TYPE pay)
 {
     // ORIG 0x86??：fail 不落槽（值留存 %al：`xor$1;[物化];test;je`）——register asm(al)。
-    register bool fail asm("al");
+    bool fail;
 
     if (pay == (PAY_TYPE)1)
     {
@@ -3353,6 +3389,7 @@ int CUser::AuctionPreCheck(ENUM_CMDPACKET cmd, PAY_TYPE pay)
     return -1;
 }
 
+// b28d-lane5 AE: 本轮核验通过（orig/our 归一逐条相等）| ORIG 0x0867bd84 | _ZN5CUser22SendCmdPeerErrorPacketE14ENUM_CMDPACKET22ENUM_PEER_REQUEST_TYPEh
 bool CUser::SendCmdPeerErrorPacket(ENUM_CMDPACKET cmd, ENUM_PEER_REQUEST_TYPE type,
                                    unsigned char error)  // b28d-lane5：ORIG 0x0867be6f 保存 4 参版返回值
 {
@@ -3502,6 +3539,7 @@ WongWork::CDeathTower* CUser::getDeathTower()
 // CExpandEquipslot* 槽位；权威声明见 Redeem_Item__CRedeemItem.h，实现于
 // Redeem_Item__CRedeemItem.cpp，ORIG 0x085f76f0 / 0x085f71a8）----
 
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x086472c0 | _ZN5CUser14Add_RedeemInfoERK10Inven_Itemib
 int CUser::Add_RedeemInfo(const Inven_Item& item, int count, bool isRedeem)
 {
     // ORIG 0x086472c0：GetCharacExpandData(6)->isAddableFilter(item)，可加则记录历史并 AddRedeemList
@@ -3610,6 +3648,7 @@ char CUser::get_direction()
     return m_direction;
 }
 
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x082f0e70 | _ZN5CUser12GetUserStateEv
 int CUser::GetUserState()
 {
     int state = m_chState;
@@ -3671,7 +3710,7 @@ void CUser::SetGMUpgradeMode(ENUM_GM_ITEM_UPGRADE mode)
     // ORIG 0x822fea7-0x822fead：mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx; mov %edx,0x711dc(%eax)
     // （this-先+一级 fold。直写 4.4 恒 arg-先；register self asm("eax")=this 复现，probe31 f1 实证；
     //  &子对象绑定会 materialize add 两级 ✗）
-    register CUser* self asm("eax") = this;
+    CUser* self = this;
     self->m_clientSpec.m_gmUpgradeMode = mode;
 }
 
@@ -3685,6 +3724,7 @@ bool CUser::IsGameMasterMode() const
     return m_clientSpec.m_gmUserFlag;
 }
 
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x086796dc | _ZN5CUser17SetGameMasterModeEb
 void CUser::SetGameMasterMode(bool flag)
 {
     m_clientSpec.m_gmUserFlag = flag;
@@ -4385,6 +4425,7 @@ unsigned int CUser::getAddIndependentDropRateFromPremium(ENUM_PREMIUM_TYPE type,
 // 背包无该物品 → make_item 构造后 insertItemIntoInventory（reason 13，log=1，
 // stackable=false）；已有 → ItemAdd 日志 + 数量累加 update_item；
 // 成功落位后 SendUpdateItemList(1, 0, slot)。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08689576 | _ZN5CUser23EventDungeonClearRewardERKSt6vectorISt4pairIiiESaIS2_EE
 void CUser::EventDungeonClearReward(std::vector<std::pair<int, int> > const& items)
 {
     const int count = items.size();
@@ -5126,7 +5167,7 @@ void CUser::decre_check_count()
 void CUser::setLastLotteryTime(unsigned long t)
 {
     // ORIG 0x82307cb-0x82307d1：this-先 uint 直写（同 probe30 f3 register 客户端绑定）
-    register CUser* self asm("eax") = this;   // probe31 f1 形
+    CUser* self = this;   // probe31 f1 形
     self->m_mcap.m_lastLotteryTime = (int)t;
 }
 
@@ -5182,6 +5223,7 @@ void CUser::ResetCurCharacUsedFatigueQuantity()
 
 // ORIG _ZN5CUser24set_server_fatigue_countEs T 0x0868d32a：按当日
 // get_today_time_day 在 m_map8eb50 累加，无表项则插入。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0868d32a | _ZN5CUser24set_server_fatigue_countEs
 void CUser::set_server_fatigue_count(short v)
 {
     unsigned char todayDay =
@@ -5242,6 +5284,7 @@ void CUser::SetMileage(int mileage)
 }
 
 // ORIG _ZN5CUser12AddMoneyPlusEi T 0x0868f266：当日滚窗 m_money[0]+=value，m_money[2]=now。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0868f266 | _ZN5CUser12AddMoneyPlusEi
 void CUser::AddMoneyPlus(int value)
 {
     // 残差 N81 附注族（4.4 恒形）：尾句 `+=` 的 load 4.4 恒 eax 中转+mov 转发+
@@ -5258,6 +5301,7 @@ void CUser::AddMoneyPlus(int value)
 }
 
 // ORIG _ZN5CUser13AddMoneyMinusEi T 0x0868f310：当日滚窗 m_money[1]+=value，m_money[2]=now。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0868f310 | _ZN5CUser13AddMoneyMinusEi
 void CUser::AddMoneyMinus(int value)
 {
     // 残差 N81 附注族，同 AddMoneyPlus（load 中转寄存器 4.4 恒 eax）。
@@ -5273,6 +5317,7 @@ void CUser::AddMoneyMinus(int value)
 
 // ORIG _ZN5CUser18NextCharacMoneyLogEi T 0x0868f1c0：当前槽含时间且与
 // 传入时刻不同日 → 槽推进（钳 6）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0868f1c0 | _ZN5CUser18NextCharacMoneyLogEi
 void CUser::NextCharacMoneyLog(int now)
 {
     if (m_moneyLogs[m_moneyLogIdx].m_money[2] != 0)
@@ -5304,28 +5349,28 @@ bool CUser::exceptedStateMoneyLog()
     // uchar `movzbl 0x89e;test %al` 免物化直判；get_state `cmp $0x8,%eax; sete`、
     // getCurCharacVill `cmp $0x7,%al` 8 位形（callee uchar 返回）。bf 读保留
     // CParty+0xb24 视图（§4.3 具名，0xc4c 单级系 4.1 复合折叠，4.4 两段为 N）。
-    register bool gp asm("al");
+    bool gp;
     gp = (GetParty() != 0);
     if (gp)
     {
-        register bool bfNZ asm("al");
+        bool bfNZ;
         bfNZ = ((*(&((CParty*)GetParty())->m_battleField)).m_villageMonsterId != 0);
         if (bfNZ)
             return true;
         gp = (((CParty*)GetParty())->m_battleField.m_pDungeon != 0);
         if (gp)
         {
-            register unsigned char m89e asm("al");
+            unsigned char m89e;
             m89e = ((CParty*)GetParty())->m_battleField.m_pDungeon->m_89e;
             if (m89e)
                 return true;
         }
     }
-    register bool st8 asm("al");
+    bool st8;
     st8 = (get_state() == 8);
     if (st8)
         return true;
-    register bool vil7 asm("al");
+    bool vil7;
     vil7 = (getCurCharacVill() == 7);
     if (vil7)
         return true;
@@ -5393,7 +5438,7 @@ bool CUser::reqHumanCertify()
     pg.put_int(msg->m_size);
     // ORIG 0x867f366-0x867f376：len→%eax、ptr→%edx（技巧 28 register asm("eax") 钉住
     // len 寄存器；ptr 计算被挤到 %edx）。
-    register int len asm("eax") = msg->m_size;
+    int len = msg->m_size;
     pg.put_binary((const char*)msg->m_image, len);
     pg.put_byte(m_mcap.getPoint() > 0x251b ? 1 : 0);
 
@@ -5447,6 +5492,7 @@ void CUser::SendCashData(bool flag)
 
 // ORIG _ZN5CUser15recover_staminaEv T 0x0865784e：满体力外每分钟恢复
 // （+9，钳 100）并回发包 0x4。
+// b28d-lane5 AE: 本轮核验通过（orig/our 归一逐条相等）| ORIG 0x0865784e | _ZN5CUser15recover_staminaEv
 int CUser::recover_stamina()
 {
     // ORIG 0x8657859-0x8657874：两次独立装载 `cmp $0x2,%eax; jle` / `cmp $0x5,%eax; je`，
@@ -5508,6 +5554,7 @@ void CUser::WorkPerTenMin()
 
 // ORIG _ZN5CUser14WorkPerFiveMinEv T 0x08652f0c：五/十分钟公会上报族
 // （一般经验与今日经验两段同构）；无角色时 trace 返回。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x08652f0c | _ZN5CUser14WorkPerFiveMinEv
 void CUser::WorkPerFiveMin()
 {
     if (m_chState <= 2)
@@ -5629,6 +5676,7 @@ void CUser::GetDailyBadge(short* out)
 // create_item(NONE,item,count)→有效性(m_addInfo||m_addInfo2)→插背包
 // （reason 0xd；失败系统邮件 msg_132/133 + item.reset，成功 SendUpdateItem）
 // → put_int/put_short → finalize 发送，返 1。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08681c30 | _ZN5CUser23InsertOnTimeEventRewardEjj
 bool CUser::InsertOnTimeEventReward(unsigned int itemNo, unsigned int itemCount)  // b28c-L5 SIGFIX（P174）
 {
     char logDir[256];
@@ -5762,7 +5810,7 @@ bool CUser::acceptable_within_mission() const
         (CMissionList_Charac*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
     // ORIG 0x8??：grade 走 %ebx（`mov %eax,%ebx` 技巧 2），`mov %ebx,0x4(%esp)` 直传；
     // mission=-0x10 / idx=-0xc。
-    register int grade asm("ebx") = get_pvp_grade();
+    int grade = get_pvp_grade();
     int idx = G_CDataManager()->get_WithinMissionIndex(grade);
     if (idx == 0)
         return false;
@@ -5861,7 +5909,7 @@ void CUser::saveTaxMoneyForUpperMember(int money)
 {
     // ORIG 0x864f8fb-0x864f902：`sete %al; test; jne`（技巧 22 register bool 物化，
     // && 链 4.4 融合形不符）；2/3 守卫直折 test %al/je + cmpl/jle。
-    register bool mk0 asm("al");
+    bool mk0;
     mk0 = (get_charac_memberkey() == 0);
     if (mk0)
         return;
@@ -5874,6 +5922,7 @@ void CUser::saveTaxMoneyForUpperMember(int money)
     }
 }
 
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0864fa08 | _ZN5CUser20gainExpAsUpperMemberEi
 int CUser::gainExpAsUpperMember(int exp)
 {
     if (get_charac_memberkey() == 0)
@@ -5914,6 +5963,7 @@ void CUser::add_guild_point_item()
     return;   // ORIG 0x865cd05 body 尾 jmp merge + 0x865cd07 nop 岛（技巧 7 尾置 return）
 }
 
+// b28d-lane5 AE: 本轮核验通过（orig/our 归一逐条相等）| ORIG 0x0867c844 | _ZN5CUser19SendMoneyFullReasonE22ENUM_MONEY_FULL_REASONmm
 bool CUser::SendMoneyFullReason(ENUM_MONEY_FULL_REASON reason, unsigned long a, unsigned long b)  // b28d-lane5：ORIG 0x0867c8da 返回 Send 结果
 {
     PacketGuard packet;
@@ -5932,7 +5982,7 @@ bool CUser::AddDungeonClear(int dungeonIdx, int clearCount)
     // jge 反形）；残差 movswl %ax,%ebx（4.1 arg 截断 sext 直落 ebx）N18a。
     // 二修：getter 结果直用免槽（技巧 37，ORIG call 后 %eax 即 this 实参）、
     // 正向 `if(less)`（`!less` 反产 xor$1 取反）。
-    register bool less asm("al");
+    bool less;
     less = (getDungeonClearRefR()->getClearedDungeonDiff(dungeonIdx) < clearCount);
     if (less)
     {
@@ -5975,6 +6025,7 @@ void CUser::SetChangedGiftFatigueQuantity(bool flag)
     m_field8ebb0 = flag;
 }
 
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x08657570 | _ZN5CUser15ResetDailyQuestEv
 void CUser::ResetDailyQuest()
 {
     std::list<int> questList;
@@ -5993,6 +6044,7 @@ void CUser::ResetDailyQuest()
     }
 }
 
+// b28d-lane5 N封顶: N18a/P200 拓宽中轉; N82/P112 槽号分配 | ORIG 0x08657662 | _ZN5CUser18ResetTrainingQuestEv
 void CUser::ResetTrainingQuest()
 {
     std::vector<int> questList;
@@ -6010,6 +6062,7 @@ void CUser::ResetTrainingQuest()
     }
 }
 
+// b28d-lane5 N封顶: N18a/P200 拓宽中轉; N82/P112 槽号分配 | ORIG 0x085df9b2 | _ZN5CUser11SetPvpIndexEs
 void CUser::SetPvpIndex(short idx)
 {
     // ORIG 0x08669ee8：CSwitchLog("SetPvpIndex",0x2339,0,0) 记
@@ -6021,6 +6074,7 @@ void CUser::SetPvpIndex(short idx)
     unlock();
 }
 
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0865cadc | _ZN5CUser18add_inventory_itemEj
 void CUser::add_inventory_item(unsigned int itemId)
 {
     	CItem* pItem = G_CDataManager()->find_item(itemId);
@@ -6082,6 +6136,7 @@ void CUser::send_aura_avatar_option()
 // 全部签名经 nm -C /home/wangyilei/下载/df_game_r 核实。
 
 // 0x086489f4（DisConnSig.md 汇编+反编译 C 全文核对）
+// b28d-lane5 N封顶: N18a/P200 拓宽中轉; N82/P112 槽号分配 | ORIG 0x086489f4 | _ZN5CUser10DisConnSigE11DISCONN_SIGbi
 void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
 {
     Mutex& mtx = m_mutex2;   // ORIG this+0x8cfa0 实证
@@ -6272,6 +6327,7 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
 // 0x08665400：PvP 技能树发放主循环（givePvPSkillTree.md）：
 // secondGrow∈[0..CurSecondGrow]、grade∈[a..pvp_grade]；脚本 miss 跳过；
 // mode 1/2 只发树 0/树 1，mode 3 双树；b=true 且已有等级≥目标跳过。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x08665400 | _ZN5CUser16givePvPSkillTreeEibi
 void CUser::givePvPSkillTree(int a, bool b, int c)
 {
     // ORIG T 0x8665400 全录（报告双段读完）：mode 判断为 **param_3==1/2/3 三分支
@@ -6364,6 +6420,7 @@ void CUser::OnDisconnect()
 }
 
 // 0x0867a95c（返回 1 成功 / 0 角色为空；DisPatcher_DebugCommand 以 !=1 判失败）
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867a95c | _ZN5CUser14SetCharacLevelEi
 int CUser::SetCharacLevel(int level)
 {
     // 0x0867a95c 主分支（SetCharacLevel.md）：等级钳制[1,200]；按方向取
@@ -6487,6 +6544,7 @@ int CUser::SetCharacLevel(int level)
 // 否则普通 SkillSlot::master_new_skill。回包 header(1,0x1f)：失败字节0+错误码
 // 映射{-1:0x15,-2:0x16,-3:0x12,-4:0x01,-5:0x5b,-6:0x5c}；成功 byte1+treeIdx+
 // 剩余SP/SFP(short)+新槽位+skillIdx+等级。
+// b28d-lane5 N封顶: P11 反向符号扩展; N82/P112 槽号分配 | ORIG 0x0866afa2 | _ZN5CUser16master_new_skillER14stBuySkillInfob
 void CUser::master_new_skill(stBuySkillInfo& info, bool flag)
 {
     (void)flag;
@@ -6601,6 +6659,7 @@ void CUser::master_new_skill(stBuySkillInfo& info, bool flag)
 // _postCheckForceChangeGrowType 后处理，返回 1。
 // 返回 int：ORIG 0x0867b048 尾 `mov eax,0x1; ret`、早退 `mov eax,0x0`
 // （Model22 桥清零实证；声明 CUser.h:3330 由 Main 代落）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867b048 | _ZN5CUser17ChangeGrowType_GMEii
 int CUser::ChangeGrowType_GM(int a, int b)
 {
     if (getCurCharacR() == 0)
@@ -6627,6 +6686,7 @@ int CUser::ChangeGrowType_GM(int a, int b)
 // *space 默认 0（生物物品 → 7）；slot∈(0,0x20) 且为装备 → SetUpgrade(slot)；
 // insertItemIntoInventory(reason, true, true)，失败 -1；
 // 生物物品再 InsertCreatureItem。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867b6d4 | _ZN5CUser7AddItemEii14eItemAddReasonR14ENUM_ITEMSPACEi
 int CUser::AddItem(int itemIdx, int count, eItemAddReason reason,
                    ENUM_ITEMSPACE& space, int slot)
 {
@@ -6663,6 +6723,7 @@ int CUser::AddItem(int itemIdx, int count, eItemAddReason reason,
 }
 
 // 0x0864cb66
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0864cb66 | _ZN5CUser21LogoutCachedCharacterEh
 void CUser::LogoutCachedCharacter(unsigned char param)
 {
     // 0x0864cb66 主分支（LogoutCachedCharacter.md）：货币日志 → 缓存角色内存 →
@@ -6714,6 +6775,7 @@ void CUser::LogoutCachedCharacter(unsigned char param)
 // 0x08689a22：表情配置重算（ReCalcChattingEmoticon.md）。读 GameOption 表情配置 →
 // CDataManager 重算 → 写回；变化则组 SIG_SAVE_CHATTING_EMOTICON（0x214：+0 accId、
 // +4.. 配置 0x210）投递队列 2。SIG 当前 pad 布局按偏移写入（推断）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08689a22 | _ZN5CUser22ReCalcChattingEmoticonEv
 void CUser::ReCalcChattingEmoticon()
 {
     CGameOption* opt = GetGameOptionRef();
@@ -6734,6 +6796,7 @@ void CUser::ReCalcChattingEmoticon()
 
 // 0x08689010：表驱动重置列表（ResetItemByScript.md）：元素 +0 itemspace、
 // +4 到期秒；到期则压 (space,0)。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x08689010 | _ZN5CUser17ResetItemByScriptERSt6vectorISt4pairIiiESaIS2_EE
 void CUser::ResetItemByScript(std::vector<std::pair<int, int> >& list)
 {
     // 残差 P75/N80 族（跨版本实参装载中转寄存器差）：两处 operator[](i) 的
@@ -6791,6 +6854,7 @@ void CUser::SendChattingEmoticon()
 // CStreamGuard 链式写法的槽物化差；EXTRA=0 已排除多发语义（任务书关注点），
 // 语义完整仅剩 codegen 差，N 封顶（详见 docs/asm_translation_patterns.md 负例表）。
 // 各 isSaveXxx 脏块经 StreamPool+CStreamGuard 组包投递队列 2 后 disable。
+// b28d-lane5 N封顶: N18a/P200 拓宽中轉; N82/P112 槽号分配 | ORIG 0x08653270 | _ZN5CUser10UpdateDataEv
 void CUser::UpdateData()
 {
     if (m_chState <= 2)
@@ -7125,6 +7189,7 @@ void CUser::UpdateData()
 // accId/characNo/gcNo/fatigue；state>1 记 playTime/IP/机器码/会员奖励疲劳并复位；
 // 两条 trace（0x22e0/0x22e2）；写登录时间戳；历史日志 Logout；DB 杂项（复仇/
 // ontime/疲劳出勤）；!param 发包(1,3)；清商城内购限制。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x086554aa | _ZN5CUser12UpdateLogoutEb
 void CUser::UpdateLogout(bool param)
 {
     UpdateCharacView();
@@ -7252,6 +7317,7 @@ void CUser::UpdateLogout(bool param)
 
 // 0x0867e734：日删可堆叠物品（deleteDailyStackableItem.md）。区间 [a,b] 三重过滤
 // （空槽/find_item/is_stackable/+0x3c5>0 日删标记）后删除并压 (space=0, slot)。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867e734 | _ZN5CUser24deleteDailyStackableItemERSt6vectorISt4pairIiiESaIS2_EEii
 void CUser::deleteDailyStackableItem(std::vector<std::pair<int, int> >& list,
                                      int a, int b)
 {
@@ -7277,6 +7343,7 @@ void CUser::deleteDailyStackableItem(std::vector<std::pair<int, int> >& list,
 
 // 0x0867dba0：指定物品清理编排（deleteSpecificItem.md）：关私摊 → 五域清理 →
 // 邮箱超时/匹配/无效物品移除（header 0x62 包）→ 无效物品邮件补偿 → redeem 清理。
+// b28d-lane5 N封顶: P168a/P248 setcc 物化方向; N82/P112 槽号分配 | ORIG 0x0867dba0 | _ZN5CUser18deleteSpecificItemERKSt6vectorISt4pairIiiESaIS2_EERS4_
 void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
                                std::vector<std::pair<int, int> >& out)
 {
@@ -7366,6 +7433,7 @@ void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
 // 0x08652c8e
 // ORIG：联动角色断线处理。标志开启时：若数据加载/建角/删角被锁定则记错误日志；
 // 否则把联动角色槽位移到列表尾（ChangeCharacSlot 两次）、清标志并刷新角色视图。
+// b28d-lane5 N封顶: P11 符号扩展; N82/P112 槽号分配 | ORIG 0x08652c8e | _ZN5CUser22doLinkCharacDisconnectEv
 void CUser::doLinkCharacDisconnect()
 {
     if (isLinkCharacDisconnectFlag() == 0)
@@ -7393,6 +7461,7 @@ void CUser::doLinkCharacDisconnect()
 // 下标 b 处（a<b 时先 insert(begin()+b+1, v[a]) 再 erase(begin()+a)；
 // a>b 时 insert(begin()+b, v[a]) 再 erase(begin()+a+1)），随后
 // enableSaveCharacView(&m_characterView)。越界（a/b >= size）直接返回。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08651b7a | _ZN5CUser16ChangeCharacSlotEjj
 int CUser::ChangeCharacSlot(unsigned int a, unsigned int b)
 {
     if (a < m_characList.size())
@@ -7474,6 +7543,7 @@ typedef char sig_charac_view_rec_size_ok[(sizeof(SigUpdateCharacViewRecord) == 0
 
 // ORIG T 0x08677188：在 m_rentalInfo[param] 视图中查找 characNo 的租借记录里
 // 是否存在 itemIndex 匹配项。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08677188 | _ZN5CUser15checkRentedItemEjii
 bool CUser::checkRentedItem(unsigned int characNo, int itemIndex, int param)
 {
     std::map<unsigned int,
@@ -7523,6 +7593,7 @@ typedef char vis_pair8_size_ok[(sizeof(VisibleCachePair8) == 8) ? 1 : -1];
 
 // ORIG T 0x08651322：填充单角色的可见数据区（avatar 外观槽 / 租赁槽 /
 // 非当前角色缓存直拷 / 改名状态）。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x08651322 | _ZN5CUser27updateCharacViewVisibleDataERK12_Charac_infoR17CHARAC_LOGIN_DATA
 void CUser::updateCharacViewVisibleData(const _Charac_info& info,
                                         struct CHARAC_LOGIN_DATA& data)
 {
@@ -7627,6 +7698,7 @@ void CUser::updateCharacViewVisibleData(const _Charac_info& info,
 // ORIG T 0x08651740：角色视图变化落库包。频道 !=7 且 isSaveCharacView() 时组
 // SIG_UPDATE_CHARAC_VIEW（header 6 + UID），memset 全块后逐 _Charac_info 填
 // 记录（stride 0x94）并调 updateCharacViewVisibleData，投递 DB_Q 后清保存标志。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08651740 | _ZN5CUser16UpdateCharacViewEv
 void CUser::UpdateCharacView()
 {
     if (G_GameWorld()->GetChannelType() == 7)
@@ -7634,8 +7706,8 @@ void CUser::UpdateCharacView()
     if (!m_characterView.isSaveCharacView())
         return;
 
-    Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1b1f);
-    CStreamGuard guard(stream, true);
+    // b28d-lane5：ORIG 0x08651740 无 Stream* 槽——Acquire 结果 %eax 直传 ctor（P0）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1b1f), true);
 
     guard << (int)6;
     guard << (int)GetUID();
@@ -7751,6 +7823,7 @@ void CUser::log_out()
 }
 
 // 0x086487ea
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x086487ea | _ZN5CUser17prepareDisconnectEv
 void CUser::prepareDisconnect()
 {
     // 0x086487ea 主分支（prepareDisconnect.md 反编译 C 全文转写）：state<2 早退；
@@ -7799,6 +7872,9 @@ void CUser::prepareDisconnect()
 // ORIG：按物品空间号生成并发送对应列表包：
 //   0/1 → CInventory::MakeItemList(1/2)、2 → CCargo::MakeItemList、
 //   7 → 生物列表 + MakeItemList(3)、0xc → CAccountCargo::SendItemList（不存在时返回 1）。
+// b28d-lane5 N封顶: P0 清绑连带——同 TU callee（IsExistAccountCargo 等）清绑后帧变化，
+// 4.4 按 P210 精确继承 outgoing ⇒ 本函数帧 0x20→0x30、PacketGuard 槽 -0x14→-0x1c；
+// 另 v^=1 段清绑后落栈槽物化（P168a④）。| ORIG 0x0865db6c | _ZN5CUser14send_itemspaceEi
 bool CUser::send_itemspace(int space)   // 返回形随 CUser.h:2843 bool 化（P22 调用点直测形）
 {
     // P168a/X2 五段化（2026-09-05 CUserC8，Main 派单）：ORIG 0x86?? 每 MakeItemList
@@ -7815,7 +7891,7 @@ bool CUser::send_itemspace(int space)   // 返回形随 CUser.h:2843 bool 化（
     {
     case 0:
     {
-        register unsigned char v0 asm("eax") =
+        unsigned char v0 =
             (unsigned char)getCurCharacInvenR()->MakeItemList((INVEN_TYPE)1, &packet);
         v0 ^= 1;
         if (v0) return 0;
@@ -7823,7 +7899,7 @@ bool CUser::send_itemspace(int space)   // 返回形随 CUser.h:2843 bool 化（
     }
     case 1:
     {
-        register unsigned char v1 asm("eax") =
+        unsigned char v1 =
             (unsigned char)getCurCharacInvenR()->MakeItemList((INVEN_TYPE)2, &packet);
         v1 ^= 1;
         if (v1) return 0;
@@ -7831,7 +7907,7 @@ bool CUser::send_itemspace(int space)   // 返回形随 CUser.h:2843 bool 化（
     }
     case 2:
     {
-        register unsigned char v2 asm("eax") =
+        unsigned char v2 =
             (unsigned char)getCurCharacCargoR()->MakeItemList(&packet);
         v2 ^= 1;
         if (v2) return 0;
@@ -7839,11 +7915,11 @@ bool CUser::send_itemspace(int space)   // 返回形随 CUser.h:2843 bool 化（
     }
     case 7:
     {
-        register unsigned char v3 asm("eax") = (unsigned char)
+        unsigned char v3 = (unsigned char)
             getCurCharacInvenR()->GetCreatureMgrR()->SendCreatureItemList();
         v3 ^= 1;
         if (v3) return 0;
-        register unsigned char v4 asm("eax") =
+        unsigned char v4 =
             (unsigned char)getCurCharacInvenR()->MakeItemList((INVEN_TYPE)3, &packet);
         v4 ^= 1;
         if (v4) return 0;
@@ -7865,6 +7941,7 @@ bool CUser::send_itemspace(int space)   // 返回形随 CUser.h:2843 bool 化（
 }
 
 // 0x0868c170（返回 1 已通知 / 0 未满足条件）
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0868c170 | _ZN5CUser31send_ontime_reward_start_notifyEv
 bool CUser::send_ontime_reward_start_notify()   // b28c-L5 SIGFIX（P174）
 {
     // 0x0868c170 主分支（send_ontime_reward_start_notify.md）：事件 0x33 空 →
@@ -8028,6 +8105,7 @@ void CUser::send_skill_info()
 
 // 0x0866cb04
 
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0866cb04 | _ZN5CUser17CheckQuestMonsterEii21ENUM_QUEST_ENEMY_TYPE
 bool CUser::CheckQuestMonster(int a, int b, ENUM_QUEST_ENEMY_TYPE type)
 {
     // 0x0866cb04 主分支（CheckQuestMonster.md）：遍历进行中任务表
@@ -8263,6 +8341,7 @@ bool CUser::CheckQuestMonster(int a, int b, ENUM_QUEST_ENEMY_TYPE type)
 // 槽号错位 + esm 访问器重物化族（P112），语义完整仅剩 codegen 差，N 封顶
 // （详见 docs/asm_translation_patterns.md 负例表）。
     // 0x08655c60 主分支（FatigueUp.md）：v==0→1；BreakAway 幸运点先结算；
+// b28d-lane5 N封顶: N18a/P200 拓宽中轉; P168a/P248 setcc 物化方向; N82/P112 槽号分配 | ORIG 0x08655c60 | _ZN5CUser9FatigueUpEi
 void CUser::FatigueUp(int v)
 {
     // Hades+GoldControl 双扣减；state==5 时混沌点扣减与累计(+0x8e064)；
@@ -8471,6 +8550,7 @@ void CUser::FatigueUp(int v)
 // 0x0867ba5c（SendNotiPacket.md）：header(0,cmd)；cmd==2 → byte+short(1)+
 // make_basic_info；cmd==0x25 → level/exp/组队/会员 exp/SP/SFP/胜点(+0x58)/
 // 疲劳/seria bonus/周末(事件 0x57 活跃才发并 reset)/premium bonus(reset)。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867ba5c | _ZN5CUser14SendNotiPacketENS_11eSendTargetE15ENUM_NOTIPACKETi
 bool CUser::SendNotiPacket(eSendTarget target, ENUM_NOTIPACKET cmd, int param)
 {
     PacketGuard packet;
@@ -8527,6 +8607,7 @@ bool CUser::SendNotiPacket(eSendTarget target, ENUM_NOTIPACKET cmd, int param)
 // 0x0865c936
 // ORIG：公会战积分累加。PvP 房间内且非观察者、公会战事件(0x21)进行中且
 // 有公会时：通知公会服 + 发包(0x6e) + 累加 +0x8cfe0（m_guildWarPoint）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0865c936 | _ZN5CUser20add_guild_pvp_resultEi
 void CUser::add_guild_pvp_result(int v)
 {
     PvP_Room* pRoom = (PvP_Room*)GetPVPRoom();
@@ -8589,6 +8670,7 @@ void CUser::add_pvp_play_info(unsigned int a, unsigned int b)
 // ORIG：PvP 结果结算。观战者直接返回；winPointBuffer(+0x796fc) 清零并入账；
 // 胜/败计数（整合 PvP 基础频道且渠道类型==0 时不计）；额外胜点补发并记 WPAdd 日志；
 // 战斗模式 4/5 且 out 非空时按 mob_reward×胜点增量 + gainPowerWarRewardExp 计算奖励。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0865c678 | _ZN5CUser14add_pvp_resultEbPj
 void CUser::add_pvp_result(bool flag, unsigned int* out)
 {
     PvP_Room* room = (PvP_Room*)GetPVPRoom();
@@ -8649,6 +8731,7 @@ void CUser::add_pvp_result(bool flag, unsigned int* out)
 // 0x0864fac4
 // ORIG：公会技能已学查询。GetGuildDBInfo 内 +0x44 成员数、+0x45 起
 // 每 5 字节 {skillIdx(int), level(byte)}，返回匹配项的 level 字节。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0864fac4 | _ZN5CUser17IsGuildSkillLearnEi
 bool CUser::IsGuildSkillLearn(int skillIdx)
 {
     STGuildDBInfoOnly* gdb = (STGuildDBInfoOnly*)GetGuildDBInfo();
@@ -8674,6 +8757,7 @@ bool CUser::IsGuildSkillLearn(int skillIdx)
 // 忠实转写：find_skill(job, 0xc9)；索引 = IsGuildSkillLearn(0xc9)-1（前检查
 // 已保证其为 1 → 恒 0）；取权重表第 0 行的 at(gradeIdx)；无 find_skill/边界/
 // empty 防御检查（ORIG 直接 operator[]+at，越界走 at 异常路径）。
+// b28d-lane5 AE: 本轮核验通过（orig/our 归一逐条相等）| ORIG 0x0864fb3a | _ZN5CUser17gainGuildSkillExpEi
 int CUser::gainGuildSkillExp(int exp)
 {
     if (get_charac_guildkey() == 0)
@@ -8718,6 +8802,7 @@ int CUser::gainGuildSkillExp(int exp)
 //      （W 0x8694a88，sret 临时）经 _Additioal_info::operator+=（W 0x8693cea）；
 //   A) 否则 → 直接输出 getCurCharacAddInfoR() 原块（无副本）。
 // 副本经拷贝初始化生成 ORIG 同款内联逐块复制（无 memset 构造）。
+// b28d-lane5 N封顶: P11 符号扩展; P11 反向符号扩展; N82/P112 槽号分配 | ORIG 0x08659faa | _ZN5CUser16make_charac_statER11PacketGuard
 void CUser::make_charac_stat(PacketGuard& packet)
 {
     if (G_GameWorld()->IsCharacterStatRevisionChannel())
@@ -8974,6 +9059,7 @@ bool CUser::isCompetitionMercenary() const
 // 槽号错位族（x87 ROUND 岛跨版本形态差），语义完整仅剩 codegen 差，N 封顶
 // （详见 docs/asm_translation_patterns.md 负例表）。
 // 重发任务信息包并重建 0x1e 任务列表。
+// b28d-lane5 N封顶: P168a/P248 setcc 物化方向; N82/P112 槽号分配 | ORIG 0x0865cfd8 | _ZN5CUser16update_pvp_pointEi
 bool CUser::update_pvp_point(int v)   // b28c-L5 SIGFIX（P174）
 {
     if (v == 0)
@@ -9215,6 +9301,7 @@ void CUser::RecoverCoin(unsigned int v)
 // 0x086568fc
 // ORIG：开放标志包(0xb1)。角色存在时：每日币事件(4)进行中取等级 1 的当日币数，
 // premium 有优势加币加成；计算缺口（need - coin）并在 opencoin 标志下发包。
+// b28d-lane5 N封顶: P11 符号扩展; N82/P112 槽号分配 | ORIG 0x086568fc | _ZN5CUser12SendOpenflagEv
 void CUser::SendOpenflag()
 {
     if (getCurCharacR() == 0)
@@ -9251,6 +9338,7 @@ void CUser::SendOpenflag()
 // ORIG：无效物品删除补偿。逐条记 DeleteInvaildItem 日志并按脚本换算奖励道具；
 // 邮件发件人/正文按脚本字符串表（表 4）翻译，空则用 defalt_string；
 // 每 10 件一批 ReqDBSendNewSystemMultiMail，余件单独一封。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x086931c4 | _ZN5CUser28RewardItem2DeleteInvalidItemERKSsRKSt6vectorISt4pairIiiESaIS4_EE
 void CUser::RewardItem2DeleteInvalidItem(
     const std::string& name, const std::vector<std::pair<int, int> >& list)
 {
@@ -9330,6 +9418,7 @@ void CUser::RewardItem2DeleteInvalidItem(
 // 堆叠补满并记 ItemAdd 日志）；随后 ResetItemByScript/RefillItemByScript/
 // deleteSpecificItem 脚本链并回发受影响槽位包；祭坛免费票补满；截止时间前
 // 发放道具 0x1cab（背包满走 game_server_msg_24/25 系统邮件）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08656caa | _ZN5CUser12AddDailyItemEv
 void CUser::AddDailyItem()
 {
     int level = get_charac_level();
@@ -9420,6 +9509,7 @@ void CUser::AddDailyItem()
 }
 
 // 0x0868aaea
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0868aaea | _ZN5CUser24SendOneADayItemShopIndexERKSt6vectorISt4pairIiiESaIS2_EE
 void CUser::SendOneADayItemShopIndex(
     const std::vector<std::pair<int, int> >& list)
 {
@@ -9448,6 +9538,7 @@ void CUser::SendOneADayItemShopIndex(
 // ORIG：单槽位物品更新包(0xe)。GetInvenRef 空 → return 0；否则写槽头 +
 // 物品字段（addInfo2 为 0 时首 int 写 -1）、强化选项、avatar 宝石槽 0x1e 字节
 // 与扩展信息 4 字节、生物装备剩余天数（type==5），追加三转编年史与整件包体。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867c2d8 | _ZN5CUser14SendUpdateItemENS_11eSendTargetE14ENUM_ITEMSPACEi
 int CUser::SendUpdateItem(eSendTarget target, ENUM_ITEMSPACE space, int slot)
 {
     int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space);
@@ -9529,6 +9620,7 @@ void CUser::UpdateAuraAvatarOption(int a, int b)
 // 0x0868dff8
 // ORIG：光环 avatar 装备检查。无角色 → 1；槽 9 无物品/不可装备 → 0x11；
 // 物品为光环 avatar 选项 → 回写选项值并返回 0，否则 0x17。
+// b28d-lane5 AE: 本轮核验通过（orig/our 归一逐条相等）| ORIG 0x0868dff8 | _ZN5CUser20is_equip_aura_avatarEcRi
 char CUser::is_equip_aura_avatar(char slot, int& out)
 {
     if (getCurCharacR() == 0)
@@ -9557,6 +9649,7 @@ char CUser::is_equip_aura_avatar(char slot, int& out)
 // ORIG：每日道具过期删除（idx 区间 [3,8] 与 [0x39,0x68]）后聚合发送：29 个 0xe 包
 // 按物品空间预置包头并记录计数字段位置；cargo/账号金库直接 MakeItemPacket，
 // 背包空间空槽写固定"已删"载荷；最后按非零计数回填数量并逐包下发。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867e092 | _ZN5CUser19processDelDailyItemEv
 void CUser::processDelDailyItem()
 {
     extern Inven_Item g_emptySlot;   // ORIG 全局（0x943ddc0）
@@ -9641,6 +9734,7 @@ void CUser::processDelDailyItem()
 // 时按 (100-point/100) 与 0 取大降 stdDropRate（ServiceRestrict(3,1) 受限时）
 // 并 DB_SaveUserHandicap 上报（DB 域待接线，暂略）；随后 reqHumanCertify()
 // 通过则取消人证并 InsertTimer(0,uid,9,0x3c,key++,−1)。
+// b28d-lane5 N封顶: N85 x87比较lowering; N82/P112 槽号分配 | ORIG 0x086802b8 | _ZN5CUser24reqHumanCertify4ClearMapEb
 void CUser::reqHumanCertify4ClearMap(bool flag)
 {
     bool forceCertify;
@@ -9692,6 +9786,7 @@ void CUser::reqHumanCertify4ClearMap(bool flag)
 // 将技能槽写入（set_skill_slot_at_index），同时记录 SP/SFP 消耗日志。
 // PvP 树频道直接返回 true；普通树按 secondGrow/firstGrow 走成长型
 // get_give_skill 展开（ORIG 866b844-866bcd5 逐段转写）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0866b53e | _ZN5CUser17master_new_skillsEP15_Mastered_skill20ENUM_SKILL_TREE_KIND
 bool CUser::master_new_skills(_Mastered_skill* skills, ENUM_SKILL_TREE_KIND kind)
 {
     int usedSp = 0;
@@ -9890,6 +9985,7 @@ void CUser::GetInstanceRentalInfo(
 }
 
 // ORIG T 0x086773ea：返回 m_rentalInfo[param][charac_no] 是否存在；存在则拷贝到 out。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x086773ea | _ZN5CUser26getCurrentCharacRentalInfoERSt6vectorIN20InstanceRentalSystem10RentalInfoESaIS2_EEi
 bool CUser::getCurrentCharacRentalInfo(
     std::vector<InstanceRentalSystem::RentalInfo>& out, int param)
 {
@@ -9928,6 +10024,7 @@ void CUser::setCurrentCharacRentalInfo(
 
 // ORIG T 0x08677584：遍历当前角色租借列表，对仍存在的租借物品在序列化缓冲
 // （SIG_SAVE_INVENTORY）中清除对应背包槽；并回写租借条目的 inEquip 标志。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08677584 | _ZN5CUser32removeRentalItemInfoFromInvenBufEP18SIG_SAVE_INVENTORYi
 bool CUser::removeRentalItemInfoFromInvenBuf(SIG_SAVE_INVENTORY* sig, int param)  // b28c-L5 SIGFIX
 {
     if (sig == 0)
@@ -9985,6 +10082,7 @@ bool CUser::removeRentalItemInfoFromInvenBuf(SIG_SAVE_INVENTORY* sig, int param)
 //      宠物尾 → RemoveKCItem（state==10 时再 RemoveFPItem）→ cargo 容量+数据 →
 //      m_characExpand.update(this,9) → removeRentalItemInfoFromInvenBuf(1/2) →
 //      MsgQueueMgr::put(DB_Q,guard) → 返回 1。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0864fe52 | _ZN5CUser13SaveInventoryEv
 bool CUser::SaveInventory()   // b28c-L5 SIGFIX（P174）
 {
     if (isLocked4DataLoad())
@@ -10099,6 +10197,7 @@ void _postCheckForceChangeGrowType(CUser* user, int firstGrow, int secondGrow)
 // memset 子成员 → +0x1c (x|1)&~2 → memset skills 覆盖 → memset masterName）。
 // 注意 ORIG 在循环构造 STGuildSkill（-1/0xff）后又 memset(+0x45,0,0x50) 覆盖清零，
 // 净效果 skills 全 0（CUser.h 冻结 m_skills 为 char[0x50]，无构造语义，直接清零）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08693f56 | _ZN17STGuildDBInfoOnlyC1Ev
 STGuildDBInfoOnly::STGuildDBInfoOnly()
 {
     m_masterNo = 0;                 // +0x17
@@ -10141,6 +10240,7 @@ STGuildDBInfoOnly::STGuildDBInfoOnly()
 
 // ORIG T 0x08679754 sz0x2e2：仅 level%10==0 写公会公告板；文案 = 角色名 +
 // ServerString(0x3e9) + "%d"(level) + ServerString(0x3e8)；len>=0x78 丢弃。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08679754 | _ZN5CUser23makeGuildLevelUpMessageEi
 void CUser::makeGuildLevelUpMessage(int level)
 {
     if (level % 10 != 0)
@@ -10169,13 +10269,15 @@ void CUser::makeGuildLevelUpMessage(int level)
 }
 
 // ORIG T 0x0867cd20 sz0x18d：guildkey!=0 时组 header 0x63 包广播队列 2。
+// b28d-lane5 N封顶: P11 符号扩展; N82/P112 槽号分配 | ORIG 0x0867cd20 | _ZN5CUser21_UpdateUserInfo4GuildEv
 void CUser::_UpdateUserInfo4Guild()
 {
     if (get_charac_guildkey() == 0)
         return;
 
-    Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x793f);
-    CStreamGuard guard(s, true);
+    // b28d-lane5：ORIG 0x0867cd4x 无 Stream* 槽——Acquire 结果经 %eax 直传
+    // CStreamGuard ctor 实参（P0 右值内联；具名 s 反产 -0xc 槽 + 回读）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x793f), true);
     // ORIG：每处写经 guard.operator*()->operator<<(…) 显式代理链（operator* 调用点
     // 补齐；SetCharacInfo/SaveInventory 判例）。
     guard.operator*()->operator<<((int)0x63);                       // header
@@ -10183,7 +10285,9 @@ void CUser::_UpdateUserInfo4Guild()
     guard.operator*()->operator<<((int)get_charac_guildkey());
     guard.operator*()->operator<<((unsigned int)get_acc_id());
     guard.operator*()->operator<<((int)getCurCharacNo());
-    guard.operator*()->operator<<((int)getCurCharacGrowType());
+    // b28d-lane5：ORIG 0x0867ce2x `movsbl %al,%ebx` ⇒ 调用点按 signed char 扩展
+    // （P11；getter 本体 uchar 直返不变，仅本消费点收窄）。
+    guard.operator*()->operator<<((int)(signed char)getCurCharacGrowType());
     guard.operator*()->operator<<((int)get_charac_level());
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
 }
@@ -10197,6 +10301,7 @@ void CUser::_UpdateUserInfo4Guild()
 //   actionPoint(+0x1eb13)/expand vtable 槽+8(+0x34884)/altar(+0x1f804)/etc(+0x1fd20)；
 //   三个子对象内字段拷贝 + memcpy(+0x3f850, this+0x8d0fd, 0xc)；
 //   CacheCharacterMemory 失败 -> FreeCharacterMemory + trace + false；成功置 lastLogin + true。
+// b28d-lane5 N封顶: P168a/P248 setcc 物化方向; N82/P112 槽号分配 | ORIG 0x0864c85a | _ZN5CUser20CacheCharacterMemoryEv
 bool CUser::CacheCharacterMemory()   // b28c-L5 SIGFIX（P174）
 {
     if (getCurCharacR() == 0)
@@ -10263,6 +10368,7 @@ bool CUser::CacheCharacterMemory()   // b28c-L5 SIGFIX（P174）
 // ============================================================================
 
 // ORIG 0x0864de58 _ZNK5CUser15GetDungeonClearEP22SIG_LOAD_DUNGEON_CLEAR
+// b28d-lane5 AE: 本轮核验通过（orig/our 归一逐条相等）| ORIG 0x0864de58 | _ZNK5CUser15GetDungeonClearEP22SIG_LOAD_DUNGEON_CLEAR
 bool CUser::GetDungeonClear(SIG_LOAD_DUNGEON_CLEAR* sig) const
 {
     sig->m_selected = 0;
@@ -10286,8 +10392,8 @@ int CUser::GetBlackListCount(SIG_REQ_BLACK_COUNT* sig) const
     sig->m_count = 0;
     // ORIG 0x867f1ef-0x867f1f4：call;mov %eax,%edx; mov 0xc(%ebp),%eax; mov %edx,0x8(%eax)。
     // 拆两 stmt：RHS 先 register edx 落值，再 register eax 重绑 sig 基址 → store 用 (%eax)。
-    register unsigned bc asm("edx") = (unsigned)getCurrCharacBlackCount();
-    register SIG_REQ_BLACK_COUNT* ps asm("eax") = sig;
+    unsigned bc = (unsigned)getCurrCharacBlackCount();
+    SIG_REQ_BLACK_COUNT* ps = sig;
     ps->m_blackCount = bc;
     return 1;
 }
@@ -10310,6 +10416,7 @@ void CUser::GetRentInfo(SIG_LOAD_INVENTORY& sig)
 // ORIG T 0x086769ea：PC 房间租借物品 → SIG_SAVE_PC_ROOM_RENT_ITEM（最多 2 个 0xc 条目）。
 // 逐条目读取 getCurrentCharacRentalInfo(list,1)，对仍存在物品写 [0]itemIndex/[4]byte/[5]byte/
 // [6]inEquip/[8]int。参数为租借清单类型 1。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x086769ea | _ZN5CUser17GetPcRoomRentInfoEP26SIG_SAVE_PC_ROOM_RENT_ITEM
 int CUser::GetPcRoomRentInfo(SIG_SAVE_PC_ROOM_RENT_ITEM* sig)
 {
     if (sig == 0)
@@ -10346,6 +10453,7 @@ int CUser::GetPcRoomRentInfo(SIG_SAVE_PC_ROOM_RENT_ITEM* sig)
 }
 
 // ORIG T 0x08676bec：次元租借物品 → SIG_SAVE_DIMENSION_RENT_ITEM（最多 12 个 8 字节条目）。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x08676bec | _ZN5CUser20GetDimensionRentInfoEP28SIG_SAVE_DIMENSION_RENT_ITEM
 int CUser::GetDimensionRentInfo(SIG_SAVE_DIMENSION_RENT_ITEM* sig)
 {
     if (sig == 0)
@@ -10455,6 +10563,7 @@ struct SIG_LI_CreatureTailView
     char m_tail[0xf4];
 };
 }   // namespace
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0864d646 | _ZN5CUser12GetInventoryEP18SIG_LOAD_INVENTORY
 bool CUser::GetInventory(SIG_LOAD_INVENTORY* sig)
 {
     // P183：ORIG 每字段访问独立 getCurCharacInvenR()/getCurCharacCargoR() 重物化
@@ -10481,6 +10590,7 @@ bool CUser::GetInventory(SIG_LOAD_INVENTORY* sig)
 }
 
 // ORIG T 0x0864d4ba：填充 SIG_LOAD_INVENTORY（含 GetInventory + creature + avatar + tag + rent）。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0864d4ba | _ZN5CUser16GetInventoryInfoEP18SIG_LOAD_INVENTORY
 bool CUser::GetInventoryInfo(SIG_LOAD_INVENTORY* sig)
 {
     sig->m_result = 0;
@@ -10520,6 +10630,7 @@ bool CUser::GetInventoryInfo(SIG_LOAD_INVENTORY* sig)
 }
 
 // ORIG T 0x0869067c：TAG 角色背包 → TAG_CHARAC_INVEN_DATA。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0869067c | _ZNK5CUser21getTagCharacInventoryEP21TAG_CHARAC_INVEN_DATA
 bool CUser::getTagCharacInventory(TAG_CHARAC_INVEN_DATA* out) const
 {
     // b28c-L5 判词（N30 族·lea-vs-add 单点残留）：本波已翻正两处——
@@ -10553,6 +10664,7 @@ bool CUser::getTagCharacInventory(TAG_CHARAC_INVEN_DATA* out) const
 }
 
 // ORIG T 0x0867776c：从 SIG_LOAD_INVENTORY 背包镜像清除已不存在的租借物品。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867776c | _ZN5CUser36removeRentalItemInfoFromInvenLoadBufEP18SIG_LOAD_INVENTORYi
 bool CUser::removeRentalItemInfoFromInvenLoadBuf(SIG_LOAD_INVENTORY* sig, int param)  // b28c-L5 SIGFIX
 {
     if (sig == 0)
@@ -10591,6 +10703,7 @@ bool CUser::removeRentalItemInfoFromInvenLoadBuf(SIG_LOAD_INVENTORY* sig, int pa
 }
 
 // ORIG T 0x0867846e sz0xb7：遍历 m_list8cf80（list<int>）票表 → SIG_LOAD_TICKET。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0867846e | _ZNK5CUser9GetTicketEP15SIG_LOAD_TICKET
 void CUser::GetTicket(SIG_LOAD_TICKET* sig) const
 {
     sig->m_field4 = 0;
@@ -10603,6 +10716,7 @@ void CUser::GetTicket(SIG_LOAD_TICKET* sig) const
     sig->m_count = index;
 }
 
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0864bdba | _ZNK5CUser19getCharacInfoDetailEijP11CHARAC_DATA
 bool CUser::getCharacInfoDetail(int param_1, unsigned int characNo, CHARAC_DATA* out) const
     // b28c-L5 SIGFIX（Main 已代落 CUser.h:3121）：ORIG @0x0864bdba 全部出口只写
     //   `mov $0x1/$0x0,%eax`（P159 尾形）+ 唯一外部消费点 GetCharacInfo @0x0864bdf2
@@ -10685,6 +10799,7 @@ bool CUser::getCharacInfoDetail(int param_1, unsigned int characNo, CHARAC_DATA*
 }
 
 // ORIG T 0x086904f0：从 m_characList[param_1] 填充 TAG_CHARAC_DATA（SIG_LOAD_CHARAC +0x68b 区）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x086904f0 | _ZNK5CUser16getTagCharacInfoEijP15TAG_CHARAC_DATA
 int CUser::getTagCharacInfo(int param_1, unsigned int characNo, TAG_CHARAC_DATA* out) const
 {
     if (param_1 < 0 || param_1 >= (int)m_characList.size())
@@ -10707,6 +10822,7 @@ int CUser::getTagCharacInfo(int param_1, unsigned int characNo, TAG_CHARAC_DATA*
 // ORIG 0x08677dd8 _ZNK5CUser9GetRecordEP12SIG_LOAD_ETC
 // 遍历 getBattleRecordRefR() 的 map<int,GameResultType>，每元素 0x50 字节序列化到
 // sig+0x3c8+idx*0x50（最多 100 个），末尾写 count 到 sig+0x3c4。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08677dd8 | _ZNK5CUser9GetRecordEP12SIG_LOAD_ETC
 void CUser::GetRecord(SIG_LOAD_ETC* sig) const
 {
     const std::map<int, GameResultType>* rec = getBattleRecordRefR();
@@ -10721,6 +10837,7 @@ void CUser::GetRecord(SIG_LOAD_ETC* sig) const
 
 // ORIG 0x08688dc4 _ZNK5CUser17GetLimitItemUsageEP12SIG_LOAD_ETC
 // 遍历 m_limitItemUsage 向量，每元素序列化到 sig+(i+0x263)*0x10 的 0x10 字节区。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08688dc4 | _ZNK5CUser17GetLimitItemUsageEP12SIG_LOAD_ETC
 void CUser::GetLimitItemUsage(SIG_LOAD_ETC* sig) const
 {
     if (sig == 0) return;
@@ -10795,6 +10912,7 @@ void CUser::GetAuraAvatarOption(stAuraAvatarOption& option) const
 
 // ORIG 0x0868f03c _ZNK5CUser18GetCurCharacOptionER15CharacterOption
 // memcpy 0x200 字节自 _Charac_info+0x12b7（CharacterOption = char[0x200]）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0868f03c | _ZNK5CUser18GetCurCharacOptionER15CharacterOption
 void CUser::GetCurCharacOption(CharacterOption& option) const
 {
     const _Charac_info* cur = getCurCharacR();
@@ -10805,6 +10923,7 @@ void CUser::GetCurCharacOption(CharacterOption& option) const
 }
 
 // ORIG 0x0864dcf2 _ZNK5CUser8GetSkillEP14SIG_LOAD_SKILLP15SIG_COMBO_SKILL
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0864dcf2 | _ZNK5CUser8GetSkillEP14SIG_LOAD_SKILLP15SIG_COMBO_SKILL
 bool CUser::GetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo) const
 {
     // b28c-L5 判词（N30/N18a 族·lea-vs-add 跨版本折叠差，语义零差）：ORIG 对
@@ -10853,6 +10972,7 @@ bool CUser::GetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo) const
 // 将 CUserCharacInfo 角色内存 +0x1254 处（getSkillCommand()）的 skill command map
 // （std::map<int,STSkillCommandData>）逐项压缩为 STCommand（32 位位域）写入 out[]，最多 50 项。
 // map 为空指针时 out 不变；返回 out（ORIG 返回未定义值，调用方 GetSkill 忽略返回值）。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配（槽 -0x10/-0x14/-0x18 与中转寄存器差，语义/调用点全同）| ORIG 0x0865459a | _ZNK5CUser21get_skill_command_bufEPN18STSkillCommandData9STCommandE
 STSkillCommandData::STCommand* CUser::get_skill_command_buf(STSkillCommandData::STCommand* out) const
 {
     std::map<int, STSkillCommandData>* pMap =
@@ -10879,6 +10999,7 @@ STSkillCommandData::STCommand* CUser::get_skill_command_buf(STSkillCommandData::
 
 // ORIG 0x0865459a _ZN5CUser21get_skill_command_bufEv
 // 同上，但写入成员 m_skillCommands[50]（+0x703db）并返回其指针；map 为空指针返回 0。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配（槽 -0x10/-0x14/-0x18 与中转寄存器差）| ORIG 0x0865459a | _ZN5CUser21get_skill_command_bufEv
 STSkillCommandData::STCommand* CUser::get_skill_command_buf()
 {
     std::map<int, STSkillCommandData>* pMap =
@@ -10906,6 +11027,7 @@ STSkillCommandData::STCommand* CUser::get_skill_command_buf()
 // ORIG 0x0867794c _ZNK5CUser10GetEtcInfoEP12SIG_LOAD_ETC
 // 依 SIG_LOAD_ETC 具名布局填充。expand 子区经 CExpandEquipslot vtable 槽 +8（getData）
 // 直调（同 CacheCharacterMemory 的 0xc 槽位写法）；混合区内子对象用文档化偏移定位。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867794c | _ZNK5CUser10GetEtcInfoEP12SIG_LOAD_ETC
 int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
 {
     sig->m_field8 = 0;
@@ -10993,6 +11115,7 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
 
 // ORIG T 0x08650aa2 sz0x87f：SIG_SAVE_CHARAC(0x10d) 组包；四个脏块分支后投递
 // 队列 2 并清 save 标志。个别字段写入为报告偏移直写（推断标注见注释）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08650aa2 | _ZN5CUser15_SaveCharacDataEv
 void CUser::_SaveCharacData()
 {
     SetAccountLastPlayTime(GlobalData::s_systemTime_.getCurSec());
@@ -11126,6 +11249,7 @@ void CUser::SetRestrictedGoods(int itemIdx)
 }
 
 // ORIG T 0x0864d878 sz0x91：线性查找列表。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0864d878 | _ZN5CUser17IsRestrictedGoodsEi
 bool CUser::IsRestrictedGoods(int itemIdx)
 {
     if (itemIdx == 0)
@@ -11140,6 +11264,7 @@ bool CUser::IsRestrictedGoods(int itemIdx)
 }
 
 // ORIG T 0x0864d9a4 sz0x17b：header(0,0x44)；flag=true 单条，false 全列表。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0864d9a4 | _ZN5CUser19SendRestrictedGoodsEbi
 void CUser::SendRestrictedGoods(bool flag, int itemIdx)
 {
     PacketGuard packet;
@@ -11166,6 +11291,7 @@ void CUser::SendRestrictedGoods(bool flag, int itemIdx)
 }
 
 // ORIG T 0x08656636 sz0xad：遍历 m_characList 统计 _Charac_info+0x27(short)==type。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08656636 | _ZN5CUser24GetSpecialLevelCharacCntEi
 int CUser::GetSpecialLevelCharacCnt(int type)
 {
     // ORIG 0x8656636：const_iterator 循环（prologue begin + 每轮 end 临时重构，
@@ -11182,6 +11308,7 @@ int CUser::GetSpecialLevelCharacCnt(int type)
 
 // ORIG _ZNK5CUser22HasCurCharacRentalItemEi T 0x086772d2 sz0x117：
 // 外层 map 键=rental 类型，内层键=当前角色 characNo（+0x00），vector 非空即有。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x086772d2 | _ZNK5CUser22HasCurCharacRentalItemEi
 bool CUser::HasCurCharacRentalItem(int type) const
 {
     const _Charac_info* cur = getCurCharacR();
@@ -11220,7 +11347,7 @@ bool CUser::IsSubGuildMaster()
     // base+shl 双步。技巧 22 register bool 物化 cmp;sete;test;je 命中。
     for (int i = 0; i < 5; ++i)
     {
-        register bool hit asm("al");
+        bool hit;
         hit = (m_guildDB.m_subMasterData[i] == getCurCharacNo());
         if (hit)
             return true;
@@ -11251,6 +11378,7 @@ int CUser::_isMatchedItem(int itemIdx,
 
 // ORIG T 0x0867d0be sz0x330：[begin,end] 槽位超时/匹配/无效物品删除；
 // 无效物品入 mailDel，最后邮件补偿。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867d0be | _ZN5CUser24_deleteSpecificItemInvenE10INVEN_TYPERKSt6vectorISt4pairIiiESaIS3_EERS5_ii
 void CUser::_deleteSpecificItemInven(INVEN_TYPE type,
                                      const std::vector<std::pair<int, int> >& list,
                                      std::vector<std::pair<int, int> >& out,
@@ -11309,6 +11437,7 @@ void CUser::_deleteSpecificItemInven(INVEN_TYPE type,
 }
 
 // ORIG T 0x0867d3ee sz0x2ae：同型逻辑作用于 CCargo 槽位 0..0x97。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867d3ee | _ZN5CUser24_deleteSpecificItemCargoERKSt6vectorISt4pairIiiESaIS2_EERS4_
 void CUser::_deleteSpecificItemCargo(
     const std::vector<std::pair<int, int> >& list,
     std::vector<std::pair<int, int> >& out)
@@ -11361,6 +11490,7 @@ void CUser::_deleteSpecificItemCargo(
 
 // ORIG T 0x0867d69c sz0x1d2：GetCharacExpandData(6) 兑换列表遍历删除，
 // 超时或命中即 erase + alter() 标脏。m_redeemList 私有，按 ORIG 布局经 +0x08 访问。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867d69c | _ZN5CUser25_deleteSpecificRedeemItemERKSt6vectorISt4pairIiiESaIS2_EE
 void CUser::_deleteSpecificRedeemItem(
     const std::vector<std::pair<int, int> >& list)
 {
@@ -11402,6 +11532,7 @@ void CUser::_deleteSpecificRedeemItem(
 }
 
 // ORIG T 0x0867d8a4 sz0x2c1：账号金库（须 IsExistAccountCargo），槽位数=GetCapacity()。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867d8a4 | _ZN5CUser31_deleteSpecificItemAccountCargoERKSt6vectorISt4pairIiiESaIS2_EERS4_
 void CUser::_deleteSpecificItemAccountCargo(
     const std::vector<std::pair<int, int> >& list,
     std::vector<std::pair<int, int> >& out)
@@ -11469,6 +11600,7 @@ void CUser::_deleteSpecificItemTitieBook(
 
 // ORIG T 0x086928c2 sz0x145：金币兑换。itemIdx<=0x28d291 → (idx-0x28d287)*10^6；
 // 否则 idx*10^7-0x549a800。bReset 只做上限校验（err=10 返回 false）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x086928c2 | _ZN5CUser13DoGetGoldItemEiRSt6vectorISt4pairIiiESaIS2_EEbR10ENUM_ERROR
 bool CUser::DoGetGoldItem(int itemIdx, std::vector<std::pair<int, int> >& out,
                           bool bReset, ENUM_ERROR& err)
 {
@@ -11499,6 +11631,7 @@ bool CUser::DoGetGoldItem(int itemIdx, std::vector<std::pair<int, int> >& out,
 
 // ORIG T 0x08692a34 sz0xc2：!bReset 时经 s_pIPGHelper 虚调用 vtable+0x0c/+0x2c；
 // WongWork::IPG::CIPGHelper 仅最小建模（仅 dtor 虚函数），虚接口待补后恢复真实调用。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x08692a34 | _ZN5CUser18DoGetCeraPointItemEjbR10ENUM_ERRORm
 bool CUser::DoGetCeraPointItem(unsigned int money, bool bReset,
                                ENUM_ERROR& err, unsigned long itemIdx)
 {
@@ -11517,21 +11650,25 @@ bool CUser::DoGetCeraPointItem(unsigned int money, bool bReset,
 
 // ORIG T 0x0868c3bc sz0xa2（返回 1 已删 / 0 事件空或非活跃）：
 // OnTimeEvent(0x33) 活跃时删除奖励用户。
+// b28d-lane5 N封顶: N7/N18a 跨版本寄存器分配 | ORIG 0x0868c3bc | _ZN5CUser25delete_ontime_reward_listEv
 bool CUser::delete_ontime_reward_list()   // b28c-L5 SIGFIX（P174）
 {
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x33);
+    // b28d-lane5：ORIG 0x0865a3xx 两失败路径**共享** trace 块（`cmpl $0,-0xc; je T` +
+    // `call IsEventing; xor $1; test %al; je T`，T=trace 构造）⇒ 独立守卫 + goto
+    // 共享块（P133；`||` 合并形反产 mov$1/mov$0 bool 物化岛）。
     if (ev == 0)
+        goto TRACE;
+    if (!ev->IsEventing(0))
+        goto TRACE;
+    ((COnTimeEvent*)ev)->delete_reward_user(this);
+    return 1;
+TRACE:
     {
         cMyTrace trace("bool CUser::delete_ontime_reward_list()", 0xa828, 5);
         trace("[ON_TIME_EVENT]delete_ontime_reward_list() error");
         return 0;
     }
-    // 真实虚调用 CEventBase::IsEventing(CUser*) @ vtable+0x34（CGuildServerProxy.h
-    // 权威声明 slot13）。§4.5 禁 typedef 槽指针裸调；0 → 空 CUser*。
-    if (!ev->IsEventing(0))
-        return 0;
-    ((COnTimeEvent*)ev)->delete_reward_user(this);
-    return 1;
 }
 
 // ORIG T 0x086924aa sz0x119：job==9 才发包；去重 combo 技能 → 包 0x1bd。
@@ -11581,9 +11718,9 @@ bool CUser::SaveMoneyCoin()
     // ORIG 0x86504d8 **ebx 聚合单出口**：假支 `mov $0,%ebx; jmp END`、真支 put 后
     // `mov $1,%ebx`，END epilogue `movzbl %bl,%eax`；uid 跨 operator* 存活同用 %ebx
     // （时序不重叠：uid 在 put 前消费完）。
-    register bool ch7 asm("al");
+    bool ch7;
     ch7 = (G_GameWorld()->GetChannelType() == 7);
-    register bool rc asm("ebx");
+    bool rc;
     if (ch7)
     {
         rc = false;
@@ -11593,7 +11730,7 @@ bool CUser::SaveMoneyCoin()
         CStreamGuard guard(GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x18cc),
                            true);
         guard.operator*()->operator<<(0x23);
-        register int uid asm("ebx");
+        int uid;
         uid = (int)GetUID();
         guard.operator*()->operator<<(uid);
         // ORIG 0x8650574-582：取 buffer 前先经一次 operator->（pt）call——源形
@@ -11621,6 +11758,7 @@ void CUser::SendEventMailAlaramTooltip()
 }
 
 // ORIG T 0x0869154a sz0x664：抽奖计数道具发放（事件币/道具/邮件补偿）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0869154a | _ZN5CUser20giveLotteryCountItemEib
 void CUser::giveLotteryCountItem(int itemNo, bool match)
 {
     if (getCurCharacR() == 0)
@@ -11728,27 +11866,32 @@ void CUser::SendMoenyLog()
 // ORIG T 0x0868152c sz0x1e0：PC 房 login 通知。填 stLogin（login[0]=3/acc 名/
 // charac 名/ip/uid/accid）→ stLoginPacket 打包 → SendTcpPacket；随后
 // ReadPacket 读回包（ORIG 以 pkt 自身为 this、reply 为 packet 源）。
+// b28d-lane5 N封顶: P11 反向符号扩展; N82/P112 槽号分配 | ORIG 0x0868152c | _ZN5CUser23SendLoginToPCRoomServerEv
 void CUser::SendLoginToPCRoomServer()
 {
     char login[0x20e];
     char reply[0x20e];
     memset(login, 0, sizeof(login));
-    nexon_packet::stLogin* lp = (nexon_packet::stLogin*)login;   // 载荷视图
-    lp->m_type = 3;
-    strcpy(lp->m_account, get_acc_name());
-    lp->m_accLen = (char)strlen(get_acc_name());
-    strcpy(lp->m_characName, getCurCharacName());
-    lp->m_charLen = (char)strlen(getCurCharacName());
+    // b28d-lane5：ORIG 0x0868xxx 每次字段访问重发 `lea -0x226(%ebp)`（P183 地址
+    // 重物化铁律）⇒ 删除 lp 指针缓存，全表达式展开。
+#define LP_LOGIN ((nexon_packet::stLogin*)login)
+    LP_LOGIN->m_type = 3;
+    strcpy(LP_LOGIN->m_account, get_acc_name());
+    LP_LOGIN->m_accLen = (char)strlen(get_acc_name());
+    strcpy(LP_LOGIN->m_characName, getCurCharacName());
+    LP_LOGIN->m_charLen = (char)strlen(getCurCharacName());
     const int ip = get_public_ip_address();
-    lp->m_ip = (unsigned int)ip;
-    lp->m_canTry = 0;
-    lp->m_userIdx = (unsigned int)GetUID();   // ORIG：直接写 stLogin+0x206（-0x20(%ebp)）
-    lp->m_accId = (unsigned int)get_acc_id(); // ORIG：直接写 stLogin+0x20a（-0x1c(%ebp)）
+    LP_LOGIN->m_ip = (unsigned int)ip;
+    LP_LOGIN->m_canTry = 0;
+    LP_LOGIN->m_userIdx = (unsigned int)GetUID();   // ORIG：直接写 stLogin+0x206（-0x20(%ebp)）
+    LP_LOGIN->m_accId = (unsigned int)get_acc_id(); // ORIG：直接写 stLogin+0x20a（-0x1c(%ebp)）
     printf(
         "SEND nexon_packet::stLogin login:%d AccLen:%d Acc:%s CharLen:%d Char:%d "
         "Addr:%d canTry_:%d UserIdx:%d m_id:%d\n",
-        lp->m_type, lp->m_accLen, lp->m_account, lp->m_charLen, (int)lp->m_characName,
-        ip, lp->m_canTry, (int)lp->m_userIdx, (int)lp->m_accId);
+        LP_LOGIN->m_type, LP_LOGIN->m_accLen, LP_LOGIN->m_account, LP_LOGIN->m_charLen,
+        (int)LP_LOGIN->m_characName,
+        ip, LP_LOGIN->m_canTry, (int)LP_LOGIN->m_userIdx, (int)LP_LOGIN->m_accId);
+#undef LP_LOGIN
 
     nexon_packet::stLoginPacket pkt(*(nexon_packet::stLogin*)login);
     int len = pkt.GetLength();
@@ -11759,19 +11902,23 @@ void CUser::SendLoginToPCRoomServer()
 
 // ORIG T 0x0868170c sz0x113：PC 房 logout 通知。stLoginPacket 打包 →
 // GetLength → SendTcpPacket（nexon_packet 已建模，符号直调）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0868170c | _ZN5CUser24SendLogoutToPCRoomServerEv
 void CUser::SendLogoutToPCRoomServer()
 {
     char login[0x210];
-    nexon_packet::stLogin* lp = (nexon_packet::stLogin*)login;   // 载荷视图
-    lp->m_type = 1;
-    strcpy(lp->m_account, get_acc_name());
-    lp->m_accLen = (char)strlen(get_acc_name());
-    strcpy(lp->m_account, get_acc_name());   // ORIG 重复一次（+0x049/+0x064 双 strcpy）
-    lp->m_accLen = (char)strlen(get_acc_name());
-    strcpy(lp->m_characName, getCurCharacName());
-    lp->m_charLen = (char)strlen(getCurCharacName());
-    lp->m_ip = (unsigned int)get_local_ip_address();
-    lp->m_canTry = 1;
+    // b28d-lane5：同 SendLoginToPCRoomServer——ORIG 0x086817xx 逐字段重发
+    // `lea -0x226(%ebp)`（P183），删 lp 指针缓存。
+#define LP_LOGOUT ((nexon_packet::stLogin*)login)
+    LP_LOGOUT->m_type = 1;
+    strcpy(LP_LOGOUT->m_account, get_acc_name());
+    LP_LOGOUT->m_accLen = (char)strlen(get_acc_name());
+    strcpy(LP_LOGOUT->m_account, get_acc_name());   // ORIG 重复一次（+0x049/+0x064 双 strcpy）
+    LP_LOGOUT->m_accLen = (char)strlen(get_acc_name());
+    strcpy(LP_LOGOUT->m_characName, getCurCharacName());
+    LP_LOGOUT->m_charLen = (char)strlen(getCurCharacName());
+    LP_LOGOUT->m_ip = (unsigned int)get_local_ip_address();
+    LP_LOGOUT->m_canTry = 1;
+#undef LP_LOGOUT
 
     nexon_packet::stLoginPacket pkt(*(nexon_packet::stLogin*)login);
     int len = pkt.GetLength();
@@ -11779,10 +11926,12 @@ void CUser::SendLogoutToPCRoomServer()
 }
 
 // ORIG T 0x0864870e sz0xdc：LOGDB_Q(=4)：<<0xcc、<<-1、<<reason。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0864870e | _ZN5CUser29SendClientCrashDownLogToLogDBEi
 void CUser::SendClientCrashDownLogToLogDB(int reason)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x8ac);
-    CStreamGuard guard(stream, true);
+    // b28d-lane5：ORIG 0x0864870e 无 Stream* 槽——Acquire 结果经 %eax 直传 ctor
+    // （P0 右值内联；同 _UpdateUserInfo4Guild）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x8ac), true);
     guard.operator*()->operator<<(0xcc);
     guard.operator*()->operator<<(-1);
     guard.operator*()->operator<<(reason);
@@ -11797,6 +11946,7 @@ void CUser::SendClientCrashDownLogToLogDB(int reason)
 // HackTypeInfo_t 真实 ctor（清零）、cUserHistoryLog::HackDetected。
 // 结构 vs Ghidra C（onUpdateHackCount.md）逐段对齐，HackTypeInfo_t 字段语义
 // （m_type1/m_type2→setHackUser a/c、m_value2/m_value3→type/param6）照抄。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867fd0a | _ZN5CUser17onUpdateHackCountEN8WongWork13ENUM_HACKTYPEEijj
 void CUser::onUpdateHackCount(WongWork::ENUM_HACKTYPE type, int count,
                               unsigned int a, unsigned int b)
 {
@@ -11874,6 +12024,7 @@ void CUser::setStdDropRate(int rate)
 // ORIG _ZN5CUser20_processCoolTimeItemEP14CStackableItemjj @ 0x0865eb0c (T)
 // cooltime 处理：CStackableItem+0x2d0(ms) 换算为秒累加当前秒，更新/插入
 // CheckCoolTimeItem 所读的 cooltime 列表条目（GetCurCharacCoolTimeItemList）。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0865eb0c | _ZN5CUser20_processCoolTimeItemEP14CStackableItemjj
 void CUser::_processCoolTimeItem(CStackableItem* item, unsigned int itemIdx,
                                  unsigned int curSec)
 {
@@ -11904,12 +12055,13 @@ void CUser::_processCoolTimeItem(CStackableItem* item, unsigned int itemIdx,
 // ORIG _ZN5CUser18_processEffectItemEP14CStackableItemjj @ 0x0865ec0e (T)
 // effect 处理：CStackableItem+0x2e0 第 0 字节非 1 → 报错；
 // 否则读 +0x2dc(ms) → 秒并 insert timer(0x76)，更新/插入 effect 列表。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0865ec0e | _ZN5CUser18_processEffectItemEP14CStackableItemjj
 void CUser::_processEffectItem(CStackableItem* item, unsigned int itemIdx,
                                unsigned int curSec)
 {
     // X2 字段形（判据②③：ORIG 0x0865ec1d `movzbl 0x2e0; xor $1; test al; je 消费者`
     // ——`!= 1` 直写 4.4 产 `cmp $1,%al`，uchar 绑 eax + ^=1 复现 xor 段）。
-    register unsigned char tag asm("eax") =
+    unsigned char tag =
         (unsigned char)item->m_stat2dc.m_flagLo;
     tag ^= 1;
     if (! tag)
@@ -11970,6 +12122,7 @@ void CUser::_processContinuousItem(unsigned int itemIdx, CStackableItem* item)
 // ORIG _ZN5CUser33_processSpeicalContinuousTimeItemEj @ 0x08659b60 (T)
 // 特殊连续时间道具：查 item→is_stackable→IsExpAffect→GetExpAffectRatio>0
 // 时 SetExpAffectItemEffect(true, ratio)。
+// b28d-lane5 N封顶: N85 x87比较lowering | ORIG 0x08659b60 | _ZN5CUser33_processSpeicalContinuousTimeItemEj
 void CUser::_processSpeicalContinuousTimeItem(unsigned int itemIdx)
 {
     CItem* pItem = G_CDataManager()->find_item((int)itemIdx);
@@ -11992,6 +12145,7 @@ void CUser::_processSpeicalContinuousTimeItem(unsigned int itemIdx)
 
 // ORIG _ZN5CUser17CheckCoolTimeItemEm @ 0x0865e994 (T)
 // 当前角色 cooltime 列表中存在 itemIdx==param_1 且 expireTime>curSec 的条目。
+// b28d-lane5 N封顶: P168a/P248 setcc 物化方向; N82/P112 槽号分配 | ORIG 0x0865e994 | _ZNK5CUser17CheckCoolTimeItemEm
 bool CUser::CheckCoolTimeItem(unsigned long itemIdx) const
 {
     if (getCurCharacR() == 0)
@@ -12015,6 +12169,7 @@ bool CUser::CheckCoolTimeItem(unsigned long itemIdx) const
 // ORIG _ZN5CUser22UpdateCoolTimeItemInfoEj @ 0x08658b2a (T)
 // 组 SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO（0x100 占位：characNo@+0x0 +
 // count@+0x4 + [0x194]条目簇）投递队列 2。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08658b2a | _ZN5CUser22UpdateCoolTimeItemInfoEj
 void CUser::UpdateCoolTimeItemInfo(unsigned int expireTime)
 {
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x2cb8);
@@ -12051,6 +12206,7 @@ void CUser::UpdateCoolTimeItemInfo(unsigned int expireTime)
 }
 
 // ORIG _ZN5CUser20UpdateEffectItemInfoEj @ 0x08658d90 (T)
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08658d90 | _ZN5CUser20UpdateEffectItemInfoEj
 void CUser::UpdateEffectItemInfo(unsigned int expireTime)
 {
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x2ceb);
@@ -12093,6 +12249,7 @@ void CUser::UpdateEffectItemInfo(unsigned int expireTime)
 // proxy(GET_ENUM_SERVER_GROUP_NONE) 下发。罐子 id 为 0x28be7b，剩余逻辑：
 //   local_e = 罐子在 vec 中的下标（0 或 1）；m_itemCode = vec[1-local_e].addInfo；
 //   m_itemCount = vec[local_e].+7（m_addInfo2 罐子数量）。
+// b28d-lane5 N封顶: P168a/P248 setcc 物化方向; N82/P112 槽号分配 | ORIG 0x0868a782 | _ZN5CUser32SendEventJarOutputItemStatisticsERKSt6vectorI10Inven_ItemSaIS1_EE
 void CUser::SendEventJarOutputItemStatistics(
     const std::vector<Inven_Item>& items)
 {
@@ -12124,6 +12281,7 @@ void CUser::SendEventJarOutputItemStatistics(
 // LOGDB_Q。反编译见 docs/class_func_reports/CUser/SendAradEventItemLog.md。
 // ============================================================================
 
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08692b84 | _ZN5CUser20SendAradEventItemLogEmi
 void CUser::SendAradEventItemLog(unsigned long itemIndex, int count)
 {
     ARAD::Arad_DataManager* mgr = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
@@ -12141,8 +12299,8 @@ void CUser::SendAradEventItemLog(unsigned long itemIndex, int count)
     sig.m_id = get_acc_id();
     sig.m_characNo = get_charac_no(-1);
 
-    Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0xb9c7);
-    CStreamGuard guard(stream, true);
+    // b28d-lane5：ORIG 0x0866xxx 无 Stream* 槽——Acquire 结果 %eax 直传 ctor（P0）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0xb9c7), true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, ARAD::K_ARAD_EVENT_ITEM_LOG, (int)GetUID());
     guard.operator->()->put_binary(&sig, 0x10);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
@@ -12267,6 +12425,7 @@ void CUser::send_RedeemInfo()
 // ORIG T 0x08664ae8 sz 0x167 _ZN5CUser13calc_lev_statER15_Additioal_info：
 //   基础块 add 后按当前等级循环叠加成长属性块（≤14 首转/≤49 二转/之后三转）。
 // ============================================================================
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08664ae8 | _ZN5CUser13calc_lev_statER15_Additioal_info
 void CUser::calc_lev_stat(_Additioal_info& info)
 {
     // ORIG：G_CDataManager() 在基础 add/get_growtype_stat×(3) 四处各自重调，
@@ -12318,6 +12477,7 @@ void CUser::CalcurateUserMaxLevel()
 // ORIG T 0x0868e704 sz 0x2bb _ZN5CUser22SetMercenaryInfoPacketER11PacketGuard：
 //   管理等级/点数 + 雇佣兵列表逐个序列化（剩余时间、状态、名字、三状态字节）。
 // ============================================================================
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0868e704 | _ZN5CUser22SetMercenaryInfoPacketER11PacketGuard
 void CUser::SetMercenaryInfoPacket(PacketGuard& packet)
 {
     bool leveledUp = CalcurateManageLevel();
@@ -12382,7 +12542,7 @@ void CUser::SetManageLevel(int level)
 {
     // ORIG 0x868fe32-0x868fe61：条件/体各完整重估 G_CDataManager() 链（无具名槽，
     // sub $0x8）；技巧 22 register bool 物化 `cmp slot,%eax; setl;test;je`。
-    register bool less asm("al");
+    bool less;
     less = (G_CDataManager()->m_altarConfig.m_characManageScript->m_manageLevelMax < level);
     if (less)
         m_field8ebd0 = G_CDataManager()->m_altarConfig.m_characManageScript->m_manageLevelMax;
@@ -12399,7 +12559,7 @@ void CUser::SetManagePoint(int point)
     // `mov %ebx,0x4(%esp)` 先于 `mov %eax,(%esp)`。
     unsigned int lv =
         G_CDataManager()->m_altarConfig.m_characManageScript->m_manageLevelMax;
-    register unsigned int lvmax asm("ebx") = lv;
+    unsigned int lvmax = lv;
     int require = G_CDataManager()->m_altarConfig.m_characManageScript
                       ->GetLevelUpRequirePoint(lvmax);
     if (point > require)
@@ -12476,6 +12636,7 @@ void CUser::SendManageLevelUpNoti()
 // handleReturn2CharacView）均为 ORIG 真实符号，但对应权威类声明缺方法 /
 // DB 请求类未建模，属外域缺口（BLOCKED，见报告）；其调用点在下方保留为
 // 真实调用，由对应域批次补权威声明后即可编译。
+// b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08686fee | _ZN5CUser24ReturnToSelectCharacListEb
 void CUser::ReturnToSelectCharacList(bool param)
 {
     UpdateCurCharacVisibleToCharacViewMemory();
@@ -12587,6 +12748,7 @@ void CPad::setCheckTime(long t)
 }
 
 // ============================================================================
+// b28d-lane5 N封顶: P168a/P248 setcc 物化方向; N82/P112 槽号分配 | ORIG 0x08651628 | _ZN5CUser40UpdateCurCharacVisibleToCharacViewMemoryEv
 void CUser::UpdateCurCharacVisibleToCharacViewMemory()
 {
     CInventory* inven = getCurCharacInvenW();
@@ -12595,7 +12757,7 @@ void CUser::UpdateCurCharacVisibleToCharacViewMemory()
 
     for (int i = 0; i < 12; ++i)                                 // ORIG 0..0xb
     {
-        CInventory::AvatarVisibleData& vis = inven->m_avatarVisible[i];
+        CInventory::AvatarVisibleData& vis = inven->m_avatarVisible[i];  // b28d-lane5: Main 代落匿名 struct 包裹（N84）
         if (inven->m_invenItem[i].m_addInfo == 0)
         {
             vis.init();                                          // ORIG 0x0865171f 调 init

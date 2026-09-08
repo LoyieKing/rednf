@@ -444,7 +444,7 @@ class IRDActiveObject;                 // 仅前置（getActiveStatusDurationCli
 
 namespace _SDC
 {
-bool isObjectType(int objectType, int code);   // T 0x080950e8（定义 W9_SDCCommon.cpp）
+bool isObjectType(int objectType, int code);   // T 0x080950e8（b28d-lane15 迁定义至 SDCLink.cpp）
 }
 
 float GetUniformVelocityFloatSDC(float v0, float v1, int cur, int max);

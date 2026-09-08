@@ -256,9 +256,10 @@ char PI_GetType_CS(char type, short cmd)
 // ===========================================================================
 int PI_GetHackTypes(short hackType)
 {
-    if (static_cast<unsigned int>(hackType) > 0x36u)
-        return 0x514;
-
+    // ORIG @0x082758e3 入口仅 `mov %ax,-0x4(%ebp); movswl; cmp $0x36; ja`——
+    // 无显式边界检查（P140），range 由 switch 自身产生。补 `case 0`（与
+    // default 共享 0x514 块）把 4.4 的判定 range 撑成 0..0x36=55 项，与 ORIG
+    // 跳转表项数一致（P163）。
     switch (hackType)
     {
         case 1:  return 0x515;
@@ -315,6 +316,7 @@ int PI_GetHackTypes(short hackType)
         case 52: return 0x547;
         case 53: return 0x548;
         case 54: return 0x549;
+        case 0:
         default: return 0x514;
     }
 }
@@ -623,37 +625,64 @@ void checkNewMemberHacklog(unsigned int hackType, CUser* user,
     if (user == 0)
         return;
 
+    // ORIG 0x8275315：tm 逐字段赋值（无 memset 调用，P167 EXTRA memset=1），
+    // 四个 hack 分支各自内联 SetETC+getHackAnalyzer+addServerHackCnt（P167
+    // MISSING 各 -4；提取 hackId 变量统一调用丢 4 个调用点）。
     struct tm tmv;
-    memset(&tmv, 0, sizeof(tmv));
+    tmv.tm_mday = static_cast<int>(hackType % 100);
+    tmv.tm_isdst = -1;
     tmv.tm_year = static_cast<int>(hackType / 10000) - 0x76c;
     tmv.tm_mon = static_cast<int>((hackType / 100) % 100) - 1;
-    tmv.tm_mday = static_cast<int>(hackType % 100);
+    tmv.tm_hour = 0;
+    tmv.tm_min = 0;
+    tmv.tm_sec = 0;
 
     time_t t = mktime(&tmv);
     time_t now = time(0);
     int days = static_cast<int>(difftime(static_cast<double>(now),
                                          static_cast<double>(t)) / 86400.0);
 
-    int hackId = -1;
     if (days < 0)
-        hackId = 0x134;
+    {
+        int etc = user->SetETC(0x134, static_cast<int>(p3));
+        user->getHackAnalyzer()->addServerHackCnt(
+            user, static_cast<WongWork::ENUM_HACKTYPE>(0x134), 1,
+            static_cast<unsigned int>(etc), hackType);
+    }
     else if (days == 0)
-        hackId = 0x134;
-    else if (days <= 3)
-        hackId = 0x135;
-    else if (days <= 7)
-        hackId = 0x136;
-    else if (days <= 0x1e)
-        hackId = 0x137;
-
-    if (hackId < 0)
-        return;
-
-    int etc = user->SetETC(static_cast<short>(hackId),
-                           static_cast<int>(p3));
-    user->getHackAnalyzer()->addServerHackCnt(
-        user, static_cast<WongWork::ENUM_HACKTYPE>(hackId), 1,
-        static_cast<unsigned int>(etc), hackType);
+    {
+        int etc = user->SetETC(0x134, static_cast<int>(p3));
+        user->getHackAnalyzer()->addServerHackCnt(
+            user, static_cast<WongWork::ENUM_HACKTYPE>(0x134), 1,
+            static_cast<unsigned int>(etc), hackType);
+    }
+    else if ((days < 1) || (3 < days))
+    {
+        if ((days < 4) || (7 < days))
+        {
+            if ((7 < days) && (days < 0x1f))
+            {
+                int etc = user->SetETC(0x137, static_cast<int>(p3));
+                user->getHackAnalyzer()->addServerHackCnt(
+                    user, static_cast<WongWork::ENUM_HACKTYPE>(0x137), 1,
+                    static_cast<unsigned int>(etc), hackType);
+            }
+        }
+        else
+        {
+            int etc = user->SetETC(0x136, static_cast<int>(p3));
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, static_cast<WongWork::ENUM_HACKTYPE>(0x136), 1,
+                static_cast<unsigned int>(etc), hackType);
+        }
+    }
+    else
+    {
+        int etc = user->SetETC(0x135, static_cast<int>(p3));
+        user->getHackAnalyzer()->addServerHackCnt(
+            user, static_cast<WongWork::ENUM_HACKTYPE>(0x135), 1,
+            static_cast<unsigned int>(etc), hackType);
+    }
 }
 
 // ===========================================================================

@@ -63,20 +63,27 @@ int CKillMonsterInfo::GetDungeonDifficultyFlag(unsigned char diff)
 
 // ---- CheckMonsterKill(map const&, mobIdx, diff) —— ORIG T 0x0854d0ea -------
 // find(mobIdx)!=end 且 (diffFlag & 记录值) 非 0 → true。
+// [b28d-7 修法+P167] ORIG 0x0854d0ea：三处按 ORIG 形修正——const_iterator::operator!=
+// （旧版 ==，调用点差集 MISSING/EXTRA 各 1）、字节宽度判定 `test %al`（结果收窄
+// unsigned char）、共享 false 尾块（内层补 return false）；7→3 行差。
+// 残余 `movzbl 0x4(%eax),%ebx` 单段直落（4.4 恒折 eax 中转两段，N18a 反向，操作数
+// 交换实测反劣 3→9）⇒ 封顶。
 bool CKillMonsterInfo::CheckMonsterKill(
     std::map<unsigned int, unsigned char> const& kills,
     unsigned int mobIdx, unsigned char diff)
 {
     std::map<unsigned int, unsigned char>::const_iterator it =
         kills.find(mobIdx);
-    if (it == kills.end())
+    // [b28d-7 P167] ORIG 调 const_iterator::operator!=（0x0854d10x），
+    // 旧版 == 产生另一实例（调用点差集 MISSING/EXTRA 各 1）。
+    if (it != kills.end())
+    {
+        // ORIG 0x0854d1xx：`and %ebx,%eax; test %al,%al`（字节宽度判定）⇒
+        // 结果按 unsigned char 收窄。
+        if (((unsigned char)(it->second & GetDungeonDifficultyFlag(diff))) != 0)
+            return true;
         return false;
-    // [b28-L14] ORIG 0x0854d0ea：`operator->; movzbl 0x4(%eax),%ebx`（右值先物化
-    // 并跨 GetDungeonDifficultyFlag 调用以 %ebx 保活，P0 无槽 ⇒ 表达式直传）⇒
-    // 操作数序为 `it->second & flag`；尾 `test;setne;test;je` + mov$1/mov$0 双岛
-    // ⇒ if-return 显式分支（P56/P225）。
-    if ((it->second & GetDungeonDifficultyFlag(diff)) != 0)
-        return true;
+    }
     return false;
 }
 
@@ -84,6 +91,7 @@ bool CKillMonsterInfo::CheckMonsterKill(
 // diff>4 → false；isAPC ? CAICharacterList::get==0 拒绝 : find_monster==0 拒绝；
 // 已有记录 → flag |= diffFlag 并 alter()（charac_expand::CData::m_bIsSave=1）；
 // 否则 insert(make_pair(idx,diffFlag))，插入失败记日志返回 false，成功 alter()。
+// [b28d-7 修法+P167] ORIG 0x0854d24c：两分支各自内联 GetDungeonDifficultyFlag（2 次）+ make_pair<unsigned int&, unsigned char> 右值 uchar + 单次 operator->（复合赋值）——旧版具名 flag/make_pair const 左值/双 it->second 已按 ORIG 形修正，P167 CLEAR（16=16）；残余为 bool 物化（xor$1 vs cmpb）与装载序 N 族。
 bool CKillMonsterInfo::RegisterMonsterKill(
     std::map<unsigned int, unsigned char>& kills,
     unsigned int mobIdx, unsigned char diff, bool isAPC)
@@ -103,17 +111,22 @@ bool CKillMonsterInfo::RegisterMonsterKill(
             return false;
     }
 
-    const unsigned char flag = static_cast<unsigned char>(
-        GetDungeonDifficultyFlag(diff));
+    // [b28d-7 P167] ORIG 无具名 flag 局部：两分支各自内联
+    // GetDungeonDifficultyFlag(diff)（ORIG 2 次 vs 旧版 1 次），make_pair 第二参
+    // 为 uchar 右值（0x0854d2xx 符号 `make_pair<unsigned int&, unsigned char>`），
+    // 且记录分支用 `(*it).second`（ORIG 无 operator->，用 operator*）。
     std::map<unsigned int, unsigned char>::iterator it = kills.find(mobIdx);
     if (it != kills.end())
     {
-        it->second = static_cast<unsigned char>(it->second | flag);
+        // ORIG 记录分支只有 1 次 operator->（复合赋值单次取址），
+        // 旧版读+写两次 it->second 多 1 个调用点。
+        it->second |= GetDungeonDifficultyFlag(diff);
         alter();
         return true;
     }
     std::pair<std::map<unsigned int, unsigned char>::iterator, bool> ins =
-        kills.insert(std::make_pair(mobIdx, flag));
+        kills.insert(std::make_pair(
+            mobIdx, static_cast<unsigned char>(GetDungeonDifficultyFlag(diff))));
     if (!ins.second)
     {
         LogManager::logFormat(
@@ -175,6 +188,7 @@ bool CKillMonsterInfo::RegisterAPCBossKill(unsigned int mobIdx,
 
 // ---- SendHellPartyItemStatistic —— ORIG T 0x0860fcc0 -----------------------
 // dungeonDiff>4 或 scriptIdx==0 → false；否则组包经统计代理（组 0）发送 0x2a 字节。
+// [b28d-7 N82] ORIG 0x0860fcc0：push %ebx + 帧 $0x54 + 槽 -0x28/-0x32，4.4 无 push、帧 $0x58、槽 -0x2c/-0x36（槽基差 4）；P167 CLEAR ⇒ 封顶。
 bool CHellPartyItemStatistic::SendHellPartyItemStatistic(
     bool random, int dungeonIdx, int diff, int dieReason, char scriptIdx,
     int* statistic)
@@ -239,6 +253,7 @@ void CKillMonsterInfo::_reset()
 // 后 continue（ORIG jmp +0x158 循环增量实证）；通过则共用插入块
 // insert(make_pair(mobIdx, diff))（make_pair 实参序 = 0x4(%esp) mobIdx /
 // 0x8(%esp) diff 实证）。
+// [b28d-7 AE] ORIG 0x0854cb42：100/100 助记符/槽位逐条全等（446h46 路由口径），P167 CLEAR。
 bool CKillMonsterInfo::ConvertStructToMap(
     stMonsterInfo_t* pInfo, unsigned int count,
     std::map<unsigned int, unsigned char>& outMap, bool bAPC)

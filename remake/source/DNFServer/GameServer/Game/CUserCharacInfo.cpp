@@ -557,6 +557,9 @@ void CUserCharacInfo::setCurCharacVill(char vill)
 
 
 
+// [b28d-L14 N6/N99] ORIG 0x08647466：`(1<<flag)&field` 保 shl（%esi 跨 call）；
+// 4.4 前端恒折 `(field>>flag)&1`（shr/and $1）。掩码去具名局部后仍折，封顶。
+// 高位分支残差为 4.4 符号序/槽差（语义等价）。
 bool CUserCharacInfo::setCurCharacTutorialFlag(unsigned int flag)
 {
     if (m_selected)
@@ -564,8 +567,8 @@ bool CUserCharacInfo::setCurCharacTutorialFlag(unsigned int flag)
         enableSaveCharacStat();
         if (flag < 0x20)
         {
-            unsigned int mask = 1u << flag;
-            if ((CUR->m_tutorialFlags & mask) != 0)
+            // [b28d-L14 实证] ORIG 0x08647466 无 mask 槽：表达式内联（P0）。
+            if ((CUR->m_tutorialFlags & (1u << flag)) != 0)
                 return false;
             CUR->m_tutorialFlags |= 1u << flag;
             return true;
@@ -1515,9 +1518,11 @@ void CUserCharacInfo::getSeparatedTextUnits(std::vector<std::string>& out,
                                             const char* text, const char* sep,
                                             int maxUnits)
 {
-    char buffer[0x100];
+    // [b28d-L14 真 bug 修正 + P253] ORIG 0x08647874 `mov $0x40,%edx; rep stos`：
+    // %edx 是 dword 计数 ⇒ 清零 0x40*4=0x100 字节（全缓冲），旧 memset(0x40)
+    // 少清 0xc0 字节。显式零初始化数组复现 4.1 rep stos（P214③）。
+    char buffer[0x100] = {0};
     out.clear();
-    memset(buffer, 0, 0x40);   // ORIG asm：memset 0x40（数组 0x100 仅清前 64）
     int offset = 6;
     while (true)
     {
@@ -1843,14 +1848,17 @@ unsigned char CUserCharacInfo::getCurCharacEventCharacterGrowtype()
     return m_selected ? CUR->m_eventCharacterGrowtype : 0;
 }
 
+// [b28d-L14 N6/N99] ORIG 0x0864751e：低位分支 `mov $1,%ebx;mov %ebx,%esi;shl %cl,%esi;
+// and %edx,%eax`（%esi 保活，带 push esi）；4.4 折 `shr %cl; and $1`。掩码内联后仍折 ⇒ 封顶。
 int CUserCharacInfo::getCurCharacEscaladeTutorialFlag(unsigned int flag)
 {
     if (!m_selected)
         return 0;
     if (flag < 0x20)
     {
-        unsigned int mask = 1u << flag;
-        if ((CUR->m_tutorialFlags & mask) != 0)
+        // [b28d-L14 实证] ORIG 0x0864751e 无 mask 槽：`1<<flag` 以表达式内联
+        // （mov $1,%ebx; mov %ebx,%esi; shl %cl,%esi），P0 禁具名局部缓存。
+        if ((CUR->m_tutorialFlags & (1u << flag)) != 0)
             return 1;
         return 0;
     }
@@ -2194,7 +2202,10 @@ void CUserCharacInfo::calcHelpAbuseRatio(unsigned int param, bool flag)
     // 两段（探针 bm8_p4/p6：帧 0x24 时 anchor=-0x1c≠ORIG -0x24；anchor=-0x24 时
     // 帧 0x34）。ORIG「帧 0x24+唯一 store -0x24」组合在 4.4 槽基规则（N95：
     // 局部从 ebp-8 起、数组贴底）下无源形 ⇒ N 封顶（ndiff 4）。
-    char unused[0x24];
+    // [b28d-L14 实测] char[0x24] 下 4.4 对 bool→char 转换恒发「param spill -0x34
+    // + 转换回读 store -0x24」两段（帧 0x34）；改 bool 数组消转换中转，复现
+    // ORIG 单段 `mov %al,-0x24` + 帧 0x24（P232 死局部形）。
+    unsigned char unused[0x24];
     unused[0] = flag;
     (void)param;
 }
@@ -2214,7 +2225,9 @@ void CUserCharacInfo::calcCurCharacSchoolPoint(int fatigue)
     };
     static const int pointSize = sizeof(point) / sizeof(point[0]);
     unsigned short used = getCurCharacUsedFatigue();
-    if (fatigue / 10 == used / 10u)
+    // [b28d-L14 实证] 右操作数显式 (int) 化消 4.4 的 int→unsigned 物化四连
+    // （探针 /tmp/l14_probe4.cpp c4 与 ORIG 0x08655bce 逐条全等：sub %eax,%edx 直落）。
+    if (fatigue / 10 == (int)(used / 10u))
         return;
     unsigned int index = used / 10u;
     if (index > 0x17)
@@ -2288,6 +2301,8 @@ void CUserCharacInfo::addCurCharacExp(int exp)
 }
 
 
+// [b28d-L14 N7/N4] ORIG 0x086459c4：残差=寄存器角色互换（%ecx↔%edx）+
+// `lea 0x380(%reg)` 物化时刻（4.1 于 fadds 后 / 4.4 前置）。p167 CLEAR（语义完整）。
 void CUserCharacInfo::WarAreaKill(int index, int point, float kill)
 {
     if (!m_selected)
@@ -2796,6 +2811,8 @@ bool CUserCharacInfo::IsBusyDisjointStore()
 }
 
 
+// [b28d-L14 N82附/N18a] ORIG 0x0864657e：ORIG 用 %edi 跨 call 保活（push edi，帧 0x4c）
+// vs 4.4 槽化（帧 0x40）；`mov (%eax),%ebx` 4.4 折单段。p167 CLEAR（8/8，语义完整）。
 bool CUserCharacInfo::IsAvailableCurCharacTradeGoldDaily(unsigned int gold)
 {
     if (!m_selected)
@@ -3478,6 +3495,8 @@ void CUserCharacInfo::GainCurCharacChaosExp(int exp)
     }
 }
 
+// [b28d-L14 N107+控制流] ORIG 0x08680e04：`lea 0xdaa(%edx),%ecx` vs 4.4 `add $0xdaa,%eax`
+// （N107 成员常量偏移取址六形全败）；否定早返布局（P59/P222）。p167 CLEAR（6/6）。
 bool CUserCharacInfo::FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& slot,
                                    CUser* user) const
 {
@@ -3497,6 +3516,8 @@ bool CUserCharacInfo::FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& 
     return false;
 }
 
+// [b28d-L14 N18a/N95] ORIG 0x08659c50：增量段 ppEi ⇒ 源写 `it++`（P28，已改）；
+// 残差 `mov (%eax),%eax; mov %eax,%ebx` 4.4 折单段 + 槽 -0x28 vs -0x24。
 bool CUserCharacInfo::EnablePeriodExpItem()
 {
     std::vector<ContinuousItemInfo>* v = &CUR->m_effectItemList.m_list;
@@ -3520,7 +3541,8 @@ bool CUserCharacInfo::EnablePeriodExpItem()
                 return 0;
             }
         }
-        ++it;
+        // [b28d-L14 实证] ORIG 0x08659cf0 增量段调 ppEi（后置）⇒ 源写 it++（P28）。
+        it++;
     }
     return 0;
 }
@@ -3568,6 +3590,8 @@ void CUserCharacInfo::SetIsAffectedExpDouble(bool flag)
 
 
 
+// [b28d-L14 N82附/P225] ORIG 0x0864626e：bool 直 load/test 形 vs 4.4 `mov $1,%ebx;
+// mov $0,%ebx; test %bl` 物化；槽深/帧差。p167 CLEAR（15/15，语义完整）。
 void CUserCharacInfo::DieCurCharac(int responTime, CUser* user)
 {
     if (m_selected)

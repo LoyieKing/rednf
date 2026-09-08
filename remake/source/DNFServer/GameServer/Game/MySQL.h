@@ -119,7 +119,11 @@ private:
     MYSQL_ROW m_row;                  // +0x0c
     unsigned long* m_lengths;         // +0x10
     int m_nRows;                      // +0x14
-    int m_nFields;                    // +0x18
+    // b28d-lane11：int → unsigned int（P248 档③同型化；mysql_num_fields 返回
+    // unsigned int，ORIG exec 0x083f4448 `mov 0x8(%ebp),%edx; mov %eax,0x18(%edx)`
+    // LHS-first 直存；int 字段使 4.4 插 `mov %eax,%edx` 中转）。4B/偏移 +0x18/
+    // sizeof 不变，mangled 无影响。
+    unsigned int m_nFields;           // +0x18
     char m_query[0x6001];             // +0x1c
     char m_blob[10][0x6001];          // +0x601d
     int m_queryLen;                   // +0x42028（ORIG int 形态，见布局表注）
@@ -135,7 +139,10 @@ private:
 
 inline bool MySQL::is_valid_col(int col)
 {
-    if (!(col >= 0 && col < m_nFields))
+    // b28d-lane11（D6 回归修复，P3）：m_nFields 为 unsigned 时 `col < m_nFields`
+    // 生无符号 `jb` + 多一条 mov；`(int)` 收窄复现 ORIG 0x080e22d0 有符号
+    // `cmp 0xc(%ebp),%eax; jg`（exec 侧 store 序收益不丢）。
+    if (!(col >= 0 && col < (int)m_nFields))
     {
         return false;
     }

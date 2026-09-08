@@ -519,6 +519,7 @@ void DBUpdateExitTime::makeRequest(unsigned int a, int b, unsigned int c)
 // cMyTrace(0x20d)("[Taiwan, Event] select event_create_dnf_info. hour:%d rate:%d
 // event_day:%d", c, a, b)；catch：getCurSec→localtime_r→makeRequest(-1,
 // tm_hour, 0)，logFormat(0x219) 返 0。成功返 1。
+// [b28d-lane6] NEAR·N82附：192/194 条全等，仅 trace 实参 callee-saved 对调（ORIG edi=eventDay/ebx=hour vs 4.4 反）——多实参 call 首值寄存器对调不可复现。
 bool DBSelectCreateDnfEventInfo::dispatch(int code, int uid, Stream* stream)
 {
     try
@@ -546,9 +547,9 @@ bool DBSelectCreateDnfEventInfo::dispatch(int code, int uid, Stream* stream)
         if (!db->get_int(2, eventDay))
             throw "get_int 2";
         InterSelectCreateDnfEventInfo::makeRequest(rate, hour, eventDay);
-        cMyTrace t(__PRETTY_FUNCTION__, 0x20d, 0);
-        t("[Taiwan, Event] select event_create_dnf_info. hour:%d rate:%d event_day:%d",
-          eventDay, rate, hour);
+        cMyTrace(__PRETTY_FUNCTION__, 0x20d, 0)(
+            "[Taiwan, Event] select event_create_dnf_info. hour:%d rate:%d event_day:%d",
+            eventDay, rate, hour);
         return 1;
     }
     catch (const char* e)
@@ -573,6 +574,7 @@ bool DBSelectCreateDnfEventInfo::dispatch(int code, int uid, Stream* stream)
 // msg->m_id, received)；cMyTrace(0x24d)("[Taiwan, Event] select
 // event_create_dnf_user. m_id:%s isReceived:%d", str, received)；catch
 // logFormat(0x253) 返 0。成功返 1。
+// [b28d-lane6] AE（已修）：删 set_query 返回值检查（ORIG 0x0815c034 仅 check exec，多出的 throw 块消除）。
 bool DBSelectCreateDnfUserInfo::dispatch(int code, int uid, Stream* stream)
 {
     try
@@ -584,19 +586,20 @@ bool DBSelectCreateDnfUserInfo::dispatch(int code, int uid, Stream* stream)
                                                       (ENUM_SERVER_GROUP)0);
         if (db == 0)
             throw "handle null";
-        if (!db->set_query(
-                "seLect m_id from event_create_dnf_user where occ_date=CURDATE() and m_id=%s",
-                NumberToString(sig->m_id, 0)))
-            throw "select_exec";
+        // b28d-lane6：ORIG 0x0815c034 不检查 set_query 返回值（仅 exec 检查），
+        // 删检查后消去多出的一份 throw 块。
+        db->set_query(
+            "seLect m_id from event_create_dnf_user where occ_date=CURDATE() and m_id=%s",
+            NumberToString(sig->m_id, 0));
         if (!db->exec(1))
             throw "select_exec";
         bool received = false;
         if (db->get_n_rows() != 0)
             received = true;
         InterSelectCreateDnfUserInfo::makeRequest(uid, sig->m_id, received);
-        cMyTrace t(__PRETTY_FUNCTION__, 0x24d, 0);
-        t("[Taiwan, Event] select event_create_dnf_user. m_id:%s isReceived:%d",
-          NumberToString(sig->m_id, 0), received ? 1 : 0);
+        cMyTrace(__PRETTY_FUNCTION__, 0x24d, 0)(
+            "[Taiwan, Event] select event_create_dnf_user. m_id:%s isReceived:%d",
+            NumberToString(sig->m_id, 0), received ? 1 : 0);
         return 1;
     }
     catch (const char* e)
@@ -613,16 +616,13 @@ bool DBSelectCreateDnfUserInfo::dispatch(int code, int uid, Stream* stream)
 // 发消息：Acquire(file, 0x261) → CStreamGuard(true) → internal_stream(guard,
 // 0xb, a) → GetInBuffer<MSG> null → cMyTrace(0x267)("[Taiwan, Event] msg is
 // null")；否则 *buf = b；MsgQueueMgr::put(DB_Q, guard)。
+// [b28d-lane6] AE（已修）：去 bool skip 汇聚槽改早期返回 + P221 临时链（复现 ORIG 0x0815c25c 帧 0x30/槽序）。
 void DBInsertCreateDnfUserInfo::makeRequest(int a, unsigned int b)
 {
+    // b28d-lane6 试形：去 bool skip 汇聚槽，改早期返回（ORIG 0x0815c25c 无 bool 槽）。
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0xa0);
-    bool skip = true;
-    if (ev != 0)
-    {
-        if (ev->IsEventing((CUser*)0))
-            skip = false;
-    }
-    if (!skip)
+    if (ev == 0 || !ev->IsEventing((CUser*)0))
+        return;
     {
         // P89：单一视图表达式（合并 stream 局部）
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
@@ -632,8 +632,7 @@ void DBInsertCreateDnfUserInfo::makeRequest(int a, unsigned int b)
             guard.operator->()->GetInBuffer<DBInsertCreateDnfUserInfo::MSG>();
         if (sig == 0)
         {
-            cMyTrace t(__PRETTY_FUNCTION__, 0x267, 0);
-            t("[Taiwan, Event] msg is null");
+            cMyTrace(__PRETTY_FUNCTION__, 0x267, 0)("[Taiwan, Event] msg is null");
         }
         else
         {
@@ -650,6 +649,7 @@ void DBInsertCreateDnfUserInfo::makeRequest(int a, unsigned int b)
 // (m_serverGroup))；exec 失败 throw "insert_exec"；cMyTrace(0x281)
 // ("[Taiwan, Event] insert event_create_dnf_user. m_id:%d", msg->m_id)；catch
 // logFormat(0x286) 返 0。成功返 1。
+// [b28d-lane6] AE（已修）：P221 临时链 + +0x378 视图内联（ORIG 0x0815c3b0 单条 mov 0x378(%eax),%ebx）。
 bool DBInsertCreateDnfUserInfo::dispatch(int code, int uid, Stream* stream)
 {
     try
@@ -664,18 +664,19 @@ bool DBInsertCreateDnfUserInfo::dispatch(int code, int uid, Stream* stream)
         // ORIG 0x0815c480: set_query("inSert into event_create_dnf_user(occ_date,
         //   m_id,server_id,occ_time) VALUES(CURDATE(),%s,%d,CURTIME())",
         //   NumberToString(sig->m_id,0), G_CEnvironment()->+0x378)
-        const int serverGroup = *reinterpret_cast<int*>(
-            reinterpret_cast<char*>(G_CEnvironment()) + 0x378);
+        // b28d-lane6：+0x378 视图具名访问 + 实参内联（ORIG 0x0815c480 单条
+        // `mov 0x378(%eax),%ebx` 且无 serverGroup 具名槽）。
+        struct EnvView { char m_pad[0x378]; int m_serverGroup; };
         db->set_query(
             "inSert into event_create_dnf_user(occ_date,m_id,server_id,occ_time) "
             "VALUES(CURDATE(),%s,%d,CURTIME())",
             NumberToString(*reinterpret_cast<unsigned int*>(sig), 0),
-            serverGroup);
+            reinterpret_cast<EnvView*>(G_CEnvironment())->m_serverGroup);
         if (!db->exec(1))
             throw "insert_exec";
-        cMyTrace t(__PRETTY_FUNCTION__, 0x281, 0);
-        t("[Taiwan, Event] insert event_create_dnf_user. m_id:%d",
-          *reinterpret_cast<unsigned int*>(sig));
+        cMyTrace(__PRETTY_FUNCTION__, 0x281, 0)(
+            "[Taiwan, Event] insert event_create_dnf_user. m_id:%d",
+            *reinterpret_cast<unsigned int*>(sig));
         return 1;
     }
     catch (const char* e)
@@ -725,6 +726,7 @@ void DBSelectMobileAuthRewardTw::makeRequest(CUser* user)
 // ok=false、cMyTrace(0x2be) 插行日志；否则 ok=true、cMyTrace(0x2c3) 查行日志；
 // InterSelectMobileAuthReward::makeRequest(uid, msg->m_id, ok)；catch
 // logFormat(0x2cd) 返 0。成功返 1。
+// [b28d-lane6] DIFF·N93：帧 0x50 vs 0x60 + bool 槽 -0x15 vs -0x19。
 bool DBSelectMobileAuthRewardTw::dispatch(int code, int uid, Stream* stream)
 {
     // [b21 N] 语义闭合：msg-null/handle-null throw、set_query(不查返)+exec→select_exec、
@@ -757,16 +759,16 @@ bool DBSelectMobileAuthRewardTw::dispatch(int code, int uid, Stream* stream)
             if (!db->exec(1))
                 throw "insert_exec";
             ok = false;
-            cMyTrace t(__PRETTY_FUNCTION__, 0x2be, 0);
-            t("[Taiwan, MobileAuth] insert mobile_auth_reward_tw. m_id:%s",
-              NumberToString(mId, 0));
+            cMyTrace(__PRETTY_FUNCTION__, 0x2be, 0)(
+                "[Taiwan, MobileAuth] insert mobile_auth_reward_tw. m_id:%s",
+                NumberToString(mId, 0));
         }
         else
         {
             ok = true;
-            cMyTrace t(__PRETTY_FUNCTION__, 0x2c3, 0);
-            t("[Taiwan, MobileAuth] select mobile_auth_reward_tw. m_id:%s",
-              NumberToString(mId, 0));
+            cMyTrace(__PRETTY_FUNCTION__, 0x2c3, 0)(
+                "[Taiwan, MobileAuth] select mobile_auth_reward_tw. m_id:%s",
+                NumberToString(mId, 0));
         }
         InterSelectMobileAuthReward::makeRequest(uid, mId, ok);
         return 1;
@@ -793,6 +795,7 @@ bool DBSelectMobileAuthRewardTw::dispatch(int code, int uid, Stream* stream)
 // makeRequest(uid, yesterday, 4) + cMyTrace(0x311)；否则 makeRequest(uid,
 // yesterday, (char)flag) + cMyTrace(0x316)。catch logFormat(0x31c) 返 0。
 // 成功返 1。
+// [b28d-lane6] DIFF·N93：槽号 -0x4c/-0x50/-0x51 vs -0x48/-0x4c/-0x4d + bool 槽。
 bool DBSelectPcroomDailyReward::dispatch(int code, int uid, Stream* stream)
 {
     try
@@ -818,9 +821,9 @@ bool DBSelectPcroomDailyReward::dispatch(int code, int uid, Stream* stream)
         if (db->get_n_rows() == 0)
         {
             InterSelectPcroomDailyReward::makeRequest(uid, yesterday, 4);
-            cMyTrace t(__PRETTY_FUNCTION__, 0x300, 0);
-            t("[Taiwan, Pcroom] pcroom_daily_reward_tw get_n_row==0 m_id:%s",
-              NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
+            cMyTrace(__PRETTY_FUNCTION__, 0x300, 0)(
+                "[Taiwan, Pcroom] pcroom_daily_reward_tw get_n_row==0 m_id:%s",
+                NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
         }
         else
         {
@@ -837,18 +840,18 @@ bool DBSelectPcroomDailyReward::dispatch(int code, int uid, Stream* stream)
                                        GlobalData::s_systemTime_.getCurSec()))
             {
                 InterSelectPcroomDailyReward::makeRequest(uid, yesterday, 4);
-                cMyTrace t(__PRETTY_FUNCTION__, 0x311, 0);
-                t("[Taiwan, Pcroom] pcroom_daily_reward_tw yesterday m_id:%s",
-                  NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
+                cMyTrace(__PRETTY_FUNCTION__, 0x311, 0)(
+                    "[Taiwan, Pcroom] pcroom_daily_reward_tw yesterday m_id:%s",
+                    NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
             }
             else
             {
                 InterSelectPcroomDailyReward::makeRequest(uid, yesterday,
                                                           (char)flag);
-                cMyTrace t(__PRETTY_FUNCTION__, 0x316, 0);
-                t("[Taiwan, Pcroom] pcroom_daily_reward_tw today m_id:%s, remain_reward_count:%d",
-                  NumberToString(*reinterpret_cast<unsigned int*>(sig), 0),
-                  (char)flag);
+                cMyTrace(__PRETTY_FUNCTION__, 0x316, 0)(
+                    "[Taiwan, Pcroom] pcroom_daily_reward_tw today m_id:%s, remain_reward_count:%d",
+                    NumberToString(*reinterpret_cast<unsigned int*>(sig), 0),
+                    (char)flag);
             }
         }
         return 1;
@@ -870,6 +873,7 @@ bool DBSelectPcroomDailyReward::dispatch(int code, int uid, Stream* stream)
 // str, (char)msg->m_remain) exec 失败 throw "insert_exec"；否则 UPDATE
 // (remain_reward_count=%d where m_id = %s, str, (char)m_remain) exec 失败
 // throw "update_exec"。catch logFormat(0x35d) 返 0。成功返 1。
+// [b28d-lane6] AE（已修·真 bug）：UPDATE 语句实参序 (str,remain)→(remain,str) 修正（ORIG 0x0815d0f2 压栈序实证）+ 删多余 set_query 检查 + remain 内联。
 bool DBUpdatePcroomDailyReward::dispatch(int code, int uid, Stream* stream)
 {
     try
@@ -881,7 +885,8 @@ bool DBUpdatePcroomDailyReward::dispatch(int code, int uid, Stream* stream)
                                                       (ENUM_SERVER_GROUP)0);
         if (db == 0)
             throw "handle null";
-        char remain = sig->m_remain;
+        // b28d-lane6：不检查 set_query 返回值（ORIG 0x0815d024 仅 check exec）；
+        // 不设 remain 具名槽（ORIG 各分支内联重读 `movzbl 0x4(%eax); movsbl`）。
         db->set_query("seLect m_id from pcroom_daily_reward_tw where m_id=%s",
                       NumberToString(sig->m_id, 0));
         if (!db->exec(1))
@@ -890,15 +895,19 @@ bool DBUpdatePcroomDailyReward::dispatch(int code, int uid, Stream* stream)
         {
             db->set_query(
                 "inSert into pcroom_daily_reward_tw(m_id, occ_date, remain_reward_count) values('%s', now(), %d)",
-                NumberToString(sig->m_id, 0), (int)remain);
+                NumberToString(sig->m_id, 0), (int)(char)sig->m_remain);
             if (!db->exec(1))
                 throw "insert_exec";
         }
         else
         {
+            // b28d-lane6 真 bug 修复：SQL 格式符序为 %d(remain) 后 %s(m_id)，
+            // ORIG 0x0815d0f2 压栈序 `mov %edx(remain),0x8(%esp)` +
+            // `mov %eax(str),0xc(%esp)` 证实实参序必须是 (remain, str)，
+            // 原码 (str, remain) 会把字符串喂给 %d、整数喂给 %s。
             db->set_query(
                 "upDate pcroom_daily_reward_tw set occ_date=now(), remain_reward_count=%d where m_id = %s",
-                NumberToString(sig->m_id, 0), (int)remain);
+                (int)(char)sig->m_remain, NumberToString(sig->m_id, 0));
             if (!db->exec(1))
                 throw "update_exec";
         }
@@ -1012,6 +1021,9 @@ bool DBInsertGiveBoxEventReward::dispatch(int code, int uid, Stream* stream)
 // GetInBuffer<SigLoadHeroMissionData> null → throw "stream_alloc"；
 // memcpy(out, &data, 0x104)；MsgQueueMgr::put(DB_Q, guard)。catch
 // logFormat(0x3f5) 返 0。成功返 1。
+// [b28d-lane6] DIFF·部分修：characNo 已内联（槽号改善 102→23 行差）；残余 =
+// `data.m_field0 = sig->m_field0` 的 store 序（ORIG 0x0815d7d2 RHS-first 值先写，
+// 4.4 同型指针视图恒 LHS-first，P211）+ 尾部块序。
 bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
 {
     try
@@ -1024,23 +1036,27 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
                                                       (ENUM_SERVER_GROUP)0);
         if (db == 0)
             throw "handle_null";
-        unsigned int characNo = reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0;
+        // b28d-lane6 试形：characNo 不设具名槽，各点内联重读（ORIG 无该槽，
+        // P0/P183 表达式直读）。
         // ORIG 0x0815d7a8：G_CEnvironment()+get_server_group() 供 set_query
         // （返回值不检查）；0x0815d82c 插行时再调一次（两次独立调用，P167 判据）。
         // 仅 exec(1) 失败才 throw "exec_select"。
         db->set_query(
             "seLect mission from event_hero_mission_data where server_group=%d and charac_no=%u",
-            G_CEnvironment()->get_server_group(), characNo);
+            G_CEnvironment()->get_server_group(),
+            reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0);
         if (!db->exec(1))
             throw "exec_select";
         Taiwan::SigLoadHeroMissionData data;
         data.init();
-        reinterpret_cast<SigHeroMissionDataView*>(&data)->m_field0 = characNo;
+        reinterpret_cast<SigHeroMissionDataView*>(&data)->m_field0 =
+            reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0;
         if (db->get_n_rows() == 0)
         {
             db->set_query(
                 "inSert into event_hero_mission_data values(%d,%u,'',now())",
-                G_CEnvironment()->get_server_group(), characNo);
+                G_CEnvironment()->get_server_group(),
+                reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0);
             if (!db->exec(1))
                 throw "exec_insert";
             memset(reinterpret_cast<SigHeroMissionDataView*>(&data)->m_data, 0, 0x100);
@@ -1083,6 +1099,8 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
 // mission='%s' where server_group=%d and charac_no=%u", blob,
 // get_server_group(), sig->m_field0) exec 失败 throw "exec_update"。catch
 // logFormat(0x413) 返 0。成功返 1。
+// [b28d-lane6] AE（已修）：三实参内联（blob/serverGroup/characNo 不设具名槽）后
+// 帧 0x30 与 ORIG 0x0815db98 全等（104=104）。
 bool DBSaveHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
 {
     try
@@ -1095,14 +1113,14 @@ bool DBSaveHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
                                                       (ENUM_SERVER_GROUP)0);
         if (db == 0)
             throw "handle_null";
-        int serverGroup = G_CEnvironment()->get_server_group();
-        unsigned int characNo = reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0;
-        char* blob = db->blob_to_str(0, reinterpret_cast<SigHeroMissionDataView*>(sig)->m_data, 0x100);
-        // ORIG 0x0815db98：set_query 返回值不检查（call 后直接 exec）；
-        // 仅 exec(1) 失败才 throw "exec_update"。
+        // ORIG 0x0815db98：set_query 返回值不检查（call 后直接 exec）；仅 exec(1)
+        // 失败才 throw "exec_update"。b28d-lane6 试形：三实参内联（ORIG 用
+        // esi/ebx 寄存器流转、无 serverGroup/characNo/blob 具名槽，帧 0x30）。
         db->set_query(
             "upDate event_hero_mission_data set mission='%s' where server_group=%d and charac_no=%u",
-            blob, serverGroup, characNo);
+            db->blob_to_str(0, reinterpret_cast<SigHeroMissionDataView*>(sig)->m_data, 0x100),
+            G_CEnvironment()->get_server_group(),
+            reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0);
         if (!db->exec(1))
             throw "exec_update";
         return 1;
@@ -1195,6 +1213,7 @@ void LoadGeolocation::sendCountryData(Taiwan::SigLoadGeolocation& data)
 // exec 失败 throw "exec"；逐行 get_int(++idx,&v)/get_char(&c) 失败 throw
 // "category"/"restrict"/"values"；sig.restrictValue==0 或 ==v1 时 sig.set(v2,v1,c)，
 // 否则先 sendRestrictData+init 再 set；末尾 sendRestrictData。catch 0xd2 返 0。
+// [b28d-lane6] DIFF·N93/P250：大缓冲槽基 -0x1221(ORIG) vs -0x1224(4.4)（pack(1) 载荷整体取址差）+ 块序。
 bool LoadServiceRestrictPolicy::dispatch(int code, int uid, Stream* stream)
 {
     try

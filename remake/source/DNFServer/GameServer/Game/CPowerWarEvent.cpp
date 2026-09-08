@@ -57,13 +57,14 @@ void CPowerWarEvent::StartEvent(Word_Param param)
             {
                 G_CDataManager()->m_serverParameter.setDungeonOpen(0x2aff, false);
                 G_GameWorld()->send_all_dungeon_inout_message(0x2aff, false);
-                cMyTrace tr(__PRETTY_FUNCTION__, 0x8f, 0);
-                tr("ULTIMATE_LOG : POWER WAR START!! ULTIMATE DUNGEON CLOSE!!");
+                // [b28d-26] P221：具名 tr 改构造即调用（临时链），复现 ORIG 槽序
+                cMyTrace(__PRETTY_FUNCTION__, 0x8f, 0)
+                    ("ULTIMATE_LOG : POWER WAR START!! ULTIMATE DUNGEON CLOSE!!");
             }
             else
             {
-                cMyTrace tr(__PRETTY_FUNCTION__, 0x92, 0);
-                tr("ULTIMATE_LOG : ALLEADY ULTIMATE DUNGEON CLOSE!!");
+                cMyTrace(__PRETTY_FUNCTION__, 0x92, 0)
+                    ("ULTIMATE_LOG : ALLEADY ULTIMATE DUNGEON CLOSE!!");
             }
             GlobalData::s_power_manager->Init();
             G_GameWorld()->CleanupPowerWarVillToStart();
@@ -90,8 +91,8 @@ void CPowerWarEvent::StartEvent(Word_Param param)
             G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0x7d,
                                         5, 0, 0);
             register int serverNo = G_CEnvironment()->m_serverEnvir.m_channelNo;       // +0x1b0
-            cMyTrace tr(__PRETTY_FUNCTION__, 0xc6, 0);
-            tr("Power War Event Start! server(%d)", serverNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0xc6, 0)
+                ("Power War Event Start! server(%d)", serverNo);
         }
     }
 }
@@ -118,13 +119,13 @@ void CPowerWarEvent::StartEvent()
             {
                 G_CDataManager()->m_serverParameter.setDungeonOpen(0x2aff, false);
                 G_GameWorld()->send_all_dungeon_inout_message(0x2aff, false);
-                cMyTrace tr(__PRETTY_FUNCTION__, 0x3a, 0);
-                tr("ULTIMATE_LOG : POWER WAR START!! ULTIMATE DUNGEON CLOSE!!");
+                cMyTrace(__PRETTY_FUNCTION__, 0x3a, 0)
+                    ("ULTIMATE_LOG : POWER WAR START!! ULTIMATE DUNGEON CLOSE!!");
             }
             else
             {
-                cMyTrace tr(__PRETTY_FUNCTION__, 0x3d, 0);
-                tr("ULTIMATE_LOG : ALLEADY ULTIMATE DUNGEON CLOSE!!");
+                cMyTrace(__PRETTY_FUNCTION__, 0x3d, 0)
+                    ("ULTIMATE_LOG : ALLEADY ULTIMATE DUNGEON CLOSE!!");
             }
             GlobalData::s_power_manager->Init();
             G_GameWorld()->CleanupPowerWarVillToStart();
@@ -151,8 +152,8 @@ void CPowerWarEvent::StartEvent()
             G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0x7d,
                                         5, 0, 0);
             register int serverNo = G_CEnvironment()->m_serverEnvir.m_channelNo;
-            cMyTrace tr(__PRETTY_FUNCTION__, 0x70, 0);
-            tr("Power War Event Start! server(%d)", serverNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0x70, 0)
+                ("Power War Event Start! server(%d)", serverNo);
         }
     }
 }
@@ -190,8 +191,8 @@ void CPowerWarEvent::EndEvent()
         }
         else
         {
-            cMyTrace tr(__PRETTY_FUNCTION__, 0xe4, 0);
-            tr("ULTIMATE_LOG : ALLEADY ULTIMATE DUNGEON OPEN!!");
+            cMyTrace tr(__PRETTY_FUNCTION__, 0xe4, 0);   // ORIG 0x0826834d 行号 0xe4
+            tr("ULTIMATE_LOG : ALLEADY ULTIMATE DUNGEON CLOSE!!");
         }
         PacketGuard packet;
         packet.put_header(0, 0xa0);

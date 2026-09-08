@@ -146,6 +146,7 @@ bool WarField::GetFieldItem(int idx, map_item& out)
 // GetFieldMob（086b9578）
 // ============================================================================
 
+// [b28d-11b] N82附：4.4 聚合优先占低槽（map_monster@-0x35c），标量 it/end 落浅槽 -0x10/-0xc；ORIG 按声明序穿插 -0x35c/-0x358/-0x354 @0x086b9578
 bool WarField::GetFieldMob(int idx, map_monster& out)
 {
     std::map<int, map_monster>::iterator it;
@@ -163,6 +164,7 @@ bool WarField::GetFieldMob(int idx, map_monster& out)
 // MakePacket（086b92e2：0x1d 战场怪物信息包）
 // ============================================================================
 
+// [b28d-11b] N：参数比较载寄存器 + 实参装载序（P209/P75）@0x086b92e2
 void WarField::MakePacket(int packetId, void* packet)
 {
     InterfacePacketBuf* buf = (InterfacePacketBuf*)packet;
@@ -248,6 +250,7 @@ int WarField::HandleWpPerMonster(CUser* user, int monsterIdx, int wp,
 // ConsistMap（086b8a38：战场怪物刷出/发包）
 // ============================================================================
 
+// [b28d-11b] N：帧差 0x20 + bool 物化（N82/P240）@0x086b8a38
 void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map,
                           unsigned char a, int playerCount)
 {
@@ -433,6 +436,7 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
 // HandleMonsterKill（086b9672：掉落生成 + 击杀通知包）
 // ============================================================================
 
+// [b28d-11b] N：帧/槽差（N82）@0x086b9672
 bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
                                  CUser* user, const CDungeon* dungeon)
 {
@@ -616,20 +620,22 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
 // 取当前小时，在 m_table[0..m_num-2] 中查找所在时段，返回时段索引。
 int WarAreaCounter::GetCurrenTimeTable()
 {
-    time_t t = time(NULL);
+    // b28d-lane11：ORIG 0x089024d4 `lea -0x18(%ebp),%eax; mov %eax,(%esp); call time`
+    // = `time(&t)` 形；循环条件直读 m_num（无 num 局部）、t0/t1 内联无槽（P0）。
+    time_t t;
+    time(&t);
     struct tm tmbuf;
     struct tm* ptm = localtime_r(&t, &tmbuf);
     int curHour = ptm->tm_hour;
-    int num = m_num;
     int i = 0;
-    for (; i < num - 1; ++i)
+    for (; i < m_num - 1; ++i)
     {
-        int t0 = m_timeHourList[i];
-        if (t0 > curHour)
-            continue;
-        int t1 = m_timeHourList[i + 1];
-        if (t1 > curHour)
-            break;
+        // b28d-lane11：P223 配套——单 continue 产额外 jmp 岛，改正向包裹。
+        if (m_timeHourList[i] <= curHour)
+        {
+            if (m_timeHourList[i + 1] > curHour)
+                break;
+        }
     }
     return i;
 }

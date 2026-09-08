@@ -92,6 +92,7 @@ char PVPMAP_ONLY_TOURNAMENT_EXPOSURE[0x14] = {0};
 // [rarity weight]→m_arr1[0..5](+0xc)；[extended rarity weight]→m_arr2[0..5]
 // (+0x24)；[grade]→m_vec push_back 直至 Scan 失败。Scan 失败仍写入后仅记日志。
 // ============================================================================
+// [b28d-lane16 DIFF] ORIG 089008b8：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool importResealTable(const char* path, reseal_table_t* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -146,6 +147,7 @@ bool importResealTable(const char* path, reseal_table_t* out)
 // set 清空后扫描；[apply ultimate] 段内逐 int insert；遇到 [/apply ultimate]
 // 或任意其他 token 连续吞至该结束标记；EOF 与正常结束均返回 1，打开失败返回 0。
 // ============================================================================
+// [b28d-lane16 DIFF] ORIG 08913c7e：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 int importUltimateDungeonList(const char* path, std::set<int>& out)
 {
     if (!loadRDARScriptFile("", path))
@@ -189,6 +191,7 @@ int importUltimateDungeonList(const char* path, std::set<int>& out)
 // 第 2/3/4 列 Scan 失败分别返回 0x1990/0x1994/0x1998；打开失败 0x197f；
 // 成功返回 0。
 // ============================================================================
+// [b28d-lane16 DIFF] ORIG 089093ee：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 int importVillageAttackedScript(const char* path, stVillageAttacked_t& out)
 {
     std::string token;
@@ -229,6 +232,7 @@ int importVillageAttackedScript(const char* path, stVillageAttacked_t& out)
 // [pvp map basic data]：首列弃读 + 6 列入全局表（3 int 表 + 3 bool 化 char 表），
 // 计满 0x14 条打印超限日志并仍返回成功；EOF 返回成功；打开失败返回 0。
 // ============================================================================
+// [b28d-lane16 DIFF] ORIG 0890a427：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool loadPvpMapBasicDataScript(const char* path, std::vector<PVPMAP_DATA>* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -320,6 +324,7 @@ const char* const kVendBonusTag = "[bonus output]";
 
 }  // namespace
 
+// [b28d-lane16 DIFF] ORIG 0890b2a3：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 int importVendingMachineInfoCore(const char* dir, const char* file,
                                  stVendingMachine_t& vm)
 {
@@ -457,6 +462,7 @@ int importVendingMachineInfoCore(const char* dir, const char* file,
 // 列表文件 → map<idx,name>；逐项构造 stVendingMachine_t{键, Core 解析}，
 // 成功 push_back，Core 失败返回 0x1e7c。空列表 0x1e73，列表加载失败 0x1e83。
 // ============================================================================
+// [b28d-lane16 DIFF] ORIG 0890b74e：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 int importVendingMachineInfo(const char* dir, const char* list,
                              std::vector<stVendingMachine_t>& out)
 {
@@ -485,6 +491,7 @@ int importVendingMachineInfo(const char* dir, const char* list,
 // 列表文件遍历：sprintf("%s%s") 拼 per-file 路径 → importDeathTowerScript →
 // insert(key, tower)。列表加载失败 0x1eab、空列表 0x1e8e、单文件失败 0x1ea2。
 // ============================================================================
+// [b28d-lane16 DIFF] ORIG 0890b8d0：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 int importTowerInfo(const char* dir, const char* list,
                     std::map<unsigned int, stDeathTower_t>& out)
 {
@@ -519,6 +526,7 @@ int importTowerInfo(const char* dir, const char* list,
 // [combo practice bonus inerval]：连续 int 覆写 m_field74 直至 Scan 失败。
 // 打开失败返回 0，EOF 返回 1。
 // ============================================================================
+// [b28d-lane16 DIFF] ORIG 0890ed7f：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool importRankSystemScript(const char* path, stRankSystemInfo* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -656,6 +664,7 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
 //     `test %ebx,%ebx`）= 4.1 统一 dtor epilogue；4.4 每路径独立 dtor
 //     （负例“EH 双份 dtor epilogue vs merge”）；
 //  ③ 其余为 .o 重定位地址显示差（链接后 AE 口径消除）。
+// [b28d-lane16 DIFF] ORIG 0890bc63：残余 DIFF 归因（N 类豁免，语义已全等、指令数 1085/1093）：
 bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -1068,6 +1077,7 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
 // m_matchEventMap（第二列 Scan 结果不校验）；[sound info] 清 m_soundList 后
 // 每行“序号(弃)+int+int+string+int”构造元素 push。打开/空指针返回 0。
 // ============================================================================
+// [b28d-lane16 DIFF] ORIG 0895e4bf：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool importSeriaRoomDecoEvent(class seriaRoomDecoEventScript* s,
                               const char* path)
 {
@@ -1147,6 +1157,7 @@ bool importSeriaRoomDecoEvent(class seriaRoomDecoEventScript* s,
 // [/job type]=0x252。[/job type] 时 insert(jobType,gift) 并复位累计态。
 // [reward list] 行校验：第 2 列 >=0、第 3 列 >0，违规立即返回失败。
 // ============================================================================
+// [b28d-lane16 DIFF] ORIG 0895f817：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool importUseJobFatigueGiftScript(class useCharacterJobFatigue* out,
                                    const char* path)
 {
@@ -1257,6 +1268,7 @@ bool importUseJobFatigueGiftScript(class useCharacterJobFatigue* out,
 // string(name)+string(layer)+int×3 入 m_finishAniMap；未知层名返回失败。
 // 该段仅能经 EOF（ScanStr 失败）退出。打开/空指针返回 0，EOF 返回 1。
 // ============================================================================
+// [b28d-lane16 DIFF] ORIG 08960861：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
                                        const char* path)
 {
@@ -1405,6 +1417,7 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
 namespace AvatarVariation
 {
 
+// [b28d-lane16 DIFF] ORIG 088d444f：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool importAvatarColorVariation(AvatarColorInfo* out)
 {
     if (!loadRDARScriptFile("", "Etc/AvatarColorVariation.etc"))

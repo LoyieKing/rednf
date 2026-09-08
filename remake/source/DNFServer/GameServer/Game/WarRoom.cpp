@@ -606,10 +606,10 @@ int WarRoom::SendWalkOut(CUser* user, ENUM_WALKOUT_TYPE type)
 }
 void WarRoom::SendWarRoomFailMsg()
 {
-    // P23：嵌套实参求值序 GenTimerKey→m_index→G_TimerQueue()（ORIG ebx/esi 缓存）。
-    // [b28BM13 N96/N7] ORIG 086c0b09：key→%ebx、m_index→%esi；4.4 分配相反
-    // （esi↔ebx 互换，助记符序列全等 NEAR 4）。register 绑定违反 P0 已全域禁用
-    // （旧 asm("ebx") 注记作废）⇒ N7 跨版本寄存器分配封顶，保持直写。
+    // b28d-lane25 判词 N7：ORIG 0x086c0b09 求值序 GenTimerKey→%ebx、m_index→%esi，
+    // 再 call G_TimerQueue；4.4.7 恒反向（key→%esi、idx→%ebx），助记符序列/压栈值
+    // 全等仅 callee-saved 角色互换。实测：裸 register 存储类提示（P231）与 P226
+    // 裸语句表达式（槽化 +1 条、帧 0x20→0x30）均不可翻 ⇒ 按 N7 封顶，保持直写。
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
                                 (TIMER_MESSAGE)0x46, 10,
                                 GenTimerKey((TIMER_MESSAGE)0x46), 0);
@@ -1139,14 +1139,15 @@ void WarRoom::SendGuildFP()
         {
             if (m_slots[i] != 0)
             {
-                int fp = ((CUser*)m_slots[i])->GetFinishPointTotal();
-                if (fp < minFp)
+                // b28d-lane25：P167 差集实证 ORIG（0x086bc1bc/0x086bc1db/0x086bc212）
+                // 在比较与两分支内各自重新调用 GetFinishPointTotal（共 3 次），不缓存。
+                if (((CUser*)m_slots[i])->GetFinishPointTotal() < minFp)
                 {
-                    minFp = fp;
+                    minFp = ((CUser*)m_slots[i])->GetFinishPointTotal();
                     v.clear();
                     v.push_back(i);
                 }
-                else if (fp == minFp)
+                else if (((CUser*)m_slots[i])->GetFinishPointTotal() == minFp)
                 {
                     v.push_back(i);
                 }
@@ -1955,6 +1956,9 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                     packet.put_byte(0);
                     packet.put_byte(check);
                     packet.finalize(true);
+                    // b28d-lane25：P167 差集实证 ORIG 0x086bec97 先 SendToRoom(packet)
+                    // 再 user->Send(packet)（原实现漏 SendToRoom，语义缺口）。
+                    SendToRoom(packet);
                     user->Send(packet);
                     result = 0;
                 }
@@ -2255,7 +2259,11 @@ struct stBloodWarGrowTable
 // ============================================================================
 int EnterWarRoom(CUser* user, WarRoom* room, ENUM_CMDPACKET cmd)
 {
-    int seat;                 // -0x20（ORIG 声明序：seat, packet, ret, party）
+    // b28d-lane25 判词 N82附/N98：ORIG 0x08201e7a 槽序 seat=-0x20/packet=-0x1c/
+    // ret=-0x10/party=-0xc（4.1 按声明序）；4.4 按首次使用序（packet 首用最早）⇒
+    // packet=-0x20、seat=-0x14。实测声明序交换与 seat 聚合化（POD struct）均不翻，
+    // 全头部声明亦无效 ⇒ N82附 聚合优先低槽封顶，保持声明序与语义。
+    int seat;                 // -0x20（ORIG）
     PacketGuard packet;       // -0x1c
     int ret;                  // -0x10（IsJoinable 与 Join 复用同一槽，ORIG 实证）
     CParty* party;            // -0xc

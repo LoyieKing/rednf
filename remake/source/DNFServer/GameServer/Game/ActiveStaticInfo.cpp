@@ -22,6 +22,7 @@ ActiveStaticInfo::~ActiveStaticInfo()
 
 void ActiveStaticInfo::clear()
 {
+    // b28d-L3: DIFF/P238+N82 — ORIG 0x081... 常量 store 中转形 `mov $0x0,%edx; mov %edx,0x180(%eax)`（P238 float 字段旋钮候选）+ 循环槽号 -0xc vs -0x8（N82）
     m_level = 0;
     m_hpBase = 0;
     m_hpRatio = 1.0f;

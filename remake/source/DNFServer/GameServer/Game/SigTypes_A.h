@@ -494,9 +494,17 @@ struct SIG_BREAK_AWAY_UV_LIST
     char m_pad[0x1f];
 };
 
+// b28d-21（D21）具名化：ORIG 0x0844b31c makeRequest 逐字段写实证
+//（+0x0 accId 4B、+0x4 itemUid 4B、+0x8 ushort 清零、+0xc count int）；
+// dispatch 0x0844b0cc 读 +0x0 m_id / +0x8 purchase_cnt。
+// sizeof 0x10 不变（原 char m_pad[0x10]）。
 struct SIG_CERASHOP_PURCHASE_COUNT
 {
-    char m_pad[0x10];
+    unsigned int m_id;             // +0x0
+    unsigned int m_itemUid;        // +0x4
+    unsigned short m_purchaseCnt;  // +0x8
+    unsigned short m_pad0a;        // +0xa
+    int m_count;                   // +0xc
 };
 
 // 具名化（证据：docs/class_func_reports/DB_ReqChangeCharacName/_sendResult.md 反编译段，

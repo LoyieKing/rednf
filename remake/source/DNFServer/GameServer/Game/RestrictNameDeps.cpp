@@ -30,6 +30,7 @@ bool RestrictInputtingNameData::isLoaded_ = false;
 // body 循环里 "[/allow unicode range]" → out=tmp 并重回 seek；"[range]" →
 // ScanInt 左右值入 tmp；其它 token 忽略。任一 ScanType 失败/越界抛 const char*，
 // 被 catch 记日志后返 false。
+// [b28d-D9] 修复：P222 正向包裹（token=="[range]"）+ logFormat 5 参（去 "%s"）后 AE 172/172（ORIG 0x08ac2eca sz 0x0000029e）
 bool RestrictInputtingNameData::importUnicodeRangeData(
     const char* path, std::vector<std::pair<int, int> >* out)
 {
@@ -61,21 +62,27 @@ bool RestrictInputtingNameData::importUnicodeRangeData(
                     *out = ranges;                  // ORIG vector::operator= 复制
                     break;                          // 重回 seek（ORIG jmp +0x61）
                 }
-                if (token != "[range]")
-                    continue;
-                int left = 0;
-                int right = 0;
-                if (!ScanInt(&left))
-                    throw "range의 left값을 읽어 오다 실패\n";
-                if (!ScanInt(&right))
-                    throw "range의 right값을 읽어 오다 실패\n";
-                ranges.push_back(std::make_pair(left, right));
+                // [b28d-D9] ORIG 0x08ac2f3d 为 `call operator==; je <range 处理体>`
+                // （正极性、命中直落处理体），非 `operator!=`+continue 反形（P222 正向包裹）。
+                if (token == "[range]")
+                {
+                    int left = 0;
+                    int right = 0;
+                    if (!ScanInt(&left))
+                        throw "range의 left값을 읽어 오다 실패\n";
+                    if (!ScanInt(&right))
+                        throw "range의 right값을 읽어 오다 실패\n";
+                    ranges.push_back(std::make_pair(left, right));
+                }
             }
         }
         catch (const char* message)
         {
+            // [b28d-D9] ORIG 0x08ac30c2 只压 5 个实参（0, file, func, 0x48, message）——
+            // message 直接作 logFormat 的格式串，无 "%s" 中间实参（我方多压 1 条
+            // `movl $"\"%s\"",0x10(%esp)` 使 message 落到 0x14(%esp)）。
             LogManager::logFormat(0, "../../RestrictInputtingName.cpp",
-                                  __FUNCTION__, 0x48, "%s", message);
+                                  __FUNCTION__, 0x48, message);
             return false;
         }
     }

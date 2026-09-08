@@ -1,5 +1,11 @@
 #include "DNFFileLog.h"
 
+// [b28d-11b] P186 判词（_Z41__static_initialization_and_destruction_0ii）：该符号是
+// TU 级 static init 入口，ORIG df_game_r 中存在 493 个同名 local 实例
+// （`nm -S --defined-only` 实证，地址 0x0807ee76/0x0807ff9a/0x08083c60… 各不同
+// 大小 0xba/0x40/0x69…）；compare_tu 按符号名索引只能取到其中一个，未必是本
+// TU 对应实例 ⇒ 属 P108/P186 族结构性噪音，非实现缺口，封顶不再对齐。
+
 
 #include <iostream>
 #include "DNFFunctionLib.h"

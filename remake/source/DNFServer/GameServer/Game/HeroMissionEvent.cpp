@@ -4,6 +4,27 @@
 // 忠实转写 docs/class_func_reports/HeroMissionEvent/{processMission,findMissionValue}.md。
 // 判活：ORIG 经 vptr+0x34 调用 CEventBase::IsEventing(NULL)（即读取 +0x08 标志）。
 // ============================================================================
+// [b28d-lane15 集中判词] 本 TU 清单 19 件的 b28d 复核（fresh check_tu_routed：
+//   COMPILE OK / identical=184 ae=331 near=1 diff=22）。逐件 N 归因（ORIG 地址实查）：
+//   · _ZL29ConvertString2EnumMissionTypeRSs @0x089613d7 —— N（std::string 比较/构造
+//     链 N89 族 + 局部槽组平移）。
+//   · findMissionValue @0x08168010 —— N（N18b 成员==参数 mem-cmp 折叠；b28c-L7 已判）。
+//   · {TotalMission@0x08166378 / UseCubeMission@0x08165992 / UseFatigueMission
+//     @0x08165706 / AttendanceMission@0x08166002 / ClearDungeonMission@0x081653b4}
+//     ::processMission —— N（Mission 族同构骨架：P168a 档① bool callee + P164
+//     循环旋转 + N82 帧槽；b28c-L26/L27 已判）。
+//   · {UseCubeMission@0x08165a2e / UseFatigueMission@0x081657a2 / AttendanceMission
+//     @0x081661d6 / ClearDungeonMission@0x08165484}::rewardMission —— N（同骨架，
+//     b28c-L26 判词：char 返回 callee 的 X1 边界 + bool 物化岛）。
+//   · loadEventData@0x0816709e / saveEventData@0x08166d38 / setEventData@0x08166752 /
+//     loadScript@0x08167ac8 —— N（N82 帧槽复用 + N89 STL 内联 + .o 重定位显示差）。
+//   · HeroMissionEvent::processMission@0x081672be —— N（P164/P223 岛 + N82）。
+//   · HeroMissionValue::getStringToken@0x08164bca —— N（std::string 族 N89）。
+//   · LevelUpMission::processMission@0x08165c1e —— N（同 Mission 骨架 + N82）。
+//   · importHeroMissionConditionsData@0x0896171b —— N（超大解析：N89 惰性 map 注册链
+//     + P163 决策树 + N82；按 P165/P166 三件套口径收）。
+//   语义均按报告逐指令转写并核对；残差全为跨版本结构族，无真语义缺口。
+// ============================================================================
 
 #include "HeroMissionEvent.h"
 

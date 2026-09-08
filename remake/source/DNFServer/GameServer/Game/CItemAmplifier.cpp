@@ -256,7 +256,9 @@ int CItemAmplifier::getPurifyMaterialItemCount(int type) const
 
 // ORIG 0x08234d5e：按 type 索引 m_script.m_investMap[type]，查找 level。
 // 命中则把 value.{m_amount,m_value} 写入 info，返回 1；未命中返回 0。
-int CItemAmplifier::getInvestMaterialInfo(
+// [b28d-20] 返回类型 int→bool：ORIG dispatch_sig 0x08219cd4 为 xor $1（bool callee）；
+// 返回类型不入 mangling，无 sizeof/偏移/vtable 变化。
+bool CItemAmplifier::getInvestMaterialInfo(
     ENUM_ITEM_AMPLIFY_INVEST_TYPE type,
     unsigned long level,
     stInvestAmplifyOption_t& info) const

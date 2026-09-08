@@ -112,6 +112,7 @@ int CDataManager::VerifyDungeon(const CDungeon& dungeon) const
 // 当前权威头尚未具名化，按 ORIG 偏移访问并标注【ORIG asm 证据】；待对应头批次
 // 收口后替换为具名字段。
 // ---------------------------------------------------------------------------
+// [b28d-19] N：N82 —— 超大件（1159 insn）帧槽错位；§6.2 三件套口径封顶；ORIG 0x08360d94。
 bool CDataManager::Verify() const
 {
     static const char PRETTY[] = "bool CDataManager::Verify() const";
@@ -438,6 +439,7 @@ bool CDataManager::Verify() const
 //       中 → 复制两字节。
 //   （若命中跳过表则不复制——函数名与两分支对称性一致；见报告汇编逐条核对。）
 // ---------------------------------------------------------------------------
+// [b28d-19] N：N93 —— 帧 sub $0x48 vs $0x58 + 槽序；ORIG 0x08362c22。
 char* CDataManager::_subPunctuationMark(const char* src, char* dst)
 {
     unsigned int out = 0;
@@ -481,6 +483,7 @@ char* CDataManager::_subPunctuationMark(const char* src, char* dst)
 //   asm 0835fc31..0x9c 虚调用）为假则把第 3 字节改写 0xff 作废。
 //   循环条件 strlen(text)-2 > i（有符号）。
 // ---------------------------------------------------------------------------
+// [b28d-19] N：N93 —— 槽序平移 4（-0x14↔-0x18）；ORIG 0x0835fba2。
 void CDataManager::rewriteUsableEmoticon(const CUser& user, char* text)
 {
     if (text == 0)
@@ -518,6 +521,7 @@ void CDataManager::rewriteUsableEmoticon(const CUser& user, char* text)
 //   循环条件 count > i（setg）；扫完返回 0。第二参 unused ORIG 亦未读。
 //   依 §8.3 已将 ServerParameterScript.m_pad12c 头部拆具名（sizeof 0x49f4 不变）。
 // ---------------------------------------------------------------------------
+// [b28d-19] N：N93 —— 帧 sub $0x30 vs $0x40 + 槽序；ORIG 0x0836360c。
 int CDataManager::hasPreventPrefixCharacName(const char* name, int /*unused*/)
 {
     ServerParameterScript& sps = m_serverParameter;
@@ -544,6 +548,7 @@ int CDataManager::hasPreventPrefixCharacName(const char* name, int /*unused*/)
 //       （lo <= word 且 word <= hi 双闭），再查 m_shortList(+0x18 → CDM+0x86dc)
 //       精确表；任一命中返回 1，否则继续，扫完返回 0。
 // ---------------------------------------------------------------------------
+// [b28d-19] N：N82 —— 帧/push ebx 与槽序（大件）；ORIG 0x08362e0e。
 bool CDataManager::hasSpecialCharacterExceptSpace(const char* name)
 {
     const size_t len = strlen(name);
@@ -610,6 +615,7 @@ bool CDataManager::hasSpecialCharacterExceptSpace(const char* name)
 //   find(0xb)（默认角色创建礼包 key），各命中则将该条目 vector<rewardInfo>
 //   追加到 out.m_list 尾部（insert(end, begin, end)）。
 // ---------------------------------------------------------------------------
+// [b28d-19] NEAR：N93 —— 局部对象槽序平移 4（-0x2c↔-0x28 等）；ORIG 0x08365668。
 void CDataManager::get_createCharacterGift(
     int idx, createChracScript::rewardInfoList& out) const
 {
@@ -643,6 +649,7 @@ void CDataManager::get_createCharacterGift(
 //   u2 = gift.m_rewardMap.upper_bound(arg2)（asm -0x20+arg3 即还原 arg2）
 //   若 u1==end 且 u2==end → 0；u1==u2 → 0；否则返回 u1->second。
 // ---------------------------------------------------------------------------
+// [b28d-19] N：N82 —— 帧/寄存器分配差（多局部物化）；ORIG 0x0836580e。
 int CDataManager::get_useJobFatigueMatchGift(char job, int a, int b)
 {
     const int diff = a - b;

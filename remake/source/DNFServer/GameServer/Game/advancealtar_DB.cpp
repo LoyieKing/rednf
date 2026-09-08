@@ -322,14 +322,21 @@ void DB_Update::makeRequest(int uid, const _CharacAdvanceAltarDbData& data)
 
 // ---- DBAndExchangeServerProc（advancealtar__DBAndExchangeServerProc 报告）----
 // ORIG T 0x0813394c：characNo→data.m_characNo；拷 AdvanceAltarData；isUpdated 则 DB_Update。
+// [b28d-26] AE。ORIG 0x0813398c `call; test %al,%al; je <尾 nop 岛>` + 体尾 `jmp +0x61`
+//   ⇒ 复现形 = 正向 if + 空 else{return;}（4.4 对 if/else 才发体尾 jmp，纯正向 if
+//   恒 jump-thread 掉；goto 负形对 bool callee 必加 `xor $0x1,%eax`，P168a 反例）。
 void DBAndExchangeServerProc::getFromMemory(const CUser& user, _CharacAdvanceAltarDbData& data)
 {
     data.m_characNo = (unsigned int)user.getCurCharacNo();
     user.m_advanceAltar.getCharacAdvanceAltarDbData(data);
-    if (user.m_advanceAltar.isUpdated() == 0)
-        goto L_done;
-    DB_Update::makeRequest((int)user.GetUID(), data);
-L_done:;
+    if (user.m_advanceAltar.isUpdated())
+    {
+        DB_Update::makeRequest((int)user.GetUID(), data);
+    }
+    else
+    {
+        return;
+    }
 }
 
 // ---- requestLoadFromDBAndES（advancealtar__DBAndExchangeServerProc 报告全文）----
@@ -608,7 +615,7 @@ bool DB_Load::parseStage(char* str, _Stage* out, int count)
         for (int f = 0; field != 0 && f < 2; ++f)
         {
             if (f == 0) out[row].m_field0 = atoi(field);
-            else        out[row].m_field4 = atoi(field);   // [objdump 0x813e494 → +4]
+            else        out[row].m_field4 = static_cast<StageField4_t>(atoi(field));   // [objdump 0x813e494 → +4]
             field = strtok_r(0, ",", &saveInner);
         }
     }
@@ -634,7 +641,7 @@ bool DB_Load::parseSlot(char* str, _Slot* out, int count)
             switch (f)
             {
             case 0: out[row].m_byte0 = static_cast<unsigned char>(atoi(field) > 0 ? 1 : 0); break; // [0x813e47a]
-            case 1: out[row].m_int1 = atoi(field); break;                                   // [0x813e48f +1]
+            case 1: out[row].m_int1 = static_cast<SlotInt1_t>(atoi(field)); break;          // [0x813e48f +1]
             case 2: out[row].m_byte5 = static_cast<unsigned char>(atoi(field) != 0 ? 1 : 0); break;// [0x813e4a7 +5]
             case 3: out[row].m_int6 = atoi(field); break;                                   // [0x813e4bb +6]
             }
@@ -717,12 +724,16 @@ void DB_Update::makeStageString(std::string& out, const _Stage* arr, int count) 
     char buf[128];
     for (int i = 0; i < count; ++i)
     {
-        if (arr[i].m_field0 != 0 || arr[i].m_field4 != 0)
-        {
-            std::sprintf(buf, "%d%s%d%s", arr[i].m_field0, kDelimterField,
-                         arr[i].m_field4, kDelimterItem);   // ORIG 经 DAT ","/"|"
-            out += buf;
-        }
+        // [b28d-26] ORIG 0x0813f3f8 m_field4 两段中转（字段改 enum，P254）；
+        //   体尾 `jmp +0xa6` + `nop@0xa5` 用 P223 双源 goto 尾标签串复现。
+        if (arr[i].m_field0 == 0 && arr[i].m_field4 == 0)
+            goto L_skip;
+        std::sprintf(buf, "%d%s%d%s", arr[i].m_field0, kDelimterField,
+                     arr[i].m_field4, kDelimterItem);   // ORIG 经 DAT ","/"|"
+        out += buf;
+        goto L_inc;
+L_skip:;
+L_inc:;
     }
 }
 
@@ -756,22 +767,22 @@ void DB_Update::makeRewardString(std::string& out, const _Reward* arr, int count
     char buf[128];
     for (int i = 0; i < count; ++i)
     {
-        if (0 < arr[i].m_field0)
-        {
-            // ORIG 0x0813f6e2 fmt="%d%s%d%s"(@0x8b6db4d)，逗号/竖线为独立 rodata 串常量
-            // （","@0x8b6d831 / "|"@0x8b6d82f，readelf 实证）→ 6 实参槽 outgoing 区
-            // 48B，帧 0xb8；先前 "%d,%d|" 2 参形态使帧缩为 0xa8（Main 指令之缓冲
-            // 16B 维度差的真实来源 = sprintf 实参集，非 buf 本体：buf 基址 -0x8c
-            // 两侧本就一致）。
-            std::sprintf(buf, "%d%s%d%s", arr[i].m_field0, ",",
-                         static_cast<int>(arr[i].m_byte4), "|");
-            out += buf;
-        }
-        // 【§6.2 标注】残余 gap=2：ORIG if 体尾 `jmp +0xa6` + jle 目标空块 `nop@0xa5`
-        // （同族 makeBuyItemString 0x0813f644 同形）。系 ORIG 编译器块放置产物，
-        // gcc4.4 -O0 对空 else/尾分号均折叠，无 C++98 等价写法 ⇒ 控制流形态
-        // N 类豁免；语义与行为（帧 0xb8、buf@-0x8c、i@-0xc、6 实参、rodata fmt
-        // "%d%s%d%s"）已全部对齐。
+        // ORIG 0x0813f6e2 fmt="%d%s%d%s"(@0x8b6db4d)，逗号/竖线为独立 rodata 串常量
+        // （","@0x8b6d831 / "|"@0x8b6d82f，readelf 实证）→ 6 实参槽 outgoing 区
+        // 48B，帧 0xb8；先前 "%d,%d|" 2 参形态使帧缩为 0xa8（Main 指令之缓冲
+        // 16B 维度差的真实来源 = sprintf 实参集，非 buf 本体：buf 基址 -0x8c
+        // 两侧本就一致）。
+        if (arr[i].m_field0 <= 0)
+            goto L_skip;
+        std::sprintf(buf, "%d%s%d%s", arr[i].m_field0, ",",
+                     static_cast<int>(arr[i].m_byte4), "|");
+        out += buf;
+        goto L_inc;
+L_skip:;
+L_inc:;
+        // [b28d-26] AE。旧「残余 jmp+nop 空块 N 类豁免」判词作废（P223 正例）：
+        //   ORIG 0x0813f70d/0f `jmp +0xa6` + `nop@0xa5` 由双源 goto 尾标签串复现
+        //   （`if(m<=0) goto L_skip; body; goto L_inc; L_skip:; L_inc:;`）。
     }
 }
 
@@ -783,20 +794,21 @@ void DB_Update::makeBuyItemString(std::string& out, const _BuyItem* arr, int cou
     char buf[128];
     for (int i = 0; i < count; ++i)
     {
-        if (arr[i].m_field4 != 0 || arr[i].m_short8 != 0)
-        {
-            // ORIG 0x0813f619 fmt="%d%s%d%s%d%s%d%s"，"," ×3 + "|"（实证装载序列
-            // 0x0813f5d5..0x0813f615；双 short 为 movzwl+movswl 符号扩展，与
-            // static_cast<int> 同形）。同 makeRewardString 配方。
-            // 【§6.2 标注】gap 6→2（o=92 n=86→90）：残余 2 = if 体尾 `jmp+nop`
-            // 空块放置对（ORIG 0x0813f644/646，同 makeRewardString 0x0813f70d/0f
-            // 形），gcc4.4 折叠空块、无 C++98 等价写法 ⇒ 控制流形态 N 类豁免。
-            std::sprintf(buf, "%d%s%d%s%d%s%d%s", arr[i].m_field0, ",",
-                         arr[i].m_field4, ",",
-                         static_cast<int>(arr[i].m_short8), ",",
-                         static_cast<int>(arr[i].m_short10), "|");
-            out += buf;
-        }
+        // ORIG 0x0813f619 fmt="%d%s%d%s%d%s%d%s"，"," ×3 + "|"（实证装载序列
+        // 0x0813f5d5..0x0813f615；双 short 为 movzwl+movswl 符号扩展，与
+        // static_cast<int> 同形）。同 makeRewardString 配方。
+        // [b28d-26] ORIG 0x0813f644/646 `jmp +0x10a` + `nop@0x109`：P223 双源 goto
+        //   尾标签串复现（条件取反形，同 makeRewardString）。
+        if (arr[i].m_field4 == 0 && arr[i].m_short8 == 0)
+            goto L_skip;
+        std::sprintf(buf, "%d%s%d%s%d%s%d%s", arr[i].m_field0, ",",
+                     arr[i].m_field4, ",",
+                     static_cast<int>(arr[i].m_short8), ",",
+                     static_cast<int>(arr[i].m_short10), "|");
+        out += buf;
+        goto L_inc;
+L_skip:;
+L_inc:;
     }
 }
 
@@ -1027,27 +1039,31 @@ bool convertStringToZip(char* out, unsigned int outCap, const char* src,
     return true;
 }
 
-// [objdump 0x813dc48]
+// [objdump 0x813dc48] b28d-26: AE。修法=两处无符号比较取「否定早返」正向形
+//   （zipCap <= zlen / strCap <= rawLen）+ zlen 同型化 unsigned（P209 姊妹：4.4 对
+//   unsigned 形参比较以形参为 dst 直发 ja）。ORIG 0x813dc73 / 0x813dcda 实证。
 bool convertZipToString(MySQL* mysql, int col, char* zipBuf, unsigned int zipCap,
                         char* strBuf, unsigned int strCap)
 {
-    const int zlen = mysql->get_binary_length(col);
+    // Ghidra 侧 local_14 为 uint（ORIG 用 ja 无符号序），同型化让 4.4 以形参为 dst。
+    const unsigned int zlen = mysql->get_binary_length(col);
     if (zlen == 0)
         return true;
-    // ORIG 0x813dc73：mov 0x14(%ebp),%eax; cmp -0x10(%ebp),%eax（左=zipCap 参数载寄存器）。
-    // 反向 (unsigned)zlen >= zipCap 试图让 4.4 同向装载（P209 姊妹探针）。
-    if (static_cast<unsigned int>(zlen) >= zipCap)
+    // ORIG 0x813dc73：`mov 0x14(%ebp),%eax; cmp -0x10(%ebp),%eax; ja <body>`
+    // = 早返 `if (zipCap <= (unsigned)zlen) return false;`（!C 取反后 GCC 直接发 ja）。
+    if (zipCap <= zlen)
         return false;
     std::memset(zipBuf, 0, zipCap);
-    if (!mysql->get_binary(col, zipBuf, zlen))
+    if (!mysql->get_binary(col, zipBuf, static_cast<int>(zlen)))
         return false;
     const unsigned int rawLen = (*reinterpret_cast<unsigned int*>(zipBuf)) & 0x3fffffff;
-    if (rawLen >= strCap)
+    // ORIG 0x813dcda：`mov 0x1c(%ebp),%eax; cmp -0xc(%ebp),%eax; ja <body>`（同形）。
+    if (strCap <= rawLen)
         return false;
     std::memset(strBuf, 0, strCap);
     unsigned int len = rawLen;
     // P168a①：bool callee 裸负形 = ORIG `call; xor$1,%eax; test%al; je` choose。
-    if (!uncompress_zip(strBuf, len, zipBuf, static_cast<unsigned int>(zlen)))
+    if (!uncompress_zip(strBuf, len, zipBuf, zlen))
         return false;
     return true;
 }

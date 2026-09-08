@@ -131,8 +131,9 @@ void CBattle_Field::checkKilledSpawnBloodMonsters(int monsterCount)
     const short lastSmall =
         static_cast<short>(m_bloodRound.getBloodLastSmallRoundOrder());  // -0x22
 
-    if (static_cast<unsigned short>(lastSmall)
-        < static_cast<unsigned short>(smallRound))
+    // [b28d-20] ORIG 0x08304fd5 movzwl -0x22; cmp -0x24,%ax; jge —— 有符号 short 比较
+    // （unsigned cast 会产双 movzwl + jae）。
+    if (lastSmall < smallRound)
     {
         if (monsterCount == 0 && m_pMap->get_map_type() != 1)
         {
@@ -142,22 +143,23 @@ void CBattle_Field::checkKilledSpawnBloodMonsters(int monsterCount)
         return;
     }
 
+    // [b28d-20] ORIG 0x0830504b `movl $0x0,-0x20(%ebp)` 为写后未读的死局部（P171 照抄；
+    // 补此 4 字节使全帧槽号与帧尺寸 0x3a0 对齐）。
+    int deadSlot = 0;
+    (void)deadSlot;
     map_monster probe;   // ORIG 局部构造（-0x37c），仅对齐原帧布局
     (void)probe;
 
-    GetCurrentMapInfo();
-    std::map<int, map_monster>& monsterMap =
-        GetCurrentMapInfo()->m_monsterMap;
-    std::map<int, map_monster>::iterator it = monsterMap.begin();     // -0x30
-    bool changedRound = false;
-    for (;;)
+    // [b28d-20] ORIG 0x08305060/0x0830535b：begin/end 各自内联 GetCurrentMapInfo()（无
+    // monsterMap 引用缓存槽）；循环为标准 for（incr 在 cond 前），结算体在循环内，
+    // changedRound==0 走 continue（je <++it>），结算完 break 落 +0x428 析构 probe。
+    for (std::map<int, map_monster>::iterator it =
+             GetCurrentMapInfo()->m_monsterMap.begin();
+         it != GetCurrentMapInfo()->m_monsterMap.end(); )
     {
-        // ORIG 求值序：每轮 begin 后独立调 end（GetCurrentMapInfo 各一次）。
-        GetCurrentMapInfo();
-        if (it == monsterMap.end())
-            break;
-        // mob.m_bloodRoundOrder(+0x33e) < smallRound 时跳出（不结算）。
-        if (it->second.m_bloodRoundOrder < smallRound)
+        // [b28d-20] 真语义 bug 修正：ORIG 0x08305090 读 pair+0x33e = map_monster+0x33a
+        // = m_bloodSmallRoundOrder（原写 m_bloodRoundOrder(+0x33e) 会读成 pair+0x342）。
+        if (it->second.m_bloodSmallRoundOrder < smallRound)
             break;
 
         const int curRound =
@@ -181,56 +183,60 @@ void CBattle_Field::checkKilledSpawnBloodMonsters(int monsterCount)
             return;
         }
 
-        changedRound = false;
+        // [b28d-20] ORIG 0x0830514b movb $0x0/-0x9 与 0x08305169 cmpb $0x0,-0x9 直比：
+        // 局部为 char（bool 会产 movzbl+xor$1+test 三段，P248 档②）。
+        char changedRound = 0;
         if (prevRound != curRound)
-            changedRound = true;
+            changedRound = 1;
         else if (curDiff != prevDiff)
-            changedRound = true;
-        if (changedRound)
-            break;
-        ++it;
-    }
-
-    if (!changedRound)
-        return;   // 循环自然耗尽：ORIG 直接析构返回，无结算
-
-    // ORIG 经 m_party+0xddc 触达（= BF 子对象视图 +0x2b8，同一 m_bloodReward）。
-    m_bloodReward.onFinishBloodRound(false, roundOrder, m_party, m_pDungeon);
-
-    // +0x89f（m_bloodDungeonType）按 signed char 读取（ORIG movsbl 口径）
-    const signed char ultimateMode = *reinterpret_cast<signed char*>(
-        &m_pDungeon->m_bloodDungeonType);
-    if (ultimateMode == 2)
-    {
-        const int diff = getNextRoundDifficulty(
-            static_cast<short>(static_cast<unsigned short>(roundOrder) - 1));
-        m_bloodReward.incUltimateRoundClearPoint(diff);
-
-        const bool advanced =
-            forceValuesToChangeRound(roundOrder, smallRound, 1);
-        if (!advanced)
-            return;
-
-        setUltimateDifficulty(0);
-        if (static_cast<int>(roundOrder) == getBloodMaxRound() - 1)
+            changedRound = 1;
+        // [b28d-20] ORIG 0x08305350 的 ++it 是循环体自然结尾（changedRound==0 走
+        // `je +0x3c2` 直落 incr 块后落 cond）；写成 for 第三段会被 4.4 旋进体内。
+        if (changedRound != 0)
         {
-            G_TimerQueue()->InsertTimer(
-                static_cast<TimerEntry::OBJ_TYPE>(1), m_party->GetPartyIndex(),
-                static_cast<TIMER_MESSAGE>(0x26), 1,
-                m_party->gen_timer_key(static_cast<TIMER_MESSAGE>(0x26)), 0x26);
+            // [b28d-20] ORIG 0x08305185 `mov (%ebx),%ebx; add $0xddc,%ebx`：第二处结算的
+            // this 经 m_party->m_battleField(+0xb24).m_bloodReward(+0x2b8) 折叠为
+            // m_party+0xddc（与首处提前返回分支的 this+0x2b8 写法不同，运行时同一对象）。
+            m_party->m_battleField.m_bloodReward.onFinishBloodRound(
+                false, roundOrder, m_party, m_pDungeon);
+
+        // [b28d-20] ORIG 0x083051b5 `movzbl 0x89f(%eax),%eax; cmp $0x2,%al`：真实成员直访问
+        // （reinterpret_cast 视图会多一条 add $0x89f，P235）。
+        if (m_pDungeon->m_bloodDungeonType == 2)
+        {
+            // [b28d-20] ORIG 0x083051e4/0x08305213：实参内联（无 diff/advanced 具名局部）。
+            m_bloodReward.incUltimateRoundClearPoint(getNextRoundDifficulty(
+                static_cast<short>(static_cast<unsigned short>(roundOrder) - 1)));
+
+            if (!forceValuesToChangeRound(roundOrder, smallRound, 1))
+                return;
+
+            setUltimateDifficulty(0);
+            // [b28d-20] ORIG 0x08305245 setne + je<1s 块>：条件取反并把 10s 块放 then
+            // （写 `==` 会产 sete 且分支互换）。
+            if (static_cast<int>(roundOrder) != getBloodMaxRound() - 1)
+            {
+                G_TimerQueue()->InsertTimer(
+                    static_cast<TimerEntry::OBJ_TYPE>(1), m_party->GetPartyIndex(),
+                    static_cast<TIMER_MESSAGE>(0x26), 10,
+                    m_party->gen_timer_key(static_cast<TIMER_MESSAGE>(0x26)), 0x26);
+                sendUltimateRandomDifficulty(0, roundOrder, 10);
+            }
+            else
+            {
+                G_TimerQueue()->InsertTimer(
+                    static_cast<TimerEntry::OBJ_TYPE>(1), m_party->GetPartyIndex(),
+                    static_cast<TIMER_MESSAGE>(0x26), 1,
+                    m_party->gen_timer_key(static_cast<TIMER_MESSAGE>(0x26)), 0x26);
+            }
         }
         else
         {
-            G_TimerQueue()->InsertTimer(
-                static_cast<TimerEntry::OBJ_TYPE>(1), m_party->GetPartyIndex(),
-                static_cast<TIMER_MESSAGE>(0x26), 10,
-                m_party->gen_timer_key(static_cast<TIMER_MESSAGE>(0x26)), 0x26);
-            sendUltimateRandomDifficulty(0, roundOrder, 10);
+            BloodSpawnTimerManager(true, false);
         }
-    }
-    else
-    {
-        BloodSpawnTimerManager(true, false);
+            break;
+        }
+        ++it;
     }
 }
 
@@ -300,25 +306,21 @@ void CBattle_Field::_MakeNotiPacketDieMonster(
     packet.put_short(uid);
     packet.put_byte(static_cast<int>(itemList.size()));
 
-    // ORIG 栈上徽章缓冲 0x1e 字节（stAvatarEmblemInfo_t 0x16 + 尾随 8 字节栈
-    // 残留一并 put_binary）；此处显式清零替代不可复现的残留。
-    unsigned char emblemBuf[0x1e];
-    memset(emblemBuf, 0, sizeof(emblemBuf));
-    stAvatarEmblemInfo_t& emblem =
-        *reinterpret_cast<stAvatarEmblemInfo_t*>(emblemBuf);
+    // [b28d-20] ORIG 0x0830b923/0x0830ba38 两处均为 `emblem.init()`（单参数成员调用，
+    // stAvatarEmblemInfo_t sizeof=0x1e）；memset 三参数形与引用缓存槽（-0x24）均为偏差。
+    stAvatarEmblemInfo_t emblem;
+    emblem.init();
 
     for (std::list<map_item>::iterator it = itemList.begin();
-         it != itemList.end(); ++it)
+         it != itemList.end(); it++)   // [b28d-20] ORIG 0x0830bb79 调 ppEi（后置，P28 增量侧）
     {
         map_item& mi = *it;
         packet.put_short(mi.m_itemIndex);
         packet.put_int(mi.m_item.m_addInfo);
         packet.put_byte(mi.m_item.GetItemAttr());
-        if (!mi.m_item.isAvatarItemType())
-        {
-            packet.put_int(mi.m_item.get_add_info());
-        }
-        else
+        // [b28d-20] ORIG 0x0830b9b0 test%al/je<else>（正极性：isAvatarItemType() 为真走
+        // avatar 路径）—— `!isAvatarItemType()` 会多一条 xor $1 并反转分支布局。
+        if (mi.m_item.isAvatarItemType())
         {
             CItem* found = G_CDataManager()->find_item(mi.m_item.m_addInfo);
             if (found == 0)
@@ -328,36 +330,43 @@ void CBattle_Field::_MakeNotiPacketDieMonster(
             else
             {
                 CEquipItem* equip = static_cast<CEquipItem*>(found);
-                const unsigned char slot =
-                    (unsigned char)mi.m_item.m_fieldb;  // &mi+0x10(m_item)+0x0b
-                const int period = equip->getAvatarPeriod(slot);
-                packet.put_int(period * 0x15180);
+                // [b28d-20] ORIG 0x0830ba05 movzwl+movzbl（uchar 实参）/ 0x0830ba40
+                // movzwl+movzwl（ushort→int 实参）：字段每处重读，无 slot/period 具名局部；
+                // getAvatarPeriod 的 this 取自 -0x10（find_item 结果槽），getAvatarSocket 取 -0xc。
+                packet.put_int(static_cast<CEquipItem*>(found)->getAvatarPeriod(
+                    (unsigned char)mi.m_item.m_fieldb) * 0x15180u);
                 emblem.init();
-                equip->getAvatarSocket(slot, emblem);
+                equip->getAvatarSocket(
+                    (unsigned short)mi.m_item.m_fieldb, emblem);
             }
+        }
+        else
+        {
+            packet.put_int(mi.m_item.get_add_info());
         }
         packet.put_short(
             static_cast<unsigned int>(mi.m_item.m_fieldb));
         packet.put_byte(mi.m_item.m_amp.getAbilityType());
         packet.put_short(mi.m_item.m_amp.getAbilityValue());
         packet.put_packet(mi.m_item);
-        if (!mi.m_item.isAvatarItemType())
-        {
-            packet.put_byte(0);
-        }
-        else
+        if (mi.m_item.isAvatarItemType())
         {
             packet.put_byte(1);
             packet.put_int(0x1e);
-            packet.put_binary(reinterpret_cast<char*>(emblemBuf), 0x1e);
+            packet.put_binary(reinterpret_cast<char*>(&emblem), 0x1e);
+        }
+        else
+        {
+            packet.put_byte(0);
         }
         packet.put_short(static_cast<unsigned int>(mapIndex));
     }
 
     packet.put_byte(0);
-    const char roleCvt = convertAPCRoleType2MonsterRoleType(
-        static_cast<char>(mobSrc.m_roleType));
-    if (roleCvt != 0)
+    // [b28d-20] ORIG 0x0830bbdc test%al/setne%al/test%al/je：条件直判 callee 返回值，
+    // 无 roleCvt 具名槽（具名 char 局部会产 mov %al,-N; cmpb $0,-N 两段）。
+    if (convertAPCRoleType2MonsterRoleType(
+            static_cast<char>(mobSrc.m_roleType)) != 0)
         packet.put_byte(m_apcKillCount);
     else
         packet.put_byte(-1);

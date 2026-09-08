@@ -32,6 +32,7 @@ namespace EventClassify
 // process_action_send_mail（ORIG 0x0810cf32）
 // 返回：3=user 为空；0x11=物品表未命中；0=成功（MakeItemPacket 失败亦回 0）。
 // ============================================================================
+// [b28d-L14 N82附] ORIG 0x0810cf32；p167 CLEAR（41/41）；残差=槽深/寄存器分配。
 int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail,
                                               bool flag)
 {
@@ -192,6 +193,8 @@ int CEventActionMng::process_coin_send(CUser* user, Action_SendMail& mail,
 // genIPGNo(type7) 取 IPG 号 → AddAvatarItem(idx, usablePeriod,0,0,-1,ipg,2,0,0)
 // 成功后按槽内物品与当前时间回填剩余日期到 item +0x07 并清 upgrade 位。
 // ============================================================================
+// [b28d-L14 N82附] ORIG 0x0810d0ac；残差=callee-saved 独占形（ORIG push edi/esi +
+// `mov %eax,%esi`）vs 4.4 槽化(-0x18)（P52/P37 边界）。
 int CEventActionMng::process_avatar_send(CUser* user, Inven_Item& item,
                                          CItem const* citem)
 {
@@ -314,11 +317,16 @@ int CEventActionMng::getResultItemFromLottery(unsigned int lotteryId,
     case 6:
     {
         Inven_Item item;
-        G_CDataManager()->getItemList()->get_lotto_item(
+        // [b28d-L14 实证] ORIG 0x0810dc5a 直取 m_itemList 成员（无 getItemList
+        // call，P167 差集）；make_pair 实例为 <unsigned long&,int&>（m_addInfo
+        // 以 unsigned long 左值视图入参，P61/P211）。
+        G_CDataManager()->m_itemList->get_lotto_item(
             citem->get_index(), reinterpret_cast<char*>(&item));
         if (item.m_addInfo == 0 || item.m_addInfo == -1)
             return 0x11;
-        out.push_back(std::make_pair(item.m_addInfo, item.m_addInfo2));
+        out.push_back(std::make_pair(
+            reinterpret_cast<unsigned long&>(item.m_addInfo),
+            item.m_addInfo2));
         break;
     }
     case 16:
@@ -331,9 +339,11 @@ int CEventActionMng::getResultItemFromLottery(unsigned int lotteryId,
         {
             if (it->m_itemIdx == 0)
                 return 0x11;
+            // ORIG make_pair<unsigned int const&, unsigned short const&>
+            // （m_itemIdx 字段以 unsigned int 左值视图入参，P61/P211）
             out.push_back(std::make_pair(
-                (int)(unsigned int)it->m_itemIdx,
-                (int)(unsigned short)it->m_addInfo));
+                reinterpret_cast<unsigned int const&>(it->m_itemIdx),
+                it->m_addInfo));
         }
         break;
     }

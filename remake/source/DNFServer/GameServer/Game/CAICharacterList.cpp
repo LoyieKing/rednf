@@ -28,7 +28,9 @@ CAICharacter* CAICharacterList::getByAP(unsigned int ap)
     if (m_groupMap.empty())
         return 0;
 
-    APGroupMap::iterator it = m_groupMap.lower_bound((int)ap);
+    // [b28d-L14 实证] ORIG 0x0834a38e 全用 _Rb_tree_const_iterator（含 4 次
+    // 转换构造 + const 版 operator--/at，P96/P270 反向：此处须 const_iterator）。
+    APGroupMap::const_iterator it = m_groupMap.lower_bound((int)ap);
     if (it == m_groupMap.end())
         --it;
 
@@ -171,9 +173,11 @@ bool CAICharacterList::init()
 
     bool result = true;
     STAICharacterCommonScript script;
-    for (std::map<int, std::string>::const_iterator it =
-             g_aiCharacterScriptFileList.m_fileMap.begin();
-         it != g_aiCharacterScriptFileList.m_fileMap.end(); ++it)
+    // [b28d-L14 实证] ORIG 0x0834a28c：非 const _Rb_tree_iterator + 默认构造
+    // （C1Ev）+ 后置 it++（ppEi）——P50 复活 / P28 增量侧判据。
+    std::map<int, std::string>::iterator it;
+    it = g_aiCharacterScriptFileList.m_fileMap.begin();
+    while (it != g_aiCharacterScriptFileList.m_fileMap.end())
     {
         const char* fileName = it->second.c_str();
         if (fileName == 0)
@@ -218,6 +222,7 @@ bool CAICharacterList::init()
         aiChar->set(
             g_aiCharacterScriptFileList.FindIndexByFullScan(fileName), script);
         _add(aiChar);
+        it++;
     }
     return result;
 }
@@ -247,7 +252,9 @@ bool CAICharacterList::_add(CAICharacter* aiChar)
         m_byLevelList[lv].push_back(aiChar);   // this+lv*12+0x18 盲写
     }
 
-    const int ap = aiChar->getAppearancePoint();
+    // [b28d-L14 实证] ap 去 const：ORIG make_pair 实例为 <int&,vector&>（左值性
+    // 入 mangled，P61/P81）；apStatMap 处用 (int)ap 右值复现 make_pair<int,int>。
+    int ap = aiChar->getAppearancePoint();
     if (ap != 0)
     {
         std::map<int, std::vector<CAICharacter*> >::iterator group =
@@ -267,7 +274,7 @@ bool CAICharacterList::_add(CAICharacter* aiChar)
             m_maxAP = ap;                  // ORIG：无符号比较取 min
 
         std::pair<std::map<int, int>::iterator, bool> stat =
-            m_apStatMap.insert(std::make_pair(1, ap));   // ORIG 键恒为 1
+            m_apStatMap.insert(std::make_pair(1, (int)ap));   // ORIG 键恒为 1
         if (!stat.second)
             stat.first->second = stat.first->second + 1;
     }

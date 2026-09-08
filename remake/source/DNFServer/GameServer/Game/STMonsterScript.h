@@ -373,6 +373,8 @@ struct MonsterBaseParameter
 
     // ORIG clear W 0x08a3ce4a：v[0..12] 直写 + 双写循环 v[13+i]/v[17+i]
     // + v[21..23] 直写（分段与解析列组一致，实证 08a3ce4a）
+    // [b28d-23 N·P30] ORIG 0x0834852e：`add $0xc,%edx; movl $0,0x4(%eax,%edx,4)`
+    // vs 4.4 `lea 0xd(%eax),%edx; movl $0,(%eax,%edx,4)`（add-vs-lea + disp 折叠）⇒ N。
     void clear()
     {
         m_value[0] = 0;   m_value[1] = 0;   m_value[2] = 0;   m_value[3] = 0;

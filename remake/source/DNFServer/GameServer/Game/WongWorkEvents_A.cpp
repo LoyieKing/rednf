@@ -337,6 +337,11 @@ int EventEverland::CheckAlreadyGetEverlandItem(unsigned int id, int itemNo)
         return 0;
 
     int check = 0;
+    // [b28d-D13] N 封顶（P168a③b bool ABI + P196 setcc 物化）：ORIG 0x083fac5a
+    // `xor $1,%eax; test %al,%al; jne` + 尾 `mov $1;jmp;mov $0;test %al;je;
+    // mov $0;jmp;mov $1` 双重归一化岛；4.4 恒折 `!boolcall()` 为直 test/je 且
+    // 省尾岛（本函数 55 insn）。四形（!call()/==false/正极性三元/独立 if）
+    // 实测同产物 ⇒ 保持原三元形。
     return (!db->get_int(0, check) || check == 0) ? 0 : 1;
 }
 
@@ -417,6 +422,10 @@ int EventFCCombo::CheckAlreadyFCComboEventItem(unsigned int id, int itemNo)
         return 0;
 
     int check = 0;
+    // [b28d-D13] N 封顶（P168a③b bool ABI）：ORIG 0x083fb8e2 `xor $1,%eax;
+    // test %al,%al; jne` + 尾 `mov $1;jmp;mov $0;test %al;je;mov $0;jmp;
+    // mov $1` 双重归一化岛；4.4 恒折 `!boolcall()` 为直 test/je 且省尾岛
+    // （本函数 41 insn）。四形（!call()/==false/正极性三元/独立 if）实测同产物。
     return (!db->get_int(0, check) || check == 0) ? 0 : 1;
 }
 

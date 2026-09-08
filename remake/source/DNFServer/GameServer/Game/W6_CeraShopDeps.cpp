@@ -201,7 +201,8 @@ void CCeraShop::_ProcessIPGError(CUser* user, IPG::SIPGData* reqData,
 void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
                                  unsigned int buyIdx, int cost)
 {
-    char msgBuf[256];
+    // [b28d-L14 实证] ORIG 0x0832619c：rep stos 零初始化 + 内联 sprintf 实参（P214③/P52）。
+    char msgBuf[256] = {0};
 
     Inven_Item item;
     item.m_addInfo = 1;                               // movl $1 → idx=1
@@ -210,11 +211,9 @@ void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
     item.m_fieldb = 2;                                // endurance=2
     item.ResetItemAttr();
 
-    std::memset(msgBuf, 0, 256);
-    const char* giftName = user->getCurCharacName();
-    const char* giftFmt =
-        g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0);
-    sprintf(msgBuf, giftFmt, giftName);
+    sprintf(msgBuf,
+            g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0),
+            user->getCurCharacName());
 
     user->m_historyLog.SendMailForCeraShopGift(
         static_cast<unsigned int>(cost), '\x01', 1u,
@@ -234,7 +233,8 @@ void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
 void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
                                  unsigned int buyIdx, int cost, int count)
 {
-    char msgBuf[256];
+    // [b28d-L14 实证] ORIG 0x08326332 同 rep stos + 内联实参形（P214③/P52）。
+    char msgBuf[256] = {0};
 
     Inven_Item item;
     item.m_addInfo = count;                           // movl param_5 → idx=count
@@ -243,11 +243,9 @@ void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
     item.m_fieldb = 2;
     item.ResetItemAttr();
 
-    std::memset(msgBuf, 0, 256);
-    const char* giftName = user->getCurCharacName();
-    const char* giftFmt =
-        g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0);
-    sprintf(msgBuf, giftFmt, giftName);
+    sprintf(msgBuf,
+            g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0),
+            user->getCurCharacName());
 
     char kindFlag = '\0';
     if (count == 0xec)
@@ -279,13 +277,12 @@ void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
 void CCeraShop::_processItemGift(CUser* user, Inven_Item item,
                                  unsigned int buyIdx, int giftKind)
 {
-    char msgBuf[256];
-
-    std::memset(msgBuf, 0, 256);
-    const char* giftName = user->getCurCharacName();
-    const char* giftFmt =
-        g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0);
-    sprintf(msgBuf, giftFmt, giftName);
+    // [b28d-L14 实证] ORIG 0x083260c2：rep stos 零初始化 + getCurCharacName 作
+    // sprintf 第三实参内联，结果经 %ebx 跨 findString call 保活（P52/P214③）。
+    char msgBuf[256] = {0};
+    sprintf(msgBuf,
+            g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0),
+            user->getCurCharacName());
 
     user->m_historyLog.SendMailForCeraShopGift(
         static_cast<unsigned int>(giftKind), '\0',
@@ -308,19 +305,18 @@ void CCeraShop::_processAvatarGift(CUser* user, int slot, int periodDays, char c
                                    char c2, char const* agencyName,
                                    unsigned int buyIdx, int cost)
 {
-    char msgBuf[256];
-
     int deadline = 0;
     if (periodDays != 0 && periodDays != 0x16d)
     {
         deadline = GlobalData::s_systemTime_.getCurSec() + periodDays * 0x15180;
     }
 
-    std::memset(msgBuf, 0, 256);
-    const char* giftName = user->getCurCharacName();
-    const char* giftFmt =
-        g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0);
-    sprintf(msgBuf, giftFmt, giftName);
+    // [b28d-L14 实证] ORIG 0x08326036：msgBuf 声明在 deadline 计算之后
+    // （rep stos 0x40 dwords），getCurCharacName 内联进 sprintf 实参（P52）。
+    char msgBuf[256] = {0};
+    sprintf(msgBuf,
+            g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0),
+            user->getCurCharacName());
 
     user->m_historyLog.SendMailForCeraShopGift(
         static_cast<unsigned int>(cost), '\x02', static_cast<unsigned int>(slot), 1u);
@@ -343,13 +339,11 @@ void CCeraShop::_processCreatureGift(CUser* user, Inven_Item item, unsigned int 
     (void)a5;   // ORIG 栈参存在但本函数未消费（对照报告完整指令清单）
     (void)a6;
 
-    char msgBuf[256];
-
-    std::memset(msgBuf, 0, 256);
-    const char* giftName = user->getCurCharacName();
-    const char* giftFmt =
-        g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0);
-    sprintf(msgBuf, giftFmt, giftName);
+    // [b28d-L14 实证] ORIG 0x083265e8 同 rep stos 零初始化 + 内联实参形（P52）。
+    char msgBuf[256] = {0};
+    sprintf(msgBuf,
+            g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0),
+            user->getCurCharacName());
 
     user->m_historyLog.SendMailForCeraShopGift(
         static_cast<unsigned int>(a4), '\x03',
@@ -403,8 +397,9 @@ bool CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
     // ORIG 0x77：36-dword 清零区（-0x2a8..-0x218，后续无任何读点，-O0 死
     // 清零照抄，P171）；随后 -0x84/-0x80 两槽写 0（-0x80 即 avatarField
     // 预置，-0x84 死写）。
-    unsigned int deadPad[36];
-    std::memset(deadPad, 0, sizeof(deadPad));
+    // [b28d-L14 实证] ORIG 0x0832047a 该区为 rep stos（36 dwords）⇒ 显式零初始化
+    // 数组（P214③）；旧 memset 生成 call 形（P167 EXTRA memset ×3 之一）。
+    unsigned int deadPad[36] = {0};
     (void)deadPad;
     int dead88 = 0;
     (void)dead88;
@@ -599,10 +594,9 @@ bool CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 
         // ORIG 清零顺序：priceStr(0x24) rep stos + serialBuf(0x15) 内联慢路；
         // countStr/itemName 不清零（N78：4.4 生成 memset call）。
-        char priceStr[0x24];
-        std::memset(priceStr, 0, 0x24);
-        char serialBuf[0x15];
-        std::memset(serialBuf, 0, 0x15);
+        // [b28d-L14 实证] 两 memset 均改显式零初始化数组（P214③，消 EXTRA memset）。
+        char priceStr[0x24] = {0};
+        char serialBuf[0x15] = {0};
         char countStr[8];
         char itemName[0x64];
 

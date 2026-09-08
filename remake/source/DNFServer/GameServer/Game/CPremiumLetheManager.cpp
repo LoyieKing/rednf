@@ -205,6 +205,10 @@ FAIL_TRACE:
     }
 }
 
+// [b28d-lane15 判词·N（N82 帧槽复用 + P5 虚槽族）] ORIG 0x085c421e（TSV ndiff=330，
+// orig 327/new 346）。首段 `mov user; mov (%eax),%eax; add $0x34,%eax; mov (%eax),%edx;
+// call *%edx` = P5 虚槽直调 getCurCharacSkillW；残差主体为大函数帧/槽复用策略差
+// （N82）与 P210 帧继承。本 TU 级 diff 已仅剩本件 + __static_init。语义完成，封顶。
 void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
                                      ENUM_SKILL_TREE_KIND kind)
 {

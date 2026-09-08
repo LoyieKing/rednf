@@ -76,6 +76,7 @@ bool DB_LoadQuest::dispatch(int userIdx, int slot, Stream* stream)
 // +0x75e0 notify(0x28)。任一步失败 throw int（DBThread.cpp 行号），
 // catch 后 logFormat 0x2a81 并返 0；成功返 1。
 // ============================================================================
+// [b28d-L8] N78/N82 | memset rep stos lowering（N78）+ 槽平移（ORIG 0x08xxxxxx）
 bool DB_LoadQuest::GetUserQuest(SIG_LOAD_QUEST* sig)
 {
     char buf[0x8cac];

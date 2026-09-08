@@ -148,6 +148,7 @@ int DNFLexWrapper::getToken()
 }
 
 __attribute__((optimize("O2,no-if-conversion,no-omit-frame-pointer")))
+// [b28d-L1] N 封顶（-O2 路由）：ORIG 0x08ace2f0；4.1 内联 strlen/字符分类 vs 4.4-O2 call 形态差（N98）。P167 CLEAR（0/0）语义等价。
 int DNFLexWrapper::getDecimal()
 {
     char* p;
@@ -238,6 +239,7 @@ float DNFLexWrapper::getFloat()
 // getPairInt（ORIG 0x8ace630）：NORMAL 对 yytext+1 拷贝 0x100 字节并保证终止后
 // strtol base 10（跳过成对 token 前导字符，如 "=123"）；COMPILED 返回
 // lastIntValue_；其它 lexType 返回 0。
+// [b28d-L1] N 封顶（-O2 路由）：ORIG 0x08ace630；4.1 内联 strlen 为 word-at-a-time（N98）而 4.4-O2 恒发 call，另含 callee-saved 装载序差。P167 CLEAR（2/2）语义等价。
 int DNFLexWrapper::getPairInt()
 {
     // [b28c-11] N 封顶（54/56）：残余 = ORIG 4.1 把 `strlen(buffer)` 内联为
@@ -258,6 +260,7 @@ int DNFLexWrapper::getPairInt()
     return (int)__strtol_internal(buffer, 0, 10, 0);
 }
 
+// [b28d-L1] N 封顶（-O2 路由）：ORIG 0x08ace5a0；同 getPairInt 的 4.1 内联 strlen vs 4.4 call（N98）+ 装载序差。P167 CLEAR（1/1）语义等价。
 char* DNFLexWrapper::getPairStr()
 {
     // [b28c-11] N 封顶（41/41）：同 getPairInt 的 4.1 内联 strlen vs 4.4 call
@@ -352,6 +355,7 @@ DNFLexWrapper::~DNFLexWrapper()
 // token 码：2=dec、3=hex、4=float、5/6=type、7=string、9=pair(int,str)。
 // ============================================================================
 
+// [b28d-L1] N89 封顶（-O2 路由）：ORIG 0x088bdea9；P167 GAP 全为 -O2 内联/优化决策差（ORIG 发 toTString/getType/string::operator= call，4.4 内联 toTString 并选 string::assign）。ORIG 每次重取 g_dnfLex 地址 vs 4.4 callee-saved 缓存同属 -O2 分配差。语义等价。
 int ScanAll(int* intOut, float* floatOut, std::string* strOut)
 {
     int token = g_dnfLex.getToken();
@@ -394,6 +398,7 @@ int ScanAll(int* intOut, float* floatOut, std::string* strOut)
     return token;
 }
 
+// [b28d-L1] N82 封顶（-O2 路由）：ORIG 0x088bde5a；P167 CLEAR（1/1）⇒ 语义完成；残余为寄存器/装载形态差。
 int ScanAll(float* value, std::string* str)
 {
     int v = 0;

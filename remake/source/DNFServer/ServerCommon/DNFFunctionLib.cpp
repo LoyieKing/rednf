@@ -56,11 +56,17 @@ static __thread char gNumberToStringBuffer[8][0x40];
 // 符号、链接不合并，.tbss 变 0x210、缓冲区偏移错误地变成 GS-0x210。
 // 删除伪造定义后，仅保留 libstdc++ 提供的唯一副本，TLS 布局恢复 GS-0x208。
 
+// b28d-20 判词（ORIG 0x0810904b，22 insn）：IDENTICAL_AE（AE 归一后逐条相等，
+// compare_tu clean 口径）。唯一残差为 TLS LE 偏移：ORIG `lea -0x3c550(%eax)` vs
+// 我方 `.o` 未解析 `lea 0x0(%eax)`（链接后 -0x208），属跨 TU TLS 组合并布局
+// （P280 族，链接期产物，非本函数源码可控），无源码改动。
 char* NumberToString(unsigned int value, int index) {
     sprintf(gNumberToStringBuffer[index], "%u", value);
     return gNumberToStringBuffer[index];
 }
 
+// b28d-20 判词（ORIG 0x08109098，29 insn）：IDENTICAL_AE，同 ji 版；
+// 残差仅 TLS LE 偏移 -0x3c550 vs 我方 -0x208（P280 族），无源码改动。
 char* NumberToString(unsigned long long value, int index) {
     sprintf(gNumberToStringBuffer[index], "%qu", value);
     return gNumberToStringBuffer[index];

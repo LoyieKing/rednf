@@ -14,6 +14,7 @@
 // loadRDARScriptFile("", "Etc/QuestMovieList.etc")；"[movie play]" 块内按
 // [quest index]/[play info]/[/play info]/[condition]/[file path]/[title] 填充，
 // "[/play info]" 时 insert；[condition] 子串映射事件枚举；成功返 0。
+// [b28d-19] N：N82/N93 —— 帧 sub $0x60 vs $0x70 + 局部槽序；ORIG 0x089174f5。
 int importQuestMovieList(
     std::map<std::pair<int, ENUM_QUEST_MOVIE_EVENT>, QuestMovieInfo>& out)
 {

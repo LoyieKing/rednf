@@ -144,14 +144,18 @@ RDARScriptStringManager::RDARScriptStringManager()
     // 成员初始化列表默认构造（map/vector/wstring 空构造），体为空即达 ORIG 语义。
 }
 
+// b28d-21: IDENTICAL（91=91）— 迭代器直构（P50 反例复活）+ end 循环外缓存（P13）
+// + 后置 `it++`（P28 增量侧 ppEi 判据）+ `delete *it` 无具名 d/无显式判空。
+// ORIG D1 0x8aa4f04。
 RDARScriptStringManager::~RDARScriptStringManager()
 {
-    // ORIG D1 0x8aa4f04：逐元素 delete StringDictionary*，随后成员析构。
-    for (size_t i = 0; i < dictionaries_.size(); ++i)
+    // ORIG D1 0x8aa4f04：begin/end 迭代器循环逐元素 delete（与 release 同形），
+    // 随后成员析构。end 循环外求值一次（P13），迭代器先声明后赋值（P50）。
+    std::vector<StringDictionary*>::iterator it = dictionaries_.begin();
+    std::vector<StringDictionary*>::iterator e = dictionaries_.end();
+    for (; it != e; it++)   // ORIG 增量段 ppEi（后置，P28 推论）
     {
-        StringDictionary* d = dictionaries_[i];
-        if (d != 0)
-            delete d;
+        delete *it;         // ORIG 无具名 d/无显式判空（delete 自带守卫）
     }
 }
 
@@ -159,6 +163,9 @@ const char* RDARScriptStringManager::findString(int table, const char* key,
                                                 bool* flag) const
 {
     // ORIG 0x8aa57fe
+    // b28d-21: DIFF/N 封顶 — ORIG 0x8aa57fe 中一处实参为 `movl $<A>,(%esp)` 直压
+    // 立即数（rodata/全局），重建为 `mov this; add $0x18` 取成员地址（对象/调用
+    // 形态差）+ best 指针槽位差 4（N82）。语义/调用序全等。
     if (key == 0)
     {
         return "RDARScriptStringManager::ERROR::input NULL string";
@@ -196,6 +203,9 @@ const char* RDARScriptStringManager::findString(int table, const wchar_t* key,
                                                 bool* flag) const
 {
     // ORIG 0x8aa594c
+    // b28d-21: DIFF/N 封顶 — ORIG 0x8aa594c 共 49 条 vs 重建 94 条：ORIG 走
+    // 窄串直接路径，重建多出临时 std::string 构造/析构与转换（N86/N89 模板族）。
+    // 语义等价（同 key 查表），byte 层 N。
     if (key == 0)
     {
         return "RDARScriptStringManager::ERROR::input NULL string";
@@ -214,14 +224,20 @@ const char* RDARScriptStringManager::findString(int table, const wchar_t* key,
     return errStr;
 }
 
+// b28d-21: 已修 P157/P183（operator[] 引用局部 `StringDictionary* const& d` +
+// 去 getCount 具名局部，56→24）；余 ORIG setb/sete/setg 物化 vs 4.4
+// jae/mov$1 直跳（P197④ setcc-fold）+ 槽号（N82）。ORIG 0x8aa5cba。
 int RDARScriptStringManager::getKeyIndex(int table, const wchar_t* key) const
 {
     // ORIG 0x8aa5cba：key==0 或 table 越界 → -1
     if (key != 0 && static_cast<unsigned>(table) < dictionaries_.size())
     {
-        StringDictionary* d = dictionaries_[table];
-        int n = d->getCount();
-        for (int i = 0; i < n; ++i)
+        // ORIG 0x8aa5cba：-0x18 槽存 operator[] 返回的**引用地址**，每次使用
+        // 再解引用（`mov -0x18(%ebp),%eax; mov (%eax),%eax`）⇒ 用引用局部
+        // 而非指针值缓存（P183/P157）；ORIG 无 getCount 具名局部（循环尾
+        // `cmp -0x14(%ebp),%eax; setg` 每轮重调）⇒ 条件内联。
+        StringDictionary* const& d = dictionaries_[table];
+        for (int i = 0; i < d->getCount(); ++i)
         {
             const char* v = d->getValue(i);
             if (v != 0)
@@ -238,6 +254,8 @@ int RDARScriptStringManager::getKeyIndex(int table, const wchar_t* key) const
     return -1;
 }
 
+// b28d-21: DIFF/N 封顶 — p167 EXTRA 7 项（重建多 std::wstring/allocator 模板
+// 实例，N86/N89）；残差 N82 帧/槽（217 vs 257）。ORIG 0x8aa59f0。
 void RDARScriptStringManager::getTagByName(std::vector<std::wstring>* a,
                                            std::vector<std::wstring>* b,
                                            int table, const wchar_t* name) const
@@ -273,6 +291,10 @@ void RDARScriptStringManager::getTagByName(std::vector<std::wstring>* a,
     }
 }
 
+// b28d-21: NEAR 封顶 — 承 b28c-36 判词：169=169 助记符序列全同，唯一残差为
+// 末尾 ss_sprintf 第 3 参 (const char*)a 的装载时刻（ORIG 先存 callee 返回值再载 a，
+// 4.4 先缓存 a 到 %edx 再双 store），P75 跨版本实参装载序；探针 5 形不可翻。
+// ORIG 0x8aa5e40。
 const wchar_t* RDARScriptStringManager::getTagByName(int table, const wchar_t* a,
                                                      const wchar_t* b, bool flag) const
 {
@@ -360,6 +382,10 @@ void RDARScriptStringManager::setTableValue(int table, int key, const char* valu
     }
 }
 
+// b28d-21: DIFF/N 封顶 — p167 差集：ORIG auto_ptr::operator->×2 / getKey×2 /
+// auto_ptr::reset / `_ZL15parseStringLine`（文件级 static，P204③ 须用 static 而非
+// 匿名 namespace）/ `Ss::operator=(const char*)`；重建多 `Ss::operator+=`/memset/
+// _Unwind_Resume（N86/N89/EH 族）。残差 N82 帧/槽（387 vs 373）。ORIG 0x8aa529e。
 bool RDARScriptStringManager::loadStringFile(std::istream* in, const char* path,
                                              int /*table*/,
                                              std::vector<ErrorLog>* err)
@@ -477,6 +503,8 @@ bool RDARScriptStringManager::loadStringFile(std::istream* in, const char* path,
     return false;
 }
 
+// b28d-21: DIFF/N 封顶 — 残差 N82 帧/槽（137 vs 143）+ N89 模板内联；
+// 语义/调用序（fopen/fprintf/fclose）全等。ORIG 0x8aa50bc。
 void RDARScriptStringManager::writeStringFile(int table)
 {
     // ORIG 0x8aa50bc：写 "Script/<文件名>"，逐条 "key>value\n"，value 内 '\n' 转义
@@ -555,6 +583,9 @@ void* RDARScriptStringManager::getStringFileList()
     return this;
 }
 
+// b28d-21: DIFF/N 封顶 — p167 MISSING 6 项均为 std::string D1/C1ERKSs（ORIG 多
+// 4 次析构 + 2 次拷贝构造的临时串，N86/N89 族）；残差 N82 帧/槽（274 vs 209）。
+// ORIG 0x8aa60b0。
 bool RDARScriptStringManager::changeSpacilTagStr(std::string& s)
 {
     // ORIG 0x8aa60b0：把 "<URL LINK>内文</URL LINK>" 转为 0x1c 内文 0x1d，
@@ -599,14 +630,16 @@ bool RDARScriptStringManager::changeSpacilTagStr(std::string& s)
     return true;
 }
 
+// b28d-21: IDENTICAL（50=50）— 同 D1：迭代器直构 + end 缓存 + `it++` + `delete *it`。
+// ORIG 0x8aa5014。
 void RDARScriptStringManager::release()
 {
-    // ORIG 0x8aa5014：逐元素 delete StringDictionary*，随后 clear vector。
-    for (size_t i = 0; i < dictionaries_.size(); ++i)
+    // ORIG 0x8aa5014：begin/end 迭代器循环逐元素 delete，随后 clear vector。
+    std::vector<StringDictionary*>::iterator it = dictionaries_.begin();
+    std::vector<StringDictionary*>::iterator e = dictionaries_.end();
+    for (; it != e; it++)
     {
-        StringDictionary* d = dictionaries_[i];
-        if (d != 0)
-            delete d;
+        delete *it;
     }
     dictionaries_.clear();
 }

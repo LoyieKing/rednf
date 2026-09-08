@@ -95,6 +95,7 @@ bool CQuickParty::delete_party_index(int partyIdx)
 }
 
 // get_quick_party_count @0x082698be：累加各登记 party 的当前成员数。
+// [b28d-L1] IDENTICAL/AE（routed 口径 check_tu_routed）：ORIG 0x082698be 逐条对齐（40/40，P167 CLEAR）。
 int CQuickParty::get_quick_party_count()
 {
     int total = 0;
@@ -146,6 +147,7 @@ CQuickPartySystemManager::~CQuickPartySystemManager() {}
 // 该 dungeon 已登记于快速派对奖励副本表 → 直接返回；
 // 非绝望之塔副本时，按 4 个难度档位向池 map 插入空数据
 // （血/任务 NPC 副本仅插入档位 0）。
+// [b28d-L1] 修法（P167/P96）：ORIG 0x08269c0c 只调 `__gnu_cxx::ne<const int*>`（两侧 const_iterator）；非 const 引用使 4.4 多发 begin/end+转换构造+混合 ne(PKi,Pi)（EXTRA×4/MISSING×1）。改 const 引用后迭代器差集清零；残余帧差 0x90 vs 0xa0（N82/P232）。
 void CQuickPartySystemManager::init_quick_party_pool(const CDungeon* dungeon)
 {
     if (dungeon == 0)
@@ -181,10 +183,14 @@ void CQuickPartySystemManager::init_quick_party_pool(const CDungeon* dungeon)
 
 // cancel_quick_party @0x0826a386：把 party 从其所属 CQuickParty 中注销，
 // 剩余成员>1 且非解散(flag=true)时重新入池；EPLP 等待态且 flag 时重掷等待 timer。
+// [b28d-L1] 修法（P167）：ORIG 0x0826a386 三处 get_quick_party_index（无 qpIndex 具名局部）——①短路条件 ②日志三元 ③GetQuickParty(内联实参)。原 qpIndex 缓存使 P167 报 MISSING×1；改为表达式直读后差集归零。残余为帧/槽形态差（N82）。
 bool CQuickPartySystemManager::cancel_quick_party(CParty* party, bool flag, CUser* user)
 {
-    int qpIndex = party ? party->get_quick_party_index() : -1;
-    if (party == 0 || qpIndex == -1) {
+    // [b28d-L1] 修法（P167）：ORIG 37 calls 三处 get_quick_party_index（无
+    // qpIndex 具名局部）：①短路条件 `party==0 || party->get_quick_party_index()==-1`
+    // ②日志三元 ③`GetQuickParty(party->get_quick_party_index())` 内联实参。
+    // 原形用 qpIndex 缓存使 4.4 少一次调用（P167 报 MISSING×1）+ 多一槽。
+    if (party == 0 || party->get_quick_party_index() == -1) {
         if (party == 0 && user != 0) {
             LogManager::logFormat(1, "QuickParty.cpp", __PRETTY_FUNCTION__, 0x1e3,
                                   "QUICK_PARTY_LOG : PARTY IS NULL!! (%d)",
@@ -197,7 +203,8 @@ bool CQuickPartySystemManager::cancel_quick_party(CParty* party, bool flag, CUse
         return 0;
     }
 
-    CQuickParty* qp = G_CGameManager()->GetQuickParty(qpIndex);
+    CQuickParty* qp =
+        G_CGameManager()->GetQuickParty(party->get_quick_party_index());
     if (qp == 0) {
         LogManager::logFormat(1, "QuickParty.cpp", __PRETTY_FUNCTION__, 0x1ec,
                               "QUICK_PARTY_LOG : NO EXIST QUICK PARTY!!");
@@ -322,6 +329,7 @@ int CQuickParty::gen_timer_key(TIMER_MESSAGE msg)
 // get_matching_quick_party_master_unique_id @0x08269936：
 // 首选 EPLP 状态 >1 的成员 party；否则任一 quick party；否则首个存在的 party；
 // 返回其 manager 的 unique_id（无则 0xffff）。
+// [b28d-L1] N82 封顶：ORIG 0x08269936；P167 CLEAR（13/13）⇒ 语义完成，残余为帧/槽位形态差（ORIG sub 0x48 vs 4.4 push ebx+sub 0x34）。
 unsigned short CQuickParty::get_matching_quick_party_master_unique_id()
 {
     int slot = -1;
@@ -388,6 +396,7 @@ void CQuickParty::send_matching_update_quick_party(char poolIdx,
 
 // insert_timer_waiting_party_matching @0x0826acea：
 // InsertTimer(objType=1, qpIndex, msg=0x9e, sec=0x14, key, 0x9e)。
+// [b28d-L1] N82附 封顶：ORIG 0x0826acea 首值 gen_timer_key→%ebx、get_quick_party_index→%esi；4.4 恒 esi/ebx 对调（裸内联实参/P226 语句表达式两形实测均不可翻），P167 CLEAR（4/4）语义等价。
 void CQuickPartySystemManager::insert_timer_waiting_party_matching(
     CQuickParty* qp)
 {
@@ -404,6 +413,7 @@ void CQuickPartySystemManager::insert_timer_waiting_party_matching(
 // 报告：docs/class_func_reports/QuickParty__CQuickPartySystemManager/remove_quick_party_in_pool.md
 // pool index ∈ [0,3)；map 未命中 → destroy + trace 并返回 false；
 // 命中 → 从对应档位 list 移除 quick party index 并返回 true。
+// [b28d-L1] N93/N98 封顶：ORIG 0x0826aa9a 槽序 it=-0x28/end 临时=-0x24/qpIndex=-0x20；块内声明使 4.4 把 qpIndex 排最深。P212 全头部声明已把 it 翻正 -0x28（ndiff 52→46），残余 end 临时槽与 qpIndex 互换——声明序/具名 e 两形实测（r19c/r19d）只交换槽位，4.4 按首次使用序分配不可翻。
 bool CQuickPartySystemManager::remove_quick_party_in_pool(
     CQuickParty* qp, const STQuickPartyPoolMap_Key& key)
 {
@@ -446,6 +456,7 @@ bool CQuickPartySystemManager::remove_quick_party_in_pool(
 // （EOi）——源码以 static_cast<int&&>(qpIndex) 生成 xvalue 精确命中该重载（原 const& 形选错）。
 // 残余 gap+2 = gcc 4.4 对 xvalue 实参多一次 `mov %eax,-N(%ebp); mov -N(%ebp),%eax` 存回读
 // 往返 + 帧槽 -0x2c→-0x30 位移（N82），跨版本求值/帧结构不可源码复现，语义等价。
+// [b28d-L1] N82/N-XVAL 封顶：ORIG 0x0826afb4；P167 CLEAR（25/25）。残余 = xvalue 实参存回读往返 + 帧槽 -0x2c→-0x30 位移（b23 判词复核仍成立）。
 bool CQuickPartySystemManager::push_quick_party_in_pool(
     const STQuickPartyPoolMap_Key& key, STQuickPartyPoolMap_Data& data,
     CParty* party, int count, CQuickParty* qp, bool flag)
@@ -521,6 +532,7 @@ int CQuickParty::get_timer_key(TIMER_MESSAGE msg)
 }
 
 // ---- check_timer_key @0x082696b0：槽值与给定 key 相等判断 ----
+// [b28d-L1] N7/N18b 封顶：ORIG 0x082696b0 为 `mov 0xc(%eax,%edx,4),%edx; mov 0x10(%ebp),%eax; cmp %eax,%edx`（两寄存器）；4.4 恒折 `mov …,%eax; cmp 0x10(%ebp),%eax`（内存直比，11 vs 12 条）。unsigned/signed、key 置左/置右、&0xff 掩码四形实测同折。
 bool CQuickParty::check_timer_key(TIMER_MESSAGE msg, int key)
 {
     // b28c-lane3：ORIG 0x082696c2 元素→%edx、0x082696c6 key→%eax、
@@ -561,6 +573,7 @@ L3: ;
 }
 
 // ---- get_party_object() @0x0826972c：返回首个登记且仍存在的成员 party ----
+// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x082696d0；P167 CLEAR（2/2）。
 CParty* CQuickParty::get_party_object()
 {
     for (int i = 0; i <= 3; ++i)
@@ -600,6 +613,7 @@ void CQuickParty::set_first_matching_cnt(char cnt)
 
 // ---- find_quick_party_in_pool @0x0826a9fe：
 // 从档位 list 逐个弹出 index 取 CQuickParty；取不到的记 trace 继续弹。----
+// [b28d-L1] IDENTICAL/AE（routed 口径）：ORIG 0x0826a9fe；P167 CLEAR（7/7）。
 CQuickParty* CQuickPartySystemManager::find_quick_party_in_pool(
     std::list<int>& pool)
 {
@@ -690,6 +704,7 @@ bool CQuickPartySystemManager::regist_quick_party(
 }
 
 // ---- check_match_proper_party @0x08269e34：匹配前置校验，返回 ENUM_ERROR ----
+// [b28d-L1] N82 封顶：ORIG 0x08269e34；P167 CLEAR（7/7 调用点差集归零）⇒ 语义完成，残余为 4.1/4.4 槽位与寄存器分配差（real diff 58 全为 disp/reg 形态）。
 int CQuickPartySystemManager::check_match_proper_party(
     const STQuickPartyPoolMap_Key& key, CParty* party)
 {
@@ -775,6 +790,7 @@ bool CQuickPartySystemManager::check_quick_party_min_count(
 }
 
 // ---- match_proper_party @0x08269f3c：为新 party 匹配同图快速队伍 ----
+// [b28d-L1] 修法（P167/P220/P197④）：ORIG 0x08269f3c 调 ne×1 + list::size×1（无 eq/empty）⇒ 改正极性 `if (it != end) { 主体 }` + `size()==0`。差集仅余 N89（4.1 不内联 operator-> 发 ptEv×4）。残余槽位差 N82。
 int CQuickPartySystemManager::match_proper_party(
     const STQuickPartyPoolMap_Key& key, CParty* party, CUser* user)
 {
@@ -885,6 +901,7 @@ int CQuickPartySystemManager::match_proper_party(
 }
 
 // ---- make_quick_party @0x0826b222：把池内 quick party 合并成一个真实 party ----
+// [b28d-L1] N82 封顶：ORIG 0x0826b222；P167 CLEAR（37/37）⇒ 语义完成，残余为槽位/帧形态差（real diff 264 全为 disp/reg）。
 CParty* CQuickPartySystemManager::make_quick_party(CQuickParty* qp)
 {
     std::list<CUser*> detached;
@@ -979,6 +996,7 @@ void CQuickPartySystemManager::insert_timer_waiting_start_game(CParty* party)
 }
 
 // ---- start_game @0x0826b58a：合并成团并广播、计时器等待后真正开局 ----
+// [b28d-L1] N 封顶（P223 尾岛）：ORIG 0x0826b58a 尾段 `setle;test;je <nop 岛>; …; jmp <出口>; nop`；4.4 对 if(c){body} 恒 jump-thread 掉尾 jmp+nop（81 vs 80）。b28c-lane3 已试 P223 goto 岛/P225 while+break，本轮复核不翻。
 void CQuickPartySystemManager::start_game(CQuickParty* qp)
 {
     if (qp == 0)

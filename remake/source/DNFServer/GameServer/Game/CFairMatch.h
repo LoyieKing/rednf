@@ -121,7 +121,9 @@ public:
     void UpdateScore(PvP_Room* room, PlayerInfoThird& info,
                      ENUM_SCHOOL_MATCH_TEAM team, int a, int b, int c);  // 0x8565700
     int  CheckRematch(PvP_Room* room);                       // 0x8565d04
-    int  CheckUnusableEquipment(const Inven_Item* item);      // 0x8562bdc
+    // ORIG 0x8562bdc 首参读 0x8(%ebp) 且全程无 this 参与 ⇒ static 成员
+    //（P245；mangled 不含 static，符号不变）。b28d-L8 实证。
+    static int  CheckUnusableEquipment(const Inven_Item* item);
     // ORIG 调用点 0x08562d14 仅压 user 无 this（P88）⇒ static。
     static bool CheckUnusableEquipmentInUser(CUser* user);    // 0x8562cfe（恒返 1；CheckJoinable/OnCreateRoom 以 ! 取反 xor $1 实证）
     void GiveTrainingSeal(CUser* user, bool bonus);           // 0x85652c8

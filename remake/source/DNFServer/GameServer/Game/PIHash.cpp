@@ -14,7 +14,9 @@
 #include <cstring>
 #include <cstdlib>
 
+// [b28d-L1] 修法：同 char* 版（ORIG W 0x0808c174），结构重写后残余为寄存器/槽位形态差（N7/N82）。P167 CLEAR（0/0）语义等价。
 int DoSuperFastHash(unsigned char* data, unsigned int len, unsigned int& hash);
+// [b28d-L1] 修法（结构重写）：按 ORIG 0x0808ca7a 还原「形参 len 作循环变量 + 单一 rem 累加 + 分步就地 op= + 逐字节 movzbl 组装 + 加法 lea」后 ndiff 147→70。残余 = callee-saved 寄存器分配（data[1] 落 %edx vs %eax）与 tmp 槽位（ORIG -0x4 vs -0x8），N7/N82 封顶。P167 CLEAR（0/0）语义等价。
 int DoSuperFastHash(char* data, unsigned int len, unsigned int& hash);
 
 // ---- MakeHash 前置（P210 callee 定义顺序定律：调用者定义须在 DoSuperFastHash
@@ -38,6 +40,7 @@ unsigned char MakeHash(unsigned char* data, unsigned int len, unsigned char seed
 // 物化），4.4 恒折 `xor -0x14(%ebp),%al`（8 位内存 xor）——6 形探针
 // （(int)seed / (unsigned int) 双侧 cast / 分组括号 / seed 置左 / 先折 0x53）全产同
 // 一 xorb ⇒ N18a 反向封顶；语义（值域 0..0xff 单字节折叠）完全一致。
+// [b28d-L1] N18b 封顶：ORIG 0x0808c9a0 末次 `movzbl -0x1c(%ebp),%eax; xor %edx,%eax`（seed 装载后 xor）；4.4 恒折 `xor -0x1c(%ebp),%al`（8 位内存 xor）。探针 m1..m9 六形全折内存 xor（m9 具名 uchar 局部可产装载形但引入 ORIG 无的槽）。P167 CLEAR（1/1）语义等价。
 unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
                                   unsigned char seed)
 {
@@ -51,6 +54,12 @@ unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
 }
 
 // ---- DoSuperFastHash ORIG @ 0x0808ca7a ----
+// [b28d-L1] 修法：ORIG 用**形参 len 本身**作循环变量（`shrl $0x2,0xc(%ebp)` 就地
+// 改形参槽）、累加只有 rem 一个局部（无独立 h/i），循环体与尾分支均为分步
+// `rem op= …` 就地写（`add %eax,-0xc(%ebp)` / `xor %eax,-0xc(%ebp)` 实证），
+// 且字节按 `movzbl (%eax); movzbl %al,%eax` 逐字节组装（P241 窄化形，非 movzwl）。
+// 原单表达式形使 4.4 多 3 个局部槽（-0x10/-0xc/-0x8/-0x4）、循环尾 setne 形、
+// 字节读 movzwl，ndiff 121（r48）。按 ORIG 分步形重写后逐条对齐。
 int DoSuperFastHash(char* data, unsigned int len, unsigned int& hash)
 {
     hash = 0;
@@ -58,88 +67,93 @@ int DoSuperFastHash(char* data, unsigned int len, unsigned int& hash)
     if (len == 0 || data == 0)
         return 0;
 
-    unsigned int h = len;
     unsigned int tmp = len & 3;
-    for (unsigned int i = len >> 2; i != 0; --i)
+    for (len >>= 2; len != 0; --len)
     {
-        h = (h + *reinterpret_cast<unsigned short*>(data)) * 0x10000 ^
-            (static_cast<unsigned int>(*reinterpret_cast<unsigned short*>(data + 2)) << 11) ^
-            (h + *reinterpret_cast<unsigned short*>(data));
+        rem += ((unsigned int)(unsigned char)data[1] << 8) +
+               (unsigned int)(unsigned char)data[0];
+        unsigned int t = ((unsigned int)(unsigned char)data[2] |
+                          ((unsigned int)(unsigned char)data[3] << 8)) << 11 ^ rem;
+        rem = (rem << 16) ^ t;
         data += 4;
-        h = h + (h >> 11);
+        rem += rem >> 11;
     }
     if (tmp == 2)
     {
-        h = h + *reinterpret_cast<unsigned short*>(data) ^
-            (h + *reinterpret_cast<unsigned short*>(data)) * 0x800;
-        h = h + (h >> 17);
+        rem += ((unsigned int)(unsigned char)data[1] << 8) +
+               (unsigned int)(unsigned char)data[0];
+        rem ^= rem << 11;
+        rem += rem >> 17;
     }
     else if (tmp == 3)
     {
-        h = h + *reinterpret_cast<unsigned short*>(data) ^
-            (h + *reinterpret_cast<unsigned short*>(data)) * 0x10000 ^
-            (static_cast<unsigned int>(static_cast<signed char>(data[2])) << 18);
-        h = h + (h >> 11);
+        rem += ((unsigned int)(unsigned char)data[1] << 8) +
+               (unsigned int)(unsigned char)data[0];
+        rem ^= rem << 16;
+        rem ^= (unsigned int)(int)(signed char)data[2] << 18;
+        rem += rem >> 11;
     }
     else if (tmp == 1)
     {
-        // ORIG movsx（signed char）——与 rem==3 的 data[2] 一致。
-        h = h + static_cast<int>(static_cast<signed char>(*data)) ^
-            (h + static_cast<int>(static_cast<signed char>(*data))) * 0x400;
-        h = h + (h >> 1);
+        // ORIG movsx（signed char）——与 tmp==3 的 data[2] 一致。
+        rem += (unsigned int)(int)(signed char)data[0];
+        rem ^= rem << 10;
+        rem += rem >> 1;
     }
-    h = h ^ (h << 3);
-    h = h + (h >> 5);
-    h = h ^ (h * 0x10);
-    h = h + (h >> 17);
-    h = h ^ (h * 0x2000000);
-    hash = h + (h >> 6);
+    rem ^= rem << 3;
+    rem += rem >> 5;
+    rem ^= rem << 4;
+    rem += rem >> 17;
+    rem ^= rem << 25;
+    hash = rem + (rem >> 6);
     return 1;
 }
 
 // ORIG W 0x0808c174：unsigned char* 重载（ORIG 中与 char* 版同为独立展开）。
 int DoSuperFastHash(unsigned char* data, unsigned int len, unsigned int& hash)
 {
+    // [b28d-L1] 同 char* 版修法（ORIG W 0x0808c174）：len 作循环变量、单一 rem
+    // 累加、分步就地 `rem op=`、逐字节 movzbl 组装。
     hash = 0;
     unsigned int rem = len;
     if (len == 0 || data == 0)
         return 0;
 
-    unsigned int h = len;
     unsigned int tmp = len & 3;
-    for (unsigned int i = len >> 2; i != 0; --i)
+    for (len >>= 2; len != 0; --len)
     {
-        h = (h + *reinterpret_cast<unsigned short*>(data)) * 0x10000 ^
-            (static_cast<unsigned int>(*reinterpret_cast<unsigned short*>(data + 2)) << 11) ^
-            (h + *reinterpret_cast<unsigned short*>(data));
+        rem += ((unsigned int)data[1] << 8) + (unsigned int)data[0];
+        unsigned int t = ((unsigned int)data[2] |
+                          ((unsigned int)data[3] << 8)) << 11 ^ rem;
+        rem = (rem << 16) ^ t;
         data += 4;
-        h = h + (h >> 11);
+        rem += rem >> 11;
     }
     if (tmp == 2)
     {
-        h = h + *reinterpret_cast<unsigned short*>(data) ^
-            (h + *reinterpret_cast<unsigned short*>(data)) * 0x800;
-        h = h + (h >> 17);
+        rem += ((unsigned int)data[1] << 8) + (unsigned int)data[0];
+        rem ^= rem << 11;
+        rem += rem >> 17;
     }
     else if (tmp == 3)
     {
-        h = h + *reinterpret_cast<unsigned short*>(data) ^
-            (h + *reinterpret_cast<unsigned short*>(data)) * 0x10000 ^
-            (static_cast<unsigned int>(static_cast<signed char>(data[2])) << 18);
-        h = h + (h >> 11);
+        rem += ((unsigned int)data[1] << 8) + (unsigned int)data[0];
+        rem ^= rem << 16;
+        rem ^= (unsigned int)(int)(signed char)data[2] << 18;
+        rem += rem >> 11;
     }
     else if (tmp == 1)
     {
-        h = h + static_cast<int>(static_cast<signed char>(*data)) ^
-            (h + static_cast<int>(static_cast<signed char>(*data))) * 0x400;
-        h = h + (h >> 1);
+        rem += (unsigned int)(int)(signed char)data[0];
+        rem ^= rem << 10;
+        rem += rem >> 1;
     }
-    h = h ^ (h << 3);
-    h = h + (h >> 5);
-    h = h ^ (h * 0x10);
-    h = h + (h >> 17);
-    h = h ^ (h * 0x2000000);
-    hash = h + (h >> 6);
+    rem ^= rem << 3;
+    rem += rem >> 5;
+    rem ^= rem << 4;
+    rem += rem >> 17;
+    rem ^= rem << 25;
+    hash = rem + (rem >> 6);
     return 1;
 }
 
@@ -151,6 +165,7 @@ short _NS_PI_2ND_GetPacketIndex(char* packet)
 
 // this+0x4 为当前 key 字节（ORIG asm：movb $0x27,0x4(%eax) / movzbl 0x4(%eax)）；
 // bNewKey 时先写固定种子 0x27，再以 rand() 刷新。
+// [b28d-L1] N82 封顶：ORIG 0x0808be6e；P167 CLEAR（4/4）⇒ 语义完成。残余为帧/槽位与装载形态差（real diff 65）。
 unsigned int PISenderManager::MakeHashForSending(unsigned char* data,
                                                  unsigned int len,
                                                  bool bNewKey)
@@ -183,6 +198,7 @@ void _NS_PI_2ND_ReconstructCheckSumRandomkey(unsigned int& checksum,
 }
 
 // ---- _NS_PI_2ND_SendHash_SC ORIG @ 0x082751ee ----
+// [b28d-L1] N82 封顶：ORIG 0x082751ee；P167 CLEAR（4/4）⇒ 语义完成。残余为帧/槽位与装载形态差（real diff 41）。
 void _NS_PI_2ND_SendHash_SC(char* data, unsigned short len, CUser* user)
 {
     char first = data[0];
@@ -202,6 +218,7 @@ void _NS_PI_2ND_SendHash_SC(char* data, unsigned short len, CUser* user)
 // ---- SetUserManagerToolIP ORIG @ 0x08655327 ----
 // SIG_UPDATE_LOGOUT 布局（本函数实证）：+0x22 premium 管理工具标志(byte)、
 // +0x23 ip 相关 dword、+0x27 ip[0x10]、+0x37 前段、+0x43 后段（'.' 拆分）。
+// [b28d-L1] N103 封顶（工具链头/库差异）：ORIG 0x08655327 调 `_ZSt7strrchrPci`（libstdc++ C++ 重载，需 __CORRECT_ISO_CPP_STRING_H_PROTO）；本工具链 cstring 把 std::strrchr 映射为 ::strrchr（P167 MISSING×1/EXTRA×1）。源码不可控，语义等价。
 void SetUserManagerToolIP(CUser* user, SIG_UPDATE_LOGOUT* sig)
 {
     if (user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc))
@@ -256,6 +273,7 @@ unsigned char _NS_PI_2ND_GetRandomHashKey()
 
 // ORIG T 0x0808ca2c：checksum = (cksum & 0xff) | ((k1<<8) & 0xffff00) |
 // ((k2<<24) & 0xf000000) | (k3 << 28)。
+// [b28d-L1] 修法：ORIG 0x0808ca2c 首项 `movzbl %al,%edx`（单段落 %edx）；`(unsigned char)checksum` cast 形使 4.4 产 `movzbl %al,%eax; mov k1,%edx; or %eax,%edx`（首项落 %eax，DIFF 4 行）。改 `checksum & 0xff` 掩码形后逐条一致（探针 /tmp/b28d_l1/probe/p_rc.cpp r1 vs r4）。
 void _NS_PI_2ND_ReconstructCheckSum(unsigned int& checksum, unsigned int k1,
                                     unsigned int k2, unsigned int k3)
 {

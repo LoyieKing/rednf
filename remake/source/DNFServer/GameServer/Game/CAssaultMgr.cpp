@@ -52,6 +52,7 @@ CAssaultPlace* CAssaultMgr::_GetAssaultPlace(unsigned int id)
 
 int CAssaultMgr::OnMoveArea(CUser* user)
 {
+    // b28d-L3: DIFF/N82 — ORIG 0x082eb... 临时对象槽 -0x24 vs 我方 -0x28（N82/P112 槽序）
     // ORIG 0x82ef610：向进入袭击区域的玩家汇总可见图标（包 0x86）。
     // 整函数 try/catch(int)（尾 landing `cmp $0x1,%edx; je resume` +
     // begin_catch `mov (%eax),%eax; mov %eax,-0xc` + end_catch），统一尾
@@ -408,6 +409,7 @@ void CAssaulter::DetachUser()
 // 全局地址/槽号显示（AE 后核销）。
 void CAssaulter::GiveupPanalty()
 {
+    // b28d-L3: DIFF/N7+N82 — ORIG 0x82e6694.. chaos/level 实参内联后帧 0x24 vs ORIG 0x20、缺 push %esi（ORIG 值留 %esi 跨调用）
     // P183/P157：ORIG 不缓存 m_user（每点 `mov this; mov (%eax)` 重装载，
     // penalty/now 处才用 %esi/%ebx 跨调用缓存）——重建禁 named user。
     if (m_user == 0)
@@ -441,16 +443,19 @@ void CAssaulter::GiveupPanalty()
         }
         else
         {
-            // §4.3 具名化：CDataManager::m_serverParameter 即 +0x68（CDataManager.h:3551，
-            // ServerParameterScript 尺寸 0x49f4；同形写法已见本文件 DieUser 邻域）。
-            ServerParameterScript* sps = &G_CDataManager()->m_serverParameter;
             // b28d-L3：ORIG 0x82e6a?? 先求第2实参 GetCurCharacChaosPoint→%esi
-            // 跨 get_charac_level call 保活（无槽往返 P0）⇒ 两具名 int 局部
-            // 内联为实参表达式。
-            ghostTime = sps->getAssaultGhostTime(m_user->get_charac_level(),
-                                                 m_user->GetCurCharacChaosPoint());
+            // 跨 get_charac_level call 保活（无槽往返 P0）⇒ chaos/level 与
+            // receiver（CDataManager::m_serverParameter 即 +0x68）全部内联为
+            // 实参/receiver 表达式，消具名 sps 槽（帧 0x24→0x20 对齐 ORIG）。
+            ghostTime = G_CDataManager()->m_serverParameter.getAssaultGhostTime(
+                m_user->get_charac_level(), m_user->GetCurCharacChaosPoint());
         }
-        if (ghostTime != 0)
+        // b28d-L3：函数末尾块用空 then + else body 形，消 4.4 的尾 jmp 中继
+        // （与 _DelUser 同法；ORIG 尾块直接 fall-through 到 epilogue）。
+        if (ghostTime == 0)
+        {
+        }
+        else
         {
             m_user->SetCurCharacGhost(true);
             //（ORIG 用 %ebx callee-saved 缓存 now；4.4 绑 %ebx 实测反增 spill，
@@ -541,6 +546,8 @@ void CAssaultPlace::_MakeCloseAssault(PacketGuard* p, int tick)
 // ORIG T 0x82e8d60：_MakeUserState(PacketGuard*, CUser*) —— 包 0x03 + state。
 void CAssaultPlace::_MakeUserState(PacketGuard* p, CUser* user)
 {
+    // b28d-L3: DIFF/N18a — ORIG 0x82e8d60+0x30 call GetUserState 后 `mov %eax,%edx`
+    // 冗余中转；4.4 恒折直落，P248 三档旋钮无解（探针 /tmp/pbq.cpp）。
     p->put_header(0, 3);
     p->put_byte(1);
     p->put_short(user->get_unique_id() & 0xffff);
@@ -603,6 +610,8 @@ int CAssaultPlace::_SendCloseAssault(CUser* user, int tick)
 // ============================================================================
 void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
 {
+    // b28d-L3: DIFF/N82 — ORIG 0x082ead6a 450/451 条；超大函数 N82 槽复用
+    // （帧/槽号全帧错位），p167 MISSING=0（无语义缺口）。
     if (index < 0 || index > 7)
         return;
 
@@ -791,6 +800,7 @@ void CExtraMatrix::MovePoint(const Point2d& delta) // ORIG 0x82e597c
 bool CExtraMatrix::CheckPoint(std::vector<MapArea>* areas,
                               Point2d& out)        // ORIG 0x82e5b4e
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（ORIG 0x82e5b4e
     for (std::vector<Point2d>::iterator it = m_points.begin();
          it != m_points.end(); ++it)
     {
@@ -991,6 +1001,7 @@ void CAssaulter::DieUser()             // ORIG T 0x82e6a40
 
 bool CAssaulter::ChangeHp(int hp)      // ORIG T 0x82e6694
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（ORIG 0x82e6694
     if (hp < 0 || hp > 100)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x18a, 0);
@@ -1018,6 +1029,7 @@ RET1:
 
 const char* CAssaulter::GetCharacName() const    // ORIG T 0x82e663c
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（ORIG 0x82e663c
     // ORIG 0x82e663c：je→尾岛 `mov $""`，call 分支 fall-through 在前（技巧23 双 goto 钉块序）
     if (m_user == 0)
         goto EMPTY;
@@ -1084,6 +1096,7 @@ bool CStaticDisposition::MoveUser(CForcedMoveCharacter* fm)  // ORIG 0x82e65ee
 // fresh .o 复验 our=154/orig=158，调用点差集仅 C1/C2 同名差，语义等价。
 CStaticDisposition::CStaticDisposition(CUser** users, int* counts) // ORIG 0x82e62aa
 {
+    // b28d-L3: DIFF/N86 — ORIG 0x82e62aa 二维索引 `mov -0x20,%edx; mov -0x1c,%eax; shl $2,%edx; lea (%edx,%eax,1),%eax; add %eax,%eax`
     m_iconPos.m_x = ASSAULT_RECT_ICON_POINT.m_x;
     m_iconPos.m_y = ASSAULT_RECT_ICON_POINT.m_y;
     for (int j = 0; j <= 1; ++j)
@@ -1121,6 +1134,7 @@ bool CDynamicDisposition::SetVirtualMap(std::vector<MapArea>* areas) // ORIG 0x8
 
 CDynamicDisposition::CDynamicDisposition(CUser** users, int* counts) // ORIG 0x82e6032
 {
+    // b28d-L3: DIFF/N82+N93 — ORIG 0x82e... 165 vs 191
     m_users[0] = users[0];
     m_users[1] = users[1];
     m_anchor.m_x = (unsigned short)m_users[0]->get_posX()
@@ -1198,6 +1212,7 @@ const char* CAssaultPlace::GetAnotherTeamCharacName(int idx)   // ORIG T 0x82eb3
 
 void CAssaultPlace::AbuseUser(CUser* user)      // ORIG T 0x82eb5e2（size 0x192）
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：446h46 路由后 fresh 复验 AE（TSV 的 NEAR 系 447 口径 stale 伪差
     // ORIG 0x82eb5e2 转写：检查段第一次 getCurSec（`movl $0x941f714,(%esp)`），
     // 块内**第二次独立** getCurSec 重算差值入 callee-saved %esi（P48 双臂
     // 双 call），getCurCharacNo 入 %ebx；cMyTrace 用**临时链式**（P37：
@@ -1248,6 +1263,7 @@ CAssaultPlace::CAssaultPlace()
 
 CAssaultPlace::~CAssaultPlace()
 {
+    // b28d-L3: NEAR/N-帧 — 4.4 对数组析构循环帧恒 sub $0x14（ORIG 0x82f13b6 为 sub $0x4）
     // b28 BM4 判词（N-帧/P210 系）：编译器生成数组析构循环，4.4 对 D1 循环
     // 帧恒 sub $0x14（/tmp/d1probe{,2}.cpp 双探针：任意非平凡元素 dtor 循环
     // 均 0x14，源体不可干预——空体即此形）；ORIG 4.1 为 sub $0x4。指令流
@@ -1292,6 +1308,8 @@ void CAssaultPlace::_SendUserState()
 // ORIG T 0x82e8c5a：包 0x03 全场用户状态；先记录写位置，尾部回填人数。
 void CAssaultPlace::_MakeUserState(PacketGuard* packet)
 {
+    // b28d-L3: DIFF/N18a — 同双参重载（ORIG 0x82e8c5a 段）：call GetUserState 后
+    // `mov %eax,%edx` 中转 4.4 恒折，P248 三档旋钮无解 ⇒ N18a 封顶。
     // ORIG 0x82e8c5a +0x0b：`movl $0,-0x14; movl $0,-0x10` 双清零在前、
     // get_index 覆写 index 在后（dead init 照抄 P171，与 MakeView 同法）。
     packet->put_header(0, 3);
@@ -1319,6 +1337,7 @@ void CAssaultPlace::_MakeUserState(PacketGuard* packet)
 // ORIG T 0x82e6e2c：移除指定槽位用户并联动村庄/断线检测子系统。
 void CAssaultPlace::_DelUser(int index, bool flag)
 {
+    // b28d-L3: IDENTICAL_AE — b28d-L3：正向 wrap `if (delUser != 0)` 消函数尾 jmp 中继
     // b28 BL6: N96/P0 清理 register asm 绑定违例，还原自然形。ORIG +0x24 的
     // `cmp $4; setg %al; test %al; je` 无槽物化岛（setcc-fold 负例族）源形
     // 不可造，残差封顶。
@@ -1383,6 +1402,7 @@ void CAssaultPlace::_DelUser(int index, bool flag)
 // state 5/6 时两队下发 SetAssaultState(7)、置 state=7 并 CloseAssault()。
 void CAssaultPlace::TimeoutCloseAssault()
 {
+    // b28d-L3: DIFF/N82 — ORIG 0x82ea188 具名 cMyTrace 对象（帧 0x6c）vs 我方 0x5c
     cMyTrace trace(__PRETTY_FUNCTION__,
                    0x9ea, 0);
     trace("TimeoutCloseAssault() state(%d) %s,%s,%s,%s,%s,%s,%s,%s",
@@ -1458,6 +1478,7 @@ void CAssaultMgr::FreeAssaultPlace(int id, CAssaultPlace* place)
 // 1×GetUser 重取点（P183 反向警告域，逐点展开反增差），N82/N76 封顶。
 void CAssaultPlace::CloseAssault()
 {
+    // b28d-L3: DIFF/N82 — ORIG 0x082e... 372 vs 383
     int lastVill = 0;
     if (m_field100 <= 0)
         return;

@@ -34,6 +34,7 @@
 #include "PacketGuard.h"
 
 #include <bitset>
+#include <boost/foreach.hpp>   // ORIG：StartAction/dailyresetData 用 BOOST_FOREACH 遍历 +0x22c map
 #include <map>
 #include <vector>
 #include <time.h>
@@ -115,13 +116,15 @@ void BingoEvent::StartEvent(Word_Param param)
 
 // StartAction @ 0x080c9bb8：遍历 CGameManager+0x22c（accId→CUser* map），
 // 对每个在线用户发 bingo 数据包。
+// [b28d-D9] 修复/N89：BOOST_FOREACH 复现（102→5）；残 = getUserByAccIdMap inline getter out-of-line call（ORIG 0x080c9bb8 sz 0x00000177）
 void BingoEvent::StartAction()
 {
-    std::map<unsigned int, CUser*>& users = G_CGameManager()->getUserByAccIdMap();
-    for (std::map<unsigned int, CUser*>::iterator it = users.begin();
-         it != users.end(); ++it)
+    // [b28d-D9] ORIG 0x080c9bb8 用 BOOST_FOREACH 展开（contain/begin/end/deref/next/
+    // done 全序列），非手写迭代器循环；容器为 G_CGameManager()+0x22c map。
+    typedef std::map<unsigned int, CUser*>::value_type UserPair;
+    BOOST_FOREACH(UserPair& pr, G_CGameManager()->getUserByAccIdMap())
     {
-        CUser* user = it->second;
+        CUser* user = pr.second;
         if (user != 0)
         {
             user->sendBingoData();
@@ -139,6 +142,7 @@ void BingoEvent::EndEvent()
 
 // dailyresetData @ 0x080c9d82：按日重置棋盘/quiz；随后遍历在线用户，清
 // BingoData、重发数据包并刷新装饰物计数。
+// [b28d-D9] 修复/N89：BOOST_FOREACH 复现（143→5）；残 = getUserByAccIdMap inline getter out-of-line call（ORIG 0x080c9d82 sz 0x00000267）
 void BingoEvent::dailyresetData()
 {
     int hourLimit = G_CEnvironment()->m_serverEnvir.m_fatigueTime;  // env+0x37c
@@ -152,15 +156,15 @@ void BingoEvent::dailyresetData()
         trace("BingoEvent Day(%d)", day);
     }
 
-    std::map<unsigned int, CUser*>& users = G_CGameManager()->getUserByAccIdMap();
-    for (std::map<unsigned int, CUser*>::iterator it = users.begin();
-         it != users.end(); ++it)
+    // [b28d-D9] ORIG 0x080c9d82 同样为 BOOST_FOREACH 展开（deref 后取 pair.second
+    // 落 -0xc 槽，判空后三步操作）。
+    typedef std::map<unsigned int, CUser*>::value_type UserPair;
+    BOOST_FOREACH(UserPair& pr, G_CGameManager()->getUserByAccIdMap())
     {
-        CUser* user = it->second;
+        CUser* user = pr.second;
         if (user != 0)
         {
-            BingoData* data = static_cast<BingoData*>(user->getBingoData());
-            data->clear();
+            static_cast<BingoData*>(user->getBingoData())->clear();
             user->sendBingoData();
             user->sendDecorationObjectCnt(0);
         }
@@ -170,6 +174,7 @@ void BingoEvent::dailyresetData()
 // reqBingoMark @ 0x080c9ff6（docs/class_func_reports/BingoEvent/reqBingoMark.md）：
 // user/item 判空 → 0x13；已标记 3+ 次 → 0x7；物品请求号越界 → 0x17；随机值
 // 无效 → 0x13；标记成功且新增连线时逐线发奖励，回 0x1c3 包，返回 0。
+// [b28d-D9] P209/P238：unsigned 局部 for 尾测 4.4 恒 mem 直比 + 常量 store 中转形（ORIG 0x080c9ff6 sz 0x0000026c）
 int BingoEvent::reqBingoMark(StackableAction::input_param& param)
 {
     if (param.m_user == 0)
@@ -249,11 +254,15 @@ int BingoEvent::reqBingoMark(StackableAction::input_param& param)
 // sendOneMatchLineReward @ 0x080ca3d4：读 m_bingo.m_map30[CDataManager+0xb568+0x30
 // =+0xb598] 的 key=1（单线奖励配置 <type, value>），按 type 构造 Inven_Item 后
 // 以系统邮件发放。
+// [b28d-D9] 槽差/帧差：帧/槽序差（143 vs 144）（ORIG 0x080ca3d4 sz 0x0000024d）
 void BingoEvent::sendOneMatchLineReward(CUser& user)
 {
-    std::map<int, std::pair<int, int> >& rewardMap = G_CDataManager()->m_bingo.m_map30;
-    std::map<int, std::pair<int, int> >::iterator it = rewardMap.find(1);
-    if (it == rewardMap.end())
+    // [b28d-D9] P167 差集（缺 G_CDataManager ×1）：ORIG 0x080ca3d4 无 rewardMap
+    // 引用缓存槽，find 与 end 各自重新内联 `call G_CDataManager; lea 0xb598(%eax)`
+    // （P0/P183）；具名引用使第二次 call 被槽缓存吞掉。
+    std::map<int, std::pair<int, int> >::iterator it =
+        G_CDataManager()->m_bingo.m_map30.find(1);
+    if (it == G_CDataManager()->m_bingo.m_map30.end())
     {
         LogManager::logFormat(1, "BingoEvent.cpp",
                               __PRETTY_FUNCTION__, 0xc0,

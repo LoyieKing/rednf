@@ -75,6 +75,7 @@ int QuestParameterScript::getRewardLevel(int level)
     return result;
 }
 
+// [b28d-19] N：N86/N93 —— 帧 0x8c vs 0x7c + 迭代器临时槽（已按 P96/P28 改非 const+后置 ++，残余槽序）；ORIG 0x08a6be66。
 std::vector<pieceQuestRewardStatus> QuestParameterScript::getRewardStatus(
     int level)
 {
@@ -84,14 +85,14 @@ std::vector<pieceQuestRewardStatus> QuestParameterScript::getRewardStatus(
         return result;
 
     for (std::map<int, std::vector<pieceQuestRewardStatus> >::iterator it =
-             m_map54.begin(); it != m_map54.end(); ++it)
+             m_map54.begin(); it != m_map54.end(); it++)
     {
         if (rewardLevel < it->first)
             break;
 
-        const std::vector<pieceQuestRewardStatus>& section = it->second;
-        for (std::vector<pieceQuestRewardStatus>::const_iterator sit =
-                 section.begin(); sit != section.end(); ++sit)
+        std::vector<pieceQuestRewardStatus>& section = it->second;
+        for (std::vector<pieceQuestRewardStatus>::iterator sit =
+                 section.begin(); sit != section.end(); sit++)
         {
             Statuepredicate pred(*sit);
             std::vector<pieceQuestRewardStatus>::iterator found =
@@ -166,6 +167,7 @@ void PvPSkillTreeParameterScript::clear()
 // 再减 m_map30[(job,firstGrow)] 的 m_pointCost。secondGrow 不参与
 // （ORIG 写入 0 后仅用于 key 第三字节，恒 0）。
 // ============================================================================
+// [b28d-19] N：N93 —— 局部槽序平移；ORIG 0x08a5df0e。
 int PvPSkillTreeParameterScript::getPvPSkillPointNext(
     int job, int firstGrow, int secondGrow, int grade) const
 {
@@ -252,9 +254,10 @@ bool stBroadCastItemScript::isUnCommonItem(int itemIdx) const
 // 59 vs 我方 39 指令差为 gcc4.1.2 的 dead-bool XOR 哨兵（local_11^=1 + 嵌套 while +
 // int* 物化重载，见 ## 汇编 0x08918ce2 xorb/0x08918d7a）——非源码可表达；范式库
 // 「负例 N 类·跨版本」。证据 ORIG 0x08918cdc。
+// [b28d-19] N：跨版本 dead-bool XOR 哨兵（4.1 `movb $0x0,-0xd; cmpb; jne` + 嵌套 while/int* 物化），非源码可表达；ORIG 0x08918cdc。
 bool stBroadCastItemScript::checkCommonItem(int itemIdx) const
 {
-    for (std::vector<int>::const_iterator it = m_vec0.begin(); it != m_vec0.end(); ++it)
+    for (std::vector<int>::const_iterator it = m_vec0.begin(); it != m_vec0.end(); it++)
     {
         if (*it == itemIdx)
         {
@@ -268,30 +271,32 @@ bool stBroadCastItemScript::checkCommonItem(int itemIdx) const
 // [N类·跨版本豁免] 语义与 ORIG 一致（find!=end → 子 vector 迭代 *vit==subItemIdx 返 1）。
 // ORIG 87 vs 我方 69 差同 checkCommonItem：dead-bool XOR 哨兵（0x08918f03 xorb + 嵌套
 // while + operator!=/operator* 双缓存续算），非源码可表达；范式库「跨版本」。证据 0x08918dfe。
+// [b28d-19] N：跨版本 dead-bool XOR 哨兵 + operator->/operator!= 形差，非源码可表达；ORIG 0x08918dfe。
 bool stBroadCastItemScript::checkUnCommonNestedItem(int itemIdx, int subItemIdx) const
 {
     std::map<int, std::vector<int> >::const_iterator it = m_mapC.find(itemIdx);
-    if (it == m_mapC.end())
+    if (it != m_mapC.end())
     {
-        return false;
-    }
-    const std::vector<int>& v = it->second;
-    for (std::vector<int>::const_iterator vit = v.begin(); vit != v.end(); ++vit)
-    {
-        if (*vit == subItemIdx)
+        const std::vector<int>& v = it->second;
+        for (std::vector<int>::const_iterator vit = v.begin(); vit != v.end(); vit++)
         {
-            return true;
+            if (*vit == subItemIdx)
+            {
+                return true;
+            }
         }
     }
     return false;
 }
 
+// [b28d-19] AE（fresh check_tu_routed 归零，39=39 逐条对齐）；ORIG 0x083738a2。
 eventReward::eventReward() : m_map0()
 {
     // ORIG C1 0x83738a2：构造 map + CSlotBoundChecker 后 clear map。
     // CSlotBoundChecker 重建为静态数组实现（无 per-instance 成员），+0x18 保持 pad。
     m_map0.clear();
 }
+// [b28d-19] AE（fresh check_tu_routed 归零，27=27 逐条对齐）；ORIG 0x0837dfb2。
 eventReward::~eventReward()
 {
     // ORIG D1 0x837dfb2：析构 map + CSlotBoundChecker（后者静态实现无成员，跳过）
@@ -486,6 +491,7 @@ int channel_script_t::GetPvPChannelNumber(unsigned char channel, unsigned int ch
     return -1;
 }
 
+// [b28d-19] N：N85 —— x87 比较/返回值槽物化跨版本差 + 帧槽平移；ORIG 0x088dce3c。
 float channel_script_t::getBonusRate(unsigned char channel, unsigned int channelNo,
                                      unsigned int dungeonIndex) const
 {
@@ -540,6 +546,7 @@ int CNPCScriptList::getMaxFavorValue() const
 
 // ORIG _ZNK14CNPCScriptList18getFavorLevelValueEj 0x858174e：level 0..3 返
 // m_favorExp[level]（level 0 返 0），越界（>3）返 getMaxFavorValue()。
+// [b28d-19] N：帧 sub $0x18 vs $0x4（P190附注②非 16k+4 量化帧不可凑）+ 尾 ushort→uint zext 双段（P9/跨版本 zext artifact）；ORIG 0x0858174e。
 unsigned int CNPCScriptList::getFavorLevelValue(unsigned int level) const
 {
     // [b28c-35] 双残差判 N：①帧 ORIG 0x08581751 `sub $0x18` 非 4.4 的 16k+4 量化
@@ -555,6 +562,7 @@ unsigned int CNPCScriptList::getFavorLevelValue(unsigned int level) const
 
 // ORIG _destroy 0x8581784：遍历 hash_map delete 各 CNPCScript*（调 D1 + operator delete），
 // 再 clear()。
+// [b28d-19] N：N93 —— 帧 sub $0x34 vs $0x44 + 迭代器槽序（块级对象槽方向相反）；ORIG 0x08581784。
 void CNPCScriptList::_destroy()
 {
     __gnu_cxx::hash_map<unsigned int, CNPCScript*>::const_iterator
@@ -753,27 +761,28 @@ void DeleteInvalidItemScript::GetMailInfo(std::string& title,
 // 但前两元素写入 m_defaultIdx/m_defaultCount，之后每三元素为一组
 // (item, count, weight) 写入 m_items/m_counts。
 // ============================================================================
+// [b28d-19] AE（P28 后置 it++ 修复：p167 MISSING operator++(int) 归零，130=130）；ORIG 0x089bacc1。
 void createStackableLotteryInfo(LotteryInfo* info, std::vector<int>* source)
 {
     info->clear();
     std::vector<int>::iterator it = source->begin();
     info->m_defaultIdx = *it;
-    ++it;
+    it++;
     info->m_defaultCount = *it;
-    ++it;
+    it++;
     while (it != source->end())
     {
         std::pair<int, int> p;
         p.first = *it;
-        ++it;
+        it++;
         if (it == source->end())
             break;
         p.second = *it;
-        ++it;
+        it++;
         if (it == source->end())
             break;
         info->m_counts.push_back(*it);
-        ++it;
+        it++;
         info->m_items.push_back(p);
     }
 }
@@ -783,6 +792,7 @@ void createStackableLotteryInfo(LotteryInfo* info, std::vector<int>* source)
 // (field0, field4, rate*10000)；size 非 3 的倍数返回 0。修正了原桩错误的
 // vector<char>& 形参（ORIG mangled 为 vector<stGlobalEffect_t>&）。
 // ============================================================================
+// [b28d-19] N：P28 后置 ++ 已消 p167 缺口，残余为 operator++(int) 临时槽位置（4.1 槽序）；ORIG 0x089bae94。
 int createGlobalEffectInfo(std::vector<stGlobalEffect_t>& out,
                            std::vector<int>* source)
 {
@@ -794,11 +804,11 @@ int createGlobalEffectInfo(std::vector<stGlobalEffect_t>& out,
     {
         stGlobalEffect_t effect;
         effect.m_field0 = *it;
-        ++it;
+        it++;
         effect.m_field4 = *it;
-        ++it;
+        it++;
         effect.m_field8 = static_cast<float>(*it) / 10000.0f;
-        ++it;
+        it++;
         out.push_back(effect);
     }
     return 1;
@@ -843,6 +853,7 @@ bool* GetLightServerFlag()
 //   其余 → 0。
 //   注：ORIG vtable（0x8c96da8）实证 @4=IsAvatarItem、@18=PeriodAfterUnsealing、
 //   @19=IsRandomOption（NEW 原实现误用 IsCreatureItem/IsRandomOption，已纠正）。
+// [b28d-19] N：N82 —— 帧 0x24+push ebx vs 0x28 与 callee-saved 寄存器分配；ORIG 0x0867cf8d。
 int _checkTimeoutItem(const Inven_Item& item)
 {
     CDataManager* dm = G_CDataManager();
@@ -892,6 +903,7 @@ int _checkTimeoutItem(const Inven_Item& item)
 //   0xb < GetItemType() <= 0x15 → item.GetReSealCount() << 5；
 //   其余 → item.GetItemAttr()。
 // ============================================================================
+// [b28d-19] N：P9 —— 多 3 条 `movzwl %al,%eax`（4.4 对 uchar 返回值 zext 归一），ORIG 单段直返；ORIG 0x084fc541。
 int _getIntegratedPvPItemAttr(const Inven_Item& item)
 {
     CItem* it = G_CDataManager()->find_item(item.m_addInfo);
@@ -1092,6 +1104,7 @@ stBloodDungeon_t::stBloodDungeon_t() : m_vec334(), m_map358()
     clear();
 }
 stBloodDungeon_t::~stBloodDungeon_t() {}
+// [b28d-19] N：P209附 —— 同 stDeathTower_t::C1（unsigned 局部 for 尾测内存直比）；ORIG 0x08370b02。
 void stBloodDungeon_t::clear()
 {
     // [b28c-27] N：ORIG 循环条件 `mov -0xc(%ebp),%eax; cmp $0xc7,%eax; setbe`
@@ -1116,6 +1129,7 @@ void stBloodDungeon_t::clear()
 // ---- stDeathTower_t（ORIG C1 0x08370970）----
 
 // ORIG C1 0x8370970：四个 200 元素表初始化 + 尾部字段，非全量 memset。
+// [b28d-19] N：P209附 —— unsigned 局部 for 尾测 4.4 恒折 `cmpl $imm,-N(%ebp)`（ORIG 装载后寄存器比较）；ORIG 0x08370970。
 stDeathTower_t::stDeathTower_t()
 {
     m_apcExpWeight = 0.0f;        // ORIG +0x00 位清零（float 语义：import [apc exp weight] fstps 实证）
@@ -1199,6 +1213,7 @@ reseal_table_t::reseal_table_t()
 reseal_table_t::~reseal_table_t() {}
 
 // ORIG get_reseal_cost @0x08900b02（T）。见 CDataManager.h 声明注释。
+// [b28d-19] N：N97/P211 —— 有符号除 10 lowering（imul+sar+符号修正 vs 无符号 mul+shr）+ 寄存器分配；ORIG 0x08900b02。
 int reseal_table_t::get_reseal_cost(unsigned char param_1,
                                     unsigned char param_2,
                                     unsigned char param_3)
@@ -1333,6 +1348,7 @@ void CNPCRelationEventManager::AddFavorItemInfo(
 
 // ---- CNPCRelationEventManager::AddRewardItemInfo（ORIG 0x890cfda：
 //      find(idx)，非 end 时写 node+kind*0x14+0xc / +0x10 两奖励值）----
+// [b28d-19] N：N7/P75 —— 寄存器分配（push ebx vs 无）+ 实参装载序；ORIG 0x0890cfda。
 void CNPCRelationEventManager::AddRewardItemInfo(
     unsigned short idx, ENUM_NPC_RELATION_EVENT_FAVOR_KIND kind,
     unsigned int rewardA, unsigned int rewardB)
@@ -1351,6 +1367,7 @@ void CNPCRelationEventManager::AddRewardItemInfo(
 
 // ---- CNPCRelationEventManager::AddDislikeItemInfo（ORIG 0x890d07a：
 //      find(idx)，非 end 时向 node+0x3c 的 vector<int> push_back）----
+// [b28d-19] NEAR：N98 —— 4.4 按首次使用序分配槽（it -0x14/item -0x18 vs ORIG it -0x18/item -0x10），声明序不可翻；ORIG 0x0890d07a。
 void CNPCRelationEventManager::AddDislikeItemInfo(unsigned short idx,
                                                   unsigned int itemId)
 {
@@ -1414,6 +1431,7 @@ bool CNPCRelationEventManager::IsDislikeItem(unsigned short idx,
 // [N类·跨版本豁免] 已还原 ORIG 真形（our 113 vs 112）：残 1 指令差为 gcc4.1/4.4 的
 // outgoing-frame / 死栈槽产物（范式库『跨版本』），助记符序列已对齐；语义完全一致。
 // ============================================================================
+// [b28d-19] N：N86 —— 迭代器/at() 临时槽序（4.1 临时槽+拷贝 vs 4.4 直构）；ORIG 0x0890d1c0。
 stTempRewardInfo CNPCRelationEventManager::GetItemKind(
     unsigned short idx, unsigned int itemId, unsigned int count)
 {
@@ -1457,6 +1475,7 @@ stCharacLinkSystem_t::~stCharacLinkSystem_t() {}
 // ---- CNPCRelationEventManager::GetRewardItem（ORIG T 0x0890d326，sret
 //      stNPCRewardItemInfo）：find(idx) 未命中 → {0,0}；命中 →
 //      node->m_favor[kind].m_rewardA / m_rewardB（+0xc/+0x10）。----
+// [b28d-19] N：N93 —— sret 帧 sub $0x44 vs $0x34 + 槽序（块级对象槽方向相反）；ORIG 0x0890d326。
 stNPCRewardItemInfo CNPCRelationEventManager::GetRewardItem(
     unsigned short idx, ENUM_NPC_RELATION_EVENT_FAVOR_KIND kind)
 {
@@ -1536,6 +1555,7 @@ void advancealtar::RewardParameter::reset()
 // ORIG STScriptFileList 即 +0 的 map<int,string>（NpcScript.h 占位版同尺寸），
 // 故直接以本地 map 重解释传入，避免与本 TU 已含头中的占位定义冲突。
 // ============================================================================
+// [b28d-19] N：N93 —— 局部槽序/帧平移（-0x20↔-0x24 等）；ORIG 0x080ef29c。
 int eventReward::importRewardTable(const char* dir, const char* file)
 {
     std::map<int, std::string> fileList;
@@ -1574,6 +1594,7 @@ void DeleteInvalidItemScript::DeleteInvalidItemData::init()
     m_field8 = 0;
 }
 
+// [b28d-19] NEAR：N93/N82 —— 局部对象槽序整体平移 4（-0x50↔-0x4c 等），语义等价；ORIG 0x08ac1e60。
 bool DeleteInvalidItemScript::loadScript()
 {
     // [X1 形] ORIG 7 检查点（load 0x08ac1e7c / ScanType 0x08ac1ec3 / ScanInt-ok×3
@@ -1642,6 +1663,7 @@ bool DeleteInvalidItemScript::loadScript()
 //    [/gage up rate]、[/gage upgrade cost percent]、[/daily refill ticket]（结果丢弃）。
 //    原实现缺这三条比较 → we-smaller 主因。成功/文件打开失败均返 0（非零=Fail）。
 // ============================================================================
+// [b28d-19] N：N93 —— 帧 sub $0x40 vs $0x30 + 槽序；ORIG 0x0889b6cc。
 int advancealtar::ConfigParameter::importConfigParameter(const char* path)
 {
     std::string token;
@@ -1730,6 +1752,7 @@ int advancealtar::ConfigParameter::importConfigParameter(const char* path)
 // （范式库「负例 N 类·跨版本：delete[]+成员 dtor EH cleanup / EH 双份 dtor epilogue vs
 // merge」），非源码可表达；证据 ORIG 0x088a18de/0x088a2731/0x088a2704 CatchHandler 区段。
 // ============================================================================
+// [b28d-19] N：N82 —— 超大件帧槽（§6.2 口径：调用点差集/p167 已核，语义完成、byte 层封顶）；ORIG 0x088a10cc。
 int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
     const char* path)
 {
@@ -2153,6 +2176,7 @@ advancealtar::AdvanceAltarShopParameter::getBuyUpgradeDataVec(
 // 邮政标题 0x39e / 正文 0x3a3。[reward item] 三元组仅 {type,_,itemId}
 // 进入向量（第三值写入越界临时不入拷贝，见报告注记）。
 // ============================================================================
+// [b28d-19] N：N82/N93 —— 大件槽序平移；ORIG 0x0889afb0。
 int advancealtar::RewardParameter::importAchievementRewardParameter(
     const char* path)
 {
@@ -2270,6 +2294,7 @@ PowerParameterScript::~PowerParameterScript()
 // ---- PowerParameterScript 查询（ORIG T 0x08a59c6e / 0x08a59d58）----
 // GetPenalty：遍历 m_vecBC（+0xbc），取首个 m_field4 >= victory 的条目按值返回；
 // 无匹配时返回最后一条（ORIG memmove(&vec[size-1], 0x10)）；空表未定义。
+// [b28d-19] N：N93 —— 帧 sub $0x34 vs $0x24 + 块级对象槽序；ORIG 0x08a59c6e。
 stVictoryPenalty PowerParameterScript::GetPenalty(int victory)
 {
     stVictoryPenalty result;
@@ -2310,6 +2335,7 @@ int PowerParameterScript::GetBreakBonus(int winCount)
 // （+0x9c，vector<pair<int,int>>），pair.first==a && pair.second==b → 1，
 // 否则 0。
 // ============================================================================
+// [b28d-19] N：P75 —— 实参装载时刻跨版本调度差（map.find 键/this 装载序）；ORIG 0x08a59db4。
 bool PowerParameterScript::checkPowerWarServer(int a, int b)
 {
     for (std::vector<std::pair<int, int> >::iterator it =
@@ -2417,6 +2443,7 @@ CWorldMapList::~CWorldMapList()
 }
 
 // ORIG 0x8374752：遍历 delete 各 CWorldMap*（D1 + operator delete），最后清空 map。
+// [b28d-19] N：N93 —— 临时对象/迭代器槽序 + 帧差（块级对象槽方向相反）；ORIG 0x08374752。
 void CWorldMapList::destroy()
 {
     // ORIG 0x8374752：局部变量暂存 second、delete、清零局部（不写回 map 值）。
@@ -2591,6 +2618,7 @@ pvp_channel_info_t::pvp_channel_info_t()
 // 权威声明见 STExpertJobScript.h（CUser::GetCurExpertJobLevel 真实调用）。
 // ============================================================================
 
+// [b28d-19] NEAR(1)：N18b —— 4.4 恒 `cmp %ebx,%eax`（字段侧为目标），交换操作数/无绑定两形均不可翻；语义等价；ORIG 0x0849f420。
 bool STExpertJobScript::isBoundaryExpValue(int exp)
 {
     // [b28c-L18] NEAR（fresh 32=32，助记符序列全等，仅 cmp 操作数序差 2 行）：
@@ -2629,6 +2657,7 @@ int STExpertJobScript::GetLevel(unsigned int exp)
 // STExpertJobScript::GetCompoundRate（ORIG 0x0849f366 W）。
 // 遍历 m_compoundRateVec（+0x1f4）：返回首个 stCompoundRate.m_level >= level 的元素；
 // 全表都 < level 时返回末元素；空表返回 0。调用方（GetSuccessRate）读 +4/+8/+0xc。
+// [b28d-19] N：N86/P28 —— 迭代器/临时对象槽序与 call 位置差（4.1 临时槽+拷贝两段 vs 4.4 直构）；ORIG 0x0849f366。
 stCompoundRate* STExpertJobScript::GetCompoundRate(int level)
 {
     if (m_compoundRateVec.empty())
@@ -2718,6 +2747,7 @@ int GuildParameterScript::getGuildLevelUpParam(int level)
 // ---- GuildParameterScript::getLevelupPrice（ORIG T 0x089797a4）----
 // 自高向低扫 m_vecF0，首个 first<=memberCnt（members 阈值）的
 // second[level]；全不命中取 [0].second[level]；结果 ×10000。
+// [b28d-19] N：P211/P75 —— store 装载序 + 常量槽物化差；ORIG 0x089797a4。
 int GuildParameterScript::getLevelupPrice(int level, int memberCnt)
 {
     const std::vector<std::pair<int, std::vector<int> > >& tbl = m_vecF0;

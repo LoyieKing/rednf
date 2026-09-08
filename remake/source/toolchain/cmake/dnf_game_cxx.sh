@@ -288,6 +288,7 @@ esac
 
 # b28c 三态 sweep：以下 TU 仅换 4.4.6 后端（头集仍 4.4.7）最优（合计 AE +26）。
 case "$src" in
+    *Game/Inter_DispatcherTaiwan.cpp | \
     *Game/Arad_MomijiEvent.cpp | \
             *Game/CAradRyosikaEvent.cpp | \
             *Game/CAssaultOnOffEvent.cpp | \

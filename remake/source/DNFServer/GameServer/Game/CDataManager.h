@@ -3052,8 +3052,11 @@ namespace WongWork
 // ORIG vtable _ZTVN8WongWork12CItemUpgradeE @0x08c9d310（仅 2 函数槽，无虚析构：
 //   +0x00=ProcUpgrade(MSG_ITEM_UPGRADE) 0x0854779c、+0x04=LoadUpgradeScript
 //   0x0854919a；ctor/dtor 写 &vtable+8 于 this+0 实证）。typeinfo 为 __vmi 类
-//   （双基：IItemUpgrade 非虚主基 @+0x00、CItemUpgradeTable 表区 @+0x04..+0x4e7）。
-class CItemUpgrade : public IItemUpgrade, public CItemUpgradeTable
+//   （双基：IItemUpgrade 多态主基 @+0x00、CItemUpgradeTable 表区 @+0x04..+0x4e7。
+//   声明序 = ORIG ctor 基类调用序：CItemUpgradeTable(this+0x04) 先、IItemUpgrade(this)
+//   后（0x085461d1 add $4/call、0x085461e2 mov this/call 实证）；primary base 仍取
+//   首个多态基 IItemUpgrade @+0x00，sizeof/偏移/mangled 不变）。
+class CItemUpgrade : public CItemUpgradeTable, public IItemUpgrade
 {
 public:
     CItemUpgrade();   // ORIG T 0x085461c8（定义 CtorProducers_2C.cpp）

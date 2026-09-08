@@ -152,6 +152,7 @@ int COnlinePreliminaryTeam::GetCurrentUserCount()
 // ORIG T 0x085884b6：find；命中→flag=1、count++；未命中且 size>999 →
 // cMyTrace 报警后直接 return（不置 0x3d）；否则插入 PlayCountInfoEx(1,true)；
 // 最后 m_hasLoseFlag(+0x3d)=1。
+// [b28d-23 N·N93] ⇒ N。ORIG 0x085884b6
 void COnlinePreliminaryTeam::IncreaseEachOtherTeamPlayCount(int teamId)
 {
     std::map<int, PlayCountInfoEx>::iterator it = m_playCountMap.find(teamId);
@@ -236,6 +237,7 @@ bool COnlinePreliminaryTeam::_saveTeam()
 // 遍历 map，flag==1 条目写入 +8+i*8=key、+0xc+i*8=count 并清 flag；
 // 计满 100 → put 后 Set(Acquire(file,0x66)) 重建同格式头部续写；
 // 收尾 count==0 → StreamPool::Free(guard)，否则 put；清 m_hasLoseFlag。
+// [b28d-23 N·N89] ⇒ N。ORIG 0x0858800c
 void COnlinePreliminaryTeam::_saveTeamMatchList()
 {
     if (!m_hasLoseFlag)
@@ -299,6 +301,7 @@ int COnlinePreliminaryTeam::loadDataPreliminaryTeam(char* data)
 
 // ORIG T 0x0858831a：data 布局 int matchCount@+4 + 每 8 字节记录
 // （key@0/value(count)@4）；逐条写入 m_playCountMap[key].m_count。
+// [b28d-23 N·P183/P157] 引用/迭代器缓存形差（帧 0x28 vs 0x38、槽 -0x10..-0x1c vs -0xc..-0x18）⇒ N。ORIG 0x0858831a
 int COnlinePreliminaryTeam::loadDataPreliminaryTeamMatchList(char* data)
 {
     SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST* d =
@@ -410,6 +413,7 @@ COnlinePreliminaryMemberMatchList::~COnlinePreliminaryMemberMatchList()
 
 // ORIG T 0x08586466：count@data+8；每条 12B：u16 serverId@+0xc、
 // u32 uniqueId@+0x10、u32 playCount@+0x14；写入 m_peerMap[key].m_count。
+// [b28d-23 N·N82] 槽/帧差（59/60）⇒ N。ORIG 0x08586466
 bool COnlinePreliminaryMemberMatchList::loadData(CUser* /*pUser*/, char* pData)
 {
     // 签名保持 char*（ORIG mangled …EP5CUserPc）；pData 即 MEMBER_MATCH_LIST 布局。
@@ -433,6 +437,7 @@ bool COnlinePreliminaryMemberMatchList::loadData(CUser* /*pUser*/, char* pData)
 // 建临时守卫写 MEMBER 格式头（<<0x1e7、<<uid、group/characNo/count 复位）并将
 // 工作指针切至其缓冲（ORIG 忠实行为，含守卫析构）；收尾 count==0 → Free，
 // 否则 put；最后析构主守卫。返回 1。
+// [b28d-23 N·N89] ⇒ N。ORIG 0x08586510
 bool COnlinePreliminaryMemberMatchList::_saveData(CUser* pUser)
 {
     CStreamGuard guard(
@@ -505,6 +510,7 @@ void COnlinePreliminaryMemberMatchList::ResetDailyMidnight()
 // ORIG T 0x08586208：find；命中→flag=1、count++；未命中且 size>999 →
 // cMyTrace 报警后直接 return（不 alter）；否则插入 PlayCountInfo(1,true)；
 // 末尾 alter()。
+// [b28d-23 N·N93] ⇒ N。ORIG 0x08586208
 void COnlinePreliminaryMemberMatchList::IncreasePeerPlayCount(
     int serverId, unsigned int uniqueId)
 {

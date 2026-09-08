@@ -95,6 +95,7 @@ int CSecu_ProtectionField::GetCashShopErr(int err)
 }
 void CSecu_ProtectionField::init()
 {
+    // b28d-L3: DIFF/N18b — ORIG 0x082882b9 段 `mov -0x28(%ebp),%edx; mov -0x24,%eax; mov -0x14c(%eax,4),%eax; cmp %eax,%edx`（左操作数先物化）
     // ORIG T 0x0828824e（报告 init.md）：表为局部数组（GCC 生成 .rodata 模板 +
     // rep movsl 拷贝），长度走局部变量；第二轮前整表重置回 0x1ff（第一轮结果
     // 被覆盖，ORIG 原样保留）；插入使用 make_pair(enum, unsigned int& ) 实例。
@@ -103,6 +104,8 @@ void CSecu_ProtectionField::init()
     // `mov tableA[j],%eax; cmp i_mem,%eax`（mem 直比）。探针 /tmp/l30_probe3.cpp
     // 5 形（i==t[j]/t[j]==i/unsigned 双 cast/int cast/(t[j]==unsigned i)）全折
     // mem 直比；余差 2 条 mov（150 vs 152）。
+    // b28d-L3 实测：i 声明 unsigned 使循环尾测 setle→setbe（残 6→16，劣化），
+    // 回退 int；内层比较 mem 直比差仍为 N18b（见上）。
     int i = 0;
     int j = 0;
     int lenA;
@@ -332,6 +335,7 @@ int CSecu_ProtectionField::CheckItemRarity(CUser* user, SECURITY_PROTCTION type,
                                            const CItem* item,
                                            const Inven_Item* itemRef)
 {
+    // b28d-L3: DIFF/P209 — ORIG 0x082887d0 对 `mov -0x18(%ebp),%eax; cmp $0x2,%eax; jg`（rarity 局部装寄存器）
     if (item == 0 || user == 0)
         return 1;
     int rarity = 0;

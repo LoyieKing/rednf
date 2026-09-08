@@ -169,6 +169,7 @@ std::string BaseHeroMissionCondition::getMailContent()
 // (table 4) 解析邮件标题/正文并发系统邮件。找不到物品则 trace 并整体 return false；
 // 循环正常结束返回 true。
              
+// [b28d-7 N7/N18a] ORIG 0x0816502e：`mov (%eax),%eax; mov %eax,%ebx` 两段物化 + 间接 call 目标 %edx，4.4 折单段并改 %eax；P167 CLEAR ⇒ 封顶。
 bool BaseHeroMissionCondition::rewardProcess(CUser* user)
 {
     for (std::vector<HeroMissionCondition::RewardData>::iterator it =

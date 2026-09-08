@@ -27,6 +27,7 @@
 int getDailyInitializeTime(int hour, int min, int sec);
 
 // ============================ DB 依赖 ============================
+// [b28d-lane6] DIFF·N93/N82：槽号与块序（60 vs 63 条）。
 bool DB_LoadAutoMarketConditionsControl::makeRequest(bool flag)
 {
     // ORIG T 0x08433ada _ZN34DB_LoadAutoMarketConditionsControl11makeRequestEb
@@ -72,11 +73,9 @@ void CTrcOnOffEvent::StartEvent(Word_Param)  // ORIG 0x08285b00
 bool CTrcOnOffEvent::IsEventing(CUser* user) const  // ORIG 0x08285ba4：透传基类
 {
     // ORIG 0x08285ba4：第二参数恒传 0（NULL），不转发本函数形参。返回仍等于
-    // 基类结果，但 4.1 走「取反+反极性岛」：`call; xor $1; test; je +岛mov$1;
-    // mov $0` ⇒ 技巧 1/22 register bool asm("al") 绑 !call 后反向 if 复现。
-    register bool t __asm__("al");
-    t = !CEventBase::IsEventing(static_cast<CUser*>(0));
-    if (t)
+    // 基类结果，4.1 走「取反+反极性岛」。b28d-lane6 P0 清绑（N96）：删历史
+    // `register bool t __asm__("al")` 绑定，改 P168a 裸形 `if(!boolcall())`。
+    if (!CEventBase::IsEventing(static_cast<CUser*>(0)))
         return false;
     return true;
 }
@@ -256,6 +255,7 @@ void CCharacBloodDungeon::ResetDaily()       // ORIG 0x832a5b6
     t->tm_sec = 0;
 }
 
+// [b28d-lane6] AE（已修）：字段 m_point unsigned 化（P211）复现 ORIG 0x85bfee6 add 段。
 void CCharacBloodDungeon::IncPoint(int delta)       // ORIG 0x85bfed2 (W)
 {
     // b28d-lane6 修复（AE）：ORIG 0x85bfee6 为「mov 0x8(%eax),%edx; mov 0xc(%ebp),%eax;

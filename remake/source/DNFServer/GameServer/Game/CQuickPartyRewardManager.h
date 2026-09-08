@@ -224,45 +224,48 @@ protected:
 };
 
 // ---- 六个具体奖励类（process 均 T 符号，报告逐一转写）----
+// b28d-20: 6 个 ctor 声明/定义加 throw()（P216）——init 0x0826d6b0 ORIG 无 EH cleanup，
+// 4.4 对同 TU 外联 ctor 的 new-expression 恒布 landing pad；throw() 不入 mangling、
+// 不改 sizeof/偏移/vtable（GCC4.4 要求声明与定义异常规格一致）。
 class RewardCardGold : public IBasicReward
 {
 public:
-    RewardCardGold(BasicRewardType type, QuickPartyData& data);   // W 0x0826dc30（type 不存储）
+    RewardCardGold(BasicRewardType type, QuickPartyData& data) throw();   // W 0x0826dc30（type 不存储）
     virtual void process(RewardData_Param param, RewardData_Result& result);  // T 0x0826d070
 };
 
 class HellPartyDifficulty : public IBasicReward
 {
 public:
-    HellPartyDifficulty(BasicRewardType type, QuickPartyData& data);  // W 0x0826dc54
+    HellPartyDifficulty(BasicRewardType type, QuickPartyData& data) throw();  // W 0x0826dc54
     virtual void process(RewardData_Param param, RewardData_Result& result);  // T 0x0826d116
 };
 
 class KillMonsterExp : public IRandomwReward
 {
 public:
-    KillMonsterExp(RandomBuffType type, QuickPartyData& data);   // W 0x0826dca2
+    KillMonsterExp(RandomBuffType type, QuickPartyData& data) throw();   // W 0x0826dca2
     virtual void process(RewardData_Param param, RewardData_Result& result);  // T 0x0826d198
 };
 
 class EquipItemDropRate : public IRandomwReward
 {
 public:
-    EquipItemDropRate(RandomBuffType type, QuickPartyData& data);  // W 0x0826dcce
+    EquipItemDropRate(RandomBuffType type, QuickPartyData& data) throw();  // W 0x0826dcce
     virtual void process(RewardData_Param param, RewardData_Result& result);  // T 0x0826d2aa
 };
 
 class CointLimitCount : public IRandomwReward
 {
 public:
-    CointLimitCount(RandomBuffType type, QuickPartyData& data);  // W 0x0826dcfa
+    CointLimitCount(RandomBuffType type, QuickPartyData& data) throw();  // W 0x0826dcfa
     virtual void process(RewardData_Param param, RewardData_Result& result);  // T 0x0826d4ac
 };
 
 class ReturnAncientDungeonTicket : public IRandomwReward
 {
 public:
-    ReturnAncientDungeonTicket(RandomBuffType type, QuickPartyData& data);  // W 0x0826dd26
+    ReturnAncientDungeonTicket(RandomBuffType type, QuickPartyData& data) throw();  // W 0x0826dd26
     virtual void process(RewardData_Param param, RewardData_Result& result);  // T 0x0826d598
 };
 class QuestItemDropRate : public IRandomwReward

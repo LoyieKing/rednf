@@ -48,6 +48,7 @@ bool EnableWorld(const CItem* a, const CItem* b)
 // 对 team 3/2/1/0 各两次调用 match->GetUser(team)（虚槽+0x10，P48 双 call），
 // 命中取 user->get_acc_name()，否则回退 "127.0.0.1"；最后
 // sprintf(out, "%s,%s,%s,%s", t0, t1, t2, t3) 且返回 out。
+// [b28d-7 N7/N82] ORIG 0x08563ff7：push %edi/%esi/%ebx + 帧 $0x2c，4.4 无 push + 帧 $0x38；间接 call 目标 %edx vs %eax（N7，446h46 下仍未翻）⇒ 封顶。
 char* GetUserName(IMatch* match, char* out)
 {
     const char* n3 = match->GetUser(3) != 0

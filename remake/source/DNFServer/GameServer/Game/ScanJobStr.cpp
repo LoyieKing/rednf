@@ -23,16 +23,18 @@
 #include "RDARScriptStringManager.h"
 #include "SyncScriptDeps.h"
 
+// [b28d-11b] 修法：去具名 p 局部（P183/P172 完整下标重算）+ if-else 链改 switch（P251 载入寄存器 cmp 链）→ IDENTICAL 117 @0x08a6143f
 bool ScanJobStr(std::string* jobName, std::string** out)
 {
     bool found = false;
     int token = g_dnfLex.getToken();
-    if (token == DNF_TOK_STRING)
+    switch (token)
     {
+    case DNF_TOK_STRING:
         *jobName = toTString(g_dnfLex.getString());
         found = true;
-    }
-    else if (token == DNF_TOK_PAIR_INT)
+        break;
+    case DNF_TOK_PAIR_INT:
     {
         int key = g_dnfLex.getPairInt();
         if (g_dnfLex.getToken() == DNF_TOK_PAIR_STR)
@@ -53,12 +55,13 @@ bool ScanJobStr(std::string* jobName, std::string** out)
                     key, buf, &ok);
                 if (s != 0 && ok)
                 {
-                    std::string* p = new std::string();
-                    out[i] = p;
-                    *p = s;
+                    out[i] = new std::string();
+                    *out[i] = s;
                 }
             }
         }
+        break;
+    }
     }
     return found;
 }

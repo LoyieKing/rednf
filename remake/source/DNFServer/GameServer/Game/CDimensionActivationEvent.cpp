@@ -73,6 +73,7 @@ void CDimensionActivationEvent::reset_dungeon_play_count()
     tr("CDimensionActivationEvent reset_dungeon_play_count");
 }
 
+// [b28d-23 N·N93] it(-0x10)/e(-0xc) 双迭代器槽方向跨版本相反（4.1 先声明占深槽，4.4 相反），声明序绑死 find/end 求值序，迭代器无默认构造不可延后初始化 ⇒ N。ORIG 0x080eeca4
 bool CDimensionActivationEvent::checkFreeRevivalCondition(int dungeonDiff)
 {
     // [B24D判词 N] 语义正确：两次 G_CDataManager（P48 无 CSE）+m_dimensionAct.

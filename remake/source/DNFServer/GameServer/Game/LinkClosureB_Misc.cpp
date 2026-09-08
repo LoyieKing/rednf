@@ -74,6 +74,7 @@ namespace WongWork {
 // CWebEvent 权威声明已收敛至 GlobalData.h:274(Main 沉降仲裁,含 GetItemType);
 // 本 TU 的局部 class 视图已删除,仅保留 ORIG T 定义。
 
+// [b28d-D9] N82/P46：switch 决策树+叶块序+帧/槽号差；调用点差集待核（ORIG 0x086c1aba sz 0x000000ed）
 int CWebEvent::GetItemType(int eventKind, int itemNo)
 {
     int type = 0;
@@ -122,6 +123,7 @@ struct EventATI
 };
 
 // CheckAlreadyGetATIItem —— ORIG T 0x083f9f2e (size 0xd9)
+// [b28d-D9] 修复：P46 叶块序：case1 写于 case2 前（交换后 .o AE 96/96）（ORIG 0x083f9f2e sz 0x0000017f）
 int EventATI::CheckAlreadyGetATIItem(unsigned int uid, int itemNo)
 {
     // ORIG 直调 DBMgr::GetDBHandle(1,0)（禁 helper 包装遮蔽该 call，P167 判据）。
@@ -129,12 +131,12 @@ int EventATI::CheckAlreadyGetATIItem(unsigned int uid, int itemNo)
                                                   (ENUM_SERVER_GROUP)0);
     switch (CWebEvent::GetItemType(2, itemNo))
     {
-    case 2:
-        db->set_query("seLect avata_check2 from event_ati_info where id=%s",
-                      NumberToString(uid, 0));
-        break;
     case 1:
         db->set_query("seLect avata_check1 from event_ati_info where id=%s",
+                      NumberToString(uid, 0));
+        break;
+    case 2:
+        db->set_query("seLect avata_check2 from event_ati_info where id=%s",
                       NumberToString(uid, 0));
         break;
     case 3:
@@ -157,18 +159,19 @@ int EventATI::CheckAlreadyGetATIItem(unsigned int uid, int itemNo)
 }
 
 // UpdateEventATIInfo —— ORIG T 0x083fa0ad (size 0x126)
+// [b28d-D9] 修复：P46 叶块序：case1 写于 case2 前（交换后 .o AE 70/70）（ORIG 0x083fa0ad sz 0x00000126）
 void EventATI::UpdateEventATIInfo(unsigned int uid, int itemNo)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
                                                   (ENUM_SERVER_GROUP)0);
     switch (CWebEvent::GetItemType(2, itemNo))
     {
-    case 2:
-        db->set_query("upDate event_ati_info set avata_check2=unix_timestamp(now()) where id=%s",
-                      NumberToString(uid, 0));
-        break;
     case 1:
         db->set_query("upDate event_ati_info set avata_check1=unix_timestamp(now()) where id=%s",
+                      NumberToString(uid, 0));
+        break;
+    case 2:
+        db->set_query("upDate event_ati_info set avata_check2=unix_timestamp(now()) where id=%s",
                       NumberToString(uid, 0));
         break;
     case 3:
@@ -188,6 +191,7 @@ void EventATI::UpdateEventATIInfo(unsigned int uid, int itemNo)
 // ArrangeATIEventItem —— ORIG T 0x083fa1d3 (size 0x287)
 // 行收集：item_check==0 且 item_server_id==serverId 一条；
 // avata_server_id==serverId 时 avata_check1==0 / avata_check2==0 各一条。
+// [b28d-D9] P75/N80：变参装载序 + 帧差 0x114 vs 0x118（ORIG 0x083fa1d3 sz 0x000004c9）
 void EventATI::ArrangeATIEventItem(unsigned int mid, unsigned int serverId)
 {
     const char* kFunc =
@@ -307,6 +311,7 @@ void EventMuz::UpdateEventMuzInfo(unsigned int uid, int itemNo)
 }
 
 // ArrangeMuzEventItem —— ORIG T 0x083fb16a (size 0x240)
+// [b28d-D9] P75/N80：变参装载序（$0xa 槽位互换）+ 帧差 0xf4 vs 0xf8（ORIG 0x083fb16a sz 0x00000308）
 void EventMuz::ArrangeMuzEventItem(unsigned int mid, unsigned int serverId)
 {
     const char* kFunc =
@@ -403,6 +408,7 @@ CAdvanceAltarLog advancealtar::HistoryLog::advanceAltarstatistics_;  // ORIG B 0
 // rate = 1.0f + (-1000.0/((m_equipProbBase-1.0)*v))（fldl/fdivrp 常量
 // 0x8c1fc70=-1000.0 实证）；计数器 %1000 命中时打 itemDropRate trace。
 // ---------------------------------------------------------------------------
+// [b28d-D9] N95/N93：槽基差 -0xc vs -0x20、块级槽序；极性 P220（ORIG 0x082f8ae8 sz 0x000001a4）
 float CAutoMarketConditionsControl::GetItemDropRate(int levelRange)
 {
     float rate = 1.0f;
@@ -448,6 +454,7 @@ float CAutoMarketConditionsControl::GetItemDropRate(int levelRange)
 //   out[i]=item[i]-acc; if(out[i]<0) out[i]=0; 恒返 true。
 // item/out 两表各取前 4 项打 trace（两次独立匿名计数器）。
 // ---------------------------------------------------------------------------
+// [b28d-D9] N95/N85：槽基差 -0x50 vs -0x60 + x87 fldl/fstpl 序列（ORIG 0x082f8c8c sz 0x000002b3）
 bool CAutoMarketConditionsControl::ChangeItemRarity(int* itemRarity,
                                                     int* outItemRarity,
                                                     int raritySize,

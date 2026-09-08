@@ -132,6 +132,7 @@ bool DbmwClient::RegistToMiddleware()
 
 bool DbmwClient::ReceiveRegistAck()
 {
+    // b28d-L3: DIFF/N82+N89 — ORIG 0x... 帧 0x10c + 成员常量 store 段 vs 我方 0x...
     // ORIG @0x08120702：select(tv_sec=2) → 读 0x12 头 → msg_no==0 成功。
     // N78 判词：ORIG fd_set 清零为 bmp[32] int 槽循环（无 rep stos），4.4-O0 的
     // FD_ZERO/FD_SET 恒内联成 rep stos 展开（P116/P168 平台墙），语义等价豁免。
@@ -332,6 +333,7 @@ bool DbmwClient::DoQuery()
 
 int DbmwClient::DoReceive()
 {
+    // b28d-L3: DIFF/N82+N89 — ORIG 0x... 帧 0x12c + 成员 store 段
     // ORIG @0x08120dbc：select → 读 18B 头 → msg_no 分支：
     //   1 = 服务端断开 ack（Close 后返 1）；payloadLen<0x1b 时读 payload，
     //   payload 前 4 字节写入 affectedRow。

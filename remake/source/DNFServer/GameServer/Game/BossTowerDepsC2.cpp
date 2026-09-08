@@ -57,6 +57,7 @@ namespace pvp_assault
 // ============================================================================
 // pvp_assault::CForcedMoveCharacter 权威完整定义见 CAssaultMgr.h（本 TU 本地镜像已删，
 // 避免与全域权威头 ODR 冲突）。以下 ForcedMove ORIG T 0x082e567c 报告全文转写。
+// [b28d-L8] N82 | 块序 + 槽平移（ORIG 0x08xxxxxx）
 void CForcedMoveCharacter::ForcedMove()
 {
     if (m_user == 0)
@@ -111,6 +112,7 @@ void CForcedMoveCharacter::ForcedMove()
 // getPowerSide 两次独立调用（ORIG 指令流如此）；非 1/2 时其余字段不写
 // （保持未初始化栈值，与 ORIG 一致）。
 // ============================================================================
+// [b28d-L8] N82 | 帧差 0x38 vs 0x48 + 缓存槽（具名局部 vs 直读，ORIG 0x08xxxxxx）
 void CAssaultPlace::ForcedMoveAtPowerWarPlace(CUser* user)
 {
     int enter = 0;
@@ -193,6 +195,7 @@ int TOD_UserState::getLastClearTime() const
 //   party 空且未走上方分支 → 0x15；member_count>1 → 0xab；否则 0。
 //   （env+0x37c = Server_Envir::m_fatigueTime，CEnvironment.h 权威布局。）
 // ============================================================================
+// [b28d-L8] N82 | 帧差 + 参数/字段装载序（ORIG 0x08xxxxxx）
 int TowerOfDespairMgr::CheckEnterable(CUser* user, const CDungeon* dungeon)
 {
     if (user == 0)

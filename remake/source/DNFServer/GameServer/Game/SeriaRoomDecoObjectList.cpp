@@ -49,6 +49,7 @@ void seriaDecoObjectInfo::clear()
 // importSeriaRoomDecoEventObjectList —— ORIG T 0x0895e79b
 //   bool (seriaRoomDecoEventObjectListScript*, const char*)
 // ============================================================================
+// [b28d-L8] N82 | 槽平移 + ScanType 调用序（ORIG 0x08xxxxxx）
 bool importSeriaRoomDecoEventObjectList(seriaRoomDecoEventObjectListScript* s,
                                         const char* path)
 {

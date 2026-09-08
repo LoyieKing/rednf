@@ -37,6 +37,7 @@ void CSwitchLog::SetLogWriteFlag(register int flag)
     }
 }
 
+// [b28d-23 N·N82] ⇒ N。ORIG 0x0854fd64
 void CSwitchLog::operator()(const char* fmt, ...)
 {
     if (log_write_[m_flagIndex]) {

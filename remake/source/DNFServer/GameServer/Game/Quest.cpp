@@ -1,6 +1,31 @@
 #include "GameRand.h"
 // df_game_r 任务模板 Quest 实现（G3-2 批次，2026-08-17）。
 // 语义依据 docs/class_func_reports/Quest.md（Ghidra C）+ ORIG 反汇编。
+// ============================================================================
+// b28d-20 lane20 判词汇总（Quest.cpp 独占 TU，ORIG 权威地址见各行）：
+//  [1] dungeonEventHanaseStruct::~dungeonEventHanaseStruct（定义在 Quest.h:195，
+//      本 TU 无写权，未加行内判词）——ORIG 0x08a61164，52=52 助记符/槽位全等，
+//      仅 .o 重定位标签差，TU 级 AE/IDENTICAL。
+//  [2] Quest::check_possible 0x08352d86 —— NEAR（N93附 尾部双 return 块序：
+//      4.1 Bfalse-ret0 在前，4.4 恒 Btrue-ret1 在前；四形探针全败）。
+//  [3] makeRewardItemInfo(pair) 0x083520c8 —— AE/IDENTICAL（it++ 后置 +
+//      cMyTrace 全表达式临时链，83=83）。
+//  [4] stQuestTriggerState_t::setTrigger 0x0836dce0 —— N18a 封顶（4.1 每字段
+//      多发 `mov %edx,%ecx; and $0x1ff,%cx` 冗余截断，4.4 恒折单次 and）。
+//  [5] Quest::CheckKillMonster 0x083535d6 —— P223 多岛 goto 形已复现 3 岛；
+//      残 1 条 `mov`（N18b/N7 寄存器选择，4.4 恒折 cmp MEM,reg）。
+//  [6] Quest::get_appearmap 0x083536f2 —— N7/P197④ 封顶（4.1 setge 物化 +
+//      callee-saved 保活；4.4 语句表达式形恒出 jl+mov$1/mov$0 分支物化）。
+//  [7] makeRewardItemInfo(RewardItemInfo) 0x08352203 —— AE/IDENTICAL（同上）。
+//  [8] Quest::ConvertRewardSelectIndex 0x083537c2 —— NEAR（P226 语句表达式 +
+//      真语义修正 return i；残尾部 return 岛 1 条，P223 单源 goto 负例）。
+//  [9] Quest::get_init_trigger 0x083530d6 —— NEAR（168=168 助记符全等；残
+//      stQuestTriggerState_t 槽基 -0x4a vs ORIG -0x4c，N95/N93 槽对齐差）。
+//  [10] Quest::get_clear_itemlist 0x08353404 —— AE/IDENTICAL（声明序 item/out/p
+//      + 正向 is_stackable + 具名 randValue + pair 字段直赋）。
+//  [11] Quest::set_quest 0x0835233e —— N82 封顶（P167 调用点差集 45=45 归零；
+//      两个 trigger 循环按 ORIG 形重写 + trace 补齐；残全为槽号/寄存器分配）。
+// ============================================================================
 #include <utility>
 #include <vector>
 
@@ -20,6 +45,8 @@
 
 // ORIG 0x8352203：src 按相邻元素配对填充 RewardItemInfo{field0,field4}；
 // 奇数元素时记录错误并返回
+// b28d-20 AE：it++ 后置 + cMyTrace 全表达式临时链（83=83，槽位对齐；
+// 残差仅 .o 重定位立即数）。
 void makeRewardItemInfo(const std::vector<int>& src,
                         std::vector<RewardItemInfo>& out)
 {
@@ -28,18 +55,17 @@ void makeRewardItemInfo(const std::vector<int>& src,
     while (it != src.end())
     {
         item.m_itemIdx = *it;
-        ++it;
+        it++;
         if (it == src.end())
         {
             // ORIG 0x83522ce：cMyTrace 记录 "it == data.rewardSelectItems_.end()"
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x104d, 5);
-            trace("[%s][%d]_it == data.rewardSelectItems_.end()", 0x104d);
+            cMyTrace(__PRETTY_FUNCTION__, 0x104d, 5)(
+                "[%s][%d]_it == data.rewardSelectItems_.end()",
+                __PRETTY_FUNCTION__, 0x104d);
             return;
         }
         item.m_count = *it;
-        ++it;
+        it++;
         out.push_back(item);
     }
 }
@@ -47,6 +73,7 @@ void makeRewardItemInfo(const std::vector<int>& src,
 // 奇数元素时 cMyTrace 记录 "[%s][%d]_it == data.rewardSelectItems_.end()"
 // （0x1031 行，PRETTY __PRETTY_FUNCTION__）。
 // 与 RewardItemInfo 版同 TU 相邻（0x83520c8/0x8352203），ORIG T 强符号，无调用点（导出）。
+// b28d-20 AE：同上形（it++ + 全表达式临时链），83=83 槽位对齐。
 void makeRewardItemInfo(const std::vector<int>& src,
                         std::vector<std::pair<int, int> >& out)
 {
@@ -58,12 +85,9 @@ void makeRewardItemInfo(const std::vector<int>& src,
         it++;
         if (it == src.end())
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x1031, 5);
-            trace("[%s][%d]_it == data.rewardSelectItems_.end()",
-                  __PRETTY_FUNCTION__,
-                  0x1031);
+            cMyTrace(__PRETTY_FUNCTION__, 0x1031, 5)(
+                "[%s][%d]_it == data.rewardSelectItems_.end()",
+                __PRETTY_FUNCTION__, 0x1031);
             return;
         }
         p.second = *it;
@@ -78,11 +102,13 @@ int get_rand_int(int range);
 // `and $0x1ff,%dx` 后额外发 `mov %edx,%ecx; and $0x1ff,%cx`（对 (a&0x1ff)
 // 的寄存器副本再截断一次），4.4 恒折单次 and（探针：原形与显式嵌套
 // `(short)((short)(a & 0x1ff) | …)` 两形均 38/41，无源码解）。
+// b28d-20 N18a 封顶：本次再试 `(short)(a & 0x1ff) | (m_trigger0 & 0xfe00)`
+// 形仍 38/41（ORIG 42），4.4 无源码形态产出该冗余截断。
 void stQuestTriggerState_t::setTrigger(short a, short b, short c)
 {
-    m_trigger0 = (short)((a & 0x1ff) | (m_trigger0 & ~0x1ff));
-    m_trigger1 = (short)((b & 0x1ff) | (m_trigger1 & ~0x1ff));
-    m_trigger2 = (short)((c & 0x1ff) | (m_trigger2 & ~0x1ff));
+    m_trigger0 = (short)((short)(a & 0x1ff) | (m_trigger0 & 0xfe00));
+    m_trigger1 = (short)((short)(b & 0x1ff) | (m_trigger1 & 0xfe00));
+    m_trigger2 = (short)((short)(c & 0x1ff) | (m_trigger2 & 0xfe00));
 }
 
 // ============================================================================
@@ -102,6 +128,9 @@ bool Quest::exposeQuest() const
     return m_exposeQuest;
 }
 
+// b28d-20 NEAR：ORIG 0x08352d86，163/163 助记符同；残 N93附——尾部
+// `if(expertJobLevel<m_field140) return 0; return 1;` 的 4.1 Bfalse-ret0 在前
+// 布局，4.4 恒 Btrue-ret1 在前（显式 else/逆置/三目/正向包裹四形探针全败）。
 bool Quest::check_possible(const stSelectQuestParam& param) const
 {
     int job = param.m_job;
@@ -313,6 +342,9 @@ bool Quest::check_clear_item(int itemIdx, int dungeonIdx) const
     return 0;
 }
 
+// b28d-20：ORIG 0x083535d6。P223 多岛复现成功（3 个 nop+jmp 岛 + 尾 nop，
+// 与 ORIG 0x83536a9/ac/af 逐址对应）；残 1 条 `mov`（N18b：4.4 对
+// `enemyType != item.m_enemyType` 恒载双寄存器，ORIG 单段 eax+mem cmp）。
 bool Quest::CheckKillMonster(int mapIdx, int dungeonIdx, int killCount,
                              ENUM_QUEST_ENEMY_TYPE enemyType,
                              std::vector<MonsterKillItem>& out) const
@@ -326,13 +358,28 @@ bool Quest::CheckKillMonster(int mapIdx, int dungeonIdx, int killCount,
     for (int i = 0; i < (int)m_killItems.size(); ++i)
     {
         MonsterKillItem item = m_killItems[i];
-        if (((item.m_dungeonIdx == -1) || (item.m_dungeonIdx == dungeonIdx)) &&
-            ((item.m_mapIdx == -1) || (item.m_mapIdx == mapIdx)) &&
-            (item.m_enemyType == enemyType) &&
-            (item.m_killCount == killCount))
+        // ORIG 0x83535d6：4.1 if-join 岛形——前 3 个 && 条件失败各落一个
+        // nop 中继岛（0x83536a9/ac/af），第 4 个失败直落尾块（0x83536b0）。
+        // 4.4 复现形 = 负条件 goto 到物理连续尾标签串（P223 多岛细则）。
+        if ((item.m_dungeonIdx != -1) && (item.m_dungeonIdx != dungeonIdx))
+        {
+            goto next_item1;
+        }
+        if ((item.m_mapIdx != -1) && (item.m_mapIdx != mapIdx))
+        {
+            goto next_item2;
+        }
+        if (item.m_enemyType != enemyType)
+        {
+            goto next_item3;
+        }
+        if (item.m_killCount == killCount)
         {
             out.push_back(item);
         }
+    next_item1:;
+    next_item2:;
+    next_item3:;
     }
     if (out.size() == 0)
     {
@@ -346,30 +393,29 @@ char Quest::check_clear_send() const
     return m_clearSendFlag;
 }
 
+// b28d-20 NEAR：ORIG 0x083530d6。`*it++` 后置形 + `{0}` 两写清零 + 拆嵌套
+// if 后 168=168 助记符全等；残 stQuestTriggerState_t 槽基 -0x4a vs ORIG
+// -0x4c（N95/N93：4.1 按 4 对齐该 8 字节对象，4.4 按 short 自然对齐 2）。
 int Quest::get_init_trigger() const
 {
     if ((m_triggerType == 2) || (m_triggerType == 6))
     {
         std::vector<int>::const_iterator it = m_triggerData.begin();
         std::vector<int>::const_iterator end = m_triggerData.end();
-        short values[3] = { 0, 0, 0 };
+        short values[3] = { 0 };
         int idx = 0;
         while (it != end)
         {
-            // ORIG 0x8353145：每次迭代前进 4（type 6 为 5）个 int，取最后一项
-            it++;
-            int v1 = *it;
-            it++;
-            int v2 = *it;
-            it++;
-            int v3 = *it;
+            // ORIG 0x8353145：每次迭代前进 4（type 6 为 5）个 int，取最后一项；
+            // ORIG 形为 `*it++`（后置递增的临时副本再解引用，sret 槽 -0x34 等）。
+            int v1 = *it++;
+            int v2 = *it++;
+            int v3 = *it++;
             if (m_triggerType == 6)
             {
-                it++;
-                *it;
+                *it++;
             }
-            it++;
-            int v4 = *it;
+            int v4 = *it++;
             values[idx] = (short)v4;
             idx++;
         }
@@ -383,13 +429,17 @@ int Quest::get_init_trigger() const
         state.setTrigger(1, 1, 0);
         return state.getTrigger();
     }
-    if ((m_triggerType == 1) && (m_triggerSubType == 6) &&
-        (m_triggerData.size() == 3))
+    if ((m_triggerType == 1) && (m_triggerSubType == 6))
     {
-        int v = m_triggerData.at(2);
-        if (v > 0)
+        // ORIG 0x8353309：`call size; cmp $3; sete %al; test %al,%al; je`
+        // ⇒ 拆嵌套 if 让末条件单独物化（P225 推广）。
+        if (m_triggerData.size() == 3)
         {
-            return v;
+            int v = m_triggerData.at(2);
+            if (v > 0)
+            {
+                return v;
+            }
         }
     }
     return 1;
@@ -443,6 +493,10 @@ bool Quest::isRepeatableQuest() const
     }
 }
 
+// b28d-20 N7/P197④ 封顶：ORIG 0x083536f2。语句表达式形已复现 m_percent
+// 升格 %ebx 跨 get_rand_int 保活；但 4.1 的 `setge %al; test` 物化在 4.4
+// 恒退化为 `jl + mov$1/jmp/mov$0` 分支物化（while 形 55、裸形 50、语句
+// 表达式 53，ORIG 47，无源码形态同时满足保活+setge）。
 int Quest::get_appearmap(int mapA, int mapB) const
 {
     // ORIG：m_percent 在 mapA 判定后、get_rand_int 前物化 %ebx 跨 call，
@@ -451,14 +505,14 @@ int Quest::get_appearmap(int mapA, int mapB) const
     if (m_appearMap.m_mapB == -1)
     {
         if ((m_appearMap.m_mapA == mapA) &&
-            (get_rand_int(100) <= m_appearMap.m_percent))
+            (({ m_appearMap.m_percent; }) >= get_rand_int(100)))
         {
             return m_appearMap.m_appearMap;
         }
     }
     else if ((m_appearMap.m_mapB == mapA) &&
              (m_appearMap.m_mapB == mapB) &&
-             (get_rand_int(100) <= m_appearMap.m_percent))
+             (m_appearMap.m_percent >= get_rand_int(100)))
     {
         return m_appearMap.m_appearMap;
     }
@@ -466,6 +520,10 @@ int Quest::get_appearmap(int mapA, int mapB) const
 }
 
 
+// b28d-20 NEAR：ORIG 0x083537c2。原嵌套 if+goto 产生 3 处 setcc 落栈物化；
+// 改为单一短路表达式 + P226 语句表达式后 88/87，仅残尾部 `return i` 的
+// 4.1 共享 nop 岛（P223 单源 goto 尾岛负例）。**真语义修正**：ORIG 循环
+// 正常结束返回 i（== size()）而非 0xffffffff（早退才返回 -1），已按 ORIG 照抄。
 unsigned int Quest::ConvertRewardSelectIndex(const CUser* user, int index)
 {
     if (!user)
@@ -476,36 +534,15 @@ unsigned int Quest::ConvertRewardSelectIndex(const CUser* user, int index)
     {
         return 0xffffffff;
     }
+    int i = 0;
     int count = 0;
-    for (unsigned int i = 0; i < m_selectReward.size(); ++i)
+    for (i = 0; i < (int)m_selectReward.size(); ++i)
     {
-        bool match;
-        if (m_selectReward[i].m_job == 0xb)
-        {
-            match = true;
-        }
-        else
-        {
-            if (m_selectReward[i].m_job == user->get_charac_job())
-            {
-                if (m_selectReward[i].m_growType != -1)
-                {
-                    if (m_selectReward[i].m_growType !=
-                        (int)user->getCurCharFirstGrowType())
-                    {
-                        match = false;
-                        goto check_match;
-                    }
-                }
-                match = true;
-            }
-            else
-            {
-                match = false;
-            }
-        }
-check_match:
-        if (match)
+        if (({ (m_selectReward[i].m_job == 0xb) ||
+               ((m_selectReward[i].m_job == user->get_charac_job()) &&
+                ((m_selectReward[i].m_growType == -1) ||
+                 (m_selectReward[i].m_growType ==
+                  (int)user->getCurCharFirstGrowType()))); }))
         {
             if (index == count)
             {
@@ -514,15 +551,20 @@ check_match:
             ++count;
         }
     }
-    return 0xffffffff;
+    return i;
 }
 
+// b28d-20 AE：ORIG 0x08353404。声明序 item/out/p + pItem/randValue 循环外
+// 具名（ORIG -0x2c/-0x28 清 0 实证）+ 正向 `if (is_stackable())`（消 xor $1）
+// + pair 字段直赋（消 make_pair 临时）；134/134 槽位对齐。
 std::vector<std::pair<int, int> > Quest::get_clear_itemlist(
     int dungeonIdx) const
 {
-    std::vector<std::pair<int, int> > out;
     DungeonClearItem item;
+    std::vector<std::pair<int, int> > out;
     std::pair<int, int> p;
+    CItem* pItem = 0;
+    int randValue = 0;
     for (int i = 0; i < (int)m_clearItems.size(); ++i)
     {
         item = m_clearItems.at(i);
@@ -530,7 +572,7 @@ std::vector<std::pair<int, int> > Quest::get_clear_itemlist(
         {
             continue;
         }
-        CItem* pItem = G_CDataManager()->find_item(item.m_rewardItem);
+        pItem = G_CDataManager()->find_item(item.m_rewardItem);
         if (!pItem)
         {
             // ORIG 0x83534e3：find_item 失败记录日志
@@ -540,27 +582,31 @@ std::vector<std::pair<int, int> > Quest::get_clear_itemlist(
                 "G_CDataManager()->find_item(%d)", item.m_rewardItem);
             continue;
         }
-        if (!pItem->is_stackable())
-        {
-            if (get_rand_int(100) <= item.m_percent)
-            {
-                p = std::make_pair(item.m_rewardItem, 1);
-                out.push_back(p);
-            }
-        }
-        else
+        if (pItem->is_stackable())
         {
             int count = 0;
             for (int k = 0; k < item.m_count; ++k)
             {
-                if (get_rand_int(100) <= item.m_percent)
+                randValue = get_rand_int(100);
+                if (randValue <= item.m_percent)
                 {
                     ++count;
                 }
             }
             if (count > 0)
             {
-                p = std::make_pair(item.m_rewardItem, count);
+                p.first = item.m_rewardItem;
+                p.second = count;
+                out.push_back(p);
+            }
+        }
+        else
+        {
+            randValue = get_rand_int(100);
+            if (randValue <= item.m_percent)
+            {
+                p.first = item.m_rewardItem;
+                p.second = 1;
                 out.push_back(p);
             }
         }
@@ -577,6 +623,10 @@ bool Quest::IsOpenScheduleQuest() const
 }
 
 
+// b28d-20 N82 封顶：ORIG 0x0835233e。appearMap 改整体赋值；两个 trigger
+// 循环按 ORIG 形重写（循环1 `p.first=*it; it++` + 奇尾 cMyTrace 补齐；
+// 循环2 `*it++` + `i<n && it!=end` 条件）；m_appearMap 结构拷贝、trace 补齐后
+// p167 调用点差集 45=45 归零（语义完成）。残差全为槽号/寄存器分配（451/453）。
 void Quest::set_quest(QuestScript script)
 {
     m_name = script.m_name;
@@ -593,10 +643,7 @@ void Quest::set_quest(QuestScript script)
     m_clearSendFlag = script.m_field130;
     m_clearItems = script.m_clearItems;
     m_killItems = script.m_killItems;
-    m_appearMap.m_mapA = script.m_appearMap.m_mapA;
-    m_appearMap.m_mapB = script.m_appearMap.m_mapB;
-    m_appearMap.m_appearMap = script.m_appearMap.m_appearMap;
-    m_appearMap.m_percent = script.m_appearMap.m_percent;
+    m_appearMap = script.m_appearMap;
     m_rewardSelectList = script.m_rewardSelectList;
     m_triggerType = script.m_triggerType;
     m_triggerSubType = script.m_triggerSubType;
@@ -608,40 +655,39 @@ void Quest::set_quest(QuestScript script)
 
     if (m_triggerType == 0)
     {
-        for (std::vector<int>::iterator it = m_triggerData.begin();
-             it != m_triggerData.end(); )
+        // ORIG 0x835256c：pair p(-0x48) 具名 + `p.first = *it; it++;` 形；
+        // 奇数尾部走 cMyTrace（0x8352602 "(it == intDatas_.end())"）后跳出。
+        std::pair<int, int> p;
+        std::vector<int>::iterator it = m_triggerData.begin();
+        while (it != m_triggerData.end())
         {
-            int first = *it;
-            ++it;
+            p.first = *it;
+            it++;
             if (it == m_triggerData.end())
             {
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x109d, 5);
+                trace("[%s][%d]_(it == intDatas_.end())",
+                      __PRETTY_FUNCTION__, 0x109d);
                 break;
             }
-            int second = *it;
-            ++it;
-            m_triggerDataPairs.push_back(std::make_pair(first, second));
+            p.second = *it;
+            it++;
+            m_triggerDataPairs.push_back(p);
         }
     }
     else if (m_triggerType == 0x19)
     {
         m_triggerDataPairs.clear();
+        // ORIG 0x83526bf：sibling 分支 pair p(-0x50)；ORIG 形 `*it++` 后置
+        // 递增（临时槽 -0x18/-0x14）且循环条件 = `i < n && it != end`。
+        std::pair<int, int> p;
         unsigned int n = (unsigned int)(m_triggerData.size() >> 1);
         std::vector<int>::iterator it = m_triggerData.begin();
-        for (unsigned int i = 0; i < n; ++i)
+        for (unsigned int i = 0; (i < n) && (it != m_triggerData.end()); ++i)
         {
-            if (it == m_triggerData.end())
-            {
-                break;
-            }
-            int first = *it;
-            ++it;
-            if (it == m_triggerData.end())
-            {
-                break;
-            }
-            int second = *it;
-            ++it;
-            m_triggerDataPairs.push_back(std::make_pair(first, second));
+            p.first = *it++;
+            p.second = *it++;
+            m_triggerDataPairs.push_back(p);
         }
     }
 

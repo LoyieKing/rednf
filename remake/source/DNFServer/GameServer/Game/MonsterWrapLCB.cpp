@@ -90,6 +90,7 @@ void CMonster::generateCatchMonsterItem(std::vector<Inven_Item>& out) const
 //       G_CDataManager()->getItemList()->create_item((ENUM_ITEM_CREATE_TYPE)1,
 //       item, 1)；out.push_back(item)；命中后不推进迭代器即退出本轮
 //       （ORIG jmp +0x170 → 轮数 +1 继续）。
+// [b28d-L14 N18a] ORIG 0x08598f34；p167 缺 1 次 const_iterator ptEv；残差=槽深/寄存器。
 void generateDropAvatarItem(const stEnamyDropAvatarInfo_t& info,
                             unsigned char rarity, unsigned char grade,
                             std::vector<Inven_Item>& out)
@@ -144,6 +145,8 @@ void generateDropAvatarItem(const stEnamyDropAvatarInfo_t& info,
 //   r = get_rand_int(0x64)；(double)rate > (double)r 才生成；
 //   Inven_Item{}；item.m_addInfo = m_field0；create_item((T)1,item,1)；
 //   push_back count 次（signed setg 比较）。
+// [b28d-L14 P167/N90] ORIG 0x08598d2c；已改 m_itemList 直取（消 EXTRA getItemList）；
+// 残差=12B 结构体按值拷贝形（N90 族）。
 void generateCatchMonsterItem(const std::vector<CatchItemInfo>& items,
                               std::vector<Inven_Item>& out)
 {

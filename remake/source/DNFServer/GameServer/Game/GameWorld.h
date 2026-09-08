@@ -233,7 +233,10 @@ public:
     void EraseLoginUser(CUser* user);
     bool InsertUserToIDMap(const char* name, unsigned int id);
     bool DeleteUserInIDMap(const char* name);
-    unsigned int GetIDUserInIDMap(const char* name);
+    // b28d-lane11：unsigned int → int（P248 档①，返回类型不入 mangled）。
+    // ORIG 0x086cd8d2 `mov (%eax),%ebx` 单步直落（SimpleInfo::m_id int 同型）；
+    // unsigned 返回使 4.4 插 `mov (%eax),%eax; mov %eax,%ebx` 两段中转。
+    int GetIDUserInIDMap(const char* name);
     bool reach_game_world(CUser* user);
     bool leave_game_world(CUser* user);
     // b28c-lane3：ORIG 0x086c4b8f 段双零扩展（movzwl 0x24(%eax),%eax;

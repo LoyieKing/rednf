@@ -64,16 +64,24 @@ class CharacAdvanceAltarManager;
 class ActionDefine;  // 完整定义 CDataManager.h（_ActionAssign 仅持指针）
 
 // ---- 子结构布局（advancealtar__DB_Load parse* 报告推导，尺寸与 ORIG 一致）----
+// b28d-26：_Stage::m_field4 声明为 enum（P254：ORIG makeStageString 0x0813f3f8 处
+// `mov 0x4(%eax),%eax; mov %eax,%edx` 两段中转 ⇒ 源字段类型须是 enum；探针
+// /tmp/d26p/p_enum2.cpp f/g 对照：int 字段单段、enum 字段两段）。4 字节/偏移不变。
+enum StageField4_t { STAGE_FIELD4_N0 = 0 };
 struct _Stage {
     // ORIG W C1/C2 @0x08134452（0x23 字节）：memset(this,0,sizeof) —— 8 字节全清零。
     _Stage() { std::memset(this, 0, sizeof(*this)); }
-    int m_field0; int m_field4;
+    int m_field0; StageField4_t m_field4;
 };            // 8 字节
 #pragma pack(push, 1)
+// b28d-26：_Slot::m_int1 声明为 enum（P254：ORIG makeSlotString 0x0813f4a5/4a8
+// `mov 0x1(%eax),%eax; mov %eax,%ecx` 两段中转 ⇒ 源字段类型须是 enum；
+// 探针 /tmp/d26p/p_enum2.cpp f/g 对照）。4 字节/pack(1) 偏移不变。
+enum SlotInt1_t { SLOT_INT1_N0 = 0 };
 struct _Slot {
     // ORIG W C1/C2 @0x0813449a：memset(this,0,10)。
     _Slot() { std::memset(this, 0, sizeof(*this)); }
-    unsigned char m_byte0; int m_int1; unsigned char m_byte5; int m_int6;   // pack(1)，10 字节
+    unsigned char m_byte0; SlotInt1_t m_int1; unsigned char m_byte5; int m_int6;   // pack(1)，10 字节
 };  // 10 字节
 struct _Reward {
     // ORIG W C1/C2 @0x081344be：memset(this,0,5)。

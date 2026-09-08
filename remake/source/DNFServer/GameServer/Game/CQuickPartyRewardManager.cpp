@@ -59,28 +59,41 @@ IRandomwReward::IRandomwReward(QuickPartyData& data)
 // ORIG 反汇编：fnstcw 置 RC=0 + fistpl（截断）；lrintf 为就近偶舍入，语义不符。
 void RewardCardGold::process(RewardData_Param param, RewardData_Result& result)
 {
-    const std::vector<LevelData>& levels = m_data.m_basicReward.m_levelDatas;
+    // b28d-20: ORIG 0x0826d070 — IBasicReward 族无 map find，直接
+    // m_data.m_basicReward.m_levelDatas（+0x18）；两早退岛（js idx<0 / jge idx>=sz）
+    // 由裸 if-return 直产（P223 变体）；size()/operator[] 每次重走
+    // m_data.m_basicReward.m_levelDatas 表达式（P183 禁 vector 引用缓存，ORIG 每处
+    // `mov this,%edx; mov 0x4(%edx),%edx; add $0x18,%edx`）；比较为**有符号** jge
+    //（ORIG 源码是 int sz 而非 size_t 比较）。rate 为具名 float 局部（槽 -0xc，
+    // ORIG `mov $0x3f800000,%eax; mov %eax,-0xc` 实证，两语句赋值保槽）。
+    int sz = static_cast<int>(m_data.m_basicReward.m_levelDatas.size());
     int idx = param.m_party->get_member_count() - 2;
-    if (idx >= 0 && static_cast<unsigned int>(idx) < levels.size())
-    {
-        float rate = 1.0f +
-            static_cast<float>(levels[idx].m_value4) / 100.0f;
-        result.m_value00 = static_cast<int>(
-            static_cast<float>(result.m_value00) * rate);
-    }
+    if (idx < 0)
+        return;
+    if (idx >= sz)
+        return;
+
+    float rate = 1.0f;
+    rate = rate +
+        static_cast<float>(m_data.m_basicReward.m_levelDatas[idx].m_value4) / 100.0f;
+    result.m_value00 = static_cast<int>(
+        static_cast<float>(result.m_value00) * rate);
 }
 
 // ---- HellPartyDifficulty（T 0x0826d116）----
 // 命中槽位：result.value00=hell[idx].value4、result.value04=hell[idx].field0（交叉写）。
 void HellPartyDifficulty::process(RewardData_Param param, RewardData_Result& result)
 {
-    const std::vector<LevelDataHell>& hells = m_data.m_basicReward.m_hellDatas;
+    // b28d-20: ORIG 0x0826d116 — 两早退岛（js / jge）+ 有符号 sz 比较；size 先算
+    // 存 -0x10、idx 存 -0xc（ORIG 槽序），两次 operator[] 各自重算 vector 地址（P183）。
+    int sz = static_cast<int>(m_data.m_basicReward.m_hellDatas.size());
     int idx = param.m_party->get_member_count() - 2;
-    if (idx >= 0 && static_cast<unsigned int>(idx) < hells.size())
-    {
-        result.m_value00 = hells[idx].m_value4;
-        result.m_value04 = hells[idx].m_field0;
-    }
+    if (idx < 0)
+        return;
+    if (idx >= sz)
+        return;
+    result.m_value00 = m_data.m_basicReward.m_hellDatas[idx].m_value4;
+    result.m_value04 = m_data.m_basicReward.m_hellDatas[idx].m_field0;
 }
 
 // ---- KillMonsterExp（T 0x0826d198）----
@@ -92,15 +105,18 @@ void KillMonsterExp::process(RewardData_Param param, RewardData_Result& result)
     if (it == m_data.m_randomRewards.end())
         return;
 
-    const std::vector<LevelData>& levels = it->second.m_levelDatas;
+    // b28d-20: ORIG 0x0826d198 — 与 RewardCardGold 同形（三岛 + 有符号 sz + rate 具名槽）。
+    int sz = static_cast<int>(it->second.m_levelDatas.size());
     int idx = param.m_party->get_member_count() - 2;
-    if (idx >= 0 && static_cast<unsigned int>(idx) < levels.size())
-    {
-        float rate = 1.0f +
-            static_cast<float>(levels[idx].m_value4) / 100.0f;
-        result.m_value00 = static_cast<int>(
-            static_cast<float>(result.m_value00) * rate);
-    }
+    if (idx < 0)
+        return;
+    if (idx >= sz)
+        return;
+    float rate = 1.0f;
+    rate = rate +
+        static_cast<float>(it->second.m_levelDatas[idx].m_value4) / 100.0f;
+    result.m_value00 = static_cast<int>(
+        static_cast<float>(result.m_value00) * rate);
 }
 
 // ---- EquipItemDropRate（T 0x0826d2aa）----
@@ -112,13 +128,19 @@ void EquipItemDropRate::process(RewardData_Param param, RewardData_Result& resul
     if (it == m_data.m_randomRewards.end())
         return;
 
-    const std::vector<LevelData>& levels = it->second.m_levelDatas;
+    // b28d-20: ORIG 0x0826d2aa — 三早退岛；rate 具名 float 槽（ORIG -0xc
+    // `mov $0x3f800000,%eax; mov %eax,-0xc`），尾段 `mov -0xc(%ebp),%edx;
+    // mov %edx,0x14(%eax)` 直存 result.m_rate14（非表达式直写，否则 fld1 无槽）。
+    int sz = static_cast<int>(it->second.m_levelDatas.size());
     int idx = param.m_party->get_member_count() - 2;
-    if (idx >= 0 && static_cast<unsigned int>(idx) < levels.size())
-    {
-        result.m_rate14 = 1.0f +
-            static_cast<float>(levels[idx].m_value4) / 100.0f;
-    }
+    if (idx < 0)
+        return;
+    if (idx >= sz)
+        return;
+    float rate = 1.0f;
+    rate = rate +
+        static_cast<float>(it->second.m_levelDatas[idx].m_value4) / 100.0f;
+    result.m_rate14 = rate;
 }
 
 // ---- CointLimitCount（T 0x0826d4ac）----
@@ -130,13 +152,17 @@ void CointLimitCount::process(RewardData_Param param, RewardData_Result& result)
     if (it == m_data.m_randomRewards.end())
         return;
 
-    const std::vector<LevelData>& levels = it->second.m_levelDatas;
+    // b28d-20: ORIG 0x0826d4ac — 三早退岛；sz 存 -0x10、idx 存 -0xc（ORIG 槽序）；
+    // `result.m_value00 -= it->second.m_levelDatas[idx].m_value4` 单语句触发 4.1
+    // 旧值先入 %esi + idx 入 %ebx 跨 operator->/operator[] 保活（P38/SAVE_EXPR）。
+    int sz = static_cast<int>(it->second.m_levelDatas.size());
     int idx = param.m_party->get_member_count() - 2;
-    if (idx >= 0 && static_cast<unsigned int>(idx) < levels.size())
-    {
-        result.m_value00 -= levels[idx].m_value4;
-        param.m_party->increase_dungeon_coin_count(result.m_value00);
-    }
+    if (idx < 0)
+        return;
+    if (idx >= sz)
+        return;
+    result.m_value00 -= it->second.m_levelDatas[idx].m_value4;
+    param.m_party->increase_dungeon_coin_count(result.m_value00);
 }
 
 // ---- ReturnAncientDungeonTicket（T 0x0826d598）----
@@ -200,36 +226,36 @@ void DimensionInoutCount::process(RewardData_Param param,
 // ---- 具体类 ctor（W，type 仅 RandomwReward 族存储于 +0x08）----
 
 RewardCardGold::RewardCardGold(BasicRewardType /*type*/, QuickPartyData& data)
-    : IBasicReward(data)
+    throw() : IBasicReward(data)
 {
 }
 
 HellPartyDifficulty::HellPartyDifficulty(BasicRewardType /*type*/,
-                                         QuickPartyData& data)
+                                         QuickPartyData& data) throw()
     : IBasicReward(data)
 {
 }
 
-KillMonsterExp::KillMonsterExp(RandomBuffType type, QuickPartyData& data)
+KillMonsterExp::KillMonsterExp(RandomBuffType type, QuickPartyData& data) throw()
     : IRandomwReward(data)
 {
     m_type = type;
 }
 
-EquipItemDropRate::EquipItemDropRate(RandomBuffType type, QuickPartyData& data)
+EquipItemDropRate::EquipItemDropRate(RandomBuffType type, QuickPartyData& data) throw()
     : IRandomwReward(data)
 {
     m_type = type;
 }
 
-CointLimitCount::CointLimitCount(RandomBuffType type, QuickPartyData& data)
+CointLimitCount::CointLimitCount(RandomBuffType type, QuickPartyData& data) throw()
     : IRandomwReward(data)
 {
     m_type = type;
 }
 
 ReturnAncientDungeonTicket::ReturnAncientDungeonTicket(RandomBuffType type,
-                                                       QuickPartyData& data)
+                                                       QuickPartyData& data) throw()
     : IRandomwReward(data)
 {
     m_type = type;
@@ -246,6 +272,9 @@ CQuickPartyRewardManager::~CQuickPartyRewardManager() {}  // ORIG 0x826d69c：�
 // 对象写入 m_rewards 表（basic[11]=CardGold、basic[12]=HellDifficulty、
 // random[0]=KillMonsterExp、random[3]=EquipDropRate、random[9]=CoinLimit、
 // random[10]=ReturnTicket），最后 set_rand_buff_total_prob 并返回 true。
+// b28d-20: 修前 167 insn（每个 new 后 ~9 条 EH landing pad：operator delete +
+// _Unwind_Resume）；按 P216 给 6 个奖励类 ctor 声明/定义加 throw()（见 .h 同批
+// 判词）后 109=109 逐条 AE（ORIG 0x0826d6b0 无任何 EH cleanup）。
 bool CQuickPartyRewardManager::init()
 {
     if (!importQuickPartyScript("Etc/QuickParty.etc", this))

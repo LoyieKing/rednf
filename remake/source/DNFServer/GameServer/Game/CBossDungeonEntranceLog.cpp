@@ -42,6 +42,7 @@ void CBossDungeonEntranceLog::IncrementBossStageStart(CUser& user,
                                                       unsigned char a,
                                                       unsigned char b)
 {
+    // b28d-L3: DIFF/N89 — 同 IncrementBossPickUpItem（同族形，ORIG 0x082ed...)
     // ---- key 打包（ORIG +0x009..+0x070：逐字节写 -0x40..-0x3d）----
     union KeyBytes {
         unsigned int key;
@@ -80,6 +81,7 @@ void CBossDungeonEntranceLog::IncrementBossStageEnd(CUser& user,
                                                     unsigned int playTimeSec,
                                                     unsigned char b)
 {
+    // b28d-L3: DIFF/N89 — 同 IncrementBossPickUpItem（_Rb_tree_iterator::operator== MISSING=1 + 帧形）
     // ---- key 打包（ORIG +0x009..+0x070：逐字节写 -0x40..-0x3d）----
     union KeyBytes {
         unsigned int key;
@@ -119,6 +121,7 @@ void CBossDungeonEntranceLog::IncrementBossPickUpItem(CUser& user,
                                                       unsigned char a,
                                                       unsigned char b)
 {
+    // b28d-L3: DIFF/N89 — ORIG 0x082ed... 有 `_Rb_tree_iterator<pair<const unsigned int, STBossDungeonTowerLog>>::operator==` 外部 call（p16
     // ---- key 打包（ORIG +0x009..+0x070：逐字节写 -0x40..-0x3d）----
     union KeyBytes {
         unsigned int key;
@@ -154,6 +157,7 @@ void CBossDungeonEntranceLog::IncrementBossPickUpItem(CUser& user,
 // value)，随后 clear 并投递 DB 队列（QUEUE_IDX 4）。
 void CBossDungeonEntranceLog::BossTowerLogDBUpdate()
 {
+    // b28d-L3: DIFF/N89+N82 — ORIG 0x082... sret 临时（`lea -0x14; mov; call; sub $4`）与 4.4 形差
     std::map<unsigned int, STBossDungeonTowerLog>::iterator it = m_logMap.begin();
 
     Stream* stream =

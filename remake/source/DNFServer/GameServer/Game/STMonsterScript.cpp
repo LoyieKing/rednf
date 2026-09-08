@@ -6,6 +6,8 @@
 //   getMonsterTableIndex T 0x088ba1c8 / getRandomChampionElement T 0x088b9cce
 //   setBasicAbilityByLevel T 0x088b9603（全量转写）/ isNamedMonster W 0x088ba18c
 //   ImportMonsterScript T 0x08a12827 / exportMonsterScript T 0x08a22520
+// [b28d-23 N·N90] STMonsterScript::operator= W 0x08377994 为编译器隐式拷贝
+// （1200/1272，ORIG 大 dword 成员分块启发式跨版本差）⇒ N。
 //   （两者 >30KB 汇编：骨架+标签分派级复原，覆盖面见各函数注记）
 // ============================================================================
 
@@ -282,6 +284,7 @@ void STMonsterEquipment::clear()
 // *(a+i+4) / int 视图 / 语句表达式 / 逗号 / volatile 索引 / long 索引 / 显式 this-> /
 // (*this). / -march=i486）全部产 lea 且 this 装载恒在 lea 之后 ⇒ 源码形不可择，N 封顶。
 // 4.4.6 后端实测（/tmp/tu_STMonsterScript_446.o）：仍 ndiff=4（该族 lowering 两后端同形）。
+// [b28d-23 N·N4/P30] 第二循环 ORIG 0x88cc158 `mov i,%edx; mov this,%eax; lea 0x4(%edx),%ecx` vs 4.4 `mov i,%eax; lea 0x4(%eax),%ecx; mov this,%eax`；11 形探针（含 i+4/4+i/视图/语句表达式/volatile/-march=i486）全败 ⇒ N。ORIG 0x088cc10c
 void stEnamyDropAvatarInfo_t::clear()
 {
     m_field00 = 0;                 // movl $0,(%eax)
@@ -299,6 +302,7 @@ void stEnamyDropAvatarInfo_t::clear()
 // `mov i,%eax; lea 0x4(%eax),%reg`（ORIG-only=add ×2 / OURS-only=lea ×2，各多 1 条 mov）。
 // probe 同 clear（11 形全 lea）⇒ 不可翻，N 封顶。
 // 4.4.6 后端实测（/tmp/tu_STMonsterScript_446.o）：仍 ndiff=8（该族 lowering 两后端同形）。
+// [b28d-23 N·N4/P30] 两处 a[i+4]：ORIG `mov i,%reg; add $0x4,%reg` vs 4.4 lea（各多 1 mov）⇒ N。ORIG 0x08366ea8
 void stEnamyDropAvatarInfo_t::operator=(const stEnamyDropAvatarInfo_t& other)
 {
     m_field00 = other.m_field00;
@@ -365,6 +369,7 @@ int getRandomChampionElement(const STMonsterScript* script, int seed)
 // ===========================================================================
 // ImportMonsterBaseTable —— ORIG T 0x08a3c736（全量转写）
 // ===========================================================================
+// [b28d-23 N·N82/N89] 169/181（大解析件）⇒ N。ORIG 0x08a3c736
 bool ImportMonsterBaseTable(STMonsterScript* script, const char* path)
 {
     if (!loadRDARScriptFile(g_szMonsterScriptBaseDirectory, path))
@@ -421,6 +426,7 @@ bool ImportMonsterBaseTable(STMonsterScript* script, const char* path)
 //   +0x38 elemAttack、+0x58 elemDefense、+0x78 attr17Base、+0x100+8k statBaseK、
 //   +0x14 flag14；+0x1a8 float 槽现落 m_statBase27（位型访问【推断】）。
 // ===========================================================================
+// [b28d-23 N·N82] 481/508（大件）⇒ N。ORIG 0x088b9603
 void setBasicAbilityByLevel(const STMonsterScript* script, ActiveStaticInfo* info,
                             int level, int dungeonIdx, int roleType,
                             bool flagA, bool flagB)
@@ -576,6 +582,7 @@ int scanValue()
 }  // namespace
 
 
+// [b28d-23 N·N82] 13841/13816 ⇒ N。ORIG 0x08a12827
 int ImportMonsterScript(STMonsterScript* script, int type, const char* path,
                         bool flag)
 {
@@ -5377,6 +5384,7 @@ case 0x12fb:  // "[start immune time]"
     return 1;
 }
 
+// [b28d-23 N·N82] 6791/6783 ⇒ N。ORIG 0x08a22520
 bool exportMonsterScript(
     STMonsterScript* script, const char* path,
     std::map<std::string, std::vector<std::string> >& extra)

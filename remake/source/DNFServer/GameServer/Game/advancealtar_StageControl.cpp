@@ -184,6 +184,7 @@ void StageControl::sendStageInfo()
 //   失败透传错误码；成功 → sendStageInfo() → sendMapInfo()【未建模批次跳过】
 //     → setNotSurvivalModeFirstRound() → set_state(0xd) → 0。
 // ----------------------------------------------------------------------------
+// [b28d-D9] P0/P183：ORIG 无 cam/cd 具名引用槽（每次重算 add $0x8df60）；4.4 具名 CharacData* 落 -0x14（ORIG 0x0812fa7a sz 0x0000011e）
 int StageControl::selectStage(CUser* user, int stageId,
                               advancealtar::StageDifficulty::T diff)
 {
@@ -191,18 +192,19 @@ int StageControl::selectStage(CUser* user, int stageId,
     {
         return 3;
     }
-    CharacAdvanceAltarManager& cam = user->m_advanceAltar;
-    if (!cam.isAvailableTciket())
+    // [b28d-D9] ORIG 0x0812fdd4 段每次重算 `add $0x8df60,%eax`（P183 地址重物化，
+    // 无具名引用槽）；具名 CharacAdvanceAltarManager& 使 4.4 落 -0x18 槽往返。
+    if (!user->m_advanceAltar.isAvailableTciket())
     {
         return 0xf5;
     }
-    if (!cam.isEnterStage(stageId))
+    if (!user->m_advanceAltar.isEnterStage(stageId))
     {
         return 8;
     }
 
     CharacData* cd = getCharacData();
-    cd->m_field0 = cam.getCurrentRidableId();
+    cd->m_field0 = user->m_advanceAltar.getCurrentRidableId();
     cd->setUser(user);
     cd->setSlotItem();
 
@@ -228,6 +230,7 @@ int StageControl::selectStage(CUser* user, int stageId,
 //   char isAvailableTicket; pad[3]}（8B，权威定义 advancealtar.h）；
 //   put_header(0,0x20e) + put_binary(8) + finalize(true) → Send。
 // ----------------------------------------------------------------------------
+// [b28d-D9] N89：getCharacData() 非 inline getter 4.4 恒 out-of-line call（ORIG 内联 add $0x98）（ORIG 0x081306be sz 0x000000e7）
 void StageControl::sendEplp(StageEndType::T endType)
 {
     CUser* user = getCharacData()->getUser();
@@ -252,6 +255,7 @@ void StageControl::sendEplp(StageEndType::T endType)
 //   Timer_StageControl::RegistTimerEPLPReturnVillage(getIndex())
 //   （ORIG T 0x0812f956，定义 advancealtar_ProcStage.cpp）。
 // ----------------------------------------------------------------------------
+// [b28d-D9] P85：ORIG 形参比较载 %eax 复用（cmp $3,%eax; je）；4.4 signed 恒 mem 直比 + jne（ORIG 0x08130644 sz 0x0000004e）
 void StageControl::onEplp(StageEndType::T endType)
 {
     // ORIG 0x813064a：bool 岛 -0x9（预清 movb $0x0、条件链物化 movb $0/$1、无读者——
@@ -287,6 +291,7 @@ void StageControl::onEplpReturnVillage()
 //   ProcStage::setState(6) + Timer_StageControl::RegistTimerEPLP(getIndex(), 3)
 //   （第二参为字面 3，非透传）。
 // ----------------------------------------------------------------------------
+// [b28d-D9] P85：同 onEplp：比较载寄存器 vs mem 直比（ORIG 0x081305f6 sz 0x0000004d）
 void StageControl::onClearReward(StageEndType::T endType)
 {
     if (!(endType < 0) && endType > 2 && endType == 3)
@@ -303,8 +308,12 @@ void StageControl::onClearReward(StageEndType::T endType)
 //   0xaa → onEplpReturnVillage()；0xa8 → onClearReward(endType)；其余无操作。
 //   TIMER_MESSAGE 0xa8-0xaa 枚举器名待 TimerDispatcher 批次定名，暂用字面值。
 // ----------------------------------------------------------------------------
+// [b28d-D9] P85/P209：ORIG 线性比较链值全程 %eax；4.4 signed 形参 mem 直比（unsigned 强转实测反劣 29>27）（ORIG 0x0812fbfa sz 0x00000053）
 void StageControl::onTimer(TIMER_MESSAGE msg, StageEndType::T endType)
 {
+    // [b28d-D9] ORIG 0x0812fbfa 为线性比较链且值全程 %eax（P209/P85）：
+    // 4.4 对 signed 形参恒折 mem 直比（`cmpl $0xa9,0xc(%ebp)`），unsigned 强转
+    // 实测反致 jne 块序 + 叶块内联（29>27）⇒ 维持表达式直用，寄存器差记 P85 封顶。
     if (msg == (TIMER_MESSAGE)0xa9)
     {
         onEplp(endType);
@@ -328,6 +337,7 @@ void StageControl::onTimer(TIMER_MESSAGE msg, StageEndType::T endType)
 //   包2 3{byte 1, short uid, byte 1} Send + send_all(guard, user) → set_state(0xd)。
 // ----------------------------------------------------------------------------
 // 头声明 static（ORIG 无 this）；类外定义不带 static。
+// [b28d-D9] 槽差/P227：trace 临时链位置 + 槽序差（ORIG 0x0812fdd4 sz 0x000002fa）
 void StageControl::gotoStage(CUser* user)
 {
     Village* vill = G_GameWorld()->getUserVillage(user);
@@ -379,6 +389,7 @@ void StageControl::gotoStage(CUser* user)
  // 遍历 CMap::get_monster_list()（按值返回 list<_mapMonster>），对每只怪
  // getTowerInfo(monster.m_orderIdx, out, out)（+0x2c），命中即计数。
 // ----------------------------------------------------------------------------
+// [b28d-D9] N95/N89：ORIG getMap 直调+具名槽；4.4 inline getter 展开差 + 槽基差（ORIG 0x081307a6 sz 0x0000015b）
 int StageControl::getCenterCount() const
 {
     ProcStage* procStage = const_cast<ProcStage*>(
@@ -403,8 +414,8 @@ int StageControl::getCenterCount() const
     {
         int valueA = 0;                                 // local_88[1]
         int valueB = 0;                                 // local_88[0]
-        CharacAdvanceAltarManager& cam = user->m_advanceAltar;
-        if (cam.getTowerInfo(it->m_mobId, valueA, valueB))
+        // [b28d-D9] 同上：ORIG 0x0813080e 每轮重算 `add $0x8df60,%eax`。
+        if (user->m_advanceAltar.getTowerInfo(it->m_mobId, valueA, valueB))
         {
             ++count;
         }
@@ -421,6 +432,7 @@ int StageControl::getCenterCount() const
  // 并遍历怪物表逐只构造 _MapMonsterSummary（仅 getTowerInfo 命中者
  // addCreatedMapMonster + put_binary(0xd)）；否则 put_int(0)；finalize→Send。
 // ----------------------------------------------------------------------------
+// [b28d-D9] N89/N95：getCharacData/getProcStage out-of-line call + 槽基差（289 vs 280）（ORIG 0x081301e0 sz 0x00000416）
 void StageControl::sendMapInfo()
 {
     CUser* user = getCharacData()->getUser();

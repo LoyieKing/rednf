@@ -55,6 +55,8 @@ static_assert(sizeof(CNexonMsgTable) == 0x18, "ORIG g_nexonMsgTable B size (== s
 
 CNexonMsgTable g_nexonMsgTable;   // ORIG B @0x0945b8e4
 
+// [b28d-L14 P209附] ORIG 0x0857ffcc：unsigned 局部循环尾测 4.4 恒折
+// `cmpl $0x1b,-0xc` 内存直比（ORIG 先 mov 到寄存器再 cmp+setbe）⇒ 封顶。
 CNexonMsgTable::CNexonMsgTable()   // ORIG T 0x0858001c
 {
     // P2 反向：ORIG 尾测 `mov -0xc,%eax; cmp $0x1b,%eax; setbe`（无符号序）

@@ -271,7 +271,8 @@ class QuestScript
 public:
     QuestScript();
     ~QuestScript();
-    QuestScript(const QuestScript& other);   // ORIG copy 0x0837adc8：string/容器深拷贝，指针数组浅拷贝
+    // [b28d-L8 · N84 处置②] ORIG _ZN11QuestScriptC1ERKS_ 0x0837adc8 为 W 弱符号
+    // （隐式合成）⇒ 不得显式声明/定义，删声明让编译器生成（Main N84 口径）。
 
     void clear();
     void destroy();

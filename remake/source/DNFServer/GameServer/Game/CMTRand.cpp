@@ -77,13 +77,26 @@ void CMTRand::seed(unsigned long s)
 
 void CMTRand::initialize(unsigned long s)
 {
-    m_mt[0] = s;
-    for (unsigned long i = 1; i < MT_N; ++i)
+    // [b28d-L14 实证] ORIG 0x080cbb44 为**纯寄存器**指针遍历（无栈帧）：dst=%ebx、
+    // src=%esi、i=%edi（int 有符号 ⇒ setle），`+ i` 经 mov+lea（int→ulong 转换）。
+    // 探针 /tmp/l14_probe3.cpp a 形逐条全等（含 push edi/esi/ebx 三件套与
+    // setle 尾测）；仅增量序按 ORIG 改为 dst→src→i。
+    register unsigned long* dst = m_mt;
+    register unsigned long* src = m_mt;
+    register int i = 1;
+    *dst = s;
+    ++dst;
+    while (i < MT_N)
     {
-        m_mt[i] = 0x6c078965UL * (m_mt[i - 1] ^ (m_mt[i - 1] >> 30)) + i;
+        *dst = 0x6c078965UL * (*src ^ (*src >> 30)) + i;
+        ++dst;
+        ++src;
+        ++i;
     }
 }
 
+// [b28d-L14 N82/算法类] ORIG 0x080cbb90：MT19937 通用算法（§6 算法正确即豁免）；
+// ORIG 用寄存器指针遍历，4.4 槽化，gap 59 vs 83。
 void CMTRand::reload()
 {
     int kk;
@@ -155,6 +168,8 @@ unsigned long CMTRand::randInt(const unsigned long& range)
     return v;
 }
 
+// [b28d-L14 N82/算法类] ORIG 0x080d9f5c：init_by_array 通用算法（§6 豁免）；
+// ORIG 寄存器指针遍历形，4.4 槽化，gap 129 vs 104。
 void CMTRand::seed(unsigned long* init_key, unsigned long key_length)
 {
     initialize(19650218UL);
@@ -205,14 +220,15 @@ void CMTRand::seed()
 
     if (fp != 0)
     {
-        bool ok = true;
-        for (int i = 0; i < MT_N; ++i)
+        // [b28d-L14 实证] ORIG 0x080da0e6：纯 register 指针/计数/标志循环
+        // （p=%edi、n=%esi、ok=%ebx），条件形 `ok && n-- != 0`（setne 先于 sub），
+        // 命中条件为 fread(...)!=0（setne %bl）。按 ORIG 逐条转写。
+        register unsigned long* p = buf;
+        register int n = MT_N;
+        register bool ok = true;
+        while (ok && n-- != 0)
         {
-            if (fread(&buf[i], sizeof(unsigned long), 1, fp) != 1)
-            {
-                ok = false;
-                break;
-            }
+            ok = fread(p++, sizeof(unsigned long), 1, fp) != 0;
         }
         fclose(fp);
         if (ok)
@@ -231,19 +247,21 @@ unsigned long CMTRand::hash(long a, long b)
 
     unsigned long hashA = 0;
     const unsigned char* p = (const unsigned char*)&a;
-    for (int i = 0; i <= 3; ++i)
+    for (unsigned int i = 0; i <= 3; ++i)
     {
-        hashA = (hashA << 8) + hashA + p[i];
+        // [b28d-L14 实证] ORIG 0x080da1d6 分两句（先 `(hashA<<8)+hashA` 落槽，
+        // 再 `add p[i],hashA`），循环变量 unsigned（setbe）。
+        hashA = hashA + (hashA << 8);
+        hashA += p[i];
     }
 
     unsigned long hashB = 0;
     p = (const unsigned char*)&b;
-    for (int i = 0; i <= 3; ++i)
+    for (unsigned int i = 0; i <= 3; ++i)
     {
-        hashB = (hashB << 8) + hashB + p[i];
+        hashB = hashB + (hashB << 8);
+        hashB += p[i];
     }
 
-    unsigned long result = (differ + hashA) ^ hashB;
-    ++differ;
-    return result;
+    return (differ++ + hashA) ^ hashB;
 }

@@ -187,12 +187,14 @@ bool MySQL::set_query(const char* fmt, ...)
         std::string query(fmt, alloc);
         m_pQueryCounter->IncreaseQueryCount(query);
     }
-    // [b28c-34] ORIG 槽序 ap(-0x28 最深)→query(-0x24)→alloc(-0x1d)：把 ap 声明
-    // 移到 if 块之后（4.4 块内槽重开方向与 4.1 相反，P212）；语义等价。
-    va_list ap;
-    va_start(ap, fmt);
-    vsprintf(m_query, fmt, ap);
-    va_end(ap);
+    // [b28d-lane11] ORIG 槽序 ap(-0x28 最深)→query(-0x24)→alloc(-0x1d)；
+    // 4.4 对块内局部优先占深槽，故把 ap 段包进独立块使 ap 落深槽。
+    {
+        va_list ap;
+        va_start(ap, fmt);
+        vsprintf(m_query, fmt, ap);
+        va_end(ap);
+    }
     int len = strlen(m_query);
     if (len > 0x5fff)
     {
@@ -210,6 +212,10 @@ unsigned long long MySQL::getAffectedRowCount()
 
 bool MySQL::exec(bool bLog)
 {
+    // b28d-lane11 判词 N7（本 TU 447 路由）：残余仅 3 处间接 call 目标寄存器
+    // 差——ORIG 0x083f433f/0x083f437c/0x083f43da `mov (%eax),%edx … call *%edx`，
+    // 4.4.7 恒落 %eax（P230 补：该形唯 4.4.6 后端可翻，本 TU 非 446h46 路由）。
+    // m_nFields int→unsigned 后 +0x18 store 已回 LHS-first（P248 档③）。
     int ret;
     CDnFTimer* timer = CDnFTimerFactory::CreateDnFTimer();
     timer->SetLastTime();
@@ -409,16 +415,17 @@ int MySQL::exec_query()
         m_dbError = mysql_errno(m_dbHandle);
         if (m_dbError == 0x7d5 || m_dbError == 0x7dd || m_dbError == 0x7d6)
         {
-            cMyTraceNoop noop;
-            noop("DB connection lost, reconnecting...");
+            // b28d-lane11：P221 全表达式临时链（翻互斥块对象槽方向）。
+            cMyTraceNoop()("DB connection lost, reconnecting...");
             int ping = mysql_ping(m_dbHandle);
             if (ping != 0)
             {
                 if (mysql_errno(m_dbHandle) == 0x7d6)
                 {
-                    MYSQL* conn = mysql_real_connect(m_dbHandle, m_host, m_user, m_passwd,
-                                                     m_db, m_port, 0, 0);
-                    if (conn == 0)
+                    // b28d-lane11：P0 内联（ORIG 0x083f54c4 `call mysql_real_connect;
+                    // test %eax,%eax; sete %al; test %al,%al; je` 无 conn 槽往返）。
+                    if (mysql_real_connect(m_dbHandle, m_host, m_user, m_passwd,
+                                           m_db, m_port, 0, 0) == 0)
                     {
                         LogManager::logFormat(1, "DBMgr.cpp", "bool MySQL::exec_query()", 0x19a,
                                               "DB reconnection fail. err_no(%d)",
@@ -438,12 +445,17 @@ int MySQL::exec_query()
         }
         if (m_dbError != 0x426)
         {
+            // b28d-lane11 真语义修正：ORIG 0x083f5573-0x083f558b 此处为 fresh
+            // `call mysql_errno(m_dbHandle)`（`lea 0x1c(%eax),%ebx` 先缓存 m_query，
+            // call 后 %eax 压 0x14(%esp)），非读缓存字段 m_dbError（字段读仅用于
+            // 紧随其后的 ==0x7d6 判定，ORIG 0x083f558f）。
             LogManager::logFormat(1, "DBMgr.cpp", "bool MySQL::exec_query()", 0x1af,
-                                  "DB error occured (%d) Query('%s')", m_dbError, m_query);
+                                  "DB error occured (%d) Query('%s')",
+                                  mysql_errno(m_dbHandle), m_query);
             if (m_dbError == 0x7d6)
             {
-                cMyTrace trace("bool MySQL::exec_query()", 0x1b2, 5);
-                trace("DB error occured Check Connection First, Must Be Not Connected!");
+                cMyTrace("bool MySQL::exec_query()", 0x1b2, 5)(
+                    "DB error occured Check Connection First, Must Be Not Connected!");
             }
         }
         return 1;

@@ -73,6 +73,7 @@ char g_szMapScriptBaseDirectory[0x100];
 std::map<int, std::string> g_stMapScriptFileList;   // 布局同 STScriptFileList（0x18，双视图）
 
 // ORIG 0x089dce98：列表登记后直接透传 loadRDARScriptListFile 结果。
+// [b28d-lane16 DIFF] ORIG 见报告：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool InitMapScript(const char* dir, const char* list)
 {
     strncpy(g_szMapScriptBaseDirectory, dir, 0x100);
@@ -96,6 +97,7 @@ char g_szPassiveObjectScriptBaseDirectory[0x100];
 std::map<int, std::string> g_stPassiveObjectScriptFileList;   // 布局同 STScriptFileList（0x18，双视图）
 
 // ORIG 0x08a29ead：与 InitMapScript 完全同构（不同全局）。
+// [b28d-lane16 DIFF] ORIG 08a29ead：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool InitPassiveObjectScript(const char* dir, const char* list)
 {
     strncpy(g_szPassiveObjectScriptBaseDirectory, dir, 0x100);
@@ -116,6 +118,7 @@ bool InitPassiveObjectScript(const char* dir, const char* list)
 // ORIG 0x08a3c5c2（0xbb 字节）：与 2 参数版同构，仅把 map 透传
 // loadRDARScriptListFile 第 4 参（ORIG 0x8a3c646 mov 0x10(%ebp)，
 // 2 参数版同址为 movl $0）。
+// [b28d-lane16 DIFF] ORIG 08a29ead：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool InitPassiveObjectScript(const char* dir, const char* list, std::map<int, int>* map)
 {
     strncpy(g_szPassiveObjectScriptBaseDirectory, dir, 0x100);
@@ -145,6 +148,7 @@ std::map<int, std::string> g_questScriptFileList;       // ORIG 0x9500480（CLis
 // 跨版本实参装载时刻（4.1 先压 size/src、4.4 先算 dest）+ 由此连锁的 4 处 jmp
 // 目标偏移。strncpy/strlen×3/双条件 `!='\\' && !='/'` 与 loadRDARScriptListFile
 // 调用体均逐条对齐。语义与 ORIG 一致。
+// [b28d-lane16 DIFF] ORIG 088e5e3c：[b28c-L23 N(P209 附 e19 / P75)] 残 12 行 = memcpy(base+strlen(base),"\\",2) 段的
 bool InitDungeonScript(char* dir, char* list)
 {
     strncpy(g_szDungeonScriptBaseDirectory, dir, 0x100);
@@ -172,6 +176,7 @@ std::map<int, std::string> g_staSkillScriptFileList[11];   // 元素布局同 ST
 
 // ORIG 0x08a97438：先整表装入局部 STScriptFileList，再按条目分Job 装载；
 // idx > 10 的条目跳过；任一分表装载失败即整体失败。
+// [b28d-lane16 DIFF] ORIG 08a97438：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool InitSkillScript(const char* dir, const char* list)
 {
     strncpy(g_szSkillScriptBaseDirectory, dir, 0x100);
@@ -185,16 +190,19 @@ bool InitSkillScript(const char* dir, const char* list)
     if (!loadRDARScriptListFile(&files, g_szSkillScriptBaseDirectory, list, 0))
         return false;
 
-    for (std::map<int, std::string>::const_iterator it = files.m_fileMap.begin();
-         it != files.m_fileMap.end(); ++it)
+    // [b28d-lane16 P167/P28] ORIG 发非 const `_Rb_tree_iterator` 的 deEv/ppEi/ne
+    // （p167 MISSING -3 deEv/ppEi/ne，EXTRA +2 const_iterator 转换构造 +ptEv/ppEv）
+    // ⇒ 源形必须是非 const iterator + `(*it)` + 后置 `it++`。
+    for (std::map<int, std::string>::iterator it = files.m_fileMap.begin();
+         it != files.m_fileMap.end(); it++)
     {
-        const int idx = it->first;
-        if (idx > 10)                       // ORIG cmp $0xa,setg → continue
+        if ((*it).first > 10)               // ORIG cmp $0xa,setg → continue
             continue;
+        const int idx = (*it).first;        // ORIG 二次 deEv（p167 MISSING -1）
         // ORIG 目标元素地址 = 0x9500820 + idx*0x18
         if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_staSkillScriptFileList[idx]),
                                     g_szSkillScriptBaseDirectory,
-                                    it->second.c_str(), 0))
+                                    (*it).second.c_str(), 0))
             return false;
     }
     return true;
@@ -217,6 +225,7 @@ std::map<int, std::string> g_stEquipmentScriptFileList;   // 布局同 STScriptF
 
 // ORIG 0x08991601：列表登记 → pricetable.tbl 清零回填 → 头 3 个价格系数 →
 // "[repair cost]" 可选段 → 30 行×100 列主表。
+// [b28d-lane16 DIFF] ORIG 08991601：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool InitEquipmentScript(const char* dir, const char* list,
                          const char* priceTable)
 {
@@ -262,6 +271,7 @@ char g_szStackableScriptBaseDirectory[0x100];
 std::map<int, std::string> g_stStackableScriptFileList;   // 布局同 STScriptFileList（0x18，双视图）
 
 // ORIG 0x089ae72e：列表登记 → pricetable.tbl 清零回填 30×100 主表。
+// [b28d-lane16 DIFF] ORIG 089ae72e：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool InitStackableScript(const char* dir, const char* list,
                          const char* priceTable)
 {
@@ -307,6 +317,7 @@ int STCharacterScript::pvpPrices_[0xc8];
 // 第 4 参非 NULL 时再加载对应 pvp 价格表回填 pvpPrices_[200]。
 // （DataManagerInitDepends.h 第 4 参注释作 unused，与 ORIG 0x14(%ebp) 分支
 //  不符——真实语义为可选 pvp 价格表路径，此处按 ORIG 实现。）
+// [b28d-lane16 DIFF] ORIG 08a0cc3c：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool InitCharacterScript(const char* dir, const char* list,
                          const char* expTable, const char* pvpPriceTable)
 {
@@ -465,6 +476,7 @@ std::map<int, std::string> g_stMonsterScriptFileList;   // 布局同 STScriptFil
 //   否则登记 Monster.lst → resize(5) 基础参数向量 → 五张 *BaseParameter.tbl
 //   逐行 MonsterBaseParameter 回填 → MonsterApcDifficultyBonus.tbl 三张
 //   13 行浮点加成表 → 标签化难度/平衡/减速/血量调整段。
+// [b28d-lane16 DIFF] ORIG 08a11311：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
 {
     if (list != 0)                          // ORIG cmpl $0x0,0xc(%ebp)
@@ -849,6 +861,7 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
 // 第 4 参装载 0x10(%ebp)（map）而非 movl $0；其余指令序列、跳转结构、
 // 全局地址逐条相同（两版函数级 static __lookup/__init_lock/__inited 各自独立：
 // ORIG 0x94fff80/0x94fff98/0x94fff9c vs 0x94ff8a8/0x94ff8b8/0x94ff8d4）。
+// [b28d-lane16 DIFF] ORIG 08a11311：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
 bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* map,
                        const char* apcBonus)
 {

@@ -212,7 +212,10 @@ void CDeathTower::CPacketHandler::makeDropItemNotify(unsigned short uid, int x, 
     put_byte((int)item.m_item.m_amp.getAbilityType());   // map_item+0x21 = Inven_Item+0x11
     put_short((int)item.m_item.m_amp.getAbilityValue());
     put_packet(item.m_item);                             // 子对象整体（map_item+0x10）
-    put_byte(item.m_count == 0 ? 1 : 0);                 // byte(*param_5 == 0 ? 1 : 0)
+    // ORIG 0x0845ff1a 尾：`test %al,%al; je <mov $1 岛>; mov $0; jmp`（false 块
+    // 直落、true 岛在后）⇒ 原码按 bool 直传（三目 1:0 两支被 4.4 折 sete；
+    // `!=0?0:1` 亦折 sete）——试 bool 表达式形。
+    put_byte(item.m_count == 0);
     finalize(true);
 }
 

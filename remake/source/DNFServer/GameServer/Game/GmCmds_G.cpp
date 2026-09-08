@@ -244,6 +244,7 @@ void CTestDisjointCmd::execute()
 // ============================================================================
 
 // 收集全部生效 premium 项：逐项发 DB_Q(0x54) 流、解除并重挂效果、通知剩余时长。
+// [b28d-19] N：N82 —— 帧/槽序（大件 GM 命令）；ORIG 0x084abf4e。
 void CUserPremiumDelete::execute()
 {
     CUser* user = GetUser();
@@ -396,6 +397,7 @@ void CUpgradeCardDebug::SendChatMsg(CUser* user, char* msg)
 }
 
 // 万次蒙特卡洛统计强化券成功率并向 GM 回播聊天消息。
+// [b28d-19] N：N82 —— 槽序/帧（大件 GM 命令）；ORIG 0x084b1b96。
 void CUpgradeCardDebug::execute()
 {
     CUser* user = GetUser();
@@ -482,6 +484,7 @@ void CTestTradeRestrict::parse()
 // 对背包/仓库/账号货物全部在库且 flag==1 的道具槽打上 0x20 交易限制标志，
 // 最后按当前角色号发起 DB_TestTradeRestrict 请求。
 // 槽位记录步长 0x3d：+0x01 flag 字节、+0x02 itemIndex dword、+0x33 限制字节。
+// [b28d-19] N：N82 —— 槽序/帧（bool 物化 + 局部槽平移）；ORIG 0x084b2640。
 void CTestTradeRestrict::execute()
 {
     CUser* user = GetUser();

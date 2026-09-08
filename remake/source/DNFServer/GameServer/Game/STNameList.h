@@ -27,7 +27,9 @@ public:
     // 是否为空（ORIG 尾部以 begin()==end() 判断）。
     bool IsEmpty() { return m_map.begin() == m_map.end(); }
 
-private:
+    // [b28d-lane16] m_map 公开：ORIG loadRDARNameFile(0x088bc068) 直接调
+    // StringUnorderedMap::insert(PKc,RKi) 并用其返回值判重复（ORIG nm 无
+    // STNameList::Insert 符号）。sizeof/偏移/mangled 不变，仅访问控制。
     StringUnorderedMap<CharStringHashTrait, int> m_map;  // +0x00
 };
 

@@ -23,6 +23,26 @@
 //     iterator+(*it) / 逐字段 vector::operator[] 形态（P38）。
 // ============================================================================
 
+// [b28d-lane15 集中判词] 本 TU 清单 12 件的 b28d 复核（fresh check_tu_routed：
+//   COMPILE OK / identical=904 ae=1761 near=1 diff=27）。逐件 N 归因（ORIG 地址实查）：
+//   · getSkillCategoryName @0x088be4d9 (0xa5) —— N（CStringManager::getStr 调用链 +
+//     .rodata 串表引用，N89 族）。
+//   · ScanChampionFeatures @0x089e6cf4 (0xd0) —— N（ScanType 解析族 P164/P165 岛）。
+//   · getDrawLayerName @0x088be212 (0x131) —— N（串表 + 分支块排布 P47/P191）。
+//   · getGrowTypeName @0x088bf2b8 (0xadf) NEAR —— N（大表 + P163 决策树密度差）。
+//   · convertBinaryToText @0x088be04c (0xe1) —— N（string 构造/返回 N89）。
+//   · STMapScript::Clear @0x0836c688 (0x57f) —— N（N82 帧槽 + N89 vector 析构链）。
+//   · procSpecialPassiveObject @0x089e7958 (0x7e7) —— N（P165/P166 三段收敛边界）。
+//   · procSpecialPassiveObjectVerifyError @0x089e6f62 (0x9f6) —— N（同上 + P167 差集
+//     已归零）。
+//   · exportCharacterScript @0x08a102a4 (0x106d) —— N（N82/N89）。
+//   · STMapScript::C1ERKS_ @0x0837e698 (0xdc6) —— N（N90 数组成员块搬移分块启发式：
+//     ORIG 分 5+4+1+1 组间重载基址，4.4 恒单次 N 连发）。
+//   · ExportMapScript @0x089e3c55 (0x309f) —— N（超大导出函数：N82 帧槽 + N89 STL
+//     内联；按 §6.2 三件套口径收）。
+//   · ImportMapScript @0x089dcf54 (0x6d01) —— N（超大解析函数：N82/N89 + P163 决策树
+//     + P164 循环旋转 + P165 三段法；按 §6.2 三件套口径收）。
+//   语义均按报告/objdump 逐指令转写并核对；残差全为跨版本结构族，无真语义缺口。
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>

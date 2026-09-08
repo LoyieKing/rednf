@@ -141,6 +141,7 @@ CMap* CBattle_Field::getMap(int mapIndex)
 }
 
 // ORIG 0x0830107e：四段直写 m_dungeonClearTracer。
+// [b28d-D9] N95：ORIG 4.1 dead 局部 -0x4(%ebp) 单条 store；4.4 槽基恒 ebp-8（P232/P190 均不可上移），残 1 条（ORIG 0x0830107e sz 0x0000006f）
 void CBattle_Field::setDungeonClearTrace(int mapId, int maxBoss, int killedBoss,
                                          int killedMonster)
 {
@@ -185,6 +186,7 @@ bool CBattle_Field::get_monster_list(std::list<_mapMonster>& mobList)
 
 // ORIG 0x083013e2：boss 房条件副本（m_pDungeon->m_bossRoom90c.m_0==1）时，把
 // 与条件坐标匹配的怪物从条件怪表并入 mobList。
+// [b28d-D9] N86/N93：迭代器临时槽/块序差（list by-value 返回 copy-elision 差）（ORIG 0x083013e2 sz 0x0000024c）
 void CBattle_Field::add_monster_list_bossroom_condition(std::list<_mapMonster>& mobList,
                                                         int x, int y)
 {
@@ -220,6 +222,7 @@ void CBattle_Field::add_monster_list_bossroom_condition(std::list<_mapMonster>& 
 
 // ORIG 0x0830162e：把 mobList 按 spawnType 展开生成到当前图。
 // 命名怪条件：m_pDungeon->m_vec8f0 非空且 _mapMonster.m_champion 时查已清场表跳过。
+// [b28d-D9] N82/N86：帧 0x3b0 vs 0x3a0 + 槽序/迭代器临时差（ORIG 0x0830162e sz 0x0000055d）
 void CBattle_Field::add_monsters_current_map(std::list<_mapMonster>& mobList,
                                              std::vector<int>& championList,
                                              map_monster& mob, int& count, int& uid,
@@ -366,6 +369,7 @@ void CBattle_Field::add_monster_hell_party(map_monster& mob, bool& killedAll,
 }
 
 // ORIG 0x08301bf6：血战系统/阶段时间自 CMap 复制到本对象后转调 add_blood_monster。
+// [b28d-D9] P225/N95：ORIG test+setne 四段物化（empty 判定）；4.4 直跳 + 槽基差 4（ORIG 0x08301bf6 sz 0x00000180）
 bool CBattle_Field::add_monster_blood(map_monster& mob, int& uid, int& seq)
 {
     if (m_pMap == NULL)
@@ -388,6 +392,7 @@ bool CBattle_Field::add_monster_blood(map_monster& mob, int& uid, int& seq)
 }
 
 // ORIG 0x08301d76：按地图 AI 编排表逐条生成 APC 怪物。
+// [b28d-D9] N82：帧 0x6e0 vs 0xa30 + 槽序差（ORIG 0x08301d76 sz 0x00000340）
 void CBattle_Field::add_monster_APC_AI(int& seq)
 {
     if (m_pMap == NULL || m_pDungeon == NULL)
@@ -446,6 +451,7 @@ void CBattle_Field::add_monster_APC_AI(int& seq)
 }
 
 // ORIG 0x083020b6：概率生成单只 APC（mobId 固定 0x40，roleType 5）。
+// [b28d-D9] N82/P190：帧 0x370 vs 0x6b0（大局部撑帧不可缩）；setne/setg 物化（ORIG 0x083020b6 sz 0x000001f1）
 void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x, int y)
 {
     if (m_pDungeon == NULL)
@@ -490,6 +496,7 @@ void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x
 }
 
 // ORIG 0x083022a8：从候选表中随机抽 count 只追加为宝箱怪（每轮一次 rand 取槽）。
+// [b28d-D9] P225/N95：ORIG test+sete 物化（while(==0) 形）；帧 0x54 vs 0x44（ORIG 0x083022a8 sz 0x00000144）
 void CBattle_Field::add_monster_additional_champion(std::vector<int>& championList,
                                                     int count)
 {
@@ -521,6 +528,7 @@ void CBattle_Field::add_monster_additional_champion(std::vector<int>& championLi
 }
 
 // ORIG 0x083023ec：事件怪按 rival 表实例号区间（0x2710..）落到匹配坐标的事件位。
+// [b28d-D9] N82：帧 0x6d0 vs 0xa10（大局部+4.4 保守帧）；xor 极性（ORIG 0x083023ec sz 0x000002ee）
 void CBattle_Field::add_monster_event(int& seq, int x, int y)
 {
     if (m_pDungeon == NULL || m_pMap == NULL)
@@ -579,6 +587,7 @@ void CBattle_Field::add_monster_event(int& seq, int x, int y)
 
 // ORIG 0x083026da：直接遍历 GetCurrentMapInfo()->m_monsterMap（+0xc）原图，
 // 能力写入落在真实地图怪物上；srand/冠军分支均重新 GetCurrentMapInfo。
+// [b28d-D9] N95/N82：帧 0x6c vs 0x50 + 槽基差 8 + 迭代器槽（ORIG 0x083026da sz 0x000002de）
 void CBattle_Field::set_monster_ability()
 {
     if (m_pDungeon == NULL)
@@ -598,17 +607,20 @@ void CBattle_Field::set_monster_ability()
             static_cast<CMonster*>(G_CDataManager()->find_monster(mm.m_mobIndex));
         if (monster == NULL)
             continue;
-        STMonsterScript* script =
-            static_cast<STMonsterScript*>(monster->getMonsterScript());
         ActiveStaticInfo* active = &mm.m_active;
 
-        setBasicAbilityByLevel(script, active,
+        // [b28d-D9] P167 差集：ORIG 0x083026da 段 getMonsterScript 调用 3 次
+        // （@+0x49/@+0x5c/@+0x89，无具名 script 局部）⇒ 各使用点内联重取（P0/P183）。
+        setBasicAbilityByLevel(
+            static_cast<STMonsterScript*>(monster->getMonsterScript()), active,
                                static_cast<int>(static_cast<unsigned char>(mm.m_level)),
                                m_dungeonIndex,
                                static_cast<int>(static_cast<signed char>(mm.m_roleType)),
                                false, false);
         upgradeAbilityByMonsterParameterCategory(
-            &script->m_parameterCategories, active, mm.m_roleType == 3);
+            &static_cast<STMonsterScript*>(monster->getMonsterScript())
+                 ->m_parameterCategories,
+            active, mm.m_roleType == 3);
         upgradeAbilityByDifficultyOfDungeon(get_dungeon_diff(), active,
                                             static_cast<int>(
                                                 static_cast<unsigned char>(mm.m_level)),
@@ -620,7 +632,8 @@ void CBattle_Field::set_monster_ability()
         else if (mm.m_roleType == 1 || mm.m_roleType == 2)
         {
             const int elem = getRandomChampionElement(
-                script, GetCurrentMapInfo()->m_mapBasisLevel);
+                static_cast<STMonsterScript*>(monster->getMonsterScript()),
+                GetCurrentMapInfo()->m_mapBasisLevel);
             std::vector<int> features;
             makeChampionFeatureList(mm.m_mobList,
                                     static_cast<unsigned char>(mm.m_level),
@@ -634,6 +647,7 @@ void CBattle_Field::set_monster_ability()
 }
 
 // ORIG 0x083029b8：锦标赛副本把当前图怪物按轮次 1..4 分桶进 multimap。
+// [b28d-D9] N82/P225：帧 0x6e0 vs 0x6f0 + xor/极性；槽差 4（ORIG 0x083029b8 sz 0x0000020e）
 void CBattle_Field::insert_tournamentRoundMonster()
 {
     if (m_pDungeon == NULL || m_party == NULL)
@@ -662,6 +676,7 @@ void CBattle_Field::insert_tournamentRoundMonster()
 // 注意：ORIG 在「assign==-1 且标准等级越界」分支直接跳回循环头而不推进迭代器
 // （08302de5 jne 083030ad→083030ae，++it 位于 08303080 正常路径上）；脚本校验
 // 保证标准等级恒在 1..200，该路径实际不可达。此处忠实保持同一控制流。
+// [b28d-D9] N82/N86：帧 0x20c vs 0x21c + 槽序差（ORIG 0x08302bc6 sz 0x0000060b）
 void CBattle_Field::add_item_curr_map(int& itemUid, int& itemIdx)
 {
     if (m_pDungeon == NULL || m_pMap == NULL)
@@ -670,8 +685,10 @@ void CBattle_Field::add_item_curr_map(int& itemUid, int& itemIdx)
     GetCurrentMapInfo()->m_assignItemIdx = itemIdx;                       // MapInfo+0x3c
 
     std::list<_mapItem> itemList = m_pMap->get_item_list();
-    const int curMapIndex = GetCurrentMapInfo()->m_mapIndex;              // 日志用
-    std::vector<stDungeonAssignItem_t>* specialItems =
+    // [b28d-D9] P167 判据②（重载选错）：ORIG 0x08302bc6 调 const 版
+    // `_ZNKSt6vectorI21stDungeonAssignItem_tSaIS0_EE2atEj`，我方非 const 版
+    // `_ZNSt6vector...2atEj`（MISSING/EXTRA 各 1）⇒ 容器按 const 指针访问。
+    const std::vector<stDungeonAssignItem_t>* specialItems =
         m_pDungeon->getSpecialPassiveObjectItems();
 
     stGenerateRefData_t refRandom;                                        // A @-0xc4
@@ -685,12 +702,17 @@ void CBattle_Field::add_item_curr_map(int& itemUid, int& itemIdx)
         reinterpret_cast<char*>(m_pDungeon->getObjectDropItems());
 
     std::list<_mapItem>::iterator it = itemList.begin();
+    _mapItem item;                     // ORIG @0x08302c0e 循环前 C1（-0x44）
     while (it != itemList.end() && m_bloodState != 1)                     // +0x1b4
     {
-        const int passiveIdx = it->m_objectIdx;
-        const int field04 = it->m_field04;
-        const int field08 = it->m_field08;
-        const int field0c = it->m_field0c;
+        // [b28d-D9] P167：ORIG 0x08302c46 段用 `item = *it`（List_iterator::de
+        // + 4 dword 整块拷贝）而非 it-> 四字段（ptEv×4）；日志段 curMapIndex 亦
+        // 无具名槽，重调 GetCurrentMapInfo()->m_mapIndex（P48 无 CSE）。
+        item = *it;
+        const int passiveIdx = item.m_objectIdx;
+        const int field04 = item.m_field04;
+        const int field08 = item.m_field08;
+        const int field0c = item.m_field0c;
 
         if (passiveIdx < 0 ||
             static_cast<unsigned int>(passiveIdx) >= specialItems->size())
@@ -700,11 +722,12 @@ void CBattle_Field::add_item_curr_map(int& itemUid, int& itemIdx)
                 __PRETTY_FUNCTION__, 0x7a5,
                 "Dungeon passive object index error! Map id:%d, DungeonAssignItem "
                 "size:%d, Passive object id:%d",
-                curMapIndex, static_cast<int>(specialItems->size()), passiveIdx);
+                GetCurrentMapInfo()->m_mapIndex,
+                static_cast<int>(specialItems->size()), passiveIdx);
             return;
         }
 
-        stDungeonAssignItem_t& assign = specialItems->at(passiveIdx);
+        const stDungeonAssignItem_t& assign = specialItems->at(passiveIdx);
         if (assign.m_assignItemIdx != -1)
         {
             refRandom.m_field34 = static_cast<char>(assign.m_assignItemIdx);
@@ -714,17 +737,25 @@ void CBattle_Field::add_item_curr_map(int& itemUid, int& itemIdx)
         }
         else
         {
-            const int stdLvl = m_pDungeon->get_standard_level();
-            if (stdLvl >= 1 && stdLvl <= 200)
+            // [b28d-D9] P48：ORIG 0x08302d80 段两次独立 get_standard_level()
+            // （无具名 stdLvl），且两个赋值目标各自重取源表达式。
+            if (m_pDungeon->get_standard_level() >= 1 &&
+                m_pDungeon->get_standard_level() <= 200)
             {
-                char lvl;
                 if (m_pDungeon->get_dimension_possible() < 1)
-                    lvl = static_cast<char>(m_pDungeon->get_standard_level());
+                {
+                    refRandom.m_field34 =
+                        static_cast<char>(m_pDungeon->get_standard_level());
+                    *reinterpret_cast<unsigned char*>(&refSpecific.m_rankBonusIndex) =
+                        static_cast<unsigned char>(
+                            m_pDungeon->get_standard_level());
+                }
                 else
-                    lvl = static_cast<char>(m_standardDimensionLevel);
-                refRandom.m_field34 = lvl;
-                *reinterpret_cast<unsigned char*>(&refSpecific.m_rankBonusIndex) =
-                    static_cast<unsigned char>(lvl);
+                {
+                    refRandom.m_field34 = static_cast<char>(m_standardDimensionLevel);
+                    *reinterpret_cast<unsigned char*>(&refSpecific.m_rankBonusIndex) =
+                        static_cast<unsigned char>(m_standardDimensionLevel);
+                }
             }
             else
             {
@@ -740,7 +771,9 @@ void CBattle_Field::add_item_curr_map(int& itemUid, int& itemIdx)
         // 【blob 指针槽】refSpecific+0x34 区（m_field34..m_pad37 4 字节）按 ORIG
         // 存 assign.m_list 指针；跨 4 个 char 字段，无具名表达，保留 reinterpret_cast。
         *reinterpret_cast<char**>(reinterpret_cast<char*>(&refSpecific) + 0x34) =
-            reinterpret_cast<char*>(&assign.m_list);                      // assign+0x04
+            reinterpret_cast<char*>(
+                const_cast<std::list<std::pair<int, int> >*>(&assign.m_list));
+                                                                          // assign+0x04
 
         stGenerateResult_t result;
         CItemGenerator* gen = G_CDataManager()->getItemGenerator()->getGenerator(
@@ -823,6 +856,7 @@ void CBattle_Field::moveMap_4_Log(int x, int y, const GridScript* gs)
 }
 
 // ORIG 0x083079ba：终点位 boss 房条件未满足时报错码 7。
+// [b28d-D9] 槽差/P167：ORIG 多一段 get_map_index 类调用序 + 槽差；调用差集待核（ORIG 0x083079ba sz 0x0000016f）
 int CBattle_Field::check_boss_map(int x, int y)
 {
     if (m_pos[0].first == x && m_pos[0].second == y &&                     // +0xc/+0x10
@@ -847,6 +881,7 @@ int CBattle_Field::check_boss_map(int x, int y)
 }
 
 // ORIG 0x08307b2a：相邻格（含斜向禁止）越界检查。
+// [b28d-D9] N95/P190：帧 0x4c vs 0x5c + 槽基差 8（double framePad 形待试）（ORIG 0x08307b2a sz 0x0000014f）
 int CBattle_Field::check_movemap_range(int x, int y)
 {
     int curX = -1;
@@ -917,6 +952,7 @@ bool CBattle_Field::check_visited_map(int x, int y, bool& firstVisit)
 }
 
 // ORIG 0x083086d2：写目标格/当前层 visited 标记。
+// [b28d-D9] P220/P222：ORIG 正极 je 落 then 体（cmp 0x10(%ebp),%eax; je）；4.4 反极 jne，块布局差（ORIG 0x083086d2 sz 0x000000bb）
 void CBattle_Field::set_visited_map(int x, int y, bool visited)
 {
     int curX = -1;
@@ -956,6 +992,7 @@ void CBattle_Field::set_visited_map_goto(int x, int y)
 }
 
 // ORIG 0x08307eca：dummy 图序列推进 / boss 位传送。
+// [b28d-D9] N18a：ORIG mov 0xcc(%eax),%ebx 直落 callee-saved；4.4 两段（ORIG 0x08307eca sz 0x0000034a）
 void CBattle_Field::choose_random_bossmap_from_dummymaps(const CDungeon* dungeon,
                                                          const GridScript* gs,
                                                          int& mapId, bool& flag,
@@ -1022,6 +1059,7 @@ void CBattle_Field::choose_random_bossmap_from_dummymaps(const CDungeon* dungeon
 }
 
 // ORIG 0x08308214：候选图收集（终点/起点任务/hell/普通四路分支）。
+// [b28d-D9] P225/P197④：ORIG test+sete 物化岛；4.4 直跳（ORIG 0x08308214 sz 0x000004bd）
 int CBattle_Field::get_candidator_map(const CDungeon* dungeon, const GridScript* gs,
                                       int& mapId, std::vector<int>& candidator,
                                       int x, int y, int dir)
@@ -1124,6 +1162,7 @@ int CBattle_Field::get_candidator_map(const CDungeon* dungeon, const GridScript*
 }
 
 // ORIG 0x08308882：确定最终图号并写回当前图信息。
+// [b28d-D9] P225/N18b：ORIG test+setne 物化与 xor 形互斥；槽差 4（ORIG 0x08308882 sz 0x000001a1）
 int CBattle_Field::set_map_id(const GridScript* gs, int& mapId,
                               std::vector<int>& candidator)
 {

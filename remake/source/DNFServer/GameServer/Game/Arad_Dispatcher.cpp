@@ -41,6 +41,8 @@ typedef char AradDispatcherManagerSizeAssert[
 // + ctor call + `mov %ebx,%eax; mov %eax,m_p` + 正常路径逐条等价，差额 13 条
 // 全落在 ctor 抛异常的 delete+_Unwind_Resume 清理岛及其 push %edi/%esi/帧 0x1c。
 // 已回退该无效实例化声明，保持纯自然形。
+// [b28d-23 N·N100/模板] 复测维持：模板成员 create 的 landing pad 抑制无源码解
+// （P210 定义前置仅适用非模板 caller）⇒ N。ORIG 0x0818e956
 
 // ---------------------------------------------------------------------------
 // 本 TU 实例化：GlobalInstance<ARAD::Arad_Dispatcher_Manager>::create()  @0x0818e956
@@ -154,13 +156,21 @@ bool Arad_Dispatcher_Manager::unregister_dispatcher(int code)
 {
     // ORIG 0x0818fed6：inter[code] 判空→虚析构调用块（Ghidra unreachable）→置空返回 0；
     // 否则 db[code] 同样处理；两处均非空返回 1。按报告反编译 C 转写：
-    if (m_interDispatchers[code] == 0)
+    // [b28d-23 语义补齐/P184 死块照抄] ORIG 0x0818fee8 有具名局部
+    // `d = inter[code]`（-0x10 槽往返，P0）且块内为 `delete d` 的 4.1 展开
+    // （内建判空死块 0x0818feee + 虚 D0 调用 0x0818fef4..f04，Ghidra 标
+    // unreachable）。原实现漏 delete ⇒ 补回；db 组同（-0xc 槽 + 0x354 折叠）。
+    Arad_Dispatcher* d = m_interDispatchers[code];
+    if (d == 0)
     {
+        delete d;
         m_interDispatchers[code] = 0;
         return false;
     }
-    if (m_dbDispatchers[code] == 0)
+    Arad_Dispatcher* d2 = m_dbDispatchers[code];
+    if (d2 == 0)
     {
+        delete d2;
         m_dbDispatchers[code] = 0;
         return false;
     }
@@ -260,6 +270,7 @@ int Arad_Dispatcher_BuyItemCheck_Impl::inter_dispatch(CUser* user,
     return 0;
 }
 
+// [b28d-23 NEAR·N82] 残余 N82 寻址/寄存器（158/157）；裸 register ret 保留（P248 三条件：跨 call 保活+4.4 不自升+ORIG 用 %ebx）⇒ N。ORIG 0x0818eb0c
 int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch(int code, int uid,
                                                    Stream* stream)
 {
@@ -349,6 +360,7 @@ out:
 // time/localtime 后 quarter=tm_mon/3+1（0x55555556 除魔数）、year=(tm_year+1900)%2000
 // （0x10624dd3/sar7 除魔数 = /2000 + imul 0x7d0 取余），sprintf("%02d%d", year, quarter)。
 // ============================================================================
+// [b28d-23 N·N82/P75] 实参装载序/帧差（69/73）⇒ N。ORIG 0x0819e8d0
 void GetQuarterOfYear(char* buf)
 {
     time_t t = time(0);

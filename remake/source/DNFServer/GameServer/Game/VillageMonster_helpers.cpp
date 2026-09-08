@@ -42,6 +42,7 @@ namespace village_attacked
 // OnMoveArea / OnEvent / InsertVillageMonster 由已登记的 CVillageMonsterMgr.cpp
 // 提供定义（本 TU 不再重复定义，避免多重定义）。
 
+// [b28d-L8] P200/N82 | 帧差 0x38 vs 0x30 + 实参拓宽装载序（ORIG 0x086b4964）
 int CVillageMonsterMgr::OnKillVillageMonster(int a, int b, unsigned short c, bool d)
 {
     Zone zone((unsigned char)a, (unsigned char)b);
@@ -83,6 +84,7 @@ int CVillageMonsterArea::OnKillVillageMonster(CUser* user, unsigned short zone, 
 //            else     { OnChangeState(0); SendVillageMonsterFightResult(user, false); }
 //            return 0;
 // ============================================================================
+// [b28d-L8] N96/N18a | bool 形参取反物化 movzbl+xor vs 4.4 cmpb（P168a④ 无绑定不可达）+ 块序（ORIG 0x086b34a0）
 int CVillageMonster::OnKillVillageMonster(CUser* user, int a, int b, int c, bool flag)
 {
     if (m_state != 1)
@@ -182,6 +184,7 @@ struct Packet_VillageMonsterFightResult
 //   0xf9 发送。差异=ORIG 用 ctor W 0x86b4b84 一次性 memset 全结构，我方显式
 //   memset(m_pad4)+双循环清0（多 ~27 条），纯 lowering 表示差异，语义等价。
 // ============================================================================
+// [b28d-L8] N/B24D | ctor 一次性清零 lowering 差（B24D 判词，语义等价，ORIG 0x086b330a）
 void CVillageMonster::SendVillageMonsterFightResult(CUser* user, bool flag)
 {
     if (user == 0)
@@ -225,6 +228,7 @@ void CVillageMonster::SendVillageMonsterFightResult(CUser* user, bool flag)
 //   objdump: put_short(m_id); put_short(m_zone); put_byte(m_state);
 //            put_short(m_field04); put_short(m_field08); return 1。
 // ============================================================================
+// [b28d-L8] AE | 修法：m_state int→ENUM_VILLAGE_MONSTER_STATE（P254 enum 字段两段装载 mov 0x14(%eax),%eax;mov %eax,%edx，ORIG 0x86b3666）；旧 N18a 判词作废
 bool CVillageMonster::MakeVillageMonsterListPacket(PacketGuard& packet)
 {
     // [b28-L11 判 N·N18a] ORIG put_short(m_field04) 实参装载为 `mov 0x14(%eax),%eax;
@@ -245,6 +249,7 @@ bool CVillageMonster::MakeVillageMonsterListPacket(PacketGuard& packet)
 //            成功则 count++；put_byte(idx,count)；finalize(true)；
 //            user==0 → SendPacket(packet)，否则 user->Send(packet)。
 // ============================================================================
+// [b28d-L8] N82 | 槽平移 4 + 块序（ORIG 0x086b37fa）
 void CVillageMonsterArea::SendVillageMonsterList(CUser* user)
 {
     PacketGuard packet;

@@ -66,6 +66,7 @@ unsigned long sha_bswap32(const unsigned char* p)
 // 发 sub/setle/回边（27 条 vs ORIG 24 条 DIFF）。展开为逐字段赋值后逐条对齐
 // （P168 表达式直读：每处重载 this，不缓存 ctx 指针）。
 // ---------------------------------------------------------------------------
+// [b28d-L1] 修法：ORIG 0x080841fc 为逐条展开的 10 条独立赋值（每条重载 this+store）；原循环形使 4.4 发 sub/setle/回边（27 vs 24 DIFF）。展开后 IDENTICAL/AE。
 void sha256_starts(sha256_context* ctx)
 {
     ctx->m_total[0] = 0;
@@ -84,6 +85,7 @@ void sha256_starts(sha256_context* ctx)
 // sha256_process(sha256_context*, unsigned char*) T @0x08084264（内部压缩函数，
 // size 0x3688 —— 见头注【推断】说明；语义：对 data 指向的 64 字节分组压缩）。
 // ---------------------------------------------------------------------------
+// [b28d-L1] N 封顶（循环抽象 vs 物理展开）：ORIG 0x08084264 为 4687 条指令的 64 轮宏展开（libtomcrypt 风格，W[0..15] 逐条 movzbl/shl/or 组装、每轮主变换展开）；我方循环实现 251 条，P167 EXTRA 仅内部 helper（sha_ror/sha_bswap32）⇒ 调用点差集无外部缺口、SHA-256 算法语义完全等价。逐轮展开复现需 4687 条逐条对齐（§6.2 大函数口径），本波封顶。
 void sha256_process(sha256_context* ctx, unsigned char* data)
 {
     unsigned long w[64];
@@ -195,6 +197,7 @@ void sha256_update(sha256_context* ctx, unsigned char* input, unsigned long ilen
 // 80 字节表，padn<=0x78 ≤ 表长），再 update(8 字节大端 bitlen)，最后将
 // state[8] 依次按 high→low 移位写出 32 字节 big-endian 摘要。
 // ---------------------------------------------------------------------------
+// [b28d-L1] N 封顶：ORIG 0x080879ea 248 条 vs 我方 138 条——ORIG 对 bits[8]/output[32] 的逐字节移位写与 pad 表 update 采用物理展开（-O0 不展开循环 ⇒ 原码展开），我方按循环/紧凑形实现。P167 CLEAR（2/2）⇒ 调用点与算法语义等价；逐条展开复现属大函数形态差（§6.2 口径），本波封顶。
 void sha256_finish(sha256_context* ctx, unsigned char output[0x20])
 {
     const unsigned char k_padPrefix[0x50] = { 0x80 };  // 余下为 0（与 .data 表一致）

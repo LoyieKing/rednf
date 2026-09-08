@@ -112,7 +112,10 @@ public:
 
     CodeHackChecksumEx();                                // T @0x0808a700
     ~CodeHackChecksumEx();                               // T @0x0808a76c
-    CodeHackChecksumEx(const CodeHackChecksumEx& other);          // W @08575f10
+    // [b28d-lane16 N84②] 拷贝构造不声明：ORIG C1ERKS_ 0x08575f10 为 W 隐式合成
+    // （基类 C1ERKS + m_fileName rep movsl 0x41 + m_range 双 int 直拷）；显式声明
+    // 会强制我方手写体（memcpy → call memcpy 24 insn vs ORIG 32）。发射由
+    // CodeHackChecksum.cpp PopData 的 `CodeHackChecksumEx tmp(m_queue.front())` 保证。
 
     void SetFileName(const char* name);                  // T @0x0808a7ae
     char* GetFileName();                                 // T @0x0808a7cc（非 const 版本）

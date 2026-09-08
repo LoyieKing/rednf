@@ -42,6 +42,8 @@ namespace fair_pvp
 //    本实现逐字全等；strip_nop_padding 不吞 body 内 dead ret → 判 DIFF(1)。
 //    与 b25c NL21 同判例族；源码侧无可动，引 ORIG 地址为证。
 // ---------------------------------------------------------------------------
+// [b28d-L14 IDENTICAL] ORIG 0x08562834：函数体逐条全等（mov $1,%eax;pop;ret）；
+// ORIG 切片尾部 10×nop 对齐填充 + 下一函数入口 ret（§6.1 nop 豁免）。
 int CFairMatch::GetPlayCountPerOneTeam()
 {
     return 1;
@@ -56,6 +58,8 @@ namespace online_preliminary
 // 4. _ReturnTeam —— ORIG 0x08561e40 逐指令转写。
 //    ORIG 帧：-0x18 = seat；-0x14 = newRoom；-0x10 = seatIdx；-0xc = team。
 // ---------------------------------------------------------------------------
+// [b28d-L14 N82附] ORIG 0x08561e40：p167 多 1 次 get_user_seat（ORIG 缓存 seat
+// 一次）；残差含 P225 sete 物化形与槽基差。语义完整。
 void COnlinePreliminary::_ReturnTeam(PvP_Room* room, int team, CUser* user)
 {
     PvP_Room* newRoom = 0;   // -0x14
