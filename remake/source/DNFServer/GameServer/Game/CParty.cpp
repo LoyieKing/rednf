@@ -477,15 +477,19 @@ bool CParty::checkFreeRevivalCondition(CDungeon const* dungeon)
     if ((char)dungeon->get_dimension_possible() <= 0)
         return false;
 
-    CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x5e);
+    // b28d-49：ORIG 085be49a `mov -0x10(%ebp),%eax; mov %eax,(%esp)` = receiver 在实参
+    // 之后载入 eax（非 cast 表达式形，P277 探针 k9/ka/k3）⇒ event 局部本身声明为派生指针，
+    // 直接调用 CDimensionActivationEvent::checkFreeRevivalCondition（非虚，直接 call）。
+    // IsEventing 经派生指针仍是虚调用（ORIG 085be476 `call *%edx`）。
+    CDimensionActivationEvent* event =
+        static_cast<CDimensionActivationEvent*>(
+            GlobalData::s_event_manager->GetRepeatEvent(0x5e));
     if (event != 0)
     {
         if (!event->IsEventing(0))
             return false;
-        return static_cast<CDimensionActivationEvent*>(event)
-            ->checkFreeRevivalCondition(
-                reinterpret_cast<CBattle_Field*>(&m_battleField)
-                    ->get_dungeon_diff());
+        return event->checkFreeRevivalCondition(
+            reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff());
     }
     return false;
 }
@@ -1145,12 +1149,14 @@ bool CParty::get_party_realtime_info(PacketGuard& packet)
             packet.put_short(m_member[i].m_pUser->get_unique_id() & 0xffff);
             // P48：ORIG 0859cc0f/0859ccc4 对 getCurCharacR 双侧各一次独立调用
             //（test %eax;setne 直测 + else 内重新 getCurCharacR 读 +0x75），不缓存。
-            if (m_member[i].m_pUser->getCurCharacR() == 0)
-                packet.put_byte(0);
-            else
+            // b28d-49 @0x859cc52：ORIG `setne %al; test %al,%al; je <put_byte(0)>`
+            // ⇒ 正极性 `if (charac != 0) {stamina} else {0}`（负极性产 sete，ndiff 4）。
+            if (m_member[i].m_pUser->getCurCharacR() != 0)
                 packet.put_byte(
                     // ORIG 0859cc78 `movzbl 0x75(%eax)` = m_stamina。
                     (int)m_member[i].m_pUser->getCurCharacR()->m_stamina);
+            else
+                packet.put_byte(0);
             packet.put_byte(isHelpAbuseParty(m_member[i].m_pUser));
             packet.put_byte(i);
             ++count;
@@ -1625,8 +1631,10 @@ bool CParty::check_timer_key(TIMER_MESSAGE msg, int param)
 int CParty::gen_timer_key(TIMER_MESSAGE msg)
 {
     // ORIG: sub $0xb,%eax; lea 0x50(%eax),%ecx; mov 0x8(%edx,%ecx,4)…（同上分解）
-    ++m_field148[(int)msg - 0xb];
-    return m_field148[(int)msg - 0xb];
+    // b28d-49 @0x85be4xx：`return ++a[i]` 单表达式形（探针 f5 逐条全等）——
+    // 值经 %ebx 跨 store 保活、store 用 lea 0x50、reload 复用 add 0x50；
+    // 两句式（++ 后 return a[i]）4.4 重算下标且用 %ecx（ndiff 14）。
+    return ++m_field148[(int)msg - 0xb];
 }
 
 void CParty::resetFinishLoadingVar()
@@ -2583,13 +2591,24 @@ float CParty::CalcAvatarBonus()
         // P194 `bool z=(expr); if(z)` 复现 setle 物化岛。
         if (!_checkValidUser(i))
             continue;
-        if (!m_member[i].m_pUser->IsEquipAvatar())
-            continue;
-        found = true;
-        break;
+        // b28d-49 @0x85ad033：ORIG `call IsEquipAvatar; test %al,%al; je <continue 岛>`
+        // ⇒ 正极性（无 `!`）；负极性产 xor$1;jne 并多一条 jmp 岛（ndiff 6）。
+        if (m_member[i].m_pUser->IsEquipAvatar())
+        {
+            found = true;
+            break;
+        }
     }
     if (found)
-        bonus = (get_member_count() <= 1) ? 0.02f : 0.05f;
+    {
+        // b28d-49 @0x85ad05e：ORIG `cmp $0x1,%eax; setle %al; test %al,%al; je`
+        // = if/else 直条件（探针 f1 逐条同形；三目形产 jg、具名 bool 落槽并使
+        // 循环变量/found 槽位整体下移）。
+        if (get_member_count() <= 1)
+            bonus = 0.02f;
+        else
+            bonus = 0.05f;
+    }
     return bonus;
 }
 
@@ -2844,16 +2863,19 @@ int CParty::set_single_play(CUser* user)
 // ---- CParty::walkout_member（ORIG T 0x859ca4a）----
 int CParty::walkout_member(CUser* user, int slot)
 {
+    // b28d-49 @0x859ca4a：ORIG 先把 m_member[slot].m_pUser 读入 -0x10（target 局部），
+    // 随后**重算地址二次读**该成员作为 leave_user 实参（P157/P0 逐点重读，不缓存传参）；
+    // ForcedMoveAtPowerWarPlace 用 target；GetInstanceAssaultMgr() 结果直接 %eax 压 this
+    //（不落 mgr 局部，ORIG 0859cae7 无槽中转）。
     if (m_manager != user)
         return 8;
     if (m_member[slot].m_pUser != 0)
     {
         CUser* target = m_member[slot].m_pUser;
-        int r = leave_user(target, (ENUM_PARTY_INFO_TYPE)2);
+        int r = leave_user(m_member[slot].m_pUser, (ENUM_PARTY_INFO_TYPE)2);
         if (r == 0)
         {
-            pvp_assault::CAssaultMgr* mgr = pvp_assault::GetInstanceAssaultMgr();
-            mgr->ForcedMoveAtPowerWarPlace(target);
+            pvp_assault::GetInstanceAssaultMgr()->ForcedMoveAtPowerWarPlace(target);
             return 0;
         }
         if (r == 1)

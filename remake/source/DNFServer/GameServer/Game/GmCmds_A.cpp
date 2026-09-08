@@ -124,6 +124,10 @@ void CAssaultAbuseUserCmd::execute()
 
 // ORIG execute 0x084a9e34：仅地下城状态(state==5)且有队伍时，把当前地图怪物
 // uid 表拼成文本经 0x0c 号包回发给 GM。
+// [b28d-47] verdict=DIFF(routed) [N84/N82] ORIG 0x084a9e34 orig/ours=214/185
+//   修：put_str const_cast 去除（P167 重载 Pci→PKci）。残余：EXTRA memset（我方
+//   char buf[0xff] 零初始化走 call memset，ORIG 为内联 rep stos，N78/N84 族）+
+//   MISSING GetUser ×1（ORIG 三处独立取 user，槽/调用点差）+ 槽平移。
 void CBloodMonsterListCmd::execute()
 {
     CUser* user = GetUser();
@@ -162,7 +166,9 @@ void CBloodMonsterListCmd::execute()
     packet.put_short(0);
     packet.put_byte(0);
     packet.put_int(static_cast<int>(message.size()));
-    packet.put_str(const_cast<char*>(message.c_str()), static_cast<int>(message.size()));
+    // [b28d-47] P167 重载选错修正：ORIG 调 `put_str(char const*, int)`（PKci），
+    // const_cast 使其选 `put_str(char*, int)`（Pci）。
+    packet.put_str(message.c_str(), static_cast<int>(message.size()));
     packet.finalize(true);
     GetUser()->Send(packet);
 }
@@ -181,6 +187,8 @@ void CAddItemPollutionCmd::parse()
 
 // ORIG execute 0x084aaa00：itemId==-1 先开通 PC 房特权；随后发放物品并在
 // 无强化属性时随机投一次强化投资，最后日志 + 物品更新包。
+// [b28d-47] verdict=DIFF(routed) [N82/P112] ORIG 0x084aaa00 orig/ours=187/180
+//   残差：全帧槽号平移 + 寄存器角色差（跨版本分配）。
 void CAddItemPollutionCmd::execute()
 {
     if (m_itemIdx == -1)
@@ -256,6 +264,9 @@ void CAddItemByMail::parse()
 
 // ORIG execute 0x084ac2e2：合法物品以系统邮件发放（0 号特例 count=1，1 号特例
 // 金币条目手工填充，其余走 CItem::make_item 虚拷贝并附加 add_info=1）。
+// [b28d-47] verdict=DIFF(routed) [N78/N82] ORIG 0x084ac2e2 orig/ours=187/132
+//   残差：EXTRA memset ×2（我方数组零初始化 call vs ORIG 内联 rep stos，N78）
+//   + 槽/寄存器分配跨版本差。
 void CAddItemByMail::execute()
 {
     CUser* user = GetUser();
@@ -346,6 +357,8 @@ void CBoosterTest::clear()
 }
 
 // ORIG execute 0x084aed04：LOTTERY 类物品抽样统计并把结果文件内容分包回显。
+// [b28d-47] verdict=DIFF(routed) [N78/N82] ORIG 0x084aed04 orig/ours=269/241
+//   残差：EXTRA memset（N78 内联清零差）+ 全帧槽号平移。
 void CBoosterTest::execute()
 {
     CUser* user = GetUser();
@@ -521,6 +534,9 @@ bool CBoosterTest::is_gold_lottery_item(int idx)
 }
 
 // ORIG getJarResult 0x084afba8：统计 lotto 表产出物品次数。
+// [b28d-47] verdict=DIFF(routed) [N7/N82] ORIG 0x084afba8 orig/ours=88/87
+//   修：idx 实参内联（P0 去 -0xc 槽）+ `++pos->second`（单 ptEv）。
+//   残余：callee-saved 角色（ORIG %esi 缓存 lotto vs 4.4 %ebx）+ 槽差（N7/N82）。
 void CBoosterTest::getJarResult(CItem const* item, std::map<int, int>& result)
 {
     Inven_Item lotto;
@@ -545,6 +561,8 @@ void CBoosterTest::getJarResult(CItem const* item, std::map<int, int>& result)
 }
 
 // ORIG get_gold_lottery_result 0x084afd1c：统计金币产出（key=+7 数量，value=1）。
+// [b28d-47] verdict=DIFF(routed) [N7/N82] ORIG 0x084afd1c orig/ours=86/87
+//   修：idx 实参内联（P0）+ `++pos->second`。残余：寄存器角色/槽差。
 void CBoosterTest::get_gold_lottery_result(CItem const* item,
                                            std::map<int, int>& result)
 {
@@ -568,6 +586,9 @@ void CBoosterTest::get_gold_lottery_result(CItem const* item,
 }
 
 // ORIG getBoosterResult 0x084af9d6：统计 booster 产出（stStackableBoosterItemInfo_t）。
+// [b28d-47] verdict=DIFF(routed) [N7/P96] ORIG 0x084af9d6 orig/ours=139/131
+//   修：make_pair 实参右值化（P61 值对）+ `++pos->second`。
+//   残余：vector 遍历迭代器实例差（EXTRA ptEv/ppEv/ne，P175 族）+ 槽平移。
 void CBoosterTest::getBoosterResult(CItem const* item,
                                     std::map<int, int>& result)
 {
@@ -582,11 +603,13 @@ void CBoosterTest::getBoosterResult(CItem const* item,
             std::map<int, int>::iterator pos = result.find(itemId);
             if (pos == result.end())
             {
-                result.insert(std::make_pair(itemId, 1));
+                // [b28d-47] P61：实参右值化 ⇒ 实例化 make_pair<int,int>（值对），
+                // 左值 itemId 会实例化 make_pair<int&,int>（P167 EXTRA）。
+                result.insert(std::make_pair(static_cast<int>(itemId), 1));
             }
             else
             {
-                pos->second = pos->second + 1;
+                ++pos->second;
             }
         }
         items.clear();
@@ -594,6 +617,10 @@ void CBoosterTest::getBoosterResult(CItem const* item,
 }
 
 // ORIG getRandomboxResult 0x084afe3a：统计 multibox 随机盒产出（pair<Inven_Item,bool>）。
+// [b28d-47] verdict=DIFF(routed) [P220/P83] ORIG 0x084afe3a orig/ours=148/123
+//   修：P220 正极性 `pos != end`（消 EXTRA eq/MISSING ne）+ P61 make_pair 右值化
+//   + `++pos->second`。残余：EXTRA memcpy（我方 memcpy vs ORIG 结构整体赋值
+//   rep movsl，N84）+ 槽平移。
 void CBoosterTest::getRandomboxResult(CItem const* item,
                                       std::map<int, int>& result)
 {
@@ -608,19 +635,23 @@ void CBoosterTest::getRandomboxResult(CItem const* item,
             memcpy(&dropped, &drops[j].first, sizeof(Inven_Item));  // ORIG 逐字段浅拷贝
             int itemId = dropped.m_addInfo;
             std::map<int, int>::iterator pos = result.find(itemId);
-            if (pos == result.end())
+            // [b28d-47] P220 正极性：ORIG 用 `ne`（pos != end 时 ++），旧 `==` 形
+            // 产 eq（P167 MISSING ne / EXTRA eq）。
+            if (pos != result.end())
             {
-                result.insert(std::make_pair(itemId, 1));
+                ++pos->second;   // [b28d-47] 单次 ptEv
             }
             else
             {
-                pos->second = pos->second + 1;
+                result.insert(std::make_pair(static_cast<int>(itemId), 1));  // [b28d-47] P61 右值化
             }
         }
     }
 }
 
 // ORIG getCompoundEmblemResult 0x084af0d6：合成徽章统计；目标不是 16 型物品返回 false。
+// [b28d-47] verdict=DIFF(routed) [N82] ORIG 0x084af0d6 orig/ours=218/200
+//   残差：槽/寄存器分配跨版本差 + STL 内联实例（N89）。
 bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
                                            std::map<int, int>& result)
 {
@@ -673,6 +704,9 @@ bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
 }
 
 // ORIG _selectJewelTypeIndex 0x084af3b2：按凹槽数据加权随机选宝石类型槽。
+// [b28d-47] verdict=DIFF(routed) [N82] ORIG 0x084af3b2 orig/ours=94/87
+//   残差：全帧槽号整体平移 4（ORIG -0x38.. vs 我方 -0x34..）+ push ebx 差异
+//   （4.1 不按 lifetime 复用栈槽，N82/P112）。
 int CBoosterTest::_selectJewelTypeIndex(unsigned int count,
                                         unsigned short const* sockets) const
 {
@@ -712,6 +746,8 @@ int CBoosterTest::_selectJewelTypeIndex(unsigned int count,
 }
 
 // ORIG makeFileContents 0x084af504：map 结果追加为 TSV 行（超限提示续接并中止）。
+// [b28d-47] verdict=DIFF(routed) [N82] ORIG 0x084af504 orig/ours=192/174
+//   残差：槽/寄存器分配 + 字符串物化链差。
 void CBoosterTest::makeFileContents(CUser* user, char* fileBuf,
                                     std::map<int, int>& result)
 {
@@ -758,6 +794,8 @@ void CBoosterTest::makeFileContents(CUser* user, char* fileBuf,
 
 // ORIG make_file_gold_contents 0x084af7fc：金币分布行 + 尾部 max gold 合计。
 // （格式串 %I64u 按 ORIG 原样保留；glibc 下由 %llu 语义承载 64 位实参。）
+// [b28d-47] verdict=DIFF(routed) [N82/P112] ORIG 0x084af7fc orig/ours=121/113
+//   p167 CLEAR（18/18 调用点全等）⇒ 语义完成；残差为槽/寄存器分配跨版本差。
 void CBoosterTest::make_file_gold_contents(CUser* user, char* fileBuf,
                                            std::map<int, int>& result)
 {
@@ -800,6 +838,9 @@ void CBindCubeTest::parse()
 
 // ORIG execute 0x084acc1e：职业 0..10 时遍历 bind×recipe×equip 组合跑合成测试，
 // 每组结果落一份 bind_<job>_<bind>_<recipe>_<equip>.txt 回显给 GM。
+// [b28d-47] verdict=DIFF(routed) [N78/N84] ORIG 0x084acc1e orig/ours=166/134
+//   残差：EXTRA memset（我方缓冲零初始化 call vs ORIG 内联 rep stos，N78）+
+//   槽/寄存器分配差。
 void CBindCubeTest::execute()
 {
     if (!(static_cast<signed char>(m_flag) >= 0 &&
@@ -860,6 +901,8 @@ void BlueMarbleSet::parse()
 
 // ORIG getParam 0x084b235c：按空格切 token（≤16），tokens[0]=="move"/"enter" 置
 // 对应标记，atoi(tokens[1]) 写步数字节。
+// [b28d-47] verdict=DIFF(routed) [N82] ORIG 0x084b235c orig/ours=183/178
+//   残差：槽号平移 + std::string 局部构造/拷贝实例差。
 void BlueMarbleSet::getParam(std::string param)
 {
     std::string tokens[16];
@@ -966,6 +1009,10 @@ void CBingoGmTest::resetData()
 
 // ORIG reqValue 0x084b368a：repeat 事件(106)有效且连线 <3 时抽新棋盘值，
 // 结算连线奖励并以 0x1c3 包回报当前棋盘字。
+// [b28d-47] verdict=DIFF(routed) [N18b] ORIG 0x084b368a orig/ours=152/150
+//   残差：`if (gained > 3) gained = 3;` 4.4 恒折内存比较+内存写
+//   （`cmpl $3,-0x10; movl $3,-0x10`）vs ORIG 寄存器中转 4 条
+//   （`mov slot,%eax; cmp; mov $3,%eax; mov %eax,slot`）⇒ N18b 封顶。
 void CBingoGmTest::reqValue()
 {
     CUser* user = GetUser();
@@ -1047,6 +1094,9 @@ void CBillingRechargeCommand::parse()
 
 // ORIG execute 0x084b3ad4：cera→虚表[1](type=5)、point→虚表[3](type=4) 充值下单，
 // 最后统一走虚表[11] 通知。CIPGHelper 仅有前向声明，按 ORIG 虚表槽间接调用。
+// [b28d-47] verdict=NEAR(routed) [N7] ORIG 0x084b3ad4 orig/ours=67/67
+//   残差：间接 call 目标寄存器——ORIG 4.1 %ecx；4.4.7 恒 %eax、4.4.6 恒 %edx
+//   （P230 实测 446 后端亦不达 %ecx）⇒ N7 封顶，连锁实参/数据寄存器名互换。
 void CBillingRechargeCommand::execute()
 {
     CUser* user = GetUser();

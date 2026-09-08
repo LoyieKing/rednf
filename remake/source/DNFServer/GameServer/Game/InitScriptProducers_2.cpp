@@ -125,6 +125,8 @@ int getSameStringIndex(const char* s, const char** table, int count)
 // （-1 → 0x3693），grow=ScanInt 必需；循环 level=ScanInt（失败→回到外层标签循
 // 环）、data 两 int（失败→0x36a3/0x36a7）插入 out.m_map0。返回 0=正常结束。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82/N93] ORIG 0x08917f44 orig/ours=128/130
+//   残差：槽序（token/ok/局部对象）+ 循环块排布跨版本差。
 int LoadRewardDataByGrowType(stLevelUpRewardItemScript& out, std::string endTag)
 {
     std::string token;
@@ -221,6 +223,8 @@ done:
 // → this+0xb568）。ORIG 所有路径恒返回 0（含加载失败），忠实保留。
 // 段：[board]→m_map18、[quiz value]→m_map0、[reward]→m_map30、[use item]→m_vec48。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x089187b9 orig/ours=337/333
+//   残差：全帧槽号平移 + 迭代器/map 实例差。
 bool ImportBingoScript(const char* path, stBingoScript& out)
 {
     if (!loadRDARScriptFile("", path))
@@ -317,6 +321,8 @@ bool ImportBingoScript(const char* path, stBingoScript& out)
 // ImportItemMakingSkill —— ORIG T 0x0890f564（init.md:1146，
 // "Etc/ItemMakingSkill.etc" → this+0xb458）。返回 0=成功，非 0=错误行。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x0890f564 orig/ours=256/252
+//   残差：槽/寄存器分配跨版本差。
 int ImportItemMakingSkill(const char* path, stItemMakingSkill& out)
 {
     if (!loadRDARScriptFile("", path))
@@ -406,6 +412,8 @@ int ImportItemMakingSkill(const char* path, stItemMakingSkill& out)
 // 段：[breakaway section]→m_vec0、[exp reward]→m_vecC、
 //     [package reward]{[group]/[package selection]}→m_map18。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x08911ee3 orig/ours=269/264
+//   残差：全帧槽号平移 + STL 内联实例差。
 bool importGrowthPower(char* path, STGrowthPowerData* out)
 {
     if (out == 0)
@@ -502,6 +510,8 @@ bool importGrowthPower(char* path, STGrowthPowerData* out)
 // 注：ORIG 无下标越界检查（裸指针写入靠相邻区布局兜底）；字段化访问后对四个
 // 数组加上限（24/24/10/10，与相邻成员边界一致），语义不变。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x089026f3 orig/ours=326/335
+//   残差：槽分配 + 条件块排布跨版本差。
 int ImportWarAreaCounter(WarAreaCounter* out)
 {
     if (!loadRDARScriptFile("", "Etc/WarArea.etc"))
@@ -663,6 +673,8 @@ int ImportWarAreaCounter(WarAreaCounter* out)
 // 后续段直接写该值字段；[attack speed]/[jump speed] 无 cur 判空（ORIG 缺失，
 // 引用恒非空故等价）。[jump speed] 读后丢弃（ORIG 同）。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x08977d9c orig/ours=569/491
+//   残差：超大件槽/寄存器分配差 + STL 内联实例（N89）导致指令数缺口。
 bool importPairPvPStatScript(FairPvPStatScript& script, const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -844,6 +856,8 @@ bool importPairPvPStatScript(FairPvPStatScript& script, const char* path)
 // ImportSecurityReward —— ORIG T 0x089113ec（init.md:1123，this+0x50d8）。
 // 三段各 4 个 int；返回 bool（真=成功）。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x089113ec orig/ours=125/111
+//   残差：槽/寄存器分配 + STL 内联实例差。
 bool ImportSecurityReward(SecurityReward* out)
 {
     if (!loadRDARScriptFile("", "Etc/SecurityReward.etc"))
@@ -885,6 +899,8 @@ bool ImportSecurityReward(SecurityReward* out)
 // new STEquipmentScript 并 ImportEquipmentScript(name,false,module,key)；
 // 成功后把该脚本 m_paramMap678[-1]（存在时）迁移为键=pieces.size() 的条目。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x089073d9 orig/ours=374/350
+//   残差：槽平移 + STL 内联实例差（N89）。
 bool importEquipmentPartSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
 {
     if (!loadRDARScriptFile("", path))

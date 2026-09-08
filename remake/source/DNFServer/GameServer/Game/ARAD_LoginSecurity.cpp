@@ -156,12 +156,15 @@ int PVP_CHANNEL::is_broadcast_channel()
 }
 
 // is_all_pvp_channel @ 0x081976c7
-int PVP_CHANNEL::is_all_pvp_channel()
+// [b28d-46 P248 档①] 返回类型 int→bool（mangled 不含返回类型）：调用点 ORIG
+// `call; xor $1; test %al; je` 的唯一复现解是 bool callee + 裸 `!call()`
+// （P168a 定论：int callee 一切调用点写法恒产 setne）。本头仅本 TU 消费。
+bool PVP_CHANNEL::is_all_pvp_channel()
 {
     int channelType = G_GameWorld()->GetChannelType();
     if (is_integrated_pvp_channel() || channelType == 7)
-        return 1;
-    return 0;
+        return true;
+    return false;
 }
 
 // is_winpoint_pvp_channel @ 0x0819770a：channelType ∈ {4, 8}
@@ -197,14 +200,11 @@ int PVP_CHANNEL::is_common_channel()
 // check_Login_server_group @ 0x08197781
 int PVP_CHANNEL::check_Login_server_group(SIG_LOGIN_DATA* data)
 {
-    // P0/P194：ORIG `mov %eax,-0xc`（GetChannelType 结果落具名局部）+ `call
-    // is_all_pvp_channel; xor$1; test; je`（X1 形直测）。is_all_pvp 返 int，
-    // `!intcall()` 4.4 产 setne 物化，需 X1 register-uchar-eax 绑回 xor$1。
+    // [b28d-46 P0 清绑 + P248 档①] 删除历史 `register uchar allPvp asm("eax")`
+    // 绑定（P0/N96 全域禁）；callee bool 化后裸 `!call()` 直产 ORIG 的
+    // `call; xor $1,%eax; test %al,%al; je`。
     int channelType = G_GameWorld()->GetChannelType();
-    register unsigned char allPvp asm("eax") =
-        (unsigned char)is_all_pvp_channel();
-    allPvp ^= 1;
-    if (allPvp)
+    if (!is_all_pvp_channel())
     {
         data->m_channelRestrictField = 0;
     }
@@ -222,6 +222,8 @@ int PVP_CHANNEL::check_Login_server_group(SIG_LOGIN_DATA* data)
 
 bool pvp_grade_check(CUser* user)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x0819ebde：111 vs 111，p167 CLEAR；帧 0x5c vs
+    // 0x64 与 callee-saved 组合（N82/N7）⇒ 封顶。
     // [b23S3C] P48 去缓存：GetChannelType 两比较点各重取；G_CDataManager 每用点
     // 重取直落实参（ORIG 无 mgr 槽）；log 块求值序 max→min→charac_no（ORIG
     // 0x0819ec65 起）；尾块 get_pvp_grade 重取（ORIG 0x0819ed16，grade 非跨块
@@ -326,6 +328,8 @@ int Arad_Dispatcher_Login_Impl::inter_dispatch(CUser* /*user*/,
 int Arad_Dispatcher_Login_Impl::account_password_check(
     SIG_LOGIN_DATA* data, char* clientPwd)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x0818f746：132 vs 133，p167 CLEAR；帧 0xa0 vs
+    // 0xa4 与槽号平移（N82）⇒ 封顶。
     // [b23S3C] P48 去缓存：m_accId 各用点重取（ORIG 无 userIdx 槽）；改调
     // getGameStartTime 薄转发（ORIG call 0x086031f6，bool 返回 xor 直测 P22，
     // 头声明同步改 bool）；函数头补 time(0) 落槽（ORIG +0x00b）；两 long 预清
@@ -394,6 +398,8 @@ int Arad_Dispatcher_Login_Impl::account_password_check(
 // +0x3918、Goblin 检查窗口格式 "%Y-%m-%d 06:00:00"（+0x15180=当日 06:00 对齐秒偏移）。
 int Arad_Dispatcher_Login_Impl::pad_certifiaction_check(SIG_LOGIN_DATA* data)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x0818f4a6：158 vs 153，p167 CLEAR；帧 0xa0 vs
+    // 0xc8、槽号整体平移（N82）⇒ 封顶。
     static const char kFunc[] =
         "static int ARAD::Arad_Dispatcher_Login_Impl::pad_certifiaction_check("
         "SIG_LOGIN_DATA*)";
@@ -486,6 +492,8 @@ int Arad_Dispatcher_Login_Impl::premium_info_set(
     std::vector<DB_Login::tagDNFEventEntry>& entries,
     int serverGroup)
 {
+    // [b28d-46 判词·N/N82+N89] ORIG 0x0818f1ca：213 vs 201；帧 0x60 vs 0x50、
+    // `vector<int>::operator=` 实例差（N89）⇒ 封顶。
     unsigned short pushCount = 0;
 
     data->m_premiumCount = 0;
@@ -549,6 +557,8 @@ int Arad_Dispatcher_Login_Impl::premium_info_set(
 int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx,
                                             Stream* stream)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x0818ef4c：169 vs 165，p167 CLEAR；帧 0xdc vs
+    // 0xd0 与槽号平移（N82）⇒ 封顶。
     static const char kFunc[] =
         "virtual int ARAD::Arad_Dispatcher_Login_Impl::db_dispatch(int, int, "
         "Stream*)";

@@ -117,6 +117,9 @@ bool importEventAvatarListScript(EventAvatarListScript* s, const char* path)
 // "[seria room deco material list]" 按 (值, 序号) 写 m_mapC（序号自增）；
 // "[christmas event end]" 结束并返回 true。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82/P61] ORIG 0x0895e30f orig/ours=128/122
+//   残差：p 缓存槽(-0x10)/run 槽(-0x9 vs -0xd)/make_pair<IRiS0_> 引用对实例
+//   （P61 左值性）+ 全帧槽平移；控制流与调用集同构。
 bool importEventEtcScript(EventEtcScript* s, const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -169,6 +172,8 @@ bool importEventEtcScript(EventEtcScript* s, const char* path)
 // "[package selection]" 包（成对 itemId/count 直至 ScanInt 失败），整组赋给
 // (*out)[key]。[/fair pvp package] 或流结束均返回 true。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82/P112] ORIG 0x088ffbfc orig/ours=183/180
+//   残差：栈槽分配方向/槽号平移（4.1 不按 lifetime 复用）+ STL 内联实例差。
 bool importFairPVPEquipment(char* path, std::map<int, std::vector<std::vector<STStackablePackageData> > >* out)
 {
     if (out == NULL)
@@ -228,6 +233,8 @@ bool importFairPVPEquipment(char* path, std::map<int, std::vector<std::vector<ST
 // 成对 (idx, reward) 入 m_rewardMap。
 // 字段偏移与 growthEquipmentScript 布局一致（+0x18/+0x1c/+0x20/+0x22/+0x24）。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x0895eb3f orig/ours=183/180
+//   残差：全帧槽号平移 + callee-saved 角色差（跨版本分配，语义对齐）。
 bool importGrowthEquipmentScript(growthEquipmentScript* s, const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -337,6 +344,8 @@ bool importInGameAdvertisementEtcScript(InGameAdvertisementScript* s, const char
 // "Etc/Chn_Server_LimititemUsageinfo.etc" → m_limitItemUsage）。
 // 三段分别填充 Ex 结构的三个子表；日期串经 ConvertStringToTime 转秒。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82/P112] ORIG 0x0890d871 orig/ours=247/246
+//   残差：槽号/寄存器分配差（4.1 不按 lifetime 复用栈槽）；指令数近等。
 bool importLimitItemUsageInfo(char* path, stLimitItemUsageInfoEx* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -433,6 +442,8 @@ bool importLimitItemUsageInfo(char* path, stLimitItemUsageInfoEx* out)
 // "[item]" 成对入 AddFavorItemInfo、"[reward]" 单条入 AddRewardItemInfo；
 // "[can not give item]" 连续 id 入 AddDislikeItemInfo。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x0890d44f orig/ours=309/314
+//   残差：槽分配/寄存器分配跨版本差 + 迭代器实例差；调用集同族。
 bool importNPCRelationEventScript(const char* path, CNPCRelationEventManager* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -566,6 +577,8 @@ bool importNPCRelationEventScript(const char* path, CNPCRelationEventManager* ou
 //   0x284f loadAppendageType==-1 / 0x286d [quest point] ScanInt 失败。
 // "[initialization costs]" 三值写 m_initCost（失败按 ORIG 返回 0）。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82/P50] ORIG 0x0890fa3d orig/ours=351/362
+//   残差：槽平移 + 迭代器默认构造/临时槽（P50/N86 族）。
 int importQuestShopScript(const char* path, stQuestShop& out)
 {
     if (!loadRDARScriptFile("", path))
@@ -702,6 +715,8 @@ int importQuestShopScript(const char* path, stQuestShop& out)
 // short、"逗号串"→tokenize/getGrowTypeIndex 逐项 push_back），[/group] 时
 // insert 进 m_mapC。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x08915606 orig/ours=582/581
+//   残差：全帧槽号平移 + 寄存器角色差（跨版本，逐条助记符近等）。
 bool importPcBangEquipmentRendar(const char* path, PcBangItemRentarData* out)
 {
     // ORIG 双相派发（T 0x08915606）：out 判空先于 loadRDAR（+0x0c）；__lookup
@@ -884,6 +899,8 @@ bool importPcBangEquipmentRendar(const char* path, PcBangItemRentarData* out)
 //    epilogue（+0xc04/+0xcf5），4.4 生成中继 jmp（EH 双份 dtor epilogue vs
 //    merge 跨版本差异）。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x089f6c50 orig/ours=838/838
+//   残差：超大件全帧槽号错位（4.1 不按 lifetime 复用，N82）；指令数全等。
 int importMercenarySystemEtcScript(const char* path, stMercenarySystemInfo* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -1133,6 +1150,8 @@ int importMercenarySystemEtcScript(const char* path, stMercenarySystemInfo* out)
 // 0x1a37..0x1aa3 基础值各 Scan / 0x1aba 组下标 / 0x1acd..0x1aed 组名 /
 // 0x1aed 未知组名 / 0x1b08 组下标重复 / 0x1b1a..0x1b30 difficulty 段。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x08909857 orig/ours=679/667
+//   残差：槽/寄存器分配跨版本差 + make_pair 实例差。
 int importHellPartyScript(const char* path, stHellParty_t& out)
 {
     std::string token;
@@ -1376,6 +1395,8 @@ int importHellPartyScript(const char* path, stHellParty_t& out)
 //  ③ 其余为 .o 对 &_ZZ…__inited/__lookup 数据符号重定位的显示差
 //     （链接 AE 口径消除）与单 nop 岛位差。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x0897eb59 orig/ours=364/362
+//   残差：__lookup 三件套槽序 + 全帧槽号平移（P177/N82 族）。
 bool importInGameEventInfoList(InGameEventInfoList* list, const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -1579,6 +1600,9 @@ stHellPartyMonsterGroupList::stHellPartyMonsterGroupList()
 
 // ORIG stHellParty_t C1 0x891b242 W：map@0x54 构造；标量清零；三段 memset；
 // 难度表五组循环清零；+0x90=0。
+// [b28d-47] verdict=DIFF(routed446) [N91/N82] stHellParty_t::C1 orig/ours=71/95
+//   残差：数组元素隐式构造循环 EH cleanup（4.4 恒发 _Unwind_Resume 残段，N91）
+//   + 槽/帧分配差；ORIG 报告缺失，按 objdump 切片核对。
 stHellParty_t::stHellParty_t()
     : m_groupMap(),
       m_maxBaseValue(0), m_minBaseValue(0), m_baseValue(0), m_baseRisingValue(0),

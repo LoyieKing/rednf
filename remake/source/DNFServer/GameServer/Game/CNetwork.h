@@ -496,6 +496,8 @@ bool CNetwork<N1, N2>::Parsing_ServerPacket(int recvLen)
 template <int N1, int N2>
 bool CNetwork<N1, N2>::Parsing_AuctionServerPacket(int recvLen)
 {
+    // [b28d-48 复核] N82 封顶（NDIFF 146，152/146 条）：帧/槽平移 +
+    // nsl::PACKET_HEADER 访问器链。
     nsl::PACKET_HEADER header;
     int remain = m_recvOffset + recvLen;
     unsigned int packetSize;

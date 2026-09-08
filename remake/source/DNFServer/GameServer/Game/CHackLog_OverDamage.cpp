@@ -77,6 +77,8 @@ WongWork::ENUM_HACKTYPE CHackLog_OverDamage::GetBossTowerOverDamageHackType()
 void CHackLog_OverDamage::GetDungeonLimitDamageAndHackType(
     CUser* user, unsigned int& limit, WongWork::ENUM_HACKTYPE& type)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x08286790：149 vs 147；帧 0x54 vs 0x58 与
+    // 局部预清槽（movb $0,-0x31 等）平移（N82）⇒ 封顶。
     // ORIG 0x0828679e-0x082868a0：4 条件单出口 bool 汇聚（3 guard 各自
     // `je <mov$0,eax>`，通过则 `mov$1,eax`，尾 `test%al; je ret`）；
     // 每使用点重 call GetParty()+mov 0xcac（P160 去缓存）。

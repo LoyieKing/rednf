@@ -15,9 +15,14 @@
 void DB_AvatarChangeOwner::makeRequest(unsigned int a, unsigned int b,
                                        unsigned int c, unsigned char d)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xb7f);
-    CStreamGuard guard(stream, true);
+    // [b28d-48] P259：ORIG 0x0840055c 的 Acquire 结果直传 CStreamGuard 实参
+    // （无 stream 具名局部；`lea -0x14; mov %eax,0x4(%esp)` 直传），具名局部使
+    // 4.4 多发 `mov %eax,-0x14` 缓存并使帧 0x30→0x40。
+    // 收口：NDIFF 63→47（72/77），帧已对齐 0x30；残差 = guard 槽 -0x18 vs
+    // -0x14 与 d+10 的 addb 形（ORIG `addb $0xa,-0x1c(%ebp)` 直接改形参槽
+    // vs 4.4 读中转），N82/N18a 封顶。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xb7f), true);
     guard.operator*()->operator<<(0x35);
     guard.operator*()->operator<<(-1);
     SIG_AVATAR_CHANGE_OWNER* sig =

@@ -116,7 +116,7 @@ class PVP_CHANNEL
 public:
     static bool is_integrated_pvp_channel();     // 0x0819763c（P22：caller 0x081976xx/0x081977xx `test %al,%al` 单字节判据 ⇒ bool 返回；mangled 无返回类型零 ABI 风险）
     static int is_broadcast_channel();            // 0x08197684
-    static int is_all_pvp_channel();              // 0x081976c7
+    static bool is_all_pvp_channel();             // 0x081976c7（b28d-46 P248 档①：int→bool，mangled 不含返回类型）
     static int is_winpoint_pvp_channel();         // 0x0819770a
     static int is_common_channel();               // 0x0819773b
     // 非 all-pvp 渠道时清零 SIG_LOGIN_DATA+0x3a38（short 槽）；恒返回 1。

@@ -48,14 +48,14 @@ public:
     bool isApply(RestrictCategory::Enum category);                              // 0x0816e648
     void printPolicy(RestrictCategory::Enum category);                          // 0x0816ea6a
     void updatePolicy(RestrictCategory::Enum category);                         // 0x0816eb62
-    void serviceRestrictStringQuery();                                          // 0x0816e0ac
+    static std::string serviceRestrictStringQuery();                            // 0x0816e0ac
 
     // ORIG 布局：map + 2 标志字节。
     // key 类型 RestrictCategory::Enum（ORIG mangled
     // _ZNSt3mapIN16RestrictCategory4EnumEP22InterfaceServicePolicy... 实证）。
     std::map<RestrictCategory::Enum, InterfaceServicePolicy*> m_policyMap;
     char m_flag18;   // +0x18（ORIG ctor 置 0）
-    char m_flag19;   // +0x19（channel_no==1 时置 1）
+    bool m_flag19;   // +0x19（channel_no==1 时置 1；P248 档②：ORIG savePolicy xor $1 物化 ⇒ bool）
 };
 
 #endif  // GAME_SERVICERESTRICTMANAGER_H_

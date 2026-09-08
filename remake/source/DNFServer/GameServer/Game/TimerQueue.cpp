@@ -31,18 +31,22 @@ TimerEntry::TimerEntry() throw()
 }
 bool TimerEntry::operator<(const TimerEntry& other) const throw()
 {
-    // ORIG _ZNK10TimerEntryltERKS_（0x80f6364，0x33 字节）：比较 64 位 time
-    // （+0x0c 低 / +0x10 高）。高字大于→true；高字小于→false；高字相等时按
-    // 无符号低字 jae：this.lo >= other.lo → true，否则 false。
-    unsigned int thisLo = (unsigned int)(time & 0xffffffffLL);
-    unsigned int thisHi = (unsigned int)((unsigned long long)time >> 32);
-    unsigned int otherLo = (unsigned int)(other.time & 0xffffffffLL);
-    unsigned int otherHi = (unsigned int)((unsigned long long)other.time >> 32);
-    if (thisHi > otherHi)
+    // b28d-49 @0x80f6364：ORIG 24 条 —— this.lo→%ecx、this.hi→%ebx（callee-saved，
+    // push esi/ebx），hi 有符号 jg/jl、lo 无符号 jae，结果经 %esi 归一返回。
+    // 源码形 = 纯 register 存储类（P231，非 asm 绑定）+ 头内 32 位双字视图；
+    // 残差（%ecx/%esi 角色互换、比较方向反演）属 4.1 预载操作数 vs 4.4 惰性装载，
+    // N7/N18a 封顶（判词见函数头）。
+    // b28d-49 判词：N 封顶（N7+N18a）。ORIG 预载 this.lo→%ecx 跨两次 hi 比较、
+    // 结果单变量 %esi（`mov $0x1,%esi` … `mov %esi,%eax`）；4.4 恒惰性装载且
+    // 只用 callee-saved（探针 h1-h4 四形：%esi/%ebx/%edi 角色互换 + 比较方向反演）。
+    // 语义已对齐（hi 有符号、lo 无符号；旧 long long 版 hi 无符号 = 真语义偏差，已修）。
+    register unsigned int thisLo = words.lo;
+    register int thisHi = words.hi;
+    if (thisHi > other.words.hi)
         return true;
-    if (thisHi < otherHi)
+    if (thisHi < other.words.hi)
         return false;
-    return !(thisLo < otherLo);  // thisLo >= otherLo → true
+    return thisLo >= other.words.lo;
 }
 
 TimerQueue::TimerQueue()   // 声明同步去 throw()：ORIG create landing pad 证据

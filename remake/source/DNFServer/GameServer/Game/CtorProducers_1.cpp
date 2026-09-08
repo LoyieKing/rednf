@@ -205,6 +205,8 @@ AvatarRouletteServer::~AvatarRouletteServer()
 
 bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
 {
+    // [b28d-46 判词·N/N82+N89] ORIG 0x0817f706：264 vs 224；帧/槽整体平移
+    // （N82）＋ STL 模板实例内联差（N89）⇒ 封顶。
     // ORIG 0x0817f706。
     m_pRoulette = new AvatarRoulette;
     m_pRoulette->swap(roulette);
@@ -307,6 +309,8 @@ bool AvatarRouletteServer::isAvatarPottery(unsigned long itemIdx)
 
 bool AvatarRouletteServer::InitAddCharacSkill()
 {
+    // [b28d-46 判词·N/N82+N89] ORIG 0x0817f386：241 vs 237；槽号 -0x2c/-0x30
+    // 整体平移（N82）＋ STL 实例差（N89）⇒ 封顶。
     // ORIG 0x0817f386。
     if (G_CEnvironment()->m_serverEnvir.m_validateScript)
     {
@@ -371,6 +375,8 @@ bool AvatarRouletteServer::InitAddCharacSkill()
 
 bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index)
 {
+    // [b28d-46 判词·N/N82+N89] ORIG 0x0817fb28：290 vs 275；帧 0x7c vs 0x70、
+    // 槽号平移（N82）＋ `_Rb_tree_const_iterator::ptEv` 实例差（N89）⇒ 封顶。
     // ORIG 0x0817fb28（报告 AvatarRouletteServer/Pickup.md 全文）。
     // 档位抽取：randVal<roulette+0x0c 时 band∈{0,1}，否则从
     // m_avatars[0].size()-2 偏移取 band（内联 size helper 08180760 实证）。
@@ -450,6 +456,10 @@ bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index
 
 bool initNpcScript(const char* dir, const char* listPath)
 {
+    // [b28d-46 判词·N/P75] ORIG 0x089fc1a8：43 vs 41，p167 CLEAR；ORIG 在算
+    // dst 表达式（内层 strlen）前先压 memcpy 的常量实参 0x8/0x4，4.4 恒后压
+    // （P75 实参装载时刻跨版本差，含 4.1 冗余 `mov %eax,(%esp); mov (%esp),%eax`）
+    // ⇒ 封顶。
     // ORIG 0x089fc1a8：strncpy(base,dir,0x100)；strlen 三独立重调（P48 无 CSE：
     // '\\' 判定、'/' 判定、memcpy dst 各一次），末字符非 '\\' 且非 '/' 时
     // memcpy(base+len, "\\", 2)；尾部 xor$1/test/je 双 mov 岛 = (load 返 1)。
@@ -509,6 +519,8 @@ CNPCDynamicInfo* CNPCDynamicInfoManager::getNPCInfo(unsigned int idx)
 
 bool CNPCDynamicInfoManager::add(const CNPCScript* script)
 {
+    // [b28d-46 判词·N/P75+N89] ORIG 0x08580668：56 vs 69；make_pair 实参
+    // 求值序（P75/P178）＋ 帧 +0x8 与额外 callee-saved（N82）⇒ 封顶。
     unsigned int idx = const_cast<CNPCScript*>(script)->getIndex();
     if (getNPCInfo(idx) == 0)
     {
@@ -535,6 +547,8 @@ TowerOfDespair_APC_Mgr::TowerOfDespair_APC_Mgr()
 
 TowerOfDespairMgr::TowerOfDespairMgr()
 {
+    // [b28d-46 判词·N/N78] ORIG 0x08643ac4：82 vs 75；ORIG 4.1 把 memset 内联为
+    // rep stos，4.4 恒发 call（N78）＋ new APC_Mgr landing（N100）⇒ 封顶。
     // ORIG 0x08643ac4：CDungeon*[101]@0 与 uint[101]@0x194 清零；
     // ushort 0x34c/0x34e/0x350=0；dword 0x358=0；new APC_Mgr(0x18)@0x354。
     memset(m_layerDungeons, 0, sizeof(m_layerDungeons));
@@ -584,6 +598,8 @@ void TowerOfDespairMgr::_Set_APCIndexByLayer(unsigned int layer)
 
 int TowerOfDespairMgr::LoadScript(const char* dir, const char* path)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x08643e7e：150 vs 150，p167 CLEAR；残差为
+    // `lea -0x20(%ebp); call; xor$1; test; jne` 内联块位置/槽号（N82/P112）⇒ 封顶。
     // ORIG 0x08643e7e：失败返回 0x65；段式扫描后成功返回 0。
     if (!loadRDARScriptFile(dir, path))
         return 0x65;
@@ -630,6 +646,10 @@ int TowerOfDespairMgr::LoadScript(const char* dir, const char* path)
 
 CLevelRewardTable::CLevelRewardTable()
 {
+    // [b28d-46 判词·N/N4+N102] ORIG 0x086975fe：67 vs 67，p167 CLEAR；
+    // 成员常量偏移 ORIG 拆 `add $0x14c0; add this; add $8` 三步，4.4 折
+    // `lea 0x14c8(%eax)`；`j*0x46+l` ORIG imul+lea，4.4 imul+mov+add
+    // （N4/N102 源形不可择）⇒ 封顶。
     // ORIG 0x086975fe：i∈[0,0x45] 清 levelKeys[i]，名字槽(+0x14c8+21i)/留言槽
     // (+0x1a86+0x100i) 首字节 memcpy '1'（0x31，来自 rodata "127.0.0.1" 首字符，
     // 非 '\0'）；双层清空 primary(@+0x118)/secondary(@+0xaf0) 两块。
@@ -726,6 +746,9 @@ CLevelRewardTableMgr* CLevelRewardTableMgr::GetInstance()
 
 void CLevelRewardTableMgr::SetChallengeInfo(stUnlimitChallengeInfo& info)
 {
+    // [b28d-46 判词·N/N82+N89] ORIG 0x08687828：362 vs 368；帧 0x8c vs 0x90、
+    // 槽号整体平移（N82）＋ 迭代器 `ptEv` 实例差（N89，4.4 内联 vs ORIG out-of-line）
+    // ⇒ 封顶。
     // ORIG 0x08687828 全量转写（报告双段 + objdump 逐条）：
     // 0x08687837 `movzbl (%eax)` + 0x0868783d `mov %dl,(%eax)` ⇒ flag 单字节；
     // 0x08687852 vec 赋值、0x08687868 SetJobAffection(true)；随后三段同构循环，
@@ -827,6 +850,8 @@ void WorldMapScript::clear()
 
 bool importWorldMapScript(WorldMapScript* script, const char* path)
 {
+    // [b28d-46 判词·N/N82+N93] ORIG 0x08ab0388：300 vs 318；块内局部槽序
+    // （N93/N98）＋ pair ctor 实例差（N89）＋ 4.4 恒跳表/比较链差异 ⇒ 封顶。
     // ORIG 0x08ab0388。
     if (!loadRDARScriptFile(g_worldMapScriptBaseDirectory, path))
         return false;
@@ -981,6 +1006,9 @@ CWorldMap::CWorldMap()
 
 void CWorldMap::set_world_map(WorldMapScript* script)
 {
+    // [b28d-46 判词·N/P168a③b+N82] ORIG 0x0836421a：222 vs 209；残余为
+    // `movzbl; test; setne %dl` 的 uchar→bool 物化（P168a③b 跨版本 ABI）＋
+    // vector assign 段槽序（N82）⇒ 封顶。
     // ORIG 0x0836421a：标量回写 + 三段 vector assign + m_dungeonIndex=MAXINT；
     // 遍历 script->m_dungeons：find_dungeon 命中者 push 进 m_dungeonList，
     // 并按 kind==1/kind==2/其它三分支以 min 收敛 m_dungeonIndex（kind==1 另置
@@ -1031,6 +1059,8 @@ void CWorldMap::set_world_map(WorldMapScript* script)
 
 bool CWorldMapList::insert_world_map(CWorldMap* worldMap)
 {
+    // [b28d-46 判词·N/N86] 沿用 b28c-lane25：73 vs 68，map::insert 的 4.1
+    // 「临时槽+拷贝」vs 4.4 copy-elision（N86）⇒ 封顶。
     // b28c-lane25 判词 N86：ORIG 4.1 对 map::insert 的 pair/迭代器恒「临时槽+
     // 拷贝」两段，4.4 直构进目标槽（copy-elision）⇒ 73/68，无源码解（patterns N86）。
     // ORIG 0x08364694 逐条（报告 call 标注被 report_resolve 误标，以地址与 C 段为准）：
@@ -1061,6 +1091,8 @@ bool CWorldMapList::insert_world_map(CWorldMap* worldMap)
 
 bool CWorldMapList::load_list()
 {
+    // [b28d-46 判词·N/N82] ORIG 0x08364506：112 vs 109；帧 0x9c vs 0x8c 与
+    // 双 init 槽（N82/P191）⇒ 封顶。
     // ORIG 0x08364506：遍历 g_worldMapScriptFileList，逐个导入并 new CWorldMap(0x40)
     // set_world_map + insert_world_map；导入失败 printf 后返回 0。
     WorldMapScript script;
@@ -1117,6 +1149,8 @@ void CCharacList::destroy()
 
 bool CCharacList::init()
 {
+    // [b28d-46 判词·N/N89] ORIG 0x08349514：91 vs 91；`_Rb_tree_const_iterator::ne`
+    // 实例差（4.4 内联 vs ORIG out-of-line，N89）＋ 槽序 ⇒ 封顶。
     // ORIG 0x08349514：栈上构造 STCharacterScript(0xc1c)，遍历
     // g_stCharacterScriptFileList：ImportCharacterScript 失败 printf 返回 0；
     // 否则按脚本首字 job 下标 set_data 到 m_characs[idx]。
@@ -1202,6 +1236,9 @@ void sub_CAISet(void* self, int idx, const void* script)
 
 void sub_CAISet(void* self, int idx, const void* scriptRaw)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x0834a066：61 vs 71；本件为 §4.5 asm 别名桥
+    // 例外（STAICharacterCommonScript 四视图偏移矛盾未裁决，无法转真实成员定义），
+    // 残差为深拷贝/槽布局跨版本差（N82）⇒ 维持例外封顶。
     typedef STAICharScriptView Script;
     const Script& script = *static_cast<const Script*>(scriptRaw);
     CAICharacterFull& selfC = *static_cast<CAICharacterFull*>(self);
@@ -1239,6 +1276,8 @@ CNPCScriptList::CNPCScriptList()
 
 int CNPCScriptList::initScript(char* dir, char* list, char* common)
 {
+    // [b28d-46 判词·N/N82+N89] ORIG 0x08581314：219 vs 206；帧/槽整体平移
+    // （N82）＋ STL 模板实例内联差（N89）⇒ 封顶。
     // ORIG 0x08581314。
     if (!initNpcScript(dir, list))
         return 0x1a1;

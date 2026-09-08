@@ -75,6 +75,9 @@ bool CRedeemItem::isAddableFilter(const Inven_Item& item)
 // pop_front，push_back，返回 1。
 int CRedeemItem::AddRedeemList(const Inven_Item& item, int param2, bool param3)
 {
+    // [b28d-46 判词·N/N84+P83] ORIG 0x085f71a8：72 vs 51；ORIG 对 0x3c 字节
+    // 载荷逐字段/结构搬移展开，我方 memcpy 生成 call（N84/P83 块搬移形态差）；
+    // 载荷长度与字段序已逐条对应（语义等价）⇒ 封顶。
     Inven_Item_Expand_RedeemInfo info;
     std::memcpy(&info.m_item, &item, 0x3c);
     reinterpret_cast<unsigned char*>(&info.m_item)[0x3c] =
@@ -91,6 +94,8 @@ int CRedeemItem::AddRedeemList(const Inven_Item& item, int param2, bool param3)
 // rep movsl 0x11，结构整体赋值即内联该复制）。
 void CRedeemItem::getData(char* pData) const
 {
+    // [b28d-46 判词·N/N82+P83] ORIG 0x085f78bc：75 vs 74；帧/槽号平移（N82）＋
+    // 0x44 字节结构整体赋值 rep movsl（P83）⇒ 封顶。
     char* dst = pData;
     std::list<Inven_Item_Expand_RedeemInfo>::const_iterator it =
         m_redeemList.begin();
@@ -107,6 +112,8 @@ void CRedeemItem::getData(char* pData) const
 // finalize + Send 并返回 1。
 int CRedeemItem::Send_RedeemList(CUser* user)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x085f73ee：180 vs 188；帧 0x30 vs 0x38 与
+    // 迭代器/槽号平移（N82）⇒ 封顶。
     PacketGuard packet;
     packet.put_header(0, 0x121);
     packet.put_byte((int)m_redeemList.size());

@@ -499,7 +499,9 @@ int Inter_LoadEtc::_fnEnumQuestClear(unsigned int questIdx, char* ctx)
     // ORIG 两 je 直跳同出口（嵌套 if 消 && 汇聚 bool 岛，P197④ 反向）。
     if (quest != 0)
     {
-        if (quest->check_clear_send() != 0)
+        // [b28d-53] ORIG `call; test %al,%al; je` 免归一形 ⇒ 裸判（P32/P73）；
+        // `!= 0` 会引入 `setne %al; test %al,%al`。
+        if (quest->check_clear_send())
         {
             buf->put_short((int)questIdx);   // ORIG 直传完整 int（截断在 put_short 内）
             ++(*count);
@@ -2135,6 +2137,11 @@ void Inter_RequestCharacSkillInfo::_PutSkillInfoToCharac(
 {
     // b28c-33：ORIG 0x084e7820 入口即 `movl $0x198,-0xc(%ebp)`（size 具名局部，
     // memcpy 第 3 参经该槽），直接写立即数少 1 条且全帧槽号平移 ⇒ 补具名 size。
+    // [b28d-53 判词 N107+N4/P30] ORIG 的 dest 计算为单条 `lea 0x46(%eax),%edx`
+    // （m_skillSlot2 同理 `lea 0x1de(%eax),%edx`）；4.4-O0 对成员常量偏移取址恒产
+    // `mov 0x14(%ebp),%edx; add $0x46,%edx` 两段——数组名 / &arr[0] / 语句表达式
+    // 三形实测均同（N107 六形探针族）。31/31 助记符序列全等、仅 lea↔add 伪影 ⇒
+    // 语义完成，byte 层 N 封顶（ORIG 0x084e7820）。
     int size = 0x198;
     if (slotFlag == -1 || slotFlag == 0)
     {
@@ -2142,11 +2149,11 @@ void Inter_RequestCharacSkillInfo::_PutSkillInfoToCharac(
         // 单条 lea）；`&arr[0]` 形使 4.4 生 `mov+add` 两段。
         // [b28c-33 判词 NEAR-N4/P30] 数组名与 &arr[0] 两形实测均产 `mov;add`（探针
         // l33d f1/f2/f4/f5 同族），4.4 恒折 add 两段 ⇒ 31/31，仅 lea-vs-add+装载序差。
-        memcpy(skillSlot->m_skillSlot, skill, size);
+        memcpy(({ skillSlot->m_skillSlot; }), skill, size);
     }
     else if (slotFlag == 1)
     {
-        memcpy(skillSlot->m_skillSlot2, skill, size);
+        memcpy(({ skillSlot->m_skillSlot2; }), skill, size);
     }
 }
 

@@ -32,11 +32,18 @@
 //   return hash.
 static unsigned int getStringHashValue(const char* s)
 {
+    // [b28d-48] ORIG 0x08ab21f8：具名 char c 槽(-0x1) + `c=*s++` 先读后增
+    // （@0x05 movzbl → @0x06 mov %al,-0x1 → @0x07 addl $1,0x8(%ebp) →
+    //  @0x08 cmpb $0,-0x1 → je），for 形被 4.4 折成 ++s 后置。
     unsigned int hash = 0;
-    for (; *s != '\0'; ++s)
+    char c;
+    while (true)
     {
+        c = *s++;
+        if (c == '\0')
+            break;
         // hash*0x40 + hash*0x10000 - hash + c = hash*0x40ff + c = hash*65599 + c
-        hash = (hash << 6) + (hash << 16) - hash + (unsigned int)(signed char)(*s);
+        hash = (hash << 6) + (hash << 16) - hash + (unsigned int)(signed char)c;
     }
     return hash;
 }
@@ -65,10 +72,14 @@ StringDictionary::StringDictionary()
 // ----------------------------------------------------------------------------
 StringDictionary::~StringDictionary()
 {
+    // [b28d-48] N93/N91 封顶（NDIFF 73，84/73 条）：ORIG 无迭代器默认构造
+    // （begin/end 直接调）、4.4 多 setne 物化与默认构造槽；P50 形实测反劣已回退。
+    // [b28d-48] P50 先声明后赋值形实测反劣（73→84→93 条），回退 for 形；
+    // `*it != 0` 改 `*it` 消 setne 物化（ORIG 0x8ab22be 为 test+je 直判）。
     for (std::vector<unsigned char*>::iterator it = blocks_.begin();
          it != blocks_.end(); ++it)
     {
-        if (*it != 0)
+        if (*it)
         {
             delete[] *it;
         }
@@ -173,13 +184,16 @@ void StringDictionary::freeze()
 // ----------------------------------------------------------------------------
 const char* StringDictionary::get(const char* key) const
 {
+    // [b28d-48] N86 封顶（NDIFF 47，70/70 条）：equal_range 模板临时槽 +
+    // 迭代器转换构造跨版本差（probe 已按 ORIG 改 `{}` 值初始化）。
     const unsigned int h = getStringHashValue(key);
     const unsigned int bucket = h >> 24;
 
-    StringEntity probe;
+    // [b28d-48] ORIG 0x08ab2528 段：先 3×`movl $0`（{} 值初始化 -0x20/-0x1c/-0x18）
+    // 再 `mov -0x10,%eax; mov %eax,-0x20`（probe.hash=h）——逐字段赋值形顺序反。
+    StringEntity probe = {};
     probe.hash = h;
     probe.key = key;
-    probe.value = 0;
 
     std::pair<std::vector<StringEntity>::iterator,
               std::vector<StringEntity>::iterator> range =

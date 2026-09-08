@@ -228,10 +228,11 @@ namespace WongWork
 // new CMTRand(time) 存 +0x18c → 100 次 randInt(m_randRange) 热身。
 CItemUpgrade_Separate::CItemUpgrade_Separate()
 {
-    // 判词 N（batch-26 lane14）：ORIG time 临时@-0x24/range@-0x20 vs 4.4
-    // 临时固定浅槽 -0x20、具名 range 深槽 -0x24 —— 4.4 call 结果临时不随
-    // 声明序挪槽（具名化 seed 可对槽但 lea 延后至 new 之后成 DIFF，更差）；
-    // 帧/指令数等齐，2 行槽号差 N 封顶（0x0811e0be）。
+    // [b28d-51] 判词 N（0x0811dfc0，N98/N82附 槽分配方向族）：ORIG time 临时@-0x24/
+    // range@-0x20（4.1 按声明序深→浅）；4.4 按首次使用序浅→深 ⇒ 临时恒 -0x20、
+    // 具名 range 恒 -0x24。四形实测均不可翻：①range 前置声明 ②声明移至 new 后
+    // ③range 落循环体块作用域 ④裸 register/(void)&range；具名 seed 另致 lea 延后到
+    // new 之后（更差）。帧 0x2c/指令 80=80 全等，仅 2 处槽号差 ⇒ N 封顶。
     m_randRange = 100000;
     unsigned long range;
     m_rand = new CMTRand(static_cast<unsigned long>(time(0)));
@@ -522,11 +523,11 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
 // ORIG W 0x0811ed32：低 5 位自增（模 32），保留高位（bit5=交易限制等）。
 void UpgradeSeparateInfo::IncUpgradeSeparate()
 {
-    // [b28c-L29] ORIG W 0x0811ed32：低 5 位自增模 32，保留高位。原码对
-    // ((m_field & 0x1f) + 1) 连施两次 &0x1f（三条 and 段），且 this 缓存 %edx
-    // 后单条 store——照抄双掩码表达式形。
-    m_field = static_cast<unsigned char>(((((m_field & 0x1f) + 1) % 32u) & 0x1f) |
-                                         (m_field & 0xe0));
+    // [b28d-51] 判词 N（ORIG W 0x0811ed32，N7 寄存器角色族）：4.1 位域 store 把
+    // 截断掩码就地施于 %eax、再 mov %eax,%ecx 插入；4.4.7/4.4.6 恒先把值挪到
+    // %edx 再掩码（多 1 条 mov，this 落 %eax）——16 形探针（/tmp/b28d_51_probe_inc*.cpp）
+    // 含位域/联合/局部/显式掩码/cast 全试均不可复现。语义等价（低 5 位 +1 模 32）。
+    m_bits.m_lo = m_bits.m_lo + 1;
 }
 
 // ============================ CUser 公会公告 ============================

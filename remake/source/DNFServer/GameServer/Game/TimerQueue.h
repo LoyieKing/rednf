@@ -40,7 +40,19 @@ struct TimerEntry
     int objType;          // +0x00
     int param1;           // +0x04
     TIMER_MESSAGE msg;    // +0x08
-    long long time;       // +0x0c
+    // b28d-49：ORIG operator< 0x80f636c/0x80f636f 直接 32 位读 +0x0c/+0x10
+    // （`mov 0xc(%eax),%ecx; mov 0x10(%eax),%ebx`，hi 有符号 jg/jl、lo 无符号 jae）
+    // ⇒ time 具名 32 位双字视图；union 尺寸/对齐/偏移与原 long long 完全相同。
+    struct TimeWords
+    {
+        unsigned int lo;                              // +0x0c（无符号比较）
+        int hi;                                       // +0x10（有符号比较）
+    };
+    union
+    {
+        long long time;                                   // +0x0c
+        TimeWords words;
+    };
     int param2;           // +0x14
     unsigned int param3;  // +0x18
 };

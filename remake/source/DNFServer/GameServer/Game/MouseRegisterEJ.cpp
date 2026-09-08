@@ -219,6 +219,9 @@ MySQL* DB_MouseRegister::_getDBHandleForDevideAccountDB()
     return db;
 }
 
+// [b28d-47] verdict=DIFF(routed) [N93附] ORIG 0x084231b6 orig/ours=74/75
+//   残差：尾部双 return 块发射序相反（ORIG Bfalse-ret0 前/Btrue-ret1 后，4.4 恒反）
+//   + 1 条 jmp 中继；P222 两形互试已做（反劣 79），N93附 封顶。
 bool DB_MouseRegister::_updateFailCnt(unsigned int mid, int failCnt, char* ip)
 {
     (void)ip;   // ORIG 形参未被函数体消费（Ghidra 同）。
@@ -707,6 +710,8 @@ namespace expert_job {
 //   type==2 仅虚槽(user,2)；其它类型无副作用。
 // 虚槽经 vptr 偏移 +0x04 显式调用：与 ORIG 指令逐条对应；CExpertJob 虚表槽序
 // 审计收敛后可替换回语义虚调用。
+// [b28d-47] verdict=DIFF(routed) [N7/N82] ORIG 0x0849dcc4 orig/ours=64/59
+//   残差：虚槽调用寄存器角色 + 槽/帧分配跨版本差（ORIG 经 vptr+0x04 显式虚调）。
 int CEnchanter::_TryEnchant(CUser* user, stItemPos_t* pos,
                             ENUM_TRY_ENCHANT_TYPE type)
 {
@@ -802,6 +807,8 @@ CExpertJobStatistic* GetInstanceExpertJobStatistic()
 // ORIG T 0x0860faca（UpdateExpertJob.md）：map 空直接返回；否则 Acquire
 // ("Statistics.cpp", 0x65a) 后写头 0x182/-1/map.size()，遍历逐条写
 // {key.m_field00, key.m_itemIdx04, value}，put(DB_Q) 后 clear()。
+// [b28d-47] verdict=DIFF(routed) [N82] ORIG 0x0860faca orig/ours=137/137
+//   残差：槽/寄存器分配跨版本差（指令数全等，语义对齐）。
 void CExpertJobStatistic::UpdateExpertJob()
 {
     if (m_counts.empty())

@@ -162,6 +162,8 @@ bool CExchangeServer::TrySend(int serverId, PacketGuard& guard)
 bool CExchangeServer::AttachSessionInExchangeServer(int serverId,
                                                     CSession* session)
 {
+    // [b28d-48 复核] 维持 N93附+P75（NDIFF 53，53/55 条）：iterator 对槽深
+    // 方向 + session 形参跨 cMyTrace ctor 保活差。
     // [b28c-6] fresh 复验维持 N93附+P75（ndiff 22，55/53 条）：
     // [b28-L11 判 N·N93附+P75] 残差两类：①函数级 iterator 对(-0x20/-0x1c)与
     // if 尾块内 cMyTrace(-0x18) 的槽深方向跨版本相反（N93 附：兄弟/块内对象
@@ -189,6 +191,8 @@ bool CExchangeServer::AttachSessionInExchangeServer(int serverId,
 bool CExchangeServer::RegisterExchangeServer(int serverId,
                                              ExchangeServerInfo& info)
 {
+    // [b28d-48] N82/P210 封顶（NDIFF 65，65/67 条）：ORIG `push %ebx;
+    // sub $0x64` vs 4.4 `sub $0x68`（同 TU callee 帧继承，P210 三分律②）。
     if (m_serverMap.find(serverId) == m_serverMap.end())
     {
         m_serverMap.insert(std::make_pair(serverId, info));
@@ -207,6 +211,8 @@ bool CExchangeServer::RegisterExchangeServer(int serverId,
 // ---------------------------------------------------------------------------
 void CExchangeServer::UnregisterExchangeServer(int serverId)
 {
+    // [b28d-48] N82/P210 封顶（NDIFF 60，59/62 条）：帧 sub 0x34+push ebx
+    // vs sub 0x38。
     std::map<int, ExchangeServerInfo>::iterator it =
         m_serverMap.find(serverId);
     if (it != m_serverMap.end())
@@ -334,8 +340,12 @@ bool CExchangeServer::SendResponseCharacInfo_forchina(int a, int b,
 bool CExchangeServer::ReturnCacheCharacter(int a, int b, int c, int d,
                                            bool e, CSession* session)
 {
+    // [b28d-48 真 bug] ORIG 0x084918d8 段首比较为 `cmp 0x14(%ebp),%eax`
+    // （第 3 形参 c），原码写 `== d`（0x18）比较错参数。按 ORIG 修回 `== c`
+    // （c=channel_no，与 cMyTrace 文本 "channel_no(%d), charac_no(%d)",c,d 一致）。
+    // 其余残差 N82 封顶（NDIFF 121，133/126 条）：帧/槽平移 + 形参装载序。
     bool handled = false;
-    if (GetServerChannelNo() == d)
+    if (GetServerChannelNo() == c)
     {
         CACHE_CHARACTER_TYPE* pCache = NULL;
         CCacheCharacterMgr* mgr = GetInstanceCacheCharacterMgr();
@@ -447,6 +457,8 @@ bool CExchangeServer::ForwardRequestCharac(int a, int b, void* data,
 int CExchangeServer::OnRecvPacketCharacInfo(CSession* session,
                                             PacketGuard& guard)
 {
+    // [b28d-48] N82 封顶（NDIFF 155，194/199 条）：巨件帧/槽平移 +
+    // PacketGuard 临时槽方向。
     int errBook = 0;                                  // -0x44 (类型 a)
     int idx = 0;                                      // -0x48
     int chNoArg = 0;                                  // -0x4c
@@ -529,6 +541,7 @@ int CExchangeServer::OnRecvPacketCharacInfo(CSession* session,
 int CExchangeServer::OnRecvPacketCharacInfoRet(CSession* session,
                                                PacketGuard& guard)
 {
+    // [b28d-48] N82 封顶（NDIFF 162，167/165 条）：巨件帧/槽平移。
     int ret = 0;                                      // -0x40
     int idx = 0;                                      // -0x38
     int fromCh = 0;                                   // -0x3c
@@ -624,8 +637,11 @@ int CExchangeServer::OnRecvPacketServerInfo(CSession* session,
               (int)(short)info.m_word04);
     }
 
-    const EXCHANGE_SERVER_TYPE self = this->GetServerType();  // 虚调用 slot4
-    if (self == EXCHANGE_SERVER_MASTER)
+    // [b28d-48 P48/P282] ORIG 0x0849293d 与 0x08492ac5 两处独立
+    // `mov (%eax),%eax; add $0x10,%eax; … call *%edx`（vptr+0x10 = GetServerType
+    // 槽）：O0 无 CSE，双臂各一次虚调用。原具名 self 只发一次（P282 差集
+    // ORIG{"16":2} vs OURS{"16":1}）。
+    if (this->GetServerType() == EXCHANGE_SERVER_MASTER)
     {
         PacketGuard pkt;
         pkt.clear();
@@ -642,7 +658,7 @@ int CExchangeServer::OnRecvPacketServerInfo(CSession* session,
         pkt.finalize(false);
         m_sessionMgr.TrySend(session, pkt);
     }
-    else if (self == EXCHANGE_SERVER_SLAVE)
+    else if (this->GetServerType() == EXCHANGE_SERVER_SLAVE)
     {
         PacketGuard pkt;
         pkt.clear();
@@ -678,6 +694,8 @@ int CExchangeServer::OnRecvPacketServerInfo(CSession* session,
 int CExchangeServer::OnRecvPacketServerInfoRet(CSession* session,
                                                PacketGuard& guard)
 {
+    // [b28d-48] N82 封顶（NDIFF 214，229/228 条）：巨件帧/槽平移 +
+    // cMyTrace 块槽方向（N93）。
     int entryCount = 0;                               // -0x74
     int senderId = 0;                                 // -0x7c
 
@@ -777,6 +795,7 @@ int CExchangeServer::OnRecvPacketServerInfoRet(CSession* session,
 bool CExchangeServer::DispatchPacket(CSession* session, char* data,
                                      int len)
 {
+    // [b28d-48] N82 封顶（NDIFF 60，133/129 条）：帧/槽平移 + 局部 bool 物化。
     PacketGuard guard;
     const int pktType = (signed char)data[0];
     const unsigned char pktCode = (unsigned char)data[1];
@@ -834,6 +853,8 @@ bool CExchangeServer::DispatchPacket(CSession* session, char* data,
 int CExchangeServer::OnRecvMessageServerInfo(Stream* stream, int a,
                                              int b)
 {
+    // [b28d-48] N82 封顶（NDIFF 134，140/142 条）：帧/槽平移 +
+    // callee-saved 组差（push edi/esi/ebx vs esi/ebx）。
     (void)a;
     (void)b;
     m_flag39 = true;
@@ -900,6 +921,7 @@ int CExchangeServer::OnRecvMessageServerInfo(Stream* stream, int a,
 // ---------------------------------------------------------------------------
 int CExchangeServer::OnRecvMessageCharacInfo(Stream* stream, int a, int b)
 {
+    // [b28d-48] N82 封顶（NDIFF 54，85/81 条）：帧/槽平移 + 双 int 预清顺序。
     int body0 = 0;                                    // -0x10 先读
     int body1 = 0;                                    // -0x14 后读
     *stream >> body0;
@@ -934,6 +956,7 @@ int CExchangeServer::OnRecvMessageCharacInfo(Stream* stream, int a, int b)
 // ---------------------------------------------------------------------------
 bool CExchangeServer::DispatchMessage(Stream* stream)
 {
+    // [b28d-48] N82 封顶（NDIFF 72，71/75 条）：帧/槽平移。
     int msgid = 0;                                    // -0x1c
     int param = 0;                                    // -0x20
     *stream >> msgid;
@@ -1036,6 +1059,8 @@ bool CExchangeServer::FreeMessage(Stream* stream, int flag)
 // ---------------------------------------------------------------------------
 bool CExchangeServer::SendExchangeServerInfo()
 {
+    // [b28d-48] N82/P210 封顶（NDIFF 51，56/52 条）：帧 sub 0x2c+push
+    // edi/esi/ebx vs sub 0x20（callee 帧继承）。
     if (!m_flag38 && m_flag39)
     {
         return false;                                 // ORIG: flag39 恒走公共尾
@@ -1060,6 +1085,7 @@ bool CExchangeServer::SendExchangeServerInfo()
 // ---------------------------------------------------------------------------
 bool CExchangeServer::PreparePassiveSocket()
 {
+    // [b28d-48] N82 封顶（NDIFF 120，120/123 条）：帧/槽平移。
     m_ip04 = (unsigned int)inet_addr(GetServerIP());
     m_port08 = (unsigned short)GetServerPORT();
 

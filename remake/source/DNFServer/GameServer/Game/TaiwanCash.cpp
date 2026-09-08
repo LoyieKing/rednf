@@ -26,6 +26,12 @@
 //   ORIG 反汇编尾部：出参判空走 0xd0 → 恒返回 1；init 结果按 0xd5/0xe0/0xe5
 //   三态全部走 eax 寄存器（无栈槽 ⇒ P0：ghidra 的 bVar2 非具名局部），
 //   即 `!(cash==0 || init==1)` 单表达式返回，勿拆 if 注入 bool 局部。----
+// [b28d-47] verdict=DIFF(routed) [N100 + 真语义修正] ORIG 0x0814657c orig/ours=76/61
+//   修：真语义 bug——ORIG 返回 true ⇔ (cash==0 || init 返回 1)（双层取反
+//   bVar2=!(A||B); return !bVar2）；旧单层 !(A||B) 在 cash==0/init 成功时返回 false，
+//   与 ORIG 相反。已改嵌套 !(!(...))（4.4 折叠单层但语义正确、无 bVar2 槽、槽位
+//   -0x20/-0x1c 与 ORIG 对齐）。残余：new-expression landing pad 抑制（ORIG 有
+//   `jmp`+_ZdlPv+_Unwind_Resume 10 条，4.4 判 ctor nothrow 不布 cleanup ⇒ N100）。
 bool InitBillingCash(Taiwan::TaiwanCash*& cash)
 {
     // ORIG 0x0814657c：G_CEnvironment() 调两次（type 一次、map 访问一次），
@@ -218,6 +224,8 @@ CIPGMgr::~CIPGMgr()
 //   workers 已存在 → -1；count!=0 时 new CIPGWorker[count]，逐个
 //   SetIPGMgr(this)+ThreadInterface::begin()；写 param2@+8、count@+4；
 //   InitBillingCash(billingCash) 失败 → logFormat("IPGMgr.cpp",0x98) 后 -1。----
+// [b28d-47] verdict=DIFF(routed) [N82] ORIG 0x08104494 orig/ours=116/121
+//   p167 CLEAR（8/8）⇒ 语义完成；残差为槽/寄存器分配跨版本差（new[] 展开 + EH 段）。
 int CIPGMgr::Initialize(unsigned int workerCount, unsigned int param2)
 {
     if (m_workers != 0)

@@ -82,6 +82,8 @@ DisjointScript::DisjointScript()
 
 void DisjointScript::clear()
 {
+    // [b28d-48] N82/N93 封顶（NDIFF 113，87/118 条）：ORIG 双 `movl $0,-0x20`
+    // （P197③ 双段式）与 4.4 单段 + 帧/槽平移。
     // ORIG 0x08375bca：5 容器 clear → 4 LotteryInfo::clear → +0xbc=-1 →
     // skills clear → (+0xcc,+0xdc) 清零 → 三重循环清零 m_grid。
     for (int i = 0; i < 5; ++i)
@@ -130,6 +132,7 @@ DisJoint::~DisJoint()
 
 bool DisJoint::LoadDisJoint()
 {
+    // [b28d-48] N82 封顶（NDIFF 48，79/78 条）：槽平移 + `add $0x5c` 寻址链。
     // ORIG 0x0847300c：import 成功则把 [cube index] 第 5 组首值与其
     // [additional result] 各组元素聚合到 +0x628 起的 6 个 vector。
     if (!importDisjointScript(this, "Etc/Disjoint.etc"))
@@ -199,6 +202,8 @@ void StrikerScript::create()
 
 void StrikerScript::destory()
 {
+    // [b28d-48] N82 封顶（NDIFF 65，69/72 条）：ORIG 先 `mov 0x90(%eax),%ebx`
+    // 再判空（直接读成员）vs 4.4 先 mov 缓存 eax 再判空；帧/槽平移。
     // ORIG 0x08a9dcbe：delete 文件列表（STScriptFileList::D1 + operator delete）；
     // 遍历技能 map delete 各 vector 并置空；尾部 m_skillMap.clear()。
     // [b28c-lane17] 判词：残余 3 条 = 4.1 对 delete 操作数的**二次 this+0x90 装载**
@@ -278,6 +283,8 @@ CharacManageScript::~CharacManageScript()
 
 bool CharacManageScript::importScript(const char* path)
 {
+    // [b28d-48] N82 封顶（NDIFF 302，313/334 条）：帧 0x60 vs 0x70 +
+    // 解析段槽平移。
     // ORIG 0x088e0968：RDAR 装载失败 ret0；分节扫描 [point bonus]/
     // [manage level point]/[manage level max]/[exp bonus]/[gold bonus]/
     // [manage basic explain]/[manage option]/默认 ContentsOptionRevision 行。

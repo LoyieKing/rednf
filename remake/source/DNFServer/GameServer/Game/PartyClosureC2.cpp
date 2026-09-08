@@ -222,6 +222,8 @@ Packet_Blood_dungeon_statistic::Packet_Blood_dungeon_statistic()
 
 void CDungeonExpStatistic::IncreaseDungeonExp(int level, int exp, int count)
 {
+    // [b28d-46 判词·N/N89+N82] ORIG 0x0860efca：96 vs 90；`_Rb_tree_iterator::ne`
+    // 实例差（N89）＋ 帧 0x64 vs 0x68 槽号平移（N82）⇒ 封顶。
     if (level < 1 || level > 200)
     {
         cMyTrace trace(__PRETTY_FUNCTION__,
@@ -407,6 +409,8 @@ void CParty::set_basic_reward(QuickParty::BasicRewardType type,
                               QuickParty::RewardData_Param param,
                               QuickParty::RewardData_Result& result)
 {
+    // [b28d-46 判词·N/N89+N82] ORIG 0x0859b992：79 vs 89；`vector<int>::end`
+    // 实例差（N89）＋ 帧 0x24 vs 0x34（N82）⇒ 封顶。
     if (!is_quick_party())                      // xor $1 后 test：非快速队直接返回
         return;
 
@@ -461,6 +465,9 @@ void CParty::increase_hell_party_ratio(char* str)
 // ===========================================================================
 bool CParty::CheckQuestConnection(int questIdx, ENUM_MAZE_QUEST_TYPE type)
 {
+    // [b28d-46 判词·N/P168a③b] ORIG 0x085b6478：64 vs 66，p167 CLEAR；残余唯一处
+    // `call; test %al; je`（uchar callee 直判）vs 4.4 `setne %al; test` 归一
+    // （跨版本 bool ABI 差）⇒ 封顶。
     for (int i = 0; i <= 3; ++i)
     {
         if (_checkValidUser(i))
@@ -492,6 +499,8 @@ bool CParty::CheckQuestConnection(int questIdx, ENUM_MAZE_QUEST_TYPE type)
 void CParty::GetRoutingDiceMemberList(std::vector<std::pair<int, int> >& list,
                                       CItem* item)
 {
+    // [b28d-46 判词·N/N89+P178] ORIG 0x085ba294：230 vs 240；make_pair 实例差 ×3
+    // （N89/P178 实参左值性）＋ 帧 0x44 vs 0x64（N82）⇒ 封顶。
     if (item->IsRoutingItem())                  // ORIG 直接解引用 item（无判空）
     {
         for (int i = 0; i <= 3; ++i)
@@ -553,6 +562,8 @@ void CParty::GetRoutingDiceMemberList(std::vector<std::pair<int, int> >& list,
 // ===========================================================================
 bool CParty::SendDungeonStatisticParty(bool flag, CUser* user)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x085b5158：87 vs 86，p167 CLEAR；帧 0x64 vs 0x78
+    // 与 PacketGuard/局部槽号平移（N82）⇒ 封顶。
     // 报告：docs/class_func_reports/CParty/SendDungeonStatisticParty.md（T 0x085b5158）：
     // 0x40 字节统计包（header id 0xc35），字段偏移逐条对应报告汇编。
     Packet_Dungeon_Statistic_Party pkt;
@@ -588,6 +599,8 @@ bool CParty::SendDungeonStatisticParty(bool flag, CUser* user)
 // ===========================================================================
 bool CParty::SendDungeonStatisticPartyJob(bool flag, CUser* user)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x085b52a6：70 vs 70；帧 0x44 vs 0x58 与
+    // grCachedMemberCount 调用点（EXTRA +1，TU-local static 内联差）⇒ 封顶。
     Packet_Dungeon_Statistic_Party_Job pkt;
     pkt.m_channel = (unsigned short)G_CEnvironment()->get_channel_no();
     pkt.m_dungeonIndex = bf(this).get_dungeon_index();
@@ -614,6 +627,8 @@ bool CParty::SendDungeonStatisticPartyJob(bool flag, CUser* user)
 // ===========================================================================
 bool CParty::SendDungeonStatisticPartyCharac(bool flag, CUser* user)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x085b53aa：97 vs 97；帧 0x74 vs 0x78、
+    // PacketGuard 槽号平移（N82）＋ grCachedMemberCount 调用点差 ⇒ 封顶。
     Packet_Dungeon_Statistic_Party_Charac pkt;
     pkt.m_channel = (unsigned short)G_CEnvironment()->get_channel_no();
     pkt.m_dungeonIndex = bf(this).get_dungeon_index();
@@ -674,6 +689,9 @@ bool CParty::SendDungeonCharacInfo(CUser* user, bool flag)
 int CParty::do_after_dungeon_start_checkndelete_item(const RequiredItem& item,
                                                      CUser* user)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x085a0756：133 vs 64；ORIG 入口含中间
+    // check/delete 死代码块（P184 死块照抄）与动态栈展开 `add $<A>,%esp`，
+    // 4.4 恒 jump-thread 折除 ⇒ EXTRA/帧差封顶（p167 已核活动路径语义等价）。
     const int slot = 0;                                   // movl $0x0,-0xc(%ebp)
     user->getCurCharacInvenR();                           // ORIG 死调用（结果弃用），保留保真
 
@@ -697,6 +715,8 @@ int CParty::do_after_dungeon_start_checkndelete_item(const RequiredItem& item,
 // ===========================================================================
 int CParty::do_after_dungeon_start(const CDungeon* dungeon, CUser* user)
 {
+    // [b28d-46 判词·N/N82+N78] ORIG 0x0859fcfc：686 vs 538；帧 0x2cc vs 0x280
+    // 全帧槽号平移（N82）＋ memset 内联（N78）＋ 死代码块折叠 ⇒ 封顶。
     // 虚表槽0：CDungeon::_do_after_dungeon_start(user)，要求返回 1
     if (dungeon->_do_after_dungeon_start(user) != 1)
         return 0xad;
@@ -893,6 +913,8 @@ int CParty::do_after_dungeon_start(const CDungeon* dungeon, CUser* user)
 // ===========================================================================
 void CParty::OnDungeonClear(CUser* user, bool success)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x085b5518：247 vs 248，p167 CLEAR；帧 0x40 vs
+    // 0x50 与局部槽号平移（N82）⇒ 封顶。
     // ---- 结算角色信息广播 ----
     if (IsCollectDungeonStatistic() && m_battleField.m_bloodState != 1)
     {

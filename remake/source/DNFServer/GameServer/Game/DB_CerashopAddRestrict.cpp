@@ -64,6 +64,9 @@ void DB_LoadCerashopAddRestrictType::makeRequest(CUser* user)
 void DB_SaveCerashopAddRestrictType::makeRequest(
     CUser* user, CerashopAddRestrict::DBInputData& data)
 {
+    // [b28d-46 判词·N/N18a] 沿用 b28c-33：213 vs 215，p167 CLEAR；两处
+    // `mov 0x4(%eax),%ebx` 单段直落 vs 4.4 `mov 0x4(%eax),%eax; mov %eax,%ebx`
+    // 两段（N18a；字段/callee 返回类型两旋钮已试）⇒ 封顶。ORIG 0x080e17ba。
     // [b28c-33 判词 NEAR-N18a] 两处 `operator<<(reinterpret_cast<paramDaily*>(
     // data.m_result)->m_count/m_nextDate)`：ORIG 为 `mov 0x4(%eax),%ebx` 单段直落
     // callee-saved；4.4 恒 `mov 0x4(%eax),%eax; mov %eax,%ebx`（+1×2）。其余全等
@@ -191,6 +194,8 @@ bool DB_SaveCerashopAddRestrictType::dispatch(int /*param1*/, int /*param2*/,
 bool DB_LoadCerashopAddRestrictType::dispatch(int /*param1*/, int param2,
                                               Stream* stream)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x080e1aca：354 vs 358；帧 0x50 vs 0x60 与
+    // 槽号整体平移（N82/P112）⇒ 封顶。
     unsigned int mId = 0;      // -0x30
     unsigned int characNo = 0; // -0x34
     *stream >> mId;

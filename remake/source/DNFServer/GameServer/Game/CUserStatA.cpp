@@ -88,6 +88,9 @@ void CUser::_update_charac_stat(bool add)
 // 触发 → 会员限时时邮件道具 → NPC 礼物/升级事件 → 85 级疲劳电池 → 20 级补发
 // 4183 号物品 → 事件脚本升级奖励。
 // ============================================================================
+// [b28d-47] verdict=DIFF(routed) [N82/N7] ORIG 0x0866311a orig/ours=684/674
+//   残差：超大件全帧槽号平移 + callee-saved 角色互换（esi/ebx）+ 1 处
+//   get_charac_level 调用点差（P167 MISSING ×1，同一值 4.4 复用寄存器）。
 void CUser::_onLevelUp()
 {
     // ---- ① 15 级且角色创建时间在活动窗内：记 unlimit 支援日志（+0x0c..+0x81）----

@@ -260,6 +260,7 @@ void Area::get_user_id_list(std::vector<unsigned short>& out)
 {
     // [b28d-48] 同 GetUserCount 族：ORIG 086c305e 的 user 预清(-0xc) + P50 先声明
     // 后赋值 + P283 goto 尾条件 + P28 后置 it++（ppEi sret -0x18）+ id 具名槽(-0x12)。
+    // 收口：NDIFF 66→5（74=74，NEAR），残差 = id/end/pp sret 槽号互换（N93）。
     CUser* user = 0;
     unsigned short id;
     std::map<unsigned short, CUser*>::iterator it;
@@ -285,6 +286,11 @@ check:
 // ---------------------------------------------------------------------------
 bool Area::hasNPC(unsigned int npcId) const
 {
+    // [b28d-48 判 N·跨版本] ORIG 086c214c：end()→-0x14 先于 begin()→-0x10
+    // （R2L 实参求值序），find 第 3 参直接 `lea 0xc(%ebp),%edx`（形参槽取址）；
+    // 4.4 恒先 begin()、并把 npcId spill 到 -0xc 再取址（形参取址保守化），
+    // find 实参装载序与迭代器临时槽随之错位（NDIFF 23，41/46）。源侧 cast/
+    // 引用绑定/显式缓存三形均不改 4.4 的 spill ⇒ 封 N。
     return std::find(m_npcIdList.begin(), m_npcIdList.end(), npcId) !=
            m_npcIdList.end();
 }
@@ -294,6 +300,8 @@ bool Area::hasNPC(unsigned int npcId) const
 // ---------------------------------------------------------------------------
 void Area::insert_user(CUser* user)
 {
+    // [b28d-48] N82 封顶（NDIFF 203，276/307 条）：帧 0x50 vs 0x60 +
+    // 槽平移（含 send_area_users/insert 链）。
     PacketGuard packet;
 
     if (m_areaType == 1)
@@ -357,6 +365,7 @@ void Area::make_power_war_hp_of_vill(PacketGuard& packet, int& count)
 {
     // [b28d-48] 同 GetUserCount 族（ORIG 086c2c1e）：user 预清 + P50 先声明后赋值
     // + P283 goto 尾条件 + P28 后置 it++。
+    // 收口：NDIFF 73→15（78=78），残差 = ppEi/count++ 段槽号与顺序（N93/N18a）。
     CUser* user = 0;
     std::map<unsigned short, CUser*>::iterator it;
     it = m_UsersInArea.begin();
@@ -434,6 +443,9 @@ public:
 void Area::send_group(PacketGuard& packet, CBelong* belong)
 {
     // [b28d-48] 同 GetUserCount 族（ORIG 086c2e1e）。
+    // 收口：NDIFF 78→32（80/82），残差 = IsBelong 返回 char 的 bool 物化
+    // （setne/test/je vs ORIG test/je）+ sret 槽号；IsBelong 改 bool 会动 vtable
+    // mangled，不改 ⇒ N 封顶。
     CUser* user = 0;
     std::map<unsigned short, CUser*>::iterator it;
     it = m_UsersInArea.begin();
@@ -460,6 +472,7 @@ void Area::send_to_all(PacketGuard& packet)
 {
     // [b28d-48] 同 GetUserCount 族（ORIG 086c2d2a）：user 预清 + P50 先声明后赋值
     // + P283 goto 尾条件 + P28 后置 it++。
+    // 收口：NDIFF 68→4（70=70，NEAR），残差 = sret 临时槽号互换（N93）。
     CUser* user = 0;
     std::map<unsigned short, CUser*>::iterator it;
     it = m_UsersInArea.begin();
@@ -481,6 +494,7 @@ check:
 void Area::send_to_all(PacketGuard& packet, std::vector<CUser*>& users)
 {
     // [b28d-48] 同 GetUserCount 族（ORIG 086c2f2c）。
+    // 收口：NDIFF 80→58（89/87），残差 = 内层 users 循环的 sete 物化/求值序（N93）。
     CUser* user = 0;
     std::map<unsigned short, CUser*>::iterator it;
     it = m_UsersInArea.begin();
@@ -511,6 +525,8 @@ check:
 // ---------------------------------------------------------------------------
 void Area::set_area(int vill, TownAreaScript& script, STMapScript& mapScript)
 {
+    // [b28d-48] N82 封顶（NDIFF 285，307/310 条）：帧 0x9c vs 0x8c +
+    // 槽平移（mapScript 遍历/AssignNpc 链）。
     m_npcIdList.clear();
     m_villageIndex = vill;
     m_areaIndex = script.m_areaIndex;
@@ -601,19 +617,26 @@ int Area::take_fish()
         int randVal = get_rand_int(100000);
         int sum = 0;
         std::pair<int, int> cur;
-
-        for (std::vector<std::pair<int, int> >::iterator it = m_lottery.m_items.begin();
-             it != m_lottery.m_items.end(); ++it)
+        // P50 先声明后赋值 + P283 goto 尾条件 + P28 后置 it++（ORIG 0x086c2214
+        // it 默认构造 -0x28、cur -0x30、begin sret -0x3c、ppEi -0x18）。
+        // 收口：NDIFF 74→51（79/74），残差 = cur=pair 赋值 ORIG 走外联
+        // operator= 而我们内联逐字段 + 槽号平移（N84/N93）。
+        std::vector<std::pair<int, int> >::iterator it;
+        it = m_lottery.m_items.begin();
+        goto check;
+    loop_body:
+        cur = *it;
+        sum += cur.second;
+        if (sum > randVal)
         {
-            cur = *it;
-            sum += cur.second;
-            if (sum > randVal)
-            {
-                result = cur.first;
-                break;
-            }
+            result = cur.first;
+            goto done;
         }
-
+        it++;
+    check:
+        if (it != m_lottery.m_items.end())
+            goto loop_body;
+    done:
         if (result == 0)
             result = m_lottery.m_defaultIdx;
         return result;

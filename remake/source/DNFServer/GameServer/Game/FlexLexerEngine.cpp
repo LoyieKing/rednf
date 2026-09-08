@@ -1009,6 +1009,8 @@ static int yy_flex_strlen (yyconst char * );
 
 /** The main scanner function which does all the work.
  */
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x08ad2860 orig/ours=446/446
+//   p167 CLEAR（13/13）⇒ 语义完成；残差为 DFA 循环内槽/寄存器分配跨版本差。
 YY_DECL
 {
 	register yy_state_type yy_current_state;
@@ -1472,6 +1474,10 @@ void yyFlexLexer::switch_streams( std::istream* new_in, std::ostream* new_out )
 		yyout = new_out;
 }
 
+// [b28d-47] verdict=DIFF(routed446) [P223边界] ORIG 0x08ad2780 orig/ours=32/35
+//   残差：ORIG 末条 return 亦 `jmp` 到共享 epilogue（4.1 恒发），4.4 对函数末条
+//   return 直接 fall-through 展开 epilogue（+4 条）⇒ epilogue-threading 尾 jmp
+//   不可造（P223 边界）。
 int yyFlexLexer::LexerInput( char* buf, int max_size )
 {
 	if ( yyin->eof() || yyin->fail() )
@@ -1495,6 +1501,8 @@ void yyFlexLexer::LexerOutput( const char* buf, int size )
  *	EOB_ACT_CONTINUE_SCAN - continue scanning from current position
  *	EOB_ACT_END_OF_FILE - end of file
  */
+// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x08ad1ea0 orig/ours=253/252
+//   p167 CLEAR（2/2）⇒ 语义完成；残差为槽/寄存器分配跨版本差。
 int yyFlexLexer::yy_get_next_buffer()
 {
     	register char *dest = YY_CURRENT_BUFFER_LVALUE->yy_ch_buf;

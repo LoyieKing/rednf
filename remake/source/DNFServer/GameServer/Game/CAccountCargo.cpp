@@ -104,6 +104,8 @@ bool CAccountCargo::CheckValidSlot(int slot) const
 
 Inven_Item CAccountCargo::GetSlot(int slot)
 {
+    // [b28d-46 判词·N/N82+N90] ORIG 0x082898f8：89 vs 88，p167 CLEAR；帧/槽号
+    // 平移（N82）＋ `imul $0x3d` 结构步长寻址展开（N90/N94）⇒ 封顶。
     // ORIG 0x828986c：valid 直接返回槽值（编译器逐字段展开拷贝）；
     // invalid 构造空 Inven_Item（C1 清零）返回。
     if (CheckValidSlot(slot)) {
@@ -208,6 +210,9 @@ int CAccountCargo::CheckInsertCondition(Inven_Item& item)
 
 int CAccountCargo::InsertItem(Inven_Item& item, int slot)
 {
+    // [b28d-46 判词·N84 已修 + N/N82] ORIG 0x08289c82：132 vs 146；memcpy→
+    // 结构体赋值使 p167 CLEAR（EXTRA memcpy ×2 清零，N84）；残差为帧 0x24 vs
+    // 0x14 与局部槽（N82/P112）⇒ 封顶。
     if (!CheckValidSlot(slot))
         return -1;
     if (!item.isEquipableItemType()) {
@@ -238,6 +243,8 @@ int CAccountCargo::InsertItem(Inven_Item& item, int slot)
 
 int CAccountCargo::DeleteItem(int slot, int count)
 {
+    // [b28d-46 判词·N/P168a③b] ORIG 0x08289e3c：75 vs 75，p167 CLEAR；残余为
+    // `xor $1; test; je` 取反物化位置差（bool callee 跨版本 ABI）⇒ 封顶。
     if (CheckValidSlot(slot)) {
         if (m_slots[slot].m_addInfo == 0 || count < 1)
             return 0;
@@ -259,6 +266,9 @@ int CAccountCargo::DeleteItem(int slot, int count)
 
 bool CAccountCargo::MoveItem(int from, int to)
 {
+    // [b28d-46 判词·N84 已修 + N/P168a③b] ORIG 0x08289f26：150 vs 152；memcpy→
+    // 结构体赋值使 p167 CLEAR（EXTRA memcpy ×3 清零，N84）；残差为 bool 取反
+    // 物化（P168a③b）⇒ 封顶。
     bool fail = !(CheckValidSlot(from) && CheckValidSlot(to) && from != to);
     if (!fail) {
         // [b28d-46 N84] ORIG 结构体整体赋值 rep movsl（无 memcpy call）。
@@ -309,6 +319,8 @@ int CAccountCargo::GetSpecificItemSlot(int itemIdx)
 
 int CAccountCargo::CheckStackLimit(int slot, int itemIdx, int count)
 {
+    // [b28d-46 判词·N/P59+P168a③b] ORIG 0x0828a670：65 vs 64，p167 CLEAR；
+    // 残余为 guard/取反物化的块序与 `xor $1` 位置（P59/P168a③b）⇒ 封顶。
     if (CheckValidSlot(slot)) {
         if (m_slots[slot].m_addInfo == itemIdx) {
             CDataManager* dm = G_CDataManager();
@@ -372,6 +384,8 @@ void CAccountCargo::SubMoney(unsigned int money)
 // Main 代落头）；定义体返回类型随之改 bool，return 0/1 字面量语义不变。
 bool CAccountCargo::DepositMoney(unsigned int money)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x0828a12a：118 vs 109，p167 CLEAR；帧 0x24 vs
+    // 0x38 与 callee-saved/槽号平移（N82/P112）⇒ 封顶。
     CUser* user = m_pUser;
     ServiceRestrictManager* mgr = ARAD::Singleton<ServiceRestrictManager>::Get();
     if (mgr->isRestricted(user, (RestrictCategory::Enum)1, 0x1a)) {
@@ -405,6 +419,8 @@ bool CAccountCargo::DepositMoney(unsigned int money)
 
 bool CAccountCargo::WithdrawMoney(unsigned int money)
 {
+    // [b28d-46 判词·N/N82] ORIG 0x0828a2f6：119 vs 114，p167 CLEAR；帧 0x34 vs
+    // 0x38、双槽缓存（-0x18/-0x14）vs 4.4 单槽（N82/P112）⇒ 封顶。
     CUser* user = m_pUser;
     ServiceRestrictManager* mgr = ARAD::Singleton<ServiceRestrictManager>::Get();
     if (mgr->isRestricted(user, (RestrictCategory::Enum)1, 0x1a)) {
@@ -450,6 +466,8 @@ void CAccountCargo::SendNotifyMoney(ENUM_CMDPACKET cmd)
 
 bool CAccountCargo::SendItemList()   // b28d-5：随 CUser.h:848 bool 化（ORIG 0x0865dcaf 直传形）
 {
+    // [b28d-46 判词·N/N82+N89] ORIG 0x0828a88a：184 vs 189，p167 CLEAR；帧 0x20
+    // vs 0x30、迭代器临时槽（N82/N86）＋ STL 实例差（N89）⇒ 封顶。
     PacketGuard packet;
     InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
     buf->put_header(0, 0xd);
@@ -487,6 +505,8 @@ bool CAccountCargo::SendItemList()   // b28d-5：随 CUser.h:848 bool 化（ORIG
 //   语义完成，byte 层 N 封顶。
 void CAccountCargo::MakeItemPacket(PacketGuard* packet, int slot) const
 {
+    // [b28d-46 判词·N/P59+N82] ORIG 0x0828ab1c：158 vs 158，p167 CLEAR；残余为
+    // guard 块序（je/jne 极性）与局部槽号平移（P59/N82）⇒ 封顶。
     ((InterfacePacketBuf*)packet)->put_short(slot);
     if (m_slots[slot].m_addInfo == 0) {
         ((InterfacePacketBuf*)packet)->put_int(-1);
@@ -522,6 +542,9 @@ void CAccountCargo::MakeItemPacket(PacketGuard* packet, int slot) const
 // ---- 创建 / 升级 / 删除（DB 联动） ----
 void CAccountCargo::CreateAccountCargo(CUser* user)
 {
+    // [b28d-46 判词·N/N102+N82] ORIG 0x0828ad72：217 vs 213，p167 CLEAR；残余为
+    // 成员常量偏移 add vs disp 折叠（`add $0x27; movzwl (%eax)` vs
+    // `movzwl 0x27(%eax)`，N102）＋ 槽号平移（N82）⇒ 封顶。
     if (user->IsExistAccountCargo()) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x14);
         return;
@@ -583,6 +606,9 @@ void CAccountCargo::CreateAccountCargo(CUser* user)
 
 void CAccountCargo::UpgradeAccountCargo(CUser* user)
 {
+    // [b28d-46 判词·N/P75+N82] ORIG 0x0828b0b2：210 vs 205，p167 CLEAR；残余为
+    // 实参求值序（ORIG 先物化 `mov 0xc(%eax),%ebx` 再压 this，4.4 反序，P75/P23）
+    // ＋ 槽号平移（N82）⇒ 封顶。
     if (!user->IsExistAccountCargo()) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x15);
         return;

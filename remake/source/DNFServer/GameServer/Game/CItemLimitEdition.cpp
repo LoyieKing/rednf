@@ -110,11 +110,12 @@ int CItemLimitEdition::getTotalSellNum() const
 
 bool CItemLimitEdition::isSellComplete() const
 {
-    // [b28c-L18] P210 帧继承已翻正（ORIG sub $0x18 保守帧 ⇒ 定义前置于 getCurSellNum
-    // out-of-line 体之前，fresh 复验帧全等）。残余 1 条：ORIG `call; mov %eax,%edx;
-    // mov 0x8(ebp),%eax; mov 0x1c(eax),%eax; cmp %eax,%edx`（RHS 经 %edx 中转、
-    // cmp dst=call 值）vs 4.4 恒免中转 + `cmp MEM,reg` = N18a（单段 regmove 不可造）
-    // + N22（dst 必为 call 结果寄存器），语义等价（同值同 setge）。
+    // [b28d-51] 判词 N（ORIG 0x0822cac8，N7/N22 寄存器角色族）：P210 帧继承已翻正
+    // （sub $0x18 保守帧）。残余：ORIG `call; mov %eax,%edx; mov 0x8(ebp),%eax;
+    // mov 0x1c(eax),%eax; cmp %eax,%edx`（call 值先中转 %edx、字段双基址载入 %eax）
+    // vs 4.4 `mov this,%edx; mov 0x1c(edx),%edx; cmp %edx,%eax`（免中转、字段单载入
+    // %edx）= N18a+N22。探针 8 形（>=/<=/!/<、显式 int cast、具名 int 局部、
+    // `> x-1`、`x-1 <`；/tmp/b28d_51_probe_sell.cpp）全部不可复现，语义等价。
     // ORIG 0x0822cac8：若 totalSellNum == -1 返回 false；否则 curSellNum >= totalSellNum。
     if (m_totalSellNum == -1)
         return false;

@@ -323,17 +323,14 @@ bool ServiceRestrictManager::initialize()
 // 后入 DB 队列。策略 save() 为虚调用（策略数据未还原，推断）。
 void ServiceRestrictManager::savePolicy()
 {
-    if (m_flag19 != 1)
+    // ORIG 0x0816e8dd：movzbl 0x19(%eax); xor $1; test %al; jne 尾 ⇒ 源码取反式。
+    if (!m_flag19)
     {
         return;
     }
     for (std::map<RestrictCategory::Enum, InterfaceServicePolicy*>::iterator it = m_policyMap.begin();
          it != m_policyMap.end(); ++it)
     {
-        if (it->second == 0)
-        {
-            continue;
-        }
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
                                "localtaiwan/System/ServiceRestrictManager.cpp", 0x1de), true);
         Taiwan::internal_stream(guard, TaiwanInternalPack::T(2), 0xffffffff);
@@ -341,8 +338,8 @@ void ServiceRestrictManager::savePolicy()
             guard->GetInBuffer<Taiwan::SigLoadRestrictPolicy>();
         if (sig == 0)
         {
-            cMyTrace t(__PRETTY_FUNCTION__, 0x1e3, 5);
-            t("[Taiwan, Restrict] SigSaveRestrictPolicy is null.");
+            cMyTrace(__PRETTY_FUNCTION__, 0x1e3, 5)(
+                "[Taiwan, Restrict] SigSaveRestrictPolicy is null.");
             return;
         }
         // ORIG 0x0816e9a6：GetInBuffer 后先 sig->init() 清零（见 TaiwanQueries.cpp
@@ -382,16 +379,16 @@ bool ServiceRestrictManager::isRestricted(CUser* user,
 {
     if (user == 0)
         return false;
-    Taiwan::GarenaAuthData* auth =
-        reinterpret_cast<Taiwan::GarenaAuthData*>(user->getGarenaAuthData());
-    if (auth->getMobileAuth())
+    if (reinterpret_cast<Taiwan::GarenaAuthData*>(user->getGarenaAuthData())->getMobileAuth())
         return false;
     std::map<RestrictCategory::Enum, InterfaceServicePolicy*>::iterator it =
         m_policyMap.find(category);
-    if (it == m_policyMap.end())
-        return true;
-    // ORIG 0x0816e7ca：虚调用 vtable+0x14（槽5）= isApply(int)。
-    return it->second->isApply(v);
+    if (it != m_policyMap.end())
+    {
+        // ORIG 0x0816e7ca：虚调用 vtable+0x14（槽5）= isApply(int)。
+        return it->second->isApply(v);
+    }
+    return true;
 }
 
 // ORIG 0x0816e75e（WarField 用）：map 无该类别→true；否则策略虚调用。
@@ -460,9 +457,8 @@ void ServiceRestrictManager::printPolicy(RestrictCategory::Enum category)
     }
     else
     {
-        cMyTrace trace2(__PRETTY_FUNCTION__,
-                        0x1f3, 9, true, true);
-        trace2("[!] Service Restrict List ... End");
+        cMyTrace(__PRETTY_FUNCTION__,
+                 0x1f3, 9, true, true)("[!] Service Restrict List ... End");
     }
 }
 
@@ -480,9 +476,8 @@ void ServiceRestrictManager::updatePolicy(RestrictCategory::Enum category)
             guard->GetInBuffer<Taiwan::SigLoadRestrictPolicy>();
         if (sig == 0)
         {
-            cMyTrace t(__PRETTY_FUNCTION__,
-                       0x202, 5);
-            t("[Taiwan, Restrict] SigSaveRestrictPolicy is null.");
+            cMyTrace(__PRETTY_FUNCTION__,
+                     0x202, 5)("[Taiwan, Restrict] SigSaveRestrictPolicy is null.");
         }
         else
         {
@@ -494,20 +489,23 @@ void ServiceRestrictManager::updatePolicy(RestrictCategory::Enum category)
     }
 }
 
-// ORIG 0x0816e0ac：拼接 Mobile(0..0x21) 与 Character(0..2) 限制串到 ostringstream
-// （str() 结果丢弃，原样保留）。
-void ServiceRestrictManager::serviceRestrictStringQuery()
+// ORIG 0x0816e0ac：static 成员（P245/P281：首参 0x8(%ebp)=sret、ret $0x4、全程无 this），
+// 返回 std::string（sret）。拼接 Mobile(0..0x21) 与 Character(0..2) 限制串；
+// enumToString 的 << 与 ")" 各为独立语句（ORIG 重新 lea oss，非链式复用 %eax）。
+std::string ServiceRestrictManager::serviceRestrictStringQuery()
 {
     std::ostringstream oss;
     for (int i = 0; i <= 0x21; ++i)
     {
-        oss << "(" << 1 << "," << i << ","
-            << MobileRestrict::enumToString(static_cast<MobileRestrict::Enum>(i)) << ")";
+        oss << "(" << 1 << "," << i << ",";
+        oss << MobileRestrict::enumToString(static_cast<MobileRestrict::Enum>(i));
+        oss << ")";
     }
     for (int i = 0; i <= 2; ++i)
     {
-        oss << "(" << 2 << "," << i << ","
-            << CharacterRestrict::enumToString(static_cast<CharacterRestrict::Enum>(i)) << ")";
+        oss << "(" << 2 << "," << i << ",";
+        oss << CharacterRestrict::enumToString(static_cast<CharacterRestrict::Enum>(i));
+        oss << ")";
     }
-    oss.str();
+    return oss.str();
 }

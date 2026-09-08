@@ -102,6 +102,7 @@ bool DB_MailBox_Req_Delete::dispatch(int userIdx, int slot, Stream* stream)
 // ============================================================================
 bool DB_MailBox_Req_CheckReceiver::dispatch(int userIdx, int slot, Stream* stream)
 {
+    // [b28d-48] N82 封顶（NDIFF 218，271/266 条）：帧/槽平移 + 判定链块序。
     SIG_MAILBOX_CHECK_RECEIVER* sig = stream->GetOutBuffer<SIG_MAILBOX_CHECK_RECEIVER>();
     int characNo = 0;
     int lev = 0;
@@ -172,6 +173,7 @@ bool DB_MailBox_Req_CheckReceiver::dispatch(int userIdx, int slot, Stream* strea
 // ============================================================================
 bool DB_Multi_MailBox_Req_Send::dispatch(int userIdx, int slot, Stream* stream)
 {
+    // [b28d-48] N82 封顶（NDIFF 43，83/84 条）：帧/槽平移。
     static const int handleIdx = 3;
     SIG_MAILBOX_CHECK_RECEIVER* sig = stream->GetOutBuffer<SIG_MAILBOX_CHECK_RECEIVER>();
 

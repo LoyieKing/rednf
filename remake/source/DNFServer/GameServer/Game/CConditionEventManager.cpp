@@ -273,15 +273,12 @@ int CConditionEventManager::GetMaxRewardStep(short step)
 // 未命中 → {-1,-1}。ret $0x4（sret 指针随 ret 清栈）。
 std::pair<int, int> CConditionEventManager::_getRequiredParameter(short step)
 {
-    // [b26L17 判词 N82] key/it/endIt 三槽序：ORIG it(-0x14)<key(-0x10)<end(-0xc)
-    //   vs 4.4 end(-0x14)<it(-0x10)<key(-0xc)，助记符 51/51 全等，槽序不可翻。
+    // b28d-52：ORIG 0x083356a1 key 槽 -0x10 系 find 的匿名实参临时（P236 内联
+    // 实参），非具名局部；去掉具名 key 后 it(-0x14)/end(-0xc) 槽序对齐。
     std::pair<int, int> result;
-    int key = (int)step;
     std::map<int, std::pair<int, int> >::iterator it =
-        G_CDataManager()->m_conditionEvent.m_map8.find(key);
-    std::map<int, std::pair<int, int> >::iterator endIt =
-        G_CDataManager()->m_conditionEvent.m_map8.end();
-    if (it != endIt)
+        G_CDataManager()->m_conditionEvent.m_map8.find((int)step);
+    if (it != G_CDataManager()->m_conditionEvent.m_map8.end())
     {
         result.first = it->second.first;
         result.second = it->second.second;
@@ -354,9 +351,12 @@ void CConditionEventManager::GetConditionRewardInfo(
         mm->lower_bound((int)step);
     std::multimap<int, stConditionEventRewardInfo>::iterator endIt =
         mm->upper_bound((int)step);
-    for (; it != endIt; ++it)
+    // b28d-52：ORIG 0x083354de 增量段为后置 ppEi（P28 增量侧：三槽阶梯）+
+    // 具名结构拷贝（0x0833548e 逐字段 +4/+8/+0xc 后 push_back(&info)）。
+    for (; it != endIt; it++)
     {
-        out.push_back(it->second);
+        stConditionEventRewardInfo info = it->second;
+        out.push_back(info);
     }
 }
 
@@ -419,16 +419,16 @@ bool CConditionEventManager::IsFreeGoldCardProcess(
 // IsFreeGoldCardProcess 判定免费金卡。
 bool CConditionEventManager::IsFreeGoldCard(CUser* user, char step)
 {
-    // [b26L17 判词 N82] 帧 0x40 vs 0x50 + step/check/curIdx/infos 槽基整体
-    //   平移，64/64 助记符全等。
-    bool check = CheckErrorCardForStep(user, step);
-    if (!check)
+    // b28d-52：ORIG 0x0833579e check 与 freeGoldCard 复用同一槽 -0xb
+    // （P0 槽-局部对应律 ⇒ 原码单变量复用），合并为 result。
+    bool result = CheckErrorCardForStep(user, step);
+    if (!result)
         return false;
     short curIdx = (short)GetCurEventIndex();
     std::vector<stConditionEventRewardInfo> infos;
     GetConditionRewardInfo((char)0, infos, curIdx, step);
-    bool freeGoldCard = IsFreeGoldCardProcess(infos);
-    return freeGoldCard;
+    result = IsFreeGoldCardProcess(infos);
+    return result;
 }
 
 // ORIG T 0x08335566 _ZN22CConditionEventManager18ProcessCheckStepUpEP5CUsers
@@ -440,8 +440,14 @@ void CConditionEventManager::ProcessCheckStepUp(CUser* user, short step)
     int field0 = G_CDataManager()->m_conditionEvent.m_field0;
     if ((int)step != field0)
         return;
-    // 残差 N86b：ORIG movswl+cmpl $0x2（全宽扩展比），4.4 对 (int)short==常量
-    // 恒折 cmpw $0x2（16 位直比，同值域等价），多形态不可择。
-    if ((int)step == 2)
+    // b28d-52：ORIG 0x083355be movswl -0x1c(%ebp),%eax; cmp $0x2,%eax（寄存器
+    // 比较链）；P286 单 case switch 复现该形（if 形 4.4 恒折 cmpw mem）。
+    switch ((int)step)
+    {
+    case 2:
         _processProperDungeonClearEvent(user, step);
+        break;
+    default:
+        break;
+    }
 }

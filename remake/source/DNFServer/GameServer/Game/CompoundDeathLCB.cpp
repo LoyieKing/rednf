@@ -143,6 +143,7 @@ namespace WongWork {
 CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
     const CUser* user, const MSG_COMPOUND_AVATAR* msg) const
 {
+    // [b28d-48 复核] 维持 N76/N82/N18a 封顶（NDIFF 453，529/519 条）。
     tagCompoundInfo info;                        // ORIG C1 0x08334344
     info.clear();                                // ORIG clear 0x0833424a
 
@@ -355,6 +356,8 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
 int CCompoundAvatar::_CheckCondition(const CUser* user,
                                      const tagCompoundInfo& info) const
 {
+    // [b28d-48 复核] N82 封顶（NDIFF 565，616/610 条）：巨件帧/槽平移 +
+    // 判定链块序。
     // 分离模式(type4)仅允许指定物品 0x2898c4。
     if (info.m_type == 4 && info.m_avatar.m_addInfo != 0x2898c4)
     {
@@ -564,6 +567,9 @@ int CCompoundAvatar::_CheckCondition(const CUser* user,
 int CCompoundAvatar::_ProcCompoundCore(CUser* user, tagCompoundInfo& info,
                                        tagCompoundAvatarTable* table)
 {
+    // [b28d-48 复核] N82 封顶（NDIFF 626，636/651 条）：巨件帧/槽平移 +
+    // 容器模板实例；CCompoundAvatar.h m_field0c unsigned 化后本件 fresh
+    // 复验无回归。
     CInventory* inv = user->getCurCharacInvenW();
     const tagCompoundAvatar* rec =
         table->getCompoundAvatarInfo(info.m_field04);
@@ -783,6 +789,8 @@ int CCompoundAvatar::_ProcCompoundCore(CUser* user, tagCompoundInfo& info,
 //   callee-saved `push`（帧/寄存器分配，N82）+ 尾部对齐 nop（§6.1 豁免）⇒ N 封顶。
 void CCompoundAvatar::_SendDisjointAvatarStatistic(tagCompoundInfo& info)
 {
+    // [b28d-48 复核] N82 封顶（NDIFF 76，78/79 条）：callee-saved push 差 +
+    // 帧/槽平移。
     Packet_Avater_Disjoint_Statistic packet;
 
     const CItem* scriptA = info.m_scriptA;
@@ -830,6 +838,8 @@ void CCompoundAvatar::_SendDisjointAvatarStatistic(tagCompoundInfo& info)
 char* CCompoundAvatar::_generateIPGNo(const CUser* user, long curSec,
                                       char* buf) const
 {
+    // [b28d-48] N82 封顶（NDIFF 44，57/56 条）：ORIG 先 lea -0x48 传 sret 的
+    // time/localtime_r 形 vs 4.4 实参先物化槽；帧/槽平移。
     time_t t = static_cast<time_t>(curSec);
     struct tm lt;
     localtime_r(&t, &lt);
@@ -892,6 +902,8 @@ void CDeathTowerRanking::makeMyBestRecordPacket(unsigned int towerIdx,
                                                 unsigned int key,
                                                 PacketGuard& packet)
 {
+    // [b28d-48 复核] N86/N82 封顶（NDIFF 23，61/63 条）：hash_map
+    // const_iterator 转换构造/槽布局跨版本差（4.1 临时槽+拷贝 vs 4.4 直构）。
     // [b27 封顶] 残差（63 vs 61）：hash_map const_iterator 转换构造/迭代器
     // 槽布局跨版本差（N86 族：4.1 临时槽+拷贝 vs 4.4 直构；find→const_iterator
     // 转换与 it->second 槽化）——调用链/判形/序列化序全等。

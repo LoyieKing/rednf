@@ -109,12 +109,17 @@ void CBossPlay::InitPlayUser(int questCond, int towerIdx)
     for (int i = 0; i <= 3; ++i)
     {
         CUser* user = m_party->get_user(i);
-        // [b28d-46 实测] ORIG 无 invalid bool 物化（直接 `cmpl $0,-0xc; je` 跳过）
-        // ⇒ 正极性短路条件。
-        if (user != 0 && m_party->checkValidUser(i) == 1)
+        // [b28d-46 实测] ORIG 两条独立守卫共享 skip 出口（P133/P223）：
+        // `cmpl $0,-0xc; je skip` + `call; xor $1; test; je skip`。
+        if (user == 0)
+            continue;
+        if (!m_party->checkValidUser(i))
+            continue;
         {
             CUser* u = m_party->get_user(i);
-            u->setBossTowerIndex((short)towerIdx);
+            // [b28d-46 P200] 短整型实参直传（禁具名中间局部）⇒ 复现 ORIG
+            // `movswl %ax,%ebx` 并入 callee-saved。
+            u->setBossTowerIndex(towerIdx);
             // ORIG 连续两次 call CUser::getCurCharacQuestW（0x081492f1 与
             // 0x0814930d），结果不入局部变量：第一次 `add $0x75d8,%eax`
             // + call _Quest_Authen_Data::reset ⇒ 具名成员 UserQuest::m_authenData

@@ -149,6 +149,9 @@ std::map<int, float> g_creatureIndexDamageRateMap;
 // ORIG GetRoundInt W 0x08a3df64：v>=0 ? (int)(v+0.5f) : (int)(v-0.5f)。
 int GetRoundInt(float v)
 {
+    // [b28d-48 复核] N85 封顶（NDIFF 31，36/37 条）：ORIG 0x08a3df64 用
+    // fucompp/fnstsw %ax/sahf 两向比较，4.4 恒 fucomip/fstp；P230 补候选
+    // （-march=i486 可消该族，路由表由 Main 统一变更，本波不动）。
     if (v >= 0.0f) return static_cast<int>(v + 0.5f);
     return static_cast<int>(v - 0.5f);
 }
@@ -176,6 +179,9 @@ int getItemRarity(const char* name)
 // level-rate 三段为 ScanInt 结果乘 0.01f（_DAT_08e122ec=0.01f 实证）后存 float。
 bool importActiveStatusTable(const char* path)
 {
+    // [b28d-48 复核] N82/N89 封顶（NDIFF 202，229/235 条）：大解析函数帧/槽
+    // 平移 + std::map/vector 模板实例内联差；§6.2 三件套（callsite 差集 +
+    // gap + 槽位集）由 Main 收口。
     if (!loadRDARScriptFile("", path))
     {
         LogManager::logFormat(
@@ -258,6 +264,8 @@ bool importActiveStatusTable(const char* path)
 // createLotteryInfo(CStackableItem.cpp)/DisjointSkillScript 生命周期(CtorProducers_2.cpp)。
 bool importDisjointScript(DisjointScript* script, const char* path)
 {
+    // [b28d-48 复核] N82 封顶（NDIFF 520，530/536 条）：巨件帧/槽平移 +
+    // 解析段物化次数差；§6.2 三件套由 Main 收口。
     if (!loadRDARScriptFile("", path))
         return false;
 
@@ -429,6 +437,9 @@ int getCompoundRareAvatarType(const std::string& token)
 // pair={itemIdx, 截至当前的累计权重}。任一 ScanInt 失败 → ret0。
 bool setCompoundAvatarData(tagCompoundAvatar* avatar, ENUM_EQUIPMENTTYPE equip)
 {
+    // [b28d-48 复核] N82/N84 封顶（NDIFF 225，230/224 条）：开列式解析段
+    // pair/vector 模板实例与帧槽差；同族 setCompoundRareAvatarData 已由
+    // m_field0c unsigned 化闭合（NDIFF 0）。
     const int idx = static_cast<int>(equip);
     bool ok = false;
 
@@ -519,6 +530,8 @@ bool setCompoundRareAvatarData(tagCompoundAvatar* avatar, ENUM_EQUIPMENTTYPE equ
 int importCompoundAvatarTableCore(const char* dir, const char* path,
                                            tagCompoundAvatarTable* table)
 {
+    // [b28d-48 复核] N82 封顶（NDIFF 775，830/783 条）：巨件解析树 + 帧槽
+    // 平移；§6.2 三件套由 Main 收口。
     if (!loadRDARScriptFile(dir, path))
         return 0xf1e;
 
@@ -753,6 +766,8 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
 int importCompoundAvatarTable(const char* dir, const char* path,
                               tagCompoundAvatarTable* table)
 {
+    // [b28d-48 复核] N82 封顶（NDIFF 79，93/91 条）：STScriptFileList/
+    // vector 模板实例与帧槽差。
     STScriptFileList list;
     if (!loadRDARScriptListFile(&list, dir, path, 0))
         return 0x107b;
@@ -857,6 +872,8 @@ public:
 bool importCreatureCommonScript(CreatureCommonScript* script, const char* path,
                                 std::vector<int>* damageTable)
 {
+    // [b28d-48 复核] N82/N89 封顶（NDIFF 384，368/412 条）：巨件帧/槽平移 +
+    // hash_map/vector 模板实例差；§6.2 三件套由 Main 收口。
     if (!loadRDARScriptFile(g_creatureScriptBaseDirectory, path))
         return false;
 
@@ -1078,6 +1095,8 @@ int getObjectCategory(std::string name)
 // 三个 hash_map 投资段 key=ScanInt、value={查表类型, 第二个 ScanInt}。
 int importAmplifyItem(const char* path, stAmplifyItemScript_t& out)
 {
+    // [b28d-48 复核] N82 封顶（NDIFF 694，719/725 条）：巨件解析段帧槽平移；
+    // §6.2 三件套由 Main 收口。
     if (!loadRDARScriptFile("", path))
         return 0x1d21;
 
@@ -1412,6 +1431,8 @@ void _ComboInfo::clear()
 // 双技能表 + 双 etc 域。
 void STCharacterScript::STSecondGrowTypeData::clear()
 {
+    // [b28d-48 复核] N4 封顶（NDIFF 31，36/35 条）：ORIG 首元素地址
+    // `imul $0x57; add 0x8(%ebp),%eax` vs 4.4 先载 this 再 lea（N4/N18a）。
     // [b28c-27] N4：ORIG 首元素地址 `imul $0x57; add 0x8(%ebp),%eax`（基址内存加），
     // 4.4 恒 `mov 0x8(%ebp),%edx; imul; lea (%edx,%eax,1)`（先载 this 再 lea）；
     // 下标形/引用形/指针算术三形实测同产 lea，属数组寻址组合固有差异。
@@ -1427,6 +1448,7 @@ void STCharacterScript::STSecondGrowTypeData::clear()
 // ORIG STCharacterScript::Clear W 0x08367a98（objdump 0x3a5 字节全文转写）。
 void STCharacterScript::Clear()
 {
+    // [b28d-48 复核] N82 封顶（NDIFF 222，235/225 条）：巨件 clear 帧/槽平移。
     m_job = 0xb;
     m_width = 0;
     m_height = 0;
@@ -1498,6 +1520,9 @@ static std::map<ENUM_CHARACTERJOB, std::string> s_bodyImagePath;
 //  ③ 其余为 .o 重定位地址显示差（链接 AE 口径消除）。
 bool ImportCharacterScript(STCharacterScript* script, const char* path)
 {
+    // [b28d-48 复核] N82/N89 封顶（NDIFF 2707，2813/2818 条）：本 TU 最大件，
+    // 帧/槽平移 + 模板实例内联差；§6.2 三件套（callsite 差集 + gap + 槽位集）
+    // 由 Main 收口。
     if (!loadRDARScriptFile(g_szCharacterScriptBaseDirectory, path))
         return false;
 
@@ -2180,6 +2205,11 @@ typedef std::map<const char*, int, less_TCHAR> AniLookupMap;
 //     地址显示差（链接 AE 口径消除）。
 int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
 {
+    // [b28d-48 复核] N82/N89 封顶（NDIFF 1181，1221/1274 条）：巨件帧/槽平移 +
+    // std::map/string 模板实例差；§6.2 三件套由 Main 收口。
+    // 附：STEquipmentAniScript::C1ERKS_（NDIFF 405）与 D1（NDIFF 363）为本 TU
+    // 使用点发射的编译器隐式 W 符号（无显式定义可挂判词）——残差为 N90
+    // 数组成员块搬移分块启发式 + N91 EH cleanup 跨版本差，判词随本函数。
     if (!loadRDARScriptFile("", "Etc/equipmentAniScript.etc"))
     {
         LogManager::logFormat(0, "../RDARScriptItem.cpp",

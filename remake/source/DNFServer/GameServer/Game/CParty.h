@@ -732,7 +732,9 @@ public:
     int m_routingDice;                  // +0x144（get_item 路由骰子：game_start 写
                                         //   get_rand_int(成员数) @game_start.md:750；
                                         //   get_item 递增回写 @get_item.md:3235/3261）
-    int m_field148[37];                 // +0x148
+    unsigned int m_field148[37];        // +0x148（b28d-49：check_timer_key 0x85be3xx
+                                        //   ORIG `mov tbl,%edx; mov param,%eax; cmp %eax,%edx`
+                                        //   = 元素 unsigned + 形参 int；sizeof/偏移不变）
     // ---- CPartyResultRecvFlag 区（+0x1dc，0x34 字节） ----
     unsigned char m_pad1dc[0x4];     // +0x1dc
     char m_dungeonClearState;        // +0x1e0
